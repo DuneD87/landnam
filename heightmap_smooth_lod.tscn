@@ -1,0 +1,44 @@
+[gd_scene load_steps=11 format=2]
+
+[ext_resource path="res://blocky_terrain/noise_distorted.png" type="Image" id=1]
+[ext_resource path="res://fps_demo/support/platform.tscn" type="PackedScene" id=2]
+[ext_resource path="res://fps_demo/support/WorldEnvironment.tscn" type="PackedScene" id=3]
+[ext_resource path="res://fps_demo/support/player.tscn" type="PackedScene" id=4]
+[ext_resource path="res://fps_demo/materials/grass-rock2.material" type="Material" id=5]
+[ext_resource path="res://fps_demo/support/UI.tscn" type="PackedScene" id=6]
+[ext_resource path="res://fps_demo/scripts/WorldCommon.gd" type="Script" id=7]
+[ext_resource path="res://fps_demo/materials/water.material" type="Material" id=8]
+
+[sub_resource type="VoxelGeneratorImage" id=1]
+image = ExtResource( 1 )
+blur_enabled = true
+
+[sub_resource type="PlaneMesh" id=2]
+material = ExtResource( 8 )
+size = Vector2( 2048, 2048 )
+
+[node name="World" type="Spatial"]
+script = ExtResource( 7 )
+
+[node name="UI" parent="." instance=ExtResource( 6 )]
+
+[node name="WorldEnvironment" parent="." instance=ExtResource( 3 )]
+
+[node name="Platform" parent="." instance=ExtResource( 2 )]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 57, 0 )
+
+[node name="Player" parent="." instance=ExtResource( 4 )]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 60, 0 )
+jump_is_jetpack = true
+
+[node name="VoxelTerrain" type="VoxelLodTerrain" parent="."]
+stream = SubResource( 1 )
+view_distance = 2048
+lod_count = 6
+viewer_path = NodePath("../Player")
+material = ExtResource( 5 )
+
+[node name="Water" type="MeshInstance" parent="."]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 0 )
+mesh = SubResource( 2 )
+material/0 = null

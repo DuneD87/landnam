@@ -1,0 +1,57 @@
+[gd_scene load_steps=9 format=3 uid="uid://egusbnvcpwin"]
+
+[ext_resource type="Script" path="res://camera_controller.gd" id="1_h11ns"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_rvv4a"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_qfch5"]
+noise_type = 2
+frequency = 0.0062
+fractal_type = 2
+
+[sub_resource type="VoxelGeneratorNoise2D" id="VoxelGeneratorNoise2D_g056u"]
+noise = SubResource("FastNoiseLite_qfch5")
+
+[sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_wh5y8"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_dq711"]
+sky_top_color = Color(0.506441, 0.578205, 0.678117, 1)
+
+[sub_resource type="Sky" id="Sky_gu77h"]
+sky_material = SubResource("ProceduralSkyMaterial_dq711")
+process_mode = 1
+radiance_size = 6
+
+[sub_resource type="Environment" id="Environment_bdos0"]
+background_mode = 2
+sky = SubResource("Sky_gu77h")
+ambient_light_source = 3
+ambient_light_color = Color(0.824442, 0.866025, 0.994762, 1)
+ambient_light_energy = 1.53
+fog_sun_scatter = 1.0
+fog_depth_begin = 0.0
+fog_depth_end = 207.2
+volumetric_fog_density = 0.0218
+
+[node name="Node3D" type="Node3D"]
+
+[node name="Player" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17.8384, 77.7743, 0.0004704)
+script = ExtResource("1_h11ns")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+shape = SubResource("SphereShape3D_rvv4a")
+
+[node name="Camera3D" type="Camera3D" parent="Player"]
+
+[node name="VoxelViewer" type="VoxelViewer" parent="Player/Camera3D"]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.875684, 0.482885, -1.63889e-09, -0.224652, -0.407393, 0.885191, 0.427445, 0.775147, 0.465228, 0, 263.589, 0)
+
+[node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
+generator = SubResource("VoxelGeneratorNoise2D_g056u")
+mesher = SubResource("VoxelMesherTransvoxel_wh5y8")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_bdos0")
