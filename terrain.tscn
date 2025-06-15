@@ -1,6 +1,9 @@
-[gd_scene load_steps=10 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=11 format=3 uid="uid://cuv6mxdmxyw00"]
 
+[ext_resource type="Texture2D" uid="uid://dmhigqscgia0d" path="res://fps_demo/textures/grass01_albedo.jpg" id="1_lxu0j"]
 [ext_resource type="Script" path="res://generator_modifier.gd" id="1_tr361"]
+[ext_resource type="Texture2D" uid="uid://6aywkkpabbev" path="res://fps_demo/textures/rock_09_diffuse.jpg" id="2_kg1i5"]
+[ext_resource type="Texture2D" uid="uid://dwmv0yi8tm5vn" path="res://fps_demo/textures/dirt_01_diffuse.jpg" id="3_gfltd"]
 
 [sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_as11c"]
 
@@ -63,99 +66,133 @@ code = "shader_type spatial;
 
 // From Voxel Tools API
 uniform int u_transition_mask;
-/*uniform sampler2D rock_texture;
-uniform sampler2D grass_texture;
-uniform sampler2D sand_texture;*/
-uniform sampler2D noise_texture;
-uniform vec3 rock_color = vec3(0.5, 0.5, 0.5);
-uniform vec3 grass_color = vec3(0.2, 0.6, 0.2);
-uniform vec3 sand_color = vec3(0.8, 0.7, 0.4);
 uniform float radius = 5000;
+uniform vec3 center = vec3(0.0, 0.0, 0.0);
+
+// Texturas
+uniform sampler2D sand_texture;
+uniform sampler2D grass_texture;
+uniform sampler2D rock_texture;
+
+// Rangos de altura para las transiciones
+uniform float sand_max_height = 1.0; // Altura máxima para arena
+uniform float grass_max_height = 2.0; // Altura máxima para hierba
+uniform float depthBlend = 0.1; // Factor de suavizado para la mezcla (ajustable)
+uniform float uv_scale = 0.1; // Escala de tiling (ajustable en el inspector)
 
 varying vec3 world_pos;
 varying float height;
 
 float get_transvoxel_secondary_factor(int idata) {
-	int transition_mask = u_transition_mask & 0xff;
+    int transition_mask = u_transition_mask & 0xff;
 
-	int cell_border_mask = idata & 63; // Which sides the cell is touching
-	int vertex_border_mask = (idata >> 8) & 63; // Which sides the vertex is touching
-	// If the vertex is near a side where there is a low-resolution neighbor,
-	// move it to secondary position
-	int m = transition_mask & cell_border_mask;
-	float t = float(m != 0);
-	// If the vertex lies on one or more sides, and at least one side has no low-resolution neighbor,
-	// don't move the vertex.
-	t *= float((vertex_border_mask & ~transition_mask) == 0);
-	
-	// Debugging
-	//t *= 0.5 + 0.5 * sin(TIME * 4.0);
-	//t *= 2.0;
-
-	return t;
+    int cell_border_mask = idata & 63; // Which sides the cell is touching
+    int vertex_border_mask = (idata >> 8) & 63; // Which sides the vertex is touching
+    int m = transition_mask & cell_border_mask;
+    float t = float(m != 0);
+    t *= float((vertex_border_mask & ~transition_mask) == 0);
+    
+    return t;
 }
 
 vec3 get_transvoxel_position(vec3 vertex_pos, vec4 fdata) {
-	int idata = floatBitsToInt(fdata.a);
+    int idata = floatBitsToInt(fdata.a);
 
-	// Move vertices to smooth transitions
-	float secondary_factor = get_transvoxel_secondary_factor(idata);
-	vec3 secondary_position = fdata.xyz;
-	vec3 pos = mix(vertex_pos, secondary_position, secondary_factor);
+    float secondary_factor = get_transvoxel_secondary_factor(idata);
+    vec3 secondary_position = fdata.xyz;
+    vec3 pos = mix(vertex_pos, secondary_position, secondary_factor);
 
-	// If the mesh combines transitions and the vertex belongs to a transition,
-	// when that transition isn't active we change the position of the vertices so
-	// all triangles will be degenerate and won't be visible.
-	// This is an alternative to rendering them separately,
-	// which has less draw calls and less mesh resources to create in Godot.
-	// Ideally I would tweak the index buffer like LOD does but Godot does not
-	// expose anything to use it that way.
-	int itransition = (idata >> 16) & 0xff; // Is the vertex on a transition mesh?
-	float transition_cull = float(itransition == 0 || (itransition & u_transition_mask) != 0);
-	pos *= transition_cull;
+    int itransition = (idata >> 16) & 0xff;
+    float transition_cull = float(itransition == 0 || (itransition & u_transition_mask) != 0);
+    pos *= transition_cull;
 
-	return pos;
+    return pos;
 }
 
 void vertex() {
-	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0);
-	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	height = length(world_pos) - 5000.0; // Distancia al centro menos el radio
+    VERTEX = get_transvoxel_position(VERTEX, CUSTOM0);
+    world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    height = length(world_pos - center) - radius; // Altura radial desde el centro
 }
+vec4 hash4(vec2 p) {
+    return fract(sin(vec4(1.0 + dot(p, vec2(37.0, 17.0)),
+                         2.0 + dot(p, vec2(11.0, 47.0)),
+                         3.0 + dot(p, vec2(41.0, 29.0)),
+                         4.0 + dot(p, vec2(23.0, 31.0)))) * 103.0);
+}
+// Función para evitar tiling obvio
+vec4 textureNoTile(sampler2D samp, in vec2 uv) {
+    ivec2 iuv = ivec2(floor(uv));
+    vec2 fuv = fract(uv);
+    vec4 ofa = hash4(vec2(iuv + ivec2(0, 0)));
+    vec4 ofb = hash4(vec2(iuv + ivec2(1, 0)));
+    vec4 ofc = hash4(vec2(iuv + ivec2(0, 1)));
+    vec4 ofd = hash4(vec2(iuv + ivec2(1, 1)));
+    vec2 ddx = dFdx(uv);
+    vec2 ddy = dFdy(uv);
+
+    ofa.zw = sign(ofa.zw - 0.5);
+    ofb.zw = sign(ofb.zw - 0.5);
+    ofc.zw = sign(ofc.zw - 0.5);
+    ofd.zw = sign(ofd.zw - 0.5);
+
+    vec2 uva = uv * ofa.zw + ofa.xy, ddxa = ddx * ofa.zw, ddya = ddy * ofa.zw;
+    vec2 uvb = uv * ofb.zw + ofb.xy, ddxb = ddx * ofb.zw, ddyb = ddy * ofb.zw;
+    vec2 uvc = uv * ofc.zw + ofc.xy, ddxc = ddx * ofc.zw, ddyc = ddy * ofc.zw;
+    vec2 uvd = uv * ofd.zw + ofd.xy, ddxd = ddx * ofd.zw, ddyd = ddy * ofd.zw;
+
+    vec2 b = smoothstep(0.25, 0.75, fuv);
+
+    return mix(
+        mix(textureGrad(samp, uva, ddxa, ddya),
+            textureGrad(samp, uvb, ddxb, ddyb), b.x),
+        mix(textureGrad(samp, uvc, ddxc, ddyc),
+            textureGrad(samp, uvd, ddxd, ddyd), b.x), b.y);
+}
+
+// Función hash4 (requerida por textureNoTile)
+
+
+vec3 blend(vec4 texture1, float a1, vec4 texture2, float a2) {
+    float ma = max(texture1.a + a1, texture2.a + a2) - depthBlend;
+    float b1 = max(texture1.a + a1 - ma, 0.0);
+    float b2 = max(texture2.a + a2 - ma, 0.0);
+    return (texture1.rgb * b1 + texture2.rgb * b2) / (b1 + b2);
+}
+
 void fragment() {
-	// Usamos la posición del mundo para muestrear la textura de ruido
-	vec2 uv = world_pos.xz * 0.001; // Escala para la textura
-	float noise_value = texture(noise_texture, uv).r;
-	
-	// Mezclamos colores según altura y ruido
-	float height_factor = clamp(height / 50.0, 0.0, 1.0);
-	float grass_weight = clamp(noise_value * (1.0 - height_factor), 0.0, 1.0);
-	float sand_weight = clamp((1.0 - noise_value) * height_factor, 0.0, 1.0);
-	float rock_weight = 1.0 - grass_weight - sand_weight;
-	
-	vec3 color = rock_color * rock_weight + grass_color * grass_weight + sand_color * sand_weight;
-	ALBEDO = color;
-}
-"
+    // Generar coordenadas UV para tiling
+    vec2 uv = (world_pos.xz - center.xz) * uv_scale; // Escala ajustable para tiling
+    vec4 sand_tex = textureNoTile(sand_texture, uv);
+    vec4 grass_tex = textureNoTile(grass_texture, uv);
+    vec4 rock_tex = textureNoTile(rock_texture, uv);
 
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_omexa"]
-noise_type = 2
-frequency = 0.0176
-fractal_type = 0
-fractal_octaves = 8
+    // Calcular pesos basados en la altura
+    float sand_weight = smoothstep(0.0, sand_max_height, height); // Arena en la base
+    float grass_weight = smoothstep(sand_max_height, grass_max_height, height) * (1.0 - smoothstep(grass_max_height, grass_max_height + 1.0, height)); // Hierba en el medio
+    float rock_weight = smoothstep(grass_max_height, grass_max_height + 10.0, height); // Roca en la cima
 
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_v6yn6"]
-noise = SubResource("FastNoiseLite_omexa")
+    // Mezclar texturas usando la función blend
+    vec3 color = sand_tex.rgb * (1.0 - sand_weight); // Base de arena
+    color = blend(vec4(color, 1.0), 1.0 - sand_weight, grass_tex, grass_weight); // Añadir hierba
+    color = blend(vec4(color, 1.0), 1.0 - grass_weight, rock_tex, rock_weight); // Añadir roca
+
+    ALBEDO = color;
+}"
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_cvdso"]
 render_priority = 0
 shader = SubResource("Shader_eu4qj")
 shader_parameter/u_transition_mask = null
-shader_parameter/rock_color = Vector3(0.5, 0.5, 0.5)
-shader_parameter/grass_color = Vector3(0.2, 0.6, 0.2)
-shader_parameter/sand_color = Vector3(0.8, 0.7, 0.4)
 shader_parameter/radius = 5000.0
-shader_parameter/noise_texture = SubResource("NoiseTexture2D_v6yn6")
+shader_parameter/center = Vector3(0, 0, -6500)
+shader_parameter/sand_max_height = 2.0
+shader_parameter/grass_max_height = 10.0
+shader_parameter/depthBlend = 0.1
+shader_parameter/uv_scale = 0.1
+shader_parameter/sand_texture = ExtResource("3_gfltd")
+shader_parameter/grass_texture = ExtResource("1_lxu0j")
+shader_parameter/rock_texture = ExtResource("2_kg1i5")
 
 [node name="Node3D" type="Node3D"]
 
