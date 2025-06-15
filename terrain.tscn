@@ -1,17 +1,173 @@
-[gd_scene load_steps=5 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=10 format=3 uid="uid://cuv6mxdmxyw00"]
 
-[ext_resource type="Script" path="res://voxel_terrain.gd" id="1_nahg1"]
+[ext_resource type="Script" path="res://generator_modifier.gd" id="1_tr361"]
 
-[sub_resource type="VoxelStreamScript" id="VoxelStreamScript_i0w23"]
+[sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_as11c"]
 
-[sub_resource type="VoxelGeneratorScript" id="VoxelGeneratorScript_dwwep"]
+[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_4il2b"]
+noise_type = 4
+period = 73.0001
+fractal_octaves = 5
+fractal_gain = 0.37
 
-[sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_ce42f"]
+[sub_resource type="VoxelGeneratorGraph" id="VoxelGeneratorGraph_mlqfb"]
+graph_data = {
+"connections": [[9, 0, 10, 1], [1, 0, 6, 0], [1, 0, 7, 0], [2, 0, 6, 1], [2, 0, 7, 1], [10, 0, 4, 0], [3, 0, 6, 2], [3, 0, 7, 2], [6, 0, 10, 0], [7, 0, 9, 0]],
+"nodes": {
+"1": {
+"gui_position": Vector2(133.333, 26.6667),
+"type": "InputX"
+},
+"10": {
+"gui_position": Vector2(800, 240),
+"type": "Add"
+},
+"2": {
+"gui_position": Vector2(146.667, 133.333),
+"type": "InputY"
+},
+"3": {
+"gui_position": Vector2(146.667, 240),
+"type": "InputZ"
+},
+"4": {
+"auto_connect": true,
+"gui_position": Vector2(1320, 133.333),
+"type": "OutputSDF"
+},
+"6": {
+"auto_connect": true,
+"gui_position": Vector2(560, 53.3333),
+"radius": 5000.0,
+"type": "SdfSphere"
+},
+"7": {
+"auto_connect": true,
+"gui_position": Vector2(306.667, 306.667),
+"noise": SubResource("ZN_FastNoiseLite_4il2b"),
+"type": "FastNoise3D"
+},
+"9": {
+"b": 100.0,
+"gui_position": Vector2(573.333, 293.333),
+"type": "Multiply"
+}
+},
+"version": 2
+}
+
+[sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_dfr3u"]
+
+[sub_resource type="Shader" id="Shader_eu4qj"]
+code = "shader_type spatial;
+
+// From Voxel Tools API
+uniform int u_transition_mask;
+/*uniform sampler2D rock_texture;
+uniform sampler2D grass_texture;
+uniform sampler2D sand_texture;*/
+uniform sampler2D noise_texture;
+uniform vec3 rock_color = vec3(0.5, 0.5, 0.5);
+uniform vec3 grass_color = vec3(0.2, 0.6, 0.2);
+uniform vec3 sand_color = vec3(0.8, 0.7, 0.4);
+uniform float radius = 5000;
+
+varying vec3 world_pos;
+varying float height;
+
+float get_transvoxel_secondary_factor(int idata) {
+	int transition_mask = u_transition_mask & 0xff;
+
+	int cell_border_mask = idata & 63; // Which sides the cell is touching
+	int vertex_border_mask = (idata >> 8) & 63; // Which sides the vertex is touching
+	// If the vertex is near a side where there is a low-resolution neighbor,
+	// move it to secondary position
+	int m = transition_mask & cell_border_mask;
+	float t = float(m != 0);
+	// If the vertex lies on one or more sides, and at least one side has no low-resolution neighbor,
+	// don't move the vertex.
+	t *= float((vertex_border_mask & ~transition_mask) == 0);
+	
+	// Debugging
+	//t *= 0.5 + 0.5 * sin(TIME * 4.0);
+	//t *= 2.0;
+
+	return t;
+}
+
+vec3 get_transvoxel_position(vec3 vertex_pos, vec4 fdata) {
+	int idata = floatBitsToInt(fdata.a);
+
+	// Move vertices to smooth transitions
+	float secondary_factor = get_transvoxel_secondary_factor(idata);
+	vec3 secondary_position = fdata.xyz;
+	vec3 pos = mix(vertex_pos, secondary_position, secondary_factor);
+
+	// If the mesh combines transitions and the vertex belongs to a transition,
+	// when that transition isn't active we change the position of the vertices so
+	// all triangles will be degenerate and won't be visible.
+	// This is an alternative to rendering them separately,
+	// which has less draw calls and less mesh resources to create in Godot.
+	// Ideally I would tweak the index buffer like LOD does but Godot does not
+	// expose anything to use it that way.
+	int itransition = (idata >> 16) & 0xff; // Is the vertex on a transition mesh?
+	float transition_cull = float(itransition == 0 || (itransition & u_transition_mask) != 0);
+	pos *= transition_cull;
+
+	return pos;
+}
+
+void vertex() {
+	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0);
+	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	height = length(world_pos) - 5000.0; // Distancia al centro menos el radio
+}
+void fragment() {
+	// Usamos la posición del mundo para muestrear la textura de ruido
+	vec2 uv = world_pos.xz * 0.001; // Escala para la textura
+	float noise_value = texture(noise_texture, uv).r;
+	
+	// Mezclamos colores según altura y ruido
+	float height_factor = clamp(height / 50.0, 0.0, 1.0);
+	float grass_weight = clamp(noise_value * (1.0 - height_factor), 0.0, 1.0);
+	float sand_weight = clamp((1.0 - noise_value) * height_factor, 0.0, 1.0);
+	float rock_weight = 1.0 - grass_weight - sand_weight;
+	
+	vec3 color = rock_color * rock_weight + grass_color * grass_weight + sand_color * sand_weight;
+	ALBEDO = color;
+}
+"
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_omexa"]
+noise_type = 2
+frequency = 0.0176
+fractal_type = 0
+fractal_octaves = 8
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_v6yn6"]
+noise = SubResource("FastNoiseLite_omexa")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_cvdso"]
+render_priority = 0
+shader = SubResource("Shader_eu4qj")
+shader_parameter/u_transition_mask = null
+shader_parameter/rock_color = Vector3(0.5, 0.5, 0.5)
+shader_parameter/grass_color = Vector3(0.2, 0.6, 0.2)
+shader_parameter/sand_color = Vector3(0.8, 0.7, 0.4)
+shader_parameter/radius = 5000.0
+shader_parameter/noise_texture = SubResource("NoiseTexture2D_v6yn6")
 
 [node name="Node3D" type="Node3D"]
 
-[node name="VoxelTerrain" type="VoxelTerrain" parent="."]
-stream = SubResource("VoxelStreamScript_i0w23")
-generator = SubResource("VoxelGeneratorScript_dwwep")
-mesher = SubResource("VoxelMesherTransvoxel_ce42f")
-script = ExtResource("1_nahg1")
+[node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.244629, -2.51074, 0.139404)
+stream = SubResource("VoxelStreamMemory_as11c")
+generator = SubResource("VoxelGeneratorGraph_mlqfb")
+mesher = SubResource("VoxelMesherTransvoxel_dfr3u")
+view_distance = 1200
+lod_count = 8
+material = SubResource("ShaderMaterial_cvdso")
+mesh_block_size = 32
+threaded_update_enabled = true
+streaming_system = 1
+script = ExtResource("1_tr361")

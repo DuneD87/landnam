@@ -1,20 +1,28 @@
 extends CharacterBody3D
 
+@onready var terrain: VoxelLodTerrain
+@onready var voxelTool: VoxelTool
+
 @export var mouse_sensitivity: float = 0.002
 @export var roll_speed: float = 2.0
 @export var move_speed: float = 15.0
 @export var vertical_speed: float = 5.0
 @export var invert_y: bool = false
 
+# Radio para la esfera que se creará con do_sphere
+@export var sphere_radius: float = 50.0
+
 var orientation: Quaternion = Quaternion.IDENTITY
 var delta_yaw: float = 0.0
 var delta_pitch: float = 0.0
 var delta_roll: float = 0.0 
 
-# Referencia a la cámara
 @onready var camera: Camera3D = $Camera3D
 
 func _ready() -> void:
+	terrain = get_parent().get_node("Planet/VoxelLodTerrain")
+	voxelTool = terrain.get_voxel_tool()
+	voxelTool.channel = VoxelBuffer.CHANNEL_SDF
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func _input(event: InputEvent) -> void:
@@ -25,6 +33,10 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed:
 		if event.keycode == KEY_ESCAPE:
 			toggle_mouse_capture()
+	elif event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			# Ejecutar do_sphere en el punto donde mira la cámara
+			perform_sphere_action()
 
 func _physics_process(delta: float) -> void:
 	var roll_input = 0.0
@@ -41,11 +53,11 @@ func _physics_process(delta: float) -> void:
 		var roll_quat = Quaternion(Vector3(0, 0, 1), delta_roll)
 		orientation = orientation * roll_quat
 	if delta_yaw != 0.0:
-		var yaw_quat = Quaternion(Vector3(0, 1, 0), delta_yaw)
+		var local_y_axis = camera.transform.basis.y.normalized()
+		var yaw_quat = Quaternion(local_y_axis, delta_yaw)
 		orientation = yaw_quat * orientation
 
 	orientation = orientation.normalized()
-
 	camera.transform.basis = Basis(orientation)
 
 	delta_yaw = 0.0
@@ -87,3 +99,15 @@ func toggle_mouse_capture() -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	else:
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+func perform_sphere_action() -> void:
+	var origin = camera.global_position
+	var direction = -camera.global_transform.basis.z.normalized()
+	var result = voxelTool.raycast(origin, direction, 2000.0)
+	
+	if result:
+		var hit_position = result.previous_position
+		var center = Vector3(hit_position.x, hit_position.y, hit_position.z)
+		voxelTool.mode = VoxelTool.MODE_REMOVE 
+		voxelTool.value = 0
+		voxelTool.do_sphere(center, 2.5)
