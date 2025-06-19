@@ -1,0 +1,55 @@
+[gd_scene load_steps=7 format=3 uid="uid://egusbnvcpwin"]
+
+[ext_resource type="Script" path="res://scripts/camera_controller.gd" id="1_h11ns"]
+[ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/terrain.tscn" id="2_8dlty"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_rvv4a"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_dq711"]
+sky_top_color = Color(0.506441, 0.578205, 0.678117, 1)
+
+[sub_resource type="Sky" id="Sky_gu77h"]
+sky_material = SubResource("ProceduralSkyMaterial_dq711")
+process_mode = 1
+radiance_size = 6
+
+[sub_resource type="Environment" id="Environment_bdos0"]
+background_mode = 2
+sky = SubResource("Sky_gu77h")
+ambient_light_source = 3
+ambient_light_color = Color(0.824442, 0.866025, 0.994762, 1)
+ambient_light_energy = 1.53
+fog_sun_scatter = 1.0
+fog_depth_begin = 0.0
+fog_depth_end = 207.2
+volumetric_fog_density = 0.0218
+
+[node name="Node3D" type="Node3D"]
+
+[node name="Player" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17.8384, 77.7743, 1055.15)
+script = ExtResource("1_h11ns")
+move_speed = 150.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+shape = SubResource("SphereShape3D_rvv4a")
+
+[node name="Camera3D" type="Camera3D" parent="Player"]
+current = true
+far = 400000.0
+
+[node name="VoxelViewer" type="VoxelViewer" parent="Player/Camera3D"]
+view_distance = 128000
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.879255, 0.476129, 0.0145371, -0.438631, -0.797353, -0.414526, -0.185777, -0.37085, 0.909922, 0, 1454.14, 0)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_bdos0")
+
+[node name="Planet" parent="." instance=ExtResource("2_8dlty")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
+radius = 10000.0
+biome_count = 3
+textures_per_biome = 3
+biome_latitude_ranges = Array[float]([])
