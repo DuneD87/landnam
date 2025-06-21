@@ -1,13 +1,14 @@
-@tool
+
 extends Node3D
+
 @export_group("Terrain Settings")
 @export var radius : float = 5000
 
 @export_group("Biome Settings")
-@export var biome_count : int = 5
+@export var biome_count : int = 5  # Cambiado a 6 biomas
 @export var textures_per_biome : int = 3
-@export var biome_latitude_ranges : Array[float] = [-90.0, -80.0, -60.0, -30.0, 30.0, 60.0, 90.0] # Latitude boundaries
-
+@export var biome_latitude_ranges : Array[float] = [-90, -45, -10, 10, 45, 90]  # 7 valores para 6 intervalos
+@export var biome_transition_smoothness = 1.0
 var shader_material : ShaderMaterial
 var trans_smooth := 1.5
 @onready var voxel_terrain : VoxelLodTerrain = $VoxelLodTerrain
@@ -15,16 +16,18 @@ var trans_smooth := 1.5
 func set_shader_parameters() -> void:
 	shader_material = voxel_terrain.material as ShaderMaterial
 	shader_material.set_shader_parameter("transition_smoothness", 30)
+	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
+
 	shader_material.set_shader_parameter("center", position)
 	shader_material.set_shader_parameter("radius", radius)
 	
-	# Define height thresholds for each biome (flattened array)
+	# Alturas máximas para cada bioma (6 biomas x 3 alturas)
 	var max_heights = [
-		-30, 70, 200,   # Biome 1: Polar (-90 to -80)
-		-20, 50, 150,   # Biome 2: Temperate (-80 to -60)
-		-10, 30, 100,   # Biome 3: Tropical (-60 to -30)
-		-20, 50, 150,   # Biome 4: Temperate (-30 to 30)
-		-30, 70, 200    # Biome 5: Polar (60 to 90)
+		-30, 70, 200,   # Bioma 1: Polo Sur (hielo)
+		-20, 50, 150,   # Bioma 2: Templado Sur (arena, hierba, hielo)
+		-5, 20, 150,     # Bioma 4: Tropical (arena)
+		-20, 50, 150,   # Bioma 5: Templado Norte (arena, hierba, hielo) - "bioma verde"
+		-30, 70, 200    # Bioma 6: Polo Norte (hielo)
 	]
 	
 	shader_material.set_shader_parameter("max_heights", max_heights)
@@ -32,7 +35,7 @@ func set_shader_parameters() -> void:
 	shader_material.set_shader_parameter("textures_per_biome", textures_per_biome)
 	shader_material.set_shader_parameter("biome_latitude_ranges", biome_latitude_ranges)
 	
-	# Define the three unique textures
+	# Cargar texturas
 	var texture_ice: Texture2D = load("res://textures/crusted_snow/Crusted_snow2_Base_Color.png")
 	var texture_ice_normal: Texture2D = load("res://textures/crusted_snow/Crusted_snow2_Normal-ogl.png")
 	var texture_ice_roughness: Texture2D = load("res://textures/crusted_snow/Crusted_snow2_Roughness.png")
@@ -45,27 +48,32 @@ func set_shader_parameters() -> void:
 	var texture_sand_normal: Texture2D = load("res://textures/wavy-sand-bl/wavy-sand_normal-ogl.png")
 	var texture_sand_roughness: Texture2D = load("res://textures/wavy-sand-bl/wavy-sand_roughness.png")
 	
-	# Texture arrays (only three textures)
-	var textures = [texture_sand, texture_grass, texture_ice ]
-	var normal_textures = [texture_sand_normal, texture_grass_normal, texture_ice_normal ]
-	var roughness_textures = [texture_sand_roughness,texture_grass_roughness, texture_ice_roughness]
+	# Arreglos de texturas (índices: 0=hielo, 1=hierba, 2=arena)
+	var textures = [texture_sand, texture_grass, texture_ice]
+	var normal_textures = [texture_sand_normal, texture_grass_normal, texture_ice_normal]
+	var roughness_textures = [texture_sand_roughness, texture_grass_roughness, texture_ice_roughness]
 	
 	shader_material.set_shader_parameter("textures", textures)
 	shader_material.set_shader_parameter("normal_textures", normal_textures)
 	shader_material.set_shader_parameter("roughness_textures", roughness_textures)
 	
-	# Define texture indices for each biome (0 = ice, 1 = grass, 2 = sand)
+	# Índices de texturas por bioma
 	var biome_texture_indices = [
-		[0, 0, 0], # Biome 1: Polar (ice, ice, ice)
-		[2, 1, 0], # Biome 2: Temperate (sand, grass, ice)
-		[2, 2, 2], # Biome 3: Tropical (sand, sand, sand)
-		[2, 1, 0], # Biome 4: Temperate (sand, grass, ice)
-		[0, 0, 0]  # Biome 5: Polar (ice, ice, ice)
+		[2, 2, 2], # Bioma 1: Polo Sur (hielo)
+		[0, 1, 2], # Bioma 2: Templado Sur (arena, hierba, hielo)
+		[0, 0, 0], # Bioma 4: Tropical (arena)
+		[0, 1, 2], # Bioma 5: Templado Norte (arena, hierba, hielo) - "bioma verde"
+		[2, 2, 2]  # Bioma 6: Polo Norte (hielo)
 	]
 	
-	shader_material.set_shader_parameter("biome_texture_indices", biome_texture_indices)
+	# Aplanar biome_texture_indices
+	var flattened_biome_texture_indices = []
+	for biome in biome_texture_indices:
+		for index in biome:
+			flattened_biome_texture_indices.append(index)
+	shader_material.set_shader_parameter("biome_texture_indices", flattened_biome_texture_indices)
 	
-	# Slope texture (global)
+	# Textura de pendientes (slope)
 	var texture_slope: Texture2D = load("res://textures/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png")
 	var texture_slope_normals: Texture2D = load("res://textures/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png")
 	var texture_slope_roughness: Texture2D = load("res://textures/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png")
@@ -101,6 +109,7 @@ func _ready() -> void:
 			graph_generator_function.set_node_param(node_id, radius_pos - 1, radius)
 			var success = graph_generator.compile()
 			shader_material.set_shader_parameter("radius", radius)
+			
 
 func _process(delta: float) -> void:
 	pass

@@ -36,7 +36,7 @@ shape = SubResource("SphereShape3D_rvv4a")
 
 [node name="Camera3D" type="Camera3D" parent="Player"]
 current = true
-far = 400000.0
+far = 40000.0
 
 [node name="VoxelViewer" type="VoxelViewer" parent="Player/Camera3D"]
 view_distance = 128000
@@ -50,6 +50,3 @@ environment = SubResource("Environment_bdos0")
 [node name="Planet" parent="." instance=ExtResource("2_8dlty")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 radius = 10000.0
-biome_count = 3
-textures_per_biome = 3
-biome_latitude_ranges = Array[float]([])
