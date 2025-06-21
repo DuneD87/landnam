@@ -1,4 +1,5 @@
 
+@tool
 extends Node3D
 
 @export_group("Terrain Settings")
@@ -9,6 +10,8 @@ extends Node3D
 @export var textures_per_biome : int = 3
 @export var biome_latitude_ranges : Array[float] = [-90, -45, -10, 10, 45, 90]  # 7 valores para 6 intervalos
 @export var biome_transition_smoothness = 1.0
+@export_group("Atmosphere settings")
+@export var atmosphere_radius : float = 10.0
 var shader_material : ShaderMaterial
 var trans_smooth := 1.5
 @onready var voxel_terrain : VoxelLodTerrain = $VoxelLodTerrain
@@ -36,17 +39,17 @@ func set_shader_parameters() -> void:
 	shader_material.set_shader_parameter("biome_latitude_ranges", biome_latitude_ranges)
 	
 	# Cargar texturas
-	var texture_ice: Texture2D = load("res://textures/crusted_snow/Crusted_snow2_Base_Color.png")
-	var texture_ice_normal: Texture2D = load("res://textures/crusted_snow/Crusted_snow2_Normal-ogl.png")
-	var texture_ice_roughness: Texture2D = load("res://textures/crusted_snow/Crusted_snow2_Roughness.png")
+	var texture_ice: Texture2D = load("res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png")
+	var texture_ice_normal: Texture2D = load("res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png")
+	var texture_ice_roughness: Texture2D = load("res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png")
 	
-	var texture_grass: Texture2D = load("res://textures/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png")
-	var texture_grass_normal: Texture2D = load("res://textures/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png")
-	var texture_grass_roughness: Texture2D = load("res://textures/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png")
+	var texture_grass: Texture2D = load("res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png")
+	var texture_grass_normal: Texture2D = load("res://terrain/textures/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png")
+	var texture_grass_roughness: Texture2D = load("res://terrain/textures/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png")
 	
-	var texture_sand: Texture2D = load("res://textures/wavy-sand-bl/wavy-sand_albedo.png")
-	var texture_sand_normal: Texture2D = load("res://textures/wavy-sand-bl/wavy-sand_normal-ogl.png")
-	var texture_sand_roughness: Texture2D = load("res://textures/wavy-sand-bl/wavy-sand_roughness.png")
+	var texture_sand: Texture2D = load("res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png")
+	var texture_sand_normal: Texture2D = load("res://terrain/textures/wavy-sand-bl/wavy-sand_normal-ogl.png")
+	var texture_sand_roughness: Texture2D = load("res://terrain/textures/wavy-sand-bl/wavy-sand_roughness.png")
 	
 	# Arreglos de texturas (índices: 0=hielo, 1=hierba, 2=arena)
 	var textures = [texture_sand, texture_grass, texture_ice]
@@ -74,9 +77,9 @@ func set_shader_parameters() -> void:
 	shader_material.set_shader_parameter("biome_texture_indices", flattened_biome_texture_indices)
 	
 	# Textura de pendientes (slope)
-	var texture_slope: Texture2D = load("res://textures/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png")
-	var texture_slope_normals: Texture2D = load("res://textures/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png")
-	var texture_slope_roughness: Texture2D = load("res://textures/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png")
+	var texture_slope: Texture2D = load("res://terrain/textures/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png")
+	var texture_slope_normals: Texture2D = load("res://terrain/textures/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png")
+	var texture_slope_roughness: Texture2D = load("res://terrain/textures/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png")
 	
 	shader_material.set_shader_parameter("slope_texture", texture_slope)
 	shader_material.set_shader_parameter("slope_normal_texture", texture_slope_normals)
