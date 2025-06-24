@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3 uid="uid://dc4wea8ededu3"]
+
+[ext_resource type="PackedScene" uid="uid://bapnlkgajxpgt" path="res://models/rocks/uploads_files_6098154_Stylized+rocks.glb" id="1_31xhv"]
+
+[node name="uploads_files_6098154_Stylized+rocks" instance=ExtResource("1_31xhv")]

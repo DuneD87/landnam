@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://dn8y2c6rguwux"]
+
+[ext_resource type="PackedScene" uid="uid://dv5rw6rik1fvb" path="res://models/trees/birch.gltf" id="1_woxj5"]
+
+[node name="Node3D" type="Node3D"]
+
+[node name="birch" parent="." instance=ExtResource("1_woxj5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.237416, 0, 1.09043)

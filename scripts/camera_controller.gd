@@ -8,7 +8,7 @@ extends CharacterBody3D
 @export var move_speed: float = 15.0
 @export var vertical_speed: float = 5.0
 @export var invert_y: bool = false
-@export var speed_increase : float = 50.0
+@export var speed_increase : float = 1.0
 
 # Radio para la esfera que se creará con do_sphere
 @export var sphere_radius: float = 50.0

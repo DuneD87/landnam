@@ -1,0 +1,80 @@
+[gd_resource type="VoxelGraphFunction" format=3 uid="uid://d3wunooykweya"]
+
+[resource]
+graph_data = {
+"connections": [[1, 0, 4, 0], [1, 0, 4, 1], [2, 0, 5, 0], [2, 0, 5, 1], [2, 0, 11, 0], [3, 0, 6, 0], [3, 0, 6, 1], [4, 0, 7, 0], [5, 0, 7, 1], [6, 0, 8, 1], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 11, 1], [11, 0, 12, 0], [12, 0, 13, 2], [12, 0, 14, 2], [13, 0, 15, 0], [14, 0, 15, 1], [15, 0, 17, 0], [16, 0, 13, 1], [16, 0, 14, 0]],
+"nodes": {
+"1": {
+"gui_position": Vector2(26.6667, -106.667),
+"type": "InputX"
+},
+"11": {
+"gui_position": Vector2(1053.33, 26.6667),
+"type": "Divide"
+},
+"12": {
+"gui_position": Vector2(1280, 26.6667),
+"type": "Sin"
+},
+"13": {
+"a": 0.0,
+"gui_position": Vector2(1613.33, -146.667),
+"threshold": 0.3,
+"type": "Select"
+},
+"14": {
+"b": 0.0,
+"gui_position": Vector2(1626.67, 173.333),
+"threshold": -0.3,
+"type": "Select"
+},
+"15": {
+"gui_position": Vector2(1866.67, 40),
+"type": "Add"
+},
+"16": {
+"gui_position": Vector2(1419.73, -145.2),
+"type": "Constant",
+"value": 1.0
+},
+"17": {
+"gui_position": Vector2(2120, 40),
+"type": "CustomOutput"
+},
+"2": {
+"gui_position": Vector2(26.6667, 53.3333),
+"type": "InputY"
+},
+"3": {
+"gui_position": Vector2(26.6667, 213.333),
+"type": "InputZ"
+},
+"4": {
+"gui_position": Vector2(253.333, -106.667),
+"type": "Multiply"
+},
+"5": {
+"gui_position": Vector2(253.333, 40),
+"type": "Multiply"
+},
+"6": {
+"gui_position": Vector2(253.333, 186.667),
+"type": "Multiply"
+},
+"7": {
+"gui_position": Vector2(480, -66.6667),
+"type": "Add"
+},
+"8": {
+"gui_position": Vector2(640, -26.6667),
+"type": "Add"
+},
+"9": {
+"gui_position": Vector2(853.333, -26.6667),
+"type": "Sqrt"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0]]
+output_definitions = [["", "CustomOutput", 0]]

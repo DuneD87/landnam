@@ -1,0 +1,11 @@
+Model Information:
+* title:	Forest Pack
+* source:	https://sketchfab.com/3d-models/forest-pack-b7aac0c977bb4761aa02ef4d1785d6af
+* author:	P3POLYGON (https://sketchfab.com/P3PIXEL)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Forest Pack" (https://sketchfab.com/3d-models/forest-pack-b7aac0c977bb4761aa02ef4d1785d6af) by P3POLYGON (https://sketchfab.com/P3PIXEL) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

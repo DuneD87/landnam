@@ -8,19 +8,25 @@ extends Node3D
 @export_group("Biome Settings")
 @export var biome_count : int = 5  # Cambiado a 6 biomas
 @export var textures_per_biome : int = 3
-@export var biome_latitude_ranges : Array[float] = [-90, -45, -10, 10, 45, 90]  # 7 valores para 6 intervalos
+var biome_latitude_ranges : Array[float] = [-90, -45, -10, 10, 45, 90]  # 7 valores para 6 intervalos
 @export var biome_transition_smoothness = 1.0
 @export_group("Atmosphere settings")
-@export var atmosphere_radius : float = 10.0
+@export var atmosphere_radius : float = 2000.0
+@export var atmosphere_density : float = 0.05
+@export var sun : DirectionalLight3D
 var shader_material : ShaderMaterial
 var trans_smooth := 1.5
 @onready var voxel_terrain : VoxelLodTerrain = $VoxelLodTerrain
-
+@onready var atmosphere : Node3D = $VoxelLodTerrain/PlanetAthmosphere
 func set_shader_parameters() -> void:
 	shader_material = voxel_terrain.material as ShaderMaterial
 	shader_material.set_shader_parameter("transition_smoothness", 30)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
-
+	atmosphere.sun_path = sun.get_path()
+	atmosphere.planet_radius = radius
+	atmosphere.set_atmosphere_height(atmosphere_radius)
+	atmosphere.set_shader_parameter("u_density", atmosphere_density)
+	
 	shader_material.set_shader_parameter("center", position)
 	shader_material.set_shader_parameter("radius", radius)
 	

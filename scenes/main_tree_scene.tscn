@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3 uid="uid://cwv1v01b5grq3"]
+
+[ext_resource type="PackedScene" uid="uid://bdyd53ckaasfy" path="res://models/shapespark-low-poly-plants-kit.gltf" id="1_knjm8"]
+
+[node name="shapespark-low-poly-plants-kit" instance=ExtResource("1_knjm8")]
+
+[node name="Tree-01-2" parent="." index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.47196, -0.00975418, 9.46061)
+
+[node name="Grass-02" parent="." index="24"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.94173, 0, 9.65154)
