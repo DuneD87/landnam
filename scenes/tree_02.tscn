@@ -1,8 +1,8 @@
 [gd_scene load_steps=9 format=4 uid="uid://dyiubcom4ogft"]
 
-[ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/shapespark-low-poly-plants-kit_bark.jpg" id="1_kd6n6"]
-[ext_resource type="Texture2D" uid="uid://dp5wklu301fmq" path="res://models/shapespark-low-poly-plants-kit_branch-1-01.png" id="2_hqbmx"]
-[ext_resource type="Texture2D" uid="uid://b28jbfrckmih0" path="res://models/shapespark-low-poly-plants-kit_branch-1-02.png" id="3_itrph"]
+[ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/forest/textures/shapespark-low-poly-plants-kit_bark.jpg" id="1_kd6n6"]
+[ext_resource type="Texture2D" uid="uid://dp5wklu301fmq" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-1-01.png" id="2_hqbmx"]
+[ext_resource type="Texture2D" uid="uid://b28jbfrckmih0" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-1-02.png" id="3_itrph"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ohhxc"]
 resource_name = "trunk-01"
@@ -107,5 +107,6 @@ shadow_mesh = SubResource("ArrayMesh_vkfo5")
 [node name="Node3D" type="Node3D"]
 
 [node name="Tree-02-1" type="MeshInstance3D" parent="."]
+gi_mode = 2
 mesh = SubResource("ArrayMesh_sfcxi")
 skeleton = NodePath("")

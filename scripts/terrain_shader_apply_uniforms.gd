@@ -50,12 +50,12 @@ func set_shader_parameters() -> void:
 	var texture_ice_roughness: Texture2D = load("res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png")
 	
 	var texture_grass: Texture2D = load("res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png")
-	var texture_grass_normal: Texture2D = load("res://terrain/textures/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png")
-	var texture_grass_roughness: Texture2D = load("res://terrain/textures/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png")
+	var texture_grass_normal: Texture2D = load("res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png")
+	var texture_grass_roughness: Texture2D = load("res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png")
 	
 	var texture_sand: Texture2D = load("res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png")
-	var texture_sand_normal: Texture2D = load("res://terrain/textures/wavy-sand-bl/wavy-sand_normal-ogl.png")
-	var texture_sand_roughness: Texture2D = load("res://terrain/textures/wavy-sand-bl/wavy-sand_roughness.png")
+	var texture_sand_normal: Texture2D = load("res://textures/terrain/wavy-sand-bl/wavy-sand_normal-ogl.png")
+	var texture_sand_roughness: Texture2D = load("res://textures/terrain/wavy-sand-bl/wavy-sand_roughness.png")
 	
 	# Arreglos de texturas (índices: 0=hielo, 1=hierba, 2=arena)
 	var textures = [texture_sand, texture_grass, texture_ice]

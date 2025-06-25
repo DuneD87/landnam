@@ -1,9 +1,9 @@
 [gd_scene load_steps=11 format=4 uid="uid://ditjpfgxymrtf"]
 
-[ext_resource type="Texture2D" uid="uid://kgykj6t30831" path="res://models/shapespark-low-poly-plants-kit_flowers-01.png" id="1_yc4x3"]
-[ext_resource type="Texture2D" uid="uid://dixak8bnxecy2" path="res://models/shapespark-low-poly-plants-kit_flowers-02.png" id="2_i3wbo"]
-[ext_resource type="Texture2D" uid="uid://bjdebr6lhplbv" path="res://models/shapespark-low-poly-plants-kit_shrubbery-01.png" id="3_kfbdm"]
-[ext_resource type="Texture2D" uid="uid://dw182prdhy8gc" path="res://models/shapespark-low-poly-plants-kit_shrubbery-02.png" id="4_pun6v"]
+[ext_resource type="Texture2D" uid="uid://kgykj6t30831" path="res://models/forest/textures/shapespark-low-poly-plants-kit_flowers-01.png" id="1_yc4x3"]
+[ext_resource type="Texture2D" uid="uid://dixak8bnxecy2" path="res://models/forest/textures/shapespark-low-poly-plants-kit_flowers-02.png" id="2_i3wbo"]
+[ext_resource type="Texture2D" uid="uid://bjdebr6lhplbv" path="res://models/forest/textures/shapespark-low-poly-plants-kit_shrubbery-01.png" id="3_kfbdm"]
+[ext_resource type="Texture2D" uid="uid://dw182prdhy8gc" path="res://models/forest/textures/shapespark-low-poly-plants-kit_shrubbery-02.png" id="4_pun6v"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lkr5w"]
 resource_name = "flowers-01.001"
@@ -146,5 +146,6 @@ shadow_mesh = SubResource("ArrayMesh_iadjx")
 [node name="Node3D" type="Node3D"]
 
 [node name="Flowers-04" type="MeshInstance3D" parent="."]
+gi_mode = 2
 mesh = SubResource("ArrayMesh_kbs62")
 skeleton = NodePath("")

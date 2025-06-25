@@ -1,11 +1,20 @@
-[gd_scene load_steps=19 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=28 format=3 uid="uid://cuv6mxdmxyw00"]
 
 [ext_resource type="Shader" path="res://shaders/terrain/terrain_no_biomes.gdshader" id="1_x3wex"]
+[ext_resource type="Texture2D" uid="uid://d2xgw8xav2h5i" path="res://textures/terrain/wavy-sand-bl/wavy-sand_normal-ogl.png" id="3_1vb5k"]
+[ext_resource type="Texture2D" uid="uid://deyo14ako7rqu" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png" id="4_hvvu5"]
 [ext_resource type="Script" path="res://scripts/terrain_shader_apply_uniforms.gd" id="5_0igel"]
-[ext_resource type="Script" path="res://scenes/terrain_object_placement.gd" id="6_5cu2j"]
+[ext_resource type="Texture2D" uid="uid://bf75m88gnd13v" path="res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png" id="5_j0anv"]
+[ext_resource type="Script" path="res://scripts/terrain_object_placement.gd" id="6_5cu2j"]
+[ext_resource type="Texture2D" uid="uid://cxmkokrtbc7rs" path="res://textures/terrain/wavy-sand-bl/wavy-sand_roughness.png" id="6_qwwxo"]
+[ext_resource type="Texture2D" uid="uid://da117nsa5kx1a" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png" id="7_euxly"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="8_4hxn6"]
+[ext_resource type="Texture2D" uid="uid://chvdatrns407v" path="res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png" id="8_j7p2g"]
 [ext_resource type="Shader" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
+[ext_resource type="Texture2D" uid="uid://bom3p3c1yjuro" path="res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png" id="9_p6b5a"]
 [ext_resource type="Script" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
+[ext_resource type="Texture2D" uid="uid://r48txvwwt3ew" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png" id="10_oiuwm"]
+[ext_resource type="Texture2D" uid="uid://crke6vsvka1i1" path="res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png" id="11_dgq8v"]
 
 [sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_as11c"]
 
@@ -26,7 +35,7 @@ fractal_gain = 0.3
 
 [sub_resource type="VoxelGeneratorGraph" id="VoxelGeneratorGraph_mlqfb"]
 graph_data = {
-"connections": [[1, 0, 6, 0], [1, 0, 13, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [10, 0, 4, 0], [13, 0, 28, 0], [15, 0, 30, 0], [16, 0, 22, 1], [17, 0, 20, 0], [18, 0, 17, 0], [19, 0, 17, 1], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [23, 0, 15, 2], [23, 0, 25, 2], [24, 0, 25, 0], [24, 0, 15, 1], [25, 0, 29, 1], [27, 0, 28, 1], [28, 0, 9, 0], [29, 0, 27, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [30, 0, 27, 0], [31, 0, 30, 1], [31, 0, 29, 0], [6, 0, 10, 0], [9, 0, 10, 1]],
+"connections": [[17, 0, 20, 0], [1, 0, 6, 0], [1, 0, 13, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [18, 0, 17, 0], [10, 0, 4, 0], [13, 0, 28, 0], [15, 0, 30, 0], [16, 0, 22, 1], [19, 0, 17, 1], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [23, 0, 15, 2], [23, 0, 25, 2], [24, 0, 25, 0], [24, 0, 15, 1], [25, 0, 29, 1], [27, 0, 28, 1], [28, 0, 9, 0], [29, 0, 27, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [30, 0, 27, 0], [31, 0, 30, 1], [31, 0, 29, 0], [6, 0, 10, 0], [9, 0, 10, 1]],
 "nodes": {
 "1": {
 "gui_position": Vector2(-586.667, 93.3333),
@@ -131,7 +140,7 @@ graph_data = {
 "6": {
 "auto_connect": true,
 "gui_position": Vector2(560, 53.3333),
-"radius": 5000.0,
+"radius": 10000.0,
 "type": "SdfSphere"
 },
 "9": {
@@ -158,13 +167,13 @@ render_priority = 0
 next_pass = SubResource("ShaderMaterial_ye5xo")
 shader = ExtResource("1_x3wex")
 shader_parameter/u_transition_mask = null
-shader_parameter/radius = 5000.0
+shader_parameter/radius = 10000.0
 shader_parameter/center = Vector3(0, 0, 15000)
-shader_parameter/max_heights = []
+shader_parameter/max_heights = [-30, 70, 200, -20, 50, 150, -5, 20, 150, -20, 50, 150, -30, 70, 200]
 shader_parameter/biome_count = 5
 shader_parameter/textures_per_biome = 3
-shader_parameter/biome_latitude_ranges = Array[float]([])
-shader_parameter/biome_texture_indices = []
+shader_parameter/biome_latitude_ranges = Array[float]([-90.0, -45.0, -10.0, 10.0, 45.0, 90.0])
+shader_parameter/biome_texture_indices = [2, 2, 2, 0, 1, 2, 0, 0, 0, 0, 1, 2, 2, 2, 2]
 shader_parameter/slope_threshold = 0.7
 shader_parameter/slope_smoothness = 0.2
 shader_parameter/transition_smoothness = 1.5
@@ -173,9 +182,9 @@ shader_parameter/noise_strength = 0.8
 shader_parameter/noise_scale = 0.1
 shader_parameter/texture_scale = 0.1
 shader_parameter/normal_strength = 1.0
-shader_parameter/textures = []
-shader_parameter/normal_textures = []
-shader_parameter/roughness_textures = []
+shader_parameter/textures = [ExtResource("9_p6b5a"), ExtResource("10_oiuwm"), ExtResource("11_dgq8v")]
+shader_parameter/normal_textures = [ExtResource("3_1vb5k"), ExtResource("4_hvvu5"), ExtResource("5_j0anv")]
+shader_parameter/roughness_textures = [ExtResource("6_qwwxo"), ExtResource("7_euxly"), ExtResource("8_j7p2g")]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_qaxex"]
 noise_type = 2
@@ -230,7 +239,6 @@ streaming_system = 1
 [node name="PlanetAthmosphere" parent="VoxelLodTerrain" instance=ExtResource("8_4hxn6")]
 planet_radius = 5000.0
 atmosphere_height = 10.0
-sun_path = NodePath("../../DirectionalLight3D")
 custom_shader = ExtResource("9_n2er8")
 clouds_rotation_speed = 0.2
 shader_params/u_density = 0.05

@@ -1,7 +1,7 @@
 [gd_scene load_steps=7 format=4 uid="uid://xvsdh4clgatb"]
 
-[ext_resource type="Texture2D" uid="uid://y8gtx62pgrtm" path="res://models/shapespark-low-poly-plants-kit_grass-01.png" id="1_cps43"]
-[ext_resource type="Texture2D" uid="uid://emv8exqsna6r" path="res://models/shapespark-low-poly-plants-kit_grass-02.png" id="2_jvce2"]
+[ext_resource type="Texture2D" uid="uid://y8gtx62pgrtm" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-01.png" id="1_cps43"]
+[ext_resource type="Texture2D" uid="uid://emv8exqsna6r" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-02.png" id="2_jvce2"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8c3ld"]
 resource_name = "high-grass-1-01"

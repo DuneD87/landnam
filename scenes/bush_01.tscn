@@ -1,7 +1,7 @@
 [gd_scene load_steps=7 format=4 uid="uid://blxu5opltxjyf"]
 
-[ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/shapespark-low-poly-plants-kit_branch-01.png" id="1_npayr"]
-[ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/shapespark-low-poly-plants-kit_branch-02.png" id="2_acufl"]
+[ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-01.png" id="1_npayr"]
+[ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-02.png" id="2_acufl"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cp2li"]
 resource_name = "branch-1-01"
@@ -78,5 +78,6 @@ shadow_mesh = SubResource("ArrayMesh_uj1fa")
 [node name="Node3D" type="Node3D"]
 
 [node name="Bush-01" type="MeshInstance3D" parent="."]
+gi_mode = 2
 mesh = SubResource("ArrayMesh_lsblx")
 skeleton = NodePath("")

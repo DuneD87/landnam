@@ -10,7 +10,7 @@ uniform vec3 center;
 #define MAX_BIOMES 8 // máximo seguro (ajustable si necesitas más)
 #define MAX_HEIGHTS 24
 #define MAX_LATITUDE_RANGES 9
-uniform sampler2D textures[MAX_TEXTURES];
+uniform sampler2D textures[MAX_TEXTURES]: source_color;
 uniform sampler2D normal_textures[MAX_TEXTURES];
 uniform sampler2D roughness_textures[MAX_TEXTURES];
 
@@ -30,8 +30,8 @@ uniform float transition_smoothness = 1.5;
 uniform float biome_transition_smoothness = 1.0; // nueva uniform para suavizar transiciones
 uniform float noise_strength = 1.0;
 uniform float noise_scale = 0.1;
-uniform float texture_scale = 0.1;
-uniform float normal_strength = 1.0;
+uniform float texture_scale = 0.5;
+uniform float normal_strength = 0.7;
 
 varying vec3 world_pos;
 varying float height;
@@ -132,7 +132,7 @@ void fragment() {
 	}
 
 	ALBEDO = final_color;
-	NORMAL_MAP = final_normal * normal_strength;
+	//NORMAL_MAP = final_normal * normal_strength;
 	ROUGHNESS = final_roughness;
-	NORMAL_MAP_DEPTH = normal_strength;
+	//NORMAL_MAP_DEPTH = normal_strength;
 }

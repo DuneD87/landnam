@@ -1,8 +1,8 @@
 [gd_scene load_steps=9 format=4 uid="uid://di63obeg6eavs"]
 
-[ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/shapespark-low-poly-plants-kit_bark.jpg" id="1_uibji"]
-[ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/shapespark-low-poly-plants-kit_branch-01.png" id="2_iir3y"]
-[ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/shapespark-low-poly-plants-kit_branch-02.png" id="3_71ah1"]
+[ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/forest/textures/shapespark-low-poly-plants-kit_bark.jpg" id="1_uibji"]
+[ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-01.png" id="2_iir3y"]
+[ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-02.png" id="3_71ah1"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6nj1d"]
 resource_name = "trunk-01"

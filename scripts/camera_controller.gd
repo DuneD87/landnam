@@ -5,8 +5,8 @@ extends CharacterBody3D
 
 @export var mouse_sensitivity: float = 0.002
 @export var roll_speed: float = 2.0
-@export var move_speed: float = 15.0
-@export var vertical_speed: float = 5.0
+@export var move_speed: float = 50.0
+@export var vertical_speed: float = 50.0
 @export var invert_y: bool = false
 @export var speed_increase : float = 1.0
 

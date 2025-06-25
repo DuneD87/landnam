@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://cwv1v01b5grq3"]
 
-[ext_resource type="PackedScene" uid="uid://bdyd53ckaasfy" path="res://models/shapespark-low-poly-plants-kit.gltf" id="1_knjm8"]
+[ext_resource type="PackedScene" uid="uid://bdyd53ckaasfy" path="res://models/forest/shapespark-low-poly-plants-kit.gltf" id="1_knjm8"]
 
 [node name="shapespark-low-poly-plants-kit" instance=ExtResource("1_knjm8")]
 

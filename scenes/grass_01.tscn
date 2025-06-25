@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=4 uid="uid://b2axhi17uiip0"]
 
-[ext_resource type="Texture2D" uid="uid://emv8exqsna6r" path="res://models/shapespark-low-poly-plants-kit_grass-02.png" id="1_43a8k"]
-[ext_resource type="Texture2D" uid="uid://y8gtx62pgrtm" path="res://models/shapespark-low-poly-plants-kit_grass-01.png" id="2_akxvo"]
+[ext_resource type="Texture2D" uid="uid://emv8exqsna6r" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-02.png" id="1_43a8k"]
+[ext_resource type="Texture2D" uid="uid://y8gtx62pgrtm" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-01.png" id="2_akxvo"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7j5ay"]
 resource_name = "high-grass-1-02"
@@ -52,6 +52,6 @@ _surfaces = [{
 [node name="Node3D" type="Node3D"]
 
 [node name="Grass-01" type="MeshInstance3D" parent="."]
-gi_mode = 0
+gi_mode = 2
 mesh = SubResource("ArrayMesh_fl2ye")
 skeleton = NodePath("")

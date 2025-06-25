@@ -1,38 +1,67 @@
-[gd_scene load_steps=10 format=3 uid="uid://egusbnvcpwin"]
+[gd_scene load_steps=9 format=3 uid="uid://egusbnvcpwin"]
 
 [ext_resource type="Script" path="res://scripts/camera_controller.gd" id="1_h11ns"]
-[ext_resource type="Texture2D" uid="uid://cs3yen2vuqr3f" path="res://textures/skybox/purple_nebula.png" id="2_5ayot"]
+[ext_resource type="Script" path="res://scripts/SunController.gd" id="1_uw70s"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/terrain.tscn" id="2_8dlty"]
+[ext_resource type="Shader" path="res://textures/skybox/space_sky.gdshader" id="3_k1xg5"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_rvv4a"]
 
-[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_pnymb"]
-panorama = ExtResource("2_5ayot")
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sywca"]
+shader = ExtResource("3_k1xg5")
+shader_parameter/sun_azimuth_deg = 0.0
+shader_parameter/sun_elevation_deg = 25.0
+shader_parameter/star_radius = 0.1
+shader_parameter/star_core_color = Vector3(1, 1, 0)
+shader_parameter/star_surface_color = Vector3(1, 0, 0)
+shader_parameter/star_corona_color = Vector3(1, 0.6, 0.1)
+shader_parameter/star_ray_color = Vector3(1, 0.95, 1)
+shader_parameter/space_color1 = Vector3(1, 0, 0)
+shader_parameter/space_color2 = Vector3(0, 0, 1)
+shader_parameter/space_color3 = Vector3(0.9, 1, 0.1)
+shader_parameter/star_position = Vector3(0, 0, 3)
+shader_parameter/orbit_radius = 2.538
+shader_parameter/orbit_speed = -0.0999998
+shader_parameter/orbit_axis = Vector3(0, 1, 0)
+shader_parameter/orbit_inclination = 0.416
+shader_parameter/animation_speed = 0.5
+shader_parameter/rotation_speed = 0.0100002
+shader_parameter/rotation_angle = -0.6
+shader_parameter/core_intensity = 5.0
+shader_parameter/surface_intensity = 0.1
+shader_parameter/corona_intensity = 1.75
+shader_parameter/ray_intensity = 2.828
+shader_parameter/detail_level = 5.0
+shader_parameter/zoom_level = 0.5
+shader_parameter/noise_seed = 0.0
 
-[sub_resource type="Sky" id="Sky_3o0x4"]
-sky_material = SubResource("PanoramaSkyMaterial_pnymb")
-process_mode = 1
-radiance_size = 6
+[sub_resource type="Sky" id="Sky_hj7oe"]
+sky_material = SubResource("ShaderMaterial_sywca")
 
 [sub_resource type="Environment" id="Environment_bdos0"]
 background_mode = 2
-background_energy_multiplier = 3.0
-sky = SubResource("Sky_3o0x4")
+sky = SubResource("Sky_hj7oe")
 ambient_light_source = 1
 ambient_light_color = Color(1, 1, 1, 1)
-ambient_light_energy = 0.46
+ambient_light_sky_contribution = 0.0
+ambient_light_energy = 0.1
 reflected_light_source = 1
 tonemap_mode = 3
+ssr_max_steps = 128
+ssr_fade_in = 1.00908
+ssr_fade_out = 0.217638
+ssao_radius = 16.0
+ssao_intensity = 16.0
 fog_sun_scatter = 1.0
 fog_depth_begin = 0.0
 fog_depth_end = 207.2
 volumetric_fog_density = 0.0218
 
-[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_bp58y"]
-
-[sub_resource type="VoxelGIData" id="VoxelGIData_r86fs"]
-
-[node name="Node3D" type="Node3D"]
+[node name="Node3D" type="Node3D" node_paths=PackedStringArray("sun_light")]
+script = ExtResource("1_uw70s")
+sun_light = NodePath("DirectionalLight3D")
+sun_azimuth_deg = 165.396
+sun_elevation_deg = 0.0
 
 [node name="Player" type="CharacterBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2443.6, 5496.53, 6029.83)
@@ -48,19 +77,15 @@ far = 40000.0
 [node name="VoxelViewer" type="VoxelViewer" parent="Player/Camera3D"]
 view_distance = 128000
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_bdos0")
-
 [node name="Planet" parent="." node_paths=PackedStringArray("sun") instance=ExtResource("2_8dlty")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 radius = 10000.0
 atmosphere_radius = 1000.0
 sun = NodePath("../DirectionalLight3D")
 
-[node name="VoxelGI" type="VoxelGI" parent="Planet"]
-camera_attributes = SubResource("CameraAttributesPractical_bp58y")
-data = SubResource("VoxelGIData_r86fs")
-
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(-0.846574, 0, 0.532271, 0, 1, 0, -0.532271, 0, -0.846574, 0, 0, 0)
 shadow_enabled = true
+sky_mode = 1
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_bdos0")

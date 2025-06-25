@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=4 uid="uid://b1ml4xmr3ghew"]
 
-[ext_resource type="Texture2D" uid="uid://pxo1hxfm4jlu" path="res://models/GltF Rocks/STON LIGHT BROWN.jpg" id="1_skc3e"]
-[ext_resource type="Texture2D" uid="uid://drwl48tgb5cwi" path="res://models/GltF Rocks/Rock Bump.jpg" id="2_rrq0x"]
+[ext_resource type="Texture2D" uid="uid://pxo1hxfm4jlu" path="res://models/rocks/STON LIGHT BROWN.jpg" id="1_skc3e"]
+[ext_resource type="Texture2D" uid="uid://drwl48tgb5cwi" path="res://models/rocks/Rock Bump.jpg" id="2_rrq0x"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rhqou"]
 resource_name = "Rocks Mat 6"

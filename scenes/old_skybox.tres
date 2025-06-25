@@ -1,0 +1,11 @@
+[gd_resource type="Sky" load_steps=3 format=3 uid="uid://basnqyrd83n04"]
+
+[ext_resource type="Texture2D" uid="uid://cs3yen2vuqr3f" path="res://textures/skybox/purple_nebula.png" id="1_8gfaq"]
+
+[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_pnymb"]
+panorama = ExtResource("1_8gfaq")
+
+[resource]
+sky_material = SubResource("PanoramaSkyMaterial_pnymb")
+process_mode = 1
+radiance_size = 6
