@@ -1,20 +1,20 @@
-[gd_scene load_steps=28 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=30 format=3 uid="uid://cuv6mxdmxyw00"]
 
 [ext_resource type="Shader" path="res://shaders/terrain/terrain_no_biomes.gdshader" id="1_x3wex"]
-[ext_resource type="Texture2D" uid="uid://d2xgw8xav2h5i" path="res://textures/terrain/wavy-sand-bl/wavy-sand_normal-ogl.png" id="3_1vb5k"]
-[ext_resource type="Texture2D" uid="uid://deyo14ako7rqu" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png" id="4_hvvu5"]
+[ext_resource type="Texture2D" uid="uid://d2xgw8xav2h5i" path="res://textures/terrain/wavy-sand-bl/wavy-sand_normal-ogl.png" id="3_vuh7b"]
+[ext_resource type="Texture2D" uid="uid://deyo14ako7rqu" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png" id="4_tcwes"]
 [ext_resource type="Script" path="res://scripts/terrain_shader_apply_uniforms.gd" id="5_0igel"]
-[ext_resource type="Texture2D" uid="uid://bf75m88gnd13v" path="res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png" id="5_j0anv"]
+[ext_resource type="Texture2D" uid="uid://bf75m88gnd13v" path="res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png" id="5_oi5vu"]
 [ext_resource type="Script" path="res://scripts/terrain_object_placement.gd" id="6_5cu2j"]
-[ext_resource type="Texture2D" uid="uid://cxmkokrtbc7rs" path="res://textures/terrain/wavy-sand-bl/wavy-sand_roughness.png" id="6_qwwxo"]
-[ext_resource type="Texture2D" uid="uid://da117nsa5kx1a" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png" id="7_euxly"]
+[ext_resource type="Texture2D" uid="uid://cxmkokrtbc7rs" path="res://textures/terrain/wavy-sand-bl/wavy-sand_roughness.png" id="6_6teti"]
+[ext_resource type="Texture2D" uid="uid://da117nsa5kx1a" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png" id="7_bhpx1"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="8_4hxn6"]
-[ext_resource type="Texture2D" uid="uid://chvdatrns407v" path="res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png" id="8_j7p2g"]
+[ext_resource type="Texture2D" uid="uid://chvdatrns407v" path="res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png" id="8_ynhch"]
 [ext_resource type="Shader" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
-[ext_resource type="Texture2D" uid="uid://bom3p3c1yjuro" path="res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png" id="9_p6b5a"]
+[ext_resource type="Texture2D" uid="uid://bom3p3c1yjuro" path="res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png" id="9_v1gt4"]
+[ext_resource type="Texture2D" uid="uid://r48txvwwt3ew" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png" id="10_b744j"]
 [ext_resource type="Script" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
-[ext_resource type="Texture2D" uid="uid://r48txvwwt3ew" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png" id="10_oiuwm"]
-[ext_resource type="Texture2D" uid="uid://crke6vsvka1i1" path="res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png" id="11_dgq8v"]
+[ext_resource type="Texture2D" uid="uid://crke6vsvka1i1" path="res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png" id="11_tqw13"]
 
 [sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_as11c"]
 
@@ -152,18 +152,13 @@ graph_data = {
 },
 "version": 2
 }
-sdf_clip_threshold = 5.0
-use_optimized_execution_map = false
-use_subdivision = false
-subdivision_size = 4
-use_xz_caching = false
 
 [sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_dfr3u"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ye5xo"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_cvdso"]
-render_priority = 0
+render_priority = 2
 next_pass = SubResource("ShaderMaterial_ye5xo")
 shader = ExtResource("1_x3wex")
 shader_parameter/u_transition_mask = null
@@ -182,9 +177,9 @@ shader_parameter/noise_strength = 0.8
 shader_parameter/noise_scale = 0.1
 shader_parameter/texture_scale = 0.1
 shader_parameter/normal_strength = 1.0
-shader_parameter/textures = [ExtResource("9_p6b5a"), ExtResource("10_oiuwm"), ExtResource("11_dgq8v")]
-shader_parameter/normal_textures = [ExtResource("3_1vb5k"), ExtResource("4_hvvu5"), ExtResource("5_j0anv")]
-shader_parameter/roughness_textures = [ExtResource("6_qwwxo"), ExtResource("7_euxly"), ExtResource("8_j7p2g")]
+shader_parameter/textures = [ExtResource("9_v1gt4"), ExtResource("10_b744j"), ExtResource("11_tqw13")]
+shader_parameter/normal_textures = [ExtResource("3_vuh7b"), ExtResource("4_tcwes"), ExtResource("5_oi5vu")]
+shader_parameter/roughness_textures = [ExtResource("6_6teti"), ExtResource("7_bhpx1"), ExtResource("8_ynhch")]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_qaxex"]
 noise_type = 2
@@ -194,9 +189,9 @@ fractal_octaves = 10
 fractal_lacunarity = 6.0
 
 [sub_resource type="NoiseTexture3D" id="NoiseTexture3D_ctfr3"]
-width = 4
-height = 4
-depth = 4
+width = 2
+height = 2
+depth = 2
 seamless_blend_skirt = 1.0
 normalize = false
 noise = SubResource("FastNoiseLite_qaxex")
@@ -214,6 +209,10 @@ resolution = 256
 scale = Vector3(100, 200, 100)
 
 [sub_resource type="VoxelInstanceLibrary" id="VoxelInstanceLibrary_xfb0j"]
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_sn0if"]
+
+[sub_resource type="VoxelGIData" id="VoxelGIData_4qx43"]
 
 [node name="Node3D" type="Node3D"]
 script = ExtResource("5_0igel")
@@ -260,3 +259,8 @@ shader_params/u_cloud_coverage_cubemap = SubResource("Cubemap_tmdnm")
 library = SubResource("VoxelInstanceLibrary_xfb0j")
 up_mode = 1
 script = ExtResource("6_5cu2j")
+
+[node name="VoxelGI" type="VoxelGI" parent="VoxelLodTerrain"]
+size = Vector3(12000, 12000, 12000)
+camera_attributes = SubResource("CameraAttributesPractical_sn0if")
+data = SubResource("VoxelGIData_4qx43")

@@ -23,6 +23,7 @@ func set_shader_parameters() -> void:
 	shader_material.set_shader_parameter("transition_smoothness", 30)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
 	atmosphere.sun_path = sun.get_path()
+	
 	atmosphere.planet_radius = radius
 	atmosphere.set_atmosphere_height(atmosphere_radius)
 	atmosphere.set_shader_parameter("u_density", atmosphere_density)

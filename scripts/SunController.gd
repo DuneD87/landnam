@@ -9,6 +9,7 @@ extends Node3D
 	
 @export var auto_rotate        : bool  = true        # activar o desactivar
 @export var rotation_speed_deg : float = 10.0        # ° por segundo (positivo = Este→Oeste)
+@export var sun_distance : float = 100000.0
 
 var sky_material : ShaderMaterial      # se resuelve en _ready
 
@@ -17,7 +18,9 @@ func _ready() -> void:
 	if env:
 		sky_material = env.environment.sky.sky_material as ShaderMaterial
 	sun_azimuth_deg = 0.0
-	sun_elevation_deg = 25.0
+	sun_elevation_deg = 0.0
+	sun_light.position = Vector3(0.0, 0.0, 0.0)
+
 	set_process(true)   # _process corre en editor (por @tool)
 	_update_sun()
 
@@ -38,15 +41,19 @@ func _update_sun() -> void:
 	if not sky_material or not sun_light:
 		return
 
-	# --- 1. Calcula la dirección con los mismos ángulos que el shader ----
+	# --- 1. Calcula la dirección del sol usando azimut y elevación ---
 	var az := deg_to_rad(sun_azimuth_deg)
 	var el := deg_to_rad(sun_elevation_deg)
+
+	# Dirección del sol (unitaria)
 	var dir := Vector3(cos(el) * sin(az), sin(el), cos(el) * cos(az)).normalized()
 
-	# --- 2. Pasa los parámetros al shader -------------------------------
+	# --- 2. Posición del sol a distancia fija del origen --------------
+	sun_light.position = dir * sun_distance
+
+	# --- 3. Alinea la DirectionalLight para que mire al centro -------
+	sun_light.look_at(Vector3.ZERO, Vector3.UP)
+
+	# --- 4. Pasa los parámetros al shader ----------------------------
 	sky_material.set_shader_parameter("sun_azimuth_deg",   sun_azimuth_deg)
 	sky_material.set_shader_parameter("sun_elevation_deg", sun_elevation_deg)
-
-	# --- 3. Alinea la DirectionalLight (mira hacia -dir) ----------------
-	sun_light.transform = Transform3D.IDENTITY.looking_at(-dir, Vector3.UP)
-	sun_light.position = Vector3(-20000000.0, 0.0, 0.0)

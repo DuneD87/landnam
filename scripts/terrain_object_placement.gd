@@ -5,14 +5,19 @@ var grass_generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 var bushes_generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 var large_rocks_generator_03 : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 var large_rocks_generator_02 : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
+var planet : Node3D
 
 func set_generators() -> void:
+	
 	tree_generator.density = 0.01
-	tree_generator.vertical_alignment = 0.5
+	tree_generator.offset_along_normal = 8.5
 	tree_generator.max_height = 10050
 	tree_generator.min_height = 9975
 	tree_generator.max_slope_degrees = 25
-	tree_generator.noise_graph = function_north_hemi
+	tree_generator.min_scale = 1.5
+	tree_generator.max_scale = 2
+	tree_generator.noise_graph = function_north_hemi	
+
 	
 	grass_generator.emit_mode = VoxelInstanceGenerator.EMIT_ONE_PER_TRIANGLE
 	grass_generator.max_height = 10050
@@ -51,7 +56,7 @@ func set_generators() -> void:
 func add_vegatation() -> Array:
 	
 	var vegetation_array : Array
-	
+	'''
 	var tree_item_01 : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
 	tree_item_01.scene = load("res://scenes/tree01.tscn")
 	tree_item_01.generator = tree_generator
@@ -76,6 +81,11 @@ func add_vegatation() -> Array:
 	flowers_02.scene = load("res://scenes/flowers_02.tscn")
 	flowers_02.generator = bushes_generator
 	vegetation_array.append(flowers_02)
+	'''
+	var tree_006_ico : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
+	tree_006_ico.scene = load("res://models/low-poly-forest/tree2_icosphere_006.tscn")
+	tree_006_ico.generator = tree_generator
+	vegetation_array.append(tree_006_ico)
 	
 	return vegetation_array
 	
@@ -97,12 +107,16 @@ func add_rocks() -> Array:
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	set_generators()
+	planet = get_parent().get_parent()
+	print(planet.position)
+	
 	var vegetation_array = add_vegatation()
 	var i = 0
+
 	for vegetation in vegetation_array:
 		library.add_item(i, vegetation)
 		i += 1
-		
+
 	var rocks_array = add_rocks()
 	for rock in rocks_array:
 		library.add_item(i, rock)
