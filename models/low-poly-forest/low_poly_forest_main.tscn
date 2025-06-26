@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://d0g68tn0h40jh"]
+
+[ext_resource type="PackedScene" uid="uid://srvtdh8do7yj" path="res://models/low-poly-forest/low_poly_forest_main.glb" id="1_3kd1n"]
+
+[node name="low_poly_forest_main" instance=ExtResource("1_3kd1n")]
+
+[node name="tree6_Icosphere_008" parent="." index="40"]
+transform = Transform3D(1.49404, 0, 0, 0, 0, -1.49404, 0, 1.49404, 0, -19.5228, -4.37145, 4.12906)
