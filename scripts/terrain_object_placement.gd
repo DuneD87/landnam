@@ -6,11 +6,26 @@ var bushes_generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 var large_rocks_generator_03 : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 var large_rocks_generator_02 : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 var planet : Node3D
+var sun_dir : Vector3
+
+var grass_scene : PackedScene = load("res://scenes/grass_01.tscn")
+var tree01_scene : PackedScene = load("res://scenes/tree01.tscn")
+var tree02_scene : PackedScene = load("res://scenes/tree_02.tscn")
+var bush01_scene : PackedScene = load("res://scenes/bush_01.tscn")
+var flowers02_scene : PackedScene = load("res://scenes/flowers_02.tscn")
+
+var grass_materials : Array
+var tree01_materials : Array
+var tree02_materials : Array
+var bush01_materials : Array
+var flowers02_materials : Array
+
+var wind_direction = Vector3(2.0, 0.0, 0.01)
+var wind_speed = 0.3
 
 func set_generators() -> void:
 	
 	tree_generator.density = 0.01
-	tree_generator.offset_along_normal = 8.5
 	tree_generator.max_height = 10050
 	tree_generator.min_height = 9975
 	tree_generator.max_slope_degrees = 25
@@ -56,29 +71,29 @@ func set_generators() -> void:
 func add_vegatation() -> Array:
 	
 	var vegetation_array : Array
-	'''
+
 	var tree_item_01 : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
-	tree_item_01.scene = load("res://scenes/tree01.tscn")
+	tree_item_01.scene = tree01_scene
 	tree_item_01.generator = tree_generator
 	vegetation_array.append(tree_item_01)
 	
 	var tree_item_02 : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
-	tree_item_02.scene = load("res://scenes/tree_02.tscn")
+	tree_item_02.scene = tree02_scene
 	tree_item_02.generator = tree_generator
 	vegetation_array.append(tree_item_02)
 	
 	var grass_item_01 : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
-	grass_item_01.scene = load("res://scenes/grass_01.tscn")
+	grass_item_01.scene = grass_scene
 	grass_item_01.generator = grass_generator
 	vegetation_array.append(grass_item_01)
 	
 	var bush_01 : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
-	bush_01.scene = load("res://scenes/bush_01.tscn")
+	bush_01.scene = bush01_scene
 	bush_01.generator = bushes_generator
 	vegetation_array.append(bush_01)
 	
 	var flowers_02 : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
-	flowers_02.scene = load("res://scenes/flowers_02.tscn")
+	flowers_02.scene = flowers02_scene
 	flowers_02.generator = bushes_generator
 	vegetation_array.append(flowers_02)
 	'''
@@ -86,6 +101,7 @@ func add_vegatation() -> Array:
 	tree_006_ico.scene = load("res://models/low-poly-forest/tree2_icosphere_006.tscn")
 	tree_006_ico.generator = tree_generator
 	vegetation_array.append(tree_006_ico)
+	'''
 	
 	return vegetation_array
 	
@@ -104,12 +120,47 @@ func add_rocks() -> Array:
 	
 	return rocks_array
 
+func fill_object_materials() -> void:
+	var grass_mesh : MeshInstance3D = grass_scene.instantiate().get_child(0)
+	var grass_material_01 : ShaderMaterial = grass_mesh.mesh.surface_get_material(0)
+	var grass_material_02 : ShaderMaterial = grass_mesh.mesh.surface_get_material(1)
+	grass_materials.append(grass_material_01)
+	grass_materials.append(grass_material_02)
+	
+	var tree01_mesh : MeshInstance3D = tree01_scene.instantiate().get_child(0)
+	var tree01_material_01 : ShaderMaterial = tree01_mesh.mesh.surface_get_material(1)
+	var tree01_material_02 : ShaderMaterial = tree01_mesh.mesh.surface_get_material(2)
+	tree01_materials.append(tree01_material_01)
+	tree01_materials.append(tree01_material_02)
+	
+	var tree02_mesh : MeshInstance3D = tree02_scene.instantiate().get_child(0)
+	var tree02_material_01 : ShaderMaterial = tree02_mesh.mesh.surface_get_material(1)
+	var tree02_material_02 : ShaderMaterial = tree02_mesh.mesh.surface_get_material(2)
+	tree02_materials.append(tree02_material_01)
+	tree02_materials.append(tree02_material_02)
+	
+	var bush01_mesh : MeshInstance3D = bush01_scene.instantiate().get_child(0)
+	var bush01_material_01 : ShaderMaterial = bush01_mesh.mesh.surface_get_material(0)
+	var bush01_material_02 : ShaderMaterial = bush01_mesh.mesh.surface_get_material(1)
+	bush01_materials.append(bush01_material_01)
+	bush01_materials.append(bush01_material_02)
+	
+	var flowers02_mesh : MeshInstance3D = flowers02_scene.instantiate().get_child(0)
+	var flowers02_material_01 : ShaderMaterial = flowers02_mesh.mesh.surface_get_material(0)
+	var flowers02_material_02 : ShaderMaterial = flowers02_mesh.mesh.surface_get_material(1)
+	var flowers02_material_03 : ShaderMaterial = flowers02_mesh.mesh.surface_get_material(2)
+	var flowers02_material_04 : ShaderMaterial = flowers02_mesh.mesh.surface_get_material(3)
+	flowers02_materials.append(flowers02_material_01)
+	flowers02_materials.append(flowers02_material_02)
+	flowers02_materials.append(flowers02_material_03)
+	flowers02_materials.append(flowers02_material_04)
+	
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	set_generators()
+	fill_object_materials()
 	planet = get_parent().get_parent()
-	print(planet.position)
-	
+		
 	var vegetation_array = add_vegatation()
 	var i = 0
 
@@ -124,4 +175,36 @@ func _ready() -> void:
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
-	pass
+	sun_dir = planet.sun_dir
+	for mat in grass_materials:
+		mat.set_shader_parameter("light_direction", sun_dir)
+		mat.set_shader_parameter("planet_position", planet.position)
+		mat.set_shader_parameter("wind_direction", wind_direction / 2.0)
+		mat.set_shader_parameter("wind_speed", wind_speed / 2.0)
+		
+	for mat in tree01_materials:
+		mat.set_shader_parameter("light_direction", sun_dir)
+		mat.set_shader_parameter("planet_position", planet.position)
+		mat.set_shader_parameter("wind_direction", wind_direction)
+		mat.set_shader_parameter("wind_speed", wind_speed)
+
+	for mat in tree02_materials:
+		mat.set_shader_parameter("light_direction", sun_dir)
+		mat.set_shader_parameter("planet_position", planet.position)
+		mat.set_shader_parameter("wind_direction", wind_direction)
+		mat.set_shader_parameter("wind_speed", wind_speed)
+	
+	for mat in bush01_materials:
+		mat.set_shader_parameter("light_direction", sun_dir)
+		mat.set_shader_parameter("planet_position", planet.position)
+		mat.set_shader_parameter("wind_direction", wind_direction / 2.0)
+		mat.set_shader_parameter("wind_speed", wind_speed / 2.0)
+		
+	for mat in flowers02_materials:
+		mat.set_shader_parameter("light_direction", sun_dir)
+		mat.set_shader_parameter("planet_position", planet.position)
+		mat.set_shader_parameter("wind_direction", wind_direction / 2.0)
+		mat.set_shader_parameter("wind_speed", wind_speed / 2.0)
+
+
+	

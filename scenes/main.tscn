@@ -1,7 +1,7 @@
 [gd_scene load_steps=9 format=3 uid="uid://egusbnvcpwin"]
 
 [ext_resource type="Script" path="res://scripts/camera_controller.gd" id="1_h11ns"]
-[ext_resource type="Script" path="res://scripts/SunController.gd" id="1_uw70s"]
+[ext_resource type="Script" path="res://scripts/sun_controller.gd" id="1_uw70s"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/terrain.tscn" id="2_8dlty"]
 [ext_resource type="Shader" path="res://textures/skybox/space_sky.gdshader" id="3_k1xg5"]
 
@@ -60,7 +60,6 @@ volumetric_fog_density = 0.0218
 [node name="Node3D" type="Node3D" node_paths=PackedStringArray("sun_light")]
 script = ExtResource("1_uw70s")
 sun_light = NodePath("DirectionalLight3D")
-sun_azimuth_deg = 165.396
 sun_elevation_deg = 0.0
 
 [node name="Player" type="CharacterBody3D" parent="."]
@@ -87,6 +86,8 @@ sun = NodePath("../DirectionalLight3D")
 transform = Transform3D(-0.999997, 0, -0.00237361, 0, 1, 0, 0.00237361, 0, -0.999997, -2e+07, 0, 0)
 shadow_enabled = true
 shadow_opacity = 0.44
+directional_shadow_max_distance = 12000.0
+directional_shadow_pancake_size = 1.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_bdos0")

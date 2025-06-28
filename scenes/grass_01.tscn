@@ -1,25 +1,44 @@
-[gd_scene load_steps=6 format=4 uid="uid://b2axhi17uiip0"]
+[gd_scene load_steps=7 format=4 uid="uid://b2axhi17uiip0"]
 
 [ext_resource type="Texture2D" uid="uid://emv8exqsna6r" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-02.png" id="1_43a8k"]
+[ext_resource type="Shader" path="res://shaders/transparent_material_shader.gdshader" id="1_s0ge1"]
 [ext_resource type="Texture2D" uid="uid://y8gtx62pgrtm" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-01.png" id="2_akxvo"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7j5ay"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_e2k8k"]
 resource_name = "high-grass-1-02"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("1_43a8k")
-roughness = 0.5
+render_priority = 0
+shader = ExtResource("1_s0ge1")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("1_43a8k")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8c3ld"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_gst1l"]
 resource_name = "high-grass-1-01"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("2_akxvo")
-roughness = 0.5
+render_priority = 0
+shader = ExtResource("1_s0ge1")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("2_akxvo")
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_fl2ye"]
 resource_name = "shapespark-low-poly-plants-kit_Plane_202"
@@ -29,7 +48,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 18,
 "index_data": PackedByteArray("AAADAAEAAAACAAMABAAHAAUABAAGAAcACAALAAkACAAKAAsA"),
-"material": SubResource("StandardMaterial3D_7j5ay"),
+"material": SubResource("ShaderMaterial_e2k8k"),
 "name": "high-grass-1-02",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
@@ -41,7 +60,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 12,
 "index_data": PackedByteArray("AAADAAEAAAACAAMABAAHAAUABAAGAAcA"),
-"material": SubResource("StandardMaterial3D_8c3ld"),
+"material": SubResource("ShaderMaterial_gst1l"),
 "name": "high-grass-1-01",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
@@ -52,6 +71,6 @@ _surfaces = [{
 [node name="Node3D" type="Node3D"]
 
 [node name="Grass-01" type="MeshInstance3D" parent="."]
-gi_mode = 2
+gi_mode = 0
 mesh = SubResource("ArrayMesh_fl2ye")
 skeleton = NodePath("")

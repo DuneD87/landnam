@@ -14,10 +14,13 @@ var biome_latitude_ranges : Array[float] = [-90, -45, -10, 10, 45, 90]  # 7 valo
 @export var atmosphere_radius : float = 2000.0
 @export var atmosphere_density : float = 0.05
 @export var sun : DirectionalLight3D
+@export var sun_dir : Vector3
+
 var shader_material : ShaderMaterial
 var trans_smooth := 1.5
 @onready var voxel_terrain : VoxelLodTerrain = $VoxelLodTerrain
 @onready var atmosphere : Node3D = $VoxelLodTerrain/PlanetAthmosphere
+
 func set_shader_parameters() -> void:
 	shader_material = voxel_terrain.material as ShaderMaterial
 	shader_material.set_shader_parameter("transition_smoothness", 30)
@@ -84,9 +87,9 @@ func set_shader_parameters() -> void:
 	shader_material.set_shader_parameter("biome_texture_indices", flattened_biome_texture_indices)
 	
 	# Textura de pendientes (slope)
-	var texture_slope: Texture2D = load("res://terrain/textures/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png")
-	var texture_slope_normals: Texture2D = load("res://terrain/textures/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png")
-	var texture_slope_roughness: Texture2D = load("res://terrain/textures/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png")
+	var texture_slope: Texture2D = load("res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png")
+	var texture_slope_normals: Texture2D = load("res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png")
+	var texture_slope_roughness: Texture2D = load("res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png")
 	
 	shader_material.set_shader_parameter("slope_texture", texture_slope)
 	shader_material.set_shader_parameter("slope_normal_texture", texture_slope_normals)

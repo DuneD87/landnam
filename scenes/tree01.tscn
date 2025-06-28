@@ -1,6 +1,7 @@
-[gd_scene load_steps=9 format=4 uid="uid://di63obeg6eavs"]
+[gd_scene load_steps=10 format=4 uid="uid://di63obeg6eavs"]
 
 [ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/forest/textures/shapespark-low-poly-plants-kit_bark.jpg" id="1_uibji"]
+[ext_resource type="Shader" path="res://shaders/transparent_material_shader.gdshader" id="2_a3bui"]
 [ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-01.png" id="2_iir3y"]
 [ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-02.png" id="3_71ah1"]
 
@@ -10,25 +11,41 @@ cull_mode = 2
 albedo_texture = ExtResource("1_uibji")
 roughness = 0.343182
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uk8in"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sctyd"]
 resource_name = "branch-1-01"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("2_iir3y")
-roughness = 0.5
-disable_receive_shadows = true
+render_priority = 0
+shader = ExtResource("2_a3bui")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("2_iir3y")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6uc63"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ew4ab"]
 resource_name = "branch-1-02"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("3_71ah1")
-roughness = 0.5
-disable_receive_shadows = true
+render_priority = 0
+shader = ExtResource("2_a3bui")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("3_71ah1")
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_cfrcm"]
 _surfaces = [{
@@ -84,7 +101,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 552,
 "index_data": PackedByteArray("AAAIAAQAAAAKAAgABwALAAkABwADAAsACgAGAAgACgACAAYACwAFAAkACwABAAUADAAVABEADAAUABUAEgATABUAEgAPABMAFAASABUAFAAOABIAEwAQABUAEwANABAAFgAdABsAFgAeAB0AHAAfAB0AHAAZAB8AHgAcAB0AHgAYABwAHwAaAB0AHwAXABoAIAAmACQAIAAnACYAJQAoACYAJQAjACgAJwAlACYAJwAiACUAKAAkACYAKAAhACQAKQAvAC0AKQAwAC8ALgAxAC8ALgAsADEAMAAuAC8AMAArAC4AMQAtAC8AMQAqAC0AMgA4ADYAMgA5ADgANwA6ADgANwA1ADoAOQA3ADgAOQA0ADcAOgA2ADgAOgAzADYAOwBGAEAAOwBEAEYAQQBDAEUAQQA+AEMARABCAEYARAA9AEIAQwA/AEUAQwA8AD8ARwBOAEsARwBPAE4ATQBQAE4ATQBKAFAATwBNAE4ATwBJAE0AUABMAE4AUABIAEwAUQBXAFUAUQBYAFcAVgBZAFcAVgBUAFkAWABWAFcAWABTAFYAWQBVAFcAWQBSAFUAWgBlAF8AWgBjAGUAYABiAGQAYABdAGIAYwBhAGUAYwBcAGEAYgBeAGQAYgBbAF4AZgBvAGsAZgBuAG8AbABtAG8AbABpAG0AbgBsAG8AbgBoAGwAbQBqAG8AbQBnAGoAcAB2AHQAcAB3AHYAdQB4AHYAdQBzAHgAdwB1AHYAdwByAHUAeAB0AHYAeABxAHQAeQB/AH0AeQCAAH8AfgCBAH8AfgB8AIEAgAB+AH8AgAB7AH4AgQB9AH8AgQB6AH0AggCLAIcAggCKAIsAiACJAIsAiACFAIkAigCIAIsAigCEAIgAiQCGAIsAiQCDAIYAjACUAJAAjACWAJQAkwCXAJUAkwCPAJcAlgCSAJQAlgCOAJIAlwCRAJUAlwCNAJEAmACfAJ0AmACgAJ8AngChAJ8AngCbAKEAoACeAJ8AoACaAJ4AoQCcAJ8AoQCZAJwAogCrAKYAogCqAKsAqACpAKsAqAClAKkAqgCoAKsAqgCkAKgAqQCnAKsAqQCjAKcArACyALAArACzALIAsQC0ALIAsQCvALQAswCxALIAswCuALEAtACwALIAtACtALAAtQC+ALoAtQC9AL4AuwC8AL4AuwC4ALwAvQC7AL4AvQC3ALsAvAC5AL4AvAC2ALkAvwDIAMMAvwDHAMgAxQDGAMgAxQDCAMYAxwDFAMgAxwDBAMUAxgDEAMgAxgDAAMQAyQDPAM0AyQDQAM8AzgDRAM8AzgDMANEA0ADOAM8A0ADLAM4A0QDNAM8A0QDKAM0A0gDYANYA0gDZANgA1wDaANgA1wDVANoA2QDXANgA2QDUANcA2gDWANgA2gDTANYA2wDhAN8A2wDiAOEA4ADjAOEA4ADeAOMA4gDgAOEA4gDdAOAA4wDfAOEA4wDcAN8A"),
-"material": SubResource("StandardMaterial3D_uk8in"),
+"material": SubResource("ShaderMaterial_sctyd"),
 "name": "branch-1-01",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
@@ -96,7 +113,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 720,
 "index_data": PackedByteArray("AAAGAAQAAAAIAAYABQAHAAYABQADAAcACAAFAAYACAACAAUABwAEAAYABwABAAQACQAPAA0ACQARAA8ADgAQAA8ADgAMABAAEQAOAA8AEQALAA4AEAANAA8AEAAKAA0AEgAYABYAEgAaABgAFwAZABgAFwAVABkAGgAXABgAGgAUABcAGQAWABgAGQATABYAGwAhAB8AGwAjACEAIAAiACEAIAAeACIAIwAgACEAIwAdACAAIgAfACEAIgAcAB8AJQAtACkAJQAuAC0AKwAmACoAKwAoACYALAApAC0ALAAnACkALwAoACsALwAkACgAMAA5ADQAMAA6ADkANwAzADYANwA1ADMAOAA0ADkAOAAyADQAOwA1ADcAOwAxADUAPwBDAEAAPwBFAEMAQgBEAEMAQgA8AEQARABAAEMARAA+AEAARQBBAEMARQA9AEEASQBNAEoASQBPAE0ASwBOAE0ASwBGAE4ATgBKAE0ATgBIAEoATwBMAE0ATwBHAEwAUQBZAFUAUQBaAFkAVwBSAFYAVwBUAFIAWABVAFkAWABTAFUAWwBUAFcAWwBQAFQAXABlAGAAXABmAGUAYwBfAGIAYwBhAF8AZABgAGUAZABeAGAAZwBhAGMAZwBdAGEAaQBxAG0AaQByAHEAbwBqAG4AbwBsAGoAcABtAHEAcABrAG0AcwBsAG8AcwBoAGwAdAB9AHgAdAB+AH0AewB3AHoAewB5AHcAfAB4AH0AfAB2AHgAfwB5AHsAfwB1AHkAgwCGAIQAgwCIAIYAhQCHAIYAhQCAAIcAhwCEAIYAhwCCAIQAiACFAIYAiACBAIUAiQCQAI0AiQCSAJAAjwCRAJAAjwCMAJEAkgCPAJAAkgCLAI8AkQCOAJAAkQCKAI4AkwCZAJcAkwCbAJkAmACaAJkAmACWAJoAmwCYAJkAmwCVAJgAmgCXAJkAmgCUAJcAnACmAKAAnACoAKYApACfAKMApACiAJ8ApQChAKcApQCeAKEAqQCiAKQAqQCdAKIArQCwAK4ArQCyALAArwCxALAArwCqALEAsQCuALAAsQCsAK4AsgCvALAAsgCrAK8AswC8ALcAswC9ALwAugC2ALkAugC4ALYAuwC3ALwAuwC1ALcAvgC4ALoAvgC0ALgAvwDFAMMAvwDHAMUAxADGAMUAxADCAMYAxwDEAMUAxwDBAMQAxgDDAMUAxgDAAMMAyADPAMwAyADRAM8AzgDQAM8AzgDLANAA0QDOAM8A0QDKAM4A0ADNAM8A0ADJAM0A0gDbANYA0gDcANsA2QDVANgA2QDXANUA2gDWANsA2gDUANYA3QDXANkA3QDTANcA3gDkAOIA3gDmAOQA4wDlAOQA4wDhAOUA5gDjAOQA5gDgAOMA5QDiAOQA5QDfAOIA5wDtAOsA5wDvAO0A7ADuAO0A7ADqAO4A7wDsAO0A7wDpAOwA7gDrAO0A7gDoAOsA8AD2APQA8AD4APYA9QD3APYA9QDzAPcA+AD1APYA+ADyAPUA9wD0APYA9wDxAPQA+QD/AP0A+QABAf8A/gAAAf8A/gD8AAABAQH+AP8AAQH7AP4AAAH9AP8AAAH6AP0AAgEIAQYBAgEKAQgBBwEJAQgBBwEFAQkBCgEHAQgBCgEEAQcBCQEGAQgBCQEDAQYBDgERAQ8BDgETAREBEAESAREBEAELARIBEgEPAREBEgENAQ8BEwEQAREBEwEMARABFAEbARcBFAEcARsBGQEWARgBGQEXARYBGgEXARsBGgEVARcBHQEXARkBHQEUARcBIQElASIBIQEnASUBJAEmASUBJAEeASYBJgEiASUBJgEgASIBJwEjASUBJwEfASMBKAEvAS0BKAExAS8BLgEwAS8BLgErATABMQEuAS8BMQEqAS4BMAEsAS8BMAEpASwB"),
-"material": SubResource("StandardMaterial3D_6uc63"),
+"material": SubResource("ShaderMaterial_ew4ab"),
 "name": "branch-1-02",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),

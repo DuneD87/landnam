@@ -1,45 +1,82 @@
-[gd_scene load_steps=11 format=4 uid="uid://ditjpfgxymrtf"]
+[gd_scene load_steps=12 format=4 uid="uid://ditjpfgxymrtf"]
 
+[ext_resource type="Shader" path="res://shaders/transparent_material_shader.gdshader" id="1_f3o0i"]
 [ext_resource type="Texture2D" uid="uid://kgykj6t30831" path="res://models/forest/textures/shapespark-low-poly-plants-kit_flowers-01.png" id="1_yc4x3"]
 [ext_resource type="Texture2D" uid="uid://dixak8bnxecy2" path="res://models/forest/textures/shapespark-low-poly-plants-kit_flowers-02.png" id="2_i3wbo"]
 [ext_resource type="Texture2D" uid="uid://bjdebr6lhplbv" path="res://models/forest/textures/shapespark-low-poly-plants-kit_shrubbery-01.png" id="3_kfbdm"]
 [ext_resource type="Texture2D" uid="uid://dw182prdhy8gc" path="res://models/forest/textures/shapespark-low-poly-plants-kit_shrubbery-02.png" id="4_pun6v"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lkr5w"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_3o3tc"]
 resource_name = "flowers-01.001"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("1_yc4x3")
-roughness = 0.5
+render_priority = 0
+shader = ExtResource("1_f3o0i")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("1_yc4x3")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tfxxn"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_k8nin"]
 resource_name = "flowers-01.002"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("2_i3wbo")
-roughness = 0.5
+render_priority = 0
+shader = ExtResource("1_f3o0i")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("2_i3wbo")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_44lwc"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_gqu0c"]
 resource_name = "shrubbery-1-01"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("3_kfbdm")
-roughness = 0.5
+render_priority = 0
+shader = ExtResource("1_f3o0i")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("3_kfbdm")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_xqaov"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ca3n0"]
 resource_name = "shrubbery-1-02"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("4_pun6v")
-roughness = 0.5
+render_priority = 0
+shader = ExtResource("1_f3o0i")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("4_pun6v")
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_iadjx"]
 _surfaces = [{
@@ -96,7 +133,7 @@ _surfaces = [{
 "index_count": 54,
 "index_data": PackedByteArray("AAALAAYAAAAJAAsABQAfABcABQAYAB8ADgAjABwADgABACMACAAUAAoACAAQABQAEwAdACEAEwAPAB0AEQAEABUAEQACAAQAGwAWAB4AGwANABYAGQASACAAGQADABIAIgAMABoAIgAHAAwA"),
 "lods": [0.176695, PackedByteArray("AAAIAAYACAAQAAYADgAGABAAIgAGAA4ADgABACIADgAQACQAEAACACQAEgAOACQAGAASACQAGAADABIA")],
-"material": SubResource("StandardMaterial3D_lkr5w"),
+"material": SubResource("ShaderMaterial_3o3tc"),
 "name": "flowers-01.001",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
@@ -109,7 +146,7 @@ _surfaces = [{
 "index_count": 54,
 "index_data": PackedByteArray("AAALAAYAAAAJAAsABQAfABcABQAYAB8ADgAjABwADgABACMACAAUAAoACAAQABQAEwAdACEAEwAPAB0AEQAEABUAEQACAAQAGwAWAB4AGwANABYAGQASACAAGQADABIAIgAMABoAIgAHAAwA"),
 "lods": [0.186866, PackedByteArray("AAAIAAYACAAQAAYAJAAGABAAJAAQAAQAEAACAAQAEgAkAAQAGAASAAQAGAADABIAEgAOACQADgABACQA")],
-"material": SubResource("StandardMaterial3D_tfxxn"),
+"material": SubResource("ShaderMaterial_k8nin"),
 "name": "flowers-01.002",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
@@ -121,7 +158,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 108,
 "index_data": PackedByteArray("BAADAAEABAAGAAMAAAAHAAUAAAACAAcADAALAAkADAAOAAsACAAPAA0ACAAKAA8AEAATABEAEAASABMAFAAXABUAFAAWABcAGgAeABwAGgAYAB4AHwAbAB0AHwAZABsAIgAnACUAIgAgACcAJgAjACQAJgAhACMAKgAuACwAKgAoAC4ALwArAC0ALwApACsAMgA2ADQAMgAwADYANwAzADUANwAxADMAOgA/AD0AOgA4AD8APgA7ADwAPgA5ADsAQgBGAEQAQgBAAEYARwBDAEUARwBBAEMA"),
-"material": SubResource("StandardMaterial3D_44lwc"),
+"material": SubResource("ShaderMaterial_gqu0c"),
 "name": "shrubbery-1-01",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
@@ -133,7 +170,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 54,
 "index_data": PackedByteArray("BQADAAEABQAHAAMAAAAGAAQAAAACAAYADAALAAkADAAOAAsACAAPAA0ACAAKAA8AFQATABEAFQAXABMAEAAWABQAEAASABYAGAAbABkAGAAaABsAHAAfAB0AHAAeAB8AIAAjACEAIAAiACMA"),
-"material": SubResource("StandardMaterial3D_xqaov"),
+"material": SubResource("ShaderMaterial_ca3n0"),
 "name": "shrubbery-1-02",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),

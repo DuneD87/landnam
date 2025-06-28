@@ -1,25 +1,44 @@
-[gd_scene load_steps=7 format=4 uid="uid://blxu5opltxjyf"]
+[gd_scene load_steps=8 format=4 uid="uid://blxu5opltxjyf"]
 
+[ext_resource type="Shader" path="res://shaders/transparent_material_shader.gdshader" id="1_75sg3"]
 [ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-01.png" id="1_npayr"]
 [ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-02.png" id="2_acufl"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cp2li"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_3lgf0"]
 resource_name = "branch-1-01"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("1_npayr")
-roughness = 0.5
+render_priority = 0
+shader = ExtResource("1_75sg3")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("1_npayr")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_goe2b"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_mjcqc"]
 resource_name = "branch-1-02"
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-albedo_texture = ExtResource("2_acufl")
-roughness = 0.5
+render_priority = 0
+shader = ExtResource("1_75sg3")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/alpha_scissor_threshold = 0.5
+shader_parameter/point_size = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/uv2_scale = Vector3(1, 1, 1)
+shader_parameter/uv2_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = null
+shader_parameter/planet_position = null
+shader_parameter/transition_width = 0.2
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/texture_albedo = ExtResource("2_acufl")
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_uj1fa"]
 _surfaces = [{
@@ -53,7 +72,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 264,
 "index_data": PackedByteArray("AAADAAIAAAAEAAMABAAGAAMABAAIAAYABQACAAMABQABAAIABwADAAYABwAFAAMACQAMAAsACQANAAwADQAPAAwADQARAA8ADgALAAwADgAKAAsAEAAMAA8AEAAOAAwAFAAWABUAFAASABYAFgAaABUAFgAZABoAFwAUABUAFwATABQAGAAVABoAGAAXABUAGwAgAB0AGwAfACAAHwAhACAAHwAjACEAHgAdACAAHgAcAB0AIgAgACEAIgAeACAAJAAqACgAJAArACoAKQAsACoAKQAnACwAKwApACoAKwAmACkALAAoACoALAAlACgAMAAzADEAMAA1ADMAMgA0ADMAMgAtADQANAAxADMANAAvADEANQAyADMANQAuADIANgA+ADoANgA9AD4AOwA8AD4AOwA5ADwAPQA7AD4APQA4ADsAPAA6AD4APAA3ADoAPwBEAEEAPwBDAEQAQwBFAEQAQwBHAEUAQgBBAEQAQgBAAEEARgBEAEUARgBCAEQASABLAEoASABMAEsATABOAEsATABQAE4ATQBKAEsATQBJAEoATwBLAE4ATwBNAEsAUQBUAFMAUQBVAFQAVQBXAFQAVQBZAFcAVgBTAFQAVgBSAFMAWABUAFcAWABWAFQAWgBdAFwAWgBeAF0AXgBgAF0AXgBiAGAAXwBcAF0AXwBbAFwAYQBdAGAAYQBfAF0A"),
-"material": SubResource("StandardMaterial3D_cp2li"),
+"material": SubResource("ShaderMaterial_3lgf0"),
 "name": "branch-1-01",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
@@ -65,7 +84,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 120,
 "index_data": PackedByteArray("AAADAAIAAAAFAAMABQAGAAMABQAHAAYABAACAAMABAABAAIACAADAAYACAAEAAMADAAJAAsADAAKAAkADQAKAA4ADQAJAAoADwAMABEADwAKAAwAEAAKAA8AEAAOAAoAEgAYABQAEgAZABgAFgATABUAFgAUABMAFwAUABgAFwATABQAGgAUABYAGgASABQAGwAeAB0AGwAgAB4AIAAhAB4AIAAiACEAHwAdAB4AHwAcAB0AIwAeACEAIwAfAB4AJAAnACYAJAApACcAKQAqACcAKQArACoAKAAmACcAKAAlACYALAAnACoALAAoACcA"),
-"material": SubResource("StandardMaterial3D_goe2b"),
+"material": SubResource("ShaderMaterial_mjcqc"),
 "name": "branch-1-02",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
