@@ -2,7 +2,7 @@
 extends Node
 
 @export_group("Config Selection")
-@export_enum("None") var selected_config: String = "None":
+@export_enum("None", "Hola") var selected_config:
 	set(value):
 		print(value)
 		selected_config = value
@@ -52,7 +52,12 @@ func _get_property_list() -> Array:
 	var properties = []
 	var config_files = ["None"]
 	var dir_path = "res://data/planet"
-
+	properties.append({
+		"name": "selected_config",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": "None"
+	})
 	# Open directory
 	var dir = DirAccess.open(dir_path)
 	if dir:
@@ -60,16 +65,16 @@ func _get_property_list() -> Array:
 		var file_name = dir.get_next()
 		while file_name != "":
 			if file_name.ends_with(".json"):
-				config_files.append(file_name)
+				properties.append({
+				"name": "selected_config",
+				"type": TYPE_STRING,
+				"hint": PROPERTY_HINT_ENUM,
+				"hint_string": file_name
+			})
 			file_name = dir.get_next()
 		dir.list_dir_end()
 
-	properties.append({
-		"name": "selected_config",
-		"type": TYPE_STRING,
-		"hint": PROPERTY_HINT_ENUM,
-		"hint_string": ",".join(config_files)
-	})
+	
 	print(properties)
 	return properties
 

@@ -78,10 +78,13 @@ view_distance = 128000
 
 [node name="Planet" parent="." node_paths=PackedStringArray("sun") instance=ExtResource("2_8dlty")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
+selected_config = "None"
 radius = 10000.0
 atmosphere_radius = 1000.0
 atmosphere_density = 0.05
 sun = NodePath("../DirectionalLight3D")
+selected_config = "None"
+selected_config = "None"
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.999997, 0, -0.00237361, 0, 1, 0, 0.00237361, 0, -0.999997, -2e+07, 0, 0)
