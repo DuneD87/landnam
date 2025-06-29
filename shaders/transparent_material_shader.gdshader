@@ -27,10 +27,10 @@ float random(vec3 seed) {
 
 void vertex() {
 	UV = UV * uv1_scale.xy + uv1_offset.xy;
-	
+
 	// Calcular la posición del vértice en el espacio global
 	vertex_position_global = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	
+
 	// Efecto de viento: desplazar vértices según la dirección del viento
 	float wind_strength = wind_speed * (0.5 + 0.5 * random(VERTEX)); // Aleatoriedad basada en posición
 	vec3 wind_offset = wind_direction * sin(TIME * wind_speed + dot(VERTEX, vec3(0.5))) * wind_strength;
@@ -50,13 +50,13 @@ void fragment() {
 
 	// Calcular la incidencia de la luz usando la normal del vértice
 	float light_incidence = dot(normalize(NORMAL), normalize(-light_direction));
-	
+
 	// Calcular la dirección desde el vértice al centro del planeta
 	vec3 vertex_to_planet_dir = normalize(planet_position - vertex_position_global);
-	
+
 	// Determinar si el vértice está en el lado iluminado usando la posición
 	float position_incidence = dot(vertex_to_planet_dir, normalize(-light_direction));
-	
+
 	// Combinar la iluminación (basada en NORMAL) con el oscurecimiento (basado en posición)
 	float intensity = light_incidence * smoothstep(-transition_width, transition_width, position_incidence);
 	ALBEDO = ALBEDO * clamp(intensity, 0.0, 1.0); // Interpolar hacia negro en las áreas no iluminadas
