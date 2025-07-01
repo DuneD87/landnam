@@ -8,11 +8,11 @@
 		"biome_latitude_ranges": [-90, -45, -10, 10, 45, 90],
 		"biome_transition_smoothness": 1.0,
 		"max_heights": [
-			-30, 70, 200,
-			-20, 50, 150,
-			-5, 20, 150,
-			-20, 50, 150,
-			-30, 70, 200
+			-30, 70, 400,
+			-20, 50, 400,
+			-5, 20, 400,
+			-20, 50, 400,
+			-30, 70, 400
 		],
 		"biome_texture_indices": [
 			2, 2, 2,
@@ -41,9 +41,114 @@
 		"slope_roughness_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png"
 	},
 	"atmosphere_settings": {
-		"atmosphere_radius": 1000.0,
-		"atmosphere_density": 0.05,
+		"atmosphere_height": 1000.0,
+		"atmosphere_density": 0.065,
+		"scattering_wavelength": [700.0, 530.0, 440],
+		"atmosphere_modulate": [0.59, 0.64, 0.99],
 		"sun_path": "",
 		"sun_dir": [0, 0, 0]
-	}
+	},
+ "vegetation_settings": {
+	"hemisphere_graph_function": 
+		[
+			{
+				"name": "hemisphere_graph_path",
+				"path": "res://graph_functions/earth_terrain_green_hemisphere.tres",
+			}
+		], 
+
+	"wind_direction": [2.0, 0.0, 0.0],
+	
+
+	"generators": [
+	  {
+		"name": "tree_generator",
+		"emit_mode": "EMIT_FROM_VERTICES",
+		"density": 0.01,
+		"min_height": 9975,
+		"max_height": 10050,
+		"max_slope_degrees": 25,
+		"min_scale": 1.5,
+		"max_scale": 2,
+		"noise_graph": "hemisphere_graph_path" 
+	  },
+	  {
+		"name": "grass_generator",
+		"emit_mode": "EMIT_ONE_PER_TRIANGLE",
+		"min_height": 9975,
+		"max_height": 10050,
+		"max_slope_degrees": 35,
+		"noise_graph": "hemisphere_graph_path"
+	  },
+	  {
+		"name": "bushes_generator",
+		"emit_mode": "EMIT_FROM_VERTICES",
+		"density": 0.05,
+		"min_height": 9975,
+		"max_height": 10050,
+		"max_slope_degrees": 25,
+		"min_scale": 1.5,
+		"max_scale": 2,
+		"noise_graph": "hemisphere_graph_path"
+	  },
+	  { "name": "large_rocks_generator_03", 
+		"emit_mode": "EMIT_FROM_VERTICES",
+		"density": 0.01, 
+		"offset_along_normal": -1.5, 
+		"min_height": 9975,
+		"max_height": 10050,
+		"max_slope_degrees": 25,
+		"min_scale": 1.5,
+		"max_scale": 2,
+		"noise_graph": "hemisphere_graph_path"
+	  },
+	  { "name": "large_rocks_generator_02",
+		"emit_mode": "EMIT_FROM_VERTICES",
+		"density": 0.01, 
+		"offset_along_normal": -1.0, 
+		"min_height": 9975,
+		"max_height": 10050,
+		"max_slope_degrees": 25,
+		"min_scale": 1.5,
+		"max_scale": 2,
+		"noise_graph": "hemisphere_graph_path"
+		}
+	],
+
+	"items": [
+	  	{ 	
+			"scene": "res://scenes/tree01.tscn",       
+			"generator": "tree_generator", 
+			"wind_speed": 0.3 
+		},
+	  	{ 
+			"scene": "res://scenes/tree_02.tscn",      
+			"generator": "tree_generator", 
+			"wind_speed": 0.3  
+		},
+	  	{ 
+			"scene": "res://scenes/grass_01.tscn",     
+			"generator": "grass_generator", 
+			"wind_speed": 0.2
+		},
+	  	{ 
+			"scene": "res://scenes/bush_01.tscn",      
+			"generator": "bushes_generator" , 
+			"wind_speed": 0.15
+		},
+	  	{ 
+			"scene": "res://scenes/flowers_02.tscn",   
+			"generator": "bushes_generator" , 
+			"wind_speed": 0.15
+		},
+	  	{ 
+			"scene": "res://models/rocks/large_rock_03_glb.tscn", 
+			"generator": "large_rocks_generator_03" 
+		},
+	  	{ 
+			"scene": "res://models/rocks/large_rock_02.tscn",     
+			"generator": "large_rocks_generator_02" 
+		}
+	]
+  }
 }

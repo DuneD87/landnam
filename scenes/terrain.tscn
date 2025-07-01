@@ -1,11 +1,109 @@
-[gd_scene load_steps=19 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=61 format=3 uid="uid://cuv6mxdmxyw00"]
 
 [ext_resource type="Shader" path="res://shaders/terrain/terrain_no_biomes.gdshader" id="1_x3wex"]
-[ext_resource type="Script" path="res://scripts/planet_factory.gd" id="5_0igel"]
+[ext_resource type="Script" path="res://scripts/Planet/planet_factory.gd" id="5_0igel"]
 [ext_resource type="Script" path="res://scripts/terrain_object_placement.gd" id="6_5cu2j"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="8_4hxn6"]
 [ext_resource type="Shader" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
 [ext_resource type="Script" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
+[ext_resource type="Texture2D" uid="uid://dhijdayb5nt0r" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png" id="12_7glfb"]
+[ext_resource type="Texture2D" uid="uid://b0o1ya46h2u1k" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png" id="13_0im7v"]
+[ext_resource type="Texture2D" uid="uid://dhijdayb5nt0r" path="res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png" id="13_oyxxx"]
+[ext_resource type="Texture2D" uid="uid://bof3io0b6tmqx" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png" id="14_tvw1i"]
+[ext_resource type="Texture2D" uid="uid://b0o1ya46h2u1k" path="res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png" id="14_yk4ev"]
+[ext_resource type="Texture2D" uid="uid://bof3io0b6tmqx" path="res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png" id="15_yhlo7"]
+[ext_resource type="VoxelGraphFunction" uid="uid://d3wunooykweya" path="res://graph_functions/earth_terrain_green_hemisphere.tres" id="18_o7l4u"]
+[ext_resource type="PackedScene" uid="uid://di63obeg6eavs" path="res://scenes/tree01.tscn" id="19_ds5ro"]
+[ext_resource type="PackedScene" uid="uid://dyiubcom4ogft" path="res://scenes/tree_02.tscn" id="20_meji2"]
+[ext_resource type="PackedScene" uid="uid://b2axhi17uiip0" path="res://scenes/grass_01.tscn" id="21_rox3h"]
+[ext_resource type="PackedScene" uid="uid://blxu5opltxjyf" path="res://scenes/bush_01.tscn" id="22_co30u"]
+[ext_resource type="PackedScene" uid="uid://ditjpfgxymrtf" path="res://scenes/flowers_02.tscn" id="23_um40x"]
+[ext_resource type="PackedScene" uid="uid://barfmcywfo1pb" path="res://models/rocks/large_rock_03_glb.tscn" id="24_bnnv1"]
+[ext_resource type="PackedScene" uid="uid://cke5ta2p1qut8" path="res://models/rocks/large_rock_02.tscn" id="25_6wvol"]
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_nrh61"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_x4m3i"]
+generator = SubResource("VoxelInstanceGenerator_nrh61")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_hn6w1"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_fe438"]
+generator = SubResource("VoxelInstanceGenerator_hn6w1")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_rwdma"]
+emit_mode = 3
+max_slope_degrees = 35.0
+min_height = 9975.0
+max_height = 10050.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_f1gmj"]
+generator = SubResource("VoxelInstanceGenerator_rwdma")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_yimx7"]
+density = 0.05
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_iaqtp"]
+generator = SubResource("VoxelInstanceGenerator_yimx7")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_j38vh"]
+density = 0.05
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_dwjfh"]
+generator = SubResource("VoxelInstanceGenerator_j38vh")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_qeyf7"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+offset_along_normal = -1.5
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_1a8em"]
+generator = SubResource("VoxelInstanceGenerator_qeyf7")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_dpgc6"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+offset_along_normal = -1.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_5oei5"]
+generator = SubResource("VoxelInstanceGenerator_dpgc6")
 
 [sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_as11c"]
 
@@ -154,23 +252,26 @@ next_pass = SubResource("ShaderMaterial_ye5xo")
 shader = ExtResource("1_x3wex")
 shader_parameter/u_transition_mask = null
 shader_parameter/radius = 10000.0
-shader_parameter/center = Vector3(0, 0, 0)
+shader_parameter/center = Vector3(0, 0, 15000)
 shader_parameter/max_heights = Array[float]([])
-shader_parameter/biome_count = 0
-shader_parameter/textures_per_biome = 0
+shader_parameter/biome_count = 3
+shader_parameter/textures_per_biome = 2
 shader_parameter/biome_latitude_ranges = Array[float]([])
 shader_parameter/biome_texture_indices = Array[int]([])
 shader_parameter/slope_threshold = 0.7
 shader_parameter/slope_smoothness = 0.2
 shader_parameter/transition_smoothness = 1.5
-shader_parameter/biome_transition_smoothness = 0.0
+shader_parameter/biome_transition_smoothness = 0.5
 shader_parameter/noise_strength = 0.8
 shader_parameter/noise_scale = 0.1
 shader_parameter/texture_scale = 0.1
 shader_parameter/normal_strength = 1.0
-shader_parameter/textures = Array[CompressedTexture2D]([])
-shader_parameter/normal_textures = Array[CompressedTexture2D]([])
-shader_parameter/roughness_textures = Array[CompressedTexture2D]([])
+shader_parameter/textures = Array[Texture2D]([])
+shader_parameter/normal_textures = Array[Texture2D]([])
+shader_parameter/roughness_textures = Array[Texture2D]([])
+shader_parameter/slope_texture = ExtResource("15_yhlo7")
+shader_parameter/slope_normal_texture = ExtResource("13_oyxxx")
+shader_parameter/slope_roughness_texture = ExtResource("14_yk4ev")
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_qaxex"]
 noise_type = 2
@@ -199,10 +300,139 @@ noise = SubResource("FastNoiseLite_16ssy")
 resolution = 256
 scale = Vector3(100, 200, 100)
 
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_ec0p0"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_xkipp"]
+generator = SubResource("VoxelInstanceGenerator_ec0p0")
+scene = ExtResource("19_ds5ro")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_1sqel"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_ilsjk"]
+generator = SubResource("VoxelInstanceGenerator_1sqel")
+scene = ExtResource("20_meji2")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_0ppkj"]
+emit_mode = 3
+max_slope_degrees = 35.0
+min_height = 9975.0
+max_height = 10050.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_gf66d"]
+generator = SubResource("VoxelInstanceGenerator_0ppkj")
+scene = ExtResource("21_rox3h")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_5ypu8"]
+density = 0.05
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_m7rkh"]
+generator = SubResource("VoxelInstanceGenerator_5ypu8")
+scene = ExtResource("22_co30u")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_wdp6e"]
+density = 0.05
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_tlk7v"]
+generator = SubResource("VoxelInstanceGenerator_wdp6e")
+scene = ExtResource("23_um40x")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_6e3th"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+offset_along_normal = -1.5
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_v1whj"]
+generator = SubResource("VoxelInstanceGenerator_6e3th")
+scene = ExtResource("24_bnnv1")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_iih56"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+offset_along_normal = -1.0
+noise_graph = ExtResource("18_o7l4u")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_eswp8"]
+generator = SubResource("VoxelInstanceGenerator_iih56")
+scene = ExtResource("25_6wvol")
+
 [sub_resource type="VoxelInstanceLibrary" id="VoxelInstanceLibrary_xfb0j"]
+_data = [0, 0, SubResource("VoxelInstanceLibraryMultiMeshItem_xkipp"), 1, SubResource("VoxelInstanceLibraryMultiMeshItem_ilsjk"), 2, SubResource("VoxelInstanceLibraryMultiMeshItem_gf66d"), 3, SubResource("VoxelInstanceLibraryMultiMeshItem_m7rkh"), 4, SubResource("VoxelInstanceLibraryMultiMeshItem_tlk7v"), 5, SubResource("VoxelInstanceLibraryMultiMeshItem_v1whj"), 6, SubResource("VoxelInstanceLibraryMultiMeshItem_eswp8")]
 
 [node name="Node3D" type="Node3D"]
 script = ExtResource("5_0igel")
+radius = 10000.0
+vegetation = Array[Dictionary]([{
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_x4m3i"),
+"scene_path": "res://scenes/tree01.tscn",
+"wind_speed": 0.3
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_fe438"),
+"scene_path": "res://scenes/tree_02.tscn",
+"wind_speed": 0.3
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_f1gmj"),
+"scene_path": "res://scenes/grass_01.tscn",
+"wind_speed": 0.06
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_iaqtp"),
+"scene_path": "res://scenes/bush_01.tscn",
+"wind_speed": 0.09
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_dwjfh"),
+"scene_path": "res://scenes/flowers_02.tscn",
+"wind_speed": 0.06
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_1a8em"),
+"scene_path": "res://models/rocks/large_rock_03_glb.tscn",
+"wind_speed": 0.0
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_5oei5"),
+"scene_path": "res://models/rocks/large_rock_02.tscn",
+"wind_speed": 0.0
+}])
+biome_count = 5
+textures_per_biome = 3
+biome_transition_smoothness = 1.0
+slope_texture = ExtResource("14_tvw1i")
+slope_normal_texture = ExtResource("12_7glfb")
+slope_roughness_texture = ExtResource("13_0im7v")
+atmosphere_modulate = null
 
 [node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
 stream = SubResource("VoxelStreamMemory_as11c")
@@ -219,11 +449,11 @@ threaded_update_enabled = true
 streaming_system = 1
 
 [node name="PlanetAthmosphere" parent="VoxelLodTerrain" instance=ExtResource("8_4hxn6")]
-planet_radius = 0.0
+planet_radius = 10000.0
 atmosphere_height = 10.0
 custom_shader = ExtResource("9_n2er8")
 clouds_rotation_speed = 0.2
-shader_params/u_density = 0.05
+shader_params/u_density = 5.0
 shader_params/u_scattering_strength = 1.0
 shader_params/u_atmosphere_modulate = Color(0.595211, 0.647066, 0.991816, 1)
 shader_params/u_atmosphere_ambient_color = Color(0.0196078, 0.0196078, 0.0431373, 1)

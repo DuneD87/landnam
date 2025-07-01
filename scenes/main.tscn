@@ -1,11 +1,122 @@
-[gd_scene load_steps=9 format=3 uid="uid://egusbnvcpwin"]
+[gd_scene load_steps=43 format=3 uid="uid://egusbnvcpwin"]
 
 [ext_resource type="Script" path="res://scripts/camera_controller.gd" id="1_h11ns"]
 [ext_resource type="Script" path="res://scripts/sun_controller.gd" id="1_uw70s"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/terrain.tscn" id="2_8dlty"]
 [ext_resource type="Shader" path="res://textures/skybox/space_sky.gdshader" id="3_k1xg5"]
+[ext_resource type="VoxelGraphFunction" uid="uid://d3wunooykweya" path="res://graph_functions/earth_terrain_green_hemisphere.tres" id="4_4v72k"]
+[ext_resource type="PackedScene" uid="uid://di63obeg6eavs" path="res://scenes/tree01.tscn" id="5_dygy7"]
+[ext_resource type="PackedScene" uid="uid://dyiubcom4ogft" path="res://scenes/tree_02.tscn" id="6_tdypa"]
+[ext_resource type="PackedScene" uid="uid://b2axhi17uiip0" path="res://scenes/grass_01.tscn" id="7_1tqte"]
+[ext_resource type="PackedScene" uid="uid://blxu5opltxjyf" path="res://scenes/bush_01.tscn" id="8_bdtcu"]
+[ext_resource type="PackedScene" uid="uid://ditjpfgxymrtf" path="res://scenes/flowers_02.tscn" id="9_enxf6"]
+[ext_resource type="PackedScene" uid="uid://barfmcywfo1pb" path="res://models/rocks/large_rock_03_glb.tscn" id="10_jytoq"]
+[ext_resource type="PackedScene" uid="uid://cke5ta2p1qut8" path="res://models/rocks/large_rock_02.tscn" id="11_kmskh"]
+[ext_resource type="Texture2D" uid="uid://bom3p3c1yjuro" path="res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png" id="12_mfx3g"]
+[ext_resource type="Texture2D" uid="uid://r48txvwwt3ew" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png" id="13_4t7no"]
+[ext_resource type="Texture2D" uid="uid://crke6vsvka1i1" path="res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png" id="14_sg6x8"]
+[ext_resource type="Texture2D" uid="uid://d2xgw8xav2h5i" path="res://textures/terrain/wavy-sand-bl/wavy-sand_normal-ogl.png" id="15_8jhsx"]
+[ext_resource type="Texture2D" uid="uid://deyo14ako7rqu" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png" id="16_vvscm"]
+[ext_resource type="Texture2D" uid="uid://bf75m88gnd13v" path="res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png" id="17_rass2"]
+[ext_resource type="Texture2D" uid="uid://cxmkokrtbc7rs" path="res://textures/terrain/wavy-sand-bl/wavy-sand_roughness.png" id="18_h8obi"]
+[ext_resource type="Texture2D" uid="uid://da117nsa5kx1a" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png" id="19_skdw0"]
+[ext_resource type="Texture2D" uid="uid://chvdatrns407v" path="res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png" id="20_1ytj0"]
+[ext_resource type="Texture2D" uid="uid://bof3io0b6tmqx" path="res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png" id="21_cq4vs"]
+[ext_resource type="Texture2D" uid="uid://dhijdayb5nt0r" path="res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png" id="22_ritdt"]
+[ext_resource type="Texture2D" uid="uid://b0o1ya46h2u1k" path="res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png" id="23_ji4cg"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_rvv4a"]
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_ec0p0"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("4_4v72k")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_xkipp"]
+generator = SubResource("VoxelInstanceGenerator_ec0p0")
+scene = ExtResource("5_dygy7")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_1sqel"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("4_4v72k")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_ilsjk"]
+generator = SubResource("VoxelInstanceGenerator_1sqel")
+scene = ExtResource("6_tdypa")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_0ppkj"]
+emit_mode = 3
+max_slope_degrees = 35.0
+min_height = 9975.0
+max_height = 10050.0
+noise_graph = ExtResource("4_4v72k")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_gf66d"]
+generator = SubResource("VoxelInstanceGenerator_0ppkj")
+scene = ExtResource("7_1tqte")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_5ypu8"]
+density = 0.05
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("4_4v72k")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_m7rkh"]
+generator = SubResource("VoxelInstanceGenerator_5ypu8")
+scene = ExtResource("8_bdtcu")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_wdp6e"]
+density = 0.05
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+noise_graph = ExtResource("4_4v72k")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_tlk7v"]
+generator = SubResource("VoxelInstanceGenerator_wdp6e")
+scene = ExtResource("9_enxf6")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_6e3th"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+offset_along_normal = -1.5
+noise_graph = ExtResource("4_4v72k")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_v1whj"]
+generator = SubResource("VoxelInstanceGenerator_6e3th")
+scene = ExtResource("10_jytoq")
+
+[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_iih56"]
+density = 0.01
+max_slope_degrees = 25.0
+min_height = 9975.0
+max_height = 10050.0
+min_scale = 1.5
+max_scale = 2.0
+offset_along_normal = -1.0
+noise_graph = ExtResource("4_4v72k")
+
+[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_eswp8"]
+generator = SubResource("VoxelInstanceGenerator_iih56")
+scene = ExtResource("11_kmskh")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_sywca"]
 shader = ExtResource("3_k1xg5")
@@ -41,10 +152,9 @@ sky_material = SubResource("ShaderMaterial_sywca")
 [sub_resource type="Environment" id="Environment_bdos0"]
 background_mode = 2
 sky = SubResource("Sky_hj7oe")
-ambient_light_source = 1
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_sky_contribution = 0.0
-ambient_light_energy = 0.1
+ambient_light_energy = 0.05
 reflected_light_source = 1
 tonemap_mode = 3
 ssr_max_steps = 128
@@ -57,7 +167,7 @@ fog_depth_begin = 0.0
 fog_depth_end = 207.2
 volumetric_fog_density = 0.0218
 
-[node name="Node3D" type="Node3D" node_paths=PackedStringArray("sun_light")]
+[node name="Sun" type="Node3D" node_paths=PackedStringArray("sun_light")]
 script = ExtResource("1_uw70s")
 sun_light = NodePath("DirectionalLight3D")
 sun_elevation_deg = 0.0
@@ -78,13 +188,51 @@ view_distance = 128000
 
 [node name="Planet" parent="." node_paths=PackedStringArray("sun") instance=ExtResource("2_8dlty")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
-selected_config = "None"
-radius = 10000.0
+vegetation = Array[Dictionary]([{
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_xkipp"),
+"scene_path": "res://scenes/tree01.tscn",
+"wind_speed": 0.3
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_ilsjk"),
+"scene_path": "res://scenes/tree_02.tscn",
+"wind_speed": 0.3
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_gf66d"),
+"scene_path": "res://scenes/grass_01.tscn",
+"wind_speed": 0.2
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_m7rkh"),
+"scene_path": "res://scenes/bush_01.tscn",
+"wind_speed": 0.15
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_tlk7v"),
+"scene_path": "res://scenes/flowers_02.tscn",
+"wind_speed": 0.15
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_v1whj"),
+"scene_path": "res://models/rocks/large_rock_03_glb.tscn",
+"wind_speed": 0.0
+}, {
+"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_eswp8"),
+"scene_path": "res://models/rocks/large_rock_02.tscn",
+"wind_speed": 0.0
+}])
+biome_latitude_ranges = Array[float]([-90.0, -45.0, -10.0, 10.0, 45.0, 90.0])
+max_heights = Array[float]([-30.0, 70.0, 400.0, -20.0, 50.0, 400.0, -5.0, 20.0, 400.0, -20.0, 50.0, 400.0, -30.0, 70.0, 400.0])
+biome_texture_indices = Array[int]([2, 2, 2, 0, 1, 2, 0, 0, 0, 0, 1, 2, 2, 2, 2])
+textures = Array[Texture2D]([ExtResource("12_mfx3g"), ExtResource("13_4t7no"), ExtResource("14_sg6x8")])
+normal_textures = Array[Texture2D]([ExtResource("15_8jhsx"), ExtResource("16_vvscm"), ExtResource("17_rass2")])
+roughness_textures = Array[Texture2D]([ExtResource("18_h8obi"), ExtResource("19_skdw0"), ExtResource("20_1ytj0")])
+slope_texture = ExtResource("21_cq4vs")
+slope_normal_texture = ExtResource("22_ritdt")
+slope_roughness_texture = ExtResource("23_ji4cg")
 atmosphere_radius = 1000.0
-atmosphere_density = 0.05
+atmosphere_height = 1000.0
+atmosphere_density = 0.065
+atmosphere_scattering = Vector3(700, 530, 440)
+atmosphere_modulate = Vector3(0.59, 0.64, 0.99)
 sun = NodePath("../DirectionalLight3D")
-selected_config = "None"
-selected_config = "None"
+wind_direction = Vector3(2, 0, 0)
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.999997, 0, -0.00237361, 0, 1, 0, 0.00237361, 0, -0.999997, -2e+07, 0, 0)

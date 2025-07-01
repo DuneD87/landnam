@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_disabled, unshaded;
+render_mode blend_mix, depth_draw_opaque, cull_disabled;
 
 uniform vec4 albedo : source_color;
 uniform sampler2D texture_albedo : source_color, filter_linear_mipmap, repeat_enable;
@@ -37,6 +37,21 @@ void vertex() {
 	VERTEX += wind_offset;
 }
 
+void light() {
+    DIFFUSE_LIGHT += clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * ATTENUATION * LIGHT_COLOR / PI;
+	// Calcular la incidencia de la luz usando la normal del vértice
+	float light_incidence = dot(normalize(NORMAL), normalize(-light_direction));
+
+	// Calcular la dirección desde el vértice al centro del planeta
+	vec3 vertex_to_planet_dir = normalize(planet_position - vertex_position_global);
+
+	// Determinar si el vértice está en el lado iluminado usando la posición
+	float position_incidence = dot(vertex_to_planet_dir, normalize(-light_direction));
+	float intensity = light_incidence * smoothstep(-transition_width, transition_width, position_incidence);
+	DIFFUSE_LIGHT = DIFFUSE_LIGHT * clamp(intensity, 0.0, 1.0);
+	 
+}
+
 void fragment() {
 	vec2 base_uv = UV;
 
@@ -48,16 +63,10 @@ void fragment() {
 	ALPHA *= albedo.a * albedo_tex.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_scissor_threshold;
 
-	// Calcular la incidencia de la luz usando la normal del vértice
-	float light_incidence = dot(normalize(NORMAL), normalize(-light_direction));
-
-	// Calcular la dirección desde el vértice al centro del planeta
-	vec3 vertex_to_planet_dir = normalize(planet_position - vertex_position_global);
-
-	// Determinar si el vértice está en el lado iluminado usando la posición
-	float position_incidence = dot(vertex_to_planet_dir, normalize(-light_direction));
+	
 
 	// Combinar la iluminación (basada en NORMAL) con el oscurecimiento (basado en posición)
-	float intensity = light_incidence * smoothstep(-transition_width, transition_width, position_incidence);
+	/*float intensity = light_incidence * smoothstep(-transition_width, transition_width, position_incidence);
 	ALBEDO = ALBEDO * clamp(intensity, 0.0, 1.0); // Interpolar hacia negro en las áreas no iluminadas
+	ALBEDO = ALBEDO * BACKLIGHT;*/
 }

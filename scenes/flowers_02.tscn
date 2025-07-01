@@ -17,11 +17,11 @@ shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/uv2_scale = Vector3(1, 1, 1)
 shader_parameter/uv2_offset = Vector3(0, 0, 0)
-shader_parameter/light_direction = null
-shader_parameter/planet_position = null
+shader_parameter/light_direction = Vector3(0, 1, 0)
+shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
-shader_parameter/wind_direction = Vector3(1, 0, 0)
-shader_parameter/wind_speed = 1.0
+shader_parameter/wind_direction = Vector3(0, 0, 0)
+shader_parameter/wind_speed = 0.15
 shader_parameter/texture_albedo = ExtResource("1_yc4x3")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_k8nin"]
@@ -35,11 +35,11 @@ shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/uv2_scale = Vector3(1, 1, 1)
 shader_parameter/uv2_offset = Vector3(0, 0, 0)
-shader_parameter/light_direction = null
-shader_parameter/planet_position = null
+shader_parameter/light_direction = Vector3(0, 1, 0)
+shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
-shader_parameter/wind_direction = Vector3(1, 0, 0)
-shader_parameter/wind_speed = 1.0
+shader_parameter/wind_direction = Vector3(0, 0, 0)
+shader_parameter/wind_speed = 0.15
 shader_parameter/texture_albedo = ExtResource("2_i3wbo")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_gqu0c"]
@@ -53,11 +53,11 @@ shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/uv2_scale = Vector3(1, 1, 1)
 shader_parameter/uv2_offset = Vector3(0, 0, 0)
-shader_parameter/light_direction = null
-shader_parameter/planet_position = null
+shader_parameter/light_direction = Vector3(0, 1, 0)
+shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
-shader_parameter/wind_direction = Vector3(1, 0, 0)
-shader_parameter/wind_speed = 1.0
+shader_parameter/wind_direction = Vector3(0, 0, 0)
+shader_parameter/wind_speed = 0.15
 shader_parameter/texture_albedo = ExtResource("3_kfbdm")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ca3n0"]
@@ -71,11 +71,11 @@ shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/uv2_scale = Vector3(1, 1, 1)
 shader_parameter/uv2_offset = Vector3(0, 0, 0)
-shader_parameter/light_direction = null
-shader_parameter/planet_position = null
+shader_parameter/light_direction = Vector3(0, 1, 0)
+shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
-shader_parameter/wind_direction = Vector3(1, 0, 0)
-shader_parameter/wind_speed = 1.0
+shader_parameter/wind_direction = Vector3(0, 0, 0)
+shader_parameter/wind_speed = 0.15
 shader_parameter/texture_albedo = ExtResource("4_pun6v")
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_iadjx"]

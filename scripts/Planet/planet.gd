@@ -11,12 +11,12 @@ class_name Planet extends Node3D
 @export var max_heights: Array[float] = []
 @export var biome_texture_indices: Array[int] = [
 ]
-@export var textures: Array[CompressedTexture2D] = []
-@export var normal_textures: Array[CompressedTexture2D] = []
-@export var roughness_textures: Array[CompressedTexture2D] = []
-@export var slope_texture: CompressedTexture2D
-@export var slope_normal_texture: CompressedTexture2D
-@export var slope_roughness_texture: CompressedTexture2D
+@export var textures: Array[Texture2D] = []
+@export var normal_textures: Array[Texture2D] = []
+@export var roughness_textures: Array[Texture2D] = []
+@export var slope_texture: Texture2D
+@export var slope_normal_texture: Texture2D
+@export var slope_roughness_texture: Texture2D
 
 var shader_material: ShaderMaterial
 var voxel_terrain: VoxelLodTerrain
@@ -30,12 +30,12 @@ func _init(
 	_biome_transition_smoothness: float,
 	_max_heights: Array[float],
 	_biome_texture_indices: Array[int],
-	_textures: Array[CompressedTexture2D],
-	_normal_textures: Array[CompressedTexture2D],
-	_roughness_textures: Array[CompressedTexture2D],
-	_slope_texture: CompressedTexture2D,
-	_slope_normal_texture: CompressedTexture2D,
-	_slope_roughness_texture: CompressedTexture2D,
+	_textures: Array[Texture2D],
+	_normal_textures: Array[Texture2D],
+	_roughness_textures: Array[Texture2D],
+	_slope_texture: Texture2D,
+	_slope_normal_texture: Texture2D,
+	_slope_roughness_texture: Texture2D,
 	_voxel_terrain: VoxelLodTerrain,
 	_atmosphere: Node3D
 ) -> void:
@@ -59,7 +59,8 @@ func _init(
 func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("transition_smoothness", 30)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
-	shader_material.set_shader_parameter("center", position)
+	print(voxel_terrain.get_parent().position)
+	shader_material.set_shader_parameter("center", voxel_terrain.get_parent().position)
 	shader_material.set_shader_parameter("radius", radius)
 	
 	shader_material.set_shader_parameter("max_heights", max_heights)
@@ -102,4 +103,3 @@ func setup_voxel_generator() -> void:
 		if radius_found:
 			graph_generator_function.set_node_param(node_id, radius_pos - 1, radius)
 			var success = graph_generator.compile()
-			shader_material.set_shader_parameter("radius", radius)
