@@ -10,12 +10,13 @@ extends Node3D
 @export var auto_rotate        : bool  = true        # activar o desactivar
 @export var rotation_speed_deg : float = 10.0        # ° por segundo (positivo = Este→Oeste)
 @export var sun_distance : float = 100000.0
-var planet : Node3D
+@onready var planets = $Planets
 var sky_material : ShaderMaterial      # se resuelve en _ready
 
 func _ready() -> void:
 	var env := $WorldEnvironment
-	planet = $Planet
+	for planet in planets.get_children():
+		planet.sun = $DirectionalLight3D
 	if env:
 		sky_material = env.environment.sky.sky_material as ShaderMaterial
 	sun_azimuth_deg = 0.0
@@ -48,7 +49,8 @@ func _update_sun() -> void:
 
 	# Dirección del sol (unitaria)
 	var dir := Vector3(cos(el) * sin(az), sin(el), cos(el) * cos(az)).normalized()
-	planet.sun_dir = dir
+	for planet in planets.get_children():
+		planet.sun_dir = dir
 	# --- 2. Posición del sol a distancia fija del origen --------------
 	sun_light.position = dir * sun_distance
 

@@ -46,7 +46,9 @@
 		"scattering_wavelength": [700.0, 530.0, 440],
 		"atmosphere_modulate": [0.59, 0.64, 0.99],
 		"sun_path": "",
-		"sun_dir": [0, 0, 0]
+		"sun_dir": [0, 0, 0],
+		"has_clouds": true
+
 	},
  "vegetation_settings": {
 	"hemisphere_graph_function": 

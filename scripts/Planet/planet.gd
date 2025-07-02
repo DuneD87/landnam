@@ -37,6 +37,7 @@ func _init(
 	_slope_normal_texture: Texture2D,
 	_slope_roughness_texture: Texture2D,
 	_voxel_terrain: VoxelLodTerrain,
+	_shader_material: ShaderMaterial,
 	_atmosphere: Node3D
 ) -> void:
 	radius = _radius
@@ -53,8 +54,8 @@ func _init(
 	slope_normal_texture = _slope_normal_texture
 	slope_roughness_texture = _slope_roughness_texture
 	voxel_terrain = _voxel_terrain
-	atmosphere = _atmosphere
-	shader_material = voxel_terrain.material as ShaderMaterial
+	shader_material = _shader_material
+	voxel_terrain.material = shader_material
 
 func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("transition_smoothness", 30)
@@ -79,7 +80,10 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("slope_roughness_texture", slope_roughness_texture)
 
 func setup_voxel_generator() -> void:
+	voxel_terrain.generator = voxel_terrain.generator.duplicate()
 	var graph_generator: VoxelGeneratorGraph = voxel_terrain.generator
+	var graph_function: VoxelGraphFunction = graph_generator.get_main_function()
+	print(graph_function)
 	if not graph_generator is VoxelGeneratorGraph:
 		return
 	

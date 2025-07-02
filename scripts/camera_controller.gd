@@ -1,6 +1,5 @@
 extends CharacterBody3D
 
-@onready var terrain: VoxelLodTerrain
 @onready var voxelTool: VoxelTool
 
 @export var mouse_sensitivity: float = 0.002
@@ -18,12 +17,27 @@ var delta_yaw: float = 0.0
 var delta_pitch: float = 0.0
 var delta_roll: float = 0.0 
 
+
+var planets:Node3D
 @onready var camera: Camera3D = $Camera3D
 
+func get_closest_planet() -> Node3D:
+	var index_min = 0
+	var min_distance = -1.0
+	var i = 0
+	for planet in planets.get_children():
+		var distance =  position.distance_to(planet.position)
+		if distance < min_distance || min_distance == -1:
+			min_distance = distance
+			index_min = i
+		i += 1
+		
+	var node_path = "Planets/" + planets.get_child(index_min).name
+	
+	return get_parent().get_node(node_path)
+
 func _ready() -> void:
-	terrain = get_parent().get_node("Planet/VoxelLodTerrain")
-	voxelTool = terrain.get_voxel_tool()
-	voxelTool.channel = VoxelBuffer.CHANNEL_SDF
+	planets = get_parent().get_node("Planets")
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func _input(event: InputEvent) -> void:
@@ -35,6 +49,10 @@ func _input(event: InputEvent) -> void:
 		if event.keycode == KEY_ESCAPE:
 			toggle_mouse_capture()
 	elif event is InputEventMouseButton and event.pressed:
+		
+		voxelTool = get_closest_planet().get_node("VoxelLodTerrain").get_voxel_tool()
+		voxelTool.channel = VoxelBuffer.CHANNEL_SDF
+			
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			# Ejecutar do_sphere en el punto donde mira la cámara
 			perform_sphere_action()

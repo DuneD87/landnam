@@ -11,6 +11,7 @@ extends Node
 @export_group("Terrain Settings")
 @export var radius: float
 @export var vegetation : Array[Dictionary]
+@export var terrain_material: ShaderMaterial
 
 @export_group("Biome Settings")
 @export var biome_count: int
@@ -40,6 +41,7 @@ extends Node
 @export var sun: DirectionalLight3D
 @export var sun_dir: Vector3
 @export var wind_direction: Vector3 = Vector3.ZERO
+@export var has_clouds: bool = true
 
 @onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
 @onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
@@ -225,7 +227,7 @@ func load_config(config_path: String) -> void:
 		else:
 			push_error("DEBUG: Failed to load texture: " + path)
 			return
-	
+
 	normal_textures = []
 	for path in biome_settings.normal_textures:
 		var texture = load(path) as Texture2D
@@ -281,7 +283,8 @@ func load_config(config_path: String) -> void:
 	atmosphere_modulate.x = atmosphere_settings.atmosphere_modulate[0]
 	atmosphere_modulate.y = atmosphere_settings.atmosphere_modulate[1]
 	atmosphere_modulate.z = atmosphere_settings.atmosphere_modulate[2]
-
+	
+	has_clouds = atmosphere_settings.has_clouds
 
 	print("DEBUG: Loaded atmosphere settings: height=", atmosphere_height, ", density=", atmosphere_density)
 	
@@ -301,7 +304,9 @@ func load_config(config_path: String) -> void:
 		print("DEBUG: Loaded sun_dir: ", sun_dir)
 
 func _ready() -> void:
-	# Create Atmosphere instance
+	# Ceate Atmosphere instance
+	print("----DEBUG: ", has_clouds)
+
 	var atmosphere = Atmosphere.new(
 		radius,
 		atmosphere_radius,
@@ -309,10 +314,11 @@ func _ready() -> void:
 		atmosphere_height,
 		atmosphere_scattering,
 		atmosphere_modulate,
+		has_clouds,
 		sun,
 		atmosphere_node
 	)
-	
+	add_child(atmosphere)
 	# Create Planet instance
 	var planet = Planet.new(
 		radius,
@@ -329,9 +335,10 @@ func _ready() -> void:
 		slope_normal_texture,
 		slope_roughness_texture,
 		voxel_terrain,
+		terrain_material.duplicate(true),
 		atmosphere_node
 	)
-	
+	add_child(planet)
 	sun_node = get_parent()
 	# Set up planet and atmosphere
 	planet.setup_shader_parameters()

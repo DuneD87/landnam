@@ -50,11 +50,11 @@ float noise4q(vec4 x) {
 	f1=f1*f1*(3.0-2.0*f1);
 	f2=f2*f2*(3.0-2.0*f2);
 	vec4 n1 = vec4(0,1.0,157.0,158.0);
-	vec4 n2 = vec4(113.0,114.0,270.0,271.0);	
+	vec4 n2 = vec4(113.0,114.0,270.0,271.0);
 	vec4 vs1 = mix(hash4(p1), hash4(n1.yyyy+p1), f1);
 	vec4 vs2 = mix(hash4(n1.zzzz+p1), hash4(n1.wwww+p1), f1);
 	vec4 vs3 = mix(hash4(p2), hash4(n1.yyyy+p2), f1);
-	vec4 vs4 = mix(hash4(n1.zzzz+p2), hash4(n1.wwww+p2), f1);	
+	vec4 vs4 = mix(hash4(n1.zzzz+p2), hash4(n1.wwww+p2), f1);
 	vs1 = mix(vs1, vs2, f2);
 	vs3 = mix(vs3, vs4, f2);
 	vs2 = mix(hash4(n2.xxxx+p1), hash4(n2.yyyy+p1), f1);
@@ -78,13 +78,13 @@ float noise4q(vec4 x) {
 float noiseSpere(vec3 ray, vec3 pos, float r, mat3 mr, float zoom, vec3 subnoise, float anim) {
 	float b = dot(ray,pos);
 	float c = dot(pos,pos) - b*b;
-    
+
 	vec3 r1=vec3(0.0);
 	float s=0.0;
 	float d=0.03125;
-	float d2=zoom/(d*d); 
+	float d2=zoom/(d*d);
 	float ar=5.0;
-   
+
 	for (int i=0;i<3;i++) {
 		float rq=r*r;
 		if(c <rq) {
@@ -162,8 +162,8 @@ void sky() {
     } else {
         vec3 ray = normalize(EYEDIR);
         float time = TIME * animation_speed;
-        
-        
+
+
         vec2 sun_angles = radians(vec2(sun_azimuth_deg, sun_elevation_deg));
 
 		vec3 pos = vec3(
@@ -171,9 +171,9 @@ void sky() {
 		    sin(sun_angles.y),                       // Y
 		    cos(sun_angles.y) * cos(sun_angles.x)    // Z
 		) * orbit_radius;                            // usa tu mismo radio
-        
+
         float star_visibility = step(0.0, dot(ray, pos)); // 1.0 frente, 0.0 atrás
-        
+
         // --- Rotación local de la estrella ---
         float mx = time * rotation_speed;
         float my = rotation_angle;
@@ -182,19 +182,19 @@ void sky() {
         vec2 coss = cos(rotate);
         mat3 mr = mat3(vec3(coss.x, 0.0, sins.x), vec3(0.0, 1.0, 0.0), vec3(-sins.x, 0.0, coss.x));
         mr = mat3(vec3(1.0, 0.0, 0.0), vec3(0.0, coss.y, sins.y), vec3(0.0, -sins.y, coss.y)) * mr;
-        
+
         // --- Renderizado de la estrella (solo en el hemisferio frontal) ---
         float s1 = noiseSpere(ray, pos, star_radius, mr, zoom_level, vec3(0.0), time) * star_visibility;
         s1 = pow(min(1.0, s1 * core_intensity), 2.0);
         float s2 = noiseSpere(ray, pos, star_radius, mr, zoom_level * 8.0, vec3(noise_seed, noise_seed * 0.412, noise_seed * 0.81), time) * star_visibility;
         s2 = min(1.0, s2 * surface_intensity);
-        
+
         vec3 col = mix(star_core_color, vec3(1.0), pow(s1, 60.0)) * s1;
         col += mix(mix(star_surface_color, star_surface_color * vec3(1.0, 0.0, 1.0), pow(s2, 2.0)), vec3(1.0), pow(s2, 10.0)) * s2;
-        
+
         col -= vec3(ring(ray, pos, star_radius * 1.03, corona_intensity)) * 2.0 * star_visibility;
         col = max(vec3(0.0), col);
-        
+
         float s3 = ringRayNoise(ray, pos, star_radius * 0.96, ray_intensity, mr, time) * star_visibility;
         col += mix(star_corona_color, star_ray_color, pow(s3, 3.0)) * s3;
 
@@ -202,11 +202,11 @@ void sky() {
         // Eliminamos sphereZero y usamos una transición suave
         float star_distance = length(pos - ray * dot(ray, pos));
         float background_mask = smoothstep(star_radius * 1.5, star_radius * 3.5, star_distance);
-        
+
         vec4 s4 = noiseSpace(ray, pos, 100.0, mr, zoom_level * 0.1, vec3(1.0, 2.0, 4.0), 0.0);
         s4.x = pow(s4.x, 3.0);
         col += mix(mix(space_color1, space_color2, s4.y * 1.9), space_color3, s4.w * 0.75) * s4.x * pow(s4.z * 2.5, 3.0) * 0.2 * background_mask;
-        
+
         COLOR = clamp(col, 0.0, 1.0);
     }
 }
