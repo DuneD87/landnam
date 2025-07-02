@@ -1,0 +1,88 @@
+{
+	"terrain_settings": {
+		"radius": 6000.0
+	},
+	"biome_settings": {
+		"biome_count": 3,
+		"textures_per_biome": 3,
+		"biome_latitude_ranges": [-90, -50, 50, 90],
+		"biome_transition_smoothness": 1.0,
+		"max_heights": [
+			-50, -100, 500,
+			70, 500, 500,
+			-50, -100, 500
+		],
+		"biome_texture_indices": [
+			1, 1, 2,
+			0, 2, 1,
+			1, 1, 2
+		],
+		"textures": [
+			"res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_albedo.png",
+			"res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png",
+			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png"
+		],
+		"normal_textures": [
+			"res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Normal-ogl.png",
+			"res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png",
+			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_normal-ogl.png"
+		],
+		"roughness_textures": [
+			"res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Roughness.png",
+			"res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png",
+			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_roughness.png"
+		],
+		"slope_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
+		"slope_normal_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png",
+		"slope_roughness_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png"
+	},
+	"atmosphere_settings": {
+		"atmosphere_height": 900.0,
+		"atmosphere_density": 0.03,
+		"scattering_wavelength": [300.0, 580.0, 700.0],
+		"atmosphere_modulate": [0.1, 0.3, 0.6],
+		"sun_path": "",
+		"sun_dir": [0, 1, 0],
+		"has_clouds": false
+	},
+	"vegetation_settings": {
+		"hemisphere_graph_function": [],
+		"wind_direction": [0.0, 0.0, 0.0],
+		"generators": [
+			{
+				"name": "large_rocks_generator_03",
+				"emit_mode": "EMIT_FROM_VERTICES",
+				"density": 0.005,
+				"offset_along_normal": -1.5,
+				"min_height": 9970,
+				"max_height": 10030,
+				"max_slope_degrees": 30,
+				"min_scale": 1.2,
+				"max_scale": 2.5,
+				"noise_graph": ""
+			},
+			{
+				"name": "large_rocks_generator_02",
+				"emit_mode": "EMIT_FROM_VERTICES",
+				"density": 0.004,
+				"offset_along_normal": -1.0,
+				"min_height": 9970,
+				"max_height": 10030,
+				"max_slope_degrees": 30,
+				"min_scale": 1.2,
+				"max_scale": 2.5,
+				"noise_graph": ""
+			}
+		],
+		"items": [
+			{
+				"scene": "res://models/rocks/large_rock_03_glb.tscn",
+				"generator": "large_rocks_generator_03"
+			},
+			{
+				"scene": "res://models/rocks/large_rock_02.tscn",
+				"generator": "large_rocks_generator_02"
+			}
+		]
+	}
+}

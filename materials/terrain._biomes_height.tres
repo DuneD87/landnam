@@ -1,0 +1,35 @@
+[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://c8udepwb6kpsg"]
+
+[ext_resource type="Shader" path="res://shaders/terrain/terrain_no_biomes.gdshader" id="1_sj0q3"]
+[ext_resource type="Texture2D" uid="uid://dhijdayb5nt0r" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png" id="2_m2w45"]
+[ext_resource type="Texture2D" uid="uid://b0o1ya46h2u1k" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png" id="3_l2emb"]
+[ext_resource type="Texture2D" uid="uid://bof3io0b6tmqx" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png" id="4_jjw7x"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ye5xo"]
+
+[resource]
+render_priority = 2
+next_pass = SubResource("ShaderMaterial_ye5xo")
+shader = ExtResource("1_sj0q3")
+shader_parameter/u_transition_mask = null
+shader_parameter/radius = 10000.0
+shader_parameter/center = Vector3(0, 0, 0)
+shader_parameter/max_heights = Array[float]([])
+shader_parameter/biome_count = 5
+shader_parameter/textures_per_biome = 3
+shader_parameter/biome_latitude_ranges = Array[float]([])
+shader_parameter/biome_texture_indices = Array[int]([])
+shader_parameter/slope_threshold = 0.7
+shader_parameter/slope_smoothness = 0.2
+shader_parameter/transition_smoothness = 1.5
+shader_parameter/biome_transition_smoothness = 1.0
+shader_parameter/noise_strength = 0.8
+shader_parameter/noise_scale = 0.1
+shader_parameter/texture_scale = 0.1
+shader_parameter/normal_strength = 1.0
+shader_parameter/textures = Array[Texture2D]([])
+shader_parameter/normal_textures = Array[Texture2D]([])
+shader_parameter/roughness_textures = Array[Texture2D]([])
+shader_parameter/slope_texture = ExtResource("4_jjw7x")
+shader_parameter/slope_normal_texture = ExtResource("2_m2w45")
+shader_parameter/slope_roughness_texture = ExtResource("3_l2emb")
