@@ -2,26 +2,29 @@
 extends VoxelInstancer
 var planet : Node3D
 var item_transparent_materials : Array[Dictionary]
-
+@export var vegetation: Array[Dictionary]
 @export var wind_direction : Vector3
 
 func _set_mesh_items(data: Array[Dictionary]) -> void:
-	library.clear()
+	'''library.clear()
+	vegetation.clear()
 	var i = 0
 	for item in data:
+		vegetation.append(item)
 		var scene = load(item.scene_path)
 		item.mesh_item.scene = scene
 		if library.get_item(i) == null:
 			library.add_item(i, item.mesh_item)
-		i+=1
+		i+=1'''
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	planet = get_parent().get_parent()
-	print(planet.wind_direction)
+	'''planet = get_parent().get_parent()
+	print("---DEBUG LIBRARY COUNT:", library.get_all_item_ids().size())
+	print("---DEBUG VEG COUNT:", vegetation.size())
 
 	for veg in planet.vegetation:
-		var item : VoxelInstanceLibraryMultiMeshItem = veg.mesh_item
+		var item: VoxelInstanceLibraryMultiMeshItem = veg.mesh_item
 		var scene_mesh : MeshInstance3D = item.scene.instantiate().get_child(0)
 		var surface_count = scene_mesh.mesh.get_surface_count()
 		for surface_idx in surface_count:
@@ -32,7 +35,7 @@ func _ready() -> void:
 						"shader": shader_material as ShaderMaterial,
 						"wind_speed": veg.wind_speed
 					}
-				)
+				)'''
 	
 
 func _process(delta: float) -> void:

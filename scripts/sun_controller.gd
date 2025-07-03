@@ -15,8 +15,8 @@ var sky_material : ShaderMaterial      # se resuelve en _ready
 
 func _ready() -> void:
 	var env := $WorldEnvironment
-	for planet in planets.get_children():
-		planet.sun = $DirectionalLight3D
+	'for planet in planets.planets:
+		planet.sun = $DirectionalLight3'
 	if env:
 		sky_material = env.environment.sky.sky_material as ShaderMaterial
 	sun_azimuth_deg = 0.0
@@ -49,8 +49,8 @@ func _update_sun() -> void:
 
 	# Dirección del sol (unitaria)
 	var dir := Vector3(cos(el) * sin(az), sin(el), cos(el) * cos(az)).normalized()
-	for planet in planets.get_children():
-		planet.sun_dir = dir
+	'for planet in planets.planets:
+		planet.sun_dir = dir'
 	# --- 2. Posición del sol a distancia fija del origen --------------
 	sun_light.position = dir * sun_distance
 

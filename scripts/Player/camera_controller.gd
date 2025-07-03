@@ -50,12 +50,13 @@ func _input(event: InputEvent) -> void:
 			toggle_mouse_capture()
 	elif event is InputEventMouseButton and event.pressed:
 		
-		voxelTool = get_closest_planet().get_node("VoxelLodTerrain").get_voxel_tool()
-		voxelTool.channel = VoxelBuffer.CHANNEL_SDF
+		#voxelTool = get_closest_planet().get_node("VoxelLodTerrain").get_voxel_tool()
+		#voxelTool.channel = VoxelBuffer.CHANNEL_SDF
 			
 		if event.button_index == MOUSE_BUTTON_LEFT:
+			pass
 			# Ejecutar do_sphere en el punto donde mira la cámara
-			perform_sphere_action()
+			#perform_sphere_action()
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			move_speed += speed_increase
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:

@@ -1,101 +1,10 @@
-[gd_scene load_steps=41 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=16 format=3 uid="uid://cuv6mxdmxyw00"]
 
-[ext_resource type="Script" path="res://scripts/Planet/planet_factory.gd" id="5_0igel"]
+[ext_resource type="Script" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
 [ext_resource type="Script" path="res://scripts/terrain_object_placement.gd" id="6_5cu2j"]
-[ext_resource type="Material" uid="uid://c8udepwb6kpsg" path="res://materials/terrain._biomes_height.tres" id="6_42o48"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="8_4hxn6"]
 [ext_resource type="Shader" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
 [ext_resource type="Script" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
-[ext_resource type="Texture2D" uid="uid://dhijdayb5nt0r" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png" id="12_7glfb"]
-[ext_resource type="Texture2D" uid="uid://b0o1ya46h2u1k" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png" id="13_0im7v"]
-[ext_resource type="Texture2D" uid="uid://bof3io0b6tmqx" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png" id="14_tvw1i"]
-[ext_resource type="VoxelGraphFunction" uid="uid://d3wunooykweya" path="res://graph_functions/earth_terrain_green_hemisphere.tres" id="18_o7l4u"]
-[ext_resource type="PackedScene" uid="uid://barfmcywfo1pb" path="res://models/rocks/large_rock_03_glb.tscn" id="24_bnnv1"]
-[ext_resource type="PackedScene" uid="uid://cke5ta2p1qut8" path="res://models/rocks/large_rock_02.tscn" id="25_6wvol"]
-
-[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_nrh61"]
-density = 0.01
-max_slope_degrees = 25.0
-min_height = 9975.0
-max_height = 10050.0
-min_scale = 1.5
-max_scale = 2.0
-noise_graph = ExtResource("18_o7l4u")
-
-[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_x4m3i"]
-generator = SubResource("VoxelInstanceGenerator_nrh61")
-
-[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_hn6w1"]
-density = 0.01
-max_slope_degrees = 25.0
-min_height = 9975.0
-max_height = 10050.0
-min_scale = 1.5
-max_scale = 2.0
-noise_graph = ExtResource("18_o7l4u")
-
-[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_fe438"]
-generator = SubResource("VoxelInstanceGenerator_hn6w1")
-
-[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_rwdma"]
-emit_mode = 3
-max_slope_degrees = 35.0
-min_height = 9975.0
-max_height = 10050.0
-noise_graph = ExtResource("18_o7l4u")
-
-[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_f1gmj"]
-generator = SubResource("VoxelInstanceGenerator_rwdma")
-
-[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_yimx7"]
-density = 0.05
-max_slope_degrees = 25.0
-min_height = 9975.0
-max_height = 10050.0
-min_scale = 1.5
-max_scale = 2.0
-noise_graph = ExtResource("18_o7l4u")
-
-[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_iaqtp"]
-generator = SubResource("VoxelInstanceGenerator_yimx7")
-
-[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_j38vh"]
-density = 0.05
-max_slope_degrees = 25.0
-min_height = 9975.0
-max_height = 10050.0
-min_scale = 1.5
-max_scale = 2.0
-noise_graph = ExtResource("18_o7l4u")
-
-[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_dwjfh"]
-generator = SubResource("VoxelInstanceGenerator_j38vh")
-
-[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_qeyf7"]
-density = 0.01
-max_slope_degrees = 25.0
-min_height = 9975.0
-max_height = 10050.0
-min_scale = 1.5
-max_scale = 2.0
-offset_along_normal = -1.5
-noise_graph = ExtResource("18_o7l4u")
-
-[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_1a8em"]
-generator = SubResource("VoxelInstanceGenerator_qeyf7")
-
-[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_dpgc6"]
-density = 0.01
-max_slope_degrees = 25.0
-min_height = 9975.0
-max_height = 10050.0
-min_scale = 1.5
-max_scale = 2.0
-offset_along_normal = -1.0
-noise_graph = ExtResource("18_o7l4u")
-
-[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_5oei5"]
-generator = SubResource("VoxelInstanceGenerator_dpgc6")
 
 [sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_as11c"]
 
@@ -116,7 +25,7 @@ fractal_gain = 0.3
 
 [sub_resource type="VoxelGeneratorGraph" id="VoxelGeneratorGraph_mlqfb"]
 graph_data = {
-"connections": [[17, 0, 20, 0], [1, 0, 6, 0], [1, 0, 13, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [18, 0, 17, 0], [10, 0, 4, 0], [13, 0, 28, 0], [15, 0, 30, 0], [16, 0, 22, 1], [19, 0, 17, 1], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [23, 0, 15, 2], [23, 0, 25, 2], [24, 0, 25, 0], [24, 0, 15, 1], [25, 0, 29, 1], [27, 0, 28, 1], [28, 0, 9, 0], [29, 0, 27, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [30, 0, 27, 0], [31, 0, 30, 1], [31, 0, 29, 0], [6, 0, 10, 0], [9, 0, 10, 1]],
+"connections": [[1, 0, 6, 0], [1, 0, 13, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [10, 0, 4, 0], [13, 0, 28, 0], [15, 0, 30, 0], [16, 0, 22, 1], [17, 0, 20, 0], [18, 0, 17, 0], [19, 0, 17, 1], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [23, 0, 15, 2], [23, 0, 25, 2], [24, 0, 25, 0], [24, 0, 15, 1], [25, 0, 29, 1], [27, 0, 28, 1], [28, 0, 9, 0], [29, 0, 27, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [30, 0, 27, 0], [31, 0, 30, 1], [31, 0, 29, 0], [6, 0, 10, 0], [9, 0, 10, 1]],
 "nodes": {
 "1": {
 "gui_position": Vector2(-586.667, 93.3333),
@@ -263,73 +172,11 @@ noise = SubResource("FastNoiseLite_16ssy")
 resolution = 256
 scale = Vector3(100, 200, 100)
 
-[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_kokbp"]
-density = 0.005
-max_slope_degrees = 30.0
-min_height = 9970.0
-max_height = 10030.0
-min_scale = 1.2
-max_scale = 2.5
-offset_along_normal = -1.5
-
-[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_k5gkb"]
-generator = SubResource("VoxelInstanceGenerator_kokbp")
-scene = ExtResource("24_bnnv1")
-
-[sub_resource type="VoxelInstanceGenerator" id="VoxelInstanceGenerator_wwlph"]
-density = 0.004
-max_slope_degrees = 30.0
-min_height = 9970.0
-max_height = 10030.0
-min_scale = 1.2
-max_scale = 2.5
-offset_along_normal = -1.0
-
-[sub_resource type="VoxelInstanceLibraryMultiMeshItem" id="VoxelInstanceLibraryMultiMeshItem_yw0r0"]
-generator = SubResource("VoxelInstanceGenerator_wwlph")
-scene = ExtResource("25_6wvol")
-
 [sub_resource type="VoxelInstanceLibrary" id="VoxelInstanceLibrary_xfb0j"]
-_data = [0, 0, SubResource("VoxelInstanceLibraryMultiMeshItem_k5gkb"), 1, SubResource("VoxelInstanceLibraryMultiMeshItem_yw0r0")]
 
-[node name="Node3D" type="Node3D"]
-script = ExtResource("5_0igel")
-radius = 10000.0
-vegetation = Array[Dictionary]([{
-"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_x4m3i"),
-"scene_path": "res://scenes/tree01.tscn",
-"wind_speed": 0.3
-}, {
-"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_fe438"),
-"scene_path": "res://scenes/tree_02.tscn",
-"wind_speed": 0.3
-}, {
-"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_f1gmj"),
-"scene_path": "res://scenes/grass_01.tscn",
-"wind_speed": 0.06
-}, {
-"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_iaqtp"),
-"scene_path": "res://scenes/bush_01.tscn",
-"wind_speed": 0.09
-}, {
-"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_dwjfh"),
-"scene_path": "res://scenes/flowers_02.tscn",
-"wind_speed": 0.06
-}, {
-"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_1a8em"),
-"scene_path": "res://models/rocks/large_rock_03_glb.tscn",
-"wind_speed": 0.0
-}, {
-"mesh_item": SubResource("VoxelInstanceLibraryMultiMeshItem_5oei5"),
-"scene_path": "res://models/rocks/large_rock_02.tscn",
-"wind_speed": 0.0
-}])
-biome_count = 5
-textures_per_biome = 3
-biome_transition_smoothness = 1.0
-slope_texture = ExtResource("14_tvw1i")
-slope_normal_texture = ExtResource("12_7glfb")
-slope_roughness_texture = ExtResource("13_0im7v")
+[node name="Node3D" type="Node3D" node_paths=PackedStringArray("planet")]
+script = ExtResource("1_8l55o")
+planet = NodePath("")
 
 [node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
 stream = SubResource("VoxelStreamMemory_as11c")
@@ -338,7 +185,6 @@ mesher = SubResource("VoxelMesherTransvoxel_dfr3u")
 view_distance = 50000
 lod_count = 16
 lod_distance = 128.0
-material = ExtResource("6_42o48")
 normalmap_tile_resolution_min = 2
 normalmap_begin_lod_index = 1
 mesh_block_size = 32

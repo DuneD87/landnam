@@ -1,16 +1,8 @@
-@tool
-extends Node
-
-@export_group("Config Selection")
-@export var select_config_file: bool = false:
-	set(value):
-		if value and Engine.is_editor_hint():
-			_open_file_dialog()
-		select_config_file = false # Reset to allow repeated clicks
+class_name PlanetParser extends Node3D
 
 @export_group("Terrain Settings")
 @export var radius: float
-@export var vegetation : Array[Dictionary]
+@export var vegetation : Dictionary
 @export var terrain_material: ShaderMaterial
 
 @export_group("Biome Settings")
@@ -21,13 +13,9 @@ extends Node
 @export var max_heights: Array[float] = []
 
 @export var biome_texture_indices: Array[int] = []
-
 @export var textures: Array[Texture2D] = []
-
 @export var normal_textures: Array[Texture2D] = []
-
 @export var roughness_textures: Array[Texture2D] = []
-
 @export var slope_texture: Texture2D
 @export var slope_normal_texture: Texture2D
 @export var slope_roughness_texture: Texture2D
@@ -43,116 +31,24 @@ extends Node
 @export var wind_direction: Vector3 = Vector3.ZERO
 @export var has_clouds: bool = true
 
-@onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
-@onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
-@onready var voxel_instancer : VoxelInstancer = $VoxelLodTerrain/VoxelInstancer
+func _init(_sun: DirectionalLight3D) -> void:
+	print("Planet parser initialized")
 
-var _editor_file_dialog: EditorFileDialog
-var sun_node : Node3D
-
-func _open_file_dialog() -> void:
-	if not Engine.is_editor_hint():
-		return
+	sun = _sun
 	
-	# Create EditorFileDialog if not already created
-	if not _editor_file_dialog:
-		_editor_file_dialog = EditorFileDialog.new()
-		_editor_file_dialog.access = EditorFileDialog.ACCESS_RESOURCES
-		_editor_file_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
-		_editor_file_dialog.add_filter("*.json", "JSON Files")
-		_editor_file_dialog.current_dir = "res://data/planet/"
-		_editor_file_dialog.size = Vector2i(800, 600)
-		_editor_file_dialog.title = "Select Planet Config JSON"
-		_editor_file_dialog.file_selected.connect(_on_file_selected)
-		
-		# Add EditorFileDialog to the editor's main control
-		var editor_interface = Engine.get_singleton("EditorInterface")
-		if editor_interface:
-			var main_control = editor_interface.get_base_control()
-			if main_control:
-				main_control.add_child(_editor_file_dialog)
-			else:
-				push_error("DEBUG: Failed to get editor main control to add EditorFileDialog")
-				return
-		else:
-			push_error("DEBUG: EditorInterface singleton not found")
-			return
-	
-	# Show the dialog
-	_editor_file_dialog.popup_centered()
-	print("DEBUG: EditorFileDialog opened at res://data/planet/")
-
-func _on_file_selected(path: String) -> void:
-	print("DEBUG: Selected file: " + path)
-	load_config(path)
-	notify_property_list_changed()
-	
-func _build_generator(generator_config: Dictionary, graph_functions: Array) -> VoxelInstanceGenerator:
-	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
-	
-	if generator_config.emit_mode == "EMIT_FROM_VERTICES":
-		generator.emit_mode = VoxelInstanceGenerator.EMIT_FROM_VERTICES
-		generator.density = generator_config.density
-	elif generator_config.emit_mode == "EMIT_ONE_PER_TRIANGLE":
-		generator.emit_mode = VoxelInstanceGenerator.EMIT_ONE_PER_TRIANGLE
-		
-	if generator_config.has("offset_along_normal"):
-		generator.offset_along_normal = generator_config.offset_along_normal
-	if generator_config.has("max_height"):
-		generator.max_height = generator_config.max_height
-	if generator_config.has("min_height"):
-		generator.min_height = generator_config.min_height
-	if generator_config.has("max_slope_degrees"):
-		generator.max_slope_degrees = generator_config.max_slope_degrees
-	if generator_config.has("vertical_alignment"):
-		generator.vertical_alignment = generator_config.vertical_alignment
-	if generator_config.has("min_scale"):
-		generator.min_scale = generator_config.min_scale
-	if generator_config.has("max_scale"):
-		generator.max_scale = generator_config.max_scale
-	if generator_config.has("noise_graph"):
-		for graph_func in graph_functions:
-			if graph_func.name == generator_config.noise_graph:
-				generator.noise_graph = load(graph_func.path)
-	return generator
 	
 func _load_vegetation_settings(data:Dictionary) -> void:
 	if data.is_empty():
 			return
-	var multi_mesh_array : Array[Dictionary]
-	var generators = data.generators
-	var graph_functions =  data.hemisphere_graph_function
 	
-	for item in data.items:
-		
-		var generator : VoxelInstanceGenerator
-		var generator_found = false
-		for generator_config in generators:
-			if generator_config.name == item.generator:
-				generator = _build_generator(generator_config, graph_functions)
-				generator_found = true
-				break
-		if !generator_found:
-			push_error("Error parsing vegetation, generator with name %s not found.", item.generator)
-			
-		var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
-		multi_mesh_item.generator = generator
-		var multi_mesh_elem = {
-			"mesh_item": multi_mesh_item,
-			"wind_speed": item.wind_speed if item.has("wind_speed") else 0.0,
-			"scene_path": item.scene
-		}
-		
-		multi_mesh_array.append(multi_mesh_elem)
-
-	vegetation = multi_mesh_array
-	voxel_instancer._set_mesh_items(vegetation)
+	vegetation = data
+	#voxel_instancer._set_mesh_items(vegetation)
 	wind_direction.x = data.wind_direction[0]
 	wind_direction.y = data.wind_direction[1]
 	wind_direction.z = data.wind_direction[2]
 	
 
-func load_config(config_path: String) -> void:
+func load_config(config_path: String):
 	print("DEBUG: Loading config: " + config_path)
 	var file = FileAccess.open(config_path, FileAccess.READ)
 	if not file:
@@ -302,46 +198,3 @@ func load_config(config_path: String) -> void:
 			atmosphere_settings.sun_dir[2]
 		)
 		print("DEBUG: Loaded sun_dir: ", sun_dir)
-
-func _ready() -> void:
-	# Ceate Atmosphere instance
-	print("----DEBUG: ", has_clouds)
-
-	var atmosphere = Atmosphere.new(
-		radius,
-		atmosphere_radius,
-		atmosphere_density,
-		atmosphere_height,
-		atmosphere_scattering,
-		atmosphere_modulate,
-		has_clouds,
-		sun,
-		atmosphere_node
-	)
-	add_child(atmosphere)
-	# Create Planet instance
-	var planet = Planet.new(
-		radius,
-		biome_count,
-		textures_per_biome,
-		biome_latitude_ranges,
-		biome_transition_smoothness,
-		max_heights,
-		biome_texture_indices,
-		textures,
-		normal_textures,
-		roughness_textures,
-		slope_texture,
-		slope_normal_texture,
-		slope_roughness_texture,
-		voxel_terrain,
-		terrain_material.duplicate(true),
-		atmosphere_node
-	)
-	add_child(planet)
-	sun_node = get_parent()
-	# Set up planet and atmosphere
-	planet.setup_shader_parameters()
-	planet.setup_voxel_generator()
-	
-	atmosphere.setup_shader_parameters()

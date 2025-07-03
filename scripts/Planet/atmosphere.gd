@@ -39,10 +39,8 @@ func _init(
 
 func setup_shader_parameters() -> void:
 	if !has_clouds:
-		print("DEBUG: Atmosphere no clouds")
 		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_no_clouds.gdshader")
 	else:
-		print("DEBUG: Atmosphere clouds")
 		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader")
 
 	atmosphere_node.planet_radius = planet_radius

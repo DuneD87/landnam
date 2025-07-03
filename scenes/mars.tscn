@@ -2,4 +2,5 @@
 
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/terrain.tscn" id="1_tphvi"]
 
-[node name="Node3D" instance=ExtResource("1_tphvi")]
+[node name="Node3D" node_paths=PackedStringArray("planet_parser") instance=ExtResource("1_tphvi")]
+planet_parser = NodePath("")

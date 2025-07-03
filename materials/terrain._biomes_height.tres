@@ -1,35 +1,59 @@
-[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://c8udepwb6kpsg"]
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://c8udepwb6kpsg"]
 
-[ext_resource type="Shader" path="res://shaders/terrain/terrain_no_biomes.gdshader" id="1_sj0q3"]
-[ext_resource type="Texture2D" uid="uid://dhijdayb5nt0r" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png" id="2_m2w45"]
-[ext_resource type="Texture2D" uid="uid://b0o1ya46h2u1k" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png" id="3_l2emb"]
-[ext_resource type="Texture2D" uid="uid://bof3io0b6tmqx" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png" id="4_jjw7x"]
+[sub_resource type="Shader" id="Shader_vdllm"]
+code = "shader_type spatial;
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_ye5xo"]
+// From Voxel Tools API
+uniform int u_transition_mask;
+
+float get_transvoxel_secondary_factor(int idata) {
+	int transition_mask = u_transition_mask & 0xff;
+
+	int cell_border_mask = idata & 63; // Which sides the cell is touching
+	int vertex_border_mask = (idata >> 8) & 63; // Which sides the vertex is touching
+	// If the vertex is near a side where there is a low-resolution neighbor,
+	// move it to secondary position
+	int m = transition_mask & cell_border_mask;
+	float t = float(m != 0);
+	// If the vertex lies on one or more sides, and at least one side has no low-resolution neighbor,
+	// don't move the vertex.
+	t *= float((vertex_border_mask & ~transition_mask) == 0);
+	
+	// Debugging
+	//t *= 0.5 + 0.5 * sin(TIME * 4.0);
+	//t *= 2.0;
+
+	return t;
+}
+
+vec3 get_transvoxel_position(vec3 vertex_pos, vec4 fdata) {
+	int idata = floatBitsToInt(fdata.a);
+
+	// Move vertices to smooth transitions
+	float secondary_factor = get_transvoxel_secondary_factor(idata);
+	vec3 secondary_position = fdata.xyz;
+	vec3 pos = mix(vertex_pos, secondary_position, secondary_factor);
+
+	// If the mesh combines transitions and the vertex belongs to a transition,
+	// when that transition isn't active we change the position of the vertices so
+	// all triangles will be degenerate and won't be visible.
+	// This is an alternative to rendering them separately,
+	// which has less draw calls and less mesh resources to create in Godot.
+	// Ideally I would tweak the index buffer like LOD does but Godot does not
+	// expose anything to use it that way.
+	int itransition = (idata >> 16) & 0xff; // Is the vertex on a transition mesh?
+	float transition_cull = float(itransition == 0 || (itransition & u_transition_mask) != 0);
+	pos *= transition_cull;
+
+	return pos;
+}
+
+void vertex() {
+	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0);
+}
+"
 
 [resource]
-render_priority = 2
-next_pass = SubResource("ShaderMaterial_ye5xo")
-shader = ExtResource("1_sj0q3")
+render_priority = 0
+shader = SubResource("Shader_vdllm")
 shader_parameter/u_transition_mask = null
-shader_parameter/radius = 10000.0
-shader_parameter/center = Vector3(0, 0, 0)
-shader_parameter/max_heights = Array[float]([])
-shader_parameter/biome_count = 5
-shader_parameter/textures_per_biome = 3
-shader_parameter/biome_latitude_ranges = Array[float]([])
-shader_parameter/biome_texture_indices = Array[int]([])
-shader_parameter/slope_threshold = 0.7
-shader_parameter/slope_smoothness = 0.2
-shader_parameter/transition_smoothness = 1.5
-shader_parameter/biome_transition_smoothness = 1.0
-shader_parameter/noise_strength = 0.8
-shader_parameter/noise_scale = 0.1
-shader_parameter/texture_scale = 0.1
-shader_parameter/normal_strength = 1.0
-shader_parameter/textures = Array[Texture2D]([])
-shader_parameter/normal_textures = Array[Texture2D]([])
-shader_parameter/roughness_textures = Array[Texture2D]([])
-shader_parameter/slope_texture = ExtResource("4_jjw7x")
-shader_parameter/slope_normal_texture = ExtResource("2_m2w45")
-shader_parameter/slope_roughness_texture = ExtResource("3_l2emb")
