@@ -5,7 +5,11 @@ enum Action { NONE, SELECT_CONFIG }
 
 @export_group("Config Planet")
 @export var sun_path : DirectionalLight3D
-@export var config_file_path: String = "res://data/planet/default.json"
+@export var config_file_path: String = ""
+
+@onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
+@onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
+@onready var voxel_instancer: VoxelInstancer = $VoxelLodTerrain/VoxelInstancer
 var _config_action: Action = Action.NONE
 
 @export var planet: Planet
@@ -41,6 +45,7 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.slope_roughness_texture = planet_parser.slope_roughness_texture
 	
 	planet.atmosphere_radius = planet_parser.atmosphere_radius
+	print("Atmosphere radius: ", planet.atmosphere_radius)
 	planet.atmosphere_density = planet_parser.atmosphere_density
 	planet.atmosphere_height = planet_parser.atmosphere_height
 	planet.atmosphere_scattering = planet_parser.atmosphere_scattering
@@ -49,24 +54,24 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	
 	var shader_material = ShaderMaterial.new()
 	shader_material.shader = load("res://shaders/terrain/terrain_no_biomes.gdshader").duplicate(true)
-	planet.voxel_terrain.material = shader_material
+	planet.shader_material = shader_material
 
 	planet.vegetation = planet_parser.vegetation
 	planet.wind_direction = planet_parser.wind_direction
+	planet.sun = sun_path
 
 
+func _load_planet() -> void:
+	var planet_parser: PlanetParser = PlanetParser.new(sun_path)
+	planet_parser.load_config(config_file_path)
+	planet = Planet.new(voxel_terrain, atmosphere_node, voxel_instancer)
+	_copy_parsed_data(planet_parser)
 	
-
 func _on_file_selected(path: String) -> void:
 	config_file_path = path
-	var planet_parser: PlanetParser = PlanetParser.new(sun_path)
-	planet_parser.load_config(path)
-	planet = Planet.new()
-	add_child(planet)
-	_copy_parsed_data(planet_parser)
+	_load_planet()
 	planet.setup_shader_parameters()
 	planet.setup_voxel_generator()
-	
 	notify_property_list_changed()
 
 func _open_file_dialog() -> void:
@@ -103,11 +108,10 @@ func _open_file_dialog() -> void:
 
 
 func _ready() -> void:
-	'if Engine.is_editor_hint():
-		if config_file_path != "":
-			_load_planet_config_runtime(config_file_path)
-	else:
-		_load_planet_config_runtime(config_file_path)'
-		
+	if config_file_path != "res://data/planet/default.json":
+		_load_planet()
+		planet.setup_shader_parameters()
+		planet.setup_voxel_generator()
+	
 func _process(delta: float) -> void:
 	pass

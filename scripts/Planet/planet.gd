@@ -25,12 +25,7 @@ class_name Planet extends Node3D
 
 @export var multi_mesh_array: Array[Dictionary] = []
 
-@onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
-@onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
-@onready var voxel_instancer: VoxelInstancer = $VoxelLodTerrain/VoxelInstancer
-
 @export_group("Atmosphere settings")
-@export var planet_radius: float
 @export var atmosphere_radius: float
 @export var atmosphere_density: float
 @export var atmosphere_height: float
@@ -39,6 +34,10 @@ class_name Planet extends Node3D
 @export var has_clouds: bool
 
 @export var planet: Node3D
+@export var voxel_terrain: VoxelLodTerrain
+@export var atmosphere_node: Node3D
+@export var voxel_instancer: VoxelInstancer
+@export var sun : DirectionalLight3D
 
 func _build_generator(generator_config: Dictionary, graph_functions: Array) -> VoxelInstanceGenerator:
 	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
@@ -95,72 +94,19 @@ func _load_vegetation():
 		}
 		
 		multi_mesh_array.append(multi_mesh_elem)
-func _init() -> void:
-	print("Planet created")
-'func _init(
-	_radius: float,
-	_biome_count: int,
-	_textures_per_biome: int,
-	_biome_latitude_ranges: Array[float],
-	_biome_transition_smoothness: float,
-	_max_heights: Array[float],
-	_biome_texture_indices: Array[int],
-	_textures: Array[Texture2D],
-	_normal_textures: Array[Texture2D],
-	_roughness_textures: Array[Texture2D],
-	_slope_texture: Texture2D,
-	_slope_normal_texture: Texture2D,
-	_slope_roughness_texture: Texture2D,
-	_voxel_terrain: VoxelLodTerrain,
-	_shader_material: ShaderMaterial,
-	_voxel_instancer: VoxelInstancer,
-	_vegetation: Dictionary,
-	_wind_direction: Vector3
-) -> void:
-	radius = _radius
-	biome_count = _biome_count
-	textures_per_biome = _textures_per_biome
-	biome_latitude_ranges = _biome_latitude_ranges
-	biome_transition_smoothness = _biome_transition_smoothness
-	max_heights = _max_heights
-	biome_texture_indices = _biome_texture_indices
-	textures = _textures
-	normal_textures = _normal_textures
-	roughness_textures = _roughness_textures
-	slope_texture = _slope_texture
-	slope_normal_texture = _slope_normal_texture
-	slope_roughness_texture = _slope_roughness_texture
+		
+func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D, _voxel_instancer: VoxelInstancer) -> void:
 	voxel_terrain = _voxel_terrain
+	atmosphere_node = _atmosphere_node
+	voxel_instancer = _voxel_instancer
 	shader_material = ShaderMaterial.new()
 	shader_material.shader = load("res://shaders/terrain/terrain_no_biomes.gdshader").duplicate(true)
-	voxel_terrain.material = shader_material
-	voxel_instancer = _voxel_instancer
-	vegetation = _vegetation
-	wind_direction = _wind_direction
-	planet = voxel_terrain.get_parent()
 	
-	var library = voxel_instancer.library
-	library.clear()
-	var i = 0
+	print("Planet created")
 
-	for veg in multi_mesh_array:
-		var item: VoxelInstanceLibraryMultiMeshItem = veg.mesh_item
-		if library.get_item(i) == null:
-			library.add_item(i, item.mesh_item)
-		i+=1
-		var scene_mesh : MeshInstance3D = item.scene.instantiate().get_child(0)
-		var surface_count = scene_mesh.mesh.get_surface_count()
-		for surface_idx in surface_count:
-			var shader_material = scene_mesh.mesh.surface_get_material(surface_idx)
-			if shader_material is ShaderMaterial:
-				item_transparent_materials.append(
-					{
-						"shader": shader_material as ShaderMaterial,
-						"wind_speed": veg.wind_speed
-					}
-				)
-'
 func setup_shader_parameters() -> void:
+	print("hello")
+	voxel_terrain.material = shader_material
 	shader_material.set_shader_parameter("transition_smoothness", 30)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
 	print(voxel_terrain.position)
@@ -186,9 +132,8 @@ func setup_shader_parameters() -> void:
 		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_no_clouds.gdshader")
 	else:
 		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader")
-	print(has_clouds)
-	atmosphere_node.planet_radius = planet_radius
-	#atmosphere_node.sun_path = sun_path.get_path()
+	atmosphere_node.planet_radius = radius
+	atmosphere_node.sun_path = sun.get_path()
 	atmosphere_node.set_shader_parameter("u_density", atmosphere_density)
 	atmosphere_node.set_shader_parameter("u_scattering_wavelengths", atmosphere_scattering)
 	atmosphere_node.set_shader_parameter("u_atmosphere_modulate", atmosphere_modulate)

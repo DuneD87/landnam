@@ -87,8 +87,16 @@ environment = SubResource("Environment_bdos0")
 
 [node name="Planets" type="Node3D" parent="."]
 script = ExtResource("4_diroo")
+config_file_path = "res://data/planet/default.json"
 
-[node name="Planet" parent="Planets" node_paths=PackedStringArray("sun_path") instance=ExtResource("5_6m3o6")]
+[node name="Planet" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_6m3o6")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
+planet = NodePath("")
+
+[node name="Node3D" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_6m3o6")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6000)
+sun_path = NodePath("../../DirectionalLight3D")
+config_file_path = "res://data/planet/planet_moon.json"
+planet = NodePath("")

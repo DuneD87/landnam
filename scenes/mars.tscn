@@ -1,6 +1,309 @@
-[gd_scene load_steps=2 format=3 uid="uid://cdilfqb6uvquh"]
+[gd_scene load_steps=7 format=3 uid="uid://cdilfqb6uvquh"]
 
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/terrain.tscn" id="1_tphvi"]
 
-[node name="Node3D" node_paths=PackedStringArray("planet_parser") instance=ExtResource("1_tphvi")]
-planet_parser = NodePath("")
+[sub_resource type="FastNoise2" id="FastNoise2_ivwlw"]
+period = 1200.0
+fractal_type = 1
+fractal_octaves = 6
+fractal_lacunarity = 3.5
+fractal_gain = 0.3
+fractal_ping_pong_strength = 4.0
+
+[sub_resource type="FastNoise2" id="FastNoise2_aqix3"]
+seed = 64
+period = 206.8
+fractal_type = 1
+fractal_octaves = 4
+fractal_gain = 0.3
+
+[sub_resource type="VoxelGeneratorGraph" id="VoxelGeneratorGraph_2t41j"]
+graph_data = {
+"connections": [[1, 0, 6, 0], [1, 0, 13, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [17, 0, 20, 0], [10, 0, 4, 0], [18, 0, 17, 0], [13, 0, 28, 0], [15, 0, 30, 0], [16, 0, 22, 1], [19, 0, 17, 1], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [23, 0, 15, 2], [23, 0, 25, 2], [24, 0, 25, 0], [24, 0, 15, 1], [25, 0, 29, 1], [27, 0, 28, 1], [28, 0, 9, 0], [29, 0, 27, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [30, 0, 27, 0], [31, 0, 30, 1], [31, 0, 29, 0], [6, 0, 10, 0], [9, 0, 10, 1]],
+"nodes": {
+"1": {
+"gui_position": Vector2(-586.667, 93.3333),
+"type": "InputX"
+},
+"10": {
+"gui_position": Vector2(1693.33, 333.333),
+"type": "Add"
+},
+"13": {
+"auto_connect": true,
+"gui_position": Vector2(-40, 306.667),
+"name": &"fast_noise_planet",
+"noise": SubResource("FastNoise2_ivwlw"),
+"type": "FastNoise2_3D"
+},
+"15": {
+"a": 0.0,
+"gui_position": Vector2(346.667, 386.667),
+"threshold": 1.0,
+"type": "Select"
+},
+"16": {
+"gui_position": Vector2(-346.667, 506.667),
+"type": "Sqrt"
+},
+"17": {
+"gui_position": Vector2(-666.667, 400),
+"type": "Add"
+},
+"18": {
+"gui_position": Vector2(-813.333, 306.667),
+"type": "Multiply"
+},
+"19": {
+"gui_position": Vector2(-813.333, 440),
+"type": "Multiply"
+},
+"2": {
+"gui_position": Vector2(-586.667, 173.333),
+"type": "InputY"
+},
+"20": {
+"gui_position": Vector2(-506.667, 506.667),
+"type": "Add"
+},
+"21": {
+"gui_position": Vector2(-813.333, 560),
+"type": "Multiply"
+},
+"22": {
+"gui_position": Vector2(-160, 480),
+"type": "Divide"
+},
+"23": {
+"gui_position": Vector2(0, 480),
+"type": "Sin"
+},
+"24": {
+"auto_connect": true,
+"gui_position": Vector2(-26.6667, 626.667),
+"name": &"fast_noise_poles",
+"noise": SubResource("FastNoise2_aqix3"),
+"type": "FastNoise2_3D"
+},
+"25": {
+"b": 0.0,
+"gui_position": Vector2(360, 613.333),
+"threshold": -1.0,
+"type": "Select"
+},
+"27": {
+"gui_position": Vector2(933.333, 546.667),
+"type": "Add"
+},
+"28": {
+"gui_position": Vector2(1226.67, 440),
+"type": "Add"
+},
+"29": {
+"gui_position": Vector2(600, 680),
+"type": "Multiply"
+},
+"3": {
+"gui_position": Vector2(-586.667, 253.333),
+"type": "InputZ"
+},
+"30": {
+"gui_position": Vector2(626.667, 480),
+"type": "Multiply"
+},
+"31": {
+"gui_position": Vector2(493.333, 573.333),
+"type": "Constant",
+"value": 1.0
+},
+"4": {
+"auto_connect": true,
+"gui_position": Vector2(1946.67, 333.333),
+"type": "OutputSDF"
+},
+"6": {
+"auto_connect": true,
+"gui_position": Vector2(560, 53.3333),
+"radius": 0.0,
+"type": "SdfSphere"
+},
+"9": {
+"b": 150.0,
+"gui_position": Vector2(1440, 440),
+"name": &"noise_mult",
+"type": "Multiply"
+}
+},
+"version": 2
+}
+
+[sub_resource type="Shader" id="Shader_y88pq"]
+code = "shader_type spatial;
+
+#include \"res://shaders/terrain/terrain_utils.gdshaderinc\"
+
+uniform int u_transition_mask;
+uniform float radius = 5000.0;
+uniform vec3 center;
+
+#define MAX_TEXTURES 8
+#define MAX_BIOMES 8 // máximo seguro (ajustable si necesitas más)
+#define MAX_HEIGHTS 24
+#define MAX_LATITUDE_RANGES 9
+uniform sampler2D textures[MAX_TEXTURES]: source_color;
+uniform sampler2D normal_textures[MAX_TEXTURES];
+uniform sampler2D roughness_textures[MAX_TEXTURES];
+
+uniform float max_heights[MAX_HEIGHTS]; // 3 alturas por bioma
+uniform int biome_count = 6;
+uniform int textures_per_biome = 3;
+uniform float biome_latitude_ranges[MAX_LATITUDE_RANGES]; // n+1 rangos para n biomas
+uniform int biome_texture_indices[MAX_HEIGHTS];   // índices por bioma
+
+uniform sampler2D slope_texture;
+uniform sampler2D slope_normal_texture;
+uniform sampler2D slope_roughness_texture;
+uniform float slope_threshold = 0.7;
+uniform float slope_smoothness = 0.2;
+uniform float transition_smoothness = 1.5;
+
+uniform float biome_transition_smoothness = 1.0; // nueva uniform para suavizar transiciones
+uniform float noise_strength = 1.0;
+uniform float noise_scale = 0.1;
+uniform float texture_scale = 0.5;
+uniform float normal_strength = 0.7;
+
+varying vec3 world_pos;
+varying float height;
+varying vec3 world_normal;
+
+void vertex() {
+	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0, u_transition_mask);
+	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	height = length(world_pos - center) - radius;
+	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+
+void fragment() {
+	float noise_value = noise(world_pos * noise_scale) * noise_strength;
+	float adjusted_height = height + noise_value;
+
+	float slope = 1.0 - dot(world_normal, normalize(world_pos - center));
+	float slope_factor = smoothstep(slope_threshold - slope_smoothness, slope_threshold + slope_smoothness, slope);
+
+	vec3 slope_color = triplanar_sample(slope_texture, world_pos, world_normal, texture_scale);
+	vec3 slope_normal = triplanar_normal_sample(slope_normal_texture, world_pos, world_normal, texture_scale);
+	float slope_roughness = triplanar_roughness_sample(slope_roughness_texture, world_pos, world_normal, texture_scale);
+
+	// Calcular latitud
+	vec3 dir = (center - world_pos);
+	float rho = length(dir);
+	float phi = acos(world_pos.y / rho);
+	float latitude = degrees((PI / 2.0) - phi);
+
+	// Calcular pesos de biomas suavizados
+	float biome_weights[MAX_BIOMES];
+	for (int i = 0; i < MAX_BIOMES; i++) biome_weights[i] = 0.0;
+
+	for (int i = 0; i < biome_count; i++) {
+		float lower = biome_latitude_ranges[i];
+		float upper = biome_latitude_ranges[i + 1];
+		float center_lat = (lower + upper) * 0.5;
+		float range = upper - lower;
+
+		float weight = 1.0 - abs(latitude - center_lat) / (range * biome_transition_smoothness);
+		weight = clamp(weight, 0.0, 1.0);
+		biome_weights[i] = smoothstep(0.0, 1.0, weight);
+	}
+
+	vec3 final_color = vec3(0.0);
+	vec3 final_normal = vec3(0.0);
+	float final_roughness = 0.0;
+	float total_factor = 0.0;
+
+	for (int b = 0; b < biome_count; b++) {
+		float biome_weight = biome_weights[b];
+		if (biome_weight < 0.01) continue;
+
+		int offset = b * textures_per_biome;
+
+		for (int j = 0; j < textures_per_biome; j++) {
+			int tex_index = biome_texture_indices[offset + j];
+
+			vec3 tex_color = triplanar_sample(textures[tex_index], world_pos, world_normal, texture_scale);
+			vec3 tex_normal = triplanar_normal_sample(normal_textures[tex_index], world_pos, world_normal, texture_scale);
+			float tex_roughness = triplanar_roughness_sample(roughness_textures[tex_index], world_pos, world_normal, texture_scale);
+
+			float factor = 0.0;
+			if (j == 0) {
+				factor = smoothstep(-transition_smoothness, transition_smoothness, max_heights[offset + j] - adjusted_height);
+			} else {
+				float lower = max_heights[offset + j - 1];
+				float upper = max_heights[offset + j];
+				float step1 = smoothstep(-transition_smoothness, transition_smoothness, upper - adjusted_height);
+				float step2 = smoothstep(-transition_smoothness, transition_smoothness, lower - adjusted_height);
+				factor = step1 * (1.0 - step2);
+			}
+
+			factor *= (1.0 - slope_factor);
+			factor *= biome_weight;
+
+			final_color += tex_color * factor;
+			final_normal += tex_normal * factor;
+			final_roughness += tex_roughness * factor;
+			total_factor += factor;
+		}
+	}
+
+	// Aplicar textura de pendiente
+	final_color += slope_color * slope_factor;
+	final_normal += slope_normal * slope_factor;
+	final_roughness += slope_roughness * slope_factor;
+	total_factor += slope_factor;
+
+	if (total_factor > 0.0) {
+		final_color /= total_factor;
+		final_normal = normalize(final_normal);
+		final_roughness /= total_factor;
+	} else {
+		final_color = vec3(0.5);
+		final_normal = vec3(0.0, 0.0, 1.0);
+		final_roughness = 0.5;
+	}
+
+	ALBEDO = final_color;
+	//NORMAL_MAP = final_normal * normal_strength;
+	ROUGHNESS = final_roughness;
+	//NORMAL_MAP_DEPTH = normal_strength;
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_yh82d"]
+render_priority = 0
+shader = SubResource("Shader_y88pq")
+shader_parameter/u_transition_mask = null
+shader_parameter/radius = 0.0
+shader_parameter/center = Vector3(0, 0, 0)
+shader_parameter/max_heights = Array[float]([])
+shader_parameter/biome_count = 0
+shader_parameter/textures_per_biome = 0
+shader_parameter/biome_latitude_ranges = Array[float]([])
+shader_parameter/biome_texture_indices = Array[int]([])
+shader_parameter/slope_threshold = 0.7
+shader_parameter/slope_smoothness = 0.2
+shader_parameter/transition_smoothness = 1.5
+shader_parameter/biome_transition_smoothness = 0.0
+shader_parameter/noise_strength = 1.0
+shader_parameter/noise_scale = 0.1
+shader_parameter/texture_scale = 0.5
+shader_parameter/normal_strength = 0.7
+shader_parameter/textures = Array[Texture2D]([])
+shader_parameter/normal_textures = Array[Texture2D]([])
+shader_parameter/roughness_textures = Array[Texture2D]([])
+
+[node name="Node3D" node_paths=PackedStringArray("planet") instance=ExtResource("1_tphvi")]
+planet = NodePath("@Node3D@18057")
+
+[node name="VoxelLodTerrain" parent="." index="0"]
+generator = SubResource("VoxelGeneratorGraph_2t41j")
+material = SubResource("ShaderMaterial_yh82d")
