@@ -1,6 +1,7 @@
 shader_type spatial;
 
 #include "res://shaders/terrain/terrain_utils.gdshaderinc"
+#include "res://shaders/terrain//virtual_texturing.gdshaderinc"
 
 uniform int u_transition_mask;
 uniform float radius = 5000.0;
@@ -37,8 +38,14 @@ varying vec3 world_pos;
 varying float height;
 varying vec3 world_normal;
 
+varying vec3 v_normal_model;
+varying vec3 v_vertex_pos_model;
+
 void vertex() {
 	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0, u_transition_mask);
+	v_vertex_pos_model = VERTEX;
+	v_normal_model = NORMAL;
+	
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	height = length(world_pos - center) - radius;
 	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
@@ -131,6 +138,11 @@ void fragment() {
 	}
 
 	ALBEDO = final_color;
+	vec3 normal_model;
+	vec3 normal_view = get_voxel_normal_view_model(v_vertex_pos_model,
+		NORMAL, VIEW_MATRIX * MODEL_MATRIX,
+		v_normal_model, normal_model);
+	NORMAL = normal_view;
 	//NORMAL_MAP = final_normal * normal_strength;
 	ROUGHNESS = final_roughness;
 	//NORMAL_MAP_DEPTH = normal_strength;
