@@ -127,6 +127,7 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
 	planet_position = voxel_terrain.get_parent().position
 	shader_material.set_shader_parameter("center", planet_position)
+	print(planet_position)
 	shader_material.set_shader_parameter("radius", radius)
 	
 	shader_material.set_shader_parameter("max_heights", max_heights)

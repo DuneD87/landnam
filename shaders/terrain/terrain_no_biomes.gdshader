@@ -56,10 +56,9 @@ void fragment() {
 	float slope_roughness = triplanar_roughness_sample(slope_roughness_texture, world_pos, world_normal, texture_scale);
 
 	// Calcular latitud
-	vec3 dir = (center - world_pos);
-	float rho = length(dir);
-	float phi = acos(world_pos.y / rho);
-	float latitude = degrees((PI / 2.0) - phi);
+	vec3 relative_pos = world_pos - center;
+	vec3 normalized_pos = normalize(relative_pos);
+	float latitude = degrees(asin(normalized_pos.y));
 
 	// Calcular pesos de biomas suavizados
 	float biome_weights[MAX_BIOMES];
