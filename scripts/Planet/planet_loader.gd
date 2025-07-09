@@ -6,10 +6,11 @@ enum Action { NONE, SELECT_CONFIG }
 @export_group("Config Planet")
 @export var sun_path : DirectionalLight3D
 @export var config_file_path: String = ""
+@export var sun_dir: Vector3
 
 @onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
 @onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
-@onready var voxel_instancer: VoxelInstancer = $VoxelLodTerrain/VoxelInstancer
+
 var _config_action: Action = Action.NONE
 
 @export var planet: Planet
@@ -64,14 +65,15 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 func _load_planet() -> void:
 	var planet_parser: PlanetParser = PlanetParser.new(sun_path)
 	planet_parser.load_config(config_file_path)
-	planet = Planet.new(voxel_terrain, atmosphere_node, voxel_instancer)
+	planet = Planet.new(voxel_terrain, atmosphere_node)
 	_copy_parsed_data(planet_parser)
+	planet.setup_shader_parameters()
+	planet.setup_voxel_generator()
+	planet._load_vegetation()
 	
 func _on_file_selected(path: String) -> void:
 	config_file_path = path
 	_load_planet()
-	planet.setup_shader_parameters()
-	planet.setup_voxel_generator()
 	notify_property_list_changed()
 
 func _open_file_dialog() -> void:
@@ -110,8 +112,10 @@ func _open_file_dialog() -> void:
 func _ready() -> void:
 	if config_file_path != "res://data/planet/default.json":
 		_load_planet()
-		planet.setup_shader_parameters()
-		planet.setup_voxel_generator()
+		
 	
 func _process(delta: float) -> void:
+	if planet != null:
+		planet.sun_dir = sun_dir
+		planet._update_planet()
 	pass

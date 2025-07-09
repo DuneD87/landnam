@@ -49,8 +49,8 @@ func _update_sun() -> void:
 
 	# Dirección del sol (unitaria)
 	var dir := Vector3(cos(el) * sin(az), sin(el), cos(el) * cos(az)).normalized()
-	'for planet in planets.planets:
-		planet.sun_dir = dir'
+	for planet in planets.get_children():
+		planet.sun_dir = dir
 	# --- 2. Posición del sol a distancia fija del origen --------------
 	sun_light.position = dir * sun_distance
 

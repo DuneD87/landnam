@@ -33,7 +33,8 @@ class_name Planet extends Node3D
 @export var atmosphere_modulate: Vector3
 @export var has_clouds: bool
 
-@export var planet: Node3D
+@export var sun_dir: Vector3
+@export var planet_position: Vector3
 @export var voxel_terrain: VoxelLodTerrain
 @export var atmosphere_node: Node3D
 @export var voxel_instancer: VoxelInstancer
@@ -72,7 +73,8 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array) -> V
 func _load_vegetation():
 	var generators = vegetation.generators
 	var graph_functions =  vegetation.hemisphere_graph_function
-	
+	voxel_instancer.library.clear()
+	var i = 0
 	for item in vegetation.items:
 		
 		var generator : VoxelInstanceGenerator
@@ -87,30 +89,44 @@ func _load_vegetation():
 			
 		var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
 		multi_mesh_item.generator = generator
-		multi_mesh_item.scene = load(item.scene)
+		var scene = load(item.scene)
+		multi_mesh_item.scene = scene
+		voxel_instancer.library.add_item(i, multi_mesh_item)
+		i += 1
 		var multi_mesh_elem = {
 			"mesh_item": multi_mesh_item,
 			"wind_speed": item.wind_speed if item.has("wind_speed") else 0.0,
 		}
 		
 		multi_mesh_array.append(multi_mesh_elem)
+		var scene_mesh : MeshInstance3D = scene.instantiate().get_child(0)
+		var surface_count = scene_mesh.mesh.get_surface_count()
+		for surface_idx in surface_count:
+			var shader_material = scene_mesh.mesh.surface_get_material(surface_idx)
+			if shader_material is ShaderMaterial:
+				item_transparent_materials.append(
+					{
+						"shader": shader_material as ShaderMaterial,
+						"wind_speed": item.wind_speed
+					}
+				)
 		
-func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D, _voxel_instancer: VoxelInstancer) -> void:
+func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
 	voxel_terrain = _voxel_terrain
 	atmosphere_node = _atmosphere_node
-	voxel_instancer = _voxel_instancer
+	voxel_instancer = VoxelInstancer.new()
+	voxel_instancer.library = VoxelInstanceLibrary.new()
+	voxel_instancer.up_mode = VoxelInstancer.UP_MODE_SPHERE
+	voxel_terrain.add_child(voxel_instancer)
 	shader_material = ShaderMaterial.new()
-	shader_material.shader = load("res://shaders/terrain/terrain_no_biomes.gdshader").duplicate(true)
+	shader_material.shader = load("res://shaders/terrain/terrain_no_biomes.gdshader")
 	
-	print("Planet created")
-
 func setup_shader_parameters() -> void:
-	print("hello")
 	voxel_terrain.material = shader_material
 	shader_material.set_shader_parameter("transition_smoothness", 30)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
-	print(voxel_terrain.position)
-	shader_material.set_shader_parameter("center", voxel_terrain.get_parent().position)
+	planet_position = voxel_terrain.get_parent().position
+	shader_material.set_shader_parameter("center", planet_position)
 	shader_material.set_shader_parameter("radius", radius)
 	
 	shader_material.set_shader_parameter("max_heights", max_heights)
@@ -168,16 +184,13 @@ func setup_voxel_generator() -> void:
 			graph_generator_function.set_node_param(node_id, radius_pos - 1, radius)
 			var success = graph_generator.compile()
 
-func update_planet() -> void:
-	for mat_struct in item_transparent_materials:
-		var mat = mat_struct.shader as ShaderMaterial
-		mat.set_shader_parameter("light_direction", planet.sun_dir)
-		mat.set_shader_parameter("planet_position", planet.position)
-		mat.set_shader_parameter("wind_direction", planet.wind_direction)
-		mat.set_shader_parameter("wind_speed", mat_struct.wind_speed)
-
 func _ready() -> void:
 	pass
-	
-func _process(delta: float) -> void:
-	pass
+
+func _update_planet() -> void:
+	for mat_struct in item_transparent_materials:
+		var mat = mat_struct.shader as ShaderMaterial
+		mat.set_shader_parameter("light_direction", sun_dir)
+		mat.set_shader_parameter("planet_position", planet_position)
+		mat.set_shader_parameter("wind_direction", wind_direction)
+		mat.set_shader_parameter("wind_speed", mat_struct.wind_speed)

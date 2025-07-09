@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://scripts/sun_controller.gd" id="1_uw70s"]
 [ext_resource type="Shader" path="res://textures/skybox/space_sky.gdshader" id="3_k1xg5"]
 [ext_resource type="Script" path="res://scripts/Planet/planet_loader.gd" id="4_diroo"]
-[ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/terrain.tscn" id="5_6m3o6"]
+[ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet_loader.tscn" id="5_ecmd6"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_rvv4a"]
 
@@ -36,12 +36,12 @@ shader_parameter/detail_level = 5.0
 shader_parameter/zoom_level = 0.5
 shader_parameter/noise_seed = 0.0
 
-[sub_resource type="Sky" id="Sky_hj7oe"]
+[sub_resource type="Sky" id="Sky_p2mt8"]
 sky_material = SubResource("ShaderMaterial_sywca")
 
 [sub_resource type="Environment" id="Environment_bdos0"]
 background_mode = 2
-sky = SubResource("Sky_hj7oe")
+sky = SubResource("Sky_p2mt8")
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_sky_contribution = 0.0
 ambient_light_energy = 0.05
@@ -89,14 +89,16 @@ environment = SubResource("Environment_bdos0")
 script = ExtResource("4_diroo")
 config_file_path = "res://data/planet/default.json"
 
-[node name="Planet" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_6m3o6")]
+[node name="Node3D" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_ecmd6")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
+sun_dir = Vector3(0, 0, 0)
 planet = NodePath("")
 
-[node name="Node3D" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_6m3o6")]
+[node name="Node3D2" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_ecmd6")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
+sun_dir = Vector3(0, 0, 0)
 planet = NodePath("")
