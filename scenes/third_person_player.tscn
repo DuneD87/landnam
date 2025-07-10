@@ -1,0 +1,33 @@
+[gd_scene load_steps=6 format=3 uid="uid://c1vquhxt75l31"]
+
+[ext_resource type="PackedScene" uid="uid://byxkv2msihic" path="res://models/player/Barbarian.glb" id="1_ry6f0"]
+[ext_resource type="Script" path="res://scripts/Player/player_controller.gd" id="1_smlm8"]
+[ext_resource type="Script" path="res://scripts/Player/movement.gd" id="2_l8r5w"]
+[ext_resource type="Script" path="res://scripts/Player/cam_controller.gd" id="4_5at7g"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qeuc0"]
+radius = 0.64535
+height = 2.97757
+
+[node name="Player" type="CharacterBody3D"]
+script = ExtResource("1_smlm8")
+
+[node name="PlayerModel" parent="." instance=ExtResource("1_ry6f0")]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25483, 0)
+shape = SubResource("CapsuleShape3D_qeuc0")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(-1, -2.26267e-08, 8.44439e-08, 0, 0.965926, 0.258819, -8.74228e-08, 0.258819, -0.965926, -1.24588e-14, 2.58411, -2.98548)
+current = true
+far = 400000.0
+
+[node name="VoxelViewer" type="VoxelViewer" parent="Camera3D"]
+view_distance = 5000000
+
+[node name="Movement" type="Node" parent="."]
+script = ExtResource("2_l8r5w")
+
+[node name="CameraController" type="Node" parent="."]
+script = ExtResource("4_5at7g")

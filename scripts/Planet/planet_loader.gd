@@ -7,6 +7,7 @@ enum Action { NONE, SELECT_CONFIG }
 @export var sun_path : DirectionalLight3D
 @export var config_file_path: String = ""
 @export var sun_dir: Vector3
+@export var gravity_strength: float = 9.8
 
 @onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
 @onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
@@ -14,6 +15,13 @@ enum Action { NONE, SELECT_CONFIG }
 var _config_action: Action = Action.NONE
 
 @export var planet: Planet
+
+func get_gravity_direction(_global_position: Vector3) -> Vector3:
+	var gravity_center = voxel_terrain.global_position
+	return (gravity_center - _global_position).normalized()
+	
+func apply_gravity(velocity: Vector3, direction: Vector3, delta: float) -> Vector3:
+	return velocity + (direction * gravity_strength * delta)
 
 @export var config_action: Action:
 	get:		
