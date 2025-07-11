@@ -18,16 +18,22 @@ script = ExtResource("1_smlm8")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25483, 0)
 shape = SubResource("CapsuleShape3D_qeuc0")
 
-[node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(-1, -2.26267e-08, 8.44439e-08, 0, 0.965926, 0.258819, -8.74228e-08, 0.258819, -0.965926, -1.24588e-14, 2.58411, -2.98548)
-current = true
-far = 400000.0
-
-[node name="VoxelViewer" type="VoxelViewer" parent="Camera3D"]
-view_distance = 5000000
-
 [node name="Movement" type="Node" parent="."]
 script = ExtResource("2_l8r5w")
 
 [node name="CameraController" type="Node" parent="."]
 script = ExtResource("4_5at7g")
+
+[node name="CameraPivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4.21736)
+
+[node name="PitchPivot" type="Node3D" parent="CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4.217)
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot/PitchPivot"]
+transform = Transform3D(-1, -2.26267e-08, 8.44439e-08, 0, 0.965926, 0.258819, -8.74228e-08, 0.258819, -0.965926, -1.24588e-14, 2.58411, -2.98548)
+current = true
+far = 400000.0
+
+[node name="VoxelViewer" type="VoxelViewer" parent="CameraPivot/PitchPivot/Camera3D"]
+view_distance = 5000000
