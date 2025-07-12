@@ -292,7 +292,7 @@ void fragment() {
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_8gh3j"]
 render_priority = 0
 shader = SubResource("Shader_wsymg")
-shader_parameter/u_transition_mask = null
+shader_parameter/u_transition_mask = 0
 shader_parameter/radius = 0.0
 shader_parameter/center = Vector3(0, 0, 0)
 shader_parameter/max_heights = Array[float]([])
@@ -354,14 +354,11 @@ generator = SubResource("VoxelGeneratorGraph_14jne")
 mesher = SubResource("VoxelMesherTransvoxel_dfr3u")
 gi_mode = 2
 view_distance = 50000
-lod_count = 16
-lod_distance = 128.0
-secondary_lod_distance = 32.0
+lod_count = 8
 material = SubResource("ShaderMaterial_8gh3j")
 normalmap_enabled = true
 normalmap_tile_resolution_min = 2
 normalmap_begin_lod_index = 1
-mesh_block_size = 32
 threaded_update_enabled = true
 streaming_system = 1
 
@@ -379,7 +376,7 @@ shader_params/u_cloud_bottom = 0.5
 shader_params/u_cloud_top = 0.9
 shader_params/u_cloud_blend = 1.0
 shader_params/u_cloud_shape_invert = 1.0
-shader_params/u_cloud_coverage_bias = 0.1
+shader_params/u_cloud_coverage_bias = 0.05
 shader_params/u_cloud_shape_factor = 0.1
 shader_params/u_cloud_shape_scale = 1.0
 shader_params/u_cloud_shape_texture = SubResource("NoiseTexture3D_rixvr")

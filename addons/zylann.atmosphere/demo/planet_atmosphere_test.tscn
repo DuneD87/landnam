@@ -2,8 +2,8 @@
 
 [ext_resource type="Texture2D" uid="uid://dtlptku1k7pm1" path="res://addons/zylann.atmosphere/demo/space_background.webp" id="1_j5n0u"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="2"]
-[ext_resource type="Shader" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="3_ra2pw"]
-[ext_resource type="Script" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="4_8lw7l"]
+[ext_resource type="Shader" uid="uid://cjvu0r1fglbyl" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="3_ra2pw"]
+[ext_resource type="Script" uid="uid://dv1orhbbx7v5" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="4_8lw7l"]
 [ext_resource type="PackedScene" uid="uid://cltgsnrutmgt8" path="res://addons/zylann.atmosphere/demo/flying_avatar.tscn" id="5_td3mm"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jc6bi"]

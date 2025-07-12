@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://dsh7v55w6oiv7"]
 
-[ext_resource type="Script" path="res://scripts/voxel_terrain.gd" id="1_m7nos"]
+[ext_resource type="Script" uid="uid://c50f4dtiei2ma" path="res://scripts/voxel_terrain.gd" id="1_m7nos"]
 
 [sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_qwhf4"]
 

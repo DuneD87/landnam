@@ -125,6 +125,7 @@ func update_normal_movement(delta: float) -> void:
 		camera_controller.camera_distance -= 1
 
 	gravity_direction = planet.get_gravity_direction(global_position)
+	up_direction = -gravity_direction
 	var input_dir = movement.get_input_direction(camera, gravity_direction)
 	movement.update_movement(delta, input_dir)
 	velocity = movement.velocity

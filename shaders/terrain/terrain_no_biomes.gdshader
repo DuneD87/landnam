@@ -45,7 +45,7 @@ void vertex() {
 	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0, u_transition_mask);
 	v_vertex_pos_model = VERTEX;
 	v_normal_model = NORMAL;
-	
+
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	height = length(world_pos - center) - radius;
 	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
