@@ -10,8 +10,9 @@ radius = 0.64535
 height = 2.97757
 
 [node name="Player" type="CharacterBody3D"]
+wall_min_slide_angle = 0.785398
 floor_max_angle = 3.14159
-floor_snap_length = 6.95
+floor_snap_length = 0.2
 script = ExtResource("1_smlm8")
 
 [node name="PlayerModel" parent="." instance=ExtResource("1_ry6f0")]

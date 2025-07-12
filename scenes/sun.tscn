@@ -39,9 +39,10 @@ sky_material = SubResource("ShaderMaterial_tcpsq")
 [sub_resource type="Environment" id="Environment_0x85g"]
 background_mode = 2
 sky = SubResource("Sky_hj7oe")
+ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_sky_contribution = 0.0
-ambient_light_energy = 0.05
+ambient_light_energy = 0.1
 reflected_light_source = 1
 tonemap_mode = 3
 ssr_max_steps = 128
@@ -69,6 +70,8 @@ planet = NodePath("")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 0, 0, 0)
+shadow_enabled = true
+directional_shadow_pancake_size = 1.9
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_0x85g")
