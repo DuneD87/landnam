@@ -67,7 +67,7 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array) -> V
 		for graph_func in graph_functions:
 			if graph_func.name == generator_config.noise_graph:
 				generator.noise_graph = load(graph_func.path)
-				
+		
 	return generator
 
 func _load_vegetation():
@@ -89,6 +89,7 @@ func _load_vegetation():
 			
 		var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
 		multi_mesh_item.generator = generator
+		multi_mesh_item.lod_index = 16
 		var scene = load(item.scene)
 		multi_mesh_item.scene = scene
 		voxel_instancer.library.add_item(i, multi_mesh_item)
