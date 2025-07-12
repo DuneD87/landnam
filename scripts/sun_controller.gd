@@ -4,11 +4,11 @@ extends Node3D
 ## La SkyMaterial se busca sola si hay un WorldEnvironment hijo.
 
 @export var sun_light : DirectionalLight3D
-@export var sun_azimuth_deg : float  = 0.0
+@export var sun_azimuth_deg : float  = 150.0
 @export var sun_elevation_deg: float = 25.0
 	
 @export var auto_rotate        : bool  = true        # activar o desactivar
-@export var rotation_speed_deg : float = 10.0        # ° por segundo (positivo = Este→Oeste)
+@export var rotation_speed_deg : float = 0.1        # ° por segundo (positivo = Este→Oeste)
 @export var sun_distance : float = 100000.0
 @onready var planets = $Planets
 var sky_material : ShaderMaterial      # se resuelve en _ready
@@ -19,7 +19,7 @@ func _ready() -> void:
 		planet.sun = $DirectionalLight3'
 	if env:
 		sky_material = env.environment.sky.sky_material as ShaderMaterial
-	sun_azimuth_deg = 0.0
+	sun_azimuth_deg = 150.0
 	sun_elevation_deg = 0.0
 	sun_light.position = Vector3(0.0, 0.0, 0.0)
 
@@ -42,21 +42,21 @@ func _set_elevation(value: float) -> void:
 func _update_sun() -> void:
 	if not sky_material or not sun_light:
 		return
+		
+	if Input.is_action_pressed("move_sun_plus"):
+		sun_azimuth_deg += 1
+	if Input.is_action_pressed("move_sun_minus"):
+		sun_azimuth_deg -= 1
 
-	# --- 1. Calcula la dirección del sol usando azimut y elevación ---
 	var az := deg_to_rad(sun_azimuth_deg)
 	var el := deg_to_rad(sun_elevation_deg)
 
-	# Dirección del sol (unitaria)
 	var dir := Vector3(cos(el) * sin(az), sin(el), cos(el) * cos(az)).normalized()
 	for planet in planets.get_children():
 		planet.sun_dir = dir
-	# --- 2. Posición del sol a distancia fija del origen --------------
 	sun_light.position = dir * sun_distance
 
-	# --- 3. Alinea la DirectionalLight para que mire al centro -------
 	sun_light.look_at(Vector3.ZERO, Vector3.UP)
 
-	# --- 4. Pasa los parámetros al shader ----------------------------
 	sky_material.set_shader_parameter("sun_azimuth_deg",   sun_azimuth_deg)
 	sky_material.set_shader_parameter("sun_elevation_deg", sun_elevation_deg)

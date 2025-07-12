@@ -20,8 +20,6 @@ func get_gravity_direction(_global_position: Vector3) -> Vector3:
 	var gravity_center = voxel_terrain.global_position
 	return (gravity_center - _global_position).normalized()
 	
-func apply_gravity(velocity: Vector3, direction: Vector3, delta: float) -> Vector3:
-	return velocity + (direction * gravity_strength * delta)
 
 @export var config_action: Action:
 	get:		

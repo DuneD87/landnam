@@ -64,7 +64,7 @@ sun_light = NodePath("DirectionalLight3D")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
-gravity_strength = 90.8
+gravity_strength = 9.8
 planet = NodePath("")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
@@ -74,6 +74,5 @@ transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 
 environment = SubResource("Environment_0x85g")
 
 [node name="Player" parent="." node_paths=PackedStringArray("planet") instance=ExtResource("4_162ko")]
-transform = Transform3D(-0.992761, -0.10484, -0.0586035, 0, 0.487925, -0.872885, 0.120108, -0.866567, -0.484393, 561.774, -976.025, 5047.91)
-motion_mode = 1
+transform = Transform3D(-0.989277, -0.0778386, -0.123585, 0, 0.846153, -0.532941, 0.146055, -0.527226, -0.837078, 350.174, 3253.65, 5496.9)
 planet = NodePath("../Planets/Earth")

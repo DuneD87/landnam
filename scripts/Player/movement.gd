@@ -12,10 +12,14 @@ func get_input_direction(camera: Camera3D, gravity_dir: Vector3) -> Vector3:
 	# Usar la dirección hacia adelante de la CÁMARA en lugar del personaje
 	var forward = -camera.global_transform.basis.z
 	var right = camera.global_transform.basis.x
-
+	var up = camera.global_transform.basis.y
 	# Proyectar sobre el plano tangente a la gravedad
 	forward = project_on_plane(forward, gravity_dir).normalized()
 	right = project_on_plane(right, gravity_dir).normalized()
+	up = project_on_plane(up, gravity_dir).normalized()
+	
+	var player: CharacterBody3D = get_parent()
+	print(player.is_on_floor())
 
 	var dir = Vector3.ZERO
 	if Input.is_action_pressed("move_forward"):
