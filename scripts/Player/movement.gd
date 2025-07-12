@@ -19,7 +19,6 @@ func get_input_direction(camera: Camera3D, gravity_dir: Vector3) -> Vector3:
 	up = project_on_plane(up, gravity_dir).normalized()
 	
 	var player: CharacterBody3D = get_parent()
-	print(player.is_on_floor())
 
 	var dir = Vector3.ZERO
 	if Input.is_action_pressed("move_forward"):

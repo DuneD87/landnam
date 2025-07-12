@@ -13,6 +13,7 @@ height = 2.97757
 wall_min_slide_angle = 0.785398
 floor_max_angle = 3.14159
 floor_snap_length = 0.2
+platform_on_leave = 2
 script = ExtResource("1_smlm8")
 
 [node name="PlayerModel" parent="." instance=ExtResource("1_ry6f0")]

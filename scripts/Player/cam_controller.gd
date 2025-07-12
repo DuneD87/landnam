@@ -56,6 +56,12 @@ func update_camera_rotation(delta: float, gravity_dir: Vector3):
 	delta_pitch = 0.0
 
 func update_camera_transform():
+	if Input.is_action_just_released("camera_zoom_in"):
+		print("camera zoom");
+		camera_distance -= 1
+	if Input.is_action_just_released("camera_zoom_out"):
+		camera_distance += 1	
+		
 	var player = get_parent()
 	var player_pos = player.global_position
 	var up_axis = -player.gravity_direction.normalized()

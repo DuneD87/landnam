@@ -113,6 +113,7 @@ func _load_vegetation():
 		
 func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
 	voxel_terrain = _voxel_terrain
+	voxel_terrain.lod_distance = 1024
 	atmosphere_node = _atmosphere_node
 	voxel_instancer = VoxelInstancer.new()
 	voxel_instancer.library = VoxelInstanceLibrary.new()

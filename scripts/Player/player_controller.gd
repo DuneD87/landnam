@@ -18,6 +18,8 @@ var sliding_threshold: float = -3.0  # Velocidad para detectar deslizamiento
 var locked_forward_direction: Vector3 = Vector3.FORWARD
 
 func _ready():
+	#get_viewport().debug_draw = Viewport.DEBUG_DRAW_WIREFRAME
+
 	capture_mouse(true)
 
 func _input(event):
@@ -32,7 +34,11 @@ func _input(event):
 func _physics_process(delta: float):
 	if not mouse_captured:
 		return
-		
+	if Input.is_action_just_released("camera_zoom_in"):
+		print("camera zoom");
+		camera_controller.camera_distance += 1
+	if Input.is_action_just_released("camera_zoom_out"):
+		camera_controller.camera_distance -= 1	
 	gravity_direction = planet.get_gravity_direction(global_position)
 	var input_dir = movement.get_input_direction(camera, gravity_direction)
 	movement.update_movement(delta, input_dir)
