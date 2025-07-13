@@ -1,36 +1,64 @@
 extends CharacterBody3D
 
-@export var planet: Node3D
+enum {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1, SPRINT, FALLING}
+
 @onready var movement: Movement = $Movement
 @onready var camera_controller: CameraController = $CameraController
 @onready var camera: Camera3D = $CameraPivot/PitchPivot/Camera3D
 @onready var animator: AnimationPlayer = $PlayerModel/AnimationPlayer
 
-var gravity_direction: Vector3 = Vector3.DOWN
+@export var planet: Node3D
 @export var mass: float = 70.0
-@export var jump_height: float = 10.0
-@export var jump_time: float = 0.5
-var is_jumping := false
-var jump_velocity := 0.0
-var was_on_floor := true
-var mouse_captured := true
-var sliding_threshold: float = -3.0
-var locked_forward_direction: Vector3 = Vector3.FORWARD
+@export var jump_height: float = 15.0
+@export var mouse_sensitivity: float = 0.002
+@export var roll_speed: float = 2.0
+@export var invert_y: bool = false
+@export var free_flight_speed: float = 20.0
 
-var free_flight_enabled := false
+var locked_forward_direction: Vector3 = Vector3.FORWARD
+var gravity_direction: Vector3 = Vector3.DOWN
+var jump_velocity = 0.0
+var sliding_threshold: float = -3.0
+
+var is_jumping = false
+var is_falling = false
+var is_running = false
+var is_sprinting = false
+var is_attacking = false
+var was_on_floor = true
+var mouse_captured = true
+var free_flight_enabled = false
+
+var current_animation = IDLE
 
 # Free flight variables
 var orientation: Quaternion = Quaternion.IDENTITY
 var delta_yaw: float = 0.0
 var delta_pitch: float = 0.0
 var delta_roll: float = 0.0
-@export var mouse_sensitivity: float = 0.002
-@export var roll_speed: float = 2.0
-@export var invert_y: bool = false
-@export var free_flight_speed: float = 20.0
+
+
+func capture_mouse(capture: bool):
+	mouse_captured = capture
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
+	
+func on_animation_finish(name: String):
+	print("Animation finished: ", name, " current_animation: ", current_animation)
+	match current_animation:
+		ATTACK_1:
+			is_attacking = false
+		JUMP_START:
+			current_animation = JUMP_IDLE
+				
+func on_animation_start(name: String):
+	if current_animation == IDLE:
+		return
+	print("Animation started: ", name, " current_animation: ", current_animation)
 
 func _ready():
-	capture_mouse(true)
+	capture_mouse(true) 
+	animator.connect("animation_finished", on_animation_finish)
+	animator.connect("animation_started", on_animation_start)
 
 func _input(event):
 	if free_flight_enabled:
@@ -58,6 +86,11 @@ func _input(event):
 func _physics_process(delta: float):
 	if not mouse_captured:
 		return
+		
+	if Input.is_action_just_released("camera_zoom_in"):
+		camera_controller.camera_distance += 1
+	if Input.is_action_just_released("camera_zoom_out"):
+		camera_controller.camera_distance -= 1
 
 	if free_flight_enabled:
 		update_free_flight(delta)
@@ -118,81 +151,6 @@ func update_free_flight(delta: float) -> void:
 
 	move_and_slide()
 
-func update_normal_movement(delta: float) -> void:
-	if Input.is_action_just_released("camera_zoom_in"):
-		camera_controller.camera_distance += 1
-	if Input.is_action_just_released("camera_zoom_out"):
-		camera_controller.camera_distance -= 1
-
-	gravity_direction = planet.get_gravity_direction(global_position)
-	up_direction = -gravity_direction
-	var input_dir = movement.get_input_direction(camera, gravity_direction)
-	movement.update_movement(delta, input_dir)
-	velocity = movement.velocity
-
-	var just_left_ground = was_on_floor and not is_on_floor()
-	var just_landed = not was_on_floor and is_on_floor()
-	var is_sliding = is_on_floor() and velocity.y < sliding_threshold
-	was_on_floor = is_on_floor()
-
-	if !is_on_floor():
-		var gravity_force = gravity_direction.normalized() * mass * planet.gravity_strength
-		velocity += gravity_force * delta
-
-	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_sliding:
-		start_jump()
-
-	if is_jumping:
-		velocity += -gravity_direction.normalized() * jump_velocity * delta * mass
-		jump_velocity = max(0, jump_velocity - planet.gravity_strength * delta)
-		if jump_velocity <= 0:
-			is_jumping = false
-
-	move_and_slide()
-
-	handle_animations(input_dir, just_left_ground, just_landed, is_sliding)
-
-	if input_dir.length() > 0.1:
-		rotate_toward_movement(input_dir, delta)
-
-	align_to_gravity(gravity_direction, delta)
-	camera_controller.update_camera_rotation(delta, gravity_direction)
-
-func capture_mouse(capture: bool):
-	mouse_captured = capture
-	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
-
-func start_jump():
-	is_jumping = true
-	jump_velocity = sqrt(2 * jump_height * planet.gravity_strength)
-	animator.play("Jump_Start")
-
-func handle_animations(input_dir: Vector3, just_left_ground: bool, just_landed: bool, is_sliding: bool):
-	if free_flight_enabled:
-		return
-
-	var current_anim = animator.current_animation
-
-	if just_landed:
-		if current_anim in ["Jump_Idle", "Jump_Start"]:
-			animator.play("Jump_Land")
-		else:
-			play_ground_animation(input_dir)
-
-	elif just_left_ground and is_jumping and not is_sliding:
-		animator.play("Jump_Idle")
-
-	elif is_on_floor() and not is_jumping:
-		play_ground_animation(input_dir)
-
-func play_ground_animation(input_dir: Vector3):
-	if input_dir.length() < 0.1:
-		if animator.current_animation != "Idle":
-			animator.play("Idle")
-	else:
-		if animator.current_animation != "Running_A":
-			animator.play("Running_A")
-
 func rotate_toward_movement(input_dir: Vector3, delta: float):
 	if input_dir.length() < 0.3:
 		return
@@ -203,9 +161,9 @@ func rotate_toward_movement(input_dir: Vector3, delta: float):
 
 	var angle = acos(clamp(current_dir.dot(target_dir), -1.0, 1.0))
 
-	if angle > deg_to_rad(5.0):
+	if angle > deg_to_rad(10.0):
 		var rotation_axis = current_dir.cross(target_dir)
-		if rotation_axis.length() > 0.001:
+		if rotation_axis.length() > 0.1:
 			var rot = Quaternion(rotation_axis.normalized(), angle * delta * 3.0)
 			global_transform.basis = Basis(rot) * global_transform.basis
 			orthonormalize()
@@ -220,3 +178,106 @@ func align_to_gravity(gravity_dir: Vector3, delta: float):
 		var rot = Quaternion(rotation_axis.normalized(), angle * delta * 5.0)
 		global_transform.basis = Basis(rot) * global_transform.basis
 		orthonormalize()
+
+func dig_hole(radius: float, distance: float):
+	var voxel_tool: VoxelTool = planet.voxel_terrain.get_voxel_tool()
+	var origin = camera.global_position
+	var direction = -camera.global_transform.basis.z.normalized()
+	var result = voxel_tool.raycast(origin, direction, distance)
+	
+	if result:
+		var hit_position = result.previous_position
+		var center = Vector3(hit_position.x, hit_position.y, hit_position.z)
+		voxel_tool.mode = VoxelTool.MODE_REMOVE 
+		voxel_tool.value = 0
+		voxel_tool.do_sphere(center, radius)
+
+func handle_animations():
+	if free_flight_enabled:
+		return
+
+	match current_animation:
+		IDLE:
+			if !is_jumping && !is_attacking:
+				animator.play("Idle", 1.0)
+		RUN:
+			if !is_jumping && !is_attacking:
+				animator.play("Running_A")
+		JUMP_START:
+			animator.play("Jump_Start", 1.0)
+		JUMP_IDLE || FALLING:
+			animator.play("Jump_Idle", 1.0)
+		JUMP_LAND:
+			animator.play("Jump_Land", 1.0)
+		ATTACK_1:
+			animator.play("1H_Melee_Attack_Chop", 1.0)
+		SPRINT:
+			animator.play("Running_B", 1.0)
+
+
+func handle_idle_movement(delta: float) -> Vector3:
+	gravity_direction = planet.get_gravity_direction(global_position)
+	up_direction = -gravity_direction
+	var input_dir = movement.get_input_direction(camera, gravity_direction)
+	movement.update_movement(delta, input_dir)
+	
+	if is_sprinting:
+		velocity = movement.velocity * 1.8
+	else:
+		velocity = movement.velocity
+	
+	if !is_on_floor():
+		var gravity_force = gravity_direction.normalized() * mass * planet.gravity_strength
+		velocity += gravity_force * delta
+		
+	if !is_attacking && !is_jumping && !is_sprinting && !is_falling:
+		is_running = input_dir.length() > 0.1
+		
+		if !is_running:
+			current_animation = IDLE
+		else:
+			current_animation = RUN	
+			
+	return input_dir
+
+func update_normal_movement(delta: float) -> void:
+	var input_dir = handle_idle_movement(delta)
+	is_falling = (velocity - gravity_direction).length() > 10.0 && !is_jumping
+	print( (velocity - gravity_direction).length())
+	if is_falling:
+		current_animation = FALLING
+		
+	if Input.is_action_pressed("Sprint"):
+		is_sprinting = true
+		if !is_jumping && !is_falling:
+			current_animation = SPRINT
+	else:
+		is_sprinting = false
+		
+	if Input.is_action_just_pressed("jump") and is_on_floor():
+		is_jumping = true
+		jump_velocity = sqrt(2 * jump_height * planet.gravity_strength)
+		current_animation = JUMP_START
+		
+	if Input.is_action_just_pressed("attack_1") && !is_attacking:
+		current_animation = ATTACK_1
+		dig_hole(2.0, 100.0)
+		is_attacking = true
+
+	if is_jumping:
+		velocity += -gravity_direction.normalized() * jump_velocity * delta * mass
+		jump_velocity = max(0, jump_velocity - planet.gravity_strength * delta)
+				
+		if jump_velocity <= 2.0:
+			is_jumping = false
+			current_animation = JUMP_LAND
+
+	move_and_slide()
+
+	handle_animations()
+
+	if is_running:
+		rotate_toward_movement(input_dir, delta)
+
+	align_to_gravity(gravity_direction, delta)
+	camera_controller.update_camera_rotation(delta, gravity_direction)

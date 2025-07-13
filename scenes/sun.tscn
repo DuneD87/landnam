@@ -1,8 +1,8 @@
 [gd_scene load_steps=8 format=3 uid="uid://8hm5q6k01tb8"]
 
-[ext_resource type="Script" path="res://scripts/sun_controller.gd" id="1_wlvx5"]
+[ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/sun_controller.gd" id="1_wlvx5"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet_loader.tscn" id="2_oq8ty"]
-[ext_resource type="Shader" path="res://textures/skybox/space_sky.gdshader" id="4_7x0ai"]
+[ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="4_7x0ai"]
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/third_person_player.tscn" id="4_162ko"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
@@ -77,5 +77,5 @@ directional_shadow_pancake_size = 1.9
 environment = SubResource("Environment_0x85g")
 
 [node name="Player" parent="." node_paths=PackedStringArray("planet") instance=ExtResource("4_162ko")]
-transform = Transform3D(-0.999586, -0.016379, -0.0236507, 0, 0.822103, -0.569338, 0.0287685, -0.569103, -0.821763, -1253.3, 3875.8, 5786.6)
+transform = Transform3D(-0.932639, 0.235741, -0.27315, 0, 0.757044, 0.653364, 0.360811, 0.609353, -0.706048, -1321.01, 3853.89, 5827.03)
 planet = NodePath("../Planets/Earth")

@@ -88,8 +88,11 @@ func _load_vegetation():
 			push_error("Error parsing vegetation, generator with name %s not found.", item.generator)
 			
 		var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
+		multi_mesh_item.collision_layer = 1
+		multi_mesh_item.collision_mask = 1
 		multi_mesh_item.generator = generator
 		multi_mesh_item.lod_index = 16
+
 		var scene = load(item.scene)
 		multi_mesh_item.scene = scene
 		voxel_instancer.library.add_item(i, multi_mesh_item)
@@ -114,7 +117,6 @@ func _load_vegetation():
 		
 func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
 	voxel_terrain = _voxel_terrain
-	voxel_terrain.lod_distance = 1024
 	atmosphere_node = _atmosphere_node
 	voxel_instancer = VoxelInstancer.new()
 	voxel_instancer.library = VoxelInstanceLibrary.new()

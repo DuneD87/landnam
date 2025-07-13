@@ -1,9 +1,9 @@
 [gd_scene load_steps=18 format=3 uid="uid://cuv6mxdmxyw00"]
 
-[ext_resource type="Script" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
+[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="8_4hxn6"]
-[ext_resource type="Shader" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
-[ext_resource type="Script" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
+[ext_resource type="Shader" uid="uid://cjvu0r1fglbyl" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
+[ext_resource type="Script" uid="uid://dv1orhbbx7v5" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
 
 [sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_as11c"]
 
@@ -28,7 +28,7 @@ fractal_gain = 0.3
 
 [sub_resource type="VoxelGeneratorGraph" id="VoxelGeneratorGraph_14jne"]
 graph_data = {
-"connections": [[1, 0, 6, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [1, 0, 13, 0], [10, 0, 4, 0], [13, 0, 28, 0], [15, 0, 30, 0], [16, 0, 22, 1], [17, 0, 20, 0], [18, 0, 17, 0], [19, 0, 17, 1], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [23, 0, 15, 2], [23, 0, 25, 2], [24, 0, 25, 0], [24, 0, 15, 1], [25, 0, 29, 1], [27, 0, 28, 1], [28, 0, 9, 0], [29, 0, 27, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [30, 0, 27, 0], [31, 0, 30, 1], [31, 0, 29, 0], [6, 0, 10, 0], [9, 0, 10, 1]],
+"connections": [[17, 0, 20, 0], [1, 0, 6, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [1, 0, 13, 0], [18, 0, 17, 0], [10, 0, 4, 0], [13, 0, 28, 0], [15, 0, 30, 0], [16, 0, 22, 1], [19, 0, 17, 1], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [23, 0, 15, 2], [23, 0, 25, 2], [24, 0, 25, 0], [24, 0, 15, 1], [25, 0, 29, 1], [27, 0, 28, 1], [28, 0, 9, 0], [29, 0, 27, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [30, 0, 27, 0], [31, 0, 30, 1], [31, 0, 29, 0], [6, 0, 10, 0], [9, 0, 10, 1]],
 "nodes": {
 "1": {
 "gui_position": Vector2(-586.667, 93.3333),
@@ -295,6 +295,9 @@ shader = SubResource("Shader_wsymg")
 shader_parameter/u_transition_mask = 0
 shader_parameter/radius = 0.0
 shader_parameter/center = Vector3(0, 0, 0)
+shader_parameter/textures = Array[Texture2D]([])
+shader_parameter/normal_textures = Array[Texture2D]([])
+shader_parameter/roughness_textures = Array[Texture2D]([])
 shader_parameter/max_heights = Array[float]([])
 shader_parameter/biome_count = 0
 shader_parameter/textures_per_biome = 0
@@ -308,9 +311,6 @@ shader_parameter/noise_strength = 1.0
 shader_parameter/noise_scale = 0.1
 shader_parameter/texture_scale = 0.5
 shader_parameter/normal_strength = 0.7
-shader_parameter/textures = Array[Texture2D]([])
-shader_parameter/normal_textures = Array[Texture2D]([])
-shader_parameter/roughness_textures = Array[Texture2D]([])
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_qaxex"]
 noise_type = 0
@@ -375,11 +375,11 @@ shader_params/u_cloud_density_scale = 0.5
 shader_params/u_cloud_bottom = 0.5
 shader_params/u_cloud_top = 0.9
 shader_params/u_cloud_blend = 1.0
+shader_params/u_cloud_shape_texture = SubResource("NoiseTexture3D_rixvr")
 shader_params/u_cloud_shape_invert = 1.0
 shader_params/u_cloud_coverage_bias = 0.05
 shader_params/u_cloud_shape_factor = 0.1
 shader_params/u_cloud_shape_scale = 1.0
-shader_params/u_cloud_shape_texture = SubResource("NoiseTexture3D_rixvr")
 shader_params/u_cloud_coverage_cubemap = SubResource("Cubemap_0ctpe")
 
 [node name="VoxelGI" type="VoxelGI" parent="."]

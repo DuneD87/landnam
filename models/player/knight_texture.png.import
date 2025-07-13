@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://20b0l1xp8gff"
-path="res://.godot/imported/barbarian_texture.png-183c154ba4fa884912f57f501b84e03e.ctex"
+uid="uid://bvfaiwoulkyo8"
+path="res://.godot/imported/knight_texture.png-4e596862b658f1fd10f38014e6bbda15.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://models/player/barbarian_texture.png"
-dest_files=["res://.godot/imported/barbarian_texture.png-183c154ba4fa884912f57f501b84e03e.ctex"]
+source_file="res://models/player/knight_texture.png"
+dest_files=["res://.godot/imported/knight_texture.png-4e596862b658f1fd10f38014e6bbda15.ctex"]
 
 [params]
 
