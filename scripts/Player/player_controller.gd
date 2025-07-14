@@ -6,26 +6,33 @@ enum {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1, SPRINT, FALLING}
 @onready var camera_controller: CameraController = $CameraController
 @onready var camera: Camera3D = $CameraPivot/PitchPivot/Camera3D
 @onready var animator: AnimationPlayer = $PlayerModel/AnimationPlayer
-
+@onready var animation_tree: AnimationTree = $PlayerModel/AnimationTree
 @export var planet: Node3D
+@export var animator_tree: AnimationTree
 @export var mass: float = 70.0
 @export var jump_height: float = 15.0
 @export var mouse_sensitivity: float = 0.002
 @export var roll_speed: float = 2.0
 @export var invert_y: bool = false
 @export var free_flight_speed: float = 20.0
+@export var blend_speed: float = 15.0
+@export var timer : Timer
 
 var locked_forward_direction: Vector3 = Vector3.FORWARD
 var gravity_direction: Vector3 = Vector3.DOWN
 var jump_velocity = 0.0
-var sliding_threshold: float = -3.0
+var sliding_threshold = -3.0
+var run_val = 0
+var sprint_val = 0
+var jump_start_val = 0
+var jump_idle_val = 0
+var jump_end_val = 0
 
 var is_jumping = false
 var is_falling = false
 var is_running = false
 var is_sprinting = false
 var is_attacking = false
-var was_on_floor = true
 var mouse_captured = true
 var free_flight_enabled = false
 
@@ -42,24 +49,35 @@ func capture_mouse(capture: bool):
 	mouse_captured = capture
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
 	
-func on_animation_finish(name: String):
-	print("Animation finished: ", name, " current_animation: ", current_animation)
+func on_animation_finish(_name: String):
+	if current_animation == IDLE:
+		return
+	
+	#print("Animation finished: ", _name, " current_animation: ", current_animation)
+	
 	match current_animation:
 		ATTACK_1:
 			is_attacking = false
 		JUMP_START:
 			current_animation = JUMP_IDLE
 				
-func on_animation_start(name: String):
+func on_animation_start(_name: String):
 	if current_animation == IDLE:
 		return
-	print("Animation started: ", name, " current_animation: ", current_animation)
+	#print("Animation started: ", _name, " current_animation: ", current_animation)
 
+func on_timeout():
+	if current_animation == ATTACK_1:
+		is_attacking = false
 func _ready():
+	timer = Timer.new()
+	timer.connect("timeout", on_timeout)
+	add_child(timer)
+	
 	capture_mouse(true) 
 	animator.connect("animation_finished", on_animation_finish)
 	animator.connect("animation_started", on_animation_start)
-
+	
 func _input(event):
 	if free_flight_enabled:
 		if event is InputEventMouseMotion and mouse_captured:
@@ -88,9 +106,12 @@ func _physics_process(delta: float):
 		return
 		
 	if Input.is_action_just_released("camera_zoom_in"):
-		camera_controller.camera_distance += 1
-	if Input.is_action_just_released("camera_zoom_out"):
 		camera_controller.camera_distance -= 1
+		camera_controller.update_camera_transform()
+	if Input.is_action_just_released("camera_zoom_out"):
+		camera_controller.camera_distance += 1
+		camera_controller.update_camera_transform()
+
 
 	if free_flight_enabled:
 		update_free_flight(delta)
@@ -191,29 +212,58 @@ func dig_hole(radius: float, distance: float):
 		voxel_tool.mode = VoxelTool.MODE_REMOVE 
 		voxel_tool.value = 0
 		voxel_tool.do_sphere(center, radius)
+func update_tree():
+	animation_tree["parameters/bRun/blend_amount"] = run_val
+	animation_tree["parameters/bSprint/blend_amount"] = sprint_val
+	animation_tree["parameters/bJumpStart/blend_amount"] = jump_start_val
+	animation_tree["parameters/bJumpIdle/blend_amount"] = jump_idle_val
+	animation_tree["parameters/bJumpLand/blend_amount"] = jump_end_val
 
-func handle_animations():
+func handle_animations(delta: float):
 	if free_flight_enabled:
 		return
 
 	match current_animation:
 		IDLE:
-			if !is_jumping && !is_attacking:
-				animator.play("Idle", 1.0)
+			run_val = lerpf(run_val, 0, blend_speed*delta)
+			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)	
+			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
+			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
+			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
 		RUN:
-			if !is_jumping && !is_attacking:
-				animator.play("Running_A")
-		JUMP_START:
-			animator.play("Jump_Start", 1.0)
-		JUMP_IDLE || FALLING:
-			animator.play("Jump_Idle", 1.0)
-		JUMP_LAND:
-			animator.play("Jump_Land", 1.0)
-		ATTACK_1:
-			animator.play("1H_Melee_Attack_Chop", 1.0)
+			run_val = lerpf(run_val, 1, blend_speed*delta)
+			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)	
+			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
+			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
+			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
 		SPRINT:
-			animator.play("Running_B", 1.0)
-
+			run_val = lerpf(run_val, 0, blend_speed*delta)
+			sprint_val = lerpf(sprint_val, 1, blend_speed*delta)
+			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
+			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
+			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
+		JUMP_START:
+			run_val = lerpf(run_val, 0, blend_speed*delta)
+			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)
+			jump_start_val = lerpf(jump_start_val, 1, blend_speed*delta)	
+			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
+			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
+		JUMP_IDLE:
+			run_val = lerpf(run_val, 0, blend_speed*delta)
+			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)
+			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
+			jump_idle_val = lerpf(jump_idle_val, 1, blend_speed*delta)	
+			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
+		JUMP_LAND:
+			run_val = lerpf(run_val, 0, blend_speed*delta)
+			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)
+			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
+			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
+			jump_end_val = lerpf(jump_end_val, 1, blend_speed*delta)
+		ATTACK_1:
+			animation_tree.set("parameters/oAttack_1/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+			
+	update_tree()
 
 func handle_idle_movement(delta: float) -> Vector3:
 	gravity_direction = planet.get_gravity_direction(global_position)
@@ -242,11 +292,7 @@ func handle_idle_movement(delta: float) -> Vector3:
 
 func update_normal_movement(delta: float) -> void:
 	var input_dir = handle_idle_movement(delta)
-	is_falling = (velocity - gravity_direction).length() > 10.0 && !is_jumping
-	print( (velocity - gravity_direction).length())
-	if is_falling:
-		current_animation = FALLING
-		
+	
 	if Input.is_action_pressed("Sprint"):
 		is_sprinting = true
 		if !is_jumping && !is_falling:
@@ -261,6 +307,7 @@ func update_normal_movement(delta: float) -> void:
 		
 	if Input.is_action_just_pressed("attack_1") && !is_attacking:
 		current_animation = ATTACK_1
+		timer.start(0.7)
 		dig_hole(2.0, 100.0)
 		is_attacking = true
 
@@ -274,10 +321,10 @@ func update_normal_movement(delta: float) -> void:
 
 	move_and_slide()
 
-	handle_animations()
+	handle_animations(delta)
 
 	if is_running:
 		rotate_toward_movement(input_dir, delta)
 
 	align_to_gravity(gravity_direction, delta)
-	camera_controller.update_camera_rotation(delta, gravity_direction)
+	camera_controller.update_camera_rotation()

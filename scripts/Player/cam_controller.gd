@@ -39,10 +39,7 @@ func _input(event: InputEvent):
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		toggle_mouse_capture()
 
-func update_camera_rotation(delta: float, gravity_dir: Vector3):
-	var player = get_parent()
-	var up_axis = -gravity_dir.normalized()
-	
+func update_camera_rotation():	
 	if delta_yaw != 0.0:
 		yaw += delta_yaw
 		camera_pivot.rotation.y = yaw
@@ -55,13 +52,7 @@ func update_camera_rotation(delta: float, gravity_dir: Vector3):
 	delta_yaw = 0.0
 	delta_pitch = 0.0
 
-func update_camera_transform():
-	if Input.is_action_just_released("camera_zoom_in"):
-		print("camera zoom");
-		camera_distance -= 1
-	if Input.is_action_just_released("camera_zoom_out"):
-		camera_distance += 1	
-		
+func update_camera_transform():	
 	var player = get_parent()
 	var player_pos = player.global_position
 	var up_axis = -player.gravity_direction.normalized()
@@ -69,7 +60,6 @@ func update_camera_transform():
 	camera_pivot.global_position = player_pos
 	
 	var camera_forward = -pitch_pivot.global_transform.basis.z
-	var camera_right = pitch_pivot.global_transform.basis.x
 	
 	var target_pos = player_pos + up_axis * target_height_offset
 	

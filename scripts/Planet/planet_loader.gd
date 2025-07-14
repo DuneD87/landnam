@@ -27,8 +27,8 @@ func get_gravity_direction(_global_position: Vector3) -> Vector3:
 	set(value):
 		if value == Action.SELECT_CONFIG && Engine.is_editor_hint() && sun_path:
 			_open_file_dialog()
-			_config_action = Action.NONE      # resetea la opción
-			notify_property_list_changed()    # refresca el Inspector
+			_config_action = Action.NONE
+			notify_property_list_changed()
 		else:
 			_config_action = value
 			if sun_path == null:
@@ -60,7 +60,7 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.has_clouds = planet_parser.has_clouds
 	
 	var shader_material = ShaderMaterial.new()
-	shader_material.shader = load("res://shaders/terrain/terrain_no_biomes.gdshader").duplicate(true)
+	shader_material.shader = load("res://shaders/terrain/planet_biomes.gdshader").duplicate(true)
 	planet.shader_material = shader_material
 
 	planet.vegetation = planet_parser.vegetation
@@ -86,7 +86,6 @@ func _open_file_dialog() -> void:
 	if not Engine.is_editor_hint():
 		return
 	
-	# Create EditorFileDialog if not already created
 	if not _editor_file_dialog:
 		_editor_file_dialog = EditorFileDialog.new()
 		_editor_file_dialog.access = EditorFileDialog.ACCESS_RESOURCES
@@ -109,18 +108,16 @@ func _open_file_dialog() -> void:
 		else:
 			push_error("DEBUG: EditorInterface singleton not found")
 			return
-	
-	# Show the dialog
+			
 	_editor_file_dialog.popup_centered()
 	print("DEBUG: EditorFileDialog opened at res://data/planet/")
-
 
 func _ready() -> void:
 	if config_file_path != "res://data/planet/default.json":
 		_load_planet()
 		
 	
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if planet != null:
 		planet.sun_dir = sun_dir
 		planet._update_planet()

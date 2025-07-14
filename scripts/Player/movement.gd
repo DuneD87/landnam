@@ -18,8 +18,6 @@ func get_input_direction(camera: Camera3D, gravity_dir: Vector3) -> Vector3:
 	right = project_on_plane(right, gravity_dir).normalized()
 	up = project_on_plane(up, gravity_dir).normalized()
 	
-	var player: CharacterBody3D = get_parent()
-
 	var dir = Vector3.ZERO
 	if Input.is_action_pressed("move_forward"):
 		dir += forward

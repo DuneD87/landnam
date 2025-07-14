@@ -355,6 +355,7 @@ mesher = SubResource("VoxelMesherTransvoxel_dfr3u")
 gi_mode = 2
 view_distance = 50000
 lod_count = 8
+lod_distance = 128.0
 material = SubResource("ShaderMaterial_8gh3j")
 normalmap_enabled = true
 normalmap_tile_resolution_min = 2
