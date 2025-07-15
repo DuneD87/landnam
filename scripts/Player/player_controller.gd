@@ -5,14 +5,14 @@ const Config = preload("res://scripts/config.gd")
 @onready var camera_controller: CameraController = $CameraController
 @onready var camera: Camera3D = $CameraPivot/PitchPivot/Camera3D
 @onready var animation_controller: AnimationController = $AnimationController
+@onready var free_flight_controller: FreeFlightController = $FreeFlightController
+
 @export var planet: Node3D
 @export var animator_tree: AnimationTree
 @export var mass: float = 70.0
 @export var jump_height: float = 3.0
 @export var mouse_sensitivity: float = 0.002
-@export var roll_speed: float = 2.0
 @export var invert_y: bool = false
-@export var free_flight_speed: float = 20.0
 @export var timer : Timer
 @export var fall_speed_threshold: float = 5.0
 
@@ -33,12 +33,6 @@ var mouse_captured = true
 var free_flight_enabled = false
 
 var current_animation = Config.IDLE
-
-# Free flight variables
-var orientation: Quaternion = Quaternion.IDENTITY
-var delta_yaw: float = 0.0
-var delta_pitch: float = 0.0
-var delta_roll: float = 0.0
 
 func capture_mouse(capture: bool):
 	mouse_captured = capture
@@ -70,8 +64,8 @@ func _ready():
 func _input(event):
 	if free_flight_enabled:
 		if event is InputEventMouseMotion and mouse_captured:
-			delta_yaw += -event.relative.x * mouse_sensitivity
-			delta_pitch += -event.relative.y * mouse_sensitivity * (-1 if invert_y else 1)
+			free_flight_controller.delta_yaw += -event.relative.x * mouse_sensitivity
+			free_flight_controller.delta_pitch += -event.relative.y * mouse_sensitivity * (-1 if invert_y else 1)
 	else:
 		camera_controller._input(event)
 
@@ -86,7 +80,7 @@ func _input(event):
 		if free_flight_enabled:
 			print("Free flight activado")
 			# Al activar free flight, sincronizamos la orientación actual
-			orientation = Quaternion(camera.global_transform.basis)
+			free_flight_controller.orientation = Quaternion(camera.global_transform.basis)
 		else:
 			print("Free flight desactivado")
 
@@ -108,53 +102,8 @@ func _physics_process(delta: float):
 		update_normal_movement(delta)
 
 func update_free_flight(delta: float) -> void:
-	if delta_pitch != 0.0:
-		var pitch_quat = Quaternion(Vector3(-1, 0, 0), delta_pitch)
-		orientation = orientation * pitch_quat
-	if delta_yaw != 0.0:
-		var local_y_axis = camera.global_transform.basis.y.normalized()
-		var yaw_quat = Quaternion(local_y_axis, delta_yaw)
-		orientation = yaw_quat * orientation
-
-	var roll_input = 0.0
-	if Input.is_key_pressed(KEY_Q):
-		roll_input += 1.0
-	if Input.is_key_pressed(KEY_E):
-		roll_input -= 1.0
-	delta_roll = roll_input * roll_speed * delta
-	
-	if delta_roll != 0.0:
-		var roll_quat = Quaternion(Vector3(0, 0, 1), delta_roll)
-		orientation = orientation * roll_quat
-
-	orientation = orientation.normalized()
-	camera.global_transform.basis = Basis(orientation)
-
-	delta_yaw = 0.0
-	delta_pitch = 0.0
-	delta_roll = 0.0
-
-	var input_dir = Vector3.ZERO
-	if Input.is_key_pressed(KEY_SPACE):
-		input_dir.y += 1.0
-	if Input.is_key_pressed(KEY_CTRL):
-		input_dir.y -= 1.0
-	if Input.is_key_pressed(KEY_W):
-		input_dir.z -= 1.0
-	if Input.is_key_pressed(KEY_S):
-		input_dir.z += 1.0
-	if Input.is_key_pressed(KEY_A):
-		input_dir.x -= 1.0
-	if Input.is_key_pressed(KEY_D):
-		input_dir.x += 1.0
-
-	if input_dir != Vector3.ZERO:
-		input_dir = input_dir.normalized()
-		var direction = camera.global_transform.basis * input_dir
-		velocity = direction * free_flight_speed
-	else:
-		velocity = Vector3.ZERO
-
+	free_flight_controller.update_free_flight(delta, camera)
+	velocity = free_flight_controller.velocity
 	move_and_slide()
 
 func rotate_toward_movement(input_dir: Vector3, delta: float):
