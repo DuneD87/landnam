@@ -4,11 +4,20 @@ class_name FreeFlightController
 @export var roll_speed: float = 2.0
 @export var free_flight_speed: float = 20.0
 @export var velocity: Vector3
+@export var speed_increase: float = 10.0
+@export var enabled = false
 
 var orientation: Quaternion = Quaternion.IDENTITY
 var delta_yaw: float = 0.0
 var delta_pitch: float = 0.0
 var delta_roll: float = 0.0
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton && enabled:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			free_flight_speed += speed_increase
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			free_flight_speed -= speed_increase
 
 func update_free_flight(delta: float, camera: Camera3D, ) -> void:
 	if delta_pitch != 0.0:

@@ -6,8 +6,9 @@ const Config = preload("res://scripts/config.gd")
 @onready var camera: Camera3D = $CameraPivot/PitchPivot/Camera3D
 @onready var animation_controller: AnimationController = $AnimationController
 @onready var free_flight_controller: FreeFlightController = $FreeFlightController
+@onready var collision_model: CollisionShape3D = $CollisionShape3D
 
-@export var planet: Node3D
+@export var planets: Node3D
 @export var animator_tree: AnimationTree
 @export var mouse_sensitivity: float = 0.002
 @export var invert_y: bool = false
@@ -15,7 +16,7 @@ const Config = preload("res://scripts/config.gd")
 
 var gravity_direction: Vector3 = Vector3.DOWN
 var locked_forward_direction: Vector3 = Vector3.FORWARD
-
+var planet: Node3D
 var is_attacking = false
 var mouse_captured = true
 var free_flight_enabled = false
@@ -63,19 +64,31 @@ func _input(event):
 			print("Free flight desactivado")
 
 func _physics_process(delta: float):
-	if not mouse_captured:
+	if !mouse_captured || planets == null || planets.get_child_count() == 0:
 		return
-
-	if Input.is_action_just_released("camera_zoom_in"):
-		camera_controller.camera_distance -= 1
-		camera_controller.update_camera_transform()
-	if Input.is_action_just_released("camera_zoom_out"):
-		camera_controller.camera_distance += 1
-		camera_controller.update_camera_transform()
+		
+	var closest_distance = global_position.distance_to(planets.get_child(0).position)
+	for _planet in planets.get_children():
+		var distance = global_position.distance_to(_planet.position)
+		if distance <= closest_distance:
+			closest_distance = distance
+			planet = _planet
+	
+	free_flight_controller.enabled = free_flight_enabled
 
 	if free_flight_enabled:
+		collision_model.disabled = true
 		update_free_flight(delta)
 	else:
+		collision_model.disabled = false
+
+		if Input.is_action_just_released("camera_zoom_in"):
+			camera_controller.camera_distance -= 1
+			camera_controller.update_camera_transform()
+		if Input.is_action_just_released("camera_zoom_out"):
+			camera_controller.camera_distance += 1
+			camera_controller.update_camera_transform()
+
 		update_normal_movement(delta)
 
 func update_free_flight(delta: float) -> void:

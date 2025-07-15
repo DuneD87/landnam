@@ -67,6 +67,13 @@ sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 planet = NodePath("")
 
+[node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_oq8ty")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -7000)
+sun_path = NodePath("../../DirectionalLight3D")
+config_file_path = "res://data/planet/planet_moon.json"
+gravity_strength = 4.3
+planet = NodePath("")
+
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 0, 0, 0)
 shadow_enabled = true
@@ -76,6 +83,6 @@ directional_shadow_pancake_size = 1.9
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_0x85g")
 
-[node name="Player" parent="." node_paths=PackedStringArray("planet") instance=ExtResource("4_162ko")]
+[node name="Player" parent="." node_paths=PackedStringArray("planets") instance=ExtResource("4_162ko")]
 transform = Transform3D(-0.932639, 0.235741, -0.27315, 0, 0.757044, 0.653364, 0.360811, 0.609353, -0.706048, -1321.01, 3853.89, 5827.03)
-planet = NodePath("../Planets/Earth")
+planets = NodePath("../Planets")
