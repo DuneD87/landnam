@@ -34,7 +34,7 @@ animation = &"Running_B"
 [sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_bgx5p"]
 
 [resource]
-graph_offset = Vector2(-297.918, 1136.79)
+graph_offset = Vector2(-707.691, 801.2)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)
 nodes/Attack_1/node = SubResource("AnimationNodeAnimation_bgqbl")
