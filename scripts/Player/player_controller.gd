@@ -1,13 +1,10 @@
 extends CharacterBody3D
-
-enum {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1, SPRINT, FALLING}
+const Config = preload("res://scripts/config.gd")
 
 @onready var movement: Movement = $Movement
 @onready var camera_controller: CameraController = $CameraController
 @onready var camera: Camera3D = $CameraPivot/PitchPivot/Camera3D
-@onready var animator: AnimationPlayer = $PlayerModel/AnimationPlayer
-@onready var animation_tree: AnimationTree = $PlayerModel/AnimationTree
-
+@onready var animation_controller: AnimationController = $AnimationController
 @export var planet: Node3D
 @export var animator_tree: AnimationTree
 @export var mass: float = 70.0
@@ -16,7 +13,6 @@ enum {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1, SPRINT, FALLING}
 @export var roll_speed: float = 2.0
 @export var invert_y: bool = false
 @export var free_flight_speed: float = 20.0
-@export var blend_speed: float = 15.0
 @export var timer : Timer
 @export var fall_speed_threshold: float = 5.0
 
@@ -25,11 +21,7 @@ var gravity_direction: Vector3 = Vector3.DOWN
 
 var jump_velocity = 0.0
 var sliding_threshold = -3.0
-var run_val = 0
-var sprint_val = 0
-var jump_start_val = 0
-var jump_idle_val = 0
-var jump_end_val = 0
+
 var gravity_velocity = 0.0
 
 var is_jumping = false
@@ -40,7 +32,7 @@ var is_attacking = false
 var mouse_captured = true
 var free_flight_enabled = false
 
-var current_animation = IDLE
+var current_animation = Config.IDLE
 
 # Free flight variables
 var orientation: Quaternion = Quaternion.IDENTITY
@@ -53,30 +45,26 @@ func capture_mouse(capture: bool):
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
 	
 func on_animation_finish(_name: String):
-	if current_animation == IDLE:
+	if current_animation == Config.IDLE:
 		return
 	print("Animation finished: ", _name, " current_animation: ", current_animation)
 	
 				
 func on_animation_start(_name: String):
-	if current_animation == IDLE:
+	if current_animation == Config.IDLE:
 		return
 	print("Animation started: ", _name, " current_animation: ", current_animation)
 
 func on_timeout():
-	if current_animation == ATTACK_1:
+	if current_animation == Config.ATTACK_1:
 		is_attacking = false
+		
 func _ready():
 	timer = Timer.new()
 	timer.connect("timeout", on_timeout)
 	add_child(timer)
 	
 	capture_mouse(true) 
-	#animator.connect("animation_finished", on_animation_finish)
-	#animator.connect("animation_started", on_animation_start)
-
-	animation_tree.connect("animation_finished", on_animation_finish)
-	animation_tree.connect("animation_started", on_animation_finish)
 
 	
 func _input(event):
@@ -120,7 +108,6 @@ func _physics_process(delta: float):
 		update_normal_movement(delta)
 
 func update_free_flight(delta: float) -> void:
-	# Handle rotation
 	if delta_pitch != 0.0:
 		var pitch_quat = Quaternion(Vector3(-1, 0, 0), delta_pitch)
 		orientation = orientation * pitch_quat
@@ -129,7 +116,6 @@ func update_free_flight(delta: float) -> void:
 		var yaw_quat = Quaternion(local_y_axis, delta_yaw)
 		orientation = yaw_quat * orientation
 
-	# Handle roll
 	var roll_input = 0.0
 	if Input.is_key_pressed(KEY_Q):
 		roll_input += 1.0
@@ -144,12 +130,10 @@ func update_free_flight(delta: float) -> void:
 	orientation = orientation.normalized()
 	camera.global_transform.basis = Basis(orientation)
 
-	# Reset rotation deltas
 	delta_yaw = 0.0
 	delta_pitch = 0.0
 	delta_roll = 0.0
 
-	# Handle movement
 	var input_dir = Vector3.ZERO
 	if Input.is_key_pressed(KEY_SPACE):
 		input_dir.y += 1.0
@@ -214,68 +198,11 @@ func dig_hole(radius: float, distance: float):
 		voxel_tool.value = 0
 		voxel_tool.do_sphere(center, radius)
 		
-func update_tree():
-	animation_tree["parameters/bRun/blend_amount"] = run_val
-	animation_tree["parameters/bSprint/blend_amount"] = sprint_val
-	animation_tree["parameters/bJumpStart/blend_amount"] = jump_start_val
-	animation_tree["parameters/bJumpIdle/blend_amount"] = jump_idle_val
-	animation_tree["parameters/bJumpLand/blend_amount"] = jump_end_val
 
-func handle_animations(delta: float):
-	if free_flight_enabled:
-		return
-
-	match current_animation:
-		IDLE:
-			run_val = lerpf(run_val, 0, blend_speed*delta)
-			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)	
-			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
-			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
-			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
-		RUN:
-			run_val = lerpf(run_val, 1, blend_speed*delta)
-			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)	
-			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
-			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
-			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
-		SPRINT:
-			run_val = lerpf(run_val, 0, blend_speed*delta)
-			sprint_val = lerpf(sprint_val, 1, blend_speed*delta)
-			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
-			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
-			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
-		JUMP_START:
-			run_val = lerpf(run_val, 0, blend_speed*delta)
-			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)
-			jump_start_val = lerpf(jump_start_val, 1, blend_speed*delta)	
-			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
-			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
-		JUMP_IDLE:
-			run_val = lerpf(run_val, 0, blend_speed*delta)
-			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)
-			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
-			jump_idle_val = lerpf(jump_idle_val, 1, blend_speed*delta)	
-			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
-		JUMP_LAND:
-			run_val = lerpf(run_val, 0, blend_speed*delta)
-			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)
-			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
-			jump_idle_val = lerpf(jump_idle_val, 0, blend_speed*delta)	
-			jump_end_val = lerpf(jump_end_val, 1, blend_speed*delta)
-		FALLING:
-			run_val = lerpf(run_val, 0, blend_speed*delta)
-			sprint_val = lerpf(sprint_val, 0, blend_speed*delta)
-			jump_start_val = lerpf(jump_start_val, 0, blend_speed*delta)	
-			jump_idle_val = lerpf(jump_idle_val, 1, blend_speed*delta)	
-			jump_end_val = lerpf(jump_end_val, 0, blend_speed*delta)
-		ATTACK_1:
-			animation_tree.set("parameters/oAttack_1/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
-			
-	update_tree()
 
 func handle_attack(delta: float):
 	if Input.is_action_just_pressed("attack_1") && !is_attacking && !is_falling:
-		current_animation = ATTACK_1
+		current_animation = Config.ATTACK_1
 		timer.start(0.7)
 		dig_hole(2.0, 100.0)
 		is_attacking = true
@@ -284,19 +211,19 @@ func handle_jump_movement(delta: float):
 	if Input.is_action_just_pressed("jump") and !is_jumping && !is_falling:
 		is_jumping = true
 		jump_velocity = sqrt(2 * jump_height * planet.gravity_strength)
-		current_animation = JUMP_START
+		current_animation = Config.JUMP_START
 		
 	if is_jumping:
 		velocity += -gravity_direction.normalized() * jump_velocity * delta * mass
 		jump_velocity = max(0, jump_velocity - planet.gravity_strength * delta)
 
 		if jump_velocity > 0.0:
-			current_animation = JUMP_IDLE
+			current_animation = Config.JUMP_IDLE
 		elif !is_on_floor():
-			current_animation = FALLING
+			current_animation = Config.FALLING
 		else:
 			is_jumping = false
-			current_animation = JUMP_LAND
+			current_animation = Config.JUMP_LAND
 
 func handle_idle_movement(delta: float) -> Vector3:
 	gravity_direction = planet.get_gravity_direction(global_position)
@@ -308,13 +235,13 @@ func handle_idle_movement(delta: float) -> Vector3:
 	is_falling = !is_on_floor() and !is_jumping and downward_velocity > fall_speed_threshold
 	
 	if is_falling:
-		current_animation = FALLING
+		current_animation = Config.FALLING
 		
 	if Input.is_action_pressed("Sprint"):
 		is_sprinting = true
 		velocity = movement.velocity * 1.8
 		if !is_jumping && !is_falling:
-			current_animation = SPRINT
+			current_animation = Config.SPRINT
 	else:
 		is_sprinting = false
 		velocity = movement.velocity
@@ -333,9 +260,9 @@ func handle_idle_movement(delta: float) -> Vector3:
 		is_running = input_dir.length() > 0.1
 		
 		if !is_running:
-			current_animation = IDLE
+			current_animation = Config.IDLE
 		else:
-			current_animation = RUN	
+			current_animation = Config.RUN	
 			
 	return input_dir
 
@@ -343,7 +270,7 @@ func update_normal_movement(delta: float) -> void:
 	var input_dir = handle_idle_movement(delta)
 	handle_jump_movement(delta)
 	handle_attack(delta)
-	handle_animations(delta)
+	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	
 	if is_running || is_sprinting:
 		rotate_toward_movement(input_dir, delta)

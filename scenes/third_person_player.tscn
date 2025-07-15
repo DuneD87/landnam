@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3 uid="uid://c1vquhxt75l31"]
+[gd_scene load_steps=8 format=3 uid="uid://c1vquhxt75l31"]
 
 [ext_resource type="Script" uid="uid://cn32aycdueqh7" path="res://scripts/Player/player_controller.gd" id="1_smlm8"]
 [ext_resource type="Script" uid="uid://coeewlktybkhm" path="res://scripts/Player/movement.gd" id="2_l8r5w"]
 [ext_resource type="Script" uid="uid://cw1dc0n2atqjh" path="res://scripts/Player/cam_controller.gd" id="4_5at7g"]
 [ext_resource type="PackedScene" uid="uid://b7axgfebshrpu" path="res://scenes/Player/knight.tscn" id="4_c48xe"]
 [ext_resource type="AnimationNodeBlendTree" uid="uid://cp4qil0xj5pyj" path="res://data/resources/third_person_player._animation_treetres.tres" id="5_bgqbl"]
+[ext_resource type="Script" uid="uid://dsyulr1uf8n11" path="res://scripts/Player/animation_controller.gd" id="6_bgx5p"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qeuc0"]
 radius = 0.64535
@@ -78,5 +79,9 @@ parameters/bSprint/blend_amount = 0
 parameters/oAttack_1/active = false
 parameters/oAttack_1/internal_active = false
 parameters/oAttack_1/request = 0
+
+[node name="AnimationController" type="Node" parent="."]
+script = ExtResource("6_bgx5p")
+metadata/_custom_type_script = "uid://dsyulr1uf8n11"
 
 [editable path="PlayerModel"]
