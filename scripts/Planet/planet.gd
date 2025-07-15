@@ -87,34 +87,32 @@ func _load_vegetation():
 		if !generator_found:
 			push_error("Error parsing vegetation, generator with name %s not found.", item.generator)
 			
+		var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
+		multi_mesh_item.collision_layer = 1
+		multi_mesh_item.collision_mask = 1
+		multi_mesh_item.generator = generator
+		var scene = load(item.scene)
+		multi_mesh_item.scene = scene
+		multi_mesh_item.lod_index = item.lod_index
+		voxel_instancer.library.add_item(i, multi_mesh_item)
+		i += 1
+		var multi_mesh_elem = {
+			"mesh_item": multi_mesh_item,
+			"wind_speed": item.wind_speed if item.has("wind_speed") else 0.0,
+		}
 		
-		for lod_index in 3:
-			var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
-			multi_mesh_item.collision_layer = 1
-			multi_mesh_item.collision_mask = 1
-			multi_mesh_item.generator = generator
-			var scene = load(item.scene)
-			multi_mesh_item.scene = scene
-			multi_mesh_item.lod_index = lod_index
-			voxel_instancer.library.add_item(i, multi_mesh_item)
-			i += 1
-			var multi_mesh_elem = {
-				"mesh_item": multi_mesh_item,
-				"wind_speed": item.wind_speed if item.has("wind_speed") else 0.0,
-			}
-			
-			multi_mesh_array.append(multi_mesh_elem)
-			var scene_mesh : MeshInstance3D = scene.instantiate().get_child(0)
-			var surface_count = scene_mesh.mesh.get_surface_count()
-			for surface_idx in surface_count:
-				var _shader_material = scene_mesh.mesh.surface_get_material(surface_idx)
-				if _shader_material is ShaderMaterial:
-					item_transparent_materials.append(
-						{
-							"shader": _shader_material as ShaderMaterial,
-							"wind_speed": item.wind_speed
-						}
-					)
+		multi_mesh_array.append(multi_mesh_elem)
+		var scene_mesh : MeshInstance3D = scene.instantiate().get_child(0)
+		var surface_count = scene_mesh.mesh.get_surface_count()
+		for surface_idx in surface_count:
+			var _shader_material = scene_mesh.mesh.surface_get_material(surface_idx)
+			if _shader_material is ShaderMaterial:
+				item_transparent_materials.append(
+					{
+						"shader": _shader_material as ShaderMaterial,
+						"wind_speed": item.wind_speed
+					}
+				)
 		
 func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
 	voxel_terrain = _voxel_terrain
