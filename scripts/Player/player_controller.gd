@@ -9,25 +9,13 @@ const Config = preload("res://scripts/config.gd")
 
 @export var planet: Node3D
 @export var animator_tree: AnimationTree
-@export var mass: float = 70.0
-@export var jump_height: float = 3.0
 @export var mouse_sensitivity: float = 0.002
 @export var invert_y: bool = false
 @export var timer : Timer
-@export var fall_speed_threshold: float = 5.0
 
-var locked_forward_direction: Vector3 = Vector3.FORWARD
 var gravity_direction: Vector3 = Vector3.DOWN
+var locked_forward_direction: Vector3 = Vector3.FORWARD
 
-var jump_velocity = 0.0
-var sliding_threshold = -3.0
-
-var gravity_velocity = 0.0
-
-var is_jumping = false
-var is_falling = false
-var is_running = false
-var is_sprinting = false
 var is_attacking = false
 var mouse_captured = true
 var free_flight_enabled = false
@@ -79,7 +67,6 @@ func _input(event):
 		free_flight_enabled = !free_flight_enabled
 		if free_flight_enabled:
 			print("Free flight activado")
-			# Al activar free flight, sincronizamos la orientación actual
 			free_flight_controller.orientation = Quaternion(camera.global_transform.basis)
 		else:
 			print("Free flight desactivado")
@@ -87,14 +74,13 @@ func _input(event):
 func _physics_process(delta: float):
 	if not mouse_captured:
 		return
-		
+
 	if Input.is_action_just_released("camera_zoom_in"):
 		camera_controller.camera_distance -= 1
 		camera_controller.update_camera_transform()
 	if Input.is_action_just_released("camera_zoom_out"):
 		camera_controller.camera_distance += 1
 		camera_controller.update_camera_transform()
-
 
 	if free_flight_enabled:
 		update_free_flight(delta)
@@ -147,81 +133,27 @@ func dig_hole(radius: float, distance: float):
 		voxel_tool.value = 0
 		voxel_tool.do_sphere(center, radius)
 		
-
-
 func handle_attack(delta: float):
-	if Input.is_action_just_pressed("attack_1") && !is_attacking && !is_falling:
+	if Input.is_action_just_pressed("attack_1") && !is_attacking && !movement.is_falling:
 		current_animation = Config.ATTACK_1
 		timer.start(0.7)
 		dig_hole(2.0, 100.0)
 		is_attacking = true
 		
-func handle_jump_movement(delta: float):
-	if Input.is_action_just_pressed("jump") and !is_jumping && !is_falling:
-		is_jumping = true
-		jump_velocity = sqrt(2 * jump_height * planet.gravity_strength)
-		current_animation = Config.JUMP_START
-		
-	if is_jumping:
-		velocity += -gravity_direction.normalized() * jump_velocity * delta * mass
-		jump_velocity = max(0, jump_velocity - planet.gravity_strength * delta)
-
-		if jump_velocity > 0.0:
-			current_animation = Config.JUMP_IDLE
-		elif !is_on_floor():
-			current_animation = Config.FALLING
-		else:
-			is_jumping = false
-			current_animation = Config.JUMP_LAND
-
-func handle_idle_movement(delta: float) -> Vector3:
-	gravity_direction = planet.get_gravity_direction(global_position)
-	up_direction = -gravity_direction
-	var input_dir = movement.get_input_direction(camera, gravity_direction)
-	movement.update_movement(delta, input_dir)
-	
-	var downward_velocity = velocity.dot(gravity_direction.normalized())
-	is_falling = !is_on_floor() and !is_jumping and downward_velocity > fall_speed_threshold
-	
-	if is_falling:
-		current_animation = Config.FALLING
-		
-	if Input.is_action_pressed("Sprint"):
-		is_sprinting = true
-		velocity = movement.velocity * 1.8
-		if !is_jumping && !is_falling:
-			current_animation = Config.SPRINT
-	else:
-		is_sprinting = false
-		velocity = movement.velocity
-
-	if !is_on_floor():
-		var gravity_accel = planet.gravity_strength * mass
-		var gravity_dir = gravity_direction.normalized()
-		
-		gravity_velocity = lerp(gravity_velocity, gravity_accel, delta)
-
-		velocity += gravity_dir * gravity_velocity * delta
-	else:
-		gravity_velocity = 0.0
-		
-	if !is_attacking && !is_jumping && !is_sprinting && !is_falling:
-		is_running = input_dir.length() > 0.1
-		
-		if !is_running:
-			current_animation = Config.IDLE
-		else:
-			current_animation = Config.RUN	
-			
-	return input_dir
 
 func update_normal_movement(delta: float) -> void:
-	var input_dir = handle_idle_movement(delta)
-	handle_jump_movement(delta)
+	gravity_direction = planet.get_gravity_direction(global_position)
+	up_direction = -gravity_direction
+	
+	var input_dir = movement.handle_idle_movement(delta, gravity_direction, camera, is_on_floor(), planet.gravity_strength, is_attacking, velocity)
+	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
+	current_animation = movement.current_animation
+	
 	handle_attack(delta)
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
+	velocity = movement.velocity
 	
-	if is_running || is_sprinting:
+	if movement.is_running || movement.is_sprinting:
 		rotate_toward_movement(input_dir, delta)
 
 	align_to_gravity(gravity_direction, delta)
