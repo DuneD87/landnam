@@ -26,19 +26,9 @@ func capture_mouse(capture: bool):
 	mouse_captured = capture
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
 	
-func on_animation_finish(_name: String):
-	if current_animation == Config.IDLE:
-		return
-	print("Animation finished: ", _name, " current_animation: ", current_animation)
-	
-				
-func on_animation_start(_name: String):
-	if current_animation == Config.IDLE:
-		return
-	print("Animation started: ", _name, " current_animation: ", current_animation)
-
 func on_timeout():
-	if current_animation == Config.ATTACK_1:
+	if is_attacking:
+		dig_hole(2.0, 100.0)
 		is_attacking = false
 		
 func _ready():
@@ -48,13 +38,14 @@ func _ready():
 	
 	capture_mouse(true) 
 
-	
 func _input(event):
 	if free_flight_enabled:
+		visible = false
 		if event is InputEventMouseMotion and mouse_captured:
 			free_flight_controller.delta_yaw += -event.relative.x * mouse_sensitivity
 			free_flight_controller.delta_pitch += -event.relative.y * mouse_sensitivity * (-1 if invert_y else 1)
 	else:
+		visible = true
 		camera_controller._input(event)
 
 	if event.is_action_pressed("ui_cancel"):
@@ -137,19 +128,17 @@ func handle_attack(delta: float):
 	if Input.is_action_just_pressed("attack_1") && !is_attacking && !movement.is_falling:
 		current_animation = Config.ATTACK_1
 		timer.start(0.7)
-		dig_hole(2.0, 100.0)
 		is_attacking = true
 		
-
 func update_normal_movement(delta: float) -> void:
 	gravity_direction = planet.get_gravity_direction(global_position)
 	up_direction = -gravity_direction
-	
-	var input_dir = movement.handle_idle_movement(delta, gravity_direction, camera, is_on_floor(), planet.gravity_strength, is_attacking, velocity)
-	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
+	var input_dir = movement.handle_run_movement(delta, is_attacking, gravity_direction, camera)
+	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
+	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())	
 	current_animation = movement.current_animation
-	
 	handle_attack(delta)
+
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity
 	
