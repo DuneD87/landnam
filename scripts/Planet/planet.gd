@@ -3,6 +3,7 @@ class_name Planet extends Node3D
 
 @export_group("Terrain Settings")
 @export var radius: float
+@export var terrain_generator_path: String
 
 @export_group("Biome Settings")
 @export var biome_count: int 
@@ -160,7 +161,10 @@ func setup_shader_parameters() -> void:
 	atmosphere_node.set_atmosphere_height(atmosphere_height)
 
 func setup_voxel_generator() -> void:
-	voxel_terrain.generator = voxel_terrain.generator.duplicate()
+	if !terrain_generator_path.is_empty():
+		voxel_terrain.generator = load(terrain_generator_path)
+	else:
+		voxel_terrain.generator = voxel_terrain.generator.duplicate()
 	var graph_generator: VoxelGeneratorGraph = voxel_terrain.generator
 
 	if not graph_generator is VoxelGeneratorGraph:

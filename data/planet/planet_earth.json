@@ -1,6 +1,7 @@
 {
 	"terrain_settings": {
-		"radius": 10000.0
+		"radius": 10000.0,
+		"terrain_generator": "res://graph_functions/earth_terrain_terraces.tres"
 	},
 	"biome_settings": {
 		"biome_count": 5,
@@ -9,9 +10,9 @@
 		"biome_transition_smoothness": 1.0,
 		"max_heights": [
 			-30, 70, 400,
-			-20, 50, 400,
+			-50, 50, 400,
 			-5, 20, 400,
-			-20, 50, 400,
+			-50, 50, 400,
 			-30, 70, 400
 		],
 		"biome_texture_indices": [
@@ -42,7 +43,7 @@
 	},
 	"atmosphere_settings": {
 		"atmosphere_height": 1000.0,
-		"atmosphere_density": 0.065,
+		"atmosphere_density": 0.045,
 		"scattering_wavelength": [700.0, 530.0, 440],
 		"atmosphere_modulate": [0.59, 0.64, 0.99],
 		"sun_path": "",
@@ -67,7 +68,7 @@
 		"name": "tree_generator",
 		"emit_mode": "EMIT_FROM_VERTICES",
 		"density": 0.0005,
-		"min_height": 9975,
+		"min_height": 9875,
 		"max_height": 10050,
 		"max_slope_degrees": 25,
 		"min_scale": 1.5,
@@ -88,53 +89,57 @@
 	 {
 		"name": "tree_generator_2",
 		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.4,
-		"min_height": 9975,
+		"density": 0.1,
+		"min_height": 9965,
 		"max_height": 10050,
 		"max_slope_degrees": 25,
-		"min_scale": 1.5,
-		"max_scale": 2,
+		"min_scale": 1,
+		"max_scale": 5,
 		"noise_graph": "hemisphere_graph_path" 
 	  },
 	  {
 		"name": "grass_generator",
 		"emit_mode": "EMIT_ONE_PER_TRIANGLE",
-		"min_height": 9975,
+		"min_height": 9965,
 		"max_height": 10050,
 		"max_slope_degrees": 35,
+		"min_scale": 1,
+		"max_scale": 2,
 		"noise_graph": "hemisphere_graph_path"
 	  },
 	  {
 		"name": "bushes_generator",
 		"emit_mode": "EMIT_FROM_VERTICES",
 		"density": 0.008,
-		"min_height": 9975,
+		"min_height": 9965,
 		"max_height": 10050,
 		"max_slope_degrees": 25,
-		"min_scale": 1.5,
-		"max_scale": 2,
+		"min_scale": 1,
+		"max_scale": 3,
 		"noise_graph": "hemisphere_graph_path"
 	  },
 	  { "name": "large_rocks_generator_03", 
 		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.01, 
+		"density": 0.005, 
 		"offset_along_normal": -1.5, 
-		"min_height": 9975,
+		"min_height": 9965,
 		"max_height": 10050,
 		"max_slope_degrees": 25,
-		"min_scale": 1.5,
-		"max_scale": 2,
+		"min_scale": 1,
+		"max_scale": 4,
+		"vertical_alignment": 0.3,
 		"noise_graph": "hemisphere_graph_path"
 	  },
 	  { "name": "large_rocks_generator_02",
 		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.01, 
+		"density": 0.005, 
 		"offset_along_normal": -1.0, 
-		"min_height": 9975,
+		"min_height": 9965,
 		"max_height": 10050,
 		"max_slope_degrees": 25,
-		"min_scale": 1.5,
-		"max_scale": 2,
+		"min_scale": 1,
+		"max_scale": 3,
+		"vertical_alignment": 0.4,
 		"noise_graph": "hemisphere_graph_path"
 		}
 	],

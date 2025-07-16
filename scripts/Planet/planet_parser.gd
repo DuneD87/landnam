@@ -4,6 +4,7 @@ class_name PlanetParser extends Node3D
 @export var radius: float
 @export var vegetation : Dictionary
 @export var terrain_material: ShaderMaterial
+@export var terrain_generator_path: String
 
 @export_group("Biome Settings")
 @export var biome_count: int
@@ -71,6 +72,8 @@ func load_config(config_path: String):
 		push_error("DEBUG: Invalid terrain settings in config.")
 		return
 	radius = config.terrain_settings.radius
+	terrain_generator_path = config.terrain_settings.terrain_generator
+	print("DEBUG: Terrain generator readed: ", terrain_generator_path)
 	print("DEBUG: Loaded radius: ", radius)
 	_load_vegetation_settings(config.get("vegetation_settings", {}))
 	# Validate and load biome settings

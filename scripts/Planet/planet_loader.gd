@@ -38,6 +38,7 @@ var _editor_file_dialog: EditorFileDialog
 
 func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.radius = planet_parser.radius
+	planet.terrain_generator_path = planet_parser.terrain_generator_path
 	planet.biome_count = planet_parser.biome_count
 	planet.textures_per_biome = planet_parser.textures_per_biome
 	planet.biome_latitude_ranges = planet_parser.biome_latitude_ranges
