@@ -66,7 +66,29 @@
 	  {
 		"name": "tree_generator",
 		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.01,
+		"density": 0.0005,
+		"min_height": 9975,
+		"max_height": 10050,
+		"max_slope_degrees": 25,
+		"min_scale": 1.5,
+		"max_scale": 2,
+		"noise_graph": "hemisphere_graph_path" 
+	  },
+	 {
+		"name": "tree_generator_1",
+		"emit_mode": "EMIT_FROM_VERTICES",
+		"density": 0.005,
+		"min_height": 9975,
+		"max_height": 10050,
+		"max_slope_degrees": 25,
+		"min_scale": 1.5,
+		"max_scale": 2,
+		"noise_graph": "hemisphere_graph_path" 
+	  },
+	 {
+		"name": "tree_generator_2",
+		"emit_mode": "EMIT_FROM_VERTICES",
+		"density": 0.4,
 		"min_height": 9975,
 		"max_height": 10050,
 		"max_slope_degrees": 25,
@@ -85,7 +107,7 @@
 	  {
 		"name": "bushes_generator",
 		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.05,
+		"density": 0.008,
 		"min_height": 9975,
 		"max_height": 10050,
 		"max_slope_degrees": 25,
@@ -118,38 +140,45 @@
 	],
 
 	"items": [
-	  	{ 	
+		{ 	
 			"scene": "res://scenes/tree01.tscn",       
-			"generator": "tree_generator", 
-			"wind_speed": 0.3 
+			"generator": "tree_generator_2", 
+			"wind_speed": 0.3,
+			"lod_index": 3
 		},
 	  	{ 
 			"scene": "res://scenes/tree_02.tscn",      
-			"generator": "tree_generator", 
-			"wind_speed": 0.3  
+			"generator": "tree_generator_2", 
+			"wind_speed": 0.3,
+			"lod_index": 3  
 		},
 	  	{ 
 			"scene": "res://scenes/grass_01.tscn",     
 			"generator": "grass_generator", 
-			"wind_speed": 0.2
+			"wind_speed": 0.2,
+			"lod_index": 0
 		},
 	  	{ 
 			"scene": "res://scenes/bush_01.tscn",      
 			"generator": "bushes_generator" , 
-			"wind_speed": 0.15
+			"wind_speed": 0.15,
+			"lod_index": 0
 		},
 	  	{ 
 			"scene": "res://scenes/flowers_02.tscn",   
 			"generator": "bushes_generator" , 
-			"wind_speed": 0.15
+			"wind_speed": 0.15,
+			"lod_index": 0
 		},
 	  	{ 
 			"scene": "res://models/rocks/large_rock_03_glb.tscn", 
-			"generator": "large_rocks_generator_03" 
+			"generator": "large_rocks_generator_03",
+			"lod_index": 0 
 		},
 	  	{ 
 			"scene": "res://models/rocks/large_rock_02.tscn",     
-			"generator": "large_rocks_generator_02" 
+			"generator": "large_rocks_generator_02",
+			"lod_index": 0 
 		}
 	]
   }

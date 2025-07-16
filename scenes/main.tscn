@@ -1,9 +1,9 @@
 [gd_scene load_steps=10 format=3 uid="uid://egusbnvcpwin"]
 
-[ext_resource type="Script" path="res://scripts/Player/camera_controller.gd" id="1_h11ns"]
-[ext_resource type="Script" path="res://scripts/sun_controller.gd" id="1_uw70s"]
-[ext_resource type="Shader" path="res://textures/skybox/space_sky.gdshader" id="3_k1xg5"]
-[ext_resource type="Script" path="res://scripts/Planet/planet_loader.gd" id="4_diroo"]
+[ext_resource type="Script" uid="uid://1kbahaxf7hwt" path="res://scripts/Player/Old/camera_controller.gd" id="1_h11ns"]
+[ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/sun_controller.gd" id="1_uw70s"]
+[ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_k1xg5"]
+[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="4_diroo"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet_loader.tscn" id="5_ecmd6"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_rvv4a"]
@@ -93,12 +93,10 @@ config_file_path = "res://data/planet/default.json"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
-sun_dir = Vector3(0, 0, 0)
 planet = NodePath("")
 
 [node name="Node3D2" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_ecmd6")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
-sun_dir = Vector3(0, 0, 0)
 planet = NodePath("")

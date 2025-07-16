@@ -1,7 +1,7 @@
 [gd_scene load_steps=7 format=4 uid="uid://b2axhi17uiip0"]
 
 [ext_resource type="Texture2D" uid="uid://emv8exqsna6r" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-02.png" id="1_43a8k"]
-[ext_resource type="Shader" path="res://shaders/transparent_material_shader.gdshader" id="1_s0ge1"]
+[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="1_s0ge1"]
 [ext_resource type="Texture2D" uid="uid://y8gtx62pgrtm" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-01.png" id="2_akxvo"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_e2k8k"]
@@ -9,6 +9,7 @@ resource_name = "high-grass-1-02"
 render_priority = 0
 shader = ExtResource("1_s0ge1")
 shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/texture_albedo = ExtResource("1_43a8k")
 shader_parameter/alpha_scissor_threshold = 0.5
 shader_parameter/point_size = 1.0
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
@@ -20,13 +21,13 @@ shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
 shader_parameter/wind_direction = Vector3(2, 0, 0)
 shader_parameter/wind_speed = 0.2
-shader_parameter/texture_albedo = ExtResource("1_43a8k")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_gst1l"]
 resource_name = "high-grass-1-01"
 render_priority = 0
 shader = ExtResource("1_s0ge1")
 shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/texture_albedo = ExtResource("2_akxvo")
 shader_parameter/alpha_scissor_threshold = 0.5
 shader_parameter/point_size = 1.0
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
@@ -38,7 +39,6 @@ shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
 shader_parameter/wind_direction = Vector3(2, 0, 0)
 shader_parameter/wind_speed = 0.2
-shader_parameter/texture_albedo = ExtResource("2_akxvo")
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_fl2ye"]
 resource_name = "shapespark-low-poly-plants-kit_Plane_202"

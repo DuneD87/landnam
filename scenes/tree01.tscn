@@ -1,7 +1,7 @@
-[gd_scene load_steps=10 format=4 uid="uid://di63obeg6eavs"]
+[gd_scene load_steps=11 format=4 uid="uid://di63obeg6eavs"]
 
 [ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/forest/textures/shapespark-low-poly-plants-kit_bark.jpg" id="1_uibji"]
-[ext_resource type="Shader" path="res://shaders/transparent_material_shader.gdshader" id="2_a3bui"]
+[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="2_a3bui"]
 [ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-01.png" id="2_iir3y"]
 [ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-02.png" id="3_71ah1"]
 
@@ -16,6 +16,7 @@ resource_name = "branch-1-01"
 render_priority = 0
 shader = ExtResource("2_a3bui")
 shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/texture_albedo = ExtResource("2_iir3y")
 shader_parameter/alpha_scissor_threshold = 0.5
 shader_parameter/point_size = 1.0
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
@@ -27,13 +28,13 @@ shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
 shader_parameter/wind_direction = Vector3(2, 0, 0)
 shader_parameter/wind_speed = 0.3
-shader_parameter/texture_albedo = ExtResource("2_iir3y")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ew4ab"]
 resource_name = "branch-1-02"
 render_priority = 0
 shader = ExtResource("2_a3bui")
 shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/texture_albedo = ExtResource("3_71ah1")
 shader_parameter/alpha_scissor_threshold = 0.5
 shader_parameter/point_size = 1.0
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
@@ -45,7 +46,6 @@ shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
 shader_parameter/wind_direction = Vector3(2, 0, 0)
 shader_parameter/wind_speed = 0.3
-shader_parameter/texture_albedo = ExtResource("3_71ah1")
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_cfrcm"]
 _surfaces = [{
@@ -122,9 +122,18 @@ _surfaces = [{
 }]
 shadow_mesh = SubResource("ArrayMesh_cfrcm")
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
+size = Vector3(0.231934, 5.74695, 0.482483)
+
 [node name="Node3D" type="Node3D"]
 
 [node name="Tree-01-2" type="MeshInstance3D" parent="."]
 gi_mode = 2
 mesh = SubResource("ArrayMesh_xj4g6")
 skeleton = NodePath("")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="Tree-01-2"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Tree-01-2/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)
+shape = SubResource("BoxShape3D_cs0ur")

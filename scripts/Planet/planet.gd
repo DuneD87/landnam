@@ -67,7 +67,7 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array) -> V
 		for graph_func in graph_functions:
 			if graph_func.name == generator_config.noise_graph:
 				generator.noise_graph = load(graph_func.path)
-				
+		
 	return generator
 
 func _load_vegetation():
@@ -88,9 +88,12 @@ func _load_vegetation():
 			push_error("Error parsing vegetation, generator with name %s not found.", item.generator)
 			
 		var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
+		multi_mesh_item.collision_layer = 1
+		multi_mesh_item.collision_mask = 1
 		multi_mesh_item.generator = generator
 		var scene = load(item.scene)
 		multi_mesh_item.scene = scene
+		multi_mesh_item.lod_index = item.lod_index
 		voxel_instancer.library.add_item(i, multi_mesh_item)
 		i += 1
 		var multi_mesh_elem = {
@@ -102,11 +105,11 @@ func _load_vegetation():
 		var scene_mesh : MeshInstance3D = scene.instantiate().get_child(0)
 		var surface_count = scene_mesh.mesh.get_surface_count()
 		for surface_idx in surface_count:
-			var shader_material = scene_mesh.mesh.surface_get_material(surface_idx)
-			if shader_material is ShaderMaterial:
+			var _shader_material = scene_mesh.mesh.surface_get_material(surface_idx)
+			if _shader_material is ShaderMaterial:
 				item_transparent_materials.append(
 					{
-						"shader": shader_material as ShaderMaterial,
+						"shader": _shader_material as ShaderMaterial,
 						"wind_speed": item.wind_speed
 					}
 				)
@@ -119,7 +122,7 @@ func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
 	voxel_instancer.up_mode = VoxelInstancer.UP_MODE_SPHERE
 	voxel_terrain.add_child(voxel_instancer)
 	shader_material = ShaderMaterial.new()
-	shader_material.shader = load("res://shaders/terrain/terrain_no_biomes.gdshader")
+	shader_material.shader = load("res://shaders/terrain/planet_biomes.gdshader")
 	
 func setup_shader_parameters() -> void:
 	voxel_terrain.material = shader_material
@@ -127,7 +130,6 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
 	planet_position = voxel_terrain.get_parent().position
 	shader_material.set_shader_parameter("center", planet_position)
-	print(planet_position)
 	shader_material.set_shader_parameter("radius", radius)
 	
 	shader_material.set_shader_parameter("max_heights", max_heights)
@@ -160,7 +162,7 @@ func setup_shader_parameters() -> void:
 func setup_voxel_generator() -> void:
 	voxel_terrain.generator = voxel_terrain.generator.duplicate()
 	var graph_generator: VoxelGeneratorGraph = voxel_terrain.generator
-	var graph_function: VoxelGraphFunction = graph_generator.get_main_function()
+
 	if not graph_generator is VoxelGeneratorGraph:
 		return
 	
@@ -183,7 +185,7 @@ func setup_voxel_generator() -> void:
 							radius_pos += 1
 		if radius_found:
 			graph_generator_function.set_node_param(node_id, radius_pos - 1, radius)
-			var success = graph_generator.compile()
+			graph_generator.compile()
 
 func _ready() -> void:
 	pass

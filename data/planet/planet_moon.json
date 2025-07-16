@@ -77,11 +77,13 @@
 		"items": [
 			{
 				"scene": "res://models/rocks/large_rock_03_glb.tscn",
-				"generator": "large_rocks_generator_03"
+				"generator": "large_rocks_generator_03",
+				"lod_index": 0
 			},
 			{
 				"scene": "res://models/rocks/large_rock_02.tscn",
-				"generator": "large_rocks_generator_02"
+				"generator": "large_rocks_generator_02",
+				"lod_index": 0
 			}
 		]
 	}

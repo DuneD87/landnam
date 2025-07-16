@@ -1,11 +1,9 @@
-[gd_scene load_steps=9 format=3 uid="uid://8hm5q6k01tb8"]
+[gd_scene load_steps=8 format=3 uid="uid://8hm5q6k01tb8"]
 
-[ext_resource type="Script" path="res://scripts/sun_controller.gd" id="1_wlvx5"]
+[ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/sun_controller.gd" id="1_wlvx5"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet_loader.tscn" id="2_oq8ty"]
-[ext_resource type="Script" path="res://scripts/Player/camera_controller.gd" id="3_nl42l"]
-[ext_resource type="Shader" path="res://textures/skybox/space_sky.gdshader" id="4_7x0ai"]
-
-[sub_resource type="SphereShape3D" id="SphereShape3D_k1q8h"]
+[ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="4_7x0ai"]
+[ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/third_person_player.tscn" id="4_162ko"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
 shader = ExtResource("4_7x0ai")
@@ -41,9 +39,10 @@ sky_material = SubResource("ShaderMaterial_tcpsq")
 [sub_resource type="Environment" id="Environment_0x85g"]
 background_mode = 2
 sky = SubResource("Sky_hj7oe")
+ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_sky_contribution = 0.0
-ambient_light_energy = 0.05
+ambient_light_energy = 0.1
 reflected_light_source = 1
 tonemap_mode = 3
 ssr_max_steps = 128
@@ -66,32 +65,24 @@ sun_light = NodePath("DirectionalLight3D")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
-sun_dir = Vector3(0, 0, 0)
 planet = NodePath("")
 
 [node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_oq8ty")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 20000, -15000)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -7000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
-sun_dir = Vector3(0, 0, 0)
+gravity_strength = 4.3
 planet = NodePath("")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 0, 0, 0)
-
-[node name="Player" type="CharacterBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2443.6, 5496.53, 6029.83)
-script = ExtResource("3_nl42l")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
-shape = SubResource("SphereShape3D_k1q8h")
-
-[node name="Camera3D" type="Camera3D" parent="Player"]
-current = true
-far = 40000.0
-
-[node name="VoxelViewer" type="VoxelViewer" parent="Player/Camera3D"]
-view_distance = 128000
+shadow_enabled = true
+directional_shadow_max_distance = 512.0
+directional_shadow_pancake_size = 1.9
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_0x85g")
+
+[node name="Player" parent="." node_paths=PackedStringArray("planets") instance=ExtResource("4_162ko")]
+transform = Transform3D(-0.932639, 0.235741, -0.27315, 0, 0.757044, 0.653364, 0.360811, 0.609353, -0.706048, -1321.01, 3853.89, 5827.03)
+planets = NodePath("../Planets")

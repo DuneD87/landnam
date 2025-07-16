@@ -49,7 +49,7 @@ void light() {
 	float position_incidence = dot(vertex_to_planet_dir, normalize(-light_direction));
 	float intensity = light_incidence * smoothstep(-transition_width, transition_width, position_incidence);
 	DIFFUSE_LIGHT = DIFFUSE_LIGHT * clamp(intensity, 0.0, 1.0);
-	 
+
 }
 
 void fragment() {
@@ -63,7 +63,7 @@ void fragment() {
 	ALPHA *= albedo.a * albedo_tex.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_scissor_threshold;
 
-	
+
 
 	// Combinar la iluminación (basada en NORMAL) con el oscurecimiento (basado en posición)
 	/*float intensity = light_incidence * smoothstep(-transition_width, transition_width, position_incidence);

@@ -1,0 +1,92 @@
+[gd_scene load_steps=9 format=3 uid="uid://c1vquhxt75l31"]
+
+[ext_resource type="Script" uid="uid://cn32aycdueqh7" path="res://scripts/Player/player_controller.gd" id="1_smlm8"]
+[ext_resource type="Script" uid="uid://coeewlktybkhm" path="res://scripts/Player/movement.gd" id="2_l8r5w"]
+[ext_resource type="Script" uid="uid://cw1dc0n2atqjh" path="res://scripts/Player/cam_controller.gd" id="4_5at7g"]
+[ext_resource type="PackedScene" uid="uid://b7axgfebshrpu" path="res://scenes/Player/knight.tscn" id="4_c48xe"]
+[ext_resource type="AnimationNodeBlendTree" uid="uid://cp4qil0xj5pyj" path="res://data/resources/third_person_player._animation_treetres.tres" id="5_bgqbl"]
+[ext_resource type="Script" uid="uid://dsyulr1uf8n11" path="res://scripts/Player/animation_controller.gd" id="6_bgx5p"]
+[ext_resource type="Script" uid="uid://drujj6x4uwkju" path="res://scripts/Player/free_flight_controller.gd" id="7_w5t68"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qeuc0"]
+radius = 0.64535
+height = 2.97757
+
+[node name="Player" type="CharacterBody3D"]
+floor_constant_speed = true
+script = ExtResource("1_smlm8")
+
+[node name="Movement" type="Node" parent="."]
+script = ExtResource("2_l8r5w")
+
+[node name="CameraController" type="Node" parent="."]
+script = ExtResource("4_5at7g")
+
+[node name="CameraPivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.09664, -4.21736)
+
+[node name="PitchPivot" type="Node3D" parent="CameraPivot"]
+transform = Transform3D(-1, 2.26267e-08, -8.44439e-08, 0, 0.965926, 0.258819, 8.74228e-08, 0.258819, -0.965926, 0, 0, -4.217)
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot/PitchPivot"]
+transform = Transform3D(-1, -2.26267e-08, 8.44439e-08, 0, 0.965926, 0.258819, -8.74228e-08, 0.258819, -0.965926, -1.24588e-14, 2.58411, -2.98548)
+current = true
+far = 400000.0
+
+[node name="VoxelViewer" type="VoxelViewer" parent="CameraPivot/PitchPivot/Camera3D"]
+view_distance = 5000000
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0676782, 1.41313, 0.065202)
+shape = SubResource("CapsuleShape3D_qeuc0")
+
+[node name="PlayerModel" parent="." instance=ExtResource("4_c48xe")]
+
+[node name="1H_Sword_Offhand" parent="PlayerModel/Rig/Skeleton3D" index="0"]
+transform = Transform3D(-0.999999, -2.58859e-07, -3.75094e-08, -1.64353e-08, -5.24139e-07, 0.999999, -2.17885e-07, 0.999999, 5.0424e-07, 0.883132, 1.04926, 0.0170111)
+
+[node name="Badge_Shield" parent="PlayerModel/Rig/Skeleton3D" index="1"]
+transform = Transform3D(-0.999999, 2.27632e-06, -7.04971e-07, -6.83899e-07, -7.3077e-07, 0.999999, 2.3173e-06, 0.999999, 7.10872e-07, 0.883132, 1.20515, 0.0170112)
+
+[node name="Rectangle_Shield" parent="PlayerModel/Rig/Skeleton3D" index="2"]
+transform = Transform3D(-0.999999, 2.27632e-06, -7.04971e-07, -6.83899e-07, -7.3077e-07, 0.999999, 2.3173e-06, 0.999999, 7.10872e-07, 0.883132, 1.20515, 0.0170112)
+
+[node name="Round_Shield" parent="PlayerModel/Rig/Skeleton3D" index="3"]
+transform = Transform3D(-0.999999, 2.27632e-06, -7.04971e-07, -6.83899e-07, -7.3077e-07, 0.999999, 2.3173e-06, 0.999999, 7.10872e-07, 0.883132, 1.20515, 0.0170112)
+
+[node name="Spike_Shield" parent="PlayerModel/Rig/Skeleton3D" index="4"]
+transform = Transform3D(-0.999999, 2.27632e-06, -7.04971e-07, -6.83899e-07, -7.3077e-07, 0.999999, 2.3173e-06, 0.999999, 7.10872e-07, 0.883132, 1.20515, 0.0170112)
+
+[node name="1H_Sword" parent="PlayerModel/Rig/Skeleton3D" index="5"]
+transform = Transform3D(0.999999, 2.0298e-07, -4.52757e-07, -3.93247e-07, -7.95385e-07, -0.999999, -1.32203e-07, 0.999999, -7.42514e-07, -0.883132, 1.04926, 0.0333086)
+
+[node name="2H_Sword" parent="PlayerModel/Rig/Skeleton3D" index="6"]
+transform = Transform3D(0.999999, 1.88247e-07, -4.39071e-07, -3.79561e-07, -7.95385e-07, -0.999999, -1.1747e-07, 0.999999, -7.42514e-07, -0.883132, 1.04926, 0.0333086)
+
+[node name="Knight_Helmet" parent="PlayerModel/Rig/Skeleton3D" index="7"]
+transform = Transform3D(1, -2.20965e-22, 1.69407e-21, 2.20965e-22, 1, 0, -1.69407e-21, 3.58732e-43, 1, 4.76837e-07, 1.21589, -1.08542e-07)
+
+[node name="Knight_Cape" parent="PlayerModel/Rig/Skeleton3D" index="8"]
+transform = Transform3D(1, 1.25214e-21, 0, -1.25214e-21, 1, 0, 0, 0, 1, 0, 1.21589, -1.4066e-07)
+
+[node name="AnimationTree" type="AnimationTree" parent="PlayerModel"]
+tree_root = ExtResource("5_bgqbl")
+anim_player = NodePath("../AnimationPlayer")
+parameters/bJumpIdle/blend_amount = 0
+parameters/bJumpLand/blend_amount = 0
+parameters/bJumpStart/blend_amount = 0
+parameters/bRun/blend_amount = 0.0
+parameters/bSprint/blend_amount = 0
+parameters/oAttack_1/active = false
+parameters/oAttack_1/internal_active = false
+parameters/oAttack_1/request = 0
+
+[node name="AnimationController" type="Node" parent="."]
+script = ExtResource("6_bgx5p")
+metadata/_custom_type_script = "uid://dsyulr1uf8n11"
+
+[node name="FreeFlightController" type="Node" parent="."]
+script = ExtResource("7_w5t68")
+metadata/_custom_type_script = "uid://drujj6x4uwkju"
+
+[editable path="PlayerModel"]
