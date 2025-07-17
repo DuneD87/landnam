@@ -11,9 +11,10 @@ enum Action { NONE, SELECT_CONFIG }
 
 @onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
 @onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
+@onready var water_sphere: VoxelLodTerrain = $VoxelLodTerrain/WaterSphere
 
 var _config_action: Action = Action.NONE
-
+var water_material : ShaderMaterial
 @export var planet: Planet
 
 func get_gravity_direction(_global_position: Vector3) -> Vector3:
@@ -77,7 +78,36 @@ func _load_planet() -> void:
 	planet.setup_shader_parameters()
 	planet.setup_voxel_generator()
 	planet._load_vegetation()
+	var graph_function: VoxelGraphFunction = water_sphere.generator.get_main_function()
+	var node_id = graph_function.find_node_by_name("water_sphere")
+	if node_id == 0:
+		return
+		
+	var node_type = graph_function.get_node_type_id(node_id)
+	var node_data = graph_function.get_node_type_info(node_type)
+	var radius_pos: int = 0
+	var radius_found: bool = false
 	
+	for key in node_data:
+		if key == "params":
+			var value = node_data[key]
+			for params in value:
+				for param in params:
+					if params[param] is String && params[param] == "radius":
+						radius_pos += 1
+						radius_found = true
+						break
+					else:
+						radius_pos += 1
+	if radius_found:
+		var radius = planet.radius * 1.66
+		graph_function.set_node_param(node_id, radius_pos - 1, radius)
+		water_sphere.generator.compile()
+		water_material = water_sphere.material
+		# Render priority
+		water_material.render_priority = 1
+		print(water_sphere.global_position)
+		
 func _on_file_selected(path: String) -> void:
 	config_file_path = path
 	_load_planet()
@@ -122,4 +152,5 @@ func _process(_delta: float) -> void:
 	if planet != null:
 		planet.sun_dir = sun_dir
 		planet._update_planet()
+		water_material.set_shader_parameter("light_direction", sun_dir)
 	pass

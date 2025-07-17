@@ -154,6 +154,7 @@ func setup_shader_parameters() -> void:
 		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader")
 	atmosphere_node.planet_radius = radius
 	atmosphere_node.sun_path = sun.get_path()
+	
 	atmosphere_node.set_shader_parameter("u_density", atmosphere_density)
 	atmosphere_node.set_shader_parameter("u_scattering_wavelengths", atmosphere_scattering)
 	atmosphere_node.set_shader_parameter("u_atmosphere_modulate", atmosphere_modulate)
@@ -171,11 +172,13 @@ func setup_voxel_generator() -> void:
 		return
 	
 	var graph_generator_function: VoxelGraphFunction = graph_generator.get_main_function()
+	var radius_pos: int = 0
+	var radius_found: bool = false
+	var node_id_found
 	for node_id in graph_generator_function.get_node_ids():
 		var node_type = graph_generator_function.get_node_type_id(node_id)
 		var node_data = graph_generator_function.get_node_type_info(node_type)
-		var radius_pos: int = 0
-		var radius_found: bool = false
+		
 		for key in node_data:
 			if key == "params":
 				var value = node_data[key]
@@ -184,12 +187,13 @@ func setup_voxel_generator() -> void:
 						if params[param] is String && params[param] == "radius":
 							radius_pos += 1
 							radius_found = true
+							node_id_found = node_id
 							break
 						else:
 							radius_pos += 1
-		if radius_found:
-			graph_generator_function.set_node_param(node_id, radius_pos - 1, radius)
-			graph_generator.compile()
+	if radius_found:
+		graph_generator_function.set_node_param(node_id_found, radius_pos - 1, radius)
+		graph_generator.compile()
 
 func _ready() -> void:
 	pass

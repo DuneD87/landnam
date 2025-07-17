@@ -84,5 +84,5 @@ directional_shadow_pancake_size = 1.9
 environment = SubResource("Environment_0x85g")
 
 [node name="Player" parent="." node_paths=PackedStringArray("planets") instance=ExtResource("4_162ko")]
-transform = Transform3D(-0.994327, 0.0471211, 0.0953608, 0, 0.896521, -0.443002, -0.106368, -0.440489, -0.891434, 1823.64, 4797.46, 5977.76)
+transform = Transform3D(-0.982911, 0.0976743, 0.156035, 0, 0.847626, -0.530594, -0.184085, -0.521527, -0.83314, 1870.27, 4770.36, 6394.01)
 planets = NodePath("../Planets")

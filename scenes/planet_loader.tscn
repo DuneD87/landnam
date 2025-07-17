@@ -1,7 +1,8 @@
-[gd_scene load_steps=16 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=22 format=3 uid="uid://cuv6mxdmxyw00"]
 
 [ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
 [ext_resource type="VoxelGeneratorGraph" uid="uid://0mpmu03pwgj8" path="res://graph_functions/earth_terrain_terraces.tres" id="2_glvix"]
+[ext_resource type="Shader" uid="uid://cdi44eke5b4i8" path="res://shaders/Liquid/water.gdshader" id="6_lyhrk"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="8_4hxn6"]
 [ext_resource type="Shader" uid="uid://cjvu0r1fglbyl" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
 [ext_resource type="Script" uid="uid://dv1orhbbx7v5" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
@@ -174,6 +175,86 @@ shader_parameter/noise_scale = 0.1
 shader_parameter/texture_scale = 0.5
 shader_parameter/normal_strength = 0.7
 
+[sub_resource type="VoxelGeneratorGraph" id="VoxelGeneratorGraph_glvix"]
+graph_data = {
+"connections": [[1, 0, 6, 0], [2, 0, 6, 1], [3, 0, 6, 2], [6, 0, 4, 0]],
+"nodes": {
+"1": {
+"gui_position": Vector2(440, 50),
+"type": "InputX"
+},
+"2": {
+"gui_position": Vector2(440, 150),
+"type": "InputY"
+},
+"3": {
+"gui_position": Vector2(440, 250),
+"type": "InputZ"
+},
+"4": {
+"auto_connect": true,
+"gui_position": Vector2(1420, 140),
+"type": "OutputSDF"
+},
+"6": {
+"auto_connect": true,
+"gui_position": Vector2(840, 120),
+"name": &"water_sphere",
+"radius": 9960.0,
+"type": "SdfSphere"
+}
+},
+"version": 2
+}
+
+[sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_lyhrk"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_lyhrk"]
+noise_type = 3
+frequency = 0.0127
+fractal_type = 2
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_e4bjw"]
+noise = SubResource("FastNoiseLite_lyhrk")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_e4bjw"]
+render_priority = 3
+shader = ExtResource("6_lyhrk")
+shader_parameter/sea_height = 20.0
+shader_parameter/sea_choppy = 4.0
+shader_parameter/sea_speed = 0.8
+shader_parameter/sea_freq = 0.1
+shader_parameter/iter_geometry = 3
+shader_parameter/iter_fragment = 5
+shader_parameter/wave_displacement = 10.0
+shader_parameter/sea_base = Vector3(0, 0.09, 0.9)
+shader_parameter/sea_water_color = Vector3(0.48, 0.54, 0.9)
+shader_parameter/sky_color = Vector3(0.69, 0.84, 1)
+shader_parameter/roughness = 0.02
+shader_parameter/metallic = 0.0
+shader_parameter/transparency = 1.0
+shader_parameter/depth_fade_distance = 50.0
+shader_parameter/edge_fade = 2.0
+shader_parameter/fresnel_power = 2.0
+shader_parameter/refraction_strength = 0.1
+shader_parameter/reflection_strength = 0.8
+shader_parameter/ior = 1.33
+shader_parameter/chromatic_aberration = 0.02
+shader_parameter/caustics_strength = 0.5
+shader_parameter/caustics_scale = 2.0
+shader_parameter/shore_height = 0.0
+shader_parameter/shore_fade_distance = 6.0
+shader_parameter/min_wave_amplitude = 0.1
+shader_parameter/shore_foam_threshold = 0.4
+shader_parameter/foam_color = Vector3(0.95, 0.98, 1)
+shader_parameter/foam_intensity = 1.2
+shader_parameter/shore_turbulence = 1.5
+shader_parameter/shallow_water_color = Vector3(0.3, 0.6, 0.7)
+shader_parameter/shallow_color_blend = 0.5
+shader_parameter/light_direction = Vector3(0, 1, 0.8)
+shader_parameter/planet_center = Vector3(0, 0, 15000)
+shader_parameter/noise_texture = SubResource("NoiseTexture2D_e4bjw")
+
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_qaxex"]
 noise_type = 0
 frequency = 0.0061
@@ -224,6 +305,13 @@ normalmap_tile_resolution_min = 2
 normalmap_begin_lod_index = 1
 threaded_update_enabled = true
 streaming_system = 1
+
+[node name="WaterSphere" type="VoxelLodTerrain" parent="VoxelLodTerrain"]
+generator = SubResource("VoxelGeneratorGraph_glvix")
+mesher = SubResource("VoxelMesherTransvoxel_lyhrk")
+view_distance = 50000
+lod_count = 16
+material = SubResource("ShaderMaterial_e4bjw")
 
 [node name="PlanetAthmosphere" parent="VoxelLodTerrain" instance=ExtResource("8_4hxn6")]
 planet_radius = 0.0
