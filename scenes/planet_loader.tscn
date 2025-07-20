@@ -218,7 +218,7 @@ fractal_type = 2
 noise = SubResource("FastNoiseLite_lyhrk")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_e4bjw"]
-render_priority = 3
+render_priority = 1
 shader = ExtResource("6_lyhrk")
 shader_parameter/sea_height = 20.0
 shader_parameter/sea_choppy = 4.0
