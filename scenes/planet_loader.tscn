@@ -251,7 +251,7 @@ shader_parameter/foam_intensity = 1.2
 shader_parameter/shore_turbulence = 1.5
 shader_parameter/shallow_water_color = Vector3(0.3, 0.6, 0.7)
 shader_parameter/shallow_color_blend = 0.5
-shader_parameter/light_direction = Vector3(0, 1, 0.8)
+shader_parameter/light_direction = Vector3(0, 0, 0)
 shader_parameter/planet_center = Vector3(0, 0, 15000)
 shader_parameter/noise_texture = SubResource("NoiseTexture2D_e4bjw")
 

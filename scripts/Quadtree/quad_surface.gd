@@ -1,8 +1,9 @@
 extends MeshInstance3D
 class_name QuadSurface
 
-@export var quad_resolution: int = 32
+@export var quad_resolution: int = 16
 @export var quad_size: float = 100.0
+@export var sphere_radius: float = 20000
 
 var face_normal: Vector3
 var face_up: Vector3  
@@ -133,6 +134,10 @@ func _generate_uvs():
 			var vertex_index = y * (quad_resolution + 1) + x
 			uvs[vertex_index] = Vector2(u, v)
 			
+func project_to_sphere(point: Vector3, center: Vector3, radius: float) -> Vector3:
+	var direction = (point - center).normalized()
+	return center + direction * radius
+
 func _generate_vertices():
 	var vertex_count = (quad_resolution + 1) * (quad_resolution + 1)
 	vertices.resize(vertex_count)
@@ -145,12 +150,17 @@ func _generate_vertices():
 			var local_x = (x * step) - half_size
 			var local_y = (y * step) - half_size
 			
-			var local_position = face_right * local_x + face_up * local_y
-			var vertex_world_position = position + local_position
-			var noise_value = get_noise_value(vertex_world_position) if enable_noise else 0.0
+			var plane_position = face_right * local_x + face_up * local_y + face_normal * sphere_radius
+			var vertex_world_position = position + plane_position
+			var spherical_position = project_to_sphere(vertex_world_position, Vector3.ZERO, sphere_radius)
 			
-			var displacement = noise_value * noise_amplitude
-			local_position += face_normal * displacement
+			if enable_noise:
+				var noise_value = get_noise_value(spherical_position)
+				var displacement = noise_value * noise_amplitude
+				var sphere_normal = spherical_position.normalized()
+				spherical_position += sphere_normal * displacement
+			
+			var local_position = spherical_position - position
 			
 			var vertex_index = y * (quad_resolution + 1) + x
 			vertices[vertex_index] = local_position

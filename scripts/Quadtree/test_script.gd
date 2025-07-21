@@ -15,7 +15,7 @@ func _ready():
 	else:
 		mesh_manager.default_material = wireframe_material
 	
-			
+	
 func _setup_managers():
 	quadtree_manager = QuadTreeManager.new()
 	mesh_manager = QuadTreeMeshManager.new()
