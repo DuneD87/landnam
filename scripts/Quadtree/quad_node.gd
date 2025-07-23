@@ -3,7 +3,7 @@ class_name QuadNode
 
 @export var size: float = 20000.0
 @export var planet_radius: float = 20000.0
-@export var max_level: int = 6
+@export var max_level: int = 8
 @export var min_level: int = 0
 @export var subdivision_factor: float = 2.0
 
