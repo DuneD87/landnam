@@ -7,7 +7,7 @@
 [ext_resource type="Texture2D" uid="uid://bq110ogh1eqvy" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Metallic.png" id="4_raxse"]
 [ext_resource type="Texture2D" uid="uid://c1y135yfosihj" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Normal-ogl.png" id="5_kf0d3"]
 [ext_resource type="Texture2D" uid="uid://b63dkbv4nkefd" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Roughness.png" id="6_k3x11"]
-[ext_resource type="Shader" uid="uid://dwtnmmdj2x7i1" path="res://quadtree.gdshader" id="7_raxse"]
+[ext_resource type="Shader" uid="uid://bpgkwcvqw2raq" path="res://shaders/wireframe_material.gdshader" id="7_raxse"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ylckl"]
 albedo_texture = ExtResource("2_rhikb")
@@ -22,6 +22,8 @@ ao_texture = ExtResource("3_ue8ik")
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_kf0d3"]
 render_priority = 0
 shader = ExtResource("7_raxse")
+shader_parameter/albedo = Color(0, 0, 0, 1)
+shader_parameter/outline_width = 3.0
 
 [sub_resource type="Environment" id="Environment_raxse"]
 ambient_light_source = 1
@@ -41,7 +43,7 @@ script = ExtResource("2_pjer3")
 
 [node name="Camera3D" type="Camera3D" parent="CharacterBody3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3.39115)
-far = 40000.0
+far = 400000.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_raxse")

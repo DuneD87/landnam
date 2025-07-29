@@ -86,7 +86,7 @@ func _create_quad_surface(quad_info: Dictionary):
 			quad_surface = QuadSurface.new()
 	else:
 		quad_surface = QuadSurface.new()
-   
+	
 	quad_surface.setup(
 		quad_info.position,
 		quad_info.size,
