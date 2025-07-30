@@ -3,7 +3,7 @@ class_name QuadNode
 
 @export var size: float = 20000.0
 @export var planet_radius: float = 20000.0
-@export var max_level: int = 8
+@export var max_level: int = 5
 @export var min_level: int = 0
 @export var subdivision_factor: float = 1
 
@@ -40,7 +40,7 @@ func _invalidate_projected_position():
 			child._invalidate_projected_position()
 
 func _calculate_projected_size() -> float:
-	var half_size = size * 0.5
+	var half_size = size * 2
 	
 	var corner1 = face_right * (-half_size) + face_up * (-half_size) + face_normal * (planet_radius / 2)
 	var corner2 = face_right * (half_size) + face_up * (-half_size) + face_normal * (planet_radius / 2)

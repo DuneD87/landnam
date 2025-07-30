@@ -28,8 +28,10 @@ shader_parameter/outline_width = 3.0
 [sub_resource type="Environment" id="Environment_raxse"]
 ambient_light_source = 1
 
-[node name="QuadTree" type="Node3D"]
+[node name="QuadTree" type="Node3D" node_paths=PackedStringArray("camera")]
 script = ExtResource("1_7agbf")
+enable_wireframe = true
+camera = NodePath("CharacterBody3D/Camera3D")
 quadtree_material = SubResource("StandardMaterial3D_ylckl")
 wireframe_material = SubResource("ShaderMaterial_kf0d3")
 

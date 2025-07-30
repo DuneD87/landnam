@@ -3,6 +3,7 @@ class_name OceanSystemUpdated
 
 @export var enable_wireframe: bool = false
 @export var use_gpu_compute: bool = true
+@export var camera: Camera3D
 
 @export var quadtree_material: Material
 @export var wireframe_material: Material

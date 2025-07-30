@@ -7,7 +7,7 @@ signal quadtree_changed(active_quad_data: Array)
 @export var auto_update: bool = true
 
 var root_quads: Array[QuadNode] = []
-var camera: Camera3D
+@export var camera: Camera3D
 var last_camera_position: Vector3
 var update_threshold: float = 20.0
 
@@ -52,6 +52,7 @@ var cube_faces = [
 ]
 
 func _ready():
+	camera = get_parent().camera
 	_create_root_quads()
 	_find_camera()
 

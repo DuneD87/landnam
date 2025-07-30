@@ -2,7 +2,7 @@ extends MeshInstance3D
 class_name QuadSurfaceCompute
 
 @export var quad_resolution: int = 32
-@export var quad_size: float = 100.0
+@export var quad_size: float = 1000.0
 @export var sphere_radius: float = 20000
 
 var face_normal: Vector3
