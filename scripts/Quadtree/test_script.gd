@@ -1,5 +1,6 @@
 extends Node3D
 class_name OceanSystemUpdated
+@export var radius: float = 40000;
 
 @export var enable_wireframe: bool = false
 @export var use_gpu_compute: bool = true
@@ -32,7 +33,9 @@ func _ready():
 func _setup_managers():
 	quadtree_manager = QuadTreeManager.new()
 	mesh_manager = QuadTreeMeshManager.new()
-	
+	quadtree_manager.radius = radius
+	mesh_manager.radius = radius
+	print(global_position)
 	add_child(quadtree_manager)
 	add_child(mesh_manager)
 	

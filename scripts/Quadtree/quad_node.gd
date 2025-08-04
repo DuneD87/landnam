@@ -40,7 +40,7 @@ func _invalidate_projected_position():
 			child._invalidate_projected_position()
 
 func _calculate_projected_size() -> float:
-	var half_size = size * 2
+	var half_size = size * 1
 	
 	var corner1 = face_right * (-half_size) + face_up * (-half_size) + face_normal * (planet_radius / 2)
 	var corner2 = face_right * (half_size) + face_up * (-half_size) + face_normal * (planet_radius / 2)
@@ -98,7 +98,8 @@ func subdivide():
 		self, 
 		face_normal, 
 		face_up, 
-		face_right
+		face_right,
+		planet_radius
 	)
 	
 	children[1] = QuadNode.new()
@@ -110,7 +111,8 @@ func subdivide():
 		self, 
 		face_normal, 
 		face_up, 
-		face_right
+		face_right,
+		planet_radius
 	)
 	
 	children[2] = QuadNode.new()
@@ -122,7 +124,8 @@ func subdivide():
 		self, 
 		face_normal, 
 		face_up, 
-		face_right
+		face_right,
+		planet_radius
 	)
 	
 	children[3] = QuadNode.new()
@@ -134,7 +137,8 @@ func subdivide():
 		self, 
 		face_normal, 
 		face_up, 
-		face_right
+		face_right,
+		planet_radius
 	)
 	
 	for child in children:
@@ -142,7 +146,7 @@ func subdivide():
 	
 	is_subdivided = true
 
-func setup(pos: Vector3, node_size: float, node_level: int, parent_node: QuadNode, normal: Vector3, up: Vector3, right: Vector3):
+func setup(pos: Vector3, node_size: float, node_level: int, parent_node: QuadNode, normal: Vector3, up: Vector3, right: Vector3, radius: float):
 	if parent_node == null:
 		global_position = pos
 	else:
@@ -154,6 +158,7 @@ func setup(pos: Vector3, node_size: float, node_level: int, parent_node: QuadNod
 	face_normal = normal.normalized()
 	face_up = up.normalized()
 	face_right = right.normalized()
+	planet_radius = radius
 	
 	# Invalidar la posición proyectada cuando se cambia la configuración
 	#_invalidate_projected_position()
@@ -181,14 +186,3 @@ func update_lod(camera_position: Vector3):
 		for child in children:
 			if child != null:
 				child.update_lod(camera_position)
-
-# Función auxiliar para debug - obtener información del quad
-func get_debug_info() -> Dictionary:
-	return {
-		"level": level,
-		"size": size,
-		"projected_size": _calculate_projected_size(),
-		"position": global_position,
-		"projected_position": get_projected_position(),
-		"is_subdivided": is_subdivided
-	}

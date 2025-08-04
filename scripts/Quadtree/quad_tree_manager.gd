@@ -3,7 +3,7 @@ class_name QuadTreeManager
 
 signal quadtree_changed(active_quad_data: Array)
 
-@export var root_size: float = 20000.0
+@export var radius: float = 20000.0
 @export var auto_update: bool = true
 
 var root_quads: Array[QuadNode] = []
@@ -58,15 +58,18 @@ func _ready():
 
 func _create_root_quads():
 	for face_data in cube_faces:
+		var face_center = face_data.normal * (radius * 0.5)
+
 		var root_quad = QuadNode.new()
 		root_quad.setup(
 			Vector3.ZERO,          # position
-			root_size,              # size
+			radius,              # size
 			0,                      # level
 			null,                   # parent_node
 			face_data.normal,       # normal
 			face_data.up,           # up
-			face_data.right         # right
+			face_data.right,         # right
+			radius
 		)
 
 		root_quad.name = "QuadRoot_" + face_data.name

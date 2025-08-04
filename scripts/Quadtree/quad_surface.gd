@@ -45,7 +45,7 @@ var camera_position: Vector3 = Vector3.ZERO
 var current_time: float = 0.0
 var should_animate: bool = false
 
-func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right: Vector3, level: int = 0):
+func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right: Vector3, radius: float, level: int = 0):
 	position = _position
 	quad_size = size
 	face_normal = normal.normalized()
@@ -53,7 +53,7 @@ func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right:
 	face_right = right.normalized()
 	quad_level = level
 	needs_update = true
-	
+	sphere_radius = radius
 	# Configurar ruido
 	noise = FastNoiseLite.new()
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH

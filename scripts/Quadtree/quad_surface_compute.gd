@@ -13,7 +13,7 @@ var needs_update: bool = true
 
 # Parámetros de ruido
 @export_group("Noise Settings")
-@export var enable_noise: bool = true
+@export var enable_noise: bool = false
 @export var noise_amplitude: float = 150.0
 @export var noise_frequency: float = 0.001
 @export var noise_octaves: int = 4
@@ -44,26 +44,23 @@ func set_shared_resources(shared_rd: RenderingDevice, shared_shader: RID):
 	compute_shader = shared_shader
 	is_using_shared_resources = true
 
-func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right: Vector3, level: int = 0):
+func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right: Vector3, radius: float, level: int = 0):
 	position = _position
+	
 	quad_size = size
 	face_normal = normal.normalized()
 	face_up = up.normalized()
 	face_right = right.normalized()
 	quad_level = level
 	needs_update = true
-	
+	sphere_radius = radius
 	# Only setup shader if not using shared resources
 	if not is_using_shared_resources:
 		_setup_own_compute_resources()
 	
 	generate_mesh()
 	
-	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	gi_mode = GeometryInstance3D.GI_MODE_STATIC
-	
-	if level > 6:
-		cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cast_shadow = SHADOW_CASTING_SETTING_OFF
 
 func _setup_own_compute_resources():
 	"""Fallback method if shared resources are not provided"""
