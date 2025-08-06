@@ -1,0 +1,14 @@
+[gd_scene load_steps=4 format=3 uid="uid://b6pco1ld8rlnu"]
+
+[ext_resource type="Script" uid="uid://dnos3mfygnpka" path="res://scripts/Quadtree/quad_tree.gd" id="1_7agbf"]
+[ext_resource type="Shader" uid="uid://bpgkwcvqw2raq" path="res://shaders/wireframe_material.gdshader" id="7_raxse"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_kf0d3"]
+render_priority = 0
+shader = ExtResource("7_raxse")
+shader_parameter/albedo = Color(0, 0, 0, 1)
+shader_parameter/outline_width = 3.0
+
+[node name="WaterSphere" type="Node3D"]
+script = ExtResource("1_7agbf")
+wireframe_material = SubResource("ShaderMaterial_kf0d3")

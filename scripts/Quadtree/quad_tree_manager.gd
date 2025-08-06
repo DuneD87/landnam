@@ -62,7 +62,7 @@ func _create_root_quads():
 
 		var root_quad = QuadNode.new()
 		root_quad.setup(
-			Vector3.ZERO,          # position
+			face_center,          # position
 			radius,              # size
 			0,                      # level
 			null,                   # parent_node
@@ -123,7 +123,7 @@ func _collect_active_quads(node: QuadNode, data_array: Array):
 func _update_quadtree(camera_position: Vector3):
 	# Actualizar LOD para todas las caras
 	for root_quad in root_quads:
-		root_quad.update_lod(camera_position)
+		root_quad.update_lod(camera_position, global_position)
 	
 	_emit_quadtree_changed()
 

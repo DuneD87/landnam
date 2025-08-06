@@ -144,7 +144,7 @@ void main() {
 	float local_y = (float(y) * step) - half_size;
 	
 	// Calculate position on the plane using corrected factor (sphere_radius / 2.0)
-	vec3 plane_position = face_right * local_x + face_up * local_y + face_normal * (sphere_radius / 2.0);
+	vec3 plane_position = face_right * local_x + face_up * local_y;
 	vec3 vertex_world_position = quad_pos + plane_position;
 	vec3 spherical_position = normalize(vertex_world_position) * sphere_radius;
 	

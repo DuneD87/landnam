@@ -19,19 +19,22 @@ var face_right: Vector3
 var _cached_projected_position: Vector3
 var _projected_position_valid: bool = false
 
-func get_projected_position() -> Vector3:
+func get_projected_position(planet_center: Vector3) -> Vector3:
 	if not _projected_position_valid:
-		_calculate_projected_position()
+		_calculate_projected_position(planet_center)
 		_projected_position_valid = true
 	return _cached_projected_position
 
-func _calculate_projected_position():
-	var center_offset_local = Vector3.ZERO 
-	var plane_position = face_right * center_offset_local.x + face_up * center_offset_local.y + face_normal * (planet_radius / 2)
-	
-	var world_position = global_position + plane_position
-	
-	_cached_projected_position = world_position.normalized() * planet_radius
+func _calculate_projected_position(planet_center: Vector3):
+	# Calcula posición global CORRECTA del centro del quad
+	var quad_center_global = global_transform.origin
+
+	# Dirección desde el centro planetario hasta el quad
+	var direction = (quad_center_global - planet_center).normalized()
+
+	# Proyecta sobre la superficie planetaria
+	_cached_projected_position = planet_center + direction * planet_radius
+
 
 func _invalidate_projected_position():
 	_projected_position_valid = false
@@ -39,7 +42,7 @@ func _invalidate_projected_position():
 		if child != null:
 			child._invalidate_projected_position()
 
-func _calculate_projected_size() -> float:
+func _calculate_projected_size(planet_center: Vector3) -> float:
 	var half_size = size * 1
 	
 	var corner1 = face_right * (-half_size) + face_up * (-half_size) + face_normal * (planet_radius / 2)
@@ -50,26 +53,26 @@ func _calculate_projected_size() -> float:
 	var world_corner2 = global_position + corner2
 	var world_corner3 = global_position + corner3
 	
-	var proj_corner1 = world_corner1.normalized() * planet_radius
-	var proj_corner2 = world_corner2.normalized() * planet_radius
-	var proj_corner3 = world_corner3.normalized() * planet_radius
+	var proj_corner1 = planet_center + (world_corner1 - planet_center).normalized() * planet_radius
+	var proj_corner2 = planet_center + (world_corner2 - planet_center).normalized() * planet_radius
+	var proj_corner3 = planet_center + (world_corner3 - planet_center).normalized() * planet_radius
 	
 	var size_x = proj_corner1.distance_to(proj_corner2)
 	var size_y = proj_corner1.distance_to(proj_corner3)
 	
 	return (size_x + size_y) * 0.5
 	
-func should_subdivide(camera_position: Vector3) -> bool:
+func should_subdivide(camera_position: Vector3, planet_center: Vector3) -> bool:
 	if level >= max_level:
 		return false
 	
 	if level < min_level:
 		return true
 	
-	var projected_pos = get_projected_position()
+	var projected_pos = get_projected_position(planet_center)
 	var distance_to_camera = projected_pos.distance_to(camera_position)
 	
-	var projected_size = _calculate_projected_size()
+	var projected_size = _calculate_projected_size(planet_center)
 	var threshold_distance = projected_size * subdivision_factor
 	
 	return distance_to_camera < threshold_distance
@@ -84,74 +87,35 @@ func subdivide():
 	
 	children.resize(4)
 	
-	# IMPORTANTE: Usar posiciones locales para los hijos
-	# Los 4 cuadrantes:
-	# [2] [3]
-	# [0] [1]
-	
-	children[0] = QuadNode.new()
-	children[0].planet_radius = planet_radius
-	children[0].setup(
-		(-face_right - face_up) * offset,
-		child_size, 
-		level + 1, 
-		self, 
-		face_normal, 
-		face_up, 
-		face_right,
-		planet_radius
-	)
-	
-	children[1] = QuadNode.new()
-	children[1].planet_radius = planet_radius
-	children[1].setup(
-		(face_right - face_up) * offset,
-		child_size, 
-		level + 1, 
-		self, 
-		face_normal, 
-		face_up, 
-		face_right,
-		planet_radius
-	)
-	
-	children[2] = QuadNode.new()
-	children[2].planet_radius = planet_radius
-	children[2].setup(
-		(-face_right + face_up) * offset,
-		child_size, 
-		level + 1, 
-		self, 
-		face_normal, 
-		face_up, 
-		face_right,
-		planet_radius
-	)
-	
-	children[3] = QuadNode.new()
-	children[3].planet_radius = planet_radius
-	children[3].setup(
-		(face_right + face_up) * offset,
-		child_size, 
-		level + 1, 
-		self, 
-		face_normal, 
-		face_up, 
-		face_right,
-		planet_radius
-	)
-	
-	for child in children:
-		add_child(child)
+	for i in range(4):
+		children[i] = QuadNode.new()
+		children[i].planet_radius = planet_radius
+		
+		var child_offset: Vector3
+		match i:
+			0: child_offset = (-face_right - face_up) * offset
+			1: child_offset = (face_right - face_up) * offset
+			2: child_offset = (-face_right + face_up) * offset
+			3: child_offset = (face_right + face_up) * offset
+		
+		children[i].setup(
+			child_offset,
+			child_size,
+			level + 1,
+			self,
+			face_normal,
+			face_up,
+			face_right,
+			planet_radius,
+		)
+		
+		add_child(children[i])
 	
 	is_subdivided = true
 
 func setup(pos: Vector3, node_size: float, node_level: int, parent_node: QuadNode, normal: Vector3, up: Vector3, right: Vector3, radius: float):
-	if parent_node == null:
-		global_position = pos
-	else:
-		position = pos
-	
+
+	position = pos
 	size = node_size
 	level = node_level
 	parent_quad = parent_node
@@ -174,8 +138,8 @@ func merge():
 	children.clear()
 	is_subdivided = false
 	
-func update_lod(camera_position: Vector3):
-	var should_be_subdivided = should_subdivide(camera_position)
+func update_lod(camera_position: Vector3, planet_center: Vector3):
+	var should_be_subdivided = should_subdivide(camera_position, planet_center)
 	
 	if should_be_subdivided and not is_subdivided:
 		subdivide()
@@ -185,4 +149,4 @@ func update_lod(camera_position: Vector3):
 	if is_subdivided:
 		for child in children:
 			if child != null:
-				child.update_lod(camera_position)
+				child.update_lod(camera_position, planet_center)

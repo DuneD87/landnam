@@ -25,7 +25,7 @@ noise = SubResource("FastNoiseLite_8fwrw")
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_u25wy"]
 noise_type = 3
-frequency = 0.001
+frequency = 0.0001
 fractal_type = 2
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ue8ik"]
@@ -44,6 +44,6 @@ shader_parameter/texture_normal2 = SubResource("NoiseTexture2D_u25wy")
 shader_parameter/wave = SubResource("NoiseTexture2D_ue8ik")
 shader_parameter/wave_direction = Vector2(2, 0)
 shader_parameter/wave_direction2 = Vector2(0, 1)
-shader_parameter/time_scale = 0.025
+shader_parameter/time_scale = 0.015
 shader_parameter/noise_scale = 1.0
-shader_parameter/height_scale = 50.0
+shader_parameter/height_scale = 10.0

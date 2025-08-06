@@ -1,9 +1,11 @@
-[gd_scene load_steps=8 format=3 uid="uid://8hm5q6k01tb8"]
+[gd_scene load_steps=10 format=3 uid="uid://8hm5q6k01tb8"]
 
 [ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/sun_controller.gd" id="1_wlvx5"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet_loader.tscn" id="2_oq8ty"]
+[ext_resource type="PackedScene" uid="uid://b6pco1ld8rlnu" path="res://scenes/WaterSphere.tscn" id="3_i8fpp"]
 [ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="4_7x0ai"]
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/third_person_player.tscn" id="4_162ko"]
+[ext_resource type="Material" uid="uid://csxys5banaiv8" path="res://data/resources/quadtree_material.tres" id="4_tcere"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
 shader = ExtResource("4_7x0ai")
@@ -66,6 +68,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 planet = NodePath("")
+
+[node name="WaterSphere" parent="Planets/Earth" instance=ExtResource("3_i8fpp")]
+radius = 9955.0
+enable_wireframe = true
+quadtree_material = ExtResource("4_tcere")
 
 [node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_oq8ty")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 22199.2, -17000)

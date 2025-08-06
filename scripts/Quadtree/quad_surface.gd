@@ -294,7 +294,7 @@ func _generate_vertices():
 			var local_x = (x * step) - half_size
 			var local_y = (y * step) - half_size
 			
-			var plane_position = face_right * local_x + face_up * local_y + face_normal * (sphere_radius / 2)
+			var plane_position = face_right * local_x + face_up * local_y
 			var vertex_world_position = position + plane_position
 			var spherical_position = project_to_sphere(vertex_world_position, Vector3.ZERO)
 			
