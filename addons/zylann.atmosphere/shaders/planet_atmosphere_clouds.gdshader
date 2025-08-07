@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode unshaded;//, depth_draw_alpha_prepass;
+render_mode unshaded, blend_add, depth_draw_opaque, depth_test_disabled;//, depth_draw_alpha_prepass;
 
 #define CLOUDS_ENABLED
 #define CLOUDS_MAX_RAYMARCH_STEPS 32

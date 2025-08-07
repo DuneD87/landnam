@@ -152,7 +152,7 @@ void fragment() {
 "
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_8gh3j"]
-render_priority = 0
+render_priority = 1
 shader = SubResource("Shader_wsymg")
 shader_parameter/u_transition_mask = 0
 shader_parameter/radius = 0.0
@@ -226,7 +226,6 @@ threaded_update_enabled = true
 streaming_system = 1
 
 [node name="PlanetAthmosphere" parent="VoxelLodTerrain" instance=ExtResource("8_4hxn6")]
-visible = false
 planet_radius = 0.0
 atmosphere_height = 0.0
 custom_shader = ExtResource("9_n2er8")

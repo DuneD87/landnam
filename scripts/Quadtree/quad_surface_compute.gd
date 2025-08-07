@@ -44,7 +44,7 @@ func set_shared_resources(shared_rd: RenderingDevice, shared_shader: RID):
 	compute_shader = shared_shader
 	is_using_shared_resources = true
 
-func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right: Vector3, radius: float, level: int = 0):
+func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right: Vector3, radius: float, sub_divisions: int, level: int = 0):
 	position = _position
 	
 	quad_size = size
@@ -54,6 +54,7 @@ func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right:
 	quad_level = level
 	needs_update = true
 	sphere_radius = radius
+	quad_resolution = sub_divisions
 	# Only setup shader if not using shared resources
 	if not is_using_shared_resources:
 		_setup_own_compute_resources()

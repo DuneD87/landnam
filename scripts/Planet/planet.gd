@@ -127,6 +127,7 @@ func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
 	
 func setup_shader_parameters() -> void:
 	voxel_terrain.material = shader_material
+	shader_material.render_priority = 0
 	shader_material.set_shader_parameter("transition_smoothness", 30)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
 	planet_position = voxel_terrain.get_parent().position

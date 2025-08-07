@@ -1,7 +1,60 @@
-[gd_scene load_steps=4 format=3 uid="uid://b6pco1ld8rlnu"]
+[gd_scene load_steps=12 format=3 uid="uid://b6pco1ld8rlnu"]
 
 [ext_resource type="Script" uid="uid://dnos3mfygnpka" path="res://scripts/Quadtree/quad_tree.gd" id="1_7agbf"]
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="2_ckor0"]
 [ext_resource type="Shader" uid="uid://bpgkwcvqw2raq" path="res://shaders/wireframe_material.gdshader" id="7_raxse"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_th24p"]
+noise_type = 3
+frequency = 0.001
+fractal_type = 2
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_rqd8l"]
+seamless = true
+as_normal_map = true
+noise = SubResource("FastNoiseLite_th24p")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_mq8mb"]
+noise_type = 3
+frequency = 0.001
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_7ps6u"]
+seamless = true
+as_normal_map = true
+noise = SubResource("FastNoiseLite_mq8mb")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ckor0"]
+noise_type = 3
+frequency = 0.0001
+fractal_type = 2
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_th24p"]
+seamless = true
+noise = SubResource("FastNoiseLite_ckor0")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_3hmyf"]
+render_priority = 0
+shader = ExtResource("2_ckor0")
+shader_parameter/albedo = Color(0.00778197, 0.214839, 0.570589, 1)
+shader_parameter/albedo2 = Color(0.197211, 0.16826, 0.777496, 1)
+shader_parameter/metallic = 0.0
+shader_parameter/roughness = 0.02
+shader_parameter/texture_normal = SubResource("NoiseTexture2D_rqd8l")
+shader_parameter/texture_normal2 = SubResource("NoiseTexture2D_7ps6u")
+shader_parameter/wave = SubResource("NoiseTexture2D_th24p")
+shader_parameter/wave_direction = Vector2(2, 0)
+shader_parameter/wave_direction2 = Vector2(0, 1)
+shader_parameter/time_scale = 0.025
+shader_parameter/noise_scale = 10.0
+shader_parameter/height_scale = 5.0
+shader_parameter/color_deep = Color(0.00709544, 0.224817, 0.964522, 1)
+shader_parameter/color_shallow = Color(0.709571, 0.738181, 1, 1)
+shader_parameter/beers_law = 0.1
+shader_parameter/depth_offset = -0.75
+shader_parameter/edge_scale = 6.0
+shader_parameter/near = 1.0
+shader_parameter/far = 10000.0
+shader_parameter/edge_color = Color(0.763666, 0.813248, 0.99298, 1)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_kf0d3"]
 render_priority = 0
@@ -11,4 +64,6 @@ shader_parameter/outline_width = 3.0
 
 [node name="WaterSphere" type="Node3D"]
 script = ExtResource("1_7agbf")
+sub_divisions = 16
+quadtree_material = SubResource("ShaderMaterial_3hmyf")
 wireframe_material = SubResource("ShaderMaterial_kf0d3")

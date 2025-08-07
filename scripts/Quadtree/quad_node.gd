@@ -15,7 +15,6 @@ var face_normal: Vector3
 var face_up: Vector3
 var face_right: Vector3
 
-# Cache para la posición proyectada
 var _cached_projected_position: Vector3
 var _projected_position_valid: bool = false
 

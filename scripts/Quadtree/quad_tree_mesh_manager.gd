@@ -10,6 +10,7 @@ enum ComputeMode {
 @export var compute_mode: ComputeMode = ComputeMode.GPU
 @export var preload_compute_shader: bool = true
 @export var radius: float
+@export var sub_divisions: int = 32
 
 var active_quads: Dictionary = {}
 var quad_tree_manager: Node3D
@@ -97,12 +98,12 @@ func _create_quad_surface(quad_info: Dictionary):
 		quad_info.face_up,
 		quad_info.face_right,
 		radius,
+		sub_divisions,
 		quad_info.level
 	)
-	
+
 	if quad_surface.mesh:
 		quad_surface.mesh.surface_set_material(0, default_material)
-	
 	add_child(quad_surface)
 	active_quads[quad_info.id] = quad_surface
 
@@ -119,6 +120,7 @@ func _update_quad_surface(quad_info: Dictionary):
 			quad_info.face_up,
 			quad_info.face_right,
 			radius,
+			sub_divisions,
 			quad_info.level
 		)
 

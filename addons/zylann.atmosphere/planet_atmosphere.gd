@@ -134,7 +134,7 @@ func set_custom_shader(shader: Shader):
 		if uniform.name == "u_optical_depth_texture":
 			_uses_baked_optical_depth = true
 			break
-	mat.render_priority = 2
+	mat.render_priority = 1
 	if _uses_baked_optical_depth:
 		_request_bake_optical_depth()
 
