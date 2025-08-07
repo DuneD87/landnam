@@ -101,9 +101,10 @@ func _create_quad_surface(quad_info: Dictionary):
 		sub_divisions,
 		quad_info.level
 	)
-
+	
 	if quad_surface.mesh:
 		quad_surface.mesh.surface_set_material(0, default_material)
+
 	add_child(quad_surface)
 	active_quads[quad_info.id] = quad_surface
 
@@ -198,6 +199,14 @@ func get_statistics() -> Dictionary:
 		stats.total_triangles += resolution * resolution * 2
 	
 	return stats
+	
+func _process(delta: float) -> void:
+	var camera = get_viewport().get_camera_3d()
+	var distance = camera.global_position.distance_to(global_position)
+	if distance > (radius + 500):
+		default_material.render_priority = 0
+	else:
+		default_material.render_priority = 1
 
 func _exit_tree():
 	# Clean up shared compute resources

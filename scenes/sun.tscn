@@ -70,7 +70,6 @@ planet = NodePath("")
 
 [node name="WaterSphere" parent="Planets/Earth" instance=ExtResource("3_i8fpp")]
 radius = 29960.0
-sub_divisions = 8
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 0, 0, 0)
@@ -82,5 +81,5 @@ directional_shadow_pancake_size = 1.9
 environment = SubResource("Environment_0x85g")
 
 [node name="Player" parent="." node_paths=PackedStringArray("planets") instance=ExtResource("4_162ko")]
-transform = Transform3D(-0.982911, 0.0976743, 0.156035, 0, 0.847626, -0.530594, -0.184085, -0.521527, -0.83314, 1870.27, 4770.36, 6394.01)
+transform = Transform3D(-0.944632, -0.176086, -0.276886, 0, 0.843819, -0.536629, 0.328134, -0.506916, -0.797097, -6414.85, 12315.1, -11682.5)
 planets = NodePath("../Planets")

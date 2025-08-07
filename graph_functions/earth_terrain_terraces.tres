@@ -2,8 +2,8 @@
 
 [sub_resource type="FastNoise2" id="FastNoise2_ivwlw"]
 noise_type = 3
-period = 2400.0
-fractal_type = 1
+period = 4500.0
+fractal_type = 2
 fractal_octaves = 8
 fractal_lacunarity = 3.5
 fractal_gain = 0.3
@@ -15,7 +15,7 @@ terrace_smoothness = 1.0
 [sub_resource type="FastNoise2" id="FastNoise2_aqix3"]
 noise_type = 2
 seed = 64
-period = 900.0
+period = 1200.0
 fractal_type = 2
 fractal_octaves = 4
 fractal_lacunarity = 4.0

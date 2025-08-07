@@ -120,7 +120,7 @@ func _collect_active_quads(node: QuadNode, data_array: Array):
 			if child != null:
 				_collect_active_quads(child, data_array)
 
-func _update_quadtree(camera_position: Vector3):
+func _update_quadtree(camera_position: Vector3):	
 	# Actualizar LOD para todas las caras
 	for root_quad in root_quads:
 		root_quad.update_lod(camera_position, global_position)

@@ -152,7 +152,7 @@ void fragment() {
 "
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_8gh3j"]
-render_priority = 1
+render_priority = 2
 shader = SubResource("Shader_wsymg")
 shader_parameter/u_transition_mask = 0
 shader_parameter/radius = 0.0

@@ -6,22 +6,22 @@
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_th24p"]
 noise_type = 3
-frequency = 0.001
 fractal_type = 2
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_rqd8l"]
 seamless = true
 as_normal_map = true
+bump_strength = 5.0
 noise = SubResource("FastNoiseLite_th24p")
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_mq8mb"]
 noise_type = 3
 seed = 10
-frequency = 0.001
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_7ps6u"]
 seamless = true
 as_normal_map = true
+bump_strength = 5.0
 noise = SubResource("FastNoiseLite_mq8mb")
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_ckor0"]
@@ -34,28 +34,34 @@ seamless = true
 noise = SubResource("FastNoiseLite_ckor0")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_3hmyf"]
-render_priority = 0
+render_priority = 1
 shader = ExtResource("2_ckor0")
-shader_parameter/albedo = Color(0.00778197, 0.214839, 0.570589, 1)
-shader_parameter/albedo2 = Color(0.197211, 0.16826, 0.777496, 1)
+shader_parameter/albedo = Color(0, 0.321569, 0.431373, 1)
+shader_parameter/albedo2 = Color(0, 0.321569, 0.431373, 1)
 shader_parameter/metallic = 0.0
 shader_parameter/roughness = 0.02
 shader_parameter/texture_normal = SubResource("NoiseTexture2D_rqd8l")
 shader_parameter/texture_normal2 = SubResource("NoiseTexture2D_7ps6u")
 shader_parameter/wave = SubResource("NoiseTexture2D_th24p")
-shader_parameter/wave_direction = Vector2(20, 0)
-shader_parameter/wave_direction2 = Vector2(0, 10)
+shader_parameter/wave_direction = Vector2(10, 0)
+shader_parameter/wave_direction2 = Vector2(0, 5)
 shader_parameter/time_scale = 0.025
-shader_parameter/noise_scale = 10.0
-shader_parameter/height_scale = 5.0
-shader_parameter/color_deep = Color(0.00709544, 0.224817, 0.964522, 1)
+shader_parameter/noise_scale = 2.0
+shader_parameter/height_scale = 2.0
+shader_parameter/wave_speed = 1.0
+shader_parameter/wave_amplitude = 2.0
+shader_parameter/wave_frequency = 0.2
+shader_parameter/color_deep = Color(0, 0.321569, 0.431373, 1)
 shader_parameter/color_shallow = Color(0.709571, 0.738181, 1, 1)
-shader_parameter/beers_law = 0.1
+shader_parameter/beers_law = 2.0
 shader_parameter/depth_offset = -0.75
-shader_parameter/edge_scale = 6.0
+shader_parameter/edge_scale = 2.0
 shader_parameter/near = 1.0
 shader_parameter/far = 10000.0
 shader_parameter/edge_color = Color(0.763666, 0.813248, 0.99298, 1)
+shader_parameter/view_opacity_start = 1.0
+shader_parameter/view_opacity_end = 1.0
+shader_parameter/view_opacity_power = 1.0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_kf0d3"]
 render_priority = 0

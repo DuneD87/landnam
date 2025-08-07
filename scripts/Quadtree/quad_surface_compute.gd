@@ -56,12 +56,13 @@ func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right:
 	sphere_radius = radius
 	quad_resolution = sub_divisions
 	# Only setup shader if not using shared resources
+	cast_shadow = SHADOW_CASTING_SETTING_OFF
+
 	if not is_using_shared_resources:
 		_setup_own_compute_resources()
 	
 	generate_mesh()
 	
-	cast_shadow = SHADOW_CASTING_SETTING_OFF
 
 func _setup_own_compute_resources():
 	"""Fallback method if shared resources are not provided"""

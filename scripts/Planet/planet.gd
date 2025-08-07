@@ -53,9 +53,9 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array) -> V
 	if generator_config.has("offset_along_normal"):
 		generator.offset_along_normal = generator_config.offset_along_normal
 	if generator_config.has("max_height"):
-		generator.max_height = generator_config.max_height
+		generator.max_height = radius + generator_config.max_height
 	if generator_config.has("min_height"):
-		generator.min_height = generator_config.min_height
+		generator.min_height = radius + generator_config.min_height
 	if generator_config.has("max_slope_degrees"):
 		generator.max_slope_degrees = generator_config.max_slope_degrees
 	if generator_config.has("vertical_alignment"):
