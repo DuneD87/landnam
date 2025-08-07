@@ -1,6 +1,6 @@
 {
 	"terrain_settings": {
-		"radius": 10000.0,
+		"radius": 30000.0,
 		"terrain_generator": "res://graph_functions/earth_terrain_terraces.tres"
 	},
 	"biome_settings": {

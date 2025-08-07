@@ -69,15 +69,8 @@ config_file_path = "res://data/planet/planet_earth.json"
 planet = NodePath("")
 
 [node name="WaterSphere" parent="Planets/Earth" instance=ExtResource("3_i8fpp")]
-radius = 9960.0
+radius = 29960.0
 sub_divisions = 8
-
-[node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_oq8ty")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 22199.2, -17000)
-sun_path = NodePath("../../DirectionalLight3D")
-config_file_path = "res://data/planet/planet_moon.json"
-gravity_strength = 4.3
-planet = NodePath("")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 0, 0, 0)
