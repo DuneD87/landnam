@@ -4,7 +4,7 @@ class_name OceanSystemUpdated
 @export var radius: float = 40000;
 @export var sub_divisions: int = 32
 @export var max_lod: int
-
+@export var atmosphere_height: float = 1000.0
 @export var enable_wireframe: bool = false
 @export var use_gpu_compute: bool = true
 @export var camera: Camera3D
@@ -20,7 +20,6 @@ var stats_label: Label
 func _ready():
 	_setup_managers()
 	_setup_ui()
-	
 	if !enable_wireframe:
 		mesh_manager.default_material = quadtree_material
 	else:
@@ -36,10 +35,12 @@ func _ready():
 func _setup_managers():
 	quadtree_manager = QuadTreeManager.new()
 	mesh_manager = QuadTreeMeshManager.new()
+	
 	mesh_manager.sub_divisions = sub_divisions
+	mesh_manager.atmosphere_height = atmosphere_height
 	quadtree_manager.radius = radius
 	mesh_manager.radius = radius
-	print(global_position)
+
 	add_child(quadtree_manager)
 	add_child(mesh_manager)
 	

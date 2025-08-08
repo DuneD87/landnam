@@ -1,0 +1,9 @@
+[gd_resource type="NoiseTexture2D" load_steps=2 format=3 uid="uid://dkyvl4sb12dc8"]
+
+[ext_resource type="FastNoiseLite" uid="uid://d3pvfu4f7roqj" path="res://data/resources/watersphere_normal_wave.tres" id="1_5g0ue"]
+
+[resource]
+seamless = true
+as_normal_map = true
+bump_strength = 5.0
+noise = ExtResource("1_5g0ue")

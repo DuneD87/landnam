@@ -167,6 +167,7 @@ func setup_voxel_generator() -> void:
 		voxel_terrain.generator = load(terrain_generator_path).duplicate(true)
 	else:
 		voxel_terrain.generator = voxel_terrain.generator.duplicate(true)
+		
 	var graph_generator: VoxelGeneratorGraph = voxel_terrain.generator
 
 	if not graph_generator is VoxelGeneratorGraph:

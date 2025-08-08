@@ -9,6 +9,7 @@ enum ComputeMode {
 @export var default_material: Material
 @export var compute_mode: ComputeMode = ComputeMode.GPU
 @export var preload_compute_shader: bool = true
+@export var atmosphere_height: float = 1000.0
 @export var radius: float
 @export var sub_divisions: int = 32
 
@@ -202,8 +203,10 @@ func get_statistics() -> Dictionary:
 	
 func _process(delta: float) -> void:
 	var camera = get_viewport().get_camera_3d()
+	if !camera:
+		return
 	var distance = camera.global_position.distance_to(global_position)
-	if distance > (radius + 500):
+	if distance > (radius + atmosphere_height):
 		default_material.render_priority = 0
 	else:
 		default_material.render_priority = 1
