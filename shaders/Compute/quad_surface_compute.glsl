@@ -148,19 +148,6 @@ void main() {
 	vec3 vertex_world_position = quad_pos + plane_position;
 	vec3 spherical_position = normalize(vertex_world_position) * sphere_radius;
 	
-	if (enable_noise) {
-		float noise_value = fbm(
-			spherical_position,
-			params.noise_params1.y,  // frequency
-			params.noise_params1.x,  // amplitude
-			int(params.noise_params1.z),  // octaves
-			params.noise_params1.w,  // lacunarity
-			params.noise_params2.x   // gain
-		);
-		vec3 sphere_normal = normalize(spherical_position);
-		spherical_position += sphere_normal * noise_value;
-	}
-	
 	// Convert to local position relative to quad
 	vec3 local_position = spherical_position - quad_pos;
 	
@@ -174,63 +161,8 @@ void main() {
 	vertex_buffer.vertices[vertex_offset + 2] = local_position.z;
 	
 	// Calculate normal correctly taking noise into account
-	vec3 normal;
-	
-	if (enable_noise) {
-		// Calculate neighboring positions for finite differences
-		float epsilon = step; // Use step size for finite differences
-		
-		// Calculate neighboring positions in quad space
-		vec3 plane_pos_right = face_right * (local_x + epsilon) + face_up * local_y + face_normal * (sphere_radius / 2.0);
-		vec3 plane_pos_left = face_right * (local_x - epsilon) + face_up * local_y + face_normal * (sphere_radius / 2.0);
-		vec3 plane_pos_up = face_right * local_x + face_up * (local_y + epsilon) + face_normal * (sphere_radius / 2.0);
-		vec3 plane_pos_down = face_right * local_x + face_up * (local_y - epsilon) + face_normal * (sphere_radius / 2.0);
-		
-		// Calculate world positions for neighbors
-		vec3 world_pos_right = quad_pos + plane_pos_right;
-		vec3 world_pos_left = quad_pos + plane_pos_left;
-		vec3 world_pos_up = quad_pos + plane_pos_up;
-		vec3 world_pos_down = quad_pos + plane_pos_down;
-		
-		// Project to sphere and apply noise
-		vec3 sphere_pos_right = normalize(world_pos_right) * sphere_radius;
-		vec3 sphere_pos_left = normalize(world_pos_left) * sphere_radius;
-		vec3 sphere_pos_up = normalize(world_pos_up) * sphere_radius;
-		vec3 sphere_pos_down = normalize(world_pos_down) * sphere_radius;
-		
-		// Apply noise to neighboring positions
-		float noise_right = fbm(sphere_pos_right, params.noise_params1.y, params.noise_params1.x, 
-								int(params.noise_params1.z), params.noise_params1.w, params.noise_params2.x);
-		float noise_left = fbm(sphere_pos_left, params.noise_params1.y, params.noise_params1.x,
-							   int(params.noise_params1.z), params.noise_params1.w, params.noise_params2.x);
-		float noise_up = fbm(sphere_pos_up, params.noise_params1.y, params.noise_params1.x,
-							 int(params.noise_params1.z), params.noise_params1.w, params.noise_params2.x);
-		float noise_down = fbm(sphere_pos_down, params.noise_params1.y, params.noise_params1.x,
-							   int(params.noise_params1.z), params.noise_params1.w, params.noise_params2.x);
-		
-		// Apply displacement to neighboring positions
-		sphere_pos_right += normalize(sphere_pos_right) * noise_right;
-		sphere_pos_left += normalize(sphere_pos_left) * noise_left;
-		sphere_pos_up += normalize(sphere_pos_up) * noise_up;
-		sphere_pos_down += normalize(sphere_pos_down) * noise_down;
-		
-		// Calculate tangent vectors using finite differences
-		vec3 tangent_x = normalize(sphere_pos_right - sphere_pos_left);
-		vec3 tangent_y = normalize(sphere_pos_up - sphere_pos_down);
-		
-		// Calculate normal as cross product (matching CPU version order)
-		normal = normalize(cross(tangent_y, tangent_x));
-		
-		// Ensure normal points outward from sphere center
-		vec3 sphere_normal = normalize(spherical_position);
-		if (dot(normal, sphere_normal) < 0.0) {
-			normal = -normal;
-		}
-	} else {
-		// When noise is disabled, use simple sphere normal
-		normal = normalize(spherical_position);
-	}
-	
+	vec3 normal = normalize(spherical_position);;
+
 	// Write normal
 	normal_buffer.normals[vertex_offset] = normal.x;
 	normal_buffer.normals[vertex_offset + 1] = normal.y;

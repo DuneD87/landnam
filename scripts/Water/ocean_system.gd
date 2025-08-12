@@ -1,6 +1,17 @@
-@tool
 extends Node3D
-class_name OceanSystemUpdated
+class_name OceanSystem
+@export_group("Underwater settings")
+@export var fog_density: float = 0.5
+@export var fog_color: Color = Color(0.7, 0.8, 0.9, 1.0)
+@export var absorption: float = 0.3
+@export var scattering: float = 0.2
+@export var noise_scale: float = 2.0
+@export var noise_speed: float = 0.1
+@export var scale_modifier: float = 1.0
+@export var max_steps: int = 64
+@export var step_size: float = 0.1
+
+@export_group("Water settings")
 @export var radius: float = 40000;
 @export var sub_divisions: int = 32
 @export var max_lod: int
@@ -13,11 +24,27 @@ class_name OceanSystemUpdated
 @export var wireframe_material: Material
 @export var show_stats: bool = true
 
+@onready var underwater: Underwater = $Underwater
+
 var quadtree_manager: QuadTreeManager
 var mesh_manager: QuadTreeMeshManager
 var stats_label: Label
 
-func _ready():
+func load_watersphere():
+	underwater.fog_density = fog_density
+	underwater.fog_color = fog_color
+	underwater.absorption = absorption
+	underwater.scattering = scattering
+	underwater.noise_scale = noise_scale
+	underwater.noise_speed = noise_speed
+	underwater.max_steps = max_steps
+	underwater.step_size = step_size
+	#underwater.sphere_position = global_position
+	radius = radius * 0.9985
+
+	underwater.volume_height = radius
+	underwater.sphere_radius = radius
+	underwater.setup_underwater()
 	_setup_managers()
 	_setup_ui()
 	if !enable_wireframe:

@@ -1,5 +1,4 @@
 shader_type spatial;
-
 #include "res://shaders/terrain/terrain_utils.gdshaderinc"
 #include "res://shaders/terrain//virtual_texturing.gdshaderinc"
 

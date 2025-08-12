@@ -1,7 +1,8 @@
-[gd_scene load_steps=16 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=17 format=3 uid="uid://cuv6mxdmxyw00"]
 
 [ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
 [ext_resource type="VoxelGeneratorGraph" uid="uid://0mpmu03pwgj8" path="res://graph_functions/earth_terrain_terraces.tres" id="2_glvix"]
+[ext_resource type="PackedScene" uid="uid://b6pco1ld8rlnu" path="res://scenes/WaterSphere.tscn" id="6_lyhrk"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="8_4hxn6"]
 [ext_resource type="Shader" uid="uid://cjvu0r1fglbyl" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
 [ext_resource type="Script" uid="uid://dv1orhbbx7v5" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
@@ -152,7 +153,7 @@ void fragment() {
 "
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_8gh3j"]
-render_priority = 2
+render_priority = 0
 shader = SubResource("Shader_wsymg")
 shader_parameter/u_transition_mask = 0
 shader_parameter/radius = 0.0
@@ -209,6 +210,11 @@ scale = Vector3(100, 200, 100)
 [node name="Node3D" type="Node3D"]
 script = ExtResource("1_8l55o")
 config_file_path = "res://data/planet/default.json"
+
+[node name="WaterSphere" parent="." instance=ExtResource("6_lyhrk")]
+max_steps = 32
+step_size = 5.0
+sub_divisions = 32
 
 [node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
 stream = SubResource("VoxelStreamMemory_as11c")

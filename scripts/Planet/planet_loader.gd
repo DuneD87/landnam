@@ -78,7 +78,9 @@ func _load_planet() -> void:
 	planet.setup_shader_parameters()
 	planet.setup_voxel_generator()
 	planet._load_vegetation()
-	
+	if planet_parser.has_water:
+		water_sphere.radius = planet.radius - planet_parser.water_level
+		water_sphere.load_watersphere()
 	#water_material = water_sphere.quadtree_material
 	# Render priority
 	#water_material.render_priority = 1

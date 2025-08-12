@@ -6,4 +6,3 @@ uniform float u_atmosphere_height = 0.1;
 uniform vec3 u_sun_position = vec3(0.0, 0.0, 0.0);
 
 #endif // PLANET_COMMON_INCLUDED
-

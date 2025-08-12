@@ -208,7 +208,7 @@ func _dispatch_compute():
 	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 	push_constant[0] = 0
-	rd.compute_list_set_push_constant(compute_list, push_constant.to_byte_array(), 4)
+	#rd.compute_list_set_push_constant(compute_list, push_constant.to_byte_array(), 4)
 	
 	# Dispatch for vertices (grid of vertices)
 	var groups_x = (quad_resolution) / 16
@@ -226,7 +226,7 @@ func _dispatch_compute():
 	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 	push_constant[0] = 1
-	rd.compute_list_set_push_constant(compute_list, push_constant.to_byte_array(), 4)
+	#rd.compute_list_set_push_constant(compute_list, push_constant.to_byte_array(), 4)
 	
 	# Dispatch for triangles - treat as 1D
 	var total_triangles = quad_resolution * quad_resolution * 2
@@ -238,14 +238,14 @@ func _dispatch_compute():
 	rd.sync()
 	
 	# Add memory barrier between passes
-	rd.barrier(RenderingDevice.BARRIER_MASK_COMPUTE)
+	#rd.barrier(RenderingDevice.BARRIER_MASK_COMPUTE)
 	
 	# PASS 3: Normalize normals
 	compute_list = rd.compute_list_begin()
 	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 	push_constant[0] = 2
-	rd.compute_list_set_push_constant(compute_list, push_constant.to_byte_array(), 4)
+	#rd.compute_list_set_push_constant(compute_list, push_constant.to_byte_array(), 4)
 	
 	# Dispatch for vertices - treat as 1D
 	var total_vertices = (quad_resolution + 1) * (quad_resolution + 1)
