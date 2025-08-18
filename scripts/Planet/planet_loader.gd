@@ -8,10 +8,10 @@ enum Action { NONE, SELECT_CONFIG }
 @export var config_file_path: String = ""
 @export var sun_dir: Vector3
 @export var gravity_strength: float = 9.8
-
+@export var players: Array[CharacterBody3D]
 @onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
 @onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
-@onready var water_sphere: Node3D = $WaterSphere
+@onready var water_sphere: OceanSystem = $WaterSphere
 
 var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
@@ -80,11 +80,8 @@ func _load_planet() -> void:
 	planet._load_vegetation()
 	if planet_parser.has_water:
 		water_sphere.radius = planet.radius - planet_parser.water_level
+		water_sphere.player = players[0]
 		water_sphere.load_watersphere()
-	#water_material = water_sphere.quadtree_material
-	# Render priority
-	#water_material.render_priority = 1
-#	print(water_sphere.global_position)
 		
 func _on_file_selected(path: String) -> void:
 	config_file_path = path

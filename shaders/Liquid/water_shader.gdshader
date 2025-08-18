@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_back, shadows_disabled;
+render_mode cull_back, unshaded, depth_prepass_alpha;
 
 uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;

@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=15 format=3 uid="uid://cuv6mxdmxyw00"]
 
 [ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
 [ext_resource type="VoxelGeneratorGraph" uid="uid://0mpmu03pwgj8" path="res://graph_functions/earth_terrain_terraces.tres" id="2_glvix"]
@@ -203,10 +203,6 @@ noise = SubResource("FastNoiseLite_16ssy")
 resolution = 256
 scale = Vector3(100, 200, 100)
 
-[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_q3k3y"]
-
-[sub_resource type="VoxelGIData" id="VoxelGIData_emehp"]
-
 [node name="Node3D" type="Node3D"]
 script = ExtResource("1_8l55o")
 config_file_path = "res://data/planet/default.json"
@@ -214,7 +210,8 @@ config_file_path = "res://data/planet/default.json"
 [node name="WaterSphere" parent="." instance=ExtResource("6_lyhrk")]
 max_steps = 32
 step_size = 5.0
-sub_divisions = 32
+subdivision_factor = 1.0
+max_lod = 2
 
 [node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
 stream = SubResource("VoxelStreamMemory_as11c")
@@ -250,8 +247,3 @@ shader_params/u_cloud_coverage_bias = 0.05
 shader_params/u_cloud_shape_factor = 0.1
 shader_params/u_cloud_shape_scale = 1.0
 shader_params/u_cloud_coverage_cubemap = SubResource("Cubemap_0ctpe")
-
-[node name="VoxelGI" type="VoxelGI" parent="."]
-size = Vector3(10000, 10000, 10000)
-camera_attributes = SubResource("CameraAttributesPractical_q3k3y")
-data = SubResource("VoxelGIData_emehp")

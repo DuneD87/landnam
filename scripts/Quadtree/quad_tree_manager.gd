@@ -5,9 +5,10 @@ signal quadtree_changed(active_quad_data: Array)
 
 @export var radius: float = 20000.0
 @export var auto_update: bool = true
-
+@export var max_lod: int
+@export var subdivision_factor: float
+@export var player: CharacterBody3D
 var root_quads: Array[QuadNode] = []
-@export var camera: Camera3D
 var last_camera_position: Vector3
 var update_threshold: float = 20.0
 
@@ -52,11 +53,27 @@ var cube_faces = [
 ]
 
 func _ready():
-	camera = get_parent().camera
 	_create_root_quads()
-	_find_camera()
 
 func _create_root_quads():
+	'var face_data = cube_faces[1]
+	var face_center = face_data.normal * (radius * 0.5)
+	var root_quad = QuadNode.new()
+	root_quad.setup(
+		face_center,          # position
+		radius,              # size
+		0,                      # level
+		null,                   # parent_node
+		face_data.normal,       # normal
+		face_data.up,           # up
+		face_data.right,         # right
+		radius
+	)
+
+	root_quad.name = "QuadRoot_" + face_data.name
+	
+	add_child(root_quad)
+	root_quads.append(root_quad)'
 	for face_data in cube_faces:
 		var face_center = face_data.normal * (radius * 0.5)
 
@@ -71,20 +88,15 @@ func _create_root_quads():
 			face_data.right,         # right
 			radius
 		)
-
+		root_quad.max_level = max_lod
+		root_quad.subdivision_factor = subdivision_factor
 		root_quad.name = "QuadRoot_" + face_data.name
 		
 		add_child(root_quad)
 		root_quads.append(root_quad)
 
-func _find_camera():
-	camera = get_viewport().get_camera_3d()
-
 func _process(_delta):
-	if not auto_update or not camera:
-		return
-	
-	var camera_pos = camera.global_position
+	var camera_pos = player.camera.global_position
 	
 	if camera_pos.distance_to(last_camera_position) > update_threshold:
 		_update_quadtree(camera_pos)
@@ -121,7 +133,6 @@ func _collect_active_quads(node: QuadNode, data_array: Array):
 				_collect_active_quads(child, data_array)
 
 func _update_quadtree(camera_position: Vector3):	
-	# Actualizar LOD para todas las caras
 	for root_quad in root_quads:
 		root_quad.update_lod(camera_position, global_position)
 	

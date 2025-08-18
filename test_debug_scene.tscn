@@ -22,7 +22,7 @@ glow_enabled = true
 environment = SubResource("Environment_rtsos")
 
 [node name="CharacterBody3D" type="CharacterBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1000)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 30000, 0)
 script = ExtResource("3_05phx")
 move_speed = 50.0
 speed_increase = 10.0
@@ -33,7 +33,11 @@ far = 400000.0
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 
-[node name="WaterSphere" parent="." instance=ExtResource("2_1olso")]
+[node name="WaterSphere" parent="." node_paths=PackedStringArray("player") instance=ExtResource("2_1olso")]
 max_steps = 32
-radius = 1000.0
+player = NodePath("../CharacterBody3D")
+radius = 30000.0
+subdivision_factor = 0.5
 atmosphere_height = 100.0
+enable_wireframe = true
+debug = true

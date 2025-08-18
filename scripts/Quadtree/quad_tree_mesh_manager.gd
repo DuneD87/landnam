@@ -12,7 +12,7 @@ enum ComputeMode {
 @export var atmosphere_height: float = 1000.0
 @export var radius: float
 @export var sub_divisions: int = 32
-
+@export var player: CharacterBody3D
 var active_quads: Dictionary = {}
 var quad_tree_manager: Node3D
 
@@ -202,7 +202,7 @@ func get_statistics() -> Dictionary:
 	return stats
 	
 func _process(delta: float) -> void:
-	var camera = get_viewport().get_camera_3d()
+	var camera = player.camera
 	if !camera:
 		return
 	var distance = camera.global_position.distance_to(global_position)

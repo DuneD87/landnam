@@ -12,14 +12,16 @@ class_name OceanSystem
 @export var step_size: float = 0.1
 
 @export_group("Water settings")
+@export var player: CharacterBody3D
 @export var radius: float = 40000;
 @export var sub_divisions: int = 32
-@export var max_lod: int
+@export var subdivision_factor: float = 2.0
+@export var max_lod: int = 5
 @export var atmosphere_height: float = 1000.0
 @export var enable_wireframe: bool = false
 @export var use_gpu_compute: bool = true
 @export var camera: Camera3D
-
+@export var debug: bool = false
 @export var quadtree_material: Material
 @export var wireframe_material: Material
 @export var show_stats: bool = true
@@ -29,6 +31,10 @@ class_name OceanSystem
 var quadtree_manager: QuadTreeManager
 var mesh_manager: QuadTreeMeshManager
 var stats_label: Label
+
+func _ready() -> void:
+	if debug:
+		load_watersphere()
 
 func load_watersphere():
 	underwater.fog_density = fog_density
@@ -65,7 +71,11 @@ func _setup_managers():
 	
 	mesh_manager.sub_divisions = sub_divisions
 	mesh_manager.atmosphere_height = atmosphere_height
+	mesh_manager.player = player
 	quadtree_manager.radius = radius
+	quadtree_manager.max_lod = max_lod
+	quadtree_manager.subdivision_factor = subdivision_factor
+	quadtree_manager.player = player
 	mesh_manager.radius = radius
 
 	add_child(quadtree_manager)
