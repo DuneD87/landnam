@@ -37,7 +37,7 @@ func _ready() -> void:
 		load_watersphere()
 
 func load_watersphere():
-	underwater.fog_density = fog_density
+	'underwater.fog_density = fog_density
 	underwater.fog_color = fog_color
 	underwater.absorption = absorption
 	underwater.scattering = scattering
@@ -50,7 +50,7 @@ func load_watersphere():
 
 	underwater.volume_height = radius
 	underwater.sphere_radius = radius
-	underwater.setup_underwater()
+	underwater.setup_underwater()'
 	_setup_managers()
 	_setup_ui()
 	if !enable_wireframe:

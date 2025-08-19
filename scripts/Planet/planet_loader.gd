@@ -11,7 +11,7 @@ enum Action { NONE, SELECT_CONFIG }
 @export var players: Array[CharacterBody3D]
 @onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
 @onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
-@onready var water_sphere: OceanSystem = $WaterSphere
+@export var water_sphere: OceanSystem
 
 var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
@@ -79,9 +79,19 @@ func _load_planet() -> void:
 	planet.setup_voxel_generator()
 	planet._load_vegetation()
 	if planet_parser.has_water:
+		water_sphere = OceanSystem.new()
+		add_child(water_sphere)
+		water_sphere.subdivision_factor = 0.5
+		water_sphere.max_lod = 4.0
+		water_sphere.sub_divisions = 16
 		water_sphere.radius = planet.radius - planet_parser.water_level
 		water_sphere.player = players[0]
+		water_sphere.quadtree_material = load("res://data/resources/WaterSphere_material.tres")
+		water_sphere.wireframe_material = load("res://data/resources/WaterSphere_wireframe_material.tres")
+		
 		water_sphere.load_watersphere()
+
+		
 		
 func _on_file_selected(path: String) -> void:
 	config_file_path = path

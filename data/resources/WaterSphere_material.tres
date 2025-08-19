@@ -1,0 +1,75 @@
+[gd_resource type="ShaderMaterial" load_steps=8 format=3 uid="uid://cyoolrj4g2q5i"]
+
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="1_8rr25"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_th24p"]
+noise_type = 3
+frequency = 0.005
+fractal_type = 2
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_rqd8l"]
+seamless = true
+as_normal_map = true
+noise = SubResource("FastNoiseLite_th24p")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_rqd8l"]
+noise_type = 3
+seed = 10
+frequency = 0.005
+fractal_type = 2
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_mq8mb"]
+seamless = true
+as_normal_map = true
+noise = SubResource("FastNoiseLite_rqd8l")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ckor0"]
+noise_type = 3
+frequency = 0.001
+fractal_type = 2
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_th24p"]
+seamless = true
+noise = SubResource("FastNoiseLite_ckor0")
+
+[resource]
+render_priority = 3
+shader = ExtResource("1_8rr25")
+shader_parameter/albedo = Color(0, 0.321569, 0.431373, 1)
+shader_parameter/albedo2 = Color(0, 0.321569, 0.431373, 1)
+shader_parameter/metallic = 0.0
+shader_parameter/roughness = 0.02
+shader_parameter/texture_normal = SubResource("NoiseTexture2D_rqd8l")
+shader_parameter/texture_normal2 = SubResource("NoiseTexture2D_mq8mb")
+shader_parameter/wave = SubResource("NoiseTexture2D_th24p")
+shader_parameter/wave_direction = Vector2(1, 0)
+shader_parameter/wave_direction2 = Vector2(0, 0.5)
+shader_parameter/time_scale = 0.025
+shader_parameter/noise_scale = 5.0
+shader_parameter/height_scale = 5.0
+shader_parameter/normal_scale1 = 2.0
+shader_parameter/normal_scale2 = 2.3
+shader_parameter/normal_scale3 = 7.8
+shader_parameter/normal_intensity = 1.0
+shader_parameter/wave_speed = 1.0
+shader_parameter/wave_amplitude = 1.0
+shader_parameter/wave_frequency = 0.2
+shader_parameter/color_deep = Color(0, 0.12549, 0.431373, 1)
+shader_parameter/color_shallow = Color(0.709571, 0.738181, 1, 1)
+shader_parameter/beers_law = 2.0
+shader_parameter/depth_offset = 0.0
+shader_parameter/edge_scale = 10.0
+shader_parameter/near = 1.0
+shader_parameter/far = 10000.0
+shader_parameter/edge_color = Color(0.763666, 0.813248, 0.99298, 1)
+shader_parameter/edge_fade_distance = 10.0
+shader_parameter/edge_max_alpha = 1.0
+shader_parameter/edge_min_alpha = 0.0
+shader_parameter/view_opacity_start = 1.0
+shader_parameter/view_opacity_end = 1000.0
+shader_parameter/view_opacity_power = 0.15
+shader_parameter/sky_color_horizon = Color(0, 0.25461, 0.439575, 1)
+shader_parameter/sky_color_zenith = Color(0.0747248, 0.192927, 0.431428, 1)
+shader_parameter/sky_influence = 1.0
+shader_parameter/sky_fresnel_power = 3.0
+shader_parameter/sky_gradient_power = 2.0
