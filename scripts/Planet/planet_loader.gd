@@ -3,7 +3,7 @@ extends Node
 
 enum Action { NONE, SELECT_CONFIG }
 
-@export_group("Config Planet")
+@export_group("Planet")
 @export var sun_path : DirectionalLight3D
 @export var config_file_path: String = ""
 @export var sun_dir: Vector3
@@ -82,8 +82,9 @@ func _load_planet() -> void:
 		water_sphere = OceanSystem.new()
 		add_child(water_sphere)
 		water_sphere.subdivision_factor = 0.5
-		water_sphere.max_lod = 4.0
-		water_sphere.sub_divisions = 16
+		water_sphere.max_lod = 5
+		water_sphere.sub_divisions = 32
+		#water_sphere.enable_wireframe = true
 		water_sphere.radius = planet.radius - planet_parser.water_level
 		water_sphere.player = players[0]
 		water_sphere.quadtree_material = load("res://data/resources/WaterSphere_material.tres")
@@ -137,5 +138,6 @@ func _process(_delta: float) -> void:
 	if planet != null:
 		planet.sun_dir = sun_dir
 		planet._update_planet()
+		water_sphere.sun_dir = sun_dir
 #		water_material.set_shader_parameter("light_direction", sun_dir)
 	pass

@@ -34,6 +34,30 @@ class_name PlanetParser extends Node3D
 @export var wind_direction: Vector3 = Vector3.ZERO
 @export var has_clouds: bool = true
 
+@export_group("Underwater settings")
+@export var fog_density: float = 0.5
+@export var fog_color: Color = Color(0.3, 0.2, 0.8, 1.0)
+@export var absorption: float = 0.3
+@export var scattering: float = 0.2
+@export var noise_scale: float = 2.0
+@export var noise_speed: float = 0.1
+@export var scale_modifier: float = 1.0
+@export var max_steps: int = 0
+@export var step_size: float = 0
+
+@export_group("Water settings")
+@export var player: CharacterBody3D
+@export var sub_divisions: int = 32
+@export var subdivision_factor: float = 2.0
+@export var max_lod: int = 5
+@export var enable_wireframe: bool = false
+@export var use_gpu_compute: bool = true
+@export var camera: Camera3D
+@export var debug: bool = false
+@export var quadtree_material: Material
+@export var wireframe_material: Material
+@export var show_stats: bool = true
+
 func _init(_sun: DirectionalLight3D) -> void:
 	print("Planet parser initialized")
 

@@ -202,10 +202,9 @@ noise = SubResource("FastNoiseLite_16ssy")
 resolution = 256
 scale = Vector3(100, 200, 100)
 
-[node name="Node3D" type="Node3D" node_paths=PackedStringArray("water_sphere")]
+[node name="Node3D" type="Node3D"]
 script = ExtResource("1_8l55o")
 config_file_path = "res://data/planet/default.json"
-water_sphere = NodePath("")
 
 [node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
 stream = SubResource("VoxelStreamMemory_as11c")

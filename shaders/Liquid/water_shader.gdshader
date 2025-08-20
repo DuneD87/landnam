@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_back, unshaded, depth_prepass_alpha;
+render_mode blend_mix,shadows_disabled,diffuse_burley,specular_schlick_ggx, depth_prepass_alpha;
 
 uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
@@ -187,7 +187,7 @@ void fragment() {
     vec3 depth_color_adj;
     
     // MODIFICACIÓN: Alpha y color progresivos hacia el borde
-    if (z_dif < edge_fade_distance && distance(CAMERA_POSITION_WORLD, world_pos) < 1000.0) {
+    if (z_dif < edge_fade_distance && distance(CAMERA_POSITION_WORLD, world_pos) < view_opacity_end) {
         // Calcular factor de fade basado en la distancia al borde
         float fade_factor = clamp(z_dif / edge_fade_distance, 0.0, 1.0);
         

@@ -1,15 +1,16 @@
 extends Node3D
 class_name OceanSystem
 @export_group("Underwater settings")
-@export var fog_density: float = 0.5
-@export var fog_color: Color = Color(0.7, 0.8, 0.9, 1.0)
-@export var absorption: float = 0.3
-@export var scattering: float = 0.2
+@export var fog_density: float = 20.0
+@export var fog_color: Color = Color("00526e")
+@export var absorption: float = 3.5
+@export var scattering: float = 0.1
 @export var noise_scale: float = 2.0
-@export var noise_speed: float = 0.1
+@export var noise_speed: float = 1.0
 @export var scale_modifier: float = 1.0
-@export var max_steps: int = 64
-@export var step_size: float = 0.1
+@export var max_steps: int = 8
+@export var step_size: float = 1
+@export var sun_dir: Vector3
 
 @export_group("Water settings")
 @export var player: CharacterBody3D
@@ -26,7 +27,7 @@ class_name OceanSystem
 @export var wireframe_material: Material
 @export var show_stats: bool = true
 
-@onready var underwater: Underwater = $Underwater
+@export var underwater: Underwater
 
 var quadtree_manager: QuadTreeManager
 var mesh_manager: QuadTreeMeshManager
@@ -37,7 +38,9 @@ func _ready() -> void:
 		load_watersphere()
 
 func load_watersphere():
-	'underwater.fog_density = fog_density
+	underwater = Underwater.new()
+	add_child(underwater)
+	underwater.fog_density = fog_density
 	underwater.fog_color = fog_color
 	underwater.absorption = absorption
 	underwater.scattering = scattering
@@ -45,12 +48,10 @@ func load_watersphere():
 	underwater.noise_speed = noise_speed
 	underwater.max_steps = max_steps
 	underwater.step_size = step_size
-	#underwater.sphere_position = global_position
-	radius = radius * 0.9985
 
 	underwater.volume_height = radius
 	underwater.sphere_radius = radius
-	underwater.setup_underwater()'
+	underwater.setup_underwater()
 	_setup_managers()
 	_setup_ui()
 	if !enable_wireframe:
