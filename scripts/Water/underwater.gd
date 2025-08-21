@@ -4,10 +4,10 @@ class_name Underwater
 # Core volume parameters
 @export var sphere_radius: float = 10000
 @export var volume_height := 10.0
-
+@export var sun_direction: Vector3
 # Fog parameters
 @export_group("Fog Settings")
-@export var fog_density: float = 0.8
+@export var fog_density: float = 1.8
 @export var fog_color: Color = Color(0.7, 0.8, 0.9, 1.0)
 @export var absorption: float = 0.2
 @export var scattering: float = 0.4
@@ -54,3 +54,8 @@ func setup_underwater() -> void:
 	material.set_shader_parameter(&"step_size", step_size)
 	material.set_shader_parameter(&"u_sphere_radius", sphere_radius)
 	material.set_shader_parameter(&"u_volume_height", volume_height)
+	material.set_shader_parameter(&"sun_direction", sun_direction)
+
+func _process(delta: float) -> void:
+	var material = _mesh_instance.material_override as ShaderMaterial
+	material.set_shader_parameter(&"sun_direction", sun_direction)

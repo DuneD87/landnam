@@ -96,6 +96,8 @@ func _create_root_quads():
 		root_quads.append(root_quad)
 
 func _process(_delta):
+	if Engine.is_editor_hint():
+		return
 	var camera_pos = player.camera.global_position
 	
 	if camera_pos.distance_to(last_camera_position) > update_threshold:

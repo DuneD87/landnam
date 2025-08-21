@@ -14,6 +14,3 @@ wireframe_material = ExtResource("3_rqd8l")
 
 [node name="Underwater" type="Node3D" parent="."]
 script = ExtResource("4_th24p")
-fog_density = 0.5
-absorption = 0.3
-scattering = 0.2

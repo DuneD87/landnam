@@ -52,7 +52,7 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.slope_texture = planet_parser.slope_texture
 	planet.slope_normal_texture = planet_parser.slope_normal_texture
 	planet.slope_roughness_texture = planet_parser.slope_roughness_texture
-	
+	planet.has_water = planet_parser.has_water
 	planet.atmosphere_radius = planet_parser.atmosphere_radius
 	print("Atmosphere radius: ", planet.atmosphere_radius)
 	planet.atmosphere_density = planet_parser.atmosphere_density
@@ -60,11 +60,6 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.atmosphere_scattering = planet_parser.atmosphere_scattering
 	planet.atmosphere_modulate = planet_parser.atmosphere_modulate
 	planet.has_clouds = planet_parser.has_clouds
-	
-	var shader_material = ShaderMaterial.new()
-	shader_material.shader = load("res://shaders/terrain/planet_biomes.gdshader").duplicate(true)
-	planet.shader_material = shader_material
-
 	planet.vegetation = planet_parser.vegetation
 	planet.wind_direction = planet_parser.wind_direction
 	planet.sun = sun_path
@@ -138,6 +133,7 @@ func _process(_delta: float) -> void:
 	if planet != null:
 		planet.sun_dir = sun_dir
 		planet._update_planet()
-		water_sphere.sun_dir = sun_dir
+		if planet.has_water:
+			water_sphere.sun_dir = sun_dir
 #		water_material.set_shader_parameter("light_direction", sun_dir)
 	pass

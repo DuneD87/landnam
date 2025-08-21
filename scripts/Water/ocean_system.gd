@@ -1,14 +1,14 @@
 extends Node3D
 class_name OceanSystem
 @export_group("Underwater settings")
-@export var fog_density: float = 20.0
+@export var fog_density: float = 0.1
 @export var fog_color: Color = Color("00526e")
-@export var absorption: float = 3.5
-@export var scattering: float = 0.1
-@export var noise_scale: float = 2.0
+@export var absorption: float = 0.1
+@export var scattering: float = 0.001
+@export var noise_scale: float = 0.5
 @export var noise_speed: float = 1.0
 @export var scale_modifier: float = 1.0
-@export var max_steps: int = 8
+@export var max_steps: int = 32
 @export var step_size: float = 1
 @export var sun_dir: Vector3
 
@@ -38,20 +38,22 @@ func _ready() -> void:
 		load_watersphere()
 
 func load_watersphere():
-	underwater = Underwater.new()
-	add_child(underwater)
-	underwater.fog_density = fog_density
-	underwater.fog_color = fog_color
-	underwater.absorption = absorption
-	underwater.scattering = scattering
-	underwater.noise_scale = noise_scale
-	underwater.noise_speed = noise_speed
-	underwater.max_steps = max_steps
-	underwater.step_size = step_size
+	if !Engine.is_editor_hint():
+		underwater = Underwater.new()
+		add_child(underwater)
+		underwater.fog_density = fog_density
+		underwater.fog_color = fog_color
+		underwater.absorption = absorption
+		underwater.scattering = scattering
+		underwater.noise_scale = noise_scale
+		underwater.noise_speed = noise_speed
+		underwater.max_steps = max_steps
+		underwater.step_size = step_size
 
-	underwater.volume_height = radius
-	underwater.sphere_radius = radius
-	underwater.setup_underwater()
+		underwater.volume_height = radius
+		underwater.sphere_radius = radius
+		underwater.setup_underwater()
+		
 	_setup_managers()
 	_setup_ui()
 	if !enable_wireframe:
@@ -99,6 +101,8 @@ func _setup_ui():
 		canvas_layer.add_child(stats_label)
 
 func _process(_delta):
+	if underwater:
+		underwater.sun_direction = sun_dir
 	if show_stats and stats_label:
 		_update_stats()
 

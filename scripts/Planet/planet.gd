@@ -23,7 +23,7 @@ class_name Planet extends Node3D
 
 @export var item_transparent_materials : Array[Dictionary]
 @export var shader_material: ShaderMaterial
-
+@export var caustics_material: ShaderMaterial
 @export var multi_mesh_array: Array[Dictionary] = []
 
 @export_group("Atmosphere settings")
@@ -40,6 +40,7 @@ class_name Planet extends Node3D
 @export var atmosphere_node: Node3D
 @export var voxel_instancer: VoxelInstancer
 @export var sun : DirectionalLight3D
+@export var has_water: bool
 
 func _build_generator(generator_config: Dictionary, graph_functions: Array) -> VoxelInstanceGenerator:
 	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
@@ -125,9 +126,10 @@ func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
 	shader_material = ShaderMaterial.new()
 	shader_material.shader = load("res://shaders/terrain/planet_biomes.gdshader")
 	
+	
 func setup_shader_parameters() -> void:
 	voxel_terrain.material = shader_material
-	shader_material.render_priority = 0
+
 	shader_material.set_shader_parameter("transition_smoothness", 30)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
 	planet_position = voxel_terrain.get_parent().position

@@ -202,6 +202,8 @@ func get_statistics() -> Dictionary:
 	return stats
 	
 func _process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
 	var camera = player.camera
 	if !camera:
 		return
