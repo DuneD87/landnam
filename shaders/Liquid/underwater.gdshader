@@ -3,21 +3,41 @@ render_mode unshaded;
 uniform float u_sphere_radius = 5.0;
 uniform vec3 sun_direction = vec3(1.0, 0.0, 0.0);
 uniform vec4 fog_color : source_color = vec4(0.7, 0.8, 0.9, 1.0);
-uniform vec4 deep_fog_color : source_color = vec4(0.5, 0.2, 0.3, 1.0); // Nuevo color para aguas profundas
+uniform vec4 deep_fog_color : source_color = vec4(0.1, 0.2, 0.3, 1.0);
+uniform vec4 abyss_fog_color : source_color = vec4(0.1, 0.1, 0.15, 1.0);
 uniform float fog_density : hint_range(0.0, 1.0) = 0.5;
-uniform float depth_attenuation : hint_range(0.0, 2.0) = 0.001; // Controla qué tan rápido se oscurece con la profundidad
-uniform float min_terrain_depth =  10.0;
+uniform float camera_depth_attenuation : hint_range(0.0, 2.0) = 0.5;
+uniform float max_useful_depth = 500.0;
+uniform float deep_transition_depth = 100.0;
+uniform float abyss_transition_depth = 250.0;
+
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear_mipmap;
 
-// Parámetros para efectos cáusticos
 uniform float caustic_intensity : hint_range(0.0, 5.0) = 0.2;
 uniform float caustic_scale : hint_range(0.1, 10.0) = 0.2;
 uniform float caustic_speed : hint_range(0.0, 2.0) = 0.1;
 uniform float caustic_contrast : hint_range(0.1, 5.0) = 1.5;
 uniform float caustics_depth_factor : hint_range(0.1, 1.0) = 0.2;
+
 varying vec3 v_volume_center_viewspace;
 varying vec3 v_ray_origin;
 varying vec3 v_ray_dir;
+varying vec3 v_camera_world_pos;
+varying vec3 v_sphere_center_world;
+varying float v_camera_depth_actual;
+varying float v_camera_depth_factor;
+
+vec3 calculate_depth_fog_color(float depth_meters) {
+    if (depth_meters <= deep_transition_depth) {
+        float t = clamp(depth_meters / deep_transition_depth, 0.0, 1.0);
+        return mix(fog_color.rgb, deep_fog_color.rgb, t);
+    } else if (depth_meters <= abyss_transition_depth) {
+        float t = clamp((depth_meters - deep_transition_depth) / (abyss_transition_depth - deep_transition_depth), 0.0, 1.0);
+        return mix(deep_fog_color.rgb, abyss_fog_color.rgb, t);
+    } else {
+        return abyss_fog_color.rgb;
+    }
+}
 
 vec3 hash3(vec3 p) {
     p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
@@ -25,7 +45,6 @@ vec3 hash3(vec3 p) {
              dot(p, vec3(113.5, 271.9, 124.6)));
     return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
 }
-
 
 float worley3d(vec3 p, float scale) {
     p *= scale;
@@ -50,7 +69,6 @@ float worley3d(vec3 p, float scale) {
     return min_dist;
 }
 
-// Función para generar patrones cáusticos con Worley noise
 float generate_caustics(vec3 world_pos) {
     vec3 sample_pos = world_pos * caustic_scale;
     sample_pos.xz += TIME * caustic_speed * normalize(sun_direction.xz);
@@ -85,11 +103,21 @@ void vertex() {
 
     vec4 world_center = MODEL_MATRIX * vec4(0, 0, 0, 1);
     v_volume_center_viewspace = (VIEW_MATRIX * world_center).xyz;
+    v_sphere_center_world = world_center.xyz / world_center.w;
 
     v_ray_origin = vec3(0.0, 0.0, 0.0);
 
     vec4 vertex_viewspace = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
     v_ray_dir = normalize(vertex_viewspace.xyz);
+    
+    vec4 camera_world = INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0);
+    v_camera_world_pos = camera_world.xyz / camera_world.w;
+    
+    float camera_dist_to_center = length(v_camera_world_pos - v_sphere_center_world);
+    float camera_depth_in_sphere = max(0.0, u_sphere_radius - camera_dist_to_center);
+    
+    v_camera_depth_actual = camera_depth_in_sphere;
+    v_camera_depth_factor = clamp(camera_depth_in_sphere / max_useful_depth, 0.0, 1.0);
 }
 
 void fragment() {
@@ -112,41 +140,33 @@ void fragment() {
     }
 
     float distance_in_fog = t_end - t_start;
-
     float fog_amount = 1.0 - exp(-fog_density * distance_in_fog);
 
     vec4 world_pos_from_view = INV_VIEW_MATRIX * vec4(view_coords.xyz, 1.0);
     vec3 world_pos = world_pos_from_view.xyz / world_pos_from_view.w;
-
-    vec4 sphere_center_world = MODEL_MATRIX * vec4(0, 0, 0, 1);
-    vec3 sphere_center = sphere_center_world.xyz / sphere_center_world.w;
+    
+    vec3 camera_adjusted_fog = calculate_depth_fog_color(v_camera_depth_actual);
+    float camera_attenuation = exp(-v_camera_depth_factor * camera_depth_attenuation);
     
     float caustic_effect = 0.0;
+    float dist_to_center = length(world_pos - v_sphere_center_world);
+    float depth_in_sphere = u_sphere_radius - dist_to_center;
     
-    float dist_to_center = length(world_pos - sphere_center);
-	float depth_in_sphere = u_sphere_radius - dist_to_center;
-	
-    float depth_factor = clamp(depth_in_sphere / min_terrain_depth, 0.0, 1.0);
-	float attenuation = exp(-depth_factor * depth_attenuation);
-
-    if (dist_to_center < u_sphere_radius)
-	{
-	    caustic_effect = generate_caustics(world_pos) * caustic_intensity;
-		float caustic_attenuation = exp(-depth_in_sphere * caustics_depth_factor);
-	    caustic_effect *= caustic_attenuation;
-		attenuation = smoothstep(caustic_attenuation / depth_attenuation, 0.0, 1.0);
-	}
-	
-    vec3 depth_adjusted_fog = mix(fog_color.rgb, deep_fog_color.rgb, 1.0 - attenuation);
-    vec3 final_color = depth_adjusted_fog;
+    if (dist_to_center < u_sphere_radius) {
+        caustic_effect = generate_caustics(world_pos) * caustic_intensity;
+        float caustic_attenuation = exp(-depth_in_sphere * caustics_depth_factor);
+        caustic_effect *= caustic_attenuation;
+    }
+    
+    vec3 final_color = camera_adjusted_fog;
     
     if (caustic_effect > 0.0) {
-        vec3 caustic_color = mix(vec3(1.0), depth_adjusted_fog, 0.3);
-        final_color += caustic_color * caustic_effect * 0.8 * attenuation;
+        vec3 caustic_color = mix(vec3(1.0), camera_adjusted_fog, 0.3);
+        final_color += caustic_color * caustic_effect * 0.8 * camera_attenuation;
     }
 
     ALBEDO = final_color;
     ALPHA = fog_amount * fog_color.a;
 
-    EMISSION = final_color * fog_amount * 0.3 + vec3(caustic_effect * 0.4 * attenuation);
+    EMISSION = final_color * fog_amount * 0.3 + vec3(caustic_effect * 0.4 * camera_attenuation);
 }
