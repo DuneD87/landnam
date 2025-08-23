@@ -18,6 +18,13 @@ uniform float caustic_scale : hint_range(0.1, 10.0) = 0.2;
 uniform float caustic_speed : hint_range(0.0, 2.0) = 0.1;
 uniform float caustic_contrast : hint_range(0.1, 5.0) = 1.5;
 uniform float caustics_depth_factor : hint_range(0.1, 1.0) = 0.2;
+uniform int caustic_iterations : hint_range(3, 8) = 5;
+uniform float caustic_inten_factor : hint_range(0.001, 0.02) = 0.005;
+
+uniform float godray_intensity : hint_range(0.0, 2.0) = 0.4;
+uniform float godray_decay : hint_range(0.5, 1.0) = 0.56;
+uniform float godray_exposure : hint_range(0.0, 1.0) = 0.1;
+uniform int godray_samples : hint_range(20, 100) = 100;
 
 varying vec3 v_volume_center_viewspace;
 varying vec3 v_ray_origin;
@@ -71,7 +78,7 @@ float worley3d(vec3 p, float scale) {
 
 float generate_caustics(vec3 world_pos) {
     vec3 sample_pos = world_pos * caustic_scale;
-    sample_pos.xz += TIME * caustic_speed * normalize(sun_direction.xz);
+    sample_pos.xz += TIME * caustic_speed * sun_direction.xy;
     
     float caustic = 0.0;
     caustic += 1.0 - worley3d(sample_pos, 1.0);
@@ -97,6 +104,58 @@ vec2 ray_sphere(vec3 center, float radius, vec3 ro, vec3 rd) {
     float sqrt_disc = sqrt(discriminant);
     return vec2(-b - sqrt_disc, -b + sqrt_disc);
 }
+
+float caustic_x(float x, float power, float gtime) {
+    float p = mod(x * TAU, TAU) - 250.0;
+    float time = gtime * 0.5 + 23.0;
+    
+    float i = p;
+    float c = 1.0;
+    float inten = 0.005;
+    
+    for (int n = 0; n < 3; n++) {
+        float t = time * (1.0 - (3.5 / float(n + 1)));
+        i = p + cos(t - i) + sin(t + i);
+        c += 1.0 / length(p / (sin(i + t) / inten));
+    }
+    
+    c /= float(caustic_iterations);
+    c = 1.17 - pow(c, power);
+    
+    return c;
+}
+
+float god_rays(vec2 uv, float time) {
+    float light = 0.0;
+    
+    light += pow(caustic_x((uv.x + 0.08 * uv.y) / 1.7 + 0.5, 1.8, time * 0.65), 10.0) * 0.05;
+    light -= pow((1.0 - uv.y) * 0.3, 2.0) * 0.2;
+    light += pow(caustic_x(sin(uv.x), 0.3, time * 0.7), 9.0) * 0.4;
+    light += pow(caustic_x(cos(uv.x * 2.3), 0.3, time * 1.3), 4.0) * 0.1;
+    
+    light -= pow((1.0 - uv.y) * 0.3, 3.0);
+    light = clamp(light, 0.0, 1.0);
+    
+    return light;
+}
+
+vec3 volumetric_god_rays(vec2 uv, vec3 light_pos_screen) {
+    vec2 delta = (light_pos_screen.xy - uv) / float(godray_samples);
+    float decay = 1.0;
+    vec2 current_uv = uv;
+    vec3 accumulated = vec3(0.0);
+    
+    for (int i = 0; i < godray_samples; i++) {
+        current_uv += delta;
+        float sample_light = god_rays(current_uv, TIME);
+        sample_light *= decay;
+        accumulated += vec3(sample_light);
+        decay *= godray_decay;
+    }
+    
+    return accumulated * godray_exposure * godray_intensity;
+}
+
 
 void vertex() {
     POSITION = vec4(VERTEX.xy, 1.0, 1.0);
@@ -157,9 +216,15 @@ void fragment() {
         float caustic_attenuation = exp(-depth_in_sphere * caustics_depth_factor);
         caustic_effect *= caustic_attenuation;
     }
+	
+    vec3 light_pos_world = v_sphere_center_world + normalize(sun_direction) * u_sphere_radius;
+    vec4 light_pos_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(light_pos_world, 1.0);
+    vec3 light_pos_screen = (light_pos_clip.xyz / light_pos_clip.w) * 0.5 + 0.5;
     
+    vec3 god_ray_effect = volumetric_god_rays(UV, light_pos_screen);
+    god_ray_effect *= vec3(0.7, 1.0, 1.0); // Tinte azul-verdoso
     vec3 final_color = camera_adjusted_fog;
-    
+    final_color += god_ray_effect / camera_depth_attenuation;
     if (caustic_effect > 0.0) {
         vec3 caustic_color = mix(vec3(1.0), camera_adjusted_fog, 0.3);
         final_color += caustic_color * caustic_effect * 0.8 * camera_attenuation;
