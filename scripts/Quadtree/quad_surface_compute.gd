@@ -315,7 +315,7 @@ func generate_mesh():
 
 func _cleanup_buffers():
 	# Only clean up per-instance buffers
-	if vertex_buffer.is_valid():
+	'if vertex_buffer.is_valid():
 		rd.free_rid(vertex_buffer)
 	if normal_buffer.is_valid():
 		rd.free_rid(normal_buffer)
@@ -324,7 +324,7 @@ func _cleanup_buffers():
 	if index_buffer.is_valid():
 		rd.free_rid(index_buffer)
 	if uniform_buffer.is_valid():
-		rd.free_rid(uniform_buffer)
+		rd.free_rid(uniform_buffer)'
 	
 	# Don't clean up shared shader or RenderingDevice
 	

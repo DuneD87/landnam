@@ -29,6 +29,10 @@ project/assembly_name="VoxelTest"
 version_control/plugin_name="GitPlugin"
 version_control/autoload_on_startup=true
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/renderdoc_launcher/plugin.cfg")
+
 [input]
 
 move_forward={
@@ -104,6 +108,7 @@ toggle_wireframe={
 [rendering]
 
 textures/canvas_textures/default_texture_filter=3
+gl_compatibility/nvidia_disable_threaded_optimization=false
 environment/ssao/quality=3
 environment/ssil/quality=3
 textures/decals/filter=5

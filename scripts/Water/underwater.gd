@@ -5,6 +5,7 @@ class_name Underwater
 @export var sphere_radius: float = 10000
 @export var volume_height := 10.0
 @export var sun_direction: Vector3
+@export var planet_poisition: Vector3
 # Fog parameters
 @export_group("Fog Settings")
 @export var fog_density: float = 1.8
@@ -20,11 +21,11 @@ class_name Underwater
 @export_group("Raymarch Settings")
 @export var max_steps: int = 64
 @export var step_size: float = 0.1
-
+@export var material : ShaderMaterial
 var _mesh_instance: MeshInstance3D
 
 func setup_underwater() -> void:
-	var material := ShaderMaterial.new()
+	material = ShaderMaterial.new()
 	material.shader = preload("res://shaders/Liquid/underwater.gdshader")
 	material.render_priority = 3
 	
@@ -55,7 +56,7 @@ func setup_underwater() -> void:
 	material.set_shader_parameter(&"u_sphere_radius", sphere_radius)
 	material.set_shader_parameter(&"u_volume_height", volume_height)
 	material.set_shader_parameter(&"sun_direction", sun_direction)
+	material.set_shader_parameter("planet_position", global_position)
 
 func _process(delta: float) -> void:
-	var material = _mesh_instance.material_override as ShaderMaterial
-	material.set_shader_parameter(&"sun_direction", sun_direction)
+	material.set_shader_parameter("sun_direction", sun_direction)

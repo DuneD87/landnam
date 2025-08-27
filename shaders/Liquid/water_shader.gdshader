@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix,shadows_disabled,diffuse_burley,specular_schlick_ggx, depth_prepass_alpha;
+render_mode blend_mix,shadows_disabled,diffuse_burley,specular_schlick_ggx, depth_prepass_alpha, depth_draw_opaque;
 
 uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
@@ -54,8 +54,19 @@ uniform float sky_influence : hint_range(0.0, 2.0) = 1.0;
 uniform float sky_fresnel_power : hint_range(0.1, 10.0) = 3.0;
 uniform float sky_gradient_power : hint_range(0.1, 5.0) = 2.0;
 
-varying vec3 world_pos;
+// NUEVOS UNIFORMS PARA GOD RAYS
+uniform vec3 sun_direction = vec3(0.3, -0.7, 0.3);
+uniform vec3 godray_color : source_color = vec3(1.0, 0.95, 0.8);
+uniform float godray_intensity : hint_range(0.0, 5.0) = 2.0;
+uniform float godray_density : hint_range(0.0, 1.0) = 0.3;
+uniform float godray_samples : hint_range(4.0, 64.0) = 16.0;
+uniform float godray_fade_distance : hint_range(1.0, 100.0) = 20.0;
+uniform float godray_scatter : hint_range(0.0, 1.0) = 0.5;
+uniform float godray_noise_scale : hint_range(0.1, 10.0) = 2.0;
+uniform float godray_noise_speed : hint_range(0.0, 2.0) = 0.3;
+uniform float godray_phase_intensity : hint_range(0.0, 5.0) = 2.0;
 
+varying vec3 world_pos;
 varying float height;
 varying float view_depth;
 
@@ -76,13 +87,10 @@ float generate_wave(vec2 pos, float time) {
     return (wave1 + wave2 + wave3) * 0.1;
 }
 
-// NUEVA FUNCIÓN PARA CALCULAR EL COLOR DEL CIELO
+// Función para calcular el color del cielo
 vec3 calculate_sky_color(vec3 view_direction) {
-    // Calcular el ángulo vertical (0 = horizonte, 1 = cénit)
     float vertical_angle = clamp(view_direction.y * 0.5 + 0.5, 0.0, 1.0);
     vertical_angle = pow(vertical_angle, sky_gradient_power);
-    
-    // Interpolar entre color del horizonte y del cénit
     return mix(sky_color_horizon, sky_color_zenith, vertical_angle);
 }
 
@@ -92,6 +100,72 @@ vec2 rotate_uv(vec2 uv, float angle) {
     float sin_angle = sin(angle);
     mat2 rotation_matrix = mat2(vec2(cos_angle, -sin_angle), vec2(sin_angle, cos_angle));
     return rotation_matrix * uv;
+}
+
+// NUEVAS FUNCIONES PARA GOD RAYS
+
+// Función de ruido 3D simple para los god rays
+float hash(vec3 p) {
+    p = fract(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+float noise3D(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    
+    return mix(mix(mix(hash(i + vec3(0, 0, 0)), 
+                       hash(i + vec3(1, 0, 0)), f.x),
+                   mix(hash(i + vec3(0, 1, 0)), 
+                       hash(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(hash(i + vec3(0, 0, 1)), 
+                       hash(i + vec3(1, 0, 1)), f.x),
+                   mix(hash(i + vec3(0, 1, 1)), 
+                       hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+
+// Función de fase de Henyey-Greenstein para dispersión de luz
+float henyeyGreenstein(float cos_theta, float g) {
+    float g2 = g * g;
+    return (1.0 - g2) / (4.0 * 3.14159 * pow(1.0 + g2 - 2.0 * g * cos_theta, 1.5));
+}
+
+// Función principal de god rays usando ray marching
+vec3 calculate_godrays(vec3 ray_origin, vec3 ray_dir, float max_distance) {
+    vec3 normalized_sun = normalize(-sun_direction);
+    float cos_angle = dot(ray_dir, normalized_sun);
+    
+    // Factor de fase para la dispersión de luz
+    float phase = henyeyGreenstein(cos_angle, godray_scatter) * godray_phase_intensity;
+    
+    // Ray marching
+    float step_size = max_distance / godray_samples;
+    vec3 current_pos = ray_origin;
+    float accumulated_density = 0.0;
+    
+    for(float i = 0.0; i < godray_samples; i++) {
+        current_pos += ray_dir * step_size;
+        
+        // Añadir ruido animado para crear variación en los rayos
+        vec3 noise_pos = current_pos * godray_noise_scale + vec3(0.0, TIME * godray_noise_speed, 0.0);
+        float noise_value = noise3D(noise_pos);
+        
+        // Calcular la influencia del sol en este punto
+        float sun_influence = max(0.0, dot(normalize(current_pos - ray_origin), normalized_sun));
+        sun_influence = pow(sun_influence, 2.0);
+        
+        // Acumular densidad con ruido y atenuación por distancia
+        float distance_fade = exp(-length(current_pos - ray_origin) / godray_fade_distance);
+        accumulated_density += (godray_density + noise_value * 0.3) * sun_influence * distance_fade * step_size;
+    }
+    
+    // Aplicar la fase y la intensidad
+    accumulated_density *= phase;
+    
+    // Calcular el color final de los god rays
+    return godray_color * accumulated_density * godray_intensity;
 }
 
 void vertex() {
@@ -135,7 +209,8 @@ void fragment() {
         depth_color,
         view_distance_factor * 0.8
     );
-   
+    
+       
     float z_depth = edge(texture(DEPTH_TEXTURE, SCREEN_UV).x);
     float z_pos = edge(FRAGCOORD.z);
     float z_dif = z_depth - z_pos;
@@ -146,32 +221,25 @@ void fragment() {
     // Calcular las normales con múltiples muestras para romper el tiling
     vec3 normal_blend;
     if (z_dif < edge_scale) {
-        // Es borde: usar normal plana sin ruido
-        normal_blend = vec3(0.5, 0.5, 1.0); // Normal neutral en tangent space
+        normal_blend = vec3(0.5, 0.5, 1.0);
     } else {
-        // No es borde: aplicar múltiples muestras de normales con diferentes escalas
         vec2 base_uv = world_pos.xz;
         
-        // Primera muestra: escala normal con movimiento
         vec2 uv1 = base_uv / normal_scale1 + time;
         vec3 normal1 = texture(texture_normal, uv1).rgb;
         
-        // Segunda muestra: escala diferente con rotación y movimiento diferente
-        vec2 uv2 = rotate_uv(base_uv / normal_scale2, 1.57) + time2 * 0.8; // 90 grados
+        vec2 uv2 = rotate_uv(base_uv / normal_scale2, 1.57) + time2 * 0.8;
         vec3 normal2 = texture(texture_normal2, uv2).rgb;
         
-        // Tercera muestra: escala más pequeña con rotación diferente
-        vec2 uv3 = rotate_uv(base_uv / normal_scale3, 0.785) + time * 1.3; // 45 grados
+        vec2 uv3 = rotate_uv(base_uv / normal_scale3, 0.785) + time * 1.3;
         vec3 normal3 = texture(texture_normal, uv3).rgb;
         
-        // Mezclar las tres muestras para romper el patrón
         normal_blend = mix(
             mix(normal1, normal2, 0.5),
             normal3,
             0.3
         );
         
-        // Aplicar intensidad general
         normal_blend = mix(vec3(0.5, 0.5, 1.0), normal_blend, normal_intensity);
     }
     
@@ -181,14 +249,11 @@ void fragment() {
     vec3 reflected_view = reflect(-VIEW, NORMAL);
     vec3 sky_color = calculate_sky_color(reflected_view);
     
-    // Aplicar la influencia del cielo
     vec3 sky_reflection = sky_color * sky_influence;
     
     vec3 depth_color_adj;
     
-    // MODIFICACIÓN: Alpha y color progresivos hacia el borde
     if (z_dif < edge_fade_distance && distance(CAMERA_POSITION_WORLD, world_pos) < view_opacity_end) {
-        // Calcular factor de fade basado en la distancia al borde
         float fade_factor = clamp(z_dif / edge_fade_distance, 0.0, 1.0);
         
         ALPHA = mix(edge_min_alpha, edge_max_alpha, fade_factor);
@@ -200,6 +265,7 @@ void fragment() {
         depth_color_adj = mix(depth_color_adj, color, adjusted_depth_blend * 0.3);
     }
     
+    // AÑADIR GOD RAYS AL COLOR FINAL
     vec3 final_albedo = mix(surface_color + depth_color_adj, sky_reflection, fresnel_value * sky_influence * 0.5);
     
     ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));

@@ -9,7 +9,7 @@ class_name OceanSystem
 @export var noise_speed: float = 1.0
 @export var scale_modifier: float = 1.0
 @export var max_steps: int = 32
-@export var step_size: float = 1
+@export var step_size: float = 0.1
 @export var sun_dir: Vector3
 
 @export_group("Water settings")
@@ -49,7 +49,6 @@ func load_watersphere():
 		underwater.noise_speed = noise_speed
 		underwater.max_steps = max_steps
 		underwater.step_size = step_size
-
 		underwater.volume_height = radius
 		underwater.sphere_radius = radius
 		underwater.setup_underwater()
@@ -101,6 +100,9 @@ func _setup_ui():
 		canvas_layer.add_child(stats_label)
 
 func _process(_delta):
+	if mesh_manager && mesh_manager.default_material:
+		var mat = mesh_manager.default_material as ShaderMaterial
+		mat.set_shader_parameter("sun_direction", sun_dir)
 	if underwater:
 		underwater.sun_direction = sun_dir
 	if show_stats and stats_label:
