@@ -34,7 +34,6 @@ far = 400000.0
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 
 [node name="WaterSphere" parent="." node_paths=PackedStringArray("player") instance=ExtResource("2_1olso")]
-max_steps = 32
 player = NodePath("../CharacterBody3D")
 radius = 30000.0
 subdivision_factor = 0.5

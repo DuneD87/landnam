@@ -13,18 +13,19 @@ uniform float abyss_transition_depth = 250.0;
 
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear_mipmap;
 
-uniform float caustic_intensity : hint_range(0.0, 5.0) = 0.2;
-uniform float caustic_scale : hint_range(0.1, 10.0) = 0.2;
+uniform float caustic_intensity : hint_range(0.0, 5.0) = 0.1;
+uniform float caustic_scale : hint_range(0.1, 10.0) = 0.1;
 uniform float caustic_speed : hint_range(0.0, 2.0) = 0.1;
 uniform float caustic_contrast : hint_range(0.1, 5.0) = 1.5;
-uniform float caustics_depth_factor : hint_range(0.1, 1.0) = 0.2;
+uniform float caustics_depth_factor : hint_range(0.1, 1.0) = 0.1;
 uniform int caustic_iterations : hint_range(3, 8) = 5;
-uniform float caustic_inten_factor : hint_range(0.001, 0.02) = 0.005;
+uniform float caustic_inten_factor : hint_range(0.001, 0.02) = 0.001;
 
-uniform float godray_intensity : hint_range(0.0, 2.0) = 10.4;
+uniform float godray_intensity : hint_range(0.0, 2.0) = 2.5;
 uniform float godray_decay : hint_range(0.5, 1.0) = 0.56;
-uniform float godray_exposure : hint_range(0.0, 1.0) = 0.1;
-uniform int godray_samples : hint_range(20, 100) = 100;
+uniform float godray_exposure : hint_range(0.0, 1.0) = 10.1;
+uniform int godray_samples : hint_range(20, 100) = 10;
+uniform float godray_caustic_integration : hint_range(0.0, 1.0) = 1.0;
 
 varying vec3 v_volume_center_viewspace;
 varying vec3 v_ray_origin;
@@ -155,28 +156,41 @@ float caustic_x(float x, float power, float gtime) {
 
 float god_rays(vec2 uv, float time) {
     float light = 0.0;
-
     light += pow(caustic_x((uv.x + 0.08 * uv.y) / 1.7 + 0.5, 1.8, time * 0.65), 10.0) * 0.05;
     light -= pow((1.0 - uv.y) * 0.3, 2.0) * 0.2;
     light += pow(caustic_x(sin(uv.x), 0.3, time * 0.7), 9.0) * 0.4;
     light += pow(caustic_x(cos(uv.x * 2.3), 0.3, time * 1.3), 4.0) * 0.1;
-
     light -= pow((1.0 - uv.y) * 0.3, 3.0);
-    light = clamp(light, 0.0, 1.0);
+    light = clamp(light, 0.0, 100.0);
 
     return light;
 }
 
-vec3 volumetric_god_rays(vec2 uv, vec3 light_pos_screen) {
-    vec2 delta = (light_pos_screen.xy - uv) / float(godray_samples);
+// Modifica la función volumetric_god_rays para usar coordenadas mundiales
+vec3 volumetric_god_rays(vec3 world_pos, vec3 light_pos_world, float caustic_intensity_factor) {
+    // Calcular dirección desde el punto al sol en espacio mundial
+    vec3 to_light = normalize(light_pos_world - world_pos);
+
     float decay = 1.0;
-    vec2 current_uv = uv;
     vec3 accumulated = vec3(0.0);
 
+    // Sample a lo largo de la dirección hacia la luz
     for (int i = 0; i < godray_samples; i++) {
-        current_uv += delta;
-        float sample_light = god_rays(current_uv, TIME);
+        float t = float(i) / float(godray_samples);
+        vec3 sample_pos = world_pos + to_light * t * u_sphere_radius; // Ajustar la distancia según necesidad
+
+        // Convertir a coordenadas de proyección estables
+        vec2 sample_uv = vec2(
+            dot(normalize(sample_pos - v_camera_world_pos), vec3(1.0, 0.0, 0.0)),
+            dot(normalize(sample_pos - v_camera_world_pos), vec3(0.0, 1.0, 0.0))
+        );
+        sample_uv = sample_uv * 0.5 + 0.5;
+        float sample_light = god_rays(sample_uv, TIME);
         sample_light *= decay;
+
+        // Integrar efecto caústico
+        sample_light *= (1.0 + caustic_intensity_factor * godray_caustic_integration);
+
         accumulated += vec3(sample_light);
         decay *= godray_decay;
     }
@@ -212,15 +226,15 @@ void fragment() {
     vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, nonlinear_depth);
     vec4 view_coords = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
     view_coords.xyz /= view_coords.w;
-    float scene_distance = length(view_coords.xyz); // Fix: use radial distance, not -view_coords.z
+    float scene_distance = length(view_coords.xyz);
 
     vec3 ray_dir = normalize(view_coords.xyz);
 
     vec2 t_range = ray_sphere(v_volume_center_viewspace, u_sphere_radius, v_ray_origin, ray_dir);
 
     float t_start = max(t_range.x, 0.0);
-    float hit_distance = min(t_range.y, scene_distance); // Effective distance to "hit" (sphere or opaque)
-    float t_end = hit_distance; // For consistency with prior variable name
+    float hit_distance = min(t_range.y, scene_distance);
+    float t_end = hit_distance;
 
     if (t_end <= t_start) {
         discard;
@@ -230,7 +244,7 @@ void fragment() {
     float fog_amount = 1.0 - exp(-fog_density * distance_in_fog);
 
     // Reconstruct view-space pos at hit_distance, then to world
-    vec3 hit_view_pos = ray_dir * hit_distance;
+    vec3 hit_view_pos = ray_dir * mix(t_start, t_end, 0.9);
     vec4 world_pos_from_view = INV_VIEW_MATRIX * vec4(hit_view_pos, 1.0);
     vec3 world_pos = world_pos_from_view.xyz / world_pos_from_view.w;
 
@@ -242,27 +256,30 @@ void fragment() {
 
     float dist_to_center = length(direction_to_center);
     float depth_in_sphere = u_sphere_radius - dist_to_center;
-
+	vec3 normal = normalize(direction_to_center);
+ 	float light_influence = max(0.0, dot(normal, normalize(sun_direction)));
+    light_influence = pow(light_influence, 2.0);
+	
+	vec3 light_pos_world = v_sphere_center_world + (normalize(sun_direction) * u_sphere_radius);
+    vec4 light_pos_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(light_pos_world, 1.0);
+    vec3 light_pos_screen = (light_pos_clip.xyz / light_pos_clip.w) * 0.5 + 0.5;
+	
+	vec3 god_ray_effect = volumetric_god_rays(world_pos, light_pos_screen, caustic_effect);
+    god_ray_effect *= vec3(0.7, 1.0, 1.0);
+	
     if (dist_to_center <= u_sphere_radius) {
-        vec3 normal = normalize(direction_to_center);
-        float light_influence = max(0.0, dot(normal, normalize(sun_direction)));
-
-        light_influence = pow(light_influence, 2.0);
-
         caustic_effect = generate_caustics(world_pos) * caustic_intensity * light_influence;
         float caustic_attenuation = exp(-depth_in_sphere * caustics_depth_factor);
         caustic_effect *= caustic_attenuation;
+		if (caustic_effect > 0.0)
+			camera_adjusted_fog += god_ray_effect * (caustic_attenuation / 10.0) * camera_attenuation;
     }
-
-    vec3 light_pos_world = v_sphere_center_world + normalize(sun_direction) * u_sphere_radius;
-    vec4 light_pos_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(light_pos_world, 1.0);
-    vec3 light_pos_screen = (light_pos_clip.xyz / light_pos_clip.w) * 0.5 + 0.5;
-
-    vec3 god_ray_effect = volumetric_god_rays(UV, light_pos_screen);
-    god_ray_effect *= vec3(0.7, 1.0, 1.0);
-
+ 
+    // Convertir hit_view_pos a coordenadas de pantalla para los godrays
+    vec4 hit_screen_pos = PROJECTION_MATRIX * vec4(hit_view_pos, 1.0);
+    hit_screen_pos.xyz /= hit_screen_pos.w;
+    vec2 hit_screen_uv = hit_screen_pos.xy * 0.5 + 0.5;
     vec3 final_color = camera_adjusted_fog;
-
     if (caustic_effect > 0.0) {
         vec3 caustic_color = mix(vec3(1.0), camera_adjusted_fog, 0.3);
         final_color += caustic_color * caustic_effect * 0.8 * camera_attenuation;
@@ -271,6 +288,8 @@ void fragment() {
     ALBEDO = final_color;
     ALPHA = fog_amount * fog_color.a;
 
-    EMISSION = final_color * fog_amount * 0.3 + vec3(caustic_effect * 0.4 * camera_attenuation);
-
+    // Mejorar la emisión para integrar ambos efectos
+    EMISSION = final_color * fog_amount * 0.3 +
+               vec3(caustic_effect * 0.4 * camera_attenuation) +
+               god_ray_effect * 0.6;
 }

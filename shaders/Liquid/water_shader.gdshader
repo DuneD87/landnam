@@ -16,7 +16,7 @@ uniform sampler2D wave;
 uniform vec2 wave_direction = vec2(2.0, 0.0);
 uniform vec2 wave_direction2 = vec2(0.0, 1.0);
 uniform float time_scale : hint_range(0.0, 0.2, 0.001) = 0.05;
-uniform float noise_scale = 5.0; 
+uniform float noise_scale = 5.0;
 uniform float height_scale = 0.5;
 
 // Parámetros para romper el tiling de las normales
@@ -115,14 +115,14 @@ float noise3D(vec3 p) {
     vec3 i = floor(p);
     vec3 f = fract(p);
     f = f * f * (3.0 - 2.0 * f);
-    
-    return mix(mix(mix(hash(i + vec3(0, 0, 0)), 
+
+    return mix(mix(mix(hash(i + vec3(0, 0, 0)),
                        hash(i + vec3(1, 0, 0)), f.x),
-                   mix(hash(i + vec3(0, 1, 0)), 
+                   mix(hash(i + vec3(0, 1, 0)),
                        hash(i + vec3(1, 1, 0)), f.x), f.y),
-               mix(mix(hash(i + vec3(0, 0, 1)), 
+               mix(mix(hash(i + vec3(0, 0, 1)),
                        hash(i + vec3(1, 0, 1)), f.x),
-                   mix(hash(i + vec3(0, 1, 1)), 
+                   mix(hash(i + vec3(0, 1, 1)),
                        hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
 }
 
@@ -136,34 +136,34 @@ float henyeyGreenstein(float cos_theta, float g) {
 vec3 calculate_godrays(vec3 ray_origin, vec3 ray_dir, float max_distance) {
     vec3 normalized_sun = normalize(-sun_direction);
     float cos_angle = dot(ray_dir, normalized_sun);
-    
+
     // Factor de fase para la dispersión de luz
     float phase = henyeyGreenstein(cos_angle, godray_scatter) * godray_phase_intensity;
-    
+
     // Ray marching
     float step_size = max_distance / godray_samples;
     vec3 current_pos = ray_origin;
     float accumulated_density = 0.0;
-    
+
     for(float i = 0.0; i < godray_samples; i++) {
         current_pos += ray_dir * step_size;
-        
+
         // Añadir ruido animado para crear variación en los rayos
         vec3 noise_pos = current_pos * godray_noise_scale + vec3(0.0, TIME * godray_noise_speed, 0.0);
         float noise_value = noise3D(noise_pos);
-        
+
         // Calcular la influencia del sol en este punto
         float sun_influence = max(0.0, dot(normalize(current_pos - ray_origin), normalized_sun));
         sun_influence = pow(sun_influence, 2.0);
-        
+
         // Acumular densidad con ruido y atenuación por distancia
         float distance_fade = exp(-length(current_pos - ray_origin) / godray_fade_distance);
         accumulated_density += (godray_density + noise_value * 0.3) * sun_influence * distance_fade * step_size;
     }
-    
+
     // Aplicar la fase y la intensidad
     accumulated_density *= phase;
-    
+
     // Calcular el color final de los god rays
     return godray_color * accumulated_density * godray_intensity;
 }
@@ -172,12 +172,12 @@ void vertex() {
     world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     vec2 uv_coords = world_pos.xz;
     height = texture(wave, uv_coords / noise_scale + TIME * time_scale).r;
-    
+
     float procedural_height = generate_wave(uv_coords, TIME);
-    
+
     float total_height = height + procedural_height;
     VERTEX += NORMAL * total_height * height_scale;
-    
+
     vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
     view_depth = -view_pos.z;
 }
@@ -185,10 +185,10 @@ void vertex() {
 void fragment() {
     float depth_texture = texture(DEPTH_TEXTURE, SCREEN_UV).r * 2.0 - 1.0;
     float depth = PROJECTION_MATRIX[3][2] / (depth_texture + PROJECTION_MATRIX[2][2]);
-    
+
     float water_depth = depth + VERTEX.z + depth_offset;
     float depth_blend = exp(water_depth * -beers_law);
-    depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);    
+    depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);
     float depth_blend_power = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
 
     float view_distance_factor = clamp(
@@ -197,77 +197,77 @@ void fragment() {
         1.0
     );
     view_distance_factor = pow(view_distance_factor, view_opacity_power);
-	
+
     float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_distance_factor);
     float screen_influence = 1.0 - view_distance_factor;
-    
+
     vec3 screen_color = textureLod(SCREEN_TEXTURE, SCREEN_UV, adjusted_depth_blend * 2.5).rgb;
     vec3 depth_color = mix(color_shallow.rgb, color_deep.rgb, adjusted_depth_blend);
-    
+
     vec3 color = mix(
         mix(screen_color * depth_color, depth_color * 0.25, adjusted_depth_blend * 0.5),
         depth_color,
         view_distance_factor * 0.8
     );
-    
-       
+
+
     float z_depth = edge(texture(DEPTH_TEXTURE, SCREEN_UV).x);
     float z_pos = edge(FRAGCOORD.z);
     float z_dif = z_depth - z_pos;
-    
+
     vec2 time = (TIME * wave_direction) * time_scale;
     vec2 time2 = (TIME * wave_direction2) * time_scale;
-    
+
     // Calcular las normales con múltiples muestras para romper el tiling
     vec3 normal_blend;
     if (z_dif < edge_scale) {
         normal_blend = vec3(0.5, 0.5, 1.0);
     } else {
         vec2 base_uv = world_pos.xz;
-        
+
         vec2 uv1 = base_uv / normal_scale1 + time;
         vec3 normal1 = texture(texture_normal, uv1).rgb;
-        
+
         vec2 uv2 = rotate_uv(base_uv / normal_scale2, 1.57) + time2 * 0.8;
         vec3 normal2 = texture(texture_normal2, uv2).rgb;
-        
+
         vec2 uv3 = rotate_uv(base_uv / normal_scale3, 0.785) + time * 1.3;
         vec3 normal3 = texture(texture_normal, uv3).rgb;
-        
+
         normal_blend = mix(
             mix(normal1, normal2, 0.5),
             normal3,
             0.3
         );
-        
+
         normal_blend = mix(vec3(0.5, 0.5, 1.0), normal_blend, normal_intensity);
     }
-    
+
     float fresnel_value = fresnel(sky_fresnel_power, NORMAL, VIEW);
     vec3 surface_color = mix(albedo, albedo2, fresnel_value);
-    
+
     vec3 reflected_view = reflect(-VIEW, NORMAL);
     vec3 sky_color = calculate_sky_color(reflected_view);
-    
+
     vec3 sky_reflection = sky_color * sky_influence;
-    
+
     vec3 depth_color_adj;
-    
+
     if (z_dif < edge_fade_distance && distance(CAMERA_POSITION_WORLD, world_pos) < view_opacity_end) {
         float fade_factor = clamp(z_dif / edge_fade_distance, 0.0, 1.0);
-        
+
         ALPHA = mix(edge_min_alpha, edge_max_alpha, fade_factor);
-        
+
         vec3 blended_edge_color = mix(edge_color, color, fade_factor);
         depth_color_adj = blended_edge_color;
     } else {
         depth_color_adj = mix(color, sky_reflection, fresnel_value * 0.8);
         depth_color_adj = mix(depth_color_adj, color, adjusted_depth_blend * 0.3);
     }
-    
+
     // AÑADIR GOD RAYS AL COLOR FINAL
     vec3 final_albedo = mix(surface_color + depth_color_adj, sky_reflection, fresnel_value * sky_influence * 0.5);
-    
+
     ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
     METALLIC = metallic;
     ROUGHNESS = roughness;
