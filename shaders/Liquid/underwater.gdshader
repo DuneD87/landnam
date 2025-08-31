@@ -7,25 +7,28 @@ uniform vec4 deep_fog_color : source_color = vec4(0.1, 0.2, 0.3, 1.0);
 uniform vec4 abyss_fog_color : source_color = vec4(0.1, 0.1, 0.15, 1.0);
 uniform float fog_density : hint_range(0.0, 1.0) = 0.5;
 uniform float camera_depth_attenuation : hint_range(0.0, 2.0) = 0.5;
-uniform float max_useful_depth = 500.0;
+uniform float max_useful_depth = 250.0;
 uniform float deep_transition_depth = 100.0;
 uniform float abyss_transition_depth = 250.0;
 
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear_mipmap;
 
-uniform float caustic_intensity : hint_range(0.0, 5.0) = 0.1;
-uniform float caustic_scale : hint_range(0.1, 10.0) = 0.1;
+uniform float caustic_intensity : hint_range(0.0, 5.0) = 0.5;
+uniform float caustic_scale : hint_range(0.1, 10.0) = 0.07;
 uniform float caustic_speed : hint_range(0.0, 2.0) = 0.1;
 uniform float caustic_contrast : hint_range(0.1, 5.0) = 1.5;
-uniform float caustics_depth_factor : hint_range(0.1, 1.0) = 0.1;
+uniform float caustics_depth_factor : hint_range(0.1, 1.0) = 0.06;
 uniform int caustic_iterations : hint_range(3, 8) = 5;
 uniform float caustic_inten_factor : hint_range(0.001, 0.02) = 0.001;
+uniform float caustic_max_view_distance = 25.0;
 
-uniform float godray_intensity : hint_range(0.0, 2.0) = 2.5;
-uniform float godray_decay : hint_range(0.5, 1.0) = 0.56;
-uniform float godray_exposure : hint_range(0.0, 1.0) = 10.1;
-uniform int godray_samples : hint_range(20, 100) = 10;
-uniform float godray_caustic_integration : hint_range(0.0, 1.0) = 1.0;
+uniform float godray_intensity : hint_range(0.0, 5.0) = 1.9;
+uniform float godray_decay : hint_range(0.5, 1.0) = 0.25;
+uniform float godray_exposure : hint_range(0.0, 2.0) = 0.4;
+uniform int godray_samples : hint_range(10, 50) = 10;
+// Nuevos uniforms para controlar la atenuación de god rays
+uniform float godray_max_depth : hint_range(10.0, 100.0) = 35.0; // Profundidad máxima donde los god rays son visibles
+uniform float godray_fade_start : hint_range(5.0, 50.0) = 10.0; // Profundidad donde empiezan a desvanecerse
 
 varying vec3 v_volume_center_viewspace;
 varying vec3 v_ray_origin;
@@ -166,36 +169,40 @@ float god_rays(vec2 uv, float time) {
     return light;
 }
 
-// Modifica la función volumetric_god_rays para usar coordenadas mundiales
-vec3 volumetric_god_rays(vec3 world_pos, vec3 light_pos_world, float caustic_intensity_factor) {
-    // Calcular dirección desde el punto al sol en espacio mundial
-    vec3 to_light = normalize(light_pos_world - world_pos);
-
+// Función mejorada para god rays volumétricos basada en la solución de referencia
+vec3 volumetric_god_rays(vec2 uv, vec3 light_pos_screen) {
+    vec2 delta = (light_pos_screen.xy - uv) / float(godray_samples);
+	
     float decay = 1.0;
+    vec2 current_uv = uv;
     vec3 accumulated = vec3(0.0);
-
-    // Sample a lo largo de la dirección hacia la luz
+    
     for (int i = 0; i < godray_samples; i++) {
-        float t = float(i) / float(godray_samples);
-        vec3 sample_pos = world_pos + to_light * t * u_sphere_radius; // Ajustar la distancia según necesidad
-
-        // Convertir a coordenadas de proyección estables
-        vec2 sample_uv = vec2(
-            dot(normalize(sample_pos - v_camera_world_pos), vec3(1.0, 0.0, 0.0)),
-            dot(normalize(sample_pos - v_camera_world_pos), vec3(0.0, 1.0, 0.0))
-        );
-        sample_uv = sample_uv * 0.5 + 0.5;
-        float sample_light = god_rays(sample_uv, TIME);
+        current_uv += delta;
+        float sample_light = god_rays(current_uv, TIME);
         sample_light *= decay;
-
-        // Integrar efecto caústico
-        sample_light *= (1.0 + caustic_intensity_factor * godray_caustic_integration);
-
         accumulated += vec3(sample_light);
         decay *= godray_decay;
     }
-
+    
     return accumulated * godray_exposure * godray_intensity;
+}
+
+// Nueva función para calcular la atenuación de god rays basada en profundidad
+float calculate_godray_depth_attenuation(float depth_meters) {
+    if (depth_meters <= godray_fade_start) {
+        // Totalmente visible hasta godray_fade_start metros
+        return 1.0;
+    } else if (depth_meters >= godray_max_depth) {
+        // Totalmente invisible después de godray_max_depth metros
+        return 0.0;
+    } else {
+        // Atenuación gradual entre godray_fade_start y godray_max_depth
+        float fade_range = godray_max_depth - godray_fade_start;
+        float fade_progress = (depth_meters - godray_fade_start) / fade_range;
+        // Usar smoothstep para una transición más suave
+        return 1.0 - smoothstep(0.0, 1.0, fade_progress);
+    }
 }
 
 void vertex() {
@@ -221,6 +228,10 @@ void vertex() {
 }
 
 void fragment() {
+	if (length(CAMERA_POSITION_WORLD - v_sphere_center_world) > u_sphere_radius)
+	{
+		discard;
+	}
     float nonlinear_depth = texture(depth_texture, SCREEN_UV).x;
 
     vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, nonlinear_depth);
@@ -245,51 +256,49 @@ void fragment() {
 
     // Reconstruct view-space pos at hit_distance, then to world
     vec3 hit_view_pos = ray_dir * mix(t_start, t_end, 0.9);
+    vec3 hit_view_pos_real = ray_dir * hit_distance;
     vec4 world_pos_from_view = INV_VIEW_MATRIX * vec4(hit_view_pos, 1.0);
     vec3 world_pos = world_pos_from_view.xyz / world_pos_from_view.w;
-
+	vec3 direction_to_center = world_pos - v_sphere_center_world;
+	float distance_to_pos = length(world_pos - CAMERA_POSITION_WORLD);
+	float caustic_fade_distance = smoothstep(0.0, 1.0, caustic_max_view_distance / distance_to_pos);
     vec3 camera_adjusted_fog = calculate_depth_fog_color(v_camera_depth_actual);
     float camera_attenuation = exp(-v_camera_depth_factor * camera_depth_attenuation);
 
     float caustic_effect = 0.0;
-    vec3 direction_to_center = world_pos - v_sphere_center_world;
-
     float dist_to_center = length(direction_to_center);
     float depth_in_sphere = u_sphere_radius - dist_to_center;
-	vec3 normal = normalize(direction_to_center);
- 	float light_influence = max(0.0, dot(normal, normalize(sun_direction)));
+    vec3 normal = normalize(direction_to_center);
+    float light_influence = max(0.0, dot(normal, normalize(sun_direction)));
     light_influence = pow(light_influence, 2.0);
-	
-	vec3 light_pos_world = v_sphere_center_world + (normalize(sun_direction) * u_sphere_radius);
-    vec4 light_pos_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(light_pos_world, 1.0);
-    vec3 light_pos_screen = (light_pos_clip.xyz / light_pos_clip.w) * 0.5 + 0.5;
-	
-	vec3 god_ray_effect = volumetric_god_rays(world_pos, light_pos_screen, caustic_effect);
-    god_ray_effect *= vec3(0.7, 1.0, 1.0);
+    float caustic_attenuation = exp(-depth_in_sphere * caustics_depth_factor);
 	
     if (dist_to_center <= u_sphere_radius) {
-        caustic_effect = generate_caustics(world_pos) * caustic_intensity * light_influence;
-        float caustic_attenuation = exp(-depth_in_sphere * caustics_depth_factor);
+        caustic_effect = generate_caustics(world_pos) * caustic_intensity * light_influence * caustic_fade_distance;
         caustic_effect *= caustic_attenuation;
-		if (caustic_effect > 0.0)
-			camera_adjusted_fog += god_ray_effect * (caustic_attenuation / 10.0) * camera_attenuation;
     }
  
-    // Convertir hit_view_pos a coordenadas de pantalla para los godrays
-    vec4 hit_screen_pos = PROJECTION_MATRIX * vec4(hit_view_pos, 1.0);
-    hit_screen_pos.xyz /= hit_screen_pos.w;
-    vec2 hit_screen_uv = hit_screen_pos.xy * 0.5 + 0.5;
     vec3 final_color = camera_adjusted_fog;
     if (caustic_effect > 0.0) {
         vec3 caustic_color = mix(vec3(1.0), camera_adjusted_fog, 0.3);
         final_color += caustic_color * caustic_effect * 0.8 * camera_attenuation;
     }
 
+    vec3 light_pos_world = v_sphere_center_world + normalize(sun_direction) * u_sphere_radius;
+    vec4 light_pos_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(light_pos_world, 1.0);
+    vec3 light_pos_screen = (light_pos_clip.xyz / light_pos_clip.w) * 0.5 + 0.5;
+	vec3 projected_world_pos = v_sphere_center_world + normalize(direction_to_center) * u_sphere_radius;
+	float dist_to_surface = length(world_pos - projected_world_pos);
+	float max_godray_depth = 10.0;
+	float godray_dist_intensity = smoothstep(0.0, 1.0, max_godray_depth / dist_to_surface);
+
+   	float godray_depth_fade = calculate_godray_depth_attenuation(v_camera_depth_actual);
+   	vec3 godrays = volumetric_god_rays(UV, light_pos_screen) * godray_dist_intensity;
+   	final_color += godrays * light_influence * godray_depth_fade;
+	
     ALBEDO = final_color;
     ALPHA = fog_amount * fog_color.a;
 
-    // Mejorar la emisión para integrar ambos efectos
     EMISSION = final_color * fog_amount * 0.3 +
-               vec3(caustic_effect * 0.4 * camera_attenuation) +
-               god_ray_effect * 0.6;
+               vec3(caustic_effect * 0.4 * camera_attenuation);
 }

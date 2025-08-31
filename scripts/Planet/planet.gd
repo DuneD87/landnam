@@ -41,6 +41,7 @@ class_name Planet extends Node3D
 @export var voxel_instancer: VoxelInstancer
 @export var sun : DirectionalLight3D
 @export var has_water: bool
+@export var water_radius: float
 
 func _build_generator(generator_config: Dictionary, graph_functions: Array) -> VoxelInstanceGenerator:
 	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
@@ -151,6 +152,9 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("slope_normal_texture", slope_normal_texture)
 	shader_material.set_shader_parameter("slope_roughness_texture", slope_roughness_texture)
 	
+	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
+	shader_material.set_shader_parameter("has_water", 1 if water_radius else 0)
+
 	if !has_clouds:
 		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_no_clouds.gdshader")
 	else:

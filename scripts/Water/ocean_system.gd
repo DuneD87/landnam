@@ -1,7 +1,7 @@
 extends Node3D
 class_name OceanSystem
 @export_group("Underwater settings")
-@export var fog_density: float = 0.1
+@export var fog_density: float = 0.5
 @export var fog_color: Color = Color("00526e")
 @export var absorption: float = 0.1
 @export var scattering: float = 0.001
@@ -49,7 +49,7 @@ func load_watersphere():
 		underwater.noise_speed = noise_speed
 		underwater.max_steps = max_steps
 		underwater.step_size = step_size
-		underwater.volume_height = radius
+		underwater.volume_height = radius 
 		underwater.sphere_radius = radius
 		underwater.setup_underwater()
 		

@@ -5,7 +5,8 @@ shader_type spatial;
 uniform int u_transition_mask;
 uniform float radius = 5000.0;
 uniform vec3 center;
-
+uniform float water_radius = 29960;
+uniform int has_water = 0;
 #define MAX_TEXTURES 8
 #define MAX_BIOMES 8 // máximo seguro (ajustable si necesitas más)
 #define MAX_HEIGHTS 24
@@ -39,6 +40,7 @@ varying vec3 world_normal;
 
 varying vec3 v_normal_model;
 varying vec3 v_vertex_pos_model;
+varying vec3 camera_position;
 
 void vertex() {
 	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0, u_transition_mask);
@@ -62,7 +64,6 @@ void fragment() {
 	vec3 slope_normal = triplanar_normal_sample(slope_normal_texture, world_pos, world_normal, texture_scale);
 	float slope_roughness = triplanar_roughness_sample(slope_roughness_texture, world_pos, world_normal, texture_scale);
 
-	// Calcular latitud
 	vec3 relative_pos = world_pos - center;
 	vec3 normalized_pos = normalize(relative_pos);
 	float latitude = degrees(asin(normalized_pos.y));
@@ -121,7 +122,6 @@ void fragment() {
 		}
 	}
 
-	// Aplicar textura de pendiente
 	final_color += slope_color * slope_factor;
 	final_normal += slope_normal * slope_factor;
 	final_roughness += slope_roughness * slope_factor;
@@ -133,7 +133,6 @@ void fragment() {
 		final_roughness /= total_factor;
 	} else {
 		final_color = vec3(0.5);
-		final_normal = vec3(0.0, 0.0, 1.0);
 		final_roughness = 0.5;
 	}
 
@@ -142,8 +141,27 @@ void fragment() {
 	vec3 normal_view = get_voxel_normal_view_model(v_vertex_pos_model,
 		NORMAL, VIEW_MATRIX * MODEL_MATRIX,
 		v_normal_model, normal_model);
+		
 	NORMAL = normal_view;
-	//NORMAL_MAP = final_normal * normal_strength;
 	ROUGHNESS = final_roughness;
-	//NORMAL_MAP_DEPTH = normal_strength;
+	camera_position = CAMERA_POSITION_WORLD;
+}
+
+void light()
+{
+    float distance_to_center = length(camera_position - center);
+    
+    if (distance_to_center >= water_radius || has_water == 0)
+    {
+        DIFFUSE_LIGHT += clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * ATTENUATION * LIGHT_COLOR / PI;
+    }
+    else
+    {
+        float max_depth = 10.0;
+        float min_distance = water_radius - max_depth;
+        float light_factor = smoothstep(min_distance, water_radius, distance_to_center);
+
+        vec3 normal_light = clamp(dot(NORMAL, LIGHT), 0.0, 1.0) * ATTENUATION * LIGHT_COLOR / PI;
+        DIFFUSE_LIGHT += normal_light * light_factor;
+    }
 }
