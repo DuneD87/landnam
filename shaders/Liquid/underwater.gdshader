@@ -172,11 +172,11 @@ float god_rays(vec2 uv, float time) {
 // Función mejorada para god rays volumétricos basada en la solución de referencia
 vec3 volumetric_god_rays(vec2 uv, vec3 light_pos_screen) {
     vec2 delta = (light_pos_screen.xy - uv) / float(godray_samples);
-	
+
     float decay = 1.0;
     vec2 current_uv = uv;
     vec3 accumulated = vec3(0.0);
-    
+
     for (int i = 0; i < godray_samples; i++) {
         current_uv += delta;
         float sample_light = god_rays(current_uv, TIME);
@@ -184,7 +184,7 @@ vec3 volumetric_god_rays(vec2 uv, vec3 light_pos_screen) {
         accumulated += vec3(sample_light);
         decay *= godray_decay;
     }
-    
+
     return accumulated * godray_exposure * godray_intensity;
 }
 
@@ -272,12 +272,12 @@ void fragment() {
     float light_influence = max(0.0, dot(normal, normalize(sun_direction)));
     light_influence = pow(light_influence, 2.0);
     float caustic_attenuation = exp(-depth_in_sphere * caustics_depth_factor);
-	
+
     if (dist_to_center <= u_sphere_radius) {
         caustic_effect = generate_caustics(world_pos) * caustic_intensity * light_influence * caustic_fade_distance;
         caustic_effect *= caustic_attenuation;
     }
- 
+
     vec3 final_color = camera_adjusted_fog;
     if (caustic_effect > 0.0) {
         vec3 caustic_color = mix(vec3(1.0), camera_adjusted_fog, 0.3);
@@ -295,7 +295,7 @@ void fragment() {
    	float godray_depth_fade = calculate_godray_depth_attenuation(v_camera_depth_actual);
    	vec3 godrays = volumetric_god_rays(UV, light_pos_screen) * godray_dist_intensity;
    	final_color += godrays * light_influence * godray_depth_fade;
-	
+
     ALBEDO = final_color;
     ALPHA = fog_amount * fog_color.a;
 

@@ -53,7 +53,7 @@ func setup_underwater() -> void:
 	material.set_shader_parameter(&"emission_strength", emission_strength)
 	material.set_shader_parameter(&"max_steps", max_steps)
 	material.set_shader_parameter(&"step_size", step_size)
-	material.set_shader_parameter(&"u_sphere_radius", sphere_radius)
+	material.set_shader_parameter(&"u_sphere_radius", sphere_radius + 0.5)
 	material.set_shader_parameter(&"u_volume_height", volume_height)
 	material.set_shader_parameter(&"sun_direction", sun_direction)
 	material.set_shader_parameter("planet_position", global_position)

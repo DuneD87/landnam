@@ -255,7 +255,7 @@ void fragment() {
 
     if (z_dif < edge_fade_distance && distance(CAMERA_POSITION_WORLD, world_pos) < view_opacity_end) {
         float fade_factor = clamp(z_dif / edge_fade_distance, 0.0, 1.0);
-
+		float dist_fade_factor = smoothstep(0.0, 1.0, view_opacity_end / distance(CAMERA_POSITION_WORLD, world_pos));
         ALPHA = mix(edge_min_alpha, edge_max_alpha, fade_factor);
 
         vec3 blended_edge_color = mix(edge_color, color, fade_factor);
