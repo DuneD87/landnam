@@ -7,7 +7,6 @@ const Config = preload("res://scripts/config.gd")
 @onready var animation_controller: AnimationController = $AnimationController
 @onready var free_flight_controller: FreeFlightController = $FreeFlightController
 @onready var collision_model: CollisionShape3D = $CollisionShape3D
-
 @export var planets: Node3D
 @export var animator_tree: AnimationTree
 @export var mouse_sensitivity: float = 0.002
@@ -18,6 +17,7 @@ var gravity_direction: Vector3 = Vector3.DOWN
 var locked_forward_direction: Vector3 = Vector3.FORWARD
 var planet: Node3D
 var is_attacking = false
+var is_swiming: bool
 var mouse_captured = true
 var free_flight_enabled = false
 
@@ -63,6 +63,18 @@ func _input(event):
 		else:
 			print("Free flight desactivado")
 
+func _check_needs_swiming(delta: float, free_flight_enabled: bool):
+	if !planet || (planet && !planet.planet.has_water):
+		return
+	var water_radius = planet.planet.water_radius
+	var to_center = global_position - planet.global_position
+	var water_limit = planet.planet.radius - water_radius - 1
+	if to_center.length() < water_limit:
+		current_animation = Config.SWIM
+		is_swiming = true
+	else:
+		is_swiming = false
+
 func _physics_process(delta: float):
 	if !mouse_captured || planets == null || planets.get_child_count() == 0:
 		return
@@ -73,7 +85,6 @@ func _physics_process(delta: float):
 		if distance <= closest_distance:
 			closest_distance = distance
 			planet = _planet
-	
 	free_flight_controller.enabled = free_flight_enabled
 
 	if free_flight_enabled:
@@ -88,8 +99,10 @@ func _physics_process(delta: float):
 		if Input.is_action_just_released("camera_zoom_out"):
 			camera_controller.camera_distance += 1
 			camera_controller.update_camera_transform()
-
+			
+		_check_needs_swiming(delta, free_flight_enabled)
 		update_normal_movement(delta)
+
 
 func update_free_flight(delta: float) -> void:
 	free_flight_controller.update_free_flight(delta, camera)
@@ -147,11 +160,12 @@ func update_normal_movement(delta: float) -> void:
 	gravity_direction = planet.get_gravity_direction(global_position)
 	up_direction = -gravity_direction
 	var input_dir = movement.handle_run_movement(delta, is_attacking, gravity_direction, camera)
-	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
-	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())	
-	current_animation = movement.current_animation
-	handle_attack(delta)
+	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
 
+	if !is_swiming:
+		movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
+		current_animation = movement.current_animation
+		handle_attack(delta)
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity
 	

@@ -1,25 +1,28 @@
-[gd_resource type="AnimationNodeBlendTree" load_steps=14 format=3 uid="uid://cp4qil0xj5pyj"]
+[gd_resource type="AnimationNodeBlendTree" load_steps=16 format=3 uid="uid://cp4qil0xj5pyj"]
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_c48xe"]
-animation = &"Running_A"
+animation = &"Running/mixamo_com"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_bgqbl"]
-animation = &"1H_Melee_Attack_Chop"
+animation = &"Standing Melee Attack Downward/mixamo_com"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_w5t68"]
-animation = &"Idle"
+animation = &"mixamo_com"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_bgx5p"]
-animation = &"Jump_Idle"
+animation = &"Falling Idle/mixamo_com"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_05eln"]
-animation = &"Jump_Land"
+animation = &"Landing/mixamo_com"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_gqp14"]
-animation = &"Jump_Start"
+animation = &"Jumping/mixamo_com"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_xrch5"]
+animation = &"Swimming/mixamo_com"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_sv2hv"]
-animation = &"Running_B"
+animation = &"Standard Run/mixamo_com"
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_6uxvj"]
 
@@ -31,10 +34,12 @@ animation = &"Running_B"
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_bgqbl"]
 
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_aqv5n"]
+
 [sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_bgx5p"]
 
 [resource]
-graph_offset = Vector2(-707.691, 801.2)
+graph_offset = Vector2(231.647, 1072.3)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)
 nodes/Attack_1/node = SubResource("AnimationNodeAnimation_bgqbl")
@@ -47,6 +52,8 @@ nodes/JUMP_LAND/node = SubResource("AnimationNodeAnimation_05eln")
 nodes/JUMP_LAND/position = Vector2(-426.667, 1040)
 nodes/JUMP_START/node = SubResource("AnimationNodeAnimation_gqp14")
 nodes/JUMP_START/position = Vector2(-426.667, 720)
+nodes/SWIM_IDLE/node = SubResource("AnimationNodeAnimation_xrch5")
+nodes/SWIM_IDLE/position = Vector2(-426.667, 1226.67)
 nodes/Sprint/node = SubResource("AnimationNodeAnimation_sv2hv")
 nodes/Sprint/position = Vector2(-426.667, 400)
 nodes/bJumpIdle/node = SubResource("AnimationNodeBlend2_6uxvj")
@@ -56,10 +63,12 @@ nodes/bJumpLand/position = Vector2(1053.33, 1160)
 nodes/bJumpStart/node = SubResource("AnimationNodeBlend2_yxwve")
 nodes/bJumpStart/position = Vector2(640, 706.667)
 nodes/bRun/node = SubResource("AnimationNodeBlend2_bgx5p")
-nodes/bRun/position = Vector2(-120, 173.333)
+nodes/bRun/position = Vector2(160, 160)
 nodes/bSprint/node = SubResource("AnimationNodeBlend2_bgqbl")
 nodes/bSprint/position = Vector2(133.333, 333.333)
+nodes/bSwimIdle/node = SubResource("AnimationNodeBlend2_aqv5n")
+nodes/bSwimIdle/position = Vector2(1226.67, 1360)
 nodes/oAttack_1/node = SubResource("AnimationNodeOneShot_bgx5p")
 nodes/oAttack_1/position = Vector2(373.333, 480)
-nodes/output/position = Vector2(1373.33, 1173.33)
-node_connections = [&"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"oAttack_1", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"oAttack_1", 0, &"bSprint", &"oAttack_1", 1, &"Attack_1", &"output", 0, &"bJumpLand"]
+nodes/output/position = Vector2(1440, 1200)
+node_connections = [&"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"oAttack_1", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bSwimIdle", 0, &"bJumpLand", &"bSwimIdle", 1, &"SWIM_IDLE", &"oAttack_1", 0, &"bSprint", &"oAttack_1", 1, &"Attack_1", &"output", 0, &"bSwimIdle"]
