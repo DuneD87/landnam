@@ -198,6 +198,7 @@ func handle_attack(delta: float) -> Node3D:
 			var hit_distance = hit_point.distance_to(global_position)
 			if target_node is VoxelInstancerRigidBody && hit_distance < 3.0:
 				target_node.queue_free_and_notify_instancer()
+				
 		is_voxel = target_node && target_node is VoxelLodTerrain
 		timer.start(0.7)
 		is_attacking = true
@@ -232,9 +233,7 @@ func update_normal_movement(delta: float) -> void:
 		
 	if was_swimming:
 		current_swimming_pitch = 0.0
-		var pitch_rotation = Quaternion(global_transform.basis.x, -current_swimming_pitch * delta * swimming_rotation_speed)
-		global_transform.basis = Basis(pitch_rotation) * global_transform.basis
-		orthonormalize()
+		player_model.rotation = Vector3(0.0, 0.0, 0.0)
 			
 	align_to_gravity(gravity_direction, delta)
 	camera_controller.update_camera_rotation()
