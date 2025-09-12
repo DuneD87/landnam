@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://w06p81rsk36x"]
+[gd_scene load_steps=14 format=3 uid="uid://w06p81rsk36x"]
 
 [ext_resource type="PackedScene" uid="uid://bojgeprhf6ol0" path="res://models/player/Dune/Breathing Idle.fbx" id="1_r7xhc"]
 [ext_resource type="AnimationLibrary" uid="uid://duv2yxankvhsk" path="res://models/player/Dune/Falling Idle.fbx" id="2_a5wmy"]
@@ -10,6 +10,7 @@
 [ext_resource type="AnimationLibrary" uid="uid://br80r24infdcd" path="res://models/player/Dune/Landing.fbx" id="5_yejko"]
 [ext_resource type="AnimationLibrary" uid="uid://bvxhkmrsvrh1f" path="res://models/player/Dune/Standard Run.fbx" id="8_y8gx6"]
 [ext_resource type="AnimationLibrary" uid="uid://bpbapnla5pmbc" path="res://models/player/Dune/Swimming.fbx" id="10_lgoeh"]
+[ext_resource type="AnimationLibrary" uid="uid://hhehw2ph1stb" path="res://models/player/Dune/Treading Water.fbx" id="11_37ox5"]
 
 [sub_resource type="Animation" id="Animation_wlvpm"]
 resource_name = "mixamo_com"
@@ -315,5 +316,6 @@ libraries = {
 &"Sprint": ExtResource("4_ql1mw"),
 &"Standard Run": ExtResource("8_y8gx6"),
 &"Standing Melee Attack Downward": ExtResource("5_cxd25"),
-&"Swimming": ExtResource("10_lgoeh")
+&"Swimming": ExtResource("10_lgoeh"),
+&"Swimming_Idle": ExtResource("11_37ox5")
 }

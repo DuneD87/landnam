@@ -2,8 +2,10 @@ extends Node
 
 class_name Movement
 const Config = preload("res://scripts/config.gd")
+const SWIM_TRANSITION_DELAY = 0.3
 
 @export var speed: float = 5.0
+@export var swim_speed: float = 2.5
 @export var acceleration: float = 10.0
 @export var fall_speed_threshold: float = 5.0
 @export var jump_height: float = 3.0
@@ -15,6 +17,9 @@ var is_jumping = false
 var is_falling = false
 var is_running = false
 var is_sprinting = false
+var is_swimming = false
+var was_swimming = false
+var swim_transition_timer = 0.0
 
 var jump_velocity = 0.0
 var gravity_velocity = 0.0
@@ -23,6 +28,8 @@ var velocity: Vector3 = Vector3.ZERO
 var direction: Vector3 = Vector3.ZERO
 
 func handle_jump_movement(delta: float, gravity_strength: float, gravity_direction: Vector3 , is_on_floor: bool):
+	if is_swimming:
+		return
 	if Input.is_action_just_pressed("jump") and !is_jumping && !is_falling:
 		is_jumping = true
 		jump_velocity = sqrt(2 * jump_height * gravity_strength)
@@ -44,33 +51,39 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 	var input_dir = get_input_direction(camera, gravity_direction)
 	update_movement(delta, input_dir)
 	
+	if is_swimming != was_swimming:
+		swim_transition_timer = SWIM_TRANSITION_DELAY
+		was_swimming = is_swimming
+	
+	swim_transition_timer = max(0, swim_transition_timer - delta)
+	var use_swim_animations = is_swimming || swim_transition_timer > 0
+	
 	if Input.is_action_pressed("Sprint"):
-		if !is_jumping && !is_falling:
+		if !is_jumping && !is_falling && !use_swim_animations:
 			is_sprinting = true
 			velocity = velocity * 1.8
 			current_animation = Config.SPRINT
 	else:
 		is_sprinting = false
-		velocity = velocity
 		
 	if !is_attacking && !is_jumping && !is_sprinting && !is_falling:
 		is_running = input_dir.length() > 0.1
 		
 		if !is_running:
-			current_animation = Config.IDLE
+			current_animation = Config.SWIM_IDLE if use_swim_animations else Config.IDLE
 		else:
-			current_animation = Config.RUN	
+			current_animation = Config.SWIM if use_swim_animations else Config.RUN
 			
 	return input_dir
 
 func handle_idle_movement(delta: float, gravity_direction: Vector3, is_on_floor: bool, gravity_strength: float, current_velocity: Vector3):
 	var downward_velocity = current_velocity.dot(gravity_direction.normalized())
-	is_falling = !is_on_floor and !is_jumping and downward_velocity > fall_speed_threshold
+	is_falling = !is_on_floor && !is_jumping && downward_velocity > fall_speed_threshold && !is_swimming
 	
 	if is_falling:
 		current_animation = Config.FALLING
 		
-	if !is_on_floor:
+	if !is_on_floor && !is_swimming:
 		var gravity_accel = gravity_strength * mass
 		var gravity_dir = gravity_direction.normalized()
 		
@@ -87,8 +100,10 @@ func get_input_direction(camera: Camera3D, gravity_dir: Vector3) -> Vector3:
 	var forward = -camera.global_transform.basis.z
 	var right = camera.global_transform.basis.x
 	var up = camera.global_transform.basis.y
-
-	forward = project_on_plane(forward, gravity_dir).normalized()
+	
+	if !is_swimming:
+		forward = project_on_plane(forward, gravity_dir).normalized()
+		
 	right = project_on_plane(right, gravity_dir).normalized()
 	up = project_on_plane(up, gravity_dir).normalized()
 	
@@ -109,4 +124,7 @@ func project_on_plane(vector: Vector3, normal: Vector3) -> Vector3:
 
 func update_movement(delta: float, direction_input: Vector3):
 	direction = direction.lerp(direction_input, delta * acceleration)
-	velocity = direction * speed
+	if !is_swimming:
+		velocity = direction * speed
+	else:
+		velocity = direction * swim_speed

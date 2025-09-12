@@ -29,6 +29,9 @@ var animation_states = {
 		"bJumpIdle": 1.0,
 	},
 	Config.SWIM: {
+		"bSwim": 1.0
+	},
+	Config.SWIM_IDLE: {
 		"bSwimIdle": 1.0
 	}
 }
@@ -39,6 +42,7 @@ var current_values = {
 	"bJumpStart": 0.0,
 	"bJumpIdle": 0.0,
 	"bJumpLand": 0.0,
+	"bSwim": 0.0,
 	"bSwimIdle": 0.0
 }
 

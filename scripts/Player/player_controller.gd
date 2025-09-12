@@ -7,20 +7,24 @@ const Config = preload("res://scripts/config.gd")
 @onready var animation_controller: AnimationController = $AnimationController
 @onready var free_flight_controller: FreeFlightController = $FreeFlightController
 @onready var collision_model: CollisionShape3D = $CollisionShape3D
+@onready var player_model: Node3D = $PlayerModel
 @export var planets: Node3D
 @export var animator_tree: AnimationTree
 @export var mouse_sensitivity: float = 0.002
 @export var invert_y: bool = false
 @export var timer : Timer
+@export var swimming_pitch_angle: float = 90.0 
+@export var swimming_rotation_speed: float = 5.0 
+@export var show_raycast_debug: bool = false
 
 var gravity_direction: Vector3 = Vector3.DOWN
-var locked_forward_direction: Vector3 = Vector3.FORWARD
 var planet: Node3D
 var is_attacking = false
-var is_swiming: bool
 var mouse_captured = true
 var free_flight_enabled = false
-
+var current_swimming_pitch: float = 0.0
+var attack_raycast: RayCast3D
+var is_voxel: bool
 var current_animation = Config.IDLE
 
 func capture_mouse(capture: bool):
@@ -29,16 +33,20 @@ func capture_mouse(capture: bool):
 	
 func on_timeout():
 	if is_attacking:
-		dig_hole(2.0, 100.0)
+		if is_voxel:
+			dig_hole(2.0, 100.0)
 		is_attacking = false
+	timer.stop()
 		
 func _ready():
 	timer = Timer.new()
 	timer.connect("timeout", on_timeout)
 	add_child(timer)
-	
+	attack_raycast = RayCast3D.new()
+	add_child(attack_raycast)
+	attack_raycast.enabled = false  # Solo se habilita durante el ataque
 	capture_mouse(true) 
-
+	
 func _input(event):
 	if free_flight_enabled:
 		visible = false
@@ -63,17 +71,18 @@ func _input(event):
 		else:
 			print("Free flight desactivado")
 
-func _check_needs_swiming(delta: float, free_flight_enabled: bool):
+func _check_needs_swiming(delta: float):
 	if !planet || (planet && !planet.planet.has_water):
 		return
+		
 	var water_radius = planet.planet.water_radius
 	var to_center = global_position - planet.global_position
-	var water_limit = planet.planet.radius - water_radius - 1
+	var water_limit = planet.planet.radius - water_radius - 1.5
+	
 	if to_center.length() < water_limit:
-		current_animation = Config.SWIM
-		is_swiming = true
+		movement.is_swimming = true
 	else:
-		is_swiming = false
+		movement.is_swimming = false
 
 func _physics_process(delta: float):
 	if !mouse_captured || planets == null || planets.get_child_count() == 0:
@@ -100,9 +109,7 @@ func _physics_process(delta: float):
 			camera_controller.camera_distance += 1
 			camera_controller.update_camera_transform()
 			
-		_check_needs_swiming(delta, free_flight_enabled)
 		update_normal_movement(delta)
-
 
 func update_free_flight(delta: float) -> void:
 	free_flight_controller.update_free_flight(delta, camera)
@@ -126,7 +133,23 @@ func rotate_toward_movement(input_dir: Vector3, delta: float):
 			global_transform.basis = Basis(rot) * global_transform.basis
 			orthonormalize()
 
-func align_to_gravity(gravity_dir: Vector3, delta: float):
+func apply_swimming_pitch(input_dir: Vector3, delta: float):
+	var vertical_component = 0.0
+	if input_dir.length() > 0.1:
+		var camera_forward = -camera.global_transform.basis.z
+		var camera_pitch = asin(clamp(camera_forward.dot(gravity_direction), -1.0, 1.0))
+		vertical_component = camera_pitch * 0.5 
+	
+	var target_pitch = 0.0
+	if abs(vertical_component) > 0.1:
+		target_pitch = clamp(vertical_component * deg_to_rad(swimming_pitch_angle), 
+							 -deg_to_rad(swimming_pitch_angle), 
+							 deg_to_rad(swimming_pitch_angle))
+	
+	current_swimming_pitch = lerp(current_swimming_pitch, target_pitch, delta * swimming_rotation_speed)
+	player_model.rotation = Vector3(current_swimming_pitch, 0, 0)
+
+func align_to_gravity(gravity_dir: Vector3, delta: float):	
 	var up_dir = -gravity_dir.normalized()
 	var current_up = global_transform.basis.y
 	var rotation_axis = current_up.cross(up_dir)
@@ -150,28 +173,69 @@ func dig_hole(radius: float, distance: float):
 		voxel_tool.value = 0
 		voxel_tool.do_sphere(center, radius)
 		
-func handle_attack(delta: float):
-	if Input.is_action_just_pressed("attack_1") && !is_attacking && !movement.is_falling:
+func handle_attack(delta: float) -> Node3D:
+	if Input.is_action_just_pressed("attack_1") && !is_attacking && !movement.is_running && !movement.is_sprinting && !movement.is_swimming && !movement.is_falling:
 		current_animation = Config.ATTACK_1
+		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
+		
+		attack_raycast.global_position = ray_origin
+		attack_raycast.target_position = Vector3(0, 0, -1000)
+		var camera_forward = -camera.global_transform.basis.z
+		attack_raycast.global_rotation = camera.global_rotation
+		attack_raycast.enabled = true
+		attack_raycast.force_raycast_update()
+		
+		var target_node: Node3D = null
+		
+		if attack_raycast.is_colliding():
+			var hit_point = attack_raycast.get_collision_point()
+			target_node = attack_raycast.get_collider() as Node3D
+			
+			if show_raycast_debug:
+				DebugUtils.draw_debug_line(ray_origin, hit_point, Color.GREEN, 2.0)
+				DebugUtils.draw_debug_point(hit_point, Color.YELLOW, 0.2, 2.0)
+			
+			var hit_distance = hit_point.distance_to(global_position)
+			if target_node is VoxelInstancerRigidBody && hit_distance < 3.0:
+				target_node.queue_free_and_notify_instancer()
+		is_voxel = target_node && target_node is VoxelLodTerrain
 		timer.start(0.7)
 		is_attacking = true
 		
+		return target_node
+	
+	return null
+
+
 func update_normal_movement(delta: float) -> void:
 	gravity_direction = planet.get_gravity_direction(global_position)
 	up_direction = -gravity_direction
+	
+	var was_swimming = movement.is_swimming
+	_check_needs_swiming(delta)
+	was_swimming = was_swimming && !movement.is_swimming
+	
 	var input_dir = movement.handle_run_movement(delta, is_attacking, gravity_direction, camera)
 	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
-
-	if !is_swiming:
-		movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
-		current_animation = movement.current_animation
-		handle_attack(delta)
+	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
+	current_animation = movement.current_animation
+	
+	handle_attack(delta)
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity
 	
 	if movement.is_running || movement.is_sprinting:
 		rotate_toward_movement(input_dir, delta)
-
+		
+	if movement.is_swimming:
+		apply_swimming_pitch(input_dir, delta)
+		
+	if was_swimming:
+		current_swimming_pitch = 0.0
+		var pitch_rotation = Quaternion(global_transform.basis.x, -current_swimming_pitch * delta * swimming_rotation_speed)
+		global_transform.basis = Basis(pitch_rotation) * global_transform.basis
+		orthonormalize()
+			
 	align_to_gravity(gravity_direction, delta)
 	camera_controller.update_camera_rotation()
 	

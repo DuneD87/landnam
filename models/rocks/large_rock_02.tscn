@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=4 uid="uid://cke5ta2p1qut8"]
+[gd_scene load_steps=7 format=4 uid="uid://cke5ta2p1qut8"]
 
 [ext_resource type="Texture2D" uid="uid://x865k47rv5kx" path="res://models/rocks/uploads_files_6098154_Stylized+rocks_mat1_color.jpg" id="1_nuhqu"]
 [ext_resource type="Texture2D" uid="uid://diorfh0pgr043" path="res://models/rocks/uploads_files_6098154_Stylized+rocks_mat1_normal.jpg" id="2_fbe8i"]
@@ -45,8 +45,15 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_4u5go")
 
-[node name="Node3D" type="Node3D"]
+[sub_resource type="BoxShape3D" id="BoxShape3D_hcp8y"]
+size = Vector3(1.99561, 0.538086, 1.867)
+
+[node name="Node3D" type="StaticBody3D"]
 
 [node name="Rocher02_low_0" type="MeshInstance3D" parent="."]
 mesh = SubResource("ArrayMesh_8thor")
 skeleton = NodePath("")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.92409, 0.270069, 0.350527)
+shape = SubResource("BoxShape3D_hcp8y")

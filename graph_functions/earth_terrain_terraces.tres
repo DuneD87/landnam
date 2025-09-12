@@ -109,7 +109,8 @@ graph_data = {
 "6": {
 "auto_connect": true,
 "gui_position": Vector2(560, 53.3333),
-"radius": 10000.0,
+"name": &"SdfSphere",
+"radius": 30000.0,
 "type": "SdfSphere"
 }
 },

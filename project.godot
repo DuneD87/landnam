@@ -104,6 +104,7 @@ toggle_wireframe={
 [physics]
 
 3d/physics_engine="Jolt Physics (Extension)"
+jolt_physics_3d/limits/max_bodies=100240
 
 [rendering]
 

@@ -91,8 +91,6 @@ func _load_vegetation():
 			push_error("Error parsing vegetation, generator with name %s not found.", item.generator)
 			
 		var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
-		multi_mesh_item.collision_layer = 1
-		multi_mesh_item.collision_mask = 1
 		multi_mesh_item.generator = generator
 		var scene = load(item.scene)
 		multi_mesh_item.scene = scene
@@ -186,7 +184,7 @@ func setup_voxel_generator() -> void:
 		var radius_pos: int = 0
 		var radius_found: bool = false
 		for key in node_data:
-			if key == "params":
+			if key == "inputs":
 				var value = node_data[key]
 				for params in value:
 					for param in params:
@@ -197,7 +195,7 @@ func setup_voxel_generator() -> void:
 						else:
 							radius_pos += 1
 		if radius_found:
-			graph_generator_function.set_node_param(node_id, radius_pos - 1, radius)
+			graph_generator_function.set_node_param_by_name(node_id, "radius", radius)
 			graph_generator.compile()
 
 func _ready() -> void:

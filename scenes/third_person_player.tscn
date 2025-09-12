@@ -8,9 +8,8 @@
 [ext_resource type="PackedScene" uid="uid://w06p81rsk36x" path="res://scenes/Player/dune.tscn" id="6_w5t68"]
 [ext_resource type="Script" uid="uid://drujj6x4uwkju" path="res://scripts/Player/free_flight_controller.gd" id="7_w5t68"]
 
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qeuc0"]
-radius = 0.64535
-height = 2.97757
+[sub_resource type="BoxShape3D" id="BoxShape3D_w5t68"]
+size = Vector3(1, 2.90419, 1)
 
 [node name="Player" type="CharacterBody3D"]
 floor_constant_speed = true
@@ -37,8 +36,8 @@ far = 400000.0
 view_distance = 5000000
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0676782, 1.41313, 0.065202)
-shape = SubResource("CapsuleShape3D_qeuc0")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0507524, 1.45253, 0.0420732)
+shape = SubResource("BoxShape3D_w5t68")
 
 [node name="AnimationController" type="Node" parent="."]
 script = ExtResource("6_bgx5p")
@@ -58,11 +57,19 @@ bones/1/rotation = Quaternion(-0.0241836, -0.00117644, 0.000794137, 0.999707)
 bones/2/rotation = Quaternion(0.0088794, -0.0216603, -0.000330993, 0.999726)
 bones/3/rotation = Quaternion(0.00882676, -0.0216568, 4.80632e-05, 0.999727)
 bones/4/rotation = Quaternion(0.00854497, 0.00778909, -0.0123898, 0.999856)
+bones/5/rotation = Quaternion(0.0481969, -0.0148465, 0.0315465, 0.998229)
+bones/7/rotation = Quaternion(-0.522575, -0.448794, 0.610841, -0.390348)
+bones/8/rotation = Quaternion(0.45171, 0.168694, 0.111246, 0.868979)
 bones/9/rotation = Quaternion(0.0160413, -0.00858842, 0.252362, 0.967462)
+bones/10/rotation = Quaternion(0.137834, 0.333367, -0.103828, 0.92687)
 bones/11/rotation = Quaternion(0.0635112, -0.0881684, 0.173141, 0.978885)
+bones/12/rotation = Quaternion(0.0677099, 0.0210393, -0.107482, 0.991676)
 bones/13/rotation = Quaternion(-0.017022, -0.0264541, 0.202477, 0.978782)
+bones/15/rotation = Quaternion(0.155272, 0.0949926, 0.157587, 0.970584)
 bones/16/rotation = Quaternion(0.252996, 0.00719078, 0.0294056, 0.966994)
 bones/17/rotation = Quaternion(0.123635, 0.01733, 0.165209, 0.978325)
+bones/19/rotation = Quaternion(0.565655, -0.436398, 0.544373, 0.439601)
+bones/20/rotation = Quaternion(0.477062, -0.148865, -0.140602, 0.854682)
 bones/21/rotation = Quaternion(0.0147247, 0.00828446, -0.233797, 0.972139)
 bones/22/rotation = Quaternion(0.0164048, -0.21866, 0.121986, 0.968007)
 bones/23/rotation = Quaternion(0.16798, -0.0659958, -0.0751626, 0.980703)
@@ -74,9 +81,11 @@ bones/29/rotation = Quaternion(0.0634367, -0.0353301, -0.15393, 0.98541)
 bones/31/rotation = Quaternion(0.0383601, 0.0843764, 0.994838, -0.0413052)
 bones/32/rotation = Quaternion(-0.22409, -0.0785298, -0.0145049, 0.971291)
 bones/33/rotation = Quaternion(0.582942, -0.0328758, -0.00656478, 0.811822)
+bones/34/rotation = Quaternion(0.282582, -0.0436529, 0.0124232, 0.958169)
 bones/36/rotation = Quaternion(-0.121557, 0.078655, 0.987399, 0.0638771)
 bones/37/rotation = Quaternion(-0.184725, 0.034927, 0.0203149, 0.981959)
 bones/38/rotation = Quaternion(0.551893, 0.0579033, 0.020467, 0.83165)
+bones/39/rotation = Quaternion(0.270485, 0.0460057, -0.0129416, 0.961537)
 
 [node name="AnimationTree" type="AnimationTree" parent="PlayerModel"]
 tree_root = ExtResource("5_bgqbl")
@@ -86,6 +95,7 @@ parameters/bJumpLand/blend_amount = 0
 parameters/bJumpStart/blend_amount = 0
 parameters/bRun/blend_amount = 0.0
 parameters/bSprint/blend_amount = 0
+parameters/bSwim/blend_amount = 0
 parameters/bSwimIdle/blend_amount = 0
 parameters/oAttack_1/active = false
 parameters/oAttack_1/internal_active = false
