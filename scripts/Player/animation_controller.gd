@@ -8,30 +8,30 @@ const Config = preload("res://scripts/config.gd")
 @export var blend_speed: float = 5.0
 
 var animation_states = {
-	Config.IDLE: {
+	Config.ANIMATION.IDLE: {
 	},
-	Config.RUN: {
+	Config.ANIMATION.RUN: {
 		"bRun": 1.0,
 	},
-	Config.SPRINT: {
+	Config.ANIMATION.SPRINT: {
 		"bSprint": 1.0,
 	},
-	Config.JUMP_START: {
+	Config.ANIMATION.JUMP_START: {
 		"bJumpStart": 1.0,
 	},
-	Config.JUMP_IDLE: {
+	Config.ANIMATION.JUMP_IDLE: {
 		"bJumpIdle": 1.0,
 	},
-	Config.JUMP_LAND: {
+	Config.ANIMATION.JUMP_LAND: {
 		"bJumpLand": 1.0
 	},
-	Config.FALLING: {
+	Config.ANIMATION.FALLING: {
 		"bJumpIdle": 1.0,
 	},
-	Config.SWIM: {
+	Config.ANIMATION.SWIM: {
 		"bSwim": 1.0
 	},
-	Config.SWIM_IDLE: {
+	Config.ANIMATION.SWIM_IDLE: {
 		"bSwimIdle": 1.0
 	}
 }
@@ -54,7 +54,7 @@ func handle_animations(delta: float, current_animation, free_flight_enabled):
 	if free_flight_enabled:
 		return
 
-	if current_animation == Config.ATTACK_1:
+	if current_animation == Config.ANIMATION.ATTACK_1:
 		animation_tree.set("parameters/oAttack_1/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 		return
 

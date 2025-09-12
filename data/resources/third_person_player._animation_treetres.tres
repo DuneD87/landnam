@@ -44,7 +44,7 @@ animation = &"Standard Run/mixamo_com"
 [sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_bgx5p"]
 
 [resource]
-graph_offset = Vector2(-491.976, 709.042)
+graph_offset = Vector2(-624.435, 254.917)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)
 nodes/Attack_1/node = SubResource("AnimationNodeAnimation_bgqbl")

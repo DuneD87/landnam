@@ -11,7 +11,7 @@ const SWIM_TRANSITION_DELAY = 0.3
 @export var jump_height: float = 3.0
 @export var mass: float = 70.0
 
-var current_animation = Config.IDLE
+var current_animation = Config.ANIMATION.IDLE
 
 var is_jumping = false
 var is_falling = false
@@ -33,19 +33,19 @@ func handle_jump_movement(delta: float, gravity_strength: float, gravity_directi
 	if Input.is_action_just_pressed("jump") and !is_jumping && !is_falling:
 		is_jumping = true
 		jump_velocity = sqrt(2 * jump_height * gravity_strength)
-		current_animation = Config.JUMP_START
+		current_animation = Config.ANIMATION.JUMP_START
 		
 	if is_jumping:
 		velocity += -gravity_direction.normalized() * jump_velocity * delta * mass
 		jump_velocity = max(0, jump_velocity - gravity_strength * delta)
 
 		if jump_velocity > 0.0:
-			current_animation = Config.JUMP_IDLE
+			current_animation = Config.ANIMATION.JUMP_IDLE
 		elif !is_on_floor:
-			current_animation = Config.FALLING
+			current_animation = Config.ANIMATION.FALLING
 		else:
 			is_jumping = false
-			current_animation = Config.JUMP_LAND
+			current_animation = Config.ANIMATION.JUMP_LAND
 
 func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Vector3, camera: Camera3D) -> Vector3:
 	var input_dir = get_input_direction(camera, gravity_direction)
@@ -62,7 +62,7 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 		if !is_jumping && !is_falling && !use_swim_animations:
 			is_sprinting = true
 			velocity = velocity * 1.8
-			current_animation = Config.SPRINT
+			current_animation = Config.ANIMATION.SPRINT
 	else:
 		is_sprinting = false
 		
@@ -70,9 +70,9 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 		is_running = input_dir.length() > 0.1
 		
 		if !is_running:
-			current_animation = Config.SWIM_IDLE if use_swim_animations else Config.IDLE
+			current_animation = Config.ANIMATION.SWIM_IDLE if use_swim_animations else Config.ANIMATION.IDLE
 		else:
-			current_animation = Config.SWIM if use_swim_animations else Config.RUN
+			current_animation = Config.ANIMATION.SWIM if use_swim_animations else Config.ANIMATION.RUN
 			
 	return input_dir
 
@@ -81,7 +81,7 @@ func handle_idle_movement(delta: float, gravity_direction: Vector3, is_on_floor:
 	is_falling = !is_on_floor && !is_jumping && downward_velocity > fall_speed_threshold && !is_swimming
 	
 	if is_falling:
-		current_animation = Config.FALLING
+		current_animation = Config.ANIMATION.FALLING
 		
 	if !is_on_floor && !is_swimming:
 		var gravity_accel = gravity_strength * mass

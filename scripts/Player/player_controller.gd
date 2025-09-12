@@ -8,43 +8,28 @@ const Config = preload("res://scripts/config.gd")
 @onready var free_flight_controller: FreeFlightController = $FreeFlightController
 @onready var collision_model: CollisionShape3D = $CollisionShape3D
 @onready var player_model: Node3D = $PlayerModel
+@onready var action_controller: ActionController = $ActionController
+
 @export var planets: Node3D
 @export var animator_tree: AnimationTree
 @export var mouse_sensitivity: float = 0.002
 @export var invert_y: bool = false
-@export var timer : Timer
 @export var swimming_pitch_angle: float = 90.0 
 @export var swimming_rotation_speed: float = 5.0 
-@export var show_raycast_debug: bool = false
 
 var gravity_direction: Vector3 = Vector3.DOWN
 var planet: Node3D
-var is_attacking = false
 var mouse_captured = true
 var free_flight_enabled = false
 var current_swimming_pitch: float = 0.0
-var attack_raycast: RayCast3D
-var is_voxel: bool
-var current_animation = Config.IDLE
+var current_animation = Config.ANIMATION.IDLE
+var play_attack_once = false
 
 func capture_mouse(capture: bool):
 	mouse_captured = capture
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
-	
-func on_timeout():
-	if is_attacking:
-		if is_voxel:
-			dig_hole(2.0, 100.0)
-		is_attacking = false
-	timer.stop()
 		
 func _ready():
-	timer = Timer.new()
-	timer.connect("timeout", on_timeout)
-	add_child(timer)
-	attack_raycast = RayCast3D.new()
-	add_child(attack_raycast)
-	attack_raycast.enabled = false  # Solo se habilita durante el ataque
 	capture_mouse(true) 
 	
 func _input(event):
@@ -62,6 +47,11 @@ func _input(event):
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not mouse_captured:
 		capture_mouse(true)
+		
+	if Input.is_action_just_pressed("attack_1") && !action_controller.is_attacking && !movement.is_running && !movement.is_sprinting && !movement.is_swimming && !movement.is_falling:
+		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
+		action_controller.handle_attack(camera, ray_origin)
+		play_attack_once = true
 
 	if event.is_action_pressed("toggle_free_flight"):
 		free_flight_enabled = !free_flight_enabled
@@ -142,9 +132,7 @@ func apply_swimming_pitch(input_dir: Vector3, delta: float):
 	
 	var target_pitch = 0.0
 	if abs(vertical_component) > 0.1:
-		target_pitch = clamp(vertical_component * deg_to_rad(swimming_pitch_angle), 
-							 -deg_to_rad(swimming_pitch_angle), 
-							 deg_to_rad(swimming_pitch_angle))
+		target_pitch = clamp(vertical_component * deg_to_rad(swimming_pitch_angle), -deg_to_rad(swimming_pitch_angle), deg_to_rad(swimming_pitch_angle))
 	
 	current_swimming_pitch = lerp(current_swimming_pitch, target_pitch, delta * swimming_rotation_speed)
 	player_model.rotation = Vector3(current_swimming_pitch, 0, 0)
@@ -160,53 +148,6 @@ func align_to_gravity(gravity_dir: Vector3, delta: float):
 		global_transform.basis = Basis(rot) * global_transform.basis
 		orthonormalize()
 
-func dig_hole(radius: float, distance: float):
-	var voxel_tool: VoxelTool = planet.voxel_terrain.get_voxel_tool()
-	var origin = camera.global_position
-	var direction = -camera.global_transform.basis.z.normalized()
-	var result = voxel_tool.raycast(origin, direction, distance)
-	
-	if result:
-		var hit_position = result.previous_position
-		var center = Vector3(hit_position.x, hit_position.y, hit_position.z)
-		voxel_tool.mode = VoxelTool.MODE_REMOVE 
-		voxel_tool.value = 0
-		voxel_tool.do_sphere(center, radius)
-		
-func handle_attack(delta: float) -> Node3D:
-	if Input.is_action_just_pressed("attack_1") && !is_attacking && !movement.is_running && !movement.is_sprinting && !movement.is_swimming && !movement.is_falling:
-		current_animation = Config.ATTACK_1
-		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
-		
-		attack_raycast.global_position = ray_origin
-		attack_raycast.target_position = Vector3(0, 0, -1000)
-		var camera_forward = -camera.global_transform.basis.z
-		attack_raycast.global_rotation = camera.global_rotation
-		attack_raycast.enabled = true
-		attack_raycast.force_raycast_update()
-		
-		var target_node: Node3D = null
-		
-		if attack_raycast.is_colliding():
-			var hit_point = attack_raycast.get_collision_point()
-			target_node = attack_raycast.get_collider() as Node3D
-			
-			if show_raycast_debug:
-				DebugUtils.draw_debug_line(ray_origin, hit_point, Color.GREEN, 2.0)
-				DebugUtils.draw_debug_point(hit_point, Color.YELLOW, 0.2, 2.0)
-			
-			var hit_distance = hit_point.distance_to(global_position)
-			if target_node is VoxelInstancerRigidBody && hit_distance < 3.0:
-				target_node.queue_free_and_notify_instancer()
-				
-		is_voxel = target_node && target_node is VoxelLodTerrain
-		timer.start(0.7)
-		is_attacking = true
-		
-		return target_node
-	
-	return null
-
 
 func update_normal_movement(delta: float) -> void:
 	gravity_direction = planet.get_gravity_direction(global_position)
@@ -216,12 +157,14 @@ func update_normal_movement(delta: float) -> void:
 	_check_needs_swiming(delta)
 	was_swimming = was_swimming && !movement.is_swimming
 	
-	var input_dir = movement.handle_run_movement(delta, is_attacking, gravity_direction, camera)
+	var input_dir = movement.handle_run_movement(delta, action_controller.is_attacking, gravity_direction, camera)
 	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 	current_animation = movement.current_animation
-	
-	handle_attack(delta)
+	if play_attack_once:
+		current_animation = Config.ANIMATION.ATTACK_1
+		play_attack_once = false
+
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity
 	
