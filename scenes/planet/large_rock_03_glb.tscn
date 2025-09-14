@@ -1,15 +1,16 @@
-[gd_scene load_steps=7 format=4 uid="uid://barfmcywfo1pb"]
+[gd_scene load_steps=8 format=4 uid="uid://barfmcywfo1pb"]
 
-[ext_resource type="Texture2D" uid="uid://rd2g7abms6ip" path="res://models/rocks/uploads_files_6098154_Stylized+rocks_mat2_color.jpg" id="1_mmyay"]
-[ext_resource type="Texture2D" uid="uid://deb6gxf2rbp2b" path="res://models/rocks/uploads_files_6098154_Stylized+rocks_mat2_normal.jpg" id="2_fu6ij"]
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/planet_item.gd" id="1_c4pnc"]
+[ext_resource type="Texture2D" uid="uid://rd2g7abms6ip" path="res://models/rocks/uploads_files_6098154_Stylized+rocks_mat2_color.jpg" id="2_qv2dg"]
+[ext_resource type="Texture2D" uid="uid://deb6gxf2rbp2b" path="res://models/rocks/uploads_files_6098154_Stylized+rocks_mat2_normal.jpg" id="3_kwe0u"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_spxbf"]
 resource_name = "Rocher03_low"
 cull_mode = 2
-albedo_texture = ExtResource("1_mmyay")
+albedo_texture = ExtResource("2_qv2dg")
 roughness = 0.552786
 normal_enabled = true
-normal_texture = ExtResource("2_fu6ij")
+normal_texture = ExtResource("3_kwe0u")
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_1k3pi"]
 _surfaces = [{
@@ -49,6 +50,7 @@ shadow_mesh = SubResource("ArrayMesh_1k3pi")
 size = Vector3(1.05322, 1.32922, 1.03577)
 
 [node name="Node3D" type="StaticBody3D"]
+script = ExtResource("1_c4pnc")
 
 [node name="Rocher03_low_0" type="MeshInstance3D" parent="."]
 mesh = SubResource("ArrayMesh_dpvvf")

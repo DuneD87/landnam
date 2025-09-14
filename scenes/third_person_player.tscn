@@ -91,6 +91,7 @@ bones/39/rotation = Quaternion(0.270485, 0.0460057, -0.0129416, 0.961537)
 [node name="AnimationTree" type="AnimationTree" parent="PlayerModel"]
 tree_root = ExtResource("5_bgqbl")
 anim_player = NodePath("../AnimationPlayer")
+parameters/bAttack_1/blend_amount = 0
 parameters/bJumpIdle/blend_amount = 0
 parameters/bJumpLand/blend_amount = 0
 parameters/bJumpStart/blend_amount = 0
@@ -98,9 +99,6 @@ parameters/bRun/blend_amount = 0.0
 parameters/bSprint/blend_amount = 0
 parameters/bSwim/blend_amount = 0
 parameters/bSwimIdle/blend_amount = 0
-parameters/oAttack_1/active = false
-parameters/oAttack_1/internal_active = false
-parameters/oAttack_1/request = 0
 
 [node name="ActionController" type="Node" parent="."]
 script = ExtResource("8_sv2hv")

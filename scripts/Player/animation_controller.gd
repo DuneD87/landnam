@@ -33,6 +33,9 @@ var animation_states = {
 	},
 	Config.ANIMATION.SWIM_IDLE: {
 		"bSwimIdle": 1.0
+	},
+	Config.ANIMATION.ATTACK_1: {
+		"bAttack_1": 1.0
 	}
 }
 
@@ -43,7 +46,8 @@ var current_values = {
 	"bJumpIdle": 0.0,
 	"bJumpLand": 0.0,
 	"bSwim": 0.0,
-	"bSwimIdle": 0.0
+	"bSwimIdle": 0.0,
+	"bAttack_1": 0.0
 }
 
 func update_tree():
@@ -52,10 +56,6 @@ func update_tree():
 
 func handle_animations(delta: float, current_animation, free_flight_enabled):
 	if free_flight_enabled:
-		return
-
-	if current_animation == Config.ANIMATION.ATTACK_1:
-		animation_tree.set("parameters/oAttack_1/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 		return
 
 	var target_value = animation_states.get(current_animation, {})

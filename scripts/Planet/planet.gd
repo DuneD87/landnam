@@ -1,6 +1,6 @@
 @tool
 class_name Planet extends Node3D
-
+const config = preload("res://scripts/config.gd")
 @export_group("Terrain Settings")
 @export var radius: float
 @export var terrain_generator_path: String
@@ -43,6 +43,8 @@ class_name Planet extends Node3D
 @export var has_water: bool
 @export var water_radius: float
 
+var planet_item_scenes: Array[StaticBody3D]
+
 func _build_generator(generator_config: Dictionary, graph_functions: Array) -> VoxelInstanceGenerator:
 	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 	
@@ -79,7 +81,6 @@ func _load_vegetation():
 	voxel_instancer.library.clear()
 	var i = 0
 	for item in vegetation.items:
-		
 		var generator : VoxelInstanceGenerator
 		var generator_found = false
 		for generator_config in generators:
@@ -92,7 +93,9 @@ func _load_vegetation():
 			
 		var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
 		multi_mesh_item.generator = generator
+		
 		var scene = load(item.scene)
+					
 		multi_mesh_item.scene = scene
 		multi_mesh_item.lod_index = item.lod_index
 		voxel_instancer.library.add_item(i, multi_mesh_item)
@@ -103,7 +106,22 @@ func _load_vegetation():
 		}
 		
 		multi_mesh_array.append(multi_mesh_elem)
-		var scene_mesh : MeshInstance3D = scene.instantiate().get_child(0)
+		var scene_instantiated = scene.instantiate()
+		var scene_mesh : MeshInstance3D = scene_instantiated.get_child(0)
+		
+		if item.has("material_type") && scene_instantiated is StaticBody3D:
+			planet_item_scenes.append(scene_instantiated)
+			match item.material_type:
+				"WOOD":
+					scene_instantiated.type = config.OBJECT_TYPE.WOOD
+					scene_instantiated.health = 100
+				"STONE":
+					scene_instantiated.type = config.OBJECT_TYPE.STONE
+					scene_instantiated.health = 200
+
+				_:
+					scene_instantiated.type = config.OBJECT_TYPE.NONE
+
 		var surface_count = scene_mesh.mesh.get_surface_count()
 		for surface_idx in surface_count:
 			var _shader_material = scene_mesh.mesh.surface_get_material(surface_idx)

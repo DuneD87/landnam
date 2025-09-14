@@ -5,12 +5,16 @@ const Config = preload("res://scripts/config.gd")
 @export var timer : Timer
 @export var show_raycast_debug: bool = false
 
+var rand_num_gen: RandomNumberGenerator = RandomNumberGenerator.new()
+var attacking_nodes: Dictionary
 var is_attacking = false
 var attack_raycast: RayCast3D
 var is_voxel: bool
 var current_voxel: VoxelLodTerrain
 var current_origin: Vector3
 var current_direction: Vector3
+var current_target_id: int
+var current_target_node: VoxelInstancerRigidBody
 
 func _ready() -> void:
 	timer = Timer.new()
@@ -35,10 +39,25 @@ func on_timeout():
 	if is_attacking:
 		if is_voxel:
 			dig_hole(2.0, 100.0)
-		is_attacking = false
-	timer.stop()
+		if !Input.is_action_pressed("attack_1"):
+			is_attacking = false
+			timer.stop()
+		else:
+			attacking_nodes[current_target_id].health -= rand_num_gen.randf_range(10, 50)
+			if attacking_nodes[current_target_id].health <= 0:
+				current_target_node.queue_free_and_notify_instancer()
+				attacking_nodes.erase(current_target_node)
+				current_target_id = -1
+				timer.stop()
+				is_attacking = false
+			else:
+				timer.start(1.7)
 	
-func handle_attack(camera: Camera3D, origin: Vector3) -> Node3D:
+	
+func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet) -> Node3D:
+	if is_attacking:
+		return
+		
 	var ray_origin = origin
 	
 	attack_raycast.global_position = ray_origin
@@ -59,8 +78,16 @@ func handle_attack(camera: Camera3D, origin: Vector3) -> Node3D:
 			DebugUtils.draw_debug_point(hit_point, Color.YELLOW, 0.2, 2.0)
 		
 		var hit_distance = hit_point.distance_to(origin)
+	
 		if target_node is VoxelInstancerRigidBody && hit_distance < 3.0:
-			target_node.queue_free_and_notify_instancer()
+			var instance_id = target_node.get_instance_id()
+			current_target_id = instance_id
+			current_target_node = target_node
+			if !attacking_nodes.has(instance_id):
+				var item_id = target_node.get_library_item_id()
+				var scene = planet.voxel_instancer.library.get_item(item_id).scene.instantiate()
+				scene.health = planet.planet_item_scenes[item_id].health
+				attacking_nodes[instance_id] = scene
 			
 	is_voxel = target_node && target_node is VoxelLodTerrain
 	if is_voxel:
@@ -69,6 +96,6 @@ func handle_attack(camera: Camera3D, origin: Vector3) -> Node3D:
 		current_direction = camera_forward
 		
 	is_attacking = true
-	timer.start(0.7)
+	timer.start(1.7)
 
 	return target_node

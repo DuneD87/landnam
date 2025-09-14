@@ -1,22 +1,23 @@
-[gd_scene load_steps=11 format=4 uid="uid://di63obeg6eavs"]
+[gd_scene load_steps=12 format=4 uid="uid://di63obeg6eavs"]
 
-[ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/forest/textures/shapespark-low-poly-plants-kit_bark.jpg" id="1_uibji"]
-[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="2_a3bui"]
-[ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-01.png" id="2_iir3y"]
-[ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-02.png" id="3_71ah1"]
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/planet_item.gd" id="1_ckvc6"]
+[ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/forest/textures/shapespark-low-poly-plants-kit_bark.jpg" id="2_2bqi4"]
+[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="3_xe00o"]
+[ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-01.png" id="4_hdmhb"]
+[ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-02.png" id="5_ywp22"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6nj1d"]
 resource_name = "trunk-01"
 cull_mode = 2
-albedo_texture = ExtResource("1_uibji")
+albedo_texture = ExtResource("2_2bqi4")
 roughness = 0.343182
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_sctyd"]
 resource_name = "branch-1-01"
 render_priority = 0
-shader = ExtResource("2_a3bui")
+shader = ExtResource("3_xe00o")
 shader_parameter/albedo = Color(1, 1, 1, 1)
-shader_parameter/texture_albedo = ExtResource("2_iir3y")
+shader_parameter/texture_albedo = ExtResource("4_hdmhb")
 shader_parameter/alpha_scissor_threshold = 0.5
 shader_parameter/point_size = 1.0
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
@@ -32,9 +33,9 @@ shader_parameter/wind_speed = 0.3
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ew4ab"]
 resource_name = "branch-1-02"
 render_priority = 0
-shader = ExtResource("2_a3bui")
+shader = ExtResource("3_xe00o")
 shader_parameter/albedo = Color(1, 1, 1, 1)
-shader_parameter/texture_albedo = ExtResource("3_71ah1")
+shader_parameter/texture_albedo = ExtResource("5_ywp22")
 shader_parameter/alpha_scissor_threshold = 0.5
 shader_parameter/point_size = 1.0
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
@@ -126,6 +127,7 @@ shadow_mesh = SubResource("ArrayMesh_cfrcm")
 size = Vector3(0.231934, 5.74695, 0.482483)
 
 [node name="Node3D" type="StaticBody3D"]
+script = ExtResource("1_ckvc6")
 
 [node name="Tree-01-2" type="MeshInstance3D" parent="."]
 gi_mode = 2

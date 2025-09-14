@@ -148,44 +148,51 @@
 
 	"items": [
 		{ 	
-			"scene": "res://scenes/tree01.tscn",       
+			"scene": "res://scenes/planet/tree01.tscn",       
 			"generator": "tree_generator_2", 
 			"wind_speed": 0.3,
-			"lod_index": 3
+			"lod_index": 3,
+			"material_type": "WOOD"
 		},
 	  	{ 
-			"scene": "res://scenes/tree_02.tscn",      
+			"scene": "res://scenes/planet/tree_02.tscn",      
 			"generator": "tree_generator_2", 
 			"wind_speed": 0.3,
-			"lod_index": 3  
+			"lod_index": 3,
+			"material_type": "WOOD"  
 		},
 	  	{ 
-			"scene": "res://scenes/grass_01.tscn",     
+			"scene": "res://scenes/planet/grass_01.tscn",     
 			"generator": "grass_generator", 
 			"wind_speed": 0.2,
-			"lod_index": 0
+			"lod_index": 0,
+			"material_type": "WOOD"
 		},
 	  	{ 
-			"scene": "res://scenes/bush_01.tscn",      
+			"scene": "res://scenes/planet/bush_01.tscn",      
 			"generator": "bushes_generator" , 
 			"wind_speed": 0.15,
-			"lod_index": 0
+			"lod_index": 0,
+			"material_type": "WOOD"
 		},
 	  	{ 
-			"scene": "res://scenes/flowers_02.tscn",   
+			"scene": "res://scenes/planet/flowers_02.tscn",   
 			"generator": "bushes_generator" , 
 			"wind_speed": 0.15,
-			"lod_index": 0
+			"lod_index": 0,
+			"material_type": "WOOD"
 		},
 	  	{ 
-			"scene": "res://models/rocks/large_rock_03_glb.tscn", 
+			"scene": "res://scenes/planet/large_rock_03_glb.tscn", 
 			"generator": "large_rocks_generator_03",
-			"lod_index": 0 
+			"lod_index": 0 ,
+			"material_type": "STONE"
 		},
 	  	{ 
-			"scene": "res://models/rocks/large_rock_02.tscn",     
+			"scene": "res://scenes/planet/large_rock_02.tscn",     
 			"generator": "large_rocks_generator_02",
-			"lod_index": 0 
+			"lod_index": 0 ,
+			"material_type": "STONE"
 		}
 	]
   }

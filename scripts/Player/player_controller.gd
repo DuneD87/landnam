@@ -50,7 +50,7 @@ func _input(event):
 		
 	if Input.is_action_just_pressed("attack_1") && !action_controller.is_attacking && !movement.is_running && !movement.is_sprinting && !movement.is_swimming && !movement.is_falling:
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
-		action_controller.handle_attack(camera, ray_origin)
+		action_controller.handle_attack(camera, ray_origin, planet.planet)
 		play_attack_once = true
 
 	if event.is_action_pressed("toggle_free_flight"):
@@ -161,9 +161,8 @@ func update_normal_movement(delta: float) -> void:
 	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 	current_animation = movement.current_animation
-	if play_attack_once:
+	if action_controller.is_attacking:
 		current_animation = Config.ANIMATION.ATTACK_1
-		play_attack_once = false
 
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity
