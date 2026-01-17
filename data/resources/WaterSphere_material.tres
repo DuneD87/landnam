@@ -8,9 +8,9 @@ frequency = 0.005
 fractal_type = 2
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_rqd8l"]
+noise = SubResource("FastNoiseLite_th24p")
 seamless = true
 as_normal_map = true
-noise = SubResource("FastNoiseLite_th24p")
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_rqd8l"]
 noise_type = 3
@@ -19,9 +19,9 @@ frequency = 0.005
 fractal_type = 2
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_mq8mb"]
+noise = SubResource("FastNoiseLite_rqd8l")
 seamless = true
 as_normal_map = true
-noise = SubResource("FastNoiseLite_rqd8l")
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_ckor0"]
 noise_type = 3
@@ -29,8 +29,8 @@ frequency = 0.001
 fractal_type = 2
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_th24p"]
-seamless = true
 noise = SubResource("FastNoiseLite_ckor0")
+seamless = true
 
 [resource]
 render_priority = 3

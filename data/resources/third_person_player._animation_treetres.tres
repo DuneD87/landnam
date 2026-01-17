@@ -44,7 +44,7 @@ animation = &"Standard Run/mixamo_com"
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_hxfc4"]
 
 [resource]
-graph_offset = Vector2(-494.425, 396.72)
+nodes/output/position = Vector2(1946.67, 1493.33)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)
 nodes/Attack_1/node = SubResource("AnimationNodeAnimation_bgqbl")
@@ -79,5 +79,4 @@ nodes/bSwim/node = SubResource("AnimationNodeBlend2_aqv5n")
 nodes/bSwim/position = Vector2(1226.67, 1360)
 nodes/bSwimIdle/node = SubResource("AnimationNodeBlend2_hxfc4")
 nodes/bSwimIdle/position = Vector2(1466.67, 1560)
-nodes/output/position = Vector2(1946.67, 1493.33)
-node_connections = [&"bAttack_1", 0, &"bSprint", &"bAttack_1", 1, &"Attack_1", &"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"bAttack_1", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bSwim", 0, &"bJumpLand", &"bSwim", 1, &"SWIM", &"bSwimIdle", 0, &"bSwim", &"bSwimIdle", 1, &"SWIM_IDLE", &"output", 0, &"bSwimIdle"]
+node_connections = [&"output", 0, &"bSwimIdle", &"bAttack_1", 0, &"bSprint", &"bAttack_1", 1, &"Attack_1", &"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"bAttack_1", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bSwim", 0, &"bJumpLand", &"bSwim", 1, &"SWIM", &"bSwimIdle", 0, &"bSwim", &"bSwimIdle", 1, &"SWIM_IDLE"]
