@@ -129,6 +129,9 @@ size = Vector3(0.231934, 5.74695, 0.482483)
 
 [node name="Node3D" type="StaticBody3D"]
 script = ExtResource("1_pg5d7")
+type = 1
+drop_amount_min = 4
+drop_amount_max = 6
 
 [node name="Tree-02-1" type="MeshInstance3D" parent="."]
 gi_mode = 2

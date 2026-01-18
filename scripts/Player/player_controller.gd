@@ -1,5 +1,5 @@
 extends CharacterBody3D
-const Config = preload("res://scripts/config.gd")
+const config = preload("res://scripts/config.gd")
 
 @onready var movement: Movement = $Movement
 @onready var camera_controller: CameraController = $CameraController
@@ -9,6 +9,8 @@ const Config = preload("res://scripts/config.gd")
 @onready var collision_model: CollisionShape3D = $CollisionShape3D
 @onready var player_model: Node3D = $PlayerModel
 @onready var action_controller: ActionController = $ActionController
+@onready var inventory: Inventory = $Inventory
+@onready var inventory_ui: InventoryUI = $InventoryUI
 
 @export var planets: Node3D
 @export var animator_tree: AnimationTree
@@ -22,15 +24,29 @@ var planet: Node3D
 var mouse_captured = true
 var free_flight_enabled = false
 var current_swimming_pitch: float = 0.0
-var current_animation = Config.ANIMATION.IDLE
+var current_animation = config.ANIMATION.IDLE
 var play_attack_once = false
 
+func _on_target_destroyed(type: config.OBJECT_TYPE, position: Vector3, amount: int, item_data: ItemData) -> void:
+	var excess = inventory.add_item(item_data, amount)
+	
+	print("+%d %s" % [amount - excess, item_data.object_name])
+	
+	if excess > 0:
+		_spawn_dropped_items(item_data, excess, position)
+	
+
+func _spawn_dropped_items(item_data: ItemData, amount: int, position: Vector3) -> void:
+	pass
+	
 func capture_mouse(capture: bool):
 	mouse_captured = capture
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
 		
 func _ready():
 	capture_mouse(true) 
+	inventory_ui.setup(inventory)
+
 	
 func _input(event):
 	if free_flight_enabled:
@@ -41,18 +57,26 @@ func _input(event):
 	else:
 		visible = true
 		camera_controller._input(event)
-
+		
+	if event.is_action("inventory"):
+		#inventory.print_contents()
+		if !inventory_ui.visible:
+			inventory_ui.open()
+		else:
+			inventory_ui.close()
 	if event.is_action_pressed("ui_cancel"):
 		capture_mouse(not mouse_captured)
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not mouse_captured:
 		capture_mouse(true)
-		
-	if Input.is_action_just_pressed("attack_1") && !action_controller.is_attacking && !movement.is_running && !movement.is_sprinting && !movement.is_swimming && !movement.is_falling:
+	var can_action = !action_controller.is_attacking && !movement.is_running && !movement.is_sprinting && !movement.is_swimming && !movement.is_falling
+	if Input.is_action_just_pressed("attack_1") && can_action:
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
-		action_controller.handle_attack(camera, ray_origin, planet.planet)
+		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
 		play_attack_once = true
-
+		
+	
+		
 	if event.is_action_pressed("toggle_free_flight"):
 		free_flight_enabled = !free_flight_enabled
 		if free_flight_enabled:
@@ -162,7 +186,7 @@ func update_normal_movement(delta: float) -> void:
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 	current_animation = movement.current_animation
 	if action_controller.is_attacking:
-		current_animation = Config.ANIMATION.ATTACK_1
+		current_animation = config.ANIMATION.ATTACK_1
 
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity

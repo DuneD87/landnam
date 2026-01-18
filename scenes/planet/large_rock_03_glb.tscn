@@ -1,8 +1,15 @@
-[gd_scene load_steps=8 format=4 uid="uid://barfmcywfo1pb"]
+[gd_scene load_steps=10 format=4 uid="uid://barfmcywfo1pb"]
 
 [ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/planet_item.gd" id="1_c4pnc"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://item_data.gd" id="2_kwe0u"]
 [ext_resource type="Texture2D" uid="uid://rd2g7abms6ip" path="res://models/rocks/uploads_files_6098154_Stylized+rocks_mat2_color.jpg" id="2_qv2dg"]
 [ext_resource type="Texture2D" uid="uid://deb6gxf2rbp2b" path="res://models/rocks/uploads_files_6098154_Stylized+rocks_mat2_normal.jpg" id="3_kwe0u"]
+
+[sub_resource type="Resource" id="Resource_i07kp"]
+script = ExtResource("2_kwe0u")
+object_type = 2
+name = "stone"
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_spxbf"]
 resource_name = "Rocher03_low"
@@ -51,6 +58,11 @@ size = Vector3(1.05322, 1.32922, 1.03577)
 
 [node name="Node3D" type="StaticBody3D"]
 script = ExtResource("1_c4pnc")
+type = 2
+health = 150
+drop_amount_min = 2
+drop_amount_max = 4
+item_data = SubResource("Resource_i07kp")
 
 [node name="Rocher03_low_0" type="MeshInstance3D" parent="."]
 mesh = SubResource("ArrayMesh_dpvvf")

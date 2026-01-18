@@ -185,10 +185,10 @@ fractal_lacunarity = 6.0
 width = 1
 height = 1
 depth = 1
-seamless = true
-seamless_blend_skirt = 1.0
-normalize = false
 noise = SubResource("FastNoiseLite_qaxex")
+seamless = true
+normalize = false
+seamless_blend_skirt = 1.0
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_16ssy"]
 domain_warp_enabled = true

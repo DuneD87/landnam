@@ -3,7 +3,7 @@ class_name ActionController
 const Config = preload("res://scripts/config.gd")
 
 @export var timer : Timer
-@export var show_raycast_debug: bool = false
+@export var show_raycast_debug: bool = true
 
 var rand_num_gen: RandomNumberGenerator = RandomNumberGenerator.new()
 var attacking_nodes: Dictionary
@@ -43,7 +43,13 @@ func on_timeout():
 			is_attacking = false
 			timer.stop()
 		else:
-			attacking_nodes[current_target_id].health -= rand_num_gen.randf_range(10, 50)
+			if !attacking_nodes.has(current_target_id):
+				is_attacking = false
+				timer.stop()
+				return
+				
+			attacking_nodes[current_target_id].take_damage(rand_num_gen.randf_range(50, 100))
+			print(attacking_nodes[current_target_id].health)
 			if attacking_nodes[current_target_id].health <= 0:
 				current_target_node.queue_free_and_notify_instancer()
 				attacking_nodes.erase(current_target_node)
@@ -54,7 +60,7 @@ func on_timeout():
 				timer.start(1.7)
 	
 	
-func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet) -> Node3D:
+func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_callback: Callable) -> Node3D:
 	if is_attacking:
 		return
 		
@@ -87,6 +93,8 @@ func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet) -> Node3D:
 				var item_id = target_node.get_library_item_id()
 				var scene = planet.voxel_instancer.library.get_item(item_id).scene.instantiate()
 				scene.health = planet.planet_item_scenes[item_id].health
+				if not scene.destroyed.is_connected(destroyed_callback):
+					scene.destroyed.connect(destroyed_callback)
 				attacking_nodes[instance_id] = scene
 			
 	is_voxel = target_node && target_node is VoxelLodTerrain

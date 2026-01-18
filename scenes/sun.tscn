@@ -67,7 +67,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@22881")
+water_sphere = NodePath("@Node3D@22125")
 planet = NodePath("")
 
 [node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_oq8ty")]
@@ -92,3 +92,7 @@ script = ExtResource("4_t1pnj")
 [node name="Player" parent="." node_paths=PackedStringArray("planets") instance=ExtResource("4_162ko")]
 transform = Transform3D(-0.98026, -0.170714, -0.0997402, 0, 0.504462, -0.863434, 0.197716, -0.846389, -0.494504, -5872.72, 11832.7, -11944.4)
 planets = NodePath("../Planets")
+mouse_sensitivity = null
+invert_y = null
+swimming_pitch_angle = null
+swimming_rotation_speed = null

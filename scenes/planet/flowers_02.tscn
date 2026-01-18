@@ -183,6 +183,8 @@ shadow_mesh = SubResource("ArrayMesh_iadjx")
 
 [node name="Node3D" type="StaticBody3D"]
 script = ExtResource("1_2a1g5")
+type = 3
+health = 50
 
 [node name="Flowers-04" type="MeshInstance3D" parent="."]
 gi_mode = 2

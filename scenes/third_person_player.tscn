@@ -1,12 +1,14 @@
-[gd_scene load_steps=10 format=3 uid="uid://c1vquhxt75l31"]
+[gd_scene load_steps=12 format=3 uid="uid://c1vquhxt75l31"]
 
 [ext_resource type="Script" uid="uid://cn32aycdueqh7" path="res://scripts/Player/player_controller.gd" id="1_smlm8"]
 [ext_resource type="Script" uid="uid://coeewlktybkhm" path="res://scripts/Player/movement.gd" id="2_l8r5w"]
 [ext_resource type="Script" uid="uid://cw1dc0n2atqjh" path="res://scripts/Player/cam_controller.gd" id="4_5at7g"]
+[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://inventory.gd" id="4_05eln"]
 [ext_resource type="AnimationNodeBlendTree" uid="uid://cp4qil0xj5pyj" path="res://data/resources/third_person_player._animation_treetres.tres" id="5_bgqbl"]
 [ext_resource type="Script" uid="uid://dsyulr1uf8n11" path="res://scripts/Player/animation_controller.gd" id="6_bgx5p"]
 [ext_resource type="PackedScene" uid="uid://w06p81rsk36x" path="res://scenes/Player/dune.tscn" id="6_w5t68"]
 [ext_resource type="Script" uid="uid://drujj6x4uwkju" path="res://scripts/Player/free_flight_controller.gd" id="7_w5t68"]
+[ext_resource type="PackedScene" uid="uid://l2mynhuda6sw" path="res://scenes/inventory/inventory_ui.tscn" id="8_gqp14"]
 [ext_resource type="Script" uid="uid://6g0084u0kj3c" path="res://scripts/Player/action_controller.gd" id="8_sv2hv"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_sv2hv"]
@@ -22,6 +24,24 @@ script = ExtResource("2_l8r5w")
 [node name="CameraController" type="Node" parent="."]
 script = ExtResource("4_5at7g")
 
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("4_05eln")
+metadata/_custom_type_script = "uid://helyjc1d7ns1"
+
+[node name="AnimationController" type="Node" parent="."]
+script = ExtResource("6_bgx5p")
+metadata/_custom_type_script = "uid://dsyulr1uf8n11"
+
+[node name="FreeFlightController" type="Node" parent="."]
+script = ExtResource("7_w5t68")
+metadata/_custom_type_script = "uid://drujj6x4uwkju"
+
+[node name="ActionController" type="Node" parent="."]
+script = ExtResource("8_sv2hv")
+metadata/_custom_type_script = "uid://6g0084u0kj3c"
+
+[node name="InventoryUI" parent="." instance=ExtResource("8_gqp14")]
+
 [node name="CameraPivot" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.09664, -4.21736)
 
@@ -35,14 +55,6 @@ far = 400000.0
 
 [node name="VoxelViewer" type="VoxelViewer" parent="CameraPivot/PitchPivot/Camera3D"]
 view_distance = 5000000
-
-[node name="AnimationController" type="Node" parent="."]
-script = ExtResource("6_bgx5p")
-metadata/_custom_type_script = "uid://dsyulr1uf8n11"
-
-[node name="FreeFlightController" type="Node" parent="."]
-script = ExtResource("7_w5t68")
-metadata/_custom_type_script = "uid://drujj6x4uwkju"
 
 [node name="PlayerModel" parent="." instance=ExtResource("6_w5t68")]
 transform = Transform3D(1.7, 0, 0, 0, 1.7, 0, 0, 0, 1.7, 0, 0, 0)
@@ -95,10 +107,6 @@ parameters/bRun/blend_amount = 0.0
 parameters/bSprint/blend_amount = 0.0
 parameters/bSwim/blend_amount = 0.0
 parameters/bSwimIdle/blend_amount = 0.0
-
-[node name="ActionController" type="Node" parent="."]
-script = ExtResource("8_sv2hv")
-metadata/_custom_type_script = "uid://6g0084u0kj3c"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5320121, 0)

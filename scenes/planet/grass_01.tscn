@@ -71,6 +71,9 @@ _surfaces = [{
 
 [node name="Node3D" type="StaticBody3D"]
 script = ExtResource("1_y7r0u")
+type = 3
+health = 10
+drop_amount_max = 1
 
 [node name="Grass-01" type="MeshInstance3D" parent="."]
 gi_mode = 0

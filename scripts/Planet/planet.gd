@@ -109,19 +109,8 @@ func _load_vegetation():
 		var scene_instantiated = scene.instantiate()
 		var scene_mesh : MeshInstance3D = scene_instantiated.get_child(0)
 		
-		if item.has("material_type") && scene_instantiated is StaticBody3D:
+		if item.has("material_type"):
 			planet_item_scenes.append(scene_instantiated)
-			match item.material_type:
-				"WOOD":
-					scene_instantiated.type = config.OBJECT_TYPE.WOOD
-					scene_instantiated.health = 100
-				"STONE":
-					scene_instantiated.type = config.OBJECT_TYPE.STONE
-					scene_instantiated.health = 200
-
-				_:
-					scene_instantiated.type = config.OBJECT_TYPE.NONE
-
 		var surface_count = scene_mesh.mesh.get_surface_count()
 		for surface_idx in surface_count:
 			var _shader_material = scene_mesh.mesh.surface_get_material(surface_idx)

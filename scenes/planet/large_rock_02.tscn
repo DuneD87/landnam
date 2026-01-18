@@ -51,6 +51,10 @@ size = Vector3(1.99561, 0.538086, 1.867)
 
 [node name="Node3D" type="StaticBody3D"]
 script = ExtResource("1_vtxl6")
+type = 2
+health = 150
+drop_amount_min = 3
+drop_amount_max = 6
 
 [node name="Rocher02_low_0" type="MeshInstance3D" parent="."]
 mesh = SubResource("ArrayMesh_8thor")

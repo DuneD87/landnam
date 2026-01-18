@@ -1,10 +1,16 @@
-[gd_scene load_steps=12 format=4 uid="uid://di63obeg6eavs"]
+[gd_scene load_steps=14 format=4 uid="uid://di63obeg6eavs"]
 
 [ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/planet_item.gd" id="1_ckvc6"]
 [ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/forest/textures/shapespark-low-poly-plants-kit_bark.jpg" id="2_2bqi4"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://item_data.gd" id="2_xe00o"]
 [ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="3_xe00o"]
 [ext_resource type="Texture2D" uid="uid://da5ad27bv04jl" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-01.png" id="4_hdmhb"]
 [ext_resource type="Texture2D" uid="uid://dyfn5x2d8u3l6" path="res://models/forest/textures/shapespark-low-poly-plants-kit_branch-02.png" id="5_ywp22"]
+
+[sub_resource type="Resource" id="Resource_hdmhb"]
+script = ExtResource("2_xe00o")
+object_type = 1
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6nj1d"]
 resource_name = "trunk-01"
@@ -128,6 +134,11 @@ size = Vector3(0.231934, 5.74695, 0.482483)
 
 [node name="Node3D" type="StaticBody3D"]
 script = ExtResource("1_ckvc6")
+type = 1
+health = 100
+drop_amount_min = 4
+drop_amount_max = 6
+item_data = SubResource("Resource_hdmhb")
 
 [node name="Tree-01-2" type="MeshInstance3D" parent="."]
 gi_mode = 2
