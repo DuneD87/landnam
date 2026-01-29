@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://cn32aycdueqh7" path="res://scripts/Player/player_controller.gd" id="1_smlm8"]
 [ext_resource type="Script" uid="uid://coeewlktybkhm" path="res://scripts/Player/movement.gd" id="2_l8r5w"]
 [ext_resource type="Script" uid="uid://cw1dc0n2atqjh" path="res://scripts/Player/cam_controller.gd" id="4_5at7g"]
-[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://inventory.gd" id="4_05eln"]
+[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/Inventory/inventory.gd" id="4_05eln"]
 [ext_resource type="AnimationNodeBlendTree" uid="uid://cp4qil0xj5pyj" path="res://data/resources/third_person_player._animation_treetres.tres" id="5_bgqbl"]
 [ext_resource type="Script" uid="uid://dsyulr1uf8n11" path="res://scripts/Player/animation_controller.gd" id="6_bgx5p"]
 [ext_resource type="PackedScene" uid="uid://w06p81rsk36x" path="res://scenes/Player/dune.tscn" id="6_w5t68"]

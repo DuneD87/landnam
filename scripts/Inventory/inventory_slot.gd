@@ -2,16 +2,20 @@
 extends PanelContainer
 class_name InventorySlot
 
+signal slot_clicked(slot: InventorySlot, button_index: int)
+
 @onready var icon_rect: TextureRect = $MarginContainer/VBoxContainer/IconRect
 @onready var quantity_label: Label = $MarginContainer/VBoxContainer/QuantityLabel
 
-var item: InventoryItem = null
+@export var slot_index: int = 0
 
+var item: InventoryItem = null
 var style_empty: StyleBoxFlat
 var style_filled: StyleBoxFlat
 
 func _ready() -> void:
 	_create_styles()
+	mouse_filter = Control.MOUSE_FILTER_PASS
 	clear()
 
 func _create_styles() -> void:
@@ -46,3 +50,7 @@ func clear() -> void:
 	quantity_label.text = ""
 	tooltip_text = ""
 	add_theme_stylebox_override("panel", style_empty)
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		slot_clicked.emit(self, event.button_index)

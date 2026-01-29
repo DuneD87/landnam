@@ -47,7 +47,16 @@ func _ready():
 	capture_mouse(true) 
 	inventory_ui.setup(inventory)
 
-	
+func can_perform_action() -> bool:
+	return not (
+		action_controller.is_attacking or
+		movement.is_running or
+		movement.is_sprinting or
+		movement.is_swimming or
+		movement.is_falling or
+		inventory_ui.visible
+	)
+
 func _input(event):
 	if free_flight_enabled:
 		visible = false
@@ -58,24 +67,26 @@ func _input(event):
 		visible = true
 		camera_controller._input(event)
 		
-	if event.is_action("inventory"):
-		#inventory.print_contents()
-		if !inventory_ui.visible:
-			inventory_ui.open()
+	if event.is_action_pressed("inventory"):
+		inventory_ui.toggle()
+		if inventory_ui.visible:
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		else:
-			inventory_ui.close()
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+	elif event.is_action_pressed("ui_cancel") and visible:
+		inventory_ui.close()
+			
 	if event.is_action_pressed("ui_cancel"):
 		capture_mouse(not mouse_captured)
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not mouse_captured:
 		capture_mouse(true)
-	var can_action = !action_controller.is_attacking && !movement.is_running && !movement.is_sprinting && !movement.is_swimming && !movement.is_falling
-	if Input.is_action_just_pressed("attack_1") && can_action:
+	
+	if Input.is_action_just_pressed("attack_1") && can_perform_action():
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
 		play_attack_once = true
-		
-	
 		
 	if event.is_action_pressed("toggle_free_flight"):
 		free_flight_enabled = !free_flight_enabled
