@@ -2,7 +2,7 @@ extends Node
 
 class_name CameraController
 
-@export var mouse_sensitivity := 0.002
+@export var mouse_sensitivity := 0.001
 @export var invert_y := false
 @export var max_pitch := 1.2  # ~70 grados
 @export var min_pitch := -1.2
@@ -23,6 +23,7 @@ var delta_pitch := 0.0
 
 func _ready():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	camera_pivot.top_level = true
 	reset_camera_rotation()
 
 func reset_camera_rotation():
@@ -52,24 +53,33 @@ func update_camera_rotation():
 	delta_yaw = 0.0
 	delta_pitch = 0.0
 
-func update_camera_transform():	
+func update_camera_transform():
 	var player = get_parent()
 	var player_pos = player.global_position
 	var up_axis = -player.gravity_direction.normalized()
 	
 	camera_pivot.global_position = player_pos
 	
+	# Aplicar yaw alrededor del up del jugador
+	camera_pivot.global_transform.basis = Basis(up_axis, yaw)
+	
+	# Alinear el up del pivot con el up del jugador
+	var current_up = camera_pivot.global_transform.basis.y
+	if current_up.dot(up_axis) < 0.999:
+		var align_axis = current_up.cross(up_axis)
+		if align_axis.length() > 0.001:
+			var align_angle = acos(clamp(current_up.dot(up_axis), -1.0, 1.0))
+			camera_pivot.global_transform.basis = Basis(align_axis.normalized(), align_angle) * camera_pivot.global_transform.basis
+	
+	pitch_pivot.rotation.x = pitch
+	
 	var camera_forward = -pitch_pivot.global_transform.basis.z
-	
 	var target_pos = player_pos + up_axis * target_height_offset
-	
 	var horizontal_offset = -camera_forward * camera_distance
 	var vertical_offset = up_axis * camera_height
 	var ideal_camera_pos = target_pos + horizontal_offset + vertical_offset
-	
 	var final_camera_pos = adjust_for_collisions(target_pos, ideal_camera_pos)
 	
-	# 6. Posicionar y orientar la cámara
 	camera.global_position = final_camera_pos
 	camera.look_at(target_pos, up_axis)
 

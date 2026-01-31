@@ -14,7 +14,7 @@ uniform float abyss_transition_depth = 250.0;
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear_mipmap;
 
 uniform float caustic_intensity : hint_range(0.0, 5.0) = 0.5;
-uniform float caustic_scale : hint_range(0.1, 10.0) = 0.07;
+uniform float caustic_scale : hint_range(0.1, 10.0) = 0.2;
 uniform float caustic_speed : hint_range(0.0, 2.0) = 0.1;
 uniform float caustic_contrast : hint_range(0.1, 5.0) = 1.5;
 uniform float caustics_depth_factor : hint_range(0.1, 1.0) = 0.06;

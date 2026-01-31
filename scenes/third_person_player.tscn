@@ -96,6 +96,11 @@ bones/37/rotation = Quaternion(-0.18472508, 0.03492701, 0.020314906, 0.98195934)
 bones/38/rotation = Quaternion(0.55189323, 0.057903323, 0.020467008, 0.8316503)
 bones/39/rotation = Quaternion(0.27048507, 0.04600572, -0.012941604, 0.9615373)
 
+[node name="RigthHandAttachment" type="BoneAttachment3D" parent="PlayerModel/Skeleton3D" index="1"]
+transform = Transform3D(0.7459645, 0.08802593, 0.6601427, 0.24090123, -0.95977163, -0.14424013, 0.62088925, 0.26662716, -0.737161, -0.303164, 0.8828291, 0.13390028)
+bone_name = "mixamorig_RightHandIndex1"
+bone_idx = 27
+
 [node name="AnimationTree" type="AnimationTree" parent="PlayerModel"]
 tree_root = ExtResource("5_bgqbl")
 anim_player = NodePath("../AnimationPlayer")

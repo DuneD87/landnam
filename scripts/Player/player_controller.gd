@@ -45,6 +45,7 @@ func capture_mouse(capture: bool):
 		
 func _ready():
 	capture_mouse(true) 
+	
 	inventory_ui.setup(inventory)
 
 func can_perform_action() -> bool:
@@ -123,6 +124,7 @@ func _physics_process(delta: float):
 
 	if free_flight_enabled:
 		collision_model.disabled = true
+		camera_controller.camera_pivot.global_position = global_position
 		update_free_flight(delta)
 	else:
 		collision_model.disabled = false
@@ -142,19 +144,19 @@ func update_free_flight(delta: float) -> void:
 	move_and_slide()
 
 func rotate_toward_movement(input_dir: Vector3, delta: float):
-	if input_dir.length() < 0.3:
+	if input_dir.length() < 0.1:
 		return
-
+	
 	var forward = -camera.global_transform.basis.z
 	var target_dir = movement.project_on_plane(forward, gravity_direction).normalized()
 	var current_dir = global_transform.basis.z
-
 	var angle = acos(clamp(current_dir.dot(target_dir), -1.0, 1.0))
-
+	
 	if angle > deg_to_rad(10.0):
 		var rotation_axis = current_dir.cross(target_dir)
 		if rotation_axis.length() > 0.1:
-			var rot = Quaternion(rotation_axis.normalized(), angle * delta * 3.0)
+			var rotation_amount = angle * delta * 3.0
+			var rot = Quaternion(rotation_axis.normalized(), rotation_amount)
 			global_transform.basis = Basis(rot) * global_transform.basis
 			orthonormalize()
 
