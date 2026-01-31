@@ -1,6 +1,6 @@
 [gd_scene load_steps=13 format=4 uid="uid://di63obeg6eavs"]
 
-[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/item.gd" id="1_ckvc6"]
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/planet_item.gd" id="1_ckvc6"]
 [ext_resource type="Texture2D" uid="uid://bi41yudfngjg3" path="res://models/forest/textures/shapespark-low-poly-plants-kit_bark.jpg" id="2_2bqi4"]
 [ext_resource type="Resource" uid="uid://c1hsrchnwebje" path="res://data/items/material/wood.tres" id="2_xe00o"]
 [ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="3_xe00o"]

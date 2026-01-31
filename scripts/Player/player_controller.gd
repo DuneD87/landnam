@@ -27,10 +27,11 @@ var current_swimming_pitch: float = 0.0
 var current_animation = config.ANIMATION.IDLE
 var play_attack_once = false
 
-func _on_target_destroyed(type: config.OBJECT_TYPE, position: Vector3, amount: int, item_data: ItemData) -> void:
+func _on_target_destroyed(position: Vector3, amount: int, item_data: ItemData) -> void:
+	
 	var excess = inventory.add_item(item_data, amount)
 	
-	print("+%d %s" % [amount - excess, item_data.object_name])
+	print("+%d %s" % [amount - excess, item_data.display_name])
 	
 	if excess > 0:
 		_spawn_dropped_items(item_data, excess, position)
@@ -44,9 +45,14 @@ func capture_mouse(capture: bool):
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
 		
 func _ready():
-	capture_mouse(true) 
-	
+	capture_mouse(true)
+	'''var item_stone = config.get_item(&"stone_01")
+	var item_wood = config.get_item(&"wood_01")
+	inventory.add_item(item_stone, 15)	
+	inventory.add_item(item_wood, 15)'''
+
 	inventory_ui.setup(inventory)
+	
 
 func can_perform_action() -> bool:
 	return not (
@@ -74,7 +80,11 @@ func _input(event):
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		else:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-
+	if event.is_action_pressed("action"):
+		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
+		var item_data = action_controller.handle_pickup(camera, ray_origin)
+		if item_data != null:
+			inventory.add_item(item_data, 1)
 	elif event.is_action_pressed("ui_cancel") and visible:
 		inventory_ui.close()
 			

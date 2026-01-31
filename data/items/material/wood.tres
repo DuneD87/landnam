@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ItemData" load_steps=3 format=3 uid="uid://c1hsrchnwebje"]
+
+[ext_resource type="Texture2D" uid="uid://cuhmq8niiiy1t" path="res://textures/icons/icon_wood.png" id="1_do4pb"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="1_ewo7y"]
+
+[resource]
+script = ExtResource("1_ewo7y")
+id = &"wood_01"
+display_name = "Wood"
+description = "Wood to build houses and tools"
+icon = ExtResource("1_do4pb")
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

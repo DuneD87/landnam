@@ -77,8 +77,7 @@ func _process(_delta: float) -> void:
 func setup(inv: Inventory) -> void:
 	inventory = inv
 	inventory.inventory_changed.connect(_refresh)
-	inventory.add_item(ItemData.new(config.OBJECT_TYPE.WOOD), 15)
-	inventory.add_item(ItemData.new(config.OBJECT_TYPE.STONE), 15)
+
 	_create_slots()
 	_refresh()
 
@@ -189,8 +188,7 @@ func _drop_floating_item(target_slot: InventorySlot) -> void:
 	if target_slot.item:
 		var target_item = inventory.items[target_index]
 		
-		# Si son del mismo tipo y stackeable, intentar apilar
-		if target_item.data.object_type == floating_item.data.object_type and floating_item.data.stackable:
+		if target_item.data.id == floating_item.data.id and floating_item.data.stackable:
 			var space_available = target_item.data.max_stack - target_item.quantity
 			var to_add = min(floating_item.quantity, space_available)
 			

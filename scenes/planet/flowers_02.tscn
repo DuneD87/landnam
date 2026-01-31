@@ -1,6 +1,6 @@
 [gd_scene load_steps=13 format=4 uid="uid://ditjpfgxymrtf"]
 
-[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/planet_item.gd" id="1_2a1g5"]
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/item.gd" id="1_2a1g5"]
 [ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="1_f3o0i"]
 [ext_resource type="Texture2D" uid="uid://kgykj6t30831" path="res://models/forest/textures/shapespark-low-poly-plants-kit_flowers-01.png" id="1_yc4x3"]
 [ext_resource type="Texture2D" uid="uid://dixak8bnxecy2" path="res://models/forest/textures/shapespark-low-poly-plants-kit_flowers-02.png" id="2_i3wbo"]
@@ -183,7 +183,6 @@ shadow_mesh = SubResource("ArrayMesh_iadjx")
 
 [node name="Node3D" type="StaticBody3D"]
 script = ExtResource("1_2a1g5")
-type = 3
 health = 50
 
 [node name="Flowers-04" type="MeshInstance3D" parent="."]

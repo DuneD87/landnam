@@ -58,50 +58,118 @@ func on_timeout():
 				is_attacking = false
 			else:
 				timer.start(1.7)
-	
-	
-func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_callback: Callable) -> Node3D:
-	if is_attacking:
-		return
-		
+func perform_raycast(origin: Vector3, rotation: Vector3, show_debug: bool) -> Dictionary:
 	var ray_origin = origin
 	
 	attack_raycast.global_position = ray_origin
 	attack_raycast.target_position = Vector3(0, 0, -1000)
-	var camera_forward = -camera.global_transform.basis.z
-	attack_raycast.global_rotation = camera.global_rotation
+	attack_raycast.global_rotation = rotation
 	attack_raycast.enabled = true
 	attack_raycast.force_raycast_update()
 	
-	var target_node: Node3D = null
+	var out_dictionary = {
+		"has_hit": false,
+		"target_node": null,
+		"hit_pos": Vector3.ZERO,
+		"hit_distance": 0.0
+	}
 	
 	if attack_raycast.is_colliding():
 		var hit_point = attack_raycast.get_collision_point()
-		target_node = attack_raycast.get_collider() as Node3D
-		
+		var target_node = attack_raycast.get_collider() as Node3D
+		var hit_distance = hit_point.distance_to(origin)
+		out_dictionary["has_hit"] = true
+		out_dictionary["target_node"] = target_node
+		out_dictionary["hit_pos"] = hit_point
+		out_dictionary["hit_distance"] = hit_distance
 		if show_raycast_debug:
 			DebugUtils.draw_debug_line(ray_origin, hit_point, Color.GREEN, 2.0)
 			DebugUtils.draw_debug_point(hit_point, Color.YELLOW, 0.2, 2.0)
 		
-		var hit_distance = hit_point.distance_to(origin)
+	return out_dictionary
 	
-		if target_node is VoxelInstancerRigidBody && hit_distance < 3.0:
-			var instance_id = target_node.get_instance_id()
-			current_target_id = instance_id
-			current_target_node = target_node
-			if !attacking_nodes.has(instance_id):
-				var item_id = target_node.get_library_item_id()
-				var scene = planet.voxel_instancer.library.get_item(item_id).scene.instantiate()
-				scene.health = planet.planet_item_scenes[item_id].health
-				if not scene.destroyed.is_connected(destroyed_callback):
-					scene.destroyed.connect(destroyed_callback)
-				attacking_nodes[instance_id] = scene
+
+func handle_pickup(camera: Camera3D, origin: Vector3) -> ItemData:
+	var forward = -camera.global_transform.basis.z
+	var up = camera.global_transform.basis.y
+	var right = camera.global_transform.basis.x
+	
+	# Primero intentamos el raycast central (prioridad)
+	var raycast_result = perform_raycast(origin, camera.global_rotation, true)
+	var target_node = raycast_result["target_node"]
+	var hit_distance = raycast_result["hit_distance"]
+	
+	# Si no hay hit central, probamos el cono
+	if target_node == null:
+		target_node = cone_raycast(origin, forward, up, right, camera)
+		if target_node:
+			hit_distance = origin.distance_to(target_node.global_position)
+	
+	if target_node == null:
+		return null
+	
+	var data: ItemData = null
+	if target_node is ItemPhysics:
+		data = target_node.item_data
+		target_node.queue_free()
+	return data
+
+
+func cone_raycast(origin: Vector3, forward: Vector3, up: Vector3, right: Vector3, camera: Camera3D) -> Node:
+	var cone_angle := deg_to_rad(15.0)
+	var ray_length := 3.0
+	var rings := 2
+	var rays_per_ring := 6
+	
+	var space_state = camera.get_world_3d().direct_space_state
+	var closest_node: Node = null
+	var closest_dist := INF
+	
+	for ring in range(1, rings + 1):
+		var ring_angle = cone_angle * (float(ring) / rings)
+		
+		for i in range(rays_per_ring):
+			var rotation_angle = TAU * i / rays_per_ring
+			
+			var offset = (right * cos(rotation_angle) + up * sin(rotation_angle)) * sin(ring_angle)
+			var direction = (forward * cos(ring_angle) + offset).normalized()
+			
+			var query = PhysicsRayQueryParameters3D.create(origin, origin + direction * ray_length)
+			var result = space_state.intersect_ray(query)
+			
+			if result and result.collider is ItemPhysics:
+				var dist = origin.distance_to(result.position)
+				if dist < closest_dist:
+					closest_dist = dist
+					closest_node = result.collider
+	
+	return closest_node
+	
+func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_callback: Callable) -> Node3D:
+	if is_attacking:
+		return
+	var raycast_result = perform_raycast(origin, camera.global_rotation, true)
+	var target_node = raycast_result["target_node"]
+	if target_node == null:
+		return
+	var hit_distance = raycast_result["hit_distance"]
+	if target_node is VoxelInstancerRigidBody && hit_distance < 3.0:
+		var instance_id = target_node.get_instance_id()
+		current_target_id = instance_id
+		current_target_node = target_node
+		if !attacking_nodes.has(instance_id):
+			var item_id = target_node.get_library_item_id()
+			var scene = planet.voxel_instancer.library.get_item(item_id).scene.instantiate()
+			scene.health = planet.planet_item_scenes[item_id].health
+			if not scene.destroyed.is_connected(destroyed_callback):
+				scene.destroyed.connect(destroyed_callback)
+			attacking_nodes[instance_id] = scene
 			
 	is_voxel = target_node && target_node is VoxelLodTerrain
 	if is_voxel:
 		current_voxel = target_node as VoxelLodTerrain
 		current_origin = origin
-		current_direction = camera_forward
+		current_direction = -camera.global_transform.basis.z
 		
 	is_attacking = true
 	timer.start(1.7)

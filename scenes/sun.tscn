@@ -1,10 +1,11 @@
-[gd_scene load_steps=9 format=3 uid="uid://8hm5q6k01tb8"]
+[gd_scene load_steps=10 format=3 uid="uid://8hm5q6k01tb8"]
 
 [ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/sun_controller.gd" id="1_wlvx5"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet_loader.tscn" id="2_oq8ty"]
 [ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="4_7x0ai"]
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/third_person_player.tscn" id="4_162ko"]
 [ext_resource type="Script" uid="uid://dka6t6r7qa0p6" path="res://scenes/ambient_control.gd" id="4_t1pnj"]
+[ext_resource type="PackedScene" uid="uid://bmcjlwceq8ylo" path="res://scenes/weapons/stone_axe.tscn" id="6_i8fpp"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
 shader = ExtResource("4_7x0ai")
@@ -67,7 +68,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@22125")
+water_sphere = NodePath("@Node3D@101577")
 planet = NodePath("")
 
 [node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_oq8ty")]
@@ -92,7 +93,7 @@ script = ExtResource("4_t1pnj")
 [node name="Player" parent="." node_paths=PackedStringArray("planets") instance=ExtResource("4_162ko")]
 transform = Transform3D(-0.98026, -0.170714, -0.0997402, 0, 0.504462, -0.863434, 0.197716, -0.846389, -0.494504, -5872.72, 11832.7, -11944.4)
 planets = NodePath("../Planets")
-mouse_sensitivity = null
-invert_y = null
-swimming_pitch_angle = null
-swimming_rotation_speed = null
+
+[node name="Stone_Axe" parent="." instance=ExtResource("6_i8fpp")]
+transform = Transform3D(-0.49525413, -0.016097233, -0.06681487, 0, 0.48609167, -0.117110625, 0.068726614, -0.11599904, -0.48147783, -5873.369, 11833.936, -11947.896)
+mass = 0.2

@@ -111,7 +111,7 @@ func add_item(item_data: ItemData, quantity: int = 1) -> int:
 	# Intentar apilar en items existentes
 	if item_data.stackable:
 		for i in range(max_slots):
-			if items[i] != null and items[i].data.object_type == item_data.object_type and not items[i].is_full():
+			if items[i] != null and items[i].data.id == item_data.id and not items[i].is_full():
 				remaining = items[i].add(remaining)
 				if remaining == 0:
 					break

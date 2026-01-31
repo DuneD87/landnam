@@ -38,7 +38,7 @@ func set_item(inventory_item: InventoryItem) -> void:
 		icon_rect.texture = item.data.icon
 		icon_rect.visible = true
 		quantity_label.text = str(item.quantity) if item.quantity > 1 else ""
-		tooltip_text = "%s\n%s" % [item.data.object_name, item.data.description]
+		tooltip_text = "%s\n%s" % [item.data.display_name, item.data.description]
 		add_theme_stylebox_override("panel", style_filled)
 	else:
 		clear()

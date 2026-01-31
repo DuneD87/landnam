@@ -1,29 +1,30 @@
 # item_data.gd
-class_name ItemData
+class_name ItemData extends Resource
 
-const config = preload("res://scripts/config.gd")
+enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR}
+enum ToolType {NONE, PICKAXE, AXE, HAMMER}
+enum WeaponType {NONE, SWORD, SPEAR, BOW}
 
-var object_type: config.OBJECT_TYPE
-var object_name: String
-var description: String
-var icon: Texture2D
-var max_stack: int
-var value: int
-var stackable: bool
+@export var id: StringName  # "stone_pickaxe"
+@export var display_name: String
+@export var description: String
+@export var icon: Texture2D
+@export var category: Category
 
-func _init(item_type: config.OBJECT_TYPE) -> void:
-	object_type = item_type
-	var cfg = config.get_item_config(object_type)
-	stackable = true
-	if cfg.is_empty():
-		push_warning("ItemData: tipo %s no tiene configuración" % item_type)
-		return
-	
-	object_name = cfg.get("object_name", "Unknown")
-	description = cfg.get("description", "")
-	max_stack = cfg.get("max_stack", 99)
-	value = cfg.get("value", 0)
-	
-	var icon_path = cfg.get("icon", "")
-	if icon_path and ResourceLoader.exists(icon_path):
-		icon = load(icon_path)
+@export_group("Stacking")
+@export var stackable: bool = true
+@export var max_stack: int = 99
+
+@export_group("Tool Stats")
+@export var tool_type: ToolType = ToolType.NONE
+@export var mining_power: int = 0
+@export var harvest_multiplier: float = 1.0
+
+@export_group("Weapon Stats")
+@export var weapon_type: WeaponType = WeaponType.NONE
+@export var damage: int = 0
+@export var attack_speed: float = 1.0
+
+@export_group("Durability")
+@export var has_durability: bool = false
+@export var max_durability: int = 100
