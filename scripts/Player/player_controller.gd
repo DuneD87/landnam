@@ -11,6 +11,7 @@ const config = preload("res://scripts/config.gd")
 @onready var action_controller: ActionController = $ActionController
 @onready var inventory: Inventory = $Inventory
 @onready var inventory_ui: InventoryUI = $InventoryUI
+@onready var character_window: CharacterWindow = $CharacterWindow
 
 @export var planets: Node3D
 @export var animator_tree: AnimationTree
@@ -43,7 +44,29 @@ func _spawn_dropped_items(item_data: ItemData, amount: int, position: Vector3) -
 func capture_mouse(capture: bool):
 	mouse_captured = capture
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
+
+func equip_item(equip: bool, slot: String, scene: PackedScene, data: ItemData, category: ItemData.Category) -> void:
+	if equip:
+		match category:
+			ItemData.Category.TOOL:
+				var item = scene.instantiate()
+				item.set_equipped(true)
+				player_model.get_node("Skeleton3D/RigthHandAttachment").add_child(item)
+	else:
+		match slot:
+			"tool":
+				player_model.get_node("Skeleton3D/RigthHandAttachment").remove_child(player_model.get_node("Skeleton3D/RigthHandAttachment").get_child(0))
 		
+func on_equipment_changed(slot: String, item: InventoryItem) -> void:
+	if item == null:
+		equip_item(false, slot, null, null, ItemData.Category.MATERIAL)
+		return
+	var data = item.data
+	var scene: PackedScene = load(item.data.scene_path)
+	var category = data.category
+	if category == ItemData.Category.TOOL || category == ItemData.Category.WEAPON || category == ItemData.Category.ARMOR:
+		equip_item(true, slot, scene, data, category)
+
 func _ready():
 	capture_mouse(true)
 	'''var item_stone = config.get_item(&"stone_01")
@@ -51,7 +74,8 @@ func _ready():
 	inventory.add_item(item_stone, 15)	
 	inventory.add_item(item_wood, 15)'''
 
-	inventory_ui.setup(inventory)
+	inventory_ui.setup(inventory, character_window)
+	character_window.equipment_changed.connect(on_equipment_changed)
 	
 
 func can_perform_action() -> bool:
@@ -80,6 +104,8 @@ func _input(event):
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		else:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	if event.is_action_pressed("character_window"):
+		character_window.toggle()
 	if event.is_action_pressed("action"):
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		var item_data = action_controller.handle_pickup(camera, ray_origin)

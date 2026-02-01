@@ -1,6 +1,6 @@
 [gd_scene load_steps=7 format=3 uid="uid://cdilfqb6uvquh"]
 
-[ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet_loader.tscn" id="1_tphvi"]
+[ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/Planet/planet_loader.tscn" id="1_tphvi"]
 
 [sub_resource type="FastNoise2" id="FastNoise2_ivwlw"]
 period = 1200.0

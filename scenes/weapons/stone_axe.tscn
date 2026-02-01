@@ -1,19 +1,8 @@
-[gd_scene load_steps=10 format=4 uid="uid://bmcjlwceq8ylo"]
+[gd_scene load_steps=8 format=4 uid="uid://bmcjlwceq8ylo"]
 
 [ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/Planet/item_physics.gd" id="1_csfl7"]
 [ext_resource type="Texture2D" uid="uid://cxykiemn4b1fy" path="res://models/equipable/stonepickaxe/textures/Scene_-_Root_baseColor.png" id="1_twora"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="2_csfl7"]
-[ext_resource type="Texture2D" uid="uid://8hwq6tmcum3b" path="res://textures/icons/stone_axe_01.png" id="2_j4ur5"]
-
-[sub_resource type="Resource" id="Resource_j4ur5"]
-script = ExtResource("2_csfl7")
-id = &"stone_axe_01"
-display_name = "Stone axe"
-description = "stone axe"
-icon = ExtResource("2_j4ur5")
-category = 1
-tool_type = 2
-metadata/_custom_type_script = "uid://ls1dwf6ufrl6"
+[ext_resource type="Resource" uid="uid://daffgigw4noop" path="res://data/items/Tools/stone_axe.tres" id="2_seq8a"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6ssrm"]
 resource_name = "Scene_-_Root"
@@ -61,7 +50,7 @@ transform = Transform3D(-0.03792654, 0.14088964, 0.13679063, 0.19532205, 0.04144
 disable_mode = 2
 script = ExtResource("1_csfl7")
 drop_amount_max = 1
-item_data = SubResource("Resource_j4ur5")
+item_data = ExtResource("2_seq8a")
 
 [node name="Stone_Axe__0" type="MeshInstance3D" parent="."]
 transform = Transform3D(0.999696, -0.020590156, -0.013564885, 0.021792894, 0.9951934, 0.09547477, 0.011533856, -0.09574124, 0.9953394, 0.15354967, 0.12181604, 0.7648953)

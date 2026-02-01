@@ -1,15 +1,15 @@
 [gd_scene load_steps=10 format=3 uid="uid://egusbnvcpwin"]
 
-[ext_resource type="Script" uid="uid://1kbahaxf7hwt" path="res://scripts/Player/Old/camera_controller.gd" id="1_h11ns"]
-[ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/sun_controller.gd" id="1_uw70s"]
-[ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_k1xg5"]
-[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="4_diroo"]
-[ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet_loader.tscn" id="5_ecmd6"]
+[ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/Planet/sun_controller.gd" id="1_2avkh"]
+[ext_resource type="Script" uid="uid://1kbahaxf7hwt" path="res://scripts/Player/Old/camera_controller.gd" id="2_dlv6v"]
+[ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_n56wl"]
+[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="4_m6k0o"]
+[ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/Planet/planet_loader.tscn" id="5_ss43a"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_rvv4a"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_sywca"]
-shader = ExtResource("3_k1xg5")
+shader = ExtResource("3_n56wl")
 shader_parameter/sun_azimuth_deg = 0.0
 shader_parameter/sun_elevation_deg = 25.0
 shader_parameter/star_radius = 0.1
@@ -58,13 +58,13 @@ fog_depth_end = 207.2
 volumetric_fog_density = 0.0218
 
 [node name="Sun" type="Node3D" node_paths=PackedStringArray("sun_light")]
-script = ExtResource("1_uw70s")
+script = ExtResource("1_2avkh")
 sun_light = NodePath("DirectionalLight3D")
 sun_elevation_deg = 0.0
 
 [node name="Player" type="CharacterBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2443.6, 5496.53, 6029.83)
-script = ExtResource("1_h11ns")
+script = ExtResource("2_dlv6v")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
 shape = SubResource("SphereShape3D_rvv4a")
@@ -77,7 +77,7 @@ far = 40000.0
 view_distance = 128000
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(-0.999997, 0, -0.00237361, 0, 1, 0, 0.00237361, 0, -0.999997, -2e+07, 0, 0)
+transform = Transform3D(-0.999997, 0, -0.00237361, 0, 1, 0, 0.00237361, 0, -0.999997, -20000000, 0, 0)
 shadow_enabled = true
 shadow_opacity = 0.44
 directional_shadow_pancake_size = 1.0
@@ -86,16 +86,17 @@ directional_shadow_pancake_size = 1.0
 environment = SubResource("Environment_bdos0")
 
 [node name="Planets" type="Node3D" parent="."]
-script = ExtResource("4_diroo")
+script = ExtResource("4_m6k0o")
 config_file_path = "res://data/planet/default.json"
 
-[node name="Node3D" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_ecmd6")]
+[node name="Node3D" parent="Planets" node_paths=PackedStringArray("sun_path", "water_sphere", "planet") instance=ExtResource("5_ss43a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
+water_sphere = NodePath("@Node3D@111783")
 planet = NodePath("")
 
-[node name="Node3D2" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_ecmd6")]
+[node name="Node3D2" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("5_ss43a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"

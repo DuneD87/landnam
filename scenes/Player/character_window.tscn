@@ -1,0 +1,68 @@
+[gd_scene load_steps=10 format=3 uid="uid://yb01jsd0vyx8"]
+
+[ext_resource type="Script" uid="uid://6jl2j7615hqs" path="res://scripts/Player/character_window.gd" id="1_gcacj"]
+[ext_resource type="Texture2D" uid="uid://ci1eos5p4oj1j" path="res://textures/icons/face.png" id="2_6g8j7"]
+[ext_resource type="Texture2D" uid="uid://dhkqyujka6aus" path="res://textures/icons/chest.png" id="3_da32d"]
+[ext_resource type="Texture2D" uid="uid://cpstrfisrpknj" path="res://textures/icons/hands_left.png" id="4_tq2ji"]
+[ext_resource type="Texture2D" uid="uid://bs2tasnja5lac" path="res://textures/icons/trousers.png" id="5_6r7al"]
+[ext_resource type="Texture2D" uid="uid://iee0detkeuyu" path="res://textures/icons/feet.png" id="6_d0x7w"]
+[ext_resource type="Texture2D" uid="uid://dvkh0ecv65fk" path="res://textures/icons/mainhand.png" id="7_w38jj"]
+[ext_resource type="Texture2D" uid="uid://cec7kt6kqlruj" path="res://textures/icons/offhand.png" id="8_5bvl3"]
+[ext_resource type="Texture2D" uid="uid://cx1wha40aan0e" path="res://textures/icons/mainwrist.png" id="9_w82l4"]
+
+[node name="CharacterWindow" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1_gcacj")
+icon_head = ExtResource("2_6g8j7")
+icon_chest = ExtResource("3_da32d")
+icon_hands = ExtResource("4_tq2ji")
+icon_legs = ExtResource("5_6r7al")
+icon_feet = ExtResource("6_d0x7w")
+icon_main_hand = ExtResource("7_w38jj")
+icon_off_hand = ExtResource("8_5bvl3")
+icon_tool = ExtResource("9_w82l4")
+
+[node name="PanelContainer" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 580.0
+offset_bottom = 780.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="PanelContainer"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBoxContainer" type="VBoxContainer" parent="PanelContainer/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="PanelContainer/MarginContainer/VBoxContainer/Header"]
+layout_mode = 2
+size_flags_horizontal = 6
+theme_override_font_sizes/font_size = 18
+text = "Personaje"
+
+[node name="CloseButton" type="Button" parent="PanelContainer/MarginContainer/VBoxContainer/Header"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+text = "X
+"
+
+[node name="SlotsContainer" type="VBoxContainer" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 6
+theme_override_constants/separation = 8
+alignment = 1

@@ -1,6 +1,20 @@
-[gd_scene load_steps=5 format=4 uid="uid://cnawwfit87gpu"]
+[gd_scene load_steps=10 format=4 uid="uid://cnawwfit87gpu"]
 
 [ext_resource type="Texture2D" uid="uid://cxykiemn4b1fy" path="res://models/equipable/stonepickaxe/textures/Scene_-_Root_baseColor.png" id="1_pr6qn"]
+[ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/Planet/item_physics.gd" id="1_qfiiu"]
+[ext_resource type="Texture2D" uid="uid://pfq8fme0gewo" path="res://textures/icons/stone_pickaxe_01.png" id="2_e0dbf"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="3_djqyn"]
+
+[sub_resource type="Resource" id="Resource_uuwfy"]
+script = ExtResource("3_djqyn")
+id = &"stone_pickaxe"
+display_name = "Stone Pickaxe"
+description = "Stone Pickaxe"
+icon = ExtResource("2_e0dbf")
+category = 1
+scene_path = "res://scenes/weapons/stone_pickaxe2.tscn"
+tool_type = 1
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6ssrm"]
 resource_name = "Scene_-_Root"
@@ -40,9 +54,19 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_6uxvj")
 
-[node name="Stone_Pickaxe" type="Node3D"]
+[sub_resource type="BoxShape3D" id="BoxShape3D_qfiiu"]
+size = Vector3(1, 1, 2)
+
+[node name="Stone_Pickaxe" type="RigidBody3D"]
 transform = Transform3D(0.010612883, -0.14605966, 0.13621292, -0.19944265, -0.014913884, -0.00045265257, 0.010487882, -0.13580938, -0.14644404, 0, 0, 0)
+script = ExtResource("1_qfiiu")
+drop_amount_max = 1
+item_data = SubResource("Resource_uuwfy")
+metadata/_custom_type_script = "uid://e4gwcl85ixfk"
 
 [node name="Stone_Pickaxe__0" type="MeshInstance3D" parent="."]
 mesh = SubResource("ArrayMesh_k3qea")
 skeleton = NodePath("")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_qfiiu")
