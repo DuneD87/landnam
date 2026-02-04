@@ -1,0 +1,11 @@
+Model Information:
+* title:	Medivel_Armor
+* source:	https://sketchfab.com/3d-models/medivel-armor-64a78f41b36d4593854a2cda5a9f45bf
+* author:	vinhvan (https://sketchfab.com/vinhne3)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Medivel_Armor" (https://sketchfab.com/3d-models/medivel-armor-64a78f41b36d4593854a2cda5a9f45bf) by vinhvan (https://sketchfab.com/vinhne3) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

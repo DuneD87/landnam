@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3 uid="uid://1skrktw2pkxv"]
+
+[ext_resource type="PackedScene" uid="uid://ck4i4dyd37y01" path="res://models/equipable/medivel_armor/scene.gltf" id="1_dbjmr"]
+
+[node name="Sketchfab_Scene" instance=ExtResource("1_dbjmr")]
