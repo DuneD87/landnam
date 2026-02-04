@@ -1,6 +1,6 @@
 [gd_scene load_steps=6 format=3 uid="uid://dgj8qq3cqunqi"]
 
-[ext_resource type="PackedScene" uid="uid://b6pco1ld8rlnu" path="res://scenes/Planet/WaterSphere.tscn" id="2_1olso"]
+[ext_resource type="PackedScene" uid="uid://b6pco1ld8rlnu" path="res://scenes/planet/WaterSphere.tscn" id="2_1olso"]
 [ext_resource type="Script" uid="uid://1kbahaxf7hwt" path="res://scripts/Player/Old/camera_controller.gd" id="3_05phx"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_05phx"]

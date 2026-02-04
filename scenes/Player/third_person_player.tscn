@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://c1vquhxt75l31"]
+[gd_scene load_steps=14 format=3 uid="uid://c1vquhxt75l31"]
 
 [ext_resource type="Script" uid="uid://cn32aycdueqh7" path="res://scripts/Player/player_controller.gd" id="1_smlm8"]
 [ext_resource type="Script" uid="uid://coeewlktybkhm" path="res://scripts/Player/movement.gd" id="2_l8r5w"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" uid="uid://drujj6x4uwkju" path="res://scripts/Player/free_flight_controller.gd" id="7_w5t68"]
 [ext_resource type="PackedScene" uid="uid://l2mynhuda6sw" path="res://scenes/inventory/inventory_ui.tscn" id="8_gqp14"]
 [ext_resource type="Script" uid="uid://6g0084u0kj3c" path="res://scripts/Player/action_controller.gd" id="8_sv2hv"]
+[ext_resource type="PackedScene" uid="uid://dg2dqtcp5yc5e" path="res://scenes/Player/chest.tscn" id="11_5amqa"]
 [ext_resource type="PackedScene" uid="uid://yb01jsd0vyx8" path="res://scenes/Player/character_window.tscn" id="11_j4ndk"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_sv2hv"]
@@ -69,6 +70,7 @@ transform = Transform3D(1.7, 0, 0, 0, 1.7, 0, 0, 0, 1.7, 0, 0, 0)
 [node name="Skeleton3D" parent="PlayerModel" index="0"]
 bones/0/position = Vector3(-0.00046243612, 0.960659, 0.013318699)
 bones/0/rotation = Quaternion(-0.013272004, -0.0010341804, -0.010007404, 0.99986136)
+bones/0/scale = Vector3(1, 0.99999994, 1)
 bones/1/rotation = Quaternion(-0.024183594, -0.0011764397, 0.00079413666, 0.99970657)
 bones/2/rotation = Quaternion(0.0088794, -0.0216603, -0.000330993, 0.999726)
 bones/3/rotation = Quaternion(0.008826756, -0.021656813, 4.806323e-05, 0.9997266)
@@ -104,9 +106,18 @@ bones/38/rotation = Quaternion(0.55189323, 0.057903323, 0.020467008, 0.8316503)
 bones/39/rotation = Quaternion(0.27048507, 0.04600572, -0.012941604, 0.9615373)
 
 [node name="RigthHandAttachment" type="BoneAttachment3D" parent="PlayerModel/Skeleton3D" index="1"]
-transform = Transform3D(0.7459645, 0.08802593, 0.6601427, 0.24090123, -0.95977163, -0.14424013, 0.62088925, 0.26662716, -0.737161, -0.303164, 0.8828291, 0.13390028)
+transform = Transform3D(0.7459645, 0.08802593, 0.6601427, 0.2409012, -0.95977163, -0.14424011, 0.62088937, 0.26662713, -0.73716104, -0.303164, 0.8828291, 0.13390027)
 bone_name = "mixamorig_RightHandIndex1"
 bone_idx = 27
+
+[node name="BoneAttachment3D" type="BoneAttachment3D" parent="PlayerModel/Skeleton3D" index="2"]
+transform = Transform3D(0.9997976, 0.020039482, -0.0018024371, -0.019984579, 0.9994474, 0.026561024, 0.0023337104, -0.026519625, 0.9996456, -0.00046243612, 0.960659, 0.013318699)
+bone_name = "mixamorig_Hips"
+bone_idx = 0
+override_pose = true
+
+[node name="Leather1_low1" parent="PlayerModel/Skeleton3D" index="3" instance=ExtResource("11_5amqa")]
+transform = Transform3D(0.010997774, 0.00022043432, -1.9827048e-05, -0.00021983031, 0.010993924, 0.00029217097, 2.5671043e-05, -0.0002917157, 0.0109961005, -0.015425916, -0.2692334, 0.053527866)
 
 [node name="AnimationTree" type="AnimationTree" parent="PlayerModel"]
 tree_root = ExtResource("5_bgqbl")
