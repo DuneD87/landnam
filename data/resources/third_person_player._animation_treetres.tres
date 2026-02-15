@@ -1,31 +1,31 @@
 [gd_resource type="AnimationNodeBlendTree" load_steps=18 format=3 uid="uid://cp4qil0xj5pyj"]
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_c48xe"]
-animation = &"Running/mixamo_com"
+animation = &"Running"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_bgqbl"]
-animation = &"Standing Melee Attack Downward/mixamo_com"
+animation = &"attack_horizontal"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_w5t68"]
-animation = &"mixamo_com"
+animation = &"Idle_Animation"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_bgx5p"]
-animation = &"Falling Idle/mixamo_com"
+animation = &"Falling"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_05eln"]
-animation = &"Landing/mixamo_com"
+animation = &"Landing"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_gqp14"]
-animation = &"Jumping/mixamo_com"
+animation = &"Jumping"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_xrch5"]
-animation = &"Swimming/mixamo_com"
+animation = &"Swimming_Forward"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_aqv5n"]
-animation = &"Swimming_Idle/mixamo_com"
+animation = &"Swimming"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_sv2hv"]
-animation = &"Standard Run/mixamo_com"
+animation = &"Sprinting"
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_xrch5"]
 
@@ -44,6 +44,7 @@ animation = &"Standard Run/mixamo_com"
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_hxfc4"]
 
 [resource]
+graph_offset = Vector2(-791.5002, 1296.6769)
 nodes/output/position = Vector2(1946.67, 1493.33)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)
