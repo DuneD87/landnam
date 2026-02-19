@@ -1,12 +1,14 @@
-[gd_scene load_steps=11 format=3 uid="uid://8hm5q6k01tb8"]
+[gd_scene load_steps=13 format=3 uid="uid://8hm5q6k01tb8"]
 
 [ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/Planet/sun_controller.gd" id="1_x6u8n"]
-[ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/Planet/planet_loader.tscn" id="2_li0gi"]
+[ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet/planet_loader.tscn" id="2_li0gi"]
 [ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_cpkft"]
-[ext_resource type="Script" uid="uid://dka6t6r7qa0p6" path="res://scenes/Planet/ambient_control.gd" id="4_7qkn8"]
+[ext_resource type="Script" uid="uid://dka6t6r7qa0p6" path="res://scenes/planet/ambient_control.gd" id="4_7qkn8"]
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/Player/third_person_player.tscn" id="5_05w5h"]
 [ext_resource type="PackedScene" uid="uid://bmcjlwceq8ylo" path="res://scenes/weapons/stone_axe.tscn" id="6_sbyf7"]
 [ext_resource type="PackedScene" uid="uid://cnawwfit87gpu" path="res://scenes/weapons/stone_pickaxe2.tscn" id="7_li0gi"]
+[ext_resource type="PackedScene" uid="uid://c6houplc0xdrh" path="res://scenes/Armor/leather_pants_drop.tscn" id="8_7qkn8"]
+[ext_resource type="PackedScene" uid="uid://dl2vhxv7m4aoe" path="res://scenes/Armor/leather_armor_drop.tscn" id="9_05w5h"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
 shader = ExtResource("3_cpkft")
@@ -69,7 +71,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@49528")
+water_sphere = NodePath("@Node3D@66153")
 planet = NodePath("")
 
 [node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_li0gi")]
@@ -101,3 +103,12 @@ mass = 0.2
 
 [node name="Stone_Pickaxe" parent="." instance=ExtResource("7_li0gi")]
 transform = Transform3D(-0.195334, -0.01835175, -0.038830984, 0, 0.18082301, -0.08545801, 0.04294919, -0.08346426, -0.17660438, -5875.0146, 11832.425, -11952.141)
+
+[node name="leather_pants" parent="." instance=ExtResource("8_7qkn8")]
+transform = Transform3D(-0.92456096, -0.0976684, -0.36830404, 0, 0.96659076, -0.25632456, 0.3810341, -0.23698768, -0.8936721, -5872.953, 11834.546, -11924.62)
+mass = 0.008
+gravity_scale = 0.125
+
+[node name="leather_chest" parent="." instance=ExtResource("9_05w5h")]
+transform = Transform3D(-0.98939395, -0.050033033, 0.13636835, 0, 0.93880665, 0.34444463, -0.14525712, 0.34079143, -0.92884964, -5871.71, 11835.249, -11922.782)
+mass = 0.016

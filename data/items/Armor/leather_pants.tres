@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemData" load_steps=3 format=3 uid="uid://vbqnl8b1f78a"]
+
+[ext_resource type="Texture2D" uid="uid://bteylc7kl72e3" path="res://textures/icons/icon_leather_pants.png" id="1_sgwac"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="2_mfl4t"]
+
+[resource]
+script = ExtResource("2_mfl4t")
+id = &"leather_pants_01"
+display_name = "Leather Pants"
+description = "Leather Pants"
+icon = ExtResource("1_sgwac")
+category = 4
+scene_path = "res://scenes/Armor/leather_pants.tscn"
+tool_type = 2
+armor_slot = 4
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

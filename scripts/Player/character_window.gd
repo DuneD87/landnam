@@ -121,7 +121,7 @@ func equip_item(slot: EquipmentSlot, item: InventoryItem) -> InventoryItem:
 	
 	var equip_item = InventoryItem.new(item.data, 1)
 	slot.set_item(equip_item)
-	equipment_changed.emit(slot.slot_type, equip_item)
+	equipment_changed.emit(slot.slot_type, equip_item, true)
 	
 	return old_item
 
@@ -133,7 +133,7 @@ func unequip_item(slot: EquipmentSlot) -> InventoryItem:
 	
 	var item = slot.equipped_item
 	slot.clear()
-	equipment_changed.emit(slot.slot_type, null)
+	equipment_changed.emit(slot.slot_type, item, false)
 	
 	return item
 

@@ -1,6 +1,6 @@
 extends CharacterBody3D
 const config = preload("res://scripts/config.gd")
-
+const data = preload("res://scripts/Inventory/item_data.gd")
 @onready var movement: Movement = $Movement
 @onready var camera_controller: CameraController = $CameraController
 @onready var camera: Camera3D = $CameraPivot/PitchPivot/Camera3D
@@ -51,21 +51,36 @@ func equip_item(equip: bool, slot: String, scene: PackedScene, data: ItemData, c
 			ItemData.Category.TOOL:
 				var item = scene.instantiate()
 				item.set_equipped(true)
-				player_model.get_node("Skeleton3D/RigthHandAttachment").add_child(item)
+				player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").add_child(item)
+			ItemData.Category.ARMOR:
+				var item = scene.instantiate()
+				item.item_data = ItemData.clone(data)
+				player_model.get_node("Armature/Skeleton3D").add_child(item)
+					
+				
 	else:
 		match slot:
 			"tool":
 				player_model.get_node("Skeleton3D/RigthHandAttachment").remove_child(player_model.get_node("Skeleton3D/RigthHandAttachment").get_child(0))
+		match category:
+			ItemData.Category.ARMOR:
+				var children = player_model.get_node("Armature/Skeleton3D").get_children()
+				for child in children:
+					if "item_data" in child and child.item_data:
+						if data.armor_slot == ItemData.ArmorSlot.CHEST && child.item_data.armor_slot == ItemData.ArmorSlot.CHEST:
+							player_model.get_node("Armature/Skeleton3D").remove_child(child)
+						elif data.armor_slot == ItemData.ArmorSlot.LEGS && child.item_data.armor_slot == ItemData.ArmorSlot.LEGS:
+							player_model.get_node("Armature/Skeleton3D").remove_child(child)
+
+						
 		
-func on_equipment_changed(slot: String, item: InventoryItem) -> void:
-	if item == null:
-		equip_item(false, slot, null, null, ItemData.Category.MATERIAL)
-		return
+func on_equipment_changed(slot: String, item: InventoryItem, equip: bool) -> void:
+	
 	var data = item.data
 	var scene: PackedScene = load(item.data.scene_path)
 	var category = data.category
 	if category == ItemData.Category.TOOL || category == ItemData.Category.WEAPON || category == ItemData.Category.ARMOR:
-		equip_item(true, slot, scene, data, category)
+		equip_item(equip, slot, scene, data, category)
 
 func _ready():
 	capture_mouse(true)

@@ -37,7 +37,32 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET}
 @export var has_durability: bool = false
 @export var max_durability: int = 100
 
-
+static func clone(source: ItemData) -> ItemData:
+	var copy := ItemData.new()
+	copy.copy_from(source)
+	return copy
+	
+func copy_from(source: ItemData) -> void:
+	id = source.id
+	display_name = source.display_name
+	description = source.description
+	icon = source.icon
+	category = source.category
+	scene_path = source.scene_path
+	stackable = source.stackable
+	max_stack = source.max_stack
+	tool_type = source.tool_type
+	mining_power = source.mining_power
+	harvest_multiplier = source.harvest_multiplier
+	weapon_type = source.weapon_type
+	damage = source.damage
+	attack_speed = source.attack_speed
+	armor_slot = source.armor_slot
+	defense = source.defense
+	resistance = source.resistance
+	has_durability = source.has_durability
+	max_durability = source.max_durability
+	
 # Valida si este item puede equiparse en un slot específico
 func can_equip_in_slot(slot_type: String) -> bool:
 	match slot_type:
