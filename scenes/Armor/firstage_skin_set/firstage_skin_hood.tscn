@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3 uid="uid://c34ndkl787pts"]
+
+[ext_resource type="PackedScene" uid="uid://dpeixjn1sswaf" path="res://models/equipable/firstage_skin_set/firstage_skin_hood.glb" id="1_slyvh"]
+
+[node name="firstage_skin_hood" instance=ExtResource("1_slyvh")]

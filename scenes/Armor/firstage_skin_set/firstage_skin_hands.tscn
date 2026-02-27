@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3 uid="uid://le82ta56ho0t"]
+
+[ext_resource type="PackedScene" uid="uid://b0rtjydw3wst1" path="res://models/equipable/firstage_skin_set/firstage_skin_hands.glb" id="1_r3e4c"]
+
+[node name="firstage_skin_hands" instance=ExtResource("1_r3e4c")]
