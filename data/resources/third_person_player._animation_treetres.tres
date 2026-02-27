@@ -1,4 +1,7 @@
-[gd_resource type="AnimationNodeBlendTree" load_steps=18 format=3 uid="uid://cp4qil0xj5pyj"]
+[gd_resource type="AnimationNodeBlendTree" load_steps=20 format=3 uid="uid://cp4qil0xj5pyj"]
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_hxfc4"]
+animation = &"Attack_Vertical"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_c48xe"]
 animation = &"Running"
@@ -27,7 +30,13 @@ animation = &"Swimming"
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_sv2hv"]
 animation = &"Sprinting"
 
-[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_xrch5"]
+[sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_xrch5"]
+fadein_time = 0.1
+fadeout_time = 0.3
+
+[sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_uvpnv"]
+fadein_time = 0.1
+fadeout_time = 0.3
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_6uxvj"]
 
@@ -44,12 +53,12 @@ animation = &"Sprinting"
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_hxfc4"]
 
 [resource]
-graph_offset = Vector2(-791.5002, 1296.6769)
-nodes/output/position = Vector2(1946.67, 1493.33)
+graph_offset = Vector2(912.30304, 1359.6969)
+nodes/output/position = Vector2(2653.3333, 1506.6666)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)
 nodes/Attack_1/node = SubResource("AnimationNodeAnimation_bgqbl")
-nodes/Attack_1/position = Vector2(-426.667, 560)
+nodes/Attack_1/position = Vector2(1533.3334, 1226.6666)
 nodes/IDle/node = SubResource("AnimationNodeAnimation_w5t68")
 nodes/IDle/position = Vector2(-426.667, 80)
 nodes/JUMP_IDLE/node = SubResource("AnimationNodeAnimation_bgx5p")
@@ -63,9 +72,9 @@ nodes/SWIM/position = Vector2(-426.667, 1226.67)
 nodes/SWIM_IDLE/node = SubResource("AnimationNodeAnimation_aqv5n")
 nodes/SWIM_IDLE/position = Vector2(-480, 1466.67)
 nodes/Sprint/node = SubResource("AnimationNodeAnimation_sv2hv")
-nodes/Sprint/position = Vector2(-426.667, 400)
-nodes/bAttack_1/node = SubResource("AnimationNodeBlend2_xrch5")
-nodes/bAttack_1/position = Vector2(393.355, 597.578)
+nodes/Sprint/position = Vector2(-413.33334, 466.66666)
+nodes/bSwimIdle/node = SubResource("AnimationNodeBlend2_hxfc4")
+nodes/bSwimIdle/position = Vector2(1466.67, 1560)
 nodes/bJumpIdle/node = SubResource("AnimationNodeBlend2_6uxvj")
 nodes/bJumpIdle/position = Vector2(866.667, 960)
 nodes/bJumpLand/node = SubResource("AnimationNodeBlend2_k3qea")
@@ -75,9 +84,13 @@ nodes/bJumpStart/position = Vector2(640, 706.667)
 nodes/bRun/node = SubResource("AnimationNodeBlend2_bgx5p")
 nodes/bRun/position = Vector2(160, 160)
 nodes/bSprint/node = SubResource("AnimationNodeBlend2_bgqbl")
-nodes/bSprint/position = Vector2(133.333, 333.333)
+nodes/bSprint/position = Vector2(226.66667, 506.66666)
 nodes/bSwim/node = SubResource("AnimationNodeBlend2_aqv5n")
 nodes/bSwim/position = Vector2(1226.67, 1360)
-nodes/bSwimIdle/node = SubResource("AnimationNodeBlend2_hxfc4")
-nodes/bSwimIdle/position = Vector2(1466.67, 1560)
-node_connections = [&"output", 0, &"bSwimIdle", &"bAttack_1", 0, &"bSprint", &"bAttack_1", 1, &"Attack_1", &"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"bAttack_1", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bSwim", 0, &"bJumpLand", &"bSwim", 1, &"SWIM", &"bSwimIdle", 0, &"bSwim", &"bSwimIdle", 1, &"SWIM_IDLE"]
+nodes/attack_horizontal/node = SubResource("AnimationNodeOneShot_xrch5")
+nodes/attack_horizontal/position = Vector2(1933.3334, 1266.6666)
+nodes/attack_vertical/node = SubResource("AnimationNodeOneShot_uvpnv")
+nodes/attack_vertical/position = Vector2(2217.074, 1646.826)
+"nodes/Animation 2/node" = SubResource("AnimationNodeAnimation_hxfc4")
+"nodes/Animation 2/position" = Vector2(1824.0741, 1745.8524)
+node_connections = [&"output", 0, &"attack_vertical", &"bSwimIdle", 0, &"bSwim", &"bSwimIdle", 1, &"SWIM_IDLE", &"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"bSprint", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bSwim", 0, &"bJumpLand", &"bSwim", 1, &"SWIM", &"attack_horizontal", 0, &"bSwimIdle", &"attack_horizontal", 1, &"Attack_1", &"attack_vertical", 0, &"attack_horizontal", &"attack_vertical", 1, &"Animation 2"]

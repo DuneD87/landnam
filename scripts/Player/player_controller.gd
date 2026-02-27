@@ -28,6 +28,8 @@ var current_swimming_pitch: float = 0.0
 var current_animation = config.ANIMATION.IDLE
 var play_attack_once = false
 
+var equiped_weapon: ItemData
+
 func _on_target_destroyed(position: Vector3, amount: int, item_data: ItemData) -> void:
 	
 	var excess = inventory.add_item(item_data, amount)
@@ -49,8 +51,8 @@ func equip_item(equip: bool, slot: String, scene: PackedScene, data: ItemData, c
 	if equip:
 		match category:
 			ItemData.Category.TOOL:
+				equiped_weapon = data
 				var item = scene.instantiate()
-				item.set_equipped(true)
 				player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").add_child(item)
 			ItemData.Category.ARMOR:
 				var item = scene.instantiate()
@@ -58,11 +60,11 @@ func equip_item(equip: bool, slot: String, scene: PackedScene, data: ItemData, c
 				player_model.get_node("Armature/Skeleton3D").add_child(item)
 					
 				
-	else:
-		match slot:
-			"tool":
-				player_model.get_node("Skeleton3D/RigthHandAttachment").remove_child(player_model.get_node("Skeleton3D/RigthHandAttachment").get_child(0))
+	else:		
 		match category:
+			ItemData.Category.TOOL:
+				var equipped_child = player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").get_child(0)
+				player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").remove_child(equipped_child)
 			ItemData.Category.ARMOR:
 				var children = player_model.get_node("Armature/Skeleton3D").get_children()
 				for child in children:
@@ -88,6 +90,10 @@ func _ready():
 	var item_wood = config.get_item(&"wood_01")
 	inventory.add_item(item_stone, 15)	
 	inventory.add_item(item_wood, 15)'''
+	inventory.add_item(config.get_item(&"leather_chest_01"), 1)
+	inventory.add_item(config.get_item(&"leather_pants_01"), 1)
+	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
+	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
 
 	inventory_ui.setup(inventory, character_window)
 	character_window.equipment_changed.connect(on_equipment_changed)
@@ -249,8 +255,8 @@ func update_normal_movement(delta: float) -> void:
 	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 	current_animation = movement.current_animation
-	if action_controller.is_attacking:
-		current_animation = config.ANIMATION.ATTACK_1
+	if equiped_weapon != null && action_controller.is_attacking:
+		current_animation = equiped_weapon.attack_animation
 
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity

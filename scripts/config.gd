@@ -1,7 +1,7 @@
 # config.gd
 extends Node
 
-enum ANIMATION {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1, SPRINT, FALLING, SWIM, SWIM_IDLE}
+enum ANIMATION {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1, ATTACK_2, SPRINT, FALLING, SWIM, SWIM_IDLE}
 
 static var items: Dictionary = {}
 
@@ -36,4 +36,5 @@ static func _load_items_from_folder(path: String) -> void:
 static func get_item(id: StringName) -> ItemData:
 	if items.size() == 0:
 		_load_items_from_folder("res://data/items/")
+
 	return items.get(id)

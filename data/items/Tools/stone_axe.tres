@@ -10,6 +10,6 @@ display_name = "Stone axe"
 description = "stone axe"
 icon = ExtResource("1_21h4s")
 category = 1
-scene_path = "res://scenes/weapons/stone_axe.tscn"
+scene_path = "res://scenes/weapons/stone_axe_01.tscn"
 tool_type = 2
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

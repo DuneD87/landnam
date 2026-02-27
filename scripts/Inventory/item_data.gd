@@ -1,6 +1,7 @@
 # item_data.gd
 class_name ItemData
 extends Resource
+const config = preload("res://scripts/config.gd")
 
 enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR}
 enum ToolType {NONE, PICKAXE, AXE, HAMMER}
@@ -13,6 +14,7 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET}
 @export var icon: Texture2D
 @export var category: Category
 @export var scene_path: String
+@export var attack_animation: config.ANIMATION = config.ANIMATION.ATTACK_1
 
 @export_group("Stacking")
 @export var stackable: bool = true

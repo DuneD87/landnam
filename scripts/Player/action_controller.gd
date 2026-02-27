@@ -116,10 +116,10 @@ func handle_pickup(camera: Camera3D, origin: Vector3) -> ItemData:
 
 
 func cone_raycast(origin: Vector3, forward: Vector3, up: Vector3, right: Vector3, camera: Camera3D) -> Node:
-	var cone_angle := deg_to_rad(15.0)
-	var ray_length := 3.0
-	var rings := 2
-	var rays_per_ring := 6
+	var cone_angle := deg_to_rad(40)
+	var ray_length := 10.0
+	var rings := 5
+	var rays_per_ring := 20
 	
 	var space_state = camera.get_world_3d().direct_space_state
 	var closest_node: Node = null
