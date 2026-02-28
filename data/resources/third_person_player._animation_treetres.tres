@@ -7,10 +7,10 @@ animation = &"Attack_Vertical"
 animation = &"Running"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_bgqbl"]
-animation = &"attack_horizontal"
+animation = &"Attack_Horizontal"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_w5t68"]
-animation = &"Idle_Animation"
+animation = &"Idle"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_bgx5p"]
 animation = &"Falling"
@@ -22,10 +22,10 @@ animation = &"Landing"
 animation = &"Jumping"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_xrch5"]
-animation = &"Swimming_Forward"
+animation = &"Swimming"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_aqv5n"]
-animation = &"Swimming"
+animation = &"Swimming_Idle"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_sv2hv"]
 animation = &"Sprinting"
@@ -53,7 +53,6 @@ fadeout_time = 0.3
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_hxfc4"]
 
 [resource]
-graph_offset = Vector2(912.30304, 1359.6969)
 nodes/output/position = Vector2(2653.3333, 1506.6666)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)

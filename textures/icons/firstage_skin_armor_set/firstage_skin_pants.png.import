@@ -2,24 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://5tm13wevg4vi"
-path.s3tc="res://.godot/imported/firstage_skin_pants_Image_0.jpg-6dd1eff583191296b4154c7bf06942a2.s3tc.ctex"
+uid="uid://dfkt5ffim4vjx"
+path="res://.godot/imported/firstage_skin_pants.png-4bb1f1f2c52c37c088fec46913632829.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
-}
-generator_parameters={
-"md5": "46be94d458640eb29c8152bd852fa65c"
+"vram_texture": false
 }
 
 [deps]
 
-source_file="res://models/equipable/firstage_skin_set/firstage_skin_pants_Image_0.jpg"
-dest_files=["res://.godot/imported/firstage_skin_pants_Image_0.jpg-6dd1eff583191296b4154c7bf06942a2.s3tc.ctex"]
+source_file="res://textures/icons/firstage_skin_armor_set/firstage_skin_pants.png"
+dest_files=["res://.godot/imported/firstage_skin_pants.png-4bb1f1f2c52c37c088fec46913632829.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -27,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
@@ -41,4 +37,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

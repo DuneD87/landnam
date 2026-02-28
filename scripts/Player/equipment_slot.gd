@@ -4,7 +4,7 @@ extends PanelContainer
 
 signal slot_clicked(slot: EquipmentSlot, button_index: int)
 
-@export var slot_type: String = ""
+@export var slot_type: ItemData.ArmorSlot
 @export var background_icon: Texture2D = null:
 	set(value):
 		background_icon = value

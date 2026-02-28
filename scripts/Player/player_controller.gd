@@ -47,7 +47,7 @@ func capture_mouse(capture: bool):
 	mouse_captured = capture
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
 
-func equip_item(equip: bool, slot: String, scene: PackedScene, data: ItemData, category: ItemData.Category) -> void:
+func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data: ItemData, category: ItemData.Category) -> void:
 	if equip:
 		match category:
 			ItemData.Category.TOOL:
@@ -58,8 +58,6 @@ func equip_item(equip: bool, slot: String, scene: PackedScene, data: ItemData, c
 				var item = scene.instantiate()
 				item.item_data = ItemData.clone(data)
 				player_model.get_node("Armature/Skeleton3D").add_child(item)
-					
-				
 	else:		
 		match category:
 			ItemData.Category.TOOL:
@@ -69,14 +67,19 @@ func equip_item(equip: bool, slot: String, scene: PackedScene, data: ItemData, c
 				var children = player_model.get_node("Armature/Skeleton3D").get_children()
 				for child in children:
 					if "item_data" in child and child.item_data:
-						if data.armor_slot == ItemData.ArmorSlot.CHEST && child.item_data.armor_slot == ItemData.ArmorSlot.CHEST:
+						var remove_condition = data.armor_slot == ItemData.ArmorSlot.LEGS && child.item_data.armor_slot == ItemData.ArmorSlot.LEGS
+						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.CHEST && child.item_data.armor_slot == ItemData.ArmorSlot.CHEST
+						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.HEAD && child.item_data.armor_slot == ItemData.ArmorSlot.HEAD
+						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.HANDS && child.item_data.armor_slot == ItemData.ArmorSlot.HANDS
+						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.FEET && child.item_data.armor_slot == ItemData.ArmorSlot.FEET
+
+						if remove_condition:
 							player_model.get_node("Armature/Skeleton3D").remove_child(child)
-						elif data.armor_slot == ItemData.ArmorSlot.LEGS && child.item_data.armor_slot == ItemData.ArmorSlot.LEGS:
-							player_model.get_node("Armature/Skeleton3D").remove_child(child)
+						
 
 						
 		
-func on_equipment_changed(slot: String, item: InventoryItem, equip: bool) -> void:
+func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: bool) -> void:
 	
 	var data = item.data
 	var scene: PackedScene = load(item.data.scene_path)
@@ -90,8 +93,12 @@ func _ready():
 	var item_wood = config.get_item(&"wood_01")
 	inventory.add_item(item_stone, 15)	
 	inventory.add_item(item_wood, 15)'''
-	inventory.add_item(config.get_item(&"leather_chest_01"), 1)
-	inventory.add_item(config.get_item(&"leather_pants_01"), 1)
+	inventory.add_item(config.get_item(&"firstage_skin_boots"), 1)
+	inventory.add_item(config.get_item(&"firstage_skin_hands"), 1)
+	inventory.add_item(config.get_item(&"firstage_skin_pants"), 1)
+	inventory.add_item(config.get_item(&"firstage_skin_chest"), 1)
+	inventory.add_item(config.get_item(&"firstage_skin_hood"), 1)
+
 	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
 

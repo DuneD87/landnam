@@ -2,7 +2,7 @@
 class_name CharacterWindow
 extends CanvasLayer
 
-signal equipment_changed(slot_type: String, item: InventoryItem)
+signal equipment_changed(slot_type: ItemData.ArmorSlot, item: InventoryItem)
 signal slot_clicked(slot: EquipmentSlot)
 
 const EquipmentSlotScene = preload("res://scenes/Player/equipment_slot.tscn")
@@ -49,35 +49,35 @@ func _create_slots() -> void:
 	# Row 1: HEAD (centrado)
 	var row1 = _create_row()
 	_add_spacer(row1)
-	_add_slot(row1, "head", icon_head)
+	_add_slot(row1, ItemData.ArmorSlot.HEAD, icon_head)
 	_add_spacer(row1)
 	slots_container.add_child(row1)
 	
 	# Row 2: OFF_HAND - CHEST - MAIN_HAND
 	var row2 = _create_row()
-	_add_slot(row2, "off_hand", icon_off_hand)
-	_add_slot(row2, "chest", icon_chest)
-	_add_slot(row2, "main_hand", icon_main_hand)
+	_add_slot(row2, ItemData.ArmorSlot.OFFHAND, icon_off_hand)
+	_add_slot(row2, ItemData.ArmorSlot.CHEST, icon_chest)
+	_add_slot(row2, ItemData.ArmorSlot.RIGHT_HAND, icon_main_hand)
 	slots_container.add_child(row2)
 	
 	# Row 3: HANDS (centrado)
 	var row3 = _create_row()
 	_add_spacer(row3)
-	_add_slot(row3, "hands", icon_hands)
+	_add_slot(row3, ItemData.ArmorSlot.HANDS, icon_hands)
 	_add_spacer(row3)
 	slots_container.add_child(row3)
 	
 	# Row 4: LEGS (centrado)
 	var row4 = _create_row()
 	_add_spacer(row4)
-	_add_slot(row4, "legs", icon_legs)
+	_add_slot(row4, ItemData.ArmorSlot.LEGS, icon_legs)
 	_add_spacer(row4)
 	slots_container.add_child(row4)
 	
 	# Row 5: TOOL - FEET - (spacer)
 	var row5 = _create_row()
-	_add_slot(row5, "tool", icon_tool)
-	_add_slot(row5, "feet", icon_feet)
+	_add_slot(row5, ItemData.ArmorSlot.LEFT_HAND, icon_tool)
+	_add_slot(row5, ItemData.ArmorSlot.FEET, icon_feet)
 	_add_spacer(row5)
 	slots_container.add_child(row5)
 
@@ -89,7 +89,7 @@ func _create_row() -> HBoxContainer:
 	return row
 
 
-func _add_slot(parent: HBoxContainer, slot_type: String, icon: Texture2D) -> void:
+func _add_slot(parent: HBoxContainer, slot_type: ItemData.ArmorSlot, icon: Texture2D) -> void:
 	var slot = EquipmentSlotScene.instantiate() as EquipmentSlot
 	slot.slot_type = slot_type
 	slot.background_icon = icon
@@ -113,11 +113,13 @@ func _on_slot_clicked(slot: EquipmentSlot, button_index: int) -> void:
 func equip_item(slot: EquipmentSlot, item: InventoryItem) -> InventoryItem:
 	if not slot or not item:
 		return null
-	
+	if slot.slot_type != item.data.armor_slot:
+		return item
 	var old_item: InventoryItem = null
-	
+
 	if slot.has_item():
 		old_item = slot.equipped_item
+		equipment_changed.emit(slot.slot_type, old_item, false)
 	
 	var equip_item = InventoryItem.new(item.data, 1)
 	slot.set_item(equip_item)

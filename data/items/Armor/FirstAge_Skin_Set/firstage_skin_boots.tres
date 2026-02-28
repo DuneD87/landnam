@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemData" load_steps=3 format=3 uid="uid://dybpft6fuhr5l"]
+
+[ext_resource type="Texture2D" uid="uid://dcxqhinwcjvek" path="res://textures/icons/firstage_skin_armor_set/firstage_skin_boots.png" id="1_jrobp"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="2_jgvra"]
+
+[resource]
+script = ExtResource("2_jgvra")
+id = &"firstage_skin_boots"
+display_name = "Skin Boots"
+description = "Skin Boots"
+icon = ExtResource("1_jrobp")
+category = 4
+scene_path = "res://scenes/armor/firstage_skin_set/firstage_skin_boots_equipable.tscn"
+tool_type = 2
+armor_slot = 5
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

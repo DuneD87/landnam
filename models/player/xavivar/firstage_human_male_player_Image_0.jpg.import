@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://5tm13wevg4vi"
-path.s3tc="res://.godot/imported/firstage_skin_pants_Image_0.jpg-6dd1eff583191296b4154c7bf06942a2.s3tc.ctex"
+uid="uid://cyddaj2xfdqqt"
+path.s3tc="res://.godot/imported/firstage_human_male_player_Image_0.jpg-357ce62f05f3ab39ae9cb480022d51f4.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "46be94d458640eb29c8152bd852fa65c"
+"md5": "acb85c46a289f77697acadf7c84c3b16"
 }
 
 [deps]
 
-source_file="res://models/equipable/firstage_skin_set/firstage_skin_pants_Image_0.jpg"
-dest_files=["res://.godot/imported/firstage_skin_pants_Image_0.jpg-6dd1eff583191296b4154c7bf06942a2.s3tc.ctex"]
+source_file="res://models/player/xavivar/firstage_human_male_player_Image_0.jpg"
+dest_files=["res://.godot/imported/firstage_human_male_player_Image_0.jpg-357ce62f05f3ab39ae9cb480022d51f4.s3tc.ctex"]
 
 [params]
 
