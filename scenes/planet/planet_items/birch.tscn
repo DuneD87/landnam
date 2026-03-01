@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dn8y2c6rguwux"]
+
+[node name="Node3D" type="Node3D"]
+
+[node name="birch" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.237416, 0, 1.09043)
