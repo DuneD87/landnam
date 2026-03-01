@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene load_steps=15 format=3 uid="uid://cuv6mxdmxyw00"]
 
 [ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
 [ext_resource type="VoxelGeneratorGraph" uid="uid://0mpmu03pwgj8" path="res://graph_functions/earth_terrain_terraces.tres" id="2_glvix"]
@@ -6,9 +6,11 @@
 [ext_resource type="Shader" uid="uid://cjvu0r1fglbyl" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
 [ext_resource type="Script" uid="uid://dv1orhbbx7v5" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
 
-[sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_as11c"]
+[sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_1bp2h"]
 
 [sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_dfr3u"]
+
+[sub_resource type="VoxelFormat" id="VoxelFormat_yg71c"]
 
 [sub_resource type="Shader" id="Shader_wsymg"]
 code = "shader_type spatial;
@@ -207,10 +209,10 @@ script = ExtResource("1_8l55o")
 config_file_path = "res://data/planet/default.json"
 
 [node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
-stream = SubResource("VoxelStreamMemory_as11c")
+stream = SubResource("VoxelStreamMemory_1bp2h")
 generator = ExtResource("2_glvix")
 mesher = SubResource("VoxelMesherTransvoxel_dfr3u")
-gi_mode = 2
+format = SubResource("VoxelFormat_yg71c")
 view_distance = 100000
 lod_count = 16
 lod_distance = 128.0

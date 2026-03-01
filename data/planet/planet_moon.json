@@ -79,12 +79,12 @@
 		],
 		"items": [
 			{
-				"scene": "res://scenes/planet/large_rock_03_glb.tscn",
+				"scene": "res://scenes/planet/planet_items/large_rock_03_glb.tscn",
 				"generator": "large_rocks_generator_03",
 				"lod_index": 0
 			},
 			{
-				"scene": "res://scenes/planet/large_rock_02.tscn",
+				"scene": "res://scenes/planet/planet_items/large_rock_02.tscn",
 				"generator": "large_rocks_generator_02",
 				"lod_index": 0
 			}
