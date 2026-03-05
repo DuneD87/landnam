@@ -1,0 +1,60 @@
+[gd_scene load_steps=6 format=3 uid="uid://dg37kdrqlecel"]
+
+[ext_resource type="Texture2D" uid="uid://sg4rwon5noxp" path="res://textures/icons/main_menu/icon_new_game.png" id="1_4q1m5"]
+[ext_resource type="Texture2D" uid="uid://33vomb2qedf" path="res://textures/icons/main_menu/icon_save_game.png" id="2_2itis"]
+[ext_resource type="Texture2D" uid="uid://b4hhbqe1kokj6" path="res://textures/icons/main_menu/icon_load_game.png" id="3_n6xgq"]
+[ext_resource type="Texture2D" uid="uid://b36byk26ucjsx" path="res://textures/icons/main_menu/icon_exit_game.png" id="4_akboc"]
+[ext_resource type="Texture2D" uid="uid://d2nk8c2mec6e2" path="res://textures/icons/main_menu/icon_menu_options.png" id="5_xvd5r"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ButtonNewGame" type="MenuButton" parent="."]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 230.0
+offset_right = 808.0
+offset_bottom = 478.0
+scale = Vector2(240, 120)
+icon = ExtResource("1_4q1m5")
+
+[node name="ButtonSaveGame" type="MenuButton" parent="."]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 23680.0
+offset_right = 808.0
+offset_bottom = 23928.0
+scale = Vector2(240, 120)
+icon = ExtResource("2_2itis")
+
+[node name="ButtonLoadGame" type="MenuButton" parent="."]
+layout_mode = 0
+offset_left = 448.0
+offset_top = 11312.001
+offset_right = 936.0
+offset_bottom = 11560.001
+scale = Vector2(240, 120)
+icon = ExtResource("3_n6xgq")
+
+[node name="ButtonExitGame" type="MenuButton" parent="."]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 49024.004
+offset_right = 808.0
+offset_bottom = 49272.004
+scale = Vector2(240, 120)
+icon = ExtResource("4_akboc")
+
+[node name="ButtonOptions" type="MenuButton" parent="."]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 36480.004
+offset_right = 808.0
+offset_bottom = 36728.004
+scale = Vector2(240, 120)
+icon = ExtResource("5_xvd5r")
