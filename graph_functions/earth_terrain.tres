@@ -1,7 +1,7 @@
 [gd_resource type="VoxelGeneratorGraph" load_steps=3 format=3 uid="uid://dqowm7bl6ltis"]
 
 [sub_resource type="FastNoise2" id="FastNoise2_ivwlw"]
-period = 1200.0
+period = 388.9001
 fractal_type = 1
 fractal_octaves = 6
 fractal_lacunarity = 3.5
@@ -126,7 +126,7 @@ graph_data = {
 "type": "SdfSphere"
 },
 "9": {
-"b": 150.0,
+"b": 400.0,
 "gui_position": Vector2(1440, 440),
 "name": &"noise_mult",
 "type": "Multiply"

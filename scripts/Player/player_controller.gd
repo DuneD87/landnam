@@ -134,7 +134,7 @@ func _input(event):
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	if event.is_action_pressed("character_window"):
 		character_window.toggle()
-	if event.is_action_pressed("action"):
+	if event.is_action_pressed("action") && !free_flight_enabled:
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		var item_data = action_controller.handle_pickup(camera, ray_origin)
 		if item_data != null:
