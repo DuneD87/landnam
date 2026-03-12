@@ -20,9 +20,9 @@ uniform float noise_scale = 5.0;
 uniform float height_scale = 0.5;
 
 // Parámetros para romper el tiling de las normales
-uniform float normal_scale1 : hint_range(0.1, 20.0) = 1.0;
-uniform float normal_scale2 : hint_range(0.1, 20.0) = 2.3;
-uniform float normal_scale3 : hint_range(0.1, 20.0) = 7.8;
+uniform float normal_scale1 : hint_range(0.1, 50.0) = 1.0;
+uniform float normal_scale2 : hint_range(0.1, 50.0) = 2.3;
+uniform float normal_scale3 : hint_range(0.1, 50.0) = 7.8;
 uniform float normal_intensity : hint_range(0.0, 2.0) = 1.0;
 
 uniform float wave_speed = 1.0;
@@ -45,7 +45,7 @@ uniform float edge_max_alpha : hint_range(0.0, 1.0) = 0.8;
 uniform float edge_min_alpha : hint_range(0.0, 1.0) = 0.0;
 
 uniform float view_opacity_start : hint_range(0.0, 50.0) = 5.0;
-uniform float view_opacity_end : hint_range(0.0, 10000.0) = 30.0;
+uniform float view_opacity_end : hint_range(-10000.0, 10000.0) = 30.0;
 uniform float view_opacity_power : hint_range(0.01, 50.0) = 2.0;
 
 uniform vec3 sky_color_horizon : source_color = vec3(0.8, 0.9, 1.0);
@@ -65,6 +65,19 @@ uniform float godray_scatter : hint_range(0.0, 1.0) = 0.5;
 uniform float godray_noise_scale : hint_range(0.1, 10.0) = 2.0;
 uniform float godray_noise_speed : hint_range(0.0, 2.0) = 0.3;
 uniform float godray_phase_intensity : hint_range(0.0, 5.0) = 2.0;
+
+uniform vec3 sss_color : source_color = vec3(0.0, 0.8, 0.6);
+uniform float sss_intensity : hint_range(0.0, 3.0) = 1.2;
+uniform float sss_power : hint_range(1.0, 8.0) = 3.0;
+
+uniform sampler2D foam_texture : repeat_enable, filter_linear_mipmap;
+uniform float foam_edge_threshold : hint_range(0.0, 2.0) = 0.5;
+uniform float foam_crest_threshold : hint_range(0.0, 1.0) = 0.6;
+uniform vec3 foam_color : source_color = vec3(0.95, 0.97, 1.0);
+
+uniform vec3 underwater_fog_color : source_color = vec3(0.4, 0.55, 0.7);
+uniform float underwater_fog_density : hint_range(0.0, 1.0) = 0.15;
+uniform float underwater_fog_start : hint_range(0.0, 50.0) = 5.0;
 
 varying vec3 world_pos;
 varying float height;
@@ -200,17 +213,6 @@ void fragment() {
 
     float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_distance_factor);
     float screen_influence = 1.0 - view_distance_factor;
-
-    vec3 screen_color = textureLod(SCREEN_TEXTURE, SCREEN_UV, adjusted_depth_blend * 2.5).rgb;
-    vec3 depth_color = mix(color_shallow.rgb, color_deep.rgb, adjusted_depth_blend);
-
-    vec3 color = mix(
-        mix(screen_color * depth_color, depth_color * 0.25, adjusted_depth_blend * 0.5),
-        depth_color,
-        view_distance_factor * 0.8
-    );
-
-
     float z_depth = edge(texture(DEPTH_TEXTURE, SCREEN_UV).x);
     float z_pos = edge(FRAGCOORD.z);
     float z_dif = z_depth - z_pos;
@@ -242,33 +244,60 @@ void fragment() {
 
         normal_blend = mix(vec3(0.5, 0.5, 1.0), normal_blend, normal_intensity);
     }
+	
+	vec2 refraction_offset = normal_blend.xy * 2.0 - 1.0;
+	float refraction_strength = 0.05 * screen_influence; // se atenúa con la distancia
+	vec2 refracted_uv = SCREEN_UV + refraction_offset * refraction_strength;
+	vec3 screen_color = textureLod(SCREEN_TEXTURE, refracted_uv, adjusted_depth_blend * 2.5).rgb;    vec3 depth_color = mix(color_shallow.rgb, color_deep.rgb, adjusted_depth_blend);
+	float terrain_distance = max(z_depth - z_pos, 0.0); // distancia cámara→terreno vs cámara→agua
+	float fog_factor = 1.0 - exp(-max(terrain_distance - underwater_fog_start, 0.0) * underwater_fog_density);
+	fog_factor = clamp(fog_factor, 0.0, 1.0);
+	screen_color = mix(screen_color, underwater_fog_color, fog_factor);
 
+    vec3 color = mix(
+        mix(screen_color * depth_color, depth_color * 0.25, adjusted_depth_blend * 0.5),
+        depth_color,
+        view_distance_factor * 0.8
+    );
     float fresnel_value = fresnel(sky_fresnel_power, NORMAL, VIEW);
     vec3 surface_color = mix(albedo, albedo2, fresnel_value);
 
     vec3 reflected_view = reflect(-VIEW, NORMAL);
     vec3 sky_color = calculate_sky_color(reflected_view);
-
     vec3 sky_reflection = sky_color * sky_influence;
+	float distance_alpha = clamp(view_depth / view_opacity_end, 0.0, 1.0);
+	distance_alpha = pow(distance_alpha, view_opacity_power);
+	float base_alpha = mix(edge_min_alpha, edge_max_alpha, distance_alpha);
+	float edge_factor = clamp(z_dif / edge_fade_distance, 0.0, 1.0);
+	ALPHA = base_alpha * edge_factor;
+	
+	float depth_precision_scale = 1.0 + view_depth * 0.1;
+	float adjusted_edge_fade = edge_fade_distance * depth_precision_scale;
 
-    vec3 depth_color_adj;
+	float fade_factor = 1.0 - clamp(z_dif / adjusted_edge_fade, 0.0, 1.0);
 
-    if (z_dif < edge_fade_distance && distance(CAMERA_POSITION_WORLD, world_pos) < view_opacity_end) {
-        float fade_factor = clamp(z_dif / edge_fade_distance, 0.0, 1.0);
-		float dist_fade_factor = smoothstep(0.0, 1.0, view_opacity_end / distance(CAMERA_POSITION_WORLD, world_pos));
-        ALPHA = mix(edge_min_alpha, edge_max_alpha, fade_factor);
+    vec3 blended_edge_color = mix(edge_color, color, fade_factor);
 
-        vec3 blended_edge_color = mix(edge_color, color, fade_factor);
-        depth_color_adj = blended_edge_color;
-    } else {
-        depth_color_adj = mix(color, sky_reflection, fresnel_value * 0.8);
-        depth_color_adj = mix(depth_color_adj, color, adjusted_depth_blend * 0.3);
-    }
+	vec3 depth_color_adj = mix(color, sky_reflection, fresnel_value * 0.8);
+	depth_color_adj = mix(depth_color_adj, color, adjusted_depth_blend * 0.3);
 
-    // AÑADIR GOD RAYS AL COLOR FINAL
     vec3 final_albedo = mix(surface_color + depth_color_adj, sky_reflection, fresnel_value * sky_influence * 0.5);
-
-    ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
+	vec3 sun_dir_norm = normalize(-sun_direction);
+	float sss_dot = pow(clamp(dot(VIEW, -sun_dir_norm), 0.0, 1.0), sss_power);
+	float sss_depth_mask = clamp(1.0 - adjusted_depth_blend, 0.0, 1.0); // solo en zonas poco profundas
+	vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask;
+	final_albedo += sss_contrib;
+	
+	float shore_foam = 1.0 - smoothstep(0.0, foam_edge_threshold, z_dif);
+	float crest_foam = smoothstep(foam_crest_threshold, 1.0, height);
+	vec3 foam_dir = normalize(world_pos); // escala sobre la esfera, no sobre la grid 3D
+	vec3 foam_noise_pos = foam_dir + vec3(time.x, 0.0, time.y) * 0.8;	
+	float foam_pattern = noise3D(foam_noise_pos) * 2.0;
+	float total_foam = clamp((shore_foam + crest_foam) * foam_pattern, 0.0, 1.0);
+	
+	final_albedo = mix(final_albedo, foam_color, total_foam);
+    
+	ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
     METALLIC = metallic;
     ROUGHNESS = roughness;
     NORMAL_MAP = normal_blend;
