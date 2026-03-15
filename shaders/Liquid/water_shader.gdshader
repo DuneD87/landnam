@@ -3,15 +3,18 @@ render_mode blend_mix,shadows_disabled,diffuse_burley,specular_schlick_ggx, dept
 
 uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
-
 uniform vec3 albedo : source_color = vec3(0.0, 0.0, 1.0);
 uniform vec3 albedo2 : source_color = vec3(0.0, 0.0, 1.0);
 uniform float metallic : hint_range(0.0, 1.0, 0.1) = 0;
 uniform float roughness : hint_range(0.0, 1.0, 0.1) = 0.02;
 
+uniform vec3 horizon_fog_color : source_color = vec3(0.75, 0.82, 0.92);
+uniform float horizon_fog_start : hint_range(10.0, 1000.0) = 150.0;
+uniform float horizon_fog_end : hint_range(50.0, 5000.0) = 2000.0;
+
 uniform sampler2D texture_normal;
 uniform sampler2D texture_normal2;
-uniform sampler2D wave;
+uniform sampler2D wave : repeat_enable, filter_linear_mipmap;
 
 uniform vec2 wave_direction = vec2(2.0, 0.0);
 uniform vec2 wave_direction2 = vec2(0.0, 1.0);
@@ -20,10 +23,10 @@ uniform float noise_scale = 5.0;
 uniform float height_scale = 0.5;
 
 // Parámetros para romper el tiling de las normales
-uniform float normal_scale1 : hint_range(0.1, 50.0) = 1.0;
-uniform float normal_scale2 : hint_range(0.1, 50.0) = 2.3;
-uniform float normal_scale3 : hint_range(0.1, 50.0) = 7.8;
-uniform float normal_intensity : hint_range(0.0, 2.0) = 1.0;
+uniform float normal_scale1 : hint_range(0.1, 500.0) = 1.0;
+uniform float normal_scale2 : hint_range(0.1, 500.0) = 2.3;
+uniform float normal_scale3 : hint_range(0.1, 500.0) = 7.8;
+uniform float normal_intensity : hint_range(0.0, 200.0) = 1.0;
 
 uniform float wave_speed = 1.0;
 uniform float wave_amplitude = 1.0;
@@ -40,7 +43,7 @@ uniform float far = 100.0;
 uniform vec3 edge_color : source_color;
 
 // Parámetros para el fade progresivo del edge
-uniform float edge_fade_distance : hint_range(0.001, 10.0) = 0.02;
+uniform float edge_fade_distance : hint_range(0.001, 100.0) = 0.02;
 uniform float edge_max_alpha : hint_range(0.0, 1.0) = 0.8;
 uniform float edge_min_alpha : hint_range(0.0, 1.0) = 0.0;
 
@@ -50,9 +53,9 @@ uniform float view_opacity_power : hint_range(0.01, 50.0) = 2.0;
 
 uniform vec3 sky_color_horizon : source_color = vec3(0.8, 0.9, 1.0);
 uniform vec3 sky_color_zenith : source_color = vec3(0.2, 0.4, 0.8);
-uniform float sky_influence : hint_range(0.0, 2.0) = 1.0;
-uniform float sky_fresnel_power : hint_range(0.1, 10.0) = 3.0;
-uniform float sky_gradient_power : hint_range(0.1, 5.0) = 2.0;
+uniform float sky_influence : hint_range(0.0, 20.0) = 1.0;
+uniform float sky_fresnel_power : hint_range(0.1, 100.0) = 3.0;
+uniform float sky_gradient_power : hint_range(0.1, 50.0) = 2.0;
 
 // NUEVOS UNIFORMS PARA GOD RAYS
 uniform vec3 sun_direction = vec3(0.3, -0.7, 0.3);
@@ -78,6 +81,7 @@ uniform vec3 foam_color : source_color = vec3(0.95, 0.97, 1.0);
 uniform vec3 underwater_fog_color : source_color = vec3(0.4, 0.55, 0.7);
 uniform float underwater_fog_density : hint_range(0.0, 1.0) = 0.15;
 uniform float underwater_fog_start : hint_range(0.0, 50.0) = 5.0;
+uniform float water_time;
 
 varying vec3 world_pos;
 varying float height;
@@ -184,9 +188,9 @@ vec3 calculate_godrays(vec3 ray_origin, vec3 ray_dir, float max_distance) {
 void vertex() {
     world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     vec2 uv_coords = world_pos.xz;
-    height = texture(wave, uv_coords / noise_scale + TIME * time_scale).r;
+    height = texture(wave, uv_coords / noise_scale + water_time * time_scale).r;
 
-    float procedural_height = generate_wave(uv_coords, TIME);
+    float procedural_height = generate_wave(uv_coords, water_time);
 
     float total_height = height + procedural_height;
     VERTEX += NORMAL * total_height * height_scale;
@@ -216,34 +220,40 @@ void fragment() {
     float z_depth = edge(texture(DEPTH_TEXTURE, SCREEN_UV).x);
     float z_pos = edge(FRAGCOORD.z);
     float z_dif = z_depth - z_pos;
-
+	float edge_visibility = 1.0 - smoothstep(10.0, 400.0, view_depth);
     vec2 time = (TIME * wave_direction) * time_scale;
     vec2 time2 = (TIME * wave_direction2) * time_scale;
 
     // Calcular las normales con múltiples muestras para romper el tiling
-    vec3 normal_blend;
-    if (z_dif < edge_scale) {
-        normal_blend = vec3(0.5, 0.5, 1.0);
-    } else {
-        vec2 base_uv = world_pos.xz;
+    vec2 base_uv = world_pos.xz;
 
-        vec2 uv1 = base_uv / normal_scale1 + time;
-        vec3 normal1 = texture(texture_normal, uv1).rgb;
+    vec3 blend_weights = abs(normalize(world_pos));
+	blend_weights = pow(blend_weights, vec3(4.0)); // sharpness del blend
+	blend_weights /= (blend_weights.x + blend_weights.y + blend_weights.z);
 
-        vec2 uv2 = rotate_uv(base_uv / normal_scale2, 1.57) + time2 * 0.8;
-        vec3 normal2 = texture(texture_normal2, uv2).rgb;
+	// Para cada textura, samplear 3 veces:
+	vec3 norm_xz = texture(texture_normal, world_pos.xz / normal_scale1 + time).rgb;
+	vec3 norm_xy = texture(texture_normal, world_pos.xy / normal_scale1 + time).rgb;
+	vec3 norm_yz = texture(texture_normal, world_pos.yz / normal_scale1 + time).rgb;
 
-        vec2 uv3 = rotate_uv(base_uv / normal_scale3, 0.785) + time * 1.3;
-        vec3 normal3 = texture(texture_normal, uv3).rgb;
+	vec3 normal1 = norm_xz * blend_weights.y + norm_xy * blend_weights.z + norm_yz * blend_weights.x;
 
-        normal_blend = mix(
-            mix(normal1, normal2, 0.5),
-            normal3,
-            0.3
-        );
+    vec2 uv2 = rotate_uv(base_uv / normal_scale2, 1.57) + time2 * 0.8;
+    vec3 normal2 = texture(texture_normal2, uv2).rgb;
 
-        normal_blend = mix(vec3(0.5, 0.5, 1.0), normal_blend, normal_intensity);
-    }
+    vec2 uv3 = rotate_uv(base_uv / normal_scale3, 0.785) + time * 1.3;
+    vec3 normal3 = texture(texture_normal, uv3).rgb;
+
+    vec3 normal_blend = mix(
+        mix(normal1, normal2, 0.5),
+        normal3,
+        0.3
+    );
+    normal_blend = mix(vec3(0.5, 0.5, 1.0), normal_blend, normal_intensity);
+
+    // Transición suave hacia normal plana en el edge
+    float normal_edge_factor = smoothstep(0.0, edge_scale * 3.0, z_dif);
+    normal_blend = mix(vec3(0.5, 0.5, 1.0), normal_blend, normal_edge_factor);
 	
 	vec2 refraction_offset = normal_blend.xy * 2.0 - 1.0;
 	float refraction_strength = 0.05 * screen_influence; // se atenúa con la distancia
@@ -270,16 +280,31 @@ void fragment() {
 	float base_alpha = mix(edge_min_alpha, edge_max_alpha, distance_alpha);
 	float edge_factor = clamp(z_dif / edge_fade_distance, 0.0, 1.0);
 	ALPHA = base_alpha * edge_factor;
-	
+	float distance_blend = smoothstep(10.0, 1000.0, view_depth);
+	ALPHA = mix(ALPHA, 1.0, distance_blend);
 	float depth_precision_scale = 1.0 + view_depth * 0.1;
 	float adjusted_edge_fade = edge_fade_distance * depth_precision_scale;
 
-	float fade_factor = 1.0 - clamp(z_dif / adjusted_edge_fade, 0.0, 1.0);
+	float animated_edge = edge_scale * (1.0 + height * 0.5);
+    float fade_factor = 1.0 - smoothstep(0.0, animated_edge * 2.0, z_dif);
+	fade_factor *= edge_visibility;
 
-    vec3 blended_edge_color = mix(edge_color, color, fade_factor);
+	vec3 foam_dir = normalize(world_pos); // escala sobre la esfera, no sobre la grid 3D
+	vec3 foam_noise_pos = foam_dir + vec3(time.x, 0.0, time.y);	
+	float foam_pattern = noise3D(foam_noise_pos) * 0.1;
+	float shore_foam = 1.0 - smoothstep(0.0, foam_edge_threshold, z_dif);
+	shore_foam *= (0.5 + foam_pattern * 0.5); // romper uniformidad
+	shore_foam *= (0.7 + height * 0.3); // olas empujan la espuma
+	shore_foam *= edge_visibility;
 
-	vec3 depth_color_adj = mix(color, sky_reflection, fresnel_value * 0.8);
-	depth_color_adj = mix(depth_color_adj, color, adjusted_depth_blend * 0.3);
+	float crest_foam = smoothstep(foam_crest_threshold, 1.0, height);
+	float total_foam = clamp((shore_foam + crest_foam) * foam_pattern, 0.0, 1.0);
+	vec3 blended_edge_color = mix(color, edge_color, fade_factor);
+	// La foam se concentra más en la línea de contacto
+	float foam_on_edge = clamp(fade_factor * 1.5 - 0.3, 0.0, 1.0);
+	blended_edge_color = mix(blended_edge_color, foam_color, foam_on_edge * shore_foam);
+	vec3 depth_color_adj = mix(blended_edge_color, sky_reflection, fresnel_value * 0.8);
+	depth_color_adj = mix(depth_color_adj, blended_edge_color, adjusted_depth_blend * 0.3);
 
     vec3 final_albedo = mix(surface_color + depth_color_adj, sky_reflection, fresnel_value * sky_influence * 0.5);
 	vec3 sun_dir_norm = normalize(-sun_direction);
@@ -287,16 +312,16 @@ void fragment() {
 	float sss_depth_mask = clamp(1.0 - adjusted_depth_blend, 0.0, 1.0); // solo en zonas poco profundas
 	vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask;
 	final_albedo += sss_contrib;
-	
-	float shore_foam = 1.0 - smoothstep(0.0, foam_edge_threshold, z_dif);
-	float crest_foam = smoothstep(foam_crest_threshold, 1.0, height);
-	vec3 foam_dir = normalize(world_pos); // escala sobre la esfera, no sobre la grid 3D
-	vec3 foam_noise_pos = foam_dir + vec3(time.x, 0.0, time.y) * 0.8;	
-	float foam_pattern = noise3D(foam_noise_pos) * 2.0;
-	float total_foam = clamp((shore_foam + crest_foam) * foam_pattern, 0.0, 1.0);
-	
 	final_albedo = mix(final_albedo, foam_color, total_foam);
-    
+    vec3 view_dir_world = normalize(world_pos - CAMERA_POSITION_WORLD);
+	vec3 up_dir = normalize(world_pos); // en una esfera, up = normalizado de la posición
+
+	float horizon_dot = 1.0 - abs(dot(view_dir_world, up_dir));
+	horizon_dot = pow(horizon_dot, 2.0); // concentrar más en el horizonte
+
+	float fog_blend = smoothstep(horizon_fog_start, horizon_fog_end, view_depth) * horizon_dot;
+	final_albedo = mix(final_albedo, horizon_fog_color, fog_blend);
+	
 	ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
     METALLIC = metallic;
     ROUGHNESS = roughness;

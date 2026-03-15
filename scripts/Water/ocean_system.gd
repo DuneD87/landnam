@@ -28,10 +28,10 @@ class_name OceanSystem
 @export var show_stats: bool = true
 
 @export var underwater: Underwater
-
 var quadtree_manager: QuadTreeManager
 var mesh_manager: QuadTreeMeshManager
 var stats_label: Label
+var current_water_time := 0.0
 
 func _ready() -> void:
 	if debug:
@@ -103,6 +103,8 @@ func _process(_delta):
 	if mesh_manager && mesh_manager.default_material:
 		var mat = mesh_manager.default_material as ShaderMaterial
 		mat.set_shader_parameter("sun_direction", sun_dir)
+		current_water_time += _delta
+		mat.set_shader_parameter("water_time", current_water_time)
 	if underwater:
 		underwater.sun_direction = sun_dir
 	if show_stats and stats_label:

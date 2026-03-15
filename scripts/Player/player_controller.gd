@@ -22,11 +22,15 @@ const data = preload("res://scripts/Inventory/item_data.gd")
 
 var gravity_direction: Vector3 = Vector3.DOWN
 var planet: Node3D
+var water_sampler: WaterHeightSampler
 var mouse_captured = true
 var free_flight_enabled = false
 var current_swimming_pitch: float = 0.0
 var current_animation = config.ANIMATION.IDLE
 var play_attack_once = false
+
+var _water_surface_radius: float = 0.0
+var _water_surface_center: Vector3 = Vector3.ZERO
 
 var equiped_weapon: ItemData
 
@@ -89,6 +93,8 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 
 func _ready():
 	capture_mouse(true)
+	water_sampler = WaterHeightSampler.new()
+
 	'''var item_stone = config.get_item(&"stone_01")
 	var item_wood = config.get_item(&"wood_01")
 	inventory.add_item(item_stone, 15)	
@@ -101,7 +107,6 @@ func _ready():
 
 	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
-
 	inventory_ui.setup(inventory, character_window)
 	character_window.equipment_changed.connect(on_equipment_changed)
 	
@@ -161,18 +166,36 @@ func _input(event):
 		else:
 			print("Free flight desactivado")
 
-func _check_needs_swiming(delta: float):
-	if !planet || (planet && !planet.planet.has_water):
-		return
-		
-	var water_radius = planet.planet.water_radius
-	var to_center = global_position - planet.global_position
-	var water_limit = planet.planet.radius - water_radius - 1.5
+func _apply_water_buoyancy(delta: float):
+	var to_center := global_position - _water_surface_center
+	var distance := to_center.length()
+	var radial_dir := to_center.normalized() 
+	var surface_offset := distance - _water_surface_radius
+	var target_offset := -1.0
+	var error := surface_offset - target_offset
+	var buoyancy_strength := 15.0
+	var damping := 5.0
+	var radial_velocity := velocity.dot(radial_dir)
+	var correction := (-error * buoyancy_strength - radial_velocity * damping) * delta
 	
-	if to_center.length() < water_limit:
-		movement.is_swimming = true
-	else:
-		movement.is_swimming = false
+	velocity += radial_dir * correction
+	
+func _check_needs_swimming(delta: float):
+	if !planet || !planet.planet.has_water:
+		return
+	
+	var wave_height := water_sampler.get_height_at(global_position, planet.water_sphere.current_water_time)
+	
+	var to_center := global_position - planet.global_position
+	var distance_from_center := to_center.length()
+	var base_water_radius: float = planet.planet.radius - planet.planet.water_radius
+	var water_surface_radius := base_water_radius + wave_height
+
+	_water_surface_radius = water_surface_radius
+	_water_surface_center = planet.global_position
+	
+	movement.is_swimming = distance_from_center <= water_surface_radius
+
 
 func _physics_process(delta: float):
 	if !mouse_captured || planets == null || planets.get_child_count() == 0:
@@ -183,7 +206,10 @@ func _physics_process(delta: float):
 		var distance = global_position.distance_to(_planet.position)
 		if distance <= closest_distance:
 			closest_distance = distance
+			if _planet != null && _planet.planet.has_water && _planet != planet:
+				water_sampler.setup(_planet.water_sphere.quadtree_material)
 			planet = _planet
+			
 	free_flight_controller.enabled = free_flight_enabled
 
 	if free_flight_enabled:
@@ -255,7 +281,7 @@ func update_normal_movement(delta: float) -> void:
 	up_direction = -gravity_direction
 	
 	var was_swimming = movement.is_swimming
-	_check_needs_swiming(delta)
+	_check_needs_swimming(delta)
 	was_swimming = was_swimming && !movement.is_swimming
 	
 	var input_dir = movement.handle_run_movement(delta, action_controller.is_attacking, gravity_direction, camera)
@@ -273,7 +299,8 @@ func update_normal_movement(delta: float) -> void:
 		
 	if movement.is_swimming:
 		apply_swimming_pitch(input_dir, delta)
-		
+		_apply_water_buoyancy(delta)
+
 	if was_swimming:
 		current_swimming_pitch = 0.0
 		player_model.rotation = Vector3(0.0, 0.0, 0.0)
