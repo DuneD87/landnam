@@ -19,7 +19,7 @@ const data = preload("res://scripts/Inventory/item_data.gd")
 @export var invert_y: bool = false
 @export var swimming_pitch_angle: float = 90.0 
 @export var swimming_rotation_speed: float = 5.0 
-
+var current_water_time: float = 0.0
 var gravity_direction: Vector3 = Vector3.DOWN
 var planet: Node3D
 var water_sampler: WaterHeightSampler
@@ -173,7 +173,7 @@ func _apply_water_buoyancy(delta: float):
 	var surface_offset := distance - _water_surface_radius
 	var target_offset := -1.0
 	var error := surface_offset - target_offset
-	var buoyancy_strength := 15.0
+	var buoyancy_strength := 1500.0
 	var damping := 5.0
 	var radial_velocity := velocity.dot(radial_dir)
 	var correction := (-error * buoyancy_strength - radial_velocity * damping) * delta
@@ -184,23 +184,27 @@ func _check_needs_swimming(delta: float):
 	if !planet || !planet.planet.has_water:
 		return
 	
-	var wave_height := water_sampler.get_height_at(global_position, planet.water_sphere.current_water_time)
-	
 	var to_center := global_position - planet.global_position
 	var distance_from_center := to_center.length()
+	var wave_height := water_sampler.get_height_at(global_position, current_water_time)
+		
 	var base_water_radius: float = planet.planet.radius - planet.planet.water_radius
 	var water_surface_radius := base_water_radius + wave_height
-
 	_water_surface_radius = water_surface_radius
-	_water_surface_center = planet.global_position
 	
-	movement.is_swimming = distance_from_center <= water_surface_radius
+	var mat = planet.water_sphere.mesh_manager.default_material as ShaderMaterial
+	mat.set_shader_parameter("water_time", current_water_time)
+	_water_surface_center = planet.global_position
+	movement.is_swimming = distance_from_center <= _water_surface_radius
+	
+	current_water_time += delta
 
 
 func _physics_process(delta: float):
 	if !mouse_captured || planets == null || planets.get_child_count() == 0:
 		return
 		
+	
 	var closest_distance = global_position.distance_to(planets.get_child(0).position)
 	for _planet in planets.get_children():
 		var distance = global_position.distance_to(_planet.position)

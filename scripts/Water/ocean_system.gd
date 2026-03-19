@@ -103,8 +103,7 @@ func _process(_delta):
 	if mesh_manager && mesh_manager.default_material:
 		var mat = mesh_manager.default_material as ShaderMaterial
 		mat.set_shader_parameter("sun_direction", sun_dir)
-		current_water_time += _delta
-		mat.set_shader_parameter("water_time", current_water_time)
+		
 	if underwater:
 		underwater.sun_direction = sun_dir
 	if show_stats and stats_label:

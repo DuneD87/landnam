@@ -56,8 +56,8 @@ func _sample_texture(uv: Vector2) -> float:
 	var y0 := int(fy) % texture_size.y
 	var x1 := (x0 + 1) % texture_size.x
 	var y1 := (y0 + 1) % texture_size.y
-	var frac_x :int = fx - floor(fx)
-	var frac_y :int = fy - floor(fy)
+	var frac_x :float = fx - floor(fx)
+	var frac_y :float = fy - floor(fy)
 	
 	var c00 := wave_image.get_pixel(x0, y0).r
 	var c10 := wave_image.get_pixel(x1, y0).r
