@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ItemData" load_steps=3 format=3 uid="uid://b5pj1fd8n6oy6"]
 
-[ext_resource type="Texture2D" uid="uid://b0e13gq13fpq5" path="res://textures/icons/firstage_skin_armor_set/firstage_skin_chest.png" id="1_h0wh5"]
+[ext_resource type="Texture2D" uid="uid://b0e13gq13fpq5" path="res://textures/icons/items/armor/firstage_skin_armor_set/firstage_skin_chest.png" id="1_h0wh5"]
 [ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="2_fpvhq"]
 
 [resource]
@@ -10,7 +10,7 @@ display_name = "Skin Chest"
 description = "Skin Chest"
 icon = ExtResource("1_h0wh5")
 category = 4
-scene_path = "res://scenes/armor/firstage_skin_set/firstage_skin_chest_equipable.tscn"
+scene_path = "res://scenes/items/armor/firstage_skin_set/firstage_skin_chest_equipable.tscn"
 tool_type = 2
 armor_slot = 2
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

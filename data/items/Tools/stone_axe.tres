@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ItemData" load_steps=3 format=3 uid="uid://daffgigw4noop"]
 
-[ext_resource type="Texture2D" uid="uid://8hwq6tmcum3b" path="res://textures/icons/stone_axe_01.png" id="1_21h4s"]
+[ext_resource type="Texture2D" uid="uid://8hwq6tmcum3b" path="res://textures/icons/items/tools/stone_axe_01.png" id="1_21h4s"]
 [ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="2_6pb2b"]
 
 [resource]
@@ -10,7 +10,7 @@ display_name = "Stone axe"
 description = "stone axe"
 icon = ExtResource("1_21h4s")
 category = 1
-scene_path = "res://scenes/weapons/stone_axe_01.tscn"
+scene_path = "res://scenes/items/weapons/stone_axe_01.tscn"
 tool_type = 2
 armor_slot = 6
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

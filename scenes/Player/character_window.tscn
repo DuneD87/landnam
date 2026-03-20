@@ -1,14 +1,14 @@
 [gd_scene load_steps=10 format=3 uid="uid://yb01jsd0vyx8"]
 
 [ext_resource type="Script" uid="uid://6jl2j7615hqs" path="res://scripts/Player/character_window.gd" id="1_gcacj"]
-[ext_resource type="Texture2D" uid="uid://ci1eos5p4oj1j" path="res://textures/icons/face.png" id="2_6g8j7"]
-[ext_resource type="Texture2D" uid="uid://dhkqyujka6aus" path="res://textures/icons/chest.png" id="3_da32d"]
-[ext_resource type="Texture2D" uid="uid://cpstrfisrpknj" path="res://textures/icons/hands_left.png" id="4_tq2ji"]
-[ext_resource type="Texture2D" uid="uid://bs2tasnja5lac" path="res://textures/icons/trousers.png" id="5_6r7al"]
-[ext_resource type="Texture2D" uid="uid://iee0detkeuyu" path="res://textures/icons/feet.png" id="6_d0x7w"]
-[ext_resource type="Texture2D" uid="uid://dvkh0ecv65fk" path="res://textures/icons/mainhand.png" id="7_w38jj"]
-[ext_resource type="Texture2D" uid="uid://cec7kt6kqlruj" path="res://textures/icons/offhand.png" id="8_5bvl3"]
-[ext_resource type="Texture2D" uid="uid://cx1wha40aan0e" path="res://textures/icons/mainwrist.png" id="9_w82l4"]
+[ext_resource type="Texture2D" uid="uid://ci1eos5p4oj1j" path="res://textures/icons/inventory/face.png" id="2_6g8j7"]
+[ext_resource type="Texture2D" uid="uid://dhkqyujka6aus" path="res://textures/icons/inventory/chest.png" id="3_da32d"]
+[ext_resource type="Texture2D" uid="uid://cpstrfisrpknj" path="res://textures/icons/inventory/hands_left.png" id="4_tq2ji"]
+[ext_resource type="Texture2D" uid="uid://bs2tasnja5lac" path="res://textures/icons/inventory/trousers.png" id="5_6r7al"]
+[ext_resource type="Texture2D" uid="uid://iee0detkeuyu" path="res://textures/icons/inventory/feet.png" id="6_d0x7w"]
+[ext_resource type="Texture2D" uid="uid://dvkh0ecv65fk" path="res://textures/icons/inventory/mainhand.png" id="7_w38jj"]
+[ext_resource type="Texture2D" uid="uid://cec7kt6kqlruj" path="res://textures/icons/inventory/offhand.png" id="8_5bvl3"]
+[ext_resource type="Texture2D" uid="uid://cx1wha40aan0e" path="res://textures/icons/inventory/mainwrist.png" id="9_w82l4"]
 
 [node name="CharacterWindow" type="CanvasLayer"]
 layer = 10
