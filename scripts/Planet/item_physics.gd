@@ -51,18 +51,21 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not is_inside_tree():
+		return
 	if planets == null or planets.get_children().size() == 0 or equipped:
 		return
 	
 	# Encontrar planeta más cercano
 	var closest_distance = INF
 	for _planet in planets.get_children():
-		var distance = global_position.distance_to(_planet.global_position)
+		var distance = global_position.distance_to(_planet.global_pos)
 		if distance < closest_distance:
 			closest_distance = distance
 			planet = _planet
-	
-	var direction_to_planet = (planet.planet.global_position - global_position).normalized()
+	var planet_pos = planet.global_position
+	var global_pos = global_position
+	var direction_to_planet = (planet_pos - global_pos).normalized()
 	apply_central_force(direction_to_planet * planet.gravity_strength * mass)
 
 

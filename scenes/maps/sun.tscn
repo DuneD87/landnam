@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/Planet/sun_controller.gd" id="1_x6u8n"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet/planet_loader.tscn" id="2_li0gi"]
 [ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_cpkft"]
-[ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scenes/Planet/ambient_control.gd" id="4_7qkn8"]
+[ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scenes/planet/ambient_control.gd" id="4_7qkn8"]
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/Player/third_person_player.tscn" id="5_05w5h"]
 [ext_resource type="PackedScene" uid="uid://bmcjlwceq8ylo" path="res://scenes/weapons/stone_axe.tscn" id="6_sbyf7"]
 [ext_resource type="PackedScene" uid="uid://cnawwfit87gpu" path="res://scenes/weapons/stone_pickaxe2.tscn" id="7_li0gi"]
@@ -47,7 +47,7 @@ sky = SubResource("Sky_hj7oe")
 ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_sky_contribution = 0.0
-ambient_light_energy = 0.05
+ambient_light_energy = 0.1
 reflected_light_source = 1
 tonemap_mode = 3
 ssr_max_steps = 128
@@ -71,7 +71,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@31806")
+water_sphere = NodePath("@Node3D@39573")
+global_pos = Vector3(0, 0, 0)
 planet = NodePath("")
 
 [node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_li0gi")]
@@ -79,13 +80,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -55000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, -85000)
+global_pos = Vector3(0, 0, 0)
 planet = NodePath("")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 0, 0, 0)
 light_specular = 0.2
 shadow_enabled = true
-shadow_opacity = 0.8
+shadow_opacity = 0.66
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 512.0
 directional_shadow_pancake_size = 10.0

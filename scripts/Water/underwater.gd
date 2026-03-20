@@ -23,6 +23,7 @@ class_name Underwater
 @export var step_size: float = 0.1
 @export var material : ShaderMaterial
 var _mesh_instance: MeshInstance3D
+var _water_surface_radius: float
 
 func setup_underwater() -> void:
 	material = ShaderMaterial.new()
@@ -60,3 +61,4 @@ func setup_underwater() -> void:
 
 func _process(delta: float) -> void:
 	material.set_shader_parameter("sun_direction", sun_direction)
+	material.set_shader_parameter(&"u_sphere_radius", _water_surface_radius)

@@ -1,4 +1,4 @@
-class_name WaterHeightSampler
+class_name WaterHeightSampler extends Node
 
 var wave_image: Image
 var noise_scale: float
@@ -26,10 +26,14 @@ func setup(water_material: ShaderMaterial) -> void:
 	wave_amplitude = water_material.get_shader_parameter("wave_amplitude")
 	wave_frequency = water_material.get_shader_parameter("wave_frequency")
 
-func get_height_at(world_pos: Vector3, time: float) -> float:
+func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> float:
 	if wave_image == null:
 		return 0.0
-	var uv := Vector2(world_pos.x, world_pos.z)
+	var sphere_dir := (world_pos - planet_center).normalized()
+	var uv := Vector2(
+		atan2(sphere_dir.x, sphere_dir.z),
+		asin(sphere_dir.y)
+	) * noise_scale
 
 	var time_offset := time * time_scale
 	var sample_uv := uv / noise_scale + Vector2(time_offset, time_offset)

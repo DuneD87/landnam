@@ -32,13 +32,14 @@ var quadtree_manager: QuadTreeManager
 var mesh_manager: QuadTreeMeshManager
 var stats_label: Label
 var current_water_time := 0.0
-
+var planet: Planet
 func _ready() -> void:
 	if debug:
-		load_watersphere()
+		load_watersphere(null)
 
-func load_watersphere():
+func load_watersphere(_planet: Planet):
 	if !Engine.is_editor_hint():
+		planet = _planet
 		underwater = Underwater.new()
 		add_child(underwater)
 		underwater.fog_density = fog_density
@@ -106,6 +107,7 @@ func _process(_delta):
 		
 	if underwater:
 		underwater.sun_direction = sun_dir
+		
 	if show_stats and stats_label:
 		_update_stats()
 

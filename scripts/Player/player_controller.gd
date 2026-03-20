@@ -19,6 +19,13 @@ const data = preload("res://scripts/Inventory/item_data.gd")
 @export var invert_y: bool = false
 @export var swimming_pitch_angle: float = 90.0 
 @export var swimming_rotation_speed: float = 5.0 
+@export var swimming_offset: float = 1.0
+
+@export var float_depth := 1.0           # metros del cuerpo bajo el agua (ajusta visualmente)
+@export var surface_stiffness := 10.0     # fuerza del muelle hacia la superficie
+@export var surface_damping := 5.0        # amortiguación para evitar rebote
+@export var max_correction_speed := 8.0   # limita la velocidad de corrección
+
 var current_water_time: float = 0.0
 var gravity_direction: Vector3 = Vector3.DOWN
 var planet: Node3D
@@ -94,7 +101,7 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 func _ready():
 	capture_mouse(true)
 	water_sampler = WaterHeightSampler.new()
-
+	add_child(water_sampler)
 	'''var item_stone = config.get_item(&"stone_01")
 	var item_wood = config.get_item(&"wood_01")
 	inventory.add_item(item_stone, 15)	
@@ -170,32 +177,32 @@ func _apply_water_buoyancy(delta: float):
 	var to_center := global_position - _water_surface_center
 	var distance := to_center.length()
 	var radial_dir := to_center.normalized() 
-	var surface_offset := distance - _water_surface_radius
+	var surface_offset := distance - (_water_surface_radius - swimming_offset)
 	var target_offset := -1.0
 	var error := surface_offset - target_offset
-	var buoyancy_strength := 1500.0
-	var damping := 5.0
+	var buoyancy_strength := 100.0
+	var damping := 400.0
 	var radial_velocity := velocity.dot(radial_dir)
 	var correction := (-error * buoyancy_strength - radial_velocity * damping) * delta
 	
 	velocity += radial_dir * correction
 	
 func _check_needs_swimming(delta: float):
-	if !planet || !planet.planet.has_water:
+	if !planet || !planet.planet.has_water || not is_inside_tree():
 		return
-	
+
 	var to_center := global_position - planet.global_position
 	var distance_from_center := to_center.length()
-	var wave_height := water_sampler.get_height_at(global_position, current_water_time)
+	var wave_height := water_sampler.get_height_at(global_position, current_water_time, planet.global_pos)
 		
 	var base_water_radius: float = planet.planet.radius - planet.planet.water_radius
 	var water_surface_radius := base_water_radius + wave_height
 	_water_surface_radius = water_surface_radius
-	
+	planet.water_sphere.underwater._water_surface_radius = _water_surface_radius
 	var mat = planet.water_sphere.mesh_manager.default_material as ShaderMaterial
 	mat.set_shader_parameter("water_time", current_water_time)
 	_water_surface_center = planet.global_position
-	movement.is_swimming = distance_from_center <= _water_surface_radius
+	movement.is_swimming = distance_from_center <= (_water_surface_radius - swimming_offset)
 	
 	current_water_time += delta
 
@@ -303,7 +310,8 @@ func update_normal_movement(delta: float) -> void:
 		
 	if movement.is_swimming:
 		apply_swimming_pitch(input_dir, delta)
-		_apply_water_buoyancy(delta)
+		if !movement.is_running:
+			_apply_water_buoyancy(delta)
 
 	if was_swimming:
 		current_swimming_pitch = 0.0

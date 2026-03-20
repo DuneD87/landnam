@@ -83,6 +83,8 @@ uniform float underwater_fog_density : hint_range(0.0, 1.0) = 0.15;
 uniform float underwater_fog_start : hint_range(0.0, 50.0) = 5.0;
 uniform float water_time;
 
+uniform vec3 planet_center;
+
 varying vec3 world_pos;
 varying float height;
 varying float view_depth;
@@ -187,7 +189,11 @@ vec3 calculate_godrays(vec3 ray_origin, vec3 ray_dir, float max_distance) {
 
 void vertex() {
     world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-    vec2 uv_coords = world_pos.xz;
+    vec3 sphere_dir = normalize(world_pos - planet_center); // necesitas pasar el centro como uniform
+	vec2 uv_coords = vec2(
+	    atan(sphere_dir.x, sphere_dir.z),  // longitud [-PI, PI]
+	    asin(sphere_dir.y)                  // latitud [-PI/2, PI/2]
+	) * noise_scale;
     height = texture(wave, uv_coords / noise_scale + water_time * time_scale).r;
 
     float procedural_height = generate_wave(uv_coords, water_time);
