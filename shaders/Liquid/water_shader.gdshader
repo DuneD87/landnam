@@ -151,40 +151,39 @@ float henyeyGreenstein(float cos_theta, float g) {
     return (1.0 - g2) / (4.0 * 3.14159 * pow(1.0 + g2 - 2.0 * g * cos_theta, 1.5));
 }
 
-// Función principal de god rays usando ray marching
-vec3 calculate_godrays(vec3 ray_origin, vec3 ray_dir, float max_distance) {
-    vec3 normalized_sun = normalize(-sun_direction);
-    float cos_angle = dot(ray_dir, normalized_sun);
+vec3 calculate_godrays(vec3 world_position, vec3 view_dir, float view_dist, vec3 surface_normal, vec3 cam_pos) {
+    vec3 to_sun = normalize(-sun_direction);
 
-    // Factor de fase para la dispersión de luz
-    float phase = henyeyGreenstein(cos_angle, godray_scatter) * godray_phase_intensity;
+    // Up desde la cámara, no desde el fragmento
+    vec3 up = normalize(cam_pos - planet_center);
 
-    // Ray marching
-    float step_size = max_distance / godray_samples;
-    vec3 current_pos = ray_origin;
-    float accumulated_density = 0.0;
+    // Sol proyectado al plano tangente del observador
+    vec3 sun_horiz = normalize(to_sun - up * dot(to_sun, up));
 
-    for(float i = 0.0; i < godray_samples; i++) {
-        current_pos += ray_dir * step_size;
+    // Normal del plano cámara→sol (perpendicular a la columna)
+    vec3 column_normal = normalize(cross(sun_horiz, up));
 
-        // Añadir ruido animado para crear variación en los rayos
-        vec3 noise_pos = current_pos * godray_noise_scale + vec3(0.0, TIME * godray_noise_speed, 0.0);
-        float noise_value = noise3D(noise_pos);
+    // Distancia REAL en metros del fragmento al plano de la columna
+    vec3 cam_to_frag = world_position - cam_pos;
+    float lateral_dist = abs(dot(cam_to_frag, column_normal));
 
-        // Calcular la influencia del sol en este punto
-        float sun_influence = max(0.0, dot(normalize(current_pos - ray_origin), normalized_sun));
-        sun_influence = pow(sun_influence, 2.0);
+    // Gaussiana: ancho de la columna en metros
+    float column_width = 85.0; // ajustable
+   	float column = exp(-(lateral_dist * lateral_dist) / (column_width * column_width));
+	column = mix(0.15, 1.0, column); // nunca baja de 0.15
 
-        // Acumular densidad con ruido y atenuación por distancia
-        float distance_fade = exp(-length(current_pos - ray_origin) / godray_fade_distance);
-        accumulated_density += (godray_density + noise_value * 0.3) * sun_influence * distance_fade * step_size;
-    }
+    // Solo hacia el sol, no detrás
+    float forward = max(dot(cam_to_frag, -sun_horiz), 0.0);
+    forward = smoothstep(10.0, 100.0, forward);
 
-    // Aplicar la fase y la intensidad
-    accumulated_density *= phase;
+    // Atenuación por distancia
+    float distance_fade = 1.0 - exp(-view_dist / godray_fade_distance);
 
-    // Calcular el color final de los god rays
-    return godray_color * accumulated_density * godray_intensity;
+    // Variación sutil con normales
+    float normal_var = dot(surface_normal, to_sun) * 0.5 + 0.5;
+    normal_var = smoothstep(0.3, 0.7, normal_var);
+
+    return godray_color * column * forward * distance_fade * (0.7 + normal_var * 0.3) * godray_intensity;
 }
 
 void vertex() {
@@ -327,9 +326,16 @@ void fragment() {
 
 	float fog_blend = smoothstep(horizon_fog_start, horizon_fog_end, view_depth) * horizon_dot;
 	final_albedo = mix(final_albedo, horizon_fog_color, fog_blend);
-	
+	/*vec3 view_dir = normalize(world_pos - CAMERA_POSITION_WORLD);
+	float godray_max_dist = min(view_depth, godray_fade_distance);
+	vec3 godrays = calculate_godrays(world_pos, view_dir, godray_max_dist, NORMAL, CAMERA_POSITION_WORLD);
+
+	float godray_depth_mask = mix(1.0, 0.3, adjusted_depth_blend);
+	float godray_horizon_mask = 1.0 - fog_blend;
+	final_albedo += godrays * godray_depth_mask * godray_horizon_mask;*/
 	ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
-    METALLIC = metallic;
+    
+	METALLIC = metallic;
     ROUGHNESS = roughness;
     NORMAL_MAP = normal_blend;
 }
