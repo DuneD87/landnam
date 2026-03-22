@@ -16,7 +16,6 @@ class_name CameraController
 
 @export var fp_threshold: float = 1.0
 @export var fp_eye_height: float = 1.7
-
 @onready var camera_pivot: Node3D = $"../CameraPivot"
 @onready var pitch_pivot: Node3D = $"../CameraPivot/PitchPivot"
 @onready var camera: Camera3D = $"../CameraPivot/PitchPivot/Camera3D"
@@ -33,7 +32,6 @@ func _ready():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	camera_pivot.top_level = true
 	target_distance = camera_distance
-	reset_camera_rotation()
 
 func reset_camera_rotation():
 	camera_pivot.rotation = Vector3.ZERO

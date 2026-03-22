@@ -13,6 +13,8 @@ const data = preload("res://scripts/Inventory/item_data.gd")
 @onready var inventory_ui: InventoryUI = $InventoryUI
 @onready var character_window: CharacterWindow = $CharacterWindow
 
+@export var spawn_point: Marker3D
+@export var start_first_person: bool = false
 @export var planets: Node3D
 @export var animator_tree: AnimationTree
 @export var mouse_sensitivity: float = 0.002
@@ -21,10 +23,15 @@ const data = preload("res://scripts/Inventory/item_data.gd")
 @export var swimming_rotation_speed: float = 5.0 
 @export var swimming_offset: float = 1.0
 
-@export var float_depth := 1.0           # metros del cuerpo bajo el agua (ajusta visualmente)
-@export var surface_stiffness := 10.0     # fuerza del muelle hacia la superficie
-@export var surface_damping := 5.0        # amortiguación para evitar rebote
-@export var max_correction_speed := 8.0   # limita la velocidad de corrección
+@export var float_depth := 1.0
+@export var surface_stiffness := 10.0
+@export var surface_damping := 5.0
+@export var max_correction_speed := 8.0
+
+## Cinematic settings
+@export var cinematic_duration: float = 8.0
+@export var cinematic_ease: Tween.EaseType = Tween.EASE_IN_OUT
+@export var cinematic_trans: Tween.TransitionType = Tween.TRANS_CUBIC
 
 var current_water_time: float = 0.0
 var gravity_direction: Vector3 = Vector3.DOWN
@@ -41,12 +48,13 @@ var _water_surface_center: Vector3 = Vector3.ZERO
 
 var equiped_weapon: ItemData
 
+var input_enabled: bool = false
+var _cinematic_tween: Tween
+
+
 func _on_target_destroyed(position: Vector3, amount: int, item_data: ItemData) -> void:
-	
 	var excess = inventory.add_item(item_data, amount)
-	
 	print("+%d %s" % [amount - excess, item_data.display_name])
-	
 	if excess > 0:
 		_spawn_dropped_items(item_data, excess, position)
 	
@@ -87,11 +95,8 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 						if remove_condition:
 							player_model.get_node("Armature/Skeleton3D").remove_child(child)
 						
-
-						
 		
 func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: bool) -> void:
-	
 	var data = item.data
 	var scene: PackedScene = load(item.data.scene_path)
 	var category = data.category
@@ -99,24 +104,38 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 		equip_item(equip, slot, scene, data, category)
 
 func _ready():
-	capture_mouse(true)
+	GameManager.register_player(self)
+	GameManager.state_changed.connect(_on_game_state_changed)
+	
+	# Start in free flight with no input (space view for the menu)
+	free_flight_enabled = true
+	visible = false
+	collision_model.disabled = true
+	
+	capture_mouse(false)
 	water_sampler = WaterHeightSampler.new()
 	add_child(water_sampler)
-	'''var item_stone = config.get_item(&"stone_01")
-	var item_wood = config.get_item(&"wood_01")
-	inventory.add_item(item_stone, 15)	
-	inventory.add_item(item_wood, 15)'''
+
 	inventory.add_item(config.get_item(&"firstage_skin_boots"), 1)
 	inventory.add_item(config.get_item(&"firstage_skin_hands"), 1)
 	inventory.add_item(config.get_item(&"firstage_skin_pants"), 1)
 	inventory.add_item(config.get_item(&"firstage_skin_chest"), 1)
 	inventory.add_item(config.get_item(&"firstage_skin_hood"), 1)
-
 	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
 	inventory_ui.setup(inventory, character_window)
 	character_window.equipment_changed.connect(on_equipment_changed)
-	
+	if spawn_point and planets and planets.get_child_count() > 0:
+		var closest: Node3D = null
+		var closest_dist := INF
+		for p in planets.get_children():
+			var dist := spawn_point.global_position.distance_to(p.global_position)
+			if dist < closest_dist:
+				closest_dist = dist
+				closest = p
+		planet = closest
+		if planet and planet.planet.has_water:
+			water_sampler.setup(planet.water_sphere.quadtree_material)
 
 func can_perform_action() -> bool:
 	return not (
@@ -128,7 +147,115 @@ func can_perform_action() -> bool:
 		inventory_ui.visible
 	)
 
+
+# ---------- GameManager integration ----------
+
+func _on_game_state_changed(new_state: GameManager.State) -> void:
+	print("[Player] State changed to: %s" % GameManager.State.keys()[new_state])
+	match new_state:
+		GameManager.State.MENU:
+			input_enabled = false
+		GameManager.State.CINEMATIC:
+			input_enabled = false
+			_play_cinematic()
+		GameManager.State.PLAYING:
+			_activate_player()
+
+func _play_cinematic() -> void:
+	
+	if not spawn_point:
+		push_error("Player: No spawn_point assigned!")
+		GameManager.cinematic_completed()
+		return
+		
+	var pitch_pivot := camera_controller.camera_pivot.get_node("PitchPivot")
+	var saved_yaw: float = camera_controller.camera_pivot.rotation.y
+	var saved_pitch: float = pitch_pivot.rotation.x
+
+	var start_pos := global_position
+	var start_quat := Quaternion(global_basis)
+	var end_pos := spawn_point.global_position
+	var gravity_dir := (planet.global_position - end_pos).normalized()
+	var target_up := -gravity_dir
+	# Forward = travel direction projected onto tangent plane
+	var travel_dir := (end_pos - start_pos).normalized()
+	var projected_forward := (travel_dir - target_up * travel_dir.dot(target_up)).normalized()
+	var target_right := projected_forward.cross(target_up).normalized()
+	var target_back := target_right.cross(target_up).normalized()
+	var aligned_basis := Basis(target_right, target_up, target_back).orthonormalized()
+	var end_quat := Quaternion(aligned_basis)
+
+	if _cinematic_tween and _cinematic_tween.is_valid():
+		_cinematic_tween.kill()
+
+	_cinematic_tween = create_tween()
+	_cinematic_tween.set_parallel(true)
+
+	# Body position
+	_cinematic_tween.tween_property(
+		self, "global_position",
+		end_pos, cinematic_duration
+	).from(start_pos).set_ease(cinematic_ease).set_trans(cinematic_trans)
+
+	# Body rotation (slerp handles roll alignment to surface)
+	_cinematic_tween.tween_method(
+		_interpolate_rotation.bind(start_quat, end_quat),
+		0.0, 1.0, cinematic_duration
+	).set_ease(cinematic_ease).set_trans(cinematic_trans)
+
+	# Progressive yaw → 0
+	_cinematic_tween.tween_property(
+		camera_controller.camera_pivot, "rotation:y",
+		0.0, cinematic_duration
+	).from(saved_yaw).set_ease(cinematic_ease).set_trans(cinematic_trans)
+
+	# Progressive pitch → 0
+	_cinematic_tween.tween_property(
+		pitch_pivot, "rotation:x",
+		0.0, cinematic_duration
+	).from(saved_pitch).set_ease(cinematic_ease).set_trans(cinematic_trans)
+	
+	_cinematic_tween.tween_property(
+		camera_controller.camera_pivot, "rotation:z",
+		0.0, cinematic_duration
+	).from(camera_controller.camera_pivot.rotation.z).set_ease(cinematic_ease).set_trans(cinematic_trans)
+	
+	_cinematic_tween.set_parallel(false)
+	_cinematic_tween.tween_callback(_on_cinematic_tween_finished)
+
+func _on_cinematic_tween_finished() -> void:
+	var body_euler := Quaternion(global_basis).get_euler()
+	var target_euler := Quaternion(spawn_point.global_basis).get_euler()
+	print("[Cinematic] Final body euler:  %s" % [body_euler])
+	print("[Cinematic] Target euler:      %s" % [target_euler])
+	print("[Cinematic] Tween finished. Player at %s" % global_position)
+	GameManager.cinematic_completed()
+
+func _interpolate_rotation(t: float, from_quat: Quaternion, to_quat: Quaternion) -> void:
+	global_basis = Basis(from_quat.slerp(to_quat, t))
+
+## Keep camera following player during cinematic
+func _process(_delta: float) -> void:
+	if GameManager.current_state == GameManager.State.CINEMATIC:
+		camera_controller.camera_pivot.global_position = global_position
+
+func _activate_player() -> void:
+	print("[Cinematic] Activating player control.")
+	free_flight_enabled = false
+	collision_model.disabled = false
+	visible = true
+	input_enabled = true
+	player_model.rotation = Vector3.ZERO
+	current_swimming_pitch = 0.0
+	capture_mouse(true)
+
+
+# ---------- Input ----------
+
 func _input(event):
+	if not input_enabled:
+		return
+
 	if free_flight_enabled:
 		visible = false
 		if event is InputEventMouseMotion and mouse_captured:
@@ -137,7 +264,15 @@ func _input(event):
 	else:
 		visible = true
 		camera_controller._input(event)
-		
+	if event.is_action_pressed("toggle_free_flight"):
+		free_flight_enabled = !free_flight_enabled
+		if free_flight_enabled:
+			print("Free flight activado")
+			free_flight_controller.orientation = Quaternion(camera.global_transform.basis)
+		else:
+			print("Free flight desactivado")
+	if free_flight_enabled:
+		return		
 	if event.is_action_pressed("inventory"):
 		inventory_ui.toggle()
 		if inventory_ui.visible:
@@ -164,14 +299,9 @@ func _input(event):
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
 		play_attack_once = true
-		
-	if event.is_action_pressed("toggle_free_flight"):
-		free_flight_enabled = !free_flight_enabled
-		if free_flight_enabled:
-			print("Free flight activado")
-			free_flight_controller.orientation = Quaternion(camera.global_transform.basis)
-		else:
-			print("Free flight desactivado")
+
+
+# ---------- Water / buoyancy ----------
 
 func _apply_water_buoyancy(delta: float):
 	var to_center := global_position - _water_surface_center
@@ -207,11 +337,15 @@ func _check_needs_swimming(delta: float):
 	current_water_time += delta
 
 
+# ---------- Physics ----------
+
 func _physics_process(delta: float):
+	if not input_enabled:
+		return
+
 	if !mouse_captured || planets == null || planets.get_child_count() == 0:
 		return
 		
-	
 	var closest_distance = global_position.distance_to(planets.get_child(0).position)
 	for _planet in planets.get_children():
 		var distance = global_position.distance_to(_planet.position)
@@ -229,7 +363,6 @@ func _physics_process(delta: float):
 		update_free_flight(delta)
 	else:
 		collision_model.disabled = false
-
 		if Input.is_action_just_released("camera_zoom_in"):
 			camera_controller.camera_distance -= 1
 			camera_controller.update_camera_transform()
@@ -238,6 +371,9 @@ func _physics_process(delta: float):
 			camera_controller.update_camera_transform()
 			
 		update_normal_movement(delta)
+
+
+# ---------- Movement helpers ----------
 
 func update_free_flight(delta: float) -> void:
 	free_flight_controller.update_free_flight(delta, camera)

@@ -12,7 +12,7 @@
 		"biome_transition_smoothness": 1.0,
 		"max_heights": [
 			-30, 70, 400,
-			-50, 50, 400,
+			-50, 250, 400,
 			-5, 20, 400,
 			-50, 50, 400,
 			-30, 70, 400
@@ -44,7 +44,7 @@
 		"slope_roughness_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png"
 	},
 	"atmosphere_settings": {
-		"atmosphere_height": 1000.0,
+		"atmosphere_height": 1400.0,
 		"atmosphere_density": 0.045,
 		"scattering_wavelength": [700.0, 530.0, 440],
 		"atmosphere_modulate": [0.59, 0.64, 0.99],

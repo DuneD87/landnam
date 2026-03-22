@@ -1,60 +1,68 @@
-[gd_scene load_steps=6 format=3 uid="uid://dg37kdrqlecel"]
+[gd_scene load_steps=3 format=3 uid="uid://dg37kdrqlecel"]
 
-[ext_resource type="Texture2D" uid="uid://sg4rwon5noxp" path="res://textures/icons/main_menu/icon_new_game.png" id="1_4q1m5"]
-[ext_resource type="Texture2D" uid="uid://33vomb2qedf" path="res://textures/icons/main_menu/icon_save_game.png" id="2_2itis"]
-[ext_resource type="Texture2D" uid="uid://b4hhbqe1kokj6" path="res://textures/icons/main_menu/icon_load_game.png" id="3_n6xgq"]
-[ext_resource type="Texture2D" uid="uid://b36byk26ucjsx" path="res://textures/icons/main_menu/icon_exit_game.png" id="4_akboc"]
-[ext_resource type="Texture2D" uid="uid://d2nk8c2mec6e2" path="res://textures/icons/main_menu/icon_menu_options.png" id="5_xvd5r"]
+[ext_resource type="Script" uid="uid://b5q1f2ntv17nr" path="res://scenes/menu/main_menu.gd" id="1_nl8w3"]
 
-[node name="MainMenu" type="Control"]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_70654"]
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_size = 5
+shadow_offset = Vector2(0, 3.14)
+
+[node name="MainMenu" type="Control" node_paths=PackedStringArray("start_button", "quit_button")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = 2.0
+offset_bottom = 2.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("1_nl8w3")
+start_button = NodePath("VBoxContainer/Button")
+quit_button = NodePath("VBoxContainer/Button3")
 
-[node name="ButtonNewGame" type="MenuButton" parent="."]
-layout_mode = 0
-offset_left = 320.0
-offset_top = 230.0
-offset_right = 808.0
-offset_bottom = 478.0
-scale = Vector2(240, 120)
-icon = ExtResource("1_4q1m5")
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -400.0
+offset_top = -200.0
+offset_right = 400.0
+offset_bottom = 400.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 64
 
-[node name="ButtonSaveGame" type="MenuButton" parent="."]
-layout_mode = 0
-offset_left = 320.0
-offset_top = 23680.0
-offset_right = 808.0
-offset_bottom = 23928.0
-scale = Vector2(240, 120)
-icon = ExtResource("2_2itis")
+[node name="Button" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
+theme_override_font_sizes/font_size = 48
+theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
+text = "Start Game
+"
 
-[node name="ButtonLoadGame" type="MenuButton" parent="."]
-layout_mode = 0
-offset_left = 448.0
-offset_top = 11312.001
-offset_right = 936.0
-offset_bottom = 11560.001
-scale = Vector2(240, 120)
-icon = ExtResource("3_n6xgq")
+[node name="Button2" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
+theme_override_font_sizes/font_size = 48
+theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
+text = "Options
+"
 
-[node name="ButtonExitGame" type="MenuButton" parent="."]
-layout_mode = 0
-offset_left = 320.0
-offset_top = 49024.004
-offset_right = 808.0
-offset_bottom = 49272.004
-scale = Vector2(240, 120)
-icon = ExtResource("4_akboc")
-
-[node name="ButtonOptions" type="MenuButton" parent="."]
-layout_mode = 0
-offset_left = 320.0
-offset_top = 36480.004
-offset_right = 808.0
-offset_bottom = 36728.004
-scale = Vector2(240, 120)
-icon = ExtResource("5_xvd5r")
+[node name="Button3" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
+theme_override_font_sizes/font_size = 48
+theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
+text = "Quit
+"
