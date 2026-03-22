@@ -3,9 +3,9 @@
 [ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/Planet/sun_controller.gd" id="1_x6u8n"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet/planet_loader.tscn" id="2_li0gi"]
 [ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_cpkft"]
-[ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scenes/planet/ambient_control.gd" id="4_7qkn8"]
-[ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/player/third_person_player.tscn" id="5_05w5h"]
-[ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/menu/main_menu.tscn" id="6_x6u8n"]
+[ext_resource type="Script" uid="uid://dka6t6r7qa0p6" path="res://scenes/planet/ambient_control.gd" id="4_7qkn8"]
+[ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/Player/third_person_player.tscn" id="5_05w5h"]
+[ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/Menu/main_menu.tscn" id="6_x6u8n"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
 shader = ExtResource("3_cpkft")
@@ -68,7 +68,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@53482")
+water_sphere = NodePath("@Node3D@34130")
 planet = NodePath("")
 
 [node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_li0gi")]
@@ -91,8 +91,9 @@ directional_shadow_pancake_size = 10.0
 environment = SubResource("Environment_0x85g")
 script = ExtResource("4_7qkn8")
 
-[node name="Player" parent="." node_paths=PackedStringArray("spawn_point", "planets") instance=ExtResource("5_05w5h")]
+[node name="Player" parent="." node_paths=PackedStringArray("main_menu", "spawn_point", "planets") instance=ExtResource("5_05w5h")]
 transform = Transform3D(0.1595815, 0.29166493, -0.9431151, -0.034847043, 0.9564268, 0.28988552, 0.9865696, -0.013395568, 0.16279171, -60562.305, 33474.453, 15114.492)
+main_menu = NodePath("../MainMenu")
 spawn_point = NodePath("../SpawnPoint")
 start_first_person = true
 planets = NodePath("../Planets")
@@ -100,4 +101,4 @@ planets = NodePath("../Planets")
 [node name="MainMenu" parent="." instance=ExtResource("6_x6u8n")]
 
 [node name="SpawnPoint" type="Marker3D" parent="."]
-transform = Transform3D(-0.03486813, -0.8633326, -0.5034296, 0.961874, 0.10773769, -0.2513801, 0.27126297, -0.49300086, 0.8266599, -14857.21, 8847.074, -9518.343)
+transform = Transform3D(-0.16945997, -0.48666626, -0.8569944, 0.961874, 0.10773771, -0.2513801, 0.21466877, -0.8669193, 0.44985387, -14857.21, 8847.074, -9518.343)

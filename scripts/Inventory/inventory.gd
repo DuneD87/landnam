@@ -190,6 +190,17 @@ func is_full() -> bool:
 			return false
 	return true
 
+## Vacía todos los slots
+func clear() -> void:
+	for i in items.size():
+		items[i] = null
+
+
+func add_item_at(item_data: ItemData, amount: int, slot_index: int) -> void:
+	if slot_index >= 0 and slot_index < items.size():
+		var item := InventoryItem.new(item_data, amount)
+		items[slot_index] = item
+		
 func get_free_slots() -> int:
 	var free = 0
 	for item in items:

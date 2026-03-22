@@ -12,7 +12,7 @@ const data = preload("res://scripts/Inventory/item_data.gd")
 @onready var inventory: Inventory = $Inventory
 @onready var inventory_ui: InventoryUI = $InventoryUI
 @onready var character_window: CharacterWindow = $CharacterWindow
-
+@export var main_menu: Control
 @export var spawn_point: Marker3D
 @export var start_first_person: bool = false
 @export var planets: Node3D
@@ -29,9 +29,10 @@ const data = preload("res://scripts/Inventory/item_data.gd")
 @export var max_correction_speed := 8.0
 
 ## Cinematic settings
-@export var cinematic_duration: float = 8.0
-@export var cinematic_ease: Tween.EaseType = Tween.EASE_IN_OUT
+@export var cinematic_duration: float = 16.0
+@export var cinematic_ease: Tween.EaseType = Tween.EASE_OUT
 @export var cinematic_trans: Tween.TransitionType = Tween.TRANS_CUBIC
+@export var entity_id: String = "player"
 
 var current_water_time: float = 0.0
 var gravity_direction: Vector3 = Vector3.DOWN
@@ -104,6 +105,7 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 		equip_item(equip, slot, scene, data, category)
 
 func _ready():
+	add_to_group(GameManager.SAVEABLE_GROUP)
 	GameManager.register_player(self)
 	GameManager.state_changed.connect(_on_game_state_changed)
 	
@@ -125,6 +127,8 @@ func _ready():
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
 	inventory_ui.setup(inventory, character_window)
 	character_window.equipment_changed.connect(on_equipment_changed)
+	var btnSave := main_menu.find_child("btnSaveGame")
+	btnSave.visible = false
 	if spawn_point and planets and planets.get_child_count() > 0:
 		var closest: Node3D = null
 		var closest_dist := INF
@@ -136,7 +140,151 @@ func _ready():
 		planet = closest
 		if planet and planet.planet.has_water:
 			water_sampler.setup(planet.water_sphere.quadtree_material)
+			
+			
+func get_save_data() -> Dictionary:
+	# Inventario: array de { item_id, quantity, slot_index }
+	var inventory_data: Array[Dictionary] = []
+	for i in inventory.items.size():
+		var item: InventoryItem = inventory.items[i]
+		if item != null and item.data != null:
+			inventory_data.append({
+				"item_id": str(item.data.id),
+				"quantity": item.quantity,
+				"slot_index": i
+			})
 
+	# Equipamiento: ArmorSlot (int) -> item_id
+	var equipment_data: Dictionary = {}
+	for slot_type in character_window.equipment_slots:
+		var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
+		if eq_slot.has_item() and eq_slot.equipped_item.data != null:
+			equipment_data[str(int(slot_type))] = str(eq_slot.equipped_item.data.id)
+
+	return {
+		"position": {
+			"x": global_position.x,
+			"y": global_position.y,
+			"z": global_position.z
+		},
+		"basis": {
+			"xx": global_basis.x.x, "xy": global_basis.x.y, "xz": global_basis.x.z,
+			"yx": global_basis.y.x, "yy": global_basis.y.y, "yz": global_basis.y.z,
+			"zx": global_basis.z.x, "zy": global_basis.z.y, "zz": global_basis.z.z,
+		},
+		"camera": {
+			"yaw": camera_controller.camera_pivot.rotation.y,
+			"pitch": camera_controller.camera_pivot.get_node("PitchPivot").rotation.x,
+			"distance": camera_controller.camera_distance,
+		},
+		"inventory": inventory_data,
+		"equipment": equipment_data,
+		"game_state": {
+			"free_flight": free_flight_enabled,
+			"input_enabled": input_enabled,
+			"current_water_time": current_water_time,
+		}
+	}
+
+
+func restore_save_data(save: Dictionary) -> void:
+	input_enabled = false
+	global_position = Vector3(save.position.x, save.position.y, save.position.z)
+	var b = save.basis
+	global_basis = Basis(
+		Vector3(b.xx, b.xy, b.xz),
+		Vector3(b.yx, b.yy, b.yz),
+		Vector3(b.zx, b.zy, b.zz),
+	)
+
+	# Cámara
+	camera_controller.camera_pivot.rotation.y = save.camera.yaw
+	camera_controller.camera_pivot.get_node("PitchPivot").rotation.x = save.camera.pitch
+	camera_controller.camera_distance = save.camera.distance
+	camera_controller.update_camera_transform()
+	await get_tree().create_timer(5.0).timeout
+	# Estado
+	free_flight_enabled = save.game_state.free_flight
+	input_enabled = save.game_state.input_enabled
+	current_water_time = save.game_state.get("current_water_time", 0.0)
+
+	# Desequipar todo lo visual antes de limpiar inventario
+	_clear_visual_equipment()
+
+	# Limpiar y restaurar inventario respetando posiciones
+	inventory.clear()
+	for entry in save.inventory:
+		var item_data: ItemData = config.get_item(StringName(entry.item_id))
+		if item_data:
+			inventory.add_item_at(item_data, int(entry.quantity), int(entry.slot_index))
+		else:
+			push_warning("SaveSystem: item desconocido '%s'" % entry.item_id)
+
+	# Limpiar slots de equipamiento en CharacterWindow
+	for slot_type in character_window.equipment_slots:
+		var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
+		if eq_slot.has_item():
+			eq_slot.clear()
+
+	# Restaurar equipamiento
+	for slot_key_str in save.equipment:
+		var slot_type: ItemData.ArmorSlot = int(slot_key_str) as ItemData.ArmorSlot
+		var item_id: String = save.equipment[slot_key_str]
+		var item_data: ItemData = config.get_item(StringName(item_id))
+		if item_data and character_window.equipment_slots.has(slot_type):
+			var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
+			var inv_item := InventoryItem.new(item_data, 1)
+			eq_slot.set_item(inv_item)
+			# Instanciar visual
+			equip_item(true, item_data.armor_slot, load(item_data.scene_path), item_data, item_data.category)
+
+
+func post_restore() -> void:
+	# Redescubrir planeta más cercano
+	if planets and planets.get_child_count() > 0:
+		var closest: Node3D = null
+		var closest_dist := INF
+		for p in planets.get_children():
+			var dist := global_position.distance_to(p.global_position)
+			if dist < closest_dist:
+				closest_dist = dist
+				closest = p
+		planet = closest
+		if planet and planet.planet.has_water:
+			water_sampler.setup(planet.water_sphere.quadtree_material)
+
+	# Estado visual coherente
+	if input_enabled:
+		visible = true
+		collision_model.disabled = false
+		capture_mouse(true)
+		
+	
+	if planet:
+		gravity_direction = planet.get_gravity_direction(global_position)
+		up_direction = -gravity_direction
+
+	# Reset modelo
+	current_swimming_pitch = 0.0
+	player_model.rotation = Vector3.ZERO
+
+
+func _clear_visual_equipment() -> void:
+	# Limpiar arma de la mano
+	var hand = player_model.get_node("Armature/Skeleton3D/RigthHandAttachment")
+	for child in hand.get_children():
+		hand.remove_child(child)
+		child.queue_free()
+	equiped_weapon = null
+
+	# Limpiar piezas de armadura del esqueleto
+	var skeleton = player_model.get_node("Armature/Skeleton3D")
+	for child in skeleton.get_children():
+		if "item_data" in child and child.item_data:
+			skeleton.remove_child(child)
+			child.queue_free()
+
+			
 func can_perform_action() -> bool:
 	return not (
 		action_controller.is_attacking or
@@ -155,10 +303,18 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 	match new_state:
 		GameManager.State.MENU:
 			input_enabled = false
+			var btnSave := main_menu.find_child("btnSaveGame")
+			btnSave.visible = false
+			var btnStartGame := main_menu.find_child("btnStartGame")
+			btnStartGame.visible = true
 		GameManager.State.CINEMATIC:
 			input_enabled = false
 			_play_cinematic()
 		GameManager.State.PLAYING:
+			var btnSave := main_menu.find_child("btnSaveGame")
+			btnSave.visible = true
+			var btnStartGame := main_menu.find_child("btnStartGame")
+			btnStartGame.visible = false
 			_activate_player()
 
 func _play_cinematic() -> void:
@@ -171,19 +327,12 @@ func _play_cinematic() -> void:
 	var pitch_pivot := camera_controller.camera_pivot.get_node("PitchPivot")
 	var saved_yaw: float = camera_controller.camera_pivot.rotation.y
 	var saved_pitch: float = pitch_pivot.rotation.x
-
+	
 	var start_pos := global_position
 	var start_quat := Quaternion(global_basis)
 	var end_pos := spawn_point.global_position
-	var gravity_dir := (planet.global_position - end_pos).normalized()
-	var target_up := -gravity_dir
-	# Forward = travel direction projected onto tangent plane
-	var travel_dir := (end_pos - start_pos).normalized()
-	var projected_forward := (travel_dir - target_up * travel_dir.dot(target_up)).normalized()
-	var target_right := projected_forward.cross(target_up).normalized()
-	var target_back := target_right.cross(target_up).normalized()
-	var aligned_basis := Basis(target_right, target_up, target_back).orthonormalized()
-	var end_quat := Quaternion(aligned_basis)
+	var end_quat := Quaternion(spawn_point.global_basis.orthonormalized())
+
 
 	if _cinematic_tween and _cinematic_tween.is_valid():
 		_cinematic_tween.kill()
@@ -206,29 +355,24 @@ func _play_cinematic() -> void:
 	# Progressive yaw → 0
 	_cinematic_tween.tween_property(
 		camera_controller.camera_pivot, "rotation:y",
-		0.0, cinematic_duration
+		spawn_point.rotation.y, cinematic_duration
 	).from(saved_yaw).set_ease(cinematic_ease).set_trans(cinematic_trans)
 
 	# Progressive pitch → 0
 	_cinematic_tween.tween_property(
 		pitch_pivot, "rotation:x",
-		0.0, cinematic_duration
+		spawn_point.rotation.x, cinematic_duration
 	).from(saved_pitch).set_ease(cinematic_ease).set_trans(cinematic_trans)
 	
 	_cinematic_tween.tween_property(
 		camera_controller.camera_pivot, "rotation:z",
-		0.0, cinematic_duration
+		spawn_point.rotation.z, cinematic_duration
 	).from(camera_controller.camera_pivot.rotation.z).set_ease(cinematic_ease).set_trans(cinematic_trans)
 	
 	_cinematic_tween.set_parallel(false)
 	_cinematic_tween.tween_callback(_on_cinematic_tween_finished)
 
 func _on_cinematic_tween_finished() -> void:
-	var body_euler := Quaternion(global_basis).get_euler()
-	var target_euler := Quaternion(spawn_point.global_basis).get_euler()
-	print("[Cinematic] Final body euler:  %s" % [body_euler])
-	print("[Cinematic] Target euler:      %s" % [target_euler])
-	print("[Cinematic] Tween finished. Player at %s" % global_position)
 	GameManager.cinematic_completed()
 
 func _interpolate_rotation(t: float, from_quat: Quaternion, to_quat: Quaternion) -> void:
@@ -240,7 +384,6 @@ func _process(_delta: float) -> void:
 		camera_controller.camera_pivot.global_position = global_position
 
 func _activate_player() -> void:
-	print("[Cinematic] Activating player control.")
 	free_flight_enabled = false
 	collision_model.disabled = false
 	visible = true
@@ -290,6 +433,10 @@ func _input(event):
 		inventory_ui.close()
 			
 	if event.is_action_pressed("ui_cancel"):
+		if mouse_captured:
+			main_menu.fade_in()
+		else:
+			main_menu.fade_out()
 		capture_mouse(not mouse_captured)
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not mouse_captured:

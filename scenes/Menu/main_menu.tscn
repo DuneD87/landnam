@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://dg37kdrqlecel"]
 
-[ext_resource type="Script" uid="uid://b5q1f2ntv17nr" path="res://scenes/menu/main_menu.gd" id="1_nl8w3"]
+[ext_resource type="Script" uid="uid://b5q1f2ntv17nr" path="res://scenes/Menu/main_menu.gd" id="1_nl8w3"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_70654"]
 corner_radius_top_left = 16
@@ -22,8 +22,8 @@ offset_bottom = 2.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_nl8w3")
-start_button = NodePath("VBoxContainer/Button")
-quit_button = NodePath("VBoxContainer/Button3")
+start_button = NodePath("VBoxContainer/btnStartGame")
+quit_button = NodePath("VBoxContainer/btnQuit")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -40,7 +40,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 64
 
-[node name="Button" type="Button" parent="VBoxContainer"]
+[node name="btnStartGame" type="Button" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
@@ -49,7 +49,25 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
 text = "Start Game
 "
 
-[node name="Button2" type="Button" parent="VBoxContainer"]
+[node name="btnSaveGame" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
+theme_override_font_sizes/font_size = 48
+theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
+text = "Save Game
+"
+
+[node name="btnLoadGame" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
+theme_override_font_sizes/font_size = 48
+theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
+text = "Continue Game
+"
+
+[node name="btnOptions" type="Button" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
@@ -58,7 +76,7 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
 text = "Options
 "
 
-[node name="Button3" type="Button" parent="VBoxContainer"]
+[node name="btnQuit" type="Button" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)

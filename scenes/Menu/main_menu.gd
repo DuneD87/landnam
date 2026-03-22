@@ -1,10 +1,14 @@
 ## MenuUI.gd — Attached to a CanvasLayer containing your menu UI
-
 extends Control
 
 @export var start_button: Button
 @export var quit_button: Button
 @export var fade_duration: float = 0.8
+
+const SAVE_SLOT: String = "main_save"
+
+var _save_button: Button
+var _load_button: Button
 
 
 func _ready() -> void:
@@ -13,29 +17,71 @@ func _ready() -> void:
 	if quit_button:
 		quit_button.pressed.connect(_on_quit_pressed)
 
+	_save_button = find_child("btnSaveGame")
+	_load_button = find_child("btnLoadGame")
+
+	if _save_button:
+		_save_button.pressed.connect(_on_save_pressed)
+		_save_button.visible = false
+	if _load_button:
+		_load_button.pressed.connect(_on_load_pressed)
+		_load_button.visible = GameManager.has_save(SAVE_SLOT)
+
 	GameManager.state_changed.connect(_on_game_state_changed)
 	visible = true
 
 
-func _on_start_pressed() -> void:
-	_set_buttons_disabled(true)
-
-	var tween := create_tween()
+func fade_in(duration: float = fade_duration) -> void:
+	visible = true
 	for child in _get_all_controls():
-		tween.set_parallel(true)
-		tween.tween_property(child, "modulate:a", 0.0, fade_duration)
-
+		child.modulate.a = 0.0
+	var tween := create_tween()
+	tween.set_parallel(true)
+	for child in _get_all_controls():
+		tween.tween_property(child, "modulate:a", 1.0, duration)
 	tween.set_parallel(false)
-	tween.tween_callback(_start_after_fade)
+	tween.tween_callback(func(): _set_buttons_disabled(false))
 
 
-func _start_after_fade() -> void:
-	visible = false
+func fade_out(duration: float = fade_duration) -> void:
+	_set_buttons_disabled(true)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	for child in _get_all_controls():
+		tween.tween_property(child, "modulate:a", 0.0, duration)
+	tween.set_parallel(false)
+	tween.tween_callback(func(): visible = false)
+
+
+func _on_start_pressed() -> void:
+	fade_out()
+	await get_tree().create_timer(fade_duration).timeout
 	GameManager.start_game()
 
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()
+
+
+func _on_save_pressed() -> void:
+	_set_buttons_disabled(true)
+	var success := GameManager.save_game(SAVE_SLOT)
+	if success:
+		print("[MenuUI] Partida guardada en slot '%s'" % SAVE_SLOT)
+		if _load_button:
+			_load_button.visible = true
+	else:
+		push_error("[MenuUI] Error al guardar partida")
+	_set_buttons_disabled(false)
+
+
+func _on_load_pressed() -> void:
+	fade_out()
+	await get_tree().create_timer(fade_duration).timeout
+	var success := GameManager.load_game(SAVE_SLOT)
+	if not success:
+		push_error("[MenuUI] Error al cargar partida")
+		fade_in()
 
 
 func _on_game_state_changed(new_state: GameManager.State) -> void:
@@ -45,8 +91,16 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 			_set_buttons_disabled(false)
 			for child in _get_all_controls():
 				child.modulate.a = 1.0
-		GameManager.State.CINEMATIC, GameManager.State.PLAYING:
+			if _save_button:
+				_save_button.visible = false
+			if _load_button:
+				_load_button.visible = GameManager.has_save(SAVE_SLOT)
+		GameManager.State.CINEMATIC:
 			visible = false
+		GameManager.State.PLAYING:
+			visible = false
+			if _save_button:
+				_save_button.visible = true
 
 
 func _set_buttons_disabled(disabled: bool) -> void:
@@ -54,6 +108,10 @@ func _set_buttons_disabled(disabled: bool) -> void:
 		start_button.disabled = disabled
 	if quit_button:
 		quit_button.disabled = disabled
+	if _save_button:
+		_save_button.disabled = disabled
+	if _load_button:
+		_load_button.disabled = disabled
 
 
 func _get_all_controls() -> Array[Control]:
