@@ -51,7 +51,7 @@ func _change_state(new_state: State) -> void:
 
 func save_game(slot_name: String = "default") -> bool:
 	# Configurar stream del terreno antes de guardar
-	_setup_terrain_streams(slot_name)
+	#_setup_terrain_streams(slot_name)
 
 	var save_data: Dictionary = {
 		"meta": {

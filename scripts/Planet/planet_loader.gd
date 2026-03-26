@@ -170,7 +170,7 @@ func restore_save_data(data: Dictionary) -> void:
 	gravity_strength = data.gravity_strength
 	sun_dir = Vector3(data.sun_dir.x, data.sun_dir.y, data.sun_dir.z)
 	global_pos = Vector3(data.global_pos.x, data.global_pos.y, data.global_pos.z)
-
+	
 	# Recargar planeta desde config
 	if config_file_path != "":
 		_load_planet()
