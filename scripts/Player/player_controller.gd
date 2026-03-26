@@ -186,6 +186,16 @@ func get_save_data() -> Dictionary:
 		}
 	}
 
+func _is_ground_ready() -> bool:
+	var query = PhysicsRayQueryParameters3D.create(
+		global_position + Vector3.UP * 5,
+		planet.global_pos
+	)
+	
+	var result = get_world_3d().direct_space_state.intersect_ray(query)
+	
+	return not result.is_empty()
+	
 func restore_save_data(save: Dictionary) -> void:
 	input_enabled = false
 	global_position = Vector3(save.position.x, save.position.y, save.position.z)
@@ -201,7 +211,7 @@ func restore_save_data(save: Dictionary) -> void:
 	camera_controller.camera_pivot.get_node("PitchPivot").rotation.x = save.camera.pitch
 	camera_controller.camera_distance = save.camera.distance
 	camera_controller.update_camera_transform()
-	await get_tree().create_timer(5.0).timeout
+	
 	# Estado
 	free_flight_enabled = save.game_state.free_flight
 	input_enabled = save.game_state.input_enabled
@@ -384,10 +394,12 @@ func _activate_player() -> void:
 	free_flight_enabled = false
 	collision_model.disabled = false
 	visible = true
-	input_enabled = true
 	player_model.rotation = Vector3.ZERO
 	current_swimming_pitch = 0.0
+	while !_is_ground_ready():
+		await get_tree().create_timer(.5).timeout
 	mouse_captured = true
+	input_enabled = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	
 # ---------- Input ----------
@@ -437,6 +449,9 @@ func _input(event):
 		inventory_ui.toggle()
 		if inventory_ui.visible:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		else:
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
 		
 	if event.is_action_pressed("character_window"):
 		character_window.toggle()
@@ -497,6 +512,7 @@ func _check_needs_swimming(delta: float):
 
 func _physics_process(delta: float):
 	if not input_enabled:
+		camera_controller.update_camera_transform()
 		return
 
 	if !mouse_captured || planets == null || planets.get_child_count() == 0:
