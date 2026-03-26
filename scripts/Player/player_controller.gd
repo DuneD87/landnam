@@ -396,6 +396,7 @@ func _activate_player() -> void:
 	visible = true
 	player_model.rotation = Vector3.ZERO
 	current_swimming_pitch = 0.0
+
 	while !_is_ground_ready():
 		await get_tree().create_timer(.5).timeout
 	mouse_captured = true
@@ -512,7 +513,9 @@ func _check_needs_swimming(delta: float):
 
 func _physics_process(delta: float):
 	if not input_enabled:
-		camera_controller.update_camera_transform()
+		if GameManager.current_state == GameManager.State.PLAYING:
+			camera_controller.update_camera_transform()
+
 		return
 
 	if !mouse_captured || planets == null || planets.get_child_count() == 0:
