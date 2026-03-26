@@ -13,9 +13,12 @@ enum Action { NONE, SELECT_CONFIG }
 @onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
 @export var water_sphere: OceanSystem
 @export var global_pos: Vector3
+@export var planet: Planet
+@export var entity_id: String = ""
+
 var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
-@export var planet: Planet
+var _voxel_stream: VoxelStreamSQLite
 
 func get_gravity_direction(_global_position: Vector3) -> Vector3:
 	var gravity_center = voxel_terrain.global_position
@@ -128,10 +131,50 @@ func _open_file_dialog() -> void:
 	print("DEBUG: EditorFileDialog opened at res://data/planet/")
 
 func _ready() -> void:
+	if entity_id == "":
+		entity_id = "planet_%s" % name.to_lower()
+		push_warning("Planet '%s' sin entity_id, generado automáticamente: %s" % [name, entity_id])
+
+	add_to_group(GameManager.SAVEABLE_GROUP)
 	if config_file_path != "res://data/planet/default.json":
 		_load_planet()
 		
+func setup_voxel_stream(slot_name: String) -> void:
+	_voxel_stream = VoxelStreamSQLite.new()
+	_voxel_stream.database_path = "user://saves/%s_%s.sqlite" % [slot_name, entity_id]
+	voxel_terrain.stream = _voxel_stream		
 	
+func get_save_data() -> Dictionary:
+	# Forzar guardado de bloques modificados
+	if voxel_terrain and voxel_terrain.stream:
+		voxel_terrain.save_modified_blocks()
+
+	return {
+		"config_file_path": config_file_path,
+		"sun_dir": {
+			"x": sun_dir.x,
+			"y": sun_dir.y,
+			"z": sun_dir.z
+		},
+		"gravity_strength": gravity_strength,
+		"global_pos": {
+			"x": global_pos.x,
+			"y": global_pos.y,
+			"z": global_pos.z
+		}
+	}
+
+
+func restore_save_data(data: Dictionary) -> void:
+	config_file_path = data.config_file_path
+	gravity_strength = data.gravity_strength
+	sun_dir = Vector3(data.sun_dir.x, data.sun_dir.y, data.sun_dir.z)
+	global_pos = Vector3(data.global_pos.x, data.global_pos.y, data.global_pos.z)
+
+	# Recargar planeta desde config
+	if config_file_path != "":
+		_load_planet()
+		
 func _process(_delta: float) -> void:
 	if planet != null:
 		planet.sun_dir = sun_dir

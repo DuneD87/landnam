@@ -186,7 +186,6 @@ func get_save_data() -> Dictionary:
 		}
 	}
 
-
 func restore_save_data(save: Dictionary) -> void:
 	input_enabled = false
 	global_position = Vector3(save.position.x, save.position.y, save.position.z)
@@ -237,7 +236,7 @@ func restore_save_data(save: Dictionary) -> void:
 			eq_slot.set_item(inv_item)
 			# Instanciar visual
 			equip_item(true, item_data.armor_slot, load(item_data.scene_path), item_data, item_data.category)
-
+	_activate_player()
 
 func post_restore() -> void:
 	# Redescubrir planeta más cercano
@@ -256,9 +255,7 @@ func post_restore() -> void:
 	# Estado visual coherente
 	if input_enabled:
 		visible = true
-		collision_model.disabled = false
-		capture_mouse(true)
-		
+		collision_model.disabled = false		
 	
 	if planet:
 		gravity_direction = planet.get_gravity_direction(global_position)
@@ -390,12 +387,32 @@ func _activate_player() -> void:
 	input_enabled = true
 	player_model.rotation = Vector3.ZERO
 	current_swimming_pitch = 0.0
-	capture_mouse(true)
-
-
+	mouse_captured = true
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	
 # ---------- Input ----------
-
+func is_mouse_captured() -> bool:
+	return Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
+	
 func _input(event):
+	if Input.is_action_just_pressed("ui_cancel"):
+		if inventory_ui.visible:
+			inventory_ui.close()
+			capture_mouse(true)
+			return
+		if character_window.visible:
+			character_window.toggle()
+			capture_mouse(true)
+			return
+		if is_mouse_captured():
+			input_enabled = false
+			main_menu.fade_in()
+			capture_mouse(false)
+		else:
+			input_enabled = true
+			main_menu.fade_out()
+			capture_mouse(true)
+
 	if not input_enabled:
 		return
 
@@ -420,8 +437,7 @@ func _input(event):
 		inventory_ui.toggle()
 		if inventory_ui.visible:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-		else:
-			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		
 	if event.is_action_pressed("character_window"):
 		character_window.toggle()
 	if event.is_action_pressed("action") && !free_flight_enabled:
@@ -431,16 +447,9 @@ func _input(event):
 			inventory.add_item(item_data, 1)
 	elif event.is_action_pressed("ui_cancel") and visible:
 		inventory_ui.close()
-			
-	if event.is_action_pressed("ui_cancel"):
-		if mouse_captured:
-			main_menu.fade_in()
-		else:
-			main_menu.fade_out()
-		capture_mouse(not mouse_captured)
 
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not mouse_captured:
-		capture_mouse(true)
+	#if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not mouse_captured:
+		#capture_mouse(true)
 	
 	if Input.is_action_just_pressed("attack_1") && can_perform_action():
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5

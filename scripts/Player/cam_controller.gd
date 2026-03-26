@@ -49,8 +49,6 @@ func _input(event: InputEvent):
 			target_distance = max(target_distance - zoom_speed, min_distance)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			target_distance = min(target_distance + zoom_speed, max_distance)
-	elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
-		toggle_mouse_capture()
 
 func update_camera_rotation():
 	if delta_yaw != 0.0:

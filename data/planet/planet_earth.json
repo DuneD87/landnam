@@ -58,7 +58,7 @@
 		[
 			{
 				"name": "hemisphere_graph_path",
-				"path": "res://graph_functions/earth_terrain_green_hemisphere.tres",
+				"path": "res://data/graph_functions/earth_terrain_green_terraces.tres",
 			}
 		], 
 

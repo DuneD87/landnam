@@ -50,6 +50,9 @@ func _change_state(new_state: State) -> void:
 # ── Save / Load ──────────────────────────────────────────────────────────────
 
 func save_game(slot_name: String = "default") -> bool:
+	# Configurar stream del terreno antes de guardar
+	_setup_terrain_streams(slot_name)
+
 	var save_data: Dictionary = {
 		"meta": {
 			"timestamp": Time.get_datetime_string_from_system(),
@@ -62,7 +65,6 @@ func save_game(slot_name: String = "default") -> bool:
 		if not entity.has_method("get_save_data") or not entity.get("entity_id"):
 			push_warning("SaveSystem: entity in '%s' group missing get_save_data() or entity_id: %s" % [SAVEABLE_GROUP, entity.name])
 			continue
-
 		save_data.entities[entity.entity_id] = {
 			"scene_path": entity.scene_file_path,
 			"parent_path": str(entity.get_parent().get_path()),
@@ -101,11 +103,13 @@ func load_game(slot_name: String = "default") -> bool:
 
 	var save_data: Dictionary = parse_result
 
-	# Restaurar estado del juego
 	var saved_state: int = save_data.meta.get("game_state", State.PLAYING)
 	_change_state(saved_state as State)
 
-	# Fase 1: restaurar entidades que ya existen en el árbol
+	# Configurar streams de terreno ANTES de restaurar entidades
+	_setup_terrain_streams(slot_name)
+
+	# Fase 1: restaurar entidades existentes
 	var restored_ids: Array[String] = []
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if not entity.get("entity_id"):
@@ -115,7 +119,7 @@ func load_game(slot_name: String = "default") -> bool:
 			entity.restore_save_data(save_data.entities[id].data)
 			restored_ids.append(id)
 
-	# Fase 1b: instanciar entidades que no están en el árbol
+	# Fase 1b: instanciar entidades que faltan
 	for id in save_data.entities:
 		if id in restored_ids:
 			continue
@@ -133,13 +137,20 @@ func load_game(slot_name: String = "default") -> bool:
 			get_tree().current_scene.add_child(entity)
 		entity.restore_save_data(entry.data)
 
-	# Fase 2: resolver referencias cruzadas
+	# Fase 2: post_restore
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if entity.has_method("post_restore"):
 			entity.post_restore()
 
 	print("SaveSystem: game loaded from %s" % path)
 	return true
+
+
+## Busca todos los planetas con voxel terrain y les asigna el stream
+func _setup_terrain_streams(slot_name: String) -> void:
+	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
+		if entity.has_method("setup_voxel_stream"):
+			entity.setup_voxel_stream(slot_name)
 
 
 func has_save(slot_name: String = "default") -> bool:
