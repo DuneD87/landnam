@@ -1,4 +1,4 @@
-[gd_resource type="AnimationNodeBlendTree" load_steps=20 format=3 uid="uid://cp4qil0xj5pyj"]
+[gd_resource type="AnimationNodeBlendTree" format=3 uid="uid://cp4qil0xj5pyj"]
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_hxfc4"]
 animation = &"Attack_Vertical"

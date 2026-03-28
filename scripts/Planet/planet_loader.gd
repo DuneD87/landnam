@@ -18,7 +18,6 @@ enum Action { NONE, SELECT_CONFIG }
 
 var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
-var _voxel_stream: VoxelStreamSQLite
 
 func get_gravity_direction(_global_position: Vector3) -> Vector3:
 	var gravity_center = voxel_terrain.global_position
@@ -78,7 +77,7 @@ func _load_planet() -> void:
 	planet.setup_voxel_generator()
 	planet._load_vegetation()
 	global_pos = planet.global_position
-
+	#setup_voxel_stream()
 	if planet_parser.has_water:
 		water_sphere = OceanSystem.new()
 		add_child(water_sphere)
@@ -131,24 +130,23 @@ func _open_file_dialog() -> void:
 	print("DEBUG: EditorFileDialog opened at res://data/planet/")
 
 func _ready() -> void:
-	if entity_id == "":
-		entity_id = "planet_%s" % name.to_lower()
-		push_warning("Planet '%s' sin entity_id, generado automáticamente: %s" % [name, entity_id])
-
+	if voxel_terrain.generator:
+		voxel_terrain.generator = voxel_terrain.generator.duplicate()
+	if voxel_terrain.stream:
+		voxel_terrain.stream = voxel_terrain.stream.duplicate()
+	
+	entity_id = "planet_%s" % name.to_lower()
+	voxel_terrain.stream.database_path = "user://saves/%s.sqlite" % [entity_id]
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	if config_file_path != "res://data/planet/default.json":
 		_load_planet()
 		
-func setup_voxel_stream(slot_name: String) -> void:
-	_voxel_stream = VoxelStreamSQLite.new()
-	_voxel_stream.database_path = "user://saves/%s_%s.sqlite" % [slot_name, entity_id]
-	voxel_terrain.stream = _voxel_stream		
-	
-func get_save_data() -> Dictionary:
-	# Forzar guardado de bloques modificados
+func save_voxel_data() -> VoxelSaveCompletionTracker:
 	if voxel_terrain and voxel_terrain.stream:
-		voxel_terrain.save_modified_blocks()
+		return voxel_terrain.save_modified_blocks()
+	return null
 
+func get_save_data() -> Dictionary:
 	return {
 		"config_file_path": config_file_path,
 		"sun_dir": {

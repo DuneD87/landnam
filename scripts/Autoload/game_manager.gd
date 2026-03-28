@@ -50,9 +50,17 @@ func _change_state(new_state: State) -> void:
 # ── Save / Load ──────────────────────────────────────────────────────────────
 
 func save_game(slot_name: String = "default") -> bool:
-	# Configurar stream del terreno antes de guardar
-	#_setup_terrain_streams(slot_name)
-
+	var voxel_entities := get_tree().get_nodes_in_group(SAVEABLE_GROUP).filter(
+		func(e): return e.has_method("save_voxel_data")
+	)
+	
+	for entity in voxel_entities:
+		var tracker: VoxelSaveCompletionTracker = entity.save_voxel_data()
+		if tracker:
+			while not tracker.is_complete():
+				await get_tree().process_frame
+			print("SaveSystem: voxel save complete for %s" % entity.entity_id)
+	# 2) Ahora recopilar datos serializables
 	var save_data: Dictionary = {
 		"meta": {
 			"timestamp": Time.get_datetime_string_from_system(),
@@ -60,23 +68,21 @@ func save_game(slot_name: String = "default") -> bool:
 		},
 		"entities": {}
 	}
-
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if not entity.has_method("get_save_data") or not entity.get("entity_id"):
-			push_warning("SaveSystem: entity in '%s' group missing get_save_data() or entity_id: %s" % [SAVEABLE_GROUP, entity.name])
+			push_warning("SaveSystem: entity missing get_save_data() or entity_id: %s" % entity.name)
 			continue
 		save_data.entities[entity.entity_id] = {
 			"scene_path": entity.scene_file_path,
 			"parent_path": str(entity.get_parent().get_path()),
 			"data": entity.get_save_data()
 		}
-
+	
 	var path := SAVE_DIR + slot_name + SAVE_EXTENSION
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if not file:
-		push_error("SaveSystem: cannot write to %s — %s" % [path, FileAccess.get_open_error()])
+		push_error("SaveSystem: cannot write to %s" % path)
 		return false
-
 	file.store_string(JSON.stringify(save_data, "\t"))
 	file.close()
 	print("SaveSystem: game saved to %s (%d entities)" % [path, save_data.entities.size()])
@@ -107,7 +113,7 @@ func load_game(slot_name: String = "default") -> bool:
 	_change_state(saved_state as State)
 
 	# Configurar streams de terreno ANTES de restaurar entidades
-	_setup_terrain_streams(slot_name)
+	#_setup_terrain_streams(slot_name)
 
 	# Fase 1: restaurar entidades existentes
 	var restored_ids: Array[String] = []
@@ -150,7 +156,7 @@ func load_game(slot_name: String = "default") -> bool:
 func _setup_terrain_streams(slot_name: String) -> void:
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if entity.has_method("setup_voxel_stream"):
-			entity.setup_voxel_stream(slot_name)
+			entity.setup_voxel_stream()
 
 
 func has_save(slot_name: String = "default") -> bool:

@@ -1,11 +1,11 @@
-[gd_scene load_steps=10 format=3 uid="uid://8hm5q6k01tb8"]
+[gd_scene format=3 uid="uid://8hm5q6k01tb8"]
 
 [ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/Planet/sun_controller.gd" id="1_x6u8n"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet/planet_loader.tscn" id="2_li0gi"]
 [ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_cpkft"]
-[ext_resource type="Script" uid="uid://dka6t6r7qa0p6" path="res://scenes/planet/ambient_control.gd" id="4_7qkn8"]
-[ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/Player/third_person_player.tscn" id="5_05w5h"]
-[ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/Menu/main_menu.tscn" id="6_x6u8n"]
+[ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scenes/planet/ambient_control.gd" id="4_7qkn8"]
+[ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/player/third_person_player.tscn" id="5_05w5h"]
+[ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/menu/main_menu.tscn" id="6_x6u8n"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
 shader = ExtResource("3_cpkft")
@@ -57,28 +57,30 @@ fog_depth_begin = 0.0
 fog_depth_end = 207.2
 volumetric_fog_density = 0.0218
 
-[node name="Sun" type="Node3D" node_paths=PackedStringArray("sun_light")]
+[node name="Sun" type="Node3D" unique_id=1088853035 node_paths=PackedStringArray("sun_light")]
 script = ExtResource("1_x6u8n")
 sun_light = NodePath("DirectionalLight3D")
 
-[node name="Planets" type="Node3D" parent="."]
+[node name="Planets" type="Node3D" parent="." unique_id=564239750]
 
-[node name="Earth" parent="Planets" node_paths=PackedStringArray("sun_path", "players", "water_sphere", "planet") instance=ExtResource("2_li0gi")]
+[node name="Earth" parent="Planets" unique_id=1769869148 node_paths=PackedStringArray("sun_path", "players", "water_sphere", "planet") instance=ExtResource("2_li0gi")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@34130")
+water_sphere = NodePath("@Node3D@29297")
 planet = NodePath("")
+entity_id = "planet_earth"
 
-[node name="Moon" parent="Planets" node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_li0gi")]
+[node name="Moon" parent="Planets" unique_id=2125670169 node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_li0gi")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -55000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, -85000)
 planet = NodePath("")
+entity_id = "planet_moon"
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=535095142]
 transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 0, 0, 0)
 light_specular = 0.2
 shadow_enabled = true
@@ -87,18 +89,22 @@ directional_shadow_blend_splits = true
 directional_shadow_max_distance = 512.0
 directional_shadow_pancake_size = 10.0
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1273357776]
 environment = SubResource("Environment_0x85g")
 script = ExtResource("4_7qkn8")
 
-[node name="Player" parent="." node_paths=PackedStringArray("main_menu", "spawn_point", "planets") instance=ExtResource("5_05w5h")]
+[node name="Player" parent="." unique_id=783931208 node_paths=PackedStringArray("main_menu", "spawn_point", "planets") instance=ExtResource("5_05w5h")]
 transform = Transform3D(0.1595815, 0.29166493, -0.9431151, -0.034847043, 0.9564268, 0.28988552, 0.9865696, -0.013395568, 0.16279171, -60562.305, 33474.453, 15114.492)
 main_menu = NodePath("../MainMenu")
 spawn_point = NodePath("../SpawnPoint")
 start_first_person = true
 planets = NodePath("../Planets")
 
-[node name="MainMenu" parent="." instance=ExtResource("6_x6u8n")]
+[node name="MainMenu" parent="." unique_id=1161920561 instance=ExtResource("6_x6u8n")]
 
-[node name="SpawnPoint" type="Marker3D" parent="."]
-transform = Transform3D(-0.16945997, -0.48666626, -0.8569944, 0.961874, 0.10773771, -0.2513801, 0.21466877, -0.8669193, 0.44985387, -14857.21, 8847.074, -9518.343)
+[node name="SpawnPoint" type="Marker3D" parent="." unique_id=289860918]
+transform = Transform3D(-0.16945997, -0.48666626, -0.8569944, 0.961874, 0.10773771, -0.2513801, 0.21466877, -0.8669193, 0.44985387, -14854.557, 8846.945, -9515.626)
+
+[node name="VoxelViewer" type="VoxelViewer" parent="SpawnPoint" unique_id=852478480]
+visible = false
+enabled_in_editor = true

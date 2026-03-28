@@ -65,7 +65,7 @@ func _on_quit_pressed() -> void:
 
 func _on_save_pressed() -> void:
 	_set_buttons_disabled(true)
-	var success := GameManager.save_game(SAVE_SLOT)
+	var success := await GameManager.save_game(SAVE_SLOT)
 	if success:
 		print("[MenuUI] Partida guardada en slot '%s'" % SAVE_SLOT)
 		if _load_button:

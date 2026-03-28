@@ -105,8 +105,8 @@
 		"min_height": -35,
 		"max_height": 50,
 		"max_slope_degrees": 35,
-		"min_scale": 1,
-		"max_scale": 2,
+		"min_scale": 0.5,
+		"max_scale": 1.5,
 		"noise_graph": "hemisphere_graph_path"
 	  },
 	  {

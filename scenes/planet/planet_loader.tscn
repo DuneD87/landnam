@@ -1,12 +1,198 @@
-[gd_scene load_steps=15 format=3 uid="uid://cuv6mxdmxyw00"]
+[gd_scene format=3 uid="uid://cuv6mxdmxyw00"]
 
 [ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
-[ext_resource type="VoxelGeneratorGraph" uid="uid://0mpmu03pwgj8" path="res://data/graph_functions/earth_terrain_terraces.tres" id="2_glvix"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="8_4hxn6"]
 [ext_resource type="Shader" uid="uid://cjvu0r1fglbyl" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
 [ext_resource type="Script" uid="uid://dv1orhbbx7v5" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]
 
-[sub_resource type="VoxelStreamMemory" id="VoxelStreamMemory_1bp2h"]
+[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_nnj4i"]
+database_path = "user://saves/planet_node3d.sqlite"
+
+[sub_resource type="FastNoise2" id="FastNoise2_ivwlw"]
+noise_type = 3
+period = 4500.0
+fractal_type = 2
+fractal_octaves = 8
+fractal_lacunarity = 3.0
+fractal_gain = 0.25
+fractal_ping_pong_strength = 4.0
+terrace_enabled = true
+terrace_smoothness = 0.8
+
+[sub_resource type="FastNoise2" id="FastNoise2_aqix3"]
+seed = 64
+period = 1200.0
+fractal_type = 1
+fractal_octaves = 4
+fractal_lacunarity = 8.0
+fractal_gain = 0.1
+
+[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_7lijc"]
+fractal_type = 1
+
+[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_7inbg"]
+noise_type = 2
+period = 2000.0001
+warp_noise = SubResource("ZN_FastNoiseLiteGradient_7lijc")
+cellular_return_type = 4
+
+[sub_resource type="VoxelGeneratorGraph" id="VoxelGeneratorGraph_1bp2h"]
+graph_data = {
+"connections": [[17, 0, 20, 0], [1, 0, 6, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [1, 0, 13, 0], [1, 0, 35, 0], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [2, 0, 35, 1], [18, 0, 17, 0], [10, 0, 43, 1], [13, 0, 33, 1], [16, 0, 22, 1], [19, 0, 17, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [24, 0, 34, 0], [28, 0, 10, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [3, 0, 35, 2], [33, 0, 28, 0], [34, 0, 28, 1], [35, 0, 36, 0], [36, 0, 42, 0], [40, 0, 43, 0], [41, 0, 40, 0], [42, 0, 40, 1], [43, 0, 4, 0], [6, 0, 10, 0]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(-586.667, 93.3333),
+"type": "InputX"
+},
+"10": {
+"auto_connect": false,
+"gui_position": Vector2(1160, 293.33334),
+"type": "Add"
+},
+"13": {
+"auto_connect": true,
+"gui_position": Vector2(-40, 306.667),
+"name": &"fast_noise_planet",
+"noise": SubResource("FastNoise2_ivwlw"),
+"type": "FastNoise2_3D"
+},
+"16": {
+"auto_connect": false,
+"gui_position": Vector2(-346.667, 506.667),
+"type": "Sqrt"
+},
+"17": {
+"auto_connect": false,
+"gui_position": Vector2(-666.667, 400),
+"type": "Add"
+},
+"18": {
+"auto_connect": false,
+"gui_position": Vector2(-813.333, 306.667),
+"type": "Multiply"
+},
+"19": {
+"auto_connect": false,
+"gui_position": Vector2(-813.333, 440),
+"type": "Multiply"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(-586.667, 173.333),
+"type": "InputY"
+},
+"20": {
+"auto_connect": false,
+"gui_position": Vector2(-506.667, 506.667),
+"type": "Add"
+},
+"21": {
+"auto_connect": false,
+"gui_position": Vector2(-813.333, 560),
+"type": "Multiply"
+},
+"22": {
+"auto_connect": false,
+"gui_position": Vector2(-160, 480),
+"type": "Divide"
+},
+"23": {
+"auto_connect": false,
+"gui_position": Vector2(0, 480),
+"type": "Sin"
+},
+"24": {
+"auto_connect": true,
+"gui_position": Vector2(-26.666666, 626.6667),
+"name": &"fast_noise_poles",
+"noise": SubResource("FastNoise2_aqix3"),
+"type": "FastNoise2_3D"
+},
+"28": {
+"auto_connect": false,
+"gui_position": Vector2(933.3333, 440),
+"type": "Add"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(-586.667, 253.333),
+"type": "InputZ"
+},
+"33": {
+"a": 400.0,
+"auto_connect": false,
+"gui_position": Vector2(373.33334, 280),
+"type": "Multiply"
+},
+"34": {
+"auto_connect": false,
+"b": 100.0,
+"gui_position": Vector2(413.333, 600),
+"type": "Multiply"
+},
+"35": {
+"auto_connect": true,
+"gui_position": Vector2(-53.333332, -160),
+"noise": SubResource("ZN_FastNoiseLite_7inbg"),
+"type": "FastNoise3D"
+},
+"36": {
+"auto_connect": false,
+"gui_position": Vector2(120, -160),
+"type": "Abs"
+},
+"4": {
+"auto_connect": true,
+"gui_position": Vector2(1746.6666, -80),
+"type": "OutputSDF"
+},
+"40": {
+"auto_connect": false,
+"gui_position": Vector2(940.5736, -266.20007),
+"type": "Multiply"
+},
+"41": {
+"auto_connect": false,
+"gui_position": Vector2(746.6667, -333.33334),
+"type": "Constant",
+"value": -1.0
+},
+"42": {
+"auto_connect": false,
+"b": 250.0,
+"gui_position": Vector2(680, -173.33333),
+"type": "Multiply"
+},
+"43": {
+"auto_connect": false,
+"gui_position": Vector2(1331.0004, -35.493343),
+"type": "Add"
+},
+"44": {
+"a": 0.0,
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(1405.5365, -175.69206),
+"type": "Max"
+},
+"45": {
+"a": 0.0,
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(1503.1432, -273.29877),
+"type": "Subtract"
+},
+"6": {
+"auto_connect": true,
+"gui_position": Vector2(560, 53.3333),
+"name": &"SdfSphere",
+"radius": 30000.0,
+"type": "SdfSphere"
+}
+},
+"version": 2
+}
 
 [sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_dfr3u"]
 
@@ -204,18 +390,19 @@ noise = SubResource("FastNoiseLite_16ssy")
 resolution = 256
 scale = Vector3(100, 200, 100)
 
-[node name="Node3D" type="Node3D"]
+[node name="Node3D" type="Node3D" unique_id=918373491]
 script = ExtResource("1_8l55o")
 config_file_path = "res://data/planet/default.json"
+entity_id = "planet_node3d"
 
-[node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="."]
-stream = SubResource("VoxelStreamMemory_1bp2h")
-generator = ExtResource("2_glvix")
+[node name="VoxelLodTerrain" type="VoxelLodTerrain" parent="." unique_id=2072020419]
+stream = SubResource("VoxelStreamSQLite_nnj4i")
+generator = SubResource("VoxelGeneratorGraph_1bp2h")
 mesher = SubResource("VoxelMesherTransvoxel_dfr3u")
 format = SubResource("VoxelFormat_yg71c")
 view_distance = 100000
 lod_count = 16
-lod_distance = 64.0
+lod_distance = 92.0
 material = SubResource("ShaderMaterial_8gh3j")
 normalmap_enabled = true
 normalmap_tile_resolution_min = 2
@@ -223,7 +410,7 @@ normalmap_begin_lod_index = 1
 threaded_update_enabled = true
 streaming_system = 1
 
-[node name="PlanetAthmosphere" parent="VoxelLodTerrain" instance=ExtResource("8_4hxn6")]
+[node name="PlanetAthmosphere" parent="VoxelLodTerrain" unique_id=1379619186 instance=ExtResource("8_4hxn6")]
 planet_radius = 0.0
 atmosphere_height = 0.0
 custom_shader = ExtResource("9_n2er8")
