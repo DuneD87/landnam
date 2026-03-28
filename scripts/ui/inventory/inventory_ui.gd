@@ -1,7 +1,7 @@
 extends CanvasLayer
 class_name InventoryUI
 
-const SlotScene = preload("res://scenes/inventory/inventory_slot.tscn")
+const SlotScene = preload("res://scenes/ui/inventory_slot.tscn")
 
 @onready var panel: PanelContainer = $CenterContainer/PanelContainer
 @onready var title_label: Label = $CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header/TitleLabel
@@ -11,6 +11,7 @@ const SlotScene = preload("res://scenes/inventory/inventory_slot.tscn")
 var inventory: Inventory
 var character_window: CharacterWindow
 var slots: Array[InventorySlot] = []
+var hotbar: Hotbar
 
 # Sistema de item flotante
 var floating_item: InventoryItem = null
@@ -28,7 +29,13 @@ func _ready() -> void:
 	_create_floating_display()
 
 
-func setup(inv: Inventory, char_window: CharacterWindow) -> void:
+func _on_hotbar_slot_clicked(slot_index: int) -> void:
+	if floating_item:
+		var data = floating_item.data
+		_return_to_origin()
+		hotbar.assign_to_slot(slot_index, data)
+
+func setup(inv: Inventory, char_window: CharacterWindow, hbar: Hotbar) -> void:
 	inventory = inv
 	character_window = char_window
 	
@@ -37,7 +44,8 @@ func setup(inv: Inventory, char_window: CharacterWindow) -> void:
 	
 	_create_slots()
 	_refresh()
-
+	hotbar = hbar
+	hotbar.hotbar_slot_clicked.connect(_on_hotbar_slot_clicked)
 
 func _apply_panel_style() -> void:
 	var style = StyleBoxFlat.new()

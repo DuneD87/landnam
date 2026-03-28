@@ -12,6 +12,8 @@ const data = preload("res://scripts/items/item_data.gd")
 @onready var inventory: Inventory = $Inventory
 @onready var inventory_ui: InventoryUI = $InventoryUI
 @onready var character_window: CharacterWindow = $CharacterWindow
+@onready var hotbar: Hotbar = $Hotbar
+
 @export var main_menu: Control
 @export var spawn_point: Marker3D
 @export var start_first_person: bool = false
@@ -104,11 +106,39 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 	if category == ItemData.Category.TOOL || category == ItemData.Category.WEAPON || category == ItemData.Category.ARMOR:
 		equip_item(equip, slot, scene, data, category)
 
+func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> void:
+	var new_item_slot := -1
+	if new_data and (new_data.category == ItemData.Category.TOOL or new_data.category == ItemData.Category.WEAPON):
+		for i in inventory.items.size():
+			if inventory.items[i] and inventory.items[i].data.id == new_data.id:
+				new_item_slot = i
+				break
+		if new_item_slot >= 0:
+			inventory.items[new_item_slot] = null
+
+	if old_data and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON):
+		var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
+		if eq_slot and eq_slot.has_item():
+			var unequipped = character_window.unequip_item(eq_slot)
+			if unequipped:
+				var target = new_item_slot if new_item_slot >= 0 else inventory.find_empty_slot()
+				if target >= 0:
+					inventory.items[target] = InventoryItem.new(unequipped.data, 1)
+
+	if new_data and new_item_slot >= 0:
+		var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
+		if eq_slot:
+			var inv_item := InventoryItem.new(new_data, 1)
+			character_window.equip_item(eq_slot, inv_item)
+
+	inventory.inventory_changed.emit()
+	
+	
 func _ready():
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	GameManager.register_player(self)
 	GameManager.state_changed.connect(_on_game_state_changed)
-	
+	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
 	# Start in free flight with no input (space view for the menu)
 	free_flight_enabled = true
 	visible = false
@@ -125,7 +155,8 @@ func _ready():
 	inventory.add_item(config.get_item(&"firstage_skin_hood"), 1)
 	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
-	inventory_ui.setup(inventory, character_window)
+	inventory_ui.setup(inventory, character_window, hotbar)
+	hotbar.selection_changed.connect(_on_hotbar_selection_changed)	
 	character_window.equipment_changed.connect(on_equipment_changed)
 	var btnSave := main_menu.find_child("btnSaveGame")
 	btnSave.visible = false

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://l2mynhuda6sw"]
 
-[ext_resource type="Script" uid="uid://d2bbcjy58ciwp" path="res://scripts/ui/inventory_ui.gd" id="1_qedko"]
+[ext_resource type="Script" uid="uid://d2bbcjy58ciwp" path="res://scripts/ui/inventory/inventory_ui.gd" id="1_qedko"]
 
 [node name="InventoryUI" type="CanvasLayer"]
 layer = 10

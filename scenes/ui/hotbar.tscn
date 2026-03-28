@@ -1,0 +1,43 @@
+[gd_scene format=3 uid="uid://hoc6rt0t1onj"]
+
+[ext_resource type="Script" uid="uid://d07ptroaptmmc" path="res://scripts/ui/hotbar/hotbar.gd" id="1_yjdhc"]
+
+[node name="Hotbar" type="CanvasLayer" unique_id=1651427085]
+layer = 10
+script = ExtResource("1_yjdhc")
+
+[node name="BottomAnchor" type="Control" parent="." unique_id=1712086694]
+layout_mode = 3
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="BottomAnchor" unique_id=252218963]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -20.0
+offset_top = -40.0
+offset_right = 20.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="BottomAnchor/PanelContainer" unique_id=1642508791]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="HBoxContainer" type="HBoxContainer" parent="BottomAnchor/PanelContainer/MarginContainer" unique_id=1756913330]
+layout_mode = 2
+mouse_filter = 2

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://wg8nhhw8wagy"]
 
-[ext_resource type="Script" uid="uid://cuuci7y1lgy4a" path="res://scripts/ui/equipment_slot.gd" id="1_eigg8"]
+[ext_resource type="Script" uid="uid://cuuci7y1lgy4a" path="res://scripts/ui/character_window/equipment_slot.gd" id="1_eigg8"]
 
 [node name="EquipmentSlot" type="PanelContainer"]
 custom_minimum_size = Vector2(128, 128)

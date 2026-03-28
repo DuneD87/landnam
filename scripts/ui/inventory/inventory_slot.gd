@@ -1,6 +1,6 @@
 # inventory_slot.gd
-extends PanelContainer
 class_name InventorySlot
+extends PanelContainer
 
 signal slot_clicked(slot: InventorySlot, button_index: int)
 

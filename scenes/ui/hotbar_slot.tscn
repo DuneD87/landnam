@@ -1,0 +1,43 @@
+[gd_scene format=3 uid="uid://c5jskgx264ga4"]
+
+[ext_resource type="Script" uid="uid://ci4wdn1jtynf0" path="res://scripts/ui/hotbar/hotbar_slot.gd" id="1_8ds5q"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_8ds5q"]
+font_size = 10
+
+[sub_resource type="LabelSettings" id="LabelSettings_v1y6b"]
+font_size = 10
+
+[node name="HotbarSlot" type="PanelContainer" unique_id=342976755]
+custom_minimum_size = Vector2(56, 56)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_8ds5q")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1776563760]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="IconRect" type="TextureRect" parent="MarginContainer" unique_id=1087311987]
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 3
+stretch_mode = 5
+
+[node name="KeyLabel" type="Label" parent="." unique_id=816215513]
+layout_mode = 2
+label_settings = SubResource("LabelSettings_8ds5q")
+vertical_alignment = 2
+
+[node name="QuantityLabel" type="Label" parent="." unique_id=1310903836]
+layout_mode = 2
+label_settings = SubResource("LabelSettings_v1y6b")
+horizontal_alignment = 2
+vertical_alignment = 2

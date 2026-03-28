@@ -108,7 +108,6 @@ func find_empty_slot() -> int:
 func add_item(item_data: ItemData, quantity: int = 1) -> int:
 	var remaining = quantity
 	
-	# Intentar apilar en items existentes
 	if item_data.stackable:
 		for i in range(max_slots):
 			if items[i] != null and items[i].data.id == item_data.id and not items[i].is_full():
@@ -116,11 +115,10 @@ func add_item(item_data: ItemData, quantity: int = 1) -> int:
 				if remaining == 0:
 					break
 	
-	# Crear nuevos stacks en slots vacíos
 	while remaining > 0:
 		var empty_slot = find_empty_slot()
 		if empty_slot == -1:
-			break  # No hay más espacio
+			break
 		
 		var new_item = InventoryItem.new(item_data, remaining)
 		remaining -= new_item.quantity
@@ -138,7 +136,7 @@ func remove_item(item_data: ItemData, quantity: int = 1) -> int:
 	var removed_total = 0
 	
 	for i in range(max_slots - 1, -1, -1):
-		if items[i] != null and items[i].data.object_type == item_data.object_type:
+		if items[i] != null and items[i].data.Category == item_data.Category:
 			var removed = items[i].remove(to_remove)
 			removed_total += removed
 			to_remove -= removed
