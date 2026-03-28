@@ -108,6 +108,8 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 
 func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> void:
 	var new_item_slot := -1
+
+	# 1. Buscar y quitar el nuevo item del inventario
 	if new_data and (new_data.category == ItemData.Category.TOOL or new_data.category == ItemData.Category.WEAPON):
 		for i in inventory.items.size():
 			if inventory.items[i] and inventory.items[i].data.id == new_data.id:
@@ -116,6 +118,7 @@ func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> voi
 		if new_item_slot >= 0:
 			inventory.items[new_item_slot] = null
 
+	# 2. Desequipar anterior del hotbar
 	if old_data and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON):
 		var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
 		if eq_slot and eq_slot.has_item():
@@ -124,12 +127,18 @@ func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> voi
 				var target = new_item_slot if new_item_slot >= 0 else inventory.find_empty_slot()
 				if target >= 0:
 					inventory.items[target] = InventoryItem.new(unequipped.data, 1)
+					new_item_slot = -1  # Ya usamos ese hueco
 
-	if new_data and new_item_slot >= 0:
+	# 3. Equipar nuevo — capturar lo que hubiera equipado (no venía del hotbar)
+	if new_data and (new_data.category == ItemData.Category.TOOL or new_data.category == ItemData.Category.WEAPON):
 		var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
 		if eq_slot:
 			var inv_item := InventoryItem.new(new_data, 1)
-			character_window.equip_item(eq_slot, inv_item)
+			var returned = character_window.equip_item(eq_slot, inv_item)
+			if returned:
+				var target = new_item_slot if new_item_slot >= 0 else inventory.find_empty_slot()
+				if target >= 0:
+					inventory.items[target] = InventoryItem.new(returned.data, 1)
 
 	inventory.inventory_changed.emit()
 	
@@ -568,6 +577,8 @@ func _physics_process(delta: float):
 		camera_controller.camera_pivot.global_position = global_position
 		update_free_flight(delta)
 	else:
+		if Input.is_action_pressed("left_ctrl"):
+			return
 		collision_model.disabled = false
 		if Input.is_action_just_released("camera_zoom_in"):
 			camera_controller.camera_distance -= 1

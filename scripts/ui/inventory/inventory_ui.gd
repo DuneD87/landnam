@@ -34,6 +34,9 @@ func _on_hotbar_slot_clicked(slot_index: int) -> void:
 		var data = floating_item.data
 		_return_to_origin()
 		hotbar.assign_to_slot(slot_index, data)
+	else:
+		hotbar.clear_slot(slot_index)
+
 
 func setup(inv: Inventory, char_window: CharacterWindow, hbar: Hotbar) -> void:
 	inventory = inv

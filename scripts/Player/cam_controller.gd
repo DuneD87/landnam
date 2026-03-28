@@ -32,7 +32,7 @@ func _ready():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	camera_pivot.top_level = true
 	target_distance = camera_distance
-
+		
 func reset_camera_rotation():
 	camera_pivot.rotation = Vector3.ZERO
 	pitch_pivot.rotation = Vector3.ZERO
@@ -45,6 +45,8 @@ func _input(event: InputEvent):
 		delta_yaw += -event.relative.x * mouse_sensitivity
 		delta_pitch += -event.relative.y * mouse_sensitivity * (-1 if invert_y else 1)
 	elif event is InputEventMouseButton and event.pressed:
+		if Input.is_action_pressed("left_ctrl"):
+			return
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			target_distance = max(target_distance - zoom_speed, min_distance)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
