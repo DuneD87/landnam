@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="ItemData" load_steps=3 format=3 uid="uid://bvmo8363acdg4"]
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://bvmo8363acdg4"]
 
 [ext_resource type="Texture2D" uid="uid://byc7re14n04sf" path="res://textures/icons/items/armor/icon_leather_armmor.png" id="1_0mjvm"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="2_81rip"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_81rip"]
 
 [resource]
 script = ExtResource("2_81rip")

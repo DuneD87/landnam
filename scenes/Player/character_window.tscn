@@ -1,6 +1,6 @@
-[gd_scene load_steps=10 format=3 uid="uid://yb01jsd0vyx8"]
+[gd_scene format=3 uid="uid://yb01jsd0vyx8"]
 
-[ext_resource type="Script" uid="uid://6jl2j7615hqs" path="res://scripts/Player/character_window.gd" id="1_gcacj"]
+[ext_resource type="Script" uid="uid://6jl2j7615hqs" path="res://scripts/ui/character_window.gd" id="1_gcacj"]
 [ext_resource type="Texture2D" uid="uid://ci1eos5p4oj1j" path="res://textures/icons/inventory/face.png" id="2_6g8j7"]
 [ext_resource type="Texture2D" uid="uid://dhkqyujka6aus" path="res://textures/icons/inventory/chest.png" id="3_da32d"]
 [ext_resource type="Texture2D" uid="uid://cpstrfisrpknj" path="res://textures/icons/inventory/hands_left.png" id="4_tq2ji"]

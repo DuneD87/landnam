@@ -1,7 +1,7 @@
-[gd_scene load_steps=9 format=4 uid="uid://c6houplc0xdrh"]
+[gd_scene format=4 uid="uid://c6houplc0xdrh"]
 
 [ext_resource type="Texture2D" uid="uid://cgn0qbgwithvh" path="res://models/player/pants_01_Baked_BaseColor.png" id="1_0migj"]
-[ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/Planet/item_physics.gd" id="1_n22js"]
+[ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/items/item_physics.gd" id="1_n22js"]
 [ext_resource type="Texture2D" uid="uid://f3p3dh2jxiu" path="res://models/player/pants_01_Baked_Normal.png" id="2_21eoj"]
 [ext_resource type="Resource" uid="uid://vbqnl8b1f78a" path="res://data/items/Armor/leather_pants.tres" id="2_kn8nd"]
 

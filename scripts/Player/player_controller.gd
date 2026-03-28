@@ -1,6 +1,6 @@
 extends CharacterBody3D
 const config = preload("res://scripts/config.gd")
-const data = preload("res://scripts/Inventory/item_data.gd")
+const data = preload("res://scripts/items/item_data.gd")
 @onready var movement: Movement = $Movement
 @onready var camera_controller: CameraController = $CameraController
 @onready var camera: Camera3D = $CameraPivot/PitchPivot/Camera3D

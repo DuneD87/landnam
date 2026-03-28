@@ -1,9 +1,9 @@
-[gd_scene load_steps=10 format=4 uid="uid://cnawwfit87gpu"]
+[gd_scene format=4 uid="uid://cnawwfit87gpu"]
 
 [ext_resource type="Texture2D" uid="uid://cxykiemn4b1fy" path="res://models/equipable/stonepickaxe/textures/Scene_-_Root_baseColor.png" id="1_pr6qn"]
-[ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/Planet/item_physics.gd" id="1_qfiiu"]
+[ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/items/item_physics.gd" id="1_qfiiu"]
 [ext_resource type="Texture2D" uid="uid://pfq8fme0gewo" path="res://textures/icons/items/tools/stone_pickaxe_01.png" id="2_e0dbf"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="3_djqyn"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="3_djqyn"]
 
 [sub_resource type="Resource" id="Resource_uuwfy"]
 script = ExtResource("3_djqyn")

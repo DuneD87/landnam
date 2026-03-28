@@ -1,6 +1,6 @@
-[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://csxys5banaiv8"]
+[gd_resource type="ShaderMaterial" format=3 uid="uid://csxys5banaiv8"]
 
-[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="1_ro0k7"]
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/liquid/water_shader.gdshader" id="1_ro0k7"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_th24p"]
 noise_type = 3

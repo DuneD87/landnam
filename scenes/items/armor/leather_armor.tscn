@@ -1,8 +1,8 @@
-[gd_scene load_steps=7 format=4 uid="uid://ce0nlgvyxo5oa"]
+[gd_scene format=4 uid="uid://ce0nlgvyxo5oa"]
 
 [ext_resource type="Texture2D" uid="uid://bgwwvi0fcbvja" path="res://models/player/armor_01_Baked_BaseColor.png" id="1_7deur"]
 [ext_resource type="Texture2D" uid="uid://n2footftwpr6" path="res://models/player/armor_01_Baked_Normal.png" id="2_sjvmw"]
-[ext_resource type="Script" uid="uid://grew2ts0oeld" path="res://scripts/Items/mesh_item.gd" id="3_sjvmw"]
+[ext_resource type="Script" uid="uid://grew2ts0oeld" path="res://scripts/items/mesh_item.gd" id="3_sjvmw"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ccans"]
 resource_name = "Material.002"

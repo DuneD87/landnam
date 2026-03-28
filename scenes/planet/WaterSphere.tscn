@@ -1,9 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://b6pco1ld8rlnu"]
+[gd_scene format=3 uid="uid://b6pco1ld8rlnu"]
 
-[ext_resource type="Script" uid="uid://dnos3mfygnpka" path="res://scripts/Water/ocean_system.gd" id="1_adc1r"]
+[ext_resource type="Script" uid="uid://dnos3mfygnpka" path="res://scripts/water/ocean_system.gd" id="1_adc1r"]
 [ext_resource type="Material" uid="uid://cyoolrj4g2q5i" path="res://data/resources/WaterSphere_material.tres" id="2_vihnt"]
 [ext_resource type="Material" uid="uid://chf12rnnj7pyk" path="res://data/resources/WaterSphere_wireframe_material.tres" id="3_pcij0"]
-[ext_resource type="Script" uid="uid://cfcia7uhxidw0" path="res://scripts/Water/underwater.gd" id="4_68i28"]
+[ext_resource type="Script" uid="uid://cfcia7uhxidw0" path="res://scripts/water/underwater.gd" id="4_68i28"]
 
 [node name="WaterSphere" type="Node3D"]
 script = ExtResource("1_adc1r")

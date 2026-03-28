@@ -1,8 +1,8 @@
-[gd_scene load_steps=8 format=4 uid="uid://dc0mjhpiok4u"]
+[gd_scene format=4 uid="uid://dc0mjhpiok4u"]
 
 [ext_resource type="Texture2D" uid="uid://vknfptnho8or" path="res://models/equipable/firstage_skin_set/firstage_skin_hood_Image_0.jpg" id="1_g0byp"]
 [ext_resource type="Texture2D" uid="uid://ceslf5cgrbh0g" path="res://models/equipable/firstage_skin_set/firstage_skin_hood_Image_2.jpg" id="2_gi0jf"]
-[ext_resource type="Script" uid="uid://grew2ts0oeld" path="res://scripts/Items/mesh_item.gd" id="3_qmq2e"]
+[ext_resource type="Script" uid="uid://grew2ts0oeld" path="res://scripts/items/mesh_item.gd" id="3_qmq2e"]
 [ext_resource type="Resource" uid="uid://cwd1px5sqjtb3" path="res://data/items/Armor/FirstAge_Skin_Set/firstage_skin_hood.tres" id="4_s5bnj"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dbhiu"]

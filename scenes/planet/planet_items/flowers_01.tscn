@@ -1,7 +1,7 @@
-[gd_scene load_steps=6 format=4 uid="uid://bmw6f4lsf8mkm"]
+[gd_scene format=4 uid="uid://bmw6f4lsf8mkm"]
 
 [ext_resource type="Texture2D" uid="uid://kgykj6t30831" path="res://models/forest/textures/shapespark-low-poly-plants-kit_flowers-01.png" id="1_apy45"]
-[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/item.gd" id="1_sc18f"]
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_sc18f"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lkr5w"]
 resource_name = "flowers-01.001"

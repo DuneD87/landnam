@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://8hm5q6k01tb8"]
 
-[ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/Planet/sun_controller.gd" id="1_x6u8n"]
+[ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/planet/sun_controller.gd" id="1_x6u8n"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet/planet_loader.tscn" id="2_li0gi"]
 [ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_cpkft"]
-[ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scenes/planet/ambient_control.gd" id="4_7qkn8"]
+[ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scripts/planet/ambient_control.gd" id="4_7qkn8"]
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/player/third_person_player.tscn" id="5_05w5h"]
 [ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/menu/main_menu.tscn" id="6_x6u8n"]
 
@@ -68,7 +68,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@29297")
+water_sphere = NodePath("@Node3D@19654")
 planet = NodePath("")
 entity_id = "planet_earth"
 

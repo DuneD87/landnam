@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="ItemData" load_steps=3 format=3 uid="uid://cwd1px5sqjtb3"]
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://cwd1px5sqjtb3"]
 
 [ext_resource type="Texture2D" uid="uid://dch2yfsafq6uh" path="res://textures/icons/items/armor/firstage_skin_armor_set/firstage_skin_hood.png" id="1_2wxus"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/Inventory/item_data.gd" id="2_nam8f"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_nam8f"]
 
 [resource]
 script = ExtResource("2_nam8f")

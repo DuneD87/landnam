@@ -1,6 +1,6 @@
-[gd_scene load_steps=8 format=4 uid="uid://bmcjlwceq8ylo"]
+[gd_scene format=4 uid="uid://bmcjlwceq8ylo"]
 
-[ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/Planet/item_physics.gd" id="1_csfl7"]
+[ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/items/item_physics.gd" id="1_csfl7"]
 [ext_resource type="Texture2D" uid="uid://cxykiemn4b1fy" path="res://models/equipable/stonepickaxe/textures/Scene_-_Root_baseColor.png" id="1_twora"]
 [ext_resource type="Resource" uid="uid://daffgigw4noop" path="res://data/items/Tools/stone_axe.tres" id="2_seq8a"]
 

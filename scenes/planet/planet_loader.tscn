@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cuv6mxdmxyw00"]
 
-[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
+[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/planet/planet_loader.gd" id="1_8l55o"]
 [ext_resource type="PackedScene" uid="uid://c36velgas3n3k" path="res://addons/zylann.atmosphere/planet_atmosphere.tscn" id="8_4hxn6"]
 [ext_resource type="Shader" uid="uid://cjvu0r1fglbyl" path="res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader" id="9_n2er8"]
 [ext_resource type="Script" uid="uid://dv1orhbbx7v5" path="res://addons/zylann.atmosphere/noise_cubemap.gd" id="10_ksckc"]

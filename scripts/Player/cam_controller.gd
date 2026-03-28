@@ -9,12 +9,12 @@ class_name CameraController
 @export var camera_distance: float = 8.0
 @export var min_distance: float = 0.5
 @export var max_distance: float = 15.0
-@export var zoom_speed: float = 1.0
+@export var zoom_speed: float = 0.4
 @export var target_height_offset: float = 1.5
 @export var collision_mask: int = 1
 @export var collision_padding: float = 0.5
 
-@export var fp_threshold: float = 1.0
+@export var fp_threshold: float = 0.5
 @export var fp_eye_height: float = 1.7
 @onready var camera_pivot: Node3D = $"../CameraPivot"
 @onready var pitch_pivot: Node3D = $"../CameraPivot/PitchPivot"

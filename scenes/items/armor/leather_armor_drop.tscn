@@ -1,6 +1,6 @@
-[gd_scene load_steps=9 format=4 uid="uid://dl2vhxv7m4aoe"]
+[gd_scene format=4 uid="uid://dl2vhxv7m4aoe"]
 
-[ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/Planet/item_physics.gd" id="1_t2bi7"]
+[ext_resource type="Script" uid="uid://e4gwcl85ixfk" path="res://scripts/items/item_physics.gd" id="1_t2bi7"]
 [ext_resource type="Texture2D" uid="uid://bgwwvi0fcbvja" path="res://models/player/armor_01_Baked_BaseColor.png" id="1_uftn2"]
 [ext_resource type="Resource" uid="uid://bvmo8363acdg4" path="res://data/items/Armor/leather_chest.tres" id="2_ejs65"]
 [ext_resource type="Texture2D" uid="uid://n2footftwpr6" path="res://models/player/armor_01_Baked_Normal.png" id="2_l2m7s"]

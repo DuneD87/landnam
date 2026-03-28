@@ -1,8 +1,8 @@
-[gd_scene load_steps=8 format=4 uid="uid://b2axhi17uiip0"]
+[gd_scene format=4 uid="uid://b2axhi17uiip0"]
 
 [ext_resource type="Texture2D" uid="uid://emv8exqsna6r" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-02.png" id="1_43a8k"]
 [ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="1_s0ge1"]
-[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/Planet/item.gd" id="1_y7r0u"]
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_y7r0u"]
 [ext_resource type="Texture2D" uid="uid://y8gtx62pgrtm" path="res://models/forest/textures/shapespark-low-poly-plants-kit_grass-01.png" id="2_akxvo"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_e2k8k"]
