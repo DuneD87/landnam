@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode unshaded;
+render_mode unshaded, depth_draw_always;
 uniform float u_sphere_radius = 5.0;
 uniform vec3 sun_direction = vec3(1.0, 0.0, 0.0);
 uniform vec4 fog_color : source_color = vec4(0.7, 0.8, 0.9, 1.0);
