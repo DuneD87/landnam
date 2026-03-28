@@ -223,7 +223,9 @@ func get_save_data() -> Dictionary:
 			"free_flight": free_flight_enabled,
 			"input_enabled": input_enabled,
 			"current_water_time": current_water_time,
-		}
+		},
+		 "hotbar": hotbar.get_save_data(),
+  		"hotbar_selected": hotbar.selected_index,
 	}
 
 func _is_ground_ready() -> bool:
@@ -286,6 +288,10 @@ func restore_save_data(save: Dictionary) -> void:
 			eq_slot.set_item(inv_item)
 			# Instanciar visual
 			equip_item(true, item_data.armor_slot, load(item_data.scene_path), item_data, item_data.category)
+	if save.has("hotbar"):
+		hotbar.restore_save_data(save.hotbar, config)
+	if save.has("hotbar_selected") and save.hotbar_selected >= 0:
+		hotbar.select_slot(save.hotbar_selected)
 	_activate_player()
 
 func post_restore() -> void:
