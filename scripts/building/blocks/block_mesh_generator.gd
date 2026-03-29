@@ -154,13 +154,12 @@ static func generate_corner(size: float = 1.0) -> ArrayMesh:
 	# Left face (-X) - triángulo: v3, v0, v4
 	_add_triangle(st, v3, v0, v4, Vector3.LEFT)
 	
-	# Slope face (diagonal): v4, v1, v2, v3 (triángulo grande)
-	# Normal apunta hacia arriba-derecha-atrás
-	var slope_normal := (v1 - v4).cross(v3 - v4).normalized()
+	# Slope face: dos triángulos, MISMA normal promediada del plano general
+	var slope_normal := (v2 - v4).cross(v1 - v4).normalized()
 	_add_triangle(st, v4, v1, v2, slope_normal)
 	_add_triangle(st, v4, v2, v3, slope_normal)
-	
 	st.generate_tangents()
+
 	return st.commit()
 
 
