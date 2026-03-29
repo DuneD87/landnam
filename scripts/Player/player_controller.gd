@@ -14,6 +14,7 @@ const data = preload("res://scripts/items/item_data.gd")
 @onready var character_window: CharacterWindow = $CharacterWindow
 @onready var hotbar: Hotbar = $Hotbar
 @onready var building_system: BuildingSystem = $BuildingSystem
+@onready var collision_shape: CollisionShape3D = $CollisionShape3D
 
 @export var main_menu: Control
 @export var spawn_point: Marker3D
@@ -332,6 +333,8 @@ func post_restore() -> void:
 				closest_dist = dist
 				closest = p
 		planet = closest
+		building_system.current_planet = planet
+
 		if planet and planet.planet.has_water:
 			water_sampler.setup(planet.water_sphere.quadtree_material)
 
@@ -513,13 +516,6 @@ func _input(event):
 		if event.keycode == KEY_B:
 			building_system.toggle_build_mode()
 			print("Build mode: ", building_system.build_mode)
-		if event.keycode == KEY_P and building_system.build_mode:
-		# Coloca un bloque donde está el player
-			building_system.place_block(global_position)
-		if event.keycode == KEY_R and building_system.build_mode:
-			building_system.rotate_block()
-		if event.keycode == KEY_TAB and building_system.build_mode:
-			building_system.select_next_block()
 	
 	if free_flight_enabled:
 		visible = false
@@ -559,7 +555,7 @@ func _input(event):
 	#if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not mouse_captured:
 		#capture_mouse(true)
 	
-	if Input.is_action_just_pressed("attack_1") && can_perform_action():
+	if Input.is_action_just_pressed("attack_1") && can_perform_action() && !building_system.build_mode:
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
 		play_attack_once = true

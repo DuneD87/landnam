@@ -164,10 +164,15 @@ func place_block(world_pos: Vector3) -> Node3D:
 		return null
 	
 	var block_transform := get_block_transform(world_pos)
-	var block_node := _create_block_node(block_data, block_transform)
 	
 	# Añadir al planeta actual (así se mueve con él si es necesario)
-	var parent_node: Node = current_planet if current_planet else get_tree().current_scene
+	var parent_node: Node3D = current_planet if current_planet else get_tree().current_scene
+	
+	# IMPORTANTE: el transform está en world space, pero al ser hijo del planeta
+	# necesitamos convertirlo a local space del padre.
+	var local_transform := parent_node.global_transform.affine_inverse() * block_transform
+	var block_node := _create_block_node(block_data, local_transform)
+	
 	parent_node.add_child(block_node)
 	
 	_placed_blocks[grid_pos] = {
@@ -282,7 +287,32 @@ func set_build_mode(active: bool) -> void:
 		if build_mode:
 			_update_grid_from_player()
 		build_mode_changed.emit(build_mode)
-
+func place_block_at_transform(grid_pos: Vector3i, world_transform: Transform3D) -> Node3D:
+	if _placed_blocks.has(grid_pos):
+		return null
+	
+	var distance := _player.global_position.distance_to(world_transform.origin)
+	if distance > max_build_distance:
+		return null
+	
+	var block_data := BlockDatabase.get_block(selected_block_id)
+	if not block_data:
+		return null
+	
+	var parent_node: Node3D = current_planet if current_planet else get_tree().current_scene
+	var local_transform := parent_node.global_transform.affine_inverse() * world_transform
+	var block_node := _create_block_node(block_data, local_transform)
+	parent_node.add_child(block_node)
+	
+	_placed_blocks[grid_pos] = {
+		"block_id": selected_block_id,
+		"rotation": current_rotation_step,
+		"node": block_node,
+		"planet": current_planet,
+	}
+	
+	block_placed.emit(block_data, grid_pos, world_transform)
+	return block_node
 
 # ============================================================
 #  ACCESSORS
