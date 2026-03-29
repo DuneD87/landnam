@@ -61,4 +61,4 @@ func setup_underwater() -> void:
 
 func _process(delta: float) -> void:
 	material.set_shader_parameter("sun_direction", sun_direction)
-	material.set_shader_parameter(&"u_sphere_radius", _water_surface_radius + 0.5)
+	material.set_shader_parameter(&"u_sphere_radius", _water_surface_radius + 0.1)

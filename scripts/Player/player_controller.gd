@@ -13,6 +13,7 @@ const data = preload("res://scripts/items/item_data.gd")
 @onready var inventory_ui: InventoryUI = $InventoryUI
 @onready var character_window: CharacterWindow = $CharacterWindow
 @onready var hotbar: Hotbar = $Hotbar
+@onready var building_system: BuildingSystem = $BuildingSystem
 
 @export var main_menu: Control
 @export var spawn_point: Marker3D
@@ -224,8 +225,8 @@ func get_save_data() -> Dictionary:
 			"input_enabled": input_enabled,
 			"current_water_time": current_water_time,
 		},
-		 "hotbar": hotbar.get_save_data(),
-  		"hotbar_selected": hotbar.selected_index,
+		"hotbar": hotbar.get_save_data(),
+		"hotbar_selected": hotbar.selected_index,
 	}
 
 func _is_ground_ready() -> bool:
@@ -293,7 +294,33 @@ func restore_save_data(save: Dictionary) -> void:
 	if save.has("hotbar_selected") and save.hotbar_selected >= 0:
 		hotbar.select_slot(save.hotbar_selected)
 	_activate_player()
+# Desde cualquier script (ej: tu player, un manager, etc.)
 
+func place_block_at_player() -> void:
+	var block_data: BlockData = BlockDatabase.get_block(BlockDatabase.BLOCK_SLOPE_ID)
+
+	# Crear el nodo
+	var block := StaticBody3D.new()
+	block.name = "Block_%s" % block_data.block_name
+
+	# Mesh
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.mesh = block_data.mesh
+	block.add_child(mesh_instance)
+
+	# Collider
+	var collider := CollisionShape3D.new()
+	collider.shape = block_data.collision_shape
+	# BoxShape3D está centrada, nuestra mesh tiene origen en la base
+	if block_data.collision_shape is BoxShape3D:
+		collider.position.y = block_data.cell_size * 0.5
+	block.add_child(collider)
+
+	# Posicionar donde está el player
+	block.global_position = global_position
+
+	# Añadir al mundo
+	get_tree().current_scene.add_child(block)
 func post_restore() -> void:
 	# Redescubrir planeta más cercano
 	if planets and planets.get_child_count() > 0:
@@ -320,7 +347,15 @@ func post_restore() -> void:
 	# Reset modelo
 	current_swimming_pitch = 0.0
 	player_model.rotation = Vector3.ZERO
-
+	var cube := BlockData.new()
+	cube.block_id = 0
+	cube.block_name = "cube"
+	cube.block_description = "Bloque cúbico estándar 1x1x1"
+	cube.mesh = BlockMeshGenerator.generate_cube()
+	cube.collision_shape = BlockMeshGenerator.generate_cube_collision()
+	cube.can_rotate = false
+	cube.rotation_steps = 1
+	
 
 func _clear_visual_equipment() -> void:
 	# Limpiar arma de la mano
@@ -474,7 +509,18 @@ func _input(event):
 
 	if not input_enabled:
 		return
-
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_B:
+			building_system.toggle_build_mode()
+			print("Build mode: ", building_system.build_mode)
+		if event.keycode == KEY_P and building_system.build_mode:
+		# Coloca un bloque donde está el player
+			building_system.place_block(global_position)
+		if event.keycode == KEY_R and building_system.build_mode:
+			building_system.rotate_block()
+		if event.keycode == KEY_TAB and building_system.build_mode:
+			building_system.select_next_block()
+	
 	if free_flight_enabled:
 		visible = false
 		if event is InputEventMouseMotion and mouse_captured:
@@ -575,6 +621,8 @@ func _physics_process(delta: float):
 			if _planet != null && _planet.planet.has_water && _planet != planet:
 				water_sampler.setup(_planet.water_sphere.quadtree_material)
 			planet = _planet
+			building_system.current_planet = planet
+
 			
 	free_flight_controller.enabled = free_flight_enabled
 

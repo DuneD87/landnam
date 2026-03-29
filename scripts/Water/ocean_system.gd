@@ -130,17 +130,3 @@ func _format_number(num: int) -> String:
 		return "%.1fK" % (num / 1000.0)
 	else:
 		return str(num)
-
-func _input(event):
-	if event is InputEventKey and event.pressed:
-		match event.keycode:
-			KEY_G:
-				# Toggle between GPU and CPU modes
-				use_gpu_compute = !use_gpu_compute
-				mesh_manager.set_compute_mode(
-					QuadTreeMeshManager.ComputeMode.GPU 
-					if use_gpu_compute 
-					else QuadTreeMeshManager.ComputeMode.CPU
-				)
-				print("Switched to %s mode" % ("GPU" if use_gpu_compute else "CPU"))
-			

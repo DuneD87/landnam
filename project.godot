@@ -22,6 +22,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 GameManager="*res://scripts/autoload/game_manager.gd"
+BlockDatabase="*uid://c3g5h784f1gjq"
 
 [display]
 
