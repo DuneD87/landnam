@@ -1,0 +1,229 @@
+class_name ChunkMeshBuilder
+extends RefCounted
+
+## Combina todos los bloques de una PlanetGrid en una sola ArrayMesh.
+##
+## Lee los transforms REALES de los StaticBody3D ya colocados
+## (no recalcula posiciones). Así la mesh combinada coincide
+## exactamente con los colliders y el preview.
+##
+## Face culling: elimina caras entre cubos adyacentes (por grid_pos).
+
+# ============================================================
+#  CONSTANTES
+# ============================================================
+
+enum Face { FRONT, BACK, RIGHT, LEFT, TOP, BOTTOM }
+
+const FACE_DIRS: Array[Vector3i] = [
+	Vector3i( 0,  0,  1),  # FRONT  (+Z)
+	Vector3i( 0,  0, -1),  # BACK   (-Z)
+	Vector3i( 1,  0,  0),  # RIGHT  (+X)
+	Vector3i(-1,  0,  0),  # LEFT   (-X)
+	Vector3i( 0,  1,  0),  # TOP    (+Y)
+	Vector3i( 0, -1,  0),  # BOTTOM (-Y)
+]
+
+## IDs de bloques sólidos (ocupan la celda completa).
+## Ajusta a los IDs reales de tu BlockDatabase.
+const SOLID_BLOCK_IDS: Array[int] = [0]  # 0 = BLOCK_CUBE_ID
+
+
+# ============================================================
+#  API PÚBLICA
+# ============================================================
+
+## Construye la mesh combinada.
+## blocks: Dictionary[Vector3i → { block_id, rotation_step, node }]
+## grid_transform: Transform3D local del planeta (basis_local + origin_local de la grid)
+##   → se usa para convertir los transforms de los bodies a espacio de la grid mesh.
+static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Transform3D) -> ArrayMesh:
+	if blocks.is_empty():
+		return null
+	
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	
+	var grid_inv := grid_transform.affine_inverse()
+	
+	for grid_pos: Vector3i in blocks:
+		var info: Dictionary = blocks[grid_pos]
+		var block_id: int = info["block_id"]
+		var node: Node3D = info["node"]
+		
+		if not node or not is_instance_valid(node):
+			continue
+		
+		# Transform del body en espacio de la grid mesh.
+		# Así los vértices quedan donde realmente está el body.
+		var local_t: Transform3D = grid_inv * node.transform
+		var offset: Vector3 = local_t.origin
+		var rot: Basis = local_t.basis
+		
+		# Emitir geometría
+		if _is_solid(block_id):
+			_emit_cube(st, grid_pos, offset, rot, cell_size, blocks)
+		else:
+			_emit_from_block_type(st, block_id, offset, rot, cell_size)
+	
+	st.generate_tangents()
+	return st.commit()
+
+
+# ============================================================
+#  EMISIÓN: CUBO CON FACE CULLING
+# ============================================================
+
+static func _emit_cube(
+	st: SurfaceTool,
+	grid_pos: Vector3i,
+	offset: Vector3,
+	rot: Basis,
+	size: float,
+	blocks: Dictionary
+) -> void:
+	var h := size
+	var s := size * 0.5
+	
+	var v0 := rot * Vector3(-s, 0, +s) + offset
+	var v1 := rot * Vector3(+s, 0, +s) + offset
+	var v2 := rot * Vector3(+s, 0, -s) + offset
+	var v3 := rot * Vector3(-s, 0, -s) + offset
+	var v4 := rot * Vector3(-s, h, +s) + offset
+	var v5 := rot * Vector3(+s, h, +s) + offset
+	var v6 := rot * Vector3(+s, h, -s) + offset
+	var v7 := rot * Vector3(-s, h, -s) + offset
+	
+	if not _is_face_occluded(blocks, grid_pos, Face.FRONT):
+		_add_quad(st, v0, v1, v5, v4)
+	if not _is_face_occluded(blocks, grid_pos, Face.BACK):
+		_add_quad(st, v2, v3, v7, v6)
+	if not _is_face_occluded(blocks, grid_pos, Face.RIGHT):
+		_add_quad(st, v1, v2, v6, v5)
+	if not _is_face_occluded(blocks, grid_pos, Face.LEFT):
+		_add_quad(st, v3, v0, v4, v7)
+	if not _is_face_occluded(blocks, grid_pos, Face.TOP):
+		_add_quad(st, v4, v5, v6, v7)
+	if not _is_face_occluded(blocks, grid_pos, Face.BOTTOM):
+		_add_quad(st, v3, v2, v1, v0)
+
+
+static func _is_face_occluded(blocks: Dictionary, grid_pos: Vector3i, face: Face) -> bool:
+	var neighbor_pos := grid_pos + FACE_DIRS[face]
+	if not blocks.has(neighbor_pos):
+		return false
+	return _is_solid(blocks[neighbor_pos]["block_id"])
+
+
+static func _is_solid(block_id: int) -> bool:
+	return block_id in SOLID_BLOCK_IDS
+
+
+# ============================================================
+#  EMISIÓN: SLOPE
+# ============================================================
+
+static func _emit_slope(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
+	var h := size
+	var s := size * 0.5
+	
+	var v0 := rot * Vector3(-s, 0, +s) + offset
+	var v1 := rot * Vector3(+s, 0, +s) + offset
+	var v2 := rot * Vector3(+s, 0, -s) + offset
+	var v3 := rot * Vector3(-s, 0, -s) + offset
+	var v4 := rot * Vector3(-s, h, +s) + offset
+	var v5 := rot * Vector3(+s, h, +s) + offset
+	
+	_add_quad(st, v3, v2, v1, v0)   # Bottom
+	_add_quad(st, v0, v1, v5, v4)   # Front (+Z)
+	_add_quad(st, v4, v5, v2, v3)   # Slope diagonal
+	_add_triangle(st, v3, v0, v4)   # Left
+	_add_triangle(st, v1, v2, v5)   # Right
+
+
+# ============================================================
+#  EMISIÓN: CORNER
+# ============================================================
+
+static func _emit_corner(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
+	var h := size
+	var s := size * 0.5
+	
+	var v0 := rot * Vector3(-s, 0, +s) + offset
+	var v1 := rot * Vector3(+s, 0, +s) + offset
+	var v2 := rot * Vector3(+s, 0, -s) + offset
+	var v3 := rot * Vector3(-s, 0, -s) + offset
+	var v4 := rot * Vector3(-s, h, +s) + offset
+	
+	_add_quad(st, v3, v2, v1, v0)   # Bottom
+	_add_triangle(st, v0, v1, v4)   # Front (+Z)
+	_add_triangle(st, v3, v0, v4)   # Left (-X)
+	_add_triangle(st, v4, v1, v2)   # Slope 1
+	_add_triangle(st, v4, v2, v3)   # Slope 2
+
+
+# ============================================================
+#  ROUTER
+# ============================================================
+
+static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector3, rot: Basis, size: float) -> void:
+	match block_id:
+		1:  _emit_slope(st, offset, rot, size)
+		2:  _emit_corner(st, offset, rot, size)
+		_:
+			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
+			_emit_cube_no_cull(st, offset, rot, size)
+
+
+static func _emit_cube_no_cull(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
+	var h := size
+	var s := size * 0.5
+	var v0 := rot * Vector3(-s, 0, +s) + offset
+	var v1 := rot * Vector3(+s, 0, +s) + offset
+	var v2 := rot * Vector3(+s, 0, -s) + offset
+	var v3 := rot * Vector3(-s, 0, -s) + offset
+	var v4 := rot * Vector3(-s, h, +s) + offset
+	var v5 := rot * Vector3(+s, h, +s) + offset
+	var v6 := rot * Vector3(+s, h, -s) + offset
+	var v7 := rot * Vector3(-s, h, -s) + offset
+	_add_quad(st, v0, v1, v5, v4)
+	_add_quad(st, v2, v3, v7, v6)
+	_add_quad(st, v1, v2, v6, v5)
+	_add_quad(st, v3, v0, v4, v7)
+	_add_quad(st, v4, v5, v6, v7)
+	_add_quad(st, v3, v2, v1, v0)
+
+
+# ============================================================
+#  HELPERS — CW winding (Godot 4 / Vulkan), auto normal
+# ============================================================
+#
+#  Vértices a,b,c,d en CCW vistos desde fuera:
+#    a--b
+#    |  |
+#    d--c
+#
+#  Emitidos en CW: (a,c,b) y (a,d,c)
+#  Normal outward = (b-a).cross(d-a)
+
+static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+	var normal := (b - a).cross(d - a).normalized()
+	
+	st.set_normal(normal)
+	st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+	st.set_uv(Vector2(1, 1)); st.add_vertex(c)
+	st.set_uv(Vector2(1, 0)); st.add_vertex(b)
+	
+	st.set_normal(normal)
+	st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+	st.set_uv(Vector2(0, 1)); st.add_vertex(d)
+	st.set_uv(Vector2(1, 1)); st.add_vertex(c)
+
+
+static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
+	var normal := (b - a).cross(c - a).normalized()
+	
+	st.set_normal(normal)
+	st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+	st.set_uv(Vector2(0.5, 1)); st.add_vertex(c)
+	st.set_uv(Vector2(1, 0)); st.add_vertex(b)
