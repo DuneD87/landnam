@@ -59,6 +59,7 @@ static func generate_cube(size: float = 1.0) -> ArrayMesh:
 	# Bottom face (-Y): v3, v2, v1, v0
 	_add_quad(st, v3, v2, v1, v0, Vector3.DOWN)
 	
+	st.generate_normals()
 	st.generate_tangents()
 	return st.commit()
 
@@ -116,7 +117,7 @@ static func generate_slope(size: float = 1.0) -> ArrayMesh:
 	# Right triangle: v1, v2, v5
 	var right_normal := Vector3.RIGHT
 	_add_triangle(st, v1, v2, v5, right_normal)
-	
+	st.generate_normals()
 	st.generate_tangents()
 	return st.commit()
 
@@ -159,6 +160,7 @@ static func generate_corner(size: float = 1.0) -> ArrayMesh:
 	_add_triangle(st, v4, v1, v2, slope_normal)
 	_add_triangle(st, v4, v2, v3, slope_normal)
 	st.generate_tangents()
+	st.generate_normals()
 
 	return st.commit()
 
@@ -214,9 +216,7 @@ static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Ve
 	var uv_b := Vector2(1, 0)
 	var uv_c := Vector2(1, 1)
 	var uv_d := Vector2(0, 1)
-	
-	st.set_normal(normal)
-	
+		
 	st.set_uv(uv_a)
 	st.add_vertex(a)
 	st.set_uv(uv_c)
@@ -237,9 +237,7 @@ static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, n
 	var uv_a := Vector2(0, 0)
 	var uv_b := Vector2(1, 0)
 	var uv_c := Vector2(0.5, 1)
-	
-	st.set_normal(normal)
-	
+		
 	st.set_uv(uv_a)
 	st.add_vertex(a)
 	st.set_uv(uv_c)
