@@ -45,7 +45,7 @@ func _input(event: InputEvent):
 		delta_yaw += -event.relative.x * mouse_sensitivity
 		delta_pitch += -event.relative.y * mouse_sensitivity * (-1 if invert_y else 1)
 	elif event is InputEventMouseButton and event.pressed:
-		if Input.is_action_pressed("left_ctrl"):
+		if Input.is_action_pressed("left_ctrl") || Input.is_action_pressed("left_shift"):
 			return
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			target_distance = max(target_distance - zoom_speed, min_distance)

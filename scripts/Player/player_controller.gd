@@ -627,7 +627,7 @@ func _physics_process(delta: float):
 		camera_controller.camera_pivot.global_position = global_position
 		update_free_flight(delta)
 	else:
-		if Input.is_action_pressed("left_ctrl"):
+		if Input.is_action_pressed("left_ctrl") || Input.is_action_pressed("left_shift"):
 			return
 		collision_model.disabled = false
 		if Input.is_action_just_released("camera_zoom_in"):

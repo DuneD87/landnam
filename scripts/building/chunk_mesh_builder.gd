@@ -27,7 +27,17 @@ const FACE_DIRS: Array[Vector3i] = [
 ## IDs de bloques sólidos (ocupan la celda completa).
 ## Ajusta a los IDs reales de tu BlockDatabase.
 const SOLID_BLOCK_IDS: Array[int] = [0]  # 0 = BLOCK_CUBE_ID
+# ============================================================
+#  ROUTER
+# ============================================================
 
+static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector3, rot: Basis, size: float) -> void:
+	match block_id:
+		1:  _emit_slope(st, offset, rot, size)
+		2:  _emit_corner(st, offset, rot, size)
+		_:
+			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
+			_emit_cube_no_cull(st, offset, rot, size)
 
 # ============================================================
 #  API PÚBLICA
@@ -58,8 +68,11 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 		# Así los vértices quedan donde realmente está el body.
 		var local_t: Transform3D = grid_inv * node.transform
 		var offset: Vector3 = local_t.origin
-		var rot: Basis = local_t.basis
-		
+		var rot: Basis = local_t.basis.orthonormalized()
+		if _is_solid(block_id):
+			var diff := rot * Vector3.UP - Vector3.UP
+			if diff.length() > 0.01:
+				print("WARN: cube at %s has rot != identity, diff=%s" % [grid_pos, diff])
 		# Emitir geometría
 		if _is_solid(block_id):
 			_emit_cube(st, grid_pos, offset, rot, cell_size, blocks)
@@ -108,21 +121,6 @@ static func _emit_cube(
 		_add_quad(st, v3, v2, v1, v0)
 
 
-static func _is_face_occluded(blocks: Dictionary, grid_pos: Vector3i, face: Face) -> bool:
-	var neighbor_pos := grid_pos + FACE_DIRS[face]
-	if not blocks.has(neighbor_pos):
-		return false
-	return _is_solid(blocks[neighbor_pos]["block_id"])
-
-
-static func _is_solid(block_id: int) -> bool:
-	return block_id in SOLID_BLOCK_IDS
-
-
-# ============================================================
-#  EMISIÓN: SLOPE
-# ============================================================
-
 static func _emit_slope(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
 	var h := size
 	var s := size * 0.5
@@ -160,20 +158,6 @@ static func _emit_corner(st: SurfaceTool, offset: Vector3, rot: Basis, size: flo
 	_add_triangle(st, v3, v0, v4)   # Left (-X)
 	_add_triangle(st, v4, v1, v2)   # Slope 1
 	_add_triangle(st, v4, v2, v3)   # Slope 2
-
-
-# ============================================================
-#  ROUTER
-# ============================================================
-
-static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector3, rot: Basis, size: float) -> void:
-	match block_id:
-		1:  _emit_slope(st, offset, rot, size)
-		2:  _emit_corner(st, offset, rot, size)
-		_:
-			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
-			_emit_cube_no_cull(st, offset, rot, size)
-
 
 static func _emit_cube_no_cull(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
 	var h := size
@@ -227,3 +211,16 @@ static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -
 	st.set_uv(Vector2(0, 0)); st.add_vertex(a)
 	st.set_uv(Vector2(0.5, 1)); st.add_vertex(c)
 	st.set_uv(Vector2(1, 0)); st.add_vertex(b)
+	
+static func _is_face_occluded(blocks: Dictionary, grid_pos: Vector3i, face: Face) -> bool:
+	return false
+	var neighbor_pos := grid_pos + FACE_DIRS[face]
+	if not blocks.has(neighbor_pos):
+		return false
+	var neighbor_id: int = blocks[neighbor_pos]["block_id"]
+	var solid := _is_solid(neighbor_id)
+	return solid
+
+
+static func _is_solid(block_id: int) -> bool:
+	return block_id in SOLID_BLOCK_IDS

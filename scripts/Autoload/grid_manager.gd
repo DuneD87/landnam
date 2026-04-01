@@ -80,9 +80,14 @@ func create_grid(planet: Node3D, origin_world: Vector3, basis_world: Basis, cell
 	var grid_id := "grid_%d" % _next_id
 	_next_id += 1
 	
-	grid.setup(grid_id, planet, origin_world, basis_world, cell_size)
+	var reference := find_any_nearest_grid(planet, origin_world)
 	
-	_grids[grid_id] = grid
+	if reference:
+		# Reutilizar origin y basis → alineación garantizada
+		grid.setup_aligned(grid_id, planet, reference.origin_local, reference.basis_local, cell_size)
+	else:
+		# Primera grid en la zona — usar basis del player
+		grid.setup(grid_id, planet, origin_world, basis_world, cell_size)
 	
 	if not _planet_grids.has(planet):
 		_planet_grids[planet] = []
@@ -111,7 +116,45 @@ func remove_grid(grid_id: String) -> bool:
 	print("[GridManager] Grid '%s' eliminada (total: %d)" % [grid_id, _grids.size()])
 	return true
 
+## Comprueba si un bloque de tamaño cell_size en world_pos colisiona
+## con bloques existentes en CUALQUIER grid del planeta.
+func check_overlap(planet: Node3D, grid_pos: Vector3i, cell_size: float, source_grid: PlanetGrid) -> bool:
+	var grids: Array = get_grids_for_planet(planet)
+	
+	# Rango del bloque propuesto en espacio local continuo
+	var min_a := Vector3(grid_pos) * cell_size
+	var max_a := min_a + Vector3.ONE * cell_size
+	
+	for grid in grids:
+		if grid == source_grid:
+			# Misma grid → has_block ya lo cubre
+			continue
+		if not _same_origin_basis(grid, source_grid):
+			# Grids no alineadas (zonas distintas del planeta)
+			continue
+		
+		for other_pos in grid.get_all_blocks():
+			var min_b: Vector3 = Vector3(other_pos) * grid.cell_size
+			var max_b: Vector3 = min_b + Vector3.ONE * grid.cell_size
+			
+			# AABB overlap en espacio local de la grid
+			if _aabb_overlap(min_a, max_a, min_b, max_b):
+				return true
+	
+	return false
 
+static func _aabb_overlap(min_a: Vector3, max_a: Vector3, min_b: Vector3, max_b: Vector3) -> bool:
+	# Usamos un pequeño epsilon para evitar falsos positivos en bordes compartidos
+	var eps := 0.001
+	return (
+		min_a.x < max_b.x - eps and max_a.x > min_b.x + eps and
+		min_a.y < max_b.y - eps and max_a.y > min_b.y + eps and
+		min_a.z < max_b.z - eps and max_a.z > min_b.z + eps
+	)
+
+static func _same_origin_basis(a: PlanetGrid, b: PlanetGrid) -> bool:
+	return a.origin_local.is_equal_approx(b.origin_local) and \
+		   a.basis_local.is_equal_approx(b.basis_local)
 # ============================================================
 #  BÚSQUEDA DE GRIDS
 # ============================================================
@@ -124,22 +167,34 @@ func get_grid(grid_id: String) -> PlanetGrid:
 ## Obtiene todas las grids de un planeta.
 func get_grids_for_planet(planet: Node3D) -> Array:
 	return _planet_grids.get(planet, [])
-
-
-## Busca la grid más cercana a una posición world dentro de un planeta.
-## Retorna null si no hay ninguna dentro de max_dist.
-func find_nearest_grid(planet: Node3D, world_pos: Vector3, max_dist: float = -1.0) -> PlanetGrid:
+	
+func find_any_nearest_grid(planet: Node3D, world_pos: Vector3, max_dist: float = -1.0) -> PlanetGrid:
 	if max_dist < 0:
 		max_dist = snap_distance
 	
 	var grids: Array = get_grids_for_planet(planet)
-	if grids.is_empty():
-		return null
-	
 	var best_grid: PlanetGrid = null
 	var best_dist: float = max_dist
 	
 	for grid in grids:
+		var dist: float = grid.distance_to(world_pos)
+		if dist < best_dist:
+			best_dist = dist
+			best_grid = grid
+	
+	return best_grid
+
+func find_nearest_grid(planet: Node3D, world_pos: Vector3, target_cell_size: float = 1.0, max_dist: float = -1.0) -> PlanetGrid:
+	if max_dist < 0:
+		max_dist = snap_distance
+	
+	var grids: Array = get_grids_for_planet(planet)
+	var best_grid: PlanetGrid = null
+	var best_dist: float = max_dist
+	
+	for grid in grids:
+		if not is_equal_approx(grid.cell_size, target_cell_size):
+			continue
 		var dist: float = grid.distance_to(world_pos)
 		if dist < best_dist:
 			best_dist = dist

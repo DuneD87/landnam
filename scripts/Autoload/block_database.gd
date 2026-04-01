@@ -30,7 +30,7 @@ func _register_default_blocks() -> void:
 	cube.mesh = BlockMeshGenerator.generate_cube()
 	cube.collision_shape = BlockMeshGenerator.generate_cube_collision()
 	cube.can_rotate = false
-	cube.rotation_steps = 1
+	cube.rotation_steps = 4
 	register_block(cube)
 	
 	# --- SLOPE ---

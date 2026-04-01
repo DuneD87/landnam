@@ -65,7 +65,7 @@ func serialize() -> Dictionary:
 		var t := node.transform if (node and is_instance_valid(node)) else Transform3D.IDENTITY
 		blocks_data[key] = {
 			"block_id": info["block_id"],
-			"rotation_step": info["rotation_step"],
+			"rotation_basis": _basis_to_array(info["rotation_basis"]),
 			"transform": _transform_to_array(t),
 		}
 	
@@ -102,12 +102,21 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 		
 		var saved_transform := _array_to_transform(block_info.get("transform", []))
 		var world_transform := planet_node.global_transform * saved_transform
-		place_block(grid_pos, block_data, rotation_step, world_transform)
+		var rotation_basis := _array_to_basis(block_info.get("rotation_basis", [1,0,0, 0,1,0, 0,0,1]))
+
+		place_block(grid_pos, block_data, rotation_basis, world_transform)
 	_suppress_rebuild = false
 	
 	rebuild_mesh()
 
+static func _vec3i_to_array(v: Vector3i) -> Array:
+	return [v.x, v.y, v.z]
 
+static func _array_to_vec3i(a: Array) -> Vector3i:
+	if a.size() < 3:
+		return Vector3i.ZERO
+	return Vector3i(int(a[0]), int(a[1]), int(a[2]))
+	
 static func _vec3_to_array(v: Vector3) -> Array:
 	return [v.x, v.y, v.z]
 
@@ -137,7 +146,14 @@ func setup(id: String, planet: Node3D, origin_world: Vector3, basis_world: Basis
 	var planet_inv := planet.global_transform.affine_inverse()
 	origin_local = planet_inv * origin_world
 	basis_local = planet_inv.basis * basis_world
-
+	
+## Setup reutilizando origin/basis de otra grid (para alineación multi-tamaño).
+func setup_aligned(id: String, planet: Node3D, ref_origin_local: Vector3, ref_basis_local: Basis, size: float) -> void:
+	grid_id = id
+	planet_node = planet
+	cell_size = size
+	origin_local = ref_origin_local
+	basis_local = ref_basis_local
 
 # ============================================================
 #  CONVERSIONES WORLD <-> GRID
@@ -155,9 +171,9 @@ func world_to_grid(world_pos: Vector3) -> Vector3i:
 	var relative := local_pos - origin_local
 	var grid_space := basis_local.inverse() * relative
 	return Vector3i(
-		floori(grid_space.x / cell_size),
-		floori(grid_space.y / cell_size),
-		floori(grid_space.z / cell_size)
+		roundi(grid_space.x / cell_size),
+		roundi(grid_space.y / cell_size),
+		roundi(grid_space.z / cell_size)
 	)
 
 func grid_to_world(grid_pos: Vector3i) -> Vector3:
@@ -176,42 +192,41 @@ func grid_to_world(grid_pos: Vector3i) -> Vector3:
 
 ## Coloca un bloque. Retorna el nodo creado o null.
 ## El body usa el world_transform del ghost (exacto). Sin MeshInstance3D.
-func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_step: int, world_transform: Transform3D) -> Node3D:
+func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, world_transform: Transform3D) -> Node3D:
 	if _blocks.has(grid_pos):
 		return null
 	
-	# Crear nodo de colisión (SIN visual — la visual va en la mesh combinada)
 	var body := StaticBody3D.new()
 	body.name = "Block_%s_%s" % [grid_id, grid_pos]
 	
-	# Convertir world transform a local del planeta
 	var local_transform := planet_node.global_transform.affine_inverse() * world_transform
 	body.transform = local_transform
 	
-	# Collider
+	# Collision shape escalada al cell_size
 	var collider := CollisionShape3D.new()
-	collider.shape = block_data.collision_shape
-	if block_data.collision_shape is BoxShape3D:
-		collider.position.y = cell_size * 0.5
+	var shape: Shape3D = block_data.collision_shape.duplicate()
+	if shape is BoxShape3D:
+		shape.size = shape.size * cell_size
+		collider.shape = shape
+		collider.position = Vector3.ONE * cell_size * 0.5
+	else:
+		collider.shape = shape
+		collider.scale = Vector3.ONE * cell_size
 	body.add_child(collider)
 	
-	# Metadata para identificar el bloque
 	body.set_meta("grid_id", grid_id)
 	body.set_meta("grid_pos", grid_pos)
 	body.set_meta("block_id", block_data.block_id)
-	body.set_meta("rotation_step", rotation_step)
+	body.set_meta("rotation_basis", rotation_basis)
 	
-	# Añadir como hijo del planeta
 	planet_node.add_child(body)
 	
-	# Registrar
 	_blocks[grid_pos] = {
 		"block_id": block_data.block_id,
-		"rotation_step": rotation_step,
+		"rotation_basis": rotation_basis,
 		"node": body,
 	}
 	
-	# Detectar material del primer bloque
 	if mesh_material == null and block_data.material_override:
 		mesh_material = block_data.material_override
 	
