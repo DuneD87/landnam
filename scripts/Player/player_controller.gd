@@ -209,6 +209,9 @@ func _ready():
 	inventory.add_item(config.get_item(&"firstage_skin_hood"), 1)
 	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
+	inventory.add_item(config.get_item(&"wood_01"), 100)
+	inventory.add_item(config.get_item(&"stone_01"), 100)
+
 	inventory_ui.setup(inventory, character_window, hotbar)
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)	
 	character_window.equipment_changed.connect(on_equipment_changed)
@@ -642,6 +645,10 @@ func _handle_build_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 			KEY_P:
 				building_system.try_place_block()
+				get_viewport().set_input_as_handled()
+			KEY_M:
+				building_system.cycle_material()
+				print("Material: ", building_system.get_current_material().display_name)
 				get_viewport().set_input_as_handled()
  
 		if event.is_action_pressed("rotate_block_x"):

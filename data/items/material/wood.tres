@@ -2,6 +2,24 @@
 
 [ext_resource type="Texture2D" uid="uid://cuhmq8niiiy1t" path="res://textures/icons/items/collectable/icon_wood.png" id="1_do4pb"]
 [ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="1_ewo7y"]
+[ext_resource type="Texture2D" uid="uid://d23cq6v4q0nc7" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_albedo.png" id="3_wuxbg"]
+[ext_resource type="Texture2D" uid="uid://c7ng5e8qgjq86" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_ao.png" id="4_ll07s"]
+[ext_resource type="Texture2D" uid="uid://cql65h8yb0xn1" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_height.png" id="5_pwmcf"]
+[ext_resource type="Texture2D" uid="uid://42sci2ypgmf0" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_metallic.png" id="6_8i21y"]
+[ext_resource type="Texture2D" uid="uid://bmf60w3vbqu0e" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_normal-ogl.png" id="7_kdh8h"]
+[ext_resource type="Texture2D" uid="uid://bmg3xla71enib" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_roughness.png" id="8_ecuxc"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ga3h4"]
+albedo_texture = ExtResource("3_wuxbg")
+metallic = 1.0
+metallic_texture = ExtResource("6_8i21y")
+roughness_texture = ExtResource("8_ecuxc")
+normal_enabled = true
+normal_texture = ExtResource("7_kdh8h")
+ao_enabled = true
+ao_texture = ExtResource("4_ll07s")
+heightmap_enabled = true
+heightmap_texture = ExtResource("5_pwmcf")
 
 [resource]
 script = ExtResource("1_ewo7y")
@@ -9,4 +27,5 @@ id = &"wood_01"
 display_name = "Wood"
 description = "Wood to build houses and tools"
 icon = ExtResource("1_do4pb")
+surface_material = SubResource("StandardMaterial3D_ga3h4")
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

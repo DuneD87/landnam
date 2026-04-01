@@ -1,16 +1,22 @@
 class_name BuildingSystem
 extends Node3D
 
+const config_ref = preload("res://scripts/config.gd")
+
 const CELL_SIZES: Array[float] = [0.25, 0.5, 1.0, 2.0]
 
 signal build_mode_changed(active: bool)
 signal selected_block_changed(block_data: BlockData)
 signal rotation_changed()
 signal cell_size_changed(new_size: float)
+signal material_changed(material: BuildMaterial)
 
 @export var current_planet: Node3D = null
 @export var cell_size: float = 1.0
 @export var max_build_distance: float = 8.0
+
+var build_materials: Array[BuildMaterial] = []
+var current_material_index: int = 0
 
 var current_rotation_basis: Basis = Basis.IDENTITY
 var build_mode: bool = false
@@ -31,7 +37,26 @@ var _can_afford: bool = false
 var _is_aiming_at_block: bool = false
 var _has_target: bool = false
 
+func _register_default_materials() -> void:
+	var stone := BuildMaterial.new()
+	stone.material_id = "stone"
+	stone.display_name = "Stone"
+	stone.item = config_ref.get_item(&"stone_01")
+	stone.base_cost = 1
+	stone.surface_material = stone.item.surface_material
+	# ↑ assign your actual material resource here
+	build_materials.append(stone)
 
+	var wood := BuildMaterial.new()
+	wood.material_id = "wood"
+	wood.display_name = "Wood"
+	wood.item = config_ref.get_item(&"wood_01")
+	wood.base_cost = 1
+	wood.surface_material = wood.item.surface_material
+	build_materials.append(wood)
+
+	print("[BuildingSystem] Registered %d materials." % build_materials.size())
+	
 func _ready() -> void:
 	selected_block_id = BlockDatabase.BLOCK_CUBE_ID
 	_player = get_parent() as Node3D
@@ -47,7 +72,18 @@ func _ready() -> void:
 	_inventory = _find_sibling(Inventory) as Inventory
 	if not _inventory:
 		push_warning("[BuildingSystem] No Inventory sibling found.")
+	_register_default_materials()
 
+func get_current_material() -> BuildMaterial:
+	if build_materials.is_empty():
+		return null
+	return build_materials[current_material_index]
+
+func cycle_material() -> void:
+	if build_materials.size() <= 1:
+		return
+	current_material_index = (current_material_index + 1) % build_materials.size()
+	material_changed.emit(get_current_material())
 
 # ==========================================================================
 #  Block selection
@@ -162,70 +198,47 @@ func get_player_basis() -> Basis:
 #  Cost / Inventory
 # ==========================================================================
 
-## Returns true if the inventory has all required materials for the block.
 func can_afford_block(block_data: BlockData = null) -> bool:
 	if not _inventory:
-		return true  # No inventory linked — creative / free build
-
-	if not block_data:
-		block_data = get_selected_block()
-	if not block_data:
-		return false
-
-	if block_data.is_free():
 		return true
 
-	for cost: BlockCost in block_data.build_cost:
-		if not cost.item:
-			continue
-		if _inventory.get_item_count(cost.item) < cost.quantity:
-			return false
+	var mat := get_current_material()
+	if not mat or not mat.item:
+		return true  # no material system → free build
 
-	return true
+	var cost := mat.get_cost_for_size(cell_size)
+	return _inventory.get_item_count(mat.item) >= cost
 
 
-## Consume materials from inventory. Returns true on success.
 func _consume_block_cost(block_data: BlockData) -> bool:
 	if not _inventory:
 		return true
-	if block_data.is_free():
+
+	var mat := get_current_material()
+	if not mat or not mat.item:
 		return true
 
-	# Double-check before consuming
-	if not can_afford_block(block_data):
+	var cost := mat.get_cost_for_size(cell_size)
+	if _inventory.get_item_count(mat.item) < cost:
 		return false
 
-	for cost: BlockCost in block_data.build_cost:
-		if not cost.item:
-			continue
-		_inventory.remove_item(cost.item, cost.quantity)
-
+	_inventory.remove_item(mat.item, cost)
 	return true
 
 
-## Returns a list of missing materials as [{item, have, need}].
-## Useful for UI tooltips.
 func get_missing_materials(block_data: BlockData = null) -> Array[Dictionary]:
 	var missing: Array[Dictionary] = []
 	if not _inventory:
 		return missing
 
-	if not block_data:
-		block_data = get_selected_block()
-	if not block_data or block_data.is_free():
+	var mat := get_current_material()
+	if not mat or not mat.item:
 		return missing
 
-	for cost: BlockCost in block_data.build_cost:
-		if not cost.item:
-			continue
-		var have := _inventory.get_item_count(cost.item)
-		if have < cost.quantity:
-			missing.append({
-				"item": cost.item,
-				"have": have,
-				"need": cost.quantity,
-			})
-
+	var cost := mat.get_cost_for_size(cell_size)
+	var have := _inventory.get_item_count(mat.item)
+	if have < cost:
+		missing.append({ "item": mat.item, "have": have, "need": cost })
 	return missing
 
 
@@ -414,6 +427,11 @@ func try_place_block() -> bool:
 			cell_size
 		)
 		_target_grid_pos = grid.world_to_grid(_target_world_pos)
+
+
+	var mat := get_current_material()
+	if mat and mat.surface_material:
+		grid.mesh_material = mat.surface_material
 
 	var rot_basis := get_rotation_basis()
 	var place_transform := Transform3D(_target_basis * rot_basis, _target_world_pos)

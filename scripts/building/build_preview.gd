@@ -21,6 +21,7 @@ func setup(building_system: BuildingSystem) -> void:
 	_building_system.build_mode_changed.connect(_on_build_mode_changed)
 	_building_system.rotation_changed.connect(_on_ghost_mesh_dirty)
 	_building_system.cell_size_changed.connect(_on_cell_size_changed)
+	_building_system.material_changed.connect(_on_material_changed)
 
 	_ghost_node.visible = false
 
@@ -55,7 +56,9 @@ func hide_preview() -> void:
 # ==========================================================================
 #  Signal callbacks
 # ==========================================================================
-
+func _on_material_changed(_material: BuildMaterial) -> void:
+	_refresh_ghost_mesh()
+	
 func _on_cell_size_changed(_new_size: float) -> void:
 	_refresh_ghost_mesh()
 
@@ -104,3 +107,9 @@ func _refresh_ghost_mesh() -> void:
 		_ghost_mesh_instance.mesh = block_data.mesh
 		var s := _building_system.cell_size
 		_ghost_mesh_instance.scale = Vector3(s, s, s)
+
+	var mat := _building_system.get_current_material()
+	if mat and mat.preview_color != Color.WHITE:
+		_ghost_material.albedo_color.r = mat.preview_color.r
+		_ghost_material.albedo_color.g = mat.preview_color.g
+		_ghost_material.albedo_color.b = mat.preview_color.b

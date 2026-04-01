@@ -71,6 +71,7 @@ func serialize() -> Dictionary:
 		"basis_local": _basis_to_array(basis_local),
 		"cell_size": cell_size,
 		"blocks": blocks_data,
+		"material": mesh_material.resource_path
 	}
 
 
@@ -80,7 +81,7 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 	cell_size = data.get("cell_size", 1.0)
 	origin_local = _array_to_vec3(data.get("origin_local", [0, 0, 0]))
 	basis_local = _array_to_basis(data.get("basis_local", [1,0,0, 0,1,0, 0,0,1]))
-	
+	mesh_material = load(data.get("material"))
 	_suppress_rebuild = true
 	var blocks_data: Dictionary = data.get("blocks", {})
 	for key in blocks_data:
@@ -99,7 +100,6 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 		var saved_transform := _array_to_transform(block_info.get("transform", []))
 		var world_transform := planet_node.global_transform * saved_transform
 		var rotation_basis := _array_to_basis(block_info.get("rotation_basis", [1,0,0, 0,1,0, 0,0,1]))
-
 		place_block(grid_pos, block_data, rotation_basis, world_transform)
 	_suppress_rebuild = false
 	

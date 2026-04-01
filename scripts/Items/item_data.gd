@@ -15,6 +15,7 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export var category: Category
 @export var scene_path: String
 @export var attack_animation: config.ANIMATION = config.ANIMATION.ATTACK_1
+@export var surface_material: Material
 
 @export_group("Stacking")
 @export var stackable: bool = true
@@ -64,6 +65,7 @@ func copy_from(source: ItemData) -> void:
 	resistance = source.resistance
 	has_durability = source.has_durability
 	max_durability = source.max_durability
+	surface_material = source.surface_material
 	
 # Valida si este item puede equiparse en un slot específico
 func can_equip_in_slot(slot_type: String) -> bool:
