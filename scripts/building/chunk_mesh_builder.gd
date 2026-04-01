@@ -69,16 +69,15 @@ static func _emit_cube(
 	blocks: Dictionary
 ) -> void:
 	var h := size
-	var s := size * 0.5
 	
-	var v0 := rot * Vector3(-s, 0, +s) + offset
-	var v1 := rot * Vector3(+s, 0, +s) + offset
-	var v2 := rot * Vector3(+s, 0, -s) + offset
-	var v3 := rot * Vector3(-s, 0, -s) + offset
-	var v4 := rot * Vector3(-s, h, +s) + offset
-	var v5 := rot * Vector3(+s, h, +s) + offset
-	var v6 := rot * Vector3(+s, h, -s) + offset
-	var v7 := rot * Vector3(-s, h, -s) + offset
+	var v0 := rot * Vector3(0, 0, h) + offset
+	var v1 := rot * Vector3(h, 0, h) + offset
+	var v2 := rot * Vector3(h, 0, 0) + offset
+	var v3 := rot * Vector3(0, 0, 0) + offset
+	var v4 := rot * Vector3(0, h, h) + offset
+	var v5 := rot * Vector3(h, h, h) + offset
+	var v6 := rot * Vector3(h, h, 0) + offset
+	var v7 := rot * Vector3(0, h, 0) + offset
 	
 	if not _is_face_occluded(blocks, grid_pos, Face.FRONT):
 		_add_quad(st, v0, v1, v5, v4)
@@ -93,50 +92,52 @@ static func _emit_cube(
 	if not _is_face_occluded(blocks, grid_pos, Face.BOTTOM):
 		_add_quad(st, v3, v2, v1, v0)
 
+
 static func _emit_slope(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
 	var h := size
-	var s := size * 0.5
+	var c := Vector3(h * 0.5, h * 0.5, h * 0.5)
 	
-	var v0 := rot * Vector3(-s, 0, +s) + offset
-	var v1 := rot * Vector3(+s, 0, +s) + offset
-	var v2 := rot * Vector3(+s, 0, -s) + offset
-	var v3 := rot * Vector3(-s, 0, -s) + offset
-	var v4 := rot * Vector3(-s, h, +s) + offset
-	var v5 := rot * Vector3(+s, h, +s) + offset
+	var v0 := rot * (Vector3(0, 0, h) - c) + c + offset
+	var v1 := rot * (Vector3(h, 0, h) - c) + c + offset
+	var v2 := rot * (Vector3(h, 0, 0) - c) + c + offset
+	var v3 := rot * (Vector3(0, 0, 0) - c) + c + offset
+	var v4 := rot * (Vector3(0, h, h) - c) + c + offset
+	var v5 := rot * (Vector3(h, h, h) - c) + c + offset
 	
-	_add_quad(st, v3, v2, v1, v0)   # Bottom
-	_add_quad(st, v0, v1, v5, v4)   # Front (+Z)
-	_add_quad(st, v4, v5, v2, v3)   # Slope diagonal
-	_add_triangle(st, v3, v0, v4)   # Left
-	_add_triangle(st, v1, v2, v5)   # Right
+	_add_quad(st, v3, v2, v1, v0)
+	_add_quad(st, v0, v1, v5, v4)
+	_add_quad(st, v4, v5, v2, v3)
+	_add_triangle(st, v3, v0, v4)
+	_add_triangle(st, v1, v2, v5)
+
 
 static func _emit_corner(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
 	var h := size
-	var s := size * 0.5
+	var c := Vector3(h * 0.5, h * 0.5, h * 0.5)
 	
-	var v0 := rot * Vector3(-s, 0, +s) + offset
-	var v1 := rot * Vector3(+s, 0, +s) + offset
-	var v2 := rot * Vector3(+s, 0, -s) + offset
-	var v3 := rot * Vector3(-s, 0, -s) + offset
-	var v4 := rot * Vector3(-s, h, +s) + offset
+	var v0 := rot * (Vector3(0, 0, h) - c) + c + offset
+	var v1 := rot * (Vector3(h, 0, h) - c) + c + offset
+	var v2 := rot * (Vector3(h, 0, 0) - c) + c + offset
+	var v3 := rot * (Vector3(0, 0, 0) - c) + c + offset
+	var v4 := rot * (Vector3(0, h, h) - c) + c + offset
 	
-	_add_quad(st, v3, v2, v1, v0)   # Bottom
-	_add_triangle(st, v0, v1, v4)   # Front (+Z)
-	_add_triangle(st, v3, v0, v4)   # Left (-X)
-	_add_triangle(st, v4, v1, v2)   # Slope 1
-	_add_triangle(st, v4, v2, v3)   # Slope 2
+	_add_quad(st, v3, v2, v1, v0)
+	_add_triangle(st, v0, v1, v4)
+	_add_triangle(st, v3, v0, v4)
+	_add_triangle(st, v4, v1, v2)
+	_add_triangle(st, v4, v2, v3)
+
 
 static func _emit_cube_no_cull(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
 	var h := size
-	var s := size * 0.5
-	var v0 := rot * Vector3(-s, 0, +s) + offset
-	var v1 := rot * Vector3(+s, 0, +s) + offset
-	var v2 := rot * Vector3(+s, 0, -s) + offset
-	var v3 := rot * Vector3(-s, 0, -s) + offset
-	var v4 := rot * Vector3(-s, h, +s) + offset
-	var v5 := rot * Vector3(+s, h, +s) + offset
-	var v6 := rot * Vector3(+s, h, -s) + offset
-	var v7 := rot * Vector3(-s, h, -s) + offset
+	var v0 := rot * Vector3(0, 0, h) + offset
+	var v1 := rot * Vector3(h, 0, h) + offset
+	var v2 := rot * Vector3(h, 0, 0) + offset
+	var v3 := rot * Vector3(0, 0, 0) + offset
+	var v4 := rot * Vector3(0, h, h) + offset
+	var v5 := rot * Vector3(h, h, h) + offset
+	var v6 := rot * Vector3(h, h, 0) + offset
+	var v7 := rot * Vector3(0, h, 0) + offset
 	_add_quad(st, v0, v1, v5, v4)
 	_add_quad(st, v2, v3, v7, v6)
 	_add_quad(st, v1, v2, v6, v5)

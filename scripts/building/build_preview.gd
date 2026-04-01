@@ -251,12 +251,13 @@ func _update_ghost() -> void:
 	
 	var rot_basis := _building_system.get_rotation_basis()
 	var s := _building_system.cell_size
-	var center := Vector3(0, 0.5, 0) * s
-	_ghost_mesh_instance.transform = Transform3D(
-		rot_basis,
-		center - rot_basis * center
-	)
+	var cell_center := Vector3(0.5, 0.5, 0.5) * s
+	# Offset para que mesh centrada en XZ se alinee con esquina (0,0,0)
+	var mesh_offset := Vector3(0.5, 0, 0.5) * s
+	# Rotar el offset alrededor del centro de la celda
+	var rotated_offset := rot_basis * (mesh_offset - cell_center) + cell_center
 	
+	_ghost_mesh_instance.transform = Transform3D(rot_basis, rotated_offset)
 	_ghost_mesh_instance.scale = Vector3(s, s, s)
 	_ghost_material.albedo_color = ghost_color_valid if _can_place else ghost_color_invalid
 	
@@ -291,10 +292,9 @@ func _try_place_block() -> void:
 		)
 		_target_grid_pos = grid.world_to_grid(_target_world_pos)
 	
-	# Transform SIN escala — solo rotación + posición
 	var rot_basis := _building_system.get_rotation_basis()
 	var place_transform := Transform3D(_target_basis * rot_basis, _target_world_pos)
-	
+
 	var block := grid.place_block(
 		_target_grid_pos,
 		block_data,
