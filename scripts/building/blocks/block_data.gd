@@ -2,7 +2,6 @@ class_name BlockData
 extends Resource
 
 ## Recurso que define un tipo de bloque de construcción.
-## Cada bloque tiene su mesh, collider, icono y propiedades de rotación.
 
 @export var block_id: int = -1
 @export var block_name: String = ""
@@ -17,7 +16,6 @@ extends Resource
 
 ## Rotación
 @export var can_rotate: bool = false
-## Número de pasos de rotación (4 = cada 90°, 1 = sin rotación)
 @export var rotation_steps: int = 1
 
 ## Material
@@ -26,12 +24,18 @@ extends Resource
 ## Tamaño de celda en la grid (por defecto 1m³)
 @export var cell_size: float = 1.0
 
+## Coste de construcción — lista de materiales necesarios
+@export var build_cost: Array[BlockCost] = []
+
 
 func get_rotation_angle_deg() -> float:
 	if rotation_steps <= 1:
 		return 0.0
 	return 360.0 / rotation_steps
 
-
 func get_rotation_angle_rad() -> float:
 	return deg_to_rad(get_rotation_angle_deg())
+
+## Devuelve true si build_cost está vacío (bloque gratuito / creative)
+func is_free() -> bool:
+	return build_cost.is_empty()

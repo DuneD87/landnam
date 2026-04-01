@@ -198,7 +198,6 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 	var local_transform := planet_node.global_transform.affine_inverse() * world_transform
 	body.transform = local_transform
 	
-	# Collision shape escalada al cell_size
 	var collider := CollisionShape3D.new()
 	var shape: Shape3D = block_data.collision_shape.duplicate()
 	if shape is BoxShape3D:

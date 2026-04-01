@@ -65,35 +65,39 @@ func _perform_raycast() -> void:
 	_ray_hit = {}
 	if not camera or not camera.current:
 		return
-	
+ 
 	var viewport := get_viewport()
 	var screen_center := viewport.get_visible_rect().size * 0.5
 	var space_state := get_world_3d().direct_space_state
-	
+ 
 	var player_rid: RID = get_rid()
-	
+ 
 	var cam_origin := camera.project_ray_origin(screen_center)
 	var cam_dir := camera.project_ray_normal(screen_center)
 	var cam_end := cam_origin + cam_dir * (ray_distance + camera.global_position.distance_to(global_position))
-	
+ 
 	var cam_query := PhysicsRayQueryParameters3D.create(cam_origin, cam_end)
 	cam_query.collision_mask = ray_collision_mask
 	if player_rid.is_valid():
 		cam_query.exclude = [player_rid]
-	
+ 
 	var cam_hit := space_state.intersect_ray(cam_query)
 	if cam_hit.is_empty():
+		if building_system.build_mode:
+			building_system.clear_target()
 		return
-	
+ 
 	var hit_pos: Vector3 = cam_hit["position"]
 	if global_position.distance_to(hit_pos) > ray_distance:
+		if building_system.build_mode:
+			building_system.clear_target()
 		return
-	
+ 
 	_ray_hit = cam_hit
-	var hit_normal: Vector3 = _ray_hit["normal"]
-	var hit_collider: Object = _ray_hit["collider"]
 	if building_system.build_mode:
-		build_preview._handle_player_raycast(hit_collider, hit_normal, hit_pos, _ray_hit)
+		var hit_normal: Vector3 = _ray_hit["normal"]
+		var hit_collider: Object = _ray_hit["collider"]
+		building_system.process_raycast(hit_collider, hit_normal, hit_pos, _ray_hit)
 	
 
 func _on_target_destroyed(position: Vector3, amount: int, item_data: ItemData) -> void:
@@ -550,14 +554,15 @@ func _input(event):
 			input_enabled = true
 			main_menu.fade_out()
 			capture_mouse(true)
-
+ 
 	if not input_enabled:
 		return
+ 
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_B:
 			building_system.toggle_build_mode()
 			print("Build mode: ", building_system.build_mode)
-	
+ 
 	if free_flight_enabled:
 		visible = false
 		if event is InputEventMouseMotion and mouse_captured:
@@ -566,6 +571,7 @@ func _input(event):
 	else:
 		visible = true
 		camera_controller._input(event)
+ 
 	if event.is_action_pressed("toggle_free_flight"):
 		free_flight_enabled = !free_flight_enabled
 		if free_flight_enabled:
@@ -573,18 +579,20 @@ func _input(event):
 			free_flight_controller.orientation = Quaternion(camera.global_transform.basis)
 		else:
 			print("Free flight desactivado")
+ 
 	if free_flight_enabled:
-		return		
+		return
+ 
 	if event.is_action_pressed("inventory"):
 		inventory_ui.toggle()
 		if inventory_ui.visible:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		else:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-
-		
+ 
 	if event.is_action_pressed("character_window"):
 		character_window.toggle()
+ 
 	if event.is_action_pressed("action") && !free_flight_enabled:
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		var item_data = action_controller.handle_pickup(camera, ray_origin)
@@ -592,14 +600,59 @@ func _input(event):
 			inventory.add_item(item_data, 1)
 	elif event.is_action_pressed("ui_cancel") and visible:
 		inventory_ui.close()
-
-	#if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not mouse_captured:
-		#capture_mouse(true)
-	
+ 
+	# ---- BUILD MODE INPUT (was in BuildPreview._unhandled_input) ----
+	if building_system.build_mode:
+		_handle_build_input(event)
+ 
+	# ---- ATTACK (only outside build mode) ----
 	if Input.is_action_just_pressed("attack_1") && can_perform_action() && !building_system.build_mode:
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
 		play_attack_once = true
+ 
+ 
+func _handle_build_input(event: InputEvent) -> void:
+	var shift_held := Input.is_action_pressed("left_shift")
+ 
+	if event is InputEventMouseButton and event.pressed:
+		match event.button_index:
+			MOUSE_BUTTON_LEFT:
+				building_system.try_place_block()
+				get_viewport().set_input_as_handled()
+			MOUSE_BUTTON_RIGHT:
+				building_system.toggle_build_mode()
+				get_viewport().set_input_as_handled()
+			MOUSE_BUTTON_WHEEL_UP:
+				if shift_held:
+					building_system.increase_cell_size()
+				get_viewport().set_input_as_handled()
+			MOUSE_BUTTON_WHEEL_DOWN:
+				if shift_held:
+					building_system.decrease_cell_size()
+				get_viewport().set_input_as_handled()
+ 
+	if event is InputEventKey and event.pressed:
+		match event.keycode:
+			KEY_X:
+				building_system.try_remove_block(_ray_hit)
+				get_viewport().set_input_as_handled()
+			KEY_TAB:
+				building_system.select_next_block()
+				get_viewport().set_input_as_handled()
+			KEY_P:
+				building_system.try_place_block()
+				get_viewport().set_input_as_handled()
+ 
+		if event.is_action_pressed("rotate_block_x"):
+			building_system.rotate_block_x()
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("rotate_block_y"):
+			building_system.rotate_block_y()
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("rotate_block_z"):
+			building_system.rotate_block_z()
+			get_viewport().set_input_as_handled()
 
 
 # ---------- Water / buoyancy ----------
