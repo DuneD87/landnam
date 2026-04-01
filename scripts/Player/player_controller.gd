@@ -14,6 +14,7 @@ const data = preload("res://scripts/items/item_data.gd")
 @onready var character_window: CharacterWindow = $CharacterWindow
 @onready var hotbar: Hotbar = $Hotbar
 @onready var building_system: BuildingSystem = $BuildingSystem
+@onready var build_preview: BuildPreview = $BuildPreview
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 
 @export var main_menu: Control
@@ -26,6 +27,8 @@ const data = preload("res://scripts/items/item_data.gd")
 @export var swimming_pitch_angle: float = 90.0 
 @export var swimming_rotation_speed: float = 5.0 
 @export var swimming_offset: float = 1.0
+@export var ray_distance: float = 8.0
+@export_flags_3d_physics var ray_collision_mask: int = 3
 
 @export var float_depth := 1.0
 @export var surface_stiffness := 10.0
@@ -37,6 +40,8 @@ const data = preload("res://scripts/items/item_data.gd")
 @export var cinematic_ease: Tween.EaseType = Tween.EASE_OUT
 @export var cinematic_trans: Tween.TransitionType = Tween.TRANS_CUBIC
 @export var entity_id: String = "player"
+
+var _ray_hit: Dictionary = {}
 
 var current_water_time: float = 0.0
 var gravity_direction: Vector3 = Vector3.DOWN
@@ -56,6 +61,40 @@ var equiped_weapon: ItemData
 var input_enabled: bool = false
 var _cinematic_tween: Tween
 
+func _perform_raycast() -> void:
+	_ray_hit = {}
+	if not camera or not camera.current:
+		return
+	
+	var viewport := get_viewport()
+	var screen_center := viewport.get_visible_rect().size * 0.5
+	var space_state := get_world_3d().direct_space_state
+	
+	var player_rid: RID = get_rid()
+	
+	var cam_origin := camera.project_ray_origin(screen_center)
+	var cam_dir := camera.project_ray_normal(screen_center)
+	var cam_end := cam_origin + cam_dir * (ray_distance + camera.global_position.distance_to(global_position))
+	
+	var cam_query := PhysicsRayQueryParameters3D.create(cam_origin, cam_end)
+	cam_query.collision_mask = ray_collision_mask
+	if player_rid.is_valid():
+		cam_query.exclude = [player_rid]
+	
+	var cam_hit := space_state.intersect_ray(cam_query)
+	if cam_hit.is_empty():
+		return
+	
+	var hit_pos: Vector3 = cam_hit["position"]
+	if global_position.distance_to(hit_pos) > ray_distance:
+		return
+	
+	_ray_hit = cam_hit
+	var hit_normal: Vector3 = _ray_hit["normal"]
+	var hit_collider: Object = _ray_hit["collider"]
+	if building_system.build_mode:
+		build_preview._handle_player_raycast(hit_collider, hit_normal, hit_pos, _ray_hit)
+	
 
 func _on_target_destroyed(position: Vector3, amount: int, item_data: ItemData) -> void:
 	var excess = inventory.add_item(item_data, amount)
@@ -473,6 +512,8 @@ func _interpolate_rotation(t: float, from_quat: Quaternion, to_quat: Quaternion)
 func _process(_delta: float) -> void:
 	if GameManager.current_state == GameManager.State.CINEMATIC:
 		camera_controller.camera_pivot.global_position = global_position
+	_perform_raycast()
+
 
 func _activate_player() -> void:
 	free_flight_enabled = false

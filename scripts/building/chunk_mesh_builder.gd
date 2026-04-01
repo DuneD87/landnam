@@ -1,18 +1,6 @@
 class_name ChunkMeshBuilder
 extends RefCounted
 
-## Combina todos los bloques de una PlanetGrid en una sola ArrayMesh.
-##
-## Lee los transforms REALES de los StaticBody3D ya colocados
-## (no recalcula posiciones). Así la mesh combinada coincide
-## exactamente con los colliders y el preview.
-##
-## Face culling: elimina caras entre cubos adyacentes (por grid_pos).
-
-# ============================================================
-#  CONSTANTES
-# ============================================================
-
 enum Face { FRONT, BACK, RIGHT, LEFT, TOP, BOTTOM }
 
 const FACE_DIRS: Array[Vector3i] = [
@@ -23,13 +11,7 @@ const FACE_DIRS: Array[Vector3i] = [
 	Vector3i( 0,  1,  0),  # TOP    (+Y)
 	Vector3i( 0, -1,  0),  # BOTTOM (-Y)
 ]
-
-## IDs de bloques sólidos (ocupan la celda completa).
-## Ajusta a los IDs reales de tu BlockDatabase.
-const SOLID_BLOCK_IDS: Array[int] = [0]  # 0 = BLOCK_CUBE_ID
-# ============================================================
-#  ROUTER
-# ============================================================
+const SOLID_BLOCK_IDS: Array[int] = [0]
 
 static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector3, rot: Basis, size: float) -> void:
 	match block_id:
@@ -38,10 +20,6 @@ static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector
 		_:
 			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
 			_emit_cube_no_cull(st, offset, rot, size)
-
-# ============================================================
-#  API PÚBLICA
-# ============================================================
 
 ## Construye la mesh combinada.
 ## blocks: Dictionary[Vector3i → { block_id, rotation_step, node }]
@@ -73,7 +51,7 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 			var diff := rot * Vector3.UP - Vector3.UP
 			if diff.length() > 0.01:
 				print("WARN: cube at %s has rot != identity, diff=%s" % [grid_pos, diff])
-		# Emitir geometría
+
 		if _is_solid(block_id):
 			_emit_cube(st, grid_pos, offset, rot, cell_size, blocks)
 		else:
@@ -81,11 +59,6 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 	
 	st.generate_tangents()
 	return st.commit()
-
-
-# ============================================================
-#  EMISIÓN: CUBO CON FACE CULLING
-# ============================================================
 
 static func _emit_cube(
 	st: SurfaceTool,
@@ -120,7 +93,6 @@ static func _emit_cube(
 	if not _is_face_occluded(blocks, grid_pos, Face.BOTTOM):
 		_add_quad(st, v3, v2, v1, v0)
 
-
 static func _emit_slope(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
 	var h := size
 	var s := size * 0.5
@@ -137,11 +109,6 @@ static func _emit_slope(st: SurfaceTool, offset: Vector3, rot: Basis, size: floa
 	_add_quad(st, v4, v5, v2, v3)   # Slope diagonal
 	_add_triangle(st, v3, v0, v4)   # Left
 	_add_triangle(st, v1, v2, v5)   # Right
-
-
-# ============================================================
-#  EMISIÓN: CORNER
-# ============================================================
 
 static func _emit_corner(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
 	var h := size
@@ -177,19 +144,6 @@ static func _emit_cube_no_cull(st: SurfaceTool, offset: Vector3, rot: Basis, siz
 	_add_quad(st, v4, v5, v6, v7)
 	_add_quad(st, v3, v2, v1, v0)
 
-
-# ============================================================
-#  HELPERS — CW winding (Godot 4 / Vulkan), auto normal
-# ============================================================
-#
-#  Vértices a,b,c,d en CCW vistos desde fuera:
-#    a--b
-#    |  |
-#    d--c
-#
-#  Emitidos en CW: (a,c,b) y (a,d,c)
-#  Normal outward = (b-a).cross(d-a)
-
 static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
 	var normal := (b - a).cross(d - a).normalized()
 	
@@ -213,7 +167,7 @@ static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -
 	st.set_uv(Vector2(1, 0)); st.add_vertex(b)
 	
 static func _is_face_occluded(blocks: Dictionary, grid_pos: Vector3i, face: Face) -> bool:
-	return false
+	return false #TODO: Revisar perque no funciona is_face_occluded
 	var neighbor_pos := grid_pos + FACE_DIRS[face]
 	if not blocks.has(neighbor_pos):
 		return false

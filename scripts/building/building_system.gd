@@ -1,47 +1,33 @@
 class_name BuildingSystem
 extends Node3D
+const CELL_SIZES: Array[float] = [0.25, 0.5, 1.0, 2.0]
 
 signal build_mode_changed(active: bool)
 signal selected_block_changed(block_data: BlockData)
-signal rotation_changed()  # NUEVO: para que BuildPreview refresque el ghost
+signal rotation_changed()
 signal cell_size_changed(new_size: float)
-
-# ============================================================
-#  CONFIGURACIÓN
-# ============================================================
 
 @export var current_planet: Node3D = null
 @export var cell_size: float = 1.0
 @export var max_build_distance: float = 8.0
 
-# ============================================================
-#  ESTADO
-# ============================================================
 var current_rotation_basis: Basis = Basis.IDENTITY
 var build_mode: bool = false
 var selected_block_id: int = 0
-const CELL_SIZES: Array[float] = [0.25, 0.5, 1.0, 2.0]
 var cell_size_index: int = 2  # default 1.0
-## Pasos de rotación por eje (cada paso = 90°).
-## x=0..3, y=0..3, z=0..3
 var current_rotation: Vector3i = Vector3i.ZERO
 
 var _player: Node3D = null
-
-# ============================================================
-#  LIFECYCLE
-# ============================================================
 
 func _ready() -> void:
 	selected_block_id = BlockDatabase.BLOCK_CUBE_ID
 	_player = get_parent() as Node3D
 	if not _player:
 		push_warning("[BuildingSystem] El padre no es un Node3D.")
-
-# ============================================================
-#  BLOCK SELECTION
-# ============================================================
-
+		
+func get_selected_block() -> BlockData:
+	return BlockDatabase.get_block(selected_block_id)
+	
 func select_next_block() -> void:
 	var ids: Array[int] = BlockDatabase.get_all_ids()
 	var idx := ids.find(selected_block_id)
@@ -61,10 +47,6 @@ func select_block(block_id: int) -> void:
 		selected_block_id = block_id
 		current_rotation_basis = Basis.IDENTITY
 		selected_block_changed.emit(BlockDatabase.get_block(selected_block_id))
-
-# ============================================================
-#  ROTACIÓN 3 EJES
-# ============================================================
 
 func rotate_block_x() -> void:
 	if _can_rotate():
@@ -93,25 +75,11 @@ func _can_rotate() -> bool:
 	var bd := get_selected_block()
 	return bd != null and bd.can_rotate
 
-## Evita drift de punto flotante: todos los valores deben ser 0 o ±1.
 func _snap_rotation() -> void:
 	for i in 3:
 		for j in 3:
 			current_rotation_basis[i][j] = roundf(current_rotation_basis[i][j])
-## Mantener retrocompatibilidad — ahora solo devuelve Y.
-func get_current_rotation_deg() -> float:
-	return current_rotation.y * 90.0
 
-## Legacy alias
-func rotate_block() -> void:
-	rotate_block_y()
-
-func get_selected_block() -> BlockData:
-	return BlockDatabase.get_block(selected_block_id)
-
-# ============================================================
-#  BUILD MODE
-# ============================================================
 func increase_cell_size() -> void:
 	if cell_size_index < CELL_SIZES.size() - 1:
 		cell_size_index += 1
@@ -123,7 +91,7 @@ func decrease_cell_size() -> void:
 		cell_size_index -= 1
 		cell_size = CELL_SIZES[cell_size_index]
 		cell_size_changed.emit(cell_size)
-		
+
 func toggle_build_mode() -> void:
 	build_mode = !build_mode
 	build_mode_changed.emit(build_mode)
@@ -132,10 +100,6 @@ func set_build_mode(active: bool) -> void:
 	if build_mode != active:
 		build_mode = active
 		build_mode_changed.emit(build_mode)
-
-# ============================================================
-#  ACCESSORS
-# ============================================================
 
 func get_player() -> Node3D:
 	return _player

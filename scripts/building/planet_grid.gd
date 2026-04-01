@@ -15,10 +15,6 @@ extends RefCounted
 signal block_placed(grid_pos: Vector3i, block_id: int)
 signal block_removed(grid_pos: Vector3i)
 
-# ============================================================
-#  PROPIEDADES
-# ============================================================
-
 var grid_id: String = ""
 var planet_node: Node3D = null
 var origin_local: Vector3 = Vector3.ZERO
@@ -232,6 +228,7 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 	
 	_request_rebuild()
 	block_placed.emit(grid_pos, block_data.block_id)
+	
 	return body
 
 

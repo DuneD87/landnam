@@ -92,7 +92,7 @@ func create_grid(planet: Node3D, origin_world: Vector3, basis_world: Basis, cell
 	if not _planet_grids.has(planet):
 		_planet_grids[planet] = []
 	_planet_grids[planet].append(grid)
-	
+	_grids[grid_id] = grid
 	print("[GridManager] Grid '%s' creada en planeta '%s' (total: %d)" % [grid_id, planet.name, _grids.size()])
 	return grid
 
