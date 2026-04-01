@@ -28,7 +28,7 @@ var _blocks: Dictionary = {}
 var _combined_mesh_instance: MeshInstance3D = null
 
 ## Material para la mesh combinada.
-var mesh_material: Material = null
+var mesh_materials: Dictionary = {}  # material_id → Material
 
 ## Suprime rebuilds durante operaciones bulk (deserialize).
 var _suppress_rebuild: bool = false
@@ -63,7 +63,15 @@ func serialize() -> Dictionary:
 			"block_id": info["block_id"],
 			"rotation_basis": _basis_to_array(info["rotation_basis"]),
 			"transform": _transform_to_array(t),
+			"material_id": info.get("material_id", ""),
 		}
+	
+	# Serializar mapping material_id → resource path
+	var materials_data: Dictionary = {}
+	for mat_id in mesh_materials:
+		var mat: Material = mesh_materials[mat_id]
+		if mat and mat.resource_path != "":
+			materials_data[mat_id] = mat.resource_path
 	
 	return {
 		"planet_path": str(planet_node.get_path()),
@@ -71,7 +79,7 @@ func serialize() -> Dictionary:
 		"basis_local": _basis_to_array(basis_local),
 		"cell_size": cell_size,
 		"blocks": blocks_data,
-		"material": mesh_material.resource_path
+		"materials": materials_data,
 	}
 
 
@@ -81,7 +89,16 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 	cell_size = data.get("cell_size", 1.0)
 	origin_local = _array_to_vec3(data.get("origin_local", [0, 0, 0]))
 	basis_local = _array_to_basis(data.get("basis_local", [1,0,0, 0,1,0, 0,0,1]))
-	mesh_material = load(data.get("material"))
+	
+	# Restaurar materiales antes de colocar bloques
+	var materials_data: Dictionary = data.get("materials", {})
+	for mat_id in materials_data:
+		var path: String = materials_data[mat_id]
+		if ResourceLoader.exists(path):
+			mesh_materials[mat_id] = load(path)
+		else:
+			push_warning("[PlanetGrid] Material resource not found: %s" % path)
+	
 	_suppress_rebuild = true
 	var blocks_data: Dictionary = data.get("blocks", {})
 	for key in blocks_data:
@@ -90,7 +107,6 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 		var block_info: Dictionary = blocks_data[key]
 		
 		var block_id: int = block_info.get("block_id", 0)
-		var rotation_step: int = block_info.get("rotation_step", 0)
 		
 		var block_data: BlockData = BlockDatabase.get_block(block_id)
 		if not block_data:
@@ -100,7 +116,9 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 		var saved_transform := _array_to_transform(block_info.get("transform", []))
 		var world_transform := planet_node.global_transform * saved_transform
 		var rotation_basis := _array_to_basis(block_info.get("rotation_basis", [1,0,0, 0,1,0, 0,0,1]))
-		place_block(grid_pos, block_data, rotation_basis, world_transform)
+		var material_id: String = block_info.get("material_id", "")
+		
+		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id)
 	_suppress_rebuild = false
 	
 	rebuild_mesh()
@@ -188,7 +206,8 @@ func grid_to_world(grid_pos: Vector3i) -> Vector3:
 
 ## Coloca un bloque. Retorna el nodo creado o null.
 ## El body usa el world_transform del ghost (exacto). Sin MeshInstance3D.
-func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, world_transform: Transform3D) -> Node3D:
+func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis,
+				 world_transform: Transform3D, material_id: String = "") -> Node3D:
 	if _blocks.has(grid_pos):
 		return null
 	
@@ -220,10 +239,12 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 		"block_id": block_data.block_id,
 		"rotation_basis": rotation_basis,
 		"node": body,
+		"material_id": material_id,
 	}
-	
-	if mesh_material == null and block_data.material_override:
-		mesh_material = block_data.material_override
+
+	if material_id != "" and not mesh_materials.has(material_id):
+		if block_data.material_override:
+			mesh_materials[material_id] = block_data.material_override
 	
 	_request_rebuild()
 	block_placed.emit(grid_pos, block_data.block_id)
@@ -261,19 +282,18 @@ func _request_rebuild() -> void:
 ## ChunkMeshBuilder lee los transforms reales de los bodies.
 func rebuild_mesh() -> void:
 	_ensure_mesh_node()
-	
+
 	if _blocks.is_empty():
 		_combined_mesh_instance.mesh = null
 		return
-	
-	# El transform de la grid mesh en espacio del planeta
+
 	var grid_transform := Transform3D(basis_local, origin_local)
-	
-	var mesh := ChunkMeshBuilder.build_mesh(_blocks, cell_size, grid_transform)
+	var mesh := ChunkMeshBuilder.build_mesh(
+		_blocks, cell_size, grid_transform, mesh_materials
+	)
 	_combined_mesh_instance.mesh = mesh
-	
-	if mesh_material:
-		_combined_mesh_instance.material_override = mesh_material
+	# Ya no hace falta material_override — cada surface tiene el suyo
+	_combined_mesh_instance.material_override = null
 
 
 func _ensure_mesh_node() -> void:

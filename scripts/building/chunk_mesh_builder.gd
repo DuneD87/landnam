@@ -21,45 +21,50 @@ static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector
 			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
 			_emit_cube_no_cull(st, offset, rot, size)
 
-## Construye la mesh combinada.
-## blocks: Dictionary[Vector3i → { block_id, rotation_step, node }]
-## grid_transform: Transform3D local del planeta (basis_local + origin_local de la grid)
-##   → se usa para convertir los transforms de los bodies a espacio de la grid mesh.
-static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Transform3D) -> ArrayMesh:
+static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Transform3D, materials: Dictionary = {}) -> ArrayMesh:
 	if blocks.is_empty():
 		return null
-	
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	
-	var grid_inv := grid_transform.affine_inverse()
-	
+
+	# Agrupar bloques por material_id
+	var groups: Dictionary = {}  # material_id → Array[Vector3i]
 	for grid_pos: Vector3i in blocks:
-		var info: Dictionary = blocks[grid_pos]
-		var block_id: int = info["block_id"]
-		var node: Node3D = info["node"]
-		
-		if not node or not is_instance_valid(node):
-			continue
-		
-		# Transform del body en espacio de la grid mesh.
-		# Así los vértices quedan donde realmente está el body.
-		var local_t: Transform3D = grid_inv * node.transform
-		var offset: Vector3 = local_t.origin
-		var rot: Basis = local_t.basis.orthonormalized()
-		if _is_solid(block_id):
-			var diff := rot * Vector3.UP - Vector3.UP
-			if diff.length() > 0.01:
-				print("WARN: cube at %s has rot != identity, diff=%s" % [grid_pos, diff])
+		var mat_id: String = blocks[grid_pos].get("material_id", "")
+		if not groups.has(mat_id):
+			groups[mat_id] = []
+		groups[mat_id].append(grid_pos)
 
-		if _is_solid(block_id):
-			_emit_cube(st, grid_pos, offset, rot, cell_size, blocks)
-		else:
-			_emit_from_block_type(st, block_id, offset, rot, cell_size)
-	
-	st.generate_tangents()
-	return st.commit()
+	var mesh := ArrayMesh.new()
+	var grid_inv := grid_transform.affine_inverse()
 
+	for mat_id: String in groups:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+		for grid_pos: Vector3i in groups[mat_id]:
+			var info: Dictionary = blocks[grid_pos]
+			var block_id: int = info["block_id"]
+			var node: Node3D = info["node"]
+			if not node or not is_instance_valid(node):
+				continue
+
+			var local_t: Transform3D = grid_inv * node.transform
+			var offset: Vector3 = local_t.origin
+			var rot: Basis = local_t.basis.orthonormalized()
+
+			if _is_solid(block_id):
+				_emit_cube(st, grid_pos, offset, rot, cell_size, blocks)
+			else:
+				_emit_from_block_type(st, block_id, offset, rot, cell_size)
+
+		st.generate_tangents()
+		var surface_idx := mesh.get_surface_count()
+		st.commit(mesh)  # append surface to existing mesh
+
+		# Asignar material a esta surface
+		if materials.has(mat_id) and materials[mat_id] != null:
+			mesh.surface_set_material(surface_idx, materials[mat_id])
+
+	return mesh
 static func _emit_cube(
 	st: SurfaceTool,
 	grid_pos: Vector3i,

@@ -429,18 +429,19 @@ func try_place_block() -> bool:
 		_target_grid_pos = grid.world_to_grid(_target_world_pos)
 
 
-	var mat := get_current_material()
-	if mat and mat.surface_material:
-		grid.mesh_material = mat.surface_material
-
 	var rot_basis := get_rotation_basis()
 	var place_transform := Transform3D(_target_basis * rot_basis, _target_world_pos)
 
+	var mat := get_current_material()
+	var mat_id := mat.material_id if mat else ""
+
+	# Registrar el surface material en la grid
+	if mat and mat.surface_material and not grid.mesh_materials.has(mat_id):
+		grid.mesh_materials[mat_id] = mat.surface_material
+
 	var block := grid.place_block(
-		_target_grid_pos,
-		block_data,
-		current_rotation_basis,
-		place_transform
+		_target_grid_pos, block_data, current_rotation_basis,
+		place_transform, mat_id
 	)
 
 	if not block:
