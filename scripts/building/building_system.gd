@@ -19,12 +19,16 @@ signal action_mode_changed(mode: ActionMode)
 @export var cell_size: float = 1.0
 @export var max_build_distance: float = 8.0
 
+var _icon_generator: BlockIconGenerator
+var _mirror_visual: MirrorPlaneVisual = null
+
 var mirror_axis: MirrorAxis = MirrorAxis.NONE
 var mirror_center_world: Vector3 = Vector3.ZERO
 var mirror_grid: PlanetGrid = null
 var _mirror_active: bool = false
 
 var build_materials: Array[BuildMaterial] = []
+var _block_material_items: Array[ItemData] = []
 var current_material_index: int = 0
 
 var current_rotation_basis: Basis = Basis.IDENTITY
@@ -48,6 +52,57 @@ var _has_target: bool = false
 var _cached_grid_for_placement: PlanetGrid = null
 var _hit_grid_for_alignment: PlanetGrid = null
 var current_action_mode: ActionMode = ActionMode.BUILD
+
+func _generate_block_material_items() -> void:
+	_block_material_items.clear()
+
+	for mat in build_materials:
+		for block_id in BlockDatabase.get_all_ids():
+			var block := BlockDatabase.get_block(block_id)
+			var item := ItemData.new()
+			item.id = StringName("block_%s_%s" % [block.block_name, mat.material_id])
+			item.display_name = "%s %s" % [mat.display_name, block.block_name.capitalize()]
+			item.description = block.block_description
+			item.category = ItemData.Category.BLOCK
+			item.block_id = block.block_id
+			item.build_material_id = mat.material_id
+			item.surface_material = mat.surface_material
+			item.stackable = false
+			item.max_stack = 1
+
+			# Generar icona dinàmica
+			var icon := await _icon_generator.generate_icon(block.mesh, mat.surface_material)
+			if icon:
+				item.icon = icon
+				# També actualitzar BlockData si no té icona encara
+				if not block.preview_icon:
+					block.preview_icon = icon
+
+			_block_material_items.append(item)
+
+	print("[BuildingSystem] Generated %d block+material items with icons." % _block_material_items.size())
+
+
+## Retorna diccionari agrupat: { material_id: { "display_name": String, "items": Array[ItemData] } }
+func get_block_items_by_material() -> Dictionary:
+	var result := {}
+	for mat in build_materials:
+		result[mat.material_id] = {
+			"display_name": mat.display_name,
+			"items": [] as Array[ItemData]
+		}
+	for item in _block_material_items:
+		if result.has(item.build_material_id):
+			result[item.build_material_id]["items"].append(item)
+	return result
+
+
+func set_material_by_id(mat_id: String) -> void:
+	for i in build_materials.size():
+		if build_materials[i].material_id == mat_id:
+			current_material_index = i
+			material_changed.emit(get_current_material())
+			return
 
 func _register_default_materials() -> void:
 	var stone := BuildMaterial.new()
@@ -84,6 +139,12 @@ func _ready() -> void:
 	if not _inventory:
 		push_warning("[BuildingSystem] No Inventory sibling found.")
 	_register_default_materials()
+	_icon_generator = BlockIconGenerator.new()
+	add_child(_icon_generator)
+	_mirror_visual = MirrorPlaneVisual.new()
+	add_child(_mirror_visual)
+	_generate_block_material_items()
+
 
 func get_current_material() -> BuildMaterial:
 	if build_materials.is_empty():

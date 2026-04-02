@@ -30,6 +30,8 @@ func _ready() -> void:
 
 
 func _on_hotbar_slot_clicked(slot_index: int) -> void:
+	if not visible:
+		return
 	if floating_item:
 		var data = floating_item.data
 		_return_to_origin()

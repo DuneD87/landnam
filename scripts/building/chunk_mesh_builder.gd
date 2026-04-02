@@ -35,14 +35,7 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 		for grid_pos: Vector3i in groups[mat_id]:
 			var info: Dictionary = blocks[grid_pos]
 			var block_id: int = info["block_id"]
-			if block_id == 2:
-				print("[CMB] corner @ %s | mirrored=%s | axis=%s | rot_basis=%s" % [
-					grid_pos,
-					info.get("mirrored", false),
-					info.get("mirror_axis", -1),
-					info.get("rotation_basis", Basis.IDENTITY)
-				])
-			# No depender del nodo en absoluto
+		
 			var offset := Vector3(grid_pos) * cell_size
 			var rot: Basis = info.get("rotation_basis", Basis.IDENTITY)
 

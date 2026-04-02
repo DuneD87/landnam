@@ -16,6 +16,7 @@ const data = preload("res://scripts/items/item_data.gd")
 @onready var building_system: BuildingSystem = $BuildingSystem
 @onready var build_preview: BuildPreview = $BuildPreview
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
+@onready var build_menu: BuildMenu = $BuildMenu
 
 @export var main_menu: Control
 @export var spawn_point: Marker3D
@@ -152,19 +153,42 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 		equip_item(equip, slot, scene, data, category)
 
 func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> void:
+	var old_is_block := old_data != null and old_data.category == ItemData.Category.BLOCK
+	var new_is_block := new_data != null and new_data.category == ItemData.Category.BLOCK
+	var old_is_equippable := old_data != null and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON)
+	var new_is_equippable := new_data != null and (new_data.category == ItemData.Category.TOOL or new_data.category == ItemData.Category.WEAPON)
+
+	if new_is_block:
+		building_system.select_block(new_data.block_id)
+		building_system.set_material_by_id(new_data.build_material_id)
+		building_system.set_build_mode(true)
+		if old_is_equippable:
+			_unequip_right_hand()
+	elif new_is_equippable:
+		building_system.set_build_mode(false)
+		_equip_from_hotbar(old_data, new_data)
+	else:
+		building_system.set_build_mode(false)
+		if old_is_equippable:
+			_unequip_right_hand()
+
+	inventory.inventory_changed.emit()
+
+
+func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
 	var new_item_slot := -1
 
-	# 1. Buscar y quitar el nuevo item del inventario
-	if new_data and (new_data.category == ItemData.Category.TOOL or new_data.category == ItemData.Category.WEAPON):
-		for i in inventory.items.size():
-			if inventory.items[i] and inventory.items[i].data.id == new_data.id:
-				new_item_slot = i
-				break
-		if new_item_slot >= 0:
-			inventory.items[new_item_slot] = null
+	# 1. Buscar i treure el nou item de l'inventari
+	for i in inventory.items.size():
+		if inventory.items[i] and inventory.items[i].data.id == new_data.id:
+			new_item_slot = i
+			break
+	if new_item_slot >= 0:
+		inventory.items[new_item_slot] = null
 
-	# 2. Desequipar anterior del hotbar
-	if old_data and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON):
+	# 2. Desequipar anterior
+	var old_is_equippable := old_data != null and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON)
+	if old_is_equippable:
 		var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
 		if eq_slot and eq_slot.has_item():
 			var unequipped = character_window.unequip_item(eq_slot)
@@ -172,20 +196,27 @@ func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> voi
 				var target = new_item_slot if new_item_slot >= 0 else inventory.find_empty_slot()
 				if target >= 0:
 					inventory.items[target] = InventoryItem.new(unequipped.data, 1)
-					new_item_slot = -1  # Ya usamos ese hueco
+					new_item_slot = -1
 
-	# 3. Equipar nuevo — capturar lo que hubiera equipado (no venía del hotbar)
-	if new_data and (new_data.category == ItemData.Category.TOOL or new_data.category == ItemData.Category.WEAPON):
-		var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
-		if eq_slot:
-			var inv_item := InventoryItem.new(new_data, 1)
-			var returned = character_window.equip_item(eq_slot, inv_item)
-			if returned:
-				var target = new_item_slot if new_item_slot >= 0 else inventory.find_empty_slot()
-				if target >= 0:
-					inventory.items[target] = InventoryItem.new(returned.data, 1)
+	# 3. Equipar nou
+	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
+	if eq_slot:
+		var inv_item := InventoryItem.new(new_data, 1)
+		var returned = character_window.equip_item(eq_slot, inv_item)
+		if returned:
+			var target = new_item_slot if new_item_slot >= 0 else inventory.find_empty_slot()
+			if target >= 0:
+				inventory.items[target] = InventoryItem.new(returned.data, 1)
 
-	inventory.inventory_changed.emit()
+
+func _unequip_right_hand() -> void:
+	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
+	if eq_slot and eq_slot.has_item():
+		var unequipped = character_window.unequip_item(eq_slot)
+		if unequipped:
+			var target = inventory.find_empty_slot()
+			if target >= 0:
+				inventory.items[target] = InventoryItem.new(unequipped.data, 1)
 	
 	
 func _ready():
@@ -197,7 +228,8 @@ func _ready():
 	free_flight_enabled = true
 	visible = false
 	collision_model.disabled = true
-	
+	build_menu.setup(hotbar, building_system)
+
 	capture_mouse(false)
 	water_sampler = WaterHeightSampler.new()
 	add_child(water_sampler)
@@ -556,9 +588,12 @@ func _input(event):
 		return
  
 	if event is InputEventKey and event.pressed:
-		if event.keycode == KEY_B:
-			building_system.toggle_build_mode()
-			print("Build mode: ", building_system.build_mode)
+		if event.is_action_pressed("open_build_menu"):
+			build_menu.toggle()
+			if build_menu.visible:
+				capture_mouse(false)
+			else:
+				capture_mouse(true)
  
 	if free_flight_enabled:
 		visible = false
@@ -632,16 +667,8 @@ func _handle_build_input(event: InputEvent) -> void:
 
 	if event is InputEventKey and event.pressed:
 		match event.keycode:
-			KEY_X:
-				# Puedes mantener esto como un atajo rápido para destruir sin cambiar de modo
-				building_system.try_remove_block(_ray_hit)
-				get_viewport().set_input_as_handled()
 			KEY_TAB:
 				building_system.select_next_block()
-				get_viewport().set_input_as_handled()
-			KEY_P:
-				# Puedes mantener esto como un atajo rápido para colocar
-				building_system.try_place_block()
 				get_viewport().set_input_as_handled()
 			KEY_M:
 				building_system.cycle_material()
@@ -654,7 +681,6 @@ func _handle_build_input(event: InputEvent) -> void:
 				building_system.set_mirror_center_from_ray(_ray_hit)
 				get_viewport().set_input_as_handled()
 
-		# --- NUEVO: Alternar entre modo Construir / Destruir ---
 		if event.is_action_pressed("switch_build_modes"):
 			building_system.toggle_action_mode()
 			get_viewport().set_input_as_handled()
@@ -669,8 +695,6 @@ func _handle_build_input(event: InputEvent) -> void:
 			building_system.rotate_block_z()
 			get_viewport().set_input_as_handled()
 
-
-# ---------- Water / buoyancy ----------
 
 func _apply_water_buoyancy(delta: float):
 	var to_center := global_position - _water_surface_center

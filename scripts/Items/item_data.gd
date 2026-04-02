@@ -3,7 +3,7 @@ class_name ItemData
 extends Resource
 const config = preload("res://scripts/config.gd")
 
-enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR}
+enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR, BLOCK}
 enum ToolType {NONE, PICKAXE, AXE, HAMMER}
 enum WeaponType {NONE, SWORD, SPEAR, BOW}
 enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND}
@@ -16,6 +16,8 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export var scene_path: String
 @export var attack_animation: config.ANIMATION = config.ANIMATION.ATTACK_1
 @export var surface_material: Material
+@export var block_id: int = -1
+@export var build_material_id: String = ""
 
 @export_group("Stacking")
 @export var stackable: bool = true
@@ -66,6 +68,10 @@ func copy_from(source: ItemData) -> void:
 	has_durability = source.has_durability
 	max_durability = source.max_durability
 	surface_material = source.surface_material
+	block_id = source.block_id
+	build_material_id = source.build_material_id
+
+
 	
 # Valida si este item puede equiparse en un slot específico
 func can_equip_in_slot(slot_type: String) -> bool:

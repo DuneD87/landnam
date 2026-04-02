@@ -19,7 +19,7 @@ var style_selected: StyleBoxFlat
 
 func _ready() -> void:
 	_create_styles()
-	custom_minimum_size = Vector2(56, 56)
+	custom_minimum_size = Vector2(85, 85)
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	key_label.text = str((slot_index + 1) % 10)
 	clear()
@@ -46,7 +46,7 @@ func _create_styles() -> void:
 
 func assign(item_data: ItemData) -> void:
 	assigned_data = item_data
-	if assigned_data and assigned_data.icon:
+	if assigned_data:
 		icon_rect.texture = assigned_data.icon
 		icon_rect.visible = true
 		tooltip_text = "%s\n%s" % [assigned_data.display_name, assigned_data.description]

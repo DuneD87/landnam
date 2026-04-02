@@ -14,7 +14,7 @@ const BLOCK_CORNER_ID := 2
 const BLOCK_INV_CORNER_ID := 3
 var _blocks: Dictionary = {}  # id -> BlockData
 var _blocks_by_name: Dictionary = {}  # name -> BlockData
-
+var _block_items: Dictionary = {}  # block_id -> ItemData
 
 func _ready() -> void:
 	_register_default_blocks()
@@ -54,6 +54,7 @@ func _register_default_blocks() -> void:
 	corner.can_rotate = true
 	corner.rotation_steps = 4
 	register_block(corner)
+	
 	var inv_corner := BlockData.new()
 	inv_corner.block_id = BLOCK_INV_CORNER_ID # Asegúrate de declarar esta constante arriba (ej. = 3)
 	inv_corner.block_name = "inv_corner"
@@ -64,11 +65,32 @@ func _register_default_blocks() -> void:
 	inv_corner.rotation_steps = 4
 	register_block(inv_corner)
 
+func _create_block_item(block: BlockData) -> ItemData:
+	var item := ItemData.new()
+	item.id = StringName("block_%s" % block.block_name)
+	item.display_name = block.block_name.capitalize()
+	item.description = block.block_description
+	item.icon = block.preview_icon  # pot ser null de moment
+	item.category = ItemData.Category.BLOCK
+	item.block_id = block.block_id
+	item.stackable = false
+	item.max_stack = 1
+	return item
 
-## Registra un BlockData. Sobrescribe si ya existe el ID.
+func get_block_item(block_id: int) -> ItemData:
+	return _block_items.get(block_id, null)
+
+func get_all_block_items() -> Array[ItemData]:
+	var result: Array[ItemData] = []
+	for id in get_all_ids():
+		if _block_items.has(id):
+			result.append(_block_items[id])
+	return result
+	
 func register_block(block: BlockData) -> void:
 	_blocks[block.block_id] = block
 	_blocks_by_name[block.block_name] = block
+	_block_items[block.block_id] = _create_block_item(block)
 
 
 ## Obtiene un bloque por ID. Retorna null si no existe.

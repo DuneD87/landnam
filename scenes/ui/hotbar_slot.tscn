@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://ci4wdn1jtynf0" path="res://scripts/ui/hotbar/hotbar_slot.gd" id="1_8ds5q"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_8ds5q"]
-font_size = 10
+font_size = 20
 
 [sub_resource type="LabelSettings" id="LabelSettings_v1y6b"]
 font_size = 10
