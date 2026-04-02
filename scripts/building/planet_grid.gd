@@ -64,6 +64,8 @@ func serialize() -> Dictionary:
 			"rotation_basis": _basis_to_array(info["rotation_basis"]),
 			"transform": _transform_to_array(t),
 			"material_id": info.get("material_id", ""),
+			"mirrored": info.get("mirrored", false),
+			"mirror_axis": info.get("mirror_axis", -1)
 		}
 	
 	# Serializar mapping material_id → resource path
@@ -118,7 +120,12 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 		var rotation_basis := _array_to_basis(block_info.get("rotation_basis", [1,0,0, 0,1,0, 0,0,1]))
 		var material_id: String = block_info.get("material_id", "")
 		
-		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id)
+		var mirror_data := {
+			"mirrored": block_info.get("mirrored", false),
+			"mirror_axis": block_info.get("mirror_axis", -1)
+		}
+		
+		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id, mirror_data)
 	_suppress_rebuild = false
 	
 	rebuild_mesh()

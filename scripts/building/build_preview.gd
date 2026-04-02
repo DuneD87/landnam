@@ -95,9 +95,7 @@ func _update_mirror_preview() -> void:
 		return
 
 	var mirror_world := grid.grid_to_world(mirror_pos)
-	var mirror_rot := _building_system._get_mirror_rotation(
-		_building_system.current_rotation_basis
-	)
+	var mirror_rot := _building_system._get_mirror_rotation(_building_system.current_rotation_basis)
 
 	var s := _building_system.cell_size
 	var cell_center := Vector3(0.5, 0.5, 0.5) * s

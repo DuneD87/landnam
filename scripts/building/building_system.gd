@@ -461,17 +461,17 @@ func try_place_block() -> bool:
 
 	var rot_basis := get_rotation_basis()
 	var place_transform := Transform3D(_target_basis * rot_basis, _target_world_pos)
+	
 	var m_data := {
-		"mirrored": true,
-		"mirror_axis": _get_mirror_axis_index()
+		"mirrored": false,
+		"mirror_axis": -1
 	}
-	var block := grid.place_block(_target_grid_pos, block_data, current_rotation_basis,place_transform, mat_id, m_data)
+	var block := grid.place_block(_target_grid_pos, block_data, current_rotation_basis, place_transform, mat_id, m_data)
 
 	if not block:
 		push_error("[BuildingSystem] Failed to place block.")
 		return false
 
-	# Mirror — ahora con grid resuelta
 	if _should_mirror():
 		var mirror_pos := _get_mirror_pos(_target_grid_pos, grid)
 		if mirror_pos != _target_grid_pos and not grid.has_block(mirror_pos):
@@ -479,11 +479,13 @@ func try_place_block() -> bool:
 				var mirror_world := grid.grid_to_world(mirror_pos)
 				var mirror_rot := _get_mirror_rotation(current_rotation_basis)
 				var mirror_transform := Transform3D(_target_basis * mirror_rot, mirror_world)
-				var mirror_info := grid.get_block(mirror_pos)
-				if mirror_info:
-					mirror_info["mirrored"] = true
-					mirror_info["mirror_axis"] = _get_mirror_axis_index()
-				grid.place_block(mirror_pos, block_data, mirror_rot,mirror_transform, mat_id, mirror_info)
+				
+				var mirror_info := {
+					"mirrored": true,
+					"mirror_axis": _get_mirror_axis_index()
+				}
+				
+				grid.place_block(mirror_pos, block_data, mirror_rot, mirror_transform, mat_id, mirror_info)
 				
 	return true
 
