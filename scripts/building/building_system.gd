@@ -37,6 +37,7 @@ var _can_afford: bool = false
 var _is_aiming_at_block: bool = false
 var _has_target: bool = false
 var _cached_grid_for_placement: PlanetGrid = null
+var _hit_grid_for_alignment: PlanetGrid = null
 
 func _register_default_materials() -> void:
 	var stone := BuildMaterial.new()
@@ -247,8 +248,7 @@ func get_missing_materials(block_data: BlockData = null) -> Array[Dictionary]:
 #  Raycast processing  (called by Player every frame in build mode)
 # ==========================================================================
 
-func process_raycast(hit_collider: Object, hit_normal: Vector3,
-					 hit_pos: Vector3, ray_hit: Dictionary) -> void:
+func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3, ray_hit: Dictionary) -> void:
 	_has_target = true
 	_is_aiming_at_block = hit_collider is StaticBody3D \
 						  and hit_collider.has_meta("grid_id")
@@ -283,6 +283,7 @@ func clear_target() -> void:
 
 
 func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3) -> void:
+	_hit_grid_for_alignment = null
 	var hit_grid := GridManager.get_grid_for_block(hit_collider as Node3D)
 	if not hit_grid:
 		_can_place = false
@@ -327,11 +328,8 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 		_process_cross_size_placement(hit_grid, hit_grid_pos, hit_cell, target_cell, grid_face, hit_pos, planet)
 
 
-func _process_cross_size_placement(
-	hit_grid: PlanetGrid, hit_grid_pos: Vector3i,
-	hit_cell: float, target_cell: float,
-	grid_face: Vector3i, hit_pos: Vector3, planet: Node3D
-) -> void:
+func _process_cross_size_placement(hit_grid: PlanetGrid, hit_grid_pos: Vector3i, hit_cell: float, target_cell: float,
+	grid_face: Vector3i, hit_pos: Vector3, planet: Node3D) -> void:
 	var face_axis: int = 0
 	var face_sign: int = 1
 	if abs(grid_face.x) > 0:
@@ -358,27 +356,28 @@ func _process_cross_size_placement(
 		else:
 			target_continuous[i] = floor(hit_continuous[i] / target_cell) * target_cell
 
-	# Posición mundo provisional (en espacio de hit_grid)
+	# Posición mundo (calculada en espacio de hit_grid, que es correcto)
 	var snapped_local := hit_grid.origin_local + hit_grid.basis_local * target_continuous
-	var provisional_world_pos := planet.global_transform * snapped_local
+	_target_world_pos = planet.global_transform * snapped_local
+	_target_basis = hit_grid.get_basis_world()
 
-	# Buscar grid existente para este cell_size
-	_target_grid = GridManager.find_nearest_grid(planet, provisional_world_pos, target_cell)
+	# Buscar grid alineada al MISMO origin que hit_grid
+	_target_grid = GridManager.find_aligned_grid(planet, target_cell, hit_grid)
+
+	# Guardar referencia para que try_place_block cree grid alineada si no existe
+	_hit_grid_for_alignment = hit_grid
 
 	if _target_grid:
-		# Re-snap a la grid encontrada para evitar mismatch
-		_target_grid_pos = _target_grid.world_to_grid(provisional_world_pos)
+		# Re-snap es seguro porque comparten origin → no hay offset
+		_target_grid_pos = _target_grid.world_to_grid(_target_world_pos)
 		_target_world_pos = _target_grid.grid_to_world(_target_grid_pos)
-		_target_basis = _target_grid.get_basis_world()
 	else:
-		# No hay grid → usar coordenadas calculadas desde hit_grid
+		# Grid se creará al colocar; calcular grid_pos en espacio de hit_grid
 		_target_grid_pos = Vector3i(
 			roundi(target_continuous.x / target_cell),
 			roundi(target_continuous.y / target_cell),
 			roundi(target_continuous.z / target_cell)
 		)
-		_target_world_pos = provisional_world_pos
-		_target_basis = hit_grid.get_basis_world()
 
 	_can_place = true
 	if _target_grid and _target_grid.has_block(_target_grid_pos):
@@ -390,6 +389,7 @@ func _process_cross_size_placement(
 
 
 func _process_aim_at_terrain(hit_normal: Vector3, hit_pos: Vector3) -> void:
+	_hit_grid_for_alignment = null
 	var player_basis := get_player_basis()
 	var adjusted_pos := hit_pos + hit_normal * (cell_size * 0.5)
 	var planet := current_planet
@@ -440,16 +440,21 @@ func try_place_block() -> bool:
 	if not _consume_block_cost(block_data):
 		return false
 
-	# Usar la grid cacheada del último raycast (misma que el ghost)
 	var grid := _cached_grid_for_placement
 	if not grid:
-		grid = GridManager.create_grid(
-			planet,
-			_target_world_pos,
-			_target_basis,
-			cell_size
-		)
+		# Si venimos de cross-size, crear grid alineada
+		if _hit_grid_for_alignment:
+			grid = GridManager.create_grid_aligned(
+				planet, _hit_grid_for_alignment, cell_size
+			)
+		else:
+			grid = GridManager.create_grid(
+				planet, _target_world_pos, _target_basis, cell_size
+			)
 		_target_grid_pos = grid.world_to_grid(_target_world_pos)
+
+	# Limpiar referencia
+	_hit_grid_for_alignment = null
 
 	var mat := get_current_material()
 	var mat_id := mat.material_id if mat else ""
@@ -487,9 +492,35 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 		return false
 
 	var grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
-	# TODO: optionally refund materials to inventory here
-	grid.remove_block(grid_pos)
+	var data = grid.remove_block(grid_pos)
+
+	# Refund antes de borrar
+	_refund_block(data, grid.cell_size)
+
 	return true
+
+
+func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
+	if not _inventory:
+		return
+
+	var mat_id: String = block_data["material_id"]
+	if mat_id == "":
+		return
+
+	var build_mat := _find_build_material(mat_id)
+	if not build_mat or not build_mat.item:
+		return
+
+	var cost := build_mat.get_cost_for_size(block_cell_size)
+	_inventory.add_item(build_mat.item, cost)
+
+
+func _find_build_material(mat_id: String) -> BuildMaterial:
+	for mat in build_materials:
+		if mat.material_id == mat_id:
+			return mat
+	return null
 
 
 # ==========================================================================

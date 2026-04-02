@@ -76,13 +76,32 @@ func _ready() -> void:
 # ============================================================
 #  CREAR / ELIMINAR GRIDS
 # ============================================================
-
+func _register_grid(grid: PlanetGrid, planet: Node3D, grid_id: String) -> void:
+	if not _planet_grids.has(planet):
+		_planet_grids[planet] = []
+	_planet_grids[planet].append(grid)
+	_grids[grid_id] = grid
+	
+func _generate_id() -> String:
+	var grid_id := "grid_%d" % _next_id
+	_next_id += 1
+	
+	return grid_id
+	
+## Crea una grid alineada al origin/basis de otra grid existente.
+func create_grid_aligned(planet: Node3D, ref_grid: PlanetGrid,target_cell: float) -> PlanetGrid:
+	var grid := PlanetGrid.new()
+	var grid_id = _generate_id()
+	grid.setup_aligned(grid_id, planet, ref_grid.origin_local, ref_grid.basis_local, target_cell)
+	_register_grid(grid, planet, grid_id)
+	
+	return grid
+	
 ## Crea una nueva grid anclada a un planeta.
 ## origin_world y basis_world se convierten a local del planeta.
 func create_grid(planet: Node3D, origin_world: Vector3, basis_world: Basis, cell_size: float = 1.0) -> PlanetGrid:
 	var grid := PlanetGrid.new()
-	var grid_id := "grid_%d" % _next_id
-	_next_id += 1
+	var grid_id = _generate_id()
 	
 	var reference := find_any_nearest_grid(planet, origin_world)
 	
@@ -93,10 +112,7 @@ func create_grid(planet: Node3D, origin_world: Vector3, basis_world: Basis, cell
 		# Primera grid en la zona — usar basis del player
 		grid.setup(grid_id, planet, origin_world, basis_world, cell_size)
 	
-	if not _planet_grids.has(planet):
-		_planet_grids[planet] = []
-	_planet_grids[planet].append(grid)
-	_grids[grid_id] = grid
+	_register_grid(grid, planet, grid_id)
 	print("[GridManager] Grid '%s' creada en planeta '%s' (total: %d)" % [grid_id, planet.name, _grids.size()])
 	return grid
 
@@ -222,7 +238,27 @@ static func _basis_aligned(a: Basis, b: Basis) -> bool:
 			return false
 	return true
 
+## Busca una grid con cell_size dado, alineada al mismo origin/basis que ref_grid.
+func find_aligned_grid(planet: Node3D, target_cell: float,
+							   ref_grid: PlanetGrid) -> PlanetGrid:
+	for grid: PlanetGrid in get_grids_for_planet(planet):
+		if not is_equal_approx(grid.cell_size, target_cell):
+			continue
+		# Mismo origin y basis que la referencia
+		if grid.origin_local.is_equal_approx(ref_grid.origin_local) \
+		   and _basis_equal(grid.basis_local, ref_grid.basis_local):
+			return grid
+	return null
 
+
+func _basis_equal(a: Basis, b: Basis) -> bool:
+	for i in 3:
+		if not a[i].is_equal_approx(b[i]):
+			return false
+	return true
+
+
+	
 ## Obtiene la grid a la que pertenece un bloque (usando su metadata).
 ## Útil cuando el raycast impacta un bloque colocado.
 func get_grid_for_block(block_node: Node3D) -> PlanetGrid:

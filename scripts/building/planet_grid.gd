@@ -253,9 +253,9 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 
 
 ## Elimina el bloque en grid_pos.
-func remove_block(grid_pos: Vector3i) -> bool:
+func remove_block(grid_pos: Vector3i) -> Dictionary:
 	if not _blocks.has(grid_pos):
-		return false
+		return {}
 	
 	var info: Dictionary = _blocks[grid_pos]
 	var node: Node3D = info["node"]
@@ -265,7 +265,7 @@ func remove_block(grid_pos: Vector3i) -> bool:
 	_blocks.erase(grid_pos)
 	_request_rebuild()
 	block_removed.emit(grid_pos)
-	return true
+	return info
 
 
 # ============================================================
