@@ -36,6 +36,7 @@ var _can_place: bool = false
 var _can_afford: bool = false
 var _is_aiming_at_block: bool = false
 var _has_target: bool = false
+var _cached_grid_for_placement: PlanetGrid = null
 
 func _register_default_materials() -> void:
 	var stone := BuildMaterial.new()
@@ -246,26 +247,31 @@ func get_missing_materials(block_data: BlockData = null) -> Array[Dictionary]:
 #  Raycast processing  (called by Player every frame in build mode)
 # ==========================================================================
 
-func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3, ray_hit: Dictionary) -> void:
+func process_raycast(hit_collider: Object, hit_normal: Vector3,
+					 hit_pos: Vector3, ray_hit: Dictionary) -> void:
 	_has_target = true
-	_is_aiming_at_block = hit_collider is StaticBody3D and hit_collider.has_meta("grid_id")
+	_is_aiming_at_block = hit_collider is StaticBody3D \
+						  and hit_collider.has_meta("grid_id")
 
 	if _is_aiming_at_block:
 		_process_aim_at_block(hit_collider, hit_normal, hit_pos)
 	else:
 		_process_aim_at_terrain(hit_normal, hit_pos)
 
-	# Distance check
-	if _player and _player.global_position.distance_to(_target_world_pos) > max_build_distance:
+	if _player and _player.global_position.distance_to(_target_world_pos) \
+	   > max_build_distance:
 		_can_place = false
 
-	# Affordability check
 	_can_afford = can_afford_block()
 
-	# Update preview — valid only if both placement and cost are OK
+	# Cachear la grid resuelta para que try_place_block use la misma
+	_cached_grid_for_placement = _target_grid
+
 	if _build_preview:
 		var is_valid := _can_place and _can_afford
-		_build_preview.update_preview(_target_world_pos, _target_basis, is_valid, ray_hit)
+		_build_preview.update_preview(
+			_target_world_pos, _target_basis, is_valid, ray_hit
+		)
 
 
 func clear_target() -> void:
@@ -352,16 +358,27 @@ func _process_cross_size_placement(
 		else:
 			target_continuous[i] = floor(hit_continuous[i] / target_cell) * target_cell
 
-	_target_grid_pos = Vector3i(
-		roundi(target_continuous.x / target_cell),
-		roundi(target_continuous.y / target_cell),
-		roundi(target_continuous.z / target_cell)
-	)
-
+	# Posición mundo provisional (en espacio de hit_grid)
 	var snapped_local := hit_grid.origin_local + hit_grid.basis_local * target_continuous
-	_target_world_pos = planet.global_transform * snapped_local
-	_target_basis = hit_grid.get_basis_world()
-	_target_grid = GridManager.find_nearest_grid(planet, _target_world_pos, target_cell)
+	var provisional_world_pos := planet.global_transform * snapped_local
+
+	# Buscar grid existente para este cell_size
+	_target_grid = GridManager.find_nearest_grid(planet, provisional_world_pos, target_cell)
+
+	if _target_grid:
+		# Re-snap a la grid encontrada para evitar mismatch
+		_target_grid_pos = _target_grid.world_to_grid(provisional_world_pos)
+		_target_world_pos = _target_grid.grid_to_world(_target_grid_pos)
+		_target_basis = _target_grid.get_basis_world()
+	else:
+		# No hay grid → usar coordenadas calculadas desde hit_grid
+		_target_grid_pos = Vector3i(
+			roundi(target_continuous.x / target_cell),
+			roundi(target_continuous.y / target_cell),
+			roundi(target_continuous.z / target_cell)
+		)
+		_target_world_pos = provisional_world_pos
+		_target_basis = hit_grid.get_basis_world()
 
 	_can_place = true
 	if _target_grid and _target_grid.has_block(_target_grid_pos):
@@ -378,7 +395,11 @@ func _process_aim_at_terrain(hit_normal: Vector3, hit_pos: Vector3) -> void:
 	var planet := current_planet
 
 	if planet:
-		_target_grid = GridManager.find_nearest_grid(planet, adjusted_pos, cell_size)
+		# Buscar grid que esté cerca Y alineada con el player
+		_target_grid = GridManager.find_nearest_grid(
+			planet, adjusted_pos, cell_size,
+			player_basis, true  # ← check_basis activado
+		)
 
 	if _target_grid:
 		_target_grid_pos = _target_grid.world_to_grid(adjusted_pos)
@@ -386,13 +407,15 @@ func _process_aim_at_terrain(hit_normal: Vector3, hit_pos: Vector3) -> void:
 		_target_basis = _target_grid.get_basis_world()
 		_can_place = not _target_grid.has_block(_target_grid_pos)
 	else:
+		# No hay grid compatible → se creará una nueva al colocar
 		_target_basis = player_basis
 		var relative := adjusted_pos - (planet.global_position if planet else Vector3.ZERO)
 		var local_pos := _target_basis.inverse() * relative
 		local_pos.x = snapped(local_pos.x, cell_size)
 		local_pos.y = snapped(local_pos.y, cell_size)
 		local_pos.z = snapped(local_pos.z, cell_size)
-		_target_world_pos = (planet.global_position if planet else Vector3.ZERO) + _target_basis * local_pos
+		_target_world_pos = (planet.global_position if planet else Vector3.ZERO) \
+							+ _target_basis * local_pos
 		_can_place = true
 
 
@@ -414,11 +437,11 @@ func try_place_block() -> bool:
 	if not block_data:
 		return false
 
-	# Consume resources first
 	if not _consume_block_cost(block_data):
 		return false
 
-	var grid := _target_grid
+	# Usar la grid cacheada del último raycast (misma que el ghost)
+	var grid := _cached_grid_for_placement
 	if not grid:
 		grid = GridManager.create_grid(
 			planet,
@@ -428,16 +451,13 @@ func try_place_block() -> bool:
 		)
 		_target_grid_pos = grid.world_to_grid(_target_world_pos)
 
+	var mat := get_current_material()
+	var mat_id := mat.material_id if mat else ""
+	if mat and mat.surface_material and not grid.mesh_materials.has(mat_id):
+		grid.mesh_materials[mat_id] = mat.surface_material
 
 	var rot_basis := get_rotation_basis()
 	var place_transform := Transform3D(_target_basis * rot_basis, _target_world_pos)
-
-	var mat := get_current_material()
-	var mat_id := mat.material_id if mat else ""
-
-	# Registrar el surface material en la grid
-	if mat and mat.surface_material and not grid.mesh_materials.has(mat_id):
-		grid.mesh_materials[mat_id] = mat.surface_material
 
 	var block := grid.place_block(
 		_target_grid_pos, block_data, current_rotation_basis,
@@ -445,8 +465,7 @@ func try_place_block() -> bool:
 	)
 
 	if not block:
-		push_error("[BuildingSystem] Failed to place block after consuming resources.")
-		# TODO: refund materials on failure
+		push_error("[BuildingSystem] Failed to place block.")
 		return false
 
 	return true

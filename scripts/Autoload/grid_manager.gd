@@ -8,7 +8,11 @@ extends Node
 ##   var grid = GridManager.find_nearest_grid(planet, world_pos)
 ##   var grid = GridManager.get_grid_for_block(collider_node)
 ##   var grids = GridManager.get_grids_for_planet(planet)
+## Distancia máxima (en celdas) para reutilizar una grid existente.
+const MAX_REUSE_CELLS := 16
 
+## Ángulo máximo (radianes) entre bases para considerar dos grids "alineadas".
+const MAX_BASIS_ANGLE := deg_to_rad(5.0)
 ## Distancia máxima para considerar que un bloque pertenece a una grid existente.
 @export var snap_distance: float = 5.0
 
@@ -184,23 +188,39 @@ func find_any_nearest_grid(planet: Node3D, world_pos: Vector3, max_dist: float =
 	
 	return best_grid
 
-func find_nearest_grid(planet: Node3D, world_pos: Vector3, target_cell_size: float = 1.0, max_dist: float = -1.0) -> PlanetGrid:
-	if max_dist < 0:
-		max_dist = snap_distance
-	
-	var grids: Array = get_grids_for_planet(planet)
-	var best_grid: PlanetGrid = null
-	var best_dist: float = max_dist
-	
-	for grid in grids:
+func find_nearest_grid(planet: Node3D, world_pos: Vector3, target_cell_size: float, required_basis: Basis = Basis.IDENTITY, check_basis: bool = false) -> PlanetGrid:
+	var best: PlanetGrid = null
+	var best_dist := INF
+	var max_dist := target_cell_size * MAX_REUSE_CELLS
+
+	for grid: PlanetGrid in get_grids_for_planet(planet):
 		if not is_equal_approx(grid.cell_size, target_cell_size):
 			continue
-		var dist: float = grid.distance_to(world_pos)
+
+		var dist := grid.distance_to(world_pos)
+
+		# Descartar grids demasiado lejos
+		if dist > max_dist:
+			continue
+
+		# Comprobar alineación de basis si se pide
+		if check_basis and not _basis_aligned(grid.get_basis_world(), required_basis):
+			continue
+
 		if dist < best_dist:
 			best_dist = dist
-			best_grid = grid
-	
-	return best_grid
+			best = grid
+
+	return best
+
+
+## Comprueba si dos bases están alineadas (cada eje apunta ±igual).
+static func _basis_aligned(a: Basis, b: Basis) -> bool:
+	for i in 3:
+		var dot: float = abs(a[i].normalized().dot(b[i].normalized()))
+		if dot < cos(MAX_BASIS_ANGLE):
+			return false
+	return true
 
 
 ## Obtiene la grid a la que pertenece un bloque (usando su metadata).
@@ -215,7 +235,7 @@ func get_grid_for_block(block_node: Node3D) -> PlanetGrid:
 ## Obtiene o crea una grid para colocar un bloque.
 ## Si hay una grid cercana compatible, la reutiliza. Si no, crea una nueva.
 func get_or_create_grid(planet: Node3D, world_pos: Vector3, basis_world: Basis, cell_size: float = 1.0) -> PlanetGrid:
-	var existing := find_nearest_grid(planet, world_pos)
+	var existing := find_nearest_grid(planet, world_pos, cell_size)
 	if existing:
 		return existing
 	return create_grid(planet, world_pos, basis_world, cell_size)
