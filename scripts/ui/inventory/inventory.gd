@@ -136,7 +136,7 @@ func remove_item(item_data: ItemData, quantity: int = 1) -> int:
 	var removed_total = 0
 	
 	for i in range(max_slots - 1, -1, -1):
-		if items[i] != null and items[i].data.Category == item_data.Category:
+		if items[i] != null and items[i].data.id == item_data.id:
 			var removed = items[i].remove(to_remove)
 			removed_total += removed
 			to_remove -= removed

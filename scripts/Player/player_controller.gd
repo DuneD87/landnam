@@ -396,14 +396,8 @@ func post_restore() -> void:
 	# Reset modelo
 	current_swimming_pitch = 0.0
 	player_model.rotation = Vector3.ZERO
-	var cube := BlockData.new()
-	cube.block_id = 0
-	cube.block_name = "cube"
-	cube.block_description = "Bloque cúbico estándar 1x1x1"
-	cube.mesh = BlockMeshGenerator.generate_cube()
-	cube.collision_shape = BlockMeshGenerator.generate_cube_collision()
-	cube.can_rotate = false
-	cube.rotation_steps = 1
+	inventory.add_item(config.get_item(&"wood_01"), 100)
+	inventory.add_item(config.get_item(&"stone_01"), 100)
 	
 
 func _clear_visual_equipment() -> void:
