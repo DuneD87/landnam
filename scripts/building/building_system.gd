@@ -4,16 +4,23 @@ extends Node3D
 const config_ref = preload("res://scripts/config.gd")
 
 const CELL_SIZES: Array[float] = [0.25, 0.5, 1.0, 2.0]
+enum MirrorAxis { NONE, X, Y, Z }
 
 signal build_mode_changed(active: bool)
 signal selected_block_changed(block_data: BlockData)
 signal rotation_changed()
 signal cell_size_changed(new_size: float)
 signal material_changed(material: BuildMaterial)
+signal mirror_changed()
 
 @export var current_planet: Node3D = null
 @export var cell_size: float = 1.0
 @export var max_build_distance: float = 8.0
+
+var mirror_axis: MirrorAxis = MirrorAxis.NONE
+var mirror_center: Vector3i = Vector3i.ZERO
+var mirror_grid: PlanetGrid = null
+var _mirror_active: bool = false
 
 var build_materials: Array[BuildMaterial] = []
 var current_material_index: int = 0
@@ -437,24 +444,40 @@ func try_place_block() -> bool:
 	if not block_data:
 		return false
 
+	var will_mirror := _should_mirror()
+	var mirror_pos := Vector3i.ZERO
+	if will_mirror:
+		mirror_pos = _get_mirror_pos(_target_grid_pos)
+		if not _can_afford_double(block_data):
+			return false
+
 	if not _consume_block_cost(block_data):
 		return false
 
 	var grid := _cached_grid_for_placement
 	if not grid:
-		# Si venimos de cross-size, crear grid alineada
-		if _hit_grid_for_alignment:
+		# Si mirror activo y no hay grid, reutilizar mirror_grid
+		# siempre que el cell_size coincida
+		if will_mirror and mirror_grid \
+		   and is_equal_approx(mirror_grid.cell_size, cell_size):
+			grid = mirror_grid
+			_target_grid_pos = grid.world_to_grid(_target_world_pos)
+		elif _hit_grid_for_alignment:
 			grid = GridManager.create_grid_aligned(
 				planet, _hit_grid_for_alignment, cell_size
 			)
+			_target_grid_pos = grid.world_to_grid(_target_world_pos)
 		else:
 			grid = GridManager.create_grid(
 				planet, _target_world_pos, _target_basis, cell_size
 			)
-		_target_grid_pos = grid.world_to_grid(_target_world_pos)
+			_target_grid_pos = grid.world_to_grid(_target_world_pos)
 
-	# Limpiar referencia
 	_hit_grid_for_alignment = null
+
+	# Recalcular mirror_pos con grid definitiva
+	if will_mirror:
+		mirror_pos = _get_mirror_pos(_target_grid_pos)
 
 	var mat := get_current_material()
 	var mat_id := mat.material_id if mat else ""
@@ -472,6 +495,20 @@ func try_place_block() -> bool:
 	if not block:
 		push_error("[BuildingSystem] Failed to place block.")
 		return false
+
+	# Mirror
+	if will_mirror and mirror_pos != _target_grid_pos:
+		if not grid.has_block(mirror_pos):
+			_consume_block_cost(block_data)
+			var mirror_world := grid.grid_to_world(mirror_pos)
+			var mirror_rot := _get_mirror_rotation(current_rotation_basis)
+			var mirror_transform := Transform3D(
+				_target_basis * mirror_rot, mirror_world
+			)
+			grid.place_block(
+				mirror_pos, block_data, mirror_rot,
+				mirror_transform, mat_id
+			)
 
 	return true
 
@@ -492,13 +529,24 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 		return false
 
 	var grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
+
 	var data = grid.remove_block(grid_pos)
 
 	# Refund antes de borrar
 	_refund_block(data, grid.cell_size)
 
-	return true
+	# Mirror remove
+	if _mirror_active and mirror_axis != MirrorAxis.NONE \
+	   and grid == mirror_grid:
+		var mirror_pos := _get_mirror_pos(grid_pos)
+		if mirror_pos != grid_pos and grid.has_block(mirror_pos):
+			var mirror_info := grid.get_block(mirror_pos)
+			var mirror_node: Node3D = mirror_info.get("node")
+			data = grid.remove_block(mirror_pos)
+			if mirror_node and is_instance_valid(mirror_node):
+				_refund_block(data, grid.cell_size)
 
+	return true
 
 func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
 	if not _inventory:
@@ -522,7 +570,101 @@ func _find_build_material(mat_id: String) -> BuildMaterial:
 			return mat
 	return null
 
+## Marca el bloque apuntado como centro del mirror.
+func set_mirror_center_from_ray(ray_hit: Dictionary) -> void:
+	if ray_hit.is_empty():
+		return
 
+	var hit_collider := ray_hit.get("collider") as Node3D
+	if not hit_collider or not hit_collider.has_meta("grid_pos"):
+		return
+
+	mirror_center = hit_collider.get_meta("grid_pos")
+	mirror_grid = GridManager.get_grid_for_block(hit_collider)
+	_mirror_active = true
+	mirror_changed.emit()
+	print("[Mirror] Center: %s, axis: %s" % [mirror_center, MirrorAxis.keys()[mirror_axis]])
+
+
+func cycle_mirror_axis() -> void:
+	mirror_axis = (mirror_axis + 1) % MirrorAxis.size() as MirrorAxis
+	if mirror_axis == MirrorAxis.NONE:
+		_mirror_active = false
+	mirror_changed.emit()
+	print("[Mirror] Axis: %s" % MirrorAxis.keys()[mirror_axis])
+
+
+func clear_mirror() -> void:
+	mirror_axis = MirrorAxis.NONE
+	_mirror_active = false
+	mirror_grid = null
+	mirror_changed.emit()
+	
+func _get_mirror_pos(grid_pos: Vector3i) -> Vector3i:
+	var diff := grid_pos - mirror_center
+	match mirror_axis:
+		MirrorAxis.X: diff.x = -diff.x
+		MirrorAxis.Y: diff.y = -diff.y
+		MirrorAxis.Z: diff.z = -diff.z
+	return mirror_center + diff
+
+
+func _get_mirror_rotation(rot_basis: Basis) -> Basis:
+	# Espejamos invirtiendo el eje correspondiente
+	var scale := Vector3.ONE
+	match mirror_axis:
+		MirrorAxis.X: scale.x = -1.0
+		MirrorAxis.Y: scale.y = -1.0
+		MirrorAxis.Z: scale.z = -1.0
+
+	var mirror_b := Basis.from_scale(scale)
+	var mirrored := mirror_b * rot_basis * mirror_b
+
+	# Re-snap a valores enteros para evitar drift
+	for i in 3:
+		for j in 3:
+			mirrored[i][j] = roundf(mirrored[i][j])
+	return mirrored
+	
+func _should_mirror() -> bool:
+	if not _mirror_active or mirror_axis == MirrorAxis.NONE:
+		return false
+	if not mirror_grid:
+		return false
+
+	# Si ya tenemos grid target, comparar por id
+	var target := _cached_grid_for_placement if _cached_grid_for_placement else _target_grid
+	if target:
+		return target.grid_id == mirror_grid.grid_id
+
+	# No hay grid target aún (terreno) → permitir si misma basis
+	if not current_planet:
+		return false
+	return _basis_compatible(_target_basis, mirror_grid.get_basis_world())
+
+
+static func _basis_compatible(a: Basis, b: Basis) -> bool:
+	for i in 3:
+		if abs(a[i].normalized().dot(b[i].normalized())) < 0.99:
+			return false
+	return true
+
+
+func _can_afford_double(block_data: BlockData) -> bool:
+	if not _inventory:
+		return true
+
+	var mat := get_current_material()
+	if not mat or not mat.item:
+		return true
+
+	var mirror_pos := _get_mirror_pos(_target_grid_pos)
+	var count := 1
+	if mirror_pos != _target_grid_pos:
+		count = 2
+
+	var cost := mat.get_cost_for_size(cell_size) * count
+	return _inventory.get_item_count(mat.item) >= cost
 # ==========================================================================
 #  Utility
 # ==========================================================================

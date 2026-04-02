@@ -644,6 +644,12 @@ func _handle_build_input(event: InputEvent) -> void:
 				building_system.cycle_material()
 				print("Material: ", building_system.get_current_material().display_name)
 				get_viewport().set_input_as_handled()
+			KEY_N:
+				building_system.cycle_mirror_axis()
+				get_viewport().set_input_as_handled()
+			KEY_V:
+				building_system.set_mirror_center_from_ray(_ray_hit)
+				get_viewport().set_input_as_handled()
  
 		if event.is_action_pressed("rotate_block_x"):
 			building_system.rotate_block_x()
