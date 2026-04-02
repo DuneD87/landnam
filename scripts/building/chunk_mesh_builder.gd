@@ -35,20 +35,29 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 		for grid_pos: Vector3i in groups[mat_id]:
 			var info: Dictionary = blocks[grid_pos]
 			var block_id: int = info["block_id"]
-			var node: Node3D = info["node"]
-			if not node or not is_instance_valid(node):
-				continue
-
-			var local_t: Transform3D = grid_inv * node.transform
-			var offset: Vector3 = local_t.origin
-			var rot: Basis = local_t.basis.orthonormalized()
-			
-			var flip: bool = rot.determinant() < 0.0
+			if block_id == 2:
+				print("[CMB] corner @ %s | mirrored=%s | axis=%s | rot_basis=%s" % [
+					grid_pos,
+					info.get("mirrored", false),
+					info.get("mirror_axis", -1),
+					info.get("rotation_basis", Basis.IDENTITY)
+				])
+			# No depender del nodo en absoluto
+			var offset := Vector3(grid_pos) * cell_size
+			var rot: Basis = info.get("rotation_basis", Basis.IDENTITY)
 
 			if _is_solid(block_id):
-				_emit_cube(st, grid_pos, offset, rot, cell_size, blocks, flip)
+				_emit_cube(st, grid_pos, offset, rot, cell_size, blocks, false)
 			else:
-				_emit_from_block_type(st, block_id, offset, rot, cell_size, flip)
+				var actual_rot := rot
+				var actual_flip := false
+				if info.get("mirrored", false):
+					var m_axis: int = info.get("mirror_axis", 0)
+					var ms := Vector3.ONE
+					ms[m_axis] = -1.0
+					actual_rot = rot * Basis.from_scale(ms)
+					actual_flip = true
+				_emit_from_block_type(st, block_id, offset, actual_rot, cell_size, actual_flip)
 
 		st.generate_tangents()
 		var surface_idx := mesh.get_surface_count()

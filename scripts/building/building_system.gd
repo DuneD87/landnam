@@ -461,11 +461,11 @@ func try_place_block() -> bool:
 
 	var rot_basis := get_rotation_basis()
 	var place_transform := Transform3D(_target_basis * rot_basis, _target_world_pos)
-
-	var block := grid.place_block(
-		_target_grid_pos, block_data, current_rotation_basis,
-		place_transform, mat_id
-	)
+	var m_data := {
+		"mirrored": true,
+		"mirror_axis": _get_mirror_axis_index()
+	}
+	var block := grid.place_block(_target_grid_pos, block_data, current_rotation_basis,place_transform, mat_id, m_data)
 
 	if not block:
 		push_error("[BuildingSystem] Failed to place block.")
@@ -479,8 +479,12 @@ func try_place_block() -> bool:
 				var mirror_world := grid.grid_to_world(mirror_pos)
 				var mirror_rot := _get_mirror_rotation(current_rotation_basis)
 				var mirror_transform := Transform3D(_target_basis * mirror_rot, mirror_world)
-				grid.place_block(mirror_pos, block_data, mirror_rot,mirror_transform, mat_id)
-
+				var mirror_info := grid.get_block(mirror_pos)
+				if mirror_info:
+					mirror_info["mirrored"] = true
+					mirror_info["mirror_axis"] = _get_mirror_axis_index()
+				grid.place_block(mirror_pos, block_data, mirror_rot,mirror_transform, mat_id, mirror_info)
+				
 	return true
 
 
@@ -540,9 +544,6 @@ func _find_build_material(mat_id: String) -> BuildMaterial:
 			return mat
 	return null
 
-
-
-
 func cycle_mirror_axis() -> void:
 	mirror_axis = (mirror_axis + 1) % MirrorAxis.size() as MirrorAxis
 	if mirror_axis == MirrorAxis.NONE:
@@ -589,7 +590,13 @@ func set_mirror_center_from_ray(ray_hit: Dictionary) -> void:
 func _get_mirror_center_in_grid(grid: PlanetGrid) -> Vector3i:
 	return grid.world_to_grid(mirror_center_world)
 
-
+func _get_mirror_axis_index() -> int:
+	match mirror_axis:
+		MirrorAxis.X: return 0
+		MirrorAxis.Y: return 1
+		MirrorAxis.Z: return 2
+	return -1
+	
 func _get_mirror_pos(grid_pos: Vector3i, grid: PlanetGrid) -> Vector3i:
 	var grid_basis := grid.get_basis_world()
 	var s := grid.cell_size
@@ -610,7 +617,19 @@ func _get_mirror_pos(grid_pos: Vector3i, grid: PlanetGrid) -> Vector3i:
 	var reflected_corner := reflected_center - grid_basis * (Vector3.ONE * s * 0.5)
 	return grid.world_to_grid(reflected_corner)
 
-
+func _get_mirror_visual_basis(rot_basis: Basis) -> Basis:
+	var scale := Vector3.ONE
+	match mirror_axis:
+		MirrorAxis.X: scale.x = -1.0
+		MirrorAxis.Y: scale.y = -1.0
+		MirrorAxis.Z: scale.z = -1.0
+	var mirror_b := Basis.from_scale(scale)
+	var result := mirror_b * rot_basis   # M·R, det = -1
+	for i in 3:
+		for j in 3:
+			result[i][j] = roundf(result[i][j])
+	return result
+	
 func _get_mirror_rotation(rot_basis: Basis) -> Basis:
 	# Espejamos invirtiendo el eje correspondiente
 	var scale := Vector3.ONE

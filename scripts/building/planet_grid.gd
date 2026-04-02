@@ -207,7 +207,7 @@ func grid_to_world(grid_pos: Vector3i) -> Vector3:
 ## Coloca un bloque. Retorna el nodo creado o null.
 ## El body usa el world_transform del ghost (exacto). Sin MeshInstance3D.
 func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis,
-				 world_transform: Transform3D, material_id: String = "") -> Node3D:
+				 world_transform: Transform3D, material_id: String = "", mirror_data: Dictionary = {}) -> Node3D:
 	if _blocks.has(grid_pos):
 		return null
 	
@@ -240,6 +240,8 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 		"rotation_basis": rotation_basis,
 		"node": body,
 		"material_id": material_id,
+		"mirrored" : mirror_data.get("mirrored", false),
+		"mirror_axis": mirror_data.get("mirror_axis", -1)
 	}
 
 	if material_id != "" and not mesh_materials.has(material_id):
