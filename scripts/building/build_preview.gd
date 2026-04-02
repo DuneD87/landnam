@@ -15,11 +15,18 @@ var _ghost_material: StandardMaterial3D = null
 var _mirror_ghost_node: Node3D = null
 var _mirror_ghost_mesh: MeshInstance3D = null
 
+var _highlight_node: Node3D = null
+var _highlight_mesh: MeshInstance3D = null
+
+var _mirror_highlight_node: Node3D = null
+var _mirror_highlight_mesh: MeshInstance3D = null
 
 func setup(building_system: BuildingSystem) -> void:
 	_building_system = building_system
 	_setup_ghost()
 	_setup_mirror_ghost()
+	_setup_highlight()
+	
 	_building_system.selected_block_changed.connect(_on_block_changed)
 	_building_system.build_mode_changed.connect(_on_build_mode_changed)
 	_building_system.rotation_changed.connect(_on_ghost_mesh_dirty)
@@ -31,7 +38,6 @@ func setup(building_system: BuildingSystem) -> void:
 
 
 func _setup_mirror_ghost() -> void:
-	# Nodo raíz independiente del ghost principal
 	_mirror_ghost_node = Node3D.new()
 	_mirror_ghost_node.name = "MirrorGhost"
 
@@ -47,7 +53,6 @@ func _setup_mirror_ghost() -> void:
 	_mirror_ghost_mesh.material_override = mirror_mat
 
 	_mirror_ghost_node.add_child(_mirror_ghost_mesh)
-	# Hijo de self (BuildPreview), NO de _ghost_node
 	add_child(_mirror_ghost_node)
 	_mirror_ghost_node.visible = false
 # ==========================================================================
@@ -128,7 +133,61 @@ func hide_preview() -> void:
 	if _mirror_ghost_node:
 		_mirror_ghost_node.visible = false
 
+func _setup_highlight() -> void:
+	_highlight_node = Node3D.new()
+	_highlight_node.name = "BlockHighlight"
+	
+	_highlight_mesh = MeshInstance3D.new()
+	_highlight_mesh.mesh = BoxMesh.new() # Un cubo simple
+	
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.50, 0.1, 0.1, 0.5) # Amarillo semitransparente
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.no_depth_test = false # Cambia a true si quieres verlo a través de las paredes
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.render_priority = 5
+	_highlight_mesh.material_override = mat
+	
+	_highlight_node.add_child(_highlight_mesh)
+	add_child(_highlight_node)
+	_highlight_node.visible = false
+	# --- Highlight Espejo ---
+	_mirror_highlight_node = Node3D.new()
+	_mirror_highlight_node.name = "MirrorBlockHighlight"
+	_mirror_highlight_mesh = MeshInstance3D.new()
+	_mirror_highlight_mesh.mesh = BoxMesh.new()
+	
+	# Usamos un material ligeramente distinto (ej: naranja/rojizo) para diferenciar el espejo
+	var mirror_mat := StandardMaterial3D.new()
+	mirror_mat.albedo_color = Color(0.5, 0.1, 0.1, 0.5) 
+	mirror_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mirror_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_mirror_highlight_mesh.material_override = mirror_mat
+	
+	_mirror_highlight_node.add_child(_mirror_highlight_mesh)
+	add_child(_mirror_highlight_node)
+	_mirror_highlight_node.visible = false
 
+func show_highlight(cell_world_pos: Vector3, grid_basis: Basis, cell_size: float) -> void:
+	if not _highlight_node: return
+	_highlight_node.global_transform = Transform3D(grid_basis, cell_world_pos)
+	_highlight_mesh.position = Vector3(0.5, 0.5, 0.5) * cell_size
+	_highlight_mesh.scale = Vector3.ONE * cell_size * 1.02
+	_highlight_node.visible = true
+
+func show_mirror_highlight(cell_world_pos: Vector3, grid_basis: Basis, cell_size: float) -> void:
+	if not _mirror_highlight_node: return
+	_mirror_highlight_node.global_transform = Transform3D(grid_basis, cell_world_pos)
+	_mirror_highlight_mesh.position = Vector3(0.5, 0.5, 0.5) * cell_size
+	_mirror_highlight_mesh.scale = Vector3.ONE * cell_size * 1.02
+	_mirror_highlight_node.visible = true
+
+func hide_highlight() -> void:
+	if _highlight_node: _highlight_node.visible = false
+	if _mirror_highlight_node: _mirror_highlight_node.visible = false
+
+func hide_mirror_highlight() -> void:
+	if _mirror_highlight_node: _mirror_highlight_node.visible = false
 # ==========================================================================
 #  Signal callbacks
 # ==========================================================================
@@ -155,6 +214,7 @@ func _on_build_mode_changed(active: bool) -> void:
 		_mirror_ghost_node.visible = false
 	if active:
 		_refresh_ghost_mesh()
+
 
 
 # ==========================================================================

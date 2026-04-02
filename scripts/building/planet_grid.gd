@@ -226,13 +226,16 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 	
 	var collider := CollisionShape3D.new()
 	var shape: Shape3D = block_data.collision_shape.duplicate()
+	
 	if shape is BoxShape3D:
 		shape.size = shape.size * cell_size
-		collider.shape = shape
-		collider.position = Vector3.ONE * cell_size * 0.5
 	else:
-		collider.shape = shape
 		collider.scale = Vector3.ONE * cell_size
+	
+	collider.shape = shape
+
+	var c := Vector3.ONE * cell_size * 0.5
+	collider.position = rotation_basis.inverse() * c
 	body.add_child(collider)
 	
 	body.set_meta("grid_id", grid_id)

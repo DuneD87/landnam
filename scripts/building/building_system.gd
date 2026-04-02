@@ -5,6 +5,7 @@ const config_ref = preload("res://scripts/config.gd")
 
 const CELL_SIZES: Array[float] = [0.25, 0.5, 1.0, 2.0]
 enum MirrorAxis { NONE, X, Y, Z }
+enum ActionMode { BUILD, DESTROY }
 
 signal build_mode_changed(active: bool)
 signal selected_block_changed(block_data: BlockData)
@@ -12,6 +13,7 @@ signal rotation_changed()
 signal cell_size_changed(new_size: float)
 signal material_changed(material: BuildMaterial)
 signal mirror_changed()
+signal action_mode_changed(mode: ActionMode)
 
 @export var current_planet: Node3D = null
 @export var cell_size: float = 1.0
@@ -45,6 +47,7 @@ var _is_aiming_at_block: bool = false
 var _has_target: bool = false
 var _cached_grid_for_placement: PlanetGrid = null
 var _hit_grid_for_alignment: PlanetGrid = null
+var current_action_mode: ActionMode = ActionMode.BUILD
 
 func _register_default_materials() -> void:
 	var stone := BuildMaterial.new()
@@ -182,12 +185,31 @@ func decrease_cell_size() -> void:
 func toggle_build_mode() -> void:
 	build_mode = !build_mode
 	build_mode_changed.emit(build_mode)
+	if !build_mode:
+		clear_target()
+	
 
 func set_build_mode(active: bool) -> void:
 	if build_mode != active:
 		build_mode = active
 		build_mode_changed.emit(build_mode)
+		
+func toggle_action_mode() -> void:
+	if current_action_mode == ActionMode.BUILD:
+		current_action_mode = ActionMode.DESTROY
+	else:
+		current_action_mode = ActionMode.BUILD
+	
+	# Limpiamos los efectos visuales inmediatamente al cambiar de modo
+	clear_target()
+	action_mode_changed.emit(current_action_mode)
+	print("[BuildingSystem] Modo: ", "CONSTRUIR" if current_action_mode == ActionMode.BUILD else "ELIMINAR")
 
+func execute_primary_action(ray_hit: Dictionary) -> void:
+	if current_action_mode == ActionMode.BUILD:
+		try_place_block()
+	else:
+		try_remove_block(ray_hit)
 
 # ==========================================================================
 #  Player helpers
@@ -260,21 +282,47 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 
 	if _is_aiming_at_block:
 		_process_aim_at_block(hit_collider, hit_normal, hit_pos)
+		
+		var hit_grid := GridManager.get_grid_for_block(hit_collider as Node3D)
+		if hit_grid and _build_preview:
+			if current_action_mode == ActionMode.DESTROY:
+				var grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
+				var cell_world_pos := hit_grid.grid_to_world(grid_pos)
+				var grid_basis := hit_grid.get_basis_world()
+				
+				_build_preview.show_highlight(cell_world_pos, grid_basis, hit_grid.cell_size)
+				
+				var mirror_shown := false
+				if _mirror_active and mirror_axis != MirrorAxis.NONE and hit_grid == mirror_grid:
+					var mirror_pos := _get_mirror_pos(grid_pos, hit_grid)
+					if mirror_pos != grid_pos and hit_grid.has_block(mirror_pos):
+						var mirror_world_pos := hit_grid.grid_to_world(mirror_pos)
+						_build_preview.show_mirror_highlight(mirror_world_pos, grid_basis, hit_grid.cell_size)
+						mirror_shown = true
+				
+				if not mirror_shown:
+					_build_preview.hide_mirror_highlight()
+					
+			else:
+				_build_preview.hide_highlight()
 	else:
 		_process_aim_at_terrain(hit_normal, hit_pos)
+		if _build_preview:
+			_build_preview.hide_highlight()
 
-	if _player and _player.global_position.distance_to(_target_world_pos) \
-	   > max_build_distance:
+	if _player and _player.global_position.distance_to(_target_world_pos) > max_build_distance:
 		_can_place = false
 
 	_can_afford = can_afford_block()
-
-	# Cachear la grid resuelta para que try_place_block use la misma
 	_cached_grid_for_placement = _target_grid
 
 	if _build_preview:
-		var is_valid := _can_place and _can_afford
-		_build_preview.update_preview(_target_world_pos, _target_basis, is_valid, ray_hit)
+		# Mostrar Ghost Block SOLO en modo construcción
+		if current_action_mode == ActionMode.BUILD:
+			var is_valid := _can_place and _can_afford
+			_build_preview.update_preview(_target_world_pos, _target_basis, is_valid, ray_hit)
+		else:
+			_build_preview.hide_preview()
 
 
 func clear_target() -> void:
@@ -283,6 +331,7 @@ func clear_target() -> void:
 	_can_afford = false
 	if _build_preview:
 		_build_preview.hide_preview()
+		_build_preview.hide_highlight()
 
 
 func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3) -> void:

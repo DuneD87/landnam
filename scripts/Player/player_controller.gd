@@ -611,11 +611,12 @@ func _input(event):
  
 func _handle_build_input(event: InputEvent) -> void:
 	var shift_held := Input.is_action_pressed("left_shift")
- 
+
 	if event is InputEventMouseButton and event.pressed:
 		match event.button_index:
 			MOUSE_BUTTON_LEFT:
-				building_system.try_place_block()
+				# Ahora el click izquierdo es contextual (construye o elimina)
+				building_system.execute_primary_action(_ray_hit)
 				get_viewport().set_input_as_handled()
 			MOUSE_BUTTON_RIGHT:
 				building_system.toggle_build_mode()
@@ -628,16 +629,18 @@ func _handle_build_input(event: InputEvent) -> void:
 				if shift_held:
 					building_system.decrease_cell_size()
 				get_viewport().set_input_as_handled()
- 
+
 	if event is InputEventKey and event.pressed:
 		match event.keycode:
 			KEY_X:
+				# Puedes mantener esto como un atajo rápido para destruir sin cambiar de modo
 				building_system.try_remove_block(_ray_hit)
 				get_viewport().set_input_as_handled()
 			KEY_TAB:
 				building_system.select_next_block()
 				get_viewport().set_input_as_handled()
 			KEY_P:
+				# Puedes mantener esto como un atajo rápido para colocar
 				building_system.try_place_block()
 				get_viewport().set_input_as_handled()
 			KEY_M:
@@ -650,8 +653,13 @@ func _handle_build_input(event: InputEvent) -> void:
 			KEY_V:
 				building_system.set_mirror_center_from_ray(_ray_hit)
 				get_viewport().set_input_as_handled()
- 
-		if event.is_action_pressed("rotate_block_x"):
+
+		# --- NUEVO: Alternar entre modo Construir / Destruir ---
+		if event.is_action_pressed("switch_build_modes"):
+			building_system.toggle_action_mode()
+			get_viewport().set_input_as_handled()
+			
+		elif event.is_action_pressed("rotate_block_x"):
 			building_system.rotate_block_x()
 			get_viewport().set_input_as_handled()
 		elif event.is_action_pressed("rotate_block_y"):

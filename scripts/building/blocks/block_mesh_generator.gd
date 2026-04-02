@@ -175,28 +175,24 @@ static func generate_cube_collision(size: float = 1.0) -> BoxShape3D:
 	return shape
 
 
-## Genera un ConvexPolygonShape3D para el slope.
 static func generate_slope_collision(size: float = 1.0) -> ConvexPolygonShape3D:
 	var s := size * 0.5
-	var h := size
 	var shape := ConvexPolygonShape3D.new()
 	shape.points = PackedVector3Array([
-		Vector3(-s, 0, +s), Vector3(+s, 0, +s),
-		Vector3(+s, 0, -s), Vector3(-s, 0, -s),
-		Vector3(-s, h, +s), Vector3(+s, h, +s),
+		Vector3(-s, -s, +s), Vector3(+s, -s, +s),
+		Vector3(+s, -s, -s), Vector3(-s, -s, -s),
+		Vector3(-s, +s, +s), Vector3(+s, +s, +s),
 	])
 	return shape
 
 
-## Genera un ConvexPolygonShape3D para el corner.
 static func generate_corner_collision(size: float = 1.0) -> ConvexPolygonShape3D:
 	var s := size * 0.5
-	var h := size
 	var shape := ConvexPolygonShape3D.new()
 	shape.points = PackedVector3Array([
-		Vector3(-s, 0, +s), Vector3(+s, 0, +s),
-		Vector3(+s, 0, -s), Vector3(-s, 0, -s),
-		Vector3(-s, h, +s),
+		Vector3(-s, -s, +s), Vector3(+s, -s, +s),
+		Vector3(+s, -s, -s), Vector3(-s, -s, -s),
+		Vector3(-s, +s, +s),
 	])
 	return shape
 
