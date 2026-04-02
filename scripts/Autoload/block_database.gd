@@ -11,7 +11,7 @@ extends Node
 const BLOCK_CUBE_ID := 0
 const BLOCK_SLOPE_ID := 1
 const BLOCK_CORNER_ID := 2
-
+const BLOCK_INV_CORNER_ID := 3
 var _blocks: Dictionary = {}  # id -> BlockData
 var _blocks_by_name: Dictionary = {}  # name -> BlockData
 
@@ -54,6 +54,15 @@ func _register_default_blocks() -> void:
 	corner.can_rotate = true
 	corner.rotation_steps = 4
 	register_block(corner)
+	var inv_corner := BlockData.new()
+	inv_corner.block_id = BLOCK_INV_CORNER_ID # Asegúrate de declarar esta constante arriba (ej. = 3)
+	inv_corner.block_name = "inv_corner"
+	inv_corner.block_description = "Esquina invertida (cóncava)"
+	inv_corner.mesh = BlockMeshGenerator.generate_inv_corner()
+	inv_corner.collision_shape = BlockMeshGenerator.generate_inv_corner_collision()
+	inv_corner.can_rotate = true
+	inv_corner.rotation_steps = 4
+	register_block(inv_corner)
 
 
 ## Registra un BlockData. Sobrescribe si ya existe el ID.

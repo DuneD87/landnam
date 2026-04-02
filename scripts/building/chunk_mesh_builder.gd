@@ -73,11 +73,37 @@ static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector
 	match block_id:
 		1:  _emit_slope(st, offset, rot, size, flip)
 		2:  _emit_corner(st, offset, rot, size, flip)
+		3:  _emit_inv_corner(st, offset, rot, size, flip) # <--- AÑADIDO
 		_:
 			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
 			_emit_cube_no_cull(st, offset, rot, size, flip)
 
+static func _emit_inv_corner(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool) -> void:
+	var h := size
+	var c := Vector3(h * 0.5, h * 0.5, h * 0.5)
 
+	# Todos los vértices del cubo EXCEPTO v4
+	var v0 := rot * (Vector3(0, 0, h) - c) + c + offset
+	var v1 := rot * (Vector3(h, 0, h) - c) + c + offset
+	var v2 := rot * (Vector3(h, 0, 0) - c) + c + offset
+	var v3 := rot * (Vector3(0, 0, 0) - c) + c + offset
+	var v5 := rot * (Vector3(h, h, h) - c) + c + offset
+	var v6 := rot * (Vector3(h, h, 0) - c) + c + offset
+	var v7 := rot * (Vector3(0, h, 0) - c) + c + offset
+
+	# Caras completas
+	_add_quad(st, v3, v2, v1, v0, flip) # Bottom
+	_add_quad(st, v2, v3, v7, v6, flip) # Back
+	_add_quad(st, v1, v2, v6, v5, flip) # Right
+	
+	# Caras triangulares
+	_add_triangle(st, v5, v6, v7, flip) # Top
+	_add_triangle(st, v3, v0, v7, flip) # Left
+	_add_triangle(st, v0, v1, v5, flip) # Front
+	
+	# Pendiente cóncava
+	_add_triangle(st, v0, v5, v7, flip) # Inner slope
+	
 static func _emit_cube(
 	st: SurfaceTool,
 	grid_pos: Vector3i,

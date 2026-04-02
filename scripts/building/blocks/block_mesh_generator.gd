@@ -196,7 +196,56 @@ static func generate_corner_collision(size: float = 1.0) -> ConvexPolygonShape3D
 	])
 	return shape
 
+# ============================================================
+#  INVERTED CORNER
+# ============================================================
+# Es un cubo completo al que le falta el vértice v4 (Front-Left-Top).
+# Tiene 3 caras cuadradas (Abajo, Atrás, Derecha) y 4 triangulares.
+static func generate_inv_corner(size: float = 1.0) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	
+	var h := size
+	var s := size * 0.5
+	
+	# Todos los vértices de un cubo EXCEPTO v4 (-s, h, +s)
+	var v0 := Vector3(-s, 0, +s)
+	var v1 := Vector3(+s, 0, +s)
+	var v2 := Vector3(+s, 0, -s)
+	var v3 := Vector3(-s, 0, -s)
+	var v5 := Vector3(+s, h, +s)
+	var v6 := Vector3(+s, h, -s)
+	var v7 := Vector3(-s, h, -s)
+	
+	# Caras completas (Quads)
+	_add_quad(st, v3, v2, v1, v0, Vector3.DOWN)   # Bottom
+	_add_quad(st, v2, v3, v7, v6, Vector3.BACK)   # Back
+	_add_quad(st, v1, v2, v6, v5, Vector3.RIGHT)  # Right
+	
+	# Caras triangulares externas
+	_add_triangle(st, v5, v6, v7, Vector3.UP)     # Top (mitad)
+	_add_triangle(st, v3, v0, v7, Vector3.LEFT)   # Left (mitad)
+	_add_triangle(st, v0, v1, v5, Vector3.FORWARD)# Front (mitad)
+	
+	# Cara de la pendiente cóncava (Inner Slope)
+	var slope_normal := (v5 - v0).cross(v7 - v0).normalized()
+	_add_triangle(st, v0, v5, v7, slope_normal)
+	
+	st.generate_normals()
+	st.generate_tangents()
+	return st.commit()
 
+static func generate_inv_corner_collision(size: float = 1.0) -> ConvexPolygonShape3D:
+	var s := size * 0.5
+	var shape := ConvexPolygonShape3D.new()
+	# Los 7 vértices, pero con el eje Y centrado de -s a +s para el motor físico
+	shape.points = PackedVector3Array([
+		Vector3(-s, -s, +s), Vector3(+s, -s, +s), # v0, v1
+		Vector3(+s, -s, -s), Vector3(-s, -s, -s), # v2, v3
+		Vector3(+s, +s, +s), Vector3(+s, +s, -s), # v5, v6
+		Vector3(-s, +s, -s)                       # v7
+	])
+	return shape
 # ============================================================
 #  HELPERS
 # ============================================================
