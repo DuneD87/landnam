@@ -17,6 +17,7 @@ const data = preload("res://scripts/items/item_data.gd")
 @onready var build_preview: BuildPreview = $BuildPreview
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var build_menu: BuildMenu = $BuildMenu
+@onready var step_up: StepUpSystem = $StepUpSystem
 
 @export var main_menu: Control
 @export var spawn_point: Marker3D
@@ -220,6 +221,9 @@ func _unequip_right_hand() -> void:
 	
 	
 func _ready():
+	safe_margin = 0.008
+	floor_max_angle = deg_to_rad(70.0)    # acceptar pendents més empinades
+	floor_snap_length = 0.1
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	GameManager.register_player(self)
 	GameManager.state_changed.connect(_on_game_state_changed)
@@ -856,5 +860,7 @@ func update_normal_movement(delta: float) -> void:
 			
 	align_to_gravity(gravity_direction, delta)
 	camera_controller.update_camera_rotation()
-	
+	var pre_slide_velocity := velocity  # ← GUARDAR ABANS
 	move_and_slide()
+	if is_on_floor() and not movement.is_swimming:
+		step_up.try_step_up(delta, gravity_direction, pre_slide_velocity)
