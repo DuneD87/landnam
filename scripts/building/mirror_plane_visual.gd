@@ -2,16 +2,16 @@
 class_name MirrorPlaneVisual
 extends Node3D
 
-const PLANE_SIZE := 20.0
+const PLANE_SIZE := 10.0
 const AXIS_COLORS := {
 	BuildingSystem.MirrorAxis.X: Color(1.0, 0.2, 0.2, 0.18),
 	BuildingSystem.MirrorAxis.Y: Color(0.2, 1.0, 0.2, 0.18),
 	BuildingSystem.MirrorAxis.Z: Color(0.2, 0.4, 1.0, 0.18),
 }
 const AXIS_LINE_COLORS := {
-	BuildingSystem.MirrorAxis.X: Color(1.0, 0.3, 0.3, 0.7),
-	BuildingSystem.MirrorAxis.Y: Color(0.3, 1.0, 0.3, 0.7),
-	BuildingSystem.MirrorAxis.Z: Color(0.3, 0.5, 1.0, 0.7),
+	BuildingSystem.MirrorAxis.X: Color(1.0, 0.3, 0.3, 0.3),
+	BuildingSystem.MirrorAxis.Y: Color(0.3, 1.0, 0.3, 0.3),
+	BuildingSystem.MirrorAxis.Z: Color(0.3, 0.5, 1.0, 0.3),
 }
 
 var _plane_mesh: MeshInstance3D
@@ -39,7 +39,7 @@ func _create_plane() -> void:
 	_plane_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_plane_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_plane_material.no_depth_test = true
-	_plane_material.render_priority = 1
+	_plane_material.render_priority = 5
 	_plane_material.albedo_color = Color(1, 1, 1, 0.15)
 	_plane_mesh.material_override = _plane_material
 
@@ -54,7 +54,7 @@ func _create_border() -> void:
 	_border_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_border_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_border_material.no_depth_test = true
-	_border_material.render_priority = 2
+	_border_material.render_priority = 5
 	_border_material.albedo_color = Color(1, 1, 1, 0.6)
 
 	_border_mesh.material_override = _border_material

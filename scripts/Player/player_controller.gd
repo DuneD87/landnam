@@ -674,12 +674,13 @@ func _handle_build_input(event: InputEvent) -> void:
 				building_system.cycle_material()
 				print("Material: ", building_system.get_current_material().display_name)
 				get_viewport().set_input_as_handled()
-			KEY_N:
-				building_system.cycle_mirror_axis()
-				get_viewport().set_input_as_handled()
-			KEY_V:
-				building_system.set_mirror_center_from_ray(_ray_hit)
-				get_viewport().set_input_as_handled()
+		if event.is_action_pressed("toggle_symmetry_mode"):
+			building_system.toggle_symmetry(_ray_hit)
+			get_viewport().set_input_as_handled()
+
+		elif event.is_action_pressed("switch_symmetry_plane"):
+			building_system.switch_symmetry_plane()
+			get_viewport().set_input_as_handled()
 
 		if event.is_action_pressed("switch_build_modes"):
 			building_system.toggle_action_mode()

@@ -123,6 +123,9 @@ func _register_default_materials() -> void:
 
 	print("[BuildingSystem] Registered %d materials." % build_materials.size())
 	
+func _add_mirror_visual_to_scene() -> void:
+	get_tree().current_scene.add_child(_mirror_visual)	
+	
 func _ready() -> void:
 	selected_block_id = BlockDatabase.BLOCK_CUBE_ID
 	_player = get_parent() as Node3D
@@ -142,7 +145,8 @@ func _ready() -> void:
 	_icon_generator = BlockIconGenerator.new()
 	add_child(_icon_generator)
 	_mirror_visual = MirrorPlaneVisual.new()
-	add_child(_mirror_visual)
+	call_deferred("_add_mirror_visual_to_scene")
+
 	_generate_block_material_items()
 
 
@@ -248,12 +252,15 @@ func toggle_build_mode() -> void:
 	build_mode_changed.emit(build_mode)
 	if !build_mode:
 		clear_target()
-	
+		_on_build_mode_off()
+
 
 func set_build_mode(active: bool) -> void:
 	if build_mode != active:
 		build_mode = active
 		build_mode_changed.emit(build_mode)
+		if not active:
+			_on_build_mode_off()
 		
 func toggle_action_mode() -> void:
 	if current_action_mode == ActionMode.BUILD:
@@ -656,12 +663,79 @@ func _find_build_material(mat_id: String) -> BuildMaterial:
 			return mat
 	return null
 
-func cycle_mirror_axis() -> void:
-	mirror_axis = (mirror_axis + 1) % MirrorAxis.size() as MirrorAxis
-	if mirror_axis == MirrorAxis.NONE:
+## Toggle simetria on/off. Si s'activa, fixa el centre al bloc apuntat.
+func toggle_symmetry(ray_hit: Dictionary) -> void:
+	if _mirror_active:
+		# Desactivar
 		_mirror_active = false
+		mirror_axis = MirrorAxis.NONE
+		mirror_grid = null
+		_mirror_visual.hide_plane()
+		mirror_changed.emit()
+		print("[Mirror] Disabled")
+	else:
+		# Activar: necessitem un bloc com a centre
+		if ray_hit.is_empty():
+			print("[Mirror] Aim at a block to set mirror center")
+			return
+
+		var hit_collider := ray_hit.get("collider") as Node3D
+		if not hit_collider or not hit_collider.has_meta("grid_pos"):
+			print("[Mirror] Aim at a placed block")
+			return
+
+		var grid := GridManager.get_grid_for_block(hit_collider)
+		if not grid:
+			return
+
+		# Fixar centre
+		var grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
+		var block_cell := grid.cell_size
+		var half := Vector3.ONE * block_cell * 0.5
+		var grid_space_center := Vector3(grid_pos) * block_cell + half
+		var local_pos := grid.origin_local + grid.basis_local * grid_space_center
+		mirror_center_world = grid.planet_node.global_transform * local_pos
+
+		mirror_grid = grid
+		mirror_axis = MirrorAxis.X  # per defecte comença amb X
+		_mirror_active = true
+		_update_mirror_visual()
+		mirror_changed.emit()
+		print("[Mirror] Enabled at %s, axis: X" % mirror_center_world)
+
+
+## Cicla entre eixos X → Y → Z (només si simetria activa)
+func switch_symmetry_plane() -> void:
+	if not _mirror_active:
+		return
+
+	match mirror_axis:
+		MirrorAxis.X:
+			mirror_axis = MirrorAxis.Y
+		MirrorAxis.Y:
+			mirror_axis = MirrorAxis.Z
+		MirrorAxis.Z:
+			mirror_axis = MirrorAxis.X
+
+	_update_mirror_visual()
 	mirror_changed.emit()
 	print("[Mirror] Axis: %s" % MirrorAxis.keys()[mirror_axis])
+
+
+func _update_mirror_visual() -> void:
+	if not _mirror_active or mirror_axis == MirrorAxis.NONE or not mirror_grid:
+		_mirror_visual.hide_plane()
+		return
+	var grid_basis := mirror_grid.get_basis_world()
+	_mirror_visual.show_plane(mirror_center_world, grid_basis, mirror_axis)
+
+
+## Cridar des de toggle_build_mode i set_build_mode per netejar visual
+func _on_build_mode_off() -> void:
+	_mirror_active = false
+	mirror_axis = MirrorAxis.NONE
+	mirror_grid = null
+	_mirror_visual.hide_plane()
 
 
 func clear_mirror() -> void:
@@ -670,34 +744,6 @@ func clear_mirror() -> void:
 	mirror_grid = null
 	mirror_changed.emit()
 	
-func set_mirror_center_from_ray(ray_hit: Dictionary) -> void:
-	if ray_hit.is_empty():
-		return
-
-	var hit_collider := ray_hit.get("collider") as Node3D
-	if not hit_collider or not hit_collider.has_meta("grid_pos"):
-		return
-
-	var grid := GridManager.get_grid_for_block(hit_collider)
-	if not grid:
-		return
-
-	var grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
-
-	# Centro geométrico real del bloque, no la esquina de la celda
-	var block_cell := grid.cell_size
-	var half := Vector3.ONE * block_cell * 0.5
-	var grid_space_center := Vector3(grid_pos) * block_cell + half
-
-	# Convertir a mundo via el espacio local de la grid
-	var local_pos := grid.origin_local + grid.basis_local * grid_space_center
-	mirror_center_world = grid.planet_node.global_transform * local_pos
-
-	mirror_grid = grid
-	_mirror_active = true
-	mirror_changed.emit()
-	print("[Mirror] Center: %s (block %s, cell %.2f)" % [mirror_center_world, grid_pos, block_cell])
-
 
 func _get_mirror_center_in_grid(grid: PlanetGrid) -> Vector3i:
 	return grid.world_to_grid(mirror_center_world)
