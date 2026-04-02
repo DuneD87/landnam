@@ -44,7 +44,7 @@ sky = SubResource("Sky_hj7oe")
 ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_sky_contribution = 0.0
-ambient_light_energy = 0.1
+ambient_light_energy = 0.01
 reflected_light_source = 1
 tonemap_mode = 3
 ssr_max_steps = 128
@@ -68,7 +68,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@19654")
+water_sphere = NodePath("@Node3D@41231")
 planet = NodePath("")
 entity_id = "planet_earth"
 

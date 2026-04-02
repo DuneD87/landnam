@@ -70,24 +70,7 @@ func update_preview(world_pos: Vector3, basis: Basis, can_place: bool, _ray_hit:
 	_ghost_mesh_instance.transform = Transform3D(rot_basis, rotated_offset)
 	_ghost_mesh_instance.scale = Vector3(s, s, s)
 	_ghost_material.albedo_color = ghost_color_valid if can_place else ghost_color_invalid
-	if _building_system._should_mirror():
-		var grid := _building_system._cached_grid_for_placement
-		if not grid:
-			grid = _building_system._target_grid
-		if grid:
-			var mirror_pos := _building_system._get_mirror_pos(_building_system._target_grid_pos)
-			var mirror_world := grid.grid_to_world(mirror_pos)
-			var mirror_rot := _building_system._get_mirror_rotation(_building_system.current_rotation_basis)
-
-			var mirror_rotated_offset := mirror_rot * (mesh_offset - cell_center) + cell_center
-
-			_mirror_ghost_mesh.visible = true
-			_mirror_ghost_mesh.global_position = mirror_world
-			_mirror_ghost_mesh.transform = Transform3D(mirror_rot, mirror_rotated_offset)
-			_mirror_ghost_mesh.scale = Vector3(s, s, s)
-			_mirror_ghost_mesh.mesh = _ghost_mesh_instance.mesh
-	else:
-		_mirror_ghost_mesh.visible = false
+	
 	_update_mirror_preview()
 
 
@@ -106,9 +89,7 @@ func _update_mirror_preview() -> void:
 		_mirror_ghost_node.visible = false
 		return
 
-	var mirror_pos := _building_system._get_mirror_pos(
-		_building_system._target_grid_pos
-	)
+	var mirror_pos := _building_system._get_mirror_pos(_building_system._target_grid_pos, grid)
 
 	# No mostrar si es la misma posición
 	if mirror_pos == _building_system._target_grid_pos:
@@ -135,8 +116,7 @@ func _update_mirror_preview() -> void:
 	# Color: verde si se puede colocar, rojo si ocupado
 	var can_mirror := not grid.has_block(mirror_pos)
 	var mat := _mirror_ghost_mesh.material_override as StandardMaterial3D
-	mat.albedo_color = Color(0.6, 0.8, 1.0, 0.3) if can_mirror \
-					   else Color(1.0, 0.2, 0.2, 0.3)
+	mat.albedo_color = Color(0.6, 0.8, 1.0, 0.3) if can_mirror  else Color(1.0, 0.2, 0.2, 0.3)
 
 	_mirror_ghost_node.visible = true
 

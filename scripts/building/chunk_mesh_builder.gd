@@ -13,20 +13,12 @@ const FACE_DIRS: Array[Vector3i] = [
 ]
 const SOLID_BLOCK_IDS: Array[int] = [0]
 
-static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector3, rot: Basis, size: float) -> void:
-	match block_id:
-		1:  _emit_slope(st, offset, rot, size)
-		2:  _emit_corner(st, offset, rot, size)
-		_:
-			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
-			_emit_cube_no_cull(st, offset, rot, size)
 
 static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Transform3D, materials: Dictionary = {}) -> ArrayMesh:
 	if blocks.is_empty():
 		return null
 
-	# Agrupar bloques por material_id
-	var groups: Dictionary = {}  # material_id → Array[Vector3i]
+	var groups: Dictionary = {}
 	for grid_pos: Vector3i in blocks:
 		var mat_id: String = blocks[grid_pos].get("material_id", "")
 		if not groups.has(mat_id):
@@ -50,31 +42,44 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 			var local_t: Transform3D = grid_inv * node.transform
 			var offset: Vector3 = local_t.origin
 			var rot: Basis = local_t.basis.orthonormalized()
+			
+			var flip: bool = rot.determinant() < 0.0
 
 			if _is_solid(block_id):
-				_emit_cube(st, grid_pos, offset, rot, cell_size, blocks)
+				_emit_cube(st, grid_pos, offset, rot, cell_size, blocks, flip)
 			else:
-				_emit_from_block_type(st, block_id, offset, rot, cell_size)
+				_emit_from_block_type(st, block_id, offset, rot, cell_size, flip)
 
 		st.generate_tangents()
 		var surface_idx := mesh.get_surface_count()
-		st.commit(mesh)  # append surface to existing mesh
+		st.commit(mesh)
 
-		# Asignar material a esta surface
 		if materials.has(mat_id) and materials[mat_id] != null:
 			mesh.surface_set_material(surface_idx, materials[mat_id])
 
 	return mesh
+
+
+static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector3, rot: Basis, size: float, flip: bool) -> void:
+	match block_id:
+		1:  _emit_slope(st, offset, rot, size, flip)
+		2:  _emit_corner(st, offset, rot, size, flip)
+		_:
+			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
+			_emit_cube_no_cull(st, offset, rot, size, flip)
+
+
 static func _emit_cube(
 	st: SurfaceTool,
 	grid_pos: Vector3i,
 	offset: Vector3,
 	rot: Basis,
 	size: float,
-	blocks: Dictionary
+	blocks: Dictionary,
+	flip: bool
 ) -> void:
 	var h := size
-	
+
 	var v0 := rot * Vector3(0, 0, h) + offset
 	var v1 := rot * Vector3(h, 0, h) + offset
 	var v2 := rot * Vector3(h, 0, 0) + offset
@@ -83,57 +88,57 @@ static func _emit_cube(
 	var v5 := rot * Vector3(h, h, h) + offset
 	var v6 := rot * Vector3(h, h, 0) + offset
 	var v7 := rot * Vector3(0, h, 0) + offset
-	
+
 	if not _is_face_occluded(blocks, grid_pos, Face.FRONT):
-		_add_quad(st, v0, v1, v5, v4)
+		_add_quad(st, v0, v1, v5, v4, flip)
 	if not _is_face_occluded(blocks, grid_pos, Face.BACK):
-		_add_quad(st, v2, v3, v7, v6)
+		_add_quad(st, v2, v3, v7, v6, flip)
 	if not _is_face_occluded(blocks, grid_pos, Face.RIGHT):
-		_add_quad(st, v1, v2, v6, v5)
+		_add_quad(st, v1, v2, v6, v5, flip)
 	if not _is_face_occluded(blocks, grid_pos, Face.LEFT):
-		_add_quad(st, v3, v0, v4, v7)
+		_add_quad(st, v3, v0, v4, v7, flip)
 	if not _is_face_occluded(blocks, grid_pos, Face.TOP):
-		_add_quad(st, v4, v5, v6, v7)
+		_add_quad(st, v4, v5, v6, v7, flip)
 	if not _is_face_occluded(blocks, grid_pos, Face.BOTTOM):
-		_add_quad(st, v3, v2, v1, v0)
+		_add_quad(st, v3, v2, v1, v0, flip)
 
 
-static func _emit_slope(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
+static func _emit_slope(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool) -> void:
 	var h := size
 	var c := Vector3(h * 0.5, h * 0.5, h * 0.5)
-	
+
 	var v0 := rot * (Vector3(0, 0, h) - c) + c + offset
 	var v1 := rot * (Vector3(h, 0, h) - c) + c + offset
 	var v2 := rot * (Vector3(h, 0, 0) - c) + c + offset
 	var v3 := rot * (Vector3(0, 0, 0) - c) + c + offset
 	var v4 := rot * (Vector3(0, h, h) - c) + c + offset
 	var v5 := rot * (Vector3(h, h, h) - c) + c + offset
-	
-	_add_quad(st, v3, v2, v1, v0)
-	_add_quad(st, v0, v1, v5, v4)
-	_add_quad(st, v4, v5, v2, v3)
-	_add_triangle(st, v3, v0, v4)
-	_add_triangle(st, v1, v2, v5)
+
+	_add_quad(st, v3, v2, v1, v0, flip)
+	_add_quad(st, v0, v1, v5, v4, flip)
+	_add_quad(st, v4, v5, v2, v3, flip)
+	_add_triangle(st, v3, v0, v4, flip)
+	_add_triangle(st, v1, v2, v5, flip)
 
 
-static func _emit_corner(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
+static func _emit_corner(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool) -> void:
 	var h := size
 	var c := Vector3(h * 0.5, h * 0.5, h * 0.5)
-	
+
 	var v0 := rot * (Vector3(0, 0, h) - c) + c + offset
 	var v1 := rot * (Vector3(h, 0, h) - c) + c + offset
 	var v2 := rot * (Vector3(h, 0, 0) - c) + c + offset
 	var v3 := rot * (Vector3(0, 0, 0) - c) + c + offset
 	var v4 := rot * (Vector3(0, h, h) - c) + c + offset
-	
-	_add_quad(st, v3, v2, v1, v0)
-	_add_triangle(st, v0, v1, v4)
-	_add_triangle(st, v3, v0, v4)
-	_add_triangle(st, v4, v1, v2)
-	_add_triangle(st, v4, v2, v3)
+
+	_add_quad(st, v3, v2, v1, v0, flip)
+	_add_triangle(st, v0, v1, v4, flip)
+	_add_triangle(st, v3, v0, v4, flip)
+	_add_triangle(st, v4, v1, v2, flip)
+	_add_triangle(st, v4, v2, v3, flip)
 
 
-static func _emit_cube_no_cull(st: SurfaceTool, offset: Vector3, rot: Basis, size: float) -> void:
+static func _emit_cube_no_cull(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool) -> void:
 	var h := size
 	var v0 := rot * Vector3(0, 0, h) + offset
 	var v1 := rot * Vector3(h, 0, h) + offset
@@ -143,43 +148,61 @@ static func _emit_cube_no_cull(st: SurfaceTool, offset: Vector3, rot: Basis, siz
 	var v5 := rot * Vector3(h, h, h) + offset
 	var v6 := rot * Vector3(h, h, 0) + offset
 	var v7 := rot * Vector3(0, h, 0) + offset
-	_add_quad(st, v0, v1, v5, v4)
-	_add_quad(st, v2, v3, v7, v6)
-	_add_quad(st, v1, v2, v6, v5)
-	_add_quad(st, v3, v0, v4, v7)
-	_add_quad(st, v4, v5, v6, v7)
-	_add_quad(st, v3, v2, v1, v0)
-
-static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	var normal := (b - a).cross(d - a).normalized()
-	
-	st.set_normal(normal)
-	st.set_uv(Vector2(0, 0)); st.add_vertex(a)
-	st.set_uv(Vector2(1, 1)); st.add_vertex(c)
-	st.set_uv(Vector2(1, 0)); st.add_vertex(b)
-	
-	st.set_normal(normal)
-	st.set_uv(Vector2(0, 0)); st.add_vertex(a)
-	st.set_uv(Vector2(0, 1)); st.add_vertex(d)
-	st.set_uv(Vector2(1, 1)); st.add_vertex(c)
+	_add_quad(st, v0, v1, v5, v4, flip)
+	_add_quad(st, v2, v3, v7, v6, flip)
+	_add_quad(st, v1, v2, v6, v5, flip)
+	_add_quad(st, v3, v0, v4, v7, flip)
+	_add_quad(st, v4, v5, v6, v7, flip)
+	_add_quad(st, v3, v2, v1, v0, flip)
 
 
-static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
-	var normal := (b - a).cross(c - a).normalized()
-	
-	st.set_normal(normal)
-	st.set_uv(Vector2(0, 0)); st.add_vertex(a)
-	st.set_uv(Vector2(0.5, 1)); st.add_vertex(c)
-	st.set_uv(Vector2(1, 0)); st.add_vertex(b)
-	
+static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, flip: bool = false) -> void:
+	if flip:
+		var normal := (d - a).cross(b - a).normalized()
+		st.set_normal(normal)
+		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
+		st.set_uv(Vector2(1, 1)); st.add_vertex(c)
+
+		st.set_normal(normal)
+		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+		st.set_uv(Vector2(1, 1)); st.add_vertex(c)
+		st.set_uv(Vector2(0, 1)); st.add_vertex(d)
+	else:
+		var normal := (b - a).cross(d - a).normalized()
+		st.set_normal(normal)
+		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+		st.set_uv(Vector2(1, 1)); st.add_vertex(c)
+		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
+
+		st.set_normal(normal)
+		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+		st.set_uv(Vector2(0, 1)); st.add_vertex(d)
+		st.set_uv(Vector2(1, 1)); st.add_vertex(c)
+
+
+static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, flip: bool = false) -> void:
+	if flip:
+		var normal := (c - a).cross(b - a).normalized()
+		st.set_normal(normal)
+		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
+		st.set_uv(Vector2(0.5, 1)); st.add_vertex(c)
+	else:
+		var normal := (b - a).cross(c - a).normalized()
+		st.set_normal(normal)
+		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+		st.set_uv(Vector2(0.5, 1)); st.add_vertex(c)
+		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
+
+
 static func _is_face_occluded(blocks: Dictionary, grid_pos: Vector3i, face: Face) -> bool:
-	return false #TODO: Revisar perque no funciona is_face_occluded
+	return false
 	var neighbor_pos := grid_pos + FACE_DIRS[face]
 	if not blocks.has(neighbor_pos):
 		return false
 	var neighbor_id: int = blocks[neighbor_pos]["block_id"]
-	var solid := _is_solid(neighbor_id)
-	return solid
+	return _is_solid(neighbor_id)
 
 
 static func _is_solid(block_id: int) -> bool:
