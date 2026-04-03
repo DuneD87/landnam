@@ -361,7 +361,7 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 				_build_preview.show_highlight(cell_world_pos, grid_basis, hit_grid.cell_size)
 				
 				var mirror_shown := false
-				if _mirror_active and mirror_axis != MirrorAxis.NONE and hit_grid == mirror_grid:
+				if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid and (hit_grid == mirror_grid or _basis_compatible(hit_grid.get_basis_world(), mirror_grid.get_basis_world())):
 					var mirror_pos := _get_mirror_pos(grid_pos, hit_grid)
 					if mirror_pos != grid_pos and hit_grid.has_block(mirror_pos):
 						var mirror_world_pos := hit_grid.grid_to_world(mirror_pos)
@@ -630,7 +630,7 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 	_refund_block(data, grid.cell_size)
 
 	# Mirror remove
-	if _mirror_active and mirror_axis != MirrorAxis.NONE and grid == mirror_grid:
+	if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid and (grid == mirror_grid or _basis_compatible(grid.get_basis_world(), mirror_grid.get_basis_world())):		
 		var mirror_pos := _get_mirror_pos(grid_pos, grid)
 		if mirror_pos != grid_pos and grid.has_block(mirror_pos):
 			var mirror_info := grid.get_block(mirror_pos)
