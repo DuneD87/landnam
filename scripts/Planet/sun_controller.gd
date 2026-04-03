@@ -29,7 +29,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if auto_rotate:
 		sun_azimuth_deg = wrapf(sun_azimuth_deg + rotation_speed_deg * delta, -180.0, 180.0)
-	_update_sun()       # actualiza cada frame por si animas los ángulos
+	_update_sun()
 
 func _set_azimuth(value: float) -> void:
 	sun_azimuth_deg = wrapf(value, -180.0, 180.0)
@@ -44,9 +44,9 @@ func _update_sun() -> void:
 		return
 		
 	if Input.is_action_pressed("move_sun_plus"):
-		sun_azimuth_deg += 1
+		sun_azimuth_deg += 0.3
 	if Input.is_action_pressed("move_sun_minus"):
-		sun_azimuth_deg -= 1
+		sun_azimuth_deg -= 0.3
 
 	var az := deg_to_rad(sun_azimuth_deg)
 	var el := deg_to_rad(sun_elevation_deg)
