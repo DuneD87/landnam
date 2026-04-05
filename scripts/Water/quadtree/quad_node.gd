@@ -31,20 +31,27 @@ func _calculate_projected_size(planet_center: Vector3) -> Dictionary:
 		face_right * (half_size) + face_up * (half_size)
 	]
 	
-	var shifted_corners = corner_offsets.map(func(offset): return offset + face_normal * (planet_radius / 2))
+	var edge_midpoints = [
+		face_up * (-half_size),              # mig inferior
+		face_up * (half_size),               # mig superior
+		face_right * (-half_size),           # mig esquerre
+		face_right * (half_size),            # mig dret
+	]
 	
-	var world_corners = shifted_corners.map(func(shifted): return global_position + shifted)
-	var proj_corners = world_corners.map(func(world): return planet_center + (world - planet_center).normalized() * planet_radius)
+	var all_offsets = corner_offsets + edge_midpoints
 	
-	var side1 = proj_corners[0].distance_to(proj_corners[1])  # Bottom edge
-	var side2 = proj_corners[0].distance_to(proj_corners[2])  # Left edge
-	var side3 = proj_corners[1].distance_to(proj_corners[3])  # Right edge
-	var side4 = proj_corners[2].distance_to(proj_corners[3])  # Top edge
+	var shifted = all_offsets.map(func(offset): return offset + face_normal * (planet_radius / 2))
+	var world_points = shifted.map(func(s): return global_position + s)
+	var proj_points = world_points.map(func(w): return planet_center + (w - planet_center).normalized() * planet_radius)
 	
+	var side1 = proj_points[0].distance_to(proj_points[1])
+	var side2 = proj_points[0].distance_to(proj_points[2])
+	var side3 = proj_points[1].distance_to(proj_points[3])
+	var side4 = proj_points[2].distance_to(proj_points[3])
 	var avg_size = (side1 + side2 + side3 + side4) / 4.0
 	
 	var proj_center = get_projected_position(planet_center)
-	var projected_points = proj_corners + [proj_center]
+	var projected_points = proj_points + [proj_center]
 	
 	return {'size': avg_size, 'projected_points': projected_points}
 
@@ -63,7 +70,7 @@ func should_subdivide(camera_position: Vector3, planet_center: Vector3) -> bool:
 	var min_distance_to_camera = distances.min()
 	
 	var threshold_distance = projected_size * subdivision_factor
-
+	
 	return min_distance_to_camera < threshold_distance
 
 func subdivide():

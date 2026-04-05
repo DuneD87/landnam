@@ -319,8 +319,7 @@ void fragment() {
 	final_albedo += sss_contrib;
 	final_albedo = mix(final_albedo, foam_color, total_foam);
     vec3 view_dir_world = normalize(world_pos - CAMERA_POSITION_WORLD);
-	vec3 up_dir = normalize(world_pos); // en una esfera, up = normalizado de la posición
-
+	vec3 up_dir = normalize(world_pos - planet_center);
 	float horizon_dot = 1.0 - abs(dot(view_dir_world, up_dir));
 	horizon_dot = pow(horizon_dot, 2.0); // concentrar más en el horizonte
 

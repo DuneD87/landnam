@@ -76,6 +76,7 @@ func _load_planet() -> void:
 	planet.setup_shader_parameters()
 	planet.setup_voxel_generator()
 	planet._load_vegetation()
+	add_child(planet)
 	global_pos = planet.global_position
 	#setup_voxel_stream()
 	if planet_parser.has_water:
@@ -89,7 +90,7 @@ func _load_planet() -> void:
 		water_sphere.player = players[0]
 		water_sphere.quadtree_material = load("res://data/resources/WaterSphere_material.tres")
 		var water_shader: ShaderMaterial = water_sphere.quadtree_material as ShaderMaterial
-		water_shader.set_shader_parameter("planet_position", planet.global_position)
+		water_shader.set_shader_parameter("planet_center", voxel_terrain.global_position)
 		water_sphere.wireframe_material = load("res://data/resources/WaterSphere_wireframe_material.tres")
 		
 		water_sphere.load_watersphere(planet)
