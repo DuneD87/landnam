@@ -73,8 +73,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@19654")
-planet = NodePath("")
+water_sphere = NodePath("@Node3D@19655")
+global_pos = Vector3(0, 0, 15000)
+planet = NodePath("@Node3D@19654")
 entity_id = "planet_earth"
 
 [node name="Moon" parent="Planets" unique_id=2125670169 node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_li0gi")]
@@ -82,7 +83,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -55000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, -85000)
-planet = NodePath("")
+global_pos = Vector3(0, 0, -55000)
+planet = NodePath("@Node3D@19661")
 entity_id = "planet_moon"
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=535095142]

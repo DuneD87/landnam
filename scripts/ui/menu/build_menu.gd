@@ -100,7 +100,7 @@ func _populate_blocks() -> void:
 	if not building_system:
 		return
 
-	var grouped := building_system.get_block_items_by_material()
+	var grouped := BlockDatabase.get_block_items_by_material()
 
 	for mat_id in grouped:
 		var group: Dictionary = grouped[mat_id]

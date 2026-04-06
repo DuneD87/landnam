@@ -98,8 +98,8 @@ func get_block_items_by_material() -> Dictionary:
 
 
 func set_material_by_id(mat_id: String) -> void:
-	for i in build_materials.size():
-		if build_materials[i].material_id == mat_id:
+	for i in BlockDatabase.build_materials.size():
+		if BlockDatabase.build_materials[i].material_id == mat_id:
 			current_material_index = i
 			material_changed.emit(get_current_material())
 			return
@@ -141,9 +141,6 @@ func _ready() -> void:
 	_inventory = _find_sibling(Inventory) as Inventory
 	if not _inventory:
 		push_warning("[BuildingSystem] No Inventory sibling found.")
-	_register_default_materials()
-	_icon_generator = BlockIconGenerator.new()
-	add_child(_icon_generator)
 	_mirror_visual = MirrorPlaneVisual.new()
 	call_deferred("_add_mirror_visual_to_scene")
 
@@ -151,15 +148,14 @@ func _ready() -> void:
 
 
 func get_current_material() -> BuildMaterial:
-	if build_materials.is_empty():
-		return null
-	return build_materials[current_material_index]
+	return BlockDatabase.get_material_at(current_material_index)
 
 func cycle_material() -> void:
-	if build_materials.size() <= 1:
+	if BlockDatabase.get_material_count() <= 1:
 		return
-	current_material_index = (current_material_index + 1) % build_materials.size()
+	current_material_index = (current_material_index + 1) % BlockDatabase.get_material_count()
 	material_changed.emit(get_current_material())
+
 
 # ==========================================================================
 #  Block selection
@@ -658,10 +654,7 @@ func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
 
 
 func _find_build_material(mat_id: String) -> BuildMaterial:
-	for mat in build_materials:
-		if mat.material_id == mat_id:
-			return mat
-	return null
+	return BlockDatabase.get_material_by_id(mat_id)
 
 ## Toggle simetria on/off. Si s'activa, fixa el centre al bloc apuntat.
 func toggle_symmetry(ray_hit: Dictionary) -> void:

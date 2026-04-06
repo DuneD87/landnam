@@ -127,20 +127,46 @@ func _ensure_input_actions() -> void:
 			InputMap.action_add_event(action, ev)
 
 
-## Para save/load: devuelve array de item IDs (o "" si vacío)
 func get_save_data() -> Array:
 	var result: Array = []
 	for slot in slots:
-		result.append(str(slot.assigned_data.id) if slot.assigned_data else "")
+		if not slot.assigned_data:
+			result.append(null)
+		elif slot.assigned_data.category == ItemData.Category.BLOCK:
+			result.append({
+				"type": "block",
+				"id": str(slot.assigned_data.id),
+				"block_id": slot.assigned_data.block_id,
+				"build_material_id": slot.assigned_data.build_material_id,
+			})
+		else:
+			result.append({
+				"type": "item",
+				"id": str(slot.assigned_data.id),
+			})
 	return result
 
 
 ## Para save/load: restaura asignaciones desde array de IDs
 func restore_save_data(data: Array, config: Object) -> void:
 	for i in mini(data.size(), HOTBAR_SLOTS):
-		if data[i] != "":
-			var item_data: ItemData = config.get_item(StringName(data[i]))
-			if item_data:
-				slots[i].assign(item_data)
+		var value = data[i]
+		if value == null:
+			continue
+		var item_data: ItemData
+		if value["type"] == "block":
+			var mat_id: String = value.get("build_material_id", "")
+			if mat_id != "":
+				var items_by_mat := BlockDatabase.get_block_items_by_material()
+				if items_by_mat.has(mat_id):
+					for item in items_by_mat[mat_id]["items"]:
+						if item.block_id == value["block_id"]:
+							item_data = item
+							break
+			if not item_data:
+				item_data = BlockDatabase.get_block_item(value["block_id"])
 		else:
-			slots[i].clear()
+			item_data = config.get_item(StringName(value["id"]))
+		if item_data:
+			slots[i].assign(item_data)
+		

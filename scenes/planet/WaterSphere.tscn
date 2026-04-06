@@ -5,12 +5,12 @@
 [ext_resource type="Material" uid="uid://chf12rnnj7pyk" path="res://data/resources/WaterSphere_wireframe_material.tres" id="3_pcij0"]
 [ext_resource type="Script" uid="uid://cfcia7uhxidw0" path="res://scripts/water/underwater.gd" id="4_68i28"]
 
-[node name="WaterSphere" type="Node3D"]
+[node name="WaterSphere" type="Node3D" unique_id=25449629]
 script = ExtResource("1_adc1r")
 radius = 10000.0
 sub_divisions = 16
 quadtree_material = ExtResource("2_vihnt")
 wireframe_material = ExtResource("3_pcij0")
 
-[node name="Underwater" type="Node3D" parent="."]
+[node name="Underwater" type="Node3D" parent="." unique_id=1758110060]
 script = ExtResource("4_68i28")
