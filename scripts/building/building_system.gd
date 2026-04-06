@@ -342,17 +342,21 @@ func get_missing_materials(block_data: BlockData = null) -> Array[Dictionary]:
 
 func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3, ray_hit: Dictionary) -> void:
 	_has_target = true
-	_is_aiming_at_block = hit_collider.has_meta("grid_id") or (hit_collider is DynamicGridBody and hit_collider.has_meta("grid_id"))
+	
+	# Resolver nodo real (para dinámicas, el CollisionShape3D específico)
+	var resolved_node := _get_hit_shape_node(ray_hit)
+	if not resolved_node:
+		resolved_node = hit_collider as Node3D
+	
+	_is_aiming_at_block = resolved_node.has_meta("grid_id")
+
 	if _is_aiming_at_block:
-		_process_aim_at_block(hit_collider, hit_normal, hit_pos)
+		_process_aim_at_block(resolved_node, hit_normal, hit_pos)
 		
-		var hit_grid := GridManager.get_grid_for_block(hit_collider as Node3D)
-		if not hit_grid and hit_collider is DynamicGridBody:
-			hit_grid = GridManager.get_grid_for_block(hit_collider)
-		
+		var hit_grid := GridManager.get_grid_for_block(resolved_node)
 		if hit_grid and _build_preview:
 			if current_action_mode == ActionMode.DESTROY:
-				var grid_pos := _resolve_grid_pos(hit_collider, hit_grid, hit_pos, hit_normal)
+				var grid_pos := _resolve_grid_pos(resolved_node, hit_grid, hit_pos, hit_normal)
 				if hit_grid.has_block(grid_pos):
 					var cell_world_pos := hit_grid.grid_to_world(grid_pos)
 					var grid_basis := hit_grid.get_basis_world()
@@ -386,7 +390,6 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 	_cached_grid_for_placement = _target_grid
 
 	if _build_preview:
-		# Mostrar Ghost Block SOLO en modo construcción
 		if current_action_mode == ActionMode.BUILD:
 			var is_valid := _can_place and _can_afford
 			_build_preview.update_preview(_target_world_pos, _target_basis, is_valid, ray_hit)
@@ -415,18 +418,17 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 		_can_place = false
 		return
 
-	var block_transform := (hit_collider as Node3D).global_transform
-	var block_basis := block_transform.basis
-	var hit_grid_pos := _resolve_grid_pos(hit_collider as Node3D, hit_grid, hit_pos, hit_normal)
+	var hit_grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
 	var hit_cell := hit_grid.cell_size
 	var target_cell := cell_size
+	var hit_rot_basis: Basis = hit_collider.get_meta("rotation_basis")
 
-	var hit_rot_basis: Basis
-	if hit_collider.has_meta("rotation_basis"):
-		hit_rot_basis = hit_collider.get_meta("rotation_basis")
+	# Para dinámicas: reconstruir block_transform desde grid
+	var block_basis: Basis
+	if hit_grid is DynamicPlanetGrid:
+		block_basis = hit_grid.get_basis_world() * hit_rot_basis
 	else:
-		var block_info := hit_grid.get_block(hit_grid_pos)
-		hit_rot_basis = block_info.get("rotation_basis", Basis.IDENTITY)
+		block_basis = (hit_collider as Node3D).global_transform.basis
 
 	var local_normal := block_basis.inverse() * hit_normal
 	var abs_n := Vector3(abs(local_normal.x), abs(local_normal.y), abs(local_normal.z))
@@ -454,7 +456,7 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 	else:
 		_process_cross_size_placement(hit_grid, hit_grid_pos, hit_cell, target_cell, grid_face, hit_pos, planet)
 
-func _process_cross_size_placement(hit_grid: PlanetGrid, hit_grid_pos: Vector3i, hit_cell: float, target_cell: float,
+func _process_cross_size_placement(hit_grid: GridBase, hit_grid_pos: Vector3i, hit_cell: float, target_cell: float,
 	grid_face: Vector3i, hit_pos: Vector3, planet: Node3D) -> void:
 	var face_axis: int = 0
 	var face_sign: int = 1
@@ -465,9 +467,10 @@ func _process_cross_size_placement(hit_grid: PlanetGrid, hit_grid_pos: Vector3i,
 	else:
 		face_axis = 2; face_sign = grid_face.z
 
-	var planet_inv := planet.global_transform.affine_inverse()
-	var hit_local := planet_inv * hit_pos
-	var hit_continuous := hit_grid.basis_local.inverse() * (hit_local - hit_grid.origin_local)
+	# Trabajar en espacio local de la grid usando su transform mundo
+	var grid_xform := hit_grid.get_grid_world_transform()
+	var grid_inv := grid_xform.affine_inverse()
+	var hit_continuous: Vector3 = grid_inv * hit_pos
 
 	var block_min := Vector3(hit_grid_pos) * hit_cell
 	var block_max := block_min + Vector3.ONE * hit_cell
@@ -482,23 +485,18 @@ func _process_cross_size_placement(hit_grid: PlanetGrid, hit_grid_pos: Vector3i,
 		else:
 			target_continuous[i] = floor(hit_continuous[i] / target_cell) * target_cell
 
-	# Posición mundo (calculada en espacio de hit_grid, que es correcto)
-	var snapped_local := hit_grid.origin_local + hit_grid.basis_local * target_continuous
-	_target_world_pos = planet.global_transform * snapped_local
+	# Posición mundo desde espacio local de la grid
+	_target_world_pos = grid_xform * target_continuous
 	_target_basis = hit_grid.get_basis_world()
 
-	# Buscar grid alineada al MISMO origin que hit_grid
+	# Buscar grid alineada
 	_target_grid = GridManager.find_aligned_grid(planet, target_cell, hit_grid)
-
-	# Guardar referencia para que try_place_block cree grid alineada si no existe
 	_hit_grid_for_alignment = hit_grid
 
 	if _target_grid:
-		# Re-snap es seguro porque comparten origin → no hay offset
 		_target_grid_pos = _target_grid.world_to_grid(_target_world_pos)
 		_target_world_pos = _target_grid.grid_to_world(_target_grid_pos)
 	else:
-		# Grid se creará al colocar; calcular grid_pos en espacio de hit_grid
 		_target_grid_pos = Vector3i(
 			roundi(target_continuous.x / target_cell),
 			roundi(target_continuous.y / target_cell),
@@ -878,6 +876,18 @@ func _resolve_grid_pos(hit_collider: Node3D, grid: GridBase, hit_pos: Vector3, h
 	# Dinámico: probe hacia dentro del bloque
 	var probe := hit_pos - hit_normal * (grid.cell_size * 0.1)
 	return grid.world_to_grid(probe)
+	
+	
+## Para DynamicGridBody, obtiene el CollisionShape3D impactado usando shape index.
+func _get_hit_shape_node(ray_hit: Dictionary) -> Node3D:
+	var collider := ray_hit.get("collider") as Node3D
+	if not collider or not collider is DynamicGridBody:
+		return collider
+	var shape_idx: int = ray_hit.get("shape", 0)
+	var owner_id: int = collider.shape_find_owner(shape_idx)
+	var shape_node : Node3D= collider.shape_owner_get_owner(owner_id)
+	
+	return shape_node
 # ==========================================================================
 #  Utility
 # ==========================================================================

@@ -85,32 +85,105 @@ func _ready() -> void:
 # ============================================================
 ## Convierte una PlanetGrid estática a DynamicPlanetGrid.
 ## Retorna la nueva grid dinámica, o null si falla.
-func convert_to_dynamic(grid_id: String) -> DynamicPlanetGrid:
-	var static_grid: PlanetGrid = _grids.get(grid_id, null) as PlanetGrid
-	if not static_grid:
-		return null
-	if static_grid.get_block_count() == 0:
-		return null
+func convert_to_dynamic(grid_id: String) -> Array:
+	var source: PlanetGrid = _grids.get(grid_id, null) as PlanetGrid
+	if source.get_block_count() == 0:
+		return []
 
-	var planet := static_grid.planet_node
+	var planet := source.planet_node
 
-	# Crear dinámica con el mismo ID
-	var dyn := DynamicPlanetGrid.new()
-	dyn.setup_from_static(grid_id, planet, static_grid)
+	# Encontrar todas las grids alineadas (mismo origin/basis, cualquier cell_size)
+	var aligned: Array[PlanetGrid] = []
+	for grid: GridBase in get_grids_for_planet(planet):
+		if grid is PlanetGrid and grid.is_same_origin_basis(source):
+			if grid.get_block_count() > 0:
+				aligned.append(grid as PlanetGrid)
 
-	# Reemplazar en registros (mismo ID)
-	_grids[grid_id] = dyn
+	if aligned.is_empty():
+		return []
 
-	if _planet_grids.has(planet):
-		var arr: Array = _planet_grids[planet]
-		var idx := arr.find(static_grid)
-		if idx >= 0:
-			arr[idx] = dyn
+	# Crear un solo body compartido usando el transform de la primera grid
+	var grid_world_xform := source.get_grid_world_transform()
+	var shared_body := DynamicGridBody.new()
+	shared_body.name = "DynGrid_%s" % grid_id
+	shared_body.planet_node = planet
+	shared_body.mass = DynamicPlanetGrid.MASS_PER_BLOCK
+	shared_body.gravity_scale = 0.0
+	shared_body.set_meta("grid_id", grid_id)
+	planet.get_tree().current_scene.add_child(shared_body)
+	shared_body.global_transform = grid_world_xform
+
+	var result: Array = []
+
+	for i in aligned.size():
+		var static_grid: PlanetGrid = aligned[i]
+		var sid: String = static_grid.grid_id
+		var dyn := DynamicPlanetGrid.new()
+
+		if i == 0:
+			# Primera: crea y posee el body
+			dyn._body = shared_body
+			dyn._owns_body = true
+			dyn.grid_id = sid
+			dyn.planet_node = planet
+			dyn.cell_size = static_grid.cell_size
+			dyn.mesh_materials = static_grid.mesh_materials
+			# Migrar bloques
+			_migrate_blocks_to_dynamic(dyn, static_grid, shared_body)
 		else:
-			arr.append(dyn)
+			dyn.setup_from_static_shared(sid, planet, static_grid, shared_body)
 
-	print("[GridManager] Grid '%s' convertida a dinámica (%d bloques)" % [grid_id, dyn.get_block_count()])
-	return dyn
+		# Reemplazar en registros
+		_grids[sid] = dyn
+		if _planet_grids.has(planet):
+			var arr: Array = _planet_grids[planet]
+			var idx := arr.find(static_grid)
+			if idx >= 0:
+				arr[idx] = dyn
+			else:
+				arr.append(dyn)
+
+		result.append(dyn)
+
+	# Actualizar masa total
+	var total_blocks := 0
+	for dyn in result:
+		total_blocks += dyn.get_block_count()
+	shared_body.mass = maxf(DynamicPlanetGrid.MASS_PER_BLOCK, total_blocks * DynamicPlanetGrid.MASS_PER_BLOCK)
+
+	print("[GridManager] Convertidas %d grids alineadas a dinámicas (%d bloques total)" % [result.size(), total_blocks])
+	return result
+
+
+func _migrate_blocks_to_dynamic(dyn: DynamicPlanetGrid, static_grid: PlanetGrid, body: DynamicGridBody) -> void:
+	var all_blocks := static_grid.get_all_blocks()
+	for grid_pos: Vector3i in all_blocks:
+		var info: Dictionary = all_blocks[grid_pos]
+		var old_node: Node3D = info["node"]
+
+		var local_xform := Transform3D.IDENTITY
+		if old_node and is_instance_valid(old_node):
+			local_xform = body.global_transform.affine_inverse() * old_node.global_transform
+
+		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
+		if not block_data:
+			continue
+
+		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
+		var col := dyn._make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
+		body.add_child(col)
+
+		dyn._blocks[grid_pos] = {
+			"block_id": info["block_id"],
+			"rotation_basis": rotation_basis,
+			"node": col,
+			"material_id": info.get("material_id", ""),
+			"mirrored": info.get("mirrored", false),
+			"mirror_axis": info.get("mirror_axis", -1),
+		}
+
+	static_grid.clear()
+	dyn.rebuild_mesh()
 	
 func _register_grid(grid: GridBase, planet: Node3D, grid_id: String) -> void:
 	if not _planet_grids.has(planet):
@@ -125,13 +198,24 @@ func _generate_id() -> String:
 	return grid_id
 	
 ## Crea una grid alineada al origin/basis de otra grid existente.
-func create_grid_aligned(planet: Node3D, ref_grid: GridBase,target_cell: float) -> GridBase:
-	var grid := PlanetGrid.new()
-	var grid_id = _generate_id()
-	grid.setup_aligned(grid_id, planet, ref_grid.origin_local, ref_grid.basis_local, target_cell)
-	_register_grid(grid, planet, grid_id)
-	
-	return grid
+func create_grid_aligned(planet: Node3D, ref_grid: GridBase, target_cell: float) -> GridBase:
+	if ref_grid is DynamicPlanetGrid:
+		var dyn_ref := ref_grid as DynamicPlanetGrid
+		var grid := DynamicPlanetGrid.new()
+		var grid_id := _generate_id()
+		grid.grid_id = grid_id
+		grid.planet_node = planet
+		grid.cell_size = target_cell
+		grid._body = dyn_ref._body
+		grid._owns_body = false
+		_register_grid(grid, planet, grid_id)
+		return grid
+	else:
+		var grid := PlanetGrid.new()
+		var grid_id := _generate_id()
+		grid.setup_aligned(grid_id, planet, (ref_grid as PlanetGrid).origin_local, (ref_grid as PlanetGrid).basis_local, target_cell)
+		_register_grid(grid, planet, grid_id)
+		return grid
 	
 ## Crea una nueva grid anclada a un planeta.
 ## origin_world y basis_world se convierten a local del planeta.
@@ -172,29 +256,24 @@ func remove_grid(grid_id: String) -> bool:
 
 ## Comprueba si un bloque de tamaño cell_size en world_pos colisiona
 ## con bloques existentes en CUALQUIER grid del planeta.
-func check_overlap(planet: Node3D, grid_pos: Vector3i, cell_size: float, source_grid: PlanetGrid) -> bool:
+func check_overlap(planet: Node3D, grid_pos: Vector3i, cell_size: float, source_grid: GridBase) -> bool:
 	var grids: Array = get_grids_for_planet(planet)
-	
-	# Rango del bloque propuesto en espacio local continuo
 	var min_a := Vector3(grid_pos) * cell_size
 	var max_a := min_a + Vector3.ONE * cell_size
-	
-	for grid in grids:
+
+	for grid: GridBase in grids:
 		if grid == source_grid:
-			# Misma grid → has_block ya lo cubre
 			continue
-		if not _same_origin_basis(grid, source_grid):
-			# Grids no alineadas (zonas distintas del planeta)
+		if not grid.is_same_origin_basis(source_grid):
 			continue
-		
+
 		for other_pos in grid.get_all_blocks():
 			var min_b: Vector3 = Vector3(other_pos) * grid.cell_size
 			var max_b: Vector3 = min_b + Vector3.ONE * grid.cell_size
-			
-			# AABB overlap en espacio local de la grid
+
 			if _aabb_overlap(min_a, max_a, min_b, max_b):
 				return true
-	
+
 	return false
 
 static func _aabb_overlap(min_a: Vector3, max_a: Vector3, min_b: Vector3, max_b: Vector3) -> bool:
@@ -272,13 +351,17 @@ static func _basis_aligned(a: Basis, b: Basis) -> bool:
 	return true
 
 ## Busca una grid con cell_size dado, alineada al mismo origin/basis que ref_grid.
-func find_aligned_grid(planet: Node3D, target_cell: float,ref_grid: GridBase) -> GridBase:
+func find_aligned_grid(planet: Node3D, target_cell: float, ref_grid: GridBase) -> GridBase:
 	for grid: GridBase in get_grids_for_planet(planet):
 		if not is_equal_approx(grid.cell_size, target_cell):
 			continue
-		# Mismo origin y basis que la referencia
-		if grid.origin_local.is_equal_approx(ref_grid.origin_local) and _basis_equal(grid.basis_local, ref_grid.basis_local):
+		# Mismo origin/basis (estáticas)
+		if grid.is_same_origin_basis(ref_grid):
 			return grid
+		# Mismo body (dinámicas)
+		if grid is DynamicPlanetGrid and ref_grid is DynamicPlanetGrid:
+			if (grid as DynamicPlanetGrid)._body == (ref_grid as DynamicPlanetGrid)._body:
+				return grid
 	return null
 
 

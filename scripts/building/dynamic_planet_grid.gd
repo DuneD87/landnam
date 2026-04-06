@@ -8,6 +8,7 @@ var _body: DynamicGridBody = null
 
 const MASS_PER_BLOCK := 10.0
 
+var _owns_body: bool = false
 
 # ============================================================
 #  CONSTRUCTOR
@@ -19,6 +20,44 @@ func setup(id: String, planet: Node3D, world_transform: Transform3D) -> void:
 	planet_node = planet
 	_create_body(world_transform)
 
+## Setup reutilizando un body existente (para multi-size).
+func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGrid, shared_body: DynamicGridBody) -> void:
+	grid_id = id
+	planet_node = planet
+	cell_size = static_grid.cell_size
+	mesh_materials = static_grid.mesh_materials
+	_body = shared_body
+
+	# Migrar bloques
+	var all_blocks := static_grid.get_all_blocks()
+	for grid_pos: Vector3i in all_blocks:
+		var info: Dictionary = all_blocks[grid_pos]
+		var old_node: Node3D = info["node"]
+
+		var local_xform := Transform3D.IDENTITY
+		if old_node and is_instance_valid(old_node):
+			local_xform = _body.global_transform.affine_inverse() * old_node.global_transform
+
+		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
+		if not block_data:
+			continue
+
+		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
+		var col := _make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
+		_body.add_child(col)
+
+		_blocks[grid_pos] = {
+			"block_id": info["block_id"],
+			"rotation_basis": rotation_basis,
+			"node": col,
+			"material_id": info.get("material_id", ""),
+			"mirrored": info.get("mirrored", false),
+			"mirror_axis": info.get("mirror_axis", -1),
+		}
+
+	static_grid.clear()
+	_update_mass()
+	rebuild_mesh()
 
 ## Crea la grid dinámica a partir de una PlanetGrid existente (conversión).
 func setup_from_static(id: String, planet: Node3D, static_grid: PlanetGrid) -> void:
@@ -75,10 +114,9 @@ func _create_body(world_transform: Transform3D) -> void:
 	_body.mass = MASS_PER_BLOCK
 	_body.gravity_scale = 0.0
 	_body.set_meta("grid_id", grid_id)
+	_owns_body = true
 
-	# Añadir al padre del planeta (escena raíz) para que no se mueva con el planeta
 	planet_node.get_tree().current_scene.add_child(_body)
-
 	_body.global_transform = world_transform
 
 
@@ -90,7 +128,11 @@ func _update_mass() -> void:
 # ============================================================
 #  OVERRIDES DE GridBase
 # ============================================================
-
+func is_same_origin_basis(other: GridBase) -> bool:
+	if other is DynamicPlanetGrid:
+		return _body == (other as DynamicPlanetGrid)._body
+	return false
+	
 func get_grid_world_transform() -> Transform3D:
 	if _body and is_instance_valid(_body):
 		return _body.global_transform
@@ -150,8 +192,18 @@ func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_bas
 # ============================================================
 
 func clear() -> void:
-	super.clear()
-	if _body and is_instance_valid(_body):
+	for grid_pos in _blocks.keys():
+		var info: Dictionary = _blocks[grid_pos]
+		var node: Node3D = info["node"]
+		if node and is_instance_valid(node):
+			node.queue_free()
+	_blocks.clear()
+
+	if _combined_mesh_instance and is_instance_valid(_combined_mesh_instance):
+		_combined_mesh_instance.queue_free()
+		_combined_mesh_instance = null
+
+	if _owns_body and _body and is_instance_valid(_body):
 		_body.queue_free()
 		_body = null
 
