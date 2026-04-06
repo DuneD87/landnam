@@ -43,14 +43,14 @@ var _inventory: Inventory = null
 # --- Computed target state (from raycast) ---
 var _target_world_pos: Vector3 = Vector3.ZERO
 var _target_basis: Basis = Basis.IDENTITY
-var _target_grid: PlanetGrid = null
+var _target_grid: GridBase = null
 var _target_grid_pos: Vector3i = Vector3i.ZERO
 var _can_place: bool = false
 var _can_afford: bool = false
 var _is_aiming_at_block: bool = false
 var _has_target: bool = false
-var _cached_grid_for_placement: PlanetGrid = null
-var _hit_grid_for_alignment: PlanetGrid = null
+var _cached_grid_for_placement: GridBase = null
+var _hit_grid_for_alignment: GridBase = null
 var current_action_mode: ActionMode = ActionMode.BUILD
 
 func _generate_block_material_items() -> void:
@@ -342,31 +342,36 @@ func get_missing_materials(block_data: BlockData = null) -> Array[Dictionary]:
 
 func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3, ray_hit: Dictionary) -> void:
 	_has_target = true
-	_is_aiming_at_block = hit_collider is StaticBody3D and hit_collider.has_meta("grid_id")
-
+	_is_aiming_at_block = hit_collider.has_meta("grid_id") or (hit_collider is DynamicGridBody and hit_collider.has_meta("grid_id"))
 	if _is_aiming_at_block:
 		_process_aim_at_block(hit_collider, hit_normal, hit_pos)
 		
 		var hit_grid := GridManager.get_grid_for_block(hit_collider as Node3D)
+		if not hit_grid and hit_collider is DynamicGridBody:
+			hit_grid = GridManager.get_grid_for_block(hit_collider)
+		
 		if hit_grid and _build_preview:
 			if current_action_mode == ActionMode.DESTROY:
-				var grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
-				var cell_world_pos := hit_grid.grid_to_world(grid_pos)
-				var grid_basis := hit_grid.get_basis_world()
-				
-				_build_preview.show_highlight(cell_world_pos, grid_basis, hit_grid.cell_size)
-				
-				var mirror_shown := false
-				if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid and (hit_grid == mirror_grid or _basis_compatible(hit_grid.get_basis_world(), mirror_grid.get_basis_world())):
-					var mirror_pos := _get_mirror_pos(grid_pos, hit_grid)
-					if mirror_pos != grid_pos and hit_grid.has_block(mirror_pos):
-						var mirror_world_pos := hit_grid.grid_to_world(mirror_pos)
-						_build_preview.show_mirror_highlight(mirror_world_pos, grid_basis, hit_grid.cell_size)
-						mirror_shown = true
-				
-				if not mirror_shown:
-					_build_preview.hide_mirror_highlight()
+				var grid_pos := _resolve_grid_pos(hit_collider, hit_grid, hit_pos, hit_normal)
+				if hit_grid.has_block(grid_pos):
+					var cell_world_pos := hit_grid.grid_to_world(grid_pos)
+					var grid_basis := hit_grid.get_basis_world()
 					
+					_build_preview.show_highlight(cell_world_pos, grid_basis, hit_grid.cell_size)
+					
+					var mirror_shown := false
+					if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid \
+					   and (hit_grid == mirror_grid or _basis_compatible(hit_grid.get_basis_world(), mirror_grid.get_basis_world())):
+						var mirror_pos := _get_mirror_pos(grid_pos, hit_grid)
+						if mirror_pos != grid_pos and hit_grid.has_block(mirror_pos):
+							var mirror_world_pos := hit_grid.grid_to_world(mirror_pos)
+							_build_preview.show_mirror_highlight(mirror_world_pos, grid_basis, hit_grid.cell_size)
+							mirror_shown = true
+					
+					if not mirror_shown:
+						_build_preview.hide_mirror_highlight()
+				else:
+					_build_preview.hide_highlight()
 			else:
 				_build_preview.hide_highlight()
 	else:
@@ -412,9 +417,16 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 
 	var block_transform := (hit_collider as Node3D).global_transform
 	var block_basis := block_transform.basis
-	var hit_grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
+	var hit_grid_pos := _resolve_grid_pos(hit_collider as Node3D, hit_grid, hit_pos, hit_normal)
 	var hit_cell := hit_grid.cell_size
 	var target_cell := cell_size
+
+	var hit_rot_basis: Basis
+	if hit_collider.has_meta("rotation_basis"):
+		hit_rot_basis = hit_collider.get_meta("rotation_basis")
+	else:
+		var block_info := hit_grid.get_block(hit_grid_pos)
+		hit_rot_basis = block_info.get("rotation_basis", Basis.IDENTITY)
 
 	var local_normal := block_basis.inverse() * hit_normal
 	var abs_n := Vector3(abs(local_normal.x), abs(local_normal.y), abs(local_normal.z))
@@ -426,7 +438,6 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 	else:
 		face_dir.z = 1.0 if local_normal.z > 0 else -1.0
 
-	var hit_rot_basis: Basis = hit_collider.get_meta("rotation_basis")
 	var grid_face_f := hit_rot_basis * face_dir
 	var grid_face := Vector3i(
 		roundi(grid_face_f.x),
@@ -442,7 +453,6 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 		_can_place = not _target_grid.has_block(_target_grid_pos)
 	else:
 		_process_cross_size_placement(hit_grid, hit_grid_pos, hit_cell, target_cell, grid_face, hit_pos, planet)
-
 
 func _process_cross_size_placement(hit_grid: PlanetGrid, hit_grid_pos: Vector3i, hit_cell: float, target_cell: float,
 	grid_face: Vector3i, hit_pos: Vector3, planet: Node3D) -> void:
@@ -611,29 +621,25 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 	if not hit_collider:
 		return false
 
-	if not (hit_collider is StaticBody3D and hit_collider.has_meta("grid_id")):
-		return false
-
 	var grid := GridManager.get_grid_for_block(hit_collider)
 	if not grid:
 		return false
 
-	var grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
+	var grid_pos := _resolve_grid_pos(hit_collider, grid, ray_hit["position"], ray_hit["normal"])
 
-	var data = grid.remove_block(grid_pos)
+	if not grid.has_block(grid_pos):
+		return false
 
-	# Refund antes de borrar
+	var data := grid.remove_block(grid_pos)
 	_refund_block(data, grid.cell_size)
 
 	# Mirror remove
-	if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid and (grid == mirror_grid or _basis_compatible(grid.get_basis_world(), mirror_grid.get_basis_world())):		
+	if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid \
+	   and (grid == mirror_grid or _basis_compatible(grid.get_basis_world(), mirror_grid.get_basis_world())):
 		var mirror_pos := _get_mirror_pos(grid_pos, grid)
 		if mirror_pos != grid_pos and grid.has_block(mirror_pos):
-			var mirror_info := grid.get_block(mirror_pos)
-			var mirror_node: Node3D = mirror_info.get("node")
 			data = grid.remove_block(mirror_pos)
-			if mirror_node and is_instance_valid(mirror_node):
-				_refund_block(data, grid.cell_size)
+			_refund_block(data, grid.cell_size)
 
 	return true
 
@@ -655,6 +661,25 @@ func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
 
 func _find_build_material(mat_id: String) -> BuildMaterial:
 	return BlockDatabase.get_material_by_id(mat_id)
+	
+func convert_aimed_grid(ray_hit: Dictionary) -> void:
+	if ray_hit.is_empty():
+		return
+	var hit := ray_hit.get("collider") as Node3D
+	if not hit:
+		return
+
+	var grid_id: String = ""
+	if hit.has_meta("grid_id"):
+		grid_id = hit.get_meta("grid_id")
+	elif hit is DynamicGridBody and hit.has_meta("grid_id"):
+		grid_id = hit.get_meta("grid_id")
+
+	if grid_id == "":
+		print("[BuildingSystem] No apuntas a un bloque")
+		return
+
+	GridManager.convert_to_dynamic(grid_id)
 
 ## Toggle simetria on/off. Si s'activa, fixa el centre al bloc apuntat.
 func toggle_symmetry(ray_hit: Dictionary) -> void:
@@ -686,7 +711,7 @@ func toggle_symmetry(ray_hit: Dictionary) -> void:
 		var block_cell := grid.cell_size
 		var half := Vector3.ONE * block_cell * 0.5
 		var grid_space_center := Vector3(grid_pos) * block_cell + half
-		var local_pos := grid.origin_local + grid.basis_local * grid_space_center
+		var local_pos: Vector3 = grid.origin_local + grid.basis_local * grid_space_center
 		mirror_center_world = grid.planet_node.global_transform * local_pos
 
 		mirror_grid = grid
@@ -748,7 +773,7 @@ func _get_mirror_axis_index() -> int:
 		MirrorAxis.Z: return 2
 	return -1
 	
-func _get_mirror_pos(grid_pos: Vector3i, grid: PlanetGrid) -> Vector3i:
+func _get_mirror_pos(grid_pos: Vector3i, grid: GridBase) -> Vector3i:
 	var grid_basis := grid.get_basis_world()
 	var s := grid.cell_size
 
@@ -845,6 +870,14 @@ func _can_afford_double(block_data: BlockData) -> bool:
 
 	var cost := mat.get_cost_for_size(cell_size) * count
 	return _inventory.get_item_count(mat.item) >= cost
+	
+## Resuelve grid_pos desde un collider. Para estático lee meta, para dinámico calcula desde hit.
+func _resolve_grid_pos(hit_collider: Node3D, grid: GridBase, hit_pos: Vector3, hit_normal: Vector3) -> Vector3i:
+	if hit_collider.has_meta("grid_pos"):
+		return hit_collider.get_meta("grid_pos")
+	# Dinámico: probe hacia dentro del bloque
+	var probe := hit_pos - hit_normal * (grid.cell_size * 0.1)
+	return grid.world_to_grid(probe)
 # ==========================================================================
 #  Utility
 # ==========================================================================

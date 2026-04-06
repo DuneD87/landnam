@@ -670,14 +670,6 @@ func _handle_build_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 
 	if event is InputEventKey and event.pressed:
-		match event.keycode:
-			KEY_TAB:
-				building_system.select_next_block()
-				get_viewport().set_input_as_handled()
-			KEY_M:
-				building_system.cycle_material()
-				print("Material: ", building_system.get_current_material().display_name)
-				get_viewport().set_input_as_handled()
 		if event.is_action_pressed("toggle_symmetry_mode"):
 			building_system.toggle_symmetry(_ray_hit)
 			get_viewport().set_input_as_handled()
@@ -699,6 +691,8 @@ func _handle_build_input(event: InputEvent) -> void:
 		elif event.is_action_pressed("rotate_block_z"):
 			building_system.rotate_block_z()
 			get_viewport().set_input_as_handled()
+		if event.is_action_pressed("convert_dynamic"):
+			building_system.convert_aimed_grid(_ray_hit)
 
 
 func _apply_water_buoyancy(delta: float):

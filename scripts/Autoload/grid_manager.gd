@@ -33,7 +33,7 @@ func get_save_data() -> Dictionary:
 	var grids_data: Dictionary = {}
 	
 	for grid_id in _grids:
-		var grid: PlanetGrid = _grids[grid_id]
+		var grid: GridBase = _grids[grid_id]
 		grids_data[grid_id] = grid.serialize()
 	
 	return {
@@ -43,30 +43,37 @@ func get_save_data() -> Dictionary:
 
 
 func restore_save_data(data: Dictionary) -> void:
-	# Limpiar todo lo existente
 	clear_all()
-	
+
 	_next_id = data.get("next_id", 0)
-	
+
 	var grids_data: Dictionary = data.get("grids", {})
 	for grid_id in grids_data:
 		var grid_data: Dictionary = grids_data[grid_id]
-		
-		# Buscar el planeta por su path guardado
+
 		var planet_path: String = grid_data.get("planet_path", "")
 		var planet: Node3D = get_tree().root.get_node_or_null(planet_path)
 		if not planet:
 			push_warning("[GridManager] No se encontró planeta '%s' al cargar grid '%s'" % [planet_path, grid_id])
 			continue
-		
-		var grid := PlanetGrid.new()
-		grid.deserialize(grid_id, planet, grid_data)
-		
+
+		var grid_type: String = grid_data.get("type", "static")
+		var grid: GridBase
+
+		if grid_type == "dynamic":
+			var dyn := DynamicPlanetGrid.new()
+			dyn.deserialize(grid_id, planet, grid_data)
+			grid = dyn
+		else:
+			var stat := PlanetGrid.new()
+			stat.deserialize(grid_id, planet, grid_data)
+			grid = stat
+
 		_grids[grid_id] = grid
 		if not _planet_grids.has(planet):
 			_planet_grids[planet] = []
 		_planet_grids[planet].append(grid)
-	
+
 	print("[GridManager] Restauradas %d grids" % _grids.size())
 	
 func _ready() -> void:
@@ -76,7 +83,36 @@ func _ready() -> void:
 # ============================================================
 #  CREAR / ELIMINAR GRIDS
 # ============================================================
-func _register_grid(grid: PlanetGrid, planet: Node3D, grid_id: String) -> void:
+## Convierte una PlanetGrid estática a DynamicPlanetGrid.
+## Retorna la nueva grid dinámica, o null si falla.
+func convert_to_dynamic(grid_id: String) -> DynamicPlanetGrid:
+	var static_grid: PlanetGrid = _grids.get(grid_id, null) as PlanetGrid
+	if not static_grid:
+		return null
+	if static_grid.get_block_count() == 0:
+		return null
+
+	var planet := static_grid.planet_node
+
+	# Crear dinámica con el mismo ID
+	var dyn := DynamicPlanetGrid.new()
+	dyn.setup_from_static(grid_id, planet, static_grid)
+
+	# Reemplazar en registros (mismo ID)
+	_grids[grid_id] = dyn
+
+	if _planet_grids.has(planet):
+		var arr: Array = _planet_grids[planet]
+		var idx := arr.find(static_grid)
+		if idx >= 0:
+			arr[idx] = dyn
+		else:
+			arr.append(dyn)
+
+	print("[GridManager] Grid '%s' convertida a dinámica (%d bloques)" % [grid_id, dyn.get_block_count()])
+	return dyn
+	
+func _register_grid(grid: GridBase, planet: Node3D, grid_id: String) -> void:
 	if not _planet_grids.has(planet):
 		_planet_grids[planet] = []
 	_planet_grids[planet].append(grid)
@@ -89,7 +125,7 @@ func _generate_id() -> String:
 	return grid_id
 	
 ## Crea una grid alineada al origin/basis de otra grid existente.
-func create_grid_aligned(planet: Node3D, ref_grid: PlanetGrid,target_cell: float) -> PlanetGrid:
+func create_grid_aligned(planet: Node3D, ref_grid: GridBase,target_cell: float) -> GridBase:
 	var grid := PlanetGrid.new()
 	var grid_id = _generate_id()
 	grid.setup_aligned(grid_id, planet, ref_grid.origin_local, ref_grid.basis_local, target_cell)
@@ -99,17 +135,15 @@ func create_grid_aligned(planet: Node3D, ref_grid: PlanetGrid,target_cell: float
 	
 ## Crea una nueva grid anclada a un planeta.
 ## origin_world y basis_world se convierten a local del planeta.
-func create_grid(planet: Node3D, origin_world: Vector3, basis_world: Basis, cell_size: float = 1.0) -> PlanetGrid:
+func create_grid(planet: Node3D, origin_world: Vector3, basis_world: Basis, cell_size: float = 1.0) -> GridBase:
 	var grid := PlanetGrid.new()
 	var grid_id = _generate_id()
 	
 	var reference := find_any_nearest_grid(planet, origin_world)
 	
 	if reference:
-		# Reutilizar origin y basis → alineación garantizada
 		grid.setup_aligned(grid_id, planet, reference.origin_local, reference.basis_local, cell_size)
 	else:
-		# Primera grid en la zona — usar basis del player
 		grid.setup(grid_id, planet, origin_world, basis_world, cell_size)
 	
 	_register_grid(grid, planet, grid_id)
@@ -172,15 +206,14 @@ static func _aabb_overlap(min_a: Vector3, max_a: Vector3, min_b: Vector3, max_b:
 		min_a.z < max_b.z - eps and max_a.z > min_b.z + eps
 	)
 
-static func _same_origin_basis(a: PlanetGrid, b: PlanetGrid) -> bool:
-	return a.origin_local.is_equal_approx(b.origin_local) and \
-		   a.basis_local.is_equal_approx(b.basis_local)
+static func _same_origin_basis(a: GridBase, b: GridBase) -> bool:
+	return a.is_same_origin_basis(b)
 # ============================================================
 #  BÚSQUEDA DE GRIDS
 # ============================================================
 
 ## Obtiene una grid por ID.
-func get_grid(grid_id: String) -> PlanetGrid:
+func get_grid(grid_id: String) -> GridBase:
 	return _grids.get(grid_id, null)
 
 
@@ -188,12 +221,12 @@ func get_grid(grid_id: String) -> PlanetGrid:
 func get_grids_for_planet(planet: Node3D) -> Array:
 	return _planet_grids.get(planet, [])
 	
-func find_any_nearest_grid(planet: Node3D, world_pos: Vector3, max_dist: float = -1.0) -> PlanetGrid:
+func find_any_nearest_grid(planet: Node3D, world_pos: Vector3, max_dist: float = -1.0) -> GridBase:
 	if max_dist < 0:
 		max_dist = snap_distance
 	
 	var grids: Array = get_grids_for_planet(planet)
-	var best_grid: PlanetGrid = null
+	var best_grid: GridBase = null
 	var best_dist: float = max_dist
 	
 	for grid in grids:
@@ -205,11 +238,11 @@ func find_any_nearest_grid(planet: Node3D, world_pos: Vector3, max_dist: float =
 	return best_grid
 
 func find_nearest_grid(planet: Node3D, world_pos: Vector3, target_cell_size: float, required_basis: Basis = Basis.IDENTITY, check_basis: bool = false) -> PlanetGrid:
-	var best: PlanetGrid = null
+	var best: GridBase = null
 	var best_dist := INF
 	var max_dist := target_cell_size * MAX_REUSE_CELLS
 
-	for grid: PlanetGrid in get_grids_for_planet(planet):
+	for grid: GridBase in get_grids_for_planet(planet):
 		if not is_equal_approx(grid.cell_size, target_cell_size):
 			continue
 
@@ -239,14 +272,12 @@ static func _basis_aligned(a: Basis, b: Basis) -> bool:
 	return true
 
 ## Busca una grid con cell_size dado, alineada al mismo origin/basis que ref_grid.
-func find_aligned_grid(planet: Node3D, target_cell: float,
-							   ref_grid: PlanetGrid) -> PlanetGrid:
-	for grid: PlanetGrid in get_grids_for_planet(planet):
+func find_aligned_grid(planet: Node3D, target_cell: float,ref_grid: GridBase) -> GridBase:
+	for grid: GridBase in get_grids_for_planet(planet):
 		if not is_equal_approx(grid.cell_size, target_cell):
 			continue
 		# Mismo origin y basis que la referencia
-		if grid.origin_local.is_equal_approx(ref_grid.origin_local) \
-		   and _basis_equal(grid.basis_local, ref_grid.basis_local):
+		if grid.origin_local.is_equal_approx(ref_grid.origin_local) and _basis_equal(grid.basis_local, ref_grid.basis_local):
 			return grid
 	return null
 
@@ -261,16 +292,19 @@ func _basis_equal(a: Basis, b: Basis) -> bool:
 	
 ## Obtiene la grid a la que pertenece un bloque (usando su metadata).
 ## Útil cuando el raycast impacta un bloque colocado.
-func get_grid_for_block(block_node: Node3D) -> PlanetGrid:
+func get_grid_for_block(block_node: Node3D) -> GridBase:
+	# StaticBody3D o wrapper Node3D con meta
 	if block_node.has_meta("grid_id"):
-		var grid_id: String = block_node.get_meta("grid_id")
-		return get_grid(grid_id)
+		return get_grid(block_node.get_meta("grid_id"))
+	# DynamicGridBody (el RigidBody3D mismo)
+	if block_node is DynamicGridBody and block_node.has_meta("grid_id"):
+		return get_grid(block_node.get_meta("grid_id"))
 	return null
 
 
 ## Obtiene o crea una grid para colocar un bloque.
 ## Si hay una grid cercana compatible, la reutiliza. Si no, crea una nueva.
-func get_or_create_grid(planet: Node3D, world_pos: Vector3, basis_world: Basis, cell_size: float = 1.0) -> PlanetGrid:
+func get_or_create_grid(planet: Node3D, world_pos: Vector3, basis_world: Basis, cell_size: float = 1.0) -> GridBase:
 	var existing := find_nearest_grid(planet, world_pos, cell_size)
 	if existing:
 		return existing

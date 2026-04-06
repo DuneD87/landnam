@@ -84,7 +84,7 @@ func _update_mirror_preview() -> void:
 		_mirror_ghost_node.visible = false
 		return
 
-	var grid: PlanetGrid = _building_system._cached_grid_for_placement
+	var grid: GridBase = _building_system._cached_grid_for_placement
 	if not grid:
 		grid = _building_system._target_grid
 	if not grid:
