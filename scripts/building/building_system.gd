@@ -24,7 +24,7 @@ var _mirror_visual: MirrorPlaneVisual = null
 
 var mirror_axis: MirrorAxis = MirrorAxis.NONE
 var mirror_center_world: Vector3 = Vector3.ZERO
-var mirror_grid: PlanetGrid = null
+var mirror_grid: GridBase = null
 var _mirror_active: bool = false
 
 var build_materials: Array[BuildMaterial] = []
@@ -615,15 +615,15 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 	if ray_hit.is_empty():
 		return false
 
-	var hit_collider := ray_hit.get("collider") as Node3D
-	if not hit_collider:
+	var resolved := _get_hit_shape_node(ray_hit)
+	if not resolved or not resolved.has_meta("grid_id"):
 		return false
 
-	var grid := GridManager.get_grid_for_block(hit_collider)
+	var grid := GridManager.get_grid_for_block(resolved)
 	if not grid:
 		return false
 
-	var grid_pos := _resolve_grid_pos(hit_collider, grid, ray_hit["position"], ray_hit["normal"])
+	var grid_pos: Vector3i = resolved.get_meta("grid_pos")
 
 	if not grid.has_block(grid_pos):
 		return false
@@ -682,7 +682,6 @@ func convert_aimed_grid(ray_hit: Dictionary) -> void:
 ## Toggle simetria on/off. Si s'activa, fixa el centre al bloc apuntat.
 func toggle_symmetry(ray_hit: Dictionary) -> void:
 	if _mirror_active:
-		# Desactivar
 		_mirror_active = false
 		mirror_axis = MirrorAxis.NONE
 		mirror_grid = null
@@ -690,30 +689,30 @@ func toggle_symmetry(ray_hit: Dictionary) -> void:
 		mirror_changed.emit()
 		print("[Mirror] Disabled")
 	else:
-		# Activar: necessitem un bloc com a centre
 		if ray_hit.is_empty():
 			print("[Mirror] Aim at a block to set mirror center")
 			return
 
-		var hit_collider := ray_hit.get("collider") as Node3D
-		if not hit_collider or not hit_collider.has_meta("grid_pos"):
+		var resolved := _get_hit_shape_node(ray_hit)
+		if not resolved or not resolved.has_meta("grid_pos"):
 			print("[Mirror] Aim at a placed block")
 			return
 
-		var grid := GridManager.get_grid_for_block(hit_collider)
+		var grid := GridManager.get_grid_for_block(resolved)
 		if not grid:
 			return
 
-		# Fixar centre
-		var grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
+		var grid_pos: Vector3i = resolved.get_meta("grid_pos")
 		var block_cell := grid.cell_size
 		var half := Vector3.ONE * block_cell * 0.5
-		var grid_space_center := Vector3(grid_pos) * block_cell + half
-		var local_pos: Vector3 = grid.origin_local + grid.basis_local * grid_space_center
-		mirror_center_world = grid.planet_node.global_transform * local_pos
+
+		# Usar grid_to_world (funciona tanto para estáticas como dinámicas)
+		var corner_world := grid.grid_to_world(grid_pos)
+		var grid_basis := grid.get_basis_world()
+		mirror_center_world = corner_world + grid_basis * half
 
 		mirror_grid = grid
-		mirror_axis = MirrorAxis.X  # per defecte comença amb X
+		mirror_axis = MirrorAxis.X
 		_mirror_active = true
 		_update_mirror_visual()
 		mirror_changed.emit()

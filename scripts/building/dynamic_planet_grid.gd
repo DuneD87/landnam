@@ -5,6 +5,7 @@ extends GridBase
 ## que cae con gravedad planetaria. Sigue siendo editable.
 
 var _body: DynamicGridBody = null
+var body_id: String = ""
 
 const MASS_PER_BLOCK := 10.0
 
@@ -27,6 +28,8 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 	cell_size = static_grid.cell_size
 	mesh_materials = static_grid.mesh_materials
 	_body = shared_body
+	_owns_body = false
+	body_id = shared_body.get_meta("grid_id")
 
 	# Migrar bloques
 	var all_blocks := static_grid.get_all_blocks()
@@ -58,6 +61,9 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 	static_grid.clear()
 	_update_mass()
 	rebuild_mesh()
+	_body.register_grid(self)
+	block_placed.connect(_body.on_block_placed)
+	block_removed.connect(_body.on_block_removed)
 
 ## Crea la grid dinámica a partir de una PlanetGrid existente (conversión).
 func setup_from_static(id: String, planet: Node3D, static_grid: PlanetGrid) -> void:
@@ -115,10 +121,13 @@ func _create_body(world_transform: Transform3D) -> void:
 	_body.gravity_scale = 0.0
 	_body.set_meta("grid_id", grid_id)
 	_owns_body = true
+	body_id = grid_id
 
 	planet_node.get_tree().current_scene.add_child(_body)
 	_body.global_transform = world_transform
-
+	_body.register_grid(self)
+	block_placed.connect(_body.on_block_placed)
+	block_removed.connect(_body.on_block_removed)
 
 func _update_mass() -> void:
 	if _body and is_instance_valid(_body):
@@ -192,17 +201,9 @@ func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_bas
 # ============================================================
 
 func clear() -> void:
-	for grid_pos in _blocks.keys():
-		var info: Dictionary = _blocks[grid_pos]
-		var node: Node3D = info["node"]
-		if node and is_instance_valid(node):
-			node.queue_free()
-	_blocks.clear()
-
-	if _combined_mesh_instance and is_instance_valid(_combined_mesh_instance):
-		_combined_mesh_instance.queue_free()
-		_combined_mesh_instance = null
-
+	if _body and is_instance_valid(_body):
+		_body.unregister_grid(self)
+	super.clear()
 	if _owns_body and _body and is_instance_valid(_body):
 		_body.queue_free()
 		_body = null
@@ -219,11 +220,18 @@ func serialize() -> Dictionary:
 		var info: Dictionary = _blocks[grid_pos]
 		var key := "%d,%d,%d" % [grid_pos.x, grid_pos.y, grid_pos.z]
 		var node: Node3D = info["node"]
+		var rot_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
+
+		# El node es CollisionShape3D con offset incluido — restar offset
 		var t := node.transform if (node and is_instance_valid(node)) else Transform3D.IDENTITY
+		var c := Vector3.ONE * cell_size * 0.5
+		var col_offset := rot_basis.inverse() * c
+		var block_local := Transform3D(t.basis, t.origin - t.basis * col_offset)
+
 		blocks_data[key] = {
 			"block_id": info["block_id"],
-			"rotation_basis": _basis_to_array(info["rotation_basis"]),
-			"transform": _transform_to_array(t),
+			"rotation_basis": _basis_to_array(rot_basis),
+			"transform": _transform_to_array(block_local),
 			"material_id": info.get("material_id", ""),
 			"mirrored": info.get("mirrored", false),
 			"mirror_axis": info.get("mirror_axis", -1),
@@ -235,12 +243,12 @@ func serialize() -> Dictionary:
 		if mat and mat.resource_path != "":
 			materials_data[mat_id] = mat.resource_path
 
-	# Guardar transform del body (posición/rotación actual en el mundo)
 	var body_xform := _body.global_transform if (_body and is_instance_valid(_body)) else Transform3D.IDENTITY
 
 	return {
 		"type": "dynamic",
 		"planet_path": str(planet_node.get_path()),
+		"body_id": body_id,
 		"body_transform": _transform_to_array(body_xform),
 		"cell_size": cell_size,
 		"blocks": blocks_data,
@@ -248,13 +256,19 @@ func serialize() -> Dictionary:
 	}
 
 
-func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
+func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: DynamicGridBody = null) -> void:
 	grid_id = id
 	planet_node = planet
 	cell_size = data.get("cell_size", 1.0)
+	body_id = data.get("body_id", id)
 
-	var body_xform := _array_to_transform(data.get("body_transform", []))
-	_create_body(body_xform)
+	if shared_body:
+		_body = shared_body
+		_owns_body = false
+	else:
+		var body_xform := _array_to_transform(data.get("body_transform", []))
+		_create_body(body_xform)
+		body_id = data.get("body_id", grid_id)
 
 	# Materiales
 	var materials_data: Dictionary = data.get("materials", {})
@@ -289,5 +303,9 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id, mirror_data)
 	_suppress_rebuild = false
 
+	_body.register_grid(self)
+	block_placed.connect(_body.on_block_placed)
+	block_removed.connect(_body.on_block_removed)
 	_update_mass()
 	rebuild_mesh()
+	

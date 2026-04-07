@@ -106,6 +106,7 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 
 	_request_rebuild()
 	block_placed.emit(grid_pos, block_data.block_id)
+		
 	return node
 
 

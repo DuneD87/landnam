@@ -48,31 +48,75 @@ func restore_save_data(data: Dictionary) -> void:
 	_next_id = data.get("next_id", 0)
 
 	var grids_data: Dictionary = data.get("grids", {})
+
+	# Primero restaurar estáticas, luego dinámicas agrupadas por body_id
+	var dynamic_grids: Dictionary = {}  # body_id → Array[{grid_id, grid_data}]
+
 	for grid_id in grids_data:
 		var grid_data: Dictionary = grids_data[grid_id]
-
-		var planet_path: String = grid_data.get("planet_path", "")
-		var planet: Node3D = get_tree().root.get_node_or_null(planet_path)
-		if not planet:
-			push_warning("[GridManager] No se encontró planeta '%s' al cargar grid '%s'" % [planet_path, grid_id])
-			continue
-
 		var grid_type: String = grid_data.get("type", "static")
-		var grid: GridBase
 
 		if grid_type == "dynamic":
-			var dyn := DynamicPlanetGrid.new()
-			dyn.deserialize(grid_id, planet, grid_data)
-			grid = dyn
+			var bid: String = grid_data.get("body_id", grid_id)
+			if not dynamic_grids.has(bid):
+				dynamic_grids[bid] = []
+			dynamic_grids[bid].append({"grid_id": grid_id, "data": grid_data})
 		else:
-			var stat := PlanetGrid.new()
-			stat.deserialize(grid_id, planet, grid_data)
-			grid = stat
+			var planet_path: String = grid_data.get("planet_path", "")
+			var planet: Node3D = get_tree().root.get_node_or_null(planet_path)
+			if not planet:
+				push_warning("[GridManager] No se encontró planeta '%s' al cargar grid '%s'" % [planet_path, grid_id])
+				continue
 
-		_grids[grid_id] = grid
-		if not _planet_grids.has(planet):
-			_planet_grids[planet] = []
-		_planet_grids[planet].append(grid)
+			var grid := PlanetGrid.new()
+			grid.deserialize(grid_id, planet, grid_data)
+			_grids[grid_id] = grid
+			if not _planet_grids.has(planet):
+				_planet_grids[planet] = []
+			_planet_grids[planet].append(grid)
+
+	# Dinámicas: un body por grupo
+	for bid in dynamic_grids:
+		var group: Array = dynamic_grids[bid]
+		var shared_body: DynamicGridBody = null
+
+		for i in group.size():
+			var entry: Dictionary = group[i]
+			var grid_id: String = entry["grid_id"]
+			var grid_data: Dictionary = entry["data"]
+
+			var planet_path: String = grid_data.get("planet_path", "")
+			var planet: Node3D = get_tree().root.get_node_or_null(planet_path)
+			if not planet:
+				push_warning("[GridManager] No se encontró planeta '%s' al cargar grid '%s'" % [planet_path, grid_id])
+				continue
+
+			var dyn := DynamicPlanetGrid.new()
+
+			if i == 0:
+				# Primera del grupo: crea el body
+				dyn.deserialize(grid_id, planet, grid_data, null)
+				shared_body = dyn._body
+			else:
+				# Resto: comparte el body
+				dyn.deserialize(grid_id, planet, grid_data, shared_body)
+
+			_grids[grid_id] = dyn
+			if not _planet_grids.has(planet):
+				_planet_grids[planet] = []
+			_planet_grids[planet].append(dyn)
+
+	# Actualizar masa total por body
+	var body_blocks: Dictionary = {}  # DynamicGridBody → int
+	for grid_id in _grids:
+		var grid: GridBase = _grids[grid_id]
+		if grid is DynamicPlanetGrid:
+			var dyn := grid as DynamicPlanetGrid
+			if dyn._body:
+				body_blocks[dyn._body] = body_blocks.get(dyn._body, 0) + dyn.get_block_count()
+
+	for body: DynamicGridBody in body_blocks:
+		body.mass = maxf(DynamicPlanetGrid.MASS_PER_BLOCK, body_blocks[body] * DynamicPlanetGrid.MASS_PER_BLOCK)
 
 	print("[GridManager] Restauradas %d grids" % _grids.size())
 	
@@ -105,6 +149,7 @@ func convert_to_dynamic(grid_id: String) -> Array:
 	# Crear un solo body compartido usando el transform de la primera grid
 	var grid_world_xform := source.get_grid_world_transform()
 	var shared_body := DynamicGridBody.new()
+	shared_body.set_meta("grid_id", grid_id)
 	shared_body.name = "DynGrid_%s" % grid_id
 	shared_body.planet_node = planet
 	shared_body.mass = DynamicPlanetGrid.MASS_PER_BLOCK
@@ -130,6 +175,8 @@ func convert_to_dynamic(grid_id: String) -> Array:
 			dyn.mesh_materials = static_grid.mesh_materials
 			# Migrar bloques
 			_migrate_blocks_to_dynamic(dyn, static_grid, shared_body)
+			dyn.block_placed.connect(shared_body.on_block_placed)
+			dyn.block_removed.connect(shared_body.on_block_removed)
 		else:
 			dyn.setup_from_static_shared(sid, planet, static_grid, shared_body)
 
@@ -183,6 +230,7 @@ func _migrate_blocks_to_dynamic(dyn: DynamicPlanetGrid, static_grid: PlanetGrid,
 		}
 
 	static_grid.clear()
+	body.register_grid(dyn)
 	dyn.rebuild_mesh()
 	
 func _register_grid(grid: GridBase, planet: Node3D, grid_id: String) -> void:
@@ -208,7 +256,11 @@ func create_grid_aligned(planet: Node3D, ref_grid: GridBase, target_cell: float)
 		grid.cell_size = target_cell
 		grid._body = dyn_ref._body
 		grid._owns_body = false
+		grid.body_id = dyn_ref.body_id
+		dyn_ref._body.register_grid(grid)
 		_register_grid(grid, planet, grid_id)
+		grid.block_placed.connect(dyn_ref._body.on_block_placed)
+		grid.block_removed.connect(dyn_ref._body.on_block_removed)
 		return grid
 	else:
 		var grid := PlanetGrid.new()

@@ -76,8 +76,8 @@ func _perform_raycast() -> void:
  
 	var cam_origin := camera.project_ray_origin(screen_center)
 	var cam_dir := camera.project_ray_normal(screen_center)
-	var cam_end := cam_origin + cam_dir * (ray_distance + camera.global_position.distance_to(global_position))
- 
+	var extra := 0.0 if free_flight_enabled else camera.global_position.distance_to(global_position)
+	var cam_end := cam_origin + cam_dir * (ray_distance + extra) 
 	var cam_query := PhysicsRayQueryParameters3D.create(cam_origin, cam_end)
 	cam_query.collision_mask = ray_collision_mask
 	if player_rid.is_valid():
@@ -90,7 +90,8 @@ func _perform_raycast() -> void:
 		return
  
 	var hit_pos: Vector3 = cam_hit["position"]
-	if global_position.distance_to(hit_pos) > ray_distance:
+	var reference_pos := camera.global_position if free_flight_enabled else global_position
+	if reference_pos.distance_to(hit_pos) > ray_distance:
 		if building_system.build_mode:
 			building_system.clear_target()
 		return
@@ -600,12 +601,13 @@ func _input(event):
 				capture_mouse(true)
  
 	if free_flight_enabled:
-		visible = false
+		player_model.visible = false
 		if event is InputEventMouseMotion and mouse_captured:
 			free_flight_controller.delta_yaw += -event.relative.x * mouse_sensitivity
 			free_flight_controller.delta_pitch += -event.relative.y * mouse_sensitivity * (-1 if invert_y else 1)
 	else:
-		visible = true
+		if !camera_controller.first_person:
+			player_model.visible = true
 		camera_controller._input(event)
  
 	if event.is_action_pressed("toggle_free_flight"):
@@ -616,6 +618,9 @@ func _input(event):
 		else:
 			print("Free flight desactivado")
  
+	if building_system.build_mode:
+		_handle_build_input(event)
+
 	if free_flight_enabled:
 		return
  
@@ -638,8 +643,6 @@ func _input(event):
 		inventory_ui.close()
  
 	# ---- BUILD MODE INPUT (was in BuildPreview._unhandled_input) ----
-	if building_system.build_mode:
-		_handle_build_input(event)
  
 	# ---- ATTACK (only outside build mode) ----
 	if Input.is_action_just_pressed("attack_1") && can_perform_action() && !building_system.build_mode:
