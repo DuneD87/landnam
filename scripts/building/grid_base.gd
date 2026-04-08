@@ -1,9 +1,6 @@
 class_name GridBase
 extends RefCounted
 
-## Base abstracta para grids de construcción.
-## Subclases: PlanetGrid (estática), DynamicPlanetGrid (futura).
-
 signal block_placed(grid_pos: Vector3i, block_id: int)
 signal block_removed(grid_pos: Vector3i)
 
@@ -13,14 +10,8 @@ var planet_node: Node3D = null
 
 ## Bloques colocados: Vector3i → { block_id, rotation_basis, node, material_id, mirrored, mirror_axis }
 var _blocks: Dictionary = {}
-
-## MeshInstance3D combinada.
 var _combined_mesh_instance: MeshInstance3D = null
-
-## Materiales por surface.
 var mesh_materials: Dictionary = {}  # material_id → Material
-
-## Suprime rebuilds durante operaciones bulk.
 var _suppress_rebuild: bool = false
 
 
@@ -45,15 +36,13 @@ func _get_mesh_parent() -> Node3D:
 
 ## Crea el nodo de colisión para un bloque y lo añade a la escena.
 ## Retorna el nodo creado.
-func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis,
-						world_transform: Transform3D) -> Node3D:
+func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis,world_transform: Transform3D) -> Node3D:
 	push_warning("[GridBase] _create_block_node() no implementado")
 	return null
 
 ## Llamado tras eliminar un bloque (para limpieza específica de subclase).
 func _on_block_removed_hook(_info: Dictionary) -> void:
 	pass
-
 
 # ============================================================
 #  CONVERSIONES WORLD <-> GRID
@@ -82,8 +71,9 @@ func grid_to_world(grid_pos: Vector3i) -> Vector3:
 #  COLOCACIÓN / ELIMINACIÓN
 # ============================================================
 
-func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis,
-				 world_transform: Transform3D, material_id: String = "", mirror_data: Dictionary = {}) -> Node3D:
+func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, world_transform: Transform3D, 
+	material_id: String = "", mirror_data: Dictionary = {}) -> Node3D:
+
 	if _blocks.has(grid_pos):
 		return null
 
@@ -228,6 +218,7 @@ func clear() -> void:
 
 func is_same_origin_basis(other: GridBase) -> bool:
 	return false
+
 # ============================================================
 #  SERIALIZACIÓN — helpers estáticos
 # ============================================================

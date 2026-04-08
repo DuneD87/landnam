@@ -27,8 +27,6 @@ var mirror_center_world: Vector3 = Vector3.ZERO
 var mirror_grid: GridBase = null
 var _mirror_active: bool = false
 
-var build_materials: Array[BuildMaterial] = []
-var _block_material_items: Array[ItemData] = []
 var current_material_index: int = 0
 
 var current_rotation_basis: Basis = Basis.IDENTITY
@@ -53,75 +51,12 @@ var _cached_grid_for_placement: GridBase = null
 var _hit_grid_for_alignment: GridBase = null
 var current_action_mode: ActionMode = ActionMode.BUILD
 
-func _generate_block_material_items() -> void:
-	_block_material_items.clear()
-
-	for mat in build_materials:
-		for block_id in BlockDatabase.get_all_ids():
-			var block := BlockDatabase.get_block(block_id)
-			var item := ItemData.new()
-			item.id = StringName("block_%s_%s" % [block.block_name, mat.material_id])
-			item.display_name = "%s %s" % [mat.display_name, block.block_name.capitalize()]
-			item.description = block.block_description
-			item.category = ItemData.Category.BLOCK
-			item.block_id = block.block_id
-			item.build_material_id = mat.material_id
-			item.surface_material = mat.surface_material
-			item.stackable = false
-			item.max_stack = 1
-
-			# Generar icona dinàmica
-			var icon := await _icon_generator.generate_icon(block.mesh, mat.surface_material)
-			if icon:
-				item.icon = icon
-				# També actualitzar BlockData si no té icona encara
-				if not block.preview_icon:
-					block.preview_icon = icon
-
-			_block_material_items.append(item)
-
-	print("[BuildingSystem] Generated %d block+material items with icons." % _block_material_items.size())
-
-
-## Retorna diccionari agrupat: { material_id: { "display_name": String, "items": Array[ItemData] } }
-func get_block_items_by_material() -> Dictionary:
-	var result := {}
-	for mat in build_materials:
-		result[mat.material_id] = {
-			"display_name": mat.display_name,
-			"items": [] as Array[ItemData]
-		}
-	for item in _block_material_items:
-		if result.has(item.build_material_id):
-			result[item.build_material_id]["items"].append(item)
-	return result
-
-
 func set_material_by_id(mat_id: String) -> void:
 	for i in BlockDatabase.build_materials.size():
 		if BlockDatabase.build_materials[i].material_id == mat_id:
 			current_material_index = i
 			material_changed.emit(get_current_material())
 			return
-
-func _register_default_materials() -> void:
-	var stone := BuildMaterial.new()
-	stone.material_id = "stone"
-	stone.display_name = "Stone"
-	stone.item = config_ref.get_item(&"stone_01")
-	stone.base_cost = 1
-	stone.surface_material = stone.item.surface_material
-	build_materials.append(stone)
-
-	var wood := BuildMaterial.new()
-	wood.material_id = "wood"
-	wood.display_name = "Wood"
-	wood.item = config_ref.get_item(&"wood_01")
-	wood.base_cost = 1
-	wood.surface_material = wood.item.surface_material
-	build_materials.append(wood)
-
-	print("[BuildingSystem] Registered %d materials." % build_materials.size())
 	
 func _add_mirror_visual_to_scene() -> void:
 	get_tree().current_scene.add_child(_mirror_visual)	
@@ -144,18 +79,9 @@ func _ready() -> void:
 	_mirror_visual = MirrorPlaneVisual.new()
 	call_deferred("_add_mirror_visual_to_scene")
 
-	_generate_block_material_items()
-
 
 func get_current_material() -> BuildMaterial:
 	return BlockDatabase.get_material_at(current_material_index)
-
-func cycle_material() -> void:
-	if BlockDatabase.get_material_count() <= 1:
-		return
-	current_material_index = (current_material_index + 1) % BlockDatabase.get_material_count()
-	material_changed.emit(get_current_material())
-
 
 # ==========================================================================
 #  Block selection
@@ -164,26 +90,11 @@ func cycle_material() -> void:
 func get_selected_block() -> BlockData:
 	return BlockDatabase.get_block(selected_block_id)
 
-func select_next_block() -> void:
-	var ids: Array[int] = BlockDatabase.get_all_ids()
-	var idx := ids.find(selected_block_id)
-	selected_block_id = ids[(idx + 1) % ids.size()]
-	current_rotation_basis = Basis.IDENTITY
-	selected_block_changed.emit(BlockDatabase.get_block(selected_block_id))
-
-func select_previous_block() -> void:
-	var ids: Array[int] = BlockDatabase.get_all_ids()
-	var idx := ids.find(selected_block_id)
-	selected_block_id = ids[(idx - 1 + ids.size()) % ids.size()]
-	current_rotation_basis = Basis.IDENTITY
-	selected_block_changed.emit(BlockDatabase.get_block(selected_block_id))
-
 func select_block(block_id: int) -> void:
 	if BlockDatabase.get_block(block_id):
 		selected_block_id = block_id
 		current_rotation_basis = Basis.IDENTITY
 		selected_block_changed.emit(BlockDatabase.get_block(selected_block_id))
-
 
 # ==========================================================================
 #  Rotation
@@ -264,10 +175,8 @@ func toggle_action_mode() -> void:
 	else:
 		current_action_mode = ActionMode.BUILD
 	
-	# Limpiamos los efectos visuales inmediatamente al cambiar de modo
 	clear_target()
 	action_mode_changed.emit(current_action_mode)
-	print("[BuildingSystem] Modo: ", "CONSTRUIR" if current_action_mode == ActionMode.BUILD else "ELIMINAR")
 
 func execute_primary_action(ray_hit: Dictionary) -> void:
 	if current_action_mode == ActionMode.BUILD:
@@ -343,7 +252,6 @@ func get_missing_materials(block_data: BlockData = null) -> Array[Dictionary]:
 func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3, ray_hit: Dictionary) -> void:
 	_has_target = true
 	
-	# Resolver nodo real (para dinámicas, el CollisionShape3D específico)
 	var resolved_node := _get_hit_shape_node(ray_hit)
 	if not resolved_node:
 		resolved_node = hit_collider as Node3D

@@ -6,12 +6,11 @@ extends RigidBody3D
 var planet_node: Node3D = null
 
 var _water_sampler: WaterHeightSampler = null
-var _water_drag: float = 3.0  # Resistencia en agua
+var _water_drag: float = 3.0
 
-## Referencia a las grids que comparten este body (para iterar bloques).
 var _grids: Array = []  # Array[DynamicPlanetGrid]
-var _buoyancy_points: PackedVector3Array = []  # Puntos locales
-var _buoyancy_force: float = 1000.0  # Fuerza por punto sumergido
+var _buoyancy_points: PackedVector3Array = []
+var _buoyancy_force: float = 1000.0
 var _recalc_points: bool = true
 
 func on_block_removed(grid_pos: Vector3i) -> void:

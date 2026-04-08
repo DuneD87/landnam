@@ -6,10 +6,9 @@ extends GridBase
 
 var _body: DynamicGridBody = null
 var body_id: String = ""
+var _owns_body: bool = false
 
 const MASS_PER_BLOCK := 10.0
-
-var _owns_body: bool = false
 
 # ============================================================
 #  CONSTRUCTOR
@@ -75,18 +74,15 @@ func setup_from_static(id: String, planet: Node3D, static_grid: PlanetGrid) -> v
 	var grid_world_xform := static_grid.get_grid_world_transform()
 	_create_body(grid_world_xform)
 
-	# Migrar bloques
 	var all_blocks := static_grid.get_all_blocks()
 	for grid_pos: Vector3i in all_blocks:
 		var info: Dictionary = all_blocks[grid_pos]
 		var old_node: Node3D = info["node"]
 
-		# Calcular transform relativo al body
 		var local_xform := Transform3D.IDENTITY
 		if old_node and is_instance_valid(old_node):
 			local_xform = _body.global_transform.affine_inverse() * old_node.global_transform
 
-		# Crear wrapper con collider
 		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
 		if not block_data:
 			continue
@@ -105,11 +101,7 @@ func setup_from_static(id: String, planet: Node3D, static_grid: PlanetGrid) -> v
 		}
 
 	_update_mass()
-
-	# Limpiar grid estática (nodos, NO la mesh — la reconstruimos nosotros)
 	static_grid.clear()
-
-	# Reconstruir mesh en el body
 	rebuild_mesh()
 
 
@@ -149,7 +141,6 @@ func get_grid_world_transform() -> Transform3D:
 
 
 func _get_mesh_local_transform() -> Transform3D:
-	# Mesh es hijo directo del body → identidad
 	return Transform3D.IDENTITY
 
 
@@ -222,7 +213,6 @@ func serialize() -> Dictionary:
 		var node: Node3D = info["node"]
 		var rot_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
 
-		# El node es CollisionShape3D con offset incluido — restar offset
 		var t := node.transform if (node and is_instance_valid(node)) else Transform3D.IDENTITY
 		var c := Vector3.ONE * cell_size * 0.5
 		var col_offset := rot_basis.inverse() * c

@@ -51,8 +51,7 @@ func _get_mesh_parent() -> Node3D:
 	return planet_node
 
 
-func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis,
-						world_transform: Transform3D) -> Node3D:
+func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, world_transform: Transform3D) -> Node3D:
 	var body := StaticBody3D.new()
 	body.name = "Block_%s_%s" % [grid_id, grid_pos]
 	body.transform = planet_node.global_transform.affine_inverse() * world_transform
