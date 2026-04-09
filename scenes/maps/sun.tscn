@@ -106,6 +106,21 @@ main_menu = NodePath("../MainMenu")
 spawn_point = NodePath("../SpawnPoint")
 start_first_person = true
 planets = NodePath("../Planets")
+mouse_sensitivity = null
+invert_y = null
+swimming_pitch_angle = null
+swimming_rotation_speed = null
+swimming_offset = null
+ray_distance = null
+ray_collision_mask = null
+float_depth = null
+surface_stiffness = null
+surface_damping = null
+max_correction_speed = null
+cinematic_duration = null
+cinematic_ease = null
+cinematic_trans = null
+entity_id = null
 
 [node name="MainMenu" parent="." unique_id=1161920561 instance=ExtResource("6_x6u8n")]
 

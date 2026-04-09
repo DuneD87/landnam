@@ -45,6 +45,10 @@ const data = preload("res://scripts/items/item_data.gd")
 
 var _ray_hit: Dictionary = {}
 
+var _platform_body: DynamicGridBody = null
+var _platform_prev_xform: Transform3D  # global transform del body en el frame anterior
+var _platform_velocity: Vector3 = Vector3.ZERO
+
 var current_water_time: float = 0.0
 var gravity_direction: Vector3 = Vector3.DOWN
 var planet: Node3D
@@ -813,19 +817,56 @@ func apply_swimming_pitch(input_dir: Vector3, delta: float):
 	current_swimming_pitch = lerp(current_swimming_pitch, target_pitch, delta * swimming_rotation_speed)
 	player_model.rotation = Vector3(current_swimming_pitch, 0, 0)
 
-func align_to_gravity(gravity_dir: Vector3, delta: float):	
+func align_to_gravity(gravity_dir: Vector3, blend: float):	
 	var up_dir = -gravity_dir.normalized()
 	var current_up = global_transform.basis.y
 	var rotation_axis = current_up.cross(up_dir)
 	var angle = acos(clamp(current_up.dot(up_dir), -1.0, 1.0))
 
 	if angle > 0.001 and rotation_axis.length() > 0.001:
-		var rot = Quaternion(rotation_axis.normalized(), angle * delta * 5.0)
+		var rot = Quaternion(rotation_axis.normalized(), angle * blend)
 		global_transform.basis = Basis(rot) * global_transform.basis
 		orthonormalize()
 
+func _apply_platform_delta() -> void:
+	if not _platform_body or not is_instance_valid(_platform_body):
+		_platform_body = null
+		_platform_velocity = Vector3.ZERO
+		return
+	
+	var cur_xform := _platform_body.global_transform
+	var delta_xform := cur_xform * _platform_prev_xform.affine_inverse()
+	
+	global_transform = delta_xform * global_transform
+	orthonormalize()
+	
+	_platform_velocity = _platform_body.linear_velocity
+	
+func _update_platform_tracking() -> void:
+	var new_body: DynamicGridBody = null
+	
+	if is_on_floor():
+		for i in get_slide_collision_count():
+			var col := get_slide_collision(i)
+			var obj := col.get_collider()
+			if obj is DynamicGridBody:
+				new_body = obj
+				break
+			elif obj is CollisionShape3D and obj.get_parent() is DynamicGridBody:
+				new_body = obj.get_parent()
+				break
+	
+	if new_body != _platform_body:
+		_platform_body = new_body
+		if _platform_body:
+			_platform_prev_xform = _platform_body.global_transform
+	
+	if _platform_body and is_instance_valid(_platform_body):
+		_platform_prev_xform = _platform_body.global_transform
 
 func update_normal_movement(delta: float) -> void:
+	_apply_platform_delta()
+	
 	gravity_direction = planet.get_gravity_direction(global_position)
 	up_direction = -gravity_direction
 	
@@ -843,6 +884,9 @@ func update_normal_movement(delta: float) -> void:
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity
 	
+	if _platform_body and is_instance_valid(_platform_body):
+		velocity += _platform_velocity
+	
 	if movement.is_running || movement.is_sprinting:
 		rotate_toward_movement(input_dir, delta)
 		
@@ -855,9 +899,16 @@ func update_normal_movement(delta: float) -> void:
 		current_swimming_pitch = 0.0
 		player_model.rotation = Vector3(0.0, 0.0, 0.0)
 			
-	align_to_gravity(gravity_direction, delta)
+	if _platform_body and is_instance_valid(_platform_body) and is_on_floor():
+		var platform_up := _platform_body.global_transform.basis.y.normalized()
+		align_to_gravity(-platform_up, delta)  # más rápido para seguir el balanceo
+	else:
+		align_to_gravity(gravity_direction, delta)
+	
 	camera_controller.update_camera_rotation()
-	var pre_slide_velocity := velocity  # ← GUARDAR ABANS
+	var pre_slide_velocity := velocity
 	move_and_slide()
 	if is_on_floor() and not movement.is_swimming:
 		step_up.try_step_up(delta, gravity_direction, pre_slide_velocity)
+	
+	_update_platform_tracking()
