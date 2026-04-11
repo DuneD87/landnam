@@ -85,28 +85,8 @@ func update_camera_transform():
 	else:
 		target_up = -player.gravity_direction.normalized()
 
-	_current_up_axis = _current_up_axis.slerp(target_up, 0.1)
+	_current_up_axis = _current_up_axis.slerp(target_up, 0.01)
 	var up_axis = _current_up_axis
-	
-	if player._platform_body and is_instance_valid(player._platform_body):
-		if player._platform_body != _tracking_platform:
-			_tracking_platform = player._platform_body
-			_prev_platform_basis = _tracking_platform.global_transform.basis
-		
-		var cur_basis := _tracking_platform.global_transform.basis
-		var platform_up := cur_basis.y.normalized()
-		var delta_rot := cur_basis * _prev_platform_basis.inverse()
-		var delta_quat := Quaternion(delta_rot.orthonormalized())
-		
-		# Project rotation onto platform up axis
-		var axis := Vector3(delta_quat.x, delta_quat.y, delta_quat.z)
-		var projected := axis.dot(platform_up)
-		var yaw_angle := 2.0 * atan2(projected, delta_quat.w)
-		
-		yaw += yaw_angle
-		_prev_platform_basis = cur_basis
-	else:
-		_tracking_platform = null
 		
 	camera_pivot.global_position = player_pos
 	camera_pivot.global_transform.basis = Basis(up_axis, yaw)

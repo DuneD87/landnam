@@ -854,7 +854,11 @@ func _update_platform_tracking() -> void:
 				break
 	
 	if new_body != _platform_body:
+		if _platform_body:
+			_platform_body._is_being_controlled = false
 		_platform_body = new_body
+		if _platform_body:
+			_platform_body._is_being_controlled = true
 		if _platform_body:
 			_platform_prev_xform = _platform_body.global_transform
 	
@@ -863,14 +867,13 @@ func _update_platform_tracking() -> void:
 
 func update_normal_movement(delta: float) -> void:
 	_apply_platform_rotation()
-	
 	gravity_direction = planet.get_gravity_direction(global_position)
 	
 	if _platform_body and is_instance_valid(_platform_body):
 		var platform_up := _platform_body.global_transform.basis.y.normalized()
 		up_direction = platform_up
 		if is_on_floor() and not movement.is_jumping:
-			velocity -= platform_up * planet.gravity_strength * delta * 20.0
+			velocity -= platform_up * planet.gravity_strength * delta * 2.0
 	else:
 		up_direction = -gravity_direction
 	

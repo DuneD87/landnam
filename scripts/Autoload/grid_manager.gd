@@ -170,6 +170,7 @@ func convert_to_dynamic(grid_id: String) -> Array:
 			dyn._body = shared_body
 			dyn._owns_body = true
 			dyn.grid_id = sid
+			dyn.body_id = sid
 			dyn.planet_node = planet
 			dyn.cell_size = static_grid.cell_size
 			dyn.mesh_materials = static_grid.mesh_materials

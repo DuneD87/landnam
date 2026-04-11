@@ -13,6 +13,7 @@ var _grids: Array = []  # Array[DynamicPlanetGrid]
 var _buoyancy_points: PackedVector3Array = []
 var _buoyancy_force: float = 2000.0
 var _recalc_points: bool = true
+var _is_being_controlled: bool = false
 
 func on_block_removed(grid_pos: Vector3i) -> void:
 	mark_points_dirty()
@@ -90,6 +91,8 @@ func unregister_grid(grid) -> void:
 	_grids.erase(grid)
 
 func _physics_process(delta: float) -> void:
+	while !_is_ground_ready():
+		return
 	if not planet_node or not is_inside_tree():
 		return
 	
@@ -99,17 +102,17 @@ func _physics_process(delta: float) -> void:
 	var gravity_force: Vector3 = dir * planet_node.gravity_strength * mass
 	var forward := global_transform.basis.z
 	var right := global_transform.basis.x
-
-	if Input.is_action_pressed("ui_up"):
-		var force := global_transform.basis.z * move_speed * mass
-		var offset := -dir * 0.5  # aplicar fuerza ligeramente por debajo del centro
-		apply_force(force, offset)
-	if Input.is_action_pressed("ui_down"):
-		linear_velocity -= forward * move_speed * delta
-	if Input.is_action_pressed("ui_left"):
-		angular_velocity += global_transform.basis.y * turn_speed * delta
-	if Input.is_action_pressed("ui_right"):
-		angular_velocity -= global_transform.basis.y * turn_speed * delta
+	if _is_being_controlled:
+		if Input.is_action_pressed("ui_up"):
+			var force := global_transform.basis.z * move_speed * mass
+			var offset := -dir * 0.5  # aplicar fuerza ligeramente por debajo del centro
+			apply_force(force, offset)
+		if Input.is_action_pressed("ui_down"):
+			linear_velocity -= forward * move_speed * delta
+		if Input.is_action_pressed("ui_left"):
+			angular_velocity += global_transform.basis.y * turn_speed * delta
+		if Input.is_action_pressed("ui_right"):
+			angular_velocity -= global_transform.basis.y * turn_speed * delta
 	if not planet_node.planet.has_water or not _water_sampler:
 		apply_central_force(gravity_force)
 		return

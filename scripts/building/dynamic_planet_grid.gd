@@ -291,6 +291,7 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 		}
 
 		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id, mirror_data)
+		print("[DynGrid] %s: %d bloques colocados, body children: %d" % [grid_id, _blocks.size(), _body.get_child_count()])
 	_suppress_rebuild = false
 
 	_body.register_grid(self)
