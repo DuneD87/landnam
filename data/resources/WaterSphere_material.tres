@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://cyoolrj4g2q5i"]
 
-[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="1_8rr25"]
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/liquid/water_shader.gdshader" id="1_8rr25"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_8rr25"]
 frequency = 0.023

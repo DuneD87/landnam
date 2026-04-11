@@ -1,12 +1,13 @@
 class_name DynamicGridBody
 extends RigidBody3D
-
+@export var move_speed: float = 5.0
+@export var turn_speed: float = 2.0
 ## RigidBody3D con gravedad planetaria y flotación.
 
 var planet_node: Node3D = null
 
 var _water_sampler: WaterHeightSampler = null
-var _water_drag: float = 3.0
+var _water_drag: float = 300.0
 
 var _grids: Array = []  # Array[DynamicPlanetGrid]
 var _buoyancy_points: PackedVector3Array = []
@@ -96,7 +97,19 @@ func _physics_process(delta: float) -> void:
 	var dir: Vector3 = (planet_pos - global_position).normalized()
 	var up: Vector3 = -dir
 	var gravity_force: Vector3 = dir * planet_node.gravity_strength * mass
-	
+	var forward := global_transform.basis.z
+	var right := global_transform.basis.x
+
+	if Input.is_action_pressed("ui_up"):
+		var force := global_transform.basis.z * move_speed * mass
+		var offset := -dir * 0.5  # aplicar fuerza ligeramente por debajo del centro
+		apply_force(force, offset)
+	if Input.is_action_pressed("ui_down"):
+		linear_velocity -= forward * move_speed * delta
+	if Input.is_action_pressed("ui_left"):
+		angular_velocity += global_transform.basis.y * turn_speed * delta
+	if Input.is_action_pressed("ui_right"):
+		angular_velocity -= global_transform.basis.y * turn_speed * delta
 	if not planet_node.planet.has_water or not _water_sampler:
 		apply_central_force(gravity_force)
 		return
@@ -138,8 +151,8 @@ func _physics_process(delta: float) -> void:
 		var ang: Vector3 = angular_velocity
 		var yaw_component: Vector3 = up * ang.dot(up)
 		var tilt_component: Vector3 = ang - yaw_component
-		apply_torque(-tilt_component * _water_drag * 3.0 * ratio_sub)  # Fuerte en tilt
-		apply_torque(-yaw_component * _water_drag * 0.5 * ratio_sub)   # Suave en yaw
+		apply_torque(-tilt_component * _water_drag * 15.0 * ratio_sub)  # Fuerte en tilt
+		apply_torque(-yaw_component * _water_drag * 5.0 * ratio_sub)   # Suave en yaw
 		
 		# Damping vertical extra para evitar rebote
 		var radial_vel: float = linear_velocity.dot(up)

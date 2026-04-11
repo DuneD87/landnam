@@ -48,6 +48,7 @@ var _ray_hit: Dictionary = {}
 var _platform_body: DynamicGridBody = null
 var _platform_prev_xform: Transform3D  # global transform del body en el frame anterior
 var _platform_velocity: Vector3 = Vector3.ZERO
+var _platform_local_offset: Vector3 = Vector3.ZERO
 
 var current_water_time: float = 0.0
 var gravity_direction: Vector3 = Vector3.DOWN
@@ -827,20 +828,16 @@ func align_to_gravity(gravity_dir: Vector3, blend: float):
 		var rot = Quaternion(rotation_axis.normalized(), angle * blend)
 		global_transform.basis = Basis(rot) * global_transform.basis
 		orthonormalize()
-
-func _apply_platform_delta() -> void:
+		
+func _apply_platform_rotation() -> void:
 	if not _platform_body or not is_instance_valid(_platform_body):
-		_platform_body = null
-		_platform_velocity = Vector3.ZERO
 		return
+		
+	var current_basis := _platform_body.global_transform.basis
+	var prev_basis := _platform_prev_xform.basis
+	var delta_basis := current_basis * prev_basis.inverse()
 	
-	var cur_xform := _platform_body.global_transform
-	var delta_xform := cur_xform * _platform_prev_xform.affine_inverse()
-	
-	global_transform = delta_xform * global_transform
-	orthonormalize()
-	
-	_platform_velocity = _platform_body.linear_velocity
+	global_basis = (delta_basis * global_basis).orthonormalized()
 	
 func _update_platform_tracking() -> void:
 	var new_body: DynamicGridBody = null
@@ -852,23 +849,26 @@ func _update_platform_tracking() -> void:
 			if obj is DynamicGridBody:
 				new_body = obj
 				break
-			elif obj is CollisionShape3D and obj.get_parent() is DynamicGridBody:
-				new_body = obj.get_parent()
-				break
 	
 	if new_body != _platform_body:
 		_platform_body = new_body
 		if _platform_body:
 			_platform_prev_xform = _platform_body.global_transform
+			_platform_local_offset = _platform_body.global_transform.affine_inverse() * global_position
 	
 	if _platform_body and is_instance_valid(_platform_body):
 		_platform_prev_xform = _platform_body.global_transform
 
-func update_normal_movement(delta: float) -> void:
-	_apply_platform_delta()
-	
+func update_normal_movement(delta: float) -> void:	
 	gravity_direction = planet.get_gravity_direction(global_position)
-	up_direction = -gravity_direction
+	
+	if _platform_body and is_instance_valid(_platform_body):
+		var platform_up := _platform_body.global_transform.basis.y.normalized()
+		up_direction = platform_up
+		if is_on_floor() and not movement.is_jumping:
+			velocity -= platform_up * planet.gravity_strength * delta * 2.0
+	else:
+		up_direction = -gravity_direction
 	
 	var was_swimming = movement.is_swimming
 	_check_needs_swimming(delta)
@@ -878,14 +878,12 @@ func update_normal_movement(delta: float) -> void:
 	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 	current_animation = movement.current_animation
+	
 	if equiped_weapon != null && action_controller.is_attacking:
 		current_animation = equiped_weapon.attack_animation
 
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity
-	
-	if _platform_body and is_instance_valid(_platform_body):
-		velocity += _platform_velocity
 	
 	if movement.is_running || movement.is_sprinting:
 		rotate_toward_movement(input_dir, delta)
@@ -897,17 +895,19 @@ func update_normal_movement(delta: float) -> void:
 
 	if was_swimming:
 		current_swimming_pitch = 0.0
-		player_model.rotation = Vector3(0.0, 0.0, 0.0)
+		player_model.rotation = Vector3.ZERO
 			
 	if _platform_body and is_instance_valid(_platform_body) and is_on_floor():
 		var platform_up := _platform_body.global_transform.basis.y.normalized()
-		align_to_gravity(-platform_up, delta)  # más rápido para seguir el balanceo
+		align_to_gravity(-platform_up, 1.0) 
 	else:
 		align_to_gravity(gravity_direction, delta)
 	
 	camera_controller.update_camera_rotation()
 	var pre_slide_velocity := velocity
 	move_and_slide()
+	_apply_platform_rotation()
+
 	if is_on_floor() and not movement.is_swimming:
 		step_up.try_step_up(delta, gravity_direction, pre_slide_velocity)
 	
