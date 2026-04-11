@@ -27,6 +27,9 @@ var delta_yaw := 0.0
 var delta_pitch := 0.0
 var target_distance: float
 var first_person := false
+var _current_up_axis: Vector3 = Vector3.UP
+var _prev_platform_basis: Basis = Basis.IDENTITY
+var _tracking_platform: DynamicGridBody = null
 
 func _ready():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
@@ -76,8 +79,35 @@ func update_camera_rotation():
 func update_camera_transform():
 	var player = get_parent()
 	var player_pos = player.global_position
-	var up_axis = -player.gravity_direction.normalized()
+	var target_up: Vector3
+	if player._platform_body and is_instance_valid(player._platform_body):
+		target_up = player._platform_body.global_transform.basis.y.normalized()
+	else:
+		target_up = -player.gravity_direction.normalized()
 
+	_current_up_axis = _current_up_axis.slerp(target_up, 0.1)
+	var up_axis = _current_up_axis
+	
+	if player._platform_body and is_instance_valid(player._platform_body):
+		if player._platform_body != _tracking_platform:
+			_tracking_platform = player._platform_body
+			_prev_platform_basis = _tracking_platform.global_transform.basis
+		
+		var cur_basis := _tracking_platform.global_transform.basis
+		var platform_up := cur_basis.y.normalized()
+		var delta_rot := cur_basis * _prev_platform_basis.inverse()
+		var delta_quat := Quaternion(delta_rot.orthonormalized())
+		
+		# Project rotation onto platform up axis
+		var axis := Vector3(delta_quat.x, delta_quat.y, delta_quat.z)
+		var projected := axis.dot(platform_up)
+		var yaw_angle := 2.0 * atan2(projected, delta_quat.w)
+		
+		yaw += yaw_angle
+		_prev_platform_basis = cur_basis
+	else:
+		_tracking_platform = null
+		
 	camera_pivot.global_position = player_pos
 	camera_pivot.global_transform.basis = Basis(up_axis, yaw)
 
