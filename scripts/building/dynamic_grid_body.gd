@@ -11,7 +11,7 @@ var _water_drag: float = 300.0
 
 var _grids: Array = []  # Array[DynamicPlanetGrid]
 var _buoyancy_points: PackedVector3Array = []
-var _buoyancy_force: float = 1000.0
+var _buoyancy_force: float = 2000.0
 var _recalc_points: bool = true
 
 func on_block_removed(grid_pos: Vector3i) -> void:

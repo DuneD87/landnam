@@ -48,7 +48,6 @@ var _ray_hit: Dictionary = {}
 var _platform_body: DynamicGridBody = null
 var _platform_prev_xform: Transform3D  # global transform del body en el frame anterior
 var _platform_velocity: Vector3 = Vector3.ZERO
-var _platform_local_offset: Vector3 = Vector3.ZERO
 
 var current_water_time: float = 0.0
 var gravity_direction: Vector3 = Vector3.DOWN
@@ -828,7 +827,7 @@ func align_to_gravity(gravity_dir: Vector3, blend: float):
 		var rot = Quaternion(rotation_axis.normalized(), angle * blend)
 		global_transform.basis = Basis(rot) * global_transform.basis
 		orthonormalize()
-		
+
 func _apply_platform_rotation() -> void:
 	if not _platform_body or not is_instance_valid(_platform_body):
 		return
@@ -838,6 +837,7 @@ func _apply_platform_rotation() -> void:
 	var delta_basis := current_basis * prev_basis.inverse()
 	
 	global_basis = (delta_basis * global_basis).orthonormalized()
+	player_model.global_basis = global_basis
 	
 func _update_platform_tracking() -> void:
 	var new_body: DynamicGridBody = null
@@ -849,24 +849,28 @@ func _update_platform_tracking() -> void:
 			if obj is DynamicGridBody:
 				new_body = obj
 				break
+			elif obj is CollisionShape3D and obj.get_parent() is DynamicGridBody:
+				new_body = obj.get_parent()
+				break
 	
 	if new_body != _platform_body:
 		_platform_body = new_body
 		if _platform_body:
 			_platform_prev_xform = _platform_body.global_transform
-			_platform_local_offset = _platform_body.global_transform.affine_inverse() * global_position
 	
 	if _platform_body and is_instance_valid(_platform_body):
 		_platform_prev_xform = _platform_body.global_transform
 
-func update_normal_movement(delta: float) -> void:	
+func update_normal_movement(delta: float) -> void:
+	_apply_platform_rotation()
+	
 	gravity_direction = planet.get_gravity_direction(global_position)
 	
 	if _platform_body and is_instance_valid(_platform_body):
 		var platform_up := _platform_body.global_transform.basis.y.normalized()
 		up_direction = platform_up
 		if is_on_floor() and not movement.is_jumping:
-			velocity -= platform_up * planet.gravity_strength * delta * 2.0
+			velocity -= platform_up * planet.gravity_strength * delta * 20.0
 	else:
 		up_direction = -gravity_direction
 	
@@ -906,8 +910,7 @@ func update_normal_movement(delta: float) -> void:
 	camera_controller.update_camera_rotation()
 	var pre_slide_velocity := velocity
 	move_and_slide()
-	_apply_platform_rotation()
-
+	
 	if is_on_floor() and not movement.is_swimming:
 		step_up.try_step_up(delta, gravity_direction, pre_slide_velocity)
 	
