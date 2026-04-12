@@ -68,6 +68,8 @@ func _is_ground_ready() -> bool:
 	return not result.is_empty()
 
 func _ready() -> void:
+	collision_layer = 3
+	collision_mask = 1
 	_setup_water_sampler()
 
 func _setup_water_sampler() -> void:
@@ -75,7 +77,6 @@ func _setup_water_sampler() -> void:
 		return
 	if not planet_node.planet.has_water:
 		return
-
 	_water_sampler = WaterHeightSampler.new()
 	add_child(_water_sampler)
 
@@ -91,8 +92,8 @@ func unregister_grid(grid) -> void:
 	_grids.erase(grid)
 
 func _physics_process(delta: float) -> void:
-	while !_is_ground_ready():
-		return
+	'while !_is_ground_ready():
+		return'
 	if not planet_node or not is_inside_tree():
 		return
 	
@@ -104,11 +105,9 @@ func _physics_process(delta: float) -> void:
 	var right := global_transform.basis.x
 	if _is_being_controlled:
 		if Input.is_action_pressed("ui_up"):
-			var force := global_transform.basis.z * move_speed * mass
-			var offset := -dir * 0.5  # aplicar fuerza ligeramente por debajo del centro
-			apply_force(force, offset)
+			apply_central_force(global_transform.basis.z * move_speed * mass)
 		if Input.is_action_pressed("ui_down"):
-			linear_velocity -= forward * move_speed * delta
+			apply_central_force(-global_transform.basis.z * move_speed * mass)
 		if Input.is_action_pressed("ui_left"):
 			angular_velocity += global_transform.basis.y * turn_speed * delta
 		if Input.is_action_pressed("ui_right"):

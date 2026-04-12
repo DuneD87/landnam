@@ -46,8 +46,7 @@ const data = preload("res://scripts/items/item_data.gd")
 var _ray_hit: Dictionary = {}
 
 var _platform_body: DynamicGridBody = null
-var _platform_prev_xform: Transform3D  # global transform del body en el frame anterior
-var _platform_velocity: Vector3 = Vector3.ZERO
+var _platform_prev_xform: Transform3D
 
 var current_water_time: float = 0.0
 var gravity_direction: Vector3 = Vector3.DOWN
@@ -872,6 +871,7 @@ func update_normal_movement(delta: float) -> void:
 	if _platform_body and is_instance_valid(_platform_body):
 		var platform_up := _platform_body.global_transform.basis.y.normalized()
 		up_direction = platform_up
+		gravity_direction = -up_direction
 		if is_on_floor() and not movement.is_jumping:
 			velocity -= platform_up * planet.gravity_strength * delta * 2.0
 	else:
