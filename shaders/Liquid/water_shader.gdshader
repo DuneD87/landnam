@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix,shadows_disabled,diffuse_burley,specular_schlick_ggx, depth_prepass_alpha, depth_draw_opaque;
+render_mode blend_mix, shadows_disabled, depth_prepass_alpha;
 
 uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
@@ -306,7 +306,7 @@ void fragment() {
 	float total_foam = clamp((shore_foam + crest_foam) * foam_pattern, 0.0, 1.0);
 	vec3 blended_edge_color = mix(color, edge_color, fade_factor);
 	// La foam se concentra más en la línea de contacto
-	float foam_on_edge = clamp(fade_factor * 1.5 - 0.3, 0.0, 1.0);
+	float foam_on_edge = clamp(fade_factor * 1.5, 0.0, 1.0);
 	blended_edge_color = mix(blended_edge_color, foam_color, foam_on_edge * shore_foam);
 	vec3 depth_color_adj = mix(blended_edge_color, sky_reflection, fresnel_value * 0.8);
 	depth_color_adj = mix(depth_color_adj, blended_edge_color, adjusted_depth_blend * 0.3);
@@ -321,7 +321,7 @@ void fragment() {
     vec3 view_dir_world = normalize(world_pos - CAMERA_POSITION_WORLD);
 	vec3 up_dir = normalize(world_pos - planet_center);
 	float horizon_dot = 1.0 - abs(dot(view_dir_world, up_dir));
-	horizon_dot = pow(horizon_dot, 2.0); // concentrar más en el horizonte
+	horizon_dot = pow(horizon_dot, 20.0); // concentrar más en el horizonte
 
 	float fog_blend = smoothstep(horizon_fog_start, horizon_fog_end, view_depth) * horizon_dot;
 	final_albedo = mix(final_albedo, horizon_fog_color, fog_blend);

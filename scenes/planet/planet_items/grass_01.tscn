@@ -69,12 +69,12 @@ _surfaces = [{
 "vertex_data": PackedByteArray("AAAAAKtzAICM9QAAq3MAgAAA//+rcwCAjPX//6tzAIDHEgAAAACJlrjjAAB74YiWxxJn6QAAjZb//27i//+Jlv9/////f////3////9///8jfxn8/3/+/4p+aPlJf8f8")
 }]
 
-[node name="Node3D" type="StaticBody3D"]
+[node name="Node3D" type="StaticBody3D" unique_id=1402954957]
 script = ExtResource("1_y7r0u")
 health = 10
 drop_amount_max = 1
 
-[node name="Grass-01" type="MeshInstance3D" parent="."]
-gi_mode = 0
+[node name="Grass-01" type="MeshInstance3D" parent="." unique_id=1981072293]
+cast_shadow = 0
 mesh = SubResource("ArrayMesh_fl2ye")
 skeleton = NodePath("")
