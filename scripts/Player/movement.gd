@@ -59,6 +59,12 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 	swim_transition_timer = max(0, swim_transition_timer - delta)
 	var use_swim_animations = is_swimming || swim_transition_timer > 0
 	
+	if is_swimming:
+		is_jumping = false
+		is_falling = false
+		jump_velocity = 0.0
+		gravity_velocity = 0.0
+		
 	if Input.is_action_pressed("Sprint"):
 		if !is_jumping && !is_falling && !use_swim_animations:
 			is_sprinting = true
