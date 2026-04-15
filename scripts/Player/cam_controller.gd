@@ -82,12 +82,10 @@ func update_camera_transform():
 	var target_up: Vector3
 	if player._platform_body and is_instance_valid(player._platform_body):
 		target_up = player._platform_body.global_transform.basis.y.normalized()
-
 		var current_platform_basis: Basis = player._platform_body.global_transform.basis
 		if _tracking_platform == player._platform_body:
 			var prev_forward := _prev_platform_basis.z
 			var curr_forward := current_platform_basis.z
-			# Proyectar ambos sobre el plano del up para aislar el yaw
 			prev_forward = (prev_forward - target_up * prev_forward.dot(target_up)).normalized()
 			curr_forward = (curr_forward - target_up * curr_forward.dot(target_up)).normalized()
 			var cross := prev_forward.cross(curr_forward)
