@@ -1,4 +1,8 @@
 extends CharacterBody3D
+const PLATFORM_ATTACH_DIST := 1.5
+const PLATFORM_DETACH_DIST := 2.5
+const PLATFORM_MAX_TILT_DEG := 75.0
+
 const config = preload("res://scripts/config.gd")
 const data = preload("res://scripts/items/item_data.gd")
 @onready var movement: Movement = $Movement
@@ -228,6 +232,7 @@ func _ready():
 	safe_margin = 0.008
 	floor_max_angle = deg_to_rad(70.0)    # acceptar pendents més empinades
 	floor_snap_length = 0.1
+	platform_floor_layers = 0
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	GameManager.register_player(self)
 	GameManager.state_changed.connect(_on_game_state_changed)
@@ -827,55 +832,90 @@ func align_to_gravity(gravity_dir: Vector3, blend: float):
 		global_transform.basis = Basis(rot) * global_transform.basis
 		orthonormalize()
 
-func _apply_platform_rotation() -> void:
+func _get_platform_point_velocity() -> Vector3:
+	if not _platform_body or not is_instance_valid(_platform_body):
+		return Vector3.ZERO
+	var r := global_position - _platform_body.global_position
+	return _platform_body.linear_velocity + _platform_body.angular_velocity.cross(r)
+	
+func _apply_platform_movement() -> void:
 	if not _platform_body or not is_instance_valid(_platform_body):
 		return
-		
-	var current_basis := _platform_body.global_transform.basis
-	var prev_basis := _platform_prev_xform.basis
-	var delta_basis := current_basis * prev_basis.inverse()
-	
+
+	var cur_xform := _platform_body.global_transform
+	var prev_xform := _platform_prev_xform
+
+	var delta_basis := cur_xform.basis * prev_xform.basis.inverse()
+	var offset := global_position - prev_xform.origin
+	global_position = cur_xform.origin + delta_basis * offset
 	global_basis = (delta_basis * global_basis).orthonormalized()
-	player_model.global_basis = global_basis
 	
+func _detect_platform_raycast() -> DynamicGridBody:
+	var space := get_world_3d().direct_space_state
+	var origin := global_position
+	var end := origin + gravity_direction.normalized() * PLATFORM_DETACH_DIST
+	var query := PhysicsRayQueryParameters3D.create(origin, end)
+	query.collision_mask = ray_collision_mask
+	query.exclude = [get_rid()]
+
+	var result := space.intersect_ray(query)
+	if result.is_empty():
+		return null
+
+	var collider = result["collider"]
+	if collider is DynamicGridBody:
+		return collider
+	var parent = collider.get_parent() if collider else null
+	if parent is DynamicGridBody:
+		return parent
+	return null
+
 func _update_platform_tracking() -> void:
-	var new_body: DynamicGridBody = null
+	var detected := _detect_platform_raycast()
 	
-	if is_on_floor():
-		for i in get_slide_collision_count():
-			var col := get_slide_collision(i)
-			var obj := col.get_collider()
-			if obj is DynamicGridBody:
-				new_body = obj
-				break
-			elif obj is CollisionShape3D and obj.get_parent() is DynamicGridBody:
-				new_body = obj.get_parent()
-				break
-	
-	if new_body != _platform_body:
+	if detected and detected != _platform_body:
 		if _platform_body:
 			_platform_body._is_being_controlled = false
-		_platform_body = new_body
-		if _platform_body:
-			_platform_body._is_being_controlled = true
-		if _platform_body:
-			_platform_prev_xform = _platform_body.global_transform
-	
+		_platform_body = detected
+		_platform_body._is_being_controlled = true
+		_platform_prev_xform = _platform_body.global_transform
+	elif not detected and _platform_body:
+		if not is_instance_valid(_platform_body):
+			_platform_body = null
+		else:
+			var dist := global_position.distance_to(_platform_body.global_position)
+			var body_up := _platform_body.global_transform.basis.y.normalized()
+			var height_above := (global_position - _platform_body.global_position).dot(body_up)
+			
+			if height_above > PLATFORM_DETACH_DIST or height_above < -0.5:
+				_platform_body._is_being_controlled = false
+				_platform_body = null
+				
+	if _platform_body and is_instance_valid(_platform_body):
+		var platform_up := _platform_body.global_transform.basis.y.normalized()
+		var player_up := -gravity_direction.normalized()
+		var angle := rad_to_deg(acos(clamp(platform_up.dot(player_up), -1.0, 1.0)))
+		if angle > PLATFORM_MAX_TILT_DEG:
+			_platform_body._is_being_controlled = false
+			_platform_body = null
+			return
+			
 	if _platform_body and is_instance_valid(_platform_body):
 		_platform_prev_xform = _platform_body.global_transform
 
 func update_normal_movement(delta: float) -> void:
-	_apply_platform_rotation()
+	_apply_platform_movement()
 	gravity_direction = planet.get_gravity_direction(global_position)
+	var on_platform := _platform_body != null and is_instance_valid(_platform_body)
 	
-	if _platform_body and is_instance_valid(_platform_body):
+	if on_platform:
 		var platform_up := _platform_body.global_transform.basis.y.normalized()
 		up_direction = platform_up
 		gravity_direction = -up_direction
-		if is_on_floor() and not movement.is_jumping:
-			velocity -= platform_up * planet.gravity_strength * delta * 2.0
 	else:
 		up_direction = -gravity_direction
+	
+	movement.on_platform = on_platform and is_on_floor()
 	
 	var was_swimming = movement.is_swimming
 	_check_needs_swimming(delta)
@@ -885,16 +925,16 @@ func update_normal_movement(delta: float) -> void:
 	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 	current_animation = movement.current_animation
-	
+
 	if equiped_weapon != null && action_controller.is_attacking:
 		current_animation = equiped_weapon.attack_animation
 
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	velocity = movement.velocity
-	
+
 	if movement.is_running || movement.is_sprinting:
 		rotate_toward_movement(input_dir, delta)
-		
+
 	if movement.is_swimming:
 		apply_swimming_pitch(input_dir, delta)
 		if !movement.is_running:
@@ -903,18 +943,23 @@ func update_normal_movement(delta: float) -> void:
 	if was_swimming:
 		current_swimming_pitch = 0.0
 		player_model.rotation = Vector3.ZERO
-			
-	if _platform_body and is_instance_valid(_platform_body) and is_on_floor():
-		var platform_up := _platform_body.global_transform.basis.y.normalized()
-		align_to_gravity(-platform_up, 1.0) 
+
+	if on_platform and is_on_floor():
+		align_to_gravity(-_platform_body.global_transform.basis.y.normalized(), 1.0)
 	else:
 		align_to_gravity(gravity_direction, delta)
-	
+
 	camera_controller.update_camera_rotation()
+	
+	if on_platform and not movement.is_jumping:
+		var normal_comp := velocity.dot(up_direction)
+		if normal_comp < 0.0:
+			velocity -= up_direction * normal_comp
+
 	var pre_slide_velocity := velocity
 	move_and_slide()
-	
+
 	if is_on_floor() and not movement.is_swimming:
 		step_up.try_step_up(delta, gravity_direction, pre_slide_velocity)
-	
+
 	_update_platform_tracking()

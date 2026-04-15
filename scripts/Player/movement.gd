@@ -12,6 +12,7 @@ const SWIM_TRANSITION_DELAY = 0.3
 @export var mass: float = 70.0
 
 var current_animation = Config.ANIMATION.IDLE
+var on_platform: bool = false
 
 var is_jumping = false
 var is_falling = false
@@ -82,13 +83,15 @@ func handle_idle_movement(delta: float, gravity_direction: Vector3, is_on_floor:
 	
 	if is_falling:
 		current_animation = Config.ANIMATION.FALLING
+	
+	if on_platform:
+		gravity_velocity = 0.0
+		return
 		
 	if !is_on_floor && !is_swimming:
 		var gravity_accel = gravity_strength * mass
 		var gravity_dir = gravity_direction.normalized()
-		
 		gravity_velocity = lerp(gravity_velocity, gravity_accel, delta)
-
 		velocity += gravity_dir * gravity_velocity * delta
 	else:
 		gravity_velocity = 0.0
