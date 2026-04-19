@@ -43,7 +43,8 @@ const config = preload("res://scripts/config.gd")
 @export var has_water: bool
 @export var water_radius: float
 
-var planet_item_scenes: Array[StaticBody3D]
+var planet_item_scenes: Dictionary
+var _next_library_id: int = 0
 
 func _build_generator(generator_config: Dictionary, graph_functions: Array) -> VoxelInstanceGenerator:
 	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
@@ -75,53 +76,227 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array) -> V
 		
 	return generator
 
-func _load_vegetation():
-	var generators = vegetation.generators
-	var graph_functions =  vegetation.hemisphere_graph_function
-	voxel_instancer.library.clear()
-	var i = 0
-	for item in vegetation.items:
-		var generator : VoxelInstanceGenerator
-		var generator_found = false
-		for generator_config in generators:
-			if generator_config.name == item.generator:
-				generator = _build_generator(generator_config, graph_functions)
-				generator_found = true
-				break
-		if !generator_found:
-			push_error("Error parsing vegetation, generator with name %s not found.", item.generator)
-			
-		var multi_mesh_item : VoxelInstanceLibraryMultiMeshItem = VoxelInstanceLibraryMultiMeshItem.new()
-		multi_mesh_item.generator = generator
-		
-		var scene = load(item.scene)
-					
-		multi_mesh_item.scene = scene
-		multi_mesh_item.lod_index = item.lod_index
-		voxel_instancer.library.add_item(i, multi_mesh_item)
-		i += 1
-		var multi_mesh_elem = {
-			"mesh_item": multi_mesh_item,
-			"wind_speed": item.wind_speed if item.has("wind_speed") else 0.0,
-		}
-		
-		multi_mesh_array.append(multi_mesh_elem)
-		var scene_instantiated = scene.instantiate()
-		var scene_mesh : MeshInstance3D = scene_instantiated.get_child(0)
-		
+func _build_tree_collision(trunk_inst: MeshInstance3D, radius: float) -> CollisionShape3D:
+	
+	var aabb: AABB = trunk_inst.mesh.get_aabb()
+	var height: float = aabb.size.y
+	
+	var shape := CylinderShape3D.new()
+	shape.height = height
+	shape.radius = radius
+	var collision_shape: CollisionShape3D = CollisionShape3D.new()
+	collision_shape.shape = shape
+	
+	return collision_shape
+
+
+func _build_rock_collision(rock_inst: MeshInstance3D) -> CollisionShape3D:
+	var shape: ConvexPolygonShape3D = rock_inst.mesh.create_convex_shape(true, false)
+	if shape == null:
+		return null
+	var collision_shape: CollisionShape3D = CollisionShape3D.new()
+	collision_shape.shape = shape
+	
+	return collision_shape
+
+
+func _build_scene_collision(scene_instantiated: Node) -> Array:
+	var result: Array = []
+	for child in scene_instantiated.get_children():
+		if child is StaticBody3D:
+			for sub in child.get_children():
+				if sub is CollisionShape3D and sub.shape:
+					result.append(sub.shape)
+					result.append(sub.transform)
+			if not result.is_empty():
+				return result
+	
+	var mesh_child = scene_instantiated.get_child(0)
+	if mesh_child is MeshInstance3D and mesh_child.mesh:
+		var shape: ConvexPolygonShape3D = mesh_child.mesh.create_convex_shape(true, false)
+		if shape:
+			return [shape, Transform3D.IDENTITY]
+	
+	return []
+
+func _build_item_shared_data(i: int, item) -> Dictionary:
+	var scene: PackedScene = load(item.scene)
+	var scene_instantiated: Node = scene.instantiate()
+	var source_node = scene_instantiated.get_child(0)
+	
+	var result: Dictionary = {
+		"packed_scene": null,
+		"effective_mesh": null,
+		"registered_scene": null,
+	}
+	
+	if source_node is MeshInstance3D:
+		result.packed_scene = scene
+		result.effective_mesh = (source_node as MeshInstance3D).mesh
 		if item.has("material_type"):
-			planet_item_scenes.append(scene_instantiated)
-		var surface_count = scene_mesh.mesh.get_surface_count()
-		for surface_idx in surface_count:
-			var _shader_material = scene_mesh.mesh.surface_get_material(surface_idx)
-			if _shader_material is ShaderMaterial:
-				item_transparent_materials.append(
-					{
-						"shader": _shader_material as ShaderMaterial,
-						"wind_speed": item.wind_speed
-					}
-				)
+			result.registered_scene = scene_instantiated
+		else:
+			scene_instantiated.queue_free()
+	
+	elif source_node is Tree3D:
+		var tree_data := _build_tree_packed_scene(scene_instantiated, source_node)
+		result.packed_scene = tree_data.scene
+		result.effective_mesh = tree_data.mesh
+		result.registered_scene = tree_data.scene.instantiate()
+	
+	elif source_node is Rock3D:
+		var rock_data := _build_rock_packed_scene(scene_instantiated, source_node)
+		result.packed_scene = rock_data.scene
+		result.effective_mesh = rock_data.mesh
+		result.registered_scene = rock_data.scene.instantiate()
+	
+	else:
+		push_error("Tipo de vegetación desconocido en item %d: %s" % [i, source_node])
+		scene_instantiated.queue_free()
+		return {}
+	
+	return result
+
+
+func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator: VoxelInstanceGenerator) -> void:
+	var multi_mesh_item := VoxelInstanceLibraryMultiMeshItem.new()
+	multi_mesh_item.generator = generator
+	multi_mesh_item.lod_index = item.lod_index
+	multi_mesh_item.scene = shared_data.packed_scene
+	
+	var library_id = _next_library_id
+	_next_library_id += 1
+	voxel_instancer.library.add_item(library_id, multi_mesh_item)
+	
+	var wind_speed: float = item.wind_speed if item.has("wind_speed") else 0.0
+	multi_mesh_array.append({
+		"mesh_item": multi_mesh_item,
+		"wind_speed": wind_speed,
+	})
+	
+	# planet_item_scenes usa el library_id en lloc de l'índex de l'item
+	if shared_data.registered_scene != null:
+		planet_item_scenes[library_id] = shared_data.registered_scene
+	
+	if shared_data.effective_mesh:
+		for surface_idx in shared_data.effective_mesh.get_surface_count():
+			var mat = shared_data.effective_mesh.surface_get_material(surface_idx)
+			if mat is ShaderMaterial:
+				item_transparent_materials.append({
+					"shader": mat as ShaderMaterial,
+					"wind_speed": wind_speed,
+				})
+
+func _load_vegetation() -> void:
+	var generators = vegetation.generators
+	var graph_functions = vegetation.hemisphere_graph_function
+	voxel_instancer.library.clear()
+	planet_item_scenes.clear()
+	multi_mesh_array.clear()
+	item_transparent_materials.clear()
+	_next_library_id = 0
+	
+	for i in vegetation.items.size():
+		_load_vegetation_item(i, vegetation.items[i], generators, graph_functions)
+
+
+func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
+	# Normalitza generator a array (compatibilitat amb items antics)
+	var generator_names: Array = []
+	if item.generator is Array:
+		generator_names = item.generator
+	else:
+		generator_names = [item.generator]
+	
+	# Construeix el PackedScene i el mesh una sola vegada (és compartit)
+	var shared_data = _build_item_shared_data(i, item)
+	if shared_data.is_empty():
+		return
+	
+	# Crea una entrada a la library per cada generator
+	for generator_name in generator_names:
+		var generator: VoxelInstanceGenerator = null
+		for generator_config in generators:
+			if generator_config.name == generator_name:
+				generator = _build_generator(generator_config, graph_functions)
+				break
+		if generator == null:
+			push_error("Error parsing vegetation, generator with name %s not found." % generator_name)
+			continue
 		
+		_register_multi_mesh_item(i, item, shared_data, generator)
+
+
+func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
+	var trunk: MeshInstance3D = tree3d.get_trunk_instance()
+	var twig: MeshInstance3D = tree3d.get_twig_instance()
+	
+	var combined_mesh := ArrayMesh.new()
+	if trunk and trunk.mesh:
+		combined_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, trunk.mesh.surface_get_arrays(0))
+		var trunk_mat = tree3d.get_material_trunk()
+		if trunk_mat:
+			combined_mesh.surface_set_material(0, trunk_mat)
+	if twig and twig.mesh:
+		combined_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, twig.mesh.surface_get_arrays(0))
+		var twig_mat = tree3d.get_material_twig()
+		if twig_mat:
+			combined_mesh.surface_set_material(1, twig_mat)
+	
+	var new_root := scene_instantiated.duplicate(4) as Node3D
+	
+	var tree_mesh_child := MeshInstance3D.new()
+	tree_mesh_child.name = "TreeMesh"
+	tree_mesh_child.mesh = combined_mesh
+	new_root.add_child(tree_mesh_child)
+	tree_mesh_child.owner = new_root
+	
+	var collision_child := _build_tree_collision(trunk, tree3d.trunk_max_radius * 1.1)
+	new_root.add_child(collision_child)
+	_set_owner_recursive(collision_child, new_root)
+	
+	var tree_scene := PackedScene.new()
+	var err := tree_scene.pack(new_root)
+	if err != OK:
+		push_error("No se pudo empaquetar el árbol: %s" % err)
+	new_root.queue_free()
+	
+	return {
+		"scene": tree_scene,
+		"mesh": combined_mesh,
+	}
+
+
+func _build_rock_packed_scene(scene_instantiated: Node, rock3d) -> Dictionary:
+	var rock: MeshInstance3D = rock3d.get_rock_instance()
+	var new_root := scene_instantiated.duplicate(4) as Node3D
+	var rock_child := rock.duplicate() as MeshInstance3D
+	if rock_child.mesh:
+		rock_child.mesh = rock_child.mesh.duplicate()
+		rock_child.mesh.surface_set_material(0, rock3d.material_rock)
+	new_root.add_child(rock_child)
+	rock_child.owner = new_root
+	
+	var collision_child := _build_rock_collision(rock_child)
+	new_root.add_child(collision_child)
+	_set_owner_recursive(collision_child, new_root)
+	
+	var rock_scene := PackedScene.new()
+	var err := rock_scene.pack(new_root)
+	if err != OK:
+		push_error("No se pudo empaquetar la roca: %s" % err)
+	new_root.queue_free()
+	
+	return {
+		"scene": rock_scene,
+		"mesh": rock_child.mesh,
+	}
+
+func _set_owner_recursive(node: Node, new_owner: Node) -> void:
+	node.owner = new_owner
+	for child in node.get_children():
+		_set_owner_recursive(child, new_owner)
+
 func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
 	voxel_terrain = _voxel_terrain
 	atmosphere_node = _atmosphere_node

@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://07gmr1bp0thy"]
+
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_soix5"]
+[ext_resource type="Resource" uid="uid://c1hsrchnwebje" path="res://data/items/material/wood.tres" id="2_7d7bl"]
+[ext_resource type="Texture2D" uid="uid://ngbm62oopq2l" path="res://textures/planet/vegetation/tree/trunk/bark_default.jpg" id="3_nt36m"]
+[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="4_y8eo2"]
+[ext_resource type="Texture2D" uid="uid://cush5lf5g2xay" path="res://textures/planet/vegetation/tree/twigs/twig_pine.png" id="5_ueyyn"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_w36r8"]
+cull_mode = 1
+albedo_texture = ExtResource("3_nt36m")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_2ix4v"]
+render_priority = 0
+shader = ExtResource("4_y8eo2")
+shader_parameter/albedo = Color(0, 0, 0, 1)
+shader_parameter/texture_albedo = ExtResource("5_ueyyn")
+shader_parameter/alpha_scissor_threshold = 0.794000037715
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = Vector3(1, 0, 0)
+shader_parameter/planet_position = Vector3(0, 0, 0)
+shader_parameter/transition_width = 0.2
+shader_parameter/ambient_intensity = 0.15
+shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
+shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
+shader_parameter/translucency_strength = 0.999999977648
+shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
+shader_parameter/translucency_power = 8.0
+shader_parameter/rim_strength = 0.3
+shader_parameter/specular_strength = 0.15
+shader_parameter/specular_roughness = 0.7
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+shader_parameter/wind_base_height = 0.0
+shader_parameter/wind_falloff = 1.0
+shader_parameter/wind_amplitude = 0.1
+shader_parameter/wind_frequency = 2.0
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
+size = Vector3(0.231934, 5.74695, 0.482483)
+
+[node name="Node3D" type="StaticBody3D" unique_id=1075421542]
+script = ExtResource("1_soix5")
+health = 100
+drop_amount_min = 4
+drop_amount_max = 6
+item_data = ExtResource("2_7d7bl")
+
+[node name="Tree3D" type="Tree3D" parent="." unique_id=1858449836]
+twig_planes = 5
+twig_rotation_variance = 3.14
+trunk_height = 7
+trunk_branch_length = 0.787
+trunk_branch_length_falloff = 0.919
+trunk_grow_amount = 0.384
+trunk_max_radius = 0.24
+trunk_kink = 0.321
+trunk_twist = 2.92
+trunk_length = 4.875
+twig_scale = 0.627
+material_trunk = SubResource("StandardMaterial3D_w36r8")
+material_twig = SubResource("ShaderMaterial_2ix4v")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)
+shape = SubResource("BoxShape3D_cs0ur")

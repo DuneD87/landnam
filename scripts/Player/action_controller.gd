@@ -160,7 +160,9 @@ func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_
 		if !attacking_nodes.has(instance_id):
 			var item_id = target_node.get_library_item_id()
 			var scene = planet.voxel_instancer.library.get_item(item_id).scene.instantiate()
-			scene.health = planet.planet_item_scenes[item_id].health
+			var registered = planet.planet_item_scenes.get(item_id)
+			if registered != null:
+				scene.health = registered.health
 			if not scene.destroyed.is_connected(destroyed_callback):
 				scene.destroyed.connect(destroyed_callback)
 			attacking_nodes[instance_id] = scene

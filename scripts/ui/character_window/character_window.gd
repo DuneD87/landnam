@@ -5,7 +5,7 @@ extends CanvasLayer
 signal equipment_changed(slot_type: ItemData.ArmorSlot, item: InventoryItem)
 signal slot_clicked(slot: EquipmentSlot)
 
-const EquipmentSlotScene = preload("res://scenes/Player/equipment_slot.tscn")
+const EquipmentSlotScene = preload("res://scenes/ui/equipment_slot.tscn")
 
 @onready var panel: PanelContainer = $PanelContainer
 @onready var close_button: Button = $PanelContainer/MarginContainer/VBoxContainer/Header/CloseButton

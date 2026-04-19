@@ -1,0 +1,111 @@
+[gd_scene format=4 uid="uid://bi5txoln4cuw1"]
+
+[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="1_7vdmp"]
+[ext_resource type="Texture2D" uid="uid://c4nsjeiotq28o" path="res://textures/planet/vegetation/grass/grass_02.png" id="2_7vdmp"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_k1p4u"]
+render_priority = 0
+shader = ExtResource("1_7vdmp")
+shader_parameter/albedo = Color(0, 0, 0, 1)
+shader_parameter/texture_albedo = ExtResource("2_7vdmp")
+shader_parameter/alpha_scissor_threshold = 0.800000038
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = Vector3(1, 0, 0)
+shader_parameter/planet_position = Vector3(0, 0, 0)
+shader_parameter/transition_width = 0.2
+shader_parameter/ambient_intensity = 0.15
+shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
+shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
+shader_parameter/translucency_strength = 0.45
+shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
+shader_parameter/translucency_power = 2.0
+shader_parameter/rim_strength = 0.3
+shader_parameter/specular_strength = 0.15
+shader_parameter/specular_roughness = 0.7
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_qscl4"]
+render_priority = 0
+shader = ExtResource("1_7vdmp")
+shader_parameter/albedo = Color(0, 0, 0, 1)
+shader_parameter/texture_albedo = ExtResource("2_7vdmp")
+shader_parameter/alpha_scissor_threshold = 0.800000038
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/light_direction = Vector3(1, 0, 0)
+shader_parameter/planet_position = Vector3(0, 0, 0)
+shader_parameter/transition_width = 0.2
+shader_parameter/ambient_intensity = 0.15
+shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
+shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
+shader_parameter/translucency_strength = 0.45
+shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
+shader_parameter/translucency_power = 2.0
+shader_parameter/rim_strength = 0.3
+shader_parameter/specular_strength = 0.15
+shader_parameter/specular_roughness = 0.7
+shader_parameter/wind_direction = Vector3(1, 0, 0)
+shader_parameter/wind_speed = 1.0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_ujap4"]
+_surfaces = [{
+"aabb": AABB(-0.530104, -0.0378588, -0.710544, 1.15929, 1.2, 1.32966),
+"format": 34896613377,
+"index_count": 12,
+"index_data": PackedByteArray("AAADAAEAAAACAAMABAAHAAUABAAGAAcA"),
+"name": "high-grass-1-01",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 8,
+"vertex_data": PackedByteArray("AAAAAEZMAAB74QAAosUAAAAAZ+lGTAAA//9u4g7WAABurAAA1h4AAMk9AADE8AAAr7z//wAAAADCNdLU//8AAA==")
+}, {
+"aabb": AABB(-0.621875, -0.0378588, -0.570589, 1.2, 1.34205, 1.12981),
+"format": 34896613377,
+"index_count": 18,
+"index_data": PackedByteArray("AAADAAEAAAACAAMABAAHAAUABAAGAAcACAALAAkACAAKAAsA"),
+"name": "high-grass-1-02",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 12,
+"vertex_data": PackedByteArray("AAAAAFODAAD//wAAU4MAAAAA5uRTgwAA///m5FODAAARVwAAAAAAAFatAAD//wAAEVfm5AAAAABWrf////8AADf0AAAQPAAAJhgAAPnGAAA39ObkEDwAAKMZubQJxgAA")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_33j4k"]
+resource_name = "shapespark-low-poly-plants-kit_Plane_204"
+_surfaces = [{
+"aabb": AABB(-0.530104, -0.0378588, -0.710544, 1.15929, 1.2, 1.32966),
+"attribute_data": PackedByteArray("AAD///////8AAAAA//8AAAAA////////AAAAAP//AAA="),
+"format": 34896613399,
+"index_count": 12,
+"index_data": PackedByteArray("AAADAAEAAAACAAMABAAHAAUABAAGAAcA"),
+"material": SubResource("ShaderMaterial_k1p4u"),
+"name": "high-grass-1-01",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 8,
+"vertex_data": PackedByteArray("AAAAAEZMiZZ74QAAosWIlgAAZ+lGTI2W//9u4g7WiZZurAAA1h6Y0ck9AADE8IzRr7z//wAAq9HCNdLU//+T0SN/Gfz/f/7/in5o+Ul/x/zteq33/3///xV4AfPme0X5")
+}, {
+"aabb": AABB(-0.621875, -0.0378588, -0.570589, 1.2, 1.34205, 1.12981),
+"attribute_data": PackedByteArray("AAD///////8AAAAA//8AAAAA////////AAAAAP//AAAAAP///////wAAAAD//wAA"),
+"format": 34896613399,
+"index_count": 18,
+"index_data": PackedByteArray("AAADAAEAAAACAAMABAAHAAUABAAGAAcACAALAAkACAAKAAsA"),
+"material": SubResource("ShaderMaterial_qscl4"),
+"name": "high-grass-1-02",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 12,
+"vertex_data": PackedByteArray("AAAAAFODAID//wAAU4MAgAAA5uRTgwCA///m5FODAIARVwAAAAAJslatAAD///6xEVfm5AAAMbJWrf////8Ksjf0AAAQPDDqJhgAAPnGJuo39ObkEDxF6qMZubQJxi3q/3////9/////f////3////KHtfz/f////I9j+XuIffzheOv2/3/+/yp06fDReR74")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_ujap4")
+
+[node name="Node3D" type="Node3D" unique_id=17388]
+
+[node name="Grass" type="MeshInstance3D" parent="." unique_id=416967976]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.23165125, 0)
+mesh = SubResource("ArrayMesh_33j4k")
+skeleton = NodePath("")

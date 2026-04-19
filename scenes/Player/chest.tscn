@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=4 uid="uid://dg2dqtcp5yc5e"]
+[gd_scene format=4 uid="uid://cbjuvsnwp5rsc"]
 
 [ext_resource type="Texture2D" uid="uid://dv2cj6biv6wja" path="res://models/equipable/medivel_armor/textures/w7_mat_baseColor.png" id="1_7tfl1"]
 [ext_resource type="Texture2D" uid="uid://cdn1clpuab446" path="res://models/equipable/medivel_armor/textures/w7_mat_metallicRoughness.png" id="2_nh80o"]
@@ -90,15 +90,15 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_8x5r8")
 
-[node name="Leather1_low1" type="Node3D"]
+[node name="Leather1_low1" type="Node3D" unique_id=1761668610]
 transform = Transform3D(0.02, 0, 0, 0, 0.02, 0, 0, 0, 0.02, 0, -0.62340236, 0)
 
-[node name="Leather1_low1_w7_mat_0" type="MeshInstance3D" parent="."]
+[node name="Leather1_low1_w7_mat_0" type="MeshInstance3D" parent="." unique_id=1266838438]
 mesh = SubResource("ArrayMesh_wy1ey")
 skeleton = NodePath("")
 
-[node name="Shirt_low1" type="Node3D" parent="."]
+[node name="Shirt_low1" type="Node3D" parent="." unique_id=1680382812]
 
-[node name="Shirt_low1_w7_mat_0" type="MeshInstance3D" parent="Shirt_low1"]
+[node name="Shirt_low1_w7_mat_0" type="MeshInstance3D" parent="Shirt_low1" unique_id=437760503]
 mesh = SubResource("ArrayMesh_n6cot")
 skeleton = NodePath("")

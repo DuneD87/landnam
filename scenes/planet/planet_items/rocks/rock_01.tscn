@@ -1,0 +1,57 @@
+[gd_scene format=3 uid="uid://bic38tfq2eueg"]
+
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_wsrir"]
+[ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_wnrqr"]
+[ext_resource type="Texture2D" uid="uid://nkvtw57yb3bp" path="res://textures/planet/rocks/rock_green_01/rock_green_01_albedo.png" id="3_vavr8"]
+[ext_resource type="Texture2D" uid="uid://btnfc41i7aii8" path="res://textures/planet/rocks/rock_green_01/rock_green_01_height.png" id="4_wjprs"]
+[ext_resource type="Texture2D" uid="uid://pf0c10ymbdmx" path="res://textures/planet/rocks/rock_green_01/rock_green_01_metallic.png" id="5_f47k2"]
+[ext_resource type="Texture2D" uid="uid://dqs2dlefkoyo2" path="res://textures/planet/rocks/rock_green_01/rock_green_01_normal-ogl.png" id="6_sj5ya"]
+[ext_resource type="Texture2D" uid="uid://cdnstyf1mfn04" path="res://textures/planet/rocks/rock_green_01/rock_green_01_roughness.png" id="7_crt4y"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_pxyx6"]
+noise_type = 4
+seed = 1
+frequency = 0.0073
+fractal_type = 3
+fractal_octaves = 6
+fractal_ping_pong_strength = 6.0
+domain_warp_enabled = true
+domain_warp_type = 2
+domain_warp_amplitude = 11.0
+domain_warp_frequency = 0.005
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fy2y0"]
+albedo_texture = ExtResource("3_vavr8")
+metallic_specular = 0.16
+metallic_texture = ExtResource("5_f47k2")
+roughness_texture = ExtResource("7_crt4y")
+normal_enabled = true
+normal_texture = ExtResource("6_sj5ya")
+anisotropy = -0.04
+ao_enabled = true
+ao_texture = ExtResource("4_wjprs")
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_wnrqr"]
+radius = 1.9531494
+
+[node name="Node3D" type="StaticBody3D" unique_id=1075421542]
+script = ExtResource("1_wsrir")
+health = 100
+drop_amount_min = 4
+drop_amount_max = 6
+item_data = ExtResource("2_wnrqr")
+
+[node name="Rock3D" type="Rock3D" parent="." unique_id=166637338]
+subdivisions = 5
+radius = 1.99
+shape_scale_y = 0.65
+shape_scale_z = 0.73
+shape_scale_variance = 0.29
+noise = SubResource("FastNoiseLite_pxyx6")
+noise_amplitude = 0.455
+material_rock = SubResource("StandardMaterial3D_fy2y0")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.96641135, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=600321793]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2193849, 0)
+shape = SubResource("SphereShape3D_wnrqr")

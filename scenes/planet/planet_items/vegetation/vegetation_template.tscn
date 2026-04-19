@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://di63obeg6eavs"]
+
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_ckvc6"]
+[ext_resource type="Resource" uid="uid://c1hsrchnwebje" path="res://data/items/material/wood.tres" id="2_xe00o"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
+size = Vector3(0.231934, 5.74695, 0.482483)
+
+[node name="Node3D" type="StaticBody3D" unique_id=1075421542]
+script = ExtResource("1_ckvc6")
+health = 100
+drop_amount_min = 4
+drop_amount_max = 6
+item_data = ExtResource("2_xe00o")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)
+shape = SubResource("BoxShape3D_cs0ur")

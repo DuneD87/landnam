@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://b1il8ska6r522"]
+
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_tf74j"]
+[ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_1fp8f"]
+[ext_resource type="Texture2D" uid="uid://klpeqse1iw6q" path="res://textures/planet/rocks/rock_green_03/rock_green_03_albedo.png" id="3_n11yi"]
+[ext_resource type="Texture2D" uid="uid://e4qtaujwnshn" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_ao.png" id="4_n11yi"]
+[ext_resource type="Texture2D" uid="uid://b3vxuxm8r7uci" path="res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_metallic.png" id="5_a6fc4"]
+[ext_resource type="Texture2D" uid="uid://dvpisnkyf7oyo" path="res://textures/planet/rocks/rock_green_03/rock_green_03_height.png" id="5_r2ors"]
+[ext_resource type="Texture2D" uid="uid://did1rxnsh74n3" path="res://textures/planet/rocks/rock_green_03/rock_green_03_normal-ogl.png" id="7_fd704"]
+[ext_resource type="Texture2D" uid="uid://d14hf1px2fdjk" path="res://textures/planet/rocks/rock_green_03/rock_green_03_roughness.png" id="8_q58v1"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_q58v1"]
+noise_type = 3
+seed = 1
+frequency = 0.0049
+offset = Vector3(-98.04, 0, 0)
+fractal_type = 2
+fractal_octaves = 4
+domain_warp_type = 2
+domain_warp_amplitude = 50.0
+domain_warp_frequency = 0.005
+domain_warp_fractal_type = 2
+domain_warp_fractal_octaves = 8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_vd6ad"]
+albedo_texture = ExtResource("3_n11yi")
+metallic_specular = 0.09
+metallic_texture = ExtResource("5_a6fc4")
+roughness_texture = ExtResource("8_q58v1")
+normal_enabled = true
+normal_scale = 0.44
+normal_texture = ExtResource("7_fd704")
+anisotropy_enabled = true
+ao_enabled = true
+ao_light_affect = 1.0
+ao_texture = ExtResource("4_n11yi")
+heightmap_enabled = true
+heightmap_scale = 1.5
+heightmap_deep_parallax = true
+heightmap_min_layers = 20
+heightmap_max_layers = 32
+heightmap_texture = ExtResource("5_r2ors")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
+size = Vector3(2.9539526, 4.0014734, 2.6354437)
+
+[node name="Node3D" type="StaticBody3D" unique_id=1075421542]
+script = ExtResource("1_tf74j")
+health = 100
+drop_amount_min = 4
+drop_amount_max = 6
+item_data = ExtResource("2_1fp8f")
+
+[node name="Rock3D" type="Rock3D" parent="." unique_id=1884613375]
+subdivisions = 5
+shape_scale_x = 1.27
+shape_scale_y = 1.43
+shape_scale_z = 0.56
+noise = SubResource("FastNoiseLite_q58v1")
+noise_amplitude = 1.0
+material_rock = SubResource("StandardMaterial3D_vd6ad")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.630281, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
+transform = Transform3D(0.99973786, -0.02289672, 0, 0.02289672, 0.99973786, 0, 0, 0, 1, -0.018701991, 1.9705455, -0.14342853)
+visible = false
+shape = SubResource("BoxShape3D_cs0ur")

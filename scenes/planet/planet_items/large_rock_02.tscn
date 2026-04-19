@@ -1,4 +1,4 @@
-[gd_scene format=4 uid="uid://cke5ta2p1qut8"]
+[gd_scene format=4 uid="uid://blr62mhq54xge"]
 
 [ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_vtxl6"]
 [ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_chl3x"]
@@ -50,17 +50,17 @@ shadow_mesh = SubResource("ArrayMesh_4u5go")
 [sub_resource type="BoxShape3D" id="BoxShape3D_hcp8y"]
 size = Vector3(1.99561, 0.538086, 1.867)
 
-[node name="Node3D" type="StaticBody3D"]
+[node name="Node3D" type="StaticBody3D" unique_id=1733079541]
 script = ExtResource("1_vtxl6")
 health = 150
 drop_amount_min = 3
 drop_amount_max = 6
 item_data = ExtResource("2_chl3x")
 
-[node name="Rocher02_low_0" type="MeshInstance3D" parent="."]
+[node name="Rocher02_low_0" type="MeshInstance3D" parent="." unique_id=853806535]
 mesh = SubResource("ArrayMesh_8thor")
 skeleton = NodePath("")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1178497590]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.92409, 0.270069, 0.350527)
 shape = SubResource("BoxShape3D_hcp8y")

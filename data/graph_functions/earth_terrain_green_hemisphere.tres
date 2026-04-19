@@ -2,99 +2,91 @@
 
 [resource]
 graph_data = {
-"connections": [[1, 0, 4, 0], [1, 0, 4, 1], [11, 0, 12, 0], [12, 0, 13, 2], [12, 0, 14, 2], [12, 0, 18, 2], [12, 0, 19, 2], [13, 0, 15, 0], [14, 0, 15, 1], [15, 0, 22, 0], [16, 0, 13, 1], [16, 0, 14, 0], [2, 0, 5, 0], [2, 0, 5, 1], [2, 0, 11, 0], [3, 0, 6, 0], [3, 0, 6, 1], [4, 0, 7, 0], [5, 0, 7, 1], [6, 0, 8, 1], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 11, 1], [18, 0, 21, 0], [19, 0, 21, 1], [20, 0, 19, 0], [20, 0, 18, 1], [21, 0, 22, 1], [22, 0, 17, 0]],
+"connections": [[1, 0, 4, 0], [1, 0, 4, 1], [11, 0, 12, 0], [12, 0, 25, 0], [14, 0, 24, 0], [18, 0, 24, 1], [2, 0, 5, 0], [2, 0, 5, 1], [2, 0, 11, 0], [3, 0, 6, 0], [3, 0, 6, 1], [4, 0, 7, 0], [5, 0, 7, 1], [6, 0, 8, 1], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 11, 1], [24, 0, 17, 0], [25, 0, 18, 2], [25, 0, 14, 2]],
 "nodes": {
 "1": {
+"auto_connect": false,
 "gui_position": Vector2(26.6667, -106.667),
 "type": "InputX"
 },
 "11": {
+"auto_connect": false,
 "gui_position": Vector2(1053.33, 26.6667),
 "type": "Divide"
 },
 "12": {
-"gui_position": Vector2(1280, 26.6667),
+"auto_connect": false,
+"gui_position": Vector2(1220, 30),
 "type": "Sin"
 },
-"13": {
+"14": {
 "a": 0.0,
-"gui_position": Vector2(1613.33, -146.667),
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(1650, -120),
 "threshold": 0.3,
 "type": "Select"
 },
-"14": {
-"b": 0.0,
-"gui_position": Vector2(1626.67, 173.333),
-"threshold": -0.3,
-"type": "Select"
-},
-"15": {
-"gui_position": Vector2(1866.67, 40),
-"type": "Add"
-},
-"16": {
-"gui_position": Vector2(1419.73, -145.2),
-"type": "Constant",
-"value": 1.0
-},
 "17": {
-"gui_position": Vector2(2213.33, 213.333),
+"auto_connect": false,
+"gui_position": Vector2(2210, 50),
 "type": "CustomOutput"
 },
 "18": {
-"a": 0.0,
-"gui_position": Vector2(1626.67, 320),
-"threshold": 0.6,
-"type": "Select"
-},
-"19": {
+"a": 1.0,
+"auto_connect": false,
 "b": 0.0,
-"gui_position": Vector2(1626.67, 493.333),
-"threshold": -0.6,
+"gui_position": Vector2(1640, 130),
+"threshold": 0.5,
 "type": "Select"
 },
 "2": {
+"auto_connect": false,
 "gui_position": Vector2(26.6667, 53.3333),
 "type": "InputY"
 },
-"20": {
-"gui_position": Vector2(1295.51, 354.933),
-"type": "Constant",
-"value": 1.0
+"24": {
+"auto_connect": false,
+"gui_position": Vector2(1940, 30),
+"type": "Multiply"
 },
-"21": {
-"gui_position": Vector2(1853.33, 373.333),
-"type": "Add"
-},
-"22": {
-"gui_position": Vector2(2040, 213.333),
-"type": "Subtract"
+"25": {
+"auto_connect": false,
+"gui_position": Vector2(1400, 30),
+"type": "Abs"
 },
 "3": {
+"auto_connect": false,
 "gui_position": Vector2(26.6667, 213.333),
 "type": "InputZ"
 },
 "4": {
+"auto_connect": false,
 "gui_position": Vector2(253.333, -106.667),
 "type": "Multiply"
 },
 "5": {
+"auto_connect": false,
 "gui_position": Vector2(253.333, 40),
 "type": "Multiply"
 },
 "6": {
+"auto_connect": false,
 "gui_position": Vector2(253.333, 186.667),
 "type": "Multiply"
 },
 "7": {
+"auto_connect": false,
 "gui_position": Vector2(480, -66.6667),
 "type": "Add"
 },
 "8": {
+"auto_connect": false,
 "gui_position": Vector2(640, -26.6667),
 "type": "Add"
 },
 "9": {
+"auto_connect": false,
 "gui_position": Vector2(853.333, -26.6667),
 "type": "Sqrt"
 }

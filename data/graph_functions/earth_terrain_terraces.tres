@@ -1,4 +1,4 @@
-[gd_resource type="VoxelGeneratorGraph" load_steps=5 format=3 uid="uid://0mpmu03pwgj8"]
+[gd_resource type="VoxelGeneratorGraph" format=3 uid="uid://0mpmu03pwgj8"]
 
 [sub_resource type="FastNoise2" id="FastNoise2_ivwlw"]
 noise_type = 3
@@ -33,10 +33,12 @@ graph_data = {
 "connections": [[17, 0, 20, 0], [1, 0, 6, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [1, 0, 13, 0], [1, 0, 35, 0], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [2, 0, 35, 1], [18, 0, 17, 0], [10, 0, 43, 1], [13, 0, 33, 1], [16, 0, 22, 1], [19, 0, 17, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [24, 0, 34, 0], [28, 0, 10, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [3, 0, 35, 2], [33, 0, 28, 0], [34, 0, 28, 1], [35, 0, 36, 0], [36, 0, 42, 0], [40, 0, 43, 0], [41, 0, 40, 0], [42, 0, 40, 1], [43, 0, 4, 0], [6, 0, 10, 0]],
 "nodes": {
 "1": {
+"auto_connect": false,
 "gui_position": Vector2(-586.667, 93.3333),
 "type": "InputX"
 },
 "10": {
+"auto_connect": false,
 "gui_position": Vector2(1160, 293.33334),
 "type": "Add"
 },
@@ -48,38 +50,47 @@ graph_data = {
 "type": "FastNoise2_3D"
 },
 "16": {
+"auto_connect": false,
 "gui_position": Vector2(-346.667, 506.667),
 "type": "Sqrt"
 },
 "17": {
+"auto_connect": false,
 "gui_position": Vector2(-666.667, 400),
 "type": "Add"
 },
 "18": {
+"auto_connect": false,
 "gui_position": Vector2(-813.333, 306.667),
 "type": "Multiply"
 },
 "19": {
+"auto_connect": false,
 "gui_position": Vector2(-813.333, 440),
 "type": "Multiply"
 },
 "2": {
+"auto_connect": false,
 "gui_position": Vector2(-586.667, 173.333),
 "type": "InputY"
 },
 "20": {
+"auto_connect": false,
 "gui_position": Vector2(-506.667, 506.667),
 "type": "Add"
 },
 "21": {
+"auto_connect": false,
 "gui_position": Vector2(-813.333, 560),
 "type": "Multiply"
 },
 "22": {
+"auto_connect": false,
 "gui_position": Vector2(-160, 480),
 "type": "Divide"
 },
 "23": {
+"auto_connect": false,
 "gui_position": Vector2(0, 480),
 "type": "Sin"
 },
@@ -91,19 +102,23 @@ graph_data = {
 "type": "FastNoise2_3D"
 },
 "28": {
+"auto_connect": false,
 "gui_position": Vector2(933.3333, 440),
 "type": "Add"
 },
 "3": {
+"auto_connect": false,
 "gui_position": Vector2(-586.667, 253.333),
 "type": "InputZ"
 },
 "33": {
 "a": 400.0,
+"auto_connect": false,
 "gui_position": Vector2(373.33334, 280),
 "type": "Multiply"
 },
 "34": {
+"auto_connect": false,
 "b": 100.0,
 "gui_position": Vector2(413.333, 600),
 "type": "Multiply"
@@ -115,6 +130,7 @@ graph_data = {
 "type": "FastNoise3D"
 },
 "36": {
+"auto_connect": false,
 "gui_position": Vector2(120, -160),
 "type": "Abs"
 },
@@ -124,31 +140,37 @@ graph_data = {
 "type": "OutputSDF"
 },
 "40": {
+"auto_connect": false,
 "gui_position": Vector2(940.5736, -266.20007),
 "type": "Multiply"
 },
 "41": {
+"auto_connect": false,
 "gui_position": Vector2(746.6667, -333.33334),
 "type": "Constant",
 "value": -1.0
 },
 "42": {
-"b": 250.0,
+"auto_connect": false,
+"b": 100.0,
 "gui_position": Vector2(680, -173.33333),
 "type": "Multiply"
 },
 "43": {
+"auto_connect": false,
 "gui_position": Vector2(1331.0004, -35.493343),
 "type": "Add"
 },
 "44": {
 "a": 0.0,
+"auto_connect": false,
 "b": 0.0,
 "gui_position": Vector2(1405.5365, -175.69206),
 "type": "Max"
 },
 "45": {
 "a": 0.0,
+"auto_connect": false,
 "b": 0.0,
 "gui_position": Vector2(1503.1432, -273.29877),
 "type": "Subtract"

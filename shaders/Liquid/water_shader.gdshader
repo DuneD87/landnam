@@ -296,7 +296,7 @@ void fragment() {
 
 	vec3 foam_dir = normalize(world_pos); // escala sobre la esfera, no sobre la grid 3D
 	vec3 foam_noise_pos = foam_dir + vec3(time.x, 0.0, time.y);	
-	float foam_pattern = noise3D(foam_noise_pos) * 0.1;
+	float foam_pattern = noise3D(foam_noise_pos) * 0.5;
 	float shore_foam = 1.0 - smoothstep(0.0, foam_edge_threshold, z_dif);
 	shore_foam *= (0.5 + foam_pattern * 0.5); // romper uniformidad
 	shore_foam *= (0.7 + height * 0.3); // olas empujan la espuma
@@ -333,7 +333,7 @@ void fragment() {
 	float godray_horizon_mask = 1.0 - fog_blend;
 	final_albedo += godrays * godray_depth_mask * godray_horizon_mask;*/
 	ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
-    
+    SPECULAR = 0.5;
 	METALLIC = metallic;
     ROUGHNESS = roughness;
     NORMAL_MAP = normal_blend;

@@ -246,7 +246,7 @@ func _ready():
 	capture_mouse(false)
 	water_sampler = WaterHeightSampler.new()
 	add_child(water_sampler)
-
+	inventory.clear()
 	inventory.add_item(config.get_item(&"firstage_skin_boots"), 1)
 	inventory.add_item(config.get_item(&"firstage_skin_hands"), 1)
 	inventory.add_item(config.get_item(&"firstage_skin_pants"), 1)
@@ -441,6 +441,7 @@ func post_restore() -> void:
 	# Reset modelo
 	current_swimming_pitch = 0.0
 	player_model.rotation = Vector3.ZERO
+	inventory.clear()
 	inventory.add_item(config.get_item(&"wood_01"), 100)
 	inventory.add_item(config.get_item(&"stone_01"), 100)
 	
