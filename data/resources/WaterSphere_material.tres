@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://cyoolrj4g2q5i"]
 
-[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/liquid/water_shader.gdshader" id="1_8rr25"]
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="1_8rr25"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_8rr25"]
 noise_type = 3
@@ -54,8 +54,8 @@ shader_parameter/albedo2 = Color(0, 0.18382058, 0.36856487, 1)
 shader_parameter/metallic = 0.10000000149012
 shader_parameter/roughness = 0.10000000149012
 shader_parameter/horizon_fog_color = Color(0.055498704, 0.10459248, 0.45452142, 1)
-shader_parameter/horizon_fog_start = 1000.0
-shader_parameter/horizon_fog_end = 4000.000187625
+shader_parameter/horizon_fog_start = 150.0
+shader_parameter/horizon_fog_end = 2000.0
 shader_parameter/texture_normal = SubResource("NoiseTexture2D_rqd8l")
 shader_parameter/texture_normal2 = SubResource("NoiseTexture2D_mq8mb")
 shader_parameter/wave = SubResource("NoiseTexture2D_8rr25")
@@ -77,14 +77,14 @@ shader_parameter/beers_law = 2.0
 shader_parameter/depth_offset = -0.75
 shader_parameter/edge_scale = 10.0
 shader_parameter/near = 1.0
-shader_parameter/far = 1000000.0
+shader_parameter/far = 10000000.0
 shader_parameter/edge_color = Color(0.763666, 0.813248, 0.99298, 1)
 shader_parameter/edge_fade_distance = 5.0000002375
 shader_parameter/edge_max_alpha = 1.0
 shader_parameter/edge_min_alpha = 0.50000002375
 shader_parameter/view_opacity_start = 0.0
-shader_parameter/view_opacity_end = 10.000475475000712
-shader_parameter/view_opacity_power = 0.05500000191398
+shader_parameter/view_opacity_end = 15.000475712500702
+shader_parameter/view_opacity_power = 2.0
 shader_parameter/sky_color_horizon = Color(0, 0.33734676, 0.5764835, 1)
 shader_parameter/sky_color_zenith = Color(0.19025084, 0.38745117, 0.7863155, 1)
 shader_parameter/sky_influence = 0.800000038
@@ -107,8 +107,8 @@ shader_parameter/foam_texture = SubResource("NoiseTexture2D_2w31q")
 shader_parameter/foam_edge_threshold = 2.0
 shader_parameter/foam_crest_threshold = 1.0
 shader_parameter/foam_color = Color(1, 1, 1, 1)
-shader_parameter/underwater_fog_color = Color(0.08253472, 0.3388094, 0.68786156, 1)
-shader_parameter/underwater_fog_density = 0.15
-shader_parameter/underwater_fog_start = 5.0
+shader_parameter/underwater_fog_color = Color(0.15, 0.3, 0.45, 1)
+shader_parameter/underwater_fog_density = 0.10000000475
+shader_parameter/underwater_fog_start = 3.0000001425
 shader_parameter/water_time = 0.0
 shader_parameter/planet_center = Vector3(0, 0, 15000)

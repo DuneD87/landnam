@@ -334,7 +334,7 @@ func setup_shader_parameters() -> void:
 	
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", water_radius)
-
+	
 	if !has_clouds:
 		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_no_clouds.gdshader")
 	else:

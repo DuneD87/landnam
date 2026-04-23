@@ -79,7 +79,7 @@ uniform float foam_crest_threshold : hint_range(0.0, 1.0) = 0.6;
 uniform vec3 foam_color : source_color = vec3(0.95, 0.97, 1.0);
 
 uniform vec3 underwater_fog_color : source_color = vec3(0.4, 0.55, 0.7);
-uniform float underwater_fog_density : hint_range(0.0, 1.0) = 0.15;
+uniform float underwater_fog_density : hint_range(0.0, 100.0) = 0.15;
 uniform float underwater_fog_start : hint_range(0.0, 50.0) = 5.0;
 uniform float water_time;
 
@@ -88,6 +88,7 @@ uniform vec3 planet_center;
 varying vec3 world_pos;
 varying float height;
 varying float view_depth;
+varying vec3 world_normal_radial;
 
 float fresnel(float amount, vec3 normal, vec3 view) {
     return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
@@ -186,6 +187,33 @@ vec3 calculate_godrays(vec3 world_position, vec3 view_dir, float view_dist, vec3
     return godray_color * column * forward * distance_fade * (0.7 + normal_var * 0.3) * godray_intensity;
 }
 
+// Triplanar con UDN blend — devuelve normal en WORLD SPACE
+vec3 triplanar_normal_udn(sampler2D tex, vec3 pos, vec3 surface_normal,
+                          vec3 weights, float scale, vec2 time_offset) {
+    // Sample los 3 planos y decodifica a [-1,1]
+    vec3 n_xz = texture(tex, pos.xz / scale + time_offset).rgb * 2.0 - 1.0;
+    vec3 n_xy = texture(tex, pos.xy / scale + time_offset).rgb * 2.0 - 1.0;
+    vec3 n_yz = texture(tex, pos.yz / scale + time_offset).rgb * 2.0 - 1.0;
+
+    // Reorientar cada sample al eje correcto del plano de proyección
+    // xz → plano Y-up, xy → plano Z-up, yz → plano X-up
+    vec3 world_n_xz = vec3(n_xz.x, 0.0, n_xz.y);
+    vec3 world_n_xy = vec3(n_xy.x, n_xy.y, 0.0);
+    vec3 world_n_yz = vec3(0.0, n_yz.y, n_yz.x);
+
+    // UDN: sumar con la normal de superficie y re-normalizar
+    vec3 blended = world_n_xz * weights.y
+                 + world_n_xy * weights.z
+                 + world_n_yz * weights.x;
+
+    return normalize(blended + surface_normal);
+}
+
+float linearize_depth(float depth_sample, mat4 projection_matrix) {
+    float ndc = depth_sample * 2.0 - 1.0;
+    return projection_matrix[3][2] / (ndc + projection_matrix[2][2]);
+}
+
 void vertex() {
     world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     vec3 sphere_dir = normalize(world_pos - planet_center); // necesitas pasar el centro como uniform
@@ -199,9 +227,10 @@ void vertex() {
 
     float total_height = height + procedural_height;
     VERTEX += NORMAL * total_height * height_scale;
+    world_normal_radial = sphere_dir;
 
     vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
-    view_depth = -view_pos.z;
+    view_depth = -view_pos.z - 0.5;
 }
 
 void fragment() {
@@ -228,52 +257,69 @@ void fragment() {
 	float edge_visibility = 1.0 - smoothstep(10.0, 400.0, view_depth);
     vec2 time = (TIME * wave_direction) * time_scale;
     vec2 time2 = (TIME * wave_direction2) * time_scale;
+    vec3 tri_pos = world_pos - planet_center;
 
-    // Calcular las normales con múltiples muestras para romper el tiling
-    vec2 base_uv = world_pos.xz;
+    vec3 blend_weights = abs(world_normal_radial);
+    blend_weights = pow(blend_weights, vec3(4.0));
+    blend_weights /= (blend_weights.x + blend_weights.y + blend_weights.z);
 
-    vec3 blend_weights = abs(normalize(world_pos));
-	blend_weights = pow(blend_weights, vec3(4.0)); // sharpness del blend
-	blend_weights /= (blend_weights.x + blend_weights.y + blend_weights.z);
+    vec3 n1 = triplanar_normal_udn(texture_normal,  tri_pos, world_normal_radial,
+                                    blend_weights, normal_scale1, time);
+    vec3 n2 = triplanar_normal_udn(texture_normal2, tri_pos, world_normal_radial,
+                                    blend_weights, normal_scale2, time2 * 0.8);
+    vec3 n3 = triplanar_normal_udn(texture_normal,  tri_pos, world_normal_radial,
+                                    blend_weights, normal_scale3, time * 1.3);
 
-	// Para cada textura, samplear 3 veces:
-	vec3 norm_xz = texture(texture_normal, world_pos.xz / normal_scale1 + time).rgb;
-	vec3 norm_xy = texture(texture_normal, world_pos.xy / normal_scale1 + time).rgb;
-	vec3 norm_yz = texture(texture_normal, world_pos.yz / normal_scale1 + time).rgb;
-
-	vec3 normal1 = norm_xz * blend_weights.y + norm_xy * blend_weights.z + norm_yz * blend_weights.x;
-
-    vec2 uv2 = rotate_uv(base_uv / normal_scale2, 1.57) + time2 * 0.8;
-    vec3 normal2 = texture(texture_normal2, uv2).rgb;
-
-    vec2 uv3 = rotate_uv(base_uv / normal_scale3, 0.785) + time * 1.3;
-    vec3 normal3 = texture(texture_normal, uv3).rgb;
-
-    vec3 normal_blend = mix(
-        mix(normal1, normal2, 0.5),
-        normal3,
-        0.3
+    vec3 final_world_normal = normalize(
+        mix(mix(n1, n2, 0.5), n3, 0.3)
     );
-    normal_blend = mix(vec3(0.5, 0.5, 1.0), normal_blend, normal_intensity);
 
-    // Transición suave hacia normal plana en el edge
+    final_world_normal = normalize(
+        mix(world_normal_radial, final_world_normal, clamp(normal_intensity, 0.0, 1.0))
+    );
+
     float normal_edge_factor = smoothstep(0.0, edge_scale * 3.0, z_dif);
-    normal_blend = mix(vec3(0.5, 0.5, 1.0), normal_blend, normal_edge_factor);
-	
-	vec2 refraction_offset = normal_blend.xy * 2.0 - 1.0;
-	float refraction_strength = 0.05 * screen_influence; // se atenúa con la distancia
-	vec2 refracted_uv = SCREEN_UV + refraction_offset * refraction_strength;
-	vec3 screen_color = textureLod(SCREEN_TEXTURE, refracted_uv, adjusted_depth_blend * 2.5).rgb;    vec3 depth_color = mix(color_shallow.rgb, color_deep.rgb, adjusted_depth_blend);
-	float terrain_distance = max(z_depth - z_pos, 0.0); // distancia cámara→terreno vs cámara→agua
-	float fog_factor = 1.0 - exp(-max(terrain_distance - underwater_fog_start, 0.0) * underwater_fog_density);
-	fog_factor = clamp(fog_factor, 0.0, 1.0);
-	screen_color = mix(screen_color, underwater_fog_color, fog_factor);
+    final_world_normal = normalize(
+        mix(world_normal_radial, final_world_normal, normal_edge_factor)
+    );
+
+    vec3 tangent_deviation = final_world_normal - world_normal_radial;
+    // ===== REFRACCIÓN CON DEPTH CHECK =====
+	   vec2 refraction_offset = tangent_deviation.xz; 
+
+    float refraction_strength = 0.05 * screen_influence;
+    vec2 refracted_uv = SCREEN_UV + refraction_offset * refraction_strength;
+
+    // Linealizar ambas profundidades con el mismo método
+    float frag_linear_depth = linearize_depth(FRAGCOORD.z, PROJECTION_MATRIX);
+    float refracted_depth_sample = texture(DEPTH_TEXTURE, refracted_uv).r;
+    float refracted_linear_depth = linearize_depth(refracted_depth_sample, PROJECTION_MATRIX);
+	vec3 depth_color = mix(color_shallow.rgb, color_deep.rgb, adjusted_depth_blend);
+
+    // Si el píxel refractado está delante del agua (más cerca de la cámara),
+    // es un objeto que NO debería estar sumergido → fallback a UV original
+    vec2 safe_refracted_uv = (refracted_linear_depth < frag_linear_depth)
+                             ? SCREEN_UV
+                             : refracted_uv;
+
+    vec3 screen_color = textureLod(SCREEN_TEXTURE, safe_refracted_uv,
+                                   adjusted_depth_blend * 2.5).rgb;
+
 
     vec3 color = mix(
         mix(screen_color * depth_color, depth_color * 0.25, adjusted_depth_blend * 0.5),
         depth_color,
         view_distance_factor * 0.8
     );
+	
+	float water_column = clamp(z_depth - z_pos, 0.0, 200.0);
+
+    float underwater_fog_factor = 1.0 - exp(
+        -max(water_column - underwater_fog_start, 0.0) * underwater_fog_density
+    );
+    underwater_fog_factor = clamp(underwater_fog_factor, 0.0, 1.0);
+    color = mix(color, underwater_fog_color, underwater_fog_factor);
+	
     float fresnel_value = fresnel(sky_fresnel_power, NORMAL, VIEW);
     vec3 surface_color = mix(albedo, albedo2, fresnel_value);
 
@@ -285,8 +331,9 @@ void fragment() {
 	float base_alpha = mix(edge_min_alpha, edge_max_alpha, distance_alpha);
 	float edge_factor = clamp(z_dif / edge_fade_distance, 0.0, 1.0);
 	ALPHA = base_alpha * edge_factor;
-	float distance_blend = smoothstep(10.0, 1000.0, view_depth);
+	float distance_blend = smoothstep(10.0, 500.0, view_depth);
 	ALPHA = mix(ALPHA, 1.0, distance_blend);
+	
 	float depth_precision_scale = 1.0 + view_depth * 0.1;
 	float adjusted_edge_fade = edge_fade_distance * depth_precision_scale;
 
@@ -332,9 +379,12 @@ void fragment() {
 	float godray_depth_mask = mix(1.0, 0.3, adjusted_depth_blend);
 	float godray_horizon_mask = 1.0 - fog_blend;
 	final_albedo += godrays * godray_depth_mask * godray_horizon_mask;*/
+	vec3 reflect_sun = reflect(sun_direction, NORMAL);
+	float glint = pow(max(dot(reflect_sun, -view_dir_world), 0.0), 128.0);
+	final_albedo += godray_color * glint * 2.0 * (1.0 - adjusted_depth_blend);
 	ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
     SPECULAR = 0.5;
 	METALLIC = metallic;
     ROUGHNESS = roughness;
-    NORMAL_MAP = normal_blend;
+	NORMAL = normalize((VIEW_MATRIX * vec4(final_world_normal, 0.0)).xyz);
 }
