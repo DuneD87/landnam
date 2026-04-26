@@ -208,10 +208,15 @@ func _process(delta: float) -> void:
 	if !camera:
 		return
 	var distance = camera.global_position.distance_to(global_position)
+	var altitude = distance - radius
+	
 	if distance > (radius + atmosphere_height):
 		default_material.render_priority = 0
 	else:
 		default_material.render_priority = 3
+	
+	default_material.set_shader_parameter("camera_altitude", altitude)
+	default_material.set_shader_parameter("atmosphere_height", atmosphere_height)
 
 func _exit_tree():
 	# Clean up shared compute resources

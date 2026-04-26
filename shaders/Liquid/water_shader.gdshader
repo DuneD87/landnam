@@ -3,14 +3,14 @@ render_mode blend_mix, shadows_disabled, depth_prepass_alpha;
 
 uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
-uniform vec3 albedo : source_color = vec3(0.0, 0.0, 1.0);
-uniform vec3 albedo2 : source_color = vec3(0.0, 0.0, 1.0);
-uniform float metallic : hint_range(0.0, 1.0, 0.1) = 0;
-uniform float roughness : hint_range(0.0, 1.0, 0.1) = 0.02;
+uniform vec3 albedo : source_color = vec3(0.05, 0.20, 0.30);
+uniform vec3 albedo2 : source_color = vec3(0.10, 0.35, 0.50);
+uniform float metallic : hint_range(0.0, 1.0, 0.1) = 0.0;
+uniform float roughness : hint_range(0.0, 1.0, 0.1) = 0.05;
 
-uniform vec3 horizon_fog_color : source_color = vec3(0.75, 0.82, 0.92);
-uniform float horizon_fog_start : hint_range(10.0, 1000.0) = 150.0;
-uniform float horizon_fog_end : hint_range(50.0, 5000.0) = 2000.0;
+uniform vec3 horizon_fog_color : source_color = vec3(0.78, 0.86, 0.93);
+uniform float horizon_fog_start : hint_range(10.0, 1000.0) = 200.0;
+uniform float horizon_fog_end : hint_range(50.0, 5000.0) = 1500.0;
 
 uniform sampler2D texture_normal;
 uniform sampler2D texture_normal2;
@@ -18,48 +18,53 @@ uniform sampler2D wave : repeat_enable, filter_linear_mipmap;
 
 uniform vec2 wave_direction = vec2(2.0, 0.0);
 uniform vec2 wave_direction2 = vec2(0.0, 1.0);
-uniform float time_scale : hint_range(0.0, 0.2, 0.001) = 0.05;
-uniform float noise_scale = 5.0;
-uniform float height_scale = 0.5;
+uniform float time_scale : hint_range(0.0, 0.2, 0.001) = 0.025;
+uniform float noise_scale = 8.0;
+uniform float height_scale = 0.35;
 
 // Parámetros para romper el tiling de las normales
-uniform float normal_scale1 : hint_range(0.1, 500.0) = 1.0;
-uniform float normal_scale2 : hint_range(0.1, 500.0) = 2.3;
-uniform float normal_scale3 : hint_range(0.1, 500.0) = 7.8;
-uniform float normal_intensity : hint_range(0.0, 200.0) = 1.0;
+uniform float normal_scale1 : hint_range(0.1, 500.0) = 4.0;
+uniform float normal_scale2 : hint_range(0.1, 500.0) = 12.0;
+uniform float normal_scale3 : hint_range(0.1, 500.0) = 35.0;
+uniform float normal_intensity : hint_range(0.0, 200.0) = 0.7;
 
-uniform float wave_speed = 1.0;
-uniform float wave_amplitude = 1.0;
-uniform float wave_frequency = 1.0;
+uniform float wave_speed = 0.7;
+uniform float wave_amplitude = 0.6;
+uniform float wave_frequency = 0.8;
 
-uniform vec4 color_deep : source_color;
-uniform vec4 color_shallow : source_color;
-uniform float beers_law = 2.0;
-uniform float depth_offset = -0.75;
+uniform vec4 color_deep : source_color = vec4(0.02, 0.14, 0.25, 1.0);
+uniform vec4 color_shallow : source_color = vec4(0.37, 0.72, 0.71, 1.0);
+uniform float beers_law = 1.5;
+uniform float depth_offset = 0.0;
 
-uniform float edge_scale = 0.01;
+// Coeficientes de absorción Beer-Lambert por canal RGB.
+// Más alto = el canal se absorbe más rápido con la profundidad.
+// (0.45, 0.18, 0.06) = agua oceánica clara, tropical/templada.
+uniform vec3 absorption_coefficients = vec3(0.45, 0.18, 0.06);
+
+uniform float edge_scale = 0.15;
 uniform float near = 1.0;
 uniform float far = 100.0;
-uniform vec3 edge_color : source_color;
+uniform vec3 edge_color : source_color = vec3(0.7, 0.85, 0.95);
 
 // Parámetros para el fade progresivo del edge
-uniform float edge_fade_distance : hint_range(0.001, 100.0) = 0.02;
-uniform float edge_max_alpha : hint_range(0.0, 1.0) = 0.8;
-uniform float edge_min_alpha : hint_range(0.0, 1.0) = 0.0;
+uniform float edge_fade_distance : hint_range(0.001, 100.0) = 0.5;
+uniform float edge_max_alpha : hint_range(0.0, 1.0) = 0.85;
+uniform float edge_min_alpha : hint_range(0.0, 1.0) = 0.15;
 
-uniform float view_opacity_start : hint_range(0.0, 50.0) = 5.0;
-uniform float view_opacity_end : hint_range(-10000.0, 10000.0) = 30.0;
-uniform float view_opacity_power : hint_range(0.01, 50.0) = 2.0;
+uniform float view_opacity_start : hint_range(0.0, 50.0) = 8.0;
+uniform float view_opacity_end : hint_range(-10000.0, 10000.0) = 60.0;
+uniform float view_opacity_power : hint_range(0.01, 50.0) = 1.5;
 
-uniform vec3 sky_color_horizon : source_color = vec3(0.8, 0.9, 1.0);
-uniform vec3 sky_color_zenith : source_color = vec3(0.2, 0.4, 0.8);
-uniform float sky_influence : hint_range(0.0, 20.0) = 1.0;
-uniform float sky_fresnel_power : hint_range(0.1, 100.0) = 3.0;
-uniform float sky_gradient_power : hint_range(0.1, 50.0) = 2.0;
+uniform vec3 sky_color_horizon : source_color = vec3(0.75, 0.85, 0.95);
+uniform vec3 sky_color_zenith : source_color = vec3(0.30, 0.55, 0.85);
+uniform float sky_influence : hint_range(0.0, 20.0) = 0.6;
+uniform float sky_fresnel_power : hint_range(0.1, 100.0) = 5.0;
+uniform float sky_gradient_power : hint_range(0.1, 50.0) = 2.5;
 
 // NUEVOS UNIFORMS PARA GOD RAYS
-uniform vec3 sun_direction = vec3(0.3, -0.7, 0.3);
-uniform vec3 godray_color : source_color = vec3(1.0, 0.95, 0.8);
+uniform vec3 sun_direction = vec3(0.4, -0.7, 0.3);
+uniform vec3 godray_color : source_color = vec3(1.0, 0.97, 0.88);
 uniform float godray_intensity : hint_range(0.0, 5.0) = 2.0;
 uniform float godray_density : hint_range(0.0, 1.0) = 0.3;
 uniform float godray_samples : hint_range(4.0, 64.0) = 16.0;
@@ -69,19 +74,21 @@ uniform float godray_noise_scale : hint_range(0.1, 10.0) = 2.0;
 uniform float godray_noise_speed : hint_range(0.0, 2.0) = 0.3;
 uniform float godray_phase_intensity : hint_range(0.0, 5.0) = 2.0;
 
-uniform vec3 sss_color : source_color = vec3(0.0, 0.8, 0.6);
-uniform float sss_intensity : hint_range(0.0, 3.0) = 1.2;
-uniform float sss_power : hint_range(1.0, 8.0) = 3.0;
+uniform vec3 sss_color : source_color = vec3(0.15, 0.55, 0.45);
+uniform float sss_intensity : hint_range(0.0, 3.0) = 0.8;
+uniform float sss_power : hint_range(1.0, 8.0) = 4.0;
 
 uniform sampler2D foam_texture : repeat_enable, filter_linear_mipmap;
-uniform float foam_edge_threshold : hint_range(0.0, 2.0) = 0.5;
-uniform float foam_crest_threshold : hint_range(0.0, 1.0) = 0.6;
-uniform vec3 foam_color : source_color = vec3(0.95, 0.97, 1.0);
+uniform float foam_edge_threshold : hint_range(0.0, 2.0) = 0.8;
+uniform float foam_crest_threshold : hint_range(0.0, 1.0) = 0.65;
+uniform vec3 foam_color : source_color = vec3(0.92, 0.96, 0.98);
 
 uniform vec3 underwater_fog_color : source_color = vec3(0.4, 0.55, 0.7);
 uniform float underwater_fog_density : hint_range(0.0, 100.0) = 0.15;
 uniform float underwater_fog_start : hint_range(0.0, 50.0) = 5.0;
 uniform float water_time;
+uniform float camera_altitude = 0.0;
+uniform float atmosphere_height = 1000.0;
 
 uniform vec3 planet_center;
 
@@ -319,8 +326,8 @@ void fragment() {
 	float water_column = depth_diff / cos_view;
 
 	// Absorción más agresiva — calibrada para que a 15 m apenas se vea nada
-	vec3 absorption = vec3(0.6, 0.25, 0.08);
-	vec3 transmission = exp(-absorption * water_column);
+
+	vec3 transmission = exp(-absorption_coefficients * water_column);
 
 	// Scatter: lo que el agua aporta por sí misma. Crece exponencialmente, no linealmente.
 	float scatter_t = 1.0 - exp(-water_column * 0.18);
@@ -333,7 +340,8 @@ void fragment() {
 	vec3 color = mix(water_scatter, refracted_light, visibility);
 
 	// Fade lejano por vista (no por columna) — pequeño, solo para horizonte
-	color = mix(color, water_scatter, view_distance_factor * 0.4);
+	float far_factor = smoothstep(view_opacity_start, view_opacity_end, view_depth);
+	color = mix(color, color_deep.rgb, far_factor);
 	
     float fresnel_value = fresnel(sky_fresnel_power, NORMAL, VIEW);
     vec3 surface_color = mix(albedo, albedo2, fresnel_value);
@@ -348,7 +356,13 @@ void fragment() {
 	ALPHA = base_alpha * edge_factor;
 	//float distance_blend = smoothstep(10.0, 500.0, view_depth);
 	//ALPHA = mix(ALPHA, 1.0, distance_blend);
-	
+	float far_t = clamp((view_depth - view_opacity_start) / (view_opacity_end - view_opacity_start), 0.0, 1.0);
+	far_t = far_t * far_t * (3.0 - 2.0 * far_t);  // smoothstep manual
+	far_t = pow(far_t, 0.6);                       // curva más suave al final
+	ALPHA = mix(ALPHA, 1.0, far_t * 0.95);         // nunca del todo 1.0, evita banding
+	// alpha basado en cuánta agua hay en la columna vertical de ese píxel
+	float column_alpha = 1.0 - exp(-water_column * 0.15);
+	ALPHA = max(ALPHA, column_alpha);
 	float depth_precision_scale = 1.0 + view_depth * 0.1;
 	float adjusted_edge_fade = edge_fade_distance * depth_precision_scale;
 
