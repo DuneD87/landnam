@@ -10,12 +10,12 @@
 cull_mode = 1
 albedo_texture = ExtResource("3_oysaj")
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_v1xpw"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_oysaj"]
 render_priority = 0
 shader = ExtResource("4_xeuxc")
 shader_parameter/albedo = Color(0, 0, 0, 1)
 shader_parameter/texture_albedo = ExtResource("5_mwsdk")
-shader_parameter/alpha_scissor_threshold = 0.70000003325
+shader_parameter/alpha_scissor_threshold = 0.8
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(1, 0, 0)
@@ -63,7 +63,7 @@ trunk_climb_rate = 0.1
 trunk_length = 1.205
 twig_scale = 0.217
 material_trunk = SubResource("StandardMaterial3D_jd3a4")
-material_twig = SubResource("ShaderMaterial_v1xpw")
+twig_materials = Array[Material]([SubResource("ShaderMaterial_oysaj")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)

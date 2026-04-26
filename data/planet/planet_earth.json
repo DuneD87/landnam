@@ -105,7 +105,7 @@
 	  },
 	  {
 		"name": "grass_generator_green",
-		"emit_mode": "EMIT_FROM_VERTICES",
+		"emit_mode": "EMIT_ONE_PER_TRIANGLE",
 		"density": 0.7,
 		"min_height": -35,
 		"max_height": 150,

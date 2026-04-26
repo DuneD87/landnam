@@ -3,11 +3,11 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled;
 
 uniform vec4 albedo : source_color;
 uniform sampler2D texture_albedo : source_color, filter_linear_mipmap, repeat_enable;
-uniform float alpha_scissor_threshold : hint_range(0.0, 1.0, 0.001);
-uniform vec3 uv1_scale;
+uniform float alpha_scissor_threshold : hint_range(0.0, 1.0, 0.001) = 0.8;
+uniform vec3 uv1_scale = vec3(1.0, 1.0, 1.0);
 uniform vec3 uv1_offset;
 
-uniform vec3 light_direction;
+uniform vec3 light_direction = vec3(1.0, 0.0, 0.0);
 uniform vec3 planet_position;
 uniform float transition_width : hint_range(0.0, 1.0, 0.01) = 0.2;
 
@@ -47,8 +47,8 @@ void vertex() {
     
     // Factor de altura: 0 en la base, 1 arriba
     // Usa VERTEX.y en espacio local (asumiendo que el modelo está orientado con Y hacia arriba)
-    float height_factor = clamp((VERTEX.y - wind_base_height) / wind_falloff, 0.0, 1.0);
-    // Curva suave para transición natural (opcional, queda más orgánico)
+	float height_factor = 1.0 - abs(UV.y);
+	height_factor = pow(height_factor, 2.0);    // Curva suave para transición natural (opcional, queda más orgánico)
     height_factor = height_factor * height_factor;
     
     // Variación por vértice para que no se muevan todos igual
@@ -77,7 +77,7 @@ void fragment() {
 
     ROUGHNESS = specular_roughness;
     SPECULAR = specular_strength;
-
+	
     if (!FRONT_FACING) {
         NORMAL = -NORMAL;
     }
@@ -95,8 +95,9 @@ void light() {
 	// Factor adicional: cuánto está la luz "detrás" de la superficie
 	// Cuando la luz viene de atrás, -NdotL es positivo → más translucencia
 	float back_factor = clamp(-dot(NORMAL, LIGHT), 0.0, 1.0);
+	back_factor = pow(back_factor, 6.0); // o 3.0; concentra el efecto cuando realmente está backlit
 	// Suaviza para que no sea un corte duro
-	back_factor = mix(0.3, 1.0, back_factor); // mínimo 0.3 incluso desde delante
+	//back_factor = mix(0.3, 1.0, back_factor); // mínimo 0.3 incluso desde delante
 
 	float sss = pow(VdotBL, translucency_power) * translucency_strength * back_factor;
 	vec3 translucency = sss * ATTENUATION * LIGHT_COLOR * translucency_color.rgb;
@@ -108,7 +109,7 @@ void light() {
     // === 4. Ambient hemisférico ===
     // Mezcla cielo/suelo según orientación respecto al planeta
     float hemisphere_factor = dot(planet_normal, normalize(-light_direction)) * 0.5 + 0.5;
-    vec3 ambient = mix(ambient_color_bottom.rgb, ambient_color_top.rgb, hemisphere_factor);
+vec3 ambient = mix(ambient_color_bottom.rgb, ambient_color_top.rgb, hemisphere_factor);
     ambient *= ambient_intensity * ATTENUATION;
 
     // === 5. Sombra planetaria (día/noche) ===

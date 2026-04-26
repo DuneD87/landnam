@@ -10,30 +10,30 @@
 cull_mode = 1
 albedo_texture = ExtResource("3_btgki")
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_piaba"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_uej4f"]
 render_priority = 0
 shader = ExtResource("4_fergh")
 shader_parameter/albedo = Color(0, 0, 0, 1)
 shader_parameter/texture_albedo = ExtResource("5_wlpm5")
-shader_parameter/alpha_scissor_threshold = 0.6170000293075
-shader_parameter/uv1_scale = Vector3(-1, -1, -1)
+shader_parameter/alpha_scissor_threshold = 0.8
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(1, 0, 0)
 shader_parameter/planet_position = Vector3(0, 0, 0)
-shader_parameter/transition_width = 0.26999999396496
-shader_parameter/ambient_intensity = 0.0
+shader_parameter/transition_width = 0.2
+shader_parameter/ambient_intensity = 0.15
 shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
 shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
-shader_parameter/translucency_strength = 0.0
+shader_parameter/translucency_strength = 0.45
 shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
-shader_parameter/translucency_power = 1.0
-shader_parameter/rim_strength = 0.0
-shader_parameter/specular_strength = 0.0
-shader_parameter/specular_roughness = 0.0
+shader_parameter/translucency_power = 2.0
+shader_parameter/rim_strength = 0.3
+shader_parameter/specular_strength = 0.15
+shader_parameter/specular_roughness = 0.7
 shader_parameter/wind_direction = Vector3(1, 0, 0)
-shader_parameter/wind_speed = 0.0
+shader_parameter/wind_speed = 1.0
 shader_parameter/wind_base_height = 0.0
-shader_parameter/wind_falloff = 0.10000000149012
+shader_parameter/wind_falloff = 1.0
 shader_parameter/wind_amplitude = 0.1
 shader_parameter/wind_frequency = 2.0
 
@@ -64,7 +64,7 @@ palm_frond_keel = 0.07
 palm_frond_arch = 0.15
 palm_crown_tier_spacing = 0.59
 material_trunk = SubResource("StandardMaterial3D_0mnvq")
-material_twig = SubResource("ShaderMaterial_piaba")
+twig_materials = Array[Material]([SubResource("ShaderMaterial_uej4f")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)

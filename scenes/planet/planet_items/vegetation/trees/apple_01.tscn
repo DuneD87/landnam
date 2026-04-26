@@ -10,12 +10,12 @@
 cull_mode = 1
 albedo_texture = ExtResource("3_5h5bn")
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_b3gyp"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_5h5bn"]
 render_priority = 0
 shader = ExtResource("4_ob3fi")
 shader_parameter/albedo = Color(0, 0, 0, 1)
 shader_parameter/texture_albedo = ExtResource("5_bqdij")
-shader_parameter/alpha_scissor_threshold = 0.800000038
+shader_parameter/alpha_scissor_threshold = 0.8
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(1, 0, 0)
@@ -24,7 +24,7 @@ shader_parameter/transition_width = 0.2
 shader_parameter/ambient_intensity = 0.15
 shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
 shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
-shader_parameter/translucency_strength = 0.999999977648
+shader_parameter/translucency_strength = 0.45
 shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
 shader_parameter/translucency_power = 2.0
 shader_parameter/rim_strength = 0.3
@@ -49,13 +49,18 @@ item_data = ExtResource("2_0nsmp")
 
 [node name="Tree3D" type="Tree3D" parent="." unique_id=1733541395]
 twig_planes = 5
-seed = 263
+twig_scale_variance = 0.35
+twig_rotation_variance = 0.71
+twig_droop = 0.15
 trunk_segments = 4
 trunk_branches_count = 3
-trunk_kink = 0.548
+trunk_branch_length_falloff = 0.925
+trunk_grow_amount = 0.198
+trunk_radius_falloff_rate = 0.71
+trunk_kink = 0.629
 twig_scale = 0.548
 material_trunk = SubResource("StandardMaterial3D_4qhob")
-material_twig = SubResource("ShaderMaterial_b3gyp")
+twig_materials = Array[Material]([SubResource("ShaderMaterial_5h5bn")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)

@@ -10,13 +10,13 @@
 cull_mode = 1
 albedo_texture = ExtResource("3_ro052")
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_piaba"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ro052"]
 render_priority = 0
 shader = ExtResource("4_xhf3k")
 shader_parameter/albedo = Color(0, 0, 0, 1)
 shader_parameter/texture_albedo = ExtResource("5_caaub")
-shader_parameter/alpha_scissor_threshold = 0.50000002375
-shader_parameter/uv1_scale = Vector3(-1, -1, -1)
+shader_parameter/alpha_scissor_threshold = 0.8
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(1, 0, 0)
 shader_parameter/planet_position = Vector3(0, 0, 0)
@@ -31,9 +31,9 @@ shader_parameter/rim_strength = 0.3
 shader_parameter/specular_strength = 0.15
 shader_parameter/specular_roughness = 0.7
 shader_parameter/wind_direction = Vector3(1, 0, 0)
-shader_parameter/wind_speed = 0.0
+shader_parameter/wind_speed = 1.0
 shader_parameter/wind_base_height = 0.0
-shader_parameter/wind_falloff = 0.10000000149012
+shader_parameter/wind_falloff = 1.0
 shader_parameter/wind_amplitude = 0.1
 shader_parameter/wind_frequency = 2.0
 
@@ -59,7 +59,7 @@ palm_frond_tilt_variance = 0.0
 palm_frond_width_taper = 0.0
 palm_frond_arch = 0.12
 material_trunk = SubResource("StandardMaterial3D_0mnvq")
-material_twig = SubResource("ShaderMaterial_piaba")
+twig_materials = Array[Material]([SubResource("ShaderMaterial_ro052")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)

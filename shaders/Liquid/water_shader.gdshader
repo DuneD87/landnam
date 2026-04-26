@@ -250,7 +250,7 @@ void fragment() {
     view_distance_factor = pow(view_distance_factor, view_opacity_power);
 
     float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_distance_factor);
-    float screen_influence = 1.0 - view_distance_factor;
+    float screen_influence = 1.0;
     float z_depth = edge(texture(DEPTH_TEXTURE, SCREEN_UV).x);
     float z_pos = edge(FRAGCOORD.z);
     float z_dif = z_depth - z_pos;
@@ -282,43 +282,58 @@ void fragment() {
     final_world_normal = normalize(
         mix(world_normal_radial, final_world_normal, normal_edge_factor)
     );
-
-    vec3 tangent_deviation = final_world_normal - world_normal_radial;
-    // ===== REFRACCIÓN CON DEPTH CHECK =====
-	   vec2 refraction_offset = tangent_deviation.xz; 
-
-    float refraction_strength = 0.05 * screen_influence;
-    vec2 refracted_uv = SCREEN_UV + refraction_offset * refraction_strength;
-
-    // Linealizar ambas profundidades con el mismo método
-    float frag_linear_depth = linearize_depth(FRAGCOORD.z, PROJECTION_MATRIX);
-    float refracted_depth_sample = texture(DEPTH_TEXTURE, refracted_uv).r;
-    float refracted_linear_depth = linearize_depth(refracted_depth_sample, PROJECTION_MATRIX);
 	vec3 depth_color = mix(color_shallow.rgb, color_deep.rgb, adjusted_depth_blend);
 
-    // Si el píxel refractado está delante del agua (más cerca de la cámara),
-    // es un objeto que NO debería estar sumergido → fallback a UV original
-    vec2 safe_refracted_uv = (refracted_linear_depth < frag_linear_depth)
-                             ? SCREEN_UV
-                             : refracted_uv;
+    vec3 tangent_deviation = final_world_normal - world_normal_radial;
 
-    vec3 screen_color = textureLod(SCREEN_TEXTURE, safe_refracted_uv,
-                                   adjusted_depth_blend * 2.5).rgb;
+   	vec3 enhanced_deviation = tangent_deviation * 5.0;  // amplifica la ondulación
+	vec3 tangent_dev_view = (VIEW_MATRIX * vec4(enhanced_deviation, 0.0)).xyz;
+
+	// Fuerza de refracción
+	float strength = 0.05;          // más manejable que 10
+	screen_influence = 1.0;   // pon el valor real luego
+	float depth_fac = 1.0;
+
+	vec2 refraction_offset = tangent_dev_view.xy * strength * screen_influence * depth_fac;
+
+	// Aplica un pequeño movimiento extra para que no dependa solo de la normal estática
+	refraction_offset += vec2(sin(world_pos.z * 5.0 + TIME), cos(world_pos.x * 5.0 + TIME)) * 0.002;
+
+	vec2 refracted_uv = SCREEN_UV + refraction_offset;
+
+	// Depth check simple (sin suavizado)
+	float frag_linear = linearize_depth(FRAGCOORD.z, PROJECTION_MATRIX);
+	float refr_linear = linearize_depth(texture(DEPTH_TEXTURE, refracted_uv).r, PROJECTION_MATRIX);
+	vec2 final_uv = (refr_linear < frag_linear) ? SCREEN_UV : refracted_uv;
+
+	vec3 screen_color = textureLod(SCREEN_TEXTURE, final_uv, adjusted_depth_blend * 2.5).rgb;
 
 
-    vec3 color = mix(
-        mix(screen_color * depth_color, depth_color * 0.25, adjusted_depth_blend * 0.5),
-        depth_color,
-        view_distance_factor * 0.8
-    );
-	
-	float water_column = clamp(z_depth - z_pos, 0.0, 200.0);
+    float scene_linear = linearize_depth(texture(DEPTH_TEXTURE, final_uv).r, PROJECTION_MATRIX);
+	float depth_diff = max(scene_linear - frag_linear, 0.0);
 
-    float underwater_fog_factor = 1.0 - exp(
-        -max(water_column - underwater_fog_start, 0.0) * underwater_fog_density
-    );
-    underwater_fog_factor = clamp(underwater_fog_factor, 0.0, 1.0);
-    color = mix(color, underwater_fog_color, underwater_fog_factor);
+	// Corrección por ángulo: convierte Δz en distancia 3D dentro del agua
+	vec3 view_dir_w = normalize(world_pos - CAMERA_POSITION_WORLD);
+	vec3 cam_fwd    = -normalize((INV_VIEW_MATRIX * vec4(0.0, 0.0, -1.0, 0.0)).xyz);
+	float cos_view  = max(abs(dot(view_dir_w, cam_fwd)), 0.15); // evita división explosiva en grazing
+	float water_column = depth_diff / cos_view;
+
+	// Absorción más agresiva — calibrada para que a 15 m apenas se vea nada
+	vec3 absorption = vec3(0.6, 0.25, 0.08);
+	vec3 transmission = exp(-absorption * water_column);
+
+	// Scatter: lo que el agua aporta por sí misma. Crece exponencialmente, no linealmente.
+	float scatter_t = 1.0 - exp(-water_column * 0.18);
+	vec3 water_scatter = mix(color_shallow.rgb, color_deep.rgb, scatter_t);
+
+	// Visibilidad = canal mejor preservado (el azul aguanta más, así define la ventana visual)
+	float visibility = max(max(transmission.r, transmission.g), transmission.b);
+
+	vec3 refracted_light = screen_color * transmission;
+	vec3 color = mix(water_scatter, refracted_light, visibility);
+
+	// Fade lejano por vista (no por columna) — pequeño, solo para horizonte
+	color = mix(color, water_scatter, view_distance_factor * 0.4);
 	
     float fresnel_value = fresnel(sky_fresnel_power, NORMAL, VIEW);
     vec3 surface_color = mix(albedo, albedo2, fresnel_value);
@@ -331,8 +346,8 @@ void fragment() {
 	float base_alpha = mix(edge_min_alpha, edge_max_alpha, distance_alpha);
 	float edge_factor = clamp(z_dif / edge_fade_distance, 0.0, 1.0);
 	ALPHA = base_alpha * edge_factor;
-	float distance_blend = smoothstep(10.0, 500.0, view_depth);
-	ALPHA = mix(ALPHA, 1.0, distance_blend);
+	//float distance_blend = smoothstep(10.0, 500.0, view_depth);
+	//ALPHA = mix(ALPHA, 1.0, distance_blend);
 	
 	float depth_precision_scale = 1.0 + view_depth * 0.1;
 	float adjusted_edge_fade = edge_fade_distance * depth_precision_scale;
@@ -358,11 +373,19 @@ void fragment() {
 	vec3 depth_color_adj = mix(blended_edge_color, sky_reflection, fresnel_value * 0.8);
 	depth_color_adj = mix(depth_color_adj, blended_edge_color, adjusted_depth_blend * 0.3);
 
-    vec3 final_albedo = mix(surface_color + depth_color_adj, sky_reflection, fresnel_value * sky_influence * 0.5);
+    // El albedo base ES el color computado (refracción + scatter), no se suma encima
+	vec3 final_albedo = depth_color_adj;
+
+	// El sky reflection entra solo en grazing angles, modulado por fresnel
+	final_albedo = mix(final_albedo, sky_reflection, fresnel_value * sky_influence);
+
+	// Tinte de superficie SOLO en ángulos rasantes y proporcional al fresnel,
+	// no como suma constante
+	final_albedo += surface_color * fresnel_value * 0.15;
 	vec3 sun_dir_norm = normalize(-sun_direction);
 	float sss_dot = pow(clamp(dot(VIEW, -sun_dir_norm), 0.0, 1.0), sss_power);
 	float sss_depth_mask = clamp(1.0 - adjusted_depth_blend, 0.0, 1.0); // solo en zonas poco profundas
-	vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask;
+	vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask * visibility;
 	final_albedo += sss_contrib;
 	final_albedo = mix(final_albedo, foam_color, total_foam);
     vec3 view_dir_world = normalize(world_pos - CAMERA_POSITION_WORLD);
@@ -371,17 +394,12 @@ void fragment() {
 	horizon_dot = pow(horizon_dot, 20.0); // concentrar más en el horizonte
 
 	float fog_blend = smoothstep(horizon_fog_start, horizon_fog_end, view_depth) * horizon_dot;
-	final_albedo = mix(final_albedo, horizon_fog_color, fog_blend);
-	/*vec3 view_dir = normalize(world_pos - CAMERA_POSITION_WORLD);
-	float godray_max_dist = min(view_depth, godray_fade_distance);
-	vec3 godrays = calculate_godrays(world_pos, view_dir, godray_max_dist, NORMAL, CAMERA_POSITION_WORLD);
+	
+	vec3 to_sun = normalize(-sun_direction);
+	vec3 reflect_sun = reflect(-to_sun, NORMAL);
+	float glint = pow(max(dot(reflect_sun, -view_dir_world), 0.0), 128.0);	
+	final_albedo += glint * 2.0 * visibility;
 
-	float godray_depth_mask = mix(1.0, 0.3, adjusted_depth_blend);
-	float godray_horizon_mask = 1.0 - fog_blend;
-	final_albedo += godrays * godray_depth_mask * godray_horizon_mask;*/
-	vec3 reflect_sun = reflect(sun_direction, NORMAL);
-	float glint = pow(max(dot(reflect_sun, -view_dir_world), 0.0), 128.0);
-	final_albedo += godray_color * glint * 2.0 * (1.0 - adjusted_depth_blend);
 	ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
     SPECULAR = 0.5;
 	METALLIC = metallic;

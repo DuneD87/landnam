@@ -10,12 +10,12 @@
 cull_mode = 1
 albedo_texture = ExtResource("3_dk8dy")
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_6ohsv"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_dk8dy"]
 render_priority = 0
 shader = ExtResource("4_6ohsv")
 shader_parameter/albedo = Color(0, 0, 0, 1)
 shader_parameter/texture_albedo = ExtResource("5_h0buv")
-shader_parameter/alpha_scissor_threshold = 0.800000038
+shader_parameter/alpha_scissor_threshold = 0.8
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(1, 0, 0)
@@ -24,9 +24,9 @@ shader_parameter/transition_width = 0.2
 shader_parameter/ambient_intensity = 0.15
 shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
 shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
-shader_parameter/translucency_strength = 0.999999977648
+shader_parameter/translucency_strength = 0.45
 shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
-shader_parameter/translucency_power = 8.0
+shader_parameter/translucency_power = 2.0
 shader_parameter/rim_strength = 0.3
 shader_parameter/specular_strength = 0.15
 shader_parameter/specular_roughness = 0.7
@@ -52,7 +52,7 @@ twig_planes = 5
 trunk_length = 7.0
 twig_scale = 1.0
 material_trunk = SubResource("StandardMaterial3D_dk8dy")
-material_twig = SubResource("ShaderMaterial_6ohsv")
+twig_materials = Array[Material]([SubResource("ShaderMaterial_dk8dy")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)

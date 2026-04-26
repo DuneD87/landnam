@@ -138,7 +138,7 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 		else:
 			scene_instantiated.queue_free()
 	
-	elif source_node is Tree3D:
+	elif source_node is Tree3D or source_node is Bush3D:
 		var tree_data := _build_tree_packed_scene(scene_instantiated, source_node)
 		result.packed_scene = tree_data.scene
 		result.effective_mesh = tree_data.mesh
@@ -149,7 +149,6 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 		result.packed_scene = rock_data.scene
 		result.effective_mesh = rock_data.mesh
 		result.registered_scene = rock_data.scene.instantiate()
-	
 	else:
 		push_error("Tipo de vegetación desconocido en item %d: %s" % [i, source_node])
 		scene_instantiated.queue_free()
@@ -226,22 +225,35 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 		
 		_register_multi_mesh_item(i, item, shared_data, generator)
 
-
 func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 	var trunk: MeshInstance3D = tree3d.get_trunk_instance()
 	var twig: MeshInstance3D = tree3d.get_twig_instance()
 	
 	var combined_mesh := ArrayMesh.new()
+	
+	# Trunk: encara és una sola surface
 	if trunk and trunk.mesh:
-		combined_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, trunk.mesh.surface_get_arrays(0))
+		combined_mesh.add_surface_from_arrays(
+			Mesh.PRIMITIVE_TRIANGLES,
+			trunk.mesh.surface_get_arrays(0)
+		)
 		var trunk_mat = tree3d.get_material_trunk()
 		if trunk_mat:
-			combined_mesh.surface_set_material(0, trunk_mat)
+			combined_mesh.surface_set_material(combined_mesh.get_surface_count() - 1, trunk_mat)
+	
+	# Twig/foliage: ara pot tenir N surfaces amb materials propis
 	if twig and twig.mesh:
-		combined_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, twig.mesh.surface_get_arrays(0))
-		var twig_mat = tree3d.get_material_twig()
-		if twig_mat:
-			combined_mesh.surface_set_material(1, twig_mat)
+		var twig_mesh: Mesh = twig.mesh
+		for i in range(twig_mesh.get_surface_count()):
+			combined_mesh.add_surface_from_arrays(
+				Mesh.PRIMITIVE_TRIANGLES,
+				twig_mesh.surface_get_arrays(i)
+			)
+			var dst_idx := combined_mesh.get_surface_count() - 1
+			var twig_mats := _get_twig_materials_array(tree3d)
+			if i < twig_mats.size() and twig_mats[i] != null:
+				combined_mesh.surface_set_material(dst_idx, twig_mats[i])
+				
 	
 	var new_root := scene_instantiated.duplicate(4) as Node3D
 	
@@ -251,9 +263,14 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 	new_root.add_child(tree_mesh_child)
 	tree_mesh_child.owner = new_root
 	
-	var collision_child := _build_tree_collision(trunk, tree3d.trunk_max_radius * 1.1)
-	new_root.add_child(collision_child)
-	_set_owner_recursive(collision_child, new_root)
+	if tree3d is Bush3D:
+		var collision_child := _build_tree_collision(trunk, tree3d.get_stem_origin_radius() * 1.1)
+		new_root.add_child(collision_child)
+		_set_owner_recursive(collision_child, new_root)
+	else:
+		var collision_child := _build_tree_collision(trunk, tree3d.trunk_max_radius * 1.1)
+		new_root.add_child(collision_child)
+		_set_owner_recursive(collision_child, new_root)
 	
 	var tree_scene := PackedScene.new()
 	var err := tree_scene.pack(new_root)
@@ -265,6 +282,17 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 		"scene": tree_scene,
 		"mesh": combined_mesh,
 	}
+
+
+# Helper: obté l'array de materials del foliage independentment del tipus
+func _get_twig_materials_array(tree3d) -> Array:
+	if tree3d is Bush3D:
+		var arr = tree3d.foliage_materials
+		return arr if arr != null else []
+	else:
+		# Tree3D
+		var arr = tree3d.twig_materials
+		return arr if arr != null else []
 
 
 func _build_rock_packed_scene(scene_instantiated: Node, rock3d) -> Dictionary:
