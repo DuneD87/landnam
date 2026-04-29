@@ -91,6 +91,7 @@ func _load_planet() -> void:
 		water_sphere.quadtree_material = load("res://data/resources/WaterSphere_material.tres")
 		var water_shader: ShaderMaterial = water_sphere.quadtree_material as ShaderMaterial
 		water_shader.set_shader_parameter("planet_center", voxel_terrain.global_position)
+		print(voxel_terrain.global_position)
 		water_sphere.wireframe_material = load("res://data/resources/WaterSphere_wireframe_material.tres")
 		
 		water_sphere.load_watersphere(planet)

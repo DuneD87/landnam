@@ -213,10 +213,11 @@ func _process(delta: float) -> void:
 	if distance > (radius + atmosphere_height):
 		default_material.render_priority = 0
 	else:
-		default_material.render_priority = 3
+		default_material.render_priority = 2
 	
 	default_material.set_shader_parameter("camera_altitude", altitude)
 	default_material.set_shader_parameter("atmosphere_height", atmosphere_height)
+	default_material.set_shader_parameter("water_radius", radius)
 
 func _exit_tree():
 	# Clean up shared compute resources
