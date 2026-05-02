@@ -4,7 +4,7 @@ class_name PlanetAtmosphere
 
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 14
+const PARAM_VEC4_COUNT := 15
 
 @export var shader_file_path: String = DEFAULT_SHADER_PATH
 
@@ -31,6 +31,8 @@ const PARAM_VEC4_COUNT := 14
 @export_range(0.01, 20.0, 0.01) var cloud_absorption: float = 1.5
 @export_range(0.0, 0.99, 0.01) var cloud_g: float = 0.7
 @export_range(1.0, 20.0, 0.1) var cloud_noise_scale: float = 5.0
+@export var cloud_wind_direction: Vector3 = Vector3(1.0, 0.0, 0.0)
+@export_range(0.0, 1.0, 0.005) var cloud_wind_speed: float = 0.05
 
 var rd: RenderingDevice
 var shader: RID
@@ -310,6 +312,8 @@ func _build_params_bytes(
 	var local_cloud_absorb    := cloud_absorption
 	var local_cloud_g         := cloud_g
 	var local_cloud_nscale    := cloud_noise_scale
+	var local_wind_direction  := cloud_wind_direction
+	var local_wind_speed      := cloud_wind_speed
 	_params_mutex.unlock()
 
 	var floats := PackedFloat32Array()
@@ -362,6 +366,11 @@ func _build_params_bytes(
 		local_cloud_absorb, local_cloud_g, local_cloud_nscale,
 		1.0 if local_clouds_enabled else 0.0
 	))
+
+	# 14: viento — dirección (xyz normalizada) + offset acumulado (tiempo × velocidad).
+	var wind_dir_n := local_wind_direction.normalized() if local_wind_direction.length_squared() > 0.0001 else Vector3.ZERO
+	var wind_offset := (Time.get_ticks_msec() / 1000.0) * local_wind_speed
+	_append_vec4(floats, Vector4(wind_dir_n.x, wind_dir_n.y, wind_dir_n.z, wind_offset))
 
 	return floats.to_byte_array()
 

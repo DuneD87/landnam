@@ -17,11 +17,11 @@ const float MAX_FLOAT = 3.402823466e+38;
 const float PI        = 3.14159265359;
 
 // Atmósfera — baja a 6/6 para rendimiento, sube a 16/12 para menos bandas.
-const int NUM_IN_SCATTER_POINTS    = 10;
-const int NUM_OPTICAL_DEPTH_POINTS = 10;
+const int NUM_IN_SCATTER_POINTS    = 16;
+const int NUM_OPTICAL_DEPTH_POINTS = 12;
 
 // Nubes — baja a 8/3 para rendimiento, sube a 32/6 para más detalle.
-const int NUM_CLOUD_STEPS       = 32;
+const int NUM_CLOUD_STEPS       = 16;
 const int NUM_CLOUD_LIGHT_STEPS = 4;
 
 float cloud_underside_darkening(
@@ -168,6 +168,9 @@ float sample_cloud_density(
 
 	// Variación vertical radial. Valor pequeño (0.5–1.0) evita deformación al mover la cámara.
 	noise_pos += dir * (h * 0.8);
+
+	// Movimiento de viento: P(14).xyz = dirección (normalizada), P(14).w = tiempo * velocidad.
+	noise_pos += P(14).xyz * P(14).w;
 
 	float base = _fbm(noise_pos) * 1.0667;
 

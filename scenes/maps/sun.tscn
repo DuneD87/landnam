@@ -84,6 +84,8 @@ sun_direction = Vector3(0.34935692, 0, -0.9369898)
 wavelengths = Vector3(500, 330, 440)
 scattering_strength = 5.5e-05
 sun_intensity = 1.0
+cloud_wind_direction = null
+cloud_wind_speed = null
 metadata/_custom_type_script = "uid://cbk4obm06js3v"
 
 [sub_resource type="Compositor" id="Compositor_cpkft"]
