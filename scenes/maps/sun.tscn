@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scripts/planet/ambient_control.gd" id="4_7qkn8"]
 [ext_resource type="CompositorEffect" uid="uid://lec7wb3m521b" path="res://data/planet/earth_atmosphere_compossition.tres" id="4_li0gi"]
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/player/third_person_player.tscn" id="5_05w5h"]
+[ext_resource type="CompositorEffect" uid="uid://bhkodcli244sn" path="res://data/planet/moon_atmosphere_compossition.tres" id="5_7qkn8"]
 [ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/menu/main_menu.tscn" id="6_x6u8n"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
@@ -68,7 +69,7 @@ fog_depth_begin = 0.0
 fog_depth_end = 4000.0
 
 [sub_resource type="Compositor" id="Compositor_cpkft"]
-compositor_effects = Array[CompositorEffect]([ExtResource("4_li0gi")])
+compositor_effects = Array[CompositorEffect]([ExtResource("4_li0gi"), ExtResource("5_7qkn8")])
 
 [node name="Sun" type="Node3D" unique_id=1088853035 node_paths=PackedStringArray("sun_light")]
 script = ExtResource("1_x6u8n")
@@ -103,6 +104,15 @@ sun_dir = Vector3(0, 0, -85000)
 global_pos = Vector3(0, 0, -55000)
 planet = NodePath("@Node3D@97962")
 entity_id = "planet_moon"
+
+[node name="PlanetAtmosphereController" type="Node" parent="Planets/Moon" unique_id=1282944133 node_paths=PackedStringArray("planet_node", "sun_node")]
+script = ExtResource("3_7qkn8")
+effect = ExtResource("5_7qkn8")
+planet_node = NodePath("..")
+sun_node = NodePath("../../../DirectionalLight3D")
+planet_radius = 6000.0
+atmosphere_height = 500.0
+metadata/_custom_type_script = "uid://bb80gqydkco21"
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=535095142]
 transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 0, 0, 0)
