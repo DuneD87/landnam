@@ -4,7 +4,7 @@ class_name PlanetAtmosphere
 
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 12
+const PARAM_VEC4_COUNT := 14
 
 @export var shader_file_path: String = DEFAULT_SHADER_PATH
 
@@ -19,8 +19,18 @@ const PARAM_VEC4_COUNT := 12
 @export_group("Look")
 @export var wavelengths: Vector3 = Vector3(700.0, 530.0, 440.0)  # nm: R, G, B
 @export_range(0.1, 30.0, 0.01) var density_falloff: float = 4.0
-@export_range(0.1, 30.0, 0.00015) var scattering_strength: float = 0.000055
+@export_range(0.01, 30.0, 0.00015) var scattering_strength: float = 0.55
 @export_range(0.0, 100.0, 0.01) var sun_intensity: float = 20.0
+
+@export_group("Clouds")
+@export var clouds_enabled: bool = true
+@export_range(0.0, 5000.0, 1.0) var cloud_min_height: float = 30.0
+@export_range(0.0, 5000.0, 1.0) var cloud_max_height: float = 60.0
+@export_range(0.0, 50.0, 0.1) var cloud_density: float = 15.0
+@export_range(0.0, 1.0, 0.01) var cloud_coverage: float = 0.55
+@export_range(0.01, 20.0, 0.01) var cloud_absorption: float = 1.5
+@export_range(0.0, 0.99, 0.01) var cloud_g: float = 0.7
+@export_range(1.0, 20.0, 0.1) var cloud_noise_scale: float = 5.0
 
 var rd: RenderingDevice
 var shader: RID
@@ -290,8 +300,16 @@ func _build_params_bytes(
 	var local_sun_dir       := sun_direction.normalized()
 	var local_wavelengths   := wavelengths
 	var local_density       := density_falloff
-	var local_scattering    := scattering_strength
-	var local_sun_intensity := sun_intensity
+	var local_scattering    := scattering_strength / 10000.0
+	var local_sun_intensity   := sun_intensity
+	var local_clouds_enabled  := clouds_enabled
+	var local_cloud_min_h     := cloud_min_height
+	var local_cloud_max_h     := cloud_max_height
+	var local_cloud_density   := cloud_density
+	var local_cloud_coverage  := cloud_coverage
+	var local_cloud_absorb    := cloud_absorption
+	var local_cloud_g         := cloud_g
+	var local_cloud_nscale    := cloud_noise_scale
 	_params_mutex.unlock()
 
 	var floats := PackedFloat32Array()
@@ -332,6 +350,17 @@ func _build_params_bytes(
 	# 11: wavelengths (nm) + enabled.
 	_append_vec4(floats, Vector4(
 		local_wavelengths.x, local_wavelengths.y, local_wavelengths.z, 1.0
+	))
+
+	# 12: capa de nubes — alturas sobre la superficie, densidad, cobertura.
+	_append_vec4(floats, Vector4(
+		local_cloud_min_h, local_cloud_max_h, local_cloud_density, local_cloud_coverage
+	))
+
+	# 13: absorción, factor g de Henyey-Greenstein, escala de ruido, habilitado.
+	_append_vec4(floats, Vector4(
+		local_cloud_absorb, local_cloud_g, local_cloud_nscale,
+		1.0 if local_clouds_enabled else 0.0
 	))
 
 	return floats.to_byte_array()

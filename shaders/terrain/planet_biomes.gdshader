@@ -1,4 +1,5 @@
 shader_type spatial;
+render_mode blend_mix;
 #include "res://shaders/terrain/terrain_utils.gdshaderinc"
 #include "res://shaders/terrain//virtual_texturing.gdshaderinc"
 

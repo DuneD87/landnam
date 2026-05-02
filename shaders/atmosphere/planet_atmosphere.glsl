@@ -12,13 +12,34 @@ layout(set = 0, binding = 2, std430) readonly restrict buffer ParamsBuffer {
 
 #define P(i) params_buffer.data[i]
 
-const float EPSILON = 0.000001;
+const float EPSILON   = 0.000001;
 const float MAX_FLOAT = 3.402823466e+38;
+const float PI        = 3.14159265359;
 
-// Si te quedas corto de rendimiento, baja a 6/6. Si ves bandas, sube a 16/12.
+// Atmósfera — baja a 6/6 para rendimiento, sube a 16/12 para menos bandas.
 const int NUM_IN_SCATTER_POINTS    = 10;
 const int NUM_OPTICAL_DEPTH_POINTS = 10;
 
+// Nubes — baja a 8/3 para rendimiento, sube a 32/6 para más detalle.
+const int NUM_CLOUD_STEPS       = 32;
+const int NUM_CLOUD_LIGHT_STEPS = 6;
+
+float cloud_underside_darkening(
+	vec3 p,
+	vec3 planet_center,
+	float cloud_min_r,
+	float cloud_max_r
+) {
+	float thickness = max(cloud_max_r - cloud_min_r, 0.001);
+	float h = clamp((length(p - planet_center) - cloud_min_r) / thickness, 0.0, 1.0);
+
+	// 1 abajo, 0 arriba.
+	float lower_part = 1.0 - smoothstep(0.15, 0.75, h);
+
+	// Valor de prueba visible.
+	// 0.55 = bastante visible. Luego puedes subirlo a 0.70 / 0.80.
+	return mix(1.0, 0.25, lower_part);
+}
 
 mat4 get_inv_projection() {
 	return mat4(P(1), P(2), P(3), P(4));
@@ -53,6 +74,217 @@ vec2 ray_sphere(vec3 center, float radius, vec3 ro, vec3 rd) {
 	if (t1 < 0.0) return vec2(MAX_FLOAT, 0.0);
 	float dst_to = max(t0, 0.0);
 	return vec2(dst_to, t1 - dst_to);
+}
+
+
+// ===== NUBES VOLUMÉTRICAS =====
+
+float _hash3f(vec3 p) {
+	p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+	p += dot(p, p.yxz + 33.33);
+	return fract((p.x + p.y) * p.z);
+}
+
+float _vnoise(vec3 p) {
+	vec3 i = floor(p);
+	vec3 f = fract(p);
+	vec3 u = f * f * (3.0 - 2.0 * f);
+	return mix(
+		mix(mix(_hash3f(i),               _hash3f(i + vec3(1,0,0)), u.x),
+		    mix(_hash3f(i + vec3(0,1,0)), _hash3f(i + vec3(1,1,0)), u.x), u.y),
+		mix(mix(_hash3f(i + vec3(0,0,1)), _hash3f(i + vec3(1,0,1)), u.x),
+		    mix(_hash3f(i + vec3(0,1,1)), _hash3f(i + vec3(1,1,1)), u.x), u.y),
+		u.z);
+}
+
+float _fbm(vec3 p) {
+	float v = 0.0, a = 0.5;
+	for (int i = 0; i < 4; i++, a *= 0.5) {
+		v += a * _vnoise(p);
+		p = p * 2.1 + vec3(1.7, 9.2, 3.4);
+	}
+	return v;
+}
+
+float cloud_sun_visibility(
+	vec3 p,
+	vec3 sun_dir,
+	vec3 planet_center,
+	float planet_radius,
+	float softness
+) {
+	vec3 oc = p - planet_center;
+
+	// Si proj < 0, el punto está en el lado opuesto al sol.
+	float proj = dot(oc, sun_dir);
+
+	// Distancia del punto al eje de la sombra cilíndrica del planeta.
+	vec3 closest = oc - sun_dir * proj;
+	float axis_dist = length(closest);
+
+	// Dentro del cilindro de sombra: oscuro.
+	float visibility = smoothstep(
+		planet_radius - softness,
+		planet_radius + softness,
+		axis_dist
+	);
+
+	// En el lado diurno no debe bloquearse.
+	if (proj > 0.0) {
+		visibility = 1.0;
+	}
+
+	return visibility;
+}
+
+float sample_cloud_density(
+	vec3 p, vec3 planet_center,
+	float cloud_min_r, float cloud_max_r,
+	float coverage, float density_scale, float noise_scale
+) {
+	vec3 local = p - planet_center;
+	float dist = length(local);
+
+	if (dist < cloud_min_r || dist > cloud_max_r) {
+		return 0.0;
+	}
+
+	vec3 dir = local / max(dist, EPSILON);
+
+	float thickness = max(cloud_max_r - cloud_min_r, 0.001);
+	float h = clamp((dist - cloud_min_r) / thickness, 0.0, 1.0);
+
+	float height_grad =
+		smoothstep(0.0, 0.2, h) *
+		smoothstep(1.0, 0.5, h);
+
+	// noise_scale ahora actúa como frecuencia alrededor del planeta.
+	// Valores típicos: 8 - 40.
+	float reference_r = max((cloud_min_r + cloud_max_r) * 0.5, 1.0);
+	float freq = max(noise_scale, 0.001);
+
+	// Ruido anclado al planeta, no a la cámara.
+	vec3 noise_pos = (local / reference_r) * freq;
+
+	// Añade variación vertical de forma radial, no en ejes globales arbitrarios.
+	noise_pos += dir * (h * 4.0);
+
+	float base = _fbm(noise_pos) * 1.0667;
+
+	float density = max(0.0, base - (1.0 - coverage));
+	return density * height_grad * density_scale;
+}
+
+float hg_phase(float cos_theta, float g) {
+	float g2 = g * g;
+	return (1.0 - g2) / (4.0 * PI * pow(max(1.0 + g2 - 2.0 * g * cos_theta, 0.001), 1.5));
+}
+
+float cloud_light_od(
+	vec3 p, vec3 sun_dir,
+	vec3 planet_center, float cloud_min_r, float cloud_max_r,
+	float coverage, float density_scale, float noise_scale
+) {
+	vec2 hit = ray_sphere(planet_center, cloud_max_r, p, sun_dir);
+	if (hit.y <= 0.0) return 0.0;
+	float step_sz = hit.y / float(NUM_CLOUD_LIGHT_STEPS);
+	float od = 0.0;
+	vec3 lp = p + sun_dir * (step_sz * 0.5);
+	for (int i = 0; i < NUM_CLOUD_LIGHT_STEPS; i++) {
+		od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
+		                           coverage, density_scale, noise_scale) * step_sz;
+		lp += sun_dir * step_sz;
+	}
+	return od;
+}
+
+void march_clouds(
+	vec3 ro, vec3 rd, float max_dist,
+	vec3 planet_center, float cloud_min_r, float cloud_max_r,
+	float density_scale, float coverage,
+	float absorption, float g, float noise_scale,
+	vec3 sun_dir, float sun_intensity, float planet_radius,
+	out vec3 out_color, out float out_trans
+) {
+	out_color = vec3(0.0);
+	out_trans = 1.0;
+
+	vec2 outer = ray_sphere(planet_center, cloud_max_r, ro, rd);
+	if (outer.y <= 0.0) return;
+
+	float t0 = outer.x;
+	float t1 = outer.x + outer.y;
+
+	// Recortar por la esfera interior (base de la capa de nubes).
+	// - Cámara DENTRO de la esfera interior (en superficie): inner.x == 0, marchar desde la salida.
+	// - Cámara FUERA de la esfera interior: cortar t1 antes de entrar en ella.
+	vec2 inner = ray_sphere(planet_center, cloud_min_r, ro, rd);
+
+	if (inner.y > 0.0) {
+		float ro_r = length(ro - planet_center);
+
+		// Cámara debajo de la base de las nubes: empezar al salir de la esfera interior.
+		if (ro_r < cloud_min_r) {
+			t0 = max(t0, inner.x + inner.y);
+		}
+		// Cámara fuera de la esfera interior: cortar antes de entrar en ella.
+		else {
+			t1 = min(t1, inner.x);
+		}
+	}
+
+	t0 = max(t0, 0.0);
+	t1 = min(t1, max_dist);
+	if (t1 <= t0 + 0.001) return;
+
+	float step_size = (t1 - t0) / float(NUM_CLOUD_STEPS);
+	vec3 p = ro + rd * (t0 + step_size * 0.5);
+	float cos_theta = dot(rd, sun_dir);
+	float phase = hg_phase(cos_theta, g);
+
+	for (int i = 0; i < NUM_CLOUD_STEPS; i++) {
+		float d = sample_cloud_density(p, planet_center, cloud_min_r, cloud_max_r,
+		                               coverage, density_scale, noise_scale);
+		if (d > 0.0001) {
+			float l_od = cloud_light_od(p, sun_dir, planet_center, cloud_min_r, cloud_max_r,
+										coverage, density_scale, noise_scale);
+
+			float shadow_softness = max(cloud_max_r - cloud_min_r, planet_radius * 0.005);
+
+			float shadow = cloud_sun_visibility(
+				p,
+				sun_dir,
+				planet_center,
+				planet_radius,
+				shadow_softness
+			);
+
+			float beer   = exp(-l_od * absorption);
+			float powder = 1.0 - exp(-d * step_size * absorption * 2.0);
+
+			float direct_light = beer * powder * 2.0 * phase * shadow;
+			float ambient_light = 0.10 * shadow;
+			float night_light = 0.0;
+
+			// Oscurecimiento de la parte inferior de la nube
+			float underside = cloud_underside_darkening(
+				p,
+				planet_center,
+				cloud_min_r,
+				cloud_max_r
+			);
+
+			float lighting = ((direct_light + ambient_light) * sun_intensity + night_light) * underside;
+
+			float s_trans = exp(-d * step_size * absorption);
+
+			out_color += out_trans * (1.0 - s_trans) * lighting;
+			out_trans *= s_trans;
+
+			if (out_trans < 0.005) { out_trans = 0.0; break; }
+		}
+		p += rd * step_size;
+	}
 }
 
 
@@ -224,10 +456,12 @@ void main() {
 
 	float view_from_space = dst_to_atmo > EPSILON ? 1.0 : 0.0;
 
+	// Nubes volumétricas — se aplican antes del scattering atmosférico.
+	// 1. Primero calcula la atmósfera sobre la escena original.
 	vec3 light = calculate_light(
 		entry_point,
 		ray_dir,
-		dst_through_atmo - EPSILON * 2.0,
+		max(dst_through_atmo - EPSILON * 2.0, 0.0),
 		scene_color.rgb,
 		sun_direction,
 		planet_center,
@@ -238,6 +472,28 @@ void main() {
 		sun_intensity,
 		view_from_space
 	);
+
+	// 2. Después compón las nubes delante de la atmósfera.
+	if (P(13).w > 0.5) {
+		float cloud_min_r = planet_radius + P(12).x;
+		float cloud_max_r = planet_radius + P(12).y;
+
+		vec3  cloud_col;
+		float cloud_trans;
+
+		float cloud_max_dist = min(scene_t, dst_to_atmo + dst_through_atmo);
+
+		march_clouds(
+			camera_position, ray_dir, cloud_max_dist,
+			planet_center, cloud_min_r, cloud_max_r,
+			P(12).z, P(12).w,
+			P(13).x, P(13).y, P(13).z,
+			sun_direction, sun_intensity, planet_radius,
+			cloud_col, cloud_trans
+		);
+
+		light = light * cloud_trans + cloud_col;
+	}
 
 	imageStore(color_image, pixel, vec4(light, scene_color.a));
 }
