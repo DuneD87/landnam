@@ -22,7 +22,7 @@ const int NUM_OPTICAL_DEPTH_POINTS = 10;
 
 // Nubes — baja a 8/3 para rendimiento, sube a 32/6 para más detalle.
 const int NUM_CLOUD_STEPS       = 32;
-const int NUM_CLOUD_LIGHT_STEPS = 6;
+const int NUM_CLOUD_LIGHT_STEPS = 4;
 
 float cloud_underside_darkening(
 	vec3 p,
@@ -166,8 +166,8 @@ float sample_cloud_density(
 	// Ruido anclado al planeta, no a la cámara.
 	vec3 noise_pos = (local / reference_r) * freq;
 
-	// Añade variación vertical de forma radial, no en ejes globales arbitrarios.
-	noise_pos += dir * (h * 4.0);
+	// Variación vertical radial. Valor pequeño (0.5–1.0) evita deformación al mover la cámara.
+	noise_pos += dir * (h * 0.8);
 
 	float base = _fbm(noise_pos) * 1.0667;
 
@@ -204,6 +204,7 @@ void march_clouds(
 	float density_scale, float coverage,
 	float absorption, float g, float noise_scale,
 	vec3 sun_dir, float sun_intensity, float planet_radius,
+	float jitter,
 	out vec3 out_color, out float out_trans
 ) {
 	out_color = vec3(0.0);
@@ -238,7 +239,7 @@ void march_clouds(
 	if (t1 <= t0 + 0.001) return;
 
 	float step_size = (t1 - t0) / float(NUM_CLOUD_STEPS);
-	vec3 p = ro + rd * (t0 + step_size * 0.5);
+	vec3 p = ro + rd * (t0 + step_size * jitter);
 	float cos_theta = dot(rd, sun_dir);
 	float phase = hg_phase(cos_theta, g);
 
@@ -274,7 +275,15 @@ void march_clouds(
 				cloud_max_r
 			);
 
-			float lighting = ((direct_light + ambient_light) * sun_intensity + night_light) * underside;
+			// Gradiente día/noche y tinte de atardecer: sincronizan las nubes con la atmósfera.
+			vec3 to_cloud = normalize(p - planet_center);
+			float sun_dot_c = dot(to_cloud, sun_dir);
+			float day_night = smoothstep(-0.15, 0.15, sun_dot_c);
+			float sunset_f  = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot_c));
+			vec3  sunset_tint = mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_f);
+
+			vec3 lighting = vec3((direct_light + ambient_light) * sun_intensity + night_light)
+			                * underside * sunset_tint * day_night;
 
 			float s_trans = exp(-d * step_size * absorption);
 
@@ -483,12 +492,17 @@ void main() {
 
 		float cloud_max_dist = min(scene_t, dst_to_atmo + dst_through_atmo);
 
+		// Jitter por píxel: desplaza el origen del march de forma distinta en cada píxel
+		// para que los artefactos de escalón no sean coherentes al mover la cámara.
+		float cloud_jitter = _hash3f(vec3(float(pixel.x), float(pixel.y), 0.0));
+
 		march_clouds(
 			camera_position, ray_dir, cloud_max_dist,
 			planet_center, cloud_min_r, cloud_max_r,
 			P(12).z, P(12).w,
 			P(13).x, P(13).y, P(13).z,
 			sun_direction, sun_intensity, planet_radius,
+			cloud_jitter,
 			cloud_col, cloud_trans
 		);
 
