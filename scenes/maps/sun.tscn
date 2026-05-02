@@ -2,8 +2,10 @@
 
 [ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/planet/sun_controller.gd" id="1_x6u8n"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet/planet_loader.tscn" id="2_li0gi"]
+[ext_resource type="Script" uid="uid://bb80gqydkco21" path="res://scripts/atmosphere/planet_atmosphere_controller.gd" id="3_7qkn8"]
 [ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_cpkft"]
 [ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scripts/planet/ambient_control.gd" id="4_7qkn8"]
+[ext_resource type="CompositorEffect" uid="uid://lec7wb3m521b" path="res://data/planet/earth_atmosphere_compossition.tres" id="4_li0gi"]
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/player/third_person_player.tscn" id="5_05w5h"]
 [ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/menu/main_menu.tscn" id="6_x6u8n"]
 
@@ -65,6 +67,9 @@ fog_density = 1.0
 fog_depth_begin = 0.0
 fog_depth_end = 4000.0
 
+[sub_resource type="Compositor" id="Compositor_cpkft"]
+compositor_effects = Array[CompositorEffect]([ExtResource("4_li0gi")])
+
 [node name="Sun" type="Node3D" unique_id=1088853035 node_paths=PackedStringArray("sun_light")]
 script = ExtResource("1_x6u8n")
 sun_light = NodePath("DirectionalLight3D")
@@ -76,10 +81,19 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@19737")
+water_sphere = NodePath("@Node3D@97956")
 global_pos = Vector3(0, 0, 15000)
-planet = NodePath("@Node3D@19736")
+planet = NodePath("@Node3D@97955")
 entity_id = "planet_earth"
+
+[node name="PlanetAtmosphereController" type="Node" parent="Planets/Earth" unique_id=1714628713 node_paths=PackedStringArray("planet_node", "sun_node")]
+script = ExtResource("3_7qkn8")
+effect = ExtResource("4_li0gi")
+planet_node = NodePath("..")
+sun_node = NodePath("../../../DirectionalLight3D")
+planet_radius = 30000.0
+atmosphere_height = 3000.0
+metadata/_custom_type_script = "uid://bb80gqydkco21"
 
 [node name="Moon" parent="Planets" unique_id=2125670169 node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_li0gi")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -55000)
@@ -87,7 +101,7 @@ sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, -85000)
 global_pos = Vector3(0, 0, -55000)
-planet = NodePath("@Node3D@19743")
+planet = NodePath("@Node3D@97962")
 entity_id = "planet_moon"
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=535095142]
@@ -101,6 +115,7 @@ directional_shadow_blend_splits = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1273357776]
 environment = SubResource("Environment_0x85g")
+compositor = SubResource("Compositor_cpkft")
 script = ExtResource("4_7qkn8")
 
 [node name="Player" parent="." unique_id=783931208 node_paths=PackedStringArray("main_menu", "spawn_point", "planets") instance=ExtResource("5_05w5h")]

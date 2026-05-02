@@ -363,7 +363,7 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", water_radius)
 	
-	if !has_clouds:
+	'if !has_clouds:
 		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_no_clouds.gdshader")
 	else:
 		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader")
@@ -374,7 +374,7 @@ func setup_shader_parameters() -> void:
 	atmosphere_node.set_shader_parameter("u_scattering_wavelengths", atmosphere_scattering)
 	atmosphere_node.set_shader_parameter("u_atmosphere_modulate", atmosphere_modulate)
 
-	atmosphere_node.set_atmosphere_height(atmosphere_height)
+	atmosphere_node.set_atmosphere_height(atmosphere_height)'
 
 func setup_voxel_generator() -> void:
 	if !terrain_generator_path.is_empty():

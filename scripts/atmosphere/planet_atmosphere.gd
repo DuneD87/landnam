@@ -1,0 +1,344 @@
+@tool
+extends CompositorEffect
+class_name PlanetAtmosphere
+
+const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
+const LOCAL_SIZE := 8
+const PARAM_VEC4_COUNT := 12
+
+@export var shader_file_path: String = DEFAULT_SHADER_PATH
+
+@export_group("Planet")
+@export var planet_center: Vector3 = Vector3.ZERO
+@export var planet_radius: float = 1000.0
+@export var atmosphere_radius: float = 1080.0
+
+@export_group("Lighting")
+@export var sun_direction: Vector3 = Vector3(1.0, 0.25, 0.1).normalized()
+
+@export_group("Look")
+@export var wavelengths: Vector3 = Vector3(700.0, 530.0, 440.0)  # nm: R, G, B
+@export_range(0.1, 30.0, 0.01) var density_falloff: float = 4.0
+@export_range(0.1, 30.0, 0.00015) var scattering_strength: float = 0.000055
+@export_range(0.0, 100.0, 0.01) var sun_intensity: float = 20.0
+
+var rd: RenderingDevice
+var shader: RID
+var pipeline: RID
+var depth_sampler: RID
+var params_buffers: Array[RID] = []
+
+var _params_mutex := Mutex.new()
+
+
+func _init() -> void:
+	effect_callback_type = CompositorEffect.EFFECT_CALLBACK_TYPE_POST_TRANSPARENT
+
+	# Si usas MSAA, permite leer color/depth resuelto.
+	access_resolved_color = true
+	access_resolved_depth = true
+
+	rd = RenderingServer.get_rendering_device()
+	RenderingServer.call_on_render_thread(_initialize_compute)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		_free_compute()
+
+
+func set_planet_data(
+	p_center: Vector3,
+	p_planet_radius: float,
+	p_atmosphere_radius: float,
+	p_sun_direction: Vector3
+) -> void:
+	_params_mutex.lock()
+
+	planet_center = p_center
+	planet_radius = max(p_planet_radius, 0.001)
+	atmosphere_radius = max(p_atmosphere_radius, planet_radius + 0.001)
+
+	if p_sun_direction.length_squared() > 0.000001:
+		sun_direction = p_sun_direction.normalized()
+
+	_params_mutex.unlock()
+	
+func _load_compute_spirv() -> RDShaderSPIRV:
+	print("PlanetAtmosphere: loading shader from: ", shader_file_path)
+
+	var resource := ResourceLoader.load(shader_file_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+
+	if resource != null:
+		print("PlanetAtmosphere: loaded resource class: ", resource.get_class())
+	else:
+		print("PlanetAtmosphere: resource is null")
+
+	if resource is RDShaderFile:
+		print("PlanetAtmosphere: using RDShaderFile import.")
+		var spirv: RDShaderSPIRV = (resource as RDShaderFile).get_spirv()
+
+		print("PlanetAtmosphere: RDShaderFile compute error: ", spirv.compile_error_compute)
+		print("PlanetAtmosphere: RDShaderFile compute bytecode size: ", spirv.bytecode_compute.size())
+
+		return spirv
+
+	print("PlanetAtmosphere: compiling manually from text.")
+
+	var shader_code := FileAccess.get_file_as_string(shader_file_path)
+
+	if shader_code.is_empty():
+		push_error("PlanetAtmosphere: shader file is empty or could not be read: %s" % shader_file_path)
+		return null
+
+	shader_code = shader_code.replace("#[compute]", "")
+
+	var shader_source := RDShaderSource.new()
+	shader_source.language = RenderingDevice.SHADER_LANGUAGE_GLSL
+	shader_source.source_compute = shader_code
+
+	var spirv: RDShaderSPIRV = rd.shader_compile_spirv_from_source(shader_source)
+
+	print("PlanetAtmosphere: manual compile error: ", spirv.compile_error_compute)
+	print("PlanetAtmosphere: manual bytecode size: ", spirv.bytecode_compute.size())
+
+	if spirv.compile_error_compute != "":
+		push_error("PlanetAtmosphere shader compile error:\n%s" % spirv.compile_error_compute)
+		return null
+
+	if spirv.bytecode_compute.is_empty():
+		push_error("PlanetAtmosphere: shader compiled but compute bytecode is empty.")
+		return null
+
+	return spirv
+
+func _initialize_compute() -> void:
+	print("PlanetAtmosphere: _initialize_compute()")
+
+	rd = RenderingServer.get_rendering_device()
+	if not rd:
+		push_error("PlanetAtmosphere: RenderingDevice no disponible. ¿Renderer Compatibility activo?")
+		return
+
+	var shader_spirv := _load_compute_spirv()
+	if shader_spirv == null:
+		push_error("PlanetAtmosphere: no shader SPIR-V.")
+		return
+
+	if shader_spirv.compile_error_compute != "":
+		push_error("PlanetAtmosphere shader compile error:\n%s" % shader_spirv.compile_error_compute)
+		return
+
+	if shader_spirv.bytecode_compute.is_empty():
+		push_error("PlanetAtmosphere: compute bytecode vacío.")
+		return
+
+	shader = rd.shader_create_from_spirv(shader_spirv)
+	print("PlanetAtmosphere: shader RID valid: ", shader.is_valid())
+
+	if not shader.is_valid():
+		push_error("PlanetAtmosphere: shader RID inválido.")
+		return
+
+	pipeline = rd.compute_pipeline_create(shader)
+	print("PlanetAtmosphere: pipeline RID valid: ", pipeline.is_valid())
+
+	if not pipeline.is_valid():
+		push_error("PlanetAtmosphere: pipeline RID inválido.")
+		return
+
+	var sampler_state := RDSamplerState.new()
+	sampler_state.min_filter = RenderingDevice.SAMPLER_FILTER_NEAREST
+	sampler_state.mag_filter = RenderingDevice.SAMPLER_FILTER_NEAREST
+	sampler_state.mip_filter = RenderingDevice.SAMPLER_FILTER_NEAREST
+	sampler_state.repeat_u = RenderingDevice.SAMPLER_REPEAT_MODE_CLAMP_TO_EDGE
+	sampler_state.repeat_v = RenderingDevice.SAMPLER_REPEAT_MODE_CLAMP_TO_EDGE
+	sampler_state.repeat_w = RenderingDevice.SAMPLER_REPEAT_MODE_CLAMP_TO_EDGE
+	depth_sampler = rd.sampler_create(sampler_state)
+
+	print("PlanetAtmosphere: compute initialized OK.")
+
+
+func _free_compute() -> void:
+	if rd == null:
+		return
+
+	for buffer in params_buffers:
+		if buffer.is_valid():
+			rd.free_rid(buffer)
+	params_buffers.clear()
+
+	if depth_sampler.is_valid():
+		rd.free_rid(depth_sampler)
+	depth_sampler = RID()
+
+	if shader.is_valid():
+		rd.free_rid(shader)
+	shader = RID()
+	pipeline = RID()
+
+
+func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data: RenderData) -> void:
+	print("Atmosphere callback type: ", p_effect_callback_type, " expected: ", effect_callback_type)
+
+	if not enabled:
+		return
+
+	if p_effect_callback_type != effect_callback_type:
+		return
+
+	if rd == null or not pipeline.is_valid() or not shader.is_valid():
+		return
+
+	var render_scene_buffers := p_render_data.get_render_scene_buffers()
+	if render_scene_buffers == null:
+		return
+
+	var scene_data := p_render_data.get_render_scene_data()
+	if scene_data == null:
+		return
+
+	var size: Vector2i = render_scene_buffers.get_internal_size()
+	if size.x <= 0 or size.y <= 0:
+		return
+
+	var view_count: int = render_scene_buffers.get_view_count()
+	_ensure_params_buffers(view_count)
+
+	@warning_ignore("integer_division")
+	var x_groups: int = (size.x - 1) / LOCAL_SIZE + 1
+	@warning_ignore("integer_division")
+	var y_groups: int = (size.y - 1) / LOCAL_SIZE + 1
+
+	for view in view_count:
+		var projection: Projection = scene_data.get_view_projection(view)
+
+		# MVP: perspectiva. Si más adelante quieres cámara ortográfica, hacemos otra rama.
+		if projection.is_orthogonal():
+			continue
+
+		var color_image: RID = render_scene_buffers.get_color_layer(view, false)
+		var depth_image: RID = render_scene_buffers.get_depth_layer(view, false)
+
+		if not color_image.is_valid() or not depth_image.is_valid():
+			continue
+
+		var params_bytes := _build_params_bytes(size, scene_data, projection, view)
+		rd.buffer_update(params_buffers[view], 0, params_bytes.size(), params_bytes)
+
+		var color_uniform := RDUniform.new()
+		color_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
+		color_uniform.binding = 0
+		color_uniform.add_id(color_image)
+
+		var depth_uniform := RDUniform.new()
+		depth_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+		depth_uniform.binding = 1
+		depth_uniform.add_id(depth_sampler)
+		depth_uniform.add_id(depth_image)
+
+		var params_uniform := RDUniform.new()
+		params_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
+		params_uniform.binding = 2
+		params_uniform.add_id(params_buffers[view])
+
+		var uniform_set := UniformSetCacheRD.get_cache(
+			shader,
+			0,
+			[color_uniform, depth_uniform, params_uniform]
+		)
+
+		var compute_list := rd.compute_list_begin()
+		rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
+		rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
+		rd.compute_list_dispatch(compute_list, x_groups, y_groups, 1)
+		rd.compute_list_end()
+
+
+func _ensure_params_buffers(count: int) -> void:
+	var zero_bytes := _zero_params_bytes()
+
+	while params_buffers.size() < count:
+		var buffer := rd.storage_buffer_create(zero_bytes.size(), zero_bytes)
+		params_buffers.append(buffer)
+
+
+func _zero_params_bytes() -> PackedByteArray:
+	var floats := PackedFloat32Array()
+	floats.resize(PARAM_VEC4_COUNT * 4)
+	return floats.to_byte_array()
+
+
+func _build_params_bytes(
+	size: Vector2i,
+	scene_data,
+	projection: Projection,
+	view: int
+) -> PackedByteArray:
+	var cam_transform: Transform3D = scene_data.get_cam_transform()
+	var cam_origin: Vector3 = cam_transform.origin
+
+	if scene_data.get_view_count() > 1:
+		cam_origin += cam_transform.basis * scene_data.get_view_eye_offset(view)
+
+	var inv_projection: Projection = projection.inverse()
+
+	_params_mutex.lock()
+	var local_center := planet_center
+	var local_planet_radius : float = max(planet_radius, 0.001)
+	var local_atmo_radius   : float = max(atmosphere_radius, local_planet_radius + 0.001)
+	var local_sun_dir       := sun_direction.normalized()
+	var local_wavelengths   := wavelengths
+	var local_density       := density_falloff
+	var local_scattering    := scattering_strength
+	var local_sun_intensity := sun_intensity
+	_params_mutex.unlock()
+
+	var floats := PackedFloat32Array()
+
+	# 0: render size + radii.
+	_append_vec4(floats, Vector4(size.x, size.y, local_planet_radius, local_atmo_radius))
+
+	# 1-4: inverse projection.
+	_append_vec4(floats, inv_projection.x)
+	_append_vec4(floats, inv_projection.y)
+	_append_vec4(floats, inv_projection.z)
+	_append_vec4(floats, inv_projection.w)
+
+	# 5-7: basis cámara (view -> world) + parámetros de scattering.
+	_append_vec4(floats, Vector4(
+		cam_transform.basis.x.x, cam_transform.basis.x.y, cam_transform.basis.x.z,
+		local_density
+	))
+	_append_vec4(floats, Vector4(
+		cam_transform.basis.y.x, cam_transform.basis.y.y, cam_transform.basis.y.z,
+		local_scattering
+	))
+	_append_vec4(floats, Vector4(
+		cam_transform.basis.z.x, cam_transform.basis.z.y, cam_transform.basis.z.z,
+		local_sun_intensity
+	))
+
+	# 8: origen cámara relativo (siempre 0,0,0) + reservado.
+	_append_vec4(floats, Vector4(0.0, 0.0, 0.0, 0.0))
+
+	# 9: centro del planeta relativo a cámara + reservado.
+	var rel_center := local_center - cam_origin
+	_append_vec4(floats, Vector4(rel_center.x, rel_center.y, rel_center.z, 0.0))
+
+	# 10: dirección del sol.
+	_append_vec4(floats, Vector4(local_sun_dir.x, local_sun_dir.y, local_sun_dir.z, 0.0))
+
+	# 11: wavelengths (nm) + enabled.
+	_append_vec4(floats, Vector4(
+		local_wavelengths.x, local_wavelengths.y, local_wavelengths.z, 1.0
+	))
+
+	return floats.to_byte_array()
+
+
+func _append_vec4(array: PackedFloat32Array, value: Vector4) -> void:
+	array.push_back(value.x)
+	array.push_back(value.y)
+	array.push_back(value.z)
+	array.push_back(value.w)

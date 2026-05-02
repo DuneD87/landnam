@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix, shadows_disabled, depth_prepass_alpha;
+render_mode blend_mix, shadows_disabled, depth_draw_always;
 
 uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
@@ -249,13 +249,6 @@ void fragment() {
     float sss_depth_mask = clamp(1.0 - adjusted_depth_blend, 0.0, 1.0);
     vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask * visibility;
     final_albedo += sss_contrib;
-
-    // Glint solar
-    vec3 view_dir_world = normalize(world_pos - CAMERA_POSITION_WORLD);
-    vec3 to_sun = normalize(-sun_direction);
-    vec3 reflect_sun = reflect(-to_sun, NORMAL);
-    float glint = pow(max(dot(reflect_sun, -view_dir_world), 0.0), 128.0);
-    final_albedo += glint * 2.0 * visibility;
 
     ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
 

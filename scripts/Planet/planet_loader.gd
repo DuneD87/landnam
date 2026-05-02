@@ -11,6 +11,7 @@ enum Action { NONE, SELECT_CONFIG }
 @export var players: Array[CharacterBody3D]
 @onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
 @onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
+
 @export var water_sphere: OceanSystem
 @export var global_pos: Vector3
 @export var planet: Planet
