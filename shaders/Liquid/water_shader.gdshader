@@ -39,7 +39,7 @@ uniform vec3 absorption_coefficients = vec3(0.45, 0.18, 0.06);
 
 uniform float edge_scale = 0.15;
 uniform float near = 1.0;
-uniform float far = 100.0;
+uniform float far = 10.0;
 uniform vec3 edge_color : source_color = vec3(0.7, 0.85, 0.95);
 uniform float edge_disable_start : hint_range(0.0, 1000.0) = 60.0;
 uniform float edge_disable_end : hint_range(0.0, 1000.0) = 150.0;
@@ -50,16 +50,18 @@ uniform float edge_fade_distance : hint_range(0.001, 100.0) = 0.5;
 uniform float edge_max_alpha : hint_range(0.0, 1.0) = 0.85;
 uniform float edge_min_alpha : hint_range(0.0, 1.0) = 0.15;
 uniform float foam_edge_width : hint_range(0.01, 1.0) = 0.35;
+uniform float shore_foam_softness : hint_range(0.01, 50.0) = 2.0;
+uniform float shore_foam_intensity : hint_range(0.0, 1.0) = 0.45;
+uniform float shore_alpha_fade_distance : hint_range(0.01, 50.0) = 4.0;
+uniform float shore_alpha_noise_strength : hint_range(0.0, 1.0) = 0.45;
+uniform float shore_edge_color_strength : hint_range(0.0, 1.0) = 0.08;
 uniform float surface_alpha : hint_range(0.0, 1.0) = 0.15;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 1.0;
 uniform float foam_alpha_boost : hint_range(0.0, 1.0) = 0.18;
+uniform float refraction_alpha_floor : hint_range(0.0, 1.0) = 0.32;
 uniform float depth_alpha_start : hint_range(0.0, 1000.0) = 0.0;
 uniform float depth_alpha_end : hint_range(0.001, 10000.0) = 40.0;
 uniform float depth_alpha_power : hint_range(0.01, 10.0) = 1.4;
-
-uniform float view_opacity_start : hint_range(0.0, 50.0) = 8.0;
-uniform float view_opacity_end : hint_range(-10000.0, 10000.0) = 60.0;
-uniform float view_opacity_power : hint_range(0.01, 50.0) = 1.5;
 
 uniform vec3 sky_color_horizon : source_color = vec3(0.75, 0.85, 0.95);
 uniform vec3 sky_color_zenith : source_color = vec3(0.30, 0.55, 0.85);
@@ -225,14 +227,9 @@ void fragment() {
     depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);
     float depth_blend_power = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
 
-    float view_distance_factor = clamp(
-        (view_depth - view_opacity_start) / (view_opacity_end - view_opacity_start),
-        0.0,
-        1.0
-    );
-    view_distance_factor = pow(view_distance_factor, view_opacity_power);
-
-    float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_distance_factor);
+    float view_distance = length(world_pos - CAMERA_POSITION_WORLD);
+    float view_opacity_factor = smoothstep(0.0, 50.0, view_distance);
+    float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_opacity_factor);
 
     float z_depth = edge(texture(DEPTH_TEXTURE, SCREEN_UV).x);
 	float z_pos = edge(FRAGCOORD.z);
@@ -310,18 +307,20 @@ void fragment() {
     float opacity_depth = mix(measured_water_depth, sphere_water_depth, use_sphere_fallback);
     float depth_alpha_factor = smoothstep(depth_alpha_start, depth_alpha_end, opacity_depth);
     depth_alpha_factor = pow(depth_alpha_factor, depth_alpha_power);
+    float grazing = 1.0 - clamp(dot(radial_normal, -view_dir_w), 0.0, 1.0);
+    float grazing_opacity = smoothstep(0.65, 0.95, grazing);
+    float opacity_factor = max(max(depth_alpha_factor, view_opacity_factor), grazing_opacity);
 
     vec3 transmission = exp(-absorption_coefficients * opacity_depth);
 
     float scatter_t = 1.0 - exp(-opacity_depth * 0.18);
     vec3 water_scatter = mix(color_shallow.rgb, color_deep.rgb, scatter_t);
 
-    float visibility = max(max(transmission.r, transmission.g), transmission.b) * (1.0 - depth_alpha_factor);
+    float visibility = max(max(transmission.r, transmission.g), transmission.b) * (1.0 - opacity_factor);
     vec3 refracted_light = screen_color * transmission;
     vec3 color = mix(water_scatter, refracted_light, visibility);
+    color = mix(color, color_deep.rgb, view_opacity_factor);
 
-    float far_factor = smoothstep(view_opacity_start, view_opacity_end, view_depth);
-    color = mix(color, color_deep.rgb, far_factor);
 	vec3 view_normal = normalize((VIEW_MATRIX * vec4(final_world_normal, 0.0)).xyz);
 	NORMAL = view_normal;
     // Superficie y borde
@@ -329,10 +328,20 @@ void fragment() {
     vec3 surface_color = mix(albedo, albedo2, fresnel_value);
 
     float animated_edge = edge_scale * (1.0 + height * 0.5);
-    float fade_factor = 1.0 - smoothstep(0.0, animated_edge * 2.0, z_dif);
+    float shore_depth = max(z_dif, 0.0);
+    float shore_feather = smoothstep(0.0, shore_foam_softness, shore_depth);
+    float shore_alpha_fade = smoothstep(0.0, shore_alpha_fade_distance, shore_depth);
+    float shore_noise = texture(wave, water_sphere_uv(world_pos) * 1.7 + water_time * time_scale).r;
+    float shore_alpha_noise = mix(1.0 - shore_alpha_noise_strength, 1.0, shore_noise);
+    float fade_factor = 1.0 - smoothstep(0.0, animated_edge * 2.0, shore_depth);
 	fade_factor *= edge_visibility;
-    vec3 blended_edge_color = mix(color, edge_color, fade_factor);
-    float foam_on_edge = smoothstep(1.0 - foam_edge_width, 1.0, fade_factor);
+    float softened_edge = fade_factor * shore_edge_color_strength * shore_feather;
+    vec3 blended_edge_color = mix(color, edge_color, softened_edge);
+    float foam_inner_fade = smoothstep(0.08, 0.45, shore_feather);
+    float foam_outer_fade = 1.0 - smoothstep(0.65, 1.0, shore_feather);
+    float shore_foam = foam_inner_fade * foam_outer_fade * fade_factor;
+    float edge_foam = smoothstep(1.0 - foam_edge_width, 1.0, fade_factor) * shore_feather * 0.35;
+    float foam_on_edge = max(edge_foam, shore_foam) * shore_foam_intensity;
     blended_edge_color = mix(blended_edge_color, foam_color, foam_on_edge);
 
     // Reflexión de cielo
@@ -344,7 +353,7 @@ void fragment() {
     final_albedo = mix(final_albedo, blended_edge_color, adjusted_depth_blend * 0.3);
     final_albedo = mix(final_albedo, sky_reflection, fresnel_value * sky_influence);
     final_albedo += surface_color * fresnel_value * 0.15;
-    final_albedo = mix(final_albedo, color_deep.rgb, depth_alpha_factor * 0.65);
+    final_albedo = mix(final_albedo, color_deep.rgb, opacity_factor);
 
     // Subsurface scattering
     vec3 safe_sun_direction = sun_direction;
@@ -360,8 +369,12 @@ void fragment() {
     ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
 
     // Alpha by terrain depth: shallow seabed stays transparent, deep water becomes opaque.
-    float base_alpha = mix(surface_alpha, deep_alpha, depth_alpha_factor);
-    ALPHA = clamp(base_alpha + foam_on_edge * foam_alpha_boost * (1.0 - base_alpha), 0.0, deep_alpha);
+    float base_alpha = mix(surface_alpha, deep_alpha, opacity_factor);
+    float foam_alpha = foam_on_edge * foam_alpha_boost * 0.35;
+    float alpha_with_foam = base_alpha + foam_alpha * (1.0 - base_alpha);
+    float refraction_alpha = refraction_alpha_floor * (1.0 - opacity_factor);
+    float shore_alpha = mix(surface_alpha * shore_alpha_noise, 1.0, shore_alpha_fade);
+    ALPHA = clamp(max(alpha_with_foam, refraction_alpha) * shore_alpha, 0.0, deep_alpha);
 
     SPECULAR = 0.5;
     METALLIC = metallic;
