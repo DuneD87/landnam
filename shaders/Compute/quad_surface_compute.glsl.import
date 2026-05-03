@@ -3,12 +3,12 @@
 importer="glsl"
 type="RDShaderFile"
 uid="uid://b53356gxryoxh"
-path="res://.godot/imported/quad_surface_compute.glsl-177af22095d807a98f1cee793483cabc.res"
+path="res://.godot/imported/quad_surface_compute.glsl-2400dfdb1d717c4b5b056f1cd50915a9.res"
 
 [deps]
 
-source_file="res://shaders/compute/quad_surface_compute.glsl"
-dest_files=["res://.godot/imported/quad_surface_compute.glsl-177af22095d807a98f1cee793483cabc.res"]
+source_file="res://shaders/Compute/quad_surface_compute.glsl"
+dest_files=["res://.godot/imported/quad_surface_compute.glsl-2400dfdb1d717c4b5b056f1cd50915a9.res"]
 
 [params]
 

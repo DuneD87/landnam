@@ -59,6 +59,9 @@ uniform float surface_alpha : hint_range(0.0, 1.0) = 0.15;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 1.0;
 uniform float foam_alpha_boost : hint_range(0.0, 1.0) = 0.18;
 uniform float refraction_alpha_floor : hint_range(0.0, 1.0) = 0.32;
+uniform float refraction_strength : hint_range(0.0, 0.2, 0.001) = 0.05;
+uniform float refraction_depth_fade : hint_range(0.01, 100.0, 0.01) = 8.0;
+uniform float refraction_uv_margin : hint_range(0.0, 0.05, 0.001) = 0.002;
 uniform float depth_alpha_start : hint_range(0.0, 1000.0) = 0.0;
 uniform float depth_alpha_end : hint_range(0.001, 10000.0) = 40.0;
 uniform float depth_alpha_power : hint_range(0.01, 10.0) = 1.4;
@@ -166,9 +169,17 @@ vec3 triplanar_normal_udn(sampler2D tex, vec3 pos, vec3 surface_normal,
     return normalize(blended + surface_normal);
 }
 
-float linearize_depth(float depth_sample, mat4 projection_matrix) {
-    float ndc = depth_sample * 2.0 - 1.0;
-    return projection_matrix[3][2] / (ndc + projection_matrix[2][2]);
+float linearize_depth(vec2 uv, float depth_sample, mat4 inv_projection_matrix) {
+    vec3 ndc;
+    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+        ndc = vec3(uv, depth_sample) * 2.0 - 1.0;
+    #else
+        ndc = vec3(uv * 2.0 - 1.0, depth_sample);
+    #endif
+
+    vec4 view = inv_projection_matrix * vec4(ndc, 1.0);
+    view.xyz /= view.w;
+    return -view.z;
 }
 
 vec3 reconstruct_world_position(vec2 uv, float depth_sample, mat4 inv_projection_matrix, mat4 inv_view_matrix) {
@@ -219,10 +230,11 @@ void vertex() {
 }
 
 void fragment() {
-    float depth_texture = texture(DEPTH_TEXTURE, SCREEN_UV).r * 2.0 - 1.0;
-    float depth = PROJECTION_MATRIX[3][2] / (depth_texture + PROJECTION_MATRIX[2][2]);
+    float scene_depth_sample = texture(DEPTH_TEXTURE, SCREEN_UV).r;
+    float frag_linear = linearize_depth(SCREEN_UV, FRAGCOORD.z, INV_PROJECTION_MATRIX);
+    float scene_linear_at_screen = linearize_depth(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX);
 	float detail_fade = smoothstep(detail_fade_start, detail_fade_end, view_depth);
-    float water_depth = depth + VERTEX.z + depth_offset;
+    float water_depth = max(scene_linear_at_screen - frag_linear, 0.0) + depth_offset;
     float depth_blend = exp(water_depth * -beers_law);
     depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);
     float depth_blend_power = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
@@ -274,30 +286,33 @@ void fragment() {
     vec3 enhanced_deviation = tangent_deviation * 5.0;
     vec3 tangent_dev_view = (VIEW_MATRIX * vec4(enhanced_deviation, 0.0)).xyz;
 
-    float strength = 0.05;
     float screen_influence = 1.0;
-    float depth_fac = 1.0;
+    float depth_fac = smoothstep(0.0, refraction_depth_fade, water_depth);
 
-    vec2 refraction_offset = tangent_dev_view.xy * strength * screen_influence * depth_fac;
+    vec2 refraction_offset = tangent_dev_view.xy * refraction_strength * screen_influence * depth_fac;
     refraction_offset += vec2(sin(world_pos.z * 5.0 + TIME), cos(world_pos.x * 5.0 + TIME)) * 0.002;
 
-    vec2 refracted_uv = SCREEN_UV + refraction_offset;
+    vec2 refracted_uv = clamp(
+        SCREEN_UV + refraction_offset,
+        vec2(refraction_uv_margin),
+        vec2(1.0 - refraction_uv_margin)
+    );
 
-    float frag_linear = linearize_depth(FRAGCOORD.z, PROJECTION_MATRIX);
-    float refr_linear = linearize_depth(texture(DEPTH_TEXTURE, refracted_uv).r, PROJECTION_MATRIX);
-    vec2 final_uv = (refr_linear < frag_linear) ? SCREEN_UV : refracted_uv;
+    float refracted_depth_sample = texture(DEPTH_TEXTURE, refracted_uv).r;
+    float refr_linear = linearize_depth(refracted_uv, refracted_depth_sample, INV_PROJECTION_MATRIX);
+    float refracted_is_under_water = step(frag_linear + 0.02, refr_linear);
+    vec2 final_uv = mix(SCREEN_UV, refracted_uv, refracted_is_under_water * depth_fac);
 
     vec3 screen_color = textureLod(SCREEN_TEXTURE, final_uv, adjusted_depth_blend * 2.5).rgb;
 
     // Absorción Beer-Lambert con corrección por ángulo
-    float scene_linear = linearize_depth(texture(DEPTH_TEXTURE, final_uv).r, PROJECTION_MATRIX);
+    float scene_linear = linearize_depth(final_uv, texture(DEPTH_TEXTURE, final_uv).r, INV_PROJECTION_MATRIX);
     float depth_diff = max(scene_linear - frag_linear, 0.0);
 
     vec3 view_dir_w = normalize(world_pos - CAMERA_POSITION_WORLD);
     vec3 cam_fwd    = -normalize((INV_VIEW_MATRIX * vec4(0.0, 0.0, -1.0, 0.0)).xyz);
     float cos_view  = max(abs(dot(view_dir_w, cam_fwd)), 0.15);
     float water_column = depth_diff / cos_view;
-    float scene_depth_sample = texture(DEPTH_TEXTURE, SCREEN_UV).r;
     vec3 scene_world_pos = reconstruct_world_position(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
     float terrain_water_depth = max(water_radius - length(scene_world_pos - planet_center), 0.0);
     float sphere_water_depth = ray_sphere_depth(CAMERA_POSITION_WORLD, view_dir_w, planet_center, water_radius);

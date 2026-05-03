@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://cyoolrj4g2q5i"]
 
-[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/liquid/water_shader.gdshader" id="1_8rr25"]
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="1_8rr25"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_th24p"]
 noise_type = 3
@@ -31,7 +31,7 @@ as_normal_map = true
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_ckor0"]
 noise_type = 3
-frequency = 0.0064
+frequency = 0.1554
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_8rr25"]
 noise = SubResource("FastNoiseLite_ckor0")
@@ -42,8 +42,8 @@ render_priority = 3
 shader = ExtResource("1_8rr25")
 shader_parameter/albedo = Color(0.05, 0.2, 0.3, 1)
 shader_parameter/albedo2 = Color(0.1, 0.35, 0.5, 1)
-shader_parameter/metallic = 0.0
-shader_parameter/roughness = 0.10000000149012
+shader_parameter/metallic = 0.40000000596048
+shader_parameter/roughness = 0.5000000074506
 shader_parameter/texture_normal = SubResource("NoiseTexture2D_rqd8l")
 shader_parameter/texture_normal2 = SubResource("NoiseTexture2D_mq8mb")
 shader_parameter/wave = SubResource("NoiseTexture2D_8rr25")
@@ -57,18 +57,18 @@ shader_parameter/normal_scale2 = 120.00000569674012
 shader_parameter/normal_scale3 = 350.00001662174014
 shader_parameter/normal_intensity = 7.0000003325
 shader_parameter/wave_normal_sample_distance = 2.0
-shader_parameter/wave_speed = 1.0
-shader_parameter/wave_amplitude = 2.0
-shader_parameter/wave_frequency = 32.0
+shader_parameter/wave_speed = 0.5
+shader_parameter/wave_amplitude = 8.0
+shader_parameter/wave_frequency = 4.0
 shader_parameter/color_deep = Color(0.02, 0.14, 0.25, 1)
 shader_parameter/color_shallow = Color(0.37, 0.72, 0.71, 1)
-shader_parameter/beers_law = 1.5
+shader_parameter/beers_law = 0.3
 shader_parameter/depth_offset = 0.0
 shader_parameter/absorption_coefficients = Vector3(0.45, 0.18, 0.06)
-shader_parameter/edge_scale = 10.0
+shader_parameter/edge_scale = 4.0
 shader_parameter/near = 1.0
-shader_parameter/far = 10000.0
-shader_parameter/edge_color = Color(0.763666, 0.813248, 0.99298, 1)
+shader_parameter/far = 1000000.0
+shader_parameter/edge_color = Color(0.7, 0.85, 0.95, 1)
 shader_parameter/edge_disable_start = 200.0000095
 shader_parameter/edge_disable_end = 300.00001425
 shader_parameter/detail_fade_start = 80.0
@@ -77,19 +77,22 @@ shader_parameter/distant_water_color = Color(0.08, 0.22, 0.35, 1)
 shader_parameter/edge_fade_distance = 0.5
 shader_parameter/edge_max_alpha = 0.85
 shader_parameter/edge_min_alpha = 0.15
-shader_parameter/foam_edge_width = 1.0
+shader_parameter/foam_edge_width = 0.35
 shader_parameter/shore_foam_softness = 2.0
-shader_parameter/shore_foam_intensity = 1.0
-shader_parameter/shore_alpha_fade_distance = 50.0
-shader_parameter/shore_alpha_noise_strength = 0.45
+shader_parameter/shore_foam_intensity = 0.45
+shader_parameter/shore_alpha_fade_distance = 4.0
+shader_parameter/shore_alpha_noise_strength = 0.0
 shader_parameter/shore_edge_color_strength = 1.0
-shader_parameter/surface_alpha = 0.450000021375
+shader_parameter/surface_alpha = 0.15
 shader_parameter/deep_alpha = 1.0
 shader_parameter/foam_alpha_boost = 0.18
 shader_parameter/refraction_alpha_floor = 0.32
+shader_parameter/refraction_strength = 0.05
+shader_parameter/refraction_depth_fade = 0.00999999977648
+shader_parameter/refraction_uv_margin = 0.002
 shader_parameter/depth_alpha_start = 0.0
-shader_parameter/depth_alpha_end = 4.00000019
-shader_parameter/depth_alpha_power = 1.4
+shader_parameter/depth_alpha_end = 5.0000002375
+shader_parameter/depth_alpha_power = 2.20000010380148
 shader_parameter/sky_color_horizon = Color(0.75, 0.85, 0.95, 1)
 shader_parameter/sky_color_zenith = Color(0.3, 0.55, 0.85, 1)
 shader_parameter/sky_influence = 0.6
