@@ -14,20 +14,20 @@ uniform sampler2D wave : repeat_enable, filter_linear_mipmap;
 
 uniform vec2 wave_direction = vec2(2.0, 0.0);
 uniform vec2 wave_direction2 = vec2(0.0, 1.0);
-uniform float time_scale : hint_range(0.0, 0.2, 0.001) = 0.025;
+uniform float time_scale : hint_range(0.0, 0.2, 0.001) = 0.0025;
 uniform float noise_scale = 8.0;
 uniform float height_scale = 0.35;
 
 // Parámetros para romper el tiling de las normales
-uniform float normal_scale1 : hint_range(0.1, 500.0) = 4.0;
-uniform float normal_scale2 : hint_range(0.1, 500.0) = 12.0;
-uniform float normal_scale3 : hint_range(0.1, 500.0) = 35.0;
-uniform float normal_intensity : hint_range(0.0, 200.0) = 0.7;
+uniform float normal_scale1 : hint_range(0.1, 500.0) = 40.0;
+uniform float normal_scale2 : hint_range(0.1, 500.0) = 120.0;
+uniform float normal_scale3 : hint_range(0.1, 500.0) = 350.0;
+uniform float normal_intensity : hint_range(0.0, 200.0) = 7.0;
 uniform float wave_normal_sample_distance : hint_range(0.01, 100.0, 0.01) = 2.0;
 
-uniform float wave_speed = 0.7;
-uniform float wave_amplitude = 0.6;
-uniform float wave_frequency = 0.8;
+uniform float wave_speed = 1.5;
+uniform float wave_amplitude = 4.0;
+uniform float wave_frequency = 2.0;
 
 uniform vec4 color_deep : source_color = vec4(0.02, 0.14, 0.25, 1.0);
 uniform vec4 color_shallow : source_color = vec4(0.37, 0.72, 0.71, 1.0);
@@ -37,9 +37,9 @@ uniform float depth_offset = 0.0;
 // Coeficientes de absorción Beer-Lambert por canal RGB.
 uniform vec3 absorption_coefficients = vec3(0.45, 0.18, 0.06);
 
-uniform float edge_scale = 0.15;
+uniform float edge_scale = 10.0;
 uniform float near = 1.0;
-uniform float far = 10.0;
+uniform float far = 1000000.0;
 uniform vec3 edge_color : source_color = vec3(0.7, 0.85, 0.95);
 uniform float edge_disable_start : hint_range(0.0, 1000.0) = 60.0;
 uniform float edge_disable_end : hint_range(0.0, 1000.0) = 150.0;
@@ -240,16 +240,15 @@ void fragment() {
     float depth_blend_power = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
 
     float view_distance = length(world_pos - CAMERA_POSITION_WORLD);
-    float view_opacity_factor = smoothstep(0.0, 50.0, view_distance);
+    float view_opacity_factor = smoothstep(0.0, edge_disable_end, view_distance);
     float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_opacity_factor);
 
     float z_depth = edge(texture(DEPTH_TEXTURE, SCREEN_UV).x);
 	float z_pos = edge(FRAGCOORD.z);
 	float z_dif = z_depth - z_pos;
 
-	// 0 cerca (edges activos), 1 lejos (edges desactivados)
 	float edge_disable = smoothstep(edge_disable_start, edge_disable_end, view_depth);
-	float edge_visibility = 1.0 - edge_disable; // sustituye al smoothstep(10,400,...)
+	float edge_visibility = 1.0 - edge_disable;
 
     vec3 radial_normal = normalize(world_normal_radial);
     vec3 wave_world_normal = calculate_wave_world_normal(base_world_pos, radial_normal, water_time);
@@ -389,6 +388,7 @@ void fragment() {
     float alpha_with_foam = base_alpha + foam_alpha * (1.0 - base_alpha);
     float refraction_alpha = refraction_alpha_floor * (1.0 - opacity_factor);
     float shore_alpha = mix(surface_alpha * shore_alpha_noise, 1.0, shore_alpha_fade);
+	shore_alpha = mix(shore_alpha, 1.0, edge_disable);
     ALPHA = clamp(max(alpha_with_foam, refraction_alpha) * shore_alpha, 0.0, deep_alpha);
 
     SPECULAR = 0.5;
