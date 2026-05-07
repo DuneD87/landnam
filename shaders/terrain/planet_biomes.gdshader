@@ -41,7 +41,7 @@ uniform float height_transition_noise_strength : hint_range(0.0, 200.0) = 35.0;
 uniform float height_blend_strength : hint_range(0.0, 1.0) = 0.45;
 uniform float height_blend_contrast : hint_range(0.25, 4.0) = 1.8;
 uniform float texture_scale = 0.1;
-uniform float normal_strength : hint_range(0.0, 4.0) = 1.0;
+uniform float normal_strength : hint_range(0.0, 4.0) = 4.0;
 
 uniform bool parallax_enabled = false;
 uniform float parallax_strength : hint_range(0.0, 3.0) = 0.09;
@@ -55,10 +55,13 @@ uniform float direct_ao_strength : hint_range(0.0, 1.0) = 0.35;
 uniform float specular_ao_strength : hint_range(0.0, 1.0) = 0.65;
 uniform float terrain_specular_strength : hint_range(0.0, 1.0) = 0.12;
 uniform float water_light_depth = 10.0;
+uniform float planet_shadow_softness : hint_range(0.0, 0.2) = 0.015;
 
 varying vec3 world_pos;
 varying float height;
 varying float v_fragment_ao;
+varying vec3 v_planet_up_view;
+varying float v_surface_radius;
 
 varying vec3 v_normal_model;
 varying vec3 v_vertex_pos_model;
@@ -84,6 +87,8 @@ void fragment() {
     vec3 normal_world = safe_normalize((MODEL_MATRIX * vec4(normal_model, 0.0)).xyz, vec3(0.0, 1.0, 0.0));
     vec3 planet_pos = world_pos - center;
     vec3 planet_up = safe_normalize(planet_pos, normal_world);
+    v_planet_up_view = safe_normalize((VIEW_MATRIX * vec4(planet_up, 0.0)).xyz, NORMAL);
+    v_surface_radius = max(radius + height, radius + 0.001);
 
     // 2) Parallax opcional. Si esta apagado, no se calcula vista/distancia ni se muestrean height maps para desplazar UVs.
     bool use_parallax = parallax_enabled && parallax_strength > 0.0001;
@@ -243,7 +248,15 @@ void light()
     float ao = clamp(v_fragment_ao, 0.0, 1.0);
     float direct_ao = mix(1.0, ao, direct_ao_strength);
     float specular_ao = mix(1.0, ao, specular_ao_strength);
-    float light_visibility = ATTENUATION * water_light_factor;
+    float radius_ratio = clamp(radius / max(v_surface_radius, radius + 0.001), 0.0, 1.0);
+    float horizon_cos = -sqrt(max(0.0, 1.0 - radius_ratio * radius_ratio));
+    float light_horizon_cos = dot(normalize(v_planet_up_view), l);
+    float planet_shadow = smoothstep(
+        horizon_cos - planet_shadow_softness,
+        horizon_cos + planet_shadow_softness,
+        light_horizon_cos
+    );
+    float light_visibility = ATTENUATION * water_light_factor * planet_shadow;
 
     DIFFUSE_LIGHT += ndotl * light_visibility * direct_ao * LIGHT_COLOR / PI;
 
