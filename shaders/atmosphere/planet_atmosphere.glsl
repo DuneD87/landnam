@@ -21,7 +21,7 @@ const int NUM_IN_SCATTER_POINTS    = 16;
 const int NUM_OPTICAL_DEPTH_POINTS = 12;
 
 // Nubes — baja a 8/3 para rendimiento, sube a 32/6 para más detalle.
-const int NUM_CLOUD_STEPS       = 16;
+const int NUM_CLOUD_STEPS       = 32;
 const int NUM_CLOUD_LIGHT_STEPS = 4;
 
 float cloud_underside_darkening(

@@ -52,9 +52,13 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.textures = planet_parser.textures
 	planet.normal_textures = planet_parser.normal_textures
 	planet.roughness_textures = planet_parser.roughness_textures
+	planet.ao_textures = planet_parser.ao_textures
+	planet.height_textures = planet_parser.height_textures
 	planet.slope_texture = planet_parser.slope_texture
 	planet.slope_normal_texture = planet_parser.slope_normal_texture
 	planet.slope_roughness_texture = planet_parser.slope_roughness_texture
+	planet.slope_ao_texture = planet_parser.slope_ao_texture
+	planet.slope_height_texture = planet_parser.slope_height_texture
 	planet.has_water = planet_parser.has_water
 	planet.water_radius = planet_parser.water_level
 	planet.atmosphere_radius = planet_parser.atmosphere_radius

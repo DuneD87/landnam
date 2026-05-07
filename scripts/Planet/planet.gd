@@ -15,9 +15,13 @@ const config = preload("res://scripts/config.gd")
 @export var textures: Array[Texture2D] = []
 @export var normal_textures: Array[Texture2D] = []
 @export var roughness_textures: Array[Texture2D] = []
+@export var ao_textures: Array[Texture2D] = []
+@export var height_textures: Array[Texture2D] = []
 @export var slope_texture: Texture2D
 @export var slope_normal_texture: Texture2D
 @export var slope_roughness_texture: Texture2D
+@export var slope_ao_texture: Texture2D
+@export var slope_height_texture: Texture2D
 @export var vegetation: Dictionary
 @export var wind_direction : Vector3
 
@@ -339,7 +343,7 @@ func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
 func setup_shader_parameters() -> void:
 	voxel_terrain.material = shader_material
 
-	shader_material.set_shader_parameter("transition_smoothness", 30)
+	shader_material.set_shader_parameter("transition_smoothness", 10)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
 	planet_position = voxel_terrain.get_parent().position
 	shader_material.set_shader_parameter("center", planet_position)
@@ -353,13 +357,17 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("textures", textures)
 	shader_material.set_shader_parameter("normal_textures", normal_textures)
 	shader_material.set_shader_parameter("roughness_textures", roughness_textures)
-	
+	shader_material.set_shader_parameter("ao_textures", ao_textures)
+	shader_material.set_shader_parameter("height_textures", height_textures)
+
 	shader_material.set_shader_parameter("biome_texture_indices", biome_texture_indices)
 	
 	shader_material.set_shader_parameter("slope_texture", slope_texture)
 	shader_material.set_shader_parameter("slope_normal_texture", slope_normal_texture)
 	shader_material.set_shader_parameter("slope_roughness_texture", slope_roughness_texture)
-	
+	shader_material.set_shader_parameter("slope_ao_texture", slope_ao_texture)
+	shader_material.set_shader_parameter("slope_height_texture", slope_height_texture)
+
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", water_radius)
 	

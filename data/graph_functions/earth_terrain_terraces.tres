@@ -19,18 +19,9 @@ fractal_octaves = 4
 fractal_lacunarity = 8.0
 fractal_gain = 0.1
 
-[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_7lijc"]
-fractal_type = 1
-
-[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_7inbg"]
-noise_type = 2
-period = 2000.0001
-warp_noise = SubResource("ZN_FastNoiseLiteGradient_7lijc")
-cellular_return_type = 4
-
 [resource]
 graph_data = {
-"connections": [[17, 0, 20, 0], [1, 0, 6, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [1, 0, 13, 0], [1, 0, 35, 0], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [2, 0, 35, 1], [18, 0, 17, 0], [10, 0, 43, 1], [13, 0, 33, 1], [16, 0, 22, 1], [19, 0, 17, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [24, 0, 34, 0], [28, 0, 10, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [3, 0, 35, 2], [33, 0, 28, 0], [34, 0, 28, 1], [35, 0, 36, 0], [36, 0, 42, 0], [40, 0, 43, 0], [41, 0, 40, 0], [42, 0, 40, 1], [43, 0, 4, 0], [6, 0, 10, 0]],
+"connections": [[17, 0, 20, 0], [1, 0, 6, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [1, 0, 13, 0], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [18, 0, 17, 0], [10, 0, 4, 0], [13, 0, 33, 1], [16, 0, 22, 1], [19, 0, 17, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [24, 0, 34, 0], [28, 0, 10, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [33, 0, 28, 0], [34, 0, 28, 1], [6, 0, 10, 0]],
 "nodes": {
 "1": {
 "auto_connect": false,
@@ -112,7 +103,7 @@ graph_data = {
 "type": "InputZ"
 },
 "33": {
-"a": 400.0,
+"a": 700.0,
 "auto_connect": false,
 "gui_position": Vector2(373.33334, 280),
 "type": "Multiply"
@@ -123,57 +114,10 @@ graph_data = {
 "gui_position": Vector2(413.333, 600),
 "type": "Multiply"
 },
-"35": {
-"auto_connect": true,
-"gui_position": Vector2(-53.333332, -160),
-"noise": SubResource("ZN_FastNoiseLite_7inbg"),
-"type": "FastNoise3D"
-},
-"36": {
-"auto_connect": false,
-"gui_position": Vector2(120, -160),
-"type": "Abs"
-},
 "4": {
 "auto_connect": true,
-"gui_position": Vector2(1746.6666, -80),
+"gui_position": Vector2(1520, 328.8889),
 "type": "OutputSDF"
-},
-"40": {
-"auto_connect": false,
-"gui_position": Vector2(940.5736, -266.20007),
-"type": "Multiply"
-},
-"41": {
-"auto_connect": false,
-"gui_position": Vector2(746.6667, -333.33334),
-"type": "Constant",
-"value": -1.0
-},
-"42": {
-"auto_connect": false,
-"b": 100.0,
-"gui_position": Vector2(680, -173.33333),
-"type": "Multiply"
-},
-"43": {
-"auto_connect": false,
-"gui_position": Vector2(1331.0004, -35.493343),
-"type": "Add"
-},
-"44": {
-"a": 0.0,
-"auto_connect": false,
-"b": 0.0,
-"gui_position": Vector2(1405.5365, -175.69206),
-"type": "Max"
-},
-"45": {
-"a": 0.0,
-"auto_connect": false,
-"b": 0.0,
-"gui_position": Vector2(1503.1432, -273.29877),
-"type": "Subtract"
 },
 "6": {
 "auto_connect": true,
