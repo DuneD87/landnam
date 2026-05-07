@@ -24,6 +24,14 @@ float signed_axis(float v) {
     return v < 0.0 ? -1.0 : 1.0;
 }
 
+TriplanarUVs compute_triplanar_uvs(vec3 pos, float scale) {
+    TriplanarUVs r;
+    r.uv_x = pos.yz * scale;
+    r.uv_y = pos.xz * scale;
+    r.uv_z = pos.xy * scale;
+    return r;
+}
+
 vec2 limited_parallax_offset(vec2 view_tangent, float view_axis, float height, float height_scale, float min_view_dot) {
     float view_denom = max(abs(view_axis), min_view_dot);
     vec2 offset = (view_tangent / view_denom) * height * height_scale;
@@ -36,10 +44,7 @@ TriplanarUVs compute_parallax_uvs(
     vec3 pos, vec3 surface_normal, vec3 view_world,
     float scale, float height_scale
 ) {
-    TriplanarUVs r;
-    r.uv_x = pos.yz * scale;
-    r.uv_y = pos.xz * scale;
-    r.uv_z = pos.xy * scale;
+    TriplanarUVs r = compute_triplanar_uvs(pos, scale);
 
     if (height_scale <= 0.0001) return r;
 
@@ -84,10 +89,7 @@ TriplanarUVs compute_parallax_uvs_limited(
     float scale, float height_scale,
     float height_center, float height_contrast, float min_view_dot
 ) {
-    TriplanarUVs r;
-    r.uv_x = pos.yz * scale;
-    r.uv_y = pos.xz * scale;
-    r.uv_z = pos.xy * scale;
+    TriplanarUVs r = compute_triplanar_uvs(pos, scale);
 
     float uv_height_scale = height_scale * scale;
     if (uv_height_scale <= 0.00001) {

@@ -43,6 +43,7 @@ uniform float height_blend_contrast : hint_range(0.25, 4.0) = 1.8;
 uniform float texture_scale = 0.1;
 uniform float normal_strength : hint_range(0.0, 4.0) = 1.0;
 
+uniform bool parallax_enabled = false;
 uniform float parallax_strength : hint_range(0.0, 3.0) = 0.09;
 uniform float parallax_height_center : hint_range(0.0, 1.0) = 0.5;
 uniform float parallax_height_contrast : hint_range(0.1, 4.0) = 1.0;
@@ -84,11 +85,18 @@ void fragment() {
     vec3 planet_pos = world_pos - center;
     vec3 planet_up = safe_normalize(planet_pos, normal_world);
 
-    // 2) View direction en mundo + fade de parallax por distancia
-    vec3 view_world = safe_normalize(CAMERA_POSITION_WORLD - world_pos, normal_world);
-    float dist = length(CAMERA_POSITION_WORLD - world_pos);
-    float parallax_fade = 1.0 - smoothstep(parallax_fade_start, parallax_max_distance, dist);
-    float effective_height = parallax_strength * parallax_fade;
+    // 2) Parallax opcional. Si esta apagado, no se calcula vista/distancia ni se muestrean height maps para desplazar UVs.
+    bool use_parallax = parallax_enabled && parallax_strength > 0.0001;
+    vec3 view_world = normal_world;
+    float effective_height = 0.0;
+    if (use_parallax) {
+        vec3 camera_delta = CAMERA_POSITION_WORLD - world_pos;
+        view_world = safe_normalize(camera_delta, normal_world);
+        float dist = length(camera_delta);
+        float parallax_fade = 1.0 - smoothstep(parallax_fade_start, parallax_max_distance, dist);
+        effective_height = parallax_strength * parallax_fade;
+        use_parallax = effective_height > 0.00001;
+    }
 
     // 3) Variables de mezcla
     float noise_value = signed_fbm(planet_pos * noise_scale) * noise_strength;
@@ -101,12 +109,15 @@ void fragment() {
     float slope_factor = smoothstep(slope_threshold - slope_smoothness,
                                      slope_threshold + slope_smoothness, slope);
 
-    // 4) Slope con parallax
-    TriplanarUVs slope_uvs = compute_parallax_uvs_limited(
-        slope_height_texture, planet_pos, normal_world, view_world,
-        texture_scale, effective_height,
-        parallax_height_center, parallax_height_contrast, parallax_min_view_dot
-    );
+    // 4) Slope con UVs base o parallax, segun el toggle.
+    TriplanarUVs slope_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+    if (use_parallax) {
+        slope_uvs = compute_parallax_uvs_limited(
+            slope_height_texture, planet_pos, normal_world, view_world,
+            texture_scale, effective_height,
+            parallax_height_center, parallax_height_contrast, parallax_min_view_dot
+        );
+    }
     vec3 slope_color    = triplanar_sample_uvs(slope_texture, slope_uvs, normal_world);
     vec3 slope_normal   = triplanar_normal_sample_uvs(slope_normal_texture, slope_uvs, normal_world);
     float slope_rough   = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, normal_world);
@@ -157,16 +168,20 @@ void fragment() {
             factor *= (1.0 - slope_factor) * biome_weight;
             if (factor < 0.01) continue;  // <-- skip parallax si la textura no aporta
 
-            // Parallax UVs ancladas al planeta.
-            TriplanarUVs uvs = compute_parallax_uvs_limited(
-                height_textures[tex_index], planet_pos, normal_world, view_world,
-                texture_scale, effective_height,
-                parallax_height_center, parallax_height_contrast, parallax_min_view_dot
-            );
+            TriplanarUVs uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+            if (use_parallax) {
+                uvs = compute_parallax_uvs_limited(
+                    height_textures[tex_index], planet_pos, normal_world, view_world,
+                    texture_scale, effective_height,
+                    parallax_height_center, parallax_height_contrast, parallax_min_view_dot
+                );
+            }
 
-            float material_height = triplanar_scalar_sample_uvs(height_textures[tex_index], uvs, normal_world);
-            float height_bias = mix(0.35, 1.35, pow(clamp(material_height, 0.0, 1.0), height_blend_contrast));
-            factor *= mix(1.0, height_bias, height_blend_strength);
+            if (height_blend_strength > 0.0001) {
+                float material_height = triplanar_scalar_sample_uvs(height_textures[tex_index], uvs, normal_world);
+                float height_bias = mix(0.35, 1.35, pow(clamp(material_height, 0.0, 1.0), height_blend_contrast));
+                factor *= mix(1.0, height_bias, height_blend_strength);
+            }
 
             vec3 c = triplanar_sample_uvs(textures[tex_index], uvs, normal_world);
             vec3 n = triplanar_normal_sample_uvs(normal_textures[tex_index], uvs, normal_world);
