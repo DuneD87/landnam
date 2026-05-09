@@ -80,6 +80,14 @@ uniform float voronoi_scale   : hint_range(0.0, 50.0) = 9.0;
 uniform float voronoi_strength : hint_range(0.0, 8.0) = 0.8;
 uniform float shore_soft_width : hint_range(0.01, 10.0, 0.01) = 1.5;
 
+// Caustics
+uniform sampler2D caustics_texture : filter_linear_mipmap, repeat_enable;
+uniform float caustics_scale : hint_range(0.1, 10.0, 0.1) = 2.0;
+uniform float caustics_speed : hint_range(0.0, 1.0, 0.01) = 0.1;
+uniform float caustics_intensity : hint_range(0.0, 2.0, 0.1) = 0.8;
+uniform float caustics_depth_fade : hint_range(0.0, 1.0, 0.01) = 0.7;
+uniform float caustics_near_fade : hint_range(0.0, 10.0, 0.1) = 1.5;
+
 uniform float water_time;
 uniform vec3 planet_center;
 uniform float water_radius;
@@ -395,6 +403,32 @@ void fragment() {
 
     vec3 screen_color = textureLod(SCREEN_TEXTURE, final_uv, adjusted_depth_blend * 2.5).rgb;
 
+    // Cáusticas submarinas
+    vec4 bg_ndc = vec4(final_uv * 2.0 - 1.0, texture(DEPTH_TEXTURE, final_uv).x, 1.0);
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+    bg_ndc.z = bg_ndc.z * 2.0 - 1.0;
+#endif
+    vec4 bg_world = INV_VIEW_MATRIX * INV_PROJECTION_MATRIX * bg_ndc;
+    vec3 bg_world_pos = bg_world.xyz / bg_world.w;
+    float caustics_contrib = 0.0;
+    if (water_depth > 0.0) {
+        // Coordenadas esféricas del fondo: invariantes al desplazamiento radial de las olas
+        // y sin estiramiento en bordes a diferencia de la proyección XZ plana.
+        vec3 bg_dir = normalize(bg_world_pos - planet_center);
+        // * water_radius convierte radianes a longitud de arco → escala equivalente a XZ en metros
+        vec2 bg_sphere_uv = vec2(atan(bg_dir.x, bg_dir.z), asin(bg_dir.y)) * water_radius;
+        vec2 caustics_uv1 = bg_sphere_uv * caustics_scale;
+        caustics_uv1.x += TIME * caustics_speed;
+        vec2 caustics_uv2 = bg_sphere_uv * caustics_scale * 0.7;
+        caustics_uv2.y -= TIME * caustics_speed * 0.8;
+        float caustics_sample1 = texture(caustics_texture, caustics_uv1).r;
+        float caustics_sample2 = texture(caustics_texture, caustics_uv2).r;
+        float caustics_value = caustics_sample1 * caustics_sample2;
+        float caustics_fade = smoothstep(0.0, caustics_near_fade, water_depth)
+                            * (1.0 - clamp(water_depth * caustics_depth_fade, 0.0, 1.0));
+        caustics_contrib = caustics_value * caustics_intensity * caustics_fade;
+    }
+
     // Absorción Beer-Lambert con corrección por ángulo
     float scene_linear = linearize_depth(final_uv, texture(DEPTH_TEXTURE, final_uv).r, INV_PROJECTION_MATRIX);
     float depth_diff = max(scene_linear - frag_linear, 0.0);
@@ -487,6 +521,8 @@ void fragment() {
     final_albedo = mix(final_albedo, foam_edge_color, foam_mask_shadow * foam_soften);
     final_albedo = mix(final_albedo, foam_color, foam_mask_primary * bubble_alpha * foam_soften);
     final_albedo = mix(final_albedo, foam_color, shore_contact);
+    // Screen blend: añade luz sin quemar los colores existentes (A + B - A*B)
+    final_albedo = final_albedo + caustics_contrib - final_albedo * caustics_contrib;
 
     ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
 
