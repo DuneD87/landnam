@@ -24,6 +24,14 @@ uniform int textures_per_biome = 3;
 uniform float biome_latitude_ranges[MAX_LATITUDE_RANGES]; // n+1 rangos para n biomas
 uniform int biome_texture_indices[MAX_HEIGHTS];   // índices por bioma
 
+// Caustics (underwater)
+uniform vec3 caustics_color : source_color = vec3(0.55, 0.85, 1.0);
+uniform float caustics_strength : hint_range(0.0, 40.0) = 30.5;
+uniform float caustics_scale = 0.05;
+uniform float caustics_speed = 0.35;
+uniform float caustics_power : hint_range(1.0, 16.0) = 16.0;
+uniform float caustics_depth_falloff = 25.0; // metros: cuanto tarda en apagarse con la profundidad
+
 uniform sampler2D slope_texture;
 uniform sampler2D slope_normal_texture;
 uniform sampler2D slope_roughness_texture;
@@ -65,6 +73,7 @@ varying float v_surface_radius;
 
 varying vec3 v_normal_model;
 varying vec3 v_vertex_pos_model;
+varying float v_caustics;
 
 void vertex() {
 	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0, u_transition_mask);
@@ -86,12 +95,14 @@ void fragment() {
     normal_model = safe_normalize(normal_model, v_normal_model);
     vec3 normal_world = safe_normalize((MODEL_MATRIX * vec4(normal_model, 0.0)).xyz, vec3(0.0, 1.0, 0.0));
     vec3 planet_pos = world_pos - center;
+	float distance_to_center = length(planet_pos);
+    float underwater = (has_water != 0 && distance_to_center < water_radius) ? 1.0 : 0.0;
     vec3 planet_up = safe_normalize(planet_pos, normal_world);
     v_planet_up_view = safe_normalize((VIEW_MATRIX * vec4(planet_up, 0.0)).xyz, NORMAL);
     v_surface_radius = max(radius + height, radius + 0.001);
 
     // 2) Parallax opcional. Si esta apagado, no se calcula vista/distancia ni se muestrean height maps para desplazar UVs.
-    bool use_parallax = parallax_enabled && parallax_strength > 0.0001;
+    bool use_parallax = parallax_enabled && parallax_strength > 0.0001 && underwater < 0.5;
     vec3 view_world = normal_world;
     float effective_height = 0.0;
     if (use_parallax) {
@@ -224,10 +235,22 @@ void fragment() {
     ALBEDO = final_color;
     NORMAL = normalize((VIEW_MATRIX * vec4(final_normal, 0.0)).xyz);
     ROUGHNESS = final_roughness;
-    v_fragment_ao = clamp(final_ao, 0.0, 1.0);
+    v_fragment_ao = mix(clamp(final_ao, 0.0, 1.0), 1.0, underwater);
     AO = v_fragment_ao;
     AO_LIGHT_AFFECT = 0.0;
     METALLIC = 0.0;
+	// Caustics: dos capas de fbm desplazadas, ribbon-like
+    v_caustics = 0.0;
+    if (underwater > 0.5 && caustics_strength > 0.0001) {
+        vec3 cp = planet_pos * caustics_scale;
+        float ct = TIME * caustics_speed;
+        float c1 = abs(signed_fbm(cp + vec3(ct, ct * 0.7, 0.0)));
+        float c2 = abs(signed_fbm(cp * 1.5 + vec3(-ct * 0.6, ct * 0.4, ct * 0.3)));
+        float caustic = pow(max(0.0, 1.0 - max(c1, c2)), caustics_power);
+        float depth = water_radius - distance_to_center;
+        float depth_factor = exp(-depth / max(caustics_depth_falloff, 0.001));
+        v_caustics = caustic * caustics_strength * depth_factor;
+    }
 }
 
 void light()
@@ -269,4 +292,8 @@ void light()
     specular *= specular_ao * (1.0 - roughness);
 
     SPECULAR_LIGHT += specular * LIGHT_COLOR;
+	// Caustics aplicadas como luz adicional, moduladas por ndotl y visibilidad de luz
+    if (v_caustics > 0.0) {
+        DIFFUSE_LIGHT += v_caustics * ndotl * light_visibility * caustics_color * LIGHT_COLOR;
+    }
 }

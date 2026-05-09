@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d3jxxq6ylfxi6"
-path.s3tc="res://.godot/imported/wavy-sand_height.png-b62d48c6eebe031de5b5080759771c82.s3tc.ctex"
+path.s3tc="res://.godot/imported/wavy-sand_height.png-48fa60995017216afddb9ca49bbd4401.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://textures/terrain/wavy-sand-bl/wavy-sand_height.png"
-dest_files=["res://.godot/imported/wavy-sand_height.png-b62d48c6eebe031de5b5080759771c82.s3tc.ctex"]
+source_file="res://textures/Terrain/wavy-sand-bl/wavy-sand_height.png"
+dest_files=["res://.godot/imported/wavy-sand_height.png-48fa60995017216afddb9ca49bbd4401.s3tc.ctex"]
 
 [params]
 

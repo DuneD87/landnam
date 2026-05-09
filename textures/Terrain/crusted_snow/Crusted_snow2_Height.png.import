@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c88iqp7e2xvqn"
-path.s3tc="res://.godot/imported/Crusted_snow2_Height.png-668ec3db14c24d658fb3e12432ba4538.s3tc.ctex"
+path.s3tc="res://.godot/imported/Crusted_snow2_Height.png-226eaa623f06d72d4124fcc0273026eb.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://textures/terrain/crusted_snow/Crusted_snow2_Height.png"
-dest_files=["res://.godot/imported/Crusted_snow2_Height.png-668ec3db14c24d658fb3e12432ba4538.s3tc.ctex"]
+source_file="res://textures/Terrain/crusted_snow/Crusted_snow2_Height.png"
+dest_files=["res://.godot/imported/Crusted_snow2_Height.png-226eaa623f06d72d4124fcc0273026eb.s3tc.ctex"]
 
 [params]
 

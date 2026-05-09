@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://deh5tt4f1rrc0"
-path.s3tc="res://.godot/imported/Crusted_snow2_ao.png-914b4346f4b24d267bf41f60b5d64b2f.s3tc.ctex"
+path.s3tc="res://.godot/imported/Crusted_snow2_ao.png-3ae1350517c6014410cec506ac1f5d4e.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://textures/terrain/crusted_snow/Crusted_snow2_ao.png"
-dest_files=["res://.godot/imported/Crusted_snow2_ao.png-914b4346f4b24d267bf41f60b5d64b2f.s3tc.ctex"]
+source_file="res://textures/Terrain/crusted_snow/Crusted_snow2_ao.png"
+dest_files=["res://.godot/imported/Crusted_snow2_ao.png-3ae1350517c6014410cec506ac1f5d4e.s3tc.ctex"]
 
 [params]
 

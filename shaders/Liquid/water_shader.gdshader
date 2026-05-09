@@ -49,7 +49,7 @@ uniform vec3 distant_water_color : source_color = vec3(0.08, 0.22, 0.35);
 uniform float edge_fade_distance : hint_range(0.001, 100.0) = 0.5;
 uniform float edge_max_alpha : hint_range(0.0, 1.0) = 0.85;
 uniform float edge_min_alpha : hint_range(0.0, 1.0) = 0.15;
-uniform float foam_edge_width : hint_range(0.01, 1.0) = 0.35;
+uniform float foam_edge_width : hint_range(0.01, 100.0) = 0.35;
 uniform float shore_foam_softness : hint_range(0.01, 50.0) = 2.0;
 uniform float shore_foam_intensity : hint_range(0.0, 1.0) = 0.45;
 uniform float shore_alpha_fade_distance : hint_range(0.01, 50.0) = 4.0;
@@ -59,7 +59,7 @@ uniform float surface_alpha : hint_range(0.0, 1.0) = 0.15;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 1.0;
 uniform float foam_alpha_boost : hint_range(0.0, 1.0) = 0.18;
 uniform float refraction_alpha_floor : hint_range(0.0, 1.0) = 0.32;
-uniform float refraction_strength : hint_range(0.0, 0.2, 0.001) = 0.05;
+uniform float refraction_strength : hint_range(0.0, 2.0, 0.001) = 0.05;
 uniform float refraction_depth_fade : hint_range(0.01, 100.0, 0.01) = 8.0;
 uniform float refraction_uv_margin : hint_range(0.0, 0.05, 0.001) = 0.002;
 uniform float depth_alpha_start : hint_range(0.0, 1000.0) = 0.0;
@@ -92,11 +92,6 @@ varying vec3 world_normal_radial;
 
 float fresnel(float amount, vec3 normal, vec3 view) {
     return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
-}
-
-float edge(float depth){
-    depth = 1.0 - 2.0 * depth;
-    return near * far / (far + depth * (near - far));
 }
 
 // Olas procedurales como fallback / complemento
@@ -232,6 +227,11 @@ void vertex() {
 void fragment() {
     float scene_depth_sample = texture(DEPTH_TEXTURE, SCREEN_UV).r;
     float frag_linear = linearize_depth(SCREEN_UV, FRAGCOORD.z, INV_PROJECTION_MATRIX);
+	vec3 view_dir_w = normalize(world_pos - CAMERA_POSITION_WORLD);
+    vec3 cam_fwd    = -normalize((INV_VIEW_MATRIX * vec4(0.0, 0.0, -1.0, 0.0)).xyz);
+    float cos_view  = max(abs(dot(view_dir_w, cam_fwd)), 0.15);
+    vec3 scene_world_pos = reconstruct_world_position(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
+    float terrain_water_depth = max(water_radius - length(scene_world_pos - planet_center), 0.0);
     float scene_linear_at_screen = linearize_depth(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX);
 	float detail_fade = smoothstep(detail_fade_start, detail_fade_end, view_depth);
     float water_depth = max(scene_linear_at_screen - frag_linear, 0.0) + depth_offset;
@@ -243,9 +243,9 @@ void fragment() {
     float view_opacity_factor = smoothstep(0.0, edge_disable_end, view_distance);
     float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_opacity_factor);
 
-    float z_depth = edge(texture(DEPTH_TEXTURE, SCREEN_UV).x);
-	float z_pos = edge(FRAGCOORD.z);
-	float z_dif = z_depth - z_pos;
+    float z_depth = linearize_depth(SCREEN_UV, texture(DEPTH_TEXTURE, SCREEN_UV).r, INV_PROJECTION_MATRIX);
+	float z_pos   = frag_linear;
+	float z_dif   = z_depth - z_pos;
 
 	float edge_disable = smoothstep(edge_disable_start, edge_disable_end, view_depth);
 	float edge_visibility = 1.0 - edge_disable;
@@ -286,10 +286,34 @@ void fragment() {
     vec3 tangent_dev_view = (VIEW_MATRIX * vec4(enhanced_deviation, 0.0)).xyz;
 
     float screen_influence = 1.0;
-    float depth_fac = smoothstep(0.0, refraction_depth_fade, water_depth);
+	// PASS 1 — sondeo barato para estimar la profundidad real en el destino
+	vec2 probe_offset = tangent_dev_view.xy * refraction_strength * 0.5;
+	vec2 probe_uv = clamp(SCREEN_UV + probe_offset,
+	                      vec2(refraction_uv_margin),
+	                      vec2(1.0 - refraction_uv_margin));
+	float probe_depth_sample = texture(DEPTH_TEXTURE, probe_uv).r;
+	float probe_linear = linearize_depth(probe_uv, probe_depth_sample, INV_PROJECTION_MATRIX);
+	float depth_at_probe = max(probe_linear - frag_linear, 0.0);
 
-    vec2 refraction_offset = tangent_dev_view.xy * refraction_strength * screen_influence * depth_fac;
-    refraction_offset += vec2(sin(world_pos.z * 5.0 + TIME), cos(world_pos.x * 5.0 + TIME)) * 0.002;
+	// Escala continua (no saturada). El cap evita artefactos en silueta.
+	float depth_fac = clamp(depth_at_probe / refraction_depth_fade, 0.0, 4.0);
+
+	// Compensación de proyección: misma desviación angular → más píxeles si el fondo está lejos.
+	float screen_scale = frag_linear / max(probe_linear, 0.001);
+
+	// Cerca de 1 cuando miras recto, cerca de 0 a ángulos rasantes
+	float refraction_angle_factor = smoothstep(0.15, 0.6, cos_view);
+		// Convierte la desviación a NDC en lugar de view-space crudo
+	vec4 dev_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(enhanced_deviation, 0.0);
+	vec2 dev_screen = dev_clip.xy / max(frag_linear, 0.001);
+
+	vec2 refraction_offset = dev_screen
+	                       * refraction_strength
+	                       * depth_fac
+	                       * refraction_angle_factor; // ya sin screen_scale
+
+
+	//refraction_offset += vec2(sin(world_pos.z * 5.0 + TIME), cos(world_pos.x * 5.0 + TIME)) * 0.002;
 
     vec2 refracted_uv = clamp(
         SCREEN_UV + refraction_offset,
@@ -307,13 +331,9 @@ void fragment() {
     // Absorción Beer-Lambert con corrección por ángulo
     float scene_linear = linearize_depth(final_uv, texture(DEPTH_TEXTURE, final_uv).r, INV_PROJECTION_MATRIX);
     float depth_diff = max(scene_linear - frag_linear, 0.0);
-
-    vec3 view_dir_w = normalize(world_pos - CAMERA_POSITION_WORLD);
-    vec3 cam_fwd    = -normalize((INV_VIEW_MATRIX * vec4(0.0, 0.0, -1.0, 0.0)).xyz);
-    float cos_view  = max(abs(dot(view_dir_w, cam_fwd)), 0.15);
     float water_column = depth_diff / cos_view;
-    vec3 scene_world_pos = reconstruct_world_position(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
-    float terrain_water_depth = max(water_radius - length(scene_world_pos - planet_center), 0.0);
+
+
     float sphere_water_depth = ray_sphere_depth(CAMERA_POSITION_WORLD, view_dir_w, planet_center, water_radius);
     float measured_water_depth = max(terrain_water_depth, water_column);
     float has_scene_depth = 1.0 - step(0.9999, scene_depth_sample);
@@ -327,7 +347,7 @@ void fragment() {
 
     vec3 transmission = exp(-absorption_coefficients * opacity_depth);
 
-    float scatter_t = 1.0 - exp(-opacity_depth * 0.18);
+    float scatter_t = 1.0 - exp(-opacity_depth * 0.08);
     vec3 water_scatter = mix(color_shallow.rgb, color_deep.rgb, scatter_t);
 
     float visibility = max(max(transmission.r, transmission.g), transmission.b) * (1.0 - opacity_factor);

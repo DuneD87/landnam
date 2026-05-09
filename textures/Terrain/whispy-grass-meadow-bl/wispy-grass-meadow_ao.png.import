@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cacxygwlk5e0o"
-path.s3tc="res://.godot/imported/wispy-grass-meadow_ao.png-c6a96cf585b858d6549b9bbf32022097.s3tc.ctex"
+path.s3tc="res://.godot/imported/wispy-grass-meadow_ao.png-a9e59f46d073359da11613a811fb3909.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_ao.png"
-dest_files=["res://.godot/imported/wispy-grass-meadow_ao.png-c6a96cf585b858d6549b9bbf32022097.s3tc.ctex"]
+source_file="res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_ao.png"
+dest_files=["res://.godot/imported/wispy-grass-meadow_ao.png-a9e59f46d073359da11613a811fb3909.s3tc.ctex"]
 
 [params]
 
