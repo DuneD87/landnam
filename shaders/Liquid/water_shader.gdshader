@@ -38,26 +38,13 @@ uniform float depth_offset = 0.0;
 uniform vec3 absorption_coefficients = vec3(0.45, 0.18, 0.06);
 
 uniform float edge_scale = 10.0;
-uniform float near = 1.0;
-uniform float far = 1000000.0;
-uniform vec3 edge_color : source_color = vec3(0.7, 0.85, 0.95);
 uniform float edge_disable_start : hint_range(0.0, 1000.0) = 60.0;
 uniform float edge_disable_end : hint_range(0.0, 1000.0) = 150.0;
 uniform float detail_fade_start : hint_range(0.0, 2000.0) = 80.0;
 uniform float detail_fade_end : hint_range(0.0, 2000.0) = 250.0;
-uniform vec3 distant_water_color : source_color = vec3(0.08, 0.22, 0.35);
-uniform float edge_fade_distance : hint_range(0.001, 100.0) = 0.5;
-uniform float edge_max_alpha : hint_range(0.0, 1.0) = 0.85;
-uniform float edge_min_alpha : hint_range(0.0, 1.0) = 0.15;
-uniform float foam_edge_width : hint_range(0.01, 100.0) = 0.35;
-uniform float shore_foam_softness : hint_range(0.01, 50.0) = 2.0;
-uniform float shore_foam_intensity : hint_range(0.0, 1.0) = 0.45;
-uniform float shore_alpha_fade_distance : hint_range(0.01, 50.0) = 4.0;
-uniform float shore_alpha_noise_strength : hint_range(0.0, 1.0) = 0.45;
-uniform float shore_edge_color_strength : hint_range(0.0, 1.0) = 0.08;
+
 uniform float surface_alpha : hint_range(0.0, 1.0) = 0.15;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 1.0;
-uniform float foam_alpha_boost : hint_range(0.0, 1.0) = 0.18;
 uniform float refraction_alpha_floor : hint_range(0.0, 1.0) = 0.32;
 uniform float refraction_strength : hint_range(0.0, 2.0, 0.001) = 0.05;
 uniform float refraction_depth_fade : hint_range(0.01, 100.0, 0.01) = 8.0;
@@ -78,7 +65,20 @@ uniform vec3 sss_color : source_color = vec3(0.15, 0.55, 0.45);
 uniform float sss_intensity : hint_range(0.0, 3.0) = 0.8;
 uniform float sss_power : hint_range(1.0, 8.0) = 4.0;
 
+// Espuma procedural
 uniform vec3 foam_color : source_color = vec3(0.92, 0.96, 0.98);
+uniform float foam_depth_start : hint_range(0.0, 5.0, 0.01) = 0.8;
+uniform float foam_depth_end   : hint_range(0.0, 5.0, 0.01) = 0.0;
+uniform float foam_noise_scale : hint_range(0.0, 10.0, 0.01) = 2.0;
+uniform float foam_noise_speed : hint_range(0.0, 2.0, 0.01) = 1.0;
+uniform float foam_cutoff      : hint_range(0.0, 1.0, 0.01) = 0.7;
+uniform float foam_crest_threshold : hint_range(0.0, 1.0, 0.01) = 0.7;
+uniform float foam_crest_amount    : hint_range(0.0, 10.0, 0.1) = 2.0;
+uniform vec3 foam_edge_color : source_color = vec3(0.0, 0.0, 0.05);
+uniform vec2 foam_edge_offset = vec2(0.02, 0.02);
+uniform float voronoi_scale   : hint_range(0.0, 50.0) = 9.0;
+uniform float voronoi_strength : hint_range(0.0, 8.0) = 0.8;
+uniform float shore_soft_width : hint_range(0.01, 10.0, 0.01) = 1.5;
 
 uniform float water_time;
 uniform vec3 planet_center;
@@ -94,7 +94,6 @@ float fresnel(float amount, vec3 normal, vec3 view) {
     return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
 }
 
-// Olas procedurales como fallback / complemento
 float generate_wave(vec2 pos, float time) {
     float wave1 = sin(pos.x * wave_frequency + time * wave_speed) * wave_amplitude;
     float wave2 = sin(pos.y * wave_frequency * 0.7 + time * wave_speed * 0.8) * wave_amplitude * 0.5;
@@ -209,6 +208,69 @@ float ray_sphere_depth(vec3 ray_origin, vec3 ray_direction, vec3 sphere_center, 
     return max(exit_distance - enter_distance, 0.0);
 }
 
+// --- Foam noise helpers ---
+
+float hash13(vec3 p) {
+    uvec3 q = uvec3(ivec3(p)) * uvec3(1597334677u, 3812015801u, 2798796415u);
+    uint n = (q.x ^ q.y ^ q.z) * 1597334677u;
+    return float(n) * (1.0 / 4294967295.0);
+}
+
+vec2 hash22(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+// Distancia al punto Voronoi más cercano; animado para crear movimiento orgánico
+float voronoi_noise(vec2 uv) {
+    vec2 n = floor(uv);
+    vec2 f = fract(uv);
+    float m_dist = 1.0;
+    for (int j = -1; j <= 1; j++) {
+        for (int i = -1; i <= 1; i++) {
+            vec2 g = vec2(float(i), float(j));
+            vec2 o = hash22(n + g);
+            o = 0.5 + 0.5 * sin(TIME * foam_noise_speed + 6.2831 * o);
+            vec2 r = g - f + o;
+            float d = dot(r, r);
+            m_dist = min(m_dist, d);
+        }
+    }
+    return m_dist;
+}
+
+float noise3d(in vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(
+            mix(hash13(i + vec3(0.0, 0.0, 0.0)), hash13(i + vec3(1.0, 0.0, 0.0)), f.x),
+            mix(hash13(i + vec3(0.0, 1.0, 0.0)), hash13(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+        mix(
+            mix(hash13(i + vec3(0.0, 0.0, 1.0)), hash13(i + vec3(1.0, 0.0, 1.0)), f.x),
+            mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+}
+
+// fBm sobre Voronoi: acumula capas para crear cúmulos de espuma orgánicos
+float fbm_voronoi(vec2 uv) {
+    float v = 0.0;
+    float a = 0.5;
+    vec2 shift = vec2(100.0);
+    mat2 rot = mat2(vec2(cos(0.5), sin(0.5)), vec2(-sin(0.5), cos(0.5)));
+    for (int i = 0; i < 3; i++) {
+        float val = 1.0 - voronoi_noise(uv);
+        val = pow(val, 2.0);
+        v += a * val;
+        uv = rot * uv * 2.0 + shift;
+        a *= 0.5;
+    }
+    return v;
+}
+
+// ---
+
 void vertex() {
     base_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     vec3 sphere_dir = normalize(base_world_pos - planet_center);
@@ -227,13 +289,13 @@ void vertex() {
 void fragment() {
     float scene_depth_sample = texture(DEPTH_TEXTURE, SCREEN_UV).r;
     float frag_linear = linearize_depth(SCREEN_UV, FRAGCOORD.z, INV_PROJECTION_MATRIX);
-	vec3 view_dir_w = normalize(world_pos - CAMERA_POSITION_WORLD);
+    vec3 view_dir_w = normalize(world_pos - CAMERA_POSITION_WORLD);
     vec3 cam_fwd    = -normalize((INV_VIEW_MATRIX * vec4(0.0, 0.0, -1.0, 0.0)).xyz);
     float cos_view  = max(abs(dot(view_dir_w, cam_fwd)), 0.15);
     vec3 scene_world_pos = reconstruct_world_position(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
     float terrain_water_depth = max(water_radius - length(scene_world_pos - planet_center), 0.0);
     float scene_linear_at_screen = linearize_depth(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX);
-	float detail_fade = smoothstep(detail_fade_start, detail_fade_end, view_depth);
+    float detail_fade = smoothstep(detail_fade_start, detail_fade_end, view_depth);
     float water_depth = max(scene_linear_at_screen - frag_linear, 0.0) + depth_offset;
     float depth_blend = exp(water_depth * -beers_law);
     depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);
@@ -244,76 +306,81 @@ void fragment() {
     float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_opacity_factor);
 
     float z_depth = linearize_depth(SCREEN_UV, texture(DEPTH_TEXTURE, SCREEN_UV).r, INV_PROJECTION_MATRIX);
-	float z_pos   = frag_linear;
-	float z_dif   = z_depth - z_pos;
+    float z_pos   = frag_linear;
+    float z_dif   = z_depth - z_pos;
 
-	float edge_disable = smoothstep(edge_disable_start, edge_disable_end, view_depth);
-	float edge_visibility = 1.0 - edge_disable;
+    float edge_disable = smoothstep(edge_disable_start, edge_disable_end, view_depth);
 
     vec3 radial_normal = normalize(world_normal_radial);
     vec3 wave_world_normal = calculate_wave_world_normal(base_world_pos, radial_normal, water_time);
     vec3 final_world_normal = wave_world_normal;
 
-	if (detail_fade < 0.999) {
-	    vec2 time  = (TIME * wave_direction)  * time_scale;
-	    vec2 time2 = (TIME * wave_direction2) * time_scale;
-	    vec3 tri_pos = world_pos - planet_center;
+    if (detail_fade < 0.999) {
+        vec2 time  = (TIME * wave_direction)  * time_scale;
+        vec2 time2 = (TIME * wave_direction2) * time_scale;
+        vec3 tri_pos = world_pos - planet_center;
 
-	    vec3 blend_weights = abs(wave_world_normal);
-	    blend_weights = pow(blend_weights, vec3(4.0));
-	    blend_weights /= (blend_weights.x + blend_weights.y + blend_weights.z);
+        vec3 blend_weights = abs(wave_world_normal);
+        blend_weights = pow(blend_weights, vec3(4.0));
+        blend_weights /= (blend_weights.x + blend_weights.y + blend_weights.z);
 
-	    vec3 n1 = triplanar_normal_udn(texture_normal,  tri_pos, wave_world_normal, blend_weights, normal_scale1, time);
-	    vec3 n2 = triplanar_normal_udn(texture_normal2, tri_pos, wave_world_normal, blend_weights, normal_scale2, time2 * 0.8);
-	    vec3 n3 = triplanar_normal_udn(texture_normal,  tri_pos, wave_world_normal, blend_weights, normal_scale3, time * 1.3);
+        vec3 n1 = triplanar_normal_udn(texture_normal,  tri_pos, wave_world_normal, blend_weights, normal_scale1, time);
+        vec3 n2 = triplanar_normal_udn(texture_normal2, tri_pos, wave_world_normal, blend_weights, normal_scale2, time2 * 0.8);
+        vec3 n3 = triplanar_normal_udn(texture_normal,  tri_pos, wave_world_normal, blend_weights, normal_scale3, time * 1.3);
 
-	    vec3 detailed_normal = normalize(mix(mix(n1, n2, 0.5), n3, 0.3));
-	    detailed_normal = normalize(
-	        mix(wave_world_normal, detailed_normal, clamp(normal_intensity, 0.0, 100.0))
-	    );
+        vec3 detailed_normal = normalize(mix(mix(n1, n2, 0.5), n3, 0.3));
+        detailed_normal = normalize(
+            mix(wave_world_normal, detailed_normal, clamp(normal_intensity, 0.0, 100.0))
+        );
 
-	    // Fade hacia normal radial lisa con la distancia
-	    final_world_normal = normalize(mix(detailed_normal, wave_world_normal, detail_fade));
-	}
+        // Fade hacia normal radial lisa con la distancia
+        final_world_normal = normalize(mix(detailed_normal, wave_world_normal, detail_fade));
+    }
 
     float normal_edge_factor = smoothstep(0.0, edge_scale * 3.0, z_dif);
-	normal_edge_factor = mix(normal_edge_factor, 1.0, edge_disable);
-	final_world_normal = normalize(mix(radial_normal, final_world_normal, normal_edge_factor));
+    normal_edge_factor = mix(normal_edge_factor, 1.0, edge_disable);
+    final_world_normal = normalize(mix(radial_normal, final_world_normal, normal_edge_factor));
 
-    // Refracción
+    // Nivel de espuma: 1.0 en orilla/crestas, 0.0 en agua profunda
+    float depth_foam_factor = smoothstep(foam_depth_start, foam_depth_end, water_depth);
+    // Usamos dot con la normal radial para detectar crestas en una esfera planetaria.
+    // dot ≈ 1.0 = superficie plana, dot < threshold = cresta de ola.
+    float normal_alignment = dot(final_world_normal, radial_normal);
+    float wave_crest_factor = smoothstep(foam_crest_threshold, foam_crest_threshold - 0.1, normal_alignment);
+    wave_crest_factor *= foam_crest_amount;
+    float foam_level = clamp(depth_foam_factor + wave_crest_factor, 0.0, 1.0);
+
+    // Domain warp animado para movimiento de corriente
+    vec2 flow_uv = world_pos.xz * 0.5 + TIME * 0.05 * foam_noise_speed;
+    vec2 warp = vec2(
+        noise3d(vec3(flow_uv, 0.0)),
+        noise3d(vec3(flow_uv + vec2(5.2, 1.3), 0.0))
+    ) * 0.5;
+
+    // Refracción — suprimida donde aparece espuma
     vec3 tangent_deviation = final_world_normal - radial_normal;
     vec3 enhanced_deviation = tangent_deviation * 5.0;
     vec3 tangent_dev_view = (VIEW_MATRIX * vec4(enhanced_deviation, 0.0)).xyz;
 
-    float screen_influence = 1.0;
-	// PASS 1 — sondeo barato para estimar la profundidad real en el destino
-	vec2 probe_offset = tangent_dev_view.xy * refraction_strength * 0.5;
-	vec2 probe_uv = clamp(SCREEN_UV + probe_offset,
-	                      vec2(refraction_uv_margin),
-	                      vec2(1.0 - refraction_uv_margin));
-	float probe_depth_sample = texture(DEPTH_TEXTURE, probe_uv).r;
-	float probe_linear = linearize_depth(probe_uv, probe_depth_sample, INV_PROJECTION_MATRIX);
-	float depth_at_probe = max(probe_linear - frag_linear, 0.0);
+    vec2 probe_offset = tangent_dev_view.xy * refraction_strength * 0.5;
+    vec2 probe_uv = clamp(SCREEN_UV + probe_offset,
+                          vec2(refraction_uv_margin),
+                          vec2(1.0 - refraction_uv_margin));
+    float probe_depth_sample = texture(DEPTH_TEXTURE, probe_uv).r;
+    float probe_linear = linearize_depth(probe_uv, probe_depth_sample, INV_PROJECTION_MATRIX);
+    float depth_at_probe = max(probe_linear - frag_linear, 0.0);
 
-	// Escala continua (no saturada). El cap evita artefactos en silueta.
-	float depth_fac = clamp(depth_at_probe / refraction_depth_fade, 0.0, 4.0);
+    float depth_fac = clamp(depth_at_probe / refraction_depth_fade, 0.0, 4.0);
 
-	// Compensación de proyección: misma desviación angular → más píxeles si el fondo está lejos.
-	float screen_scale = frag_linear / max(probe_linear, 0.001);
+    float refraction_angle_factor = smoothstep(0.15, 0.6, cos_view);
+    vec4 dev_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(enhanced_deviation, 0.0);
+    vec2 dev_screen = dev_clip.xy / max(frag_linear, 0.001);
 
-	// Cerca de 1 cuando miras recto, cerca de 0 a ángulos rasantes
-	float refraction_angle_factor = smoothstep(0.15, 0.6, cos_view);
-		// Convierte la desviación a NDC en lugar de view-space crudo
-	vec4 dev_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(enhanced_deviation, 0.0);
-	vec2 dev_screen = dev_clip.xy / max(frag_linear, 0.001);
-
-	vec2 refraction_offset = dev_screen
-	                       * refraction_strength
-	                       * depth_fac
-	                       * refraction_angle_factor; // ya sin screen_scale
-
-
-	//refraction_offset += vec2(sin(world_pos.z * 5.0 + TIME), cos(world_pos.x * 5.0 + TIME)) * 0.002;
+    vec2 refraction_offset = dev_screen
+                           * refraction_strength
+                           * depth_fac
+                           * refraction_angle_factor
+                           * (1.0 - foam_level); // sin refracción en orillas
 
     vec2 refracted_uv = clamp(
         SCREEN_UV + refraction_offset,
@@ -332,7 +399,6 @@ void fragment() {
     float scene_linear = linearize_depth(final_uv, texture(DEPTH_TEXTURE, final_uv).r, INV_PROJECTION_MATRIX);
     float depth_diff = max(scene_linear - frag_linear, 0.0);
     float water_column = depth_diff / cos_view;
-
 
     float sphere_water_depth = ray_sphere_depth(CAMERA_POSITION_WORLD, view_dir_w, planet_center, water_radius);
     float measured_water_depth = max(terrain_water_depth, water_column);
@@ -355,36 +421,18 @@ void fragment() {
     vec3 color = mix(water_scatter, refracted_light, visibility);
     color = mix(color, color_deep.rgb, view_opacity_factor);
 
-	vec3 view_normal = normalize((VIEW_MATRIX * vec4(final_world_normal, 0.0)).xyz);
-	NORMAL = view_normal;
-    // Superficie y borde
-	float fresnel_value = fresnel(sky_fresnel_power, view_normal, VIEW);
+    vec3 view_normal = normalize((VIEW_MATRIX * vec4(final_world_normal, 0.0)).xyz);
+    NORMAL = view_normal;
+
+    float fresnel_value = fresnel(sky_fresnel_power, view_normal, VIEW);
     vec3 surface_color = mix(albedo, albedo2, fresnel_value);
 
-    float animated_edge = edge_scale * (1.0 + height * 0.5);
-    float shore_depth = max(z_dif, 0.0);
-    float shore_feather = smoothstep(0.0, shore_foam_softness, shore_depth);
-    float shore_alpha_fade = smoothstep(0.0, shore_alpha_fade_distance, shore_depth);
-    float shore_noise = texture(wave, water_sphere_uv(world_pos) * 1.7 + water_time * time_scale).r;
-    float shore_alpha_noise = mix(1.0 - shore_alpha_noise_strength, 1.0, shore_noise);
-    float fade_factor = 1.0 - smoothstep(0.0, animated_edge * 2.0, shore_depth);
-	fade_factor *= edge_visibility;
-    float softened_edge = fade_factor * shore_edge_color_strength * shore_feather;
-    vec3 blended_edge_color = mix(color, edge_color, softened_edge);
-    float foam_inner_fade = smoothstep(0.08, 0.45, shore_feather);
-    float foam_outer_fade = 1.0 - smoothstep(0.65, 1.0, shore_feather);
-    float shore_foam = foam_inner_fade * foam_outer_fade * fade_factor;
-    float edge_foam = smoothstep(1.0 - foam_edge_width, 1.0, fade_factor) * shore_feather * 0.35;
-    float foam_on_edge = max(edge_foam, shore_foam) * shore_foam_intensity;
-    blended_edge_color = mix(blended_edge_color, foam_color, foam_on_edge);
-
-    // Reflexión de cielo
-	vec3 reflected_view = reflect(-VIEW, view_normal);
+    vec3 reflected_view = reflect(-VIEW, view_normal);
     vec3 sky_color = calculate_sky_color(reflected_view);
     vec3 sky_reflection = sky_color * sky_influence;
 
-    vec3 final_albedo = mix(blended_edge_color, sky_reflection, fresnel_value * 0.8);
-    final_albedo = mix(final_albedo, blended_edge_color, adjusted_depth_blend * 0.3);
+    vec3 final_albedo = mix(color, sky_reflection, fresnel_value * 0.8);
+    final_albedo = mix(final_albedo, color, adjusted_depth_blend * 0.3);
     final_albedo = mix(final_albedo, sky_reflection, fresnel_value * sky_influence);
     final_albedo += surface_color * fresnel_value * 0.15;
     final_albedo = mix(final_albedo, color_deep.rgb, opacity_factor);
@@ -400,20 +448,59 @@ void fragment() {
     vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask * visibility;
     final_albedo += sss_contrib;
 
+    // Espuma procedural Voronoi
+    float foam_mask_primary = 0.0;
+    float foam_mask_shadow  = 0.0;
+
+    if (water_depth > 0.01) {
+        vec2 foam_uv = world_pos.xz * foam_noise_scale + warp;
+
+        // Control de emergencia: la espuma no aparece en todos lados a la vez
+        float emergence_noise = noise3d(vec3(world_pos.xz * 0.5, TIME * 0.2 * foam_noise_speed));
+        emergence_noise = smoothstep(0.0, 1.0, emergence_noise * 0.5 + 0.5);
+        float effective_emergence = mix(emergence_noise, 1.0, foam_level);
+
+        float foam_noise_val = fbm_voronoi(foam_uv) * effective_emergence;
+
+        // Muestra desplazada para crear borde oscuro que simula grosor
+        vec2 foam_uv_shadow = (world_pos.xz + foam_edge_offset) * foam_noise_scale + warp;
+        float foam_noise_shadow_val = fbm_voronoi(foam_uv_shadow) * effective_emergence;
+
+        float combined_noise  = foam_noise_val + foam_level;
+        float combined_shadow = foam_noise_shadow_val + foam_level;
+
+        foam_mask_primary = smoothstep(foam_cutoff + 0.5, foam_cutoff + 0.6, combined_noise);
+        float shadow_shape = smoothstep(foam_cutoff + 0.5, foam_cutoff + 0.6, combined_shadow);
+        foam_mask_shadow = clamp(shadow_shape - foam_mask_primary, 0.0, 1.0);
+    }
+
+    // Burbujas internas: textura Voronoi adicional dentro de la espuma
+    float voronoi_val = 1.0 - sqrt(voronoi_noise(world_pos.xz * voronoi_scale + warp));
+    voronoi_val = smoothstep(0.2, 0.8, voronoi_val);
+    float bubble_alpha = 1.0 - clamp((1.0 - voronoi_val) * voronoi_strength, 0.0, 1.0);
+
+    // En z_dif ≈ 0 (contacto exacto con el terreno): difuminado blanco suave.
+    // Se atenúa el Voronoi para que no quede un borde duro, y se superpone un glow.
+    float shore_contact = smoothstep(shore_soft_width, 0.0, max(z_dif, 0.0)) * depth_foam_factor;
+    float foam_soften   = 1.0 - shore_contact * 0.85;
+
+    final_albedo = mix(final_albedo, foam_edge_color, foam_mask_shadow * foam_soften);
+    final_albedo = mix(final_albedo, foam_color, foam_mask_primary * bubble_alpha * foam_soften);
+    final_albedo = mix(final_albedo, foam_color, shore_contact);
+
     ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
 
-    // Alpha by terrain depth: shallow seabed stays transparent, deep water becomes opaque.
+    // Alpha: se desvanece suavemente en la línea de contacto con el terreno
+    float shore_alpha_fade = smoothstep(0.0, shore_soft_width, max(z_dif, 0.0));
     float base_alpha = mix(surface_alpha, deep_alpha, opacity_factor);
-    float foam_alpha = foam_on_edge * foam_alpha_boost * 0.35;
-    float alpha_with_foam = base_alpha + foam_alpha * (1.0 - base_alpha);
     float refraction_alpha = refraction_alpha_floor * (1.0 - opacity_factor);
-    float shore_alpha = mix(surface_alpha * shore_alpha_noise, 1.0, shore_alpha_fade);
-	shore_alpha = mix(shore_alpha, 1.0, edge_disable);
-    ALPHA = clamp(max(alpha_with_foam, refraction_alpha) * shore_alpha, 0.0, deep_alpha);
+    float foam_opacity = max(max(foam_mask_primary * bubble_alpha, foam_mask_shadow) * foam_soften, shore_contact);
+    float final_alpha = max(max(base_alpha, refraction_alpha), foam_opacity);
+    final_alpha *= shore_alpha_fade;
+    final_alpha = mix(final_alpha, 1.0, edge_disable);
+    ALPHA = clamp(final_alpha, 0.0, deep_alpha);
 
+    ROUGHNESS = mix(roughness, 0.8, (foam_mask_primary * bubble_alpha) + foam_mask_shadow);
     SPECULAR = 0.5;
     METALLIC = metallic;
-    ROUGHNESS = roughness;
-
-
 }
