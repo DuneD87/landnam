@@ -1,0 +1,14 @@
+[remap]
+
+importer="image"
+type="Image"
+uid="uid://cbx86eyy20ifd"
+path="res://.godot/imported/earth_heightmap.png-0cf27974fb1b2e15221ac878d587461f.image"
+
+[deps]
+
+source_file="res://textures/planet/heightmap/earth_heightmap.png"
+dest_files=["res://.godot/imported/earth_heightmap.png-0cf27974fb1b2e15221ac878d587461f.image"]
+
+[params]
+
