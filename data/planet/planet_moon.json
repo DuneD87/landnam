@@ -1,7 +1,7 @@
 {
 	"terrain_settings": {
 		"radius": 6000.0,
-		"terrain_generator": "res://data/graph_functions/earth_terrain.tres",
+		"terrain_generator": "res://data/graph_functions/moon_terrain.tres",
 		"has_water": false,
 		"water_level": 0.0
 	},

@@ -13,15 +13,25 @@ terrace_smoothness = 0.8
 
 [sub_resource type="FastNoise2" id="FastNoise2_aqix3"]
 seed = 64
-period = 1200.0
+period = 6000.0
 fractal_type = 1
-fractal_octaves = 4
-fractal_lacunarity = 8.0
-fractal_gain = 0.1
+fractal_octaves = 6
+fractal_lacunarity = 5.0
+fractal_gain = 0.2
+
+[sub_resource type="FastNoise2" id="FastNoise2_scuyd"]
+period = 6000.0
+fractal_type = 2
+fractal_octaves = 2
+fractal_lacunarity = 1.5
+fractal_gain = 0.2
+cellular_distance_function = 2
+cellular_return_type = 2
+terrace_multiplier = 4.0
 
 [resource]
 graph_data = {
-"connections": [[17, 0, 20, 0], [1, 0, 6, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [1, 0, 13, 0], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [18, 0, 17, 0], [10, 0, 4, 0], [13, 0, 33, 1], [16, 0, 22, 1], [19, 0, 17, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [24, 0, 34, 0], [28, 0, 10, 1], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [33, 0, 28, 0], [34, 0, 28, 1], [6, 0, 10, 0]],
+"connections": [[17, 0, 20, 0], [1, 0, 6, 0], [1, 0, 18, 0], [1, 0, 18, 1], [1, 0, 24, 0], [1, 0, 13, 0], [2, 0, 6, 1], [2, 0, 13, 1], [2, 0, 19, 0], [2, 0, 19, 1], [2, 0, 22, 0], [2, 0, 24, 1], [18, 0, 17, 0], [10, 0, 4, 0], [13, 0, 33, 1], [16, 0, 22, 1], [19, 0, 17, 1], [20, 0, 16, 0], [21, 0, 20, 1], [22, 0, 23, 0], [24, 0, 34, 0], [28, 0, 36, 0], [3, 0, 6, 2], [3, 0, 13, 2], [3, 0, 21, 0], [3, 0, 21, 1], [3, 0, 24, 2], [33, 0, 28, 0], [34, 0, 28, 1], [6, 0, 10, 0], [35, 0, 37, 0], [36, 0, 10, 1], [37, 0, 36, 1]],
 "nodes": {
 "1": {
 "auto_connect": false,
@@ -30,7 +40,7 @@ graph_data = {
 },
 "10": {
 "auto_connect": false,
-"gui_position": Vector2(1160, 293.33334),
+"gui_position": Vector2(2100, 300),
 "type": "Add"
 },
 "13": {
@@ -87,7 +97,7 @@ graph_data = {
 },
 "24": {
 "auto_connect": true,
-"gui_position": Vector2(-26.666666, 626.6667),
+"gui_position": Vector2(-30, 630),
 "name": &"fast_noise_poles",
 "noise": SubResource("FastNoise2_aqix3"),
 "type": "FastNoise2_3D"
@@ -110,13 +120,33 @@ graph_data = {
 },
 "34": {
 "auto_connect": false,
-"b": 100.0,
+"b": 300.0,
 "gui_position": Vector2(413.333, 600),
+"type": "Multiply"
+},
+"35": {
+"auto_connect": true,
+"gui_position": Vector2(920, 630),
+"noise": SubResource("FastNoise2_scuyd"),
+"type": "FastNoise2_3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"36": {
+"auto_connect": false,
+"gui_position": Vector2(1470, 520),
+"type": "Subtract"
+},
+"37": {
+"auto_connect": false,
+"b": 500.0,
+"gui_position": Vector2(1200, 590),
 "type": "Multiply"
 },
 "4": {
 "auto_connect": true,
-"gui_position": Vector2(1520, 328.8889),
+"gui_position": Vector2(2620, 430),
 "type": "OutputSDF"
 },
 "6": {

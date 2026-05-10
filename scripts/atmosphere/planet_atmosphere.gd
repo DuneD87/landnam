@@ -191,8 +191,6 @@ func _free_compute() -> void:
 
 
 func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data: RenderData) -> void:
-	print("Atmosphere callback type: ", p_effect_callback_type, " expected: ", effect_callback_type)
-
 	if not enabled:
 		return
 

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cuv6mxdmxyw00"]
 
-[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
+[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/planet/planet_loader.gd" id="1_8l55o"]
 
 [sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_olenk"]
 database_path = "user://saves/planet_node3d.sqlite"

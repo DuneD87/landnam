@@ -49,7 +49,22 @@ func _change_state(new_state: State) -> void:
 
 # ── Save / Load ──────────────────────────────────────────────────────────────
 
+func _move_spawn_point_to_player() -> void:
+	if not player or not is_instance_valid(player):
+		push_warning("SaveSystem: cannot move SpawnPoint because player is not registered")
+		return
+
+	var spawn_point := get_tree().current_scene.find_child("SpawnPoint", true, false) as Node3D
+	if not spawn_point:
+		push_warning("SaveSystem: SpawnPoint not found in current scene")
+		return
+
+	spawn_point.global_position = player.global_position
+
+
 func save_game(slot_name: String = "default") -> bool:
+	_move_spawn_point_to_player()
+
 	var voxel_entities := get_tree().get_nodes_in_group(SAVEABLE_GROUP).filter(
 		func(e): return e.has_method("save_voxel_data")
 	)

@@ -50,8 +50,10 @@ sky_material = SubResource("ShaderMaterial_tcpsq")
 [sub_resource type="Environment" id="Environment_0x85g"]
 background_mode = 2
 sky = SubResource("Sky_hj7oe")
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 0.1
 tonemap_mode = 3
-ssr_enabled = true
 ssao_enabled = true
 ssil_enabled = true
 sdfgi_enabled = true
@@ -79,6 +81,7 @@ sun_direction = Vector3(0.34935692, 0, -0.9369898)
 wavelengths = Vector3(500, 330, 440)
 scattering_strength = 5.5e-05
 sun_intensity = 1.0
+clouds_enabled = false
 metadata/_custom_type_script = "uid://cbk4obm06js3v"
 
 [sub_resource type="Compositor" id="Compositor_cpkft"]
@@ -95,9 +98,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@38582")
+water_sphere = NodePath("@Node3D@55254")
 global_pos = Vector3(0, 0, 15000)
-planet = NodePath("@Node3D@38581")
+planet = NodePath("@Node3D@55253")
 entity_id = "planet_earth"
 
 [node name="PlanetAtmosphereController" type="Node" parent="Planets/Earth" unique_id=1714628713 node_paths=PackedStringArray("planet_node", "sun_node")]
@@ -115,7 +118,7 @@ sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, -85000)
 global_pos = Vector3(0, 0, -55000)
-planet = NodePath("@Node3D@38588")
+planet = NodePath("@Node3D@55260")
 entity_id = "planet_moon"
 
 [node name="PlanetAtmosphereController" type="Node" parent="Planets/Moon" unique_id=1282944133 node_paths=PackedStringArray("planet_node", "sun_node")]
