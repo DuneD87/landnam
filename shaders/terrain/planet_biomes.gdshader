@@ -51,7 +51,7 @@ uniform float height_blend_contrast : hint_range(0.25, 4.0) = 1.8;
 uniform float texture_scale = 0.1;
 uniform float normal_strength : hint_range(0.0, 4.0) = 4.0;
 
-uniform bool parallax_enabled = false;
+uniform bool parallax_enabled = true;
 uniform float parallax_strength : hint_range(0.0, 3.0) = 0.09;
 uniform float parallax_height_center : hint_range(0.0, 1.0) = 0.5;
 uniform float parallax_height_contrast : hint_range(0.1, 4.0) = 1.0;
