@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://cyoolrj4g2q5i"]
 
-[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/liquid/water_shader.gdshader" id="1_8rr25"]
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="1_8rr25"]
 [ext_resource type="Texture2D" uid="uid://bpq0hrluosimg" path="res://textures/planet/water/caust00.png" id="2_2w31q"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_th24p"]
@@ -45,6 +45,10 @@ seamless = true
 [resource]
 render_priority = 3
 shader = ExtResource("1_8rr25")
+shader_parameter/debug_wireframe = true
+shader_parameter/wireframe_thickness = 1.5
+shader_parameter/wireframe_color = Color(0, 1, 0.4, 1)
+shader_parameter/wireframe_bg = Color(0.05, 0.05, 0.1, 1)
 shader_parameter/albedo = Color(0.15355265, 0.4294802, 0.62003887, 1)
 shader_parameter/albedo2 = Color(0.1, 0.35, 0.5, 1)
 shader_parameter/metallic = 0.40000000596048
@@ -54,17 +58,18 @@ shader_parameter/texture_normal2 = SubResource("NoiseTexture2D_mq8mb")
 shader_parameter/wave = SubResource("NoiseTexture2D_8rr25")
 shader_parameter/wave_direction = Vector2(0.5, 0)
 shader_parameter/wave_direction2 = Vector2(0, 0.5)
-shader_parameter/time_scale = 0.0010000000475
+shader_parameter/time_scale = 0.0050000002375
 shader_parameter/noise_scale = 8.0
-shader_parameter/height_scale = 0.35
+shader_parameter/height_scale = 6.0
 shader_parameter/normal_scale1 = 10.00000047174012
 shader_parameter/normal_scale2 = 500.0
 shader_parameter/normal_scale3 = 500.0
-shader_parameter/normal_intensity = 9.0000004275
-shader_parameter/wave_normal_sample_distance = 2.0
-shader_parameter/wave_speed = 1.5
-shader_parameter/wave_amplitude = 4.0
-shader_parameter/wave_frequency = 2.0
+shader_parameter/normal_intensity = 7.0
+shader_parameter/wave_normal_sample_distance = 1.4999999664719998
+shader_parameter/wave_speed = 1.2
+shader_parameter/wave_amplitude = 1.5
+shader_parameter/wave_frequency = 0.062
+shader_parameter/wave_world_scale = 100.0000047025
 shader_parameter/color_deep = Color(0.042529278, 0.21544775, 0.36671498, 1)
 shader_parameter/color_shallow = Color(0.37, 0.72, 0.71, 1)
 shader_parameter/beers_law = 0.5

@@ -14,64 +14,17 @@ var is_subdivided: bool = false
 var face_normal: Vector3
 var face_up: Vector3
 var face_right: Vector3
+var planet_center: Vector3 = Vector3.ZERO
 
-func get_projected_position(planet_center: Vector3) -> Vector3:
-	var quad_center_global = global_transform.origin
-	var direction = (quad_center_global - planet_center).normalized()
-	
-	return planet_center + direction * planet_radius
-
-func _calculate_projected_size(planet_center: Vector3) -> Dictionary:
-	var half_size = size * 0.5
-	
-	var corner_offsets = [
-		face_right * (-half_size) + face_up * (-half_size),
-		face_right * (half_size) + face_up * (-half_size),
-		face_right * (-half_size) + face_up * (half_size),
-		face_right * (half_size) + face_up * (half_size)
-	]
-	
-	var edge_midpoints = [
-		face_up * (-half_size),              # mig inferior
-		face_up * (half_size),               # mig superior
-		face_right * (-half_size),           # mig esquerre
-		face_right * (half_size),            # mig dret
-	]
-	
-	var all_offsets = corner_offsets + edge_midpoints
-	
-	var shifted = all_offsets.map(func(offset): return offset + face_normal * (planet_radius / 2))
-	var world_points = shifted.map(func(s): return global_position + s)
-	var proj_points = world_points.map(func(w): return planet_center + (w - planet_center).normalized() * planet_radius)
-	
-	var side1 = proj_points[0].distance_to(proj_points[1])
-	var side2 = proj_points[0].distance_to(proj_points[2])
-	var side3 = proj_points[1].distance_to(proj_points[3])
-	var side4 = proj_points[2].distance_to(proj_points[3])
-	var avg_size = (side1 + side2 + side3 + side4) / 4.0
-	
-	var proj_center = get_projected_position(planet_center)
-	var projected_points = proj_points + [proj_center]
-	
-	return {'size': avg_size, 'projected_points': projected_points}
-
-func should_subdivide(camera_position: Vector3, planet_center: Vector3) -> bool:
+func should_subdivide(camera_position: Vector3) -> bool:
 	if level >= max_level:
 		return false
-	
 	if level < min_level:
 		return true
-	
-	var proj_data = _calculate_projected_size(planet_center)
-	var projected_size = proj_data['size']
-	var projected_points = proj_data['projected_points']
 
-	var distances = projected_points.map(func(p): return p.distance_to(camera_position))
-	var min_distance_to_camera = distances.min()
-	
-	var threshold_distance = projected_size * subdivision_factor
-	
-	return min_distance_to_camera < threshold_distance
+	var proj_center = planet_center + (global_position - planet_center).normalized() * planet_radius
+	var dist = maxf(0.0, proj_center.distance_to(camera_position) - size * 0.5)
+	return dist < size * subdivision_factor
 
 func subdivide():
 	if is_subdivided:
@@ -102,6 +55,7 @@ func subdivide():
 			face_right,
 			planet_radius,
 		)
+		children[i].planet_center = planet_center
 		children[i].max_level = max_level
 		add_child(children[i])
 	
@@ -128,14 +82,14 @@ func merge():
 	children.clear()
 	is_subdivided = false
 	
-func update_lod(camera_position: Vector3, planet_center: Vector3):
-	var should_be_subdivided = should_subdivide(camera_position, planet_center)
+func update_lod(camera_position: Vector3):
+	var should_be_subdivided = should_subdivide(camera_position)
 	if should_be_subdivided and not is_subdivided:
 		subdivide()
 	elif not should_be_subdivided and is_subdivided:
 		merge()
-	
+
 	if is_subdivided:
 		for child in children:
 			if child != null:
-				child.update_lod(camera_position, planet_center)
+				child.update_lod(camera_position)

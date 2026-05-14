@@ -770,6 +770,7 @@ func _physics_process(delta: float):
 		collision_model.disabled = true
 		camera_controller.camera_pivot.global_position = global_position
 		update_free_flight(delta)
+		_check_needs_swimming(delta)
 	else:
 		if Input.is_action_pressed("left_ctrl") || (Input.is_action_pressed("left_shift") && building_system.build_mode):
 			return

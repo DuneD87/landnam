@@ -8,6 +8,8 @@ signal quadtree_changed(active_quad_data: Array)
 @export var max_lod: int
 @export var subdivision_factor: float
 @export var player: CharacterBody3D
+@export var cull_threshold: float = -0.2
+@export var debug_cull: bool = false
 var root_quads: Array[QuadNode] = []
 var last_camera_position: Vector3
 var update_threshold: float = 20.0
@@ -90,8 +92,9 @@ func _create_root_quads():
 		)
 		root_quad.max_level = max_lod
 		root_quad.subdivision_factor = subdivision_factor
+		root_quad.planet_center = global_position
 		root_quad.name = "QuadRoot_" + face_data.name
-		
+
 		add_child(root_quad)
 		root_quads.append(root_quad)
 
@@ -104,13 +107,18 @@ func _process(_delta):
 		_update_quadtree(camera_pos)
 		last_camera_position = camera_pos
 
-func _emit_quadtree_changed():
+func _emit_quadtree_changed(camera_position: Vector3):
 	var active_quad_data = []
-	
-	# Recolectar quads activos de todas las caras
+	var view_dir = (camera_position - global_position).normalized()
+
 	for root_quad in root_quads:
+		var dot = root_quad.face_normal.dot(view_dir)
+		if debug_cull:
+			print("[emit] %s  dot=%.2f  %s" % [root_quad.name, dot, "SKIP" if dot < cull_threshold else "COLLECT"])
+		if dot < cull_threshold:
+			continue
 		_collect_active_quads(root_quad, active_quad_data)
-	
+
 	quadtree_changed.emit(active_quad_data)
 
 func _collect_active_quads(node: QuadNode, data_array: Array):
@@ -134,11 +142,18 @@ func _collect_active_quads(node: QuadNode, data_array: Array):
 			if child != null:
 				_collect_active_quads(child, data_array)
 
-func _update_quadtree(camera_position: Vector3):	
+func _update_quadtree(camera_position: Vector3):
+	var view_dir = (camera_position - global_position).normalized()
 	for root_quad in root_quads:
-		root_quad.update_lod(camera_position, global_position)
-	
-	_emit_quadtree_changed()
+		var dot = root_quad.face_normal.dot(view_dir)
+		var culled = dot < cull_threshold
+		if debug_cull:
+			print("[cull] %s  dot=%.2f  %s" % [root_quad.name, dot, "SKIP" if culled else "UPDATE"])
+		if culled:
+			continue
+		root_quad.update_lod(camera_position)
+
+	_emit_quadtree_changed(camera_position)
 
 # Métodos auxiliares opcionales para debugging o control específico
 func get_face_quad(face_name: String) -> QuadNode:

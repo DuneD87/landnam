@@ -1,5 +1,10 @@
 shader_type spatial;
-render_mode blend_mix, shadows_disabled, depth_draw_always;
+render_mode blend_mix, shadows_disabled, depth_draw_always, wireframe;
+
+uniform bool debug_wireframe = true;
+uniform float wireframe_thickness : hint_range(0.5, 5.0) = 1.5;
+uniform vec3 wireframe_color : source_color = vec3(0.0, 1.0, 0.4);
+uniform vec3 wireframe_bg : source_color = vec3(0.05, 0.05, 0.1);
 
 uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
@@ -28,6 +33,7 @@ uniform float wave_normal_sample_distance : hint_range(0.01, 100.0, 0.01) = 2.0;
 uniform float wave_speed = 1.5;
 uniform float wave_amplitude = 4.0;
 uniform float wave_frequency = 2.0;
+uniform float wave_world_scale : hint_range(1.0, 500.0) = 60.0; // metros por tile
 
 uniform vec4 color_deep : source_color = vec4(0.02, 0.14, 0.25, 1.0);
 uniform vec4 color_shallow : source_color = vec4(0.37, 0.72, 0.71, 1.0);
@@ -102,6 +108,40 @@ float fresnel(float amount, vec3 normal, vec3 view) {
     return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
 }
 
+float generate_wave_world(vec3 wpos, vec3 radial, float t) {
+    vec3 seed = abs(radial.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0);
+    vec3 tan = normalize(cross(seed, radial));
+    vec3 bit = normalize(cross(radial, tan));
+
+    vec3 local = wpos - planet_center;
+    vec2 p = vec2(dot(local, tan), dot(local, bit));
+
+    float w1 = sin(p.x * wave_frequency + t * wave_speed) * wave_amplitude;
+    float w2 = sin(p.y * wave_frequency * 0.7 + t * wave_speed * 0.8) * wave_amplitude * 0.5;
+    float w3 = sin((p.x + p.y) * wave_frequency * 0.5 + t * wave_speed * 1.2) * wave_amplitude * 0.3;
+    return (w1 + w2 + w3) * 0.1;
+}
+
+float sample_water_height(vec3 sample_world_pos, float time_value) {
+    vec3 radial = normalize(sample_world_pos - planet_center);
+    vec3 tri_pos = sample_world_pos - planet_center;
+
+    vec3 w = abs(radial);
+    w = pow(w, vec3(4.0));
+    w /= (w.x + w.y + w.z);
+
+    vec2 t = wave_direction * time_value * time_scale;
+
+    float h_xz = texture(wave, tri_pos.xz / wave_world_scale + t).r;
+    float h_xy = texture(wave, tri_pos.xy / wave_world_scale + t).r;
+    float h_yz = texture(wave, tri_pos.yz / wave_world_scale + t).r;
+
+    float tex_height = h_xz * w.y + h_xy * w.z + h_yz * w.x;
+    float procedural = generate_wave_world(sample_world_pos, radial, time_value);
+
+    return (tex_height + procedural) * height_scale;
+}
+
 float generate_wave(vec2 pos, float time) {
     float wave1 = sin(pos.x * wave_frequency + time * wave_speed) * wave_amplitude;
     float wave2 = sin(pos.y * wave_frequency * 0.7 + time * wave_speed * 0.8) * wave_amplitude * 0.5;
@@ -117,12 +157,12 @@ vec2 water_sphere_uv(vec3 sample_world_pos) {
     ) * noise_scale;
 }
 
-float sample_water_height(vec3 sample_world_pos, float time_value) {
+/*float sample_water_height(vec3 sample_world_pos, float time_value) {
     vec2 uv_coords = water_sphere_uv(sample_world_pos);
     float wave_height = texture(wave, uv_coords / noise_scale + time_value * time_scale).r;
     float procedural_height = generate_wave(uv_coords, time_value);
     return (wave_height + procedural_height) * height_scale;
-}
+}*/
 
 vec3 calculate_wave_world_normal(vec3 sample_world_pos, vec3 radial_normal, float time_value) {
     vec3 tangent_seed = abs(radial_normal.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
@@ -539,4 +579,5 @@ void fragment() {
     ROUGHNESS = mix(roughness, 0.8, (foam_mask_primary * bubble_alpha) + foam_mask_shadow);
     SPECULAR = 0.5;
     METALLIC = metallic;
+	
 }

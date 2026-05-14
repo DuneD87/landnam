@@ -22,6 +22,7 @@ var shared_rd: RenderingDevice
 var shared_compute_shader: RID
 
 func initialize(quadtree_manager: Node3D):
+	print(sub_divisions)
 	quad_tree_manager = quadtree_manager
 	quad_tree_manager.quadtree_changed.connect(_on_quadtree_changed)
 	

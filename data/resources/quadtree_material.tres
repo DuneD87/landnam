@@ -1,23 +1,23 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://csxys5banaiv8"]
 
-[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/liquid/water_shader.gdshader" id="1_ro0k7"]
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="1_ro0k7"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_th24p"]
 noise_type = 3
 fractal_type = 2
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_rqd8l"]
+noise = SubResource("FastNoiseLite_th24p")
 seamless = true
 as_normal_map = true
-noise = SubResource("FastNoiseLite_th24p")
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_mq8mb"]
 noise_type = 3
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_7ps6u"]
+noise = SubResource("FastNoiseLite_mq8mb")
 seamless = true
 as_normal_map = true
-noise = SubResource("FastNoiseLite_mq8mb")
 
 [resource]
 render_priority = 1
@@ -31,24 +31,63 @@ shader_parameter/texture_normal2 = SubResource("NoiseTexture2D_7ps6u")
 shader_parameter/wave_direction = Vector2(2, 0)
 shader_parameter/wave_direction2 = Vector2(0, 1)
 shader_parameter/time_scale = 0.025
-shader_parameter/noise_scale = 10.0
-shader_parameter/height_scale = 0.15
-shader_parameter/wave_speed = 1.0
-shader_parameter/wave_amplitude = 1.0
-shader_parameter/wave_frequency = 1.0
+shader_parameter/noise_scale = 8.0
+shader_parameter/height_scale = 2.0
+shader_parameter/normal_scale1 = 40.0
+shader_parameter/normal_scale2 = 120.0
+shader_parameter/normal_scale3 = 350.0
+shader_parameter/normal_intensity = 7.0
+shader_parameter/wave_normal_sample_distance = 2.0
+shader_parameter/wave_speed = 1.5
+shader_parameter/wave_amplitude = 4.0
+shader_parameter/wave_frequency = 2.0
+shader_parameter/wave_world_scale = 60.0
 shader_parameter/color_deep = Color(0, 0, 0, 1)
 shader_parameter/color_shallow = Color(0, 0, 0, 1)
 shader_parameter/beers_law = 2.0
 shader_parameter/depth_offset = -0.75
+shader_parameter/absorption_coefficients = Vector3(0.45, 0.18, 0.06)
 shader_parameter/edge_scale = 0.01
-shader_parameter/near = 1.0
-shader_parameter/far = 100.0
-shader_parameter/edge_color = Color(0, 0, 0, 1)
-shader_parameter/view_opacity_start = 5.0
-shader_parameter/view_opacity_end = 30.0
-shader_parameter/view_opacity_power = 2.0
+shader_parameter/edge_disable_start = 60.0
+shader_parameter/edge_disable_end = 150.0
+shader_parameter/detail_fade_start = 80.0
+shader_parameter/detail_fade_end = 250.0
+shader_parameter/surface_alpha = 0.15
+shader_parameter/deep_alpha = 1.0
+shader_parameter/refraction_alpha_floor = 0.32
+shader_parameter/refraction_strength = 0.05
+shader_parameter/refraction_depth_fade = 8.0
+shader_parameter/refraction_uv_margin = 0.002
+shader_parameter/depth_alpha_start = 0.0
+shader_parameter/depth_alpha_end = 40.0
+shader_parameter/depth_alpha_power = 1.4
 shader_parameter/sky_color_horizon = Color(0.8, 0.9, 1, 1)
 shader_parameter/sky_color_zenith = Color(0.2, 0.4, 0.8, 1)
 shader_parameter/sky_influence = 1.0
 shader_parameter/sky_fresnel_power = 3.0
 shader_parameter/sky_gradient_power = 2.0
+shader_parameter/sun_direction = Vector3(0.4, -0.7, 0.3)
+shader_parameter/sss_color = Color(0.15, 0.55, 0.45, 1)
+shader_parameter/sss_intensity = 0.8
+shader_parameter/sss_power = 4.0
+shader_parameter/foam_color = Color(0.92, 0.96, 0.98, 1)
+shader_parameter/foam_depth_start = 0.8
+shader_parameter/foam_depth_end = 0.0
+shader_parameter/foam_noise_scale = 2.0
+shader_parameter/foam_noise_speed = 1.0
+shader_parameter/foam_cutoff = 0.7
+shader_parameter/foam_crest_threshold = 0.7
+shader_parameter/foam_crest_amount = 2.0
+shader_parameter/foam_edge_color = Color(0, 0, 0.05, 1)
+shader_parameter/foam_edge_offset = Vector2(0.02, 0.02)
+shader_parameter/voronoi_scale = 9.0
+shader_parameter/voronoi_strength = 0.8
+shader_parameter/shore_soft_width = 1.5
+shader_parameter/caustics_scale = 2.0
+shader_parameter/caustics_speed = 0.1
+shader_parameter/caustics_intensity = 0.8
+shader_parameter/caustics_depth_fade = 0.7
+shader_parameter/caustics_near_fade = 1.5
+shader_parameter/water_time = 0.0
+shader_parameter/planet_center = Vector3(0, 0, 0)
+shader_parameter/water_radius = 0.0
