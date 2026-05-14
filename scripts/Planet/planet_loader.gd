@@ -87,8 +87,8 @@ func _load_planet() -> void:
 	if planet_parser.has_water:
 		water_sphere = OceanSystem.new()
 		add_child(water_sphere)
-		water_sphere.subdivision_factor = 2.5
-		water_sphere.max_lod = 7
+		water_sphere.subdivision_factor = 1.5
+		water_sphere.max_lod = 8
 		water_sphere.sub_divisions = 32
 		#water_sphere.enable_wireframe = true
 		water_sphere.radius = planet.radius - planet_parser.water_level

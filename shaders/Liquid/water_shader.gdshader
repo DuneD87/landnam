@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix, shadows_disabled, depth_draw_always, wireframe;
+render_mode blend_mix, shadows_disabled, depth_draw_always;
 
 uniform bool debug_wireframe = true;
 uniform float wireframe_thickness : hint_range(0.5, 5.0) = 1.5;

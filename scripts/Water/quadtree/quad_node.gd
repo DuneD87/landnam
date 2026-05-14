@@ -15,6 +15,7 @@ var face_normal: Vector3
 var face_up: Vector3
 var face_right: Vector3
 var planet_center: Vector3 = Vector3.ZERO
+var render_radius: float = 0.0
 
 func should_subdivide(camera_position: Vector3) -> bool:
 	if level >= max_level:
@@ -23,6 +24,12 @@ func should_subdivide(camera_position: Vector3) -> bool:
 		return true
 
 	var proj_center = planet_center + (global_position - planet_center).normalized() * planet_radius
+	var player_foot = planet_center + (camera_position - planet_center).normalized() * planet_radius
+	var surface_dist = maxf(0.0, player_foot.distance_to(proj_center) - size * 0.5)
+
+	if render_radius > 0.0 and surface_dist <= render_radius:
+		return true
+
 	var dist = maxf(0.0, proj_center.distance_to(camera_position) - size * 0.5)
 	return dist < size * subdivision_factor
 
@@ -56,6 +63,7 @@ func subdivide():
 			planet_radius,
 		)
 		children[i].planet_center = planet_center
+		children[i].render_radius = render_radius
 		children[i].max_level = max_level
 		add_child(children[i])
 	

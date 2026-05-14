@@ -93,6 +93,7 @@ func _create_quad_surface(quad_info: Dictionary):
 	
 	var local_position = to_local(quad_info.position)
 	
+	var level_subdivisions = min(sub_divisions, max(4, 4 << quad_info.level))
 	quad_surface.setup(
 		local_position,
 		quad_info.size,
@@ -100,10 +101,10 @@ func _create_quad_surface(quad_info: Dictionary):
 		quad_info.face_up,
 		quad_info.face_right,
 		radius,
-		sub_divisions,
+		level_subdivisions,
 		quad_info.level
 	)
-	
+
 	if quad_surface.mesh:
 		quad_surface.mesh.surface_set_material(0, default_material)
 
@@ -116,6 +117,7 @@ func _update_quad_surface(quad_info: Dictionary):
 	var local_position = to_local(quad_info.position)
    
 	if quad_surface.global_position != quad_info.position or quad_surface.quad_size != quad_info.size:
+		var level_subdivisions = min(sub_divisions, max(4, 4 << quad_info.level))
 		quad_surface.setup(
 			local_position,
 			quad_info.size,
@@ -123,7 +125,7 @@ func _update_quad_surface(quad_info: Dictionary):
 			quad_info.face_up,
 			quad_info.face_right,
 			radius,
-			sub_divisions,
+			level_subdivisions,
 			quad_info.level
 		)
 
@@ -202,7 +204,7 @@ func get_statistics() -> Dictionary:
 	
 	return stats
 	
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 	var camera = player.camera

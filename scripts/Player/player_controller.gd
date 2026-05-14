@@ -751,6 +751,7 @@ func _physics_process(delta: float):
 		return
 
 	if !mouse_captured || planets == null || planets.get_child_count() == 0:
+		_check_needs_swimming(delta)
 		return
 		
 	var closest_distance = global_position.distance_to(planets.get_child(0).position)
