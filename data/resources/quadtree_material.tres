@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://csxys5banaiv8"]
 
-[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="1_ro0k7"]
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/liquid/water_shader.gdshader" id="1_ro0k7"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_th24p"]
 noise_type = 3
@@ -22,6 +22,10 @@ as_normal_map = true
 [resource]
 render_priority = 1
 shader = ExtResource("1_ro0k7")
+shader_parameter/debug_wireframe = true
+shader_parameter/wireframe_thickness = 1.5
+shader_parameter/wireframe_color = Color(0, 1, 0.4, 1)
+shader_parameter/wireframe_bg = Color(0.05, 0.05, 0.1, 1)
 shader_parameter/albedo = Color(0.0434988, 0.583878, 0.887301, 1)
 shader_parameter/albedo2 = Color(5.96821e-06, 0.60318, 0.771197, 1)
 shader_parameter/metallic = 0.0
@@ -33,11 +37,11 @@ shader_parameter/wave_direction2 = Vector2(0, 1)
 shader_parameter/time_scale = 0.025
 shader_parameter/noise_scale = 8.0
 shader_parameter/height_scale = 2.0
-shader_parameter/normal_scale1 = 40.0
+shader_parameter/normal_scale1 = 0.10000000149012
 shader_parameter/normal_scale2 = 120.0
 shader_parameter/normal_scale3 = 350.0
-shader_parameter/normal_intensity = 7.0
-shader_parameter/wave_normal_sample_distance = 2.0
+shader_parameter/normal_intensity = 1.0000000475
+shader_parameter/wave_normal_sample_distance = 0.00999999977648
 shader_parameter/wave_speed = 1.5
 shader_parameter/wave_amplitude = 4.0
 shader_parameter/wave_frequency = 2.0
