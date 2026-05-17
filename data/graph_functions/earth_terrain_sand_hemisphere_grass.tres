@@ -1,0 +1,113 @@
+[gd_resource type="VoxelGraphFunction" format=3 uid="uid://byovbq3ornqtb"]
+
+[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_fmx27"]
+
+[resource]
+graph_data = {
+"connections": [[1, 0, 4, 0], [1, 0, 4, 1], [11, 0, 12, 0], [12, 0, 25, 0], [14, 0, 24, 0], [2, 0, 5, 0], [2, 0, 5, 1], [2, 0, 11, 0], [18, 0, 24, 1], [24, 0, 26, 0], [25, 0, 18, 2], [25, 0, 14, 2], [3, 0, 6, 0], [3, 0, 6, 1], [4, 0, 7, 0], [5, 0, 7, 1], [6, 0, 8, 1], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 11, 1], [26, 0, 17, 0], [28, 0, 26, 1]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(26.6667, -106.667),
+"type": "InputX"
+},
+"11": {
+"auto_connect": false,
+"gui_position": Vector2(1053.33, 26.6667),
+"type": "Divide"
+},
+"12": {
+"auto_connect": false,
+"gui_position": Vector2(1220, 30),
+"type": "Sin"
+},
+"14": {
+"a": 0.0,
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(1650, -120),
+"threshold": 0.0,
+"type": "Select"
+},
+"17": {
+"auto_connect": false,
+"gui_position": Vector2(2650, 70),
+"type": "CustomOutput"
+},
+"18": {
+"a": 1.0,
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(1640, 130),
+"threshold": 0.18,
+"type": "Select"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(26.6667, 53.3333),
+"type": "InputY"
+},
+"24": {
+"auto_connect": false,
+"gui_position": Vector2(1940, 30),
+"type": "Multiply"
+},
+"25": {
+"auto_connect": false,
+"gui_position": Vector2(1400, 30),
+"type": "Abs"
+},
+"26": {
+"auto_connect": false,
+"gui_position": Vector2(2310, 30),
+"type": "Multiply"
+},
+"28": {
+"auto_connect": true,
+"gui_position": Vector2(1760, 230),
+"noise": SubResource("ZN_FastNoiseLite_fmx27"),
+"type": "FastNoise3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(26.6667, 213.333),
+"type": "InputZ"
+},
+"4": {
+"auto_connect": false,
+"gui_position": Vector2(253.333, -106.667),
+"type": "Multiply"
+},
+"5": {
+"auto_connect": false,
+"gui_position": Vector2(253.333, 40),
+"type": "Multiply"
+},
+"6": {
+"auto_connect": false,
+"gui_position": Vector2(253.333, 186.667),
+"type": "Multiply"
+},
+"7": {
+"auto_connect": false,
+"gui_position": Vector2(480, -66.6667),
+"type": "Add"
+},
+"8": {
+"auto_connect": false,
+"gui_position": Vector2(640, -26.6667),
+"type": "Add"
+},
+"9": {
+"auto_connect": false,
+"gui_position": Vector2(853.333, -26.6667),
+"type": "Sqrt"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0]]
+output_definitions = [["", "CustomOutput", 0]]
