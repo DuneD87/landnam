@@ -1,20 +1,20 @@
-[gd_scene format=3 uid="uid://bn487sp6msodu"]
+[gd_scene format=3 uid="uid://c1x0qhj4yi1t8"]
 
-[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_t8hi5"]
-[ext_resource type="Resource" uid="uid://c1hsrchnwebje" path="res://data/items/material/wood.tres" id="2_wu7hq"]
-[ext_resource type="Texture2D" uid="uid://ngbm62oopq2l" path="res://textures/planet/vegetation/tree/trunk/bark_default.jpg" id="3_1a6sr"]
-[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="4_a08wi"]
-[ext_resource type="Texture2D" uid="uid://b28jbfrckmih0" path="res://textures/planet/vegetation/bushes/bush_01.png" id="5_t8hi5"]
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_i8wgm"]
+[ext_resource type="Resource" uid="uid://c1hsrchnwebje" path="res://data/items/material/wood.tres" id="2_wb61k"]
+[ext_resource type="Texture2D" uid="uid://ngbm62oopq2l" path="res://textures/planet/vegetation/tree/trunk/bark_default.jpg" id="3_l3c3a"]
+[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="4_wv1py"]
+[ext_resource type="Texture2D" uid="uid://b28jbfrckmih0" path="res://textures/planet/vegetation/bushes/bush_01.png" id="5_bumng"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0mnvq"]
 cull_mode = 1
-albedo_texture = ExtResource("3_1a6sr")
+albedo_texture = ExtResource("3_l3c3a")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_wu7hq"]
 render_priority = 0
-shader = ExtResource("4_a08wi")
+shader = ExtResource("4_wv1py")
 shader_parameter/albedo = Color(0, 0, 0, 1)
-shader_parameter/texture_albedo = ExtResource("5_t8hi5")
+shader_parameter/texture_albedo = ExtResource("5_bumng")
 shader_parameter/alpha_scissor_threshold = 0.8
 shader_parameter/uv1_scale = Vector3(0.5, 0.5, 0.5)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
@@ -41,11 +41,11 @@ shader_parameter/wind_frequency = 2.0
 size = Vector3(0.231934, 5.74695, 0.482483)
 
 [node name="Node3D" type="StaticBody3D" unique_id=1075421542]
-script = ExtResource("1_t8hi5")
+script = ExtResource("1_i8wgm")
 health = 100
 drop_amount_min = 4
 drop_amount_max = 6
-item_data = ExtResource("2_wu7hq")
+item_data = ExtResource("2_wb61k")
 
 [node name="Tree3D" type="Tree3D" parent="." unique_id=218749587]
 shape = 2
@@ -54,15 +54,17 @@ palm_frond_length = 4.42
 palm_frond_width = 1.183
 conifer_trunk_rings = 25
 conifer_trunk_segments = 11
-conifer_height = 16.64
-conifer_base_radius = 0.72
+conifer_height = 26.48
+conifer_base_radius = 1.215
 conifer_top_radius = 0.096
-conifer_whorl_count = 20
+conifer_whorl_count = 15
 conifer_branches_per_whorl = 10
-conifer_branch_upward_arch = 1.0
-conifer_branch_segments = 2
-conifer_branch_angle_jitter = 0.0
-conifer_whorl_offset_angle = 0.08
+conifer_branch_length_base = 3.27
+conifer_branch_length_top = 0.01
+conifer_branch_droop = 0.489
+conifer_branch_droop_curve = 1.17
+conifer_branch_upward_arch = 0.5
+conifer_whorl_offset_angle = 0.0
 conifer_needle_card_width = 3.0
 conifer_needle_card_length = 3.0
 conifer_needle_tip_ratio = 1.0

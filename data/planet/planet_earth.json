@@ -77,6 +77,10 @@
 			{
 				"name": "hemisphere_green_sand_graph_path",
 				"path": "res://data/graph_functions/earth_terrain_green_sand_hemisphere.tres",
+			},
+			{
+				"name": "hemisphere_sand_graph_path",
+				"path": "res://data/graph_functions/earth_terrain_sand_hemisphere.tres"
 			}
 		], 
 
@@ -87,13 +91,13 @@
 	  {
 		"name": "tree_generator_sand",
 		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.0005,
-		"min_height": -125,
-		"max_height": 100,
+		"density": 0.001,
+		"min_height": -25,
+		"max_height": 200,
 		"max_slope_degrees": 25,
 		"min_scale": 1.5,
 		"max_scale": 2,
-		"noise_graph": "hemisphere_green_graph_path" 
+		"noise_graph": "hemisphere_sand_graph_path" 
 	  },
 	 {
 		"name": "tree_generator_green_sand",
@@ -131,7 +135,7 @@
 	  },
 	{
 		"name": "grass_generator_green_sand",
-		"emit_mode": "EMIT_FROM_VERTICES",
+		"emit_mode": "EMIT_ONE_PER_TRIANGLE",
 		"density": 0.1,
 		"min_height": -35,
 		"max_height": 150,
@@ -140,6 +144,18 @@
 		"min_scale": 0.5,
 		"max_scale": 1.5,
 		"noise_graph": "hemisphere_green_sand_graph_path"
+	  },
+	 {
+		"name": "grass_generator_sand",
+		"emit_mode": "EMIT_FROM_VERTICES",
+		"density": 0.1,
+		"min_height": -35,
+		"max_height": 150,
+		"max_slope_degrees": 35,
+		"offset_along_normal": -0.2, 
+		"min_scale": 0.5,
+		"max_scale": 1.5,
+		"noise_graph": "hemisphere_sand_graph_path"
 	  },
 	  {
 		"name": "bushes_generator_green",
@@ -184,6 +200,17 @@
 		"max_scale": 3,
 		"vertical_alignment": 0.4,
 		"noise_graph": "hemisphere_green_sand_graph_path"
+		},
+		{ "name": "large_rocks_generator_sand",
+		"emit_mode": "EMIT_FROM_VERTICES",
+		"density": 0.001, 
+		"min_height": -35,
+		"max_height": 200,
+		"max_slope_degrees": 25,
+		"min_scale": 0.5,
+		"max_scale": 1.0,
+		"vertical_alignment": 0.4,
+		"noise_graph": "hemisphere_sand_graph_path"
 		}
 	],
 
@@ -235,7 +262,7 @@
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/palm_01.tscn",
-			"generator": ["tree_generator_green_sand"],
+			"generator": ["tree_generator_sand"],
 			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
 		},
 		{ 
@@ -247,6 +274,11 @@
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_01.tscn",
 			"generator": ["grass_generator_green", "grass_generator_green_sand"],
 			"wind_speed": 0.2, "lod_index": 0, "material_type": "WOOD"
+		},
+		{ 
+			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_04.tscn",
+			"generator": ["grass_generator_sand"],
+			"wind_speed": 0.2, "lod_index": 3, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_02.tscn",
@@ -292,6 +324,21 @@
 			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_01.tscn",
 			"generator": ["large_rocks_generator_green_sand"],
 			"lod_index": 0, "material_type": "STONE"
+		},
+		{ 
+			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_01.tscn",
+			"generator": ["large_rocks_generator_sand"],
+			"lod_index": 2, "material_type": "STONE"
+		},
+		{ 
+			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_01.tscn",
+			"generator": ["large_rocks_generator_sand"],
+			"lod_index": 3, "material_type": "STONE"
+		},
+		{ 
+			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_01.tscn",
+			"generator": ["large_rocks_generator_sand"],
+			"lod_index": 3, "material_type": "STONE"
 		}
 		,{ 
 			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_02.tscn",

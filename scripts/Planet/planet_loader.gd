@@ -100,6 +100,7 @@ func _load_planet() -> void:
 		water_sphere.wireframe_material = load("res://data/resources/WaterSphere_wireframe_material.tres")
 		
 		water_sphere.load_watersphere(planet)
+		#water_sphere.visible = false
 
 func _on_file_selected(path: String) -> void:
 	config_file_path = path

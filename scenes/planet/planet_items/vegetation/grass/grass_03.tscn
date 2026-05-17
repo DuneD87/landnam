@@ -25,6 +25,10 @@ shader_parameter/specular_strength = 0.15
 shader_parameter/specular_roughness = 0.7
 shader_parameter/wind_direction = Vector3(1, 0, 0)
 shader_parameter/wind_speed = 1.0
+shader_parameter/wind_base_height = 0.0
+shader_parameter/wind_falloff = 1.0
+shader_parameter/wind_amplitude = 0.1
+shader_parameter/wind_frequency = 2.0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_qscl4"]
 render_priority = 0
@@ -48,6 +52,10 @@ shader_parameter/specular_strength = 0.15
 shader_parameter/specular_roughness = 0.7
 shader_parameter/wind_direction = Vector3(1, 0, 0)
 shader_parameter/wind_speed = 1.0
+shader_parameter/wind_base_height = 0.0
+shader_parameter/wind_falloff = 1.0
+shader_parameter/wind_amplitude = 0.1
+shader_parameter/wind_frequency = 2.0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_ujap4"]
 _surfaces = [{
@@ -103,7 +111,7 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ujap4")
 
-[node name="Node3D" type="Node3D" unique_id=17388]
+[node name="Node3D2" type="Node3D" unique_id=17388]
 
 [node name="Grass" type="MeshInstance3D" parent="." unique_id=416967976]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.23165125, 0)

@@ -1,11 +1,6 @@
 shader_type spatial;
 render_mode blend_mix, shadows_disabled, depth_draw_always;
 
-uniform bool debug_wireframe = true;
-uniform float wireframe_thickness : hint_range(0.5, 5.0) = 1.5;
-uniform vec3 wireframe_color : source_color = vec3(0.0, 1.0, 0.4);
-uniform vec3 wireframe_bg : source_color = vec3(0.05, 0.05, 0.1);
-
 uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
 uniform vec3 albedo : source_color = vec3(0.05, 0.20, 0.30);
@@ -100,7 +95,6 @@ uniform float water_radius;
 
 varying vec3 world_pos;
 varying vec3 base_world_pos;
-varying float height;
 varying float view_depth;
 varying vec3 world_normal_radial;
 
@@ -142,27 +136,6 @@ float sample_water_height(vec3 sample_world_pos, float time_value) {
     return (tex_height + procedural) * height_scale;
 }
 
-float generate_wave(vec2 pos, float time) {
-    float wave1 = sin(pos.x * wave_frequency + time * wave_speed) * wave_amplitude;
-    float wave2 = sin(pos.y * wave_frequency * 0.7 + time * wave_speed * 0.8) * wave_amplitude * 0.5;
-    float wave3 = sin((pos.x + pos.y) * wave_frequency * 0.5 + time * wave_speed * 1.2) * wave_amplitude * 0.3;
-    return (wave1 + wave2 + wave3) * 0.1;
-}
-
-vec2 water_sphere_uv(vec3 sample_world_pos) {
-    vec3 sphere_dir = normalize(sample_world_pos - planet_center);
-    return vec2(
-        atan(sphere_dir.x, sphere_dir.z),
-        asin(sphere_dir.y)
-    ) * noise_scale;
-}
-
-/*float sample_water_height(vec3 sample_world_pos, float time_value) {
-    vec2 uv_coords = water_sphere_uv(sample_world_pos);
-    float wave_height = texture(wave, uv_coords / noise_scale + time_value * time_scale).r;
-    float procedural_height = generate_wave(uv_coords, time_value);
-    return (wave_height + procedural_height) * height_scale;
-}*/
 
 vec3 calculate_wave_world_normal(vec3 sample_world_pos, vec3 radial_normal, float time_value) {
     vec3 tangent_seed = abs(radial_normal.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
@@ -322,8 +295,6 @@ float fbm_voronoi(vec2 uv) {
 void vertex() {
     base_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     vec3 sphere_dir = normalize(base_world_pos - planet_center);
-    vec2 uv_coords = water_sphere_uv(base_world_pos);
-    height = texture(wave, uv_coords / noise_scale + water_time * time_scale).r;
 
     float total_height = sample_water_height(base_world_pos, water_time);
     VERTEX += NORMAL * total_height;
@@ -342,9 +313,8 @@ void fragment() {
     float cos_view  = max(abs(dot(view_dir_w, cam_fwd)), 0.15);
     vec3 scene_world_pos = reconstruct_world_position(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
     float terrain_water_depth = max(water_radius - length(scene_world_pos - planet_center), 0.0);
-    float scene_linear_at_screen = linearize_depth(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX);
     float detail_fade = smoothstep(detail_fade_start, detail_fade_end, view_depth);
-    float water_depth = max(scene_linear_at_screen - frag_linear, 0.0) + depth_offset;
+	float water_depth = terrain_water_depth + depth_offset;
     float depth_blend = exp(water_depth * -beers_law);
     depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);
     float depth_blend_power = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
@@ -353,10 +323,7 @@ void fragment() {
     float view_opacity_factor = smoothstep(0.0, edge_disable_end, view_distance);
     float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_opacity_factor);
 
-    float z_depth = linearize_depth(SCREEN_UV, texture(DEPTH_TEXTURE, SCREEN_UV).r, INV_PROJECTION_MATRIX);
-    float z_pos   = frag_linear;
-    float z_dif   = z_depth - z_pos;
-
+    float z_dif = linearize_depth(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX) - frag_linear;
     float edge_disable = smoothstep(edge_disable_start, edge_disable_end, view_depth);
 
     vec3 radial_normal = normalize(world_normal_radial);
@@ -440,37 +407,58 @@ void fragment() {
     float refr_linear = linearize_depth(refracted_uv, refracted_depth_sample, INV_PROJECTION_MATRIX);
     float refracted_is_under_water = step(frag_linear + 0.02, refr_linear);
     vec2 final_uv = mix(SCREEN_UV, refracted_uv, refracted_is_under_water * depth_fac);
-
+	float final_uv_depth_sample = texture(DEPTH_TEXTURE, final_uv).r;
+	
     vec3 screen_color = textureLod(SCREEN_TEXTURE, final_uv, adjusted_depth_blend * 2.5).rgb;
 
-    // Cáusticas submarinas
-    vec4 bg_ndc = vec4(final_uv * 2.0 - 1.0, texture(DEPTH_TEXTURE, final_uv).x, 1.0);
-#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
-    bg_ndc.z = bg_ndc.z * 2.0 - 1.0;
-#endif
-    vec4 bg_world = INV_VIEW_MATRIX * INV_PROJECTION_MATRIX * bg_ndc;
-    vec3 bg_world_pos = bg_world.xyz / bg_world.w;
-    float caustics_contrib = 0.0;
-    if (water_depth > 0.0) {
-        // Coordenadas esféricas del fondo: invariantes al desplazamiento radial de las olas
-        // y sin estiramiento en bordes a diferencia de la proyección XZ plana.
-        vec3 bg_dir = normalize(bg_world_pos - planet_center);
-        // * water_radius convierte radianes a longitud de arco → escala equivalente a XZ en metros
-        vec2 bg_sphere_uv = vec2(atan(bg_dir.x, bg_dir.z), asin(bg_dir.y)) * water_radius;
-        vec2 caustics_uv1 = bg_sphere_uv * caustics_scale;
-        caustics_uv1.x += TIME * caustics_speed;
-        vec2 caustics_uv2 = bg_sphere_uv * caustics_scale * 0.7;
-        caustics_uv2.y -= TIME * caustics_speed * 0.8;
-        float caustics_sample1 = texture(caustics_texture, caustics_uv1).r;
-        float caustics_sample2 = texture(caustics_texture, caustics_uv2).r;
-        float caustics_value = caustics_sample1 * caustics_sample2;
-        float caustics_fade = smoothstep(0.0, caustics_near_fade, water_depth)
-                            * (1.0 - clamp(water_depth * caustics_depth_fade, 0.0, 1.0));
-        caustics_contrib = caustics_value * caustics_intensity * caustics_fade;
-    }
+    // Cáusticas submarinas con triplanar mapping (evita estiramiento en caras verticales)
+	vec4 bg_ndc = vec4(final_uv * 2.0 - 1.0, final_uv_depth_sample, 1.0);
+	#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	bg_ndc.z = bg_ndc.z * 2.0 - 1.0;
+	#endif
+	vec4 bg_world = INV_VIEW_MATRIX * INV_PROJECTION_MATRIX * bg_ndc;
+	vec3 bg_world_pos = bg_world.xyz / bg_world.w;
+	float caustics_contrib = 0.0;
+	if (water_depth > 0.0) {
+	    // Reconstruimos la normal del fondo desde las derivadas de la posición mundial.
+	    // Esto nos permite ponderar la contribución de cada plano triplanar.
+	    vec3 bg_dx = dFdx(bg_world_pos);
+	    vec3 bg_dy = dFdy(bg_world_pos);
+	    vec3 bg_normal = normalize(cross(bg_dy, bg_dx));
+
+	    // Pesos triplanar XYZ. Exponente alto para que el plano dominante "gane" claramente
+	    // y evitar mezclas borrosas en transiciones.
+	    vec3 tri_weights = abs(bg_normal);
+	    tri_weights = pow(tri_weights, vec3(4.0));
+	    tri_weights /= (tri_weights.x + tri_weights.y + tri_weights.z + 1e-5);
+
+	    // Coordenadas mundiales escaladas. Cada plano de proyección parametriza la cara
+	    // perpendicular a ese eje sin estirarse.
+	    vec3 cp = bg_world_pos * caustics_scale;
+	    vec2 scroll1 = vec2(TIME * caustics_speed, 0.0);
+	    vec2 scroll2 = vec2(0.0, -TIME * caustics_speed * 0.8);
+
+	    // Tres proyecciones (top XZ, front XY, side YZ), cada una con sus dos capas animadas.
+	    float c_xz = texture(caustics_texture, cp.xz + scroll1).r
+	               * texture(caustics_texture, cp.xz * 0.7 + scroll2).r;
+	    float c_xy = texture(caustics_texture, cp.xy + scroll1).r
+	               * texture(caustics_texture, cp.xy * 0.7 + scroll2).r;
+	    float c_yz = texture(caustics_texture, cp.yz + scroll1).r
+	               * texture(caustics_texture, cp.yz * 0.7 + scroll2).r;
+
+	    // Mezcla según la normal: tri_weights.y → cara horizontal (normal en Y),
+	    // tri_weights.z → cara perpendicular a Z, tri_weights.x → cara perpendicular a X.
+	    float caustics_value = c_xz * tri_weights.y
+	                         + c_xy * tri_weights.z
+	                         + c_yz * tri_weights.x;
+
+	    float caustics_fade = smoothstep(0.0, caustics_near_fade, water_depth)
+	                        * (1.0 - clamp(water_depth * caustics_depth_fade, 0.0, 1.0));
+	    caustics_contrib = caustics_value * caustics_intensity * caustics_fade;
+	}
 
     // Absorción Beer-Lambert con corrección por ángulo
-    float scene_linear = linearize_depth(final_uv, texture(DEPTH_TEXTURE, final_uv).r, INV_PROJECTION_MATRIX);
+    float scene_linear = linearize_depth(final_uv, final_uv_depth_sample, INV_PROJECTION_MATRIX);
     float depth_diff = max(scene_linear - frag_linear, 0.0);
     float water_column = depth_diff / cos_view;
 

@@ -24,14 +24,6 @@ uniform int textures_per_biome = 3;
 uniform float biome_latitude_ranges[MAX_LATITUDE_RANGES]; // n+1 rangos para n biomas
 uniform int biome_texture_indices[MAX_HEIGHTS];   // índices por bioma
 
-// Caustics (underwater)
-uniform vec3 caustics_color : source_color = vec3(0.55, 0.85, 1.0);
-uniform float caustics_strength : hint_range(0.0, 400.0) = 300.5;
-uniform float caustics_scale = 1.5;
-uniform float caustics_speed = 0.35;
-uniform float caustics_power : hint_range(1.0, 16.0) = 16.0;
-uniform float caustics_depth_falloff = 25.0; // metros: cuanto tarda en apagarse con la profundidad
-
 uniform sampler2D slope_texture;
 uniform sampler2D slope_normal_texture;
 uniform sampler2D slope_roughness_texture;
@@ -49,9 +41,9 @@ uniform float height_transition_noise_strength : hint_range(0.0, 200.0) = 35.0;
 uniform float height_blend_strength : hint_range(0.0, 1.0) = 0.45;
 uniform float height_blend_contrast : hint_range(0.25, 4.0) = 1.8;
 uniform float texture_scale = 0.1;
-uniform float normal_strength : hint_range(0.0, 4.0) = 4.0;
+uniform float normal_strength : hint_range(0.0, 4.0) = 2.0;
 
-uniform bool parallax_enabled = true;
+uniform bool parallax_enabled = false;
 uniform float parallax_strength : hint_range(0.0, 3.0) = 0.09;
 uniform float parallax_height_center : hint_range(0.0, 1.0) = 0.5;
 uniform float parallax_height_contrast : hint_range(0.1, 4.0) = 1.0;
@@ -64,6 +56,7 @@ uniform float specular_ao_strength : hint_range(0.0, 1.0) = 0.65;
 uniform float terrain_specular_strength : hint_range(0.0, 1.0) = 0.12;
 uniform float water_light_depth = 10.0;
 uniform float planet_shadow_softness : hint_range(0.0, 0.2) = 0.015;
+uniform float specular_aa_strength : hint_range(0.0, 4.0) = 1.0;
 
 varying vec3 world_pos;
 varying float height;
@@ -134,8 +127,11 @@ void fragment() {
             parallax_height_center, parallax_height_contrast, parallax_min_view_dot
         );
     }
+	float final_tightness = 0.0;
+
     vec3 slope_color    = triplanar_sample_uvs(slope_texture, slope_uvs, normal_world);
-    vec3 slope_normal   = triplanar_normal_sample_uvs(slope_normal_texture, slope_uvs, normal_world);
+    vec4 slope_n_v = triplanar_normal_sample_uvs_v(slope_normal_texture, slope_uvs, normal_world);
+	vec3 slope_normal = slope_n_v.xyz;
     float slope_rough   = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, normal_world);
     float slope_ao_v    = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, normal_world);
 
@@ -200,12 +196,14 @@ void fragment() {
             }
 
             vec3 c = triplanar_sample_uvs(textures[tex_index], uvs, normal_world);
-            vec3 n = triplanar_normal_sample_uvs(normal_textures[tex_index], uvs, normal_world);
+            vec4 n_v = triplanar_normal_sample_uvs_v(normal_textures[tex_index], uvs, normal_world);
+			
             float r = triplanar_scalar_sample_uvs(roughness_textures[tex_index], uvs, normal_world);
             float ao = triplanar_scalar_sample_uvs(ao_textures[tex_index], uvs, normal_world);
 
             final_color     += c * factor;
-            final_normal    += n * factor;
+            final_normal    += n_v.xyz * factor;
+			final_tightness += n_v.w   * factor;
             final_roughness += r * factor;
             final_ao        += ao * factor;
             total_factor    += factor;
@@ -224,6 +222,10 @@ void fragment() {
         final_normal     = apply_normal_strength(normal_world, safe_normalize(final_normal, normal_world), normal_strength);
         final_roughness /= total_factor;
         final_ao        /= total_factor;
+	 	float tightness = clamp(final_tightness / total_factor, 0.0, 1.0);
+	    float variance  = max(0.0, 1.0 - tightness * tightness);
+	    float a2        = final_roughness * final_roughness + variance * specular_aa_strength;
+	    final_roughness = clamp(sqrt(a2), 0.04, 1.0);
     } else {
         final_color = vec3(0.5);
         final_roughness = 0.5;
@@ -233,7 +235,7 @@ void fragment() {
 
     // 7) Salidas
     ALBEDO = final_color;
-    NORMAL = normalize((VIEW_MATRIX * vec4(final_normal, 0.0)).xyz);
+	NORMAL = normalize((VIEW_MATRIX * vec4(safe_normalize(final_normal, normal_world), 0.0)).xyz);
     ROUGHNESS = final_roughness;
     v_fragment_ao = mix(clamp(final_ao, 0.0, 1.0), 1.0, underwater);
     AO = v_fragment_ao;
@@ -267,6 +269,7 @@ void light()
         horizon_cos + planet_shadow_softness,
         light_horizon_cos
     );
+
     float light_visibility = ATTENUATION * water_light_factor * planet_shadow;
 
     DIFFUSE_LIGHT += ndotl * light_visibility * direct_ao * LIGHT_COLOR / PI;

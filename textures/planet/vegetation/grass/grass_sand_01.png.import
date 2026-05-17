@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://7eo2kdwboogk"
-path.s3tc="res://.godot/imported/jagged-rocky-ground_ao.png-217bbfc14880e093c63c734675ef19a0.s3tc.ctex"
+uid="uid://bvskag65s1034"
+path.s3tc="res://.godot/imported/grass_sand_01.png-ab455e7ab36186fb8347a4794a992d03.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_ao.png"
-dest_files=["res://.godot/imported/jagged-rocky-ground_ao.png-217bbfc14880e093c63c734675ef19a0.s3tc.ctex"]
+source_file="res://textures/planet/vegetation/grass/grass_sand_01.png"
+dest_files=["res://.godot/imported/grass_sand_01.png-ab455e7ab36186fb8347a4794a992d03.s3tc.ctex"]
 
 [params]
 

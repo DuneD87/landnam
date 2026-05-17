@@ -1,14 +1,14 @@
-[gd_scene format=4 uid="uid://c123yyijj6s4i"]
+[gd_scene format=4 uid="uid://x7sul6b3vkbk"]
 
-[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="1_gjq0g"]
-[ext_resource type="Texture2D" uid="uid://pukr6ni1fict" path="res://textures/planet/vegetation/grass/grass_01.png" id="2_mjpvd"]
+[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="1_p07ro"]
+[ext_resource type="Texture2D" uid="uid://bvskag65s1034" path="res://textures/planet/vegetation/grass/grass_sand_01.png" id="2_om704"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_k1p4u"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_1kvob"]
 render_priority = 0
-shader = ExtResource("1_gjq0g")
+shader = ExtResource("1_p07ro")
 shader_parameter/albedo = Color(0, 0, 0, 1)
-shader_parameter/texture_albedo = ExtResource("2_mjpvd")
-shader_parameter/alpha_scissor_threshold = 0.800000038
+shader_parameter/texture_albedo = ExtResource("2_om704")
+shader_parameter/alpha_scissor_threshold = 0.8
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(1, 0, 0)
@@ -30,23 +30,23 @@ shader_parameter/wind_falloff = 1.0
 shader_parameter/wind_amplitude = 0.1
 shader_parameter/wind_frequency = 2.0
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_qscl4"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_2lkog"]
 render_priority = 0
-shader = ExtResource("1_gjq0g")
+shader = ExtResource("1_p07ro")
 shader_parameter/albedo = Color(0, 0, 0, 1)
-shader_parameter/texture_albedo = ExtResource("2_mjpvd")
-shader_parameter/alpha_scissor_threshold = 0.800000038
+shader_parameter/texture_albedo = ExtResource("2_om704")
+shader_parameter/alpha_scissor_threshold = 0.8
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(1, 0, 0)
 shader_parameter/planet_position = Vector3(0, 0, 0)
 shader_parameter/transition_width = 0.2
-shader_parameter/ambient_intensity = 0.0
+shader_parameter/ambient_intensity = 0.15
 shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
 shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
-shader_parameter/translucency_strength = 0.0
+shader_parameter/translucency_strength = 0.45
 shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
-shader_parameter/translucency_power = 1.0
+shader_parameter/translucency_power = 2.0
 shader_parameter/rim_strength = 0.3
 shader_parameter/specular_strength = 0.15
 shader_parameter/specular_roughness = 0.7
@@ -89,7 +89,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 12,
 "index_data": PackedByteArray("AAADAAEAAAACAAMABAAHAAUABAAGAAcA"),
-"material": SubResource("ShaderMaterial_k1p4u"),
+"material": SubResource("ShaderMaterial_1kvob"),
 "name": "high-grass-1-01",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
@@ -101,7 +101,7 @@ _surfaces = [{
 "format": 34896613399,
 "index_count": 18,
 "index_data": PackedByteArray("AAADAAEAAAACAAMABAAHAAUABAAGAAcACAALAAkACAAKAAsA"),
-"material": SubResource("ShaderMaterial_qscl4"),
+"material": SubResource("ShaderMaterial_2lkog"),
 "name": "high-grass-1-02",
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
@@ -114,6 +114,6 @@ shadow_mesh = SubResource("ArrayMesh_ujap4")
 [node name="Node3D" type="Node3D" unique_id=17388]
 
 [node name="Grass" type="MeshInstance3D" parent="." unique_id=416967976]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.23165125, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.043581724, -0.674054, -2.1235876)
 mesh = SubResource("ArrayMesh_33j4k")
 skeleton = NodePath("")

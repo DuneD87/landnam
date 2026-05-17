@@ -224,24 +224,35 @@ vec3 apply_normal_strength(vec3 base_normal, vec3 detail_normal, float strength)
     return safe_normalize(mix(base_normal, detail_normal, s), base_normal);
 }
 
-// Whiteout blending (lo que vimos antes) con UVs precomputados
-vec3 triplanar_normal_sample_uvs(sampler2D tex, TriplanarUVs uvs, vec3 surface_normal) {
-    vec3 tn_x = unpack_normal(texture(tex, uvs.uv_x).rgb);
-    vec3 tn_y = unpack_normal(texture(tex, uvs.uv_y).rgb);
-    vec3 tn_z = unpack_normal(texture(tex, uvs.uv_z).rgb);
+vec4 triplanar_normal_sample_uvs_v(sampler2D tex, TriplanarUVs uvs, vec3 surface_normal) {
+    // Sample crudo, sin normalizar — preserva longitud post-mip
+    vec3 raw_x = texture(tex, uvs.uv_x).rgb * 2.0 - 1.0;
+    vec3 raw_y = texture(tex, uvs.uv_y).rgb * 2.0 - 1.0;
+    vec3 raw_z = texture(tex, uvs.uv_z).rgb * 2.0 - 1.0;
+
+    vec3 blend = triplanar_blend_weights(surface_normal, 4.0);
+
+    // Tightness: 1.0 = sin promediado de mip, <1.0 = mip promedió perturbaciones
+    float avg_len = length(raw_x) * blend.x
+                  + length(raw_y) * blend.y
+                  + length(raw_z) * blend.z;
+
+    // Whiteout blend igual que antes, pero con los samples ya normalizados
+    vec3 tn_x = safe_normalize(raw_x, vec3(0.0, 0.0, 1.0));
+    vec3 tn_y = safe_normalize(raw_y, vec3(0.0, 0.0, 1.0));
+    vec3 tn_z = safe_normalize(raw_z, vec3(0.0, 0.0, 1.0));
+    tn_x.xy = tn_x.yx;
 
     tn_x = vec3(tn_x.xy + surface_normal.zy, abs(tn_x.z) * surface_normal.x);
     tn_y = vec3(tn_y.xy + surface_normal.xz, abs(tn_y.z) * surface_normal.y);
     tn_z = vec3(tn_z.xy + surface_normal.xy, abs(tn_z.z) * surface_normal.z);
 
-    vec3 blend = triplanar_blend_weights(surface_normal, 4.0);
-
-    return safe_normalize(
-        tn_x.zyx * blend.x +
-        tn_y.xzy * blend.y +
-        tn_z.xyz * blend.z,
+    vec3 n = safe_normalize(
+        tn_x.zyx * blend.x + tn_y.xzy * blend.y + tn_z.xyz * blend.z,
         surface_normal
     );
+
+    return vec4(n, avg_len);
 }
 
 vec3 triplanar_normal_sample(sampler2D tex, vec3 pos, vec3 surface_normal, float scale) {
@@ -253,7 +264,7 @@ vec3 triplanar_normal_sample(sampler2D tex, vec3 pos, vec3 surface_normal, float
     vec3 tn_x = unpack_normal(texture(tex, uv_x).rgb);
     vec3 tn_y = unpack_normal(texture(tex, uv_y).rgb);
     vec3 tn_z = unpack_normal(texture(tex, uv_z).rgb);
-
+	tn_x.xy = tn_x.yx;
     // Whiteout blend: cada muestra perturba la normal en su plano,
     // y el componente "Z" del normal map se alinea con la normal real
     tn_x = vec3(tn_x.xy + surface_normal.zy, abs(tn_x.z) * surface_normal.x);
