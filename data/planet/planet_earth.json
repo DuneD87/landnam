@@ -139,7 +139,7 @@
 	  },
 	{
 		"name": "grass_generator_green_sand",
-		"emit_mode": "EMIT_ONE_PER_TRIANGLE",
+		"emit_mode": "EMIT_FROM_VERTICES",
 		"density": 0.1,
 		"min_height": -35,
 		"max_height": 150,

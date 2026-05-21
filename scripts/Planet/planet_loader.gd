@@ -17,8 +17,42 @@ enum Action { NONE, SELECT_CONFIG }
 @export var planet: Planet
 @export var entity_id: String = ""
 
+@export_group("Underwater Godray Settings")
+@export var godray_intensity: float = 1.9
+@export var godray_decay: float = 0.88
+@export var godray_exposure: float = 0.4
+@export var godray_samples: int = 10
+@export var godray_max_depth: float = 35.0
+@export var godray_fade_start: float = 10.0
+@export var godray_density: float = 0.12
+@export var godray_surface_scale: float = 0.1
+@export var godray_surface_speed: float = 0.12
+@export var godray_surface_contrast: float = 3.0
+@export var godray_light_absorption: float = 0.08
+@export var godray_view_absorption: float = 0.025
+@export var godray_forward_scatter_power: float = 3.0
+@export var godray_min_phase: float = 0.15
+
 var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
+
+func _apply_godray_settings_to_water_sphere() -> void:
+	if not water_sphere:
+		return
+	water_sphere.godray_intensity = godray_intensity
+	water_sphere.godray_decay = godray_decay
+	water_sphere.godray_exposure = godray_exposure
+	water_sphere.godray_samples = godray_samples
+	water_sphere.godray_max_depth = godray_max_depth
+	water_sphere.godray_fade_start = godray_fade_start
+	water_sphere.godray_density = godray_density
+	water_sphere.godray_surface_scale = godray_surface_scale
+	water_sphere.godray_surface_speed = godray_surface_speed
+	water_sphere.godray_surface_contrast = godray_surface_contrast
+	water_sphere.godray_light_absorption = godray_light_absorption
+	water_sphere.godray_view_absorption = godray_view_absorption
+	water_sphere.godray_forward_scatter_power = godray_forward_scatter_power
+	water_sphere.godray_min_phase = godray_min_phase
 
 func get_gravity_direction(_global_position: Vector3) -> Vector3:
 	var gravity_center = voxel_terrain.global_position
@@ -98,6 +132,7 @@ func _load_planet() -> void:
 		water_shader.set_shader_parameter("planet_center", voxel_terrain.global_position)
 		print(voxel_terrain.global_position)
 		water_sphere.wireframe_material = load("res://data/resources/WaterSphere_wireframe_material.tres")
+		_apply_godray_settings_to_water_sphere()
 		
 		water_sphere.load_watersphere(planet)
 		#water_sphere.visible = false
@@ -187,5 +222,6 @@ func _process(_delta: float) -> void:
 		planet._update_planet()
 		if planet.has_water:
 			water_sphere.sun_dir = sun_dir
+			_apply_godray_settings_to_water_sphere()
 #		water_material.set_shader_parameter("light_direction", sun_dir)
 	pass

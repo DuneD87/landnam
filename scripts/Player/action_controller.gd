@@ -3,7 +3,7 @@ class_name ActionController
 const Config = preload("res://scripts/config.gd")
 
 @export var timer : Timer
-@export var show_raycast_debug: bool = true
+@export var show_raycast_debug: bool = false
 
 var rand_num_gen: RandomNumberGenerator = RandomNumberGenerator.new()
 var attacking_nodes: Dictionary
