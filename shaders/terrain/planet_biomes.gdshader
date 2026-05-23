@@ -23,6 +23,18 @@ uniform int biome_count = 6;
 uniform int textures_per_biome = 3;
 uniform float biome_latitude_ranges[MAX_LATITUDE_RANGES]; // n+1 rangos para n biomas
 uniform int biome_texture_indices[MAX_HEIGHTS];   // índices por bioma
+uniform int biome_noise_enabled[MAX_BIOMES];
+uniform int biome_noise_source_texture_indices[MAX_BIOMES];
+uniform int biome_noise_target_texture_indices[MAX_BIOMES];
+uniform float biome_noise_scales[MAX_BIOMES];
+uniform float biome_noise_thresholds[MAX_BIOMES];
+uniform float biome_noise_smoothness[MAX_BIOMES];
+uniform float biome_noise_strengths[MAX_BIOMES];
+uniform float biome_noise_seeds[MAX_BIOMES];
+uniform int biome_noise_invert[MAX_BIOMES];
+uniform float biome_noise_abs_latitude_mins[MAX_BIOMES];
+uniform float biome_noise_abs_latitude_maxs[MAX_BIOMES];
+uniform float biome_noise_latitude_smoothness[MAX_BIOMES];
 
 uniform sampler2D slope_texture;
 uniform sampler2D slope_normal_texture;
@@ -180,6 +192,52 @@ void fragment() {
             factor *= (1.0 - slope_factor) * biome_weight;
             if (factor < 0.01) continue;  // <-- skip parallax si la textura no aporta
 
+            // --- Noise override: se calcula ANTES del height bias para que el split
+            //     hierba/tierra no quede contaminado por el height map de la hierba.
+            //     Si height_blend se aplicara antes, override_factor heredaría el bias
+            //     de la hierba y luego recibiría también el de la tierra, creando
+            //     cortes donde el height map de origen tiene variaciones fuertes. ---
+            float base_factor = factor;   // peso pre-bias de la textura fuente
+            float override_factor = 0.0;
+            int override_tex_index = biome_noise_target_texture_indices[b];
+            if (
+                biome_noise_enabled[b] != 0 &&
+                tex_index == biome_noise_source_texture_indices[b] &&
+                override_tex_index >= 0 &&
+                override_tex_index < MAX_TEXTURES &&
+                override_tex_index != tex_index
+            ) {
+                int biome_seed = int(round(biome_noise_seeds[b]));
+                float biome_noise = fast_noise_lite_open_simplex2_3d(planet_pos, biome_noise_scales[b], biome_seed);
+                biome_noise = clamp((biome_noise * 0.5 + 0.5) * biome_noise_strengths[b], 0.0, 1.0);
+                float biome_noise_mask = smoothstep(
+                    biome_noise_thresholds[b] - biome_noise_smoothness[b],
+                    biome_noise_thresholds[b] + biome_noise_smoothness[b],
+                    biome_noise
+                );
+                if (biome_noise_invert[b] != 0) {
+                    biome_noise_mask = 1.0 - biome_noise_mask;
+                }
+                float abs_latitude = abs(latitude);
+                float latitude_mask =
+                    smoothstep(
+                        biome_noise_abs_latitude_mins[b] - biome_noise_latitude_smoothness[b],
+                        biome_noise_abs_latitude_mins[b] + biome_noise_latitude_smoothness[b],
+                        abs_latitude
+                    ) *
+                    (1.0 - smoothstep(
+                        biome_noise_abs_latitude_maxs[b] - biome_noise_latitude_smoothness[b],
+                        biome_noise_abs_latitude_maxs[b] + biome_noise_latitude_smoothness[b],
+                        abs_latitude
+                    ));
+                biome_noise_mask *= latitude_mask;
+                // División limpia: el ratio hierba/tierra lo decide el noise mask,
+                // sin contaminación del height map de la fuente.
+                override_factor = factor * biome_noise_mask;
+                base_factor     = factor - override_factor;
+            }
+
+            // UVs (y parallax opcional) para la textura fuente
             TriplanarUVs uvs = compute_triplanar_uvs(planet_pos, texture_scale);
             if (use_parallax) {
                 uvs = compute_parallax_uvs_limited(
@@ -189,10 +247,13 @@ void fragment() {
                 );
             }
 
-            if (height_blend_strength > 0.0001) {
+            // Height bias aplicado SOLO al peso de la textura fuente (no al override).
+            // Así el height map de la hierba solo afecta a la hierba, y el de la tierra
+            // solo afecta a la tierra (en la sección de override más abajo).
+            if (height_blend_strength > 0.0001 && base_factor > 0.0001) {
                 float material_height = triplanar_scalar_sample_uvs(height_textures[tex_index], uvs, normal_world);
                 float height_bias = mix(0.35, 1.35, pow(clamp(material_height, 0.0, 1.0), height_blend_contrast));
-                factor *= mix(1.0, height_bias, height_blend_strength);
+                base_factor *= mix(1.0, height_bias, height_blend_strength);
             }
 
             vec3 c = triplanar_sample_uvs(textures[tex_index], uvs, normal_world);
@@ -201,12 +262,41 @@ void fragment() {
             float r = triplanar_scalar_sample_uvs(roughness_textures[tex_index], uvs, normal_world);
             float ao = triplanar_scalar_sample_uvs(ao_textures[tex_index], uvs, normal_world);
 
-            final_color     += c * factor;
-            final_normal    += n_v.xyz * factor;
-			final_tightness += n_v.w   * factor;
-            final_roughness += r * factor;
-            final_ao        += ao * factor;
-            total_factor    += factor;
+            final_color     += c * base_factor;
+            final_normal    += n_v.xyz * base_factor;
+			final_tightness += n_v.w   * base_factor;
+            final_roughness += r * base_factor;
+            final_ao        += ao * base_factor;
+            total_factor    += base_factor;
+
+            if (override_factor > 0.001) {
+                TriplanarUVs override_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+                if (use_parallax) {
+                    override_uvs = compute_parallax_uvs_limited(
+                        height_textures[override_tex_index], planet_pos, normal_world, view_world,
+                        texture_scale, effective_height,
+                        parallax_height_center, parallax_height_contrast, parallax_min_view_dot
+                    );
+                }
+
+                if (height_blend_strength > 0.0001) {
+                    float override_height = triplanar_scalar_sample_uvs(height_textures[override_tex_index], override_uvs, normal_world);
+                    float override_height_bias = mix(0.35, 1.35, pow(clamp(override_height, 0.0, 1.0), height_blend_contrast));
+                    override_factor *= mix(1.0, override_height_bias, height_blend_strength);
+                }
+
+                vec3 override_c = triplanar_sample_uvs(textures[override_tex_index], override_uvs, normal_world);
+                vec4 override_n_v = triplanar_normal_sample_uvs_v(normal_textures[override_tex_index], override_uvs, normal_world);
+                float override_r = triplanar_scalar_sample_uvs(roughness_textures[override_tex_index], override_uvs, normal_world);
+                float override_ao = triplanar_scalar_sample_uvs(ao_textures[override_tex_index], override_uvs, normal_world);
+
+                final_color     += override_c * override_factor;
+                final_normal    += override_n_v.xyz * override_factor;
+			    final_tightness += override_n_v.w   * override_factor;
+                final_roughness += override_r * override_factor;
+                final_ao        += override_ao * override_factor;
+                total_factor    += override_factor;
+            }
         }
     }
 

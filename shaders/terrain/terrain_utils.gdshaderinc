@@ -203,6 +203,200 @@ float signed_fbm(vec3 p) {
     return value / max(amplitude_sum, 0.0001);
 }
 
+vec4 open_simplex2_permute(vec4 t) {
+    return t * (t * 34.0 + 133.0);
+}
+
+vec3 open_simplex2_grad(float hash) {
+    vec3 cube = mod(floor(hash / vec3(1.0, 2.0, 4.0)), 2.0) * 2.0 - 1.0;
+    vec3 cuboct = cube;
+    float edge = floor(hash / 16.0);
+    if (edge < 0.5) {
+        cuboct.x = 0.0;
+    } else if (edge < 1.5) {
+        cuboct.y = 0.0;
+    } else {
+        cuboct.z = 0.0;
+    }
+
+    float type = mod(floor(hash / 8.0), 2.0);
+    vec3 rhomb = mix(cube, cuboct + cross(cube, cuboct), type);
+    vec3 grad = cuboct * 1.22474487139 + rhomb;
+    return grad * (1.0 - 0.042942436724648037 * type) * 32.80201376986577;
+}
+
+float open_simplex2_base(vec3 x) {
+    vec3 v1 = floor(x + vec3(0.5));
+    vec3 d1 = x - v1;
+    vec3 score1 = abs(d1);
+    vec3 dir1 = step(max(score1.yzx, score1.zxy), score1);
+    vec3 v2 = v1 + dir1 * sign(d1);
+    vec3 d2 = x - v2;
+
+    vec3 x2 = x + vec3(144.5);
+    vec3 v3 = floor(x2 + vec3(0.5));
+    vec3 d3 = x2 - v3;
+    vec3 score2 = abs(d3);
+    vec3 dir2 = step(max(score2.yzx, score2.zxy), score2);
+    vec3 v4 = v3 + dir2 * sign(d3);
+    vec3 d4 = x2 - v4;
+
+    vec4 hashes = open_simplex2_permute(mod(vec4(v1.x, v2.x, v3.x, v4.x), 289.0));
+    hashes = open_simplex2_permute(mod(hashes + vec4(v1.y, v2.y, v3.y, v4.y), 289.0));
+    hashes = mod(open_simplex2_permute(mod(hashes + vec4(v1.z, v2.z, v3.z, v4.z), 289.0)), 48.0);
+
+    vec4 a = max(0.5 - vec4(dot(d1, d1), dot(d2, d2), dot(d3, d3), dot(d4, d4)), 0.0);
+    vec4 a2 = a * a;
+    vec4 a4 = a2 * a2;
+    vec4 extrapolations = vec4(
+        dot(d1, open_simplex2_grad(hashes.x)),
+        dot(d2, open_simplex2_grad(hashes.y)),
+        dot(d3, open_simplex2_grad(hashes.z)),
+        dot(d4, open_simplex2_grad(hashes.w))
+    );
+
+    return dot(a4, extrapolations);
+}
+
+float open_simplex2_3d(vec3 p) {
+    vec3 rotated = vec3(dot(p, vec3(2.0 / 3.0))) - p;
+    return open_simplex2_base(rotated);
+}
+
+const int FNL_PRIME_X = 501125321;
+const int FNL_PRIME_Y = 1136930381;
+const int FNL_PRIME_Z = 1720413743;
+
+int fnl_hash_3d(int seed, int x_primed, int y_primed, int z_primed) {
+    int h = seed ^ x_primed ^ y_primed ^ z_primed;
+    h *= 668265261; // 0x27d4eb2d — constante exacta de FastNoiseLite
+    return h;
+}
+
+vec3 fnl_gradient_3d(int hash) {
+    hash ^= hash >> 15;
+    int index = (hash & 252) >> 2;
+
+    if (index >= 60) {
+        if (index == 60) return vec3(1.0, 1.0, 0.0);
+        if (index == 61) return vec3(0.0, -1.0, 1.0);
+        if (index == 62) return vec3(-1.0, 1.0, 0.0);
+        return vec3(0.0, -1.0, -1.0);
+    }
+
+    int g = index % 12;
+    if (g == 0) return vec3(0.0, 1.0, 1.0);
+    if (g == 1) return vec3(0.0, -1.0, 1.0);
+    if (g == 2) return vec3(0.0, 1.0, -1.0);
+    if (g == 3) return vec3(0.0, -1.0, -1.0);
+    if (g == 4) return vec3(1.0, 0.0, 1.0);
+    if (g == 5) return vec3(-1.0, 0.0, 1.0);
+    if (g == 6) return vec3(1.0, 0.0, -1.0);
+    if (g == 7) return vec3(-1.0, 0.0, -1.0);
+    if (g == 8) return vec3(1.0, 1.0, 0.0);
+    if (g == 9) return vec3(-1.0, 1.0, 0.0);
+    if (g == 10) return vec3(1.0, -1.0, 0.0);
+    return vec3(-1.0, -1.0, 0.0);
+}
+
+float fnl_grad_coord_3d(int seed, int x_primed, int y_primed, int z_primed, float xd, float yd, float zd) {
+    vec3 g = fnl_gradient_3d(fnl_hash_3d(seed, x_primed, y_primed, z_primed));
+    return dot(g, vec3(xd, yd, zd));
+}
+
+float fast_noise_lite_open_simplex2_single_3d(int seed, float x, float y, float z) {
+    int i = int(round(x));
+    int j = int(round(y));
+    int k = int(round(z));
+    float x0 = x - float(i);
+    float y0 = y - float(j);
+    float z0 = z - float(k);
+
+    int x_nsign = int(-1.0 - x0) | 1;
+    int y_nsign = int(-1.0 - y0) | 1;
+    int z_nsign = int(-1.0 - z0) | 1;
+
+    float ax0 = float(x_nsign) * -x0;
+    float ay0 = float(y_nsign) * -y0;
+    float az0 = float(z_nsign) * -z0;
+
+    i *= FNL_PRIME_X;
+    j *= FNL_PRIME_Y;
+    k *= FNL_PRIME_Z;
+
+    // FastNoiseLite usa un seed offset para la muestra secundaria de cada iteración
+    int seed2 = seed + 1293373;
+
+    float value = 0.0;
+    float a = (0.6 - x0 * x0) - (y0 * y0 + z0 * z0);
+
+    for (int l = 0; l < 2; l++) {
+        if (a > 0.0) {
+            value += (a * a) * (a * a) * fnl_grad_coord_3d(seed, i, j, k, x0, y0, z0);
+        }
+
+        float b = a + 1.0;
+        int i1 = i;
+        int j1 = j;
+        int k1 = k;
+        float x1 = x0;
+        float y1 = y0;
+        float z1 = z0;
+        if (ax0 >= ay0 && ax0 >= az0) {
+            x1 += float(x_nsign);
+            b -= float(x_nsign) * 2.0 * x1;
+            i1 -= x_nsign * FNL_PRIME_X;
+        } else if (ay0 > ax0 && ay0 >= az0) {
+            y1 += float(y_nsign);
+            b -= float(y_nsign) * 2.0 * y1;
+            j1 -= y_nsign * FNL_PRIME_Y;
+        } else {
+            z1 += float(z_nsign);
+            b -= float(z_nsign) * 2.0 * z1;
+            k1 -= z_nsign * FNL_PRIME_Z;
+        }
+
+        if (b > 0.0) {
+            // Muestra secundaria usa seed2, no seed — bug original que rompía la coincidencia
+            value += (b * b) * (b * b) * fnl_grad_coord_3d(seed2, i1, j1, k1, x1, y1, z1);
+        }
+
+        if (l == 1) {
+            break;
+        }
+
+        ax0 = 0.5 - ax0;
+        ay0 = 0.5 - ay0;
+        az0 = 0.5 - az0;
+
+        x0 = float(x_nsign) * ax0;
+        y0 = float(y_nsign) * ay0;
+        z0 = float(z_nsign) * az0;
+
+        a += (0.75 - ax0) - (ay0 + az0);
+
+        i += (x_nsign >> 1) & FNL_PRIME_X;
+        j += (y_nsign >> 1) & FNL_PRIME_Y;
+        k += (z_nsign >> 1) & FNL_PRIME_Z;
+
+        x_nsign = -x_nsign;
+        y_nsign = -y_nsign;
+        z_nsign = -z_nsign;
+
+        seed = ~seed;
+        seed2 = ~seed2; // seed2 también se invierte igual que seed
+    }
+
+    return value * 32.69428253173828125;
+}
+
+float fast_noise_lite_open_simplex2_3d(vec3 p, float frequency, int seed) {
+    vec3 q = p * frequency;
+    float r = (q.x + q.y + q.z) * (2.0 / 3.0);
+    q = vec3(r) - q;
+    return fast_noise_lite_open_simplex2_single_3d(seed, q.x, q.y, q.z);
+}
+
 vec3 triplanar_sample(sampler2D tex, vec3 pos, vec3 normal, float scale) {
     vec2 uv_x = pos.yz * scale;
     vec2 uv_y = pos.xz * scale;

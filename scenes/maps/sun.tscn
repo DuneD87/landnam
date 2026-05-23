@@ -50,7 +50,7 @@ sky_material = SubResource("ShaderMaterial_tcpsq")
 [sub_resource type="Environment" id="Environment_0x85g"]
 background_mode = 2
 sky = SubResource("Sky_hj7oe")
-ambient_light_source = 1
+ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_energy = 0.1
 reflected_light_source = 1
@@ -92,14 +92,12 @@ sun_light = NodePath("DirectionalLight3D")
 
 [node name="Planets" type="Node3D" parent="." unique_id=564239750]
 
-[node name="Earth" parent="Planets" unique_id=1769869148 node_paths=PackedStringArray("sun_path", "players", "water_sphere", "planet") instance=ExtResource("2_li0gi")]
+[node name="Earth" parent="Planets" unique_id=1769869148 node_paths=PackedStringArray("sun_path", "players") instance=ExtResource("2_li0gi")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@19753")
 global_pos = Vector3(0, 0, 15000)
-planet = NodePath("@Node3D@19752")
 entity_id = "planet_earth"
 
 [node name="PlanetAtmosphereController" type="Node" parent="Planets/Earth" unique_id=1714628713 node_paths=PackedStringArray("planet_node", "sun_node")]
@@ -111,13 +109,12 @@ planet_radius = 30000.0
 atmosphere_height = 3000.0
 metadata/_custom_type_script = "uid://bb80gqydkco21"
 
-[node name="Moon" parent="Planets" unique_id=2125670169 node_paths=PackedStringArray("sun_path", "planet") instance=ExtResource("2_li0gi")]
+[node name="Moon" parent="Planets" unique_id=2125670169 node_paths=PackedStringArray("sun_path") instance=ExtResource("2_li0gi")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -55000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, -85000)
 global_pos = Vector3(0, 0, -55000)
-planet = NodePath("@Node3D@19759")
 entity_id = "planet_moon"
 
 [node name="PlanetAtmosphereController" type="Node" parent="Planets/Moon" unique_id=1282944133 node_paths=PackedStringArray("planet_node", "sun_node")]
