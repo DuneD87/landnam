@@ -16,6 +16,18 @@ class_name PlanetParser extends Node3D
 @export var max_heights: Array[float] = []
 
 @export var biome_texture_indices: Array[int] = []
+@export var biome_noise_enabled: Array[int] = []
+@export var biome_noise_source_texture_indices: Array[int] = []
+@export var biome_noise_target_texture_indices: Array[int] = []
+@export var biome_noise_scales: Array[float] = []
+@export var biome_noise_thresholds: Array[float] = []
+@export var biome_noise_smoothness: Array[float] = []
+@export var biome_noise_strengths: Array[float] = []
+@export var biome_noise_seeds: Array[float] = []
+@export var biome_noise_invert: Array[int] = []
+@export var biome_noise_abs_latitude_mins: Array[float] = []
+@export var biome_noise_abs_latitude_maxs: Array[float] = []
+@export var biome_noise_latitude_smoothness: Array[float] = []
 @export var textures: Array[Texture2D] = []
 @export var normal_textures: Array[Texture2D] = []
 @export var roughness_textures: Array[Texture2D] = []
@@ -155,6 +167,8 @@ func load_config(config_path: String):
 	biome_texture_indices = []
 	for value in biome_settings.biome_texture_indices:
 		biome_texture_indices.append(int(value))
+
+	_load_biome_noise_texture_overrides(biome_settings)
 			
 		
 	print("DEBUG: Loaded biome settings: count=", biome_count, ", textures_per_biome=", textures_per_biome)
@@ -272,3 +286,62 @@ func load_config(config_path: String):
 			atmosphere_settings.sun_dir[2]
 		)
 		print("DEBUG: Loaded sun_dir: ", sun_dir)
+
+
+func _load_biome_noise_texture_overrides(biome_settings: Dictionary) -> void:
+	biome_noise_enabled = []
+	biome_noise_source_texture_indices = []
+	biome_noise_target_texture_indices = []
+	biome_noise_scales = []
+	biome_noise_thresholds = []
+	biome_noise_smoothness = []
+	biome_noise_strengths = []
+	biome_noise_seeds = []
+	biome_noise_invert = []
+	biome_noise_abs_latitude_mins = []
+	biome_noise_abs_latitude_maxs = []
+	biome_noise_latitude_smoothness = []
+
+	for i in biome_count:
+		biome_noise_enabled.append(0)
+		biome_noise_source_texture_indices.append(0)
+		biome_noise_target_texture_indices.append(0)
+		biome_noise_scales.append(0.001)
+		biome_noise_thresholds.append(0.5)
+		biome_noise_smoothness.append(0.15)
+		biome_noise_strengths.append(1.0)
+		biome_noise_seeds.append(1337.0)
+		biome_noise_invert.append(0)
+		biome_noise_abs_latitude_mins.append(0.0)
+		biome_noise_abs_latitude_maxs.append(90.0)
+		biome_noise_latitude_smoothness.append(1.0)
+
+	if not biome_settings.has("biome_noise_texture_overrides"):
+		return
+
+	for override_config in biome_settings.biome_noise_texture_overrides:
+		if not override_config.has("biome"):
+			push_warning("DEBUG: Ignoring biome noise texture override without biome index.")
+			continue
+
+		var biome_index := int(override_config.biome)
+		if biome_index < 0 or biome_index >= biome_count:
+			push_warning("DEBUG: Ignoring biome noise texture override with invalid biome index: " + str(biome_index))
+			continue
+
+		biome_noise_enabled[biome_index] = 1
+		biome_noise_source_texture_indices[biome_index] = int(override_config.get("source_texture", 0))
+		biome_noise_target_texture_indices[biome_index] = int(override_config.get("target_texture", 0))
+		if override_config.has("period"):
+			var period : float = max(float(override_config.period), 0.0001)
+			biome_noise_scales[biome_index] = 1.0 / period
+		else:
+			biome_noise_scales[biome_index] = float(override_config.get("scale", 0.001))
+		biome_noise_thresholds[biome_index] = float(override_config.get("threshold", 0.5))
+		biome_noise_smoothness[biome_index] = float(override_config.get("smoothness", 0.15))
+		biome_noise_strengths[biome_index] = float(override_config.get("strength", 1.0))
+		biome_noise_seeds[biome_index] = float(override_config.get("seed", 1337.0))
+		biome_noise_invert[biome_index] = 1 if override_config.get("invert", false) else 0
+		biome_noise_abs_latitude_mins[biome_index] = float(override_config.get("abs_latitude_min", 0.0))
+		biome_noise_abs_latitude_maxs[biome_index] = float(override_config.get("abs_latitude_max", 90.0))
+		biome_noise_latitude_smoothness[biome_index] = float(override_config.get("latitude_smoothness", 1.0))
