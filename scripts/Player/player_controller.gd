@@ -714,7 +714,7 @@ func _apply_water_buoyancy(delta: float):
 	var surface_offset := distance - (_water_surface_radius - swimming_offset)
 	var target_offset := -1.0
 	var error := surface_offset - target_offset
-	var buoyancy_strength := 100.0
+	var buoyancy_strength := 1.0
 	var damping := 400.0
 	var radial_velocity := velocity.dot(radial_dir)
 	var correction := (-error * buoyancy_strength - radial_velocity * damping) * delta
@@ -751,7 +751,6 @@ func _physics_process(delta: float):
 		return
 
 	if !mouse_captured || planets == null || planets.get_child_count() == 0:
-		_check_needs_swimming(delta)
 		return
 		
 	var closest_distance = global_position.distance_to(planets.get_child(0).position)

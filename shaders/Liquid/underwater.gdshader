@@ -23,12 +23,20 @@ uniform float caustic_inten_factor : hint_range(0.001, 0.02) = 0.001;
 uniform float caustic_max_view_distance = 25.0;
 
 uniform float godray_intensity : hint_range(0.0, 5.0) = 1.9;
-uniform float godray_decay : hint_range(0.5, 1.0) = 0.25;
+uniform float godray_decay : hint_range(0.5, 1.0) = 0.88;
 uniform float godray_exposure : hint_range(0.0, 2.0) = 0.4;
 uniform int godray_samples : hint_range(10, 50) = 10;
 // Nuevos uniforms para controlar la atenuación de god rays
 uniform float godray_max_depth : hint_range(10.0, 100.0) = 35.0; // Profundidad máxima donde los god rays son visibles
 uniform float godray_fade_start : hint_range(5.0, 50.0) = 10.0; // Profundidad donde empiezan a desvanecerse
+uniform float godray_density : hint_range(0.0, 2.0) = 0.12;
+uniform float godray_surface_scale : hint_range(0.001, 1.0) = 0.1;
+uniform float godray_surface_speed : hint_range(0.0, 2.0) = 0.12;
+uniform float godray_surface_contrast : hint_range(0.5, 8.0) = 3.0;
+uniform float godray_light_absorption : hint_range(0.0, 1.0) = 0.08;
+uniform float godray_view_absorption : hint_range(0.0, 1.0) = 0.025;
+uniform float godray_forward_scatter_power : hint_range(0.5, 12.0) = 3.0;
+uniform float godray_min_phase : hint_range(0.0, 1.0) = 0.15;
 
 varying vec3 v_volume_center_viewspace;
 varying vec3 v_ray_origin;
@@ -55,6 +63,33 @@ vec3 hash3(vec3 p) {
              dot(p, vec3(269.5, 183.3, 246.1)),
              dot(p, vec3(113.5, 271.9, 124.6)));
     return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+}
+
+float worley3d_static(vec3 p, float scale) {
+    p *= scale;
+
+    vec3 ip = floor(p);
+    vec3 fp = fract(p);
+
+    float min_dist = 1.0;
+
+    for (int z = -1; z <= 1; z++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                vec3 neighbor = vec3(float(x), float(y), float(z));
+
+                vec3 point = hash3(ip + neighbor);
+                point = 0.5 + 0.5 * point;
+
+                vec3 diff = neighbor + point - fp;
+                float dist = length(diff);
+
+                min_dist = min(min_dist, dist);
+            }
+        }
+    }
+
+    return min_dist;
 }
 
 float worley3d(vec3 p, float scale) {
@@ -169,23 +204,138 @@ float god_rays(vec2 uv, float time) {
     return light;
 }
 
-// Función mejorada para god rays volumétricos basada en la solución de referencia
-vec3 volumetric_god_rays(vec2 uv, vec3 light_pos_screen) {
-    vec2 delta = (light_pos_screen.xy - uv) / float(godray_samples);
+vec3 safe_perpendicular(vec3 n) {
+    vec3 a = abs(n.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    return normalize(cross(a, n));
+}
 
-    float decay = 1.0;
-    vec2 current_uv = uv;
-    vec3 accumulated = vec3(0.0);
+float godray_surface_mask(vec3 surface_world_pos, vec3 light_dir_to_sun, float sun_facing) {
+    vec3 tangent = safe_perpendicular(light_dir_to_sun);
+    vec3 bitangent = normalize(cross(light_dir_to_sun, tangent));
 
-    for (int i = 0; i < godray_samples; i++) {
-        current_uv += delta;
-        float sample_light = god_rays(current_uv, TIME);
-        sample_light *= decay;
-        accumulated += vec3(sample_light);
-        decay *= godray_decay;
+    vec3 rel = surface_world_pos - v_sphere_center_world;
+
+    vec2 suv = vec2(
+        dot(rel, tangent),
+        dot(rel, bitangent)
+    ) * godray_surface_scale;
+
+    // Patrón espacial estático.
+    vec3 p1 = vec3(suv, 0.0);
+    vec3 p2 = vec3(suv * 2.15 + vec2(13.7, 8.4), 4.2);
+
+    float n1 = 1.0 - worley3d_static(p1, 1.0);
+    float n2 = 1.0 - worley3d_static(p2, 1.0);
+
+    float mask = n1 * 0.75 + n2 * 0.25;
+
+    // Convertimos el ruido en manchas/ventanas de entrada de luz.
+    float focus = smoothstep(0.35, 0.98, sun_facing);
+    float window_threshold = mix(0.74, 0.46, focus);
+
+    mask = smoothstep(window_threshold, 0.95, mask);
+    mask = pow(mask, godray_surface_contrast);
+
+    // Flicker temporal: cambia la intensidad, no la posición.
+    float phase_seed = dot(rel, vec3(0.017, 0.031, 0.023));
+    float shimmer_time = TIME * godray_surface_speed;
+
+    float flicker_a = sin(shimmer_time * 0.45 + phase_seed * 3.1);
+    float flicker_b = sin(shimmer_time * 0.83 + phase_seed * 1.4);
+    float flicker_c = sin(shimmer_time * 1.21 + phase_seed * 0.7);
+
+    float flicker = flicker_a * 0.5 + flicker_b * 0.3 + flicker_c * 0.2;
+    flicker = 0.65 + 0.35 * flicker;
+
+    // Evita apagados demasiado bruscos.
+    flicker = clamp(flicker, 0.25, 1.0);
+
+    return mask * flicker * focus;
+}
+
+vec3 volumetric_water_god_rays(float t_start, float t_end, vec3 ray_dir_view, mat4 inv_view_matrix, vec2 screen_uv) {
+    vec3 light_dir_to_sun = normalize(sun_direction);
+
+    vec3 ray_dir_world = normalize(
+        (inv_view_matrix * vec4(ray_dir_view, 0.0)).xyz
+    );
+
+    float ray_length = t_end - t_start;
+
+    if (ray_length <= 0.0) {
+        return vec3(0.0);
     }
 
-    return accumulated * godray_exposure * godray_intensity;
+    float step_len = ray_length / float(godray_samples);
+
+    float jitter = fract(
+        sin(dot(screen_uv, vec2(12.9898, 78.233))) * 43758.5453
+    );
+
+    float forward_phase = pow(
+        max(dot(ray_dir_world, light_dir_to_sun), 0.0),
+        godray_forward_scatter_power
+    );
+
+    float phase = mix(godray_min_phase, 1.0, forward_phase);
+
+    vec3 accumulated = vec3(0.0);
+
+    for (int i = 0; i < 50; i++) {
+        if (i >= godray_samples) {
+            break;
+        }
+
+        float t = t_start + (float(i) + jitter) * step_len;
+
+        vec3 sample_view = ray_dir_view * t;
+        vec4 sample_world_4 = inv_view_matrix * vec4(sample_view, 1.0);
+        vec3 sample_world = sample_world_4.xyz / sample_world_4.w;
+
+        vec3 center_to_sample = sample_world - v_sphere_center_world;
+        float radial_dist = length(center_to_sample);
+        float radial_depth = u_sphere_radius - radial_dist;
+
+        if (radial_depth > 0.0) {
+            vec2 sun_exit = ray_sphere(
+                v_sphere_center_world,
+                u_sphere_radius,
+                sample_world,
+                light_dir_to_sun
+            );
+
+            float light_path = max(sun_exit.y, 0.0);
+
+            vec3 entry_world = sample_world + light_dir_to_sun * light_path;
+            vec3 entry_normal = normalize(entry_world - v_sphere_center_world);
+
+            float sun_facing_raw = max(dot(entry_normal, light_dir_to_sun), 0.0);
+            float sun_facing = smoothstep(0.35, 0.95, sun_facing_raw);
+			sun_facing = pow(sun_facing, 4.0);
+
+            float surface_depth_fade =
+                1.0 - smoothstep(godray_fade_start, godray_max_depth, radial_depth);
+
+            float light_path_fade = exp(-light_path * godray_light_absorption);
+            float view_fade = exp(-(t - t_start) * godray_view_absorption);
+            float sample_progress = float(i) / max(float(godray_samples - 1), 1.0);
+            float sample_decay = pow(godray_decay, sample_progress * 12.0);
+
+            float mask = godray_surface_mask(entry_world, light_dir_to_sun, sun_facing_raw);
+
+            float density =
+                mask *
+                sun_facing *
+                surface_depth_fade *
+                light_path_fade *
+                view_fade *
+                sample_decay;
+
+            accumulated += vec3(density) * step_len * godray_density;
+        }
+    }
+
+    return accumulated * godray_intensity * godray_exposure * phase;
 }
 
 // Nueva función para calcular la atenuación de god rays basada en profundidad
@@ -284,17 +434,11 @@ void fragment() {
         final_color += caustic_color * caustic_effect * 0.8 * camera_attenuation;
     }
 
-    vec3 light_pos_world = v_sphere_center_world + normalize(sun_direction) * u_sphere_radius;
-    vec4 light_pos_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(light_pos_world, 1.0);
-    vec3 light_pos_screen = (light_pos_clip.xyz / light_pos_clip.w) * 0.5 + 0.5;
-	vec3 projected_world_pos = v_sphere_center_world + normalize(direction_to_center) * u_sphere_radius;
-	float dist_to_surface = length(world_pos - projected_world_pos);
-	float max_godray_depth = 10.0;
-	float godray_dist_intensity = smoothstep(0.0, 1.0, max_godray_depth / dist_to_surface);
+    vec3 godrays = volumetric_water_god_rays(t_start, t_end, ray_dir, INV_VIEW_MATRIX, SCREEN_UV);
 
-   	float godray_depth_fade = calculate_godray_depth_attenuation(v_camera_depth_actual);
-   	vec3 godrays = volumetric_god_rays(UV, light_pos_screen) * godray_dist_intensity;
-   	final_color += godrays * light_influence * godray_depth_fade;
+	vec3 godray_color = mix(vec3(1.0), fog_color.rgb, 0.35);
+
+	final_color += godrays * godray_color * camera_attenuation;
 
     ALBEDO = final_color;
     ALPHA = fog_amount * fog_color.a;
