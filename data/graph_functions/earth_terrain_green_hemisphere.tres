@@ -1,11 +1,15 @@
 [gd_resource type="VoxelGraphFunction" format=3 uid="uid://d3wunooykweya"]
 
 [sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_s36em"]
-period = 128.0001
+period = 256.0001
+fractal_type = 2
+fractal_octaves = 6
+fractal_lacunarity = 6.0
+fractal_gain = 0.1
 
 [resource]
 graph_data = {
-"connections": [[1, 0, 4, 0], [1, 0, 4, 1], [11, 0, 12, 0], [12, 0, 25, 0], [14, 0, 24, 0], [2, 0, 5, 0], [2, 0, 5, 1], [2, 0, 11, 0], [18, 0, 24, 1], [24, 0, 27, 0], [25, 0, 18, 2], [25, 0, 14, 2], [26, 0, 27, 1], [27, 0, 17, 0], [3, 0, 6, 0], [3, 0, 6, 1], [4, 0, 7, 0], [5, 0, 7, 1], [6, 0, 8, 1], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 11, 1]],
+"connections": [[1, 0, 4, 0], [1, 0, 4, 1], [11, 0, 12, 0], [12, 0, 25, 0], [14, 0, 24, 0], [2, 0, 5, 0], [2, 0, 5, 1], [2, 0, 11, 0], [18, 0, 24, 1], [24, 0, 27, 0], [25, 0, 18, 0], [25, 0, 14, 0], [27, 0, 17, 0], [29, 0, 27, 1], [3, 0, 6, 0], [3, 0, 6, 1], [33, 0, 29, 0], [4, 0, 7, 0], [5, 0, 7, 1], [6, 0, 8, 1], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 11, 1]],
 "nodes": {
 "1": {
 "auto_connect": false,
@@ -23,25 +27,23 @@ graph_data = {
 "type": "Sin"
 },
 "14": {
-"a": 0.0,
 "auto_connect": false,
-"b": 1.0,
+"edge0": 0.25,
+"edge1": 0.35,
 "gui_position": Vector2(1650, -120),
-"threshold": 0.3,
-"type": "Select"
+"type": "Smoothstep"
 },
 "17": {
 "auto_connect": false,
-"gui_position": Vector2(2280, 110),
+"gui_position": Vector2(2460, 140),
 "type": "CustomOutput"
 },
 "18": {
-"a": 1.0,
 "auto_connect": false,
-"b": 0.0,
+"edge0": 0.55,
+"edge1": 0.45,
 "gui_position": Vector2(1640, 130),
-"threshold": 0.5,
-"type": "Select"
+"type": "Smoothstep"
 },
 "2": {
 "auto_connect": false,
@@ -58,25 +60,31 @@ graph_data = {
 "gui_position": Vector2(1400, 30),
 "type": "Abs"
 },
-"26": {
-"auto_connect": true,
-"gui_position": Vector2(1820, 290),
-"name": &"Noise_01",
-"noise": SubResource("ZN_FastNoiseLite_s36em"),
-"type": "FastNoise3D",
-"x": 0.0,
-"y": 0.0,
-"z": 0.0
-},
 "27": {
 "auto_connect": false,
-"gui_position": Vector2(2140, 130),
+"gui_position": Vector2(2180, 160),
 "type": "Multiply"
+},
+"29": {
+"auto_connect": false,
+"edge0": 0.0,
+"edge1": 1.0,
+"gui_position": Vector2(1980, 310),
+"type": "Smoothstep"
 },
 "3": {
 "auto_connect": false,
 "gui_position": Vector2(26.6667, 213.333),
 "type": "InputZ"
+},
+"33": {
+"auto_connect": true,
+"gui_position": Vector2(1490, 310),
+"noise": SubResource("ZN_FastNoiseLite_s36em"),
+"type": "FastNoise3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
 },
 "4": {
 "auto_connect": false,

@@ -41,8 +41,8 @@ uniform vec3 absorption_coefficients = vec3(0.45, 0.18, 0.06);
 uniform float edge_scale = 10.0;
 uniform float edge_disable_start : hint_range(0.0, 1000.0) = 60.0;
 uniform float edge_disable_end : hint_range(0.0, 1000.0) = 150.0;
-uniform float detail_fade_start : hint_range(0.0, 2000.0) = 80.0;
-uniform float detail_fade_end : hint_range(0.0, 2000.0) = 250.0;
+uniform float detail_fade_start : hint_range(0.0, 20000.0) = 80.0;
+uniform float detail_fade_end : hint_range(0.0, 20000.0) = 250.0;
 
 uniform float surface_alpha : hint_range(0.0, 1.0) = 0.15;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 1.0;

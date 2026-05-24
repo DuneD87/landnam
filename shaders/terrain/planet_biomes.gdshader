@@ -3,6 +3,14 @@ render_mode blend_mix;
 #include "res://shaders/terrain/terrain_utils.gdshaderinc"
 #include "res://shaders/terrain/virtual_texturing.gdshaderinc"
 
+uniform float macro_variation_scale : hint_range(0.0, 0.01) = 0.15;
+uniform float macro_variation_strength : hint_range(0.0, 0.5) = 0.18;
+uniform float macro_variation_contrast : hint_range(0.5, 3.0) = 1.4;
+
+uniform bool detail_blend_enabled = true;
+uniform float detail_scale_multiplier : hint_range(2.0, 16.0) = 5.7;  // primo o irracional, NO 4.0 ni 8.0
+uniform float detail_blend_weight : hint_range(0.0, 1.0) = 0.5;
+
 uniform int u_transition_mask;
 uniform float radius = 5000.0;
 uniform vec3 center;
@@ -41,8 +49,8 @@ uniform sampler2D slope_normal_texture;
 uniform sampler2D slope_roughness_texture;
 uniform sampler2D slope_height_texture;
 uniform sampler2D slope_ao_texture;
-uniform float slope_threshold = 0.7;
-uniform float slope_smoothness = 0.2;
+uniform float slope_threshold = 0.5;
+uniform float slope_smoothness = 0.5;
 uniform float transition_smoothness = 0.5;
 
 uniform float biome_transition_smoothness = 1.0; // nueva uniform para suavizar transiciones
@@ -207,30 +215,31 @@ void fragment() {
                 override_tex_index < MAX_TEXTURES &&
                 override_tex_index != tex_index
             ) {
-                int biome_seed = int(round(biome_noise_seeds[b]));
-                float biome_noise = fast_noise_lite_open_simplex2_3d(planet_pos, biome_noise_scales[b], biome_seed);
-                biome_noise = clamp((biome_noise * 0.5 + 0.5) * biome_noise_strengths[b], 0.0, 1.0);
-                float biome_noise_mask = smoothstep(
-                    biome_noise_thresholds[b] - biome_noise_smoothness[b],
-                    biome_noise_thresholds[b] + biome_noise_smoothness[b],
-                    biome_noise
-                );
-                if (biome_noise_invert[b] != 0) {
-                    biome_noise_mask = 1.0 - biome_noise_mask;
-                }
-                float abs_latitude = abs(latitude);
-                float latitude_mask =
-                    smoothstep(
-                        biome_noise_abs_latitude_mins[b] - biome_noise_latitude_smoothness[b],
-                        biome_noise_abs_latitude_mins[b] + biome_noise_latitude_smoothness[b],
-                        abs_latitude
-                    ) *
-                    (1.0 - smoothstep(
-                        biome_noise_abs_latitude_maxs[b] - biome_noise_latitude_smoothness[b],
-                        biome_noise_abs_latitude_maxs[b] + biome_noise_latitude_smoothness[b],
-                        abs_latitude
-                    ));
-                biome_noise_mask *= latitude_mask;
+               	int biome_seed = int(round(biome_noise_seeds[b]));
+				float base_scale = biome_noise_scales[b]; // debe ser 1/64 para coincidir con Period 64
+				float n      = 0.0;
+				float amp    = 1.0;
+				float fscale = base_scale;
+				float norm   = 0.0;
+				for (int o = 0; o < 6; o++) {              // 3 octavas, no 6
+				    float v = abs(fast_noise_lite_open_simplex2_3d(planet_pos, fscale, biome_seed + o));
+				    n      += (v * -2.0 + 1.0) * amp;
+				    norm   += amp;
+				    amp    *= 0.1;                          // gain 0.5, no 1.0
+				    fscale *= 6.0;                          // lacunarity 2.0, no 3.0
+				}
+				n = (n / norm) * 0.5 + 0.5; // [0,1] — quítalo si quieres [-1,1] como FastNoise2
+
+				// 3) Threshold + smoothness sobre el ruido ya contrastado.
+				//    Como el remap anterior ya normalizó la pendiente, smoothness se comporta
+				//    de forma estable aunque cambies strength.
+				float t = biome_noise_thresholds[b];
+				float s = max(biome_noise_smoothness[b], 0.0001);
+				float biome_noise_mask = smoothstep(t - s, t + s, n);
+
+				if (biome_noise_invert[b] != 0) {
+				    biome_noise_mask = 1.0 - biome_noise_mask;
+				}
                 // División limpia: el ratio hierba/tierra lo decide el noise mask,
                 // sin contaminación del height map de la fuente.
                 override_factor = factor * biome_noise_mask;
@@ -251,16 +260,23 @@ void fragment() {
             // Así el height map de la hierba solo afecta a la hierba, y el de la tierra
             // solo afecta a la tierra (en la sección de override más abajo).
             if (height_blend_strength > 0.0001 && base_factor > 0.0001) {
-                float material_height = triplanar_scalar_sample_uvs(height_textures[tex_index], uvs, normal_world);
+                float material_height = triplanar_scalar_sample_uvs(height_textures[tex_index], uvs, planet_up);
                 float height_bias = mix(0.35, 1.35, pow(clamp(material_height, 0.0, 1.0), height_blend_contrast));
                 base_factor *= mix(1.0, height_bias, height_blend_strength);
             }
 
-            vec3 c = triplanar_sample_uvs(textures[tex_index], uvs, normal_world);
+            // planet_up como eje de mezcla triplanar: invariante al LOD y a la normal del mesh.
+            vec3 c = triplanar_sample_uvs(textures[tex_index], uvs, planet_up);
+			if (detail_blend_enabled) {
+			    TriplanarUVs uvs_detail = compute_triplanar_uvs(planet_pos, texture_scale * detail_scale_multiplier);
+			    vec3 c_detail = triplanar_sample_uvs(textures[tex_index], uvs_detail, planet_up);
+			    // Mezcla overlay tipo "detail" — preserva luminancia base
+			    c = mix(c, c * c_detail * 2.0, detail_blend_weight);
+			}
             vec4 n_v = triplanar_normal_sample_uvs_v(normal_textures[tex_index], uvs, normal_world);
-			
-            float r = triplanar_scalar_sample_uvs(roughness_textures[tex_index], uvs, normal_world);
-            float ao = triplanar_scalar_sample_uvs(ao_textures[tex_index], uvs, normal_world);
+
+            float r = triplanar_scalar_sample_uvs(roughness_textures[tex_index], uvs, planet_up);
+            float ao = triplanar_scalar_sample_uvs(ao_textures[tex_index], uvs, planet_up);
 
             final_color     += c * base_factor;
             final_normal    += n_v.xyz * base_factor;
@@ -280,15 +296,15 @@ void fragment() {
                 }
 
                 if (height_blend_strength > 0.0001) {
-                    float override_height = triplanar_scalar_sample_uvs(height_textures[override_tex_index], override_uvs, normal_world);
+                    float override_height = triplanar_scalar_sample_uvs(height_textures[override_tex_index], override_uvs, planet_up);
                     float override_height_bias = mix(0.35, 1.35, pow(clamp(override_height, 0.0, 1.0), height_blend_contrast));
                     override_factor *= mix(1.0, override_height_bias, height_blend_strength);
                 }
 
-                vec3 override_c = triplanar_sample_uvs(textures[override_tex_index], override_uvs, normal_world);
+                vec3 override_c = triplanar_sample_uvs(textures[override_tex_index], override_uvs, planet_up);
                 vec4 override_n_v = triplanar_normal_sample_uvs_v(normal_textures[override_tex_index], override_uvs, normal_world);
-                float override_r = triplanar_scalar_sample_uvs(roughness_textures[override_tex_index], override_uvs, normal_world);
-                float override_ao = triplanar_scalar_sample_uvs(ao_textures[override_tex_index], override_uvs, normal_world);
+                float override_r = triplanar_scalar_sample_uvs(roughness_textures[override_tex_index], override_uvs, planet_up);
+                float override_ao = triplanar_scalar_sample_uvs(ao_textures[override_tex_index], override_uvs, planet_up);
 
                 final_color     += override_c * override_factor;
                 final_normal    += override_n_v.xyz * override_factor;
@@ -324,6 +340,10 @@ void fragment() {
     }
 
     // 7) Salidas
+	float macro_n = signed_fbm(planet_pos * macro_variation_scale);
+	macro_n = sign(macro_n) * pow(abs(macro_n), 1.0 / macro_variation_contrast);
+	float macro_factor = 1.0 + macro_n * macro_variation_strength;
+	final_color *= macro_factor;
     ALBEDO = final_color;
 	NORMAL = normalize((VIEW_MATRIX * vec4(safe_normalize(final_normal, normal_world), 0.0)).xyz);
     ROUGHNESS = final_roughness;

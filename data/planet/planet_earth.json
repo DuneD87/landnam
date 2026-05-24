@@ -28,40 +28,45 @@
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png",
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png",
-			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png"
+			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
+			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png"
 		],
 		"normal_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_normal-ogl.png",
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png",
-			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png"
+			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png",
+			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_normal-ogl.png"
 		],
 		"roughness_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_roughness.png",
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png",
-			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png"
+			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png",
+			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_roughness.png"
 		],
 		"ao_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_ao.png",
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_ao.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_ao.png",
-			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_ao.png"
+			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_ao.png",
+			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_ao.png"
 		],
 		"height_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_height.png",
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_height.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Height.png",
-			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_height.png"
+			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_height.png",
+			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_height.png"
 		],
 		"biome_noise_texture_overrides": [
 			{
 				"biome": 1,
 				"source_texture": 1,
-				"target_texture": 3,
-				"period": 128.0,
+				"target_texture": 4,
+				"period": 256.0,
 				"threshold": 0.1,
-				"smoothness": 0.5,
+				"smoothness": 0.7,
 				"strength": 1.0,
 				"seed": 0,
 				"invert": true,
@@ -72,10 +77,10 @@
 			{
 				"biome": 3,
 				"source_texture": 1,
-				"target_texture": 3,
-				"period": 128.0,
-				"threshold": 0.1,
-				"smoothness": 0.5,
+				"target_texture": 4,
+				"period": 256.0,
+				"threshold": 0.01,
+				"smoothness": 0.7,
 				"strength": 1.0,
 				"seed": 0,
 				"invert": true,
@@ -163,7 +168,7 @@
 	  {
 		"name": "grass_generator_green",
 		"emit_mode": "EMIT_ONE_PER_TRIANGLE",
-		"density": 0.7,
+		"density": 0.1,
 		"min_height": -35,
 		"max_height": 150,
 		"max_slope_degrees": 35,
@@ -310,24 +315,19 @@
 			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
 		},
 		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_01.tscn",
-			"generator": ["grass_generator_green", "grass_generator_green_sand"],
-			"wind_speed": 0.2, "lod_index": 0, "material_type": "WOOD"
-		},
-		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_04.tscn",
 			"generator": ["grass_generator_sand"],
-			"wind_speed": 0.2, "lod_index": 3, "material_type": "WOOD"
+			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_02.tscn",
 			"generator": ["grass_generator_green"],
-			"wind_speed": 0.2, "lod_index": 0, "material_type": "WOOD"
+			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_03.tscn",
 			"generator": ["grass_generator_green", "grass_generator_green_sand"],
-			"wind_speed": 0.2, "lod_index": 0, "material_type": "WOOD"
+			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/bushes/bush_01.tscn",

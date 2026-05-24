@@ -389,7 +389,44 @@ float fast_noise_lite_open_simplex2_single_3d(int seed, float x, float y, float 
 
     return value * 32.69428253173828125;
 }
+float fast_noise_lite_open_simplex2_ridged_3d(
+    vec3 p, float frequency, int seed,
+    int octaves, float lacunarity, float gain, float weighted_strength
+) {
+    // Frequency + rotación R3 una sola vez (igual que el wrapper single).
+    // Las octavas siguientes solo escalan por lacunarity en el espacio ya rotado,
+    // tal como hace GenFractalRidged en FastNoiseLite.
+    vec3 q = p * frequency;
+    float r = (q.x + q.y + q.z) * (2.0 / 3.0);
+    q = vec3(r) - q;
 
+    // fractal_bounding = 1 / sum(gain^i) para i en [0, octaves-1].
+    // Normaliza la suma final a ~[-1, 1] independientemente del número de octavas.
+    float amp_iter = gain;
+    float amp_fractal = 1.0;
+    for (int i = 1; i < octaves; i++) {
+        amp_fractal += amp_iter;
+        amp_iter *= gain;
+    }
+    float fractal_bounding = 1.0 / amp_fractal;
+
+    float sum = 0.0;
+    float amp = fractal_bounding;
+
+    for (int i = 0; i < octaves; i++) {
+        float n = abs(fast_noise_lite_open_simplex2_single_3d(seed, q.x, q.y, q.z));
+        // (noise * -2 + 1): convierte |n| en [0,1] → [-1,1] con ridges en los picos
+        sum += (n * -2.0 + 1.0) * amp;
+        // weighted_strength atenúa las octavas siguientes cerca de los valles
+        amp *= mix(1.0, 1.0 - n, weighted_strength);
+
+        q *= lacunarity;
+        amp *= gain;
+        seed += 1;  // seed++ post-incremento, igual que FNL
+    }
+
+    return sum;
+}
 float fast_noise_lite_open_simplex2_3d(vec3 p, float frequency, int seed) {
     vec3 q = p * frequency;
     float r = (q.x + q.y + q.z) * (2.0 / 3.0);
@@ -475,6 +512,27 @@ vec3 triplanar_normal_sample(sampler2D tex, vec3 pos, vec3 surface_normal, float
         tn_z.xyz * blend.z,
         surface_normal
     );
+}
+
+// Versiones con LOD bias explícito — para eliminar seams en transiciones de mesh LOD.
+// En VoxelLodTerrain con mesh_block_size=16, los bloques gruesos tienen triángulos más
+// grandes: el GPU selecciona automáticamente un mip más bajo → textura diferente en cada
+// lado del seam. Un bias negativo compensa, haciendo que todos los bloques usen el mismo
+// nivel de mip que el LOD 0.
+vec3 triplanar_sample_uvs_bias(sampler2D tex, TriplanarUVs uvs, vec3 normal, float bias) {
+    vec3 col_x = texture(tex, uvs.uv_x, bias).rgb;
+    vec3 col_y = texture(tex, uvs.uv_y, bias).rgb;
+    vec3 col_z = texture(tex, uvs.uv_z, bias).rgb;
+    vec3 blend = triplanar_blend_weights(normal, 3.0);
+    return col_x * blend.x + col_y * blend.y + col_z * blend.z;
+}
+
+float triplanar_scalar_sample_uvs_bias(sampler2D tex, TriplanarUVs uvs, vec3 normal, float bias) {
+    float r = texture(tex, uvs.uv_x, bias).r;
+    float g = texture(tex, uvs.uv_y, bias).r;
+    float b = texture(tex, uvs.uv_z, bias).r;
+    vec3 blend = triplanar_blend_weights(normal, 3.0);
+    return r * blend.x + g * blend.y + b * blend.z;
 }
 
 // Función para muestrear roughness maps con mapeo triplanar (escala de grises)
