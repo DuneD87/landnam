@@ -6,6 +6,7 @@ const PLATFORM_MAX_TILT_DEG := 75.0
 const config = preload("res://scripts/config.gd")
 const data = preload("res://scripts/items/item_data.gd")
 @onready var movement: Movement = $Movement
+@onready var health_component: HealthComponent = $HealthComponent
 @onready var camera_controller: CameraController = $CameraController
 @onready var camera: Camera3D = $CameraPivot/PitchPivot/Camera3D
 @onready var animation_controller: AnimationController = $AnimationController
@@ -237,6 +238,8 @@ func _ready():
 	GameManager.register_player(self)
 	GameManager.state_changed.connect(_on_game_state_changed)
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
+	movement.landed.connect(_on_landed)
+	health_component.died.connect(_on_player_died)
 	# Start in free flight with no input (space view for the menu)
 	free_flight_enabled = true
 	visible = false
@@ -551,6 +554,16 @@ func _play_cinematic() -> void:
 
 func _on_cinematic_tween_finished() -> void:
 	GameManager.cinematic_completed()
+
+
+# ---------- Health ----------
+
+func _on_landed(impact_speed: float) -> void:
+	health_component.take_fall_damage(impact_speed)
+
+func _on_player_died() -> void:
+	# TODO: pantalla de muerte, respawn, etc.
+	print("[Player] Died — impact or damage")
 
 func _interpolate_rotation(t: float, from_quat: Quaternion, to_quat: Quaternion) -> void:
 	global_basis = Basis(from_quat.slerp(to_quat, t))
@@ -885,7 +898,6 @@ func _update_platform_tracking() -> void:
 		if not is_instance_valid(_platform_body):
 			_platform_body = null
 		else:
-			var dist := global_position.distance_to(_platform_body.global_position)
 			var body_up := _platform_body.global_transform.basis.y.normalized()
 			var height_above := (global_position - _platform_body.global_position).dot(body_up)
 			
