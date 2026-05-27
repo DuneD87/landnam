@@ -3,9 +3,19 @@ class_name AnimationController
 
 const Config = preload("res://scripts/config.gd")
 
-@onready var animator: AnimationPlayer = $"../PlayerModel/AnimationPlayer"
-@onready var animation_tree: AnimationTree = $"../PlayerModel/AnimationTree"
+## Si no se asigna desde el editor, busca la ruta por defecto del Player.
+## Los NPCs deben asignar estos exports apuntando a su propio modelo.
+@export var animator: AnimationPlayer
+@export var animation_tree: AnimationTree
 @export var blend_speed: float = 5.0
+
+func _ready() -> void:
+	if not animator:
+		animator = get_node_or_null("../PlayerModel/AnimationPlayer")
+	if not animation_tree:
+		animation_tree = get_node_or_null("../PlayerModel/AnimationTree")
+	if not animator or not animation_tree:
+		push_warning("AnimationController '%s': animator o animation_tree no encontrado." % name)
 
 var animation_states = {
 	Config.ANIMATION.IDLE: {
@@ -53,9 +63,25 @@ var current_values = {
 }
 var oneshot_params = ["attack_vertical", "attack_horizontal"]  # parámetros que son OneShot
 
-func update_tree():
+func _animation_tree_has_property(path: String) -> bool:
+	if not is_instance_valid(animation_tree):
+		return false
+	
+	for property in animation_tree.get_property_list():
+		if property["name"] == path:
+			return true
+	
+	return false
+
+func update_tree() -> void:
+	if not is_instance_valid(animation_tree):
+		return
+	
 	for parameter in current_values:
-		animation_tree["parameters/%s/blend_amount" % parameter] = current_values[parameter]
+		var path := "parameters/%s/blend_amount" % parameter
+		
+		if _animation_tree_has_property(path):
+			animation_tree[path] = current_values[parameter]
 
 
 func handle_animations(delta: float, current_animation, free_flight_enabled):

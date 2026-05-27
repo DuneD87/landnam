@@ -1,4 +1,4 @@
-extends CharacterBody3D
+extends PlanetaryBody
 const PLATFORM_ATTACH_DIST := 1.5
 const PLATFORM_DETACH_DIST := 2.5
 const PLATFORM_MAX_TILT_DEG := 75.0
@@ -27,7 +27,6 @@ const data = preload("res://scripts/items/item_data.gd")
 @export var main_menu: Control
 @export var spawn_point: Marker3D
 @export var start_first_person: bool = false
-@export var planets: Node3D
 @export var animator_tree: AnimationTree
 @export var mouse_sensitivity: float = 0.002
 @export var invert_y: bool = false
@@ -54,8 +53,6 @@ var _platform_body: DynamicGridBody = null
 var _platform_prev_xform: Transform3D
 
 var current_water_time: float = 0.0
-var gravity_direction: Vector3 = Vector3.DOWN
-var planet: Node3D
 var water_sampler: WaterHeightSampler
 var mouse_captured = true
 var free_flight_enabled = false
@@ -671,6 +668,16 @@ func _input(event):
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
 		play_attack_once = true
+	elif Input.is_action_just_pressed("attack_2"):
+		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
+		var raycast_result = action_controller.perform_raycast(ray_origin, camera.global_rotation, true)
+		if raycast_result["has_hit"]:
+			print("hit_pos:", raycast_result["hit_pos"], "\nhit_distance: ", raycast_result["hit_distance"])
+			var deer = load("res://scenes/animals/Deer.tscn").instantiate() as CharacterBody3D
+			get_tree().current_scene.add_child(deer)
+			deer.planets = planets
+			deer.global_position = raycast_result["hit_pos"] - gravity_direction * 10
+
  
  
 func _handle_build_input(event: InputEvent) -> void:
@@ -808,19 +815,10 @@ func update_free_flight(delta: float) -> void:
 func rotate_toward_movement(input_dir: Vector3, delta: float):
 	if input_dir.length() < 0.1:
 		return
-	
-	var forward = -camera.global_transform.basis.z
-	var target_dir = movement.project_on_plane(forward, gravity_direction).normalized()
-	var current_dir = global_transform.basis.z
-	var angle = acos(clamp(current_dir.dot(target_dir), -1.0, 1.0))
-	
-	if angle > deg_to_rad(10.0):
-		var rotation_axis = current_dir.cross(target_dir)
-		if rotation_axis.length() > 0.1:
-			var rotation_amount = angle * delta * 3.0
-			var rot = Quaternion(rotation_axis.normalized(), rotation_amount)
-			global_transform.basis = Basis(rot) * global_transform.basis
-			orthonormalize()
+	# El player gira hacia donde apunta la cámara, no hacia el input.
+	# project_on_gravity_plane y rotate_toward_direction vienen de PlanetaryBody.
+	var target_dir := project_on_gravity_plane(-camera.global_transform.basis.z)
+	rotate_toward_direction(target_dir, delta, 3.0)
 
 func apply_swimming_pitch(input_dir: Vector3, delta: float):
 	var vertical_component = 0.0
@@ -835,17 +833,6 @@ func apply_swimming_pitch(input_dir: Vector3, delta: float):
 	
 	current_swimming_pitch = lerp(current_swimming_pitch, target_pitch, delta * swimming_rotation_speed)
 	player_model.rotation = Vector3(current_swimming_pitch, 0, 0)
-
-func align_to_gravity(gravity_dir: Vector3, blend: float):	
-	var up_dir = -gravity_dir.normalized()
-	var current_up = global_transform.basis.y
-	var rotation_axis = current_up.cross(up_dir)
-	var angle = acos(clamp(current_up.dot(up_dir), -1.0, 1.0))
-
-	if angle > 0.001 and rotation_axis.length() > 0.001:
-		var rot = Quaternion(rotation_axis.normalized(), angle * blend)
-		global_transform.basis = Basis(rot) * global_transform.basis
-		orthonormalize()
 
 func _get_platform_point_velocity() -> Vector3:
 	if not _platform_body or not is_instance_valid(_platform_body):
