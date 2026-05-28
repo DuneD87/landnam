@@ -75,12 +75,11 @@ func _physics_process(delta: float) -> void:
 	ai_controller.update(delta)
 
 	var raw_dir := ai_controller.desired_direction
-	movement.ai_direction = project_on_gravity_plane(raw_dir) if raw_dir.length() > 0.01 \
-			else Vector3.ZERO
+	movement.ai_direction = project_on_gravity_plane(raw_dir)
 
 	# ── Movimiento ──────────────────────────────────────────────────────────
 	# camera = null es seguro: con use_ai_input = true nunca se accede a ella
-	var move_dir := movement.handle_run_movement(delta, false, gravity_direction, null)
+	movement.handle_run_movement(delta, false, gravity_direction, null)
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 
 	current_animation = movement.current_animation
@@ -89,8 +88,11 @@ func _physics_process(delta: float) -> void:
 
 	velocity = movement.velocity
 
-	if movement.is_running or movement.is_sprinting:
-		rotate_toward_direction(move_dir, delta)  # de PlanetaryBody
+	# Usar movement.direction (suavizado) en vez del raw AI direction para evitar
+	# giros abruptos cuando la dirección deseada cambia de golpe.
+	var rot_dir := project_on_gravity_plane(movement.direction)
+	if rot_dir.length() > 0.1:
+		rotate_toward_direction(rot_dir, delta)  # de PlanetaryBody
 
 	align_to_gravity(gravity_direction, delta)    # de PlanetaryBody
 	move_and_slide()

@@ -17,6 +17,7 @@ var _timer: float = 0.0
 func enter() -> void:
 	_timer = randf_range(min_idle_time, max_idle_time)
 	controller.desired_direction = Vector3.ZERO
+	controller.movement.direction = Vector3.ZERO
 
 
 func update(delta: float) -> StringName:
