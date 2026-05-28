@@ -22,6 +22,9 @@ class_name NPCController
 ## Nombre del estado inicial de la FSM. Debe coincidir con el nombre de un
 ## nodo hijo de AIController (ej: &"IdleState").
 @export var initial_ai_state: StringName = &"IdleState"
+## Identificador único para el sistema de guardado. Se genera automáticamente
+## si está vacío. Sobreescribir en el editor para NPCs fijos en la escena.
+@export var entity_id: String = ""
 
 @onready var movement: Movement = $Movement
 @onready var health_component: HealthComponent = $HealthComponent
@@ -36,6 +39,10 @@ func _ready() -> void:
 	safe_margin = 0.008
 	floor_max_angle = deg_to_rad(70.0)
 	floor_snap_length = 0.1
+
+	if entity_id.is_empty():
+		entity_id = "npc_%d" % get_instance_id()
+	add_to_group(GameManager.SAVEABLE_GROUP)
 
 	# Movement en modo IA: la dirección la inyecta el AIController, no el Input
 	movement.use_ai_input = true
@@ -108,3 +115,58 @@ func _on_landed(impact_speed: float) -> void:
 ## Subclases pueden override para drops de loot, animación de muerte, etc.
 func _on_died() -> void:
 	queue_free()
+
+
+# ── Save / Load ──────────────────────────────────────────────────────────────
+
+func get_save_data() -> Dictionary:
+	return {
+		"position": {
+			"x": global_position.x,
+			"y": global_position.y,
+			"z": global_position.z,
+		},
+		"basis": {
+			"xx": global_basis.x.x, "xy": global_basis.x.y, "xz": global_basis.x.z,
+			"yx": global_basis.y.x, "yy": global_basis.y.y, "yz": global_basis.y.z,
+			"zx": global_basis.z.x, "zy": global_basis.z.y, "zz": global_basis.z.z,
+		},
+		"health": health_component.health,
+		"ai_state": str(ai_controller.get_current_state()),
+		"planets_path": str(planets.get_path()) if planets else "",
+	}
+
+
+func restore_save_data(save: Dictionary) -> void:
+	global_position = Vector3(save.position.x, save.position.y, save.position.z)
+	var b = save.basis
+	global_basis = Basis(
+		Vector3(b.xx, b.xy, b.xz),
+		Vector3(b.yx, b.yy, b.yz),
+		Vector3(b.zx, b.zy, b.zz),
+	)
+	health_component.health = save.health
+
+	var planets_path: String = save.get("planets_path", "")
+	if not planets_path.is_empty():
+		var found := get_tree().root.get_node_or_null(planets_path)
+		if found:
+			planets = found
+
+	var saved_state := StringName(save.get("ai_state", str(initial_ai_state)))
+	if saved_state != ai_controller.get_current_state():
+		ai_controller.transition_to(saved_state)
+
+
+func post_restore() -> void:
+	update_nearest_planet()
+	if not planet:
+		return
+	gravity_direction = planet.get_gravity_direction(global_position)
+	up_direction = -gravity_direction
+	align_to_gravity(gravity_direction, 1.0)
+
+	set_physics_process(false)
+	while not is_ground_ready():
+		await get_tree().create_timer(0.5).timeout
+	set_physics_process(true)

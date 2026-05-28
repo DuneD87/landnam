@@ -321,15 +321,6 @@ func get_save_data() -> Dictionary:
 		"hotbar_selected": hotbar.selected_index,
 	}
 
-func _is_ground_ready() -> bool:
-	var query = PhysicsRayQueryParameters3D.create(
-		global_position + Vector3.UP * 5,
-		planet.global_pos
-	)
-	
-	var result = get_world_3d().direct_space_state.intersect_ray(query)
-	
-	return not result.is_empty()
 	
 func restore_save_data(save: Dictionary) -> void:
 	input_enabled = false
@@ -579,7 +570,7 @@ func _activate_player() -> void:
 	player_model.rotation = Vector3.ZERO
 	current_swimming_pitch = 0.0
 
-	while !_is_ground_ready():
+	while not is_ground_ready():
 		await get_tree().create_timer(.5).timeout
 	mouse_captured = true
 	input_enabled = true

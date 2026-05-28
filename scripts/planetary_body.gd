@@ -65,6 +65,19 @@ func project_on_gravity_plane(dir: Vector3) -> Vector3:
 	return projected.normalized()
 
 
+## Devuelve true cuando hay geometría de terreno bajo el cuerpo.
+## Útil para esperar a que el terreno voxel esté generado antes de activar física.
+func is_ground_ready() -> bool:
+	if not planet:
+		return false
+	var query := PhysicsRayQueryParameters3D.create(
+		global_position - gravity_direction * 2.0,
+		planet.global_position
+	)
+	query.exclude = [get_rid()]
+	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+
 ## Busca en [member planets] el planeta más cercano a la posición actual
 ## y lo asigna a [member planet].
 func update_nearest_planet() -> void:
