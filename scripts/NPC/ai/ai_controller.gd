@@ -31,6 +31,10 @@ var desired_direction: Vector3 = Vector3.ZERO
 ## Target actual (jugador, amenaza, punto de wander…). Los estados lo leen y escriben.
 var target: Node3D = null
 
+## True durante la ventana de animación de ataque. Lo activan los estados de combate
+## y lo lee NPCController para suprimir animaciones de movimiento.
+var is_attacking: bool = false
+
 var _states: Dictionary = {}       # StringName → AIState
 var _current_state: AIState = null
 var _current_state_name: StringName = &""

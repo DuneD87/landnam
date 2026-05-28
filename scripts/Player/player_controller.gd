@@ -665,7 +665,7 @@ func _input(event):
 		var raycast_result = action_controller.perform_raycast(ray_origin, camera.global_rotation, true)
 		if raycast_result["has_hit"]:
 			print("hit_pos:", raycast_result["hit_pos"], "\nhit_distance: ", raycast_result["hit_distance"])
-			var deer = load("res://scenes/animals/Deer.tscn").instantiate() as CharacterBody3D
+			var deer = load("res://scenes/animals/Bear.tscn").instantiate() as CharacterBody3D
 			get_tree().current_scene.add_child(deer)
 			deer.planets = planets
 			deer.global_position = raycast_result["hit_pos"] - gravity_direction * 10

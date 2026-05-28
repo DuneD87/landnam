@@ -1,5 +1,8 @@
+@tool
 extends PlanetaryBody
 class_name NPCController
+
+const Config = preload("res://scripts/config.gd")
 
 ## Controlador base para todos los NPCs (animales, humanos…).
 ##
@@ -36,6 +39,8 @@ class_name NPCController
 @onready var health_component: HealthComponent = $HealthComponent
 @onready var ai_controller: AIController = $AIController
 @onready var inventory: Inventory = $Inventory
+@onready var collision_shape: CollisionShape3D = $CollisionShape3D
+@onready var npc_model: Node3D = $NPCModel
 ## Asignado automáticamente si existe el nodo hijo "AnimationController".
 var animation_controller: AnimationController
 var current_animation  # Config.ANIMATION value
@@ -83,16 +88,20 @@ func _ready() -> void:
 	if initial_ai_state != &"":
 		ai_controller.start(initial_ai_state)
 
+func _process(delta: float) -> void:
+	pass
+	#if collision_shape != null && npc_model != null:
+		#print("its working on editor")
+		#collision_shape.rotation = npc_model.rotation
 
 func _physics_process(delta: float) -> void:
 	if not planet:
 		update_nearest_planet()
-		return
-
-	# Gravedad planetaria (heredado: gravity_direction, up_direction)
+		return	# Gravedad planetaria (heredado: gravity_direction, up_direction)
 	gravity_direction = planet.get_gravity_direction(global_position)
 	up_direction = -gravity_direction
-
+	
+		
 	# ── IA ──────────────────────────────────────────────────────────────────
 	# El estado activo escribe ai_controller.desired_direction en espacio mundo.
 	# Lo proyectamos en el plano de gravedad antes de inyectarlo en Movement.
@@ -104,10 +113,12 @@ func _physics_process(delta: float) -> void:
 
 	# ── Movimiento ──────────────────────────────────────────────────────────
 	# camera = null es seguro: con use_ai_input = true nunca se accede a ella
-	movement.handle_run_movement(delta, false, gravity_direction, null)
+	movement.handle_run_movement(delta, ai_controller.is_attacking, gravity_direction, null)
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 
 	current_animation = movement.current_animation
+	if ai_controller.is_attacking:
+		current_animation = Config.ANIMATION.ATTACK_1
 	if animation_controller:
 		animation_controller.handle_animations(delta, current_animation, false)
 
