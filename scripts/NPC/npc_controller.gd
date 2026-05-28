@@ -22,6 +22,12 @@ class_name NPCController
 ## Nombre del estado inicial de la FSM. Debe coincidir con el nombre de un
 ## nodo hijo de AIController (ej: &"IdleState").
 @export var initial_ai_state: StringName = &"IdleState"
+## Estado al que transicionar cuando Perception detecta un objetivo.
+## Vacío = sin reacción automática (útil para NPCs pasivos).
+@export var detect_state: StringName = &""
+## Estado al que transicionar cuando Perception pierde el objetivo.
+## Vacío = dejar que el estado activo decida por sí mismo.
+@export var lose_state: StringName = &""
 ## Identificador único para el sistema de guardado. Se genera automáticamente
 ## si está vacío. Sobreescribir en el editor para NPCs fijos en la escena.
 @export var entity_id: String = ""
@@ -33,6 +39,8 @@ class_name NPCController
 ## Asignado automáticamente si existe el nodo hijo "AnimationController".
 var animation_controller: AnimationController
 var current_animation  # Config.ANIMATION value
+## Asignado automáticamente si existe el nodo hijo "Perception".
+var perception: Perception
 
 
 func _ready() -> void:
@@ -49,6 +57,16 @@ func _ready() -> void:
 
 	# AnimationController es opcional (puede no haber modelo aún)
 	animation_controller = get_node_or_null("AnimationController")
+
+	# Perception es opcional
+	perception = get_node_or_null("Perception")
+	if perception:
+		perception.npc = self
+		perception.controller = ai_controller
+		if detect_state != &"":
+			perception.target_detected.connect(_on_target_detected)
+		if lose_state != &"":
+			perception.target_lost.connect(_on_target_lost)
 
 	# Wiring del AIController con este cuerpo y el Movement
 	ai_controller.npc = self
@@ -106,6 +124,14 @@ func _physics_process(delta: float) -> void:
 
 
 # ── Señales ─────────────────────────────────────────────────────────────────
+
+func _on_target_detected(_target: Node3D) -> void:
+	ai_controller.transition_to(detect_state)
+
+
+func _on_target_lost() -> void:
+	ai_controller.transition_to(lose_state)
+
 
 func _on_landed(impact_speed: float) -> void:
 	health_component.take_fall_damage(impact_speed)

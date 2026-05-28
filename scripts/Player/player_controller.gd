@@ -232,6 +232,7 @@ func _ready():
 	floor_snap_length = 0.1
 	platform_floor_layers = 0
 	add_to_group(GameManager.SAVEABLE_GROUP)
+	add_to_group("player")
 	GameManager.register_player(self)
 	GameManager.state_changed.connect(_on_game_state_changed)
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
