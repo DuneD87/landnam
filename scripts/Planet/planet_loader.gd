@@ -149,6 +149,23 @@ func _load_planet() -> void:
 		water_sphere.load_watersphere(planet)
 		#water_sphere.visible = false
 
+	_setup_npc_spawners(planet_parser)
+
+func _setup_npc_spawners(planet_parser: PlanetParser) -> void:
+	var planet_center := voxel_terrain.global_position
+	for spawner_config in planet_parser.npc_spawners:
+		var spawner := NPCSpawner.new()
+		spawner.setup(
+			spawner_config,
+			planet_parser.radius,
+			planet_parser.atmosphere_height,
+			planet_center,
+			planet_parser.biome_latitude_ranges,
+			players,
+			get_parent()
+		)
+		add_child(spawner)
+
 func _on_file_selected(path: String) -> void:
 	config_file_path = path
 	_load_planet()
