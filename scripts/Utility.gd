@@ -7,10 +7,11 @@ extends RefCounted
 # Función para dibujar líneas de debug usando ImmediateMesh
 static func draw_debug_line(start_pos: Vector3, end_pos: Vector3, color: Color, duration: float = 1.0):
 	var scene_tree = Engine.get_main_loop() as SceneTree
-	if not scene_tree:
+	if not scene_tree or scene_tree.current_scene:
 		return
-	
+
 	var debug_line = MeshInstance3D.new()
+
 	scene_tree.current_scene.add_child(debug_line)
 	
 	# Crear el mesh inmediato

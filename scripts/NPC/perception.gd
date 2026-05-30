@@ -38,6 +38,14 @@ var controller: AIController
 
 var _detected: Node3D = null
 var _timer: float = 0.0
+var _player_cache: Node3D = null
+
+
+func _ready() -> void:
+	# Cachear referencia al player una sola vez en vez de escanear el árbol cada tick.
+	var players := get_tree().get_nodes_in_group("player")
+	if not players.is_empty() and players[0] is Node3D:
+		_player_cache = players[0]
 
 
 func _physics_process(delta: float) -> void:
@@ -62,9 +70,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _scan() -> Node3D:
-	for candidate in get_tree().get_nodes_in_group("player"):
-		if candidate is Node3D and _can_detect(candidate as Node3D):
-			return candidate as Node3D
+	if is_instance_valid(_player_cache) and _can_detect(_player_cache):
+		return _player_cache
 	return null
 
 

@@ -1,9 +1,5 @@
 class_name NPCSpawner extends Node3D
 
-## Distancia al player a partir de la cual un NPC se recicla a una posición cercana.
-const RECYCLE_DISTANCE := 800.0
-## Distancia mínima al player al reposicionar (evita teleportar encima del player).
-const MIN_SPAWN_DISTANCE := 60.0
 ## Segundos entre comprobaciones del pool.
 const RECYCLE_CHECK_INTERVAL := 2.0
 ## Segundos de espera inicial para que el terreno voxel se genere.
@@ -15,15 +11,16 @@ const MIN_SLOPE_DOT := 0.65
 ## Duración en segundos de las líneas de debug antes de desaparecer.
 const DEBUG_RAY_DURATION := 6.0
 
-var debug_rays: bool = true
-
+var debug_rays: bool = false
+var _min_spawn_distance := 60.0
 var _planets: Node3D
 var _scene_path: String = ""
 var _biomes: Array[int] = []
 var _min_height: float = 0.0
 var _max_height: float = 200.0
 var _max_npcs: int = 5
-
+var _lod_active_dist : float = 80.0
+var _max_distance : float = 80.0
 var _planet_radius: float = 0.0
 var _atmosphere_height: float = 1400.0
 var _planet_center: Vector3 = Vector3.ZERO
@@ -45,6 +42,9 @@ func setup(config: Dictionary, p_radius: float, p_atmosphere_height: float,
 	_min_height = float(config.get("min_height", 0.0))
 	_max_height = float(config.get("max_height", 200.0))
 	_max_npcs = int(config.get("max_npcs", 5))
+	_min_spawn_distance = float(config.get("min_spawn_distance", 60.0))
+	_lod_active_dist = float(config.get("lod_active_dist", 50.0))
+	_max_distance = float(config.get("max_distance", 100.0))
 	_planet_radius = p_radius
 	_atmosphere_height = p_atmosphere_height
 	_planet_center = p_center
@@ -88,8 +88,18 @@ func _recycle_pool() -> void:
 			var pos := _find_spawn_near(player_pos)
 			if pos != Vector3.ZERO:
 				_spawn_npc_at(pos)
-		elif npc.global_position.distance_to(player_pos) > RECYCLE_DISTANCE:
-			_teleport_npc(npc, player_pos)
+		else:
+			var dist := npc.global_position.distance_to(player_pos)
+			if dist > _max_distance:
+				_teleport_npc(npc, player_pos)
+				npc.set_physics_process(true)
+			else:
+				var lod_active := dist <= _lod_active_dist or not npc.is_on_floor()
+				npc.set_physics_process(lod_active)
+				if lod_active:
+					npc._physics_interval = 0.0 if dist < 15.0 else 0.5
+				if npc.perception:
+					npc.perception.set_physics_process(lod_active)
 		i -= 1
 
 	# Rellenar si el pool está por debajo del máximo (p.ej. tras muertes)
@@ -105,6 +115,9 @@ func _spawn_npc_at(pos: Vector3) -> void:
 	if not npc:
 		return
 	npc.planets = _planets
+	var stride : int = max(1, _max_npcs)
+	npc._frame_offset = _npc_pool.size() % stride
+	npc._ai_update_stride = stride
 	add_child(npc)
 	npc.global_position = pos
 	_npc_pool.append(npc)
@@ -130,7 +143,7 @@ func _find_spawn_near(player_pos: Vector3) -> Vector3:
 	var fwd := up.cross(right).normalized()
 	for _attempt in MAX_SPAWN_ATTEMPTS:
 		var angle := randf_range(0.0, TAU)
-		var dist := randf_range(MIN_SPAWN_DISTANCE, RECYCLE_DISTANCE * 0.6)
+		var dist := randf_range(_min_spawn_distance, _max_distance * 0.6)
 		var dir := (player_pos + (right * cos(angle) + fwd * sin(angle)) * dist - _planet_center).normalized()
 		var lat := rad_to_deg(asin(clamp(dir.y, -1.0, 1.0)))
 		if _is_valid_latitude(lat):
@@ -172,7 +185,7 @@ func _raycast_surface(dir: Vector3) -> Vector3:
 		if debug_rays:
 			DebugUtils.draw_debug_line(from, hit_pos, Color.RED, DEBUG_RAY_DURATION)
 		return Vector3.ZERO
-	var spawn_pos := hit_pos + hit_normal * 10.0
+	var spawn_pos := hit_pos + hit_normal * 2.0
 	if debug_rays:
 		DebugUtils.draw_debug_line(from, hit_pos, Color.GREEN, DEBUG_RAY_DURATION)
 		DebugUtils.draw_debug_point(spawn_pos, Color.GREEN, 3.0, DEBUG_RAY_DURATION)

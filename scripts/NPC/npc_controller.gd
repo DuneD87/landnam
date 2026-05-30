@@ -47,6 +47,11 @@ var current_animation  # Config.ANIMATION value
 ## Asignado automáticamente si existe el nodo hijo "Perception".
 var perception: Perception
 
+var _frame_offset: int = 0
+var _ai_update_stride: int = 1
+## 0 = cada frame. > 0 = intervalo en segundos (spawner lo ajusta por distancia).
+var _physics_interval: float = 0.0
+var _physics_timer: float = 0.0
 
 func _ready() -> void:
 	safe_margin = 0.008
@@ -97,22 +102,17 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if not planet:
 		update_nearest_planet()
-		return	# Gravedad planetaria (heredado: gravity_direction, up_direction)
+		return
 	gravity_direction = planet.get_gravity_direction(global_position)
 	up_direction = -gravity_direction
-	
-		
-	# ── IA ──────────────────────────────────────────────────────────────────
-	# El estado activo escribe ai_controller.desired_direction en espacio mundo.
-	# Lo proyectamos en el plano de gravedad antes de inyectarlo en Movement.
-	ai_controller.gravity_direction = gravity_direction
-	ai_controller.update(delta)
+
+	if Engine.get_physics_frames() % _ai_update_stride == _frame_offset:
+		ai_controller.gravity_direction = gravity_direction
+		ai_controller.update(delta * _ai_update_stride)
 
 	var raw_dir := ai_controller.desired_direction
 	movement.ai_direction = project_on_gravity_plane(raw_dir)
 
-	# ── Movimiento ──────────────────────────────────────────────────────────
-	# camera = null es seguro: con use_ai_input = true nunca se accede a ella
 	movement.handle_run_movement(delta, ai_controller.is_attacking, gravity_direction, null)
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 
@@ -124,13 +124,12 @@ func _physics_process(delta: float) -> void:
 
 	velocity = movement.velocity
 
-	# Usar movement.direction (suavizado) en vez del raw AI direction para evitar
-	# giros abruptos cuando la dirección deseada cambia de golpe.
 	var rot_dir := project_on_gravity_plane(movement.direction)
 	if rot_dir.length() > 0.1:
-		rotate_toward_direction(rot_dir, delta)  # de PlanetaryBody
+		rotate_toward_direction(rot_dir, delta)
 
-	align_to_gravity(gravity_direction, delta)    # de PlanetaryBody
+	align_to_gravity(gravity_direction, delta)
+
 	move_and_slide()
 
 
