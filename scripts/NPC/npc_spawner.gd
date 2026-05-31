@@ -1,7 +1,7 @@
 class_name NPCSpawner extends Node3D
 
 ## Segundos entre comprobaciones del pool.
-const RECYCLE_CHECK_INTERVAL := 2.0
+const RECYCLE_CHECK_INTERVAL := 20.0
 ## Segundos de espera inicial para que el terreno voxel se genere.
 const INITIAL_SPAWN_DELAY := 4.0
 ## Intentos máximos por posición antes de descartar.

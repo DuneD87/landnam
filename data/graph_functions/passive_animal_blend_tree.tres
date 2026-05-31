@@ -1,0 +1,29 @@
+[gd_resource type="AnimationNodeBlendTree" format=3 uid="uid://b7vbor8628kcg"]
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_c48xe"]
+animation = &"A_RunSlow_F"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_w5t68"]
+animation = &"Deer_Idle"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_sv2hv"]
+animation = &"A_RunFast_F"
+
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_bgx5p"]
+
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_bgqbl"]
+
+[resource]
+graph_offset = Vector2(-878.987, -43.477436)
+nodes/output/position = Vector2(920, 560)
+nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
+nodes/Animation/position = Vector2(-426.667, 240)
+nodes/Sprint/node = SubResource("AnimationNodeAnimation_sv2hv")
+nodes/Sprint/position = Vector2(-413.33334, 466.66666)
+nodes/IDle/node = SubResource("AnimationNodeAnimation_w5t68")
+nodes/IDle/position = Vector2(-413.33334, 13.333333)
+nodes/bSprint/node = SubResource("AnimationNodeBlend2_bgqbl")
+nodes/bSprint/position = Vector2(413.33334, 453.33334)
+nodes/bRun/node = SubResource("AnimationNodeBlend2_bgx5p")
+nodes/bRun/position = Vector2(173.33333, 160)
+node_connections = [&"output", 0, &"bSprint", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation"]
