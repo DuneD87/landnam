@@ -46,6 +46,7 @@ const data = preload("res://scripts/items/item_data.gd")
 @export var cinematic_ease: Tween.EaseType = Tween.EASE_OUT
 @export var cinematic_trans: Tween.TransitionType = Tween.TRANS_CUBIC
 @export var entity_id: String = "player"
+var save_category: String = "player"
 
 var _ray_hit: Dictionary = {}
 

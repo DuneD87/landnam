@@ -25,6 +25,7 @@ var _planet_grids: Dictionary = {}  # Node3D → Array[PlanetGrid]
 ## Contador para generar IDs únicos.
 var _next_id: int = 0
 var entity_id: String = "grid_manager"
+var save_category: String = "grid"
 # ============================================================
 #  SAVE / LOAD (integración con GameManager)
 # ============================================================

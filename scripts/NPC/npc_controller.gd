@@ -34,6 +34,7 @@ const Config = preload("res://scripts/config.gd")
 ## Identificador único para el sistema de guardado. Se genera automáticamente
 ## si está vacío. Sobreescribir en el editor para NPCs fijos en la escena.
 @export var entity_id: String = ""
+var save_category: String = "npc"
 
 @onready var movement: Movement = $Movement
 @onready var health_component: HealthComponent = $HealthComponent

@@ -16,6 +16,7 @@ enum Action { NONE, SELECT_CONFIG }
 @export var global_pos: Vector3
 @export var planet: Planet
 @export var entity_id: String = ""
+var save_category: String = "planet"
 
 @export_group("Underwater Godray Settings")
 @export var godray_intensity: float = 1.9
