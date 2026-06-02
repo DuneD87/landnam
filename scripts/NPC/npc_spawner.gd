@@ -11,7 +11,7 @@ const MIN_SLOPE_DOT := 0.65
 ## Duración en segundos de las líneas de debug antes de desaparecer.
 const DEBUG_RAY_DURATION := 6.0
 
-var debug_rays: bool = false
+var debug_rays: bool = true
 var _min_spawn_distance := 60.0
 var _planets: Node3D
 var _scene_path: String = ""
@@ -30,6 +30,8 @@ var _players: Array[CharacterBody3D] = []
 var _npc_scene: PackedScene = null
 var _npc_pool: Array[NPCController] = []
 var _recycle_timer: float = 0.0
+var _spawn_queue: Array[Vector3] = []
+var _queue_running: bool = false
 
 
 func setup(config: Dictionary, p_radius: float, p_atmosphere_height: float,
@@ -64,7 +66,7 @@ func _ready() -> void:
 	for _i in _max_npcs:
 		var pos := _find_spawn_near(origin) if origin != Vector3.ZERO else _find_spawn_random()
 		if pos != Vector3.ZERO:
-			_spawn_npc_at(pos)
+			_enqueue_spawn(pos)
 
 
 func _physics_process(delta: float) -> void:
@@ -87,12 +89,18 @@ func _recycle_pool() -> void:
 			_npc_pool.remove_at(i)
 			var pos := _find_spawn_near(player_pos)
 			if pos != Vector3.ZERO:
-				_spawn_npc_at(pos)
+				_enqueue_spawn(pos)
 		else:
 			var dist := npc.global_position.distance_to(player_pos)
 			if dist > _max_distance:
-				_teleport_npc(npc, player_pos)
-				npc.set_physics_process(true)
+				var recycled := _teleport_npc(npc, player_pos)
+				if recycled:
+					npc.set_physics_process(true)
+				else:
+					# No hay posición válida en este bioma (p.ej. player en otro bioma):
+					# eliminar de la pool para que el conteo refleje la realidad.
+					npc.queue_free()
+					_npc_pool.remove_at(i)
 			else:
 				var lod_active := dist <= _lod_active_dist or not npc.is_on_floor()
 				npc.set_physics_process(lod_active)
@@ -102,12 +110,30 @@ func _recycle_pool() -> void:
 					npc.perception.set_physics_process(lod_active)
 		i -= 1
 
-	# Rellenar si el pool está por debajo del máximo (p.ej. tras muertes)
-	while _npc_pool.size() < _max_npcs:
+	# Rellenar si el pool está por debajo del máximo (p.ej. tras muertes).
+	# Se cuenta también lo que hay en cola para no encolar de más.
+	var total := _npc_pool.size() + _spawn_queue.size()
+	while total < _max_npcs:
 		var pos := _find_spawn_near(player_pos)
 		if pos == Vector3.ZERO:
 			break
+		_enqueue_spawn(pos)
+		total += 1
+
+
+func _enqueue_spawn(pos: Vector3) -> void:
+	_spawn_queue.append(pos)
+	if not _queue_running:
+		_run_spawn_queue()
+
+
+func _run_spawn_queue() -> void:
+	_queue_running = true
+	while not _spawn_queue.is_empty():
+		var pos : Vector3 = _spawn_queue.pop_front()
 		_spawn_npc_at(pos)
+		await get_tree().process_frame
+	_queue_running = false
 
 
 func _spawn_npc_at(pos: Vector3) -> void:
@@ -123,13 +149,16 @@ func _spawn_npc_at(pos: Vector3) -> void:
 	_npc_pool.append(npc)
 
 
-func _teleport_npc(npc: NPCController, player_pos: Vector3) -> void:
+## Intenta teleportar el NPC a una posición válida cerca del player.
+## Devuelve true si encontró posición, false si no hay spawn válido en el bioma actual.
+func _teleport_npc(npc: NPCController, player_pos: Vector3) -> bool:
 	var pos := _find_spawn_near(player_pos)
 	if pos == Vector3.ZERO:
-		return
+		return false
 	npc.global_position = pos
 	npc.velocity = Vector3.ZERO
 	npc.ai_controller.transition_to(npc.initial_ai_state)
+	return true
 
 
 # ── Posicionamiento ──────────────────────────────────────────────────────────
@@ -185,7 +214,7 @@ func _raycast_surface(dir: Vector3) -> Vector3:
 		if debug_rays:
 			DebugUtils.draw_debug_line(from, hit_pos, Color.RED, DEBUG_RAY_DURATION)
 		return Vector3.ZERO
-	var spawn_pos := hit_pos + hit_normal * 2.0
+	var spawn_pos := hit_pos + hit_normal * 10.0
 	if debug_rays:
 		DebugUtils.draw_debug_line(from, hit_pos, Color.GREEN, DEBUG_RAY_DURATION)
 		DebugUtils.draw_debug_point(spawn_pos, Color.GREEN, 3.0, DEBUG_RAY_DURATION)

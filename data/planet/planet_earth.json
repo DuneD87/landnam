@@ -99,18 +99,18 @@
 				"biomes": [1,3],
 				"scene": "res://scenes/animals/Deer.tscn",
 				"min_spawn_distance": 10,
-				"lod_active_dist": 20,
+				"lod_active_dist": 25,
 				"max_distance": 500,
 				"min_height": -50,
 				"max_height": 150,
-				"max_npcs": 5
+				"max_npcs": 3
 			},
 			{
 				"biomes": [1,3],
 				"scene": "res://scenes/animals/Bear.tscn",
 				"min_spawn_distance": 10,
-				"lod_active_dist": 50,
-				"max_distance": 100.0,
+				"lod_active_dist": 10,
+				"max_distance": 500.0,
 				"min_height": 150,
 				"max_height": 200,
 				"max_npcs": 3
@@ -119,8 +119,8 @@
 				"biomes": [2],
 				"scene": "res://scenes/animals/Lion.tscn",
 				"min_spawn_distance": 10,
-				"lod_active_dist": 50,
-				"max_distance": 100.0,
+				"lod_active_dist": 10,
+				"max_distance": 500.0,
 				"min_height": -50,
 				"max_height": 150,
 				"max_npcs": 2
@@ -129,8 +129,8 @@
 				"biomes": [2],
 				"scene": "res://scenes/animals/Buffalo.tscn",
 				"min_spawn_distance": 10,
-				"lod_active_dist": 50,
-				"max_distance": 100.0,
+				"lod_active_dist": 10,
+				"max_distance": 500.0,
 				"min_height": -50,
 				"max_height": 150,
 				"max_npcs": 3
@@ -300,131 +300,7 @@
 	],
 
 	"items": [
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_01.tscn",
-			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_02.tscn",
-			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_03.tscn",
-			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/olive_01.tscn",
-			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/olive_02.tscn",
-			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_01.tscn",
-			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_02.tscn",
-			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_01.tscn",
-			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_02.tscn",
-			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/palm_01.tscn",
-			"generator": ["tree_generator_sand"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/trees/palm_02.tscn",
-			"generator": ["tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": 3, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_04.tscn",
-			"generator": ["grass_generator_sand"],
-			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_02.tscn",
-			"generator": ["grass_generator_green"],
-			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_03.tscn",
-			"generator": ["grass_generator_green", "grass_generator_green_sand"],
-			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/bushes/bush_01.tscn",
-			"generator": ["bushes_generator_green", "bushes_generator_green_sand"],
-			"wind_speed": 0.15, "lod_index": 0, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/bushes/bush_02.tscn",
-			"generator": ["bushes_generator_green"],
-			"wind_speed": 0.15, "lod_index": 0, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/bushes/bush_03.tscn",
-			"generator": ["bushes_generator_green"],
-			"wind_speed": 0.15, "lod_index": 0, "material_type": "WOOD"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/rocks/rock_01.tscn",
-			"generator": ["large_rock_generator_green"],
-			"lod_index": 0, "material_type": "STONE"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/rocks/rock_02.tscn",
-			"generator": ["large_rock_generator_green, large_rocks_generator_green_sand"],
-			"lod_index": 0, "material_type": "STONE"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/rocks/rock_03.tscn",
-			"generator": ["large_rock_generator_green"],
-			"lod_index": 0, "material_type": "STONE"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_01.tscn",
-			"generator": ["large_rocks_generator_green_sand"],
-			"lod_index": 0, "material_type": "STONE"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_01.tscn",
-			"generator": ["large_rocks_generator_sand"],
-			"lod_index": 2, "material_type": "STONE"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_01.tscn",
-			"generator": ["large_rocks_generator_sand"],
-			"lod_index": 3, "material_type": "STONE"
-		},
-		{ 
-			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_01.tscn",
-			"generator": ["large_rocks_generator_sand"],
-			"lod_index": 3, "material_type": "STONE"
-		}
-		,{ 
-			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_02.tscn",
-			"generator": ["large_rocks_generator_green_sand"],
-			"lod_index": 0, "material_type": "STONE"
-		}
+		
 	]
   }
 }
