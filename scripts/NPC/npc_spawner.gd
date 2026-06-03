@@ -1,17 +1,17 @@
 class_name NPCSpawner extends Node3D
 
 ## Segundos entre comprobaciones del pool.
-const RECYCLE_CHECK_INTERVAL := 20.0
+const RECYCLE_CHECK_INTERVAL := 10.0
 ## Segundos de espera inicial para que el terreno voxel se genere.
 const INITIAL_SPAWN_DELAY := 4.0
 ## Intentos máximos por posición antes de descartar.
-const MAX_SPAWN_ATTEMPTS := 12
+const MAX_SPAWN_ATTEMPTS := 2
 ## Normal del terreno · dirección radial mínima para considerar el suelo válido (~49°).
 const MIN_SLOPE_DOT := 0.65
 ## Duración en segundos de las líneas de debug antes de desaparecer.
 const DEBUG_RAY_DURATION := 6.0
 
-var debug_rays: bool = true
+var debug_rays: bool = false
 var _min_spawn_distance := 60.0
 var _planets: Node3D
 var _scene_path: String = ""

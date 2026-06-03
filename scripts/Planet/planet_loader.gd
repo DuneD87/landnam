@@ -121,6 +121,8 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 
 
 func _load_planet() -> void:
+	if is_instance_valid(planet):
+		return
 	var planet_parser: PlanetParser = PlanetParser.new(sun_path)
 	planet_parser.load_config(config_file_path)
 	planet = Planet.new(voxel_terrain, atmosphere_node)

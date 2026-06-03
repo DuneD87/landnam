@@ -407,18 +407,6 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", radius - water_radius)
 
-	'if !has_clouds:
-		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_no_clouds.gdshader")
-	else:
-		atmosphere_node.custom_shader = preload("res://addons/zylann.atmosphere/shaders/planet_atmosphere_clouds.gdshader")
-	atmosphere_node.planet_radius = radius
-	atmosphere_node.sun_path = sun.get_path()
-
-	atmosphere_node.set_shader_parameter("u_density", atmosphere_density)
-	atmosphere_node.set_shader_parameter("u_scattering_wavelengths", atmosphere_scattering)
-	atmosphere_node.set_shader_parameter("u_atmosphere_modulate", atmosphere_modulate)
-
-	atmosphere_node.set_atmosphere_height(atmosphere_height)'
 
 func setup_voxel_generator() -> void:
 	if !terrain_generator_path.is_empty():
@@ -435,7 +423,6 @@ func setup_voxel_generator() -> void:
 	for node_id in graph_generator_function.get_node_ids():
 		var node_type = graph_generator_function.get_node_type_id(node_id)
 		var node_data = graph_generator_function.get_node_type_info(node_type)
-		var radius_pos: int = 0
 		var radius_found: bool = false
 		for key in node_data:
 			if key == "inputs":
@@ -443,11 +430,8 @@ func setup_voxel_generator() -> void:
 				for params in value:
 					for param in params:
 						if params[param] is String && params[param] == "radius":
-							radius_pos += 1
 							radius_found = true
 							break
-						else:
-							radius_pos += 1
 		if radius_found:
 			graph_generator_function.set_node_param_by_name(node_id, "radius", radius)
 			graph_generator.compile()
