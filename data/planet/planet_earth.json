@@ -98,12 +98,12 @@
 			{
 				"biomes": [1,3],
 				"scene": "res://scenes/animals/Deer.tscn",
-				"min_spawn_distance": 1,
+				"min_spawn_distance": 20,
 				"lod_active_dist": 50,
-				"max_distance": 30,
+				"max_distance": 500,
 				"min_height": -50,
 				"max_height": 150,
-				"max_npcs": 20
+				"max_npcs": 10
 			},
 			{
 				"biomes": [1,3],
