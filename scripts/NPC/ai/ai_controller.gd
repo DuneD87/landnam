@@ -118,3 +118,88 @@ func distance_to_target() -> float:
 	if not target or not is_instance_valid(target):
 		return INF
 	return npc.global_position.distance_to(target.global_position)
+
+
+## Devuelve true si [param pos] está sumergida en el agua del planeta del NPC.
+func is_in_water(pos: Vector3) -> bool:
+	var p := _get_planet()
+	if not p or not p.has_water:
+		return false
+	return pos.distance_to(p.global_position) <= (p.radius - p.water_radius)
+
+
+## Margen de elevación sobre el nivel del agua por debajo del cual se activan
+## los raycasts de detección. NPCs con elevación > water_radius + este margen
+## nunca necesitan comprobar agua → 0 raycasts.
+@export var water_check_margin: float = 20.0
+
+## Caché de si el planeta tiene agua. Se rellena en la primera llamada.
+var _planet_has_water: bool = false
+var _planet_water_checked: bool = false
+
+## Devuelve la instancia Planet del NPC, o null.
+func _get_planet() -> Planet:
+	if not npc is NPCController:
+		return null
+	var loader = (npc as NPCController).planet
+	if not loader:
+		return null
+	return loader.planet
+
+## Devuelve true si el NPC está lo suficientemente cerca del nivel del agua como
+## para que valga la pena hacer raycasts. Chequeo puramente geométrico, sin raycast.
+func _near_water_zone() -> bool:
+	var p := _get_planet()
+	if not _planet_water_checked:
+		_planet_has_water = p != null and p.has_water
+		_planet_water_checked = true
+	if not _planet_has_water or not p:
+		return false
+	var npc_height := npc.global_position.distance_to(p.global_position)
+	var water_surface := p.radius - p.water_radius
+	return npc_height <= water_surface + water_check_margin
+
+
+## Lanza un raycast vertical desde [param surface_pos] para muestrear la altura real
+## del terreno y comprobar si estaría sumergido. Solo llamar tras confirmar _near_water_zone().
+func _probe_in_water(surface_pos: Vector3) -> bool:
+	var p := _get_planet()
+	if not p:
+		return false
+	var up := -gravity_direction.normalized()
+	var space_state := npc.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(
+		surface_pos + up * 50.0,
+		surface_pos - up * 100.0
+	)
+	query.exclude = [npc.get_rid()]
+	var hit := space_state.intersect_ray(query)
+	if hit.is_empty():
+		return false
+	return hit.position.distance_to(p.global_position) <= (p.radius - p.water_radius)
+
+
+## Redirige [param dir] para evitar entrar en agua.
+## Sin coste si el NPC está suficientemente alto sobre el nivel del agua.
+func steer_clear_of_water(dir: Vector3, lookahead: float = 4.0) -> Vector3:
+	if dir == Vector3.ZERO or not _near_water_zone():
+		return dir
+	var origin := npc.global_position
+	if not _probe_in_water(origin + dir * lookahead):
+		return dir  # Camino libre, salida rápida
+	var far := lookahead * 5.0
+	# Si el NPC ya está en agua y el sondeo lejano es tierra, está saliendo → no interrumpir
+	if is_in_water(origin) and not _probe_in_water(origin + dir * far):
+		return dir
+	# Buscar alternativa con el sondeo lejano
+	var up   := -gravity_direction.normalized()
+	var perp := dir.cross(up).normalized()
+	for i in range(1, 5):
+		var a     := i * PI * 0.25
+		var dir_l := (dir * cos(a) - perp * sin(a)).normalized()
+		var dir_r := (dir * cos(a) + perp * sin(a)).normalized()
+		if not _probe_in_water(origin + dir_l * far):
+			return project_on_gravity_plane(dir_l)
+		if not _probe_in_water(origin + dir_r * far):
+			return project_on_gravity_plane(dir_r)
+	return dir

@@ -35,6 +35,12 @@ func update(delta: float) -> StringName:
 	if _timer <= 0.0:
 		return &"IdleState"
 
+	# Si el destino cayó en agua, elegir otro
+	if controller.is_in_water(_target_pos):
+		_target_pos = _pick_wander_target()
+		if _target_pos == controller.npc.global_position:
+			return &"IdleState"
+
 	# Dirección al objetivo
 	var to_target := _target_pos - controller.npc.global_position
 
@@ -52,7 +58,7 @@ func update(delta: float) -> StringName:
 		return &"IdleState"
 
 	_last_dir = dir
-	controller.desired_direction = dir
+	controller.desired_direction = controller.steer_clear_of_water(dir)
 	return &""
 
 
@@ -60,15 +66,21 @@ func exit() -> void:
 	controller.desired_direction = Vector3.ZERO
 
 
-## Elige un punto aleatorio dentro de [member wander_radius] en el plano de gravedad.
+## Elige un punto aleatorio dentro de [member wander_radius] en el plano de gravedad,
+## reintentando hasta 8 veces para evitar posiciones en el agua.
+## Devuelve la posición actual si no encuentra tierra seca.
 func _pick_wander_target() -> Vector3:
-	var angle := randf_range(0.0, TAU)
-	var dist  := randf_range(wander_radius * 0.4, wander_radius)
-	# Dos vectores perpendiculares al eje de gravedad forman el plano de movimiento
 	var up  := -controller.gravity_direction.normalized()
 	var ref := Vector3.FORWARD if abs(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
 	var right := up.cross(ref).normalized()
 	var fwd   := right.cross(up).normalized()
 
-	var dir := (right * cos(angle) + fwd * sin(angle)).normalized()
-	return controller.npc.global_position + dir * dist
+	for _i in range(8):
+		var angle := randf_range(0.0, TAU)
+		var dist  := randf_range(wander_radius * 0.4, wander_radius)
+		var dir   := (right * cos(angle) + fwd * sin(angle)).normalized()
+		var candidate := controller.npc.global_position + dir * dist
+
+		if not controller.is_in_water(candidate):
+			return candidate
+	return controller.npc.global_position

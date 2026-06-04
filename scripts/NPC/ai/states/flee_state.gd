@@ -29,10 +29,11 @@ func update(delta: float) -> StringName:
 	if _timer <= 0.0 or not controller.is_target_within(safe_distance):
 		return &"IdleState"
 
-	# Dirección de huida: opuesta al target, proyectada en el plano de gravedad
+	# Dirección de huida: opuesta al target, proyectada en el plano de gravedad, evitando agua
 	if is_instance_valid(controller.target):
 		var away := controller.npc.global_position - controller.target.global_position
-		controller.desired_direction = controller.project_on_gravity_plane(away)
+		var flee_dir := controller.project_on_gravity_plane(away)
+		controller.desired_direction = controller.steer_clear_of_water(flee_dir)
 
 	return &""
 

@@ -46,7 +46,8 @@ func update(delta: float) -> StringName:
 			_deal_damage()
 	else:
 		var to_target := controller.target.global_position - controller.npc.global_position
-		controller.desired_direction = controller.project_on_gravity_plane(to_target)
+		var move_dir := controller.project_on_gravity_plane(to_target)
+		controller.desired_direction = controller.steer_clear_of_water(move_dir)
 
 	_anim_timer = max(0.0, _anim_timer - delta)
 	controller.is_attacking = _anim_timer > 0.0
