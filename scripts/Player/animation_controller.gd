@@ -9,6 +9,8 @@ const Config = preload("res://scripts/config.gd")
 @export var animation_tree: AnimationTree
 @export var blend_speed: float = 5.0
 
+var _valid_blend_paths: Array[String] = []
+
 func _ready() -> void:
 	if not animator:
 		animator = get_node_or_null("../PlayerModel/AnimationPlayer")
@@ -16,6 +18,8 @@ func _ready() -> void:
 		animation_tree = get_node_or_null("../PlayerModel/AnimationTree")
 	if not animator or not animation_tree:
 		push_warning("AnimationController '%s': animator o animation_tree no encontrado." % name)
+		return
+	_cache_valid_paths()
 
 var animation_states = {
 	Config.ANIMATION.IDLE: {
@@ -63,40 +67,36 @@ var current_values = {
 }
 var oneshot_params = ["attack_vertical", "attack_horizontal"]  # parámetros que son OneShot
 
-func _animation_tree_has_property(path: String) -> bool:
-	if not is_instance_valid(animation_tree):
-		return false
-	
-	for property in animation_tree.get_property_list():
-		if property["name"] == path:
-			return true
-	
-	return false
+func _cache_valid_paths() -> void:
+	var prop_names := {}
+	for prop in animation_tree.get_property_list():
+		prop_names[prop["name"]] = true
+	_valid_blend_paths.clear()
+	for parameter in current_values:
+		var path := "parameters/%s/blend_amount" % parameter
+		if prop_names.has(path):
+			_valid_blend_paths.append(path)
 
 func update_tree() -> void:
 	if not is_instance_valid(animation_tree):
 		return
-	
-	for parameter in current_values:
-		var path := "parameters/%s/blend_amount" % parameter
-		
-		if _animation_tree_has_property(path):
-			animation_tree[path] = current_values[parameter]
+	for path in _valid_blend_paths:
+		animation_tree[path] = current_values[path.get_slice("/", 1)]
 
 
 func handle_animations(delta: float, current_animation, free_flight_enabled):
 	if free_flight_enabled:
 		return
-	
+
 	var target_value = animation_states.get(current_animation, {})
-	
+
 	# Manejar OneShot (ataques)
 	for param in oneshot_params:
 		if target_value.has(param):
 			# Disparar el OneShot si no está ya activo
 			if not animation_tree["parameters/%s/active" % param]:
 				animation_tree["parameters/%s/request" % param] = AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE
-	
+
 	# Manejar Blend2 (el resto)
 	for parameter in current_values:
 		if parameter in oneshot_params:
@@ -113,3 +113,5 @@ func add_animation_state(state_name, parameter_values: Dictionary):
 
 func add_animation_parameter(parameter_name, initial_value: float = 0.0):
 	current_values[parameter_name] = initial_value
+	if is_instance_valid(animation_tree):
+		_cache_valid_paths()

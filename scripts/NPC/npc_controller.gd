@@ -94,12 +94,6 @@ func _ready() -> void:
 	if initial_ai_state != &"":
 		ai_controller.start(initial_ai_state)
 
-func _process(delta: float) -> void:
-	pass
-	#if collision_shape != null && npc_model != null:
-		#print("its working on editor")
-		#collision_shape.rotation = npc_model.rotation
-
 func _physics_process(delta: float) -> void:
 	if not planet:
 		update_nearest_planet()
