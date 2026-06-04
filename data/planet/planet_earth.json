@@ -103,7 +103,7 @@
 				"max_distance": 30,
 				"min_height": -50,
 				"max_height": 150,
-				"max_npcs": 200
+				"max_npcs": 20
 			},
 			{
 				"biomes": [1,3],

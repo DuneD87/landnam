@@ -35,6 +35,14 @@ func update(delta: float) -> StringName:
 	if _timer <= 0.0:
 		return &"IdleState"
 
+	# Si el NPC cayó al agua, escapar directamente sin tocar la lógica de destino
+	if controller.is_in_water(controller.npc.global_position):
+		var escape := controller.steer_clear_of_water(
+			_last_dir if _last_dir.length() > 0.1 else Vector3.FORWARD
+		)
+		controller.desired_direction = escape
+		return &""
+
 	# Si el destino cayó en agua, elegir otro
 	if controller.is_in_water(_target_pos):
 		_target_pos = _pick_wander_target()

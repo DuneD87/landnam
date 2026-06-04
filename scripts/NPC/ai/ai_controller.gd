@@ -179,19 +179,38 @@ func _probe_in_water(surface_pos: Vector3) -> bool:
 	return hit.position.distance_to(p.global_position) <= (p.radius - p.water_radius)
 
 
+## Escanea 8 direcciones uniformes con radios crecientes para encontrar la tierra
+## más cercana cuando el NPC ya está en agua. Devuelve Vector3.ZERO si no hay salida.
+func _find_water_exit(origin: Vector3, base_lookahead: float) -> Vector3:
+	var up  := -gravity_direction.normalized()
+	var ref := Vector3.FORWARD if abs(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	var right := up.cross(ref).normalized()
+	var fwd   := right.cross(up).normalized()
+	for dist in [base_lookahead * 0.5, base_lookahead, base_lookahead * 3.0, base_lookahead * 7.0]:
+		for i in range(8):
+			var angle := i * PI * 0.25
+			var d := (right * cos(angle) + fwd * sin(angle)).normalized()
+			if not _probe_in_water(origin + d * dist):
+				return project_on_gravity_plane(d)
+	return Vector3.ZERO
+
+
 ## Redirige [param dir] para evitar entrar en agua.
+## Cuando el NPC ya está en agua, ignora [param dir] y busca la salida más cercana.
 ## Sin coste si el NPC está suficientemente alto sobre el nivel del agua.
 func steer_clear_of_water(dir: Vector3, lookahead: float = 4.0) -> Vector3:
 	if dir == Vector3.ZERO or not _near_water_zone():
 		return dir
 	var origin := npc.global_position
+	# NPC ya en agua: buscar salida omnidireccional, ignorar dirección del estado
+	if is_in_water(origin):
+		var exit := _find_water_exit(origin, lookahead)
+		return exit if exit != Vector3.ZERO else dir
+	# NPC en tierra: comprobar si el camino lleva al agua
 	if not _probe_in_water(origin + dir * lookahead):
 		return dir  # Camino libre, salida rápida
-	var far := lookahead * 5.0
-	# Si el NPC ya está en agua y el sondeo lejano es tierra, está saliendo → no interrumpir
-	if is_in_water(origin) and not _probe_in_water(origin + dir * far):
-		return dir
-	# Buscar alternativa con el sondeo lejano
+	# Buscar alternativa rotando la dirección deseada con sondeo lejano
+	var far  := lookahead * 5.0
 	var up   := -gravity_direction.normalized()
 	var perp := dir.cross(up).normalized()
 	for i in range(1, 5):
