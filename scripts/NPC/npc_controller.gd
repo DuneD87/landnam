@@ -31,6 +31,8 @@ const Config = preload("res://scripts/config.gd")
 ## Estado al que transicionar cuando Perception pierde el objetivo.
 ## Vacío = dejar que el estado activo decida por sí mismo.
 @export var lose_state: StringName = &""
+## Tipo de NPC. Usado por Perception de otros NPCs para identificar amenazas (ej: &"bear", &"deer").
+@export var npc_type: StringName = &""
 ## Identificador único para el sistema de guardado. Se genera automáticamente
 ## si está vacío. Sobreescribir en el editor para NPCs fijos en la escena.
 @export var entity_id: String = ""
@@ -48,6 +50,11 @@ var current_animation  # Config.ANIMATION value
 ## Asignado automáticamente si existe el nodo hijo "Perception".
 var perception: Perception
 
+## Segundos que el cadáver permanece antes de desaparecer. 0 = desaparece inmediatamente.
+## Asignado por NPCSpawner al instanciar.
+var corpse_duration: float = 0.0
+var is_dead: bool = false
+
 var _frame_offset: int = 0
 var _ai_update_stride: int = 1
 ## 0 = cada frame. > 0 = intervalo en segundos (spawner lo ajusta por distancia).
@@ -62,6 +69,7 @@ func _ready() -> void:
 	if entity_id.is_empty():
 		entity_id = "npc_%d" % get_instance_id()
 	add_to_group(GameManager.SAVEABLE_GROUP)
+	add_to_group("npc")
 
 	# Movement en modo IA: la dirección la inyecta el AIController, no el Input
 	movement.use_ai_input = true
@@ -100,6 +108,17 @@ func _physics_process(delta: float) -> void:
 		return
 	gravity_direction = planet.get_gravity_direction(global_position)
 	up_direction = -gravity_direction
+
+	if is_dead:
+		if animation_controller:
+			animation_controller.handle_animations(delta, Config.ANIMATION.DEATH, false)
+		if is_on_floor():
+			velocity = Vector3.ZERO
+		else:
+			velocity += gravity_direction * planet.gravity_strength * delta
+		align_to_gravity(gravity_direction, delta)
+		move_and_slide()
+		return
 
 	if Engine.get_physics_frames() % _ai_update_stride == _frame_offset:
 		ai_controller.gravity_direction = gravity_direction
@@ -142,10 +161,22 @@ func _on_landed(impact_speed: float) -> void:
 	health_component.take_fall_damage(impact_speed)
 
 
-## Comportamiento por defecto al morir: desaparecer.
-## Subclases pueden override para drops de loot, animación de muerte, etc.
 func _on_died() -> void:
-	queue_free()
+	is_dead = true
+	velocity = Vector3.ZERO
+	ai_controller.desired_direction = Vector3.ZERO
+	ai_controller.is_attacking = false
+	if perception:
+		perception.set_physics_process(false)
+	if animation_controller:
+		animation_controller.trigger_death()
+	if corpse_duration <= 0.0:
+		queue_free()
+		return
+	ai_controller.transition_to(&"DeathState")
+	get_tree().create_timer(corpse_duration).timeout.connect(
+		func(): if is_instance_valid(self): queue_free()
+	)
 
 
 # ── Save / Load ──────────────────────────────────────────────────────────────

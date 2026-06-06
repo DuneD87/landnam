@@ -3,6 +3,9 @@
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_c48xe"]
 animation = &"A_RunSlow_F"
 
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_47mke"]
+animation = &"A_Carcass"
+
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_w5t68"]
 animation = &"Deer_Idle"
 
@@ -13,9 +16,11 @@ animation = &"A_RunFast_F"
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_bgqbl"]
 
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_47mke"]
+
 [resource]
-graph_offset = Vector2(-878.987, -43.477436)
-nodes/output/position = Vector2(920, 560)
+graph_offset = Vector2(-251.61926, 327.59253)
+nodes/output/position = Vector2(1120, 620)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)
 nodes/Sprint/node = SubResource("AnimationNodeAnimation_sv2hv")
@@ -23,7 +28,11 @@ nodes/Sprint/position = Vector2(-413.33334, 466.66666)
 nodes/IDle/node = SubResource("AnimationNodeAnimation_w5t68")
 nodes/IDle/position = Vector2(-413.33334, 13.333333)
 nodes/bSprint/node = SubResource("AnimationNodeBlend2_bgqbl")
-nodes/bSprint/position = Vector2(413.33334, 453.33334)
+nodes/bSprint/position = Vector2(420, 460)
 nodes/bRun/node = SubResource("AnimationNodeBlend2_bgx5p")
 nodes/bRun/position = Vector2(173.33333, 160)
-node_connections = [&"output", 0, &"bSprint", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation"]
+nodes/Death/node = SubResource("AnimationNodeAnimation_47mke")
+nodes/Death/position = Vector2(480, 730)
+nodes/death/node = SubResource("AnimationNodeBlend2_47mke")
+nodes/death/position = Vector2(734.5535, 702.2259)
+node_connections = [&"output", 0, &"death", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"death", 0, &"bSprint", &"death", 1, &"Death"]

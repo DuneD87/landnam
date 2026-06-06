@@ -21,6 +21,9 @@ var _max_height: float = 200.0
 var _max_npcs: int = 5
 var _lod_active_dist : float = 80.0
 var _max_distance : float = 80.0
+var _max_recycle_distance : float = 80.0
+var _recycle_on_death : bool = true
+var _corpse_duration : float = 0.0
 var _planet_radius: float = 0.0
 var _atmosphere_height: float = 1400.0
 var _planet_center: Vector3 = Vector3.ZERO
@@ -47,6 +50,9 @@ func setup(config: Dictionary, p_radius: float, p_atmosphere_height: float,
 	_min_spawn_distance = float(config.get("min_spawn_distance", 60.0))
 	_lod_active_dist = float(config.get("lod_active_dist", 50.0))
 	_max_distance = float(config.get("max_distance", 100.0))
+	_max_recycle_distance = float(config.get("max_recycle_distance", _max_distance))
+	_recycle_on_death = bool(config.get("recycle_on_death", true))
+	_corpse_duration = float(config.get("corpse_duration", 0.0))
 	_planet_radius = p_radius
 	_atmosphere_height = p_atmosphere_height
 	_planet_center = p_center
@@ -84,15 +90,17 @@ func _recycle_pool() -> void:
 	var i := _npc_pool.size() - 1
 	while i >= 0:
 		var npc := _npc_pool[i]
-		if not is_instance_valid(npc):
-			# El NPC murió — eliminar de la pool y reponer
+		if not is_instance_valid(npc) or npc.is_dead:
 			_npc_pool.remove_at(i)
-			var pos := _find_spawn_near(player_pos)
-			if pos != Vector3.ZERO:
-				_enqueue_spawn(pos)
+			if _recycle_on_death:
+				var pos := _find_spawn_near(player_pos)
+				if pos != Vector3.ZERO:
+					_enqueue_spawn(pos)
+			else:
+				_max_npcs -= 1
 		else:
 			var dist := npc.global_position.distance_to(player_pos)
-			if dist > _max_distance:
+			if dist > _max_recycle_distance:
 				var recycled := _teleport_npc(npc, player_pos)
 				if recycled:
 					npc.set_physics_process(true)
@@ -141,6 +149,7 @@ func _spawn_npc_at(pos: Vector3) -> void:
 	if not npc:
 		return
 	npc.planets = _planets
+	npc.corpse_duration = _corpse_duration
 	var stride : int = max(1, _max_npcs)
 	npc._frame_offset = _npc_pool.size() % stride
 	npc._ai_update_stride = stride

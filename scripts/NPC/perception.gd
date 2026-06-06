@@ -31,6 +31,13 @@ signal target_lost()
 ## Segundos entre comprobaciones. 0.1-0.3 es suficiente para la mayoría de NPCs.
 @export var check_interval: float = 0.2
 
+@export_group("NPC Detection")
+## Tipos de NPC que este NPC percibe como amenaza. Vacío = solo detecta al jugador.
+## Ej: un oso con ["deer"] atacará ciervos; un ciervo con ["bear"] huirá de osos.
+@export var hostile_npc_types: Array[StringName] = []
+## Si es false, el jugador no es detectado como amenaza.
+@export var detect_player: bool = true
+
 ## Asignar desde NPCController._ready().
 var npc: CharacterBody3D
 ## Asignar desde NPCController._ready().
@@ -70,9 +77,27 @@ func _physics_process(delta: float) -> void:
 
 
 func _scan() -> Node3D:
-	if is_instance_valid(_player_cache) and _can_detect(_player_cache):
+	if detect_player and is_instance_valid(_player_cache) and _can_detect(_player_cache):
 		return _player_cache
-	return null
+
+	if hostile_npc_types.is_empty():
+		return null
+
+	var best: Node3D = null
+	var best_dist: float = INF
+	for node in get_tree().get_nodes_in_group("npc"):
+		if not is_instance_valid(node) or node == npc:
+			continue
+		var other := node as NPCController
+		if not other or other.is_dead or other.npc_type not in hostile_npc_types:
+			continue
+		var dist := npc.global_position.distance_to(other.global_position)
+		if dist > vision_range:
+			continue
+		if _can_detect(other) and dist < best_dist:
+			best = other
+			best_dist = dist
+	return best
 
 
 func _can_detect(target: Node3D) -> bool:

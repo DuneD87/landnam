@@ -53,6 +53,9 @@ var animation_states = {
 	},
 	Config.ANIMATION.ATTACK_2: {
 		"attack_vertical": 1.0
+	},
+	Config.ANIMATION.DEATH: {
+		"death": 1.0
 	}
 }
 
@@ -64,8 +67,9 @@ var current_values = {
 	"bJumpLand": 0.0,
 	"bSwim": 0.0,
 	"bSwimIdle": 0.0,
+	"death": 0.0,
 }
-var oneshot_params = ["attack_vertical", "attack_horizontal"]  # parámetros que son OneShot
+var oneshot_params = ["attack_vertical", "attack_horizontal"]
 
 func _cache_valid_paths() -> void:
 	var prop_names := {}
@@ -106,6 +110,12 @@ func handle_animations(delta: float, current_animation, free_flight_enabled):
 		else:
 			current_values[parameter] = lerpf(current_values[parameter], 0, blend_speed * delta)
 
+	update_tree()
+
+func trigger_death() -> void:
+	for parameter in current_values:
+		if parameter != "death":
+			current_values[parameter] = 0.0
 	update_tree()
 
 func add_animation_state(state_name, parameter_values: Dictionary):
