@@ -100,7 +100,7 @@
 				"scene": "res://scenes/animals/Deer.tscn",
 				"min_spawn_distance": 20,
 				"lod_active_dist": 50,
-				"max_distance": 100,
+				"max_distance": 300,
 				"max_recycle_distance": 850,
 				"recycle_on_death": false,
 				"corpse_duration": 60.0,

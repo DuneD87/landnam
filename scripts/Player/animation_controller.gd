@@ -10,6 +10,7 @@ const Config = preload("res://scripts/config.gd")
 @export var blend_speed: float = 5.0
 
 var _valid_blend_paths: Array[String] = []
+var _has_hit_anim: bool = false
 
 func _ready() -> void:
 	if not animator:
@@ -56,6 +57,9 @@ var animation_states = {
 	},
 	Config.ANIMATION.DEATH: {
 		"death": 1.0
+	},
+	Config.ANIMATION.HIT: {
+		"bHit": 1.0
 	}
 }
 
@@ -69,7 +73,7 @@ var current_values = {
 	"bSwimIdle": 0.0,
 	"death": 0.0,
 }
-var oneshot_params = ["attack_vertical", "attack_horizontal"]
+var oneshot_params = ["attack_vertical", "attack_horizontal", "bHit"]
 
 func _cache_valid_paths() -> void:
 	var prop_names := {}
@@ -80,6 +84,7 @@ func _cache_valid_paths() -> void:
 		var path := "parameters/%s/blend_amount" % parameter
 		if prop_names.has(path):
 			_valid_blend_paths.append(path)
+	_has_hit_anim = prop_names.has("parameters/bHit/request")
 
 func update_tree() -> void:
 	if not is_instance_valid(animation_tree):
@@ -111,6 +116,12 @@ func handle_animations(delta: float, current_animation, free_flight_enabled):
 			current_values[parameter] = lerpf(current_values[parameter], 0, blend_speed * delta)
 
 	update_tree()
+
+func trigger_hit() -> void:
+	if not is_instance_valid(animation_tree) or not _has_hit_anim:
+		return
+	animation_tree["parameters/bHit/request"] = AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE
+
 
 func trigger_death() -> void:
 	for parameter in current_values:

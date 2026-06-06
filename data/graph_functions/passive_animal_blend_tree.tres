@@ -1,5 +1,8 @@
 [gd_resource type="AnimationNodeBlendTree" format=3 uid="uid://b7vbor8628kcg"]
 
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_jss3e"]
+animation = &"A_HitInRunHead_F"
+
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_c48xe"]
 animation = &"A_RunSlow_F"
 
@@ -12,6 +15,8 @@ animation = &"Deer_Idle"
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_sv2hv"]
 animation = &"A_RunFast_F"
 
+[sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_cxk0y"]
+
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_bgx5p"]
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_bgqbl"]
@@ -19,8 +24,8 @@ animation = &"A_RunFast_F"
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_47mke"]
 
 [resource]
-graph_offset = Vector2(-251.61926, 327.59253)
-nodes/output/position = Vector2(1120, 620)
+graph_offset = Vector2(301.3059, 361.46344)
+nodes/output/position = Vector2(2090, 740)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)
 nodes/Sprint/node = SubResource("AnimationNodeAnimation_sv2hv")
@@ -35,4 +40,8 @@ nodes/Death/node = SubResource("AnimationNodeAnimation_47mke")
 nodes/Death/position = Vector2(480, 730)
 nodes/death/node = SubResource("AnimationNodeBlend2_47mke")
 nodes/death/position = Vector2(734.5535, 702.2259)
-node_connections = [&"output", 0, &"death", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"death", 0, &"bSprint", &"death", 1, &"Death"]
+nodes/bHit/node = SubResource("AnimationNodeOneShot_cxk0y")
+nodes/bHit/position = Vector2(1410, 690)
+"nodes/Animation 2/node" = SubResource("AnimationNodeAnimation_jss3e")
+"nodes/Animation 2/position" = Vector2(1064.3221, 860.2652)
+node_connections = [&"output", 0, &"bHit", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"death", 0, &"bSprint", &"death", 1, &"Death", &"bHit", 0, &"death", &"bHit", 1, &"Animation 2"]

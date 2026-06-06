@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cuv6mxdmxyw00"]
 
-[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/Planet/planet_loader.gd" id="1_8l55o"]
+[ext_resource type="Script" uid="uid://cgq8mdyhpughm" path="res://scripts/planet/planet_loader.gd" id="1_8l55o"]
 
 [sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_olenk"]
 database_path = "user://saves/planet_node3d.sqlite"
@@ -370,9 +370,10 @@ generator = SubResource("VoxelGeneratorGraph_vdfa8")
 mesher = SubResource("VoxelMesherTransvoxel_dfr3u")
 format = SubResource("VoxelFormat_yg71c")
 view_distance = 100000
-lod_count = 16
-lod_distance = 92.0
+lod_count = 12
 material = SubResource("ShaderMaterial_8gh3j")
 normalmap_enabled = true
+normalmap_begin_lod_index = 1
+mesh_block_size = 32
 threaded_update_enabled = true
 streaming_system = 1

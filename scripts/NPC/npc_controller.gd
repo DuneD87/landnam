@@ -55,6 +55,11 @@ var perception: Perception
 var corpse_duration: float = 0.0
 var is_dead: bool = false
 
+## Segundos que el NPC queda paralizado tras recibir un golpe.
+@export var hit_stun_duration: float = 0.35
+var is_hit: bool = false
+var _hit_timer: float = 0.0
+
 var _frame_offset: int = 0
 var _ai_update_stride: int = 1
 ## 0 = cada frame. > 0 = intervalo en segundos (spawner lo ajusta por distancia).
@@ -69,8 +74,8 @@ func _ready() -> void:
 	safe_margin = 0.008
 	floor_max_angle = deg_to_rad(70.0)
 	floor_snap_length = 0.1
-	collision_layer = NPC_LIVE_LAYER       # solo capa NPC vivo
-	collision_mask  = 1 | NPC_LIVE_LAYER  # terreno (1) + otros NPCs vivos
+	collision_layer = NPC_LIVE_LAYER
+	collision_mask  = 1 | NPC_LIVE_LAYER
 
 	if entity_id.is_empty():
 		entity_id = "npc_%d" % get_instance_id()
@@ -99,6 +104,7 @@ func _ready() -> void:
 
 	# Señales de salud
 	movement.landed.connect(_on_landed)
+	health_component.damaged.connect(_on_damaged)
 	health_component.died.connect(_on_died)
 
 	# Planeta de referencia
@@ -133,6 +139,12 @@ func _physics_process(delta: float) -> void:
 	var raw_dir := ai_controller.desired_direction
 	movement.ai_direction = project_on_gravity_plane(raw_dir)
 
+	if is_hit:
+		_hit_timer -= delta
+		if _hit_timer <= 0.0:
+			is_hit = false
+		movement.ai_direction = Vector3.ZERO
+
 	movement.handle_run_movement(delta, ai_controller.is_attacking, gravity_direction, null)
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 
@@ -161,6 +173,15 @@ func _on_target_detected(_target: Node3D) -> void:
 
 func _on_target_lost() -> void:
 	ai_controller.transition_to(lose_state)
+
+
+func _on_damaged(_amount: float, _source: Node) -> void:
+	if is_dead:
+		return
+	is_hit = true
+	_hit_timer = hit_stun_duration
+	if animation_controller:
+		animation_controller.trigger_hit()
 
 
 func _on_landed(impact_speed: float) -> void:
