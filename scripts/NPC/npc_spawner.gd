@@ -166,20 +166,55 @@ func _teleport_npc(npc: NPCController, player_pos: Vector3) -> bool:
 ## Busca una posición válida cerca del player: elige una dirección en un radio
 ## aleatorio alrededor del player (proyectado en la esfera), y lanza un raycast
 ## desde la altura de la atmósfera para encontrar la superficie.
+## El ángulo se muestrea del arco fuera del frustum de la cámara para que
+## el jugador nunca vea aparecer un NPC.
 func _find_spawn_near(player_pos: Vector3) -> Vector3:
 	var up := (player_pos - _planet_center).normalized()
 	var right := _perp(up)
 	var fwd := up.cross(right).normalized()
+
+	# Arco prohibido: proyección horizontal del frustum sobre el plano tangente.
+	var forbidden_center := 0.0
+	var half_fov := PI  # sin restricción por defecto
+	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if camera:
+		var cam_fwd := -camera.global_basis.z
+		var cam_fwd_flat := cam_fwd - up * cam_fwd.dot(up)
+		if cam_fwd_flat.length_squared() > 0.001:
+			cam_fwd_flat = cam_fwd_flat.normalized()
+			forbidden_center = atan2(cam_fwd_flat.dot(fwd), cam_fwd_flat.dot(right))
+			var aspect := get_viewport().get_visible_rect().size.aspect()
+			var h_fov := 2.0 * atan(tan(deg_to_rad(camera.fov)) * aspect)
+			half_fov = clamp(h_fov * 0.5 + 0.35, 0.0, PI)  # margen extra de ~20°
+
+	var safe_arc := TAU - 2.0 * half_fov
+
 	for _attempt in MAX_SPAWN_ATTEMPTS:
-		var angle := randf_range(0.0, TAU)
+		var angle: float
+		if safe_arc > 0.01:
+			# Muestrea uniformemente fuera del arco prohibido.
+			angle = fmod(forbidden_center + half_fov + randf_range(0.0, safe_arc), TAU)
+		else:
+			angle = randf_range(0.0, TAU)
 		var dist := randf_range(_min_spawn_distance, _max_distance * 0.6)
 		var dir := (player_pos + (right * cos(angle) + fwd * sin(angle)) * dist - _planet_center).normalized()
 		var lat := rad_to_deg(asin(clamp(dir.y, -1.0, 1.0)))
 		if _is_valid_latitude(lat):
 			var pos := _raycast_surface(dir)
-			if pos != Vector3.ZERO:
+			if pos != Vector3.ZERO and not _is_in_player_frustum(pos):
 				return pos
 	return Vector3.ZERO
+
+
+## Comprueba si una posición en mundo está dentro del frustum de la cámara activa.
+func _is_in_player_frustum(pos: Vector3) -> bool:
+	var camera := get_viewport().get_camera_3d()
+	if not camera:
+		return false
+	for plane in camera.get_frustum():
+		if plane.distance_to(pos) < 0.0:
+			return false
+	return true
 
 
 ## Busca una posición válida aleatoria dentro del bioma.
