@@ -61,10 +61,16 @@ var _ai_update_stride: int = 1
 var _physics_interval: float = 0.0
 var _physics_timer: float = 0.0
 
+## Layer 2 para NPCs vivos. Los muertos pasan a layer 0 (invisibles).
+## Cuando el jugador añada raycasts de ataque, incluir layer 2 en su collision_mask.
+const NPC_LIVE_LAYER := 2
+
 func _ready() -> void:
 	safe_margin = 0.008
 	floor_max_angle = deg_to_rad(70.0)
 	floor_snap_length = 0.1
+	collision_layer = NPC_LIVE_LAYER       # solo capa NPC vivo
+	collision_mask  = 1 | NPC_LIVE_LAYER  # terreno (1) + otros NPCs vivos
 
 	if entity_id.is_empty():
 		entity_id = "npc_%d" % get_instance_id()
@@ -163,6 +169,8 @@ func _on_landed(impact_speed: float) -> void:
 
 func _on_died() -> void:
 	is_dead = true
+	collision_layer = 0  # cadáver invisible a todos los NPCs vivos
+	collision_mask  = 1  # solo terreno: el cadáver se queda en el suelo
 	velocity = Vector3.ZERO
 	ai_controller.desired_direction = Vector3.ZERO
 	ai_controller.is_attacking = false
