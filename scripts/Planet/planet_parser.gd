@@ -10,6 +10,7 @@ class_name PlanetParser extends Node3D
 
 @export_group("Biome Settings")
 @export var npc_spawners: Array[Dictionary] = []
+@export var ore_settings: Array[Dictionary] = []
 @export var biome_count: int
 @export var textures_per_biome: int
 @export var biome_latitude_ranges: Array[float] = []
@@ -174,6 +175,10 @@ func load_config(config_path: String):
 	npc_spawners.clear()
 	for spawner_data in biome_settings.get("npc_spawners", []):
 		npc_spawners.append(spawner_data)
+
+	ore_settings.clear()
+	for ore_data in config.get("ore_settings", []):
+		ore_settings.append(ore_data)
 
 	print("DEBUG: Loaded biome settings: count=", biome_count, ", textures_per_biome=", textures_per_biome)
 	

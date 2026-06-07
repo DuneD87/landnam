@@ -58,6 +58,7 @@ const config = preload("res://scripts/config.gd")
 @export var sun : DirectionalLight3D
 @export var has_water: bool
 @export var water_radius: float
+@export var ore_settings: Array[Dictionary] = []
 
 var planet_item_scenes: Dictionary
 var _next_library_id: int = 0
@@ -407,6 +408,39 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", radius - water_radius)
 
+	_setup_ore_shader_parameters()
+
+func _setup_ore_shader_parameters() -> void:
+	var ore_albedo: Array[Texture2D] = []
+	var ore_normal: Array[Texture2D] = []
+	var ore_roughness: Array[Texture2D] = []
+	var ore_seeds: Array[int] = []
+	var ore_frequencies: Array[float] = []
+	var ore_thresholds: Array[float] = []
+
+	for ore in ore_settings:
+		var albedo := load(ore.get("texture", "")) as Texture2D
+		var nrm := load(ore.get("normal_texture", "")) as Texture2D
+		var rough := load(ore.get("roughness_texture", "")) as Texture2D
+		if albedo and nrm and rough:
+			ore_albedo.append(albedo)
+			ore_normal.append(nrm)
+			ore_roughness.append(rough)
+			ore_seeds.append(int(ore.get("noise_seed", 0)))
+			ore_frequencies.append(float(ore.get("noise_scale", 0.03)))
+			ore_thresholds.append(float(ore.get("threshold", 0.65)))
+		else:
+			push_warning("OreSettings: missing texture for ore '%s'" % ore.get("name", "?"))
+
+	shader_material.set_shader_parameter("ore_count", ore_albedo.size())
+	if not ore_albedo.is_empty():
+		shader_material.set_shader_parameter("ore_albedo_textures", ore_albedo)
+		shader_material.set_shader_parameter("ore_normal_textures", ore_normal)
+		shader_material.set_shader_parameter("ore_roughness_textures", ore_roughness)
+		shader_material.set_shader_parameter("ore_noise_seeds", ore_seeds)
+		shader_material.set_shader_parameter("ore_noise_frequencies", ore_frequencies)
+		shader_material.set_shader_parameter("ore_noise_thresholds", ore_thresholds)
+
 
 func setup_voxel_generator() -> void:
 	if !terrain_generator_path.is_empty():
@@ -435,6 +469,11 @@ func setup_voxel_generator() -> void:
 		if radius_found:
 			graph_generator_function.set_node_param_by_name(node_id, "radius", radius)
 			graph_generator.compile()
+
+	if not ore_settings.is_empty():
+		var ore_gen := OreVoxelGenerator.new()
+		ore_gen.setup(graph_generator, ore_settings)
+		voxel_terrain.generator = ore_gen
 
 func _ready() -> void:
 	pass

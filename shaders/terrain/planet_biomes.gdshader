@@ -88,6 +88,15 @@ varying vec3 v_normal_model;
 varying vec3 v_vertex_pos_model;
 varying float v_caustics;
 
+#define MAX_ORE_TYPES 8
+uniform int ore_count = 0;
+uniform sampler2D ore_albedo_textures[MAX_ORE_TYPES] : source_color;
+uniform sampler2D ore_normal_textures[MAX_ORE_TYPES];
+uniform sampler2D ore_roughness_textures[MAX_ORE_TYPES];
+uniform int ore_noise_seeds[MAX_ORE_TYPES];
+uniform float ore_noise_frequencies[MAX_ORE_TYPES];
+uniform float ore_noise_thresholds[MAX_ORE_TYPES];
+
 void vertex() {
 	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0, u_transition_mask);
 	v_vertex_pos_model = VERTEX;
@@ -339,7 +348,27 @@ void fragment() {
         final_normal = normal_world;
     }
 
-    // 7) Salidas
+    // 7) Ore overlay procedural en world-space (mismo noise que el generator)
+    if (ore_count > 0) {
+        for (int oi = 0; oi < ore_count; oi++) {
+            float ore_n = fast_noise_lite_open_simplex2_3d(world_pos, ore_noise_frequencies[oi], ore_noise_seeds[oi]);
+            ore_n = ore_n * 0.5 + 0.5;
+            float thr = ore_noise_thresholds[oi];
+            if (ore_n > thr) {
+                float ore_w = (ore_n - thr) / (1.0 - thr);
+                TriplanarUVs ore_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+                vec3 ore_color = triplanar_sample_uvs(ore_albedo_textures[oi], ore_uvs, planet_up);
+                vec4 ore_n_v = triplanar_normal_sample_uvs_v(ore_normal_textures[oi], ore_uvs, normal_world);
+                float ore_rough = triplanar_scalar_sample_uvs(ore_roughness_textures[oi], ore_uvs, planet_up);
+                final_color = mix(final_color, ore_color, ore_w);
+                final_normal = mix(final_normal, ore_n_v.xyz, ore_w);
+                final_roughness = mix(final_roughness, ore_rough, ore_w);
+                break;
+            }
+        }
+    }
+
+    // 8) Salidas
 	float macro_n = signed_fbm(planet_pos * macro_variation_scale);
 	macro_n = sign(macro_n) * pow(abs(macro_n), 1.0 / macro_variation_contrast);
 	float macro_factor = 1.0 + macro_n * macro_variation_strength;

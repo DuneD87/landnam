@@ -108,6 +108,7 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.slope_height_texture = planet_parser.slope_height_texture
 	planet.has_water = planet_parser.has_water
 	planet.water_radius = planet_parser.water_level
+	planet.ore_settings = planet_parser.ore_settings
 	planet.atmosphere_radius = planet_parser.atmosphere_radius
 	print("Atmosphere radius: ", planet.atmosphere_radius)
 	planet.atmosphere_density = planet_parser.atmosphere_density

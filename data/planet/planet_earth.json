@@ -438,5 +438,35 @@
 			"lod_index": 0, "material_type": "STONE"
 		}
 	]
-  }
+  },
+  "ore_settings": [
+	{
+	  "name": "iron",
+	  "type_id": 1,
+	  "noise_seed": 1042,
+	  "noise_scale": 0.025,
+	  "threshold": 0.62,
+	  "surface_depth": 12.0,
+	  "texture": "res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_albedo.png",
+	  "normal_texture": "res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_normal-ogl.png",
+	  "roughness_texture": "res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_roughness.png",
+	  "drop_item": "iron_ore",
+	  "drop_count_min": 2,
+	  "drop_count_max": 5
+	},
+	{
+	  "name": "gold",
+	  "type_id": 2,
+	  "noise_seed": 7391,
+	  "noise_scale": 0.012,
+	  "threshold": 0.76,
+	  "surface_depth": 8.0,
+	  "texture": "res://textures/planet/ores/gold-nugget-bl/gold-nugget1_albedo.png",
+	  "normal_texture": "res://textures/planet/ores/gold-nugget-bl/gold-nugget1_normal-ogl.png",
+	  "roughness_texture": "res://textures/planet/ores/gold-nugget-bl/gold-nugget1_roughness.png",
+	  "drop_item": "gold_ore",
+	  "drop_count_min": 1,
+	  "drop_count_max": 3
+	}
+  ]
 }

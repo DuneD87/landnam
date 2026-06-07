@@ -192,6 +192,7 @@ graph_data = {
 }
 
 [sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_dfr3u"]
+texturing_mode = 1
 
 [sub_resource type="VoxelFormat" id="VoxelFormat_yg71c"]
 
