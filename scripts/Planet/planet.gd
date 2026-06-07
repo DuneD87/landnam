@@ -414,7 +414,7 @@ func _setup_ore_shader_parameters() -> void:
 	var ore_albedo: Array[Texture2D] = []
 	var ore_normal: Array[Texture2D] = []
 	var ore_roughness: Array[Texture2D] = []
-	var ore_seeds: Array[int] = []
+	var ore_seeds: Array[float] = []
 	var ore_frequencies: Array[float] = []
 	var ore_thresholds: Array[float] = []
 
@@ -426,7 +426,7 @@ func _setup_ore_shader_parameters() -> void:
 			ore_albedo.append(albedo)
 			ore_normal.append(nrm)
 			ore_roughness.append(rough)
-			ore_seeds.append(int(ore.get("noise_seed", 0)))
+			ore_seeds.append(float(int(ore.get("noise_seed", 0))))
 			ore_frequencies.append(float(ore.get("noise_scale", 0.03)))
 			ore_thresholds.append(float(ore.get("threshold", 0.65)))
 		else:

@@ -58,7 +58,7 @@ vec3 get_voxel_normal_model(vec3 vertex_pos_model, out vec3 debug) {
 
 	vec3 cell_posf = vertex_pos_model / cell_size;
 	cell_posf = cell_posf * u_voxel_virtual_texture_offset_scale.w + u_voxel_virtual_texture_offset_scale.xyz;
-	ivec3 cell_pos = ivec3(floor(cell_posf));
+	ivec3 cell_pos = clamp(ivec3(floor(cell_posf)), ivec3(0), ivec3(block_size - 1));
 	vec3 cell_fract = fract(cell_posf);
 
 	int cell_index = cell_pos.x + cell_pos.y * block_size + cell_pos.z * block_size * block_size;
@@ -109,6 +109,12 @@ vec3 get_voxel_normal_model(vec3 vertex_pos_model, out vec3 debug) {
 	vec3 tile_normal_model = 2.0 * encoded_normal - vec3(1.0);
 #endif
 
+	// Uninitialized tiles are black (0,0,0), which decodes to (-1,-1,-1).
+	// Detect via raw encoded value; return zero so callers fall back to geometry normal.
+	if (dot(encoded_normal, encoded_normal) < 0.01) {
+		return vec3(0.0);
+	}
+
 	//debug = vec3(float(cell_size == 4.0), float(cell_size == 8.0), float(cell_size == 16.0));
 	debug = encoded_normal;
 	//debug = 0.5 + 0.5 * tile_normal_model;
@@ -128,7 +134,7 @@ vec3 get_voxel_normal_view(vec3 vertex_pos_model, vec3 geometry_normal_view, mat
 	// Workaround this by falling back on the geometry normal.
 	// Also apply fading.
 	vec3 normal = mix(geometry_normal_view, tile_normal_view,
-		u_voxel_virtual_texture_fade * dot(tile_normal_view, tile_normal_view));
+		clamp(u_voxel_virtual_texture_fade * dot(tile_normal_view, tile_normal_view), 0.0, 1.0));
 	return normal;
 }
 
@@ -147,14 +153,14 @@ vec3 get_voxel_normal_view_model(vec3 vertex_pos_model,
 	// Workaround this by falling back on the geometry normal.
 	// Also apply fading.
 	vec3 normal = mix(geometry_normal_view, tile_normal_view,
-		u_voxel_virtual_texture_fade * dot(tile_normal_view, tile_normal_view));
+		clamp(u_voxel_virtual_texture_fade * dot(tile_normal_view, tile_normal_view), 0.0, 1.0));
 
 	// TODO Normalize this one?
 	// The view-space normal is normalized by Godot after assigning to `NORMAL`,
 	// but the model normal is useful for other things such as texturing,
 	// and due to interpolation it may need normalization.
 	out_normal_model = mix(geometry_normal_model, tile_normal_model,
-		u_voxel_virtual_texture_fade * dot(tile_normal_model, tile_normal_model));
+		clamp(u_voxel_virtual_texture_fade * dot(tile_normal_model, tile_normal_model), 0.0, 1.0));
 
 	return normal;
 }

@@ -93,13 +93,13 @@ uniform int ore_count = 0;
 uniform sampler2D ore_albedo_textures[MAX_ORE_TYPES] : source_color;
 uniform sampler2D ore_normal_textures[MAX_ORE_TYPES];
 uniform sampler2D ore_roughness_textures[MAX_ORE_TYPES];
-uniform int ore_noise_seeds[MAX_ORE_TYPES];
+uniform float ore_noise_seeds[MAX_ORE_TYPES];
 uniform float ore_noise_frequencies[MAX_ORE_TYPES];
 uniform float ore_noise_thresholds[MAX_ORE_TYPES];
 
 void vertex() {
+	v_vertex_pos_model = VERTEX; // posición original antes de transvoxel — el atlas fue bakeado con estas coords
 	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0, u_transition_mask);
-	v_vertex_pos_model = VERTEX;
 	v_normal_model = NORMAL;
 
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -107,8 +107,8 @@ void vertex() {
 }
 
 void fragment() {
-    // 1) Normal del voxel suavizada por Transvoxel (la base correcta)
-    vec3 normal_model;
+    // 1) Normal del voxel (detail normal map del atlas, con fallback a geometría)
+    vec3 normal_model = safe_normalize(v_normal_model, vec3(0.0, 1.0, 0.0));
     get_voxel_normal_view_model(
         v_vertex_pos_model, NORMAL,
         VIEW_MATRIX * MODEL_MATRIX,
@@ -351,9 +351,11 @@ void fragment() {
     // 7) Ore overlay procedural en world-space (mismo noise que el generator)
     if (ore_count > 0) {
         for (int oi = 0; oi < ore_count; oi++) {
-            float ore_n = fast_noise_lite_open_simplex2_3d(world_pos, ore_noise_frequencies[oi], ore_noise_seeds[oi]);
-            ore_n = ore_n * 0.5 + 0.5;
             float thr = ore_noise_thresholds[oi];
+            if (thr < 0.05) break; // uniform no inicializado (default 0)
+            int ore_seed = int(round(ore_noise_seeds[oi]));
+            float ore_n = fast_noise_lite_open_simplex2_3d(planet_pos, ore_noise_frequencies[oi], ore_seed);
+            ore_n = ore_n * 0.5 + 0.5;
             if (ore_n > thr) {
                 float ore_w = (ore_n - thr) / (1.0 - thr);
                 TriplanarUVs ore_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
