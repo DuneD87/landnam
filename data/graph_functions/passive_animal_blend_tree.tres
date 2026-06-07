@@ -24,7 +24,7 @@ animation = &"A_RunFast_F"
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_47mke"]
 
 [resource]
-graph_offset = Vector2(301.3059, 361.46344)
+graph_offset = Vector2(-417.81055, 123.11813)
 nodes/output/position = Vector2(2090, 740)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
 nodes/Animation/position = Vector2(-426.667, 240)
@@ -37,7 +37,7 @@ nodes/bSprint/position = Vector2(420, 460)
 nodes/bRun/node = SubResource("AnimationNodeBlend2_bgx5p")
 nodes/bRun/position = Vector2(173.33333, 160)
 nodes/Death/node = SubResource("AnimationNodeAnimation_47mke")
-nodes/Death/position = Vector2(480, 730)
+nodes/Death/position = Vector2(-430, 790)
 nodes/death/node = SubResource("AnimationNodeBlend2_47mke")
 nodes/death/position = Vector2(734.5535, 702.2259)
 nodes/bHit/node = SubResource("AnimationNodeOneShot_cxk0y")

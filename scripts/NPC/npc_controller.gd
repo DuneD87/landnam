@@ -54,6 +54,7 @@ var perception: Perception
 ## Asignado por NPCSpawner al instanciar.
 var corpse_duration: float = 0.0
 var is_dead: bool = false
+var _is_dying: bool = false
 
 ## Segundos que el NPC queda paralizado tras recibir un golpe.
 @export var hit_stun_duration: float = 0.35
@@ -134,7 +135,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	if Engine.get_physics_frames() % _ai_update_stride == _frame_offset:
+	if not _is_dying and Engine.get_physics_frames() % _ai_update_stride == _frame_offset:
 		ai_controller.gravity_direction = gravity_direction
 		ai_controller.update(delta * _ai_update_stride)
 
@@ -191,14 +192,20 @@ func _on_landed(impact_speed: float) -> void:
 
 
 func _on_died() -> void:
-	is_dead = true
-	collision_layer = 0  # cadáver invisible a todos los NPCs vivos
-	collision_mask  = 1  # solo terreno: el cadáver se queda en el suelo
-	velocity = Vector3.ZERO
+	_is_dying = true
 	ai_controller.desired_direction = Vector3.ZERO
 	ai_controller.is_attacking = false
 	if perception:
 		perception.set_physics_process(false)
+
+	await get_tree().create_timer(0.4).timeout
+	if not is_instance_valid(self):
+		return
+
+	is_dead = true
+	collision_layer = 0
+	collision_mask  = 1
+	velocity = Vector3.ZERO
 	if animation_controller:
 		animation_controller.trigger_death()
 	if corpse_duration <= 0.0:

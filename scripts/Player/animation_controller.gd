@@ -124,10 +124,7 @@ func trigger_hit() -> void:
 
 
 func trigger_death() -> void:
-	for parameter in current_values:
-		if parameter != "death":
-			current_values[parameter] = 0.0
-	update_tree()
+	pass
 
 func add_animation_state(state_name, parameter_values: Dictionary):
 	animation_states[state_name] = parameter_values
