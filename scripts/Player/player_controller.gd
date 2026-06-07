@@ -455,6 +455,16 @@ func _clear_visual_equipment() -> void:
 			child.queue_free()
 
 			
+func _find_nearby_corpse(max_dist: float = 4.0) -> NPCController:
+	for node in get_tree().get_nodes_in_group("npc"):
+		if not is_instance_valid(node):
+			continue
+		var npc := node as NPCController
+		if npc and npc.is_dead and global_position.distance_to(npc.global_position) <= max_dist:
+			return npc
+	return null
+
+
 func can_perform_action() -> bool:
 	return not (
 		action_controller.is_attacking or
@@ -647,10 +657,15 @@ func _input(event):
 		character_window.toggle()
  
 	if event.is_action_pressed("action") && !free_flight_enabled:
-		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
-		var item_data = action_controller.handle_pickup(camera, ray_origin)
-		if item_data != null:
-			inventory.add_item(item_data, 1)
+		var corpse := _find_nearby_corpse()
+		if corpse:
+			inventory_ui.open_loot(corpse.inventory)
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		else:
+			var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
+			var item_data = action_controller.handle_pickup(camera, ray_origin)
+			if item_data != null:
+				inventory.add_item(item_data, 1)
 	elif event.is_action_pressed("ui_cancel") and visible:
 		inventory_ui.close()
  

@@ -13,6 +13,21 @@ var character_window: CharacterWindow
 var slots: Array[InventorySlot] = []
 var hotbar: Hotbar
 
+# Loot system
+var _loot_inventory: Inventory = null
+var _loot_slots: Array[InventorySlot] = []
+var _loot_container: Control = null   # full-rect root
+var _loot_panel_node: PanelContainer = null  # el panel real dentro del root
+var _loot_grid: GridContainer = null
+var _loot_label: Label = null
+
+# Drag state
+var _drag_active: bool = false
+var _drag_target: Control = null
+var _drag_offset: Vector2 = Vector2.ZERO
+var _player_panel_header: Control = null
+var _loot_panel_header: Control = null
+
 # Sistema de item flotante
 var floating_item: InventoryItem = null
 var floating_slot_index: int = -1  # -1 si viene de equipment
@@ -27,6 +42,8 @@ func _ready() -> void:
 	slot_grid.columns = 5
 	visible = false
 	_create_floating_display()
+	_player_panel_header = title_label.get_parent() as Control
+	call_deferred("_setup_player_panel_drag")
 
 
 func _on_hotbar_slot_clicked(slot_index: int) -> void:
@@ -51,6 +68,24 @@ func setup(inv: Inventory, char_window: CharacterWindow, hbar: Hotbar) -> void:
 	_refresh()
 	hotbar = hbar
 	hotbar.hotbar_slot_clicked.connect(_on_hotbar_slot_clicked)
+
+## Saca el panel del jugador del CenterContainer para que se pueda arrastrar.
+## Se llama con call_deferred desde _ready para que el layout esté listo.
+func _setup_player_panel_drag() -> void:
+	var center := panel.get_parent()
+	if not center:
+		return
+	center.remove_child(panel)
+	add_child(panel)
+	# Esperar un frame para que el layout calcule el tamaño real del panel
+	await get_tree().process_frame
+	panel.anchor_left = 0.0
+	panel.anchor_top = 0.0
+	panel.anchor_right = 0.0
+	panel.anchor_bottom = 0.0
+	var vp := get_viewport().get_visible_rect().size
+	panel.set_position(vp * 0.5 - panel.size * 0.5)
+
 
 func _apply_panel_style() -> void:
 	var style = StyleBoxFlat.new()
@@ -158,7 +193,128 @@ func open() -> void:
 func close() -> void:
 	if floating_item:
 		_cancel_floating_item()
+	close_loot()
 	visible = false
+
+
+func open_loot(loot_inv: Inventory) -> void:
+	if _loot_inventory:
+		close_loot()
+	_loot_inventory = loot_inv
+	_loot_inventory.inventory_changed.connect(_refresh_loot)
+	_build_loot_panel()
+	_refresh_loot()
+	open()
+
+
+func close_loot() -> void:
+	if _loot_inventory and _loot_inventory.inventory_changed.is_connected(_refresh_loot):
+		_loot_inventory.inventory_changed.disconnect(_refresh_loot)
+	_loot_inventory = null
+	_loot_slots.clear()
+	if _loot_container:
+		_loot_container.queue_free()
+		_loot_container = null
+	_loot_panel_node = null
+	_loot_grid = null
+	_loot_label = null
+	_loot_panel_header = null
+
+
+func _build_loot_panel() -> void:
+	# Control full-rect transparente como raíz: los anchors de sus hijos
+	# se resuelven contra el viewport, igual que el CenterContainer del .tscn.
+	var root := Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(root)
+	_loot_container = root
+
+	var loot_panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.12, 0.95)
+	style.set_corner_radius_all(8)
+	style.set_border_width_all(2)
+	style.border_color = Color(0.6, 0.4, 0.1, 1)
+	loot_panel.add_theme_stylebox_override("panel", style)
+	loot_panel.custom_minimum_size = Vector2(280, 0)
+	# Posición inicial: izquierda, centrado verticalmente
+	var vp := get_viewport().get_visible_rect().size
+	loot_panel.position = Vector2(vp.x * 0.1, vp.y * 0.5 - 160.0)
+	root.add_child(loot_panel)
+	_loot_panel_node = loot_panel
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	loot_panel.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	margin.add_child(vbox)
+
+	# Header arrastrble
+	var header := HBoxContainer.new()
+	header.custom_minimum_size = Vector2(0, 22)
+	vbox.add_child(header)
+
+	_loot_label = Label.new()
+	_loot_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_loot_label)
+
+	_loot_panel_header = header
+
+	vbox.add_child(HSeparator.new())
+
+	_loot_grid = GridContainer.new()
+	_loot_grid.columns = 5
+	vbox.add_child(_loot_grid)
+
+	_create_loot_slots()
+
+
+func _create_loot_slots() -> void:
+	for slot in _loot_slots:
+		slot.queue_free()
+	_loot_slots.clear()
+	for i in range(_loot_inventory.max_slots):
+		var slot = SlotScene.instantiate() as InventorySlot
+		slot.slot_index = i
+		slot.slot_clicked.connect(_on_loot_slot_clicked)
+		_loot_grid.add_child(slot)
+		_loot_slots.append(slot)
+
+
+func _refresh_loot() -> void:
+	if not _loot_inventory or not _loot_grid:
+		return
+	var items = _loot_inventory.get_all_items()
+	var count := 0
+	for item in items:
+		if item != null:
+			count += 1
+	if _loot_label:
+		_loot_label.text = "Botín (%d)" % count
+	for i in range(_loot_slots.size()):
+		if i < items.size():
+			_loot_slots[i].set_item(items[i])
+		else:
+			_loot_slots[i].clear()
+	if count == 0:
+		close_loot()
+
+
+func _on_loot_slot_clicked(slot: InventorySlot, button_index: int) -> void:
+	if button_index != MOUSE_BUTTON_LEFT or not slot.item:
+		return
+	var item := slot.item
+	var remaining := inventory.add_item(item.data, item.quantity)
+	_loot_inventory.items[slot.slot_index] = null
+	if remaining > 0:
+		_loot_inventory.items[slot.slot_index] = InventoryItem.new(item.data, remaining)
+	_loot_inventory.inventory_changed.emit()
+	inventory.inventory_changed.emit()
 
 
 # ============ CLICKS EN INVENTORY SLOTS ============
@@ -368,6 +524,36 @@ func _update_floating_display() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("ui_cancel") and visible:
 		close()
+		get_viewport().set_input_as_handled()
+		return
+
+	if not visible:
+		return
+
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			var mp := (event as InputEventMouseButton).global_position
+			if _player_panel_header and _player_panel_header.is_visible_in_tree() \
+					and _player_panel_header.get_global_rect().has_point(mp) \
+					and not close_button.get_global_rect().has_point(mp):
+				_drag_active = true
+				_drag_target = panel
+				_drag_offset = panel.global_position - mp
+				get_viewport().set_input_as_handled()
+			elif _loot_panel_header and is_instance_valid(_loot_panel_node) \
+					and _loot_panel_header.is_visible_in_tree() \
+					and _loot_panel_header.get_global_rect().has_point(mp):
+				_drag_active = true
+				_drag_target = _loot_panel_node
+				_drag_offset = _loot_panel_node.global_position - mp
+				get_viewport().set_input_as_handled()
+		else:
+			if _drag_active:
+				_drag_active = false
+				_drag_target = null
+
+	elif event is InputEventMouseMotion and _drag_active and is_instance_valid(_drag_target):
+		_drag_target.global_position = (event as InputEventMouseMotion).global_position + _drag_offset
 		get_viewport().set_input_as_handled()

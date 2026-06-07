@@ -113,6 +113,8 @@ func _ready() -> void:
 	# Arrancar la FSM con el estado inicial
 	if initial_ai_state != &"":
 		ai_controller.start(initial_ai_state)
+	inventory.add_item(Config.get_item(&"wood_01"), 37)
+	inventory.add_item(Config.get_item(&"stone_01"), 37)
 
 func _physics_process(delta: float) -> void:
 	if not planet:
