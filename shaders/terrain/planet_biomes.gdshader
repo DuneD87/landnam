@@ -96,6 +96,7 @@ uniform sampler2D ore_roughness_textures[MAX_ORE_TYPES];
 uniform float ore_noise_seeds[MAX_ORE_TYPES];
 uniform float ore_noise_frequencies[MAX_ORE_TYPES];
 uniform float ore_noise_thresholds[MAX_ORE_TYPES];
+uniform float ore_noise_smoothness[MAX_ORE_TYPES]; // zona de fade alrededor del threshold
 
 void vertex() {
 	v_vertex_pos_model = VERTEX; // posición original antes de transvoxel — el atlas fue bakeado con estas coords
@@ -352,12 +353,29 @@ void fragment() {
     if (ore_count > 0) {
         for (int oi = 0; oi < ore_count; oi++) {
             float thr = ore_noise_thresholds[oi];
-            if (thr < 0.05) break; // uniform no inicializado (default 0)
+            if (thr < 0.05) continue;
             int ore_seed = int(round(ore_noise_seeds[oi]));
-            float ore_n = fast_noise_lite_open_simplex2_3d(planet_pos, ore_noise_frequencies[oi], ore_seed);
-            ore_n = ore_n * 0.5 + 0.5;
-            if (ore_n > thr) {
-                float ore_w = (ore_n - thr) / (1.0 - thr);
+
+            // Warp de alta frecuencia y baja amplitud: deforma los bordes del patch localmente
+            // sin desplazarlo del sitio (warp grande estira, warp pequeño y rápido crea bordes orgánicos)
+            float warp_freq = ore_noise_frequencies[oi] * 6.0;
+            float warp_strength = 0.08 / ore_noise_frequencies[oi];
+            vec3 warp = vec3(
+                fast_noise_lite_open_simplex2_3d(planet_pos, warp_freq, ore_seed + 100),
+                fast_noise_lite_open_simplex2_3d(planet_pos, warp_freq, ore_seed + 200),
+                fast_noise_lite_open_simplex2_3d(planet_pos, warp_freq, ore_seed + 300)
+            ) * warp_strength;
+
+            // Noise regular sobre coords deformadas: localizado en picos, bordes irregulares
+            vec3 warped_pos = planet_pos + warp;
+            float n1 = fast_noise_lite_open_simplex2_3d(warped_pos, ore_noise_frequencies[oi], ore_seed);
+            float n2 = fast_noise_lite_open_simplex2_3d(warped_pos, ore_noise_frequencies[oi] * 2.1, ore_seed + 7) * 0.35;
+            float ore_n = ((n1 + n2) * (1.0 / 1.35)) * 0.5 + 0.5;
+
+            // smoothstep centrado en el threshold evita el borde abrupto ("cortado")
+            float ore_smooth = max(ore_noise_smoothness[oi], 0.005);
+            float ore_w = clamp(smoothstep(thr - ore_smooth, thr + ore_smooth, ore_n), 0.0, 1.0);
+            if (ore_w > 0.0001) {
                 TriplanarUVs ore_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
                 vec3 ore_color = triplanar_sample_uvs(ore_albedo_textures[oi], ore_uvs, planet_up);
                 vec4 ore_n_v = triplanar_normal_sample_uvs_v(ore_normal_textures[oi], ore_uvs, normal_world);
@@ -365,7 +383,6 @@ void fragment() {
                 final_color = mix(final_color, ore_color, ore_w);
                 final_normal = mix(final_normal, ore_n_v.xyz, ore_w);
                 final_roughness = mix(final_roughness, ore_rough, ore_w);
-                break;
             }
         }
     }

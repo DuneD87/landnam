@@ -417,6 +417,7 @@ func _setup_ore_shader_parameters() -> void:
 	var ore_seeds: Array[float] = []
 	var ore_frequencies: Array[float] = []
 	var ore_thresholds: Array[float] = []
+	var ore_smoothness: Array[float] = []
 
 	for ore in ore_settings:
 		var albedo := load(ore.get("texture", "")) as Texture2D
@@ -428,7 +429,8 @@ func _setup_ore_shader_parameters() -> void:
 			ore_roughness.append(rough)
 			ore_seeds.append(float(int(ore.get("noise_seed", 0))))
 			ore_frequencies.append(float(ore.get("noise_scale", 0.03)))
-			ore_thresholds.append(float(ore.get("threshold", 0.65)))
+			ore_thresholds.append(float(ore.get("threshold", 0.15)))
+			ore_smoothness.append(float(ore.get("threshold_smoothness", 0.1)))
 		else:
 			push_warning("OreSettings: missing texture for ore '%s'" % ore.get("name", "?"))
 
@@ -440,6 +442,7 @@ func _setup_ore_shader_parameters() -> void:
 		shader_material.set_shader_parameter("ore_noise_seeds", ore_seeds)
 		shader_material.set_shader_parameter("ore_noise_frequencies", ore_frequencies)
 		shader_material.set_shader_parameter("ore_noise_thresholds", ore_thresholds)
+		shader_material.set_shader_parameter("ore_noise_smoothness", ore_smoothness)
 
 
 func setup_voxel_generator() -> void:
