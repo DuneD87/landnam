@@ -36,7 +36,7 @@ as_normal_map = true
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_ckor0"]
 noise_type = 3
-frequency = 0.1554
+frequency = 0.0001
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_8rr25"]
 noise = SubResource("FastNoiseLite_ckor0")

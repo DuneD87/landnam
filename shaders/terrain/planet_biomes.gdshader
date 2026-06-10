@@ -43,7 +43,8 @@ uniform int biome_noise_invert[MAX_BIOMES];
 uniform float biome_noise_abs_latitude_mins[MAX_BIOMES];
 uniform float biome_noise_abs_latitude_maxs[MAX_BIOMES];
 uniform float biome_noise_latitude_smoothness[MAX_BIOMES];
-
+uniform float ore_edge_noise_scale : hint_range(0.0, 5.0) = 0.08;
+uniform float ore_edge_noise_strength : hint_range(0.0, 0.5) = 0.12;
 uniform sampler2D slope_texture;
 uniform sampler2D slope_normal_texture;
 uniform sampler2D slope_roughness_texture;
@@ -358,23 +359,25 @@ void fragment() {
 
             // Warp de alta frecuencia y baja amplitud: deforma los bordes del patch localmente
             // sin desplazarlo del sitio (warp grande estira, warp pequeño y rápido crea bordes orgánicos)
-            float warp_freq = ore_noise_frequencies[oi] * 6.0;
+            /*float warp_freq = ore_noise_frequencies[oi] * 6.0;
             float warp_strength = 0.08 / ore_noise_frequencies[oi];
             vec3 warp = vec3(
                 fast_noise_lite_open_simplex2_3d(planet_pos, warp_freq, ore_seed + 100),
                 fast_noise_lite_open_simplex2_3d(planet_pos, warp_freq, ore_seed + 200),
                 fast_noise_lite_open_simplex2_3d(planet_pos, warp_freq, ore_seed + 300)
-            ) * warp_strength;
+            ) * warp_strength;*/
 
             // Noise regular sobre coords deformadas: localizado en picos, bordes irregulares
-            vec3 warped_pos = planet_pos + warp;
-            float n1 = fast_noise_lite_open_simplex2_3d(warped_pos, ore_noise_frequencies[oi], ore_seed);
-            float n2 = fast_noise_lite_open_simplex2_3d(warped_pos, ore_noise_frequencies[oi] * 2.1, ore_seed + 7) * 0.35;
+            //vec3 warped_pos = planet_pos + warp;
+            float n1 = fast_noise_lite_open_simplex2_3d(planet_pos, ore_noise_frequencies[oi], ore_seed);
+            float n2 = fast_noise_lite_open_simplex2_3d(planet_pos, ore_noise_frequencies[oi] * 2.1, ore_seed + 7) * 0.35;
             float ore_n = ((n1 + n2) * (1.0 / 1.35)) * 0.5 + 0.5;
 
-            // smoothstep centrado en el threshold evita el borde abrupto ("cortado")
-            float ore_smooth = max(ore_noise_smoothness[oi], 0.005);
-            float ore_w = clamp(smoothstep(thr - ore_smooth, thr + ore_smooth, ore_n), 0.0, 1.0);
+            float edge_noise = signed_fbm(planet_pos * ore_edge_noise_scale) * ore_edge_noise_strength;
+			ore_n += edge_noise;
+
+			float ore_smooth = max(ore_noise_smoothness[oi], 0.005);
+			float ore_w = clamp(smoothstep(thr - ore_smooth, thr + ore_smooth, ore_n), 0.0, 1.0);
             if (ore_w > 0.0001) {
                 TriplanarUVs ore_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
                 vec3 ore_color = triplanar_sample_uvs(ore_albedo_textures[oi], ore_uvs, planet_up);

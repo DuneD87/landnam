@@ -1,13 +1,13 @@
 [gd_scene format=3 uid="uid://8hm5q6k01tb8"]
 
-[ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/planet/sun_controller.gd" id="1_x6u8n"]
+[ext_resource type="Script" uid="uid://dief5k6fof8lo" path="res://scripts/Planet/sun_controller.gd" id="1_x6u8n"]
 [ext_resource type="PackedScene" uid="uid://cuv6mxdmxyw00" path="res://scenes/planet/planet_loader.tscn" id="2_li0gi"]
 [ext_resource type="Script" uid="uid://bb80gqydkco21" path="res://scripts/atmosphere/planet_atmosphere_controller.gd" id="3_7qkn8"]
 [ext_resource type="Shader" uid="uid://dg47dsqtn0usl" path="res://textures/skybox/space_sky.gdshader" id="3_cpkft"]
-[ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scripts/planet/ambient_control.gd" id="4_7qkn8"]
+[ext_resource type="Script" uid="uid://dcs4lxwp8cpfb" path="res://scripts/Planet/ambient_control.gd" id="4_7qkn8"]
 [ext_resource type="CompositorEffect" uid="uid://lec7wb3m521b" path="res://data/planet/earth_atmosphere_compossition.tres" id="4_li0gi"]
-[ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/player/third_person_player.tscn" id="5_05w5h"]
-[ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/menu/main_menu.tscn" id="6_x6u8n"]
+[ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/Player/third_person_player.tscn" id="5_05w5h"]
+[ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/Menu/main_menu.tscn" id="6_x6u8n"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
 shader = ExtResource("3_cpkft")
@@ -72,9 +72,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@19753")
+water_sphere = NodePath("@Node3D@19488")
 global_pos = Vector3(0, 0, 15000)
-planet = NodePath("@Node3D@19752")
+planet = NodePath("@Node3D@19487")
 entity_id = "planet_earth"
 godray_intensity = 3.0
 godray_samples = 2
@@ -100,7 +100,7 @@ sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, -85000)
 global_pos = Vector3(0, 0, -55000)
-planet = NodePath("@Node3D@19761")
+planet = NodePath("@Node3D@19498")
 entity_id = "planet_moon"
 godray_decay = 0.25
 
