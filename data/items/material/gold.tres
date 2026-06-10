@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://ctupvguhcn0qf"]
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://cdipewcouywer"]
 
 [ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="1_3uv04"]
-[ext_resource type="Texture2D" uid="uid://brxvjdmur0nso" path="res://textures/icons/items/collectable/icon_stone.png" id="1_ul27m"]
+[ext_resource type="Texture2D" uid="uid://jej6mygmluv7" path="res://textures/planet/ores/gold-nugget-bl/gold-nugget1_preview.jpg" id="1_ymky2"]
 [ext_resource type="Texture2D" uid="uid://qh4jl245swvw" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_albedo.png" id="3_v1yon"]
 [ext_resource type="Texture2D" uid="uid://cp8sbfhajd27t" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_ao.png" id="4_wj03j"]
 [ext_resource type="Texture2D" uid="uid://bbgtl64p1t6fy" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Height.png" id="5_mub33"]
@@ -23,8 +23,8 @@ heightmap_texture = ExtResource("5_mub33")
 
 [resource]
 script = ExtResource("1_3uv04")
-id = &"stone_01"
-display_name = "Stone"
-icon = ExtResource("1_ul27m")
+id = &"gold_01"
+display_name = "Gold"
+icon = ExtResource("1_ymky2")
 surface_material = SubResource("StandardMaterial3D_mhgyb")
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

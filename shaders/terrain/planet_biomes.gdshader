@@ -89,6 +89,11 @@ varying vec3 v_normal_model;
 varying vec3 v_vertex_pos_model;
 varying float v_caustics;
 
+// Datos de texturing 4-blend del mesher (CUSTOM1): 4 índices + 4 pesos por vértice.
+// El ore se guarda aquí desde OreVoxelGenerator; los leemos en vez de recalcular noise.
+varying vec4 v_ore_indices;
+varying vec4 v_ore_weights;
+
 #define MAX_ORE_TYPES 8
 uniform int ore_count = 0;
 uniform sampler2D ore_albedo_textures[MAX_ORE_TYPES] : source_color;
@@ -99,10 +104,24 @@ uniform float ore_noise_frequencies[MAX_ORE_TYPES];
 uniform float ore_noise_thresholds[MAX_ORE_TYPES];
 uniform float ore_noise_smoothness[MAX_ORE_TYPES]; // zona de fade alrededor del threshold
 
+vec4 decode_8bit_vec4(float v) {
+	uint i = floatBitsToUint(v);
+	return vec4(
+		float(i & uint(0xff)),
+		float((i >> uint(8)) & uint(0xff)),
+		float((i >> uint(16)) & uint(0xff)),
+		float((i >> uint(24)) & uint(0xff)));
+}
+
 void vertex() {
+	int i = 0;
 	v_vertex_pos_model = VERTEX; // posición original antes de transvoxel — el atlas fue bakeado con estas coords
 	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0, u_transition_mask);
 	v_normal_model = NORMAL;
+
+	// INDICES crudos (0..15 por slot); WEIGHTS normalizados a [0,1].
+	v_ore_indices = decode_8bit_vec4(CUSTOM1.x);
+	v_ore_weights = decode_8bit_vec4(CUSTOM1.y) / 255.0;
 
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	height = length(world_pos - center) - radius;
@@ -350,34 +369,19 @@ void fragment() {
         final_normal = normal_world;
     }
 
-    // 7) Ore overlay procedural en world-space (mismo noise que el generator)
+    // 7) Ore overlay leído del voxel (sistema de texturing 4-blend, canal CUSTOM1).
+    // El OreVoxelGenerator guardó el type_id del ore en un slot de INDICES y su peso
+    // en WEIGHTS. Aquí solo lo leemos: lo que se ve es exactamente lo que hay en el
+    // voxel (y lo que devuelve el minado). El índice guardado es type_id (1=iron...),
+    // la textura del ore es ore_*_textures[type_id - 1].
     if (ore_count > 0) {
-        for (int oi = 0; oi < ore_count; oi++) {
-            float thr = ore_noise_thresholds[oi];
-            if (thr < 0.05) continue;
-            int ore_seed = int(round(ore_noise_seeds[oi]));
+        for (int slot = 0; slot < 4; slot++) {
+            int ore_id = int(v_ore_indices[slot] + 0.5);
+            if (ore_id <= 0) continue;
+            int oi = ore_id - 1;
+            if (oi >= ore_count) continue;
 
-            // Warp de alta frecuencia y baja amplitud: deforma los bordes del patch localmente
-            // sin desplazarlo del sitio (warp grande estira, warp pequeño y rápido crea bordes orgánicos)
-            /*float warp_freq = ore_noise_frequencies[oi] * 6.0;
-            float warp_strength = 0.08 / ore_noise_frequencies[oi];
-            vec3 warp = vec3(
-                fast_noise_lite_open_simplex2_3d(planet_pos, warp_freq, ore_seed + 100),
-                fast_noise_lite_open_simplex2_3d(planet_pos, warp_freq, ore_seed + 200),
-                fast_noise_lite_open_simplex2_3d(planet_pos, warp_freq, ore_seed + 300)
-            ) * warp_strength;*/
-
-            // Noise regular sobre coords deformadas: localizado en picos, bordes irregulares
-            //vec3 warped_pos = planet_pos + warp;
-            float n1 = fast_noise_lite_open_simplex2_3d(planet_pos, ore_noise_frequencies[oi], ore_seed);
-            float n2 = fast_noise_lite_open_simplex2_3d(planet_pos, ore_noise_frequencies[oi] * 2.1, ore_seed + 7) * 0.35;
-            float ore_n = ((n1 + n2) * (1.0 / 1.35)) * 0.5 + 0.5;
-
-            float edge_noise = signed_fbm(planet_pos * ore_edge_noise_scale) * ore_edge_noise_strength;
-			ore_n += edge_noise;
-
-			float ore_smooth = max(ore_noise_smoothness[oi], 0.005);
-			float ore_w = clamp(smoothstep(thr - ore_smooth, thr + ore_smooth, ore_n), 0.0, 1.0);
+            float ore_w = clamp(v_ore_weights[slot], 0.0, 1.0);
             if (ore_w > 0.0001) {
                 TriplanarUVs ore_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
                 vec3 ore_color = triplanar_sample_uvs(ore_albedo_textures[oi], ore_uvs, planet_up);

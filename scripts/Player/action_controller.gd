@@ -2,6 +2,8 @@ extends Node
 class_name ActionController
 const Config = preload("res://scripts/config.gd")
 
+signal voxel_mined(item_id: StringName, amount: int)
+
 @export var timer : Timer
 @export var show_raycast_debug: bool = false
 
@@ -27,13 +29,50 @@ func _ready() -> void:
 func dig_hole(radius: float, distance: float):
 	var voxel_tool: VoxelTool = current_voxel.get_voxel_tool()
 	var result = voxel_tool.raycast(current_origin, current_direction, distance)
-	
+
 	if result:
+		# Leemos el ore directamente del voxel golpeado (canal INDICES del sistema de
+		# texturing). Es exactamente el dato que el shader usa para pintar, así que lo
+		# que ves es lo que minas.
+		var type_id := _read_ore_at(voxel_tool, result.position)
+		var drop := _get_ore_drop(type_id)
+
 		var hit_position = result.previous_position
 		var center = Vector3(hit_position.x, hit_position.y, hit_position.z)
-		voxel_tool.mode = VoxelTool.MODE_REMOVE 
+		voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
+		voxel_tool.mode = VoxelTool.MODE_REMOVE
 		voxel_tool.value = 0
 		voxel_tool.do_sphere(center, radius)
+
+		var amount := rand_num_gen.randi_range(drop.min_count, drop.max_count)
+		voxel_mined.emit(drop.item_id, amount)
+
+func _read_ore_at(voxel_tool: VoxelTool, voxel_pos: Vector3i) -> int:
+	voxel_tool.channel = VoxelBuffer.CHANNEL_INDICES
+	var indices := VoxelTool.u16_indices_to_vec4i(voxel_tool.get_voxel(voxel_pos))
+	voxel_tool.channel = VoxelBuffer.CHANNEL_WEIGHTS
+	var weights := VoxelTool.u16_weights_to_color(voxel_tool.get_voxel(voxel_pos))
+	print("[mine] indices=", indices, " weights=", weights)  # TEMP debug
+
+	# Un voxel normal trae INDICES=(0,1,2,3) por defecto, pero solo el slot 0 tiene
+	# peso. Es ore solo si un slot con índice>0 tiene peso suficiente.
+	var idx := [indices.x, indices.y, indices.z, indices.w]
+	var w := [weights.r, weights.g, weights.b, weights.a]
+	var best_id := 0
+	var best_w := 0.25
+	for s in 4:
+		if idx[s] > 0 and w[s] > best_w:
+			best_w = w[s]
+			best_id = idx[s]
+	return best_id
+
+func _get_ore_drop(type_id: int) -> Dictionary:
+	if type_id == 0:
+		return {"item_id": &"stone_01", "min_count": 1, "max_count": 2}
+	var gen := current_voxel.generator as OreVoxelGenerator
+	if gen:
+		return gen.get_ore_drop(type_id)
+	return {"item_id": &"stone_01", "min_count": 1, "max_count": 2}
 		
 func on_timeout():
 	if is_attacking:

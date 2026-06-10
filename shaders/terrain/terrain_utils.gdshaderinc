@@ -324,9 +324,6 @@ float fast_noise_lite_open_simplex2_single_3d(int seed, float x, float y, float 
     j *= FNL_PRIME_Y;
     k *= FNL_PRIME_Z;
 
-    // FastNoiseLite usa un seed offset para la muestra secundaria de cada iteración
-    int seed2 = seed + 1293373;
-
     float value = 0.0;
     float a = (0.6 - x0 * x0) - (y0 * y0 + z0 * z0);
 
@@ -357,8 +354,8 @@ float fast_noise_lite_open_simplex2_single_3d(int seed, float x, float y, float 
         }
 
         if (b > 0.0) {
-            // Muestra secundaria usa seed2, no seed — bug original que rompía la coincidencia
-            value += (b * b) * (b * b) * fnl_grad_coord_3d(seed2, i1, j1, k1, x1, y1, z1);
+            // FastNoiseLite canónico: ambas muestras de la iteración usan el mismo seed
+            value += (b * b) * (b * b) * fnl_grad_coord_3d(seed, i1, j1, k1, x1, y1, z1);
         }
 
         if (l == 1) {
@@ -384,7 +381,6 @@ float fast_noise_lite_open_simplex2_single_3d(int seed, float x, float y, float 
         z_nsign = -z_nsign;
 
         seed = ~seed;
-        seed2 = ~seed2; // seed2 también se invierte igual que seed
     }
 
     return value * 32.69428253173828125;

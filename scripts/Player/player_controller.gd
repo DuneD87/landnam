@@ -109,6 +109,12 @@ func _perform_raycast() -> void:
 		building_system.process_raycast(hit_collider, hit_normal, hit_pos, _ray_hit)
 	
 
+func _on_voxel_mined(item_id: StringName, amount: int) -> void:
+	var item_data := config.get_item(item_id)
+	if item_data:
+		var excess := inventory.add_item(item_data, amount)
+		print("+%d %s" % [amount - excess, item_data.display_name])
+
 func _on_target_destroyed(position: Vector3, amount: int, item_data: ItemData) -> void:
 	var excess = inventory.add_item(item_data, amount)
 	print("+%d %s" % [amount - excess, item_data.display_name])
@@ -239,6 +245,7 @@ func _ready():
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
 	movement.landed.connect(_on_landed)
 	health_component.died.connect(_on_player_died)
+	action_controller.voxel_mined.connect(_on_voxel_mined)
 	# Start in free flight with no input (space view for the menu)
 	free_flight_enabled = true
 	visible = false

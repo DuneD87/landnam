@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://kqrsw3ek8hm7"]
+
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="1_3uv04"]
+[ext_resource type="Texture2D" uid="uid://bcx3f5up1kidh" path="res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_preview.jpg" id="1_pleas"]
+
+[resource]
+script = ExtResource("1_3uv04")
+id = &"iron_01"
+display_name = "Iron"
+icon = ExtResource("1_pleas")
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"
