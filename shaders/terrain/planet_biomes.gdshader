@@ -43,8 +43,6 @@ uniform int biome_noise_invert[MAX_BIOMES];
 uniform float biome_noise_abs_latitude_mins[MAX_BIOMES];
 uniform float biome_noise_abs_latitude_maxs[MAX_BIOMES];
 uniform float biome_noise_latitude_smoothness[MAX_BIOMES];
-uniform float ore_edge_noise_scale : hint_range(0.0, 5.0) = 0.08;
-uniform float ore_edge_noise_strength : hint_range(0.0, 0.5) = 0.12;
 uniform sampler2D slope_texture;
 uniform sampler2D slope_normal_texture;
 uniform sampler2D slope_roughness_texture;
@@ -90,7 +88,7 @@ varying vec3 v_vertex_pos_model;
 varying float v_caustics;
 
 // Datos de texturing 4-blend del mesher (CUSTOM1): 4 índices + 4 pesos por vértice.
-// El ore se guarda aquí desde OreVoxelGenerator; los leemos en vez de recalcular noise.
+// El ore lo escribe el VoxelGraph (nodos Spots3D -> OutputWeight); aquí solo lo leemos.
 varying vec4 v_ore_indices;
 varying vec4 v_ore_weights;
 
@@ -99,10 +97,6 @@ uniform int ore_count = 0;
 uniform sampler2D ore_albedo_textures[MAX_ORE_TYPES] : source_color;
 uniform sampler2D ore_normal_textures[MAX_ORE_TYPES];
 uniform sampler2D ore_roughness_textures[MAX_ORE_TYPES];
-uniform float ore_noise_seeds[MAX_ORE_TYPES];
-uniform float ore_noise_frequencies[MAX_ORE_TYPES];
-uniform float ore_noise_thresholds[MAX_ORE_TYPES];
-uniform float ore_noise_smoothness[MAX_ORE_TYPES]; // zona de fade alrededor del threshold
 
 vec4 decode_8bit_vec4(float v) {
 	uint i = floatBitsToUint(v);
@@ -370,8 +364,8 @@ void fragment() {
     }
 
     // 7) Ore overlay leído del voxel (sistema de texturing 4-blend, canal CUSTOM1).
-    // El OreVoxelGenerator guardó el type_id del ore en un slot de INDICES y su peso
-    // en WEIGHTS. Aquí solo lo leemos: lo que se ve es exactamente lo que hay en el
+    // El VoxelGraph (OutputWeight layer=type_id) guardó el type_id del ore en un slot de
+    // INDICES y su peso en WEIGHTS. Aquí solo lo leemos: lo que se ve es exactamente lo que hay en el
     // voxel (y lo que devuelve el minado). El índice guardado es type_id (1=iron...),
     // la textura del ore es ore_*_textures[type_id - 1].
     if (ore_count > 0) {

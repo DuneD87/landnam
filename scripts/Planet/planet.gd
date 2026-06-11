@@ -411,13 +411,12 @@ func setup_shader_parameters() -> void:
 	_setup_ore_shader_parameters()
 
 func _setup_ore_shader_parameters() -> void:
+	# El shader solo necesita las texturas y el contador: el blending de ore lo lee del
+	# voxel (CUSTOM1 / canal INDICES-WEIGHTS), que ahora rellena el VoxelGraph. El índice
+	# guardado es el type_id (1=iron...), la textura es ore_*_textures[type_id - 1].
 	var ore_albedo: Array[Texture2D] = []
 	var ore_normal: Array[Texture2D] = []
 	var ore_roughness: Array[Texture2D] = []
-	var ore_seeds: Array[float] = []
-	var ore_frequencies: Array[float] = []
-	var ore_thresholds: Array[float] = []
-	var ore_smoothness: Array[float] = []
 
 	for ore in ore_settings:
 		var albedo := load(ore.get("texture", "")) as Texture2D
@@ -427,10 +426,6 @@ func _setup_ore_shader_parameters() -> void:
 			ore_albedo.append(albedo)
 			ore_normal.append(nrm)
 			ore_roughness.append(rough)
-			ore_seeds.append(float(int(ore.get("noise_seed", 0))))
-			ore_frequencies.append(float(ore.get("noise_scale", 0.03)))
-			ore_thresholds.append(float(ore.get("threshold", 0.15)))
-			ore_smoothness.append(float(ore.get("threshold_smoothness", 0.1)))
 		else:
 			push_warning("OreSettings: missing texture for ore '%s'" % ore.get("name", "?"))
 
@@ -439,10 +434,6 @@ func _setup_ore_shader_parameters() -> void:
 		shader_material.set_shader_parameter("ore_albedo_textures", ore_albedo)
 		shader_material.set_shader_parameter("ore_normal_textures", ore_normal)
 		shader_material.set_shader_parameter("ore_roughness_textures", ore_roughness)
-		shader_material.set_shader_parameter("ore_noise_seeds", ore_seeds)
-		shader_material.set_shader_parameter("ore_noise_frequencies", ore_frequencies)
-		shader_material.set_shader_parameter("ore_noise_thresholds", ore_thresholds)
-		shader_material.set_shader_parameter("ore_noise_smoothness", ore_smoothness)
 
 
 func setup_voxel_generator() -> void:
@@ -474,9 +465,97 @@ func setup_voxel_generator() -> void:
 			graph_generator.compile()
 
 	if not ore_settings.is_empty():
-		var ore_gen := OreVoxelGenerator.new()
-		ore_gen.setup(graph_generator, ore_settings)
-		voxel_terrain.generator = ore_gen
+		_apply_ore_params(graph_generator_function, ore_settings)
+		var compile_result = graph_generator.compile()
+		if compile_result is Dictionary and not compile_result.get("success", true):
+			push_error("Planet: VoxelGraph compile falló: %s (nodo %s)" % [
+				compile_result.get("message", ""), compile_result.get("node_id", -1)])
+		_publish_ore_drop_table()
+
+# --- Parámetros de ore (data-driven sobre nodos creados a mano en el editor) --------------
+# La ESTRUCTURA de nodos (Spots3D -> gate por SDF -> OutputWeight) se autora en el editor del
+# VoxelGraph, porque add_node/add_connection no están expuestos a GDScript en este build.
+# Aquí solo empujamos los params del JSON a los nodos NOMBRADOS, igual que el parcheo de 'radius':
+#   - Spots3D nombrado "ore_spots_<type_id>"  <- seed, cell_size, spot_radius, jitter
+#   - Divide  nombrado "ore_depth_<type_id>"  <- b = surface_depth   (gate = max(0, 1-|sdf|/depth))
+func _apply_ore_params(fn: VoxelGraphFunction, ores: Array) -> void:
+	# Volcado de introspección (una vez) para ver los nombres reales de inputs/params del build.
+	print("[ore-graph] set_node_default_input disponible: ", fn.has_method("set_node_default_input"))
+	_dump_node_info(fn, VoxelGraphFunction.NODE_SPOTS_3D, "Spots3D")
+	_dump_node_info(fn, VoxelGraphFunction.NODE_DIVIDE, "Divide")
+	_dump_node_info(fn, VoxelGraphFunction.NODE_OUTPUT_WEIGHT, "OutputWeight")
+
+	for ore in ores:
+		var type_id := int(ore.get("type_id", 1))
+		var spots_name := "ore_spots_%d" % type_id
+		var depth_name := "ore_depth_%d" % type_id
+
+		var spots := fn.find_node_by_name(spots_name)
+		if spots <= 0:
+			push_warning("Planet: no se encontró el nodo Spots3D '%s'; ¿lo creaste y nombraste en el grafo?" % spots_name)
+		else:
+			_push_param(fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "seed", int(ore.get("noise_seed", 0)))
+			_push_param(fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "cell_size", float(ore.get("cell_size", 40.0)))
+			_push_param(fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "spot_radius", float(ore.get("spot_radius", 12.0)))
+			_push_param(fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "jitter", float(ore.get("jitter", 0.9)))
+
+		var depth_node := fn.find_node_by_name(depth_name)
+		if depth_node <= 0:
+			push_warning("Planet: no se encontró el nodo Divide '%s' del gate de profundidad." % depth_name)
+		else:
+			var depth: float = maxf(float(ore.get("surface_depth", 10.0)), 0.001)
+			_push_param(fn, depth_node, VoxelGraphFunction.NODE_DIVIDE, "b", depth)
+
+func _push_param(fn: VoxelGraphFunction, node_id: int, type_id: int, setting: String, value) -> void:
+	# Distinguimos INPUT (con valor por defecto, p.ej. cell_size/spot_radius/jitter/b) de PARAM
+	# (p.ej. seed/layer). set_node_param_by_name SOLO vale para params; los inputs van por
+	# set_node_default_input(node, input_index, value).
+	var info = fn.get_node_type_info(type_id)
+	var in_idx := _input_index(info, setting)
+	if in_idx >= 0:
+		if fn.has_method("set_node_default_input"):
+			fn.set_node_default_input(node_id, in_idx, value)
+		else:
+			push_warning("Planet: '%s' es input (idx %d) pero set_node_default_input no existe; ponlo a mano en el editor." % [setting, in_idx])
+	else:
+		# No es input -> asumimos param. set_node_param_by_name asertará si tampoco existe.
+		fn.set_node_param_by_name(node_id, setting, value)
+
+func _input_index(info, setting: String) -> int:
+	if info is Dictionary and info.has("inputs"):
+		var i := 0
+		for desc in info["inputs"]:
+			if _desc_name(desc) == setting:
+				return i
+			i += 1
+	return -1
+
+func _desc_name(desc) -> String:
+	if desc is Dictionary:
+		if desc.has("name") and desc["name"] is String:
+			return desc["name"]
+		for k in desc:
+			if desc[k] is String:
+				return desc[k]
+	return ""
+
+func _publish_ore_drop_table() -> void:
+	# Reemplaza OreVoxelGenerator.get_ore_drop: publica type_id -> drop como meta del terreno,
+	# que ActionController lee al minar.
+	var table := {}
+	for ore in ore_settings:
+		var tid := int(ore.get("type_id", 0))
+		if tid <= 0:
+			continue
+		table[tid] = {
+			"item_id": StringName(ore.get("drop_item", "stone_01")),
+			"min_count": int(ore.get("drop_count_min", 1)),
+			"max_count": int(ore.get("drop_count_max", 1)),
+		}
+	voxel_terrain.set_meta("ore_drops", table)
+
+func _dump_node_info(fn: VoxelGraphFunction, type_id: int, label: String) -> void:
+	print("[ore-graph] %s node_type_info: %s" % [label, fn.get_node_type_info(type_id)])
 
 func _ready() -> void:
 	pass

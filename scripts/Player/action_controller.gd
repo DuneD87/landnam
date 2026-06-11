@@ -52,7 +52,6 @@ func _read_ore_at(voxel_tool: VoxelTool, voxel_pos: Vector3i) -> int:
 	var indices := VoxelTool.u16_indices_to_vec4i(voxel_tool.get_voxel(voxel_pos))
 	voxel_tool.channel = VoxelBuffer.CHANNEL_WEIGHTS
 	var weights := VoxelTool.u16_weights_to_color(voxel_tool.get_voxel(voxel_pos))
-	print("[mine] indices=", indices, " weights=", weights)  # TEMP debug
 
 	# Un voxel normal trae INDICES=(0,1,2,3) por defecto, pero solo el slot 0 tiene
 	# peso. Es ore solo si un slot con índice>0 tiene peso suficiente.
@@ -67,12 +66,13 @@ func _read_ore_at(voxel_tool: VoxelTool, voxel_pos: Vector3i) -> int:
 	return best_id
 
 func _get_ore_drop(type_id: int) -> Dictionary:
+	var fallback := {"item_id": &"stone_01", "min_count": 1, "max_count": 2}
 	if type_id == 0:
-		return {"item_id": &"stone_01", "min_count": 1, "max_count": 2}
-	var gen := current_voxel.generator as OreVoxelGenerator
-	if gen:
-		return gen.get_ore_drop(type_id)
-	return {"item_id": &"stone_01", "min_count": 1, "max_count": 2}
+		return fallback
+	# La tabla de drops la publica Planet.setup_voxel_generator() como meta del terreno
+	# (antes vivía en OreVoxelGenerator, ahora la generación está en el VoxelGraph).
+	var drops: Dictionary = current_voxel.get_meta("ore_drops", {})
+	return drops.get(type_id, fallback)
 		
 func on_timeout():
 	if is_attacking:
