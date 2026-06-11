@@ -31,12 +31,6 @@ func dig_hole(radius: float, distance: float):
 	var result = voxel_tool.raycast(current_origin, current_direction, distance)
 
 	if result:
-		# Leemos el ore directamente del voxel golpeado (canal INDICES del sistema de
-		# texturing). Es exactamente el dato que el shader usa para pintar, así que lo
-		# que ves es lo que minas.
-		var type_id := _read_ore_at(voxel_tool, result.position)
-		var drop := _get_ore_drop(type_id)
-
 		var hit_position = result.previous_position
 		var center = Vector3(hit_position.x, hit_position.y, hit_position.z)
 		voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
@@ -44,25 +38,36 @@ func dig_hole(radius: float, distance: float):
 		voxel_tool.value = 0
 		voxel_tool.do_sphere(center, radius)
 
+		# Leemos el ore DESPUÉS de excavar. Un bloque generado-no-editado no expone los canales
+		# INDICES/WEIGHTS a get_voxel (devuelve los defaults -> el 1er golpe siempre saldría
+		# stone). El do_sphere edita el bloque (solo el canal SDF) y lo hace residente con todos
+		# los canales, así que INDICES/WEIGHTS ya devuelven el ore generado de verdad. El SDF
+		# editado no afecta a esos canales, así que seguimos leyendo el ore que había.
+		var type_id := _read_best_ore_along_ray(voxel_tool, result.position, current_direction, 2)
+		var drop := _get_ore_drop(type_id)
+
 		var amount := rand_num_gen.randi_range(drop.min_count, drop.max_count)
 		voxel_mined.emit(drop.item_id, amount)
 
-func _read_ore_at(voxel_tool: VoxelTool, voxel_pos: Vector3i) -> int:
-	voxel_tool.channel = VoxelBuffer.CHANNEL_INDICES
-	var indices := VoxelTool.u16_indices_to_vec4i(voxel_tool.get_voxel(voxel_pos))
-	voxel_tool.channel = VoxelBuffer.CHANNEL_WEIGHTS
-	var weights := VoxelTool.u16_weights_to_color(voxel_tool.get_voxel(voxel_pos))
-
-	# Un voxel normal trae INDICES=(0,1,2,3) por defecto, pero solo el slot 0 tiene
-	# peso. Es ore solo si un slot con índice>0 tiene peso suficiente.
-	var idx := [indices.x, indices.y, indices.z, indices.w]
-	var w := [weights.r, weights.g, weights.b, weights.a]
+# Recorre desde 'start' hacia dentro del rayo (dir) 'steps' voxels y devuelve el type_id del
+# ore dominante (mayor peso) encontrado. Cubre la piel de terreno base sobre el depósito.
+func _read_best_ore_along_ray(voxel_tool: VoxelTool, start: Vector3i, dir: Vector3, steps: int) -> int:
 	var best_id := 0
-	var best_w := 0.25
-	for s in 4:
-		if idx[s] > 0 and w[s] > best_w:
-			best_w = w[s]
-			best_id = idx[s]
+	var best_w := 0.15  # mínimo para contar como ore; el slot base (índice 0) nunca cuenta
+	for i in range(steps + 1):
+		var p := start + Vector3i((dir * float(i)).round())
+		voxel_tool.channel = VoxelBuffer.CHANNEL_INDICES
+		var indices := VoxelTool.u16_indices_to_vec4i(voxel_tool.get_voxel(p))
+		voxel_tool.channel = VoxelBuffer.CHANNEL_WEIGHTS
+		var weights := VoxelTool.u16_weights_to_color(voxel_tool.get_voxel(p))
+		# Un voxel normal trae INDICES=(0,1,2,3) con peso solo en el slot 0 (índice 0 = base).
+		# Es ore solo si un slot con índice>0 tiene peso suficiente.
+		var idx := [indices.x, indices.y, indices.z, indices.w]
+		var w := [weights.r, weights.g, weights.b, weights.a]
+		for s in 4:
+			if idx[s] > 0 and w[s] > best_w:
+				best_w = w[s]
+				best_id = idx[s]
 	return best_id
 
 func _get_ore_drop(type_id: int) -> Dictionary:
