@@ -1,30 +1,10 @@
 [gd_resource type="VoxelGraphFunction" format=3 uid="uid://byiklq6sp1ntr"]
 
-[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_scuyd"]
-noise_type = 1
-period = 60.0001
-amplitude = 15.0001
-fractal_type = 1
-
-[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_yhn84"]
-seed = 1337
-period = 1000.0001
-warp_noise = SubResource("ZN_FastNoiseLiteGradient_scuyd")
-
-[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_420af"]
-noise_type = 1
-period = 70.0001
-amplitude = 15.0001
-fractal_type = 2
-
-[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_h8nrh"]
-seed = 9001
-period = 800.0001
-warp_noise = SubResource("ZN_FastNoiseLiteGradient_420af")
+[ext_resource type="VoxelGraphFunction" uid="uid://cvmask7q3x2k1" path="res://data/graph_functions/cave_mask.tres" id="1_cmask"]
 
 [resource]
 graph_data = {
-"connections": [[26, 0, 33, 0], [27, 0, 36, 1], [28, 0, 35, 0], [30, 0, 33, 1], [31, 0, 40, 0], [32, 0, 30, 0], [33, 0, 31, 1], [34, 0, 27, 0], [35, 0, 36, 0], [36, 0, 37, 0], [37, 0, 26, 0], [38, 0, 32, 0], [38, 0, 31, 0]],
+"connections": [[50, 0, 26, 0], [38, 0, 32, 0], [32, 0, 30, 0], [26, 0, 33, 0], [30, 0, 33, 1], [38, 0, 31, 0], [33, 0, 31, 1], [31, 0, 40, 0]],
 "nodes": {
 "1": {
 "auto_connect": false,
@@ -36,33 +16,17 @@ graph_data = {
 "gui_position": Vector2(440, 60),
 "type": "InputY"
 },
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(440, 220),
+"type": "InputZ"
+},
 "26": {
 "auto_connect": false,
 "b": 40.0,
 "gui_position": Vector2(1530, 20),
 "name": &"cave_amplitude",
 "type": "Multiply"
-},
-"27": {
-"auto_connect": false,
-"gui_position": Vector2(930, 90),
-"name": &"cave_absB",
-"type": "Abs"
-},
-"28": {
-"auto_connect": true,
-"gui_position": Vector2(630, -50),
-"name": &"cave_noiseA",
-"noise": SubResource("ZN_FastNoiseLite_yhn84"),
-"type": "FastNoise3D",
-"x": 0.0,
-"y": 0.0,
-"z": 0.0
-},
-"3": {
-"auto_connect": false,
-"gui_position": Vector2(440, 220),
-"type": "InputZ"
 },
 "30": {
 "auto_connect": false,
@@ -91,35 +55,6 @@ graph_data = {
 "name": &"cave_sum",
 "type": "Add"
 },
-"34": {
-"auto_connect": true,
-"gui_position": Vector2(630, 90),
-"name": &"cave_noiseB",
-"noise": SubResource("ZN_FastNoiseLite_h8nrh"),
-"type": "FastNoise3D",
-"x": 0.0,
-"y": 0.0,
-"z": 0.0
-},
-"35": {
-"auto_connect": false,
-"gui_position": Vector2(930, -50),
-"name": &"cave_absA",
-"type": "Abs"
-},
-"36": {
-"auto_connect": false,
-"gui_position": Vector2(1100, 20),
-"name": &"cave_max",
-"type": "Max"
-},
-"37": {
-"auto_connect": false,
-"b": 0.04,
-"gui_position": Vector2(1270, 20),
-"name": &"cave_threshold",
-"type": "Subtract"
-},
 "38": {
 "auto_connect": false,
 "gui_position": Vector2(1270, -330),
@@ -131,6 +66,16 @@ graph_data = {
 "gui_position": Vector2(2620, -110),
 "name": &"cave_field",
 "type": "CustomOutput"
+},
+"50": {
+"_function": ExtResource("1_cmask"),
+"auto_connect": true,
+"gui_position": Vector2(700, 20),
+"name": &"cave_mask",
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
 }
 },
 "version": 2

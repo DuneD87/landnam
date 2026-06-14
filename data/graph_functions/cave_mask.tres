@@ -1,0 +1,99 @@
+[gd_resource type="VoxelGraphFunction" format=3 uid="uid://cvmask7q3x2k1"]
+
+[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_scuyd"]
+noise_type = 1
+period = 60.0001
+amplitude = 15.0001
+fractal_type = 1
+
+[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_yhn84"]
+seed = 1337
+period = 1000.0001
+warp_noise = SubResource("ZN_FastNoiseLiteGradient_scuyd")
+
+[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_420af"]
+noise_type = 1
+period = 70.0001
+amplitude = 15.0001
+fractal_type = 2
+
+[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_h8nrh"]
+seed = 9001
+period = 800.0001
+warp_noise = SubResource("ZN_FastNoiseLiteGradient_420af")
+
+[resource]
+graph_data = {
+"connections": [[10, 0, 12, 0], [11, 0, 13, 0], [12, 0, 14, 0], [13, 0, 14, 1], [14, 0, 15, 0], [15, 0, 20, 0]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(200, -100),
+"type": "InputX"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(200, 60),
+"type": "InputY"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(200, 220),
+"type": "InputZ"
+},
+"10": {
+"auto_connect": true,
+"gui_position": Vector2(440, -50),
+"name": &"cave_noiseA",
+"noise": SubResource("ZN_FastNoiseLite_yhn84"),
+"type": "FastNoise3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"11": {
+"auto_connect": true,
+"gui_position": Vector2(440, 90),
+"name": &"cave_noiseB",
+"noise": SubResource("ZN_FastNoiseLite_h8nrh"),
+"type": "FastNoise3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"12": {
+"auto_connect": false,
+"gui_position": Vector2(700, -50),
+"name": &"cave_absA",
+"type": "Abs"
+},
+"13": {
+"auto_connect": false,
+"gui_position": Vector2(700, 90),
+"name": &"cave_absB",
+"type": "Abs"
+},
+"14": {
+"auto_connect": false,
+"gui_position": Vector2(900, 20),
+"name": &"cave_max",
+"type": "Max"
+},
+"15": {
+"auto_connect": false,
+"b": 0.04,
+"gui_position": Vector2(1100, 20),
+"name": &"cave_threshold",
+"type": "Subtract"
+},
+"20": {
+"auto_connect": false,
+"gui_position": Vector2(1350, 20),
+"name": &"cave_mask",
+"type": "CustomOutput"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0]]
+output_definitions = [["cave_mask", "CustomOutput", 0]]

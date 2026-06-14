@@ -1,9 +1,33 @@
 [gd_resource type="VoxelGraphFunction" format=3 uid="uid://v06b6ritwuci"]
 
+[ext_resource type="VoxelGraphFunction" uid="uid://b4mvmk26nf0jm" path="res://data/graph_functions/earth_terrain_base.tres" id="1_cmask"]
+
 [resource]
 graph_data = {
-"connections": [[1, 0, 4, 0], [1, 0, 4, 1], [11, 0, 12, 0], [12, 0, 25, 0], [14, 0, 24, 0], [2, 0, 5, 0], [2, 0, 5, 1], [2, 0, 11, 0], [18, 0, 24, 1], [24, 0, 17, 0], [25, 0, 18, 2], [25, 0, 14, 2], [3, 0, 6, 0], [3, 0, 6, 1], [4, 0, 7, 0], [5, 0, 7, 1], [6, 0, 8, 1], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 11, 1]],
+"connections": [[1, 0, 4, 0], [1, 0, 4, 1], [11, 0, 12, 0], [12, 0, 25, 0], [14, 0, 24, 0], [2, 0, 5, 0], [2, 0, 5, 1], [2, 0, 11, 0], [18, 0, 24, 1], [24, 0, 62, 0], [60, 0, 61, 0], [61, 0, 62, 1], [62, 0, 17, 0], [25, 0, 18, 2], [25, 0, 14, 2], [3, 0, 6, 0], [3, 0, 6, 1], [4, 0, 7, 0], [5, 0, 7, 1], [6, 0, 8, 1], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 11, 1]],
 "nodes": {
+"60": {
+"_function": ExtResource("1_cmask"),
+"auto_connect": true,
+"gui_position": Vector2(2300, 450),
+"name": &"cave_mask",
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"61": {
+"auto_connect": false,
+"edge0": -3.0,
+"edge1": 0.0,
+"gui_position": Vector2(2550, 450),
+"type": "Smoothstep"
+},
+"62": {
+"auto_connect": false,
+"gui_position": Vector2(2800, 250),
+"type": "Multiply"
+},
 "1": {
 "auto_connect": false,
 "gui_position": Vector2(26.6667, -106.667),
