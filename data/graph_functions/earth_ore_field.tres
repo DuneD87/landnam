@@ -1,0 +1,155 @@
+[gd_resource type="VoxelGraphFunction" format=3 uid="uid://b3rp22i5ldnk8"]
+
+[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_qhap6"]
+period = 20.0001
+
+[resource]
+graph_data = {
+"connections": [[10, 0, 11, 0], [11, 0, 12, 0], [1, 0, 12, 1], [11, 0, 13, 0], [2, 0, 13, 1], [11, 0, 14, 0], [3, 0, 14, 1], [12, 0, 20, 0], [13, 0, 20, 1], [14, 0, 20, 2], [12, 0, 21, 0], [13, 0, 21, 1], [14, 0, 21, 2], [4, 0, 30, 0], [30, 0, 32, 0], [32, 0, 34, 1], [34, 0, 36, 0], [36, 0, 40, 0], [20, 0, 40, 1], [40, 0, 50, 0], [4, 0, 31, 0], [31, 0, 33, 0], [33, 0, 35, 1], [35, 0, 37, 0], [37, 0, 41, 0], [21, 0, 41, 1], [41, 0, 51, 0]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(0, 0),
+"type": "InputX"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(0, 80),
+"type": "InputY"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(0, 160),
+"type": "InputZ"
+},
+"4": {
+"auto_connect": false,
+"gui_position": Vector2(0, 420),
+"name": &"planet_sdf",
+"type": "CustomInput"
+},
+"10": {
+"auto_connect": true,
+"gui_position": Vector2(200, -120),
+"noise": SubResource("ZN_FastNoiseLite_qhap6"),
+"type": "FastNoise3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"11": {
+"auto_connect": false,
+"b": 12.0,
+"gui_position": Vector2(420, -120),
+"type": "Multiply"
+},
+"12": {
+"auto_connect": false,
+"gui_position": Vector2(620, 0),
+"type": "Add"
+},
+"13": {
+"auto_connect": false,
+"gui_position": Vector2(620, 100),
+"type": "Add"
+},
+"14": {
+"auto_connect": false,
+"gui_position": Vector2(620, 200),
+"type": "Add"
+},
+"20": {
+"auto_connect": true,
+"cell_size": 32.0,
+"gui_position": Vector2(880, 40),
+"jitter": 0.9,
+"name": &"ore_spots_1",
+"seed": 42,
+"spot_radius": 5.0,
+"type": "Spots3D"
+},
+"21": {
+"auto_connect": true,
+"cell_size": 32.0,
+"gui_position": Vector2(880, 320),
+"jitter": 0.9,
+"name": &"ore_spots_2",
+"seed": 42,
+"spot_radius": 5.0,
+"type": "Spots3D"
+},
+"30": {
+"auto_connect": false,
+"gui_position": Vector2(620, 480),
+"type": "Abs"
+},
+"31": {
+"auto_connect": false,
+"gui_position": Vector2(620, 660),
+"type": "Abs"
+},
+"32": {
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(840, 480),
+"name": &"ore_depth_1",
+"type": "Divide"
+},
+"33": {
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(840, 660),
+"name": &"ore_depth_2",
+"type": "Divide"
+},
+"34": {
+"a": 1.0,
+"auto_connect": false,
+"gui_position": Vector2(1060, 480),
+"type": "Subtract"
+},
+"35": {
+"a": 1.0,
+"auto_connect": false,
+"gui_position": Vector2(1060, 660),
+"type": "Subtract"
+},
+"36": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(1280, 480),
+"type": "Max"
+},
+"37": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(1280, 660),
+"type": "Max"
+},
+"40": {
+"auto_connect": false,
+"gui_position": Vector2(1500, 220),
+"type": "Multiply"
+},
+"41": {
+"auto_connect": false,
+"gui_position": Vector2(1500, 480),
+"type": "Multiply"
+},
+"50": {
+"auto_connect": false,
+"gui_position": Vector2(1720, 220),
+"name": &"ore_01_weight",
+"type": "CustomOutput"
+},
+"51": {
+"auto_connect": false,
+"gui_position": Vector2(1720, 480),
+"name": &"ore_02_weight",
+"type": "CustomOutput"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0], ["planet_sdf", "CustomInput", 0]]
+output_definitions = [["ore_01_weight", "CustomOutput", 0], ["ore_02_weight", "CustomOutput", 0]]

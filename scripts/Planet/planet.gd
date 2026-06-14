@@ -448,28 +448,29 @@ func setup_voxel_generator() -> void:
 		return
 
 	var graph_generator_function: VoxelGraphFunction = graph_generator.get_main_function()
-	for node_id in graph_generator_function.get_node_ids():
-		var node_type = graph_generator_function.get_node_type_id(node_id)
-		var node_data = graph_generator_function.get_node_type_info(node_type)
-		var radius_found: bool = false
-		for key in node_data:
-			if key == "inputs":
-				var value = node_data[key]
-				for params in value:
-					for param in params:
-						if params[param] is String && params[param] == "radius":
-							radius_found = true
-							break
-		if radius_found:
-			graph_generator_function.set_node_param_by_name(node_id, "radius", radius)
-			graph_generator.compile()
+	# Tras abstraer terreno/ores a sub-funciones (earth_terrain_base, cave_field), los nodos
+	# nombrados (SdfSphere, ore_spots_*, ore_depth_*) ya NO viven en la función principal sino
+	# dentro de las funciones anidadas. Recogemos main + todas las sub-funciones para parchear
+	# allá donde estén realmente.
+	var all_functions: Array = [graph_generator_function]
+	_gather_subfunctions(graph_generator_function, all_functions)
+
+	var needs_compile := false
+	for fn in all_functions:
+		if _apply_radius(fn, radius):
+			needs_compile = true
 
 	if not ore_settings.is_empty():
-		_apply_ore_params(graph_generator_function, ore_settings)
+		_apply_ore_params(all_functions, ore_settings)
+		needs_compile = true
+
+	if needs_compile:
 		var compile_result = graph_generator.compile()
 		if compile_result is Dictionary and not compile_result.get("success", true):
 			push_error("Planet: VoxelGraph compile falló: %s (nodo %s)" % [
 				compile_result.get("message", ""), compile_result.get("node_id", -1)])
+
+	if not ore_settings.is_empty():
 		_publish_ore_drop_table()
 
 # --- Parámetros de ore (data-driven sobre nodos creados a mano en el editor) --------------
@@ -478,33 +479,73 @@ func setup_voxel_generator() -> void:
 # Aquí solo empujamos los params del JSON a los nodos NOMBRADOS, igual que el parcheo de 'radius':
 #   - Spots3D nombrado "ore_spots_<type_id>"  <- seed, cell_size, spot_radius, jitter
 #   - Divide  nombrado "ore_depth_<type_id>"  <- b = surface_depth   (gate = max(0, 1-|sdf|/depth))
-func _apply_ore_params(fn: VoxelGraphFunction, ores: Array) -> void:
-	# Volcado de introspección (una vez) para ver los nombres reales de inputs/params del build.
-	print("[ore-graph] set_node_default_input disponible: ", fn.has_method("set_node_default_input"))
-	_dump_node_info(fn, VoxelGraphFunction.NODE_SPOTS_3D, "Spots3D")
-	_dump_node_info(fn, VoxelGraphFunction.NODE_DIVIDE, "Divide")
-	_dump_node_info(fn, VoxelGraphFunction.NODE_OUTPUT_WEIGHT, "OutputWeight")
+func _apply_ore_params(functions: Array, ores: Array) -> void:
+	# La info de tipos es global (no depende de la instancia de función), así que el volcado de
+	# introspección lo hacemos sobre la primera función.
+	var probe: VoxelGraphFunction = functions[0]
+	print("[ore-graph] set_node_default_input disponible: ", probe.has_method("set_node_default_input"))
+	_dump_node_info(probe, VoxelGraphFunction.NODE_SPOTS_3D, "Spots3D")
+	_dump_node_info(probe, VoxelGraphFunction.NODE_DIVIDE, "Divide")
+	_dump_node_info(probe, VoxelGraphFunction.NODE_OUTPUT_WEIGHT, "OutputWeight")
 
 	for ore in ores:
 		var type_id := int(ore.get("type_id", 1))
 		var spots_name := "ore_spots_%d" % type_id
 		var depth_name := "ore_depth_%d" % type_id
 
-		var spots := fn.find_node_by_name(spots_name)
-		if spots <= 0:
-			push_warning("Planet: no se encontró el nodo Spots3D '%s'; ¿lo creaste y nombraste en el grafo?" % spots_name)
+		var spots_fn := _find_owner(functions, spots_name)
+		if spots_fn == null:
+			push_warning("Planet: no se encontró el nodo Spots3D '%s' en ninguna función; ¿lo creaste y nombraste?" % spots_name)
 		else:
-			_push_param(fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "seed", int(ore.get("noise_seed", 0)))
-			_push_param(fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "cell_size", float(ore.get("cell_size", 40.0)))
-			_push_param(fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "spot_radius", float(ore.get("spot_radius", 12.0)))
-			_push_param(fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "jitter", float(ore.get("jitter", 0.9)))
+			var spots := spots_fn.find_node_by_name(spots_name)
+			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "seed", int(ore.get("noise_seed", 0)))
+			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "cell_size", float(ore.get("cell_size", 40.0)))
+			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "spot_radius", float(ore.get("spot_radius", 12.0)))
+			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "jitter", float(ore.get("jitter", 0.9)))
 
-		var depth_node := fn.find_node_by_name(depth_name)
-		if depth_node <= 0:
+		var depth_fn := _find_owner(functions, depth_name)
+		if depth_fn == null:
 			push_warning("Planet: no se encontró el nodo Divide '%s' del gate de profundidad." % depth_name)
 		else:
+			var depth_node := depth_fn.find_node_by_name(depth_name)
 			var depth: float = maxf(float(ore.get("surface_depth", 10.0)), 0.001)
-			_push_param(fn, depth_node, VoxelGraphFunction.NODE_DIVIDE, "b", depth)
+			_push_param(depth_fn, depth_node, VoxelGraphFunction.NODE_DIVIDE, "b", depth)
+
+# Recorre la función principal y todas las sub-funciones (nodos Function) de forma recursiva.
+func _gather_subfunctions(fn: VoxelGraphFunction, acc: Array) -> void:
+	for node_id in fn.get_node_ids():
+		var info = fn.get_node_type_info(fn.get_node_type_id(node_id))
+		if not (info is Dictionary and info.get("name", "") == "Function"):
+			continue
+		var sub = fn.get_node_param(node_id, 0)
+		if sub is VoxelGraphFunction and not acc.has(sub):
+			acc.append(sub)
+			_gather_subfunctions(sub, acc)
+
+# Devuelve la función que contiene un nodo con ese nombre, o null.
+func _find_owner(functions: Array, node_name: String) -> VoxelGraphFunction:
+	for fn in functions:
+		if fn.find_node_by_name(node_name) > 0:
+			return fn
+	return null
+
+# Parchea el 'radius' del SdfSphere allá donde esté. Devuelve true si parcheó algo.
+func _apply_radius(fn: VoxelGraphFunction, radius_value: float) -> bool:
+	var patched := false
+	for node_id in fn.get_node_ids():
+		var node_data = fn.get_node_type_info(fn.get_node_type_id(node_id))
+		var radius_found := false
+		for key in node_data:
+			if key == "inputs":
+				for params in node_data[key]:
+					for param in params:
+						if params[param] is String and params[param] == "radius":
+							radius_found = true
+							break
+		if radius_found:
+			fn.set_node_param_by_name(node_id, "radius", radius_value)
+			patched = true
+	return patched
 
 func _push_param(fn: VoxelGraphFunction, node_id: int, type_id: int, setting: String, value) -> void:
 	# Distinguimos INPUT (con valor por defecto, p.ej. cell_size/spot_radius/jitter/b) de PARAM

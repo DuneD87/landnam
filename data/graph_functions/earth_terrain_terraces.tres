@@ -2,10 +2,11 @@
 
 [ext_resource type="VoxelGraphFunction" uid="uid://b4mvmk26nf0jm" path="res://data/graph_functions/earth_terrain_base.tres" id="1_2ebl0"]
 [ext_resource type="VoxelGraphFunction" uid="uid://byiklq6sp1ntr" path="res://data/graph_functions/cave_field.tres" id="1_420af"]
+[ext_resource type="VoxelGraphFunction" uid="uid://b3rp22i5ldnk8" path="res://data/graph_functions/earth_ore_field.tres" id="3_l0e7e"]
 
 [resource]
 graph_data = {
-"connections": [[81, 2, 82, 3], [82, 0, 4, 0]],
+"connections": [[81, 0, 82, 3], [81, 0, 85, 3], [82, 0, 4, 0], [85, 0, 83, 0], [85, 1, 84, 0]],
 "nodes": {
 "4": {
 "auto_connect": true,
@@ -40,7 +41,31 @@ graph_data = {
 "_function": ExtResource("1_420af"),
 "auto_connect": true,
 "earth_field": 0.0,
-"gui_position": Vector2(2840, 1340),
+"gui_position": Vector2(2820, 1380),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"83": {
+"auto_connect": false,
+"gui_position": Vector2(3530, 1080),
+"layer": 1,
+"type": "OutputWeight",
+"weight": 0.0
+},
+"84": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 1170),
+"layer": 2,
+"type": "OutputWeight",
+"weight": 0.0
+},
+"85": {
+"_function": ExtResource("3_l0e7e"),
+"auto_connect": true,
+"gui_position": Vector2(3060, 790),
+"planet_sdf": 0.0,
 "type": "Function",
 "x": 0.0,
 "y": 0.0,
