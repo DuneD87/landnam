@@ -1,0 +1,229 @@
+[gd_resource type="VoxelGraphFunction" format=3 uid="uid://b4mvmk26nf0jm"]
+
+[sub_resource type="FastNoise2" id="FastNoise2_lea4t"]
+noise_type = 3
+period = 4500.0
+fractal_type = 2
+fractal_octaves = 8
+fractal_lacunarity = 3.0
+fractal_gain = 0.25
+fractal_ping_pong_strength = 4.0
+terrace_enabled = true
+terrace_smoothness = 0.8
+
+[sub_resource type="FastNoise2" id="FastNoise2_iequl"]
+period = 6000.0
+fractal_type = 1
+fractal_octaves = 8
+fractal_lacunarity = 4.2
+fractal_gain = 0.2
+cellular_return_type = 2
+cellular_index1 = 3
+terrace_multiplier = 10.0
+terrace_smoothness = 1.0
+
+[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_qhap6"]
+period = 20.0001
+
+[resource]
+graph_data = {
+"connections": [[65, 0, 51, 1], [65, 0, 50, 1], [66, 0, 44, 0], [67, 0, 51, 2], [67, 0, 50, 2], [41, 0, 47, 0], [42, 0, 64, 1], [43, 0, 65, 1], [44, 0, 54, 0], [44, 0, 55, 0], [44, 0, 40, 0], [45, 0, 41, 1], [46, 0, 49, 0], [47, 0, 44, 1], [48, 0, 67, 1], [49, 0, 47, 1], [50, 0, 61, 1], [51, 0, 60, 1], [52, 0, 57, 0], [53, 0, 56, 0], [54, 0, 52, 0], [55, 0, 53, 0], [56, 0, 59, 0], [57, 0, 58, 0], [58, 0, 60, 0], [59, 0, 61, 0], [60, 0, 63, 0], [61, 0, 62, 0], [64, 0, 50, 0], [64, 0, 51, 0], [68, 0, 69, 0], [69, 0, 64, 0], [69, 0, 65, 0], [69, 0, 67, 0]],
+"nodes": {
+"40": {
+"auto_connect": false,
+"gui_position": Vector2(2350, -350),
+"name": &"earth_field",
+"type": "CustomOutput"
+},
+"41": {
+"a": 400.0,
+"auto_connect": false,
+"gui_position": Vector2(281.22043, -516.2254),
+"type": "Multiply"
+},
+"42": {
+"auto_connect": false,
+"gui_position": Vector2(-62.112915, 283.7746),
+"type": "InputX"
+},
+"43": {
+"auto_connect": false,
+"gui_position": Vector2(-62.112915, 363.7746),
+"type": "InputY"
+},
+"44": {
+"auto_connect": false,
+"gui_position": Vector2(1967.8871, -416.2254),
+"type": "Add"
+},
+"45": {
+"auto_connect": true,
+"gui_position": Vector2(-132.11292, -489.5584),
+"name": &"fast_noise_continents",
+"noise": SubResource("FastNoise2_lea4t"),
+"type": "FastNoise2_3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"46": {
+"auto_connect": true,
+"gui_position": Vector2(-122.112915, -166.2254),
+"name": &"fast_noise_mountains",
+"noise": SubResource("FastNoise2_iequl"),
+"type": "FastNoise2_3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"47": {
+"auto_connect": false,
+"gui_position": Vector2(1280, -350),
+"type": "Add"
+},
+"48": {
+"auto_connect": false,
+"gui_position": Vector2(-70, 460),
+"type": "InputZ"
+},
+"49": {
+"auto_connect": false,
+"b": 1000.0,
+"gui_position": Vector2(321.2201, -196.2254),
+"type": "Multiply"
+},
+"50": {
+"auto_connect": true,
+"cell_size": 32.0,
+"gui_position": Vector2(1267.8871, 313.7746),
+"jitter": 0.9,
+"name": &"ore_spots_1",
+"seed": 42,
+"spot_radius": 5.0,
+"type": "Spots3D"
+},
+"51": {
+"auto_connect": true,
+"cell_size": 32.0,
+"gui_position": Vector2(1267.8871, -16.225403),
+"jitter": 0.9,
+"name": &"ore_spots_2",
+"seed": 42,
+"spot_radius": 5.0,
+"type": "Spots3D"
+},
+"52": {
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(2037.8871, -166.2254),
+"name": &"ore_depth_2",
+"type": "Divide"
+},
+"53": {
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(2007.8871, 193.7746),
+"name": &"ore_depth_1",
+"type": "Divide"
+},
+"54": {
+"auto_connect": false,
+"gui_position": Vector2(1817.8871, -246.2254),
+"type": "Abs"
+},
+"55": {
+"auto_connect": false,
+"gui_position": Vector2(1827.8871, 113.7746),
+"type": "Abs"
+},
+"56": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(2297.8872, 173.7746),
+"type": "Subtract"
+},
+"57": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(2307.8872, -166.2254),
+"type": "Subtract"
+},
+"58": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(2507.8872, -196.2254),
+"type": "Max"
+},
+"59": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(2467.8872, 193.7746),
+"type": "Max"
+},
+"60": {
+"auto_connect": false,
+"gui_position": Vector2(2787.8872, -186.2254),
+"type": "Multiply"
+},
+"61": {
+"auto_connect": false,
+"gui_position": Vector2(2787.8872, 173.7746),
+"type": "Multiply"
+},
+"62": {
+"auto_connect": false,
+"gui_position": Vector2(3067.8872, 163.7746),
+"layer": 1,
+"type": "OutputWeight"
+},
+"63": {
+"auto_connect": false,
+"gui_position": Vector2(3027.8872, -166.2254),
+"layer": 2,
+"type": "OutputWeight"
+},
+"64": {
+"auto_connect": false,
+"gui_position": Vector2(447.8871, 3.7745972),
+"type": "Add"
+},
+"65": {
+"auto_connect": false,
+"gui_position": Vector2(517.8871, 193.7746),
+"type": "Add"
+},
+"66": {
+"auto_connect": true,
+"gui_position": Vector2(467.8871, -742.8921),
+"name": &"SdfSphere",
+"radius": 30000.0,
+"type": "SdfSphere",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"67": {
+"auto_connect": false,
+"gui_position": Vector2(510, 360),
+"type": "Add"
+},
+"68": {
+"auto_connect": true,
+"gui_position": Vector2(-292.1129, 23.774597),
+"noise": SubResource("ZN_FastNoiseLite_qhap6"),
+"type": "FastNoise3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"69": {
+"auto_connect": false,
+"b": 12.0,
+"gui_position": Vector2(-52.112915, 3.7745972),
+"type": "Multiply"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0]]
+output_definitions = [["_out_1", "OutputWeight", 1], ["_out_2", "OutputWeight", 2], ["earth_field", "CustomOutput", 0]]
