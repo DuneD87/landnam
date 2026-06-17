@@ -1,25 +1,23 @@
 [gd_resource type="VoxelGraphFunction" format=3 uid="uid://cvmask7q3x2k1"]
 
 [sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_scuyd"]
-noise_type = 1
-period = 60.0001
+period = 30.0001
 amplitude = 15.0001
 fractal_type = 1
 
 [sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_yhn84"]
 seed = 1337
-period = 1000.0001
+period = 1500.0001
 warp_noise = SubResource("ZN_FastNoiseLiteGradient_scuyd")
 
 [sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_420af"]
-noise_type = 1
-period = 70.0001
+period = 40.0001
 amplitude = 15.0001
-fractal_type = 2
+fractal_type = 1
 
 [sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_h8nrh"]
 seed = 9001
-period = 800.0001
+period = 3000.0
 warp_noise = SubResource("ZN_FastNoiseLiteGradient_420af")
 
 [resource]
@@ -31,19 +29,9 @@ graph_data = {
 "gui_position": Vector2(200, -100),
 "type": "InputX"
 },
-"2": {
-"auto_connect": false,
-"gui_position": Vector2(200, 60),
-"type": "InputY"
-},
-"3": {
-"auto_connect": false,
-"gui_position": Vector2(200, 220),
-"type": "InputZ"
-},
 "10": {
 "auto_connect": true,
-"gui_position": Vector2(440, -50),
+"gui_position": Vector2(444.44446, -44.444443),
 "name": &"cave_noiseA",
 "noise": SubResource("ZN_FastNoiseLite_yhn84"),
 "type": "FastNoise3D",
@@ -53,7 +41,7 @@ graph_data = {
 },
 "11": {
 "auto_connect": true,
-"gui_position": Vector2(440, 90),
+"gui_position": Vector2(444.44446, 88.888885),
 "name": &"cave_noiseB",
 "noise": SubResource("ZN_FastNoiseLite_h8nrh"),
 "type": "FastNoise3D",
@@ -75,22 +63,32 @@ graph_data = {
 },
 "14": {
 "auto_connect": false,
-"gui_position": Vector2(900, 20),
+"gui_position": Vector2(897.7778, 17.777779),
 "name": &"cave_max",
 "type": "Max"
 },
 "15": {
 "auto_connect": false,
-"b": 0.04,
+"b": 0.025,
 "gui_position": Vector2(1100, 20),
 "name": &"cave_threshold",
 "type": "Subtract"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(200, 60),
+"type": "InputY"
 },
 "20": {
 "auto_connect": false,
 "gui_position": Vector2(1350, 20),
 "name": &"cave_mask",
 "type": "CustomOutput"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(200, 220),
+"type": "InputZ"
 }
 },
 "version": 2
