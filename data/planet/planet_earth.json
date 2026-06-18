@@ -327,6 +327,17 @@
 		  "min_scale": 0.05,
 		  "max_scale": 0.5,
 		  "noise_graph": "cave_vegetation_graph_path"
+		},
+		{
+		  "name": "cave_mushroom_generator",
+		  "emit_mode": "EMIT_FROM_VERTICES",
+		  "density": 1.0,
+		  "min_height": -400,
+		  "max_height": 40,
+		  "max_slope_degrees": 180,
+		  "min_scale": 0.05,
+		  "max_scale": 0.5,
+		  "noise_graph": "cave_vegetation_graph_path"
 		}
 	],
 

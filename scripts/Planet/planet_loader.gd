@@ -126,7 +126,7 @@ func _load_planet() -> void:
 		return
 	var planet_parser: PlanetParser = PlanetParser.new(sun_path)
 	planet_parser.load_config(config_file_path)
-	voxel_terrain.gi_mode = GeometryInstance3D.GI_MODE_STATIC  # SDFGI solo captura geometría Static
+	voxel_terrain.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC  # SDFGI solo captura geometría Static
 	planet = Planet.new(voxel_terrain, atmosphere_node)
 	_copy_parsed_data(planet_parser)
 	planet.setup_shader_parameters()
