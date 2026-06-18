@@ -69,7 +69,7 @@ graph_data = {
 },
 "15": {
 "auto_connect": false,
-"b": 0.025,
+"b": 0.04,
 "gui_position": Vector2(1100, 20),
 "name": &"cave_threshold",
 "type": "Subtract"

@@ -77,7 +77,7 @@ void fragment() {
 
     ROUGHNESS = specular_roughness;
     SPECULAR = specular_strength;
-	
+	//EMISSION = vec3(0.2, 0.5, 0.6);
     if (!FRONT_FACING) {
         NORMAL = -NORMAL;
     }

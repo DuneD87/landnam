@@ -178,136 +178,155 @@
 			{
 				"name": "hemisphere_sand_grass_graph_path",
 				"path": "res://data/graph_functions/earth_terrain_sand_hemisphere_grass.tres"
+			},
+			{ 
+				"name": "cave_vegetation_graph_path", 
+				"path": "res://data/graph_functions/cave_vegetation_field.tres" 
 			}
+
 		], 
 
 	"wind_direction": [2.0, 0.0, 0.0],
 	
 
 	"generators": [
-	  {
-		"name": "tree_generator_sand",
-		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.001,
-		"min_height": -25,
-		"max_height": 200,
-		"max_slope_degrees": 25,
-		"min_scale": 1.5,
-		"max_scale": 2,
-		"noise_graph": "hemisphere_sand_graph_path" 
-	  },
-	 {
-		"name": "tree_generator_green_sand",
-		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.007,
-		"min_height": -25,
-		"max_height": 50,
-		"max_slope_degrees": 25,
-		"min_scale": 1.5,
-		"max_scale": 2,
-		"noise_graph": "hemisphere_green_sand_graph_path" 
-	  },
-	 {
-		"name": "tree_generator_green",
-		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.03,
-		"min_height": -35,
-		"max_height": 100,
-		"max_slope_degrees": 25,
-		"min_scale": 1,
-		"max_scale": 5,
-		"noise_graph": "hemisphere_green_graph_path" 
-	  },
-	  {
-		"name": "grass_generator_green",
-		"emit_mode": "EMIT_ONE_PER_TRIANGLE",
-		"density": 0.1,
-		"min_height": -35,
-		"max_height": 150,
-		"max_slope_degrees": 35,
-		"offset_along_normal": -0.2, 
-		"min_scale": 0.5,
-		"max_scale": 1.5,
-		"noise_graph": "hemisphere_green_graph_path"
-	  },
-	{
-		"name": "grass_generator_green_sand",
-		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.1,
-		"min_height": -35,
-		"max_height": 150,
-		"max_slope_degrees": 35,
-		"offset_along_normal": -0.2, 
-		"min_scale": 0.5,
-		"max_scale": 1.5,
-		"noise_graph": "hemisphere_green_sand_graph_path"
-	  },
-	 {
-		"name": "grass_generator_sand",
-		"emit_mode": "EMIT_ONE_PER_TRIANGLE",
-		"density": 10.0,
-		"min_height": -35,
-		"max_height": 150,
-		"max_slope_degrees": 35,
-		"offset_along_normal": -0.2, 
-		"min_scale": 0.5,
-		"max_scale": 1.5,
-		"noise_graph": "hemisphere_sand_grass_graph_path"
-	  },
-	  {
-		"name": "bushes_generator_green",
-		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.01,
-		"min_height": -35,
-		"max_height": 150,
-		"max_slope_degrees": 25,
-		"min_scale": 1,
-		"max_scale": 3,
-		"noise_graph": "hemisphere_green_graph_path"
-	  },
-	 {
-		"name": "bushes_generator_green_sand",
-		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.005,
-		"min_height": -35,
-		"max_height": 150,
-		"max_slope_degrees": 25,
-		"min_scale": 1,
-		"max_scale": 3,
-		"noise_graph": "hemisphere_green_graph_path"
-	  },
-	  { "name": "large_rock_generator_green", 
-		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.0007, 
-		"min_height": -35,
-		"max_height": 200,
-		"max_slope_degrees": 25,
-		"min_scale": 1,
-		"max_scale": 4,
-		"vertical_alignment": 0.3,
-		"noise_graph": "hemisphere_green_graph_path"
-	  },
-	  { "name": "large_rocks_generator_green_sand",
-		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.0005, 
-		"min_height": -35,
-		"max_height": 200,
-		"max_slope_degrees": 25,
-		"min_scale": 0.5,
-		"max_scale": 3,
-		"vertical_alignment": 0.4,
-		"noise_graph": "hemisphere_green_sand_graph_path"
+	  	{
+			"name": "tree_generator_sand",
+			"emit_mode": "EMIT_FROM_VERTICES",
+			"density": 0.001,
+			"min_height": -25,
+			"max_height": 200,
+			"max_slope_degrees": 25,
+			"min_scale": 1.5,
+			"max_scale": 2,
+			"noise_graph": "hemisphere_sand_graph_path" 
+	  	},
+	 	{
+			"name": "tree_generator_green_sand",
+			"emit_mode": "EMIT_FROM_VERTICES",
+			"density": 0.007,
+			"min_height": -25,
+			"max_height": 50,
+			"max_slope_degrees": 25,
+			"min_scale": 1.5,
+			"max_scale": 2,
+			"noise_graph": "hemisphere_green_sand_graph_path" 
+	  	},
+	 	{
+			"name": "tree_generator_green",
+			"emit_mode": "EMIT_FROM_VERTICES",
+			"density": 0.03,
+			"min_height": -35,
+			"max_height": 100,
+			"max_slope_degrees": 25,
+			"min_scale": 1,
+			"max_scale": 5,
+			"noise_graph": "hemisphere_green_graph_path" 
+	  	},
+	  	{
+			"name": "grass_generator_green",
+			"emit_mode": "EMIT_ONE_PER_TRIANGLE",
+			"density": 0.1,
+			"min_height": -35,
+			"max_height": 150,
+			"max_slope_degrees": 35,
+			"offset_along_normal": -0.2, 
+			"min_scale": 0.5,
+			"max_scale": 1.5,
+			"noise_graph": "hemisphere_green_graph_path"
+	  	},
+		{
+			"name": "grass_generator_green_sand",
+			"emit_mode": "EMIT_FROM_VERTICES",
+			"density": 0.1,
+			"min_height": -35,
+			"max_height": 150,
+			"max_slope_degrees": 35,
+			"offset_along_normal": -0.2, 
+			"min_scale": 0.5,
+			"max_scale": 1.5,
+			"noise_graph": "hemisphere_green_sand_graph_path"
+	  	},
+	 	{
+			"name": "grass_generator_sand",
+			"emit_mode": "EMIT_ONE_PER_TRIANGLE",
+			"density": 10.0,
+			"min_height": -35,
+			"max_height": 150,
+			"max_slope_degrees": 35,
+			"offset_along_normal": -0.2, 
+			"min_scale": 0.5,
+			"max_scale": 1.5,
+			"noise_graph": "hemisphere_sand_grass_graph_path"
+	  	},
+  		{
+			"name": "bushes_generator_green",
+			"emit_mode": "EMIT_FROM_VERTICES",
+			"density": 0.01,
+			"min_height": -35,
+			"max_height": 150,
+			"max_slope_degrees": 25,
+			"min_scale": 1,
+			"max_scale": 3,
+			"noise_graph": "hemisphere_green_graph_path"
+	  	},
+	 	{
+			"name": "bushes_generator_green_sand",
+			"emit_mode": "EMIT_FROM_VERTICES",
+			"density": 0.005,
+			"min_height": -35,
+			"max_height": 150,
+			"max_slope_degrees": 25,
+			"min_scale": 1,
+			"max_scale": 3,
+			"noise_graph": "hemisphere_green_graph_path"
+	  	},
+	  	{ 
+			"name": "large_rock_generator_green", 
+			"emit_mode": "EMIT_FROM_VERTICES",
+			"density": 0.0007, 
+			"min_height": -35,
+			"max_height": 200,
+			"max_slope_degrees": 25,
+			"min_scale": 1,
+			"max_scale": 4,
+			"vertical_alignment": 0.3,
+			"noise_graph": "hemisphere_green_graph_path"
+	  	},
+	  	{ 
+			"name": "large_rocks_generator_green_sand",
+			"emit_mode": "EMIT_FROM_VERTICES",
+			"density": 0.0005, 
+			"min_height": -35,
+			"max_height": 200,
+			"max_slope_degrees": 25,
+			"min_scale": 0.5,
+			"max_scale": 3,
+			"vertical_alignment": 0.4,
+			"noise_graph": "hemisphere_green_sand_graph_path"
 		},
-		{ "name": "large_rocks_generator_sand",
-		"emit_mode": "EMIT_FROM_VERTICES",
-		"density": 0.001, 
-		"min_height": -35,
-		"max_height": 200,
-		"max_slope_degrees": 25,
-		"min_scale": 0.5,
-		"max_scale": 1.0,
-		"vertical_alignment": 0.4,
-		"noise_graph": "hemisphere_sand_graph_path"
+		{ 
+			"name": "large_rocks_generator_sand",
+			"emit_mode": "EMIT_FROM_VERTICES",
+			"density": 0.001, 
+			"min_height": -35,
+			"max_height": 200,
+			"max_slope_degrees": 25,
+			"min_scale": 0.5,
+			"max_scale": 1.0,
+			"vertical_alignment": 0.4,
+			"noise_graph": "hemisphere_sand_graph_path"
+		},
+		{
+		  "name": "cave_moss_generator",
+		  "emit_mode": "EMIT_FROM_VERTICES",
+		  "density": 1.0,
+		  "min_height": -400,
+		  "max_height": 40,
+		  "max_slope_degrees": 180,
+		  "min_scale": 0.05,
+		  "max_scale": 0.5,
+		  "noise_graph": "cave_vegetation_graph_path"
 		}
 	],
 
@@ -375,6 +394,11 @@
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_02.tscn",
 			"generator": ["grass_generator_green"],
+			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
+		},
+		{ 
+			"scene": "res://scenes/planet/planet_items/vegetation/grass/cave_moss.tscn",
+			"generator": ["cave_moss_generator"],
 			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
 		},
 		{ 

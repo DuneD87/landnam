@@ -37,7 +37,7 @@ graph_data = {
 },
 "17": {
 "auto_connect": false,
-"gui_position": Vector2(2460, 140),
+"gui_position": Vector2(2693.3333, 257.77777),
 "type": "CustomOutput"
 },
 "18": {
@@ -106,7 +106,7 @@ graph_data = {
 "60": {
 "_function": ExtResource("1_cmask"),
 "auto_connect": true,
-"gui_position": Vector2(2300, 450),
+"gui_position": Vector2(1795.5555, 471.1111),
 "name": &"cave_mask",
 "type": "Function",
 "x": 0.0,
@@ -117,12 +117,12 @@ graph_data = {
 "auto_connect": false,
 "edge0": -3.0,
 "edge1": 0.0,
-"gui_position": Vector2(2550, 450),
+"gui_position": Vector2(2088.889, 471.1111),
 "type": "Smoothstep"
 },
 "62": {
 "auto_connect": false,
-"gui_position": Vector2(2800, 250),
+"gui_position": Vector2(2497.7778, 248.88889),
 "type": "Multiply"
 },
 "7": {

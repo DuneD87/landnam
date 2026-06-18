@@ -18,7 +18,7 @@ graph_data = {
 },
 "26": {
 "auto_connect": false,
-"b": 40.0,
+"b": 200.0,
 "gui_position": Vector2(1530, 20),
 "name": &"cave_amplitude",
 "type": "Multiply"
@@ -30,7 +30,7 @@ graph_data = {
 },
 "30": {
 "auto_connect": false,
-"b": 5.0,
+"b": 100.0,
 "gui_position": Vector2(1780, 190),
 "name": &"cave_depth_k",
 "type": "Multiply"

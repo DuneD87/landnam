@@ -401,7 +401,6 @@ void fragment() {
     AO_LIGHT_AFFECT = 0.0;
     METALLIC = 0.0;
 }
-
 void light()
 {
     float distance_to_center = length(world_pos - center);

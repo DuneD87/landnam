@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cuwll3vvjcew6"
-path.s3tc="res://.godot/imported/ravine-rock1_albedo.png-23a707173413ac8a1ba3e5487199124e.s3tc.ctex"
+uid="uid://dyyumnp8ugjdr"
+path.s3tc="res://.godot/imported/cave_moss.png-4ad5517de63cca807dcaebb8ade31f7f.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_albedo.png"
-dest_files=["res://.godot/imported/ravine-rock1_albedo.png-23a707173413ac8a1ba3e5487199124e.s3tc.ctex"]
+source_file="res://textures/planet/vegetation/grass/cave_moss.png"
+dest_files=["res://.godot/imported/cave_moss.png-4ad5517de63cca807dcaebb8ade31f7f.s3tc.ctex"]
 
 [params]
 
