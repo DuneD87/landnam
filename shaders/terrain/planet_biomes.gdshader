@@ -76,6 +76,10 @@ uniform float terrain_specular_strength : hint_range(0.0, 1.0) = 0.12;
 uniform float water_light_depth = 10.0;
 uniform float planet_shadow_softness : hint_range(0.0, 0.2) = 0.015;
 uniform float specular_aa_strength : hint_range(0.0, 4.0) = 4.0;
+// Debe coincidir con shadow_opacity de la DirectionalLight3D (el sol). El sol usa <1.0
+// para dar un relleno barato a las sombras de exterior (árboles/items), pero el terreno
+// recompensa esa fuga para que sus sombras (cuevas) sean 100% opacas. Ver light().
+uniform float sun_shadow_opacity : hint_range(0.0, 1.0) = 0.7;
 
 varying vec3 world_pos;
 varying float height;
@@ -397,7 +401,7 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(safe_normalize(final_normal, normal_world), 0.0)).xyz);
     ROUGHNESS = final_roughness;
     v_fragment_ao = mix(clamp(final_ao, 0.0, 1.0), 1.0, underwater);
-    AO = v_fragment_ao;
+    AO = 1.0;
     AO_LIGHT_AFFECT = 0.0;
     METALLIC = 0.0;
 }
@@ -414,7 +418,16 @@ void light()
 
     float planet_shadow = 1.0;
     float water_light_factor = 1.0;
+    float effective_attenuation = ATTENUATION;
     if (LIGHT_IS_DIRECTIONAL) {
+        // El sol usa shadow_opacity < 1.0 (relleno barato para sombras de exterior: árboles,
+        // items). En el terreno NO queremos esa fuga: las cuevas deben quedar 100% a oscuras.
+        // Con shadow_opacity = S, ATTENUATION ∈ [1-S, 1]; remapeamos a [0,1] para recuperar la
+        // sombra completa como si la opacidad fuera 1.0. (Si S=1.0 esto es identidad.)
+        effective_attenuation = clamp(
+            (ATTENUATION - (1.0 - sun_shadow_opacity)) / max(sun_shadow_opacity, 0.0001),
+            0.0, 1.0);
+
         float distance_to_center = length(world_pos - center);
         if (has_water != 0 && distance_to_center < water_radius) {
             float min_distance = water_radius - water_light_depth;
@@ -430,7 +443,7 @@ void light()
         );
     }
 
-    float light_visibility = ATTENUATION * water_light_factor * planet_shadow;
+    float light_visibility = effective_attenuation * water_light_factor * planet_shadow;
 
     DIFFUSE_LIGHT += ndotl * light_visibility * direct_ao * LIGHT_COLOR / PI;
 
