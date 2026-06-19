@@ -331,12 +331,12 @@
 		{
 		  "name": "cave_mushroom_generator",
 		  "emit_mode": "EMIT_FROM_VERTICES",
-		  "density": 1.0,
+		  "density": 0.06,
 		  "min_height": -400,
-		  "max_height": 40,
-		  "max_slope_degrees": 180,
-		  "min_scale": 0.05,
-		  "max_scale": 0.5,
+		  "max_height": 200,
+		  "max_slope_degrees": 50,
+		  "min_scale": 3.5,
+		  "max_scale": 7.5,
 		  "noise_graph": "cave_vegetation_graph_path"
 		}
 	],
@@ -408,11 +408,6 @@
 			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
 		},
 		{ 
-			"scene": "res://scenes/planet/planet_items/vegetation/grass/cave_moss.tscn",
-			"generator": ["cave_moss_generator"],
-			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
-		},
-		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/grass_03.tscn",
 			"generator": ["grass_generator_green", "grass_generator_green_sand"],
 			"wind_speed": 0.2, "lod_index": 1, "material_type": "WOOD"
@@ -471,7 +466,18 @@
 			"scene": "res://scenes/planet/planet_items/rocks/rock_sand_02.tscn",
 			"generator": ["large_rocks_generator_green_sand"],
 			"lod_index": 0, "material_type": "STONE"
-		}
+		},
+		{ 
+			"scene": "res://scenes/planet/planet_items/vegetation/grass/cave_moss.tscn",
+			"generator": ["cave_moss_generator"],
+			"wind_speed": 0.0, "lod_index": 1, "material_type": "WOOD"
+		},
+		{
+			"scene": "res://scenes/planet/planet_items/vegetation/mushroom/cave_mushroom_01.tscn",
+			"generator": ["cave_mushroom_generator"],
+			"wind_speed": 0.0, "lod_index": 1, "material_type": "WOOD",
+			"instance_as_scene": true
+		},
 	]
   },
   "ore_settings": [

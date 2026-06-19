@@ -214,6 +214,16 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 					"wind_speed": wind_speed,
 				})
 
+func _register_scene_item(item, shared_data: Dictionary, generator: VoxelInstanceGenerator) -> void:
+	var scene_item := VoxelInstanceLibrarySceneItem.new()
+	scene_item.generator = generator
+	scene_item.lod_index = item.lod_index
+	scene_item.scene = shared_data.packed_scene
+
+	var library_id = _next_library_id
+	_next_library_id += 1
+	voxel_instancer.library.add_item(library_id, scene_item)
+
 func _load_vegetation() -> void:
 	var generators = vegetation.generators
 	var graph_functions = vegetation.hemisphere_graph_function
@@ -251,7 +261,13 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 			push_error("Error parsing vegetation, generator with name %s not found." % generator_name)
 			continue
 
-		_register_multi_mesh_item(i, item, shared_data, generator)
+		# Items emisivos (p.ej. hongos de cueva) se instancian como escena completa para
+		# que el VoxelInstancer materialice también sus nodos (OmniLight3D). El MultiMesh
+		# solo dibuja el mesh, así que ahí una luz embebida nunca se replicaría.
+		if item.get("instance_as_scene", false):
+			_register_scene_item(item, shared_data, generator)
+		else:
+			_register_multi_mesh_item(i, item, shared_data, generator)
 
 func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 	var trunk: MeshInstance3D = tree3d.get_trunk_instance()

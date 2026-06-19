@@ -403,14 +403,6 @@ void fragment() {
 }
 void light()
 {
-    float distance_to_center = length(world_pos - center);
-
-    float water_light_factor = 1.0;
-    if (has_water != 0 && distance_to_center < water_radius) {
-        float min_distance = water_radius - water_light_depth;
-        water_light_factor = smoothstep(min_distance, water_radius, distance_to_center);
-    }
-
     vec3 n = normalize(NORMAL);
     vec3 l = normalize(LIGHT);
     vec3 v = normalize(VIEW);
@@ -419,14 +411,24 @@ void light()
     float ao = clamp(v_fragment_ao, 0.0, 1.0);
     float direct_ao = mix(1.0, ao, direct_ao_strength);
     float specular_ao = mix(1.0, ao, specular_ao_strength);
-    float radius_ratio = clamp(radius / max(v_surface_radius, radius + 0.001), 0.0, 1.0);
-    float horizon_cos = -sqrt(max(0.0, 1.0 - radius_ratio * radius_ratio));
-    float light_horizon_cos = dot(normalize(v_planet_up_view), l);
-    float planet_shadow = smoothstep(
-        horizon_cos - planet_shadow_softness,
-        horizon_cos + planet_shadow_softness,
-        light_horizon_cos
-    );
+
+    float planet_shadow = 1.0;
+    float water_light_factor = 1.0;
+    if (LIGHT_IS_DIRECTIONAL) {
+        float distance_to_center = length(world_pos - center);
+        if (has_water != 0 && distance_to_center < water_radius) {
+            float min_distance = water_radius - water_light_depth;
+            water_light_factor = smoothstep(min_distance, water_radius, distance_to_center);
+        }
+        float radius_ratio = clamp(radius / max(v_surface_radius, radius + 0.001), 0.0, 1.0);
+        float horizon_cos = -sqrt(max(0.0, 1.0 - radius_ratio * radius_ratio));
+        float light_horizon_cos = dot(normalize(v_planet_up_view), l);
+        planet_shadow = smoothstep(
+            horizon_cos - planet_shadow_softness,
+            horizon_cos + planet_shadow_softness,
+            light_horizon_cos
+        );
+    }
 
     float light_visibility = ATTENUATION * water_light_factor * planet_shadow;
 
