@@ -1,0 +1,119 @@
+[gd_resource type="VoxelGraphFunction" format=3 uid="uid://crmjlhy1m7p2o"]
+
+[resource]
+graph_data = {
+"connections": [[1, 0, 10, 0], [1, 0, 20, 0], [1, 0, 20, 1], [2, 0, 10, 1], [2, 0, 21, 0], [2, 0, 21, 1], [10, 0, 50, 0], [20, 0, 23, 0], [21, 0, 23, 1], [22, 0, 24, 1], [23, 0, 24, 0], [24, 0, 25, 0], [25, 0, 31, 0], [25, 0, 30, 0], [3, 0, 10, 2], [3, 0, 22, 0], [3, 0, 22, 1], [30, 0, 32, 0], [31, 0, 32, 1], [32, 0, 50, 1], [4, 0, 40, 0], [40, 0, 51, 1], [50, 0, 51, 0], [51, 0, 60, 0]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(0, 0),
+"type": "InputX"
+},
+"10": {
+"auto_connect": true,
+"cell_size": 200.0,
+"gui_position": Vector2(300, 0),
+"jitter": 0.9,
+"name": &"ore_spots_3",
+"seed": 5123,
+"spot_radius": 30.0,
+"type": "Spots3D"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(0, 80),
+"type": "InputY"
+},
+"20": {
+"auto_connect": false,
+"gui_position": Vector2(200, 320),
+"type": "Multiply"
+},
+"21": {
+"auto_connect": false,
+"gui_position": Vector2(200, 400),
+"type": "Multiply"
+},
+"22": {
+"auto_connect": false,
+"gui_position": Vector2(200, 480),
+"type": "Multiply"
+},
+"23": {
+"auto_connect": false,
+"gui_position": Vector2(400, 360),
+"type": "Add"
+},
+"24": {
+"auto_connect": false,
+"gui_position": Vector2(580, 420),
+"type": "Add"
+},
+"25": {
+"auto_connect": false,
+"gui_position": Vector2(760, 420),
+"name": &"altitude",
+"type": "Sqrt"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(0, 160),
+"type": "InputZ"
+},
+"30": {
+"auto_connect": false,
+"edge0": 29880.0,
+"edge1": 29890.0,
+"gui_position": Vector2(980, 320),
+"name": &"ore_band_lo_3",
+"type": "Smoothstep"
+},
+"31": {
+"auto_connect": false,
+"edge0": 29980.0,
+"edge1": 29970.0,
+"gui_position": Vector2(980, 440),
+"name": &"ore_band_hi_3",
+"type": "Smoothstep"
+},
+"32": {
+"auto_connect": false,
+"gui_position": Vector2(1380, 360),
+"name": &"ore_band_3",
+"type": "Multiply"
+},
+"4": {
+"auto_connect": false,
+"gui_position": Vector2(910, 750),
+"name": &"cave_field",
+"type": "CustomInput"
+},
+"40": {
+"auto_connect": false,
+"edge0": -12.0,
+"edge1": 0.0,
+"gui_position": Vector2(1210, 750),
+"name": &"cave_gate_3",
+"type": "Smoothstep"
+},
+"50": {
+"auto_connect": false,
+"gui_position": Vector2(1440, 180),
+"type": "Multiply"
+},
+"51": {
+"auto_connect": false,
+"gui_position": Vector2(1640, 320),
+"type": "Multiply"
+},
+"60": {
+"auto_connect": false,
+"gui_position": Vector2(1860, 320),
+"name": &"ore_03_weight",
+"type": "CustomOutput"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0], ["cave_field", "CustomInput", 0]]
+output_definitions = [["ore_03_weight", "CustomOutput", 0]]

@@ -507,7 +507,6 @@ func _apply_ore_params(functions: Array, ores: Array) -> void:
 	for ore in ores:
 		var type_id := int(ore.get("type_id", 1))
 		var spots_name := "ore_spots_%d" % type_id
-		var depth_name := "ore_depth_%d" % type_id
 
 		var spots_fn := _find_owner(functions, spots_name)
 		if spots_fn == null:
@@ -519,13 +518,51 @@ func _apply_ore_params(functions: Array, ores: Array) -> void:
 			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "spot_radius", float(ore.get("spot_radius", 12.0)))
 			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "jitter", float(ore.get("jitter", 0.9)))
 
-		var depth_fn := _find_owner(functions, depth_name)
-		if depth_fn == null:
-			push_warning("Planet: no se encontró el nodo Divide '%s' del gate de profundidad." % depth_name)
+		# Dos estilos de gate según el JSON:
+		#  - ore de SUPERFICIE (iron/gold): "surface_depth" -> Divide "ore_depth_<id>" (gate cerca de superficie).
+		#  - ore de CUEVA: "depth_min/max" -> banda radial (Smoothstep "ore_band_lo/hi_<id>") x proximidad a
+		#    la cueva real (Smoothstep "cave_gate_<id>" sobre cave_field), así solo sale en cuevas existentes.
+		if ore.has("depth_min"):
+			_apply_cave_ore_band(functions, type_id, ore)
 		else:
-			var depth_node := depth_fn.find_node_by_name(depth_name)
-			var depth: float = maxf(float(ore.get("surface_depth", 10.0)), 0.001)
-			_push_param(depth_fn, depth_node, VoxelGraphFunction.NODE_DIVIDE, "b", depth)
+			var depth_name := "ore_depth_%d" % type_id
+			var depth_fn := _find_owner(functions, depth_name)
+			if depth_fn == null:
+				push_warning("Planet: no se encontró el nodo Divide '%s' del gate de profundidad." % depth_name)
+			else:
+				var depth_node := depth_fn.find_node_by_name(depth_name)
+				var depth: float = maxf(float(ore.get("surface_depth", 10.0)), 0.001)
+				_push_param(depth_fn, depth_node, VoxelGraphFunction.NODE_DIVIDE, "b", depth)
+
+# Empuja los params de un ore de CUEVA: banda de profundidad radial + gate de proximidad a la cueva.
+# La estructura (Spots3D -> banda -> cave_gate -> OutputWeight) vive en cave_ore_field.tres, autorada
+# en el editor; aquí solo fijamos los edges de los Smoothstep nombrados, igual que con el resto de params.
+func _apply_cave_ore_band(functions: Array, type_id: int, ore: Dictionary) -> void:
+	var depth_min: float = maxf(float(ore.get("depth_min", 10.0)), 0.0)
+	var depth_max: float = maxf(float(ore.get("depth_max", 60.0)), depth_min + 0.001)
+	var soft: float = maxf(float(ore.get("band_softness", 10.0)), 0.001)
+	var alt_high: float = radius - depth_min  # techo de la banda (menos profundo, altitud mayor)
+	var alt_low: float = radius - depth_max   # suelo de la banda (más profundo, altitud menor)
+
+	# band_lo: enciende por encima del suelo. band_hi: apaga por encima del techo (edge0 > edge1).
+	_set_smoothstep(functions, "ore_band_lo_%d" % type_id, alt_low, alt_low + soft)
+	_set_smoothstep(functions, "ore_band_hi_%d" % type_id, alt_high + soft, alt_high)
+
+	# Proximidad a la cueva real: cave_field ~0 en la pared, muy negativo en roca lejos de cuevas.
+	# Gate = 1 cerca de la pared (cave_field -> 0), 0 a más de 'cave_shell' metros dentro de la roca.
+	var shell: float = maxf(float(ore.get("cave_shell", 12.0)), 0.001)
+	_set_smoothstep(functions, "cave_gate_%d" % type_id, -shell, 0.0)
+
+# Localiza un Smoothstep por nombre en cualquier (sub)función y le fija edge0/edge1.
+func _set_smoothstep(functions: Array, node_name: String, edge0: float, edge1: float) -> void:
+	var fn := _find_owner(functions, node_name)
+	if fn == null:
+		push_warning("Planet: no se encontró el Smoothstep '%s'." % node_name)
+		return
+	var node_id := fn.find_node_by_name(node_name)
+	var tid := fn.get_node_type_id(node_id)
+	_push_param(fn, node_id, tid, "edge0", edge0)
+	_push_param(fn, node_id, tid, "edge1", edge1)
 
 # Recorre la función principal y todas las sub-funciones (nodos Function) de forma recursiva.
 func _gather_subfunctions(fn: VoxelGraphFunction, acc: Array) -> void:

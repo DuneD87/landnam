@@ -510,6 +510,24 @@
 	  "drop_item": "gold_01",
 	  "drop_count_min": 1,
 	  "drop_count_max": 3
+	},
+	{
+	  "name": "cave_ore_01",
+	  "type_id": 3,
+	  "noise_seed": 5123,
+	  "cell_size": 200.0,
+	  "spot_radius": 30.0,
+	  "jitter": 0.9,
+	  "depth_min": 30.0,
+	  "depth_max": 120.0,
+	  "band_softness": 10.0,
+	  "cave_shell": 12.0,
+	  "texture": "res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_albedo.png",
+	  "normal_texture": "res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_normal-ogl.png",
+	  "roughness_texture": "res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_roughness.png",
+	  "drop_item": "iron_01",
+	  "drop_count_min": 1,
+	  "drop_count_max": 3
 	}
   ]
 }
