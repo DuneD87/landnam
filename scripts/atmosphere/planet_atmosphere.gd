@@ -4,7 +4,7 @@ class_name PlanetAtmosphere
 
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 15
+const PARAM_VEC4_COUNT := 16
 
 @export var shader_file_path: String = DEFAULT_SHADER_PATH
 
@@ -24,17 +24,25 @@ const PARAM_VEC4_COUNT := 15
 
 @export_group("Clouds")
 @export var clouds_enabled: bool = true
-@export_range(0.0, 5000.0, 1.0) var cloud_min_height: float = 30.0
-@export_range(0.0, 5000.0, 1.0) var cloud_max_height: float = 60.0
-@export_range(0.0, 50.0, 0.1) var cloud_density: float = 15.0
+@export_range(0.0, 5000.0, 1.0) var cloud_min_height: float = 400.0
+@export_range(0.0, 5000.0, 1.0) var cloud_max_height: float = 600.0
+@export_range(0.0, 5.0, 0.1) var cloud_density: float = 0.5
 @export_range(0.0, 1.0, 0.01) var cloud_coverage: float = 0.55
-@export_range(0.01, 20.0, 0.01) var cloud_absorption: float = 1.5
-@export_range(0.0, 0.99, 0.01) var cloud_g: float = 0.7
-@export_range(1.0, 20.0, 0.1) var cloud_noise_scale: float = 5.0
+@export_range(0.01, 1.0, 0.01) var cloud_absorption: float = 0.15
+@export_range(0.0, 0.99, 0.01) var cloud_g: float = 0.9
+@export_range(1.0, 10.0, 0.1) var cloud_noise_scale: float = 5
 @export var cloud_wind_direction: Vector3 = Vector3(1.0, 0.0, 0.0)
 @export_range(0.0, 1.0, 0.005) var cloud_wind_speed: float = 0.05
 ## Cuánto oscurecen las nubes el terreno bajo ellas (0 = sin sombra, 1 = máxima).
-@export_range(0.0, 1.0, 0.01) var cloud_shadow_strength: float = 0.6
+@export_range(0.0, 1.0, 0.01) var cloud_shadow_strength: float = 0.85
+
+@export_group("Cloud Quality")
+## Pasos de la marcha de vista: más = menos banding y detalle más fino, más coste.
+@export_range(1, 64, 1) var cloud_steps: int = 10
+## Pasos de la marcha de luz (auto-sombra interna de la nube).
+@export_range(1, 32, 1) var cloud_light_steps: int = 4
+## Pasos de la marcha de la sombra proyectada sobre el suelo.
+@export_range(1, 32, 1) var cloud_shadow_steps: int = 8
 
 var rd: RenderingDevice
 var shader: RID
@@ -315,6 +323,9 @@ func _build_params_bytes(
 	var local_wind_direction  := cloud_wind_direction
 	var local_wind_speed      := cloud_wind_speed
 	var local_cloud_shadow    := cloud_shadow_strength
+	var local_cloud_steps     := cloud_steps
+	var local_light_steps     := cloud_light_steps
+	var local_shadow_steps    := cloud_shadow_steps
 	_params_mutex.unlock()
 
 	var floats := PackedFloat32Array()
@@ -372,6 +383,9 @@ func _build_params_bytes(
 	var wind_dir_n := local_wind_direction.normalized() if local_wind_direction.length_squared() > 0.0001 else Vector3.ZERO
 	var wind_offset := (Time.get_ticks_msec() / 1000.0) * local_wind_speed
 	_append_vec4(floats, Vector4(wind_dir_n.x, wind_dir_n.y, wind_dir_n.z, wind_offset))
+
+	# 15: pasos de marcha de nubes — view (x), light (y), shadow (z).
+	_append_vec4(floats, Vector4(local_cloud_steps, local_light_steps, local_shadow_steps, 0.0))
 
 	return floats.to_byte_array()
 

@@ -20,9 +20,10 @@ const float PI        = 3.14159265359;
 const int NUM_IN_SCATTER_POINTS    = 16;
 const int NUM_OPTICAL_DEPTH_POINTS = 12;
 
-// Nubes — baja a 8/3 para rendimiento, sube a 32/6 para más detalle.
-const int NUM_CLOUD_STEPS       = 32;
-const int NUM_CLOUD_LIGHT_STEPS = 4;
+// Nubes — los pasos de marcha ahora se controlan desde el inspector (PlanetAtmosphere)
+// vía P(15): .x = view steps, .y = light steps, .z = shadow steps. Cada lectura va con
+// clamp(.., 1, 64) para evitar /0 y bucles runaway. Rango útil: view 8-32, light 3-6,
+// shadow 6-12. Más pasos = mejor calidad, más coste.
 
 float cloud_underside_darkening(
 	vec3 p,
@@ -207,10 +208,11 @@ float cloud_light_od(
 ) {
 	vec2 hit = ray_sphere(planet_center, cloud_max_r, p, sun_dir);
 	if (hit.y <= 0.0) return 0.0;
-	float step_sz = hit.y / float(NUM_CLOUD_LIGHT_STEPS);
+	int light_steps = clamp(int(P(15).y), 1, 64);
+	float step_sz = hit.y / float(light_steps);
 	float od = 0.0;
 	vec3 lp = p + sun_dir * (step_sz * 0.5);
-	for (int i = 0; i < NUM_CLOUD_LIGHT_STEPS; i++) {
+	for (int i = 0; i < light_steps; i++) {
 		od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
 		                           coverage, density_scale, noise_scale, 2, false) * step_sz;
 		lp += sun_dir * step_sz;
@@ -240,11 +242,11 @@ float cloud_shadow_transmittance(
 	// Muestreamos con la MISMA fidelidad que la nube visible (4 octavas + erosión),
 	// para que la sombra caiga exactamente donde hay nube y no en los huecos que la
 	// erosión billow abre. Es una marcha por píxel de suelo, así que podemos pagarla.
-	const int SHADOW_STEPS = NUM_CLOUD_LIGHT_STEPS * 2;
-	float step_sz = seg / float(SHADOW_STEPS);
+	int shadow_steps = clamp(int(P(15).z), 1, 64);
+	float step_sz = seg / float(shadow_steps);
 	float od = 0.0;
 	vec3 lp = p + sun_dir * (t_start + step_sz * (0.5 + jitter));
-	for (int i = 0; i < SHADOW_STEPS; i++) {
+	for (int i = 0; i < shadow_steps; i++) {
 		od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
 		                           coverage, density_scale, noise_scale, 4, true) * step_sz;
 		lp += sun_dir * step_sz;
@@ -292,7 +294,8 @@ void march_clouds(
 	t1 = min(t1, max_dist);
 	if (t1 <= t0 + 0.001) return;
 
-	float step_size = (t1 - t0) / float(NUM_CLOUD_STEPS);
+	int cloud_steps = clamp(int(P(15).x), 1, 64);
+	float step_size = (t1 - t0) / float(cloud_steps);
 	float big_step  = step_size * 2.0;   // pasos grandes en aire limpio
 	float cos_theta = dot(rd, sun_dir);
 	float phase = hg_phase(cos_theta, g);
@@ -300,7 +303,7 @@ void march_clouds(
 	// Empty-space skipping: una sonda barata (2 octavas, sin detalle) decide si hay
 	// nube. En aire limpio avanzamos con pasos grandes; dentro de la nube, finos.
 	// El presupuesto extra de iteraciones cubre el caso de rayos mayormente vacíos.
-	const int MAX_MARCH_ITERS = NUM_CLOUD_STEPS + NUM_CLOUD_STEPS / 2;
+	int MAX_MARCH_ITERS = cloud_steps + cloud_steps / 2;
 	float t = t0 + step_size * jitter;
 
 	for (int i = 0; i < MAX_MARCH_ITERS && t < t1; i++) {
