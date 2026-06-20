@@ -594,6 +594,7 @@ func _activate_player() -> void:
 	mouse_captured = true
 	input_enabled = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
 	
 # ---------- Input ----------
 func is_mouse_captured() -> bool:

@@ -97,13 +97,17 @@ float _vnoise(vec3 p) {
 		u.z);
 }
 
-float _fbm(vec3 p) {
-	float v = 0.0, a = 0.5;
+// FBM normalizado: devuelve ~[0,1] independientemente del nº de octavas, de modo
+// que reducir octavas (p.ej. en el march de luz) no cambia la magnitud de densidad.
+float _fbm(vec3 p, int octaves) {
+	float v = 0.0, a = 0.5, norm = 0.0;
 	for (int i = 0; i < 4; i++, a *= 0.5) {
+		if (i >= octaves) break;
 		v += a * _vnoise(p);
+		norm += a;
 		p = p * 2.1 + vec3(1.7, 9.2, 3.4);
 	}
-	return v;
+	return v / max(norm, EPSILON);
 }
 
 float cloud_sun_visibility(
@@ -140,7 +144,8 @@ float cloud_sun_visibility(
 float sample_cloud_density(
 	vec3 p, vec3 planet_center,
 	float cloud_min_r, float cloud_max_r,
-	float coverage, float density_scale, float noise_scale
+	float coverage, float density_scale, float noise_scale,
+	int octaves, bool detail
 ) {
 	vec3 local = p - planet_center;
 	float dist = length(local);
@@ -172,9 +177,21 @@ float sample_cloud_density(
 	// Movimiento de viento: P(14).xyz = dirección (normalizada), P(14).w = tiempo * velocidad.
 	noise_pos += P(14).xyz * P(14).w;
 
-	float base = _fbm(noise_pos) * 1.0667;
+	float base = _fbm(noise_pos, octaves);
 
 	float density = max(0.0, base - (1.0 - coverage));
+
+	// Erosión de detalle: un ruido de alta frecuencia (billow, invertido) recorta
+	// los bordes y convierte los blobs suaves en formas tipo coliflor/cúmulo.
+	// Solo en la muestra de vista (detail=true); el march de luz no lo necesita.
+	if (detail && density > 0.0) {
+		vec3 dpos = noise_pos * 3.17 + P(14).xyz * (P(14).w * 2.0);
+		float billow = 1.0 - _fbm(dpos, 2);
+		// Erosiona más en los bordes (densidad baja) que en el núcleo de la nube.
+		float edge = 1.0 - smoothstep(0.0, 0.45, density);
+		density = max(0.0, density - billow * 0.20 * edge);
+	}
+
 	return density * height_grad * density_scale;
 }
 
@@ -195,7 +212,7 @@ float cloud_light_od(
 	vec3 lp = p + sun_dir * (step_sz * 0.5);
 	for (int i = 0; i < NUM_CLOUD_LIGHT_STEPS; i++) {
 		od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
-		                           coverage, density_scale, noise_scale) * step_sz;
+		                           coverage, density_scale, noise_scale, 2, false) * step_sz;
 		lp += sun_dir * step_sz;
 	}
 	return od;
@@ -242,13 +259,29 @@ void march_clouds(
 	if (t1 <= t0 + 0.001) return;
 
 	float step_size = (t1 - t0) / float(NUM_CLOUD_STEPS);
-	vec3 p = ro + rd * (t0 + step_size * jitter);
+	float big_step  = step_size * 2.0;   // pasos grandes en aire limpio
 	float cos_theta = dot(rd, sun_dir);
 	float phase = hg_phase(cos_theta, g);
 
-	for (int i = 0; i < NUM_CLOUD_STEPS; i++) {
+	// Empty-space skipping: una sonda barata (2 octavas, sin detalle) decide si hay
+	// nube. En aire limpio avanzamos con pasos grandes; dentro de la nube, finos.
+	// El presupuesto extra de iteraciones cubre el caso de rayos mayormente vacíos.
+	const int MAX_MARCH_ITERS = NUM_CLOUD_STEPS + NUM_CLOUD_STEPS / 2;
+	float t = t0 + step_size * jitter;
+
+	for (int i = 0; i < MAX_MARCH_ITERS && t < t1; i++) {
+		vec3 p = ro + rd * t;
+
+		float probe = sample_cloud_density(p, planet_center, cloud_min_r, cloud_max_r,
+		                                   coverage, density_scale, noise_scale, 2, false);
+		if (probe <= 0.0001) {
+			t += big_step;
+			continue;
+		}
+
+		// Dentro de la nube: densidad con detalle (4 octavas + erosión) + iluminación.
 		float d = sample_cloud_density(p, planet_center, cloud_min_r, cloud_max_r,
-		                               coverage, density_scale, noise_scale);
+		                               coverage, density_scale, noise_scale, 4, true);
 		if (d > 0.0001) {
 			float l_od = cloud_light_od(p, sun_dir, planet_center, cloud_min_r, cloud_max_r,
 										coverage, density_scale, noise_scale);
@@ -295,7 +328,7 @@ void march_clouds(
 
 			if (out_trans < 0.005) { out_trans = 0.0; break; }
 		}
-		p += rd * step_size;
+		t += step_size;
 	}
 }
 

@@ -76,9 +76,7 @@ uniform float terrain_specular_strength : hint_range(0.0, 1.0) = 0.12;
 uniform float water_light_depth = 10.0;
 uniform float planet_shadow_softness : hint_range(0.0, 0.2) = 0.015;
 uniform float specular_aa_strength : hint_range(0.0, 4.0) = 4.0;
-// Debe coincidir con shadow_opacity de la DirectionalLight3D (el sol). El sol usa <1.0
-// para dar un relleno barato a las sombras de exterior (árboles/items), pero el terreno
-// recompensa esa fuga para que sus sombras (cuevas) sean 100% opacas. Ver light().
+
 uniform float sun_shadow_opacity : hint_range(0.0, 1.0) = 0.7;
 
 varying vec3 world_pos;

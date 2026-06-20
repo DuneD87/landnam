@@ -82,7 +82,7 @@ func _get_ore_drop(type_id: int) -> Dictionary:
 func on_timeout():
 	if is_attacking:
 		if is_voxel:
-			dig_hole(2.0, 100.0)
+			dig_hole(1.0, 5.0)
 		if !Input.is_action_pressed("attack_1"):
 			is_attacking = false
 			timer.stop()
