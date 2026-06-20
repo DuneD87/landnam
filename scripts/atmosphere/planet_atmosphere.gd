@@ -33,6 +33,8 @@ const PARAM_VEC4_COUNT := 15
 @export_range(1.0, 20.0, 0.1) var cloud_noise_scale: float = 5.0
 @export var cloud_wind_direction: Vector3 = Vector3(1.0, 0.0, 0.0)
 @export_range(0.0, 1.0, 0.005) var cloud_wind_speed: float = 0.05
+## Cuánto oscurecen las nubes el terreno bajo ellas (0 = sin sombra, 1 = máxima).
+@export_range(0.0, 1.0, 0.01) var cloud_shadow_strength: float = 0.6
 
 var rd: RenderingDevice
 var shader: RID
@@ -312,6 +314,7 @@ func _build_params_bytes(
 	var local_cloud_nscale    := cloud_noise_scale
 	var local_wind_direction  := cloud_wind_direction
 	var local_wind_speed      := cloud_wind_speed
+	var local_cloud_shadow    := cloud_shadow_strength
 	_params_mutex.unlock()
 
 	var floats := PackedFloat32Array()
@@ -339,8 +342,8 @@ func _build_params_bytes(
 		local_sun_intensity
 	))
 
-	# 8: origen cámara relativo (siempre 0,0,0) + reservado.
-	_append_vec4(floats, Vector4(0.0, 0.0, 0.0, 0.0))
+	# 8: origen cámara relativo (siempre 0,0,0) + intensidad de sombra de nubes (w).
+	_append_vec4(floats, Vector4(0.0, 0.0, 0.0, local_cloud_shadow))
 
 	# 9: centro del planeta relativo a cámara + reservado.
 	var rel_center := local_center - cam_origin

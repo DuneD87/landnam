@@ -218,6 +218,40 @@ float cloud_light_od(
 	return od;
 }
 
+// Sombra de nube proyectada sobre la superficie: transmitancia de la luz solar a
+// través de la capa de nube, medida desde un punto del terreno hacia el sol.
+// Solo marcha el segmento del rayo que cruza la cáscara [cloud_min_r, cloud_max_r].
+float cloud_shadow_transmittance(
+	vec3 p, vec3 sun_dir,
+	vec3 planet_center, float cloud_min_r, float cloud_max_r,
+	float coverage, float density_scale, float noise_scale, float absorption,
+	float jitter
+) {
+	vec2 outer = ray_sphere(planet_center, cloud_max_r, p, sun_dir);
+	if (outer.y <= 0.0) return 1.0;                  // el rayo al sol no alcanza la capa
+
+	// Punto bajo la base de las nubes: inner.y = salida de la esfera interior = base
+	// de la cáscara. Punto ya dentro de la cáscara: sin impacto interior, arranca en p.
+	vec2 inner = ray_sphere(planet_center, cloud_min_r, p, sun_dir);
+	float t_start = inner.y > 0.0 ? inner.y : 0.0;
+	float seg = outer.y - t_start;
+	if (seg <= 0.001) return 1.0;
+
+	// Muestreamos con la MISMA fidelidad que la nube visible (4 octavas + erosión),
+	// para que la sombra caiga exactamente donde hay nube y no en los huecos que la
+	// erosión billow abre. Es una marcha por píxel de suelo, así que podemos pagarla.
+	const int SHADOW_STEPS = NUM_CLOUD_LIGHT_STEPS * 2;
+	float step_sz = seg / float(SHADOW_STEPS);
+	float od = 0.0;
+	vec3 lp = p + sun_dir * (t_start + step_sz * (0.5 + jitter));
+	for (int i = 0; i < SHADOW_STEPS; i++) {
+		od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
+		                           coverage, density_scale, noise_scale, 4, true) * step_sz;
+		lp += sun_dir * step_sz;
+	}
+	return exp(-od * absorption);
+}
+
 void march_clouds(
 	vec3 ro, vec3 rd, float max_dist,
 	vec3 planet_center, float cloud_min_r, float cloud_max_r,
@@ -500,6 +534,30 @@ void main() {
 	vec3 entry_point = camera_position + ray_dir * (dst_to_atmo + EPSILON);
 
 	float view_from_space = dst_to_atmo > EPSILON ? 1.0 : 0.0;
+
+	// Sombra de las nubes proyectada sobre el terreno visible. Se aplica al color de
+	// escena ANTES de la atmósfera, para que el in-scatter se calcule sobre la
+	// superficie ya oscurecida. Reutiliza la misma densidad que dibuja las nubes,
+	// así la sombra coincide exactamente con lo que se ve arriba.
+	float cloud_shadow_strength = P(8).w;
+	if (has_scene_depth && P(13).w > 0.5 && cloud_shadow_strength > 0.0) {
+		float sh_cloud_min_r = planet_radius + P(12).x;
+		float sh_cloud_max_r = planet_radius + P(12).y;
+		vec3 surface_p = camera_position + ray_dir * scene_t;
+		if (length(surface_p - planet_center) < sh_cloud_max_r) {
+			float sh_jitter = _hash3f(vec3(float(pixel.x), float(pixel.y), 7.0)) - 0.5;
+			float trans = cloud_shadow_transmittance(
+				surface_p, sun_direction, planet_center,
+				sh_cloud_min_r, sh_cloud_max_r,
+				P(12).w, P(12).z, P(13).z, P(13).x,
+				sh_jitter
+			);
+			// Solo lado diurno; fundido suave alrededor del terminador.
+			float day = smoothstep(-0.05, 0.1,
+				dot(normalize(surface_p - planet_center), sun_direction));
+			scene_color.rgb *= mix(1.0, trans, cloud_shadow_strength * day);
+		}
+	}
 
 	// Nubes volumétricas — se aplican antes del scattering atmosférico.
 	// 1. Primero calcula la atmósfera sobre la escena original.
