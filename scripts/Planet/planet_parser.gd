@@ -53,6 +53,10 @@ class_name PlanetParser extends Node3D
 @export var wind_direction: Vector3 = Vector3.ZERO
 @export var has_clouds: bool = true
 
+@export_group("Weather Settings")
+## Bloque opcional "weather_settings" del JSON. Vacío = el WeatherController usa sus defaults.
+@export var weather_settings: Dictionary = {}
+
 @export_group("Underwater settings")
 @export var fog_density: float = 0.5
 @export var fog_color: Color = Color(0.3, 0.2, 0.8, 1.0)
@@ -295,6 +299,10 @@ func load_config(config_path: String):
 			atmosphere_settings.sun_dir[2]
 		)
 		print("DEBUG: Loaded sun_dir: ", sun_dir)
+
+	# Clima (opcional). Si no está, el WeatherController arranca con sus presets por defecto.
+	weather_settings = config.get("weather_settings", {})
+	print("DEBUG: Loaded weather settings: ", weather_settings)
 
 
 func _load_biome_noise_texture_overrides(biome_settings: Dictionary) -> void:

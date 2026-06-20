@@ -63,6 +63,10 @@ const config = preload("res://scripts/config.gd")
 var planet_item_scenes: Dictionary
 var _next_library_id: int = 0
 
+## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
+## 1.0 = viento base del planeta; >1 en tormenta/viento fuerte, <1 en calma/niebla.
+var weather_wind_multiplier: float = 1.0
+
 func _build_generator(generator_config: Dictionary, graph_functions: Array) -> VoxelInstanceGenerator:
 	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 
@@ -660,4 +664,4 @@ func _update_planet() -> void:
 		mat.set_shader_parameter("light_direction", sun_dir)
 		mat.set_shader_parameter("planet_position", planet_position)
 		mat.set_shader_parameter("wind_direction", wind_direction)
-		mat.set_shader_parameter("wind_speed", mat_struct.wind_speed)
+		mat.set_shader_parameter("wind_speed", mat_struct.wind_speed * weather_wind_multiplier)

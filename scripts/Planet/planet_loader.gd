@@ -36,6 +36,7 @@ var save_category: String = "planet"
 
 var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
+var weather_controller: WeatherController
 
 func _apply_godray_settings_to_water_sphere() -> void:
 	if not water_sphere:
@@ -154,7 +155,32 @@ func _load_planet() -> void:
 		water_sphere.load_watersphere(planet)
 		#water_sphere.visible = false
 
+	if not Engine.is_editor_hint():
+		_setup_weather(planet_parser)
+
 	_setup_npc_spawners(planet_parser)
+
+
+## Crea el sistema meteorológico si este planeta tiene atmósfera (controlador presente).
+## Solo Earth lo tiene en la escena; el resto de planetas (Moon) se saltan el clima.
+func _setup_weather(planet_parser: PlanetParser) -> void:
+	var atmo_ctrl: PlanetAtmosphereController = get_node_or_null("PlanetAtmosphereController")
+	if atmo_ctrl == null or atmo_ctrl.effect == null:
+		return
+
+	weather_controller = WeatherController.new()
+	weather_controller.name = "WeatherController"
+	add_child(weather_controller)
+	weather_controller.setup(
+		planet,
+		water_sphere if planet.has_water else null,
+		atmo_ctrl.effect,
+		sun_path,
+		get_node_or_null("../../WorldEnvironment") as WorldEnvironment,
+		players[0] if players.size() > 0 else null,
+		voxel_terrain.global_position,
+		planet_parser.weather_settings
+	)
 
 func _setup_npc_spawners(planet_parser: PlanetParser) -> void:
 	var planet_center := voxel_terrain.global_position

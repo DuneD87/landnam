@@ -79,6 +79,18 @@ uniform float specular_aa_strength : hint_range(0.0, 4.0) = 4.0;
 
 uniform float sun_shadow_opacity : hint_range(0.0, 1.0) = 0.7;
 
+// --- Clima (modulado por WeatherController) ---
+// Nieve POR FRAGMENTO: cada punto decide cuánta nieve cuaja según SU latitud y altitud
+// (línea de nieve). weather_snow_coverage es solo la intensidad global del clima de
+// nieve (0 = sin nevada). Así nievan polos y montañas, no el planeta entero.
+uniform float weather_snow_coverage : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 weather_snow_color : source_color = vec3(0.92, 0.94, 1.0);
+// Línea de nieve por latitud absoluta (grados) y por altitud (m sobre el radio base).
+uniform float weather_snow_latitude_start = 35.0;
+uniform float weather_snow_latitude_full = 55.0;
+uniform float weather_snow_altitude_start = 1500.0;
+uniform float weather_snow_altitude_full = 3500.0;
+
 varying vec3 world_pos;
 varying float height;
 varying float v_fragment_ao;
@@ -395,6 +407,20 @@ void fragment() {
 	macro_n = sign(macro_n) * pow(abs(macro_n), 1.0 / macro_variation_contrast);
 	float macro_factor = 1.0 + macro_n * macro_variation_strength;
 	final_color *= macro_factor;
+
+	// 8.5) Clima: nieve por fragmento. Solo cuaja en terreno frío/alto (línea de nieve por
+	// latitud + altitud) y en caras hacia arriba; el clima solo aporta la intensidad global.
+	if (weather_snow_coverage > 0.001) {
+		float up_face = clamp(dot(normal_world, planet_up), 0.0, 1.0);
+		float lat_factor = smoothstep(weather_snow_latitude_start, weather_snow_latitude_full, abs(latitude));
+		float alt_factor = smoothstep(weather_snow_altitude_start, weather_snow_altitude_full, height);
+		float cold = clamp(lat_factor + alt_factor, 0.0, 1.0);
+		float snow = weather_snow_coverage * cold * smoothstep(0.35, 0.8, up_face);
+		final_color = mix(final_color, weather_snow_color, snow);
+		final_roughness = mix(final_roughness, 0.55, snow);
+		final_normal = normalize(mix(final_normal, planet_up, snow * 0.5));
+	}
+
     ALBEDO = final_color;
 	NORMAL = normalize((VIEW_MATRIX * vec4(safe_normalize(final_normal, normal_world), 0.0)).xyz);
     ROUGHNESS = final_roughness;
