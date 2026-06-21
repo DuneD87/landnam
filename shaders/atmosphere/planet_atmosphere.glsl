@@ -393,6 +393,9 @@ float sample_fog_density(
 	// Densa en el suelo, se desvanece hacia el techo (curva suave para un borde superior difuso).
 	float height_grad = 1.0 - smoothstep(0.0, 1.0, h);
 	height_grad *= height_grad;
+	if (height_grad <= 0.0001) {
+		return 0.0;   // en el techo de la niebla no hay nada: evitamos AMBOS FBM.
+	}
 
 	// Banco de gran escala anclado al planeta y desplazado por el viento.
 	float reference_r = max(fog_min_r, 1.0);
@@ -402,9 +405,13 @@ float sample_fog_density(
 	float bank = _fbm(noise_pos, 3);
 	// coverage alto → umbral bajo → más manto; coverage bajo → parches sueltos.
 	float mass = smoothstep(1.0 - coverage, 1.0 - coverage + 0.28, bank);
+	if (mass <= 0.0) {
+		return 0.0;   // fuera del banco el detalle solo escalaría 0: nos saltamos su FBM.
+	}
 
 	// Jirones de detalle: ruido más fino que viaja algo más rápido, para que el banco respire.
-	float detail = _fbm(noise_pos * 4.3 + wind_dir * (wind_offset * 1.6), 2);
+	// 1 octava basta para el vaivén de los bordes; 2 apenas se distinguía y costaba el doble.
+	float detail = _fbm(noise_pos * 4.3 + wind_dir * (wind_offset * 1.6), 1);
 	mass *= mix(0.55, 1.0, detail);
 
 	return height_grad * mass;

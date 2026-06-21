@@ -51,10 +51,16 @@ func _physics_process(delta: float) -> void:
 	if _field == null or not _has_active_effect():
 		return   # sin precipitación no reconstruimos la rejilla (ahorra raycasts)
 	# Reconstruir ANTES de empujar: centro/ejes/textura del mismo frame (si no, parpadea).
-	_field.update(delta)
+	# Solo empujamos los uniforms el frame en que la rejilla cambió (centro/ejes/textura nuevos);
+	# entre reconstrucciones siguen vigentes los del último push.
+	if not _field.update(delta):
+		return
 	var tex := _field.get_height_texture()
 	for effect_name in _effects:
-		_effects[effect_name].set_occlusion(
+		var fx: WeatherParticles = _effects[effect_name]
+		if not fx.emitting:
+			continue   # el efecto inactivo no dibuja nada: no hace falta actualizar su oclusión
+		fx.set_occlusion(
 			_field.center, _field.x_axis, _field.z_axis, _field.up,
 			_field.half_size(), _field.span(), _field.probe_below,
 			tex, occlusion_enabled)

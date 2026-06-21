@@ -57,7 +57,7 @@ const PARAM_VEC4_COUNT := 19
 ## Escala del ruido de gran escala del banco (bajo = masas grandes que se ven venir).
 @export_range(0.2, 8.0, 0.1) var fog_noise_scale: float = 2.0
 ## Pasos de la marcha de la niebla. Más = transiciones más suaves en distancia, más coste.
-@export_range(1, 64, 1) var fog_steps: int = 16
+@export_range(1, 64, 1) var fog_steps: int = 12
 
 @export_group("Cloud Quality")
 ## Pasos de la marcha de vista: más = menos banding y detalle más fino, más coste.

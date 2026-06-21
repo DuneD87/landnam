@@ -49,10 +49,15 @@ func set_intensity(value: float) -> void:
 	var should_emit := v > 0.001
 	if should_emit != emitting:
 		emitting = should_emit
+		if should_emit:
+			_follow_player()   # recoloca el volumen antes de emitir tras estar inactivo
 
 
 func _process(_delta: float) -> void:
-	_follow_player()
+	# Solo el efecto que emite necesita seguir al jugador y reorientar su gravedad radial. El
+	# inactivo (p.ej. nieve mientras llueve) no dibuja nada, así que nos lo saltamos.
+	if emitting:
+		_follow_player()
 
 
 # ── Construcción ────────────────────────────────────────────────────────────────

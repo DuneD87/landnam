@@ -202,10 +202,16 @@ func _process(delta: float) -> void:
 
 	_elapsed += delta
 	if _blend < 1.0:
+		# En transición: interpolar y empujar el estado COMPLETO (atmósfera/sol/agua/...) cada
+		# frame, porque todos los campos se están moviendo.
 		_blend = minf(1.0, _blend + delta / maxf(transition_time, 0.01))
-
-	var st := WeatherState.blend(_from, _to, smoothstep(0.0, 1.0, _blend))
-	_apply_state(st)
+		var st := WeatherState.blend(_from, _to, smoothstep(0.0, 1.0, _blend))
+		_apply_state(st)
+	else:
+		# Estado estable: los uniforms de atmósfera/sol/agua/terreno ya quedaron fijados en el
+		# último frame de la transición y no cambian. Solo la precipitación varía (depende de la
+		# altitud del jugador), así que evitamos re-empujar ~25 uniforms y asignar un WeatherState.
+		_apply_precipitation(_to)
 
 	# Con un clima forzado (override de editor/depuración) no auto-transicionamos: el blend
 	# hacia el evento forzado sigue corriendo, pero no se elige uno nuevo hasta soltarlo.
@@ -441,13 +447,19 @@ func _apply_state(st: WeatherState) -> void:
 		_water_mat.set_shader_parameter("wave_speed", _base_wave_speed * st.water_speed_multiplier)
 		_water_mat.set_shader_parameter("foam_crest_amount", _base_foam_crest * st.water_foam_multiplier)
 
-	# Precipitación: partículas de lluvia/nieve moduladas por sus rates y por la altitud
-	# (no llueve/nieva por encima de la capa de nubes). El "techo sólido" sobre el jugador
-	# lo gestiona aparte WeatherFX por colisión.
-	if _fx:
-		var below := _below_clouds_factor(st)
-		_fx.set_intensity("rain", st.rain_rate * below)
-		_fx.set_intensity("snow", st.snow_rate * below)
+	_apply_precipitation(st)
+
+
+## Precipitación: partículas de lluvia/nieve moduladas por sus rates y por la altitud (no
+## llueve/nieva por encima de la capa de nubes). El "techo sólido" sobre el jugador lo gestiona
+## aparte WeatherFX por colisión. Se actualiza cada frame (incluso en estado estable) porque el
+## factor de altitud cambia al moverse el jugador.
+func _apply_precipitation(st: WeatherState) -> void:
+	if _fx == null:
+		return
+	var below := _below_clouds_factor(st)
+	_fx.set_intensity("rain", st.rain_rate * below)
+	_fx.set_intensity("snow", st.snow_rate * below)
 
 
 # ── Catálogo de eventos ──────────────────────────────────────────────────────────

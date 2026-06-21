@@ -77,11 +77,15 @@ func span() -> float:
 
 
 ## La conduce WeatherFX para reconstruir antes de empujar la textura al shader (mismo frame).
-func update(delta: float) -> void:
+## Devuelve true SOLO el frame en que se reconstruyó la rejilla (centro/ejes/textura nuevos), para
+## que WeatherFX empuje los uniforms únicamente entonces y no en cada frame.
+func update(delta: float) -> bool:
 	_accum += delta
 	if _accum >= update_interval:
 		_accum = 0.0
 		_rebuild()
+		return true
+	return false
 
 
 func _rebuild() -> void:
