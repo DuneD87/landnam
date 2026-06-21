@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=4 uid="uid://cqstmwm5es866"]
+[gd_scene format=4 uid="uid://cqstmwm5es866"]
 
 [ext_resource type="Texture2D" uid="uid://cxykiemn4b1fy" path="res://models/equipable/stonepickaxe/textures/Scene_-_Root_baseColor.png" id="1_fiy71"]
 
@@ -40,7 +40,7 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_6uxvj")
 
-[node name="Stone_Axe__0" type="MeshInstance3D"]
+[node name="Stone_Axe__0" type="MeshInstance3D" unique_id=1252215944]
 transform = Transform3D(-9.73781, 10.674047, 26.291368, 28.268549, 1.2380487, 9.967518, 2.4614482, 28.009455, -10.459879, 0, 0, 0)
 mesh = SubResource("ArrayMesh_k3qea")
 skeleton = NodePath("")

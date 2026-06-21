@@ -24,9 +24,8 @@ extends Node
 ## La niebla se hace BAJANDO la capa de nubes casi al suelo (cloud_min/max_height),
 ## reutilizando el compositor existente sin fog de WorldEnvironment.
 ##
-## Fase 2 (pendiente): partículas de lluvia/nieve con gravedad radial, flashes de
-## rayo + trueno. Los campos rain_rate/snow_rate/lightning_frequency ya existen en
-## WeatherState para conectarlos sin reescribir esto.
+## Fase 2: partículas de lluvia/nieve con gravedad radial (WeatherFX, alimentado por
+## rain_rate/snow_rate). Pendiente aún: flashes de rayo + trueno (lightning_frequency).
 
 const DEFAULT_EVENTS_FILE := "res://data/weather/weather_events.json"
 
@@ -65,6 +64,9 @@ var _world_env: WorldEnvironment
 var _player: Node3D
 var _planet_center: Vector3
 
+# --- Efectos de precipitación (lluvia/nieve, partículas) ---
+var _fx: WeatherFX
+
 # --- Datos de biomas (copiados del planeta) ---
 var _biome_count: int = 0
 var _biome_latitude_ranges: Array = []
@@ -92,6 +94,7 @@ var _duration: float = 120.0
 var _current: String = "clear"
 var _current_biome: int = 0
 var _ready_to_run: bool = false
+var _forced: bool = false   # override de depuración: clima fijo, sin auto-transiciones
 
 
 ## Inyecta dependencias y arranca. Llamado por planet_loader tras cargar el planeta.
@@ -120,6 +123,7 @@ func setup(
 	_build_events(config)
 	_build_biome_profiles(config)
 	_push_snow_line_params()
+	_setup_fx()
 
 	# Estado inicial coherente con el bioma y la altitud actuales del jugador.
 	_current = _choose_from(_active_profile(), "")
@@ -180,6 +184,17 @@ func _push_snow_line_params() -> void:
 	sm.set_shader_parameter("weather_snow_altitude_full", snow_altitude)
 
 
+## Crea el gestor de partículas de precipitación. Sigue al jugador y necesita el centro del
+## planeta para que la "gravedad" de las gotas/copos apunte radialmente al suelo.
+func _setup_fx() -> void:
+	if _player == null:
+		return
+	_fx = WeatherFX.new()
+	_fx.name = "WeatherFX"
+	add_child(_fx)
+	_fx.setup(_player, _planet_center)
+
+
 func _process(delta: float) -> void:
 	if not _ready_to_run:
 		return
@@ -190,6 +205,11 @@ func _process(delta: float) -> void:
 
 	var st := WeatherState.blend(_from, _to, smoothstep(0.0, 1.0, _blend))
 	_apply_state(st)
+
+	# Con un clima forzado (override de editor/depuración) no auto-transicionamos: el blend
+	# hacia el evento forzado sigue corriendo, pero no se elige uno nuevo hasta soltarlo.
+	if _forced:
+		return
 
 	# Solo decidimos un cambio cuando la transición anterior terminó.
 	if _blend >= 1.0:
@@ -209,6 +229,31 @@ func set_weather(event_name: String) -> void:
 		push_warning("WeatherController: evento desconocido '%s'" % event_name)
 		return
 	_transition_to(event_name)
+
+
+## Fuerza un evento Y BLOQUEA la máquina de estados (no auto-transiciona) hasta clear_force().
+## Pensado para el override de depuración del inspector. Requiere el sistema activo (enabled).
+func force_weather(event_name: String) -> void:
+	if not _events.has(event_name):
+		push_warning("WeatherController: evento forzado desconocido '%s'" % event_name)
+		return
+	if not _ready_to_run:
+		push_warning("WeatherController: no se puede forzar clima con el sistema deshabilitado.")
+		return
+	_forced = true
+	_transition_to(event_name)
+
+
+## Suelta el override y devuelve el control al sistema automático (re-evalúa bioma/altitud).
+func clear_force() -> void:
+	if not _forced:
+		return
+	_forced = false
+	_elapsed = _duration   # fuerza una reselección natural en el próximo frame
+
+
+func is_forced() -> bool:
+	return _forced
 
 
 func get_current_weather_name() -> String:
@@ -249,6 +294,15 @@ func _current_altitude() -> float:
 	if _player == null or not is_instance_valid(_player) or _planet == null:
 		return 0.0
 	return (_player.global_position - _planet_center).length() - _planet.radius
+
+
+## Factor 0..1 de precipitación según la altitud del jugador respecto a la capa de nubes:
+## 1 bajo la base (la lluvia/nieve cae sobre ti), se desvanece al ascender por la capa y 0
+## por encima de la cima (estás sobre las nubes de donde nace la precipitación). Usa las
+## alturas del estado interpolado para que coincida con las nubes que se están dibujando.
+func _below_clouds_factor(st: WeatherState) -> float:
+	var top := maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
+	return 1.0 - smoothstep(st.cloud_min_height, top, _current_altitude())
 
 
 ## Mapea la latitud al índice de bioma usando biome_latitude_ranges (n+1 entradas para
@@ -378,6 +432,14 @@ func _apply_state(st: WeatherState) -> void:
 		_water_mat.set_shader_parameter("wave_amplitude", _base_wave_amplitude * st.water_wave_multiplier)
 		_water_mat.set_shader_parameter("wave_speed", _base_wave_speed * st.water_speed_multiplier)
 		_water_mat.set_shader_parameter("foam_crest_amount", _base_foam_crest * st.water_foam_multiplier)
+
+	# Precipitación: partículas de lluvia/nieve moduladas por sus rates y por la altitud
+	# (no llueve/nieva por encima de la capa de nubes). El "techo sólido" sobre el jugador
+	# lo gestiona aparte WeatherFX por colisión.
+	if _fx:
+		var below := _below_clouds_factor(st)
+		_fx.set_intensity("rain", st.rain_rate * below)
+		_fx.set_intensity("snow", st.snow_rate * below)
 
 
 # ── Catálogo de eventos ──────────────────────────────────────────────────────────

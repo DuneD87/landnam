@@ -74,6 +74,20 @@ func get_gravity_direction(_global_position: Vector3) -> Vector3:
 			if sun_path == null:
 				push_error("sun_path is null! Aborting")
 
+@export_group("Weather Override")
+## Si está activo, fuerza el clima a 'forced_weather' y bloquea el cambio automático.
+## Funciona en runtime, incluido tocarlo desde el inspector remoto mientras juegas.
+@export var force_weather: bool = false:
+	set(value):
+		force_weather = value
+		_apply_weather_override()
+## Evento a forzar. Coincide con los nombres del catálogo data/weather/weather_events.json.
+## Si añades eventos propios al JSON, amplía esta lista o cámbialo a un String libre.
+@export_enum("clear", "storm", "snow", "wind", "fog") var forced_weather: String = "storm":
+	set(value):
+		forced_weather = value
+		_apply_weather_override()
+
 var _editor_file_dialog: EditorFileDialog
 
 func _copy_parsed_data(planet_parser: PlanetParser) -> void:
@@ -181,6 +195,19 @@ func _setup_weather(planet_parser: PlanetParser) -> void:
 		voxel_terrain.global_position,
 		planet_parser.weather_settings
 	)
+	# Aplica el override de clima si venía activado desde el inspector al cargar.
+	_apply_weather_override()
+
+
+## Aplica (o suelta) el override de clima en el controlador. No-op si aún no existe (en
+## editor o antes de cargar el planeta); _setup_weather lo vuelve a llamar al final.
+func _apply_weather_override() -> void:
+	if weather_controller == null:
+		return
+	if force_weather:
+		weather_controller.force_weather(forced_weather)
+	else:
+		weather_controller.clear_force()
 
 func _setup_npc_spawners(planet_parser: PlanetParser) -> void:
 	var planet_center := voxel_terrain.global_position

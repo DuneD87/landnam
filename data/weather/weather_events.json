@@ -2,54 +2,54 @@
   "_comment": "Catálogo de eventos climáticos. Cada evento define QUÉ es ese clima (los campos de WeatherState). Es compartido por todos los planetas; cada planeta decide DÓNDE ocurre cada evento en su weather_settings.biome_profiles. Puedes añadir eventos nuevos (p.ej. 'blizzard') sin tocar código: defínelos aquí y referéncialos por nombre en los biome_profiles del planeta. Los campos omitidos usan el valor por defecto de WeatherState. NOTA: cloud_wind_speed NO es m/s, es la tasa de scroll del ruido de nubes (offset = tiempo * velocidad); 0.05 ya es una deriva visible, así que mantén valores bajos (~0.02-0.1).",
 
   "events": {
-    "clear": {
-      "cloud_coverage": 0.25, "cloud_density": 0.35, "cloud_absorption": 0.12,
-      "cloud_shadow": 0.5, "cloud_min_height": 600.0, "cloud_max_height": 900.0,
-      "cloud_wind_speed": 0.025,
-      "sun_energy": 1.0, "ambient_energy": 1.0, "wind_multiplier": 0.6,
-      "water_wave_multiplier": 0.7, "water_speed_multiplier": 0.8, "water_foam_multiplier": 0.6,
-      "snow_coverage": 0.0,
-      "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
-    },
+	"clear": {
+	  "cloud_coverage": 0.25, "cloud_density": 0.35, "cloud_absorption": 0.12,
+	  "cloud_shadow": 0.5, "cloud_min_height": 600.0, "cloud_max_height": 900.0,
+	  "cloud_wind_speed": 0.025,
+	  "sun_energy": 1.0, "ambient_energy": 1.0, "wind_multiplier": 0.6,
+	  "water_wave_multiplier": 0.7, "water_speed_multiplier": 0.8, "water_foam_multiplier": 0.6,
+	  "snow_coverage": 0.0,
+	  "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
+	},
 
-    "storm": {
-      "cloud_coverage": 0.9, "cloud_density": 1.6, "cloud_absorption": 0.4,
-      "cloud_shadow": 0.9, "cloud_min_height": 300.0, "cloud_max_height": 800.0,
-      "cloud_wind_speed": 0.06,
-      "sun_energy": 0.3, "ambient_energy": 0.5, "wind_multiplier": 2.4,
-      "water_wave_multiplier": 2.0, "water_speed_multiplier": 1.6, "water_foam_multiplier": 2.5,
-      "snow_coverage": 0.0,
-      "rain_rate": 1.0, "snow_rate": 0.0, "lightning_frequency": 0.15
-    },
+	"storm": {
+	  "cloud_coverage": 0.85, "cloud_density": 3.6, "cloud_absorption": 0.7,
+	  "cloud_shadow": 0.6, "cloud_min_height": 950.0, "cloud_max_height": 1200.0,
+	  "cloud_wind_speed": 0.06,
+	  "sun_energy": 0.3, "ambient_energy": 0.5, "wind_multiplier": 2.4,
+	  "water_wave_multiplier": 2.0, "water_speed_multiplier": 1.6, "water_foam_multiplier": 2.5,
+	  "snow_coverage": 0.0,
+	  "rain_rate": 1.0, "snow_rate": 0.0, "lightning_frequency": 0.15
+	},
 
-    "snow": {
-      "cloud_coverage": 0.75, "cloud_density": 0.9, "cloud_absorption": 0.28,
-      "cloud_shadow": 0.8, "cloud_min_height": 350.0, "cloud_max_height": 700.0,
-      "cloud_wind_speed": 0.04,
-      "sun_energy": 0.7, "ambient_energy": 0.8, "wind_multiplier": 1.3,
-      "water_wave_multiplier": 1.0, "water_speed_multiplier": 1.0, "water_foam_multiplier": 1.0,
-      "snow_coverage": 1.0,
-      "rain_rate": 0.0, "snow_rate": 1.0, "lightning_frequency": 0.0
-    },
+	"snow": {
+	  "cloud_coverage": 0.75, "cloud_density": 0.9, "cloud_absorption": 0.28,
+	  "cloud_shadow": 0.6, "cloud_min_height": 350.0, "cloud_max_height": 600.0,
+	  "cloud_wind_speed": 0.04,
+	  "sun_energy": 0.7, "ambient_energy": 0.8, "wind_multiplier": 1.3,
+	  "water_wave_multiplier": 1.0, "water_speed_multiplier": 1.0, "water_foam_multiplier": 1.0,
+	  "snow_coverage": 1.0,
+	  "rain_rate": 0.0, "snow_rate": 1.0, "lightning_frequency": 0.0
+	},
 
-    "wind": {
-      "cloud_coverage": 0.45, "cloud_density": 0.5, "cloud_absorption": 0.14,
-      "cloud_shadow": 0.6, "cloud_min_height": 500.0, "cloud_max_height": 850.0,
-      "cloud_wind_speed": 0.1,
-      "sun_energy": 0.9, "ambient_energy": 0.95, "wind_multiplier": 3.2,
-      "water_wave_multiplier": 1.7, "water_speed_multiplier": 1.8, "water_foam_multiplier": 1.8,
-      "snow_coverage": 0.0,
-      "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
-    },
+	"wind": {
+	  "cloud_coverage": 0.45, "cloud_density": 0.5, "cloud_absorption": 0.14,
+	  "cloud_shadow": 0.6, "cloud_min_height": 500.0, "cloud_max_height": 850.0,
+	  "cloud_wind_speed": 0.1,
+	  "sun_energy": 0.9, "ambient_energy": 0.95, "wind_multiplier": 3.2,
+	  "water_wave_multiplier": 1.7, "water_speed_multiplier": 1.8, "water_foam_multiplier": 1.8,
+	  "snow_coverage": 0.0,
+	  "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
+	},
 
-    "fog": {
-      "cloud_coverage": 1.0, "cloud_density": 1.2, "cloud_absorption": 0.22,
-      "cloud_shadow": 0.6, "cloud_min_height": 2.0, "cloud_max_height": 160.0,
-      "cloud_wind_speed": 0.01,
-      "sun_energy": 0.55, "ambient_energy": 0.7, "wind_multiplier": 0.5,
-      "water_wave_multiplier": 0.6, "water_speed_multiplier": 0.7, "water_foam_multiplier": 0.6,
-      "snow_coverage": 0.0,
-      "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
-    }
+	"fog": {
+	  "cloud_coverage": 1.0, "cloud_density": 1.2, "cloud_absorption": 0.22,
+	  "cloud_shadow": 0.6, "cloud_min_height": 2.0, "cloud_max_height": 160.0,
+	  "cloud_wind_speed": 0.01,
+	  "sun_energy": 0.55, "ambient_energy": 0.7, "wind_multiplier": 0.5,
+	  "water_wave_multiplier": 0.6, "water_speed_multiplier": 0.7, "water_foam_multiplier": 0.6,
+	  "snow_coverage": 0.0,
+	  "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
+	}
   }
 }

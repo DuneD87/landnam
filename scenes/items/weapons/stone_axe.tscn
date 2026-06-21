@@ -45,18 +45,18 @@ shadow_mesh = SubResource("ArrayMesh_6uxvj")
 [sub_resource type="BoxShape3D" id="BoxShape3D_csfl7"]
 size = Vector3(1, 1, 3.0305176)
 
-[node name="Stone_Axe" type="RigidBody3D"]
+[node name="Stone_Axe" type="RigidBody3D" unique_id=1284421147]
 transform = Transform3D(-0.03792654, 0.14088964, 0.13679063, 0.19532205, 0.04144682, 0.011466028, -0.0202704, 0.13576545, -0.1454539, 0, 0, 0)
 disable_mode = 2
 script = ExtResource("1_csfl7")
 drop_amount_max = 1
 item_data = ExtResource("2_seq8a")
 
-[node name="Stone_Axe__0" type="MeshInstance3D" parent="."]
+[node name="Stone_Axe__0" type="MeshInstance3D" parent="." unique_id=1001651450]
 transform = Transform3D(0.999696, -0.020590156, -0.013564885, 0.021792894, 0.9951934, 0.09547477, 0.011533856, -0.09574124, 0.9953394, 0.15354967, 0.12181604, 0.7648953)
 mesh = SubResource("ArrayMesh_k3qea")
 skeleton = NodePath("")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=362952024]
 transform = Transform3D(0.99969614, -0.020590119, -0.013566159, 0.021792889, 0.99519336, 0.09547472, 0.011533819, -0.09574127, 0.9953393, 0.15188253, 0.13355213, 0.8872473)
 shape = SubResource("BoxShape3D_csfl7")

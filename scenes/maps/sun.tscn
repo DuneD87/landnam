@@ -82,9 +82,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@19772")
+water_sphere = NodePath("@Node3D@19777")
 global_pos = Vector3(0, 0, 15000)
-planet = NodePath("@Node3D@19771")
+planet = NodePath("@Node3D@19776")
 entity_id = "planet_earth"
 godray_intensity = 3.0
 godray_samples = 2
@@ -110,9 +110,11 @@ sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, -85000)
 global_pos = Vector3(0, 0, -55000)
-planet = NodePath("@Node3D@19782")
+planet = NodePath("@Node3D@19787")
 entity_id = "planet_moon"
 godray_decay = 0.25
+force_weather = null
+forced_weather = null
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=535095142]
 transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 0, 0, 0)
