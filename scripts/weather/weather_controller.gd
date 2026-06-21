@@ -15,14 +15,15 @@ extends Node
 ## Cada bioma tiene un perfil de eventos permitidos con pesos, configurable en el JSON
 ## del planeta. Interpola suavemente entre el evento actual y el siguiente, y cada frame
 ## difunde el estado resuelto a:
-##   - la atmósfera (nubes: cobertura/densidad/sombra/altura → tormenta y niebla),
+##   - la atmósfera (nubes: cobertura/densidad/sombra/altura; niebla: capa baja dedicada),
 ##   - el sol y el ambiente (oscurecimiento),
 ##   - la vegetación (multiplicador de viento),
 ##   - el agua (oleaje y espuma),
 ##   - el terreno (nieve por fragmento, vía uniforms del shader planet_biomes).
 ##
-## La niebla se hace BAJANDO la capa de nubes casi al suelo (cloud_min/max_height),
-## reutilizando el compositor existente sin fog de WorldEnvironment.
+## La niebla es una capa volumétrica baja propia (fog_density/fog_coverage en el shader
+## de atmósfera): pegada al suelo y modulada por ruido de gran escala advectado por el
+## viento, de modo que el banco "llega de lejos" en vez de verse bajar las nubes.
 ##
 ## Fase 2: partículas de lluvia/nieve con gravedad radial (WeatherFX, alimentado por
 ## rain_rate/snow_rate). Pendiente aún: flashes de rayo + trueno (lightning_frequency).
@@ -414,6 +415,13 @@ func _apply_state(st: WeatherState) -> void:
 		_atmosphere.cloud_min_height = st.cloud_min_height
 		_atmosphere.cloud_max_height = maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
 		_atmosphere.cloud_wind_speed = st.cloud_wind_speed
+		# Niebla a ras de suelo: capa baja dedicada. Solo modulamos densidad/cobertura;
+		# la altura es fija en el atmósfera, así la niebla nunca "baja del cielo".
+		_atmosphere.fog_density = st.fog_density
+		_atmosphere.fog_coverage = st.fog_coverage
+		_atmosphere.fog_wind_speed = st.fog_wind_speed
+		_atmosphere.fog_floor_height = st.fog_floor_height
+		_atmosphere.fog_top_height = maxf(st.fog_top_height, st.fog_floor_height + 1.0)
 
 	# Sol + ambiente: el oscurecimiento de la tormenta.
 	if _sun:
@@ -554,12 +562,16 @@ func _builtin_events() -> Dictionary:
 			"wind_multiplier": 2.4, "water_wave_multiplier": 2.0,
 			"water_speed_multiplier": 1.6, "water_foam_multiplier": 2.5,
 			"rain_rate": 1.0, "lightning_frequency": 0.15,
+			"fog_density": 0.5, "fog_coverage": 0.45, "fog_wind_speed": 0.05,
+			"fog_floor_height": 0.0, "fog_top_height": 90.0,
 		}),
 		"snow": _state({
 			"cloud_coverage": 0.75, "cloud_density": 0.9, "cloud_absorption": 0.28,
 			"cloud_shadow": 0.8, "cloud_min_height": 350.0, "cloud_max_height": 700.0,
 			"cloud_wind_speed": 0.04, "sun_energy": 0.7, "ambient_energy": 0.8,
 			"wind_multiplier": 1.3, "snow_coverage": 1.0, "snow_rate": 1.0,
+			"fog_density": 0.6, "fog_coverage": 0.5, "fog_wind_speed": 0.03,
+			"fog_floor_height": 0.0, "fog_top_height": 120.0,
 		}),
 		"wind": _state({
 			"cloud_coverage": 0.45, "cloud_density": 0.5, "cloud_absorption": 0.14,
@@ -569,11 +581,15 @@ func _builtin_events() -> Dictionary:
 			"water_speed_multiplier": 1.8, "water_foam_multiplier": 1.8,
 		}),
 		"fog": _state({
-			"cloud_coverage": 1.0, "cloud_density": 1.2, "cloud_absorption": 0.22,
-			"cloud_shadow": 0.6, "cloud_min_height": 2.0, "cloud_max_height": 160.0,
-			"cloud_wind_speed": 0.01, "sun_energy": 0.55, "ambient_energy": 0.7,
+			# Las nubes se quedan ALTAS y discretas: la niebla la hace la capa baja dedicada
+			# (fog_density/fog_coverage), no nubes que bajan. Un cielo encapotado tenue ayuda.
+			"cloud_coverage": 0.35, "cloud_density": 0.4, "cloud_absorption": 0.16,
+			"cloud_shadow": 0.3, "cloud_min_height": 500.0, "cloud_max_height": 800.0,
+			"cloud_wind_speed": 0.03, "sun_energy": 0.6, "ambient_energy": 0.8,
 			"wind_multiplier": 0.5, "water_wave_multiplier": 0.6,
 			"water_speed_multiplier": 0.7, "water_foam_multiplier": 0.6,
+			"fog_density": 1.0, "fog_coverage": 0.62, "fog_wind_speed": 0.025,
+			"fog_floor_height": 0.0, "fog_top_height": 160.0,
 		}),
 	}
 

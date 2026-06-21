@@ -4,7 +4,7 @@ class_name PlanetAtmosphere
 
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 16
+const PARAM_VEC4_COUNT := 19
 
 @export var shader_file_path: String = DEFAULT_SHADER_PATH
 
@@ -35,6 +35,29 @@ const PARAM_VEC4_COUNT := 16
 @export_range(0.0, 1.0, 0.005) var cloud_wind_speed: float = 0.05
 ## Cuánto oscurecen las nubes el terreno bajo ellas (0 = sin sombra, 1 = máxima).
 @export_range(0.0, 1.0, 0.01) var cloud_shadow_strength: float = 0.85
+
+@export_group("Fog")
+## Niebla a ras de suelo: capa volumétrica baja, independiente de las nubes. Su densidad
+## la modula un ruido de gran escala advectado por el viento → el banco "llega de lejos".
+@export var fog_enabled: bool = true
+## Densidad global de la niebla. 0 = sin niebla. El WeatherController la sube/baja en las
+## transiciones, así la niebla se desvanece en su sitio (no baja del cielo).
+@export_range(0.0, 5.0, 0.05) var fog_density: float = 0.0
+## Cobertura del banco: cuánta área cubre el frente (0 = parches sueltos, 1 = manto denso).
+@export_range(0.0, 1.0, 0.01) var fog_coverage: float = 0.6
+## Altura del suelo de la niebla sobre la superficie (m). Suele ser 0 = a ras.
+@export_range(-50.0, 500.0, 1.0) var fog_floor_height: float = 0.0
+## Altura del techo de la niebla sobre la superficie (m). Espesor = techo - suelo.
+@export_range(10.0, 800.0, 1.0) var fog_top_height: float = 130.0
+## Tinte de la niebla (se ilumina con el sol; más cálido en el terminador).
+@export var fog_color: Color = Color(0.82, 0.84, 0.88)
+## Velocidad con la que el banco viaja con el viento. Mayor = se acerca más rápido.
+## El WeatherController lo sobrescribe por evento; este es solo el valor por defecto del editor.
+@export_range(0.0, 1.0, 0.005) var fog_wind_speed: float = 0.04
+## Escala del ruido de gran escala del banco (bajo = masas grandes que se ven venir).
+@export_range(0.2, 8.0, 0.1) var fog_noise_scale: float = 2.0
+## Pasos de la marcha de la niebla. Más = transiciones más suaves en distancia, más coste.
+@export_range(1, 64, 1) var fog_steps: int = 16
 
 @export_group("Cloud Quality")
 ## Pasos de la marcha de vista: más = menos banding y detalle más fino, más coste.
@@ -326,6 +349,15 @@ func _build_params_bytes(
 	var local_cloud_steps     := cloud_steps
 	var local_light_steps     := cloud_light_steps
 	var local_shadow_steps    := cloud_shadow_steps
+	var local_fog_enabled     := fog_enabled
+	var local_fog_density     := fog_density
+	var local_fog_coverage    := fog_coverage
+	var local_fog_floor_h     := fog_floor_height
+	var local_fog_top_h       := maxf(fog_top_height, fog_floor_height + 1.0)
+	var local_fog_color       := fog_color
+	var local_fog_wind_speed  := fog_wind_speed
+	var local_fog_nscale      := fog_noise_scale
+	var local_fog_steps       := fog_steps
 	_params_mutex.unlock()
 
 	var floats := PackedFloat32Array()
@@ -386,6 +418,22 @@ func _build_params_bytes(
 
 	# 15: pasos de marcha de nubes — view (x), light (y), shadow (z).
 	_append_vec4(floats, Vector4(local_cloud_steps, local_light_steps, local_shadow_steps, 0.0))
+
+	# 16: niebla — suelo/techo sobre la superficie (m), densidad, cobertura.
+	_append_vec4(floats, Vector4(
+		local_fog_floor_h, local_fog_top_h, local_fog_density, local_fog_coverage
+	))
+
+	# 17: color de la niebla + habilitada.
+	_append_vec4(floats, Vector4(
+		local_fog_color.r, local_fog_color.g, local_fog_color.b,
+		1.0 if local_fog_enabled else 0.0
+	))
+
+	# 18: niebla — escala de ruido (x), offset de viento acumulado (y), pasos de marcha (z).
+	# Reutiliza la dirección de viento de las nubes P(14).xyz para que el banco viaje con él.
+	var fog_wind_offset := (Time.get_ticks_msec() / 1000.0) * local_fog_wind_speed
+	_append_vec4(floats, Vector4(local_fog_nscale, fog_wind_offset, local_fog_steps, 0.0))
 
 	return floats.to_byte_array()
 

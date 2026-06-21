@@ -370,6 +370,108 @@ void march_clouds(
 }
 
 
+// ===== NIEBLA A RAS DE SUELO =====
+// Capa volumétrica baja e independiente de las nubes. La densidad la modula un ruido de
+// gran escala advectado por el viento (P(18).y), de modo que los bancos viajan
+// horizontalmente y "se ven venir de lejos". Es densa abajo y se desvanece hacia arriba,
+// así que se origina pegada al suelo en vez de bajar del cielo.
+
+float sample_fog_density(
+	vec3 p, vec3 planet_center,
+	float fog_min_r, float fog_max_r,
+	float coverage, float noise_scale, vec3 wind_dir, float wind_offset
+) {
+	vec3 local = p - planet_center;
+	float dist = length(local);
+	if (dist < fog_min_r || dist > fog_max_r) {
+		return 0.0;
+	}
+
+	float thickness = max(fog_max_r - fog_min_r, 0.001);
+	float h = clamp((dist - fog_min_r) / thickness, 0.0, 1.0);
+
+	// Densa en el suelo, se desvanece hacia el techo (curva suave para un borde superior difuso).
+	float height_grad = 1.0 - smoothstep(0.0, 1.0, h);
+	height_grad *= height_grad;
+
+	// Banco de gran escala anclado al planeta y desplazado por el viento.
+	float reference_r = max(fog_min_r, 1.0);
+	vec3 noise_pos = (local / reference_r) * max(noise_scale, 0.001);
+	noise_pos += wind_dir * wind_offset;
+
+	float bank = _fbm(noise_pos, 3);
+	// coverage alto → umbral bajo → más manto; coverage bajo → parches sueltos.
+	float mass = smoothstep(1.0 - coverage, 1.0 - coverage + 0.28, bank);
+
+	// Jirones de detalle: ruido más fino que viaja algo más rápido, para que el banco respire.
+	float detail = _fbm(noise_pos * 4.3 + wind_dir * (wind_offset * 1.6), 2);
+	mass *= mix(0.55, 1.0, detail);
+
+	return height_grad * mass;
+}
+
+void march_fog(
+	vec3 ro, vec3 rd, float max_dist,
+	vec3 planet_center, float fog_min_r, float fog_max_r,
+	float density, float coverage, float noise_scale,
+	vec3 wind_dir, float wind_offset,
+	vec3 sun_dir, float sun_intensity, vec3 fog_color,
+	int steps, float jitter,
+	out vec3 out_color, out float out_trans
+) {
+	out_color = vec3(0.0);
+	out_trans = 1.0;
+
+	vec2 outer = ray_sphere(planet_center, fog_max_r, ro, rd);
+	if (outer.y <= 0.0) return;
+
+	float t0 = outer.x;
+	float t1 = outer.x + outer.y;
+
+	// Recorte por la esfera interior (suelo de la niebla), igual que las nubes.
+	vec2 inner = ray_sphere(planet_center, fog_min_r, ro, rd);
+	if (inner.y > 0.0) {
+		float ro_r = length(ro - planet_center);
+		if (ro_r < fog_min_r) {
+			t0 = max(t0, inner.x + inner.y);
+		} else {
+			t1 = min(t1, inner.x);
+		}
+	}
+
+	t0 = max(t0, 0.0);
+	t1 = min(t1, max_dist);
+	if (t1 <= t0 + 0.001) return;
+
+	int fog_steps = clamp(steps, 1, 64);
+	float step_size = (t1 - t0) / float(fog_steps);
+	float t = t0 + step_size * jitter;
+
+	for (int i = 0; i < fog_steps && t < t1; i++) {
+		vec3 p = ro + rd * t;
+		float d = sample_fog_density(p, planet_center, fog_min_r, fog_max_r,
+		                             coverage, noise_scale, wind_dir, wind_offset);
+		if (d > 0.0001) {
+			// Iluminación simple: ambiente + ganancia diurna + tinte cálido en el terminador.
+			vec3 to_p = normalize(p - planet_center);
+			float sun_dot = dot(to_p, sun_dir);
+			float day = smoothstep(-0.2, 0.2, sun_dot);
+			float sunset_f = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot));
+			vec3 sunset_tint = mix(vec3(1.0), vec3(1.7, 0.75, 0.45), sunset_f);
+
+			vec3 lit = fog_color * sun_intensity * (0.05 + 0.10 * day) * sunset_tint;
+
+			float s_trans = exp(-d * step_size * density * 0.02);
+			out_color += out_trans * (1.0 - s_trans) * lit;
+			out_trans *= s_trans;
+
+			if (out_trans < 0.01) { out_trans = 0.0; break; }
+		}
+		t += step_size;
+	}
+}
+
+
 float density_at_point(
 	vec3 p,
 	vec3 planet_center,
@@ -604,6 +706,31 @@ void main() {
 		);
 
 		light = light * cloud_trans + cloud_col;
+	}
+
+	// 3. Niebla a ras de suelo — lo más cercano, se compone delante de todo. Su banco
+	//    viaja con el viento, así se ve llegar de lejos en vez de bajar las nubes.
+	if (P(17).w > 0.5 && P(16).z > 0.001) {
+		float fog_min_r = planet_radius + P(16).x;
+		float fog_max_r = planet_radius + P(16).y;
+
+		vec3  fog_col;
+		float fog_trans;
+
+		float fog_max_dist = min(scene_t, dst_to_atmo + dst_through_atmo);
+		float fog_jitter = _hash3f(vec3(float(pixel.x), float(pixel.y), 3.0));
+
+		march_fog(
+			camera_position, ray_dir, fog_max_dist,
+			planet_center, fog_min_r, fog_max_r,
+			P(16).z, P(16).w, P(18).x,
+			P(14).xyz, P(18).y,
+			sun_direction, sun_intensity, P(17).rgb,
+			int(P(18).z), fog_jitter,
+			fog_col, fog_trans
+		);
+
+		light = light * fog_trans + fog_col;
 	}
 
 	imageStore(color_image, pixel, vec4(light, scene_color.a));

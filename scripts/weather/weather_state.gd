@@ -15,6 +15,20 @@ var cloud_min_height: float = 400.0
 var cloud_max_height: float = 700.0
 var cloud_wind_speed: float = 0.05
 
+# --- Niebla a ras de suelo (capa baja dedicada, independiente de las nubes) ---
+## Densidad global de la niebla. 0 = sin niebla. La transición la sube/baja, así que
+## la niebla se DESVANECE en su sitio (no baja del cielo) mientras los bancos viajan
+## con el viento → "llega de lejos".
+var fog_density: float = 0.0
+## Cobertura del banco: cuánta área cubre el frente de niebla (0 = parches, 1 = denso).
+var fog_coverage: float = 0.6
+## Velocidad a la que el banco viaja con el viento. Bajo = niebla que se arrastra lenta.
+var fog_wind_speed: float = 0.04
+## Suelo de la niebla: altura sobre la superficie donde empieza (m). 0 = a ras de suelo.
+var fog_floor_height: float = 0.0
+## Techo de la niebla: altura sobre la superficie donde se desvanece (m). Espesor = techo - suelo.
+var fog_top_height: float = 130.0
+
 # --- Iluminación (multiplicadores sobre los valores BASE de la escena) ---
 var sun_energy: float = 1.0      # multiplica DirectionalLight3D.light_energy
 var ambient_energy: float = 1.0  # multiplica Environment.ambient_light_energy
@@ -43,6 +57,8 @@ var lightning_frequency: float = 0.0
 const FIELDS: Array[StringName] = [
 	&"cloud_coverage", &"cloud_density", &"cloud_absorption", &"cloud_shadow",
 	&"cloud_min_height", &"cloud_max_height", &"cloud_wind_speed",
+	&"fog_density", &"fog_coverage", &"fog_wind_speed",
+	&"fog_floor_height", &"fog_top_height",
 	&"sun_energy", &"ambient_energy", &"wind_multiplier",
 	&"water_wave_multiplier", &"water_speed_multiplier", &"water_foam_multiplier",
 	&"wetness", &"snow_coverage",
