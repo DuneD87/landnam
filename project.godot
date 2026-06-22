@@ -203,5 +203,4 @@ anti_aliasing/quality/msaa_3d=1
 textures/decals/filter=5
 environment/subsurface_scattering/subsurface_scattering_quality=3
 anti_aliasing/quality/screen_space_aa=2
-anti_aliasing/quality/use_taa=true
 environment/screen_space_reflection/roughness_quality=2

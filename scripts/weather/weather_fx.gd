@@ -12,6 +12,7 @@ var _player: Node3D
 var _planet_center: Vector3
 var _effects: Dictionary = {}   # nombre -> WeatherParticles
 var _field: WeatherOcclusionField
+var _splash: WeatherSplashParticles   # salpicaduras de lluvia sobre el terreno
 
 
 func setup(player: Node3D, planet_center: Vector3) -> void:
@@ -23,6 +24,10 @@ func setup(player: Node3D, planet_center: Vector3) -> void:
 	_field.setup(player, planet_center)
 	register_effect("rain", WeatherParticlePreset.rain())
 	register_effect("snow", WeatherParticlePreset.snow())
+	_splash = WeatherSplashParticles.new()
+	_splash.name = "FX_rain_splash"
+	add_child(_splash)
+	_splash.setup(player, planet_center)
 
 
 ## Registra (o reemplaza) un efecto con su preset.
@@ -41,6 +46,8 @@ func set_intensity(effect_name: String, value: float) -> void:
 	var fx: WeatherParticles = _effects.get(effect_name)
 	if fx != null:
 		fx.set_intensity(value)
+	if effect_name == "rain" and _splash != null:
+		_splash.set_intensity(value)   # las salpicaduras siguen el ritmo de la lluvia
 
 
 func get_effect(effect_name: String) -> WeatherParticles:
@@ -50,6 +57,9 @@ func get_effect(effect_name: String) -> WeatherParticles:
 func _physics_process(delta: float) -> void:
 	if _field == null or not _has_active_effect():
 		return   # sin precipitación no reconstruimos la rejilla (ahorra raycasts)
+	# El rayo de suelo (canal G) solo se lanza si hay splashes activos (lluvia): evita duplicar
+	# raycasts cuando solo nieva. Se fija ANTES de update() porque update() reconstruye la rejilla.
+	_field.ground_enabled = _splash != null and _splash.emitting
 	# Reconstruir ANTES de empujar: centro/ejes/textura del mismo frame (si no, parpadea).
 	# Solo empujamos los uniforms el frame en que la rejilla cambió (centro/ejes/textura nuevos);
 	# entre reconstrucciones siguen vigentes los del último push.
@@ -64,6 +74,12 @@ func _physics_process(delta: float) -> void:
 			_field.center, _field.x_axis, _field.z_axis, _field.up,
 			_field.half_size(), _field.span(), _field.probe_below,
 			tex, occlusion_enabled)
+	if _splash != null and _splash.emitting:
+		# Las salpicaduras necesitan el campo SIEMPRE (canal G = suelo donde posarse), no solo en cuevas.
+		_splash.set_field(
+			_field.center, _field.x_axis, _field.z_axis, _field.up,
+			_field.half_size(), _field.span(), _field.probe_below,
+			tex, true)
 
 
 func _has_active_effect() -> bool:

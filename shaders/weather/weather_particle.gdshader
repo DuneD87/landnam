@@ -4,7 +4,12 @@ shader_type spatial;
 // no". El movimiento lo lleva el ParticleProcessMaterial; esto solo dibuja/oculta.
 render_mode blend_mix, cull_disabled, unshaded, depth_draw_never;
 
+uniform sampler2D DEPTH_TEXTURE : hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D albedo_tex : source_color, filter_linear;
+
+// Suavizado contra el terreno (soft particles): desvanece la gota al acercarse a una superficie
+// opaca leída del depth buffer, así no se "clava" en el suelo. 0 = desactivado.
+uniform float soft_fade_distance = 0.5;
 
 // Rejilla de oclusión radial (la empuja WeatherFX cada frame).
 uniform sampler2D occ_height_tex : filter_nearest;
@@ -59,5 +64,18 @@ void fragment() {
 		discard;
 	}
 	ALBEDO = COLOR.rgb;
-	ALPHA = texture(albedo_tex, UV).a * COLOR.a;
+	float a = texture(albedo_tex, UV).a * COLOR.a;
+	// Soft particles: distancia lineal (vista) entre la superficie opaca del depth buffer y la gota;
+	// si la gota queda detrás/dentro del terreno, a→0 y desaparece sin corte duro.
+	// Godot usa reverse-Z: el cielo (sin geometría) queda en depth=0 = lejano infinito; ahí la
+	// reconstrucción se degenera (w→0), así que NO aplicamos el fade y dejamos la gota intacta.
+	float scene_d = texture(DEPTH_TEXTURE, SCREEN_UV).x;
+	if (soft_fade_distance > 0.0 && scene_d > 0.0) {
+		// XY a NDC [-1,1]; Z se deja tal cual (la profundidad NDC de Godot/Vulkan ya es [0,1]).
+		vec4 view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, scene_d, 1.0);
+		float scene_lin = -(view.z / view.w);   // profundidad de la escena (m, siempre positiva)
+		float frag_lin = -VERTEX.z;              // profundidad de la gota
+		a *= clamp((scene_lin - frag_lin) / soft_fade_distance, 0.0, 1.0);
+	}
+	ALPHA = a;
 }

@@ -6,28 +6,39 @@ extends Node3D
 ## las gotas que quedan por debajo → no llueve dentro de cuevas, pero sí en el aire libre.
 ##
 ## Hacia ARRIBA a propósito: golpea el techo por su cara frontal a cualquier profundidad (hacia
-## abajo fallaba: cruzaba el techo por la cara trasera y captaba el suelo). El suelo no se busca,
-## el depth-test ya tapa la lluvia tras el terreno. Altura normalizada a [0,1] en la textura.
+## abajo fallaba: cruzaba el techo por la cara trasera y captaba el suelo). Altura normalizada a
+## [0,1] en la textura.
+##
+## La textura es RG: R = altura del TECHO (oclusión de lluvia), G = altura del SUELO (para posar los
+## splashes de la lluvia sobre el terreno). Ambas con la misma codificación (span/probe_below).
 
 @export var grid_resolution: int = 40
 @export var grid_size: float = 100.0
 ## Distancia (m) que se busca un techo hacia arriba.
 @export var probe_above: float = 800.0
-## Offset de codificación (m): "sin techo" decodifica a -este valor (nunca oculta).
+## Offset de codificación (m): "sin dato" decodifica a -este valor (nunca oculta / nunca posa).
 @export var probe_below: float = 60.0
+## Distancia (m) que se busca el suelo hacia abajo (para los splashes).
+@export var probe_ground: float = 80.0
 @export_flags_3d_physics var terrain_mask: int = 3
 @export var update_interval: float = 0.15
-## Depura los rayos (VERDE = techo, ROJO = cielo abierto, x-ray). Apágalo para jugar.
+## Depura los rayos (VERDE = techo, ROJO = cielo abierto, AZUL = suelo, x-ray). Apágalo para jugar.
 @export var debug_draw: bool = false
 
-# Offset (m) sobre el jugador donde arranca el rayo, para no chocar con el suelo de los pies.
+# Offset (m) sobre el jugador donde arranca el rayo de techo, para no chocar con el suelo de los pies.
 const CEILING_START := 1.0
+# Offset (m) sobre el jugador donde arranca el rayo de suelo (capta terreno algo por encima de los pies).
+const GROUND_START := 3.0
 
 # Colocación actual de la rejilla (la lee WeatherFX).
 var center: Vector3
 var x_axis: Vector3 = Vector3.RIGHT
 var z_axis: Vector3 = Vector3.BACK
 var up: Vector3 = Vector3.UP
+
+## Lo enciende WeatherFX solo cuando hay splashes (lluvia activa): añade el rayo de suelo (canal G).
+## Apagado (p. ej. solo nieve) NO se lanza ese rayo → no se duplica el coste de raycasts.
+var ground_enabled: bool = false
 
 var _player: Node3D
 var _planet_center: Vector3
@@ -42,8 +53,8 @@ func setup(player: Node3D, planet_center: Vector3) -> void:
 	_player = player
 	_planet_center = planet_center
 	var n := maxi(grid_resolution, 2)
-	_img = Image.create_empty(n, n, false, Image.FORMAT_RF)
-	_img.fill(Color(0, 0, 0, 0))   # 0 = sin techo (decodifica a -probe_below: nunca oculta)
+	_img = Image.create_empty(n, n, false, Image.FORMAT_RGF)
+	_img.fill(Color(0, 0, 0, 0))   # R=techo, G=suelo; 0 = sin dato (decodifica a -probe_below)
 	_tex = ImageTexture.create_from_image(_img)
 	_create_debug()
 
@@ -118,15 +129,17 @@ func _rebuild() -> void:
 		for i in n:
 			var fu := (float(i) / float(n - 1) - 0.5) * grid_size
 			var cell := pos + x_axis * fu + z_axis * fw
+
+			# Techo (hacia arriba) → canal R.
 			var from := cell + up * CEILING_START
 			var to := cell + up * probe_above
 			var query := PhysicsRayQueryParameters3D.create(from, to, terrain_mask)
 			query.exclude = exclude
 			var hit := space.intersect_ray(query)
-			var h_norm := 0.0
+			var ceil_norm := 0.0
 			if not hit.is_empty():
 				var hp: Vector3 = hit["position"]
-				h_norm = clampf(((hp - pos).dot(up) + probe_below) * inv_span, 0.0, 1.0)
+				ceil_norm = clampf(((hp - pos).dot(up) + probe_below) * inv_span, 0.0, 1.0)
 				if draw:
 					_debug_im.surface_set_color(Color.GREEN)
 					_debug_im.surface_add_vertex(from)
@@ -135,7 +148,25 @@ func _rebuild() -> void:
 				_debug_im.surface_set_color(Color.RED)
 				_debug_im.surface_add_vertex(from)
 				_debug_im.surface_add_vertex(to)
-			_img.set_pixel(i, j, Color(h_norm, 0.0, 0.0, 1.0))
+
+			# Suelo (hacia abajo) → canal G, para posar los splashes. Solo si hay lluvia (ground_enabled):
+			# sin splashes este rayo no aporta nada, así que evitamos duplicar el coste de raycasts.
+			var ground_norm := 0.0
+			if ground_enabled:
+				var gfrom := cell + up * GROUND_START
+				var gto := cell - up * probe_ground
+				var gquery := PhysicsRayQueryParameters3D.create(gfrom, gto, terrain_mask)
+				gquery.exclude = exclude
+				var ghit := space.intersect_ray(gquery)
+				if not ghit.is_empty():
+					var ghp: Vector3 = ghit["position"]
+					ground_norm = clampf(((ghp - pos).dot(up) + probe_below) * inv_span, 0.0, 1.0)
+					if draw:
+						_debug_im.surface_set_color(Color.BLUE)
+						_debug_im.surface_add_vertex(gfrom)
+						_debug_im.surface_add_vertex(ghp)
+
+			_img.set_pixel(i, j, Color(ceil_norm, ground_norm, 0.0, 1.0))
 
 	if draw:
 		_debug_im.surface_end()
