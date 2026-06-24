@@ -8,8 +8,14 @@ render_mode blend_mix, cull_disabled, unshaded, depth_draw_never;
 
 uniform sampler2D albedo_tex : source_color, filter_linear;
 
-// Campo radial compartido con la lluvia: R = altura del techo, G = altura del suelo (normalizadas).
-uniform sampler2D field_tex : filter_linear;
+// Luz solar (día/noche + tinte de atardecer) que multiplica el albedo. La empuja WeatherFX cada
+// frame, igual que en la lluvia, para que las salpicaduras se oscurezcan de noche. 1,1,1 = día.
+uniform vec3 sun_light = vec3(1.0);
+
+// Campo radial compartido con la lluvia: R = altura del techo, G = altura del suelo (normalizadas),
+// B,A = normal real del suelo (tangencial en los ejes del campo, [0,1]). repeat_disable: sin wrap
+// para no mezclar el borde opuesto de la rejilla al muestrear cerca del filo.
+uniform sampler2D field_tex : filter_linear, repeat_disable;
 uniform vec3 field_center;
 uniform vec3 field_x;
 uniform vec3 field_z;
@@ -24,6 +30,11 @@ uniform float occ_margin = 4.0;
 uniform float ground_offset = 0.05;
 // Cuánto se inclina el anillo hacia la normal del terreno: 0 = plano radial, 1 = pegado a la pendiente.
 uniform float normal_strength : hint_range(0.0, 1.0) = 1.0;
+// Pendiente máxima (grados) a la que el anillo aún se inclina con el terreno. Por encima, la
+// pendiente del campo no es fiable (pared, borde, o escalón de cuantización) y orientaría el
+// anillo casi vertical (90°); en ese caso lo dejamos PLANO (arriba radial). Bájalo si aún ves aros
+// inclinados raros; súbelo para que sigan mejor las laderas pronunciadas.
+uniform float max_slope_deg : hint_range(0.0, 89.0) = 45.0;
 
 varying float v_hidden;
 
@@ -47,20 +58,19 @@ void vertex() {
 			float ch = ceil_n * field_span - field_below;   // sin techo → -field_below (muy abajo)
 			bool under_roof = (ceil_n > 0.001) && (ch > gh + occ_margin);
 			if (!under_roof) {
-				// Normal del terreno = pendiente del campo de altura (canal G) por diferencias finitas.
-				vec2 texel = 1.0 / vec2(textureSize(field_tex, 0));
-				float gL = textureLod(field_tex, uv - vec2(texel.x, 0.0), 0.0).g;
-				float gR = textureLod(field_tex, uv + vec2(texel.x, 0.0), 0.0).g;
-				float gD = textureLod(field_tex, uv - vec2(0.0, texel.y), 0.0).g;
-				float gU = textureLod(field_tex, uv + vec2(0.0, texel.y), 0.0).g;
-				// Solo si los 4 vecinos tienen suelo (evita normales locas en bordes sin dato).
-				if (gL > 0.001 && gR > 0.001 && gD > 0.001 && gU > 0.001) {
-					float du = field_half_size * 2.0 * texel.x;   // metros por texel (eje x)
-					float dv = field_half_size * 2.0 * texel.y;   // metros por texel (eje z)
-					float dhu = (gR - gL) * field_span / (2.0 * du);   // ∂altura/∂u
-					float dhv = (gU - gD) * field_span / (2.0 * dv);   // ∂altura/∂w
-					normal = normalize(field_up - field_x * dhu - field_z * dhv);
-					normal = normalize(mix(field_up, normal, normal_strength));
+				// Normal REAL de la superficie (canales B,A): componentes tangenciales en los ejes
+				// del campo, codificadas a [0,1]; reconstruimos la vertical. Sustituye la antigua
+				// derivada por diferencias finitas del canal de altura, que en suelo plano daba
+				// pendientes falsas (cuantización/bordes/filo de la rejilla) → anillos torcidos o
+				// a 90°. Ahora la normal viene directa del raycast del suelo, sin esos artefactos.
+				vec2 nenc = textureLod(field_tex, uv, 0.0).ba;
+				vec3 surf_n = field_x * (nenc.x * 2.0 - 1.0) + field_z * (nenc.y * 2.0 - 1.0);
+				surf_n += field_up * sqrt(max(0.0, 1.0 - dot(surf_n, surf_n)));
+				surf_n = normalize(surf_n);
+				// Salvaguarda: si la superficie real se inclina más de max_slope_deg respecto al
+				// arriba radial (talud/pared pronunciada), el anillo cae PLANO en vez de casi vertical.
+				if (dot(surf_n, field_up) >= cos(radians(max_slope_deg))) {
+					normal = normalize(mix(field_up, surf_n, normal_strength));
 				}
 				ground_pos = field_center + field_x * fu + field_z * fw
 					+ field_up * gh + normal * ground_offset;
@@ -83,6 +93,6 @@ void fragment() {
 	if (v_hidden > 0.5) {
 		discard;
 	}
-	ALBEDO = COLOR.rgb;
+	ALBEDO = COLOR.rgb * sun_light;
 	ALPHA = texture(albedo_tex, UV).a * COLOR.a;
 }

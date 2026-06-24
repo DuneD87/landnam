@@ -4,7 +4,7 @@ class_name PlanetAtmosphere
 
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 19
+const PARAM_VEC4_COUNT := 24
 
 @export var shader_file_path: String = DEFAULT_SHADER_PATH
 
@@ -58,6 +58,15 @@ const PARAM_VEC4_COUNT := 19
 @export_range(0.2, 8.0, 0.1) var fog_noise_scale: float = 2.0
 ## Pasos de la marcha de la niebla. Más = transiciones más suaves en distancia, más coste.
 @export_range(1, 64, 1) var fog_steps: int = 12
+## Distancia de visibilidad de la niebla (m): se desvanece hacia este radio y no se dibuja más
+## allá. La niebla a ras de suelo no se ve lejos, así que acotarla la mantiene SIEMPRE dentro de
+## la rejilla de oclusión (≈50 m de radio) → las cuevas se vacían sin tocar la rejilla. Déjalo por
+## debajo del radio de la rejilla (grid_size/2). 0 = sin límite (la niebla llega hasta el infinito).
+@export_range(0.0, 400.0, 1.0) var fog_view_distance: float = 25.0
+## Suavizado (m) del borde de oclusión en cuevas: difumina la transición niebla↔sin-niebla en la
+## boca de la cueva (horizontal y vertical) con un promedio 3x3. Más = borde más difuso; muy alto
+## puede "comerse" cuevas pequeñas. ~6 m suele ser un buen punto de partida.
+@export_range(0.5, 30.0, 0.5) var fog_occlusion_softness: float = 15.0
 
 @export_group("Cloud Quality")
 ## Pasos de la marcha de vista: más = menos banding y detalle más fino, más coste.
@@ -74,6 +83,20 @@ var depth_sampler: RID
 var params_buffers: Array[RID] = []
 
 var _params_mutex := Mutex.new()
+
+# --- Oclusión de niebla en cuevas (rejilla del WeatherOcclusionField, vía WeatherController) ---
+# Cuando está activa, la niebla no se rellena bajo un techo de roca. El transform va en el params
+# buffer (P19-23) y la textura de alturas se bindea como sampler (binding 3).
+var _occ_enabled: bool = false
+var _occ_center: Vector3 = Vector3.ZERO
+var _occ_x: Vector3 = Vector3.RIGHT
+var _occ_z: Vector3 = Vector3.BACK
+var _occ_up: Vector3 = Vector3.UP
+var _occ_half_size: float = 50.0
+var _occ_span: float = 140.0
+var _occ_below: float = 60.0
+var _occ_margin: float = 4.0
+var _occ_texture: Texture2D = null
 
 
 func _init() -> void:
@@ -108,7 +131,31 @@ func set_planet_data(
 		sun_direction = p_sun_direction.normalized()
 
 	_params_mutex.unlock()
-	
+
+
+## La empuja el WeatherController cada frame con el estado actual del WeatherOcclusionField. Con
+## enabled=false la niebla se rellena en todas partes (comportamiento previo). El transform y la
+## textura se leen en el hilo de render bajo el mismo mutex.
+func set_fog_occlusion(
+	enabled: bool,
+	center: Vector3, x_axis: Vector3, z_axis: Vector3, up: Vector3,
+	half_size: float, span: float, below: float,
+	height_tex: Texture2D, margin: float = 4.0
+) -> void:
+	_params_mutex.lock()
+	_occ_enabled = enabled and height_tex != null
+	_occ_center = center
+	_occ_x = x_axis
+	_occ_z = z_axis
+	_occ_up = up
+	_occ_half_size = max(half_size, 0.001)
+	_occ_span = max(span, 0.001)
+	_occ_below = below
+	_occ_margin = margin
+	_occ_texture = height_tex
+	_params_mutex.unlock()
+
+
 func _load_compute_spirv() -> RDShaderSPIRV:
 	print("PlanetAtmosphere: loading shader from: ", shader_file_path)
 
@@ -285,10 +332,28 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		params_uniform.binding = 2
 		params_uniform.add_id(params_buffers[view])
 
+		# Oclusión de niebla (binding 3): textura de alturas del campo, o el depth como relleno
+		# cuando está apagada (el shader no la muestrea, pero el uniform set la exige bindeada).
+		_params_mutex.lock()
+		var occ_on := _occ_enabled
+		var occ_tex_ref := _occ_texture
+		_params_mutex.unlock()
+		var occ_rd_tex: RID = depth_image
+		if occ_on and occ_tex_ref != null:
+			var rid := RenderingServer.texture_get_rd_texture(occ_tex_ref.get_rid())
+			if rid.is_valid():
+				occ_rd_tex = rid
+
+		var occ_uniform := RDUniform.new()
+		occ_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+		occ_uniform.binding = 3
+		occ_uniform.add_id(depth_sampler)
+		occ_uniform.add_id(occ_rd_tex)
+
 		var uniform_set := UniformSetCacheRD.get_cache(
 			shader,
 			0,
-			[color_uniform, depth_uniform, params_uniform]
+			[color_uniform, depth_uniform, params_uniform, occ_uniform]
 		)
 
 		var compute_list := rd.compute_list_begin()
@@ -358,6 +423,17 @@ func _build_params_bytes(
 	var local_fog_wind_speed  := fog_wind_speed
 	var local_fog_nscale      := fog_noise_scale
 	var local_fog_steps       := fog_steps
+	var local_fog_view_dist   := fog_view_distance
+	var local_occ_soft        := fog_occlusion_softness
+	var local_occ_enabled     := _occ_enabled
+	var local_occ_center      := _occ_center
+	var local_occ_x           := _occ_x
+	var local_occ_z           := _occ_z
+	var local_occ_up          := _occ_up
+	var local_occ_half        := _occ_half_size
+	var local_occ_span        := _occ_span
+	var local_occ_below       := _occ_below
+	var local_occ_margin      := _occ_margin
 	_params_mutex.unlock()
 
 	var floats := PackedFloat32Array()
@@ -430,10 +506,23 @@ func _build_params_bytes(
 		1.0 if local_fog_enabled else 0.0
 	))
 
-	# 18: niebla — escala de ruido (x), offset de viento acumulado (y), pasos de marcha (z).
-	# Reutiliza la dirección de viento de las nubes P(14).xyz para que el banco viaje con él.
+	# 18: niebla — escala de ruido (x), offset de viento acumulado (y), pasos de marcha (z),
+	# distancia de visibilidad (w; 0 = sin límite). Reutiliza la dirección de viento de las nubes
+	# P(14).xyz para que el banco viaje con él.
 	var fog_wind_offset := (Time.get_ticks_msec() / 1000.0) * local_fog_wind_speed
-	_append_vec4(floats, Vector4(local_fog_nscale, fog_wind_offset, local_fog_steps, 0.0))
+	_append_vec4(floats, Vector4(local_fog_nscale, fog_wind_offset, local_fog_steps, local_fog_view_dist))
+
+	# 19-23: oclusión de niebla en cuevas (rejilla del WeatherOcclusionField). El centro va
+	# relativo a la cámara (como el del planeta); los ejes son direcciones (sin trasladar).
+	var occ_rel_center := local_occ_center - cam_origin
+	_append_vec4(floats, Vector4(
+		occ_rel_center.x, occ_rel_center.y, occ_rel_center.z,
+		1.0 if local_occ_enabled else 0.0
+	))
+	_append_vec4(floats, Vector4(local_occ_x.x, local_occ_x.y, local_occ_x.z, local_occ_half))
+	_append_vec4(floats, Vector4(local_occ_z.x, local_occ_z.y, local_occ_z.z, local_occ_span))
+	_append_vec4(floats, Vector4(local_occ_up.x, local_occ_up.y, local_occ_up.z, local_occ_below))
+	_append_vec4(floats, Vector4(local_occ_margin, local_occ_soft, 0.0, 0.0))
 
 	return floats.to_byte_array()
 

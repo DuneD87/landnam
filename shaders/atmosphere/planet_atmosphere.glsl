@@ -10,6 +10,11 @@ layout(set = 0, binding = 2, std430) readonly restrict buffer ParamsBuffer {
 	vec4 data[];
 } params_buffer;
 
+// Rejilla de oclusión radial del WeatherOcclusionField (R = altura del techo de cueva). La niebla
+// la usa para no rellenar el aire bajo techo. Si la oclusión está apagada (P(19).w < 0.5) NO se
+// muestrea; se bindea aquí una textura cualquiera solo para satisfacer el uniform set.
+layout(set = 0, binding = 3) uniform sampler2D occ_height_tex;
+
 #define P(i) params_buffer.data[i]
 
 const float EPSILON   = 0.000001;
@@ -387,6 +392,45 @@ float sample_fog_density(
 		return 0.0;
 	}
 
+	// Oclusión de cueva: si el punto cae dentro de la rejilla del WeatherOcclusionField y queda
+	// por debajo del techo (roca) detectado sobre el jugador, aquí no hay niebla (estás en cueva).
+	// PCF 3x3: promediamos el aporte de oclusión de 9 muestras separadas occ_soft metros, así el
+	// borde (boca de cueva) se difumina en HORIZONTAL y VERTICAL en vez de salir en columnas.
+	float occ_mult = 1.0;   // 1 = niebla normal; 0 = bajo techo (cueva)
+	if (P(19).w > 0.5) {
+		vec3 occ_center = P(19).xyz;
+		vec3 occ_x = P(20).xyz; float occ_half = P(20).w;
+		vec3 occ_z = P(21).xyz; float occ_span = P(21).w;
+		vec3 occ_up = P(22).xyz; float occ_below = P(22).w;
+		float occ_margin = P(23).x;
+		float occ_soft = max(P(23).y, 0.5);   // metros de difuminado del borde (horizontal + vertical)
+		vec3 orel = p - occ_center;
+		float ou = dot(orel, occ_x) / occ_half;
+		float ow = dot(orel, occ_z) / occ_half;
+		if (abs(ou) <= 1.0 && abs(ow) <= 1.0) {   // fuera de la rejilla = sin dato = niebla normal
+			vec2 ouv = vec2(ou, ow) * 0.5 + 0.5;
+			float point_h = dot(orel, occ_up);
+			vec2 res = vec2(textureSize(occ_height_tex, 0));
+			// Separación de las 9 muestras: occ_soft metros, con un téxel como mínimo. La rejilla
+			// va de -1..1 en u → uv = u*0.5+0.5, así que 1 uv equivale a 2*occ_half metros.
+			float step_uv = max(occ_soft / (2.0 * occ_half), 1.0 / max(res.x, res.y));
+			float occ_accum = 0.0;
+			for (int oy = -1; oy <= 1; oy++) {
+				for (int ox = -1; ox <= 1; ox++) {
+					vec2 suv = ouv + vec2(float(ox), float(oy)) * step_uv;
+					float ceil_h = texture(occ_height_tex, suv).r * occ_span - occ_below;
+					// Aporte [0,1]: 1 bien bajo su techo (dentro), 0 al ras o por encima (fuera). Las
+					// celdas "sin techo" decodifican muy abajo → su aporte es 0 (no ocluyen).
+					occ_accum += clamp(((ceil_h + occ_margin) - point_h) / occ_soft, 0.0, 1.0);
+				}
+			}
+			occ_mult = 1.0 - occ_accum / 9.0;   // promedio 3x3 → borde difuso en todas direcciones
+			if (occ_mult <= 0.001) {
+				return 0.0;   // totalmente bajo techo: nos saltamos AMBOS FBM
+			}
+		}
+	}
+
 	float thickness = max(fog_max_r - fog_min_r, 0.001);
 	float h = clamp((dist - fog_min_r) / thickness, 0.0, 1.0);
 
@@ -414,7 +458,7 @@ float sample_fog_density(
 	float detail = _fbm(noise_pos * 4.3 + wind_dir * (wind_offset * 1.6), 1);
 	mass *= mix(0.55, 1.0, detail);
 
-	return height_grad * mass;
+	return height_grad * mass * occ_mult;
 }
 
 void march_fog(
@@ -423,7 +467,7 @@ void march_fog(
 	float density, float coverage, float noise_scale,
 	vec3 wind_dir, float wind_offset,
 	vec3 sun_dir, float sun_intensity, vec3 fog_color,
-	int steps, float jitter,
+	int steps, float jitter, float view_distance,
 	out vec3 out_color, out float out_trans
 ) {
 	out_color = vec3(0.0);
@@ -448,6 +492,10 @@ void march_fog(
 
 	t0 = max(t0, 0.0);
 	t1 = min(t1, max_dist);
+	// Distancia de visibilidad de la niebla: no marchamos más allá. Acota la niebla a un manto
+	// local (la niebla a ras de suelo no se ve lejos), de modo que SIEMPRE cabe dentro de la
+	// rejilla de oclusión → las cuevas se vacían sin tocar la resolución/tamaño de la rejilla.
+	if (view_distance > 0.0) t1 = min(t1, view_distance);
 	if (t1 <= t0 + 0.001) return;
 
 	int fog_steps = clamp(steps, 1, 64);
@@ -458,15 +506,29 @@ void march_fog(
 		vec3 p = ro + rd * t;
 		float d = sample_fog_density(p, planet_center, fog_min_r, fog_max_r,
 		                             coverage, noise_scale, wind_dir, wind_offset);
+		// Desvanecido suave hacia la distancia de visibilidad para que no haya un corte duro al
+		// llegar a view_distance (el banco se difumina en vez de terminar en una pared).
+		if (view_distance > 0.0) {
+			d *= 1.0 - smoothstep(view_distance * 0.6, view_distance, t);
+		}
 		if (d > 0.0001) {
 			// Iluminación simple: ambiente + ganancia diurna + tinte cálido en el terminador.
 			vec3 to_p = normalize(p - planet_center);
 			float sun_dot = dot(to_p, sun_dir);
-			float day = smoothstep(-0.2, 0.2, sun_dot);
+			// `day`: 0 en el lado nocturno, 1 en el diurno. Antes el suelo de ambiente (0.05)
+			// NO estaba multiplicado por `day`, asi que con sun_intensity alto (20 por defecto)
+			// la niebla quedaba igual de clara de noche -> no parecia afectada por el sol. Las
+			// nubes en cambio multiplican TODO su lit por este factor. Lo replicamos aqui.
+			float day = smoothstep(-0.15, 0.15, sun_dot);
 			float sunset_f = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot));
 			vec3 sunset_tint = mix(vec3(1.0), vec3(1.7, 0.75, 0.45), sunset_f);
 
-			vec3 lit = fog_color * sun_intensity * (0.05 + 0.10 * day) * sunset_tint;
+			// El brillo se desvanece a 0 de noche, IGUAL que las nubes (que multiplican todo
+			// su lit por day_night, sin suelo). Antes habia un suelo (0.02) que, x sun_intensity
+			// (20), daba ~0.34 de base SIEMPRE; con ACES + bloom se veia como niebla BLANCA en
+			// plena oscuridad. Sin suelo, la niebla nocturna se apaga como las nubes.
+			float lit_amount = 0.16 * day;
+			vec3 lit = fog_color * sun_intensity * lit_amount * sunset_tint;
 
 			float s_trans = exp(-d * step_size * density * 0.02);
 			out_color += out_trans * (1.0 - s_trans) * lit;
@@ -733,7 +795,7 @@ void main() {
 			P(16).z, P(16).w, P(18).x,
 			P(14).xyz, P(18).y,
 			sun_direction, sun_intensity, P(17).rgb,
-			int(P(18).z), fog_jitter,
+			int(P(18).z), fog_jitter, P(18).w,
 			fog_col, fog_trans
 		);
 

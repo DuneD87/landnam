@@ -19,7 +19,7 @@
 	  "sun_energy": 0.3, "ambient_energy": 0.5, "wind_multiplier": 2.4,
 	  "water_wave_multiplier": 2.0, "water_speed_multiplier": 1.6, "water_foam_multiplier": 2.5,
 	  "snow_coverage": 0.0,
-	  "fog_density": 0.5, "fog_coverage": 0.65, "fog_wind_speed": 0.05,
+	  "fog_density": 0.2, "fog_coverage": 0.9, "fog_wind_speed": 0.05,
 	  "fog_floor_height": -40.0, "fog_top_height": 390.0,
 	  "rain_rate": 1.0, "snow_rate": 0.0, "lightning_frequency": 0.15
 	},

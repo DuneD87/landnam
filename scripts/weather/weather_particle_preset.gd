@@ -46,7 +46,7 @@ static func rain() -> WeatherParticlePreset:
 	p.initial_velocity_min = 13.0
 	p.initial_velocity_max = 17.0
 	p.spread = 4.0
-	p.mesh_size = Vector2(0.06, 0.45)
+	p.mesh_size = Vector2(0.03, 0.45)
 	p.color = Color(0.78, 0.85, 1.0, 0.7)
 	return p
 

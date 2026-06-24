@@ -57,6 +57,14 @@ func _process(_delta: float) -> void:
 		_follow_player()
 
 
+## WeatherFX empuja aquí la luz solar (color día/noche + atardecer); el shader la multiplica por
+## el albedo del anillo, así las salpicaduras se oscurecen de noche igual que la lluvia.
+func set_sun_light(c: Color) -> void:
+	if _draw_mat == null:
+		return
+	_draw_mat.set_shader_parameter("sun_light", Vector3(c.r, c.g, c.b))
+
+
 ## WeatherFX empuja aquí el campo radial (mismo que la lluvia). Con enabled=false el shader oculta
 ## todo (sin dato de suelo no sabe dónde posar el anillo).
 func set_field(field_center: Vector3, field_x: Vector3, field_z: Vector3, field_up: Vector3,

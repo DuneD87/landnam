@@ -100,6 +100,14 @@ func _build_draw_material(preset: WeatherParticlePreset) -> ShaderMaterial:
 	return mat
 
 
+## WeatherFX empuja aquí la luz solar (color día/noche + atardecer); el shader la multiplica por
+## el albedo de cada gota, así la precipitación se oscurece de noche en vez de ir a brillo pleno.
+func set_sun_light(c: Color) -> void:
+	if _draw_mat == null:
+		return
+	_draw_mat.set_shader_parameter("sun_light", Vector3(c.r, c.g, c.b))
+
+
 ## WeatherFX empuja aquí la rejilla de oclusión. Con enabled=false el shader solo billboardea.
 func set_occlusion(field_center: Vector3, field_x: Vector3, field_z: Vector3, field_up: Vector3,
 		field_half_size: float, field_span: float, field_below: float,

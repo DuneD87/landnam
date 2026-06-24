@@ -56,6 +56,13 @@ const DEFAULT_COLD_BOOST := {"snow": 2.0, "fog": 1.0}
 @export var cold_altitude: float = 1500.0
 @export var snow_altitude: float = 3500.0
 
+## --- Oclusión de niebla en cuevas ---
+## La niebla no se rellena dentro de las cuevas: el shader de atmósfera muestrea la rejilla de
+## oclusión del WeatherFX (R = altura del techo) por punto de marcha y descarta la niebla bajo
+## techo. Es espacialmente exacto (a diferencia de un fundido global), así que las bocas de cueva
+## quedan limpias. El coste es mantener la rejilla viva durante la niebla (raycasts del WeatherFX).
+@export var fog_cave_occlusion_enabled: bool = true
+
 # --- Refs a subsistemas (inyectadas por setup) ---
 var _planet: Planet
 var _ocean: OceanSystem
@@ -96,6 +103,9 @@ var _current: String = "clear"
 var _current_biome: int = 0
 var _ready_to_run: bool = false
 var _forced: bool = false   # override de depuración: clima fijo, sin auto-transiciones
+
+# --- Oclusión de niebla en cuevas ---
+var _active_fog_density: float = 0.0 # densidad de niebla del estado actual (para saber si hay niebla)
 
 
 ## Inyecta dependencias y arranca. Llamado por planet_loader tras cargar el planeta.
@@ -193,7 +203,7 @@ func _setup_fx() -> void:
 	_fx = WeatherFX.new()
 	_fx.name = "WeatherFX"
 	add_child(_fx)
-	_fx.setup(_player, _planet_center)
+	_fx.setup(_player, _planet_center, _sun)
 
 
 func _process(delta: float) -> void:
@@ -212,6 +222,10 @@ func _process(delta: float) -> void:
 		# último frame de la transición y no cambian. Solo la precipitación varía (depende de la
 		# altitud del jugador), así que evitamos re-empujar ~25 uniforms y asignar un WeatherState.
 		_apply_precipitation(_to)
+
+	# La rejilla de oclusión sigue al jugador, así que su transform se empuja a la atmósfera cada
+	# frame mientras haya niebla (independiente del estado de transición).
+	_update_fog_occlusion()
 
 	# Con un clima forzado (override de editor/depuración) no auto-transicionamos: el blend
 	# hacia el evento forzado sigue corriendo, pero no se elige uno nuevo hasta soltarlo.
@@ -422,7 +436,10 @@ func _apply_state(st: WeatherState) -> void:
 		_atmosphere.cloud_max_height = maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
 		_atmosphere.cloud_wind_speed = st.cloud_wind_speed
 		# Niebla a ras de suelo: capa baja dedicada. Solo modulamos densidad/cobertura;
-		# la altura es fija en el atmósfera, así la niebla nunca "baja del cielo".
+		# la altura es fija en el atmósfera, así la niebla nunca "baja del cielo". La oclusión en
+		# cuevas la hace el shader por punto (no atenuamos aquí); guardamos la densidad para saber
+		# si hay niebla activa y mantener viva la rejilla de oclusión.
+		_active_fog_density = st.fog_density
 		_atmosphere.fog_density = st.fog_density
 		_atmosphere.fog_coverage = st.fog_coverage
 		_atmosphere.fog_wind_speed = st.fog_wind_speed
@@ -460,6 +477,26 @@ func _apply_precipitation(st: WeatherState) -> void:
 	var below := _below_clouds_factor(st)
 	_fx.set_intensity("rain", st.rain_rate * below)
 	_fx.set_intensity("snow", st.snow_rate * below)
+
+
+## Empuja al shader de atmósfera la rejilla de oclusión (transform + textura) para que la niebla no
+## se rellene dentro de las cuevas. Solo se activa cuando hay niebla; entonces además fuerza al
+## WeatherFX a mantener la rejilla reconstruyéndose (la rejilla normalmente solo vive con lluvia/nieve).
+func _update_fog_occlusion() -> void:
+	if _fx == null:
+		return
+	var fog_on := fog_cave_occlusion_enabled and _active_fog_density > 0.001
+	_fx.field_force_active = fog_on
+	if _atmosphere == null:
+		return
+	var field := _fx.get_occlusion_field()
+	if field == null:
+		return
+	_atmosphere.set_fog_occlusion(
+		fog_on,
+		field.center, field.x_axis, field.z_axis, field.up,
+		field.half_size(), field.span(), field.probe_below,
+		field.get_height_texture())
 
 
 # ── Catálogo de eventos ──────────────────────────────────────────────────────────

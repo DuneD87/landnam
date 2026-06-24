@@ -7,6 +7,11 @@ render_mode blend_mix, cull_disabled, unshaded, depth_draw_never;
 uniform sampler2D DEPTH_TEXTURE : hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D albedo_tex : source_color, filter_linear;
 
+// Luz solar (día/noche + tinte de atardecer) que multiplica el albedo. La empuja WeatherFX cada
+// frame con el mismo criterio día/noche que la niebla/nubes, para que la gota se oscurezca de
+// noche en vez de pintarse a brillo pleno (el shader es unshaded). 1,1,1 = sin modular (día).
+uniform vec3 sun_light = vec3(1.0);
+
 // Suavizado contra el terreno (soft particles): desvanece la gota al acercarse a una superficie
 // opaca leída del depth buffer, así no se "clava" en el suelo. 0 = desactivado.
 uniform float soft_fade_distance = 0.5;
@@ -63,7 +68,7 @@ void fragment() {
 	if (v_hidden > 0.5) {
 		discard;
 	}
-	ALBEDO = COLOR.rgb;
+	ALBEDO = COLOR.rgb * sun_light;
 	float a = texture(albedo_tex, UV).a * COLOR.a;
 	// Soft particles: distancia lineal (vista) entre la superficie opaca del depth buffer y la gota;
 	// si la gota queda detrás/dentro del terreno, a→0 y desaparece sin corte duro.
