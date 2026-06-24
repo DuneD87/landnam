@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://bgdt2bnegikp0"]
+
+[ext_resource type="PackedScene" uid="uid://rte38a7bgx1c" path="res://models/planet/vegetation/grass/grass_low_poly_01.glb" id="1_sfybc"]
+
+[node name="grass_low_poly_01" unique_id=684894606 instance=ExtResource("1_sfybc")]

@@ -67,14 +67,27 @@ var _next_library_id: int = 0
 ## 1.0 = viento base del planeta; >1 en tormenta/viento fuerte, <1 en calma/niebla.
 var weather_wind_multiplier: float = 1.0
 
-func _build_generator(generator_config: Dictionary, graph_functions: Array) -> VoxelInstanceGenerator:
+func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_index: int = 0) -> VoxelInstanceGenerator:
 	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 
 	if generator_config.emit_mode == "EMIT_FROM_VERTICES":
 		generator.emit_mode = VoxelInstanceGenerator.EMIT_FROM_VERTICES
-		generator.density = generator_config.density
 	elif generator_config.emit_mode == "EMIT_ONE_PER_TRIANGLE":
 		generator.emit_mode = VoxelInstanceGenerator.EMIT_ONE_PER_TRIANGLE
+	# La densidad aplica a AMBOS modos. Antes solo se asignaba en EMIT_FROM_VERTICES,
+	# así que la hierba (EMIT_ONE_PER_TRIANGLE) ignoraba su "density" y corría al
+	# valor por defecto del generador (densidad máxima) -> muchísimas instancias.
+	if generator_config.has("density"):
+		# LOD de densidad automático: un mismo generador sirve para todos los LODs.
+		# Cada nivel divide la densidad respecto al anterior (por defecto a la mitad),
+		# así que definir un item con lod_index N da densidad = base * falloff^N
+		# (lod 0 = base, lod 1 = base/2, lod 2 = base/4, ...). Se puede afinar el
+		# factor por generador con "lod_density_falloff" (0.5 = mitad por nivel).
+		var density: float = generator_config.density
+		if lod_index > 0:
+			var falloff: float = generator_config.get("lod_density_falloff", 0.5)
+			density *= pow(falloff, lod_index)
+		generator.density = density
 
 	if generator_config.has("offset_along_normal"):
 		generator.offset_along_normal = generator_config.offset_along_normal
@@ -189,11 +202,18 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 	return result
 
 
-func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator: VoxelInstanceGenerator) -> void:
+func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator: VoxelInstanceGenerator, lod_index: int) -> void:
 	var multi_mesh_item := VoxelInstanceLibraryMultiMeshItem.new()
 	multi_mesh_item.generator = generator
-	multi_mesh_item.lod_index = item.lod_index
+	multi_mesh_item.lod_index = lod_index
 	multi_mesh_item.scene = shared_data.packed_scene
+
+	# Sombras por item (la hierba no debería proyectar sombras: es el mayor coste).
+	if not item.get("cast_shadow", true):
+		if "cast_shadow" in multi_mesh_item:
+			multi_mesh_item.cast_shadow = RenderingServer.SHADOW_CASTING_SETTING_OFF
+		else:
+			push_warning("VoxelInstanceLibraryMultiMeshItem sin propiedad 'cast_shadow' en esta versión del módulo")
 
 	var library_id = _next_library_id
 	_next_library_id += 1
@@ -218,10 +238,10 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 					"wind_speed": wind_speed,
 				})
 
-func _register_scene_item(item, shared_data: Dictionary, generator: VoxelInstanceGenerator) -> void:
+func _register_scene_item(item, shared_data: Dictionary, generator: VoxelInstanceGenerator, lod_index: int) -> void:
 	var scene_item := VoxelInstanceLibrarySceneItem.new()
 	scene_item.generator = generator
-	scene_item.lod_index = item.lod_index
+	scene_item.lod_index = lod_index
 	scene_item.scene = shared_data.packed_scene
 
 	var library_id = _next_library_id
@@ -249,29 +269,51 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 	else:
 		generator_names = [item.generator]
 
+	# Normalitza lod_index a array: pots posar un sol enter (lod_index: 1) o una llista
+	# (lod_index: [0, 1, 2]). Per cada nivell es crea una entrada pròpia a la library, amb
+	# la densitat dividida segons el LOD (veure _build_generator).
+	var lod_indices: Array = _normalize_lod_indices(item.get("lod_index", 0))
+
 	# Construeix el PackedScene i el mesh una sola vegada (és compartit)
 	var shared_data = _build_item_shared_data(i, item)
 	if shared_data.is_empty():
 		return
 
-	# Crea una entrada a la library per cada generator
+	var emit_as_scene: bool = item.get("instance_as_scene", false)
+
+	# Crea una entrada a la library per cada generator i nivell de LOD
 	for generator_name in generator_names:
-		var generator: VoxelInstanceGenerator = null
-		for generator_config in generators:
-			if generator_config.name == generator_name:
-				generator = _build_generator(generator_config, graph_functions)
+		var generator_config = null
+		for gc in generators:
+			if gc.name == generator_name:
+				generator_config = gc
 				break
-		if generator == null:
+		if generator_config == null:
 			push_error("Error parsing vegetation, generator with name %s not found." % generator_name)
 			continue
 
-		# Items emisivos (p.ej. hongos de cueva) se instancian como escena completa para
-		# que el VoxelInstancer materialice también sus nodos (OmniLight3D). El MultiMesh
-		# solo dibuja el mesh, así que ahí una luz embebida nunca se replicaría.
-		if item.get("instance_as_scene", false):
-			_register_scene_item(item, shared_data, generator)
-		else:
-			_register_multi_mesh_item(i, item, shared_data, generator)
+		for lod_index in lod_indices:
+			var generator: VoxelInstanceGenerator = _build_generator(generator_config, graph_functions, lod_index)
+			# Items emisivos (p.ej. hongos de cueva) se instancian como escena completa para
+			# que el VoxelInstancer materialice también sus nodos (OmniLight3D). El MultiMesh
+			# solo dibuja el mesh, así que ahí una luz embebida nunca se replicaría.
+			if emit_as_scene:
+				_register_scene_item(item, shared_data, generator, lod_index)
+			else:
+				_register_multi_mesh_item(i, item, shared_data, generator, lod_index)
+
+
+# Accepta un sol enter o una llista d'enters i sempre torna una llista d'enters no buida.
+func _normalize_lod_indices(raw) -> Array:
+	var result: Array = []
+	if raw is Array:
+		for v in raw:
+			result.append(int(v))
+	else:
+		result.append(int(raw))
+	if result.is_empty():
+		result.append(0)
+	return result
 
 func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 	var trunk: MeshInstance3D = tree3d.get_trunk_instance()
