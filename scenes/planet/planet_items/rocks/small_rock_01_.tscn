@@ -1,0 +1,54 @@
+[gd_scene format=3 uid="uid://dp8wq74wddd8l"]
+
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_f8wsk"]
+[ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_8txvh"]
+[ext_resource type="Texture2D" uid="uid://44wvh6od3ykm" path="res://textures/planet/rocks/rock_green_02/rock_green_02_albedo.png" id="3_8sv1y"]
+[ext_resource type="Texture2D" uid="uid://cb2ta3hhln3jk" path="res://textures/planet/rocks/rock_green_02/rock_green_02_ao.png" id="4_2532t"]
+[ext_resource type="Texture2D" uid="uid://bbgtl64p1t6fy" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Height.png" id="5_rnddf"]
+[ext_resource type="Texture2D" uid="uid://h57k2ari4nwh" path="res://textures/planet/rocks/rock_green_02/rock_green_02_metal.png" id="6_m8tyj"]
+[ext_resource type="Texture2D" uid="uid://1fmu1xyutgt7" path="res://textures/planet/rocks/rock_green_02/rock_green_02_normal-ogl.png" id="7_k0ghy"]
+[ext_resource type="Texture2D" uid="uid://b2dqk1astl6cq" path="res://textures/planet/rocks/rock_green_02/rock_green_02_roughness.png" id="8_qm3v6"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_nc2cu"]
+noise_type = 0
+seed = 1
+frequency = 0.0007
+fractal_octaves = 4
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rawha"]
+albedo_texture = ExtResource("3_8sv1y")
+metallic_specular = 0.32
+metallic_texture = ExtResource("6_m8tyj")
+roughness = 0.59
+roughness_texture = ExtResource("8_qm3v6")
+normal_enabled = true
+normal_scale = 1.56
+normal_texture = ExtResource("7_k0ghy")
+ao_enabled = true
+ao_light_affect = 1.0
+ao_texture = ExtResource("4_2532t")
+heightmap_scale = 4.0
+heightmap_deep_parallax = true
+heightmap_min_layers = 8
+heightmap_max_layers = 32
+heightmap_flip_tangent = true
+heightmap_flip_binormal = true
+heightmap_texture = ExtResource("5_rnddf")
+
+[node name="Node3D" type="StaticBody3D" unique_id=1075421542]
+script = ExtResource("1_f8wsk")
+health = 100
+drop_amount_min = 4
+drop_amount_max = 6
+item_data = ExtResource("2_8txvh")
+
+[node name="Rock3D" type="Rock3D" parent="." unique_id=1242649024]
+subdivisions = 1
+radius = 0.05
+shape_scale_x = 0.68
+shape_scale_y = 0.23
+shape_scale_z = 0.33
+shape_scale_variance = 0.47
+noise = SubResource("FastNoiseLite_nc2cu")
+noise_amplitude = 0.131
+material_rock = SubResource("StandardMaterial3D_rawha")

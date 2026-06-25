@@ -12,6 +12,8 @@ shader_type spatial;
 
 render_mode cull_disabled, depth_draw_opaque, diffuse_burley, specular_schlick_ggx;
 
+#include "res://shaders/lib/planet_lighting.gdshaderinc"
+
 // --- Color (el modelo no tiene textura: gradiente base->punta) ---
 uniform vec4 base_color : source_color = vec4(0.06, 0.30, 0.04, 1.0); // raíz, más oscuro
 uniform vec4 tip_color  : source_color = vec4(0.20, 0.65, 0.10, 1.0); // punta, más claro
@@ -33,25 +35,12 @@ uniform float gust_speed : hint_range(0.0, 5.0, 0.01)  = 1.0;  // velocidad de a
 uniform float flutter_speed  : hint_range(0.0, 20.0, 0.01) = 6.0;
 uniform float flutter_amount : hint_range(0.0, 1.0, 0.01)  = 0.25;
 
-// --- Iluminación planetaria (reusada del shader de vegetación, opción A) ---
-uniform vec3  light_direction = vec3(1.0, 0.0, 0.0);
-uniform vec3  planet_position;
-uniform float transition_width : hint_range(0.0, 1.0, 0.01) = 0.2;
-
-uniform float ambient_intensity : hint_range(0.0, 1.0, 0.01) = 0.15;
-uniform vec4  ambient_color_top : source_color = vec4(0.6, 0.7, 1.0, 1.0);
-uniform vec4  ambient_color_bottom : source_color = vec4(0.2, 0.15, 0.1, 1.0);
-
-uniform float translucency_strength : hint_range(0.0, 1.0, 0.01) = 0.45;
-uniform vec4  translucency_color : source_color = vec4(0.8, 1.0, 0.4, 1.0);
-uniform float translucency_power : hint_range(1.0, 8.0, 0.1) = 4.0;
-
-uniform float rim_strength : hint_range(0.0, 1.0, 0.01) = 0.3;
+// --- Iluminación planetaria: los uniforms compartidos viven en planet_lighting.gdshaderinc.
+//     Aquí solo el control de especular propio del shader.
 uniform float specular_strength : hint_range(0.0, 1.0, 0.01) = 0.15;
 uniform float specular_roughness : hint_range(0.0, 1.0, 0.01) = 0.7;
 
-varying vec3 vertex_position_global; // posición mundo tras el viento
-varying vec3 planet_normal;          // dirección radial (centro del planeta -> vértice)
+// vertex_position_global y planet_normal se declaran en el include.
 varying float height_factor;         // 0 en la base, 1 en la punta
 
 void vertex() {
@@ -102,36 +91,13 @@ void fragment() {
         NORMAL = -NORMAL; // malla de doble cara
     }
 }
-
 void light() {
-    // 1. Difuso Lambert
-    float NdotL = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
-    vec3 diffuse = NdotL * ATTENUATION * LIGHT_COLOR / PI;
-
-    // 2. Translucencia / SSS (luz que atraviesa la hoja a contraluz)
-    vec3 back_light = normalize(-LIGHT + NORMAL * 0.3);
-    float VdotBL = clamp(dot(VIEW, back_light), 0.0, 1.0);
-    float back_factor = pow(clamp(-dot(NORMAL, LIGHT), 0.0, 1.0), 6.0);
-    float sss = pow(VdotBL, translucency_power) * translucency_strength * back_factor;
-    vec3 translucency = sss * ATTENUATION * LIGHT_COLOR * translucency_color.rgb;
-
-    // 3. Fresnel / rim
-    float fresnel = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-    vec3 rim = fresnel * rim_strength * ATTENUATION * LIGHT_COLOR / PI;
-
-    // 4. Ambient hemisférico (cielo/suelo según orientación respecto al planeta)
-    float hemisphere_factor = dot(planet_normal, normalize(-light_direction)) * 0.5 + 0.5;
-    vec3 ambient = mix(ambient_color_bottom.rgb, ambient_color_top.rgb, hemisphere_factor);
-    ambient *= ambient_intensity * ATTENUATION;
-
-    // 5. Sombra planetaria (terminador día/noche)
-    vec3 vertex_to_planet_dir = normalize(planet_position - vertex_position_global);
-    float position_incidence = dot(vertex_to_planet_dir, normalize(-light_direction));
-    float planet_shadow = smoothstep(-transition_width, transition_width, position_incidence);
-
-    // Composición
-    vec3 lit = (diffuse + translucency + rim) * planet_shadow;
-    vec3 amb = ambient * mix(0.3, 1.0, planet_shadow); // la noche no queda totalmente negra
-
-    DIFFUSE_LIGHT += lit + amb;
+    // Iluminación planetaria compartida (ver planet_lighting.gdshaderinc).
+    // Sin specular para conservar el look original; el difuso es equivalente.
+    vec3 d, s;
+    compute_planet_light(
+        NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
+        ALBEDO, METALLIC, ROUGHNESS, specular_strength, 1.0,
+        vertex_position_global, planet_normal, d, s);
+    DIFFUSE_LIGHT += d;
 }

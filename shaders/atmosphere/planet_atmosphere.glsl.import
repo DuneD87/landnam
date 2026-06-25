@@ -3,12 +3,12 @@
 importer="glsl"
 type="RDShaderFile"
 uid="uid://dkc7jdk7w4ci0"
-path="res://.godot/imported/planet_atmosphere.glsl-b6be4b7847b89c6eecc7f50e9a5eb7f3.res"
+path="res://.godot/imported/planet_atmosphere.glsl-0209d3b4b768573090269157e6fc0316.res"
 
 [deps]
 
-source_file="res://shaders/atmosphere/planet_atmosphere.glsl"
-dest_files=["res://.godot/imported/planet_atmosphere.glsl-b6be4b7847b89c6eecc7f50e9a5eb7f3.res"]
+source_file="res://shaders/Atmosphere/planet_atmosphere.glsl"
+dest_files=["res://.godot/imported/planet_atmosphere.glsl-0209d3b4b768573090269157e6fc0316.res"]
 
 [params]
 
