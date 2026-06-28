@@ -88,6 +88,44 @@ func get_gravity_direction(_global_position: Vector3) -> Vector3:
 		forced_weather = value
 		_apply_weather_override()
 
+@export_group("Anti-tiling (de-repetición de texturas)")
+
+@export var antitiling_enabled: bool = false:
+	set(value):
+		antitiling_enabled = value
+		_apply_antitiling_settings()
+
+@export_range(0.005, 2.5, 0.001) var antitiling_variation_scale: float = 2.5:
+	set(value):
+		antitiling_variation_scale = value
+		_apply_antitiling_settings()
+
+@export_range(0.005, 2.5, 0.01) var antitiling_blend_softness: float = 2.5:
+	set(value):
+		antitiling_blend_softness = value
+		_apply_antitiling_settings()
+
+@export_range(0.0, 1.0, 0.01) var antitiling_rotation_strength: float = 0.7:
+	set(value):
+		antitiling_rotation_strength = value
+		_apply_antitiling_settings()
+
+@export_range(0.0, 1.0, 0.005) var antitiling_fade_start: float = 0.10:
+	set(value):
+		antitiling_fade_start = value
+		_apply_antitiling_settings()
+@export_range(0.0, 1.5, 0.005) var antitiling_fade_end: float = 0.40:
+	set(value):
+		antitiling_fade_end = value
+		_apply_antitiling_settings()
+
+@export_range(0.0, 1.0, 0.1) var texture_scale: float = 0.5:
+	set(value):
+		if planet == null:
+			return
+		texture_scale = value
+		planet.voxel_terrain.material.set_shader_parameter("texture_scale", texture_scale)
+
 var _editor_file_dialog: EditorFileDialog
 
 func _copy_parsed_data(planet_parser: PlanetParser) -> void:
@@ -145,6 +183,7 @@ func _load_planet() -> void:
 	planet = Planet.new(voxel_terrain, atmosphere_node)
 	_copy_parsed_data(planet_parser)
 	planet.setup_shader_parameters()
+	_apply_antitiling_settings()
 	planet.setup_voxel_generator()
 	planet._load_vegetation()
 	add_child(planet)
@@ -198,6 +237,22 @@ func _setup_weather(planet_parser: PlanetParser) -> void:
 	# Aplica el override de clima si venía activado desde el inspector al cargar.
 	_apply_weather_override()
 
+# Empuja los parámetros de anti-tiling al material del terreno. NOTA: VoxelLodTerrain
+# copia el material por bloque, así que esto solo afecta a los bloques que se (re)mallen
+# después — al cargar el planeta toma los valores del inspector; en runtime el cambio se
+# ve a medida que cambia el LOD. (Para tuning en vivo total se usaron global uniforms.)
+func _apply_antitiling_settings() -> void:
+	if planet == null:
+		return
+	var vt_mat := planet.voxel_terrain.material as ShaderMaterial
+	if vt_mat == null:
+		return
+	vt_mat.set_shader_parameter("antitiling_enabled", antitiling_enabled)
+	vt_mat.set_shader_parameter("antitiling_variation_scale", antitiling_variation_scale)
+	vt_mat.set_shader_parameter("antitiling_blend_softness", antitiling_blend_softness)
+	vt_mat.set_shader_parameter("antitiling_rotation_strength", antitiling_rotation_strength)
+	vt_mat.set_shader_parameter("antitiling_fade_start", antitiling_fade_start)
+	vt_mat.set_shader_parameter("antitiling_fade_end", antitiling_fade_end)
 
 ## Aplica (o suelta) el override de clima en el controlador. No-op si aún no existe (en
 ## editor o antes de cargar el planeta); _setup_weather lo vuelve a llamar al final.
