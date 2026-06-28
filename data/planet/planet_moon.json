@@ -23,27 +23,27 @@
 		"textures": [
 			"res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_albedo.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png",
-			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png"
+			"res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png"
 		],
 		"normal_textures": [
 			"res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Normal-ogl.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png",
-			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_normal-ogl.png"
+			"res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png"
 		],
 		"roughness_textures": [
 			"res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Roughness.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png",
-			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_roughness.png"
+			"res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png"
 		],
 		"ao_textures": [
 			"res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_ao.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_ao.png",
-			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_ao.png"
+			"res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_ao.png"
 		],
 		"height_textures": [
 			"res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_height.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_height.png",
-			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_Height.png"
+			"res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_height.png"
 		],
 		"slope_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
 		"slope_normal_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png",

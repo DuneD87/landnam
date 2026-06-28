@@ -234,10 +234,6 @@ func _unequip_right_hand() -> void:
 	
 	
 func _ready():
-	safe_margin = 0.008
-	floor_max_angle = deg_to_rad(70.0)    # acceptar pendents més empinades
-	floor_snap_length = 0.1
-	platform_floor_layers = 0
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	add_to_group("player")
 	GameManager.register_player(self)
