@@ -299,11 +299,13 @@ func get_save_data() -> Dictionary:
 		if eq_slot.has_item() and eq_slot.equipped_item.data != null:
 			equipment_data[str(int(slot_type))] = str(eq_slot.equipped_item.data.id)
 
+	var fo := get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin
+	var save_pos: Vector3 = fo.to_canonical(global_position) if fo != null else global_position
 	return {
 		"position": {
-			"x": global_position.x,
-			"y": global_position.y,
-			"z": global_position.z
+			"x": save_pos.x,
+			"y": save_pos.y,
+			"z": save_pos.z
 		},
 		"basis": {
 			"xx": global_basis.x.x, "xy": global_basis.x.y, "xz": global_basis.x.z,
@@ -409,6 +411,7 @@ func place_block_at_player() -> void:
 
 	# Añadir al mundo
 	get_tree().current_scene.add_child(block)
+	block.add_to_group("floating_origin")
 func post_restore() -> void:
 	# Redescubrir planeta más cercano
 	if planets and planets.get_child_count() > 0:
@@ -689,6 +692,7 @@ func _input(event):
 			get_tree().current_scene.add_child(deer)
 			deer.planets = planets
 			deer.global_position = raycast_result["hit_pos"] - gravity_direction * 10
+			deer.add_to_group("floating_origin")
 
  
  

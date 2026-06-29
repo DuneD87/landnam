@@ -32,6 +32,10 @@ var _players: Array[CharacterBody3D] = []
 
 var _npc_scene: PackedScene = null
 var _npc_pool: Array[NPCController] = []
+
+func set_planet_center(c: Vector3) -> void:
+	_planet_center = c
+
 var _recycle_timer: float = 0.0
 var _spawn_queue: Array[Vector3] = []
 var _queue_running: bool = false

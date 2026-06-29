@@ -8,6 +8,7 @@
 [ext_resource type="CompositorEffect" uid="uid://lec7wb3m521b" path="res://data/planet/earth_atmosphere_compossition.tres" id="4_li0gi"]
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/player/third_person_player.tscn" id="5_05w5h"]
 [ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/menu/main_menu.tscn" id="6_x6u8n"]
+[ext_resource type="Script" uid="uid://cs78lt1ehklkt" path="res://scripts/world/floating_origin.gd" id="7_fltorg"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
 shader = ExtResource("3_cpkft")
@@ -75,6 +76,11 @@ compositor_effects = Array[CompositorEffect]([ExtResource("4_li0gi")])
 script = ExtResource("1_x6u8n")
 sun_light = NodePath("DirectionalLight3D")
 
+[node name="FloatingOrigin" type="Node3D" parent="." unique_id=1348846327]
+script = ExtResource("7_fltorg")
+player_path = NodePath("../Player")
+planets_path = NodePath("../Planets")
+
 [node name="Planets" type="Node3D" parent="." unique_id=564239750]
 
 [node name="Earth" parent="Planets" unique_id=1769869148 node_paths=PackedStringArray("sun_path", "players", "water_sphere", "planet") instance=ExtResource("2_li0gi")]
@@ -82,9 +88,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@42324")
+water_sphere = NodePath("@Node3D@19716")
 global_pos = Vector3(0, 0, 15000)
-planet = NodePath("@Node3D@42323")
+planet = NodePath("@Node3D@19715")
 entity_id = "planet_earth"
 godray_intensity = 3.0
 godray_samples = 2
@@ -115,7 +121,7 @@ sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, -85000)
 global_pos = Vector3(0, 0, -55000)
-planet = NodePath("@Node3D@42334")
+planet = NodePath("@Node3D@19726")
 entity_id = "planet_moon"
 godray_decay = 0.25
 antitiling_enabled = true

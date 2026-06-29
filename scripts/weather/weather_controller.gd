@@ -75,6 +75,11 @@ var _planet_center: Vector3
 # --- Efectos de precipitación (lluvia/nieve, partículas) ---
 var _fx: WeatherFX
 
+func set_planet_center(c: Vector3) -> void:
+	_planet_center = c
+	if _fx != null and _fx.has_method("set_planet_center"):
+		_fx.set_planet_center(c)
+
 # --- Datos de biomas (copiados del planeta) ---
 var _biome_count: int = 0
 var _biome_latitude_ranges: Array = []

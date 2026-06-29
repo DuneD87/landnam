@@ -14,6 +14,11 @@ uniform float detail_blend_weight : hint_range(0.0, 1.0) = 0.5;
 uniform int u_transition_mask;
 uniform float radius = 5000.0;
 uniform vec3 center;
+// Origen flotante: desplazamiento global del mundo (igual para todos los bloques y
+// planetas). 'center' es CANÓNICO fijo (set una vez); el centro real desplazado es
+// (center - u_world_offset). Necesario porque el material del terreno se copia por
+// bloque y un set_shader_parameter no actualizaría los bloques ya mallados.
+global uniform vec3 u_world_offset;
 uniform float water_radius = 29960;
 uniform int has_water = 0;
 #define MAX_TEXTURES 8
@@ -132,7 +137,7 @@ void vertex() {
 	v_ore_weights = decode_8bit_vec4(CUSTOM1.y) / 255.0;
 
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	height = length(world_pos - center) - radius;
+	height = length(world_pos - (center - u_world_offset)) - radius;
 }
 
 void fragment() {
@@ -145,7 +150,7 @@ void fragment() {
     );
     normal_model = safe_normalize(normal_model, v_normal_model);
     vec3 normal_world = safe_normalize((MODEL_MATRIX * vec4(normal_model, 0.0)).xyz, vec3(0.0, 1.0, 0.0));
-    vec3 planet_pos = world_pos - center;
+    vec3 planet_pos = world_pos - (center - u_world_offset);
 	float distance_to_center = length(planet_pos);
     float underwater = (has_water != 0 && distance_to_center < water_radius) ? 1.0 : 0.0;
     vec3 planet_up = safe_normalize(planet_pos, normal_world);
@@ -452,7 +457,7 @@ void light()
             (ATTENUATION - (1.0 - sun_shadow_opacity)) / max(sun_shadow_opacity, 0.0001),
             0.0, 1.0);
 
-        float distance_to_center = length(world_pos - center);
+        float distance_to_center = length(world_pos - (center - u_world_offset));
         if (has_water != 0 && distance_to_center < water_radius) {
             float min_distance = water_radius - water_light_depth;
             water_light_factor = smoothstep(min_distance, water_radius, distance_to_center);

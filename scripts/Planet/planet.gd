@@ -432,7 +432,8 @@ func setup_shader_parameters() -> void:
 
 	shader_material.set_shader_parameter("transition_smoothness", 10)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
-	planet_position = voxel_terrain.get_parent().position
+	update_world_center()
+
 	shader_material.set_shader_parameter("center", planet_position)
 	shader_material.set_shader_parameter("radius", radius)
 
@@ -699,6 +700,9 @@ func _dump_node_info(fn: VoxelGraphFunction, type_id: int, label: String) -> voi
 
 func _ready() -> void:
 	pass
+
+func update_world_center() -> void:
+	planet_position = voxel_terrain.get_parent().position
 
 func _update_planet() -> void:
 	for mat_struct in item_transparent_materials:

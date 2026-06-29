@@ -254,6 +254,20 @@ func _apply_antitiling_settings() -> void:
 	vt_mat.set_shader_parameter("antitiling_fade_start", antitiling_fade_start)
 	vt_mat.set_shader_parameter("antitiling_fade_end", antitiling_fade_end)
 
+func refresh_world_anchors() -> void:
+	if planet == null:
+		return
+	planet.update_world_center()
+	if planet.has_water and water_sphere != null:
+		var wmat := water_sphere.quadtree_material as ShaderMaterial
+		if wmat != null:
+			wmat.set_shader_parameter("planet_center", voxel_terrain.global_position)
+	if weather_controller != null:
+		weather_controller.set_planet_center(voxel_terrain.global_position)
+	for child in get_children():
+		if child is NPCSpawner:
+			child.set_planet_center(voxel_terrain.global_position)
+
 ## Aplica (o suelta) el override de clima en el controlador. No-op si aún no existe (en
 ## editor o antes de cargar el planeta); _setup_weather lo vuelve a llamar al final.
 func _apply_weather_override() -> void:
