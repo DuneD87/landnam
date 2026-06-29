@@ -77,8 +77,10 @@ var _fx: WeatherFX
 
 func set_planet_center(c: Vector3) -> void:
 	_planet_center = c
-	if _fx != null and _fx.has_method("set_planet_center"):
-		_fx.set_planet_center(c)
+	if _fx != null:
+		# on_origin_shift refresca el centro del FX y reinicia las partículas (viven en mundo,
+		# así que tras un rebase las ya emitidas quedarían desplazadas).
+		_fx.on_origin_shift(c)
 
 # --- Datos de biomas (copiados del planeta) ---
 var _biome_count: int = 0

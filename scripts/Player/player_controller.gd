@@ -412,6 +412,15 @@ func place_block_at_player() -> void:
 	# Añadir al mundo
 	get_tree().current_scene.add_child(block)
 	block.add_to_group("floating_origin")
+## Llamado por FloatingOrigin tras un rebase. El CameraPivot es top_level (no cuelga del
+## jugador) y se reposiciona en mundo cada frame, así que hay que desplazarlo a mano o
+## quedaría un frame en la posición vieja → salto visible. Reseteamos su interpolación.
+func shift_origin(offset: Vector3) -> void:
+	var pivot: Node3D = camera_controller.camera_pivot
+	pivot.global_position -= offset
+	pivot.reset_physics_interpolation()
+
+
 func post_restore() -> void:
 	# Redescubrir planeta más cercano
 	if planets and planets.get_child_count() > 0:

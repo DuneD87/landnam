@@ -113,6 +113,23 @@ func _physics_process(delta: float) -> void:
 			tex, true)
 
 
+## Llamado tras un rebase de origen flotante (vía WeatherController). Refresca el centro del
+## planeta y reinicia las partículas: al vivir en mundo, las ya emitidas quedarían desplazadas.
+func on_origin_shift(new_center: Vector3) -> void:
+	_planet_center = new_center
+	if _field != null and _field.has_method("set_planet_center"):
+		_field.set_planet_center(new_center)
+	for effect_name in _effects:
+		_effects[effect_name].shift_origin(new_center)
+	if _splash != null:
+		if _splash.has_method("shift_origin"):
+			_splash.shift_origin(new_center)
+		else:
+			var was: bool = _splash.emitting
+			_splash.restart()
+			_splash.emitting = was
+
+
 func _has_active_effect() -> bool:
 	for effect_name in _effects:
 		if _effects[effect_name].emitting:

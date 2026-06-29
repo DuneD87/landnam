@@ -54,11 +54,15 @@ func _rebase(offset: Vector3) -> void:
 			child.position -= offset
 
 	_player.global_position -= offset
+	
+	if _player.has_method("shift_origin"):
+		_player.shift_origin(offset)
 
 	# Objetos sueltos bajo current_scene (osos, bloques colocados): se etiquetan al spawnear.
 	for node in get_tree().get_nodes_in_group("floating_origin"):
 		if node is Node3D and node != _player:
 			node.global_position -= offset
+			node.reset_physics_interpolation()
 
 	# Evitar el tirón visual de un frame con interpolación de física activa.
 	_player.reset_physics_interpolation()

@@ -160,3 +160,15 @@ func _follow_player() -> void:
 	global_transform = Transform3D(Basis(x_axis, up, z_axis), pos + up * _preset.volume_offset)
 	if _proc != null:
 		_proc.gravity = -up * _preset.gravity_strength
+
+
+## Llamado tras un rebase de origen flotante. Las gotas/copos viven en MUNDO
+## (local_coords=false), así que las ya emitidas se quedan en su posición vieja al desplazar
+## el mundo → blob visible. restart() las limpia y, con preprocess=lifetime, rellena el
+## volumen al instante en la posición correcta. Conservamos el estado de emisión.
+func shift_origin(new_center: Vector3) -> void:
+	_planet_center = new_center
+	_follow_player()
+	var was := emitting
+	restart()
+	emitting = was
