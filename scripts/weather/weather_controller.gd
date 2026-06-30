@@ -26,7 +26,14 @@ extends Node
 ## viento, de modo que el banco "llega de lejos" en vez de verse bajar las nubes.
 ##
 ## Fase 2: partículas de lluvia/nieve con gravedad radial (WeatherFX, alimentado por
-## rain_rate/snow_rate). Pendiente aún: flashes de rayo + trueno (lightning_frequency).
+## rain_rate/snow_rate) y flashes de relámpago (WeatherLightning, alimentado por
+## lightning_frequency): un parpadeo aditivo sobre la iluminación, solo bajo la tormenta.
+## Pendiente aún: el trueno (audio con retardo por distancia; engancha a la señal
+## 'lightning_struck', que ya se emite al arrancar cada descarga).
+
+## Se emite el frame en que arranca una descarga de rayo. Para enganchar el trueno (audio) o
+## reacciones de gameplay/UI sin acoplarlas al sistema de iluminación.
+signal lightning_struck
 
 const DEFAULT_EVENTS_FILE := "res://data/weather/weather_events.json"
 
@@ -56,6 +63,20 @@ const DEFAULT_COLD_BOOST := {"snow": 2.0, "fog": 1.0}
 @export var cold_altitude: float = 1500.0
 @export var snow_altitude: float = 3500.0
 
+## --- Relámpagos ---
+@export var lightning_enabled: bool = true
+## Energía de la luz auxiliar del destello en su pico (0..1 del generador × esto). Es una
+## DirectionalLight3D radial-hacia-abajo dedicada, con sombras (no se cuela en cuevas) y activa solo
+## durante el relámpago. Va por luz propia, no por el sol, para funcionar también de noche.
+@export var lightning_flash_strength: float = 2.5
+
+## --- Precipitación ligada a las nubes ---
+## La lluvia/nieve no cae hasta que la cobertura de nubes (cloud_coverage) supera precip_cloud_start,
+## y alcanza su intensidad plena en precip_cloud_full. Evita que gotee con el cielo aún despejado al
+## empezar la transición y que siga cayendo de más mientras el cielo se despeja.
+@export var precip_cloud_start: float = 0.4
+@export var precip_cloud_full: float = 0.6
+
 ## --- Oclusión de niebla en cuevas ---
 ## La niebla no se rellena dentro de las cuevas: el shader de atmósfera muestrea la rejilla de
 ## oclusión del WeatherFX (R = altura del techo) por punto de marcha y descarta la niebla bajo
@@ -74,6 +95,10 @@ var _planet_center: Vector3
 
 # --- Efectos de precipitación (lluvia/nieve, partículas) ---
 var _fx: WeatherFX
+
+# --- Relámpagos (generador puro del parpadeo + luz auxiliar dedicada para el destello) ---
+var _lightning: WeatherLightning
+var _aux_light: DirectionalLight3D   # destello del rayo; radial hacia abajo, solo activa al relampaguear
 
 func set_planet_center(c: Vector3) -> void:
 	_planet_center = c
@@ -142,6 +167,8 @@ func setup(
 	_build_biome_profiles(config)
 	_push_snow_line_params()
 	_setup_fx()
+	_lightning = WeatherLightning.new()
+	_setup_lightning_light()
 
 	# Estado inicial coherente con el bioma y la altitud actuales del jugador.
 	_current = _choose_from(_active_profile(), "")
@@ -166,6 +193,10 @@ func _apply_config(config: Dictionary) -> void:
 	tropical_latitude = float(config.get("tropical_latitude", tropical_latitude))
 	cold_altitude = float(config.get("cold_altitude", cold_altitude))
 	snow_altitude = float(config.get("snow_altitude", snow_altitude))
+	lightning_enabled = bool(config.get("lightning_enabled", lightning_enabled))
+	lightning_flash_strength = float(config.get("lightning_flash_strength", lightning_flash_strength))
+	precip_cloud_start = float(config.get("precip_cloud_start", precip_cloud_start))
+	precip_cloud_full = float(config.get("precip_cloud_full", precip_cloud_full))
 
 	# Reglas de altitud configurables (qué eventos dominan en picos / se refuerzan en frío).
 	var peaks := _parse_profile(config.get("peaks_profile", []))
@@ -213,22 +244,44 @@ func _setup_fx() -> void:
 	_fx.setup(_player, _planet_center, _sun)
 
 
+## Crea la luz auxiliar del destello: una DirectionalLight3D dedicada, apagada por defecto, que se
+## orienta radial hacia abajo y se enciende solo durante el relámpago (ver _apply_flash). Lleva
+## sombras para que las cuevas queden a oscuras; copia el shadow_opacity del sol para que el remap
+## de cuevas del terreno (sun_shadow_opacity) la trate igual. Tinte azul-blanco propio de un rayo.
+func _setup_lightning_light() -> void:
+	_aux_light = DirectionalLight3D.new()
+	_aux_light.name = "LightningFlashLight"
+	_aux_light.visible = false
+	_aux_light.light_energy = 0.0
+	_aux_light.light_color = Color(0.9, 0.95, 1.0)
+	_aux_light.shadow_enabled = true
+	if _sun != null:
+		_aux_light.shadow_opacity = _sun.shadow_opacity
+	add_child(_aux_light)
+
+
 func _process(delta: float) -> void:
 	if not _ready_to_run:
 		return
 
 	_elapsed += delta
+	var st: WeatherState = _to
 	if _blend < 1.0:
 		# En transición: interpolar y empujar el estado COMPLETO (atmósfera/sol/agua/...) cada
 		# frame, porque todos los campos se están moviendo.
 		_blend = minf(1.0, _blend + delta / maxf(transition_time, 0.01))
-		var st := WeatherState.blend(_from, _to, smoothstep(0.0, 1.0, _blend))
+		st = WeatherState.blend(_from, _to, smoothstep(0.0, 1.0, _blend))
 		_apply_state(st)
 	else:
 		# Estado estable: los uniforms de atmósfera/sol/agua/terreno ya quedaron fijados en el
 		# último frame de la transición y no cambian. Solo la precipitación varía (depende de la
 		# altitud del jugador), así que evitamos re-empujar ~25 uniforms y asignar un WeatherState.
 		_apply_precipitation(_to)
+
+	# Relámpagos: parpadeo aditivo sobre la iluminación del estado actual (st), solo cuando el
+	# evento tiene rayos y estás bajo la tormenta. Va después de _apply_state para que en
+	# transición sobreescriba la luz base con base+destello.
+	_update_lightning(delta, st)
 
 	# La rejilla de oclusión sigue al jugador, así que su transform se empuja a la atmósfera cada
 	# frame mientras haya niebla (independiente del estado de transición).
@@ -439,6 +492,8 @@ func _apply_state(st: WeatherState) -> void:
 		_atmosphere.cloud_density = st.cloud_density
 		_atmosphere.cloud_absorption = clampf(st.cloud_absorption, 0.01, 1.0)
 		_atmosphere.cloud_shadow_strength = st.cloud_shadow
+		_atmosphere.cloud_albedo = clampf(st.cloud_albedo, 0.0, 1.0)
+		_atmosphere.atmosphere_scatter = clampf(st.atmosphere_scatter, 0.0, 1.0)
 		_atmosphere.cloud_min_height = st.cloud_min_height
 		_atmosphere.cloud_max_height = maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
 		_atmosphere.cloud_wind_speed = st.cloud_wind_speed
@@ -474,16 +529,70 @@ func _apply_state(st: WeatherState) -> void:
 	_apply_precipitation(st)
 
 
-## Precipitación: partículas de lluvia/nieve moduladas por sus rates y por la altitud (no
-## llueve/nieva por encima de la capa de nubes). El "techo sólido" sobre el jugador lo gestiona
-## aparte WeatherFX por colisión. Se actualiza cada frame (incluso en estado estable) porque el
-## factor de altitud cambia al moverse el jugador.
+## Precipitación: partículas de lluvia/nieve moduladas por sus rates, por la altitud (no llueve/nieva
+## por encima de la capa de nubes) y por la COBERTURA DE NUBES. Este último factor las liga a las
+## nubes formadas: durante la transición rain_rate/snow_rate rampan linealmente con el blend, igual
+## que cloud_coverage, pero una gota se ve enseguida mientras que las nubes necesitan cobertura alta
+## para ser visibles → parecía que la lluvia llegaba "antes que las nubes" y servía de más al
+## despejarse. Gateando por cloud_coverage, la precipitación empieza cuando el cielo ya está cubierto
+## y cesa al despejarse. El "techo sólido" sobre el jugador lo gestiona aparte WeatherFX por colisión.
+## Se actualiza cada frame (incluso en estado estable) porque el factor de altitud cambia al moverse.
 func _apply_precipitation(st: WeatherState) -> void:
 	if _fx == null:
 		return
 	var below := _below_clouds_factor(st)
-	_fx.set_intensity("rain", st.rain_rate * below)
-	_fx.set_intensity("snow", st.snow_rate * below)
+	var cloud_factor := smoothstep(precip_cloud_start, precip_cloud_full, st.cloud_coverage)
+	var gate := below * cloud_factor
+	_fx.set_intensity("rain", st.rain_rate * gate)
+	_fx.set_intensity("snow", st.snow_rate * gate)
+
+
+## Avanza el generador de rayos y aplica el destello del frame. Gateado por _below_clouds_factor:
+## bajo la tormenta se ve el fogonazo; por encima de las nubes no (de momento no iluminamos sus
+## cimas). Emite 'lightning_struck' al arrancar cada descarga (gancho para el trueno).
+func _update_lightning(delta: float, st: WeatherState) -> void:
+	if _lightning == null or not lightning_enabled:
+		return
+	var flash := _lightning.update(delta, st.lightning_frequency, _below_clouds_factor(st))
+	if _lightning.strike_started:
+		lightning_struck.emit()
+	_apply_flash(flash)
+
+
+## Aplica el destello del rayo a las superficies que SÍ ven luces de escena (vía la DirectionalLight3D
+## auxiliar) y a las que NO (las nubes del compute de atmósfera, vía uniform).
+##
+## La luz auxiliar va por una luz propia y no por el sol porque de noche el sol apunta al lado opuesto
+## del planeta y no iluminaría nada: apunta SIEMPRE radial hacia abajo (el rayo viene de arriba), así
+## funciona igual de día y de noche. Lleva sombras (respeta cuevas) y solo se enciende durante el
+## destello (coste medio ≈ 0). Cubre terreno/vegetación/opaco (usan light()) y también el agua (usa la
+## iluminación por defecto de Godot, sin light(), así que recibe todas las direccionales).
+##
+## Las nubes son la excepción: el compute de atmósfera se ilumina a mano desde sun_direction y no ve
+## luces de escena, así que le empujamos el destello como uniform para que su base fogonee con el rayo.
+func _apply_flash(flash: float) -> void:
+	if _aux_light != null:
+		if flash > 0.0:
+			# Reorienta cada frame: el "arriba" radial cambia al moverse el jugador por el planeta. La
+			# luz emite por su -Z, así que para que viaje hacia el centro (abajo) ponemos basis.z = arriba.
+			if _player != null and is_instance_valid(_player):
+				var up := _player.global_position - _planet_center
+				up = up.normalized() if up.length_squared() > 0.0001 else Vector3.UP
+				var ref := Vector3.FORWARD
+				if absf(up.dot(ref)) > 0.99:
+					ref = Vector3.RIGHT
+				var x := ref.cross(up).normalized()
+				var y := up.cross(x).normalized()
+				_aux_light.global_transform = Transform3D(Basis(x, y, up), _player.global_position)
+			_aux_light.light_energy = flash * lightning_flash_strength
+			_aux_light.visible = true
+		else:
+			_aux_light.visible = false
+
+	# Nubes: el compute de atmósfera no ve luces de escena → le pasamos el destello aparte (también 0
+	# al terminar, para apagarlo).
+	if _atmosphere != null:
+		_atmosphere.lightning_flash = flash
 
 
 ## Empuja al shader de atmósfera la rejilla de oclusión (transform + textura) para que la niebla no
@@ -613,8 +722,10 @@ func _builtin_events() -> Dictionary:
 		}),
 		"storm": _state({
 			"cloud_coverage": 0.9, "cloud_density": 1.6, "cloud_absorption": 0.4,
+			"cloud_albedo": 0.35,
 			"cloud_shadow": 1.0, "cloud_min_height": 300.0, "cloud_max_height": 800.0,
 			"cloud_wind_speed": 0.06, "sun_energy": 0.3, "ambient_energy": 0.5,
+			"atmosphere_scatter": 0.15,
 			"wind_multiplier": 2.4, "water_wave_multiplier": 2.0,
 			"water_speed_multiplier": 1.6, "water_foam_multiplier": 2.5,
 			"rain_rate": 1.0, "lightning_frequency": 0.15,
@@ -623,8 +734,10 @@ func _builtin_events() -> Dictionary:
 		}),
 		"snow": _state({
 			"cloud_coverage": 0.75, "cloud_density": 0.9, "cloud_absorption": 0.28,
+			"cloud_albedo": 0.7,
 			"cloud_shadow": 0.8, "cloud_min_height": 350.0, "cloud_max_height": 700.0,
 			"cloud_wind_speed": 0.04, "sun_energy": 0.7, "ambient_energy": 0.8,
+			"atmosphere_scatter": 0.5,
 			"wind_multiplier": 1.3, "snow_coverage": 1.0, "snow_rate": 1.0,
 			"fog_density": 0.6, "fog_coverage": 0.5, "fog_wind_speed": 0.03,
 			"fog_floor_height": 0.0, "fog_top_height": 120.0,
@@ -640,8 +753,10 @@ func _builtin_events() -> Dictionary:
 			# Las nubes se quedan ALTAS y discretas: la niebla la hace la capa baja dedicada
 			# (fog_density/fog_coverage), no nubes que bajan. Un cielo encapotado tenue ayuda.
 			"cloud_coverage": 0.35, "cloud_density": 0.4, "cloud_absorption": 0.16,
+			"cloud_albedo": 0.8,
 			"cloud_shadow": 0.3, "cloud_min_height": 500.0, "cloud_max_height": 800.0,
 			"cloud_wind_speed": 0.03, "sun_energy": 0.6, "ambient_energy": 0.8,
+			"atmosphere_scatter": 0.5,
 			"wind_multiplier": 0.5, "water_wave_multiplier": 0.6,
 			"water_speed_multiplier": 0.7, "water_foam_multiplier": 0.6,
 			"fog_density": 1.0, "fog_coverage": 0.62, "fog_wind_speed": 0.025,

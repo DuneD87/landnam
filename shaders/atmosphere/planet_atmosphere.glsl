@@ -357,11 +357,30 @@ void march_clouds(
 			vec3 to_cloud = normalize(p - planet_center);
 			float sun_dot_c = dot(to_cloud, sun_dir);
 			float day_night = smoothstep(-0.15, 0.15, sun_dot_c);
-			float sunset_f  = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot_c));
-			vec3  sunset_tint = mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_f);
 
-			vec3 lighting = vec3((direct_light + ambient_light) * sun_intensity + night_light)
-			                * underside * sunset_tint * day_night;
+			// Tinte cálido del terminador SOLO sobre la luz DIRECTA (la del sol, que al rasar la
+			// atmósfera se enrojece). El ambiente (relleno difuso) queda neutro. Así se auto-regula:
+			// el cielo despejado al atardecer glow naranja (domina la directa), pero una nube de
+			// tormenta —gruesa, con la directa apagada por su grosor/albedo— se queda gris en vez de
+			// teñirse de naranja falso. Sin parámetro por evento.
+			float sunset_f = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot_c));
+			vec3 sunset_tint = mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_f);
+
+			vec3 lit = (vec3(direct_light) * sunset_tint + vec3(ambient_light)) * sun_intensity
+			           + vec3(night_light);
+			vec3 lighting = lit * underside * day_night;
+
+			// Albedo de la nube (P(23).z): su reflectividad. 1 = brillo pleno (nube blanca); valores
+			// bajos la oscurecen hacia un gris de tormenta. Multiplica TODA la radiancia (directa +
+			// ambiente), así baja del suelo ambiental que la opacidad por sí sola no podía rebajar.
+			// Independiente de cloud_absorption (opacidad) y de cloud_shadow_strength (sombra al suelo).
+			lighting *= P(23).z;
+
+			// Destello de rayo (P(9).w, lightning_flash): emisión breve DENTRO de la nube. Va después
+			// del albedo (una nube de tormenta oscura igual fogonea) y del gradiente día/noche (el rayo
+			// ilumina la nube también de noche, cuando más luce). Se acumula como el resto de la
+			// radiancia → las nubes densas destellan más. Tinte azul-blanco; 12.0 = fuerza (a ojo).
+			lighting += vec3(0.7, 0.8, 1.0) * (P(9).w * 12.0);
 
 			float s_trans = exp(-d * step_size * absorption);
 
@@ -520,15 +539,17 @@ void march_fog(
 			// la niebla quedaba igual de clara de noche -> no parecia afectada por el sol. Las
 			// nubes en cambio multiplican TODO su lit por este factor. Lo replicamos aqui.
 			float day = smoothstep(-0.15, 0.15, sun_dot);
-			float sunset_f = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot));
-			vec3 sunset_tint = mix(vec3(1.0), vec3(1.7, 0.75, 0.45), sunset_f);
+			// Tinte de terminador CONDICIONAL al cielo despejado: lo escalamos por atmosphere_scatter
+				// (P(23).w, ~1 en clear y ~0 en tormenta). Niebla de amanecer naranja, bruma de tormenta
+				// gris (sol tapado por las nubes). La niebla es luz de sol pura: este gate es su "solo directa".
+				float sunset_f = (1.0 - smoothstep(0.0, 0.3, abs(sun_dot))) * clamp(P(23).w, 0.0, 1.0);
 
 			// El brillo se desvanece a 0 de noche, IGUAL que las nubes (que multiplican todo
 			// su lit por day_night, sin suelo). Antes habia un suelo (0.02) que, x sun_intensity
 			// (20), daba ~0.34 de base SIEMPRE; con ACES + bloom se veia como niebla BLANCA en
 			// plena oscuridad. Sin suelo, la niebla nocturna se apaga como las nubes.
 			float lit_amount = 0.16 * day;
-			vec3 lit = fog_color * sun_intensity * lit_amount * sunset_tint;
+			vec3 lit = fog_color * mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_f) * sun_intensity * lit_amount;
 
 			float s_trans = exp(-d * step_size * density * 0.02);
 			out_color += out_trans * (1.0 - s_trans) * lit;
@@ -587,7 +608,8 @@ vec3 calculate_light(
 	float density_falloff,
 	vec3 scattering_coeffs,
 	float sun_intensity,
-	float view_from_space
+	float view_from_space,
+	float in_scatter_mult
 ) {
 	vec3 in_scatter_point = ro;
 	float step_size = ray_length / float(NUM_IN_SCATTER_POINTS - 1);
@@ -627,7 +649,9 @@ vec3 calculate_light(
 		in_scatter_point += rd * step_size;
 	}
 
-	in_scattered_light *= sun_intensity;
+	// in_scatter_mult < 1 atenúa el velo de Rayleigh bajo cielo encapotado (ver llamada): solo el
+	// término aditivo, no los coeficientes, para no alterar la extinción de lo que hay detrás.
+	in_scattered_light *= sun_intensity * in_scatter_mult;
 
 	// Oscurecer la superficie del planeta en el lado nocturno (solo desde el espacio).
 	vec3 lit_original = original_color;
@@ -733,6 +757,11 @@ void main() {
 		}
 	}
 
+	// Multiplicador del in-scatter de Rayleigh (velo azul de perspectiva aérea), parámetro propio del
+	// clima (P(23).w, atmosphere_scatter): 1 = dispersión plena, 0 = horizonte plomizo sin azul. Se
+	// fija por evento en weather_events.json, desligado de cloud_shadow.
+	float in_scatter_mult = clamp(P(23).w, 0.0, 1.0);
+
 	// Nubes volumétricas — se aplican antes del scattering atmosférico.
 	// 1. Primero calcula la atmósfera sobre la escena original.
 	vec3 light = calculate_light(
@@ -747,7 +776,8 @@ void main() {
 		density_falloff,
 		scattering_coefficients,
 		sun_intensity,
-		view_from_space
+		view_from_space,
+		in_scatter_mult
 	);
 
 	// 2. Después compón las nubes delante de la atmósfera.

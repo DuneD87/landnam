@@ -35,6 +35,18 @@ const PARAM_VEC4_COUNT := 24
 @export_range(0.0, 1.0, 0.005) var cloud_wind_speed: float = 0.05
 ## Cuánto oscurecen las nubes el terreno bajo ellas (0 = sin sombra, 1 = máxima).
 @export_range(0.0, 1.0, 0.01) var cloud_shadow_strength: float = 0.85
+## Albedo (reflectividad) de las nubes: 1 = blanco pleno, valores bajos = gris más oscuro (nubes de
+## tormenta). El WeatherController lo fija por evento. No confundir con cloud_absorption (opacidad)
+## ni con cloud_shadow_strength (sombra que proyectan sobre el terreno).
+@export_range(0.0, 1.0, 0.01) var cloud_albedo: float = 1.0
+
+@export_group("Atmosphere")
+## Multiplicador del in-scatter de Rayleigh (velo azul de perspectiva aérea). 1 = dispersión plena;
+## valores bajos apagan el azul hacia un horizonte plomizo. El WeatherController lo fija por evento.
+@export_range(0.0, 1.0, 0.01) var atmosphere_scatter: float = 1.0
+## Destello de rayo (0..1) que el WeatherController empuja durante un relámpago: ilumina la base de
+## las nubes como emisión breve (el compute no ve la luz auxiliar de escena). 0 = sin destello.
+@export_range(0.0, 1.0, 0.01) var lightning_flash: float = 0.0
 
 @export_group("Fog")
 ## Niebla a ras de suelo: capa volumétrica baja, independiente de las nubes. Su densidad
@@ -411,6 +423,9 @@ func _build_params_bytes(
 	var local_wind_direction  := cloud_wind_direction
 	var local_wind_speed      := cloud_wind_speed
 	var local_cloud_shadow    := cloud_shadow_strength
+	var local_cloud_albedo    := cloud_albedo
+	var local_atmo_scatter    := atmosphere_scatter
+	var local_lightning_flash := lightning_flash
 	var local_cloud_steps     := cloud_steps
 	var local_light_steps     := cloud_light_steps
 	var local_shadow_steps    := cloud_shadow_steps
@@ -464,9 +479,9 @@ func _build_params_bytes(
 	# 8: origen cámara relativo (siempre 0,0,0) + intensidad de sombra de nubes (w).
 	_append_vec4(floats, Vector4(0.0, 0.0, 0.0, local_cloud_shadow))
 
-	# 9: centro del planeta relativo a cámara + reservado.
+	# 9: centro del planeta relativo a cámara (.xyz) + destello de rayo (.w, lightning_flash).
 	var rel_center := local_center - cam_origin
-	_append_vec4(floats, Vector4(rel_center.x, rel_center.y, rel_center.z, 0.0))
+	_append_vec4(floats, Vector4(rel_center.x, rel_center.y, rel_center.z, local_lightning_flash))
 
 	# 10: dirección del sol.
 	_append_vec4(floats, Vector4(local_sun_dir.x, local_sun_dir.y, local_sun_dir.z, 0.0))
@@ -522,7 +537,8 @@ func _build_params_bytes(
 	_append_vec4(floats, Vector4(local_occ_x.x, local_occ_x.y, local_occ_x.z, local_occ_half))
 	_append_vec4(floats, Vector4(local_occ_z.x, local_occ_z.y, local_occ_z.z, local_occ_span))
 	_append_vec4(floats, Vector4(local_occ_up.x, local_occ_up.y, local_occ_up.z, local_occ_below))
-	_append_vec4(floats, Vector4(local_occ_margin, local_occ_soft, 0.0, 0.0))
+	# P(23): .x=margen oclusión, .y=suavizado oclusión, .z=albedo de nube, .w=multiplicador in-scatter.
+	_append_vec4(floats, Vector4(local_occ_margin, local_occ_soft, local_cloud_albedo, local_atmo_scatter))
 
 	return floats.to_byte_array()
 

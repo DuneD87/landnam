@@ -11,6 +11,9 @@ var cloud_coverage: float = 0.4
 var cloud_density: float = 0.5
 var cloud_absorption: float = 0.15
 var cloud_shadow: float = 0.7
+## Albedo (reflectividad) de la nube: 1 = blanca, valores bajos = gris de tormenta. Es el knob de
+## OSCURIDAD de la nube, distinto de cloud_absorption (opacidad) y de cloud_shadow (sombra al suelo).
+var cloud_albedo: float = 1.0
 var cloud_min_height: float = 400.0
 var cloud_max_height: float = 700.0
 var cloud_wind_speed: float = 0.05
@@ -33,6 +36,12 @@ var fog_top_height: float = 130.0
 var sun_energy: float = 1.0      # multiplica DirectionalLight3D.light_energy
 var ambient_energy: float = 1.0  # multiplica Environment.ambient_light_energy
 
+# --- Atmósfera ---
+## Multiplicador del in-scatter de Rayleigh (el velo azul de perspectiva aérea sobre el terreno
+## lejano y el cielo). 1 = dispersión plena (cielo azul normal); valores bajos lo apagan hacia un
+## horizonte plomizo, p.ej. en tormenta. Parámetro propio, independiente de cloud_shadow.
+var atmosphere_scatter: float = 1.0
+
 # --- Viento de vegetación (multiplicador sobre wind_speed por item) ---
 var wind_multiplier: float = 1.0
 
@@ -47,7 +56,9 @@ var water_foam_multiplier: float = 1.0
 var wetness: float = 0.0
 var snow_coverage: float = 0.0
 
-# --- Fase 2 (definidos para partículas/rayos; aún no consumidos) ---
+# --- Precipitación y rayos (Fase 2) ---
+## rain_rate/snow_rate alimentan las partículas (WeatherFX); lightning_frequency es la tasa media
+## de descargas por segundo que consume WeatherLightning (parpadeo aditivo sobre la iluminación).
 var rain_rate: float = 0.0
 var snow_rate: float = 0.0
 var lightning_frequency: float = 0.0
@@ -55,11 +66,11 @@ var lightning_frequency: float = 0.0
 
 ## Lista de campos numéricos: usada por blend() y apply_overrides() para no repetir.
 const FIELDS: Array[StringName] = [
-	&"cloud_coverage", &"cloud_density", &"cloud_absorption", &"cloud_shadow",
+	&"cloud_coverage", &"cloud_density", &"cloud_absorption", &"cloud_shadow", &"cloud_albedo",
 	&"cloud_min_height", &"cloud_max_height", &"cloud_wind_speed",
 	&"fog_density", &"fog_coverage", &"fog_wind_speed",
 	&"fog_floor_height", &"fog_top_height",
-	&"sun_energy", &"ambient_energy", &"wind_multiplier",
+	&"sun_energy", &"ambient_energy", &"atmosphere_scatter", &"wind_multiplier",
 	&"water_wave_multiplier", &"water_speed_multiplier", &"water_foam_multiplier",
 	&"wetness", &"snow_coverage",
 	&"rain_rate", &"snow_rate", &"lightning_frequency",
