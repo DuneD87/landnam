@@ -223,6 +223,7 @@ func _setup_weather(planet_parser: PlanetParser) -> void:
 
 	weather_controller = WeatherController.new()
 	weather_controller.name = "WeatherController"
+	weather_controller.add_to_group("weather")   # lo localiza la consola de depuración
 	add_child(weather_controller)
 	weather_controller.setup(
 		planet,

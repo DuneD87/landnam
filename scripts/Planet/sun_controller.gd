@@ -14,6 +14,7 @@ extends Node3D
 var sky_material : ShaderMaterial      # se resuelve en _ready
 
 func _ready() -> void:
+	add_to_group("sun_controller")   # lo localiza la consola de depuración
 	var env := $WorldEnvironment
 	'for planet in planets.planets:
 		planet.sun = $DirectionalLight3'
