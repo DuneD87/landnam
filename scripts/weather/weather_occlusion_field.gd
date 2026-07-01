@@ -34,6 +34,9 @@ var up: Vector3 = Vector3.UP
 ## Lo enciende WeatherFX solo con lluvia activa: añade el rayo de suelo (canal G).
 var ground_enabled: bool = false
 
+## True si hay techo justo sobre el jugador (cueva/voladizo). Se recalcula al inicio de cada barrido.
+var player_occluded: bool = false
+
 var _player: Node3D
 var _planet_center: Vector3
 var _img: Image
@@ -77,6 +80,13 @@ func _create_debug() -> void:
 	add_child(_debug_mi)
 	_debug_mi.global_transform = Transform3D.IDENTITY
 	_debug_mi.visible = false
+
+
+## Actualiza el centro del planeta tras un rebase de origen flotante; sin esto la radial (up) se
+## desalinea porque pos se desplaza con el rebase pero _planet_center se quedaría con el valor viejo.
+func set_planet_center(c: Vector3) -> void:
+	_planet_center = c
+	_row = -1
 
 
 func get_height_texture() -> Texture2D:
@@ -128,7 +138,17 @@ func _compute_frame() -> bool:
 	_w_exclude = []
 	if _player is CollisionObject3D:
 		_w_exclude = [(_player as CollisionObject3D).get_rid()]
+	player_occluded = _center_has_ceiling(pos, u)
 	return true
+
+
+## Un único rayo central hacia arriba: ¿hay techo justo sobre el jugador? Da el estado de cueva de
+## inmediato (al inicio del barrido), sin esperar a que el time-slicing llegue a la celda central.
+func _center_has_ceiling(pos: Vector3, u: Vector3) -> bool:
+	var query := PhysicsRayQueryParameters3D.create(
+		pos + u * CEILING_START, pos + u * probe_above, terrain_mask)
+	query.exclude = _w_exclude
+	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func _begin_sweep() -> bool:

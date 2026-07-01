@@ -71,6 +71,16 @@ func _physics_process(delta: float) -> void:
 	if _field == null or (not _has_active_effect() and not field_force_active):
 		return
 
+	# Actualiza el campo primero: así player_occluded refleja la posición de este frame, no la anterior.
+	_field.ground_enabled = _splash != null and _splash.emitting
+	var committed := _field.update(delta)
+
+	var follow := not _field.player_occluded
+	for effect_name in _effects:
+		_effects[effect_name].set_follow_enabled(follow)
+	if _splash != null:
+		_splash.set_follow_enabled(follow)
+
 	var sun_light := _compute_sun_light()
 	for effect_name in _effects:
 		var lit_fx: WeatherParticles = _effects[effect_name]
@@ -79,8 +89,7 @@ func _physics_process(delta: float) -> void:
 	if _splash != null and _splash.emitting:
 		_splash.set_sun_light(sun_light)
 
-	_field.ground_enabled = _splash != null and _splash.emitting
-	if not _field.update(delta):
+	if not committed:
 		return
 	var tex := _field.get_height_texture()
 	for effect_name in _effects:

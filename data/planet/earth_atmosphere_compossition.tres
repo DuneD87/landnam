@@ -18,5 +18,5 @@ cloud_min_height = 600.0
 cloud_max_height = 1000.0
 cloud_g = 0.99
 cloud_noise_scale = 5.5
-lightning_flash = null
+cloud_steps = 12
 metadata/_custom_type_script = "uid://cbk4obm06js3v"

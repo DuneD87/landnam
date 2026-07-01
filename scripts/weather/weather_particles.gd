@@ -14,6 +14,11 @@ var _player: Node3D
 var _planet_center: Vector3
 var _proc: ParticleProcessMaterial
 var _draw_mat: ShaderMaterial
+var _follow_enabled: bool = true
+# ¿Ha llegado ya un estado de oclusión real desde WeatherFX? Hasta entonces seguimos sin anclar.
+var _follow_valid: bool = false
+# ¿El emisor está congelado en una posición exterior válida (última vez al aire libre)?
+var _anchored: bool = false
 
 
 func setup(player: Node3D, planet_center: Vector3, preset: WeatherParticlePreset) -> void:
@@ -47,12 +52,28 @@ func set_intensity(value: float) -> void:
 	if should_emit != emitting:
 		emitting = should_emit
 		if should_emit:
-			_follow_player()
+			_update_follow()
+
+
+## WeatherFX empuja aquí el estado de oclusión: true al aire libre, false bajo techo (cueva).
+func set_follow_enabled(enabled: bool) -> void:
+	_follow_enabled = enabled
+	_follow_valid = true
 
 
 func _process(_delta: float) -> void:
 	if emitting:
+		_update_follow()
+
+
+## Al aire libre sigue al jugador y fija el ancla; bajo techo se congela en la última posición
+## exterior. Si aún no hay ancla (juego cargado dentro de una cueva) sigue oculto hasta salir, así
+## al llegar a la boca ya está sobre el jugador. Al salir, el seguimiento lo reengancha solo.
+func _update_follow() -> void:
+	if _follow_enabled or not _follow_valid or not _anchored:
 		_follow_player()
+	if _follow_valid and _follow_enabled:
+		_anchored = true
 
 
 func _build_process_material(preset: WeatherParticlePreset) -> ParticleProcessMaterial:

@@ -442,8 +442,6 @@ func _apply_precipitation(st: WeatherState) -> void:
 		return
 	var below := _below_clouds_factor(st)
 	var cloud_factor := smoothstep(precip_cloud_start, precip_cloud_full, st.cloud_coverage)
-	print("cloud_factor:", cloud_factor)
-	print("cloud_coverage:", st.cloud_coverage)
 	var gate := below * cloud_factor
 	_fx.set_intensity("rain", st.rain_rate * gate)
 	_fx.set_intensity("snow", st.snow_rate * gate)
