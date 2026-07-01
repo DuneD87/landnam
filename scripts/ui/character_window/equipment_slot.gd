@@ -1,4 +1,3 @@
-# equipment_slot.gd
 class_name EquipmentSlot
 extends PanelContainer
 

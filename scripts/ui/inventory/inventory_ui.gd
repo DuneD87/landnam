@@ -13,24 +13,21 @@ var character_window: CharacterWindow
 var slots: Array[InventorySlot] = []
 var hotbar: Hotbar
 
-# Loot system
 var _loot_inventory: Inventory = null
 var _loot_slots: Array[InventorySlot] = []
-var _loot_container: Control = null   # full-rect root
-var _loot_panel_node: PanelContainer = null  # el panel real dentro del root
+var _loot_container: Control = null
+var _loot_panel_node: PanelContainer = null
 var _loot_grid: GridContainer = null
 var _loot_label: Label = null
 
-# Drag state
 var _drag_active: bool = false
 var _drag_target: Control = null
 var _drag_offset: Vector2 = Vector2.ZERO
 var _player_panel_header: Control = null
 var _loot_panel_header: Control = null
 
-# Sistema de item flotante
 var floating_item: InventoryItem = null
-var floating_slot_index: int = -1  # -1 si viene de equipment
+var floating_slot_index: int = -1
 var floating_display: Control = null
 var floating_icon: TextureRect = null
 var floating_label: Label = null
@@ -69,15 +66,12 @@ func setup(inv: Inventory, char_window: CharacterWindow, hbar: Hotbar) -> void:
 	hotbar = hbar
 	hotbar.hotbar_slot_clicked.connect(_on_hotbar_slot_clicked)
 
-## Saca el panel del jugador del CenterContainer para que se pueda arrastrar.
-## Se llama con call_deferred desde _ready para que el layout esté listo.
 func _setup_player_panel_drag() -> void:
 	var center := panel.get_parent()
 	if not center:
 		return
 	center.remove_child(panel)
 	add_child(panel)
-	# Esperar un frame para que el layout calcule el tamaño real del panel
 	await get_tree().process_frame
 	panel.anchor_left = 0.0
 	panel.anchor_top = 0.0
@@ -172,7 +166,6 @@ func _refresh() -> void:
 		else:
 			slots[i].clear()
 	
-	# Si hay item flotando del inventario, limpiar su slot de origen
 	if floating_item and floating_slot_index >= 0 and floating_slot_index < slots.size():
 		slots[floating_slot_index].clear()
 
@@ -222,8 +215,6 @@ func close_loot() -> void:
 
 
 func _build_loot_panel() -> void:
-	# Control full-rect transparente como raíz: los anchors de sus hijos
-	# se resuelven contra el viewport, igual que el CenterContainer del .tscn.
 	var root := Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -238,7 +229,6 @@ func _build_loot_panel() -> void:
 	style.border_color = Color(0.6, 0.4, 0.1, 1)
 	loot_panel.add_theme_stylebox_override("panel", style)
 	loot_panel.custom_minimum_size = Vector2(280, 0)
-	# Posición inicial: izquierda, centrado verticalmente
 	var vp := get_viewport().get_visible_rect().size
 	loot_panel.position = Vector2(vp.x * 0.1, vp.y * 0.5 - 160.0)
 	root.add_child(loot_panel)
@@ -254,7 +244,6 @@ func _build_loot_panel() -> void:
 	var vbox := VBoxContainer.new()
 	margin.add_child(vbox)
 
-	# Header arrastrble
 	var header := HBoxContainer.new()
 	header.custom_minimum_size = Vector2(0, 22)
 	vbox.add_child(header)
@@ -317,7 +306,6 @@ func _on_loot_slot_clicked(slot: InventorySlot, button_index: int) -> void:
 	inventory.inventory_changed.emit()
 
 
-# ============ CLICKS EN INVENTORY SLOTS ============
 
 func _on_slot_clicked(slot: InventorySlot, button_index: int) -> void:
 	if button_index == MOUSE_BUTTON_LEFT:
@@ -342,7 +330,6 @@ func _handle_inventory_right_click(slot: InventorySlot) -> void:
 		_drop_single_to_inventory(slot)
 
 
-# ============ CLICKS EN EQUIPMENT SLOTS ============
 
 func _on_equipment_slot_clicked(slot: EquipmentSlot) -> void:
 	if floating_item:
@@ -351,7 +338,6 @@ func _on_equipment_slot_clicked(slot: EquipmentSlot) -> void:
 		_pickup_from_equipment(slot)
 
 
-# ============ PICKUP METHODS ============
 
 func _pickup_from_inventory(slot: InventorySlot) -> void:
 	if Input.is_key_pressed(KEY_SHIFT) and slot.item.quantity > 1:
@@ -379,16 +365,14 @@ func _pickup_half_from_inventory(slot: InventorySlot) -> void:
 
 func _pickup_from_equipment(slot: EquipmentSlot) -> void:
 	floating_item = character_window.unequip_item(slot)
-	floating_slot_index = -1  # Marca que viene de equipment
+	floating_slot_index = -1
 	_update_floating_display()
 
 
-# ============ DROP METHODS ============
 
 func _drop_to_inventory(target_slot: InventorySlot) -> void:
 	var target_index = target_slot.slot_index
 	
-	# Si soltamos en el mismo slot de origen
 	if target_index == floating_slot_index:
 		_return_to_origin()
 		return
@@ -396,7 +380,6 @@ func _drop_to_inventory(target_slot: InventorySlot) -> void:
 	if target_slot.item:
 		var target_item = inventory.items[target_index]
 		
-		# Mismo tipo y stackeable
 		if target_item.data.id == floating_item.data.id and floating_item.data.stackable:
 			var space = target_item.data.max_stack - target_item.quantity
 			var to_add = min(floating_item.quantity, space)
@@ -409,14 +392,12 @@ func _drop_to_inventory(target_slot: InventorySlot) -> void:
 			else:
 				_clear_floating_item()
 		else:
-			# Intercambiar
 			var swapped = target_item
 			inventory.items[target_index] = floating_item
 			
 			if floating_slot_index >= 0:
 				inventory.items[floating_slot_index] = swapped
 			else:
-				# Venía de equipment, el swapped pasa a ser el nuevo floating
 				floating_item = swapped
 				_update_floating_display()
 				inventory.inventory_changed.emit()
@@ -425,7 +406,6 @@ func _drop_to_inventory(target_slot: InventorySlot) -> void:
 			
 			_clear_floating_item()
 	else:
-		# Slot vacío
 		inventory.items[target_index] = floating_item
 		_clear_floating_item()
 	
@@ -458,19 +438,16 @@ func _drop_single_to_inventory(target_slot: InventorySlot) -> void:
 
 
 func _drop_to_equipment(slot: EquipmentSlot) -> void:
-	# TODO: Validar si el item puede ir en este slot
 	
 	var old_item = character_window.equip_item(slot, floating_item)
 	floating_item.remove(1)
 	
-	# Si quedaba cantidad, devolverla al origen
 	if floating_item.quantity > 0:
 		if floating_slot_index >= 0:
 			inventory.items[floating_slot_index] = floating_item
 		else:
 			inventory.add_item(floating_item.data, floating_item.quantity)
 	
-	# Si había item equipado, pasa a ser el flotante
 	if old_item:
 		floating_item = old_item
 		floating_slot_index = -1
@@ -482,17 +459,14 @@ func _drop_to_equipment(slot: EquipmentSlot) -> void:
 	_refresh()
 
 
-# ============ UTILITY METHODS ============
 
 func _return_to_origin() -> void:
 	if floating_slot_index >= 0:
-		# Venía del inventario
 		if inventory.items[floating_slot_index] != null:
 			inventory.items[floating_slot_index].add(floating_item.quantity)
 		else:
 			inventory.items[floating_slot_index] = floating_item
 	else:
-		# Venía de equipment, añadir al inventario
 		inventory.add_item(floating_item.data, floating_item.quantity)
 	
 	_clear_floating_item()

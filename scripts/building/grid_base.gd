@@ -1,6 +1,10 @@
 class_name GridBase
 extends RefCounted
 
+## Base de una grid de bloques: guarda los bloques colocados, reconstruye la mesh combinada y
+## define las conversiones mundo↔grid. Las subclases implementan el anclaje al planeta (transform
+## de la grid, nodo padre de la mesh y nodo de colisión por bloque).
+
 signal block_placed(grid_pos: Vector3i, block_id: int)
 signal block_removed(grid_pos: Vector3i)
 
@@ -8,45 +12,36 @@ var grid_id: String = ""
 var cell_size: float = 1.0
 var planet_node: Node3D = null
 
-## Bloques colocados: Vector3i → { block_id, rotation_basis, node, material_id, mirrored, mirror_axis }
 var _blocks: Dictionary = {}
 var _combined_mesh_instance: MeshInstance3D = null
-var mesh_materials: Dictionary = {}  # material_id → Material
+var mesh_materials: Dictionary = {}
 var _suppress_rebuild: bool = false
 
 
-# ============================================================
-#  MÉTODOS "VIRTUALES" — subclases DEBEN sobreescribir
-# ============================================================
-
-## Transform mundo de la grid (para coordenadas).
+## Transform mundo de la grid (subclases deben implementarlo).
 func get_grid_world_transform() -> Transform3D:
 	push_warning("[GridBase] get_grid_world_transform() no implementado")
 	return Transform3D.IDENTITY
 
-## Transform local para posicionar la MeshInstance3D.
+## Transform local de la MeshInstance3D (subclases deben implementarlo).
 func _get_mesh_local_transform() -> Transform3D:
 	push_warning("[GridBase] _get_mesh_local_transform() no implementado")
 	return Transform3D.IDENTITY
 
-## Nodo padre donde añadir la MeshInstance3D.
+## Nodo padre de la MeshInstance3D (subclases deben implementarlo).
 func _get_mesh_parent() -> Node3D:
 	push_warning("[GridBase] _get_mesh_parent() no implementado")
 	return null
 
-## Crea el nodo de colisión para un bloque y lo añade a la escena.
-## Retorna el nodo creado.
+## Crea y añade a la escena el nodo de colisión de un bloque (subclases deben implementarlo).
 func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis,world_transform: Transform3D) -> Node3D:
 	push_warning("[GridBase] _create_block_node() no implementado")
 	return null
 
-## Llamado tras eliminar un bloque (para limpieza específica de subclase).
+## Hook tras eliminar un bloque, para limpieza específica de la subclase.
 func _on_block_removed_hook(_info: Dictionary) -> void:
 	pass
 
-# ============================================================
-#  CONVERSIONES WORLD <-> GRID
-# ============================================================
 
 func get_origin_world() -> Vector3:
 	return get_grid_world_transform().origin
@@ -67,11 +62,7 @@ func grid_to_world(grid_pos: Vector3i) -> Vector3:
 	return get_grid_world_transform() * grid_space
 
 
-# ============================================================
-#  COLOCACIÓN / ELIMINACIÓN
-# ============================================================
-
-func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, world_transform: Transform3D, 
+func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, world_transform: Transform3D,
 	material_id: String = "", mirror_data: Dictionary = {}) -> Node3D:
 
 	if _blocks.has(grid_pos):
@@ -96,7 +87,7 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 
 	_request_rebuild()
 	block_placed.emit(grid_pos, block_data.block_id)
-		
+
 	return node
 
 
@@ -115,10 +106,6 @@ func remove_block(grid_pos: Vector3i) -> Dictionary:
 	block_removed.emit(grid_pos)
 	return info
 
-
-# ============================================================
-#  MESH COMBINADA
-# ============================================================
 
 func _request_rebuild() -> void:
 	if _suppress_rebuild:
@@ -152,10 +139,6 @@ func _ensure_mesh_node() -> void:
 	if parent:
 		parent.add_child(_combined_mesh_instance)
 
-
-# ============================================================
-#  CONSULTAS
-# ============================================================
 
 func has_block(grid_pos: Vector3i) -> bool:
 	return _blocks.has(grid_pos)
@@ -219,9 +202,6 @@ func clear() -> void:
 func is_same_origin_basis(other: GridBase) -> bool:
 	return false
 
-# ============================================================
-#  SERIALIZACIÓN — helpers estáticos
-# ============================================================
 
 static func _transform_to_array(t: Transform3D) -> Array:
 	var b := t.basis

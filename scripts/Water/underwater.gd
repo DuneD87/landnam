@@ -1,12 +1,13 @@
 extends Node3D
 class_name Underwater
 
-# Core volume parameters
+## Efecto volumétrico bajo el agua: un quad a pantalla completa con shader de niebla, absorción,
+## dispersión y godrays; los @export propagan sus valores al material en caliente.
+
 @export var sphere_radius: float = 100000
 @export var volume_height := 10.0
 @export var sun_direction: Vector3
 @export var planet_poisition: Vector3
-# Fog parameters
 @export_group("Fog Settings")
 @export var fog_density: float = 1.8
 @export var fog_color: Color = Color(0.7, 0.8, 0.9, 1.0)
@@ -76,7 +77,6 @@ class_name Underwater
 		godray_min_phase = value
 		_set_shader_parameter(&"godray_min_phase", value)
 
-# Raymarch parameters
 @export_group("Raymarch Settings")
 @export var max_steps: int = 64
 @export var step_size: float = 0.1

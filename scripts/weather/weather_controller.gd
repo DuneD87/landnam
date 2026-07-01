@@ -1,90 +1,48 @@
 class_name WeatherController
 extends Node
 
-## Cerebro del sistema meteorológico (Fase 1).
-##
-## Los EVENTOS climáticos son data-driven: se definen por nombre en un catálogo JSON
-## compartido (data/weather/weather_events.json) y no hay enum fijo. Puedes inventar
-## eventos nuevos ('blizzard', 'heatwave'...) solo en JSON y referenciarlos por nombre
-## en los biome_profiles del planeta, sin tocar código. Si el catálogo falta, se usan
-## los eventos internos por defecto (_builtin_events) como red de seguridad.
-##
-## El controlador elige el evento según el BIOMA en el que está el jugador (la latitud
-## se mapea a un índice de bioma con biome_latitude_ranges, igual que el shader de
-## terreno) y según su ALTITUD (zonas altas se enfrían; los picos se cubren de nieve).
-## Cada bioma tiene un perfil de eventos permitidos con pesos, configurable en el JSON
-## del planeta. Interpola suavemente entre el evento actual y el siguiente, y cada frame
-## difunde el estado resuelto a:
-##   - la atmósfera (nubes: cobertura/densidad/sombra/altura; niebla: capa baja dedicada),
-##   - el sol y el ambiente (oscurecimiento),
-##   - la vegetación (multiplicador de viento),
-##   - el agua (oleaje y espuma),
-##   - el terreno (nieve por fragmento, vía uniforms del shader planet_biomes).
-##
-## La niebla es una capa volumétrica baja propia (fog_density/fog_coverage en el shader
-## de atmósfera): pegada al suelo y modulada por ruido de gran escala advectado por el
-## viento, de modo que el banco "llega de lejos" en vez de verse bajar las nubes.
-##
-## Fase 2: partículas de lluvia/nieve con gravedad radial (WeatherFX, alimentado por
-## rain_rate/snow_rate) y flashes de relámpago (WeatherLightning, alimentado por
-## lightning_frequency): un parpadeo aditivo sobre la iluminación, solo bajo la tormenta.
-## Pendiente aún: el trueno (audio con retardo por distancia; engancha a la señal
-## 'lightning_struck', que ya se emite al arrancar cada descarga).
+## Cerebro del sistema meteorológico: elige un evento climático según el bioma y la altitud
+## del jugador, interpola entre eventos y difunde el estado resuelto a atmósfera, sol,
+## vegetación, agua y terreno. Los eventos son data-driven (data/weather/weather_events.json);
+## añade partículas de precipitación (WeatherFX) y destellos de rayo (WeatherLightning).
 
-## Se emite el frame en que arranca una descarga de rayo. Para enganchar el trueno (audio) o
-## reacciones de gameplay/UI sin acoplarlas al sistema de iluminación.
+## Se emite el frame en que arranca una descarga de rayo (gancho para el trueno o gameplay).
 signal lightning_struck
 
 const DEFAULT_EVENTS_FILE := "res://data/weather/weather_events.json"
 
-# Perfiles por defecto (lista de [nombre_evento, peso]) según el carácter del bioma. Se
-# usan cuando el JSON del planeta no define un perfil para ese índice de bioma. La
-# asignación se deriva de la latitud central de la banda del bioma, sobrescribible por
-# índice desde weather_settings.biome_profiles.
-const PROFILE_SNOWY := [["snow", 3.0], ["storm", 1.0], ["fog", 1.0], ["clear", 1.0]]
-const PROFILE_TEMPERATE := [["clear", 2.0], ["storm", 2.0], ["wind", 1.0], ["fog", 1.0]]
-const PROFILE_TROPICAL := [["clear", 3.0], ["wind", 2.0], ["storm", 1.0]]
-const PROFILE_FALLBACK := [["clear", 3.0], ["storm", 1.0], ["wind", 1.0], ["fog", 1.0]]
-# Perfil de alta montaña (>= snow_altitude): la nieve domina sea cual sea el bioma.
-const DEFAULT_PEAKS_PROFILE := [["snow", 4.0], ["fog", 1.5], ["storm", 1.0]]
-# Refuerzo de frío (entre cold_altitude y snow_altitude): peso extra a estos eventos.
-const DEFAULT_COLD_BOOST := {"snow": 2.0, "fog": 1.0}
+# Perfiles por defecto por carácter de bioma (probabilidad 0..1, suman 1.0); usados si el JSON no define uno.
+const PROFILE_SNOWY := [["snow", 0.5], ["storm", 0.17], ["fog", 0.17], ["clear", 0.16]]
+const PROFILE_TEMPERATE := [["clear", 0.33], ["storm", 0.33], ["wind", 0.17], ["fog", 0.17]]
+const PROFILE_TROPICAL := [["clear", 0.5], ["wind", 0.33], ["storm", 0.17]]
+const PROFILE_FALLBACK := [["clear", 0.5], ["storm", 0.2], ["wind", 0.15], ["fog", 0.15]]
+# Perfil de picos (>= snow_altitude): nieve dominante. Fallback si falta 'peaks_profile' en el JSON.
+const DEFAULT_PEAKS_PROFILE := [["snow", 0.7], ["fog", 0.2], ["storm", 0.1]]
+# Refuerzo de frío (cold_altitude..snow_altitude): probabilidad extra sumada. Fallback si falta 'cold_boost' en el JSON.
+const DEFAULT_COLD_BOOST := {"snow": 0.4, "fog": 0.2}
 
 @export var enabled: bool = true
 @export var min_duration: float = 60.0
 @export var max_duration: float = 180.0
 @export var transition_time: float = 30.0
-## Umbrales (latitud absoluta del centro del bioma) para elegir el perfil POR DEFECTO
-## de cada bioma. Solo afectan a biomas sin perfil propio en el JSON.
+## Umbrales de latitud para elegir el perfil por defecto de un bioma (solo biomas sin perfil propio).
 @export var snowy_latitude: float = 55.0
 @export var tropical_latitude: float = 25.0
-## Altitud (m sobre el nivel base del terreno) a partir de la cual el clima se enfría
-## (más nieve/niebla) y, por encima de snow_altitude, la nieve domina como en un pico.
+## Altitudes donde el clima se enfría (más nieve/niebla) y donde la nieve domina como en un pico.
 @export var cold_altitude: float = 1500.0
 @export var snow_altitude: float = 3500.0
 
-## --- Relámpagos ---
 @export var lightning_enabled: bool = true
-## Energía de la luz auxiliar del destello en su pico (0..1 del generador × esto). Es una
-## DirectionalLight3D radial-hacia-abajo dedicada, con sombras (no se cuela en cuevas) y activa solo
-## durante el relámpago. Va por luz propia, no por el sol, para funcionar también de noche.
+## Energía pico del destello del rayo (luz auxiliar dedicada, radial hacia abajo, con sombras).
 @export var lightning_flash_strength: float = 2.5
 
-## --- Precipitación ligada a las nubes ---
-## La lluvia/nieve no cae hasta que la cobertura de nubes (cloud_coverage) supera precip_cloud_start,
-## y alcanza su intensidad plena en precip_cloud_full. Evita que gotee con el cielo aún despejado al
-## empezar la transición y que siga cayendo de más mientras el cielo se despeja.
+## La precipitación arranca cuando cloud_coverage supera precip_cloud_start y llega a plena en precip_cloud_full.
 @export var precip_cloud_start: float = 0.4
 @export var precip_cloud_full: float = 0.6
 
-## --- Oclusión de niebla en cuevas ---
-## La niebla no se rellena dentro de las cuevas: el shader de atmósfera muestrea la rejilla de
-## oclusión del WeatherFX (R = altura del techo) por punto de marcha y descarta la niebla bajo
-## techo. Es espacialmente exacto (a diferencia de un fundido global), así que las bocas de cueva
-## quedan limpias. El coste es mantener la rejilla viva durante la niebla (raycasts del WeatherFX).
+## Si la niebla se descarta dentro de cuevas muestreando la rejilla de oclusión del WeatherFX.
 @export var fog_cave_occlusion_enabled: bool = true
 
-# --- Refs a subsistemas (inyectadas por setup) ---
 var _planet: Planet
 var _ocean: OceanSystem
 var _atmosphere: PlanetAtmosphere
@@ -93,30 +51,24 @@ var _world_env: WorldEnvironment
 var _player: Node3D
 var _planet_center: Vector3
 
-# --- Efectos de precipitación (lluvia/nieve, partículas) ---
 var _fx: WeatherFX
 
-# --- Relámpagos (generador puro del parpadeo + luz auxiliar dedicada para el destello) ---
 var _lightning: WeatherLightning
-var _aux_light: DirectionalLight3D   # destello del rayo; radial hacia abajo, solo activa al relampaguear
+var _aux_light: DirectionalLight3D
 
+## Actualiza el centro del planeta y reinicia las partículas del FX (viven en mundo).
 func set_planet_center(c: Vector3) -> void:
 	_planet_center = c
 	if _fx != null:
-		# on_origin_shift refresca el centro del FX y reinicia las partículas (viven en mundo,
-		# así que tras un rebase las ya emitidas quedarían desplazadas).
 		_fx.on_origin_shift(c)
 
-# --- Datos de biomas (copiados del planeta) ---
 var _biome_count: int = 0
 var _biome_latitude_ranges: Array = []
-var _profiles_by_biome: Dictionary = {}   # biome_index:int -> Array[[nombre, peso]]
+var _profiles_by_biome: Dictionary = {}
 
-# --- Reglas de altitud (configurables; defaults arriba) ---
 var _peaks_profile: Array = DEFAULT_PEAKS_PROFILE
 var _cold_boost: Dictionary = DEFAULT_COLD_BOOST
 
-# --- Valores base leídos al iniciar (las modulaciones son relativas a estos) ---
 var _base_sun_energy: float = 1.0
 var _base_ambient_energy: float = 1.0
 var _base_wave_amplitude: float = 4.0
@@ -124,8 +76,7 @@ var _base_wave_speed: float = 1.2
 var _base_foam_crest: float = 1.1
 var _water_mat: ShaderMaterial
 
-# --- Catálogo de eventos y máquina de estados ---
-var _events: Dictionary = {}           # nombre:String -> WeatherState
+var _events: Dictionary = {}
 var _from: WeatherState
 var _to: WeatherState
 var _blend: float = 1.0
@@ -134,13 +85,12 @@ var _duration: float = 120.0
 var _current: String = "clear"
 var _current_biome: int = 0
 var _ready_to_run: bool = false
-var _forced: bool = false   # override de depuración: clima fijo, sin auto-transiciones
+var _forced: bool = false
 
-# --- Oclusión de niebla en cuevas ---
-var _active_fog_density: float = 0.0 # densidad de niebla del estado actual (para saber si hay niebla)
+var _active_fog_density: float = 0.0
 
 
-## Inyecta dependencias y arranca. Llamado por planet_loader tras cargar el planeta.
+## Inyecta dependencias y arranca el sistema. Lo llama planet_loader tras cargar el planeta.
 func setup(
 	planet: Planet,
 	ocean: OceanSystem,
@@ -170,7 +120,6 @@ func setup(
 	_lightning = WeatherLightning.new()
 	_setup_lightning_light()
 
-	# Estado inicial coherente con el bioma y la altitud actuales del jugador.
 	_current = _choose_from(_active_profile(), "")
 	_to = _events.get(_current, _fallback_state())
 	_from = _to
@@ -198,12 +147,15 @@ func _apply_config(config: Dictionary) -> void:
 	precip_cloud_start = float(config.get("precip_cloud_start", precip_cloud_start))
 	precip_cloud_full = float(config.get("precip_cloud_full", precip_cloud_full))
 
-	# Reglas de altitud configurables (qué eventos dominan en picos / se refuerzan en frío).
 	var peaks := _parse_profile(config.get("peaks_profile", []))
-	if not peaks.is_empty():
+	if peaks.is_empty():
+		push_warning("WeatherController: falta 'peaks_profile' en weather_settings; uso el fallback %s. Defínelo en el JSON del planeta." % str(DEFAULT_PEAKS_PROFILE))
+	else:
 		_peaks_profile = peaks
 	if config.has("cold_boost") and config["cold_boost"] is Dictionary:
 		_cold_boost = config["cold_boost"]
+	else:
+		push_warning("WeatherController: falta 'cold_boost' en weather_settings; uso el fallback %s. Defínelo en el JSON del planeta." % str(DEFAULT_COLD_BOOST))
 
 
 func _read_base_values() -> void:
@@ -221,8 +173,7 @@ func _read_base_values() -> void:
 		if fc != null: _base_foam_crest = fc
 
 
-## Empuja (una sola vez) la línea de nieve del shader de terreno desde la misma config
-## de clima, para que la nieve por fragmento cuaje en las latitudes/altitudes coherentes.
+## Empuja al shader de terreno la línea de nieve (latitud/altitud) desde la config de clima.
 func _push_snow_line_params() -> void:
 	if _planet == null or _planet.shader_material == null:
 		return
@@ -233,8 +184,7 @@ func _push_snow_line_params() -> void:
 	sm.set_shader_parameter("weather_snow_altitude_full", snow_altitude)
 
 
-## Crea el gestor de partículas de precipitación. Sigue al jugador y necesita el centro del
-## planeta para que la "gravedad" de las gotas/copos apunte radialmente al suelo.
+## Crea el gestor de partículas de precipitación, que sigue al jugador.
 func _setup_fx() -> void:
 	if _player == null:
 		return
@@ -244,10 +194,7 @@ func _setup_fx() -> void:
 	_fx.setup(_player, _planet_center, _sun)
 
 
-## Crea la luz auxiliar del destello: una DirectionalLight3D dedicada, apagada por defecto, que se
-## orienta radial hacia abajo y se enciende solo durante el relámpago (ver _apply_flash). Lleva
-## sombras para que las cuevas queden a oscuras; copia el shadow_opacity del sol para que el remap
-## de cuevas del terreno (sun_shadow_opacity) la trate igual. Tinte azul-blanco propio de un rayo.
+## Crea la luz auxiliar del destello: DirectionalLight3D radial hacia abajo, con sombras, apagada por defecto.
 func _setup_lightning_light() -> void:
 	_aux_light = DirectionalLight3D.new()
 	_aux_light.name = "LightningFlashLight"
@@ -267,44 +214,25 @@ func _process(delta: float) -> void:
 	_elapsed += delta
 	var st: WeatherState = _to
 	if _blend < 1.0:
-		# En transición: interpolar y empujar el estado COMPLETO (atmósfera/sol/agua/...) cada
-		# frame, porque todos los campos se están moviendo.
 		_blend = minf(1.0, _blend + delta / maxf(transition_time, 0.01))
 		st = WeatherState.blend(_from, _to, smoothstep(0.0, 1.0, _blend))
 		_apply_state(st)
 	else:
-		# Estado estable: los uniforms de atmósfera/sol/agua/terreno ya quedaron fijados en el
-		# último frame de la transición y no cambian. Solo la precipitación varía (depende de la
-		# altitud del jugador), así que evitamos re-empujar ~25 uniforms y asignar un WeatherState.
 		_apply_precipitation(_to)
 
-	# Relámpagos: parpadeo aditivo sobre la iluminación del estado actual (st), solo cuando el
-	# evento tiene rayos y estás bajo la tormenta. Va después de _apply_state para que en
-	# transición sobreescriba la luz base con base+destello.
 	_update_lightning(delta, st)
-
-	# La rejilla de oclusión sigue al jugador, así que su transform se empuja a la atmósfera cada
-	# frame mientras haya niebla (independiente del estado de transición).
 	_update_fog_occlusion()
 
-	# Con un clima forzado (override de editor/depuración) no auto-transicionamos: el blend
-	# hacia el evento forzado sigue corriendo, pero no se elige uno nuevo hasta soltarlo.
 	if _forced:
 		return
 
-	# Solo decidimos un cambio cuando la transición anterior terminó.
 	if _blend >= 1.0:
 		var profile := _active_profile()
-		# Cambiamos si se cumplió la duración, o si el jugador entró en una zona (bioma
-		# + altitud) donde el evento actual ya no está permitido (p.ej. bajar de la
-		# montaña nevada, o salir de un bioma frío).
 		if _elapsed >= _duration or not _profile_has(profile, _current):
 			_transition_to(_choose_from(profile, _current))
 
 
-# ── API pública ───────────────────────────────────────────────────────────────
-
-## Fuerza un evento concreto por nombre (para testeo o eventos de juego).
+## Fuerza un evento por nombre (para testeo o eventos de juego).
 func set_weather(event_name: String) -> void:
 	if not _events.has(event_name):
 		push_warning("WeatherController: evento desconocido '%s'" % event_name)
@@ -312,8 +240,7 @@ func set_weather(event_name: String) -> void:
 	_transition_to(event_name)
 
 
-## Fuerza un evento Y BLOQUEA la máquina de estados (no auto-transiciona) hasta clear_force().
-## Pensado para el override de depuración del inspector. Requiere el sistema activo (enabled).
+## Fuerza un evento y bloquea la máquina de estados (no auto-transiciona) hasta clear_force().
 func force_weather(event_name: String) -> void:
 	if not _events.has(event_name):
 		push_warning("WeatherController: evento forzado desconocido '%s'" % event_name)
@@ -325,12 +252,12 @@ func force_weather(event_name: String) -> void:
 	_transition_to(event_name)
 
 
-## Suelta el override y devuelve el control al sistema automático (re-evalúa bioma/altitud).
+## Suelta el override y devuelve el control al sistema automático.
 func clear_force() -> void:
 	if not _forced:
 		return
 	_forced = false
-	_elapsed = _duration   # fuerza una reselección natural en el próximo frame
+	_elapsed = _duration
 
 
 func is_forced() -> bool:
@@ -348,8 +275,6 @@ func get_current_biome() -> int:
 func get_event_names() -> Array:
 	return _events.keys()
 
-
-# ── Máquina de estados ──────────────────────────────────────────────────────────
 
 func _transition_to(event_name: String) -> void:
 	_from = _to
@@ -377,30 +302,23 @@ func _current_altitude() -> float:
 	return (_player.global_position - _planet_center).length() - _planet.radius
 
 
-## Factor 0..1 de precipitación según la altitud del jugador respecto a la capa de nubes:
-## 1 bajo la base (la lluvia/nieve cae sobre ti), se desvanece al ascender por la capa y 0
-## por encima de la cima (estás sobre las nubes de donde nace la precipitación). Usa las
-## alturas del estado interpolado para que coincida con las nubes que se están dibujando.
+## Factor 0..1 de precipitación por altitud: 1 bajo la base de nubes, 0 por encima de su cima.
 func _below_clouds_factor(st: WeatherState) -> float:
 	var top := maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
 	return 1.0 - smoothstep(st.cloud_min_height, top, _current_altitude())
 
 
-## Mapea la latitud al índice de bioma usando biome_latitude_ranges (n+1 entradas para
-## n biomas: el bioma i abarca [ranges[i], ranges[i+1]]).
+## Mapea la latitud al índice de bioma usando biome_latitude_ranges.
 func _biome_for_latitude(lat: float) -> int:
 	if _biome_count <= 0 or _biome_latitude_ranges.size() < _biome_count + 1:
 		return 0
 	for i in _biome_count:
 		if lat >= _biome_latitude_ranges[i] and lat <= _biome_latitude_ranges[i + 1]:
 			return i
-	# Fuera de rango: el polo más cercano.
 	return 0 if lat < float(_biome_latitude_ranges[0]) else _biome_count - 1
 
 
-## Perfil de eventos activo según el bioma Y la altitud del jugador. A nivel del mar es
-## el perfil del bioma; al subir se enfría (más nieve/niebla) y en los picos
-## (>= snow_altitude) domina la nieve sea cual sea el bioma.
+## Perfil de eventos activo según bioma y altitud (frío al subir, nieve en picos).
 func _active_profile() -> Array:
 	_current_biome = _biome_for_latitude(_current_latitude())
 	var base: Array = _profile_for_biome(_current_biome)
@@ -412,8 +330,7 @@ func _active_profile() -> Array:
 	return base
 
 
-## Copia del perfil con los eventos de _cold_boost reforzados: las zonas altas (entre
-## cold_altitude y snow_altitude) son frías aunque el bioma sea cálido.
+## Copia del perfil con los eventos de _cold_boost reforzados para zonas altas frías.
 func _boost_cold(base: Array) -> Array:
 	var result: Array = []
 	var seen: Dictionary = {}
@@ -441,8 +358,7 @@ func _profile_has(profile: Array, event_name: String) -> bool:
 	return false
 
 
-## Random ponderado dentro de un perfil, ignorando eventos no definidos en el catálogo
-## y evitando 'exclude' si hay alternativa.
+## Sorteo por probabilidad dentro de un perfil (normaliza por el total), evitando 'exclude' si puede.
 func _choose_from(profile: Array, exclude: String) -> String:
 	var valid: Array = []
 	for entry in profile:
@@ -482,10 +398,8 @@ func _fallback_state() -> WeatherState:
 	return WeatherState.new()
 
 
-# ── Aplicación del estado a los subsistemas ─────────────────────────────────────
-
+## Difunde un WeatherState a atmósfera, sol/ambiente, vegetación, terreno y agua.
 func _apply_state(st: WeatherState) -> void:
-	# Atmósfera / nubes. La niebla = capa de nubes casi a ras de suelo.
 	if _atmosphere:
 		_atmosphere.clouds_enabled = true
 		_atmosphere.cloud_coverage = st.cloud_coverage
@@ -497,10 +411,6 @@ func _apply_state(st: WeatherState) -> void:
 		_atmosphere.cloud_min_height = st.cloud_min_height
 		_atmosphere.cloud_max_height = maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
 		_atmosphere.cloud_wind_speed = st.cloud_wind_speed
-		# Niebla a ras de suelo: capa baja dedicada. Solo modulamos densidad/cobertura;
-		# la altura es fija en el atmósfera, así la niebla nunca "baja del cielo". La oclusión en
-		# cuevas la hace el shader por punto (no atenuamos aquí); guardamos la densidad para saber
-		# si hay niebla activa y mantener viva la rejilla de oclusión.
 		_active_fog_density = st.fog_density
 		_atmosphere.fog_density = st.fog_density
 		_atmosphere.fog_coverage = st.fog_coverage
@@ -508,19 +418,16 @@ func _apply_state(st: WeatherState) -> void:
 		_atmosphere.fog_floor_height = st.fog_floor_height
 		_atmosphere.fog_top_height = maxf(st.fog_top_height, st.fog_floor_height + 1.0)
 
-	# Sol + ambiente: el oscurecimiento de la tormenta.
 	if _sun:
 		_sun.light_energy = _base_sun_energy * st.sun_energy
 	if _world_env and _world_env.environment:
 		_world_env.environment.ambient_light_energy = _base_ambient_energy * st.ambient_energy
 
-	# Vegetación (planet._update_planet aplica el multiplicador) + terreno (nieve).
 	if _planet:
 		_planet.weather_wind_multiplier = st.wind_multiplier
 		if _planet.shader_material:
 			_planet.shader_material.set_shader_parameter("weather_snow_coverage", st.snow_coverage)
 
-	# Agua: mar más picado y con más espuma en tormenta/viento.
 	if _water_mat:
 		_water_mat.set_shader_parameter("wave_amplitude", _base_wave_amplitude * st.water_wave_multiplier)
 		_water_mat.set_shader_parameter("wave_speed", _base_wave_speed * st.water_speed_multiplier)
@@ -529,14 +436,7 @@ func _apply_state(st: WeatherState) -> void:
 	_apply_precipitation(st)
 
 
-## Precipitación: partículas de lluvia/nieve moduladas por sus rates, por la altitud (no llueve/nieva
-## por encima de la capa de nubes) y por la COBERTURA DE NUBES. Este último factor las liga a las
-## nubes formadas: durante la transición rain_rate/snow_rate rampan linealmente con el blend, igual
-## que cloud_coverage, pero una gota se ve enseguida mientras que las nubes necesitan cobertura alta
-## para ser visibles → parecía que la lluvia llegaba "antes que las nubes" y servía de más al
-## despejarse. Gateando por cloud_coverage, la precipitación empieza cuando el cielo ya está cubierto
-## y cesa al despejarse. El "techo sólido" sobre el jugador lo gestiona aparte WeatherFX por colisión.
-## Se actualiza cada frame (incluso en estado estable) porque el factor de altitud cambia al moverse.
+## Ajusta la intensidad de lluvia/nieve según sus rates, la altitud y la cobertura de nubes.
 func _apply_precipitation(st: WeatherState) -> void:
 	if _fx == null:
 		return
@@ -547,9 +447,7 @@ func _apply_precipitation(st: WeatherState) -> void:
 	_fx.set_intensity("snow", st.snow_rate * gate)
 
 
-## Avanza el generador de rayos y aplica el destello del frame. Gateado por _below_clouds_factor:
-## bajo la tormenta se ve el fogonazo; por encima de las nubes no (de momento no iluminamos sus
-## cimas). Emite 'lightning_struck' al arrancar cada descarga (gancho para el trueno).
+## Avanza el generador de rayos y aplica el destello del frame; emite lightning_struck al iniciar la descarga.
 func _update_lightning(delta: float, st: WeatherState) -> void:
 	if _lightning == null or not lightning_enabled:
 		return
@@ -559,22 +457,10 @@ func _update_lightning(delta: float, st: WeatherState) -> void:
 	_apply_flash(flash)
 
 
-## Aplica el destello del rayo a las superficies que SÍ ven luces de escena (vía la DirectionalLight3D
-## auxiliar) y a las que NO (las nubes del compute de atmósfera, vía uniform).
-##
-## La luz auxiliar va por una luz propia y no por el sol porque de noche el sol apunta al lado opuesto
-## del planeta y no iluminaría nada: apunta SIEMPRE radial hacia abajo (el rayo viene de arriba), así
-## funciona igual de día y de noche. Lleva sombras (respeta cuevas) y solo se enciende durante el
-## destello (coste medio ≈ 0). Cubre terreno/vegetación/opaco (usan light()) y también el agua (usa la
-## iluminación por defecto de Godot, sin light(), así que recibe todas las direccionales).
-##
-## Las nubes son la excepción: el compute de atmósfera se ilumina a mano desde sun_direction y no ve
-## luces de escena, así que le empujamos el destello como uniform para que su base fogonee con el rayo.
+## Aplica el destello del rayo a la luz auxiliar (superficies de escena) y a las nubes del compute (uniform).
 func _apply_flash(flash: float) -> void:
 	if _aux_light != null:
 		if flash > 0.0:
-			# Reorienta cada frame: el "arriba" radial cambia al moverse el jugador por el planeta. La
-			# luz emite por su -Z, así que para que viaje hacia el centro (abajo) ponemos basis.z = arriba.
 			if _player != null and is_instance_valid(_player):
 				var up := _player.global_position - _planet_center
 				up = up.normalized() if up.length_squared() > 0.0001 else Vector3.UP
@@ -589,15 +475,11 @@ func _apply_flash(flash: float) -> void:
 		else:
 			_aux_light.visible = false
 
-	# Nubes: el compute de atmósfera no ve luces de escena → le pasamos el destello aparte (también 0
-	# al terminar, para apagarlo).
 	if _atmosphere != null:
 		_atmosphere.lightning_flash = flash
 
 
-## Empuja al shader de atmósfera la rejilla de oclusión (transform + textura) para que la niebla no
-## se rellene dentro de las cuevas. Solo se activa cuando hay niebla; entonces además fuerza al
-## WeatherFX a mantener la rejilla reconstruyéndose (la rejilla normalmente solo vive con lluvia/nieve).
+## Empuja al shader de atmósfera la rejilla de oclusión para que la niebla no entre en cuevas.
 func _update_fog_occlusion() -> void:
 	if _fx == null:
 		return
@@ -615,24 +497,19 @@ func _update_fog_occlusion() -> void:
 		field.get_height_texture())
 
 
-# ── Catálogo de eventos ──────────────────────────────────────────────────────────
-
-## Construye _events: arranca con los eventos internos por defecto (red de seguridad) y
-## los sobrescribe/extiende con el catálogo JSON y con overrides del planeta.
+## Construye _events: eventos internos por defecto + catálogo JSON + overrides del planeta.
 func _build_events(config: Dictionary) -> void:
 	_events = _builtin_events()
 
 	var path := str(config.get("events_file", DEFAULT_EVENTS_FILE))
 	_merge_event_dict(_load_events_catalog(path))
 
-	# Overrides por planeta (weather_settings.presets) — afinan el catálogo solo aquí.
 	var presets: Dictionary = config.get("presets", {})
 	if presets is Dictionary:
 		_merge_event_dict(presets)
 
 
-## Mezcla un diccionario {nombre: {campos}} en _events: actualiza los existentes y crea
-## los nuevos (campos omitidos = default de WeatherState).
+## Mezcla un diccionario {nombre: {campos}} en _events, actualizando existentes y creando nuevos.
 func _merge_event_dict(events: Dictionary) -> void:
 	for ev_name in events:
 		if not (events[ev_name] is Dictionary):
@@ -659,16 +536,12 @@ func _load_events_catalog(path: String) -> Dictionary:
 	return {}
 
 
-# ── Perfiles de eventos por bioma ────────────────────────────────────────────────
-
-## Construye _profiles_by_biome: por cada bioma, un perfil por defecto derivado de la
-## latitud central de su banda, sobrescribible por índice desde weather_settings.biome_profiles.
+## Construye _profiles_by_biome: un perfil por bioma, sobrescribible desde weather_settings.biome_profiles.
 func _build_biome_profiles(config: Dictionary) -> void:
 	_profiles_by_biome.clear()
 	for i in maxi(_biome_count, 1):
 		_profiles_by_biome[i] = _default_profile_for_biome(i)
 
-	# Overrides por índice de bioma. En JSON las claves son strings ("0", "1", ...).
 	var overrides: Dictionary = config.get("biome_profiles", {})
 	for key in overrides:
 		var idx := int(str(key))
@@ -676,7 +549,20 @@ func _build_biome_profiles(config: Dictionary) -> void:
 		if not parsed.is_empty():
 			_profiles_by_biome[idx] = parsed
 
+	for idx in _profiles_by_biome:
+		_warn_if_not_1(idx, _profiles_by_biome[idx])
 
+
+## Avisa si las probabilidades de un perfil no suman ~1.0.
+func _warn_if_not_1(idx, profile: Array) -> void:
+	var total := 0.0
+	for entry in profile:
+		total += float(entry[1])
+	if absf(total - 1.0) > 0.01:
+		push_warning("WeatherController: las probabilidades del bioma %s suman %.2f, no 1.0 (se normalizan igual, pero revisa)." % [str(idx), total])
+
+
+## Perfil por defecto de un bioma según la latitud central de su banda.
 func _default_profile_for_biome(i: int) -> Array:
 	if _biome_latitude_ranges.size() < i + 2:
 		return PROFILE_TEMPERATE
@@ -689,28 +575,26 @@ func _default_profile_for_biome(i: int) -> Array:
 	return PROFILE_TEMPERATE
 
 
-## Convierte una lista del JSON en perfil [[nombre, peso], ...]. Acepta entradas como
-## {"weather": "snow", "weight": 3}, {"event": "snow", "weight": 3} o ["snow", 3].
+## Convierte una lista del JSON en perfil [[nombre, probabilidad], ...]. Acepta las claves chance/percent/weight.
 func _parse_profile(raw) -> Array:
 	var profile: Array = []
 	if not (raw is Array):
 		return profile
 	for entry in raw:
 		var name := ""
-		var weight := 1.0
+		var chance := 1.0
 		if entry is Dictionary:
 			name = str(entry.get("weather", entry.get("event", "")))
-			weight = float(entry.get("weight", 1.0))
+			chance = float(entry.get("chance", entry.get("percent", entry.get("weight", 1.0))))
 		elif entry is Array and entry.size() >= 1:
 			name = str(entry[0])
-			weight = float(entry[1]) if entry.size() >= 2 else 1.0
-		if name != "" and weight > 0.0:
-			profile.append([name, weight])
+			chance = float(entry[1]) if entry.size() >= 2 else 1.0
+		if name != "" and chance > 0.0:
+			profile.append([name, chance])
 	return profile
 
 
-# ── Eventos internos por defecto (fallback si falta el catálogo JSON) ─────────────
-
+## Eventos climáticos internos por defecto (fallback si falta el catálogo JSON).
 func _builtin_events() -> Dictionary:
 	return {
 		"clear": _state({
@@ -750,8 +634,6 @@ func _builtin_events() -> Dictionary:
 			"water_speed_multiplier": 1.8, "water_foam_multiplier": 1.8,
 		}),
 		"fog": _state({
-			# Las nubes se quedan ALTAS y discretas: la niebla la hace la capa baja dedicada
-			# (fog_density/fog_coverage), no nubes que bajan. Un cielo encapotado tenue ayuda.
 			"cloud_coverage": 0.35, "cloud_density": 0.4, "cloud_absorption": 0.16,
 			"cloud_albedo": 0.8,
 			"cloud_shadow": 0.3, "cloud_min_height": 500.0, "cloud_max_height": 800.0,

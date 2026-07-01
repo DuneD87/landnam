@@ -17,7 +17,6 @@ func _set_mesh_items(data: Array[Dictionary]) -> void:
 			library.add_item(i, item.mesh_item)
 		i+=1'''
 
-# Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	'''planet = get_parent().get_parent()
 	print("---DEBUG LIBRARY COUNT:", library.get_all_item_ids().size())

@@ -1,4 +1,3 @@
-# inventory_slot.gd
 class_name InventorySlot
 extends PanelContainer
 

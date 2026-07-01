@@ -21,7 +21,6 @@ func enter() -> void:
 
 
 func update(delta: float) -> StringName:
-	# Amenaza detectada → huir
 	if flee_trigger_radius > 0.0 and controller.is_target_within(flee_trigger_radius):
 		return &"FleeState"
 

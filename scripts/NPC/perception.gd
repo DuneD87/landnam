@@ -1,16 +1,8 @@
 extends Node
 class_name Perception
 
-## Detecta objetivos (jugador, amenazas) mediante dos zonas:
-##  - Visión: cono estrecho de largo alcance, con comprobación opcional de LOS.
-##  - Oído:   esfera omnidireccional de corto alcance.
-##
-## Uso desde NPCController._ready():
-##   perception.npc = self
-##   perception.controller = ai_controller
-##
-## Los estados de la FSM (FleeState, ChaseState…) reaccionan a controller.target,
-## que este componente asigna y limpia automáticamente.
+## Detecta objetivos (jugador y NPCs hostiles) con un cono de visión (con LOS opcional) y una esfera
+## de oído, asignando y limpiando controller.target y emitiendo target_detected / target_lost.
 
 signal target_detected(target: Node3D)
 signal target_lost()
@@ -32,15 +24,12 @@ signal target_lost()
 @export var check_interval: float = 0.2
 
 @export_group("NPC Detection")
-## Tipos de NPC que este NPC percibe como amenaza. Vacío = solo detecta al jugador.
-## Ej: un oso con ["deer"] atacará ciervos; un ciervo con ["bear"] huirá de osos.
+## Tipos de NPC que este percibe como amenaza. Vacío = solo detecta al jugador.
 @export var hostile_npc_types: Array[StringName] = []
 ## Si es false, el jugador no es detectado como amenaza.
 @export var detect_player: bool = true
 
-## Asignar desde NPCController._ready().
 var npc: CharacterBody3D
-## Asignar desde NPCController._ready().
 var controller: AIController
 
 var _detected: Node3D = null
@@ -49,7 +38,6 @@ var _player_cache: Node3D = null
 
 
 func _ready() -> void:
-	# Cachear referencia al player una sola vez en vez de escanear el árbol cada tick.
 	var players := get_tree().get_nodes_in_group("player")
 	if not players.is_empty() and players[0] is Node3D:
 		_player_cache = players[0]
@@ -107,11 +95,9 @@ func _can_detect(target: Node3D) -> bool:
 	var to_target := target.global_position - npc.global_position
 	var dist := to_target.length()
 
-	# Oído: esfera omnidireccional
 	if dist <= hearing_range:
 		return true
 
-	# Visión: cono orientado hacia el frente del NPC
 	if dist <= vision_range:
 		var dir := to_target / dist
 		var forward := -npc.global_transform.basis.z
@@ -131,5 +117,4 @@ func _has_los(target: Node3D) -> bool:
 	query.exclude = [npc.get_rid()]
 	query.collision_mask = los_mask
 	var result := space.intersect_ray(query)
-	# Vacío: camino libre. Colisiona con el propio target: también libre.
 	return result.is_empty() or result.get("collider") == target

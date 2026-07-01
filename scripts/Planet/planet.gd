@@ -1,5 +1,9 @@
 @tool
 class_name Planet extends Node3D
+
+## Nodo de un planeta: configura el terreno voxel y su shader de biomas, genera la vegetación
+## (VoxelInstancer) con sus colisiones, y parchea el VoxelGraph (radio, ores) desde datos JSON.
+
 const config = preload("res://scripts/config.gd")
 @export_group("Terrain Settings")
 @export var radius: float
@@ -64,7 +68,6 @@ var planet_item_scenes: Dictionary
 var _next_library_id: int = 0
 
 ## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
-## 1.0 = viento base del planeta; >1 en tormenta/viento fuerte, <1 en calma/niebla.
 var weather_wind_multiplier: float = 1.0
 
 func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_index: int = 0) -> VoxelInstanceGenerator:
@@ -74,15 +77,7 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 		generator.emit_mode = VoxelInstanceGenerator.EMIT_FROM_VERTICES
 	elif generator_config.emit_mode == "EMIT_ONE_PER_TRIANGLE":
 		generator.emit_mode = VoxelInstanceGenerator.EMIT_ONE_PER_TRIANGLE
-	# La densidad aplica a AMBOS modos. Antes solo se asignaba en EMIT_FROM_VERTICES,
-	# así que la hierba (EMIT_ONE_PER_TRIANGLE) ignoraba su "density" y corría al
-	# valor por defecto del generador (densidad máxima) -> muchísimas instancias.
 	if generator_config.has("density"):
-		# LOD de densidad automático: un mismo generador sirve para todos los LODs.
-		# Cada nivel divide la densidad respecto al anterior (por defecto a la mitad),
-		# así que definir un item con lod_index N da densidad = base * falloff^N
-		# (lod 0 = base, lod 1 = base/2, lod 2 = base/4, ...). Se puede afinar el
-		# factor por generador con "lod_density_falloff" (0.5 = mitad por nivel).
 		var density: float = generator_config.density
 		if lod_index > 0:
 			var falloff: float = generator_config.get("lod_density_falloff", 0.5)
@@ -112,7 +107,6 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 	if graph_function:
 		var noise_id = graph_function.find_node_by_name(&"Noise_01")
 		if noise_id:
-			# (Opcional pero recomendable) Verificar que efectivamente es un FastNoise3D
 			if graph_function.get_node_type_id(noise_id) != VoxelGraphFunction.NODE_FAST_NOISE_3D:
 				push_error("El nodo 'Noise_01' no es de tipo FastNoise3D")
 				return
@@ -208,7 +202,6 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 	multi_mesh_item.lod_index = lod_index
 	multi_mesh_item.scene = shared_data.packed_scene
 
-	# Sombras por item (la hierba no debería proyectar sombras: es el mayor coste).
 	if not item.get("cast_shadow", true):
 		if "cast_shadow" in multi_mesh_item:
 			multi_mesh_item.cast_shadow = RenderingServer.SHADOW_CASTING_SETTING_OFF
@@ -225,7 +218,6 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		"wind_speed": wind_speed,
 	})
 
-	# planet_item_scenes usa el library_id en lloc de l'índex de l'item
 	if shared_data.registered_scene != null:
 		planet_item_scenes[library_id] = shared_data.registered_scene
 
@@ -262,26 +254,20 @@ func _load_vegetation() -> void:
 
 
 func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
-	# Normalitza generator a array (compatibilitat amb items antics)
 	var generator_names: Array = []
 	if item.generator is Array:
 		generator_names = item.generator
 	else:
 		generator_names = [item.generator]
 
-	# Normalitza lod_index a array: pots posar un sol enter (lod_index: 1) o una llista
-	# (lod_index: [0, 1, 2]). Per cada nivell es crea una entrada pròpia a la library, amb
-	# la densitat dividida segons el LOD (veure _build_generator).
 	var lod_indices: Array = _normalize_lod_indices(item.get("lod_index", 0))
 
-	# Construeix el PackedScene i el mesh una sola vegada (és compartit)
 	var shared_data = _build_item_shared_data(i, item)
 	if shared_data.is_empty():
 		return
 
 	var emit_as_scene: bool = item.get("instance_as_scene", false)
 
-	# Crea una entrada a la library per cada generator i nivell de LOD
 	for generator_name in generator_names:
 		var generator_config = null
 		for gc in generators:
@@ -294,16 +280,13 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 
 		for lod_index in lod_indices:
 			var generator: VoxelInstanceGenerator = _build_generator(generator_config, graph_functions, lod_index)
-			# Items emisivos (p.ej. hongos de cueva) se instancian como escena completa para
-			# que el VoxelInstancer materialice también sus nodos (OmniLight3D). El MultiMesh
-			# solo dibuja el mesh, así que ahí una luz embebida nunca se replicaría.
 			if emit_as_scene:
 				_register_scene_item(item, shared_data, generator, lod_index)
 			else:
 				_register_multi_mesh_item(i, item, shared_data, generator, lod_index)
 
 
-# Accepta un sol enter o una llista d'enters i sempre torna una llista d'enters no buida.
+## Normaliza un entero o lista de enteros a una lista de enteros no vacía.
 func _normalize_lod_indices(raw) -> Array:
 	var result: Array = []
 	if raw is Array:
@@ -321,7 +304,6 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 
 	var combined_mesh := ArrayMesh.new()
 
-	# Trunk: encara és una sola surface
 	if trunk and trunk.mesh:
 		combined_mesh.add_surface_from_arrays(
 			Mesh.PRIMITIVE_TRIANGLES,
@@ -331,7 +313,6 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 		if trunk_mat:
 			combined_mesh.surface_set_material(combined_mesh.get_surface_count() - 1, trunk_mat)
 
-	# Twig/foliage: ara pot tenir N surfaces amb materials propis
 	if twig and twig.mesh:
 		var twig_mesh: Mesh = twig.mesh
 		for i in range(twig_mesh.get_surface_count()):
@@ -374,13 +355,12 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 	}
 
 
-# Helper: obté l'array de materials del foliage independentment del tipus
+## Devuelve el array de materiales del foliage según el tipo (Tree3D/Bush3D).
 func _get_twig_materials_array(tree3d) -> Array:
 	if tree3d is Bush3D:
 		var arr = tree3d.foliage_materials
 		return arr if arr != null else []
 	else:
-		# Tree3D
 		var arr = tree3d.twig_materials
 		return arr if arr != null else []
 
@@ -474,9 +454,6 @@ func setup_shader_parameters() -> void:
 	_setup_ore_shader_parameters()
 
 func _setup_ore_shader_parameters() -> void:
-	# El shader solo necesita las texturas y el contador: el blending de ore lo lee del
-	# voxel (CUSTOM1 / canal INDICES-WEIGHTS), que ahora rellena el VoxelGraph. El índice
-	# guardado es el type_id (1=iron...), la textura es ore_*_textures[type_id - 1].
 	var ore_albedo: Array[Texture2D] = []
 	var ore_normal: Array[Texture2D] = []
 	var ore_roughness: Array[Texture2D] = []
@@ -511,10 +488,6 @@ func setup_voxel_generator() -> void:
 		return
 
 	var graph_generator_function: VoxelGraphFunction = graph_generator.get_main_function()
-	# Tras abstraer terreno/ores a sub-funciones (earth_terrain_base, cave_field), los nodos
-	# nombrados (SdfSphere, ore_spots_*, ore_depth_*) ya NO viven en la función principal sino
-	# dentro de las funciones anidadas. Recogemos main + todas las sub-funciones para parchear
-	# allá donde estén realmente.
 	var all_functions: Array = [graph_generator_function]
 	_gather_subfunctions(graph_generator_function, all_functions)
 
@@ -536,15 +509,8 @@ func setup_voxel_generator() -> void:
 	if not ore_settings.is_empty():
 		_publish_ore_drop_table()
 
-# --- Parámetros de ore (data-driven sobre nodos creados a mano en el editor) --------------
-# La ESTRUCTURA de nodos (Spots3D -> gate por SDF -> OutputWeight) se autora en el editor del
-# VoxelGraph, porque add_node/add_connection no están expuestos a GDScript en este build.
-# Aquí solo empujamos los params del JSON a los nodos NOMBRADOS, igual que el parcheo de 'radius':
-#   - Spots3D nombrado "ore_spots_<type_id>"  <- seed, cell_size, spot_radius, jitter
-#   - Divide  nombrado "ore_depth_<type_id>"  <- b = surface_depth   (gate = max(0, 1-|sdf|/depth))
+## Empuja los parámetros de ore del JSON a los nodos nombrados del VoxelGraph (autorados en el editor).
 func _apply_ore_params(functions: Array, ores: Array) -> void:
-	# La info de tipos es global (no depende de la instancia de función), así que el volcado de
-	# introspección lo hacemos sobre la primera función.
 	var probe: VoxelGraphFunction = functions[0]
 	print("[ore-graph] set_node_default_input disponible: ", probe.has_method("set_node_default_input"))
 	_dump_node_info(probe, VoxelGraphFunction.NODE_SPOTS_3D, "Spots3D")
@@ -565,10 +531,6 @@ func _apply_ore_params(functions: Array, ores: Array) -> void:
 			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "spot_radius", float(ore.get("spot_radius", 12.0)))
 			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "jitter", float(ore.get("jitter", 0.9)))
 
-		# Dos estilos de gate según el JSON:
-		#  - ore de SUPERFICIE (iron/gold): "surface_depth" -> Divide "ore_depth_<id>" (gate cerca de superficie).
-		#  - ore de CUEVA: "depth_min/max" -> banda radial (Smoothstep "ore_band_lo/hi_<id>") x proximidad a
-		#    la cueva real (Smoothstep "cave_gate_<id>" sobre cave_field), así solo sale en cuevas existentes.
 		if ore.has("depth_min"):
 			_apply_cave_ore_band(functions, type_id, ore)
 		else:
@@ -581,26 +543,21 @@ func _apply_ore_params(functions: Array, ores: Array) -> void:
 				var depth: float = maxf(float(ore.get("surface_depth", 10.0)), 0.001)
 				_push_param(depth_fn, depth_node, VoxelGraphFunction.NODE_DIVIDE, "b", depth)
 
-# Empuja los params de un ore de CUEVA: banda de profundidad radial + gate de proximidad a la cueva.
-# La estructura (Spots3D -> banda -> cave_gate -> OutputWeight) vive en cave_ore_field.tres, autorada
-# en el editor; aquí solo fijamos los edges de los Smoothstep nombrados, igual que con el resto de params.
+## Empuja los params de un ore de cueva: banda de profundidad radial + gate de proximidad a la cueva.
 func _apply_cave_ore_band(functions: Array, type_id: int, ore: Dictionary) -> void:
 	var depth_min: float = maxf(float(ore.get("depth_min", 10.0)), 0.0)
 	var depth_max: float = maxf(float(ore.get("depth_max", 60.0)), depth_min + 0.001)
 	var soft: float = maxf(float(ore.get("band_softness", 10.0)), 0.001)
-	var alt_high: float = radius - depth_min  # techo de la banda (menos profundo, altitud mayor)
-	var alt_low: float = radius - depth_max   # suelo de la banda (más profundo, altitud menor)
+	var alt_high: float = radius - depth_min
+	var alt_low: float = radius - depth_max
 
-	# band_lo: enciende por encima del suelo. band_hi: apaga por encima del techo (edge0 > edge1).
 	_set_smoothstep(functions, "ore_band_lo_%d" % type_id, alt_low, alt_low + soft)
 	_set_smoothstep(functions, "ore_band_hi_%d" % type_id, alt_high + soft, alt_high)
 
-	# Proximidad a la cueva real: cave_field ~0 en la pared, muy negativo en roca lejos de cuevas.
-	# Gate = 1 cerca de la pared (cave_field -> 0), 0 a más de 'cave_shell' metros dentro de la roca.
 	var shell: float = maxf(float(ore.get("cave_shell", 12.0)), 0.001)
 	_set_smoothstep(functions, "cave_gate_%d" % type_id, -shell, 0.0)
 
-# Localiza un Smoothstep por nombre en cualquier (sub)función y le fija edge0/edge1.
+## Localiza un Smoothstep por nombre en cualquier (sub)función y le fija edge0/edge1.
 func _set_smoothstep(functions: Array, node_name: String, edge0: float, edge1: float) -> void:
 	var fn := _find_owner(functions, node_name)
 	if fn == null:
@@ -611,7 +568,7 @@ func _set_smoothstep(functions: Array, node_name: String, edge0: float, edge1: f
 	_push_param(fn, node_id, tid, "edge0", edge0)
 	_push_param(fn, node_id, tid, "edge1", edge1)
 
-# Recorre la función principal y todas las sub-funciones (nodos Function) de forma recursiva.
+## Recorre la función principal y todas las sub-funciones (nodos Function) recursivamente.
 func _gather_subfunctions(fn: VoxelGraphFunction, acc: Array) -> void:
 	for node_id in fn.get_node_ids():
 		var info = fn.get_node_type_info(fn.get_node_type_id(node_id))
@@ -622,14 +579,14 @@ func _gather_subfunctions(fn: VoxelGraphFunction, acc: Array) -> void:
 			acc.append(sub)
 			_gather_subfunctions(sub, acc)
 
-# Devuelve la función que contiene un nodo con ese nombre, o null.
+## Devuelve la (sub)función que contiene un nodo con ese nombre, o null.
 func _find_owner(functions: Array, node_name: String) -> VoxelGraphFunction:
 	for fn in functions:
 		if fn.find_node_by_name(node_name) > 0:
 			return fn
 	return null
 
-# Parchea el 'radius' del SdfSphere allá donde esté. Devuelve true si parcheó algo.
+## Parchea el 'radius' del SdfSphere donde esté; devuelve true si parcheó algo.
 func _apply_radius(fn: VoxelGraphFunction, radius_value: float) -> bool:
 	var patched := false
 	for node_id in fn.get_node_ids():
@@ -648,9 +605,6 @@ func _apply_radius(fn: VoxelGraphFunction, radius_value: float) -> bool:
 	return patched
 
 func _push_param(fn: VoxelGraphFunction, node_id: int, type_id: int, setting: String, value) -> void:
-	# Distinguimos INPUT (con valor por defecto, p.ej. cell_size/spot_radius/jitter/b) de PARAM
-	# (p.ej. seed/layer). set_node_param_by_name SOLO vale para params; los inputs van por
-	# set_node_default_input(node, input_index, value).
 	var info = fn.get_node_type_info(type_id)
 	var in_idx := _input_index(info, setting)
 	if in_idx >= 0:
@@ -659,7 +613,6 @@ func _push_param(fn: VoxelGraphFunction, node_id: int, type_id: int, setting: St
 		else:
 			push_warning("Planet: '%s' es input (idx %d) pero set_node_default_input no existe; ponlo a mano en el editor." % [setting, in_idx])
 	else:
-		# No es input -> asumimos param. set_node_param_by_name asertará si tampoco existe.
 		fn.set_node_param_by_name(node_id, setting, value)
 
 func _input_index(info, setting: String) -> int:
@@ -681,8 +634,6 @@ func _desc_name(desc) -> String:
 	return ""
 
 func _publish_ore_drop_table() -> void:
-	# Reemplaza OreVoxelGenerator.get_ore_drop: publica type_id -> drop como meta del terreno,
-	# que ActionController lee al minar.
 	var table := {}
 	for ore in ore_settings:
 		var tid := int(ore.get("type_id", 0))

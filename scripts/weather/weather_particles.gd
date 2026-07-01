@@ -1,12 +1,10 @@
 class_name WeatherParticles
 extends GPUParticles3D
 
-## Emisor de precipitación genérico: apply_preset() construye cualquier efecto desde un preset.
-## Simula en MUNDO (local_coords=false), así el jugador atraviesa la precipitación en vez de
-## arrastrarla. La gravedad apunta al CENTRO del planeta: cada frame se fija al "abajo radial"
-## del jugador (en mundo la gravedad del material es global).
+## Emisor de precipitación genérico construido desde un preset. Simula en mundo
+## (local_coords=false), así el jugador atraviesa la precipitación; la gravedad se reorienta
+## cada frame hacia el centro del planeta (abajo radial del jugador).
 
-# Textura compartida (punto suave radial) para presets sin textura propia.
 static var _shared_dot_texture: ImageTexture
 
 const DRAW_SHADER := preload("res://shaders/weather/weather_particle.gdshader")
@@ -14,7 +12,7 @@ const DRAW_SHADER := preload("res://shaders/weather/weather_particle.gdshader")
 var _preset: WeatherParticlePreset
 var _player: Node3D
 var _planet_center: Vector3
-var _proc: ParticleProcessMaterial   # para reescribir la gravedad radial cada frame
+var _proc: ParticleProcessMaterial
 var _draw_mat: ShaderMaterial
 
 
@@ -32,11 +30,10 @@ func apply_preset(preset: WeatherParticlePreset) -> void:
 	_preset = preset
 	amount = maxi(preset.amount, 1)
 	lifetime = maxf(preset.lifetime, 0.05)
-	preprocess = preset.lifetime   # arranca con el volumen lleno, sin "cielo vacío" inicial
+	preprocess = preset.lifetime
 	_proc = _build_process_material(preset)
 	process_material = _proc
 	draw_pass_1 = _build_mesh(preset)
-	# AABB generoso (caja + alcance de caída) para que no se culee al mirar lejos.
 	var reach := preset.box_extents + Vector3.ONE * (preset.initial_velocity_max \
 		+ preset.gravity_strength * preset.lifetime) * preset.lifetime
 	visibility_aabb = AABB(-reach, reach * 2.0)
@@ -50,27 +47,23 @@ func set_intensity(value: float) -> void:
 	if should_emit != emitting:
 		emitting = should_emit
 		if should_emit:
-			_follow_player()   # recoloca el volumen antes de emitir tras estar inactivo
+			_follow_player()
 
 
 func _process(_delta: float) -> void:
-	# Solo el efecto que emite necesita seguir al jugador y reorientar su gravedad radial. El
-	# inactivo (p.ej. nieve mientras llueve) no dibuja nada, así que nos lo saltamos.
 	if emitting:
 		_follow_player()
 
-
-# ── Construcción ────────────────────────────────────────────────────────────────
 
 func _build_process_material(preset: WeatherParticlePreset) -> ParticleProcessMaterial:
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	pm.emission_box_extents = preset.box_extents
-	pm.direction = Vector3(0.0, -1.0, 0.0)   # -Y local; el nodo se orienta radial cada frame
+	pm.direction = Vector3(0.0, -1.0, 0.0)
 	pm.spread = preset.spread
 	pm.initial_velocity_min = preset.initial_velocity_min
 	pm.initial_velocity_max = preset.initial_velocity_max
-	pm.gravity = Vector3(0.0, -preset.gravity_strength, 0.0)   # _follow_player lo reescribe a radial
+	pm.gravity = Vector3(0.0, -preset.gravity_strength, 0.0)
 	pm.damping_min = preset.damping_min
 	pm.damping_max = preset.damping_max
 	pm.scale_min = preset.scale_min
@@ -95,20 +88,19 @@ func _build_draw_material(preset: WeatherParticlePreset) -> ShaderMaterial:
 	mat.shader = DRAW_SHADER
 	mat.set_shader_parameter("albedo_tex",
 		preset.texture if preset.texture != null else _get_dot_texture())
-	mat.set_shader_parameter("occ_enabled", 0.0)   # WeatherFX lo activa al empujar el campo
+	mat.set_shader_parameter("occ_enabled", 0.0)
 	_draw_mat = mat
 	return mat
 
 
-## WeatherFX empuja aquí la luz solar (color día/noche + atardecer); el shader la multiplica por
-## el albedo de cada gota, así la precipitación se oscurece de noche en vez de ir a brillo pleno.
+## Empuja al shader la luz solar (color día/noche), que multiplica el albedo de cada gota.
 func set_sun_light(c: Color) -> void:
 	if _draw_mat == null:
 		return
 	_draw_mat.set_shader_parameter("sun_light", Vector3(c.r, c.g, c.b))
 
 
-## WeatherFX empuja aquí la rejilla de oclusión. Con enabled=false el shader solo billboardea.
+## Empuja la rejilla de oclusión al shader. Con enabled=false el shader solo billboardea.
 func set_occlusion(field_center: Vector3, field_x: Vector3, field_z: Vector3, field_up: Vector3,
 		field_half_size: float, field_span: float, field_below: float,
 		height_tex: Texture2D, enabled: bool) -> void:
@@ -142,10 +134,7 @@ static func _get_dot_texture() -> ImageTexture:
 	return _shared_dot_texture
 
 
-# ── Seguimiento + orientación radial ─────────────────────────────────────────────
-
-## Recoloca el volumen sobre el jugador (solo dónde nacen; las emitidas viven en mundo) y orienta
-## la gravedad/velocidad hacia el centro del planeta con el "abajo radial" actual.
+## Recoloca el volumen de emisión sobre el jugador y orienta la gravedad hacia el centro del planeta.
 func _follow_player() -> void:
 	if _player == null or not is_instance_valid(_player):
 		return
@@ -162,10 +151,7 @@ func _follow_player() -> void:
 		_proc.gravity = -up * _preset.gravity_strength
 
 
-## Llamado tras un rebase de origen flotante. Las gotas/copos viven en MUNDO
-## (local_coords=false), así que las ya emitidas se quedan en su posición vieja al desplazar
-## el mundo → blob visible. restart() las limpia y, con preprocess=lifetime, rellena el
-## volumen al instante en la posición correcta. Conservamos el estado de emisión.
+## Reinicia las partículas tras un rebase de origen flotante (viven en mundo y quedarían desplazadas).
 func shift_origin(new_center: Vector3) -> void:
 	_planet_center = new_center
 	_follow_player()

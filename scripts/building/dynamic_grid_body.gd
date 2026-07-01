@@ -1,10 +1,10 @@
 class_name DynamicGridBody
 extends RigidBody3D
 
-## Tipos de movimiento disponibles
-enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
+## RigidBody3D de una grid dinámica: aplica gravedad planetaria y flotación en agua, y controla
+## el movimiento según movement_type (barco con niveles de velocidad; vehículo y nave pendientes).
 
-## RigidBody3D con gravedad planetaria y flotación.
+enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 
 @export var movement_type: MovementType = MovementType.BOAT
 @export var turn_speed: float = 2.0
@@ -20,7 +20,6 @@ var _buoyancy_force: float = 100.0
 var _recalc_points: bool = true
 var _is_being_controlled: bool = false
 
-# ---- Boat speed levels ----
 var _boat_speed_levels: Array[float] = [0.0, 5.0, 10.0, 20.0]
 var _boat_speed_index: int = 0
 var _boat_target_speed: float = 0.0
@@ -28,7 +27,6 @@ var _boat_current_speed: float = 0.0
 @export var boat_acceleration: float = 3.0
 @export var boat_deceleration: float = 5.0
 
-# ---- Señales ----
 signal speed_changed(level: int, speed: float)
 
 func on_block_removed(grid_pos: Vector3i) -> void:
@@ -43,10 +41,10 @@ func mark_points_dirty() -> void:
 func _recalculate_buoyancy_points() -> void:
 	_recalc_points = false
 	_buoyancy_points.clear()
-	
+
 	if get_child_count() == 0:
 		return
-	
+
 	var aabb := AABB()
 	var first := true
 	for child in get_children():
@@ -57,20 +55,20 @@ func _recalculate_buoyancy_points() -> void:
 				first = false
 			else:
 				aabb = aabb.expand(pos)
-	
+
 	if first:
 		return
-	
+
 	aabb = aabb.grow(0.5)
 	var o: Vector3 = aabb.position
 	var s: Vector3 = aabb.size
-	
+
 	for xi in 3:
 		for zi in 3:
 			var fx: float = float(xi) / 2.0
 			var fz: float = float(zi) / 2.0
 			_buoyancy_points.append(o + Vector3(s.x * fx, 0, s.z * fz))
-	
+
 	_buoyancy_points.append(aabb.get_center())
 
 func _is_ground_ready() -> bool:
@@ -104,14 +102,11 @@ func register_grid(grid) -> void:
 func unregister_grid(grid) -> void:
 	_grids.erase(grid)
 
-# ============================================================
-#  INPUT
-# ============================================================
 
 func _handle_input(delta: float) -> void:
 	if not _is_being_controlled:
 		return
-	
+
 	match movement_type:
 		MovementType.BOAT:
 			_handle_boat_input(delta)
@@ -125,17 +120,17 @@ func _handle_boat_input(delta: float) -> void:
 		_boat_speed_index = mini(_boat_speed_index + 1, _boat_speed_levels.size() - 1)
 		_boat_target_speed = _boat_speed_levels[_boat_speed_index]
 		speed_changed.emit(_boat_speed_index, _boat_target_speed)
-	
+
 	if Input.is_action_just_pressed("ui_down"):
 		_boat_speed_index = maxi(_boat_speed_index - 1, 0)
 		_boat_target_speed = _boat_speed_levels[_boat_speed_index]
 		speed_changed.emit(_boat_speed_index, _boat_target_speed)
-	
+
 	if _boat_current_speed < _boat_target_speed:
 		_boat_current_speed = minf(_boat_current_speed + boat_acceleration * delta, _boat_target_speed)
 	elif _boat_current_speed > _boat_target_speed:
 		_boat_current_speed = maxf(_boat_current_speed - boat_deceleration * delta, _boat_target_speed)
-	
+
 	if _boat_current_speed > 0.01:
 		var forward := global_transform.basis.z
 		var current_forward_speed := linear_velocity.dot(forward)
@@ -149,24 +144,21 @@ func _handle_boat_input(delta: float) -> void:
 	if Input.is_action_pressed("ui_right"):
 		angular_velocity -= global_transform.basis.y * turn_speed * delta
 
+## Sin implementar: movimiento de vehículo terrestre.
 func _handle_land_input(_delta: float) -> void:
-	# TODO: implementar movimiento de vehículo terrestre
 	pass
 
+## Sin implementar: movimiento de nave espacial.
 func _handle_spaceship_input(_delta: float) -> void:
-	# TODO: implementar movimiento de nave espacial
 	pass
 
-# ============================================================
-#  PHYSICS
-# ============================================================
 
 func _physics_process(delta: float) -> void:
 	if not planet_node or not is_inside_tree():
 		return
-	
+
 	_handle_input(delta)
-	
+
 	var planet_pos: Vector3 = planet_node.global_pos
 	var dir: Vector3 = (planet_pos - global_position).normalized()
 	var up: Vector3 = -dir
@@ -175,54 +167,51 @@ func _physics_process(delta: float) -> void:
 	if not planet_node.planet.has_water or not _water_sampler:
 		apply_central_force(gravity_force)
 		return
-	
+
 	if _recalc_points:
 		_recalculate_buoyancy_points()
-	
+
 	if _buoyancy_points.is_empty():
 		apply_central_force(gravity_force)
 		return
-	
+
 	var mat: ShaderMaterial = planet_node.water_sphere.mesh_manager.default_material as ShaderMaterial
 	var water_time: float = mat.get_shader_parameter("water_time")
 	var base_water_radius: float = planet_node.planet.radius - planet_node.planet.water_radius
-	
+
 	var submerged_count: float = 0.0
 	var point_count: int = _buoyancy_points.size()
-	
+
 	for local_pos in _buoyancy_points:
 		var world_pos: Vector3 = global_transform * local_pos
 		var wave_h: float = _water_sampler.get_height_at(world_pos, water_time, planet_pos)
 		var water_r: float = base_water_radius + wave_h
 		var dist: float = (world_pos - planet_pos).length()
-		
+
 		if dist < water_r:
 			var depth: float = water_r - dist
 			var ratio: float = clampf(depth / 1.0, 0.0, 1.0)
 			apply_force(up * _buoyancy_force * ratio, world_pos - global_position)
 			submerged_count += ratio
-	
+
 	var ratio_sub: float = clampf(submerged_count / float(point_count), 0.0, 1.0)
 	gravity_force *= (1.0 - ratio_sub)
-	
+
 	if submerged_count > 0.0:
 		apply_central_force(-linear_velocity * _water_drag * ratio_sub)
-		
+
 		var ang: Vector3 = angular_velocity
 		var yaw_component: Vector3 = up * ang.dot(up)
 		var tilt_component: Vector3 = ang - yaw_component
 		apply_torque(-tilt_component * _water_drag * 15.0 * ratio_sub)
 		apply_torque(-yaw_component * _water_drag * 5.0 * ratio_sub)
-		
+
 		var radial_vel: float = linear_velocity.dot(up)
 		if absf(radial_vel) > 0.5:
 			apply_central_force(-up * radial_vel * mass * ratio_sub * 2.0)
-	
+
 	apply_central_force(gravity_force)
 
-# ============================================================
-#  API PÚBLICA
-# ============================================================
 
 func get_current_speed_level() -> int:
 	return _boat_speed_index

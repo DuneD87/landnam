@@ -64,7 +64,6 @@ func _build_ui() -> void:
 	var outer_vbox := VBoxContainer.new()
 	margin.add_child(outer_vbox)
 
-	# Header
 	var header := HBoxContainer.new()
 	outer_vbox.add_child(header)
 
@@ -78,11 +77,9 @@ func _build_ui() -> void:
 	close_btn.pressed.connect(toggle)
 	header.add_child(close_btn)
 
-	# Separator
 	var sep := HSeparator.new()
 	outer_vbox.add_child(sep)
 
-	# Scroll amb contingut
 	scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.custom_minimum_size = Vector2(0, 500)
@@ -108,7 +105,6 @@ func _populate_blocks() -> void:
 		if items.is_empty():
 			continue
 
-		# Títol del material
 		var mat_label := Label.new()
 		mat_label.text = group["display_name"]
 		mat_label.add_theme_font_size_override("font_size", 28)
@@ -116,7 +112,6 @@ func _populate_blocks() -> void:
 		mat_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		content_vbox.add_child(mat_label)
 
-		# Grid de blocs per aquest material
 		var grid := GridContainer.new()
 		grid.columns = COLUMNS
 		grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -125,7 +120,6 @@ func _populate_blocks() -> void:
 		for item_data in items:
 			grid.add_child(_create_block_slot(item_data))
 
-		# Separador entre materials
 		var sep := HSeparator.new()
 		sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		content_vbox.add_child(sep)
@@ -188,7 +182,6 @@ func _on_hotbar_slot_clicked(slot_index: int) -> void:
 	_cancel_floating()
 
 
-# ---- Floating display ----
 
 func _create_floating_display() -> void:
 	var fl := CanvasLayer.new()

@@ -1,9 +1,7 @@
-## GameManager - Autoload Singleton
-## Pure state machine + save/load orchestrator.
-## Emits signals, lets each system react.
-##
-## Setup: Project > Project Settings > Autoload > Add as "GameManager"
 extends Node
+
+## GameManager (autoload singleton): máquina de estados del juego y orquestador de guardado/carga.
+## Emite señales para que cada sistema reaccione. Registrar en Project > Autoload como "GameManager".
 
 signal state_changed(new_state: State)
 
@@ -36,7 +34,7 @@ func start_game() -> void:
 	_change_state(State.CINEMATIC)
 
 
-## Called by the player when the cinematic tween finishes
+## Lo llama el jugador cuando termina el tween de la cinemática.
 func cinematic_completed() -> void:
 	if current_state != State.CINEMATIC:
 		return
@@ -47,8 +45,6 @@ func _change_state(new_state: State) -> void:
 	current_state = new_state
 	state_changed.emit(new_state)
 
-
-# ── Save / Load ──────────────────────────────────────────────────────────────
 
 func _move_spawn_point_to_player() -> void:
 	if not player or not is_instance_valid(player):
@@ -154,7 +150,6 @@ func load_game(slot_name: String = "default") -> bool:
 	var saved_state: int = meta.get("game_state", State.PLAYING)
 	_change_state(saved_state as State)
 
-	# Fase 1: restaurar entidades existentes
 	var restored_ids: Array[String] = []
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if not entity.get("entity_id"):
@@ -164,7 +159,6 @@ func load_game(slot_name: String = "default") -> bool:
 			entity.restore_save_data(all_entities[id].data)
 			restored_ids.append(id)
 
-	# Fase 1b: instanciar entidades que faltan
 	for id in all_entities:
 		if id in restored_ids:
 			continue
@@ -182,7 +176,6 @@ func load_game(slot_name: String = "default") -> bool:
 			get_tree().current_scene.add_child(entity)
 		entity.restore_save_data(entry.data)
 
-	# Fase 2: post_restore
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if entity.has_method("post_restore"):
 			entity.post_restore()
@@ -191,7 +184,7 @@ func load_game(slot_name: String = "default") -> bool:
 	return true
 
 
-## Busca todos los planetas con voxel terrain y les asigna el stream
+## Asigna el stream de voxel a todos los planetas con terreno.
 func _setup_terrain_streams(_slot_name: String) -> void:
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if entity.has_method("setup_voxel_stream"):
@@ -229,7 +222,7 @@ func get_save_slots() -> Array[String]:
 	return slots
 
 
-## Helper: buscar una entidad registrada por su entity_id
+## Busca una entidad registrada por su entity_id.
 func get_entity(entity_id: String) -> Node:
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if entity.get("entity_id") == entity_id:

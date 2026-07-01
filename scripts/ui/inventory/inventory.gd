@@ -14,7 +14,6 @@ func _init():
 	for i in range(max_slots):
 		items[i] = null
 
-# Mueve un item de un slot a otro
 func move_item(from_slot: int, to_slot: int, quantity: int = -1) -> bool:
 	if from_slot < 0 or from_slot >= max_slots:
 		return false
@@ -32,21 +31,17 @@ func move_item(from_slot: int, to_slot: int, quantity: int = -1) -> bool:
 	
 	var to_item = items[to_slot]
 	
-	# Si el destino es null (vacío)
 	if to_item == null:
 		if qty_to_move == from_item.quantity:
-			# Mover todo
 			items[to_slot] = from_item
 			items[from_slot] = null
 		else:
-			# Mover parcialmente
 			items[to_slot] = InventoryItem.new(from_item.data, qty_to_move)
 			from_item.remove(qty_to_move)
 		
 		inventory_changed.emit()
 		return true
 	
-	# Si son del mismo tipo y stackeable, intenta apilar
 	if from_item.data.object_type == to_item.data.object_type and from_item.data.stackable:
 		var space_available = to_item.data.max_stack - to_item.quantity
 		var actually_moved = min(qty_to_move, space_available)
@@ -60,7 +55,6 @@ func move_item(from_slot: int, to_slot: int, quantity: int = -1) -> bool:
 		inventory_changed.emit()
 		return true
 	
-	# Si son diferentes, intercambiar
 	if quantity == -1 or quantity == from_item.quantity:
 		var temp = items[from_slot]
 		items[from_slot] = items[to_slot]
@@ -71,7 +65,6 @@ func move_item(from_slot: int, to_slot: int, quantity: int = -1) -> bool:
 	
 	return false
 
-# Divide un stack entre dos slots
 func split_item(from_slot: int, to_slot: int) -> bool:
 	if from_slot < 0 or from_slot >= max_slots:
 		return false
@@ -84,21 +77,17 @@ func split_item(from_slot: int, to_slot: int) -> bool:
 	if from_item == null:
 		return false
 	
-	# Solo se puede dividir si tiene más de 1 unidad
 	if from_item.quantity <= 1:
 		return move_item(from_slot, to_slot)
 	
-	# Dividir a la mitad (redondeando hacia arriba)
 	var half = int(ceil(from_item.quantity / 2.0))
 	return move_item(from_slot, to_slot, half)
 
-# Obtiene el item en un slot específico
 func get_item_at_slot(slot: int) -> InventoryItem:
 	if slot >= 0 and slot < max_slots:
 		return items[slot]
 	return null
 
-# Encuentra el primer slot vacío
 func find_empty_slot() -> int:
 	for i in range(max_slots):
 		if items[i] == null:
@@ -188,7 +177,6 @@ func is_full() -> bool:
 			return false
 	return true
 
-## Vacía todos los slots
 func clear() -> void:
 	for i in items.size():
 		items[i] = null

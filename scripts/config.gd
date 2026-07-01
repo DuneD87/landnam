@@ -1,5 +1,6 @@
-# config.gd
 extends Node
+
+## Config global (autoload): enum de animaciones y catálogo de ItemData cargado de res://data/items/.
 
 enum ANIMATION {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1, ATTACK_2, SPRINT, FALLING, SWIM, SWIM_IDLE, DEATH, HIT}
 
@@ -18,7 +19,6 @@ static func _load_items_from_folder(path: String) -> void:
 		var full_path = path.path_join(file_name)
 		
 		if dir.current_is_dir():
-			# Recursión para subcarpetas (ignora . y ..)
 			if not file_name.begins_with("."):
 				_load_items_from_folder(full_path)
 		elif file_name.ends_with(".tres"):

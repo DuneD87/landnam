@@ -4,37 +4,19 @@ class_name NPCController
 
 const Config = preload("res://scripts/config.gd")
 
-## Controlador base para todos los NPCs (animales, humanos…).
-##
-## ── Nodos hijo requeridos en la escena ──────────────────────────────────────
-##   Movement          (scripts/Player/movement.gd)
-##   HealthComponent   (scripts/NPC/health_component.gd)
-##   AIController      (scripts/NPC/ai/ai_controller.gd)
-##     └── [estados AIState como hijos, ej: IdleState, WanderState, FleeState…]
-##   Inventory         (scripts/ui/inventory/inventory.gd)
-##
-## ── Nodo hijo opcional ──────────────────────────────────────────────────────
-##   AnimationController (scripts/Player/animation_controller.gd)
-##     Con los exports animator / animation_tree apuntando al modelo del NPC.
-##
-## ── Hereda de PlanetaryBody ─────────────────────────────────────────────────
-##   @export planets, var planet, var gravity_direction
-##   align_to_gravity(), rotate_toward_direction(), project_on_gravity_plane()
-##   update_nearest_planet()
+## Controlador base de los NPCs (animales, humanos…): hereda de PlanetaryBody y orquesta sus
+## componentes hijo (Movement, HealthComponent, AIController + estados, Inventory, y opcionalmente
+## AnimationController y Perception), gestionando gravedad, animación, daño, muerte y guardado.
 
-## Nombre del estado inicial de la FSM. Debe coincidir con el nombre de un
-## nodo hijo de AIController (ej: &"IdleState").
+## Nombre del estado inicial de la FSM (nombre de un nodo hijo de AIController).
 @export var initial_ai_state: StringName = &"IdleState"
-## Estado al que transicionar cuando Perception detecta un objetivo.
-## Vacío = sin reacción automática (útil para NPCs pasivos).
+## Estado al que ir cuando Perception detecta objetivo. Vacío = sin reacción automática.
 @export var detect_state: StringName = &""
-## Estado al que transicionar cuando Perception pierde el objetivo.
-## Vacío = dejar que el estado activo decida por sí mismo.
+## Estado al que ir cuando Perception pierde el objetivo. Vacío = decide el estado activo.
 @export var lose_state: StringName = &""
-## Tipo de NPC. Usado por Perception de otros NPCs para identificar amenazas (ej: &"bear", &"deer").
+## Tipo de NPC, usado por Perception de otros NPCs para identificar amenazas (ej: &"bear", &"deer").
 @export var npc_type: StringName = &""
-## Identificador único para el sistema de guardado. Se genera automáticamente
-## si está vacío. Sobreescribir en el editor para NPCs fijos en la escena.
+## Identificador único para guardado; se genera automáticamente si está vacío.
 @export var entity_id: String = ""
 var save_category: String = "npc"
 
@@ -44,14 +26,11 @@ var save_category: String = "npc"
 @onready var inventory: Inventory = $Inventory
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var npc_model: Node3D = $NPCModel
-## Asignado automáticamente si existe el nodo hijo "AnimationController".
 var animation_controller: AnimationController
-var current_animation  # Config.ANIMATION value
-## Asignado automáticamente si existe el nodo hijo "Perception".
+var current_animation
 var perception: Perception
 
-## Segundos que el cadáver permanece antes de desaparecer. 0 = desaparece inmediatamente.
-## Asignado por NPCSpawner al instanciar.
+## Segundos que el cadáver permanece antes de desaparecer. 0 = inmediato. Lo asigna NPCSpawner.
 var corpse_duration: float = 0.0
 var is_dead: bool = false
 var _is_dying: bool = false
@@ -63,12 +42,10 @@ var _hit_timer: float = 0.0
 
 var _frame_offset: int = 0
 var _ai_update_stride: int = 1
-## 0 = cada frame. > 0 = intervalo en segundos (spawner lo ajusta por distancia).
 var _physics_interval: float = 0.0
 var _physics_timer: float = 0.0
 
-## Layer 2 para NPCs vivos. Los muertos pasan a layer 0 (invisibles).
-## Cuando el jugador añada raycasts de ataque, incluir layer 2 en su collision_mask.
+# Layer de NPCs vivos; los muertos pasan a layer 0.
 const NPC_LIVE_LAYER := 2
 
 func _ready() -> void:
@@ -83,13 +60,10 @@ func _ready() -> void:
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	add_to_group("npc")
 
-	# Movement en modo IA: la dirección la inyecta el AIController, no el Input
 	movement.use_ai_input = true
 
-	# AnimationController es opcional (puede no haber modelo aún)
 	animation_controller = get_node_or_null("AnimationController")
 
-	# Perception es opcional
 	perception = get_node_or_null("Perception")
 	if perception:
 		perception.npc = self
@@ -99,19 +73,15 @@ func _ready() -> void:
 		if lose_state != &"":
 			perception.target_lost.connect(_on_target_lost)
 
-	# Wiring del AIController con este cuerpo y el Movement
 	ai_controller.npc = self
 	ai_controller.movement = movement
 
-	# Señales de salud
 	movement.landed.connect(_on_landed)
 	health_component.damaged.connect(_on_damaged)
 	health_component.died.connect(_on_died)
 
-	# Planeta de referencia
 	update_nearest_planet()
 
-	# Arrancar la FSM con el estado inicial
 	if initial_ai_state != &"":
 		ai_controller.start(initial_ai_state)
 	inventory.add_item(Config.get_item(&"wood_01"), 37)
@@ -168,8 +138,6 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
-# ── Señales ─────────────────────────────────────────────────────────────────
-
 func _on_target_detected(_target: Node3D) -> void:
 	ai_controller.transition_to(detect_state)
 
@@ -216,8 +184,6 @@ func _on_died() -> void:
 		func(): if is_instance_valid(self): queue_free()
 	)
 
-
-# ── Save / Load ──────────────────────────────────────────────────────────────
 
 func get_save_data() -> Dictionary:
 	return {

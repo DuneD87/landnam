@@ -1,6 +1,9 @@
 extends Node3D
 class_name QuadTreeManager
 
+## Quadtree cúbico proyectado a esfera para el LOD del agua: subdivide las 6 caras según la cámara,
+## descarta las no visibles y emite quadtree_changed con los parches activos para el mesh manager.
+
 signal quadtree_changed(active_quad_data: Array)
 
 @export var radius: float = 20000.0
@@ -14,7 +17,6 @@ var root_quads: Array[QuadNode] = []
 var last_camera_position: Vector3
 var update_threshold: float = 20.0
 
-# Definición de las 6 caras del cubo
 var cube_faces = [
 	{
 		"name": "top",
@@ -81,13 +83,13 @@ func _create_root_quads():
 
 		var root_quad = QuadNode.new()
 		root_quad.setup(
-			face_center,          # position
-			radius,              # size
-			0,                      # level
-			null,                   # parent_node
-			face_data.normal,       # normal
-			face_data.up,           # up
-			face_data.right,         # right
+			face_center,
+			radius,
+			0,
+			null,
+			face_data.normal,
+			face_data.up,
+			face_data.right,
 			radius
 		)
 		root_quad.max_level = max_lod
@@ -155,7 +157,6 @@ func _update_quadtree(camera_position: Vector3):
 
 	_emit_quadtree_changed(camera_position)
 
-# Métodos auxiliares opcionales para debugging o control específico
 func get_face_quad(face_name: String) -> QuadNode:
 	for i in range(cube_faces.size()):
 		if cube_faces[i].name == face_name:

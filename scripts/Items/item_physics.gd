@@ -14,26 +14,23 @@ signal destroyed(position: Vector3, amount: int, item_data: ItemData)
 @export var planet: Node3D
 @onready var highlight_light: OmniLight3D
 
-@export var equipped: bool = false  # Corregido typo: equiped -> equipped
+@export var equipped: bool = false
 
 
 func set_equipped(value: bool) -> void:
 	equipped = value
 	if equipped:
-		# Desactivar físicas y colisiones
 		freeze = true
 		set_physics_process(false)
 		collision_layer = 0
 		collision_mask = 0
-		# Ocultar luz
 		if highlight_light:
 			highlight_light.visible = false
 	else:
-		# Reactivar físicas y colisiones
 		freeze = false
 		set_physics_process(true)
-		collision_layer = 1  # Ajusta según tu configuración
-		collision_mask = 1   # Ajusta según tu configuración
+		collision_layer = 1
+		collision_mask = 1
 		if highlight_light:
 			highlight_light.visible = true
 
@@ -56,7 +53,6 @@ func _physics_process(delta: float) -> void:
 	if planets == null or planets.get_children().size() == 0 or equipped:
 		return
 	
-	# Encontrar planeta más cercano
 	var closest_distance = INF
 	for _planet in planets.get_children():
 		var distance = global_position.distance_to(_planet.global_pos)

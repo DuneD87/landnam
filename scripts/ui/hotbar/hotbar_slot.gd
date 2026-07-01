@@ -1,4 +1,3 @@
-# hotbar_slot.gd
 class_name HotbarSlot
 extends PanelContainer
 
@@ -9,7 +8,6 @@ signal slot_clicked(slot: HotbarSlot, button_index: int)
 
 @export var slot_index: int = 0
 
-## Solo una referencia — el item real vive en el inventario
 var assigned_data: ItemData = null
 var selected: bool = false
 var style_empty: StyleBoxFlat

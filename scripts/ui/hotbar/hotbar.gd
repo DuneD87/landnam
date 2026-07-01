@@ -1,10 +1,7 @@
-# hotbar.gd
 class_name Hotbar
 extends CanvasLayer
 
-## Emitido al cambiar de slot. Proporciona el ItemData anterior y el nuevo (pueden ser null).
 signal selection_changed(old_data: ItemData, new_data: ItemData)
-## Emitido cuando se hace click en un slot (para que InventoryUI pueda asignar el floating item)
 signal hotbar_slot_clicked(slot_index: int)
 
 const HOTBAR_SLOTS := 10
@@ -45,11 +42,9 @@ func _create_slots() -> void:
 		slots.append(slot)
 
 
-## Asigna un ItemData a un slot del hotbar (solo referencia)
 func assign_to_slot(index: int, item_data: ItemData) -> void:
 	if index < 0 or index >= HOTBAR_SLOTS:
 		return
-	# Si ya estaba asignado en otro slot, limpiar el anterior
 	for i in HOTBAR_SLOTS:
 		if slots[i].assigned_data and item_data and slots[i].assigned_data.id == item_data.id:
 			slots[i].clear()
@@ -147,7 +142,6 @@ func get_save_data() -> Array:
 	return result
 
 
-## Para save/load: restaura asignaciones desde array de IDs
 func restore_save_data(data: Array, config: Object) -> void:
 	for i in mini(data.size(), HOTBAR_SLOTS):
 		var value = data[i]

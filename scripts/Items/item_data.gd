@@ -1,4 +1,3 @@
-# item_data.gd
 class_name ItemData
 extends Resource
 const config = preload("res://scripts/config.gd")
@@ -73,7 +72,6 @@ func copy_from(source: ItemData) -> void:
 
 
 	
-# Valida si este item puede equiparse en un slot específico
 func can_equip_in_slot(slot_type: String) -> bool:
 	match slot_type:
 		"head":

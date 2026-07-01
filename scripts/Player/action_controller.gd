@@ -1,5 +1,9 @@
 extends Node
 class_name ActionController
+
+## Acciones del jugador con el mundo: excavar voxels (con drop de ore), atacar objetos destruibles y
+## recoger items por raycast central o cono.
+
 const Config = preload("res://scripts/config.gd")
 
 signal voxel_mined(item_id: StringName, amount: int)
@@ -24,7 +28,7 @@ func _ready() -> void:
 	add_child(timer)
 	attack_raycast = RayCast3D.new()
 	add_child(attack_raycast)
-	attack_raycast.enabled = false  # Solo se habilita durante el ataque
+	attack_raycast.enabled = false
 
 func dig_hole(radius: float, distance: float):
 	var voxel_tool: VoxelTool = current_voxel.get_voxel_tool()
@@ -38,30 +42,23 @@ func dig_hole(radius: float, distance: float):
 		voxel_tool.value = 0
 		voxel_tool.do_sphere(center, radius)
 
-		# Leemos el ore DESPUÉS de excavar. Un bloque generado-no-editado no expone los canales
-		# INDICES/WEIGHTS a get_voxel (devuelve los defaults -> el 1er golpe siempre saldría
-		# stone). El do_sphere edita el bloque (solo el canal SDF) y lo hace residente con todos
-		# los canales, así que INDICES/WEIGHTS ya devuelven el ore generado de verdad. El SDF
-		# editado no afecta a esos canales, así que seguimos leyendo el ore que había.
+		# Leer el ore tras do_sphere: editar hace residente el bloque con los canales INDICES/WEIGHTS reales.
 		var type_id := _read_best_ore_along_ray(voxel_tool, result.position, current_direction, 2)
 		var drop := _get_ore_drop(type_id)
 
 		var amount := rand_num_gen.randi_range(drop.min_count, drop.max_count)
 		voxel_mined.emit(drop.item_id, amount)
 
-# Recorre desde 'start' hacia dentro del rayo (dir) 'steps' voxels y devuelve el type_id del
-# ore dominante (mayor peso) encontrado. Cubre la piel de terreno base sobre el depósito.
+## Recorre 'steps' voxels hacia dentro del rayo y devuelve el type_id del ore dominante (mayor peso).
 func _read_best_ore_along_ray(voxel_tool: VoxelTool, start: Vector3i, dir: Vector3, steps: int) -> int:
 	var best_id := 0
-	var best_w := 0.15  # mínimo para contar como ore; el slot base (índice 0) nunca cuenta
+	var best_w := 0.15
 	for i in range(steps + 1):
 		var p := start + Vector3i((dir * float(i)).round())
 		voxel_tool.channel = VoxelBuffer.CHANNEL_INDICES
 		var indices := VoxelTool.u16_indices_to_vec4i(voxel_tool.get_voxel(p))
 		voxel_tool.channel = VoxelBuffer.CHANNEL_WEIGHTS
 		var weights := VoxelTool.u16_weights_to_color(voxel_tool.get_voxel(p))
-		# Un voxel normal trae INDICES=(0,1,2,3) con peso solo en el slot 0 (índice 0 = base).
-		# Es ore solo si un slot con índice>0 tiene peso suficiente.
 		var idx := [indices.x, indices.y, indices.z, indices.w]
 		var w := [weights.r, weights.g, weights.b, weights.a]
 		for s in 4:
@@ -74,8 +71,6 @@ func _get_ore_drop(type_id: int) -> Dictionary:
 	var fallback := {"item_id": &"stone_01", "min_count": 1, "max_count": 2}
 	if type_id == 0:
 		return fallback
-	# La tabla de drops la publica Planet.setup_voxel_generator() como meta del terreno
-	# (antes vivía en OreVoxelGenerator, ahora la generación está en el VoxelGraph).
 	var drops: Dictionary = current_voxel.get_meta("ore_drops", {})
 	return drops.get(type_id, fallback)
 		
@@ -138,12 +133,10 @@ func handle_pickup(camera: Camera3D, origin: Vector3) -> ItemData:
 	var up = camera.global_transform.basis.y
 	var right = camera.global_transform.basis.x
 	
-	# Primero intentamos el raycast central (prioridad)
 	var raycast_result = perform_raycast(origin, camera.global_rotation, true)
 	var target_node = raycast_result["target_node"]
 	var hit_distance = raycast_result["hit_distance"]
-	
-	# Si no hay hit central, probamos el cono
+
 	if target_node == null:
 		target_node = cone_raycast(origin, forward, up, right, camera)
 		if target_node:

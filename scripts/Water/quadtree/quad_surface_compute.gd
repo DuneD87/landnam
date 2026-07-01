@@ -1,6 +1,9 @@
 extends MeshInstance3D
 class_name QuadSurfaceCompute
 
+## Genera la malla de un parche del quadtree de agua en la GPU (compute shader): calcula vértices,
+## normales y UVs proyectados sobre la esfera, con ruido opcional. Usa recursos compute compartidos.
+
 @export var quad_resolution: int = 32
 @export var quad_size: float = 1000.0
 @export var sphere_radius: float = 20000
@@ -11,7 +14,6 @@ var face_right: Vector3
 var quad_level: int
 var needs_update: bool = true
 
-# Parámetros de ruido
 @export_group("Noise Settings")
 @export var enable_noise: bool = false
 @export var noise_amplitude: float = 150.0
@@ -21,12 +23,10 @@ var needs_update: bool = true
 @export var noise_gain: float = 0.5
 @export var noise_seed: int = 12345
 
-# Compute shader resources - now shared
 var rd: RenderingDevice
 var compute_shader: RID
 var is_using_shared_resources: bool = false
 
-# Per-instance buffers
 var vertex_buffer: RID
 var normal_buffer: RID
 var uv_buffer: RID
@@ -35,7 +35,6 @@ var uniform_set: RID
 var uniform_buffer: RID
 
 func _init():
-	# Don't create RenderingDevice here anymore
 	pass
 
 func set_shared_resources(shared_rd: RenderingDevice, shared_shader: RID):
@@ -55,7 +54,6 @@ func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right:
 	needs_update = true
 	sphere_radius = radius
 	quad_resolution = sub_divisions
-	# Only setup shader if not using shared resources
 	cast_shadow = SHADOW_CASTING_SETTING_OFF
 
 	if not is_using_shared_resources:
@@ -70,11 +68,9 @@ func _setup_own_compute_resources():
 	_setup_compute_shader()
 
 func _setup_compute_shader():
-	# Load shader file
 	const COMPUTE_SHADER_PATH = "res://shaders/Compute/quad_surface_compute.glsl"
 	var shader_file = load(COMPUTE_SHADER_PATH) as RDShaderFile
 	if not shader_file:
-		# Try alternative loading method
 		var file = FileAccess.open(COMPUTE_SHADER_PATH, FileAccess.READ)
 		if not file:
 			push_error("Could not load compute shader file")
@@ -83,7 +79,6 @@ func _setup_compute_shader():
 		var shader_code = file.get_as_text()
 		file.close()
 		
-		# Create shader from source
 		var shader_source := RDShaderSource.new()
 		shader_source.source_compute = shader_code
 		shader_source.language = RenderingDevice.SHADER_LANGUAGE_GLSL
@@ -102,25 +97,21 @@ func _create_buffers():
 	var vertex_count = (quad_resolution + 1) * (quad_resolution + 1)
 	var index_count = quad_resolution * quad_resolution * 6
 	
-	# Create vertex buffer (vec3 per vertex)
 	var vertex_data = PackedFloat32Array()
 	vertex_data.resize(vertex_count * 3)
 	var vertex_bytes = vertex_data.to_byte_array()
 	vertex_buffer = rd.storage_buffer_create(vertex_bytes.size(), vertex_bytes)
 	
-	# Create normal buffer (vec3 per vertex)
 	var normal_data = PackedFloat32Array()
 	normal_data.resize(vertex_count * 3)
 	var normal_bytes = normal_data.to_byte_array()
 	normal_buffer = rd.storage_buffer_create(normal_bytes.size(), normal_bytes)
 	
-	# Create UV buffer (vec2 per vertex)
 	var uv_data = PackedFloat32Array()
 	uv_data.resize(vertex_count * 2)
 	var uv_bytes = uv_data.to_byte_array()
 	uv_buffer = rd.storage_buffer_create(uv_bytes.size(), uv_bytes)
 	
-	# Create index buffer
 	var index_data = PackedInt32Array()
 	index_data.resize(index_count)
 	_fill_indices(index_data)
@@ -147,7 +138,6 @@ func _fill_indices(indices: PackedInt32Array):
 			index += 6
 
 func _create_uniform_buffer():
-	# Uniform structure (must match shader)
 	var uniform_data = PackedFloat32Array([
 		# quad_position (vec3 + padding)
 		position.x, position.y, position.z, 0.0,
@@ -169,7 +159,6 @@ func _create_uniform_buffer():
 	uniform_buffer = rd.storage_buffer_create(uniform_bytes.size(), uniform_bytes)
 
 func _dispatch_compute():
-	# Create uniform set with index buffer included
 	var uniform := RDUniform.new()
 	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
 	uniform.binding = 0
@@ -197,20 +186,15 @@ func _dispatch_compute():
 	
 	uniform_set = rd.uniform_set_create([uniform, vertex_uniform, normal_uniform, uv_uniform, index_uniform], compute_shader, 0)
 	
-	# Create compute pipeline
 	var pipeline = rd.compute_pipeline_create(compute_shader)
 	
-	# Push constant for pass type
-	var push_constant := PackedInt32Array([0]) # Start with pass 0
+	var push_constant := PackedInt32Array([0])
 	
-	# PASS 1: Calculate vertices and UVs
 	var compute_list = rd.compute_list_begin()
 	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 	push_constant[0] = 0
-	#rd.compute_list_set_push_constant(compute_list, push_constant.to_byte_array(), 4)
 	
-	# Dispatch for vertices (grid of vertices)
 	var groups_x = (quad_resolution) / 16
 	var groups_y = (quad_resolution) / 16
 	rd.compute_list_dispatch(compute_list, groups_x, groups_y, 1)
@@ -219,37 +203,28 @@ func _dispatch_compute():
 	rd.submit()
 	rd.sync()
 	
-	# Add memory barrier between passes
 	
-	# PASS 2: Calculate normals from triangles
 	compute_list = rd.compute_list_begin()
 	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 	push_constant[0] = 1
-	#rd.compute_list_set_push_constant(compute_list, push_constant.to_byte_array(), 4)
 	
-	# Dispatch for triangles - treat as 1D
 	var total_triangles = quad_resolution * quad_resolution * 2
-	var triangle_groups = (total_triangles + 63) / 64  # 64 threads per group (8x8)
+	var triangle_groups = (total_triangles + 63) / 64
 	rd.compute_list_dispatch(compute_list, triangle_groups, 1, 1)
 	
 	rd.compute_list_end()
 	rd.submit()
 	rd.sync()
 	
-	# Add memory barrier between passes
-	#rd.barrier(RenderingDevice.BARRIER_MASK_COMPUTE)
 	
-	# PASS 3: Normalize normals
 	compute_list = rd.compute_list_begin()
 	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 	push_constant[0] = 2
-	#rd.compute_list_set_push_constant(compute_list, push_constant.to_byte_array(), 4)
 	
-	# Dispatch for vertices - treat as 1D
 	var total_vertices = (quad_resolution + 1) * (quad_resolution + 1)
-	var vertex_groups = (total_vertices + 63) / 64  # 64 threads per group (8x8)
+	var vertex_groups = (total_vertices + 63) / 64
 	rd.compute_list_dispatch(compute_list, vertex_groups, 1, 1)
 	
 	rd.compute_list_end()
@@ -259,23 +234,18 @@ func _dispatch_compute():
 func _read_buffers_and_create_mesh():
 	var vertex_count = (quad_resolution + 1) * (quad_resolution + 1)
 	
-	# Read vertex data
 	var vertex_bytes = rd.buffer_get_data(vertex_buffer)
 	var vertices = vertex_bytes.to_float32_array()
 	
-	# Read normal data
 	var normal_bytes = rd.buffer_get_data(normal_buffer)
 	var normals = normal_bytes.to_float32_array()
 	
-	# Read UV data
 	var uv_bytes = rd.buffer_get_data(uv_buffer)
 	var uvs = uv_bytes.to_float32_array()
 	
-	# Read index data
 	var index_bytes = rd.buffer_get_data(index_buffer)
 	var indices = index_bytes.to_int32_array()
 	
-	# Convert to PackedVector3Array and PackedVector2Array
 	var vertex_array = PackedVector3Array()
 	var normal_array = PackedVector3Array()
 	var uv_array = PackedVector2Array()
@@ -288,7 +258,6 @@ func _read_buffers_and_create_mesh():
 		var uv_idx = i * 2
 		uv_array.append(Vector2(uvs[uv_idx], uvs[uv_idx + 1]))
 	
-	# Create mesh
 	var array_mesh = ArrayMesh.new()
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -314,7 +283,6 @@ func generate_mesh():
 	needs_update = false
 
 func _cleanup_buffers():
-	# Only clean up per-instance buffers
 	'if vertex_buffer.is_valid():
 		rd.free_rid(vertex_buffer)
 	if normal_buffer.is_valid():
@@ -326,11 +294,9 @@ func _cleanup_buffers():
 	if uniform_buffer.is_valid():
 		rd.free_rid(uniform_buffer)'
 	
-	# Don't clean up shared shader or RenderingDevice
 	
 func _exit_tree():
 	_cleanup_buffers()
 	
-	# Only free shader if we own it (not shared)
 	if not is_using_shared_resources and compute_shader.is_valid():
 		rd.free_rid(compute_shader)

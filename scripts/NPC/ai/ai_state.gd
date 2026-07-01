@@ -1,34 +1,23 @@
 extends Node
 class_name AIState
 
-## Base class para todos los estados de IA.
-##
-## Los estados se añaden como nodos hijo del AIController en la escena y se
-## auto-registran por su nombre de nodo (ej: "IdleState", "WanderState").
-## Cada frame, AIController llama update(delta) en el estado activo.
-## Si update() devuelve un StringName no vacío, AIController transiciona a ese estado.
-##
-## Patrón de uso:
-##   - Añadir como hijo de AIController en la escena.
-##   - Nombre del nodo = nombre del estado usado en transition_to().
-##   - Acceder al NPC y sus componentes via [member controller].
+## Clase base de los estados de IA. Se añaden como nodos hijo del AIController y se auto-registran
+## por su nombre de nodo; cada frame AIController llama update() en el estado activo, que devuelve
+## el StringName del estado al que transicionar (o &"" para permanecer).
 
-## Referencia al AIController propietario. Se asigna automáticamente en _ready().
 var controller: AIController
 
 
-## Llamado una vez al entrar en este estado. Inicializa timers, animaciones, etc.
+## Llamado una vez al entrar en este estado.
 func enter() -> void:
 	pass
 
 
-## Llamado cada frame de física mientras este estado está activo.
-## Devolver un StringName no vacío para pedir una transición al estado indicado.
-## Devolver [code]&""[/code] para permanecer en el estado actual.
+## Llamado cada frame de física; devuelve el estado al que transicionar (&"" para permanecer).
 func update(_delta: float) -> StringName:
 	return &""
 
 
-## Llamado una vez al salir de este estado. Limpia lo que sea necesario.
+## Llamado una vez al salir de este estado.
 func exit() -> void:
 	pass

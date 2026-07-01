@@ -1,6 +1,9 @@
 @tool
 extends Node
 
+## Carga un planeta desde su JSON (vía PlanetParser), lo instancia con su terreno, agua, clima y
+## spawners de NPC, y expone el guardado/carga y los ajustes de godrays y anti-tiling.
+
 enum Action { NONE, SELECT_CONFIG }
 
 @export_group("Planet")
@@ -76,13 +79,11 @@ func get_gravity_direction(_global_position: Vector3) -> Vector3:
 
 @export_group("Weather Override")
 ## Si está activo, fuerza el clima a 'forced_weather' y bloquea el cambio automático.
-## Funciona en runtime, incluido tocarlo desde el inspector remoto mientras juegas.
 @export var force_weather: bool = false:
 	set(value):
 		force_weather = value
 		_apply_weather_override()
 ## Evento a forzar. Coincide con los nombres del catálogo data/weather/weather_events.json.
-## Si añades eventos propios al JSON, amplía esta lista o cámbialo a un String libre.
 @export_enum("clear", "storm", "snow", "wind", "fog") var forced_weather: String = "storm":
 	set(value):
 		forced_weather = value
@@ -179,7 +180,7 @@ func _load_planet() -> void:
 		return
 	var planet_parser: PlanetParser = PlanetParser.new(sun_path)
 	planet_parser.load_config(config_file_path)
-	voxel_terrain.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC  # SDFGI solo captura geometría Static
+	voxel_terrain.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
 	planet = Planet.new(voxel_terrain, atmosphere_node)
 	_copy_parsed_data(planet_parser)
 	planet.setup_shader_parameters()
@@ -188,14 +189,12 @@ func _load_planet() -> void:
 	planet._load_vegetation()
 	add_child(planet)
 	global_pos = planet.global_position
-	#setup_voxel_stream()
 	if planet_parser.has_water:
 		water_sphere = OceanSystem.new()
 		add_child(water_sphere)
 		water_sphere.subdivision_factor = 1.5
 		water_sphere.max_lod = 8
 		water_sphere.sub_divisions = 32
-		#water_sphere.enable_wireframe = true
 		water_sphere.radius = planet.radius - planet_parser.water_level
 		water_sphere.player = players[0]
 		water_sphere.quadtree_material = load("res://data/resources/WaterSphere_material.tres")
@@ -206,7 +205,6 @@ func _load_planet() -> void:
 		_apply_godray_settings_to_water_sphere()
 		
 		water_sphere.load_watersphere(planet)
-		#water_sphere.visible = false
 
 	if not Engine.is_editor_hint():
 		_setup_weather(planet_parser)
@@ -215,7 +213,6 @@ func _load_planet() -> void:
 
 
 ## Crea el sistema meteorológico si este planeta tiene atmósfera (controlador presente).
-## Solo Earth lo tiene en la escena; el resto de planetas (Moon) se saltan el clima.
 func _setup_weather(planet_parser: PlanetParser) -> void:
 	var atmo_ctrl: PlanetAtmosphereController = get_node_or_null("PlanetAtmosphereController")
 	if atmo_ctrl == null or atmo_ctrl.effect == null:
@@ -223,7 +220,7 @@ func _setup_weather(planet_parser: PlanetParser) -> void:
 
 	weather_controller = WeatherController.new()
 	weather_controller.name = "WeatherController"
-	weather_controller.add_to_group("weather")   # lo localiza la consola de depuración
+	weather_controller.add_to_group("weather")
 	add_child(weather_controller)
 	weather_controller.setup(
 		planet,
@@ -235,13 +232,9 @@ func _setup_weather(planet_parser: PlanetParser) -> void:
 		voxel_terrain.global_position,
 		planet_parser.weather_settings
 	)
-	# Aplica el override de clima si venía activado desde el inspector al cargar.
 	_apply_weather_override()
 
-# Empuja los parámetros de anti-tiling al material del terreno. NOTA: VoxelLodTerrain
-# copia el material por bloque, así que esto solo afecta a los bloques que se (re)mallen
-# después — al cargar el planeta toma los valores del inspector; en runtime el cambio se
-# ve a medida que cambia el LOD. (Para tuning en vivo total se usaron global uniforms.)
+## Empuja los parámetros de anti-tiling al material del terreno (afecta a los bloques que se remallen).
 func _apply_antitiling_settings() -> void:
 	if planet == null:
 		return
@@ -313,7 +306,6 @@ func _open_file_dialog() -> void:
 		_editor_file_dialog.title = "Select Planet Config JSON"
 		_editor_file_dialog.file_selected.connect(_on_file_selected)
 		
-		# Add EditorFileDialog to the editor's main control
 		var editor_interface = Engine.get_singleton("EditorInterface")
 		if editor_interface:
 			var main_control = editor_interface.get_base_control()
@@ -368,11 +360,10 @@ func restore_save_data(data: Dictionary) -> void:
 	gravity_strength = data.gravity_strength
 	sun_dir = Vector3(data.sun_dir.x, data.sun_dir.y, data.sun_dir.z)
 	global_pos = Vector3(data.global_pos.x, data.global_pos.y, data.global_pos.z)
-	
-	# Recargar planeta desde config
+
 	if config_file_path != "":
 		_load_planet()
-		
+
 func _process(_delta: float) -> void:
 	if planet != null:
 		planet.sun_dir = sun_dir
@@ -380,5 +371,4 @@ func _process(_delta: float) -> void:
 		if planet.has_water:
 			water_sphere.sun_dir = sun_dir
 			_apply_godray_settings_to_water_sphere()
-#		water_material.set_shader_parameter("light_direction", sun_dir)
 	pass

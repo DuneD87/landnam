@@ -1,4 +1,3 @@
-## MenuUI.gd — Attached to a CanvasLayer containing your menu UI
 extends Control
 
 @export var start_button: Button

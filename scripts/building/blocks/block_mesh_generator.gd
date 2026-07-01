@@ -1,42 +1,18 @@
 class_name BlockMeshGenerator
 extends RefCounted
 
-## Genera las meshes de los bloques base usando SurfaceTool.
-## Todas las meshes encajan en una celda de 1x1x1 (configurable via size).
-## El origen (0,0,0) está en el centro de la base del bloque.
+## Genera las meshes (y sus shapes de colisión) de los bloques base con SurfaceTool.
+## Todas encajan en una celda size×size×size con el origen en el centro de la base.
 
-# ============================================================
-#  CUBE
-# ============================================================
-# Cubo estándar 1x1x1. Origen en el centro de la base.
-#
-#   Y (up)
-#   |   
-#   |  7------6
-#   | /|     /|
-#   |/ |    / |
-#   4------5  |
-#   |  3---|--2
-#   | /    | /
-#   |/     |/
-#   0------1 --- X
-#  /
-# Z
-#
-# Vértices (con origen en centro de base):
-#   0: (-0.5, 0, +0.5)   1: (+0.5, 0, +0.5)
-#   2: (+0.5, 0, -0.5)   3: (-0.5, 0, -0.5)
-#   4: (-0.5, 1, +0.5)   5: (+0.5, 1, +0.5)
-#   6: (+0.5, 1, -0.5)   7: (-0.5, 1, -0.5)
 
+## Cubo size×size×size con el origen en el centro de la base.
 static func generate_cube(size: float = 1.0) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	
-	var h := size  # altura
-	var s := size * 0.5  # mitad del lado
-	
-	# --- Definir los 8 vértices ---
+
+	var h := size
+	var s := size * 0.5
+
 	var v0 := Vector3(-s, 0, +s)
 	var v1 := Vector3(+s, 0, +s)
 	var v2 := Vector3(+s, 0, -s)
@@ -45,76 +21,43 @@ static func generate_cube(size: float = 1.0) -> ArrayMesh:
 	var v5 := Vector3(+s, h, +s)
 	var v6 := Vector3(+s, h, -s)
 	var v7 := Vector3(-s, h, -s)
-	
-	# Front face (+Z): v0, v1, v5, v4
+
 	_add_quad(st, v0, v1, v5, v4, Vector3.FORWARD)
-	# Back face (-Z): v2, v3, v7, v6
 	_add_quad(st, v2, v3, v7, v6, Vector3.BACK)
-	# Right face (+X): v1, v2, v6, v5
 	_add_quad(st, v1, v2, v6, v5, Vector3.RIGHT)
-	# Left face (-X): v3, v0, v4, v7
 	_add_quad(st, v3, v0, v4, v7, Vector3.LEFT)
-	# Top face (+Y): v4, v5, v6, v7
 	_add_quad(st, v4, v5, v6, v7, Vector3.UP)
-	# Bottom face (-Y): v3, v2, v1, v0
 	_add_quad(st, v3, v2, v1, v0, Vector3.DOWN)
-	
+
 	st.generate_normals()
 	st.generate_tangents()
 	return st.commit()
 
 
-# ============================================================
-#  SLOPE (Rampa)
-# ============================================================
-# Prisma triangular: la cara frontal (+Z) es completa,
-# la trasera (-Z) solo tiene la base. La pendiente va de
-# la arista superior frontal hacia la arista inferior trasera.
-#
-#   Vista lateral (X = constante):
-#
-#   4/5 ___
-#   |      \___
-#   |          \___
-#   0/1-----------2/3
-#
-# La rampa sube desde -Z (suelo) hasta +Z (arriba).
-# Así al rotarla 0° la pendiente mira hacia +Z.
-#
-#   Vértices:
-#   0: (-0.5, 0, +0.5)   1: (+0.5, 0, +0.5)
-#   2: (+0.5, 0, -0.5)   3: (-0.5, 0, -0.5)
-#   4: (-0.5, 1, +0.5)   5: (+0.5, 1, +0.5)
-
+## Rampa (prisma triangular) que sube de -Z a +Z; origen en el centro de la base.
 static func generate_slope(size: float = 1.0) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	
+
 	var h := size
 	var s := size * 0.5
-	
+
 	var v0 := Vector3(-s, 0, +s)
 	var v1 := Vector3(+s, 0, +s)
 	var v2 := Vector3(+s, 0, -s)
 	var v3 := Vector3(-s, 0, -s)
 	var v4 := Vector3(-s, h, +s)
 	var v5 := Vector3(+s, h, +s)
-	
-	# Bottom face: v3, v2, v1, v0
+
 	_add_quad(st, v3, v2, v1, v0, Vector3.DOWN)
-	
-	# Front face (+Z) - cuadrado completo: v0, v1, v5, v4
 	_add_quad(st, v0, v1, v5, v4, Vector3.FORWARD)
-	
-	# Slope face (diagonal): v4, v5, v2, v3
+
 	var slope_normal := Vector3(0, 1, 1).normalized()
 	_add_quad(st, v4, v5, v2, v3, slope_normal)
-	
-	# Left triangle: v3, v0, v4
+
 	var left_normal := Vector3.LEFT
 	_add_triangle(st, v3, v0, v4, left_normal)
-	
-	# Right triangle: v1, v2, v5
+
 	var right_normal := Vector3.RIGHT
 	_add_triangle(st, v1, v2, v5, right_normal)
 	st.generate_normals()
@@ -122,40 +65,24 @@ static func generate_slope(size: float = 1.0) -> ArrayMesh:
 	return st.commit()
 
 
-# ============================================================
-#  CORNER (Esquina entre slopes)
-# ============================================================
-# Tetraedro en una esquina: solo queda el vértice superior
-# en la posición frontal-izquierda (+Z, -X).
-#
-#   Vértices:
-#   0: (-0.5, 0, +0.5)   1: (+0.5, 0, +0.5)
-#   2: (+0.5, 0, -0.5)   3: (-0.5, 0, -0.5)
-#   4: (-0.5, 1, +0.5)   <- único vértice superior
-
+## Esquina (tetraedro) con el único vértice superior en frontal-izquierda (+Z, -X).
 static func generate_corner(size: float = 1.0) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	
+
 	var h := size
 	var s := size * 0.5
-	
+
 	var v0 := Vector3(-s, 0, +s)
 	var v1 := Vector3(+s, 0, +s)
 	var v2 := Vector3(+s, 0, -s)
 	var v3 := Vector3(-s, 0, -s)
 	var v4 := Vector3(-s, h, +s)
-	
-	# Bottom face: v3, v2, v1, v0
+
 	_add_quad(st, v3, v2, v1, v0, Vector3.DOWN)
-	
-	# Front face (+Z) - triángulo: v0, v1, v4
 	_add_triangle(st, v0, v1, v4, Vector3.FORWARD)
-	
-	# Left face (-X) - triángulo: v3, v0, v4
 	_add_triangle(st, v3, v0, v4, Vector3.LEFT)
-	
-	# Slope face: dos triángulos, MISMA normal promediada del plano general
+
 	var slope_normal := (v2 - v4).cross(v1 - v4).normalized()
 	_add_triangle(st, v4, v1, v2, slope_normal)
 	_add_triangle(st, v4, v2, v3, slope_normal)
@@ -164,10 +91,6 @@ static func generate_corner(size: float = 1.0) -> ArrayMesh:
 
 	return st.commit()
 
-
-# ============================================================
-#  COLLISION SHAPES
-# ============================================================
 
 static func generate_cube_collision(size: float = 1.0) -> BoxShape3D:
 	var shape := BoxShape3D.new()
@@ -196,19 +119,15 @@ static func generate_corner_collision(size: float = 1.0) -> ConvexPolygonShape3D
 	])
 	return shape
 
-# ============================================================
-#  INVERTED CORNER
-# ============================================================
-# Es un cubo completo al que le falta el vértice v4 (Front-Left-Top).
-# Tiene 3 caras cuadradas (Abajo, Atrás, Derecha) y 4 triangulares.
+
+## Cubo al que le falta el vértice frontal-izquierdo-superior (v4): 3 caras cuadradas y 4 triangulares.
 static func generate_inv_corner(size: float = 1.0) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	
+
 	var h := size
 	var s := size * 0.5
-	
-	# Todos los vértices de un cubo EXCEPTO v4 (-s, h, +s)
+
 	var v0 := Vector3(-s, 0, +s)
 	var v1 := Vector3(+s, 0, +s)
 	var v2 := Vector3(+s, 0, -s)
@@ -216,59 +135,49 @@ static func generate_inv_corner(size: float = 1.0) -> ArrayMesh:
 	var v5 := Vector3(+s, h, +s)
 	var v6 := Vector3(+s, h, -s)
 	var v7 := Vector3(-s, h, -s)
-	
-	# Caras completas (Quads)
-	_add_quad(st, v3, v2, v1, v0, Vector3.DOWN)   # Bottom
-	_add_quad(st, v2, v3, v7, v6, Vector3.BACK)   # Back
-	_add_quad(st, v1, v2, v6, v5, Vector3.RIGHT)  # Right
-	
-	# Caras triangulares externas
-	_add_triangle(st, v5, v6, v7, Vector3.UP)     # Top (mitad)
-	_add_triangle(st, v3, v0, v7, Vector3.LEFT)   # Left (mitad)
-	_add_triangle(st, v0, v1, v5, Vector3.FORWARD)# Front (mitad)
-	
-	# Cara de la pendiente cóncava (Inner Slope)
+
+	_add_quad(st, v3, v2, v1, v0, Vector3.DOWN)
+	_add_quad(st, v2, v3, v7, v6, Vector3.BACK)
+	_add_quad(st, v1, v2, v6, v5, Vector3.RIGHT)
+
+	_add_triangle(st, v5, v6, v7, Vector3.UP)
+	_add_triangle(st, v3, v0, v7, Vector3.LEFT)
+	_add_triangle(st, v0, v1, v5, Vector3.FORWARD)
+
 	var slope_normal := (v5 - v0).cross(v7 - v0).normalized()
 	_add_triangle(st, v0, v5, v7, slope_normal)
-	
+
 	st.generate_normals()
 	st.generate_tangents()
 	return st.commit()
 
+
 static func generate_inv_corner_collision(size: float = 1.0) -> ConvexPolygonShape3D:
 	var s := size * 0.5
 	var shape := ConvexPolygonShape3D.new()
-	# Los 7 vértices, pero con el eje Y centrado de -s a +s para el motor físico
 	shape.points = PackedVector3Array([
-		Vector3(-s, -s, +s), Vector3(+s, -s, +s), # v0, v1
-		Vector3(+s, -s, -s), Vector3(-s, -s, -s), # v2, v3
-		Vector3(+s, +s, +s), Vector3(+s, +s, -s), # v5, v6
-		Vector3(-s, +s, -s)                       # v7
+		Vector3(-s, -s, +s), Vector3(+s, -s, +s),
+		Vector3(+s, -s, -s), Vector3(-s, -s, -s),
+		Vector3(+s, +s, +s), Vector3(+s, +s, -s),
+		Vector3(-s, +s, -s)
 	])
 	return shape
-# ============================================================
-#  HELPERS
-# ============================================================
 
-## Añade un quad (dos triángulos) al SurfaceTool.
-## Vértices en orden counter-clockwise vistos desde fuera.
-## a--b
-## |  |
-## d--c  => triángulos: (a,b,c) y (a,c,d)
+
+## Añade un quad (2 triángulos) al SurfaceTool; vértices en orden CCW vistos desde fuera.
 static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, normal: Vector3) -> void:
-	# UVs para el quad
 	var uv_a := Vector2(0, 0)
 	var uv_b := Vector2(1, 0)
 	var uv_c := Vector2(1, 1)
 	var uv_d := Vector2(0, 1)
-		
+
 	st.set_uv(uv_a)
 	st.add_vertex(a)
 	st.set_uv(uv_c)
 	st.add_vertex(c)
 	st.set_uv(uv_b)
 	st.add_vertex(b)
-	
+
 	st.set_uv(uv_a)
 	st.add_vertex(a)
 	st.set_uv(uv_d)
@@ -282,7 +191,7 @@ static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, n
 	var uv_a := Vector2(0, 0)
 	var uv_b := Vector2(1, 0)
 	var uv_c := Vector2(0.5, 1)
-		
+
 	st.set_uv(uv_a)
 	st.add_vertex(a)
 	st.set_uv(uv_c)

@@ -1,6 +1,8 @@
-# mirror_plane_visual.gd
 class_name MirrorPlaneVisual
 extends Node3D
+
+## Visualiza el plano de simetría del modo construcción: un quad semitransparente con borde y ejes,
+## coloreado según el eje activo (X/Y/Z) y orientado dentro de la basis de la grid.
 
 const PLANE_SIZE := 10.0
 const AXIS_COLORS := {
@@ -74,13 +76,11 @@ func _update_border_mesh() -> void:
 	im.surface_add_vertex(Vector3(-half, -half, 0))
 	im.surface_end()
 
-	# Línia central horitzontal
 	im.surface_begin(Mesh.PRIMITIVE_LINES)
 	im.surface_add_vertex(Vector3(-half, 0, 0))
 	im.surface_add_vertex(Vector3(half, 0, 0))
 	im.surface_end()
 
-	# Línia central vertical
 	im.surface_begin(Mesh.PRIMITIVE_LINES)
 	im.surface_add_vertex(Vector3(0, -half, 0))
 	im.surface_add_vertex(Vector3(0, half, 0))
@@ -97,30 +97,25 @@ func show_plane(center: Vector3, grid_basis: Basis, axis: BuildingSystem.MirrorA
 	_current_axis = axis
 	global_position = center
 
-	# Orientar el pla segons l'eix dins la basis de la grid
 	var plane_basis: Basis
 	match axis:
 		BuildingSystem.MirrorAxis.X:
-			# Pla YZ — normal apunta a X local
 			plane_basis = grid_basis * Basis(
 				Vector3(0, 0, 1),
 				Vector3(0, 1, 0),
 				Vector3(1, 0, 0)
 			)
 		BuildingSystem.MirrorAxis.Y:
-			# Pla XZ — normal apunta a Y local
 			plane_basis = grid_basis * Basis(
 				Vector3(1, 0, 0),
 				Vector3(0, 0, 1),
 				Vector3(0, 1, 0)
 			)
 		BuildingSystem.MirrorAxis.Z:
-			# Pla XY — normal apunta a Z local (per defecte del QuadMesh)
 			plane_basis = grid_basis
 
 	global_transform.basis = plane_basis
 
-	# Colors per eix
 	_plane_material.albedo_color = AXIS_COLORS.get(axis, Color(1, 1, 1, 0.15))
 	_border_material.albedo_color = AXIS_LINE_COLORS.get(axis, Color(1, 1, 1, 0.6))
 

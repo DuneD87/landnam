@@ -1,12 +1,13 @@
-# block_icon_generator.gd
 class_name BlockIconGenerator
 extends Node
+
+## Genera iconos de bloques renderizando su mesh en un SubViewport con cámara isométrica.
 
 const ICON_SIZE := 256
 const CAMERA_FOV := 35.0
 const CAMERA_DISTANCE := 2.8
 
-## Angles de la càmera isomètrica (en graus)
+# Ángulos de la cámara isométrica (grados).
 const PITCH := -30.0
 const YAW := 45.0
 
@@ -30,28 +31,24 @@ func _setup_viewport() -> void:
 	_viewport.own_world_3d = true
 	add_child(_viewport)
 
-	# Càmera
 	_camera = Camera3D.new()
 	_camera.fov = CAMERA_FOV
 	_camera.projection = Camera3D.PROJECTION_PERSPECTIVE
 	_viewport.add_child(_camera)
 	_position_camera()
 
-	# Llum principal
 	_light = DirectionalLight3D.new()
 	_light.rotation_degrees = Vector3(-45, 30, 0)
 	_light.light_energy = 1.2
 	_light.shadow_enabled = false
 	_viewport.add_child(_light)
 
-	# Llum de fill (suau, des de l'altra banda)
 	var fill_light := DirectionalLight3D.new()
 	fill_light.rotation_degrees = Vector3(-20, -150, 0)
 	fill_light.light_energy = 0.4
 	fill_light.shadow_enabled = false
 	_viewport.add_child(fill_light)
 
-	# MeshInstance reutilitzable
 	_mesh_instance = MeshInstance3D.new()
 	_viewport.add_child(_mesh_instance)
 
@@ -59,45 +56,36 @@ func _setup_viewport() -> void:
 func _position_camera() -> void:
 	_camera.position = Vector3.ZERO
 	_camera.rotation_degrees = Vector3(PITCH, YAW, 0.0)
-	# Moure la càmera enrere des del centre
 	var direction := -_camera.global_transform.basis.z
 	_camera.position = -direction * CAMERA_DISTANCE
 
 
-## Genera una icona per un mesh amb un material opcional.
-## Retorna ImageTexture (ICON_SIZE × ICON_SIZE, RGBA).
+## Genera una icona (ImageTexture ICON_SIZE×ICON_SIZE RGBA) para un mesh con material opcional.
 func generate_icon(mesh: Mesh, material: Material = null) -> ImageTexture:
 	if not _is_ready:
 		push_warning("[BlockIconGenerator] Not ready yet.")
 		return null
 
-	# Centrar el mesh al seu AABB
 	var aabb := mesh.get_aabb()
 	var center := aabb.get_center()
 	_mesh_instance.mesh = mesh
 	_mesh_instance.position = -center
 
-	# Aplicar material
 	_mesh_instance.material_override = material
 
-	# Ajustar distància de càmera segons mida del mesh
 	var size := aabb.size.length()
 	var dist := size / (2.0 * tan(deg_to_rad(CAMERA_FOV * 0.5)))
 	_position_camera()
 	var direction := -_camera.global_transform.basis.z
 	_camera.position = -center - direction * (dist * 1.3)
 
-	# Renderitzar
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
-	# Necessitem esperar 2 frames per assegurar el renderitzat
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 
-	# Capturar
 	var image := _viewport.get_texture().get_image()
 	var texture := ImageTexture.create_from_image(image)
 
-	# Netejar
 	_mesh_instance.mesh = null
 	_mesh_instance.material_override = null
 	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED

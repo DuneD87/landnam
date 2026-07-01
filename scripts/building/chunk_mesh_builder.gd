@@ -1,19 +1,23 @@
 class_name ChunkMeshBuilder
 extends RefCounted
 
+## Construye la mesh combinada de una grid de bloques con SurfaceTool, agrupando por material y
+## emitiendo la geometría de cada tipo de bloque (cubo, rampa, esquina, esquina invertida).
+
 enum Face { FRONT, BACK, RIGHT, LEFT, TOP, BOTTOM }
 
 const FACE_DIRS: Array[Vector3i] = [
-	Vector3i( 0,  0,  1),  # FRONT  (+Z)
-	Vector3i( 0,  0, -1),  # BACK   (-Z)
-	Vector3i( 1,  0,  0),  # RIGHT  (+X)
-	Vector3i(-1,  0,  0),  # LEFT   (-X)
-	Vector3i( 0,  1,  0),  # TOP    (+Y)
-	Vector3i( 0, -1,  0),  # BOTTOM (-Y)
+	Vector3i( 0,  0,  1),
+	Vector3i( 0,  0, -1),
+	Vector3i( 1,  0,  0),
+	Vector3i(-1,  0,  0),
+	Vector3i( 0,  1,  0),
+	Vector3i( 0, -1,  0),
 ]
 const SOLID_BLOCK_IDS: Array[int] = [0]
 
 
+## Construye la ArrayMesh de todos los bloques, con una surface por material.
 static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Transform3D, materials: Dictionary = {}) -> ArrayMesh:
 	if blocks.is_empty():
 		return null
@@ -35,7 +39,7 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 		for grid_pos: Vector3i in groups[mat_id]:
 			var info: Dictionary = blocks[grid_pos]
 			var block_id: int = info["block_id"]
-		
+
 			var offset := Vector3(grid_pos) * cell_size
 			var rot: Basis = info.get("rotation_basis", Basis.IDENTITY)
 
@@ -66,7 +70,7 @@ static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector
 	match block_id:
 		1:  _emit_slope(st, offset, rot, size, flip)
 		2:  _emit_corner(st, offset, rot, size, flip)
-		3:  _emit_inv_corner(st, offset, rot, size, flip) # <--- AÑADIDO
+		3:  _emit_inv_corner(st, offset, rot, size, flip)
 		_:
 			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
 			_emit_cube_no_cull(st, offset, rot, size, flip)
@@ -75,7 +79,6 @@ static func _emit_inv_corner(st: SurfaceTool, offset: Vector3, rot: Basis, size:
 	var h := size
 	var c := Vector3(h * 0.5, h * 0.5, h * 0.5)
 
-	# Todos los vértices del cubo EXCEPTO v4
 	var v0 := rot * (Vector3(0, 0, h) - c) + c + offset
 	var v1 := rot * (Vector3(h, 0, h) - c) + c + offset
 	var v2 := rot * (Vector3(h, 0, 0) - c) + c + offset
@@ -84,19 +87,16 @@ static func _emit_inv_corner(st: SurfaceTool, offset: Vector3, rot: Basis, size:
 	var v6 := rot * (Vector3(h, h, 0) - c) + c + offset
 	var v7 := rot * (Vector3(0, h, 0) - c) + c + offset
 
-	# Caras completas
-	_add_quad(st, v3, v2, v1, v0, flip) # Bottom
-	_add_quad(st, v2, v3, v7, v6, flip) # Back
-	_add_quad(st, v1, v2, v6, v5, flip) # Right
-	
-	# Caras triangulares
-	_add_triangle(st, v5, v6, v7, flip) # Top
-	_add_triangle(st, v3, v0, v7, flip) # Left
-	_add_triangle(st, v0, v1, v5, flip) # Front
-	
-	# Pendiente cóncava
-	_add_triangle(st, v0, v5, v7, flip) # Inner slope
-	
+	_add_quad(st, v3, v2, v1, v0, flip)
+	_add_quad(st, v2, v3, v7, v6, flip)
+	_add_quad(st, v1, v2, v6, v5, flip)
+
+	_add_triangle(st, v5, v6, v7, flip)
+	_add_triangle(st, v3, v0, v7, flip)
+	_add_triangle(st, v0, v1, v5, flip)
+
+	_add_triangle(st, v0, v5, v7, flip)
+
 static func _emit_cube(
 	st: SurfaceTool,
 	grid_pos: Vector3i,

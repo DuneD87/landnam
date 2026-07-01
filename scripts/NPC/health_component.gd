@@ -52,8 +52,7 @@ func heal(amount: float) -> void:
 	healed.emit(amount)
 
 
-## Llamado cuando la entidad aterriza. [impact_speed] es la velocidad descendente
-## acumulada durante el vuelo (en m/s). Movement emite esta señal automáticamente.
+## Aplica daño por caída según la velocidad de impacto (m/s).
 func take_fall_damage(impact_speed: float) -> void:
 	if not fall_damage_enabled:
 		return

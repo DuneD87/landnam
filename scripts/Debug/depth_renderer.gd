@@ -1,7 +1,5 @@
 extends Node3D
 
-# Script simplificado que usa el DEPTH_TEXTURE nativo de Godot
-# Más eficiente que duplicar geometría
 
 @export var viewport_size: Vector2i = Vector2i(320, 180)
 @export var corner_margin: int = 20
@@ -16,53 +14,43 @@ var depth_texture_rect: TextureRect
 var main_camera: Camera3D
 
 func _ready():
-	# Obtener la cámara principal
 	main_camera = get_viewport().get_camera_3d()
 	if not main_camera:
 		push_error("No se encontró cámara principal")
 		return
 	
-	# Crear el sistema de captura de depth
 	_create_depth_capture_system()
 	
-	# Crear el display UI
 	_create_ui_display()
 	
-	# Configurar el shader
 	_setup_depth_shader()
 
 func _create_depth_capture_system():
-	# Crear SubViewport para el depth
 	depth_viewport = SubViewport.new()
 	depth_viewport.size = viewport_size
 	depth_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(depth_viewport)
 	
-	# Crear cámara para el depth viewport
 	depth_camera = Camera3D.new()
 	depth_viewport.add_child(depth_camera)
 	
-	# Crear un quad que cubra toda la pantalla para capturar el depth
 	depth_quad = MeshInstance3D.new()
 	var quad_mesh = QuadMesh.new()
 	quad_mesh.size = Vector2(2, 2)
 	depth_quad.mesh = quad_mesh
-	depth_quad.extra_cull_margin = 16384  # Asegurar que siempre se renderice
+	depth_quad.extra_cull_margin = 16384
 	depth_viewport.add_child(depth_quad)
 
 func _create_ui_display():
-	# Crear CanvasLayer para la UI
 	var canvas_layer = CanvasLayer.new()
 	add_child(canvas_layer)
 	
-	# Crear contenedor principal
 	display_container = MarginContainer.new()
 	display_container.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	display_container.add_theme_constant_override("margin_top", corner_margin)
 	display_container.add_theme_constant_override("margin_right", corner_margin)
 	canvas_layer.add_child(display_container)
 	
-	# Crear panel de fondo con borde
 	var panel_container = PanelContainer.new()
 	var style_box = StyleBoxFlat.new()
 	style_box.set_border_width_all(2)
@@ -72,14 +60,12 @@ func _create_ui_display():
 	panel_container.add_theme_stylebox_override("panel", style_box)
 	display_container.add_child(panel_container)
 	
-	# Crear TextureRect para mostrar el depth
 	depth_texture_rect = TextureRect.new()
 	depth_texture_rect.custom_minimum_size = Vector2(viewport_size.x, viewport_size.y)
 	depth_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	depth_texture_rect.texture = depth_viewport.get_texture()
 	panel_container.add_child(depth_texture_rect)
 	
-	# Añadir label opcional
 	var label = Label.new()
 	label.text = "Depth Buffer"
 	label.add_theme_font_size_override("font_size", 12)
@@ -88,7 +74,6 @@ func _create_ui_display():
 	depth_texture_rect.add_child(label)
 
 func _setup_depth_shader():
-	# Crear el shader material para el quad
 	var shader_code = """
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_test_disabled, depth_draw_never;
@@ -169,7 +154,6 @@ void fragment() {
 	depth_quad.material_override = material
 
 func _process(_delta):
-	# Sincronizar la cámara del depth viewport con la principal
 	if depth_camera and main_camera:
 		depth_camera.global_transform = main_camera.global_transform
 		depth_camera.fov = main_camera.fov
@@ -177,12 +161,10 @@ func _process(_delta):
 		depth_camera.far = main_camera.far
 
 func _notification(what):
-	# Actualizar posición cuando la ventana cambie de tamaño
 	if what == NOTIFICATION_WM_SIZE_CHANGED and auto_update_position:
 		if display_container:
 			display_container.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 
-# Métodos públicos para configuración en runtime
 func set_viewport_size(size: Vector2i):
 	viewport_size = size
 	if depth_viewport:

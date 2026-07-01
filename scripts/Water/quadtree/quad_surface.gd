@@ -1,6 +1,9 @@
 extends MeshInstance3D
 class_name QuadSurface
 
+## Variante CPU de un parche del quadtree de agua: genera vértices/índices/UVs/normales proyectados
+## sobre la esfera, con ruido base y olas oceánicas animadas por distancia a la cámara.
+
 @export var quad_resolution: int = 32
 @export var quad_size: float = 100.0
 @export var sphere_radius: float = 20000
@@ -15,7 +18,6 @@ var uvs: PackedVector2Array
 var normals: PackedVector3Array
 var needs_update: bool = true
 
-# Parámetros de ruido base
 @export_group("Noise Settings")
 @export var enable_noise: bool = true
 @export var noise_amplitude: float = 150.0
@@ -25,14 +27,13 @@ var needs_update: bool = true
 @export var noise_gain: float = 0.5
 @export var noise_seed: int = 12345
 
-# Parámetros de océano
 @export_group("Ocean Settings")
 @export var enable_ocean_animation: bool = true
-@export var animation_distance_threshold: float = 5000.0  # Solo animar quads dentro de esta distancia
+@export var animation_distance_threshold: float = 5000.0
 @export var wave_speed: float = 2.0
 @export var wave_amplitude: float = 50.0
 @export var wave_frequency: float = 0.003
-@export var wave_direction: Vector2 = Vector2(1.0, 0.3)  # Dirección principal de las olas
+@export var wave_direction: Vector2 = Vector2(1.0, 0.3)
 @export var secondary_wave_amplitude: float = 25.0
 @export var secondary_wave_frequency: float = 0.007
 @export var secondary_wave_direction: Vector2 = Vector2(-0.5, 1.0)
@@ -55,7 +56,6 @@ func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right:
 	needs_update = true
 	sphere_radius = radius
 	quad_resolution = sub_divisions
-	# Configurar ruido
 	noise = FastNoiseLite.new()
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	noise.seed = noise_seed
@@ -74,7 +74,6 @@ func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right:
 		cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 func _ready():
-	# Buscar la cámara para calcular distancias
 	var viewport = get_viewport()
 	if viewport:
 		var camera = viewport.get_camera_3d()
@@ -87,18 +86,15 @@ func _process(delta):
 		
 	current_time += delta
 	
-	# Actualizar posición de la cámara
 	var viewport = get_viewport()
 	if viewport:
 		var camera = viewport.get_camera_3d()
 		if camera:
 			camera_position = camera.global_position
 	
-	# Verificar si debemos animar este quad basado en la distancia
 	var distance_to_camera = position.distance_to(camera_position)
 	var should_animate_now = distance_to_camera <= animation_distance_threshold
 
-	# Solo regenerar si el estado de animación cambió o si debemos animar
 	if should_animate_now != should_animate or should_animate_now:
 		should_animate = should_animate_now
 		if should_animate:
@@ -113,25 +109,20 @@ func get_ocean_wave_height(world_pos: Vector3, time: float) -> float:
 	
 	var height = 0.0
 	
-	# Normalizar direcciones de olas
 	var wave_dir_norm = wave_direction.normalized()
 	var secondary_dir_norm = secondary_wave_direction.normalized()
 	
-	# Ola principal
 	var wave_pos = Vector2(world_pos.x, world_pos.z)
 	var wave_offset = wave_pos.dot(wave_dir_norm) * wave_frequency + time * wave_speed
 	height += sin(wave_offset) * wave_amplitude
 	
-	# Ola secundaria (diferente dirección y frecuencia)
 	var secondary_offset = wave_pos.dot(secondary_dir_norm) * secondary_wave_frequency + time * wave_speed * 0.7
 	height += sin(secondary_offset) * secondary_wave_amplitude
 	
-	# Olas de espuma (alta frecuencia, baja amplitud)
 	var foam_offset = wave_pos.dot(wave_dir_norm) * foam_wave_frequency + time * foam_wave_speed
 	height += sin(foam_offset * 3.0) * foam_wave_amplitude * 0.3
 	height += sin(foam_offset * 5.0 + 1.5) * foam_wave_amplitude * 0.2
 	
-	# Olas cruzadas para mayor realismo
 	var cross_wave = Vector2(-wave_dir_norm.y, wave_dir_norm.x)
 	var cross_offset = wave_pos.dot(cross_wave) * wave_frequency * 0.5 + time * wave_speed * 0.8
 	height += sin(cross_offset) * wave_amplitude * 0.3
@@ -205,13 +196,11 @@ func _calculate_normals():
 			normals[i] = -normals[i]
 
 func _calculate_normal_with_neighbors(world_pos: Vector3, epsilon: float) -> Vector3:
-	# Calcular posiciones vecinas para diferencias finitas
 	var pos_right = world_pos + Vector3(epsilon, 0, 0)
 	var pos_left = world_pos + Vector3(-epsilon, 0, 0)
 	var pos_forward = world_pos + Vector3(0, 0, epsilon)
 	var pos_back = world_pos + Vector3(0, 0, -epsilon)
 	
-	# Obtener alturas incluyendo ruido base y olas
 	var height_center = 0.0
 	var height_right = 0.0
 	var height_left = 0.0
@@ -225,18 +214,15 @@ func _calculate_normal_with_neighbors(world_pos: Vector3, epsilon: float) -> Vec
 		height_forward = get_noise_value(pos_forward) * noise_amplitude
 		height_back = get_noise_value(pos_back) * noise_amplitude
 	
-	# Añadir componente oceánico
 	height_center += get_ocean_wave_height(world_pos, current_time)
 	height_right += get_ocean_wave_height(pos_right, current_time)
 	height_left += get_ocean_wave_height(pos_left, current_time)
 	height_forward += get_ocean_wave_height(pos_forward, current_time)
 	height_back += get_ocean_wave_height(pos_back, current_time)
 	
-	# Calcular vectores tangentes usando diferencias finitas
 	var tangent_x = Vector3(2.0 * epsilon, height_right - height_left, 0.0).normalized()
 	var tangent_z = Vector3(0.0, height_forward - height_back, 2.0 * epsilon).normalized()
 	
-	# Normal como producto cruzado
 	var normal = tangent_z.cross(tangent_x).normalized()
 	
 	return normal
@@ -244,7 +230,7 @@ func _calculate_normal_with_neighbors(world_pos: Vector3, epsilon: float) -> Vec
 func _generate_normals():
 	normals.resize(vertices.size())
 	var step = quad_size / float(quad_resolution)
-	var epsilon = step * 0.5  # Usar la mitad del step para diferencias finitas
+	var epsilon = step * 0.5
 	
 	for y in range(quad_resolution + 1):
 		for x in range(quad_resolution + 1):
@@ -258,13 +244,10 @@ func _generate_normals():
 			var vertex_index = y * (quad_resolution + 1) + x
 			
 			if enable_ocean_animation and should_animate:
-				# Calcular normal considerando las olas
 				normals[vertex_index] = _calculate_normal_with_neighbors(spherical_position, epsilon)
 			else:
-				# Normal simple de esfera
 				normals[vertex_index] = spherical_position.normalized()
 			
-			# Asegurar que la normal apunta hacia afuera
 			if normals[vertex_index].dot(face_normal) < 0:
 				normals[vertex_index] = -normals[vertex_index]
 		
@@ -299,14 +282,12 @@ func _generate_vertices():
 			var vertex_world_position = position + plane_position
 			var spherical_position = project_to_sphere(vertex_world_position, Vector3.ZERO)
 			
-			# Aplicar ruido base
 			if enable_noise:
 				var noise_value = get_noise_value(spherical_position)
 				var displacement = noise_value * noise_amplitude
 				var sphere_normal = spherical_position.normalized()
 				spherical_position += sphere_normal * displacement
 			
-			# Aplicar olas oceánicas
 			if enable_ocean_animation and should_animate:
 				var wave_height = get_ocean_wave_height(spherical_position, current_time)
 				var sphere_normal = spherical_position.normalized()
@@ -329,7 +310,6 @@ func generate_mesh():
 	
 	needs_update = false
 
-# Función para obtener estadísticas de animación
 func get_animation_info() -> Dictionary:
 	return {
 		"is_animating": should_animate,

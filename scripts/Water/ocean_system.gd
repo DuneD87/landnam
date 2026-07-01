@@ -1,5 +1,9 @@
 extends Node3D
 class_name OceanSystem
+
+## Sistema de océano de un planeta: monta el quadtree de agua (QuadTreeManager + mesh manager) y el
+## efecto Underwater, propaga sus ajustes (niebla, godrays, LOD) y muestra estadísticas opcionales.
+
 @export_group("Underwater settings")
 @export var fog_density: float = 0.5
 @export var fog_color: Color = Color("00526e")
@@ -144,7 +148,6 @@ func load_watersphere(_planet: Planet):
 	else:
 		mesh_manager.default_material = wireframe_material
 	
-	# Set compute mode
 	mesh_manager.compute_mode = (
 		QuadTreeMeshManager.ComputeMode.GPU 
 		if use_gpu_compute 

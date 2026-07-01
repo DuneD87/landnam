@@ -17,7 +17,6 @@ var _original_speed: float = 0.0
 
 func enter() -> void:
 	_timer = max_flee_time
-	# Guardar velocidad base y aplicar boost de huida
 	_original_speed = controller.movement.speed
 	controller.movement.speed = _original_speed * speed_multiplier
 
@@ -25,11 +24,9 @@ func enter() -> void:
 func update(delta: float) -> StringName:
 	_timer -= delta
 
-	# Condiciones de parada: a salvo, timeout o target inválido
 	if _timer <= 0.0 or not controller.is_target_within(safe_distance):
 		return &"IdleState"
 
-	# Dirección de huida: opuesta al target, proyectada en el plano de gravedad, evitando agua
 	if is_instance_valid(controller.target):
 		var away := controller.npc.global_position - controller.target.global_position
 		var flee_dir := controller.project_on_gravity_plane(away)
@@ -39,6 +36,5 @@ func update(delta: float) -> StringName:
 
 
 func exit() -> void:
-	# Restaurar velocidad original
 	controller.movement.speed = _original_speed
 	controller.desired_direction = Vector3.ZERO

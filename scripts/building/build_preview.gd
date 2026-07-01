@@ -1,8 +1,8 @@
 class_name BuildPreview
 extends Node3D
 
-## Pure visual ghost preview. No input, no placement logic.
-## BuildingSystem calls update_preview() / hide_preview() each frame.
+## Ghost visual del modo construcción (sin input ni lógica de colocación). BuildingSystem llama
+## a update_preview() / hide_preview() cada frame.
 
 @export var ghost_color_valid: Color = Color(0.3, 0.8, 1.0, 0.35)
 @export var ghost_color_invalid: Color = Color(1.0, 0.2, 0.2, 0.35)
@@ -26,7 +26,7 @@ func setup(building_system: BuildingSystem) -> void:
 	_setup_ghost()
 	_setup_mirror_ghost()
 	_setup_highlight()
-	
+
 	_building_system.selected_block_changed.connect(_on_block_changed)
 	_building_system.build_mode_changed.connect(_on_build_mode_changed)
 	_building_system.rotation_changed.connect(_on_ghost_mesh_dirty)
@@ -55,9 +55,7 @@ func _setup_mirror_ghost() -> void:
 	_mirror_ghost_node.add_child(_mirror_ghost_mesh)
 	add_child(_mirror_ghost_node)
 	_mirror_ghost_node.visible = false
-# ==========================================================================
-#  Public API  (called by BuildingSystem)
-# ==========================================================================
+
 
 func update_preview(world_pos: Vector3, basis: Basis, can_place: bool, _ray_hit: Dictionary) -> void:
 	if not _ghost_node or not _building_system or not _building_system.build_mode:
@@ -75,7 +73,7 @@ func update_preview(world_pos: Vector3, basis: Basis, can_place: bool, _ray_hit:
 	_ghost_mesh_instance.transform = Transform3D(rot_basis, rotated_offset)
 	_ghost_mesh_instance.scale = Vector3(s, s, s)
 	_ghost_material.albedo_color = ghost_color_valid if can_place else ghost_color_invalid
-	
+
 	_update_mirror_preview()
 
 
@@ -111,7 +109,6 @@ func _update_mirror_preview() -> void:
 	_mirror_ghost_node.global_transform = Transform3D(grid_basis, mirror_world)
 	_mirror_ghost_mesh.transform = Transform3D(mirror_rot, rotated_offset)
 
-	# ← Escala negativa en el eje mirror para reflejar la mesh visualmente
 	var scale_vec := Vector3(s, s, s)
 	var axis_idx := _building_system._get_mirror_axis_index()
 	if axis_idx >= 0:
@@ -136,34 +133,32 @@ func hide_preview() -> void:
 func _setup_highlight() -> void:
 	_highlight_node = Node3D.new()
 	_highlight_node.name = "BlockHighlight"
-	
+
 	_highlight_mesh = MeshInstance3D.new()
-	_highlight_mesh.mesh = BoxMesh.new() # Un cubo simple
-	
+	_highlight_mesh.mesh = BoxMesh.new()
+
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.50, 0.1, 0.1, 0.5) # Amarillo semitransparente
+	mat.albedo_color = Color(0.50, 0.1, 0.1, 0.5)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.no_depth_test = false # Cambia a true si quieres verlo a través de las paredes
+	mat.no_depth_test = false
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.render_priority = 5
 	_highlight_mesh.material_override = mat
-	
+
 	_highlight_node.add_child(_highlight_mesh)
 	add_child(_highlight_node)
 	_highlight_node.visible = false
-	# --- Highlight Espejo ---
 	_mirror_highlight_node = Node3D.new()
 	_mirror_highlight_node.name = "MirrorBlockHighlight"
 	_mirror_highlight_mesh = MeshInstance3D.new()
 	_mirror_highlight_mesh.mesh = BoxMesh.new()
-	
-	# Usamos un material ligeramente distinto (ej: naranja/rojizo) para diferenciar el espejo
+
 	var mirror_mat := StandardMaterial3D.new()
-	mirror_mat.albedo_color = Color(0.5, 0.1, 0.1, 0.5) 
+	mirror_mat.albedo_color = Color(0.5, 0.1, 0.1, 0.5)
 	mirror_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mirror_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mirror_highlight_mesh.material_override = mirror_mat
-	
+
 	_mirror_highlight_node.add_child(_mirror_highlight_mesh)
 	add_child(_mirror_highlight_node)
 	_mirror_highlight_node.visible = false
@@ -188,16 +183,14 @@ func hide_highlight() -> void:
 
 func hide_mirror_highlight() -> void:
 	if _mirror_highlight_node: _mirror_highlight_node.visible = false
-# ==========================================================================
-#  Signal callbacks
-# ==========================================================================
+
 func _on_mirror_changed() -> void:
 	if not _building_system._mirror_active:
 		_mirror_ghost_node.visible = false
 
 func _on_material_changed(_material: BuildMaterial) -> void:
 	_refresh_ghost_mesh()
-	
+
 func _on_cell_size_changed(_new_size: float) -> void:
 	_refresh_ghost_mesh()
 
@@ -215,11 +208,6 @@ func _on_build_mode_changed(active: bool) -> void:
 	if active:
 		_refresh_ghost_mesh()
 
-
-
-# ==========================================================================
-#  Internal
-# ==========================================================================
 
 func _setup_ghost() -> void:
 	_ghost_node = Node3D.new()

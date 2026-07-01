@@ -31,7 +31,7 @@ graph_data = {
 },
 "10": {
 "auto_connect": true,
-"gui_position": Vector2(444.44446, -44.444443),
+"gui_position": Vector2(420, -60),
 "name": &"cave_noiseA",
 "noise": SubResource("ZN_FastNoiseLite_yhn84"),
 "type": "FastNoise3D",

@@ -8,10 +8,6 @@ var origin_local: Vector3 = Vector3.ZERO
 var basis_local: Basis = Basis.IDENTITY
 
 
-# ============================================================
-#  CONSTRUCTOR
-# ============================================================
-
 func setup(id: String, planet: Node3D, origin_world: Vector3, basis_world: Basis, size: float = 1.0) -> void:
 	grid_id = id
 	planet_node = planet
@@ -34,10 +30,6 @@ func setup_aligned(id: String, planet: Node3D, ref_origin_local: Vector3, ref_ba
 	origin_local = ref_origin_local
 	basis_local = ref_basis_local
 
-
-# ============================================================
-#  OVERRIDES DE GridBase
-# ============================================================
 
 func get_grid_world_transform() -> Transform3D:
 	return planet_node.global_transform * Transform3D(basis_local, origin_local)
@@ -77,10 +69,6 @@ func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basi
 	planet_node.add_child(body)
 	return body
 
-
-# ============================================================
-#  SERIALIZACIÓN
-# ============================================================
 
 func serialize() -> Dictionary:
 	var blocks_data: Dictionary = {}

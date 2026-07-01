@@ -3,8 +3,7 @@ class_name AnimationController
 
 const Config = preload("res://scripts/config.gd")
 
-## Si no se asigna desde el editor, busca la ruta por defecto del Player.
-## Los NPCs deben asignar estos exports apuntando a su propio modelo.
+## Si no se asigna, busca la ruta por defecto del Player; los NPCs lo apuntan a su propio modelo.
 @export var animator: AnimationPlayer
 @export var animation_tree: AnimationTree
 @export var blend_speed: float = 5.0
@@ -99,17 +98,14 @@ func handle_animations(delta: float, current_animation, free_flight_enabled):
 
 	var target_value = animation_states.get(current_animation, {})
 
-	# Manejar OneShot (ataques)
 	for param in oneshot_params:
 		if target_value.has(param):
-			# Disparar el OneShot si no está ya activo
 			if not animation_tree["parameters/%s/active" % param]:
 				animation_tree["parameters/%s/request" % param] = AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE
 
-	# Manejar Blend2 (el resto)
 	for parameter in current_values:
 		if parameter in oneshot_params:
-			continue  # Los OneShot no usan blend
+			continue
 		if target_value.has(parameter):
 			current_values[parameter] = lerpf(current_values[parameter], target_value[parameter], blend_speed * delta)
 		else:

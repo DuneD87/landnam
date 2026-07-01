@@ -1,6 +1,9 @@
 extends Node3D
 class_name QuadTreeMeshManager
 
+## Sincroniza las mallas de agua con el quadtree: crea, actualiza y elimina QuadSurface(Compute) por
+## parche activo (modo CPU o GPU con recursos compute compartidos) y actualiza los uniforms del material.
+
 enum ComputeMode {
 	CPU,
 	GPU
@@ -16,7 +19,6 @@ enum ComputeMode {
 var active_quads: Dictionary = {}
 var quad_tree_manager: Node3D
 
-# For GPU compute mode - shared resources
 var compute_shader_loaded: bool = false
 var shared_rd: RenderingDevice
 var shared_compute_shader: RID
@@ -26,15 +28,12 @@ func initialize(quadtree_manager: Node3D):
 	quad_tree_manager = quadtree_manager
 	quad_tree_manager.quadtree_changed.connect(_on_quadtree_changed)
 	
-	# Initialize shared compute resources if using GPU mode
 	if compute_mode == ComputeMode.GPU and preload_compute_shader:
 		_initialize_compute_resources()
 
 func _initialize_compute_resources():
-	# Create shared rendering device
 	shared_rd = RenderingServer.create_local_rendering_device()
 	
-	# Load and compile shader once
 	var shader_path = "res://shaders/Compute/quad_surface_compute.glsl"
 	if not ResourceLoader.exists(shader_path):
 		push_warning("Compute shader not found at " + shader_path + ". Falling back to CPU mode.")
@@ -43,7 +42,6 @@ func _initialize_compute_resources():
 	
 	var shader_file = load(shader_path) as RDShaderFile
 	if not shader_file:
-		# Try alternative loading method
 		var file = FileAccess.open(shader_path, FileAccess.READ)
 		if not file:
 			push_error("Could not load compute shader file")
@@ -53,7 +51,6 @@ func _initialize_compute_resources():
 		var shader_code = file.get_as_text()
 		file.close()
 		
-		# Create shader from source
 		var shader_source := RDShaderSource.new()
 		shader_source.source_compute = shader_code
 		shader_source.language = RenderingDevice.SHADER_LANGUAGE_GLSL
@@ -82,9 +79,8 @@ func _create_quad_surface(quad_info: Dictionary):
 		if not compute_shader_loaded:
 			_initialize_compute_resources()
 		
-		if compute_mode == ComputeMode.GPU:  # Check again in case it fell back
+		if compute_mode == ComputeMode.GPU:
 			quad_surface = QuadSurfaceCompute.new()
-			# Pass shared resources to the compute surface
 			quad_surface.set_shared_resources(shared_rd, shared_compute_shader)
 		else:
 			quad_surface = QuadSurface.new()
@@ -158,7 +154,6 @@ func set_compute_mode(mode: ComputeMode):
 		
 	compute_mode = mode
 	
-	# Clean up compute resources if switching away from GPU
 	if mode == ComputeMode.CPU and shared_compute_shader.is_valid():
 		shared_rd.free_rid(shared_compute_shader)
 		shared_compute_shader = RID()
@@ -166,7 +161,6 @@ func set_compute_mode(mode: ComputeMode):
 	elif mode == ComputeMode.GPU and not compute_shader_loaded:
 		_initialize_compute_resources()
 	
-	# Recreate all surfaces with new mode
 	var quad_data = []
 	for quad_id in active_quads:
 		var quad = active_quads[quad_id]
@@ -181,11 +175,9 @@ func set_compute_mode(mode: ComputeMode):
 		}
 		quad_data.append(quad_info)
 	
-	# Clear existing quads
 	for quad_id in active_quads.keys():
 		_remove_quad_surface(quad_id)
 	
-	# Recreate with new mode
 	for quad_info in quad_data:
 		_create_quad_surface(quad_info)
 
@@ -223,6 +215,5 @@ func _process(_delta: float) -> void:
 	default_material.set_shader_parameter("water_radius", radius)
 
 func _exit_tree():
-	# Clean up shared compute resources
 	if shared_compute_shader.is_valid():
 		shared_rd.free_rid(shared_compute_shader)

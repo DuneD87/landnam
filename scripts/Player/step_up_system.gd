@@ -1,6 +1,9 @@
 class_name StepUpSystem
 extends Node
 
+## Sube al cuerpo por escalones/obstáculos bajos (hasta max_step_height) con shape-casts, aplicando
+## un desplazamiento vertical suave cuando detecta un peldaño superable delante.
+
 @export var max_step_height: float = 0.55
 @export var step_margin: float = 0.02
 @export var step_speed: float = 12.0
@@ -55,12 +58,10 @@ func try_step_up(delta: float, gravity_dir: Vector3, intended_velocity: Vector3)
 	var shape: Shape3D = _collision_shape.shape
 	var body_transform := _body.global_transform
 
-	# 1. Obstacle davant?
 	var foot_check := _cast_shape(space_state, shape, body_transform, move_dir, 0.3)
 	if foot_check.is_empty():
 		return false
 
-	# 2. Pujar — comprovar sostre
 	var raised_transform := body_transform
 	var ceiling_check := _cast_shape(space_state, shape, body_transform, up, max_step_height)
 	if not ceiling_check.is_empty():
@@ -71,14 +72,12 @@ func try_step_up(delta: float, gravity_dir: Vector3, intended_velocity: Vector3)
 	else:
 		raised_transform.origin = body_transform.origin + up * max_step_height
 
-	# 3. Avançar des de posició elevada
 	var forward_raised := _cast_shape(space_state, shape, raised_transform, move_dir, 0.3)
 	if not forward_raised.is_empty():
 		var travel_dist: float = forward_raised.get("travel", Vector3.ZERO).length()
 		if travel_dist < step_margin:
 			return false
 
-	# 4. Baixar per trobar terra
 	var forward_pos := raised_transform
 	forward_pos.origin += move_dir * 0.15
 	var down_check := _cast_shape(space_state, shape, forward_pos, -up, max_step_height + 0.1)
@@ -88,12 +87,10 @@ func try_step_up(delta: float, gravity_dir: Vector3, intended_velocity: Vector3)
 
 	var land_pos: Vector3 = forward_pos.origin + down_check.get("travel", Vector3.ZERO)
 
-	# 5. Verificar que hem PUJAT
 	var height_gained := (land_pos - body_transform.origin).dot(up)
 	if height_gained < step_margin or height_gained > max_step_height:
 		return false
 
-	# 6. Iniciar step-up suau
 	_step_target = land_pos + up * step_margin
 	_stepping = true
 	_step_timer = 0.0

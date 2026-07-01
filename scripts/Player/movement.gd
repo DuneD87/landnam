@@ -1,6 +1,10 @@
 extends Node
 
 class_name Movement
+
+## Movimiento compartido por jugador y NPCs: correr, saltar, nadar y gravedad, con animación y daño
+## por caída. La dirección viene del input o, en modo IA (use_ai_input), de ai_direction.
+
 const Config = preload("res://scripts/config.gd")
 const SWIM_TRANSITION_DELAY = 0.3
 
@@ -28,14 +32,13 @@ var gravity_velocity = 0.0
 var velocity: Vector3 = Vector3.ZERO
 var direction: Vector3 = Vector3.ZERO
 
-## Si true, get_input_direction() devuelve ai_direction en vez de leer Input.
-## El player lo deja a false. Los NPCs lo ponen a true e inyectan la dirección.
+## Si true, get_input_direction() devuelve ai_direction en vez de leer Input (modo IA de los NPCs).
 var use_ai_input: bool = false
 var ai_direction: Vector3 = Vector3.ZERO
 
 ## Emitido al aterrizar tras un vuelo. [impact_speed] = velocidad descendente máxima (m/s).
 signal landed(impact_speed: float)
-var _was_on_floor: bool = true   # true por defecto para evitar falso evento en spawn
+var _was_on_floor: bool = true
 var _peak_airborne_speed: float = 0.0
 
 func handle_jump_movement(delta: float, gravity_strength: float, gravity_direction: Vector3 , is_on_floor: bool):
@@ -100,20 +103,14 @@ func handle_idle_movement(delta: float, gravity_direction: Vector3, is_on_floor:
 	if is_falling:
 		current_animation = Config.ANIMATION.FALLING
 
-	# --- Fall damage tracking ---
-	# Acumulamos la velocidad descendente máxima mientras estamos en el aire.
-	# No podemos leerla en el frame de aterrizaje porque move_and_slide ya la ha
-	# cancelado, así que guardamos el pico durante el vuelo.
 	if not is_on_floor and not is_swimming:
 		_peak_airborne_speed = max(_peak_airborne_speed, downward_velocity)
 
-	# Transición aire → suelo: emitir con la velocidad de impacto acumulada.
 	if not _was_on_floor and is_on_floor and not is_swimming:
 		if _peak_airborne_speed > 0.0:
 			landed.emit(_peak_airborne_speed)
 		_peak_airborne_speed = 0.0
 	_was_on_floor = is_on_floor
-	# ----------------------------
 
 	if on_platform:
 		gravity_velocity = 0.0
@@ -131,7 +128,6 @@ func get_input_direction(camera: Camera3D, gravity_dir: Vector3) -> Vector3:
 	if is_falling:
 		return Vector3.ZERO
 
-	# Modo IA: la dirección la inyecta el controlador externo (NPC)
 	if use_ai_input:
 		return ai_direction
 

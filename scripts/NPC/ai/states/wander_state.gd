@@ -26,16 +26,13 @@ func enter() -> void:
 
 
 func update(delta: float) -> StringName:
-	# Amenaza detectada → huir
 	if flee_trigger_radius > 0.0 and controller.is_target_within(flee_trigger_radius):
 		return &"FleeState"
 
-	# Timeout de seguridad
 	_timer -= delta
 	if _timer <= 0.0:
 		return &"IdleState"
 
-	# Si el NPC cayó al agua, escapar directamente sin tocar la lógica de destino
 	if controller.is_in_water(controller.npc.global_position):
 		var escape := controller.steer_clear_of_water(
 			_last_dir if _last_dir.length() > 0.1 else Vector3.FORWARD
@@ -43,16 +40,13 @@ func update(delta: float) -> StringName:
 		controller.desired_direction = escape
 		return &""
 
-	# Si el destino cayó en agua, elegir otro
 	if controller.is_in_water(_target_pos):
 		_target_pos = _pick_wander_target()
 		if _target_pos == controller.npc.global_position:
 			return &"IdleState"
 
-	# Dirección al objetivo
 	var to_target := _target_pos - controller.npc.global_position
 
-	# Llegada
 	if to_target.length() <= arrival_threshold:
 		return &"IdleState"
 
@@ -60,8 +54,6 @@ func update(delta: float) -> StringName:
 	if dir == Vector3.ZERO:
 		return &"IdleState"
 
-	# Overshoot: si el target está ahora detrás (pasamos de largo), parar aquí
-	# en vez de invertir la dirección y oscilar.
 	if _last_dir.length() > 0.1 and _last_dir.dot(dir) < 0.0:
 		return &"IdleState"
 
@@ -74,9 +66,7 @@ func exit() -> void:
 	controller.desired_direction = Vector3.ZERO
 
 
-## Elige un punto aleatorio dentro de [member wander_radius] en el plano de gravedad,
-## reintentando hasta 8 veces para evitar posiciones en el agua.
-## Devuelve la posición actual si no encuentra tierra seca.
+## Elige un punto aleatorio dentro de wander_radius en el plano de gravedad, evitando el agua (8 intentos).
 func _pick_wander_target() -> Vector3:
 	var up  := -controller.gravity_direction.normalized()
 	var ref := Vector3.FORWARD if abs(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT

@@ -1,4 +1,3 @@
-# inventory_item.gd
 class_name InventoryItem
 extends RefCounted
 

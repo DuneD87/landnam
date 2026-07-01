@@ -1,4 +1,3 @@
-# character_window.gd
 class_name CharacterWindow
 extends CanvasLayer
 
@@ -11,7 +10,6 @@ const EquipmentSlotScene = preload("res://scenes/ui/equipment_slot.tscn")
 @onready var close_button: Button = $PanelContainer/MarginContainer/VBoxContainer/Header/CloseButton
 @onready var slots_container: VBoxContainer = $PanelContainer/MarginContainer/VBoxContainer/SlotsContainer
 
-## Iconos de fondo para cada slot (configurables desde el inspector)
 @export_group("Slot Background Icons")
 @export var icon_head: Texture2D
 @export var icon_chest: Texture2D
@@ -42,39 +40,33 @@ func _apply_panel_style() -> void:
 
 
 func _create_slots() -> void:
-	# Limpiar contenedor
 	for child in slots_container.get_children():
 		child.queue_free()
 	
-	# Row 1: HEAD (centrado)
 	var row1 = _create_row()
 	_add_spacer(row1)
 	_add_slot(row1, ItemData.ArmorSlot.HEAD, icon_head)
 	_add_spacer(row1)
 	slots_container.add_child(row1)
 	
-	# Row 2: OFF_HAND - CHEST - MAIN_HAND
 	var row2 = _create_row()
 	_add_slot(row2, ItemData.ArmorSlot.OFFHAND, icon_off_hand)
 	_add_slot(row2, ItemData.ArmorSlot.CHEST, icon_chest)
 	_add_slot(row2, ItemData.ArmorSlot.RIGHT_HAND, icon_main_hand)
 	slots_container.add_child(row2)
 	
-	# Row 3: HANDS (centrado)
 	var row3 = _create_row()
 	_add_spacer(row3)
 	_add_slot(row3, ItemData.ArmorSlot.HANDS, icon_hands)
 	_add_spacer(row3)
 	slots_container.add_child(row3)
 	
-	# Row 4: LEGS (centrado)
 	var row4 = _create_row()
 	_add_spacer(row4)
 	_add_slot(row4, ItemData.ArmorSlot.LEGS, icon_legs)
 	_add_spacer(row4)
 	slots_container.add_child(row4)
 	
-	# Row 5: TOOL - FEET - (spacer)
 	var row5 = _create_row()
 	_add_slot(row5, ItemData.ArmorSlot.LEFT_HAND, icon_tool)
 	_add_slot(row5, ItemData.ArmorSlot.FEET, icon_feet)
@@ -109,7 +101,6 @@ func _on_slot_clicked(slot: EquipmentSlot, button_index: int) -> void:
 		slot_clicked.emit(slot)
 
 
-## Equipa un item en un slot. Devuelve el item que había equipado (o null)
 func equip_item(slot: EquipmentSlot, item: InventoryItem) -> InventoryItem:
 	if not slot or not item:
 		return null
@@ -128,7 +119,6 @@ func equip_item(slot: EquipmentSlot, item: InventoryItem) -> InventoryItem:
 	return old_item
 
 
-## Desequipa el item de un slot. Devuelve el item desequipado (o null)
 func unequip_item(slot: EquipmentSlot) -> InventoryItem:
 	if not slot or not slot.has_item():
 		return null

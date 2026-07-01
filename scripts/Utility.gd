@@ -1,10 +1,7 @@
 class_name DebugUtils
 extends RefCounted
 
-# Script de utilidades de debug con funciones estáticas
-# No requiere configuración como Autoload
 
-# Función para dibujar líneas de debug usando ImmediateMesh
 static func draw_debug_line(start_pos: Vector3, end_pos: Vector3, color: Color, duration: float = 1.0):
 	var scene_tree = Engine.get_main_loop() as SceneTree
 	if not scene_tree or scene_tree.current_scene:
@@ -14,24 +11,20 @@ static func draw_debug_line(start_pos: Vector3, end_pos: Vector3, color: Color, 
 
 	scene_tree.current_scene.add_child(debug_line)
 	
-	# Crear el mesh inmediato
 	var immediate_mesh = ImmediateMesh.new()
 	debug_line.mesh = immediate_mesh
 	
-	# Crear y configurar el material
 	var material = ORMMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.albedo_color = color
 	material.no_depth_test = true
 	debug_line.material_override = material
 	
-	# Dibujar la línea
 	immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	immediate_mesh.surface_add_vertex(start_pos)
 	immediate_mesh.surface_add_vertex(end_pos)
 	immediate_mesh.surface_end()
 	
-	# Timer para eliminar la línea
 	var timer = Timer.new()
 	timer.wait_time = duration
 	timer.one_shot = true
@@ -39,7 +32,6 @@ static func draw_debug_line(start_pos: Vector3, end_pos: Vector3, color: Color, 
 	scene_tree.current_scene.add_child(timer)
 	timer.start()
 
-# Función para dibujar puntos de debug
 static func draw_debug_point(position: Vector3, color: Color, size: float = 0.1, duration: float = 1.0):
 	var scene_tree = Engine.get_main_loop() as SceneTree
 	if not scene_tree:
@@ -48,21 +40,18 @@ static func draw_debug_point(position: Vector3, color: Color, size: float = 0.1,
 	var debug_point = MeshInstance3D.new()
 	scene_tree.current_scene.add_child(debug_point)
 	
-	# Crear una pequeña esfera
 	var sphere_mesh = SphereMesh.new()
 	sphere_mesh.radius = size
 	sphere_mesh.height = size * 2
 	debug_point.mesh = sphere_mesh
 	debug_point.global_position = position
 	
-	# Material
 	var material = ORMMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.albedo_color = color
 	material.no_depth_test = true
 	debug_point.material_override = material
 	
-	# Timer para eliminar el punto
 	var timer = Timer.new()
 	timer.wait_time = duration
 	timer.one_shot = true
@@ -70,7 +59,6 @@ static func draw_debug_point(position: Vector3, color: Color, size: float = 0.1,
 	scene_tree.current_scene.add_child(timer)
 	timer.start()
 
-# Funciones adicionales
 static func draw_debug_cross(position: Vector3, color: Color, size: float = 0.5, duration: float = 1.0):
 	var half_size = size * 0.5
 	draw_debug_line(position + Vector3(-half_size, 0, 0), position + Vector3(half_size, 0, 0), color, duration)
@@ -90,11 +78,10 @@ static func draw_debug_cube(center: Vector3, size: Vector3, color: Color, durati
 		center + Vector3(-half_size.x,  half_size.y,  half_size.z)
 	]
 	
-	# Dibujar todas las aristas del cubo
 	var edges = [
-		[0,1], [1,2], [2,3], [3,0],  # cara frontal
-		[4,5], [5,6], [6,7], [7,4],  # cara trasera
-		[0,4], [1,5], [2,6], [3,7]   # conexiones
+		[0,1], [1,2], [2,3], [3,0],
+		[4,5], [5,6], [6,7], [7,4],
+		[0,4], [1,5], [2,6], [3,7]
 	]
 	
 	for edge in edges:

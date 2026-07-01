@@ -1,8 +1,8 @@
 class_name DynamicPlanetGrid
 extends GridBase
 
-## Grid dinámica: todos los bloques viven dentro de un RigidBody3D
-## que cae con gravedad planetaria. Sigue siendo editable.
+## Grid dinámica: todos los bloques viven dentro de un RigidBody3D que cae con gravedad
+## planetaria y sigue siendo editable. Puede crearse desde cero o convirtiendo una PlanetGrid.
 
 var _body: DynamicGridBody = null
 var body_id: String = ""
@@ -10,9 +10,6 @@ var _owns_body: bool = false
 
 const MASS_PER_BLOCK := 10.0
 
-# ============================================================
-#  CONSTRUCTOR
-# ============================================================
 
 ## Crea la grid dinámica desde cero.
 func setup(id: String, planet: Node3D, world_transform: Transform3D) -> void:
@@ -20,7 +17,7 @@ func setup(id: String, planet: Node3D, world_transform: Transform3D) -> void:
 	planet_node = planet
 	_create_body(world_transform)
 
-## Setup reutilizando un body existente (para multi-size).
+## Setup reutilizando un body existente (multi-size).
 func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGrid, shared_body: DynamicGridBody) -> void:
 	grid_id = id
 	planet_node = planet
@@ -30,7 +27,6 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 	_owns_body = false
 	body_id = shared_body.get_meta("grid_id")
 
-	# Migrar bloques
 	var all_blocks := static_grid.get_all_blocks()
 	for grid_pos: Vector3i in all_blocks:
 		var info: Dictionary = all_blocks[grid_pos]
@@ -126,14 +122,11 @@ func _update_mass() -> void:
 		_body.mass = maxf(MASS_PER_BLOCK, _blocks.size() * MASS_PER_BLOCK)
 
 
-# ============================================================
-#  OVERRIDES DE GridBase
-# ============================================================
 func is_same_origin_basis(other: GridBase) -> bool:
 	if other is DynamicPlanetGrid:
 		return _body == (other as DynamicPlanetGrid)._body
 	return false
-	
+
 func get_grid_world_transform() -> Transform3D:
 	if _body and is_instance_valid(_body):
 		return _body.global_transform
@@ -160,7 +153,7 @@ func _on_block_removed_hook(_info: Dictionary) -> void:
 	_update_mass()
 
 
-## Crea un Node3D wrapper con CollisionShape3D (sin visual).
+## Crea un CollisionShape3D wrapper para un bloque (sin visual).
 func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, local_xform: Transform3D) -> CollisionShape3D:
 	var shape: Shape3D = block_data.collision_shape.duplicate()
 	var collider := CollisionShape3D.new()
@@ -173,7 +166,6 @@ func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_bas
 
 	collider.shape = shape
 
-	# Combinar transform del wrapper + offset del collider
 	var c := Vector3.ONE * cell_size * 0.5
 	var col_offset := rotation_basis.inverse() * c
 	var col_local := Transform3D(Basis.IDENTITY, col_offset)
@@ -187,10 +179,6 @@ func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_bas
 	return collider
 
 
-# ============================================================
-#  LIMPIEZA
-# ============================================================
-
 func clear() -> void:
 	if _body and is_instance_valid(_body):
 		_body.unregister_grid(self)
@@ -199,10 +187,6 @@ func clear() -> void:
 		_body.queue_free()
 		_body = null
 
-
-# ============================================================
-#  SERIALIZACIÓN
-# ============================================================
 
 func serialize() -> Dictionary:
 	var blocks_data: Dictionary = {}
@@ -260,14 +244,12 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 		_create_body(body_xform)
 		body_id = data.get("body_id", grid_id)
 
-	# Materiales
 	var materials_data: Dictionary = data.get("materials", {})
 	for mat_id in materials_data:
 		var path: String = materials_data[mat_id]
 		if ResourceLoader.exists(path):
 			mesh_materials[mat_id] = load(path)
 
-	# Bloques
 	_suppress_rebuild = true
 	var blocks_data: Dictionary = data.get("blocks", {})
 	for key in blocks_data:
@@ -298,4 +280,3 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 	block_removed.connect(_body.on_block_removed)
 	_update_mass()
 	rebuild_mesh()
-	

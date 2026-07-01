@@ -1,20 +1,18 @@
 extends Node3D
-## Arrastra este script a cualquier nodo vacío.
-## Asigna en el inspector la DirectionalLight3D.
-## La SkyMaterial se busca sola si hay un WorldEnvironment hijo.
+## Controla la posición del sol (azimut/elevación) y la propaga a los planetas y a la SkyMaterial.
 
 @export var sun_light : DirectionalLight3D
 @export var sun_azimuth_deg : float  = 150.0
 @export var sun_elevation_deg: float = 25.0
-	
-@export var auto_rotate        : bool  = true        # activar o desactivar
-@export var rotation_speed_deg : float = 0.1        # ° por segundo (positivo = Este→Oeste)
+
+@export var auto_rotate        : bool  = true
+@export var rotation_speed_deg : float = 0.1
 @export var sun_distance : float = 100000.0
 @onready var planets = $Planets
-var sky_material : ShaderMaterial      # se resuelve en _ready
+var sky_material : ShaderMaterial
 
 func _ready() -> void:
-	add_to_group("sun_controller")   # lo localiza la consola de depuración
+	add_to_group("sun_controller")
 	var env := $WorldEnvironment
 	'for planet in planets.planets:
 		planet.sun = $DirectionalLight3'
@@ -24,7 +22,7 @@ func _ready() -> void:
 	sun_elevation_deg = 0.0
 	sun_light.position = Vector3(0.0, 0.0, 0.0)
 
-	set_process(true)   # _process corre en editor (por @tool)
+	set_process(true)
 	_update_sun()
 
 func _process(delta: float) -> void:

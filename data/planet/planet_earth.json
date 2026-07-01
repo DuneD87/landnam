@@ -346,7 +346,7 @@
 		  "emit_mode": "EMIT_FROM_VERTICES",
 		  "density": 0.06,
 		  "min_height": -400,
-		  "max_height": 200,
+		  "max_height": 600,
 		  "max_slope_degrees": 50,
 		  "min_scale": 3.5,
 		  "max_scale": 7.5,
@@ -419,6 +419,11 @@
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass.tscn",
 			"generator": ["grass_generator_green"],
 			"wind_speed": 0.2, "lod_index": [0, 1, 2], "instance_as_scene": false, "cast_shadow": false
+		},
+		{
+			"scene": "res://scenes/planet/planet_items/vegetation/mushroom/cave_mushroom_01.tscn",
+			"generator": ["cave_mushroom_generator"],
+			"wind_speed": 0.2, "lod_index": [0, 1, 2], "instance_as_scene": true, "cast_shadow": false
 		}
 	]
   },
@@ -474,17 +479,19 @@
   ],
   "weather_settings": {
 	"enabled": true,
-	"min_duration": 30.0,
-	"max_duration": 40.0,
-	"transition_time": 30.0,
+	"min_duration": 300.0,
+	"max_duration": 600.0,
+	"transition_time": 300.0,
 	"cold_altitude": 1500.0,
 	"snow_altitude": 3500.0,
+	"cold_boost": { "snow": 0.4, "fog": 0.2 },
+	"peaks_profile": [ {"weather": "snow", "chance": 0.7}, {"weather": "fog", "chance": 0.2}, {"weather": "storm", "chance": 0.1} ],
 	"biome_profiles": {
-	  "0": [ {"weather": "snow", "weight": 3}, {"weather": "storm", "weight": 1}, {"weather": "fog", "weight": 1}, {"weather": "clear", "weight": 1} ],
-	  "1": [ {"weather": "clear", "weight": 2}, {"weather": "storm", "weight": 2}, {"weather": "wind", "weight": 1}, {"weather": "fog", "weight": 1} ],
-	  "2": [ {"weather": "clear", "weight": 3}, {"weather": "wind", "weight": 2}, {"weather": "storm", "weight": 1} ],
-	  "3": [ {"weather": "clear", "weight": 2}, {"weather": "storm", "weight": 2}, {"weather": "wind", "weight": 1}, {"weather": "fog", "weight": 1} ],
-	  "4": [ {"weather": "snow", "weight": 3}, {"weather": "storm", "weight": 1}, {"weather": "fog", "weight": 1}, {"weather": "clear", "weight": 1} ]
+	  "0": [ {"weather": "snow", "chance": 0.5}, {"weather": "storm", "chance": 0.17}, {"weather": "fog", "chance": 0.17}, {"weather": "clear", "chance": 0.16} ],
+	  "1": [ {"weather": "clear", "chance": 0.33}, {"weather": "storm", "chance": 0.33}, {"weather": "wind", "chance": 0.17}, {"weather": "fog", "chance": 0.17} ],
+	  "2": [ {"weather": "clear", "chance": 0.5}, {"weather": "wind", "chance": 0.33}, {"weather": "storm", "chance": 0.17} ],
+	  "3": [ {"weather": "clear", "chance": 0.33}, {"weather": "storm", "chance": 0.33}, {"weather": "wind", "chance": 0.17}, {"weather": "fog", "chance": 0.17} ],
+	  "4": [ {"weather": "snow", "chance": 0.5}, {"weather": "storm", "chance": 0.17}, {"weather": "fog", "chance": 0.17}, {"weather": "clear", "chance": 0.16} ]
 	}
   }
 }

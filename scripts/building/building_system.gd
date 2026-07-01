@@ -1,6 +1,10 @@
 class_name BuildingSystem
 extends Node3D
 
+## Sistema de construcción: gestiona el modo build (targeting por raycast, colocación y borrado
+## de bloques, rotación, tamaño de celda, materiales/coste y simetría de espejo), delegando el
+## almacenamiento en GridManager y las grids.
+
 const config_ref = preload("res://scripts/config.gd")
 
 const CELL_SIZES: Array[float] = [0.25, 0.5, 1.0, 2.0]
@@ -38,7 +42,6 @@ var _player: Node3D = null
 var _build_preview: BuildPreview = null
 var _inventory: Inventory = null
 
-# --- Computed target state (from raycast) ---
 var _target_world_pos: Vector3 = Vector3.ZERO
 var _target_basis: Basis = Basis.IDENTITY
 var _target_grid: GridBase = null
@@ -57,10 +60,10 @@ func set_material_by_id(mat_id: String) -> void:
 			current_material_index = i
 			material_changed.emit(get_current_material())
 			return
-	
+
 func _add_mirror_visual_to_scene() -> void:
-	get_tree().current_scene.add_child(_mirror_visual)	
-	
+	get_tree().current_scene.add_child(_mirror_visual)
+
 func _ready() -> void:
 	selected_block_id = BlockDatabase.BLOCK_CUBE_ID
 	_player = get_parent() as Node3D
@@ -83,9 +86,6 @@ func _ready() -> void:
 func get_current_material() -> BuildMaterial:
 	return BlockDatabase.get_material_at(current_material_index)
 
-# ==========================================================================
-#  Block selection
-# ==========================================================================
 
 func get_selected_block() -> BlockData:
 	return BlockDatabase.get_block(selected_block_id)
@@ -96,9 +96,6 @@ func select_block(block_id: int) -> void:
 		current_rotation_basis = Basis.IDENTITY
 		selected_block_changed.emit(BlockDatabase.get_block(selected_block_id))
 
-# ==========================================================================
-#  Rotation
-# ==========================================================================
 
 func rotate_block_x() -> void:
 	if _can_rotate():
@@ -133,10 +130,6 @@ func _snap_rotation() -> void:
 			current_rotation_basis[i][j] = roundf(current_rotation_basis[i][j])
 
 
-# ==========================================================================
-#  Cell size
-# ==========================================================================
-
 func increase_cell_size() -> void:
 	if cell_size_index < CELL_SIZES.size() - 1:
 		cell_size_index += 1
@@ -149,10 +142,6 @@ func decrease_cell_size() -> void:
 		cell_size = CELL_SIZES[cell_size_index]
 		cell_size_changed.emit(cell_size)
 
-
-# ==========================================================================
-#  Build mode
-# ==========================================================================
 
 func toggle_build_mode() -> void:
 	build_mode = !build_mode
@@ -168,13 +157,13 @@ func set_build_mode(active: bool) -> void:
 		build_mode_changed.emit(build_mode)
 		if not active:
 			_on_build_mode_off()
-		
+
 func toggle_action_mode() -> void:
 	if current_action_mode == ActionMode.BUILD:
 		current_action_mode = ActionMode.DESTROY
 	else:
 		current_action_mode = ActionMode.BUILD
-	
+
 	clear_target()
 	action_mode_changed.emit(current_action_mode)
 
@@ -184,9 +173,6 @@ func execute_primary_action(ray_hit: Dictionary) -> void:
 	else:
 		try_remove_block(ray_hit)
 
-# ==========================================================================
-#  Player helpers
-# ==========================================================================
 
 func get_player() -> Node3D:
 	return _player
@@ -197,17 +183,13 @@ func get_player_basis() -> Basis:
 	return Basis.IDENTITY
 
 
-# ==========================================================================
-#  Cost / Inventory
-# ==========================================================================
-
 func can_afford_block(block_data: BlockData = null) -> bool:
 	if not _inventory:
 		return true
 
 	var mat := get_current_material()
 	if not mat or not mat.item:
-		return true  # no material system → free build
+		return true
 
 	var cost := mat.get_cost_for_size(cell_size)
 	return _inventory.get_item_count(mat.item) >= cost
@@ -245,22 +227,19 @@ func get_missing_materials(block_data: BlockData = null) -> Array[Dictionary]:
 	return missing
 
 
-# ==========================================================================
-#  Raycast processing  (called by Player every frame in build mode)
-# ==========================================================================
-
+## Procesa el raycast del jugador cada frame en modo build: resuelve objetivo y actualiza el preview.
 func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3, ray_hit: Dictionary) -> void:
 	_has_target = true
-	
+
 	var resolved_node := _get_hit_shape_node(ray_hit)
 	if not resolved_node:
 		resolved_node = hit_collider as Node3D
-	
+
 	_is_aiming_at_block = resolved_node.has_meta("grid_id")
 
 	if _is_aiming_at_block:
 		_process_aim_at_block(resolved_node, hit_normal, hit_pos)
-		
+
 		var hit_grid := GridManager.get_grid_for_block(resolved_node)
 		if hit_grid and _build_preview:
 			if current_action_mode == ActionMode.DESTROY:
@@ -268,9 +247,9 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 				if hit_grid.has_block(grid_pos):
 					var cell_world_pos := hit_grid.grid_to_world(grid_pos)
 					var grid_basis := hit_grid.get_basis_world()
-					
+
 					_build_preview.show_highlight(cell_world_pos, grid_basis, hit_grid.cell_size)
-					
+
 					var mirror_shown := false
 					if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid \
 					   and (hit_grid == mirror_grid or _basis_compatible(hit_grid.get_basis_world(), mirror_grid.get_basis_world())):
@@ -279,7 +258,7 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 							var mirror_world_pos := hit_grid.grid_to_world(mirror_pos)
 							_build_preview.show_mirror_highlight(mirror_world_pos, grid_basis, hit_grid.cell_size)
 							mirror_shown = true
-					
+
 					if not mirror_shown:
 						_build_preview.hide_mirror_highlight()
 				else:
@@ -331,7 +310,6 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 	var target_cell := cell_size
 	var hit_rot_basis: Basis = hit_collider.get_meta("rotation_basis")
 
-	# Para dinámicas: reconstruir block_transform desde grid
 	var block_basis: Basis
 	if hit_grid is DynamicPlanetGrid:
 		block_basis = hit_grid.get_basis_world() * hit_rot_basis
@@ -375,7 +353,6 @@ func _process_cross_size_placement(hit_grid: GridBase, hit_grid_pos: Vector3i, h
 	else:
 		face_axis = 2; face_sign = grid_face.z
 
-	# Trabajar en espacio local de la grid usando su transform mundo
 	var grid_xform := hit_grid.get_grid_world_transform()
 	var grid_inv := grid_xform.affine_inverse()
 	var hit_continuous: Vector3 = grid_inv * hit_pos
@@ -393,11 +370,9 @@ func _process_cross_size_placement(hit_grid: GridBase, hit_grid_pos: Vector3i, h
 		else:
 			target_continuous[i] = floor(hit_continuous[i] / target_cell) * target_cell
 
-	# Posición mundo desde espacio local de la grid
 	_target_world_pos = grid_xform * target_continuous
 	_target_basis = hit_grid.get_basis_world()
 
-	# Buscar grid alineada
 	_target_grid = GridManager.find_aligned_grid(planet, target_cell, hit_grid)
 	_hit_grid_for_alignment = hit_grid
 
@@ -427,7 +402,6 @@ func _process_aim_at_terrain(hit_normal: Vector3, hit_pos: Vector3) -> void:
 	var planet := current_planet
 
 	if planet:
-		# Buscar grid que esté cerca Y alineada con el player
 		_target_grid = GridManager.find_nearest_grid(planet, adjusted_pos, cell_size,player_basis, true)
 
 	if _target_grid:
@@ -436,7 +410,6 @@ func _process_aim_at_terrain(hit_normal: Vector3, hit_pos: Vector3) -> void:
 		_target_basis = _target_grid.get_basis_world()
 		_can_place = not _target_grid.has_block(_target_grid_pos)
 	else:
-		# No hay grid compatible → se creará una nueva al colocar
 		_target_basis = player_basis
 		var relative := adjusted_pos - (planet.global_position if planet else Vector3.ZERO)
 		var local_pos := _target_basis.inverse() * relative
@@ -446,10 +419,6 @@ func _process_aim_at_terrain(hit_normal: Vector3, hit_pos: Vector3) -> void:
 		_target_world_pos = (planet.global_position if planet else Vector3.ZERO) + _target_basis * local_pos
 		_can_place = true
 
-
-# ==========================================================================
-#  Actions (called by Player on input)
-# ==========================================================================
 
 func try_place_block() -> bool:
 	if not _can_place or not _has_target:
@@ -490,7 +459,7 @@ func try_place_block() -> bool:
 
 	var rot_basis := get_rotation_basis()
 	var place_transform := Transform3D(_target_basis * rot_basis, _target_world_pos)
-	
+
 	var m_data := {
 		"mirrored": false,
 		"mirror_axis": -1
@@ -508,14 +477,14 @@ func try_place_block() -> bool:
 				var mirror_world := grid.grid_to_world(mirror_pos)
 				var mirror_rot := _get_mirror_rotation(current_rotation_basis)
 				var mirror_transform := Transform3D(_target_basis * mirror_rot, mirror_world)
-				
+
 				var mirror_info := {
 					"mirrored": true,
 					"mirror_axis": _get_mirror_axis_index()
 				}
-				
+
 				grid.place_block(mirror_pos, block_data, mirror_rot, mirror_transform, mat_id, mirror_info)
-				
+
 	return true
 
 
@@ -539,7 +508,6 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 	var data := grid.remove_block(grid_pos)
 	_refund_block(data, grid.cell_size)
 
-	# Mirror remove
 	if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid \
 	   and (grid == mirror_grid or _basis_compatible(grid.get_basis_world(), mirror_grid.get_basis_world())):
 		var mirror_pos := _get_mirror_pos(grid_pos, grid)
@@ -567,7 +535,7 @@ func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
 
 func _find_build_material(mat_id: String) -> BuildMaterial:
 	return BlockDatabase.get_material_by_id(mat_id)
-	
+
 func convert_aimed_grid(ray_hit: Dictionary) -> void:
 	if ray_hit.is_empty():
 		return
@@ -587,7 +555,7 @@ func convert_aimed_grid(ray_hit: Dictionary) -> void:
 
 	GridManager.convert_to_dynamic(grid_id)
 
-## Toggle simetria on/off. Si s'activa, fixa el centre al bloc apuntat.
+## Activa/desactiva la simetría; al activarla fija el centro en el bloque apuntado.
 func toggle_symmetry(ray_hit: Dictionary) -> void:
 	if _mirror_active:
 		_mirror_active = false
@@ -614,7 +582,6 @@ func toggle_symmetry(ray_hit: Dictionary) -> void:
 		var block_cell := grid.cell_size
 		var half := Vector3.ONE * block_cell * 0.5
 
-		# Usar grid_to_world (funciona tanto para estáticas como dinámicas)
 		var corner_world := grid.grid_to_world(grid_pos)
 		var grid_basis := grid.get_basis_world()
 		mirror_center_world = corner_world + grid_basis * half
@@ -627,7 +594,7 @@ func toggle_symmetry(ray_hit: Dictionary) -> void:
 		print("[Mirror] Enabled at %s, axis: X" % mirror_center_world)
 
 
-## Cicla entre eixos X → Y → Z (només si simetria activa)
+## Cicla el eje de simetría X → Y → Z (solo si la simetría está activa).
 func switch_symmetry_plane() -> void:
 	if not _mirror_active:
 		return
@@ -653,7 +620,7 @@ func _update_mirror_visual() -> void:
 	_mirror_visual.show_plane(mirror_center_world, grid_basis, mirror_axis)
 
 
-## Cridar des de toggle_build_mode i set_build_mode per netejar visual
+## Limpia el estado y el visual de simetría al salir del modo construcción.
 func _on_build_mode_off() -> void:
 	_mirror_active = false
 	mirror_axis = MirrorAxis.NONE
@@ -666,7 +633,7 @@ func clear_mirror() -> void:
 	_mirror_active = false
 	mirror_grid = null
 	mirror_changed.emit()
-	
+
 
 func _get_mirror_center_in_grid(grid: PlanetGrid) -> Vector3i:
 	return grid.world_to_grid(mirror_center_world)
@@ -677,23 +644,20 @@ func _get_mirror_axis_index() -> int:
 		MirrorAxis.Y: return 1
 		MirrorAxis.Z: return 2
 	return -1
-	
+
 func _get_mirror_pos(grid_pos: Vector3i, grid: GridBase) -> Vector3i:
 	var grid_basis := grid.get_basis_world()
 	var s := grid.cell_size
 
-	# Centro del bloque en mundo
 	var corner_world := grid.grid_to_world(grid_pos)
 	var center_world := corner_world + grid_basis * (Vector3.ONE * s * 0.5)
 
-	# Reflejar centro alrededor de mirror_center_world en ejes locales de la grid
 	var diff := grid_basis.inverse() * (center_world - mirror_center_world)
 	match mirror_axis:
 		MirrorAxis.X: diff.x = -diff.x
 		MirrorAxis.Y: diff.y = -diff.y
 		MirrorAxis.Z: diff.z = -diff.z
 
-	# Reconstruir posición mundo del centro reflejado → esquina → grid pos
 	var reflected_center := mirror_center_world + grid_basis * diff
 	var reflected_corner := reflected_center - grid_basis * (Vector3.ONE * s * 0.5)
 	return grid.world_to_grid(reflected_corner)
@@ -705,14 +669,13 @@ func _get_mirror_visual_basis(rot_basis: Basis) -> Basis:
 		MirrorAxis.Y: scale.y = -1.0
 		MirrorAxis.Z: scale.z = -1.0
 	var mirror_b := Basis.from_scale(scale)
-	var result := mirror_b * rot_basis   # M·R, det = -1
+	var result := mirror_b * rot_basis
 	for i in 3:
 		for j in 3:
 			result[i][j] = roundf(result[i][j])
 	return result
-	
+
 func _get_mirror_rotation(rot_basis: Basis) -> Basis:
-	# Espejamos invirtiendo el eje correspondiente
 	var scale := Vector3.ONE
 	match mirror_axis:
 		MirrorAxis.X: scale.x = -1.0
@@ -722,12 +685,11 @@ func _get_mirror_rotation(rot_basis: Basis) -> Basis:
 	var mirror_b := Basis.from_scale(scale)
 	var mirrored := mirror_b * rot_basis * mirror_b
 
-	# Re-snap a valores enteros para evitar drift
 	for i in 3:
 		for j in 3:
 			mirrored[i][j] = roundf(mirrored[i][j])
 	return mirrored
-	
+
 func _should_mirror() -> bool:
 	if not _mirror_active or mirror_axis == MirrorAxis.NONE:
 		return false
@@ -738,7 +700,6 @@ func _should_mirror() -> bool:
 	if target:
 		if target.grid_id == mirror_grid.grid_id:
 			return true
-		# Cross-size: permitir si comparten basis (están alineadas)
 		return _basis_compatible(target.get_basis_world(), mirror_grid.get_basis_world())
 
 	if not current_planet:
@@ -775,17 +736,16 @@ func _can_afford_double(block_data: BlockData) -> bool:
 
 	var cost := mat.get_cost_for_size(cell_size) * count
 	return _inventory.get_item_count(mat.item) >= cost
-	
+
 ## Resuelve grid_pos desde un collider. Para estático lee meta, para dinámico calcula desde hit.
 func _resolve_grid_pos(hit_collider: Node3D, grid: GridBase, hit_pos: Vector3, hit_normal: Vector3) -> Vector3i:
 	if hit_collider.has_meta("grid_pos"):
 		return hit_collider.get_meta("grid_pos")
-	# Dinámico: probe hacia dentro del bloque
 	var probe := hit_pos - hit_normal * (grid.cell_size * 0.1)
 	return grid.world_to_grid(probe)
-	
-	
-## Para DynamicGridBody, obtiene el CollisionShape3D impactado usando shape index.
+
+
+## Para DynamicGridBody, obtiene el CollisionShape3D impactado usando el shape index.
 func _get_hit_shape_node(ray_hit: Dictionary) -> Node3D:
 	var collider := ray_hit.get("collider") as Node3D
 	if not collider or not collider is DynamicGridBody:
@@ -793,11 +753,9 @@ func _get_hit_shape_node(ray_hit: Dictionary) -> Node3D:
 	var shape_idx: int = ray_hit.get("shape", 0)
 	var owner_id: int = collider.shape_find_owner(shape_idx)
 	var shape_node : Node3D= collider.shape_owner_get_owner(owner_id)
-	
+
 	return shape_node
-# ==========================================================================
-#  Utility
-# ==========================================================================
+
 
 func _find_sibling(type: Variant) -> Node:
 	var par := get_parent()

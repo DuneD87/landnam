@@ -1,5 +1,8 @@
 class_name PlanetParser extends Node3D
 
+## Lee un JSON de planeta (terreno, biomas, atmósfera, agua, clima) a campos tipados que
+## consume el PlanetLoader.
+
 @export_group("Terrain Settings")
 @export var radius: float
 @export var vegetation : Dictionary
@@ -92,7 +95,6 @@ func _load_vegetation_settings(data:Dictionary) -> void:
 			return
 	
 	vegetation = data
-	#voxel_instancer._set_mesh_items(vegetation)
 	wind_direction.x = data.wind_direction[0]
 	wind_direction.y = data.wind_direction[1]
 	wind_direction.z = data.wind_direction[2]
@@ -115,8 +117,7 @@ func load_config(config_path: String):
 		return
 	
 	var config = json.get_data()
-	
-	# Validate and load terrain settings
+
 	if not config.has("terrain_settings") or not config.terrain_settings.has("radius"):
 		push_error("DEBUG: Invalid terrain settings in config.")
 		return
@@ -136,7 +137,6 @@ func load_config(config_path: String):
 	print("DEBUG: Terrain generator readed: ", terrain_generator_path)
 	print("DEBUG: Loaded radius: ", radius)
 	_load_vegetation_settings(config.get("vegetation_settings", {}))
-	# Validate and load biome settings
 	var biome_settings = config.get("biome_settings", {})
 	if not biome_settings.has_all(["biome_count", "textures_per_biome", "biome_latitude_ranges", 
 			"biome_transition_smoothness", "max_heights", "biome_texture_indices", 
@@ -150,7 +150,6 @@ func load_config(config_path: String):
 
 	textures_per_biome = biome_settings.textures_per_biome
 	
-	# Convert biome_latitude_ranges to Array[float]
 	biome_latitude_ranges = []
 	for value in biome_settings.biome_latitude_ranges:
 		if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:
@@ -161,7 +160,6 @@ func load_config(config_path: String):
 	
 	biome_transition_smoothness = biome_settings.biome_transition_smoothness
 	
-	# Convert max_heights to Array[float]
 	max_heights = []
 	for value in biome_settings.max_heights:
 		if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:
@@ -263,7 +261,6 @@ func load_config(config_path: String):
 		return
 	print("DEBUG: Loaded slope height texture: " + biome_settings.slope_height_texture)
 	
-	# Validate and load atmosphere settings
 	var atmosphere_settings = config.get("atmosphere_settings", {})
 	print(atmosphere_settings)
 	if not atmosphere_settings.has_all(["atmosphere_height", "atmosphere_density"]):
@@ -300,7 +297,6 @@ func load_config(config_path: String):
 		)
 		print("DEBUG: Loaded sun_dir: ", sun_dir)
 
-	# Clima (opcional). Si no está, el WeatherController arranca con sus presets por defecto.
 	weather_settings = config.get("weather_settings", {})
 	print("DEBUG: Loaded weather settings: ", weather_settings)
 

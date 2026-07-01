@@ -2,6 +2,8 @@
 extends Node
 class_name PlanetAtmosphereController
 
+## Alimenta el PlanetAtmosphere (compute) cada frame con el centro del planeta y la dirección del sol.
+
 enum SunSourceMode {
 	DIRECTIONAL_LIGHT,
 	NODE_POSITION,
@@ -49,9 +51,6 @@ func _update_effect() -> void:
 	if sun_node != null:
 		match sun_source_mode:
 			SunSourceMode.DIRECTIONAL_LIGHT:
-				# DirectionalLight3D apunta normalmente hacia -Z.
-				# Para scattering queremos dirección desde el planeta hacia el sol,
-				# por eso usamos +Z. Si sale invertido, activa invert_sun_direction.
 				sun_dir = sun_node.global_transform.basis.z.normalized()
 
 			SunSourceMode.NODE_POSITION:

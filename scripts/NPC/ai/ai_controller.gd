@@ -1,55 +1,30 @@
 extends Node
 class_name AIController
 
-## Máquina de estados finita (FSM) para NPCs.
-##
-## Flujo de uso desde NPCController:
-##   1. En _ready(): asignar [member npc], [member movement] y [member gravity_direction].
-##   2. Llamar [method start] con el estado inicial.
-##   3. En _physics_process(delta): actualizar [member gravity_direction], llamar
-##      [method update] y luego leer [member desired_direction] para inyectarlo en
-##      movement.ai_direction.
-##
-## Los estados ([AIState]) se añaden como nodos hijo en la escena y se registran
-## automáticamente en _ready() por su nombre de nodo.
+## Máquina de estados finita (FSM) para NPCs. Los estados (AIState) se añaden como nodos hijo y se
+## auto-registran por su nombre; cada frame update() avanza el estado activo y gestiona transiciones.
+## Expone helpers para los estados: proyección sobre la gravedad, distancias al target y evitar agua.
 
-## Referencia al CharacterBody3D del NPC. Asignar desde NPCController._ready().
 var npc: CharacterBody3D
-
-## Referencia al componente Movement del NPC. Asignar desde NPCController._ready().
 var movement: Movement
-
-## Dirección de gravedad actualizada cada frame por NPCController.
-## Los estados la usan para proyectar direcciones sobre la superficie del planeta.
 var gravity_direction: Vector3 = Vector3.DOWN
-
-## Dirección de movimiento deseada calculada por el estado activo (normalizada,
-## proyectada sobre el plano de gravedad). NPCController la lee y la inyecta en
-## movement.ai_direction cada frame.
 var desired_direction: Vector3 = Vector3.ZERO
-
-## Target actual (jugador, amenaza, punto de wander…). Los estados lo leen y escriben.
 var target: Node3D = null
-
-## True durante la ventana de animación de ataque. Lo activan los estados de combate
-## y lo lee NPCController para suprimir animaciones de movimiento.
 var is_attacking: bool = false
 
-var _states: Dictionary = {}       # StringName → AIState
+var _states: Dictionary = {}
 var _current_state: AIState = null
 var _current_state_name: StringName = &""
 
 
 func _ready() -> void:
-	# Auto-registrar todos los hijos que sean AIState
 	for child in get_children():
 		if child is AIState:
 			child.controller = self
 			_states[StringName(child.name)] = child
 
 
-## Arranca la FSM con el estado inicial. Llamar desde NPCController._ready()
-## una vez que npc y movement estén asignados.
+## Arranca la FSM con el estado inicial (tras asignar npc y movement).
 func start(initial_state: StringName) -> void:
 	if not _states.has(initial_state):
 		push_error("AIController: estado inicial '%s' no encontrado. ¿Está añadido como nodo hijo?" % initial_state)
@@ -59,13 +34,12 @@ func start(initial_state: StringName) -> void:
 	_current_state.enter()
 
 
-## Llamar desde NPCController._physics_process(delta).
-## Actualiza el estado activo y gestiona transiciones.
+## Avanza el estado activo y gestiona transiciones. Llamar desde NPCController._physics_process.
 func update(delta: float) -> void:
 	if not _current_state:
 		return
 
-	desired_direction = Vector3.ZERO  # el estado activo lo sobreescribe si procede
+	desired_direction = Vector3.ZERO
 
 	var next := _current_state.update(delta)
 	if next != &"":
@@ -73,7 +47,6 @@ func update(delta: float) -> void:
 
 
 ## Fuerza una transición inmediata al estado indicado.
-## Los estados también pueden llamarlo directamente via controller.transition_to().
 func transition_to(state_name: StringName) -> void:
 	if state_name == _current_state_name:
 		return
@@ -89,15 +62,12 @@ func transition_to(state_name: StringName) -> void:
 	_current_state.enter()
 
 
-## Helpers de conveniencia para los estados ----------
-
 ## Devuelve el nombre del estado activo.
 func get_current_state() -> StringName:
 	return _current_state_name
 
 
-## Proyecta [param dir] sobre el plano perpendicular a gravity_direction.
-## Útil para que los estados calculen direcciones de movimiento en superficie esférica.
+## Proyecta dir sobre el plano perpendicular a gravity_direction.
 func project_on_gravity_plane(dir: Vector3) -> Vector3:
 	var n := gravity_direction.normalized()
 	var projected := dir - n * dir.dot(n)
@@ -106,7 +76,7 @@ func project_on_gravity_plane(dir: Vector3) -> Vector3:
 	return projected.normalized()
 
 
-## Devuelve true si hay target asignado y está dentro de [param radius] metros.
+## Devuelve true si hay target asignado y está dentro de radius metros.
 func is_target_within(radius: float) -> bool:
 	if not target or not is_instance_valid(target):
 		return false
@@ -120,7 +90,7 @@ func distance_to_target() -> float:
 	return npc.global_position.distance_to(target.global_position)
 
 
-## Devuelve true si [param pos] está sumergida en el agua del planeta del NPC.
+## Devuelve true si pos está sumergida en el agua del planeta del NPC.
 func is_in_water(pos: Vector3) -> bool:
 	var p := _get_planet()
 	if not p or not p.has_water:
@@ -128,12 +98,9 @@ func is_in_water(pos: Vector3) -> bool:
 	return pos.distance_to(p.global_position) <= (p.radius - p.water_radius)
 
 
-## Margen de elevación sobre el nivel del agua por debajo del cual se activan
-## los raycasts de detección. NPCs con elevación > water_radius + este margen
-## nunca necesitan comprobar agua → 0 raycasts.
+## Margen de elevación sobre el nivel del agua por debajo del cual se activan los raycasts de agua.
 @export var water_check_margin: float = 20.0
 
-## Caché de si el planeta tiene agua. Se rellena en la primera llamada.
 var _planet_has_water: bool = false
 var _planet_water_checked: bool = false
 
@@ -146,8 +113,7 @@ func _get_planet() -> Planet:
 		return null
 	return loader.planet
 
-## Devuelve true si el NPC está lo suficientemente cerca del nivel del agua como
-## para que valga la pena hacer raycasts. Chequeo puramente geométrico, sin raycast.
+## Devuelve true si el NPC está cerca del nivel del agua (chequeo geométrico, sin raycast).
 func _near_water_zone() -> bool:
 	var p := _get_planet()
 	if not _planet_water_checked:
@@ -160,8 +126,7 @@ func _near_water_zone() -> bool:
 	return npc_height <= water_surface + water_check_margin
 
 
-## Lanza un raycast vertical desde [param surface_pos] para muestrear la altura real
-## del terreno y comprobar si estaría sumergido. Solo llamar tras confirmar _near_water_zone().
+## Raycast vertical desde surface_pos para comprobar si estaría sumergido (tras _near_water_zone()).
 func _probe_in_water(surface_pos: Vector3) -> bool:
 	var p := _get_planet()
 	if not p:
@@ -179,8 +144,7 @@ func _probe_in_water(surface_pos: Vector3) -> bool:
 	return hit.position.distance_to(p.global_position) <= (p.radius - p.water_radius)
 
 
-## Escanea 8 direcciones uniformes con radios crecientes para encontrar la tierra
-## más cercana cuando el NPC ya está en agua. Devuelve Vector3.ZERO si no hay salida.
+## Escanea 8 direcciones con radios crecientes para hallar la tierra más cercana; ZERO si no hay salida.
 func _find_water_exit(origin: Vector3, base_lookahead: float) -> Vector3:
 	var up  := -gravity_direction.normalized()
 	var ref := Vector3.FORWARD if abs(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
@@ -195,21 +159,16 @@ func _find_water_exit(origin: Vector3, base_lookahead: float) -> Vector3:
 	return Vector3.ZERO
 
 
-## Redirige [param dir] para evitar entrar en agua.
-## Cuando el NPC ya está en agua, ignora [param dir] y busca la salida más cercana.
-## Sin coste si el NPC está suficientemente alto sobre el nivel del agua.
+## Redirige dir para evitar el agua; si el NPC ya está en agua, busca la salida más cercana.
 func steer_clear_of_water(dir: Vector3, lookahead: float = 4.0) -> Vector3:
 	if dir == Vector3.ZERO or not _near_water_zone():
 		return dir
 	var origin := npc.global_position
-	# NPC ya en agua: buscar salida omnidireccional, ignorar dirección del estado
 	if is_in_water(origin):
 		var exit := _find_water_exit(origin, lookahead)
 		return exit if exit != Vector3.ZERO else dir
-	# NPC en tierra: comprobar si el camino lleva al agua
 	if not _probe_in_water(origin + dir * lookahead):
-		return dir  # Camino libre, salida rápida
-	# Buscar alternativa rotando la dirección deseada con sondeo lejano
+		return dir
 	var far  := lookahead * 5.0
 	var up   := -gravity_direction.normalized()
 	var perp := dir.cross(up).normalized()

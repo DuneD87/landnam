@@ -1,15 +1,8 @@
 extends CanvasLayer
 
-## Consola de depuración (autoload "Console").
-##
-## Una capa propia sobre el juego con salida (RichTextLabel) y entrada (LineEdit). Se abre/cierra
-## con la acción "toggle_console" (tecla tilde º/~). Los comandos viven en un registro: cada uno es
-## un ConsoleCommand autodescriptivo, así /help y el autocompletado con Tab se generan solos y añadir
-## comandos es una línea en _register_commands().
-##
-## La consola no se acopla a los subsistemas: resuelve sus objetivos de forma perezosa —el jugador
-## por GameManager.player y el clima/sol por grupos ("weather" / "sun_controller")— para que funcione
-## se cargue el planeta que se cargue.
+## Consola de depuración (autoload): una capa con salida y entrada, abrible con "toggle_console".
+## Los comandos son ConsoleCommand autodescriptivos en un registro, así /help y el autocompletado se
+## generan solos. Resuelve sus objetivos de forma perezosa (jugador, clima, sol) sin acoplarse.
 
 const config = preload("res://scripts/config.gd")
 
@@ -27,13 +20,12 @@ var _output: RichTextLabel
 var _input_field: LineEdit
 var _is_open: bool = false
 
-# Estado del juego guardado al abrir, para restaurarlo al cerrar.
 var _prev_mouse_mode := Input.MOUSE_MODE_CAPTURED
 var _prev_input_enabled: bool = false
 
 
 func _ready() -> void:
-	layer = 128                       # por encima de cualquier UI del juego
+	layer = 128
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
 	_register_commands()
@@ -41,7 +33,6 @@ func _ready() -> void:
 	_set_visible(false)
 
 
-# ── Construcción de la UI (en código, sin escena aparte) ────────────────────────
 
 func _build_ui() -> void:
 	var root := Control.new()
@@ -77,13 +68,10 @@ func _build_ui() -> void:
 	vbox.add_child(_input_field)
 
 
-# ── Apertura / cierre ───────────────────────────────────────────────────────────
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_console"):
 		toggle()
-		# Marcamos el evento como gestionado para que la tecla tilde no llegue al LineEdit
-		# (no se escribe el carácter) ni al jugador.
 		get_viewport().set_input_as_handled()
 
 
@@ -116,8 +104,6 @@ func _on_input_field_gui_input(event: InputEvent) -> void:
 		return
 	match event.keycode:
 		KEY_ENTER, KEY_KP_ENTER:
-			# Gestionamos el envío nosotros y consumimos el evento, para que el LineEdit no
-			# ejecute su manejo interno del Enter (que dejaba el campo sin poder volver a escribir).
 			_submit()
 			_input_field.accept_event()
 		KEY_UP:
@@ -142,7 +128,6 @@ func _navigate_history(dir: int) -> void:
 	_input_field.caret_column = _input_field.text.length()
 
 
-# ── Ejecución ───────────────────────────────────────────────────────────────────
 
 func _submit() -> void:
 	var line := _input_field.text.strip_edges()
@@ -202,14 +187,12 @@ func _tokenize(line: String) -> PackedStringArray:
 func _autocomplete() -> void:
 	var line := _input_field.text
 	var parts := _tokenize(line)
-	# Autocompletar el nombre del comando (sin espacios todavía).
 	if parts.size() <= 1 and not line.ends_with(" "):
 		var prefix := "" if parts.is_empty() else parts[0]
 		var matches := _commands.keys().filter(func(n): return n.begins_with(prefix))
 		matches.sort()
 		_apply_completion(prefix, matches, "")
 		return
-	# Autocompletar el primer argumento si el comando ofrece un completer.
 	var cmd: ConsoleCommand = _commands.get(parts[0].to_lower())
 	if cmd == null or not cmd.completer.is_valid():
 		return
@@ -230,7 +213,6 @@ func _apply_completion(prefix: String, matches: Array, head: String) -> void:
 		_print("[color=%s]%s[/color]" % [COLOR_MUTED, " ".join(matches)])
 
 
-# ── Salida ──────────────────────────────────────────────────────────────────────
 
 func _print(msg: String) -> void:
 	_output.append_text(msg + "\n")
@@ -245,7 +227,6 @@ func _info(msg: String) -> void:
 	_print("[color=%s]%s[/color]" % [COLOR_INFO, msg])
 
 
-# ── Localizadores de objetivos (perezosos, sin acoplamiento) ────────────────────
 
 func _get_player() -> Node:
 	return GameManager.player
@@ -257,7 +238,6 @@ func _get_sun() -> Node:
 	return get_tree().get_first_node_in_group("sun_controller")
 
 
-# ── Registro de comandos ─────────────────────────────────────────────────────────
 
 func _add(cmd: ConsoleCommand) -> void:
 	_commands[cmd.name] = cmd
@@ -285,7 +265,6 @@ func _register_commands() -> void:
 		"Coloca el sol o (des)activa su rotación automática.", _cmd_sun, 1))
 
 
-# ── Implementación de comandos ───────────────────────────────────────────────────
 
 func _cmd_help(args: PackedStringArray) -> String:
 	if args.size() >= 1:
@@ -326,7 +305,7 @@ func _cmd_give(args: PackedStringArray) -> String:
 
 
 func _cmd_items(args: PackedStringArray) -> String:
-	config.get_item(&"")          # fuerza la carga perezosa del catálogo
+	config.get_item(&"")
 	var filter := args[0].to_lower() if args.size() >= 1 else ""
 	var ids := config.items.keys().map(func(k): return str(k))
 	if filter != "":
@@ -422,7 +401,6 @@ func _get_health() -> Node:
 	return player.get("health_component")
 
 
-# ── Completers para Tab ──────────────────────────────────────────────────────────
 
 func _complete_item_ids() -> PackedStringArray:
 	config.get_item(&"")

@@ -1,4 +1,8 @@
 extends PlanetaryBody
+
+## Controlador del jugador: orquesta movimiento, cámara, nado/flotación, construcción, combate,
+## inventario/equipamiento, la cinemática de entrada y el guardado/carga, sobre un cuerpo planetario.
+
 const PLATFORM_ATTACH_DIST := 1.5
 const PLATFORM_DETACH_DIST := 2.5
 const PLATFORM_MAX_TILT_DEG := 75.0
@@ -41,7 +45,6 @@ const data = preload("res://scripts/items/item_data.gd")
 @export var surface_damping := 5.0
 @export var max_correction_speed := 8.0
 
-## Cinematic settings
 @export var cinematic_duration: float = 16.0
 @export var cinematic_ease: Tween.EaseType = Tween.EASE_OUT
 @export var cinematic_trans: Tween.TransitionType = Tween.TRANS_CUBIC
@@ -192,7 +195,6 @@ func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> voi
 func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
 	var new_item_slot := -1
 
-	# 1. Buscar i treure el nou item de l'inventari
 	for i in inventory.items.size():
 		if inventory.items[i] and inventory.items[i].data.id == new_data.id:
 			new_item_slot = i
@@ -200,7 +202,6 @@ func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
 	if new_item_slot >= 0:
 		inventory.items[new_item_slot] = null
 
-	# 2. Desequipar anterior
 	var old_is_equippable := old_data != null and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON)
 	if old_is_equippable:
 		var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
@@ -212,7 +213,6 @@ func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
 					inventory.items[target] = InventoryItem.new(unequipped.data, 1)
 					new_item_slot = -1
 
-	# 3. Equipar nou
 	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
 	if eq_slot:
 		var inv_item := InventoryItem.new(new_data, 1)
@@ -242,7 +242,6 @@ func _ready():
 	movement.landed.connect(_on_landed)
 	health_component.died.connect(_on_player_died)
 	action_controller.voxel_mined.connect(_on_voxel_mined)
-	# Start in free flight with no input (space view for the menu)
 	free_flight_enabled = true
 	visible = false
 	collision_model.disabled = true
@@ -281,7 +280,6 @@ func _ready():
 			
 			
 func get_save_data() -> Dictionary:
-	# Inventario: array de { item_id, quantity, slot_index }
 	var inventory_data: Array[Dictionary] = []
 	for i in inventory.items.size():
 		var item: InventoryItem = inventory.items[i]
@@ -292,7 +290,6 @@ func get_save_data() -> Dictionary:
 				"slot_index": i
 			})
 
-	# Equipamiento: ArmorSlot (int) -> item_id
 	var equipment_data: Dictionary = {}
 	for slot_type in character_window.equipment_slots:
 		var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
@@ -339,21 +336,17 @@ func restore_save_data(save: Dictionary) -> void:
 		Vector3(b.zx, b.zy, b.zz),
 	)
 
-	# Cámara
 	camera_controller.camera_pivot.rotation.y = save.camera.yaw
 	camera_controller.camera_pivot.get_node("PitchPivot").rotation.x = save.camera.pitch
 	camera_controller.camera_distance = save.camera.distance
 	camera_controller.update_camera_transform()
 	
-	# Estado
 	free_flight_enabled = save.game_state.free_flight
 	input_enabled = save.game_state.input_enabled
 	current_water_time = save.game_state.get("current_water_time", 0.0)
 
-	# Desequipar todo lo visual antes de limpiar inventario
 	_clear_visual_equipment()
 
-	# Limpiar y restaurar inventario respetando posiciones
 	inventory.clear()
 	for entry in save.inventory:
 		var item_data: ItemData = config.get_item(StringName(entry.item_id))
@@ -362,13 +355,11 @@ func restore_save_data(save: Dictionary) -> void:
 		else:
 			push_warning("SaveSystem: item desconocido '%s'" % entry.item_id)
 
-	# Limpiar slots de equipamiento en CharacterWindow
 	for slot_type in character_window.equipment_slots:
 		var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
 		if eq_slot.has_item():
 			eq_slot.clear()
 
-	# Restaurar equipamiento
 	for slot_key_str in save.equipment:
 		var slot_type: ItemData.ArmorSlot = int(slot_key_str) as ItemData.ArmorSlot
 		var item_id: String = save.equipment[slot_key_str]
@@ -377,44 +368,34 @@ func restore_save_data(save: Dictionary) -> void:
 			var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
 			var inv_item := InventoryItem.new(item_data, 1)
 			eq_slot.set_item(inv_item)
-			# Instanciar visual
 			equip_item(true, item_data.armor_slot, load(item_data.scene_path), item_data, item_data.category)
 	if save.has("hotbar"):
 		hotbar.restore_save_data(save.hotbar, config)
 	if save.has("hotbar_selected") and save.hotbar_selected >= 0:
 		hotbar.select_slot(save.hotbar_selected)
 	_activate_player()
-# Desde cualquier script (ej: tu player, un manager, etc.)
 
 func place_block_at_player() -> void:
 	var block_data: BlockData = BlockDatabase.get_block(BlockDatabase.BLOCK_SLOPE_ID)
 
-	# Crear el nodo
 	var block := StaticBody3D.new()
 	block.name = "Block_%s" % block_data.block_name
 
-	# Mesh
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.mesh = block_data.mesh
 	block.add_child(mesh_instance)
 
-	# Collider
 	var collider := CollisionShape3D.new()
 	collider.shape = block_data.collision_shape
-	# BoxShape3D está centrada, nuestra mesh tiene origen en la base
 	if block_data.collision_shape is BoxShape3D:
 		collider.position.y = block_data.cell_size * 0.5
 	block.add_child(collider)
 
-	# Posicionar donde está el player
 	block.global_position = global_position
 
-	# Añadir al mundo
 	get_tree().current_scene.add_child(block)
 	block.add_to_group("floating_origin")
-## Llamado por FloatingOrigin tras un rebase. El CameraPivot es top_level (no cuelga del
-## jugador) y se reposiciona en mundo cada frame, así que hay que desplazarlo a mano o
-## quedaría un frame en la posición vieja → salto visible. Reseteamos su interpolación.
+## Reposiciona a mano el CameraPivot (top_level) tras un rebase de FloatingOrigin.
 func shift_origin(offset: Vector3) -> void:
 	var pivot: Node3D = camera_controller.camera_pivot
 	pivot.global_position -= offset
@@ -422,7 +403,6 @@ func shift_origin(offset: Vector3) -> void:
 
 
 func post_restore() -> void:
-	# Redescubrir planeta más cercano
 	if planets and planets.get_child_count() > 0:
 		var closest: Node3D = null
 		var closest_dist := INF
@@ -437,7 +417,6 @@ func post_restore() -> void:
 		if planet and planet.planet.has_water:
 			water_sampler.setup(planet.water_sphere.quadtree_material)
 
-	# Estado visual coherente
 	if input_enabled:
 		visible = true
 		collision_model.disabled = false		
@@ -446,7 +425,6 @@ func post_restore() -> void:
 		gravity_direction = planet.get_gravity_direction(global_position)
 		up_direction = -gravity_direction
 
-	# Reset modelo
 	current_swimming_pitch = 0.0
 	player_model.rotation = Vector3.ZERO
 	inventory.clear()
@@ -455,14 +433,12 @@ func post_restore() -> void:
 	
 
 func _clear_visual_equipment() -> void:
-	# Limpiar arma de la mano
 	var hand = player_model.get_node("Armature/Skeleton3D/RigthHandAttachment")
 	for child in hand.get_children():
 		hand.remove_child(child)
 		child.queue_free()
 	equiped_weapon = null
 
-	# Limpiar piezas de armadura del esqueleto
 	var skeleton = player_model.get_node("Armature/Skeleton3D")
 	for child in skeleton.get_children():
 		if "item_data" in child and child.item_data:
@@ -491,7 +467,6 @@ func can_perform_action() -> bool:
 	)
 
 
-# ---------- GameManager integration ----------
 
 func _on_game_state_changed(new_state: GameManager.State) -> void:
 	print("[Player] State changed to: %s" % GameManager.State.keys()[new_state])
@@ -535,25 +510,21 @@ func _play_cinematic() -> void:
 	_cinematic_tween = create_tween()
 	_cinematic_tween.set_parallel(true)
 
-	# Body position
 	_cinematic_tween.tween_property(
 		self, "global_position",
 		end_pos, cinematic_duration
 	).from(start_pos).set_ease(cinematic_ease).set_trans(cinematic_trans)
 
-	# Body rotation (slerp handles roll alignment to surface)
 	_cinematic_tween.tween_method(
 		_interpolate_rotation.bind(start_quat, end_quat),
 		0.0, 1.0, cinematic_duration
 	).set_ease(cinematic_ease).set_trans(cinematic_trans)
 
-	# Progressive yaw → 0
 	_cinematic_tween.tween_property(
 		camera_controller.camera_pivot, "rotation:y",
 		spawn_point.rotation.y, cinematic_duration
 	).from(saved_yaw).set_ease(cinematic_ease).set_trans(cinematic_trans)
 
-	# Progressive pitch → 0
 	_cinematic_tween.tween_property(
 		pitch_pivot, "rotation:x",
 		spawn_point.rotation.x, cinematic_duration
@@ -571,7 +542,6 @@ func _on_cinematic_tween_finished() -> void:
 	GameManager.cinematic_completed()
 
 
-# ---------- Health ----------
 
 func _on_landed(impact_speed: float) -> void:
 	health_component.take_fall_damage(impact_speed)
@@ -604,7 +574,6 @@ func _activate_player() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
 	
-# ---------- Input ----------
 func is_mouse_captured() -> bool:
 	return Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
 	
@@ -685,9 +654,7 @@ func _input(event):
 	elif event.is_action_pressed("ui_cancel") and visible:
 		inventory_ui.close()
  
-	# ---- BUILD MODE INPUT (was in BuildPreview._unhandled_input) ----
  
-	# ---- ATTACK (only outside build mode) ----
 	if Input.is_action_just_pressed("attack_1") && can_perform_action() && !building_system.build_mode:
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
@@ -711,7 +678,6 @@ func _handle_build_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		match event.button_index:
 			MOUSE_BUTTON_LEFT:
-				# Ahora el click izquierdo es contextual (construye o elimina)
 				building_system.execute_primary_action(_ray_hit)
 				get_viewport().set_input_as_handled()
 			MOUSE_BUTTON_RIGHT:
@@ -786,7 +752,6 @@ func _check_needs_swimming(delta: float):
 	current_water_time += delta
 
 
-# ---------- Physics ----------
 
 func _physics_process(delta: float):
 	if not input_enabled:
@@ -830,7 +795,6 @@ func _physics_process(delta: float):
 		update_normal_movement(delta)
 
 
-# ---------- Movement helpers ----------
 
 func update_free_flight(delta: float) -> void:
 	free_flight_controller.update_free_flight(delta, camera)
@@ -840,8 +804,6 @@ func update_free_flight(delta: float) -> void:
 func rotate_toward_movement(input_dir: Vector3, delta: float):
 	if input_dir.length() < 0.1:
 		return
-	# El player gira hacia donde apunta la cámara, no hacia el input.
-	# project_on_gravity_plane y rotate_toward_direction vienen de PlanetaryBody.
 	var target_dir := project_on_gravity_plane(-camera.global_transform.basis.z)
 	rotate_toward_direction(target_dir, delta, 3.0)
 
