@@ -10,11 +10,11 @@ const DRAW_SHADER := preload("res://shaders/weather/splash_particle.gdshader")
 static var _shared_ring_texture: ImageTexture
 
 ## Mitad-extensión tangencial del disco de emisión (m). Debe caber dentro del half_size del campo.
-@export var disc_radius: float = 40.0
-@export var max_amount: int = 1500
+@export var disc_radius: float = 10.0
+@export var max_amount: int = 150
 @export var splash_lifetime: float = 0.45
 ## Tamaño base del quad del anillo (m); scale_min/max + la curva de crecimiento lo modulan.
-@export var ring_size: float = 0.9
+@export var ring_size: float = 0.5
 @export var color: Color = Color(0.85, 0.9, 1.0, 0.6)
 
 var _player: Node3D

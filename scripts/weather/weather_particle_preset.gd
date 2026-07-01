@@ -9,7 +9,7 @@ extends Resource
 @export var amount: int = 2000
 @export var lifetime: float = 2.0
 ## Mitad-extensión de la caja de emisión (m), centrada en el jugador y orientada en radial.
-@export var box_extents: Vector3 = Vector3(35.0, 18.0, 35.0)
+@export var box_extents: Vector3 = Vector3(85.0, 85.0, 85.0)
 ## Desplazamiento de la caja hacia arriba (m): deja la mayor parte sobre la cabeza.
 @export var volume_offset: float = 6.0
 

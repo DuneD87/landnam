@@ -37,8 +37,8 @@ const DEFAULT_COLD_BOOST := {"snow": 0.4, "fog": 0.2}
 @export var lightning_flash_strength: float = 2.5
 
 ## La precipitación arranca cuando cloud_coverage supera precip_cloud_start y llega a plena en precip_cloud_full.
-@export var precip_cloud_start: float = 0.4
-@export var precip_cloud_full: float = 0.6
+@export var precip_cloud_start: float = 0.7
+@export var precip_cloud_full: float = 0.9
 
 ## Si la niebla se descarta dentro de cuevas muestreando la rejilla de oclusión del WeatherFX.
 @export var fog_cave_occlusion_enabled: bool = true
@@ -442,6 +442,8 @@ func _apply_precipitation(st: WeatherState) -> void:
 		return
 	var below := _below_clouds_factor(st)
 	var cloud_factor := smoothstep(precip_cloud_start, precip_cloud_full, st.cloud_coverage)
+	print("cloud_factor:", cloud_factor)
+	print("cloud_coverage:", st.cloud_coverage)
 	var gate := below * cloud_factor
 	_fx.set_intensity("rain", st.rain_rate * gate)
 	_fx.set_intensity("snow", st.snow_rate * gate)

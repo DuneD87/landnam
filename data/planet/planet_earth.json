@@ -481,7 +481,7 @@
 	"enabled": true,
 	"min_duration": 300.0,
 	"max_duration": 600.0,
-	"transition_time": 300.0,
+	"transition_time": 60.0,
 	"cold_altitude": 1500.0,
 	"snow_altitude": 3500.0,
 	"cold_boost": { "snow": 0.4, "fog": 0.2 },
