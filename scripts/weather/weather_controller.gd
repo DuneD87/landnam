@@ -276,6 +276,34 @@ func get_event_names() -> Array:
 	return _events.keys()
 
 
+## Serializa el estado climático actual para el guardado de partida.
+func get_save_data() -> Dictionary:
+	return {
+		"current": _current,
+		"elapsed": _elapsed,
+		"duration": _duration,
+		"forced": _forced,
+	}
+
+
+## Restablece un estado climático guardado saltando directo al evento, sin transición.
+func restore_save_data(data: Dictionary) -> void:
+	if not _ready_to_run:
+		return
+	var event_name := str(data.get("current", _current))
+	if not _events.has(event_name):
+		push_warning("WeatherController: evento guardado desconocido '%s'; conservo el actual." % event_name)
+		return
+	_current = event_name
+	_forced = bool(data.get("forced", false))
+	_to = _events[event_name]
+	_from = _to
+	_blend = 1.0
+	_elapsed = float(data.get("elapsed", _elapsed))
+	_duration = float(data.get("duration", _duration))
+	_apply_state(_to)
+
+
 func _transition_to(event_name: String) -> void:
 	_from = _to
 	_to = _events.get(event_name, _fallback_state())

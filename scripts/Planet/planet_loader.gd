@@ -39,6 +39,7 @@ var save_category: String = "planet"
 var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
 var weather_controller: WeatherController
+var _pending_weather_data: Dictionary = {}
 
 func _apply_godray_settings_to_water_sphere() -> void:
 	if not water_sphere:
@@ -346,7 +347,8 @@ func get_save_data() -> Dictionary:
 			"x": save_pos.x,
 			"y": save_pos.y,
 			"z": save_pos.z
-		}
+		},
+		"weather": weather_controller.get_save_data() if weather_controller != null else {}
 	}
 
 
@@ -355,9 +357,18 @@ func restore_save_data(data: Dictionary) -> void:
 	gravity_strength = data.gravity_strength
 	sun_dir = Vector3(data.sun_dir.x, data.sun_dir.y, data.sun_dir.z)
 	global_pos = Vector3(data.global_pos.x, data.global_pos.y, data.global_pos.z)
+	_pending_weather_data = data.get("weather", {})
 
 	if config_file_path != "":
 		_load_planet()
+
+
+## Restaura el clima guardado tras la carga, cuando el jugador ya está posicionado
+## (el estado se aplica muestreando su altitud), sobrescribiendo el override de escena.
+func post_restore() -> void:
+	if weather_controller != null and not _pending_weather_data.is_empty():
+		weather_controller.restore_save_data(_pending_weather_data)
+	_pending_weather_data = {}
 
 func _process(_delta: float) -> void:
 	if planet != null:
