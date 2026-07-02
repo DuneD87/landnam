@@ -90,7 +90,9 @@ func merge():
 	children.clear()
 	is_subdivided = false
 	
-func update_lod(camera_position: Vector3):
+func update_lod(camera_position: Vector3, center: Vector3):
+	# El centro llega en vivo en cada pasada: el cacheado queda stale tras un rebase del FloatingOrigin.
+	planet_center = center
 	var should_be_subdivided = should_subdivide(camera_position)
 	if should_be_subdivided and not is_subdivided:
 		subdivide()
@@ -100,4 +102,4 @@ func update_lod(camera_position: Vector3):
 	if is_subdivided:
 		for child in children:
 			if child != null:
-				child.update_lod(camera_position)
+				child.update_lod(camera_position, center)

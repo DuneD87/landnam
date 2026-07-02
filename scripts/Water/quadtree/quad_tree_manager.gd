@@ -153,7 +153,7 @@ func _update_quadtree(camera_position: Vector3):
 			print("[cull] %s  dot=%.2f  %s" % [root_quad.name, dot, "SKIP" if culled else "UPDATE"])
 		if culled:
 			continue
-		root_quad.update_lod(camera_position)
+		root_quad.update_lod(camera_position, global_position)
 
 	_emit_quadtree_changed(camera_position)
 

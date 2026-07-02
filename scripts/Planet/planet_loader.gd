@@ -251,6 +251,7 @@ func _apply_antitiling_settings() -> void:
 func refresh_world_anchors() -> void:
 	if planet == null:
 		return
+	global_pos = voxel_terrain.global_position
 	planet.update_world_center()
 	if planet.has_water and water_sphere != null:
 		var wmat := water_sphere.quadtree_material as ShaderMaterial
@@ -339,6 +340,8 @@ func save_voxel_data() -> VoxelSaveCompletionTracker:
 	return null
 
 func get_save_data() -> Dictionary:
+	var fo := get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin
+	var save_pos: Vector3 = fo.to_canonical(global_pos) if fo != null else global_pos
 	return {
 		"config_file_path": config_file_path,
 		"sun_dir": {
@@ -348,9 +351,9 @@ func get_save_data() -> Dictionary:
 		},
 		"gravity_strength": gravity_strength,
 		"global_pos": {
-			"x": global_pos.x,
-			"y": global_pos.y,
-			"z": global_pos.z
+			"x": save_pos.x,
+			"y": save_pos.y,
+			"z": save_pos.z
 		}
 	}
 
