@@ -12,7 +12,6 @@ enum Action { NONE, SELECT_CONFIG }
 @export var sun_dir: Vector3
 @export var gravity_strength: float = 9.8
 @export var players: Array[CharacterBody3D]
-@onready var atmosphere_node: Node3D = $VoxelLodTerrain/PlanetAthmosphere
 @onready var voxel_terrain: VoxelLodTerrain = $VoxelLodTerrain
 
 @export var water_sphere: OceanSystem
@@ -163,13 +162,6 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.has_water = planet_parser.has_water
 	planet.water_radius = planet_parser.water_level
 	planet.ore_settings = planet_parser.ore_settings
-	planet.atmosphere_radius = planet_parser.atmosphere_radius
-	print("Atmosphere radius: ", planet.atmosphere_radius)
-	planet.atmosphere_density = planet_parser.atmosphere_density
-	planet.atmosphere_height = planet_parser.atmosphere_height
-	planet.atmosphere_scattering = planet_parser.atmosphere_scattering
-	planet.atmosphere_modulate = planet_parser.atmosphere_modulate
-	planet.has_clouds = planet_parser.has_clouds
 	planet.vegetation = planet_parser.vegetation
 	planet.wind_direction = planet_parser.wind_direction
 	planet.sun = sun_path
@@ -181,7 +173,7 @@ func _load_planet() -> void:
 	var planet_parser: PlanetParser = PlanetParser.new(sun_path)
 	planet_parser.load_config(config_file_path)
 	voxel_terrain.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
-	planet = Planet.new(voxel_terrain, atmosphere_node)
+	planet = Planet.new(voxel_terrain)
 	_copy_parsed_data(planet_parser)
 	planet.setup_shader_parameters()
 	_apply_antitiling_settings()

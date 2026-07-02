@@ -46,18 +46,9 @@ const config = preload("res://scripts/config.gd")
 @export var caustics_material: ShaderMaterial
 @export var multi_mesh_array: Array[Dictionary] = []
 
-@export_group("Atmosphere settings")
-@export var atmosphere_radius: float
-@export var atmosphere_density: float
-@export var atmosphere_height: float
-@export var atmosphere_scattering: Vector3
-@export var atmosphere_modulate: Vector3
-@export var has_clouds: bool
-
 @export var sun_dir: Vector3
 @export var planet_position: Vector3
 @export var voxel_terrain: VoxelLodTerrain
-@export var atmosphere_node: Node3D
 @export var voxel_instancer: VoxelInstancer
 @export var sun : DirectionalLight3D
 @export var has_water: bool
@@ -396,9 +387,8 @@ func _set_owner_recursive(node: Node, new_owner: Node) -> void:
 		_set_owner_recursive(child, new_owner)
 
 
-func _init(_voxel_terrain: VoxelLodTerrain, _atmosphere_node: Node3D) -> void:
+func _init(_voxel_terrain: VoxelLodTerrain) -> void:
 	voxel_terrain = _voxel_terrain
-	atmosphere_node = _atmosphere_node
 	voxel_instancer = VoxelInstancer.new()
 	voxel_instancer.library = VoxelInstanceLibrary.new()
 	voxel_instancer.up_mode = VoxelInstancer.UP_MODE_SPHERE

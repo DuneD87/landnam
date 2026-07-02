@@ -243,19 +243,27 @@ func generate_mesh():
 	
 	needs_update = false
 
+## Libera el uniform set y los buffers del compute; los RID quedan a cero para que sea reentrante.
 func _cleanup_buffers():
-	'if vertex_buffer.is_valid():
+	if not rd:
+		return
+	if uniform_set.is_valid():
+		rd.free_rid(uniform_set)
+		uniform_set = RID()
+	if vertex_buffer.is_valid():
 		rd.free_rid(vertex_buffer)
+		vertex_buffer = RID()
 	if normal_buffer.is_valid():
 		rd.free_rid(normal_buffer)
+		normal_buffer = RID()
 	if uv_buffer.is_valid():
 		rd.free_rid(uv_buffer)
-	if index_buffer.is_valid():
-		rd.free_rid(index_buffer)
+		uv_buffer = RID()
 	if uniform_buffer.is_valid():
-		rd.free_rid(uniform_buffer)'
-	
-	
+		rd.free_rid(uniform_buffer)
+		uniform_buffer = RID()
+
+
 func _exit_tree():
 	_cleanup_buffers()
 	

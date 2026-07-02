@@ -88,8 +88,9 @@ func _create_quad_surface(quad_info: Dictionary):
 		quad_surface = QuadSurface.new()
 	
 	var local_position = to_local(quad_info.position)
-	
-	var level_subdivisions = min(sub_divisions, max(4, 4 << quad_info.level))
+
+	# Resolución completa también en niveles bajos: con pocas subdivisiones un quad que abarca mucho
+	# arco se hunde bajo la esfera entre vértices (cuerda vs arco) y el fondo marino asoma a lo lejos.
 	quad_surface.setup(
 		local_position,
 		quad_info.size,
@@ -97,7 +98,7 @@ func _create_quad_surface(quad_info: Dictionary):
 		quad_info.face_up,
 		quad_info.face_right,
 		radius,
-		level_subdivisions,
+		sub_divisions,
 		quad_info.level
 	)
 
@@ -113,7 +114,6 @@ func _update_quad_surface(quad_info: Dictionary):
 	var local_position = to_local(quad_info.position)
    
 	if quad_surface.global_position != quad_info.position or quad_surface.quad_size != quad_info.size:
-		var level_subdivisions = min(sub_divisions, max(4, 4 << quad_info.level))
 		quad_surface.setup(
 			local_position,
 			quad_info.size,
@@ -121,9 +121,14 @@ func _update_quad_surface(quad_info: Dictionary):
 			quad_info.face_up,
 			quad_info.face_right,
 			radius,
-			level_subdivisions,
+			sub_divisions,
 			quad_info.level
 		)
+
+		# setup() regenera un ArrayMesh nuevo sin material; hay que reaplicarlo o el quad
+		# renderiza con el material blanco por defecto (visible tras un rebase del FloatingOrigin).
+		if quad_surface.mesh:
+			quad_surface.mesh.surface_set_material(0, default_material)
 
 func _remove_quad_surface(quad_id):
 	if active_quads.has(quad_id):
@@ -204,7 +209,6 @@ func _process(_delta: float) -> void:
 		return
 	var distance = camera.global_position.distance_to(global_position)
 	var altitude = distance - radius
-	
 	if distance > (radius + atmosphere_height):
 		default_material.render_priority = 0
 	else:
