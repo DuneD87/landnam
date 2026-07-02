@@ -62,12 +62,13 @@ var mouse_captured = true
 var free_flight_enabled = false
 var current_swimming_pitch: float = 0.0
 var current_animation = config.ANIMATION.IDLE
-var play_attack_once = false
 
 var _water_surface_radius: float = 0.0
 var _water_surface_center: Vector3 = Vector3.ZERO
 
 var equiped_weapon: ItemData
+var right_hand_equipped: bool = false
+var is_holding_atack: bool = false
 
 var input_enabled: bool = false
 var _cinematic_tween: Tween
@@ -139,6 +140,7 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 				equiped_weapon = data
 				var item = scene.instantiate()
 				player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").add_child(item)
+				right_hand_equipped = true
 			ItemData.Category.ARMOR:
 				var item = scene.instantiate()
 				item.item_data = ItemData.clone(data)
@@ -148,6 +150,7 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 			ItemData.Category.TOOL:
 				var equipped_child = player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").get_child(0)
 				player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").remove_child(equipped_child)
+				right_hand_equipped = false
 			ItemData.Category.ARMOR:
 				var children = player_model.get_node("Armature/Skeleton3D").get_children()
 				for child in children:
@@ -231,6 +234,7 @@ func _unequip_right_hand() -> void:
 			var target = inventory.find_empty_slot()
 			if target >= 0:
 				inventory.items[target] = InventoryItem.new(unequipped.data, 1)
+				current_animation = config.ANIMATION.IDLE
 	
 	
 func _ready():
@@ -655,10 +659,12 @@ func _input(event):
 		inventory_ui.close()
  
  
-	if Input.is_action_just_pressed("attack_1") && can_perform_action() && !building_system.build_mode:
+	if Input.is_action_just_pressed("attack_1") && can_perform_action() && !building_system.build_mode && right_hand_equipped:
+		if !equiped_weapon.is_attack_animation:
+			is_holding_atack = true
+			return
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
-		play_attack_once = true
 	elif Input.is_action_just_pressed("attack_2"):
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		var raycast_result = action_controller.perform_raycast(ray_origin, camera.global_rotation, true)
@@ -669,8 +675,9 @@ func _input(event):
 			deer.planets = planets
 			deer.global_position = raycast_result["hit_pos"] - gravity_direction * 10
 			deer.add_to_group("floating_origin")
+	elif Input.is_action_just_released("attack_1"):
+		is_holding_atack = false
 
- 
  
 func _handle_build_input(event: InputEvent) -> void:
 	var shift_held := Input.is_action_pressed("left_shift")
@@ -908,13 +915,16 @@ func update_normal_movement(delta: float) -> void:
 	var was_swimming = movement.is_swimming
 	_check_needs_swimming(delta)
 	was_swimming = was_swimming && !movement.is_swimming
-	
-	var input_dir = movement.handle_run_movement(delta, action_controller.is_attacking, gravity_direction, camera)
+	var idle_animation = config.ANIMATION.IDLE if !right_hand_equipped else equiped_weapon.idle_animation
+	var run_animation = config.ANIMATION.RUN if !right_hand_equipped else equiped_weapon.running_animation
+	var input_dir = movement.handle_run_movement(delta, action_controller.is_attacking, gravity_direction, camera, idle_animation, run_animation)
 	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
+
+	
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 	current_animation = movement.current_animation
 
-	if equiped_weapon != null && action_controller.is_attacking:
+	if right_hand_equipped && (action_controller.is_attacking || (is_holding_atack && !movement.is_running)):
 		current_animation = equiped_weapon.attack_animation
 
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)

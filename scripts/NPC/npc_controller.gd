@@ -118,7 +118,7 @@ func _physics_process(delta: float) -> void:
 			is_hit = false
 		movement.ai_direction = Vector3.ZERO
 
-	movement.handle_run_movement(delta, ai_controller.is_attacking, gravity_direction, null)
+	movement.handle_run_movement(delta, ai_controller.is_attacking, gravity_direction, null, Config.ANIMATION.IDLE, Config.ANIMATION.RUN)
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 
 	current_animation = movement.current_animation

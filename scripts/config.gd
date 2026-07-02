@@ -2,7 +2,8 @@ extends Node
 
 ## Config global (autoload): enum de animaciones y catálogo de ItemData cargado de res://data/items/.
 
-enum ANIMATION {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1, ATTACK_2, SPRINT, FALLING, SWIM, SWIM_IDLE, DEATH, HIT}
+enum ANIMATION {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1, 
+ATTACK_2, SPRINT, FALLING, SWIM, SWIM_IDLE, DEATH, HIT, IDLE_TORCH, RUNNING_TORCH, TORCH_FOCUS}
 
 static var items: Dictionary = {}
 

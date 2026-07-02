@@ -1,0 +1,10 @@
+[gd_resource type="NoiseTexture3D" format=3 uid="uid://bqf3d7x2mnl4p"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_flame3d"]
+noise_type = 4
+frequency = 0.12
+fractal_octaves = 3
+
+[resource]
+noise = SubResource("FastNoiseLite_flame3d")
+seamless = true

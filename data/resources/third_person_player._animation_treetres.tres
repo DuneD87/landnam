@@ -1,34 +1,43 @@
 [gd_resource type="AnimationNodeBlendTree" format=3 uid="uid://cp4qil0xj5pyj"]
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_hxfc4"]
-animation = &"Attack_Vertical"
+animation = &"attack_vertical"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_uvpnv"]
+animation = &"idle_torch"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_hufq7"]
+animation = &"running-torch"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_3qjv2"]
+animation = &"idle_torch_focus"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_c48xe"]
-animation = &"Running"
+animation = &"running"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_bgqbl"]
-animation = &"Attack_Horizontal"
+animation = &"attack_horizontal"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_w5t68"]
-animation = &"Idle"
+animation = &"idle"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_bgx5p"]
-animation = &"Falling"
+animation = &"falling"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_05eln"]
-animation = &"Landing"
+animation = &"landing"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_gqp14"]
-animation = &"Jumping"
+animation = &"jump"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_xrch5"]
-animation = &"Swimming"
+animation = &"swimming"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_aqv5n"]
-animation = &"Swimming_Idle"
+animation = &"swimming_idle"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_sv2hv"]
-animation = &"Sprinting"
+animation = &"sprinting"
 
 [sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_xrch5"]
 fadein_time = 0.1
@@ -38,6 +47,8 @@ fadeout_time = 0.3
 fadein_time = 0.1
 fadeout_time = 0.3
 
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_xrch5"]
+
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_6uxvj"]
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_k3qea"]
@@ -46,51 +57,67 @@ fadeout_time = 0.3
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_bgx5p"]
 
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_3qjv2"]
+
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_bgqbl"]
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_aqv5n"]
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_hxfc4"]
 
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_0kacu"]
+
 [resource]
-graph_offset = Vector2(-526.5, -17.5)
-nodes/output/position = Vector2(2653.3333, 1506.6666)
+graph_offset = Vector2(76.538635, 97.57703)
+nodes/output/position = Vector2(3110, 1490)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_c48xe")
-nodes/Animation/position = Vector2(-426.667, 240)
+nodes/Animation/position = Vector2(-430, 220)
 nodes/Attack_1/node = SubResource("AnimationNodeAnimation_bgqbl")
-nodes/Attack_1/position = Vector2(1533.3334, 1226.6666)
+nodes/Attack_1/position = Vector2(1660, 2470)
 nodes/IDle/node = SubResource("AnimationNodeAnimation_w5t68")
-nodes/IDle/position = Vector2(-426.667, 80)
+nodes/IDle/position = Vector2(-430, 60)
 nodes/JUMP_IDLE/node = SubResource("AnimationNodeAnimation_bgx5p")
-nodes/JUMP_IDLE/position = Vector2(-426.667, 880)
+nodes/JUMP_IDLE/position = Vector2(-430, 700)
 nodes/JUMP_LAND/node = SubResource("AnimationNodeAnimation_05eln")
-nodes/JUMP_LAND/position = Vector2(-426.667, 1040)
+nodes/JUMP_LAND/position = Vector2(-430, 860)
 nodes/JUMP_START/node = SubResource("AnimationNodeAnimation_gqp14")
-nodes/JUMP_START/position = Vector2(-426.667, 720)
+nodes/JUMP_START/position = Vector2(-430, 540)
 nodes/SWIM/node = SubResource("AnimationNodeAnimation_xrch5")
-nodes/SWIM/position = Vector2(-426.667, 1226.67)
+nodes/SWIM/position = Vector2(-430, 1020)
 nodes/SWIM_IDLE/node = SubResource("AnimationNodeAnimation_aqv5n")
-nodes/SWIM_IDLE/position = Vector2(-480, 1466.67)
+nodes/SWIM_IDLE/position = Vector2(-430, 1190)
 nodes/Sprint/node = SubResource("AnimationNodeAnimation_sv2hv")
-nodes/Sprint/position = Vector2(-413.33334, 466.66666)
+nodes/Sprint/position = Vector2(-430, 380)
 nodes/bSwimIdle/node = SubResource("AnimationNodeBlend2_hxfc4")
-nodes/bSwimIdle/position = Vector2(1466.67, 1560)
+nodes/bSwimIdle/position = Vector2(650, 1490)
 nodes/bJumpIdle/node = SubResource("AnimationNodeBlend2_6uxvj")
-nodes/bJumpIdle/position = Vector2(866.667, 960)
+nodes/bJumpIdle/position = Vector2(230, 760)
 nodes/bJumpLand/node = SubResource("AnimationNodeBlend2_k3qea")
-nodes/bJumpLand/position = Vector2(1053.33, 1160)
+nodes/bJumpLand/position = Vector2(370, 1000)
 nodes/bJumpStart/node = SubResource("AnimationNodeBlend2_yxwve")
-nodes/bJumpStart/position = Vector2(640, 706.667)
+nodes/bJumpStart/position = Vector2(90, 550)
 nodes/bRun/node = SubResource("AnimationNodeBlend2_bgx5p")
-nodes/bRun/position = Vector2(160, 160)
+nodes/bRun/position = Vector2(-190, 80)
 nodes/bSprint/node = SubResource("AnimationNodeBlend2_bgqbl")
-nodes/bSprint/position = Vector2(226.66667, 506.66666)
+nodes/bSprint/position = Vector2(-50, 310)
 nodes/bSwim/node = SubResource("AnimationNodeBlend2_aqv5n")
-nodes/bSwim/position = Vector2(1226.67, 1360)
+nodes/bSwim/position = Vector2(510, 1250)
 nodes/attack_horizontal/node = SubResource("AnimationNodeOneShot_xrch5")
-nodes/attack_horizontal/position = Vector2(1933.3334, 1266.6666)
+nodes/attack_horizontal/position = Vector2(1910, 2270)
 nodes/attack_vertical/node = SubResource("AnimationNodeOneShot_uvpnv")
-nodes/attack_vertical/position = Vector2(2217.074, 1646.826)
+nodes/attack_vertical/position = Vector2(2080, 2560)
 "nodes/Animation 2/node" = SubResource("AnimationNodeAnimation_hxfc4")
-"nodes/Animation 2/position" = Vector2(1824.0741, 1745.8524)
-node_connections = [&"output", 0, &"attack_vertical", &"bSwimIdle", 0, &"bSwim", &"bSwimIdle", 1, &"SWIM_IDLE", &"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"bSprint", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bSwim", 0, &"bJumpLand", &"bSwim", 1, &"SWIM", &"attack_horizontal", 0, &"bSwimIdle", &"attack_horizontal", 1, &"Attack_1", &"attack_vertical", 0, &"attack_horizontal", &"attack_vertical", 1, &"Animation 2"]
+"nodes/Animation 2/position" = Vector2(1860, 2620)
+nodes/bIdleTorch/node = SubResource("AnimationNodeBlend2_xrch5")
+nodes/bIdleTorch/position = Vector2(960, 2010)
+"nodes/Animation 3/node" = SubResource("AnimationNodeAnimation_uvpnv")
+"nodes/Animation 3/position" = Vector2(-400, 1520)
+nodes/bRunningTorch/node = SubResource("AnimationNodeBlend2_3qjv2")
+nodes/bRunningTorch/position = Vector2(810, 1750)
+"nodes/Animation 4/node" = SubResource("AnimationNodeAnimation_hufq7")
+"nodes/Animation 4/position" = Vector2(-420, 1350)
+nodes/bTorchFocus/node = SubResource("AnimationNodeBlend2_0kacu")
+nodes/bTorchFocus/position = Vector2(1173.8424, 2308.9583)
+"nodes/Animation 5/node" = SubResource("AnimationNodeAnimation_3qjv2")
+"nodes/Animation 5/position" = Vector2(-420, 1680)
+node_connections = [&"output", 0, &"attack_vertical", &"bSwimIdle", 0, &"bSwim", &"bSwimIdle", 1, &"SWIM_IDLE", &"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"bSprint", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"IDle", &"bRun", 1, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bSwim", 0, &"bJumpLand", &"bSwim", 1, &"SWIM", &"attack_horizontal", 0, &"bTorchFocus", &"attack_horizontal", 1, &"Attack_1", &"attack_vertical", 0, &"attack_horizontal", &"attack_vertical", 1, &"Animation 2", &"bIdleTorch", 0, &"bRunningTorch", &"bIdleTorch", 1, &"Animation 3", &"bRunningTorch", 0, &"bSwimIdle", &"bRunningTorch", 1, &"Animation 4", &"bTorchFocus", 0, &"bIdleTorch", &"bTorchFocus", 1, &"Animation 5"]

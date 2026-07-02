@@ -54,11 +54,21 @@ var animation_states = {
 	Config.ANIMATION.ATTACK_2: {
 		"attack_vertical": 1.0
 	},
+	Config.ANIMATION.TORCH_FOCUS:
+	{
+		"bTorchFocus": 1.0
+	},
 	Config.ANIMATION.DEATH: {
 		"death": 1.0
 	},
 	Config.ANIMATION.HIT: {
 		"bHit": 1.0
+	},
+	Config.ANIMATION.IDLE_TORCH: {
+		"bIdleTorch": 1.0
+	},
+	Config.ANIMATION.RUNNING_TORCH: {
+		"bRunningTorch": 1.0
 	}
 }
 
@@ -71,6 +81,9 @@ var current_values = {
 	"bSwim": 0.0,
 	"bSwimIdle": 0.0,
 	"death": 0.0,
+	"bIdleTorch": 0.0,
+	"bRunningTorch": 0.0,
+	"bTorchFocus": 0.0
 }
 var oneshot_params = ["attack_vertical", "attack_horizontal", "bHit"]
 

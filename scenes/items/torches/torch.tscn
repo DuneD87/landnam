@@ -4,6 +4,8 @@
 [ext_resource type="Texture2D" uid="uid://dbxencn34d5l1" path="res://models/equipable/torches/torch_Image_3.jpg" id="2_djh2x"]
 [ext_resource type="Texture2D" uid="uid://5nqiwiu7bbno" path="res://models/equipable/torches/torch_Image_1.jpg" id="3_fah27"]
 [ext_resource type="Texture2D" uid="uid://gdsnb21ahjpr" path="res://models/equipable/torches/torch_normal.png" id="4_7dgni"]
+[ext_resource type="Material" uid="uid://cqdcgc12ykrc7" path="res://data/resources/torch_flame_material.tres" id="5_flame"]
+[ext_resource type="Script" uid="uid://fcv4r3r1ybwh" path="res://scripts/effects/volumetric_fire.gd" id="6_flame"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qo3w8"]
 resource_name = "Material_0"
@@ -55,6 +57,25 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_qag32")
 
-[node name="Mesh_0" type="MeshInstance3D" unique_id=1735566380]
+[sub_resource type="QuadMesh" id="QuadMesh_flame"]
+material = ExtResource("5_flame")
+
+[node name="Mesh_1" type="MeshInstance3D" unique_id=348023889]
+transform = Transform3D(-1.9045291, 32.655975, 12.448266, -3.431182, 12.231745, -32.613037, -34.779312, -2.9949877, 2.5357738, 15.852253, 5.954767, 1.5111198)
 mesh = SubResource("ArrayMesh_lxyer")
 skeleton = NodePath("")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=1950353451]
+transform = Transform3D(0.028570997, 0.00014801975, 5.465001e-05, -0.00014804606, 0.028571062, 1.562947e-05, -5.4571312e-05, -1.5946222e-05, 0.028571378, -0.011187017, 1.0701855, -0.005498208)
+light_color = Color(1, 0.7845677, 0.5370987, 1)
+light_energy = 2.0
+light_size = 1.0
+omni_range = 39.43362
+
+[node name="Flame" type="MeshInstance3D" parent="." unique_id=1961831159]
+transform = Transform3D(0.028568745, -0.00023431331, -0.00031352276, 0.00027058413, 0.02835974, 0.0034611274, 0.0002828152, -0.0034638087, 0.028359288, 0.00049296767, 0.7425438, 0.008927946)
+cast_shadow = 0
+extra_cull_margin = 1.0
+instance_shader_parameters/up_axis = Vector3(0.88344294, 0.46065846, -0.08557127)
+mesh = SubResource("QuadMesh_flame")
+script = ExtResource("6_flame")

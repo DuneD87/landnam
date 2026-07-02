@@ -97,6 +97,7 @@ func on_timeout():
 				is_attacking = false
 			else:
 				timer.start(1.7)
+				
 func perform_raycast(origin: Vector3, rotation: Vector3, show_debug: bool) -> Dictionary:
 	var ray_origin = origin
 	

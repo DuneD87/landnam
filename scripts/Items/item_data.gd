@@ -3,7 +3,7 @@ extends Resource
 const config = preload("res://scripts/config.gd")
 
 enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR, BLOCK}
-enum ToolType {NONE, PICKAXE, AXE, HAMMER}
+enum ToolType {NONE, PICKAXE, AXE, HAMMER, TORCH}
 enum WeaponType {NONE, SWORD, SPEAR, BOW}
 enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND}
 
@@ -14,10 +14,12 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export var category: Category
 @export var scene_path: String
 @export var attack_animation: config.ANIMATION = config.ANIMATION.ATTACK_1
+@export var idle_animation: config.ANIMATION = config.ANIMATION.IDLE
+@export var running_animation: config.ANIMATION = config.ANIMATION.RUN
 @export var surface_material: Material
 @export var block_id: int = -1
 @export var build_material_id: String = ""
-
+@export var is_attack_animation: bool = true
 @export_group("Stacking")
 @export var stackable: bool = true
 @export var max_stack: int = 99

@@ -61,7 +61,7 @@ func handle_jump_movement(delta: float, gravity_strength: float, gravity_directi
 			is_jumping = false
 			current_animation = Config.ANIMATION.JUMP_LAND
 
-func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Vector3, camera: Camera3D) -> Vector3:
+func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Vector3, camera: Camera3D, idle_animation: Config.ANIMATION, run_animation: Config.ANIMATION) -> Vector3:
 	var input_dir = get_input_direction(camera, gravity_direction)
 	update_movement(delta, input_dir)
 	
@@ -90,9 +90,9 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 		is_running = input_dir.length() > 0.1
 		
 		if !is_running:
-			current_animation = Config.ANIMATION.SWIM_IDLE if use_swim_animations else Config.ANIMATION.IDLE
+			current_animation = Config.ANIMATION.SWIM_IDLE if use_swim_animations else idle_animation
 		else:
-			current_animation = Config.ANIMATION.SWIM if use_swim_animations else Config.ANIMATION.RUN
+			current_animation = Config.ANIMATION.SWIM if use_swim_animations else run_animation
 			
 	return input_dir
 
