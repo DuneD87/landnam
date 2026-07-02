@@ -30,9 +30,9 @@ var is_using_shared_resources: bool = false
 var vertex_buffer: RID
 var normal_buffer: RID
 var uv_buffer: RID
-var index_buffer: RID
 var uniform_set: RID
 var uniform_buffer: RID
+var cached_indices: PackedInt32Array
 
 func _init():
 	pass
@@ -111,12 +111,10 @@ func _create_buffers():
 	uv_data.resize(vertex_count * 2)
 	var uv_bytes = uv_data.to_byte_array()
 	uv_buffer = rd.storage_buffer_create(uv_bytes.size(), uv_bytes)
-	
-	var index_data = PackedInt32Array()
-	index_data.resize(index_count)
-	_fill_indices(index_data)
-	var index_bytes = index_data.to_byte_array()
-	index_buffer = rd.storage_buffer_create(index_bytes.size(), index_bytes)
+
+	cached_indices = PackedInt32Array()
+	cached_indices.resize(index_count)
+	_fill_indices(cached_indices)
 
 func _fill_indices(indices: PackedInt32Array):
 	var index = 0
@@ -178,58 +176,24 @@ func _dispatch_compute():
 	uv_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
 	uv_uniform.binding = 3
 	uv_uniform.add_id(uv_buffer)
-	
-	var index_uniform := RDUniform.new()
-	index_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
-	index_uniform.binding = 4
-	index_uniform.add_id(index_buffer)
-	
-	uniform_set = rd.uniform_set_create([uniform, vertex_uniform, normal_uniform, uv_uniform, index_uniform], compute_shader, 0)
-	
+
+	uniform_set = rd.uniform_set_create([uniform, vertex_uniform, normal_uniform, uv_uniform], compute_shader, 0)
+
 	var pipeline = rd.compute_pipeline_create(compute_shader)
-	
-	var push_constant := PackedInt32Array([0])
-	
+
+	# El shader cubre (res+1)² vértices con workgroups de 32x32 en un único pase.
+	var groups = (quad_resolution + 1 + 31) / 32
+
 	var compute_list = rd.compute_list_begin()
 	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
-	push_constant[0] = 0
-	
-	var groups_x = (quad_resolution) / 16
-	var groups_y = (quad_resolution) / 16
-	rd.compute_list_dispatch(compute_list, groups_x, groups_y, 1)
-	
+	rd.compute_list_dispatch(compute_list, groups, groups, 1)
 	rd.compute_list_end()
+
 	rd.submit()
 	rd.sync()
-	
-	
-	compute_list = rd.compute_list_begin()
-	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
-	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
-	push_constant[0] = 1
-	
-	var total_triangles = quad_resolution * quad_resolution * 2
-	var triangle_groups = (total_triangles + 63) / 64
-	rd.compute_list_dispatch(compute_list, triangle_groups, 1, 1)
-	
-	rd.compute_list_end()
-	rd.submit()
-	rd.sync()
-	
-	
-	compute_list = rd.compute_list_begin()
-	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
-	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
-	push_constant[0] = 2
-	
-	var total_vertices = (quad_resolution + 1) * (quad_resolution + 1)
-	var vertex_groups = (total_vertices + 63) / 64
-	rd.compute_list_dispatch(compute_list, vertex_groups, 1, 1)
-	
-	rd.compute_list_end()
-	rd.submit()
-	rd.sync()
+
+	rd.free_rid(pipeline)
 
 func _read_buffers_and_create_mesh():
 	var vertex_count = (quad_resolution + 1) * (quad_resolution + 1)
@@ -242,10 +206,7 @@ func _read_buffers_and_create_mesh():
 	
 	var uv_bytes = rd.buffer_get_data(uv_buffer)
 	var uvs = uv_bytes.to_float32_array()
-	
-	var index_bytes = rd.buffer_get_data(index_buffer)
-	var indices = index_bytes.to_int32_array()
-	
+
 	var vertex_array = PackedVector3Array()
 	var normal_array = PackedVector3Array()
 	var uv_array = PackedVector2Array()
@@ -263,7 +224,7 @@ func _read_buffers_and_create_mesh():
 	arrays.resize(Mesh.ARRAY_MAX)
 	
 	arrays[Mesh.ARRAY_VERTEX] = vertex_array
-	arrays[Mesh.ARRAY_INDEX] = indices
+	arrays[Mesh.ARRAY_INDEX] = cached_indices
 	arrays[Mesh.ARRAY_TEX_UV] = uv_array
 	arrays[Mesh.ARRAY_NORMAL] = normal_array
 	
