@@ -460,6 +460,7 @@ func _apply_state(st: WeatherState) -> void:
 		_water_mat.set_shader_parameter("wave_amplitude", _base_wave_amplitude * st.water_wave_multiplier)
 		_water_mat.set_shader_parameter("wave_speed", _base_wave_speed * st.water_speed_multiplier)
 		_water_mat.set_shader_parameter("foam_crest_amount", _base_foam_crest * st.water_foam_multiplier)
+		_water_mat.set_shader_parameter("wave_steepness", st.water_steepness)
 
 	_apply_precipitation(st)
 
@@ -640,6 +641,7 @@ func _builtin_events() -> Dictionary:
 			"atmosphere_scatter": 0.15,
 			"wind_multiplier": 2.4, "water_wave_multiplier": 2.0,
 			"water_speed_multiplier": 1.6, "water_foam_multiplier": 2.5,
+			"water_steepness": 0.9,
 			"rain_rate": 1.0, "lightning_frequency": 0.15,
 			"fog_density": 0.5, "fog_coverage": 0.45, "fog_wind_speed": 0.05,
 			"fog_floor_height": 0.0, "fog_top_height": 90.0,
@@ -660,6 +662,7 @@ func _builtin_events() -> Dictionary:
 			"cloud_wind_speed": 0.1, "sun_energy": 0.9, "ambient_energy": 0.95,
 			"wind_multiplier": 3.2, "water_wave_multiplier": 1.7,
 			"water_speed_multiplier": 1.8, "water_foam_multiplier": 1.8,
+			"water_steepness": 0.75,
 		}),
 		"fog": _state({
 			"cloud_coverage": 0.35, "cloud_density": 0.4, "cloud_absorption": 0.16,

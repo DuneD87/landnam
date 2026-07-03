@@ -30,6 +30,12 @@ uniform float wave_amplitude = 4.0;
 uniform float wave_frequency = 2.0;
 uniform float wave_world_scale : hint_range(1.0, 500.0) = 60.0; // metros por tile
 
+// Oleaje Gerstner (trocoidal): olas grandes con crestas afiladas.
+uniform float wave_base_length : hint_range(2.0, 500.0, 0.5) = 60.0; // longitud de onda de la ola principal (m)
+uniform float wave_steepness : hint_range(0.0, 1.0, 0.01) = 0.5;     // Q: 0 = senoidal suave, 1 = cresta pinchada
+uniform int wave_octaves : hint_range(1, 6) = 4;
+uniform vec3 wave_pole = vec3(0.0, 1.0, 0.0); // eje de referencia del marco de olas (las olas viajan en su plano ecuatorial)
+
 uniform vec4 color_deep : source_color = vec4(0.02, 0.14, 0.25, 1.0);
 uniform vec4 color_shallow : source_color = vec4(0.37, 0.72, 0.71, 1.0);
 uniform float beers_law = 1.5;
@@ -43,6 +49,7 @@ uniform float edge_disable_start : hint_range(0.0, 1000.0) = 60.0;
 uniform float edge_disable_end : hint_range(0.0, 1000.0) = 150.0;
 uniform float detail_fade_start : hint_range(0.0, 20000.0) = 80.0;
 uniform float detail_fade_end : hint_range(0.0, 20000.0) = 250.0;
+uniform float refraction_blur : hint_range(0.0, 3.0, 0.05) = 2.5; // mip máx del fondo refractado con la profundidad; 0 = nítido (sin línea oscura de orilla)
 
 uniform float surface_alpha : hint_range(0.0, 1.0) = 0.15;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 1.0;
@@ -54,6 +61,7 @@ uniform float refraction_edge_soft : hint_range(0.001, 5.0, 0.001) = 0.5; // anc
 uniform float depth_alpha_start : hint_range(0.0, 1000.0) = 0.0;
 uniform float depth_alpha_end : hint_range(0.001, 10000.0) = 40.0;
 uniform float depth_alpha_power : hint_range(0.01, 10.0) = 1.4;
+uniform float grazing_shore_fade : hint_range(0.0, 20.0, 0.1) = 3.0; // profundidad (m) a la que el oscurecido rasante llega a pleno; evita la línea oscura en la orilla
 
 uniform vec3 sky_color_horizon : source_color = vec3(0.75, 0.85, 0.95);
 uniform vec3 sky_color_zenith : source_color = vec3(0.30, 0.55, 0.85);
@@ -85,15 +93,14 @@ uniform float sss_power : hint_range(1.0, 8.0) = 4.0;
 
 // Espuma procedural
 uniform vec3 foam_color : source_color = vec3(0.92, 0.96, 0.98);
-uniform float foam_depth_start : hint_range(0.0, 5.0, 0.01) = 0.8;
-uniform float foam_depth_end   : hint_range(0.0, 5.0, 0.01) = 0.0;
 uniform float foam_noise_scale : hint_range(0.0, 10.0, 0.01) = 2.0;
 uniform float foam_noise_speed : hint_range(0.0, 2.0, 0.01) = 1.0;
-uniform float foam_cutoff      : hint_range(0.0, 1.0, 0.01) = 0.7;
 uniform float foam_crest_threshold : hint_range(0.0, 1.0, 0.01) = 0.7;
+uniform float foam_crest_softness  : hint_range(0.02, 0.8, 0.01) = 0.3; // ancho de la banda de cresta (dot). Bajo = línea dura
 uniform float foam_crest_amount    : hint_range(0.0, 10.0, 0.1) = 2.0;
-uniform vec3 foam_edge_color : source_color = vec3(0.0, 0.0, 0.05);
-uniform vec2 foam_edge_offset = vec2(0.02, 0.02);
+uniform float foam_crest_streak : hint_range(1.0, 20.0, 0.1) = 6.0;  // estiramiento de la espuma a lo largo del viaje de la ola
+uniform float foam_trail_speed  : hint_range(0.0, 2.0, 0.01) = 0.4;  // velocidad de arrastre de la estela
+uniform float foam_trail_bias   : hint_range(0.0, 1.0, 0.01) = 0.5;  // 0 = espuma simétrica en cresta, 1 = concentrada en cara trasera
 uniform float voronoi_scale   : hint_range(0.0, 50.0) = 9.0;
 uniform float voronoi_strength : hint_range(0.0, 8.0) = 0.8;
 uniform float shore_soft_width : hint_range(0.01, 10.0, 0.01) = 1.5;
@@ -114,67 +121,79 @@ varying vec3 world_pos;
 varying vec3 base_world_pos;
 varying float view_depth;
 varying vec3 world_normal_radial;
+varying vec3 world_gerstner_normal;
 
 float fresnel(float amount, vec3 normal, vec3 view) {
     return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
 }
 
-float generate_wave_world(vec3 wpos, vec3 radial, float t) {
-    vec3 seed = abs(radial.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0);
-    vec3 tan = normalize(cross(seed, radial));
-    vec3 bit = normalize(cross(radial, tan));
+const int WAVE_MAX = 6;
 
-    vec3 local = wpos - planet_center;
-    vec2 p = vec2(dot(local, tan), dot(local, bit));
+// Suma de olas de Gerstner planetarias. La fase se deriva de la posición proyectada sobre
+// direcciones de viaje FIJAS en world-space (marco ecuatorial de wave_pole); así varía a lo
+// largo de la superficie (proyectar sobre el plano tangente local la anulaba: dot(radial,tan)=0).
+// Devuelve el desplazamiento world-space del vértice y, por out_normal, la normal analítica.
+vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal) {
+    vec3 pole = normalize(wave_pole);
+    vec3 gx = normalize(cross(pole, abs(pole.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0)));
+    vec3 gy = cross(pole, gx);
 
-    float w1 = sin(p.x * wave_frequency + t * wave_speed) * wave_amplitude;
-    float w2 = sin(p.y * wave_frequency * 0.7 + t * wave_speed * 0.8) * wave_amplitude * 0.5;
-    float w3 = sin((p.x + p.y) * wave_frequency * 0.5 + t * wave_speed * 1.2) * wave_amplitude * 0.3;
-    return (w1 + w2 + w3) * 0.1;
-}
+    vec2 bd = (abs(wave_direction.x) + abs(wave_direction.y) < 1e-4)
+        ? vec2(1.0, 0.0) : normalize(wave_direction);
 
-float sample_water_height(vec3 sample_world_pos, float time_value) {
-    vec3 radial = normalize(sample_world_pos - planet_center);
-    vec3 tri_pos = sample_world_pos - planet_center;
+    vec3 horiz = vec3(0.0);
+    float vert = 0.0;
+    vec3 grad = vec3(0.0);
+    float n_up_sub = 0.0;
 
-    vec3 w = abs(radial);
-    w = pow(w, vec3(4.0));
-    w /= (w.x + w.y + w.z);
+    float amp = wave_amplitude;
+    float len = wave_base_length;
+    float ang = 0.0;
+    int octaves = clamp(wave_octaves, 1, WAVE_MAX);
 
-    vec2 t = wave_direction * time_value * time_scale;
+    for (int i = 0; i < WAVE_MAX; i++) {
+        if (i >= octaves) break;
+        float k = 6.28318530718 / max(len, 0.1);
+        float ca = cos(ang);
+        float sa = sin(ang);
+        // Dirección de viaje fija en world (rotada por octava).
+        vec3 dir_fixed = normalize(gx * (bd.x * ca - bd.y * sa) + gy * (bd.x * sa + bd.y * ca));
+        // Proyección tangente en este punto: es el gradiente espacial de la fase.
+        vec3 dir_tan = dir_fixed - radial * dot(dir_fixed, radial);
+        float tan_len = length(dir_tan);
+        vec3 dir_unit = tan_len > 1e-4 ? dir_tan / tan_len : vec3(0.0);
 
-    float h_xz = texture(wave, tri_pos.xz / wave_world_scale + t).r;
-    float h_xy = texture(wave, tri_pos.xy / wave_world_scale + t).r;
-    float h_yz = texture(wave, tri_pos.yz / wave_world_scale + t).r;
+        // Steepness repartida entre octavas para no auto-intersecar las crestas.
+        float q = wave_steepness / max(k * amp * float(octaves), 1e-4);
+        float phase = k * dot(dir_fixed, local) + t * wave_speed * sqrt(k);
+        float c = cos(phase);
+        float s = sin(phase);
 
-    float tex_height = h_xz * w.y + h_xy * w.z + h_yz * w.x;
-    float procedural = generate_wave_world(sample_world_pos, radial, time_value);
+        horiz += q * amp * dir_unit * c;
+        vert  += amp * s;
 
-    return (tex_height + procedural) * height_scale;
-}
+        grad += dir_tan * (k * amp * c); // dir_tan (sin normalizar) codifica el estiramiento cerca del polo
+        n_up_sub += q * k * amp * s;
 
-
-vec3 calculate_wave_world_normal(vec3 sample_world_pos, vec3 radial_normal, float time_value) {
-    vec3 tangent_seed = abs(radial_normal.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
-    vec3 tangent = normalize(cross(tangent_seed, radial_normal));
-    vec3 bitangent = normalize(cross(radial_normal, tangent));
-    float eps = wave_normal_sample_distance;
-
-    vec3 p0 = sample_world_pos + radial_normal * sample_water_height(sample_world_pos, time_value);
-
-    vec3 tangent_base = sample_world_pos + tangent * eps;
-    vec3 bitangent_base = sample_world_pos + bitangent * eps;
-    vec3 tangent_radial = normalize(tangent_base - planet_center);
-    vec3 bitangent_radial = normalize(bitangent_base - planet_center);
-
-    vec3 p_tangent = tangent_base + tangent_radial * sample_water_height(tangent_base, time_value);
-    vec3 p_bitangent = bitangent_base + bitangent_radial * sample_water_height(bitangent_base, time_value);
-
-    vec3 wave_normal = normalize(cross(p_bitangent - p0, p_tangent - p0));
-    if (dot(wave_normal, radial_normal) < 0.0) {
-        wave_normal = -wave_normal;
+        amp *= 0.5;
+        len *= 0.5;
+        ang += 2.399963; // ángulo áureo: dispersa las direcciones entre octavas
     }
-    return wave_normal;
+
+    out_normal = normalize(radial * (1.0 - n_up_sub) - grad);
+    return horiz + radial * vert;
+}
+
+// Dirección de viaje (tangente, world) de la ola principal en este punto: orienta la estela de espuma.
+vec3 primary_wave_dir(vec3 radial) {
+    vec3 pole = normalize(wave_pole);
+    vec3 gx = normalize(cross(pole, abs(pole.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0)));
+    vec3 gy = cross(pole, gx);
+    vec2 bd = (abs(wave_direction.x) + abs(wave_direction.y) < 1e-4) ? vec2(1.0, 0.0) : normalize(wave_direction);
+    vec3 dir_fixed = normalize(gx * bd.x + gy * bd.y);
+    vec3 t = dir_fixed - radial * dot(dir_fixed, radial);
+    float l = length(t);
+    return l > 1e-4 ? t / l : vec3(0.0);
 }
 
 vec3 calculate_sky_color(vec3 view_direction) {
@@ -345,9 +364,13 @@ void vertex() {
     base_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     vec3 sphere_dir = normalize(base_world_pos - planet_center);
 
-    float total_height = sample_water_height(base_world_pos, water_time);
-    VERTEX += NORMAL * total_height;
+    vec3 gerstner_normal;
+    vec3 disp = gerstner_surface(base_world_pos - planet_center, sphere_dir, water_time, gerstner_normal);
+
+    // disp es world-space; lo llevamos al espacio local del modelo para modificar VERTEX.
+    VERTEX += inverse(mat3(MODEL_MATRIX)) * disp;
     world_normal_radial = sphere_dir;
+    world_gerstner_normal = gerstner_normal;
     world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 
     vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
@@ -376,7 +399,7 @@ void fragment() {
     float edge_disable = smoothstep(edge_disable_start, edge_disable_end, view_depth);
 
     vec3 radial_normal = normalize(world_normal_radial);
-    vec3 wave_world_normal = calculate_wave_world_normal(base_world_pos, radial_normal, water_time);
+    vec3 wave_world_normal = normalize(world_gerstner_normal);
     vec3 final_world_normal = wave_world_normal;
 
     if (detail_fade < 0.999) {
@@ -405,14 +428,14 @@ void fragment() {
     normal_edge_factor = mix(normal_edge_factor, 1.0, edge_disable);
     final_world_normal = normalize(mix(radial_normal, final_world_normal, normal_edge_factor));
 
-    // Nivel de espuma: 1.0 en orilla/crestas, 0.0 en agua profunda
-    float depth_foam_factor = smoothstep(foam_depth_start, foam_depth_end, water_depth);
-    // Usamos dot con la normal radial para detectar crestas en una esfera planetaria.
+    // Detección de cresta: leemos la normal de la OLA (Gerstner), no la detallada, para que
+    // la espuma siga las crestas reales y no reaccione al micro-ruido de las normales de textura.
     // dot ≈ 1.0 = superficie plana, dot < threshold = cresta de ola.
-    float normal_alignment = dot(final_world_normal, radial_normal);
-    float wave_crest_factor = smoothstep(foam_crest_threshold, foam_crest_threshold - 0.1, normal_alignment);
-    wave_crest_factor *= foam_crest_amount;
-    float foam_level = clamp(depth_foam_factor + wave_crest_factor, 0.0, 1.0);
+    float normal_alignment = dot(wave_world_normal, radial_normal);
+    // Banda ancha: la espuma entra en cuanto la ola se inclina y crece hacia la cresta.
+    float wave_crest_factor = smoothstep(foam_crest_threshold, foam_crest_threshold - foam_crest_softness, normal_alignment);
+    wave_crest_factor = pow(wave_crest_factor, 1.5) * foam_crest_amount;
+    float foam_level = clamp(wave_crest_factor, 0.0, 1.0);
 
     // Domain warp animado para movimiento de corriente
     vec2 flow_uv = world_pos.xz * 0.5 + TIME * 0.05 * foam_noise_speed;
@@ -461,7 +484,7 @@ void fragment() {
     vec2 final_uv = mix(SCREEN_UV, refracted_uv, refract_mix);
 	float final_uv_depth_sample = texture(DEPTH_TEXTURE, final_uv).r;
 	
-    vec3 screen_color = textureLod(SCREEN_TEXTURE, final_uv, adjusted_depth_blend * 2.5).rgb;
+    vec3 screen_color = textureLod(SCREEN_TEXTURE, final_uv, adjusted_depth_blend * refraction_blur).rgb;
 
     // Cáusticas submarinas con triplanar mapping (evita estiramiento en caras verticales)
 	vec4 bg_ndc = vec4(final_uv * 2.0 - 1.0, final_uv_depth_sample, 1.0);
@@ -470,14 +493,18 @@ void fragment() {
 	#endif
 	vec4 bg_world = INV_VIEW_MATRIX * INV_PROJECTION_MATRIX * bg_ndc;
 	vec3 bg_world_pos = bg_world.xyz / bg_world.w;
+
+	// Normal del fondo desde derivadas. FUERA de la rama: dFdx/dFdy no está definido en
+	// control de flujo no uniforme. Y en el borde de profundidad cross(...) ≈ 0 →
+	// normalize(0) = NaN, que colaba como línea negra (NaN * caustics_intensity sigue siendo NaN).
+	vec3 bg_dx = dFdx(bg_world_pos);
+	vec3 bg_dy = dFdy(bg_world_pos);
+	vec3 bg_cross = cross(bg_dy, bg_dx);
+	float bg_cross_len = length(bg_cross);
+	vec3 bg_normal = bg_cross_len > 1e-6 ? bg_cross / bg_cross_len : radial_normal;
+
 	float caustics_contrib = 0.0;
 	if (water_depth > 0.0) {
-	    // Reconstruimos la normal del fondo desde las derivadas de la posición mundial.
-	    // Esto nos permite ponderar la contribución de cada plano triplanar.
-	    vec3 bg_dx = dFdx(bg_world_pos);
-	    vec3 bg_dy = dFdy(bg_world_pos);
-	    vec3 bg_normal = normalize(cross(bg_dy, bg_dx));
-
 	    // Pesos triplanar XYZ. Exponente alto para que el plano dominante "gane" claramente
 	    // y evitar mezclas borrosas en transiciones.
 	    vec3 tri_weights = abs(bg_normal);
@@ -523,6 +550,9 @@ void fragment() {
     depth_alpha_factor = pow(depth_alpha_factor, depth_alpha_power);
     float grazing = 1.0 - clamp(dot(radial_normal, -view_dir_w), 0.0, 1.0);
     float grazing_opacity = smoothstep(0.65, 0.95, grazing);
+    // El oscurecido rasante (→ color_deep) solo tiene sentido en mar profundo; en la orilla
+    // creaba una línea oscura en la silueta agua-terreno. Lo desvanecemos con la profundidad.
+    grazing_opacity *= smoothstep(0.0, grazing_shore_fade, water_depth);
     float opacity_factor = max(max(depth_alpha_factor, view_opacity_factor), grazing_opacity);
 
     vec3 transmission = exp(-absorption_coefficients * opacity_depth);
@@ -589,48 +619,37 @@ void fragment() {
     final_albedo += sun_color * sun_energy * sun_glint
                   * sun_specular_intensity * sun_up * (1.0 - foam_level) * glint_shore_fade;
 
-    // Espuma procedural Voronoi
-    float foam_mask_primary = 0.0;
-    float foam_mask_shadow  = 0.0;
-
-    if (water_depth > 0.01) {
-        vec2 foam_uv = world_pos.xz * foam_noise_scale + warp;
-
-        // Control de emergencia: la espuma no aparece en todos lados a la vez
-        float emergence_noise = noise3d(vec3(world_pos.xz * 0.5, TIME * 0.2 * foam_noise_speed));
-        emergence_noise = smoothstep(0.0, 1.0, emergence_noise * 0.5 + 0.5);
-        float effective_emergence = mix(emergence_noise, 1.0, foam_level);
-
-        float foam_noise_val = fbm_voronoi(foam_uv) * effective_emergence;
-
-        // Muestra desplazada para crear borde oscuro que simula grosor
-        vec2 foam_uv_shadow = (world_pos.xz + foam_edge_offset) * foam_noise_scale + warp;
-        float foam_noise_shadow_val = fbm_voronoi(foam_uv_shadow) * effective_emergence;
-
-        float combined_noise  = foam_noise_val + foam_level;
-        float combined_shadow = foam_noise_shadow_val + foam_level;
-
-        foam_mask_primary = smoothstep(foam_cutoff + 0.5, foam_cutoff + 0.6, combined_noise);
-        float shadow_shape = smoothstep(foam_cutoff + 0.5, foam_cutoff + 0.6, combined_shadow);
-        foam_mask_shadow = clamp(shadow_shape - foam_mask_primary, 0.0, 1.0);
-    }
-
     // Burbujas internas: textura Voronoi adicional dentro de la espuma
     float voronoi_val = 1.0 - sqrt(voronoi_noise(world_pos.xz * voronoi_scale + warp));
     voronoi_val = smoothstep(0.2, 0.8, voronoi_val);
     float bubble_alpha = 1.0 - clamp((1.0 - voronoi_val) * voronoi_strength, 0.0, 1.0);
 
-    // En z_dif ≈ 0 (contacto exacto con el terreno): difuminado blanco suave.
-    // Se atenúa el Voronoi para que no quede un borde duro, y se superpone un glow.
-    float shore_contact = smoothstep(shore_soft_width, 0.0, max(z_dif, 0.0)) * depth_foam_factor;
-    float foam_soften   = 1.0 - shore_contact * 0.85;
+    // Espuma suave de orilla: línea blanca difusa justo en el contacto agua-terreno (z_dif ≈ 0).
+    float shore_contact = smoothstep(shore_soft_width, 0.0, max(z_dif, 0.0));
 
-    final_albedo = mix(final_albedo, foam_edge_color, foam_mask_shadow * foam_soften);
-    final_albedo = mix(final_albedo, foam_color, foam_mask_primary * bubble_alpha * foam_soften);
+    // Espuma de cresta con estela: nace en la cresta y se estira/arrastra en la dirección de la ola.
+    float crest_foam = 0.0;
+    vec3 crest_travel = primary_wave_dir(radial_normal);
+    if (wave_crest_factor > 0.001 && length(crest_travel) > 0.5) {
+        vec3 crest_side = normalize(cross(radial_normal, crest_travel));
+        float along  = dot(world_pos, crest_travel);
+        float across = dot(world_pos, crest_side);
+        float scroll = water_time * wave_speed * foam_trail_speed;
+        // UV estirada a lo largo del viaje (estela) y desplazada con la ola.
+        vec2 streak_uv = vec2(along / foam_crest_streak - scroll, across) * foam_noise_scale;
+        float streak_mask = smoothstep(0.4, 0.7, fbm_voronoi(streak_uv));
+        // Sesgo a la cara trasera: la estela queda detrás de la cresta.
+        vec3 n_horiz = wave_world_normal - radial_normal * dot(wave_world_normal, radial_normal);
+        float trail_bias = mix(1.0, smoothstep(0.15, -0.15, dot(n_horiz, crest_travel)), foam_trail_bias);
+        crest_foam = clamp(wave_crest_factor, 0.0, 1.0) * streak_mask * trail_bias;
+    }
+    float crest_foam_vis = crest_foam * bubble_alpha;
+
+    final_albedo = mix(final_albedo, foam_color, crest_foam_vis);
     final_albedo = mix(final_albedo, foam_color, shore_contact);
 
     // La espuma está mojada: capta el sol con un brillo más ancho que el glint de agua.
-    float foam_wet = max(foam_mask_primary * bubble_alpha * foam_soften, shore_contact);
+    float foam_wet = max(crest_foam_vis, shore_contact);
     float foam_glint = pow(max(dot(final_world_normal, half_vec), 0.0), 60.0);
     final_albedo += sun_color * sun_energy * foam_glint * foam_wet * 0.3 * sun_up;
     // Screen blend: añade luz sin quemar los colores existentes (A + B - A*B)
@@ -642,16 +661,15 @@ void fragment() {
     float shore_alpha_fade = smoothstep(0.0, shore_soft_width, max(z_dif, 0.0));
     float base_alpha = mix(surface_alpha, deep_alpha, opacity_factor);
     float refraction_alpha = refraction_alpha_floor * (1.0 - opacity_factor);
-    float foam_opacity = max(max(foam_mask_primary * bubble_alpha, foam_mask_shadow) * foam_soften, shore_contact);
+    float foam_opacity = max(crest_foam_vis, shore_contact);
     float final_alpha = max(max(base_alpha, refraction_alpha), foam_opacity);
     final_alpha *= shore_alpha_fade;
     final_alpha = mix(final_alpha, 1.0, edge_disable);
     ALPHA = clamp(final_alpha, 0.0, deep_alpha);
 
-    ROUGHNESS = mix(roughness, 0.8, (foam_mask_primary * bubble_alpha) + foam_mask_shadow);
+    ROUGHNESS = mix(roughness, 0.8, clamp(crest_foam_vis, 0.0, 1.0));
     SPECULAR = 0.5;
     METALLIC = metallic;
-
 }
 
 // Iluminación custom: reemplaza el lighting por defecto del motor para el agua.
