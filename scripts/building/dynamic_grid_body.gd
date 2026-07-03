@@ -16,7 +16,7 @@ var _water_drag: float = 300.0
 
 var _grids: Array = []
 var _buoyancy_points: PackedVector3Array = []
-var _buoyancy_force: float = 100.0
+var _buoyancy_force: float = 500.0
 var _recalc_points: bool = true
 var _is_being_controlled: bool = false
 
@@ -82,6 +82,7 @@ func _is_ground_ready() -> bool:
 func _ready() -> void:
 	collision_layer = 3
 	collision_mask = 1
+	add_to_group("floating_origin")
 	_setup_water_sampler()
 
 func _setup_water_sampler() -> void:

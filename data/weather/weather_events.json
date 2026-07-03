@@ -7,7 +7,8 @@
 	  "cloud_shadow": 0.5, "cloud_min_height": 600.0, "cloud_max_height": 900.0,
 	  "cloud_wind_speed": 0.025,
 	  "sun_energy": 1.0, "ambient_energy": 1.0, "atmosphere_scatter": 1.0, "wind_multiplier": 0.6,
-	  "water_wave_multiplier": 0.7, "water_speed_multiplier": 0.8, "water_foam_multiplier": 0.6,
+	  "water_wave_multiplier": 0.4, "water_speed_multiplier": 0.8, "water_foam_multiplier": 0.4,
+	  "water_steepness": 0.25, "water_wave_length_mult": 0.5,
 	  "snow_coverage": 0.0,
 	  "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
 	},
@@ -18,11 +19,11 @@
 	  "cloud_shadow": 0.8, "cloud_min_height": 950.0, "cloud_max_height": 1200.0,
 	  "cloud_wind_speed": 0.06,
 	  "sun_energy": 0.3, "ambient_energy": 0.5, "atmosphere_scatter": 0.05, "wind_multiplier": 2.4,
-	  "water_wave_multiplier": 2.0, "water_speed_multiplier": 1.6, "water_foam_multiplier": 2.5,
-	  "water_steepness": 0.9,
+	  "water_wave_multiplier": 2.2, "water_speed_multiplier": 1.7, "water_foam_multiplier": 2.5,
+	  "water_steepness": 0.9, "water_wave_length_mult": 1.6,
 	  "snow_coverage": 0.0,
 	  "fog_density": 0.2, "fog_coverage": 0.9, "fog_wind_speed": 0.05,
-	  "fog_floor_height": -40.0, "fog_top_height": 390.0,
+	  "fog_floor_height": -100.0, "fog_top_height": 390.0,
 	  "rain_rate": 1.0, "snow_rate": 0.0, "lightning_frequency": 0.15
 	},
 
@@ -32,7 +33,8 @@
 	  "cloud_shadow": 0.7, "cloud_min_height": 350.0, "cloud_max_height": 600.0,
 	  "cloud_wind_speed": 0.04,
 	  "sun_energy": 0.7, "ambient_energy": 0.8, "atmosphere_scatter": 0.5, "wind_multiplier": 1.3,
-	  "water_wave_multiplier": 1.0, "water_speed_multiplier": 1.0, "water_foam_multiplier": 1.0,
+	  "water_wave_multiplier": 0.5, "water_speed_multiplier": 0.8, "water_foam_multiplier": 0.5,
+	  "water_steepness": 0.3, "water_wave_length_mult": 1.0,
 	  "snow_coverage": 1.0,
 	  "fog_density": 0.6, "fog_coverage": 0.65, "fog_wind_speed": 0.03,
 	  "fog_floor_height": 0.0, "fog_top_height": 120.0,
@@ -44,8 +46,8 @@
 	  "cloud_shadow": 0.6, "cloud_min_height": 500.0, "cloud_max_height": 850.0,
 	  "cloud_wind_speed": 0.1,
 	  "sun_energy": 0.9, "ambient_energy": 0.95, "atmosphere_scatter": 0.85, "wind_multiplier": 3.2,
-	  "water_wave_multiplier": 1.7, "water_speed_multiplier": 1.8, "water_foam_multiplier": 1.8,
-	  "water_steepness": 0.75,
+	  "water_wave_multiplier": 1.6, "water_speed_multiplier": 1.7, "water_foam_multiplier": 1.7,
+	  "water_steepness": 0.7, "water_wave_length_mult": 1.3,
 	  "snow_coverage": 0.0,
 	  "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
 	},
@@ -58,7 +60,8 @@
 	  "fog_density": 1.0, "fog_coverage": 1.0, "fog_wind_speed": 0.025,
 	  "fog_floor_height": 0.0, "fog_top_height": 160.0,
 	  "sun_energy": 0.6, "ambient_energy": 0.8, "atmosphere_scatter": 0.5, "wind_multiplier": 0.5,
-	  "water_wave_multiplier": 0.6, "water_speed_multiplier": 0.7, "water_foam_multiplier": 0.6,
+	  "water_wave_multiplier": 0.3, "water_speed_multiplier": 0.6, "water_foam_multiplier": 0.3,
+	  "water_steepness": 0.2, "water_wave_length_mult": 0.9,
 	  "snow_coverage": 0.0,
 	  "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
 	}

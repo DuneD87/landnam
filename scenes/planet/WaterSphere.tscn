@@ -8,7 +8,6 @@
 [node name="WaterSphere" type="Node3D" unique_id=25449629]
 script = ExtResource("1_adc1r")
 radius = 10000.0
-sub_divisions = 64
 quadtree_material = ExtResource("2_vihnt")
 wireframe_material = ExtResource("3_pcij0")
 

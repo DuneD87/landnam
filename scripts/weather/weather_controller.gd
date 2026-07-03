@@ -73,6 +73,7 @@ var _base_sun_energy: float = 1.0
 var _base_ambient_energy: float = 1.0
 var _base_wave_amplitude: float = 4.0
 var _base_wave_speed: float = 1.2
+var _base_wave_length: float = 50.0
 var _base_foam_crest: float = 1.1
 var _water_mat: ShaderMaterial
 
@@ -167,9 +168,11 @@ func _read_base_values() -> void:
 		_water_mat = _ocean.quadtree_material as ShaderMaterial
 		var wa: Variant = _water_mat.get_shader_parameter("wave_amplitude")
 		var ws: Variant = _water_mat.get_shader_parameter("wave_speed")
+		var wl: Variant = _water_mat.get_shader_parameter("wave_base_length")
 		var fc: Variant = _water_mat.get_shader_parameter("foam_crest_amount")
 		if wa != null: _base_wave_amplitude = wa
 		if ws != null: _base_wave_speed = ws
+		if wl != null: _base_wave_length = wl
 		if fc != null: _base_foam_crest = fc
 
 
@@ -459,6 +462,7 @@ func _apply_state(st: WeatherState) -> void:
 	if _water_mat:
 		_water_mat.set_shader_parameter("wave_amplitude", _base_wave_amplitude * st.water_wave_multiplier)
 		_water_mat.set_shader_parameter("wave_speed", _base_wave_speed * st.water_speed_multiplier)
+		_water_mat.set_shader_parameter("wave_base_length", _base_wave_length * st.water_wave_length_mult)
 		_water_mat.set_shader_parameter("foam_crest_amount", _base_foam_crest * st.water_foam_multiplier)
 		_water_mat.set_shader_parameter("wave_steepness", st.water_steepness)
 
@@ -630,8 +634,9 @@ func _builtin_events() -> Dictionary:
 			"cloud_coverage": 0.25, "cloud_density": 0.35, "cloud_absorption": 0.12,
 			"cloud_shadow": 0.5, "cloud_min_height": 600.0, "cloud_max_height": 900.0,
 			"cloud_wind_speed": 0.025, "sun_energy": 1.0, "ambient_energy": 1.0,
-			"wind_multiplier": 0.6, "water_wave_multiplier": 0.7,
-			"water_speed_multiplier": 0.8, "water_foam_multiplier": 0.6,
+			"wind_multiplier": 0.6, "water_wave_multiplier": 0.4,
+			"water_speed_multiplier": 0.8, "water_foam_multiplier": 0.4,
+			"water_steepness": 0.25, "water_wave_length_mult": 1.0,
 		}),
 		"storm": _state({
 			"cloud_coverage": 0.9, "cloud_density": 1.6, "cloud_absorption": 0.4,
@@ -639,9 +644,9 @@ func _builtin_events() -> Dictionary:
 			"cloud_shadow": 1.0, "cloud_min_height": 300.0, "cloud_max_height": 800.0,
 			"cloud_wind_speed": 0.06, "sun_energy": 0.3, "ambient_energy": 0.5,
 			"atmosphere_scatter": 0.15,
-			"wind_multiplier": 2.4, "water_wave_multiplier": 2.0,
-			"water_speed_multiplier": 1.6, "water_foam_multiplier": 2.5,
-			"water_steepness": 0.9,
+			"wind_multiplier": 2.4, "water_wave_multiplier": 2.2,
+			"water_speed_multiplier": 1.7, "water_foam_multiplier": 2.5,
+			"water_steepness": 0.9, "water_wave_length_mult": 1.6,
 			"rain_rate": 1.0, "lightning_frequency": 0.15,
 			"fog_density": 0.5, "fog_coverage": 0.45, "fog_wind_speed": 0.05,
 			"fog_floor_height": 0.0, "fog_top_height": 90.0,
@@ -653,6 +658,8 @@ func _builtin_events() -> Dictionary:
 			"cloud_wind_speed": 0.04, "sun_energy": 0.7, "ambient_energy": 0.8,
 			"atmosphere_scatter": 0.5,
 			"wind_multiplier": 1.3, "snow_coverage": 1.0, "snow_rate": 1.0,
+			"water_wave_multiplier": 0.5, "water_speed_multiplier": 0.8,
+			"water_foam_multiplier": 0.5, "water_steepness": 0.3, "water_wave_length_mult": 1.0,
 			"fog_density": 0.6, "fog_coverage": 0.5, "fog_wind_speed": 0.03,
 			"fog_floor_height": 0.0, "fog_top_height": 120.0,
 		}),
@@ -660,9 +667,9 @@ func _builtin_events() -> Dictionary:
 			"cloud_coverage": 0.45, "cloud_density": 0.5, "cloud_absorption": 0.14,
 			"cloud_shadow": 0.6, "cloud_min_height": 500.0, "cloud_max_height": 850.0,
 			"cloud_wind_speed": 0.1, "sun_energy": 0.9, "ambient_energy": 0.95,
-			"wind_multiplier": 3.2, "water_wave_multiplier": 1.7,
-			"water_speed_multiplier": 1.8, "water_foam_multiplier": 1.8,
-			"water_steepness": 0.75,
+			"wind_multiplier": 3.2, "water_wave_multiplier": 1.6,
+			"water_speed_multiplier": 1.7, "water_foam_multiplier": 1.7,
+			"water_steepness": 0.7, "water_wave_length_mult": 1.3,
 		}),
 		"fog": _state({
 			"cloud_coverage": 0.35, "cloud_density": 0.4, "cloud_absorption": 0.16,
@@ -670,8 +677,9 @@ func _builtin_events() -> Dictionary:
 			"cloud_shadow": 0.3, "cloud_min_height": 500.0, "cloud_max_height": 800.0,
 			"cloud_wind_speed": 0.03, "sun_energy": 0.6, "ambient_energy": 0.8,
 			"atmosphere_scatter": 0.5,
-			"wind_multiplier": 0.5, "water_wave_multiplier": 0.6,
-			"water_speed_multiplier": 0.7, "water_foam_multiplier": 0.6,
+			"wind_multiplier": 0.5, "water_wave_multiplier": 0.3,
+			"water_speed_multiplier": 0.6, "water_foam_multiplier": 0.3,
+			"water_steepness": 0.2, "water_wave_length_mult": 0.9,
 			"fog_density": 1.0, "fog_coverage": 0.62, "fog_wind_speed": 0.025,
 			"fog_floor_height": 0.0, "fog_top_height": 160.0,
 		}),

@@ -22,7 +22,6 @@ const _INVERT_ITERATIONS := 3
 ## Lee del material los parámetros que intervienen en la altura de ola.
 func setup(water_material: ShaderMaterial) -> void:
 	_material = water_material
-	wave_base_length = water_material.get_shader_parameter("wave_base_length")
 	wave_octaves = int(water_material.get_shader_parameter("wave_octaves"))
 	wave_direction = water_material.get_shader_parameter("wave_direction")
 	var pole: Variant = water_material.get_shader_parameter("wave_pole")
@@ -34,6 +33,7 @@ func _refresh_dynamic_params() -> void:
 	wave_speed = _material.get_shader_parameter("wave_speed")
 	wave_amplitude = _material.get_shader_parameter("wave_amplitude")
 	wave_steepness = _material.get_shader_parameter("wave_steepness")
+	wave_base_length = _material.get_shader_parameter("wave_base_length")
 
 ## Altura de ola (desplazamiento radial) en world_pos. Invierte por punto-fijo el arrastre
 ## horizontal de Gerstner: sin esto, con oleaje marcado la física y el visual se separan varios metros.

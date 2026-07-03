@@ -405,6 +405,11 @@ func shift_origin(offset: Vector3) -> void:
 	pivot.global_position -= offset
 	pivot.reset_physics_interpolation()
 
+	# La transform cacheada de la plataforma vive en el marco pre-rebase; desplázala
+	# también o _apply_platform_movement le aplicaría un salto de 'offset' extra al jugador.
+	if _platform_body and is_instance_valid(_platform_body):
+		_platform_prev_xform.origin -= offset
+
 
 func post_restore() -> void:
 	if planets and planets.get_child_count() > 0:
