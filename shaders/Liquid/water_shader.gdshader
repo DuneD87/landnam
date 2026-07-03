@@ -50,6 +50,7 @@ uniform float refraction_alpha_floor : hint_range(0.0, 1.0) = 0.32;
 uniform float refraction_strength : hint_range(0.0, 2.0, 0.001) = 0.05;
 uniform float refraction_depth_fade : hint_range(0.01, 100.0, 0.01) = 8.0;
 uniform float refraction_uv_margin : hint_range(0.0, 0.05, 0.001) = 0.002;
+uniform float refraction_edge_soft : hint_range(0.001, 5.0, 0.001) = 0.5; // ancho de la transición on/off de refracción
 uniform float depth_alpha_start : hint_range(0.0, 1000.0) = 0.0;
 uniform float depth_alpha_end : hint_range(0.001, 10000.0) = 40.0;
 uniform float depth_alpha_power : hint_range(0.01, 10.0) = 1.4;
@@ -61,6 +62,22 @@ uniform float sky_fresnel_power : hint_range(0.1, 100.0) = 5.0;
 uniform float sky_gradient_power : hint_range(0.1, 50.0) = 2.5;
 
 uniform vec3 sun_direction = vec3(0.4, -0.7, 0.3);
+uniform vec3 sun_color : source_color = vec3(1.0, 0.95, 0.85);
+uniform float sun_energy : hint_range(0.0, 16.0) = 1.0;
+uniform float sun_specular_intensity : hint_range(0.0, 8.0) = 0.3;
+uniform float glint_depth_fade : hint_range(0.0, 20.0) = 3.0; // profundidad a la que el glint alcanza su fuerza plena
+
+// Control de iluminación puntual (antorcha, etc.) para evitar reventones de especular
+uniform float light_specular_clamp : hint_range(0.0, 4.0) = 0.6;   // tope de especular por luz
+uniform float light_roughness_floor : hint_range(0.0, 1.0) = 0.25; // ensancha el brillo puntual
+uniform float light_diffuse_strength : hint_range(0.0, 2.0) = 1.0;
+
+// Screen-space reflections
+uniform bool ssr_enabled = true;
+uniform int ssr_max_steps : hint_range(0, 64) = 20;
+uniform float ssr_step : hint_range(0.05, 5.0) = 0.6;         // paso inicial en metros (view space)
+uniform float ssr_thickness : hint_range(0.05, 10.0) = 10.0;   // grosor de impacto tolerado
+uniform float ssr_distance_fade : hint_range(1.0, 5000.0) = 400.0; // apaga SSR con la distancia
 
 uniform vec3 sss_color : source_color = vec3(0.15, 0.55, 0.45);
 uniform float sss_intensity : hint_range(0.0, 3.0) = 0.8;
@@ -227,6 +244,38 @@ float ray_sphere_depth(vec3 ray_origin, vec3 ray_direction, vec3 sphere_center, 
     float enter_distance = max(-b - root, 0.0);
     float exit_distance = max(-b + root, 0.0);
     return max(exit_distance - enter_distance, 0.0);
+}
+
+// Ray-march del rayo reflejado contra el depth buffer. Devuelve el color de escena
+// reflejado y en `hit` la confianza [0,1] (0 = fallo → usar cielo como fallback).
+vec3 screen_space_reflection(vec3 view_pos, vec3 view_normal, mat4 projection,
+                             mat4 inv_projection, out float hit) {
+    hit = 0.0;
+    vec3 refl = reflect(normalize(view_pos), view_normal);
+    float step_len = ssr_step;
+    vec3 p = view_pos;
+
+    for (int i = 0; i < ssr_max_steps; i++) {
+        p += refl * step_len;
+        if (-p.z <= 0.0) {
+            break; // el rayo pasa por detrás de la cámara
+        }
+        vec4 clip = projection * vec4(p, 1.0);
+        vec2 uv = (clip.xy / clip.w) * 0.5 + 0.5;
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+            break; // fuera de pantalla
+        }
+        float scene = linearize_depth(uv, texture(DEPTH_TEXTURE, uv).r, inv_projection);
+        float ray_depth = -p.z;
+        float diff = ray_depth - scene;
+        if (diff > 0.0 && diff < ssr_thickness) {
+            vec2 edge = abs(uv - 0.5) * 2.0;
+            hit = smoothstep(1.0, 0.7, max(edge.x, edge.y)); // desvanecer en bordes de pantalla
+            return textureLod(SCREEN_TEXTURE, uv, 0.0).rgb;
+        }
+        step_len *= 1.15; // pasos crecientes: precisión cerca, alcance lejos
+    }
+    return vec3(0.0);
 }
 
 // --- Foam noise helpers ---
@@ -405,8 +454,11 @@ void fragment() {
 
     float refracted_depth_sample = texture(DEPTH_TEXTURE, refracted_uv).r;
     float refr_linear = linearize_depth(refracted_uv, refracted_depth_sample, INV_PROJECTION_MATRIX);
-    float refracted_is_under_water = step(frag_linear + 0.02, refr_linear);
-    vec2 final_uv = mix(SCREEN_UV, refracted_uv, refracted_is_under_water * depth_fac);
+    // Transición suave (antes step() → línea dura donde el punto refractado cruza la superficie).
+    float refracted_is_under_water = smoothstep(frag_linear, frag_linear + refraction_edge_soft, refr_linear);
+    // Clamp a [0,1]: depth_fac llega a 4 y sin clamp el mix EXTRAPOLA la UV fuera de rango.
+    float refract_mix = clamp(refracted_is_under_water * depth_fac, 0.0, 1.0);
+    vec2 final_uv = mix(SCREEN_UV, refracted_uv, refract_mix);
 	float final_uv_depth_sample = texture(DEPTH_TEXTURE, final_uv).r;
 	
     vec3 screen_color = textureLod(SCREEN_TEXTURE, final_uv, adjusted_depth_blend * 2.5).rgb;
@@ -486,16 +538,29 @@ void fragment() {
     vec3 view_normal = normalize((VIEW_MATRIX * vec4(final_world_normal, 0.0)).xyz);
     NORMAL = view_normal;
 
-    float fresnel_value = fresnel(sky_fresnel_power, view_normal, VIEW);
-    vec3 surface_color = mix(albedo, albedo2, fresnel_value);
+    // Fresnel Schlick dieléctrico (F0 ≈ 0.02 para agua): ~0 mirando recto abajo,
+    // ~1 a rasante. Sustituye el pow ad-hoc anterior.
+    float ndv = max(dot(view_normal, normalize(VIEW)), 0.0);
+    float fresnel_value = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
 
+    // Reflexión: cielo procedural como base, refinado con SSR donde acierta.
     vec3 reflected_view = reflect(-VIEW, view_normal);
-    vec3 sky_color = calculate_sky_color(reflected_view);
-    vec3 sky_reflection = sky_color * sky_influence;
+    vec3 sky_reflection = calculate_sky_color(reflected_view) * sky_influence;
+    vec3 reflection_color = sky_reflection;
 
-    vec3 final_albedo = mix(color, sky_reflection, fresnel_value * 0.8);
-    final_albedo = mix(final_albedo, color, adjusted_depth_blend * 0.3);
-    final_albedo = mix(final_albedo, sky_reflection, fresnel_value * sky_influence);
+    if (ssr_enabled) {
+        float ssr_dist_fade = 1.0 - smoothstep(ssr_distance_fade * 0.5, ssr_distance_fade, view_distance);
+        if (ssr_dist_fade > 0.001) {
+            float ssr_hit;
+            vec3 ssr_col = screen_space_reflection(VERTEX, view_normal, PROJECTION_MATRIX, INV_PROJECTION_MATRIX, ssr_hit);
+            // Sin reflejo bajo espuma; funde a cielo en fallos y con la distancia.
+            float ssr_weight = ssr_hit * ssr_dist_fade * (1.0 - foam_level);
+            reflection_color = mix(sky_reflection, ssr_col, ssr_weight);
+        }
+    }
+
+    vec3 surface_color = mix(albedo, albedo2, fresnel_value);
+    vec3 final_albedo = mix(color, reflection_color, fresnel_value);
     final_albedo += surface_color * fresnel_value * 0.15;
     final_albedo = mix(final_albedo, color_deep.rgb, opacity_factor);
 
@@ -509,6 +574,20 @@ void fragment() {
     float sss_depth_mask = clamp(1.0 - adjusted_depth_blend, 0.0, 1.0);
     vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask * visibility;
     final_albedo += sss_contrib;
+
+    // Glint especular del sol (Blinn-Phong estrecho): lo que "chispea" en las crestas.
+    vec3 to_sun = sun_dir_norm;              // desde la superficie hacia el sol
+    vec3 to_cam = -view_dir_w;               // hacia la cámara
+    vec3 half_vec = normalize(to_sun + to_cam);
+    float ndh = max(dot(final_world_normal, half_vec), 0.0);
+    float spec_power = mix(4000.0, 16.0, roughness);   // crestas afiladas con poca rugosidad
+    float sun_glint = pow(ndh, spec_power);
+    float sun_up = smoothstep(-0.1, 0.15, dot(radial_normal, to_sun)); // apaga con sol bajo el horizonte
+    // En agua somera la superficie se aplana hacia la radial y el glint forma una franja
+    // continua exagerada en la orilla. Lo desvanecemos con la profundidad del agua.
+    float glint_shore_fade = smoothstep(0.0, glint_depth_fade, water_depth);
+    final_albedo += sun_color * sun_energy * sun_glint
+                  * sun_specular_intensity * sun_up * (1.0 - foam_level) * glint_shore_fade;
 
     // Espuma procedural Voronoi
     float foam_mask_primary = 0.0;
@@ -549,6 +628,11 @@ void fragment() {
     final_albedo = mix(final_albedo, foam_edge_color, foam_mask_shadow * foam_soften);
     final_albedo = mix(final_albedo, foam_color, foam_mask_primary * bubble_alpha * foam_soften);
     final_albedo = mix(final_albedo, foam_color, shore_contact);
+
+    // La espuma está mojada: capta el sol con un brillo más ancho que el glint de agua.
+    float foam_wet = max(foam_mask_primary * bubble_alpha * foam_soften, shore_contact);
+    float foam_glint = pow(max(dot(final_world_normal, half_vec), 0.0), 60.0);
+    final_albedo += sun_color * sun_energy * foam_glint * foam_wet * 0.3 * sun_up;
     // Screen blend: añade luz sin quemar los colores existentes (A + B - A*B)
     final_albedo = final_albedo + caustics_contrib - final_albedo * caustics_contrib;
 
@@ -567,5 +651,25 @@ void fragment() {
     ROUGHNESS = mix(roughness, 0.8, (foam_mask_primary * bubble_alpha) + foam_mask_shadow);
     SPECULAR = 0.5;
     METALLIC = metallic;
-	
+
+}
+
+// Iluminación custom: reemplaza el lighting por defecto del motor para el agua.
+// Sin esto, una luz puntual cercana y brillante (antorcha) revienta el especular
+// del agua casi-espejo (roughness ~0.05) a un óvalo blanco saturado.
+void light() {
+    float ndotl = max(dot(NORMAL, LIGHT), 0.0);
+
+    // Difuso suave del agua
+    DIFFUSE_LIGHT += ALBEDO * ndotl * ATTENUATION * LIGHT_COLOR * light_diffuse_strength;
+
+    // Especular con suelo de rugosidad (ensancha el brillo puntual) y tope duro
+    // para que ninguna luz individual pueda saturar a blanco.
+    vec3 half_dir = normalize(LIGHT + VIEW);
+    float ndh = max(dot(NORMAL, half_dir), 0.0);
+    float r = max(ROUGHNESS, light_roughness_floor);
+    float shininess = 2.0 / max(r * r, 1e-4) - 2.0;
+    float spec = pow(ndh, shininess) * ndotl;
+    spec = min(spec, light_specular_clamp);
+    SPECULAR_LIGHT += spec * ATTENUATION * LIGHT_COLOR * SPECULAR_AMOUNT;
 }

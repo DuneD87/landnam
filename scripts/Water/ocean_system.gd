@@ -15,6 +15,7 @@ class_name OceanSystem
 @export var max_steps: int = 32
 @export var step_size: float = 0.1
 @export var sun_dir: Vector3
+var _sun_light: DirectionalLight3D
 
 @export_group("Godray settings")
 @export var godray_intensity: float = 1.9:
@@ -190,12 +191,25 @@ func _process(_delta):
 	if mesh_manager && mesh_manager.default_material:
 		var mat = mesh_manager.default_material as ShaderMaterial
 		mat.set_shader_parameter("sun_direction", sun_dir)
-		
+		var sun_light := _get_sun_light()
+		if sun_light:
+			mat.set_shader_parameter("sun_color", sun_light.light_color)
+			mat.set_shader_parameter("sun_energy", sun_light.light_energy)
+
 	if underwater:
 		underwater.sun_direction = sun_dir
-		
+
 	if show_stats and stats_label:
 		_update_stats()
+
+# Resuelve (y cachea) el DirectionalLight3D del sol vía el grupo "sun_controller".
+func _get_sun_light() -> DirectionalLight3D:
+	if is_instance_valid(_sun_light):
+		return _sun_light
+	var controller := get_tree().get_first_node_in_group("sun_controller")
+	if controller and "sun_light" in controller:
+		_sun_light = controller.sun_light
+	return _sun_light
 
 func _update_stats():
 	var stats = mesh_manager.get_statistics()
