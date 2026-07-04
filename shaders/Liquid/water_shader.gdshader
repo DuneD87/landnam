@@ -101,6 +101,16 @@ uniform float foam_crest_amount    : hint_range(0.0, 10.0, 0.1) = 2.0;
 uniform float foam_crest_streak : hint_range(1.0, 20.0, 0.1) = 6.0;  // estiramiento de la espuma a lo largo del viaje de la ola
 uniform float foam_trail_speed  : hint_range(0.0, 2.0, 0.01) = 0.4;  // velocidad de arrastre de la estela
 uniform float foam_trail_bias   : hint_range(0.0, 1.0, 0.01) = 0.5;  // 0 = espuma simétrica en cresta, 1 = concentrada en cara trasera
+
+// Estela de espuma de las grids dinámicas (lo rellena FoamWakeManager por frame).
+// Cada estela = rango de puntos [wake_ranges] con culling por esfera envolvente [wake_bounds].
+const int MAX_WAKES = 8;
+const int MAX_WAKE_POINTS = 512;
+uniform int wake_count = 0;
+uniform vec4 wake_bounds[MAX_WAKES];    // xyz = centro, w = radio de la esfera envolvente
+uniform vec2 wake_ranges[MAX_WAKES];    // x = primer punto, y = nº de puntos
+uniform vec4 wake_points[MAX_WAKE_POINTS];  // xyz = posición world, w = radio del punto
+uniform float wake_alphas[MAX_WAKE_POINTS];
 uniform float voronoi_scale   : hint_range(0.0, 50.0) = 9.0;
 uniform float voronoi_strength : hint_range(0.0, 8.0) = 0.8;
 uniform float shore_soft_width : hint_range(0.01, 10.0, 0.01) = 1.5;
@@ -643,13 +653,30 @@ void fragment() {
         float trail_bias = mix(1.0, smoothstep(0.15, -0.15, dot(n_horiz, crest_travel)), foam_trail_bias);
         crest_foam = clamp(wave_crest_factor, 0.0, 1.0) * streak_mask * trail_bias;
     }
+
+    // Estela de espuma de los barcos: solo los píxeles dentro de la esfera envolvente
+    // de alguna estela recorren sus puntos.
+    float wake_foam = 0.0;
+    for (int w = 0; w < wake_count; w++) {
+        vec3 bd = world_pos - wake_bounds[w].xyz;
+        float br = wake_bounds[w].w;
+        if (dot(bd, bd) > br * br) { continue; }
+        int p_start = int(wake_ranges[w].x);
+        int p_end = p_start + int(wake_ranges[w].y);
+        for (int i = p_start; i < p_end; i++) {
+            vec4 p = wake_points[i];
+            float m = 1.0 - smoothstep(p.w * 0.55, p.w, distance(world_pos, p.xyz));
+            wake_foam = max(wake_foam, m * wake_alphas[i]);
+        }
+    }
     float crest_foam_vis = crest_foam * bubble_alpha;
 
     final_albedo = mix(final_albedo, foam_color, crest_foam_vis);
     final_albedo = mix(final_albedo, foam_color, shore_contact);
+    final_albedo = mix(final_albedo, foam_color, wake_foam);
 
     // La espuma está mojada: capta el sol con un brillo más ancho que el glint de agua.
-    float foam_wet = max(crest_foam_vis, shore_contact);
+    float foam_wet = max(crest_foam_vis, max(shore_contact, wake_foam));
     float foam_glint = pow(max(dot(final_world_normal, half_vec), 0.0), 60.0);
     final_albedo += sun_color * sun_energy * foam_glint * foam_wet * 0.3 * sun_up;
     // Screen blend: añade luz sin quemar los colores existentes (A + B - A*B)
@@ -661,13 +688,13 @@ void fragment() {
     float shore_alpha_fade = smoothstep(0.0, shore_soft_width, max(z_dif, 0.0));
     float base_alpha = mix(surface_alpha, deep_alpha, opacity_factor);
     float refraction_alpha = refraction_alpha_floor * (1.0 - opacity_factor);
-    float foam_opacity = max(crest_foam_vis, shore_contact);
+    float foam_opacity = max(crest_foam_vis, max(shore_contact, wake_foam));
     float final_alpha = max(max(base_alpha, refraction_alpha), foam_opacity);
     final_alpha *= shore_alpha_fade;
     final_alpha = mix(final_alpha, 1.0, edge_disable);
     ALPHA = clamp(final_alpha, 0.0, deep_alpha);
 
-    ROUGHNESS = mix(roughness, 0.8, clamp(crest_foam_vis, 0.0, 1.0));
+    ROUGHNESS = mix(roughness, 0.8, clamp(max(crest_foam_vis, wake_foam), 0.0, 1.0));
     SPECULAR = 0.5;
     METALLIC = metallic;
 }

@@ -19,9 +19,15 @@ const WATER_DENSITY := 1000.0
 const MIN_MASS := 10.0
 const MAX_WAVE_SAMPLES := 16
 
+const WAKE_SPACING := 3.0
+const WAKE_LIFETIME := 12.0
+const WAKE_MAX_POINTS := 64
+const WAKE_MIN_SPEED := 2.0
+
 var planet_node: Node3D = null
 
 var _water_sampler: WaterHeightSampler = null
+var _wake_points: Array = []
 
 var _grids: Array = []
 var _buoyancy_boxes: Array = []
@@ -102,6 +108,7 @@ func _ready() -> void:
 	collision_layer = 3
 	collision_mask = 1
 	add_to_group("floating_origin")
+	add_to_group("dynamic_grid_body")
 	_setup_water_sampler()
 
 func _setup_water_sampler() -> void:
@@ -250,6 +257,59 @@ func _physics_process(delta: float) -> void:
 		var radial_vel: float = linear_velocity.dot(up)
 		apply_central_force(-up * radial_vel * heave_drag * displaced_mass)
 		apply_torque(-angular_velocity * angular_drag * displaced_mass * _drag_length_sq)
+
+	_update_wake(submerged_volume, up, planet_pos, base_water_radius)
+
+
+## Emite y caduca los puntos de estela de espuma. Se guardan como offset desde el centro del
+## planeta (inmune al rebase del origen flotante); FoamWakeManager los recoge cada frame.
+func _update_wake(submerged_volume: float, up: Vector3, planet_pos: Vector3, base_water_radius: float) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	while not _wake_points.is_empty() and now - _wake_points[0]["birth"] > WAKE_LIFETIME:
+		_wake_points.pop_front()
+
+	if submerged_volume <= 0.0:
+		return
+	var horiz_vel := linear_velocity - up * linear_velocity.dot(up)
+	if horiz_vel.length() < WAKE_MIN_SPEED:
+		return
+
+	var surf_offset := (get_hull_center_world() - planet_pos).normalized() * base_water_radius
+	var spacing := maxf(WAKE_SPACING, horiz_vel.length() * WAKE_LIFETIME / float(WAKE_MAX_POINTS))
+	if not _wake_points.is_empty():
+		var last: Vector3 = _wake_points.back()["offset"]
+		if (surf_offset - last).length() < spacing:
+			return
+
+	var beam := 2.0
+	if _aggregate_box.has("half"):
+		var h: Vector3 = _aggregate_box["half"]
+		beam = clampf(minf(h.x, h.z), 1.5, 12.0)
+	beam = maxf(beam, spacing * 0.6)
+
+	_wake_points.append({"offset": surf_offset, "birth": now, "width": beam})
+	if _wake_points.size() > WAKE_MAX_POINTS:
+		_wake_points.pop_front()
+
+
+func get_wake_points() -> Array:
+	return _wake_points
+
+
+## Centro geométrico del casco en mundo (centro de la bounding box de las cajas de colisión).
+func get_hull_center_world() -> Vector3:
+	if _recalc_boxes:
+		_recalculate_buoyancy_boxes()
+	if _aggregate_box.has("pos"):
+		return global_transform * (_aggregate_box["pos"] as Vector3)
+	return global_position
+
+
+## Bounding box del casco en espacio local del body: {pos: centro, half: semiejes}.
+func get_hull_bounds() -> Dictionary:
+	if _recalc_boxes:
+		_recalculate_buoyancy_boxes()
+	return _aggregate_box
 
 
 func get_current_speed_level() -> int:

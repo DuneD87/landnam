@@ -103,6 +103,83 @@ func _ready() -> void:
 	add_to_group(GameManager.SAVEABLE_GROUP)
 
 
+const MAX_WAKES := 8
+const MAX_WAKE_POINTS := 512
+
+var _wake_materials_active: Array = []
+
+func _physics_process(_delta: float) -> void:
+	_update_wake_uniforms()
+
+## Copia los puntos de estela de todos los DynamicGridBody a los uniforms del agua de su planeta.
+func _update_wake_uniforms() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var per_mat: Dictionary = {}
+
+	for node in get_tree().get_nodes_in_group("dynamic_grid_body"):
+		var body := node as DynamicGridBody
+		if not body or not body.planet_node or body.get_wake_points().is_empty():
+			continue
+		if not body.planet_node.planet.has_water:
+			continue
+		var mat := body.planet_node.water_sphere.mesh_manager.default_material as ShaderMaterial
+		if not mat:
+			continue
+		if not per_mat.has(mat):
+			per_mat[mat] = []
+		per_mat[mat].append(body)
+
+	for mat in _wake_materials_active:
+		if is_instance_valid(mat) and not per_mat.has(mat):
+			mat.set_shader_parameter("wake_count", 0)
+	_wake_materials_active = per_mat.keys()
+
+	for mat: ShaderMaterial in per_mat:
+		var points := PackedVector4Array()
+		points.resize(MAX_WAKE_POINTS)
+		var alphas := PackedFloat32Array()
+		alphas.resize(MAX_WAKE_POINTS)
+		var bounds := PackedVector4Array()
+		bounds.resize(MAX_WAKES)
+		var ranges := PackedVector2Array()
+		ranges.resize(MAX_WAKES)
+
+		var wake_i := 0
+		var point_i := 0
+		for body: DynamicGridBody in per_mat[mat]:
+			if wake_i >= MAX_WAKES or point_i >= MAX_WAKE_POINTS:
+				break
+			var planet_pos: Vector3 = body.planet_node.global_pos
+			var start := point_i
+			var bmin := Vector3.INF
+			var bmax := -Vector3.INF
+
+			for p: Dictionary in body.get_wake_points():
+				if point_i >= MAX_WAKE_POINTS:
+					break
+				var age: float = clampf((now - p["birth"]) / DynamicGridBody.WAKE_LIFETIME, 0.0, 1.0)
+				var world: Vector3 = planet_pos + p["offset"]
+				var radius: float = p["width"] * (1.0 + age * 1.5)
+				points[point_i] = Vector4(world.x, world.y, world.z, radius)
+				alphas[point_i] = (1.0 - smoothstep(0.2, 1.0, age)) * 0.55
+				bmin = bmin.min(world - Vector3.ONE * radius)
+				bmax = bmax.max(world + Vector3.ONE * radius)
+				point_i += 1
+
+			if point_i == start:
+				continue
+			var center := (bmin + bmax) * 0.5
+			ranges[wake_i] = Vector2(start, point_i - start)
+			bounds[wake_i] = Vector4(center.x, center.y, center.z, (bmax - center).length())
+			wake_i += 1
+
+		mat.set_shader_parameter("wake_count", wake_i)
+		mat.set_shader_parameter("wake_bounds", bounds)
+		mat.set_shader_parameter("wake_ranges", ranges)
+		mat.set_shader_parameter("wake_points", points)
+		mat.set_shader_parameter("wake_alphas", alphas)
+
+
 ## Convierte una PlanetGrid estática (y sus alineadas) a dinámicas; devuelve las nuevas grids.
 func convert_to_dynamic(grid_id: String) -> Array:
 	var source: PlanetGrid = _grids.get(grid_id, null) as PlanetGrid
