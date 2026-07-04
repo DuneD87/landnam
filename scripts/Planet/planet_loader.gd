@@ -186,8 +186,8 @@ func _load_planet() -> void:
 		water_sphere = OceanSystem.new()
 		add_child(water_sphere)
 		water_sphere.subdivision_factor = 1.5
-		water_sphere.max_lod = 8
-		water_sphere.sub_divisions = 64
+		water_sphere.max_lod = 10
+		water_sphere.sub_divisions = 32
 		water_sphere.radius = planet.radius - planet_parser.water_level
 		water_sphere.player = players[0]
 		water_sphere.quadtree_material = load("res://data/resources/WaterSphere_material.tres")

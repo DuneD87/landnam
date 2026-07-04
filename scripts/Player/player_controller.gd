@@ -6,6 +6,7 @@ extends PlanetaryBody
 const PLATFORM_ATTACH_DIST := 1.5
 const PLATFORM_DETACH_DIST := 2.5
 const PLATFORM_MAX_TILT_DEG := 75.0
+const PLATFORM_DETACH_GRACE := 0.2
 
 const config = preload("res://scripts/config.gd")
 const data = preload("res://scripts/items/item_data.gd")
@@ -55,6 +56,7 @@ var _ray_hit: Dictionary = {}
 
 var _platform_body: DynamicGridBody = null
 var _platform_prev_xform: Transform3D
+var _platform_miss_time: float = 0.0
 
 var current_water_time: float = 0.0
 var water_sampler: WaterHeightSampler
@@ -873,23 +875,23 @@ func _detect_platform_raycast() -> DynamicGridBody:
 		return parent
 	return null
 
-func _update_platform_tracking() -> void:
+func _update_platform_tracking(delta: float) -> void:
 	var detected := _detect_platform_raycast()
-	
-	if detected and detected != _platform_body:
-		if _platform_body:
-			_platform_body._is_being_controlled = false
-		_platform_body = detected
-		_platform_body._is_being_controlled = true
-		_platform_prev_xform = _platform_body.global_transform
-	elif not detected and _platform_body:
+
+	if detected:
+		_platform_miss_time = 0.0
+		if detected != _platform_body:
+			if _platform_body:
+				_platform_body._is_being_controlled = false
+			_platform_body = detected
+			_platform_body._is_being_controlled = true
+			_platform_prev_xform = _platform_body.global_transform
+	elif _platform_body:
 		if not is_instance_valid(_platform_body):
 			_platform_body = null
 		else:
-			var body_up := _platform_body.global_transform.basis.y.normalized()
-			var height_above := (global_position - _platform_body.global_position).dot(body_up)
-			
-			if height_above > PLATFORM_DETACH_DIST or height_above < -0.5:
+			_platform_miss_time += delta
+			if _platform_miss_time > PLATFORM_DETACH_GRACE:
 				_platform_body._is_being_controlled = false
 				_platform_body = null
 				
@@ -956,7 +958,7 @@ func update_normal_movement(delta: float) -> void:
 
 	camera_controller.update_camera_rotation()
 	
-	if on_platform and not movement.is_jumping:
+	if on_platform and is_on_floor() and not movement.is_jumping:
 		var normal_comp := velocity.dot(up_direction)
 		if normal_comp < 0.0:
 			velocity -= up_direction * normal_comp
@@ -967,4 +969,4 @@ func update_normal_movement(delta: float) -> void:
 	if is_on_floor() and not movement.is_swimming:
 		step_up.try_step_up(delta, gravity_direction, pre_slide_velocity)
 
-	_update_platform_tracking()
+	_update_platform_tracking(delta)

@@ -232,13 +232,15 @@ func serialize() -> Dictionary:
 		if mat and mat.resource_path != "":
 			materials_data[mat_id] = mat.resource_path
 
-	var body_xform := _body.global_transform if (_body and is_instance_valid(_body)) else Transform3D.IDENTITY
+	var body_local := Transform3D.IDENTITY
+	if _body and is_instance_valid(_body):
+		body_local = planet_node.global_transform.affine_inverse() * _body.global_transform
 
 	return {
 		"type": "dynamic",
 		"planet_path": str(planet_node.get_path()),
 		"body_id": body_id,
-		"body_transform": _transform_to_array(body_xform),
+		"body_transform": _transform_to_array(body_local),
 		"cell_size": cell_size,
 		"blocks": blocks_data,
 		"materials": materials_data,
@@ -255,8 +257,8 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 		_body = shared_body
 		_owns_body = false
 	else:
-		var body_xform := _array_to_transform(data.get("body_transform", []))
-		_create_body(body_xform)
+		var body_local := _array_to_transform(data.get("body_transform", []))
+		_create_body(planet.global_transform * body_local)
 		body_id = data.get("body_id", grid_id)
 
 	var materials_data: Dictionary = data.get("materials", {})
@@ -291,7 +293,9 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 	_suppress_rebuild = false
 
 	_body.register_grid(self)
-	block_placed.connect(_body.on_block_placed)
-	block_removed.connect(_body.on_block_removed)
+	if not block_placed.is_connected(_body.on_block_placed):
+		block_placed.connect(_body.on_block_placed)
+	if not block_removed.is_connected(_body.on_block_removed):
+		block_removed.connect(_body.on_block_removed)
 	_update_mass()
 	rebuild_mesh()
