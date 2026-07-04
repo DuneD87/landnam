@@ -98,9 +98,8 @@ uniform float foam_noise_speed : hint_range(0.0, 2.0, 0.01) = 1.0;
 uniform float foam_crest_threshold : hint_range(0.0, 1.0, 0.01) = 0.7;
 uniform float foam_crest_softness  : hint_range(0.02, 0.8, 0.01) = 0.3; // ancho de la banda de cresta (dot). Bajo = línea dura
 uniform float foam_crest_amount    : hint_range(0.0, 10.0, 0.1) = 2.0;
-uniform float foam_crest_streak : hint_range(1.0, 20.0, 0.1) = 6.0;  // estiramiento de la espuma a lo largo del viaje de la ola
-uniform float foam_trail_speed  : hint_range(0.0, 2.0, 0.01) = 0.4;  // velocidad de arrastre de la estela
-uniform float foam_trail_bias   : hint_range(0.0, 1.0, 0.01) = 0.5;  // 0 = espuma simétrica en cresta, 1 = concentrada en cara trasera
+uniform float foam_noise_amount    : hint_range(0.0, 1.0, 0.01) = 0.2; // cuánto deforma el ruido el borde de la banda de cresta
+uniform float foam_noise_warp      : hint_range(0.0, 4.0, 0.01) = 1.5; // domain warp: riza el borde en vez de ondularlo
 
 // Estela de espuma de las grids dinámicas (lo rellena FoamWakeManager por frame).
 // Cada estela = rango de puntos [wake_ranges] con culling por esfera envolvente [wake_bounds].
@@ -111,8 +110,6 @@ uniform vec4 wake_bounds[MAX_WAKES];    // xyz = centro, w = radio de la esfera 
 uniform vec2 wake_ranges[MAX_WAKES];    // x = primer punto, y = nº de puntos
 uniform vec4 wake_points[MAX_WAKE_POINTS];  // xyz = posición world, w = radio del punto
 uniform float wake_alphas[MAX_WAKE_POINTS];
-uniform float voronoi_scale   : hint_range(0.0, 50.0) = 9.0;
-uniform float voronoi_strength : hint_range(0.0, 8.0) = 0.8;
 uniform float shore_soft_width : hint_range(0.01, 10.0, 0.01) = 1.5;
 
 // Caustics
@@ -192,18 +189,6 @@ vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal) {
 
     out_normal = normalize(radial * (1.0 - n_up_sub) - grad);
     return horiz + radial * vert;
-}
-
-// Dirección de viaje (tangente, world) de la ola principal en este punto: orienta la estela de espuma.
-vec3 primary_wave_dir(vec3 radial) {
-    vec3 pole = normalize(wave_pole);
-    vec3 gx = normalize(cross(pole, abs(pole.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0)));
-    vec3 gy = cross(pole, gx);
-    vec2 bd = (abs(wave_direction.x) + abs(wave_direction.y) < 1e-4) ? vec2(1.0, 0.0) : normalize(wave_direction);
-    vec3 dir_fixed = normalize(gx * bd.x + gy * bd.y);
-    vec3 t = dir_fixed - radial * dot(dir_fixed, radial);
-    float l = length(t);
-    return l > 1e-4 ? t / l : vec3(0.0);
 }
 
 vec3 calculate_sky_color(vec3 view_direction) {
@@ -315,34 +300,11 @@ float hash13(vec3 p) {
     return float(n) * (1.0 / 4294967295.0);
 }
 
-vec2 hash22(vec2 p) {
-    vec3 p3 = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973));
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.xx + p3.yz) * p3.zy);
-}
-
-// Distancia al punto Voronoi más cercano; animado para crear movimiento orgánico
-float voronoi_noise(vec2 uv) {
-    vec2 n = floor(uv);
-    vec2 f = fract(uv);
-    float m_dist = 1.0;
-    for (int j = -1; j <= 1; j++) {
-        for (int i = -1; i <= 1; i++) {
-            vec2 g = vec2(float(i), float(j));
-            vec2 o = hash22(n + g);
-            o = 0.5 + 0.5 * sin(TIME * foam_noise_speed + 6.2831 * o);
-            vec2 r = g - f + o;
-            float d = dot(r, r);
-            m_dist = min(m_dist, d);
-        }
-    }
-    return m_dist;
-}
-
 float noise3d(in vec3 p) {
     vec3 i = floor(p);
     vec3 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
+    // Fade quíntico (Perlin mejorado): derivada segunda continua, sin rejilla visible.
+    f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
     return mix(
         mix(
             mix(hash13(i + vec3(0.0, 0.0, 0.0)), hash13(i + vec3(1.0, 0.0, 0.0)), f.x),
@@ -352,20 +314,21 @@ float noise3d(in vec3 p) {
             mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
 }
 
-// fBm sobre Voronoi: acumula capas para crear cúmulos de espuma orgánicos
-float fbm_voronoi(vec2 uv) {
+// fBm de 3 octavas rotando el dominio entre capas para no acumular artefactos de eje.
+// Devuelve ~[0,1].
+float fbm3d(vec3 p) {
+    const mat3 rot = mat3(
+        vec3( 0.00,  0.80,  0.60),
+        vec3(-0.80,  0.36, -0.48),
+        vec3(-0.60, -0.48,  0.64));
     float v = 0.0;
     float a = 0.5;
-    vec2 shift = vec2(100.0);
-    mat2 rot = mat2(vec2(cos(0.5), sin(0.5)), vec2(-sin(0.5), cos(0.5)));
     for (int i = 0; i < 3; i++) {
-        float val = 1.0 - voronoi_noise(uv);
-        val = pow(val, 2.0);
-        v += a * val;
-        uv = rot * uv * 2.0 + shift;
+        v += a * noise3d(p);
+        p = rot * p * 2.03 + vec3(31.7);
         a *= 0.5;
     }
-    return v;
+    return v * (1.0 / 0.875);
 }
 
 // ---
@@ -440,19 +403,20 @@ void fragment() {
 
     // Detección de cresta: leemos la normal de la OLA (Gerstner), no la detallada, para que
     // la espuma siga las crestas reales y no reaccione al micro-ruido de las normales de textura.
-    // dot ≈ 1.0 = superficie plana, dot < threshold = cresta de ola.
+    // dot ≈ 1.0 = superficie plana, dot < threshold = cresta de ola. Igual que la espuma de
+    // orilla, es una banda suave, pero con el umbral deformado por ruido para romper la línea.
     float normal_alignment = dot(wave_world_normal, radial_normal);
-    // Banda ancha: la espuma entra en cuanto la ola se inclina y crece hacia la cresta.
-    float wave_crest_factor = smoothstep(foam_crest_threshold, foam_crest_threshold - foam_crest_softness, normal_alignment);
+    // fBm con domain warp: una primera pasada de ruido desplaza el dominio de la segunda,
+    // rizando el borde de la banda con filamentos orgánicos en lugar de manchas blandas.
+    vec3 foam_np = (world_pos - planet_center) * foam_noise_scale;
+    vec3 foam_drift = vec3(0.0, water_time * foam_noise_speed, 0.0);
+    float warp = fbm3d(foam_np * 0.45 + foam_drift * 1.6 + vec3(13.1));
+    float crest_noise = fbm3d(foam_np + foam_drift + (warp - 0.5) * foam_noise_warp * vec3(1.0, 0.35, 1.0));
+    float deformed_alignment = normal_alignment + (crest_noise - 0.5) * foam_noise_amount;
+    float wave_crest_factor = smoothstep(foam_crest_threshold, foam_crest_threshold - foam_crest_softness, deformed_alignment);
     wave_crest_factor = pow(wave_crest_factor, 1.5) * foam_crest_amount;
-    float foam_level = clamp(wave_crest_factor, 0.0, 1.0);
-
-    // Domain warp animado para movimiento de corriente
-    vec2 flow_uv = world_pos.xz * 0.5 + TIME * 0.05 * foam_noise_speed;
-    vec2 warp = vec2(
-        noise3d(vec3(flow_uv, 0.0)),
-        noise3d(vec3(flow_uv + vec2(5.2, 1.3), 0.0))
-    ) * 0.5;
+    float crest_foam = clamp(wave_crest_factor, 0.0, 1.0);
+    float foam_level = crest_foam;
 
     // Refracción — suprimida donde aparece espuma
     vec3 tangent_deviation = final_world_normal - radial_normal;
@@ -629,30 +593,8 @@ void fragment() {
     final_albedo += sun_color * sun_energy * sun_glint
                   * sun_specular_intensity * sun_up * (1.0 - foam_level) * glint_shore_fade;
 
-    // Burbujas internas: textura Voronoi adicional dentro de la espuma
-    float voronoi_val = 1.0 - sqrt(voronoi_noise(world_pos.xz * voronoi_scale + warp));
-    voronoi_val = smoothstep(0.2, 0.8, voronoi_val);
-    float bubble_alpha = 1.0 - clamp((1.0 - voronoi_val) * voronoi_strength, 0.0, 1.0);
-
     // Espuma suave de orilla: línea blanca difusa justo en el contacto agua-terreno (z_dif ≈ 0).
     float shore_contact = smoothstep(shore_soft_width, 0.0, max(z_dif, 0.0));
-
-    // Espuma de cresta con estela: nace en la cresta y se estira/arrastra en la dirección de la ola.
-    float crest_foam = 0.0;
-    vec3 crest_travel = primary_wave_dir(radial_normal);
-    if (wave_crest_factor > 0.001 && length(crest_travel) > 0.5) {
-        vec3 crest_side = normalize(cross(radial_normal, crest_travel));
-        float along  = dot(world_pos, crest_travel);
-        float across = dot(world_pos, crest_side);
-        float scroll = water_time * wave_speed * foam_trail_speed;
-        // UV estirada a lo largo del viaje (estela) y desplazada con la ola.
-        vec2 streak_uv = vec2(along / foam_crest_streak - scroll, across) * foam_noise_scale;
-        float streak_mask = smoothstep(0.4, 0.7, fbm_voronoi(streak_uv));
-        // Sesgo a la cara trasera: la estela queda detrás de la cresta.
-        vec3 n_horiz = wave_world_normal - radial_normal * dot(wave_world_normal, radial_normal);
-        float trail_bias = mix(1.0, smoothstep(0.15, -0.15, dot(n_horiz, crest_travel)), foam_trail_bias);
-        crest_foam = clamp(wave_crest_factor, 0.0, 1.0) * streak_mask * trail_bias;
-    }
 
     // Estela de espuma de los barcos: solo los píxeles dentro de la esfera envolvente
     // de alguna estela recorren sus puntos.
@@ -669,14 +611,12 @@ void fragment() {
             wake_foam = max(wake_foam, m * wake_alphas[i]);
         }
     }
-    float crest_foam_vis = crest_foam * bubble_alpha;
-
-    final_albedo = mix(final_albedo, foam_color, crest_foam_vis);
+    final_albedo = mix(final_albedo, foam_color, crest_foam);
     final_albedo = mix(final_albedo, foam_color, shore_contact);
     final_albedo = mix(final_albedo, foam_color, wake_foam);
 
     // La espuma está mojada: capta el sol con un brillo más ancho que el glint de agua.
-    float foam_wet = max(crest_foam_vis, max(shore_contact, wake_foam));
+    float foam_wet = max(crest_foam, max(shore_contact, wake_foam));
     float foam_glint = pow(max(dot(final_world_normal, half_vec), 0.0), 60.0);
     final_albedo += sun_color * sun_energy * foam_glint * foam_wet * 0.3 * sun_up;
     // Screen blend: añade luz sin quemar los colores existentes (A + B - A*B)
@@ -688,13 +628,13 @@ void fragment() {
     float shore_alpha_fade = smoothstep(0.0, shore_soft_width, max(z_dif, 0.0));
     float base_alpha = mix(surface_alpha, deep_alpha, opacity_factor);
     float refraction_alpha = refraction_alpha_floor * (1.0 - opacity_factor);
-    float foam_opacity = max(crest_foam_vis, max(shore_contact, wake_foam));
+    float foam_opacity = max(crest_foam, max(shore_contact, wake_foam));
     float final_alpha = max(max(base_alpha, refraction_alpha), foam_opacity);
     final_alpha *= shore_alpha_fade;
     final_alpha = mix(final_alpha, 1.0, edge_disable);
     ALPHA = clamp(final_alpha, 0.0, deep_alpha);
 
-    ROUGHNESS = mix(roughness, 0.8, clamp(max(crest_foam_vis, wake_foam), 0.0, 1.0));
+    ROUGHNESS = mix(roughness, 0.8, clamp(max(crest_foam, wake_foam), 0.0, 1.0));
     SPECULAR = 0.5;
     METALLIC = metallic;
 }
