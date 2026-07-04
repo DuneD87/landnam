@@ -12,6 +12,9 @@ const PARAM_VEC4_COUNT := 24
 @export var planet_center: Vector3 = Vector3.ZERO
 @export var planet_radius: float = 1000.0
 @export var atmosphere_radius: float = 1080.0
+## Radio de la esfera de agua (0 = sin océano). La atmósfera se corta en la superficie del
+## mar (que no está en el depth buffer) y se atenúa con la cámara sumergida.
+@export var water_radius: float = 0.0
 
 @export_group("Lighting")
 @export var sun_direction: Vector3 = Vector3(1.0, 0.25, 0.1).normalized()
@@ -119,13 +122,15 @@ func set_planet_data(
 	p_center: Vector3,
 	p_planet_radius: float,
 	p_atmosphere_radius: float,
-	p_sun_direction: Vector3
+	p_sun_direction: Vector3,
+	p_water_radius: float = 0.0
 ) -> void:
 	_params_mutex.lock()
 
 	planet_center = p_center
 	planet_radius = max(p_planet_radius, 0.001)
 	atmosphere_radius = max(p_atmosphere_radius, planet_radius + 0.001)
+	water_radius = max(p_water_radius, 0.0)
 
 	if p_sun_direction.length_squared() > 0.000001:
 		sun_direction = p_sun_direction.normalized()
@@ -391,6 +396,7 @@ func _build_params_bytes(
 	var local_planet_radius : float = max(planet_radius, 0.001)
 	var local_atmo_radius   : float = max(atmosphere_radius, local_planet_radius + 0.001)
 	var local_sun_dir       := sun_direction.normalized()
+	var local_water_radius  := water_radius
 	var local_wavelengths   := wavelengths
 	var local_density       := density_falloff
 	var local_scattering    := scattering_strength / 10000.0
@@ -466,8 +472,8 @@ func _build_params_bytes(
 	var rel_center := local_center - cam_origin
 	_append_vec4(floats, Vector4(rel_center.x, rel_center.y, rel_center.z, local_lightning_flash))
 
-	# 10: dirección del sol.
-	_append_vec4(floats, Vector4(local_sun_dir.x, local_sun_dir.y, local_sun_dir.z, 0.0))
+	# 10: dirección del sol (.xyz) + radio de la esfera de agua (.w, 0 = sin océano).
+	_append_vec4(floats, Vector4(local_sun_dir.x, local_sun_dir.y, local_sun_dir.z, local_water_radius))
 
 	# 11: wavelengths (nm) + enabled.
 	_append_vec4(floats, Vector4(

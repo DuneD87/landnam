@@ -12,7 +12,6 @@ uniform sampler2D texture_normal : hint_normal, repeat_enable, filter_linear_mip
 uniform sampler2D texture_normal2 : hint_normal, repeat_enable, filter_linear_mipmap;
 uniform sampler2D wave : repeat_enable, filter_linear_mipmap;
 
-uniform vec2 wave_direction = vec2(2.0, 0.0);
 uniform vec2 wave_direction2 = vec2(0.0, 1.0);
 uniform float time_scale : hint_range(0.0, 0.2, 0.001) = 0.0025;
 uniform float noise_scale = 8.0;
@@ -25,16 +24,13 @@ uniform float normal_scale3 : hint_range(0.1, 500.0) = 350.0;
 uniform float normal_intensity : hint_range(0.0, 200.0) = 7.0;
 uniform float wave_normal_sample_distance : hint_range(0.01, 100.0, 0.01) = 2.0;
 
-uniform float wave_speed = 1.5;
-uniform float wave_amplitude = 4.0;
 uniform float wave_frequency = 2.0;
 uniform float wave_world_scale : hint_range(1.0, 500.0) = 60.0; // metros por tile
 
-// Oleaje Gerstner (trocoidal): olas grandes con crestas afiladas.
-uniform float wave_base_length : hint_range(2.0, 500.0, 0.5) = 60.0; // longitud de onda de la ola principal (m)
-uniform float wave_steepness : hint_range(0.0, 1.0, 0.01) = 0.5;     // Q: 0 = senoidal suave, 1 = cresta pinchada
-uniform int wave_octaves : hint_range(1, 6) = 4;
-uniform vec3 wave_pole = vec3(0.0, 1.0, 0.0); // eje de referencia del marco de olas (las olas viajan en su plano ecuatorial)
+// Uniforms y suma de olas Gerstner compartidos con la niebla submarina.
+#include "res://shaders/liquid/gerstner_waves.gdshaderinc"
+// waterline_signed(): corte de línea de flotación compartido con underwater.gdshader.
+#include "res://shaders/liquid/underwater_fog.gdshaderinc"
 
 uniform vec4 color_deep : source_color = vec4(0.02, 0.14, 0.25, 1.0);
 uniform vec4 color_shallow : source_color = vec4(0.37, 0.72, 0.71, 1.0);
@@ -129,66 +125,11 @@ varying vec3 base_world_pos;
 varying float view_depth;
 varying vec3 world_normal_radial;
 varying vec3 world_gerstner_normal;
+varying vec3 waterline_point;
+varying vec3 waterline_normal;
 
 float fresnel(float amount, vec3 normal, vec3 view) {
     return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
-}
-
-const int WAVE_MAX = 6;
-
-// Suma de olas de Gerstner planetarias. La fase se deriva de la posición proyectada sobre
-// direcciones de viaje FIJAS en world-space (marco ecuatorial de wave_pole); así varía a lo
-// largo de la superficie (proyectar sobre el plano tangente local la anulaba: dot(radial,tan)=0).
-// Devuelve el desplazamiento world-space del vértice y, por out_normal, la normal analítica.
-vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal) {
-    vec3 pole = normalize(wave_pole);
-    vec3 gx = normalize(cross(pole, abs(pole.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0)));
-    vec3 gy = cross(pole, gx);
-
-    vec2 bd = (abs(wave_direction.x) + abs(wave_direction.y) < 1e-4)
-        ? vec2(1.0, 0.0) : normalize(wave_direction);
-
-    vec3 horiz = vec3(0.0);
-    float vert = 0.0;
-    vec3 grad = vec3(0.0);
-    float n_up_sub = 0.0;
-
-    float amp = wave_amplitude;
-    float len = wave_base_length;
-    float ang = 0.0;
-    int octaves = clamp(wave_octaves, 1, WAVE_MAX);
-
-    for (int i = 0; i < WAVE_MAX; i++) {
-        if (i >= octaves) break;
-        float k = 6.28318530718 / max(len, 0.1);
-        float ca = cos(ang);
-        float sa = sin(ang);
-        // Dirección de viaje fija en world (rotada por octava).
-        vec3 dir_fixed = normalize(gx * (bd.x * ca - bd.y * sa) + gy * (bd.x * sa + bd.y * ca));
-        // Proyección tangente en este punto: es el gradiente espacial de la fase.
-        vec3 dir_tan = dir_fixed - radial * dot(dir_fixed, radial);
-        float tan_len = length(dir_tan);
-        vec3 dir_unit = tan_len > 1e-4 ? dir_tan / tan_len : vec3(0.0);
-
-        // Steepness repartida entre octavas para no auto-intersecar las crestas.
-        float q = wave_steepness / max(k * amp * float(octaves), 1e-4);
-        float phase = k * dot(dir_fixed, local) + t * wave_speed * sqrt(k);
-        float c = cos(phase);
-        float s = sin(phase);
-
-        horiz += q * amp * dir_unit * c;
-        vert  += amp * s;
-
-        grad += dir_tan * (k * amp * c); // dir_tan (sin normalizar) codifica el estiramiento cerca del polo
-        n_up_sub += q * k * amp * s;
-
-        amp *= 0.5;
-        len *= 0.5;
-        ang += 2.399963; // ángulo áureo: dispersa las direcciones entre octavas
-    }
-
-    out_normal = normalize(radial * (1.0 - n_up_sub) - grad);
-    return horiz + radial * vert;
 }
 
 vec3 calculate_sky_color(vec3 view_direction) {
@@ -348,9 +289,30 @@ void vertex() {
 
     vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
     view_depth = -view_pos.z - 0.5;
+
+    // Plano local de la línea de flotación (idéntico al de underwater.gdshader): los píxeles
+    // que arrancan bajo el agua no se dibujan aquí — la vista sumergida la renderiza entera
+    // el quad de niebla contra la MISMA superficie Gerstner (este shader está pensado para
+    // verse desde arriba y desde abajo produce iluminación sin sentido).
+    vec3 cam_local = CAMERA_POSITION_WORLD - planet_center;
+    vec3 up_dir = normalize(cam_local);
+    float cam_surface_radius = water_radius + gerstner_surface_height(cam_local, water_time);
+    vec3 cam_surface_normal;
+    gerstner_surface(cam_local, up_dir, water_time, cam_surface_normal);
+    waterline_point = planet_center + up_dir * cam_surface_radius;
+    waterline_normal = normalize(cam_surface_normal);
 }
 
 void fragment() {
+    // Corte de línea de flotación por píxel: mismo test y argumentos que underwater.gdshader,
+    // así ambos particionan la pantalla píxel-exacto al cruzar la superficie.
+    vec4 wl_near_view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, 1.0, 1.0);
+    wl_near_view.xyz /= wl_near_view.w;
+    vec3 wl_p_near = (INV_VIEW_MATRIX * vec4(wl_near_view.xyz, 1.0)).xyz;
+    if (waterline_signed(wl_p_near, waterline_point, waterline_normal, SCREEN_UV.x, TIME) < 0.0) {
+        discard;
+    }
+
     float scene_depth_sample = texture(DEPTH_TEXTURE, SCREEN_UV).r;
     float frag_linear = linearize_depth(SCREEN_UV, FRAGCOORD.z, INV_PROJECTION_MATRIX);
     vec3 view_dir_w = normalize(world_pos - CAMERA_POSITION_WORLD);

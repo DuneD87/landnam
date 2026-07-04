@@ -1,448 +1,273 @@
 shader_type spatial;
-render_mode unshaded, depth_draw_always;
-uniform float u_sphere_radius = 5.0;
+render_mode unshaded;
+
+// Niebla submarina: quad a pantalla completa que compone la escena con absorción
+// Beer-Lambert por canal e in-scatter por tramos de profundidad. La frontera del agua es
+// la MISMA superficie Gerstner del water_shader (include compartido), de modo que la
+// niebla coincide exactamente con las olas, también al cruzar la superficie.
+
+#include "res://shaders/liquid/gerstner_waves.gdshaderinc"
+#include "res://shaders/liquid/underwater_fog.gdshaderinc"
+
+uniform vec3 planet_center;
+uniform float water_radius = 10000.0;
+uniform float water_time = 0.0;
 uniform vec3 sun_direction = vec3(1.0, 0.0, 0.0);
-uniform vec4 fog_color : source_color = vec4(0.7, 0.8, 0.9, 1.0);
-uniform vec4 deep_fog_color : source_color = vec4(0.1, 0.2, 0.3, 1.0);
-uniform vec4 abyss_fog_color : source_color = vec4(0.1, 0.1, 0.15, 1.0);
-uniform float fog_density : hint_range(0.0, 1.0) = 0.5;
-uniform float camera_depth_attenuation : hint_range(0.0, 2.0) = 0.5;
-uniform float max_useful_depth = 250.0;
-uniform float deep_transition_depth = 100.0;
-uniform float abyss_transition_depth = 250.0;
+
+// Mismos coeficientes que water_shader: el color buceando converge con el visto desde fuera.
+uniform vec3 absorption_coefficients = vec3(0.45, 0.18, 0.06);
+uniform float fog_density : hint_range(0.0, 4.0) = 1.0; // multiplicador artístico de la columna de agua
+uniform float sun_glow_intensity : hint_range(0.0, 2.0) = 0.35;
+uniform float sun_glow_power : hint_range(1.0, 32.0) = 8.0;
+uniform float tir_reflection_depth = 60.0; // el espejo TIR refleja el color de agua ~N m más profunda
+uniform float scatter_vertical_range = 40.0; // gradiente claro-arriba/oscuro-abajo del in-scatter (m equivalentes)
+uniform float distance_depth_gain : hint_range(0.0, 3.0) = 0.7; // m de tramo de profundidad añadidos por m de columna: oscurece la niebla con la distancia
+uniform float distance_depth_max = 120.0; // tope del empuje por distancia: el horizonte converge al tramo deep; a abyss solo se llega por profundidad de cámara
+uniform float meniscus_width = 0.012;   // grosor de la línea de flotación en metros sobre el near plane
+uniform float meniscus_strength = 0.3;  // brillo añadido en la línea de flotación
+
+// Godrays: haces volumétricos = extrusión de la textura de cáusticas a lo largo del sol
+// refractado. Raymarch corto con jitter, Beer-Lambert por canal en ambos trayectos.
+uniform float godray_intensity : hint_range(0.0, 8.0) = 3.0; // 0 = apagados (se salta el march)
+uniform int godray_samples : hint_range(4, 24) = 12;
+uniform float godray_max_distance = 40.0;      // distancia de march: más allá la niebla los lava igualmente
+uniform float godray_pattern_scale = 0.05;     // escala del patrón en la superficie (haces más anchos que las cáusticas)
+uniform float godray_pattern_speed = 0.005;
+uniform float godray_sharpness : hint_range(0.5, 8.0) = 2.5; // contraste de los haces
+uniform float godray_phase_power : hint_range(1.0, 32.0) = 6.0;
+uniform float godray_min_phase : hint_range(0.0, 1.0) = 0.15; // visibilidad mínima mirando lejos del sol
+
+// Cáusticas: misma textura y parámetros que water_shader (los copia Underwater.setup del
+// material del agua), para que el fondo se vea igual desde fuera y buceando.
+uniform sampler2D caustics_texture : filter_linear_mipmap, repeat_enable;
+uniform float caustics_scale : hint_range(0.1, 10.0, 0.1) = 2.0;
+uniform float caustics_speed : hint_range(0.0, 1.0, 0.01) = 0.1;
+uniform float caustics_intensity : hint_range(0.0, 2.0, 0.1) = 0.8;
+uniform float caustics_depth_fade : hint_range(0.0, 1.0, 0.01) = 0.7;
+uniform float caustics_near_fade : hint_range(0.0, 10.0, 0.1) = 1.5;
 
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear_mipmap;
+uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap;
 
-uniform float caustic_intensity : hint_range(0.0, 5.0) = 0.5;
-uniform float caustic_scale : hint_range(0.1, 10.0) = 0.2;
-uniform float caustic_speed : hint_range(0.0, 2.0) = 0.1;
-uniform float caustic_contrast : hint_range(0.1, 5.0) = 1.5;
-uniform float caustics_depth_factor : hint_range(0.1, 1.0) = 0.06;
-uniform int caustic_iterations : hint_range(3, 8) = 5;
-uniform float caustic_inten_factor : hint_range(0.001, 0.02) = 0.001;
-uniform float caustic_max_view_distance = 25.0;
+varying float v_cam_radius;
+varying float v_cam_surface_radius;
+varying vec3 v_waterline_point;
+varying vec3 v_waterline_normal;
 
-uniform float godray_intensity : hint_range(0.0, 5.0) = 1.9;
-uniform float godray_decay : hint_range(0.5, 1.0) = 0.88;
-uniform float godray_exposure : hint_range(0.0, 2.0) = 0.4;
-uniform int godray_samples : hint_range(10, 50) = 10;
-// Nuevos uniforms para controlar la atenuación de god rays
-uniform float godray_max_depth : hint_range(10.0, 100.0) = 35.0; // Profundidad máxima donde los god rays son visibles
-uniform float godray_fade_start : hint_range(5.0, 50.0) = 10.0; // Profundidad donde empiezan a desvanecerse
-uniform float godray_density : hint_range(0.0, 2.0) = 0.12;
-uniform float godray_surface_scale : hint_range(0.001, 1.0) = 0.1;
-uniform float godray_surface_speed : hint_range(0.0, 2.0) = 0.12;
-uniform float godray_surface_contrast : hint_range(0.5, 8.0) = 3.0;
-uniform float godray_light_absorption : hint_range(0.0, 1.0) = 0.08;
-uniform float godray_view_absorption : hint_range(0.0, 1.0) = 0.025;
-uniform float godray_forward_scatter_power : hint_range(0.5, 12.0) = 3.0;
-uniform float godray_min_phase : hint_range(0.0, 1.0) = 0.15;
-
-varying vec3 v_volume_center_viewspace;
-varying vec3 v_ray_origin;
-varying vec3 v_ray_dir;
-varying vec3 v_camera_world_pos;
-varying vec3 v_sphere_center_world;
-varying float v_camera_depth_actual;
-varying float v_camera_depth_factor;
-
-vec3 calculate_depth_fog_color(float depth_meters) {
-    if (depth_meters <= deep_transition_depth) {
-        float t = clamp(depth_meters / deep_transition_depth, 0.0, 1.0);
-        return mix(fog_color.rgb, deep_fog_color.rgb, t);
-    } else if (depth_meters <= abyss_transition_depth) {
-        float t = clamp((depth_meters - deep_transition_depth) / (abyss_transition_depth - deep_transition_depth), 0.0, 1.0);
-        return mix(deep_fog_color.rgb, abyss_fog_color.rgb, t);
-    } else {
-        return abyss_fog_color.rgb;
-    }
-}
-
-vec3 hash3(vec3 p) {
-    p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
-             dot(p, vec3(269.5, 183.3, 246.1)),
-             dot(p, vec3(113.5, 271.9, 124.6)));
-    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-}
-
-float worley3d_static(vec3 p, float scale) {
-    p *= scale;
-
-    vec3 ip = floor(p);
-    vec3 fp = fract(p);
-
-    float min_dist = 1.0;
-
-    for (int z = -1; z <= 1; z++) {
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-                vec3 neighbor = vec3(float(x), float(y), float(z));
-
-                vec3 point = hash3(ip + neighbor);
-                point = 0.5 + 0.5 * point;
-
-                vec3 diff = neighbor + point - fp;
-                float dist = length(diff);
-
-                min_dist = min(min_dist, dist);
-            }
-        }
-    }
-
-    return min_dist;
-}
-
-float worley3d(vec3 p, float scale) {
-    p *= scale;
-    vec3 ip = floor(p);
-    vec3 fp = fract(p);
-
-    float min_dist = 1.0;
-
-    for (int z = -1; z <= 1; z++) {
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-                vec3 neighbor = vec3(float(x), float(y), float(z));
-                vec3 point = hash3(ip + neighbor);
-                point = 0.5 + 0.5 * sin(TIME * 0.5 + 6.2831 * point);
-                vec3 diff = neighbor + point - fp;
-                float dist = length(diff);
-                min_dist = min(min_dist, dist);
-            }
-        }
-    }
-
-    return min_dist;
-}
-
-float generate_caustics(vec3 world_pos) {
-    vec3 sample_pos = world_pos * caustic_scale;
-    sample_pos.xz += TIME * caustic_speed * sun_direction.xy;
-    sample_pos += (v_camera_world_pos * 0.001);
-
-    float caustic = 0.0;
-    float amplitude = 1.0;
-    float total_amplitude = 0.0;
-    float frequency = 1.0;
-
-    for (int i = 0; i < 4; i++) {
-        caustic += amplitude * (1.0 - worley3d(sample_pos * frequency, 1.0));
-        total_amplitude += amplitude;
-        amplitude *= 0.5;
-        frequency *= 1.8;
-    }
-
-    caustic /= total_amplitude;
-    caustic = pow(caustic, caustic_contrast);
-
-    // Reset for previous sample
-    float caustic_prev = 0.0;
-    amplitude = 1.0;  // Reset
-    total_amplitude = 0.0;  // Reset
-    frequency = 1.0;  // Reset
-
-    vec3 sample_pos_prev = sample_pos;
-    sample_pos_prev.xz -= caustic_speed * sun_direction.xy * 0.1;
-
-    for (int i = 0; i < 4; i++) {
-        caustic_prev += amplitude * (1.0 - worley3d(sample_pos_prev * frequency, 1.0));
-        total_amplitude += amplitude;
-        amplitude *= 0.5;
-        frequency *= 1.8;
-    }
-
-    caustic_prev /= total_amplitude;
-    caustic_prev = pow(caustic_prev, caustic_contrast);
-    caustic = mix(caustic, caustic_prev, 0.3);
-
-    return caustic;
-}
-
-vec2 ray_sphere(vec3 center, float radius, vec3 ro, vec3 rd) {
+// Distancia de salida del rayo de la esfera de radio r; -1.0 si no hay intersección delante.
+float ray_sphere_exit(vec3 center, float r, vec3 ro, vec3 rd) {
     vec3 oc = ro - center;
     float b = dot(oc, rd);
-    float c = dot(oc, oc) - radius * radius;
-    float discriminant = b * b - c;
-
-    if (discriminant < 0.0) {
-        return vec2(-1.0, -1.0);
+    float c = dot(oc, oc) - r * r;
+    float disc = b * b - c;
+    if (disc <= 0.0) {
+        return -1.0;
     }
-
-    float sqrt_disc = sqrt(discriminant);
-    return vec2(-b - sqrt_disc, -b + sqrt_disc);
-}
-
-float caustic_x(float x, float power, float gtime) {
-    float p = mod(x * TAU, TAU) - 250.0;
-    float time = gtime * 0.5 + 23.0;
-
-    float i = p;
-    float c = 1.0;
-    float inten = 0.005;
-
-    for (int n = 0; n < 3; n++) {
-        float t = time * (1.0 - (3.5 / float(n + 1)));
-        i = p + cos(t - i) + sin(t + i);
-        c += 1.0 / length(p / (sin(i + t) / inten));
-    }
-
-    c /= float(caustic_iterations);
-    c = 1.17 - pow(c, power);
-
-    return c;
-}
-
-float god_rays(vec2 uv, float time) {
-    float light = 0.0;
-    light += pow(caustic_x((uv.x + 0.08 * uv.y) / 1.7 + 0.5, 1.8, time * 0.65), 10.0) * 0.05;
-    light -= pow((1.0 - uv.y) * 0.3, 2.0) * 0.2;
-    light += pow(caustic_x(sin(uv.x), 0.3, time * 0.7), 9.0) * 0.4;
-    light += pow(caustic_x(cos(uv.x * 2.3), 0.3, time * 1.3), 4.0) * 0.1;
-    light -= pow((1.0 - uv.y) * 0.3, 3.0);
-    light = clamp(light, 0.0, 100.0);
-
-    return light;
-}
-
-vec3 safe_perpendicular(vec3 n) {
-    vec3 a = abs(n.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
-    return normalize(cross(a, n));
-}
-
-float godray_surface_mask(vec3 surface_world_pos, vec3 light_dir_to_sun, float sun_facing) {
-    vec3 tangent = safe_perpendicular(light_dir_to_sun);
-    vec3 bitangent = normalize(cross(light_dir_to_sun, tangent));
-
-    vec3 rel = surface_world_pos - v_sphere_center_world;
-
-    vec2 suv = vec2(
-        dot(rel, tangent),
-        dot(rel, bitangent)
-    ) * godray_surface_scale;
-
-    // Patrón espacial estático.
-    vec3 p1 = vec3(suv, 0.0);
-    vec3 p2 = vec3(suv * 2.15 + vec2(13.7, 8.4), 4.2);
-
-    float n1 = 1.0 - worley3d_static(p1, 1.0);
-    float n2 = 1.0 - worley3d_static(p2, 1.0);
-
-    float mask = n1 * 0.75 + n2 * 0.25;
-
-    // Convertimos el ruido en manchas/ventanas de entrada de luz.
-    float focus = smoothstep(0.35, 0.98, sun_facing);
-    float window_threshold = mix(0.74, 0.46, focus);
-
-    mask = smoothstep(window_threshold, 0.95, mask);
-    mask = pow(mask, godray_surface_contrast);
-
-    // Flicker temporal: cambia la intensidad, no la posición.
-    float phase_seed = dot(rel, vec3(0.017, 0.031, 0.023));
-    float shimmer_time = TIME * godray_surface_speed;
-
-    float flicker_a = sin(shimmer_time * 0.45 + phase_seed * 3.1);
-    float flicker_b = sin(shimmer_time * 0.83 + phase_seed * 1.4);
-    float flicker_c = sin(shimmer_time * 1.21 + phase_seed * 0.7);
-
-    float flicker = flicker_a * 0.5 + flicker_b * 0.3 + flicker_c * 0.2;
-    flicker = 0.65 + 0.35 * flicker;
-
-    // Evita apagados demasiado bruscos.
-    flicker = clamp(flicker, 0.25, 1.0);
-
-    return mask * flicker * focus;
-}
-
-vec3 volumetric_water_god_rays(float t_start, float t_end, vec3 ray_dir_view, mat4 inv_view_matrix, vec2 screen_uv) {
-    vec3 light_dir_to_sun = normalize(sun_direction);
-
-    vec3 ray_dir_world = normalize(
-        (inv_view_matrix * vec4(ray_dir_view, 0.0)).xyz
-    );
-
-    float ray_length = t_end - t_start;
-
-    if (ray_length <= 0.0) {
-        return vec3(0.0);
-    }
-
-    float step_len = ray_length / float(godray_samples);
-
-    float jitter = fract(
-        sin(dot(screen_uv, vec2(12.9898, 78.233))) * 43758.5453
-    );
-
-    float forward_phase = pow(
-        max(dot(ray_dir_world, light_dir_to_sun), 0.0),
-        godray_forward_scatter_power
-    );
-
-    float phase = mix(godray_min_phase, 1.0, forward_phase);
-
-    vec3 accumulated = vec3(0.0);
-
-    for (int i = 0; i < 50; i++) {
-        if (i >= godray_samples) {
-            break;
-        }
-
-        float t = t_start + (float(i) + jitter) * step_len;
-
-        vec3 sample_view = ray_dir_view * t;
-        vec4 sample_world_4 = inv_view_matrix * vec4(sample_view, 1.0);
-        vec3 sample_world = sample_world_4.xyz / sample_world_4.w;
-
-        vec3 center_to_sample = sample_world - v_sphere_center_world;
-        float radial_dist = length(center_to_sample);
-        float radial_depth = u_sphere_radius - radial_dist;
-
-        if (radial_depth > 0.0) {
-            vec2 sun_exit = ray_sphere(
-                v_sphere_center_world,
-                u_sphere_radius,
-                sample_world,
-                light_dir_to_sun
-            );
-
-            float light_path = max(sun_exit.y, 0.0);
-
-            vec3 entry_world = sample_world + light_dir_to_sun * light_path;
-            vec3 entry_normal = normalize(entry_world - v_sphere_center_world);
-
-            float sun_facing_raw = max(dot(entry_normal, light_dir_to_sun), 0.0);
-            float sun_facing = smoothstep(0.35, 0.95, sun_facing_raw);
-			sun_facing = pow(sun_facing, 4.0);
-
-            float surface_depth_fade =
-                1.0 - smoothstep(godray_fade_start, godray_max_depth, radial_depth);
-
-            float light_path_fade = exp(-light_path * godray_light_absorption);
-            float view_fade = exp(-(t - t_start) * godray_view_absorption);
-            float sample_progress = float(i) / max(float(godray_samples - 1), 1.0);
-            float sample_decay = pow(godray_decay, sample_progress * 12.0);
-
-            float mask = godray_surface_mask(entry_world, light_dir_to_sun, sun_facing_raw);
-
-            float density =
-                mask *
-                sun_facing *
-                surface_depth_fade *
-                light_path_fade *
-                view_fade *
-                sample_decay;
-
-            accumulated += vec3(density) * step_len * godray_density;
-        }
-    }
-
-    return accumulated * godray_intensity * godray_exposure * phase;
-}
-
-// Nueva función para calcular la atenuación de god rays basada en profundidad
-float calculate_godray_depth_attenuation(float depth_meters) {
-    if (depth_meters <= godray_fade_start) {
-        // Totalmente visible hasta godray_fade_start metros
-        return 1.0;
-    } else if (depth_meters >= godray_max_depth) {
-        // Totalmente invisible después de godray_max_depth metros
-        return 0.0;
-    } else {
-        // Atenuación gradual entre godray_fade_start y godray_max_depth
-        float fade_range = godray_max_depth - godray_fade_start;
-        float fade_progress = (depth_meters - godray_fade_start) / fade_range;
-        // Usar smoothstep para una transición más suave
-        return 1.0 - smoothstep(0.0, 1.0, fade_progress);
-    }
+    return -b + sqrt(disc);
 }
 
 void vertex() {
     POSITION = vec4(VERTEX.xy, 1.0, 1.0);
 
-    vec4 world_center = MODEL_MATRIX * vec4(0, 0, 0, 1);
-    v_volume_center_viewspace = (VIEW_MATRIX * world_center).xyz;
-    v_sphere_center_world = world_center.xyz / world_center.w;
+    // La altura de superficie sobre la cámara es constante para todo el quad: se evalúa aquí.
+    vec3 cam_local = CAMERA_POSITION_WORLD - planet_center;
+    v_cam_radius = length(cam_local);
+    v_cam_surface_radius = water_radius + gerstner_surface_height(cam_local, water_time);
 
-    v_ray_origin = vec3(0.0, 0.0, 0.0);
-
-    vec4 vertex_viewspace = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
-    v_ray_dir = normalize(vertex_viewspace.xyz);
-
-    vec4 camera_world = INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0);
-    v_camera_world_pos = camera_world.xyz / camera_world.w;
-
-    float camera_dist_to_center = length(v_camera_world_pos - v_sphere_center_world);
-    float camera_depth_in_sphere = max(0.0, u_sphere_radius - camera_dist_to_center);
-
-    v_camera_depth_actual = camera_depth_in_sphere;
-    v_camera_depth_factor = clamp(camera_depth_in_sphere / max_useful_depth, 0.0, 1.0);
+    // Plano local de la línea de flotación: punto de superficie sobre la cámara + normal
+    // Gerstner analítica. El corte en pantalla lo decide cada píxel contra este plano.
+    vec3 up_dir = normalize(cam_local);
+    vec3 surface_normal;
+    gerstner_surface(cam_local, up_dir, water_time, surface_normal);
+    v_waterline_point = planet_center + up_dir * v_cam_surface_radius;
+    v_waterline_normal = normalize(surface_normal);
 }
 
 void fragment() {
-	if (length(CAMERA_POSITION_WORLD - v_sphere_center_world) > u_sphere_radius)
-	{
-		discard;
-	}
-    float nonlinear_depth = texture(depth_texture, SCREEN_UV).x;
-
-    vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, nonlinear_depth);
+    // Reconstrucción del punto de escena y del rayo en world-space.
+    float depth_raw = texture(depth_texture, SCREEN_UV).x;
+    vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, depth_raw);
     vec4 view_coords = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
     view_coords.xyz /= view_coords.w;
     float scene_distance = length(view_coords.xyz);
 
-    vec3 ray_dir = normalize(view_coords.xyz);
+    vec3 ro = CAMERA_POSITION_WORLD;
+    vec3 rd = normalize((INV_VIEW_MATRIX * vec4(normalize(view_coords.xyz), 0.0)).xyz);
 
-    vec2 t_range = ray_sphere(v_volume_center_viewspace, u_sphere_radius, v_ray_origin, ray_dir);
+    // Punto del near plane de este píxel (ndc z = 1 con reverse-z): el corte en pantalla lo
+    // dicta la superficie real de las olas, píxel a píxel, no un flip de pantalla completa.
+    vec4 near_view = INV_PROJECTION_MATRIX * vec4(ndc.xy, 1.0, 1.0);
+    near_view.xyz /= near_view.w;
+    vec3 p_near = (INV_VIEW_MATRIX * vec4(near_view.xyz, 1.0)).xyz;
 
-    float t_start = max(t_range.x, 0.0);
-    float hit_distance = min(t_range.y, scene_distance);
-    float t_end = hit_distance;
-
-    if (t_end <= t_start) {
-        discard;
+    float waterline = waterline_signed(p_near, v_waterline_point, v_waterline_normal, SCREEN_UV.x, TIME);
+    if (waterline >= 0.0) {
+        discard; // este píxel arranca fuera del agua: lo pinta la superficie/escena normal
     }
 
-    float distance_in_fog = t_end - t_start;
-    float fog_amount = 1.0 - exp(-fog_density * distance_in_fog);
+    // Franja radial que contiene toda la superficie posible: R ± amplitud total de las octavas.
+    float band = wave_amplitude * 2.0 + 0.5;
+    float t_lo = ray_sphere_exit(planet_center, water_radius - band, ro, rd);
+    float t_hi = ray_sphere_exit(planet_center, water_radius + band, ro, rd);
+    float lo = max(t_lo, 0.0);
+    float hi = max(t_hi, lo + 0.001);
 
-    // Reconstruct view-space pos at hit_distance, then to world
-    vec3 hit_view_pos = ray_dir * mix(t_start, t_end, 0.9);
-    vec3 hit_view_pos_real = ray_dir * hit_distance;
-    vec4 world_pos_from_view = INV_VIEW_MATRIX * vec4(hit_view_pos, 1.0);
-    vec3 world_pos = world_pos_from_view.xyz / world_pos_from_view.w;
-	vec3 direction_to_center = world_pos - v_sphere_center_world;
-	float distance_to_pos = length(world_pos - CAMERA_POSITION_WORLD);
-	float caustic_fade_distance = smoothstep(0.0, 1.0, caustic_max_view_distance / distance_to_pos);
-    vec3 camera_adjusted_fog = calculate_depth_fog_color(v_camera_depth_actual);
-    float camera_attenuation = exp(-v_camera_depth_factor * camera_depth_attenuation);
-
-    float caustic_effect = 0.0;
-    float dist_to_center = length(direction_to_center);
-    float depth_in_sphere = u_sphere_radius - dist_to_center;
-    vec3 normal = normalize(direction_to_center);
-    float light_influence = max(0.0, dot(normal, normalize(sun_direction)));
-    light_influence = pow(light_influence, 2.0);
-    float caustic_attenuation = exp(-depth_in_sphere * caustics_depth_factor);
-
-    if (dist_to_center <= u_sphere_radius) {
-        caustic_effect = generate_caustics(world_pos) * caustic_intensity * light_influence * caustic_fade_distance;
-        caustic_effect *= caustic_attenuation;
+    // Salida por la superficie: bisección de r(t) - (R + h_gerstner) dentro de la franja.
+    // El bracket es válido siempre (f(lo) < 0 dentro del agua, f(hi) > 0 fuera) y es estable
+    // también en rayos rasantes, donde un punto fijo sobre esferas diverge.
+    float t_exit;
+    if (scene_distance <= lo) {
+        t_exit = scene_distance; // la escena corta antes de cualquier superficie posible
+    } else {
+        for (int i = 0; i < 8; i++) {
+            float mid = 0.5 * (lo + hi);
+            vec3 p_local = ro + rd * mid - planet_center;
+            float f = length(p_local) - (water_radius + gerstner_surface_height(p_local, water_time));
+            if (f < 0.0) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        t_exit = 0.5 * (lo + hi);
     }
 
-    vec3 final_color = camera_adjusted_fog;
-    if (caustic_effect > 0.0) {
-        vec3 caustic_color = mix(vec3(1.0), camera_adjusted_fog, 0.3);
-        final_color += caustic_color * caustic_effect * 0.8 * camera_attenuation;
+    float water_column = min(t_exit, scene_distance) * fog_density;
+
+    // L = escena * T + scatter * (1 - T), con transmitancia Beer-Lambert por canal RGB.
+    vec3 transmission = exp(-absorption_coefficients * water_column);
+    float cam_depth = v_cam_surface_radius - v_cam_radius;
+
+    // La luz llega de arriba: el scatter mirando hacia la superficie es el de aguas menos
+    // profundas (más claro) y mirando al fondo el de aguas más profundas (más oscuro).
+    // Además se oscurece con la distancia: cuanta más columna de agua acumula el rayo, más
+    // profundo es el tramo al que converge la niebla (el horizonte sumergido cae a deep/abyss).
+    vec3 up = normalize(ro - planet_center);
+    float up_amount = dot(rd, up) * 0.5 + 0.5;
+    float scatter_depth = cam_depth
+        + mix(scatter_vertical_range, -scatter_vertical_range * 0.5, up_amount)
+        + min(water_column * distance_depth_gain, distance_depth_max);
+    vec3 scatter_color = depth_tier_color(max(scatter_depth, 0.0));
+
+    // In-scatter direccional barato: halo hacia el sol. Ojo al convenio: sun_controller
+    // propaga sun_dir apuntando HACIA el sol (posición de la luz normalizada), al contrario
+    // que el water_shader, que lo niega. Fallback si aún no ha llegado (frame inicial = 0).
+    vec3 to_sun = dot(sun_direction, sun_direction) > 1e-6
+        ? normalize(sun_direction)
+        : vec3(0.37, 0.65, 0.66);
+    float sun_glow = pow(max(dot(rd, to_sun), 0.0), sun_glow_power);
+    vec3 lit_scatter = scatter_color * (1.0 + sun_glow * sun_glow_intensity);
+
+    vec3 screen = textureLod(screen_texture, SCREEN_UV, 0.0).rgb;
+
+    // Normal del fondo por derivadas, FUERA de la rama (dFdx no está definido en control de
+    // flujo no uniforme) y con guardia contra normalize(0) en los bordes de profundidad.
+    vec3 scene_world = ro + rd * scene_distance;
+    vec3 bg_dx = dFdx(scene_world);
+    vec3 bg_dy = dFdy(scene_world);
+    vec3 bg_cross = cross(bg_dy, bg_dx);
+    float bg_cross_len = length(bg_cross);
+
+    // Cáusticas sobre la escena sumergida: réplica del triplanar de water_shader. Se añaden
+    // al color de escena antes de la niebla, así la transmisión las apaga con la distancia.
+    if (scene_distance <= t_exit) {
+        vec3 scene_local = scene_world - planet_center;
+        float scene_depth = max(
+            water_radius + gerstner_surface_height(scene_local, water_time) - length(scene_local),
+            0.0
+        );
+        vec3 bg_normal = bg_cross_len > 1e-6 ? bg_cross / bg_cross_len : normalize(scene_local);
+
+        vec3 tri_weights = abs(bg_normal);
+        tri_weights = pow(tri_weights, vec3(4.0));
+        tri_weights /= (tri_weights.x + tri_weights.y + tri_weights.z + 1e-5);
+
+        vec3 cp = scene_world * caustics_scale;
+        vec2 scroll1 = vec2(TIME * caustics_speed, 0.0);
+        vec2 scroll2 = vec2(0.0, -TIME * caustics_speed * 0.8);
+
+        float c_xz = texture(caustics_texture, cp.xz + scroll1).r
+                   * texture(caustics_texture, cp.xz * 0.7 + scroll2).r;
+        float c_xy = texture(caustics_texture, cp.xy + scroll1).r
+                   * texture(caustics_texture, cp.xy * 0.7 + scroll2).r;
+        float c_yz = texture(caustics_texture, cp.yz + scroll1).r
+                   * texture(caustics_texture, cp.yz * 0.7 + scroll2).r;
+
+        float caustics_value = c_xz * tri_weights.y
+                             + c_xy * tri_weights.z
+                             + c_yz * tri_weights.x;
+
+        float caustics_fade = smoothstep(0.0, caustics_near_fade, scene_depth)
+                            * (1.0 - clamp(scene_depth * caustics_depth_fade, 0.0, 1.0));
+        float caustics_contrib = caustics_value * caustics_intensity * caustics_fade;
+
+        // Screen blend, como en water_shader: añade luz sin quemar el color existente.
+        screen = screen + caustics_contrib - screen * caustics_contrib;
     }
 
-    vec3 godrays = volumetric_water_god_rays(t_start, t_end, ray_dir, INV_VIEW_MATRIX, SCREEN_UV);
+    // Reflexión interna total: más allá del ángulo crítico (n = 1.333, cos ≈ 0.661) la cara
+    // inferior de la superficie es un espejo del agua profunda, no una ventana al cielo.
+    // El fundido ancho evita un borde duro en el anillo de Snell.
+    if (t_exit < scene_distance) {
+        vec3 exit_local = ro + rd * t_exit - planet_center;
+        vec3 surf_normal;
+        gerstner_surface(exit_local, normalize(exit_local), water_time, surf_normal);
+        float cos_incidence = dot(rd, normalize(surf_normal));
+        float tir = 1.0 - smoothstep(0.55, 0.72, cos_incidence);
+        vec3 tir_color = depth_tier_color(cam_depth + tir_reflection_depth);
+        screen = mix(screen, tir_color, tir);
+    }
 
-	vec3 godray_color = mix(vec3(1.0), fog_color.rgb, 0.35);
+    ALBEDO = screen * transmission + lit_scatter * (1.0 - transmission);
 
-	final_color += godrays * godray_color * camera_attenuation;
+    // Godrays: en cada muestra del segmento de agua se proyecta hasta la superficie siguiendo
+    // el sol REFRACTADO (Snell: los haces se inclinan hacia la vertical) y se muestrea el
+    // patrón de cáusticas en un marco tangente estable ⊥ sol. La atenuación por canal de los
+    // trayectos sol→muestra y muestra→cámara les da el tinte y el apagado con la profundidad.
+    float sun_up_amount = dot(up, to_sun);
+    float day = smoothstep(0.02, 0.25, sun_up_amount);
+    if (godray_intensity > 0.001 && day > 0.001) {
+        vec3 refr = refract(-to_sun, up, 0.7501875); // eta = 1 / 1.333
+        vec3 sun_w = length(refr) > 1e-4 ? -normalize(refr) : to_sun;
 
-    ALBEDO = final_color;
-    ALPHA = fog_amount * fog_color.a;
+        vec3 gr_tan = normalize(cross(abs(sun_w.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0), sun_w));
+        vec3 gr_bitan = cross(sun_w, gr_tan);
 
-    EMISSION = final_color * fog_amount * 0.3 +
-               vec3(caustic_effect * 0.4 * camera_attenuation);
+        float march_end = min(min(t_exit, scene_distance), godray_max_distance);
+        float step_len = march_end / float(godray_samples);
+        float jitter = fract(sin(dot(SCREEN_UV, vec2(12.9898, 78.233))) * 43758.5453);
+
+        vec3 accum = vec3(0.0);
+        for (int i = 0; i < 24; i++) {
+            if (i >= godray_samples) {
+                break;
+            }
+            float t = (float(i) + jitter) * step_len;
+            vec3 sample_pos = ro + rd * t;
+            float light_path = ray_sphere_exit(planet_center, water_radius, sample_pos, sun_w);
+            if (light_path < 0.0) {
+                continue;
+            }
+            vec3 entry_local = sample_pos + sun_w * light_path - planet_center;
+            vec2 suv = vec2(dot(entry_local, gr_tan), dot(entry_local, gr_bitan)) * godray_pattern_scale;
+            float m1 = texture(caustics_texture, suv + TIME * godray_pattern_speed).r;
+            float m2 = texture(caustics_texture, suv * 0.53 - TIME * godray_pattern_speed * 0.7).r;
+            // ×2.5 compensa la energía del producto de dos capas (media ≈ 0.25) antes del pow.
+            float shaft_mask = pow(clamp(m1 * m2 * 2.5, 0.0, 1.0), godray_sharpness);
+
+            vec3 light_atten = exp(-absorption_coefficients * light_path);
+            vec3 view_atten = exp(-absorption_coefficients * t);
+            accum += shaft_mask * light_atten * view_atten;
+        }
+        accum /= float(godray_samples);
+
+        float phase = mix(godray_min_phase, 1.0, pow(max(dot(rd, sun_w), 0.0), godray_phase_power));
+        ALBEDO += accum * godray_intensity * phase * day;
+    }
+
+    // Menisco: línea brillante fina justo bajo la línea de flotación.
+    float meniscus = 1.0 - smoothstep(0.0, meniscus_width, -waterline);
+    ALBEDO += fog_color.rgb * meniscus * meniscus_strength;
+
+    ALPHA = 1.0;
 }

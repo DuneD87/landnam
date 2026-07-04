@@ -2,7 +2,7 @@
 extends Node
 
 ## Carga un planeta desde su JSON (vía PlanetParser), lo instancia con su terreno, agua, clima y
-## spawners de NPC, y expone el guardado/carga y los ajustes de godrays y anti-tiling.
+## spawners de NPC, y expone el guardado/carga y los ajustes de anti-tiling.
 
 enum Action { NONE, SELECT_CONFIG }
 
@@ -20,44 +20,45 @@ enum Action { NONE, SELECT_CONFIG }
 @export var entity_id: String = ""
 var save_category: String = "planet"
 
-@export_group("Underwater Godray Settings")
-@export var godray_intensity: float = 1.9
-@export var godray_decay: float = 0.88
-@export var godray_exposure: float = 0.4
-@export var godray_samples: int = 10
-@export var godray_max_depth: float = 35.0
-@export var godray_fade_start: float = 10.0
-@export var godray_density: float = 0.12
-@export var godray_surface_scale: float = 0.1
-@export var godray_surface_speed: float = 0.12
-@export var godray_surface_contrast: float = 3.0
-@export var godray_light_absorption: float = 0.08
-@export var godray_view_absorption: float = 0.025
-@export var godray_forward_scatter_power: float = 3.0
+@export_group("Underwater Fog")
+@export var fog_density: float = 1.0
+@export var fog_color: Color = Color("00526e")
+@export var deep_fog_color: Color = Color(0.1, 0.2, 0.3, 1.0)
+@export var abyss_fog_color: Color = Color(0.1, 0.1, 0.15, 1.0)
+@export var deep_transition_depth: float = 100.0
+@export var abyss_transition_depth: float = 250.0
+@export var distance_depth_gain: float = 0.7
+@export var distance_depth_max: float = 120.0
+@export var sun_glow_intensity: float = 0.35
+@export var sun_glow_power: float = 8.0
+
+@export_group("Underwater Godrays")
+@export var godray_intensity: float = 3.0
+@export var godray_samples: int = 12
+@export var godray_max_distance: float = 40.0
+@export var godray_pattern_scale: float = 0.01
+@export var godray_pattern_speed: float = 0.01
+@export var godray_sharpness: float = 2.5
+@export var godray_phase_power: float = 6.0
 @export var godray_min_phase: float = 0.15
+
+# Mismos nombres que los exports de Underwater: se copian tal cual cada frame.
+# (absorption_coefficients queda fuera a propósito: se hereda del .tres del agua
+# para que el color buceando converja con el visto desde fuera.)
+const _UNDERWATER_PARAMS: Array[StringName] = [
+	&"fog_density", &"fog_color", &"deep_fog_color", &"abyss_fog_color",
+	&"deep_transition_depth", &"abyss_transition_depth",
+	&"distance_depth_gain", &"distance_depth_max",
+	&"sun_glow_intensity", &"sun_glow_power",
+	&"godray_intensity", &"godray_samples", &"godray_max_distance",
+	&"godray_pattern_scale", &"godray_pattern_speed", &"godray_sharpness",
+	&"godray_phase_power", &"godray_min_phase",
+]
 
 var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
 var weather_controller: WeatherController
 var _pending_weather_data: Dictionary = {}
-
-func _apply_godray_settings_to_water_sphere() -> void:
-	if not water_sphere:
-		return
-	water_sphere.godray_intensity = godray_intensity
-	water_sphere.godray_decay = godray_decay
-	water_sphere.godray_exposure = godray_exposure
-	water_sphere.godray_samples = godray_samples
-	water_sphere.godray_max_depth = godray_max_depth
-	water_sphere.godray_fade_start = godray_fade_start
-	water_sphere.godray_density = godray_density
-	water_sphere.godray_surface_scale = godray_surface_scale
-	water_sphere.godray_surface_speed = godray_surface_speed
-	water_sphere.godray_surface_contrast = godray_surface_contrast
-	water_sphere.godray_light_absorption = godray_light_absorption
-	water_sphere.godray_view_absorption = godray_view_absorption
-	water_sphere.godray_forward_scatter_power = godray_forward_scatter_power
-	water_sphere.godray_min_phase = godray_min_phase
 
 func get_gravity_direction(_global_position: Vector3) -> Vector3:
 	var gravity_center = voxel_terrain.global_position
@@ -195,8 +196,6 @@ func _load_planet() -> void:
 		water_shader.set_shader_parameter("planet_center", voxel_terrain.global_position)
 		print(voxel_terrain.global_position)
 		water_sphere.wireframe_material = load("res://data/resources/WaterSphere_wireframe_material.tres")
-		_apply_godray_settings_to_water_sphere()
-		
 		water_sphere.load_watersphere(planet)
 
 	if not Engine.is_editor_hint():
@@ -376,5 +375,13 @@ func _process(_delta: float) -> void:
 		planet._update_planet()
 		if planet.has_water:
 			water_sphere.sun_dir = sun_dir
-			_apply_godray_settings_to_water_sphere()
+			_apply_underwater_settings()
 	pass
+
+## Copia los exports de niebla/godrays al nodo Underwater; este los reaplica al material,
+## así cualquier cambio en el inspector se ve en el mismo frame.
+func _apply_underwater_settings() -> void:
+	if water_sphere == null or water_sphere.underwater == null:
+		return
+	for param in _UNDERWATER_PARAMS:
+		water_sphere.underwater.set(param, get(param))

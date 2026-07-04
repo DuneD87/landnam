@@ -63,4 +63,14 @@ func _update_effect() -> void:
 		sun_dir = -sun_dir
 
 	var atmosphere_radius: float = planet_radius + max(atmosphere_height, 0.001)
-	effect.set_planet_data(center, planet_radius, atmosphere_radius, sun_dir)
+	effect.set_planet_data(center, planet_radius, atmosphere_radius, sun_dir, _get_water_radius())
+
+
+## Radio del océano del planeta (0 si no tiene agua); lo expone el PlanetLoader vecino.
+func _get_water_radius() -> float:
+	if planet_node == null:
+		return 0.0
+	var ocean: Variant = planet_node.get("water_sphere")
+	if ocean == null or not is_instance_valid(ocean):
+		return 0.0
+	return ocean.radius

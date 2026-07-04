@@ -20,7 +20,7 @@ func create_water_sphere(radius):
 	sphere_mesh.rings = 64
 	
 	var water_material = ShaderMaterial.new()
-	water_material.shader = preload("res://shaders/Liquid/water.gdshader")
+	water_material.shader = preload("res://shaders/liquid/water.gdshader")
 	
 	water_material.set_shader_parameter("wave_height", 2.0)
 	water_material.set_shader_parameter("wave_speed", 0.5)

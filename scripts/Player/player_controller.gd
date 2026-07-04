@@ -759,7 +759,6 @@ func _check_needs_swimming(delta: float):
 	var base_water_radius: float = planet.planet.radius - planet.planet.water_radius
 	var water_surface_radius := base_water_radius + wave_height
 	_water_surface_radius = water_surface_radius
-	planet.water_sphere.underwater._water_surface_radius = _water_surface_radius
 	var mat = planet.water_sphere.mesh_manager.default_material as ShaderMaterial
 	mat.set_shader_parameter("water_time", current_water_time)
 	_water_surface_center = planet.global_position

@@ -1,144 +1,111 @@
 extends Node3D
 class_name Underwater
 
-## Efecto volumétrico bajo el agua: un quad a pantalla completa con shader de niebla, absorción,
-## dispersión y godrays; los @export propagan sus valores al material en caliente.
+## Niebla submarina: quad a pantalla completa cuya frontera es la misma superficie Gerstner
+## del agua (include compartido con water_shader). Cada frame copia del material del agua los
+## parámetros de ola que weather y player mutan en caliente, y reaplica sus propios ajustes
+## de niebla/godrays para poder afinarlos en vivo desde el inspector remoto.
 
-@export var sphere_radius: float = 100000
-@export var volume_height := 10.0
-@export var sun_direction: Vector3
-@export var planet_poisition: Vector3
 @export_group("Fog Settings")
-@export var fog_density: float = 1.8
+@export var fog_density: float = 1.0
 @export var fog_color: Color = Color(0.7, 0.8, 0.9, 1.0)
-@export var absorption: float = 0.2
-@export var scattering: float = 0.4
-@export var noise_scale: float = 2.0
-@export var noise_speed: float = 0.1
-@export var edge_softness: float = 0.3
-@export var emission_strength: float = 2.0
-@export var sun_dir: Vector3
+@export var deep_fog_color: Color = Color(0.1, 0.2, 0.3, 1.0)
+@export var abyss_fog_color: Color = Color(0.1, 0.1, 0.15, 1.0)
+@export var deep_transition_depth: float = 100.0
+@export var abyss_transition_depth: float = 250.0
+@export var absorption_coefficients: Vector3 = Vector3(0.45, 0.18, 0.06)
+@export var distance_depth_gain: float = 0.7
+@export var distance_depth_max: float = 120.0
+@export var sun_glow_intensity: float = 0.35
+@export var sun_glow_power: float = 8.0
 
 @export_group("Godray Settings")
-@export var godray_intensity: float = 1.9:
-	set(value):
-		godray_intensity = value
-		_set_shader_parameter(&"godray_intensity", value)
-@export var godray_decay: float = 0.88:
-	set(value):
-		godray_decay = value
-		_set_shader_parameter(&"godray_decay", value)
-@export var godray_exposure: float = 0.4:
-	set(value):
-		godray_exposure = value
-		_set_shader_parameter(&"godray_exposure", value)
-@export var godray_samples: int = 10:
-	set(value):
-		godray_samples = value
-		_set_shader_parameter(&"godray_samples", value)
-@export var godray_max_depth: float = 35.0:
-	set(value):
-		godray_max_depth = value
-		_set_shader_parameter(&"godray_max_depth", value)
-@export var godray_fade_start: float = 10.0:
-	set(value):
-		godray_fade_start = value
-		_set_shader_parameter(&"godray_fade_start", value)
-@export var godray_density: float = 0.12:
-	set(value):
-		godray_density = value
-		_set_shader_parameter(&"godray_density", value)
-@export var godray_surface_scale: float = 0.1:
-	set(value):
-		godray_surface_scale = value
-		_set_shader_parameter(&"godray_surface_scale", value)
-@export var godray_surface_speed: float = 0.12:
-	set(value):
-		godray_surface_speed = value
-		_set_shader_parameter(&"godray_surface_speed", value)
-@export var godray_surface_contrast: float = 3.0:
-	set(value):
-		godray_surface_contrast = value
-		_set_shader_parameter(&"godray_surface_contrast", value)
-@export var godray_light_absorption: float = 0.08:
-	set(value):
-		godray_light_absorption = value
-		_set_shader_parameter(&"godray_light_absorption", value)
-@export var godray_view_absorption: float = 0.025:
-	set(value):
-		godray_view_absorption = value
-		_set_shader_parameter(&"godray_view_absorption", value)
-@export var godray_forward_scatter_power: float = 3.0:
-	set(value):
-		godray_forward_scatter_power = value
-		_set_shader_parameter(&"godray_forward_scatter_power", value)
-@export var godray_min_phase: float = 0.15:
-	set(value):
-		godray_min_phase = value
-		_set_shader_parameter(&"godray_min_phase", value)
+@export var godray_intensity: float = 3.0
+@export var godray_samples: int = 12
+@export var godray_max_distance: float = 40.0
+@export var godray_pattern_scale: float = 0.01
+@export var godray_pattern_speed: float = 0.01
+@export var godray_sharpness: float = 2.5
+@export var godray_phase_power: float = 6.0
+@export var godray_min_phase: float = 0.15
 
-@export_group("Raymarch Settings")
-@export var max_steps: int = 64
-@export var step_size: float = 0.1
-@export var material : ShaderMaterial
+var sun_direction: Vector3
+var material: ShaderMaterial
+var water_material: ShaderMaterial
 var _mesh_instance: MeshInstance3D
-var _water_surface_radius: float
 
-func _set_shader_parameter(parameter_name: StringName, value: Variant) -> void:
-	if material:
-		material.set_shader_parameter(parameter_name, value)
+# Uniforms del material del agua que definen la superficie y se replican cada frame.
+const _SYNCED_WATER_PARAMS: Array[StringName] = [
+	&"wave_direction", &"wave_speed", &"wave_amplitude", &"wave_base_length",
+	&"wave_steepness", &"wave_octaves", &"wave_pole",
+	&"water_time", &"planet_center", &"water_radius",
+]
 
-func _apply_godray_shader_parameters() -> void:
-	_set_shader_parameter(&"godray_intensity", godray_intensity)
-	_set_shader_parameter(&"godray_decay", godray_decay)
-	_set_shader_parameter(&"godray_exposure", godray_exposure)
-	_set_shader_parameter(&"godray_samples", godray_samples)
-	_set_shader_parameter(&"godray_max_depth", godray_max_depth)
-	_set_shader_parameter(&"godray_fade_start", godray_fade_start)
-	_set_shader_parameter(&"godray_density", godray_density)
-	_set_shader_parameter(&"godray_surface_scale", godray_surface_scale)
-	_set_shader_parameter(&"godray_surface_speed", godray_surface_speed)
-	_set_shader_parameter(&"godray_surface_contrast", godray_surface_contrast)
-	_set_shader_parameter(&"godray_light_absorption", godray_light_absorption)
-	_set_shader_parameter(&"godray_view_absorption", godray_view_absorption)
-	_set_shader_parameter(&"godray_forward_scatter_power", godray_forward_scatter_power)
-	_set_shader_parameter(&"godray_min_phase", godray_min_phase)
+# Parámetros de cáusticas espejados del water_shader una sola vez en el setup (no los muta el weather).
+const _CAUSTICS_PARAMS: Array[StringName] = [
+	&"caustics_texture", &"caustics_scale", &"caustics_speed",
+	&"caustics_intensity", &"caustics_depth_fade", &"caustics_near_fade",
+]
 
-func setup_underwater() -> void:
+func setup_underwater(source_water_material: ShaderMaterial, water_radius: float) -> void:
+	water_material = source_water_material
 	material = ShaderMaterial.new()
-	material.shader = preload("res://shaders/Liquid/underwater.gdshader")
-	material.render_priority = 0
-	
-	_mesh_instance = MeshInstance3D.new()
-	_mesh_instance.material_override = material
-	_mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_mesh_instance)
-	
-	var quad_mesh = QuadMesh.new()
+	material.shader = preload("res://shaders/liquid/underwater.gdshader")
+	# La niebla se dibuja antes que la superficie del agua para que esta se vea desde abajo.
+	material.render_priority = -1
+
+	var quad_mesh := QuadMesh.new()
 	quad_mesh.orientation = PlaneMesh.FACE_Z
 	quad_mesh.size = Vector2(2.0, 2.0)
 	quad_mesh.flip_faces = true
 
-	_mesh_instance.extra_cull_margin = max(sphere_radius, volume_height)
+	_mesh_instance = MeshInstance3D.new()
+	_mesh_instance.material_override = material
+	_mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# extra_cull_margin se clampa a 16384: con radios de agua mayores el quad se llegaba a
+	# cullear. Un AABB custom enorme garantiza que el quad de pantalla completa nunca se corte.
+	_mesh_instance.custom_aabb = AABB(Vector3(-1, -1, -1) * water_radius * 2.0, Vector3(2, 2, 2) * water_radius * 2.0)
 	_mesh_instance.mesh = quad_mesh
-	_mesh_instance.transform = Transform3D()
+	add_child(_mesh_instance)
 
-	material.set_shader_parameter(&"fog_density", fog_density)
+	# La absorción manda la del material del agua (puede venir ajustada en el .tres).
+	var water_absorption: Variant = water_material.get_shader_parameter(&"absorption_coefficients")
+	if water_absorption != null:
+		absorption_coefficients = water_absorption
+
+	for param in _CAUSTICS_PARAMS:
+		var value: Variant = water_material.get_shader_parameter(param)
+		if value != null:
+			material.set_shader_parameter(param, value)
+
+	_apply_settings()
+
+## Empuja los exports de niebla y godrays al material; se llama cada frame para tuning en vivo.
+func _apply_settings() -> void:
 	material.set_shader_parameter(&"fog_color", fog_color)
-	material.set_shader_parameter(&"absorption", absorption)
-	material.set_shader_parameter(&"scattering", scattering)
-	material.set_shader_parameter(&"noise_scale", noise_scale)
-	material.set_shader_parameter(&"noise_speed", noise_speed)
-	material.set_shader_parameter(&"edge_softness", edge_softness)
-	material.set_shader_parameter(&"emission_strength", emission_strength)
-	material.set_shader_parameter(&"max_steps", max_steps)
-	material.set_shader_parameter(&"step_size", step_size)
-	material.set_shader_parameter(&"u_sphere_radius", sphere_radius + 0.5)
-	material.set_shader_parameter(&"u_volume_height", volume_height)
-	material.set_shader_parameter(&"sun_direction", sun_direction)
-	material.set_shader_parameter("planet_position", global_position)
-	_apply_godray_shader_parameters()
+	material.set_shader_parameter(&"deep_fog_color", deep_fog_color)
+	material.set_shader_parameter(&"abyss_fog_color", abyss_fog_color)
+	material.set_shader_parameter(&"deep_transition_depth", deep_transition_depth)
+	material.set_shader_parameter(&"abyss_transition_depth", abyss_transition_depth)
+	material.set_shader_parameter(&"absorption_coefficients", absorption_coefficients)
+	material.set_shader_parameter(&"fog_density", fog_density)
+	material.set_shader_parameter(&"distance_depth_gain", distance_depth_gain)
+	material.set_shader_parameter(&"distance_depth_max", distance_depth_max)
+	material.set_shader_parameter(&"sun_glow_intensity", sun_glow_intensity)
+	material.set_shader_parameter(&"sun_glow_power", sun_glow_power)
+	material.set_shader_parameter(&"godray_intensity", godray_intensity)
+	material.set_shader_parameter(&"godray_samples", godray_samples)
+	material.set_shader_parameter(&"godray_max_distance", godray_max_distance)
+	material.set_shader_parameter(&"godray_pattern_scale", godray_pattern_scale)
+	material.set_shader_parameter(&"godray_pattern_speed", godray_pattern_speed)
+	material.set_shader_parameter(&"godray_sharpness", godray_sharpness)
+	material.set_shader_parameter(&"godray_phase_power", godray_phase_power)
+	material.set_shader_parameter(&"godray_min_phase", godray_min_phase)
 
-func _process(delta: float) -> void:
-	material.set_shader_parameter("sun_direction", sun_direction)
-	material.set_shader_parameter(&"u_sphere_radius", _water_surface_radius + 0.1)
+func _process(_delta: float) -> void:
+	if material == null or water_material == null:
+		return
+	for param in _SYNCED_WATER_PARAMS:
+		material.set_shader_parameter(param, water_material.get_shader_parameter(param))
+	material.set_shader_parameter(&"sun_direction", sun_direction)
+	_apply_settings()
