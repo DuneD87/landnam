@@ -305,10 +305,10 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 		_can_place = false
 		return
 
-	var hit_grid_pos: Vector3i = hit_collider.get_meta("grid_pos")
+	var hit_grid_pos: Vector3i = _resolve_grid_pos(hit_collider as Node3D, hit_grid, hit_pos, hit_normal)
 	var hit_cell := hit_grid.cell_size
 	var target_cell := cell_size
-	var hit_rot_basis: Basis = hit_collider.get_meta("rotation_basis")
+	var hit_rot_basis: Basis = hit_collider.get_meta("rotation_basis") if hit_collider.has_meta("rotation_basis") else Basis.IDENTITY
 
 	var block_basis: Basis
 	if hit_grid is DynamicPlanetGrid:
@@ -464,9 +464,9 @@ func try_place_block() -> bool:
 		"mirrored": false,
 		"mirror_axis": -1
 	}
-	var block := grid.place_block(_target_grid_pos, block_data, current_rotation_basis, place_transform, mat_id, m_data)
+	var placed := grid.place_block(_target_grid_pos, block_data, current_rotation_basis, place_transform, mat_id, m_data)
 
-	if not block:
+	if not placed:
 		push_error("[BuildingSystem] Failed to place block.")
 		return false
 
@@ -500,7 +500,7 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 	if not grid:
 		return false
 
-	var grid_pos: Vector3i = resolved.get_meta("grid_pos")
+	var grid_pos := _resolve_grid_pos(resolved, grid, ray_hit["position"], ray_hit["normal"])
 
 	if not grid.has_block(grid_pos):
 		return false
@@ -555,6 +555,49 @@ func convert_aimed_grid(ray_hit: Dictionary) -> void:
 
 	GridManager.convert_to_dynamic(grid_id)
 
+## Caso de prueba extremo: genera una estructura de 8000 bloques (20x20x20) frente al jugador
+## y la convierte a grid dinámica, imprimiendo el tiempo de cada fase.
+func debug_spawn_stress_grid() -> void:
+	var planet := current_planet
+	if not planet or not _player:
+		return
+
+	var block_data := BlockDatabase.get_block(BlockDatabase.BLOCK_CUBE_ID)
+	if not block_data:
+		return
+
+	var basis_world := get_player_basis()
+	var origin_world: Vector3 = _player.global_position - basis_world.z * 30.0 + basis_world.y * 6.0
+	var grid := GridManager.create_grid(planet, origin_world, basis_world, 1.0)
+	current_material_index = 1
+	var mat := get_current_material()
+	var mat_id := mat.material_id if mat else ""
+	if mat and mat.surface_material and not grid.mesh_materials.has(mat_id):
+		grid.mesh_materials[mat_id] = mat.surface_material
+
+	var grid_basis := grid.get_basis_world()
+	var base_cell := grid.world_to_grid(origin_world)
+
+	var t0 := Time.get_ticks_msec()
+	grid.begin_bulk_edit()
+	for x in range(-10, 10):
+		for y in range(20):
+			for z in range(-10, 10):
+				var grid_pos := base_cell + Vector3i(x, y, z)
+				var xform := Transform3D(grid_basis, grid.grid_to_world(grid_pos))
+				grid.place_block(grid_pos, block_data, Basis.IDENTITY, xform, mat_id)
+	var t1 := Time.get_ticks_msec()
+	grid.end_bulk_edit()
+	var t2 := Time.get_ticks_msec()
+
+	var block_count := grid.get_block_count()
+	GridManager.convert_to_dynamic(grid.grid_id)
+	var t3 := Time.get_ticks_msec()
+
+	print("[StressTest] %d bloques | nodos+colocación: %d ms | mesh: %d ms | conversión a dinámica: %d ms" % [
+		block_count, t1 - t0, t2 - t1, t3 - t2])
+
+
 ## Activa/desactiva la simetría; al activarla fija el centro en el bloque apuntado.
 func toggle_symmetry(ray_hit: Dictionary) -> void:
 	if _mirror_active:
@@ -570,7 +613,7 @@ func toggle_symmetry(ray_hit: Dictionary) -> void:
 			return
 
 		var resolved := _get_hit_shape_node(ray_hit)
-		if not resolved or not resolved.has_meta("grid_pos"):
+		if not resolved or not resolved.has_meta("grid_id"):
 			print("[Mirror] Aim at a placed block")
 			return
 
@@ -578,7 +621,7 @@ func toggle_symmetry(ray_hit: Dictionary) -> void:
 		if not grid:
 			return
 
-		var grid_pos: Vector3i = resolved.get_meta("grid_pos")
+		var grid_pos := _resolve_grid_pos(resolved, grid, ray_hit["position"], ray_hit["normal"])
 		var block_cell := grid.cell_size
 		var half := Vector3.ONE * block_cell * 0.5
 
@@ -737,12 +780,13 @@ func _can_afford_double(block_data: BlockData) -> bool:
 	var cost := mat.get_cost_for_size(cell_size) * count
 	return _inventory.get_item_count(mat.item) >= cost
 
-## Resuelve grid_pos desde un collider. Para estático lee meta, para dinámico calcula desde hit.
+## Resuelve grid_pos desde un collider: meta si el nodo es por-bloque (rampas/esquinas),
+## o sondeo geométrico hacia el interior del bloque (cajas de cubos fusionadas).
 func _resolve_grid_pos(hit_collider: Node3D, grid: GridBase, hit_pos: Vector3, hit_normal: Vector3) -> Vector3i:
 	if hit_collider.has_meta("grid_pos"):
 		return hit_collider.get_meta("grid_pos")
 	var probe := hit_pos - hit_normal * (grid.cell_size * 0.1)
-	return grid.world_to_grid(probe)
+	return grid.world_to_cell(probe)
 
 
 ## Para DynamicGridBody, obtiene el CollisionShape3D impactado usando el shape index.

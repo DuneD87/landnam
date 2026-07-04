@@ -193,8 +193,10 @@ func _migrate_blocks_to_dynamic(dyn: DynamicPlanetGrid, static_grid: PlanetGrid,
 			continue
 
 		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
-		var col := dyn._make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
-		body.add_child(col)
+		var col: Node3D = null
+		if not ChunkMeshBuilder._is_solid(block_data.block_id):
+			col = dyn._make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
+			body.add_child(col)
 
 		dyn._blocks[grid_pos] = {
 			"block_id": info["block_id"],
@@ -267,7 +269,7 @@ func remove_grid(grid_id: String) -> bool:
 	if not _grids.has(grid_id):
 		return false
 
-	var grid: PlanetGrid = _grids[grid_id]
+	var grid: GridBase = _grids[grid_id]
 	grid.clear()
 
 	if _planet_grids.has(grid.planet_node):

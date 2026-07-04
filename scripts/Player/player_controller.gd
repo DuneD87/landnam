@@ -615,6 +615,8 @@ func _input(event):
 				capture_mouse(false)
 			else:
 				capture_mouse(true)
+		elif event.is_action_pressed("debug_stress_test"):
+			building_system.debug_spawn_stress_grid()
  
 	if free_flight_enabled:
 		player_model.visible = false

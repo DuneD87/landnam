@@ -41,8 +41,10 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 			continue
 
 		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
-		var col := _make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
-		_body.add_child(col)
+		var col: Node3D = null
+		if not ChunkMeshBuilder._is_solid(block_data.block_id):
+			col = _make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
+			_body.add_child(col)
 
 		_blocks[grid_pos] = {
 			"block_id": info["block_id"],
@@ -84,8 +86,10 @@ func setup_from_static(id: String, planet: Node3D, static_grid: PlanetGrid) -> v
 			continue
 
 		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
-		var wrapper := _make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
-		_body.add_child(wrapper)
+		var wrapper: Node3D = null
+		if not ChunkMeshBuilder._is_solid(block_data.block_id):
+			wrapper = _make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
+			_body.add_child(wrapper)
 
 		_blocks[grid_pos] = {
 			"block_id": info["block_id"],
@@ -141,12 +145,19 @@ func _get_mesh_parent() -> Node3D:
 	return _body
 
 
+func _get_collision_parent() -> Node3D:
+	return _body
+
+
 func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, world_transform: Transform3D) -> Node3D:
 	var local_xform := _body.global_transform.affine_inverse() * world_transform
 	var wrapper := _make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
 	_body.add_child(wrapper)
-	_update_mass()
 	return wrapper
+
+
+func _on_block_placed_hook(_grid_pos: Vector3i) -> void:
+	_update_mass()
 
 
 func _on_block_removed_hook(_info: Dictionary) -> void:
@@ -197,10 +208,14 @@ func serialize() -> Dictionary:
 		var node: Node3D = info["node"]
 		var rot_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
 
-		var t := node.transform if (node and is_instance_valid(node)) else Transform3D.IDENTITY
-		var c := Vector3.ONE * cell_size * 0.5
-		var col_offset := rot_basis.inverse() * c
-		var block_local := Transform3D(t.basis, t.origin - t.basis * col_offset)
+		var block_local: Transform3D
+		if node and is_instance_valid(node):
+			var t := node.transform
+			var c := Vector3.ONE * cell_size * 0.5
+			var col_offset := rot_basis.inverse() * c
+			block_local = Transform3D(t.basis, t.origin - t.basis * col_offset)
+		else:
+			block_local = Transform3D(rot_basis, Vector3(grid_pos) * cell_size)
 
 		blocks_data[key] = {
 			"block_id": info["block_id"],

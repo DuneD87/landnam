@@ -1,11 +1,14 @@
 class_name PlanetGrid
 extends GridBase
 
-## Grid estática de construcción anclada a un planeta.
-## Los bloques se representan como StaticBody3D hijos del planeta.
+## Grid estática de construcción anclada a un planeta. Los cubos macizos colisionan mediante
+## cajas fusionadas en un StaticBody3D único de la grid; los bloques con forma propia
+## (rampas, esquinas) mantienen su StaticBody3D individual hijo del planeta.
 
 var origin_local: Vector3 = Vector3.ZERO
 var basis_local: Basis = Basis.IDENTITY
+
+var _collision_body: StaticBody3D = null
 
 
 func setup(id: String, planet: Node3D, origin_world: Vector3, basis_world: Basis, size: float = 1.0) -> void:
@@ -43,6 +46,25 @@ func _get_mesh_parent() -> Node3D:
 	return planet_node
 
 
+func _get_collision_parent() -> Node3D:
+	if _collision_body and is_instance_valid(_collision_body):
+		return _collision_body
+
+	_collision_body = StaticBody3D.new()
+	_collision_body.name = "GridBody_%s" % grid_id
+	_collision_body.transform = Transform3D(basis_local, origin_local)
+	_collision_body.set_meta("grid_id", grid_id)
+	planet_node.add_child(_collision_body)
+	return _collision_body
+
+
+func clear() -> void:
+	super.clear()
+	if _collision_body and is_instance_valid(_collision_body):
+		_collision_body.queue_free()
+		_collision_body = null
+
+
 func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, world_transform: Transform3D) -> Node3D:
 	var body := StaticBody3D.new()
 	body.name = "Block_%s_%s" % [grid_id, grid_pos]
@@ -77,7 +99,14 @@ func serialize() -> Dictionary:
 		var info: Dictionary = _blocks[grid_pos]
 		var key := "%d,%d,%d" % [grid_pos.x, grid_pos.y, grid_pos.z]
 		var node: Node3D = info["node"]
-		var t := node.transform if (node and is_instance_valid(node)) else Transform3D.IDENTITY
+
+		var t: Transform3D
+		if node and is_instance_valid(node):
+			t = node.transform
+		else:
+			var rot: Basis = info.get("rotation_basis", Basis.IDENTITY)
+			t = Transform3D(basis_local * rot, origin_local + basis_local * (Vector3(grid_pos) * cell_size))
+
 		blocks_data[key] = {
 			"block_id": info["block_id"],
 			"rotation_basis": _basis_to_array(info["rotation_basis"]),

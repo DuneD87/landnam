@@ -17,13 +17,15 @@ const FACE_DIRS: Array[Vector3i] = [
 const SOLID_BLOCK_IDS: Array[int] = [0]
 
 
-## Construye la ArrayMesh de todos los bloques, con una surface por material.
-static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Transform3D, materials: Dictionary = {}) -> ArrayMesh:
-	if blocks.is_empty():
+## Construye la ArrayMesh de los bloques (todos, o solo las celdas de `subset` si se pasa),
+## con una surface por material. La oclusión de caras consulta siempre el diccionario completo.
+static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Transform3D, materials: Dictionary = {}, subset: Dictionary = {}) -> ArrayMesh:
+	var source: Dictionary = subset if not subset.is_empty() else blocks
+	if source.is_empty():
 		return null
 
 	var groups: Dictionary = {}
-	for grid_pos: Vector3i in blocks:
+	for grid_pos: Vector3i in source:
 		var mat_id: String = blocks[grid_pos].get("material_id", "")
 		if not groups.has(mat_id):
 			groups[mat_id] = []
@@ -225,7 +227,6 @@ static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, f
 
 
 static func _is_face_occluded(blocks: Dictionary, grid_pos: Vector3i, face: Face) -> bool:
-	return false
 	var neighbor_pos := grid_pos + FACE_DIRS[face]
 	if not blocks.has(neighbor_pos):
 		return false

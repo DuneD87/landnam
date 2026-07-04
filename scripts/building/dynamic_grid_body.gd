@@ -50,11 +50,15 @@ func _recalculate_buoyancy_points() -> void:
 	for child in get_children():
 		if child is CollisionShape3D:
 			var pos: Vector3 = child.transform.origin
+			var half := Vector3.ZERO
+			if child.shape is BoxShape3D:
+				half = (child.shape as BoxShape3D).size * 0.5
 			if first:
-				aabb = AABB(pos, Vector3.ZERO)
+				aabb = AABB(pos - half, half * 2.0)
 				first = false
 			else:
-				aabb = aabb.expand(pos)
+				aabb = aabb.expand(pos - half)
+				aabb = aabb.expand(pos + half)
 
 	if first:
 		return
