@@ -87,7 +87,7 @@ class_name OceanSystem
 @export var debug: bool = false
 @export var quadtree_material: Material
 @export var wireframe_material: Material
-@export var show_stats: bool = true
+@export var show_stats: bool = false
 
 @export var underwater: Underwater
 var quadtree_manager: QuadTreeManager

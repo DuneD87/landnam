@@ -580,9 +580,9 @@ func debug_spawn_stress_grid() -> void:
 
 	var t0 := Time.get_ticks_msec()
 	grid.begin_bulk_edit()
-	for x in range(-10, 10):
-		for y in range(20):
-			for z in range(-20, 20):
+	for x in range(-1, 1):
+		for y in range(2):
+			for z in range(-2, 2):
 				var grid_pos := base_cell + Vector3i(x, y, z)
 				var xform := Transform3D(grid_basis, grid.grid_to_world(grid_pos))
 				grid.place_block(grid_pos, block_data, Basis.IDENTITY, xform, mat_id)

@@ -18,6 +18,7 @@ var _blocks: Dictionary = {}
 var _chunk_meshes: Dictionary = {}
 var _chunk_blocks: Dictionary = {}
 var _chunk_colliders: Dictionary = {}
+var _total_volume: float = 0.0
 var mesh_materials: Dictionary = {}
 var _suppress_rebuild: bool = false
 
@@ -109,6 +110,7 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 	if not _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk] = {}
 	_chunk_blocks[chunk][grid_pos] = true
+	_total_volume += _cell_volume() * _block_volume_factor(block_data.block_id)
 
 	if material_id != "" and not mesh_materials.has(material_id):
 		if block_data.material_override:
@@ -134,6 +136,7 @@ func remove_block(grid_pos: Vector3i) -> Dictionary:
 	var chunk := _chunk_of(grid_pos)
 	if _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk].erase(grid_pos)
+	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _block_volume_factor(info["block_id"]))
 
 	_on_block_removed_hook(info)
 	_request_rebuild(grid_pos)
@@ -156,6 +159,18 @@ static func _chunk_of(grid_pos: Vector3i) -> Vector3i:
 	return Vector3i(grid_pos.x >> CHUNK_SHIFT, grid_pos.y >> CHUNK_SHIFT, grid_pos.z >> CHUNK_SHIFT)
 
 
+func _cell_volume() -> float:
+	return cell_size * cell_size * cell_size
+
+## Fracción de la celda que ocupa el bloque (cubo entero; rampas/esquinas aproximadas a la mitad).
+static func _block_volume_factor(block_id: int) -> float:
+	return 1.0 if ChunkMeshBuilder._is_solid(block_id) else 0.5
+
+## Volumen total (m³) de los bloques de la grid, para masa y flotación.
+func get_total_volume() -> float:
+	return _total_volume
+
+
 ## Reconstruye solo los chunks afectados por la edición de una celda (el suyo y los
 ## vecinos con bloques adyacentes, cuyas caras de frontera pueden cambiar).
 func _request_rebuild(grid_pos: Vector3i) -> void:
@@ -171,14 +186,16 @@ func _request_rebuild(grid_pos: Vector3i) -> void:
 		_rebuild_chunk(chunk)
 
 
-## Rebuild completo: resincroniza el índice de chunks desde _blocks y reconstruye todos.
+## Rebuild completo: resincroniza el índice de chunks y el volumen desde _blocks y reconstruye todos.
 func rebuild_mesh() -> void:
 	_chunk_blocks.clear()
+	_total_volume = 0.0
 	for grid_pos: Vector3i in _blocks:
 		var chunk := _chunk_of(grid_pos)
 		if not _chunk_blocks.has(chunk):
 			_chunk_blocks[chunk] = {}
 		_chunk_blocks[chunk][grid_pos] = true
+		_total_volume += _cell_volume() * _block_volume_factor(_blocks[grid_pos]["block_id"])
 
 	for chunk: Vector3i in _chunk_meshes.keys():
 		if not _chunk_blocks.has(chunk):
@@ -324,6 +341,7 @@ func clear() -> void:
 	for chunk: Vector3i in _chunk_meshes.keys():
 		_free_chunk_mesh(chunk)
 	_chunk_blocks.clear()
+	_total_volume = 0.0
 
 func is_same_origin_basis(other: GridBase) -> bool:
 	return false

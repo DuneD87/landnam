@@ -125,7 +125,7 @@ func convert_to_dynamic(grid_id: String) -> Array:
 	shared_body.set_meta("grid_id", grid_id)
 	shared_body.name = "DynGrid_%s" % grid_id
 	shared_body.planet_node = planet
-	shared_body.mass = DynamicPlanetGrid.MASS_PER_BLOCK
+	shared_body.mass = DynamicGridBody.MIN_MASS
 	shared_body.gravity_scale = 0.0
 	shared_body.set_meta("grid_id", grid_id)
 	planet.get_tree().current_scene.add_child(shared_body)

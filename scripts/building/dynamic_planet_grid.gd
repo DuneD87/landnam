@@ -8,8 +8,6 @@ var _body: DynamicGridBody = null
 var body_id: String = ""
 var _owns_body: bool = false
 
-const MASS_PER_BLOCK := DynamicGridBody.MASS_PER_BLOCK
-
 
 ## Crea la grid dinámica desde cero.
 func setup(id: String, planet: Node3D, world_transform: Transform3D) -> void:
@@ -109,7 +107,7 @@ func _create_body(world_transform: Transform3D) -> void:
 	_body = DynamicGridBody.new()
 	_body.name = "DynGrid_%s" % grid_id
 	_body.planet_node = planet_node
-	_body.mass = MASS_PER_BLOCK
+	_body.mass = DynamicGridBody.MIN_MASS
 	_body.gravity_scale = 0.0
 	_body.set_meta("grid_id", grid_id)
 	_owns_body = true

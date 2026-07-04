@@ -1,26 +1,33 @@
 class_name DynamicGridBody
 extends RigidBody3D
 
-## RigidBody3D de una grid dinámica: aplica gravedad planetaria y flotación en agua, y controla
-## el movimiento según movement_type (barco con niveles de velocidad; vehículo y nave pendientes).
+## RigidBody3D de una grid dinámica: gravedad planetaria + flotación de Arquímedes (empuje por
+## volumen sumergido de las cajas de colisión fusionadas, aplicado en su centroide; masa por
+## densidad de bloque), y movimiento según movement_type (barco; vehículo y nave pendientes).
 
 enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 
 @export var movement_type: MovementType = MovementType.BOAT
 @export var turn_speed: float = 2.0
 @export var buoyancy_lod_distance: float = 150.0
+@export var linear_drag: float = 0.3
+@export var heave_drag: float = 1.0
+@export var angular_drag: float = 0.15
 
-const MASS_PER_BLOCK := 10.0
+const BLOCK_DENSITY := 500.0
+const WATER_DENSITY := 1000.0
+const MIN_MASS := 10.0
+const MAX_WAVE_SAMPLES := 16
 
 var planet_node: Node3D = null
 
 var _water_sampler: WaterHeightSampler = null
-var _water_drag: float = 300.0
 
 var _grids: Array = []
-var _buoyancy_points: PackedVector3Array = []
-var _buoyancy_force: float = 500.0
-var _recalc_points: bool = true
+var _buoyancy_boxes: Array = []
+var _aggregate_box: Dictionary = {}
+var _drag_length_sq: float = 1.0
+var _recalc_boxes: bool = true
 var _is_being_controlled: bool = false
 
 var _boat_speed_levels: Array[float] = [0.0, 5.0, 10.0, 20.0]
@@ -39,44 +46,49 @@ func on_block_placed(grid_pos: Vector3i, block_id: int) -> void:
 	mark_points_dirty()
 
 func mark_points_dirty() -> void:
-	_recalc_points = true
+	_recalc_boxes = true
 
-func _recalculate_buoyancy_points() -> void:
-	_recalc_points = false
-	_buoyancy_points.clear()
-
-	if get_child_count() == 0:
-		return
+## Reconstruye la lista de cajas de volumen del casco desde los colliders del body:
+## cajas fusionadas de cubos tal cual, rampas/esquinas como caja de su celda a medio volumen.
+func _recalculate_buoyancy_boxes() -> void:
+	_recalc_boxes = false
+	_buoyancy_boxes.clear()
+	_aggregate_box = {}
 
 	var aabb := AABB()
 	var first := true
-	for child in get_children():
-		if child is CollisionShape3D:
-			var pos: Vector3 = child.transform.origin
-			var half := Vector3.ZERO
-			if child.shape is BoxShape3D:
-				half = (child.shape as BoxShape3D).size * 0.5
-			if first:
-				aabb = AABB(pos - half, half * 2.0)
-				first = false
-			else:
-				aabb = aabb.expand(pos - half)
-				aabb = aabb.expand(pos + half)
+	var total_volume := 0.0
 
-	if first:
+	for child in get_children():
+		if not (child is CollisionShape3D) or child.is_queued_for_deletion():
+			continue
+		var col := child as CollisionShape3D
+
+		var half: Vector3
+		var volume: float
+		if col.shape is BoxShape3D:
+			half = (col.shape as BoxShape3D).size * 0.5
+			volume = half.x * half.y * half.z * 8.0
+		else:
+			half = Vector3.ONE * 0.5 * col.scale.x
+			volume = col.scale.x * col.scale.x * col.scale.x * 0.5
+
+		var pos: Vector3 = col.transform.origin
+		_buoyancy_boxes.append({"pos": pos, "half": half, "volume": volume})
+		total_volume += volume
+
+		if first:
+			aabb = AABB(pos - half, half * 2.0)
+			first = false
+		else:
+			aabb = aabb.expand(pos - half)
+			aabb = aabb.expand(pos + half)
+
+	if _buoyancy_boxes.is_empty():
 		return
 
-	aabb = aabb.grow(0.5)
-	var o: Vector3 = aabb.position
-	var s: Vector3 = aabb.size
-
-	for xi in 3:
-		for zi in 3:
-			var fx: float = float(xi) / 2.0
-			var fz: float = float(zi) / 2.0
-			_buoyancy_points.append(o + Vector3(s.x * fx, 0, s.z * fz))
-
-	_buoyancy_points.append(aabb.get_center())
+	_aggregate_box = {"pos": aabb.get_center(), "half": aabb.size * 0.5, "volume": total_volume}
+	_drag_length_sq = maxf(1.0, (aabb.size * 0.5).length_squared())
 
 func _is_ground_ready() -> bool:
 	var query = PhysicsRayQueryParameters3D.create(
@@ -106,17 +118,19 @@ func _setup_water_sampler() -> void:
 func register_grid(grid) -> void:
 	if not _grids.has(grid):
 		_grids.append(grid)
+	mark_points_dirty()
 
 func unregister_grid(grid) -> void:
 	_grids.erase(grid)
 	update_mass_from_grids()
+	mark_points_dirty()
 
-## Masa total del body: suma de los bloques de TODAS las grids (multi-size) que lo comparten.
+## Masa total del body: volumen de bloques de TODAS las grids (multi-size) por densidad de bloque.
 func update_mass_from_grids() -> void:
-	var total := 0
+	var total_volume := 0.0
 	for grid in _grids:
-		total += grid.get_block_count()
-	mass = maxf(MASS_PER_BLOCK, total * MASS_PER_BLOCK)
+		total_volume += grid.get_total_volume()
+	mass = maxf(MIN_MASS, total_volume * BLOCK_DENSITY)
 
 
 func _handle_input(delta: float) -> void:
@@ -178,62 +192,64 @@ func _physics_process(delta: float) -> void:
 	var planet_pos: Vector3 = planet_node.global_pos
 	var dir: Vector3 = (planet_pos - global_position).normalized()
 	var up: Vector3 = -dir
-	var gravity_force: Vector3 = dir * planet_node.gravity_strength * mass
+	var gravity: float = planet_node.gravity_strength
+
+	apply_central_force(dir * gravity * mass)
 
 	if not planet_node.planet.has_water or not _water_sampler:
-		apply_central_force(gravity_force)
 		return
 
-	if _recalc_points:
-		_recalculate_buoyancy_points()
+	if _recalc_boxes:
+		_recalculate_buoyancy_boxes()
 
-	if _buoyancy_points.is_empty():
-		apply_central_force(gravity_force)
+	if _buoyancy_boxes.is_empty():
 		return
 
 	var mat: ShaderMaterial = planet_node.water_sphere.mesh_manager.default_material as ShaderMaterial
 	var water_time: float = WaterHeightSampler.get_water_time(mat)
 	var base_water_radius: float = planet_node.planet.radius - planet_node.planet.water_radius
 
-	var active_points := _buoyancy_points
-	var force_scale := 1.0
+	var boxes: Array = _buoyancy_boxes
 	var camera := get_viewport().get_camera_3d()
 	if camera and camera.global_position.distance_squared_to(global_position) > buoyancy_lod_distance * buoyancy_lod_distance:
-		active_points = PackedVector3Array([_buoyancy_points[_buoyancy_points.size() - 1]])
-		force_scale = float(_buoyancy_points.size())
+		boxes = [_aggregate_box]
 
-	var submerged_count: float = 0.0
-	var point_count: int = active_points.size()
+	var shared_wave := boxes.size() > MAX_WAVE_SAMPLES
+	var wave_h_shared := 0.0
+	if shared_wave:
+		wave_h_shared = _water_sampler.get_height_at(global_position, water_time, planet_pos)
 
-	for local_pos in active_points:
-		var world_pos: Vector3 = global_transform * local_pos
-		var wave_h: float = _water_sampler.get_height_at(world_pos, water_time, planet_pos)
+	var basis_w := global_transform.basis
+	var submerged_volume := 0.0
+
+	for box: Dictionary in boxes:
+		var half: Vector3 = box["half"]
+		var world_center: Vector3 = global_transform * (box["pos"] as Vector3)
+
+		var h_half: float = absf((basis_w.x * half.x).dot(up)) \
+			+ absf((basis_w.y * half.y).dot(up)) \
+			+ absf((basis_w.z * half.z).dot(up))
+		h_half = maxf(h_half, 0.05)
+
+		var wave_h: float = wave_h_shared if shared_wave else _water_sampler.get_height_at(world_center, water_time, planet_pos)
 		var water_r: float = base_water_radius + wave_h
-		var dist: float = (world_pos - planet_pos).length()
+		var dist: float = (world_center - planet_pos).length()
 
-		if dist < water_r:
-			var depth: float = water_r - dist
-			var ratio: float = clampf(depth / 1.0, 0.0, 1.0)
-			apply_force(up * _buoyancy_force * ratio * force_scale, world_pos - global_position)
-			submerged_count += ratio
+		var frac: float = clampf((water_r - (dist - h_half)) / (2.0 * h_half), 0.0, 1.0)
+		if frac <= 0.0:
+			continue
 
-	var ratio_sub: float = clampf(submerged_count / float(point_count), 0.0, 1.0)
-	gravity_force *= (1.0 - ratio_sub)
+		var displaced: float = box["volume"] * frac
+		var centroid: Vector3 = world_center + up * h_half * (frac - 1.0)
+		apply_force(up * WATER_DENSITY * gravity * displaced, centroid - global_position)
+		submerged_volume += displaced
 
-	if submerged_count > 0.0:
-		apply_central_force(-linear_velocity * _water_drag * ratio_sub)
-
-		var ang: Vector3 = angular_velocity
-		var yaw_component: Vector3 = up * ang.dot(up)
-		var tilt_component: Vector3 = ang - yaw_component
-		apply_torque(-tilt_component * _water_drag * 15.0 * ratio_sub)
-		apply_torque(-yaw_component * _water_drag * 5.0 * ratio_sub)
-
+	if submerged_volume > 0.0:
+		var displaced_mass: float = submerged_volume * WATER_DENSITY
+		apply_central_force(-linear_velocity * linear_drag * displaced_mass)
 		var radial_vel: float = linear_velocity.dot(up)
-		if absf(radial_vel) > 0.5:
-			apply_central_force(-up * radial_vel * mass * ratio_sub * 2.0)
-
-	apply_central_force(gravity_force)
+		apply_central_force(-up * radial_vel * heave_drag * displaced_mass)
+		apply_torque(-angular_velocity * angular_drag * displaced_mass * _drag_length_sq)
 
 
 func get_current_speed_level() -> int:
