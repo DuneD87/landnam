@@ -8,7 +8,7 @@ var _body: DynamicGridBody = null
 var body_id: String = ""
 var _owns_body: bool = false
 
-const MASS_PER_BLOCK := 10.0
+const MASS_PER_BLOCK := DynamicGridBody.MASS_PER_BLOCK
 
 
 ## Crea la grid dinámica desde cero.
@@ -123,7 +123,7 @@ func _create_body(world_transform: Transform3D) -> void:
 
 func _update_mass() -> void:
 	if _body and is_instance_valid(_body):
-		_body.mass = maxf(MASS_PER_BLOCK, _blocks.size() * MASS_PER_BLOCK)
+		_body.update_mass_from_grids()
 
 
 func is_same_origin_basis(other: GridBase) -> bool:

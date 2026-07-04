@@ -15,6 +15,8 @@ var wave_pole: Vector3
 
 var _material: ShaderMaterial
 
+static var _frame_cache: Dictionary = {}
+
 const _GOLDEN_ANGLE := 2.399963
 const _TAU := 6.28318530718
 const _INVERT_ITERATIONS := 3
@@ -28,12 +30,36 @@ func setup(water_material: ShaderMaterial) -> void:
 	wave_pole = pole if pole != null else Vector3(0, 1, 0)
 	_refresh_dynamic_params()
 
+## Params dinámicos del material releídos como mucho una vez por frame de física y compartidos
+## entre todos los samplers (el weather los muta en caliente, pero no dentro de un mismo frame).
+static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
+	var key: RID = mat.get_rid()
+	var frame := Engine.get_physics_frames()
+	var cached: Dictionary = _frame_cache.get(key, {})
+	if cached.get("frame", -1) != frame:
+		var time: Variant = mat.get_shader_parameter("water_time")
+		cached = {
+			"frame": frame,
+			"speed": mat.get_shader_parameter("wave_speed"),
+			"amplitude": mat.get_shader_parameter("wave_amplitude"),
+			"steepness": mat.get_shader_parameter("wave_steepness"),
+			"base_length": mat.get_shader_parameter("wave_base_length"),
+			"time": time if time != null else 0.0,
+		}
+		_frame_cache[key] = cached
+	return cached
+
+## Tiempo de agua del material, con la misma caché por frame.
+static func get_water_time(mat: ShaderMaterial) -> float:
+	return _get_frame_params(mat)["time"]
+
 ## Relee los parámetros que el weather muta en caliente sobre el material.
 func _refresh_dynamic_params() -> void:
-	wave_speed = _material.get_shader_parameter("wave_speed")
-	wave_amplitude = _material.get_shader_parameter("wave_amplitude")
-	wave_steepness = _material.get_shader_parameter("wave_steepness")
-	wave_base_length = _material.get_shader_parameter("wave_base_length")
+	var params := _get_frame_params(_material)
+	wave_speed = params["speed"]
+	wave_amplitude = params["amplitude"]
+	wave_steepness = params["steepness"]
+	wave_base_length = params["base_length"]
 
 ## Altura de ola (desplazamiento radial) en world_pos. Invierte por punto-fijo el arrastre
 ## horizontal de Gerstner: sin esto, con oleaje marcado la física y el visual se separan varios metros.

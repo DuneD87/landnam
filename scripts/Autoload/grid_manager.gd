@@ -92,16 +92,10 @@ func restore_save_data(data: Dictionary) -> void:
 				_planet_grids[planet] = []
 			_planet_grids[planet].append(dyn)
 
-	var body_blocks: Dictionary = {}
 	for grid_id in _grids:
 		var grid: GridBase = _grids[grid_id]
-		if grid is DynamicPlanetGrid:
-			var dyn := grid as DynamicPlanetGrid
-			if dyn._body:
-				body_blocks[dyn._body] = body_blocks.get(dyn._body, 0) + dyn.get_block_count()
-
-	for body: DynamicGridBody in body_blocks:
-		body.mass = maxf(DynamicPlanetGrid.MASS_PER_BLOCK, body_blocks[body] * DynamicPlanetGrid.MASS_PER_BLOCK)
+		if grid is DynamicPlanetGrid and (grid as DynamicPlanetGrid)._body:
+			(grid as DynamicPlanetGrid)._body.update_mass_from_grids()
 
 	print("[GridManager] Restauradas %d grids" % _grids.size())
 
@@ -169,11 +163,11 @@ func convert_to_dynamic(grid_id: String) -> Array:
 
 		result.append(dyn)
 
+	shared_body.update_mass_from_grids()
+
 	var total_blocks := 0
 	for dyn in result:
 		total_blocks += dyn.get_block_count()
-	shared_body.mass = maxf(DynamicPlanetGrid.MASS_PER_BLOCK, total_blocks * DynamicPlanetGrid.MASS_PER_BLOCK)
-
 	print("[GridManager] Convertidas %d grids alineadas a dinámicas (%d bloques total)" % [result.size(), total_blocks])
 	return result
 
@@ -283,33 +277,37 @@ func remove_grid(grid_id: String) -> bool:
 	return true
 
 ## True si un bloque de cell_size en grid_pos solapa con bloques de otra grid del planeta.
+## Como las grids comparadas comparten origin/basis, consulta solo el rango de celdas de la
+## otra grid que cubre el bloque nuevo, en vez de escanear todos sus bloques.
 func check_overlap(planet: Node3D, grid_pos: Vector3i, cell_size: float, source_grid: GridBase) -> bool:
-	var grids: Array = get_grids_for_planet(planet)
+	var eps := 0.001
 	var min_a := Vector3(grid_pos) * cell_size
 	var max_a := min_a + Vector3.ONE * cell_size
 
-	for grid: GridBase in grids:
+	for grid: GridBase in get_grids_for_planet(planet):
 		if grid == source_grid:
 			continue
 		if not grid.is_same_origin_basis(source_grid):
 			continue
 
-		for other_pos in grid.get_all_blocks():
-			var min_b: Vector3 = Vector3(other_pos) * grid.cell_size
-			var max_b: Vector3 = min_b + Vector3.ONE * grid.cell_size
+		var lo := Vector3i(
+			floori((min_a.x + eps) / grid.cell_size),
+			floori((min_a.y + eps) / grid.cell_size),
+			floori((min_a.z + eps) / grid.cell_size)
+		)
+		var hi := Vector3i(
+			ceili((max_a.x - eps) / grid.cell_size) - 1,
+			ceili((max_a.y - eps) / grid.cell_size) - 1,
+			ceili((max_a.z - eps) / grid.cell_size) - 1
+		)
 
-			if _aabb_overlap(min_a, max_a, min_b, max_b):
-				return true
+		for x in range(lo.x, hi.x + 1):
+			for y in range(lo.y, hi.y + 1):
+				for z in range(lo.z, hi.z + 1):
+					if grid.has_block(Vector3i(x, y, z)):
+						return true
 
 	return false
-
-static func _aabb_overlap(min_a: Vector3, max_a: Vector3, min_b: Vector3, max_b: Vector3) -> bool:
-	var eps := 0.001
-	return (
-		min_a.x < max_b.x - eps and max_a.x > min_b.x + eps and
-		min_a.y < max_b.y - eps and max_a.y > min_b.y + eps and
-		min_a.z < max_b.z - eps and max_a.z > min_b.z + eps
-	)
 
 static func _same_origin_basis(a: GridBase, b: GridBase) -> bool:
 	return a.is_same_origin_basis(b)

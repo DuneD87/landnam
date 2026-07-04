@@ -8,6 +8,9 @@ enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 
 @export var movement_type: MovementType = MovementType.BOAT
 @export var turn_speed: float = 2.0
+@export var buoyancy_lod_distance: float = 150.0
+
+const MASS_PER_BLOCK := 10.0
 
 var planet_node: Node3D = null
 
@@ -106,6 +109,14 @@ func register_grid(grid) -> void:
 
 func unregister_grid(grid) -> void:
 	_grids.erase(grid)
+	update_mass_from_grids()
+
+## Masa total del body: suma de los bloques de TODAS las grids (multi-size) que lo comparten.
+func update_mass_from_grids() -> void:
+	var total := 0
+	for grid in _grids:
+		total += grid.get_block_count()
+	mass = maxf(MASS_PER_BLOCK, total * MASS_PER_BLOCK)
 
 
 func _handle_input(delta: float) -> void:
@@ -181,13 +192,20 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var mat: ShaderMaterial = planet_node.water_sphere.mesh_manager.default_material as ShaderMaterial
-	var water_time: float = mat.get_shader_parameter("water_time")
+	var water_time: float = WaterHeightSampler.get_water_time(mat)
 	var base_water_radius: float = planet_node.planet.radius - planet_node.planet.water_radius
 
-	var submerged_count: float = 0.0
-	var point_count: int = _buoyancy_points.size()
+	var active_points := _buoyancy_points
+	var force_scale := 1.0
+	var camera := get_viewport().get_camera_3d()
+	if camera and camera.global_position.distance_squared_to(global_position) > buoyancy_lod_distance * buoyancy_lod_distance:
+		active_points = PackedVector3Array([_buoyancy_points[_buoyancy_points.size() - 1]])
+		force_scale = float(_buoyancy_points.size())
 
-	for local_pos in _buoyancy_points:
+	var submerged_count: float = 0.0
+	var point_count: int = active_points.size()
+
+	for local_pos in active_points:
 		var world_pos: Vector3 = global_transform * local_pos
 		var wave_h: float = _water_sampler.get_height_at(world_pos, water_time, planet_pos)
 		var water_r: float = base_water_radius + wave_h
@@ -196,7 +214,7 @@ func _physics_process(delta: float) -> void:
 		if dist < water_r:
 			var depth: float = water_r - dist
 			var ratio: float = clampf(depth / 1.0, 0.0, 1.0)
-			apply_force(up * _buoyancy_force * ratio, world_pos - global_position)
+			apply_force(up * _buoyancy_force * ratio * force_scale, world_pos - global_position)
 			submerged_count += ratio
 
 	var ratio_sub: float = clampf(submerged_count / float(point_count), 0.0, 1.0)
