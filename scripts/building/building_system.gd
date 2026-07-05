@@ -737,9 +737,9 @@ func debug_spawn_stress_grid() -> void:
 
 	var t0 := Time.get_ticks_msec()
 	grid.begin_bulk_edit()
-	for x in range(-1, 1):
-		for y in range(2):
-			for z in range(-2, 2):
+	for x in range(-10, 10):
+		for y in range(10):
+			for z in range(-40, 40):
 				var grid_pos := base_cell + Vector3i(x, y, z)
 				var xform := Transform3D(grid_basis, grid.grid_to_world(grid_pos))
 				grid.place_block(grid_pos, block_data, Basis.IDENTITY, xform, mat_id)
@@ -753,6 +753,91 @@ func debug_spawn_stress_grid() -> void:
 
 	print("[StressTest] %d bloques | nodos+colocación: %d ms | mesh: %d ms | conversión a dinámica: %d ms" % [
 		block_count, t1 - t0, t2 - t1, t3 - t2])
+
+
+## Genera un casco con forma de barco (tamaño similar al stress grid) frente al jugador y lo
+## convierte a grid dinámica. Ejes de grid: +Z proa, -Z popa, X manga, Y altura. Casco macizo
+## con cubierta plana; la forma viene del afinado en punta y el rocker de quilla.
+func debug_spawn_ship() -> void:
+	var planet := current_planet
+	if not planet or not _player:
+		return
+
+	var cube := BlockDatabase.get_block(BlockDatabase.BLOCK_CUBE_ID)
+	if not cube:
+		return
+
+	var basis_world := get_player_basis()
+	var origin_world: Vector3 = _player.global_position - basis_world.z * 30.0 + basis_world.y * 6.0
+	var grid := GridManager.create_grid(planet, origin_world, basis_world, 1.0)
+	current_material_index = 1
+	var mat := get_current_material()
+	var mat_id := mat.material_id if mat else ""
+	if mat and mat.surface_material and not grid.mesh_materials.has(mat_id):
+		grid.mesh_materials[mat_id] = mat.surface_material
+
+	var grid_basis := grid.get_basis_world()
+	var base_cell := grid.world_to_grid(origin_world)
+
+	var half_len := 28      # media eslora (a lo largo de Z)
+	var half_beam := 6      # media manga máxima, en la cuaderna maestra (a lo largo de X)
+	var deck_y := 8         # altura de la cubierta (casco macizo de y=0 a deck_y)
+
+	var t0 := Time.get_ticks_msec()
+	grid.begin_bulk_edit()
+
+	for z in range(-half_len, half_len + 1):
+		var hw := _ship_half_width(z, half_len, half_beam)
+		if hw < 0:
+			continue
+		var floor_y := _ship_floor(z, half_len)
+
+		# Casco macizo con cubierta plana. La forma de barco viene del afinado en planta (casco
+		# en punta hacia proa/popa) y del rocker de quilla (el fondo sube en los extremos).
+		for x in range(-hw, hw + 1):
+			for y in range(floor_y, deck_y + 1):
+				_ship_place(grid, cube, base_cell + Vector3i(x, y, z), Basis.IDENTITY, grid_basis, mat_id)
+
+	var t1 := Time.get_ticks_msec()
+	grid.end_bulk_edit()
+	var t2 := Time.get_ticks_msec()
+
+	var block_count := grid.get_block_count()
+	GridManager.convert_to_dynamic(grid.grid_id)
+	var t3 := Time.get_ticks_msec()
+
+	print("[ShipTest] %d bloques | nodos+colocación: %d ms | mesh: %d ms | conversión a dinámica: %d ms" % [
+		block_count, t1 - t0, t2 - t1, t3 - t2])
+
+
+## Coloca un bloque del barco componiendo la rotación en el world_transform igual que
+## try_place_block (basis = grid_basis * rot), para que colisión y mallado coincidan.
+func _ship_place(grid: GridBase, block_data: BlockData, gp: Vector3i, rot: Basis, grid_basis: Basis, mat_id: String) -> void:
+	var xform := Transform3D(grid_basis * rot, grid.grid_to_world(gp))
+	grid.place_block(gp, block_data, rot, xform, mat_id)
+
+
+## Media manga del casco en la estación z: manga máxima en el cuerpo central, afinando a punta
+## en proa (+Z) y a un espejo estrecho en popa (-Z).
+func _ship_half_width(z: int, half_len: int, half_beam: int) -> int:
+	var mid := int(round(half_len * 0.45))
+	var az := absi(z)
+	if az <= mid:
+		return half_beam
+	var frac := float(az - mid) / float(half_len - mid)   # 0..1 hacia el extremo
+	if z > 0:
+		return int(round(lerpf(float(half_beam), 0.0, frac)))   # proa en punta
+	return int(round(lerpf(float(half_beam), 2.0, frac)))       # popa: espejo de 2 celdas
+
+
+## Altura del fondo del casco (rocker de quilla): sube hacia proa y popa.
+func _ship_floor(z: int, half_len: int) -> int:
+	var mid := int(round(half_len * 0.55))
+	var az := absi(z)
+	if az <= mid:
+		return 0
+	var frac := float(az - mid) / float(half_len - mid)
+	return int(round(lerpf(0.0, 3.0, frac)))
 
 
 ## Activa/desactiva la simetría; al activarla fija el centro en el bloque apuntado.

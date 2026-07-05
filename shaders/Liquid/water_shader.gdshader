@@ -125,6 +125,7 @@ varying vec3 base_world_pos;
 varying float view_depth;
 varying vec3 world_normal_radial;
 varying vec3 world_gerstner_normal;
+varying float wave_crest_signal;
 varying vec3 waterline_point;
 varying vec3 waterline_normal;
 
@@ -279,7 +280,9 @@ void vertex() {
     vec3 sphere_dir = normalize(base_world_pos - planet_center);
 
     vec3 gerstner_normal;
-    vec3 disp = gerstner_surface(base_world_pos - planet_center, sphere_dir, water_time, gerstner_normal);
+    float crest_signal;
+    vec3 disp = gerstner_surface(base_world_pos - planet_center, sphere_dir, water_time, gerstner_normal, crest_signal);
+    wave_crest_signal = crest_signal;
 
     // disp es world-space; lo llevamos al espacio local del modelo para modificar VERTEX.
     VERTEX += inverse(mat3(MODEL_MATRIX)) * disp;
@@ -363,19 +366,18 @@ void fragment() {
     normal_edge_factor = mix(normal_edge_factor, 1.0, edge_disable);
     final_world_normal = normalize(mix(radial_normal, final_world_normal, normal_edge_factor));
 
-    // Detección de cresta: leemos la normal de la OLA (Gerstner), no la detallada, para que
-    // la espuma siga las crestas reales y no reaccione al micro-ruido de las normales de textura.
-    // dot ≈ 1.0 = superficie plana, dot < threshold = cresta de ola. Igual que la espuma de
-    // orilla, es una banda suave, pero con el umbral deformado por ruido para romper la línea.
-    float normal_alignment = dot(wave_world_normal, radial_normal);
+    // Detección de cresta: usamos wave_crest_signal (término de pliegue Gerstner), que PICA en
+    // la cresta real (sin(phase)=1). La normal, en cambio, se inclina en los flancos, así que la
+    // espuma antigua caía en las laderas y no en el pico. Señal alta = cresta; banda suave con el
+    // umbral deformado por ruido para romper la línea.
     // fBm con domain warp: una primera pasada de ruido desplaza el dominio de la segunda,
     // rizando el borde de la banda con filamentos orgánicos en lugar de manchas blandas.
     vec3 foam_np = (world_pos - planet_center) * foam_noise_scale;
     vec3 foam_drift = vec3(0.0, water_time * foam_noise_speed, 0.0);
     float warp = fbm3d(foam_np * 0.45 + foam_drift * 1.6 + vec3(13.1));
     float crest_noise = fbm3d(foam_np + foam_drift + (warp - 0.5) * foam_noise_warp * vec3(1.0, 0.35, 1.0));
-    float deformed_alignment = normal_alignment + (crest_noise - 0.5) * foam_noise_amount;
-    float wave_crest_factor = smoothstep(foam_crest_threshold, foam_crest_threshold - foam_crest_softness, deformed_alignment);
+    float deformed_crest = wave_crest_signal + (crest_noise - 0.5) * foam_noise_amount;
+    float wave_crest_factor = smoothstep(foam_crest_threshold, foam_crest_threshold + foam_crest_softness, deformed_crest);
     wave_crest_factor = pow(wave_crest_factor, 1.5) * foam_crest_amount;
     float crest_foam = clamp(wave_crest_factor, 0.0, 1.0);
     float foam_level = crest_foam;

@@ -18,8 +18,9 @@ const int WAVE_MAX = 6;
 // Suma de olas de Gerstner planetarias. La fase se deriva de la posición proyectada sobre
 // direcciones de viaje FIJAS en world-space (marco ecuatorial de wave_pole); así varía a lo
 // largo de la superficie (proyectar sobre el plano tangente local la anulaba: dot(radial,tan)=0).
-// Devuelve el desplazamiento world-space del vértice y, por out_normal, la normal analítica.
-vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal) {
+// Devuelve el desplazamiento world-space y, por out_normal, la normal analítica. out_crest es la
+// señal de cresta/pliegue en ~[0,1]: pica donde la ola se pincha (whitecap), para la espuma.
+vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal, out float out_crest) {
     vec3 pole = normalize(wave_pole);
     vec3 gx = normalize(cross(pole, abs(pole.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0)));
     vec3 gy = cross(pole, gx);
@@ -67,7 +68,18 @@ vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal) {
     }
 
     out_normal = normalize(radial * (1.0 - n_up_sub) - grad);
+    // Señal de cresta: n_up_sub = Σ q·k·amp·sin(phase) pica donde sin(phase)=1, es decir
+    // EN la cresta (a diferencia de la normal, que se inclina en los flancos). Está acotada a
+    // ±wave_steepness; la escalamos por 2 para que una cresta a steepness=0.5 dé ~1.0. Sube con
+    // el oleaje: más steepness (weather) ⇒ más área por encima del umbral ⇒ más espuma.
+    out_crest = n_up_sub * 2.0;
     return horiz + radial * vert;
+}
+
+// Wrapper sin señal de cresta para los callers que solo necesitan desplazamiento y normal.
+vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal) {
+    float unused_crest;
+    return gerstner_surface(local, radial, t, out_normal, unused_crest);
 }
 
 // Desplazamiento radial de la superficie sobre la dirección de 'local', invirtiendo por punto
