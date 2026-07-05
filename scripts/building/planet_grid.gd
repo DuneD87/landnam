@@ -92,6 +92,23 @@ func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basi
 	return body
 
 
+func _create_prop_anchor(key: String, anchor_local: Transform3D, collider_size: Vector3) -> Node3D:
+	var body := StaticBody3D.new()
+	body.name = "Prop_%s_%s" % [grid_id, key]
+	body.transform = Transform3D(basis_local, origin_local) * anchor_local
+
+	var collider := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = collider_size
+	collider.shape = shape
+	body.add_child(collider)
+
+	body.set_meta("grid_id", grid_id)
+	body.set_meta("prop_key", key)
+	planet_node.add_child(body)
+	return body
+
+
 func serialize() -> Dictionary:
 	var blocks_data: Dictionary = {}
 
@@ -130,6 +147,7 @@ func serialize() -> Dictionary:
 		"cell_size": cell_size,
 		"blocks": blocks_data,
 		"materials": materials_data,
+		"props": _serialize_props(),
 	}
 
 
@@ -174,4 +192,5 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id, mirror_data)
 	_suppress_rebuild = false
 
+	_deserialize_props(data.get("props", {}))
 	rebuild_mesh()

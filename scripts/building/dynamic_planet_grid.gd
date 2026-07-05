@@ -53,6 +53,7 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 			"mirror_axis": info.get("mirror_axis", -1),
 		}
 
+	_migrate_props_from(static_grid)
 	static_grid.clear()
 	_update_mass()
 	rebuild_mesh()
@@ -99,6 +100,7 @@ func setup_from_static(id: String, planet: Node3D, static_grid: PlanetGrid) -> v
 		}
 
 	_update_mass()
+	_migrate_props_from(static_grid)
 	static_grid.clear()
 	rebuild_mesh()
 
@@ -188,6 +190,28 @@ func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_bas
 	return collider
 
 
+func _create_prop_anchor(key: String, anchor_local: Transform3D, collider_size: Vector3) -> Node3D:
+	var collider := CollisionShape3D.new()
+	collider.name = "Prop_%s_%s" % [grid_id, key]
+	var shape := BoxShape3D.new()
+	shape.size = collider_size
+	collider.shape = shape
+	collider.transform = anchor_local
+
+	collider.set_meta("grid_id", grid_id)
+	collider.set_meta("prop_key", key)
+	_body.add_child(collider)
+	return collider
+
+
+## Recrea en esta grid los props de una estática que comparte el mismo espacio de grid.
+func _migrate_props_from(static_grid: PlanetGrid) -> void:
+	var props := static_grid.get_all_props()
+	for key: String in props:
+		var info: Dictionary = props[key]
+		place_prop(info["cell"], info["face"], info["item_id"], info["local_transform"])
+
+
 func clear() -> void:
 	if _body and is_instance_valid(_body):
 		_body.unregister_grid(self)
@@ -242,6 +266,7 @@ func serialize() -> Dictionary:
 		"cell_size": cell_size,
 		"blocks": blocks_data,
 		"materials": materials_data,
+		"props": _serialize_props(),
 	}
 
 
@@ -290,6 +315,7 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id, mirror_data)
 	_suppress_rebuild = false
 
+	_deserialize_props(data.get("props", {}))
 	_body.register_grid(self)
 	if not block_placed.is_connected(_body.on_block_placed):
 		block_placed.connect(_body.on_block_placed)

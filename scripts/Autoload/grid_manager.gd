@@ -278,6 +278,7 @@ func _migrate_blocks_to_dynamic(dyn: DynamicPlanetGrid, static_grid: PlanetGrid,
 			"mirror_axis": info.get("mirror_axis", -1),
 		}
 
+	dyn._migrate_props_from(static_grid)
 	static_grid.clear()
 	body.register_grid(dyn)
 	dyn.rebuild_mesh()

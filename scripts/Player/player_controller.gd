@@ -180,16 +180,25 @@ func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> voi
 	var old_is_equippable := old_data != null and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON)
 	var new_is_equippable := new_data != null and (new_data.category == ItemData.Category.TOOL or new_data.category == ItemData.Category.WEAPON)
 
+	var new_is_placeable := new_data != null and new_data.placeable
+
 	if new_is_block:
 		building_system.select_block(new_data.block_id)
 		building_system.set_material_by_id(new_data.build_material_id)
 		building_system.set_build_mode(true)
 		if old_is_equippable:
 			_unequip_right_hand()
+	elif new_is_placeable:
+		building_system.select_placeable(new_data)
+		building_system.set_build_mode(true)
+		if old_is_equippable:
+			_unequip_right_hand()
 	elif new_is_equippable:
+		building_system.select_placeable(null)
 		building_system.set_build_mode(false)
 		_equip_from_hotbar(old_data, new_data)
 	else:
+		building_system.select_placeable(null)
 		building_system.set_build_mode(false)
 		if old_is_equippable:
 			_unequip_right_hand()
@@ -198,14 +207,13 @@ func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> voi
 
 
 func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
-	var new_item_slot := -1
-
+	# Consume una sola unidad del item a equipar, conservando el resto del stack.
 	for i in inventory.items.size():
 		if inventory.items[i] and inventory.items[i].data.id == new_data.id:
-			new_item_slot = i
+			inventory.items[i].remove(1)
+			if inventory.items[i].is_empty():
+				inventory.items[i] = null
 			break
-	if new_item_slot >= 0:
-		inventory.items[new_item_slot] = null
 
 	var old_is_equippable := old_data != null and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON)
 	if old_is_equippable:
@@ -213,19 +221,15 @@ func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
 		if eq_slot and eq_slot.has_item():
 			var unequipped = character_window.unequip_item(eq_slot)
 			if unequipped:
-				var target = new_item_slot if new_item_slot >= 0 else inventory.find_empty_slot()
-				if target >= 0:
-					inventory.items[target] = InventoryItem.new(unequipped.data, 1)
-					new_item_slot = -1
+				inventory.add_item(unequipped.data, 1)
 
 	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
 	if eq_slot:
 		var inv_item := InventoryItem.new(new_data, 1)
 		var returned = character_window.equip_item(eq_slot, inv_item)
 		if returned:
-			var target = new_item_slot if new_item_slot >= 0 else inventory.find_empty_slot()
-			if target >= 0:
-				inventory.items[target] = InventoryItem.new(returned.data, 1)
+			inventory.add_item(returned.data, 1)
+	inventory.inventory_changed.emit()
 
 
 func _unequip_right_hand() -> void:
@@ -237,6 +241,26 @@ func _unequip_right_hand() -> void:
 			if target >= 0:
 				inventory.items[target] = InventoryItem.new(unequipped.data, 1)
 				current_animation = config.ANIMATION.IDLE
+
+
+func _get_right_hand_item() -> ItemData:
+	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
+	if eq_slot and eq_slot.has_item() and eq_slot.equipped_item:
+		return eq_slot.equipped_item.data
+	return null
+
+
+## Consume el item equipado en la mano derecha (al colocar el prop que llevas en la mano):
+## lo desequipa sin devolverlo al inventario.
+func _consume_right_hand_item() -> bool:
+	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
+	if eq_slot == null or not eq_slot.has_item():
+		return false
+	var unequipped = character_window.unequip_item(eq_slot)
+	if unequipped:
+		current_animation = config.ANIMATION.IDLE
+		return true
+	return false
 	
 	
 func _ready():
@@ -245,6 +269,7 @@ func _ready():
 	GameManager.register_player(self)
 	GameManager.state_changed.connect(_on_game_state_changed)
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
+	building_system.set_equipped_item_hooks(_get_right_hand_item, _consume_right_hand_item)
 	movement.landed.connect(_on_landed)
 	health_component.died.connect(_on_player_died)
 	action_controller.voxel_mined.connect(_on_voxel_mined)
@@ -438,10 +463,7 @@ func post_restore() -> void:
 
 	current_swimming_pitch = 0.0
 	player_model.rotation = Vector3.ZERO
-	inventory.clear()
-	inventory.add_item(config.get_item(&"wood_01"), 100)
-	inventory.add_item(config.get_item(&"stone_01"), 100)
-	
+
 
 func _clear_visual_equipment() -> void:
 	var hand = player_model.get_node("Armature/Skeleton3D/RigthHandAttachment")

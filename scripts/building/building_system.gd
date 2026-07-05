@@ -8,11 +8,13 @@ extends Node3D
 const config_ref = preload("res://scripts/config.gd")
 
 const CELL_SIZES: Array[float] = [0.25, 0.5, 1.0, 2.0]
+const PROP_WALL_TILT_DEG := 20.0
 enum MirrorAxis { NONE, X, Y, Z }
 enum ActionMode { BUILD, DESTROY }
 
 signal build_mode_changed(active: bool)
 signal selected_block_changed(block_data: BlockData)
+signal placeable_changed(item: ItemData)
 signal rotation_changed()
 signal cell_size_changed(new_size: float)
 signal material_changed(material: BuildMaterial)
@@ -50,6 +52,16 @@ var _can_place: bool = false
 var _can_afford: bool = false
 var _is_aiming_at_block: bool = false
 var _has_target: bool = false
+
+var selected_placeable: ItemData = null
+var _equipped_item_getter: Callable = Callable()
+var _equipped_item_consumer: Callable = Callable()
+var _has_prop_target: bool = false
+var _target_prop_grid: GridBase = null
+var _target_prop_cell: Vector3i = Vector3i.ZERO
+var _target_prop_face: Vector3i = Vector3i.ZERO
+var _target_prop_local: Transform3D = Transform3D.IDENTITY
+var _target_prop_world: Transform3D = Transform3D.IDENTITY
 var _cached_grid_for_placement: GridBase = null
 var _hit_grid_for_alignment: GridBase = null
 var current_action_mode: ActionMode = ActionMode.BUILD
@@ -94,7 +106,34 @@ func select_block(block_id: int) -> void:
 	if BlockDatabase.get_block(block_id):
 		selected_block_id = block_id
 		current_rotation_basis = Basis.IDENTITY
+		if selected_placeable:
+			select_placeable(null)
 		selected_block_changed.emit(BlockDatabase.get_block(selected_block_id))
+
+
+func is_prop_mode() -> bool:
+	return selected_placeable != null
+
+
+## Selecciona el item placeable activo (null para volver al modo bloques).
+func select_placeable(item: ItemData) -> void:
+	selected_placeable = item
+	_has_prop_target = false
+	placeable_changed.emit(item)
+
+
+## Hooks para contar/consumir el item equipado en mano al colocar props (el equipamiento
+## saca el item del inventario, así que el inventario solo no basta).
+func set_equipped_item_hooks(getter: Callable, consumer: Callable) -> void:
+	_equipped_item_getter = getter
+	_equipped_item_consumer = consumer
+
+
+func _equipped_matches_placeable() -> bool:
+	if not selected_placeable or not _equipped_item_getter.is_valid():
+		return false
+	var item: ItemData = _equipped_item_getter.call()
+	return item != null and item.id == selected_placeable.id
 
 
 func rotate_block_x() -> void:
@@ -121,6 +160,8 @@ func get_rotation_basis() -> Basis:
 	return current_rotation_basis
 
 func _can_rotate() -> bool:
+	if is_prop_mode():
+		return false
 	var bd := get_selected_block()
 	return bd != null and bd.can_rotate
 
@@ -187,6 +228,9 @@ func can_afford_block(block_data: BlockData = null) -> bool:
 	if not _inventory:
 		return true
 
+	if is_prop_mode():
+		return _inventory.get_item_count(selected_placeable) >= 1 or _equipped_matches_placeable()
+
 	var mat := get_current_material()
 	if not mat or not mat.item:
 		return true
@@ -235,10 +279,14 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 	if not resolved_node:
 		resolved_node = hit_collider as Node3D
 
-	_is_aiming_at_block = resolved_node.has_meta("grid_id")
+	_is_aiming_at_block = resolved_node.has_meta("grid_id") and not resolved_node.has_meta("prop_key")
+	_has_prop_target = false
 
 	if _is_aiming_at_block:
-		_process_aim_at_block(resolved_node, hit_normal, hit_pos)
+		if is_prop_mode() and current_action_mode == ActionMode.BUILD:
+			_process_aim_prop(resolved_node, hit_normal, hit_pos)
+		else:
+			_process_aim_at_block(resolved_node, hit_normal, hit_pos)
 
 		var hit_grid := GridManager.get_grid_for_block(resolved_node)
 		if hit_grid and _build_preview:
@@ -266,7 +314,10 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 			else:
 				_build_preview.hide_highlight()
 	else:
-		_process_aim_at_terrain(hit_normal, hit_pos)
+		if is_prop_mode():
+			_can_place = false
+		else:
+			_process_aim_at_terrain(hit_normal, hit_pos)
 		if _build_preview:
 			_build_preview.hide_highlight()
 
@@ -279,7 +330,14 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 	if _build_preview:
 		if current_action_mode == ActionMode.BUILD:
 			var is_valid := _can_place and _can_afford
-			_build_preview.update_preview(_target_world_pos, _target_basis, is_valid, ray_hit)
+			if is_prop_mode():
+				_build_preview.hide_preview()
+				if _has_prop_target:
+					_build_preview.update_prop_preview(_target_prop_world, is_valid)
+				else:
+					_build_preview.hide_prop_preview()
+			else:
+				_build_preview.update_preview(_target_world_pos, _target_basis, is_valid, ray_hit)
 		else:
 			_build_preview.hide_preview()
 
@@ -288,8 +346,10 @@ func clear_target() -> void:
 	_has_target = false
 	_can_place = false
 	_can_afford = false
+	_has_prop_target = false
 	if _build_preview:
 		_build_preview.hide_preview()
+		_build_preview.hide_prop_preview()
 		_build_preview.hide_highlight()
 
 
@@ -308,13 +368,26 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 	var hit_grid_pos: Vector3i = _resolve_grid_pos(hit_collider as Node3D, hit_grid, hit_pos, hit_normal)
 	var hit_cell := hit_grid.cell_size
 	var target_cell := cell_size
+	var grid_face := _compute_grid_face(hit_collider as Node3D, hit_grid, hit_normal)
+
+	if is_equal_approx(target_cell, hit_cell):
+		_target_grid_pos = hit_grid_pos + grid_face
+		_target_grid = hit_grid
+		_target_world_pos = _target_grid.grid_to_world(_target_grid_pos)
+		_target_basis = _target_grid.get_basis_world()
+		_can_place = not _target_grid.has_block(_target_grid_pos)
+	else:
+		_process_cross_size_placement(hit_grid, hit_grid_pos, hit_cell, target_cell, grid_face, hit_pos, planet)
+
+## Cara del bloque impactado, en coordenadas de grid, a partir de la normal del hit.
+func _compute_grid_face(hit_collider: Node3D, hit_grid: GridBase, hit_normal: Vector3) -> Vector3i:
 	var hit_rot_basis: Basis = hit_collider.get_meta("rotation_basis") if hit_collider.has_meta("rotation_basis") else Basis.IDENTITY
 
 	var block_basis: Basis
 	if hit_grid is DynamicPlanetGrid:
 		block_basis = hit_grid.get_basis_world() * hit_rot_basis
 	else:
-		block_basis = (hit_collider as Node3D).global_transform.basis
+		block_basis = hit_collider.global_transform.basis
 
 	var local_normal := block_basis.inverse() * hit_normal
 	var abs_n := Vector3(abs(local_normal.x), abs(local_normal.y), abs(local_normal.z))
@@ -327,20 +400,51 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 		face_dir.z = 1.0 if local_normal.z > 0 else -1.0
 
 	var grid_face_f := hit_rot_basis * face_dir
-	var grid_face := Vector3i(
+	return Vector3i(
 		roundi(grid_face_f.x),
 		roundi(grid_face_f.y),
 		roundi(grid_face_f.z)
 	)
 
-	if is_equal_approx(target_cell, hit_cell):
-		_target_grid_pos = hit_grid_pos + grid_face
-		_target_grid = hit_grid
-		_target_world_pos = _target_grid.grid_to_world(_target_grid_pos)
-		_target_basis = _target_grid.get_basis_world()
-		_can_place = not _target_grid.has_block(_target_grid_pos)
+
+## Targeting del modo prop: ancla el prop al centro de la cara apuntada, vertical en suelo
+## e inclinado PROP_WALL_TILT_DEG grados hacia fuera en paredes.
+func _process_aim_prop(hit_collider: Node3D, hit_normal: Vector3, hit_pos: Vector3) -> void:
+	_hit_grid_for_alignment = null
+	_can_place = false
+
+	var hit_grid := GridManager.get_grid_for_block(hit_collider)
+	if not hit_grid:
+		return
+
+	var cell := _resolve_grid_pos(hit_collider, hit_grid, hit_pos, hit_normal)
+	var face := _compute_grid_face(hit_collider, hit_grid, hit_normal)
+
+	var attach := (Vector3(cell) + Vector3.ONE * 0.5 + Vector3(face) * 0.5) * hit_grid.cell_size
+
+	var prop_basis := Basis.IDENTITY
+	var face_allowed := false
+	if face.y == 1:
+		face_allowed = selected_placeable.placeable_on_floor
+	elif face.y == -1:
+		face_allowed = selected_placeable.placeable_on_ceiling
+		prop_basis = Basis(Vector3.RIGHT, PI)
 	else:
-		_process_cross_size_placement(hit_grid, hit_grid_pos, hit_cell, target_cell, grid_face, hit_pos, planet)
+		face_allowed = selected_placeable.placeable_on_wall
+		var out := Vector3(face)
+		var right := Vector3.UP.cross(out).normalized()
+		prop_basis = Basis(right, deg_to_rad(PROP_WALL_TILT_DEG)) * Basis(right, Vector3.UP, out)
+
+	_target_prop_grid = hit_grid
+	_target_prop_cell = cell
+	_target_prop_face = face
+	_target_prop_local = Transform3D(prop_basis, attach)
+	_target_prop_world = hit_grid.get_grid_world_transform() * _target_prop_local
+	_target_world_pos = _target_prop_world.origin
+	_has_prop_target = true
+
+	_can_place = face_allowed and not hit_grid.has_prop(cell, face)
+
 
 func _process_cross_size_placement(hit_grid: GridBase, hit_grid_pos: Vector3i, hit_cell: float, target_cell: float,
 	grid_face: Vector3i, hit_pos: Vector3, planet: Node3D) -> void:
@@ -421,6 +525,9 @@ func _process_aim_at_terrain(hit_normal: Vector3, hit_pos: Vector3) -> void:
 
 
 func try_place_block() -> bool:
+	if is_prop_mode():
+		return try_place_prop()
+
 	if not _can_place or not _has_target:
 		return false
 	if not _can_afford:
@@ -493,7 +600,13 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 		return false
 
 	var resolved := _get_hit_shape_node(ray_hit)
-	if not resolved or not resolved.has_meta("grid_id"):
+	if not resolved:
+		return false
+
+	if resolved.has_meta("prop_key"):
+		return _try_remove_prop(resolved)
+
+	if not resolved.has_meta("grid_id"):
 		return false
 
 	var grid := GridManager.get_grid_for_block(resolved)
@@ -517,9 +630,53 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 
 	return true
 
+
+## Coloca el prop seleccionado en el objetivo actual, consumiendo 1 unidad del inventario.
+func try_place_prop() -> bool:
+	if not _can_place or not _has_target or not _has_prop_target:
+		return false
+	if not _can_afford or not _target_prop_grid:
+		return false
+
+	if _inventory and _inventory.remove_item(selected_placeable, 1) < 1:
+		var consumed_equipped: bool = _equipped_matches_placeable() \
+			and _equipped_item_consumer.is_valid() and _equipped_item_consumer.call()
+		if not consumed_equipped:
+			return false
+
+	var placed := _target_prop_grid.place_prop(_target_prop_cell, _target_prop_face, selected_placeable.id, _target_prop_local)
+	if not placed and _inventory:
+		_inventory.add_item(selected_placeable, 1)
+	return placed
+
+
+## Retira el prop apuntado y devuelve su item al inventario.
+func _try_remove_prop(prop_node: Node3D) -> bool:
+	var grid := GridManager.get_grid(prop_node.get_meta("grid_id"))
+	if not grid:
+		return false
+
+	var info := grid.remove_prop(prop_node.get_meta("prop_key"))
+	if info.is_empty():
+		return false
+
+	_refund_prop_item(info["item_id"])
+	return true
+
+
+func _refund_prop_item(item_id: StringName) -> void:
+	if not _inventory:
+		return
+	var item := config_ref.get_item(item_id)
+	if item:
+		_inventory.add_item(item, 1)
+
 func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
 	if not _inventory:
 		return
+
+	for prop_item_id in block_data.get("detached_props", []):
+		_refund_prop_item(prop_item_id)
 
 	var mat_id: String = block_data["material_id"]
 	if mat_id == "":

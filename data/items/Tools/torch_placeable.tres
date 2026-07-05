@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" uid="uid://y77tw7oe2eq8" path="res://textures/icons/items/tools/torch.png" id="1_icon"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_script"]
+
+[resource]
+script = ExtResource("2_script")
+id = &"torch_placeable_01"
+display_name = "Torch (placeable)"
+description = "A torch that can be mounted on structures."
+icon = ExtResource("1_icon")
+category = 0
+scene_path = "res://scenes/items/torches/torch_placed.tscn"
+placeable = true
+placed_collider_size = Vector3(0.15, 0.5, 0.15)
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

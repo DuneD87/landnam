@@ -15,6 +15,9 @@ var _ghost_material: StandardMaterial3D = null
 var _mirror_ghost_node: Node3D = null
 var _mirror_ghost_mesh: MeshInstance3D = null
 
+var _prop_ghost: Node3D = null
+var _prop_ghost_material: StandardMaterial3D = null
+
 var _highlight_node: Node3D = null
 var _highlight_mesh: MeshInstance3D = null
 
@@ -28,6 +31,7 @@ func setup(building_system: BuildingSystem) -> void:
 	_setup_highlight()
 
 	_building_system.selected_block_changed.connect(_on_block_changed)
+	_building_system.placeable_changed.connect(_on_placeable_changed)
 	_building_system.build_mode_changed.connect(_on_build_mode_changed)
 	_building_system.rotation_changed.connect(_on_ghost_mesh_dirty)
 	_building_system.cell_size_changed.connect(_on_cell_size_changed)
@@ -130,6 +134,48 @@ func hide_preview() -> void:
 	if _mirror_ghost_node:
 		_mirror_ghost_node.visible = false
 
+
+## Reconstruye el ghost del prop instanciando su escena con material fantasma.
+func _on_placeable_changed(item: ItemData) -> void:
+	if _prop_ghost:
+		_prop_ghost.queue_free()
+		_prop_ghost = null
+
+	if not item or item.scene_path == "":
+		return
+
+	_prop_ghost = (load(item.scene_path) as PackedScene).instantiate() as Node3D
+	_prop_ghost_material = StandardMaterial3D.new()
+	_prop_ghost_material.render_priority = 5
+	_prop_ghost_material.albedo_color = ghost_color_valid
+	_prop_ghost_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_prop_ghost_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_apply_prop_ghost_material(_prop_ghost)
+	add_child(_prop_ghost)
+	_prop_ghost.visible = false
+
+
+func _apply_prop_ghost_material(node: Node) -> void:
+	if node is MeshInstance3D:
+		(node as MeshInstance3D).material_override = _prop_ghost_material
+	elif node is Light3D or node is GPUParticles3D:
+		(node as Node3D).visible = false
+	for child in node.get_children():
+		_apply_prop_ghost_material(child)
+
+
+func update_prop_preview(world_transform: Transform3D, valid: bool) -> void:
+	if not _prop_ghost:
+		return
+	_prop_ghost.visible = true
+	_prop_ghost.global_transform = world_transform
+	_prop_ghost_material.albedo_color = ghost_color_valid if valid else ghost_color_invalid
+
+
+func hide_prop_preview() -> void:
+	if _prop_ghost:
+		_prop_ghost.visible = false
+
 func _setup_highlight() -> void:
 	_highlight_node = Node3D.new()
 	_highlight_node.name = "BlockHighlight"
@@ -202,9 +248,11 @@ func _on_ghost_mesh_dirty() -> void:
 
 func _on_build_mode_changed(active: bool) -> void:
 	if _ghost_node:
-		_ghost_node.visible = active
+		_ghost_node.visible = active and not _building_system.is_prop_mode()
 	if _mirror_ghost_node and not active:
 		_mirror_ghost_node.visible = false
+	if not active:
+		hide_prop_preview()
 	if active:
 		_refresh_ghost_mesh()
 

@@ -43,6 +43,13 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export var has_durability: bool = false
 @export var max_durability: int = 100
 
+@export_group("Placement")
+@export var placeable: bool = false
+@export var placeable_on_floor: bool = true
+@export var placeable_on_wall: bool = true
+@export var placeable_on_ceiling: bool = false
+@export var placed_collider_size: Vector3 = Vector3(0.2, 0.5, 0.2)
+
 static func clone(source: ItemData) -> ItemData:
 	var copy := ItemData.new()
 	copy.copy_from(source)
@@ -71,6 +78,11 @@ func copy_from(source: ItemData) -> void:
 	surface_material = source.surface_material
 	block_id = source.block_id
 	build_material_id = source.build_material_id
+	placeable = source.placeable
+	placeable_on_floor = source.placeable_on_floor
+	placeable_on_wall = source.placeable_on_wall
+	placeable_on_ceiling = source.placeable_on_ceiling
+	placed_collider_size = source.placed_collider_size
 
 
 	

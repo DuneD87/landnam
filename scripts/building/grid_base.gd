@@ -8,6 +8,8 @@ extends RefCounted
 signal block_placed(grid_pos: Vector3i, block_id: int)
 signal block_removed(grid_pos: Vector3i)
 
+const config_ref = preload("res://scripts/config.gd")
+
 const CHUNK_SHIFT := 4
 
 var grid_id: String = ""
@@ -15,6 +17,7 @@ var cell_size: float = 1.0
 var planet_node: Node3D = null
 
 var _blocks: Dictionary = {}
+var _props: Dictionary = {}
 var _chunk_meshes: Dictionary = {}
 var _chunk_blocks: Dictionary = {}
 var _chunk_colliders: Dictionary = {}
@@ -46,6 +49,12 @@ func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basi
 ## Nodo de colisión padre de las cajas fusionadas de cubos (subclases deben implementarlo).
 func _get_collision_parent() -> Node3D:
 	push_warning("[GridBase] _get_collision_parent() no implementado")
+	return null
+
+## Ancla física de un prop, con collider y metas grid_id/prop_key; anchor_local está en espacio
+## de grid centrado en el collider (subclases deben implementarlo).
+func _create_prop_anchor(_key: String, _anchor_local: Transform3D, _collider_size: Vector3) -> Node3D:
+	push_warning("[GridBase] _create_prop_anchor() no implementado")
 	return null
 
 ## Hook tras colocar un bloque, para lógica específica de la subclase.
@@ -132,6 +141,13 @@ func remove_block(grid_pos: Vector3i) -> Dictionary:
 	if node and is_instance_valid(node):
 		node.queue_free()
 
+	var detached: Array = []
+	for key: String in _props.keys():
+		if _props[key]["cell"] == grid_pos:
+			var prop_info := remove_prop(key)
+			detached.append(prop_info["item_id"])
+	info["detached_props"] = detached
+
 	_blocks.erase(grid_pos)
 	var chunk := _chunk_of(grid_pos)
 	if _chunk_blocks.has(chunk):
@@ -142,6 +158,85 @@ func remove_block(grid_pos: Vector3i) -> Dictionary:
 	_request_rebuild(grid_pos)
 	block_removed.emit(grid_pos)
 	return info
+
+
+static func prop_key(cell: Vector3i, face: Vector3i) -> String:
+	return "%d,%d,%d|%d,%d,%d" % [cell.x, cell.y, cell.z, face.x, face.y, face.z]
+
+
+func has_prop(cell: Vector3i, face: Vector3i) -> bool:
+	return _props.has(prop_key(cell, face))
+
+
+## Coloca un prop (escena de item) anclado a la cara de un bloque. local_transform está en
+## espacio de grid, con el origen en el punto de apoyo y +Y a lo largo del prop.
+func place_prop(cell: Vector3i, face: Vector3i, item_id: StringName, local_transform: Transform3D) -> bool:
+	var key := prop_key(cell, face)
+	if _props.has(key):
+		return false
+
+	var item: ItemData = config_ref.get_item(item_id)
+	if not item or item.scene_path == "":
+		return false
+
+	var center_offset := Vector3(0, item.placed_collider_size.y * 0.5, 0)
+	var anchor_local := local_transform * Transform3D(Basis.IDENTITY, center_offset)
+	var anchor := _create_prop_anchor(key, anchor_local, item.placed_collider_size)
+	if not anchor:
+		return false
+
+	var visual := (load(item.scene_path) as PackedScene).instantiate() as Node3D
+	visual.position = -center_offset
+	anchor.add_child(visual)
+
+	_props[key] = {
+		"item_id": item_id,
+		"cell": cell,
+		"face": face,
+		"local_transform": local_transform,
+		"node": anchor,
+	}
+	return true
+
+
+## Elimina un prop por su clave; devuelve su info (con item_id) o {} si no existe.
+func remove_prop(key: String) -> Dictionary:
+	if not _props.has(key):
+		return {}
+	var info: Dictionary = _props[key]
+	var node: Node3D = info["node"]
+	if node and is_instance_valid(node):
+		node.queue_free()
+	_props.erase(key)
+	return info
+
+
+func get_all_props() -> Dictionary:
+	return _props
+
+
+func _serialize_props() -> Dictionary:
+	var out: Dictionary = {}
+	for key: String in _props:
+		var info: Dictionary = _props[key]
+		out[key] = {
+			"item_id": str(info["item_id"]),
+			"cell": _vec3i_to_array(info["cell"]),
+			"face": _vec3i_to_array(info["face"]),
+			"local_transform": _transform_to_array(info["local_transform"]),
+		}
+	return out
+
+
+func _deserialize_props(props_data: Dictionary) -> void:
+	for key in props_data:
+		var pd: Dictionary = props_data[key]
+		place_prop(
+			_array_to_vec3i(pd.get("cell", [])),
+			_array_to_vec3i(pd.get("face", [])),
+			StringName(pd.get("item_id", "")),
+			_array_to_transform(pd.get("local_transform", []))
+		)
 
 
 ## Suspende los rebuilds de mesh durante una edición masiva de bloques.
@@ -337,6 +432,12 @@ func clear() -> void:
 		if node and is_instance_valid(node):
 			node.queue_free()
 	_blocks.clear()
+
+	for key: String in _props:
+		var prop_node: Node3D = _props[key]["node"]
+		if prop_node and is_instance_valid(prop_node):
+			prop_node.queue_free()
+	_props.clear()
 
 	for chunk: Vector3i in _chunk_meshes.keys():
 		_free_chunk_mesh(chunk)

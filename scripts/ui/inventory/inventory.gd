@@ -162,9 +162,11 @@ func print_contents() -> void:
 	print("===========================")
 
 func get_item_count(item_data: ItemData) -> int:
+	if item_data == null:
+		return 0
 	var total = 0
 	for item in items:
-		if item != null and item.data == item_data:
+		if item != null and item.data != null and item.data.id == item_data.id:
 			total += item.quantity
 	return total
 
