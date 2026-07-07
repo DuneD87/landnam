@@ -716,26 +716,6 @@ void main() {
 		scene_t = length(scene_view_position);
 	}
 
-	// El mar no está en el depth buffer (es transparente): se corta aquí analíticamente.
-	// Desde fuera, el recorrido atmosférico termina en la superficie del agua; desde dentro,
-	// el efecto entero se atenúa con el trayecto de agua hasta el aire (continuo al cruzar:
-	// profundidad 0 → atenuación 1, así no hay pop en la línea de flotación).
-	float water_radius = P(10).w;
-	float water_atten = 1.0;
-	if (water_radius > 0.001) {
-		vec2 water = ray_sphere(planet_center, water_radius, camera_position, ray_dir);
-		if (length(camera_position - planet_center) < water_radius) {
-			float water_exit_t = water.x + water.y;
-			water_atten = scene_t <= water_exit_t ? 0.0 : exp(-0.35 * water_exit_t);
-			if (water_atten < 0.004) {
-				imageStore(color_image, pixel, scene_color);
-				return;
-			}
-		} else if (water.y > 0.0) {
-			scene_t = min(scene_t, water.x);
-		}
-	}
-
 	// Intersección con la atmósfera.
 	vec2 atmo = ray_sphere(planet_center, atmo_radius, camera_position, ray_dir);
 	float dst_to_atmo      = atmo.x;
@@ -852,6 +832,5 @@ void main() {
 		light = light * fog_trans + fog_col;
 	}
 
-	light = mix(scene_color.rgb, light, water_atten);
 	imageStore(color_image, pixel, vec4(light, scene_color.a));
 }

@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode unshaded;
+render_mode unshaded, depth_draw_always;
 
 // Niebla submarina: quad a pantalla completa que compone la escena con absorción
 // Beer-Lambert por canal e in-scatter por tramos de profundidad. La frontera del agua es
@@ -25,6 +25,8 @@ uniform float distance_depth_gain : hint_range(0.0, 3.0) = 0.7; // m de tramo de
 uniform float distance_depth_max = 120.0; // tope del empuje por distancia: el horizonte converge al tramo deep; a abyss solo se llega por profundidad de cámara
 uniform float meniscus_width = 0.012;   // grosor de la línea de flotación en metros sobre el near plane
 uniform float meniscus_strength = 0.3;  // brillo añadido en la línea de flotación
+uniform float atmosphere_leak_distance = 250.0; // tramo (m) que la atmósfera marcha bajo el agua con columna 0 (cámara pegada a la superficie)
+uniform float atmosphere_leak_falloff : hint_range(0.0, 1.0) = 0.08; // caída exponencial de ese tramo por metro de columna de agua hasta la superficie
 
 // Godrays: haces volumétricos = extrusión de la textura de cáusticas a lo largo del sol
 // refractado. Raymarch corto con jitter, Beer-Lambert por canal en ambos trayectos.
@@ -132,7 +134,19 @@ void fragment() {
         t_exit = 0.5 * (lo + hi);
     }
 
-    float water_column = min(t_exit, scene_distance) * fog_density;
+    float water_path = min(t_exit, scene_distance);
+
+    // Fuga de atmósfera: la profundidad del near plane borraría la atmósfera (compositor POST_TRANSPARENT)
+    // en todo el submarino. En su lugar se escribe la de un punto sobre el rayo cuya distancia decae con
+    // la columna de agua hasta la superficie: velo pleno mirando arriba a ras de superficie, apagado hacia
+    // el fondo — la misma atenuación exp del corte que vivía en el compute. Se acota por delante de la
+    // escena para que la niebla no pierda el test de profundidad contra la geometría cercana.
+    float leak_t = atmosphere_leak_distance * exp(-atmosphere_leak_falloff * water_path);
+    leak_t = clamp(leak_t, 0.01, scene_distance * 0.995);
+    vec4 leak_clip = PROJECTION_MATRIX * vec4(normalize(view_coords.xyz) * leak_t, 1.0);
+    DEPTH = clamp(leak_clip.z / leak_clip.w, 0.0, 1.0);
+
+    float water_column = water_path * fog_density;
 
     // L = escena * T + scatter * (1 - T), con transmitancia Beer-Lambert por canal RGB.
     vec3 transmission = exp(-absorption_coefficients * water_column);
