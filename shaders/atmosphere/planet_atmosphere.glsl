@@ -178,6 +178,17 @@ vec2 latlong_uv(vec3 dir) {
 	return vec2(u, v);
 }
 
+// Cobertura efectiva con la agrupación planetaria (P(15).w = cloud_group_strength) aplicada.
+// Se llama UNA vez por rayo (en el punto medio del segmento marchado), no por muestra: las
+// celdas miden kilómetros y la envolvente es casi constante a lo largo de un march, así que
+// pagar el tap 2D en cada muestra (×pasos de vista ×luz ×sombra) era coste sin ganancia visual.
+float grouped_coverage(vec3 p, vec3 planet_center, float coverage) {
+	float strength = clamp(P(15).w, 0.0, 1.0);
+	if (strength < 0.001) return coverage;
+	float env = texture(cloud_group_tex, latlong_uv(normalize(p - planet_center))).r;
+	return coverage * mix(1.0, env, strength);
+}
+
 float sample_cloud_density(
 	vec3 p, vec3 planet_center,
 	float cloud_min_r, float cloud_max_r,
@@ -222,21 +233,12 @@ float sample_cloud_density(
 	// del umbral: el detalle rompe el borde de las masas sin destruir su silueta.
 	float sample_v = mix(nz.r, nz.b, 0.25);
 
-	// Agrupación planetaria (P(15).w = cloud_group_strength): la envolvente lat-long modula
-	// la cobertura por zona → masas de nubes en celdas, cielo despejado entre ellas. Con
-	// strength = 0 la rama es uniforme y la cobertura queda intacta (comportamiento actual).
-	float group_strength = clamp(P(15).w, 0.0, 1.0);
-	float cov = coverage;
-	if (group_strength > 0.001) {
-		float env = texture(cloud_group_tex, latlong_uv(dir)).r;
-		cov *= mix(1.0, env, group_strength);
-	}
-
 	// Umbral smoothstep (estilo sky-sorta): interior SÓLIDO y borde definido pero suave.
 	// El max(0, ruido - umbral) lineal de antes dejaba casi todo el volumen a densidad
 	// ~0 → nubes traslúcidas sin silueta, con cualquier ruido. edge_soft = anchura del
-	// borde: bajo = recortado/duro, alto = algodonoso difuso.
-	float inv_cov = 1.0 - cov;
+	// borde: bajo = recortado/duro, alto = algodonoso difuso. La agrupación planetaria ya
+	// viene aplicada en `coverage` (grouped_coverage, una vez por rayo, no por muestra).
+	float inv_cov = 1.0 - coverage;
 	float density = smoothstep(inv_cov - edge_soft, inv_cov + edge_soft, sample_v);
 
 	return density * height_grad * density_scale;
@@ -285,6 +287,9 @@ float cloud_shadow_transmittance(
 	float t_start = inner.y > 0.0 ? inner.y : 0.0;
 	float seg = outer.y - t_start;
 	if (seg <= 0.001) return 1.0;
+
+	// Agrupación una vez por rayo de sombra (punto medio del tramo que cruza la capa).
+	coverage = grouped_coverage(p + sun_dir * (t_start + seg * 0.5), planet_center, coverage);
 
 	// Borde ensanchado ×4 SOLO para la sombra: con el umbral casi binario de la nube visible,
 	// el jitter por píxel de esta marcha producía grano en el terreno (píxeles vecinos
@@ -342,6 +347,9 @@ void march_clouds(
 	t0 = max(t0, 0.0);
 	t1 = min(t1, max_dist);
 	if (t1 <= t0 + 0.001) return;
+
+	// Agrupación una vez por rayo; cloud_light_od hereda esta cobertura efectiva gratis.
+	coverage = grouped_coverage(ro + rd * ((t0 + t1) * 0.5), planet_center, coverage);
 
 	int cloud_steps = clamp(int(P(15).x), 1, 64);
 	float step_size = (t1 - t0) / float(cloud_steps);
