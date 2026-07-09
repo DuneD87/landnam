@@ -75,6 +75,7 @@ uniform float glint_depth_fade : hint_range(0.0, 20.0) = 3.0; // profundidad a l
 uniform float light_specular_clamp : hint_range(0.0, 4.0) = 0.6;   // tope de especular por luz
 uniform float light_roughness_floor : hint_range(0.0, 1.0) = 0.25; // ensancha el brillo puntual
 uniform float light_diffuse_strength : hint_range(0.0, 2.0) = 1.0;
+uniform float light_diffuse_wrap : hint_range(0.0, 1.0) = 0.6; // 0 = Lambert puro (dorso de ola a negro), 1 = half-Lambert
 
 // Screen-space reflections
 uniform bool ssr_enabled = true;
@@ -607,18 +608,22 @@ void fragment() {
 // Sin esto, una luz puntual cercana y brillante (antorcha) revienta el especular
 // del agua casi-espejo (roughness ~0.05) a un óvalo blanco saturado.
 void light() {
-    float ndotl = max(dot(NORMAL, LIGHT), 0.0);
+    float ndl = dot(NORMAL, LIGHT);
 
-    // Difuso suave del agua
+    // Difuso wrap: el agua dispersa la luz internamente, así que la ladera a contraluz no cae a
+    // negro (con oleaje fuerte, Lambert puro pintaba bandas negras siguiendo los dorsos de ola).
+    // El pico (cara a la luz) no cambia; solo se levanta la zona muerta ndl <= 0.
+    float ndotl = clamp((ndl + light_diffuse_wrap) / (1.0 + light_diffuse_wrap), 0.0, 1.0);
     DIFFUSE_LIGHT += ALBEDO * ndotl * ATTENUATION * LIGHT_COLOR * light_diffuse_strength;
 
     // Especular con suelo de rugosidad (ensancha el brillo puntual) y tope duro
-    // para que ninguna luz individual pueda saturar a blanco.
+    // para que ninguna luz individual pueda saturar a blanco. Se enmascara con el
+    // ndl real: un dorso sin línea de visión a la luz no puede tener brillo especular.
     vec3 half_dir = normalize(LIGHT + VIEW);
     float ndh = max(dot(NORMAL, half_dir), 0.0);
     float r = max(ROUGHNESS, light_roughness_floor);
     float shininess = 2.0 / max(r * r, 1e-4) - 2.0;
-    float spec = pow(ndh, shininess) * ndotl;
+    float spec = pow(ndh, shininess) * max(ndl, 0.0);
     spec = min(spec, light_specular_clamp);
     SPECULAR_LIGHT += spec * ATTENUATION * LIGHT_COLOR * SPECULAR_AMOUNT;
 }

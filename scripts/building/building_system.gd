@@ -757,14 +757,16 @@ func debug_spawn_stress_grid() -> void:
 
 ## Genera un casco con forma de barco (tamaño similar al stress grid) frente al jugador y lo
 ## convierte a grid dinámica. Ejes de grid: +Z proa, -Z popa, X manga, Y altura. Casco macizo
-## con cubierta plana; la forma viene del afinado en punta y el rocker de quilla.
+## con cubierta plana; la forma viene del afinado en punta a 45° y el rocker de quilla, y los
+## escalones del costado se completan con slopes que encajan en una pared diagonal continua.
 func debug_spawn_ship() -> void:
 	var planet := current_planet
 	if not planet or not _player:
 		return
 
 	var cube := BlockDatabase.get_block(BlockDatabase.BLOCK_CUBE_ID)
-	if not cube:
+	var slope := BlockDatabase.get_block(BlockDatabase.BLOCK_SLOPE_ID)
+	if not cube or not slope:
 		return
 
 	var basis_world := get_player_basis()
@@ -779,9 +781,9 @@ func debug_spawn_ship() -> void:
 	var grid_basis := grid.get_basis_world()
 	var base_cell := grid.world_to_grid(origin_world)
 
-	var half_len := 28      # media eslora (a lo largo de Z)
-	var half_beam := 6      # media manga máxima, en la cuaderna maestra (a lo largo de X)
-	var deck_y := 8         # altura de la cubierta (casco macizo de y=0 a deck_y)
+	var half_len := 60      # media eslora (a lo largo de Z)
+	var half_beam := 15      # media manga máxima, en la cuaderna maestra (a lo largo de X)
+	var deck_y := 25         # altura de la cubierta (casco macizo de y=0 a deck_y)
 
 	var t0 := Time.get_ticks_msec()
 	grid.begin_bulk_edit()
@@ -797,6 +799,8 @@ func debug_spawn_ship() -> void:
 		for x in range(-hw, hw + 1):
 			for y in range(floor_y, deck_y + 1):
 				_ship_place(grid, cube, base_cell + Vector3i(x, y, z), Basis.IDENTITY, grid_basis, mat_id)
+
+	_ship_fill_side_steps(grid, slope, base_cell, half_len, half_beam, deck_y, grid_basis, mat_id)
 
 	var t1 := Time.get_ticks_msec()
 	grid.end_bulk_edit()
@@ -817,17 +821,14 @@ func _ship_place(grid: GridBase, block_data: BlockData, gp: Vector3i, rot: Basis
 	grid.place_block(gp, block_data, rot, xform, mat_id)
 
 
-## Media manga del casco en la estación z: manga máxima en el cuerpo central, afinando a punta
-## en proa (+Z) y a un espejo estrecho en popa (-Z).
+## Media manga del casco en la estación z: manga máxima en el cuerpo central y afinado a 45°
+## (1 celda por estación) hacia los extremos, de modo que los slopes del costado encajen
+## borde con borde en una pared diagonal continua: en punta hacia proa (+Z) y hasta un
+## espejo estrecho en popa (-Z).
 func _ship_half_width(z: int, half_len: int, half_beam: int) -> int:
-	var mid := int(round(half_len * 0.45))
-	var az := absi(z)
-	if az <= mid:
-		return half_beam
-	var frac := float(az - mid) / float(half_len - mid)   # 0..1 hacia el extremo
-	if z > 0:
-		return int(round(lerpf(float(half_beam), 0.0, frac)))   # proa en punta
-	return int(round(lerpf(float(half_beam), 2.0, frac)))       # popa: espejo de 2 celdas
+	var bow_hw := half_len - z         # 0 en la punta de proa, +1 por estación hacia popa
+	var stern_hw := z + half_len + 2   # espejo de 2 celdas en popa, +1 por estación hacia proa
+	return mini(half_beam, mini(bow_hw, stern_hw))
 
 
 ## Altura del fondo del casco (rocker de quilla): sube hacia proa y popa.
@@ -838,6 +839,42 @@ func _ship_floor(z: int, half_len: int) -> int:
 		return 0
 	var frac := float(az - mid) / float(half_len - mid)
 	return int(round(lerpf(0.0, 3.0, frac)))
+
+
+## Suaviza la V en planta: donde la manga se estrecha entre estaciones contiguas, completa el
+## escalón del costado con slopes tumbados sobre su lado (la hipotenusa queda como pared
+## vertical diagonal a 45°), apilados de fondo a cubierta en la estación estrecha del par.
+func _ship_fill_side_steps(grid: GridBase, slope: BlockData, base_cell: Vector3i, half_len: int,
+	half_beam: int, deck_y: int, grid_basis: Basis, mat_id: String) -> void:
+
+	# Slope girado 90° sobre Z (roll): las caras triangulares quedan horizontales y el macizo
+	# ocupa media celda en diagonal. El sufijo indica hacia dónde miran sus dos caras completas,
+	# que deben quedar pegadas al casco (hacia crujía y hacia la estación ancha del par).
+	var roll := Basis(Vector3.BACK, deg_to_rad(90.0))
+	var yaw_180 := Basis(Vector3.UP, deg_to_rad(180.0))
+	var solid_px_pz := roll
+	var solid_nx_pz := roll.inverse()
+	var solid_nx_nz := yaw_180 * solid_px_pz
+	var solid_px_nz := yaw_180 * solid_nx_pz
+
+	for z in range(-half_len, half_len):
+		var hw_near := _ship_half_width(z, half_len, half_beam)
+		var hw_far := _ship_half_width(z + 1, half_len, half_beam)
+		if hw_near == hw_far:
+			continue
+
+		# El relleno va en la estación estrecha del par, en la columna x que la ancha ocupa de
+		# más, con la diagonal del slope mirando hacia fuera del casco.
+		var narrows_forward := hw_far < hw_near   # proa: la estación ancha queda hacia -Z
+		var narrow_z := z + 1 if narrows_forward else z
+		var wide := maxi(hw_near, hw_far)
+		var floor_y := _ship_floor(narrow_z, half_len)
+
+		var starboard_rot := solid_nx_nz if narrows_forward else solid_nx_pz
+		var port_rot := solid_px_nz if narrows_forward else solid_px_pz
+		for y in range(floor_y, deck_y + 1):
+			_ship_place(grid, slope, base_cell + Vector3i(wide, y, narrow_z), starboard_rot, grid_basis, mat_id)
+			_ship_place(grid, slope, base_cell + Vector3i(-wide, y, narrow_z), port_rot, grid_basis, mat_id)
 
 
 ## Activa/desactiva la simetría; al activarla fija el centro en el bloque apuntado.
