@@ -325,7 +325,7 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		depth_uniform.add_id(depth_image)
 
 		var params_uniform := RDUniform.new()
-		params_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
+		params_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_UNIFORM_BUFFER
 		params_uniform.binding = 2
 		params_uniform.add_id(params_buffers[view])
 
@@ -361,8 +361,10 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 func _ensure_params_buffers(count: int) -> void:
 	var zero_bytes := _zero_params_bytes()
 
+	# Uniform buffer (no storage): lectura uniforme por todos los hilos → constant cache.
+	# El shader declara vec4 data[24]; PARAM_VEC4_COUNT debe coincidir con ese 24.
 	while params_buffers.size() < count:
-		var buffer := rd.storage_buffer_create(zero_bytes.size(), zero_bytes)
+		var buffer := rd.uniform_buffer_create(zero_bytes.size(), zero_bytes)
 		params_buffers.append(buffer)
 
 

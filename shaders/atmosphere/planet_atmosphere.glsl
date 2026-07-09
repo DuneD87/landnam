@@ -6,8 +6,10 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D depth_texture;
 
-layout(set = 0, binding = 2, std430) readonly restrict buffer ParamsBuffer {
-	vec4 data[];
+// UBO en vez de SSBO: todos los hilos leen los mismos parámetros, así que van por la
+// constant cache. El tamaño (24) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd.
+layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
+	vec4 data[24];
 } params_buffer;
 
 // Rejilla de oclusión radial del WeatherOcclusionField (R = altura del techo de cueva). La niebla
@@ -103,16 +105,23 @@ float _vnoise(vec3 p) {
 		u.z);
 }
 
+// Acumula `count` octavas adicionales sobre el estado (p, a, v, norm) de un FBM en curso.
+// Permite que la sonda barata de 2 octavas continúe hasta 4 sin recalcular las primeras
+// (ver sample_cloud_density_probed).
+void _fbm_accum(inout vec3 p, inout float a, inout float v, inout float norm, int count) {
+	for (int i = 0; i < count; i++) {
+		v += a * _vnoise(p);
+		norm += a;
+		p = p * 2.1 + vec3(1.7, 9.2, 3.4);
+		a *= 0.5;
+	}
+}
+
 // FBM normalizado: devuelve ~[0,1] independientemente del nº de octavas, de modo
 // que reducir octavas (p.ej. en el march de luz) no cambia la magnitud de densidad.
 float _fbm(vec3 p, int octaves) {
 	float v = 0.0, a = 0.5, norm = 0.0;
-	for (int i = 0; i < 4; i++, a *= 0.5) {
-		if (i >= octaves) break;
-		v += a * _vnoise(p);
-		norm += a;
-		p = p * 2.1 + vec3(1.7, 9.2, 3.4);
-	}
+	_fbm_accum(p, a, v, norm, min(octaves, 4));
 	return v / max(norm, EPSILON);
 }
 
@@ -199,6 +208,63 @@ float sample_cloud_density(
 	}
 
 	return density * height_grad * density_scale;
+}
+
+// Sonda + muestra detallada en una llamada, para el march de vista: evalúa primero las 2
+// octavas de la sonda del empty-space skipping y, solo si ven nube, continúa con las 2
+// octavas restantes y la erosión, reutilizando la posición de ruido y las octavas ya
+// calculadas. Equivale exactamente a sample_cloud_density(.., 2, false) seguido de
+// sample_cloud_density(.., 4, true), sin pagar dos veces el setup ni las octavas 0-1.
+void sample_cloud_density_probed(
+	vec3 p, vec3 planet_center,
+	float cloud_min_r, float cloud_max_r,
+	float coverage, float density_scale, float noise_scale,
+	out float probe_density, out float detail_density
+) {
+	probe_density  = 0.0;
+	detail_density = 0.0;
+
+	vec3 local = p - planet_center;
+	float dist = length(local);
+	if (dist < cloud_min_r || dist > cloud_max_r) {
+		return;
+	}
+
+	vec3 dir = local / max(dist, EPSILON);
+	float thickness = max(cloud_max_r - cloud_min_r, 0.001);
+	float h = clamp((dist - cloud_min_r) / thickness, 0.0, 1.0);
+
+	float height_grad =
+		smoothstep(0.0, 0.2, h) *
+		smoothstep(1.0, 0.5, h);
+
+	float reference_r = max((cloud_min_r + cloud_max_r) * 0.5, 1.0);
+	float freq = max(noise_scale, 0.001);
+	vec3 noise_pos = (local / reference_r) * freq;
+	noise_pos += dir * (h * 0.8);
+	noise_pos += P(14).xyz * P(14).w;
+
+	// Sonda: 2 octavas.
+	vec3 fp = noise_pos;
+	float a = 0.5, v = 0.0, norm = 0.0;
+	_fbm_accum(fp, a, v, norm, 2);
+	float base = v / max(norm, EPSILON);
+	probe_density = max(0.0, base - (1.0 - coverage)) * height_grad * density_scale;
+	if (probe_density <= 0.0001) {
+		return;
+	}
+
+	// Refinado: 2 octavas más + erosión de detalle (mismo camino que detail=true).
+	_fbm_accum(fp, a, v, norm, 2);
+	base = v / max(norm, EPSILON);
+	float density = max(0.0, base - (1.0 - coverage));
+	if (density > 0.0) {
+		vec3 dpos = noise_pos * 3.17 + P(14).xyz * (P(14).w * 2.0);
+		float billow = 1.0 - _fbm(dpos, 2);
+		float edge = 1.0 - smoothstep(0.0, 0.45, density);
+		density = max(0.0, density - billow * 0.20 * edge);
+	}
+	detail_density = density * height_grad * density_scale;
 }
 
 float hg_phase(float cos_theta, float g) {
@@ -314,16 +380,16 @@ void march_clouds(
 	for (int i = 0; i < MAX_MARCH_ITERS && t < t1; i++) {
 		vec3 p = ro + rd * t;
 
-		float probe = sample_cloud_density(p, planet_center, cloud_min_r, cloud_max_r,
-		                                   coverage, density_scale, noise_scale, 2, false);
+		// Sonda (2 oct) y densidad detallada (4 oct + erosión) en una sola llamada que
+		// comparte el setup y las dos primeras octavas entre ambas.
+		float probe, d;
+		sample_cloud_density_probed(p, planet_center, cloud_min_r, cloud_max_r,
+		                            coverage, density_scale, noise_scale, probe, d);
 		if (probe <= 0.0001) {
 			t += big_step;
 			continue;
 		}
 
-		// Dentro de la nube: densidad con detalle (4 octavas + erosión) + iluminación.
-		float d = sample_cloud_density(p, planet_center, cloud_min_r, cloud_max_r,
-		                               coverage, density_scale, noise_scale, 4, true);
 		if (d > 0.0001) {
 			float l_od = cloud_light_od(p, sun_dir, planet_center, cloud_min_r, cloud_max_r,
 										coverage, density_scale, noise_scale);
@@ -400,10 +466,48 @@ void march_clouds(
 // horizontalmente y "se ven venir de lejos". Es densa abajo y se desvanece hacia arriba,
 // así que se origina pegada al suelo en vez de bajar del cielo.
 
+// Setup de la oclusión de cueva, invariante a lo largo del rayo: se construye UNA vez por
+// píxel en march_fog en lugar de desempaquetar P() y llamar a textureSize en cada muestra.
+struct FogOcclusion {
+	bool  enabled;
+	vec3  center;
+	vec3  x_axis;
+	vec3  z_axis;
+	vec3  up;
+	float inv_half;   // 1 / semiancho de la rejilla
+	float span;
+	float below;
+	float margin;
+	float inv_soft;   // 1 / metros de difuminado del borde
+	float step_uv;    // separación de las 9 muestras del PCF, en uv
+};
+
+FogOcclusion make_fog_occlusion() {
+	FogOcclusion o;
+	o.enabled = P(19).w > 0.5;
+	o.center  = P(19).xyz;
+	o.x_axis  = P(20).xyz;
+	o.z_axis  = P(21).xyz;
+	o.up      = P(22).xyz;
+	o.span    = P(21).w;
+	o.below   = P(22).w;
+	o.margin  = P(23).x;
+	float occ_half = max(P(20).w, EPSILON);
+	float occ_soft = max(P(23).y, 0.5);   // metros de difuminado del borde (horizontal + vertical)
+	o.inv_half = 1.0 / occ_half;
+	o.inv_soft = 1.0 / occ_soft;
+	// Separación de las 9 muestras: occ_soft metros, con un téxel como mínimo. La rejilla
+	// va de -1..1 en u → uv = u*0.5+0.5, así que 1 uv equivale a 2*occ_half metros.
+	vec2 res = vec2(textureSize(occ_height_tex, 0));
+	o.step_uv = max(occ_soft * 0.5 * o.inv_half, 1.0 / max(res.x, res.y));
+	return o;
+}
+
 float sample_fog_density(
 	vec3 p, vec3 planet_center,
 	float fog_min_r, float fog_max_r,
-	float coverage, float noise_scale, vec3 wind_dir, float wind_offset
+	float coverage, float noise_scale, vec3 wind_dir, float wind_offset,
+	FogOcclusion occ
 ) {
 	vec3 local = p - planet_center;
 	float dist = length(local);
@@ -416,31 +520,21 @@ float sample_fog_density(
 	// PCF 3x3: promediamos el aporte de oclusión de 9 muestras separadas occ_soft metros, así el
 	// borde (boca de cueva) se difumina en HORIZONTAL y VERTICAL en vez de salir en columnas.
 	float occ_mult = 1.0;   // 1 = niebla normal; 0 = bajo techo (cueva)
-	if (P(19).w > 0.5) {
-		vec3 occ_center = P(19).xyz;
-		vec3 occ_x = P(20).xyz; float occ_half = P(20).w;
-		vec3 occ_z = P(21).xyz; float occ_span = P(21).w;
-		vec3 occ_up = P(22).xyz; float occ_below = P(22).w;
-		float occ_margin = P(23).x;
-		float occ_soft = max(P(23).y, 0.5);   // metros de difuminado del borde (horizontal + vertical)
-		vec3 orel = p - occ_center;
-		float ou = dot(orel, occ_x) / occ_half;
-		float ow = dot(orel, occ_z) / occ_half;
+	if (occ.enabled) {
+		vec3 orel = p - occ.center;
+		float ou = dot(orel, occ.x_axis) * occ.inv_half;
+		float ow = dot(orel, occ.z_axis) * occ.inv_half;
 		if (abs(ou) <= 1.0 && abs(ow) <= 1.0) {   // fuera de la rejilla = sin dato = niebla normal
 			vec2 ouv = vec2(ou, ow) * 0.5 + 0.5;
-			float point_h = dot(orel, occ_up);
-			vec2 res = vec2(textureSize(occ_height_tex, 0));
-			// Separación de las 9 muestras: occ_soft metros, con un téxel como mínimo. La rejilla
-			// va de -1..1 en u → uv = u*0.5+0.5, así que 1 uv equivale a 2*occ_half metros.
-			float step_uv = max(occ_soft / (2.0 * occ_half), 1.0 / max(res.x, res.y));
+			float point_h = dot(orel, occ.up);
 			float occ_accum = 0.0;
 			for (int oy = -1; oy <= 1; oy++) {
 				for (int ox = -1; ox <= 1; ox++) {
-					vec2 suv = ouv + vec2(float(ox), float(oy)) * step_uv;
-					float ceil_h = texture(occ_height_tex, suv).r * occ_span - occ_below;
+					vec2 suv = ouv + vec2(float(ox), float(oy)) * occ.step_uv;
+					float ceil_h = texture(occ_height_tex, suv).r * occ.span - occ.below;
 					// Aporte [0,1]: 1 bien bajo su techo (dentro), 0 al ras o por encima (fuera). Las
 					// celdas "sin techo" decodifican muy abajo → su aporte es 0 (no ocluyen).
-					occ_accum += clamp(((ceil_h + occ_margin) - point_h) / occ_soft, 0.0, 1.0);
+					occ_accum += clamp(((ceil_h + occ.margin) - point_h) * occ.inv_soft, 0.0, 1.0);
 				}
 			}
 			occ_mult = 1.0 - occ_accum / 9.0;   // promedio 3x3 → borde difuso en todas direcciones
@@ -517,6 +611,9 @@ void march_fog(
 	if (view_distance > 0.0) t1 = min(t1, view_distance);
 	if (t1 <= t0 + 0.001) return;
 
+	// El setup de la oclusión de cueva no depende del punto: se paga una vez por rayo.
+	FogOcclusion occ = make_fog_occlusion();
+
 	int fog_steps = clamp(steps, 1, 64);
 	float step_size = (t1 - t0) / float(fog_steps);
 	float t = t0 + step_size * jitter;
@@ -524,7 +621,7 @@ void march_fog(
 	for (int i = 0; i < fog_steps && t < t1; i++) {
 		vec3 p = ro + rd * t;
 		float d = sample_fog_density(p, planet_center, fog_min_r, fog_max_r,
-		                             coverage, noise_scale, wind_dir, wind_offset);
+		                             coverage, noise_scale, wind_dir, wind_offset, occ);
 		// Desvanecido suave hacia la distancia de visibilidad para que no haya un corte duro al
 		// llegar a view_distance (el banco se difumina en vez de terminar en una pared).
 		if (view_distance > 0.0) {
@@ -614,7 +711,12 @@ vec3 calculate_light(
 	vec3 in_scatter_point = ro;
 	float step_size = ray_length / float(NUM_IN_SCATTER_POINTS - 1);
 	vec3 in_scattered_light = vec3(0.0);
+
+	// Optical depth de vista acumulado incrementalmente (regla del trapecio) con las mismas
+	// muestras del bucle, en vez de re-marchar 12 puntos hacia atrás en cada iteración:
+	// elimina la mitad de las evaluaciones de densidad del píxel sin diferencia visible.
 	float view_ray_optical_depth = 0.0;
+	float prev_density = 0.0;
 
 	for (int i = 0; i < NUM_IN_SCATTER_POINTS; i++) {
 		// Sombra suave angular: transición gradual alrededor del terminador.
@@ -623,6 +725,14 @@ vec3 calculate_light(
 		float sun_dot = dot(to_scatter, sun_dir);
 		float shadow_factor = smoothstep(-0.15, 0.15, sun_dot);
 
+		float local_density = density_at_point(
+			in_scatter_point, planet_center, planet_radius, atmo_radius, density_falloff
+		);
+		if (i > 0) {
+			view_ray_optical_depth += 0.5 * (prev_density + local_density) * step_size;
+		}
+		prev_density = local_density;
+
 		// Distancia desde el punto de muestra hasta salir de la atmósfera siguiendo al sol.
 		float sun_ray_length = ray_sphere(planet_center, atmo_radius, in_scatter_point, sun_dir).y;
 		float sun_ray_od = optical_depth(
@@ -630,16 +740,7 @@ vec3 calculate_light(
 			planet_center, planet_radius, atmo_radius, density_falloff
 		);
 
-		// Optical depth desde el punto de muestra hacia el origen del rayo (cámara/entrada).
-		view_ray_optical_depth = optical_depth(
-			in_scatter_point, -rd, step_size * float(i),
-			planet_center, planet_radius, atmo_radius, density_falloff
-		);
-
 		vec3 transmittance = exp(-(sun_ray_od + view_ray_optical_depth) * scattering_coeffs);
-		float local_density = density_at_point(
-			in_scatter_point, planet_center, planet_radius, atmo_radius, density_falloff
-		);
 
 		// Tinte cálido en el terminador: rojo-naranja cuando sun_dot ≈ 0.
 		float sunset_factor = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot));
@@ -675,13 +776,9 @@ void main() {
 	ivec2 size = ivec2(P(0).xy);
 	if (pixel.x >= size.x || pixel.y >= size.y) return;
 
-	vec4 scene_color = imageLoad(color_image, pixel);
-
-	float enabled = P(11).w;
-	if (enabled < 0.5) {
-		imageStore(color_image, pixel, scene_color);
-		return;
-	}
+	// Early-out sin tocar la imagen: el color buffer ya contiene la escena, así que
+	// releerla y reescribirla solo quemaría ancho de banda.
+	if (P(11).w < 0.5) return;
 
 	vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(size);
 
@@ -724,10 +821,10 @@ void main() {
 	// Limita el recorrido por el terreno/objetos (clave para que se vea atmósfera sobre el suelo).
 	dst_through_atmo = min(dst_through_atmo, max(scene_t - dst_to_atmo, 0.0));
 
-	if (dst_through_atmo <= 0.0) {
-		imageStore(color_image, pixel, scene_color);
-		return;
-	}
+	if (dst_through_atmo <= 0.0) return;
+
+	// El color de escena solo se lee cuando de verdad vamos a componer algo encima.
+	vec4 scene_color = imageLoad(color_image, pixel);
 
 	vec3 entry_point = camera_position + ray_dir * (dst_to_atmo + EPSILON);
 
