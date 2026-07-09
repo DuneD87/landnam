@@ -6,11 +6,6 @@
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_k1p4u"]
 render_priority = 0
 shader = ExtResource("1_vmbpv")
-shader_parameter/albedo = Color(0, 0, 0, 1)
-shader_parameter/texture_albedo = ExtResource("2_vmbpv")
-shader_parameter/alpha_scissor_threshold = 0.800000038
-shader_parameter/uv1_scale = Vector3(1, 1, 1)
-shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(0, 0, 0)
 shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
@@ -21,6 +16,11 @@ shader_parameter/translucency_strength = 0.999999977648
 shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
 shader_parameter/translucency_power = 8.0
 shader_parameter/rim_strength = 0.999999977648
+shader_parameter/albedo = Color(0, 0, 0, 1)
+shader_parameter/texture_albedo = ExtResource("2_vmbpv")
+shader_parameter/alpha_scissor_threshold = 0.800000038
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/specular_strength = 0.15
 shader_parameter/specular_roughness = 0.7
 shader_parameter/wind_direction = Vector3(2, 0, 0)

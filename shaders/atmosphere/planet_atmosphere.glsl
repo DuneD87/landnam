@@ -23,6 +23,12 @@ layout(set = 0, binding = 3) uniform sampler2D occ_height_tex;
 // sustituye a los FBM en ALU de las nubes.
 layout(set = 0, binding = 4) uniform sampler3D cloud_noise_tex;
 
+// Envolvente de agrupación planetaria: mapa lat-long (u = longitud, v = colatitud) generado
+// en CPU con FastNoiseLite (planet_atmosphere.gd). Envuelve el planeta EXACTAMENTE una vez →
+// sin repetición de patrón desde el espacio. La misma Image vive en CPU para que el weather
+// system pueda consultar la envolvente sin readback de GPU. Sampler: REPEAT en u, CLAMP en v.
+layout(set = 0, binding = 5) uniform sampler2D cloud_group_tex;
+
 #define P(i) params_buffer.data[i]
 
 // El canal R se horneó con frecuencia base 4 por tile → 1 unidad de noise_pos (la longitud
@@ -164,6 +170,14 @@ float cloud_sun_visibility(
 // una densidad casi binaria produce grano en el terreno (varianza alta entre píxeles
 // vecinos) — con el borde ancho el campo es suave, el grano desaparece y la sombra gana
 // penumbra blanda.
+// Dirección unitaria (desde el centro del planeta) → uv equirectangular del mapa de agrupación.
+// DEBE coincidir con la inversa usada en el .gd al generar/consultar la Image (CPU y GPU ven lo mismo).
+vec2 latlong_uv(vec3 dir) {
+	float u = atan(dir.z, dir.x) * (0.5 / PI) + 0.5;
+	float v = acos(clamp(dir.y, -1.0, 1.0)) * (1.0 / PI);
+	return vec2(u, v);
+}
+
 float sample_cloud_density(
 	vec3 p, vec3 planet_center,
 	float cloud_min_r, float cloud_max_r,
@@ -208,11 +222,21 @@ float sample_cloud_density(
 	// del umbral: el detalle rompe el borde de las masas sin destruir su silueta.
 	float sample_v = mix(nz.r, nz.b, 0.25);
 
+	// Agrupación planetaria (P(15).w = cloud_group_strength): la envolvente lat-long modula
+	// la cobertura por zona → masas de nubes en celdas, cielo despejado entre ellas. Con
+	// strength = 0 la rama es uniforme y la cobertura queda intacta (comportamiento actual).
+	float group_strength = clamp(P(15).w, 0.0, 1.0);
+	float cov = coverage;
+	if (group_strength > 0.001) {
+		float env = texture(cloud_group_tex, latlong_uv(dir)).r;
+		cov *= mix(1.0, env, group_strength);
+	}
+
 	// Umbral smoothstep (estilo sky-sorta): interior SÓLIDO y borde definido pero suave.
 	// El max(0, ruido - umbral) lineal de antes dejaba casi todo el volumen a densidad
 	// ~0 → nubes traslúcidas sin silueta, con cualquier ruido. edge_soft = anchura del
 	// borde: bajo = recortado/duro, alto = algodonoso difuso.
-	float inv_cov = 1.0 - coverage;
+	float inv_cov = 1.0 - cov;
 	float density = smoothstep(inv_cov - edge_soft, inv_cov + edge_soft, sample_v);
 
 	return density * height_grad * density_scale;
@@ -810,6 +834,34 @@ void main() {
 	// clima (P(23).w, atmosphere_scatter): 1 = dispersión plena, 0 = horizonte plomizo sin azul. Se
 	// fija por evento en weather_events.json, desligado de cloud_shadow.
 	float in_scatter_mult = clamp(P(23).w, 0.0, 1.0);
+
+	// Scatter LOCAL: con agrupación activa (P(15).w > 0) el cielo solo se apaga BAJO la celda de
+	// tormenta. Aplicado global, la tormenta desaturaba también las zonas despejadas → parches
+	// donde parecía verse a través del cielo. presencia = envolvente en el punto donde el rayo
+	// cruza la capa media de nubes; sin agrupación presencia = 1 (comportamiento global clásico).
+	float scatter_group = clamp(P(15).w, 0.0, 1.0);
+	if (scatter_group > 0.001 && in_scatter_mult < 0.999) {
+		float cloud_mid_r = planet_radius + (P(12).x + P(12).y) * 0.5;
+		vec2 mid_hit = ray_sphere(planet_center, cloud_mid_r, camera_position, ray_dir);
+		float t_env;
+		if (mid_hit.y > 0.0) {
+			// Dentro de la esfera media (bajo las nubes) el cruce es la salida (mid_hit.x = 0).
+			t_env = (mid_hit.x > 0.0) ? mid_hit.x : mid_hit.y;
+		} else {
+			// El rayo no cruza la capa (limbo desde el espacio): punto de máxima cercanía.
+			t_env = max(dot(planet_center - camera_position, ray_dir), 0.0);
+		}
+		// ANCLAJE AL PLANETA: recorta al final del segmento realmente sombreado (terreno o
+		// salida de la atmósfera). Sin esto, mirando al suelo el cruce con la esfera media
+		// caía en las ANTÍPODAS (el rayo la atraviesa por dentro y sale al otro lado), y el
+		// punto barría medio planeta al girar la cámara → tinte "pegado a la pantalla".
+		// Así, en píxeles de terreno la envolvente se lee EN ese terreno (proyectada sobre
+		// la superficie) y solo los píxeles de cielo usan el cruce con la capa de nubes.
+		t_env = min(t_env, dst_to_atmo + dst_through_atmo);
+		vec3 env_dir = normalize(camera_position + ray_dir * t_env - planet_center);
+		float presence = mix(1.0, texture(cloud_group_tex, latlong_uv(env_dir)).r, scatter_group);
+		in_scatter_mult = mix(1.0, in_scatter_mult, presence);
+	}
 
 	// Nubes volumétricas — se aplican antes del scattering atmosférico.
 	// 1. Primero calcula la atmósfera sobre la escena original.

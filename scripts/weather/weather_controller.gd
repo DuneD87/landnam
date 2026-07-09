@@ -37,8 +37,8 @@ const DEFAULT_COLD_BOOST := {"snow": 0.4, "fog": 0.2}
 @export var lightning_flash_strength: float = 2.5
 
 ## La precipitación arranca cuando cloud_coverage supera precip_cloud_start y llega a plena en precip_cloud_full.
-@export var precip_cloud_start: float = 0.7
-@export var precip_cloud_full: float = 0.9
+@export var precip_cloud_start: float = 0.5
+@export var precip_cloud_full: float = 0.7
 
 ## Si la niebla se descarta dentro de cuevas muestreando la rejilla de oclusión del WeatherFX.
 @export var fog_cave_occlusion_enabled: bool = true
@@ -333,6 +333,16 @@ func _current_altitude() -> float:
 	return (_player.global_position - _planet_center).length() - _planet.radius
 
 
+## Cobertura de nubes EFECTIVA sobre el jugador: la global del evento modulada por la
+## envolvente de agrupación (la MISMA Image que muestrea el shader, vía consulta CPU sin
+## readback). Con cloud_group_strength = 0 la envolvente es 1 → cobertura global clásica.
+func _local_cloud_coverage(st: WeatherState) -> float:
+	var cov := st.cloud_coverage
+	if _atmosphere != null and _player != null and is_instance_valid(_player):
+		cov *= _atmosphere.get_cloud_group_envelope(_player.global_position)
+	return cov
+
+
 ## Factor 0..1 de precipitación por altitud: 1 bajo la base de nubes, 0 por encima de su cima.
 func _below_clouds_factor(st: WeatherState) -> float:
 	var top := maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
@@ -474,7 +484,9 @@ func _apply_precipitation(st: WeatherState) -> void:
 	if _fx == null:
 		return
 	var below := _below_clouds_factor(st)
-	var cloud_factor := smoothstep(precip_cloud_start, precip_cloud_full, st.cloud_coverage)
+	# Cobertura LOCAL: en una celda despejada de la agrupación no llueve aunque el evento
+	# global sea una tormenta; el umbral precip_cloud_start/full ya hace el resto.
+	var cloud_factor := smoothstep(precip_cloud_start, precip_cloud_full, _local_cloud_coverage(st))
 	var gate := below * cloud_factor
 	_fx.set_intensity("rain", st.rain_rate * gate)
 	_fx.set_intensity("snow", st.snow_rate * gate)
@@ -484,7 +496,10 @@ func _apply_precipitation(st: WeatherState) -> void:
 func _update_lightning(delta: float, st: WeatherState) -> void:
 	if _lightning == null or not lightning_enabled:
 		return
-	var flash := _lightning.update(delta, st.lightning_frequency, _below_clouds_factor(st))
+	# Mismo gate que la precipitación: en una celda despejada de la agrupación no arrancan
+	# rayos nuevos (un destello ya en curso se extingue solo por su envolvente).
+	var cloud_factor := smoothstep(precip_cloud_start, precip_cloud_full, _local_cloud_coverage(st))
+	var flash := _lightning.update(delta, st.lightning_frequency * cloud_factor, _below_clouds_factor(st))
 	if _lightning.strike_started:
 		lightning_struck.emit()
 	_apply_flash(flash)

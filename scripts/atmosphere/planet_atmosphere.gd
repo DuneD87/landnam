@@ -10,6 +10,10 @@ const PARAM_VEC4_COUNT := 24
 const NOISE_TEX_SIZE := 128
 ## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
 const NOISE_GEN_LOCAL_SIZE := 4
+## Mapa lat-long de agrupación planetaria de nubes (R8 → 32 KB). Envuelve el planeta una
+## sola vez: sin repetición de patrón desde el espacio. 2:1 = proporción equirectangular.
+const GROUP_TEX_W := 256
+const GROUP_TEX_H := 128
 
 @export var shader_file_path: String = DEFAULT_SHADER_PATH
 
@@ -35,10 +39,6 @@ const NOISE_GEN_LOCAL_SIZE := 4
 @export_range(0.0, 1.0, 0.01) var cloud_coverage: float = 0.55
 @export_range(0.01, 1.0, 0.01) var cloud_absorption: float = 0.15
 @export_range(0.0, 0.99, 0.01) var cloud_g: float = 0.9
-## Frecuencia del ruido alrededor del planeta. La longitud de onda de las masas es
-## ~radio_capa/valor: ajústalo a la ESCALA DEL PLANETA para que los blobs tengan
-## proporción de cúmulo (ancho ≈ 2-3× el grosor de la capa). P.ej. radio 30 km y capa
-## de 400 m → 25-35. Valores bajos en planetas grandes dan láminas planas kilométricas.
 @export_range(1.0, 60.0, 0.1) var cloud_noise_scale: float = 5
 @export var cloud_wind_direction: Vector3 = Vector3(1.0, 0.0, 0.0)
 @export_range(0.0, 1.0, 0.005) var cloud_wind_speed: float = 0.05
@@ -46,9 +46,15 @@ const NOISE_GEN_LOCAL_SIZE := 4
 @export_range(0.0, 1.0, 0.01) var cloud_shadow_strength: float = 0.85
 ## Albedo de las nubes: 1 = blanco pleno, valores bajos = gris de tormenta. Lo fija el WeatherController.
 @export_range(0.0, 1.0, 0.01) var cloud_albedo: float = 1.0
-## Anchura del borde de la nube (umbral smoothstep sobre el ruido): bajo = siluetas
-## recortadas y sólidas (estilo sky-sorta), alto = algodón difuso.
 @export_range(0.01, 0.5, 0.01) var cloud_edge_softness: float = 0.08
+## Agrupación planetaria: 0 = cobertura uniforme en todo el planeta (comportamiento clásico),
+## 1 = las nubes solo existen dentro de las celdas del mapa de agrupación (cielo despejado entre ellas).
+@export_range(0.0, 1.0, 0.01) var cloud_group_strength: float = 0.0
+## Nº aproximado de celdas de agrupación alrededor del planeta. Cambiarlo regenera el mapa.
+@export_range(1.0, 12.0, 0.1) var cloud_group_scale: float = 3.0:
+	set(v):
+		cloud_group_scale = v
+		_group_dirty = true
 
 @export_group("Atmosphere")
 ## Multiplicador del in-scatter de Rayleigh (velo azul de perspectiva aérea). 1 = dispersión plena;
@@ -98,13 +104,17 @@ var pipeline: RID
 var depth_sampler: RID
 var params_buffers: Array[RID] = []
 
-# Textura 3D de ruido de nubes (Perlin-Worley tileable), generada UNA vez en GPU al
-# inicializar por cloud_noise_gen.glsl. El shader y pipeline del generador se conservan
-# solo para liberarlos con seguridad en _free_compute.
 var noise_tex: RID
 var noise_sampler: RID
 var _noise_gen_shader: RID
 var _noise_gen_pipeline: RID
+
+var group_tex: RID
+var group_sampler: RID
+## Copia CPU del mapa de agrupación: la consulta el weather system (get_cloud_group_envelope)
+## sin readback de GPU. Es EXACTAMENTE lo que muestrea el shader (misma Image que se sube).
+var _group_image: Image = null
+var _group_dirty := false
 
 var _params_mutex := Mutex.new()
 
@@ -266,7 +276,6 @@ func _initialize_compute() -> void:
 	sampler_state.repeat_w = RenderingDevice.SAMPLER_REPEAT_MODE_CLAMP_TO_EDGE
 	depth_sampler = rd.sampler_create(sampler_state)
 
-	# Sampler del ruido 3D: trilinear + REPEAT (el ruido es tileable; el viento lo desplaza sin fin).
 	var noise_state := RDSamplerState.new()
 	noise_state.min_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
 	noise_state.mag_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
@@ -276,7 +285,17 @@ func _initialize_compute() -> void:
 	noise_state.repeat_w = RenderingDevice.SAMPLER_REPEAT_MODE_REPEAT
 	noise_sampler = rd.sampler_create(noise_state)
 
+	# Mapa de agrupación: REPEAT en u (la costura de longitud es continua por construcción)
+	# pero CLAMP en v (los polos no deben mezclarse entre sí al filtrar).
+	var group_state := RDSamplerState.new()
+	group_state.min_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
+	group_state.mag_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
+	group_state.repeat_u = RenderingDevice.SAMPLER_REPEAT_MODE_REPEAT
+	group_state.repeat_v = RenderingDevice.SAMPLER_REPEAT_MODE_CLAMP_TO_EDGE
+	group_sampler = rd.sampler_create(group_state)
+
 	_generate_cloud_noise()
+	_create_group_texture()
 
 	print("PlanetAtmosphere: compute initialized OK.")
 
@@ -329,6 +348,69 @@ func _generate_cloud_noise() -> void:
 	print("PlanetAtmosphere: cloud noise 3D texture generated (%d³)." % NOISE_TEX_SIZE)
 
 
+## Construye la Image lat-long de agrupación en CPU. Ruido FastNoiseLite muestreado SOBRE la
+## esfera (dirección unitaria × escala) → sin costura en longitud. Seed fija: las celdas son
+## deterministas entre ejecuciones, así el weather system podrá confiar en sus posiciones.
+## La curva S hornea el contraste (celda sólida / cielo despejado con borde suave); shader y
+## CPU leen el valor ya moldeado.
+func _build_group_image() -> void:
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = 3
+	noise.seed = 0
+	# 1/TAU compensa la circunferencia (2π·radio): así cloud_group_scale = nº de longitudes
+	# de onda (celdas grandes) alrededor del ecuador, tal como promete el export.
+	noise.frequency = 1.0 / TAU
+	var freq := maxf(cloud_group_scale, 0.1)
+
+	var img := Image.create_empty(GROUP_TEX_W, GROUP_TEX_H, false, Image.FORMAT_R8)
+	for y in GROUP_TEX_H:
+		# Mapeo inverso EXACTO de latlong_uv() del shader: v = colatitud/PI, u = atan(z,x)/TAU + 0.5.
+		var polar := (float(y) + 0.5) / float(GROUP_TEX_H) * PI
+		var sp := sin(polar)
+		var cp := cos(polar)
+		for x in GROUP_TEX_W:
+			var azimuth := ((float(x) + 0.5) / float(GROUP_TEX_W) - 0.5) * TAU
+			var dir := Vector3(sp * cos(azimuth), cp, sp * sin(azimuth))
+			var n: float = noise.get_noise_3dv(dir * freq) * 0.5 + 0.5
+			var env := smoothstep(0.35, 0.65, n)
+			img.set_pixel(x, y, Color(env, 0.0, 0.0))
+	_group_image = img
+
+
+func _create_group_texture() -> void:
+	_build_group_image()
+
+	var fmt := RDTextureFormat.new()
+	fmt.texture_type = RenderingDevice.TEXTURE_TYPE_2D
+	fmt.format = RenderingDevice.DATA_FORMAT_R8_UNORM
+	fmt.width = GROUP_TEX_W
+	fmt.height = GROUP_TEX_H
+	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT \
+		| RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT
+	group_tex = rd.texture_create(fmt, RDTextureView.new(), [_group_image.get_data()])
+	if not group_tex.is_valid():
+		push_error("PlanetAtmosphere: no se pudo crear el mapa de agrupación de nubes.")
+
+
+## Envolvente de agrupación (0..1) en una posición del mundo — el MISMO valor que ve el shader
+## (misma Image, mismo mapeo lat-long), ya escalado por cloud_group_strength. Pensada para que
+## el WeatherController decida dónde llueve, sin readback de GPU. 1 = zona de nubes plena.
+func get_cloud_group_envelope(world_pos: Vector3) -> float:
+	if _group_image == null:
+		return 1.0
+	var offset := world_pos - planet_center
+	if offset.length_squared() < 0.000001:
+		return 1.0
+	var dir := offset.normalized()
+	var u := atan2(dir.z, dir.x) / TAU + 0.5
+	var v := acos(clampf(dir.y, -1.0, 1.0)) / PI
+	var x := clampi(int(u * GROUP_TEX_W), 0, GROUP_TEX_W - 1)
+	var y := clampi(int(v * GROUP_TEX_H), 0, GROUP_TEX_H - 1)
+	return lerpf(1.0, _group_image.get_pixel(x, y).r, clampf(cloud_group_strength, 0.0, 1.0))
+
+
 func _free_compute() -> void:
 	if rd == null:
 		return
@@ -349,6 +431,14 @@ func _free_compute() -> void:
 	if noise_tex.is_valid():
 		rd.free_rid(noise_tex)
 	noise_tex = RID()
+
+	if group_sampler.is_valid():
+		rd.free_rid(group_sampler)
+	group_sampler = RID()
+
+	if group_tex.is_valid():
+		rd.free_rid(group_tex)
+	group_tex = RID()
 
 	if _noise_gen_shader.is_valid():
 		rd.free_rid(_noise_gen_shader)
@@ -372,8 +462,15 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		return
 
 	# Sin textura de ruido no hay uniform set completo: mejor no dibujar nada que crashear.
-	if not noise_tex.is_valid():
+	if not noise_tex.is_valid() or not group_tex.is_valid():
 		return
+
+	# Regenera el mapa de agrupación si cambió cloud_group_scale (solo al tunear; ~32k
+	# muestras de ruido en CPU, asumible en el hilo de render como evento puntual).
+	if _group_dirty:
+		_group_dirty = false
+		_build_group_image()
+		rd.texture_update(group_tex, 0, _group_image.get_data())
 
 	var render_scene_buffers := p_render_data.get_render_scene_buffers()
 	if render_scene_buffers == null:
@@ -448,10 +545,16 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		noise_uniform.add_id(noise_sampler)
 		noise_uniform.add_id(noise_tex)
 
+		var group_uniform := RDUniform.new()
+		group_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+		group_uniform.binding = 5
+		group_uniform.add_id(group_sampler)
+		group_uniform.add_id(group_tex)
+
 		var uniform_set := UniformSetCacheRD.get_cache(
 			shader,
 			0,
-			[color_uniform, depth_uniform, params_uniform, occ_uniform, noise_uniform]
+			[color_uniform, depth_uniform, params_uniform, occ_uniform, noise_uniform, group_uniform]
 		)
 
 		var compute_list := rd.compute_list_begin()
@@ -513,6 +616,7 @@ func _build_params_bytes(
 	var local_cloud_shadow    := cloud_shadow_strength
 	var local_cloud_albedo    := cloud_albedo
 	var local_cloud_edge      := cloud_edge_softness
+	var local_group_strength  := cloud_group_strength
 	var local_atmo_scatter    := atmosphere_scatter
 	var local_lightning_flash := lightning_flash
 	var local_cloud_steps     := cloud_steps
@@ -596,8 +700,8 @@ func _build_params_bytes(
 	var wind_offset := (Time.get_ticks_msec() / 1000.0) * local_wind_speed
 	_append_vec4(floats, Vector4(wind_dir_n.x, wind_dir_n.y, wind_dir_n.z, wind_offset))
 
-	# 15: pasos de marcha de nubes — view (x), light (y), shadow (z).
-	_append_vec4(floats, Vector4(local_cloud_steps, local_light_steps, local_shadow_steps, 0.0))
+	# 15: pasos de marcha de nubes — view (x), light (y), shadow (z) + fuerza de agrupación (w).
+	_append_vec4(floats, Vector4(local_cloud_steps, local_light_steps, local_shadow_steps, local_group_strength))
 
 	# 16: niebla — suelo/techo sobre la superficie (m), densidad, cobertura.
 	_append_vec4(floats, Vector4(
