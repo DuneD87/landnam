@@ -17,7 +17,17 @@ layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
 // muestrea; se bindea aquí una textura cualquiera solo para satisfacer el uniform set.
 layout(set = 0, binding = 3) uniform sampler2D occ_height_tex;
 
+// Ruido 3D tileable precalculado (cloud_noise_gen.glsl, generado una vez al inicializar):
+// R = Perlin-Worley base, G = Worley medio (reservado), B = Worley fino (erosión),
+// A = Perlin de gran escala (reservado). Sampler LINEAR + REPEAT: un tap trilinear
+// sustituye a los FBM en ALU de las nubes.
+layout(set = 0, binding = 4) uniform sampler3D cloud_noise_tex;
+
 #define P(i) params_buffer.data[i]
+
+// El canal R se horneó con frecuencia base 4 por tile → 1 unidad de noise_pos (la longitud
+// de onda del antiguo FBM) equivale a 1/4 de tile, y el patrón se repite cada 4 unidades.
+const float CLOUD_NOISE_INV_TILE = 0.25;
 
 const float EPSILON   = 0.000001;
 const float MAX_FLOAT = 3.402823466e+38;
@@ -105,23 +115,16 @@ float _vnoise(vec3 p) {
 		u.z);
 }
 
-// Acumula `count` octavas adicionales sobre el estado (p, a, v, norm) de un FBM en curso.
-// Permite que la sonda barata de 2 octavas continúe hasta 4 sin recalcular las primeras
-// (ver sample_cloud_density_probed).
-void _fbm_accum(inout vec3 p, inout float a, inout float v, inout float norm, int count) {
-	for (int i = 0; i < count; i++) {
+// FBM normalizado: devuelve ~[0,1] independientemente del nº de octavas. Desde que las
+// nubes muestrean la textura 3D precalculada, solo lo usa la niebla a ras de suelo.
+float _fbm(vec3 p, int octaves) {
+	float v = 0.0, a = 0.5, norm = 0.0;
+	for (int i = 0; i < 4; i++, a *= 0.5) {
+		if (i >= octaves) break;
 		v += a * _vnoise(p);
 		norm += a;
 		p = p * 2.1 + vec3(1.7, 9.2, 3.4);
-		a *= 0.5;
 	}
-}
-
-// FBM normalizado: devuelve ~[0,1] independientemente del nº de octavas, de modo
-// que reducir octavas (p.ej. en el march de luz) no cambia la magnitud de densidad.
-float _fbm(vec3 p, int octaves) {
-	float v = 0.0, a = 0.5, norm = 0.0;
-	_fbm_accum(p, a, v, norm, min(octaves, 4));
 	return v / max(norm, EPSILON);
 }
 
@@ -156,11 +159,16 @@ float cloud_sun_visibility(
 	return visibility;
 }
 
+// edge_soft: anchura del borde del umbral. Los marches de vista/luz pasan la del inspector
+// (P(10).w); el de sombra al suelo la pasa ensanchada ×4, porque su jitter por píxel sobre
+// una densidad casi binaria produce grano en el terreno (varianza alta entre píxeles
+// vecinos) — con el borde ancho el campo es suave, el grano desaparece y la sombra gana
+// penumbra blanda.
 float sample_cloud_density(
 	vec3 p, vec3 planet_center,
 	float cloud_min_r, float cloud_max_r,
 	float coverage, float density_scale, float noise_scale,
-	int octaves, bool detail
+	float edge_soft
 ) {
 	vec3 local = p - planet_center;
 	float dist = length(local);
@@ -192,79 +200,22 @@ float sample_cloud_density(
 	// Movimiento de viento: P(14).xyz = dirección (normalizada), P(14).w = tiempo * velocidad.
 	noise_pos += P(14).xyz * P(14).w;
 
-	float base = _fbm(noise_pos, octaves);
+	// UN tap trilinear a la textura 3D sustituye a los dos FBM en ALU. Todos los marches
+	// (vista, luz, sombra) muestrean la misma densidad: sombras exactas con lo visible.
+	vec4 nz = texture(cloud_noise_tex, noise_pos * CLOUD_NOISE_INV_TILE);
 
-	float density = max(0.0, base - (1.0 - coverage));
+	// Forma (R = Perlin-Worley, masas grandes) + detalle (B = Worley fino) mezclados ANTES
+	// del umbral: el detalle rompe el borde de las masas sin destruir su silueta.
+	float sample_v = mix(nz.r, nz.b, 0.25);
 
-	// Erosión de detalle: un ruido de alta frecuencia (billow, invertido) recorta
-	// los bordes y convierte los blobs suaves en formas tipo coliflor/cúmulo.
-	// Solo en la muestra de vista (detail=true); el march de luz no lo necesita.
-	if (detail && density > 0.0) {
-		vec3 dpos = noise_pos * 3.17 + P(14).xyz * (P(14).w * 2.0);
-		float billow = 1.0 - _fbm(dpos, 2);
-		// Erosiona más en los bordes (densidad baja) que en el núcleo de la nube.
-		float edge = 1.0 - smoothstep(0.0, 0.45, density);
-		density = max(0.0, density - billow * 0.20 * edge);
-	}
+	// Umbral smoothstep (estilo sky-sorta): interior SÓLIDO y borde definido pero suave.
+	// El max(0, ruido - umbral) lineal de antes dejaba casi todo el volumen a densidad
+	// ~0 → nubes traslúcidas sin silueta, con cualquier ruido. edge_soft = anchura del
+	// borde: bajo = recortado/duro, alto = algodonoso difuso.
+	float inv_cov = 1.0 - coverage;
+	float density = smoothstep(inv_cov - edge_soft, inv_cov + edge_soft, sample_v);
 
 	return density * height_grad * density_scale;
-}
-
-// Sonda + muestra detallada en una llamada, para el march de vista: evalúa primero las 2
-// octavas de la sonda del empty-space skipping y, solo si ven nube, continúa con las 2
-// octavas restantes y la erosión, reutilizando la posición de ruido y las octavas ya
-// calculadas. Equivale exactamente a sample_cloud_density(.., 2, false) seguido de
-// sample_cloud_density(.., 4, true), sin pagar dos veces el setup ni las octavas 0-1.
-void sample_cloud_density_probed(
-	vec3 p, vec3 planet_center,
-	float cloud_min_r, float cloud_max_r,
-	float coverage, float density_scale, float noise_scale,
-	out float probe_density, out float detail_density
-) {
-	probe_density  = 0.0;
-	detail_density = 0.0;
-
-	vec3 local = p - planet_center;
-	float dist = length(local);
-	if (dist < cloud_min_r || dist > cloud_max_r) {
-		return;
-	}
-
-	vec3 dir = local / max(dist, EPSILON);
-	float thickness = max(cloud_max_r - cloud_min_r, 0.001);
-	float h = clamp((dist - cloud_min_r) / thickness, 0.0, 1.0);
-
-	float height_grad =
-		smoothstep(0.0, 0.2, h) *
-		smoothstep(1.0, 0.5, h);
-
-	float reference_r = max((cloud_min_r + cloud_max_r) * 0.5, 1.0);
-	float freq = max(noise_scale, 0.001);
-	vec3 noise_pos = (local / reference_r) * freq;
-	noise_pos += dir * (h * 0.8);
-	noise_pos += P(14).xyz * P(14).w;
-
-	// Sonda: 2 octavas.
-	vec3 fp = noise_pos;
-	float a = 0.5, v = 0.0, norm = 0.0;
-	_fbm_accum(fp, a, v, norm, 2);
-	float base = v / max(norm, EPSILON);
-	probe_density = max(0.0, base - (1.0 - coverage)) * height_grad * density_scale;
-	if (probe_density <= 0.0001) {
-		return;
-	}
-
-	// Refinado: 2 octavas más + erosión de detalle (mismo camino que detail=true).
-	_fbm_accum(fp, a, v, norm, 2);
-	base = v / max(norm, EPSILON);
-	float density = max(0.0, base - (1.0 - coverage));
-	if (density > 0.0) {
-		vec3 dpos = noise_pos * 3.17 + P(14).xyz * (P(14).w * 2.0);
-		float billow = 1.0 - _fbm(dpos, 2);
-		float edge = 1.0 - smoothstep(0.0, 0.45, density);
-		density = max(0.0, density - billow * 0.20 * edge);
-	}
-	detail_density = density * height_grad * density_scale;
 }
 
 float hg_phase(float cos_theta, float g) {
@@ -282,10 +233,11 @@ float cloud_light_od(
 	int light_steps = clamp(int(P(15).y), 1, 64);
 	float step_sz = hit.y / float(light_steps);
 	float od = 0.0;
+	float edge_soft = clamp(P(10).w, 0.01, 0.5);
 	vec3 lp = p + sun_dir * (step_sz * 0.5);
 	for (int i = 0; i < light_steps; i++) {
 		od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
-		                           coverage, density_scale, noise_scale, 2, false) * step_sz;
+		                           coverage, density_scale, noise_scale, edge_soft) * step_sz;
 		lp += sun_dir * step_sz;
 	}
 	return od;
@@ -310,16 +262,18 @@ float cloud_shadow_transmittance(
 	float seg = outer.y - t_start;
 	if (seg <= 0.001) return 1.0;
 
-	// Muestreamos con la MISMA fidelidad que la nube visible (4 octavas + erosión),
-	// para que la sombra caiga exactamente donde hay nube y no en los huecos que la
-	// erosión billow abre. Es una marcha por píxel de suelo, así que podemos pagarla.
+	// Borde ensanchado ×4 SOLO para la sombra: con el umbral casi binario de la nube visible,
+	// el jitter por píxel de esta marcha producía grano en el terreno (píxeles vecinos
+	// atravesaban cantidades de nube muy distintas). El campo suavizado mata esa varianza
+	// y de paso da penumbra blanda a la sombra. La nube visible no cambia.
+	float edge_soft = min(clamp(P(10).w, 0.01, 0.5) * 4.0, 0.5);
 	int shadow_steps = clamp(int(P(15).z), 1, 64);
 	float step_sz = seg / float(shadow_steps);
 	float od = 0.0;
 	vec3 lp = p + sun_dir * (t_start + step_sz * (0.5 + jitter));
 	for (int i = 0; i < shadow_steps; i++) {
 		od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
-		                           coverage, density_scale, noise_scale, 4, true) * step_sz;
+		                           coverage, density_scale, noise_scale, edge_soft) * step_sz;
 		lp += sun_dir * step_sz;
 	}
 	return exp(-od * absorption);
@@ -370,27 +324,25 @@ void march_clouds(
 	float big_step  = step_size * 2.0;   // pasos grandes en aire limpio
 	float cos_theta = dot(rd, sun_dir);
 	float phase = hg_phase(cos_theta, g);
+	float edge_soft = clamp(P(10).w, 0.01, 0.5);   // anchura de borde del inspector
 
-	// Empty-space skipping: una sonda barata (2 octavas, sin detalle) decide si hay
-	// nube. En aire limpio avanzamos con pasos grandes; dentro de la nube, finos.
-	// El presupuesto extra de iteraciones cubre el caso de rayos mayormente vacíos.
+	// Empty-space skipping: con la textura 3D la muestra completa cuesta un solo tap, así
+	// que hace ella misma de sonda. En aire limpio avanzamos con pasos grandes; dentro de
+	// la nube, finos. El presupuesto extra cubre el caso de rayos mayormente vacíos.
 	int MAX_MARCH_ITERS = cloud_steps + cloud_steps / 2;
 	float t = t0 + step_size * jitter;
 
 	for (int i = 0; i < MAX_MARCH_ITERS && t < t1; i++) {
 		vec3 p = ro + rd * t;
 
-		// Sonda (2 oct) y densidad detallada (4 oct + erosión) en una sola llamada que
-		// comparte el setup y las dos primeras octavas entre ambas.
-		float probe, d;
-		sample_cloud_density_probed(p, planet_center, cloud_min_r, cloud_max_r,
-		                            coverage, density_scale, noise_scale, probe, d);
-		if (probe <= 0.0001) {
+		float d = sample_cloud_density(p, planet_center, cloud_min_r, cloud_max_r,
+		                               coverage, density_scale, noise_scale, edge_soft);
+		if (d <= 0.0001) {
 			t += big_step;
 			continue;
 		}
 
-		if (d > 0.0001) {
+		{
 			float l_od = cloud_light_od(p, sun_dir, planet_center, cloud_min_r, cloud_max_r,
 										coverage, density_scale, noise_scale);
 

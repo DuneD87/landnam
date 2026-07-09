@@ -3,8 +3,13 @@ extends CompositorEffect
 class_name PlanetAtmosphere
 
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
+const NOISE_GEN_SHADER_PATH := "res://shaders/atmosphere/cloud_noise_gen.glsl"
 const LOCAL_SIZE := 8
 const PARAM_VEC4_COUNT := 24
+## Lado de la textura 3D de ruido de nubes (RGBA8 → size³ × 4 bytes; 128 ≈ 8.4 MB de VRAM).
+const NOISE_TEX_SIZE := 128
+## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
+const NOISE_GEN_LOCAL_SIZE := 4
 
 @export var shader_file_path: String = DEFAULT_SHADER_PATH
 
@@ -30,13 +35,20 @@ const PARAM_VEC4_COUNT := 24
 @export_range(0.0, 1.0, 0.01) var cloud_coverage: float = 0.55
 @export_range(0.01, 1.0, 0.01) var cloud_absorption: float = 0.15
 @export_range(0.0, 0.99, 0.01) var cloud_g: float = 0.9
-@export_range(1.0, 10.0, 0.1) var cloud_noise_scale: float = 5
+## Frecuencia del ruido alrededor del planeta. La longitud de onda de las masas es
+## ~radio_capa/valor: ajústalo a la ESCALA DEL PLANETA para que los blobs tengan
+## proporción de cúmulo (ancho ≈ 2-3× el grosor de la capa). P.ej. radio 30 km y capa
+## de 400 m → 25-35. Valores bajos en planetas grandes dan láminas planas kilométricas.
+@export_range(1.0, 60.0, 0.1) var cloud_noise_scale: float = 5
 @export var cloud_wind_direction: Vector3 = Vector3(1.0, 0.0, 0.0)
 @export_range(0.0, 1.0, 0.005) var cloud_wind_speed: float = 0.05
 ## Cuánto oscurecen las nubes el terreno bajo ellas (0 = sin sombra, 1 = máxima).
 @export_range(0.0, 1.0, 0.01) var cloud_shadow_strength: float = 0.85
 ## Albedo de las nubes: 1 = blanco pleno, valores bajos = gris de tormenta. Lo fija el WeatherController.
 @export_range(0.0, 1.0, 0.01) var cloud_albedo: float = 1.0
+## Anchura del borde de la nube (umbral smoothstep sobre el ruido): bajo = siluetas
+## recortadas y sólidas (estilo sky-sorta), alto = algodón difuso.
+@export_range(0.01, 0.5, 0.01) var cloud_edge_softness: float = 0.08
 
 @export_group("Atmosphere")
 ## Multiplicador del in-scatter de Rayleigh (velo azul de perspectiva aérea). 1 = dispersión plena;
@@ -85,6 +97,14 @@ var shader: RID
 var pipeline: RID
 var depth_sampler: RID
 var params_buffers: Array[RID] = []
+
+# Textura 3D de ruido de nubes (Perlin-Worley tileable), generada UNA vez en GPU al
+# inicializar por cloud_noise_gen.glsl. El shader y pipeline del generador se conservan
+# solo para liberarlos con seguridad en _free_compute.
+var noise_tex: RID
+var noise_sampler: RID
+var _noise_gen_shader: RID
+var _noise_gen_pipeline: RID
 
 var _params_mutex := Mutex.new()
 
@@ -154,10 +174,10 @@ func set_fog_occlusion(
 	_params_mutex.unlock()
 
 
-func _load_compute_spirv() -> RDShaderSPIRV:
-	print("PlanetAtmosphere: loading shader from: ", shader_file_path)
+func _load_compute_spirv(path: String) -> RDShaderSPIRV:
+	print("PlanetAtmosphere: loading shader from: ", path)
 
-	var resource := ResourceLoader.load(shader_file_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	var resource := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 
 	if resource != null:
 		print("PlanetAtmosphere: loaded resource class: ", resource.get_class())
@@ -175,10 +195,10 @@ func _load_compute_spirv() -> RDShaderSPIRV:
 
 	print("PlanetAtmosphere: compiling manually from text.")
 
-	var shader_code := FileAccess.get_file_as_string(shader_file_path)
+	var shader_code := FileAccess.get_file_as_string(path)
 
 	if shader_code.is_empty():
-		push_error("PlanetAtmosphere: shader file is empty or could not be read: %s" % shader_file_path)
+		push_error("PlanetAtmosphere: shader file is empty or could not be read: %s" % path)
 		return null
 
 	shader_code = shader_code.replace("#[compute]", "")
@@ -210,7 +230,7 @@ func _initialize_compute() -> void:
 		push_error("PlanetAtmosphere: RenderingDevice no disponible. ¿Renderer Compatibility activo?")
 		return
 
-	var shader_spirv := _load_compute_spirv()
+	var shader_spirv := _load_compute_spirv(shader_file_path)
 	if shader_spirv == null:
 		push_error("PlanetAtmosphere: no shader SPIR-V.")
 		return
@@ -246,7 +266,67 @@ func _initialize_compute() -> void:
 	sampler_state.repeat_w = RenderingDevice.SAMPLER_REPEAT_MODE_CLAMP_TO_EDGE
 	depth_sampler = rd.sampler_create(sampler_state)
 
+	# Sampler del ruido 3D: trilinear + REPEAT (el ruido es tileable; el viento lo desplaza sin fin).
+	var noise_state := RDSamplerState.new()
+	noise_state.min_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
+	noise_state.mag_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
+	noise_state.mip_filter = RenderingDevice.SAMPLER_FILTER_NEAREST
+	noise_state.repeat_u = RenderingDevice.SAMPLER_REPEAT_MODE_REPEAT
+	noise_state.repeat_v = RenderingDevice.SAMPLER_REPEAT_MODE_REPEAT
+	noise_state.repeat_w = RenderingDevice.SAMPLER_REPEAT_MODE_REPEAT
+	noise_sampler = rd.sampler_create(noise_state)
+
+	_generate_cloud_noise()
+
 	print("PlanetAtmosphere: compute initialized OK.")
+
+
+## Genera la textura 3D de ruido de nubes en GPU, una sola vez. Si algo falla, noise_tex
+## queda inválido y _render_callback no despacha (el efecto entero se apaga con error).
+func _generate_cloud_noise() -> void:
+	var spirv := _load_compute_spirv(NOISE_GEN_SHADER_PATH)
+	if spirv == null:
+		push_error("PlanetAtmosphere: no se pudo cargar el generador de ruido de nubes.")
+		return
+
+	_noise_gen_shader = rd.shader_create_from_spirv(spirv)
+	if not _noise_gen_shader.is_valid():
+		push_error("PlanetAtmosphere: shader del generador de ruido inválido.")
+		return
+
+	_noise_gen_pipeline = rd.compute_pipeline_create(_noise_gen_shader)
+	if not _noise_gen_pipeline.is_valid():
+		push_error("PlanetAtmosphere: pipeline del generador de ruido inválido.")
+		return
+
+	var fmt := RDTextureFormat.new()
+	fmt.texture_type = RenderingDevice.TEXTURE_TYPE_3D
+	fmt.format = RenderingDevice.DATA_FORMAT_R8G8B8A8_UNORM
+	fmt.width = NOISE_TEX_SIZE
+	fmt.height = NOISE_TEX_SIZE
+	fmt.depth = NOISE_TEX_SIZE
+	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_STORAGE_BIT \
+		| RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT
+	noise_tex = rd.texture_create(fmt, RDTextureView.new())
+	if not noise_tex.is_valid():
+		push_error("PlanetAtmosphere: no se pudo crear la textura 3D de ruido.")
+		return
+
+	var img_uniform := RDUniform.new()
+	img_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
+	img_uniform.binding = 0
+	img_uniform.add_id(noise_tex)
+	var gen_set := rd.uniform_set_create([img_uniform], _noise_gen_shader, 0)
+
+	@warning_ignore("integer_division")
+	var groups: int = NOISE_TEX_SIZE / NOISE_GEN_LOCAL_SIZE
+	var compute_list := rd.compute_list_begin()
+	rd.compute_list_bind_compute_pipeline(compute_list, _noise_gen_pipeline)
+	rd.compute_list_bind_uniform_set(compute_list, gen_set, 0)
+	rd.compute_list_dispatch(compute_list, groups, groups, groups)
+	rd.compute_list_end()
+
+	print("PlanetAtmosphere: cloud noise 3D texture generated (%d³)." % NOISE_TEX_SIZE)
 
 
 func _free_compute() -> void:
@@ -262,6 +342,19 @@ func _free_compute() -> void:
 		rd.free_rid(depth_sampler)
 	depth_sampler = RID()
 
+	if noise_sampler.is_valid():
+		rd.free_rid(noise_sampler)
+	noise_sampler = RID()
+
+	if noise_tex.is_valid():
+		rd.free_rid(noise_tex)
+	noise_tex = RID()
+
+	if _noise_gen_shader.is_valid():
+		rd.free_rid(_noise_gen_shader)
+	_noise_gen_shader = RID()
+	_noise_gen_pipeline = RID()
+
 	if shader.is_valid():
 		rd.free_rid(shader)
 	shader = RID()
@@ -276,6 +369,10 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		return
 
 	if rd == null or not pipeline.is_valid() or not shader.is_valid():
+		return
+
+	# Sin textura de ruido no hay uniform set completo: mejor no dibujar nada que crashear.
+	if not noise_tex.is_valid():
 		return
 
 	var render_scene_buffers := p_render_data.get_render_scene_buffers()
@@ -345,10 +442,16 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		occ_uniform.add_id(depth_sampler)
 		occ_uniform.add_id(occ_rd_tex)
 
+		var noise_uniform := RDUniform.new()
+		noise_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+		noise_uniform.binding = 4
+		noise_uniform.add_id(noise_sampler)
+		noise_uniform.add_id(noise_tex)
+
 		var uniform_set := UniformSetCacheRD.get_cache(
 			shader,
 			0,
-			[color_uniform, depth_uniform, params_uniform, occ_uniform]
+			[color_uniform, depth_uniform, params_uniform, occ_uniform, noise_uniform]
 		)
 
 		var compute_list := rd.compute_list_begin()
@@ -409,6 +512,7 @@ func _build_params_bytes(
 	var local_wind_speed      := cloud_wind_speed
 	var local_cloud_shadow    := cloud_shadow_strength
 	var local_cloud_albedo    := cloud_albedo
+	var local_cloud_edge      := cloud_edge_softness
 	var local_atmo_scatter    := atmosphere_scatter
 	var local_lightning_flash := lightning_flash
 	var local_cloud_steps     := cloud_steps
@@ -468,8 +572,8 @@ func _build_params_bytes(
 	var rel_center := local_center - cam_origin
 	_append_vec4(floats, Vector4(rel_center.x, rel_center.y, rel_center.z, local_lightning_flash))
 
-	# 10: dirección del sol (.xyz). El .w quedó libre al eliminar el corte de agua de la atmósfera.
-	_append_vec4(floats, Vector4(local_sun_dir.x, local_sun_dir.y, local_sun_dir.z, 0.0))
+	# 10: dirección del sol (.xyz) + anchura del borde de nube (.w, cloud_edge_softness).
+	_append_vec4(floats, Vector4(local_sun_dir.x, local_sun_dir.y, local_sun_dir.z, local_cloud_edge))
 
 	# 11: wavelengths (nm) + enabled.
 	_append_vec4(floats, Vector4(
