@@ -48,23 +48,6 @@ const int NUM_OPTICAL_DEPTH_POINTS = 12;
 // clamp(.., 1, 64) para evitar /0 y bucles runaway. Rango útil: view 8-32, light 3-6,
 // shadow 6-12. Más pasos = mejor calidad, más coste.
 
-float cloud_underside_darkening(
-	vec3 p,
-	vec3 planet_center,
-	float cloud_min_r,
-	float cloud_max_r
-) {
-	float thickness = max(cloud_max_r - cloud_min_r, 0.001);
-	float h = clamp((length(p - planet_center) - cloud_min_r) / thickness, 0.0, 1.0);
-
-	// 1 abajo, 0 arriba.
-	float lower_part = 1.0 - smoothstep(0.15, 0.75, h);
-
-	// Valor de prueba visible.
-	// 0.55 = bastante visible. Luego puedes subirlo a 0.70 / 0.80.
-	return mix(1.0, 0.25, lower_part);
-}
-
 mat4 get_inv_projection() {
 	return mat4(P(1), P(2), P(3), P(4));
 }
@@ -107,6 +90,15 @@ float _hash3f(vec3 p) {
 	p = fract(p * vec3(0.1031, 0.1030, 0.0973));
 	p += dot(p, p.yxz + 33.33);
 	return fract((p.x + p.y) * p.z);
+}
+
+// Interleaved Gradient Noise (Jimenez 2014) para el jitter de los raymarches: mismo coste que
+// el hash de ruido blanco, pero reparte el error entre píxeles vecinos como un gradiente en vez
+// de en grumos → el grano casi desaparece con los mismos pasos. `offset` desplaza el patrón
+// para decorrelacionar los distintos marches (nubes / sombra / niebla).
+float ign_jitter(ivec2 pixel, float offset) {
+	vec2 p = vec2(pixel) + vec2(5.588238, 1.715) * offset;
+	return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
 }
 
 float _vnoise(vec3 p) {
@@ -178,15 +170,28 @@ vec2 latlong_uv(vec3 dir) {
 	return vec2(u, v);
 }
 
-// Cobertura efectiva con la agrupación planetaria (P(15).w = cloud_group_strength) aplicada.
-// Se llama UNA vez por rayo (en el punto medio del segmento marchado), no por muestra: las
-// celdas miden kilómetros y la envolvente es casi constante a lo largo de un march, así que
-// pagar el tap 2D en cada muestra (×pasos de vista ×luz ×sombra) era coste sin ganancia visual.
-float grouped_coverage(vec3 p, vec3 planet_center, float coverage) {
+// Cobertura local = agrupación planetaria (mapa lat-long, P(15).w = strength) × mesoescala
+// (Perlin de gran escala, canal A del ruido 3D, a 1/4 de frecuencia). Se evalúa EN cada paso
+// de los marches de vista y sombra —así nube visible y sombra proyectada leen lo mismo en el
+// mismo sitio del mundo— y ANTES del tap de densidad: si la celda está despejada, el llamador
+// se salta la muestra entera (cielo limpio = solo este coste). La marcha de luz hereda la
+// cobertura del punto que ilumina: su tramo es corto y estas escalas no cambian en él. La
+// mesoescala usa solo la posición horizontal advectada (sin offset vertical ni cizalla): es
+// variación regional, no de forma.
+float local_coverage(
+	vec3 p, vec3 planet_center, float coverage,
+	float cloud_min_r, float cloud_max_r, float noise_scale
+) {
 	float strength = clamp(P(15).w, 0.0, 1.0);
-	if (strength < 0.001) return coverage;
-	float env = texture(cloud_group_tex, latlong_uv(normalize(p - planet_center))).r;
-	return coverage * mix(1.0, env, strength);
+	if (strength > 0.001) {
+		float env = texture(cloud_group_tex, latlong_uv(normalize(p - planet_center))).r;
+		coverage *= mix(1.0, env, strength);
+	}
+	float reference_r = max((cloud_min_r + cloud_max_r) * 0.5, 1.0);
+	vec3 noise_pos = ((p - planet_center) / reference_r) * max(noise_scale, 0.001)
+	               + P(14).xyz * P(14).w;
+	float meso = texture(cloud_noise_tex, noise_pos * (CLOUD_NOISE_INV_TILE * 0.25)).a;
+	return clamp(coverage * mix(0.55, 1.35, meso), 0.0, 0.98);
 }
 
 float sample_cloud_density(
@@ -222,11 +227,15 @@ float sample_cloud_density(
 	// Variación vertical radial. Valor pequeño (0.5–1.0) evita deformación al mover la cámara.
 	noise_pos += dir * (h * 0.8);
 
-	// Movimiento de viento: P(14).xyz = dirección (normalizada), P(14).w = tiempo * velocidad.
-	noise_pos += P(14).xyz * P(14).w;
+	// Movimiento de viento con cizalla vertical: P(14).xyz = dirección, P(14).w = tiempo ×
+	// velocidad. La cima de la capa avanza más deprisa que la base (como el viento real, que
+	// crece con la altura) → las masas se estiran en vetas a lo largo del viento en vez de
+	// viajar como bloques rígidos. Visible sobre todo desde el espacio.
+	noise_pos += P(14).xyz * (P(14).w * mix(0.85, 1.3, h));
 
 	// UN tap trilinear a la textura 3D sustituye a los dos FBM en ALU. Todos los marches
 	// (vista, luz, sombra) muestrean la misma densidad: sombras exactas con lo visible.
+	// La mesoescala NO se muestrea aquí: viene ya aplicada en `coverage` (local_coverage).
 	vec4 nz = texture(cloud_noise_tex, noise_pos * CLOUD_NOISE_INV_TILE);
 
 	// Forma (R = Perlin-Worley, masas grandes) + detalle (B = Worley fino) mezclados ANTES
@@ -236,8 +245,8 @@ float sample_cloud_density(
 	// Umbral smoothstep (estilo sky-sorta): interior SÓLIDO y borde definido pero suave.
 	// El max(0, ruido - umbral) lineal de antes dejaba casi todo el volumen a densidad
 	// ~0 → nubes traslúcidas sin silueta, con cualquier ruido. edge_soft = anchura del
-	// borde: bajo = recortado/duro, alto = algodonoso difuso. La agrupación planetaria ya
-	// viene aplicada en `coverage` (grouped_coverage, una vez por rayo, no por muestra).
+	// borde: bajo = recortado/duro, alto = algodonoso difuso. Agrupación y mesoescala ya
+	// vienen aplicadas en `coverage` (local_coverage, evaluada por el llamador en el punto).
 	float inv_cov = 1.0 - coverage;
 	float density = smoothstep(inv_cov - edge_soft, inv_cov + edge_soft, sample_v);
 
@@ -288,9 +297,6 @@ float cloud_shadow_transmittance(
 	float seg = outer.y - t_start;
 	if (seg <= 0.001) return 1.0;
 
-	// Agrupación una vez por rayo de sombra (punto medio del tramo que cruza la capa).
-	coverage = grouped_coverage(p + sun_dir * (t_start + seg * 0.5), planet_center, coverage);
-
 	// Borde ensanchado ×4 SOLO para la sombra: con el umbral casi binario de la nube visible,
 	// el jitter por píxel de esta marcha producía grano en el terreno (píxeles vecinos
 	// atravesaban cantidades de nube muy distintas). El campo suavizado mata esa varianza
@@ -301,8 +307,14 @@ float cloud_shadow_transmittance(
 	float od = 0.0;
 	vec3 lp = p + sun_dir * (t_start + step_sz * (0.5 + jitter));
 	for (int i = 0; i < shadow_steps; i++) {
-		od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
-		                           coverage, density_scale, noise_scale, edge_soft) * step_sz;
+		// Cobertura local en el propio paso: la misma que ve la nube visible en ese punto
+		// del cielo. En celda despejada no hay nube que proyecte → ni tap de densidad.
+		float cov = local_coverage(lp, planet_center, coverage,
+		                           cloud_min_r, cloud_max_r, noise_scale);
+		if (cov >= 0.02) {
+			od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
+			                           cov, density_scale, noise_scale, edge_soft) * step_sz;
+		}
 		lp += sun_dir * step_sz;
 	}
 	return exp(-od * absorption);
@@ -314,6 +326,7 @@ void march_clouds(
 	float density_scale, float coverage,
 	float absorption, float g, float noise_scale,
 	vec3 sun_dir, float sun_intensity, float planet_radius,
+	vec3 scattering_coeffs,
 	float jitter,
 	out vec3 out_color, out float out_trans
 ) {
@@ -348,14 +361,23 @@ void march_clouds(
 	t1 = min(t1, max_dist);
 	if (t1 <= t0 + 0.001) return;
 
-	// Agrupación una vez por rayo; cloud_light_od hereda esta cobertura efectiva gratis.
-	coverage = grouped_coverage(ro + rd * ((t0 + t1) * 0.5), planet_center, coverage);
-
 	int cloud_steps = clamp(int(P(15).x), 1, 64);
 	float step_size = (t1 - t0) / float(cloud_steps);
 	float big_step  = step_size * 2.0;   // pasos grandes en aire limpio
 	float cos_theta = dot(rd, sun_dir);
-	float phase = hg_phase(cos_theta, g);
+
+	// Fase de doble lóbulo: el HG hacia delante (g del inspector) da el silver lining mirando
+	// al sol; el lóbulo trasero fijo añade la retro-dispersión que hace brillar las nubes con
+	// el sol a la espalda (con un solo lóbulo quedaban planas y muertas en esa dirección).
+	float phase = mix(hg_phase(cos_theta, g), hg_phase(cos_theta, -0.3), 0.3);
+
+	// Tinte del ambiente derivado de los coeficientes de Rayleigh: a las zonas en sombra de la
+	// nube las ilumina la bóveda del cielo, así que heredan su azul — y siguen el color de la
+	// atmósfera del planeta sin parámetro nuevo. Mezcla con blanco para no saturar.
+	float coeff_max = max(scattering_coeffs.r, max(scattering_coeffs.g, scattering_coeffs.b));
+	vec3 sky_ambient = mix(vec3(1.0), scattering_coeffs / max(coeff_max, EPSILON), 0.55);
+	float thickness = max(cloud_max_r - cloud_min_r, 0.001);
+
 	float edge_soft = clamp(P(10).w, 0.01, 0.5);   // anchura de borde del inspector
 
 	// Empty-space skipping: con la textura 3D la muestra completa cuesta un solo tap, así
@@ -367,8 +389,18 @@ void march_clouds(
 	for (int i = 0; i < MAX_MARCH_ITERS && t < t1; i++) {
 		vec3 p = ro + rd * t;
 
+		// Cobertura local en el propio punto (no en el punto medio del rayo: en vistas
+		// rasantes caía en otra celda de agrupación y la nube visible no coincidía con la
+		// sombra que proyectaba). Con la celda despejada nos saltamos el tap de densidad
+		// entero: el cielo limpio solo paga la cobertura.
+		float cov = local_coverage(p, planet_center, coverage,
+		                           cloud_min_r, cloud_max_r, noise_scale);
+		if (cov < 0.02) {
+			t += big_step;
+			continue;
+		}
 		float d = sample_cloud_density(p, planet_center, cloud_min_r, cloud_max_r,
-		                               coverage, density_scale, noise_scale, edge_soft);
+		                               cov, density_scale, noise_scale, edge_soft);
 		if (d <= 0.0001) {
 			t += big_step;
 			continue;
@@ -376,7 +408,7 @@ void march_clouds(
 
 		{
 			float l_od = cloud_light_od(p, sun_dir, planet_center, cloud_min_r, cloud_max_r,
-										coverage, density_scale, noise_scale);
+										cov, density_scale, noise_scale);
 
 			float shadow_softness = max(cloud_max_r - cloud_min_r, planet_radius * 0.005);
 
@@ -388,20 +420,22 @@ void march_clouds(
 				shadow_softness
 			);
 
-			float beer   = exp(-l_od * absorption);
+			// Multi-scattering aproximado (Schneider): el Beer puro apagaba cualquier nube
+			// gruesa en gris plomo uniforme. La segunda exponencial —absorción ×0.25, techo
+			// 0.7— simula la luz que rebota varias veces dentro de la nube e ilumina el
+			// interior; el max conserva intacto el pico de la directa en los bordes finos.
+			float beer   = max(exp(-l_od * absorption), 0.7 * exp(-l_od * absorption * 0.25));
 			float powder = 1.0 - exp(-d * step_size * absorption * 2.0);
 
 			float direct_light = beer * powder * 2.0 * phase * shadow;
-			float ambient_light = 0.10 * shadow;
-			float night_light = 0.0;
 
-			// Oscurecimiento de la parte inferior de la nube
-			float underside = cloud_underside_darkening(
-				p,
-				planet_center,
-				cloud_min_r,
-				cloud_max_r
-			);
+			// Ambiente celeste con gradiente de altura: la cima ve toda la bóveda (más luz),
+			// la base casi nada. Sustituye al ambiente plano 0.10 y al oscurecimiento fijo de
+			// la base (cloud_underside_darkening): la penumbra de la base ahora la ponen este
+			// gradiente y el self-shadowing real de la marcha de luz, no un ×0.25 a ciegas —
+			// así el sol rasante del amanecer SÍ puede encender las bases.
+			float h_amb = clamp((length(p - planet_center) - cloud_min_r) / thickness, 0.0, 1.0);
+			vec3 ambient_light = sky_ambient * (mix(0.05, 0.16, h_amb) * shadow);
 
 			// Gradiente día/noche y tinte de atardecer: sincronizan las nubes con la atmósfera.
 			vec3 to_cloud = normalize(p - planet_center);
@@ -416,9 +450,8 @@ void march_clouds(
 			float sunset_f = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot_c));
 			vec3 sunset_tint = mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_f);
 
-			vec3 lit = (vec3(direct_light) * sunset_tint + vec3(ambient_light)) * sun_intensity
-			           + vec3(night_light);
-			vec3 lighting = lit * underside * day_night;
+			vec3 lit = (vec3(direct_light) * sunset_tint + ambient_light) * sun_intensity;
+			vec3 lighting = lit * day_night;
 
 			// Albedo de la nube (P(23).z): su reflectividad. 1 = brillo pleno (nube blanca); valores
 			// bajos la oscurecen hacia un gris de tormenta. Multiplica TODA la radiancia (directa +
@@ -814,6 +847,15 @@ void main() {
 
 	float view_from_space = dst_to_atmo > EPSILON ? 1.0 : 0.0;
 
+	// Densificación con la altitud: la cáscara de nubes mide cientos de metros y vista
+	// radialmente desde el espacio su espesor óptico era mínimo → velos lechosos que
+	// transparentaban el océano, en vez de masas opacas (en la realidad esos cientos de
+	// metros de nube ya son opacos). Sube la densidad conforme la cámara se aleja del
+	// planeta, sin tocar el tuning a pie de suelo. Se usa en nubes Y en su sombra.
+	float cam_dist = length(planet_center - camera_position);
+	float cloud_density_eff = P(12).z *
+		mix(1.0, 2.0, smoothstep(atmo_radius, planet_radius * 2.0, cam_dist));
+
 	// Sombra de las nubes proyectada sobre el terreno visible. Se aplica al color de
 	// escena ANTES de la atmósfera, para que el in-scatter se calcule sobre la
 	// superficie ya oscurecida. Reutiliza la misma densidad que dibuja las nubes,
@@ -824,11 +866,11 @@ void main() {
 		float sh_cloud_max_r = planet_radius + P(12).y;
 		vec3 surface_p = camera_position + ray_dir * scene_t;
 		if (length(surface_p - planet_center) < sh_cloud_max_r) {
-			float sh_jitter = _hash3f(vec3(float(pixel.x), float(pixel.y), 7.0)) - 0.5;
+			float sh_jitter = ign_jitter(pixel, 7.0) - 0.5;
 			float trans = cloud_shadow_transmittance(
 				surface_p, sun_direction, planet_center,
 				sh_cloud_min_r, sh_cloud_max_r,
-				P(12).w, P(12).z, P(13).z, P(13).x,
+				P(12).w, cloud_density_eff, P(13).z, P(13).x,
 				sh_jitter
 			);
 			// Solo lado diurno; fundido suave alrededor del terminador.
@@ -901,14 +943,15 @@ void main() {
 
 		// Jitter por píxel: desplaza el origen del march de forma distinta en cada píxel
 		// para que los artefactos de escalón no sean coherentes al mover la cámara.
-		float cloud_jitter = _hash3f(vec3(float(pixel.x), float(pixel.y), 0.0));
+		float cloud_jitter = ign_jitter(pixel, 0.0);
 
 		march_clouds(
 			camera_position, ray_dir, cloud_max_dist,
 			planet_center, cloud_min_r, cloud_max_r,
-			P(12).z, P(12).w,
+			cloud_density_eff, P(12).w,
 			P(13).x, P(13).y, P(13).z,
 			sun_direction, sun_intensity, planet_radius,
+			scattering_coefficients,
 			cloud_jitter,
 			cloud_col, cloud_trans
 		);
@@ -926,7 +969,7 @@ void main() {
 		float fog_trans;
 
 		float fog_max_dist = min(scene_t, dst_to_atmo + dst_through_atmo);
-		float fog_jitter = _hash3f(vec3(float(pixel.x), float(pixel.y), 3.0));
+		float fog_jitter = ign_jitter(pixel, 3.0);
 
 		march_fog(
 			camera_position, ray_dir, fog_max_dist,

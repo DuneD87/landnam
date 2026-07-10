@@ -349,20 +349,33 @@ func _generate_cloud_noise() -> void:
 
 
 ## Construye la Image lat-long de agrupación en CPU. Ruido FastNoiseLite muestreado SOBRE la
-## esfera (dirección unitaria × escala) → sin costura en longitud. Seed fija: las celdas son
-## deterministas entre ejecuciones, así el weather system podrá confiar en sus posiciones.
-## La curva S hornea el contraste (celda sólida / cielo despejado con borde suave); shader y
-## CPU leen el valor ya moldeado.
+## esfera (dirección unitaria × escala) → sin costura en longitud. Domain warp + estiramiento
+## zonal moldean las celdas como frentes curvos alargados este-oeste (sistemas meteorológicos)
+## en vez de manchas redondas. Seed fija: las celdas son deterministas entre ejecuciones, así
+## el weather system podrá confiar en sus posiciones. La curva S hornea el contraste (celda
+## sólida / cielo despejado con borde suave); shader y CPU leen el valor ya moldeado.
 func _build_group_image() -> void:
 	var noise := FastNoiseLite.new()
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-	noise.fractal_octaves = 3
+	noise.fractal_octaves = 4
 	noise.seed = 0
 	# 1/TAU compensa la circunferencia (2π·radio): así cloud_group_scale = nº de longitudes
 	# de onda (celdas grandes) alrededor del ecuador, tal como promete el export.
 	noise.frequency = 1.0 / TAU
+	# Domain warp: arremolina las celdas en frentes curvos. La longitud de onda de una celda
+	# es TAU en unidades de entrada → amplitud 2.2 ≈ 1/3 de celda: retuerce la silueta sin
+	# desintegrarla. Subir la amplitud = espirales más agresivas.
+	noise.domain_warp_enabled = true
+	noise.domain_warp_type = FastNoiseLite.DOMAIN_WARP_SIMPLEX
+	noise.domain_warp_amplitude = 2.2
+	noise.domain_warp_frequency = 0.12
+	noise.domain_warp_fractal_type = FastNoiseLite.DOMAIN_WARP_FRACTAL_PROGRESSIVE
+	noise.domain_warp_fractal_octaves = 3
 	var freq := maxf(cloud_group_scale, 0.1)
+	# Estiramiento zonal: comprime las celdas en latitud → bandas alargadas este-oeste, como
+	# los sistemas frontales reales. 1.0 = celdas isótropas (comportamiento antiguo).
+	var lat_stretch := 1.8
 
 	var img := Image.create_empty(GROUP_TEX_W, GROUP_TEX_H, false, Image.FORMAT_R8)
 	for y in GROUP_TEX_H:
@@ -372,7 +385,7 @@ func _build_group_image() -> void:
 		var cp := cos(polar)
 		for x in GROUP_TEX_W:
 			var azimuth := ((float(x) + 0.5) / float(GROUP_TEX_W) - 0.5) * TAU
-			var dir := Vector3(sp * cos(azimuth), cp, sp * sin(azimuth))
+			var dir := Vector3(sp * cos(azimuth), cp * lat_stretch, sp * sin(azimuth))
 			var n: float = noise.get_noise_3dv(dir * freq) * 0.5 + 0.5
 			var env := smoothstep(0.35, 0.65, n)
 			img.set_pixel(x, y, Color(env, 0.0, 0.0))
