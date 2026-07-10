@@ -251,8 +251,17 @@ void fragment() {
             float base_factor = factor;   // peso pre-bias de la textura fuente
             float override_factor = 0.0;
             int override_tex_index = biome_noise_target_texture_indices[b];
+            // Gate por latitud absoluta (grados) del override: fuera de su banda se salta el
+            // fBm (6 octavas de simplex por fragmento) y las muestras triplanares del target.
+            float abs_lat = abs(latitude);
+            float lat_gate_s = max(biome_noise_latitude_smoothness[b], 0.0001);
+            float lat_gate = smoothstep(biome_noise_abs_latitude_mins[b] - lat_gate_s,
+                                        biome_noise_abs_latitude_mins[b] + lat_gate_s, abs_lat)
+                           * (1.0 - smoothstep(biome_noise_abs_latitude_maxs[b] - lat_gate_s,
+                                               biome_noise_abs_latitude_maxs[b] + lat_gate_s, abs_lat));
             if (
                 biome_noise_enabled[b] != 0 &&
+                lat_gate > 0.001 &&
                 tex_index == biome_noise_source_texture_indices[b] &&
                 override_tex_index >= 0 &&
                 override_tex_index < MAX_TEXTURES &&
@@ -285,7 +294,7 @@ void fragment() {
 				}
                 // División limpia: el ratio hierba/tierra lo decide el noise mask,
                 // sin contaminación del height map de la fuente.
-                override_factor = factor * biome_noise_mask;
+                override_factor = factor * biome_noise_mask * lat_gate;
                 base_factor     = factor - override_factor;
             }
 
