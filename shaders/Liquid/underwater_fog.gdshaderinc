@@ -9,19 +9,13 @@ uniform vec4 abyss_fog_color : source_color = vec4(0.1, 0.1, 0.15, 1.0);
 uniform float deep_transition_depth = 100.0;
 uniform float abyss_transition_depth = 250.0;
 
-uniform float waterline_wobble_amp = 0.004;  // rizado del menisco, en metros sobre el near plane
-uniform float waterline_wobble_freq = 14.0;
-
 // Distancia con signo del punto del near plane a la línea de flotación: el plano local de la
-// superficie sobre la cámara (a escala del near plane, ~10 cm, la ola es un plano), con un
-// pequeño rizado para el menisco. < 0 = ese píxel arranca bajo el agua. La usan water_shader
-// (descarta su mitad sumergida) y underwater (descarta su mitad emergida): mismo test, mismos
-// argumentos → partición píxel-exacta de la pantalla.
-float waterline_signed(vec3 p_near_world, vec3 surface_point, vec3 surface_normal, float screen_x, float time) {
-    float d = dot(p_near_world - surface_point, surface_normal);
-    float wobble = sin(screen_x * waterline_wobble_freq + time * 2.3)
-                 + 0.5 * sin(screen_x * waterline_wobble_freq * 2.7 - time * 3.1);
-    return d + wobble * waterline_wobble_amp;
+// superficie sobre la cámara (a escala del near plane, ~10 cm, la ola es un plano).
+// < 0 = ese píxel arranca bajo el agua. La usan water_shader (descarta su mitad sumergida)
+// y underwater (descarta su mitad emergida): mismo test, mismos argumentos → partición
+// píxel-exacta de la pantalla, sin rizados artificiales que desalineen el corte.
+float waterline_signed(vec3 p_near_world, vec3 surface_point, vec3 surface_normal) {
+    return dot(p_near_world - surface_point, surface_normal);
 }
 
 // Color de in-scatter según la profundidad (fog → deep → abyss).

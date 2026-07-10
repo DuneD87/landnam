@@ -3,7 +3,7 @@
 
   "events": {
 	"clear": {
-	  "cloud_coverage": 0.25, "cloud_density": 0.35, "cloud_absorption": 0.12,
+	  "cloud_coverage": 0.45, "cloud_density": 0.55, "cloud_absorption": 0.12,
 	  "cloud_shadow": 0.5, "cloud_min_height": 600.0, "cloud_max_height": 900.0,
 	  "cloud_wind_speed": 0.025,
 	  "sun_energy": 1.0, "ambient_energy": 1.0, "atmosphere_scatter": 1.0, "wind_multiplier": 0.6,
@@ -13,7 +13,7 @@
 	  "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
 	},
 	"cloudy": {
-	  "cloud_coverage": 0.45, "cloud_density": 0.65, "cloud_absorption": 0.12,
+	  "cloud_coverage": 0.65, "cloud_density": 0.75, "cloud_absorption": 0.12,
 	  "cloud_shadow": 0.7, "cloud_min_height": 300.0, "cloud_max_height": 600.0,
 	  "cloud_wind_speed": 0.025,
 	  "sun_energy": 1.0, "ambient_energy": 1.0, "atmosphere_scatter": 1.0, "wind_multiplier": 0.6,

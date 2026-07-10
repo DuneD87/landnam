@@ -4,7 +4,9 @@ render_mode unshaded, depth_draw_always;
 // Niebla submarina: quad a pantalla completa que compone la escena con absorción
 // Beer-Lambert por canal e in-scatter por tramos de profundidad. La frontera del agua es
 // la MISMA superficie Gerstner del water_shader (include compartido), de modo que la
-// niebla coincide exactamente con las olas, también al cruzar la superficie.
+// niebla coincide exactamente con las olas, también al cruzar la superficie. Los píxeles
+// en aire con agua analítica en el near-field se nieblan desde el punto de entrada del
+// rayo (sellado bajo la malla), así el corte de una ola rompiendo es exacto.
 
 #include "res://shaders/liquid/gerstner_waves.gdshaderinc"
 #include "res://shaders/liquid/underwater_fog.gdshaderinc"
@@ -25,6 +27,8 @@ uniform float distance_depth_gain : hint_range(0.0, 3.0) = 0.7; // m de tramo de
 uniform float distance_depth_max = 120.0; // tope del empuje por distancia: el horizonte converge al tramo deep; a abyss solo se llega por profundidad de cámara
 uniform float meniscus_width = 0.012;   // grosor de la línea de flotación en metros sobre el near plane
 uniform float meniscus_strength = 0.3;  // brillo añadido en la línea de flotación
+uniform float waterline_seal_distance = 3.0; // near-field: un rayo en aire que entra en el agua analítica a menos de N m se niebla desde la entrada (sella los huecos malla-analítica al romper una ola contra la cámara)
+uniform float waterline_seal_band = 0.06;    // solo se sella la banda a menos de N m sobre la línea de flotación (near plane); más arriba manda la malla, como siempre
 uniform float atmosphere_leak_distance = 250.0; // tramo (m) que la atmósfera marcha bajo el agua con columna 0 (cámara pegada a la superficie)
 uniform float atmosphere_leak_falloff : hint_range(0.0, 1.0) = 0.08; // caída exponencial de ese tramo por metro de columna de agua hasta la superficie
 
@@ -74,13 +78,13 @@ void vertex() {
     // La altura de superficie sobre la cámara es constante para todo el quad: se evalúa aquí.
     vec3 cam_local = CAMERA_POSITION_WORLD - planet_center;
     v_cam_radius = length(cam_local);
-    v_cam_surface_radius = water_radius + gerstner_surface_height(cam_local, water_time);
 
     // Plano local de la línea de flotación: punto de superficie sobre la cámara + normal
-    // Gerstner analítica. El corte en pantalla lo decide cada píxel contra este plano.
+    // Gerstner analítica (del MISMO punto invertido que la altura). El corte en pantalla lo
+    // decide cada píxel contra este plano.
     vec3 up_dir = normalize(cam_local);
     vec3 surface_normal;
-    gerstner_surface(cam_local, up_dir, water_time, surface_normal);
+    v_cam_surface_radius = water_radius + gerstner_surface_height_normal(cam_local, water_time, surface_normal);
     v_waterline_point = planet_center + up_dir * v_cam_surface_radius;
     v_waterline_normal = normalize(surface_normal);
 }
@@ -102,16 +106,58 @@ void fragment() {
     near_view.xyz /= near_view.w;
     vec3 p_near = (INV_VIEW_MATRIX * vec4(near_view.xyz, 1.0)).xyz;
 
-    float waterline = waterline_signed(p_near, v_waterline_point, v_waterline_normal, SCREEN_UV.x, TIME);
-    if (waterline >= 0.0) {
-        discard; // este píxel arranca fuera del agua: lo pinta la superficie/escena normal
-    }
+    float waterline = waterline_signed(p_near, v_waterline_point, v_waterline_normal);
 
     // Franja radial que contiene toda la superficie posible: R ± amplitud total de las octavas.
     float band = wave_amplitude * 2.0 + 0.5;
+
+    // Sellado del near-field: los píxeles que arrancan en aire no se descartan de inmediato.
+    // Si el rayo entra en la superficie ANALÍTICA a menos de waterline_seal_distance, se niebla
+    // desde ese punto de entrada; la malla del agua (lineal entre vértices, se comba mm-cm bajo
+    // la superficie exacta) se dibuja encima. Así el corte al romper una ola contra la cámara lo
+    // decide la misma superficie que el resto de la niebla, sin rendijas de cielo en la frontera.
+    float t_enter = 0.0;
+    if (waterline >= 0.0) {
+        if (waterline >= waterline_seal_band) {
+            discard; // aire franco, lejos del corte: lo pintan la superficie/escena normales
+        }
+        // La marcha nace en el near plane (donde se decidió que el píxel arranca en aire), no
+        // en la cámara: en pleno cruce la cámara puede estar sumergida con media pantalla en aire.
+        const int SEAL_STEPS = 6;
+        float seal_step = waterline_seal_distance / float(SEAL_STEPS);
+        float t_near = length(p_near - ro);
+        float t_air = t_near;
+        float t_wet = -1.0;
+        for (int i = 1; i <= SEAL_STEPS; i++) {
+            float ti = t_near + float(i) * seal_step;
+            vec3 pl = ro + rd * ti - planet_center;
+            if (length(pl) - (water_radius + gerstner_surface_height(pl, water_time)) < 0.0) {
+                t_wet = ti;
+                break;
+            }
+            t_air = ti;
+        }
+        if (t_wet < 0.0) {
+            discard; // sin agua por delante en el near-field: píxel de aire normal
+        }
+        for (int i = 0; i < 5; i++) {
+            float mid = 0.5 * (t_air + t_wet);
+            vec3 pl = ro + rd * mid - planet_center;
+            if (length(pl) - (water_radius + gerstner_surface_height(pl, water_time)) < 0.0) {
+                t_wet = mid;
+            } else {
+                t_air = mid;
+            }
+        }
+        t_enter = 0.5 * (t_air + t_wet);
+        if (scene_distance <= t_enter) {
+            discard; // la escena corta el rayo antes de llegar al agua: píxel de aire
+        }
+    }
+
     float t_lo = ray_sphere_exit(planet_center, water_radius - band, ro, rd);
     float t_hi = ray_sphere_exit(planet_center, water_radius + band, ro, rd);
-    float lo = max(t_lo, 0.0);
+    float lo = max(max(t_lo, 0.0), t_enter);
     float hi = max(t_hi, lo + 0.001);
 
     // Salida por la superficie: bisección de r(t) - (R + h_gerstner) dentro de la franja.
@@ -134,7 +180,7 @@ void fragment() {
         t_exit = 0.5 * (lo + hi);
     }
 
-    float water_path = min(t_exit, scene_distance);
+    float water_path = max(min(t_exit, scene_distance) - t_enter, 0.0);
 
     // Fuga de atmósfera: la profundidad del near plane borraría la atmósfera (compositor POST_TRANSPARENT)
     // en todo el submarino. En su lugar se escribe la de un punto sobre el rayo cuya distancia decae con
@@ -143,6 +189,11 @@ void fragment() {
     // escena para que la niebla no pierda el test de profundidad contra la geometría cercana.
     float leak_t = atmosphere_leak_distance * exp(-atmosphere_leak_falloff * water_path);
     leak_t = clamp(leak_t, 0.01, scene_distance * 0.995);
+    if (t_enter > 0.0) {
+        // Píxel de aire sellado: se escribe la profundidad del punto de entrada al agua,
+        // la misma que escribiría la malla de la superficie en ese píxel.
+        leak_t = min(t_enter, scene_distance * 0.995);
+    }
     vec4 leak_clip = PROJECTION_MATRIX * vec4(normalize(view_coords.xyz) * leak_t, 1.0);
     DEPTH = clamp(leak_clip.z / leak_clip.w, 0.0, 1.0);
 
@@ -247,8 +298,8 @@ void fragment() {
         vec3 gr_tan = normalize(cross(abs(sun_w.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0), sun_w));
         vec3 gr_bitan = cross(sun_w, gr_tan);
 
-        float march_end = min(min(t_exit, scene_distance), godray_max_distance);
-        float step_len = march_end / float(godray_samples);
+        float march_end = min(min(t_exit, scene_distance), t_enter + godray_max_distance);
+        float step_len = max(march_end - t_enter, 0.0) / float(godray_samples);
         float jitter = fract(sin(dot(SCREEN_UV, vec2(12.9898, 78.233))) * 43758.5453);
 
         vec3 accum = vec3(0.0);
@@ -256,7 +307,7 @@ void fragment() {
             if (i >= godray_samples) {
                 break;
             }
-            float t = (float(i) + jitter) * step_len;
+            float t = t_enter + (float(i) + jitter) * step_len;
             vec3 sample_pos = ro + rd * t;
             float light_path = ray_sphere_exit(planet_center, water_radius, sample_pos, sun_w);
             if (light_path < 0.0) {
@@ -270,7 +321,7 @@ void fragment() {
             float shaft_mask = pow(clamp(m1 * m2 * 2.5, 0.0, 1.0), godray_sharpness);
 
             vec3 light_atten = exp(-absorption_coefficients * light_path);
-            vec3 view_atten = exp(-absorption_coefficients * t);
+            vec3 view_atten = exp(-absorption_coefficients * (t - t_enter));
             accum += shaft_mask * light_atten * view_atten;
         }
         accum /= float(godray_samples);
@@ -279,8 +330,9 @@ void fragment() {
         ALBEDO += accum * godray_intensity * phase * day;
     }
 
-    // Menisco: línea brillante fina justo bajo la línea de flotación.
-    float meniscus = 1.0 - smoothstep(0.0, meniscus_width, -waterline);
+    // Menisco: línea brillante fina a ambos lados de la línea de flotación (con el sellado
+    // near-field también se renderizan píxeles de aire, así que se mide con abs).
+    float meniscus = 1.0 - smoothstep(0.0, meniscus_width, abs(waterline));
     ALBEDO += fog_color.rgb * meniscus * meniscus_strength;
 
     ALPHA = 1.0;

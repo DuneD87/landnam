@@ -20,6 +20,8 @@ class_name Underwater
 @export var sun_glow_power: float = 8.0
 @export var atmosphere_leak_distance: float = 250.0
 @export var atmosphere_leak_falloff: float = 0.08
+@export var waterline_seal_distance: float = 3.0
+@export var waterline_seal_band: float = 0.06
 
 @export_group("Godray Settings")
 @export var godray_intensity: float = 3.0
@@ -97,6 +99,8 @@ func _apply_settings() -> void:
 	material.set_shader_parameter(&"sun_glow_power", sun_glow_power)
 	material.set_shader_parameter(&"atmosphere_leak_distance", atmosphere_leak_distance)
 	material.set_shader_parameter(&"atmosphere_leak_falloff", atmosphere_leak_falloff)
+	material.set_shader_parameter(&"waterline_seal_distance", waterline_seal_distance)
+	material.set_shader_parameter(&"waterline_seal_band", waterline_seal_band)
 	material.set_shader_parameter(&"godray_intensity", godray_intensity)
 	material.set_shader_parameter(&"godray_samples", godray_samples)
 	material.set_shader_parameter(&"godray_max_distance", godray_max_distance)

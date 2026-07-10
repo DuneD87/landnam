@@ -82,17 +82,24 @@ vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal) {
     return gerstner_surface(local, radial, t, out_normal, unused_crest);
 }
 
-// Desplazamiento radial de la superficie sobre la dirección de 'local', invirtiendo por punto
-// fijo el arrastre horizontal de Gerstner — mismo esquema que WaterHeightSampler.get_height_at.
-float gerstner_surface_height(vec3 local, float t) {
-    vec3 unused_normal;
+// Desplazamiento radial Y normal de la superficie sobre la dirección de 'local', invirtiendo por
+// punto fijo el arrastre horizontal de Gerstner — mismo esquema que WaterHeightSampler.get_height_at.
+// Ambos salen del mismo punto invertido: la normal evaluada en 'local' sin invertir pertenece a
+// otra fase de la ola y desalinea el corte de la línea de flotación.
+float gerstner_surface_height_normal(vec3 local, float t, out vec3 out_normal) {
     vec3 guess = local;
     for (int i = 0; i < 2; i++) {
         vec3 radial = normalize(guess);
-        vec3 disp = gerstner_surface(guess, radial, t, unused_normal);
+        vec3 disp = gerstner_surface(guess, radial, t, out_normal);
         vec3 horiz = disp - radial * dot(disp, radial);
         guess = local - horiz;
     }
     vec3 radial = normalize(guess);
-    return dot(gerstner_surface(guess, radial, t, unused_normal), radial);
+    return dot(gerstner_surface(guess, radial, t, out_normal), radial);
+}
+
+// Wrapper solo-altura para los callers que no necesitan la normal.
+float gerstner_surface_height(vec3 local, float t) {
+    vec3 unused_normal;
+    return gerstner_surface_height_normal(local, t, unused_normal);
 }

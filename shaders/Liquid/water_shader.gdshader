@@ -300,9 +300,8 @@ void vertex() {
     // verse desde arriba y desde abajo produce iluminación sin sentido).
     vec3 cam_local = CAMERA_POSITION_WORLD - planet_center;
     vec3 up_dir = normalize(cam_local);
-    float cam_surface_radius = water_radius + gerstner_surface_height(cam_local, water_time);
     vec3 cam_surface_normal;
-    gerstner_surface(cam_local, up_dir, water_time, cam_surface_normal);
+    float cam_surface_radius = water_radius + gerstner_surface_height_normal(cam_local, water_time, cam_surface_normal);
     waterline_point = planet_center + up_dir * cam_surface_radius;
     waterline_normal = normalize(cam_surface_normal);
 }
@@ -313,7 +312,7 @@ void fragment() {
     vec4 wl_near_view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, 1.0, 1.0);
     wl_near_view.xyz /= wl_near_view.w;
     vec3 wl_p_near = (INV_VIEW_MATRIX * vec4(wl_near_view.xyz, 1.0)).xyz;
-    if (waterline_signed(wl_p_near, waterline_point, waterline_normal, SCREEN_UV.x, TIME) < 0.0) {
+    if (waterline_signed(wl_p_near, waterline_point, waterline_normal) < 0.0) {
         discard;
     }
 
