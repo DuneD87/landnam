@@ -116,9 +116,8 @@ func _physics_process(_delta: float) -> void:
 	_update_wake_uniforms()
 	_update_interior_uniforms()
 
-## Copia las cajas de compartimentos SECOS de los DynamicGridBody al agua de su planeta:
-## dentro de ellas el shader descarta la superficie y el underwater se apaga. Un compartimento
-## inundado no se empuja, así que el océano se renderiza dentro con sus efectos normales.
+## Copia las cajas de compartimentos secos de los DynamicGridBody al agua de su planeta:
+## dentro el shader descarta el agua; lo inundado no se empuja y el océano entra normal.
 func _update_interior_uniforms() -> void:
 	var per_mat: Dictionary = {}
 	for node in get_tree().get_nodes_in_group("dynamic_grid_body"):
@@ -152,14 +151,12 @@ func _update_interior_uniforms() -> void:
 		for body: DynamicGridBody in per_mat[mat]:
 			if count >= MAX_INTERIORS:
 				break
-			# Las cajas son ajustadas (solo aire interior), pero el bucle del shader se paga
-			# por píxel: solo se empujan con la cámara a bordo o pegada al casco.
+			# El bucle del shader se paga por píxel: solo con la cámara a bordo o pegada al casco.
 			if camera and not body.contains_point(camera.global_position, INTERIOR_MASK_MARGIN):
 				continue
 			var xf := body.global_transform
 			for box: Dictionary in body.get_dry_interior_boxes():
 				if count >= MAX_INTERIORS:
-					push_warning("[GridManager] Máscara de interiores truncada a %d cajas" % MAX_INTERIORS)
 					break
 				var c: Vector3 = xf * (box["pos"] as Vector3)
 				var half: Vector3 = box["half"]

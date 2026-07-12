@@ -1,10 +1,10 @@
 class_name DynamicGridBody
 extends RigidBody3D
 
-## RigidBody3D de una grid dinámica: gravedad planetaria + flotación de Arquímedes (empuje por
-## volumen sumergido de las cajas de colisión fusionadas, aplicado en su centroide; masa por
-## densidad de bloque), inundación por brechas (celdas eliminadas bajo la línea de flotación
-## embarcan agua que pesa y escora) y movimiento según movement_type (barco; resto pendiente).
+## RigidBody3D de una grid dinámica: gravedad planetaria + flotación de Arquímedes (empuje
+## por volumen sumergido de las cajas de colisión fusionadas; masa por densidad de bloque),
+## inundación por compartimentos interiores (analizados en worker thread) y movimiento
+## según movement_type (barco; vehículo y nave pendientes).
 
 enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 
@@ -15,8 +15,6 @@ enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 @export var heave_drag: float = 1.0
 @export var angular_drag: float = 0.15
 @export var flood_capacity_factor: float = 0.9
-## Dibuja una caja translúcida por compartimento interior (rojo = abierto al exterior).
-@export var debug_compartments: bool = true
 
 const BLOCK_DENSITY := 500.0
 const WATER_DENSITY := 1000.0
@@ -27,6 +25,9 @@ const WAKE_SPACING := 3.0
 const WAKE_LIFETIME := 12.0
 const WAKE_MAX_POINTS := 64
 const WAKE_MIN_SPEED := 2.0
+
+# Segundos sin ediciones antes de relanzar el análisis de interiores (coalesce de ráfagas).
+const INTERIOR_DEBOUNCE := 0.3
 
 var planet_node: Node3D = null
 
@@ -43,7 +44,10 @@ var _is_being_controlled: bool = false
 var _flood_volume: float = 0.0
 var _flood_capacity: float = 0.0
 var _compartments: Array = []
-var _debug_comp_meshes: Array = []
+var _interior_dirty: bool = false
+var _interior_debounce: float = 0.0
+var _analysis_running: bool = false
+var _analysis_task_id: int = -1
 
 var _boat_speed_levels: Array[float] = [0.0, 5.0, 10.0, 20.0]
 var _boat_speed_index: int = 0
@@ -62,6 +66,8 @@ func on_block_placed(_grid_pos: Vector3i, _block_id: int, _grid: GridBase = null
 
 func mark_points_dirty() -> void:
 	_recalc_boxes = true
+	_interior_dirty = true
+	_interior_debounce = INTERIOR_DEBOUNCE
 
 ## Reconstruye la lista de cajas de volumen del casco desde los colliders del body:
 ## cajas fusionadas de cubos tal cual, rampas/esquinas como caja de su celda a medio volumen.
@@ -106,25 +112,45 @@ func _recalculate_buoyancy_boxes() -> void:
 	_aggregate_box = {"pos": aabb.get_center(), "half": aabb.size * 0.5, "volume": total_volume}
 	_drag_length_sq = maxf(1.0, (aabb.size * 0.5).length_squared())
 
-	# Capacidad de agua embarcable: hueco interior aproximado (AABB del casco menos bloques);
-	# el análisis de compartimentos la sustituye por el volumen interior real.
+	# Capacidad provisional (AABB − bloques); el análisis la sustituye por el volumen real.
 	var box_volume := aabb.size.x * aabb.size.y * aabb.size.z
 	_flood_capacity = maxf((box_volume - total_volume) * flood_capacity_factor, 0.0)
 
-	_recalculate_interiors()
 
+## Lanza el análisis de compartimentos en un worker thread con debounce de ediciones.
+func _process_interior_analysis(delta: float) -> void:
+	if _analysis_running or not _interior_dirty:
+		return
+	_interior_debounce -= delta
+	if _interior_debounce > 0.0:
+		return
+	_interior_dirty = false
+	_analysis_running = true
 
-## Análisis SÍNCRONO de compartimentos interiores sobre la rejilla unificada multi-size.
-## En barcos muy grandes da un hitch por edición: es el precio aceptado hasta que sea
-## funcional de punta a punta; entonces se moverá a WorkerThreadPool (paso ya explorado).
-func _recalculate_interiors() -> void:
 	var grids_data: Array = []
 	for grid in _grids:
 		grids_data.append({
 			"cells": grid.get_all_blocks().keys(),
 			"cell_size": grid.cell_size,
 		})
-	_compartments = ShipInteriorAnalyzer.analyze(grids_data)
+	_analysis_task_id = WorkerThreadPool.add_task(
+		_run_interior_analysis.bind(grids_data), false, "ShipInteriorAnalysis")
+
+
+## Cuerpo de la tarea en el worker thread; el resultado se aplica en el main thread.
+func _run_interior_analysis(grids_data: Array) -> void:
+	var result := ShipInteriorAnalyzer.analyze(grids_data)
+	call_deferred("_apply_interior_analysis", result)
+
+
+## Aplica el resultado del análisis: compartimentos, capacidad real y flags de inundación
+## (inmediatos: GridManager puede empujar la máscara antes del siguiente frame de física).
+func _apply_interior_analysis(result: Array) -> void:
+	if _analysis_task_id >= 0:
+		WorkerThreadPool.wait_for_task_completion(_analysis_task_id)
+		_analysis_task_id = -1
+	_analysis_running = false
+	_compartments = result
 
 	var total := 0.0
 	for comp: Dictionary in _compartments:
@@ -132,90 +158,11 @@ func _recalculate_interiors() -> void:
 	if total > 0.0:
 		_flood_capacity = total * flood_capacity_factor
 
-	if debug_compartments:
-		var sizes := PackedStringArray()
-		for gd: Dictionary in grids_data:
-			sizes.append("%d bloques @ %.2f m" % [(gd["cells"] as Array).size(), gd["cell_size"]])
-		print("[Interiores] grids: %s → %d compartimentos" % [", ".join(sizes), _compartments.size()])
+	if planet_node and planet_node.planet.has_water:
+		var planet_pos: Vector3 = planet_node.global_pos
+		var base_r: float = planet_node.planet.radius - planet_node.planet.water_radius
 		for comp: Dictionary in _compartments:
-			var leak := "—"
-			if comp["open"]:
-				var sill_local: Vector3 = (Vector3(comp["sill_cell"] as Vector3i) + Vector3.ONE * 0.5) * (comp["cell_size"] as float)
-				leak = str(sill_local)
-				if planet_node and planet_node.planet.has_water:
-					var base_r: float = planet_node.planet.radius - planet_node.planet.water_radius
-					var submerged: bool = ((global_transform * sill_local) - planet_node.global_pos).length() <= base_r
-					leak += " (SUMERGIDA)" if submerged else " (en seco)"
-			print("  - %s | %d celdas | %.1f m³ | aabb %s | fuga en %s" % [
-				"ABIERTO" if comp["open"] else "estanco",
-				comp["cell_count"], comp["volume"], comp["aabb"], leak])
-
-	_update_debug_compartments()
-
-
-## Overlay de depuración, semáforo por riesgo: VERDE/AZUL = estanco; NARANJA = abierto pero
-## con la fuga por encima del nivel del mar (no se inunda tal y como flota ahora); ROJO =
-## abierto con la fuga sumergida (se inundaría ya). Refleja el momento del análisis.
-func _update_debug_compartments() -> void:
-	for m in _debug_comp_meshes:
-		if is_instance_valid(m):
-			m.queue_free()
-	_debug_comp_meshes.clear()
-	if not debug_compartments:
-		return
-
-	var has_water: bool = planet_node != null and planet_node.planet.has_water
-	var base_water_radius: float = 0.0
-	var planet_pos := Vector3.ZERO
-	if has_water:
-		base_water_radius = planet_node.planet.radius - planet_node.planet.water_radius
-		planet_pos = planet_node.global_pos
-
-	for i in _compartments.size():
-		var comp: Dictionary = _compartments[i]
-		var color: Color
-		if not comp.get("open", false):
-			color = Color.from_hsv(fmod(0.3 + i * 0.13, 0.75), 0.75, 0.95, 0.3)
-		else:
-			var sill_world: Vector3 = global_transform \
-				* ((Vector3(comp["sill_cell"] as Vector3i) + Vector3.ONE * 0.5) * (comp["cell_size"] as float))
-			var sill_submerged: bool = has_water \
-				and (sill_world - planet_pos).length() <= base_water_radius
-			color = Color(0.9, 0.1, 0.1, 0.35) if sill_submerged else Color(1.0, 0.6, 0.1, 0.28)
-		var mat := StandardMaterial3D.new()
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		mat.albedo_color = color
-
-		for box: Dictionary in comp["boxes"]:
-			var bm := BoxMesh.new()
-			bm.size = (box["half"] as Vector3) * 2.0
-			bm.material = mat
-			var mi := MeshInstance3D.new()
-			mi.mesh = bm
-			mi.position = box["pos"]
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			add_child(mi)
-			_debug_comp_meshes.append(mi)
-
-		# Marcadores AMARILLOS: celdas del compartimento en contacto con aire exterior
-		# (la fuga). Son el sitio exacto que hay que tapiar para que pase a estanco.
-		if comp.get("open", false):
-			var cell_size: float = comp["cell_size"]
-			var marker_mat := StandardMaterial3D.new()
-			marker_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			marker_mat.albedo_color = Color(1.0, 0.9, 0.1)
-			for cell: Vector3i in comp["opening_cells"]:
-				var mbm := BoxMesh.new()
-				mbm.size = Vector3.ONE * cell_size * 1.05
-				mbm.material = marker_mat
-				var mmi := MeshInstance3D.new()
-				mmi.mesh = mbm
-				mmi.position = (Vector3(cell) + Vector3.ONE * 0.5) * cell_size
-				mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				add_child(mmi)
-				_debug_comp_meshes.append(mmi)
+			comp["flooded"] = _is_comp_flooded(comp, planet_pos, base_r)
 
 
 ## Compartimentos interiores del último análisis (ver ShipInteriorAnalyzer.analyze).
@@ -321,6 +268,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_handle_input(delta)
+	_process_interior_analysis(delta)
 
 	var planet_pos: Vector3 = planet_node.global_pos
 	var dir: Vector3 = (planet_pos - global_position).normalized()
@@ -399,26 +347,16 @@ func _physics_process(delta: float) -> void:
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius)
 
 
-## Inundación por compartimentos: uno abierto con la fuga sumergida se marca "flooded" — el
-## océano se renderiza dentro (deja de enmascararse) y su agua es analítica: el volumen del
-## compartimento bajo el nivel del mar. Ese peso, aplicado en el centroide de cada columna,
-## hunde el barco hacia donde se inunda; al ganar calado crece el volumen sumergido → progresa.
+## Marca inundados los compartimentos con la fuga bajo el nivel del mar y aplica el peso de
+## su agua (volumen del compartimento sumergido) en el centroide de cada columna.
 func _update_flooding(_delta: float, up: Vector3, planet_pos: Vector3, base_water_radius: float, _water_time: float, gravity: float) -> void:
 	_flood_volume = 0.0
 	var basis_w := global_transform.basis
 
 	for comp: Dictionary in _compartments:
-		comp["flooded"] = false
-		if not comp.get("open", false):
+		comp["flooded"] = _is_comp_flooded(comp, planet_pos, base_water_radius)
+		if not comp["flooded"]:
 			continue
-
-		var cell_size: float = comp["cell_size"]
-		var sill_world: Vector3 = global_transform \
-			* ((Vector3(comp["sill_cell"] as Vector3i) + Vector3.ONE * 0.5) * cell_size)
-		if (sill_world - planet_pos).length() > base_water_radius:
-			continue
-
-		comp["flooded"] = true
 
 		var aabb: AABB = comp["aabb"]
 		var half: Vector3 = aabb.size * 0.5
@@ -439,8 +377,16 @@ func _update_flooding(_delta: float, up: Vector3, planet_pos: Vector3, base_wate
 		_flood_volume += water
 
 
-## Cajas de compartimentos NO inundados en espacio local del body: la máscara del océano.
-## Lo inundado queda fuera de la lista y el mar se renderiza dentro con sus efectos normales.
+## true si el compartimento tiene su apertura más baja bajo el nivel del mar (sin ola).
+func _is_comp_flooded(comp: Dictionary, planet_pos: Vector3, base_water_radius: float) -> bool:
+	if not comp.get("open", false):
+		return false
+	var sill_world: Vector3 = global_transform \
+		* ((Vector3(comp["sill_cell"] as Vector3i) + Vector3.ONE * 0.5) * (comp["cell_size"] as float))
+	return (sill_world - planet_pos).length() <= base_water_radius
+
+
+## Cajas de compartimentos no inundados (body-local): la máscara del océano.
 func get_dry_interior_boxes() -> Array:
 	var out: Array = []
 	for comp: Dictionary in _compartments:

@@ -1,11 +1,10 @@
 class_name ShipInteriorAnalyzer
 extends RefCounted
 
-## Análisis de interiores de un barco sobre una rejilla UNIFICADA: rasteriza los bloques de
-## todas las grids del body (multi-size) a la resolución de la celda más fina, hace un BFS
-## del aire exterior (puede subir pero no bajar: una bodega abierta solo por arriba retiene
-## agua) y agrupa el aire no alcanzado en compartimentos con cajas fusionadas body-local.
-## Solo manipula datos planos; cuando sea funcional se moverá tal cual a WorkerThreadPool.
+## Análisis de interiores de un barco: rasteriza los bloques de todas las grids del body
+## (multi-size) a una rejilla unificada, hace un BFS del aire exterior (sube pero no baja:
+## una bodega abierta solo por arriba retiene agua) y agrupa el aire no alcanzado en
+## compartimentos. Solo datos planos, sin nodos: seguro en WorkerThreadPool.
 
 const _DIRS_ALL: Array[Vector3i] = [
 	Vector3i(1, 0, 0), Vector3i(-1, 0, 0),
@@ -20,11 +19,9 @@ const _DIRS_EXTERIOR: Array[Vector3i] = [
 	Vector3i(0, 0, 1), Vector3i(0, 0, -1),
 ]
 
-## grids_data: [{cells: Array de Vector3i, cell_size: float}], todas en espacio del body.
-## Devuelve compartimentos: [{cell_count, volume, aabb: AABB, boxes: [{pos, half}] (ambos
-## body-local en metros), cells: Dictionary (rejilla fina), cell_size: float (fina),
-## open: bool (adyacente a aire exterior), sill_cell: Vector3i (celda fina de la apertura
-## más baja: su cota decide si el mar entra)}].
+## grids_data: [{cells: Array de Vector3i, cell_size: float}], en espacio del body.
+## Devuelve compartimentos: [{cell_count, volume, aabb, boxes: [{pos, half}] (body-local),
+## cells, cell_size (rejilla fina), open, sill_cell (celda de la apertura más baja)}].
 static func analyze(grids_data: Array) -> Array:
 	var finest := INF
 	for gd: Dictionary in grids_data:
@@ -33,9 +30,7 @@ static func analyze(grids_data: Array) -> Array:
 	if finest == INF:
 		return []
 
-	# Rasterización a la rejilla fina por COBERTURA real del bloque (soporta tamaños que no
-	# sean múltiplos enteros del más fino; redondea al voxel más cercano, con sesgo a sellar).
-	# Asume grids alineadas al origen del body, que es como las crea GridManager.
+	# Rasterización por cobertura real del bloque; asume grids alineadas al origen del body.
 	var blocks: Dictionary = {}
 	var bmin := Vector3i(2147483647, 2147483647, 2147483647)
 	var bmax := -bmin
@@ -103,20 +98,15 @@ static func analyze(grids_data: Array) -> Array:
 						cmax = Vector3i(maxi(cmax.x, n2.x), maxi(cmax.y, n2.y), maxi(cmax.z, n2.z))
 						q.append(n2)
 
-				# Apertura al exterior: celda adyacente a aire exterior; la de menor Y es la
-				# cota por la que entraría el mar. Un agujero lateral deja exterior solo lo
-				# que queda POR ENCIMA de su cota (el BFS no baja), así que esto es lo que
-				# marca como abierto el resto del compartimento.
+				# Apertura al exterior: la celda adyacente a aire exterior de menor Y es la
+				# cota por la que entra el mar (el BFS no baja: lo de debajo sigue interior).
 				var open := false
 				var sill_cell: Vector3i = start
 				var sill_y: int = 2147483647
-				var opening_cells: Array[Vector3i] = []
 				for cell: Vector3i in comp_cells:
 					for d3: Vector3i in _DIRS_ALL:
 						if outside.has(cell + d3):
 							open = true
-							if opening_cells.size() < 32:
-								opening_cells.append(cell)
 							if cell.y < sill_y:
 								sill_y = cell.y
 								sill_cell = cell
@@ -138,6 +128,5 @@ static func analyze(grids_data: Array) -> Array:
 					"cell_size": finest,
 					"open": open,
 					"sill_cell": sill_cell,
-					"opening_cells": opening_cells,
 				})
 	return out

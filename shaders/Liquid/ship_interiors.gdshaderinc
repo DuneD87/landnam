@@ -1,16 +1,15 @@
-// Cascos de barcos como OBB: dentro de ellos no existe el agua. water_shader descarta ahí
-// sus fragmentos de superficie y underwater se descarta entero si la cámara está dentro.
-// GridManager rellena los uniforms cada frame en el material del agua; underwater.gd los
-// replica vía _SYNCED_WATER_PARAMS (afectan al corte y deben ir sincronizados píxel-exacto).
+// Compartimentos SECOS de los barcos como OBBs: dentro no existe el agua (water_shader
+// descarta superficie; underwater se descarta con la cámara dentro). GridManager los empuja
+// por frame; underwater.gd los replica vía _SYNCED_WATER_PARAMS (el corte debe ir síncrono).
 
 const int MAX_INTERIORS = 32;
 uniform int interior_count = 0;
-uniform vec4 interior_center[MAX_INTERIORS]; // xyz = centro del casco en world
+uniform vec4 interior_center[MAX_INTERIORS]; // xyz = centro de la caja en world
 uniform vec4 interior_axis_x[MAX_INTERIORS]; // xyz = eje local X del casco, w = semieje
 uniform vec4 interior_axis_y[MAX_INTERIORS];
 uniform vec4 interior_axis_z[MAX_INTERIORS];
 
-// true si el punto world cae dentro del OBB de algún casco activo.
+// true si el punto world cae dentro de algún compartimento seco.
 bool inside_ship_interior(vec3 p) {
     for (int i = 0; i < MAX_INTERIORS; i++) {
         if (i >= interior_count) {
