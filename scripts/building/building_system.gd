@@ -756,10 +756,11 @@ func debug_spawn_stress_grid() -> void:
 
 
 ## Genera un casco con forma de barco (tamaño similar al stress grid) frente al jugador y lo
-## convierte a grid dinámica. Ejes de grid: +Z proa, -Z popa, X manga, Y altura. Casco macizo
-## con cubierta plana; la forma viene del afinado en punta a 45° y el rocker de quilla, y los
-## escalones del costado se completan con slopes que encajan en una pared diagonal continua.
-func debug_spawn_ship() -> void:
+## convierte a grid dinámica. Ejes de grid: +Z proa, -Z popa, X manga, Y altura. La forma
+## viene del afinado en punta a 45° y el rocker de quilla, con slopes en los escalones del
+## costado. Con hollow, solo la cáscara (fondo, costados y cubierta) más mamparos
+## transversales que dividen la bodega en `compartments` camarotes estancos.
+func debug_spawn_ship(hollow: bool = false, compartments: int = 10) -> void:
 	var planet := current_planet
 	if not planet or not _player:
 		return
@@ -785,6 +786,12 @@ func debug_spawn_ship() -> void:
 	var half_beam := 15      # media manga máxima, en la cuaderna maestra (a lo largo de X)
 	var deck_y := 25         # altura de la cubierta (casco macizo de y=0 a deck_y)
 
+	var bulkhead_zs: Dictionary = {}
+	if hollow and compartments > 1:
+		var spacing := float(2 * half_len) / float(compartments)
+		for i in range(1, compartments):
+			bulkhead_zs[int(round(-half_len + i * spacing))] = true
+
 	var t0 := Time.get_ticks_msec()
 	grid.begin_bulk_edit()
 
@@ -794,10 +801,18 @@ func debug_spawn_ship() -> void:
 			continue
 		var floor_y := _ship_floor(z, half_len)
 
-		# Casco macizo con cubierta plana. La forma de barco viene del afinado en planta (casco
-		# en punta hacia proa/popa) y del rocker de quilla (el fondo sube en los extremos).
+		# En hollow se salta el interior (celda con los 6 vecinos dentro del sólido), salvo
+		# en las estaciones de mamparo, que se rellenan enteras como pared estanca.
 		for x in range(-hw, hw + 1):
 			for y in range(floor_y, deck_y + 1):
+				if hollow and not bulkhead_zs.has(z) \
+					and _ship_is_solid(x + 1, y, z, half_len, half_beam, deck_y) \
+					and _ship_is_solid(x - 1, y, z, half_len, half_beam, deck_y) \
+					and _ship_is_solid(x, y + 1, z, half_len, half_beam, deck_y) \
+					and _ship_is_solid(x, y - 1, z, half_len, half_beam, deck_y) \
+					and _ship_is_solid(x, y, z + 1, half_len, half_beam, deck_y) \
+					and _ship_is_solid(x, y, z - 1, half_len, half_beam, deck_y):
+					continue
 				_ship_place(grid, cube, base_cell + Vector3i(x, y, z), Basis.IDENTITY, grid_basis, mat_id)
 
 	_ship_fill_side_steps(grid, slope, base_cell, half_len, half_beam, deck_y, grid_basis, mat_id)
@@ -825,6 +840,16 @@ func _ship_place(grid: GridBase, block_data: BlockData, gp: Vector3i, rot: Basis
 ## (1 celda por estación) hacia los extremos, de modo que los slopes del costado encajen
 ## borde con borde en una pared diagonal continua: en punta hacia proa (+Z) y hasta un
 ## espejo estrecho en popa (-Z).
+## true si la celda (coordenadas de grid relativas a base_cell) cae dentro del sólido del casco.
+func _ship_is_solid(x: int, y: int, z: int, half_len: int, half_beam: int, deck_y: int) -> bool:
+	if absi(z) > half_len:
+		return false
+	var hw := _ship_half_width(z, half_len, half_beam)
+	if hw < 0 or absi(x) > hw:
+		return false
+	return y >= _ship_floor(z, half_len) and y <= deck_y
+
+
 func _ship_half_width(z: int, half_len: int, half_beam: int) -> int:
 	var bow_hw := half_len - z         # 0 en la punta de proa, +1 por estación hacia popa
 	var stern_hw := z + half_len + 2   # espejo de 2 celdas en popa, +1 por estación hacia proa

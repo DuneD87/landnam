@@ -105,7 +105,7 @@ func _ready() -> void:
 
 const MAX_WAKES := 8
 const MAX_WAKE_POINTS := 512
-const MAX_INTERIORS := 32
+const MAX_INTERIORS := 64
 # Margen (m) alrededor del casco dentro del cual se activa la máscara de interiores.
 const INTERIOR_MASK_MARGIN := 12.0
 

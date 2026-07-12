@@ -640,7 +640,7 @@ func _input(event):
 			else:
 				capture_mouse(true)
 		elif event.is_action_pressed("debug_stress_test"):
-			building_system.debug_spawn_ship()
+			building_system.debug_spawn_ship(true)
  
 	if free_flight_enabled:
 		player_model.visible = false

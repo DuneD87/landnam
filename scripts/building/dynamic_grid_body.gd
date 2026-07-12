@@ -44,6 +44,8 @@ var _is_being_controlled: bool = false
 var _flood_volume: float = 0.0
 var _flood_capacity: float = 0.0
 var _compartments: Array = []
+var _breached_comps: Array = []
+var _interior_cell_size: float = 0.0
 var _interior_dirty: bool = false
 var _interior_debounce: float = 0.0
 var _analysis_running: bool = false
@@ -150,6 +152,23 @@ func _apply_interior_analysis(result: Array) -> void:
 		WorkerThreadPool.wait_for_task_completion(_analysis_task_id)
 		_analysis_task_id = -1
 	_analysis_running = false
+
+	# Cambiar la resolución de la rejilla fina invalida la identidad de celdas entre análisis.
+	var finest: float = result[0]["cell_size"] if not result.is_empty() else 0.0
+	if finest != _interior_cell_size:
+		_breached_comps.clear()
+	_interior_cell_size = finest
+
+	# Compartimento previo cuyas celdas pasaron a ser exteriores = PERFORADO: conserva su
+	# geometría congelada y su volumen bajo el mar pesa como agua embarcada (sin esto, un
+	# casco acribillado pierde sus compartimentos y flota como un corcho). Al resellarlo,
+	# el reanálisis vuelve a solapar sus celdas y lo recupera como compartimento seco.
+	var still_breached: Array = []
+	for old: Dictionary in _compartments + _breached_comps:
+		if _find_overlapping_comp(old, result).is_empty():
+			still_breached.append(old)
+	_breached_comps = still_breached
+
 	_compartments = result
 
 	var total := 0.0
@@ -180,6 +199,8 @@ func _is_ground_ready() -> bool:
 func _ready() -> void:
 	collision_layer = 3
 	collision_mask = 1
+	# Dormido ignoraría las fuerzas custom (flotación, gravedad planetaria, inundación).
+	can_sleep = false
 	add_to_group("floating_origin")
 	add_to_group("dynamic_grid_body")
 	_setup_water_sampler()
@@ -347,34 +368,56 @@ func _physics_process(delta: float) -> void:
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius)
 
 
-## Marca inundados los compartimentos con la fuga bajo el nivel del mar y aplica el peso de
-## su agua (volumen del compartimento sumergido) en el centroide de cada columna.
+## Marca inundados los compartimentos con la fuga bajo el nivel del mar y aplica el peso del
+## agua embarcada de inundados y perforados en el centroide de cada columna.
 func _update_flooding(_delta: float, up: Vector3, planet_pos: Vector3, base_water_radius: float, _water_time: float, gravity: float) -> void:
 	_flood_volume = 0.0
-	var basis_w := global_transform.basis
 
 	for comp: Dictionary in _compartments:
 		comp["flooded"] = _is_comp_flooded(comp, planet_pos, base_water_radius)
-		if not comp["flooded"]:
-			continue
+		if comp["flooded"]:
+			_flood_volume += _apply_flood_weight(comp, up, planet_pos, base_water_radius, gravity)
 
-		var aabb: AABB = comp["aabb"]
-		var half: Vector3 = aabb.size * 0.5
-		var world_center: Vector3 = global_transform * aabb.get_center()
-		var h_half: float = absf((basis_w.x * half.x).dot(up)) \
-			+ absf((basis_w.y * half.y).dot(up)) \
-			+ absf((basis_w.z * half.z).dot(up))
-		h_half = maxf(h_half, 0.05)
+	for comp: Dictionary in _breached_comps:
+		_flood_volume += _apply_flood_weight(comp, up, planet_pos, base_water_radius, gravity)
 
-		var bottom_r: float = (world_center - planet_pos).length() - h_half
-		var frac: float = clampf((base_water_radius - bottom_r) / (2.0 * h_half), 0.0, 1.0)
-		if frac <= 0.0:
-			continue
 
-		var water: float = (comp["volume"] as float) * frac
-		var centroid: Vector3 = world_center + up * h_half * (frac - 1.0)
-		apply_force(-up * gravity * water * WATER_DENSITY, centroid - global_position)
-		_flood_volume += water
+## Peso del agua de un compartimento (su volumen bajo el nivel del mar) aplicado en el
+## centroide de la columna; devuelve los m³ embarcados.
+func _apply_flood_weight(comp: Dictionary, up: Vector3, planet_pos: Vector3, base_water_radius: float, gravity: float) -> float:
+	var aabb: AABB = comp["aabb"]
+	var half: Vector3 = aabb.size * 0.5
+	var world_center: Vector3 = global_transform * aabb.get_center()
+	var basis_w := global_transform.basis
+	var h_half: float = absf((basis_w.x * half.x).dot(up)) \
+		+ absf((basis_w.y * half.y).dot(up)) \
+		+ absf((basis_w.z * half.z).dot(up))
+	h_half = maxf(h_half, 0.05)
+
+	var bottom_r: float = (world_center - planet_pos).length() - h_half
+	var frac: float = clampf((base_water_radius - bottom_r) / (2.0 * h_half), 0.0, 1.0)
+	if frac <= 0.0:
+		return 0.0
+
+	var water: float = (comp["volume"] as float) * frac
+	var centroid: Vector3 = world_center + up * h_half * (frac - 1.0)
+	apply_force(-up * gravity * water * WATER_DENSITY, centroid - global_position)
+	return water
+
+
+## Compartimento del análisis nuevo que comparte celdas con uno previo (muestreo repartido
+## por todo el compartimento: un resto vivo en cualquier zona cuenta como "sigue existiendo").
+func _find_overlapping_comp(old: Dictionary, comps: Array) -> Dictionary:
+	var old_cells: Dictionary = old["cells"]
+	var stride: int = maxi(1, old_cells.size() / 64)
+	var i := 0
+	for cell: Vector3i in old_cells:
+		if i % stride == 0:
+			for comp: Dictionary in comps:
+				if (comp["cells"] as Dictionary).has(cell):
+					return comp
+		i += 1
+	return {}
 
 
 ## true si el compartimento tiene su apertura más baja bajo el nivel del mar (sin ola).
@@ -386,13 +429,18 @@ func _is_comp_flooded(comp: Dictionary, planet_pos: Vector3, base_water_radius: 
 	return (sill_world - planet_pos).length() <= base_water_radius
 
 
-## Cajas de compartimentos no inundados (body-local): la máscara del océano.
+## Cajas de compartimentos no inundados (body-local): la máscara del océano. Ordenadas por
+## volumen descendente para que un truncado en MAX_INTERIORS pierda solo cajas pequeñas.
 func get_dry_interior_boxes() -> Array:
 	var out: Array = []
 	for comp: Dictionary in _compartments:
 		if comp.get("flooded", false):
 			continue
 		out.append_array(comp["boxes"])
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ha: Vector3 = a["half"]
+		var hb: Vector3 = b["half"]
+		return ha.x * ha.y * ha.z > hb.x * hb.y * hb.z)
 	return out
 
 
@@ -407,6 +455,7 @@ func get_flood_state() -> Dictionary:
 		"capacity": _flood_capacity,
 		"compartments": _compartments.size(),
 		"flooded": flooded,
+		"breached": _breached_comps.size(),
 	}
 
 
