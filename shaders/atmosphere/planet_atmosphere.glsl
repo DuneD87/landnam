@@ -240,8 +240,8 @@ float sample_cloud_density(
 
 	// Forma (R = Perlin-Worley, masas grandes) + detalle (B = Worley fino) mezclados ANTES
 	// del umbral: el detalle rompe el borde de las masas sin destruir su silueta.
-	float sample_v = mix(nz.r, nz.b, 0.25);
-
+	float sample_v = mix(nz.r, nz.b, 0.5);
+	sample_v = pow(sample_v, 0.7);
 	// Umbral smoothstep (estilo sky-sorta): interior SÓLIDO y borde definido pero suave.
 	// El max(0, ruido - umbral) lineal de antes dejaba casi todo el volumen a densidad
 	// ~0 → nubes traslúcidas sin silueta, con cualquier ruido. edge_soft = anchura del

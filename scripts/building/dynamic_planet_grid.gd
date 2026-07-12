@@ -58,8 +58,8 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 	_update_mass()
 	rebuild_mesh()
 	_body.register_grid(self)
-	block_placed.connect(_body.on_block_placed)
-	block_removed.connect(_body.on_block_removed)
+	block_placed.connect(_body.on_block_placed.bind(self))
+	block_removed.connect(_body.on_block_removed.bind(self))
 
 ## Crea la grid dinámica a partir de una PlanetGrid existente (conversión).
 func setup_from_static(id: String, planet: Node3D, static_grid: PlanetGrid) -> void:
@@ -118,8 +118,8 @@ func _create_body(world_transform: Transform3D) -> void:
 	planet_node.get_tree().current_scene.add_child(_body)
 	_body.global_transform = world_transform
 	_body.register_grid(self)
-	block_placed.connect(_body.on_block_placed)
-	block_removed.connect(_body.on_block_removed)
+	block_placed.connect(_body.on_block_placed.bind(self))
+	block_removed.connect(_body.on_block_removed.bind(self))
 
 func _update_mass() -> void:
 	if _body and is_instance_valid(_body):
@@ -317,9 +317,9 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 
 	_deserialize_props(data.get("props", {}))
 	_body.register_grid(self)
-	if not block_placed.is_connected(_body.on_block_placed):
-		block_placed.connect(_body.on_block_placed)
-	if not block_removed.is_connected(_body.on_block_removed):
-		block_removed.connect(_body.on_block_removed)
+	if not block_placed.is_connected(_body.on_block_placed.bind(self)):
+		block_placed.connect(_body.on_block_placed.bind(self))
+	if not block_removed.is_connected(_body.on_block_removed.bind(self)):
+		block_removed.connect(_body.on_block_removed.bind(self))
 	_update_mass()
 	rebuild_mesh()

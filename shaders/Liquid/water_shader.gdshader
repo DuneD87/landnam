@@ -31,6 +31,8 @@ uniform float wave_world_scale : hint_range(1.0, 500.0) = 60.0; // metros por ti
 #include "res://shaders/liquid/gerstner_waves.gdshaderinc"
 // waterline_signed(): corte de línea de flotación compartido con underwater.gdshader.
 #include "res://shaders/liquid/underwater_fog.gdshaderinc"
+// inside_ship_interior(): OBB de cascos de barcos donde no se dibuja agua.
+#include "res://shaders/liquid/ship_interiors.gdshaderinc"
 
 uniform vec4 color_deep : source_color = vec4(0.02, 0.14, 0.25, 1.0);
 uniform vec4 color_shallow : source_color = vec4(0.37, 0.72, 0.71, 1.0);
@@ -307,6 +309,12 @@ void vertex() {
 }
 
 void fragment() {
+    // Dentro de un casco el agua no existe: se descarta la superficie píxel a píxel (los
+    // parches del quadtree son mucho mayores que un barco, no se puede cullear por quad).
+    if (inside_ship_interior(world_pos)) {
+        discard;
+    }
+
     // Corte de línea de flotación por píxel: mismo test y argumentos que underwater.gdshader,
     // así ambos particionan la pantalla píxel-exacto al cruzar la superficie.
     vec4 wl_near_view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, 1.0, 1.0);

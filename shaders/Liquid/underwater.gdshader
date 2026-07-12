@@ -10,6 +10,8 @@ render_mode unshaded, depth_draw_always;
 
 #include "res://shaders/liquid/gerstner_waves.gdshaderinc"
 #include "res://shaders/liquid/underwater_fog.gdshaderinc"
+// inside_ship_interior(): OBB de cascos de barcos, interior seco sin niebla submarina.
+#include "res://shaders/liquid/ship_interiors.gdshaderinc"
 
 uniform vec3 planet_center;
 uniform float water_radius = 10000.0;
@@ -90,6 +92,12 @@ void vertex() {
 }
 
 void fragment() {
+    // Cámara dentro de un casco: interior seco — sin niebla, menisco ni corte de flotación,
+    // aunque el interior quede analíticamente bajo la superficie Gerstner.
+    if (inside_ship_interior(CAMERA_POSITION_WORLD)) {
+        discard;
+    }
+
     // Reconstrucción del punto de escena y del rayo en world-space.
     float depth_raw = texture(depth_texture, SCREEN_UV).x;
     vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, depth_raw);

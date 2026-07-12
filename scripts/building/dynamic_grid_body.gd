@@ -3,7 +3,8 @@ extends RigidBody3D
 
 ## RigidBody3D de una grid dinámica: gravedad planetaria + flotación de Arquímedes (empuje por
 ## volumen sumergido de las cajas de colisión fusionadas, aplicado en su centroide; masa por
-## densidad de bloque), y movimiento según movement_type (barco; vehículo y nave pendientes).
+## densidad de bloque), inundación por brechas (celdas eliminadas bajo la línea de flotación
+## embarcan agua que pesa y escora) y movimiento según movement_type (barco; resto pendiente).
 
 enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 
@@ -13,6 +14,8 @@ enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 @export var linear_drag: float = 0.3
 @export var heave_drag: float = 1.0
 @export var angular_drag: float = 0.15
+@export var flood_flow_coefficient: float = 0.6
+@export var flood_capacity_factor: float = 0.9
 
 const BLOCK_DENSITY := 500.0
 const WATER_DENSITY := 1000.0
@@ -36,6 +39,10 @@ var _drag_length_sq: float = 1.0
 var _recalc_boxes: bool = true
 var _is_being_controlled: bool = false
 
+var _breaches: Dictionary = {}
+var _flood_volume: float = 0.0
+var _flood_capacity: float = 0.0
+
 var _boat_speed_levels: Array[float] = [0.0, 5.0, 10.0, 20.0]
 var _boat_speed_index: int = 0
 var _boat_target_speed: float = 0.0
@@ -45,11 +52,23 @@ var _boat_current_speed: float = 0.0
 
 signal speed_changed(level: int, speed: float)
 
-func on_block_removed(grid_pos: Vector3i) -> void:
+## Cada celda eliminada es una brecha potencial; si queda sumergida, embarca agua.
+func on_block_removed(grid_pos: Vector3i, grid: GridBase = null) -> void:
 	mark_points_dirty()
+	if grid:
+		_breaches[_breach_key(grid, grid_pos)] = {
+			"local_pos": (Vector3(grid_pos) + Vector3.ONE * 0.5) * grid.cell_size,
+			"area": grid.cell_size * grid.cell_size,
+		}
 
-func on_block_placed(grid_pos: Vector3i, block_id: int) -> void:
+## Colocar un bloque en una celda con brecha la sella.
+func on_block_placed(grid_pos: Vector3i, _block_id: int, grid: GridBase = null) -> void:
 	mark_points_dirty()
+	if grid:
+		_breaches.erase(_breach_key(grid, grid_pos))
+
+static func _breach_key(grid: GridBase, grid_pos: Vector3i) -> String:
+	return "%s|%d,%d,%d" % [grid.grid_id, grid_pos.x, grid_pos.y, grid_pos.z]
 
 func mark_points_dirty() -> void:
 	_recalc_boxes = true
@@ -60,6 +79,7 @@ func _recalculate_buoyancy_boxes() -> void:
 	_recalc_boxes = false
 	_buoyancy_boxes.clear()
 	_aggregate_box = {}
+	_flood_capacity = 0.0
 
 	var aabb := AABB()
 	var first := true
@@ -95,6 +115,10 @@ func _recalculate_buoyancy_boxes() -> void:
 
 	_aggregate_box = {"pos": aabb.get_center(), "half": aabb.size * 0.5, "volume": total_volume}
 	_drag_length_sq = maxf(1.0, (aabb.size * 0.5).length_squared())
+
+	# Capacidad de agua embarcable: hueco interior aproximado (AABB del casco menos bloques).
+	var box_volume := aabb.size.x * aabb.size.y * aabb.size.z
+	_flood_capacity = maxf((box_volume - total_volume) * flood_capacity_factor, 0.0)
 
 func _is_ground_ready() -> bool:
 	var query = PhysicsRayQueryParameters3D.create(
@@ -228,6 +252,7 @@ func _physics_process(delta: float) -> void:
 
 	var basis_w := global_transform.basis
 	var submerged_volume := 0.0
+	var weighted_buoyancy_pos := Vector3.ZERO
 
 	for box: Dictionary in boxes:
 		var half: Vector3 = box["half"]
@@ -250,15 +275,66 @@ func _physics_process(delta: float) -> void:
 		var centroid: Vector3 = world_center + up * h_half * (frac - 1.0)
 		apply_force(up * WATER_DENSITY * gravity * displaced, centroid - global_position)
 		submerged_volume += displaced
+		weighted_buoyancy_pos += centroid * displaced
 
 	if submerged_volume > 0.0:
 		var displaced_mass: float = submerged_volume * WATER_DENSITY
 		apply_central_force(-linear_velocity * linear_drag * displaced_mass)
 		var radial_vel: float = linear_velocity.dot(up)
 		apply_central_force(-up * radial_vel * heave_drag * displaced_mass)
-		apply_torque(-angular_velocity * angular_drag * displaced_mass * _drag_length_sq)
+		apply_torque(-angular_velocity * angular_drag * displaced_mass * minf(_drag_length_sq, 10.0))
 
+		# Corrección de inclinación: aplica un torque suave si el barco está muy inclinado.
+		# Previene que se quede fijado pero sin ser tan agresivo como para volcar.
+		var body_up := -global_transform.basis.y
+		var angle_to_vertical := acos(clampf(body_up.dot(up), -1.0, 1.0))
+		if angle_to_vertical > deg_to_rad(5.0):
+			var corrective_axis := up.cross(body_up).normalized()
+			var correction_strength := (angle_to_vertical - deg_to_rad(5.0)) * displaced_mass * gravity * 0.1
+			apply_torque(corrective_axis * correction_strength)
+
+	_update_flooding(delta, up, planet_pos, base_water_radius, water_time, gravity)
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius)
+
+
+## Inundación: las brechas sumergidas embarcan agua (Torricelli: caudal ~ área × √profundidad)
+## y el agua acumulada pesa sobre el fondo del casco — la flotación existente escora y hunde
+## el barco sin lógica extra. El agua embarcada no se achica sola al reparar la brecha.
+func _update_flooding(delta: float, up: Vector3, planet_pos: Vector3, base_water_radius: float, water_time: float, gravity: float) -> void:
+	if _flood_capacity <= 0.0:
+		return
+
+	for breach: Dictionary in _breaches.values():
+		var world_pos: Vector3 = global_transform * (breach["local_pos"] as Vector3)
+		var wave_h: float = _water_sampler.get_height_at(world_pos, water_time, planet_pos)
+		var depth: float = (base_water_radius + wave_h) - (world_pos - planet_pos).length()
+		if depth <= 0.0:
+			continue
+		_flood_volume += flood_flow_coefficient * breach["area"] * sqrt(2.0 * gravity * depth) * delta
+	_flood_volume = minf(_flood_volume, _flood_capacity)
+
+	if _flood_volume <= 0.0:
+		return
+
+	var half: Vector3 = _aggregate_box["half"]
+	var world_center: Vector3 = global_transform * (_aggregate_box["pos"] as Vector3)
+	var basis_w := global_transform.basis
+	var h_half: float = absf((basis_w.x * half.x).dot(up)) \
+		+ absf((basis_w.y * half.y).dot(up)) \
+		+ absf((basis_w.z * half.z).dot(up))
+	h_half = maxf(h_half, 0.05)
+
+	# El agua se acumula en el fondo: peso aplicado en el centroide de la columna embarcada,
+	# bajo el centro del casco, que escora el barco de forma natural conforme sube el nivel.
+	var fill: float = clampf(_flood_volume / _flood_capacity, 0.0, 1.0)
+	var centroid: Vector3 = world_center + up * h_half * (fill - 1.0)
+	var flood_mass: float = _flood_volume * WATER_DENSITY
+	apply_force(-up * gravity * flood_mass, centroid - global_position)
+
+
+## Estado de inundación para UI/depuración: volumen embarcado, capacidad y nº de brechas.
+func get_flood_state() -> Dictionary:
+	return {"volume": _flood_volume, "capacity": _flood_capacity, "breaches": _breaches.size()}
 
 
 ## Emite y caduca los puntos de estela de espuma. Se guardan como offset desde el centro del
@@ -310,6 +386,18 @@ func get_hull_bounds() -> Dictionary:
 	if _recalc_boxes:
 		_recalculate_buoyancy_boxes()
 	return _aggregate_box
+
+
+## true si un punto world cae dentro de la bounding box del casco (a bordo del barco).
+func contains_point(world_point: Vector3) -> bool:
+	if _recalc_boxes:
+		_recalculate_buoyancy_boxes()
+	if not _aggregate_box.has("pos"):
+		return false
+	var local := global_transform.affine_inverse() * world_point
+	var d := (local - (_aggregate_box["pos"] as Vector3)).abs()
+	var half: Vector3 = _aggregate_box["half"]
+	return d.x <= half.x and d.y <= half.y and d.z <= half.z
 
 
 func get_current_speed_level() -> int:

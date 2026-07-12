@@ -428,7 +428,7 @@ void fragment() {
 		float up_face = clamp(dot(normal_world, planet_up), 0.0, 1.0);
 		float lat_factor = smoothstep(weather_snow_latitude_start, weather_snow_latitude_full, abs(latitude));
 		float alt_factor = smoothstep(weather_snow_altitude_start, weather_snow_altitude_full, height);
-		float cold = clamp(lat_factor + alt_factor, 0.0, 1.0);
+		float cold = lat_factor * alt_factor;
 		float snow = weather_snow_coverage * cold * smoothstep(0.35, 0.8, up_face);
 		final_color = mix(final_color, weather_snow_color, snow);
 		final_roughness = mix(final_roughness, 0.55, snow);

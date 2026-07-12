@@ -784,7 +784,10 @@ func _check_needs_swimming(delta: float):
 	var mat = planet.water_sphere.mesh_manager.default_material as ShaderMaterial
 	mat.set_shader_parameter("water_time", current_water_time)
 	_water_surface_center = planet.global_position
-	movement.is_swimming = distance_from_center <= (_water_surface_radius - swimming_offset)
+	# A bordo de un barco el agua no existe (mismo criterio que el recorte visual del
+	# shader): sin nado aunque el jugador quede bajo la superficie analítica.
+	movement.is_swimming = distance_from_center <= (_water_surface_radius - swimming_offset) \
+		and not GridManager.is_point_inside_any_hull(global_position)
 	
 	current_water_time += delta
 

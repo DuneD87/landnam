@@ -43,6 +43,8 @@ const _SYNCED_WATER_PARAMS: Array[StringName] = [
 	&"wave_direction", &"wave_speed", &"wave_amplitude", &"wave_base_length",
 	&"wave_steepness", &"wave_octaves", &"wave_pole",
 	&"water_time", &"planet_center", &"water_radius",
+	&"interior_count", &"interior_center",
+	&"interior_axis_x", &"interior_axis_y", &"interior_axis_z",
 ]
 
 # Parámetros de cáusticas espejados del water_shader una sola vez en el setup (no los muta el weather).

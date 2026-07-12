@@ -105,11 +105,71 @@ func _ready() -> void:
 
 const MAX_WAKES := 8
 const MAX_WAKE_POINTS := 512
+const MAX_INTERIORS := 4
 
 var _wake_materials_active: Array = []
+var _interior_materials_active: Array = []
 
 func _physics_process(_delta: float) -> void:
 	_update_wake_uniforms()
+	_update_interior_uniforms()
+
+## Copia los OBB de casco de los DynamicGridBody al agua de su planeta: dentro de ellos el
+## shader descarta la superficie y el underwater se apaga (interior seco del barco).
+func _update_interior_uniforms() -> void:
+	var per_mat: Dictionary = {}
+	for node in get_tree().get_nodes_in_group("dynamic_grid_body"):
+		var body := node as DynamicGridBody
+		if not body or not body.planet_node or not body.planet_node.planet.has_water:
+			continue
+		var mat := body.planet_node.water_sphere.mesh_manager.default_material as ShaderMaterial
+		if not mat:
+			continue
+		if not per_mat.has(mat):
+			per_mat[mat] = []
+		per_mat[mat].append(body)
+
+	for mat in _interior_materials_active:
+		if is_instance_valid(mat) and not per_mat.has(mat):
+			mat.set_shader_parameter("interior_count", 0)
+	_interior_materials_active = per_mat.keys()
+
+	for mat: ShaderMaterial in per_mat:
+		var centers := PackedVector4Array()
+		centers.resize(MAX_INTERIORS)
+		var axis_x := PackedVector4Array()
+		axis_x.resize(MAX_INTERIORS)
+		var axis_y := PackedVector4Array()
+		axis_y.resize(MAX_INTERIORS)
+		var axis_z := PackedVector4Array()
+		axis_z.resize(MAX_INTERIORS)
+
+		var camera := get_viewport().get_camera_3d()
+		var count := 0
+		for body: DynamicGridBody in per_mat[mat]:
+			if count >= MAX_INTERIORS:
+				break
+			var hull: Dictionary = body.get_hull_bounds()
+			if not hull.has("pos"):
+				continue
+			# El recorte solo se activa con la cámara a bordo: el OBB sobresale del casco en
+			# las diagonales (proa) y desde fuera agujerearía el océano visible.
+			if camera and not body.contains_point(camera.global_position):
+				continue
+			var xf := body.global_transform
+			var c: Vector3 = xf * (hull["pos"] as Vector3)
+			var half: Vector3 = hull["half"]
+			centers[count] = Vector4(c.x, c.y, c.z, 0.0)
+			axis_x[count] = Vector4(xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, half.x)
+			axis_y[count] = Vector4(xf.basis.y.x, xf.basis.y.y, xf.basis.y.z, half.y)
+			axis_z[count] = Vector4(xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, half.z)
+			count += 1
+
+		mat.set_shader_parameter("interior_count", count)
+		mat.set_shader_parameter("interior_center", centers)
+		mat.set_shader_parameter("interior_axis_x", axis_x)
+		mat.set_shader_parameter("interior_axis_y", axis_y)
+		mat.set_shader_parameter("interior_axis_z", axis_z)
 
 ## Copia los puntos de estela de todos los DynamicGridBody a los uniforms del agua de su planeta.
 func _update_wake_uniforms() -> void:
@@ -180,6 +240,15 @@ func _update_wake_uniforms() -> void:
 		mat.set_shader_parameter("wake_alphas", alphas)
 
 
+## true si el punto está dentro del casco de algún DynamicGridBody (a bordo de un barco).
+func is_point_inside_any_hull(point: Vector3) -> bool:
+	for node in get_tree().get_nodes_in_group("dynamic_grid_body"):
+		var body := node as DynamicGridBody
+		if body and body.contains_point(point):
+			return true
+	return false
+
+
 ## Convierte una PlanetGrid estática (y sus alineadas) a dinámicas; devuelve las nuevas grids.
 func convert_to_dynamic(grid_id: String) -> Array:
 	var source: PlanetGrid = _grids.get(grid_id, null) as PlanetGrid
@@ -224,8 +293,8 @@ func convert_to_dynamic(grid_id: String) -> Array:
 			dyn.cell_size = static_grid.cell_size
 			dyn.mesh_materials = static_grid.mesh_materials
 			_migrate_blocks_to_dynamic(dyn, static_grid, shared_body)
-			dyn.block_placed.connect(shared_body.on_block_placed)
-			dyn.block_removed.connect(shared_body.on_block_removed)
+			dyn.block_placed.connect(shared_body.on_block_placed.bind(dyn))
+			dyn.block_removed.connect(shared_body.on_block_removed.bind(dyn))
 		else:
 			dyn.setup_from_static_shared(sid, planet, static_grid, shared_body)
 
@@ -309,8 +378,8 @@ func create_grid_aligned(planet: Node3D, ref_grid: GridBase, target_cell: float)
 		grid.body_id = dyn_ref.body_id
 		dyn_ref._body.register_grid(grid)
 		_register_grid(grid, planet, grid_id)
-		grid.block_placed.connect(dyn_ref._body.on_block_placed)
-		grid.block_removed.connect(dyn_ref._body.on_block_removed)
+		grid.block_placed.connect(dyn_ref._body.on_block_placed.bind(grid))
+		grid.block_removed.connect(dyn_ref._body.on_block_removed.bind(grid))
 		return grid
 	else:
 		var grid := PlanetGrid.new()
