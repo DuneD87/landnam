@@ -14,8 +14,9 @@ enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 @export var linear_drag: float = 0.3
 @export var heave_drag: float = 1.0
 @export var angular_drag: float = 0.15
-@export var flood_flow_coefficient: float = 0.6
 @export var flood_capacity_factor: float = 0.9
+## Dibuja una caja translúcida por compartimento interior (rojo = abierto al exterior).
+@export var debug_compartments: bool = true
 
 const BLOCK_DENSITY := 500.0
 const WATER_DENSITY := 1000.0
@@ -39,9 +40,10 @@ var _drag_length_sq: float = 1.0
 var _recalc_boxes: bool = true
 var _is_being_controlled: bool = false
 
-var _breaches: Dictionary = {}
 var _flood_volume: float = 0.0
 var _flood_capacity: float = 0.0
+var _compartments: Array = []
+var _debug_comp_meshes: Array = []
 
 var _boat_speed_levels: Array[float] = [0.0, 5.0, 10.0, 20.0]
 var _boat_speed_index: int = 0
@@ -52,23 +54,11 @@ var _boat_current_speed: float = 0.0
 
 signal speed_changed(level: int, speed: float)
 
-## Cada celda eliminada es una brecha potencial; si queda sumergida, embarca agua.
-func on_block_removed(grid_pos: Vector3i, grid: GridBase = null) -> void:
+func on_block_removed(_grid_pos: Vector3i, _grid: GridBase = null) -> void:
 	mark_points_dirty()
-	if grid:
-		_breaches[_breach_key(grid, grid_pos)] = {
-			"local_pos": (Vector3(grid_pos) + Vector3.ONE * 0.5) * grid.cell_size,
-			"area": grid.cell_size * grid.cell_size,
-		}
 
-## Colocar un bloque en una celda con brecha la sella.
-func on_block_placed(grid_pos: Vector3i, _block_id: int, grid: GridBase = null) -> void:
+func on_block_placed(_grid_pos: Vector3i, _block_id: int, _grid: GridBase = null) -> void:
 	mark_points_dirty()
-	if grid:
-		_breaches.erase(_breach_key(grid, grid_pos))
-
-static func _breach_key(grid: GridBase, grid_pos: Vector3i) -> String:
-	return "%s|%d,%d,%d" % [grid.grid_id, grid_pos.x, grid_pos.y, grid_pos.z]
 
 func mark_points_dirty() -> void:
 	_recalc_boxes = true
@@ -116,9 +106,121 @@ func _recalculate_buoyancy_boxes() -> void:
 	_aggregate_box = {"pos": aabb.get_center(), "half": aabb.size * 0.5, "volume": total_volume}
 	_drag_length_sq = maxf(1.0, (aabb.size * 0.5).length_squared())
 
-	# Capacidad de agua embarcable: hueco interior aproximado (AABB del casco menos bloques).
+	# Capacidad de agua embarcable: hueco interior aproximado (AABB del casco menos bloques);
+	# el análisis de compartimentos la sustituye por el volumen interior real.
 	var box_volume := aabb.size.x * aabb.size.y * aabb.size.z
 	_flood_capacity = maxf((box_volume - total_volume) * flood_capacity_factor, 0.0)
+
+	_recalculate_interiors()
+
+
+## Análisis SÍNCRONO de compartimentos interiores sobre la rejilla unificada multi-size.
+## En barcos muy grandes da un hitch por edición: es el precio aceptado hasta que sea
+## funcional de punta a punta; entonces se moverá a WorkerThreadPool (paso ya explorado).
+func _recalculate_interiors() -> void:
+	var grids_data: Array = []
+	for grid in _grids:
+		grids_data.append({
+			"cells": grid.get_all_blocks().keys(),
+			"cell_size": grid.cell_size,
+		})
+	_compartments = ShipInteriorAnalyzer.analyze(grids_data)
+
+	var total := 0.0
+	for comp: Dictionary in _compartments:
+		total += comp["volume"]
+	if total > 0.0:
+		_flood_capacity = total * flood_capacity_factor
+
+	if debug_compartments:
+		var sizes := PackedStringArray()
+		for gd: Dictionary in grids_data:
+			sizes.append("%d bloques @ %.2f m" % [(gd["cells"] as Array).size(), gd["cell_size"]])
+		print("[Interiores] grids: %s → %d compartimentos" % [", ".join(sizes), _compartments.size()])
+		for comp: Dictionary in _compartments:
+			var leak := "—"
+			if comp["open"]:
+				var sill_local: Vector3 = (Vector3(comp["sill_cell"] as Vector3i) + Vector3.ONE * 0.5) * (comp["cell_size"] as float)
+				leak = str(sill_local)
+				if planet_node and planet_node.planet.has_water:
+					var base_r: float = planet_node.planet.radius - planet_node.planet.water_radius
+					var submerged: bool = ((global_transform * sill_local) - planet_node.global_pos).length() <= base_r
+					leak += " (SUMERGIDA)" if submerged else " (en seco)"
+			print("  - %s | %d celdas | %.1f m³ | aabb %s | fuga en %s" % [
+				"ABIERTO" if comp["open"] else "estanco",
+				comp["cell_count"], comp["volume"], comp["aabb"], leak])
+
+	_update_debug_compartments()
+
+
+## Overlay de depuración, semáforo por riesgo: VERDE/AZUL = estanco; NARANJA = abierto pero
+## con la fuga por encima del nivel del mar (no se inunda tal y como flota ahora); ROJO =
+## abierto con la fuga sumergida (se inundaría ya). Refleja el momento del análisis.
+func _update_debug_compartments() -> void:
+	for m in _debug_comp_meshes:
+		if is_instance_valid(m):
+			m.queue_free()
+	_debug_comp_meshes.clear()
+	if not debug_compartments:
+		return
+
+	var has_water: bool = planet_node != null and planet_node.planet.has_water
+	var base_water_radius: float = 0.0
+	var planet_pos := Vector3.ZERO
+	if has_water:
+		base_water_radius = planet_node.planet.radius - planet_node.planet.water_radius
+		planet_pos = planet_node.global_pos
+
+	for i in _compartments.size():
+		var comp: Dictionary = _compartments[i]
+		var color: Color
+		if not comp.get("open", false):
+			color = Color.from_hsv(fmod(0.3 + i * 0.13, 0.75), 0.75, 0.95, 0.3)
+		else:
+			var sill_world: Vector3 = global_transform \
+				* ((Vector3(comp["sill_cell"] as Vector3i) + Vector3.ONE * 0.5) * (comp["cell_size"] as float))
+			var sill_submerged: bool = has_water \
+				and (sill_world - planet_pos).length() <= base_water_radius
+			color = Color(0.9, 0.1, 0.1, 0.35) if sill_submerged else Color(1.0, 0.6, 0.1, 0.28)
+		var mat := StandardMaterial3D.new()
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mat.albedo_color = color
+
+		for box: Dictionary in comp["boxes"]:
+			var bm := BoxMesh.new()
+			bm.size = (box["half"] as Vector3) * 2.0
+			bm.material = mat
+			var mi := MeshInstance3D.new()
+			mi.mesh = bm
+			mi.position = box["pos"]
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mi)
+			_debug_comp_meshes.append(mi)
+
+		# Marcadores AMARILLOS: celdas del compartimento en contacto con aire exterior
+		# (la fuga). Son el sitio exacto que hay que tapiar para que pase a estanco.
+		if comp.get("open", false):
+			var cell_size: float = comp["cell_size"]
+			var marker_mat := StandardMaterial3D.new()
+			marker_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			marker_mat.albedo_color = Color(1.0, 0.9, 0.1)
+			for cell: Vector3i in comp["opening_cells"]:
+				var mbm := BoxMesh.new()
+				mbm.size = Vector3.ONE * cell_size * 1.05
+				mbm.material = marker_mat
+				var mmi := MeshInstance3D.new()
+				mmi.mesh = mbm
+				mmi.position = (Vector3(cell) + Vector3.ONE * 0.5) * cell_size
+				mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				add_child(mmi)
+				_debug_comp_meshes.append(mmi)
+
+
+## Compartimentos interiores del último análisis (ver ShipInteriorAnalyzer.analyze).
+func get_compartments() -> Array:
+	return _compartments
 
 func _is_ground_ready() -> bool:
 	var query = PhysicsRayQueryParameters3D.create(
@@ -297,44 +399,69 @@ func _physics_process(delta: float) -> void:
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius)
 
 
-## Inundación: las brechas sumergidas embarcan agua (Torricelli: caudal ~ área × √profundidad)
-## y el agua acumulada pesa sobre el fondo del casco — la flotación existente escora y hunde
-## el barco sin lógica extra. El agua embarcada no se achica sola al reparar la brecha.
-func _update_flooding(delta: float, up: Vector3, planet_pos: Vector3, base_water_radius: float, water_time: float, gravity: float) -> void:
-	if _flood_capacity <= 0.0:
-		return
-
-	for breach: Dictionary in _breaches.values():
-		var world_pos: Vector3 = global_transform * (breach["local_pos"] as Vector3)
-		var wave_h: float = _water_sampler.get_height_at(world_pos, water_time, planet_pos)
-		var depth: float = (base_water_radius + wave_h) - (world_pos - planet_pos).length()
-		if depth <= 0.0:
-			continue
-		_flood_volume += flood_flow_coefficient * breach["area"] * sqrt(2.0 * gravity * depth) * delta
-	_flood_volume = minf(_flood_volume, _flood_capacity)
-
-	if _flood_volume <= 0.0:
-		return
-
-	var half: Vector3 = _aggregate_box["half"]
-	var world_center: Vector3 = global_transform * (_aggregate_box["pos"] as Vector3)
+## Inundación por compartimentos: uno abierto con la fuga sumergida se marca "flooded" — el
+## océano se renderiza dentro (deja de enmascararse) y su agua es analítica: el volumen del
+## compartimento bajo el nivel del mar. Ese peso, aplicado en el centroide de cada columna,
+## hunde el barco hacia donde se inunda; al ganar calado crece el volumen sumergido → progresa.
+func _update_flooding(_delta: float, up: Vector3, planet_pos: Vector3, base_water_radius: float, _water_time: float, gravity: float) -> void:
+	_flood_volume = 0.0
 	var basis_w := global_transform.basis
-	var h_half: float = absf((basis_w.x * half.x).dot(up)) \
-		+ absf((basis_w.y * half.y).dot(up)) \
-		+ absf((basis_w.z * half.z).dot(up))
-	h_half = maxf(h_half, 0.05)
 
-	# El agua se acumula en el fondo: peso aplicado en el centroide de la columna embarcada,
-	# bajo el centro del casco, que escora el barco de forma natural conforme sube el nivel.
-	var fill: float = clampf(_flood_volume / _flood_capacity, 0.0, 1.0)
-	var centroid: Vector3 = world_center + up * h_half * (fill - 1.0)
-	var flood_mass: float = _flood_volume * WATER_DENSITY
-	apply_force(-up * gravity * flood_mass, centroid - global_position)
+	for comp: Dictionary in _compartments:
+		comp["flooded"] = false
+		if not comp.get("open", false):
+			continue
+
+		var cell_size: float = comp["cell_size"]
+		var sill_world: Vector3 = global_transform \
+			* ((Vector3(comp["sill_cell"] as Vector3i) + Vector3.ONE * 0.5) * cell_size)
+		if (sill_world - planet_pos).length() > base_water_radius:
+			continue
+
+		comp["flooded"] = true
+
+		var aabb: AABB = comp["aabb"]
+		var half: Vector3 = aabb.size * 0.5
+		var world_center: Vector3 = global_transform * aabb.get_center()
+		var h_half: float = absf((basis_w.x * half.x).dot(up)) \
+			+ absf((basis_w.y * half.y).dot(up)) \
+			+ absf((basis_w.z * half.z).dot(up))
+		h_half = maxf(h_half, 0.05)
+
+		var bottom_r: float = (world_center - planet_pos).length() - h_half
+		var frac: float = clampf((base_water_radius - bottom_r) / (2.0 * h_half), 0.0, 1.0)
+		if frac <= 0.0:
+			continue
+
+		var water: float = (comp["volume"] as float) * frac
+		var centroid: Vector3 = world_center + up * h_half * (frac - 1.0)
+		apply_force(-up * gravity * water * WATER_DENSITY, centroid - global_position)
+		_flood_volume += water
 
 
-## Estado de inundación para UI/depuración: volumen embarcado, capacidad y nº de brechas.
+## Cajas de compartimentos NO inundados en espacio local del body: la máscara del océano.
+## Lo inundado queda fuera de la lista y el mar se renderiza dentro con sus efectos normales.
+func get_dry_interior_boxes() -> Array:
+	var out: Array = []
+	for comp: Dictionary in _compartments:
+		if comp.get("flooded", false):
+			continue
+		out.append_array(comp["boxes"])
+	return out
+
+
+## Estado de inundación para UI/depuración.
 func get_flood_state() -> Dictionary:
-	return {"volume": _flood_volume, "capacity": _flood_capacity, "breaches": _breaches.size()}
+	var flooded := 0
+	for comp: Dictionary in _compartments:
+		if comp.get("flooded", false):
+			flooded += 1
+	return {
+		"volume": _flood_volume,
+		"capacity": _flood_capacity,
+		"compartments": _compartments.size(),
+		"flooded": flooded,
+	}
 
 
 ## Emite y caduca los puntos de estela de espuma. Se guardan como offset desde el centro del
@@ -388,8 +515,26 @@ func get_hull_bounds() -> Dictionary:
 	return _aggregate_box
 
 
-## true si un punto world cae dentro de la bounding box del casco (a bordo del barco).
-func contains_point(world_point: Vector3) -> bool:
+## true si el punto cae dentro de algún compartimento SECO (aire interior sin inundar).
+func is_point_in_dry_interior(world_point: Vector3) -> bool:
+	if _compartments.is_empty():
+		return false
+	var local: Vector3 = global_transform.affine_inverse() * world_point
+	for comp: Dictionary in _compartments:
+		if comp.get("flooded", false):
+			continue
+		if not (comp["aabb"] as AABB).grow(0.05).has_point(local):
+			continue
+		for box: Dictionary in comp["boxes"]:
+			var d: Vector3 = (local - (box["pos"] as Vector3)).abs()
+			var half: Vector3 = box["half"]
+			if d.x <= half.x + 0.05 and d.y <= half.y + 0.05 and d.z <= half.z + 0.05:
+				return true
+	return false
+
+
+## true si un punto world cae dentro de la bounding box del casco (opcionalmente ampliada).
+func contains_point(world_point: Vector3, margin: float = 0.0) -> bool:
 	if _recalc_boxes:
 		_recalculate_buoyancy_boxes()
 	if not _aggregate_box.has("pos"):
@@ -397,7 +542,7 @@ func contains_point(world_point: Vector3) -> bool:
 	var local := global_transform.affine_inverse() * world_point
 	var d := (local - (_aggregate_box["pos"] as Vector3)).abs()
 	var half: Vector3 = _aggregate_box["half"]
-	return d.x <= half.x and d.y <= half.y and d.z <= half.z
+	return d.x <= half.x + margin and d.y <= half.y + margin and d.z <= half.z + margin
 
 
 func get_current_speed_level() -> int:

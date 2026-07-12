@@ -3,7 +3,7 @@
 // GridManager rellena los uniforms cada frame en el material del agua; underwater.gd los
 // replica vía _SYNCED_WATER_PARAMS (afectan al corte y deben ir sincronizados píxel-exacto).
 
-const int MAX_INTERIORS = 4;
+const int MAX_INTERIORS = 32;
 uniform int interior_count = 0;
 uniform vec4 interior_center[MAX_INTERIORS]; // xyz = centro del casco en world
 uniform vec4 interior_axis_x[MAX_INTERIORS]; // xyz = eje local X del casco, w = semieje

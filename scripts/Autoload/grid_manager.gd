@@ -105,7 +105,9 @@ func _ready() -> void:
 
 const MAX_WAKES := 8
 const MAX_WAKE_POINTS := 512
-const MAX_INTERIORS := 4
+const MAX_INTERIORS := 32
+# Margen (m) alrededor del casco dentro del cual se activa la máscara de interiores.
+const INTERIOR_MASK_MARGIN := 12.0
 
 var _wake_materials_active: Array = []
 var _interior_materials_active: Array = []
@@ -114,8 +116,9 @@ func _physics_process(_delta: float) -> void:
 	_update_wake_uniforms()
 	_update_interior_uniforms()
 
-## Copia los OBB de casco de los DynamicGridBody al agua de su planeta: dentro de ellos el
-## shader descarta la superficie y el underwater se apaga (interior seco del barco).
+## Copia las cajas de compartimentos SECOS de los DynamicGridBody al agua de su planeta:
+## dentro de ellas el shader descarta la superficie y el underwater se apaga. Un compartimento
+## inundado no se empuja, así que el océano se renderiza dentro con sus efectos normales.
 func _update_interior_uniforms() -> void:
 	var per_mat: Dictionary = {}
 	for node in get_tree().get_nodes_in_group("dynamic_grid_body"):
@@ -149,21 +152,22 @@ func _update_interior_uniforms() -> void:
 		for body: DynamicGridBody in per_mat[mat]:
 			if count >= MAX_INTERIORS:
 				break
-			var hull: Dictionary = body.get_hull_bounds()
-			if not hull.has("pos"):
-				continue
-			# El recorte solo se activa con la cámara a bordo: el OBB sobresale del casco en
-			# las diagonales (proa) y desde fuera agujerearía el océano visible.
-			if camera and not body.contains_point(camera.global_position):
+			# Las cajas son ajustadas (solo aire interior), pero el bucle del shader se paga
+			# por píxel: solo se empujan con la cámara a bordo o pegada al casco.
+			if camera and not body.contains_point(camera.global_position, INTERIOR_MASK_MARGIN):
 				continue
 			var xf := body.global_transform
-			var c: Vector3 = xf * (hull["pos"] as Vector3)
-			var half: Vector3 = hull["half"]
-			centers[count] = Vector4(c.x, c.y, c.z, 0.0)
-			axis_x[count] = Vector4(xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, half.x)
-			axis_y[count] = Vector4(xf.basis.y.x, xf.basis.y.y, xf.basis.y.z, half.y)
-			axis_z[count] = Vector4(xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, half.z)
-			count += 1
+			for box: Dictionary in body.get_dry_interior_boxes():
+				if count >= MAX_INTERIORS:
+					push_warning("[GridManager] Máscara de interiores truncada a %d cajas" % MAX_INTERIORS)
+					break
+				var c: Vector3 = xf * (box["pos"] as Vector3)
+				var half: Vector3 = box["half"]
+				centers[count] = Vector4(c.x, c.y, c.z, 0.0)
+				axis_x[count] = Vector4(xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, half.x)
+				axis_y[count] = Vector4(xf.basis.y.x, xf.basis.y.y, xf.basis.y.z, half.y)
+				axis_z[count] = Vector4(xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, half.z)
+				count += 1
 
 		mat.set_shader_parameter("interior_count", count)
 		mat.set_shader_parameter("interior_center", centers)
@@ -240,11 +244,13 @@ func _update_wake_uniforms() -> void:
 		mat.set_shader_parameter("wake_alphas", alphas)
 
 
-## true si el punto está dentro del casco de algún DynamicGridBody (a bordo de un barco).
-func is_point_inside_any_hull(point: Vector3) -> bool:
+## true si el punto está dentro de un compartimento SECO de algún barco: ahí el agua no
+## existe (mismo criterio que la máscara del océano). En un compartimento inundado hay
+## océano real y sí se nada.
+func is_point_in_dry_interior(point: Vector3) -> bool:
 	for node in get_tree().get_nodes_in_group("dynamic_grid_body"):
 		var body := node as DynamicGridBody
-		if body and body.contains_point(point):
+		if body and body.contains_point(point) and body.is_point_in_dry_interior(point):
 			return true
 	return false
 

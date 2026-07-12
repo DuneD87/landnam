@@ -787,7 +787,7 @@ func _check_needs_swimming(delta: float):
 	# A bordo de un barco el agua no existe (mismo criterio que el recorte visual del
 	# shader): sin nado aunque el jugador quede bajo la superficie analítica.
 	movement.is_swimming = distance_from_center <= (_water_surface_radius - swimming_offset) \
-		and not GridManager.is_point_inside_any_hull(global_position)
+		and not GridManager.is_point_in_dry_interior(global_position)
 	
 	current_water_time += delta
 
