@@ -13,11 +13,6 @@ albedo_texture = ExtResource("3_dk8dy")
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_dk8dy"]
 render_priority = 0
 shader = ExtResource("4_6ohsv")
-shader_parameter/albedo = Color(0, 0, 0, 1)
-shader_parameter/texture_albedo = ExtResource("5_h0buv")
-shader_parameter/alpha_scissor_threshold = 0.8
-shader_parameter/uv1_scale = Vector3(1, 1, 1)
-shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(1, 0, 0)
 shader_parameter/planet_position = Vector3(0, 0, 0)
 shader_parameter/transition_width = 0.2
@@ -28,8 +23,15 @@ shader_parameter/translucency_strength = 0.45
 shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
 shader_parameter/translucency_power = 2.0
 shader_parameter/rim_strength = 0.3
+shader_parameter/albedo = Color(0, 0, 0, 1)
+shader_parameter/texture_albedo = ExtResource("5_h0buv")
+shader_parameter/alpha_scissor_threshold = 0.8
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/specular_strength = 0.15
 shader_parameter/specular_roughness = 0.7
+shader_parameter/normal_up_bias = 0.6
+shader_parameter/ao_base = 0.5
 shader_parameter/wind_direction = Vector3(1, 0, 0)
 shader_parameter/wind_speed = 1.0
 shader_parameter/wind_base_height = 0.0
@@ -49,8 +51,13 @@ item_data = ExtResource("2_oaci8")
 
 [node name="Tree3D" type="Tree3D" parent="." unique_id=409299343]
 twig_planes = 5
+twig_scale_variance = 1.0
+twig_droop = 0.0
+trunk_branches_count = 7
+trunk_height = 9
+trunk_drop_amount = 0.0
 trunk_length = 7.0
-twig_scale = 1.0
+twig_scale = 0.4
 material_trunk = SubResource("StandardMaterial3D_dk8dy")
 twig_materials = Array[Material]([SubResource("ShaderMaterial_dk8dy")])
 

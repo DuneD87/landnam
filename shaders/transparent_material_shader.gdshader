@@ -13,6 +13,12 @@ uniform vec3 uv1_offset;
 uniform float specular_strength : hint_range(0.0, 1.0, 0.01) = 0.15;
 uniform float specular_roughness : hint_range(0.0, 1.0, 0.01) = 0.7;
 
+// Follaje: cuánto se dobla la normal hacia el up del planeta y oclusión en la base
+uniform float normal_up_bias : hint_range(0.0, 1.0, 0.01) = 0.6;
+uniform float ao_base : hint_range(0.0, 1.0, 0.01) = 0.5;
+
+varying float height_ao;
+
 // Viento
 uniform vec3 wind_direction = vec3(1.0, 0.0, 0.0);
 uniform float wind_speed : hint_range(0.0, 10.0, 0.01) = 1.0;
@@ -31,6 +37,7 @@ void vertex() {
     // Factor de altura: 0 en la base, 1 arriba
     // Usa VERTEX.y en espacio local (asumiendo que el modelo está orientado con Y hacia arriba)
 	float height_factor = 1.0 - abs(UV.y);
+	height_ao = height_factor;
 	height_factor = pow(height_factor, 2.0);    // Curva suave para transición natural (opcional, queda más orgánico)
     height_factor = height_factor * height_factor;
     
@@ -64,6 +71,10 @@ void fragment() {
     if (!FRONT_FACING) {
         NORMAL = -NORMAL;
     }
+
+    // Dobla la normal hacia el up del planeta (en view space) para sombrear como masa
+    vec3 up_view = (VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz;
+    NORMAL = normalize(mix(NORMAL, up_view, normal_up_bias));
 }
 
 void light() {
@@ -74,5 +85,5 @@ void light() {
         NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
         ALBEDO, METALLIC, ROUGHNESS, specular_strength, 1.0,
         vertex_position_global, planet_normal, d, s);
-    DIFFUSE_LIGHT += d;
+    DIFFUSE_LIGHT += d * mix(ao_base, 1.0, height_ao);
 }
