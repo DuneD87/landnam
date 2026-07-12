@@ -23,9 +23,9 @@
 	  "rain_rate": 0.0, "snow_rate": 0.0, "lightning_frequency": 0.0
 	},
 	"storm": {
-	  "cloud_coverage": 0.85, "cloud_density": 3.6, "cloud_absorption": 1.0,
-	  "cloud_albedo": 0.15,
-	  "cloud_shadow": 0.8, "cloud_min_height": 350.0, "cloud_max_height": 600.0,
+	  "cloud_coverage": 0.85, "cloud_density": 0.95, "cloud_absorption": 1.0,
+	  "cloud_albedo": 0.25,
+	  "cloud_shadow": 0.8, "cloud_min_height": 150.0, "cloud_max_height": 400.0,
 	  "cloud_wind_speed": 0.06,
 	  "sun_energy": 0.3, "ambient_energy": 0.5, "atmosphere_scatter": 0.05, "wind_multiplier": 2.4,
 	  "water_wave_multiplier": 2.2, "water_speed_multiplier": 1.7, "water_foam_multiplier": 2.5,

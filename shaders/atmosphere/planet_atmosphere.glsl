@@ -170,6 +170,17 @@ vec2 latlong_uv(vec3 dir) {
 	return vec2(u, v);
 }
 
+// Tap al ruido 3D con filtrado quintic (IQ): reajusta la coordenada para que el trilinear
+// del hardware siga una curva suave en vez de rampas lineales entre texels — sin esto la
+// magnificación fuerte de la textura deja los blobs facetados, con bordes "cortados".
+vec4 sample_cloud_noise(vec3 uvw) {
+	vec3 size = vec3(textureSize(cloud_noise_tex, 0));
+	vec3 tc = uvw * size - 0.5;
+	vec3 f = fract(tc);
+	tc = floor(tc) + f * f * (3.0 - 2.0 * f) + 0.5;
+	return texture(cloud_noise_tex, tc / size);
+}
+
 // Cobertura local = agrupación planetaria (mapa lat-long, P(15).w = strength) × mesoescala
 // (Perlin de gran escala, canal A del ruido 3D, a 1/4 de frecuencia). Se evalúa EN cada paso
 // de los marches de vista y sombra —así nube visible y sombra proyectada leen lo mismo en el
@@ -190,7 +201,7 @@ float local_coverage(
 	float reference_r = max((cloud_min_r + cloud_max_r) * 0.5, 1.0);
 	vec3 noise_pos = ((p - planet_center) / reference_r) * max(noise_scale, 0.001)
 	               + P(14).xyz * P(14).w;
-	float meso = texture(cloud_noise_tex, noise_pos * (CLOUD_NOISE_INV_TILE * 0.25)).a;
+	float meso = sample_cloud_noise(noise_pos * (CLOUD_NOISE_INV_TILE * 0.25)).a;
 	return clamp(coverage * mix(0.55, 1.35, meso), 0.0, 0.98);
 }
 
@@ -236,12 +247,12 @@ float sample_cloud_density(
 	// UN tap trilinear a la textura 3D sustituye a los dos FBM en ALU. Todos los marches
 	// (vista, luz, sombra) muestrean la misma densidad: sombras exactas con lo visible.
 	// La mesoescala NO se muestrea aquí: viene ya aplicada en `coverage` (local_coverage).
-	vec4 nz = texture(cloud_noise_tex, noise_pos * CLOUD_NOISE_INV_TILE);
+	vec4 nz = sample_cloud_noise(noise_pos * CLOUD_NOISE_INV_TILE);
 
 	// Forma (R = Perlin-Worley, masas grandes) + detalle (B = Worley fino) mezclados ANTES
 	// del umbral: el detalle rompe el borde de las masas sin destruir su silueta.
 	float sample_v = mix(nz.r, nz.b, 0.5);
-	sample_v = pow(sample_v, 0.7);
+	sample_v = pow(sample_v, 0.6);
 	// Umbral smoothstep (estilo sky-sorta): interior SÓLIDO y borde definido pero suave.
 	// El max(0, ruido - umbral) lineal de antes dejaba casi todo el volumen a densidad
 	// ~0 → nubes traslúcidas sin silueta, con cualquier ruido. edge_soft = anchura del
