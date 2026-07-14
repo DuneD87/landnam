@@ -95,7 +95,9 @@ func _on_slot_clicked(slot: HotbarSlot, _button_index: int) -> void:
 	hotbar_slot_clicked.emit(slot.slot_index)
 
 
-func _input(event: InputEvent) -> void:
+## _unhandled_input (y no _input) para que la GUI tenga prioridad:
+## con la consola abierta, su LineEdit consume los números antes de llegar aquí.
+func _unhandled_input(event: InputEvent) -> void:
 	for i in HOTBAR_SLOTS:
 		if event.is_action_pressed(_key_actions[i]):
 			select_slot(i)
