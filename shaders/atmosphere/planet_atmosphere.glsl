@@ -7,9 +7,9 @@ layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D depth_texture;
 
 // UBO en vez de SSBO: todos los hilos leen los mismos parámetros, así que van por la
-// constant cache. El tamaño (24) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd.
+// constant cache. El tamaño (25) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd.
 layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
-	vec4 data[24];
+	vec4 data[25];
 } params_buffer;
 
 // Rejilla de oclusión radial del WeatherOcclusionField (R = altura del techo de cueva). La niebla
@@ -993,6 +993,26 @@ void main() {
 		);
 
 		light = light * fog_trans + fog_col;
+	}
+
+	// 4. Efecto Purkinje: en penumbra los bastones dominan la visión → la escena pierde
+	//    saturación y vira a azul. Se decide por el OBSERVADOR (cámara en lado nocturno),
+	//    no por píxel, y el peso mesópico protege los píxeles brillantes (luna, antorchas,
+	//    relámpagos), que conservan su color fotópico. P(24) = tinte escotópico.rgb + fuerza.w.
+	float purkinje_strength = P(24).w;
+	if (purkinje_strength > 0.001) {
+		vec3 obs_up = normalize(camera_position - planet_center);
+		float obs_sun = dot(obs_up, sun_direction);
+		// Mismo gradiente ±0.15 del terminador que usa el resto del shader.
+		float night = 1.0 - smoothstep(-0.15, 0.05, obs_sun);
+		// Solo dentro de la atmósfera: desde el espacio no hay visión escotópica que simular.
+		night *= 1.0 - smoothstep(atmo_radius, planet_radius * 2.0, cam_dist);
+		if (night > 0.001) {
+			float lum = dot(light, vec3(0.2126, 0.7152, 0.0722));
+			float mesopic = 1.0 - smoothstep(0.02, 0.5, lum);
+			vec3 scotopic = lum * P(24).rgb;
+			light = mix(light, scotopic, purkinje_strength * night * mesopic);
+		}
 	}
 
 	imageStore(color_image, pixel, vec4(light, scene_color.a));
