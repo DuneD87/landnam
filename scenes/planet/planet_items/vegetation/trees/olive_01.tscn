@@ -13,11 +13,6 @@ albedo_texture = ExtResource("3_oysaj")
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_oysaj"]
 render_priority = 0
 shader = ExtResource("4_xeuxc")
-shader_parameter/albedo = Color(0, 0, 0, 1)
-shader_parameter/texture_albedo = ExtResource("5_mwsdk")
-shader_parameter/alpha_scissor_threshold = 0.8
-shader_parameter/uv1_scale = Vector3(1, 1, 1)
-shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/light_direction = Vector3(1, 0, 0)
 shader_parameter/planet_position = Vector3(0, 0, 0)
 shader_parameter/transition_width = 0.2
@@ -28,8 +23,15 @@ shader_parameter/translucency_strength = 0.45
 shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
 shader_parameter/translucency_power = 2.0
 shader_parameter/rim_strength = 0.3
+shader_parameter/albedo = Color(0, 0, 0, 1)
+shader_parameter/texture_albedo = ExtResource("5_mwsdk")
+shader_parameter/alpha_scissor_threshold = 0.8
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/specular_strength = 0.15
 shader_parameter/specular_roughness = 0.7
+shader_parameter/normal_up_bias = 0.6
+shader_parameter/ao_base = 0.5
 shader_parameter/wind_direction = Vector3(1, 0, 0)
 shader_parameter/wind_speed = 1.0
 shader_parameter/wind_base_height = 0.0
@@ -48,9 +50,6 @@ drop_amount_max = 6
 item_data = ExtResource("2_gpcdd")
 
 [node name="Tree3D" type="Tree3D" parent="." unique_id=1626429455]
-twig_planes = 2
-twig_scale_variance = 1.0
-twig_rotation_variance = 3.14
 twig_droop = 0.0
 seed = 260
 trunk_branch_length = 0.453

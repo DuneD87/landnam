@@ -358,17 +358,17 @@
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_01.tscn",
 			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": [ 1, 2, 3], "material_type": "WOOD"
+			"wind_speed": 0.3, "lod_index": [2, 3], "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_02.tscn",
 			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3], "material_type": "WOOD"
+			"wind_speed": 0.3, "lod_index": [2, 3], "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_03.tscn",
 			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3], "material_type": "WOOD"
+			"wind_speed": 0.3, "lod_index": [2, 3], "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/olive_01.tscn",
