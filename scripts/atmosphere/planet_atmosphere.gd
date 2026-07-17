@@ -5,7 +5,7 @@ class_name PlanetAtmosphere
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const NOISE_GEN_SHADER_PATH := "res://shaders/atmosphere/cloud_noise_gen.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 24
+const PARAM_VEC4_COUNT := 25
 ## Lado de la textura 3D de ruido de nubes (RGBA8 → size³ × 4 bytes; 128 ≈ 8.4 MB de VRAM).
 const NOISE_TEX_SIZE := 128
 ## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
@@ -63,6 +63,13 @@ const GROUP_TEX_H := 128
 ## Destello de rayo (0..1) que el WeatherController empuja durante un relámpago: ilumina la base de
 ## las nubes como emisión breve (el compute no ve la luz auxiliar de escena). 0 = sin destello.
 @export_range(0.0, 1.0, 0.01) var lightning_flash: float = 0.0
+
+@export_group("Night")
+## Efecto Purkinje: en penumbra la visión humana (bastones) pierde saturación y vira a azul.
+## Fuerza del viraje cuando el observador está en plena noche. 0 = desactivado.
+@export_range(0.0, 1.0, 0.01) var purkinje_strength: float = 0.65
+## Tinte escotópico hacia el que deriva la escena nocturna (azul lunar).
+@export var purkinje_tint: Color = Color(0.45, 0.6, 1.0)
 
 @export_group("Fog")
 ## Niebla a ras de suelo: capa volumétrica baja, independiente de las nubes. Su densidad
@@ -581,7 +588,7 @@ func _ensure_params_buffers(count: int) -> void:
 	var zero_bytes := _zero_params_bytes()
 
 	# Uniform buffer (no storage): lectura uniforme por todos los hilos → constant cache.
-	# El shader declara vec4 data[24]; PARAM_VEC4_COUNT debe coincidir con ese 24.
+	# El shader declara vec4 data[25]; PARAM_VEC4_COUNT debe coincidir con ese 25.
 	while params_buffers.size() < count:
 		var buffer := rd.uniform_buffer_create(zero_bytes.size(), zero_bytes)
 		params_buffers.append(buffer)
@@ -632,6 +639,8 @@ func _build_params_bytes(
 	var local_group_strength  := cloud_group_strength
 	var local_atmo_scatter    := atmosphere_scatter
 	var local_lightning_flash := lightning_flash
+	var local_purkinje        := purkinje_strength
+	var local_purkinje_tint   := purkinje_tint
 	var local_cloud_steps     := cloud_steps
 	var local_light_steps     := cloud_light_steps
 	var local_shadow_steps    := cloud_shadow_steps
@@ -745,6 +754,11 @@ func _build_params_bytes(
 	_append_vec4(floats, Vector4(local_occ_up.x, local_occ_up.y, local_occ_up.z, local_occ_below))
 	# P(23): .x=margen oclusión, .y=suavizado oclusión, .z=albedo de nube, .w=multiplicador in-scatter.
 	_append_vec4(floats, Vector4(local_occ_margin, local_occ_soft, local_cloud_albedo, local_atmo_scatter))
+
+	# P(24): efecto Purkinje — tinte escotópico (.rgb) + fuerza (.w).
+	_append_vec4(floats, Vector4(
+		local_purkinje_tint.r, local_purkinje_tint.g, local_purkinje_tint.b, local_purkinje
+	))
 
 	return floats.to_byte_array()
 

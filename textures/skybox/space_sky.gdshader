@@ -45,6 +45,15 @@ uniform float pulse_speed : hint_range(0.1, 5.0) = 1.5;
 uniform float background_star_density : hint_range(0.0, 1.0) = 0.5;
 uniform float background_star_brightness : hint_range(0.0, 20.0) = 0.8;
 
+// === MILKY WAY ===
+uniform float milky_way_intensity : hint_range(0.0, 3.0) = 0.8;
+uniform vec3  milky_way_pole = vec3(0.3, 0.8, 0.5);           // normal del plano galáctico (orienta la banda)
+uniform float milky_way_width : hint_range(0.05, 10.0) = 0.3;  // grosor angular de la banda
+uniform float milky_way_scale : hint_range(0.5, 10.0) = 3.0;  // frecuencia de las nubes de gas
+uniform vec3  milky_way_core_color = vec3(1.0, 0.9, 0.75);    // núcleo cálido
+uniform vec3  milky_way_edge_color = vec3(0.45, 0.55, 0.85);  // halo exterior azulado
+uniform float milky_way_dust : hint_range(0.0, 10.0) = 0.55;   // vetas de polvo oscuro
+
 // === BLOOM / HDR ===
 uniform float bloom_strength : hint_range(1.0, 8.0) = 2.5;
 
@@ -362,6 +371,48 @@ vec3 starField(vec3 ray) {
 }
 
 // ─────────────────────────────────────────────
+// MILKY WAY (banda galáctica)
+// ─────────────────────────────────────────────
+vec3 milkyWay(vec3 ray) {
+	if (milky_way_intensity <= 0.001) {
+		return vec3(0.0);
+	}
+
+	vec3 pole = normalize(milky_way_pole);
+	// Distancia angular al plano galáctico: 0 = centro de la banda.
+	float d = dot(ray, pole);
+
+	// Perfil transversal: núcleo estrecho y brillante + halo ancho y tenue.
+	float w2 = milky_way_width * milky_way_width;
+	float core = exp(-(d * d) / (w2 * 0.08));
+	float halo = exp(-(d * d) / (w2 * 0.5));
+
+	// Bulbo central: la banda brilla más hacia el "centro galáctico" (una dirección
+	// fija dentro del plano, derivada del polo para no pedir otro uniform).
+	vec3 ref = abs(pole.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+	vec3 core_dir = normalize(cross(pole, ref));
+	float toward_core = clamp(dot(ray, core_dir) * 0.5 + 0.5, 0.0, 1.0);
+	float bulge = 0.35 + 0.65 * toward_core * toward_core;
+
+	// Nubes de gas: fbm sobre la dirección de vista (continuo en toda la esfera,
+	// sin costuras; misma técnica que las manchas solares).
+	float clouds = fbm3(ray * milky_way_scale + vec3(noise_seed * 0.37), 4);
+	clouds = smoothstep(0.25, 0.85, clouds);
+
+	// Vetas de polvo oscuro (bandas de absorción) que recortan sobre todo el núcleo.
+	float dust = fbm3(ray * milky_way_scale * 2.7 + vec3(17.3, 5.1, 9.6), 3);
+	dust = smoothstep(0.4, 0.75, dust) * milky_way_dust;
+
+	float m = core * mix(0.4, 1.0, clouds) + halo * 0.3 * clouds;
+	m *= 1.0 - dust * core;
+	m *= bulge;
+
+	// Más cálido en el núcleo, azulado en el halo.
+	vec3 col = mix(milky_way_edge_color, milky_way_core_color, clamp(core, 0.0, 1.0));
+	return col * m * milky_way_intensity;
+}
+
+// ─────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────
 void sky() {
@@ -404,8 +455,8 @@ void sky() {
 			vec3(0.0, -sins.y, coss.y)
 		) * mr;
 
-		// ────── BACKGROUND: STARS ONLY ──────
-		vec3 col = starField(ray);
+		// ────── BACKGROUND: STARS + MILKY WAY ──────
+		vec3 col = starField(ray) + milkyWay(ray);
 
 		// Mask background stars near the main star to avoid bleed-through
 		float star_dist_from_ray = length(pos - ray * dot(ray, pos));
