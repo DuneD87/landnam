@@ -47,7 +47,6 @@ void vertex() {
     // Posiciones en espacio mundo
     vec3 world_vertex = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     vec3 base = MODEL_MATRIX[3].xyz;                 // origen de la instancia = base de la brizna
-
     // "Arriba" radial del planeta en la base de la brizna (independiente de la malla)
     vec3 up = normalize(base - planet_position);
 
@@ -80,6 +79,11 @@ void vertex() {
 
     // Datos para fragment/light en espacio mundo
     vertex_position_global = world_vertex + world_offset;
+	float day_f;
+	vec3 amb;
+	compute_planet_vertex_light(vertex_position_global, planet_normal, day_f, amb);
+	planet_day_factor = day_f;
+	planet_ambient = amb;
     planet_normal = normalize(vertex_position_global - planet_position);
 }
 
@@ -96,8 +100,8 @@ void light() {
     // Sin specular para conservar el look original; el difuso es equivalente.
     vec3 d, s;
     compute_planet_light(
-        NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
-        ALBEDO, METALLIC, ROUGHNESS, specular_strength, 1.0,
-        vertex_position_global, planet_normal, d, s);
+		NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
+		ALBEDO, METALLIC, ROUGHNESS, 0.0, 0.0,
+		planet_day_factor, planet_ambient, LIGHT_IS_DIRECTIONAL, d, s);
     DIFFUSE_LIGHT += d;
 }

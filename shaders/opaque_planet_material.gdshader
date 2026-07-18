@@ -55,6 +55,12 @@ void vertex() {
 	// Datos en espacio mundo para la iluminación planetaria.
 	vertex_position_global = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	planet_normal = normalize(vertex_position_global - planet_position);
+
+	float day_f;
+	vec3 amb;
+	compute_planet_vertex_light(vertex_position_global, planet_normal, day_f, amb);
+	planet_day_factor = day_f;
+	planet_ambient = amb;
 }
 
 void fragment() {
@@ -87,7 +93,7 @@ void light() {
 	compute_planet_light(
 		NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
 		ALBEDO, METALLIC, ROUGHNESS, specular, ao_value,
-		vertex_position_global, planet_normal, d, s);
+		planet_day_factor, planet_ambient, LIGHT_IS_DIRECTIONAL, d, s);
 
 	DIFFUSE_LIGHT  += d;
 	SPECULAR_LIGHT += s;

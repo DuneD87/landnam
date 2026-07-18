@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://bmtmrbwhca4pp"]
+[gd_scene format=3 uid="uid://dp8wq74wddd8l"]
 
 [ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_f8wsk"]
 [ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_8txvh"]
@@ -12,8 +12,11 @@
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_nc2cu"]
 noise_type = 0
 seed = 1
-frequency = 0.0007
+frequency = 0.0002
+fractal_type = 3
 fractal_octaves = 4
+fractal_lacunarity = 3.0
+fractal_gain = 4.0
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rawha"]
 albedo_texture = ExtResource("3_8sv1y")

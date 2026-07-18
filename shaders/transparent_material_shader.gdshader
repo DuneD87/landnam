@@ -38,7 +38,7 @@ void vertex() {
     // Usa VERTEX.y en espacio local (asumiendo que el modelo está orientado con Y hacia arriba)
 	float height_factor = 1.0 - abs(UV.y);
 	height_ao = height_factor;
-	height_factor = pow(height_factor, 2.0);    // Curva suave para transición natural (opcional, queda más orgánico)
+	height_factor = height_factor * height_factor;  // Curva suave para transición natural (opcional, queda más orgánico)
     height_factor = height_factor * height_factor;
     
     // Variación por vértice para que no se muevan todos igual
@@ -56,6 +56,12 @@ void vertex() {
     // Actualizar posición global DESPUÉS del desplazamiento
     vertex_position_global = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     planet_normal = normalize(vertex_position_global - planet_position);
+
+    float day_f;
+    vec3 amb;
+    compute_planet_vertex_light(vertex_position_global, planet_normal, day_f, amb);
+    planet_day_factor = day_f;
+    planet_ambient = amb;
 }
 
 void fragment() {
@@ -84,6 +90,6 @@ void light() {
     compute_planet_light(
         NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
         ALBEDO, METALLIC, ROUGHNESS, specular_strength, 1.0,
-        vertex_position_global, planet_normal, d, s);
+        planet_day_factor, planet_ambient, LIGHT_IS_DIRECTIONAL, d, s);
     DIFFUSE_LIGHT += d * mix(ao_base, 1.0, height_ao);
 }

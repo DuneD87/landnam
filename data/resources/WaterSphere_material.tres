@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" format=4 uid="uid://cyoolrj4g2q5i"]
 
-[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/Liquid/water_shader.gdshader" id="1_8rr25"]
+[ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/liquid/water_shader.gdshader" id="1_8rr25"]
 [ext_resource type="Texture2D" uid="uid://bpq0hrluosimg" path="res://textures/planet/water/caust00.png" id="2_2w31q"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_2w31q"]
@@ -45,6 +45,7 @@ shader_parameter/wave_direction2 = Vector2(0, 0.5)
 shader_parameter/time_scale = 0.0025
 shader_parameter/noise_scale = 8.0
 shader_parameter/height_scale = 0.35
+shader_parameter/spec_factor = 512.0
 shader_parameter/normal_scale1 = 4.00000018674012
 shader_parameter/normal_scale2 = 12.00000056674012
 shader_parameter/normal_scale3 = 35.00000165924013

@@ -16,7 +16,7 @@ uniform vec2 wave_direction2 = vec2(0.0, 1.0);
 uniform float time_scale : hint_range(0.0, 0.2, 0.001) = 0.0025;
 uniform float noise_scale = 8.0;
 uniform float height_scale = 0.35;
-
+uniform float spec_factor : hint_range(1.0, 1024.0) = 512;
 // Parámetros para romper el tiling de las normales
 uniform float normal_scale1 : hint_range(0.1, 500.0) = 40.0;
 uniform float normal_scale2 : hint_range(0.1, 500.0) = 120.0;
@@ -556,7 +556,7 @@ void fragment() {
     vec3 to_cam = -view_dir_w;               // hacia la cámara
     vec3 half_vec = normalize(to_sun + to_cam);
     float ndh = max(dot(final_world_normal, half_vec), 0.0);
-    float spec_power = mix(4000.0, 16.0, roughness);   // crestas afiladas con poca rugosidad
+    float spec_power = mix(spec_factor, 16.0, roughness);   // crestas afiladas con poca rugosidad
     float sun_glint = pow(ndh, spec_power);
     float sun_up = smoothstep(-0.1, 0.15, dot(radial_normal, to_sun)); // apaga con sol bajo el horizonte
     // En agua somera la superficie se aplana hacia la radial y el glint forma una franja
