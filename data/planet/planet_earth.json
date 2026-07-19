@@ -187,7 +187,26 @@
 		], 
 
 	"wind_direction": [2.0, 0.0, 0.0],
-	
+
+	"forest": {
+		"cell_size": 512.0,
+		"view_distance": 2000.0,
+		"mesh_distance": 650.0,
+		"mesh_lod_distances": [20.0, 100.0],
+		"mesh_lod_hysteresis": 3.0,
+		"fade_band": 40.0,
+		"density": 0.006,
+		"noise_threshold": 0.0,
+		"sink": 0.3,
+		"collision_distance": 10.0,
+		"mesh_shadows": true,
+		"shadow_distance": 1000.0,
+		"mesh_chunk_size": 32.0,
+		"lod_bias": 0.4,
+		"billboard_brightness": 1.0,
+		"billboard_debug": false
+	},
+
 
 	"generators": [
 	  	{
@@ -226,7 +245,7 @@
 	  	{
 			"name": "grass_generator_green",
 			"emit_mode": "EMIT_FROM_VERTICES",
-			"density": 0.5,
+			"density": 1.0,
 			"min_height": -35,
 			"max_height": 150,
 			"max_slope_degrees": 35,
@@ -358,57 +377,57 @@
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_01.tscn",
 			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": [2, 3, 5], "material_type": "WOOD"
+			"wind_speed": 0.3, "forest": { "weight": 1.0 }, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_02.tscn",
 			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": [2, 3, 5], "material_type": "WOOD"
+			"wind_speed": 0.3, "forest": { "weight": 1.0 }, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_03.tscn",
 			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": [2, 3, 5], "material_type": "WOOD"
+			"wind_speed": 0.3, "forest": { "weight": 1.0 }, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/olive_01.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3, 5], "material_type": "WOOD"
+			"wind_speed": 0.3, "forest": { "weight": 1.0 }, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/olive_02.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3, 5], "material_type": "WOOD"
+			"wind_speed": 0.3, "forest": { "weight": 1.0 }, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_01.tscn",
 			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3, 5], "material_type": "WOOD"
+			"wind_speed": 0.3, "forest": { "weight": 1.0 }, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_02.tscn",
 			"generator": ["tree_generator_green"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3, 5], "material_type": "WOOD"
+			"wind_speed": 0.3, "forest": { "weight": 1.0 }, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_01.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3, 5], "material_type": "WOOD"
+			"wind_speed": 0.3, "forest": { "weight": 1.0 }, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_02.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3, 5], "material_type": "WOOD"
+			"wind_speed": 0.3, "forest": { "weight": 1.0 }, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/palm_01.tscn",
 			"generator": ["tree_generator_sand"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3], "material_type": "WOOD"
+			"wind_speed": 0.3, "lod_index": [0, 1, 2, 3], "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/palm_02.tscn",
 			"generator": ["tree_generator_green_sand"],
-			"wind_speed": 0.3, "lod_index": [1, 2, 3], "material_type": "WOOD"
+			"wind_speed": 0.3,"lod_index": [0, 1, 2, 3], "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/rocks/small_rock_01.tscn",

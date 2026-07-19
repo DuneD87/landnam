@@ -263,6 +263,8 @@ func _register_commands() -> void:
 		"Alterna el vuelo libre / atravesar terreno.", _cmd_noclip))
 	_add(ConsoleCommand.new("sun", "sun <azimuth> [elevación] | sun auto <on|off>",
 		"Coloca el sol o (des)activa su rotación automática.", _cmd_sun, 1))
+	_add(ConsoleCommand.new("forest", "forest <stats|billboards|meshes|shadows> [on|off]",
+		"Stats de render del bosque o alterna sus partes (sin on/off, conmuta).", _cmd_forest, 1, _complete_forest))
 
 
 
@@ -394,6 +396,30 @@ func _cmd_sun(args: PackedStringArray) -> String:
 	return "[color=%s]Sol → azimuth %.1f°, elevación %.1f°.[/color]" % [COLOR_OK, sun.sun_azimuth_deg, sun.sun_elevation_deg]
 
 
+func _cmd_forest(args: PackedStringArray) -> String:
+	var forest = get_tree().get_first_node_in_group("planet_forest")
+	if forest == null:
+		return "[color=%s]No hay bosque activo (¿planeta cargado?).[/color]" % COLOR_ERR
+	var sub := args[0].to_lower()
+	if sub == "stats":
+		return "[color=%s]%s[/color]" % [COLOR_INFO, forest.debug_stats()]
+	var getters := {
+		"billboards": func(): return forest.billboards_visible,
+		"meshes": func(): return forest.meshes_visible,
+		"shadows": func(): return forest.mesh_shadows,
+	}
+	var setters := {
+		"billboards": forest.set_billboards_visible,
+		"meshes": forest.set_meshes_visible,
+		"shadows": forest.set_mesh_shadows,
+	}
+	if not setters.has(sub):
+		return "[color=%s]Uso: forest <stats|billboards|meshes|shadows> [on|off].[/color]" % COLOR_ERR
+	var on: bool = args[1].to_lower() in ["on", "1", "true"] if args.size() >= 2 else not getters[sub].call()
+	setters[sub].call(on)
+	return "[color=%s]Bosque · %s: %s.[/color]" % [COLOR_OK, sub, "ON" if on else "OFF"]
+
+
 func _get_health() -> Node:
 	var player := _get_player()
 	if player == null:
@@ -408,6 +434,9 @@ func _complete_item_ids() -> PackedStringArray:
 	for k in config.items.keys():
 		ids.append(str(k))
 	return ids
+
+func _complete_forest() -> PackedStringArray:
+	return PackedStringArray(["stats", "billboards", "meshes", "shadows"])
 
 func _complete_weather() -> PackedStringArray:
 	var wc := _get_weather()
