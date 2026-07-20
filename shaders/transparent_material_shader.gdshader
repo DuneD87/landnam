@@ -27,24 +27,8 @@ uniform float wind_falloff : hint_range(0.1, 10.0, 0.01) = 1.0;
 uniform float wind_amplitude : hint_range(0.0, 2.0, 0.001) = 0.1;
 uniform float wind_frequency : hint_range(0.0, 10.0, 0.01) = 2.0;
 
-// Fade del PlanetForest: la malla cede al billboard de forma estable por árbol.
-// 0 = desactivado (items normales del VoxelInstancer no lo notan).
-uniform float forest_fade_start = 0.0;
-uniform float forest_fade_band = 80.0;
-varying float forest_fade;
-varying float forest_tree_random;
-
 float random(vec3 seed) {
     return fract(sin(dot(seed, vec3(12.9898, 78.233, 45.5432))) * 43758.5453);
-}
-
-// La dirección radial identifica el árbol y permanece estable con floating origin.
-// Se cuantiza para que malla e impostor produzcan exactamente el mismo valor,
-// aunque sus orígenes estén a distinta altura sobre la misma radial.
-float forest_stable_tree_random(vec3 world_origin) {
-    vec3 radial = normalize(world_origin - planet_position);
-    vec3 tree_key = floor(radial * 32768.0 + 0.5);
-    return fract(sin(dot(tree_key, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
 }
 
 void vertex() {
@@ -78,22 +62,9 @@ void vertex() {
     compute_planet_vertex_light(vertex_position_global, planet_normal, day_f, amb);
     planet_day_factor = day_f;
     planet_ambient = amb;
-
-    forest_fade = 1.0;
-    forest_tree_random = forest_stable_tree_random(MODEL_MATRIX[3].xyz);
-    if (forest_fade_start > 0.0) {
-        float inst_dist = distance(MODEL_MATRIX[3].xyz, CAMERA_POSITION_WORLD);
-        forest_fade = 1.0 - smoothstep(forest_fade_start, forest_fade_start + forest_fade_band, inst_dist);
-        if (forest_fade <= 0.001) {
-            VERTEX = vec3(0.0); // instancia fuera de rango: colapsa, el billboard la cubre
-        }
-    }
 }
 
 void fragment() {
-    if (forest_fade < 0.999 && forest_tree_random >= forest_fade) {
-        discard;
-    }
     vec2 base_uv = UV;
     vec4 albedo_tex = texture(texture_albedo, base_uv);
     ALBEDO = albedo_tex.rgb;

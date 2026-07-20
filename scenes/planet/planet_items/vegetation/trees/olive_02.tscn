@@ -13,7 +13,7 @@ albedo_texture = ExtResource("3_6nqpr")
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_nalwc"]
 render_priority = 0
 shader = ExtResource("4_8kpit")
-shader_parameter/light_direction = Vector3(1, 0, 0)
+shader_parameter/light_direction = Vector3(0, 0, 0)
 shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
 shader_parameter/ambient_intensity = 0.15
@@ -38,8 +38,6 @@ shader_parameter/wind_base_height = 0.0
 shader_parameter/wind_falloff = 1.0
 shader_parameter/wind_amplitude = 0.1
 shader_parameter/wind_frequency = 2.0
-shader_parameter/forest_fade_start = 0.0
-shader_parameter/forest_fade_band = 80.0
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
 size = Vector3(0.231934, 5.74695, 0.482483)
@@ -52,7 +50,6 @@ drop_amount_max = 6
 item_data = ExtResource("2_cwqvq")
 
 [node name="Tree3D" type="Tree3D" parent="." unique_id=1626429455]
-twig_planes = 3
 twig_scale_variance = 1.0
 twig_rotation_variance = 3.14
 seed = 261

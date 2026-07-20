@@ -20,7 +20,7 @@ var current_voxel: VoxelLodTerrain
 var current_origin: Vector3
 var current_direction: Vector3
 var current_target_id: int
-var current_target_node: Node3D # VoxelInstancerRigidBody o ForestTreeBody
+var current_target_node: VoxelInstancerRigidBody
 
 func _ready() -> void:
 	timer = Timer.new()
@@ -191,20 +191,14 @@ func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_
 	if target_node == null:
 		return
 	var hit_distance = raycast_result["hit_distance"]
-	if (target_node is VoxelInstancerRigidBody or target_node is ForestTreeBody) && hit_distance < 3.0:
+	if target_node is VoxelInstancerRigidBody && hit_distance < 3.0:
 		var instance_id = target_node.get_instance_id()
 		current_target_id = instance_id
 		current_target_node = target_node
 		if !attacking_nodes.has(instance_id):
-			var scene: Node
-			var registered = null
-			if target_node is ForestTreeBody:
-				scene = target_node.source_scene.instantiate()
-				registered = target_node.registered_scene
-			else:
-				var item_id = target_node.get_library_item_id()
-				scene = planet.voxel_instancer.library.get_item(item_id).scene.instantiate()
-				registered = planet.planet_item_scenes.get(item_id)
+			var item_id = target_node.get_library_item_id()
+			var scene = planet.voxel_instancer.library.get_item(item_id).scene.instantiate()
+			var registered = planet.planet_item_scenes.get(item_id)
 			if registered != null:
 				scene.health = registered.health
 			if not scene.destroyed.is_connected(destroyed_callback):

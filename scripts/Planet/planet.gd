@@ -5,7 +5,6 @@ class_name Planet extends Node3D
 ## (VoxelInstancer) con sus colisiones, y parchea el VoxelGraph (radio, ores) desde datos JSON.
 
 const config = preload("res://scripts/config.gd")
-const TREE_IMPOSTOR_SHADER = preload("res://shaders/tree_impostor.gdshader")
 @export_group("Terrain Settings")
 @export var radius: float
 @export var terrain_generator_path: String
@@ -58,9 +57,6 @@ const TREE_IMPOSTOR_SHADER = preload("res://shaders/tree_impostor.gdshader")
 
 var planet_item_scenes: Dictionary
 var _next_library_id: int = 0
-var forest: PlanetForest
-var _forest_types: Array = []
-var _impostor_material: ShaderMaterial
 
 ## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
 var weather_wind_multiplier: float = 1.0
@@ -242,13 +238,10 @@ func _load_vegetation() -> void:
 	planet_item_scenes.clear()
 	multi_mesh_array.clear()
 	item_transparent_materials.clear()
-	_forest_types.clear()
 	_next_library_id = 0
 
 	for i in vegetation.items.size():
 		_load_vegetation_item(i, vegetation.items[i], generators, graph_functions)
-
-	_setup_forest()
 
 
 func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
@@ -262,16 +255,6 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 
 	var shared_data = _build_item_shared_data(i, item)
 	if shared_data.is_empty():
-		return
-
-	# Items marcados "forest" van al PlanetForest, no al VoxelInstancer.
-	if item.has("forest"):
-		var forest_configs: Array = []
-		for generator_name in generator_names:
-			for gc in generators:
-				if gc.name == generator_name:
-					forest_configs.append(gc)
-		_build_forest_type(item, shared_data, forest_configs, graph_functions)
 		return
 
 	var emit_as_scene: bool = item.get("instance_as_scene", false)
@@ -305,147 +288,6 @@ func _normalize_lod_indices(raw) -> Array:
 	if result.is_empty():
 		result.append(0)
 	return result
-
-
-## Construye la descripción de una especie del PlanetForest a partir de un item
-## del JSON marcado con "forest" y sus configs de generador.
-func _build_forest_type(item, shared_data: Dictionary, generator_configs: Array, graph_functions) -> void:
-	if generator_configs.is_empty() or shared_data.effective_mesh == null:
-		push_error("PlanetForest: item %s sin generador o malla; se ignora" % item.scene)
-		return
-	var fitem: Dictionary = item.forest if item.forest is Dictionary else {}
-	var fcfg: Dictionary = vegetation.get("forest", {})
-
-	var mesh: ArrayMesh = _build_lod_mesh(shared_data.effective_mesh)
-	var wind_speed: float = item.wind_speed if item.has("wind_speed") else 0.0
-	var materials: Array = []
-	for surface_idx in mesh.get_surface_count():
-		var mat = mesh.surface_get_material(surface_idx)
-		if mat is ShaderMaterial:
-			var dup: ShaderMaterial = mat.duplicate()
-			mesh.surface_set_material(surface_idx, dup)
-			materials.append(dup)
-			item_transparent_materials.append({
-				"shader": dup,
-				"wind_speed": wind_speed,
-			})
-
-	var collision_radius: float = 0.0
-	var collision_height: float = 0.0
-	var reg = shared_data.registered_scene
-	if reg != null:
-		var col := _find_collision_shape(reg)
-		if col != null and col.shape is CylinderShape3D:
-			collision_radius = col.shape.radius
-			collision_height = col.shape.height
-
-	# Una variante por generador: cada una con su noise de zona y sus rangos
-	# propios (como en el instancer, donde cada generador emitía en su zona).
-	var variants: Array = []
-	var union_min := INF
-	var union_max := -INF
-	for cfg in generator_configs:
-		var nz = _forest_noise_for(cfg.noise_graph, graph_functions) if cfg.has("noise_graph") else null
-		var vmin: float = cfg.get("min_height", -50.0)
-		var vmax: float = cfg.get("max_height", 500.0)
-		union_min = minf(union_min, vmin)
-		union_max = maxf(union_max, vmax)
-		variants.append({
-			"noise": nz,
-			"min_height": vmin,
-			"max_height": vmax,
-			"cos_max_slope": cos(deg_to_rad(cfg.get("max_slope_degrees", 90.0))),
-			"min_scale": cfg.get("min_scale", 1.0),
-			"max_scale": cfg.get("max_scale", 1.0),
-		})
-
-	var aabb: AABB = mesh.get_aabb()
-	_forest_types.append({
-		"name": item.scene,
-		"mesh": mesh,
-		"materials": materials,
-		"packed_scene": shared_data.packed_scene,
-		"registered_scene": reg,
-		"frame_size": maxf(aabb.size.x, maxf(aabb.size.y, aabb.size.z)) * 1.05,
-		"frame_center": aabb.get_center().y,
-		"collision_radius": collision_radius,
-		"collision_height": collision_height,
-		"min_height": union_min,
-		"max_height": union_max,
-		"variants": variants,
-		"noise_threshold": fitem.get("noise_threshold", fcfg.get("noise_threshold", 0.0)),
-		"weight": fitem.get("weight", 1.0),
-	})
-
-
-## Genera la cadena de LODs embebida (meshoptimizer) para que el renderer baje
-## el detalle por distancia automáticamente, también dentro de un MultiMesh.
-func _build_lod_mesh(src: ArrayMesh) -> ArrayMesh:
-	var im := ImporterMesh.new()
-	for s in src.get_surface_count():
-		im.add_surface(Mesh.PRIMITIVE_TRIANGLES, src.surface_get_arrays(s), [], {}, src.surface_get_material(s), "surf_%d" % s)
-	im.generate_lods(60.0, 25.0, [])
-	var out: ArrayMesh = im.get_mesh()
-	if out == null or out.get_surface_count() != src.get_surface_count():
-		push_warning("PlanetForest: generate_lods falló, se usa la malla original")
-		return src.duplicate()
-	return out
-
-
-func _find_collision_shape(node: Node) -> CollisionShape3D:
-	if node is CollisionShape3D:
-		return node
-	for child in node.get_children():
-		var found := _find_collision_shape(child)
-		if found != null:
-			return found
-	return null
-
-
-## Extrae el ZN_FastNoiseLite del nodo "Noise_01" del graph de un generador.
-func _forest_noise_for(graph_name: String, graph_functions) -> ZN_FastNoiseLite:
-	for graph_func in graph_functions:
-		if graph_func.name == graph_name:
-			var graph: VoxelGraphFunction = load(graph_func.path)
-			if graph == null:
-				return null
-			var noise_id = graph.find_node_by_name(&"Noise_01")
-			if noise_id and graph.get_node_type_id(noise_id) == VoxelGraphFunction.NODE_FAST_NOISE_3D:
-				return graph.get_node_param(noise_id, 0)
-			return null
-	return null
-
-
-## Crea el PlanetForest (árboles fuera del VoxelInstancer) y lanza el horneado.
-func _setup_forest() -> void:
-	if is_instance_valid(forest):
-		forest.queue_free()
-		forest = null
-	if _forest_types.is_empty():
-		return
-	_impostor_material = ShaderMaterial.new()
-	_impostor_material.shader = TREE_IMPOSTOR_SHADER
-	item_transparent_materials.append({
-		"shader": _impostor_material,
-		"wind_speed": 0.0,
-	})
-	forest = PlanetForest.new()
-	forest.name = "PlanetForest"
-	add_child(forest)
-	forest.setup(voxel_terrain.generator, radius, _forest_types, vegetation.get("forest", {}), _impostor_material)
-	_bake_impostor_atlas()
-
-
-## Hornea el atlas de billboards; necesita estar dentro del árbol de escena.
-func _bake_impostor_atlas() -> void:
-	if not is_inside_tree():
-		await tree_entered
-	var tex: ImageTexture = await TreeImpostorBaker.bake_atlas(self, _forest_types)
-	if tex == null or not is_instance_valid(forest):
-		return
-	_impostor_material.set_shader_parameter("impostor_texture", tex)
-	forest.notify_atlas_ready()
-
 
 func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 	var trunk: MeshInstance3D = tree3d.get_trunk_instance()

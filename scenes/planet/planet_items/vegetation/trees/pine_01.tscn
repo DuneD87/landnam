@@ -38,8 +38,6 @@ shader_parameter/wind_base_height = 0.0
 shader_parameter/wind_falloff = 1.0
 shader_parameter/wind_amplitude = 0.1
 shader_parameter/wind_frequency = 2.0
-shader_parameter/forest_fade_start = 0.0
-shader_parameter/forest_fade_band = 80.0
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
 size = Vector3(0.231934, 5.74695, 0.482483)
@@ -52,7 +50,7 @@ drop_amount_max = 6
 item_data = ExtResource("2_7d7bl")
 
 [node name="Tree3D" type="Tree3D" parent="." unique_id=1858449836]
-twig_planes = 3
+twig_planes = 5
 twig_scale_variance = 0.55
 twig_droop = 0.0
 trunk_height = 7
