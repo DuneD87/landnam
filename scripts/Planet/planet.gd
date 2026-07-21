@@ -158,6 +158,8 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 		"packed_scene": null,
 		"effective_mesh": null,
 		"registered_scene": null,
+		"lod_meshes": [],
+		"collision_shapes": [],
 	}
 
 	if source_node is MeshInstance3D:
@@ -172,6 +174,8 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 		var tree_data := _build_tree_packed_scene(scene_instantiated, source_node)
 		result.packed_scene = tree_data.scene
 		result.effective_mesh = tree_data.mesh
+		result.lod_meshes = tree_data.get("lod_meshes", [])
+		result.collision_shapes = tree_data.get("collision_shapes", [])
 		result.registered_scene = tree_data.scene.instantiate()
 
 	elif source_node is Rock3D:
@@ -185,29 +189,73 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 		return {}
 
 	return result
+	
+## Fija los 4 mesh_lodN_distance_ratio del item a partir de distancias de salto en metros.
+## distances_m: [fin_LOD0, fin_LOD1, fin_LOD2] y opcionalmente [.., corte_LOD3].
+## ratio = metros / (lod_distance · 2^lod_index); clamp a [0,1] y orden estrictamente creciente.
+func _apply_mesh_lod_distances(multi_mesh_item, lod_index: int, distances_m: Array) -> void:
+	if voxel_terrain == null:
+		return
+	var lod_distance: float = voxel_terrain.lod_distance
+	var view_distance: float = lod_distance * float(1 << lod_index)
+	if view_distance <= 0.0:
+		return
 
+	# 4º ratio por defecto = 1.0 (LOD3 hasta el final del alcance de este lod_index)
+	var ratios: Array = [1.0, 1.0, 1.0, 1.0]
+	for k in range(min(distances_m.size(), 4)):
+		ratios[k] = float(distances_m[k]) / view_distance
+
+	# clamp y forzar creciente para no romper el orden que espera el módulo
+	var prev := 0.0
+	for k in 4:
+		var r: float = clampf(ratios[k], 0.0, 1.0)
+		if r <= prev:
+			r = minf(prev + 0.001, 1.0)
+		ratios[k] = r
+		prev = r
+
+	multi_mesh_item.mesh_lod0_distance_ratio = ratios[0]
+	multi_mesh_item.mesh_lod1_distance_ratio = ratios[1]
+	multi_mesh_item.mesh_lod2_distance_ratio = ratios[2]
+	multi_mesh_item.mesh_lod3_distance_ratio = ratios[3]
 
 func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator: VoxelInstanceGenerator, lod_index: int) -> void:
 	var multi_mesh_item := VoxelInstanceLibraryMultiMeshItem.new()
 	multi_mesh_item.generator = generator
 	multi_mesh_item.lod_index = lod_index
-	multi_mesh_item.scene = shared_data.packed_scene
+
+	var lm: Array = shared_data.get("lod_meshes", [])
+	if lm.size() == 4:
+		# CLAVE: nada de .scene aquí. 'scene' se usa EN LUGAR de las propiedades manuales,
+		# así que anula los mesh_lod1..3 -> por eso nunca veías diferencia.
+		multi_mesh_item.set_mesh(lm[0], 0)
+		multi_mesh_item.set_mesh(lm[1], 1)
+		multi_mesh_item.set_mesh(lm[2], 2)
+		multi_mesh_item.set_mesh(lm[3], 3)
+
+		var cs: Array = shared_data.get("collision_shapes", [])
+		if not cs.is_empty():
+			multi_mesh_item.collision_shapes = cs
+
+		var dists: Array = item.get("mesh_lod_distances_m", [200.0, 350.0, 500.0])
+		_apply_mesh_lod_distances(multi_mesh_item, lod_index, dists)
+	else:
+		# items sin LOD (MeshInstance directa, Rock3D): la escena sirve tal cual
+		multi_mesh_item.scene = shared_data.packed_scene
 
 	if not item.get("cast_shadow", true):
 		if "cast_shadow" in multi_mesh_item:
 			multi_mesh_item.cast_shadow = RenderingServer.SHADOW_CASTING_SETTING_OFF
 		else:
-			push_warning("VoxelInstanceLibraryMultiMeshItem sin propiedad 'cast_shadow' en esta versión del módulo")
+			push_warning("VoxelInstanceLibraryMultiMeshItem sin 'cast_shadow' en esta versión del módulo")
 
 	var library_id = _next_library_id
 	_next_library_id += 1
 	voxel_instancer.library.add_item(library_id, multi_mesh_item)
 
 	var wind_speed: float = item.wind_speed if item.has("wind_speed") else 0.0
-	multi_mesh_array.append({
-		"mesh_item": multi_mesh_item,
-		"wind_speed": wind_speed,
-	})
+	multi_mesh_array.append({"mesh_item": multi_mesh_item, "wind_speed": wind_speed})
 
 	if shared_data.registered_scene != null:
 		planet_item_scenes[library_id] = shared_data.registered_scene
@@ -216,10 +264,7 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		for surface_idx in shared_data.effective_mesh.get_surface_count():
 			var mat = shared_data.effective_mesh.surface_get_material(surface_idx)
 			if mat is ShaderMaterial:
-				item_transparent_materials.append({
-					"shader": mat as ShaderMaterial,
-					"wind_speed": wind_speed,
-				})
+				item_transparent_materials.append({"shader": mat as ShaderMaterial, "wind_speed": wind_speed})
 
 func _register_scene_item(item, shared_data: Dictionary, generator: VoxelInstanceGenerator, lod_index: int) -> void:
 	var scene_item := VoxelInstanceLibrarySceneItem.new()
@@ -293,46 +338,46 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 	var trunk: MeshInstance3D = tree3d.get_trunk_instance()
 	var twig: MeshInstance3D = tree3d.get_twig_instance()
 
-	var combined_mesh := ArrayMesh.new()
-
-	if trunk and trunk.mesh:
-		combined_mesh.add_surface_from_arrays(
-			Mesh.PRIMITIVE_TRIANGLES,
-			trunk.mesh.surface_get_arrays(0)
-		)
-		var trunk_mat = tree3d.get_material_trunk()
-		if trunk_mat:
-			combined_mesh.surface_set_material(combined_mesh.get_surface_count() - 1, trunk_mat)
-
-	if twig and twig.mesh:
-		var twig_mesh: Mesh = twig.mesh
-		for i in range(twig_mesh.get_surface_count()):
+	var lod_meshes: Array = []
+	var combined_mesh: ArrayMesh
+	if tree3d is Tree3D:
+		lod_meshes = tree3d.bake_lods()
+		combined_mesh = lod_meshes[0]
+	else:
+		combined_mesh = ArrayMesh.new()
+		if trunk and trunk.mesh:
 			combined_mesh.add_surface_from_arrays(
-				Mesh.PRIMITIVE_TRIANGLES,
-				twig_mesh.surface_get_arrays(i)
-			)
-			var dst_idx := combined_mesh.get_surface_count() - 1
-			var twig_mats := _get_twig_materials_array(tree3d)
-			if i < twig_mats.size() and twig_mats[i] != null:
-				combined_mesh.surface_set_material(dst_idx, twig_mats[i])
+				Mesh.PRIMITIVE_TRIANGLES, trunk.mesh.surface_get_arrays(0))
+			var trunk_mat = tree3d.get_material_trunk()
+			if trunk_mat:
+				combined_mesh.surface_set_material(combined_mesh.get_surface_count() - 1, trunk_mat)
+		if twig and twig.mesh:
+			var twig_mesh: Mesh = twig.mesh
+			for i in range(twig_mesh.get_surface_count()):
+				combined_mesh.add_surface_from_arrays(
+					Mesh.PRIMITIVE_TRIANGLES, twig_mesh.surface_get_arrays(i))
+				var dst_idx := combined_mesh.get_surface_count() - 1
+				var twig_mats := _get_twig_materials_array(tree3d)
+				if i < twig_mats.size() and twig_mats[i] != null:
+					combined_mesh.surface_set_material(dst_idx, twig_mats[i])
 
 
 	var new_root := scene_instantiated.duplicate(4) as Node3D
-
 	var tree_mesh_child := MeshInstance3D.new()
 	tree_mesh_child.name = "TreeMesh"
 	tree_mesh_child.mesh = combined_mesh
 	new_root.add_child(tree_mesh_child)
 	tree_mesh_child.owner = new_root
 
-	if tree3d is Bush3D:
-		var collision_child := _build_tree_collision(trunk, tree3d.get_stem_origin_radius() * 1.1)
-		new_root.add_child(collision_child)
-		_set_owner_recursive(collision_child, new_root)
-	else:
-		var collision_child := _build_tree_collision(trunk, tree3d.trunk_max_radius * 1.1)
-		new_root.add_child(collision_child)
-		_set_owner_recursive(collision_child, new_root)
+	var col_radius: float = (tree3d.get_stem_origin_radius() * 1.1) if tree3d is Bush3D else (tree3d.trunk_max_radius * 1.1)
+	var collision_child := _build_tree_collision(trunk, col_radius)
+	new_root.add_child(collision_child)
+	_set_owner_recursive(collision_child, new_root)
+
+	# collision_shapes = lista alternada [Shape3D, Transform3D, ...]
+	var collision_shapes: Array = []
+	if collision_child.shape != null:
+		collision_shapes = [collision_child.shape, collision_child.transform]
 
 	var tree_scene := PackedScene.new()
 	var err := tree_scene.pack(new_root)
@@ -343,6 +388,8 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 	return {
 		"scene": tree_scene,
 		"mesh": combined_mesh,
+		"lod_meshes": lod_meshes,
+		"collision_shapes": collision_shapes,
 	}
 
 

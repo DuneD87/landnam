@@ -50,7 +50,10 @@ drop_amount_max = 6
 item_data = ExtResource("2_4oce4")
 
 [node name="Tree3D" type="Tree3D" parent="." unique_id=1052048194]
-twig_planes = 8
+lod_twig_scale_1 = 1.34
+lod_twig_scale_2 = 2.0
+lod_twig_scale_3 = 2.36
+twig_planes = 3
 twig_scale_variance = 1.0
 twig_rotation_variance = 2.0
 twig_droop = 0.43
