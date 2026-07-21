@@ -192,7 +192,8 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 	
 ## Fija los 4 mesh_lodN_distance_ratio del item a partir de distancias de salto en metros.
 ## distances_m: [fin_LOD0, fin_LOD1, fin_LOD2] y opcionalmente [.., corte_LOD3].
-## ratio = metros / (lod_distance · 2^lod_index); clamp a [0,1] y orden estrictamente creciente.
+## El módulo elige el mesh-LOD por bloque (cam->centro del bloque) y corta en
+## ratio · get_lod_distances()[lod_index]. clamp a [0,1] y orden estrictamente creciente.
 func _apply_mesh_lod_distances(multi_mesh_item, lod_index: int, distances_m: Array) -> void:
 	if voxel_terrain == null:
 		return
@@ -227,8 +228,9 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 
 	var lm: Array = shared_data.get("lod_meshes", [])
 	if lm.size() == 4:
-		# CLAVE: nada de .scene aquí. 'scene' se usa EN LUGAR de las propiedades manuales,
-		# así que anula los mesh_lod1..3 -> por eso nunca veías diferencia.
+		# 4 mesh-LOD: cerca lm[0] (full), lejos lm[3] (impostor). El near->far lo hace el módulo
+		# eligiendo la malla por bloque según distancia (cuidado: por CENTRO de bloque -> salta a
+		# saltos, más notorio cuanto mayor el lod_index; es by-design del multimesh).
 		multi_mesh_item.set_mesh(lm[0], 0)
 		multi_mesh_item.set_mesh(lm[1], 1)
 		multi_mesh_item.set_mesh(lm[2], 2)
@@ -285,8 +287,12 @@ func _load_vegetation() -> void:
 	item_transparent_materials.clear()
 	_next_library_id = 0
 
+	# async: _load_vegetation_item hornea el impostor LOD3 de los árboles con await
+	# (render-to-texture). _load_vegetation se lanza como corrutina desde planet_loader
+	# (fire-and-forget): la vegetación se registra en los primeros frames sin bloquear la
+	# carga del planeta. Los items sin impostor (rocas, arbustos, grass) no suspenden.
 	for i in vegetation.items.size():
-		_load_vegetation_item(i, vegetation.items[i], generators, graph_functions)
+		await _load_vegetation_item(i, vegetation.items[i], generators, graph_functions)
 
 
 func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
@@ -301,6 +307,15 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 	var shared_data = _build_item_shared_data(i, item)
 	if shared_data.is_empty():
 		return
+
+	# LOD3 = impostor (aspa) solo para árboles Tree3D: son los únicos con lod_meshes de 4
+	# entradas (Bush3D/Rock/MeshInstance -> []). Se hornea UNA vez por item, antes del bucle
+	# de registro, para que set_mesh(lm[3], 3) instale el impostor directamente (sin hot-swap).
+	var lm: Array = shared_data.lod_meshes
+	if lm.size() == 4 and item.get("lod3_impostor", true):
+		var impostor := await _bake_tree_impostor(lm[0])
+		if impostor != null:
+			lm[3] = impostor
 
 	var emit_as_scene: bool = item.get("instance_as_scene", false)
 
@@ -401,6 +416,126 @@ func _get_twig_materials_array(tree3d) -> Array:
 	else:
 		var arr = tree3d.twig_materials
 		return arr if arr != null else []
+
+
+## Genera un impostor billboard en aspa (2 quads perpendiculares) como LOD3 de un árbol.
+## Renderiza 'source_mesh' de lado a una textura RGBA (con alfa) usando un SubViewport de
+## mundo propio, y construye el aspa mapeando esa textura. El AABB del aspa coincide con el
+## del árbol para que no haya "pop" de tamaño al cruzar LOD2->LOD3.
+## Async: espera 2 frames a que el render-target se dibuje antes de leer la imagen.
+func _bake_tree_impostor(source_mesh: Mesh, tex_size: int = 256) -> Mesh:
+	if source_mesh == null or voxel_instancer == null or not voxel_instancer.is_inside_tree():
+		return null
+
+	var aabb: AABB = source_mesh.get_aabb()
+	var center: Vector3 = aabb.get_center()
+	# lado del encuadre ortográfico cuadrado (+5% de margen); el árbol queda centrado.
+	var view_size: float = maxf(aabb.size.y, maxf(aabb.size.x, aabb.size.z)) * 1.05
+	if view_size <= 0.0:
+		return null
+
+	# --- SubViewport aislado: renderiza SOLO el árbol + sus luces, no la escena real ---
+	var vp := SubViewport.new()
+	vp.size = Vector2i(tex_size, tex_size)
+	vp.transparent_bg = true                 # imprescindible para capturar el alfa del follaje
+	vp.own_world_3d = true                    # mundo propio -> sin fondo de la escena real
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+	var mesh_inst := MeshInstance3D.new()
+	mesh_inst.mesh = source_mesh
+	vp.add_child(mesh_inst)
+
+	var key_light := DirectionalLight3D.new()
+	key_light.rotation_degrees = Vector3(-45, -30, 0)
+	key_light.light_energy = 1.2
+	key_light.shadow_enabled = false
+	vp.add_child(key_light)
+
+	# relleno suave para que la cara en sombra no quede completamente negra en la captura.
+	var fill_light := DirectionalLight3D.new()
+	fill_light.rotation_degrees = Vector3(-20, 150, 0)
+	fill_light.light_energy = 0.4
+	fill_light.shadow_enabled = false
+	vp.add_child(fill_light)
+
+	var cam := Camera3D.new()
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = view_size
+	var cam_dist: float = view_size * 2.0
+	cam.near = maxf(cam_dist - view_size, 0.05)
+	cam.far = cam_dist + view_size
+	cam.position = center + Vector3(0.0, 0.0, cam_dist)
+	cam.look_at_from_position(cam.position, center, Vector3.UP)
+	vp.add_child(cam)
+
+	voxel_instancer.add_child(vp)            # el viewport debe estar en el árbol para renderizar
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+
+	var img: Image = vp.get_texture().get_image()
+	vp.queue_free()
+
+	if img == null or img.is_empty():
+		push_warning("Planet: bake de impostor devolvió imagen vacía; se mantiene la geometría LOD3.")
+		return null
+
+	var tex := ImageTexture.create_from_image(img)
+	return _build_impostor_cross_mesh(aabb, tex, view_size)
+
+
+## Construye el aspa (2 quads perpendiculares) que abarca el AABB del árbol y mapea la textura
+## del impostor. Como la textura es cuadrada (lado view_size) y el árbol ocupa solo su parte
+## central, las UV recortan justo esa región (sin deformar y sin cambiar de tamaño aparente).
+func _build_impostor_cross_mesh(aabb: AABB, tex: Texture2D, view_size: float) -> ArrayMesh:
+	var center: Vector3 = aabb.get_center()
+	var h: float = aabb.size.y
+	var w: float = maxf(aabb.size.x, aabb.size.z)      # ancho común de ambos quads
+	var hw: float = w * 0.5
+	var y0: float = aabb.position.y                    # base (y~0)
+	var y1: float = aabb.position.y + h                # copa
+
+	# fracción central de la textura ocupada por el árbol (el resto es margen transparente)
+	var fu: float = (w / view_size) if view_size > 0.0 else 1.0
+	var fv: float = (h / view_size) if view_size > 0.0 else 1.0
+	var u0: float = 0.5 - fu * 0.5
+	var u1: float = 0.5 + fu * 0.5
+	var v0: float = 0.5 - fv * 0.5                      # arriba (Y alto)
+	var v1: float = 0.5 + fv * 0.5                      # abajo (Y bajo)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	# Quad en el plano XY (normal Z), centrado en X
+	_add_impostor_quad(st,
+		[Vector3(center.x - hw, y1, center.z), Vector3(center.x + hw, y1, center.z),
+		 Vector3(center.x + hw, y0, center.z), Vector3(center.x - hw, y0, center.z)],
+		[Vector2(u0, v0), Vector2(u1, v0), Vector2(u1, v1), Vector2(u0, v1)],
+		Vector3.BACK)
+	# Quad en el plano ZY (normal X), centrado en Z (reutiliza la misma vista de lado)
+	_add_impostor_quad(st,
+		[Vector3(center.x, y1, center.z - hw), Vector3(center.x, y1, center.z + hw),
+		 Vector3(center.x, y0, center.z + hw), Vector3(center.x, y0, center.z - hw)],
+		[Vector2(u0, v0), Vector2(u1, v0), Vector2(u1, v1), Vector2(u0, v1)],
+		Vector3.RIGHT)
+
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	mat.alpha_scissor_threshold = 0.5
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED             # aspa visible desde ambas caras
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED  # barato de lejos
+	st.set_material(mat)
+
+	return st.commit()
+
+
+## Añade un quad (2 triángulos) a un SurfaceTool. corners/uvs en orden TL, TR, BR, BL.
+func _add_impostor_quad(st: SurfaceTool, corners: Array, uvs: Array, normal: Vector3) -> void:
+	for idx in [0, 1, 2, 0, 2, 3]:
+		st.set_normal(normal)
+		st.set_uv(uvs[idx])
+		st.add_vertex(corners[idx])
 
 
 func _build_rock_packed_scene(scene_instantiated: Node, rock3d) -> Dictionary:
