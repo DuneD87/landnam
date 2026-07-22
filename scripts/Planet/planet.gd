@@ -240,7 +240,7 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		if not cs.is_empty():
 			multi_mesh_item.collision_shapes = cs
 
-		var dists: Array = item.get("mesh_lod_distances_m", [200.0, 350.0, 500.0])
+		var dists: Array = item.get("mesh_lod_distances_m", [200.0, 350.0, 900.0])
 		_apply_mesh_lod_distances(multi_mesh_item, lod_index, dists)
 	else:
 		# items sin LOD (MeshInstance directa, Rock3D): la escena sirve tal cual
@@ -525,6 +525,7 @@ func _build_impostor_cross_mesh(aabb: AABB, tex: Texture2D, view_size: float) ->
 	mat.alpha_scissor_threshold = 0.5
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED             # aspa visible desde ambas caras
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED  # barato de lejos
+	
 	st.set_material(mat)
 
 	return st.commit()

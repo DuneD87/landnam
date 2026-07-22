@@ -4,7 +4,7 @@
 noise_type = 3
 period = 4500.0
 fractal_type = 2
-fractal_octaves = 8
+fractal_octaves = 4
 fractal_lacunarity = 3.0
 fractal_gain = 0.25
 fractal_ping_pong_strength = 4.0
@@ -14,7 +14,7 @@ terrace_smoothness = 0.8
 [sub_resource type="FastNoise2" id="FastNoise2_iequl"]
 period = 6000.0
 fractal_type = 1
-fractal_octaves = 8
+fractal_octaves = 5
 fractal_lacunarity = 4.2
 fractal_gain = 0.2
 cellular_return_type = 2
