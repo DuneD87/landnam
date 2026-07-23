@@ -14,7 +14,7 @@ terrace_smoothness = 0.8
 [sub_resource type="FastNoise2" id="FastNoise2_iequl"]
 period = 6000.0
 fractal_type = 1
-fractal_octaves = 5
+fractal_octaves = 4
 fractal_lacunarity = 4.2
 fractal_gain = 0.2
 cellular_return_type = 2
@@ -33,7 +33,7 @@ graph_data = {
 "type": "CustomOutput"
 },
 "41": {
-"a": 400.0,
+"a": 350.0,
 "auto_connect": false,
 "gui_position": Vector2(281.22043, -516.2254),
 "type": "Multiply"
@@ -70,7 +70,7 @@ graph_data = {
 },
 "49": {
 "auto_connect": false,
-"b": 1000.0,
+"b": 700.0,
 "gui_position": Vector2(320, -350),
 "type": "Multiply"
 },

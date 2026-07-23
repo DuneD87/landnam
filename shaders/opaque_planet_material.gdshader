@@ -93,7 +93,7 @@ void light() {
 	compute_planet_light(
 		NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
 		ALBEDO, METALLIC, ROUGHNESS, specular, ao_value,
-		planet_day_factor, planet_ambient, LIGHT_IS_DIRECTIONAL, d, s);
+		planet_day_factor, planet_ambient, LIGHT_IS_DIRECTIONAL, 1.0, d, s);
 
 	DIFFUSE_LIGHT  += d;
 	SPECULAR_LIGHT += s;

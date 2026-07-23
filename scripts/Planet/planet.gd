@@ -190,6 +190,24 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 
 	return result
 	
+## Escribe los 4 mesh_lodN_distance_ratio tal cual, sin conversión ni clamp.
+## Sirve para calibrar empíricamente cómo interpreta el módulo estos ratios.
+func _apply_mesh_lod_ratios_raw(multi_mesh_item, lod_index: int, r: Array) -> void:
+	multi_mesh_item.mesh_lod0_distance_ratio = float(r[0])
+	multi_mesh_item.mesh_lod1_distance_ratio = float(r[1])
+	multi_mesh_item.mesh_lod2_distance_ratio = float(r[2])
+	multi_mesh_item.mesh_lod3_distance_ratio = float(r[3])
+	
+
+## Alcance en metros de una banda de voxel-LOD. Prefiere get_lod_distances() del
+## módulo (es lo que el propio módulo usa para cortar) y cae al cálculo manual.
+func _get_lod_view_distance(lod_index: int) -> float:
+	if voxel_terrain.has_method("get_lod_distances"):
+		var d = voxel_terrain.get_lod_distances()
+		if d != null and lod_index < d.size():
+			return float(d[lod_index])
+	return float(voxel_terrain.lod_distance) * float(1 << lod_index)
+
 ## Fija los 4 mesh_lodN_distance_ratio del item a partir de distancias de salto en metros.
 ## distances_m: [fin_LOD0, fin_LOD1, fin_LOD2] y opcionalmente [.., corte_LOD3].
 ## El módulo elige el mesh-LOD por bloque (cam->centro del bloque) y corta en
@@ -197,8 +215,7 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 func _apply_mesh_lod_distances(multi_mesh_item, lod_index: int, distances_m: Array) -> void:
 	if voxel_terrain == null:
 		return
-	var lod_distance: float = voxel_terrain.lod_distance
-	var view_distance: float = lod_distance * float(1 << lod_index)
+	var view_distance: float = _get_lod_view_distance(lod_index)
 	if view_distance <= 0.0:
 		return
 
@@ -240,11 +257,19 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		if not cs.is_empty():
 			multi_mesh_item.collision_shapes = cs
 
-		var dists: Array = item.get("mesh_lod_distances_m", [200.0, 350.0, 900.0])
-		_apply_mesh_lod_distances(multi_mesh_item, lod_index, dists)
+		# "mesh_lod_ratios" (4 valores) tiene prioridad: se escriben crudos, para
+		# calibrar la semántica real del módulo sin mi conversión desde metros.
+		var raw_ratios: Array = item.get("mesh_lod_ratios", [])
+		if raw_ratios.size() == 4:
+			_apply_mesh_lod_ratios_raw(multi_mesh_item, lod_index, raw_ratios)
+		else:
+			var dists: Array = item.get("mesh_lod_distances_m", [120, 360, 860])
+			_apply_mesh_lod_distances(multi_mesh_item, lod_index, dists)
 	else:
 		# items sin LOD (MeshInstance directa, Rock3D): la escena sirve tal cual
 		multi_mesh_item.scene = shared_data.packed_scene
+		
+	
 
 	if not item.get("cast_shadow", true):
 		if "cast_shadow" in multi_mesh_item:
@@ -267,6 +292,43 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 			var mat = shared_data.effective_mesh.surface_get_material(surface_idx)
 			if mat is ShaderMaterial:
 				item_transparent_materials.append({"shader": mat as ShaderMaterial, "wind_speed": wind_speed})
+
+## Asigna a cada mesh-LOD su variante de material: LOD0 conserva la doble cara
+## (volumen de cerca) y LOD1/LOD2 pasan a una cara (mitad de fill). Con
+## debug_lod_colors además tiñe cada LOD para ver in-game cuál se usa y dónde.
+## Los duplicados se registran en item_transparent_materials o se quedarían sin el
+## push de sol/viento. LOD3 es el impostor (otro shader): no se toca.
+## Se llama UNA vez por item, antes de registrar sus bandas.
+func _apply_lod_material_variants(lm: Array, wind_speed: float) -> void:
+	if _twig_singleside_shader == null:
+		_twig_singleside_shader = load("res://shaders/transparent_material_shader_singleside.gdshader")
+	# clave: [material original, lod] -> duplicado, para no crear uno por superficie
+	var cache: Dictionary = {}
+	for lod_i in range(min(3, lm.size())):
+		var mesh: Mesh = lm[lod_i]
+		if mesh == null:
+			continue
+		var want_singleside: bool = lod_i > 0 and _twig_singleside_shader != null
+		if not want_singleside and not debug_lod_colors:
+			continue  # LOD0 sin debug: se queda con el material original
+		for s in mesh.get_surface_count():
+			var mat = mesh.surface_get_material(s)
+			if not (mat is ShaderMaterial):
+				continue
+			var sm := mat as ShaderMaterial
+			if sm.shader == null or sm.shader.resource_path != _TWIG_SHADER_PATH:
+				continue  # tronco u otro shader: no tocar
+			var key: Array = [sm, lod_i]
+			var dup: ShaderMaterial = cache.get(key)
+			if dup == null:
+				dup = sm.duplicate()
+				if want_singleside:
+					dup.shader = _twig_singleside_shader
+				if debug_lod_colors:
+					dup.set_shader_parameter("debug_lod_tint", _LOD_DEBUG_COLORS[lod_i])
+				cache[key] = dup
+				item_transparent_materials.append({"shader": dup, "wind_speed": wind_speed})
+			mesh.surface_set_material(s, dup)
 
 func _register_scene_item(item, shared_data: Dictionary, generator: VoxelInstanceGenerator, lod_index: int) -> void:
 	var scene_item := VoxelInstanceLibrarySceneItem.new()
@@ -316,6 +378,11 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 		var impostor := await _bake_tree_impostor(lm[0])
 		if impostor != null:
 			lm[3] = impostor
+
+	# Variantes de material por mesh-LOD (una cara en los lejanos, tinte de debug).
+	# Aquí y no en el registro: el item se registra una vez por banda y duplicaría.
+	if lm.size() == 4:
+		_apply_lod_material_variants(lm, item.wind_speed if item.has("wind_speed") else 0.0)
 
 	var emit_as_scene: bool = item.get("instance_as_scene", false)
 

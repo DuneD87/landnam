@@ -8,6 +8,15 @@ const PLATFORM_DETACH_DIST := 2.5
 const PLATFORM_MAX_TILT_DEG := 75.0
 const PLATFORM_DETACH_GRACE := 0.2
 
+## Comprobaciones seguidas de suelo listo antes de activar al jugador, y cada cuánto sondear.
+## Varias confirmaciones evitan activar sobre una malla visual cuya colisión aún se hornea.
+const GROUND_READY_CONFIRMATIONS := 3
+const GROUND_READY_POLL_INTERVAL := 0.1
+## Tope de espera de suelo: si se agota (p. ej. guardado en el aire, o terreno que no carga) se
+## activa igual y el jugador cae con normalidad, en vez de quedar congelado esperando un suelo
+## que no existe bajo sus pies. Un spawn normal confirma suelo mucho antes de este tope.
+const GROUND_READY_TIMEOUT := 15.0
+
 const config = preload("res://scripts/config.gd")
 const data = preload("res://scripts/items/item_data.gd")
 @onready var movement: Movement = $Movement
@@ -600,8 +609,17 @@ func _activate_player() -> void:
 	player_model.rotation = Vector3.ZERO
 	current_swimming_pitch = 0.0
 
-	while not is_ground_ready():
-		await get_tree().create_timer(.5).timeout
+	update_nearest_planet()
+	if planet:
+		gravity_direction = planet.get_gravity_direction(global_position)
+		up_direction = -gravity_direction
+
+	var confirmations := 0
+	var waited := 0.0
+	while confirmations < GROUND_READY_CONFIRMATIONS and waited < GROUND_READY_TIMEOUT:
+		await get_tree().create_timer(GROUND_READY_POLL_INTERVAL).timeout
+		waited += GROUND_READY_POLL_INTERVAL
+		confirmations = confirmations + 1 if is_ground_ready() else 0
 	mouse_captured = true
 	input_enabled = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)

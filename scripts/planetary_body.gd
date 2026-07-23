@@ -6,6 +6,9 @@ class_name PlanetaryBody
 
 @export var planets: Node3D
 
+## Profundidad bajo los pies que sondea is_ground_ready() buscando colisión de terreno.
+const GROUND_PROBE_DEPTH := 4.0
+
 var gravity_direction: Vector3 = Vector3.DOWN
 var planet: Node3D
 
@@ -46,15 +49,23 @@ func project_on_gravity_plane(dir: Vector3) -> Vector3:
 	return projected.normalized()
 
 
-## True si hay geometría de terreno bajo el cuerpo (para esperar a que el voxel esté generado).
+## True si hay una superficie sólida sobre la que apoyarse justo bajo los pies del cuerpo.
+## Rayo corto vertical (no hacia el centro del planeta) contra la propia collision_mask del cuerpo:
+## cuenta como suelo cualquier cosa con la que este cuerpo colisiona —terreno, barco, edificio o
+## una entidad futura— sin enumerar tipos. El terreno voxel es lo único que hornea colisión de
+## forma asíncrona; el resto ya está presente en cuanto existe su nodo, así que un impacto siempre
+## significa "suelo real y ya cargado". El rayo corto evita los falsos positivos de clavar en
+## colliders lejanos que tenía el rayo largo hacia el centro del planeta.
 func is_ground_ready() -> bool:
 	if not planet:
 		return false
+	var g : Vector3 = planet.get_gravity_direction(global_position)
 	var query := PhysicsRayQueryParameters3D.create(
-		global_position - gravity_direction * 2.0,
-		planet.global_position
+		global_position - g * 2.0,
+		global_position + g * GROUND_PROBE_DEPTH
 	)
 	query.exclude = [get_rid()]
+	query.collision_mask = collision_mask
 	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 

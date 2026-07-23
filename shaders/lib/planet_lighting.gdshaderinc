@@ -89,10 +89,13 @@ void compute_planet_vertex_light(vec3 world_pos, vec3 planet_n,
 // solo tienen sentido para el sol; aplicarlos a una luz local la apagaría de
 // noche (planet_shadow ~ 0) y sumaría el ambient una vez por luz. Pasa
 // LIGHT_IS_DIRECTIONAL desde el light() de cada shader.
+// El parámetro `detail` (0..1) escala y GATEA la translucencia/rim: cuando es 0
+// (p.ej. follaje lejano) se salta esos pow/normalize por completo. Pasar 1.0
+// para conservar el comportamiento original.
 void compute_planet_light(
 		vec3 N, vec3 V, vec3 L, vec3 light_color, float attenuation,
 		vec3 albedo, float metallic, float roughness, float specular_amount, float ao,
-		float day_factor, vec3 ambient_rgb, bool is_directional,
+		float day_factor, vec3 ambient_rgb, bool is_directional, float detail,
 		out vec3 out_diffuse, out vec3 out_specular) {
 
 	vec3 light_energy = attenuation * light_color;
@@ -108,16 +111,21 @@ void compute_planet_light(
 	// reintroduciremos con una versión más barata una vez confirmado que carga.
 	vec3 specular = vec3(0.0);
 
-	// === 3. Translucencia / SSS (luz que atraviesa el material a contraluz) ===
-	vec3  back_light  = normalize(-L + N * 0.3);
-	float VdotBL      = clamp(dot(V, back_light), 0.0, 1.0);
-	float back_factor = pow(clamp(-dot(N, L), 0.0, 1.0), 6.0);
-	float sss = pow(VdotBL, translucency_power) * translucency_strength * back_factor;
-	vec3  translucency = sss * translucency_color.rgb;
+	// === 3+4. Translucencia / SSS y Fresnel / Rim (view-dependent, coste alto).
+	// Solo se calcula si detail > 0; con detail bajo el follaje lejano se ahorra
+	// 3 pow + 1 normalize por fragmento. La rama es coherente (detail varía suave).
+	vec3 translucency = vec3(0.0);
+	vec3 rim = vec3(0.0);
+	if (detail > 0.001) {
+		vec3  back_light  = normalize(-L + N * 0.3);
+		float VdotBL      = clamp(dot(V, back_light), 0.0, 1.0);
+		float back_factor = pow(clamp(-dot(N, L), 0.0, 1.0), 6.0);
+		float sss = pow(VdotBL, translucency_power) * translucency_strength * back_factor;
+		translucency = sss * translucency_color.rgb * detail;
 
-	// === 4. Fresnel / Rim ===
-	float fresnel = pow(1.0 - NdotV, 3.0);
-	vec3  rim = vec3(fresnel * rim_strength / PI);
+		float fresnel = pow(1.0 - NdotV, 3.0);
+		rim = vec3(fresnel * rim_strength / PI) * detail;
+	}
 
 	vec3 lit = (diffuse + translucency + rim) * light_energy;
 
