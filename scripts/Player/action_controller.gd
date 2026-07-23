@@ -197,7 +197,10 @@ func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_
 		current_target_node = target_node
 		if !attacking_nodes.has(instance_id):
 			var item_id = target_node.get_library_item_id()
-			var scene = planet.voxel_instancer.library.get_item(item_id).scene.instantiate()
+			var packed_scene = planet.planet_item_packed_scenes.get(item_id)
+			if packed_scene == null:
+				return target_node
+			var scene = packed_scene.instantiate()
 			var registered = planet.planet_item_scenes.get(item_id)
 			if registered != null:
 				scene.health = registered.health

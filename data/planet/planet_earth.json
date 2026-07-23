@@ -215,12 +215,13 @@
 	 	{
 			"name": "tree_generator_green",
 			"emit_mode": "EMIT_FROM_VERTICES",
-			"density": 2.0,
+			"density": 3.0,
 			"min_height": -35,
 			"max_height": 100,
 			"max_slope_degrees": 25,
-			"min_scale": 3,
-			"max_scale": 7,
+			"offset_along_normal": -1.0,
+			"min_scale": 2,
+			"max_scale": 8,
 			"noise_graph": "hemisphere_green_graph_path" 
 	  	},
 	  	{

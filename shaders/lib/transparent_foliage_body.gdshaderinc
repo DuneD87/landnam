@@ -32,17 +32,6 @@ uniform float detail_end : hint_range(0.0, 500.0, 1.0) = 80.0;
 // ver in-game qué LOD se usa a cada distancia. Apagar en prod.
 uniform vec4 debug_lod_tint : source_color = vec4(0.0, 0.0, 0.0, 0.0);
 
-// --- LOD por árbol: disolución de cartas por distancia ---
-// Vértices que forman una carta de hoja, para agruparlos por VERTEX_ID:
-// 6 = carta doblada de Proctree, 4 = quad de conífera. Si el valor no coincide con
-// el baker se ven triángulos rotos (los vértices de una carta se separan).
-uniform float verts_per_card : hint_range(3.0, 12.0, 1.0) = 3.0;
-// Fracción de cartas que sobrevive: 1.0 cerca -> dissolve_min_keep a partir de
-// dissolve_end. Poner dissolve_min_keep = 1.0 desactiva el efecto por completo.
-uniform float dissolve_start = 40.0;
-uniform float dissolve_end = 150.0;
-uniform float dissolve_min_keep : hint_range(0.0, 1.0, 0.01) = 0.3;
-
 varying float height_ao;
 // Up del planeta en view space: señal de baja frecuencia, se calcula por vértice.
 varying vec3 up_view;
@@ -62,18 +51,7 @@ float random(vec3 seed) {
 }
 
 void vertex() {
-    // LOD por árbol. El mesh-LOD del módulo se decide por bloque del octree (hasta
-    // 256 m), así que no puede dar granularidad por árbol. Aquí usamos la distancia
-    // de la INSTANCIA (traslación del MODEL_MATRIX: idéntica para todos sus vértices,
-    // así que la decisión no puede partir una carta por la mitad) y colapsamos cartas
-    // enteras a un punto. Los triángulos degenerados los descarta el rasterizador sin
-    // coste de fragmento, que es el cuello real (fill/overdraw).
     float inst_dist = distance(CAMERA_POSITION_WORLD, MODEL_MATRIX[3].xyz);
-    float keep = mix(1.0, dissolve_min_keep, smoothstep(dissolve_start, dissolve_end, inst_dist));
-    float card_id = floor(float(VERTEX_ID) / verts_per_card);
-    if (fract(sin(card_id * 12.9898) * 43758.5453) > keep) {
-        VERTEX = vec3(0.0);
-    }
 
     UV = UV * uv1_scale.xy + uv1_offset.xy;
 

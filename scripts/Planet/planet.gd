@@ -56,7 +56,14 @@ const config = preload("res://scripts/config.gd")
 @export var ore_settings: Array[Dictionary] = []
 
 var planet_item_scenes: Dictionary
+## library_id -> PackedScene plantilla, para clonar el item al talarlo sin instanciar
+## nada en el módulo (ver _register_multi_mesh_item).
+var planet_item_packed_scenes: Dictionary
 var _next_library_id: int = 0
+
+## Shader de follaje de doble cara (LOD cercano) y su variante de una cara (LOD lejano).
+const _TWIG_SHADER_PATH := "res://shaders/transparent_material_shader.gdshader"
+var _twig_singleside_shader: Shader = null
 
 ## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
 var weather_wind_multiplier: float = 1.0
@@ -263,13 +270,13 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		if raw_ratios.size() == 4:
 			_apply_mesh_lod_ratios_raw(multi_mesh_item, lod_index, raw_ratios)
 		else:
-			var dists: Array = item.get("mesh_lod_distances_m", [120, 360, 860])
+			var dists: Array = item.get("mesh_lod_distances_m", [200, 300, 600])
 			_apply_mesh_lod_distances(multi_mesh_item, lod_index, dists)
 	else:
-		# items sin LOD (MeshInstance directa, Rock3D): la escena sirve tal cual
+		# items sin LOD (MeshInstance directa, Rock3D): sin collision_shapes, dependen de
+		# 'scene' para que el módulo instancie el nodo físico cerca del jugador.
 		multi_mesh_item.scene = shared_data.packed_scene
-		
-	
+
 
 	if not item.get("cast_shadow", true):
 		if "cast_shadow" in multi_mesh_item:
@@ -280,6 +287,12 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 	var library_id = _next_library_id
 	_next_library_id += 1
 	voxel_instancer.library.add_item(library_id, multi_mesh_item)
+
+	# Plantilla para clonar el item al talarlo (action_controller). Va en un dict aparte
+	# y NO en multi_mesh_item.scene: ponerla ahí haría que el módulo instancie un nodo por
+	# árbol cercano en cada banda de LOD (bajón de rendimiento). La colisión de los árboles
+	# con LOD ya la dan collision_shapes.
+	planet_item_packed_scenes[library_id] = shared_data.packed_scene
 
 	var wind_speed: float = item.wind_speed if item.has("wind_speed") else 0.0
 	multi_mesh_array.append({"mesh_item": multi_mesh_item, "wind_speed": wind_speed})
@@ -309,7 +322,7 @@ func _apply_lod_material_variants(lm: Array, wind_speed: float) -> void:
 		if mesh == null:
 			continue
 		var want_singleside: bool = lod_i > 0 and _twig_singleside_shader != null
-		if not want_singleside and not debug_lod_colors:
+		if not want_singleside:
 			continue  # LOD0 sin debug: se queda con el material original
 		for s in mesh.get_surface_count():
 			var mat = mesh.surface_get_material(s)
@@ -324,8 +337,6 @@ func _apply_lod_material_variants(lm: Array, wind_speed: float) -> void:
 				dup = sm.duplicate()
 				if want_singleside:
 					dup.shader = _twig_singleside_shader
-				if debug_lod_colors:
-					dup.set_shader_parameter("debug_lod_tint", _LOD_DEBUG_COLORS[lod_i])
 				cache[key] = dup
 				item_transparent_materials.append({"shader": dup, "wind_speed": wind_speed})
 			mesh.surface_set_material(s, dup)
@@ -345,6 +356,7 @@ func _load_vegetation() -> void:
 	var graph_functions = vegetation.hemisphere_graph_function
 	voxel_instancer.library.clear()
 	planet_item_scenes.clear()
+	planet_item_packed_scenes.clear()
 	multi_mesh_array.clear()
 	item_transparent_materials.clear()
 	_next_library_id = 0
