@@ -270,7 +270,7 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		if raw_ratios.size() == 4:
 			_apply_mesh_lod_ratios_raw(multi_mesh_item, lod_index, raw_ratios)
 		else:
-			var dists: Array = item.get("mesh_lod_distances_m", [200, 300, 600])
+			var dists: Array = item.get("mesh_lod_distances_m", [384, 768, 1400])
 			_apply_mesh_lod_distances(multi_mesh_item, lod_index, dists)
 	else:
 		# items sin LOD (MeshInstance directa, Rock3D): sin collision_shapes, dependen de
