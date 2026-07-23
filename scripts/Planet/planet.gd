@@ -65,6 +65,10 @@ var _next_library_id: int = 0
 const _TWIG_SHADER_PATH := "res://shaders/transparent_material_shader.gdshader"
 var _twig_singleside_shader: Shader = null
 
+## Shader del impostor (aspa LOD3): unshaded pero con terminador día/noche.
+const _IMPOSTOR_SHADER_PATH := "res://shaders/tree_impostor.gdshader"
+var _impostor_shader: Shader = null
+
 ## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
 var weather_wind_multiplier: float = 1.0
 
@@ -310,7 +314,8 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 ## (volumen de cerca) y LOD1/LOD2 pasan a una cara (mitad de fill). Con
 ## debug_lod_colors además tiñe cada LOD para ver in-game cuál se usa y dónde.
 ## Los duplicados se registran en item_transparent_materials o se quedarían sin el
-## push de sol/viento. LOD3 es el impostor (otro shader): no se toca.
+## push de sol/viento. LOD3 es el impostor (otro shader): esta función no lo toca;
+## su material se crea y registra aparte en _build_impostor_cross_mesh.
 ## Se llama UNA vez por item, antes de registrar sus bandas.
 func _apply_lod_material_variants(lm: Array, wind_speed: float) -> void:
 	if _twig_singleside_shader == null:
@@ -598,13 +603,20 @@ func _build_impostor_cross_mesh(aabb: AABB, tex: Texture2D, view_size: float) ->
 		[Vector2(u0, v0), Vector2(u1, v0), Vector2(u1, v1), Vector2(u0, v1)],
 		Vector3.RIGHT)
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = tex
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-	mat.alpha_scissor_threshold = 0.5
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED             # aspa visible desde ambas caras
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED  # barato de lejos
-	
+	# Shader propio: unshaded (barato) pero respeta el terminador día/noche del
+	# planeta. Con StandardMaterial3D unshaded el impostor brillaba a albedo pleno
+	# de noche, ignorando la sombra planetaria del resto de la vegetación.
+	if _impostor_shader == null:
+		_impostor_shader = load(_IMPOSTOR_SHADER_PATH)
+	var mat := ShaderMaterial.new()
+	mat.shader = _impostor_shader
+	mat.set_shader_parameter("albedo_texture", tex)
+	mat.set_shader_parameter("alpha_scissor_threshold", 0.5)
+	# Registrar para recibir el push de sol (light_direction/planet_position) cada
+	# frame; sin viento (wind_speed 0). item_transparent_materials ya está limpio
+	# en este punto de la carga (_load_vegetation lo vació antes de registrar items).
+	item_transparent_materials.append({"shader": mat, "wind_speed": 0.0})
+
 	st.set_material(mat)
 
 	return st.commit()

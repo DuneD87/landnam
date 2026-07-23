@@ -2,13 +2,37 @@
 
 [ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_26thc"]
 [ext_resource type="Resource" uid="uid://c1hsrchnwebje" path="res://data/items/material/wood.tres" id="2_oaci8"]
+[ext_resource type="Shader" uid="uid://csa5tbyrlrn5i" path="res://shaders/opaque_planet_material.gdshader" id="3_6ohsv"]
 [ext_resource type="Texture2D" uid="uid://ngbm62oopq2l" path="res://textures/planet/vegetation/tree/trunk/bark_default.jpg" id="3_dk8dy"]
 [ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="4_6ohsv"]
 [ext_resource type="Texture2D" uid="uid://cush5lf5g2xay" path="res://textures/planet/vegetation/tree/twigs/twig_pine.png" id="5_h0buv"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dk8dy"]
-cull_mode = 1
-albedo_texture = ExtResource("3_dk8dy")
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_h0buv"]
+render_priority = 0
+shader = ExtResource("3_6ohsv")
+shader_parameter/light_direction = Vector3(1, 0, 0)
+shader_parameter/planet_position = Vector3(0, 0, 0)
+shader_parameter/transition_width = 0.2
+shader_parameter/ambient_intensity = 0.15
+shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
+shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
+shader_parameter/translucency_strength = 0.45
+shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
+shader_parameter/translucency_power = 2.0
+shader_parameter/rim_strength = 0.3
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/texture_albedo = ExtResource("3_dk8dy")
+shader_parameter/metallic = 0.0
+shader_parameter/specular = 0.0
+shader_parameter/metallic_texture_channel = Vector4(1, 0, 0, 0)
+shader_parameter/roughness = 0.8
+shader_parameter/roughness_texture_channel = Vector4(1, 0, 0, 0)
+shader_parameter/normal_scale = 1.0
+shader_parameter/ao_texture_channel = Vector4(1, 0, 0, 0)
+shader_parameter/emission = Color(0, 0, 0, 0)
+shader_parameter/emission_energy = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_dk8dy"]
 render_priority = 0
@@ -69,7 +93,7 @@ trunk_climb_rate = 0.558
 trunk_kink = -0.364
 trunk_length = 7.0
 twig_scale = 0.5
-material_trunk = SubResource("StandardMaterial3D_dk8dy")
+material_trunk = SubResource("ShaderMaterial_h0buv")
 twig_materials = Array[Material]([SubResource("ShaderMaterial_dk8dy")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]

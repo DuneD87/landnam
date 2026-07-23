@@ -70,6 +70,14 @@ float hash11(float p) {
 	return fract(p);
 }
 
+// Hash escalar 3D robusto: cada esquina se hashea de forma independiente,
+// sin colisiones en planos diagonales (evita los bloques del value noise clásico).
+float hash13(vec3 p3) {
+	p3 = fract(p3 * 0.1031);
+	p3 += dot(p3, p3.zyx + 31.32);
+	return fract((p3.x + p3.y) * p3.z);
+}
+
 float hash21(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 	p3 += dot(p3, p3.yzx + 33.33);
@@ -111,17 +119,18 @@ float noise4q(vec4 x) {
 	return r * r * (3.0 - 2.0 * r);
 }
 
-// Simple 3D value noise for sunspots / prominences
+// Value noise 3D para manchas solares / nubes de la Vía Láctea.
+// Hashea las 8 esquinas del cubo por separado (hash13) para no generar
+// los planos de colisión que producían el borde recto en la banda galáctica.
 float vnoise3(vec3 p) {
 	vec3 i = floor(p);
 	vec3 f = fract(p);
 	f = f * f * (3.0 - 2.0 * f);
-	float n = dot(i, vec3(1.0, 157.0, 113.0));
 	return mix(
-		mix(mix(hash11(n + 0.0),   hash11(n + 1.0), f.x),
-			mix(hash11(n + 157.0), hash11(n + 158.0), f.x), f.y),
-		mix(mix(hash11(n + 113.0), hash11(n + 114.0), f.x),
-			mix(hash11(n + 270.0), hash11(n + 271.0), f.x), f.y),
+		mix(mix(hash13(i + vec3(0.0, 0.0, 0.0)), hash13(i + vec3(1.0, 0.0, 0.0)), f.x),
+			mix(hash13(i + vec3(0.0, 1.0, 0.0)), hash13(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+		mix(mix(hash13(i + vec3(0.0, 0.0, 1.0)), hash13(i + vec3(1.0, 0.0, 1.0)), f.x),
+			mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), f.x), f.y),
 		f.z);
 }
 
