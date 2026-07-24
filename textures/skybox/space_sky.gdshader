@@ -467,8 +467,10 @@ void sky() {
 		// ────── BACKGROUND: STARS + MILKY WAY ──────
 		vec3 col = starField(ray) + milkyWay(ray);
 
-		// Mask background stars near the main star to avoid bleed-through
-		float star_dist_from_ray = length(pos - ray * dot(ray, pos));
+		// Mask background stars near the main star to avoid bleed-through.
+		// Clamp t>=0 para medir el rayo (semirrecta), no la recta: sin el max()
+		// el punto antisolar da distancia 0 y abre un agujero negro opuesto al sol.
+		float star_dist_from_ray = length(pos - ray * max(0.0, dot(ray, pos)));
 		float bg_mask = smoothstep(r * 1.2, r * 2.5, star_dist_from_ray);
 		col *= bg_mask;
 
