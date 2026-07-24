@@ -86,12 +86,18 @@ func _setup_ui():
 		canvas_layer.add_child(stats_label)
 
 func _process(_delta):
+	# El sol se mueve en vivo (día/noche): leemos la dirección actual del planeta en lugar
+	# del export, que solo se fijaba al cargar y dejaba el agua iluminada como de día siempre.
+	# to_sun apunta HACIA el sol. La superficie niega sun_direction internamente (espera la
+	# dirección de la luz saliente), el underwater no; por eso los alimentamos con signo opuesto.
+	var to_sun := planet.sun_dir if planet else sun_dir
+
 	if mesh_manager && mesh_manager.default_material:
 		var mat = mesh_manager.default_material as ShaderMaterial
-		mat.set_shader_parameter("sun_direction", sun_dir)
-		
+		mat.set_shader_parameter("sun_direction", -to_sun)
+
 	if underwater:
-		underwater.sun_direction = sun_dir
+		underwater.sun_direction = to_sun
 		
 	if show_stats and stats_label:
 		_update_stats()

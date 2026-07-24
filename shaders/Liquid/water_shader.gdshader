@@ -63,6 +63,9 @@ uniform float grazing_shore_fade : hint_range(0.0, 20.0, 0.1) = 3.0; // profundi
 
 uniform vec3 sky_color_horizon : source_color = vec3(0.75, 0.85, 0.95);
 uniform vec3 sky_color_zenith : source_color = vec3(0.30, 0.55, 0.85);
+// Mismo degradado con el sol bajo el horizonte: sin esto el agua reflejaba cielo de día 24 h.
+uniform vec3 sky_color_horizon_night : source_color = vec3(0.03, 0.04, 0.07);
+uniform vec3 sky_color_zenith_night : source_color = vec3(0.01, 0.015, 0.035);
 uniform float sky_influence : hint_range(0.0, 20.0) = 0.6;
 uniform float sky_fresnel_power : hint_range(0.1, 100.0) = 5.0;
 uniform float sky_gradient_power : hint_range(0.1, 50.0) = 2.5;
@@ -99,6 +102,7 @@ uniform float foam_crest_softness  : hint_range(0.02, 0.8, 0.01) = 0.3; // ancho
 uniform float foam_crest_amount    : hint_range(0.0, 10.0, 0.1) = 2.0;
 uniform float foam_noise_amount    : hint_range(0.0, 1.0, 0.01) = 0.2; // cuánto deforma el ruido el borde de la banda de cresta
 uniform float foam_noise_warp      : hint_range(0.0, 4.0, 0.01) = 1.5; // domain warp: riza el borde en vez de ondularlo
+uniform float foam_night_level     : hint_range(0.0, 1.0, 0.01) = 0.35; // brillo de la espuma con el sol bajo el horizonte; 0 = invisible, 1 = igual que de día
 
 // Estela de espuma de las grids dinámicas (lo rellena FoamWakeManager por frame).
 // Cada estela = rango de puntos [wake_ranges] con culling por esfera envolvente [wake_bounds].
@@ -136,10 +140,15 @@ float fresnel(float amount, vec3 normal, vec3 view) {
     return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
 }
 
-vec3 calculate_sky_color(vec3 view_direction) {
-    float vertical_angle = clamp(view_direction.y * 0.5 + 0.5, 0.0, 1.0);
+// Degradado horizonte→cenit del cielo reflejado. `up` es la radial del planeta: usar el eje Y
+// del mundo daba por hecho un mundo plano, y el rayo en view-space ataba el degradado al eje
+// vertical de la CÁMARA (giraba al mover la vista). `day` funde al cielo nocturno.
+vec3 calculate_sky_color(vec3 view_direction, vec3 up, float day) {
+    float vertical_angle = clamp(dot(view_direction, up) * 0.5 + 0.5, 0.0, 1.0);
     vertical_angle = pow(vertical_angle, sky_gradient_power);
-    return mix(sky_color_horizon, sky_color_zenith, vertical_angle);
+    vec3 horizon = mix(sky_color_horizon_night, sky_color_horizon, day);
+    vec3 zenith = mix(sky_color_zenith_night, sky_color_zenith, day);
+    return mix(horizon, zenith, vertical_angle);
 }
 
 // Triplanar con UDN blend — devuelve normal en WORLD SPACE
@@ -519,9 +528,20 @@ void fragment() {
     float ndv = max(dot(view_normal, normalize(VIEW)), 0.0);
     float fresnel_value = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
 
-    // Reflexión: cielo procedural como base, refinado con SSR donde acierta.
-    vec3 reflected_view = reflect(-VIEW, view_normal);
-    vec3 sky_reflection = calculate_sky_color(reflected_view) * sky_influence;
+    // Dirección al sol y terminador día/noche. Se calculan aquí porque el reflejo del cielo
+    // ya los necesita; mismo criterio que compute_planet_vertex_light (planet_lighting.gdshaderinc).
+    vec3 safe_sun_direction = sun_direction;
+    if (dot(safe_sun_direction, safe_sun_direction) < 0.0001) {
+        safe_sun_direction = vec3(0.4, -0.7, 0.3);
+    }
+    vec3 sun_dir_norm = normalize(-safe_sun_direction);
+    vec3 to_sun = sun_dir_norm;              // desde la superficie hacia el sol
+    float sun_up = smoothstep(-0.1, 0.15, dot(radial_normal, to_sun)); // apaga con sol bajo el horizonte
+
+    // Reflexión: cielo procedural como base, refinado con SSR donde acierta. El rayo se calcula
+    // en WORLD space para poder medir el degradado contra la radial del planeta.
+    vec3 reflected_world = reflect(view_dir_w, final_world_normal);
+    vec3 sky_reflection = calculate_sky_color(reflected_world, radial_normal, sun_up) * sky_influence;
     vec3 reflection_color = sky_reflection;
 
     if (ssr_enabled) {
@@ -540,25 +560,20 @@ void fragment() {
     final_albedo += surface_color * fresnel_value * 0.15;
     final_albedo = mix(final_albedo, color_deep.rgb, opacity_factor);
 
-    // Subsurface scattering
-    vec3 safe_sun_direction = sun_direction;
-    if (dot(safe_sun_direction, safe_sun_direction) < 0.0001) {
-        safe_sun_direction = vec3(0.4, -0.7, 0.3);
-    }
-    vec3 sun_dir_norm = normalize(-safe_sun_direction);
-    float sss_dot = pow(clamp(dot(VIEW, -sun_dir_norm), 0.0, 1.0), sss_power);
+    // Subsurface scattering: cuánto se mira "hacia el sol" a través de la ola. En world space;
+    // antes cruzaba VIEW (view-space) con la dirección del sol (world), espacios distintos.
+    float sss_dot = pow(clamp(dot(view_dir_w, to_sun), 0.0, 1.0), sss_power);
     float sss_depth_mask = clamp(1.0 - adjusted_depth_blend, 0.0, 1.0);
-    vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask * visibility;
+    // Es luz del sol atravesando el agua: sin sol sobre el horizonte no existe.
+    vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask * visibility * sun_up;
     final_albedo += sss_contrib;
 
     // Glint especular del sol (Blinn-Phong estrecho): lo que "chispea" en las crestas.
-    vec3 to_sun = sun_dir_norm;              // desde la superficie hacia el sol
     vec3 to_cam = -view_dir_w;               // hacia la cámara
     vec3 half_vec = normalize(to_sun + to_cam);
     float ndh = max(dot(final_world_normal, half_vec), 0.0);
     float spec_power = mix(spec_factor, 16.0, roughness);   // crestas afiladas con poca rugosidad
     float sun_glint = pow(ndh, spec_power);
-    float sun_up = smoothstep(-0.1, 0.15, dot(radial_normal, to_sun)); // apaga con sol bajo el horizonte
     // En agua somera la superficie se aplana hacia la radial y el glint forma una franja
     // continua exagerada en la orilla. Lo desvanecemos con la profundidad del agua.
     float glint_shore_fade = smoothstep(0.0, glint_depth_fade, water_depth);
@@ -583,9 +598,13 @@ void fragment() {
             wake_foam = max(wake_foam, m * wake_alphas[i]);
         }
     }
-    final_albedo = mix(final_albedo, foam_color, crest_foam);
-    final_albedo = mix(final_albedo, foam_color, shore_contact);
-    final_albedo = mix(final_albedo, foam_color, wake_foam);
+    // La espuma es casi blanca y de noche trazaba un perfil blanco en la orilla. Oscurecemos
+    // su COLOR con el nivel de sol en vez de bajar la mezcla: así conserva forma y cobertura
+    // (bajar la mezcla la funde con el agua y la hace desaparecer), solo se ve menos iluminada.
+    vec3 foam_albedo = foam_color * mix(foam_night_level, 1.0, sun_up);
+    final_albedo = mix(final_albedo, foam_albedo, crest_foam);
+    final_albedo = mix(final_albedo, foam_albedo, shore_contact);
+    final_albedo = mix(final_albedo, foam_albedo, wake_foam);
 
     // La espuma está mojada: capta el sol con un brillo más ancho que el glint de agua.
     float foam_wet = max(crest_foam, max(shore_contact, wake_foam));
