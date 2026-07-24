@@ -81,6 +81,7 @@ uniform float light_specular_clamp : hint_range(0.0, 4.0) = 0.6;   // tope de es
 uniform float light_roughness_floor : hint_range(0.0, 1.0) = 0.25; // ensancha el brillo puntual
 uniform float light_diffuse_strength : hint_range(0.0, 2.0) = 1.0;
 uniform float light_diffuse_wrap : hint_range(0.0, 1.0) = 0.6; // 0 = Lambert puro (dorso de ola a negro), 1 = half-Lambert
+uniform float crest_night_specular : hint_range(0.0, 1.0) = 0.5; // fracción del especular de luz que conservan las crestas de noche (0 = apagado, 1 = como de día)
 
 // Screen-space reflections
 uniform bool ssr_enabled = true;
@@ -135,6 +136,8 @@ varying vec3 world_gerstner_normal;
 varying float wave_crest_signal;
 varying vec3 waterline_point;
 varying vec3 waterline_normal;
+// Atenuación del especular por luz que fragment() pasa a light(): baja el glint en las crestas de noche.
+varying float spec_light_atten;
 
 float fresnel(float amount, vec3 normal, vec3 view) {
     return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
@@ -538,6 +541,11 @@ void fragment() {
     vec3 to_sun = sun_dir_norm;              // desde la superficie hacia el sol
     float sun_up = smoothstep(-0.1, 0.15, dot(radial_normal, to_sun)); // apaga con sol bajo el horizonte
 
+    // De noche el especular de la luna sobre el agua casi-espejo reventaba las crestas en manchas
+    // blancas (mala mar = muchas facetas apuntando a la luna). Lo atenuamos SOLO en las crestas
+    // (crest_foam) y SOLO con el sol bajo el horizonte (1 - sun_up); de día queda intacto.
+    spec_light_atten = mix(1.0, crest_night_specular, crest_foam * (1.0 - sun_up));
+
     // Reflexión: cielo procedural como base, refinado con SSR donde acierta. El rayo se calcula
     // en WORLD space para poder medir el degradado contra la radial del planeta.
     vec3 reflected_world = reflect(view_dir_w, final_world_normal);
@@ -651,5 +659,5 @@ void light() {
     float shininess = 2.0 / max(r * r, 1e-4) - 2.0;
     float spec = pow(ndh, shininess) * max(ndl, 0.0);
     spec = min(spec, light_specular_clamp);
-    SPECULAR_LIGHT += spec * ATTENUATION * LIGHT_COLOR * SPECULAR_AMOUNT;
+    SPECULAR_LIGHT += spec * ATTENUATION * LIGHT_COLOR * SPECULAR_AMOUNT * spec_light_atten;
 }
