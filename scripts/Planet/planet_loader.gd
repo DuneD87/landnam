@@ -90,6 +90,41 @@ func get_gravity_direction(_global_position: Vector3) -> Vector3:
 		forced_weather = value
 		_apply_weather_override()
 
+@export_group("Impostor (planeta lejano)")
+
+## Sustituye el terreno voxel por una esfera analítica cuando el planeta se ve de lejos.
+## Pensado para cuerpos donde el terreno ES el planeta (lunas, asteroides): en uno con agua y
+## atmósfera la esfera del impostor queda por fuera del océano y lo taparía, así que ahí mejor off.
+@export var impostor_enabled: bool = true
+## Radios (desde el centro) a partir de los cuales solo se ve el impostor.
+@export var impostor_show_factor: float = 3.0
+## Radios por debajo de los cuales solo se ve el terreno real; entre ambos hay crossfade.
+@export var impostor_hide_factor: float = 2.0
+## Resolución del equirect que se hornea del terreno real (ver planet_impostor_baker.gd).
+@export var impostor_map_size: Vector2i = Vector2i(1024, 512)
+## Semirrango de búsqueda del SDF alrededor del radio: la superficie debe caer dentro.
+@export var impostor_height_range: float = 600.0
+## Color plano mientras el bake, que corre en un hilo, no ha terminado.
+@export var impostor_fallback_color: Color = Color(0.55, 0.53, 0.5)
+## Ganancia del relieve sobre la pendiente real del mapa horneado. 1 = tal cual.
+@export_range(0.0, 4.0, 0.05) var impostor_relief_strength: float = 1.0
+@export_range(0.005, 0.5, 0.005) var impostor_terminator_softness: float = 0.03
+@export_range(0.0, 1.0, 0.01) var impostor_night_light: float = 0.03
+## Halo atmosférico en el limbo iluminado. 0 en cuerpos sin atmósfera.
+@export_range(0.0, 3.0, 0.01) var impostor_rim_strength: float = 0.0
+@export var impostor_rim_color: Color = Color(0.35, 0.55, 1.0)
+## Diagnóstico: 0 normal, 1 albedo crudo, 2 altura, 3 normal, 4 verde=hay mapa / magenta=no.
+@export_range(0, 4, 1) var impostor_debug_mode: int = 0
+
+# Mismos nombres que los exports de arriba sin el prefijo: se copian tal cual cada frame.
+const _IMPOSTOR_PARAMS: Array[StringName] = [
+	&"show_factor", &"hide_factor", &"fallback_color",
+	&"relief_strength", &"terminator_softness", &"night_light",
+	&"rim_strength", &"rim_color", &"debug_mode",
+]
+
+var impostor: PlanetImpostor
+
 @export_group("Anti-tiling (de-repetición de texturas)")
 
 @export var antitiling_enabled: bool = false:
@@ -121,12 +156,14 @@ func get_gravity_direction(_global_position: Vector3) -> Vector3:
 		antitiling_fade_end = value
 		_apply_antitiling_settings()
 
+## Escala de las UV triplanares del terreno: es lo que fija cada cuánto se repite la textura.
 @export_range(0.0, 1.0, 0.1) var texture_scale: float = 0.5:
 	set(value):
-		if planet == null:
-			return
+		# El valor se guarda SIEMPRE. Antes salía antes de asignarlo cuando 'planet' era null,
+		# que es el caso al cargar la escena (los exports se aplican antes de _ready), así que
+		# lo puesto en el inspector se perdía y todos los planetas acababan con el default.
 		texture_scale = value
-		planet.voxel_terrain.material.set_shader_parameter("texture_scale", texture_scale)
+		_apply_texture_scale()
 
 var _editor_file_dialog: EditorFileDialog
 
@@ -179,6 +216,7 @@ func _load_planet() -> void:
 	_copy_parsed_data(planet_parser)
 	planet.setup_shader_parameters()
 	_apply_antitiling_settings()
+	_apply_texture_scale()
 	planet.setup_voxel_generator()
 	planet._load_vegetation()
 	add_child(planet)
@@ -203,6 +241,38 @@ func _load_planet() -> void:
 
 	_setup_npc_spawners(planet_parser)
 
+	if impostor_enabled:
+		_setup_impostor()
+
+
+## Crea el impostor analítico del planeta y le dice qué nodos apagar cuando esté a pleno.
+## El centro se lee del VoxelLodTerrain, así el origen flotante lo arrastra sin más.
+func _setup_impostor() -> void:
+	if impostor != null or planet == null:
+		return
+	# Solo el terreno: el agua y la atmósfera siguen por su cuenta. El impostor sustituye la
+	# malla voxel, no el planeta entero.
+	var body: Array[Node3D] = [voxel_terrain]
+
+	impostor = PlanetImpostor.new()
+	impostor.name = "PlanetImpostor"
+	# Ambos se leen al hornear, dentro de setup(): hay que fijarlos antes.
+	impostor.map_size = impostor_map_size
+	impostor.height_range = impostor_height_range
+	add_child(impostor)
+	_apply_impostor_settings()
+	impostor.setup(planet, body, self)
+	print("[impostor] creado en '%s' (radio %.0f, centro %s)" % [
+		name, planet.radius, voxel_terrain.global_position])
+
+
+## Copia los exports de aspecto al impostor; este los reaplica al shader cada frame.
+func _apply_impostor_settings() -> void:
+	if impostor == null:
+		return
+	for param in _IMPOSTOR_PARAMS:
+		impostor.set(param, get("impostor_" + param))
+
 
 ## Crea el sistema meteorológico si este planeta tiene atmósfera (controlador presente).
 func _setup_weather(planet_parser: PlanetParser) -> void:
@@ -225,6 +295,16 @@ func _setup_weather(planet_parser: PlanetParser) -> void:
 		planet_parser.weather_settings
 	)
 	_apply_weather_override()
+
+## Empuja la escala de textura al material del terreno. Igual que el anti-tiling, hay que
+## llamarla también al cargar: el setter no puede hacerlo porque el material aún no existe.
+func _apply_texture_scale() -> void:
+	if planet == null:
+		return
+	var vt_mat := planet.voxel_terrain.material as ShaderMaterial
+	if vt_mat != null:
+		vt_mat.set_shader_parameter("texture_scale", texture_scale)
+
 
 ## Empuja los parámetros de anti-tiling al material del terreno (afecta a los bloques que se remallen).
 func _apply_antitiling_settings() -> void:
@@ -376,6 +456,7 @@ func _process(_delta: float) -> void:
 		if planet.has_water:
 			water_sphere.sun_dir = sun_dir
 			_apply_underwater_settings()
+		_apply_impostor_settings()
 	pass
 
 ## Copia los exports de niebla/godrays al nodo Underwater; este los reaplica al material,

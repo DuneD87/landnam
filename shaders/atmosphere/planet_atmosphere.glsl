@@ -832,6 +832,11 @@ void main() {
 	vec3 view_probe = reconstruct_view_position(uv, 0.0001);
 	vec3 ray_dir = normalize(view_to_world_dir(view_probe));
 
+	// Intersección con la atmósfera.
+	vec2 atmo = ray_sphere(planet_center, atmo_radius, camera_position, ray_dir);
+	float dst_to_atmo      = atmo.x;
+	float dst_through_atmo = atmo.y;
+
 	// Profundidad de escena (Godot reverse-Z: cerca ~1, lejos/cielo ~0).
 	float depth_sample = texelFetch(depth_texture, pixel, 0).r;
 	bool has_scene_depth = depth_sample > 1e-7;
@@ -839,12 +844,22 @@ void main() {
 	if (has_scene_depth) {
 		vec3 scene_view_position = reconstruct_view_position(uv, depth_sample);
 		scene_t = length(scene_view_position);
+	} else if (dst_to_atmo > EPSILON) {
+		// Sin geometría en el depth buffer (planeta más allá del far plane de la cámara o del
+		// view_distance del terreno) el march no tenía dónde pararse y atravesaba el planeta
+		// entero: dentro, density_at_point satura al MÁXIMO, así que el in-scatter se disparaba
+		// y el cuerpo se veía como una bola blanca quemada. Corta contra la esfera sólida.
+		// Solo en esta rama: donde sí hay depth manda el terreno real (con su relieve).
+		//
+		// Y solo con la cámara FUERA de la atmósfera (dst_to_atmo > 0), que es el único caso que
+		// tiene el problema. Desde dentro, los píxeles sin depth bajo el horizonte son la franja
+		// que deja la malla de agua al hundirse entre vértices (cuerda vs arco): cortarlos ahí
+		// los deja sin velo, con el cielo de fondo mirando hacia abajo → banda negra en el horizonte.
+		vec2 solid = ray_sphere(planet_center, planet_radius, camera_position, ray_dir);
+		if (solid.y > 0.0 && solid.x > 0.0) {
+			scene_t = solid.x;
+		}
 	}
-
-	// Intersección con la atmósfera.
-	vec2 atmo = ray_sphere(planet_center, atmo_radius, camera_position, ray_dir);
-	float dst_to_atmo      = atmo.x;
-	float dst_through_atmo = atmo.y;
 
 	// Limita el recorrido por el terreno/objetos (clave para que se vea atmósfera sobre el suelo).
 	dst_through_atmo = min(dst_through_atmo, max(scene_t - dst_to_atmo, 0.0));

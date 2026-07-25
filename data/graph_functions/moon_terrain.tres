@@ -1,16 +1,23 @@
 [gd_resource type="VoxelGeneratorGraph" format=3 uid="uid://dqowm7bl6ltis"]
 
 [sub_resource type="FastNoise2" id="FastNoise2_ivwlw"]
-period = 4000.0
+period = 1000.0001
 fractal_type = 1
 fractal_octaves = 6
 fractal_lacunarity = 3.5
 fractal_gain = 0.3
 fractal_ping_pong_strength = 4.0
 
+[sub_resource type="FastNoise2" id="FastNoise2_h8bqg"]
+noise_type = 4
+period = 500.0001
+fractal_type = 1
+cellular_distance_function = 3
+cellular_return_type = 2
+
 [resource]
 graph_data = {
-"connections": [[1, 0, 6, 0], [1, 0, 13, 0], [10, 0, 4, 0], [13, 0, 9, 0], [2, 0, 6, 1], [2, 0, 13, 1], [3, 0, 6, 2], [3, 0, 13, 2], [6, 0, 10, 0], [9, 0, 10, 1]],
+"connections": [[9, 0, 10, 1], [1, 0, 6, 0], [1, 0, 13, 0], [2, 0, 6, 1], [2, 0, 13, 1], [10, 0, 25, 0], [13, 0, 9, 0], [3, 0, 6, 2], [3, 0, 13, 2], [6, 0, 10, 0], [16, 0, 25, 1], [24, 0, 16, 0], [25, 0, 4, 0]],
 "nodes": {
 "1": {
 "auto_connect": false,
@@ -19,7 +26,7 @@ graph_data = {
 },
 "10": {
 "auto_connect": false,
-"gui_position": Vector2(810, 230),
+"gui_position": Vector2(870, 230),
 "type": "Add"
 },
 "13": {
@@ -29,10 +36,31 @@ graph_data = {
 "noise": SubResource("FastNoise2_ivwlw"),
 "type": "FastNoise2_3D"
 },
+"16": {
+"auto_connect": false,
+"b": 40.0,
+"gui_position": Vector2(850, 490),
+"name": &"noise_mult",
+"type": "Multiply"
+},
 "2": {
 "auto_connect": false,
 "gui_position": Vector2(-586.667, 173.333),
 "type": "InputY"
+},
+"24": {
+"auto_connect": true,
+"gui_position": Vector2(570, 540),
+"noise": SubResource("FastNoise2_h8bqg"),
+"type": "FastNoise2_3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"25": {
+"auto_connect": false,
+"gui_position": Vector2(1437.4806, 492.47018),
+"type": "Subtract"
 },
 "3": {
 "auto_connect": false,
@@ -41,7 +69,7 @@ graph_data = {
 },
 "4": {
 "auto_connect": true,
-"gui_position": Vector2(1070, 230),
+"gui_position": Vector2(1650, 390),
 "type": "OutputSDF"
 },
 "6": {
@@ -52,7 +80,7 @@ graph_data = {
 },
 "9": {
 "auto_connect": false,
-"b": 400.0,
+"b": 80.0,
 "gui_position": Vector2(560, 340),
 "name": &"noise_mult",
 "type": "Multiply"

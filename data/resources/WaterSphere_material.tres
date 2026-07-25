@@ -108,6 +108,7 @@ shader_parameter/light_specular_clamp = 0.6
 shader_parameter/light_roughness_floor = 0.150000007125
 shader_parameter/light_diffuse_strength = 2.0
 shader_parameter/light_diffuse_wrap = 0.6
+shader_parameter/crest_night_specular = 0.5
 shader_parameter/ssr_enabled = true
 shader_parameter/ssr_max_steps = 20
 shader_parameter/ssr_step = 0.6
