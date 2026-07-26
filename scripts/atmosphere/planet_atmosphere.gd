@@ -5,7 +5,7 @@ class_name PlanetAtmosphere
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const NOISE_GEN_SHADER_PATH := "res://shaders/atmosphere/cloud_noise_gen.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 25
+const PARAM_VEC4_COUNT := 26
 ## Lado de la textura 3D de ruido de nubes (RGBA8 → size³ × 4 bytes; 128 ≈ 8.4 MB de VRAM).
 const NOISE_TEX_SIZE := 128
 ## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
@@ -39,7 +39,7 @@ const GROUP_TEX_H := 128
 @export_range(0.0, 1.0, 0.01) var cloud_coverage: float = 0.55
 @export_range(0.01, 1.0, 0.01) var cloud_absorption: float = 0.15
 @export_range(0.0, 0.99, 0.01) var cloud_g: float = 0.9
-@export_range(1.0, 60.0, 0.1) var cloud_noise_scale: float = 5
+@export_range(1.0, 600.0, 0.1) var cloud_noise_scale: float = 5
 @export var cloud_wind_direction: Vector3 = Vector3(1.0, 0.0, 0.0)
 @export_range(0.0, 1.0, 0.005) var cloud_wind_speed: float = 0.05
 ## Cuánto oscurecen las nubes el terreno bajo ellas (0 = sin sombra, 1 = máxima).
@@ -47,11 +47,17 @@ const GROUP_TEX_H := 128
 ## Albedo de las nubes: 1 = blanco pleno, valores bajos = gris de tormenta. Lo fija el WeatherController.
 @export_range(0.0, 1.0, 0.01) var cloud_albedo: float = 1.0
 @export_range(0.01, 0.5, 0.01) var cloud_edge_softness: float = 0.08
+
+## Desviación típica del campo de ruido de nubes. Calibra el mapeo cobertura → umbral: con el
+## valor correcto, cloud_coverage 0.95 cubre ~95% del cielo. Si la tormenta no cierra, SUBE esto;
+## si el cielo despejado sale demasiado nublado, bájalo. El error casi no se nota en coberturas
+## medias y es máximo en los extremos, así que calíbralo mirando una tormenta, no un cielo raso.
+@export_range(0.1, 0.8, 0.005) var cloud_field_sigma: float = 0.455
 ## Agrupación planetaria: 0 = cobertura uniforme en todo el planeta (comportamiento clásico),
 ## 1 = las nubes solo existen dentro de las celdas del mapa de agrupación (cielo despejado entre ellas).
-@export_range(0.0, 1.0, 0.01) var cloud_group_strength: float = 0.0
+@export_range(0.0, 10.0, 0.01) var cloud_group_strength: float = 0.0
 ## Nº aproximado de celdas de agrupación alrededor del planeta. Cambiarlo regenera el mapa.
-@export_range(1.0, 12.0, 0.1) var cloud_group_scale: float = 3.0:
+@export_range(1.0, 120.0, 0.1) var cloud_group_scale: float = 3.0:
 	set(v):
 		cloud_group_scale = v
 		_group_dirty = true
@@ -636,6 +642,7 @@ func _build_params_bytes(
 	var local_cloud_shadow    := cloud_shadow_strength
 	var local_cloud_albedo    := cloud_albedo
 	var local_cloud_edge      := cloud_edge_softness
+	var local_field_sigma     := cloud_field_sigma
 	var local_group_strength  := cloud_group_strength
 	var local_atmo_scatter    := atmosphere_scatter
 	var local_lightning_flash := lightning_flash
@@ -759,6 +766,9 @@ func _build_params_bytes(
 	_append_vec4(floats, Vector4(
 		local_purkinje_tint.r, local_purkinje_tint.g, local_purkinje_tint.b, local_purkinje
 	))
+
+	# P(25): .x=sigma del campo de nubes. .yzw libres.
+	_append_vec4(floats, Vector4(local_field_sigma, 0.0, 0.0, 0.0))
 
 	return floats.to_byte_array()
 

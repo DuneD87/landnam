@@ -10,8 +10,8 @@
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ueyyn"]
 render_priority = 0
 shader = ExtResource("3_y8eo2")
-shader_parameter/light_direction = Vector3(1, 0, 0)
-shader_parameter/planet_position = Vector3(0, 0, 0)
+shader_parameter/light_direction = Vector3(0, 0, 0)
+shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
 shader_parameter/ambient_intensity = 0.15
 shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
@@ -37,7 +37,7 @@ shader_parameter/uv1_offset = Vector3(0, 0, 0)
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_nt36m"]
 render_priority = 0
 shader = ExtResource("4_y8eo2")
-shader_parameter/light_direction = Vector3(1, 0, 0)
+shader_parameter/light_direction = Vector3(0, 0, 0)
 shader_parameter/planet_position = Vector3(0, 0, 15000)
 shader_parameter/transition_width = 0.2
 shader_parameter/ambient_intensity = 0.15
