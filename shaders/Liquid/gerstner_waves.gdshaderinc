@@ -15,9 +15,9 @@ uniform vec3 wave_pole = vec3(0.0, 1.0, 0.0); // eje de referencia del marco de 
 
 const int WAVE_MAX = 6;
 
-// Suma de olas de Gerstner planetarias. La fase se deriva de la posición proyectada sobre
-// direcciones de viaje FIJAS en world-space (marco ecuatorial de wave_pole); así varía a lo
-// largo de la superficie (proyectar sobre el plano tangente local la anulaba: dot(radial,tan)=0).
+// Suma de olas de Gerstner planetarias. Cada dirección fija define un ecuador propio y la fase
+// usa la distancia geodésica firmada a ese gran círculo. Así el gradiente espacial conserva
+// módulo unitario y la longitud de onda permanece constante sobre la esfera.
 // Devuelve el desplazamiento world-space y, por out_normal, la normal analítica. out_crest es la
 // señal de cresta/pliegue en ~[0,1]: pica donde la ola se pincha (whitecap), para la espuma.
 vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal, out float out_crest) {
@@ -45,21 +45,25 @@ vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal, out
         float sa = sin(ang);
         // Dirección de viaje fija en world (rotada por octava).
         vec3 dir_fixed = normalize(gx * (bd.x * ca - bd.y * sa) + gy * (bd.x * sa + bd.y * ca));
-        // Proyección tangente en este punto: es el gradiente espacial de la fase.
-        vec3 dir_tan = dir_fixed - radial * dot(dir_fixed, radial);
+        // Dirección del gradiente geodésico en el plano tangente.
+        float dir_dot = clamp(dot(dir_fixed, radial), -1.0, 1.0);
+        vec3 dir_tan = dir_fixed - radial * dir_dot;
         float tan_len = length(dir_tan);
         vec3 dir_unit = tan_len > 1e-4 ? dir_tan / tan_len : vec3(0.0);
 
         // Steepness repartida entre octavas para no auto-intersecar las crestas.
         float q = wave_steepness / max(k * amp * float(octaves), 1e-4);
-        float phase = k * dot(dir_fixed, local) + t * wave_speed * sqrt(k);
+        // Distancia geodésica firmada al gran círculo de la ola. Su gradiente tangente
+        // tiene módulo 1: conserva la longitud de onda en vez de estirarla en el ecuador.
+        float signed_arc = length(local) * asin(dir_dot);
+        float phase = k * signed_arc + t * wave_speed * sqrt(k);
         float c = cos(phase);
         float s = sin(phase);
 
         horiz += q * amp * dir_unit * c;
         vert  += amp * s;
 
-        grad += dir_tan * (k * amp * c); // dir_tan (sin normalizar) codifica el estiramiento cerca del polo
+        grad += dir_unit * (k * amp * c);
         n_up_sub += q * k * amp * s;
 
         amp *= 0.5;

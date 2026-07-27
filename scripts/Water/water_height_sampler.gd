@@ -105,11 +105,15 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float) -> Vector3:
 		var ca := cos(ang)
 		var sa := sin(ang)
 		var dir_fixed := (gx * (base_dir.x * ca - base_dir.y * sa) + gy * (base_dir.x * sa + base_dir.y * ca)).normalized()
-		var dir_tan := dir_fixed - radial * dir_fixed.dot(radial)
+		var dir_dot := clampf(dir_fixed.dot(radial), -1.0, 1.0)
+		var dir_tan := dir_fixed - radial * dir_dot
 		var tan_len := dir_tan.length()
 		var dir_unit := (dir_tan / tan_len) if tan_len > 1e-4 else Vector3.ZERO
 		var q := wave_steepness / maxf(k * amp * float(octaves), 1e-4)
-		var phase := k * dir_fixed.dot(local) + time * wave_speed * sqrt(k)
+		# Distancia geodésica firmada al gran círculo de la ola. Su gradiente tangente
+		# tiene módulo 1, así la longitud de onda no cambia con latitud/longitud.
+		var signed_arc := local.length() * asin(dir_dot)
+		var phase := k * signed_arc + time * wave_speed * sqrt(k)
 		horiz += dir_unit * (q * amp * cos(phase))
 		vert += amp * sin(phase)
 		amp *= 0.5
