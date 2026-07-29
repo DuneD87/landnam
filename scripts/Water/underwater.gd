@@ -22,6 +22,14 @@ class_name Underwater
 @export var atmosphere_leak_falloff: float = 0.08
 @export var waterline_seal_distance: float = 3.0
 @export var waterline_seal_band: float = 0.06
+@export var waterline_seal_depth_bias: float = 0.0
+@export var surface_search_distance: float = 80.0
+@export var underside_refraction: float = 1.5
+
+@export_group("Debug")
+## 0 = off | 1 = clasificación de píxel | 2 = columna de agua | 3 = normal del techo | 4 = búsqueda de salida
+@export_range(0, 4) var debug_mode: int = 0
+@export var debug_scale: float = 20.0
 
 @export_group("Godray Settings")
 @export var godray_intensity: float = 3.0
@@ -103,6 +111,11 @@ func _apply_settings() -> void:
 	material.set_shader_parameter(&"atmosphere_leak_falloff", atmosphere_leak_falloff)
 	material.set_shader_parameter(&"waterline_seal_distance", waterline_seal_distance)
 	material.set_shader_parameter(&"waterline_seal_band", waterline_seal_band)
+	material.set_shader_parameter(&"waterline_seal_depth_bias", waterline_seal_depth_bias)
+	material.set_shader_parameter(&"debug_mode", debug_mode)
+	material.set_shader_parameter(&"debug_scale", debug_scale)
+	material.set_shader_parameter(&"surface_search_distance", surface_search_distance)
+	material.set_shader_parameter(&"underside_refraction", underside_refraction)
 	material.set_shader_parameter(&"godray_intensity", godray_intensity)
 	material.set_shader_parameter(&"godray_samples", godray_samples)
 	material.set_shader_parameter(&"godray_max_distance", godray_max_distance)

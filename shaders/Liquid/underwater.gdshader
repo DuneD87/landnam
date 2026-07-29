@@ -27,10 +27,13 @@ uniform float tir_reflection_depth = 60.0; // el espejo TIR refleja el color de 
 uniform float scatter_vertical_range = 40.0; // gradiente claro-arriba/oscuro-abajo del in-scatter (m equivalentes)
 uniform float distance_depth_gain : hint_range(0.0, 3.0) = 0.7; // m de tramo de profundidad añadidos por m de columna: oscurece la niebla con la distancia
 uniform float distance_depth_max = 120.0; // tope del empuje por distancia: el horizonte converge al tramo deep; a abyss solo se llega por profundidad de cámara
-uniform float meniscus_width = 0.012;   // grosor de la línea de flotación en metros sobre el near plane
+uniform float meniscus_width = 0.25;    // longitud de columna de agua (m) por debajo de la cual el rayo cuenta como silueta de la ola
 uniform float meniscus_strength = 0.3;  // brillo añadido en la línea de flotación
 uniform float waterline_seal_distance = 3.0; // near-field: un rayo en aire que entra en el agua analítica a menos de N m se niebla desde la entrada (sella los huecos malla-analítica al romper una ola contra la cámara)
-uniform float waterline_seal_band = 0.06;    // solo se sella la banda a menos de N m sobre la línea de flotación (near plane); más arriba manda la malla, como siempre
+uniform float waterline_seal_band = 0.06;    // solo se sella la banda a menos de N m sobre la línea de flotación (near plane); más arriba manda la malla. Ensanchar esto NO ondula el corte: la niebla se dibuja ANTES que el agua, así que pasa a ser el fondo contra el que mezcla surface_alpha y se come la superficie vista desde fuera
+uniform float waterline_seal_depth_bias = 0.0; // metros POR DEBAJO de la superficie a los que un píxel sellado escribe su profundidad; 0 = justo en la entrada, como escribiría la malla
+uniform float surface_search_distance = 80.0; // alcance de la búsqueda de la superficie de salida; más allá la absorción ya satura, así que se da por columna infinita
+uniform float underside_refraction : hint_range(0.0, 8.0) = 1.5; // distorsión de lo que se ve a través de la superficie según la normal Gerstner del punto de salida (relieve de las olas vistas desde abajo)
 uniform float atmosphere_leak_distance = 250.0; // tramo (m) que la atmósfera marcha bajo el agua con columna 0 (cámara pegada a la superficie)
 uniform float atmosphere_leak_falloff : hint_range(0.0, 1.0) = 0.08; // caída exponencial de ese tramo por metro de columna de agua hasta la superficie
 
@@ -53,6 +56,11 @@ uniform float caustics_speed : hint_range(0.0, 1.0, 0.01) = 0.1;
 uniform float caustics_intensity : hint_range(0.0, 2.0, 0.1) = 0.8;
 uniform float caustics_depth_fade : hint_range(0.0, 1.0, 0.01) = 0.7;
 uniform float caustics_near_fade : hint_range(0.0, 10.0, 0.1) = 1.5;
+
+// Modo debug: sustituye el color final por la magnitud que se quiera inspeccionar.
+// 0 = off | 1 = clasificación de píxel | 2 = columna de agua | 3 = normal del techo | 4 = búsqueda de salida
+uniform int debug_mode : hint_range(0, 4) = 0;
+uniform float debug_scale = 20.0; // metros que saturan las vistas 2 y 4
 
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear_mipmap;
 uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap;
@@ -166,26 +174,40 @@ void fragment() {
     float t_lo = ray_sphere_exit(planet_center, water_radius - band, ro, rd);
     float t_hi = ray_sphere_exit(planet_center, water_radius + band, ro, rd);
     float lo = max(max(t_lo, 0.0), t_enter);
-    float hi = max(t_hi, lo + 0.001);
+    // El bracket geométrico llega a ~500 m en rayos rasantes: 8 bisecciones daban 2 m de
+    // resolución (más que la amplitud de la ola) y convergían a UNA raíz cualquiera de las
+    // muchas que cruza el rayo, no a la primera — el techo de agua salía liso. Se acota la
+    // búsqueda a surface_search_distance: más allá la absorción ya satura y el punto exacto
+    // de salida no se ve, así que basta con declarar la columna "infinita".
+    float hi = min(max(t_hi, lo + 0.001), lo + surface_search_distance);
 
     // Salida por la superficie: bisección de r(t) - (R + h_gerstner) dentro de la franja.
-    // El bracket es válido siempre (f(lo) < 0 dentro del agua, f(hi) > 0 fuera) y es estable
-    // también en rayos rasantes, donde un punto fijo sobre esferas diverge.
+    // f(lo) < 0 (dentro del agua) siempre; f(hi) solo es > 0 si el rayo sale de verdad dentro
+    // del alcance, así que se comprueba antes de bisecar. Estable también en rayos rasantes,
+    // donde un punto fijo sobre esferas diverge.
     float t_exit;
+    bool exit_found = true;
     if (scene_distance <= lo) {
         t_exit = scene_distance; // la escena corta antes de cualquier superficie posible
+        exit_found = false;
     } else {
-        for (int i = 0; i < 8; i++) {
-            float mid = 0.5 * (lo + hi);
-            vec3 p_local = ro + rd * mid - planet_center;
-            float f = length(p_local) - (water_radius + gerstner_surface_height(p_local, water_time));
-            if (f < 0.0) {
-                lo = mid;
-            } else {
-                hi = mid;
+        vec3 hi_local = ro + rd * hi - planet_center;
+        if (length(hi_local) - (water_radius + gerstner_surface_height(hi_local, water_time)) < 0.0) {
+            t_exit = hi; // sigue bajo el agua al final del alcance: columna saturada
+            exit_found = false;
+        } else {
+            for (int i = 0; i < 10; i++) {
+                float mid = 0.5 * (lo + hi);
+                vec3 p_local = ro + rd * mid - planet_center;
+                float f = length(p_local) - (water_radius + gerstner_surface_height(p_local, water_time));
+                if (f < 0.0) {
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
             }
+            t_exit = 0.5 * (lo + hi);
         }
-        t_exit = 0.5 * (lo + hi);
     }
 
     float water_path = max(min(t_exit, scene_distance) - t_enter, 0.0);
@@ -198,9 +220,13 @@ void fragment() {
     float leak_t = atmosphere_leak_distance * exp(-atmosphere_leak_falloff * water_path);
     leak_t = clamp(leak_t, 0.01, scene_distance * 0.995);
     if (t_enter > 0.0) {
-        // Píxel de aire sellado: se escribe la profundidad del punto de entrada al agua,
-        // la misma que escribiría la malla de la superficie en ese píxel.
-        leak_t = min(t_enter, scene_distance * 0.995);
+        // Píxel de aire sellado: la profundidad se escribe unos cm POR DEBAJO del punto de
+        // entrada al agua. Escribirla justo en la superficie empata con la malla del agua (que
+        // se comba mm-cm bajo la superficie exacta) y la niebla acaba tapándola vista desde
+        // fuera. El sesgo vertical se convierte a longitud de rayo con el coseno de incidencia,
+        // acotado para que un rayo rasante no lo dispare.
+        float bias_cos = max(abs(dot(rd, normalize(ro + rd * t_enter - planet_center))), 0.05);
+        leak_t = min(t_enter + waterline_seal_depth_bias / bias_cos, scene_distance * 0.995);
     }
     vec4 leak_clip = PROJECTION_MATRIX * vec4(normalize(view_coords.xyz) * leak_t, 1.0);
     DEPTH = clamp(leak_clip.z / leak_clip.w, 0.0, 1.0);
@@ -231,7 +257,27 @@ void fragment() {
     float sun_glow = pow(max(dot(rd, to_sun), 0.0), sun_glow_power);
     vec3 lit_scatter = scatter_color * (1.0 + sun_glow * sun_glow_intensity);
 
-    vec3 screen = textureLod(screen_texture, SCREEN_UV, 0.0).rgb;
+    // Normal Gerstner del punto de salida. Bajo el agua la malla se descarta entera (water_shader
+    // corta por línea de flotación), así que el techo de agua lo pinta solo este quad: sin usar la
+    // normal, lo único que variaba con la ola era la longitud de columna y la superficie leía como
+    // una ventana lisa. Se calcula una vez y sirve para la refracción y para el espejo TIR.
+    // Refracción del otro lado de la superficie: la desviación normal-radial proyectada a pantalla
+    // ondula lo que se ve a través (cielo, sol, ventana de Snell) siguiendo la forma de la ola.
+    bool surface_ahead = exit_found && t_exit < scene_distance;
+    vec3 exit_normal = up;
+    vec2 refracted_uv = SCREEN_UV;
+    if (surface_ahead) {
+        vec3 exit_local = ro + rd * t_exit - planet_center;
+        vec3 exit_radial = normalize(exit_local);
+        vec3 n_exit;
+        gerstner_surface(exit_local, exit_radial, water_time, n_exit);
+        exit_normal = normalize(n_exit);
+
+        vec4 dev_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(exit_normal - exit_radial, 0.0);
+        refracted_uv = clamp(SCREEN_UV + dev_clip.xy * underside_refraction * 0.05,
+                             vec2(0.002), vec2(0.998));
+    }
+    vec3 screen = textureLod(screen_texture, refracted_uv, 0.0).rgb;
 
     // Normal del fondo por derivadas, FUERA de la rama (dFdx no está definido en control de
     // flujo no uniforme) y con guardia contra normalize(0) en los bordes de profundidad.
@@ -281,11 +327,8 @@ void fragment() {
     // Reflexión interna total: más allá del ángulo crítico (n = 1.333, cos ≈ 0.661) la cara
     // inferior de la superficie es un espejo del agua profunda, no una ventana al cielo.
     // El fundido ancho evita un borde duro en el anillo de Snell.
-    if (t_exit < scene_distance) {
-        vec3 exit_local = ro + rd * t_exit - planet_center;
-        vec3 surf_normal;
-        gerstner_surface(exit_local, normalize(exit_local), water_time, surf_normal);
-        float cos_incidence = dot(rd, normalize(surf_normal));
+    if (surface_ahead) {
+        float cos_incidence = dot(rd, exit_normal);
         float tir = 1.0 - smoothstep(0.55, 0.72, cos_incidence);
         vec3 tir_color = depth_tier_color(cam_depth + tir_reflection_depth);
         screen = mix(screen, tir_color, tir);
@@ -338,10 +381,29 @@ void fragment() {
         ALBEDO += accum * godray_intensity * phase * day;
     }
 
-    // Menisco: línea brillante fina a ambos lados de la línea de flotación (con el sellado
-    // near-field también se renderizan píxeles de aire, así que se mide con abs).
-    float meniscus = 1.0 - smoothstep(0.0, meniscus_width, abs(waterline));
+    // Menisco: borde brillante donde el rayo apenas atraviesa agua, o sea la silueta real de la
+    // ola contra el aire. Antes se medía contra el PLANO de la línea de flotación y pintaba una
+    // recta cruzando la pantalla por mucho oleaje que hubiera delante.
+    float meniscus = surface_ahead ? 1.0 - smoothstep(0.0, meniscus_width, water_path) : 0.0;
     ALBEDO += fog_color.rgb * meniscus * meniscus_strength;
+
+    // Vistas de depuración: cualquier cosa que no sea negro aquí es un píxel que ESTE quad pinta.
+    // 1: rojo = sellado desde aire (t_enter > 0) | verde = arranca sumergido | azul = hay superficie
+    //    de salida por delante. Sirve para ver dónde se come el quad la vista de fuera.
+    // 2: columna de agua del rayo en escala de grises (satura a debug_scale m).
+    // 3: normal Gerstner del punto de salida — el relieve del techo de agua; gris plano = liso.
+    // 4: verde = salida encontrada (brillo = distancia) | rojo = columna saturada sin salida.
+    if (debug_mode == 1) {
+        ALBEDO = vec3(t_enter > 0.0 ? 1.0 : 0.0, waterline < 0.0 ? 1.0 : 0.0, surface_ahead ? 1.0 : 0.0);
+    } else if (debug_mode == 2) {
+        ALBEDO = vec3(clamp(water_path / max(debug_scale, 0.001), 0.0, 1.0));
+    } else if (debug_mode == 3) {
+        ALBEDO = surface_ahead ? exit_normal * 0.5 + 0.5 : vec3(0.0);
+    } else if (debug_mode == 4) {
+        ALBEDO = exit_found
+            ? vec3(0.0, clamp(t_exit / max(debug_scale, 0.001), 0.0, 1.0), 0.0)
+            : vec3(1.0, 0.0, 0.0);
+    }
 
     ALPHA = 1.0;
 }
