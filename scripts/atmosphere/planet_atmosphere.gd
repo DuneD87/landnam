@@ -5,13 +5,14 @@ class_name PlanetAtmosphere
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const NOISE_GEN_SHADER_PATH := "res://shaders/atmosphere/cloud_noise_gen.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 26
+const PARAM_VEC4_COUNT := 27
 ## Lado de la textura 3D de ruido de nubes (RGBA8 → size³ × 4 bytes; 128 ≈ 8.4 MB de VRAM).
 const NOISE_TEX_SIZE := 128
 ## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
 const NOISE_GEN_LOCAL_SIZE := 4
-## Mapa lat-long de agrupación planetaria de nubes (R8 → 32 KB). Envuelve el planeta una
-## sola vez: sin repetición de patrón desde el espacio. 2:1 = proporción equirectangular.
+## Mapa lat-long de agrupación planetaria de nubes (RG8 → 64 KB; R = cobertura, G = densidad).
+## Envuelve el planeta una sola vez: sin repetición de patrón desde el espacio. 2:1 = proporción
+## equirectangular.
 const GROUP_TEX_W := 256
 const GROUP_TEX_H := 128
 
@@ -39,7 +40,17 @@ const GROUP_TEX_H := 128
 @export_range(0.0, 1.0, 0.01) var cloud_coverage: float = 0.55
 @export_range(0.01, 1.0, 0.01) var cloud_absorption: float = 0.15
 @export_range(0.0, 0.99, 0.01) var cloud_g: float = 0.9
+## Frecuencia del DETALLE de la nube (bordes, coliflor). Sube = borde más fino y picado.
 @export_range(1.0, 600.0, 0.1) var cloud_noise_scale: float = 5
+## Tamaño de la masa de nube, como fracción de cloud_noise_scale: 0.1 = nubes ~10× más grandes
+## que el detalle que las erosiona, 1.0 = masa y detalle a la misma escala (todas del tamaño del
+## noise scale, que era el comportamiento anterior). Es el parámetro para tener nubes GRANDES sin
+## perder granularidad: baja esto en vez de bajar cloud_noise_scale.
+@export_range(0.05, 0.95, 0.01) var cloud_shape_ratio: float = 0.2
+## Cuánto varía el TAMAÑO de nube entre regiones del planeta: 0 = todas del mismo tamaño,
+## 1 = de borregos sueltos a masas enormes según la zona. Reparte amplitud entre la banda de
+## forma y la de detalle, así que no altera la cobertura ni cuesta un tap más.
+@export_range(0.0, 1.0, 0.01) var cloud_size_variation: float = 0.6
 @export var cloud_wind_direction: Vector3 = Vector3(1.0, 0.0, 0.0)
 @export_range(0.0, 1.0, 0.005) var cloud_wind_speed: float = 0.05
 ## Cuánto oscurecen las nubes el terreno bajo ellas (0 = sin sombra, 1 = máxima).
@@ -61,6 +72,23 @@ const GROUP_TEX_H := 128
 	set(v):
 		cloud_group_scale = v
 		_group_dirty = true
+## Contraste del borde de las celdas: 0 = transición larga y gradual entre celda y claro (cielos
+## que se van cerrando poco a poco), 1 = frontera casi binaria. Cambiarlo regenera el mapa.
+@export_range(0.0, 1.0, 0.01) var cloud_group_contrast: float = 0.6:
+	set(v):
+		cloud_group_contrast = v
+		_group_dirty = true
+## Cuánto mandan los frentes de gran escala sobre las celdas: 0 = celdas sueltas todas iguales,
+## 1 = regiones enteras del planeta cuajadas de celdas frente a regiones casi vacías. Cambiarlo
+## regenera el mapa.
+@export_range(0.0, 1.0, 0.01) var cloud_group_front_strength: float = 0.5:
+	set(v):
+		cloud_group_front_strength = v
+		_group_dirty = true
+## Variación de DENSIDAD entre cúmulos: 0 = todos igual de gruesos, 1 = van de casi transparentes
+## al doble de densos. Es un ruido independiente de la cobertura, así que una zona muy nublada no
+## es automáticamente una zona de nubes densas. Se escala por cloud_group_strength.
+@export_range(0.0, 1.0, 0.01) var cloud_group_density_variation: float = 0.45
 
 @export_group("Atmosphere")
 ## Multiplicador del in-scatter de Rayleigh (velo azul de perspectiva aérea). 1 = dispersión plena;
@@ -86,12 +114,19 @@ const GROUP_TEX_H := 128
 @export_range(0.0, 5.0, 0.05) var fog_density: float = 0.0
 ## Cobertura del banco: cuánta área cubre el frente (0 = parches sueltos, 1 = manto denso).
 @export_range(0.0, 1.0, 0.01) var fog_coverage: float = 0.6
+## Cuánto confina la niebla a la celda de agrupación de nubes: 0 = manto global (niebla de valle),
+## 1 = solo cuaja bajo las nubes (bruma de tormenta). Se multiplica por cloud_group_strength.
+@export_range(0.0, 1.0, 0.01) var fog_group_strength: float = 0.0
 ## Altura del suelo de la niebla sobre la superficie (m). Suele ser 0 = a ras.
 @export_range(-50.0, 500.0, 1.0) var fog_floor_height: float = 0.0
 ## Altura del techo de la niebla sobre la superficie (m). Espesor = techo - suelo.
 @export_range(10.0, 800.0, 1.0) var fog_top_height: float = 130.0
 ## Tinte de la niebla (se ilumina con el sol; más cálido en el terminador).
 @export var fog_color: Color = Color(0.82, 0.84, 0.88)
+## Brillo de la niebla en el lado nocturno (resplandor del cielo). 0 = se apaga del todo con el
+## sol bajo el horizonte. Es luminancia ABSOLUTA, independiente de sun_intensity, así que subirla
+## poco a poco es seguro: de día la niebla anda por ~2.6, valores sobre ~0.15 ya se leen lechosos.
+@export_range(0.0, 0.3, 0.005) var fog_night_ambient: float = 0.03
 ## Velocidad con la que el banco de niebla viaja con el viento. Lo sobrescribe el WeatherController.
 @export_range(0.0, 1.0, 0.005) var fog_wind_speed: float = 0.04
 ## Escala del ruido de gran escala del banco (bajo = masas grandes que se ven venir).
@@ -367,6 +402,7 @@ func _generate_cloud_noise() -> void:
 ## en vez de manchas redondas. Seed fija: las celdas son deterministas entre ejecuciones, así
 ## el weather system podrá confiar en sus posiciones. La curva S hornea el contraste (celda
 ## sólida / cielo despejado con borde suave); shader y CPU leen el valor ya moldeado.
+## R = envolvente de cobertura, G = variación de densidad (ruido aparte, ver más abajo).
 func _build_group_image() -> void:
 	var noise := FastNoiseLite.new()
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
@@ -390,7 +426,36 @@ func _build_group_image() -> void:
 	# los sistemas frontales reales. 1.0 = celdas isótropas (comportamiento antiguo).
 	var lat_stretch := 1.8
 
-	var img := Image.create_empty(GROUP_TEX_W, GROUP_TEX_H, false, Image.FORMAT_R8)
+	# Frente de gran escala: sesga el ruido de celda ANTES de la curva S, así que no borra
+	# celdas — desplaza cuántas cuajan en cada región. Con una sola frecuencia todas las celdas
+	# salían del mismo tamaño y repartidas por igual; con el frente hay zonas del planeta
+	# cuajadas y zonas casi limpias, que es la jerarquía que se ve desde órbita.
+	var front := FastNoiseLite.new()
+	front.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	front.fractal_type = FastNoiseLite.FRACTAL_FBM
+	front.fractal_octaves = 2
+	front.seed = 1701
+	front.frequency = 1.0 / TAU
+	var front_freq := freq * 0.27
+	var front_bias := clampf(cloud_group_front_strength, 0.0, 1.0) * 0.45
+
+	# Densidad: ruido INDEPENDIENTE (otra seed, frecuencia entre celda y frente). Separarlo de la
+	# cobertura es lo que hace que un cielo muy cubierto pueda ser de estratos finos y un claro
+	# pueda tener un cúmulo aislado y espeso. La curva S es simétrica en 0.5 para no desplazar la
+	# media: el multiplicador que reconstruye el shader queda centrado en 1.
+	var dens := FastNoiseLite.new()
+	dens.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	dens.fractal_type = FastNoiseLite.FRACTAL_FBM
+	dens.fractal_octaves = 3
+	dens.seed = 907
+	dens.frequency = 1.0 / TAU
+	var dens_freq := freq * 0.6
+
+	# Semianchura de la curva S de cobertura. Contraste 0.6 reproduce el smoothstep(0.35, 0.65)
+	# original; hacia 1 la frontera celda/claro se vuelve un corte, hacia 0 se disuelve en degradado.
+	var edge := lerpf(0.32, 0.03, clampf(cloud_group_contrast, 0.0, 1.0))
+
+	var img := Image.create_empty(GROUP_TEX_W, GROUP_TEX_H, false, Image.FORMAT_RG8)
 	for y in GROUP_TEX_H:
 		# Mapeo inverso EXACTO de latlong_uv() del shader: v = colatitud/PI, u = atan(z,x)/TAU + 0.5.
 		var polar := (float(y) + 0.5) / float(GROUP_TEX_H) * PI
@@ -400,8 +465,10 @@ func _build_group_image() -> void:
 			var azimuth := ((float(x) + 0.5) / float(GROUP_TEX_W) - 0.5) * TAU
 			var dir := Vector3(sp * cos(azimuth), cp * lat_stretch, sp * sin(azimuth))
 			var n: float = noise.get_noise_3dv(dir * freq) * 0.5 + 0.5
-			var env := smoothstep(0.35, 0.65, n)
-			img.set_pixel(x, y, Color(env, 0.0, 0.0))
+			n += front.get_noise_3dv(dir * front_freq) * 0.5 * front_bias
+			var env := smoothstep(0.5 - edge, 0.5 + edge, n)
+			var d: float = dens.get_noise_3dv(dir * dens_freq) * 0.5 + 0.5
+			img.set_pixel(x, y, Color(env, smoothstep(0.25, 0.75, d), 0.0))
 	_group_image = img
 
 
@@ -410,7 +477,7 @@ func _create_group_texture() -> void:
 
 	var fmt := RDTextureFormat.new()
 	fmt.texture_type = RenderingDevice.TEXTURE_TYPE_2D
-	fmt.format = RenderingDevice.DATA_FORMAT_R8_UNORM
+	fmt.format = RenderingDevice.DATA_FORMAT_R8G8_UNORM
 	fmt.width = GROUP_TEX_W
 	fmt.height = GROUP_TEX_H
 	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT \
@@ -594,7 +661,7 @@ func _ensure_params_buffers(count: int) -> void:
 	var zero_bytes := _zero_params_bytes()
 
 	# Uniform buffer (no storage): lectura uniforme por todos los hilos → constant cache.
-	# El shader declara vec4 data[25]; PARAM_VEC4_COUNT debe coincidir con ese 25.
+	# El shader declara vec4 data[N]; PARAM_VEC4_COUNT debe coincidir con esa N.
 	while params_buffers.size() < count:
 		var buffer := rd.uniform_buffer_create(zero_bytes.size(), zero_bytes)
 		params_buffers.append(buffer)
@@ -637,6 +704,8 @@ func _build_params_bytes(
 	var local_cloud_absorb    := cloud_absorption
 	var local_cloud_g         := cloud_g
 	var local_cloud_nscale    := cloud_noise_scale
+	var local_shape_ratio     := cloud_shape_ratio
+	var local_size_variation  := cloud_size_variation
 	var local_wind_direction  := cloud_wind_direction
 	var local_wind_speed      := cloud_wind_speed
 	var local_cloud_shadow    := cloud_shadow_strength
@@ -644,6 +713,7 @@ func _build_params_bytes(
 	var local_cloud_edge      := cloud_edge_softness
 	var local_field_sigma     := cloud_field_sigma
 	var local_group_strength  := cloud_group_strength
+	var local_group_dens_var  := cloud_group_density_variation
 	var local_atmo_scatter    := atmosphere_scatter
 	var local_lightning_flash := lightning_flash
 	var local_purkinje        := purkinje_strength
@@ -654,9 +724,11 @@ func _build_params_bytes(
 	var local_fog_enabled     := fog_enabled
 	var local_fog_density     := fog_density
 	var local_fog_coverage    := fog_coverage
+	var local_fog_group       := fog_group_strength
 	var local_fog_floor_h     := fog_floor_height
 	var local_fog_top_h       := maxf(fog_top_height, fog_floor_height + 1.0)
 	var local_fog_color       := fog_color
+	var local_fog_night_amb   := fog_night_ambient
 	var local_fog_wind_speed  := fog_wind_speed
 	var local_fog_nscale      := fog_noise_scale
 	var local_fog_steps       := fog_steps
@@ -767,8 +839,16 @@ func _build_params_bytes(
 		local_purkinje_tint.r, local_purkinje_tint.g, local_purkinje_tint.b, local_purkinje
 	))
 
-	# P(25): .x=sigma del campo de nubes. .yzw libres.
-	_append_vec4(floats, Vector4(local_field_sigma, 0.0, 0.0, 0.0))
+	# P(25): .x=sigma del campo de nubes, .y=agrupación de la niebla, .z=variación de densidad
+	# entre cúmulos (canal G del mapa de agrupación), .w=fracción de noise_scale a la que va la
+	# banda de forma (cloud_shape_ratio).
+	_append_vec4(floats, Vector4(
+		local_field_sigma, local_fog_group, local_group_dens_var, local_shape_ratio
+	))
+
+	# P(26): .x=variación de tamaño de nube entre regiones, .y=brillo nocturno de la niebla
+	# (absoluto, sin escalar por sun_intensity). .zw libres.
+	_append_vec4(floats, Vector4(local_size_variation, local_fog_night_amb, 0.0, 0.0))
 
 	return floats.to_byte_array()
 

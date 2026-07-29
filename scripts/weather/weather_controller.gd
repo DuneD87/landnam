@@ -20,6 +20,8 @@ const PROFILE_FALLBACK := [["clear", 0.5], ["storm", 0.2], ["wind", 0.15], ["fog
 const DEFAULT_PEAKS_PROFILE := [["snow", 0.7], ["fog", 0.2], ["storm", 0.1]]
 # Refuerzo de frío (cold_altitude..snow_altitude): probabilidad extra sumada. Fallback si falta 'cold_boost' en el JSON.
 const DEFAULT_COLD_BOOST := {"snow": 0.4, "fog": 0.2}
+# Velocidad del suavizado del oscurecimiento local (1/s): ~4 s para entrar o salir de la celda.
+const SHADE_SMOOTH_RATE := 0.7
 
 @export var enabled: bool = true
 @export var min_duration: float = 60.0
@@ -29,16 +31,16 @@ const DEFAULT_COLD_BOOST := {"snow": 0.4, "fog": 0.2}
 @export var snowy_latitude: float = 55.0
 @export var tropical_latitude: float = 25.0
 ## Altitudes donde el clima se enfría (más nieve/niebla) y donde la nieve domina como en un pico.
-@export var cold_altitude: float = 1500.0
-@export var snow_altitude: float = 3500.0
+@export var cold_altitude: float = 400.0
+@export var snow_altitude: float = 500.0
 
 @export var lightning_enabled: bool = true
 ## Energía pico del destello del rayo (luz auxiliar dedicada, radial hacia abajo, con sombras).
 @export var lightning_flash_strength: float = 2.5
 
 ## La precipitación arranca cuando cloud_coverage supera precip_cloud_start y llega a plena en precip_cloud_full.
-@export var precip_cloud_start: float = 0.5
-@export var precip_cloud_full: float = 0.7
+@export var precip_cloud_start: float = 0.8
+@export var precip_cloud_full: float = 1.0
 
 ## Si la niebla se descarta dentro de cuevas muestreando la rejilla de oclusión del WeatherFX.
 @export var fog_cave_occlusion_enabled: bool = true
@@ -90,6 +92,9 @@ var _forced: bool = false
 
 var _active_fog_density: float = 0.0
 
+# Oscurecimiento local del sol/ambiente, suavizado en el tiempo. -1 = sin inicializar (se engancha al valor exacto).
+var _shade: float = -1.0
+
 
 ## Inyecta dependencias y arranca el sistema. Lo llama planet_loader tras cargar el planeta.
 func setup(
@@ -131,6 +136,7 @@ func setup(
 	_ready_to_run = enabled
 	if enabled:
 		_apply_state(_to)
+		_update_sky_light(0.0, _to)
 	set_process(_ready_to_run)
 
 
@@ -223,6 +229,7 @@ func _process(delta: float) -> void:
 	else:
 		_apply_precipitation(_to)
 
+	_update_sky_light(delta, st)
 	_update_lightning(delta, st)
 	_update_fog_occlusion()
 
@@ -455,14 +462,10 @@ func _apply_state(st: WeatherState) -> void:
 		_active_fog_density = st.fog_density
 		_atmosphere.fog_density = st.fog_density
 		_atmosphere.fog_coverage = st.fog_coverage
+		_atmosphere.fog_group_strength = clampf(st.fog_group, 0.0, 1.0)
 		_atmosphere.fog_wind_speed = st.fog_wind_speed
 		_atmosphere.fog_floor_height = st.fog_floor_height
 		_atmosphere.fog_top_height = maxf(st.fog_top_height, st.fog_floor_height + 1.0)
-
-	if _sun:
-		_sun.light_energy = _base_sun_energy * st.sun_energy
-	if _world_env and _world_env.environment:
-		_world_env.environment.ambient_light_energy = _base_ambient_energy * st.ambient_energy
 
 	if _planet:
 		_planet.weather_wind_multiplier = st.wind_multiplier
@@ -477,6 +480,24 @@ func _apply_state(st: WeatherState) -> void:
 		_water_mat.set_shader_parameter("wave_steepness", st.water_steepness)
 
 	_apply_precipitation(st)
+
+
+## Oscurece sol y ambiente SOLO bajo la celda de nubes: el sol es una luz global, así que aplicar
+## sun_energy/ambient_energy del evento tal cual pintaba de sombra el planeta entero, también en
+## los claros de la agrupación. Mismo gate que lluvia y rayos, suavizado para que no salte al
+## cruzar el borde de la celda. La sombra que de verdad proyecta cada nube la pone el compute.
+func _update_sky_light(delta: float, st: WeatherState) -> void:
+	var target := smoothstep(precip_cloud_start, precip_cloud_full, _local_cloud_coverage(st))
+	if _shade < 0.0:
+		_shade = target
+	else:
+		_shade = lerpf(_shade, target, 1.0 - exp(-delta * SHADE_SMOOTH_RATE))
+
+	if _sun:
+		_sun.light_energy = _base_sun_energy * lerpf(1.0, st.sun_energy, _shade)
+	if _world_env and _world_env.environment:
+		_world_env.environment.ambient_light_energy = \
+			_base_ambient_energy * lerpf(1.0, st.ambient_energy, _shade)
 
 
 ## Ajusta la intensidad de lluvia/nieve según sus rates, la altitud y la cobertura de nubes.
@@ -663,7 +684,7 @@ func _builtin_events() -> Dictionary:
 			"water_speed_multiplier": 1.7, "water_foam_multiplier": 2.5,
 			"water_steepness": 0.9, "water_wave_length_mult": 1.6,
 			"rain_rate": 1.0, "lightning_frequency": 0.15,
-			"fog_density": 0.5, "fog_coverage": 0.45, "fog_wind_speed": 0.05,
+			"fog_density": 0.5, "fog_coverage": 0.45, "fog_group": 1.0, "fog_wind_speed": 0.05,
 			"fog_floor_height": 0.0, "fog_top_height": 90.0,
 		}),
 		"snow": _state({

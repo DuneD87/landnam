@@ -7,9 +7,9 @@ layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D depth_texture;
 
 // UBO en vez de SSBO: todos los hilos leen los mismos parámetros, así que van por la
-// constant cache. El tamaño (26) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd.
+// constant cache. El tamaño (27) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd.
 layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
-	vec4 data[26];
+	vec4 data[27];
 } params_buffer;
 
 // Rejilla de oclusión radial del WeatherOcclusionField (R = altura del techo de cueva). La niebla
@@ -23,10 +23,12 @@ layout(set = 0, binding = 3) uniform sampler2D occ_height_tex;
 // la erosión), A = Perlin de gran escala (mesoescala de cobertura). Sampler LINEAR + REPEAT.
 layout(set = 0, binding = 4) uniform sampler3D cloud_noise_tex;
 
-// Envolvente de agrupación planetaria: mapa lat-long (u = longitud, v = colatitud) generado
-// en CPU con FastNoiseLite (planet_atmosphere.gd). Envuelve el planeta EXACTAMENTE una vez →
-// sin repetición de patrón desde el espacio. La misma Image vive en CPU para que el weather
-// system pueda consultar la envolvente sin readback de GPU. Sampler: REPEAT en u, CLAMP en v.
+// Agrupación planetaria: mapa lat-long (u = longitud, v = colatitud) generado en CPU con
+// FastNoiseLite (planet_atmosphere.gd). R = envolvente de cobertura (dónde hay cúmulos),
+// G = variación de densidad (cómo de gruesos son) — ruidos independientes, así una zona muy
+// nublada no es automáticamente una zona de nubes densas. Envuelve el planeta EXACTAMENTE una
+// vez → sin repetición de patrón desde el espacio. La misma Image vive en CPU para que el
+// weather system pueda consultarla sin readback de GPU. Sampler: REPEAT en u, CLAMP en v.
 layout(set = 0, binding = 5) uniform sampler2D cloud_group_tex;
 
 #define P(i) params_buffer.data[i]
@@ -213,31 +215,58 @@ const float CLOUD_MESO_AMOUNT = 0.22;
 // resultado no se lee como el mismo patrón repetido a varias escalas. El signo es lo esencial:
 // el ruido no MULTIPLICA la forma, la DESPLAZA — la infla donde es positivo y la erosiona donde
 // es negativo. Devuelve ~[-CLOUD_FBM_AMPLITUDE, +CLOUD_FBM_AMPLITUDE].
+// La octava base ya NO va a `noise_scale`, sino a noise_scale × shape_ratio (P(25).w). Antes un
+// solo número fijaba a la vez el tamaño de la masa y la finura del borde: bajar noise_scale daba
+// nubes grandes pero borrosas, y subirlo, nubes finas pero todas diminutas. Separando las dos
+// bandas, `noise_scale` se queda con el detalle y `shape_ratio` manda en el tamaño.
+// No queda hueco en el espectro entre ambas: cada tap al canal R es ya un FBM de 4 octavas que
+// abarca ×8 en frecuencia, así que forma (r·f … 8r·f) y detalle (f … 8f) se solapan mientras
+// shape_ratio ≥ 1/8. Por debajo, sube CLOUD_OCTAVES_VIEW a 3 para rellenar la banda media.
+// `size` [0,1] reparte AMPLITUD entre la banda de forma y la de detalle: 1 = manda la forma
+// (masas grandes y coherentes), 0 = manda el detalle (borregos pequeños y sueltos). Es un
+// reparto de amplitud, no de frecuencia — escalar el dominio por región cizallaría el ruido,
+// porque el gradiente del mapa de tamaño se suma a la frecuencia local y llega a superarla.
 // `detail` [0,1] atenúa las octavas finas cuando su rasgo cae por debajo de dos muestras por
-// píxel: ahí ya no aportan forma, solo aliasing. La normalización final va sobre la amplitud
-// REALMENTE sumada, así que el umbral de sample_cloud_density sigue barriendo el mismo rango
-// y la cobertura significa lo mismo a cualquier distancia.
-float cloud_fbm(vec3 q, int octaves, float detail) {
-	// La octava base va con el filtrado quintic: es la más magnificada (rasgos de ~500 m sacados
+// píxel: ahí ya no aportan forma, solo aliasing.
+float cloud_fbm(vec3 q, int octaves, float detail, float size) {
+	float bias = (clamp(size, 0.0, 1.0) - 0.5) * 2.0 * clamp(P(26).x, 0.0, 1.0);
+	float w_shape  = 1.0 + bias;
+	float w_detail = 1.0 - bias;
+	float shape_ratio = clamp(P(25).w, 0.05, 0.95);
+
+	// La octava de forma va con el filtrado quintic: es la más magnificada (rasgos grandes sacados
 	// de una textura de 128³) y sin el remapeo los blobs salen facetados. Las finas usan el
 	// trilinear crudo — a ×2 y más la magnificación ya no lo necesita y nos ahorramos el remapeo
 	// de coordenada, que es ALU justo delante del tap.
-	float f     = 0.5 * (sample_cloud_noise(q).r * 2.0 - 1.0);
-	float norm  = 0.5;
+	float a  = 0.5 * w_shape;
+	float f  = a * (sample_cloud_noise(q * shape_ratio).r * 2.0 - 1.0);
+	float sq = a * a;
+	// Amplitudes de referencia (reparto neutro): la normalización final las usa para que el campo
+	// conserve la MISMA sigma pase lo que pase con el reparto. Si no, las regiones de nubes grandes
+	// saldrían con más varianza, cubrirían más cielo que el prometido por `coverage` y
+	// cov_to_threshold —calibrado sobre CLOUD_FIELD_SIGMA— dejaría de valer.
+	float ref_norm = 0.5;
+	float ref_sq   = 0.25;
+
 	float scale = 0.25 * clamp(detail, 0.0, 1.0);
 	float factor = 2.02;
-	vec3  p = q * factor;
+	vec3  p = q;   // primera octava de detalle: exactamente la frecuencia del inspector
 	for (int i = 1; i < octaves; i++) {
-		f += scale * (texture(cloud_noise_tex, p).r * 2.0 - 1.0);
-		norm += scale;
+		a  = scale * w_detail;
+		f  += a * (texture(cloud_noise_tex, p).r * 2.0 - 1.0);
+		sq += a * a;
+		ref_norm += scale;
+		ref_sq   += scale * scale;
 		factor += 0.21;
 		p *= factor;
 		scale *= 0.5;
 	}
-	// Normalizado a CLOUD_FBM_AMPLITUDE: si no, la marcha de luz (1 octava, amplitud 0.5) vería
-	// sistemáticamente MENOS nube que la de vista (amplitud 0.75) y las nubes saldrían
-	// sub-sombreadas — el umbral es el mismo para todas y tiene que ver el mismo rango.
-	return f * (CLOUD_FBM_AMPLITUDE / norm);
+	// Normalizado a CLOUD_FBM_AMPLITUDE: si no, la marcha de luz (1 octava) vería sistemáticamente
+	// MENOS nube que la de vista (2 octavas) y las nubes saldrían sub-sombreadas — el umbral es el
+	// mismo para todas y tiene que ver el mismo rango. El factor sqrt(ref_sq)/sqrt(sq) reproduce
+	// exactamente la escala anterior con reparto neutro y solo corrige la deriva que introduce el
+	// reparto por tamaño.
+	return f * (CLOUD_FBM_AMPLITUDE * sqrt(ref_sq) / (ref_norm * max(sqrt(sq), 0.0001)));
 }
 
 // Cobertura local = agrupación planetaria (mapa lat-long, P(15).w = strength) × mesoescala
@@ -248,19 +277,35 @@ float cloud_fbm(vec3 q, int octaves, float detail) {
 // cobertura del punto que ilumina: su tramo es corto y estas escalas no cambian en él. La
 // mesoescala usa solo la posición horizontal advectada (sin offset vertical ni cizalla): es
 // variación regional, no de forma.
-float local_coverage(
+// Devuelve .x = cobertura [0, 0.98], .y = multiplicador de densidad del cúmulo y .z = tamaño de
+// nube [0,1] (ver cloud_fbm). Los tres salen de taps que ya se hacían — densidad del canal G del
+// mapa de agrupación, tamaño del canal R del tap de mesoescala — así que ninguno cuesta un texel
+// más. Sin ellos todos los cúmulos del planeta tenían el mismo grosor y el mismo tamaño: la
+// agrupación solo decidía cuánto hueco había entre ellos, no qué aspecto tenía cada uno.
+vec3 local_coverage(
 	vec3 p, vec3 planet_center, float coverage,
 	float cloud_min_r, float cloud_max_r, float noise_scale
 ) {
 	float strength = clamp(P(15).w, 0.0, 1.0);
+	float density_mul = 1.0;
 	if (strength > 0.001) {
-		float env = texture(cloud_group_tex, latlong_uv(normalize(p - planet_center))).r;
-		coverage *= mix(1.0, env, strength);
+		vec2 grp = texture(cloud_group_tex, latlong_uv(normalize(p - planet_center))).rg;
+		coverage *= mix(1.0, grp.r, strength);
+		// El canal G es ruido independiente centrado en 0.5, así que el multiplicador queda
+		// centrado en 1: subir la variación reparte grosores sin cambiar el aspecto MEDIO del
+		// cielo, y cloud_density sigue significando lo mismo.
+		float variation = clamp(P(25).z, 0.0, 1.0);
+		density_mul = mix(1.0, 1.0 + (grp.g - 0.5) * 2.0 * variation, strength);
 	}
 	float reference_r = max((cloud_min_r + cloud_max_r) * 0.5, 1.0);
 	vec3 noise_pos = ((p - planet_center) / reference_r) * max(noise_scale, 0.001)
 	               + P(14).xyz * P(14).w;
-	float meso = sample_cloud_noise(noise_pos * (CLOUD_NOISE_INV_TILE * 0.25)).a;
+	// Un solo tap de gran escala da las DOS variaciones regionales: .a (Perlin base 2) es la
+	// mesoescala de cobertura y .r (Perlin-Worley base 4) el mapa de tamaño de nube. Son ruidos
+	// distintos de la misma textura, así que "más nublado" y "nubes más grandes" no van atados.
+	vec4 low = sample_cloud_noise(noise_pos * (CLOUD_NOISE_INV_TILE * 0.25));
+	float meso = low.a;
+	float size = low.r;
 
 	// La mesoescala perturba la cobertura de forma ADITIVA, con la amplitud escalada por el
 	// margen que queda hasta el extremo más cercano. Multiplicando plano (mix(0.55, 1.35, meso))
@@ -271,7 +316,7 @@ float local_coverage(
 	// el rango medio, que es donde debe notarse.
 	float meso_room = 2.0 * min(coverage, 1.0 - coverage);
 	coverage += (meso - 0.5) * (2.0 * CLOUD_MESO_AMOUNT) * meso_room;
-	return clamp(coverage, 0.0, 0.98);
+	return vec3(clamp(coverage, 0.0, 0.98), density_mul, size);
 }
 
 // Densidad de nube como CAMPO CON SIGNO (raymarching volumétrico estilo Heckel):
@@ -302,7 +347,7 @@ float sample_cloud_density(
 	vec3 p, vec3 planet_center,
 	float cloud_min_r, float cloud_max_r,
 	float threshold, float density_scale, float noise_scale,
-	float edge_soft, int octaves, float detail
+	float edge_soft, int octaves, float detail, float size
 ) {
 	vec3 local = p - planet_center;
 	float dist = length(local);
@@ -342,7 +387,7 @@ float sample_cloud_density(
 	// así que las sombras siguen coincidiendo con lo visible; solo cambia cuánto detalle pide cada
 	// uno (ver CLOUD_OCTAVES_*). La mesoescala NO se muestrea aquí: viene ya aplicada en
 	// `coverage` (local_coverage).
-	float f = cloud_fbm(noise_pos * CLOUD_NOISE_INV_TILE, octaves, detail);
+	float f = cloud_fbm(noise_pos * CLOUD_NOISE_INV_TILE, octaves, detail, size);
 
 	// El umbral llega ya calculado por el llamador (cov_to_threshold), con la agrupación
 	// planetaria y la mesoescala aplicadas en la cobertura de la que sale.
@@ -370,7 +415,7 @@ float hg_phase(float cos_theta, float g) {
 float cloud_light_od(
 	vec3 p, vec3 sun_dir,
 	vec3 planet_center, float cloud_min_r, float cloud_max_r,
-	float threshold, float density_scale, float noise_scale
+	float threshold, float density_scale, float noise_scale, float size
 ) {
 	vec2 hit = ray_sphere(planet_center, cloud_max_r, p, sun_dir);
 	if (hit.y <= 0.0) return 0.0;
@@ -382,7 +427,7 @@ float cloud_light_od(
 	for (int i = 0; i < light_steps; i++) {
 		od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
 		                           threshold, density_scale, noise_scale, edge_soft,
-		                           CLOUD_OCTAVES_LIGHT, 0.0) * step_sz;
+		                           CLOUD_OCTAVES_LIGHT, 0.0, size) * step_sz;
 		lp += sun_dir * step_sz;
 	}
 	return od;
@@ -419,12 +464,12 @@ float cloud_shadow_transmittance(
 	for (int i = 0; i < shadow_steps; i++) {
 		// Cobertura local en el propio paso: la misma que ve la nube visible en ese punto
 		// del cielo. En celda despejada no hay nube que proyecte → ni tap de densidad.
-		float cov = local_coverage(lp, planet_center, coverage,
-		                           cloud_min_r, cloud_max_r, noise_scale);
-		if (cov >= 0.02) {
+		vec3 cov = local_coverage(lp, planet_center, coverage,
+		                          cloud_min_r, cloud_max_r, noise_scale);
+		if (cov.x >= 0.02) {
 			od += sample_cloud_density(lp, planet_center, cloud_min_r, cloud_max_r,
-			                           cov_to_threshold(cov), density_scale, noise_scale,
-			                           edge_soft, CLOUD_OCTAVES_LIGHT, 0.0) * step_sz;
+			                           cov_to_threshold(cov.x), density_scale * cov.y, noise_scale,
+			                           edge_soft, CLOUD_OCTAVES_LIGHT, 0.0, cov.z) * step_sz;
 		}
 		lp += sun_dir * step_sz;
 	}
@@ -521,17 +566,20 @@ void march_clouds(
 		// rasantes caía en otra celda de agrupación y la nube visible no coincidía con la
 		// sombra que proyectaba). Con la celda despejada nos saltamos el tap de densidad
 		// entero: el cielo limpio solo paga la cobertura.
-		float cov = local_coverage(p, planet_center, coverage,
-		                           cloud_min_r, cloud_max_r, noise_scale);
-		if (cov < 0.02) {
+		vec3 cov = local_coverage(p, planet_center, coverage,
+		                          cloud_min_r, cloud_max_r, noise_scale);
+		if (cov.x < 0.02) {
 			t += big_step;
 			continue;
 		}
-		// Un solo logit por paso de vista: la marcha de luz hereda este mismo umbral.
-		float thr = cov_to_threshold(cov);
+		// Un solo logit por paso de vista: la marcha de luz hereda este mismo umbral, y con él la
+		// densidad y el tamaño del cúmulo — si no, un cúmulo delgado se auto-sombrearía como uno de
+		// tormenta y la luz atravesaría un campo con otra forma que el visible.
+		float thr = cov_to_threshold(cov.x);
+		float dens = density_scale * cov.y;
 		float d = sample_cloud_density(p, planet_center, cloud_min_r, cloud_max_r,
-		                               thr, density_scale, noise_scale, edge_soft,
-		                               view_octaves, detail);
+		                               thr, dens, noise_scale, edge_soft,
+		                               view_octaves, detail, cov.z);
 		if (d <= 0.0001) {
 			t += big_step;
 			continue;
@@ -539,7 +587,7 @@ void march_clouds(
 
 		{
 			float l_od = cloud_light_od(p, sun_dir, planet_center, cloud_min_r, cloud_max_r,
-										thr, density_scale, noise_scale);
+										thr, dens, noise_scale, cov.z);
 
 			float shadow_softness = max(cloud_max_r - cloud_min_r, planet_radius * 0.005);
 
@@ -714,6 +762,19 @@ float sample_fog_density(
 		return 0.0;   // en el techo de la niebla no hay nada: evitamos AMBOS FBM.
 	}
 
+	// Agrupación: la niebla del evento solo cuaja BAJO la celda de nubes, leyendo el MISMO mapa
+	// que usan la cobertura de nubes y el in-scatter. Sin esto la bruma de tormenta era un velo
+	// gris global que te acompañaba también por los claros. P(25).y = peso por evento (fog_group):
+	// 0 = manto global clásico (el evento 'fog' lo quiere así), 1 = confinada a la celda.
+	// El tap de textura se paga aquí, tras los early-out baratos y antes de los dos FBM.
+	float fog_group = clamp(P(25).y, 0.0, 1.0) * clamp(P(15).w, 0.0, 1.0);
+	if (fog_group > 0.001) {
+		coverage *= mix(1.0, texture(cloud_group_tex, latlong_uv(normalize(local))).r, fog_group);
+		if (coverage <= 0.02) {
+			return 0.0;
+		}
+	}
+
 	// Banco de gran escala anclado al planeta y desplazado por el viento.
 	float reference_r = max(fog_min_r, 1.0);
 	vec3 noise_pos = (local / reference_r) * max(noise_scale, 0.001);
@@ -797,16 +858,24 @@ void march_fog(
 			// nubes en cambio multiplican TODO su lit por este factor. Lo replicamos aqui.
 			float day = smoothstep(-0.15, 0.15, sun_dot);
 			// Tinte de terminador CONDICIONAL al cielo despejado: lo escalamos por atmosphere_scatter
-				// (P(23).w, ~1 en clear y ~0 en tormenta). Niebla de amanecer naranja, bruma de tormenta
-				// gris (sol tapado por las nubes). La niebla es luz de sol pura: este gate es su "solo directa".
-				float sunset_f = (1.0 - smoothstep(0.0, 0.3, abs(sun_dot))) * clamp(P(23).w, 0.0, 1.0);
+			// (P(23).w, ~1 en clear y ~0 en tormenta). Niebla de amanecer naranja, bruma de tormenta
+			// gris (sol tapado por las nubes). La niebla es luz de sol pura: este gate es su "solo directa".
+			float sunset_f = (1.0 - smoothstep(0.0, 0.3, abs(sun_dot))) * clamp(P(23).w, 0.0, 1.0);
 
-			// El brillo se desvanece a 0 de noche, IGUAL que las nubes (que multiplican todo
-			// su lit por day_night, sin suelo). Antes habia un suelo (0.02) que, x sun_intensity
-			// (20), daba ~0.34 de base SIEMPRE; con ACES + bloom se veia como niebla BLANCA en
-			// plena oscuridad. Sin suelo, la niebla nocturna se apaga como las nubes.
 			float lit_amount = 0.16 * day;
-			vec3 lit = fog_color * mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_f) * sun_intensity * lit_amount;
+
+			// Ambiente nocturno (P(26).y): de noche la niebla no se apaga del todo — la sigue
+			// iluminando el resplandor del cielo. Es un valor ABSOLUTO, NO escalado por
+			// sun_intensity: el suelo que hubo aquí antes sí lo escalaba y con sun_intensity 20
+			// daba ~0.34 de base, que con ACES + bloom se leía como niebla BLANCA en plena
+			// oscuridad. Al ser absoluto, tunear el sol no lo arrastra y el rango del inspector
+			// significa lo que promete. Queda NEUTRO a propósito, sin el tinte de terminador (que
+			// es luz solar rasante): el viraje azul de la noche lo pone el paso de Purkinje del
+			// final, que a esta luminancia actúa de lleno — tintarlo aquí lo azularía dos veces.
+			float night_ambient = max(P(26).y, 0.0) * (1.0 - day);
+
+			vec3 sunset_tint = mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_f);
+			vec3 lit = fog_color * (sunset_tint * (sun_intensity * lit_amount) + vec3(night_ambient));
 
 			float s_trans = exp(-d * step_size * density * 0.02);
 			out_color += out_trans * (1.0 - s_trans) * lit;

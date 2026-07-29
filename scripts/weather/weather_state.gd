@@ -16,6 +16,8 @@ var cloud_wind_speed: float = 0.05
 
 var fog_density: float = 0.0
 var fog_coverage: float = 0.6
+# 0 = manto global; 1 = la niebla solo cuaja bajo la celda de nubes del evento.
+var fog_group: float = 0.0
 var fog_wind_speed: float = 0.04
 var fog_floor_height: float = 0.0
 var fog_top_height: float = 130.0
@@ -45,7 +47,7 @@ var lightning_frequency: float = 0.0
 const FIELDS: Array[StringName] = [
 	&"cloud_coverage", &"cloud_density", &"cloud_absorption", &"cloud_shadow", &"cloud_albedo",
 	&"cloud_min_height", &"cloud_max_height", &"cloud_wind_speed",
-	&"fog_density", &"fog_coverage", &"fog_wind_speed",
+	&"fog_density", &"fog_coverage", &"fog_group", &"fog_wind_speed",
 	&"fog_floor_height", &"fog_top_height",
 	&"sun_energy", &"ambient_energy", &"atmosphere_scatter", &"wind_multiplier",
 	&"water_wave_multiplier", &"water_speed_multiplier", &"water_foam_multiplier", &"water_steepness",
