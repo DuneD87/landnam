@@ -20,6 +20,7 @@ var _sun: Node3D
 var _effects: Dictionary = {}
 var _field: WeatherOcclusionField
 var _splash: WeatherSplashParticles
+var _submerged: bool = false
 
 
 func setup(player: Node3D, planet_center: Vector3, sun: Node3D = null) -> void:
@@ -67,7 +68,26 @@ func get_occlusion_field() -> WeatherOcclusionField:
 	return _field
 
 
+## Con la cámara bajo el agua la precipitación se oculta entera: el quad submarino escribe una
+## profundidad adelantada (fuga de atmósfera) contra la que las gotas ganan el test de
+## profundidad, así que si no se ocultan aquí se ven cayendo dentro del mar.
+func set_submerged(value: bool) -> void:
+	if value == _submerged:
+		return
+	_submerged = value
+	visible = not value
+	if _submerged:
+		return
+	# Oculto, el emisor no simula: al emerger se tira el fotograma congelado.
+	for effect_name in _effects:
+		_effects[effect_name].respawn()
+	if _splash != null:
+		_splash.respawn()
+
+
 func _physics_process(delta: float) -> void:
+	if _submerged:
+		return
 	if _field == null or (not _has_active_effect() and not field_force_active):
 		return
 

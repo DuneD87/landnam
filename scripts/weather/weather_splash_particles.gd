@@ -92,6 +92,14 @@ func set_field(field_center: Vector3, field_x: Vector3, field_z: Vector3, field_
 	_draw_mat.set_shader_parameter("field_below", field_below)
 
 
+## Rehace los splashes conservando el estado de emisión (tras estar ocultos, ver WeatherFX).
+func respawn() -> void:
+	_follow_player()
+	var was := emitting
+	restart()
+	emitting = was
+
+
 ## Reinicia los splashes tras un rebase de origen flotante (viven en mundo y quedarían desplazados).
 func shift_origin(new_center: Vector3) -> void:
 	_planet_center = new_center

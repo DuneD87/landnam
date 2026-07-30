@@ -170,6 +170,15 @@ func _follow_player() -> void:
 		_proc.gravity = -up * _preset.gravity_strength
 
 
+## Rehace las partículas conservando el estado de emisión. Al ocultarse el emisor la simulación
+## queda congelada, así que al volver a mostrarlo hay que tirar el fotograma viejo.
+func respawn() -> void:
+	_follow_player()
+	var was := emitting
+	restart()
+	emitting = was
+
+
 ## Reinicia las partículas tras un rebase de origen flotante (viven en mundo y quedarían desplazadas).
 func shift_origin(new_center: Vector3) -> void:
 	_planet_center = new_center

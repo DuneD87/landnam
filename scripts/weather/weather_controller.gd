@@ -79,6 +79,11 @@ var _base_wave_length: float = 50.0
 var _base_foam_crest: float = 1.1
 var _water_mat: ShaderMaterial
 
+# Sumersión de la cámara: bajo el agua se apagan precipitación y niebla (ver _update_submersion).
+var _water_sampler: WaterHeightSampler
+var _base_water_radius: float = 0.0
+var _camera_submerged: bool = false
+
 var _events: Dictionary = {}
 var _from: WeatherState
 var _to: WeatherState
@@ -180,6 +185,17 @@ func _read_base_values() -> void:
 		if ws != null: _base_wave_speed = ws
 		if wl != null: _base_wave_length = wl
 		if fc != null: _base_foam_crest = fc
+		_setup_water_sampler()
+
+
+## Réplica CPU de las olas para saber si la cámara está bajo la superficie (con oleaje, no el radio base).
+func _setup_water_sampler() -> void:
+	if _planet == null or not _planet.has_water or _water_mat == null:
+		return
+	_base_water_radius = _planet.radius - _planet.water_radius
+	_water_sampler = WaterHeightSampler.new()
+	add_child(_water_sampler)
+	_water_sampler.setup(_water_mat)
 
 
 ## Empuja al shader de terreno la línea de nieve (latitud/altitud) desde la config de clima.
@@ -221,6 +237,8 @@ func _process(delta: float) -> void:
 		return
 
 	_elapsed += delta
+	# Antes de aplicar nada: el estado sumergido apaga precipitación y niebla de este frame.
+	_update_submersion()
 	var st: WeatherState = _to
 	if _blend < 1.0:
 		_blend = minf(1.0, _blend + delta / maxf(transition_time, 0.01))
@@ -500,10 +518,26 @@ func _update_sky_light(delta: float, st: WeatherState) -> void:
 			_base_ambient_energy * lerpf(1.0, st.ambient_energy, _shade)
 
 
+## Marca si la CÁMARA (no el jugador: en tercera persona se sumergen por separado) está bajo la
+## superficie del agua, olas incluidas. Ni la lluvia ni la niebla del compute se recortan solas
+## contra el agua, así que este es el interruptor que las apaga buceando.
+func _update_submersion() -> void:
+	if _water_sampler == null:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or not is_instance_valid(cam):
+		return
+	var pos := cam.global_position
+	var wave_time := WaterHeightSampler.get_water_time(_water_mat)
+	var surface_r := _base_water_radius + _water_sampler.get_height_at(pos, wave_time, _planet_center)
+	_camera_submerged = pos.distance_to(_planet_center) < surface_r
+
+
 ## Ajusta la intensidad de lluvia/nieve según sus rates, la altitud y la cobertura de nubes.
 func _apply_precipitation(st: WeatherState) -> void:
 	if _fx == null:
 		return
+	_fx.set_submerged(_camera_submerged)
 	var below := _below_clouds_factor(st)
 	# Cobertura LOCAL: en una celda despejada de la agrupación no llueve aunque el evento
 	# global sea una tormenta; el umbral precip_cloud_start/full ya hace el resto.
@@ -552,10 +586,13 @@ func _apply_flash(flash: float) -> void:
 func _update_fog_occlusion() -> void:
 	if _fx == null:
 		return
-	var fog_on := fog_cave_occlusion_enabled and _active_fog_density > 0.001
+	var fog_on := fog_cave_occlusion_enabled and _active_fog_density > 0.001 and not _camera_submerged
 	_fx.field_force_active = fog_on
 	if _atmosphere == null:
 		return
+	# Bajo el agua la niebla se apaga entera: el compute es POST_TRANSPARENT y la pintaría encima
+	# de la vista submarina (la profundidad que escribe el quad de agua no la recorta).
+	_atmosphere.fog_density = 0.0 if _camera_submerged else _active_fog_density
 	var field := _fx.get_occlusion_field()
 	if field == null:
 		return
