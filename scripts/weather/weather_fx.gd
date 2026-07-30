@@ -75,11 +75,14 @@ func _physics_process(delta: float) -> void:
 	_field.ground_enabled = _splash != null and _splash.emitting
 	var committed := _field.update(delta)
 
-	var follow := not _field.player_occluded
+	# Al aire libre la precipitación sigue al jugador; bajo techo nace sobre el claro más cercano
+	# (la boca de la cueva), y si no hay ninguno en la rejilla vuelve al jugador: allí la oculta
+	# entera el shader, pero el emisor se queda al lado y reaparece en cuanto asoma un claro.
+	var anchored := _field.player_occluded and _field.has_open_sky
 	for effect_name in _effects:
-		_effects[effect_name].set_follow_enabled(follow)
+		_effects[effect_name].set_emit_anchor(_field.open_sky_pos, anchored)
 	if _splash != null:
-		_splash.set_follow_enabled(follow)
+		_splash.set_emit_anchor(_field.open_sky_pos, anchored)
 
 	var sun_light := _compute_sun_light()
 	for effect_name in _effects:

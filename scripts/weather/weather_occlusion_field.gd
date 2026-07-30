@@ -5,10 +5,14 @@ extends Node3D
 ## buscando un techo y guarda su altura en una textura; el shader oculta las gotas que quedan por
 ## debajo (no llueve dentro de cuevas, pero sí al aire libre). La textura es RG: R = altura del
 ## techo (oclusión de lluvia), G = altura del suelo (para posar los splashes sobre el terreno).
+## Del mismo barrido sale open_sky_pos: la celda despejada más cercana, donde WeatherFX emite la
+## precipitación cuando el jugador está bajo techo (así se ve llover por la boca de la cueva).
 
 @export var grid_resolution: int = 100
 @export var grid_size: float = 100.0
-## Distancia (m) que se busca un techo hacia arriba.
+## Altura (m) sobre cada celda desde la que se sondea el techo. El rayo BAJA desde ahí, así que
+## tiene que quedar por encima de la roca: si es menor que el espesor de terreno sobre una cueva,
+## arrancaría dentro de la montaña y saldría por una cara trasera sin detectar nada.
 @export var probe_above: float = 800.0
 ## Offset de codificación (m): "sin dato" decodifica a -este valor (nunca oculta / nunca posa).
 @export var probe_below: float = 60.0
@@ -18,7 +22,9 @@ extends Node3D
 @export var update_interval: float = 0.15
 ## Filas de la rejilla reconstruidas por frame (time-slicing); acota el coste por frame.
 @export var rows_per_update: int = 8
-## Depura los rayos (VERDE = techo, ROJO = cielo abierto, AZUL = suelo, x-ray). Apágalo para jugar.
+## Depura los rayos del barrido (VERDE = techo, ROJO = cielo abierto, AZUL = suelo, x-ray). Un rayo
+## ROJO atravesando roca = el terreno no tiene colisión ahí, y por esa celda se cuela la
+## precipitación. Cuesta lo mismo sondear, pero dibuja ~20k vértices: apágalo para jugar.
 @export var debug_draw: bool = false
 
 # Offset (m) sobre el jugador donde arranca el rayo de techo, para no chocar con el suelo de los pies.
@@ -37,6 +43,12 @@ var ground_enabled: bool = false
 ## True si hay techo justo sobre el jugador (cueva/voladizo). Se recalcula al inicio de cada barrido.
 var player_occluded: bool = false
 
+## Celda con cielo abierto más cercana al jugador (mundo), publicada al completar el barrido: es
+## donde la precipitación puede verse desde dentro de una cueva (la boca). Válida solo si
+## has_open_sky; sin ninguna despejada en la rejilla el jugador está demasiado adentro.
+var open_sky_pos: Vector3
+var has_open_sky: bool = false
+
 var _player: Node3D
 var _planet_center: Vector3
 var _img: Image
@@ -54,6 +66,10 @@ var _w_exclude: Array = []
 var _w_inv_span: float = 0.0
 var _w_ground: bool = false
 var _drawing: bool = false
+var _w_open_pos: Vector3
+var _w_open_d2: float = INF
+var _debug_lines: PackedVector3Array = PackedVector3Array()
+var _debug_colors: PackedColorArray = PackedColorArray()
 
 
 func setup(player: Node3D, planet_center: Vector3) -> void:
@@ -87,6 +103,7 @@ func _create_debug() -> void:
 func set_planet_center(c: Vector3) -> void:
 	_planet_center = c
 	_row = -1
+	has_open_sky = false
 
 
 func get_height_texture() -> Texture2D:
@@ -103,13 +120,6 @@ func span() -> float:
 
 ## Reconstruye la rejilla y devuelve true solo el frame en que queda completa (centro/ejes/textura nuevos).
 func update(delta: float) -> bool:
-	if debug_draw:
-		_accum += delta
-		if _accum < update_interval:
-			return false
-		_accum = 0.0
-		return _rebuild_full()
-
 	if _row < 0:
 		_accum += delta
 		if _accum < update_interval:
@@ -138,15 +148,17 @@ func _compute_frame() -> bool:
 	_w_exclude = []
 	if _player is CollisionObject3D:
 		_w_exclude = [(_player as CollisionObject3D).get_rid()]
+	_w_open_pos = pos
+	_w_open_d2 = INF
 	player_occluded = _center_has_ceiling(pos, u)
 	return true
 
 
-## Un único rayo central hacia arriba: ¿hay techo justo sobre el jugador? Da el estado de cueva de
-## inmediato (al inicio del barrido), sin esperar a que el time-slicing llegue a la celda central.
+## Un único rayo central sobre el jugador (de arriba abajo, como el de cada celda): ¿hay techo?
+## Da el estado de cueva de inmediato, sin esperar a que el time-slicing llegue a la celda central.
 func _center_has_ceiling(pos: Vector3, u: Vector3) -> bool:
 	var query := PhysicsRayQueryParameters3D.create(
-		pos + u * CEILING_START, pos + u * probe_above, terrain_mask)
+		pos + u * probe_above, pos + u * CEILING_START, terrain_mask)
 	query.exclude = _w_exclude
 	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
@@ -154,7 +166,11 @@ func _center_has_ceiling(pos: Vector3, u: Vector3) -> bool:
 func _begin_sweep() -> bool:
 	if not _compute_frame():
 		return false
-	if _debug_mi != null:
+	_drawing = debug_draw and _debug_im != null
+	if _drawing:
+		_debug_lines.clear()
+		_debug_colors.clear()
+	elif _debug_mi != null:
 		_debug_mi.visible = false
 	_row = 0
 	return true
@@ -177,26 +193,25 @@ func _advance_sweep() -> bool:
 	return true
 
 
-## Reconstrucción completa en un frame (ruta de depuración): dibuja los rayos y publica de golpe.
-func _rebuild_full() -> bool:
-	if not _compute_frame():
-		return false
-	var space := get_world_3d().direct_space_state
-	var n := _img.get_width()
-	_drawing = _debug_im != null
-	if _drawing:
-		_debug_im.clear_surfaces()
+## Acumula un segmento del barrido (solo con debug_draw); se vuelca al ImmediateMesh al publicar.
+func _add_debug_line(a: Vector3, b: Vector3, c: Color) -> void:
+	_debug_lines.append(a)
+	_debug_lines.append(b)
+	_debug_colors.append(c)
+	_debug_colors.append(c)
+
+
+## Vuelca de golpe los rayos del barrido recién terminado: el dibujo no parpadea a media rejilla.
+func _publish_debug() -> void:
+	_drawing = false
+	_debug_im.clear_surfaces()
+	if not _debug_lines.is_empty():
 		_debug_im.surface_begin(Mesh.PRIMITIVE_LINES)
-	for j in n:
-		for i in n:
-			_img.set_pixel(i, j, _probe_cell(i, j, n, space))
-	if _drawing:
+		for i in _debug_lines.size():
+			_debug_im.surface_set_color(_debug_colors[i])
+			_debug_im.surface_add_vertex(_debug_lines[i])
 		_debug_im.surface_end()
-		_drawing = false
-	if _debug_mi != null:
-		_debug_mi.visible = true
-	_commit_sweep()
-	return true
+	_debug_mi.visible = true
 
 
 ## Publica el marco congelado (lo que lee WeatherFX) y sube la imagen a la GPU.
@@ -205,7 +220,11 @@ func _commit_sweep() -> void:
 	x_axis = _w_x
 	z_axis = _w_z
 	up = _w_up
+	open_sky_pos = _w_open_pos
+	has_open_sky = _w_open_d2 < INF
 	_tex.update(_img)
+	if _drawing:
+		_publish_debug()
 
 
 ## Lanza los rayos de la celda (i, j) y devuelve su color RGBA: R=techo, G=suelo, B,A=normal del suelo.
@@ -216,7 +235,11 @@ func _probe_cell(i: int, j: int, n: int, space: PhysicsDirectSpaceState3D) -> Co
 
 	var from := cell + _w_up * CEILING_START
 	var to := cell + _w_up * probe_above
-	var query := PhysicsRayQueryParameters3D.create(from, to, terrain_mask)
+	# El rayo va de ARRIBA A ABAJO (to → from). Lanzado hacia arriba, una celda que cae dentro de la
+	# roca (las paredes de la cueva, la ladera sobre ti) sale por la superficie desde dentro y el
+	# trimesh del terreno ignora las caras traseras: la celda daba "sin techo" y colaba lluvia y
+	# niebla dentro de la cueva. Bajando, toda columna bajo terreno encuentra su superficie exterior.
+	var query := PhysicsRayQueryParameters3D.create(to, from, terrain_mask)
 	query.exclude = _w_exclude
 	var hit := space.intersect_ray(query)
 	var ceil_norm := 0.0
@@ -224,13 +247,14 @@ func _probe_cell(i: int, j: int, n: int, space: PhysicsDirectSpaceState3D) -> Co
 		var hp: Vector3 = hit["position"]
 		ceil_norm = clampf(((hp - _w_center).dot(_w_up) + probe_below) * _w_inv_span, 0.0, 1.0)
 		if _drawing:
-			_debug_im.surface_set_color(Color.GREEN)
-			_debug_im.surface_add_vertex(from)
-			_debug_im.surface_add_vertex(hp)
-	elif _drawing:
-		_debug_im.surface_set_color(Color.RED)
-		_debug_im.surface_add_vertex(from)
-		_debug_im.surface_add_vertex(to)
+			_add_debug_line(from, hp, Color.GREEN)
+	else:
+		var d2 := fu * fu + fw * fw
+		if d2 < _w_open_d2:
+			_w_open_d2 = d2
+			_w_open_pos = cell
+		if _drawing:
+			_add_debug_line(from, to, Color.RED)
 
 	var ground_norm := 0.0
 	var gn_x := 0.5
@@ -241,15 +265,13 @@ func _probe_cell(i: int, j: int, n: int, space: PhysicsDirectSpaceState3D) -> Co
 		var gquery := PhysicsRayQueryParameters3D.create(gfrom, gto, terrain_mask)
 		gquery.exclude = _w_exclude
 		var ghit := space.intersect_ray(gquery)
-		if not ghit.is_empty():
+		if not ghit.is_empty():   # una celda dentro de la roca no encuentra suelo: sin splashes
 			var ghp: Vector3 = ghit["position"]
 			ground_norm = clampf(((ghp - _w_center).dot(_w_up) + probe_below) * _w_inv_span, 0.0, 1.0)
 			var gn: Vector3 = (ghit["normal"] as Vector3).normalized()
 			gn_x = clampf(gn.dot(_w_x) * 0.5 + 0.5, 0.0, 1.0)
 			gn_z = clampf(gn.dot(_w_z) * 0.5 + 0.5, 0.0, 1.0)
 			if _drawing:
-				_debug_im.surface_set_color(Color.BLUE)
-				_debug_im.surface_add_vertex(gfrom)
-				_debug_im.surface_add_vertex(ghp)
+				_add_debug_line(gfrom, ghp, Color.BLUE)
 
 	return Color(ceil_norm, ground_norm, gn_x, gn_z)

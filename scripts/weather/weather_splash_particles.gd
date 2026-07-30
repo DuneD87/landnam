@@ -6,6 +6,8 @@ extends GPUParticles3D
 ## crecen y se desvanecen. Simula en mundo (local_coords=false) y sigue al jugador en radial. [[weather_particles]]
 
 const DRAW_SHADER := preload("res://shaders/weather/splash_particle.gdshader")
+# Salto (m) del disco de emisión a partir del cual se considera teletransporte, no seguimiento.
+const TELEPORT_DISTANCE := 4.0
 
 static var _shared_ring_texture: ImageTexture
 
@@ -20,11 +22,10 @@ static var _shared_ring_texture: ImageTexture
 var _player: Node3D
 var _planet_center: Vector3
 var _draw_mat: ShaderMaterial
-var _follow_enabled: bool = true
-# ¿Ha llegado ya un estado de oclusión real desde WeatherFX? Hasta entonces seguimos sin anclar.
-var _follow_valid: bool = false
-# ¿El emisor está congelado en una posición exterior válida (última vez al aire libre)?
-var _anchored: bool = false
+# Punto donde nacen los splashes bajo techo (cielo abierto más cercano); si no es válido, el jugador.
+var _anchor: Vector3
+var _anchor_valid: bool = false
+var _last_placed: Vector3 = Vector3.INF
 
 
 func setup(player: Node3D, planet_center: Vector3) -> void:
@@ -50,27 +51,19 @@ func set_intensity(value: float) -> void:
 	if should_emit != emitting:
 		emitting = should_emit
 		if should_emit:
-			_update_follow()
+			_follow_player()
 
 
-## WeatherFX empuja aquí el estado de oclusión: true al aire libre, false bajo techo (cueva).
-func set_follow_enabled(enabled: bool) -> void:
-	_follow_enabled = enabled
-	_follow_valid = true
+## WeatherFX empuja aquí dónde deben nacer los splashes: al aire libre (valid=false) sobre el
+## jugador; bajo techo, sobre el cielo abierto más cercano de la rejilla si lo hay.
+func set_emit_anchor(pos: Vector3, valid: bool) -> void:
+	_anchor = pos
+	_anchor_valid = valid
 
 
 func _process(_delta: float) -> void:
 	if emitting:
-		_update_follow()
-
-
-## Al aire libre sigue al jugador y fija el ancla; bajo techo se congela en la última posición
-## exterior. Si aún no hay ancla (juego cargado dentro de una cueva) sigue oculto hasta salir.
-func _update_follow() -> void:
-	if _follow_enabled or not _follow_valid or not _anchored:
 		_follow_player()
-	if _follow_valid and _follow_enabled:
-		_anchored = true
 
 
 ## Empuja al shader la luz solar (color día/noche), que multiplica el albedo del anillo.
@@ -97,6 +90,16 @@ func set_field(field_center: Vector3, field_x: Vector3, field_z: Vector3, field_
 	_draw_mat.set_shader_parameter("field_half_size", field_half_size)
 	_draw_mat.set_shader_parameter("field_span", field_span)
 	_draw_mat.set_shader_parameter("field_below", field_below)
+
+
+## Reinicia los splashes tras un rebase de origen flotante (viven en mundo y quedarían desplazados).
+func shift_origin(new_center: Vector3) -> void:
+	_planet_center = new_center
+	_anchor_valid = false   # el ancla vieja está en el marco anterior; la rejilla republica una nueva
+	_follow_player()
+	var was := emitting
+	restart()
+	emitting = was
 
 
 func _build_process_material() -> ParticleProcessMaterial:
@@ -145,10 +148,14 @@ func _build_draw_material() -> ShaderMaterial:
 	return mat
 
 
+## Recoloca el disco sobre el ancla (o el jugador); al saltar corta la interpolación para que los
+## anillos no nazcan repartidos por el camino durante un frame.
 func _follow_player() -> void:
 	if _player == null or not is_instance_valid(_player):
 		return
-	var pos := _player.global_position
+	var pos := _anchor if _anchor_valid else _player.global_position
+	var jumped := pos.distance_squared_to(_last_placed) > TELEPORT_DISTANCE * TELEPORT_DISTANCE
+	_last_placed = pos
 	var up := pos - _planet_center
 	up = up.normalized() if up.length_squared() > 0.0001 else Vector3.UP
 	var ref := Vector3.FORWARD
@@ -157,6 +164,8 @@ func _follow_player() -> void:
 	var x_axis := ref.cross(up).normalized()
 	var z_axis := x_axis.cross(up).normalized()
 	global_transform = Transform3D(Basis(x_axis, up, z_axis), pos)
+	if jumped:
+		reset_physics_interpolation()
 
 
 static func _get_ring_texture() -> ImageTexture:

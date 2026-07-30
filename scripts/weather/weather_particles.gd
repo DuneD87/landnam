@@ -8,17 +8,18 @@ extends GPUParticles3D
 static var _shared_dot_texture: ImageTexture
 
 const DRAW_SHADER := preload("res://shaders/weather/weather_particle.gdshader")
+# Salto (m) del volumen de emisión a partir del cual se considera teletransporte, no seguimiento.
+const TELEPORT_DISTANCE := 4.0
 
 var _preset: WeatherParticlePreset
 var _player: Node3D
 var _planet_center: Vector3
 var _proc: ParticleProcessMaterial
 var _draw_mat: ShaderMaterial
-var _follow_enabled: bool = true
-# ¿Ha llegado ya un estado de oclusión real desde WeatherFX? Hasta entonces seguimos sin anclar.
-var _follow_valid: bool = false
-# ¿El emisor está congelado en una posición exterior válida (última vez al aire libre)?
-var _anchored: bool = false
+# Punto donde nace la precipitación bajo techo (cielo abierto más cercano); si no es válido, el jugador.
+var _anchor: Vector3
+var _anchor_valid: bool = false
+var _last_placed: Vector3 = Vector3.INF
 
 
 func setup(player: Node3D, planet_center: Vector3, preset: WeatherParticlePreset) -> void:
@@ -52,28 +53,19 @@ func set_intensity(value: float) -> void:
 	if should_emit != emitting:
 		emitting = should_emit
 		if should_emit:
-			_update_follow()
+			_follow_player()
 
 
-## WeatherFX empuja aquí el estado de oclusión: true al aire libre, false bajo techo (cueva).
-func set_follow_enabled(enabled: bool) -> void:
-	_follow_enabled = enabled
-	_follow_valid = true
+## WeatherFX empuja aquí dónde debe nacer la precipitación: al aire libre (valid=false) sobre el
+## jugador; bajo techo, sobre el cielo abierto más cercano de la rejilla si lo hay.
+func set_emit_anchor(pos: Vector3, valid: bool) -> void:
+	_anchor = pos
+	_anchor_valid = valid
 
 
 func _process(_delta: float) -> void:
 	if emitting:
-		_update_follow()
-
-
-## Al aire libre sigue al jugador y fija el ancla; bajo techo se congela en la última posición
-## exterior. Si aún no hay ancla (juego cargado dentro de una cueva) sigue oculto hasta salir, así
-## al llegar a la boca ya está sobre el jugador. Al salir, el seguimiento lo reengancha solo.
-func _update_follow() -> void:
-	if _follow_enabled or not _follow_valid or not _anchored:
 		_follow_player()
-	if _follow_valid and _follow_enabled:
-		_anchored = true
 
 
 func _build_process_material(preset: WeatherParticlePreset) -> ParticleProcessMaterial:
@@ -155,11 +147,15 @@ static func _get_dot_texture() -> ImageTexture:
 	return _shared_dot_texture
 
 
-## Recoloca el volumen de emisión sobre el jugador y orienta la gravedad hacia el centro del planeta.
+## Recoloca el volumen de emisión sobre el ancla (o el jugador) y orienta la gravedad hacia el
+## centro del planeta. Al saltar entre ancla y jugador corta la interpolación, para que las gotas
+## no nazcan repartidas por el camino durante un frame.
 func _follow_player() -> void:
 	if _player == null or not is_instance_valid(_player):
 		return
-	var pos := _player.global_position
+	var pos := _anchor if _anchor_valid else _player.global_position
+	var jumped := pos.distance_squared_to(_last_placed) > TELEPORT_DISTANCE * TELEPORT_DISTANCE
+	_last_placed = pos
 	var up := pos - _planet_center
 	up = up.normalized() if up.length_squared() > 0.0001 else Vector3.UP
 	var ref := Vector3.FORWARD
@@ -168,6 +164,8 @@ func _follow_player() -> void:
 	var x_axis := ref.cross(up).normalized()
 	var z_axis := x_axis.cross(up).normalized()
 	global_transform = Transform3D(Basis(x_axis, up, z_axis), pos + up * _preset.volume_offset)
+	if jumped:
+		reset_physics_interpolation()
 	if _proc != null:
 		_proc.gravity = -up * _preset.gravity_strength
 
@@ -175,6 +173,7 @@ func _follow_player() -> void:
 ## Reinicia las partículas tras un rebase de origen flotante (viven en mundo y quedarían desplazadas).
 func shift_origin(new_center: Vector3) -> void:
 	_planet_center = new_center
+	_anchor_valid = false   # el ancla vieja está en el marco anterior; la rejilla republica una nueva
 	_follow_player()
 	var was := emitting
 	restart()
