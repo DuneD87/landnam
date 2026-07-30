@@ -83,6 +83,12 @@ uniform float light_diffuse_strength : hint_range(0.0, 2.0) = 1.0;
 uniform float light_diffuse_wrap : hint_range(0.0, 1.0) = 0.6; // 0 = Lambert puro (dorso de ola a negro), 1 = half-Lambert
 uniform float crest_night_specular : hint_range(0.0, 1.0) = 0.5; // fracción del especular de luz que conservan las crestas de noche (0 = apagado, 1 = como de día)
 
+// Lóbulo y tope propios para la luz DIRECCIONAL (sol/luna). El suelo de rugosidad de arriba está
+// pensado para antorchas cercanas; aplicado a una luz en el infinito extiende el reflejo sobre
+// kilómetros de mar. Poner el tope a 0 desactiva el especular direccional sin tocar las antorchas.
+uniform float directional_roughness_floor : hint_range(0.0, 1.0) = 0.06;
+uniform float directional_specular_clamp : hint_range(0.0, 4.0) = 0.15;
+
 // Screen-space reflections
 uniform bool ssr_enabled = true;
 uniform int ssr_max_steps : hint_range(0, 64) = 20;
@@ -127,6 +133,12 @@ uniform float caustics_near_fade : hint_range(0.0, 10.0, 0.1) = 1.5;
 uniform float water_time;
 uniform vec3 planet_center;
 uniform float water_radius;
+// Distancia (m) hasta la que el oleaje se dibuja entero. Por debajo NO cambia nada respecto a no
+// tener LOD; a partir de ahí la longitud de onda mínima crece con la distancia y las octavas
+// cortas se van apagando. El exponente marca cuánto más rápido que la distancia crece: 1 = a la
+// par que la separación de vértices del quadtree, >1 = simplifica antes.
+uniform float wave_lod_start : hint_range(50.0, 20000.0, 10.0) = 500.0;
+uniform float wave_lod_falloff : hint_range(1.0, 4.0, 0.1) = 2.0;
 
 varying vec3 world_pos;
 varying vec3 base_world_pos;
@@ -294,9 +306,16 @@ void vertex() {
     base_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     vec3 sphere_dir = normalize(base_world_pos - planet_center);
 
+    // Longitud de onda mínima que merece la pena dibujar aquí: 1 m hasta wave_lod_start y a partir
+    // de ahí creciendo con la distancia elevada a wave_lod_falloff. Anclarlo a una distancia (y no
+    // a Nyquist) deja intacto el mar cercano, cuyas octavas cortas ya van submuestreadas a
+    // propósito: ese "ruido" es el picado.
+    float lod_rel = max(distance(CAMERA_POSITION_WORLD, base_world_pos) / wave_lod_start, 1.0);
+    float lod_min_length = pow(lod_rel, wave_lod_falloff);
+
     vec3 gerstner_normal;
     float crest_signal;
-    vec3 disp = gerstner_surface(base_world_pos - planet_center, sphere_dir, water_time, gerstner_normal, crest_signal);
+    vec3 disp = gerstner_surface_lod(base_world_pos - planet_center, sphere_dir, water_time, lod_min_length, gerstner_normal, crest_signal);
     wave_crest_signal = crest_signal;
 
     // disp es world-space; lo llevamos al espacio local del modelo para modificar VERTEX.
@@ -650,14 +669,14 @@ void light() {
     float ndotl = clamp((ndl + light_diffuse_wrap) / (1.0 + light_diffuse_wrap), 0.0, 1.0);
     DIFFUSE_LIGHT += ALBEDO * ndotl * ATTENUATION * LIGHT_COLOR * light_diffuse_strength;
 
-    // Especular con suelo de rugosidad (ensancha el brillo puntual) y tope duro
-    // para que ninguna luz individual pueda saturar a blanco. Se enmascara con el
+    // Especular con suelo de rugosidad y tope duro (distintos para direccional y puntual: ver
+    // uniforms) para que ninguna luz individual pueda saturar a blanco. Se enmascara con el
     // ndl real: un dorso sin línea de visión a la luz no puede tener brillo especular.
     vec3 half_dir = normalize(LIGHT + VIEW);
     float ndh = max(dot(NORMAL, half_dir), 0.0);
-    float r = max(ROUGHNESS, light_roughness_floor);
+    float r = max(ROUGHNESS, LIGHT_IS_DIRECTIONAL ? directional_roughness_floor : light_roughness_floor);
     float shininess = 2.0 / max(r * r, 1e-4) - 2.0;
     float spec = pow(ndh, shininess) * max(ndl, 0.0);
-    spec = min(spec, light_specular_clamp);
+    spec = min(spec, LIGHT_IS_DIRECTIONAL ? directional_specular_clamp : light_specular_clamp);
     SPECULAR_LIGHT += spec * ATTENUATION * LIGHT_COLOR * SPECULAR_AMOUNT * spec_light_atten;
 }

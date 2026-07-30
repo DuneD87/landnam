@@ -20,7 +20,10 @@ const int WAVE_MAX = 6;
 // módulo unitario y la longitud de onda permanece constante sobre la esfera.
 // Devuelve el desplazamiento world-space y, por out_normal, la normal analítica. out_crest es la
 // señal de cresta/pliegue en ~[0,1]: pica donde la ola se pincha (whitecap), para la espuma.
-vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal, out float out_crest) {
+// min_length = longitud de onda mínima (m) que tiene sentido dibujar aquí; las octavas por debajo
+// se desvanecen. 0 = sin LOD, evalúa todas.
+vec3 gerstner_surface_lod(vec3 local, vec3 radial, float t, float min_length,
+                          out vec3 out_normal, out float out_crest) {
     vec3 pole = normalize(wave_pole);
     vec3 gx = normalize(cross(pole, abs(pole.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0)));
     vec3 gy = cross(pole, gx);
@@ -60,11 +63,20 @@ vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal, out
         float c = cos(phase);
         float s = sin(phase);
 
-        horiz += q * amp * dir_unit * c;
-        vert  += amp * s;
+        // Octava por debajo de lo representable a esta distancia: el quadtree separa los vértices
+        // con la distancia, la fase acaba dando varias vueltas entre vértices vecinos y la octava
+        // deja de ser una ola para ser ruido, que se interpola en manchas del tamaño del triángulo.
+        // Se apagan de la más corta a la más larga; con todas apagadas out_normal vuelve a ser la
+        // radial y out_crest a 0 (esfera lisa, sin espuma).
+        float lod_weight = min_length > 0.0
+            ? smoothstep(min_length * 0.5, min_length * 1.5, len)
+            : 1.0;
 
-        grad += dir_unit * (k * amp * c);
-        n_up_sub += q * k * amp * s;
+        horiz += q * amp * dir_unit * c * lod_weight;
+        vert  += amp * s * lod_weight;
+
+        grad += dir_unit * (k * amp * c) * lod_weight;
+        n_up_sub += q * k * amp * s * lod_weight;
 
         amp *= 0.5;
         len *= 0.5;
@@ -80,10 +92,11 @@ vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal, out
     return horiz + radial * vert;
 }
 
-// Wrapper sin señal de cresta para los callers que solo necesitan desplazamiento y normal.
+// Wrapper sin LOD ni señal de cresta: evalúa todas las octavas. Lo usan la línea de flotación y la
+// niebla submarina, que muestrean junto a la cámara y no pueden desviarse del sampler de CPU.
 vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal) {
     float unused_crest;
-    return gerstner_surface(local, radial, t, out_normal, unused_crest);
+    return gerstner_surface_lod(local, radial, t, 0.0, out_normal, unused_crest);
 }
 
 // Desplazamiento radial Y normal de la superficie sobre la dirección de 'local', invirtiendo por
