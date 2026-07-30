@@ -79,10 +79,16 @@ func _physics_process(delta: float) -> void:
 	# (la boca de la cueva), y si no hay ninguno en la rejilla vuelve al jugador: allí la oculta
 	# entera el shader, pero el emisor se queda al lado y reaparece en cuanto asoma un claro.
 	var anchored := _field.player_occluded and _field.has_open_sky
+	var anchor := _field.open_sky_pos
+	if not anchored and _player != null and is_instance_valid(_player):
+		anchor = _player.global_position
 	for effect_name in _effects:
-		_effects[effect_name].set_emit_anchor(_field.open_sky_pos, anchored)
+		_effects[effect_name].set_emit_anchor(anchor, anchored)
 	if _splash != null:
-		_splash.set_emit_anchor(_field.open_sky_pos, anchored)
+		_splash.set_emit_anchor(anchor, anchored)
+		# Los splashes solo nacen en el disco del emisor: el campo se ahorra el rayo de suelo en
+		# el resto de la rejilla, que es ~9 de cada 10 celdas.
+		_field.set_ground_region(anchor, _splash.disc_radius)
 
 	var sun_light := _compute_sun_light()
 	for effect_name in _effects:

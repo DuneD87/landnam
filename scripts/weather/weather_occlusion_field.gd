@@ -8,7 +8,13 @@ extends Node3D
 ## Del mismo barrido sale open_sky_pos: la celda despejada más cercana, donde WeatherFX emite la
 ## precipitación cuando el jugador está bajo techo (así se ve llover por la boca de la cueva).
 
-@export var grid_resolution: int = 100
+## Celdas por lado. El coste del barrido va con el CUADRADO de esto (un rayo por celda), y el
+## borde que se ve (lluvia, niebla, splashes) lo emborronan igualmente la dilatación 5-tap del
+## shader de gotas y el PCF 3x3 de la niebla, así que afinar por debajo de ~1,5 m/celda no luce.
+@export var grid_resolution: int = 64
+## Lado de la rejilla (m), centrada en el jugador. No cuesta rayos: solo engorda la celda
+## (grid_size / grid_resolution). Es lo que fija hasta dónde se ve llover por la boca de una
+## cueva, porque el emisor se ancla en la celda despejada más cercana y fuera de aquí no hay.
 @export var grid_size: float = 100.0
 ## Altura (m) sobre cada celda desde la que se sondea el techo. El rayo BAJA desde ahí, así que
 ## tiene que quedar por encima de la roca: si es menor que el espesor de terreno sobre una cueva,
@@ -31,6 +37,10 @@ extends Node3D
 const CEILING_START := 1.0
 # Offset (m) sobre el jugador donde arranca el rayo de suelo.
 const GROUND_START := 3.0
+# Holgura (m) sobre el radio de la región de suelo. La región se congela al empezar el barrido,
+# pero el emisor sigue al jugador todo el rato y los anillos viven medio segundo donde nacieron:
+# sin margen, los del borde acabarían en celdas sin dato (canal G a 0) y el shader los descartaría.
+const GROUND_SLACK := 8.0
 
 var center: Vector3
 var x_axis: Vector3 = Vector3.RIGHT
@@ -39,6 +49,11 @@ var up: Vector3 = Vector3.UP
 
 ## Lo enciende WeatherFX solo con lluvia activa: añade el rayo de suelo (canal G).
 var ground_enabled: bool = false
+
+# Dónde caen de verdad los splashes (lo empuja WeatherFX). El canal G solo lo lee su shader, así
+# que fuera de esta región el rayo de suelo no lo mira nadie y no se lanza.
+var _ground_center: Vector3
+var _ground_radius: float = 0.0
 
 ## True si hay techo justo sobre el jugador (cueva/voladizo). Se recalcula al inicio de cada barrido.
 var player_occluded: bool = false
@@ -65,6 +80,9 @@ var _w_up: Vector3 = Vector3.UP
 var _w_exclude: Array = []
 var _w_inv_span: float = 0.0
 var _w_ground: bool = false
+var _w_gu: float = 0.0
+var _w_gw: float = 0.0
+var _w_ghalf: float = 0.0
 var _drawing: bool = false
 var _w_open_pos: Vector3
 var _w_open_d2: float = INF
@@ -75,6 +93,7 @@ var _debug_colors: PackedColorArray = PackedColorArray()
 func setup(player: Node3D, planet_center: Vector3) -> void:
 	_player = player
 	_planet_center = planet_center
+	_ground_center = player.global_position   # hasta el primer push de WeatherFX
 	var n := maxi(grid_resolution, 2)
 	_img = Image.create_empty(n, n, false, Image.FORMAT_RGBAF)
 	_img.fill(Color(0, 0, 0.5, 0.5))
@@ -104,6 +123,12 @@ func set_planet_center(c: Vector3) -> void:
 	_planet_center = c
 	_row = -1
 	has_open_sky = false
+
+
+## Centro (mundo) y semi-extensión (m) del disco de splashes; el rayo de suelo se limita a ahí.
+func set_ground_region(center: Vector3, radius: float) -> void:
+	_ground_center = center
+	_ground_radius = radius
 
 
 func get_height_texture() -> Texture2D:
@@ -145,6 +170,10 @@ func _compute_frame() -> bool:
 	_w_center = pos
 	_w_inv_span = 1.0 / maxf(span(), 0.001)
 	_w_ground = ground_enabled
+	var g := _ground_center - pos
+	_w_gu = g.dot(_w_x)
+	_w_gw = g.dot(_w_z)
+	_w_ghalf = _ground_radius + GROUND_SLACK
 	_w_exclude = []
 	if _player is CollisionObject3D:
 		_w_exclude = [(_player as CollisionObject3D).get_rid()]
@@ -259,7 +288,7 @@ func _probe_cell(i: int, j: int, n: int, space: PhysicsDirectSpaceState3D) -> Co
 	var ground_norm := 0.0
 	var gn_x := 0.5
 	var gn_z := 0.5
-	if _w_ground:
+	if _w_ground and absf(fu - _w_gu) <= _w_ghalf and absf(fw - _w_gw) <= _w_ghalf:
 		var gfrom := cell + _w_up * GROUND_START
 		var gto := cell - _w_up * probe_ground
 		var gquery := PhysicsRayQueryParameters3D.create(gfrom, gto, terrain_mask)
