@@ -25,7 +25,14 @@ extends Node3D
 ## Distancia (m) que se busca el suelo hacia abajo (para los splashes).
 @export var probe_ground: float = 80.0
 @export_flags_3d_physics var terrain_mask: int = 3
+## Cada cuánto (s) se comprueba si toca barrer. La comprobación cuesta UN rayo (el central).
 @export var update_interval: float = 0.15
+## Cuánto puede alejarse el jugador (m) del centro de la rejilla publicada antes de rebarrer. La
+## rejilla vieja no está mal, solo mal encuadrada: sigue midiendo el mundo donde se tomó. Esto
+## acota el desencuadre, así que el coste se paga según lo que te mueves y no según el reloj.
+@export var resweep_distance: float = 3.0
+## Barrido de cortesía (s) aunque no te muevas: recoge cambios del terreno (excavar, construir).
+@export var idle_interval: float = 1.5
 ## Filas de la rejilla reconstruidas por frame (time-slicing); acota el coste por frame.
 @export var rows_per_update: int = 8
 ## Depura los rayos del barrido (VERDE = techo, ROJO = cielo abierto, AZUL = suelo, x-ray). Un rayo
@@ -69,6 +76,7 @@ var _planet_center: Vector3
 var _img: Image
 var _tex: ImageTexture
 var _accum: float = 999.0
+var _idle: float = 999.0
 var _debug_im: ImmediateMesh
 var _debug_mi: MeshInstance3D
 
@@ -143,15 +151,32 @@ func span() -> float:
 	return probe_above + probe_below
 
 
-## Reconstruye la rejilla y devuelve true solo el frame en que queda completa (centro/ejes/textura nuevos).
+## Reconstruye la rejilla y devuelve true solo el frame en que queda completa (centro/ejes/textura
+## nuevos). Entre barridos solo paga el rayo central, que refresca player_occluded y decide si el
+## encuadre publicado se ha quedado corto.
 func update(delta: float) -> bool:
 	if _row < 0:
 		_accum += delta
+		_idle += delta
 		if _accum < update_interval:
 			return false
-		if not _begin_sweep():
+		_accum = 0.0
+		if not _compute_frame():
 			return false
+		if not _should_sweep():
+			return false
+		_begin_sweep()
 	return _advance_sweep()
+
+
+## ¿Toca rebarrer? Bajo techo siempre (ahí la oclusión cambia de metro en metro); si no, cuando el
+## jugador se ha salido del encuadre publicado o cuando vence el refresco de cortesía.
+func _should_sweep() -> bool:
+	if player_occluded:
+		return true
+	if _idle >= idle_interval:
+		return true
+	return _w_center.distance_squared_to(center) > resweep_distance * resweep_distance
 
 
 ## Congela el marco de referencia del barrido (centro/ejes/up + exclusión + inv_span + ground).
@@ -192,9 +217,8 @@ func _center_has_ceiling(pos: Vector3, u: Vector3) -> bool:
 	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
-func _begin_sweep() -> bool:
-	if not _compute_frame():
-		return false
+## Arranca el barrido con el marco ya congelado por _compute_frame().
+func _begin_sweep() -> void:
 	_drawing = debug_draw and _debug_im != null
 	if _drawing:
 		_debug_lines.clear()
@@ -202,7 +226,6 @@ func _begin_sweep() -> bool:
 	elif _debug_mi != null:
 		_debug_mi.visible = false
 	_row = 0
-	return true
 
 
 ## Procesa hasta rows_per_update filas; al completar el barrido publica el marco y la textura.
@@ -219,6 +242,7 @@ func _advance_sweep() -> bool:
 	_commit_sweep()
 	_row = -1
 	_accum = 0.0
+	_idle = 0.0
 	return true
 
 
@@ -294,7 +318,12 @@ func _probe_cell(i: int, j: int, n: int, space: PhysicsDirectSpaceState3D) -> Co
 		var gquery := PhysicsRayQueryParameters3D.create(gfrom, gto, terrain_mask)
 		gquery.exclude = _w_exclude
 		var ghit := space.intersect_ray(gquery)
-		if not ghit.is_empty():   # una celda dentro de la roca no encuentra suelo: sin splashes
+		# Celda enterrada (cuesta arriba, un talud, un bache): el rayo arranca dentro de la roca y
+		# sale por una cara trasera, que el trimesh ignora. Ahí el suelo es la superficie que el
+		# rayo de techo ya encontró desde arriba; sin esto esa columna se queda sin splashes.
+		if ghit.is_empty():
+			ghit = hit
+		if not ghit.is_empty():
 			var ghp: Vector3 = ghit["position"]
 			ground_norm = clampf(((ghp - _w_center).dot(_w_up) + probe_below) * _w_inv_span, 0.0, 1.0)
 			var gn: Vector3 = (ghit["normal"] as Vector3).normalized()

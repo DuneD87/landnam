@@ -174,7 +174,9 @@ var _occ_up: Vector3 = Vector3.UP
 var _occ_half_size: float = 50.0
 var _occ_span: float = 140.0
 var _occ_below: float = 60.0
-var _occ_margin: float = 4.0
+# Franja extra sin niebla por encima del techo. En 0: el campo sondea de arriba abajo, así que la
+# altura que llega ya es la cara superior de la roca. Subirlo abre agujeros de niebla sobre el suelo.
+var _occ_margin: float = 0.0
 var _occ_texture: Texture2D = null
 
 
@@ -216,7 +218,7 @@ func set_fog_occlusion(
 	enabled: bool,
 	center: Vector3, x_axis: Vector3, z_axis: Vector3, up: Vector3,
 	half_size: float, span: float, below: float,
-	height_tex: Texture2D, margin: float = 4.0
+	height_tex: Texture2D, margin: float = 0.0
 ) -> void:
 	_params_mutex.lock()
 	_occ_enabled = enabled and height_tex != null
