@@ -109,10 +109,13 @@ const MAX_WAKE_POINTS := 512
 const MAX_INTERIORS := 64
 # Margen (m) alrededor del casco dentro del cual se activa la máscara de interiores.
 const INTERIOR_MASK_MARGIN := 12.0
+# Radio (m) alrededor de la cámara cuyas cajas entran en el presupuesto antes que ninguna otra.
+const INTERIOR_NEAR_RADIUS := 24.0
 
 var _wake_materials_active: Array = []
 var _interior_materials_active: Array = []
 var _interior_counts: Dictionary = {}
+var _interior_overflow_warned: bool = false
 
 # Buffers de uniforms reutilizados entre frames: el shader solo lee las primeras 'count'
 # entradas, así que la cola obsoleta no molesta y evitamos realojarlos 60 veces por segundo.
@@ -176,16 +179,21 @@ func _update_interior_uniforms(bodies: Array) -> void:
 			if camera and not body.contains_point(camera.global_position, INTERIOR_MASK_MARGIN):
 				continue
 			var xf := body.global_transform
-			for box: Dictionary in body.get_dry_interior_boxes():
-				if count >= MAX_INTERIORS:
-					break
-				var c: Vector3 = xf * (box["pos"] as Vector3)
-				var half: Vector3 = box["half"]
-				_interior_centers[count] = Vector4(c.x, c.y, c.z, 0.0)
-				_interior_axis_x[count] = Vector4(xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, half.x)
-				_interior_axis_y[count] = Vector4(xf.basis.y.x, xf.basis.y.y, xf.basis.y.z, half.y)
-				_interior_axis_z[count] = Vector4(xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, half.z)
-				count += 1
+			var boxes: Array = body.get_dry_interior_boxes()
+
+			# El presupuesto se gasta primero en las cajas que rodean a la cámara: si sobran
+			# cajas, lo que se cae es interior lejano y no la sala donde estás mirando.
+			if camera:
+				var cam_local: Vector3 = xf.affine_inverse() * camera.global_position
+				var near_r2: float = INTERIOR_NEAR_RADIUS * INTERIOR_NEAR_RADIUS
+				count = _push_interior_boxes(boxes, xf, cam_local, near_r2, true, count)
+				count = _push_interior_boxes(boxes, xf, cam_local, near_r2, false, count)
+			else:
+				count = _push_interior_boxes(boxes, xf, Vector3.ZERO, -1.0, false, count)
+
+			if boxes.size() > MAX_INTERIORS and not _interior_overflow_warned:
+				_interior_overflow_warned = true
+				push_warning("[GridManager] '%s' tiene %d cajas de interior seco y MAX_INTERIORS es %d: la máscara del agua se trunca." % [body.name, boxes.size(), MAX_INTERIORS])
 
 		# Con la cámara lejos de todo casco (el caso normal) no hay nada que empujar y el
 		# contador ya está a cero: ni un set_shader_parameter por frame.
@@ -200,6 +208,29 @@ func _update_interior_uniforms(bodies: Array) -> void:
 		mat.set_shader_parameter("interior_axis_x", _interior_axis_x)
 		mat.set_shader_parameter("interior_axis_y", _interior_axis_y)
 		mat.set_shader_parameter("interior_axis_z", _interior_axis_z)
+
+## Vuelca cajas de interior seco en los buffers de uniforms. Con near_pass true solo entran las
+## que están a menos de near_r2 (distancia al cuerpo de la caja, en espacio local) de la cámara;
+## con false, solo el resto. Devuelve el nuevo count.
+func _push_interior_boxes(boxes: Array, xf: Transform3D, cam_local: Vector3, near_r2: float,
+		near_pass: bool, count: int) -> int:
+	for box: Dictionary in boxes:
+		if count >= MAX_INTERIORS:
+			return count
+		var pos: Vector3 = box["pos"]
+		var half: Vector3 = box["half"]
+		var d: Vector3 = ((cam_local - pos).abs() - half).max(Vector3.ZERO)
+		if (d.length_squared() <= near_r2) != near_pass:
+			continue
+
+		var c: Vector3 = xf * pos
+		_interior_centers[count] = Vector4(c.x, c.y, c.z, 0.0)
+		_interior_axis_x[count] = Vector4(xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, half.x)
+		_interior_axis_y[count] = Vector4(xf.basis.y.x, xf.basis.y.y, xf.basis.y.z, half.y)
+		_interior_axis_z[count] = Vector4(xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, half.z)
+		count += 1
+	return count
+
 
 ## Copia los puntos de estela de todos los DynamicGridBody a los uniforms del agua de su planeta.
 func _update_wake_uniforms(bodies: Array) -> void:

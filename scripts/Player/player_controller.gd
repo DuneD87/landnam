@@ -39,6 +39,7 @@ const data = preload("res://scripts/items/item_data.gd")
 @onready var step_up: StepUpSystem = $StepUpSystem
 
 var ship_spawn_menu: ShipSpawnMenu
+var debug_stats: DebugStats
 
 @export var main_menu: Control
 @export var spawn_point: Marker3D
@@ -291,6 +292,8 @@ func _ready():
 	ship_spawn_menu = ShipSpawnMenu.new()
 	ship_spawn_menu.spawn_requested.connect(_on_ship_spawn_requested)
 	add_child(ship_spawn_menu)
+	debug_stats = DebugStats.new()
+	add_child(debug_stats)
 
 	capture_mouse(false)
 	water_sampler = WaterHeightSampler.new()

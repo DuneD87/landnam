@@ -24,10 +24,9 @@ const _EPS := 0.0001
 @export var max_distance: float = 25.0
 
 @export_group("Limites")
-## Desviacion maxima respecto al frente del cuerpo. Por encima, la mirada se suelta.
+## Desviacion maxima respecto al frente del cuerpo. Por encima, la mirada queda fijada
+## en el limite hasta que el objetivo vuelve o cruza hacia el limite opuesto.
 @export_range(0.0, 180.0) var max_angle: float = 75.0
-## Margen sobre max_angle en el que el efecto se desvanece en vez de cortarse de golpe.
-@export_range(0.0, 90.0) var release_margin: float = 25.0
 @export var turn_speed: float = 8.0
 
 var _skel: Skeleton3D
@@ -89,9 +88,17 @@ func _physics_process(delta: float) -> void:
 	if desired != Vector3.ZERO:
 		var local := (_body.global_basis.inverse() * desired).normalized()
 		var angle := rest.angle_to(local)
-		var fade := 1.0 - smoothstep(deg_to_rad(max_angle), deg_to_rad(max_angle + release_margin), angle)
-		if fade > 0.0:
-			target = rest.slerp(local, minf(deg_to_rad(max_angle) / maxf(angle, _EPS), 1.0) * fade)
+		var max_radians := deg_to_rad(max_angle)
+		if angle <= max_radians:
+			target = local
+		elif PI - angle <= _EPS:
+			# Justo detras no existe un lado preferente. Conserva el lado actual hasta
+			# cruzar el punto medio, evitando que slerp caiga momentaneamente a reposo.
+			var held_axis := rest.cross(_aim_local)
+			if held_axis.length_squared() > _EPS * _EPS:
+				target = Quaternion(held_axis.normalized(), max_radians) * rest
+		else:
+			target = rest.slerp(local, max_radians / angle)
 
 	_aim_local = _aim_local.slerp(target, 1.0 - exp(-turn_speed * delta)).normalized()
 	_idle = _aim_local.dot(rest) > 0.99995
