@@ -101,6 +101,7 @@ func restore_save_data(data: Dictionary) -> void:
 
 func _ready() -> void:
 	add_to_group(GameManager.SAVEABLE_GROUP)
+	_init_uniform_buffers()
 
 
 const MAX_WAKES := 8
@@ -111,16 +112,43 @@ const INTERIOR_MASK_MARGIN := 12.0
 
 var _wake_materials_active: Array = []
 var _interior_materials_active: Array = []
+var _interior_counts: Dictionary = {}
+
+# Buffers de uniforms reutilizados entre frames: el shader solo lee las primeras 'count'
+# entradas, así que la cola obsoleta no molesta y evitamos realojarlos 60 veces por segundo.
+var _interior_centers := PackedVector4Array()
+var _interior_axis_x := PackedVector4Array()
+var _interior_axis_y := PackedVector4Array()
+var _interior_axis_z := PackedVector4Array()
+var _wake_points_buf := PackedVector4Array()
+var _wake_alphas_buf := PackedFloat32Array()
+var _wake_bounds_buf := PackedVector4Array()
+var _wake_ranges_buf := PackedVector2Array()
+
+
+func _init_uniform_buffers() -> void:
+	_interior_centers.resize(MAX_INTERIORS)
+	_interior_axis_x.resize(MAX_INTERIORS)
+	_interior_axis_y.resize(MAX_INTERIORS)
+	_interior_axis_z.resize(MAX_INTERIORS)
+	_wake_points_buf.resize(MAX_WAKE_POINTS)
+	_wake_alphas_buf.resize(MAX_WAKE_POINTS)
+	_wake_bounds_buf.resize(MAX_WAKES)
+	_wake_ranges_buf.resize(MAX_WAKES)
+
 
 func _physics_process(_delta: float) -> void:
-	_update_wake_uniforms()
-	_update_interior_uniforms()
+	var bodies := get_tree().get_nodes_in_group("dynamic_grid_body")
+	if bodies.is_empty() and _wake_materials_active.is_empty() and _interior_materials_active.is_empty():
+		return
+	_update_wake_uniforms(bodies)
+	_update_interior_uniforms(bodies)
 
 ## Copia las cajas de compartimentos secos de los DynamicGridBody al agua de su planeta:
 ## dentro el shader descarta el agua; lo inundado no se empuja y el océano entra normal.
-func _update_interior_uniforms() -> void:
+func _update_interior_uniforms(bodies: Array) -> void:
 	var per_mat: Dictionary = {}
-	for node in get_tree().get_nodes_in_group("dynamic_grid_body"):
+	for node in bodies:
 		var body := node as DynamicGridBody
 		if not body or not body.planet_node or not body.planet_node.planet.has_water:
 			continue
@@ -134,19 +162,12 @@ func _update_interior_uniforms() -> void:
 	for mat in _interior_materials_active:
 		if is_instance_valid(mat) and not per_mat.has(mat):
 			mat.set_shader_parameter("interior_count", 0)
+			_interior_counts.erase(mat)
 	_interior_materials_active = per_mat.keys()
 
-	for mat: ShaderMaterial in per_mat:
-		var centers := PackedVector4Array()
-		centers.resize(MAX_INTERIORS)
-		var axis_x := PackedVector4Array()
-		axis_x.resize(MAX_INTERIORS)
-		var axis_y := PackedVector4Array()
-		axis_y.resize(MAX_INTERIORS)
-		var axis_z := PackedVector4Array()
-		axis_z.resize(MAX_INTERIORS)
+	var camera := get_viewport().get_camera_3d()
 
-		var camera := get_viewport().get_camera_3d()
+	for mat: ShaderMaterial in per_mat:
 		var count := 0
 		for body: DynamicGridBody in per_mat[mat]:
 			if count >= MAX_INTERIORS:
@@ -160,24 +181,32 @@ func _update_interior_uniforms() -> void:
 					break
 				var c: Vector3 = xf * (box["pos"] as Vector3)
 				var half: Vector3 = box["half"]
-				centers[count] = Vector4(c.x, c.y, c.z, 0.0)
-				axis_x[count] = Vector4(xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, half.x)
-				axis_y[count] = Vector4(xf.basis.y.x, xf.basis.y.y, xf.basis.y.z, half.y)
-				axis_z[count] = Vector4(xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, half.z)
+				_interior_centers[count] = Vector4(c.x, c.y, c.z, 0.0)
+				_interior_axis_x[count] = Vector4(xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, half.x)
+				_interior_axis_y[count] = Vector4(xf.basis.y.x, xf.basis.y.y, xf.basis.y.z, half.y)
+				_interior_axis_z[count] = Vector4(xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, half.z)
 				count += 1
 
+		# Con la cámara lejos de todo casco (el caso normal) no hay nada que empujar y el
+		# contador ya está a cero: ni un set_shader_parameter por frame.
+		if count == 0 and _interior_counts.get(mat, 0) == 0:
+			continue
+		_interior_counts[mat] = count
+
 		mat.set_shader_parameter("interior_count", count)
-		mat.set_shader_parameter("interior_center", centers)
-		mat.set_shader_parameter("interior_axis_x", axis_x)
-		mat.set_shader_parameter("interior_axis_y", axis_y)
-		mat.set_shader_parameter("interior_axis_z", axis_z)
+		if count == 0:
+			continue
+		mat.set_shader_parameter("interior_center", _interior_centers)
+		mat.set_shader_parameter("interior_axis_x", _interior_axis_x)
+		mat.set_shader_parameter("interior_axis_y", _interior_axis_y)
+		mat.set_shader_parameter("interior_axis_z", _interior_axis_z)
 
 ## Copia los puntos de estela de todos los DynamicGridBody a los uniforms del agua de su planeta.
-func _update_wake_uniforms() -> void:
+func _update_wake_uniforms(bodies: Array) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	var per_mat: Dictionary = {}
 
-	for node in get_tree().get_nodes_in_group("dynamic_grid_body"):
+	for node in bodies:
 		var body := node as DynamicGridBody
 		if not body or not body.planet_node or body.get_wake_points().is_empty():
 			continue
@@ -196,15 +225,6 @@ func _update_wake_uniforms() -> void:
 	_wake_materials_active = per_mat.keys()
 
 	for mat: ShaderMaterial in per_mat:
-		var points := PackedVector4Array()
-		points.resize(MAX_WAKE_POINTS)
-		var alphas := PackedFloat32Array()
-		alphas.resize(MAX_WAKE_POINTS)
-		var bounds := PackedVector4Array()
-		bounds.resize(MAX_WAKES)
-		var ranges := PackedVector2Array()
-		ranges.resize(MAX_WAKES)
-
 		var wake_i := 0
 		var point_i := 0
 		for body: DynamicGridBody in per_mat[mat]:
@@ -221,8 +241,8 @@ func _update_wake_uniforms() -> void:
 				var age: float = clampf((now - p["birth"]) / DynamicGridBody.WAKE_LIFETIME, 0.0, 1.0)
 				var world: Vector3 = planet_pos + p["offset"]
 				var radius: float = p["width"] * (1.0 + age * 1.5)
-				points[point_i] = Vector4(world.x, world.y, world.z, radius)
-				alphas[point_i] = (1.0 - smoothstep(0.2, 1.0, age)) * 0.55
+				_wake_points_buf[point_i] = Vector4(world.x, world.y, world.z, radius)
+				_wake_alphas_buf[point_i] = (1.0 - smoothstep(0.2, 1.0, age)) * 0.55
 				bmin = bmin.min(world - Vector3.ONE * radius)
 				bmax = bmax.max(world + Vector3.ONE * radius)
 				point_i += 1
@@ -230,15 +250,17 @@ func _update_wake_uniforms() -> void:
 			if point_i == start:
 				continue
 			var center := (bmin + bmax) * 0.5
-			ranges[wake_i] = Vector2(start, point_i - start)
-			bounds[wake_i] = Vector4(center.x, center.y, center.z, (bmax - center).length())
+			_wake_ranges_buf[wake_i] = Vector2(start, point_i - start)
+			_wake_bounds_buf[wake_i] = Vector4(center.x, center.y, center.z, (bmax - center).length())
 			wake_i += 1
 
 		mat.set_shader_parameter("wake_count", wake_i)
-		mat.set_shader_parameter("wake_bounds", bounds)
-		mat.set_shader_parameter("wake_ranges", ranges)
-		mat.set_shader_parameter("wake_points", points)
-		mat.set_shader_parameter("wake_alphas", alphas)
+		if wake_i == 0:
+			continue
+		mat.set_shader_parameter("wake_bounds", _wake_bounds_buf)
+		mat.set_shader_parameter("wake_ranges", _wake_ranges_buf)
+		mat.set_shader_parameter("wake_points", _wake_points_buf)
+		mat.set_shader_parameter("wake_alphas", _wake_alphas_buf)
 
 
 ## true si el punto está dentro de un compartimento SECO de algún barco: ahí el agua no

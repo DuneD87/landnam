@@ -29,6 +29,11 @@ const WAKE_MIN_SPEED := 2.0
 # Segundos sin ediciones antes de relanzar el análisis de interiores (coalesce de ráfagas).
 const INTERIOR_DEBOUNCE := 0.3
 
+# Frames de física entre reevaluaciones del estado de inundación, y desplazamiento radial
+# (m) que fuerza una reevaluación antes de tiempo (caídas o hundimientos rápidos).
+const FLOOD_RECALC_FRAMES := 4
+const FLOOD_RECALC_HEAVE := 0.25
+
 var planet_node: Node3D = null
 
 var _water_sampler: WaterHeightSampler = null
@@ -48,6 +53,12 @@ var _is_being_controlled: bool = false
 
 var _flood_volume: float = 0.0
 var _flood_capacity: float = 0.0
+var _flood_local_centroid: Vector3 = Vector3.ZERO
+var _flood_recalc_countdown: int = 0
+var _flood_last_radius: float = 0.0
+var _flood_dirty: bool = true
+var _dry_boxes_cache: Array = []
+var _dry_boxes_dirty: bool = true
 var _compartments: Array = []
 var _breached_comps: Array = []
 var _interior_cell_size: float = 0.0
@@ -183,6 +194,8 @@ func _apply_interior_analysis(result: Array) -> void:
 	_breached_comps = still_breached
 
 	_compartments = result
+	_flood_dirty = true
+	_dry_boxes_dirty = true
 
 	var total := 0.0
 	for comp: Dictionary in _compartments:
@@ -386,19 +399,42 @@ func _physics_process(delta: float) -> void:
 			var correction_strength := (angle_to_vertical - deg_to_rad(5.0)) * displaced_mass * gravity * 0.1
 			apply_torque(corrective_axis * correction_strength)
 
-	_update_flooding(delta, up, planet_pos, base_water_radius, water_time, gravity)
+	_update_flooding(up, planet_pos, base_water_radius, gravity)
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius)
 
 
-## Marca inundados los compartimentos con la fuga bajo el nivel del mar y aplica el peso del
-## agua embarcada de inundados y perforados como una única fuerza en su centroide común.
-func _update_flooding(_delta: float, up: Vector3, planet_pos: Vector3, base_water_radius: float, _water_time: float, gravity: float) -> void:
+## Aplica el peso del agua embarcada como una única fuerza en el centroide cacheado. El estado
+## de inundación solo se reevalúa cada FLOOD_RECALC_FRAMES o si el casco ha subido/bajado
+## apreciablemente; la fuerza sí se aplica siempre (la física las limpia cada paso).
+func _update_flooding(up: Vector3, planet_pos: Vector3, base_water_radius: float, gravity: float) -> void:
 	var xf := global_transform
+	var radius: float = (xf.origin - planet_pos).length()
+	_flood_recalc_countdown -= 1
+
+	if _flood_dirty or _flood_recalc_countdown <= 0 \
+			or absf(radius - _flood_last_radius) > FLOOD_RECALC_HEAVE:
+		_recalculate_flooding(xf, up, planet_pos, base_water_radius)
+		_flood_recalc_countdown = FLOOD_RECALC_FRAMES
+		_flood_last_radius = radius
+		_flood_dirty = false
+
+	if _flood_volume > 0.0:
+		var centroid: Vector3 = xf * _flood_local_centroid
+		apply_force(-up * gravity * _flood_volume * WATER_DENSITY, centroid - xf.origin)
+
+
+## Reevalúa qué compartimentos están inundados y cachea el agua embarcada total y su
+## centroide en espacio local del body (el casco se mueve, el centroide relativo no).
+func _recalculate_flooding(xf: Transform3D, up: Vector3, planet_pos: Vector3, base_water_radius: float) -> void:
 	var acc := Vector4.ZERO
 
 	for comp: Dictionary in _compartments:
-		comp["flooded"] = _is_comp_flooded(comp, planet_pos, base_water_radius)
-		if comp["flooded"]:
+		var was_flooded: bool = comp.get("flooded", false)
+		var flooded := _is_comp_flooded(comp, planet_pos, base_water_radius)
+		comp["flooded"] = flooded
+		if flooded != was_flooded:
+			_dry_boxes_dirty = true
+		if flooded:
 			acc += _flood_weight(comp, xf, up, planet_pos, base_water_radius)
 
 	for comp: Dictionary in _breached_comps:
@@ -406,8 +442,7 @@ func _update_flooding(_delta: float, up: Vector3, planet_pos: Vector3, base_wate
 
 	_flood_volume = acc.w
 	if acc.w > 0.0:
-		var centroid := Vector3(acc.x, acc.y, acc.z) / acc.w
-		apply_force(-up * gravity * acc.w * WATER_DENSITY, centroid - xf.origin)
+		_flood_local_centroid = xf.affine_inverse() * (Vector3(acc.x, acc.y, acc.z) / acc.w)
 
 
 ## Peso del agua de un compartimento (su volumen bajo el nivel del mar) como
@@ -458,7 +493,12 @@ func _is_comp_flooded(comp: Dictionary, planet_pos: Vector3, base_water_radius: 
 
 ## Cajas de compartimentos no inundados (body-local): la máscara del océano. Ordenadas por
 ## volumen descendente para que un truncado en MAX_INTERIORS pierda solo cajas pequeñas.
+## Cacheada: solo se rehace cuando cambian los compartimentos o el conjunto de inundados.
 func get_dry_interior_boxes() -> Array:
+	if not _dry_boxes_dirty:
+		return _dry_boxes_cache
+	_dry_boxes_dirty = false
+
 	var out: Array = []
 	for comp: Dictionary in _compartments:
 		if comp.get("flooded", false):
@@ -468,6 +508,7 @@ func get_dry_interior_boxes() -> Array:
 		var ha: Vector3 = a["half"]
 		var hb: Vector3 = b["half"]
 		return ha.x * ha.y * ha.z > hb.x * hb.y * hb.z)
+	_dry_boxes_cache = out
 	return out
 
 
