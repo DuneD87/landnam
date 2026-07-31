@@ -35,7 +35,12 @@ var _water_sampler: WaterHeightSampler = null
 var _wake_points: Array = []
 
 var _grids: Array = []
-var _buoyancy_boxes: Array = []
+var _box_pos := PackedVector3Array()
+var _box_half := PackedVector3Array()
+var _box_vol := PackedFloat32Array()
+var _agg_pos := PackedVector3Array()
+var _agg_half := PackedVector3Array()
+var _agg_vol := PackedFloat32Array()
 var _aggregate_box: Dictionary = {}
 var _drag_length_sq: float = 1.0
 var _recalc_boxes: bool = true
@@ -71,11 +76,14 @@ func mark_points_dirty() -> void:
 	_interior_dirty = true
 	_interior_debounce = INTERIOR_DEBOUNCE
 
-## Reconstruye la lista de cajas de volumen del casco desde los colliders del body:
-## cajas fusionadas de cubos tal cual, rampas/esquinas como caja de su celda a medio volumen.
+## Reconstruye las cajas de volumen del casco desde los colliders del body: cajas fusionadas
+## de cubos tal cual, rampas/esquinas como caja de su celda a medio volumen. En arrays
+## empaquetados paralelos: el bucle de flotación los recorre entero cada frame de física.
 func _recalculate_buoyancy_boxes() -> void:
 	_recalc_boxes = false
-	_buoyancy_boxes.clear()
+	_box_pos.clear()
+	_box_half.clear()
+	_box_vol.clear()
 	_aggregate_box = {}
 	_flood_capacity = 0.0
 
@@ -98,7 +106,9 @@ func _recalculate_buoyancy_boxes() -> void:
 			volume = col.scale.x * col.scale.x * col.scale.x * 0.5
 
 		var pos: Vector3 = col.transform.origin
-		_buoyancy_boxes.append({"pos": pos, "half": half, "volume": volume})
+		_box_pos.append(pos)
+		_box_half.append(half)
+		_box_vol.append(volume)
 		total_volume += volume
 
 		if first:
@@ -108,10 +118,13 @@ func _recalculate_buoyancy_boxes() -> void:
 			aabb = aabb.expand(pos - half)
 			aabb = aabb.expand(pos + half)
 
-	if _buoyancy_boxes.is_empty():
+	if _box_vol.is_empty():
 		return
 
 	_aggregate_box = {"pos": aabb.get_center(), "half": aabb.size * 0.5, "volume": total_volume}
+	_agg_pos = PackedVector3Array([aabb.get_center()])
+	_agg_half = PackedVector3Array([aabb.size * 0.5])
+	_agg_vol = PackedFloat32Array([total_volume])
 	_drag_length_sq = maxf(1.0, (aabb.size * 0.5).length_squared())
 
 	# Capacidad provisional (AABB − bloques); el análisis la sustituye por el volumen real.
@@ -304,30 +317,36 @@ func _physics_process(delta: float) -> void:
 	if _recalc_boxes:
 		_recalculate_buoyancy_boxes()
 
-	if _buoyancy_boxes.is_empty():
+	if _box_vol.is_empty():
 		return
 
 	var mat: ShaderMaterial = planet_node.water_sphere.mesh_manager.default_material as ShaderMaterial
 	var water_time: float = WaterHeightSampler.get_water_time(mat)
 	var base_water_radius: float = planet_node.planet.radius - planet_node.planet.water_radius
 
-	var boxes: Array = _buoyancy_boxes
+	var pos_arr := _box_pos
+	var half_arr := _box_half
+	var vol_arr := _box_vol
 	var camera := get_viewport().get_camera_3d()
 	if camera and camera.global_position.distance_squared_to(global_position) > buoyancy_lod_distance * buoyancy_lod_distance:
-		boxes = [_aggregate_box]
+		pos_arr = _agg_pos
+		half_arr = _agg_half
+		vol_arr = _agg_vol
 
-	var shared_wave := boxes.size() > MAX_WAVE_SAMPLES
+	var shared_wave := vol_arr.size() > MAX_WAVE_SAMPLES
 	var wave_h_shared := 0.0
 	if shared_wave:
 		wave_h_shared = _water_sampler.get_height_at(global_position, water_time, planet_pos)
 
-	var basis_w := global_transform.basis
+	var xf := global_transform
+	var basis_w := xf.basis
+	var origin := xf.origin
 	var submerged_volume := 0.0
 	var weighted_buoyancy_pos := Vector3.ZERO
 
-	for box: Dictionary in boxes:
-		var half: Vector3 = box["half"]
-		var world_center: Vector3 = global_transform * (box["pos"] as Vector3)
+	for i in vol_arr.size():
+		var half: Vector3 = half_arr[i]
+		var world_center: Vector3 = xf * pos_arr[i]
 
 		var h_half: float = absf((basis_w.x * half.x).dot(up)) \
 			+ absf((basis_w.y * half.y).dot(up)) \
@@ -342,13 +361,16 @@ func _physics_process(delta: float) -> void:
 		if frac <= 0.0:
 			continue
 
-		var displaced: float = box["volume"] * frac
-		var centroid: Vector3 = world_center + up * h_half * (frac - 1.0)
-		apply_force(up * WATER_DENSITY * gravity * displaced, centroid - global_position)
+		var displaced: float = vol_arr[i] * frac
 		submerged_volume += displaced
-		weighted_buoyancy_pos += centroid * displaced
+		weighted_buoyancy_pos += (world_center + up * h_half * (frac - 1.0)) * displaced
 
 	if submerged_volume > 0.0:
+		# Todos los empujes son paralelos a up: una única fuerza en el centro de carena es
+		# exactamente equivalente a una por caja, y ahorra N llamadas al servidor de física.
+		var buoyancy_center: Vector3 = weighted_buoyancy_pos / submerged_volume
+		apply_force(up * WATER_DENSITY * gravity * submerged_volume, buoyancy_center - origin)
+
 		var displaced_mass: float = submerged_volume * WATER_DENSITY
 		apply_central_force(-linear_velocity * linear_drag * displaced_mass)
 		var radial_vel: float = linear_velocity.dot(up)
@@ -369,26 +391,32 @@ func _physics_process(delta: float) -> void:
 
 
 ## Marca inundados los compartimentos con la fuga bajo el nivel del mar y aplica el peso del
-## agua embarcada de inundados y perforados en el centroide de cada columna.
+## agua embarcada de inundados y perforados como una única fuerza en su centroide común.
 func _update_flooding(_delta: float, up: Vector3, planet_pos: Vector3, base_water_radius: float, _water_time: float, gravity: float) -> void:
-	_flood_volume = 0.0
+	var xf := global_transform
+	var acc := Vector4.ZERO
 
 	for comp: Dictionary in _compartments:
 		comp["flooded"] = _is_comp_flooded(comp, planet_pos, base_water_radius)
 		if comp["flooded"]:
-			_flood_volume += _apply_flood_weight(comp, up, planet_pos, base_water_radius, gravity)
+			acc += _flood_weight(comp, xf, up, planet_pos, base_water_radius)
 
 	for comp: Dictionary in _breached_comps:
-		_flood_volume += _apply_flood_weight(comp, up, planet_pos, base_water_radius, gravity)
+		acc += _flood_weight(comp, xf, up, planet_pos, base_water_radius)
+
+	_flood_volume = acc.w
+	if acc.w > 0.0:
+		var centroid := Vector3(acc.x, acc.y, acc.z) / acc.w
+		apply_force(-up * gravity * acc.w * WATER_DENSITY, centroid - xf.origin)
 
 
-## Peso del agua de un compartimento (su volumen bajo el nivel del mar) aplicado en el
-## centroide de la columna; devuelve los m³ embarcados.
-func _apply_flood_weight(comp: Dictionary, up: Vector3, planet_pos: Vector3, base_water_radius: float, gravity: float) -> float:
+## Peso del agua de un compartimento (su volumen bajo el nivel del mar) como
+## Vector4(centroide de la columna * m³, m³), para acumularlo en una sola fuerza.
+func _flood_weight(comp: Dictionary, xf: Transform3D, up: Vector3, planet_pos: Vector3, base_water_radius: float) -> Vector4:
 	var aabb: AABB = comp["aabb"]
 	var half: Vector3 = aabb.size * 0.5
-	var world_center: Vector3 = global_transform * aabb.get_center()
-	var basis_w := global_transform.basis
+	var world_center: Vector3 = xf * aabb.get_center()
+	var basis_w := xf.basis
 	var h_half: float = absf((basis_w.x * half.x).dot(up)) \
 		+ absf((basis_w.y * half.y).dot(up)) \
 		+ absf((basis_w.z * half.z).dot(up))
@@ -397,12 +425,11 @@ func _apply_flood_weight(comp: Dictionary, up: Vector3, planet_pos: Vector3, bas
 	var bottom_r: float = (world_center - planet_pos).length() - h_half
 	var frac: float = clampf((base_water_radius - bottom_r) / (2.0 * h_half), 0.0, 1.0)
 	if frac <= 0.0:
-		return 0.0
+		return Vector4.ZERO
 
 	var water: float = (comp["volume"] as float) * frac
 	var centroid: Vector3 = world_center + up * h_half * (frac - 1.0)
-	apply_force(-up * gravity * water * WATER_DENSITY, centroid - global_position)
-	return water
+	return Vector4(centroid.x * water, centroid.y * water, centroid.z * water, water)
 
 
 ## Compartimento del análisis nuevo que comparte celdas con uno previo (muestreo repartido
