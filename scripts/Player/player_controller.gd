@@ -38,6 +38,8 @@ const data = preload("res://scripts/items/item_data.gd")
 @onready var build_menu: BuildMenu = $BuildMenu
 @onready var step_up: StepUpSystem = $StepUpSystem
 
+var ship_spawn_menu: ShipSpawnMenu
+
 @export var main_menu: Control
 @export var spawn_point: Marker3D
 @export var start_first_person: bool = false
@@ -286,6 +288,9 @@ func _ready():
 	visible = false
 	collision_model.disabled = true
 	build_menu.setup(hotbar, building_system)
+	ship_spawn_menu = ShipSpawnMenu.new()
+	ship_spawn_menu.spawn_requested.connect(_on_ship_spawn_requested)
+	add_child(ship_spawn_menu)
 
 	capture_mouse(false)
 	water_sampler = WaterHeightSampler.new()
@@ -638,6 +643,10 @@ func _input(event):
 			character_window.toggle()
 			capture_mouse(true)
 			return
+		if ship_spawn_menu and ship_spawn_menu.visible:
+			ship_spawn_menu.toggle()
+			capture_mouse(true)
+			return
 		if is_mouse_captured():
 			input_enabled = false
 			main_menu.fade_in()
@@ -657,8 +666,9 @@ func _input(event):
 				capture_mouse(false)
 			else:
 				capture_mouse(true)
-		elif event.is_action_pressed("debug_stress_test"):
-			building_system.debug_spawn_ship(true)
+		elif event.is_action_pressed("open_ship_menu") and not _is_text_field_focused():
+			ship_spawn_menu.toggle()
+			capture_mouse(not ship_spawn_menu.visible)
  
 	if free_flight_enabled:
 		player_model.visible = false
@@ -727,7 +737,20 @@ func _input(event):
 	elif Input.is_action_just_released("attack_1"):
 		is_holding_atack = false
 
- 
+
+## true si el foco está en un campo de texto (p. ej. el SpinBox del menú de barco), donde las
+## teclas deben escribirse en vez de disparar acciones del jugador.
+func _is_text_field_focused() -> bool:
+	var focus := get_viewport().gui_get_focus_owner()
+	return focus is LineEdit or focus is TextEdit
+
+
+## Genera el barco de prueba con las dimensiones del menú y devuelve el control al jugador.
+func _on_ship_spawn_requested(length: int, width: int, height: int, compartments: int, decks: int) -> void:
+	capture_mouse(true)
+	building_system.debug_spawn_ship(true, compartments, length, width, height, decks)
+
+
 func _handle_build_input(event: InputEvent) -> void:
 	var shift_held := Input.is_action_pressed("left_shift")
 

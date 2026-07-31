@@ -755,12 +755,15 @@ func debug_spawn_stress_grid() -> void:
 		block_count, t1 - t0, t2 - t1, t3 - t2])
 
 
-## Genera un casco con forma de barco (tamaño similar al stress grid) frente al jugador y lo
-## convierte a grid dinámica. Ejes de grid: +Z proa, -Z popa, X manga, Y altura. La forma
-## viene del afinado en punta a 45° y el rocker de quilla, con slopes en los escalones del
-## costado. Con hollow, solo la cáscara (fondo, costados y cubierta) más mamparos
-## transversales que dividen la bodega en `compartments` camarotes estancos.
-func debug_spawn_ship(hollow: bool = false, compartments: int = 10) -> void:
+## Genera un casco con forma de barco frente al jugador y lo convierte a grid dinámica, con
+## las dimensiones dadas en bloques (largo/ancho/alto). Ejes de grid: +Z proa, -Z popa,
+## X manga, Y altura. La forma viene del afinado en punta a 45° y el rocker de quilla, con
+## slopes en los escalones del costado. Con hollow, solo la cáscara (fondo, costados y
+## cubierta) más mamparos transversales que dividen la bodega en `compartments` camarotes
+## estancos, y entrepuentes horizontales que parten cada camarote en `decks` plantas.
+func debug_spawn_ship(hollow: bool = false, compartments: int = 10,
+	length: int = 120, width: int = 30, height: int = 26, decks: int = 1) -> void:
+
 	var planet := current_planet
 	if not planet or not _player:
 		return
@@ -770,8 +773,13 @@ func debug_spawn_ship(hollow: bool = false, compartments: int = 10) -> void:
 	if not cube or not slope:
 		return
 
+	var half_len := maxi(3, length / 2)      # media eslora (a lo largo de Z)
+	var half_beam := maxi(1, width / 2)      # media manga máxima, en la cuaderna maestra (X)
+	var deck_y := maxi(1, height - 1)        # altura de la cubierta (casco de y=0 a deck_y)
+
 	var basis_world := get_player_basis()
-	var origin_world: Vector3 = _player.global_position - basis_world.z * 30.0 + basis_world.y * 6.0
+	var origin_world: Vector3 = _player.global_position \
+		- basis_world.z * (half_len + 20.0) + basis_world.y * (deck_y * 0.5 + 6.0)
 	var grid := GridManager.create_grid(planet, origin_world, basis_world, 1.0)
 	current_material_index = 1
 	var mat := get_current_material()
@@ -782,15 +790,21 @@ func debug_spawn_ship(hollow: bool = false, compartments: int = 10) -> void:
 	var grid_basis := grid.get_basis_world()
 	var base_cell := grid.world_to_grid(origin_world)
 
-	var half_len := 60      # media eslora (a lo largo de Z)
-	var half_beam := 15      # media manga máxima, en la cuaderna maestra (a lo largo de X)
-	var deck_y := 25         # altura de la cubierta (casco macizo de y=0 a deck_y)
-
 	var bulkhead_zs: Dictionary = {}
 	if hollow and compartments > 1:
 		var spacing := float(2 * half_len) / float(compartments)
 		for i in range(1, compartments):
 			bulkhead_zs[int(round(-half_len + i * spacing))] = true
+
+	# Alturas de los entrepuentes: reparto uniforme entre la quilla y la cubierta, sin repetir
+	# ninguna de las dos. Si no cabe una planta por nivel, el set queda como quepa.
+	var deck_ys: Dictionary = {}
+	if hollow and decks > 1:
+		var deck_spacing := float(deck_y) / float(decks)
+		for i in range(1, decks):
+			var level := int(round(i * deck_spacing))
+			if level > 0 and level < deck_y:
+				deck_ys[level] = true
 
 	var t0 := Time.get_ticks_msec()
 	grid.begin_bulk_edit()
@@ -799,13 +813,14 @@ func debug_spawn_ship(hollow: bool = false, compartments: int = 10) -> void:
 		var hw := _ship_half_width(z, half_len, half_beam)
 		if hw < 0:
 			continue
-		var floor_y := _ship_floor(z, half_len)
+		var floor_y := _ship_floor(z, half_len, deck_y)
 
-		# En hollow se salta el interior (celda con los 6 vecinos dentro del sólido), salvo
-		# en las estaciones de mamparo, que se rellenan enteras como pared estanca.
+		# En hollow se salta el interior (celda con los 6 vecinos dentro del sólido), salvo en
+		# las estaciones de mamparo y en las alturas de entrepuente, que se rellenan enteras
+		# como pared estanca y como suelo de la planta de encima.
 		for x in range(-hw, hw + 1):
 			for y in range(floor_y, deck_y + 1):
-				if hollow and not bulkhead_zs.has(z) \
+				if hollow and not bulkhead_zs.has(z) and not deck_ys.has(y) \
 					and _ship_is_solid(x + 1, y, z, half_len, half_beam, deck_y) \
 					and _ship_is_solid(x - 1, y, z, half_len, half_beam, deck_y) \
 					and _ship_is_solid(x, y + 1, z, half_len, half_beam, deck_y) \
@@ -847,7 +862,7 @@ func _ship_is_solid(x: int, y: int, z: int, half_len: int, half_beam: int, deck_
 	var hw := _ship_half_width(z, half_len, half_beam)
 	if hw < 0 or absi(x) > hw:
 		return false
-	return y >= _ship_floor(z, half_len) and y <= deck_y
+	return y >= _ship_floor(z, half_len, deck_y) and y <= deck_y
 
 
 func _ship_half_width(z: int, half_len: int, half_beam: int) -> int:
@@ -856,14 +871,16 @@ func _ship_half_width(z: int, half_len: int, half_beam: int) -> int:
 	return mini(half_beam, mini(bow_hw, stern_hw))
 
 
-## Altura del fondo del casco (rocker de quilla): sube hacia proa y popa.
-func _ship_floor(z: int, half_len: int) -> int:
+## Altura del fondo del casco (rocker de quilla): sube hacia proa y popa. La subida se limita
+## a la altura disponible para que en cascos bajos siga quedando bodega en los extremos.
+func _ship_floor(z: int, half_len: int, deck_y: int) -> int:
 	var mid := int(round(half_len * 0.55))
 	var az := absi(z)
-	if az <= mid:
+	if az <= mid or half_len <= mid:
 		return 0
+	var rise := float(clampi(deck_y - 1, 0, 3))
 	var frac := float(az - mid) / float(half_len - mid)
-	return int(round(lerpf(0.0, 3.0, frac)))
+	return int(round(lerpf(0.0, rise, frac)))
 
 
 ## Suaviza la V en planta: donde la manga se estrecha entre estaciones contiguas, completa el
@@ -893,7 +910,7 @@ func _ship_fill_side_steps(grid: GridBase, slope: BlockData, base_cell: Vector3i
 		var narrows_forward := hw_far < hw_near   # proa: la estación ancha queda hacia -Z
 		var narrow_z := z + 1 if narrows_forward else z
 		var wide := maxi(hw_near, hw_far)
-		var floor_y := _ship_floor(narrow_z, half_len)
+		var floor_y := _ship_floor(narrow_z, half_len, deck_y)
 
 		var starboard_rot := solid_nx_nz if narrows_forward else solid_nx_pz
 		var port_rot := solid_px_nz if narrows_forward else solid_px_pz

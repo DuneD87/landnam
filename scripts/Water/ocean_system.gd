@@ -28,6 +28,10 @@ var mesh_manager: QuadTreeMeshManager
 var stats_label: Label
 var current_water_time := 0.0
 var planet: Planet
+var _last_sun_dir := Vector3.INF
+var _stats_accum := 0.0
+
+const STATS_INTERVAL := 0.25
 
 func _ready() -> void:
 	if debug:
@@ -85,22 +89,26 @@ func _setup_ui():
 		stats_label.add_theme_constant_override("shadow_offset_y", 2)
 		canvas_layer.add_child(stats_label)
 
-func _process(_delta):
+func _process(delta):
 	# El sol se mueve en vivo (día/noche): leemos la dirección actual del planeta en lugar
 	# del export, que solo se fijaba al cargar y dejaba el agua iluminada como de día siempre.
 	# to_sun apunta HACIA el sol. La superficie niega sun_direction internamente (espera la
 	# dirección de la luz saliente), el underwater no; por eso los alimentamos con signo opuesto.
 	var to_sun := planet.sun_dir if planet else sun_dir
 
-	if mesh_manager && mesh_manager.default_material:
-		var mat = mesh_manager.default_material as ShaderMaterial
-		mat.set_shader_parameter("sun_direction", -to_sun)
+	if to_sun.distance_squared_to(_last_sun_dir) > 0.0000001:
+		_last_sun_dir = to_sun
+		if mesh_manager && mesh_manager.default_material:
+			var mat = mesh_manager.default_material as ShaderMaterial
+			mat.set_shader_parameter(&"sun_direction", -to_sun)
+		if underwater:
+			underwater.sun_direction = to_sun
 
-	if underwater:
-		underwater.sun_direction = to_sun
-		
 	if show_stats and stats_label:
-		_update_stats()
+		_stats_accum += delta
+		if _stats_accum >= STATS_INTERVAL:
+			_stats_accum = 0.0
+			_update_stats()
 
 func _update_stats():
 	var stats = mesh_manager.get_statistics()
