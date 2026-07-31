@@ -461,6 +461,99 @@ func create_grid(planet: Node3D, origin_world: Vector3, basis_world: Basis, cell
 	return grid
 
 
+## Crea una grid en una pose exacta, sin alinearla a ninguna grid cercana (para instanciar
+## blueprints, donde la pose la decide quien lo coloca y no el vecindario).
+func create_grid_exact(planet: Node3D, origin_world: Vector3, basis_world: Basis, cell_size: float = 1.0) -> GridBase:
+	var grid := PlanetGrid.new()
+	var grid_id := _generate_id()
+	grid.setup(grid_id, planet, origin_world, basis_world, cell_size)
+	_register_grid(grid, planet, grid_id)
+	return grid
+
+
+## Todas las grids que forman la misma estructura que 'grid_id': las que comparten cuerpo
+## dinámico, o las estáticas con el mismo origin/basis (los distintos cell_size de un barco).
+func get_grid_group(grid_id: String) -> Array:
+	var source: GridBase = _grids.get(grid_id, null)
+	if not source:
+		return []
+
+	var group: Array = []
+	for grid: GridBase in get_grids_for_planet(source.planet_node):
+		if grid == source or grid.is_same_origin_basis(source):
+			group.append(grid)
+	return group
+
+
+## Resumen del grupo de grids para la UI: bloques, props, dimensiones en metros y, si es
+## dinámico, masa e inundación. Devuelve {} si el id no existe.
+func get_group_stats(grid_id: String) -> Dictionary:
+	var group := get_grid_group(grid_id)
+	if group.is_empty():
+		return {}
+
+	var blocks := 0
+	var props := 0
+	var volume := 0.0
+	var cells: Array = []
+	var min_m := Vector3.INF
+	var max_m := -Vector3.INF
+
+	for grid: GridBase in group:
+		blocks += grid.get_block_count()
+		props += grid.get_all_props().size()
+		volume += grid.get_total_volume()
+		if not cells.has(grid.cell_size):
+			cells.append(grid.cell_size)
+		for grid_pos: Vector3i in grid.get_all_blocks():
+			var corner := Vector3(grid_pos) * grid.cell_size
+			min_m = min_m.min(corner)
+			max_m = max_m.max(corner + Vector3.ONE * grid.cell_size)
+	cells.sort()
+
+	var stats := {
+		"grid_id": grid_id,
+		"grids": group.size(),
+		"blocks": blocks,
+		"props": props,
+		"volume": volume,
+		"cell_sizes": cells,
+		"size": (max_m - min_m) if blocks > 0 else Vector3.ZERO,
+		"planet": group[0].planet_node.name if group[0].planet_node else "?",
+		"dynamic": group[0] is DynamicPlanetGrid,
+	}
+
+	if group[0] is DynamicPlanetGrid:
+		var body: DynamicGridBody = (group[0] as DynamicPlanetGrid)._body
+		if body and is_instance_valid(body):
+			stats["body_id"] = (group[0] as DynamicPlanetGrid).body_id
+			stats["mass"] = body.mass
+			stats["flood"] = body.get_flood_state()
+
+	return stats
+
+
+## Elimina el grupo entero al que pertenece grid_id y devuelve cuántas grids se han borrado.
+## La grid propietaria del DynamicGridBody va la última: al limpiarse libera el cuerpo, y las
+## hermanas se quedarían apuntando a un nodo muerto.
+func remove_grid_group(grid_id: String) -> int:
+	var group := get_grid_group(grid_id)
+	var owner_grid: GridBase = null
+	var removed := 0
+
+	for grid: GridBase in group:
+		if grid is DynamicPlanetGrid and (grid as DynamicPlanetGrid)._owns_body:
+			owner_grid = grid
+			continue
+		if remove_grid(grid.grid_id):
+			removed += 1
+
+	if owner_grid and remove_grid(owner_grid.grid_id):
+		removed += 1
+
+	return removed
+
+
 ## Elimina una grid y todos sus bloques.
 func remove_grid(grid_id: String) -> bool:
 	if not _grids.has(grid_id):

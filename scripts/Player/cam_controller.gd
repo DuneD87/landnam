@@ -21,6 +21,9 @@ class_name CameraController
 @onready var camera: Camera3D = $"../CameraPivot/PitchPivot/Camera3D"
 @onready var player_model: Node3D = $"../PlayerModel"
 
+## Se apaga mientras otro modo usa la rueda (colocar un blueprint); el giro de ratón sigue vivo.
+var zoom_enabled := true
+
 var pitch := 0.0
 var yaw := 0.0
 var delta_yaw := 0.0
@@ -48,6 +51,8 @@ func _input(event: InputEvent):
 		delta_yaw += -event.relative.x * mouse_sensitivity
 		delta_pitch += -event.relative.y * mouse_sensitivity * (-1 if invert_y else 1)
 	elif event is InputEventMouseButton and event.pressed:
+		if not zoom_enabled:
+			return
 		if Input.is_action_pressed("left_ctrl") || Input.is_action_pressed("left_shift"):
 			return
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:

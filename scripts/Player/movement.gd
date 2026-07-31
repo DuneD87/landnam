@@ -78,7 +78,9 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 		jump_velocity = 0.0
 		gravity_velocity = 0.0
 		
-	if Input.is_action_pressed("Sprint"):
+	# Correr exige input de movimiento: con Shift pulsado y quieto se quedaba la animación de
+	# sprint en el sitio (y bloqueaba can_perform_action).
+	if Input.is_action_pressed("Sprint") && input_dir.length() > 0.1:
 		if !is_jumping && !is_falling && !use_swim_animations:
 			is_sprinting = true
 			velocity = velocity * 1.8

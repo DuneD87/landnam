@@ -10,9 +10,8 @@
 [ext_resource type="Texture2D" uid="uid://b2dqk1astl6cq" path="res://textures/planet/rocks/rock_green_02/rock_green_02_roughness.png" id="8_itxse"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_nc2cu"]
-noise_type = 0
-frequency = 0.0002
-fractal_type = 3
+frequency = 0.0047
+fractal_type = 2
 fractal_lacunarity = 3.0
 fractal_gain = 1.0
 
@@ -47,9 +46,9 @@ drop_amount_max = 6
 item_data = ExtResource("2_yis2c")
 
 [node name="Rock3D" type="Rock3D" parent="." unique_id=1242649024]
-shape_scale_x = 1.47
-shape_scale_y = 0.46
-shape_scale_z = 1.39
+shape_scale_x = 0.64
+shape_scale_y = 1.23
+shape_scale_z = 0.51
 noise = SubResource("FastNoiseLite_nc2cu")
 material_rock = SubResource("StandardMaterial3D_rawha")
 

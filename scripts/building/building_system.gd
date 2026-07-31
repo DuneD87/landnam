@@ -712,6 +712,45 @@ func convert_aimed_grid(ray_hit: Dictionary) -> void:
 
 	GridManager.convert_to_dynamic(grid_id)
 
+
+## Grid a la que pertenece el collider apuntado, o null si no apuntas a una construcción.
+func get_aimed_grid(ray_hit: Dictionary) -> GridBase:
+	if ray_hit.is_empty():
+		return null
+
+	var hit := ray_hit.get("collider") as Node3D
+	if not hit:
+		return null
+
+	if hit.has_meta("grid_id"):
+		return GridManager.get_grid(hit.get_meta("grid_id"))
+
+	var parent := hit.get_parent() as Node3D
+	if parent and parent.has_meta("grid_id"):
+		return GridManager.get_grid(parent.get_meta("grid_id"))
+
+	return null
+
+
+## Guarda en disco el grupo de grids al que pertenece grid_id. Devuelve el nº de bloques
+## guardados, o -1 si el grupo estaba vacío o falló la escritura.
+func save_grid_blueprint(grid_id: String, blueprint_name: String) -> int:
+	var group := GridManager.get_grid_group(grid_id)
+	if group.is_empty():
+		return -1
+
+	var data := GridBlueprint.capture(group)
+	if data.is_empty():
+		return -1
+
+	if not GridBlueprint.save_to_disk(blueprint_name, data):
+		return -1
+
+	print("[BuildingSystem] Blueprint '%s' guardado (%d grids, %d bloques)" % [
+		blueprint_name, (data["grids"] as Array).size(), data["block_count"]])
+	return int(data["block_count"])
+
+
 ## Caso de prueba extremo: genera una estructura de 8000 bloques (20x20x20) frente al jugador
 ## y la convierte a grid dinámica, imprimiendo el tiempo de cada fase.
 func debug_spawn_stress_grid() -> void:

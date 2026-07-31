@@ -20,6 +20,8 @@ const BLOCK_DENSITY := 500.0
 const WATER_DENSITY := 1000.0
 const MIN_MASS := 10.0
 const MAX_WAVE_SAMPLES := 16
+## Cajas en que se agrega el casco para la flotación lejana (cuadrantes manga × eslora).
+const LOD_QUADRANTS := 4
 
 const WAKE_SPACING := 3.0
 const WAKE_LIFETIME := 12.0
@@ -133,14 +135,82 @@ func _recalculate_buoyancy_boxes() -> void:
 		return
 
 	_aggregate_box = {"pos": aabb.get_center(), "half": aabb.size * 0.5, "volume": total_volume}
-	_agg_pos = PackedVector3Array([aabb.get_center()])
-	_agg_half = PackedVector3Array([aabb.size * 0.5])
-	_agg_vol = PackedFloat32Array([total_volume])
+	_build_lod_boxes(aabb.get_center())
 	_drag_length_sq = maxf(1.0, (aabb.size * 0.5).length_squared())
 
 	# Capacidad provisional (AABB − bloques); el análisis la sustituye por el volumen real.
 	var box_volume := aabb.size.x * aabb.size.y * aabb.size.z
 	_flood_capacity = maxf((box_volume - total_volume) * flood_capacity_factor, 0.0)
+
+
+## Agrega el casco en los cuatro cuadrantes del AABB (mitades de manga y de eslora) para el LOD
+## lejano. Con una sola caja el empuje caía siempre en la misma vertical del cuerpo: ni par
+## adrizante al escorar, ni coincidencia con el centro de masas —que la gravedad sí usa—, y el
+## barco se quedaba tumbado de un lado. Cada cuadrante guarda su volumen real y su centroide
+## ponderado, así que el reparto del empuje sigue al de la masa.
+func _build_lod_boxes(center: Vector3) -> void:
+	var vols := [0.0, 0.0, 0.0, 0.0]
+	var weighted := [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
+	var mins := [Vector3.INF, Vector3.INF, Vector3.INF, Vector3.INF]
+	var maxs := [-Vector3.INF, -Vector3.INF, -Vector3.INF, -Vector3.INF]
+
+	# Las cajas vienen fusionadas y muchas cruzan el corte de lado a lado: cada una se reparte
+	# por solape con los cuadrantes, no por dónde caiga su centro, o una sola caja que abarque
+	# toda la manga volvería a descentrar el empuje.
+	for i in _box_vol.size():
+		var pos: Vector3 = _box_pos[i]
+		var half: Vector3 = _box_half[i]
+		var vol: float = _box_vol[i]
+		var split_x := _split_axis(pos.x - half.x, pos.x + half.x, center.x)
+		var split_z := _split_axis(pos.z - half.z, pos.z + half.z, center.z)
+
+		for ix in 2:
+			for iz in 2:
+				var part_x: Dictionary = split_x[ix]
+				var part_z: Dictionary = split_z[iz]
+				var weight: float = part_x["frac"] * part_z["frac"]
+				if weight <= 0.0:
+					continue
+
+				var q: int = ix + iz * 2
+				var part_vol: float = vol * weight
+				vols[q] += part_vol
+				weighted[q] += Vector3(
+					(part_x["lo"] + part_x["hi"]) * 0.5,
+					pos.y,
+					(part_z["lo"] + part_z["hi"]) * 0.5) * part_vol
+				mins[q] = (mins[q] as Vector3).min(Vector3(part_x["lo"], pos.y - half.y, part_z["lo"]))
+				maxs[q] = (maxs[q] as Vector3).max(Vector3(part_x["hi"], pos.y + half.y, part_z["hi"]))
+
+	_agg_pos.clear()
+	_agg_half.clear()
+	_agg_vol.clear()
+
+	for q in LOD_QUADRANTS:
+		var vol: float = vols[q]
+		if vol <= 0.0:
+			continue
+		var centroid: Vector3 = (weighted[q] as Vector3) / vol
+		# Semiejes medidos desde el centroide y no desde el centro geométrico: la caja debe
+		# quedar centrada donde está el volumen, que es lo que moja el agua primero.
+		var lo: Vector3 = mins[q]
+		var hi: Vector3 = maxs[q]
+		var half := (hi - centroid).max(centroid - lo).max(Vector3.ONE * 0.05)
+
+		_agg_pos.append(centroid)
+		_agg_half.append(half)
+		_agg_vol.append(vol)
+
+
+## Parte el intervalo [lo, hi] por el corte c y devuelve, para el trozo bajo y el alto, qué
+## fracción de la longitud se lleva y dónde empieza y acaba.
+static func _split_axis(lo: float, hi: float, c: float) -> Array:
+	var length := maxf(hi - lo, 0.0001)
+	var cut := clampf(c, lo, hi)
+	return [
+		{"frac": (cut - lo) / length, "lo": lo, "hi": cut},
+		{"frac": (hi - cut) / length, "lo": cut, "hi": hi},
+	]
 
 
 ## Lanza el análisis de compartimentos en un worker thread con debounce de ediciones.
@@ -390,8 +460,13 @@ func _physics_process(delta: float) -> void:
 		apply_central_force(-up * radial_vel * heave_drag * displaced_mass)
 		apply_torque(-angular_velocity * angular_drag * displaced_mass * minf(_drag_length_sq, 10.0))
 
-		# Corrección de inclinación: aplica un torque suave si el barco está muy inclinado.
-		# Previene que se quede fijado pero sin ser tan agresivo como para volcar.
+		# Corrección de inclinación. OJO: el eje Y va negado a propósito. El eje resultante es el
+		# correcto (negar el vector niega también el producto vectorial), pero el ángulo sale
+		# 'π − escora', así que el par es máximo con el barco a plomo y decrece al inclinarse:
+		# de facto una grúa permanente que lo mantiene derecho. Escrito "bien" (proporcional a la
+		# escora real) el par se anula cerca del equilibrio, los barcos escoran, embarcan agua
+		# por la banda baja y se hunden. Es feo, pero sostiene la flota: no lo toques sin
+		# sustituirlo por estabilidad de verdad (metacentro).
 		var body_up := -global_transform.basis.y
 		var angle_to_vertical := acos(clampf(body_up.dot(up), -1.0, 1.0))
 		if angle_to_vertical > deg_to_rad(5.0):

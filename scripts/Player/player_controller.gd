@@ -39,6 +39,8 @@ const data = preload("res://scripts/items/item_data.gd")
 @onready var step_up: StepUpSystem = $StepUpSystem
 
 var ship_spawn_menu: ShipSpawnMenu
+var grid_manipulator_menu: GridManipulatorMenu
+var blueprint_placer: BlueprintPlacer
 var debug_stats: DebugStats
 
 @export var main_menu: Control
@@ -292,6 +294,17 @@ func _ready():
 	ship_spawn_menu = ShipSpawnMenu.new()
 	ship_spawn_menu.spawn_requested.connect(_on_ship_spawn_requested)
 	add_child(ship_spawn_menu)
+	grid_manipulator_menu = GridManipulatorMenu.new()
+	grid_manipulator_menu.save_requested.connect(_on_grid_save_requested)
+	grid_manipulator_menu.delete_requested.connect(_on_grid_delete_requested)
+	grid_manipulator_menu.convert_requested.connect(_on_grid_convert_requested)
+	grid_manipulator_menu.load_requested.connect(_on_blueprint_load_requested)
+	grid_manipulator_menu.closed.connect(capture_mouse.bind(true))
+	add_child(grid_manipulator_menu)
+	blueprint_placer = BlueprintPlacer.new()
+	blueprint_placer.aim_collision_mask = ray_collision_mask
+	blueprint_placer.finished.connect(_set_scroll_consumers_enabled.bind(true))
+	add_child(blueprint_placer)
 	debug_stats = DebugStats.new()
 	add_child(debug_stats)
 
@@ -608,6 +621,8 @@ func _process(_delta: float) -> void:
 	if GameManager.current_state == GameManager.State.CINEMATIC:
 		camera_controller.camera_pivot.global_position = global_position
 	_perform_raycast()
+	if blueprint_placer and blueprint_placer.is_active():
+		blueprint_placer.update_aim()
 
 
 func _activate_player() -> void:
@@ -638,6 +653,9 @@ func is_mouse_captured() -> bool:
 	
 func _input(event):
 	if Input.is_action_just_pressed("ui_cancel"):
+		if blueprint_placer and blueprint_placer.is_active():
+			blueprint_placer.cancel()
+			return
 		if inventory_ui.visible:
 			inventory_ui.close()
 			capture_mouse(true)
@@ -648,6 +666,10 @@ func _input(event):
 			return
 		if ship_spawn_menu and ship_spawn_menu.visible:
 			ship_spawn_menu.toggle()
+			capture_mouse(true)
+			return
+		if grid_manipulator_menu and grid_manipulator_menu.visible:
+			grid_manipulator_menu.close()
 			capture_mouse(true)
 			return
 		if is_mouse_captured():
@@ -662,7 +684,7 @@ func _input(event):
 	if not input_enabled:
 		return
  
-	if event is InputEventKey and event.pressed:
+	if event is InputEventKey and event.pressed and not blueprint_placer.is_active():
 		if event.is_action_pressed("open_build_menu"):
 			build_menu.toggle()
 			if build_menu.visible:
@@ -672,7 +694,18 @@ func _input(event):
 		elif event.is_action_pressed("open_ship_menu") and not _is_text_field_focused():
 			ship_spawn_menu.toggle()
 			capture_mouse(not ship_spawn_menu.visible)
- 
+		elif event.is_action_pressed("open_grid_menu") and not _is_text_field_focused():
+			grid_manipulator_menu.toggle(building_system.get_aimed_grid(_ray_hit))
+			capture_mouse(not grid_manipulator_menu.visible)
+
+	# Con el menú de grids abierto el ratón es de la UI: los clics que van a sus botones no
+	# deben además colocar bloques ni girar la cámara.
+	if grid_manipulator_menu.visible:
+		return
+
+	if blueprint_placer.is_active() and _handle_blueprint_placement(event):
+		return
+
 	if free_flight_enabled:
 		player_model.visible = false
 		if event is InputEventMouseMotion and mouse_captured:
@@ -691,12 +724,18 @@ func _input(event):
 		else:
 			print("Free flight desactivado")
  
-	if building_system.build_mode:
+	if building_system.build_mode and not blueprint_placer.is_active():
 		_handle_build_input(event)
 
 	if free_flight_enabled:
 		return
- 
+
+	# Colocando un blueprint no se ataca, ni se recoge, ni se abre el inventario: el clic es
+	# para confirmar. Input.is_action_just_pressed sigue viendo el clic ya consumido en los
+	# eventos siguientes del mismo frame, así que el corte tiene que ser por modo.
+	if blueprint_placer.is_active():
+		return
+
 	if event.is_action_pressed("inventory"):
 		inventory_ui.toggle()
 		if inventory_ui.visible:
@@ -752,6 +791,111 @@ func _is_text_field_focused() -> bool:
 func _on_ship_spawn_requested(length: int, width: int, height: int, compartments: int, decks: int) -> void:
 	capture_mouse(true)
 	building_system.debug_spawn_ship(true, compartments, length, width, height, decks)
+
+
+## Guarda como blueprint el grupo de grids apuntado; el menú sigue abierto para seguir operando.
+func _on_grid_save_requested(blueprint_name: String) -> void:
+	var target: GridBase = grid_manipulator_menu.target_grid
+	if not target:
+		return
+
+	var blocks := building_system.save_grid_blueprint(target.grid_id, blueprint_name)
+	if blocks < 0:
+		grid_manipulator_menu.set_status("No se ha podido guardar '%s'." % blueprint_name)
+	else:
+		grid_manipulator_menu.set_status("Guardado '%s' (%d bloques)." % [blueprint_name, blocks])
+
+
+## Elimina el grupo de grids apuntado y devuelve el control al jugador.
+func _on_grid_delete_requested() -> void:
+	var target: GridBase = grid_manipulator_menu.target_grid
+	if not target:
+		return
+
+	var removed := GridManager.remove_grid_group(target.grid_id)
+	grid_manipulator_menu.close()
+	capture_mouse(true)
+	print("[Player] Grupo de grids eliminado (%d grids)" % removed)
+
+
+func _on_grid_convert_requested() -> void:
+	var target: GridBase = grid_manipulator_menu.target_grid
+	if not target:
+		return
+
+	var converted := GridManager.convert_to_dynamic(target.grid_id)
+	if converted.is_empty():
+		grid_manipulator_menu.set_status("No se ha podido convertir a dinámica.")
+		return
+
+	# La conversión sustituye las PlanetGrid por DynamicPlanetGrid nuevas: reapunta el menú a
+	# la grid resultante o seguiría mostrando (y borrando) las estáticas ya vaciadas.
+	grid_manipulator_menu.open(converted[0])
+	grid_manipulator_menu.set_status("Convertida a dinámica (%d grids)." % converted.size())
+
+
+## Cierra el menú y pasa a modo colocación: el blueprint sigue al puntero hasta que confirmes.
+func _on_blueprint_load_requested(blueprint_name: String) -> void:
+	var data := GridBlueprint.load_from_disk(blueprint_name)
+	if data.is_empty():
+		grid_manipulator_menu.set_status("No se ha podido leer '%s'." % blueprint_name)
+		return
+
+	if not planet:
+		grid_manipulator_menu.set_status("Sin planeta al que anclar la grid.")
+		return
+
+	grid_manipulator_menu.close()
+	capture_mouse(true)
+	blueprint_placer.begin(data, planet, self, camera)
+	# La rueda solo se le cede al placer si de verdad ha arrancado; si no, el zoom se quedaría
+	# apagado para siempre.
+	if blueprint_placer.is_active():
+		_set_scroll_consumers_enabled(false)
+	print("[Player] Colocando '%s': clic izq. confirma · der. cancela · rueda gira · ctrl+rueda aleja/acerca · shift+rueda sube/baja" % blueprint_name)
+
+
+## Clics y rueda del modo colocación. Devuelve true si el evento se ha consumido; la rotación
+## de cámara tiene que seguir pasando o no se puede apuntar.
+func _handle_blueprint_placement(event: InputEvent) -> bool:
+	if event is InputEventMouseButton and event.pressed:
+		match event.button_index:
+			MOUSE_BUTTON_LEFT:
+				blueprint_placer.confirm()
+				get_viewport().set_input_as_handled()
+				return true
+			MOUSE_BUTTON_RIGHT:
+				blueprint_placer.cancel()
+				get_viewport().set_input_as_handled()
+				return true
+			MOUSE_BUTTON_WHEEL_UP:
+				_blueprint_wheel(1)
+				get_viewport().set_input_as_handled()
+				return true
+			MOUSE_BUTTON_WHEEL_DOWN:
+				_blueprint_wheel(-1)
+				get_viewport().set_input_as_handled()
+				return true
+	return false
+
+
+## Rueda durante la colocación: ctrl aleja/acerca, shift sube/baja, sin modificador gira.
+func _blueprint_wheel(steps: int) -> void:
+	if Input.is_action_pressed("left_ctrl"):
+		blueprint_placer.move_depth(steps)
+	elif Input.is_action_pressed("left_shift"):
+		blueprint_placer.move_height(steps)
+	else:
+		blueprint_placer.add_yaw(steps)
+
+
+## Silencia los otros usos de la rueda mientras se coloca un blueprint. Ambos nodos tienen su
+## propio _input y, por ser hijos, lo reciben antes que este: consumir el evento aquí llega
+## tarde. La cámara se apaga por bandera y no con set_process_input porque su _input también
+## acumula el giro de ratón, que sí hace falta para apuntar.
+func _set_scroll_consumers_enabled(enabled: bool) -> void:
+	camera_controller.zoom_enabled = enabled
+	free_flight_controller.set_process_input(enabled)
 
 
 func _handle_build_input(event: InputEvent) -> void:
@@ -868,12 +1012,15 @@ func _physics_process(delta: float):
 		if Input.is_action_pressed("left_ctrl") || (Input.is_action_pressed("left_shift") && building_system.build_mode):
 			return
 		collision_model.disabled = false
-		if Input.is_action_just_released("camera_zoom_in"):
-			camera_controller.camera_distance -= 1
-			camera_controller.update_camera_transform()
-		if Input.is_action_just_released("camera_zoom_out"):
-			camera_controller.camera_distance += 1
-			camera_controller.update_camera_transform()
+		# Colocando un blueprint la rueda es suya: ni zoom, aunque el evento se consuma en _input
+		# (esto es polling, no llega por evento).
+		if not blueprint_placer.is_active():
+			if Input.is_action_just_released("camera_zoom_in"):
+				camera_controller.camera_distance -= 1
+				camera_controller.update_camera_transform()
+			if Input.is_action_just_released("camera_zoom_out"):
+				camera_controller.camera_distance += 1
+				camera_controller.update_camera_transform()
 			
 		update_normal_movement(delta)
 
