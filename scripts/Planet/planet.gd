@@ -69,16 +69,31 @@ var _twig_singleside_shader: Shader = null
 const _IMPOSTOR_SHADER_PATH := "res://shaders/tree_impostor.gdshader"
 var _impostor_shader: Shader = null
 
+## Shaders de la tarjeta de parche de hierba: el de horneado (albedo plano dentro
+## del SubViewport) y el de la tarjeta ya instanciada. Ver _bake_grass_patch.
+const _GRASS_PATCH_SHADER_PATH := "res://shaders/grass_patch_impostor.gdshader"
+const _GRASS_PATCH_BAKE_SHADER_PATH := "res://shaders/grass_patch_bake.gdshader"
+var _grass_patch_shader: Shader = null
+var _grass_patch_bake_shader: Shader = null
+
 ## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
 var weather_wind_multiplier: float = 1.0
 
 func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_index: int = 0) -> VoxelInstanceGenerator:
 	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 
-	if generator_config.emit_mode == "EMIT_FROM_VERTICES":
-		generator.emit_mode = VoxelInstanceGenerator.EMIT_FROM_VERTICES
-	elif generator_config.emit_mode == "EMIT_ONE_PER_TRIANGLE":
-		generator.emit_mode = VoxelInstanceGenerator.EMIT_ONE_PER_TRIANGLE
+	# El modo llega como string del JSON y se resuelve contra el enum real del módulo, así
+	# quedan disponibles también los modos por área (EMIT_FROM_FACES*), que reparten por
+	# superficie en vez de por vértice. Vía ClassDB para no romper el script si la build
+	# del módulo no trae alguno de los modos.
+	var mode_name: String = generator_config.get("emit_mode", "EMIT_FROM_VERTICES")
+	if ClassDB.class_has_integer_constant("VoxelInstanceGenerator", mode_name):
+		generator.emit_mode = ClassDB.class_get_integer_constant("VoxelInstanceGenerator", mode_name)
+	else:
+		push_error("Vegetación: emit_mode '%s' no existe en VoxelInstanceGenerator." % mode_name)
+	# Ojo: la unidad de 'density' depende del modo. Por vértices es la fracción de
+	# vértices del bloque (y entonces cae 4x por m² en cada banda de LOD); por área es
+	# instancias por m², independiente de la resolución de la malla.
 	if generator_config.has("density"):
 		var density: float = generator_config.density
 		if lod_index > 0:
@@ -96,10 +111,14 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 		generator.max_slope_degrees = generator_config.max_slope_degrees
 	if generator_config.has("vertical_alignment"):
 		generator.vertical_alignment = generator_config.vertical_alignment
+	# Un bloque de LOD N tiene los mismos vóxeles pero cubre 4x más área, así que
+	# EMIT_FROM_VERTICES da 4x menos instancias por m² en cada banda. lod_scale_gain
+	# las agranda para compensar parte de esa pérdida de cobertura (1.0 = sin cambio).
+	var scale_gain: float = pow(float(generator_config.get("lod_scale_gain", 1.0)), lod_index)
 	if generator_config.has("min_scale"):
-		generator.min_scale = generator_config.min_scale
+		generator.min_scale = generator_config.min_scale * scale_gain
 	if generator_config.has("max_scale"):
-		generator.max_scale = generator_config.max_scale
+		generator.max_scale = generator_config.max_scale * scale_gain
 	if generator_config.has("noise_graph"):
 		for graph_func in graph_functions:
 			if graph_func.name == generator_config.noise_graph:
@@ -366,6 +385,11 @@ func _load_vegetation() -> void:
 	item_transparent_materials.clear()
 	_next_library_id = 0
 
+	# Alcance real de cada banda de voxel-LOD: es lo que hay que mirar para calibrar
+	# lod_index, los fade de la hierba y los mesh_lod_distances_m de los árboles.
+	if voxel_terrain != null and voxel_terrain.has_method("get_lod_distances"):
+		print("[vegetation] alcance por lod_index (m): ", voxel_terrain.get_lod_distances())
+
 	# async: _load_vegetation_item hornea el impostor LOD3 de los árboles con await
 	# (render-to-texture). _load_vegetation se lanza como corrutina desde planet_loader
 	# (fire-and-forget): la vegetación se registra en los primeros frames sin bloquear la
@@ -387,19 +411,31 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 	if shared_data.is_empty():
 		return
 
+	# Item de tarjeta de parche: la malla registrada no es la mata sino el parche
+	# horneado, y su material ya se registra dentro del bake. La mata original solo
+	# sirve de fuente para el horneado, así que deja de registrarse.
+	var patch_cfg: Dictionary = item.get("grass_patch", {})
+	if not patch_cfg.is_empty():
+		var card := await _bake_grass_patch(shared_data.effective_mesh, patch_cfg)
+		if card == null:
+			return
+		shared_data.lod_meshes = [card, card, card, card]
+		shared_data.effective_mesh = null
+
 	# LOD3 = impostor (aspa) solo para árboles Tree3D: son los únicos con lod_meshes de 4
 	# entradas (Bush3D/Rock/MeshInstance -> []). Se hornea UNA vez por item, antes del bucle
 	# de registro, para que set_mesh(lm[3], 3) instale el impostor directamente (sin hot-swap).
 	var lm: Array = shared_data.lod_meshes
-	if lm.size() == 4 and item.get("lod3_impostor", true):
-		var impostor := await _bake_tree_impostor(lm[0])
-		if impostor != null:
-			lm[3] = impostor
+	if patch_cfg.is_empty():
+		if lm.size() == 4 and item.get("lod3_impostor", true):
+			var impostor := await _bake_tree_impostor(lm[0])
+			if impostor != null:
+				lm[3] = impostor
 
-	# Variantes de material por mesh-LOD (una cara en los lejanos, tinte de debug).
-	# Aquí y no en el registro: el item se registra una vez por banda y duplicaría.
-	if lm.size() == 4:
-		_apply_lod_material_variants(lm, item.wind_speed if item.has("wind_speed") else 0.0)
+		# Variantes de material por mesh-LOD (una cara en los lejanos, tinte de debug).
+		# Aquí y no en el registro: el item se registra una vez por banda y duplicaría.
+		if lm.size() == 4:
+			_apply_lod_material_variants(lm, item.wind_speed if item.has("wind_speed") else 0.0)
 
 	var emit_as_scene: bool = item.get("instance_as_scene", false)
 
@@ -625,6 +661,354 @@ func _build_impostor_cross_mesh(aabb: AABB, tex: Texture2D, view_size: float) ->
 ## Añade un quad (2 triángulos) a un SurfaceTool. corners/uvs en orden TL, TR, BR, BL.
 func _add_impostor_quad(st: SurfaceTool, corners: Array, uvs: Array, normal: Vector3) -> void:
 	for idx in [0, 1, 2, 0, 2, 3]:
+		st.set_normal(normal)
+		st.set_uv(uvs[idx])
+		st.add_vertex(corners[idx])
+
+
+## Hornea la tarjeta que sustituye a un parche entero de hierba a distancia: reparte
+## 'clump_count' matas en un cuadrado de 'size_m' y fotografía el clúster dos veces
+## (de lado y en cenital) a las dos capas de un Texture2DArray. Devuelve el aspa +
+## quad horizontal que las mapean, o null si el render falla.
+## Una tarjeta vale por decenas de matas: es lo que compensa que las bandas de LOD
+## altas den 4x menos instancias por m² cada una.
+## La escala se multiplica en dos sitios y hay que cuadrar los dos o el parche sale de
+## otro tamaño que la hierba real: 'clump_scale' ± 'clump_scale_jitter' debe reproducir
+## el min_scale/max_scale del generador de HIERBA al que releva, y el generador de la
+## TARJETA debe ir a min_scale = max_scale = 1.0 (la tarjeta ya trae sus metros).
+## Async: cada vista espera 2 frames a que el render-target se dibuje.
+func _bake_grass_patch(source_mesh: Mesh, cfg: Dictionary) -> Mesh:
+	if source_mesh == null or voxel_instancer == null or not voxel_instancer.is_inside_tree():
+		return null
+
+	# Lo que importa es la resolución por metro: el encuadre cubre el parche entero, así
+	# que a 256 px sobre 5 m las briznas caen por debajo del píxel y los mips las borran.
+	var tex_size: int = int(cfg.get("tex_size", 512))
+	var scatter_size: float = float(cfg.get("size_m", 4.0))
+	var clump_scale: float = float(cfg.get("clump_scale", 1.0))
+	var scale_jitter: float = clampf(float(cfg.get("clump_scale_jitter", 0.35)), 0.0, 1.0)
+	var aabb: AABB = source_mesh.get_aabb()
+	var max_clump: float = clump_scale * (1.0 + scale_jitter)
+	if scatter_size <= 0.0 or aabb.size.y <= 0.0 or max_clump <= 0.0:
+		return null
+
+	# Encuadre: peor caso teórico (las matas del borde sobresalen del cuadrado de reparto)
+	# para no recortar nada. La tarjeta NO usa estas medidas, se ajusta luego a lo que de
+	# verdad se haya dibujado: con reparto aleatorio el contenido se queda bastante corto.
+	var frame_size: float = scatter_size + maxf(aabb.size.x, aabb.size.z) * max_clump
+	var frame_height: float = aabb.size.y * max_clump
+	var view_size: float = maxf(frame_size, frame_height) * 1.05
+	var side_cam_y: float = frame_height * 0.5
+
+	var cluster := _build_grass_patch_cluster(source_mesh, cfg)
+	if cluster == null:
+		return null
+
+	# Lateral: alimenta el aspa. Centrada a media altura para que el parche quede
+	# centrado también en vertical dentro de la textura.
+	var side_img := await _render_ortho_to_image(cluster,
+		Vector3(0.0, side_cam_y, view_size), Vector3(0.0, side_cam_y, 0.0),
+		Vector3.UP, view_size, tex_size)
+	# Cenital pura: es la única proyección que mapea EXACTO sobre el quad horizontal
+	# (ortográfica = afín, el cuadrado del suelo cae en un rectángulo sin deformar).
+	var top_img := await _render_ortho_to_image(cluster,
+		Vector3(0.0, view_size, 0.0), Vector3.ZERO,
+		Vector3.FORWARD, view_size, tex_size)
+
+	cluster.queue_free()
+
+	if side_img == null or top_img == null:
+		push_warning("Planet: bake de parche de hierba devolvió imagen vacía; el item se queda sin tarjeta.")
+		return null
+
+	# Recuadro realmente pintado en cada vista: de ahí salen las medidas y las UV de la
+	# tarjeta, en vez del peor caso, que dejaba ~0.5 m de margen transparente por lado.
+	var side_rect: Rect2i = side_img.get_used_rect()
+	var top_rect: Rect2i = top_img.get_used_rect()
+	if side_rect.size.x <= 0 or side_rect.size.y <= 0 or top_rect.size.x <= 0 or top_rect.size.y <= 0:
+		push_warning("Planet: el parche de hierba se horneó vacío; el item se queda sin tarjeta.")
+		return null
+
+	# Volcado de las dos vistas tal cual salen del render, antes de mipmaps y UVs:
+	# es la única forma de separar "la textura sale mal" de "la tarjeta la mapea mal".
+	if bool(cfg.get("debug_dump", false)):
+		var tag: String = str(int(cfg.get("seed", 0)))
+		side_img.save_png("user://grass_patch_%s_side.png" % tag)
+		top_img.save_png("user://grass_patch_%s_top.png" % tag)
+		print("[grass_patch] volcado %s: encuadre %.2f m a %d px/m | pintado %.2f x %.2f m (lateral), %.2f x %.2f m (cenital)" % [
+			tag, view_size, int(tex_size / view_size),
+			side_rect.size.x * view_size / tex_size, side_rect.size.y * view_size / tex_size,
+			top_rect.size.x * view_size / tex_size, top_rect.size.y * view_size / tex_size])
+
+	side_img = _fill_transparent_rgb(side_img)
+	top_img = _fill_transparent_rgb(top_img)
+	side_img.generate_mipmaps()
+	top_img.generate_mipmaps()
+	# Texture2DArray y no un atlas en una sola imagen: con atlas los mips mezclan las
+	# dos vistas entre sí y el aspa acaba con manchas de la cenital.
+	var atlas := Texture2DArray.new()
+	if atlas.create_from_images([side_img, top_img]) != OK:
+		push_warning("Planet: no se pudo crear el Texture2DArray del parche de hierba.")
+		return null
+
+	var card := _build_grass_patch_card(side_rect, top_rect, tex_size, view_size, side_cam_y, atlas, cfg)
+	_apply_grass_handoff(card, source_mesh, cfg)
+	return card
+
+
+## Reparte el relevo hierba->tarjeta a partir del corte duro de la banda de LOD de la
+## hierba: pasado ese alcance el instancer ya no tiene esos bloques y la hierba se corta
+## en seco, así que TODO el relevo tiene que terminar antes. El orden es tarjeta primero:
+## cuando la hierba empieza a irse, la tarjeta ya está entera, y nunca hay una franja con
+## las dos a medias.
+## Escribe los dos materiales desde el mismo sitio para que no puedan desincronizarse; el
+## de la mata es el mismo recurso que usa el item de hierba (los dos cargan esa escena),
+## así que esto también fija el fade de la hierba cercana y manda sobre el .tscn.
+func _apply_grass_handoff(card: Mesh, source_mesh: Mesh, cfg: Dictionary) -> void:
+	var card_width: float = float(cfg.get("fade_width_m", 20.0))
+	var grass_width: float = float(cfg.get("grass_fade_width_m", 20.0))
+
+	# 'handoff_end_m' pincha el final a mano; si no, se deduce del alcance real de la
+	# banda menos un margen, para cerrar antes de que empiecen a caerse bloques.
+	var grass_end: float = float(cfg.get("handoff_end_m", 0.0))
+	if grass_end <= 0.0:
+		var band: float = _get_lod_view_distance(int(cfg.get("handoff_lod_index", 1)))
+		grass_end = band - float(cfg.get("handoff_margin_m", 8.0))
+	var grass_start: float = maxf(grass_end - grass_width, 1.0)
+
+	var grass_mat := source_mesh.surface_get_material(0) as ShaderMaterial
+	if grass_mat != null:
+		grass_mat.set_shader_parameter("fade_start", grass_start)
+		grass_mat.set_shader_parameter("fade_end", grass_end)
+
+	var card_mat := card.surface_get_material(0) as ShaderMaterial
+	if card_mat != null:
+		card_mat.set_shader_parameter("fade_start", maxf(grass_start - card_width, 1.0))
+		card_mat.set_shader_parameter("fade_width", card_width)
+
+	print("[grass_patch] relevo: tarjeta %.0f->%.0f m, hierba %.0f->%.0f m" % [
+		maxf(grass_start - card_width, 1.0), grass_start, grass_start, grass_end])
+
+
+## Pinta de color medio el RGB de los píxeles transparentes, conservando el alfa.
+## Cada nivel de mipmap promedia RGB sin mirar el alfa, así que con el fondo negro del
+## render la tarjeta se ensucia hacia negro según se aleja, y peor cuanto más hueco
+## tenga la vista (la cenital, llena de claros, se ennegrecía antes que la lateral).
+## El color se saca de la propia imagen y no de los uniforms del material para no tener
+## que adivinar en qué espacio de color viene el render.
+func _fill_transparent_rgb(img: Image) -> Image:
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	var data: PackedByteArray = img.get_data()
+
+	var sum_r: int = 0
+	var sum_g: int = 0
+	var sum_b: int = 0
+	var opaque: int = 0
+	var i: int = 0
+	while i < data.size():
+		if data[i + 3] >= 128:
+			sum_r += data[i]
+			sum_g += data[i + 1]
+			sum_b += data[i + 2]
+			opaque += 1
+		i += 4
+	if opaque == 0:
+		return img
+
+	var avg_r: int = sum_r / opaque
+	var avg_g: int = sum_g / opaque
+	var avg_b: int = sum_b / opaque
+	i = 0
+	while i < data.size():
+		if data[i + 3] < 128:
+			data[i] = avg_r
+			data[i + 1] = avg_g
+			data[i + 2] = avg_b
+		i += 4
+
+	return Image.create_from_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, data)
+
+
+## Nodo temporal con 'clump_count' copias de la mata repartidas en un cuadrado de
+## 'size_m' (rejilla con jitter), con giro y escala deterministas ('seed'). Apoyadas en y=0.
+func _build_grass_patch_cluster(source_mesh: Mesh, cfg: Dictionary) -> Node3D:
+	var bake_mat := _build_grass_patch_bake_material(source_mesh, cfg)
+	if bake_mat == null:
+		return null
+
+	var half: float = float(cfg.get("size_m", 4.0)) * 0.5
+	var count: int = maxi(int(cfg.get("clump_count", 36)), 1)
+	var clump_scale: float = float(cfg.get("clump_scale", 1.0))
+	var scale_jitter: float = clampf(float(cfg.get("clump_scale_jitter", 0.35)), 0.0, 1.0)
+	var base_y: float = source_mesh.get_aabb().position.y
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(cfg.get("seed", 1337))
+
+	# Rejilla con jitter en vez de azar puro: con dos docenas de muestras el azar deja
+	# calvas grandes (la vista cenital horneada salía con un mordisco). Los recuentos que
+	# llenan la rejilla entera (16, 20, 25...) reparten mejor que los que dejan coja la
+	# última fila.
+	var cols: int = int(ceil(sqrt(float(count))))
+	var rows: int = int(ceil(float(count) / float(cols)))
+	var cell_x: float = half * 2.0 / float(cols)
+	var cell_z: float = half * 2.0 / float(rows)
+
+	var root := Node3D.new()
+	for i in count:
+		var inst := MeshInstance3D.new()
+		inst.mesh = source_mesh
+		inst.material_override = bake_mat
+		var s: float = clump_scale * rng.randf_range(1.0 - scale_jitter, 1.0 + scale_jitter)
+		var t := Transform3D.IDENTITY.scaled(Vector3(s, s, s)).rotated(Vector3.UP, rng.randf_range(0.0, TAU))
+		# El AABB del modelo no arranca en y=0: se sube para apoyarlo en el suelo.
+		t.origin = Vector3(
+			-half + (float(i % cols) + rng.randf()) * cell_x,
+			-base_y * s,
+			-half + (float(i / cols) + rng.randf()) * cell_z)
+		inst.transform = t
+		root.add_child(inst)
+	return root
+
+
+## Material de horneado del parche: hereda el degradado del shader de hierba del item
+## para que cada variante (verde / verde-amarillo / amarillo) hornee su propio color.
+func _build_grass_patch_bake_material(source_mesh: Mesh, cfg: Dictionary) -> ShaderMaterial:
+	if _grass_patch_bake_shader == null:
+		_grass_patch_bake_shader = load(_GRASS_PATCH_BAKE_SHADER_PATH)
+	if _grass_patch_bake_shader == null:
+		return null
+
+	var mat := ShaderMaterial.new()
+	mat.shader = _grass_patch_bake_shader
+	var src := source_mesh.surface_get_material(0) as ShaderMaterial
+	if src != null:
+		for param in ["base_color", "tip_color", "grass_height"]:
+			var value = src.get_shader_parameter(param)
+			if value != null:
+				mat.set_shader_parameter(param, value)
+	mat.set_shader_parameter("ao_strength", float(cfg.get("bake_ao", 0.35)))
+	return mat
+
+
+## Fotografía 'content' con una cámara ortográfica que encuadra 'view_size' metros,
+## sobre fondo transparente y en un mundo 3D propio (no se cuela la escena real).
+## 'content' entra y sale del viewport: el llamante conserva su propiedad.
+## No añade luces: el material de horneado es unshaded.
+func _render_ortho_to_image(content: Node3D, eye: Vector3, target: Vector3, up: Vector3,
+		view_size: float, tex_size: int) -> Image:
+	var vp := SubViewport.new()
+	vp.size = Vector2i(tex_size, tex_size)
+	vp.transparent_bg = true                  # imprescindible para capturar el alfa
+	vp.own_world_3d = true                    # mundo propio -> sin fondo de la escena real
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	vp.add_child(content)
+
+	var cam := Camera3D.new()
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = view_size
+	cam.near = 0.05
+	cam.far = eye.distance_to(target) + view_size * 2.0
+	cam.look_at_from_position(eye, target, up)
+	vp.add_child(cam)
+
+	voxel_instancer.add_child(vp)             # el viewport debe estar en el árbol para renderizar
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+
+	var img: Image = vp.get_texture().get_image()
+	vp.remove_child(content)
+	vp.queue_free()
+
+	if img == null or img.is_empty():
+		return null
+	return img
+
+
+## Aspa vertical + quad horizontal que mapean las dos capas del atlas del parche.
+## COLOR.r marca la capa (0 = lateral en el aspa, 1 = cenital en el horizontal).
+## Cada quad se ajusta al recuadro que la vista correspondiente pintó de verdad, así que
+## no queda margen transparente y la escala es exacta: los píxeles del recuadro se
+## deshacen a metros con la misma proyección ortográfica que los generó.
+func _build_grass_patch_card(side_rect: Rect2i, top_rect: Rect2i, tex_size: int,
+		view_size: float, side_cam_y: float, atlas: Texture2DArray, cfg: Dictionary) -> ArrayMesh:
+	# Lateral: cámara en +Z mirando a -Z, centrada en (0, side_cam_y). u sigue a +X y v
+	# baja en pantalla, así que v crece hacia Y bajo.
+	var su0: float = float(side_rect.position.x) / tex_size
+	var su1: float = float(side_rect.end.x) / tex_size
+	var sv0: float = float(side_rect.position.y) / tex_size
+	var sv1: float = float(side_rect.end.y) / tex_size
+	var x_min: float = (su0 - 0.5) * view_size
+	var x_max: float = (su1 - 0.5) * view_size
+	var y_max: float = side_cam_y + (0.5 - sv0) * view_size
+	var y_min: float = side_cam_y + (0.5 - sv1) * view_size
+
+	# Cenital: cámara encima con up = FORWARD, así que u sigue a +X y v a +Z.
+	var tu0: float = float(top_rect.position.x) / tex_size
+	var tu1: float = float(top_rect.end.x) / tex_size
+	var tv0: float = float(top_rect.position.y) / tex_size
+	var tv1: float = float(top_rect.end.y) / tex_size
+	var gx_min: float = (tu0 - 0.5) * view_size
+	var gx_max: float = (tu1 - 0.5) * view_size
+	var gz_min: float = (tv0 - 0.5) * view_size
+	var gz_max: float = (tv1 - 0.5) * view_size
+
+	# Medio píxel hacia dentro: evita arrastrar la fila transparente del borde al filtrar.
+	var half_px: float = 0.5 / float(tex_size)
+	var uvs_side: Array = [
+		Vector2(su0 + half_px, sv0 + half_px), Vector2(su1 - half_px, sv0 + half_px),
+		Vector2(su1 - half_px, sv1 - half_px), Vector2(su0 + half_px, sv1 - half_px)]
+	var uvs_top: Array = [
+		Vector2(tu0 + half_px, tv0 + half_px), Vector2(tu1 - half_px, tv0 + half_px),
+		Vector2(tu1 - half_px, tv1 - half_px), Vector2(tu0 + half_px, tv1 - half_px)]
+	var layer_side := Color(0.0, 0.0, 0.0, 1.0)
+	var layer_top := Color(1.0, 0.0, 0.0, 1.0)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	# Aspa: quad en el plano XY y quad en el plano ZY, ambos con la vista lateral. El
+	# segundo reutiliza el ancho del primero, girado 90º.
+	_add_patch_quad(st,
+		[Vector3(x_min, y_max, 0.0), Vector3(x_max, y_max, 0.0),
+		 Vector3(x_max, y_min, 0.0), Vector3(x_min, y_min, 0.0)],
+		uvs_side, Vector3.BACK, layer_side)
+	_add_patch_quad(st,
+		[Vector3(0.0, y_max, x_min), Vector3(0.0, y_max, x_max),
+		 Vector3(0.0, y_min, x_max), Vector3(0.0, y_min, x_min)],
+		uvs_side, Vector3.RIGHT, layer_side)
+
+	# Quad horizontal, algo elevado para no pelearse con el terreno en el z-buffer.
+	# Con vertical_alignment radial se apoya en el plano tangente, así que en
+	# pendientes fuertes se hunde por un lado: limitar max_slope_degrees del generador.
+	var gy: float = (y_max - y_min) * float(cfg.get("ground_quad_height", 0.25))
+	_add_patch_quad(st,
+		[Vector3(gx_min, gy, gz_min), Vector3(gx_max, gy, gz_min),
+		 Vector3(gx_max, gy, gz_max), Vector3(gx_min, gy, gz_max)],
+		uvs_top, Vector3.UP, layer_top)
+
+	if _grass_patch_shader == null:
+		_grass_patch_shader = load(_GRASS_PATCH_SHADER_PATH)
+	var mat := ShaderMaterial.new()
+	mat.shader = _grass_patch_shader
+	mat.set_shader_parameter("patch_atlas", atlas)
+	# Bajo a propósito: el alfa se promedia en cada mip, así que un umbral alto se come
+	# las briznas finas de lejos y deja solo la base maciza.
+	mat.set_shader_parameter("alpha_scissor_threshold", float(cfg.get("alpha_scissor", 0.25)))
+	# Registrar para recibir el push de sol (light_direction/planet_position) cada
+	# frame; sin viento (a esta distancia el balanceo es subpíxel).
+	item_transparent_materials.append({"shader": mat, "wind_speed": 0.0})
+
+	st.set_material(mat)
+	return st.commit()
+
+
+## Como _add_impostor_quad pero marcando la capa del atlas en el color del vértice.
+func _add_patch_quad(st: SurfaceTool, corners: Array, uvs: Array, normal: Vector3, layer: Color) -> void:
+	for idx in [0, 1, 2, 0, 2, 3]:
+		st.set_color(layer)
 		st.set_normal(normal)
 		st.set_uv(uvs[idx])
 		st.add_vertex(corners[idx])

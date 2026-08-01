@@ -26,6 +26,8 @@ shader_parameter/gust_scale = 0.15
 shader_parameter/gust_speed = 1.0
 shader_parameter/flutter_speed = 6.0
 shader_parameter/flutter_amount = 0.25
+shader_parameter/fade_start = 70.0
+shader_parameter/fade_end = 100.0
 shader_parameter/specular_strength = 0.15
 shader_parameter/specular_roughness = 0.7
 
