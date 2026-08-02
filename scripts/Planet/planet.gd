@@ -38,6 +38,12 @@ const config = preload("res://scripts/config.gd")
 @export var slope_roughness_texture: Texture2D
 @export var slope_ao_texture: Texture2D
 @export var slope_height_texture: Texture2D
+@export var slope_threshold: float = 0.35
+@export var slope_smoothness: float = 0.18
+@export var slope_height_blend_strength: float = 0.0
+@export var slope_height_blend_sharpness: float = 0.2
+@export var macro_variation_scale: float = 0.006
+@export var macro_variation_strength: float = 0.18
 @export var vegetation: Dictionary
 @export var wind_direction : Vector3
 
@@ -1099,6 +1105,12 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("slope_roughness_texture", slope_roughness_texture)
 	shader_material.set_shader_parameter("slope_ao_texture", slope_ao_texture)
 	shader_material.set_shader_parameter("slope_height_texture", slope_height_texture)
+	shader_material.set_shader_parameter("slope_threshold", slope_threshold)
+	shader_material.set_shader_parameter("slope_smoothness", slope_smoothness)
+	shader_material.set_shader_parameter("slope_height_blend_strength", slope_height_blend_strength)
+	shader_material.set_shader_parameter("slope_height_blend_sharpness", slope_height_blend_sharpness)
+	shader_material.set_shader_parameter("macro_variation_scale", macro_variation_scale)
+	shader_material.set_shader_parameter("macro_variation_strength", macro_variation_strength)
 
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", radius - water_radius)

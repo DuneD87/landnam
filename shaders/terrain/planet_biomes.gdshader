@@ -3,7 +3,10 @@ render_mode blend_mix;
 #include "res://shaders/terrain/terrain_utils.gdshaderinc"
 #include "res://shaders/terrain/virtual_texturing.gdshaderinc"
 
-uniform float macro_variation_scale : hint_range(0.0, 0.01) = 0.15;
+// Escala en 1/metros: 0.006 => manchas de ~170 m, que es lo que rompe una ladera entera.
+// Estaba en 0.15 (rasgos de ~7 m): a distancia se promediaba a cero y de cerca solo
+// anadia ruido por pixel.
+uniform float macro_variation_scale : hint_range(0.0, 0.03) = 0.006;
 uniform float macro_variation_strength : hint_range(0.0, 0.5) = 0.18;
 uniform float macro_variation_contrast : hint_range(0.5, 3.0) = 1.4;
 
@@ -55,6 +58,15 @@ uniform sampler2D slope_height_texture;
 uniform sampler2D slope_ao_texture;
 uniform float slope_threshold = 0.5;
 uniform float slope_smoothness = 0.5;
+// Mezcla por height map en el contacto pendiente<->bioma. 0 = degradado lineal por angulo
+// (comportamiento anterior). Con >0 la roca gana donde su height map sobresale y pierde en
+// los huecos, asi que el borde se interdigita en vez de ser un aerografo.
+// sharpness: pequeno = contacto duro, grande = difuso.
+uniform float slope_height_blend_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float slope_height_blend_sharpness : hint_range(0.02, 1.0) = 0.2;
+// 0=off, 1=mascara de pendiente (rojo=slope puro), 2=angulo crudo en grados/90,
+// 3=roughness final. Para tunear slope_threshold/smoothness viendo lo que decide.
+uniform int debug_slope_view : hint_range(0, 3) = 0;
 uniform float transition_smoothness = 0.5;
 
 uniform float biome_transition_smoothness = 1.0; // nueva uniform para suavizar transiciones
@@ -181,7 +193,11 @@ void fragment() {
     float slope_factor = smoothstep(slope_threshold - slope_smoothness,
                                      slope_threshold + slope_smoothness, slope);
 
-    // 4) Slope con UVs base o parallax, segun el toggle.
+    // 4) Slope con UVs base o parallax, segun el toggle. Eje de mezcla triplanar =
+    // planet_up, igual que los biomas: normal_world viene de la virtual texture y
+    // cambia entre niveles de LOD, asi que la proyeccion nadaba en los bordes.
+	float final_tightness = 0.0;
+
     TriplanarUVs slope_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
     if (use_parallax) {
         slope_uvs = compute_parallax_uvs_limited(
@@ -190,13 +206,20 @@ void fragment() {
             parallax_height_center, parallax_height_contrast, parallax_min_view_dot
         );
     }
-	float final_tightness = 0.0;
 
-    vec3 slope_color    = triplanar_sample_uvs(slope_texture, slope_uvs, normal_world);
-    vec4 slope_n_v = triplanar_normal_sample_uvs_v(slope_normal_texture, slope_uvs, normal_world);
+    vec3 slope_color = triplanar_sample_uvs(slope_texture, slope_uvs, planet_up);
+    if (detail_blend_enabled) {
+        TriplanarUVs slope_uvs_detail = compute_triplanar_uvs(planet_pos, texture_scale * detail_scale_multiplier);
+        vec3 slope_detail = triplanar_sample_uvs(slope_texture, slope_uvs_detail, planet_up);
+        slope_color = mix(slope_color, slope_color * slope_detail * 2.0, detail_blend_weight);
+    }
+    vec4 slope_n_v    = triplanar_normal_sample_uvs_v(slope_normal_texture, slope_uvs, normal_world);
 	vec3 slope_normal = slope_n_v.xyz;
-    float slope_rough   = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, normal_world);
-    float slope_ao_v    = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, normal_world);
+    float slope_rough = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, planet_up);
+    float slope_ao_v  = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, planet_up);
+    float slope_height = (slope_height_blend_strength > 0.0001)
+        ? triplanar_scalar_sample_uvs(slope_height_texture, slope_uvs, planet_up)
+        : 0.0;
 
     // 5) Pesos de bioma (igual que tenías)
     float biome_weights[MAX_BIOMES];
@@ -218,6 +241,9 @@ void fragment() {
     float final_roughness = 0.0;
     float final_ao = 0.0;
     float total_factor = 0.0;
+    // Altura media de los materiales de bioma en este fragmento; es el lado "bioma" del
+    // height blend contra la pendiente. Solo se acumula si ese blend esta activo.
+    float final_material_height = 0.0;
 
     for (int b = 0; b < biome_count; b++) {
         float biome_weight = biome_weights[b];
@@ -311,10 +337,13 @@ void fragment() {
             // Height bias aplicado SOLO al peso de la textura fuente (no al override).
             // Así el height map de la hierba solo afecta a la hierba, y el de la tierra
             // solo afecta a la tierra (en la sección de override más abajo).
-            if (height_blend_strength > 0.0001 && base_factor > 0.0001) {
+            if ((height_blend_strength > 0.0001 || slope_height_blend_strength > 0.0001) && base_factor > 0.0001) {
                 float material_height = triplanar_scalar_sample_uvs(height_textures[tex_index], uvs, planet_up);
-                float height_bias = mix(0.35, 1.35, pow(clamp(material_height, 0.0, 1.0), height_blend_contrast));
-                base_factor *= mix(1.0, height_bias, height_blend_strength);
+                if (height_blend_strength > 0.0001) {
+                    float height_bias = mix(0.35, 1.35, pow(clamp(material_height, 0.0, 1.0), height_blend_contrast));
+                    base_factor *= mix(1.0, height_bias, height_blend_strength);
+                }
+                final_material_height += clamp(material_height, 0.0, 1.0) * base_factor;
             }
 
             // planet_up como eje de mezcla triplanar: invariante al LOD y a la normal del mesh.
@@ -347,10 +376,13 @@ void fragment() {
                     );
                 }
 
-                if (height_blend_strength > 0.0001) {
+                if (height_blend_strength > 0.0001 || slope_height_blend_strength > 0.0001) {
                     float override_height = triplanar_scalar_sample_uvs(height_textures[override_tex_index], override_uvs, planet_up);
-                    float override_height_bias = mix(0.35, 1.35, pow(clamp(override_height, 0.0, 1.0), height_blend_contrast));
-                    override_factor *= mix(1.0, override_height_bias, height_blend_strength);
+                    if (height_blend_strength > 0.0001) {
+                        float override_height_bias = mix(0.35, 1.35, pow(clamp(override_height, 0.0, 1.0), height_blend_contrast));
+                        override_factor *= mix(1.0, override_height_bias, height_blend_strength);
+                    }
+                    final_material_height += clamp(override_height, 0.0, 1.0) * override_factor;
                 }
 
                 vec3 override_c = triplanar_sample_uvs(textures[override_tex_index], override_uvs, planet_up);
@@ -368,12 +400,31 @@ void fragment() {
         }
     }
 
-    // Slope contribution
-    final_color     += slope_color  * slope_factor;
-    final_normal    += slope_normal * slope_factor;
-    final_roughness += slope_rough  * slope_factor;
-    final_ao        += slope_ao_v   * slope_factor;
-    total_factor    += slope_factor;
+    // Height blend del contacto pendiente<->bioma. El peso angular actua como offset de
+    // altura de cada lado (height-lerp clasico): quien sobresale mas, gana. Solo se
+    // recalcula el peso de la pendiente; los de bioma ya estan acumulados y la division
+    // por total_factor reparte lo que sobra, igual que hace el resto del shader.
+    float slope_mix = slope_factor;
+    if (slope_height_blend_strength > 0.0001) {
+        float biome_height = (total_factor > 0.0001) ? (final_material_height / total_factor) : 0.5;
+        float d  = max(slope_height_blend_sharpness, 0.0001);
+        float ha = slope_height + slope_factor;
+        float hb = biome_height + (1.0 - slope_factor);
+        float m  = max(ha, hb) - d;
+        float wa = max(ha - m, 0.0);
+        float wb = max(hb - m, 0.0);
+        slope_mix = mix(slope_factor, wa / max(wa + wb, 0.0001), slope_height_blend_strength);
+    }
+
+    // Slope contribution. tightness DEBE sumarse igual que en el bucle de biomas: si no,
+    // se diluye por total_factor y la specular AA de abajo satura la roughness a 1.0 en
+    // cuanto hay algo de pendiente (con specular_aa_strength=4, a partir de ~39 grados).
+    final_color     += slope_color  * slope_mix;
+    final_normal    += slope_normal * slope_mix;
+	final_tightness += slope_n_v.w  * slope_mix;
+    final_roughness += slope_rough  * slope_mix;
+    final_ao        += slope_ao_v   * slope_mix;
+    total_factor    += slope_mix;
 
     if (total_factor > 0.0) {
         final_color     /= total_factor;

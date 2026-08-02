@@ -11,24 +11,27 @@ fractal_ping_pong_strength = 4.0
 terrace_enabled = true
 terrace_smoothness = 0.8
 
-[sub_resource type="FastNoise2" id="FastNoise2_iequl"]
-period = 6000.0
+[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_lea4t"]
+period = 300.0001
+amplitude = 15.0001
 fractal_type = 1
-fractal_octaves = 4
-fractal_lacunarity = 4.2
-fractal_gain = 0.2
-cellular_return_type = 2
-cellular_index1 = 3
-terrace_multiplier = 10.0
-terrace_smoothness = 1.0
+fractal_lacunarity = 4.0
+fractal_gain = 1.0
+
+[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_lea4t"]
+period = 6000.0
+warp_noise = SubResource("ZN_FastNoiseLiteGradient_lea4t")
+fractal_octaves = 6
+fractal_lacunarity = 5.5
+fractal_gain = 0.19
 
 [resource]
 graph_data = {
-"connections": [[49, 0, 47, 1], [41, 0, 47, 0], [44, 0, 40, 0], [45, 0, 41, 1], [46, 0, 49, 0], [47, 0, 44, 1], [66, 0, 44, 0]],
+"connections": [[41, 0, 47, 0], [49, 0, 47, 1], [44, 0, 40, 0], [45, 0, 41, 1], [47, 0, 90, 0], [66, 0, 44, 0], [67, 0, 49, 0], [90, 0, 91, 0], [90, 0, 94, 0], [91, 0, 92, 0], [92, 0, 93, 2], [93, 0, 94, 1], [94, 0, 95, 0], [95, 0, 44, 1]],
 "nodes": {
 "40": {
 "auto_connect": false,
-"gui_position": Vector2(1470, -440),
+"gui_position": Vector2(2400, -440),
 "name": &"earth_field",
 "type": "CustomOutput"
 },
@@ -40,7 +43,7 @@ graph_data = {
 },
 "44": {
 "auto_connect": false,
-"gui_position": Vector2(1090, -420),
+"gui_position": Vector2(2120, -420),
 "type": "Add"
 },
 "45": {
@@ -48,16 +51,6 @@ graph_data = {
 "gui_position": Vector2(-132.11292, -489.5584),
 "name": &"fast_noise_continents",
 "noise": SubResource("FastNoise2_lea4t"),
-"type": "FastNoise2_3D",
-"x": 0.0,
-"y": 0.0,
-"z": 0.0
-},
-"46": {
-"auto_connect": true,
-"gui_position": Vector2(-100, -320),
-"name": &"fast_noise_mountains",
-"noise": SubResource("FastNoise2_iequl"),
 "type": "FastNoise2_3D",
 "x": 0.0,
 "y": 0.0,
@@ -83,6 +76,55 @@ graph_data = {
 "x": 0.0,
 "y": 0.0,
 "z": 0.0
+},
+"67": {
+"auto_connect": true,
+"gui_position": Vector2(-130, -250),
+"noise": SubResource("ZN_FastNoiseLite_lea4t"),
+"type": "FastNoise3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"90": {
+"auto_connect": false,
+"b": 40.0,
+"gui_position": Vector2(950, -180),
+"name": &"beach_sea_offset",
+"type": "Subtract"
+},
+"91": {
+"auto_connect": false,
+"gui_position": Vector2(1150, -180),
+"type": "Abs"
+},
+"92": {
+"auto_connect": false,
+"edge0": 0.0,
+"edge1": 60.0,
+"gui_position": Vector2(1330, -180),
+"name": &"beach_band",
+"type": "Smoothstep"
+},
+"93": {
+"a": 0.35,
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(1530, -180),
+"name": &"beach_flatten",
+"type": "Mix"
+},
+"94": {
+"auto_connect": false,
+"gui_position": Vector2(1730, -300),
+"type": "Multiply"
+},
+"95": {
+"auto_connect": false,
+"b": 150.0,
+"gui_position": Vector2(1910, -300),
+"name": &"beach_restore",
+"type": "Add"
 }
 },
 "version": 2

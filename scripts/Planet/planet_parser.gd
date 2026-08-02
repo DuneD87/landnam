@@ -44,6 +44,12 @@ class_name PlanetParser extends Node3D
 @export var slope_roughness_texture: Texture2D
 @export var slope_ao_texture: Texture2D
 @export var slope_height_texture: Texture2D
+@export var slope_threshold: float = 0.35
+@export var slope_smoothness: float = 0.18
+@export var slope_height_blend_strength: float = 0.0
+@export var slope_height_blend_sharpness: float = 0.2
+@export var macro_variation_scale: float = 0.006
+@export var macro_variation_strength: float = 0.18
 
 @export_group("Atmosphere Settings")
 @export var atmosphere_radius: float
@@ -159,7 +165,14 @@ func load_config(config_path: String):
 			return
 	
 	biome_transition_smoothness = biome_settings.biome_transition_smoothness
-	
+	# Opcionales: el umbral se compara contra 1 - dot(normal, up), no contra el angulo.
+	slope_threshold = float(biome_settings.get("slope_threshold", slope_threshold))
+	slope_smoothness = float(biome_settings.get("slope_smoothness", slope_smoothness))
+	slope_height_blend_strength = float(biome_settings.get("slope_height_blend_strength", slope_height_blend_strength))
+	slope_height_blend_sharpness = float(biome_settings.get("slope_height_blend_sharpness", slope_height_blend_sharpness))
+	macro_variation_scale = float(biome_settings.get("macro_variation_scale", macro_variation_scale))
+	macro_variation_strength = float(biome_settings.get("macro_variation_strength", macro_variation_strength))
+
 	max_heights = []
 	for value in biome_settings.max_heights:
 		if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT:

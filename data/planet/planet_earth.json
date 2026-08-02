@@ -12,9 +12,9 @@
 		"biome_transition_smoothness": 1.0,
 		"max_heights": [
 			-30, 70, 4000,
-			-50, 150, 4000,
+			-30, 150, 4000,
 			-5, 20, 4000,
-			-50, 150, 4000,
+			-30, 150, 4000,
 			-30, 70, 4000
 		],
 		"biome_texture_indices": [
@@ -24,6 +24,12 @@
 			0, 1, 2,
 			2, 2, 2
 		],
+		"slope_threshold": 0.75,
+		"slope_smoothness": 0.25,
+		"slope_height_blend_strength": 0.55,
+		"slope_height_blend_sharpness": 0.2,
+		"macro_variation_scale": 0.06,
+		"macro_variation_strength": 0.78,
 		"textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png",
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png",
