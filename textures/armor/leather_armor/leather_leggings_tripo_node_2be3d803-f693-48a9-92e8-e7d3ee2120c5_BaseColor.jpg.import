@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://xmhmbbsefee3"
-path.s3tc="res://.godot/imported/firstage_human_male_player_Image_2.jpg-64663f55b882fa74d8108d7ff1cd5bb1.s3tc.ctex"
+uid="uid://cfrrra5f04gfv"
+path.s3tc="res://.godot/imported/leather_leggings_tripo_node_2be3d803-f693-48a9-92e8-e7d3ee2120c5_BaseColor.jpg-1c4f6efac46315d6b4f072ec3cbe171b.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "4d24f22da878ac2b938c0a7a2b9ef1f1"
+"md5": "4bd4ae339fc62c36307644c7cf7c919e"
 }
 
 [deps]
 
-source_file="res://models/player/xavivar/firstage_human_male_player_Image_2.jpg"
-dest_files=["res://.godot/imported/firstage_human_male_player_Image_2.jpg-64663f55b882fa74d8108d7ff1cd5bb1.s3tc.ctex"]
+source_file="res://textures/armor/leather_armor/leather_leggings_tripo_node_2be3d803-f693-48a9-92e8-e7d3ee2120c5_BaseColor.jpg"
+dest_files=["res://.godot/imported/leather_leggings_tripo_node_2be3d803-f693-48a9-92e8-e7d3ee2120c5_BaseColor.jpg-1c4f6efac46315d6b4f072ec3cbe171b.s3tc.ctex"]
 
 [params]
 
@@ -25,12 +25,12 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=1
+compress/normal_map=0
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
-roughness/mode=1
-roughness/src_normal="res://models/player/xavivar/firstage_human_male_player_Image_2.jpg"
+roughness/mode=0
+roughness/src_normal=""
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2

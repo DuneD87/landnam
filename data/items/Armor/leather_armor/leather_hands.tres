@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://nyeaqo7gwbjd"]
+
+[ext_resource type="Texture2D" uid="uid://bqt1lgkw53njf" path="res://textures/icons/items/armor/leather_armor/gauntlets.png" id="1_mvew1"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_1wmrh"]
+
+[resource]
+script = ExtResource("2_1wmrh")
+id = &"leather_hands"
+display_name = "Leather Hands"
+description = "Leather Hands"
+icon = ExtResource("1_mvew1")
+category = 4
+scene_path = "res://scenes/items/armor/leather_armor/leather_hands_equipable.tscn"
+tool_type = 2
+armor_slot = 3
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

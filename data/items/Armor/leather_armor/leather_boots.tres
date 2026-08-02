@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://crgbfmxgx1cbv"]
+
+[ext_resource type="Texture2D" uid="uid://cfhdw0y3jog32" path="res://textures/icons/items/armor/leather_armor/boots.png" id="1_ngkri"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_nfn76"]
+
+[resource]
+script = ExtResource("2_nfn76")
+id = &"leather_boots"
+display_name = "Leather Boots"
+description = "Leather Boots"
+icon = ExtResource("1_ngkri")
+category = 4
+scene_path = "res://scenes/items/armor/leather_armor/leather_boots_equipable.tscn"
+tool_type = 2
+armor_slot = 5
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

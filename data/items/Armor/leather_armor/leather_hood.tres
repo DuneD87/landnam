@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://d04exkqj4ify8"]
+
+[ext_resource type="Texture2D" uid="uid://6hw2o5t465hm" path="res://textures/icons/items/armor/leather_armor/hood.png" id="1_2nf41"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_0qbmi"]
+
+[resource]
+script = ExtResource("2_0qbmi")
+id = &"leather_hood"
+display_name = "Leather Hood"
+description = "Leather Hood"
+icon = ExtResource("1_2nf41")
+category = 4
+scene_path = "res://scenes/items/armor/leather_armor/leather_hood_equipable.tscn"
+tool_type = 2
+armor_slot = 1
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

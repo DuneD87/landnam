@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cyddaj2xfdqqt"
-path.s3tc="res://.godot/imported/firstage_human_male_player_Image_0.jpg-357ce62f05f3ab39ae9cb480022d51f4.s3tc.ctex"
+uid="uid://crt7w2uwrrhot"
+path.s3tc="res://.godot/imported/leather_boots_tripo_node_06b6ce17-0527-4472-a336-7e79841bafdc_BaseColor.jpg-148d64bd5be34c738420b225bf7402e0.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "acb85c46a289f77697acadf7c84c3b16"
+"md5": "d84af238b49661ab123d96804cb796e6"
 }
 
 [deps]
 
-source_file="res://models/player/xavivar/firstage_human_male_player_Image_0.jpg"
-dest_files=["res://.godot/imported/firstage_human_male_player_Image_0.jpg-357ce62f05f3ab39ae9cb480022d51f4.s3tc.ctex"]
+source_file="res://textures/armor/leather_armor/leather_boots_tripo_node_06b6ce17-0527-4472-a336-7e79841bafdc_BaseColor.jpg"
+dest_files=["res://.godot/imported/leather_boots_tripo_node_06b6ce17-0527-4472-a336-7e79841bafdc_BaseColor.jpg-148d64bd5be34c738420b225bf7402e0.s3tc.ctex"]
 
 [params]
 

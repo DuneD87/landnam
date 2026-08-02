@@ -86,6 +86,12 @@ var equiped_weapon: ItemData
 var right_hand_equipped: bool = false
 var is_holding_atack: bool = false
 
+## Materiales con iluminación planetaria que el jugador lleva encima (cuerpo, armaduras,
+## herramienta en mano) y el nodo Planet en el que están dados de alta (no el loader).
+## Ver _register_worn_node.
+var _worn_planet_materials: Array[ShaderMaterial] = []
+var _worn_materials_planet: Node = null
+
 var input_enabled: bool = false
 var _cinematic_tween: Tween
 
@@ -149,6 +155,73 @@ func capture_mouse(capture: bool):
 	mouse_captured = capture
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
 
+## Da de alta en el planeta los materiales de iluminación planetaria de un nodo que el jugador
+## pasa a llevar encima (armadura, herramienta) para que reciban el push de sol cada frame.
+func _register_worn_node(node: Node) -> void:
+	for mat in _collect_planet_materials(node):
+		if not _worn_planet_materials.has(mat):
+			_worn_planet_materials.append(mat)
+			if _worn_materials_planet != null:
+				_worn_materials_planet.register_planet_material(mat)
+
+
+## Contrario de _register_worn_node: se llama ANTES de sacar el nodo del esqueleto.
+func _unregister_worn_node(node: Node) -> void:
+	for mat in _collect_planet_materials(node):
+		_worn_planet_materials.erase(mat)
+		if _worn_materials_planet != null:
+			_worn_materials_planet.unregister_planet_material(mat)
+
+
+## ShaderMaterials del subárbol que usan la iluminación planetaria, mirando override de nodo,
+## overrides de superficie y los materiales propios de la malla (donde viven los de los .tscn
+## de equipo). Se identifican por tener el uniform light_direction: así entra cualquier shader
+## que incluya planet_lighting.gdshaderinc sin listar rutas.
+func _collect_planet_materials(node: Node) -> Array[ShaderMaterial]:
+	var found: Array[ShaderMaterial] = []
+	for mesh in _find_mesh_instances(node):
+		var candidates: Array[Material] = [mesh.material_override, mesh.material_overlay]
+		for surface in mesh.get_surface_override_material_count():
+			candidates.append(mesh.get_surface_override_material(surface))
+			if mesh.mesh != null:
+				candidates.append(mesh.mesh.surface_get_material(surface))
+		for mat in candidates:
+			var shader_mat := mat as ShaderMaterial
+			if shader_mat == null or shader_mat.shader == null or found.has(shader_mat):
+				continue
+			for uniform in shader_mat.shader.get_shader_uniform_list():
+				if uniform.name == "light_direction":
+					found.append(shader_mat)
+					break
+	return found
+
+
+func _find_mesh_instances(node: Node) -> Array[MeshInstance3D]:
+	var meshes: Array[MeshInstance3D] = []
+	if node is MeshInstance3D:
+		meshes.append(node as MeshInstance3D)
+	for child in node.get_children():
+		meshes.append_array(_find_mesh_instances(child))
+	return meshes
+
+
+## Traslada el registro de lo que lleva puesto al planeta actual. El push de sol lo hace cada
+## planeta sobre su propia lista, así que al cambiar de planeta hay que rehacerlo o el equipo
+## se quedaría iluminado con el centro y el sol del anterior. Mientras el planeta no haya
+## terminado de cargar no hay a quién registrarse y se reintenta en el siguiente frame.
+func _rebind_worn_materials() -> void:
+	var core: Node = planet.planet if planet != null and is_instance_valid(planet) else null
+	if core == _worn_materials_planet:
+		return
+	if _worn_materials_planet != null and is_instance_valid(_worn_materials_planet):
+		for mat in _worn_planet_materials:
+			_worn_materials_planet.unregister_planet_material(mat)
+	_worn_materials_planet = core
+	if core != null:
+		for mat in _worn_planet_materials:
+			core.register_planet_material(mat)
+
+
 func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data: ItemData, category: ItemData.Category) -> void:
 	if equip:
 		match category:
@@ -156,15 +229,18 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 				equiped_weapon = data
 				var item = scene.instantiate()
 				player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").add_child(item)
+				_register_worn_node(item)
 				right_hand_equipped = true
 			ItemData.Category.ARMOR:
 				var item = scene.instantiate()
 				item.item_data = ItemData.clone(data)
 				player_model.get_node("Armature/Skeleton3D").add_child(item)
-	else:		
+				_register_worn_node(item)
+	else:
 		match category:
 			ItemData.Category.TOOL:
 				var equipped_child = player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").get_child(0)
+				_unregister_worn_node(equipped_child)
 				player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").remove_child(equipped_child)
 				right_hand_equipped = false
 			ItemData.Category.ARMOR:
@@ -178,6 +254,7 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.FEET && child.item_data.armor_slot == ItemData.ArmorSlot.FEET
 
 						if remove_condition:
+							_unregister_worn_node(child)
 							player_model.get_node("Armature/Skeleton3D").remove_child(child)
 						
 		
@@ -323,8 +400,11 @@ func _ready():
 	inventory.add_item(config.get_item(&"stone_01"), 100)
 
 	inventory_ui.setup(inventory, character_window, hotbar)
-	hotbar.selection_changed.connect(_on_hotbar_selection_changed)	
+	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
 	character_window.equipment_changed.connect(on_equipment_changed)
+	# El cuerpo del jugador no pasa por el equipamiento: se registra aquí para que también
+	# reciba el sol si su malla usa un material planetario.
+	_register_worn_node(player_model)
 	var btnSave := main_menu.find_child("btnSaveGame")
 	btnSave.visible = false
 	if spawn_point and planets and planets.get_child_count() > 0:
@@ -498,6 +578,7 @@ func post_restore() -> void:
 func _clear_visual_equipment() -> void:
 	var hand = player_model.get_node("Armature/Skeleton3D/RigthHandAttachment")
 	for child in hand.get_children():
+		_unregister_worn_node(child)
 		hand.remove_child(child)
 		child.queue_free()
 	equiped_weapon = null
@@ -505,6 +586,7 @@ func _clear_visual_equipment() -> void:
 	var skeleton = player_model.get_node("Armature/Skeleton3D")
 	for child in skeleton.get_children():
 		if "item_data" in child and child.item_data:
+			_unregister_worn_node(child)
 			skeleton.remove_child(child)
 			child.queue_free()
 
@@ -1000,7 +1082,8 @@ func _physics_process(delta: float):
 			planet = _planet
 			building_system.current_planet = planet
 
-			
+	_rebind_worn_materials()
+
 	free_flight_controller.enabled = free_flight_enabled
 
 	if free_flight_enabled:

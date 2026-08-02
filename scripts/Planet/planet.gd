@@ -42,6 +42,10 @@ const config = preload("res://scripts/config.gd")
 @export var wind_direction : Vector3
 
 @export var item_transparent_materials : Array[Dictionary]
+## Materiales planetarios ajenos a la vegetación (ver register_planet_material). Van en una
+## lista aparte porque _load_vegetation vacía item_transparent_materials en cada carga del
+## planeta y estos tienen que sobrevivir a ella (el jugador se registra una sola vez).
+var external_planet_materials: Array[ShaderMaterial] = []
 @export var shader_material: ShaderMaterial
 @export var caustics_material: ShaderMaterial
 @export var multi_mesh_array: Array[Dictionary] = []
@@ -1310,3 +1314,19 @@ func _update_planet() -> void:
 		mat.set_shader_parameter("planet_position", planet_position)
 		mat.set_shader_parameter("wind_direction", wind_direction)
 		mat.set_shader_parameter("wind_speed", mat_struct.wind_speed * weather_wind_multiplier)
+	for mat in external_planet_materials:
+		mat.set_shader_parameter("light_direction", sun_dir)
+		mat.set_shader_parameter("planet_position", planet_position)
+
+
+## Da de alta un material con iluminación planetaria que no viene de la vegetación
+## (equipo del jugador, props colocados). Sin esto se queda con el light_direction /
+## planet_position por defecto del .tscn y el objeto se ve casi negro: toda la luz
+## directa va multiplicada por el day_factor que sale de esos dos uniforms.
+func register_planet_material(mat: ShaderMaterial) -> void:
+	if mat != null and not external_planet_materials.has(mat):
+		external_planet_materials.append(mat)
+
+
+func unregister_planet_material(mat: ShaderMaterial) -> void:
+	external_planet_materials.erase(mat)

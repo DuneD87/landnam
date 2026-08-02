@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://dofvsxbbc66vi"]
+
+[ext_resource type="Texture2D" uid="uid://beskgmk28m3jv" path="res://textures/icons/items/armor/leather_armor/chest.png" id="1_dnoo2"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_gkv2g"]
+
+[resource]
+script = ExtResource("2_gkv2g")
+id = &"leather_chest"
+display_name = "Leather Chest"
+description = "Leather Chest"
+icon = ExtResource("1_dnoo2")
+category = 4
+scene_path = "res://scenes/items/armor/leather_armor/leather_chest_equipable.tscn"
+tool_type = 2
+armor_slot = 2
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"
