@@ -40,6 +40,7 @@ const data = preload("res://scripts/items/item_data.gd")
 
 var ship_spawn_menu: ShipSpawnMenu
 var grid_manipulator_menu: GridManipulatorMenu
+var world_map_ui: WorldMapUI
 var blueprint_placer: BlueprintPlacer
 var debug_stats: DebugStats
 
@@ -384,6 +385,9 @@ func _ready():
 	add_child(blueprint_placer)
 	debug_stats = DebugStats.new()
 	add_child(debug_stats)
+	world_map_ui = WorldMapUI.new()
+	world_map_ui.setup(self)
+	add_child(world_map_ui)
 
 	capture_mouse(false)
 	water_sampler = WaterHeightSampler.new()
@@ -754,6 +758,10 @@ func _input(event):
 			grid_manipulator_menu.close()
 			capture_mouse(true)
 			return
+		if world_map_ui and world_map_ui.visible:
+			world_map_ui.close()
+			capture_mouse(true)
+			return
 		if is_mouse_captured():
 			input_enabled = false
 			main_menu.fade_in()
@@ -779,10 +787,13 @@ func _input(event):
 		elif event.is_action_pressed("open_grid_menu") and not _is_text_field_focused():
 			grid_manipulator_menu.toggle(building_system.get_aimed_grid(_ray_hit))
 			capture_mouse(not grid_manipulator_menu.visible)
+		elif event.is_action_pressed("world_map") and not _is_text_field_focused():
+			world_map_ui.toggle()
+			capture_mouse(not world_map_ui.visible)
 
-	# Con el menú de grids abierto el ratón es de la UI: los clics que van a sus botones no
-	# deben además colocar bloques ni girar la cámara.
-	if grid_manipulator_menu.visible:
+	# Con el menú de grids o el mapa abiertos el ratón es de la UI: los clics que van a sus
+	# botones (o que arrastran el mapa) no deben además colocar bloques ni girar la cámara.
+	if grid_manipulator_menu.visible or world_map_ui.visible:
 		return
 
 	if blueprint_placer.is_active() and _handle_blueprint_placement(event):

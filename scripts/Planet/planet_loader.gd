@@ -125,6 +125,21 @@ const _IMPOSTOR_PARAMS: Array[StringName] = [
 
 var impostor: PlanetImpostor
 
+@export_group("Mapa mundial")
+
+## Mapa equirect precomputado del planeta: lo dibuja la UI de la tecla M y responde las consultas
+## de "¿qué hay bajo esta posición?" (tierra/agua, qué cuerpo de agua, qué profundidad).
+@export var world_map_enabled: bool = true
+## Resolución del equirect. A 2048x1024 un téxel son ~92 m de ecuador en un planeta de radio 30000;
+## los cuerpos de agua más pequeños que un téxel no se detectan.
+@export var world_map_size: Vector2i = Vector2i(2048, 1024)
+## Semirrango de búsqueda del SDF alrededor del radio: la superficie debe caer dentro. Si el mapa
+## sale con mesetas planas, el bake avisa por consola de que hay que subirlo. Con 1200 la Tierra
+## saturaba un 0.9% (fosas profundas), así que va holgado. Forma parte de la clave del caché.
+@export var world_map_height_range: float = 2000.0
+
+var world_map: PlanetWorldMap
+
 @export_group("Anti-tiling (de-repetición de texturas)")
 
 @export var antitiling_enabled: bool = false:
@@ -247,8 +262,23 @@ func _load_planet() -> void:
 
 	_setup_npc_spawners(planet_parser)
 
+	if world_map_enabled and not Engine.is_editor_hint():
+		_setup_world_map()
+
 	if impostor_enabled:
 		_setup_impostor()
+
+
+## Crea el mapa precomputado del planeta. Se hornea al cargar, y no la primera vez que se abre la
+## UI, porque también es la fuente de las consultas de agua del gameplay: tiene que estar listo
+## antes de que alguien pregunte. El etiquetado va en un hilo, así que no bloquea la carga.
+func _setup_world_map() -> void:
+	if world_map != null or planet == null:
+		return
+	world_map = PlanetWorldMap.new()
+	world_map.name = "WorldMap"
+	add_child(world_map)
+	world_map.setup(planet, entity_id, world_map_size, world_map_height_range)
 
 
 ## Crea el impostor analítico del planeta y le dice qué nodos apagar cuando esté a pleno.
