@@ -15,6 +15,64 @@ uniform vec3 wave_pole = vec3(0.0, 1.0, 0.0); // eje de referencia del marco de 
 
 const int WAVE_MAX = 6;
 
+// --- Máscara de temporal ---------------------------------------------------------------------
+// El clima sube el oleaje sobre un ÚNICO material para todo el planeta, así que sin esto una
+// tormenta levanta olas de mar abierto también dentro de un lago y en la rompiente. La máscara sale
+// del mapa mundial precomputado (PlanetWorldMap): solo los cuerpos marcados como océano o mar
+// reciben temporal, y aun ahí entra progresivamente con la profundidad.
+//
+// Solo se enmascaran AMPLITUD y STEEPNESS. La velocidad y la longitud de onda tienen que seguir
+// siendo globales: variarlas por posición cambia la fase entre vértices vecinos y raja la malla.
+//
+// Con storm_mask_enabled = false la exposición es 1 en todo el planeta, o sea el comportamiento de
+// siempre. PlanetWorldMap.storm_exposure_local es la réplica CPU; cambiar una obliga a cambiar la otra.
+uniform bool storm_mask_enabled = false;
+uniform sampler2D storm_height_map : filter_linear, repeat_enable;
+uniform sampler2D storm_body_map : filter_nearest, repeat_enable;
+uniform float storm_height_min = 0.0;
+uniform float storm_height_range = 1.0;
+uniform float storm_sea_height = 0.0;
+uniform int storm_body_ids[8];
+uniform int storm_body_count = 0;
+uniform float storm_depth_start = 30.0;
+uniform float storm_depth_full = 150.0;
+// Oleaje al que vuelve el agua sin exposición. Lo escribe el WeatherController con los valores
+// base del material, los de antes de aplicarle el evento de clima.
+uniform float wave_calm_amplitude = 4.0;
+uniform float wave_calm_steepness = 0.5;
+
+float storm_exposure(vec3 local) {
+    if (!storm_mask_enabled) {
+        return 1.0;
+    }
+    vec3 d = normalize(local);
+    // Misma convención equirect que WorldMapData.dir_to_uv.
+    vec2 uv = vec2(fract(0.5 - atan(d.z, d.x) / 6.28318530718),
+                   acos(clamp(d.y, -1.0, 1.0)) / 3.14159265359);
+
+    // textureLod y no texture: esto se evalúa también en el vertex, donde no hay derivadas.
+    vec4 c = textureLod(storm_body_map, uv, 0.0);
+    int id = int(round(c.r * 255.0))
+        | (int(round(c.g * 255.0)) << 8)
+        | (int(round(c.b * 255.0)) << 16)
+        | (int(round(c.a * 255.0)) << 24);
+
+    bool exposed = false;
+    for (int i = 0; i < 8; i++) {
+        if (i >= storm_body_count) break;
+        if (storm_body_ids[i] == id) {
+            exposed = true;
+            break;
+        }
+    }
+    if (!exposed) {
+        return 0.0;
+    }
+
+    float h = storm_height_min + textureLod(storm_height_map, uv, 0.0).r * storm_height_range;
+    return smoothstep(storm_depth_start, storm_depth_full, storm_sea_height - h);
+}
+
 // Suma de olas de Gerstner planetarias. Cada dirección fija define un ecuador propio y la fase
 // usa la distancia geodésica firmada a ese gran círculo. Así el gradiente espacial conserva
 // módulo unitario y la longitud de onda permanece constante sobre la esfera.
@@ -36,7 +94,10 @@ vec3 gerstner_surface_lod(vec3 local, vec3 radial, float t, float min_length,
     vec3 grad = vec3(0.0);
     float n_up_sub = 0.0;
 
-    float amp = wave_amplitude;
+    // El temporal solo llega hasta donde dice la máscara; el resto se queda en el oleaje de calma.
+    float exposure = storm_exposure(local);
+    float amp = mix(wave_calm_amplitude, wave_amplitude, exposure);
+    float steepness = mix(wave_calm_steepness, wave_steepness, exposure);
     float len = wave_base_length;
     float ang = 0.0;
     int octaves = clamp(wave_octaves, 1, WAVE_MAX);
@@ -55,7 +116,7 @@ vec3 gerstner_surface_lod(vec3 local, vec3 radial, float t, float min_length,
         vec3 dir_unit = tan_len > 1e-4 ? dir_tan / tan_len : vec3(0.0);
 
         // Steepness repartida entre octavas para no auto-intersecar las crestas.
-        float q = wave_steepness / max(k * amp * float(octaves), 1e-4);
+        float q = steepness / max(k * amp * float(octaves), 1e-4);
         // Distancia geodésica firmada al gran círculo de la ola. Su gradiente tangente
         // tiene módulo 1: conserva la longitud de onda en vez de estirarla en el ecuador.
         float signed_arc = length(local) * asin(dir_dot);
@@ -86,8 +147,9 @@ vec3 gerstner_surface_lod(vec3 local, vec3 radial, float t, float min_length,
     out_normal = normalize(radial * (1.0 - n_up_sub) - grad);
     // Señal de cresta: n_up_sub = Σ q·k·amp·sin(phase) pica donde sin(phase)=1, es decir
     // EN la cresta (a diferencia de la normal, que se inclina en los flancos). Está acotada a
-    // ±wave_steepness; la escalamos por 2 para que una cresta a steepness=0.5 dé ~1.0. Sube con
-    // el oleaje: más steepness (weather) ⇒ más área por encima del umbral ⇒ más espuma.
+    // ±steepness; la escalamos por 2 para que una cresta a steepness=0.5 dé ~1.0. Sube con el
+    // oleaje: más steepness (weather) ⇒ más área por encima del umbral ⇒ más espuma. Por eso la
+    // espuma sigue a la máscara de temporal sola, sin enmascararla también aquí.
     out_crest = n_up_sub * 2.0;
     return horiz + radial * vert;
 }

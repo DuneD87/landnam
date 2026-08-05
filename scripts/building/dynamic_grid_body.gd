@@ -310,7 +310,7 @@ func _setup_water_sampler() -> void:
 	add_child(_water_sampler)
 	var mat: ShaderMaterial = planet_node.water_sphere.mesh_manager.default_material as ShaderMaterial
 	if mat:
-		_water_sampler.setup(mat)
+		_water_sampler.setup(mat, planet_node.world_map)
 
 func register_grid(grid) -> void:
 	if not _grids.has(grid):

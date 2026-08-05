@@ -12,6 +12,13 @@ var wave_base_length: float
 var wave_octaves: int
 var wave_direction: Vector2
 var wave_pole: Vector3
+var wave_calm_amplitude: float
+var wave_calm_steepness: float
+
+## Mapa del planeta, opcional. Con él, el oleaje de tormenta se queda donde el shader lo dibuja
+## (mar abierto) en vez de zarandear a los barcos dentro de un lago o pegados a la orilla. Sin él
+## la exposición es 1 en todas partes, o sea el comportamiento de siempre.
+var world_map: PlanetWorldMap
 
 var _material: ShaderMaterial
 
@@ -21,9 +28,11 @@ const _GOLDEN_ANGLE := 2.399963
 const _TAU := 6.28318530718
 const _INVERT_ITERATIONS := 3
 
-## Lee del material los parámetros que intervienen en la altura de ola.
-func setup(water_material: ShaderMaterial) -> void:
+## Lee del material los parámetros que intervienen en la altura de ola. 'planet_map' es opcional;
+## ver el comentario de 'world_map'.
+func setup(water_material: ShaderMaterial, planet_map: PlanetWorldMap = null) -> void:
 	_material = water_material
+	world_map = planet_map
 	wave_octaves = int(water_material.get_shader_parameter("wave_octaves"))
 	wave_direction = water_material.get_shader_parameter("wave_direction")
 	var pole: Variant = water_material.get_shader_parameter("wave_pole")
@@ -44,6 +53,10 @@ static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
 			"amplitude": mat.get_shader_parameter("wave_amplitude"),
 			"steepness": mat.get_shader_parameter("wave_steepness"),
 			"base_length": mat.get_shader_parameter("wave_base_length"),
+			# Si el material no los expone (planeta sin clima), la calma es el estado actual y la
+			# mezcla de más abajo se vuelve una identidad.
+			"calm_amplitude": mat.get_shader_parameter("wave_calm_amplitude"),
+			"calm_steepness": mat.get_shader_parameter("wave_calm_steepness"),
 			"time": time if time != null else 0.0,
 		}
 		_frame_cache[key] = cached
@@ -60,6 +73,10 @@ func _refresh_dynamic_params() -> void:
 	wave_amplitude = params["amplitude"]
 	wave_steepness = params["steepness"]
 	wave_base_length = params["base_length"]
+	var calm_amp: Variant = params["calm_amplitude"]
+	var calm_steep: Variant = params["calm_steepness"]
+	wave_calm_amplitude = calm_amp if calm_amp != null else wave_amplitude
+	wave_calm_steepness = calm_steep if calm_steep != null else wave_steepness
 
 ## Altura de ola (desplazamiento radial) en world_pos. Invierte por punto-fijo el arrastre
 ## horizontal de Gerstner: sin esto, con oleaje marcado la física y el visual se separan varios metros.
@@ -69,20 +86,26 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 	_refresh_dynamic_params()
 
 	var local_q := world_pos - planet_center
+	# La exposición se resuelve UNA vez por muestra, no dentro de la inversión. El shader la evalúa
+	# en cada iteración, pero el punto fijo solo mueve la posición unos metros y la máscara varía en
+	# decenas: la diferencia queda muy por debajo de lo apreciable, y aquí ahorra tres cuartas
+	# partes del coste (esto se llama una vez por caja de flotabilidad y frame de física).
+	var exposure := world_map.storm_exposure_local(local_q) if world_map != null else 1.0
+
 	# Busca la posición "en reposo" cuya ola desplazada horizontalmente cae bajo world_pos.
 	var guess := local_q
 	for _i in _INVERT_ITERATIONS:
 		var radial := guess.normalized()
-		var disp := _gerstner_disp(guess, radial, time)
+		var disp := _gerstner_disp(guess, radial, time, exposure)
 		var horiz := disp - radial * disp.dot(radial)
 		guess = local_q - horiz
 
 	var final_radial := guess.normalized()
-	return _gerstner_disp(guess, final_radial, time).dot(final_radial)
+	return _gerstner_disp(guess, final_radial, time, exposure).dot(final_radial)
 
 ## Desplazamiento world-space (tangencial + radial) de la suma de olas Gerstner en 'local'.
 ## Réplica de gerstner_surface() del shader (posición; la normal no hace falta en CPU).
-func _gerstner_disp(local: Vector3, radial: Vector3, time: float) -> Vector3:
+func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: float) -> Vector3:
 	var pole := wave_pole.normalized()
 	var gx := pole.cross(Vector3(1, 0, 0) if absf(pole.x) < 0.9 else Vector3(0, 0, 1)).normalized()
 	var gy := pole.cross(gx)
@@ -94,7 +117,9 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float) -> Vector3:
 		base_dir = base_dir.normalized()
 
 	var octaves := clampi(wave_octaves, 1, 6)
-	var amp := wave_amplitude
+	# Misma mezcla que gerstner_surface_lod; la exposición viene resuelta de get_height_at.
+	var amp := lerpf(wave_calm_amplitude, wave_amplitude, exposure)
+	var steepness := lerpf(wave_calm_steepness, wave_steepness, exposure)
 	var length := wave_base_length
 	var ang := 0.0
 	var horiz := Vector3.ZERO
@@ -109,7 +134,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float) -> Vector3:
 		var dir_tan := dir_fixed - radial * dir_dot
 		var tan_len := dir_tan.length()
 		var dir_unit := (dir_tan / tan_len) if tan_len > 1e-4 else Vector3.ZERO
-		var q := wave_steepness / maxf(k * amp * float(octaves), 1e-4)
+		var q := steepness / maxf(k * amp * float(octaves), 1e-4)
 		# Distancia geodésica firmada al gran círculo de la ola. Su gradiente tangente
 		# tiene módulo 1, así la longitud de onda no cambia con latitud/longitud.
 		var signed_arc := local.length() * asin(dir_dot)

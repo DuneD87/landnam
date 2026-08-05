@@ -40,6 +40,7 @@ var body_ids: PackedInt32Array = PackedInt32Array()
 var bodies: Array[Dictionary] = []
 
 var _height_texture: ImageTexture
+var _body_texture: ImageTexture
 var _percentiles: Dictionary = {}
 
 
@@ -201,6 +202,40 @@ static func _pick(sorted: PackedFloat32Array, p: float) -> float:
 	if sorted.is_empty():
 		return 1.0
 	return maxf(sorted[clampi(int(sorted.size() * p), 0, sorted.size() - 1)], 0.5)
+
+
+## Exposición a temporal en una dirección: 0 en tierra, en lagos y en charcas, y rampa de
+## depth_start a depth_full con la profundidad. 'storm_flags' lleva un 1 por cada id de cuerpo que
+## sí recibe temporal (lo arma PlanetWorldMap).
+##
+## Está escrita para el camino caliente: la llama la flotabilidad de cada barco decenas de veces por
+## frame de física. Un solo índice de téxel sirve para el id y para la altura, y se muestrea al
+## téxel más cercano en vez de bilineal — con 92 m de téxel y una rampa de 120 m, interpolar no
+## cambia nada apreciable y costaba cuatro lecturas más.
+func storm_exposure_at_dir(dir: Vector3, storm_flags: PackedByteArray,
+		depth_start: float, depth_full: float) -> float:
+	if not has_water or body_ids.is_empty():
+		return 1.0
+	var i := texel_of_dir(dir)
+	var id := body_ids[i]
+	if id < 0 or id >= storm_flags.size() or storm_flags[id] == 0:
+		return 0.0
+	var depth := sea_level_radius - (radius + height_min + heights[i] * height_span)
+	return smoothstep(depth_start, depth_full, depth)
+
+
+## Textura con el id de cuerpo de agua de cada téxel: el int32 reinterpretado como RGBA8, sin
+## recorrer el array. Quien la muestree DEBE hacerlo con filter_nearest y recomponer los cuatro
+## bytes; con filtrado lineal se mezclan y el id sale inventado. Tierra = -1 = todo 255.
+func body_texture() -> ImageTexture:
+	if _body_texture != null:
+		return _body_texture
+	if not is_valid() or body_ids.size() != size.x * size.y:
+		return null
+	var img := Image.create_from_data(
+		size.x, size.y, false, Image.FORMAT_RGBA8, body_ids.to_byte_array())
+	_body_texture = ImageTexture.create_from_image(img)
+	return _body_texture
 
 
 ## Altura normalizada de un téxel, envolviendo en x y recortando en y.

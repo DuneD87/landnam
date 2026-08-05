@@ -10,6 +10,15 @@ class_name PlanetWorldMap extends Node
 signal map_ready(map: WorldMapData)
 
 const CACHE_DIR := "user://maps/"
+## Profundidades (en metros) entre las que el temporal entra progresivamente. El degradado evita
+## una línea dura entre mar abierto y orilla. Se empujan como uniforms al agua para que GPU y CPU
+## calculen exactamente la misma exposición: si divergen, los barcos flotan sobre olas que no se
+## ven (ver WaterHeightSampler).
+const STORM_DEPTH_START := 30.0
+const STORM_DEPTH_FULL := 150.0
+## Tope que admite el shader (uniform int storm_body_ids[8]).
+const MAX_STORM_BODIES := 8
+
 ## Sube esto SIEMPRE que cambie el formato o el criterio de horneado. La clave del caché mira la
 ## fecha del generador, no la de este código: sin subirlo, un mapa horneado con reglas viejas se
 ## sigue leyendo tal cual y el cambio no se ve por ningún lado.
@@ -22,6 +31,7 @@ var _cache_path: String
 var _cache_key: String
 var _thread: Thread
 var _pending: WorldMapData
+var _storm_flags: PackedByteArray = PackedByteArray()
 
 
 func _ready() -> void:
@@ -40,6 +50,7 @@ func setup(planet: Planet, entity_id: String, size: Vector2i, height_range: floa
 	var cached := WorldMapData.load_from(_cache_path, _cache_key)
 	if cached != null and cached.is_valid():
 		map = cached
+		_build_storm_flags()
 		print("[world-map] '%s' leído del caché (%s, %d cuerpos de agua)"
 			% [entity_id, cached.size, cached.bodies.size()])
 		map_ready.emit(map)
@@ -70,6 +81,7 @@ func _on_classified() -> void:
 		_thread = null
 	map = _pending
 	_pending = null
+	_build_storm_flags()
 	map.save_to(_cache_path, _cache_key)
 	map_ready.emit(map)
 
@@ -147,6 +159,52 @@ func get_water_bodies() -> Array[Dictionary]:
 	if not is_ready():
 		return []
 	return map.bodies
+
+
+## Ids de los cuerpos que reciben temporal: océanos y mares, los mayores primero. Un lago o una
+## charca no levantan oleaje de mar abierto por mucho que truene.
+func storm_body_ids() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	if not is_ready():
+		return out
+	var eligible: Array[Dictionary] = []
+	for body in map.bodies:
+		if int(body.type) <= WorldMapData.WaterType.SEA:
+			eligible.append(body)
+	eligible.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.area > b.area)
+	for body in eligible:
+		if out.size() >= MAX_STORM_BODIES:
+			push_warning("[world-map] hay %d mares con temporal y el shader admite %d; los más " %
+				[eligible.size(), MAX_STORM_BODIES] + "pequeños se quedan en calma.")
+			break
+		out.append(int(body.id))
+	return out
+
+
+## 0 donde la tormenta no debe levantar oleaje (lagos, charcas y orilla), 1 en mar abierto. Es la
+## réplica exacta de storm_exposure() en gerstner_waves.gdshaderinc: tocar una obliga a tocar la otra.
+func storm_exposure_at(world_pos: Vector3) -> float:
+	return storm_exposure_local(world_pos - get_planet_center())
+
+
+## Igual pero en coordenadas ya relativas al centro del planeta, que es lo que maneja el oleaje.
+func storm_exposure_local(local: Vector3) -> float:
+	if not is_ready() or not map.has_water:
+		return 1.0
+	return map.storm_exposure_at_dir(
+		local.normalized(), _storm_flags, STORM_DEPTH_START, STORM_DEPTH_FULL)
+
+
+## Tabla de 1 byte por id de cuerpo: 1 = recibe temporal. Evita resolver el tipo por diccionario en
+## cada consulta, que en la flotabilidad de un barco son decenas por frame de física.
+func _build_storm_flags() -> void:
+	_storm_flags = PackedByteArray()
+	if not is_ready():
+		return
+	_storm_flags.resize(map.bodies.size())
+	for id in storm_body_ids():
+		if id >= 0 and id < _storm_flags.size():
+			_storm_flags[id] = 1
 
 
 ## Clave que identifica la configuración con la que se horneó el mapa. Incluye la huella del

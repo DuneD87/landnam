@@ -77,6 +77,10 @@ var _base_wave_amplitude: float = 4.0
 var _base_wave_speed: float = 1.2
 var _base_wave_length: float = 50.0
 var _base_foam_crest: float = 1.1
+var _base_wave_steepness: float = 0.5
+## Mar más tranquilo del catálogo: a esto vuelve el agua fuera de mar abierto. Ver _compute_calm_sea.
+var _calm_wave_amplitude: float = 2.5
+var _calm_wave_steepness: float = 0.5
 var _water_mat: ShaderMaterial
 
 # Sumersión de la cámara: bajo el agua se apagan precipitación y niebla (ver _update_submersion).
@@ -125,6 +129,7 @@ func setup(
 	_apply_config(config)
 	_read_base_values()
 	_build_events(config)
+	_compute_calm_sea()
 	_build_biome_profiles(config)
 	_push_snow_line_params()
 	_setup_fx()
@@ -181,11 +186,43 @@ func _read_base_values() -> void:
 		var ws: Variant = _water_mat.get_shader_parameter("wave_speed")
 		var wl: Variant = _water_mat.get_shader_parameter("wave_base_length")
 		var fc: Variant = _water_mat.get_shader_parameter("foam_crest_amount")
+		var st: Variant = _water_mat.get_shader_parameter("wave_steepness")
 		if wa != null: _base_wave_amplitude = wa
 		if ws != null: _base_wave_speed = ws
 		if wl != null: _base_wave_length = wl
 		if fc != null: _base_foam_crest = fc
+		if st != null: _base_wave_steepness = st
 		_setup_water_sampler()
+
+
+## Calcula el estado de mar más tranquilo del catálogo, que es al que vuelve el agua donde la
+## máscara de temporal no aplica (lagos, charcas, orilla).
+##
+## OJO con la tentación de usar aquí el valor autorado del material: ese NO es el mar en calma, es
+## la referencia desde la que multiplican los eventos. En la Tierra el material trae amplitud 2.5 y
+## 'clear' la multiplica por 0.4, así que tomarlo como calma dejaba los lagos a 2.5 — más del doble
+## de movidos que el océano en día despejado, justo lo contrario de lo que se busca.
+func _compute_calm_sea() -> void:
+	var min_multiplier := INF
+	var min_steepness := INF
+	for event_name in _events:
+		var st: WeatherState = _events[event_name]
+		min_multiplier = minf(min_multiplier, st.water_wave_multiplier)
+		min_steepness = minf(min_steepness, st.water_steepness)
+
+	if is_inf(min_multiplier):
+		min_multiplier = 1.0
+		min_steepness = _base_wave_steepness
+	_calm_wave_amplitude = _base_wave_amplitude * min_multiplier
+	_calm_wave_steepness = min_steepness
+
+
+## Le pasa el mapa del planeta al sampler de submersión. Llega tarde a propósito: el mapa se hornea
+## después del clima, y sin él la cámara se daría por sumergida con olas de temporal que en un lago
+## o en la orilla no existen.
+func set_world_map(map: PlanetWorldMap) -> void:
+	if _water_sampler != null:
+		_water_sampler.world_map = map
 
 
 ## Réplica CPU de las olas para saber si la cámara está bajo la superficie (con oleaje, no el radio base).
@@ -496,6 +533,11 @@ func _apply_state(st: WeatherState) -> void:
 		_water_mat.set_shader_parameter("wave_base_length", _base_wave_length * st.water_wave_length_mult)
 		_water_mat.set_shader_parameter("foam_crest_amount", _base_foam_crest * st.water_foam_multiplier)
 		_water_mat.set_shader_parameter("wave_steepness", st.water_steepness)
+		# Estado de calma al que vuelve el agua fuera de mar abierto. La máscara de temporal
+		# (gerstner_waves.gdshaderinc) mezcla entre este y el de arriba según dónde esté cada punto,
+		# así un lago o la orilla no reciben el oleaje del temporal.
+		_water_mat.set_shader_parameter("wave_calm_amplitude", _calm_wave_amplitude)
+		_water_mat.set_shader_parameter("wave_calm_steepness", _calm_wave_steepness)
 
 	_apply_precipitation(st)
 

@@ -51,6 +51,13 @@ const _SYNCED_WATER_PARAMS: Array[StringName] = [
 	&"wave_direction", &"wave_speed", &"wave_amplitude", &"wave_base_length",
 	&"wave_steepness", &"wave_octaves", &"wave_pole",
 	&"water_time", &"planet_center", &"water_radius",
+	# Máscara de temporal: la niebla submarina evalúa la MISMA superficie, así que si no recibe la
+	# máscara su corte se separa del de la superficie justo en lagos y orilla.
+	&"storm_mask_enabled", &"storm_height_map", &"storm_body_map",
+	&"storm_height_min", &"storm_height_range", &"storm_sea_height",
+	&"storm_body_ids", &"storm_body_count",
+	&"storm_depth_start", &"storm_depth_full",
+	&"wave_calm_amplitude", &"wave_calm_steepness",
 	&"interior_count", &"interior_center",
 	&"interior_axis_x", &"interior_axis_y", &"interior_axis_z",
 ]

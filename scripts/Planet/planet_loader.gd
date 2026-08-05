@@ -278,7 +278,44 @@ func _setup_world_map() -> void:
 	world_map = PlanetWorldMap.new()
 	world_map.name = "WorldMap"
 	add_child(world_map)
+	# Conectado ANTES de setup(): con caché válido, map_ready se emite dentro de la propia llamada.
+	world_map.map_ready.connect(_push_storm_mask)
 	world_map.setup(planet, entity_id, world_map_size, world_map_height_range)
+
+
+## Empuja al agua la máscara que decide dónde puede la tormenta levantar oleaje. Sin ella el clima
+## sube las olas por igual en mar abierto, dentro de un lago y en la rompiente, porque todo el
+## planeta comparte un único material de agua.
+func _push_storm_mask(map: WorldMapData) -> void:
+	if water_sphere == null or not map.has_water:
+		return
+	var mat := water_sphere.quadtree_material as ShaderMaterial
+	if mat == null:
+		return
+
+	mat.set_shader_parameter("storm_height_map", map.height_texture())
+	mat.set_shader_parameter("storm_body_map", map.body_texture())
+	mat.set_shader_parameter("storm_height_min", map.height_min)
+	mat.set_shader_parameter("storm_height_range", map.height_span)
+	mat.set_shader_parameter("storm_sea_height", map.sea_level_radius - map.radius)
+	mat.set_shader_parameter("storm_depth_start", PlanetWorldMap.STORM_DEPTH_START)
+	mat.set_shader_parameter("storm_depth_full", PlanetWorldMap.STORM_DEPTH_FULL)
+
+	var ids := world_map.storm_body_ids()
+	mat.set_shader_parameter("storm_body_ids", ids)
+	mat.set_shader_parameter("storm_body_count", ids.size())
+
+	# Semilla de la calma con lo que hay ahora en el material. Si este planeta tiene clima, el
+	# WeatherController la reescribe cada frame con los valores base de verdad.
+	if mat.get_shader_parameter("wave_calm_amplitude") == null:
+		mat.set_shader_parameter("wave_calm_amplitude", mat.get_shader_parameter("wave_amplitude"))
+		mat.set_shader_parameter("wave_calm_steepness", mat.get_shader_parameter("wave_steepness"))
+
+	mat.set_shader_parameter("storm_mask_enabled", true)
+	if weather_controller != null:
+		weather_controller.set_world_map(world_map)
+	print("[world-map] máscara de temporal activa en '%s': %d cuerpo(s) con oleaje de mar abierto"
+		% [name, ids.size()])
 
 
 ## Crea el impostor analítico del planeta y le dice qué nodos apagar cuando esté a pleno.
@@ -487,13 +524,16 @@ func post_restore() -> void:
 
 func _process(_delta: float) -> void:
 	if planet != null:
+		# Sonda para el detector de picos: aquí se empujan uniforms a TODOS los materiales del
+		# planeta cada frame, y la lista crece con la vegetación.
+		var probe_start := Time.get_ticks_usec()
 		planet.sun_dir = sun_dir
 		planet._update_planet()
 		if planet.has_water:
 			water_sphere.sun_dir = sun_dir
 			_apply_underwater_settings()
 		_apply_impostor_settings()
-	pass
+		DebugStats.report_cost(&"planeta:uniforms", Time.get_ticks_usec() - probe_start)
 
 ## Copia los exports de niebla/godrays al nodo Underwater; este los reaplica al material,
 ## así cualquier cambio en el inspector se ve en el mismo frame.

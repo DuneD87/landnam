@@ -4,8 +4,8 @@
 noise_type = 3
 period = 6000.0
 fractal_type = 2
-fractal_octaves = 4
-fractal_lacunarity = 3.0
+fractal_octaves = 2
+fractal_lacunarity = 6.0
 fractal_gain = 0.25
 fractal_ping_pong_strength = 4.0
 terrace_enabled = true

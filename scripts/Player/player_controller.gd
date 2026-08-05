@@ -421,7 +421,7 @@ func _ready():
 				closest = p
 		planet = closest
 		if planet and planet.planet.has_water:
-			water_sampler.setup(planet.water_sphere.quadtree_material)
+			water_sampler.setup(planet.water_sphere.quadtree_material, planet.world_map)
 			
 			
 func get_save_data() -> Dictionary:
@@ -565,7 +565,7 @@ func post_restore() -> void:
 		building_system.current_planet = planet
 
 		if planet and planet.planet.has_water:
-			water_sampler.setup(planet.water_sphere.quadtree_material)
+			water_sampler.setup(planet.water_sphere.quadtree_material, planet.world_map)
 
 	if input_enabled:
 		visible = true
@@ -1089,7 +1089,7 @@ func _physics_process(delta: float):
 		if distance <= closest_distance:
 			closest_distance = distance
 			if _planet != null && _planet.planet.has_water && _planet != planet:
-				water_sampler.setup(_planet.water_sphere.quadtree_material)
+				water_sampler.setup(_planet.water_sphere.quadtree_material, _planet.world_map)
 			planet = _planet
 			building_system.current_planet = planet
 
