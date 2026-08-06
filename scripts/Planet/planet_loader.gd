@@ -314,8 +314,6 @@ func _push_storm_mask(map: WorldMapData) -> void:
 	mat.set_shader_parameter("storm_mask_enabled", true)
 	if weather_controller != null:
 		weather_controller.set_world_map(world_map)
-	print("[world-map] máscara de temporal activa en '%s': %d cuerpo(s) con oleaje de mar abierto"
-		% [name, ids.size()])
 
 
 ## Crea el impostor analítico del planeta y le dice qué nodos apagar cuando esté a pleno.
@@ -524,16 +522,12 @@ func post_restore() -> void:
 
 func _process(_delta: float) -> void:
 	if planet != null:
-		# Sonda para el detector de picos: aquí se empujan uniforms a TODOS los materiales del
-		# planeta cada frame, y la lista crece con la vegetación.
-		var probe_start := Time.get_ticks_usec()
 		planet.sun_dir = sun_dir
 		planet._update_planet()
 		if planet.has_water:
 			water_sphere.sun_dir = sun_dir
 			_apply_underwater_settings()
 		_apply_impostor_settings()
-		DebugStats.report_cost(&"planeta:uniforms", Time.get_ticks_usec() - probe_start)
 
 ## Copia los exports de niebla/godrays al nodo Underwater; este los reaplica al material,
 ## así cualquier cambio en el inspector se ve en el mismo frame.

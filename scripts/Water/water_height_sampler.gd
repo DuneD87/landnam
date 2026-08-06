@@ -86,10 +86,8 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 	_refresh_dynamic_params()
 
 	var local_q := world_pos - planet_center
-	# La exposición se resuelve UNA vez por muestra, no dentro de la inversión. El shader la evalúa
-	# en cada iteración, pero el punto fijo solo mueve la posición unos metros y la máscara varía en
-	# decenas: la diferencia queda muy por debajo de lo apreciable, y aquí ahorra tres cuartas
-	# partes del coste (esto se llama una vez por caja de flotabilidad y frame de física).
+	# Una sola vez por muestra, no dentro de la inversión: el punto fijo mueve la posición unos
+	# metros y la máscara varía en decenas, así que la diferencia no se aprecia y ahorra 3/4 del coste.
 	var exposure := world_map.storm_exposure_local(local_q) if world_map != null else 1.0
 
 	# Busca la posición "en reposo" cuya ola desplazada horizontalmente cae bajo world_pos.

@@ -1,13 +1,11 @@
 class_name WorldMapData extends RefCounted
 
-## Mapa equirectangular precomputado de un planeta: la altura de la superficie en cada téxel y el
-## etiquetado de los cuerpos de agua conectados. Alimenta tanto el mapa que ve el jugador como las
-## consultas de gameplay ("¿en qué lago estoy?"), así los dos leen exactamente los mismos datos.
+## Mapa equirectangular precomputado de un planeta: altura de la superficie por téxel y etiquetado
+## de los cuerpos de agua conectados. Alimenta el mapa que ve el jugador y las consultas de gameplay
+## desde el mismo dato.
 ##
-## Convención del equirect: u = 0.5 - atan2(z, x) / TAU, v = acos(y) / PI, con v = 0 en el polo
-## norte, longitud creciendo hacia la derecha del mapa. NO es la que asume planet_impostor.gdshader
-## (esa está girada 90° y con los polos al revés): esta se midió contra el generador real, ver la
-## cabecera de WorldMapBaker.bake_heights.
+## Equirect: u = 0.5 - atan2(z, x) / TAU, v = acos(y) / PI, norte arriba. No es la convención de
+## planet_impostor.gdshader; ver la cabecera de WorldMapBaker.bake_heights.
 
 const FILE_MAGIC := "GVWM"
 const FILE_VERSION := 1
@@ -157,9 +155,7 @@ func height_texture() -> ImageTexture:
 
 ## Los cinco cortes de altura que reparten la rampa de color del mapa, en metros sobre el nivel del
 ## mar. Son percentiles de la tierra real, no fracciones de un rango fijo: así cada color cubre un
-## trozo parecido de superficie y el mapa se lee igual de bien en un planeta llano que en uno
-## abrupto. (Aquí la tierra emerge ~142 m en el p95, contra un rango de horneado de 2400: escalar
-## la rampa a ese rango dejaba el mundo entero verde, y escalarla al p95 lo dejaba entero marrón.)
+## trozo parecido de superficie y la rampa no se satura en ningún planeta.
 func land_height_stops() -> PackedFloat32Array:
 	var samples := _sorted_samples(true)
 	var out := PackedFloat32Array()
@@ -204,14 +200,10 @@ static func _pick(sorted: PackedFloat32Array, p: float) -> float:
 	return maxf(sorted[clampi(int(sorted.size() * p), 0, sorted.size() - 1)], 0.5)
 
 
-## Exposición a temporal en una dirección: 0 en tierra, en lagos y en charcas, y rampa de
-## depth_start a depth_full con la profundidad. 'storm_flags' lleva un 1 por cada id de cuerpo que
-## sí recibe temporal (lo arma PlanetWorldMap).
-##
-## Está escrita para el camino caliente: la llama la flotabilidad de cada barco decenas de veces por
-## frame de física. Un solo índice de téxel sirve para el id y para la altura, y se muestrea al
-## téxel más cercano en vez de bilineal — con 92 m de téxel y una rampa de 120 m, interpolar no
-## cambia nada apreciable y costaba cuatro lecturas más.
+## Exposición a temporal en una dirección: 0 en tierra, lagos y charcas; rampa con la profundidad
+## entre depth_start y depth_full. 'storm_flags' lleva un 1 por id de cuerpo con temporal.
+## Camino caliente (flotabilidad de cada barco): un índice de téxel sirve para el id y la altura, y
+## se muestrea al más cercano en vez de bilineal.
 func storm_exposure_at_dir(dir: Vector3, storm_flags: PackedByteArray,
 		depth_start: float, depth_full: float) -> float:
 	if not has_water or body_ids.is_empty():

@@ -195,13 +195,9 @@ func _read_base_values() -> void:
 		_setup_water_sampler()
 
 
-## Calcula el estado de mar más tranquilo del catálogo, que es al que vuelve el agua donde la
-## máscara de temporal no aplica (lagos, charcas, orilla).
-##
-## OJO con la tentación de usar aquí el valor autorado del material: ese NO es el mar en calma, es
-## la referencia desde la que multiplican los eventos. En la Tierra el material trae amplitud 2.5 y
-## 'clear' la multiplica por 0.4, así que tomarlo como calma dejaba los lagos a 2.5 — más del doble
-## de movidos que el océano en día despejado, justo lo contrario de lo que se busca.
+## Estado de mar más tranquilo del catálogo: es al que vuelve el agua donde la máscara de temporal
+## no aplica. No sirve el valor autorado del material, que no es el mar en calma sino la referencia
+## desde la que multiplican los eventos, y sale más movido que el océano en día despejado.
 func _compute_calm_sea() -> void:
 	var min_multiplier := INF
 	var min_steepness := INF

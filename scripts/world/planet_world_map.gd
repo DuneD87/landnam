@@ -51,8 +51,6 @@ func setup(planet: Planet, entity_id: String, size: Vector2i, height_range: floa
 	if cached != null and cached.is_valid():
 		map = cached
 		_build_storm_flags()
-		print("[world-map] '%s' leído del caché (%s, %d cuerpos de agua)"
-			% [entity_id, cached.size, cached.bodies.size()])
 		map_ready.emit(map)
 		return
 

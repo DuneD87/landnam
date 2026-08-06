@@ -37,7 +37,6 @@ func take_damage(amount: float, source: Node = null) -> void:
 	health = max(0.0, health - amount)
 	health_changed.emit(health, max_health)
 	damaged.emit(amount, source)
-	print("Health:", snapped(get_health_ratio() * 100.0, 0.01), "%")
 	if health <= 0.0:
 		is_dead = true
 		died.emit()
@@ -60,7 +59,6 @@ func take_fall_damage(impact_speed: float) -> void:
 		return
 	var excess := impact_speed - fall_damage_min_speed
 	var damage := excess * fall_damage_multiplier
-	print("Debug damage:", damage)
 	take_damage(damage)
 
 

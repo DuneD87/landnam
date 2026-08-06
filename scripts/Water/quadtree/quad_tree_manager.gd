@@ -15,6 +15,11 @@ signal quadtree_changed(active_quad_data: Array)
 @export var debug_cull: bool = false
 var root_quads: Array[QuadNode] = []
 var last_camera_position: Vector3
+
+## Cuánto tiene que moverse la cámara para reevaluar el árbol, en múltiplos del quad más pequeño.
+## El valor por defecto equivale a la distancia que decide el nivel más fino: por debajo de eso la
+## reevaluación no cambia nada y solo cuesta.
+@export var update_threshold_factor: float = 1.5
 var update_threshold: float = 20.0
 
 var cube_faces = [
@@ -57,27 +62,16 @@ var cube_faces = [
 ]
 
 func _ready():
+	_resolve_update_threshold()
 	_create_root_quads()
 
-func _create_root_quads():
-	'var face_data = cube_faces[1]
-	var face_center = face_data.normal * (radius * 0.5)
-	var root_quad = QuadNode.new()
-	root_quad.setup(
-		face_center,          # position
-		radius,              # size
-		0,                      # level
-		null,                   # parent_node
-		face_data.normal,       # normal
-		face_data.up,           # up
-		face_data.right,         # right
-		radius
-	)
 
-	root_quad.name = "QuadRoot_" + face_data.name
-	
-	add_child(root_quad)
-	root_quads.append(root_quad)'
+## Umbral en unidades de mundo a partir del tamaño del quad más pequeño del árbol.
+func _resolve_update_threshold() -> void:
+	var smallest := radius / pow(2.0, float(maxi(max_lod, 0)))
+	update_threshold = maxf(smallest * update_threshold_factor, 1.0)
+
+func _create_root_quads():
 	for face_data in cube_faces:
 		var face_center = face_data.normal * (radius * 0.5)
 
@@ -106,12 +100,7 @@ func _process(_delta):
 	var camera_pos = player.camera.global_position
 	
 	if camera_pos.distance_to(last_camera_position) > update_threshold:
-		# Sonda para el detector de picos: esta rama recorre el árbol entero, arma un diccionario
-		# por quad activo y rehace las mallas. Con update_threshold en 20 unidades, volando rápido
-		# entra casi todos los frames, así que interesa saber cuánto cuesta de verdad.
-		var probe_start := Time.get_ticks_usec()
 		_update_quadtree(camera_pos)
-		DebugStats.report_cost(&"agua:quadtree", Time.get_ticks_usec() - probe_start)
 		last_camera_position = camera_pos
 
 func _emit_quadtree_changed(camera_position: Vector3):

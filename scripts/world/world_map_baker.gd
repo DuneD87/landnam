@@ -20,12 +20,9 @@ const SATURATION_STRIDE := 97
 ## no sabe hornear. 'height_range' es el semirrango de búsqueda del SDF alrededor del radio: la
 ## superficie tiene que caer dentro de [radius - height_range, radius + height_range].
 ##
-## La convención del equirect que devuelve bake_sphere_bumpmap se midió a mano contra el generador
-## real (correlando el ecuador y un meridiano completos, sacados del SDF con generate_block a LOD
-## 5, contra la fila y la columna del bake): sale u = 0.5 - atan2(z, x) / TAU, con la fila 0 en el
-## polo SUR. NO es la que asume planet_impostor.gdshader (u = 0.5 + atan2(x, z) / TAU, fila 0 al
-## norte): esa está girada 90° y espejada, así que el relieve del impostor no cae donde el terreno.
-## Aquí se voltea la imagen para dejar el norte arriba, que es lo que espera todo lo demás.
+## bake_sphere_bumpmap devuelve u = 0.5 - atan2(z, x) / TAU con la fila 0 en el polo SUR (medido
+## contra el SDF real). NO es la convención que asume planet_impostor.gdshader, que está girada 90°
+## y espejada. Aquí se voltea la imagen para dejar el norte arriba.
 static func bake_heights(generator: Object, size: Vector2i, radius: float,
 		sea_level_radius: float, has_water: bool, height_range: float) -> WorldMapData:
 	if generator == null:
@@ -38,7 +35,6 @@ static func bake_heights(generator: Object, size: Vector2i, radius: float,
 			% generator.get_class())
 		return null
 
-	var t_start := Time.get_ticks_msec()
 	var img := Image.create(size.x, size.y, false, Image.FORMAT_RF)
 	# La firma cambia entre builds: unas piden (im, ref_radius, sdf_min, sdf_max) y otras
 	# (im, ref_radius, strength). Se elige por el número de argumentos declarado, igual que en
@@ -63,8 +59,6 @@ static func bake_heights(generator: Object, size: Vector2i, radius: float,
 	# sin recorrer los dos millones de píxeles desde GDScript.
 	map.heights = img.get_data().to_float32_array()
 
-	print("[world-map] alturas %s horneadas en %d ms (rango +/-%.0f)"
-		% [size, Time.get_ticks_msec() - t_start, height_range])
 	_report_saturation(map)
 	return map
 
@@ -83,7 +77,6 @@ static func classify_water(map: WorldMapData) -> void:
 		map.body_ids = ids
 		return
 
-	var t_start := Time.get_ticks_msec()
 	# El umbral se lleva al mismo espacio normalizado que 'heights' para no convertir por téxel.
 	var sea_norm := (map.sea_level_radius - map.radius - map.height_min) / map.height_span
 	var heights := map.heights
@@ -124,8 +117,6 @@ static func classify_water(map: WorldMapData) -> void:
 
 	map.body_ids = ids
 	map.bodies = _measure_bodies(map, ids, next_id)
-	print("[world-map] %d cuerpos de agua etiquetados en %d ms"
-		% [next_id, Time.get_ticks_msec() - t_start])
 
 
 ## Recorre el mapa una vez acumulando área, profundidad y centroide de cada cuerpo, y los tipa.

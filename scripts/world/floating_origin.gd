@@ -10,8 +10,8 @@ class_name FloatingOrigin
 @export var planets_path: NodePath
 ## Distancia al origen a la que se rebasa. Más alto = menos rebases pero más distancia al origen.
 @export var rebase_threshold: float = 4000.0
-## Imprime en consola cada rebase (desactívalo en producción).
-@export var debug_log: bool = true
+## Imprime en consola cada rebase.
+@export var debug_log: bool = false
 
 ## Desplazamiento acumulado respecto al marco canónico.
 var total_offset: Vector3 = Vector3.ZERO
