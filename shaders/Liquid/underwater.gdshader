@@ -67,8 +67,9 @@ uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap;
 
 varying float v_cam_radius;
 varying float v_cam_surface_radius;
-varying vec3 v_waterline_point;
-varying vec3 v_waterline_normal;
+// Ver la cabecera de waterline_point en water_shader.gdshader: lo empuja OceanSystem a los dos.
+uniform vec3 waterline_point;
+uniform vec3 waterline_normal;
 
 // Distancia de salida del rayo de la esfera de radio r; -1.0 si no hay intersección delante.
 float ray_sphere_exit(vec3 center, float r, vec3 ro, vec3 rd) {
@@ -89,14 +90,10 @@ void vertex() {
     vec3 cam_local = CAMERA_POSITION_WORLD - planet_center;
     v_cam_radius = length(cam_local);
 
-    // Plano local de la línea de flotación: punto de superficie sobre la cámara + normal
-    // Gerstner analítica (del MISMO punto invertido que la altura). El corte en pantalla lo
-    // decide cada píxel contra este plano.
-    vec3 up_dir = normalize(cam_local);
-    vec3 surface_normal;
-    v_cam_surface_radius = water_radius + gerstner_surface_height_normal(cam_local, water_time, surface_normal);
-    v_waterline_point = planet_center + up_dir * v_cam_surface_radius;
-    v_waterline_normal = normalize(surface_normal);
+    // El plano de la línea de flotación ya no se calcula aquí: viene por uniform, el MISMO que
+    // recibe water_shader (ver waterline_point). Así los dos cortan por idéntico sitio por
+    // construcción, en vez de por que dos cuentas independientes coincidan.
+    v_cam_surface_radius = length(waterline_point - planet_center);
 }
 
 void fragment() {
@@ -122,7 +119,7 @@ void fragment() {
     near_view.xyz /= near_view.w;
     vec3 p_near = (INV_VIEW_MATRIX * vec4(near_view.xyz, 1.0)).xyz;
 
-    float waterline = waterline_signed(p_near, v_waterline_point, v_waterline_normal);
+    float waterline = waterline_signed(p_near, waterline_point, waterline_normal);
 
     // Franja radial que contiene toda la superficie posible: R ± amplitud total de las octavas.
     float band = wave_amplitude * 2.0 + 0.5;

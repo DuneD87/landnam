@@ -8,7 +8,7 @@ class_name WorldMapData extends RefCounted
 ## planet_impostor.gdshader; ver la cabecera de WorldMapBaker.bake_heights.
 
 const FILE_MAGIC := "GVWM"
-const FILE_VERSION := 1
+const FILE_VERSION := 3
 
 enum WaterType { OCEAN, SEA, LAKE, POND }
 
@@ -37,8 +37,19 @@ var body_ids: PackedInt32Array = PackedInt32Array()
 ## Un diccionario por cuerpo de agua; ver WorldMapBaker._measure_bodies para las claves.
 var bodies: Array[Dictionary] = []
 
+## Campo de orilla: cuatro floats por téxel. xyz = vector tangente (metros, en espacio del planeta)
+## al punto de litoral más cercano, cuyo módulo es la distancia a la costa y a la vez la FASE de las
+## olas de orilla. w = peso, que es lo único que decide si ahí hay ola: no se puede deducir del
+## módulo del vector, porque el filtrado bilineal lo hunde en los bordes del campo y la fase que
+## sale de ahí es basura. Ver WorldMapBaker.bake_shore_field.
+var shore_size: Vector2i = Vector2i.ZERO
+var shore_offsets: PackedFloat32Array = PackedFloat32Array()
+## Alcance en metros con el que se horneó el campo; más allá los téxeles están a cero.
+var shore_range: float = 0.0
+
 var _height_texture: ImageTexture
 var _body_texture: ImageTexture
+var _shore_texture: ImageTexture
 var _percentiles: Dictionary = {}
 
 
@@ -230,6 +241,53 @@ func body_texture() -> ImageTexture:
 	return _body_texture
 
 
+func has_shore_field() -> bool:
+	return shore_size.x > 0 and shore_offsets.size() == shore_size.x * shore_size.y * 4
+
+
+## Muestra del campo de orilla: xyz = vector al litoral, w = peso. Bilineal y no al téxel más
+## cercano a propósito: el vector es la fase de la ola, y al vecino las crestas saldrían escalonadas
+## en saltos de un téxel. Réplica CPU de la lectura de shore_offset_map en gerstner_waves.gdshaderinc.
+func shore_sample_at_dir(d: Vector3) -> Vector4:
+	if not has_shore_field():
+		return Vector4.ZERO
+	var uv := dir_to_uv(d)
+	var fx := uv.x * shore_size.x - 0.5
+	var fy := uv.y * shore_size.y - 0.5
+	var x0 := floori(fx)
+	var y0 := floori(fy)
+	var tx := fx - x0
+	var ty := fy - y0
+	var top := _shore_texel(x0, y0).lerp(_shore_texel(x0 + 1, y0), tx)
+	var bottom := _shore_texel(x0, y0 + 1).lerp(_shore_texel(x0 + 1, y0 + 1), tx)
+	return top.lerp(bottom, ty)
+
+
+func _shore_texel(x: int, y: int) -> Vector4:
+	var i := (clampi(y, 0, shore_size.y - 1) * shore_size.x + wrapi(x, 0, shore_size.x)) * 4
+	return Vector4(shore_offsets[i], shore_offsets[i + 1], shore_offsets[i + 2], shore_offsets[i + 3])
+
+
+## Textura con el campo de orilla, para el shader del agua. Igual que las otras, sin recorrer
+## téxeles: el array ya está en el layout de FORMAT_RGBAF. Se muestrea con filtro lineal.
+##
+## Se convierte a media precisión: el canal guarda un desplazamiento tangente EN METROS, y un half
+## a 2 km da ~1 m de resolución, o sea 5 grados de fase contra una longitud de onda de 70 m. Eso no
+## se ve, y a cambio la VRAM baja a la mitad (32 -> 16 MB a 2048x1024). Además el filtrado lineal de
+## texturas de 32 bits en coma flotante NO está garantizado en Vulkan y el de 16 sí, así que esto
+## también quita un riesgo de compatibilidad. La conversión va en C++, no por téxel desde GDScript.
+func shore_texture() -> ImageTexture:
+	if _shore_texture != null:
+		return _shore_texture
+	if not has_shore_field():
+		return null
+	var img := Image.create_from_data(
+		shore_size.x, shore_size.y, false, Image.FORMAT_RGBAF, shore_offsets.to_byte_array())
+	img.convert(Image.FORMAT_RGBAH)
+	_shore_texture = ImageTexture.create_from_image(img)
+	return _shore_texture
+
+
 ## Altura normalizada de un téxel, envolviendo en x y recortando en y.
 func _texel_norm(x: int, y: int) -> float:
 	return heights[clampi(y, 0, size.y - 1) * size.x + wrapi(x, 0, size.x)]
@@ -259,6 +317,10 @@ func save_to(path: String, key: String) -> bool:
 	var meta := var_to_bytes(bodies)
 	f.store_32(meta.size())
 	f.store_buffer(meta)
+	f.store_32(shore_size.x)
+	f.store_32(shore_size.y)
+	f.store_double(shore_range)
+	f.store_buffer(shore_offsets.to_byte_array())
 	f.close()
 	return true
 
@@ -290,9 +352,20 @@ static func load_from(path: String, key: String) -> WorldMapData:
 	out.body_ids = f.get_buffer(count * 4).to_int32_array()
 	var meta_size := f.get_32()
 	var meta = bytes_to_var(f.get_buffer(meta_size))
+
+	out.shore_size = Vector2i(f.get_32(), f.get_32())
+	out.shore_range = f.get_double()
+	var shore_count := out.shore_size.x * out.shore_size.y * 4
+	if shore_count > 0 and shore_count <= 192 * 1024 * 1024:
+		out.shore_offsets = f.get_buffer(shore_count * 4).to_float32_array()
 	f.close()
 
 	if out.heights.size() != count or out.body_ids.size() != count or not (meta is Array):
 		return null
+	# Un campo de orilla truncado se descarta entero: el agua se queda sin olas de costa, que es
+	# degradarse, en vez de leer fase de un array a medias.
+	if not out.has_shore_field():
+		out.shore_size = Vector2i.ZERO
+		out.shore_offsets = PackedFloat32Array()
 	out.bodies.assign(meta)
 	return out

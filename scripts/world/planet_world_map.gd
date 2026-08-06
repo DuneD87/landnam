@@ -19,10 +19,15 @@ const STORM_DEPTH_FULL := 150.0
 ## Tope que admite el shader (uniform int storm_body_ids[8]).
 const MAX_STORM_BODIES := 8
 
+## Ancho de la franja costera con olas hacia la orilla, en metros. Es EL knob del sistema: la
+## profundidad ya no interviene (ver gerstner_waves.gdshaderinc), así que esto es literalmente hasta
+## dónde llegan. Subirlo cuesta memoria y tiempo de horneado, y obliga a rehornear el mapa.
+const SHORE_RANGE := 150.0
+
 ## Sube esto SIEMPRE que cambie el formato o el criterio de horneado. La clave del caché mira la
 ## fecha del generador, no la de este código: sin subirlo, un mapa horneado con reglas viejas se
 ## sigue leyendo tal cual y el cambio no se ve por ningún lado.
-const BAKE_VERSION := 2
+const BAKE_VERSION := 7
 
 var map: WorldMapData
 
@@ -70,6 +75,10 @@ func setup(planet: Planet, entity_id: String, size: Vector2i, height_range: floa
 
 func _classify_task() -> void:
 	WorldMapBaker.classify_water(_pending)
+	# El campo de orilla necesita el etiquetado hecho: se siembra solo desde el litoral de mares y
+	# océanos, así que va detrás y en el mismo hilo.
+	WorldMapBaker.bake_shore_field(
+		_pending, WorldMapBaker.open_water_ids(_pending), SHORE_RANGE)
 	call_deferred("_on_classified")
 
 
@@ -162,21 +171,14 @@ func get_water_bodies() -> Array[Dictionary]:
 ## Ids de los cuerpos que reciben temporal: océanos y mares, los mayores primero. Un lago o una
 ## charca no levantan oleaje de mar abierto por mucho que truene.
 func storm_body_ids() -> PackedInt32Array:
-	var out := PackedInt32Array()
 	if not is_ready():
-		return out
-	var eligible: Array[Dictionary] = []
-	for body in map.bodies:
-		if int(body.type) <= WorldMapData.WaterType.SEA:
-			eligible.append(body)
-	eligible.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.area > b.area)
-	for body in eligible:
-		if out.size() >= MAX_STORM_BODIES:
-			push_warning("[world-map] hay %d mares con temporal y el shader admite %d; los más " %
-				[eligible.size(), MAX_STORM_BODIES] + "pequeños se quedan en calma.")
-			break
-		out.append(int(body.id))
-	return out
+		return PackedInt32Array()
+	var eligible := WorldMapBaker.open_water_ids(map)
+	if eligible.size() <= MAX_STORM_BODIES:
+		return eligible
+	push_warning("[world-map] hay %d mares con temporal y el shader admite %d; los más " %
+		[eligible.size(), MAX_STORM_BODIES] + "pequeños se quedan en calma.")
+	return eligible.slice(0, MAX_STORM_BODIES)
 
 
 ## 0 donde la tormenta no debe levantar oleaje (lagos, charcas y orilla), 1 en mar abierto. Es la
@@ -191,6 +193,24 @@ func storm_exposure_local(local: Vector3) -> float:
 		return 1.0
 	return map.storm_exposure_at_dir(
 		local.normalized(), _storm_flags, STORM_DEPTH_START, STORM_DEPTH_FULL)
+
+
+func has_shore_field() -> bool:
+	return is_ready() and map.has_shore_field()
+
+
+## Muestra del campo de orilla (xyz = vector al litoral, w = peso) en coordenadas relativas al
+## centro del planeta. Es la réplica CPU de la lectura de shore_offset_map en el shader del agua:
+## los barcos tienen que sentir la misma rompiente que se dibuja. Peso 0 = ahí no hay ola de orilla.
+func shore_sample_local(local: Vector3) -> Vector4:
+	if not is_ready():
+		return Vector4.ZERO
+	return map.shore_sample_at_dir(local.normalized())
+
+
+## Profundidad del agua sobre el terreno en esa dirección, ya relativa al centro del planeta.
+func water_depth_local(local: Vector3) -> float:
+	return map.depth_at_dir(local.normalized()) if is_ready() else 0.0
 
 
 ## Tabla de 1 byte por id de cuerpo: 1 = recibe temporal. Evita resolver el tipo por diccionario en
@@ -215,6 +235,7 @@ func _build_cache_key(planet: Planet, size: Vector2i, height_range: float) -> St
 		"w%.3f" % planet.water_radius,
 		"h%.3f" % height_range,
 		"aq%d" % (1 if planet.has_water else 0),
+		"sr%.1f" % SHORE_RANGE,
 		_resource_fingerprint(planet.terrain_generator_path),
 	])
 	return "|".join(parts).sha256_text()

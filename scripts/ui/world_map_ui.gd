@@ -44,6 +44,8 @@ var _hover_uv: Vector2 = Vector2(-1.0, -1.0)
 var _needs_center: bool = false
 ## Mientras esté activo la vista sigue al jugador. Se suelta al arrastrar y se recupera con el botón.
 var _follow: bool = true
+## Superpone las flechas de dirección del oleaje (ver el botón "Olas" y wave_arrow en el shader).
+var _show_wave_arrows: bool = false
 ## Contrasta el mapa con el terreno real bajo el jugador (ver _diagnose).
 var _debug_check: bool = false
 
@@ -192,6 +194,16 @@ func _build_header() -> Control:
 	debug_button.toggled.connect(func(on: bool) -> void: _debug_check = on)
 	header.add_child(debug_button)
 
+	# Dibuja sobre el mapa hacia dónde viaja el oleaje. Separa "el campo de orilla está mal horneado"
+	# de "el campo está bien y quien lo consume mal es el agua", que a ojo no se distingue.
+	var waves_button := CheckBox.new()
+	waves_button.text = "Olas"
+	waves_button.toggled.connect(func(on: bool) -> void:
+		_show_wave_arrows = on
+		if _material != null:
+			_material.set_shader_parameter("show_wave_arrows", on))
+	header.add_child(waves_button)
+
 	var close_button := Button.new()
 	close_button.text = "X"
 	close_button.pressed.connect(close)
@@ -302,6 +314,11 @@ func _apply_map_params(map: WorldMapData) -> void:
 		_material.set_shader_parameter("body_map", ImageTexture.create_from_image(img))
 		_material.set_shader_parameter("has_body_map", true)
 
+	if map.has_shore_field():
+		_material.set_shader_parameter("shore_map", map.shore_texture())
+		_material.set_shader_parameter("has_shore_map", true)
+	_material.set_shader_parameter("show_wave_arrows", _show_wave_arrows)
+
 
 ## Escala la rampa hipsométrica al relieve real de este planeta y hereda del bioma polar la latitud
 ## a la que empieza el casquete de hielo. Es lo único que el mapa toma del planeta: la paleta es
@@ -313,6 +330,24 @@ func _apply_planet_params(map: WorldMapData) -> void:
 	_material.set_shader_parameter("deep_depth", map.water_depth_percentile())
 
 	var loader = player.get("planet")
+
+	# Marco del oleaje y umbral de profundidad copiados del material del agua: si el mapa los
+	# supusiera por su cuenta, las flechas apuntarían a un sitio y el agua se movería hacia otro.
+	var ocean = loader.get("water_sphere") if loader != null else null
+	var water_mat := (ocean.quadtree_material as ShaderMaterial) if ocean != null else null
+	if water_mat != null:
+		for pair in [["wave_pole", "swell_pole"], ["wave_direction", "swell_direction"],
+				["shore_reach", "shore_reach"]]:
+			# get_shader_parameter devuelve null para todo lo que el .tres no sobrescriba, que es
+			# justo el caso de los que viven en el default del shader. Sin este relevo el mapa se
+			# quedaría con su propia copia del valor y los dos se separarían en silencio.
+			var value: Variant = water_mat.get_shader_parameter(pair[0])
+			if value == null and water_mat.shader != null:
+				value = RenderingServer.shader_get_parameter_default(
+					water_mat.shader.get_rid(), pair[0])
+			if value != null:
+				_material.set_shader_parameter(pair[1], value)
+
 	var planet = loader.get("planet") if loader != null else null
 	if planet == null:
 		return
@@ -342,6 +377,10 @@ func _layout_map() -> void:
 	_clamp_offset()
 	_map_rect.position = _offset
 	_map_rect.size = _map_size()
+	# El paso de las flechas se mide en píxeles de pantalla: sin esto crecerían con el zoom en vez
+	# de aparecer más.
+	if _material != null:
+		_material.set_shader_parameter("map_size_px", _map_rect.size)
 
 
 ## Mantiene el mapa cubriendo el marco (o centrado si el zoom aún no lo llena).

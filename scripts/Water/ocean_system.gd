@@ -21,6 +21,9 @@ class_name OceanSystem
 @export var quadtree_material: Material
 @export var wireframe_material: Material
 @export var show_stats: bool = false
+## Vista de depuración del campo de orilla; ver shore_debug_color en gerstner_waves.gdshaderinc.
+## 0 = off | 1 = peso | 2 = fase | 3 = sentido contra la batimetría | 4 = relevo | 5 = amplitud
+@export_range(0, 5) var shore_debug_mode: int = 0
 
 @export var underwater: Underwater
 var quadtree_manager: QuadTreeManager
@@ -30,6 +33,10 @@ var current_water_time := 0.0
 var planet: Planet
 var _last_sun_dir := Vector3.INF
 var _stats_accum := 0.0
+var _waterline_sampler: WaterHeightSampler
+## Mapa del planeta, que llega cuando termina de hornearse. Sin él la línea de flotación de CPU no
+## vería ni la máscara de temporal ni las olas de orilla, y se separaría de la que dibuja el shader.
+var world_map: PlanetWorldMap
 
 const STATS_INTERVAL := 0.25
 
@@ -104,11 +111,43 @@ func _process(delta):
 		if underwater:
 			underwater.sun_direction = to_sun
 
+	# Cada frame, para poder cambiar de vista en vivo desde el inspector remoto.
+	if mesh_manager && mesh_manager.default_material:
+		(mesh_manager.default_material as ShaderMaterial).set_shader_parameter(
+			&"shore_debug_mode", shore_debug_mode)
+	_update_waterline()
+
 	if show_stats and stats_label:
 		_stats_accum += delta
 		if _stats_accum >= STATS_INTERVAL:
 			_stats_accum = 0.0
 			_update_stats()
+
+## Empuja el plano de la línea de flotación bajo la cámara. Antes lo calculaba el vertex shader del
+## agua a partir de CAMERA_POSITION_WORLD: el mismo valor para todos los vértices, y cada uno pagaba
+## tres evaluaciones completas de la superficie Gerstner. Aquí sale una vez por frame, y de paso la
+## superficie y la niebla submarina reciben EL MISMO plano en vez de calcularlo cada una.
+func _update_waterline() -> void:
+	if mesh_manager == null or mesh_manager.default_material == null:
+		return
+	var mat := mesh_manager.default_material as ShaderMaterial
+	var cam := camera if camera != null else get_viewport().get_camera_3d()
+	if mat == null or cam == null:
+		return
+
+	if _waterline_sampler == null:
+		_waterline_sampler = WaterHeightSampler.new()
+		add_child(_waterline_sampler)
+		_waterline_sampler.setup(mat, world_map)
+	# El mapa se hornea en un hilo y puede llegar después del primer frame.
+	_waterline_sampler.world_map = world_map
+
+	var center: Vector3 = mat.get_shader_parameter(&"planet_center")
+	var surface := _waterline_sampler.get_surface_at(
+		cam.global_position, WaterHeightSampler.get_water_time(mat), center)
+	mat.set_shader_parameter(&"waterline_point", surface.point)
+	mat.set_shader_parameter(&"waterline_normal", surface.normal)
+
 
 func _update_stats():
 	var stats = mesh_manager.get_statistics()

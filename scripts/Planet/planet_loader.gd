@@ -279,14 +279,15 @@ func _setup_world_map() -> void:
 	world_map.name = "WorldMap"
 	add_child(world_map)
 	# Conectado ANTES de setup(): con caché válido, map_ready se emite dentro de la propia llamada.
-	world_map.map_ready.connect(_push_storm_mask)
+	world_map.map_ready.connect(_push_world_map_to_water)
 	world_map.setup(planet, entity_id, world_map_size, world_map_height_range)
 
 
-## Empuja al agua la máscara que decide dónde puede la tormenta levantar oleaje. Sin ella el clima
-## sube las olas por igual en mar abierto, dentro de un lago y en la rompiente, porque todo el
-## planeta comparte un único material de agua.
-func _push_storm_mask(map: WorldMapData) -> void:
+## Empuja el mapa horneado al material del agua. De él salen dos cosas: la máscara que decide dónde
+## puede la tormenta levantar oleaje (sin ella el clima sube las olas por igual en mar abierto,
+## dentro de un lago y en la rompiente, porque todo el planeta comparte un único material) y el
+## campo de litoral del que las olas de orilla sacan su fase.
+func _push_world_map_to_water(map: WorldMapData) -> void:
 	if water_sphere == null or not map.has_water:
 		return
 	var mat := water_sphere.quadtree_material as ShaderMaterial
@@ -312,6 +313,14 @@ func _push_storm_mask(map: WorldMapData) -> void:
 		mat.set_shader_parameter("wave_calm_steepness", mat.get_shader_parameter("wave_steepness"))
 
 	mat.set_shader_parameter("storm_mask_enabled", true)
+
+	# Olas de orilla: el mismo mapa, pero lo que consumen es el campo de litoral horneado. Si no hay
+	# campo (planeta sin mares abiertos) el agua se queda con el oleaje de siempre.
+	if map.has_shore_field():
+		mat.set_shader_parameter("shore_offset_map", map.shore_texture())
+		mat.set_shader_parameter("shore_waves_enabled", true)
+
+	water_sphere.world_map = world_map
 	if weather_controller != null:
 		weather_controller.set_world_map(world_map)
 

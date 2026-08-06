@@ -100,6 +100,22 @@ uniform int highlight_body = -1;
 // Diagnóstico: pinta cada cuerpo de agua de un color distinto.
 uniform bool debug_bodies = false;
 
+// --- Flechas de oleaje ---
+// Diagnóstico del campo de orilla horneado (WorldMapBaker.bake_shore_field) dibujado sobre el mapa,
+// que es la única forma de separar "el campo está mal" de "el agua lo consume mal".
+// Cian = ahí manda el swell de mar abierto; amarillo = manda la ola de orilla. El degradado entre
+// los dos es el relevo. La flecha apunta hacia donde VIAJA la ola.
+uniform sampler2D shore_map : filter_linear, repeat_enable; // xyz = vector al litoral (m), w = peso
+uniform bool show_wave_arrows = false;
+uniform bool has_shore_map = false;
+uniform vec2 map_size_px = vec2(1024.0, 512.0); // tamaño dibujado; fija el paso en pantalla
+uniform float arrow_pixels = 38.0;
+// Recorte visible de la franja; se copia del material del agua (ver world_map_ui.gd).
+uniform float shore_reach = 0.0;
+// Marco del oleaje de mar abierto, copiado del material del agua para calcular su misma dirección.
+uniform vec3 swell_pole = vec3(0.0, 1.0, 0.0);
+uniform vec2 swell_direction = vec2(2.0, 0.0);
+
 const float PI_ = 3.14159265359;
 const float TAU_ = 6.28318530718;
 
@@ -174,6 +190,119 @@ float hillshade(vec2 uv, float sin_theta) {
 	return mix(1.0, rel, shade_strength);
 }
 
+// Dirección de viaje del oleaje de mar abierto en ese punto. Réplica de swell_direction() en
+// gerstner_waves.gdshaderinc: si una cambia, la otra miente.
+vec3 open_swell_dir(vec3 d) {
+	vec3 pole = normalize(swell_pole);
+	vec3 gx = normalize(cross(pole, abs(pole.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0)));
+	vec3 gy = cross(pole, gx);
+	vec2 bd = (abs(swell_direction.x) + abs(swell_direction.y) < 1e-4)
+		? vec2(1.0, 0.0) : normalize(swell_direction);
+	vec3 fixed_dir = normalize(gx * bd.x + gy * bd.y);
+	vec3 tangent = fixed_dir - d * dot(fixed_dir, d);
+	float len = length(tangent);
+	return len > 1e-4 ? -tangent / len : vec3(0.0);
+}
+
+// Un vector tangente de mundo a píxeles del mapa. En un equirect un paso en u cubre TAU*R*sin(theta)
+// metros y uno en v cubre PI*R: sin corregir por sin(theta) las flechas se tuercen con la latitud.
+vec2 world_tangent_to_px(vec3 t, vec2 uv, float sin_theta) {
+	float theta = uv.y * PI_;
+	float lon = (uv.x - 0.5) * TAU_;
+	vec3 e_u = vec3(-sin(lon), 0.0, -cos(lon));                                    // +u = este
+	vec3 e_v = vec3(cos(theta) * cos(lon), -sin(theta), -cos(theta) * sin(lon));   // +v = sur
+	return vec2(dot(t, e_u) * map_size_px.x / (2.0 * max(sin_theta, 0.001)),
+				dot(t, e_v) * map_size_px.y);
+}
+
+// Cuña apuntando a +x en coordenadas locales de celda: ancha por detrás y en punta delante, para que
+// el sentido se lea sin ambigüedad. 'grow' la engorda, que es como se dibuja el halo oscuro.
+float arrow_mask(vec2 q, float grow, float aa) {
+	float half_width = 0.42 * clamp((0.75 - q.x) / 1.35, 0.0, 1.0) + grow;
+	return (1.0 - smoothstep(half_width, half_width + aa, abs(q.y)))
+		* (1.0 - smoothstep(0.75 + grow, 0.75 + grow + aa, q.x))
+		* (1.0 - smoothstep(0.60 + grow, 0.60 + grow + aa, -q.x));
+}
+
+// Pinta la flecha de la celda a la que pertenece este fragmento. El campo se muestrea SIEMPRE en el
+// centro de la celda, no en el fragmento: así la flecha es una sola y no se deforma.
+vec3 wave_arrow(vec3 col, vec2 uv) {
+	vec2 px = uv * map_size_px;
+	vec2 cell = floor(px / arrow_pixels);
+	vec2 center_px = (cell + 0.5) * arrow_pixels;
+	vec2 center_uv = center_px / map_size_px;
+
+	float depth = sea_height - height_at(center_uv);
+	if (depth <= 0.0) {
+		return col;
+	}
+
+	vec3 d = uv_to_dir(center_uv);
+	float sin_theta = max(length(d.xz), 0.001);
+	vec4 field = texture(shore_map, center_uv);
+	float dist = length(field.xyz);
+
+	// El mismo relevo que gerstner_surface_lod: el peso horneado por la puerta de profundidad.
+	float gate = 0.0;
+	if (field.w > 0.001 && dist > 1.0) {
+		gate = field.w * (shore_reach > 0.0
+			? smoothstep(shore_reach, shore_reach * 0.6, dist) : 1.0);
+	}
+
+	// Se dibuja en toda el agua, no solo donde hay litoral: el degradado cian -> amarillo ES el
+	// relevo entre las dos familias, y así se ve de un vistazo dónde deja de mandar el mar abierto.
+	vec3 tint = mix(vec3(0.35, 0.85, 1.0), vec3(1.0, 0.9, 0.25), gate);
+
+	vec2 forward;
+	if (gate > 0.5) {
+		// La cresta viaja por -grad(distancia), y ese gradiente se mide a ARROW_PROBE metros, no
+		// leyendo el vector de un téxel suelto: a ~90 m por téxel el litoral es dentado y ese vector
+		// es casi ruido. Es la misma dirección que gobierna la fase de la ola en el agua.
+		float probe = 300.0;
+		float du = probe / (TAU_ * body_radius * sin_theta);
+		float dv = probe / (PI_ * body_radius);
+		float d_e = length(texture(shore_map, center_uv + vec2(du, 0.0)).xyz);
+		float d_w = length(texture(shore_map, center_uv - vec2(du, 0.0)).xyz);
+		float d_s = length(texture(shore_map, center_uv + vec2(0.0, dv)).xyz);
+		float d_n = length(texture(shore_map, center_uv - vec2(0.0, dv)).xyz);
+		// Componentes del gradiente en el marco (este, sur); el signo menos es "hacia la costa".
+		vec2 grad = -vec2(d_e - d_w, d_s - d_n);
+		forward = vec2(grad.x * map_size_px.x / (2.0 * sin_theta), grad.y * map_size_px.y);
+		// Sin gradiente utilizable (medio de una bahía) se cae al vector crudo antes que mentir.
+		if (length(forward) < 1e-5) {
+			forward = world_tangent_to_px(field.xyz / dist, center_uv, sin_theta);
+		}
+	} else {
+		forward = world_tangent_to_px(open_swell_dir(d), center_uv, sin_theta);
+	}
+	if (length(forward) < 1e-5) {
+		return col;
+	}
+	forward = normalize(forward);
+
+	vec2 local = (px - center_px) / (arrow_pixels * 0.5);
+	vec2 q = vec2(dot(local, forward), dot(local, vec2(-forward.y, forward.x)));
+	float aa = 4.0 / arrow_pixels;
+
+	col = mix(col, vec3(0.02, 0.03, 0.05), arrow_mask(q, 0.07, aa) * 0.85);
+	return mix(col, tint, arrow_mask(q, 0.0, aa));
+}
+
+// Franja activa de la ola de orilla, por FRAGMENTO. Las flechas van por celda y a poco zoom que
+// quites son un pinchazo suelto en una banda mucho más fina que la rejilla; esto enseña su forma
+// real. Rojo = hay campo horneado pero la profundidad lo apaga. Verde = ahí manda la ola de orilla.
+// Sin tinte = no hay campo, o sea que estás a más de SHORE_RANGE del litoral.
+vec3 shore_band(vec3 col, vec2 uv, float depth) {
+	vec4 field = texture(shore_map, uv);
+	if (field.w <= 0.001 || length(field.xyz) <= 1.0) {
+		return col;
+	}
+	float gate = field.w * (shore_reach > 0.0
+		? smoothstep(shore_reach, shore_reach * 0.6, length(field.xyz)) : 1.0);
+	vec3 tint = mix(vec3(1.0, 0.15, 0.10), vec3(0.15, 1.0, 0.30), gate);
+	return mix(col, tint, 0.30 + 0.30 * field.w);
+}
+
 void fragment() {
 	vec2 uv = UV;
 	vec3 dir = uv_to_dir(uv);
@@ -223,6 +352,13 @@ void fragment() {
 		vec2 g = abs(fract(deg - 0.5) - 0.5) / max(fwidth(deg), vec2(0.0001));
 		float gline = 1.0 - min(min(g.x, g.y), 1.0);
 		col = mix(col, grid_color, gline * grid_strength);
+	}
+
+	if (show_wave_arrows && has_shore_map && has_water) {
+		if (submerged) {
+			col = shore_band(col, uv, depth);
+		}
+		col = wave_arrow(col, uv);
 	}
 
 	COLOR = vec4(col, 1.0);
