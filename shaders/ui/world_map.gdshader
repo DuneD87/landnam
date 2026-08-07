@@ -110,8 +110,19 @@ uniform bool show_wave_arrows = false;
 uniform bool has_shore_map = false;
 uniform vec2 map_size_px = vec2(1024.0, 512.0); // tamaño dibujado; fija el paso en pantalla
 uniform float arrow_pixels = 38.0;
-// Recorte visible de la franja; se copia del material del agua (ver world_map_ui.gd).
+// Forma de la franja; se copia del material del agua (ver world_map_ui.gd).
 uniform float shore_reach = 0.0;
+uniform float shore_range = 1200.0;
+uniform float shore_fade = 0.5;
+
+// Misma puerta que gerstner_surface_ctx: el peso horneado por el degradado de entrada.
+float shore_gate_at(vec4 field, float dist) {
+	if (field.w <= 0.001 || dist <= 1.0) {
+		return 0.0;
+	}
+	float reach = shore_reach > 0.0 ? shore_reach : shore_range;
+	return field.w * smoothstep(reach, reach * (1.0 - shore_fade), dist);
+}
 // Marco del oleaje de mar abierto, copiado del material del agua para calcular su misma dirección.
 uniform vec3 swell_pole = vec3(0.0, 1.0, 0.0);
 uniform vec2 swell_direction = vec2(2.0, 0.0);
@@ -242,12 +253,7 @@ vec3 wave_arrow(vec3 col, vec2 uv) {
 	vec4 field = texture(shore_map, center_uv);
 	float dist = length(field.xyz);
 
-	// El mismo relevo que gerstner_surface_lod: el peso horneado por la puerta de profundidad.
-	float gate = 0.0;
-	if (field.w > 0.001 && dist > 1.0) {
-		gate = field.w * (shore_reach > 0.0
-			? smoothstep(shore_reach, shore_reach * 0.6, dist) : 1.0);
-	}
+	float gate = shore_gate_at(field, dist);
 
 	// Se dibuja en toda el agua, no solo donde hay litoral: el degradado cian -> amarillo ES el
 	// relevo entre las dos familias, y así se ve de un vistazo dónde deja de mandar el mar abierto.
@@ -297,8 +303,7 @@ vec3 shore_band(vec3 col, vec2 uv, float depth) {
 	if (field.w <= 0.001 || length(field.xyz) <= 1.0) {
 		return col;
 	}
-	float gate = field.w * (shore_reach > 0.0
-		? smoothstep(shore_reach, shore_reach * 0.6, length(field.xyz)) : 1.0);
+	float gate = shore_gate_at(field, length(field.xyz));
 	vec3 tint = mix(vec3(1.0, 0.15, 0.10), vec3(0.15, 1.0, 0.30), gate);
 	return mix(col, tint, 0.30 + 0.30 * field.w);
 }

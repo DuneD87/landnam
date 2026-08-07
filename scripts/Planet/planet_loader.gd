@@ -318,6 +318,7 @@ func _push_world_map_to_water(map: WorldMapData) -> void:
 	# campo (planeta sin mares abiertos) el agua se queda con el oleaje de siempre.
 	if map.has_shore_field():
 		mat.set_shader_parameter("shore_offset_map", map.shore_texture())
+		mat.set_shader_parameter("shore_range", map.shore_range)
 		mat.set_shader_parameter("shore_waves_enabled", true)
 
 	water_sphere.world_map = world_map

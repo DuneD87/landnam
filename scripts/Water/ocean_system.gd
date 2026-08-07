@@ -138,7 +138,9 @@ func _update_waterline() -> void:
 	if _waterline_sampler == null:
 		_waterline_sampler = WaterHeightSampler.new()
 		add_child(_waterline_sampler)
-		_waterline_sampler.setup(mat, world_map)
+		# radius es el radio de agua autoritativo: leerlo del material daría 0.0 (el .tres) hasta que
+		# el mesh manager lo reescribe por-frame, y el sampler lo cachea una sola vez en setup.
+		_waterline_sampler.setup(mat, world_map, radius)
 	# El mapa se hornea en un hilo y puede llegar después del primer frame.
 	_waterline_sampler.world_map = world_map
 

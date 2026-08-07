@@ -26,6 +26,8 @@ var shore_depth_fade: float
 var shore_shoal_max: float
 var shore_incidence: float
 var shore_reach: float
+var shore_range: float
+var shore_fade: float
 var shore_handover: float
 
 ## Mapa del planeta, opcional. Con él, el oleaje de tormenta se queda donde el shader lo dibuja
@@ -48,16 +50,22 @@ const _TAU := 6.28318530718
 const _INVERT_ITERATIONS := 3
 
 ## Lee del material los parámetros que intervienen en la altura de ola. 'planet_map' es opcional;
-## ver el comentario de 'world_map'.
-func setup(water_material: ShaderMaterial, planet_map: PlanetWorldMap = null) -> void:
+## ver el comentario de 'world_map'. 'surface_radius' solo lo necesita get_surface_at (la línea de
+## flotación): pásalo cuando lo conozcas, porque el uniform water_radius del material lo pone el
+## mesh manager cada frame y el .tres lo trae a 0.0, así que leerlo aquí cachearía un radio falso.
+func setup(water_material: ShaderMaterial, planet_map: PlanetWorldMap = null,
+		surface_radius: float = -1.0) -> void:
 	_material = water_material
 	world_map = planet_map
 	wave_octaves = int(water_material.get_shader_parameter("wave_octaves"))
 	wave_direction = water_material.get_shader_parameter("wave_direction")
 	var pole: Variant = water_material.get_shader_parameter("wave_pole")
 	wave_pole = pole if pole != null else Vector3(0, 1, 0)
-	var radius: Variant = _param(water_material, "water_radius")
-	_water_radius = radius if radius != null else 0.0
+	if surface_radius >= 0.0:
+		_water_radius = surface_radius
+	else:
+		var radius: Variant = _param(water_material, "water_radius")
+		_water_radius = radius if radius != null else 0.0
 	_refresh_dynamic_params()
 
 ## Valor de un uniform, o el que declare el shader si el material no lo sobrescribe.
@@ -104,6 +112,8 @@ static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
 			"shore_shoal_max": _param(mat, "shore_shoal_max"),
 			"shore_incidence": _param(mat, "shore_incidence"),
 			"shore_reach": _param(mat, "shore_reach"),
+			"shore_range": _param(mat, "shore_range"),
+			"shore_fade": _param(mat, "shore_fade"),
 			"shore_handover": _param(mat, "shore_handover"),
 		}
 		_frame_cache[key] = cached
@@ -140,6 +150,8 @@ func _refresh_dynamic_params() -> void:
 	shore_shoal_max = params["shore_shoal_max"]
 	shore_incidence = params["shore_incidence"]
 	shore_reach = params["shore_reach"]
+	shore_range = params["shore_range"]
+	shore_fade = params["shore_fade"]
 	shore_handover = params["shore_handover"]
 
 ## Altura de ola (desplazamiento radial) en world_pos. Invierte por punto-fijo el arrastre
@@ -211,9 +223,9 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 	# dos a la vez y en una costa a sotavento el swell global viaja mar adentro sobre la rompiente.
 	var shore_gate := 0.0
 	if shore_off != Vector3.ZERO:
-		shore_gate = shore_weight
-		if shore_reach > 0.0:
-			shore_gate *= smoothstep(shore_reach, shore_reach * 0.6, shore_off.length())
+		var reach := shore_reach if shore_reach > 0.0 else shore_range
+		shore_gate = shore_weight * smoothstep(
+			reach, reach * (1.0 - shore_fade), shore_off.length())
 	# Asimétrico a propósito: ver shore_handover en gerstner_waves.gdshaderinc.
 	var ocean_weight := 1.0 - smoothstep(0.0, shore_handover, shore_gate)
 

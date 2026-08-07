@@ -337,7 +337,8 @@ func _apply_planet_params(map: WorldMapData) -> void:
 	var water_mat := (ocean.quadtree_material as ShaderMaterial) if ocean != null else null
 	if water_mat != null:
 		for pair in [["wave_pole", "swell_pole"], ["wave_direction", "swell_direction"],
-				["shore_reach", "shore_reach"]]:
+				["shore_reach", "shore_reach"], ["shore_range", "shore_range"],
+				["shore_fade", "shore_fade"]]:
 			# get_shader_parameter devuelve null para todo lo que el .tres no sobrescriba, que es
 			# justo el caso de los que viven en el default del shader. Sin este relevo el mapa se
 			# quedaría con su propia copia del valor y los dos se separarían en silencio.

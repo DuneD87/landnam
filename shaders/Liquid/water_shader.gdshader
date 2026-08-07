@@ -146,8 +146,11 @@ varying float view_depth;
 varying vec3 world_normal_radial;
 varying vec3 world_gerstner_normal;
 varying float wave_crest_signal;
-varying vec3 waterline_point;
-varying vec3 waterline_normal;
+// Plano local de la línea de flotación: los píxeles que arrancan bajo el agua no se dibujan aquí
+// —la vista sumergida la renderiza entera el quad de niebla contra la MISMA superficie Gerstner—,
+// y el corte lo decide cada píxel contra este plano.
+uniform vec3 waterline_point;
+uniform vec3 waterline_normal;
 // Atenuación del especular por luz que fragment() pasa a light(): baja el glint en las crestas de noche.
 varying float spec_light_atten;
 
@@ -327,16 +330,6 @@ void vertex() {
     vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
     view_depth = -view_pos.z - 0.5;
 
-    // Plano local de la línea de flotación (idéntico al de underwater.gdshader): los píxeles
-    // que arrancan bajo el agua no se dibujan aquí — la vista sumergida la renderiza entera
-    // el quad de niebla contra la MISMA superficie Gerstner (este shader está pensado para
-    // verse desde arriba y desde abajo produce iluminación sin sentido).
-    vec3 cam_local = CAMERA_POSITION_WORLD - planet_center;
-    vec3 up_dir = normalize(cam_local);
-    vec3 cam_surface_normal;
-    float cam_surface_radius = water_radius + gerstner_surface_height_normal(cam_local, water_time, cam_surface_normal);
-    waterline_point = planet_center + up_dir * cam_surface_radius;
-    waterline_normal = normalize(cam_surface_normal);
 }
 
 void fragment() {

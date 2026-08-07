@@ -33,7 +33,7 @@
 		"textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png",
 			
-			"res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_albedo.png",
+			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png",
 			
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
@@ -42,7 +42,7 @@
 		"normal_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_normal-ogl.png",
 			
-			"res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_Normal-ogl.png",
+			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png",
 			
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png",
@@ -51,7 +51,7 @@
 		"roughness_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_roughness.png",
 			
-			"res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_Roughness.png",
+			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png",
 			
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png",
@@ -60,7 +60,7 @@
 		"ao_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_ao.png",
 			
-			"res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_ao.png",
+			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_ao.png",
 			
 			"res://textures/terrain/crusted_snow/Crusted_snow2_ao.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_ao.png",
@@ -68,7 +68,7 @@
 		],
 		"height_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_height.png",
-			"res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_Height.png",
+			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_height.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Height.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_height.png",
 			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_height.png"
@@ -241,7 +241,7 @@
 	  	{
 			"name": "grass_generator_green",
 			"emit_mode": "EMIT_FROM_VERTICES",
-			"density": 0.5,
+			"density": 1.0,
 			"lod_density_falloff": 1.0,
 			"lod_scale_gain": 1.0,
 			"min_height": -35,

@@ -118,6 +118,14 @@ uniform float shore_incidence : hint_range(0.0, 1.0, 0.01) = 0.6;    // cuánto 
 // ~90 m por téxel, así que una franja de 150 m son téxel y medio y la geometría de las crestas sale
 // cuantizada. Mejor hornear ancho y recortar aquí.
 uniform float shore_reach : hint_range(0.0, 3000.0, 10.0) = 0.0;
+// Alcance con el que se horneó el campo (lo empuja PlanetLoader). Es el que manda si shore_reach
+// vale 0, y hace falta aquí para poder dar forma a la transición sin rehornear.
+uniform float shore_range = 1200.0;
+// Qué fracción del alcance ocupa el degradado de entrada, medido desde fuera hacia la costa.
+// 0.5 = la mitad exterior de la franja es transición. Subirlo difumina el corte entre mar adentro y
+// zona costera; bajarlo lo concentra. Cuidado: la transición es donde conviven las dos familias, así
+// que estirarla mucho reaparece el mar cruzado — se compensa bajando shore_handover.
+uniform float shore_fade : hint_range(0.05, 0.95, 0.01) = 0.5;
 // Cuánto se adelanta el apagado del mar abierto al encendido de la orilla. Con un relevo simétrico
 // las dos familias valen 0.5 a la vez en toda la transición y sus crestas se cruzan: eso es el mar
 // cruzado, y se ve como una cuadrícula de picos. Subirlo saca antes al mar abierto (menos cruce, a
@@ -167,9 +175,9 @@ WaveContext wave_context(vec3 local) {
         ctx.shore_dist = length(ctx.shore_field.xyz);
         ctx.shore_depth = storm_sea_height - ground;
         if (ctx.shore_field.w > 0.001 && ctx.shore_dist > 1.0) {
-            ctx.shore_gate = ctx.shore_field.w * (shore_reach > 0.0
-                ? smoothstep(shore_reach, shore_reach * 0.6, ctx.shore_dist)
-                : 1.0);
+            float reach = shore_reach > 0.0 ? shore_reach : shore_range;
+            ctx.shore_gate = ctx.shore_field.w
+                * smoothstep(reach, reach * (1.0 - shore_fade), ctx.shore_dist);
         }
     }
     return ctx;
