@@ -25,6 +25,21 @@ const _SHORE_RANGE_MARGIN := 1.3
 ## Pasadas de suavizado del campo de orilla. Ver _smooth_shore_field.
 const _SHORE_SMOOTH_PASSES := 2
 
+## Semirrango vertical (m) con el que se normaliza la altura para sacar el litoral. Solo decide
+## dónde deja de interpolarse el cruce: por debajo de esta cota la costa se sitúa con precisión
+## sub-téxel a partir de la pendiente real; por encima, el téxel satura y el cruce cae al medio.
+## Subirlo mucho mete las montañas en la ecuación y arrastra la línea de costa tierra adentro.
+const _SHORE_LEVEL_BAND := 60.0
+## Pasadas de caja 3x3 sobre ese campo ANTES de extraer el litoral. Es el filtro paso bajo de la
+## costa: quita el serpenteo de escala téxel que no puede refractar una ola de decenas de metros.
+## Cada pasada mueve la línea de costa hasta ~medio téxel (~45 m), así que con franjas estrechas
+## no conviene pasar de 1. 0 = contorno crudo.
+const _SHORE_COAST_SMOOTH := 1
+## Radio (en téxeles) alrededor de cada segmento de litoral que se siembra con el vector exacto.
+## Con 2 basta: todo téxel a menos de 2 téxeles del litoral recibe su segmento más cercano de
+## verdad, y de ahí para fuera propaga el barrido.
+const _SHORE_SEED_RADIUS := 2
+
 
 ## Devuelve un WorldMapData con las alturas ya horneadas y sin clasificar, o null si el generador
 ## no sabe hornear. 'height_range' es el semirrango de búsqueda del SDF alrededor del radio: la
@@ -148,9 +163,13 @@ static func open_water_ids(map: WorldMapData) -> PackedInt32Array:
 ## más cercano. Solo toca arrays, así que va en el mismo hilo que classify_water, que es de quien
 ## depende. Es la parte cara del horneado.
 ##
-## Lo que consume esto es la FASE de las olas de orilla: phase = k * |offset|. Por eso el error
-## absoluto de la distancia da igual y solo importa su gradiente, que sale de módulo 1 por
-## construcción; y por eso una rejilla de ~90 m/téxel basta para crestas de decenas de metros.
+## Lo que consume esto es la FASE de las olas de orilla (phase = k * |offset|) y su DIRECCIÓN de
+## viaje. La fase perdona: solo importa su gradiente. La dirección no, y es lo que obliga a que el
+## litoral sea una polilínea con posición sub-téxel y no un conjunto de téxeles: sembrar con el
+## téxel-semilla más cercano deja el vector con módulo de uno o dos téxeles, o sea ocho o dieciséis
+## ángulos posibles en toda la franja visible, y de ahí salen las crestas tangentes a la costa o
+## dadas la vuelta. Con el vector exacto al segmento el campo es continuo y casi lineal, que es
+## justo lo que el filtro bilineal de la textura sabe reconstruir a 90 m/téxel.
 ##
 ## 'eligible' son los cuerpos cuyo litoral siembra (ver open_water_ids). El agua interior queda a
 ## cero aunque caiga dentro del alcance de una costa marina.
@@ -173,38 +192,6 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 	for id in eligible:
 		if id >= 0 and id < elig.size():
 			elig[id] = 1
-
-	# dx/dy: desplazamiento EN TÉXELES desde cada téxel hasta su semilla más cercana conocida. Se
-	# propaga el desplazamiento y no la distancia (transformada vectorial) porque al final hace
-	# falta la dirección, y derivarla de un campo escalar a esta resolución la deja escalonada.
-	var dx := PackedFloat32Array()
-	var dy := PackedFloat32Array()
-	dx.resize(n)
-	dy.resize(n)
-	dx.fill(_SHORE_UNSET)
-	dy.fill(_SHORE_UNSET)
-
-	# Semillas: agua abierta con algún vecino de tierra. El litoral real cae media celda más allá,
-	# entre ambos téxeles; irrelevante para un campo del que solo se usa el gradiente.
-	var seeds := 0
-	for i in n:
-		var id := ids[i]
-		if id < 0 or id >= elig.size() or elig[id] == 0:
-			continue
-		var y := i / w
-		var x := i - y * w
-		var west := i - 1 if x > 0 else i + w - 1
-		var east := i + 1 if x < w - 1 else i - w + 1
-		var north := i - w if y > 0 else -1
-		var south := i + w if y < h - 1 else -1
-		if (ids[west] < 0 or ids[east] < 0
-				or (north >= 0 and ids[north] < 0) or (south >= 0 and ids[south] < 0)):
-			dx[i] = 0.0
-			dy[i] = 0.0
-			seeds += 1
-
-	if seeds == 0:
-		return
 
 	# Métrica en metros: un paso horizontal encoge con el coseno de la latitud, uno vertical no.
 	# Se usa la de la fila actual como aproximación; solo decide QUÉ semilla es la más cercana, y
@@ -234,6 +221,29 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 		sin_l[x] = sin(lon)
 		cos_l[x] = cos(lon)
 
+	# El litoral, como polilínea sub-téxel. 'level' es el campo con signo del que sale, y además
+	# decide de qué lado de la costa está cada téxel más abajo: usarlo a él y no los ids evita que
+	# el filtro y el contorno discrepen en el téxel de la orilla, que es donde se dibuja todo.
+	var level := _build_coast_level(map, ids, elig)
+	var band := _coast_band(level, w, h, _SHORE_SEED_RADIUS + _SHORE_COAST_SMOOTH)
+	for _blur in _SHORE_COAST_SMOOTH:
+		level = _blur_coast_level(level, band, w, h)
+	var segments := _extract_coastline(level, band, w, h)
+	if segments.is_empty():
+		return
+
+	# dx/dy: desplazamiento EN TÉXELES (fraccionario) desde cada téxel hasta el punto de litoral más
+	# cercano conocido. Se propaga el desplazamiento y no la distancia (transformada vectorial)
+	# porque al final hace falta la dirección, y derivarla de un campo escalar a esta resolución la
+	# deja escalonada.
+	var dx := PackedFloat32Array()
+	var dy := PackedFloat32Array()
+	dx.resize(n)
+	dy.resize(n)
+	dx.fill(_SHORE_UNSET)
+	dy.fill(_SHORE_UNSET)
+	_seed_from_coastline(segments, dx, dy, w, h, sin_t)
+
 	# Se propaga bastante más allá de la franja pedida: el suavizado de después necesita vecinos con
 	# dato válido, y con franjas estrechas el margen relativo no da ni para un téxel.
 	var reach := maxf(max_range * _SHORE_RANGE_MARGIN, _SHORE_SMOOTH_PASSES * 2.0 * my + my)
@@ -250,9 +260,16 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 	# la fase barre decenas de longitudes de onda y sale un muro de agua. Por eso el vector se hornea
 	# hasta 'reach' (con margen) mientras el peso ya se ha apagado en max_range: donde el peso es > 0,
 	# los cuatro téxeles del filtro siempre tienen dato válido.
+	#
+	# La posición de la semilla es FRACCIONARIA, así que su dirección se calcula con trigonometría en
+	# vez de leer las tablas por fila y columna. Redondearla al téxel más cercano tiraría justo la
+	# precisión que se ha ido a buscar al litoral: a un téxel de la costa, medio téxel de error son
+	# 30 grados de dirección. Solo se paga en los téxeles con dato, que son la franja costera.
 	var offsets := PackedFloat32Array()
 	offsets.resize(n * 4)
 	var fade_start := max_range * 0.75
+	var inv_w := 1.0 / float(w)
+	var inv_h := 1.0 / float(h)
 	var i2 := 0
 	for y in h:
 		var st: float = sin_t[y]
@@ -260,19 +277,23 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 		for x in w:
 			var ox: float = dx[i2]
 			if ox < _SHORE_UNSET_TEST:
-				var sy := clampi(y + roundi(dy[i2]), 0, h - 1)
-				var sx := wrapi(x + roundi(ox), 0, w)
+				var theta := (clampf(y + dy[i2], -0.5, h - 0.5) + 0.5) * inv_h * PI
+				var lon := ((x + ox + 0.5) * inv_w - 0.5) * TAU
+				var sst := sin(theta)
 				var d := Vector3(st * cos_l[x], ct, -st * sin_l[x])
-				var s := Vector3(sin_t[sy] * cos_l[sx], cos_t[sy], -sin_t[sy] * sin_l[sx])
+				var s := Vector3(sst * cos(lon), cos(theta), -sst * sin(lon))
 				var proj := (s - d * d.dot(s)) * r
-				var id := ids[i2]
 				# En TIERRA el vector se guarda invertido. Este campo apunta siempre al litoral más
 				# cercano, así que al cruzar la orilla su dirección gira 180 grados (es el gradiente
 				# de |x| en el cero). El filtro bilineal del agua mezcla entonces las dos caras del
 				# pliegue justo en la franja de uno o dos téxeles donde se dibuja la rompiente, y la
 				# dirección que sale de ahí es la media de dos vectores opuestos. Invertido, la
 				# dirección es continua a través de la costa y solo el módulo pasa por cero.
-				if id < 0:
+				#
+				# El lado lo manda 'level', el mismo campo del que salió el contorno, y no el id del
+				# téxel: el suavizado del litoral mueve la costa una fracción de téxel, y con los ids
+				# habría téxeles de agua al otro lado de la línea invertidos al revés.
+				if level[i2] >= 0.0:
 					proj = -proj
 				var o := i2 * 4
 				offsets[o] = proj.x
@@ -280,6 +301,7 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 				offsets[o + 2] = proj.z
 				# El agua interior se apaga con el peso, conservando el vector: anularlo metería en
 				# la orilla del lago el mismo salto de fase que en el borde del campo.
+				var id := ids[i2]
 				if id < 0 or elig[id] == 1:
 					offsets[o + 3] = smoothstep(max_range, fade_start, proj.length())
 			i2 += 1
@@ -288,8 +310,182 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 		offsets = _smooth_shore_field(offsets, dx, w, h)
 	map.shore_size = map.size
 	map.shore_offsets = offsets
-	print("[world-map] campo de orilla: %d semillas de litoral, %.1f s"
-		% [seeds, (Time.get_ticks_msec() - started) / 1000.0])
+	print("[world-map] campo de orilla: %d segmentos de litoral, %.1f s"
+		% [segments.size() / 4, (Time.get_ticks_msec() - started) / 1000.0])
+
+
+## Campo con signo del que se extrae el litoral: altura sobre el nivel del mar en metros, acotada a
+## +/-_SHORE_LEVEL_BAND. Todo lo que no sea agua abierta (tierra y agua interior) se fuerza positivo,
+## así el contorno cero es exactamente la costa de mares y océanos y la de un lago no existe.
+static func _build_coast_level(map: WorldMapData, ids: PackedInt32Array,
+		elig: PackedByteArray) -> PackedFloat32Array:
+	var n := map.heights.size()
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var base := map.radius + map.height_min - map.sea_level_radius
+	var span := map.height_span
+	var inv := 1.0 / _SHORE_LEVEL_BAND
+	var heights := map.heights
+	for i in n:
+		var v := clampf((base + heights[i] * span) * inv, -1.0, 1.0)
+		var id := ids[i]
+		if id < 0 or elig[id] == 0:
+			v = maxf(v, 0.001)
+		out[i] = v
+	return out
+
+
+## Índices de los téxeles a 'radius' o menos de un cambio de signo de 'level'. Es la única pasada
+## que recorre el mapa entero: todo lo demás (suavizado del litoral, contorno, siembra) trabaja
+## sobre esta lista, que a 2048x1024 son un par de cientos de miles de téxeles y no dos millones.
+static func _coast_band(level: PackedFloat32Array, w: int, h: int,
+		radius: int) -> PackedInt32Array:
+	var n := w * h
+	var mark := PackedByteArray()
+	mark.resize(n)
+	var out := PackedInt32Array()
+	for i in n:
+		var y := i / w
+		var x := i - y * w
+		var neg := level[i] < 0.0
+		var east := y * w + (x + 1 if x < w - 1 else 0)
+		var south := i + w
+		if neg == (level[east] < 0.0) and (south >= n or neg == (level[south] < 0.0)):
+			continue
+		for ky in range(-radius, radius + 1):
+			var sy := y + ky
+			if sy < 0 or sy >= h:
+				continue
+			var row := sy * w
+			for kx in range(-radius, radius + 1):
+				var j := row + wrapi(x + kx, 0, w)
+				if mark[j] == 0:
+					mark[j] = 1
+					out.append(j)
+	return out
+
+
+## Caja 3x3 sobre el campo con signo, solo dentro de la banda. Es el filtro paso bajo de la costa:
+## una ola de decenas de metros no refracta contra los recovecos de un téxel, y ese serpenteo es lo
+## que hacía girar la dirección de la cresta de un téxel al siguiente.
+static func _blur_coast_level(level: PackedFloat32Array, band: PackedInt32Array,
+		w: int, h: int) -> PackedFloat32Array:
+	var out := level.duplicate()
+	for i in band:
+		var y := i / w
+		var x := i - y * w
+		var acc := 0.0
+		var count := 0
+		for ky in range(-1, 2):
+			var sy := y + ky
+			if sy < 0 or sy >= h:
+				continue
+			var row := sy * w
+			for kx in range(-1, 2):
+				acc += level[row + wrapi(x + kx, 0, w)]
+				count += 1
+		out[i] = acc / count
+	return out
+
+
+## Segmentos que unen los cruces de cada celda, indexados por el caso de marching squares
+## (bit 0 = esquina superior izquierda negativa, y luego en el sentido de las agujas del reloj).
+## Los índices son aristas: 0 = arriba, 1 = derecha, 2 = abajo, 3 = izquierda. Las dos diagonales
+## ambiguas (5 y 10) se resuelven separando las esquinas de agua, o sea dejando la tierra unida por
+## la diagonal: así un istmo de un téxel sigue siendo istmo en vez de partirse en dos islas.
+const _MS_EDGES := [
+	[], [3, 0], [0, 1], [3, 1],
+	[1, 2], [3, 0, 1, 2], [0, 2], [3, 2],
+	[2, 3], [0, 2], [0, 1, 2, 3], [1, 2],
+	[3, 1], [0, 1], [0, 3], [],
+]
+
+
+## El litoral como sopa de segmentos en coordenadas de téxel fraccionarias [x0,y0,x1,y1]*. Marching
+## squares sobre el campo con signo: el cruce se interpola con la pendiente real del terreno, así que
+## la línea de costa queda situada por debajo del téxel y no pegada a la rejilla.
+static func _extract_coastline(level: PackedFloat32Array, band: PackedInt32Array,
+		w: int, h: int) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	for i in band:
+		var y := i / w
+		if y >= h - 1:
+			continue
+		var x := i - y * w
+		var xe := x + 1 if x < w - 1 else 0
+		var r0 := y * w
+		var r1 := r0 + w
+		var a: float = level[r0 + x]
+		var b: float = level[r0 + xe]
+		var c: float = level[r1 + xe]
+		var d: float = level[r1 + x]
+		var code := ((1 if a < 0.0 else 0) | (2 if b < 0.0 else 0)
+			| (4 if c < 0.0 else 0) | (8 if d < 0.0 else 0))
+		var edges: Array = _MS_EDGES[code]
+		if edges.is_empty():
+			continue
+		var px := PackedFloat32Array([x + _cross(a, b), x + 1.0, x + _cross(d, c), float(x)])
+		var py := PackedFloat32Array([float(y), y + _cross(b, c), y + 1.0, y + _cross(a, d)])
+		for j in range(0, edges.size(), 2):
+			var e0: int = edges[j]
+			var e1: int = edges[j + 1]
+			out.append(px[e0])
+			out.append(py[e0])
+			out.append(px[e1])
+			out.append(py[e1])
+	return out
+
+
+## Posición del cruce por cero entre dos esquinas, en [0,1]. Con las dos saturadas al mismo valor
+## cae en el medio, que es lo que se puede decir de un acantilado a esta resolución.
+static func _cross(a: float, b: float) -> float:
+	var den := a - b
+	if absf(den) < 1e-6:
+		return 0.5
+	return clampf(a / den, 0.0, 1.0)
+
+
+## Siembra dx/dy con el vector EXACTO al segmento de litoral más cercano, para los téxeles a menos
+## de _SHORE_SEED_RADIUS de él. Del resto se encarga el barrido, que propaga estos desplazamientos
+## fraccionarios igual que propagaba los enteros.
+##
+## El punto más cercano se busca en un espacio donde la x va escalada por el seno de la colatitud:
+## en téxeles la métrica es anisótropa y en latitudes altas elegiría un punto que no es el próximo.
+static func _seed_from_coastline(segments: PackedFloat32Array, dx: PackedFloat32Array,
+		dy: PackedFloat32Array, w: int, h: int, sin_t: PackedFloat32Array) -> void:
+	var rad := _SHORE_SEED_RADIUS
+	var count := segments.size() / 4
+	for k in count:
+		var o := k * 4
+		var ax0: float = segments[o]
+		var ay0: float = segments[o + 1]
+		var bx0: float = segments[o + 2]
+		var by0: float = segments[o + 3]
+		var x_lo := floori(minf(ax0, bx0)) - rad
+		var x_hi := floori(maxf(ax0, bx0)) + rad
+		var y_lo := maxi(floori(minf(ay0, by0)) - rad, 0)
+		var y_hi := mini(floori(maxf(ay0, by0)) + rad, h - 1)
+		for yy in range(y_lo, y_hi + 1):
+			var st: float = maxf(sin_t[yy], 0.001)
+			var row := yy * w
+			var ex := (bx0 - ax0) * st
+			var ey := by0 - ay0
+			var den := ex * ex + ey * ey
+			var ay := ay0 - yy
+			for xr in range(x_lo, x_hi + 1):
+				var ax := (ax0 - xr) * st
+				var t := 0.0 if den < 1e-12 else clampf(-(ax * ex + ay * ey) / den, 0.0, 1.0)
+				var qx := ax + t * ex
+				var qy := ay + t * ey
+				var d2 := qx * qx + qy * qy
+				var i := row + wrapi(xr, 0, w)
+				var cur: float = dx[i]
+				if cur < _SHORE_UNSET_TEST:
+					var cs := cur * st
+					if cs * cs + dy[i] * dy[i] <= d2:
+						continue
+				dx[i] = qx / st
+				dy[i] = qy
 
 
 ## Suaviza el campo de orilla: una pasada de caja 3x3 sobre el MÓDULO (que es la fase de la ola) y

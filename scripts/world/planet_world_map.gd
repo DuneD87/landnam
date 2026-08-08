@@ -27,7 +27,7 @@ const SHORE_RANGE := 150.0
 ## Sube esto SIEMPRE que cambie el formato o el criterio de horneado. La clave del caché mira la
 ## fecha del generador, no la de este código: sin subirlo, un mapa horneado con reglas viejas se
 ## sigue leyendo tal cual y el cambio no se ve por ningún lado.
-const BAKE_VERSION := 7
+const BAKE_VERSION := 8
 
 var map: WorldMapData
 
