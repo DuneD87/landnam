@@ -648,6 +648,18 @@ void fragment() {
     ROUGHNESS = mix(roughness, 0.8, clamp(max(crest_foam, wake_foam), 0.0, 1.0));
     SPECULAR = 0.5;
     METALLIC = metallic;
+
+    // Diagnóstico del campo costero desde el inspector remoto de OceanSystem. La función y el
+    // uniform ya existían, pero no se aplicaban al shader visible y los modos 1..5 no hacían nada.
+    if (shore_debug_mode > 0) {
+        vec3 debug_color = shore_debug_color(world_pos - planet_center, water_time);
+        ALBEDO = debug_color;
+        EMISSION = debug_color * 0.35;
+        ALPHA = 1.0;
+        ROUGHNESS = 1.0;
+        SPECULAR = 0.0;
+        METALLIC = 0.0;
+    }
 }
 
 // Iluminación custom: reemplaza el lighting por defecto del motor para el agua.

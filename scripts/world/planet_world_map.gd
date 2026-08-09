@@ -22,12 +22,12 @@ const MAX_STORM_BODIES := 8
 ## Ancho de la franja costera con olas hacia la orilla, en metros. Es EL knob del sistema: la
 ## profundidad ya no interviene (ver gerstner_waves.gdshaderinc), así que esto es literalmente hasta
 ## dónde llegan. Subirlo cuesta memoria y tiempo de horneado, y obliga a rehornear el mapa.
-const SHORE_RANGE := 150.0
+const SHORE_RANGE := 1200.0
 
 ## Sube esto SIEMPRE que cambie el formato o el criterio de horneado. La clave del caché mira la
 ## fecha del generador, no la de este código: sin subirlo, un mapa horneado con reglas viejas se
 ## sigue leyendo tal cual y el cambio no se ve por ningún lado.
-const BAKE_VERSION := 8
+const BAKE_VERSION := 11
 
 var map: WorldMapData
 
@@ -199,13 +199,18 @@ func has_shore_field() -> bool:
 	return is_ready() and map.has_shore_field()
 
 
-## Muestra del campo de orilla (xyz = vector al litoral, w = peso) en coordenadas relativas al
-## centro del planeta. Es la réplica CPU de la lectura de shore_offset_map en el shader del agua:
-## los barcos tienen que sentir la misma rompiente que se dibuja. Peso 0 = ahí no hay ola de orilla.
+## Muestra del campo de orilla (xyz = dirección al litoral, w = distancia en metros) en coordenadas
+## relativas al centro del planeta. Es la réplica CPU de shore_offset_map en el shader del agua.
 func shore_sample_local(local: Vector3) -> Vector4:
 	if not is_ready():
 		return Vector4.ZERO
 	return map.shore_sample_at_dir(local.normalized())
+
+
+## Bloquea la costera sólo en agua interior confirmada. Un téxel de tierra junto al litoral no es
+## autoridad suficiente porque el mapa es mucho más grueso que la geometría visible.
+func shore_waves_allowed_local(local: Vector3) -> bool:
+	return is_ready() and map.shore_waves_allowed_at_dir(local.normalized(), _storm_flags)
 
 
 ## Profundidad del agua sobre el terreno en esa dirección, ya relativa al centro del planeta.

@@ -37,14 +37,14 @@ var body_ids: PackedInt32Array = PackedInt32Array()
 ## Un diccionario por cuerpo de agua; ver WorldMapBaker._measure_bodies para las claves.
 var bodies: Array[Dictionary] = []
 
-## Campo de orilla: cuatro floats por téxel. xyz = vector tangente (metros, en espacio del planeta)
-## al punto de litoral más cercano, cuyo módulo es la distancia a la costa y a la vez la FASE de las
-## olas de orilla. w = peso, que es lo único que decide si ahí hay ola: no se puede deducir del
-## módulo del vector, porque el filtrado bilineal lo hunde en los bordes del campo y la fase que
-## sale de ahí es basura. Ver WorldMapBaker.bake_shore_field.
+## Campo de orilla: cuatro floats por téxel. xyz = dirección tangente unitaria hacia el litoral y
+## w = distancia al litoral en metros (fase de la ola). Se guardan separados para que el filtrado
+## bilineal no hunda la distancia cuando se encuentran direcciones opuestas en una bahía o un
+## estrecho. El módulo de xyz interpolado queda entonces como medida gratuita de coherencia: puede
+## reducir el arrastre horizontal sin apagar la amplitud de la rompiente.
 var shore_size: Vector2i = Vector2i.ZERO
 var shore_offsets: PackedFloat32Array = PackedFloat32Array()
-## Alcance en metros con el que se horneó el campo; más allá los téxeles están a cero.
+## Alcance en metros con el que se horneó el campo; los téxeles sin campo guardan esta distancia.
 var shore_range: float = 0.0
 
 var _height_texture: ImageTexture
@@ -151,6 +151,16 @@ func water_body_at_dir(d: Vector3) -> Dictionary:
 	return bodies[id]
 
 
+## Permite la costera salvo cuando el téxel identifica POSITIVAMENTE agua interior. Tierra (-1) es
+## incierta cerca del litoral: el mapa grueso puede marcarla donde la malla visible aún es agua, y
+## vetarla produciría exactamente un corte rectangular con la forma del téxel.
+func shore_waves_allowed_at_dir(d: Vector3, flags: PackedByteArray) -> bool:
+	if not has_water or body_ids.is_empty():
+		return false
+	var id := body_ids[texel_of_dir(d)]
+	return id < 0 or (id < flags.size() and flags[id] != 0)
+
+
 ## Textura RF con las alturas normalizadas, para el shader del mapa. Se construye una sola vez y
 ## sin recorrer téxeles: el array de alturas ya está en el layout que espera FORMAT_RF.
 func height_texture() -> ImageTexture:
@@ -245,9 +255,9 @@ func has_shore_field() -> bool:
 	return shore_size.x > 0 and shore_offsets.size() == shore_size.x * shore_size.y * 4
 
 
-## Muestra del campo de orilla: xyz = vector al litoral, w = peso. Bilineal y no al téxel más
-## cercano a propósito: el vector es la fase de la ola, y al vecino las crestas saldrían escalonadas
-## en saltos de un téxel. Réplica CPU de la lectura de shore_offset_map en gerstner_waves.gdshaderinc.
+## Muestra del campo de orilla: xyz = dirección hacia el litoral, w = distancia en metros. Bilineal
+## a propósito: la distancia es la fase de la ola y al vecino las crestas saldrían escalonadas en
+## saltos de un téxel. Réplica CPU de shore_offset_map en gerstner_waves.gdshaderinc.
 func shore_sample_at_dir(d: Vector3) -> Vector4:
 	if not has_shore_field():
 		return Vector4.ZERO
@@ -271,9 +281,9 @@ func _shore_texel(x: int, y: int) -> Vector4:
 ## Textura con el campo de orilla, para el shader del agua. Igual que las otras, sin recorrer
 ## téxeles: el array ya está en el layout de FORMAT_RGBAF. Se muestrea con filtro lineal.
 ##
-## Se convierte a media precisión: el canal guarda un desplazamiento tangente EN METROS, y un half
-## a 2 km da ~1 m de resolución, o sea 5 grados de fase contra una longitud de onda de 70 m. Eso no
-## se ve, y a cambio la VRAM baja a la mitad (32 -> 16 MB a 2048x1024). Además el filtrado lineal de
+## Se convierte a media precisión: W guarda la distancia EN METROS, y un half a 2 km da ~1 m de
+## resolución, o sea 5 grados de fase contra una longitud de onda de 70 m. Eso no se ve, y a cambio
+## la VRAM baja a la mitad (32 -> 16 MB a 2048x1024). Además el filtrado lineal de
 ## texturas de 32 bits en coma flotante NO está garantizado en Vulkan y el de 16 sí, así que esto
 ## también quita un riesgo de compatibilidad. La conversión va en C++, no por téxel desde GDScript.
 func shore_texture() -> ImageTexture:

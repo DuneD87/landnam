@@ -105,7 +105,7 @@ uniform bool debug_bodies = false;
 // que es la única forma de separar "el campo está mal" de "el agua lo consume mal".
 // Cian = ahí manda el swell de mar abierto; amarillo = manda la ola de orilla. El degradado entre
 // los dos es el relevo. La flecha apunta hacia donde VIAJA la ola.
-uniform sampler2D shore_map : filter_linear, repeat_enable; // xyz = vector al litoral (m), w = peso
+uniform sampler2D shore_map : filter_linear, repeat_enable; // xyz = dirección al litoral, w = distancia (m)
 uniform bool show_wave_arrows = false;
 uniform bool has_shore_map = false;
 uniform vec2 map_size_px = vec2(1024.0, 512.0); // tamaño dibujado; fija el paso en pantalla
@@ -115,13 +115,13 @@ uniform float shore_reach = 0.0;
 uniform float shore_range = 1200.0;
 uniform float shore_fade = 0.5;
 
-// Misma puerta que gerstner_surface_ctx: el peso horneado por el degradado de entrada.
+// Misma puerta por distancia que gerstner_surface_ctx.
 float shore_gate_at(vec4 field, float dist) {
-	if (field.w <= 0.001 || dist <= 1.0) {
+	if (dist <= 1.0) {
 		return 0.0;
 	}
 	float reach = shore_reach > 0.0 ? shore_reach : shore_range;
-	return field.w * smoothstep(reach, reach * (1.0 - shore_fade), dist);
+	return 1.0 - smoothstep(reach * (1.0 - shore_fade), reach, dist);
 }
 // Marco del oleaje de mar abierto, copiado del material del agua para calcular su misma dirección.
 uniform vec3 swell_pole = vec3(0.0, 1.0, 0.0);
@@ -251,7 +251,7 @@ vec3 wave_arrow(vec3 col, vec2 uv) {
 	vec3 d = uv_to_dir(center_uv);
 	float sin_theta = max(length(d.xz), 0.001);
 	vec4 field = texture(shore_map, center_uv);
-	float dist = length(field.xyz);
+	float dist = field.w;
 
 	float gate = shore_gate_at(field, dist);
 
@@ -267,16 +267,16 @@ vec3 wave_arrow(vec3 col, vec2 uv) {
 		float probe = 300.0;
 		float du = probe / (TAU_ * body_radius * sin_theta);
 		float dv = probe / (PI_ * body_radius);
-		float d_e = length(texture(shore_map, center_uv + vec2(du, 0.0)).xyz);
-		float d_w = length(texture(shore_map, center_uv - vec2(du, 0.0)).xyz);
-		float d_s = length(texture(shore_map, center_uv + vec2(0.0, dv)).xyz);
-		float d_n = length(texture(shore_map, center_uv - vec2(0.0, dv)).xyz);
+		float d_e = texture(shore_map, center_uv + vec2(du, 0.0)).w;
+		float d_w = texture(shore_map, center_uv - vec2(du, 0.0)).w;
+		float d_s = texture(shore_map, center_uv + vec2(0.0, dv)).w;
+		float d_n = texture(shore_map, center_uv - vec2(0.0, dv)).w;
 		// Componentes del gradiente en el marco (este, sur); el signo menos es "hacia la costa".
 		vec2 grad = -vec2(d_e - d_w, d_s - d_n);
 		forward = vec2(grad.x * map_size_px.x / (2.0 * sin_theta), grad.y * map_size_px.y);
 		// Sin gradiente utilizable (medio de una bahía) se cae al vector crudo antes que mentir.
 		if (length(forward) < 1e-5) {
-			forward = world_tangent_to_px(field.xyz / dist, center_uv, sin_theta);
+			forward = world_tangent_to_px(field.xyz, center_uv, sin_theta);
 		}
 	} else {
 		forward = world_tangent_to_px(open_swell_dir(d), center_uv, sin_theta);
@@ -300,12 +300,13 @@ vec3 wave_arrow(vec3 col, vec2 uv) {
 // Sin tinte = no hay campo, o sea que estás a más de SHORE_RANGE del litoral.
 vec3 shore_band(vec3 col, vec2 uv, float depth) {
 	vec4 field = texture(shore_map, uv);
-	if (field.w <= 0.001 || length(field.xyz) <= 1.0) {
+	float reach = shore_reach > 0.0 ? shore_reach : shore_range;
+	if (field.w <= 1.0 || field.w >= reach) {
 		return col;
 	}
-	float gate = shore_gate_at(field, length(field.xyz));
+	float gate = shore_gate_at(field, field.w);
 	vec3 tint = mix(vec3(1.0, 0.15, 0.10), vec3(0.15, 1.0, 0.30), gate);
-	return mix(col, tint, 0.30 + 0.30 * field.w);
+	return mix(col, tint, 0.30 + 0.30 * clamp(length(field.xyz), 0.0, 1.0));
 }
 
 void fragment() {

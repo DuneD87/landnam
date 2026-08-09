@@ -303,11 +303,17 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 				# la orilla del lago el mismo salto de fase que en el borde del campo.
 				var id := ids[i2]
 				if id < 0 or elig[id] == 1:
-					offsets[o + 3] = smoothstep(max_range, fade_start, proj.length())
+					# Forma creciente para no depender del smoothstep con bordes invertidos. El campo
+					# se hornea ancho y shore_reach decide después la franja visible en el shader.
+					offsets[o + 3] = 1.0 - smoothstep(fade_start, max_range, proj.length())
 			i2 += 1
 
 	for _pass in _SHORE_SMOOTH_PASSES:
 		offsets = _smooth_shore_field(offsets, dx, w, h)
+	# El cálculo interno usa vector = dirección * distancia porque así puede suavizar ambos por
+	# separado. La textura final los desacopla: xyz unitario y w distancia. Al interpolar dos riberas
+	# opuestas solo se cancela xyz (calidad de dirección), nunca la fase ni la amplitud de la ola.
+	offsets = _encode_shore_field(offsets, max_range)
 	map.shore_size = map.size
 	map.shore_offsets = offsets
 	print("[world-map] campo de orilla: %d segmentos de litoral, %.1f s"
@@ -489,7 +495,7 @@ static func _seed_from_coastline(segments: PackedFloat32Array, dx: PackedFloat32
 
 
 ## Suaviza el campo de orilla: una pasada de caja 3x3 sobre el MÓDULO (que es la fase de la ola) y
-## sobre la dirección por separado, más un apagado del peso donde el campo es incoherente.
+## sobre la dirección por separado.
 ##
 ## Hace falta porque la transformada de distancia no es exacta: compara candidatos con la escala
 ## horizontal de la fila actual, que cambia con la latitud, así que entre filas la comparación es
@@ -504,9 +510,9 @@ static func _seed_from_coastline(segments: PackedFloat32Array, dx: PackedFloat32
 ## vecinos que miran distinto se cancelan, el módulo se hunde y la fase de ahí sale inventada; así
 ## el módulo conserva |grad| ~ 1 y la longitud de onda no se estira.
 ##
-## La coherencia (módulo del vector medio contra media de módulos) vale 1 donde todos miran igual y
-## cae a 0 donde se oponen: es el eje medio de una bahía o un estrecho, donde de verdad chocan dos
-## oleajes. Ahí se apaga la amplitud en vez de dibujar el cruce.
+## La coherencia solo decide cuánto fiarse del promedio de DIRECCIÓN. No puede modificar W: hacerlo
+## apagaba la amplitud por bloques y reintroducía el corte rectangular original. La calidad queda
+## codificada después, gratuitamente, en el módulo de la dirección unitaria interpolada.
 static func _smooth_shore_field(offsets: PackedFloat32Array, dx: PackedFloat32Array,
 		w: int, h: int) -> PackedFloat32Array:
 	var out := offsets.duplicate()
@@ -543,11 +549,40 @@ static func _smooth_shore_field(offsets: PackedFloat32Array, dx: PackedFloat32Ar
 		# Coherencia en [0,1]: módulo del vector medio contra la media de módulos, así que el count
 		# se cancela. 1 = todos los vecinos miran igual.
 		var coherence := vec_len / maxf(sum_len, 1e-4)
-		var dir := sum / vec_len if vec_len > 1e-4 else Vector3.ZERO
+		var original := Vector3(offsets[o], offsets[o + 1], offsets[o + 2])
+		var original_dir := original.normalized() if original.length_squared() > 1e-8 else Vector3.ZERO
+		var smooth_dir := sum / vec_len if vec_len > 1e-4 else original_dir
+		var blend := smoothstep(0.35, 0.8, coherence)
+		var dir := original_dir.slerp(smooth_dir, blend).normalized()
 		out[o] = dir.x * mean_len
 		out[o + 1] = dir.y * mean_len
 		out[o + 2] = dir.z * mean_len
-		out[o + 3] = offsets[o + 3] * smoothstep(0.35, 0.8, coherence)
+		out[o + 3] = offsets[o + 3]
+	return out
+
+
+## Formato de consumo: xyz = dirección unitaria, w = distancia/fase. Los téxeles sin campo guardan
+## max_range (no cero): así el filtro entre el borde de la banda y mar abierto nunca inventa una
+## distancia pequeña que vuelva a encender la rompiente lejos de la costa.
+static func _encode_shore_field(offsets: PackedFloat32Array, max_range: float) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(offsets.size())
+	for i in offsets.size() / 4:
+		var o := i * 4
+		out[o + 3] = max_range
+		if offsets[o + 3] <= 0.0001:
+			continue
+		var v := Vector3(offsets[o], offsets[o + 1], offsets[o + 2])
+		var dist := v.length()
+		if dist <= 0.0001:
+			# Semilla exactamente sobre el litoral: distancia cero válida, no mar abierto.
+			out[o + 3] = 0.0
+			continue
+		var dir := v / dist
+		out[o] = dir.x
+		out[o + 1] = dir.y
+		out[o + 2] = dir.z
+		out[o + 3] = dist
 	return out
 
 

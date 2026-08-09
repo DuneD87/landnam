@@ -59,8 +59,9 @@ float world_map_ground(vec2 uv) {
 // Recibe la uv equirect y la altura del terreno ya resueltas: las olas de orilla necesitan las dos
 // también, y calcularlas aquí otra vez costaba un atan+acos y una lectura de textura de más en cada
 // evaluación. La niebla submarina llama a esto ~70 veces por píxel, así que se nota.
-float storm_exposure(vec2 uv, float ground) {
+float storm_exposure(vec2 uv, float ground, out bool shore_allowed) {
     if (!storm_mask_enabled) {
+        shore_allowed = true;
         return 1.0;
     }
     vec4 c = textureLod(storm_body_map, uv, 0.0);
@@ -77,6 +78,11 @@ float storm_exposure(vec2 uv, float ground) {
             break;
         }
     }
+    // Tierra es -1 = RGBA(255). Cerca de la costa el mapa grueso puede decir "tierra" aunque la
+    // malla de agua visible siga bajo este vértice: es un dato incierto y NO debe cortar la ola.
+    // Solo un id positivo conocido como lago/charca constituye una exclusión fiable.
+    bool coarse_land = c.r > 0.998 && c.g > 0.998 && c.b > 0.998 && c.a > 0.998;
+    shore_allowed = coarse_land || exposed;
     if (!exposed) {
         return 0.0;
     }
@@ -99,18 +105,21 @@ float storm_exposure(vec2 uv, float ground) {
 //
 // WaterHeightSampler._gerstner_disp es la réplica CPU; cambiar una obliga a cambiar la otra.
 uniform bool shore_waves_enabled = false;
-uniform sampler2D shore_offset_map : filter_linear, repeat_enable; // xyz = vector al litoral (m), w = peso horneado
+// xyz = dirección unitaria al litoral; w = distancia/fase en metros. Tras el filtro, length(xyz)
+// mide cuánto coinciden las direcciones vecinas sin contaminar la distancia.
+uniform sampler2D shore_offset_map : filter_linear, repeat_enable;
 uniform float shore_amplitude : hint_range(0.0, 20.0, 0.05) = 2.0;
 uniform float shore_length : hint_range(4.0, 300.0, 0.5) = 70.0;
 uniform float shore_speed : hint_range(0.0, 10.0, 0.05) = 1.2;
 uniform float shore_steepness : hint_range(0.0, 1.0, 0.01) = 0.7;
-// El ancho de la franja costera lo decide la DISTANCIA al litoral (el peso horneado, SHORE_RANGE),
+// El ancho de la franja costera lo decide la DISTANCIA al litoral (acotada por SHORE_RANGE),
 // no la profundidad. Atarlo a la batimetría se probó y no vale aquí: este terreno cae al 15% contra
 // la orilla —las plataformas terrestres van al 0,1-1%—, así que con cualquier umbral físico la
 // rompiente se quedaba en una tira de 160 m y el kilómetro siguiente se lo comía el swell global,
-// viajando en una sola dirección contra toda la costa. La profundidad solo sigue apagando la ola en
-// la propia línea de agua (shore_depth_fade).
-uniform float shore_depth_fade : hint_range(0.1, 20.0, 0.1) = 2.0;   // profundidad a la que se apaga en la propia orilla
+// viajando en una sola dirección contra toda la costa. El mapa es demasiado grueso para usar su
+// profundidad en la línea de agua. Se conserva el nombre de este uniform por compatibilidad, pero
+// ahora controla el mínimo de metros desde el litoral en los que entra suavemente el desplazamiento.
+uniform float shore_depth_fade : hint_range(0.1, 20.0, 0.1) = 2.0;
 uniform float shore_shoal_max : hint_range(1.0, 6.0, 0.1) = 2.5;     // tope del crecimiento por shoaling
 uniform float shore_incidence : hint_range(0.0, 1.0, 0.01) = 0.6;    // cuánto calma las costas a sotavento del swell
 // Hasta dónde se ven las olas de orilla, en metros. 0 = toda la franja horneada. Sirve para acercar
@@ -149,6 +158,7 @@ struct WaveContext {
     float exposure;
     vec4 shore_field;
     float shore_dist;
+    float shore_quality;
     float shore_depth;
     float shore_gate;
 };
@@ -158,6 +168,7 @@ WaveContext wave_context(vec3 local) {
     ctx.exposure = 1.0;
     ctx.shore_field = vec4(0.0);
     ctx.shore_dist = 0.0;
+    ctx.shore_quality = 0.0;
     ctx.shore_depth = 0.0;
     ctx.shore_gate = 0.0;
     if (!storm_mask_enabled && !shore_waves_enabled) {
@@ -168,16 +179,20 @@ WaveContext wave_context(vec3 local) {
     // orilla: un solo atan+acos y una sola lectura para las dos.
     vec2 uv = world_map_uv(normalize(local));
     float ground = world_map_ground(uv);
-    ctx.exposure = storm_exposure(uv, ground);
+    bool shore_allowed;
+    ctx.exposure = storm_exposure(uv, ground, shore_allowed);
 
-    if (shore_waves_enabled) {
+    // Un id interior confirmado bloquea esta familia. "Tierra" no: en el borde grueso del mapa
+    // también puede significar agua visible y convertirlo en veto dibuja rectángulos de un téxel.
+    if (shore_waves_enabled && shore_allowed) {
         ctx.shore_field = textureLod(shore_offset_map, uv, 0.0);
-        ctx.shore_dist = length(ctx.shore_field.xyz);
+        ctx.shore_dist = ctx.shore_field.w;
+        ctx.shore_quality = clamp(length(ctx.shore_field.xyz), 0.0, 1.0);
         ctx.shore_depth = storm_sea_height - ground;
-        if (ctx.shore_field.w > 0.001 && ctx.shore_dist > 1.0) {
+        if (ctx.shore_dist > 1.0) {
             float reach = shore_reach > 0.0 ? shore_reach : shore_range;
-            ctx.shore_gate = ctx.shore_field.w
-                * smoothstep(reach, reach * (1.0 - shore_fade), ctx.shore_dist);
+            ctx.shore_gate = 1.0
+                - smoothstep(reach * (1.0 - shore_fade), reach, ctx.shore_dist);
         }
     }
     return ctx;
@@ -199,13 +214,17 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
     // Dirección de viaje de la octava principal: la usa la incidencia de las olas de orilla.
     vec3 swell_dir = vec3(0.0);
 
-    // El campo de orilla se muestrea ANTES del bucle porque su peso decide también cuánto oleaje de
-    // mar abierto queda: las dos familias se RELEVAN, no se suman. Sumándolas, en una costa a
-    // sotavento el swell global se sigue dibujando y se le ve viajar mar adentro, encima de una ola
-    // de orilla que además la incidencia había dejado a la mitad.
-    // Lo que le queda al mar abierto. Asimétrico a propósito (ver shore_handover), y sin la puerta
-    // de la línea de agua: con ella el swell global reaparecería justo en la rompiente.
-    float ocean_weight = 1.0 - smoothstep(0.0, shore_handover, ctx.shore_gate);
+    // El mapa mundial es mucho más grueso que el terreno visible y puede marcar como tierra puntos
+    // donde todavía hay agua. Por eso la presencia costera NO se decide con shore_depth: hacerlo
+    // dejaba la costera a cero en esos puntos. La propia distancia al litoral es el dato fiable y
+    // apaga el desplazamiento en los primeros metros de la línea de contacto.
+    float shoreline_fade_end = max(shore_length * 0.25, shore_depth_fade);
+    float shoreline_fade = smoothstep(1.0, shoreline_fade_end, ctx.shore_dist);
+    float shore_lod_weight = min_length > 0.0
+        ? smoothstep(min_length * 0.5, min_length * 1.5, shore_length)
+        : 1.0;
+    float shore_presence = ctx.shore_gate * shoreline_fade * shore_lod_weight;
+    float ocean_weight = 1.0 - smoothstep(0.0, shore_handover, shore_presence);
 
     // El temporal solo llega hasta donde dice la máscara; el resto se queda en el oleaje de calma.
     float amp = mix(wave_calm_amplitude, wave_amplitude, ctx.exposure);
@@ -262,28 +281,34 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
 
     // Familia de orilla: una sola ola cuya fase es la distancia al litoral. Suma a los mismos
     // acumuladores que las octavas, así normal y cresta salen consistentes para todos los callers.
-    if (ctx.shore_gate > 0.001) {
+    if (shore_presence > 0.001) {
         // Gradiente de la distancia en el plano tangente: apunta mar adentro, y la ola viaja en
         // sentido contrario. Se reproyecta al plano del vértice porque el vector horneado es el
         // del centro del téxel, no el de aquí.
-        vec3 seaward = -ctx.shore_field.xyz / ctx.shore_dist;
-        seaward = normalize(seaward - radial * dot(seaward, radial));
+        vec3 seaward = ctx.shore_quality > 1e-4
+            ? -ctx.shore_field.xyz / ctx.shore_quality : vec3(0.0);
+        seaward -= radial * dot(seaward, radial);
+        float seaward_len = length(seaward);
+        seaward = seaward_len > 1e-4 ? seaward / seaward_len : vec3(0.0);
 
         // Shoaling (ley de Green, A ~ h^-1/4), acotado: sin tope la ola revienta en la orilla. La
         // referencia es media longitud de onda, que es la profundidad a la que una ola siente el
-        // fondo de verdad; atarla a la puerta mezclaba el perfil de amplitud con el ancho de franja.
-        float shoal = clamp(pow(max(ctx.shore_depth, 0.5) / max(shore_length * 0.5, 1.0), -0.25),
-                            1.0, shore_shoal_max);
-        float swash = smoothstep(0.0, shore_depth_fade, ctx.shore_depth);
+        // fondo de verdad. Una profundidad errónea solo puede alterar este realce acotado; ya no
+        // puede decidir si la familia costera existe o no.
+        float shoal_raw = clamp(
+            pow(max(ctx.shore_depth, 0.5) / max(shore_length * 0.5, 1.0), -0.25),
+            1.0, shore_shoal_max);
+        // En canales estrechos la batimetría gruesa suele decir "casi cero" y disparar el shoaling
+        // al máximo. Solo se acepta ese realce donde la dirección costera es coherente; siempre se
+        // conserva al menos la amplitud base.
+        float shoal = mix(1.0, shoal_raw, ctx.shore_quality);
         // Incidencia: una costa de espaldas al swell rompe menos que una de cara, pero NUNCA hasta
         // cero. Antes se apagaba del todo y las playas a sotavento se quedaban en agua muerta;
         // en la realidad les llega oleaje difractado, más pequeño.
-        float lee = mix(1.0, mix(0.35, 1.0, smoothstep(-0.9, 0.6, dot(swell_dir, -seaward))),
-                        shore_incidence);
-        float lod_weight = min_length > 0.0
-            ? smoothstep(min_length * 0.5, min_length * 1.5, shore_length)
-            : 1.0;
-        float w = ctx.shore_gate * swash * lee * lod_weight;
+        float lee_target = mix(0.35, 1.0,
+            smoothstep(-0.9, 0.6, dot(swell_dir, -seaward)));
+        float lee = mix(1.0, lee_target, shore_incidence * ctx.shore_quality);
+        float w = shore_presence * lee;
 
         float k = 6.28318530718 / max(shore_length, 0.1);
         // amp_ref va SIN el peso: la Q de Gerstner se normaliza contra la amplitud y se cancelaría
@@ -295,9 +320,11 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
         float cs = cos(phase);
         float sn = sin(phase);
 
-        horiz += q * amp_ref * seaward * cs * w;
+        // En el eje de un estrecho las direcciones de ambas riberas se oponen. Reducir solo el
+        // arrastre horizontal evita que la malla se pliegue en picos; altura y cresta siguen vivas.
+        horiz += q * amp_ref * seaward * cs * w * ctx.shore_quality;
         vert += amp_ref * sn * w;
-        grad += seaward * (k * amp_ref * cs) * w;
+        grad += seaward * (k * amp_ref * cs) * w * ctx.shore_quality;
         n_up_sub += q * k * amp_ref * sn * w;
     }
 
@@ -327,7 +354,7 @@ vec3 swell_direction(vec3 radial) {
 
 // Vista de depuración del campo de orilla, para localizar dónde falla sin ir a ciegas. Pinta el
 // agua plana con el valor crudo del campo; devuelve negro donde no hay dato.
-//   1 peso horneado (negro = sin ola)          2 fase: bandas de una longitud de onda, enseñan
+//   1 cobertura/calidad de dirección           2 fase: bandas de una longitud de onda, enseñan
 //                                                hacia dónde miran las crestas
 //   3 sentido de viaje CONTRA la batimetría:   4 relevo entre familias: rojo = manda el oleaje de
 //     verde = la ola avanza hacia donde el        mar abierto, verde = manda la orilla
@@ -336,18 +363,21 @@ vec3 shore_debug_color(vec3 local, float t) {
     vec3 d = normalize(local);
     vec2 uv = world_map_uv(d);
     vec4 field = textureLod(shore_offset_map, uv, 0.0);
-    float dist = length(field.xyz);
+    float dist = field.w;
+    float quality = clamp(length(field.xyz), 0.0, 1.0);
     if (shore_debug_mode == 1) {
-        return vec3(field.w, field.w * field.w, step(0.999, field.w));
+        float coverage = 1.0 - smoothstep(shore_range * 0.75, shore_range, dist);
+        return vec3(coverage, quality, step(0.999, quality));
     }
     if (dist <= 1.0) {
         return vec3(0.0);
     }
 
-    vec3 seaward = -field.xyz / dist;
-    seaward = normalize(seaward - d * dot(seaward, d));
-    float depth = storm_sea_height - world_map_ground(uv);
-    float swash = smoothstep(0.0, shore_depth_fade, depth);
+    vec3 seaward = quality > 1e-4 ? -field.xyz / quality : vec3(0.0);
+    seaward -= d * dot(seaward, d);
+    float seaward_len = length(seaward);
+    seaward = seaward_len > 1e-4 ? seaward / seaward_len : vec3(0.0);
+    float shoreline_fade = smoothstep(1.0, max(shore_length * 0.25, shore_depth_fade), dist);
 
     if (shore_debug_mode == 2) {
         float k = 6.28318530718 / max(shore_length, 0.1);
@@ -360,13 +390,14 @@ vec3 shore_debug_color(vec3 local, float t) {
                    - world_map_ground(uv);
         return mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), smoothstep(-2.0, 2.0, rise));
     }
-    float gate = field.w;
+    float reach = shore_reach > 0.0 ? shore_reach : shore_range;
+    float gate = 1.0 - smoothstep(reach * (1.0 - shore_fade), reach, dist);
     if (shore_debug_mode == 4) {
         return mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), gate);
     }
     float lee = mix(1.0, mix(0.35, 1.0, smoothstep(-0.9, 0.6, dot(swell_direction(d), -seaward))),
                     shore_incidence);
-    return vec3(gate * swash * lee);
+    return vec3(gate * shoreline_fade * lee);
 }
 
 // Resuelve el mapa por su cuenta. Es la entrada normal desde el vertex del agua, que evalúa un
