@@ -37,11 +37,11 @@ var body_ids: PackedInt32Array = PackedInt32Array()
 ## Un diccionario por cuerpo de agua; ver WorldMapBaker._measure_bodies para las claves.
 var bodies: Array[Dictionary] = []
 
-## Campo de orilla: cuatro floats por téxel. xyz = dirección tangente unitaria hacia el litoral y
-## w = distancia al litoral en metros (fase de la ola). Se guardan separados para que el filtrado
-## bilineal no hunda la distancia cuando se encuentran direcciones opuestas en una bahía o un
-## estrecho. El módulo de xyz interpolado queda entonces como medida gratuita de coherencia: puede
-## reducir el arrastre horizontal sin apagar la amplitud de la rompiente.
+## Campo de orilla: cuatro floats por téxel. xyz = dirección tangente unitaria hacia tierra y
+## w = distancia firmada al litoral en metros (positiva en mar, negativa en tierra). Se guardan
+## separados para que el filtrado bilineal no hunda la distancia cuando se encuentran direcciones
+## opuestas en una bahía o un estrecho. El módulo de xyz interpolado queda entonces como medida
+## gratuita de coherencia: puede reducir el arrastre horizontal sin apagar la amplitud.
 var shore_size: Vector2i = Vector2i.ZERO
 var shore_offsets: PackedFloat32Array = PackedFloat32Array()
 ## Alcance en metros con el que se horneó el campo; los téxeles sin campo guardan esta distancia.
@@ -255,7 +255,7 @@ func has_shore_field() -> bool:
 	return shore_size.x > 0 and shore_offsets.size() == shore_size.x * shore_size.y * 4
 
 
-## Muestra del campo de orilla: xyz = dirección hacia el litoral, w = distancia en metros. Bilineal
+## Muestra del campo: xyz = dirección hacia tierra, w = distancia firmada en metros. Bilineal
 ## a propósito: la distancia es la fase de la ola y al vecino las crestas saldrían escalonadas en
 ## saltos de un téxel. Réplica CPU de shore_offset_map en gerstner_waves.gdshaderinc.
 func shore_sample_at_dir(d: Vector3) -> Vector4:

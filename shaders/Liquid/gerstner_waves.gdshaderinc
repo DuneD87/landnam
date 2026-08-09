@@ -105,13 +105,13 @@ float storm_exposure(vec2 uv, float ground, out bool shore_allowed) {
 //
 // WaterHeightSampler._gerstner_disp es la réplica CPU; cambiar una obliga a cambiar la otra.
 uniform bool shore_waves_enabled = false;
-// xyz = dirección unitaria al litoral; w = distancia/fase en metros. Tras el filtro, length(xyz)
-// mide cuánto coinciden las direcciones vecinas sin contaminar la distancia.
+// xyz = dirección unitaria hacia tierra; w = distancia/fase firmada (+mar, -tierra). Tras el filtro,
+// length(xyz) mide cuánto coinciden las direcciones vecinas sin contaminar la fase.
 uniform sampler2D shore_offset_map : filter_linear, repeat_enable;
 uniform float shore_amplitude : hint_range(0.0, 20.0, 0.05) = 2.0;
-uniform float shore_length : hint_range(4.0, 300.0, 0.5) = 70.0;
+uniform float shore_length : hint_range(4.0, 300.0, 0.5) = 20.0;
 uniform float shore_speed : hint_range(0.0, 10.0, 0.05) = 1.2;
-uniform float shore_steepness : hint_range(0.0, 1.0, 0.01) = 0.7;
+uniform float shore_steepness : hint_range(0.0, 1.0, 0.01) = 0.45;
 // El ancho de la franja costera lo decide la DISTANCIA al litoral (acotada por SHORE_RANGE),
 // no la profundidad. Atarlo a la batimetría se probó y no vale aquí: este terreno cae al 15% contra
 // la orilla —las plataformas terrestres van al 0,1-1%—, así que con cualquier umbral físico la
@@ -141,6 +141,16 @@ uniform float shore_fade : hint_range(0.05, 0.95, 0.01) = 0.5;
 // cambio de un valle de amplitud); bajarlo a 1 vuelve al relevo simétrico.
 uniform float shore_handover : hint_range(0.05, 1.0, 0.01) = 0.35;
 uniform int shore_debug_mode : hint_range(0, 5) = 0;                 // ver shore_debug_color
+
+// Variación espacial lenta que agrupa la rompiente en tramos. Sin ella phase=distancia hace que
+// cada isodistancia sea una cresta continua durante cientos de metros. La escala (~250-350 m por
+// ciclo) es muy superior a shore_length y no altera de forma apreciable el sentido hacia tierra.
+float shore_breakup(vec3 local) {
+    vec3 p = local / 55.0;
+    float a = sin(dot(p, vec3(0.73, 0.21, 0.65)));
+    float b = sin(dot(p, vec3(-0.31, 0.88, 0.36)) * 1.37 + 1.7);
+    return clamp(0.5 + a * 0.325 + b * 0.175, 0.0, 1.0);
+}
 
 // Suma de olas de Gerstner planetarias. Cada dirección fija define un ecuador propio y la fase
 // usa la distancia geodésica firmada a ese gran círculo. Así el gradiente espacial conserva
@@ -186,7 +196,7 @@ WaveContext wave_context(vec3 local) {
     // también puede significar agua visible y convertirlo en veto dibuja rectángulos de un téxel.
     if (shore_waves_enabled && shore_allowed) {
         ctx.shore_field = textureLod(shore_offset_map, uv, 0.0);
-        ctx.shore_dist = ctx.shore_field.w;
+        ctx.shore_dist = abs(ctx.shore_field.w);
         ctx.shore_quality = clamp(length(ctx.shore_field.xyz), 0.0, 1.0);
         ctx.shore_depth = storm_sea_height - ground;
         if (ctx.shore_dist > 1.0) {
@@ -314,9 +324,18 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
         // amp_ref va SIN el peso: la Q de Gerstner se normaliza contra la amplitud y se cancelaría
         // con ella, dejando arrastre horizontal donde la ola ya no existe. El peso escala después
         // los cuatro acumuladores, y así el término se apaga de verdad.
-        float amp_ref = shore_amplitude * shoal;
+        // Límite geométrico de rompiente: H/L ~ 0.16 como máximo. El mapa de profundidad grueso
+        // puede disparar shoal al tope; sin este límite A=5 m y L=20 m generaban paredes de 10 m.
+        float amp_ref = min(shore_amplitude * shoal, shore_length * 0.08);
         float q = shore_steepness / max(k * amp_ref, 1e-4);
-        float phase = k * ctx.shore_dist + t * shore_speed * sqrt(k);
+        // W es firmada: incluso si el litoral grueso coloca este vértice visible en su lado tierra,
+        // su gradiente sigue apuntando mar adentro y la fase avanza siempre hacia tierra.
+        float breakup = shore_breakup(local);
+        float phase = k * ctx.shore_field.w + t * shore_speed * sqrt(k)
+            + (breakup - 0.5) * 0.9;
+        // La superficie nunca queda inmóvil, pero el tramo débil cae por debajo del umbral de
+        // espuma y corta visualmente la cinta continua.
+        w *= mix(0.25, 1.0, smoothstep(0.2, 0.8, breakup));
         float cs = cos(phase);
         float sn = sin(phase);
 
@@ -363,7 +382,7 @@ vec3 shore_debug_color(vec3 local, float t) {
     vec3 d = normalize(local);
     vec2 uv = world_map_uv(d);
     vec4 field = textureLod(shore_offset_map, uv, 0.0);
-    float dist = field.w;
+    float dist = abs(field.w);
     float quality = clamp(length(field.xyz), 0.0, 1.0);
     if (shore_debug_mode == 1) {
         float coverage = 1.0 - smoothstep(shore_range * 0.75, shore_range, dist);
@@ -381,7 +400,9 @@ vec3 shore_debug_color(vec3 local, float t) {
 
     if (shore_debug_mode == 2) {
         float k = 6.28318530718 / max(shore_length, 0.1);
-        float band = fract((k * dist + t * shore_speed * sqrt(k)) / 6.28318530718);
+        float breakup = shore_breakup(local);
+        float band = fract((k * field.w + t * shore_speed * sqrt(k)
+            + (breakup - 0.5) * 0.9) / 6.28318530718);
         return mix(vec3(0.05, 0.1, 0.25), vec3(1.0), step(0.5, band));
     }
     if (shore_debug_mode == 3) {
@@ -397,7 +418,8 @@ vec3 shore_debug_color(vec3 local, float t) {
     }
     float lee = mix(1.0, mix(0.35, 1.0, smoothstep(-0.9, 0.6, dot(swell_direction(d), -seaward))),
                     shore_incidence);
-    return vec3(gate * shoreline_fade * lee);
+    float packet = mix(0.25, 1.0, smoothstep(0.2, 0.8, shore_breakup(local)));
+    return vec3(gate * shoreline_fade * lee * packet);
 }
 
 // Resuelve el mapa por su cuenta. Es la entrada normal desde el vertex del agua, que evalúa un

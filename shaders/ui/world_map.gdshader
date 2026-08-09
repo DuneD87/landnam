@@ -251,7 +251,7 @@ vec3 wave_arrow(vec3 col, vec2 uv) {
 	vec3 d = uv_to_dir(center_uv);
 	float sin_theta = max(length(d.xz), 0.001);
 	vec4 field = texture(shore_map, center_uv);
-	float dist = field.w;
+	float dist = abs(field.w);
 
 	float gate = shore_gate_at(field, dist);
 
@@ -301,10 +301,11 @@ vec3 wave_arrow(vec3 col, vec2 uv) {
 vec3 shore_band(vec3 col, vec2 uv, float depth) {
 	vec4 field = texture(shore_map, uv);
 	float reach = shore_reach > 0.0 ? shore_reach : shore_range;
-	if (field.w <= 1.0 || field.w >= reach) {
+	float dist = abs(field.w);
+	if (dist <= 1.0 || dist >= reach) {
 		return col;
 	}
-	float gate = shore_gate_at(field, field.w);
+	float gate = shore_gate_at(field, dist);
 	vec3 tint = mix(vec3(1.0, 0.15, 0.10), vec3(0.15, 1.0, 0.30), gate);
 	return mix(col, tint, 0.30 + 0.30 * clamp(length(field.xyz), 0.0, 1.0));
 }

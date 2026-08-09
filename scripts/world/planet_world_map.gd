@@ -27,7 +27,7 @@ const SHORE_RANGE := 1200.0
 ## Sube esto SIEMPRE que cambie el formato o el criterio de horneado. La clave del caché mira la
 ## fecha del generador, no la de este código: sin subirlo, un mapa horneado con reglas viejas se
 ## sigue leyendo tal cual y el cambio no se ve por ningún lado.
-const BAKE_VERSION := 11
+const BAKE_VERSION := 13
 
 var map: WorldMapData
 
@@ -199,8 +199,8 @@ func has_shore_field() -> bool:
 	return is_ready() and map.has_shore_field()
 
 
-## Muestra del campo de orilla (xyz = dirección al litoral, w = distancia en metros) en coordenadas
-## relativas al centro del planeta. Es la réplica CPU de shore_offset_map en el shader del agua.
+## Muestra del campo de orilla (xyz = dirección a tierra, w = distancia firmada en metros) en
+## coordenadas relativas al centro. Es la réplica CPU de shore_offset_map en el shader del agua.
 func shore_sample_local(local: Vector3) -> Vector4:
 	if not is_ready():
 		return Vector4.ZERO

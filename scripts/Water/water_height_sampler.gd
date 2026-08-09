@@ -49,6 +49,14 @@ const _GOLDEN_ANGLE := 2.399963
 const _TAU := 6.28318530718
 const _INVERT_ITERATIONS := 3
 
+
+## Réplica CPU de shore_breakup() en gerstner_waves.gdshaderinc.
+static func _shore_breakup(local: Vector3) -> float:
+	var p := local / 55.0
+	var a := sin(p.dot(Vector3(0.73, 0.21, 0.65)))
+	var b := sin(p.dot(Vector3(-0.31, 0.88, 0.36)) * 1.37 + 1.7)
+	return clampf(0.5 + a * 0.325 + b * 0.175, 0.0, 1.0)
+
 ## Lee del material los parámetros que intervienen en la altura de ola. 'planet_map' es opcional;
 ## ver el comentario de 'world_map'. 'surface_radius' solo lo necesita get_surface_at (la línea de
 ## flotación): pásalo cuando lo conozcas, porque el uniform water_radius del material lo pone el
@@ -167,16 +175,16 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 	var exposure := world_map.storm_exposure_local(local_q) if world_map != null else 1.0
 	# El campo de orilla y la profundidad, por lo mismo, una sola vez por muestra.
 	var shore_dir := Vector3.ZERO
-	var shore_dist := 0.0
+	var shore_signed_dist := 0.0
 	var shore_quality := 0.0
 	var shore_depth := 0.0
 	if shore_enabled and world_map.shore_waves_allowed_local(local_q):
 		var field := world_map.shore_sample_local(local_q)
 		var raw_dir := Vector3(field.x, field.y, field.z)
 		shore_quality = clampf(raw_dir.length(), 0.0, 1.0)
-		if field.w > 1.0:
+		if absf(field.w) > 1.0:
 			shore_dir = raw_dir / shore_quality if shore_quality > 1e-4 else Vector3.ZERO
-			shore_dist = field.w
+			shore_signed_dist = field.w
 			shore_depth = world_map.water_depth_local(local_q)
 
 	# Busca la posición "en reposo" cuya ola desplazada horizontalmente cae bajo world_pos.
@@ -184,14 +192,15 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 	for _i in _INVERT_ITERATIONS:
 		var radial := guess.normalized()
 		var disp := _gerstner_disp(
-			guess, radial, time, exposure, shore_dir, shore_dist, shore_quality, shore_depth)
+			guess, radial, time, exposure,
+			shore_dir, shore_signed_dist, shore_quality, shore_depth)
 		var horiz := disp - radial * disp.dot(radial)
 		guess = local_q - horiz
 
 	var final_radial := guess.normalized()
 	return _gerstner_disp(
 		guess, final_radial, time, exposure,
-		shore_dir, shore_dist, shore_quality, shore_depth).dot(final_radial)
+		shore_dir, shore_signed_dist, shore_quality, shore_depth).dot(final_radial)
 
 
 ## Punto de superficie y normal analítica sobre world_pos, en un diccionario {point, normal}. Los
@@ -212,7 +221,9 @@ func get_surface_at(world_pos: Vector3, time: float, planet_center: Vector3) -> 
 ## Desplazamiento world-space (tangencial + radial) de la suma de olas Gerstner en 'local'.
 ## Réplica de gerstner_surface() del shader (posición; la normal no hace falta en CPU).
 func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: float,
-		shore_dir: Vector3, shore_dist: float, shore_quality: float, shore_depth: float) -> Vector3:
+		shore_dir: Vector3, shore_signed_dist: float,
+		shore_quality: float, shore_depth: float) -> Vector3:
+	var shore_dist := absf(shore_signed_dist)
 	var pole := wave_pole.normalized()
 	var gx := pole.cross(Vector3(1, 0, 0) if absf(pole.x) < 0.9 else Vector3(0, 0, 1)).normalized()
 	var gy := pole.cross(gx)
@@ -277,7 +288,6 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		ang += _GOLDEN_ANGLE
 
 	if shore_presence > 0.001:
-		var dist := shore_dist
 		var seaward := -shore_dir
 		seaward = (seaward - radial * seaward.dot(radial)).normalized()
 		var shoal_raw := clampf(
@@ -290,9 +300,12 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		var w := shore_presence * lee
 
 		var k := _TAU / maxf(shore_length, 0.1)
-		var amp_ref := shore_amplitude * shoal
+		var amp_ref := minf(shore_amplitude * shoal, shore_length * 0.08)
 		var q := shore_steepness / maxf(k * amp_ref, 1e-4)
-		var phase := k * dist + time * shore_speed * sqrt(k)
+		var breakup := _shore_breakup(local)
+		var phase := (k * shore_signed_dist + time * shore_speed * sqrt(k)
+			+ (breakup - 0.5) * 0.9)
+		w *= lerpf(0.25, 1.0, smoothstep(0.2, 0.8, breakup))
 		# Solo el arrastre horizontal se reduce cuando dos riberas dan direcciones opuestas. La
 		# amplitud vertical y la cresta permanecen continuas, evitando tanto picos como cortes.
 		horiz += seaward * (q * amp_ref * cos(phase) * w * shore_quality)

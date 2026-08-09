@@ -267,6 +267,11 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 	# 30 grados de dirección. Solo se paga en los téxeles con dato, que son la franja costera.
 	var offsets := PackedFloat32Array()
 	offsets.resize(n * 4)
+	# La fase firmada se mantiene separada del vector desde el principio. Si se reconstruye firmando
+	# el MÓDULO ya suavizado, los dos lados del litoral quedan como -d/+d con d grande y aparece un
+	# salto de muchas longitudes de onda entre téxeles vecinos.
+	var signed_dist := PackedFloat32Array()
+	signed_dist.resize(n)
 	var fade_start := max_range * 0.75
 	var inv_w := 1.0 / float(w)
 	var inv_h := 1.0 / float(h)
@@ -275,6 +280,8 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 		var st: float = sin_t[y]
 		var ct: float = cos_t[y]
 		for x in w:
+			var side := -1.0 if level[i2] >= 0.0 else 1.0
+			signed_dist[i2] = side * max_range
 			var ox: float = dx[i2]
 			if ox < _SHORE_UNSET_TEST:
 				var theta := (clampf(y + dy[i2], -0.5, h - 0.5) + 0.5) * inv_h * PI
@@ -306,14 +313,17 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 					# Forma creciente para no depender del smoothstep con bordes invertidos. El campo
 					# se hornea ancho y shore_reach decide después la franja visible en el shader.
 					offsets[o + 3] = 1.0 - smoothstep(fade_start, max_range, proj.length())
+					signed_dist[i2] = side * proj.length()
 			i2 += 1
 
 	for _pass in _SHORE_SMOOTH_PASSES:
 		offsets = _smooth_shore_field(offsets, dx, w, h)
+		signed_dist = _smooth_signed_shore_distance(signed_dist, offsets, w, h)
 	# El cálculo interno usa vector = dirección * distancia porque así puede suavizar ambos por
-	# separado. La textura final los desacopla: xyz unitario y w distancia. Al interpolar dos riberas
-	# opuestas solo se cancela xyz (calidad de dirección), nunca la fase ni la amplitud de la ola.
-	offsets = _encode_shore_field(offsets, max_range)
+	# separado. La textura final los desacopla: xyz unitario y w distancia FIRMADA. Al interpolar dos
+	# riberas opuestas solo se cancela xyz; y al cruzar la costa W pasa por cero sin invertir el sentido
+	# de avance de la ola aunque la costa del mapa y la geometría visible difieran unos metros.
+	offsets = _encode_shore_field(offsets, signed_dist)
 	map.shore_size = map.size
 	map.shore_offsets = offsets
 	print("[world-map] campo de orilla: %d segmentos de litoral, %.1f s"
@@ -561,28 +571,52 @@ static func _smooth_shore_field(offsets: PackedFloat32Array, dx: PackedFloat32Ar
 	return out
 
 
-## Formato de consumo: xyz = dirección unitaria, w = distancia/fase. Los téxeles sin campo guardan
-## max_range (no cero): así el filtro entre el borde de la banda y mar abierto nunca inventa una
-## distancia pequeña que vuelva a encender la rompiente lejos de la costa.
-static func _encode_shore_field(offsets: PackedFloat32Array, max_range: float) -> PackedFloat32Array:
+## Caja 3x3 sobre la fase FIRMADA. Una rampa lineal que cruza cero queda lineal; a diferencia de
+## suavizar abs(distancia) y firmarla después, nunca fabrica un salto -d/+d junto al litoral.
+static func _smooth_signed_shore_distance(values: PackedFloat32Array,
+		coverage: PackedFloat32Array, w: int, h: int) -> PackedFloat32Array:
+	var out := values.duplicate()
+	for i in w * h:
+		if coverage[i * 4 + 3] <= 0.0:
+			continue
+		var y := i / w
+		var x := i - y * w
+		var sum := 0.0
+		var count := 0
+		for ky in range(-1, 2):
+			var sy := y + ky
+			if sy < 0 or sy >= h:
+				continue
+			var row := sy * w
+			for kx in range(-1, 2):
+				var j := row + wrapi(x + kx, 0, w)
+				if coverage[j * 4 + 3] <= 0.0:
+					continue
+				sum += values[j]
+				count += 1
+		if count > 0:
+			out[i] = sum / count
+	return out
+
+
+## Formato de consumo: xyz = dirección unitaria hacia tierra, w = la fase firmada ya suavizada.
+static func _encode_shore_field(offsets: PackedFloat32Array,
+		signed_dist: PackedFloat32Array) -> PackedFloat32Array:
 	var out := PackedFloat32Array()
 	out.resize(offsets.size())
 	for i in offsets.size() / 4:
 		var o := i * 4
-		out[o + 3] = max_range
+		out[o + 3] = signed_dist[i]
 		if offsets[o + 3] <= 0.0001:
 			continue
 		var v := Vector3(offsets[o], offsets[o + 1], offsets[o + 2])
 		var dist := v.length()
 		if dist <= 0.0001:
-			# Semilla exactamente sobre el litoral: distancia cero válida, no mar abierto.
-			out[o + 3] = 0.0
 			continue
 		var dir := v / dist
 		out[o] = dir.x
 		out[o + 1] = dir.y
 		out[o + 2] = dir.z
-		out[o + 3] = dist
 	return out
 
 
