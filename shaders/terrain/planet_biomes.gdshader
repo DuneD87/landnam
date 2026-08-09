@@ -2,6 +2,9 @@ shader_type spatial;
 render_mode blend_mix;
 #include "res://shaders/terrain/terrain_utils.gdshaderinc"
 #include "res://shaders/terrain/virtual_texturing.gdshaderinc"
+// shore_breakup(): compartida con el agua para que la lámina de la playa y las crestas de la ola
+// vayan al mismo ritmo. Es solo la función, sin uniforms.
+#include "res://shaders/liquid/shore_breakup.gdshaderinc"
 
 // Escala en 1/metros: 0.006 => manchas de ~170 m, que es lo que rompe una ladera entera.
 // Estaba en 0.15 (rasgos de ~7 m): a distancia se promediaba a cero y de cerca solo
@@ -24,6 +27,11 @@ uniform vec3 center;
 global uniform vec3 u_world_offset;
 uniform float water_radius = 29960;
 uniform int has_water = 0;
+// Swash de la rompiente sobre la playa. Lo empuja OceanSystem cada frame desde el material del agua:
+// x = término temporal de la fase, y = water_time, z = recorrido vertical del frente (m, 0 = apagado),
+// w = grosor de la lámina (m). Global uniform por lo mismo que u_world_offset: el material del
+// terreno se copia por bloque y un set_shader_parameter no llega a los bloques ya mallados.
+global uniform vec4 u_shore_swash;
 #define MAX_TEXTURES 8
 #define MAX_BIOMES 8 // máximo seguro (ajustable si necesitas más)
 #define MAX_HEIGHTS 24
@@ -484,6 +492,74 @@ void fragment() {
 		final_color = mix(final_color, weather_snow_color, snow);
 		final_roughness = mix(final_roughness, 0.55, snow);
 		final_normal = normalize(mix(final_normal, planet_up, snow * 0.5));
+	}
+
+	// --- Swash: la lámina de la rompiente sobre la playa -------------------------------------
+	// El agua no puede pintar esto: su malla es transparente, gruesa cerca de costa y tendría que
+	// deducir la línea de agua del depth buffer. Aquí no hay nada que deducir — distance_to_center
+	// ES la posición del fragmento, así que la altura sobre el nivel del mar es exacta y la lámina
+	// se coloca comparando dos números. El frente sube y baja en metros VERTICALES, de modo que
+	// sobre una playa tendida barre mucha arena y sobre una escarpada apenas se mueve, sin que
+	// nadie tenga que decirle la pendiente.
+	//
+	// u_shore_swash lo empuja OceanSystem cada frame leyendo el material del agua: x = término
+	// temporal de la fase, y = water_time (deriva del breakup), z = recorrido del frente (m),
+	// w = grosor de la lámina (m). z = 0 apaga el efecto. Es global uniform y no uniform normal
+	// porque el VoxelLodTerrain no propaga set_shader_parameter a los bloques ya mallados.
+	float swash_rise_max = u_shore_swash.z;
+	if (has_water != 0 && swash_rise_max > 0.001) {
+		float swash_h = distance_to_center - water_radius;   // + tierra seca, - sumergido
+		// Casi todo el planeta está lejos de la línea de agua y se salta el resto.
+		if (abs(swash_h) < swash_rise_max * 3.0) {
+			float swash_pack = shore_breakup(planet_pos, u_shore_swash.y);
+			// El breakup mueve la fase Y la fuerza, igual que hace en el agua con la amplitud de la
+			// ola. Así los tramos que rompen flojos mojan menos playa, y la línea de agua deja de ser
+			// una isolínea exacta de altura constante recorriendo toda la costa — que es la señal
+			// más delatora de que esto está pintado y no calculado.
+			float swash_rise = swash_rise_max * mix(0.5, 1.0, smoothstep(0.15, 0.85, swash_pack));
+			float swash_phase = u_shore_swash.x + (swash_pack - 0.5) * 0.9;
+			float swash_sin = sin(swash_phase);
+			// Sube deprisa y drena despacio: una sinusoide limpia se lee como respiración
+			// simétrica, y lo que se busca aquí es un golpe.
+			float swash_front = swash_rise * (swash_sin > 0.0
+				? pow(swash_sin, 0.55)
+				: -pow(-swash_sin, 1.6));
+			float swash_sheet = max(u_shore_swash.w, 0.01);
+			// Borde dentado. Sin esto el frente es una isolínea perfecta de la altura del terreno y
+			// se lee como curva de nivel. Se muestrea en world_pos y no en planet_pos porque el
+			// segundo vale decenas de miles de metros y el hash pierde ahí toda la precisión; el
+			// coste es que el dentado se redibuje al rebasar el origen flotante, un frame y a esta
+			// escala de detalle.
+			swash_front += (noise(world_pos * 0.35 + vec3(u_shore_swash.y * 0.03)) - 0.5)
+				* swash_sheet * 1.3;
+			// Profundidad bajo el frente: > 0 = lo cubre la lámina, < 0 = arena seca por delante.
+			float swash_d = swash_front - swash_h;
+
+			// Arena mojada: envolvente del recorrido del frente. No necesita memoria de frames —
+			// la marca oscura es simplemente la banda que el vaivén alcanza a mojar.
+			float swash_wet = (1.0 - smoothstep(0.0, swash_rise, swash_h)) * step(0.0, swash_h);
+			// Mojado = más oscuro Y más saturado. Solo oscurecer da arena gris, no arena mojada.
+			vec3 swash_wet_color = final_color * 0.62;
+			swash_wet_color = mix(vec3(dot(swash_wet_color, vec3(0.299, 0.587, 0.114))),
+				swash_wet_color, 1.3);
+			final_color = mix(final_color, max(swash_wet_color, vec3(0.0)), swash_wet);
+			final_roughness = mix(final_roughness, 0.18, swash_wet);
+
+			// Cresta de espuma justo detrás del frente: entra rápido y se disuelve hacia dentro.
+			float swash_foam = smoothstep(0.0, swash_sheet * 0.3, swash_d)
+				* (1.0 - smoothstep(swash_sheet * 0.6, swash_sheet * 2.5, swash_d));
+			// Los tramos que la ola rompe flojos tampoco levantan espuma aquí.
+			swash_foam *= mix(0.25, 1.0, smoothstep(-0.8, 0.5, swash_sin));
+			// Espuma residual: la sábana que queda sobre la arena tras el golpe y se deshace mientras
+			// drena. Sin ella la lámina aparece y desaparece con la misma curva, que es lo que la
+			// hace leerse como máscara. La persistencia sale analítica de la propia fase —fracción
+			// de ciclo transcurrida desde la subida máxima— así que no hace falta estado entre frames.
+			float swash_since_peak = fract((swash_phase - 1.5707963) / 6.2831853);
+			float swash_residual = swash_wet * exp(-swash_since_peak * 4.0);
+			swash_foam = max(swash_foam, swash_residual * 0.5);
+			final_color = mix(final_color, vec3(0.92, 0.96, 0.98), swash_foam * 0.85);
+			final_roughness = mix(final_roughness, 0.75, swash_foam);
+		}
 	}
 
     ALBEDO = final_color;

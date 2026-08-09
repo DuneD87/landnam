@@ -52,7 +52,11 @@ var debug_stats: DebugStats
 @export var invert_y: bool = false
 @export var swimming_pitch_angle: float = 90.0 
 @export var swimming_rotation_speed: float = 5.0 
-@export var swimming_offset: float = 1.0
+## Profundidad de agua (m) a la que se empieza a nadar. Se compara contra el origen del cuerpo, que
+## en third_person_player.tscn está en los PIES (cápsula de 1.81 m centrada en y = 0.901), así que
+## este número es literalmente cuánta agua hay que tener encima. A 1.0 se nadaba con el agua por la
+## cintura, en calma y sin que llegara ninguna ola: se leía como que el nado se adelantaba al oleaje.
+@export var swimming_offset: float = 1.45
 @export var ray_distance: float = 8.0
 @export_flags_3d_physics var ray_collision_mask: int = 3
 
@@ -1057,6 +1061,12 @@ func _check_needs_swimming(delta: float):
 
 	var to_center := global_position - planet.global_position
 	var distance_from_center := to_center.length()
+	# El mapa del planeta se hornea en un hilo y puede llegar mucho después de que se monte este
+	# sampler. setup() lo captura una sola vez, y sin él get_height_at ignora la máscara de temporal
+	# y TODA la familia de olas de orilla: la CPU calcularía oleaje de mar abierto a plena amplitud
+	# hasta la playa, en otra fase que la rompiente dibujada. Reasignarlo aquí cuesta nada y es lo
+	# mismo que hace OceanSystem con su sampler de la línea de flotación por este motivo exacto.
+	water_sampler.world_map = planet.world_map
 	var wave_height := water_sampler.get_height_at(global_position, current_water_time, planet.global_pos)
 		
 	var base_water_radius: float = planet.planet.radius - planet.planet.water_radius

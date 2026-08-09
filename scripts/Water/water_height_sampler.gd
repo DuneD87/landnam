@@ -188,10 +188,14 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 		var field := world_map.shore_sample_local(local_q)
 		var raw_dir := Vector3(field.x, field.y, field.z)
 		shore_quality = clampf(raw_dir.length(), 0.0, 1.0)
+		# Fuera del if a propósito: el shader resuelve shore_depth en cuanto la costera está permitida,
+		# sin mirar la distancia. Daba igual mientras solo lo usara el shoaling (que vive dentro de la
+		# rama de distancia), pero el tope de agua somera del chop lo consulta SIEMPRE, y dejarlo aquí
+		# dentro apagaba el chop en CPU y no en GPU justo en la línea de agua.
+		shore_depth = world_map.water_depth_local(local_q)
 		if absf(field.w) > 1.0:
 			shore_dir = raw_dir / shore_quality if shore_quality > 1e-4 else Vector3.ZERO
 			shore_signed_dist = field.w
-			shore_depth = world_map.water_depth_local(local_q)
 
 	# Busca la posición "en reposo" cuya ola desplazada horizontalmente cae bajo world_pos.
 	var guess := local_q
@@ -276,7 +280,9 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 
 	for i in octaves:
 		var chop_gate := 1.0 - smoothstep(chop_ref * 0.25, chop_ref * 0.75, length)
-		var octave_weight := maxf(ocean_weight, chop_floor * chop_gate)
+		# Tope de rompiente en agua somera; ver chop_shallow en gerstner_waves.gdshaderinc.
+		var chop_shallow := clampf(shore_depth * 0.4 / maxf(amp, 0.01), 0.0, 1.0)
+		var octave_weight := maxf(ocean_weight, chop_floor * chop_gate * chop_shallow)
 		var k := _TAU / maxf(length, 0.1)
 		var ca := cos(ang)
 		var sa := sin(ang)

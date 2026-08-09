@@ -150,19 +150,11 @@ uniform float shore_handover : hint_range(0.05, 1.0, 0.01) = 0.35;
 uniform float shore_chop : hint_range(0.0, 1.0, 0.01) = 0.35;
 uniform int shore_debug_mode : hint_range(0, 5) = 0;                 // ver shore_debug_color
 
-// Variación espacial lenta que agrupa la rompiente en tramos. Sin ella phase=distancia hace que
-// cada isodistancia sea una cresta continua durante cientos de metros. La escala (~250-350 m por
-// ciclo) es muy superior a shore_length y no altera de forma apreciable el sentido hacia tierra.
-// Las dos fases avanzan a ritmos incommensurables y lentísimos (periodos de ~170 y ~240 s): sin ese
-// término el envolvente está congelado en world-space y el mismo tramo de playa rompe siempre fuerte
-// y el mismo siempre flojo, que es la mitad de la sensación de agua estática. El aporte a la
-// frecuencia de la ola es del orden del 5% de la suya, o sea invisible como cambio de velocidad.
-float shore_breakup(vec3 local, float t) {
-    vec3 p = local / 55.0;
-    float a = sin(dot(p, vec3(0.73, 0.21, 0.65)) + t * 0.037);
-    float b = sin(dot(p, vec3(-0.31, 0.88, 0.36)) * 1.37 + 1.7 - t * 0.026);
-    return clamp(0.5 + a * 0.325 + b * 0.175, 0.0, 1.0);
-}
+// shore_breakup(): envolvente que agrupa la rompiente en tramos. Vive en su propio include porque el
+// shader del terreno la necesita para colocar la lámina de swash y no puede incluir este archivo.
+// Su aporte a la frecuencia de la ola es del orden del 5% de la suya, invisible como cambio de
+// velocidad. Cambiarla mueve a la vez las crestas del agua y la espuma de la playa, que es el punto.
+#include "res://shaders/liquid/shore_breakup.gdshaderinc"
 
 // Suma de olas de Gerstner planetarias. Cada dirección fija define un ecuador propio y la fase
 // usa la distancia geodésica firmada a ese gran círculo. Así el gradiente espacial conserva
@@ -293,7 +285,15 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
         // el max() no hace nada. Coste cero: la octava se estaba evaluando igual para multiplicarla
         // por ~0.
         float chop_gate = 1.0 - smoothstep(shore_length * 0.25, shore_length * 0.75, len);
-        lod_weight *= max(ocean_weight, shore_chop * chop_gate);
+        // Límite de agua somera. Una ola rompe cuando su altura llega a ~0.8 de la profundidad, o sea
+        // amplitud ~0.4·h. El chop no tenía ningún tope: en la línea de agua sumaba metros de oleaje
+        // sobre centímetros de agua y levantaba al jugador por encima del umbral de nado bastante
+        // antes de que llegara la rompiente visible. La profundidad del mapa es gruesa, pero aquí solo
+        // ACOTA una amplitud —nunca decide si la familia existe—, que es el uso que el shoaling de más
+        // abajo ya da a este mismo dato. Con la costera apagada shore_depth vale 0 y esto anula el
+        // chop, lo cual da igual: ahí ocean_weight ya es 1 y manda el max().
+        float chop_shallow = clamp(ctx.shore_depth * 0.4 / max(amp, 0.01), 0.0, 1.0);
+        lod_weight *= max(ocean_weight, shore_chop * chop_gate * chop_shallow);
 
         horiz += q * amp * dir_unit * c * lod_weight;
         vert  += amp * s * lod_weight;
