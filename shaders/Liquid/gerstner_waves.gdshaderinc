@@ -140,15 +140,27 @@ uniform float shore_fade : hint_range(0.05, 0.95, 0.01) = 0.5;
 // cruzado, y se ve como una cuadrícula de picos. Subirlo saca antes al mar abierto (menos cruce, a
 // cambio de un valle de amplitud); bajarlo a 1 vuelve al relevo simétrico.
 uniform float shore_handover : hint_range(0.05, 1.0, 0.01) = 0.35;
+// Cuánto oleaje de mar abierto SOBREVIVE al relevo, solo en las octavas mucho más cortas que la ola
+// de orilla. Sin esto la franja costera es una única ola de Gerstner —una longitud de onda, una
+// dirección, una fase— y por muy bien que se mueva se lee como una plancha ondulada. El relevo tiene
+// sentido para el swell largo, que refracta y cede el paso a la rompiente; el chop de viento es de
+// generación local y existe también dentro de la bahía. Subirlo mucho reabre el mar cruzado que
+// shore_handover existe para evitar, pero solo puede hacerlo a escalas ya muy separadas de la
+// rompiente: las octavas comparables a shore_length siguen apagándose enteras.
+uniform float shore_chop : hint_range(0.0, 1.0, 0.01) = 0.35;
 uniform int shore_debug_mode : hint_range(0, 5) = 0;                 // ver shore_debug_color
 
 // Variación espacial lenta que agrupa la rompiente en tramos. Sin ella phase=distancia hace que
 // cada isodistancia sea una cresta continua durante cientos de metros. La escala (~250-350 m por
 // ciclo) es muy superior a shore_length y no altera de forma apreciable el sentido hacia tierra.
-float shore_breakup(vec3 local) {
+// Las dos fases avanzan a ritmos incommensurables y lentísimos (periodos de ~170 y ~240 s): sin ese
+// término el envolvente está congelado en world-space y el mismo tramo de playa rompe siempre fuerte
+// y el mismo siempre flojo, que es la mitad de la sensación de agua estática. El aporte a la
+// frecuencia de la ola es del orden del 5% de la suya, o sea invisible como cambio de velocidad.
+float shore_breakup(vec3 local, float t) {
     vec3 p = local / 55.0;
-    float a = sin(dot(p, vec3(0.73, 0.21, 0.65)));
-    float b = sin(dot(p, vec3(-0.31, 0.88, 0.36)) * 1.37 + 1.7);
+    float a = sin(dot(p, vec3(0.73, 0.21, 0.65)) + t * 0.037);
+    float b = sin(dot(p, vec3(-0.31, 0.88, 0.36)) * 1.37 + 1.7 - t * 0.026);
     return clamp(0.5 + a * 0.325 + b * 0.175, 0.0, 1.0);
 }
 
@@ -276,7 +288,12 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
         float lod_weight = min_length > 0.0
             ? smoothstep(min_length * 0.5, min_length * 1.5, len)
             : 1.0;
-        lod_weight *= ocean_weight;
+        // El relevo se aplica a esta octava según su escala: entera al swell, atenuada por shore_chop
+        // a lo que sea mucho más corto que la rompiente. Fuera de la franja ocean_weight ya vale 1 y
+        // el max() no hace nada. Coste cero: la octava se estaba evaluando igual para multiplicarla
+        // por ~0.
+        float chop_gate = 1.0 - smoothstep(shore_length * 0.25, shore_length * 0.75, len);
+        lod_weight *= max(ocean_weight, shore_chop * chop_gate);
 
         horiz += q * amp * dir_unit * c * lod_weight;
         vert  += amp * s * lod_weight;
@@ -330,7 +347,7 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
         float q = shore_steepness / max(k * amp_ref, 1e-4);
         // W es firmada: incluso si el litoral grueso coloca este vértice visible en su lado tierra,
         // su gradiente sigue apuntando mar adentro y la fase avanza siempre hacia tierra.
-        float breakup = shore_breakup(local);
+        float breakup = shore_breakup(local, t);
         float phase = k * ctx.shore_field.w + t * shore_speed * sqrt(k)
             + (breakup - 0.5) * 0.9;
         // La superficie nunca queda inmóvil, pero el tramo débil cae por debajo del umbral de
@@ -400,7 +417,7 @@ vec3 shore_debug_color(vec3 local, float t) {
 
     if (shore_debug_mode == 2) {
         float k = 6.28318530718 / max(shore_length, 0.1);
-        float breakup = shore_breakup(local);
+        float breakup = shore_breakup(local, t);
         float band = fract((k * field.w + t * shore_speed * sqrt(k)
             + (breakup - 0.5) * 0.9) / 6.28318530718);
         return mix(vec3(0.05, 0.1, 0.25), vec3(1.0), step(0.5, band));
@@ -418,7 +435,7 @@ vec3 shore_debug_color(vec3 local, float t) {
     }
     float lee = mix(1.0, mix(0.35, 1.0, smoothstep(-0.9, 0.6, dot(swell_direction(d), -seaward))),
                     shore_incidence);
-    float packet = mix(0.25, 1.0, smoothstep(0.2, 0.8, shore_breakup(local)));
+    float packet = mix(0.25, 1.0, smoothstep(0.2, 0.8, shore_breakup(local, t)));
     return vec3(gate * shoreline_fade * lee * packet);
 }
 

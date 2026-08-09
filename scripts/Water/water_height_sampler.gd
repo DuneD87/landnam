@@ -29,6 +29,7 @@ var shore_reach: float
 var shore_range: float
 var shore_fade: float
 var shore_handover: float
+var shore_chop: float
 
 ## Mapa del planeta, opcional. Con él, el oleaje de tormenta se queda donde el shader lo dibuja
 ## (mar abierto) en vez de zarandear a los barcos dentro de un lago o pegados a la orilla. Sin él
@@ -51,10 +52,10 @@ const _INVERT_ITERATIONS := 3
 
 
 ## Réplica CPU de shore_breakup() en gerstner_waves.gdshaderinc.
-static func _shore_breakup(local: Vector3) -> float:
+static func _shore_breakup(local: Vector3, time: float) -> float:
 	var p := local / 55.0
-	var a := sin(p.dot(Vector3(0.73, 0.21, 0.65)))
-	var b := sin(p.dot(Vector3(-0.31, 0.88, 0.36)) * 1.37 + 1.7)
+	var a := sin(p.dot(Vector3(0.73, 0.21, 0.65)) + time * 0.037)
+	var b := sin(p.dot(Vector3(-0.31, 0.88, 0.36)) * 1.37 + 1.7 - time * 0.026)
 	return clampf(0.5 + a * 0.325 + b * 0.175, 0.0, 1.0)
 
 ## Lee del material los parámetros que intervienen en la altura de ola. 'planet_map' es opcional;
@@ -123,6 +124,7 @@ static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
 			"shore_range": _param(mat, "shore_range"),
 			"shore_fade": _param(mat, "shore_fade"),
 			"shore_handover": _param(mat, "shore_handover"),
+			"shore_chop": _param(mat, "shore_chop"),
 		}
 		_frame_cache[key] = cached
 	return cached
@@ -161,6 +163,10 @@ func _refresh_dynamic_params() -> void:
 	shore_range = params["shore_range"]
 	shore_fade = params["shore_fade"]
 	shore_handover = params["shore_handover"]
+	# Mismo relevo que con la calma: un material con un shader anterior al chop se queda sin él en vez
+	# de reventar al asignar nulo.
+	var chop: Variant = params["shore_chop"]
+	shore_chop = chop if chop != null else 0.0
 
 ## Altura de ola (desplazamiento radial) en world_pos. Invierte por punto-fijo el arrastre
 ## horizontal de Gerstner: sin esto, con oleaje marcado la física y el visual se separan varios metros.
@@ -263,7 +269,14 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 	var grad := Vector3.ZERO
 	var n_up_sub := 0.0
 
+	# Suelo del relevo para las octavas mucho más cortas que la rompiente; ver shore_chop en
+	# gerstner_waves.gdshaderinc. Sin familia costera el relevo no existe y esto queda en 0.
+	var chop_floor := shore_chop if shore_enabled else 0.0
+	var chop_ref := maxf(shore_length, 1.0)
+
 	for i in octaves:
+		var chop_gate := 1.0 - smoothstep(chop_ref * 0.25, chop_ref * 0.75, length)
+		var octave_weight := maxf(ocean_weight, chop_floor * chop_gate)
 		var k := _TAU / maxf(length, 0.1)
 		var ca := cos(ang)
 		var sa := sin(ang)
@@ -279,10 +292,10 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		# tiene módulo 1, así la longitud de onda no cambia con latitud/longitud.
 		var signed_arc := local.length() * asin(dir_dot)
 		var phase := k * signed_arc + time * wave_speed * sqrt(k)
-		horiz += dir_unit * (q * amp * cos(phase) * ocean_weight)
-		vert += amp * sin(phase) * ocean_weight
-		grad += dir_unit * (k * amp * cos(phase) * ocean_weight)
-		n_up_sub += q * k * amp * sin(phase) * ocean_weight
+		horiz += dir_unit * (q * amp * cos(phase) * octave_weight)
+		vert += amp * sin(phase) * octave_weight
+		grad += dir_unit * (k * amp * cos(phase) * octave_weight)
+		n_up_sub += q * k * amp * sin(phase) * octave_weight
 		amp *= 0.5
 		length *= 0.5
 		ang += _GOLDEN_ANGLE
@@ -302,7 +315,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		var k := _TAU / maxf(shore_length, 0.1)
 		var amp_ref := minf(shore_amplitude * shoal, shore_length * 0.08)
 		var q := shore_steepness / maxf(k * amp_ref, 1e-4)
-		var breakup := _shore_breakup(local)
+		var breakup := _shore_breakup(local, time)
 		var phase := (k * shore_signed_dist + time * shore_speed * sqrt(k)
 			+ (breakup - 0.5) * 0.9)
 		w *= lerpf(0.25, 1.0, smoothstep(0.2, 0.8, breakup))

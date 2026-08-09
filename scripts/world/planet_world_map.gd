@@ -22,7 +22,7 @@ const MAX_STORM_BODIES := 8
 ## Ancho de la franja costera con olas hacia la orilla, en metros. Es EL knob del sistema: la
 ## profundidad ya no interviene (ver gerstner_waves.gdshaderinc), así que esto es literalmente hasta
 ## dónde llegan. Subirlo cuesta memoria y tiempo de horneado, y obliga a rehornear el mapa.
-const SHORE_RANGE := 1200.0
+const SHORE_RANGE := 300.0
 
 ## Sube esto SIEMPRE que cambie el formato o el criterio de horneado. La clave del caché mira la
 ## fecha del generador, no la de este código: sin subirlo, un mapa horneado con reglas viejas se

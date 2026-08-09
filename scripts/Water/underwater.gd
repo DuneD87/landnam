@@ -62,7 +62,7 @@ const _SYNCED_WATER_PARAMS: Array[StringName] = [
 	&"shore_waves_enabled", &"shore_offset_map",
 	&"shore_amplitude", &"shore_length", &"shore_speed", &"shore_steepness",
 	&"shore_depth_fade", &"shore_shoal_max", &"shore_incidence",
-	&"shore_reach", &"shore_range", &"shore_fade", &"shore_handover",
+	&"shore_reach", &"shore_range", &"shore_fade", &"shore_handover", &"shore_chop",
 	# Plano de la línea de flotación: los dos shaders TIENEN que recibir el mismo, es lo que hace
 	# que el corte de la niebla y el de la superficie caigan en el mismo sitio.
 	&"waterline_point", &"waterline_normal",
