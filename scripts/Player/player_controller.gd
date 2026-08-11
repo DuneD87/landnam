@@ -86,6 +86,8 @@ var current_animation = config.ANIMATION.IDLE
 
 var _water_surface_radius: float = 0.0
 var _water_surface_center: Vector3 = Vector3.ZERO
+## Corriente del agua en la posición del jugador, muestreada en _check_needs_swimming.
+var _water_flow: Vector3 = Vector3.ZERO
 
 var equiped_weapon: ItemData
 var right_hand_equipped: bool = false
@@ -1054,7 +1056,18 @@ func _apply_water_buoyancy(delta: float):
 	var correction := (-error * buoyancy_strength - radial_velocity * damping) * delta
 	
 	velocity += radial_dir * correction
-	
+
+
+## Monta al nadador sobre el agua: la componente tangencial de la corriente se suma a la velocidad
+## como una cinta transportadora. La radial se queda fuera porque de esa ya se ocupa
+## _apply_water_buoyancy, que clava al jugador en la superficie y lo sube y baja con ella.
+func _apply_water_flow() -> void:
+	if _water_flow.is_zero_approx():
+		return
+	var radial_dir := (global_position - _water_surface_center).normalized()
+	velocity += _water_flow - radial_dir * _water_flow.dot(radial_dir)
+
+
 func _check_needs_swimming(delta: float):
 	if !planet || !planet.planet.has_water || not is_inside_tree():
 		return
@@ -1069,9 +1082,14 @@ func _check_needs_swimming(delta: float):
 	water_sampler.world_map = planet.world_map
 	var wave_height := water_sampler.get_height_at(global_position, current_water_time, planet.global_pos)
 		
+	# La corriente sale del mismo muestreo, sin coste extra.
+	_water_flow = water_sampler.last_flow
+
 	var base_water_radius: float = planet.planet.radius - planet.planet.water_radius
 	var water_surface_radius := base_water_radius + wave_height
 	_water_surface_radius = water_surface_radius
+	# Para la muestra del frame siguiente: la profundidad no se sabe hasta tener la superficie.
+	water_sampler.flow_depth = maxf(_water_surface_radius - distance_from_center, 0.0)
 	var mat = planet.water_sphere.mesh_manager.default_material as ShaderMaterial
 	mat.set_shader_parameter("water_time", current_water_time)
 	_water_surface_center = planet.global_position
@@ -1264,6 +1282,7 @@ func update_normal_movement(delta: float) -> void:
 		apply_swimming_pitch(input_dir, delta)
 		if !movement.is_running:
 			_apply_water_buoyancy(delta)
+		_apply_water_flow()
 
 	if was_swimming:
 		current_swimming_pitch = 0.0

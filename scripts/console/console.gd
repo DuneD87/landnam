@@ -263,6 +263,10 @@ func _register_commands() -> void:
 		"Alterna el vuelo libre / atravesar terreno.", _cmd_noclip))
 	_add(ConsoleCommand.new("sun", "sun <azimuth> [elevación] | sun auto <on|off>",
 		"Coloca el sol o (des)activa su rotación automática.", _cmd_sun, 1))
+	_add(ConsoleCommand.new("wake", "wake [on|off]",
+		"Apaga la espuma de estela, para aislar su coste por píxel.", _cmd_wake))
+	_add(ConsoleCommand.new("drift", "drift [factor]",
+		"Fuerza de la corriente del mar; sin argumento, informe de cómo la ven barco y jugador.", _cmd_drift))
 
 
 
@@ -392,6 +396,73 @@ func _cmd_sun(args: PackedStringArray) -> String:
 	if args.size() >= 2 and args[1].is_valid_float():
 		sun._set_elevation(args[1].to_float())
 	return "[color=%s]Sol → azimuth %.1f°, elevación %.1f°.[/color]" % [COLOR_OK, sun.sun_azimuth_deg, sun.sun_elevation_deg]
+
+
+func _cmd_wake(args: PackedStringArray) -> String:
+	if not args.is_empty():
+		GridManager.wake_enabled = args[0].to_lower() in ["on", "1", "true"]
+	return "[color=%s]Estela: %s · %d estelas, %d puntos subidos.[/color]" % [
+		COLOR_OK if GridManager.wake_enabled else COLOR_MUTED,
+		"ON" if GridManager.wake_enabled else "OFF",
+		GridManager.wake_stat_wakes, GridManager.wake_stat_points]
+
+
+func _cmd_drift(args: PackedStringArray) -> String:
+	if not args.is_empty():
+		if not args[0].is_valid_float():
+			return "[color=%s]Uso: drift [factor >= 0].[/color]" % COLOR_ERR
+		WaterHeightSampler.drift_scale = maxf(args[0].to_float(), 0.0)
+		return "[color=%s]Arrastre de las olas → %.2f.[/color]" % [COLOR_OK, WaterHeightSampler.drift_scale]
+	return _drift_report()
+
+
+## Lectura de la corriente tal y como la ven jugador y barco: separa "no llega la fuerza" de "la
+## fuerza es minúscula", que a ojo son indistinguibles.
+func _drift_report() -> String:
+	var out := "[color=%s]drift ×%.2f[/color]\n" % [COLOR_INFO, WaterHeightSampler.drift_scale]
+	var player := _get_player()
+	if player == null:
+		return out + "[color=%s]Sin jugador.[/color]" % COLOR_ERR
+
+	var sampler: WaterHeightSampler = player.water_sampler
+	if sampler != null:
+		out += "  mar: amp %.2f m · steep %.2f · vel %.2f · λ %.1f m\n" % [
+			sampler.wave_amplitude, sampler.wave_steepness,
+			sampler.wave_speed, sampler.wave_base_length]
+		out += "  gates: exposición %.2f · peso oceánico %.2f · orilla %.2f → amp efectiva %.2f m\n" % [
+			sampler.last_exposure, sampler.last_ocean_weight,
+			sampler.last_shore_presence, sampler.last_amp_effective]
+
+	var flow: Vector3 = player._water_flow
+	var up := Vector3.UP
+	if player.planet != null:
+		up = (player.global_position - player.planet.global_position).normalized()
+	var flow_tan := flow - up * flow.dot(up)
+	out += "  jugador: corriente %.3f m/s (tangencial %.3f) · nadando %s\n" % [
+		flow.length(), flow_tan.length(), "sí" if player.movement.is_swimming else "no"]
+
+	var boat = player._platform_body
+	if boat == null or not is_instance_valid(boat):
+		return out + "[color=%s]  (no vas en ningún barco)[/color]" % COLOR_MUTED
+
+	var bw: Vector3 = boat.last_water_flow
+	var bv: Vector3 = boat.linear_velocity
+	var rel := bv - bw
+	var accel := 0.0
+	if boat.mass > 0.0:
+		accel = rel.length() * boat.linear_drag * boat.last_displaced_mass / boat.mass
+	out += "  barco: agua %.3f m/s · casco %.3f m/s · relativa %.3f m/s\n" % [
+		bw.length(), bv.length(), rel.length()]
+	out += "  masa %.0f kg · desplazada %.0f kg · aceleración de arrastre %.3f m/s²\n" % [
+		boat.mass, boat.last_displaced_mass, accel]
+
+	# Velocidad horizontal respecto al agua: la que decide si se emite estela.
+	var bup: Vector3 = (boat.global_position - boat.planet_node.global_pos).normalized() \
+		if boat.planet_node else Vector3.UP
+	var rel_h := (rel - bup * rel.dot(bup)).length()
+	out += "  estela: %d puntos · %.2f m/s respecto al agua (mínimo %.2f)" % [
+		boat.get_wake_points().size(), rel_h, DynamicGridBody.WAKE_MIN_SPEED]
+	return out
 
 
 func _get_health() -> Node:

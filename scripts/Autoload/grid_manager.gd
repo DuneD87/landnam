@@ -106,11 +106,21 @@ func _ready() -> void:
 
 const MAX_WAKES := 8
 const MAX_WAKE_POINTS := 512
+# Holgura (m) de la esfera de culling de cada estela; ver dónde se construye.
+const WAKE_BOUNDS_MARGIN := 12.0
+# Opacidad de la espuma de estela recién nacida.
+const WAKE_ALPHA := 0.35
 const MAX_INTERIORS := 64
 # Margen (m) alrededor del casco dentro del cual se activa la máscara de interiores.
 const INTERIOR_MASK_MARGIN := 12.0
 # Radio (m) alrededor de la cámara cuyas cajas entran en el presupuesto antes que ninguna otra.
 const INTERIOR_NEAR_RADIUS := 24.0
+
+## Interruptor de la espuma de estela, para aislar su coste en pantalla. Lo mueve el comando 'wake'.
+var wake_enabled: bool = true
+## Última cuenta de estelas y puntos subidos al shader; la lee el comando 'wake'.
+var wake_stat_wakes: int = 0
+var wake_stat_points: int = 0
 
 var _wake_materials_active: Array = []
 var _interior_materials_active: Array = []
@@ -142,10 +152,26 @@ func _init_uniform_buffers() -> void:
 
 func _physics_process(_delta: float) -> void:
 	var bodies := get_tree().get_nodes_in_group("dynamic_grid_body")
-	if bodies.is_empty() and _wake_materials_active.is_empty() and _interior_materials_active.is_empty():
+	if bodies.is_empty() and _interior_materials_active.is_empty():
+		return
+	_update_interior_uniforms(bodies)
+
+
+## La estela se empuja por frame renderizado y no de física: el casco se dibuja con la transform
+## interpolada, y a ritmo de física la estela iba un paso por detrás, tanto más cuanto más rápido.
+func _process(_delta: float) -> void:
+	if not wake_enabled:
+		for mat in _wake_materials_active:
+			if is_instance_valid(mat):
+				mat.set_shader_parameter("wake_count", 0)
+		_wake_materials_active = []
+		wake_stat_wakes = 0
+		wake_stat_points = 0
+		return
+	var bodies := get_tree().get_nodes_in_group("dynamic_grid_body")
+	if bodies.is_empty() and _wake_materials_active.is_empty():
 		return
 	_update_wake_uniforms(bodies)
-	_update_interior_uniforms(bodies)
 
 ## Copia las cajas de compartimentos secos de los DynamicGridBody al agua de su planeta:
 ## dentro el shader descarta el agua; lo inundado no se empuja y el océano entra normal.
@@ -266,14 +292,25 @@ func _update_wake_uniforms(bodies: Array) -> void:
 			var bmin := Vector3.INF
 			var bmax := -Vector3.INF
 
-			for p: Dictionary in body.get_wake_points():
+			var points: Array = body.get_wake_points()
+			# La cabeza se recoloca donde el casco se está dibujando este frame; el resto ya está
+			# quieto en el mar y no necesita interpolarse.
+			var head_offset: Vector3 = body.get_wake_head_offset()
+			var head_i: int = points.size() - 1
+
+			for pi in points.size():
 				if point_i >= MAX_WAKE_POINTS:
 					break
+				var p: Dictionary = points[pi]
 				var age: float = clampf((now - p["birth"]) / DynamicGridBody.WAKE_LIFETIME, 0.0, 1.0)
-				var world: Vector3 = planet_pos + p["offset"]
+				var offset: Vector3 = p["offset"]
+				if pi == head_i and not head_offset.is_zero_approx():
+					offset = head_offset
+					age = 0.0
+				var world: Vector3 = planet_pos + offset
 				var radius: float = p["width"] * (1.0 + age * 1.5)
 				_wake_points_buf[point_i] = Vector4(world.x, world.y, world.z, radius)
-				_wake_alphas_buf[point_i] = (1.0 - smoothstep(0.2, 1.0, age)) * 0.55
+				_wake_alphas_buf[point_i] = (1.0 - smoothstep(0.2, 1.0, age)) * WAKE_ALPHA
 				bmin = bmin.min(world - Vector3.ONE * radius)
 				bmax = bmax.max(world + Vector3.ONE * radius)
 				point_i += 1
@@ -282,9 +319,14 @@ func _update_wake_uniforms(bodies: Array) -> void:
 				continue
 			var center := (bmin + bmax) * 0.5
 			_wake_ranges_buf[wake_i] = Vector2(start, point_i - start)
-			_wake_bounds_buf[wake_i] = Vector4(center.x, center.y, center.z, (bmax - center).length())
+			# Margen para la ola: los puntos viven en el radio de reposo y los píxeles del agua en la
+			# superficie desplazada, así que sin él el culling se come la estela entera con oleaje.
+			_wake_bounds_buf[wake_i] = Vector4(center.x, center.y, center.z,
+				(bmax - center).length() + WAKE_BOUNDS_MARGIN)
 			wake_i += 1
 
+		wake_stat_wakes = wake_i
+		wake_stat_points = point_i
 		mat.set_shader_parameter("wake_count", wake_i)
 		if wake_i == 0:
 			continue

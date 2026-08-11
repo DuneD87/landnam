@@ -26,7 +26,9 @@ const LOD_QUADRANTS := 4
 const WAKE_SPACING := 3.0
 const WAKE_LIFETIME := 12.0
 const WAKE_MAX_POINTS := 64
-const WAKE_MIN_SPEED := 2.0
+# Velocidad mínima RESPECTO AL AGUA para abrir estela. Con corriente, la velocidad sobre el fondo y
+# la que corta el agua difieren mucho, y un umbral alto enciende y apaga la estela según el rumbo.
+const WAKE_MIN_SPEED := 1.0
 
 # Segundos sin ediciones antes de relanzar el análisis de interiores (coalesce de ráfagas).
 const INTERIOR_DEBOUNCE := 0.3
@@ -38,8 +40,17 @@ const FLOOD_RECALC_HEAVE := 0.25
 
 var planet_node: Node3D = null
 
+## Corriente que vio el casco en el último paso de física y masa de agua desplazada. Solo diagnóstico:
+## los lee el comando 'drift' para comparar la velocidad del agua con la del barco.
+var last_water_flow: Vector3 = Vector3.ZERO
+var last_displaced_mass: float = 0.0
+
 var _water_sampler: WaterHeightSampler = null
 var _wake_points: Array = []
+## Popa en coordenadas locales del casco, para recalcular la cabeza de la estela en cada frame
+## renderizado. Ver get_wake_head_offset.
+var _wake_stern_local: Vector3 = Vector3.ZERO
+var _wake_active: bool = false
 
 var _grids: Array = []
 var _box_pos := PackedVector3Array()
@@ -418,14 +429,19 @@ func _physics_process(delta: float) -> void:
 
 	var shared_wave := vol_arr.size() > MAX_WAVE_SAMPLES
 	var wave_h_shared := 0.0
+	var flow_shared := Vector3.ZERO
 	if shared_wave:
 		wave_h_shared = _water_sampler.get_height_at(global_position, water_time, planet_pos)
+		flow_shared = _water_sampler.last_flow
 
 	var xf := global_transform
 	var basis_w := xf.basis
 	var origin := xf.origin
 	var submerged_volume := 0.0
 	var weighted_buoyancy_pos := Vector3.ZERO
+	# Corriente media que ve el casco, ponderada por volumen desplazado: la parte sumergida es la
+	# que el agua empuja, y así la ola que baña solo la proa no arrastra como si bañara el barco entero.
+	var weighted_flow := Vector3.ZERO
 
 	for i in vol_arr.size():
 		var half: Vector3 = half_arr[i]
@@ -436,7 +452,11 @@ func _physics_process(delta: float) -> void:
 			+ absf((basis_w.z * half.z).dot(up))
 		h_half = maxf(h_half, 0.05)
 
-		var wave_h: float = wave_h_shared if shared_wave else _water_sampler.get_height_at(world_center, water_time, planet_pos)
+		var wave_h: float = wave_h_shared
+		var flow: Vector3 = flow_shared
+		if not shared_wave:
+			wave_h = _water_sampler.get_height_at(world_center, water_time, planet_pos)
+			flow = _water_sampler.last_flow
 		var water_r: float = base_water_radius + wave_h
 		var dist: float = (world_center - planet_pos).length()
 
@@ -447,7 +467,9 @@ func _physics_process(delta: float) -> void:
 		var displaced: float = vol_arr[i] * frac
 		submerged_volume += displaced
 		weighted_buoyancy_pos += (world_center + up * h_half * (frac - 1.0)) * displaced
+		weighted_flow += flow * displaced
 
+	var water_vel := Vector3.ZERO
 	if submerged_volume > 0.0:
 		# Todos los empujes son paralelos a up: una única fuerza en el centro de carena es
 		# exactamente equivalente a una por caja, y ahorra N llamadas al servidor de física.
@@ -455,8 +477,15 @@ func _physics_process(delta: float) -> void:
 		apply_force(up * WATER_DENSITY * gravity * submerged_volume, buoyancy_center - origin)
 
 		var displaced_mass: float = submerged_volume * WATER_DENSITY
-		apply_central_force(-linear_velocity * linear_drag * displaced_mass)
-		var radial_vel: float = linear_velocity.dot(up)
+		# El rozamiento se mide contra el agua, no contra el suelo: un casco quieto en un mar que se
+		# mueve recibe la misma fuerza que uno navegando en un mar quieto, y acaba arrastrado con la
+		# ola. Con linear_drag = 0.3 el casco tarda unos 3 s en igualar la corriente.
+		water_vel = weighted_flow / submerged_volume
+		last_water_flow = water_vel
+		last_displaced_mass = displaced_mass
+		var rel_vel: Vector3 = linear_velocity - water_vel
+		apply_central_force(-rel_vel * linear_drag * displaced_mass)
+		var radial_vel: float = rel_vel.dot(up)
 		apply_central_force(-up * radial_vel * heave_drag * displaced_mass)
 		apply_torque(-angular_velocity * angular_drag * displaced_mass * minf(_drag_length_sq, 10.0))
 
@@ -475,7 +504,7 @@ func _physics_process(delta: float) -> void:
 			apply_torque(corrective_axis * correction_strength)
 
 	_update_flooding(up, planet_pos, base_water_radius, gravity)
-	_update_wake(submerged_volume, up, planet_pos, base_water_radius)
+	_update_wake(submerged_volume, up, planet_pos, base_water_radius, water_vel)
 
 
 ## Aplica el peso del agua embarcada como una única fuerza en el centroide cacheado. El estado
@@ -604,37 +633,82 @@ func get_flood_state() -> Dictionary:
 
 ## Emite y caduca los puntos de estela de espuma. Se guardan como offset desde el centro del
 ## planeta (inmune al rebase del origen flotante); FoamWakeManager los recoge cada frame.
-func _update_wake(submerged_volume: float, up: Vector3, planet_pos: Vector3, base_water_radius: float) -> void:
+func _update_wake(submerged_volume: float, up: Vector3, planet_pos: Vector3, base_water_radius: float,
+		water_vel: Vector3) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	while not _wake_points.is_empty() and now - _wake_points[0]["birth"] > WAKE_LIFETIME:
 		_wake_points.pop_front()
 
 	if submerged_volume <= 0.0:
+		_wake_active = false
 		return
-	var horiz_vel := linear_velocity - up * linear_velocity.dot(up)
+	# Velocidad respecto al agua: un pecio a la deriva viaja con la ola y no abre estela.
+	var rel_vel := linear_velocity - water_vel
+	var horiz_vel := rel_vel - up * rel_vel.dot(up)
 	if horiz_vel.length() < WAKE_MIN_SPEED:
+		_wake_active = false
 		return
 
-	var surf_offset := (get_hull_center_world() - planet_pos).normalized() * base_water_radius
-	var spacing := maxf(WAKE_SPACING, horiz_vel.length() * WAKE_LIFETIME / float(WAKE_MAX_POINTS))
-	if not _wake_points.is_empty():
-		var last: Vector3 = _wake_points.back()["offset"]
-		if (surf_offset - last).length() < spacing:
-			return
+	# La estela nace en la popa, no en el centro: emitida en el centro queda bajo el casco, y un barco
+	# largo tarda en despejar su eslora más de lo que vive el punto, así que se apagaba sin asomar.
+	# La popa es el extremo de la caja del casco en el sentido contrario a la marcha, no -Z: así vale
+	# igual ciando o derivando de costado, y el término vertical solo aporta con el barco escorado.
+	var back := -horiz_vel.normalized()
+	var stern := get_hull_center_world()
+	if _aggregate_box.has("half"):
+		var h: Vector3 = _aggregate_box["half"]
+		var b := global_transform.basis
+		stern += back * (absf(b.x.dot(back)) * h.x
+			+ absf(b.y.dot(back)) * h.y
+			+ absf(b.z.dot(back)) * h.z)
 
+	# La popa en local: con ella GridManager recoloca la cabeza en cada frame renderizado.
+	_wake_stern_local = global_transform.affine_inverse() * stern
+	_wake_active = true
+
+	var surf_offset := (stern - planet_pos).normalized() * base_water_radius
+	var spacing := maxf(WAKE_SPACING, horiz_vel.length() * WAKE_LIFETIME / float(WAKE_MAX_POINTS))
+
+	# Manga del casco y nada más: el shader une los puntos por tramos, así que el radio no tiene que
+	# estirarse para tapar el hueco hasta el siguiente punto.
 	var beam := 2.0
 	if _aggregate_box.has("half"):
 		var h: Vector3 = _aggregate_box["half"]
 		beam = clampf(minf(h.x, h.z), 1.5, 12.0)
-	beam = maxf(beam, spacing * 0.6)
 
-	_wake_points.append({"offset": surf_offset, "birth": now, "width": beam})
-	if _wake_points.size() > WAKE_MAX_POINTS:
-		_wake_points.pop_front()
+	# El último punto es la cabeza y va pegada a la popa cada frame; los demás quedan fijos. Emitir
+	# solo al cumplir 'spacing' hacía crecer la estela a tirones de 3 m en vez de salir del barco.
+	if _wake_points.size() < 2:
+		_wake_points.append({"offset": surf_offset, "birth": now, "width": beam})
+		_wake_points.append({"offset": surf_offset, "birth": now, "width": beam})
+		return
+
+	var head: Dictionary = _wake_points.back()
+	head["offset"] = surf_offset
+	head["birth"] = now
+	head["width"] = beam
+
+	# La cabeza se congela y nace otra en cuanto se aleja lo suficiente del último punto fijo.
+	var anchor: Vector3 = _wake_points[_wake_points.size() - 2]["offset"]
+	if (surf_offset - anchor).length() >= spacing:
+		_wake_points.append({"offset": surf_offset, "birth": now, "width": beam})
+		if _wake_points.size() > WAKE_MAX_POINTS:
+			_wake_points.pop_front()
 
 
 func get_wake_points() -> Array:
 	return _wake_points
+
+
+## Popa en el frame renderizado, como offset desde el centro del planeta, o ZERO si el barco no abre
+## estela. Los puntos se comprometen a ritmo de física mientras el casco se dibuja con la transform
+## interpolada, y a velocidad alta esa diferencia se ve como que la estela se descuelga del barco.
+func get_wake_head_offset() -> Vector3:
+	if not _wake_active or planet_node == null:
+		return Vector3.ZERO
+	var stern: Vector3 = get_global_transform_interpolated() * _wake_stern_local
+	var base_r: float = planet_node.planet.radius - planet_node.planet.water_radius
+	return (stern - planet_node.global_pos).normalized() * base_r
 
 
 ## Centro geométrico del casco en mundo (centro de la bounding box de las cajas de colisión).

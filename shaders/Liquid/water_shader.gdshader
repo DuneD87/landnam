@@ -606,16 +606,30 @@ void fragment() {
     // Estela de espuma de los barcos: solo los píxeles dentro de la esfera envolvente
     // de alguna estela recorren sus puntos.
     float wake_foam = 0.0;
+    // Se evalúa por TRAMOS entre puntos consecutivos: la unión de discos con max() deja el borde
+    // festoneado y se ven los escalones de radio y alfa. Interpolando sale una cinta continua.
+    //
+    // La distancia al tramo va TANGENTE a la esfera: los puntos se emiten sobre el radio de reposo
+    // y este píxel está en la superficie desplazada, que en 3D son metros de separación, más que el
+    // radio del tramo. Sin descartar la componente radial la espuma se borra en crestas y senos.
     for (int w = 0; w < wake_count; w++) {
         vec3 bd = world_pos - wake_bounds[w].xyz;
         float br = wake_bounds[w].w;
         if (dot(bd, bd) > br * br) { continue; }
         int p_start = int(wake_ranges[w].x);
         int p_end = p_start + int(wake_ranges[w].y);
-        for (int i = p_start; i < p_end; i++) {
-            vec4 p = wake_points[i];
-            float m = 1.0 - smoothstep(p.w * 0.55, p.w, distance(world_pos, p.xyz));
-            wake_foam = max(wake_foam, m * wake_alphas[i]);
+        for (int i = p_start; i < p_end - 1; i++) {
+            vec4 pa = wake_points[i];
+            vec4 pb = wake_points[i + 1];
+            vec3 ab = pb.xyz - pa.xyz;
+            vec3 ap = world_pos - pa.xyz;
+            float t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+            vec3 wd = ap - ab * t;
+            float wt = length(wd - radial_normal * dot(wd, radial_normal));
+            float wr = mix(pa.w, pb.w, t);
+            float wa = mix(wake_alphas[i], wake_alphas[i + 1], t);
+            float m = 1.0 - smoothstep(wr * 0.25, wr, wt);
+            wake_foam = max(wake_foam, m * wa);
         }
     }
     // La espuma es casi blanca y de noche trazaba un perfil blanco en la orilla. Oscurecemos
