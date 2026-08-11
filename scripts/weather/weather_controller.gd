@@ -78,6 +78,11 @@ var _base_wave_speed: float = 1.2
 var _base_wave_length: float = 50.0
 var _base_foam_crest: float = 1.1
 var _base_wave_steepness: float = 0.5
+## Rompiente autorada en el material. Los eventos la multiplican; ver _apply_state.
+var _base_shore_amplitude: float = 2.0
+var _base_shore_steepness: float = 0.5
+var _base_shore_speed: float = 1.2
+var _base_shore_length: float = 60.0
 ## Mar más tranquilo del catálogo: a esto vuelve el agua fuera de mar abierto. Ver _compute_calm_sea.
 var _calm_wave_amplitude: float = 2.5
 var _calm_wave_steepness: float = 0.5
@@ -192,6 +197,16 @@ func _read_base_values() -> void:
 		if wl != null: _base_wave_length = wl
 		if fc != null: _base_foam_crest = fc
 		if st != null: _base_wave_steepness = st
+		# La rompiente sí sale de _param: shore_* son ajustes finos y el .tres puede no traerlos
+		# todos, en cuyo caso el valor bueno es el default que declara el shader, no un cero.
+		var sa: Variant = WaterHeightSampler._param(_water_mat, &"shore_amplitude")
+		var ss: Variant = WaterHeightSampler._param(_water_mat, &"shore_steepness")
+		var sp: Variant = WaterHeightSampler._param(_water_mat, &"shore_speed")
+		var sl: Variant = WaterHeightSampler._param(_water_mat, &"shore_length")
+		if sa != null: _base_shore_amplitude = sa
+		if ss != null: _base_shore_steepness = ss
+		if sp != null: _base_shore_speed = sp
+		if sl != null: _base_shore_length = sl
 		_setup_water_sampler()
 
 
@@ -534,6 +549,20 @@ func _apply_state(st: WeatherState) -> void:
 		# así un lago o la orilla no reciben el oleaje del temporal.
 		_water_mat.set_shader_parameter("wave_calm_amplitude", _calm_wave_amplitude)
 		_water_mat.set_shader_parameter("wave_calm_steepness", _calm_wave_steepness)
+		# Rompiente. Va sin máscara, igual que wave_speed y wave_base_length: son los parámetros que
+		# NO pueden variar por posición sin rajar la malla (cambian la fase entre vértices vecinos),
+		# así que el temporal levanta la orilla de todo el planeta y no solo la del evento.
+		# La amplitud efectiva la acota igual el límite de rompiente (H/L) del shader: por eso el
+		# temporal sube también la longitud de onda, que es lo que sube ese techo.
+		_water_mat.set_shader_parameter("shore_amplitude",
+			_base_shore_amplitude * st.water_shore_multiplier)
+		_water_mat.set_shader_parameter("shore_length",
+			_base_shore_length * st.water_shore_length_mult)
+		_water_mat.set_shader_parameter("shore_speed",
+			_base_shore_speed * st.water_shore_speed_mult)
+		# Por encima de 1 la ola de Gerstner se auto-interseca (Q·k·A > 1) y la cresta se pliega.
+		_water_mat.set_shader_parameter("shore_steepness",
+			clampf(_base_shore_steepness * st.water_shore_steepness_mult, 0.0, 0.95))
 
 	_apply_precipitation(st)
 

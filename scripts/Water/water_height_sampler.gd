@@ -47,6 +47,10 @@ static var _frame_cache: Dictionary = {}
 static var _default_cache: Dictionary = {}
 
 const _GOLDEN_ANGLE := 2.399963
+## Abanico direccional y lacunaridad de las octavas; ver WAVE_FAN/WAVE_LACUNARITY en
+## gerstner_waves.gdshaderinc, donde está el razonamiento. Cambiar una obliga a cambiar la otra.
+const _WAVE_FAN := 0.7
+const _WAVE_LACUNARITY := 0.53
 const _TAU := 6.28318530718
 const _INVERT_ITERATIONS := 3
 
@@ -282,7 +286,6 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 	var amp := lerpf(wave_calm_amplitude, wave_amplitude, exposure)
 	var steepness := lerpf(wave_calm_steepness, wave_steepness, exposure)
 	var length := wave_base_length
-	var ang := 0.0
 	var horiz := Vector3.ZERO
 	var vert := 0.0
 	var swell_dir := Vector3.ZERO
@@ -301,6 +304,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		var chop_shallow := clampf(shore_depth * 0.4 / maxf(amp, 0.01), 0.0, 1.0)
 		var octave_weight := maxf(ocean_weight, chop_floor * chop_gate * chop_shallow)
 		var k := _TAU / maxf(length, 0.1)
+		var ang := _WAVE_FAN * sin(float(i) * _GOLDEN_ANGLE)
 		var ca := cos(ang)
 		var sa := sin(ang)
 		var dir_fixed := (gx * (base_dir.x * ca - base_dir.y * sa) + gy * (base_dir.x * sa + base_dir.y * ca)).normalized()
@@ -314,14 +318,13 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		# Distancia geodésica firmada al gran círculo de la ola. Su gradiente tangente
 		# tiene módulo 1, así la longitud de onda no cambia con latitud/longitud.
 		var signed_arc := local.length() * asin(dir_dot)
-		var phase := k * signed_arc + time * wave_speed * sqrt(k)
+		var phase := k * signed_arc + time * wave_speed * sqrt(k) + float(i) * _GOLDEN_ANGLE
 		horiz += dir_unit * (q * amp * cos(phase) * octave_weight)
 		vert += amp * sin(phase) * octave_weight
 		grad += dir_unit * (k * amp * cos(phase) * octave_weight)
 		n_up_sub += q * k * amp * sin(phase) * octave_weight
 		amp *= 0.5
-		length *= 0.5
-		ang += _GOLDEN_ANGLE
+		length *= _WAVE_LACUNARITY
 
 	if shore_presence > 0.001:
 		var seaward := -shore_dir

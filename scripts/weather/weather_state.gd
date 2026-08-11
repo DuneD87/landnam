@@ -35,6 +35,16 @@ var water_foam_multiplier: float = 1.0
 var water_steepness: float = 0.5
 var water_wave_length_mult: float = 1.0
 
+# Olas de orilla. Van por libre y no por los multiplicadores de mar abierto de arriba porque la
+# máscara de temporal las excluye por construcción: solo expone lo que está a más de storm_depth_start
+# metros de profundidad, y la rompiente vive justo donde no llega. Son multiplicadores sobre lo
+# autorado en el material (1.0 = el mar de siempre), no valores absolutos, para que el .tres siga
+# siendo el único sitio donde se decide cómo rompe este planeta.
+var water_shore_multiplier: float = 1.0
+var water_shore_steepness_mult: float = 1.0
+var water_shore_speed_mult: float = 1.0
+var water_shore_length_mult: float = 1.0
+
 var wetness: float = 0.0
 var snow_coverage: float = 0.0
 
@@ -52,6 +62,8 @@ const FIELDS: Array[StringName] = [
 	&"sun_energy", &"ambient_energy", &"atmosphere_scatter", &"wind_multiplier",
 	&"water_wave_multiplier", &"water_speed_multiplier", &"water_foam_multiplier", &"water_steepness",
 	&"water_wave_length_mult",
+	&"water_shore_multiplier", &"water_shore_steepness_mult", &"water_shore_speed_mult",
+	&"water_shore_length_mult",
 	&"wetness", &"snow_coverage",
 	&"rain_rate", &"snow_rate", &"lightning_frequency",
 ]

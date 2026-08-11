@@ -15,6 +15,23 @@ uniform vec3 wave_pole = vec3(0.0, 1.0, 0.0); // eje de referencia del marco de 
 
 const int WAVE_MAX = 6;
 
+// Abanico y lacunaridad del oleaje. Las dos existen para lo mismo: que la suma de octavas no sea
+// periódica, porque una suma de senos puros sí lo es y se lee como un mantel estampado.
+//
+// El abanico acota las direcciones a ±WAVE_FAN alrededor de wave_direction, con el ángulo áureo
+// SOLO como secuencia de baja discrepancia dentro de esa horquilla. Acumularlo (que es lo que se
+// hacía) reparte las seis octavas por los 360 grados y deja pares casi opuestos —la 4 a 190 grados
+// de la 0, la 5 a 190 de la 1—: dos trenes enfrentados son una onda estacionaria, y de ahí sale la
+// rejilla de crestas. Un mar real tiene el oleaje repartido en un abanico estrecho a favor del
+// viento, no en todas las direcciones a la vez.
+//
+// La lacunaridad tenía que ser 0.5 exacto, así que todas las octavas eran armónicas de la primera y
+// el patrón entero se repetía cada wave_base_length metros. Con un factor que no divide a la
+// fundamental el periodo común se va a cientos de metros. No se toca la caída de amplitud (sigue a
+// la mitad por octava): esa es la pendiente del espectro, no la que crea el estampado.
+const float WAVE_FAN = 0.7;
+const float WAVE_LACUNARITY = 0.53;
+
 // --- Máscara de temporal ---------------------------------------------------------------------
 // El clima sube el oleaje sobre un ÚNICO material para todo el planeta, así que sin esto una
 // tormenta levanta olas de mar abierto también dentro de un lago y en la rompiente. La máscara sale
@@ -244,12 +261,13 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
     float amp = mix(wave_calm_amplitude, wave_amplitude, ctx.exposure);
     float steepness = mix(wave_calm_steepness, wave_steepness, ctx.exposure);
     float len = wave_base_length;
-    float ang = 0.0;
     int octaves = clamp(wave_octaves, 1, WAVE_MAX);
 
     for (int i = 0; i < WAVE_MAX; i++) {
         if (i >= octaves) break;
         float k = 6.28318530718 / max(len, 0.1);
+        // La octava 0 va sin desviar: es la que define swell_dir y la dirección del mar.
+        float ang = WAVE_FAN * sin(float(i) * 2.399963);
         float ca = cos(ang);
         float sa = sin(ang);
         // Dirección de viaje fija en world (rotada por octava).
@@ -268,7 +286,9 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
         // Distancia geodésica firmada al gran círculo de la ola. Su gradiente tangente
         // tiene módulo 1: conserva la longitud de onda en vez de estirarla en el ecuador.
         float signed_arc = length(local) * asin(dir_dot);
-        float phase = k * signed_arc + t * wave_speed * sqrt(k);
+        // El desfase por octava es constante, así que no aporta gradiente y no puede rajar la malla.
+        // Sin él las seis octavas cruzan el cero a la vez sobre su gran círculo y ahí se alinean.
+        float phase = k * signed_arc + t * wave_speed * sqrt(k) + float(i) * 2.399963;
         float c = cos(phase);
         float s = sin(phase);
 
@@ -302,8 +322,7 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
         n_up_sub += q * k * amp * s * lod_weight;
 
         amp *= 0.5;
-        len *= 0.5;
-        ang += 2.399963; // ángulo áureo: dispersa las direcciones entre octavas
+        len *= WAVE_LACUNARITY;
     }
 
     // Familia de orilla: una sola ola cuya fase es la distancia al litoral. Suma a los mismos
