@@ -20,6 +20,9 @@ const BLOCK_DENSITY := 500.0
 const WATER_DENSITY := 1000.0
 const MIN_MASS := 10.0
 const MAX_WAVE_SAMPLES := 16
+## Sondas de ola cuando el casco tiene más cajas que MAX_WAVE_SAMPLES: una por cuadrante, que es el
+## mínimo para que haya par de cabeceo y de balance.
+const WAVE_PROBES := 4
 ## Cajas en que se agrega el casco para la flotación lejana (cuadrantes manga × eslora).
 const LOD_QUADRANTS := 4
 
@@ -44,6 +47,9 @@ var planet_node: Node3D = null
 ## los lee el comando 'drift' para comparar la velocidad del agua con la del barco.
 var last_water_flow: Vector3 = Vector3.ZERO
 var last_displaced_mass: float = 0.0
+## Muestras de ola independientes usadas en el último paso: con una sola, el casco flota sobre un
+## plano y no cabecea. Solo diagnóstico.
+var last_wave_samples: int = 0
 
 var _water_sampler: WaterHeightSampler = null
 var _wake_points: Array = []
@@ -427,14 +433,29 @@ func _physics_process(delta: float) -> void:
 		half_arr = _agg_half
 		vol_arr = _agg_vol
 
-	var shared_wave := vol_arr.size() > MAX_WAVE_SAMPLES
-	var wave_h_shared := 0.0
-	var flow_shared := Vector3.ZERO
-	if shared_wave:
-		wave_h_shared = _water_sampler.get_height_at(global_position, water_time, planet_pos)
-		flow_shared = _water_sampler.last_flow
-
 	var xf := global_transform
+
+	# Con más cajas que presupuesto de muestras el oleaje se resolvía en UN punto para todo el casco,
+	# y un barco sobre un plano horizontal ni cabecea ni balancea: el mar solo se notaba al alejarse,
+	# porque el LOD de cuadrantes sí muestrea en cuatro sitios. Aquí se hace lo mismo siempre, con
+	# sondas en los cuatro cuadrantes del casco y cada caja tomando la del suyo.
+	var probed := vol_arr.size() > MAX_WAVE_SAMPLES
+	var probe_h := PackedFloat32Array()
+	var probe_flow := PackedVector3Array()
+	var probe_center := Vector3.ZERO
+	last_wave_samples = WAVE_PROBES if probed else vol_arr.size()
+	if probed:
+		probe_center = _aggregate_box["pos"]
+		var quarter: Vector3 = (_aggregate_box["half"] as Vector3) * 0.5
+		probe_h.resize(WAVE_PROBES)
+		probe_flow.resize(WAVE_PROBES)
+		for q in WAVE_PROBES:
+			var probe_local := probe_center + Vector3(
+				quarter.x if (q & 1) != 0 else -quarter.x, 0.0,
+				quarter.z if (q & 2) != 0 else -quarter.z)
+			probe_h[q] = _water_sampler.get_height_at(xf * probe_local, water_time, planet_pos)
+			probe_flow[q] = _water_sampler.last_flow
+
 	var basis_w := xf.basis
 	var origin := xf.origin
 	var submerged_volume := 0.0
@@ -452,9 +473,15 @@ func _physics_process(delta: float) -> void:
 			+ absf((basis_w.z * half.z).dot(up))
 		h_half = maxf(h_half, 0.05)
 
-		var wave_h: float = wave_h_shared
-		var flow: Vector3 = flow_shared
-		if not shared_wave:
+		var wave_h: float
+		var flow: Vector3
+		if probed:
+			var local_c: Vector3 = pos_arr[i]
+			var q := (1 if local_c.x > probe_center.x else 0) \
+				+ (2 if local_c.z > probe_center.z else 0)
+			wave_h = probe_h[q]
+			flow = probe_flow[q]
+		else:
 			wave_h = _water_sampler.get_height_at(world_center, water_time, planet_pos)
 			flow = _water_sampler.last_flow
 		var water_r: float = base_water_radius + wave_h

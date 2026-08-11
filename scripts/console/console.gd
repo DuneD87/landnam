@@ -460,8 +460,9 @@ func _drift_report() -> String:
 	var bup: Vector3 = (boat.global_position - boat.planet_node.global_pos).normalized() \
 		if boat.planet_node else Vector3.UP
 	var rel_h := (rel - bup * rel.dot(bup)).length()
-	out += "  estela: %d puntos · %.2f m/s respecto al agua (mínimo %.2f)" % [
+	out += "  estela: %d puntos · %.2f m/s respecto al agua (mínimo %.2f)\n" % [
 		boat.get_wake_points().size(), rel_h, DynamicGridBody.WAKE_MIN_SPEED]
+	out += "  flotación: %d muestras de ola independientes" % boat.last_wave_samples
 	return out
 
 
