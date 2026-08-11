@@ -25,4 +25,5 @@ cloud_shadow_strength = 0.5
 cloud_group_strength = 2.99
 cloud_group_scale = 4.5
 fog_night_ambient = 0.08
+god_rays_exposure = 0.02
 metadata/_custom_type_script = "uid://cbk4obm06js3v"

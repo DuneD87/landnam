@@ -7,9 +7,10 @@ layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D depth_texture;
 
 // UBO en vez de SSBO: todos los hilos leen los mismos parámetros, así que van por la
-// constant cache. El tamaño (27) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd.
+// constant cache. El tamaño (33) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd
+// y con la declaración de god_rays.glsl, que comparte este mismo buffer.
 layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
-	vec4 data[27];
+	vec4 data[33];
 } params_buffer;
 
 // Rejilla de oclusión radial del WeatherOcclusionField (R = altura del techo de cueva). La niebla
@@ -30,6 +31,11 @@ layout(set = 0, binding = 4) uniform sampler3D cloud_noise_tex;
 // vez → sin repetición de patrón desde el espacio. La misma Image vive en CPU para que el
 // weather system pueda consultarla sin readback de GPU. Sampler: REPEAT en u, CLAMP en v.
 layout(set = 0, binding = 5) uniform sampler2D cloud_group_tex;
+
+// Máscara de emisión para el segundo pase (god_rays.glsl): 1 = cielo abierto, 0 = ocluido,
+// intermedio = nube. La escribe este shader porque es el único que sabe cuánta nube hay: el
+// depth buffer no ve el raymarch.
+layout(r8, set = 0, binding = 6) uniform restrict writeonly image2D occlusion_mask;
 
 #define P(i) params_buffer.data[i]
 
@@ -1062,6 +1068,7 @@ void main() {
 	// Profundidad de escena (Godot reverse-Z: cerca ~1, lejos/cielo ~0).
 	float depth_sample = texelFetch(depth_texture, pixel, 0).r;
 	bool has_scene_depth = depth_sample > 1e-7;
+
 	float scene_t = MAX_FLOAT;
 	if (has_scene_depth) {
 		vec3 scene_view_position = reconstruct_view_position(uv, depth_sample);
@@ -1082,6 +1089,13 @@ void main() {
 			scene_t = solid.x;
 		}
 	}
+
+	// Máscara de god rays, parte de geometría. Un oclusor cercano se descuenta (P(32).x de
+	// referencia): en pantalla tapa muchísimo, pero solo ensombrece el pedacito de aire que tiene
+	// detrás, no la columna entera. Se escribe antes del early-out de abajo para que ningún píxel
+	// conserve el valor del frame anterior; el bloque de nubes la reescribe.
+	float geo_mask = (scene_t < MAX_FLOAT) ? exp(-scene_t / max(P(32).x, 0.1)) : 1.0;
+	imageStore(occlusion_mask, pixel, vec4(geo_mask));
 
 	// Limita el recorrido por el terreno/objetos (clave para que se vea atmósfera sobre el suelo).
 	dst_through_atmo = min(dst_through_atmo, max(scene_t - dst_to_atmo, 0.0));
@@ -1206,6 +1220,11 @@ void main() {
 			cloud_jitter, pixel_angle,
 			cloud_col, cloud_trans, cloud_dist
 		);
+
+		// Las nubes ocluyen los god rays. Se toma la transmitancia EN CRUDO, antes de la
+		// perspectiva aérea de abajo: esa la abre para fundir las nubes lejanas con la bruma, y
+		// con ese valor el horizonte dejaría pasar rayos a través de la capa lejana.
+		imageStore(occlusion_mask, pixel, vec4(geo_mask * cloud_trans));
 
 		// Perspectiva aérea sobre las nubes. Se componen DELANTE de la atmósfera, así que sin
 		// esto `cloud_col` no recibe extinción ninguna: una nube a varios km se dibujaba a pleno

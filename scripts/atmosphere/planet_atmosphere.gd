@@ -4,8 +4,10 @@ class_name PlanetAtmosphere
 
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const NOISE_GEN_SHADER_PATH := "res://shaders/atmosphere/cloud_noise_gen.glsl"
+## Segundo pase (god rays screen-space). Comparte el UBO de params de este efecto.
+const GOD_RAYS_SHADER_PATH := "res://shaders/atmosphere/god_rays.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 27
+const PARAM_VEC4_COUNT := 33
 ## Lado de la textura 3D de ruido de nubes (RGBA8 → size³ × 4 bytes; 128 ≈ 8.4 MB de VRAM).
 const NOISE_TEX_SIZE := 128
 ## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
@@ -146,6 +148,68 @@ const GROUP_TEX_H := 128
 ## Pasos de la marcha de la sombra proyectada sobre el suelo.
 @export_range(1, 32, 1) var cloud_shadow_steps: int = 8
 
+@export_group("God Rays")
+## Shafts de luz screen-space (Mitchell): por cada píxel se marcha hacia el sol en pantalla
+## acumulando cuánto del trayecto es cielo abierto. Segundo pase de compute, después de las nubes.
+@export var god_rays_enabled: bool = true
+## Fracción de sun_intensity que alcanza un píxel con el camino al sol totalmente despejado.
+## Los rayos escalan con el sol, así que subir sun_intensity no obliga a re-tunear esto.
+@export_range(0.0, 0.5, 0.001) var god_rays_exposure: float = 0.05
+## Tinte de los shafts. Cálido por defecto (la luz que rasa la atmósfera se enrojece).
+@export var god_rays_tint: Color = Color(1.0, 0.92, 0.78)
+## Ángulo (grados) entre el eje de cámara y el sol al que los shafts se apagan del todo. El techo
+## son 89°: a 90° el sol cruza el plano de cámara y deja de tener proyección en pantalla.
+@export_range(10.0, 89.0, 1.0) var god_rays_max_angle: float = 85.0
+## Forma de ese fundido. 1 = casi igual de fuertes de lado que de frente, 3 = concentrado
+## alrededor del sol. Es el mando para "se ven poco salvo mirando al sol".
+@export_range(0.2, 5.0, 0.05) var god_rays_angle_falloff: float = 1.2
+## Longitud del trayecto marchado, como fracción de la distancia al sol en pantalla: 1 = hasta el
+## sol (rayos largos), 0.5 = medio camino. Bajar acorta los rayos y junta las muestras.
+@export_range(0.1, 1.0, 0.01) var god_rays_density: float = 0.85
+## Tope absoluto de esa longitud, en fracción de pantalla: mantiene las muestras juntas cuando el
+## sol se va lejos del encuadre. Subirlo alarga los rayos, y hay que compensar con más samples.
+@export_range(0.1, 2.0, 0.05) var god_rays_max_length: float = 0.6
+## Atenuación por paso. Más bajo = rayos que se apagan rápido cerca del sol; cerca de 1 = shafts
+## largos que cruzan la pantalla. No afecta al brillo de pico (la acumulación va normalizada).
+@export_range(0.5, 1.0, 0.005) var god_rays_decay: float = 0.96
+## Muestras por píxel. Cada una es un tap a la máscara: es el único coste real del efecto.
+## Por debajo de ~32 aparecen bandas radiales en las siluetas grandes.
+@export_range(4, 128, 1) var god_rays_samples: int = 48
+## Ancho del desparramo de las muestras a lo ancho del rayo, en fracción de pantalla. Difumina el
+## borde de los shafts y crece con la distancia recorrida (penumbra). 0 = bordes de sierra.
+@export_range(0.0, 0.05, 0.001) var god_rays_blur: float = 0.006
+## Cuánto varía el brillo de un haz a otro. 0 = abanico plano y muerto.
+@export_range(0.0, 1.0, 0.01) var god_rays_shimmer: float = 0.35
+## Tamaño del patrón de haces EN METROS: el ruido está anclado al mundo y hace paralaje al
+## desplazarte. Bajo = muchos haces finos.
+@export_range(2.0, 400.0, 1.0) var god_rays_shimmer_size: float = 60.0
+## Velocidad a la que deriva ese patrón. Muy bajo a propósito: por encima de ~0.3 se lee como
+## interferencia en vez de como aire en movimiento.
+@export_range(0.0, 1.0, 0.005) var god_rays_shimmer_speed: float = 0.05
+## Ondulación de los haces, en radianes. Los curva como aire caliente; sobre ~0.06 empiezan a
+## despegarse de su oclusor.
+@export_range(0.0, 0.15, 0.001) var god_rays_wobble: float = 0.02
+## Distancia (m) en la que el aire acumula el grueso de la dispersión: a esta distancia un píxel
+## recibe el 63% del shaft y a un cuarto de ella, el 22%. Es lo que hace que los rayos se lean
+## como haces en el espacio y no como una calca. También ancla la profundidad del shimmer.
+@export_range(5.0, 2000.0, 5.0) var god_rays_scatter_distance: float = 150.0
+## Distancia (m) a la que un oclusor pasa a bloquear del todo. Lo muy cercano se descuenta porque
+## solo ensombrece el aire que tiene detrás, no la columna entera: es el mando contra los abanicos
+## de sombra que salen de la borda o del marco de una escotilla.
+@export_range(1.0, 300.0, 1.0) var god_rays_occluder_distance: float = 20.0
+## Fracción de pantalla en la que se apagan las muestras que caen fuera del encuadre (leen el píxel
+## del borde y lo convertirían en una raya dura). Bajarlo mata la raya y acorta los rayos.
+@export_range(0.01, 1.0, 0.01) var god_rays_edge_fade: float = 0.15
+## 0 = normal, 1 = máscara de oclusión cruda (incluye nubes) + cruz en la posición proyectada del
+## sol (verde = activo, rojo = gateado), 2 = solo los rayos sobre negro, 3 = solo la atenuación
+## por distancia (negro = primer plano, blanco = cielo).
+@export_enum("Off:0", "Occlusion mask:1", "Rays only:2", "Depth falloff:3") var god_rays_debug: int = 0
+
+## Escalas por evento climático que empuja el WeatherController. Sin exportar a propósito: así el
+## inspector sigue siendo la referencia y un guardado del .tres no puede pisar el tuning.
+var god_rays_weather_strength: float = 1.0
+var god_rays_weather_reach: float = 1.0
+
 var rd: RenderingDevice
 var shader: RID
 var pipeline: RID
@@ -156,6 +220,14 @@ var noise_tex: RID
 var noise_sampler: RID
 var _noise_gen_shader: RID
 var _noise_gen_pipeline: RID
+
+var _god_rays_shader: RID
+var _god_rays_pipeline: RID
+## Máscara de oclusión (R8) que escribe el pase de atmósfera y lee el de god rays. Una por vista,
+## recreadas al cambiar el tamaño interno del render.
+var _mask_textures: Array[RID] = []
+var _mask_size := Vector2i.ZERO
+var _mask_sampler: RID
 
 var group_tex: RID
 var group_sampler: RID
@@ -210,6 +282,15 @@ func set_planet_data(
 	if p_sun_direction.length_squared() > 0.000001:
 		sun_direction = p_sun_direction.normalized()
 
+	_params_mutex.unlock()
+
+
+## La empuja el WeatherController por evento: aire con más vapor o polvo dispersa más (shafts más
+## marcados) y a menos distancia (shafts que ya se ven en el primer plano, como en la niebla).
+func set_god_ray_weather(strength: float, reach: float) -> void:
+	_params_mutex.lock()
+	god_rays_weather_strength = maxf(strength, 0.0)
+	god_rays_weather_reach = maxf(reach, 0.01)
 	_params_mutex.unlock()
 
 
@@ -344,10 +425,76 @@ func _initialize_compute() -> void:
 	group_state.repeat_v = RenderingDevice.SAMPLER_REPEAT_MODE_CLAMP_TO_EDGE
 	group_sampler = rd.sampler_create(group_state)
 
+	# Máscara de oclusión: LINEAR para que el filtrado bilineal suavice el rayo gratis, y CLAMP
+	# para que los taps que se salen de pantalla (sol fuera del encuadre) repitan el borde.
+	var mask_state := RDSamplerState.new()
+	mask_state.min_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
+	mask_state.mag_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
+	mask_state.repeat_u = RenderingDevice.SAMPLER_REPEAT_MODE_CLAMP_TO_EDGE
+	mask_state.repeat_v = RenderingDevice.SAMPLER_REPEAT_MODE_CLAMP_TO_EDGE
+	_mask_sampler = rd.sampler_create(mask_state)
+
 	_generate_cloud_noise()
 	_create_group_texture()
+	_initialize_god_rays()
 
 	print("PlanetAtmosphere: compute initialized OK.")
+
+
+## Segundo pase de god rays. Su fallo NO tumba el efecto: el pipeline queda inválido y
+## _render_callback se salta el dispatch, así que la atmósfera sigue funcionando sin shafts.
+func _initialize_god_rays() -> void:
+	var spirv := _load_compute_spirv(GOD_RAYS_SHADER_PATH)
+	if spirv == null or spirv.compile_error_compute != "" or spirv.bytecode_compute.is_empty():
+		push_error("PlanetAtmosphere: god rays deshabilitados (shader no compiló).")
+		return
+
+	_god_rays_shader = rd.shader_create_from_spirv(spirv)
+	if not _god_rays_shader.is_valid():
+		push_error("PlanetAtmosphere: shader de god rays inválido.")
+		return
+
+	_god_rays_pipeline = rd.compute_pipeline_create(_god_rays_shader)
+	if not _god_rays_pipeline.is_valid():
+		push_error("PlanetAtmosphere: pipeline de god rays inválido.")
+
+
+## Máscara de oclusión, una por vista, al tamaño interno del render. La necesita SIEMPRE el pase
+## de atmósfera (declara el binding 6 incondicionalmente), no solo los god rays. Devuelve false si
+## no se pudo crear, y entonces no hay dispatch que valga.
+func _ensure_masks(size: Vector2i, view_count: int) -> bool:
+	if _mask_size == size and _mask_textures.size() >= view_count:
+		return true
+
+	for tex in _mask_textures:
+		if tex.is_valid():
+			rd.free_rid(tex)
+	_mask_textures.clear()
+	_mask_size = Vector2i.ZERO
+
+	var format := RDTextureFormat.new()
+	format.format = RenderingDevice.DATA_FORMAT_R8_UNORM
+	format.width = size.x
+	format.height = size.y
+	format.usage_bits = (
+		RenderingDevice.TEXTURE_USAGE_STORAGE_BIT
+		| RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT
+	)
+
+	if not rd.texture_is_format_supported_for_usage(format.format, format.usage_bits):
+		push_error("PlanetAtmosphere: R8_UNORM no soporta storage+sampling en esta GPU.")
+		return false
+
+	var view := RDTextureView.new()
+	for i in view_count:
+		var tex := rd.texture_create(format, view, [])
+		if not tex.is_valid():
+			push_error("PlanetAtmosphere: no se pudo crear la máscara de oclusión.")
+			return false
+		_mask_textures.append(tex)
+
+	_mask_size = size
+	return true
 
 
 ## Genera la textura 3D de ruido de nubes en GPU, una sola vez. Si algo falla, noise_tex
@@ -540,6 +687,21 @@ func _free_compute() -> void:
 	_noise_gen_shader = RID()
 	_noise_gen_pipeline = RID()
 
+	if _god_rays_shader.is_valid():
+		rd.free_rid(_god_rays_shader)
+	_god_rays_shader = RID()
+	_god_rays_pipeline = RID()
+
+	for tex in _mask_textures:
+		if tex.is_valid():
+			rd.free_rid(tex)
+	_mask_textures.clear()
+	_mask_size = Vector2i.ZERO
+
+	if _mask_sampler.is_valid():
+		rd.free_rid(_mask_sampler)
+	_mask_sampler = RID()
+
 	if shader.is_valid():
 		rd.free_rid(shader)
 	shader = RID()
@@ -581,6 +743,11 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 
 	var view_count: int = render_scene_buffers.get_view_count()
 	_ensure_params_buffers(view_count)
+
+	# El pase de atmósfera declara la máscara de oclusión en el binding 6, así que sin ella no se
+	# puede completar el uniform set y no hay nada que despachar.
+	if not _ensure_masks(size, view_count):
+		return
 
 	@warning_ignore("integer_division")
 	var x_groups: int = (size.x - 1) / LOCAL_SIZE + 1
@@ -646,10 +813,21 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		group_uniform.add_id(group_sampler)
 		group_uniform.add_id(group_tex)
 
+		# Binding 6: la escribe este pase como writeonly image, la lee el siguiente filtrada.
+		var mask_tex: RID = _mask_textures[view]
+
+		var mask_image_uniform := RDUniform.new()
+		mask_image_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
+		mask_image_uniform.binding = 6
+		mask_image_uniform.add_id(mask_tex)
+
 		var uniform_set := UniformSetCacheRD.get_cache(
 			shader,
 			0,
-			[color_uniform, depth_uniform, params_uniform, occ_uniform, noise_uniform, group_uniform]
+			[
+				color_uniform, depth_uniform, params_uniform,
+				occ_uniform, noise_uniform, group_uniform, mask_image_uniform
+			]
 		)
 
 		var compute_list := rd.compute_list_begin()
@@ -657,6 +835,33 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 		rd.compute_list_dispatch(compute_list, x_groups, y_groups, 1)
 		rd.compute_list_end()
+
+		# Pase 2: god rays. En su PROPIA compute list para que la barrera implícita del
+		# compute_list_end() de arriba garantice que la máscara ya está escrita.
+		if god_rays_enabled and _god_rays_pipeline.is_valid():
+			var mask_sampled_uniform := RDUniform.new()
+			mask_sampled_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+			mask_sampled_uniform.binding = 1
+			mask_sampled_uniform.add_id(_mask_sampler)
+			mask_sampled_uniform.add_id(mask_tex)
+
+			# Binding 3: el depth, para la atenuación por distancia. El 1 lo ocupa la máscara.
+			var rays_depth_uniform := RDUniform.new()
+			rays_depth_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+			rays_depth_uniform.binding = 3
+			rays_depth_uniform.add_id(depth_sampler)
+			rays_depth_uniform.add_id(depth_image)
+
+			var rays_set := UniformSetCacheRD.get_cache(
+				_god_rays_shader,
+				0,
+				[color_uniform, mask_sampled_uniform, params_uniform, rays_depth_uniform]
+			)
+			var rays_list := rd.compute_list_begin()
+			rd.compute_list_bind_compute_pipeline(rays_list, _god_rays_pipeline)
+			rd.compute_list_bind_uniform_set(rays_list, rays_set, 0)
+			rd.compute_list_dispatch(rays_list, x_groups, y_groups, 1)
+			rd.compute_list_end()
 
 
 func _ensure_params_buffers(count: int) -> void:
@@ -745,6 +950,8 @@ func _build_params_bytes(
 	var local_occ_span        := _occ_span
 	var local_occ_below       := _occ_below
 	var local_occ_margin      := _occ_margin
+	var local_ray_strength    := god_rays_weather_strength
+	var local_ray_reach       := god_rays_weather_reach
 	_params_mutex.unlock()
 
 	var floats := PackedFloat32Array()
@@ -852,7 +1059,93 @@ func _build_params_bytes(
 	# (absoluto, sin escalar por sun_intensity). .zw libres.
 	_append_vec4(floats, Vector4(local_size_variation, local_fog_night_amb, 0.0, 0.0))
 
+	# P(27-32): god rays. Los consume god_rays.glsl salvo P(32).x, que lo aplica el shader de
+	# atmósfera al escribir la máscara.
+	# P(27): tinte (.rgb) + exposición (.w), escalada por el clima.
+	_append_vec4(floats, Vector4(
+		god_rays_tint.r, god_rays_tint.g, god_rays_tint.b,
+		god_rays_exposure * local_ray_strength
+	))
+
+	# P(28): .x=densidad (fracción del trayecto al sol), .y=decay por paso, .z=nº de muestras,
+	# .w=ancho del desparramo perpendicular (blur).
+	_append_vec4(floats, Vector4(
+		god_rays_density, god_rays_decay, god_rays_samples, god_rays_blur
+	))
+
+	# P(29): .xy=posición del sol en pantalla, .z=visibilidad [0,1], .w=habilitado.
+	var sun_screen := _build_god_ray_sun(cam_transform, cam_origin, projection, local_sun_dir, local_center)
+	_append_vec4(floats, Vector4(
+		sun_screen.x, sun_screen.y, sun_screen.z, 1.0 if god_rays_enabled else 0.0
+	))
+
+	# P(30): .x=modo debug, .y=fuerza del shimmer, .z=frecuencia del patrón (ciclos por metro, de
+	# ahí la inversa del tamaño), .w=deriva acumulada (tiempo × velocidad).
+	var shimmer_offset := (Time.get_ticks_msec() / 1000.0) * god_rays_shimmer_speed
+	_append_vec4(floats, Vector4(
+		god_rays_debug, god_rays_shimmer,
+		1.0 / maxf(god_rays_shimmer_size, 0.1), shimmer_offset
+	))
+
+	# P(31): .x=ondulación de los haces (radianes), .y=tope de longitud del trayecto,
+	# .z=distancia de dispersión (m), acortada por el clima. .w libre.
+	_append_vec4(floats, Vector4(
+		god_rays_wobble, god_rays_max_length,
+		god_rays_scatter_distance * local_ray_reach, 0.0
+	))
+
+	# P(32): .x=distancia de descuento de oclusores cercanos (m), .y=fundido de los taps fuera de
+	# encuadre. .zw libres.
+	_append_vec4(floats, Vector4(
+		god_rays_occluder_distance, god_rays_edge_fade, 0.0, 0.0
+	))
+
 	return floats.to_byte_array()
+
+
+## Proyecta el sol (direccional, a distancia infinita) a coordenadas de pantalla y devuelve
+## (uv.x, uv.y, visibilidad). La visibilidad funde en un solo escalar los tres casos en los que
+## los shafts no deben dibujarse: sol a la espalda, sol fuera de pantalla y sol bajo el horizonte.
+func _build_god_ray_sun(
+	cam_transform: Transform3D,
+	cam_origin: Vector3,
+	projection: Projection,
+	sun_dir: Vector3,
+	center: Vector3
+) -> Vector3:
+	# Mundo -> vista. La base de una cámara es ortonormal, así que la inversa es la transpuesta.
+	var sun_view: Vector3 = cam_transform.basis.inverse() * sun_dir
+
+	# La cámara mira a -Z: con z >= 0 el sol está detrás y la proyección lo devolvería ESPEJADO
+	# dentro de la pantalla, o sea rayos saliendo del sitio equivocado.
+	if sun_view.z >= -0.0001:
+		return Vector3(0.5, 0.5, 0.0)
+
+	var clip: Vector4 = projection * Vector4(sun_view.x, sun_view.y, sun_view.z, 0.0)
+	if absf(clip.w) < 0.0001:
+		return Vector3(0.5, 0.5, 0.0)
+
+	# Misma convención de uv que el compute (ndc * 0.5 + 0.5, fila 0 arriba). El clamp es una red
+	# contra el sol casi tangente al plano de cámara, y por eso deja tanto sitio fuera de pantalla:
+	# a ángulos medios el sol cae a varios encuadres y de ahí sale la DIRECCIÓN de los shafts.
+	var uv := Vector2(clip.x / clip.w, clip.y / clip.w) * 0.5 + Vector2(0.5, 0.5)
+	uv.x = clampf(uv.x, -64.0, 65.0)
+	uv.y = clampf(uv.y, -64.0, 65.0)
+
+	# Fundido angular, no por cuánto se sale el sol de pantalla: medirlo en uv ata el efecto al FOV
+	# y al aspecto, y dejaba los rayos muertos a pocos grados del borde.
+	var forward := -cam_transform.basis.z
+	var angle := acos(clampf(forward.dot(sun_dir), -1.0, 1.0))
+	var t := clampf(angle / deg_to_rad(maxf(god_rays_max_angle, 1.0)), 0.0, 1.0)
+	var visibility: float = pow(1.0 - t, maxf(god_rays_angle_falloff, 0.05))
+
+	# Fundido bajo el horizonte, medido en el OBSERVADOR. El margen negativo deja que el atardecer,
+	# cuando mejor lucen, llegue hasta un poco después de la puesta.
+	var up := cam_origin - center
+	if up.length_squared() > 0.000001:
+		visibility *= smoothstep(-0.12, 0.02, up.normalized().dot(sun_dir))
+
+	return Vector3(uv.x, uv.y, visibility)
 
 
 func _append_vec4(array: PackedFloat32Array, value: Vector4) -> void:

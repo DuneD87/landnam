@@ -522,6 +522,7 @@ func _apply_state(st: WeatherState) -> void:
 		_atmosphere.cloud_shadow_strength = st.cloud_shadow
 		_atmosphere.cloud_albedo = clampf(st.cloud_albedo, 0.0, 1.0)
 		_atmosphere.atmosphere_scatter = clampf(st.atmosphere_scatter, 0.0, 1.0)
+		_atmosphere.set_god_ray_weather(st.god_ray_strength, st.god_ray_reach)
 		_atmosphere.cloud_min_height = st.cloud_min_height
 		_atmosphere.cloud_max_height = maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
 		_atmosphere.cloud_wind_speed = st.cloud_wind_speed
@@ -784,6 +785,7 @@ func _builtin_events() -> Dictionary:
 			"cloud_shadow": 1.0, "cloud_min_height": 300.0, "cloud_max_height": 800.0,
 			"cloud_wind_speed": 0.06, "sun_energy": 0.3, "ambient_energy": 0.5,
 			"atmosphere_scatter": 0.15,
+			"god_ray_strength": 1.2, "god_ray_reach": 0.4,
 			"wind_multiplier": 2.4, "water_wave_multiplier": 2.2,
 			"water_speed_multiplier": 1.7, "water_foam_multiplier": 2.5,
 			"water_steepness": 0.9, "water_wave_length_mult": 1.6,
@@ -797,6 +799,7 @@ func _builtin_events() -> Dictionary:
 			"cloud_shadow": 0.8, "cloud_min_height": 350.0, "cloud_max_height": 700.0,
 			"cloud_wind_speed": 0.04, "sun_energy": 0.7, "ambient_energy": 0.8,
 			"atmosphere_scatter": 0.5,
+			"god_ray_strength": 1.6, "god_ray_reach": 0.5,
 			"wind_multiplier": 1.3, "snow_coverage": 1.0, "snow_rate": 1.0,
 			"water_wave_multiplier": 0.5, "water_speed_multiplier": 0.8,
 			"water_foam_multiplier": 0.5, "water_steepness": 0.3, "water_wave_length_mult": 1.0,
@@ -807,6 +810,7 @@ func _builtin_events() -> Dictionary:
 			"cloud_coverage": 0.45, "cloud_density": 0.5, "cloud_absorption": 0.14,
 			"cloud_shadow": 0.6, "cloud_min_height": 500.0, "cloud_max_height": 850.0,
 			"cloud_wind_speed": 0.1, "sun_energy": 0.9, "ambient_energy": 0.95,
+			"god_ray_strength": 0.85, "god_ray_reach": 1.25,
 			"wind_multiplier": 3.2, "water_wave_multiplier": 1.6,
 			"water_speed_multiplier": 1.7, "water_foam_multiplier": 1.7,
 			"water_steepness": 0.7, "water_wave_length_mult": 1.3,
@@ -817,6 +821,7 @@ func _builtin_events() -> Dictionary:
 			"cloud_shadow": 0.3, "cloud_min_height": 500.0, "cloud_max_height": 800.0,
 			"cloud_wind_speed": 0.03, "sun_energy": 0.6, "ambient_energy": 0.8,
 			"atmosphere_scatter": 0.5,
+			"god_ray_strength": 2.4, "god_ray_reach": 0.25,
 			"wind_multiplier": 0.5, "water_wave_multiplier": 0.3,
 			"water_speed_multiplier": 0.6, "water_foam_multiplier": 0.3,
 			"water_steepness": 0.2, "water_wave_length_mult": 0.9,

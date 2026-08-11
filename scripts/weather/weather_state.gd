@@ -27,6 +27,12 @@ var ambient_energy: float = 1.0
 
 var atmosphere_scatter: float = 1.0
 
+# God rays: multiplicadores sobre lo tuneado en el PlanetAtmosphere (1.0 = tal cual el inspector),
+# no valores absolutos. Aire cargado de vapor o polvo dispersa más y antes, así que la niebla
+# quiere `strength` alto y `reach` bajo: haces marcados que ya se ven en el primer plano.
+var god_ray_strength: float = 1.0
+var god_ray_reach: float = 1.0
+
 var wind_multiplier: float = 1.0
 
 var water_wave_multiplier: float = 1.0
@@ -60,6 +66,7 @@ const FIELDS: Array[StringName] = [
 	&"fog_density", &"fog_coverage", &"fog_group", &"fog_wind_speed",
 	&"fog_floor_height", &"fog_top_height",
 	&"sun_energy", &"ambient_energy", &"atmosphere_scatter", &"wind_multiplier",
+	&"god_ray_strength", &"god_ray_reach",
 	&"water_wave_multiplier", &"water_speed_multiplier", &"water_foam_multiplier", &"water_steepness",
 	&"water_wave_length_mult",
 	&"water_shore_multiplier", &"water_shore_steepness_mult", &"water_shore_speed_mult",
