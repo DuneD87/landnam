@@ -1,8 +1,7 @@
-// Envolvente que agrupa la rompiente en tramos, compartida por el agua (gerstner_waves.gdshaderinc,
-// donde modula fase y amplitud de la ola de orilla) y por el terreno (planet_biomes.gdshader, donde
-// coloca la lámina de swash sobre la playa). Vive en su propio archivo porque el terreno no puede
-// incluir gerstner_waves: se traería treinta uniforms de mapas de temporal y campos de costa que no
-// usa. Aquí no hay uniforms, solo la función, así que incluirla no cuesta nada.
+// Envolvente que agrupa la rompiente en tramos; modula fase y amplitud de la ola de orilla en
+// gerstner_waves.gdshaderinc. Vive en su propio archivo para poder incluirla desde un shader que no
+// pueda traerse gerstner_waves entero: allí hay treinta uniforms de mapas de temporal y campos de
+// costa. Aquí no hay uniforms, solo la función, así que incluirla no cuesta nada.
 //
 // Sin esto phase = distancia hace que cada isodistancia sea una cresta continua durante cientos de
 // metros. La escala (~250-350 m por ciclo) es muy superior a shore_length y no altera de forma

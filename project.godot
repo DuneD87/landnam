@@ -227,7 +227,3 @@ u_world_offset={
 "type": "vec3",
 "value": Vector3(0, 0, 0)
 }
-u_shore_swash={
-"type": "vec4",
-"value": Vector4(0, 0, 0, 0)
-}
