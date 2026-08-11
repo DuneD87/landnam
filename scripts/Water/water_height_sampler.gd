@@ -51,12 +51,29 @@ const _TAU := 6.28318530718
 const _INVERT_ITERATIONS := 3
 
 
-## Réplica CPU de shore_breakup() en gerstner_waves.gdshaderinc.
-static func _shore_breakup(local: Vector3, time: float) -> float:
+## Réplica CPU de shore_breakup() en shore_breakup.gdshaderinc: rotura de la ola de orilla.
+## x = desplazamiento de fase en radianes; y = factor de amplitud en [0,1].
+static func _shore_breakup(local: Vector3, time: float, wavelength: float) -> Vector2:
+	var wl := maxf(wavelength, 1.0)
+
 	var p := local / 55.0
 	var a := sin(p.dot(Vector3(0.73, 0.21, 0.65)) + time * 0.037)
 	var b := sin(p.dot(Vector3(-0.31, 0.88, 0.36)) * 1.37 + 1.7 - time * 0.026)
-	return clampf(0.5 + a * 0.325 + b * 0.175, 0.0, 1.0)
+	var env := clampf(0.5 + a * 0.325 + b * 0.175, 0.0, 1.0)
+
+	var m1 := local * (_TAU / (wl * 3.0))
+	var m2 := local * (_TAU / (wl * 1.5))
+	var w1 := sin(m1.dot(Vector3(0.83, -0.28, 0.48)) + time * 0.19)
+	var w2 := sin(m2.dot(Vector3(-0.37, 0.62, 0.69)) + 1.3 - time * 0.31)
+
+	var c1 := local * (_TAU / (wl * 4.0))
+	var e1 := sin(c1.dot(Vector3(0.29, 0.75, -0.60)) + time * 0.13)
+	var e2 := sin(c1.dot(Vector3(-0.71, 0.41, 0.57)) * 1.63 - time * 0.11)
+	var cells := clampf(0.5 + e1 * 0.34 + e2 * 0.22, 0.0, 1.0)
+
+	var packet := env * 0.5 + cells * 0.5
+	return Vector2((env - 0.5) * 0.9 + w1 * 0.85 + w2 * 0.25,
+		lerpf(0.25, 1.0, smoothstep(0.2, 0.8, packet)))
 
 ## Lee del material los parámetros que intervienen en la altura de ola. 'planet_map' es opcional;
 ## ver el comentario de 'world_map'. 'surface_radius' solo lo necesita get_surface_at (la línea de
@@ -321,10 +338,9 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		var k := _TAU / maxf(shore_length, 0.1)
 		var amp_ref := minf(shore_amplitude * shoal, shore_length * 0.08)
 		var q := shore_steepness / maxf(k * amp_ref, 1e-4)
-		var breakup := _shore_breakup(local, time)
-		var phase := (k * shore_signed_dist + time * shore_speed * sqrt(k)
-			+ (breakup - 0.5) * 0.9)
-		w *= lerpf(0.25, 1.0, smoothstep(0.2, 0.8, breakup))
+		var breakup := _shore_breakup(local, time, shore_length)
+		var phase := k * shore_signed_dist + time * shore_speed * sqrt(k) + breakup.x
+		w *= breakup.y
 		# Solo el arrastre horizontal se reduce cuando dos riberas dan direcciones opuestas. La
 		# amplitud vertical y la cresta permanecen continuas, evitando tanto picos como cortes.
 		horiz += seaward * (q * amp_ref * cos(phase) * w * shore_quality)

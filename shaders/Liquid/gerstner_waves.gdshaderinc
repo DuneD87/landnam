@@ -150,10 +150,10 @@ uniform float shore_handover : hint_range(0.05, 1.0, 0.01) = 0.35;
 uniform float shore_chop : hint_range(0.0, 10.0, 0.01) = 0.35;
 uniform int shore_debug_mode : hint_range(0, 5) = 0;                 // ver shore_debug_color
 
-// shore_breakup(): envolvente que agrupa la rompiente en tramos. Vive en su propio include para que
-// pueda usarla un shader incapaz de traerse este archivo entero (aquí hay treinta uniforms).
-// Su aporte a la frecuencia de la ola es del orden del 5% de la suya, invisible como cambio de
-// velocidad.
+// shore_breakup(): dobla la cresta y la parte en tramos. Vive en su propio include para que pueda
+// usarla un shader incapaz de traerse este archivo entero (aquí hay treinta uniforms). Su aporte al
+// gradiente de la fase está acotado a ~0.45k, así que deforma la ola sin poder plegarla; el
+// razonamiento está en ese archivo.
 #include "res://shaders/liquid/shore_breakup.gdshaderinc"
 
 // Suma de olas de Gerstner planetarias. Cada dirección fija define un ecuador propio y la fase
@@ -347,12 +347,11 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
         float q = shore_steepness / max(k * amp_ref, 1e-4);
         // W es firmada: incluso si el litoral grueso coloca este vértice visible en su lado tierra,
         // su gradiente sigue apuntando mar adentro y la fase avanza siempre hacia tierra.
-        float breakup = shore_breakup(local, t);
-        float phase = k * ctx.shore_field.w + t * shore_speed * sqrt(k)
-            + (breakup - 0.5) * 0.9;
+        vec2 breakup = shore_breakup(local, t, shore_length);
+        float phase = k * ctx.shore_field.w + t * shore_speed * sqrt(k) + breakup.x;
         // La superficie nunca queda inmóvil, pero el tramo débil cae por debajo del umbral de
         // espuma y corta visualmente la cinta continua.
-        w *= mix(0.25, 1.0, smoothstep(0.2, 0.8, breakup));
+        w *= breakup.y;
         float cs = cos(phase);
         float sn = sin(phase);
 
@@ -417,9 +416,9 @@ vec3 shore_debug_color(vec3 local, float t) {
 
     if (shore_debug_mode == 2) {
         float k = 6.28318530718 / max(shore_length, 0.1);
-        float breakup = shore_breakup(local, t);
+        vec2 breakup = shore_breakup(local, t, shore_length);
         float band = fract((k * field.w + t * shore_speed * sqrt(k)
-            + (breakup - 0.5) * 0.9) / 6.28318530718);
+            + breakup.x) / 6.28318530718);
         return mix(vec3(0.05, 0.1, 0.25), vec3(1.0), step(0.5, band));
     }
     if (shore_debug_mode == 3) {
@@ -435,7 +434,7 @@ vec3 shore_debug_color(vec3 local, float t) {
     }
     float lee = mix(1.0, mix(0.35, 1.0, smoothstep(-0.9, 0.6, dot(swell_direction(d), -seaward))),
                     shore_incidence);
-    float packet = mix(0.25, 1.0, smoothstep(0.2, 0.8, shore_breakup(local, t)));
+    float packet = shore_breakup(local, t, shore_length).y;
     return vec3(gate * shoreline_fade * lee * packet);
 }
 
