@@ -67,6 +67,9 @@ uniform float slope_height_blend_sharpness : hint_range(0.02, 1.0) = 0.2;
 // 0=off, 1=mascara de pendiente (rojo=slope puro), 2=angulo crudo en grados/90,
 // 3=roughness final. Para tunear slope_threshold/smoothness viendo lo que decide.
 uniform int debug_slope_view : hint_range(0, 3) = 0;
+// Vista del factor de brillo que aplica el detail blend, sin luz: gris medio = neutro (1.0),
+// mas oscuro = oscurece la textura, mas claro = la aclara. Para tunear detail_blend_weight.
+uniform bool debug_detail_blend_view = false;
 uniform float transition_smoothness = 0.5;
 
 uniform float biome_transition_smoothness = 1.0; // nueva uniform para suavizar transiciones
@@ -77,7 +80,7 @@ uniform float height_transition_noise_strength : hint_range(0.0, 200.0) = 35.0;
 uniform float height_blend_strength : hint_range(0.0, 1.0) = 0.45;
 uniform float height_blend_contrast : hint_range(0.25, 4.0) = 1.8;
 uniform float texture_scale = 0.5;
-uniform float normal_strength : hint_range(0.0, 4.0) = 2.0;
+uniform float normal_strength : hint_range(0.0, 4.0) = 1.5;
 
 uniform bool parallax_enabled = false;
 uniform float parallax_strength : hint_range(0.0, 3.0) = 0.09;
@@ -208,10 +211,11 @@ void fragment() {
     }
 
     vec3 slope_color = triplanar_sample_uvs(slope_texture, slope_uvs, planet_up);
+    float slope_detail_factor = 1.0;
     if (detail_blend_enabled) {
         TriplanarUVs slope_uvs_detail = compute_triplanar_uvs(planet_pos, texture_scale * detail_scale_multiplier);
-        vec3 slope_detail = triplanar_sample_uvs(slope_texture, slope_uvs_detail, planet_up);
-        slope_color = mix(slope_color, slope_color * slope_detail * 2.0, detail_blend_weight);
+        slope_detail_factor = detail_blend_factor(slope_texture, slope_uvs_detail, planet_up, detail_blend_weight);
+        slope_color *= slope_detail_factor;
     }
     vec4 slope_n_v    = triplanar_normal_sample_uvs_v(slope_normal_texture, slope_uvs, normal_world);
 	vec3 slope_normal = slope_n_v.xyz;
@@ -244,6 +248,7 @@ void fragment() {
     // Altura media de los materiales de bioma en este fragmento; es el lado "bioma" del
     // height blend contra la pendiente. Solo se acumula si ese blend esta activo.
     float final_material_height = 0.0;
+    float final_detail_factor = 0.0; // solo para debug_detail_blend_view
 
     for (int b = 0; b < biome_count; b++) {
         float biome_weight = biome_weights[b];
@@ -348,11 +353,11 @@ void fragment() {
 
             // planet_up como eje de mezcla triplanar: invariante al LOD y a la normal del mesh.
             vec3 c = triplanar_sample_uvs(textures[tex_index], uvs, planet_up);
+			float c_detail_factor = 1.0;
 			if (detail_blend_enabled) {
 			    TriplanarUVs uvs_detail = compute_triplanar_uvs(planet_pos, texture_scale * detail_scale_multiplier);
-			    vec3 c_detail = triplanar_sample_uvs(textures[tex_index], uvs_detail, planet_up);
-			    // Mezcla overlay tipo "detail" — preserva luminancia base
-			    c = mix(c, c * c_detail * 2.0, detail_blend_weight);
+			    c_detail_factor = detail_blend_factor(textures[tex_index], uvs_detail, planet_up, detail_blend_weight);
+			    c *= c_detail_factor;
 			}
             vec4 n_v = triplanar_normal_sample_uvs_v(normal_textures[tex_index], uvs, normal_world);
 
@@ -365,6 +370,7 @@ void fragment() {
             final_roughness += r * base_factor;
             final_ao        += ao * base_factor;
             total_factor    += base_factor;
+            final_detail_factor += c_detail_factor * base_factor;
 
             if (override_factor > 0.001) {
                 TriplanarUVs override_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
@@ -396,6 +402,7 @@ void fragment() {
                 final_roughness += override_r * override_factor;
                 final_ao        += override_ao * override_factor;
                 total_factor    += override_factor;
+                final_detail_factor += override_factor; // el override no pasa por detail blend
             }
         }
     }
@@ -425,9 +432,11 @@ void fragment() {
     final_roughness += slope_rough  * slope_mix;
     final_ao        += slope_ao_v   * slope_mix;
     total_factor    += slope_mix;
+    final_detail_factor += slope_detail_factor * slope_mix;
 
     if (total_factor > 0.0) {
         final_color     /= total_factor;
+        final_detail_factor /= total_factor;
         final_normal     = apply_normal_strength(normal_world, safe_normalize(final_normal, normal_world), normal_strength);
         final_roughness /= total_factor;
         final_ao        /= total_factor;
@@ -440,6 +449,7 @@ void fragment() {
         final_roughness = 0.5;
         final_ao = 1.0;
         final_normal = normal_world;
+        final_detail_factor = 1.0;
     }
 
     // 7) Ore overlay leído del voxel (sistema de texturing 4-blend, canal CUSTOM1).
@@ -484,6 +494,12 @@ void fragment() {
 		final_color = mix(final_color, weather_snow_color, snow);
 		final_roughness = mix(final_roughness, 0.55, snow);
 		final_normal = normalize(mix(final_normal, planet_up, snow * 0.5));
+	}
+
+	// 8.6) Debug del detail blend: emisivo plano, gris medio = factor 1.0 (neutro).
+	if (debug_detail_blend_view) {
+		final_color = vec3(0.0);
+		EMISSION = vec3(clamp(final_detail_factor * 0.5, 0.0, 1.0));
 	}
 
     ALBEDO = final_color;

@@ -29,7 +29,7 @@
 		"slope_height_blend_strength": 0.55,
 		"slope_height_blend_sharpness": 0.2,
 		"macro_variation_scale": 0.06,
-		"macro_variation_strength": 0.78,
+		"macro_variation_strength": 0.4,
 		"textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png",
 			

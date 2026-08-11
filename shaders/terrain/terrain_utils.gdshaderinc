@@ -268,6 +268,18 @@ vec3 triplanar_sample_uvs(sampler2D tex, TriplanarUVs uvs, vec3 normal) {
     return col_x * blend.x + col_y * blend.y + col_z * blend.z;
 }
 
+// Factor de brillo del detail blend, normalizado por la media real de la textura (mip 1x1).
+// Devuelve 1.0 donde el detalle vale lo que la media, así que la mezcla no cambia la
+// luminancia de la textura sea clara u oscura (el clásico *2.0 solo era neutro con media 0.5,
+// y en lineal la hierba está en ~0.05: perdía el 45% de brillo).
+float detail_blend_factor(sampler2D tex, TriplanarUVs uvs_detail, vec3 axis, float weight) {
+    const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+    vec3 detail = triplanar_sample_uvs(tex, uvs_detail, axis);
+    vec3 avg = textureLod(tex, vec2(0.5), 20.0).rgb; // mip más bajo = media de la textura
+    float ratio = dot(detail, LUMA) / max(dot(avg, LUMA), 0.002);
+    return mix(1.0, clamp(ratio, 0.25, 3.0), weight);
+}
+
 // Mapas escalares (roughness/AO/height): muestreo PLANO (sin anti-tiling). La repetición
 // de roughness/AO/height es prácticamente imperceptible frente a la del albedo, pero
 // de-tilarlos cuesta lo mismo. Aquí solo albedo y normal pasan por tex_notile; esto
