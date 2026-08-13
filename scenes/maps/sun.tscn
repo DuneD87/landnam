@@ -87,6 +87,7 @@ sun_light = NodePath("DirectionalLight3D")
 script = ExtResource("7_fltorg")
 player_path = NodePath("../Player")
 planets_path = NodePath("../Planets")
+debug_log = true
 
 [node name="Planets" type="Node3D" parent="." unique_id=564239750]
 

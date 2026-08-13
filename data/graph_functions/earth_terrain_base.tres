@@ -2,32 +2,31 @@
 
 [sub_resource type="FastNoise2" id="FastNoise2_lea4t"]
 noise_type = 3
-period = 6000.0
-fractal_type = 2
-fractal_octaves = 2
-fractal_lacunarity = 6.0
-fractal_gain = 0.25
-fractal_ping_pong_strength = 4.0
-terrace_enabled = true
-terrace_smoothness = 0.8
-
-[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_lea4t"]
-period = 300.0001
-amplitude = 15.0001
+period = 10000.0
 fractal_type = 1
 fractal_lacunarity = 4.0
-fractal_gain = 1.0
+fractal_gain = 0.2
+cellular_distance_function = 1
+cellular_jitter = 0.87
+terrace_enabled = true
+terrace_multiplier = 2.0
+terrace_smoothness = 1.0
 
-[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_lea4t"]
-period = 6000.0
-warp_noise = SubResource("ZN_FastNoiseLiteGradient_lea4t")
-fractal_octaves = 6
-fractal_lacunarity = 5.5
-fractal_gain = 0.19
+[sub_resource type="FastNoise2" id="FastNoise2_iequl"]
+noise_type = 4
+period = 2000.0001
+fractal_type = 2
+fractal_octaves = 5
+fractal_lacunarity = 4.5
+fractal_gain = 0.2
+cellular_distance_function = 1
+cellular_return_type = 3
+cellular_index0 = 3
+cellular_index1 = 2
 
 [resource]
 graph_data = {
-"connections": [[49, 0, 47, 1], [41, 0, 47, 0], [44, 0, 40, 0], [45, 0, 41, 1], [47, 0, 90, 0], [66, 0, 44, 0], [67, 0, 49, 0], [90, 0, 91, 0], [90, 0, 94, 0], [91, 0, 92, 0], [92, 0, 93, 2], [93, 0, 94, 1], [94, 0, 95, 0], [95, 0, 44, 1]],
+"connections": [[49, 0, 47, 1], [41, 0, 47, 0], [44, 0, 40, 0], [45, 0, 97, 0], [45, 0, 41, 1], [47, 0, 90, 0], [90, 0, 91, 0], [90, 0, 94, 0], [66, 0, 44, 0], [91, 0, 92, 0], [92, 0, 93, 2], [93, 0, 94, 1], [94, 0, 95, 0], [95, 0, 44, 1], [96, 0, 98, 1], [97, 0, 99, 0], [98, 0, 49, 0], [99, 0, 98, 0]],
 "nodes": {
 "40": {
 "auto_connect": false,
@@ -36,9 +35,9 @@ graph_data = {
 "type": "CustomOutput"
 },
 "41": {
-"a": 350.0,
+"a": 600.0,
 "auto_connect": false,
-"gui_position": Vector2(281.22043, -516.2254),
+"gui_position": Vector2(110, -650),
 "type": "Multiply"
 },
 "44": {
@@ -48,7 +47,7 @@ graph_data = {
 },
 "45": {
 "auto_connect": true,
-"gui_position": Vector2(-132.11292, -489.5584),
+"gui_position": Vector2(-930, -530),
 "name": &"fast_noise_continents",
 "noise": SubResource("FastNoise2_lea4t"),
 "type": "FastNoise2_3D",
@@ -58,30 +57,21 @@ graph_data = {
 },
 "47": {
 "auto_connect": false,
-"gui_position": Vector2(880, -390),
+"gui_position": Vector2(630, -450),
 "type": "Add"
 },
 "49": {
 "auto_connect": false,
-"b": 700.0,
-"gui_position": Vector2(320, -350),
+"b": 300.0,
+"gui_position": Vector2(420, -210),
 "type": "Multiply"
 },
 "66": {
 "auto_connect": true,
-"gui_position": Vector2(-40, -750),
+"gui_position": Vector2(550, -920),
 "name": &"SdfSphere",
 "radius": 30000.0,
 "type": "SdfSphere",
-"x": 0.0,
-"y": 0.0,
-"z": 0.0
-},
-"67": {
-"auto_connect": true,
-"gui_position": Vector2(-130, -250),
-"noise": SubResource("ZN_FastNoiseLite_lea4t"),
-"type": "FastNoise3D",
 "x": 0.0,
 "y": 0.0,
 "z": 0.0
@@ -90,7 +80,6 @@ graph_data = {
 "auto_connect": false,
 "b": 40.0,
 "gui_position": Vector2(950, -180),
-"name": &"beach_sea_offset",
 "type": "Subtract"
 },
 "91": {
@@ -103,7 +92,6 @@ graph_data = {
 "edge0": 0.0,
 "edge1": 60.0,
 "gui_position": Vector2(1330, -180),
-"name": &"beach_band",
 "type": "Smoothstep"
 },
 "93": {
@@ -111,7 +99,6 @@ graph_data = {
 "auto_connect": false,
 "b": 1.0,
 "gui_position": Vector2(1530, -180),
-"name": &"beach_flatten",
 "type": "Mix"
 },
 "94": {
@@ -121,10 +108,40 @@ graph_data = {
 },
 "95": {
 "auto_connect": false,
-"b": 150.0,
+"b": 200.0,
 "gui_position": Vector2(1910, -300),
-"name": &"beach_restore",
 "type": "Add"
+},
+"96": {
+"auto_connect": true,
+"gui_position": Vector2(-370, -240),
+"name": &"fast_noise_mountains",
+"noise": SubResource("FastNoise2_iequl"),
+"type": "FastNoise2_3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"97": {
+"auto_connect": false,
+"b": -1.0,
+"gui_position": Vector2(-550, -410),
+"name": &"land_amount",
+"type": "Multiply"
+},
+"98": {
+"auto_connect": false,
+"gui_position": Vector2(0, -290),
+"name": &"mountains_masked",
+"type": "Multiply"
+},
+"99": {
+"auto_connect": false,
+"edge0": 0.1,
+"edge1": 0.4,
+"gui_position": Vector2(-300, -370),
+"name": &"continent_mask",
+"type": "Smoothstep"
 }
 },
 "version": 2
