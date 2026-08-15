@@ -4,10 +4,11 @@
 [ext_resource type="VoxelGraphFunction" uid="uid://byiklq6sp1ntr" path="res://data/graph_functions/cave_field.tres" id="1_420af"]
 [ext_resource type="VoxelGraphFunction" uid="uid://b3rp22i5ldnk8" path="res://data/graph_functions/earth_ore_field.tres" id="3_l0e7e"]
 [ext_resource type="VoxelGraphFunction" uid="uid://bcavore0fld9" path="res://data/graph_functions/cave_ore_field.tres" id="4_cvore"]
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/river_carve.tres" id="5_river"]
 
 [resource]
 graph_data = {
-"connections": [[81, 0, 82, 3], [81, 0, 85, 3], [82, 0, 4, 0], [85, 0, 83, 0], [85, 1, 84, 0], [82, 0, 90, 3], [90, 0, 91, 0]],
+"connections": [[81, 0, 100, 3], [100, 0, 82, 3], [100, 0, 85, 3], [82, 0, 4, 0], [85, 0, 83, 0], [85, 1, 84, 0], [82, 0, 90, 3], [90, 0, 91, 0]],
 "nodes": {
 "4": {
 "auto_connect": true,
@@ -88,6 +89,16 @@ graph_data = {
 "layer": 3,
 "type": "OutputWeight",
 "weight": 0.0
+},
+"100": {
+"_function": ExtResource("5_river"),
+"auto_connect": true,
+"earth_field": 0.0,
+"gui_position": Vector2(2660, 1150),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
 }
 },
 "version": 2

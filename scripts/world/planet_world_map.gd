@@ -241,6 +241,10 @@ func _build_cache_key(planet: Planet, size: Vector2i, height_range: float) -> St
 		"h%.3f" % height_range,
 		"aq%d" % (1 if planet.has_water else 0),
 		"sr%.1f" % SHORE_RANGE,
+		# Los ríos tallan estuarios, así que mueven la línea de costa y con ella la clasificación de
+		# agua y el campo de orilla. No salen de la huella del generador (las imágenes se inyectan en
+		# caliente), así que sus ajustes entran aquí por su cuenta.
+		JSON.stringify(planet.river_settings),
 		_resource_fingerprint(planet.terrain_generator_path),
 	])
 	return "|".join(parts).sha256_text()

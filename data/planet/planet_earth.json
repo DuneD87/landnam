@@ -24,9 +24,9 @@
 			0, 1, 2,
 			2, 2, 2
 		],
-		"slope_threshold": 0.75,
-		"slope_smoothness": 0.25,
-		"slope_height_blend_strength": 0.55,
+		"slope_threshold": 0.5,
+		"slope_smoothness": 0.2,
+		"slope_height_blend_strength": 0.25,
 		"slope_height_blend_sharpness": 0.2,
 		"macro_variation_scale": 0.06,
 		"macro_variation_strength": 0.4,
@@ -584,6 +584,34 @@
 	  "drop_count_max": 3
 	}
   ],
+  "river_settings": {
+	"enabled": true,
+	"height_range": 500.0,
+	"hydrology_size": [1024, 512],
+	"dist_size": [8192, 4096],
+	"bed_size": [2048, 1024],
+	"dem_smooth_passes": 2,
+	"min_drainage_area": 50000.0,
+	"min_outlet_drainage": 300000.0,
+	"max_rivers_per_landmass": 5,
+	"meander_amplitude": 16.0,
+	"meander_wavelength": 12.0,
+	"channel_incision": 110.0,
+	"width_coefficient": 0.020,
+	"min_half_width": 12.0,
+	"max_half_width": 30.0,
+	"carve_range": 240.0,
+	"bank_slope": 0.8,
+	"blend_range": 20.0,
+	"wall_amplitude": 34.0,
+	"wall_period": 150.0,
+	"wall_start": 5.0,
+	"wall_full": 6.0,
+	"rain_profile": [
+	  [90.0, 0.15], [65.0, 0.5], [45.0, 1.2], [25.0, 0.5], [10.0, 0.35], [0.0, 0.3],
+	  [-10.0, 0.35], [-25.0, 0.5], [-45.0, 1.2], [-65.0, 0.5], [-90.0, 0.15]
+	]
+  },
   "weather_settings": {
 	"enabled": true,
 	"min_duration": 300.0,

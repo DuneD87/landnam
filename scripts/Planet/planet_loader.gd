@@ -222,6 +222,8 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.has_water = planet_parser.has_water
 	planet.water_radius = planet_parser.water_level
 	planet.ore_settings = planet_parser.ore_settings
+	planet.river_settings = planet_parser.river_settings
+	planet.entity_id = entity_id
 	planet.vegetation = planet_parser.vegetation
 	planet.wind_direction = planet_parser.wind_direction
 	planet.sun = sun_path

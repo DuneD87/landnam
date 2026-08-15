@@ -66,6 +66,10 @@ class_name PlanetParser extends Node3D
 ## Bloque opcional "weather_settings" del JSON. Vacío = el WeatherController usa sus defaults.
 @export var weather_settings: Dictionary = {}
 
+@export_group("River Settings")
+## Bloque opcional "river_settings" del JSON. Vacío = planeta sin ríos.
+@export var river_settings: Dictionary = {}
+
 @export_group("Underwater settings")
 @export var fog_density: float = 0.5
 @export var fog_color: Color = Color(0.3, 0.2, 0.8, 1.0)
@@ -312,6 +316,20 @@ func load_config(config_path: String):
 
 	weather_settings = config.get("weather_settings", {})
 	print("DEBUG: Loaded weather settings: ", weather_settings)
+
+	river_settings = _parse_river_settings(config.get("river_settings", {}))
+
+
+## Normaliza el bloque de ríos: los tamaños llegan como pares [ancho, alto] desde el JSON y el resto
+## del pipeline los quiere como Vector2i.
+func _parse_river_settings(cfg: Dictionary) -> Dictionary:
+	if cfg.is_empty():
+		return {}
+	var out := cfg.duplicate(true)
+	for key in ["hydrology_size", "dist_size", "bed_size"]:
+		if out.has(key) and out[key] is Array and out[key].size() == 2:
+			out[key] = Vector2i(int(out[key][0]), int(out[key][1]))
+	return out
 
 
 func _load_biome_noise_texture_overrides(biome_settings: Dictionary) -> void:

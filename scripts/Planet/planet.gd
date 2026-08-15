@@ -64,6 +64,15 @@ var external_planet_materials: Array[ShaderMaterial] = []
 @export var has_water: bool
 @export var water_radius: float
 @export var ore_settings: Array[Dictionary] = []
+## Bloque "river_settings" del JSON. Vacío = planeta sin ríos (el grafo lleva imágenes neutras que
+## no tallan nada, así que no hace falta desconectar nada).
+@export var river_settings: Dictionary = {}
+## Identificador del planeta, para nombrar el caché del campo de ríos.
+@export var entity_id: String = ""
+
+## Campo de ríos horneado. Lo consume el terreno y también los grafos de densidad de vegetación,
+## que sin él confunden un cauce hondo con una cueva.
+var _river_field: Dictionary = {}
 
 var planet_item_scenes: Dictionary
 ## library_id -> PackedScene plantilla, para clonar el item al talarlo sin instanciar
@@ -132,7 +141,7 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 	if generator_config.has("noise_graph"):
 		for graph_func in graph_functions:
 			if graph_func.name == generator_config.noise_graph:
-				generator.noise_graph = load(graph_func.path)
+				generator.noise_graph = _load_vegetation_graph(graph_func.path)
 
 	var graph_function = generator.noise_graph
 	if graph_function:
@@ -1141,15 +1150,20 @@ func _setup_ore_shader_parameters() -> void:
 
 
 func setup_voxel_generator() -> void:
+	# El generador se prepara ENTERO antes de colgarlo del terreno. Los ríos necesitan hornear el
+	# relieve del propio generador para deducir por dónde corren, y si el terreno ya estuviera
+	# mallando se vería el planeta rehacerse a medias.
+	var prepared: VoxelGenerator
 	if !terrain_generator_path.is_empty():
-		voxel_terrain.generator = load(terrain_generator_path).duplicate(true)
+		prepared = load(terrain_generator_path).duplicate(true)
 	else:
-		voxel_terrain.generator = voxel_terrain.generator.duplicate(true)
+		prepared = voxel_terrain.generator.duplicate(true)
 
-	var graph_generator: VoxelGeneratorGraph = voxel_terrain.generator
-
-	if not graph_generator is VoxelGeneratorGraph:
+	if not prepared is VoxelGeneratorGraph:
+		voxel_terrain.generator = prepared
 		return
+
+	var graph_generator: VoxelGeneratorGraph = prepared
 
 	var graph_generator_function: VoxelGraphFunction = graph_generator.get_main_function()
 	var all_functions: Array = [graph_generator_function]
@@ -1164,14 +1178,82 @@ func setup_voxel_generator() -> void:
 		_apply_ore_params(all_functions, ore_settings)
 		needs_compile = true
 
+	if _setup_rivers(graph_generator):
+		needs_compile = true
+
 	if needs_compile:
 		var compile_result = graph_generator.compile()
 		if compile_result is Dictionary and not compile_result.get("success", true):
 			push_error("Planet: VoxelGraph compile falló: %s (nodo %s)" % [
 				compile_result.get("message", ""), compile_result.get("node_id", -1)])
 
+	voxel_terrain.generator = graph_generator
+
 	if not ore_settings.is_empty():
 		_publish_ore_drop_table()
+
+
+## Hornea (o recupera del caché) el campo de ríos y lo enchufa al grafo. Devuelve true si el grafo
+## cambió y hay que recompilar.
+##
+## El horneado necesita el relieve del propio generador, así que se hace sobre una copia limpia: la
+## que se hornea lleva las imágenes neutras y no talla nada, que es justo el terreno "sin ríos" del
+## que hay que deducir por dónde corre el agua.
+func _setup_rivers(graph_generator: VoxelGeneratorGraph) -> bool:
+	if river_settings.is_empty() or not bool(river_settings.get("enabled", true)):
+		return false
+	if not has_water:
+		push_warning("Planet: los ríos necesitan mar como nivel base; se quedan sin generar.")
+		return false
+
+	var height_range := float(river_settings.get("height_range", 2000.0))
+	var sea_level_radius := radius - water_radius
+	var key := _river_cache_key(height_range)
+	var path := "user://maps/%s_rivers.bin" % (entity_id if entity_id != "" else "planet")
+
+	var field := RiverField.load_from(path, key)
+	if field.is_empty():
+		var started := Time.get_ticks_msec()
+		var source: VoxelGeneratorGraph = graph_generator.duplicate(true)
+		source.compile()
+		field = RiverGenerator.build_field(source, radius, sea_level_radius, height_range,
+			river_settings)
+		if field.is_empty():
+			push_warning("Planet: no salió ningún cauce; el terreno se queda sin ríos.")
+			return false
+		RiverField.save_to(field, path, key)
+		print("[rivers] %d tramos horneados en %.1f s"
+			% [int(field.get("segments", 0)), (Time.get_ticks_msec() - started) / 1000.0])
+
+	_river_field = field
+	return RiverGenerator.apply(graph_generator, field)
+
+
+## Carga un grafo de densidad de vegetación con el campo de ríos ya metido. Se duplica porque
+## varios generadores comparten el mismo recurso y aquí se le escriben parámetros: sin duplicar, el
+## parcheo se propagaría al recurso cacheado por el ResourceLoader.
+func _load_vegetation_graph(path: String) -> VoxelGraphFunction:
+	var graph: VoxelGraphFunction = load(path)
+	if graph == null or _river_field.is_empty():
+		return graph
+	var copy: VoxelGraphFunction = graph.duplicate(true)
+	if RiverGenerator.apply(copy, _river_field):
+		return copy
+	return graph
+
+
+## Identifica la configuración con la que se horneó el campo. Incluye la huella del generador, así
+## que tocar el grafo del terreno invalida el caché de los ríos por su cuenta.
+func _river_cache_key(height_range: float) -> String:
+	var parts := PackedStringArray([
+		"v%d" % RiverField.FILE_VERSION,
+		"r%.3f" % radius,
+		"w%.3f" % water_radius,
+		"h%.3f" % height_range,
+		JSON.stringify(river_settings),
+		PlanetWorldMap._resource_fingerprint(terrain_generator_path),
+	])
+	return "|".join(parts).sha256_text()
 
 ## Empuja los parámetros de ore del JSON a los nodos nombrados del VoxelGraph (autorados en el editor).
 func _apply_ore_params(functions: Array, ores: Array) -> void:
