@@ -1,14 +1,32 @@
-[gd_resource type="VoxelGraphFunction" format=3 uid="uid://bcvveg0fld7x2"]
+[gd_resource type="VoxelGraphFunction" format=3]
 
-[ext_resource type="VoxelGraphFunction" uid="uid://b4mvmk26nf0jm" path="res://data/graph_functions/earth_terrain_base.tres" id="1_base"]
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/earth_terrain_base.tres" id="1_base"]
 
 [sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_caveveg"]
 seed = 4242
 period = 60.0001
 
+[sub_resource type="Image" id="Image_eahiy"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0),
+"format": "Red8",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="Image" id="Image_ogva7"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+"format": "RFloat",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
 [resource]
 graph_data = {
-"connections": [[1, 0, 20, 0], [1, 0, 20, 1], [2, 0, 21, 0], [2, 0, 21, 1], [10, 0, 11, 0], [11, 0, 14, 0], [12, 0, 13, 0], [13, 0, 14, 1], [14, 0, 15, 0], [20, 0, 23, 0], [21, 0, 23, 1], [22, 0, 24, 1], [23, 0, 24, 0], [24, 0, 25, 0], [25, 0, 26, 0], [25, 0, 27, 0], [26, 0, 28, 0], [27, 0, 28, 1], [3, 0, 22, 0], [3, 0, 22, 1]],
+"connections": [[1, 0, 29, 0], [1, 0, 30, 0], [1, 0, 35, 0], [2, 0, 29, 1], [2, 0, 30, 1], [2, 0, 35, 1], [10, 0, 38, 0], [11, 0, 14, 0], [12, 0, 13, 0], [13, 0, 14, 1], [14, 0, 15, 0], [29, 0, 31, 1], [3, 0, 29, 2], [3, 0, 30, 2], [3, 0, 35, 2], [30, 0, 31, 0], [31, 0, 32, 0], [32, 0, 36, 0], [35, 0, 37, 0], [36, 0, 37, 1], [37, 0, 39, 0], [38, 0, 11, 0], [39, 0, 38, 1]],
 "nodes": {
 "1": {
 "auto_connect": false,
@@ -67,63 +85,73 @@ graph_data = {
 "gui_position": Vector2(40, 60),
 "type": "InputY"
 },
-"20": {
-"auto_connect": false,
-"gui_position": Vector2(320, 360),
-"type": "Multiply"
-},
-"21": {
-"auto_connect": false,
-"gui_position": Vector2(320, 470),
-"type": "Multiply"
-},
-"22": {
-"auto_connect": false,
-"gui_position": Vector2(320, 580),
-"type": "Multiply"
-},
-"23": {
-"auto_connect": false,
-"gui_position": Vector2(560, 410),
-"type": "Add"
-},
-"24": {
-"auto_connect": false,
-"gui_position": Vector2(760, 480),
-"type": "Add"
-},
-"25": {
-"auto_connect": false,
-"gui_position": Vector2(980, 480),
-"name": &"cave_altitude",
-"type": "Sqrt"
-},
-"26": {
-"auto_connect": false,
-"edge0": 29800.0,
-"edge1": 29850.0,
-"gui_position": Vector2(1220, 380),
-"name": &"height_lo_gate",
-"type": "Smoothstep"
-},
-"27": {
-"auto_connect": false,
-"edge0": 30100.0,
-"edge1": 30050.0,
-"gui_position": Vector2(1220, 560),
-"name": &"height_hi_gate",
-"type": "Smoothstep"
-},
-"28": {
-"auto_connect": false,
-"gui_position": Vector2(1480, 470),
-"name": &"height_band",
-"type": "Multiply"
+"29": {
+"auto_connect": true,
+"gui_position": Vector2(320, 760),
+"name": &"river_planet_sdf",
+"radius": 30000.0,
+"type": "SdfSphere"
 },
 "3": {
 "auto_connect": false,
 "gui_position": Vector2(40, 220),
 "type": "InputZ"
+},
+"30": {
+"auto_connect": true,
+"factor": 170.0,
+"gui_position": Vector2(320, 900),
+"image": SubResource("Image_eahiy"),
+"name": &"river_dist_map",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"31": {
+"auto_connect": false,
+"gui_position": Vector2(560, 850),
+"type": "Subtract"
+},
+"32": {
+"auto_connect": false,
+"b": 170.0,
+"gui_position": Vector2(700, 850),
+"name": &"river_distance_m",
+"type": "Add"
+},
+"35": {
+"auto_connect": true,
+"factor": -1000.0,
+"gui_position": Vector2(320, 300),
+"image": SubResource("Image_ogva7"),
+"name": &"river_bed_map",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"36": {
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(640, 420),
+"name": &"river_bank_slope",
+"type": "Multiply"
+},
+"37": {
+"auto_connect": false,
+"gui_position": Vector2(860, 340),
+"name": &"river_valley_surface",
+"type": "Subtract"
+},
+"38": {
+"auto_connect": false,
+"gui_position": Vector2(1060, 120),
+"name": &"river_carved_surface",
+"type": "Max"
+},
+"39": {
+"auto_connect": false,
+"b": 34.0,
+"gui_position": Vector2(960, 340),
+"name": &"river_wall_amplitude",
+"type": "Add"
 }
 },
 "version": 2
