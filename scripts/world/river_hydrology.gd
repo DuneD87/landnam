@@ -299,6 +299,18 @@ static func extract_channels(sol: Dictionary, size: Vector2i, sea_n: float,
 	var width_min := float(cfg.get("min_half_width", 6.0))
 	var incision := float(cfg.get("channel_incision", 3.0))
 
+	# Hundir el lecho hasta pasar el nivel del mar allí donde la incisión normal no llega. Los planetas
+	# de este proyecto no tienen lámina de agua propia para los ríos: la pone la esfera del océano, que
+	# inunda cualquier cosa por debajo de su cota. Sin esto las cabeceras quedan como barrancos secos
+	# aunque el cauce siga hasta el mar, porque se quedan cortas por unos pocos metros.
+	#
+	# El cavado extra tiene tope: si el valle no puede volver a subir hasta el terreno dentro de su
+	# alcance queda un escalón vertical en todo el borde, así que nunca se excava más de lo que el
+	# talud es capaz de remontar. Los tramos que no lleguen con ese presupuesto se quedan secos.
+	var wet_margin := float(cfg.get("channel_wet_margin", 0.0))
+	var sea_h := height_min + sea_n * height_span
+	var max_dig := float(cfg.get("bank_slope", 0.12)) * float(cfg.get("carve_range", 220.0))
+
 	# Filtros de CUENCA ENTERA, distintos del de 'min_drainage_area': aquel mira el caudal de cada
 	# celda, así que recorta todas las cuencas por la cabecera por igual y deja un muñón de cada una.
 	# Estos descartan cuencas completas, que es lo que hace falta cuando el terreno drena en radial y
@@ -389,12 +401,25 @@ static func extract_channels(sol: Dictionary, size: Vector2i, sea_n: float,
 		seg.append(py[i])
 		seg.append(rx)
 		seg.append(ry)
-		seg.append(height_min + filled[i] * height_span - incision)
-		seg.append(height_min + filled[r] * height_span - incision)
+		seg.append(_bed(filled[i], height_min, height_span, incision, sea_h, wet_margin, max_dig))
+		seg.append(_bed(filled[r], height_min, height_span, incision, sea_h, wet_margin, max_dig))
 		seg.append(clampf(width_coef * sqrt(accum[i]), width_min, width_max))
 		seg.append(clampf(width_coef * sqrt(accum[r]), width_min, width_max))
 		count += 1
 	return {"seg": seg, "count": count, "px": px, "py": py, "channels": channels}
+
+
+## Cota del lecho en un nodo. Normalmente es el terreno menos la incisión, pero si 'wet_margin' está
+## activo se hunde lo que haga falta para quedar por debajo del mar, sin pasarse del cavado que el
+## talud puede remontar. Sigue siendo monótona aguas abajo: el mínimo con una constante no rompe el
+## orden, y el tope depende del terreno, que ya baja.
+static func _bed(filled_v: float, height_min: float, height_span: float, incision: float,
+		sea_h: float, wet_margin: float, max_dig: float) -> float:
+	var ground := height_min + filled_v * height_span
+	var bed := ground - incision
+	if wet_margin <= 0.0:
+		return bed
+	return maxf(minf(bed, sea_h - wet_margin), ground - max_dig)
 
 
 ## Suaviza la posición de los nodos del cauce moviéndolos hacia la media de su receptor y su donante
