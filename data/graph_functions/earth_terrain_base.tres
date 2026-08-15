@@ -18,7 +18,7 @@ period = 2000.0001
 fractal_type = 2
 fractal_octaves = 5
 fractal_lacunarity = 4.5
-fractal_gain = 0.2
+fractal_gain = 0.22
 cellular_distance_function = 1
 cellular_return_type = 3
 cellular_index0 = 3
@@ -35,7 +35,7 @@ graph_data = {
 "type": "CustomOutput"
 },
 "41": {
-"a": 600.0,
+"a": 450.0,
 "auto_connect": false,
 "gui_position": Vector2(110, -650),
 "type": "Multiply"
@@ -62,7 +62,7 @@ graph_data = {
 },
 "49": {
 "auto_connect": false,
-"b": 300.0,
+"b": 250.0,
 "gui_position": Vector2(420, -210),
 "type": "Multiply"
 },

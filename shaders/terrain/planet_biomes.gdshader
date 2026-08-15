@@ -192,7 +192,15 @@ void fragment() {
     float adjusted_height = height + noise_value;
     float transition_height = adjusted_height + transition_noise;
 
-    float slope = 1.0 - clamp(dot(normal_world, planet_up), -1.0, 1.0);
+    // La pendiente se mide con la normal GEOMETRICA del mesh, no con la de la virtual
+    // texture: esa ultima es detalle por celda bakeado del SDF fino, y dentro de una pared
+    // hay celdas cuya normal apunta hacia arriba -> parches de bioma en mitad de la ladera.
+    // Ademas cambia con el LOD, asi que el reparto roca/bioma bailaba al acercarse.
+    vec3 geometry_normal_world = safe_normalize(
+        (MODEL_MATRIX * vec4(safe_normalize(v_normal_model, vec3(0.0, 1.0, 0.0)), 0.0)).xyz,
+        planet_up);
+    float slope_cos = clamp(dot(geometry_normal_world, planet_up), -1.0, 1.0);
+    float slope = 1.0 - slope_cos;
     float slope_factor = smoothstep(slope_threshold - slope_smoothness,
                                      slope_threshold + slope_smoothness, slope);
 
@@ -500,6 +508,20 @@ void fragment() {
 	if (debug_detail_blend_view) {
 		final_color = vec3(0.0);
 		EMISSION = vec3(clamp(final_detail_factor * 0.5, 0.0, 1.0));
+	}
+
+	// 8.7) Debug de pendiente: emisivo plano, sin luz. Modo 1 = lo que decide el reparto
+	// (rojo=roca pura, verde=bioma puro); si un parche de hierba sale rojo aqui, no lo
+	// mete la pendiente sino la banda de altura (transition_height / height_blend).
+	if (debug_slope_view > 0) {
+		final_color = vec3(0.0);
+		if (debug_slope_view == 1) {
+			EMISSION = vec3(slope_mix, 1.0 - slope_mix, 0.0);
+		} else if (debug_slope_view == 2) {
+			EMISSION = vec3(clamp(degrees(acos(slope_cos)) / 90.0, 0.0, 1.0));
+		} else {
+			EMISSION = vec3(clamp(final_roughness, 0.0, 1.0));
+		}
 	}
 
     ALBEDO = final_color;
