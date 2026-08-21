@@ -227,3 +227,8 @@ u_world_offset={
 "type": "vec3",
 "value": Vector3(0, 0, 0)
 }
+
+[voxel]
+
+threads/count/margin_below_max=4
+threads/count/ratio_over_max=0.25
