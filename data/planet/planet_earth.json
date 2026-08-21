@@ -596,7 +596,7 @@
 	"max_rivers_per_landmass": 5,
 	"meander_amplitude": 16.0,
 	"meander_wavelength": 12.0,
-	"channel_incision": 110.0,
+	"channel_incision": 130.0,
 	"channel_wet_margin": 2.0,
 	"width_coefficient": 0.020,
 	"min_half_width": 12.0,

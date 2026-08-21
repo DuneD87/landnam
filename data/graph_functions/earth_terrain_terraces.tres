@@ -3,13 +3,23 @@
 [ext_resource type="VoxelGraphFunction" uid="uid://b4mvmk26nf0jm" path="res://data/graph_functions/earth_terrain_base.tres" id="1_2ebl0"]
 [ext_resource type="VoxelGraphFunction" uid="uid://byiklq6sp1ntr" path="res://data/graph_functions/cave_field.tres" id="1_420af"]
 [ext_resource type="VoxelGraphFunction" uid="uid://b3rp22i5ldnk8" path="res://data/graph_functions/earth_ore_field.tres" id="3_l0e7e"]
-[ext_resource type="VoxelGraphFunction" uid="uid://bcavore0fld9" path="res://data/graph_functions/cave_ore_field.tres" id="4_cvore"]
-[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/river_carve.tres" id="5_river"]
+[ext_resource type="VoxelGraphFunction" uid="uid://crmjlhy1m7p2o" path="res://data/graph_functions/cave_ore_field.tres" id="4_cvore"]
+[ext_resource type="VoxelGraphFunction" uid="uid://br4ghjahc0vbt" path="res://data/graph_functions/river_carve.tres" id="5_river"]
 
 [resource]
 graph_data = {
-"connections": [[81, 0, 100, 3], [100, 0, 82, 3], [100, 0, 85, 3], [82, 0, 4, 0], [85, 0, 83, 0], [85, 1, 84, 0], [82, 0, 90, 3], [90, 0, 91, 0]],
+"connections": [[81, 0, 100, 3], [82, 0, 4, 0], [82, 0, 90, 3], [85, 0, 83, 0], [85, 1, 84, 0], [90, 0, 91, 0], [100, 0, 82, 3], [100, 0, 85, 3]],
 "nodes": {
+"100": {
+"_function": ExtResource("5_river"),
+"auto_connect": true,
+"earth_field": 0.0,
+"gui_position": Vector2(2660, 1150),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
 "4": {
 "auto_connect": true,
 "gui_position": Vector2(3270, 1440),
@@ -33,7 +43,7 @@ graph_data = {
 "81": {
 "_function": ExtResource("1_2ebl0"),
 "auto_connect": true,
-"gui_position": Vector2(2510, 1240),
+"gui_position": Vector2(2380, 1270),
 "type": "Function",
 "x": 0.0,
 "y": 0.0,
@@ -53,15 +63,13 @@ graph_data = {
 "auto_connect": false,
 "gui_position": Vector2(3530, 1080),
 "layer": 1,
-"type": "OutputWeight",
-"weight": 0.0
+"type": "OutputWeight"
 },
 "84": {
 "auto_connect": false,
 "gui_position": Vector2(3540, 1170),
 "layer": 2,
-"type": "OutputWeight",
-"weight": 0.0
+"type": "OutputWeight"
 },
 "85": {
 "_function": ExtResource("3_l0e7e"),
@@ -87,18 +95,7 @@ graph_data = {
 "auto_connect": false,
 "gui_position": Vector2(3540, 1260),
 "layer": 3,
-"type": "OutputWeight",
-"weight": 0.0
-},
-"100": {
-"_function": ExtResource("5_river"),
-"auto_connect": true,
-"earth_field": 0.0,
-"gui_position": Vector2(2660, 1150),
-"type": "Function",
-"x": 0.0,
-"y": 0.0,
-"z": 0.0
+"type": "OutputWeight"
 }
 },
 "version": 2
