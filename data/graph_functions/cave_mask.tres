@@ -1,94 +1,174 @@
 [gd_resource type="VoxelGraphFunction" format=3 uid="uid://cvmask7q3x2k1"]
 
-[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_scuyd"]
-period = 30.0001
-amplitude = 15.0001
+[sub_resource type="FastNoise2" id="FastNoise2_a1m5i"]
+noise_type = 1
+seed = 73
+period = 250.0
 fractal_type = 1
+fractal_octaves = 2
 
-[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_yhn84"]
-seed = 1337
-period = 1500.0001
-warp_noise = SubResource("ZN_FastNoiseLiteGradient_scuyd")
+[sub_resource type="FastNoise2" id="FastNoise2_jomm3"]
+noise_type = 4
+period = 400.0
+cellular_return_type = 2
+cellular_index0 = 2
+cellular_index1 = 0
 
-[sub_resource type="ZN_FastNoiseLiteGradient" id="ZN_FastNoiseLiteGradient_420af"]
-period = 40.0001
-amplitude = 15.0001
+[sub_resource type="FastNoise2" id="FastNoise2_bkewh"]
+noise_type = 1
+seed = 4242
+period = 25.0
 fractal_type = 1
+fractal_octaves = 2
 
-[sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_h8nrh"]
-seed = 9001
-period = 3000.0
-warp_noise = SubResource("ZN_FastNoiseLiteGradient_420af")
+[sub_resource type="FastNoise2" id="FastNoise2_mb1gl"]
+noise_type = 1
+seed = 71
+period = 250.0
+fractal_type = 1
+fractal_octaves = 2
+
+[sub_resource type="FastNoise2" id="FastNoise2_e12gd"]
+noise_type = 1
+seed = 72
+period = 250.0
+fractal_type = 1
+fractal_octaves = 2
 
 [resource]
 graph_data = {
-"connections": [[10, 0, 12, 0], [11, 0, 13, 0], [12, 0, 14, 0], [13, 0, 14, 1], [14, 0, 15, 0], [15, 0, 20, 0]],
+"connections": [[1, 0, 6, 0], [10, 0, 11, 0], [11, 0, 12, 1], [12, 0, 13, 2], [13, 0, 14, 0], [14, 0, 18, 0], [15, 0, 16, 0], [16, 0, 17, 0], [17, 0, 18, 1], [18, 0, 19, 0], [2, 0, 9, 0], [3, 0, 12, 0], [4, 0, 5, 0], [5, 0, 6, 1], [6, 0, 13, 0], [7, 0, 8, 0], [8, 0, 9, 1], [9, 0, 13, 1]],
 "nodes": {
 "1": {
 "auto_connect": false,
-"gui_position": Vector2(200, -100),
+"gui_position": Vector2(0, -160),
 "type": "InputX"
 },
 "10": {
 "auto_connect": true,
-"gui_position": Vector2(420, -60),
-"name": &"cave_noiseA",
-"noise": SubResource("ZN_FastNoiseLite_yhn84"),
-"type": "FastNoise3D",
+"gui_position": Vector2(260, 120),
+"name": &"cave_warp_2",
+"noise": SubResource("FastNoise2_a1m5i"),
+"type": "FastNoise2_3D",
 "x": 0.0,
 "y": 0.0,
 "z": 0.0
 },
 "11": {
+"auto_connect": false,
+"b": 20.0,
+"gui_position": Vector2(520, 120),
+"name": &"cave_warp_amp_2",
+"type": "Multiply"
+},
+"12": {
+"auto_connect": false,
+"gui_position": Vector2(760, 120),
+"type": "Add"
+},
+"13": {
 "auto_connect": true,
-"gui_position": Vector2(444.44446, 88.888885),
-"name": &"cave_noiseB",
-"noise": SubResource("ZN_FastNoiseLite_h8nrh"),
-"type": "FastNoise3D",
+"gui_position": Vector2(1020, -20),
+"name": &"cave_tunnels",
+"noise": SubResource("FastNoise2_jomm3"),
+"type": "FastNoise2_3D"
+},
+"14": {
+"auto_connect": false,
+"b": 400.0,
+"gui_position": Vector2(1280, -20),
+"name": &"cave_dist_metros",
+"type": "Multiply"
+},
+"15": {
+"auto_connect": true,
+"gui_position": Vector2(1020, 300),
+"name": &"cave_wall_noise",
+"noise": SubResource("FastNoise2_bkewh"),
+"type": "FastNoise2_3D",
 "x": 0.0,
 "y": 0.0,
 "z": 0.0
 },
-"12": {
+"16": {
 "auto_connect": false,
-"gui_position": Vector2(700, -50),
-"name": &"cave_absA",
-"type": "Abs"
+"b": 3.5,
+"gui_position": Vector2(1280, 300),
+"name": &"cave_wall_amp",
+"type": "Multiply"
 },
-"13": {
+"17": {
 "auto_connect": false,
-"gui_position": Vector2(700, 90),
-"name": &"cave_absB",
-"type": "Abs"
+"b": 5.0,
+"gui_position": Vector2(1520, 300),
+"name": &"cave_radius",
+"type": "Add"
 },
-"14": {
+"18": {
 "auto_connect": false,
-"gui_position": Vector2(897.7778, 17.777779),
-"name": &"cave_max",
-"type": "Max"
-},
-"15": {
-"auto_connect": false,
-"b": 0.04,
-"gui_position": Vector2(1100, 20),
-"name": &"cave_threshold",
+"gui_position": Vector2(1780, 100),
+"name": &"cave_sdf",
 "type": "Subtract"
 },
-"2": {
+"19": {
 "auto_connect": false,
-"gui_position": Vector2(200, 60),
-"type": "InputY"
-},
-"20": {
-"auto_connect": false,
-"gui_position": Vector2(1350, 20),
+"gui_position": Vector2(2040, 100),
 "name": &"cave_mask",
 "type": "CustomOutput"
 },
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(0, 0),
+"type": "InputY"
+},
 "3": {
 "auto_connect": false,
-"gui_position": Vector2(200, 220),
+"gui_position": Vector2(0, 160),
 "type": "InputZ"
+},
+"4": {
+"auto_connect": true,
+"gui_position": Vector2(260, -200),
+"name": &"cave_warp_0",
+"noise": SubResource("FastNoise2_mb1gl"),
+"type": "FastNoise2_3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"5": {
+"auto_connect": false,
+"b": 20.0,
+"gui_position": Vector2(520, -200),
+"name": &"cave_warp_amp_0",
+"type": "Multiply"
+},
+"6": {
+"auto_connect": false,
+"gui_position": Vector2(760, -200),
+"type": "Add"
+},
+"7": {
+"auto_connect": true,
+"gui_position": Vector2(260, -40),
+"name": &"cave_warp_1",
+"noise": SubResource("FastNoise2_e12gd"),
+"type": "FastNoise2_3D",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"8": {
+"auto_connect": false,
+"b": 20.0,
+"gui_position": Vector2(520, -40),
+"name": &"cave_warp_amp_1",
+"type": "Multiply"
+},
+"9": {
+"auto_connect": false,
+"gui_position": Vector2(760, -40),
+"type": "Add"
 }
 },
 "version": 2
