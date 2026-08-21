@@ -25,6 +25,9 @@ var needs_update: bool = true
 
 var rd: RenderingDevice
 var compute_shader: RID
+## Pipeline prestado por el manager. Crearlo por parche costaba una construcción de pipeline de
+## Vulkan (y su destrucción) en cada malla generada.
+var compute_pipeline: RID
 var is_using_shared_resources: bool = false
 
 var vertex_buffer: RID
@@ -37,10 +40,11 @@ var cached_indices: PackedInt32Array
 func _init():
 	pass
 
-func set_shared_resources(shared_rd: RenderingDevice, shared_shader: RID):
+func set_shared_resources(shared_rd: RenderingDevice, shared_shader: RID, shared_pipeline: RID = RID()):
 	"""Set shared compute resources from the manager"""
 	rd = shared_rd
 	compute_shader = shared_shader
+	compute_pipeline = shared_pipeline
 	is_using_shared_resources = true
 
 func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right: Vector3, radius: float, sub_divisions: int, level: int = 0):
@@ -179,7 +183,12 @@ func _dispatch_compute():
 
 	uniform_set = rd.uniform_set_create([uniform, vertex_uniform, normal_uniform, uv_uniform], compute_shader, 0)
 
-	var pipeline = rd.compute_pipeline_create(compute_shader)
+	# El del manager si lo hay; si no (sin recursos compartidos), uno propio de usar y tirar.
+	var pipeline := compute_pipeline
+	var owns_pipeline := false
+	if not pipeline.is_valid():
+		pipeline = rd.compute_pipeline_create(compute_shader)
+		owns_pipeline = true
 
 	# El shader cubre (res+1)² vértices con workgroups de 32x32 en un único pase.
 	var groups = (quad_resolution + 1 + 31) / 32
@@ -193,7 +202,8 @@ func _dispatch_compute():
 	rd.submit()
 	rd.sync()
 
-	rd.free_rid(pipeline)
+	if owns_pipeline:
+		rd.free_rid(pipeline)
 
 func _read_buffers_and_create_mesh():
 	var vertex_count = (quad_resolution + 1) * (quad_resolution + 1)

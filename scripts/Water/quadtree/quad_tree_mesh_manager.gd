@@ -37,6 +37,7 @@ var _needs_commit: bool = false
 var compute_shader_loaded: bool = false
 var shared_rd: RenderingDevice
 var shared_compute_shader: RID
+var shared_compute_pipeline: RID
 
 func initialize(quadtree_manager: Node3D):
 	quad_tree_manager = quadtree_manager
@@ -79,7 +80,8 @@ func _initialize_compute_resources():
 	else:
 		var shader_spirv = shader_file.get_spirv()
 		shared_compute_shader = shared_rd.shader_create_from_spirv(shader_spirv)
-	
+
+	shared_compute_pipeline = shared_rd.compute_pipeline_create(shared_compute_shader)
 	compute_shader_loaded = true
 	return true
 
@@ -170,7 +172,7 @@ func _create_quad_surface(quad_info: Dictionary) -> Node3D:
 		
 		if compute_mode == ComputeMode.GPU:
 			quad_surface = QuadSurfaceCompute.new()
-			quad_surface.set_shared_resources(shared_rd, shared_compute_shader)
+			quad_surface.set_shared_resources(shared_rd, shared_compute_shader, shared_compute_pipeline)
 		else:
 			quad_surface = QuadSurface.new()
 	else:
@@ -200,10 +202,17 @@ func _create_quad_surface(quad_info: Dictionary) -> Node3D:
 
 func _update_quad_surface(quad_info: Dictionary):
 	var quad_surface = active_quads[quad_info.id]
-	
+
 	var local_position = to_local(quad_info.position)
-   
-	if quad_surface.global_position != quad_info.position or quad_surface.quad_size != quad_info.size:
+
+	# Comparar en local y con tolerancia, nunca 'global_position != position'. Ese sitio hace un
+	# viaje de ida y vuelta (to_local al crear el parche, global_position al leerlo) que con el
+	# planeta lejos del origen no es exacto en coma flotante: fallaba para la mayoría de los
+	# parches y regeneraba su malla entera (submit+sync del compute) en cada paso del quadtree.
+	var moved := local_position.distance_squared_to(quad_surface.position) > \
+		pow(quad_info.size * 1e-3, 2.0)
+
+	if moved or quad_surface.quad_size != quad_info.size:
 		quad_surface.setup(
 			local_position,
 			quad_info.size,
@@ -233,6 +242,9 @@ func set_compute_mode(mode: ComputeMode):
 	compute_mode = mode
 	
 	if mode == ComputeMode.CPU and shared_compute_shader.is_valid():
+		if shared_compute_pipeline.is_valid():
+			shared_rd.free_rid(shared_compute_pipeline)
+			shared_compute_pipeline = RID()
 		shared_rd.free_rid(shared_compute_shader)
 		shared_compute_shader = RID()
 		compute_shader_loaded = false
@@ -300,5 +312,7 @@ func _process(_delta: float) -> void:
 	default_material.set_shader_parameter("water_radius", radius)
 
 func _exit_tree():
+	if shared_compute_pipeline.is_valid():
+		shared_rd.free_rid(shared_compute_pipeline)
 	if shared_compute_shader.is_valid():
 		shared_rd.free_rid(shared_compute_shader)
