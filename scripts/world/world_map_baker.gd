@@ -40,6 +40,13 @@ const _SHORE_COAST_SMOOTH := 1
 ## verdad, y de ahí para fuera propaga el barrido.
 const _SHORE_SEED_RADIUS := 2
 
+## Prefijo de las funciones de grafo que perforan el terreno y que el mapa ignora al hornear, y
+## nombre de la entrada por la que reciben el terreno intacto. Ver _ground_only_generator.
+const _CAVE_FUNCTION_PREFIX := "cave"
+const _CAVE_TERRAIN_INPUT := "earth_field"
+## Tope de etapas encadenadas que se pelan; solo evita un bucle infinito si el grafo se muerde la cola.
+const _MAX_CAVE_STAGES := 8
+
 
 ## Devuelve un WorldMapData con las alturas ya horneadas y sin clasificar, o null si el generador
 ## no sabe hornear. 'height_range' es el semirrango de búsqueda del SDF alrededor del radio: la
@@ -48,6 +55,9 @@ const _SHORE_SEED_RADIUS := 2
 ## bake_sphere_bumpmap devuelve u = 0.5 - atan2(z, x) / TAU con la fila 0 en el polo SUR (medido
 ## contra el SDF real). NO es la convención que asume planet_impostor.gdshader, que está girada 90°
 ## y espejada. Aquí se voltea la imagen para dejar el norte arriba.
+##
+## Se hornea el terreno SIN las cuevas (ver _ground_only_generator): con ellas el bake pierde las
+## montañas.
 static func bake_heights(generator: Object, size: Vector2i, radius: float,
 		sea_level_radius: float, has_water: bool, height_range: float) -> WorldMapData:
 	if generator == null:
@@ -60,14 +70,16 @@ static func bake_heights(generator: Object, size: Vector2i, radius: float,
 			% generator.get_class())
 		return null
 
+	var ground := _ground_only_generator(generator)
+
 	var img := Image.create(size.x, size.y, false, Image.FORMAT_RF)
 	# La firma cambia entre builds: unas piden (im, ref_radius, sdf_min, sdf_max) y otras
 	# (im, ref_radius, strength). Se elige por el número de argumentos declarado, igual que en
 	# planet_impostor_baker.gd, en vez de asumir una y comerse un error de llamada.
 	if argc >= 4:
-		generator.bake_sphere_bumpmap(img, radius, -height_range, height_range)
+		ground.bake_sphere_bumpmap(img, radius, -height_range, height_range)
 	else:
-		generator.bake_sphere_bumpmap(img, radius, height_range)
+		ground.bake_sphere_bumpmap(img, radius, height_range)
 
 	# El bake deja la fila 0 en el polo sur. Se voltea con la operación de imagen (en C++): darle
 	# la vuelta al array de dos millones de flotantes desde GDScript costaría segundos.
@@ -86,6 +98,79 @@ static func bake_heights(generator: Object, size: Vector2i, radius: float,
 
 	_report_saturation(map)
 	return map
+
+
+## Copia del generador con las etapas de cuevas desconectadas de la salida SDF, o el propio
+## generador si no hay ninguna, el grafo no se deja editar o la copia no compila.
+##
+## bake_sphere_bumpmap no busca el cruce por cero del SDF: avanza por el rayo a pasos proporcionales
+## al valor del campo, así que necesita una distancia de verdad. Con las cuevas puestas, el campo
+## bajo tierra no puede valer más que la distancia al túnel más cercano (unos cientos de metros con
+## túneles cada 400 m), la búsqueda se queda corta y devuelve una superficie muy por debajo de la
+## real: medido sobre planet_earth, 385 m de cima con cuevas contra 939 m sin ellas, con la línea de
+## costa idéntica. Que el problema es del bake y no del terreno se comprueba escalando cave_mask x10
+## SIN mover su conjunto cero (misma superficie exacta): la cima horneada sube a 911 m.
+static func _ground_only_generator(generator: Object) -> Object:
+	if not generator.has_method("get_main_function"):
+		return generator
+	# Duplicado SUPERFICIAL: basta para aislar (sale otra VoxelGraphFunction, medido) y así no se
+	# copian los recursos colgados del grafo, que en caliente incluyen las imágenes de ríos.
+	var copy: Object = generator.duplicate(false)
+	var fn: Object = copy.get_main_function()
+	if fn == null:
+		return generator
+
+	var sdf_type := -1
+	var function_type := -1
+	for i in fn.get_node_type_count():
+		match String(fn.get_node_type_info(i).get("name", "")):
+			"OutputSDF": sdf_type = i
+			"Function": function_type = i
+	if sdf_type < 0 or function_type < 0:
+		return generator
+
+	var sdf_id := -1
+	for id in fn.get_node_ids():
+		if fn.get_node_type_id(id) == sdf_type:
+			sdf_id = id
+			break
+	if sdf_id < 0:
+		return generator
+
+	var bypassed := 0
+	while bypassed < _MAX_CAVE_STAGES:
+		var stage := _input_source(fn, sdf_id, 0)
+		if stage.is_empty() or fn.get_node_type_id(stage.node) != function_type:
+			break
+		var f: Resource = fn.get_node_param(stage.node, 0)
+		if f == null or not f.resource_path.get_file().begins_with(_CAVE_FUNCTION_PREFIX):
+			break
+		var port: int = fn.get_node_input_index(stage.node, _CAVE_TERRAIN_INPUT)
+		if port < 0:
+			break
+		var terrain := _input_source(fn, stage.node, port)
+		if terrain.is_empty():
+			break
+		fn.remove_connection(stage.node, stage.port, sdf_id, 0)
+		fn.add_connection(terrain.node, terrain.port, sdf_id, 0)
+		bypassed += 1
+
+	if bypassed == 0:
+		return generator
+	var result: Dictionary = copy.compile()
+	if not result.get("success", false):
+		push_warning("[world-map] el generador sin cuevas no compila (%s); se hornea con ellas."
+			% result.get("message", ""))
+		return generator
+	return copy
+
+
+## Nodo y puerto que alimentan una entrada, o {} si está suelta.
+static func _input_source(fn: Object, node_id: int, port: int) -> Dictionary:
+	for c in fn.get_connections():
+		if int(c.dst_node_id) == node_id and int(c.dst_port_index) == port:
+			return {"node": int(c.src_node_id), "port": int(c.src_port_index)}
+	return {}
 
 
 ## Etiqueta los cuerpos de agua conectados y mide cada uno. Solo toca arrays, así que es seguro
