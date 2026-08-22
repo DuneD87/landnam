@@ -15,6 +15,9 @@ const SAVEABLE_GROUP: String = "saveable"
 const SAVE_DIR: String = "user://saves/"
 const SAVE_EXTENSION: String = ".json"
 const SAVE_CATEGORIES: Array[String] = ["player", "grid", "planet", "npc"]
+## Slot que usa el menú principal (y la pre-lectura del SpawnPoint al arrancar).
+const MAIN_SLOT: String = "main_save"
+const PLAYER_ENTITY_ID: String = "player"
 
 var current_state: State = State.MENU
 var player: CharacterBody3D
@@ -46,17 +49,68 @@ func _change_state(new_state: State) -> void:
 	state_changed.emit(new_state)
 
 
+func _find_spawn_point() -> Node3D:
+	var scene := get_tree().current_scene
+	if not scene:
+		return null
+	return scene.find_child("SpawnPoint", true, false) as Node3D
+
+
 func _move_spawn_point_to_player() -> void:
 	if not player or not is_instance_valid(player):
 		push_warning("SaveSystem: cannot move SpawnPoint because player is not registered")
 		return
 
-	var spawn_point := get_tree().current_scene.find_child("SpawnPoint", true, false) as Node3D
+	var spawn_point := _find_spawn_point()
 	if not spawn_point:
 		push_warning("SaveSystem: SpawnPoint not found in current scene")
 		return
 
 	spawn_point.global_position = player.global_position
+
+
+## Lee del disco solo la posición canónica del jugador, sin cargar la partida.
+## Devuelve un Vector3, o null si no hay save o no es legible.
+func peek_player_position(slot_name: String = MAIN_SLOT) -> Variant:
+	var data: Variant = _read_json(_save_file_path(slot_name, "player"))
+	if not (data is Dictionary):
+		return null
+
+	var entry: Variant = data.get(PLAYER_ENTITY_ID)
+	if entry == null:
+		for id in data:
+			entry = data[id]
+			break
+	if not (entry is Dictionary):
+		return null
+
+	var entry_data: Variant = entry.get("data")
+	if not (entry_data is Dictionary):
+		return null
+	var pos: Variant = entry_data.get("position")
+	if not (pos is Dictionary):
+		return null
+	return Vector3(float(pos.get("x", 0.0)), float(pos.get("y", 0.0)), float(pos.get("z", 0.0)))
+
+
+## Adelanta el SpawnPoint a la posición guardada del jugador antes de cargar la partida, para que
+## el VoxelViewer que cuelga de él empiece a streamear el terreno donde el jugador va a aparecer.
+## 'spawn_point' se puede pasar explícito si la escena aún no es current_scene (p.ej. desde _ready).
+func apply_saved_spawn_point(slot_name: String = MAIN_SLOT, spawn_point: Node3D = null) -> bool:
+	var canonical: Variant = peek_player_position(slot_name)
+	if canonical == null:
+		return false
+
+	if not spawn_point:
+		spawn_point = _find_spawn_point()
+	if not spawn_point:
+		push_warning("SaveSystem: SpawnPoint not found, cannot preload saved position")
+		return false
+
+	var fo := get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin
+	spawn_point.global_position = fo.from_canonical(canonical) if fo != null else canonical
+	print("SaveSystem: SpawnPoint moved to saved player position %s" % str(spawn_point.global_position))
+	return true
 
 
 func _save_file_path(slot_name: String, category: String) -> String:

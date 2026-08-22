@@ -68,3 +68,7 @@ func _rebase(offset: Vector3) -> void:
 ## Convierte una posición del marco actual (desplazado) al marco canónico original (para guardado).
 func to_canonical(pos: Vector3) -> Vector3:
 	return pos + total_offset
+
+## Convierte una posición del marco canónico original al marco actual (desplazado).
+func from_canonical(pos: Vector3) -> Vector3:
+	return pos - total_offset

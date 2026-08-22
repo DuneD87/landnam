@@ -417,6 +417,10 @@ func _ready():
 	_register_worn_node(player_model)
 	var btnSave := main_menu.find_child("btnSaveGame")
 	btnSave.visible = false
+	# Si hay partida guardada, el SpawnPoint se adelanta a la posición guardada del jugador antes de
+	# usarlo, para que el terreno empiece a streamearse ahí y el planeta elegido sea el correcto.
+	if spawn_point:
+		GameManager.apply_saved_spawn_point(GameManager.MAIN_SLOT, spawn_point)
 	if spawn_point and planets and planets.get_child_count() > 0:
 		var closest: Node3D = null
 		var closest_dist := INF

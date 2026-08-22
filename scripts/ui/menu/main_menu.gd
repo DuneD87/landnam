@@ -4,8 +4,6 @@ extends Control
 @export var quit_button: Button
 @export var fade_duration: float = 0.8
 
-const SAVE_SLOT: String = "main_save"
-
 var _save_button: Button
 var _load_button: Button
 
@@ -24,7 +22,7 @@ func _ready() -> void:
 		_save_button.visible = false
 	if _load_button:
 		_load_button.pressed.connect(_on_load_pressed)
-		_load_button.visible = GameManager.has_save(SAVE_SLOT)
+		_load_button.visible = GameManager.has_save(GameManager.MAIN_SLOT)
 
 	GameManager.state_changed.connect(_on_game_state_changed)
 	visible = true
@@ -64,9 +62,9 @@ func _on_quit_pressed() -> void:
 
 func _on_save_pressed() -> void:
 	_set_buttons_disabled(true)
-	var success := await GameManager.save_game(SAVE_SLOT)
+	var success := await GameManager.save_game(GameManager.MAIN_SLOT)
 	if success:
-		print("[MenuUI] Partida guardada en slot '%s'" % SAVE_SLOT)
+		print("[MenuUI] Partida guardada en slot '%s'" % GameManager.MAIN_SLOT)
 		if _load_button:
 			_load_button.visible = true
 	else:
@@ -77,7 +75,7 @@ func _on_save_pressed() -> void:
 func _on_load_pressed() -> void:
 	fade_out()
 	await get_tree().create_timer(fade_duration).timeout
-	var success := GameManager.load_game(SAVE_SLOT)
+	var success := GameManager.load_game(GameManager.MAIN_SLOT)
 	if not success:
 		push_error("[MenuUI] Error al cargar partida")
 		fade_in()
@@ -93,7 +91,7 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 			if _save_button:
 				_save_button.visible = false
 			if _load_button:
-				_load_button.visible = GameManager.has_save(SAVE_SLOT)
+				_load_button.visible = GameManager.has_save(GameManager.MAIN_SLOT)
 		GameManager.State.CINEMATIC:
 			visible = false
 		GameManager.State.PLAYING:
