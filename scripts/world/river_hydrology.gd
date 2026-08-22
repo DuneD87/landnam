@@ -101,8 +101,9 @@ static func _priority_flood(heights: PackedFloat32Array, w: int, h: int,
 
 	var last := _BUCKETS - 1
 	var seeded := false
+	var ocean := _ocean_mask(heights, w, h, sea_n)
 	for i in n:
-		if heights[i] > sea_n:
+		if ocean[i] == 0:
 			continue
 		# El mar es el nivel base: entra ya resuelto y a su propia cota.
 		filled[i] = heights[i]
@@ -406,8 +407,198 @@ static func extract_channels(sol: Dictionary, size: Vector2i, sea_n: float,
 		seg.append(clampf(width_coef * sqrt(accum[i]), width_min, width_max))
 		seg.append(clampf(width_coef * sqrt(accum[r]), width_min, width_max))
 		count += 1
+
+	count += _extend_mouths(seg, channels, receiver, is_channel, filled, accum, w, h, height_min,
+		height_span, incision, sea_h, wet_margin, max_dig, width_coef, width_min, width_max,
+		radius, cfg)
 	return {"seg": seg, "count": count, "px": px, "py": py, "channels": channels}
 
+
+## Cubos del buscador de paso de la desembocadura. El barrido es local, así que con 4096 sobra: el
+## rango de cota dentro de una ventana de unas pocas celdas es pequeño.
+const _MOUTH_BUCKETS := 4096
+
+
+## Prolonga cada desembocadura hasta agua francamente profunda y devuelve cuántos tramos añadió.
+##
+## Hace falta porque la hidrología corre sobre un mapa de ~184 m por téxel mientras el terreno de
+## verdad varía metros dentro de un téxel: la primera celda que el mapa grueso da por marina todavía
+## es tierra firme abajo, así que la zanja se quedaba corta y el cauce moría en una bolsa de agua
+## cerrada a unos cientos de metros de la costa. Medido antes de esto: 7 de 39 bocas embolsadas, con
+## huecos de 577 m de mediana y hasta 894 m.
+static func _extend_mouths(seg: PackedFloat32Array, channels: PackedInt32Array,
+		receiver: PackedInt32Array, is_channel: PackedByteArray, filled: PackedFloat32Array,
+		accum: PackedFloat32Array, w: int, h: int, height_min: float, height_span: float,
+		incision: float, sea_h: float, wet_margin: float, max_dig: float, width_coef: float,
+		width_min: float, width_max: float, radius: float, cfg: Dictionary) -> int:
+	# Cuánto tiene que hundirse el mapa grueso bajo el mar para dar la boca por abierta. Es el error
+	# del propio mapa: por debajo de eso, "mar" en el mapa puede seguir siendo tierra en el terreno.
+	var clearance := float(cfg.get("mouth_clearance", 80.0))
+	var max_cells := int(cfg.get("mouth_max_cells", 8))
+	if max_cells <= 0:
+		return 0
+	var target := (sea_h - clearance - height_min) / height_span
+	# Barra que el río puede romper para salir al mar. Una lengua de arena sí, una colina no: por
+	# encima de esto la bolsa se queda como laguna costera en vez de abrirle un canal.
+	# Lo que la prolongación se hunde bajo el fondo marino una vez ha remontado. Solo tiene que dejar
+	# el agua conectada, no excavar un valle: cuanto menos, menos se nota la raya en el mapa.
+	var notch := float(cfg.get("mouth_notch", 8.0))
+	# Distancia en la que el lecho remonta desde la incisión del río hasta rozar el fondo. Va en
+	# METROS y no en fracción del camino: repartido a lo largo de todo el recorrido, un camino de
+	# kilómetros se queda hondo media prolongación y la raya se sigue viendo desde el mapa.
+	var taper := maxf(float(cfg.get("mouth_taper", 400.0)), 1.0)
+	var cell_m := PI * radius / h
+	var max_bar := float(cfg.get("mouth_max_bar", 20.0))
+	var ceiling := (sea_h + max_bar - height_min) / height_span
+
+	var added := 0
+	for i in channels:
+		var r := receiver[i]
+		if r < 0 or is_channel[r] == 1:
+			continue
+		var path := _path_to_open_sea(filled, r, w, h, target, ceiling, max_cells)
+		if path.is_empty():
+			continue
+		var width := clampf(width_coef * sqrt(accum[i]), width_min, width_max)
+		var mouth_bed := _bed(filled[r], height_min, height_span, incision, sea_h, wet_margin,
+			max_dig)
+		var prev := r
+		var bed_prev := mouth_bed
+		var w_prev := width
+		var run := 0.0
+		for nxt in path:
+			run += cell_m if (nxt / w == prev / w or posmod(nxt - prev, w) == 0) else cell_m * 1.4142
+			var t := minf(run / taper, 1.0)
+			# El lecho remonta desde la incisión del cauce hasta rozar el fondo, y la semianchura se
+			# cierra con él. Sin esto la prolongación hereda los 150 m de tajo del río, y como el ancho
+			# de la zanja a cota del mar es dos veces esa profundidad partido por la pendiente del talud,
+			# deja una raya de 250 m cruzando la plataforma que se ve desde el mapa mundial.
+			var ground := height_min + filled[nxt] * height_span
+			var bed_next := minf(lerpf(mouth_bed, sea_h - wet_margin, t), ground - notch)
+			var w_next := lerpf(width, width_min, t)
+			var py0 := prev / w
+			var py1 := nxt / w
+			var x0 := float(prev - py0 * w) + 0.5
+			var x1 := float(nxt - py1 * w) + 0.5
+			# Las aristas que cruzan la costura de longitud se dibujan por el lado corto.
+			if x1 - x0 > w * 0.5:
+				x1 -= w
+			elif x0 - x1 > w * 0.5:
+				x1 += w
+			seg.append(x0)
+			seg.append(float(py0) + 0.5)
+			seg.append(x1)
+			seg.append(float(py1) + 0.5)
+			seg.append(bed_prev)
+			seg.append(bed_next)
+			seg.append(w_prev)
+			seg.append(w_next)
+			added += 1
+			prev = nxt
+			bed_prev = bed_next
+			w_prev = w_next
+	return added
+
+
+## Camino desde la desembocadura hasta la primera celda por debajo de 'target', o vacío si no lo hay
+## dentro de 'max_cells' o si para llegar habría que cruzar por encima de 'ceiling'.
+##
+## Dos pasadas. La primera es una inundación por prioridad, la misma que rellena depresiones, y da la
+## cota del PASO MÁS BAJO hasta mar abierto; la segunda busca en anchura por debajo de esa cota, que
+## entre los caminos que no la superan devuelve el más corto. Las dos hacen falta: sin la primera se
+## coge un paso alto cualquiera, y sin la segunda el árbol de la inundación devuelve caminos que
+## culebrean (medido: mediana 3.3 km dentro de una ventana de 3 km).
+##
+## El 'ceiling' es lo que impide abrir canales: si el paso más bajo está por encima del nivel del mar,
+## la bolsa está cerrada por tierra de verdad y se deja como laguna en vez de excavarle una salida a
+## través de una colina. Medido sin ese tope: 11 de 33 bocas se abrían paso por cotas de hasta +108 m.
+##
+## Las alternativas simples fallan, medidas sobre 39 bocas: el descenso estricto se atasca en el
+## primer hoyo de la plataforma (34 conectadas), y dejarle subir a la vecina más baja lo pone a
+## serpentear sin bajar nunca (agotaba el tope de celdas en las 39).
+static func _path_to_open_sea(filled: PackedFloat32Array, start: int, w: int, h: int,
+		target: float, ceiling: float, max_cells: int) -> PackedInt32Array:
+	var empty := PackedInt32Array()
+	var sy := start / w
+	var sx := start - sy * w
+
+	var buckets := {}
+	var seen := {start: true}
+	var cursor := clampi(int(filled[start] * _MOUTH_BUCKETS), 0, _MOUTH_BUCKETS - 1)
+	buckets[cursor] = PackedInt32Array([start])
+	var found := -1
+	while cursor < _MOUTH_BUCKETS:
+		var here: PackedInt32Array = buckets.get(cursor, empty)
+		if here.is_empty():
+			cursor += 1
+			continue
+		var cell := here[here.size() - 1]
+		here.remove_at(here.size() - 1)
+		buckets[cursor] = here
+		if filled[cell] <= target:
+			found = cell
+			break
+		for ni in _window_neighbours(cell, sx, sy, w, h, max_cells):
+			if seen.has(ni):
+				continue
+			seen[ni] = true
+			var k := maxi(cursor, clampi(int(filled[ni] * _MOUTH_BUCKETS), 0, _MOUTH_BUCKETS - 1))
+			var b: PackedInt32Array = buckets.get(k, PackedInt32Array())
+			b.append(ni)
+			buckets[k] = b
+	if found < 0:
+		return empty
+
+	# Cota del paso, con el margen del propio cubo para no dejar fuera la celda que lo fijó.
+	var pass_h := float(cursor + 1) / _MOUTH_BUCKETS
+	if pass_h > ceiling:
+		return empty
+
+	var parent := {start: -1}
+	var queue := PackedInt32Array([start])
+	var head := 0
+	while head < queue.size():
+		var cell := queue[head]
+		head += 1
+		if cell == found:
+			break
+		for ni in _window_neighbours(cell, sx, sy, w, h, max_cells):
+			if parent.has(ni) or filled[ni] > pass_h:
+				continue
+			parent[ni] = cell
+			queue.append(ni)
+	if not parent.has(found):
+		return empty
+
+	var path := PackedInt32Array()
+	var c := found
+	while c != start:
+		path.append(c)
+		c = parent[c]
+	path.reverse()
+	return path
+
+
+## Vecinas de 8 de una celda que caen dentro de la ventana de búsqueda. Envuelve en longitud y se
+## para en los polos.
+static func _window_neighbours(cell: int, sx: int, sy: int, w: int, h: int,
+		max_cells: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var cy := cell / w
+	var cx := cell - cy * w
+	for dy in [-1, 0, 1]:
+		var ny: int = cy + dy
+		if ny < 0 or ny >= h or absi(ny - sy) > max_cells:
+			continue
+		for dx in [-1, 0, 1]:
+			if dx == 0 and dy == 0:
+				continue
+			var nx: int = posmod(cx + dx, w)
+			var gap: int = absi(nx - sx)
+			if mini(gap, w - gap) > max_cells:
+				continue
+			out.append(ny * w + nx)
+	return out
 
 ## Cota del lecho en un nodo. Normalmente es el terreno menos la incisión, pero si 'wet_margin' está
 ## activo se hunde lo que haga falta para quedar por debajo del mar, sin pasarse del cavado que el
@@ -615,3 +806,56 @@ static func _unwrap(x: float, reference: float, w: int) -> float:
 	if reference - x > w * 0.5:
 		return x + w
 	return x
+
+
+## Marca las celdas del océano de verdad: la componente conexa más grande de todo lo que está por
+## debajo del nivel del mar.
+##
+## El nivel base de la hidrología NO puede ser "cota bajo el mar" a secas. Un hoyo interior por
+## debajo del cero cumple esa condición sin tocar el océano, y el flujo muere ahí: medido en la
+## Tierra del proyecto salen 836 bolsas interiores (5279 celdas, el 1.2% de lo que está bajo el mar)
+## y **19 de las 39 desembocaduras iban a parar a una**, no al mar. Con la máscara, esas bolsas ya no
+## son desagüe: el relleno de depresiones las llena hasta su collado y el cauce sigue por encima
+## hasta el océano, que es lo que hace que todos los ríos acaben en la costa.
+static func _ocean_mask(heights: PackedFloat32Array, w: int, h: int,
+		sea_n: float) -> PackedByteArray:
+	var n := w * h
+	var comp := PackedInt32Array()
+	comp.resize(n)
+	comp.fill(-1)
+	var best := -1
+	var best_size := 0
+	var nc := 0
+	var stack := PackedInt32Array()
+	for s in n:
+		if heights[s] > sea_n or comp[s] >= 0:
+			continue
+		stack.clear()
+		stack.append(s)
+		comp[s] = nc
+		var count := 0
+		while not stack.is_empty():
+			var c := stack[stack.size() - 1]
+			stack.remove_at(stack.size() - 1)
+			count += 1
+			var cy := c / w
+			var cx := c - cy * w
+			# Envuelve en longitud; los polos cortan.
+			for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var ny: int = cy + d.y
+				if ny < 0 or ny >= h:
+					continue
+				var ni: int = ny * w + posmod(cx + d.x, w)
+				if heights[ni] <= sea_n and comp[ni] < 0:
+					comp[ni] = nc
+					stack.append(ni)
+		if count > best_size:
+			best_size = count
+			best = nc
+		nc += 1
+
+	var mask := PackedByteArray()
+	mask.resize(n)
+	for i in n:
+		mask[i] = 1 if comp[i] == best else 0
+	return mask
