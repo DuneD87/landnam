@@ -1153,11 +1153,17 @@ func setup_voxel_generator() -> void:
 	# El generador se prepara ENTERO antes de colgarlo del terreno. Los ríos necesitan hornear el
 	# relieve del propio generador para deducir por dónde corren, y si el terreno ya estuviera
 	# mallando se vería el planeta rehacerse a medias.
+	#
+	# La copia tiene que ser DEEP_DUPLICATE_ALL, no duplicate(true): en Godot 4.6 duplicate(true)
+	# equivale a DEEP_DUPLICATE_INTERNAL y NO copia las subfunciones que vienen de otro fichero, así
+	# que el grafo preparado comparte river_carve.tres con la caché del ResourceLoader. Al aplicarle
+	# RiverGenerator.apply, las imágenes horneadas se escriben en el recurso de DISCO: el editor lo
+	# ve sucio, lo guarda, y river_carve.tres acabó pesando 173 MB en el repositorio.
 	var prepared: VoxelGenerator
 	if !terrain_generator_path.is_empty():
-		prepared = load(terrain_generator_path).duplicate(true)
+		prepared = load(terrain_generator_path).duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
 	else:
-		prepared = voxel_terrain.generator.duplicate(true)
+		prepared = voxel_terrain.generator.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
 
 	if not prepared is VoxelGeneratorGraph:
 		voxel_terrain.generator = prepared
@@ -1214,7 +1220,7 @@ func _setup_rivers(graph_generator: VoxelGeneratorGraph) -> bool:
 	var field := RiverField.load_from(path, key)
 	if field.is_empty():
 		var started := Time.get_ticks_msec()
-		var source: VoxelGeneratorGraph = graph_generator.duplicate(true)
+		var source: VoxelGeneratorGraph = graph_generator.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
 		source.compile()
 		field = RiverGenerator.build_field(source, radius, sea_level_radius, height_range,
 			river_settings)
@@ -1236,7 +1242,7 @@ func _load_vegetation_graph(path: String) -> VoxelGraphFunction:
 	var graph: VoxelGraphFunction = load(path)
 	if graph == null or _river_field.is_empty():
 		return graph
-	var copy: VoxelGraphFunction = graph.duplicate(true)
+	var copy: VoxelGraphFunction = graph.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
 	if RiverGenerator.apply(copy, _river_field):
 		return copy
 	return graph
