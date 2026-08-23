@@ -40,9 +40,9 @@ const _SHORE_COAST_SMOOTH := 1
 ## verdad, y de ahí para fuera propaga el barrido.
 const _SHORE_SEED_RADIUS := 2
 
-## Prefijo de las funciones de grafo que perforan el terreno y que el mapa ignora al hornear, y
-## nombre de la entrada por la que reciben el terreno intacto. Ver _ground_only_generator.
-const _CAVE_FUNCTION_PREFIX := "cave"
+## Salida que declara la etapa de grafo que perfora el terreno y que el mapa ignora al hornear, y
+## entrada por la que esa etapa recibe el terreno intacto. Ver _ground_only_generator.
+const _CAVE_OUTPUT := "cave_field"
 const _CAVE_TERRAIN_INPUT := "earth_field"
 ## Tope de etapas encadenadas que se pelan; solo evita un bucle infinito si el grafo se muerde la cola.
 const _MAX_CAVE_STAGES := 8
@@ -110,6 +110,10 @@ static func bake_heights(generator: Object, size: Vector2i, radius: float,
 ## real: medido sobre planet_earth, 385 m de cima con cuevas contra 939 m sin ellas, con la línea de
 ## costa idéntica. Que el problema es del bake y no del terreno se comprueba escalando cave_mask x10
 ## SIN mover su conjunto cero (misma superficie exacta): la cima horneada sube a 911 m.
+##
+## La etapa se reconoce por el NOMBRE de la salida que declara, no por la ruta de su recurso: el
+## generador vivo llega deep-duplicado desde planet.gd y una copia tiene resource_path vacío, así
+## que mirar la ruta deja de encontrarla y el mapa vuelve a perder las montañas en silencio.
 static func _ground_only_generator(generator: Object) -> Object:
 	if not generator.has_method("get_main_function"):
 		return generator
@@ -143,7 +147,7 @@ static func _ground_only_generator(generator: Object) -> Object:
 		if stage.is_empty() or fn.get_node_type_id(stage.node) != function_type:
 			break
 		var f: Resource = fn.get_node_param(stage.node, 0)
-		if f == null or not f.resource_path.get_file().begins_with(_CAVE_FUNCTION_PREFIX):
+		if f == null or not _declares_output(f, _CAVE_OUTPUT):
 			break
 		var port: int = fn.get_node_input_index(stage.node, _CAVE_TERRAIN_INPUT)
 		if port < 0:
@@ -163,6 +167,19 @@ static func _ground_only_generator(generator: Object) -> Object:
 			% result.get("message", ""))
 		return generator
 	return copy
+
+
+## True si la función de grafo declara una salida con ese nombre. Se lee de output_definitions, que
+## viaja con el recurso duplicado; get_node_output_index también valdría, pero llena la consola de
+## asserts cada vez que el nombre no está.
+static func _declares_output(graph_function: Resource, output_name: String) -> bool:
+	var defs: Variant = graph_function.get("output_definitions")
+	if not (defs is Array):
+		return false
+	for d in defs:
+		if d is Array and d.size() > 0 and String(d[0]) == output_name:
+			return true
+	return false
 
 
 ## Nodo y puerto que alimentan una entrada, o {} si está suelta.
