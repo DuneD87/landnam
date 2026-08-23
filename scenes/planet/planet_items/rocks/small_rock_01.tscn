@@ -12,7 +12,7 @@
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_hi1wi"]
 noise_type = 0
 seed = 1
-frequency = 0.0035
+frequency = 0.0004
 fractal_octaves = 4
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_sovrn"]
@@ -54,12 +54,14 @@ drop_amount_max = 6
 item_data = ExtResource("2_1x75k")
 
 [node name="Rock3D" type="Rock3D" parent="." unique_id=3688680]
-subdivisions = 1
+subdivisions = 2
 radius = 0.2
-shape_scale_x = 0.68
+shape_scale_x = 0.29
 shape_scale_y = 0.23
 shape_scale_z = 0.33
 shape_scale_variance = 0.47
+facet_cut_depth = 0.295
 noise = SubResource("FastNoiseLite_hi1wi")
-noise_amplitude = 1.0
+noise_amplitude = 0.795
+uv_scale = 2.0
 material_rock = SubResource("ShaderMaterial_sovrn")

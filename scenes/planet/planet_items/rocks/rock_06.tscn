@@ -1,0 +1,65 @@
+[gd_scene format=3 uid="uid://c6wpud2qn06ks"]
+
+[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_cubpc"]
+[ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_c00hj"]
+[ext_resource type="Shader" uid="uid://csa5tbyrlrn5i" path="res://shaders/opaque_planet_material.gdshader" id="3_5mujd"]
+[ext_resource type="Texture2D" uid="uid://cxavhy34vnp3p" path="res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png" id="4_cubpc"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_cubpc"]
+noise_type = 5
+frequency = 0.0047
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_c3gup"]
+render_priority = 0
+shader = ExtResource("3_5mujd")
+shader_parameter/light_direction = Vector3(1, 0, 0)
+shader_parameter/planet_position = Vector3(0, 0, 0)
+shader_parameter/transition_width = 0.2
+shader_parameter/ambient_intensity = 0.15
+shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
+shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
+shader_parameter/translucency_strength = 0.45
+shader_parameter/translucency_color = Color(1, 1, 1, 1)
+shader_parameter/translucency_power = 2.0
+shader_parameter/rim_strength = 0.3
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/texture_albedo = ExtResource("4_cubpc")
+shader_parameter/metallic = 0.0
+shader_parameter/specular = 0.0
+shader_parameter/metallic_texture_channel = Vector4(1, 0, 0, 0)
+shader_parameter/roughness = 0.8
+shader_parameter/roughness_texture_channel = Vector4(1, 0, 0, 0)
+shader_parameter/normal_scale = 1.0
+shader_parameter/ao_texture_channel = Vector4(1, 0, 0, 0)
+shader_parameter/emission = Color(0, 0, 0, 0)
+shader_parameter/emission_energy = 1.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
+size = Vector3(1.291481, 0.5378418, 0.6533356)
+
+[node name="Node3D" type="StaticBody3D" unique_id=1075421542]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.1715531, 0)
+script = ExtResource("1_cubpc")
+health = 100
+drop_amount_min = 4
+drop_amount_max = 6
+item_data = ExtResource("2_c00hj")
+
+[node name="Rock3D" type="Rock3D" parent="." unique_id=1884613375]
+radius = 0.6
+shape_scale_x = 1.73
+shape_scale_y = 0.72
+shape_scale_z = 1.11
+facet_cut_count = 10
+facet_cut_depth = 0.105
+facet_cut_variance = 1.0
+noise = SubResource("FastNoiseLite_cubpc")
+noise_amplitude = 1.0
+material_rock = SubResource("ShaderMaterial_c3gup")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3753421, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
+transform = Transform3D(0.99973786, -0.02289672, 0, 0.02289672, 0.99973786, 0, 0, 0, 1, -0.023025177, 1.7082149, 0.051006585)
+shape = SubResource("BoxShape3D_cs0ur")
