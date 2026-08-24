@@ -75,9 +75,9 @@ const SPLIT_MIN_BLOCKS := 4
 ## deriva que nunca se iban. Solo se retiran piezas nacidas de una rotura, nunca lo que construyó
 ## el jugador, y solo si son pequeñas, están quietas y lejos.
 const DERELICT_MAX_BLOCKS := 12
-const DERELICT_DISTANCE := 300.0
+const DERELICT_DISTANCE := 3.0
 const DERELICT_SPEED := 1.0
-const DERELICT_SETTLE_TIME := 25.0
+const DERELICT_SETTLE_TIME := 5.0
 
 var planet_node: Node3D = null
 
@@ -147,6 +147,9 @@ var _split_grids: Array = []
 
 ## True solo en los cuerpos nacidos de una rotura. Lo que colocó el jugador nunca se autorretira,
 ## por pequeño que quede: borrar propiedad del jugador sin avisar es peor que acumular cuerpos.
+## OJO: no se serializa, así que tras cargar una partida los restos vuelven como si los hubiera
+## construido el jugador y ya no se retiran nunca. Es deliberado —cargar no debe borrar nada—,
+## pero significa que la limpieza solo actúa dentro de la sesión en la que se rompió el casco.
 var spawned_from_split: bool = false
 var _derelict_timer: float = 0.0
 
@@ -623,6 +626,24 @@ func _update_derelict(delta: float) -> bool:
 
 	_despawn_as_derelict()
 	return true
+
+
+## Estado de la retirada de restos, para el comando de consola 'derelicts'. Son cinco condiciones
+## y desde fuera son indistinguibles: un resto que no se va puede estar fallando cualquiera.
+func get_derelict_state() -> Dictionary:
+	var dist := -1.0
+	var camera := get_viewport().get_camera_3d()
+	if camera:
+		dist = camera.global_position.distance_to(global_position)
+	return {
+		"from_split": spawned_from_split,
+		"controlled": _is_being_controlled,
+		"blocks": get_block_count(),
+		"speed": linear_velocity.length(),
+		"spin": angular_velocity.length(),
+		"distance": dist,
+		"timer": _derelict_timer,
+	}
 
 
 ## Retira el resto del mundo. Quitar sus grids del GridManager libera ya el cuerpo, porque la

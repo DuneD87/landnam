@@ -269,6 +269,8 @@ func _register_commands() -> void:
 		"Fuerza de la corriente del mar; sin argumento, informe de cómo la ven barco y jugador.", _cmd_drift))
 	_add(ConsoleCommand.new("damage", "damage [julios]",
 		"Daña el bloque apuntado con una energía exacta; sin argumento, informa de su vida.", _cmd_damage))
+	_add(ConsoleCommand.new("derelicts", "derelicts",
+		"Estado de la retirada de restos: qué condición bloquea a cada cuerpo dinámico.", _cmd_derelicts))
 
 
 
@@ -558,3 +560,34 @@ func _damage_report(grid: GridBase, cell: Vector3i) -> String:
 	return "[color=%s]'%s' %s · bloque %d · vida %.1f%% (%.0f de %.0f J) · escalón %d/%d[/color]" % [
 		COLOR_INFO, grid.grid_id, cell, block_id, hp * 100.0, hp * full, full,
 		ChunkMeshBuilder.damage_step(hp), ChunkMeshBuilder.DAMAGE_STEPS]
+
+
+## Por qué NO se está retirando cada resto. Las cinco condiciones se evalúan juntas dentro de
+## _update_derelict y desde fuera son indistinguibles entre sí: aquí van una a una.
+func _cmd_derelicts(_args: PackedStringArray) -> String:
+	var bodies := get_tree().get_nodes_in_group("dynamic_grid_body")
+	if bodies.is_empty():
+		return "[color=%s]No hay cuerpos dinámicos.[/color]" % COLOR_MUTED
+
+	var out := "[color=%s]retirada de restos · tamaño <= %d · quieto < %.1f · lejos > %.0f m · %.0f s[/color]\n" % [
+		COLOR_INFO, DynamicGridBody.DERELICT_MAX_BLOCKS, DynamicGridBody.DERELICT_SPEED,
+		DynamicGridBody.DERELICT_DISTANCE, DynamicGridBody.DERELICT_SETTLE_TIME]
+
+	for node in bodies:
+		var body := node as DynamicGridBody
+		var st: Dictionary = body.get_derelict_state()
+		var gates := [
+			_gate("de rotura", st["from_split"]),
+			_gate("sin piloto", not st["controlled"]),
+			_gate("tamaño %d" % st["blocks"], int(st["blocks"]) <= DynamicGridBody.DERELICT_MAX_BLOCKS),
+			_gate("quieto %.2f/%.2f" % [st["speed"], st["spin"]],
+				st["speed"] < DynamicGridBody.DERELICT_SPEED and st["spin"] < DynamicGridBody.DERELICT_SPEED),
+			_gate("lejos %.0fm" % st["distance"], st["distance"] > DynamicGridBody.DERELICT_DISTANCE),
+		]
+		out += "  %s · %s · t %.1f\n" % [body.name, " ".join(gates), st["timer"]]
+	return out
+
+
+## Una condición, verde si pasa y roja si es la que bloquea.
+func _gate(label: String, ok: bool) -> String:
+	return "[color=%s]%s[/color]" % [COLOR_OK if ok else COLOR_ERR, label]
