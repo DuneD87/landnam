@@ -36,6 +36,12 @@ var _suppress_rebuild: bool = false
 var _batch_depth: int = 0
 var _dirty_chunks: Dictionary = {}
 
+## Sube en cada alta o baja de bloque. Los análisis que corren en worker guardan el valor al
+## lanzarse y lo comparan al aplicar: si cambió, el resultado es viejo. Comparar unos enteros en
+## lugar de revisar celda a celda, que a 18.000 bloques se come el frame del corte.
+## Dañar un bloque NO lo sube: la vida no cambia la conectividad, que es lo que se analiza.
+var edit_version: int = 0
+
 ## Transform mundo de la grid (subclases deben implementarlo).
 func get_grid_world_transform() -> Transform3D:
 	push_warning("[GridBase] get_grid_world_transform() no implementado")
@@ -130,6 +136,7 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 		_chunk_blocks[chunk] = {}
 	_chunk_blocks[chunk][grid_pos] = true
 	_total_volume += _cell_volume() * _block_volume_factor(block_data.block_id)
+	edit_version += 1
 
 	if material_id != "" and not mesh_materials.has(material_id):
 		if block_data.material_override:
@@ -163,6 +170,7 @@ func remove_block(grid_pos: Vector3i) -> Dictionary:
 	if _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk].erase(grid_pos)
 	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _block_volume_factor(info["block_id"]))
+	edit_version += 1
 
 	_on_block_removed_hook(info)
 	_request_rebuild(grid_pos)
@@ -183,6 +191,7 @@ func detach_block(grid_pos: Vector3i) -> Dictionary:
 	if _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk].erase(grid_pos)
 	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _block_volume_factor(info["block_id"]))
+	edit_version += 1
 
 	_on_block_removed_hook(info)
 	_request_rebuild(grid_pos)
@@ -201,6 +210,7 @@ func attach_block(grid_pos: Vector3i, info: Dictionary) -> void:
 		_chunk_blocks[chunk] = {}
 	_chunk_blocks[chunk][grid_pos] = true
 	_total_volume += _cell_volume() * _block_volume_factor(info["block_id"])
+	edit_version += 1
 
 	_on_block_placed_hook(grid_pos)
 	_request_rebuild(grid_pos)

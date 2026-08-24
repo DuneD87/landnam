@@ -144,6 +144,8 @@ var _split_task_id: int = -1
 ## Grids tal y como estaban al lanzar el análisis. El reparto viene indexado por posición, y si
 ## _grids cambia mientras el worker trabaja los índices apuntarían a otra grid.
 var _split_grids: Array = []
+## edit_version de cada una en ese momento, para detectar en O(grids) que el reparto es viejo.
+var _split_versions := PackedInt32Array()
 
 ## True solo en los cuerpos nacidos de una rotura. Lo que colocó el jugador nunca se autorretira,
 ## por pequeño que quede: borrar propiedad del jugador sin avisar es peor que acumular cuerpos.
@@ -377,8 +379,11 @@ func _process_split_analysis(delta: float) -> void:
 	_split_running = true
 
 	_split_grids = _grids.duplicate()
+	_split_versions.resize(_split_grids.size())
 	var grids_data: Array = []
-	for grid in _split_grids:
+	for i in _split_grids.size():
+		var grid = _split_grids[i]
+		_split_versions[i] = grid.edit_version
 		grids_data.append({
 			"cells": grid.get_all_blocks().keys(),
 			"cell_size": grid.cell_size,
@@ -405,14 +410,14 @@ func _apply_split(pieces: Array) -> void:
 
 	# El casco pudo cambiar entre el lanzamiento del análisis y ahora (otro impacto, el jugador
 	# construyendo). Repartir con datos viejos dejaría bloques fantasma, así que se reintenta.
-	if not _pieces_still_valid(pieces):
+	if not _pieces_still_valid():
 		_split_dirty = true
 		_split_debounce = SPLIT_DEBOUNCE
 		return
 
 	var old_lin := linear_velocity
 	var old_ang := angular_velocity
-	var whole_centroid := _centroid_of_pieces(pieces)
+	var whole_centroid := _combined_centroid(pieces)
 
 	for i in range(1, pieces.size()):
 		var piece: Dictionary = pieces[i]
@@ -422,7 +427,7 @@ func _apply_split(pieces: Array) -> void:
 			_spawn_piece(piece, whole_centroid, old_lin, old_ang)
 
 	# El centro de masas de lo que queda también se ha movido.
-	var kept := _centroid_of_pieces([pieces[0]])
+	var kept: Vector3 = pieces[0]["centroid"]
 	linear_velocity = old_lin + old_ang.cross(global_transform.basis * (kept - whole_centroid))
 	angular_velocity = old_ang
 	_impact_cooldown = IMPACT_COOLDOWN_FRAMES
@@ -431,33 +436,27 @@ func _apply_split(pieces: Array) -> void:
 	_split_dirty = false
 
 
-## True si el reparto sigue siendo aplicable: las grids que vio el análisis siguen en el body y
-## todas sus celdas siguen donde estaban.
-func _pieces_still_valid(pieces: Array) -> bool:
-	for piece: Dictionary in pieces:
-		for group: Dictionary in piece["groups"]:
-			var gi: int = group["grid_index"]
-			if gi >= _split_grids.size():
-				return false
-			var grid = _split_grids[gi]
-			if not _grids.has(grid):
-				return false
-			for cell: Vector3i in group["cells"]:
-				if not grid.has_block(cell):
-					return false
+## True si el reparto sigue siendo aplicable. Basta comparar la versión de edición de cada grid:
+## si ninguna cambió desde que se lanzó el análisis, los bloques son exactamente los mismos.
+## Recorrer celda a celda daba lo mismo y costaba O(bloques) en el frame del corte.
+func _pieces_still_valid() -> bool:
+	if _split_grids.size() != _split_versions.size():
+		return false
+	for i in _split_grids.size():
+		var grid = _split_grids[i]
+		if not _grids.has(grid) or grid.edit_version != _split_versions[i]:
+			return false
 	return true
 
 
-## Centroide en espacio del body de los bloques de un conjunto de piezas.
-func _centroid_of_pieces(pieces: Array) -> Vector3:
+## Centroide del conjunto, combinando los que cada pieza ya trae calculados del worker.
+static func _combined_centroid(pieces: Array) -> Vector3:
 	var sum := Vector3.ZERO
 	var count := 0
 	for piece: Dictionary in pieces:
-		for group: Dictionary in piece["groups"]:
-			var cs: float = _split_grids[group["grid_index"]].cell_size
-			for cell: Vector3i in group["cells"]:
-				sum += (Vector3(cell) + Vector3.ONE * 0.5) * cs
-				count += 1
+		var n: int = piece["count"]
+		sum += (piece["centroid"] as Vector3) * float(n)
+		count += n
 	return sum / maxf(float(count), 1.0)
 
 
@@ -546,7 +545,7 @@ func _spawn_piece(piece: Dictionary, whole_centroid: Vector3, old_lin: Vector3, 
 	body.update_mass_from_grids()
 
 	# Velocidad del sólido rígido en el centroide de la pieza, con la rotación del original.
-	var piece_centroid := _centroid_of_pieces([piece])
+	var piece_centroid: Vector3 = piece["centroid"]
 	var arm := global_transform.basis * (piece_centroid - whole_centroid)
 	body.linear_velocity = old_lin + old_ang.cross(arm)
 	body.angular_velocity = old_ang

@@ -158,6 +158,12 @@ const COLLAPSE_DEBOUNCE := 0.4
 const COLLAPSE_MAX_SPAN := 8
 
 var _collapse_pending: Dictionary = {}
+## Solo un análisis de apoyo en vuelo a la vez: son raros y así no hay que casar resultados con
+## grupos. Lo que quede pendiente se recoge en cuanto vuelve el que está corriendo.
+var _collapse_running: bool = false
+var _collapse_task_id: int = -1
+var _collapse_group: Array = []
+var _collapse_versions := PackedInt32Array()
 
 
 ## Celdas que se miran hacia arriba desde lo excavado, además del radio del agujero.
@@ -225,14 +231,18 @@ func _process_collapse_checks(delta: float) -> void:
 		if left > 0.0:
 			_collapse_pending[grid_id] = left
 			continue
+		_collapse_pending[grid_id] = 0.0
+		if _collapse_running:
+			continue
 		_collapse_pending.erase(grid_id)
-		_check_collapse(grid_id)
+		_start_collapse_check(grid_id)
 
 
-## Convierte en dinámico todo lo que haya dejado de estar sostenido por el suelo. El análisis va
-## sobre el GRUPO de grids alineadas, no sobre una sola: una estructura multi-size es una sola
-## cosa y sus trozos se sostienen entre sí.
-func _check_collapse(grid_id: String) -> void:
+## Lanza el análisis de apoyo de una estructura. Va sobre el GRUPO de grids alineadas y no sobre
+## una sola: una estructura multi-size es una sola cosa y sus trozos se sostienen entre sí. Los
+## anclajes se sondean aquí porque son raycasts y necesitan el espacio de físicas; el BFS, que es
+## lo que escala con el tamaño, se va al worker.
+func _start_collapse_check(grid_id: String) -> void:
 	var source: PlanetGrid = _grids.get(grid_id, null) as PlanetGrid
 	if not source or source.get_block_count() == 0:
 		return
@@ -246,13 +256,43 @@ func _check_collapse(grid_id: String) -> void:
 
 	var grids_data: Array = []
 	var anchors: Array = []
-	for grid: PlanetGrid in group:
+	_collapse_versions.resize(group.size())
+	for i in group.size():
+		var grid: PlanetGrid = group[i]
+		_collapse_versions[i] = grid.edit_version
 		grids_data.append({"cells": grid.get_all_blocks().keys(), "cell_size": grid.cell_size})
 		anchors.append(grid.compute_anchor_cells())
 
+	_collapse_group = group
+	_collapse_running = true
+	_collapse_task_id = WorkerThreadPool.add_task(
+		_run_collapse_analysis.bind(grids_data, anchors), false, "GridCollapseAnalysis")
+
+
+func _run_collapse_analysis(grids_data: Array, anchors: Array) -> void:
 	var falling := GridSplitAnalyzer.analyze_support(grids_data, anchors, COLLAPSE_MAX_SPAN)
-	if falling.is_empty():
+	call_deferred("_apply_collapse", falling)
+
+
+## Convierte en dinámico todo lo que el análisis dejó sin apoyo.
+func _apply_collapse(falling: Array) -> void:
+	if _collapse_task_id >= 0:
+		WorkerThreadPool.wait_for_task_completion(_collapse_task_id)
+		_collapse_task_id = -1
+	_collapse_running = false
+
+	var group := _collapse_group
+	_collapse_group = []
+	if falling.is_empty() or group.is_empty():
 		return
+
+	# La estructura pudo cambiar mientras el worker trabajaba. Basta comparar versiones de edición:
+	# si alguna cambió, el reparto es viejo y se vuelve a encolar en vez de aplicarse a ciegas.
+	for i in group.size():
+		var grid: PlanetGrid = group[i]
+		if not _grids.has(grid.grid_id) or _grids[grid.grid_id] != grid 				or i >= _collapse_versions.size() or grid.edit_version != _collapse_versions[i]:
+			mark_collapse_check(group[0])
+			return
 
 	var world_xform: Transform3D = group[0].get_grid_world_transform()
 	for piece: Dictionary in falling:

@@ -22,7 +22,7 @@ static func analyze(grids_data: Array) -> Array:
 	if raster.is_empty() or (raster["owners"] as Array).size() < 2:
 		return []
 
-	var pieces := _group_components(raster["fine"], raster["owners"], {})
+	var pieces := _group_components(raster["fine"], raster["owners"], raster["cell_sizes"], {})
 	# Una sola componente es el caso abrumadoramente normal.
 	return [] if pieces.size() <= 1 else pieces
 
@@ -48,7 +48,7 @@ static func analyze_support(grids_data: Array, anchors: Array, max_span: int) ->
 
 	# Sin un solo anclaje la estructura entera está en el aire; que caiga como un bloque.
 	if anchored.is_empty():
-		return _group_components(fine, owners, {})
+		return _group_components(fine, owners, raster["cell_sizes"], {})
 
 	# BFS multi-origen desde todas las celdas ancladas, en anchura (FIFO con puntero: pop_front
 	# sobre un Array es O(n) y aquí serían decenas de miles de celdas).
@@ -84,7 +84,7 @@ static func analyze_support(grids_data: Array, anchors: Array, max_span: int) ->
 
 	if falling.is_empty():
 		return []
-	return _group_components(fine, owners, falling)
+	return _group_components(fine, owners, raster["cell_sizes"], falling)
 
 
 ## Rasteriza las grids a la rejilla del cell_size más fino. Devuelve {finest, owners, fine},
@@ -100,6 +100,9 @@ static func _rasterize(grids_data: Array) -> Dictionary:
 
 	var owners: Array = []
 	var fine: Dictionary = {}
+	var cell_sizes := PackedFloat32Array()
+	for gd2: Dictionary in grids_data:
+		cell_sizes.append(gd2["cell_size"])
 	for gi in grids_data.size():
 		var gd: Dictionary = grids_data[gi]
 		var scale: float = (gd["cell_size"] as float) / finest
@@ -113,12 +116,13 @@ static func _rasterize(grids_data: Array) -> Dictionary:
 					for z in range(lo.z, hi.z + 1):
 						fine[Vector3i(x, y, z)] = owner_idx
 
-	return {"finest": finest, "owners": owners, "fine": fine}
+	return {"finest": finest, "owners": owners, "fine": fine, "cell_sizes": cell_sizes}
 
 
 ## Agrupa en componentes conexas los bloques cuyo índice esté en 'subset' (todos si va vacío),
 ## sin atravesar los que no lo están. Devuelve [{count, groups}] de mayor a menor.
-static func _group_components(fine: Dictionary, owners: Array, subset: Dictionary) -> Array:
+static func _group_components(fine: Dictionary, owners: Array, cell_sizes: PackedFloat32Array,
+	subset: Dictionary) -> Array:
 	var owner_label := PackedInt32Array()
 	owner_label.resize(owners.size())
 	owner_label.fill(-1)
@@ -157,16 +161,22 @@ static func _group_components(fine: Dictionary, owners: Array, subset: Dictionar
 			piece[gi] = []
 		(piece[gi] as Array).append(owners[oi][1])
 
+	# El centroide se acumula aquí, en el worker: con 18.000 bloques recorrerlos de nuevo en el
+	# main thread para calcularlo era una de las pasadas que se comían el frame del corte.
 	var out: Array = []
 	for piece: Dictionary in pieces:
 		var groups: Array = []
 		var count := 0
+		var centroid := Vector3.ZERO
 		for gi: int in piece:
 			var cells: Array = piece[gi]
 			groups.append({"grid_index": gi, "cells": cells})
 			count += cells.size()
+			var cs: float = cell_sizes[gi]
+			for cell: Vector3i in cells:
+				centroid += (Vector3(cell) + Vector3.ONE * 0.5) * cs
 		if count > 0:
-			out.append({"count": count, "groups": groups})
+			out.append({"count": count, "groups": groups, "centroid": centroid / float(count)})
 
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["count"] > b["count"])
 	return out
