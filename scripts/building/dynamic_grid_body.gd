@@ -9,6 +9,7 @@ extends RigidBody3D
 enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 
 @export var movement_type: MovementType = MovementType.BOAT
+@export var damage_enabled: bool = true
 @export var turn_speed: float = 2.0
 @export var buoyancy_lod_distance: float = 150.0
 @export var linear_drag: float = 0.3
@@ -40,6 +41,20 @@ const INTERIOR_DEBOUNCE := 0.3
 # (m) que fuerza una reevaluación antes de tiempo (caídas o hundimientos rápidos).
 const FLOOD_RECALC_FRAMES := 4
 const FLOOD_RECALC_HEAVE := 0.25
+
+## Velocidad de cierre (m/s) por debajo de la cual un contacto no hace daño. El umbral va sobre la
+## velocidad, no sobre el impulso: un casco posado en tierra genera contactos permanentes cuyo
+## impulso es el peso del barco entero, y con ese criterio se autodestruiría al varar.
+const IMPACT_MIN_SPEED := 6.0
+## Fracción de la energía cinética del cierre que se convierte en destrucción.
+const IMPACT_ENERGY_FACTOR := 0.35
+## Masa (kg) máxima que cuenta como concentrada en el punto de impacto. Con la masa entera, el daño
+## escala con el tamaño del casco y un carguero que roza el suelo se abre en canal: lo que rompe es
+## la parte que choca, no el barco completo.
+const IMPACT_MAX_EFFECTIVE_MASS := 20000.0
+## Frames de física de espera tras un impacto, para que un rebote no siga triturando el casco.
+const IMPACT_COOLDOWN_FRAMES := 8
+const MAX_CONTACTS_REPORTED := 8
 
 var planet_node: Node3D = null
 
@@ -86,14 +101,21 @@ var _interior_debounce: float = 0.0
 var _analysis_running: bool = false
 var _analysis_task_id: int = -1
 
-var _boat_speed_levels: Array[float] = [0.0, 5.0, 10.0, 20.0]
+var _boat_speed_levels: Array[float] = [0.0, 50.0, 100.0, 200.0]
 var _boat_speed_index: int = 0
 var _boat_target_speed: float = 0.0
 var _boat_current_speed: float = 0.0
 @export var boat_acceleration: float = 3.0
 @export var boat_deceleration: float = 5.0
 
+## Velocidad del paso de física anterior, para medir la aproximación de un contacto antes de que
+## el solver la absorba. Ver _detect_impact.
+var _prev_lin_vel: Vector3 = Vector3.ZERO
+var _prev_ang_vel: Vector3 = Vector3.ZERO
+var _impact_cooldown: int = 0
+
 signal speed_changed(level: int, speed: float)
+signal blocks_destroyed(world_pos: Vector3, count: int)
 
 func on_block_removed(_grid_pos: Vector3i, _grid: GridBase = null) -> void:
 	mark_points_dirty()
@@ -314,6 +336,9 @@ func _ready() -> void:
 	collision_mask = 1
 	# Dormido ignoraría las fuerzas custom (flotación, gravedad planetaria, inundación).
 	can_sleep = false
+	# Sin esto get_contact_count() devuelve siempre 0 y no hay detección de impactos.
+	contact_monitor = true
+	max_contacts_reported = MAX_CONTACTS_REPORTED
 	add_to_group("floating_origin")
 	add_to_group("dynamic_grid_body")
 	_setup_water_sampler()
@@ -395,6 +420,116 @@ func _handle_land_input(_delta: float) -> void:
 ## Sin implementar: movimiento de nave espacial.
 func _handle_spaceship_input(_delta: float) -> void:
 	pass
+
+
+## Detecta el impacto del paso y guarda la velocidad para el siguiente. La medida usa la
+## velocidad ANTERIOR: cuando _integrate_forces corre, el solver ya ha absorbido el choque y la
+## velocidad actual de un golpe seco es casi cero.
+func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if _impact_cooldown > 0:
+		_impact_cooldown -= 1
+	elif damage_enabled:
+		_detect_impact(state)
+	_prev_lin_vel = state.linear_velocity
+	_prev_ang_vel = state.angular_velocity
+
+
+## Busca el contacto más violento del paso y, si supera el umbral, encola la destrucción.
+func _detect_impact(state: PhysicsDirectBodyState3D) -> void:
+	var contacts := state.get_contact_count()
+	if contacts == 0:
+		return
+
+	var com := state.transform.origin + state.center_of_mass
+	var best_speed := 0.0
+	var best_pos := Vector3.ZERO
+
+	for i in contacts:
+		var pos := state.get_contact_collider_position(i)
+		var arm := pos - com
+		if arm.length_squared() < 0.0001:
+			continue
+		# Cierre = velocidad del punto de contacto contra el obstáculo, sobre la normal. El signo de
+		# la normal reportada depende de quién sea el cuerpo local, así que se orienta hacia fuera
+		# del centro de masas: medida convención-independiente que da ~0 en un casco solo apoyado.
+		# (Sobre el brazo en vez de la normal, el término ω × r se anularía por construcción y la
+		# rotación no contaría.)
+		var normal := state.get_contact_local_normal(i)
+		if normal.dot(arm) < 0.0:
+			normal = -normal
+		var vel: Vector3 = _prev_lin_vel + _prev_ang_vel.cross(arm)
+		var rel: Vector3 = vel - state.get_contact_collider_velocity_at_position(i)
+		var closing := rel.dot(normal)
+		if closing > best_speed:
+			best_speed = closing
+			best_pos = pos
+
+	if best_speed <= IMPACT_MIN_SPEED:
+		return
+
+	# Solo el excedente sobre el umbral cuenta, para que un golpe justo en el límite no rompa nada.
+	var excess := best_speed - IMPACT_MIN_SPEED
+	var effective_mass := minf(mass, IMPACT_MAX_EFFECTIVE_MASS)
+	var energy := 0.5 * effective_mass * excess * excess * IMPACT_ENERGY_FACTOR
+	_impact_cooldown = IMPACT_COOLDOWN_FRAMES
+	# Editar la grid libera CollisionShape3D del propio body mientras el servidor está pisando: diferido.
+	call_deferred("_apply_impact", best_pos, energy)
+
+
+## Reparte la energía del impacto entre las grids del body (multi-size), con un solo rebuild por
+## grid, y lanza los escombros. Se llama diferido desde _detect_impact.
+func _apply_impact(world_pos: Vector3, energy: float) -> void:
+	if not is_inside_tree():
+		return
+
+	var destroyed := 0
+	var budget := energy
+	var debris_cell := 1.0
+
+	# TEMPORAL: desglose del pico de frame. Quitar junto con las sondas de GridBase.
+	GridBase.debug_reset_rebuild_stats()
+	ChunkMeshBuilder.debug_reset_stats()
+	var t_start := Time.get_ticks_usec()
+	var remove_usec := 0
+
+	for grid in _grids:
+		if budget <= 0.0:
+			break
+		grid.begin_batch_edit()
+		var t_rm := Time.get_ticks_usec()
+		var result: Dictionary = grid.damage_sphere(world_pos, budget)
+		remove_usec += Time.get_ticks_usec() - t_rm
+		grid.end_batch_edit()
+		var hit: int = (result["destroyed"] as Array).size()
+		if hit > 0:
+			budget -= result["spent"]
+			destroyed += hit
+			debris_cell = grid.cell_size
+
+	if destroyed == 0:
+		return
+
+	var t_edit := Time.get_ticks_usec()
+
+	# La masa y las cajas de flotación ya las invalida block_removed; aquí solo el efecto.
+	var up := Vector3.UP
+	if planet_node:
+		up = (global_position - planet_node.global_pos).normalized()
+	BlockDebris.burst(self, world_pos, up, destroyed, debris_cell)
+	blocks_destroyed.emit(world_pos, destroyed)
+
+	print("[impact] bloques=%d chunks=%d | quitar=%.2f  mesh=%.2f (emit=%.2f tang=%.2f commit=%.2f)  colliders=%.2f  debris=%.2f  TOTAL=%.2f ms" % [
+		destroyed,
+		GridBase.debug_chunks_rebuilt,
+		remove_usec / 1000.0,
+		GridBase.debug_mesh_usec / 1000.0,
+		ChunkMeshBuilder.debug_emit_usec / 1000.0,
+		ChunkMeshBuilder.debug_tangent_usec / 1000.0,
+		ChunkMeshBuilder.debug_commit_usec / 1000.0,
+		GridBase.debug_collider_usec / 1000.0,
+		(Time.get_ticks_usec() - t_edit) / 1000.0,
+		(Time.get_ticks_usec() - t_start) / 1000.0,
+	])
 
 
 func _physics_process(delta: float) -> void:

@@ -12,6 +12,15 @@ const config_ref = preload("res://scripts/config.gd")
 
 const CHUNK_SHIFT := 4
 
+## Energía (J) que absorbe un bloque de 1 m³ antes de romperse, si su BlockData no la define.
+const DEFAULT_IMPACT_TOUGHNESS := 60.0
+## Tope de alcance de un impacto, en celdas de radio: sin él una caída fuerte borraría la nave entera.
+const IMPACT_MAX_RADIUS_CELLS := 50
+## Tope de bloques destruidos por impacto. El radio acota la forma, esto acota el COSTE: a
+## velocidad de embestida la energía da para borrar el casco entero, y reconstruir todos sus
+## chunks en un frame es un parón de cientos de ms por mucho que se optimice cada fase.
+const IMPACT_MAX_BLOCKS := 250
+
 var grid_id: String = ""
 var cell_size: float = 1.0
 var planet_node: Node3D = null
@@ -24,6 +33,18 @@ var _chunk_colliders: Dictionary = {}
 var _total_volume: float = 0.0
 var mesh_materials: Dictionary = {}
 var _suppress_rebuild: bool = false
+var _batch_depth: int = 0
+var _dirty_chunks: Dictionary = {}
+
+# TEMPORAL: sondas para localizar el pico de frame de los impactos. Quitar al cerrar el tema.
+static var debug_mesh_usec: int = 0
+static var debug_collider_usec: int = 0
+static var debug_chunks_rebuilt: int = 0
+
+static func debug_reset_rebuild_stats() -> void:
+	debug_mesh_usec = 0
+	debug_collider_usec = 0
+	debug_chunks_rebuilt = 0
 
 
 ## Transform mundo de la grid (subclases deben implementarlo).
@@ -249,6 +270,22 @@ func end_bulk_edit() -> void:
 	rebuild_mesh()
 
 
+## Acumula los rebuilds de las ediciones siguientes en vez de ejecutarlos uno a uno. A diferencia
+## de begin_bulk_edit, al cerrar solo se reconstruyen los chunks tocados, no la grid entera.
+func begin_batch_edit() -> void:
+	_batch_depth += 1
+
+## Cierra el batch y reconstruye de una vez los chunks marcados.
+func end_batch_edit() -> void:
+	_batch_depth = maxi(0, _batch_depth - 1)
+	if _batch_depth > 0:
+		return
+	var dirty := _dirty_chunks
+	_dirty_chunks = {}
+	for chunk: Vector3i in dirty:
+		_rebuild_chunk(chunk)
+
+
 ## Chunk (coordenadas de chunk) al que pertenece una celda.
 static func _chunk_of(grid_pos: Vector3i) -> Vector3i:
 	return Vector3i(grid_pos.x >> CHUNK_SHIFT, grid_pos.y >> CHUNK_SHIFT, grid_pos.z >> CHUNK_SHIFT)
@@ -267,15 +304,20 @@ func get_total_volume() -> float:
 
 
 ## Reconstruye solo los chunks afectados por la edición de una celda (el suyo y los
-## vecinos con bloques adyacentes, cuyas caras de frontera pueden cambiar).
+## vecinos con bloques adyacentes, cuyas caras de frontera pueden cambiar). Dentro de un
+## batch solo los marca, y los reconstruye end_batch_edit.
 func _request_rebuild(grid_pos: Vector3i) -> void:
 	if _suppress_rebuild:
 		return
 
-	var dirty: Dictionary = {_chunk_of(grid_pos): true}
+	var dirty: Dictionary = _dirty_chunks if _batch_depth > 0 else {}
+	dirty[_chunk_of(grid_pos)] = true
 	for neighbor in get_neighbors_of(grid_pos):
 		if _blocks.has(neighbor):
 			dirty[_chunk_of(neighbor)] = true
+
+	if _batch_depth > 0:
+		return
 
 	for chunk: Vector3i in dirty:
 		_rebuild_chunk(chunk)
@@ -283,6 +325,7 @@ func _request_rebuild(grid_pos: Vector3i) -> void:
 
 ## Rebuild completo: resincroniza el índice de chunks y el volumen desde _blocks y reconstruye todos.
 func rebuild_mesh() -> void:
+	_dirty_chunks.clear()
 	_chunk_blocks.clear()
 	_total_volume = 0.0
 	for grid_pos: Vector3i in _blocks:
@@ -307,40 +350,55 @@ func _rebuild_chunk(chunk: Vector3i) -> void:
 		_free_chunk_mesh(chunk)
 		return
 
+	var t0 := Time.get_ticks_usec()
 	var mesh := ChunkMeshBuilder.build_mesh(_blocks, cell_size, _get_mesh_local_transform(), mesh_materials, positions)
 	var instance := _ensure_chunk_mesh_node(chunk)
 	instance.mesh = mesh
 	instance.material_override = null
 
+	var t1 := Time.get_ticks_usec()
 	_rebuild_chunk_colliders(chunk, positions)
 
+	debug_chunks_rebuilt += 1
+	debug_mesh_usec += t1 - t0
+	debug_collider_usec += Time.get_ticks_usec() - t1
 
-## Regenera las cajas de colisión fusionadas de los cubos macizos de un chunk.
+
+## Regenera las cajas de colisión fusionadas de los cubos macizos de un chunk. Los CollisionShape3D
+## que ya existían se reaprovechan cambiándoles tamaño y posición: liberarlos y crearlos de nuevo
+## obliga al servidor de física a dar de baja y de alta cada forma del cuerpo, y eso era la mayor
+## parte del coste de colisión de un impacto.
 func _rebuild_chunk_colliders(chunk: Vector3i, positions: Dictionary) -> void:
-	_free_chunk_colliders(chunk)
-
 	var cubes: Dictionary = {}
 	for grid_pos: Vector3i in positions:
 		if ChunkMeshBuilder._is_solid(_blocks[grid_pos]["block_id"]):
 			cubes[grid_pos] = true
 
-	if cubes.is_empty():
-		return
-
 	var parent := _get_collision_parent()
-	if not parent:
+	if cubes.is_empty() or not parent:
+		_free_chunk_colliders(chunk)
 		return
 
+	var existing: Array = _chunk_colliders.get(chunk, [])
 	var shapes: Array = []
+
 	for box: Dictionary in GridColliderBuilder.merge_boxes(cubes):
-		var collider := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = Vector3(box["size"]) * cell_size
-		collider.shape = shape
+		var collider: CollisionShape3D = null
+		if shapes.size() < existing.size() and is_instance_valid(existing[shapes.size()]):
+			collider = existing[shapes.size()]
+		else:
+			collider = CollisionShape3D.new()
+			collider.shape = BoxShape3D.new()
+			collider.set_meta("grid_id", grid_id)
+			parent.add_child(collider)
+
+		(collider.shape as BoxShape3D).size = Vector3(box["size"]) * cell_size
 		collider.position = (Vector3(box["pos"]) + Vector3(box["size"]) * 0.5) * cell_size
-		collider.set_meta("grid_id", grid_id)
-		parent.add_child(collider)
 		shapes.append(collider)
+
+	for i in range(shapes.size(), existing.size()):
+		if is_instance_valid(existing[i]):
+			existing[i].queue_free()
 
 	_chunk_colliders[chunk] = shapes
 
@@ -421,6 +479,81 @@ func get_connected_blocks(start_pos: Vector3i) -> Array[Vector3i]:
 
 	return result
 
+
+## Energía que cuesta romper un bloque: su dureza (o la nominal) por el volumen que ocupa.
+func _impact_cost(block_id: int) -> float:
+	var toughness := DEFAULT_IMPACT_TOUGHNESS
+	var block_data: BlockData = BlockDatabase.get_block(block_id)
+	if block_data and block_data.impact_toughness > 0.0:
+		toughness = block_data.impact_toughness
+	return toughness * _cell_volume() * _block_volume_factor(block_id)
+
+
+## Destruye bloques alrededor de un punto del mundo gastando hasta 'energy' julios, de dentro
+## hacia fuera; un bloque que no se pueda pagar detiene la propagación. Devuelve
+## {spent, destroyed: [{grid_pos, block_id, world_pos}]}. Conviene envolverla en
+## begin_batch_edit/end_batch_edit: si no, cada bloque dispara su propio rebuild de chunk.
+func damage_sphere(world_center: Vector3, energy: float) -> Dictionary:
+	var destroyed: Array = []
+	if energy <= 0.0 or _blocks.is_empty():
+		return {"spent": 0.0, "destroyed": destroyed}
+
+	var xform := get_grid_world_transform()
+	var center := (xform.affine_inverse() * world_center) / cell_size
+
+	# El radio sale del presupuesto —una esfera con tantas celdas como el impacto puede pagar a
+	# dureza nominal—, así un golpe pequeño no barre igualmente el radio máximo.
+	var affordable := maxf(energy / maxf(DEFAULT_IMPACT_TOUGHNESS * _cell_volume(), 0.001), 1.0)
+	var radius := clampf(pow(affordable * 0.75 / PI, 1.0 / 3.0) + 0.5, 1.0, float(IMPACT_MAX_RADIUS_CELLS))
+	var radius_sq := radius * radius
+
+	var lo := Vector3i((center - Vector3.ONE * radius).floor())
+	var hi := Vector3i((center + Vector3.ONE * radius).ceil())
+
+	# Se recorre la caja envolvente o el diccionario de bloques, lo que sea menor. Con radios
+	# grandes la caja son cientos de miles de celdas casi todas vacías (101³ a radio 50), mientras
+	# que un barco entero son unos miles de bloques.
+	var box_cells := (hi.x - lo.x + 1) * (hi.y - lo.y + 1) * (hi.z - lo.z + 1)
+	var candidates := PackedVector4Array()
+	if box_cells <= _blocks.size():
+		for x in range(lo.x, hi.x + 1):
+			for y in range(lo.y, hi.y + 1):
+				for z in range(lo.z, hi.z + 1):
+					var cell := Vector3i(x, y, z)
+					if not _blocks.has(cell):
+						continue
+					var dist_sq := (Vector3(cell) + Vector3.ONE * 0.5 - center).length_squared()
+					if dist_sq <= radius_sq:
+						candidates.append(Vector4(dist_sq, cell.x, cell.y, cell.z))
+	else:
+		for cell: Vector3i in _blocks:
+			var dist_sq := (Vector3(cell) + Vector3.ONE * 0.5 - center).length_squared()
+			if dist_sq <= radius_sq:
+				candidates.append(Vector4(dist_sq, cell.x, cell.y, cell.z))
+
+	# Orden nativo: Vector4 compara lexicográficamente, así que la distancia (componente x) manda.
+	# Un sort_custom con lambda cuesta una llamada de GDScript por comparación.
+	candidates.sort()
+
+	var budget := energy
+	for entry: Vector4 in candidates:
+		# El tope acota el coste del frame pase lo que pase con la energía.
+		if destroyed.size() >= IMPACT_MAX_BLOCKS:
+			break
+		var cell := Vector3i(int(entry.y), int(entry.z), int(entry.w))
+		var block_id: int = _blocks[cell]["block_id"]
+		var cost := _impact_cost(block_id)
+		if cost > budget:
+			break
+		var world_pos := xform * ((Vector3(cell) + Vector3.ONE * 0.5) * cell_size)
+		if remove_block(cell).is_empty():
+			continue
+		budget -= cost
+		destroyed.append({"grid_pos": cell, "block_id": block_id, "world_pos": world_pos})
+
+	return {"spent": energy - budget, "destroyed": destroyed}
+
+
 func distance_to(world_pos: Vector3) -> float:
 	return get_origin_world().distance_to(world_pos)
 
@@ -442,6 +575,8 @@ func clear() -> void:
 	for chunk: Vector3i in _chunk_meshes.keys():
 		_free_chunk_mesh(chunk)
 	_chunk_blocks.clear()
+	_dirty_chunks.clear()
+	_batch_depth = 0
 	_total_volume = 0.0
 
 func is_same_origin_basis(other: GridBase) -> bool:

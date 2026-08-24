@@ -27,6 +27,10 @@ extends Resource
 ## Coste de construcción — lista de materiales necesarios
 @export var build_cost: Array[BlockCost] = []
 
+## Destrucción — energía (J) que absorbe un metro cúbico de este bloque antes de romperse por
+## impacto. 0 = usa GridBase.DEFAULT_IMPACT_TOUGHNESS.
+@export var impact_toughness: float = 0.0
+
 
 func get_rotation_angle_deg() -> float:
 	if rotation_steps <= 1:
