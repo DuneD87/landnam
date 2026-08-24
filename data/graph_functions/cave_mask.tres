@@ -19,7 +19,8 @@ noise_type = 1
 seed = 4242
 period = 25.0
 fractal_type = 1
-fractal_octaves = 2
+fractal_octaves = 4
+fractal_gain = 0.4
 
 [sub_resource type="FastNoise2" id="FastNoise2_mb1gl"]
 noise_type = 1
