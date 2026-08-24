@@ -16,6 +16,27 @@ const FACE_DIRS: Array[Vector3i] = [
 ]
 const SOLID_BLOCK_IDS: Array[int] = [0]
 
+## Escalones de daño visibles. La malla solo se reconstruye cuando un bloque cambia de escalón, así
+## que el tinte tiene que ser función del ESCALÓN y no de la vida continua: si no, el color que se
+## ve y el que corresponde se desincronizan entre reconstrucciones.
+const DAMAGE_STEPS := 4
+## Color al que tiende un bloque a punto de romperse. Va por el canal de color de vértice, que los
+## materiales de bloque consumen con vertex_color_use_as_albedo.
+const DAMAGE_TINT := Color(0.30, 0.26, 0.24)
+
+
+## Escalón de daño de una vida normalizada. Intacto = DAMAGE_STEPS.
+static func damage_step(hp: float) -> int:
+	return clampi(int(ceil(clampf(hp, 0.0, 1.0) * DAMAGE_STEPS)), 0, DAMAGE_STEPS)
+
+
+## Tinte de vértice de una vida normalizada, cuantizado al escalón.
+static func damage_tint(hp: float) -> Color:
+	var step := damage_step(hp)
+	if step >= DAMAGE_STEPS:
+		return Color.WHITE
+	return Color.WHITE.lerp(DAMAGE_TINT, 1.0 - float(step) / float(DAMAGE_STEPS))
+
 
 ## Construye la ArrayMesh de los bloques (todos, o solo las celdas de `subset` si se pasa),
 ## con una surface por material. La oclusión de caras consulta siempre el diccionario completo.
@@ -44,6 +65,10 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 
 			var offset := Vector3(grid_pos) * cell_size
 			var rot: Basis = info.get("rotation_basis", Basis.IDENTITY)
+
+			# SurfaceTool arrastra el último atributo puesto a todos los vértices siguientes, así
+			# que basta fijar el tinte una vez por bloque, antes de emitir su geometría.
+			st.set_color(damage_tint(info.get("hp", 1.0)))
 
 			if _is_solid(block_id):
 				_emit_cube(st, grid_pos, offset, rot, cell_size, blocks, false)

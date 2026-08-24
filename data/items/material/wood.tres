@@ -10,6 +10,7 @@
 [ext_resource type="Texture2D" uid="uid://bmg3xla71enib" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_roughness.png" id="8_ecuxc"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ga3h4"]
+vertex_color_use_as_albedo = true
 albedo_texture = ExtResource("3_wuxbg")
 metallic = 1.0
 metallic_texture = ExtResource("6_8i21y")

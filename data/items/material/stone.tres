@@ -10,6 +10,7 @@
 [ext_resource type="Texture2D" uid="uid://b63dkbv4nkefd" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Roughness.png" id="8_0ih25"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mhgyb"]
+vertex_color_use_as_albedo = true
 albedo_texture = ExtResource("3_v1yon")
 metallic = 1.0
 metallic_texture = ExtResource("6_xiw46")

@@ -772,6 +772,7 @@ func _apply_impact(world_pos: Vector3, energy: float, victim_grid_id: String = "
 	_damage_static_victim(world_pos, energy, victim_grid_id)
 
 	var destroyed := 0
+	var damaged := 0
 	var budget := energy
 	var debris_cell := 1.0
 
@@ -781,13 +782,20 @@ func _apply_impact(world_pos: Vector3, energy: float, victim_grid_id: String = "
 		grid.begin_batch_edit()
 		var result: Dictionary = grid.damage_sphere(world_pos, budget)
 		grid.end_batch_edit()
+		budget -= result["spent"]
 		var hit: int = (result["destroyed"] as Array).size()
+		damaged += int(result.get("damaged", 0))
 		if hit > 0:
-			budget -= result["spent"]
 			destroyed += hit
 			debris_cell = grid.cell_size
 
+	# Un golpe que solo mella también tiene que verse, o el jugador no sabe que está haciendo algo.
 	if destroyed == 0:
+		if damaged > 0:
+			var up_chip := Vector3.UP
+			if planet_node:
+				up_chip = (world_pos - planet_node.global_pos).normalized()
+			BlockDebris.burst(self, world_pos, up_chip, 1, debris_cell)
 		return
 
 	# La masa y las cajas de flotación ya las invalida block_removed; aquí solo el efecto.

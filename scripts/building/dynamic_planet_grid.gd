@@ -247,6 +247,9 @@ func serialize() -> Dictionary:
 			"mirrored": info.get("mirrored", false),
 			"mirror_axis": info.get("mirror_axis", -1),
 		}
+		# Ver PlanetGrid.serialize: solo se escribe la vida de los bloques tocados.
+		if info.get("hp", 1.0) < 1.0:
+			blocks_data[key]["hp"] = info["hp"]
 
 	var materials_data: Dictionary = {}
 	for mat_id in mesh_materials:
@@ -313,6 +316,9 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 		}
 
 		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id, mirror_data)
+		var hp: float = block_info.get("hp", 1.0)
+		if hp < 1.0 and _blocks.has(grid_pos):
+			_blocks[grid_pos]["hp"] = hp
 	_suppress_rebuild = false
 
 	_deserialize_props(data.get("props", {}))

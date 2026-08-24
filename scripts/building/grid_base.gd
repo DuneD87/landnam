@@ -13,7 +13,7 @@ const config_ref = preload("res://scripts/config.gd")
 const CHUNK_SHIFT := 4
 
 ## Energía (J) que absorbe un bloque de 1 m³ antes de romperse, si su BlockData no la define.
-const DEFAULT_IMPACT_TOUGHNESS := 60.0
+const DEFAULT_IMPACT_TOUGHNESS := 600.0
 ## Tope de alcance de un impacto, en celdas de radio: sin él una caída fuerte borraría la nave entera.
 const IMPACT_MAX_RADIUS_CELLS := 50
 ## Tope de bloques destruidos por impacto. El radio acota la forma, esto acota el COSTE: a
@@ -525,8 +525,9 @@ func get_connected_blocks(start_pos: Vector3i) -> Array[Vector3i]:
 	return result
 
 
-## Energía que cuesta romper un bloque: su dureza (o la nominal) por el volumen que ocupa.
-func _impact_cost(block_id: int) -> float:
+## Energía que cuesta romper un bloque intacto: su dureza (o la nominal) por el volumen que
+## ocupa. Es también la vida completa de la que parte, ya que hp va normalizada a 0..1.
+func impact_cost(block_id: int) -> float:
 	var toughness := DEFAULT_IMPACT_TOUGHNESS
 	var block_data: BlockData = BlockDatabase.get_block(block_id)
 	if block_data and block_data.impact_toughness > 0.0:
@@ -581,22 +582,39 @@ func damage_sphere(world_center: Vector3, energy: float) -> Dictionary:
 	candidates.sort()
 
 	var budget := energy
+	var damaged := 0
 	for entry: Vector4 in candidates:
 		# El tope acota el coste del frame pase lo que pase con la energía.
-		if destroyed.size() >= IMPACT_MAX_BLOCKS:
+		if budget <= 0.0 or destroyed.size() >= IMPACT_MAX_BLOCKS:
 			break
+
 		var cell := Vector3i(int(entry.y), int(entry.z), int(entry.w))
-		var block_id: int = _blocks[cell]["block_id"]
-		var cost := _impact_cost(block_id)
-		if cost > budget:
-			break
+		var info: Dictionary = _blocks[cell]
+		var block_id: int = info["block_id"]
+		var full := impact_cost(block_id)
+		var hp: float = info.get("hp", 1.0)
+
+		# El presupuesto se gasta mellando: lo que no llega a romper el bloque se queda dentro de
+		# él, así que los golpes flojos repetidos acaban tirándolo. Un bloque que aguanta absorbe
+		# toda la energía y corta la propagación, igual que antes.
+		var spend := minf(budget, hp * full)
+		budget -= spend
+		var new_hp := hp - spend / maxf(full, 0.001)
+
+		if new_hp > 0.001:
+			info["hp"] = new_hp
+			damaged += 1
+			# Reconstruir solo al cambiar de escalón: si no, cada roce repinta el chunk entero.
+			if ChunkMeshBuilder.damage_step(new_hp) != ChunkMeshBuilder.damage_step(hp):
+				_request_rebuild(cell)
+			continue
+
 		var world_pos := xform * ((Vector3(cell) + Vector3.ONE * 0.5) * cell_size)
 		if remove_block(cell).is_empty():
 			continue
-		budget -= cost
 		destroyed.append({"grid_pos": cell, "block_id": block_id, "world_pos": world_pos})
 
-	return {"spent": energy - budget, "destroyed": destroyed}
+	return {"spent": energy - budget, "destroyed": destroyed, "damaged": damaged}
 
 
 func distance_to(world_pos: Vector3) -> float:

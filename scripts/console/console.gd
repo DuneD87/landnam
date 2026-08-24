@@ -267,6 +267,8 @@ func _register_commands() -> void:
 		"Apaga la espuma de estela, para aislar su coste por píxel.", _cmd_wake))
 	_add(ConsoleCommand.new("drift", "drift [factor]",
 		"Fuerza de la corriente del mar; sin argumento, informe de cómo la ven barco y jugador.", _cmd_drift))
+	_add(ConsoleCommand.new("damage", "damage [julios]",
+		"Daña el bloque apuntado con una energía exacta; sin argumento, informa de su vida.", _cmd_damage))
 
 
 
@@ -488,3 +490,71 @@ func _complete_weather() -> PackedStringArray:
 		for e in wc.get_event_names():
 			out.append(str(e))
 	return out
+
+
+## Alcance (m) del rayo de puntería del comando 'damage'.
+const DAMAGE_RAY_LEN := 40.0
+
+
+## Daño controlado sobre el bloque apuntado. Existe porque la ventana en la que un impacto MELLA
+## sin romper es estrecha y no se acierta embistiendo: aquí la energía se elige a mano y se puede
+## repetir el mismo golpe hasta ver los escalones de daño.
+func _cmd_damage(args: PackedStringArray) -> String:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return "[color=%s]Sin cámara activa.[/color]" % COLOR_ERR
+
+	var from := camera.global_position
+	var dir := -camera.global_transform.basis.z
+	var query := PhysicsRayQueryParameters3D.create(from, from + dir * DAMAGE_RAY_LEN)
+	query.collision_mask = 3
+	var hit := camera.get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return "[color=%s]No apuntas a nada a menos de %.0f m.[/color]" % [COLOR_ERR, DAMAGE_RAY_LEN]
+
+	var collider = hit["collider"]
+	if not (collider is Node) or not (collider as Node).has_meta("grid_id"):
+		return "[color=%s]Eso no es una grid (%s).[/color]" % [COLOR_ERR, collider]
+
+	var grid: GridBase = GridManager.get_grid_for_block(collider as Node3D)
+	if grid == null:
+		return "[color=%s]Grid '%s' no registrada.[/color]" % [
+			COLOR_ERR, (collider as Node).get_meta("grid_id")]
+
+	# El punto de impacto cae JUSTO en la cara del bloque: hay que entrar un poco o world_to_cell
+	# devuelve la celda vecina, que suele estar vacía.
+	var point: Vector3 = hit["position"] + dir * (grid.cell_size * 0.25)
+	var cell := grid.world_to_cell(point)
+	if not grid.has_block(cell):
+		return "[color=%s]Sin bloque en %s de '%s' (¿otra grid del mismo cuerpo?).[/color]" % [
+			COLOR_ERR, cell, grid.grid_id]
+
+	if args.is_empty():
+		return _damage_report(grid, cell)
+
+	if not args[0].is_valid_float():
+		return "[color=%s]Uso: damage [julios].[/color]" % COLOR_ERR
+
+	var energy := maxf(args[0].to_float(), 0.0)
+	grid.begin_batch_edit()
+	var result: Dictionary = grid.damage_sphere(point, energy)
+	grid.end_batch_edit()
+
+	var destroyed: int = (result["destroyed"] as Array).size()
+	var out := "[color=%s]%.0f J sobre '%s' %s → %d rotos, %d mellados (gastados %.0f J).[/color]" % [
+		COLOR_OK, energy, grid.grid_id, cell, destroyed,
+		int(result.get("damaged", 0)), result["spent"]]
+	if grid.has_block(cell):
+		out += "\n" + _damage_report(grid, cell)
+	return out
+
+
+## Vida del bloque de una celda, con el escalón visual que le corresponde.
+func _damage_report(grid: GridBase, cell: Vector3i) -> String:
+	var info := grid.get_block(cell)
+	var block_id: int = info["block_id"]
+	var hp: float = info.get("hp", 1.0)
+	var full := grid.impact_cost(block_id)
+	return "[color=%s]'%s' %s · bloque %d · vida %.1f%% (%.0f de %.0f J) · escalón %d/%d[/color]" % [
+		COLOR_INFO, grid.grid_id, cell, block_id, hp * 100.0, hp * full, full,
+		ChunkMeshBuilder.damage_step(hp), ChunkMeshBuilder.DAMAGE_STEPS]
