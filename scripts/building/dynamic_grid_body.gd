@@ -75,9 +75,9 @@ const SPLIT_MIN_BLOCKS := 4
 ## deriva que nunca se iban. Solo se retiran piezas nacidas de una rotura, nunca lo que construyó
 ## el jugador, y solo si son pequeñas, están quietas y lejos.
 const DERELICT_MAX_BLOCKS := 12
-const DERELICT_DISTANCE := 3.0
+const DERELICT_DISTANCE := 300.0
 const DERELICT_SPEED := 1.0
-const DERELICT_SETTLE_TIME := 5.0
+const DERELICT_SETTLE_TIME := 25.0
 
 var planet_node: Node3D = null
 
