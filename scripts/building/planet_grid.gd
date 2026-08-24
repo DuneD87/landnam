@@ -52,7 +52,7 @@ func up_cell() -> Vector3i:
 	if not planet_node:
 		return Vector3i(0, 1, 0)
 	var xform := get_grid_world_transform()
-	var up_world := (xform.origin - planet_node.global_pos).normalized()
+	var up_world : Vector3 = (xform.origin - planet_node.global_pos).normalized()
 	if up_world.is_zero_approx():
 		return Vector3i(0, 1, 0)
 	return _dominant_axis(xform.basis.inverse() * up_world)

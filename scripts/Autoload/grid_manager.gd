@@ -201,7 +201,7 @@ func mark_collapse_checks_near(world_pos: Vector3, radius: float) -> void:
 
 		for a in [-1, 0, 1]:
 			for b in [-1, 0, 1]:
-				var column := base + side_a * a + side_b * b
+				var column : Vector3i = base + side_a * a + side_b * b
 				for i in range(reach + 1):
 					if static_grid.has_block(column + up_step * i):
 						mark_collapse_check(static_grid)
