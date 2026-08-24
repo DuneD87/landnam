@@ -686,8 +686,14 @@ func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
 	if not build_mat or not build_mat.item:
 		return
 
+	# Lo que se recupera va con la vida que le quedaba al bloque. Con devolución íntegra, romper y
+	# recolocar era una reparación gratis e instantánea, y encima un bloque a punto de caerse
+	# rendía tanto material como uno intacto. Uno sano (hp = 1) devuelve todo, como siempre.
 	var cost := build_mat.get_cost_for_size(block_cell_size)
-	_inventory.add_item(build_mat.item, cost)
+	var hp: float = block_data.get("hp", 1.0)
+	var refund := mini(cost, ceili(cost * clampf(hp, 0.0, 1.0)))
+	if refund > 0:
+		_inventory.add_item(build_mat.item, refund)
 
 
 func _find_build_material(mat_id: String) -> BuildMaterial:
