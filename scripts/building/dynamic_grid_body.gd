@@ -56,6 +56,22 @@ const IMPACT_MAX_EFFECTIVE_MASS := 20000.0
 const IMPACT_COOLDOWN_FRAMES := 8
 const MAX_CONTACTS_REPORTED := 8
 
+## Segundos sin ediciones antes de comprobar si el casco se ha partido. Solo quitar bloques puede
+## desconectar algo, así que el análisis se marca desde on_block_removed y no desde mark_points_dirty.
+const SPLIT_DEBOUNCE := 0.35
+## Piezas con menos bloques que esto no merecen un cuerpo propio: se disuelven en cascotes. Un
+## RigidBody3D por cada cubo suelto de un naufragio sale carísimo y no aporta nada.
+const SPLIT_MIN_BLOCKS := 4
+
+## Retirada de restos. can_sleep está desactivado a propósito (dormido no recibiría las fuerzas
+## custom), así que cada pieza desprendida se integra para siempre: una batalla dejaba cascos a la
+## deriva que nunca se iban. Solo se retiran piezas nacidas de una rotura, nunca lo que construyó
+## el jugador, y solo si son pequeñas, están quietas y lejos.
+const DERELICT_MAX_BLOCKS := 12
+const DERELICT_DISTANCE := 300.0
+const DERELICT_SPEED := 1.0
+const DERELICT_SETTLE_TIME := 25.0
+
 var planet_node: Node3D = null
 
 ## Corriente que vio el casco en el último paso de física y masa de agua desplazada. Solo diagnóstico:
@@ -114,11 +130,27 @@ var _prev_lin_vel: Vector3 = Vector3.ZERO
 var _prev_ang_vel: Vector3 = Vector3.ZERO
 var _impact_cooldown: int = 0
 
+var _split_dirty: bool = false
+var _split_debounce: float = 0.0
+var _split_running: bool = false
+var _split_task_id: int = -1
+## Grids tal y como estaban al lanzar el análisis. El reparto viene indexado por posición, y si
+## _grids cambia mientras el worker trabaja los índices apuntarían a otra grid.
+var _split_grids: Array = []
+
+## True solo en los cuerpos nacidos de una rotura. Lo que colocó el jugador nunca se autorretira,
+## por pequeño que quede: borrar propiedad del jugador sin avisar es peor que acumular cuerpos.
+var spawned_from_split: bool = false
+var _derelict_timer: float = 0.0
+
 signal speed_changed(level: int, speed: float)
 signal blocks_destroyed(world_pos: Vector3, count: int)
 
 func on_block_removed(_grid_pos: Vector3i, _grid: GridBase = null) -> void:
 	mark_points_dirty()
+	# Solo quitar bloques puede partir el casco; colocarlos únicamente puede unir piezas.
+	_split_dirty = true
+	_split_debounce = SPLIT_DEBOUNCE
 
 func on_block_placed(_grid_pos: Vector3i, _block_id: int, _grid: GridBase = null) -> void:
 	mark_points_dirty()
@@ -323,6 +355,193 @@ func _apply_interior_analysis(result: Array) -> void:
 func get_compartments() -> Array:
 	return _compartments
 
+
+## Lanza el análisis de componentes conexas si hubo bajas de bloques y ya pasó el debounce.
+func _process_split_analysis(delta: float) -> void:
+	if _split_running or not _split_dirty:
+		return
+	_split_debounce -= delta
+	if _split_debounce > 0.0:
+		return
+	_split_dirty = false
+	_split_running = true
+
+	_split_grids = _grids.duplicate()
+	var grids_data: Array = []
+	for grid in _split_grids:
+		grids_data.append({
+			"cells": grid.get_all_blocks().keys(),
+			"cell_size": grid.cell_size,
+		})
+	_split_task_id = WorkerThreadPool.add_task(
+		_run_split_analysis.bind(grids_data), false, "GridSplitAnalysis")
+
+
+func _run_split_analysis(grids_data: Array) -> void:
+	var result := GridSplitAnalyzer.analyze(grids_data)
+	call_deferred("_apply_split", result)
+
+
+## Reparte las piezas desprendidas en cuerpos nuevos. La mayor se queda con este body —y con
+## el control del jugador, si lo había—; las demás se llevan sus bloques y props a uno propio.
+func _apply_split(pieces: Array) -> void:
+	if _split_task_id >= 0:
+		WorkerThreadPool.wait_for_task_completion(_split_task_id)
+		_split_task_id = -1
+	_split_running = false
+
+	if pieces.size() <= 1 or not is_inside_tree():
+		return
+
+	# El casco pudo cambiar entre el lanzamiento del análisis y ahora (otro impacto, el jugador
+	# construyendo). Repartir con datos viejos dejaría bloques fantasma, así que se reintenta.
+	if not _pieces_still_valid(pieces):
+		_split_dirty = true
+		_split_debounce = SPLIT_DEBOUNCE
+		return
+
+	var old_lin := linear_velocity
+	var old_ang := angular_velocity
+	var whole_centroid := _centroid_of_pieces(pieces)
+
+	for i in range(1, pieces.size()):
+		var piece: Dictionary = pieces[i]
+		if int(piece["count"]) < SPLIT_MIN_BLOCKS:
+			_dissolve_piece(piece)
+		else:
+			_spawn_piece(piece, whole_centroid, old_lin, old_ang)
+
+	# El centro de masas de lo que queda también se ha movido.
+	var kept := _centroid_of_pieces([pieces[0]])
+	linear_velocity = old_lin + old_ang.cross(global_transform.basis * (kept - whole_centroid))
+	angular_velocity = old_ang
+	_impact_cooldown = IMPACT_COOLDOWN_FRAMES
+
+	# Las bajas de los detach_block acaban de re-marcar el análisis; las piezas ya son conexas.
+	_split_dirty = false
+
+
+## True si el reparto sigue siendo aplicable: las grids que vio el análisis siguen en el body y
+## todas sus celdas siguen donde estaban.
+func _pieces_still_valid(pieces: Array) -> bool:
+	for piece: Dictionary in pieces:
+		for group: Dictionary in piece["groups"]:
+			var gi: int = group["grid_index"]
+			if gi >= _split_grids.size():
+				return false
+			var grid = _split_grids[gi]
+			if not _grids.has(grid):
+				return false
+			for cell: Vector3i in group["cells"]:
+				if not grid.has_block(cell):
+					return false
+	return true
+
+
+## Centroide en espacio del body de los bloques de un conjunto de piezas.
+func _centroid_of_pieces(pieces: Array) -> Vector3:
+	var sum := Vector3.ZERO
+	var count := 0
+	for piece: Dictionary in pieces:
+		for group: Dictionary in piece["groups"]:
+			var cs: float = _split_grids[group["grid_index"]].cell_size
+			for cell: Vector3i in group["cells"]:
+				sum += (Vector3(cell) + Vector3.ONE * 0.5) * cs
+				count += 1
+	return sum / maxf(float(count), 1.0)
+
+
+## Piezas demasiado pequeñas para un cuerpo propio: se borran y se van en cascotes.
+func _dissolve_piece(piece: Dictionary) -> void:
+	var world_pos := global_position
+	for group: Dictionary in piece["groups"]:
+		var grid = _split_grids[group["grid_index"]]
+		grid.begin_batch_edit()
+		for cell: Vector3i in group["cells"]:
+			world_pos = grid.grid_to_world(cell)
+			grid.remove_block(cell)
+		grid.end_batch_edit()
+
+	var up := Vector3.UP
+	if planet_node:
+		up = (world_pos - planet_node.global_pos).normalized()
+	BlockDebris.burst(self, world_pos, up, int(piece["count"]))
+
+
+## Traslada los bloques y props de una pieza a un DynamicGridBody nuevo, colocado en el mismo
+## transform que este: así las coordenadas de grid se conservan tal cual y basta re-emparentar
+## los nodos de colisión conservando su transform global.
+func _spawn_piece(piece: Dictionary, whole_centroid: Vector3, old_lin: Vector3, old_ang: Vector3) -> void:
+	var body_id := GridManager.generate_grid_id()
+
+	var body := DynamicGridBody.new()
+	body.name = "DynGrid_%s" % body_id
+	body.planet_node = planet_node
+	body.movement_type = movement_type
+	body.damage_enabled = damage_enabled
+	body.spawned_from_split = true
+	body.mass = MIN_MASS
+	body.gravity_scale = 0.0
+	body.set_meta("grid_id", body_id)
+	get_tree().current_scene.add_child(body)
+	body.global_transform = global_transform
+
+	var owns_body := true
+	for group: Dictionary in piece["groups"]:
+		var source = _split_grids[group["grid_index"]]
+
+		var piece_grid := DynamicPlanetGrid.new()
+		piece_grid.grid_id = body_id if owns_body else GridManager.generate_grid_id()
+		piece_grid.body_id = body_id
+		piece_grid.planet_node = planet_node
+		piece_grid.cell_size = source.cell_size
+		piece_grid.mesh_materials = source.mesh_materials.duplicate()
+		piece_grid._body = body
+		piece_grid._owns_body = owns_body
+		owns_body = false
+
+		var moving: Dictionary = {}
+		for cell: Vector3i in group["cells"]:
+			moving[cell] = true
+
+		source.begin_batch_edit()
+		piece_grid.begin_batch_edit()
+
+		for key: String in source.get_prop_keys_in_cells(moving):
+			var prop_info : Dictionary = source.detach_prop(key)
+			var prop_node: Node3D = prop_info["node"]
+			if prop_node and is_instance_valid(prop_node):
+				prop_node.reparent(body, true)
+				prop_node.set_meta("grid_id", piece_grid.grid_id)
+			piece_grid.attach_prop(key, prop_info)
+
+		for cell: Vector3i in group["cells"]:
+			var info : Dictionary = source.detach_block(cell)
+			if info.is_empty():
+				continue
+			var node: Node3D = info["node"]
+			if node and is_instance_valid(node):
+				node.reparent(body, true)
+				node.set_meta("grid_id", piece_grid.grid_id)
+			piece_grid.attach_block(cell, info)
+
+		piece_grid.end_batch_edit()
+		source.end_batch_edit()
+
+		GridManager.register_runtime_grid(piece_grid, planet_node)
+		body.register_grid(piece_grid)
+		piece_grid.block_placed.connect(body.on_block_placed.bind(piece_grid))
+		piece_grid.block_removed.connect(body.on_block_removed.bind(piece_grid))
+
+	body.update_mass_from_grids()
+
+	# Velocidad del sólido rígido en el centroide de la pieza, con la rotación del original.
+	var piece_centroid := _centroid_of_pieces([piece])
+	var arm := global_transform.basis * (piece_centroid - whole_centroid)
+	body.linear_velocity = old_lin + old_ang.cross(arm)
+	body.angular_velocity = old_ang
+	body._impact_cooldown = IMPACT_COOLDOWN_FRAMES
+
 func _is_ground_ready() -> bool:
 	var query = PhysicsRayQueryParameters3D.create(
 		global_position + Vector3.UP * 5,
@@ -342,6 +561,7 @@ func _ready() -> void:
 	add_to_group("floating_origin")
 	add_to_group("dynamic_grid_body")
 	_setup_water_sampler()
+	BlockDebris.prewarm(self)
 
 func _setup_water_sampler() -> void:
 	if not planet_node:
@@ -363,6 +583,54 @@ func unregister_grid(grid) -> void:
 	_grids.erase(grid)
 	update_mass_from_grids()
 	mark_points_dirty()
+
+## Bloques de todas las grids del body.
+func get_block_count() -> int:
+	var total := 0
+	for grid in _grids:
+		total += grid.get_block_count()
+	return total
+
+
+## Cuenta el tiempo que un resto lleva cumpliendo las condiciones de retirada y lo elimina al
+## agotarlo. Devuelve true si el cuerpo se ha ido, para que el llamante no siga simulándolo.
+func _update_derelict(delta: float) -> bool:
+	if not spawned_from_split or _is_being_controlled:
+		return false
+
+	var settled := linear_velocity.length_squared() < DERELICT_SPEED * DERELICT_SPEED \
+		and angular_velocity.length_squared() < DERELICT_SPEED * DERELICT_SPEED
+
+	var far := true
+	var camera := get_viewport().get_camera_3d()
+	if camera:
+		far = camera.global_position.distance_squared_to(global_position) > DERELICT_DISTANCE * DERELICT_DISTANCE
+
+	if not (settled and far) or get_block_count() > DERELICT_MAX_BLOCKS:
+		_derelict_timer = 0.0
+		return false
+
+	_derelict_timer += delta
+	if _derelict_timer < DERELICT_SETTLE_TIME:
+		return false
+
+	_despawn_as_derelict()
+	return true
+
+
+## Retira el resto del mundo. Quitar sus grids del GridManager libera ya el cuerpo, porque la
+## que lo posee hace queue_free() al limpiarse.
+func _despawn_as_derelict() -> void:
+	var up := Vector3.UP
+	if planet_node:
+		up = (global_position - planet_node.global_pos).normalized()
+	BlockDebris.burst(self, global_position, up, get_block_count())
+
+	for grid in _grids.duplicate():
+		GridManager.remove_grid(grid.grid_id)
+	if is_instance_valid(self) and not is_queued_for_deletion():
+		queue_free()
+
 
 ## Masa total del body: volumen de bloques de TODAS las grids (multi-size) por densidad de bloque.
 func update_mass_from_grids() -> void:
@@ -486,19 +754,11 @@ func _apply_impact(world_pos: Vector3, energy: float) -> void:
 	var budget := energy
 	var debris_cell := 1.0
 
-	# TEMPORAL: desglose del pico de frame. Quitar junto con las sondas de GridBase.
-	GridBase.debug_reset_rebuild_stats()
-	ChunkMeshBuilder.debug_reset_stats()
-	var t_start := Time.get_ticks_usec()
-	var remove_usec := 0
-
 	for grid in _grids:
 		if budget <= 0.0:
 			break
 		grid.begin_batch_edit()
-		var t_rm := Time.get_ticks_usec()
 		var result: Dictionary = grid.damage_sphere(world_pos, budget)
-		remove_usec += Time.get_ticks_usec() - t_rm
 		grid.end_batch_edit()
 		var hit: int = (result["destroyed"] as Array).size()
 		if hit > 0:
@@ -509,8 +769,6 @@ func _apply_impact(world_pos: Vector3, energy: float) -> void:
 	if destroyed == 0:
 		return
 
-	var t_edit := Time.get_ticks_usec()
-
 	# La masa y las cajas de flotación ya las invalida block_removed; aquí solo el efecto.
 	var up := Vector3.UP
 	if planet_node:
@@ -518,26 +776,17 @@ func _apply_impact(world_pos: Vector3, energy: float) -> void:
 	BlockDebris.burst(self, world_pos, up, destroyed, debris_cell)
 	blocks_destroyed.emit(world_pos, destroyed)
 
-	print("[impact] bloques=%d chunks=%d | quitar=%.2f  mesh=%.2f (emit=%.2f tang=%.2f commit=%.2f)  colliders=%.2f  debris=%.2f  TOTAL=%.2f ms" % [
-		destroyed,
-		GridBase.debug_chunks_rebuilt,
-		remove_usec / 1000.0,
-		GridBase.debug_mesh_usec / 1000.0,
-		ChunkMeshBuilder.debug_emit_usec / 1000.0,
-		ChunkMeshBuilder.debug_tangent_usec / 1000.0,
-		ChunkMeshBuilder.debug_commit_usec / 1000.0,
-		GridBase.debug_collider_usec / 1000.0,
-		(Time.get_ticks_usec() - t_edit) / 1000.0,
-		(Time.get_ticks_usec() - t_start) / 1000.0,
-	])
-
 
 func _physics_process(delta: float) -> void:
 	if not planet_node or not is_inside_tree():
 		return
 
+	if _update_derelict(delta):
+		return
+
 	_handle_input(delta)
 	_process_interior_analysis(delta)
+	_process_split_analysis(delta)
 
 	var planet_pos: Vector3 = planet_node.global_pos
 	var dir: Vector3 = (planet_pos - global_position).normalized()

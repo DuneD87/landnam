@@ -462,6 +462,15 @@ func _generate_id() -> String:
 
 	return grid_id
 
+## Id nuevo para una grid creada en tiempo de ejecución (una pieza desprendida de un casco roto).
+## El id hay que pedirlo ANTES de poner bloques: los colliders llevan grid_id en sus metadatos.
+func generate_grid_id() -> String:
+	return _generate_id()
+
+## Da de alta una grid ya construida por otro sistema, con su grid_id ya asignado.
+func register_runtime_grid(grid: GridBase, planet: Node3D) -> void:
+	_register_grid(grid, planet, grid.grid_id)
+
 ## Crea una grid alineada al origin/basis de otra grid existente.
 func create_grid_aligned(planet: Node3D, ref_grid: GridBase, target_cell: float) -> GridBase:
 	if ref_grid is DynamicPlanetGrid:

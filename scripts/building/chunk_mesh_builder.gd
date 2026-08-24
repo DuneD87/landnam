@@ -16,16 +16,6 @@ const FACE_DIRS: Array[Vector3i] = [
 ]
 const SOLID_BLOCK_IDS: Array[int] = [0]
 
-# TEMPORAL: desglose del coste de build_mesh, para decidir qué parte reescribir. Quitar al cerrar.
-static var debug_emit_usec: int = 0
-static var debug_tangent_usec: int = 0
-static var debug_commit_usec: int = 0
-
-static func debug_reset_stats() -> void:
-	debug_emit_usec = 0
-	debug_tangent_usec = 0
-	debug_commit_usec = 0
-
 
 ## Construye la ArrayMesh de los bloques (todos, o solo las celdas de `subset` si se pasa),
 ## con una surface por material. La oclusión de caras consulta siempre el diccionario completo.
@@ -48,7 +38,6 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-		var t0 := Time.get_ticks_usec()
 		for grid_pos: Vector3i in groups[mat_id]:
 			var info: Dictionary = blocks[grid_pos]
 			var block_id: int = info["block_id"]
@@ -69,15 +58,9 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 					actual_flip = true
 				_emit_from_block_type(st, block_id, offset, actual_rot, cell_size, actual_flip)
 
-		var t1 := Time.get_ticks_usec()
 		st.generate_tangents()
-		var t2 := Time.get_ticks_usec()
 		var surface_idx := mesh.get_surface_count()
 		st.commit(mesh)
-
-		debug_emit_usec += t1 - t0
-		debug_tangent_usec += t2 - t1
-		debug_commit_usec += Time.get_ticks_usec() - t2
 
 		if materials.has(mat_id) and materials[mat_id] != null:
 			mesh.surface_set_material(surface_idx, materials[mat_id])

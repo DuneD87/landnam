@@ -23,6 +23,18 @@ static var _next: int = 0
 static var _shared_mesh: Mesh = null
 
 
+## Crea el primer emisor sin emitir, para pagar de antemano la creación de sus recursos y la
+## compilación de sus shaders. Medido: la primera ráfaga costaba ~14.5 ms y las siguientes ~0.08.
+static func prewarm(context: Node) -> void:
+	if not context or not context.is_inside_tree():
+		return
+	if not _pool.is_empty() and is_instance_valid(_pool[0]):
+		return
+	var scene_root := context.get_tree().current_scene
+	if scene_root:
+		_acquire(scene_root)
+
+
 ## Lanza una ráfaga en un punto del mundo. 'up' es el up gravitacional del planeta portador.
 static func burst(context: Node, world_pos: Vector3, up: Vector3, block_count: int,
 	cell_size: float = 1.0) -> void:

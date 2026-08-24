@@ -36,17 +36,6 @@ var _suppress_rebuild: bool = false
 var _batch_depth: int = 0
 var _dirty_chunks: Dictionary = {}
 
-# TEMPORAL: sondas para localizar el pico de frame de los impactos. Quitar al cerrar el tema.
-static var debug_mesh_usec: int = 0
-static var debug_collider_usec: int = 0
-static var debug_chunks_rebuilt: int = 0
-
-static func debug_reset_rebuild_stats() -> void:
-	debug_mesh_usec = 0
-	debug_collider_usec = 0
-	debug_chunks_rebuilt = 0
-
-
 ## Transform mundo de la grid (subclases deben implementarlo).
 func get_grid_world_transform() -> Transform3D:
 	push_warning("[GridBase] get_grid_world_transform() no implementado")
@@ -179,6 +168,68 @@ func remove_block(grid_pos: Vector3i) -> Dictionary:
 	_request_rebuild(grid_pos)
 	block_removed.emit(grid_pos)
 	return info
+
+
+## Saca un bloque de la grid SIN destruir su nodo de colisión ni desanclar sus props, para
+## moverlo a otra grid (separación en piezas). El nodo, si lo hay, queda vivo y a cargo del
+## llamante, que debe re-emparentarlo. Devuelve la info del bloque, lista para attach_block.
+func detach_block(grid_pos: Vector3i) -> Dictionary:
+	if not _blocks.has(grid_pos):
+		return {}
+
+	var info: Dictionary = _blocks[grid_pos]
+	_blocks.erase(grid_pos)
+	var chunk := _chunk_of(grid_pos)
+	if _chunk_blocks.has(chunk):
+		_chunk_blocks[chunk].erase(grid_pos)
+	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _block_volume_factor(info["block_id"]))
+
+	_on_block_removed_hook(info)
+	_request_rebuild(grid_pos)
+	block_removed.emit(grid_pos)
+	return info
+
+
+## Inserta un bloque ya construido (el que devuelve detach_block) conservando su nodo.
+func attach_block(grid_pos: Vector3i, info: Dictionary) -> void:
+	if info.is_empty() or _blocks.has(grid_pos):
+		return
+
+	_blocks[grid_pos] = info
+	var chunk := _chunk_of(grid_pos)
+	if not _chunk_blocks.has(chunk):
+		_chunk_blocks[chunk] = {}
+	_chunk_blocks[chunk][grid_pos] = true
+	_total_volume += _cell_volume() * _block_volume_factor(info["block_id"])
+
+	_on_block_placed_hook(grid_pos)
+	_request_rebuild(grid_pos)
+	block_placed.emit(grid_pos, info["block_id"])
+
+
+## Claves de los props anclados a cualquiera de las celdas dadas (Dictionary[Vector3i, true]).
+## De una pasada sobre los props, no una por celda.
+func get_prop_keys_in_cells(cells: Dictionary) -> Array:
+	var out: Array = []
+	for key: String in _props:
+		if cells.has(_props[key]["cell"]):
+			out.append(key)
+	return out
+
+
+## Saca un prop sin destruir su nodo, para moverlo a otra grid. Ver detach_block.
+func detach_prop(key: String) -> Dictionary:
+	if not _props.has(key):
+		return {}
+	var info: Dictionary = _props[key]
+	_props.erase(key)
+	return info
+
+
+## Inserta un prop ya construido (el que devuelve detach_prop) conservando su nodo.
+func attach_prop(key: String, info: Dictionary) -> void:
+	if not info.is_empty():
+		_props[key] = info
 
 
 static func prop_key(cell: Vector3i, face: Vector3i) -> String:
@@ -350,18 +401,12 @@ func _rebuild_chunk(chunk: Vector3i) -> void:
 		_free_chunk_mesh(chunk)
 		return
 
-	var t0 := Time.get_ticks_usec()
 	var mesh := ChunkMeshBuilder.build_mesh(_blocks, cell_size, _get_mesh_local_transform(), mesh_materials, positions)
 	var instance := _ensure_chunk_mesh_node(chunk)
 	instance.mesh = mesh
 	instance.material_override = null
 
-	var t1 := Time.get_ticks_usec()
 	_rebuild_chunk_colliders(chunk, positions)
-
-	debug_chunks_rebuilt += 1
-	debug_mesh_usec += t1 - t0
-	debug_collider_usec += Time.get_ticks_usec() - t1
 
 
 ## Regenera las cajas de colisión fusionadas de los cubos macizos de un chunk. Los CollisionShape3D
