@@ -25,7 +25,7 @@
 			2, 2, 2
 		],
 		"slope_threshold": 0.3,
-		"slope_smoothness": 0.1,
+		"slope_smoothness": 0.2,
 		"slope_height_blend_strength": 0.7,
 		"slope_height_blend_sharpness": 0.12,
 		"slope_breakup_scale": 0.025,
@@ -43,36 +43,28 @@
 		"macro_variation_strength": 0.4,
 		"textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_albedo.png",
-			
 			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png",
-			
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
 			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png"
 		],
 		"normal_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_normal-ogl.png",
-			
 			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png",
-			
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png",
 			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_normal-ogl.png"
 		],
 		"roughness_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_roughness.png",
-			
 			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png",
-			
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png",
 			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_roughness.png"
 		],
 		"ao_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_ao.png",
-			
 			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_ao.png",
-			
 			"res://textures/terrain/crusted_snow/Crusted_snow2_ao.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_ao.png",
 			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_ao.png"
@@ -103,8 +95,8 @@
 				"source_texture": 1,
 				"target_texture": 4,
 				"period": 256.0,
-				"threshold": 0.4,
-				"smoothness": 0.1,
+				"threshold": 0.5,
+				"smoothness": 0.05,
 				"seed": 0,
 				"invert": true,
 				"abs_latitude_min": 17.7,

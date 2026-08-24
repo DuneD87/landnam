@@ -95,7 +95,7 @@ uniform float height_transition_noise_strength : hint_range(0.0, 200.0) = 35.0;
 uniform float height_blend_strength : hint_range(0.0, 1.0) = 0.45;
 uniform float height_blend_contrast : hint_range(0.25, 4.0) = 1.8;
 uniform float texture_scale = 0.5;
-uniform float normal_strength : hint_range(0.0, 4.0) = 1.5;
+uniform float normal_strength : hint_range(0.0, 4.0) = 1.0;
 
 uniform bool parallax_enabled = false;
 uniform float parallax_strength : hint_range(0.0, 3.0) = 0.09;
