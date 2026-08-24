@@ -42,6 +42,10 @@ func dig_hole(radius: float, distance: float):
 		voxel_tool.value = 0
 		voxel_tool.do_sphere(center, radius)
 
+		# Excavar no emite block_removed en ninguna grid, así que hay que avisar a mano de que
+		# puede haber estructura recién descalzada justo encima del agujero.
+		GridManager.mark_collapse_checks_near(current_voxel.global_transform * center, radius)
+
 		# Leer el ore tras do_sphere: editar hace residente el bloque con los canales INDICES/WEIGHTS reales.
 		var type_id := _read_best_ore_along_ray(voxel_tool, result.position, current_direction, 2)
 		var drop := _get_ore_drop(type_id)

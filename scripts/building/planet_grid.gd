@@ -28,7 +28,7 @@ func compute_anchor_cells() -> Dictionary:
 	var down_world : Vector3 = (planet_node.global_pos - xform.origin).normalized()
 	if down_world.is_zero_approx():
 		return anchors
-	var down_cell := _dominant_axis(xform.basis.inverse() * down_world)
+	var down_cell := -up_cell()
 	var space := planet_node.get_world_3d().direct_space_state
 
 	for cell: Vector3i in _blocks:
@@ -44,6 +44,18 @@ func compute_anchor_cells() -> Dictionary:
 			anchors[cell] = true
 
 	return anchors
+
+
+## Celda vecina en la dirección del ARRIBA gravitacional, en coordenadas de grid. No es +Y salvo
+## que la grid se construyera alineada a la superficie.
+func up_cell() -> Vector3i:
+	if not planet_node:
+		return Vector3i(0, 1, 0)
+	var xform := get_grid_world_transform()
+	var up_world := (xform.origin - planet_node.global_pos).normalized()
+	if up_world.is_zero_approx():
+		return Vector3i(0, 1, 0)
+	return _dominant_axis(xform.basis.inverse() * up_world)
 
 
 ## Celda vecina en la dirección dominante de un vector en espacio de grid.

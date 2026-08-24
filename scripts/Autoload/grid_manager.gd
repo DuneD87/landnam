@@ -160,10 +160,52 @@ const COLLAPSE_MAX_SPAN := 8
 var _collapse_pending: Dictionary = {}
 
 
+## Celdas que se miran hacia arriba desde lo excavado, además del radio del agujero.
+const DIG_COLLAPSE_REACH := 3
+
+## Los dos ejes de grid perpendiculares a un eje unitario. A mano y no con un producto vectorial:
+## Vector3i no tiene cross() (ni dot()), y es un error que solo salta en tiempo de ejecución.
+static func _perpendicular_axes(axis: Vector3i) -> Array:
+	if axis.x != 0:
+		return [Vector3i(0, 1, 0), Vector3i(0, 0, 1)]
+	if axis.y != 0:
+		return [Vector3i(1, 0, 0), Vector3i(0, 0, 1)]
+	return [Vector3i(1, 0, 0), Vector3i(0, 1, 0)]
+
+
 ## Marca una grid estática para revisar si parte de ella ha quedado en el aire.
 func mark_collapse_check(grid: PlanetGrid) -> void:
 	if grid and grid.grid_id != "":
 		_collapse_pending[grid.grid_id] = COLLAPSE_DEBOUNCE
+
+
+## Revisa el derrumbe de las estructuras que tuvieran bloques justo encima de un punto excavado.
+## Picar el terreno no emite block_removed, así que sin esto a un edificio se le pueden minar los
+## cimientos y se queda flotando hasta que además le rompan un bloque suyo.
+func mark_collapse_checks_near(world_pos: Vector3, radius: float) -> void:
+	for grid: GridBase in _grids.values():
+		if not (grid is PlanetGrid) or grid.get_block_count() == 0:
+			continue
+		var static_grid := grid as PlanetGrid
+		if _collapse_pending.has(static_grid.grid_id):
+			continue
+
+		# Solo interesa lo que estaba APOYADO en lo excavado, así que se mira hacia arriba desde
+		# el agujero. Se sondean nueve columnas, no una: cavas al lado de un muro, no debajo.
+		var up_step := static_grid.up_cell()
+		var sides := _perpendicular_axes(up_step)
+		var side_a: Vector3i = sides[0]
+		var side_b: Vector3i = sides[1]
+		var base := static_grid.world_to_cell(world_pos)
+		var reach := DIG_COLLAPSE_REACH + int(ceil(radius / static_grid.cell_size))
+
+		for a in [-1, 0, 1]:
+			for b in [-1, 0, 1]:
+				var column := base + side_a * a + side_b * b
+				for i in range(reach + 1):
+					if static_grid.has_block(column + up_step * i):
+						mark_collapse_check(static_grid)
+						break
 
 
 func _physics_process(delta: float) -> void:
