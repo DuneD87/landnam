@@ -197,7 +197,6 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.biome_noise_scales = planet_parser.biome_noise_scales
 	planet.biome_noise_thresholds = planet_parser.biome_noise_thresholds
 	planet.biome_noise_smoothness = planet_parser.biome_noise_smoothness
-	planet.biome_noise_strengths = planet_parser.biome_noise_strengths
 	planet.biome_noise_seeds = planet_parser.biome_noise_seeds
 	planet.biome_noise_invert = planet_parser.biome_noise_invert
 	planet.biome_noise_abs_latitude_mins = planet_parser.biome_noise_abs_latitude_mins

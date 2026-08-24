@@ -190,6 +190,7 @@ graph_data = {
 },
 "version": 2
 }
+subdivision_size = 8
 
 [sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_dfr3u"]
 texturing_mode = 1
@@ -376,11 +377,10 @@ stream = SubResource("VoxelStreamSQLite_olenk")
 generator = SubResource("VoxelGeneratorGraph_vdfa8")
 mesher = SubResource("VoxelMesherTransvoxel_dfr3u")
 format = SubResource("VoxelFormat_yg71c")
+gi_mode = 1
 view_distance = 100000
-lod_count = 16
+lod_count = 11
 material = SubResource("ShaderMaterial_8gh3j")
 normalmap_enabled = true
-normalmap_begin_lod_index = 1
-mesh_block_size = 32
 threaded_update_enabled = true
 streaming_system = 1

@@ -22,7 +22,6 @@ const config = preload("res://scripts/config.gd")
 @export var biome_noise_scales: Array[float] = []
 @export var biome_noise_thresholds: Array[float] = []
 @export var biome_noise_smoothness: Array[float] = []
-@export var biome_noise_strengths: Array[float] = []
 @export var biome_noise_seeds: Array[float] = []
 @export var biome_noise_invert: Array[int] = []
 @export var biome_noise_abs_latitude_mins: Array[float] = []
@@ -1115,7 +1114,6 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("biome_noise_scales", biome_noise_scales)
 	shader_material.set_shader_parameter("biome_noise_thresholds", biome_noise_thresholds)
 	shader_material.set_shader_parameter("biome_noise_smoothness", biome_noise_smoothness)
-	shader_material.set_shader_parameter("biome_noise_strengths", biome_noise_strengths)
 	shader_material.set_shader_parameter("biome_noise_seeds", biome_noise_seeds)
 	shader_material.set_shader_parameter("biome_noise_invert", biome_noise_invert)
 	shader_material.set_shader_parameter("biome_noise_abs_latitude_mins", biome_noise_abs_latitude_mins)

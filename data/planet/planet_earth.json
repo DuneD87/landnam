@@ -90,28 +90,26 @@
 				"source_texture": 1,
 				"target_texture": 4,
 				"period": 256.0,
-				"threshold": 0.1,
-				"smoothness": 0.7,
-				"strength": 1.0,
+				"threshold": 0.5,
+				"smoothness": 0.05,
 				"seed": 0,
 				"invert": true,
 				"abs_latitude_min": 17.7,
 				"abs_latitude_max": 31.6,
-				"latitude_smoothness": 0.1
+				"latitude_smoothness": 3.5
 			},
 			{
 				"biome": 3,
 				"source_texture": 1,
 				"target_texture": 4,
 				"period": 256.0,
-				"threshold": 0.01,
-				"smoothness": 0.7,
-				"strength": 1.0,
+				"threshold": 0.4,
+				"smoothness": 0.1,
 				"seed": 0,
 				"invert": true,
 				"abs_latitude_min": 17.7,
 				"abs_latitude_max": 31.6,
-				"latitude_smoothness": 0.1
+				"latitude_smoothness": 3.5
 			}
 		],
 		"slope_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",

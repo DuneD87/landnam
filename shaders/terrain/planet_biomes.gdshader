@@ -45,7 +45,6 @@ uniform int biome_noise_target_texture_indices[MAX_BIOMES];
 uniform float biome_noise_scales[MAX_BIOMES];
 uniform float biome_noise_thresholds[MAX_BIOMES];
 uniform float biome_noise_smoothness[MAX_BIOMES];
-uniform float biome_noise_strengths[MAX_BIOMES];
 uniform float biome_noise_seeds[MAX_BIOMES];
 uniform int biome_noise_invert[MAX_BIOMES];
 uniform float biome_noise_abs_latitude_mins[MAX_BIOMES];
@@ -88,7 +87,7 @@ uniform int debug_slope_view : hint_range(0, 3) = 0;
 uniform bool debug_detail_blend_view = false;
 uniform float transition_smoothness = 0.5;
 
-uniform float biome_transition_smoothness = 1.0; // nueva uniform para suavizar transiciones
+uniform float biome_transition_smoothness = 1.0;
 uniform float noise_strength = 1.0;
 uniform float noise_scale = 0.5;
 uniform float height_transition_noise_scale : hint_range(0.0, 0.2) = 0.035;
@@ -155,6 +154,42 @@ vec4 decode_8bit_vec4(float v) {
 		float((i >> uint(8)) & uint(0xff)),
 		float((i >> uint(16)) & uint(0xff)),
 		float((i >> uint(24)) & uint(0xff)));
+}
+
+// Gate por latitud absoluta (grados) del override de ruido de un bioma.
+float biome_noise_lat_gate(int b, float latitude) {
+    float abs_lat = abs(latitude);
+    float s = max(biome_noise_latitude_smoothness[b], 0.0001);
+    return smoothstep(biome_noise_abs_latitude_mins[b] - s, biome_noise_abs_latitude_mins[b] + s, abs_lat)
+         * (1.0 - smoothstep(biome_noise_abs_latitude_maxs[b] - s, biome_noise_abs_latitude_maxs[b] + s, abs_lat));
+}
+
+// Mascara del override: replica el ruido ridged del grafo de densidad de vegetacion
+// (ZN_FastNoiseLite, 6 octavas, lacunarity 6, gain 0.1) para pintar tierra donde ese mismo
+// ruido deja el terreno sin plantas. 1 = textura de destino, 0 = textura de origen.
+float biome_noise_mask(vec3 planet_pos, int b) {
+    int biome_seed = int(round(biome_noise_seeds[b]));
+    float base_scale = biome_noise_scales[b]; // 1/period del nodo FastNoise3D del grafo
+    float n      = 0.0;
+    float amp    = 1.0;
+    float fscale = base_scale;
+    float norm   = 0.0;
+    for (int o = 0; o < 6; o++) {
+        float v = abs(fast_noise_lite_open_simplex2_3d(planet_pos, fscale, biome_seed + o));
+        n      += (v * -2.0 + 1.0) * amp;
+        norm   += amp;
+        amp    *= 0.1;
+        fscale *= 6.0;
+    }
+    n = (n / norm) * 0.5 + 0.5; // [0,1]
+
+    float t = biome_noise_thresholds[b];
+    float s = max(biome_noise_smoothness[b], 0.0001);
+    float mask = smoothstep(t - s, t + s, n);
+    if (biome_noise_invert[b] != 0) {
+        mask = 1.0 - mask;
+    }
+    return mask;
 }
 
 void vertex() {
@@ -273,7 +308,7 @@ void fragment() {
         ? triplanar_scalar_sample_uvs(slope_height_texture, slope_uvs, geometry_normal_world)
         : 0.0;
 
-    // 5) Pesos de bioma (igual que tenías)
+    // 5) Pesos de bioma
     float biome_weights[MAX_BIOMES];
     for (int i = 0; i < MAX_BIOMES; i++) biome_weights[i] = 0.0;
     float latitude = degrees(asin(planet_up.y));
@@ -320,7 +355,7 @@ void fragment() {
                 factor = s1 * (1.0 - s2);
             }
             factor *= (1.0 - slope_factor) * biome_weight;
-            if (factor < 0.01) continue;  // <-- skip parallax si la textura no aporta
+            if (factor < 0.01) continue;  // si la textura no aporta, ni parallax ni muestras
 
             // --- Noise override: se calcula ANTES del height bias para que el split
             //     hierba/tierra no quede contaminado por el height map de la hierba.
@@ -330,14 +365,9 @@ void fragment() {
             float base_factor = factor;   // peso pre-bias de la textura fuente
             float override_factor = 0.0;
             int override_tex_index = biome_noise_target_texture_indices[b];
-            // Gate por latitud absoluta (grados) del override: fuera de su banda se salta el
-            // fBm (6 octavas de simplex por fragmento) y las muestras triplanares del target.
-            float abs_lat = abs(latitude);
-            float lat_gate_s = max(biome_noise_latitude_smoothness[b], 0.0001);
-            float lat_gate = smoothstep(biome_noise_abs_latitude_mins[b] - lat_gate_s,
-                                        biome_noise_abs_latitude_mins[b] + lat_gate_s, abs_lat)
-                           * (1.0 - smoothstep(biome_noise_abs_latitude_maxs[b] - lat_gate_s,
-                                               biome_noise_abs_latitude_maxs[b] + lat_gate_s, abs_lat));
+            // El gate de latitud primero: fuera de su banda no se paga el fBm (6 octavas de
+            // simplex por fragmento) ni las muestras triplanares del target.
+            float lat_gate = biome_noise_lat_gate(b, latitude);
             if (
                 biome_noise_enabled[b] != 0 &&
                 lat_gate > 0.001 &&
@@ -346,34 +376,9 @@ void fragment() {
                 override_tex_index < MAX_TEXTURES &&
                 override_tex_index != tex_index
             ) {
-               	int biome_seed = int(round(biome_noise_seeds[b]));
-				float base_scale = biome_noise_scales[b]; // debe ser 1/64 para coincidir con Period 64
-				float n      = 0.0;
-				float amp    = 1.0;
-				float fscale = base_scale;
-				float norm   = 0.0;
-				for (int o = 0; o < 6; o++) {              // 3 octavas, no 6
-				    float v = abs(fast_noise_lite_open_simplex2_3d(planet_pos, fscale, biome_seed + o));
-				    n      += (v * -2.0 + 1.0) * amp;
-				    norm   += amp;
-				    amp    *= 0.1;                          // gain 0.5, no 1.0
-				    fscale *= 6.0;                          // lacunarity 2.0, no 3.0
-				}
-				n = (n / norm) * 0.5 + 0.5; // [0,1] — quítalo si quieres [-1,1] como FastNoise2
-
-				// 3) Threshold + smoothness sobre el ruido ya contrastado.
-				//    Como el remap anterior ya normalizó la pendiente, smoothness se comporta
-				//    de forma estable aunque cambies strength.
-				float t = biome_noise_thresholds[b];
-				float s = max(biome_noise_smoothness[b], 0.0001);
-				float biome_noise_mask = smoothstep(t - s, t + s, n);
-
-				if (biome_noise_invert[b] != 0) {
-				    biome_noise_mask = 1.0 - biome_noise_mask;
-				}
                 // División limpia: el ratio hierba/tierra lo decide el noise mask,
                 // sin contaminación del height map de la fuente.
-                override_factor = factor * biome_noise_mask * lat_gate;
+                override_factor = factor * biome_noise_mask(planet_pos, b) * lat_gate;
                 base_factor     = factor - override_factor;
             }
 
@@ -440,6 +445,15 @@ void fragment() {
                 }
 
                 vec3 override_c = triplanar_sample_uvs(textures[override_tex_index], override_uvs, planet_up);
+                // Mismo detail blend que la textura fuente: sin el sale plana.
+                float override_detail_factor = 1.0;
+                if (detail_blend_enabled) {
+                    TriplanarUVs override_uvs_detail = compute_triplanar_uvs(
+                        planet_pos, texture_scale * detail_scale_multiplier);
+                    override_detail_factor = detail_blend_factor(textures[override_tex_index],
+                        override_uvs_detail, planet_up, detail_blend_weight);
+                    override_c *= override_detail_factor;
+                }
                 vec4 override_n_v = triplanar_normal_sample_uvs_v(normal_textures[override_tex_index], override_uvs, normal_world);
                 float override_r = triplanar_scalar_sample_uvs(roughness_textures[override_tex_index], override_uvs, planet_up);
                 float override_ao = triplanar_scalar_sample_uvs(ao_textures[override_tex_index], override_uvs, planet_up);
@@ -450,7 +464,7 @@ void fragment() {
                 final_roughness += override_r * override_factor;
                 final_ao        += override_ao * override_factor;
                 total_factor    += override_factor;
-                final_detail_factor += override_factor; // el override no pasa por detail blend
+                final_detail_factor += override_detail_factor * override_factor;
             }
         }
     }

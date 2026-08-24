@@ -27,7 +27,6 @@ class_name PlanetParser extends Node3D
 @export var biome_noise_scales: Array[float] = []
 @export var biome_noise_thresholds: Array[float] = []
 @export var biome_noise_smoothness: Array[float] = []
-@export var biome_noise_strengths: Array[float] = []
 @export var biome_noise_seeds: Array[float] = []
 @export var biome_noise_invert: Array[int] = []
 @export var biome_noise_abs_latitude_mins: Array[float] = []
@@ -361,7 +360,6 @@ func _load_biome_noise_texture_overrides(biome_settings: Dictionary) -> void:
 	biome_noise_scales = []
 	biome_noise_thresholds = []
 	biome_noise_smoothness = []
-	biome_noise_strengths = []
 	biome_noise_seeds = []
 	biome_noise_invert = []
 	biome_noise_abs_latitude_mins = []
@@ -375,7 +373,6 @@ func _load_biome_noise_texture_overrides(biome_settings: Dictionary) -> void:
 		biome_noise_scales.append(0.001)
 		biome_noise_thresholds.append(0.5)
 		biome_noise_smoothness.append(0.15)
-		biome_noise_strengths.append(1.0)
 		biome_noise_seeds.append(1337.0)
 		biome_noise_invert.append(0)
 		biome_noise_abs_latitude_mins.append(0.0)
@@ -405,7 +402,6 @@ func _load_biome_noise_texture_overrides(biome_settings: Dictionary) -> void:
 			biome_noise_scales[biome_index] = float(override_config.get("scale", 0.001))
 		biome_noise_thresholds[biome_index] = float(override_config.get("threshold", 0.5))
 		biome_noise_smoothness[biome_index] = float(override_config.get("smoothness", 0.15))
-		biome_noise_strengths[biome_index] = float(override_config.get("strength", 1.0))
 		biome_noise_seeds[biome_index] = float(override_config.get("seed", 1337.0))
 		biome_noise_invert[biome_index] = 1 if override_config.get("invert", false) else 0
 		biome_noise_abs_latitude_mins[biome_index] = float(override_config.get("abs_latitude_min", 0.0))
