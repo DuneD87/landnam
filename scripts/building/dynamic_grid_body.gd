@@ -54,6 +54,9 @@ const IMPACT_ENERGY_FACTOR := 0.35
 const IMPACT_MAX_EFFECTIVE_MASS := 20000.0
 ## Frames de física de espera tras un impacto, para que un rebote no siga triturando el casco.
 const IMPACT_COOLDOWN_FRAMES := 8
+## Parte de la energía que se lleva la estructura estática golpeada. No conserva energía: es un
+## mando independiente para decidir cuánto aguanta un muelle frente a un barco.
+const IMPACT_VICTIM_SHARE := 0.6
 const MAX_CONTACTS_REPORTED := 8
 
 ## Segundos sin ediciones antes de comprobar si el casco se ha partido. Solo quitar bloques puede
@@ -711,6 +714,7 @@ func _detect_impact(state: PhysicsDirectBodyState3D) -> void:
 	var com := state.transform.origin + state.center_of_mass
 	var best_speed := 0.0
 	var best_pos := Vector3.ZERO
+	var best_other: Object = null
 
 	for i in contacts:
 		var pos := state.get_contact_collider_position(i)
@@ -731,6 +735,7 @@ func _detect_impact(state: PhysicsDirectBodyState3D) -> void:
 		if closing > best_speed:
 			best_speed = closing
 			best_pos = pos
+			best_other = state.get_contact_collider_object(i)
 
 	if best_speed <= IMPACT_MIN_SPEED:
 		return
@@ -741,14 +746,26 @@ func _detect_impact(state: PhysicsDirectBodyState3D) -> void:
 	var energy := 0.5 * effective_mass * excess * excess * IMPACT_ENERGY_FACTOR
 	_impact_cooldown = IMPACT_COOLDOWN_FRAMES
 	# Editar la grid libera CollisionShape3D del propio body mientras el servidor está pisando: diferido.
-	call_deferred("_apply_impact", best_pos, energy)
+	call_deferred("_apply_impact", best_pos, energy, _victim_grid_id(best_other))
+
+
+## Id de la grid ESTÁTICA golpeada, o "" si no lo es. Si la víctima es otro DynamicGridBody se
+## devuelve "" a propósito: ese cuerpo detecta el choque en su propio _integrate_forces, y
+## dañarlo también desde aquí sería contarlo dos veces.
+func _victim_grid_id(other: Object) -> String:
+	if not (other is Node) or other is DynamicGridBody:
+		return ""
+	var node := other as Node
+	return str(node.get_meta("grid_id")) if node.has_meta("grid_id") else ""
 
 
 ## Reparte la energía del impacto entre las grids del body (multi-size), con un solo rebuild por
 ## grid, y lanza los escombros. Se llama diferido desde _detect_impact.
-func _apply_impact(world_pos: Vector3, energy: float) -> void:
+func _apply_impact(world_pos: Vector3, energy: float, victim_grid_id: String = "") -> void:
 	if not is_inside_tree():
 		return
+
+	_damage_static_victim(world_pos, energy, victim_grid_id)
 
 	var destroyed := 0
 	var budget := energy
@@ -775,6 +792,30 @@ func _apply_impact(world_pos: Vector3, energy: float) -> void:
 		up = (global_position - planet_node.global_pos).normalized()
 	BlockDebris.burst(self, world_pos, up, destroyed, debris_cell)
 	blocks_destroyed.emit(world_pos, destroyed)
+
+
+## Abre el boquete en la estructura estática golpeada. El reparto no conserva energía a propósito:
+## cada lado gasta su presupuesto contra su propia dureza, que es mucho más fácil de tunear que
+## un reparto físico. Quitarle bloques dispara además su revisión de derrumbe.
+func _damage_static_victim(world_pos: Vector3, energy: float, victim_grid_id: String) -> void:
+	if victim_grid_id == "":
+		return
+	var victim := GridManager.get_grid(victim_grid_id)
+	if not (victim is PlanetGrid):
+		return
+
+	victim.begin_batch_edit()
+	var result: Dictionary = victim.damage_sphere(world_pos, energy * IMPACT_VICTIM_SHARE)
+	victim.end_batch_edit()
+
+	var count: int = (result["destroyed"] as Array).size()
+	if count == 0:
+		return
+
+	var up := Vector3.UP
+	if planet_node:
+		up = (world_pos - planet_node.global_pos).normalized()
+	BlockDebris.burst(self, world_pos, up, count, victim.cell_size)
 
 
 func _physics_process(delta: float) -> void:

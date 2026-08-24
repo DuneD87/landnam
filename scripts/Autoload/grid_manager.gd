@@ -150,11 +150,157 @@ func _init_uniform_buffers() -> void:
 	_wake_ranges_buf.resize(MAX_WAKES)
 
 
-func _physics_process(_delta: float) -> void:
+## Segundos sin ediciones antes de comprobar si una estructura estática se ha quedado sin apoyo
+## (coalesce de ráfagas: un impacto quita decenas de bloques de golpe).
+const COLLAPSE_DEBOUNCE := 0.4
+## Pasos máximos, en celdas, desde una celda apoyada en el suelo. Lo que quede más lejos se
+## desprende aunque siga pegado: sin esto una viga de 40 bloques cuelga de un ladrillo.
+const COLLAPSE_MAX_SPAN := 8
+
+var _collapse_pending: Dictionary = {}
+
+
+## Marca una grid estática para revisar si parte de ella ha quedado en el aire.
+func mark_collapse_check(grid: PlanetGrid) -> void:
+	if grid and grid.grid_id != "":
+		_collapse_pending[grid.grid_id] = COLLAPSE_DEBOUNCE
+
+
+func _physics_process(delta: float) -> void:
+	_process_collapse_checks(delta)
+
 	var bodies := get_tree().get_nodes_in_group("dynamic_grid_body")
 	if bodies.is_empty() and _interior_materials_active.is_empty():
 		return
 	_update_interior_uniforms(bodies)
+
+
+func _process_collapse_checks(delta: float) -> void:
+	if _collapse_pending.is_empty():
+		return
+	for grid_id: String in _collapse_pending.keys():
+		var left: float = _collapse_pending[grid_id] - delta
+		if left > 0.0:
+			_collapse_pending[grid_id] = left
+			continue
+		_collapse_pending.erase(grid_id)
+		_check_collapse(grid_id)
+
+
+## Convierte en dinámico todo lo que haya dejado de estar sostenido por el suelo. El análisis va
+## sobre el GRUPO de grids alineadas, no sobre una sola: una estructura multi-size es una sola
+## cosa y sus trozos se sostienen entre sí.
+func _check_collapse(grid_id: String) -> void:
+	var source: PlanetGrid = _grids.get(grid_id, null) as PlanetGrid
+	if not source or source.get_block_count() == 0:
+		return
+
+	var group: Array = []
+	for grid: GridBase in get_grid_group(grid_id):
+		if grid is PlanetGrid:
+			group.append(grid)
+	if group.is_empty():
+		return
+
+	var grids_data: Array = []
+	var anchors: Array = []
+	for grid: PlanetGrid in group:
+		grids_data.append({"cells": grid.get_all_blocks().keys(), "cell_size": grid.cell_size})
+		anchors.append(grid.compute_anchor_cells())
+
+	var falling := GridSplitAnalyzer.analyze_support(grids_data, anchors, COLLAPSE_MAX_SPAN)
+	if falling.is_empty():
+		return
+
+	var world_xform: Transform3D = group[0].get_grid_world_transform()
+	for piece: Dictionary in falling:
+		_collapse_piece(group, piece, world_xform)
+
+
+## Pasa los bloques de un trozo sin apoyo a un DynamicGridBody nuevo, que nace en el transform de
+## la estructura estática para conservar las coordenadas de grid. Aquí no vale re-emparentar como
+## en la separación de cascos: los bloques estáticos son StaticBody3D hijos del planeta y el lado
+## dinámico quiere CollisionShape3D hijos del cuerpo, así que hay que recrearlos.
+func _collapse_piece(group: Array, piece: Dictionary, world_xform: Transform3D) -> void:
+	var body_id := _generate_id()
+
+	var body := DynamicGridBody.new()
+	body.name = "DynGrid_%s" % body_id
+	body.planet_node = group[0].planet_node
+	body.spawned_from_split = true
+	body.mass = DynamicGridBody.MIN_MASS
+	body.gravity_scale = 0.0
+	body.set_meta("grid_id", body_id)
+	group[0].planet_node.get_tree().current_scene.add_child(body)
+	body.global_transform = world_xform
+
+	var owns_body := true
+	for entry: Dictionary in piece["groups"]:
+		var static_grid: PlanetGrid = group[entry["grid_index"]]
+
+		var dyn := DynamicPlanetGrid.new()
+		dyn.grid_id = body_id if owns_body else _generate_id()
+		dyn.body_id = body_id
+		dyn.planet_node = static_grid.planet_node
+		dyn.cell_size = static_grid.cell_size
+		dyn.mesh_materials = static_grid.mesh_materials.duplicate()
+		dyn._body = body
+		dyn._owns_body = owns_body
+		owns_body = false
+
+		var moving: Dictionary = {}
+		for cell: Vector3i in entry["cells"]:
+			moving[cell] = true
+
+		static_grid.begin_batch_edit()
+		dyn.begin_batch_edit()
+
+		for key: String in static_grid.get_prop_keys_in_cells(moving):
+			var prop_info := static_grid.detach_prop(key)
+			var prop_node: Node3D = prop_info["node"]
+			if prop_node and is_instance_valid(prop_node):
+				prop_node.queue_free()
+			dyn.place_prop(prop_info["cell"], prop_info["face"], prop_info["item_id"],
+				prop_info["local_transform"])
+
+		for cell: Vector3i in entry["cells"]:
+			_migrate_cell_to_dynamic(static_grid, dyn, body, cell)
+
+		dyn.end_batch_edit()
+		static_grid.end_batch_edit()
+
+		_register_grid(dyn, dyn.planet_node, dyn.grid_id)
+		body.register_grid(dyn)
+		dyn.block_placed.connect(body.on_block_placed.bind(dyn))
+		dyn.block_removed.connect(body.on_block_removed.bind(dyn))
+
+	body.update_mass_from_grids()
+	print("[GridManager] Derrumbe: %d bloques sin apoyo pasan a '%s'" % [piece["count"], body_id])
+
+
+## Mueve una celda de una grid estática a una dinámica, recreando su nodo de colisión.
+func _migrate_cell_to_dynamic(static_grid: PlanetGrid, dyn: DynamicPlanetGrid,
+	body: DynamicGridBody, cell: Vector3i) -> void:
+
+	var info := static_grid.detach_block(cell)
+	if info.is_empty():
+		return
+
+	var old_node: Node3D = info["node"]
+	var local_xform := Transform3D(info["rotation_basis"], Vector3(cell) * static_grid.cell_size)
+	if old_node and is_instance_valid(old_node):
+		local_xform = body.global_transform.affine_inverse() * old_node.global_transform
+		old_node.queue_free()
+
+	var new_node: Node3D = null
+	if not ChunkMeshBuilder._is_solid(info["block_id"]):
+		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
+		if block_data:
+			new_node = dyn._make_block_wrapper(cell, block_data, info["rotation_basis"], local_xform)
+			body.add_child(new_node)
+
+	info["node"] = new_node
+	dyn.attach_block(cell, info)
 
 
 ## La estela se empuja por frame renderizado y no de física: el casco se dibuja con la transform

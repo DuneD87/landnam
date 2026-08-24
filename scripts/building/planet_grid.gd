@@ -5,10 +5,64 @@ extends GridBase
 ## cajas fusionadas en un StaticBody3D único de la grid; los bloques con forma propia
 ## (rampas, esquinas) mantienen su StaticBody3D individual hijo del planeta.
 
+## Hasta dónde busca suelo el sondeo por debajo de la cara inferior de un bloque.
+const ANCHOR_PROBE := 0.35
+
 var origin_local: Vector3 = Vector3.ZERO
 var basis_local: Basis = Basis.IDENTITY
 
 var _collision_body: StaticBody3D = null
+
+
+## Celdas que se apoyan en algo firme: el terreno u otra grid estática, nunca un cuerpo dinámico
+## (una casa apoyada en un barco no está en suelo firme). Solo se sondean las celdas sin bloque
+## debajo, y el rayo va hacia el ABAJO GRAVITACIONAL —no el -Y de la grid, que solo coincide si
+## se construyó alineada a la superficie— y de fuera hacia dentro: el trimesh del terreno ignora
+## las caras traseras, así que sondear hacia arriba no detectaría nada.
+func compute_anchor_cells() -> Dictionary:
+	var anchors: Dictionary = {}
+	if _blocks.is_empty() or not planet_node or not planet_node.is_inside_tree():
+		return anchors
+
+	var xform := get_grid_world_transform()
+	var down_world : Vector3 = (planet_node.global_pos - xform.origin).normalized()
+	if down_world.is_zero_approx():
+		return anchors
+	var down_cell := _dominant_axis(xform.basis.inverse() * down_world)
+	var space := planet_node.get_world_3d().direct_space_state
+
+	for cell: Vector3i in _blocks:
+		if _blocks.has(cell + down_cell):
+			continue
+		var face_local := (Vector3(cell) + Vector3.ONE * 0.5 + Vector3(down_cell) * 0.5) * cell_size
+		var from := xform * face_local + down_world * 0.02
+		var query := PhysicsRayQueryParameters3D.create(from, from + down_world * ANCHOR_PROBE)
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			continue
+		if _is_firm_ground(hit.get("collider")):
+			anchors[cell] = true
+
+	return anchors
+
+
+## Celda vecina en la dirección dominante de un vector en espacio de grid.
+static func _dominant_axis(v: Vector3) -> Vector3i:
+	var a := v.abs()
+	if a.x >= a.y and a.x >= a.z:
+		return Vector3i(1 if v.x > 0.0 else -1, 0, 0)
+	if a.y >= a.z:
+		return Vector3i(0, 1 if v.y > 0.0 else -1, 0)
+	return Vector3i(0, 0, 1 if v.z > 0.0 else -1)
+
+
+## Terreno u otra grid estática cuentan como suelo; esta misma grid y los cuerpos dinámicos no.
+func _is_firm_ground(collider: Object) -> bool:
+	if not collider or collider is DynamicGridBody:
+		return false
+	if collider is Node and (collider as Node).has_meta("grid_id"):
+		return (collider as Node).get_meta("grid_id") != grid_id
+	return true
 
 
 func setup(id: String, planet: Node3D, origin_world: Vector3, basis_world: Basis, size: float = 1.0) -> void:
@@ -56,6 +110,11 @@ func _get_collision_parent() -> Node3D:
 	_collision_body.set_meta("grid_id", grid_id)
 	planet_node.add_child(_collision_body)
 	return _collision_body
+
+
+## Quitar un bloque puede dejar parte de la estructura sin apoyo; colocarlo nunca.
+func _on_block_removed_hook(_info: Dictionary) -> void:
+	GridManager.mark_collapse_check(self)
 
 
 func clear() -> void:
