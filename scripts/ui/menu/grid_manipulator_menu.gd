@@ -109,6 +109,8 @@ func _format_group_stats(stats: Dictionary) -> String:
 		var flood: Dictionary = stats["flood"]
 		lines.append("Compartimentos: %d (%d inundados, %d con vía de agua)" % [
 			flood["compartments"], flood["flooded"], flood["breached"]])
+		if flood.get("heel_assist", 1.0) < 1.0:
+			lines.append("Estabilidad: %.0f%%" % (flood["heel_assist"] * 100.0))
 
 	return "\n".join(lines)
 

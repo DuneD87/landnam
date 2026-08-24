@@ -57,6 +57,10 @@ const IMPACT_COOLDOWN_FRAMES := 8
 ## Parte de la energía que se lleva la estructura estática golpeada. No conserva energía: es un
 ## mando independiente para decidir cuánto aguanta un muelle frente a un barco.
 const IMPACT_VICTIM_SHARE := 0.6
+
+## Fracción de la capacidad de inundación a la que un casco perforado se queda SIN la grúa de
+## escora (ver _heel_assist). Más bajo = se tumba antes.
+const HEEL_ASSIST_FLOOD_LIMIT := 0.4
 const MAX_CONTACTS_REPORTED := 8
 
 ## Segundos sin ediciones antes de comprobar si el casco se ha partido. Solo quitar bloques puede
@@ -948,15 +952,29 @@ func _physics_process(delta: float) -> void:
 		# escora real) el par se anula cerca del equilibrio, los barcos escoran, embarcan agua
 		# por la banda baja y se hunden. Es feo, pero sostiene la flota: no lo toques sin
 		# sustituirlo por estabilidad de verdad (metacentro).
+		#
+		# Lo que sí se hace es RETIRARLA cuando el casco está herido, en vez de arreglarla: con el
+		# casco sano el par es idéntico al de siempre, y la flota se comporta igual que siempre.
+		var assist := _heel_assist()
 		var body_up := -global_transform.basis.y
 		var angle_to_vertical := acos(clampf(body_up.dot(up), -1.0, 1.0))
-		if angle_to_vertical > deg_to_rad(5.0):
+		if assist > 0.0 and angle_to_vertical > deg_to_rad(5.0):
 			var corrective_axis := up.cross(body_up).normalized()
 			var correction_strength := (angle_to_vertical - deg_to_rad(5.0)) * displaced_mass * gravity * 0.1
-			apply_torque(corrective_axis * correction_strength)
+			apply_torque(corrective_axis * correction_strength * assist)
 
 	_update_flooding(up, planet_pos, base_water_radius, gravity)
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius, water_vel)
+
+
+## Cuánta grúa de escora queda. La condición de entrada es binaria y sin ambigüedad —un casco sin
+## compartimentos perforados devuelve 1.0 exacto— para que un barco sano no note absolutamente
+## nada. Ya perforado, se va perdiendo con el agua embarcada hasta cero: entonces escora, se
+## tumba y se hunde de costado en vez de irse a plomo.
+func _heel_assist() -> float:
+	if _breached_comps.is_empty() or _flood_capacity <= 0.0:
+		return 1.0
+	return clampf(1.0 - _flood_volume / (_flood_capacity * HEEL_ASSIST_FLOOD_LIMIT), 0.0, 1.0)
 
 
 ## Aplica el peso del agua embarcada como una única fuerza en el centroide cacheado. El estado
@@ -1080,6 +1098,7 @@ func get_flood_state() -> Dictionary:
 		"compartments": _compartments.size(),
 		"flooded": flooded,
 		"breached": _breached_comps.size(),
+		"heel_assist": _heel_assist(),
 	}
 
 
