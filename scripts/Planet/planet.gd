@@ -42,6 +42,17 @@ const config = preload("res://scripts/config.gd")
 @export var slope_smoothness: float = 0.18
 @export var slope_height_blend_strength: float = 0.0
 @export var slope_height_blend_sharpness: float = 0.2
+@export var slope_breakup_scale: float = 0.025
+@export var slope_breakup_strength: float = 0.0
+@export var slope_breakup_anisotropy: float = 2.5
+@export var slope_strata_thickness: float = 18.0
+@export var slope_strata_strength: float = 0.0
+@export var slope_strata_warp: float = 0.35
+@export var parallax_enabled: bool = false
+@export var parallax_strength: float = 0.09
+@export var transition_smoothness: float = 10.0
+@export var height_transition_noise_scale: float = 0.015
+@export var height_transition_noise_strength: float = 12.0
 @export var macro_variation_scale: float = 0.006
 @export var macro_variation_strength: float = 0.18
 @export var vegetation: Dictionary
@@ -1077,7 +1088,9 @@ func _init(_voxel_terrain: VoxelLodTerrain) -> void:
 func setup_shader_parameters() -> void:
 	voxel_terrain.material = shader_material
 
-	shader_material.set_shader_parameter("transition_smoothness", 10)
+	shader_material.set_shader_parameter("transition_smoothness", transition_smoothness)
+	shader_material.set_shader_parameter("height_transition_noise_scale", height_transition_noise_scale)
+	shader_material.set_shader_parameter("height_transition_noise_strength", height_transition_noise_strength)
 	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
 	update_world_center()
 
@@ -1118,6 +1131,14 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("slope_smoothness", slope_smoothness)
 	shader_material.set_shader_parameter("slope_height_blend_strength", slope_height_blend_strength)
 	shader_material.set_shader_parameter("slope_height_blend_sharpness", slope_height_blend_sharpness)
+	shader_material.set_shader_parameter("slope_breakup_scale", slope_breakup_scale)
+	shader_material.set_shader_parameter("slope_breakup_strength", slope_breakup_strength)
+	shader_material.set_shader_parameter("slope_breakup_anisotropy", slope_breakup_anisotropy)
+	shader_material.set_shader_parameter("slope_strata_thickness", slope_strata_thickness)
+	shader_material.set_shader_parameter("slope_strata_strength", slope_strata_strength)
+	shader_material.set_shader_parameter("slope_strata_warp", slope_strata_warp)
+	shader_material.set_shader_parameter("parallax_enabled", parallax_enabled)
+	shader_material.set_shader_parameter("parallax_strength", parallax_strength)
 	shader_material.set_shader_parameter("macro_variation_scale", macro_variation_scale)
 	shader_material.set_shader_parameter("macro_variation_strength", macro_variation_strength)
 

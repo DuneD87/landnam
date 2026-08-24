@@ -217,6 +217,17 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.slope_smoothness = planet_parser.slope_smoothness
 	planet.slope_height_blend_strength = planet_parser.slope_height_blend_strength
 	planet.slope_height_blend_sharpness = planet_parser.slope_height_blend_sharpness
+	planet.slope_breakup_scale = planet_parser.slope_breakup_scale
+	planet.slope_breakup_strength = planet_parser.slope_breakup_strength
+	planet.slope_breakup_anisotropy = planet_parser.slope_breakup_anisotropy
+	planet.slope_strata_thickness = planet_parser.slope_strata_thickness
+	planet.slope_strata_strength = planet_parser.slope_strata_strength
+	planet.slope_strata_warp = planet_parser.slope_strata_warp
+	planet.parallax_enabled = planet_parser.parallax_enabled
+	planet.parallax_strength = planet_parser.parallax_strength
+	planet.transition_smoothness = planet_parser.transition_smoothness
+	planet.height_transition_noise_scale = planet_parser.height_transition_noise_scale
+	planet.height_transition_noise_strength = planet_parser.height_transition_noise_strength
 	planet.macro_variation_scale = planet_parser.macro_variation_scale
 	planet.macro_variation_strength = planet_parser.macro_variation_strength
 	planet.has_water = planet_parser.has_water

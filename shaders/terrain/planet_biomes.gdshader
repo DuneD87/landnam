@@ -64,6 +64,22 @@ uniform float slope_smoothness = 0.5;
 // sharpness: pequeno = contacto duro, grande = difuso.
 uniform float slope_height_blend_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float slope_height_blend_sharpness : hint_range(0.02, 1.0) = 0.2;
+// Ruptura de la isolinea de pendiente: perturba el angulo con ruido world-space antes del
+// smoothstep. Sin esto el contacto roca<->bioma es una cinta a pendiente constante que
+// rodea el cerro, que es lo que se lee como "pintado". La perturbacion va ventaneada a la
+// zona de contacto, asi que llanuras y cortados quedan intactos. 0 = comportamiento anterior.
+uniform float slope_breakup_scale : hint_range(0.0, 0.2) = 0.025;
+uniform float slope_breakup_strength : hint_range(0.0, 0.5) = 0.0;
+// Comprime el eje gravitatorio en la entrada del ruido: manchas alargadas ladera abajo,
+// como suelo lavado por el agua. 1 = isotropo.
+uniform float slope_breakup_anisotropy : hint_range(1.0, 6.0) = 2.5;
+// Estratos: el umbral de roca sube y baja en bandas horizontales de altitud, asi que la
+// roca sale en repisas continuas con una causa legible en vez de motas repartidas por la
+// ladera. thickness = metros por banda; warp ondula las bandas para que no sean anillos
+// perfectos alrededor del planeta. 0 = off.
+uniform float slope_strata_thickness : hint_range(2.0, 120.0) = 18.0;
+uniform float slope_strata_strength : hint_range(0.0, 0.4) = 0.0;
+uniform float slope_strata_warp : hint_range(0.0, 1.0) = 0.35;
 // 0=off, 1=mascara de pendiente (rojo=slope puro), 2=angulo crudo en grados/90,
 // 3=roughness final. Para tunear slope_threshold/smoothness viendo lo que decide.
 uniform int debug_slope_view : hint_range(0, 3) = 0;
@@ -201,12 +217,36 @@ void fragment() {
         planet_up);
     float slope_cos = clamp(dot(geometry_normal_world, planet_up), -1.0, 1.0);
     float slope = 1.0 - slope_cos;
-    float slope_factor = smoothstep(slope_threshold - slope_smoothness,
-                                     slope_threshold + slope_smoothness, slope);
+    // El umbral efectivo lo mueven los estratos; el breakup se ventanea contra ese umbral
+    // ya movido, si no la ruptura del borde se descuelga de la repisa que esta dibujando.
+    float slope_thr = slope_threshold;
+    if (slope_strata_strength > 0.0001) {
+        // Altitud por fragmento, no el varying 'height': ese se interpola entre vertices y
+        // en LOD lejano estan mas separados que el grosor de una banda.
+        float strata_h = (distance_to_center - radius) + signed_fbm(planet_pos * 0.004)
+            * slope_strata_thickness * slope_strata_warp * 4.0;
+        float f = 6.28318530718 / max(slope_strata_thickness, 0.1);
+        float bands = sin(strata_h * f) * 0.6 + sin(strata_h * f * 2.37 + 1.7) * 0.4;
+        slope_thr -= bands * slope_strata_strength;
+    }
+    if (slope_breakup_strength > 0.0001) {
+        float band = 1.0 - clamp(abs(slope - slope_thr)
+            / max(slope_smoothness * 3.0, 0.0001), 0.0, 1.0);
+        vec3 breakup_pos = planet_pos
+            - planet_up * (distance_to_center * (1.0 - 1.0 / max(slope_breakup_anisotropy, 1.0)));
+        float breakup = signed_fbm(breakup_pos * slope_breakup_scale) * 0.7
+                      + signed_fbm(breakup_pos * slope_breakup_scale * 9.0) * 0.3;
+        slope += breakup * slope_breakup_strength * band;
+    }
+    float slope_factor = smoothstep(slope_thr - slope_smoothness,
+                                     slope_thr + slope_smoothness, slope);
 
     // 4) Slope con UVs base o parallax, segun el toggle. Eje de mezcla triplanar =
-    // planet_up, igual que los biomas: normal_world viene de la virtual texture y
-    // cambia entre niveles de LOD, asi que la proyeccion nadaba en los bordes.
+    // normal GEOMETRICA, no planet_up. Con planet_up la roca se proyectaba siempre en
+    // cenital, y una pared vertical apenas cambia de UV al bajar por ella: la textura salia
+    // estirada en vertical justo donde la roca vive. normal_world tampoco vale (viene de la
+    // virtual texture y nada entre LODs); la geometrica es el mismo compromiso que ya usa la
+    // mascara de pendiente unas lineas mas arriba.
 	float final_tightness = 0.0;
 
     TriplanarUVs slope_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
@@ -218,19 +258,19 @@ void fragment() {
         );
     }
 
-    vec3 slope_color = triplanar_sample_uvs(slope_texture, slope_uvs, planet_up);
+    vec3 slope_color = triplanar_sample_uvs(slope_texture, slope_uvs, geometry_normal_world);
     float slope_detail_factor = 1.0;
     if (detail_blend_enabled) {
         TriplanarUVs slope_uvs_detail = compute_triplanar_uvs(planet_pos, texture_scale * detail_scale_multiplier);
-        slope_detail_factor = detail_blend_factor(slope_texture, slope_uvs_detail, planet_up, detail_blend_weight);
+        slope_detail_factor = detail_blend_factor(slope_texture, slope_uvs_detail, geometry_normal_world, detail_blend_weight);
         slope_color *= slope_detail_factor;
     }
     vec4 slope_n_v    = triplanar_normal_sample_uvs_v(slope_normal_texture, slope_uvs, normal_world);
 	vec3 slope_normal = slope_n_v.xyz;
-    float slope_rough = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, planet_up);
-    float slope_ao_v  = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, planet_up);
+    float slope_rough = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, geometry_normal_world);
+    float slope_ao_v  = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, geometry_normal_world);
     float slope_height = (slope_height_blend_strength > 0.0001)
-        ? triplanar_scalar_sample_uvs(slope_height_texture, slope_uvs, planet_up)
+        ? triplanar_scalar_sample_uvs(slope_height_texture, slope_uvs, geometry_normal_world)
         : 0.0;
 
     // 5) Pesos de bioma (igual que tenías)
@@ -474,10 +514,12 @@ void fragment() {
 
             float ore_w = clamp(v_ore_weights[slot], 0.0, 1.0);
             if (ore_w > 0.0001) {
+                // Eje de mezcla = normal geometrica, igual que la roca: las vetas viven en
+                // paredes y techos de cueva, donde la proyeccion cenital estira sin limite.
                 TriplanarUVs ore_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
-                vec3 ore_color = triplanar_sample_uvs(ore_albedo_textures[oi], ore_uvs, planet_up);
+                vec3 ore_color = triplanar_sample_uvs(ore_albedo_textures[oi], ore_uvs, geometry_normal_world);
                 vec4 ore_n_v = triplanar_normal_sample_uvs_v(ore_normal_textures[oi], ore_uvs, normal_world);
-                float ore_rough = triplanar_scalar_sample_uvs(ore_roughness_textures[oi], ore_uvs, planet_up);
+                float ore_rough = triplanar_scalar_sample_uvs(ore_roughness_textures[oi], ore_uvs, geometry_normal_world);
                 final_color = mix(final_color, ore_color, ore_w);
                 final_normal = mix(final_normal, ore_n_v.xyz, ore_w);
                 final_roughness = mix(final_roughness, ore_rough, ore_w);
