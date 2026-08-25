@@ -142,5 +142,9 @@ void fragment() {
 		ALPHA = 1.0;
 	}
 
-	DEPTH = out_depth;
+	// Escribir la profundidad de la escena (o la de la fuga) equivale a saltarse el z-test: el panel
+	// se declara justo donde está lo que tenga delante y siempre empata. Solo vale hacerlo si el
+	// panel está DELANTE de la escena opaca; si está detrás se escribe la suya y que lo rechacen,
+	// o el cristal se ve a través de las paredes. Reverse-Z: cerca = mayor.
+	DEPTH = (FRAGCOORD.z >= depth_raw) ? out_depth : FRAGCOORD.z;
 }
