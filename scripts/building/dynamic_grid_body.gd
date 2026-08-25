@@ -308,8 +308,17 @@ func _process_interior_analysis(delta: float) -> void:
 
 	var grids_data: Array = []
 	for grid in _grids:
+		# El analizador necesita saber qué celdas son de bloque parcial (slope, corner): su
+		# medio hueco es aire del camarote y la máscara del agua tiene que taparlo.
+		var blocks: Dictionary = grid.get_all_blocks()
+		var cells: Array = blocks.keys()
+		var full: Array[bool] = []
+		full.resize(cells.size())
+		for i in cells.size():
+			full[i] = ChunkMeshBuilder._is_solid((blocks[cells[i]] as Dictionary)["block_id"])
 		grids_data.append({
-			"cells": grid.get_all_blocks().keys(),
+			"cells": cells,
+			"full": full,
 			"cell_size": grid.cell_size,
 		})
 	_analysis_task_id = WorkerThreadPool.add_task(

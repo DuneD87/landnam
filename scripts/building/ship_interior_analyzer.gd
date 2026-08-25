@@ -19,7 +19,8 @@ const _DIRS_EXTERIOR: Array[Vector3i] = [
 	Vector3i(0, 0, 1), Vector3i(0, 0, -1),
 ]
 
-## grids_data: [{cells: Array de Vector3i, cell_size: float}], en espacio del body.
+## grids_data: [{cells: Array de Vector3i, full: Array de bool (opcional, todo lleno si
+## falta), cell_size: float}], en espacio del body.
 ## Devuelve compartimentos: [{cell_count, volume, aabb, boxes: [{pos, half}] (body-local),
 ## cells, cell_size (rejilla fina), open, sill_cell (celda de la apertura más baja)}].
 static func analyze(grids_data: Array) -> Array:
@@ -31,12 +32,19 @@ static func analyze(grids_data: Array) -> Array:
 		return []
 
 	# Rasterización por cobertura real del bloque; asume grids alineadas al origen del body.
+	# Los bloques parciales ocupan celda entera para sellar (una pared de slopes es estanca)
+	# pero se anotan aparte: su hueco es aire y se recupera al cerrar cada compartimento.
 	var blocks: Dictionary = {}
+	var partial: Dictionary = {}
 	var bmin := Vector3i(2147483647, 2147483647, 2147483647)
 	var bmax := -bmin
 	for gd: Dictionary in grids_data:
 		var scale: float = (gd["cell_size"] as float) / finest
-		for p: Vector3i in gd["cells"]:
+		var cells: Array = gd["cells"]
+		var full: Array = gd.get("full", [])
+		for i in cells.size():
+			var p: Vector3i = cells[i]
+			var is_full: bool = full[i] if i < full.size() else true
 			var lo_v := Vector3i((Vector3(p) * scale).round())
 			var hi_v := Vector3i((Vector3(p + Vector3i.ONE) * scale).round()) - Vector3i.ONE
 			for x in range(lo_v.x, hi_v.x + 1):
@@ -44,6 +52,8 @@ static func analyze(grids_data: Array) -> Array:
 					for z in range(lo_v.z, hi_v.z + 1):
 						var v := Vector3i(x, y, z)
 						blocks[v] = true
+						if not is_full:
+							partial[v] = true
 						bmin = Vector3i(mini(bmin.x, v.x), mini(bmin.y, v.y), mini(bmin.z, v.z))
 						bmax = Vector3i(maxi(bmax.x, v.x), maxi(bmax.y, v.y), maxi(bmax.z, v.z))
 
@@ -71,6 +81,7 @@ static func analyze(grids_data: Array) -> Array:
 	# Componentes conexas (6-dir) del aire interior no alcanzado por el exterior.
 	var out: Array = []
 	var visited: Dictionary = {}
+	var partial_taken: Dictionary = {}
 	for x in range(bmin.x, bmax.x + 1):
 		for y in range(bmin.y, bmax.y + 1):
 			for z in range(bmin.z, bmax.z + 1):
@@ -112,16 +123,37 @@ static func analyze(grids_data: Array) -> Array:
 								sill_cell = cell
 							break
 
+				# El rasterizado dio por macizas las celdas de bloque parcial, y su medio hueco
+				# es aire de este compartimento: se absorben como hojas (entran en las cajas,
+				# pero el BFS no se propaga a través de ellas, que siguen siendo pared). Cada
+				# celda va a un solo compartimento para no contar su volumen dos veces.
+				var air_count := comp_cells.size()
+				for cell: Vector3i in comp_cells.keys():
+					for d4: Vector3i in _DIRS_ALL:
+						var n4 := cell + d4
+						if not partial.has(n4) or partial_taken.has(n4):
+							continue
+						partial_taken[n4] = true
+						comp_cells[n4] = true
+						cmin = Vector3i(mini(cmin.x, n4.x), mini(cmin.y, n4.y), mini(cmin.z, n4.z))
+						cmax = Vector3i(maxi(cmax.x, n4.x), maxi(cmax.y, n4.y), maxi(cmax.z, n4.z))
+				var leaf_count := comp_cells.size() - air_count
+
+				# Las cajas pueden crecer dentro del sólido del casco (invisible: el bloque tapa
+				# el agua enmascarada de más) pero nunca sobre aire exterior ni sobre otro
+				# compartimento, que puede estar inundado. Sin esto una bodega escalonada gasta
+				# más de 100 cajas y revienta el presupuesto de la máscara.
 				var boxes: Array = []
-				for box: Dictionary in GridColliderBuilder.merge_boxes(comp_cells):
+				for box: Dictionary in GridColliderBuilder.merge_boxes(comp_cells, blocks, true):
 					boxes.append({
 						"pos": (Vector3(box["pos"]) + Vector3(box["size"]) * 0.5) * finest,
 						"half": Vector3(box["size"]) * 0.5 * finest,
 					})
 
+				# Media celda por hoja: es lo que aporta un slope o un corner al hueco.
 				out.append({
-					"cell_count": comp_cells.size(),
-					"volume": comp_cells.size() * finest * finest * finest,
+					"cell_count": air_count,
+					"volume": (air_count + leaf_count * 0.5) * finest * finest * finest,
 					"aabb": AABB(Vector3(cmin) * finest, Vector3(cmax - cmin + Vector3i.ONE) * finest),
 					"boxes": boxes,
 					"cells": comp_cells,

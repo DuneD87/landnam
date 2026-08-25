@@ -2,7 +2,7 @@
 // descarta superficie; underwater se descarta con la cámara dentro). GridManager los empuja
 // por frame; underwater.gd los replica vía _SYNCED_WATER_PARAMS (el corte debe ir síncrono).
 
-const int MAX_INTERIORS = 64;
+const int MAX_INTERIORS = 128;
 uniform int interior_count = 0;
 uniform vec4 interior_center[MAX_INTERIORS]; // xyz = centro de la caja en world
 uniform vec4 interior_axis_x[MAX_INTERIORS]; // xyz = eje local X del casco, w = semieje

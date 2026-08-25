@@ -110,7 +110,7 @@ const MAX_WAKE_POINTS := 512
 const WAKE_BOUNDS_MARGIN := 12.0
 # Opacidad de la espuma de estela recién nacida.
 const WAKE_ALPHA := 0.35
-const MAX_INTERIORS := 64
+const MAX_INTERIORS := 128
 # Margen (m) alrededor del casco dentro del cual se activa la máscara de interiores.
 const INTERIOR_MASK_MARGIN := 12.0
 # Radio (m) alrededor de la cámara cuyas cajas entran en el presupuesto antes que ninguna otra.
@@ -473,27 +473,44 @@ func _update_interior_uniforms(bodies: Array) -> void:
 		mat.set_shader_parameter("interior_axis_y", _interior_axis_y)
 		mat.set_shader_parameter("interior_axis_z", _interior_axis_z)
 
-## Vuelca cajas de interior seco en los buffers de uniforms. Con near_pass true solo entran las
-## que están a menos de near_r2 (distancia al cuerpo de la caja, en espacio local) de la cámara;
-## con false, solo el resto. Devuelve el nuevo count.
+## Vuelca cajas de interior seco en los buffers de uniforms. Con near_pass true entran solo las
+## que están a menos de near_r2 (distancia al cuerpo de la caja, en espacio local) de la cámara,
+## y de cerca a lejos: si el presupuesto se agota, lo que se cae es interior lejano y no la sala
+## que estás mirando. Con false, solo el resto. Devuelve el nuevo count.
 func _push_interior_boxes(boxes: Array, xf: Transform3D, cam_local: Vector3, near_r2: float,
 		near_pass: bool, count: int) -> int:
+	var near_first: Array = []
 	for box: Dictionary in boxes:
 		if count >= MAX_INTERIORS:
-			return count
+			break
 		var pos: Vector3 = box["pos"]
 		var half: Vector3 = box["half"]
 		var d: Vector3 = ((cam_local - pos).abs() - half).max(Vector3.ZERO)
-		if (d.length_squared() <= near_r2) != near_pass:
+		var d2 := d.length_squared()
+		if (d2 <= near_r2) != near_pass:
 			continue
+		if not near_pass:
+			count = _push_interior_box(box, xf, count)
+			continue
+		near_first.append({"d2": d2, "box": box})
 
-		var c: Vector3 = xf * pos
-		_interior_centers[count] = Vector4(c.x, c.y, c.z, 0.0)
-		_interior_axis_x[count] = Vector4(xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, half.x)
-		_interior_axis_y[count] = Vector4(xf.basis.y.x, xf.basis.y.y, xf.basis.y.z, half.y)
-		_interior_axis_z[count] = Vector4(xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, half.z)
-		count += 1
+	near_first.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["d2"] < b["d2"])
+	for entry: Dictionary in near_first:
+		if count >= MAX_INTERIORS:
+			break
+		count = _push_interior_box(entry["box"], xf, count)
 	return count
+
+
+## Escribe una caja (body-local) en la ranura `count` de los uniforms y devuelve la siguiente.
+func _push_interior_box(box: Dictionary, xf: Transform3D, count: int) -> int:
+	var half: Vector3 = box["half"]
+	var c: Vector3 = xf * (box["pos"] as Vector3)
+	_interior_centers[count] = Vector4(c.x, c.y, c.z, 0.0)
+	_interior_axis_x[count] = Vector4(xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, half.x)
+	_interior_axis_y[count] = Vector4(xf.basis.y.x, xf.basis.y.y, xf.basis.y.z, half.y)
+	_interior_axis_z[count] = Vector4(xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, half.z)
+	return count + 1
 
 
 ## Copia los puntos de estela de todos los DynamicGridBody a los uniforms del agua de su planeta.
