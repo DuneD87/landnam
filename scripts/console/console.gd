@@ -269,6 +269,8 @@ func _register_commands() -> void:
 		"Fuerza de la corriente del mar; sin argumento, informe de cómo la ven barco y jugador.", _cmd_drift))
 	_add(ConsoleCommand.new("damage", "damage [julios]",
 		"Daña el bloque apuntado con una energía exacta; sin argumento, informa de su vida.", _cmd_damage))
+	_add(ConsoleCommand.new("anchors", "anchors",
+		"De la estructura apuntada: cuántos bloques se apoyan en el suelo y cuántos se caerían.", _cmd_anchors))
 	_add(ConsoleCommand.new("derelicts", "derelicts",
 		"Estado de la retirada de restos: qué condición bloquea a cada cuerpo dinámico.", _cmd_derelicts))
 
@@ -591,3 +593,67 @@ func _cmd_derelicts(_args: PackedStringArray) -> String:
 ## Una condición, verde si pasa y roja si es la que bloquea.
 func _gate(label: String, ok: bool) -> String:
 	return "[color=%s]%s[/color]" % [COLOR_OK if ok else COLOR_ERR, label]
+
+
+## Estado de cimentación de la estructura apuntada. Existe porque "se derrumba de más" tiene causas
+## opuestas que a ojo son idénticas: o el sondeo no encuentra los apoyos que sí existen, o los
+## encuentra pero el alcance del voladizo se queda corto. Y de paso mide lo que cuesta sondear, que
+## es lo que se nota como pico en el hilo de física.
+func _cmd_anchors(_args: PackedStringArray) -> String:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return "[color=%s]Sin cámara activa.[/color]" % COLOR_ERR
+
+	var from := camera.global_position
+	var dir := -camera.global_transform.basis.z
+	var query := PhysicsRayQueryParameters3D.create(from, from + dir * DAMAGE_RAY_LEN)
+	query.collision_mask = 3
+	var hit := camera.get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return "[color=%s]No apuntas a nada a menos de %.0f m.[/color]" % [COLOR_ERR, DAMAGE_RAY_LEN]
+
+	var collider = hit["collider"]
+	if not (collider is Node) or not (collider as Node).has_meta("grid_id"):
+		return "[color=%s]Eso no es una grid.[/color]" % COLOR_ERR
+	var aimed := GridManager.get_grid_for_block(collider as Node3D)
+	if not (aimed is PlanetGrid):
+		return "[color=%s]Solo las grids estáticas se cimentan; esa es dinámica.[/color]" % COLOR_ERR
+
+	var group: Array = []
+	for grid: GridBase in GridManager.get_grid_group(aimed.grid_id):
+		if grid is PlanetGrid:
+			group.append(grid)
+
+	var grids_data: Array = []
+	var anchors: Array = []
+	var blocks := 0
+	var anchored := 0
+	var probe_usec := 0
+	for grid: PlanetGrid in group:
+		grids_data.append({"cells": grid.get_all_blocks().keys(), "cell_size": grid.cell_size})
+		var t0 := Time.get_ticks_usec()
+		var found := grid.compute_anchor_cells()
+		probe_usec += Time.get_ticks_usec() - t0
+		anchors.append(found)
+		blocks += grid.get_block_count()
+		anchored += found.size()
+
+	var falling := GridSplitAnalyzer.analyze_support(grids_data, anchors,
+		GridManager.COLLAPSE_MIN_SPAN, GridManager.COLLAPSE_SPAN_FRACTION)
+	var would_fall := 0
+	for piece: Dictionary in falling:
+		would_fall += int(piece["count"])
+
+	var color := COLOR_OK if anchored > 0 and would_fall == 0 else COLOR_ERR
+	var sample := ""
+	if anchored == 0 and not group.is_empty():
+		sample = "
+[color=%s]sin un solo apoyo; muestra en crudo del sondeo:
+%s[/color]" % [
+			COLOR_MUTED, (group[0] as PlanetGrid).debug_anchor_sample()]
+	var out := "[color=%s]'%s' · %d grids · %d bloques\n" % [color, aimed.grid_id, group.size(), blocks]
+	out += "  apoyados en el suelo: %d   (sondeo %.1f ms)\n" % [anchored, probe_usec / 1000.0]
+	out += "  se caerían ahora: %d   (alcance = lado mayor x %.2f, mínimo %d · sondeo %.1f m)[/color]" % [
+		would_fall, GridManager.COLLAPSE_SPAN_FRACTION, GridManager.COLLAPSE_MIN_SPAN,
+		PlanetGrid.ANCHOR_PROBE]
+	return out + sample

@@ -153,9 +153,12 @@ func _init_uniform_buffers() -> void:
 ## Segundos sin ediciones antes de comprobar si una estructura estática se ha quedado sin apoyo
 ## (coalesce de ráfagas: un impacto quita decenas de bloques de golpe).
 const COLLAPSE_DEBOUNCE := 0.4
-## Pasos máximos, en celdas, desde una celda apoyada en el suelo. Lo que quede más lejos se
-## desprende aunque siga pegado: sin esto una viga de 40 bloques cuelga de un ladrillo.
-const COLLAPSE_MAX_SPAN := 8
+## Alcance del voladizo, RELATIVO al tamaño de la estructura: su lado mayor por esta fracción. A 1.0
+## solo se desprende lo que se aleja de un anclaje más que el propio ancho del edificio, o sea un
+## saliente absurdo. Bájalo para que ceda antes; ver GridSplitAnalyzer.analyze_support.
+const COLLAPSE_SPAN_FRACTION := 1.0
+## Suelo del alcance, para que una construcción pequeña no quede con un margen ridículo.
+const COLLAPSE_MIN_SPAN := 12
 
 var _collapse_pending: Dictionary = {}
 ## Solo un análisis de apoyo en vuelo a la vez: son raros y así no hay que casar resultados con
@@ -270,7 +273,7 @@ func _start_collapse_check(grid_id: String) -> void:
 
 
 func _run_collapse_analysis(grids_data: Array, anchors: Array) -> void:
-	var falling := GridSplitAnalyzer.analyze_support(grids_data, anchors, COLLAPSE_MAX_SPAN)
+	var falling := GridSplitAnalyzer.analyze_support(grids_data, anchors, COLLAPSE_MIN_SPAN, COLLAPSE_SPAN_FRACTION)
 	call_deferred("_apply_collapse", falling)
 
 

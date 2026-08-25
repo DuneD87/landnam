@@ -5,8 +5,12 @@ extends GridBase
 ## cajas fusionadas en un StaticBody3D único de la grid; los bloques con forma propia
 ## (rampas, esquinas) mantienen su StaticBody3D individual hijo del planeta.
 
-## Hasta dónde busca suelo el sondeo por debajo de la cara inferior de un bloque.
-const ANCHOR_PROBE := 0.35
+## Profundidad total del sondeo bajo el bloque; se muestrea el SDF a la mitad de esta distancia por
+## debajo de su cara inferior. Generoso a propósito: la superficie que se ve y se pisa es la
+## isosuperficie del SDF, que cae ENTRE centros de vóxel, así que muestrear justo bajo la cara puede
+## caer todavía en aire aunque el bloque esté apoyado. Subirlo hace que un bloque suspendido a esa
+## altura cuente como cimentado, que es el error tolerable de los dos.
+const ANCHOR_PROBE := 2.0
 
 var origin_local: Vector3 = Vector3.ZERO
 var basis_local: Basis = Basis.IDENTITY
@@ -14,11 +18,15 @@ var basis_local: Basis = Basis.IDENTITY
 var _collision_body: StaticBody3D = null
 
 
-## Celdas que se apoyan en algo firme: el terreno u otra grid estática, nunca un cuerpo dinámico
-## (una casa apoyada en un barco no está en suelo firme). Solo se sondean las celdas sin bloque
-## debajo, y el rayo va hacia el ABAJO GRAVITACIONAL —no el -Y de la grid, que solo coincide si
-## se construyó alineada a la superficie— y de fuera hacia dentro: el trimesh del terreno ignora
-## las caras traseras, así que sondear hacia arriba no detectaría nada.
+## Celdas apoyadas en el TERRENO. Se sondea con el raycast de VoxelTool y no con el de física: la
+## pregunta es solo si hay suelo debajo, así que los colliders sobran, y un DDA sobre los vóxeles no
+## pasa por el servidor de física. Con rayos de física esto costaba ~200 ms en el hilo de física de
+## un casco grande, porque se lanza uno por cada celda sin bloque debajo y en un casco hueco eso son
+## todos los techos y huecos interiores, no la base.
+##
+## El rayo va hacia el ABAJO GRAVITACIONAL, no el -Y de la grid, que solo coincide si se construyó
+## alineada a la superficie. Otras grids no cuentan como cimiento: apoyarse en otro edificio no es
+## estar en el suelo.
 func compute_anchor_cells() -> Dictionary:
 	var anchors: Dictionary = {}
 	if _blocks.is_empty() or not planet_node or not planet_node.is_inside_tree():
@@ -28,22 +36,104 @@ func compute_anchor_cells() -> Dictionary:
 	var down_world : Vector3 = (planet_node.global_pos - xform.origin).normalized()
 	if down_world.is_zero_approx():
 		return anchors
-	var down_cell := -up_cell()
-	var space := planet_node.get_world_3d().direct_space_state
+	var terrain: VoxelLodTerrain = planet_node.voxel_terrain
+	if not terrain:
+		return anchors
+	var voxel_tool: VoxelTool = terrain.get_voxel_tool()
+	if not voxel_tool:
+		return anchors
 
+	var down_cell := -up_cell()
+	# VoxelTool trabaja en el espacio del terreno, no en el del mundo: el planeta se mueve con el
+	# rebase del origen flotante, así que hay que convertir en vez de pasar coordenadas globales.
+	var to_terrain := terrain.global_transform.affine_inverse()
+
+	# Solo se sondea el bloque MÁS BAJO de cada columna. Cualquiera por encima tiene otro bloque de
+	# la propia grid entre él y el suelo, así que no puede estar cimentado. Sondear "toda celda sin
+	# bloque justo debajo" significaba, en un casco hueco, sondear todos los techos y huecos
+	# interiores: miles de rayos para averiguar algo que solo depende de la huella. La excepción que
+	# se pierde —roca colada en una cavidad interior— no compensa el coste.
+	var lowest: Dictionary = {}
 	for cell: Vector3i in _blocks:
-		if _blocks.has(cell + down_cell):
-			continue
-		var face_local := (Vector3(cell) + Vector3.ONE * 0.5 + Vector3(down_cell) * 0.5) * cell_size
-		var from := xform * face_local + down_world * 0.02
-		var query := PhysicsRayQueryParameters3D.create(from, from + down_world * ANCHOR_PROBE)
-		var hit := space.intersect_ray(query)
-		if hit.is_empty():
-			continue
-		if _is_firm_ground(hit.get("collider")):
+		var key := _column_key(cell, down_cell)
+		var below := _depth_along(cell, down_cell)
+		if not lowest.has(key) or below > _depth_along(lowest[key], down_cell):
+			lowest[key] = cell
+
+	# Consulta PUNTUAL al SDF, no un raycast. Un rayo busca la transición aire->sólido, y el bloque
+	# más bajo de un casco medio enterrado arranca ya DENTRO de la roca: bajando desde ahí no hay
+	# ninguna transición que encontrar y devolvía null siempre (medido: 0 anclajes en un barco de
+	# 23.000 bloques apoyado en piedra). Preguntar "¿hay roca en este punto?" funciona igual esté
+	# el bloque enterrado o posado, y de paso es O(1) en vez de recorrer vóxeles.
+	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
+	for cell: Vector3i in lowest.values():
+		var center_local := (Vector3(cell) + Vector3.ONE * 0.5) * cell_size
+		var below := xform * center_local + down_world * (cell_size * 0.5 + ANCHOR_PROBE * 0.5)
+		if _is_solid_terrain(voxel_tool, to_terrain * below):
 			anchors[cell] = true
 
 	return anchors
+
+
+## True si hay materia de terreno en ese punto (en espacio del terreno). En godot_voxel el SDF es
+## negativo dentro de la materia y positivo en el aire.
+static func _is_solid_terrain(voxel_tool: VoxelTool, point_terrain: Vector3) -> bool:
+	return voxel_tool.get_voxel_f(Vector3i(point_terrain.round())) < 0.0
+
+
+## Muestra en crudo del sondeo, para el comando 'anchors'. Sirve para confirmar con datos el signo
+## del SDF y que las coordenadas caen donde deben, en vez de darlo por supuesto.
+func debug_anchor_sample(count: int = 5) -> String:
+	if _blocks.is_empty() or not planet_node:
+		return "sin bloques"
+	var terrain: VoxelLodTerrain = planet_node.voxel_terrain
+	if not terrain:
+		return "planet_node no tiene voxel_terrain"
+	var voxel_tool: VoxelTool = terrain.get_voxel_tool()
+	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
+
+	var xform := get_grid_world_transform()
+	var down_world: Vector3 = (planet_node.global_pos - xform.origin).normalized()
+	var to_terrain := terrain.global_transform.affine_inverse()
+	var down_cell := -up_cell()
+
+	var lowest: Dictionary = {}
+	for cell: Vector3i in _blocks:
+		var key := _column_key(cell, down_cell)
+		if not lowest.has(key) or _depth_along(cell, down_cell) > _depth_along(lowest[key], down_cell):
+			lowest[key] = cell
+
+	var out := "  terreno en %s (identidad: %s) · abajo %v
+" % [
+		terrain.global_position, terrain.global_transform.is_equal_approx(Transform3D.IDENTITY),
+		down_world]
+	var shown := 0
+	for cell: Vector3i in lowest.values():
+		if shown >= count:
+			break
+		var center_local := (Vector3(cell) + Vector3.ONE * 0.5) * cell_size
+		var below := xform * center_local + down_world * (cell_size * 0.5 + ANCHOR_PROBE * 0.5)
+		var p := to_terrain * below
+		out += "  celda %v · mundo %v · sdf(centro) %.3f · sdf(debajo) %.3f
+" % [
+			cell, below, voxel_tool.get_voxel_f(Vector3i((to_terrain * (xform * center_local)).round())),
+			voxel_tool.get_voxel_f(Vector3i(p.round()))]
+		shown += 1
+	return out
+
+
+## Celda proyectada quitando el eje de la gravedad: identifica la columna a la que pertenece.
+static func _column_key(cell: Vector3i, down: Vector3i) -> Vector3i:
+	if down.x != 0:
+		return Vector3i(0, cell.y, cell.z)
+	if down.y != 0:
+		return Vector3i(cell.x, 0, cell.z)
+	return Vector3i(cell.x, cell.y, 0)
+
+
+## Cuánto desciende una celda a lo largo del eje de gravedad; a mayor valor, más abajo.
+static func _depth_along(cell: Vector3i, down: Vector3i) -> int:
+	return cell.x * down.x + cell.y * down.y + cell.z * down.z
 
 
 ## Celda vecina en la dirección del ARRIBA gravitacional, en coordenadas de grid. No es +Y salvo
@@ -66,15 +156,6 @@ static func _dominant_axis(v: Vector3) -> Vector3i:
 	if a.y >= a.z:
 		return Vector3i(0, 1 if v.y > 0.0 else -1, 0)
 	return Vector3i(0, 0, 1 if v.z > 0.0 else -1)
-
-
-## Terreno u otra grid estática cuentan como suelo; esta misma grid y los cuerpos dinámicos no.
-func _is_firm_ground(collider: Object) -> bool:
-	if not collider or collider is DynamicGridBody:
-		return false
-	if collider is Node and (collider as Node).has_meta("grid_id"):
-		return (collider as Node).get_meta("grid_id") != grid_id
-	return true
 
 
 func setup(id: String, planet: Node3D, origin_world: Vector3, basis_world: Basis, size: float = 1.0) -> void:

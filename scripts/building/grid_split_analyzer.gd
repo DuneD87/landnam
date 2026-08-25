@@ -30,15 +30,27 @@ static func analyze(grids_data: Array) -> Array:
 ## Trozos que han dejado de estar sostenidos: los que no se alcanzan desde ninguna celda anclada
 ## y los que quedan a más de max_span pasos de la más cercana (un voladizo largo cede aunque siga
 ## pegado). 'anchors' es paralelo a grids_data: anchors[i] = Dictionary[Vector3i, true] con las
-## celdas de esa grid que se apoyan en algo firme. max_span va en celdas del cell_size más fino.
+## celdas de esa grid que se apoyan en algo firme.
+##
+## El alcance NO es absoluto: sale del propio tamaño de la estructura (su lado mayor por
+## span_fraction, con suelo en min_span). Un número fijo no puede valer para un cobertizo y para un
+## casco de 23.000 bloques a la vez: solo se anclan las celdas sin bloque debajo, así que en algo
+## medio enterrado los anclajes son la capa inferior y todo lo demás queda a tantos pasos como alto
+## sea. Con alcance fijo, cualquier cosa más alta que ese número se decapitaba sola.
+##
 ## Devuelve las piezas que caen, agrupadas por componente, o [] si no cae nada.
-static func analyze_support(grids_data: Array, anchors: Array, max_span: int) -> Array:
+static func analyze_support(grids_data: Array, anchors: Array, min_span: int,
+	span_fraction: float = 1.0) -> Array:
+
 	var raster := _rasterize(grids_data)
 	if raster.is_empty():
 		return []
 
 	var owners: Array = raster["owners"]
 	var fine: Dictionary = raster["fine"]
+	var extent: Vector3i = raster["extent"]
+	var longest := maxi(maxi(extent.x, extent.y), extent.z)
+	var max_span := maxi(min_span, int(ceil(float(longest) * span_fraction)))
 
 	var anchored: Dictionary = {}
 	for oi in owners.size():
@@ -46,9 +58,12 @@ static func analyze_support(grids_data: Array, anchors: Array, max_span: int) ->
 		if gi < anchors.size() and (anchors[gi] as Dictionary).has(owners[oi][1]):
 			anchored[oi] = true
 
-	# Sin un solo anclaje la estructura entera está en el aire; que caiga como un bloque.
+	# Sin NINGÚN anclaje no se toca nada. "De verdad flota" y "el sondeo no encontró el suelo" dan
+	# el mismo dato, y son mucho más frecuentes los fallos de sondeo (terreno aún sin cargar, un
+	# cambio en cómo se sondea) que las estructuras genuinamente flotantes, que además ya estaban
+	# ahí antes de romper nada. Ante la duda, no derrumbar: el fallo contrario tira edificios enteros.
 	if anchored.is_empty():
-		return _group_components(fine, owners, raster["cell_sizes"], {})
+		return []
 
 	# BFS multi-origen desde todas las celdas ancladas, en anchura (FIFO con puntero: pop_front
 	# sobre un Array es O(n) y aquí serían decenas de miles de celdas).
@@ -87,7 +102,7 @@ static func analyze_support(grids_data: Array, anchors: Array, max_span: int) ->
 	return _group_components(fine, owners, raster["cell_sizes"], falling)
 
 
-## Rasteriza las grids a la rejilla del cell_size más fino. Devuelve {finest, owners, fine},
+## Rasteriza las grids a la rejilla del cell_size más fino. Devuelve {finest, owners, fine, extent},
 ## donde owners[i] = [grid_index, celda original] y fine[celda fina] = i. Un bloque cubre un
 ## bloque contiguo de celdas finas, así que todas caen en la misma componente.
 static func _rasterize(grids_data: Array) -> Dictionary:
@@ -100,6 +115,8 @@ static func _rasterize(grids_data: Array) -> Dictionary:
 
 	var owners: Array = []
 	var fine: Dictionary = {}
+	var bmin := Vector3i(2147483647, 2147483647, 2147483647)
+	var bmax := -bmin
 	var cell_sizes := PackedFloat32Array()
 	for gd2: Dictionary in grids_data:
 		cell_sizes.append(gd2["cell_size"])
@@ -114,9 +131,17 @@ static func _rasterize(grids_data: Array) -> Dictionary:
 			for x in range(lo.x, hi.x + 1):
 				for y in range(lo.y, hi.y + 1):
 					for z in range(lo.z, hi.z + 1):
-						fine[Vector3i(x, y, z)] = owner_idx
+						var v := Vector3i(x, y, z)
+						fine[v] = owner_idx
+						bmin = Vector3i(mini(bmin.x, v.x), mini(bmin.y, v.y), mini(bmin.z, v.z))
+						bmax = Vector3i(maxi(bmax.x, v.x), maxi(bmax.y, v.y), maxi(bmax.z, v.z))
 
-	return {"finest": finest, "owners": owners, "fine": fine, "cell_sizes": cell_sizes}
+	var extent := Vector3i.ONE
+	if not fine.is_empty():
+		extent = bmax - bmin + Vector3i.ONE
+
+	return {"finest": finest, "owners": owners, "fine": fine, "cell_sizes": cell_sizes,
+		"extent": extent}
 
 
 ## Agrupa en componentes conexas los bloques cuyo índice esté en 'subset' (todos si va vacío),
