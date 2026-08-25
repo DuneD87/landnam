@@ -103,21 +103,26 @@ func debug_anchor_sample(count: int = 5) -> String:
 		if not lowest.has(key) or _depth_along(cell, down_cell) > _depth_along(lowest[key], down_cell):
 			lowest[key] = cell
 
-	var out := "  terreno en %s (identidad: %s) · abajo %v
+	var out := "  terreno en %v · identidad: %s
 " % [
-		terrain.global_position, terrain.global_transform.is_equal_approx(Transform3D.IDENTITY),
-		down_world]
+		terrain.global_position, terrain.global_transform.is_equal_approx(Transform3D.IDENTITY)]
+	# Se muestrea el SDF en las DOS convenciones. dig_hole pasa coordenadas de mundo directas a
+	# VoxelTool y funciona, pero la API documenta espacio del terreno: con la transform del planeta
+	# lejos de la identidad solo una puede ser la buena, y a ojo son indistinguibles.
 	var shown := 0
 	for cell: Vector3i in lowest.values():
 		if shown >= count:
 			break
 		var center_local := (Vector3(cell) + Vector3.ONE * 0.5) * cell_size
 		var below := xform * center_local + down_world * (cell_size * 0.5 + ANCHOR_PROBE * 0.5)
-		var p := to_terrain * below
-		out += "  celda %v · mundo %v · sdf(centro) %.3f · sdf(debajo) %.3f
+		var p_local := to_terrain * below
+		out += "  celda %v
+    mundo   %v -> sdf %.3f
+    terreno %v -> sdf %.3f
 " % [
-			cell, below, voxel_tool.get_voxel_f(Vector3i((to_terrain * (xform * center_local)).round())),
-			voxel_tool.get_voxel_f(Vector3i(p.round()))]
+			cell,
+			below, voxel_tool.get_voxel_f(Vector3i(below.round())),
+			p_local, voxel_tool.get_voxel_f(Vector3i(p_local.round()))]
 		shown += 1
 	return out
 

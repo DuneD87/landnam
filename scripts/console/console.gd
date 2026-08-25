@@ -269,7 +269,7 @@ func _register_commands() -> void:
 		"Fuerza de la corriente del mar; sin argumento, informe de cómo la ven barco y jugador.", _cmd_drift))
 	_add(ConsoleCommand.new("damage", "damage [julios]",
 		"Daña el bloque apuntado con una energía exacta; sin argumento, informa de su vida.", _cmd_damage))
-	_add(ConsoleCommand.new("anchors", "anchors",
+	_add(ConsoleCommand.new("anchors", "anchors [distancia]",
 		"De la estructura apuntada: cuántos bloques se apoyan en el suelo y cuántos se caerían.", _cmd_anchors))
 	_add(ConsoleCommand.new("derelicts", "derelicts",
 		"Estado de la retirada de restos: qué condición bloquea a cada cuerpo dinámico.", _cmd_derelicts))
@@ -599,25 +599,43 @@ func _gate(label: String, ok: bool) -> String:
 ## opuestas que a ojo son idénticas: o el sondeo no encuentra los apoyos que sí existen, o los
 ## encuentra pero el alcance del voladizo se queda corto. Y de paso mide lo que cuesta sondear, que
 ## es lo que se nota como pico en el hilo de física.
-func _cmd_anchors(_args: PackedStringArray) -> String:
+func _cmd_anchors(args: PackedStringArray) -> String:
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return "[color=%s]Sin cámara activa.[/color]" % COLOR_ERR
 
+	var reach := DAMAGE_RAY_LEN
+	if not args.is_empty() and args[0].is_valid_float():
+		reach = maxf(args[0].to_float(), 1.0)
+
 	var from := camera.global_position
 	var dir := -camera.global_transform.basis.z
-	var query := PhysicsRayQueryParameters3D.create(from, from + dir * DAMAGE_RAY_LEN)
+	var query := PhysicsRayQueryParameters3D.create(from, from + dir * reach)
 	query.collision_mask = 3
 	var hit := camera.get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty():
-		return "[color=%s]No apuntas a nada a menos de %.0f m.[/color]" % [COLOR_ERR, DAMAGE_RAY_LEN]
+		return "[color=%s]No apuntas a nada a menos de %.0f m. Prueba 'anchors <distancia>'.[/color]" % [
+			COLOR_ERR, reach]
 
+	# Decir QUÉ se golpeó, no solo que no servía: apuntando a un casco enterrado lo normal es
+	# llevarse el terreno por delante, y "eso no es una grid" a secas no lo distingue de un árbol.
 	var collider = hit["collider"]
+	var what := "null"
+	if collider is Node:
+		what = "%s '%s'" % [(collider as Node).get_class(), (collider as Node).name]
+	var dist: float = from.distance_to(hit["position"])
+
 	if not (collider is Node) or not (collider as Node).has_meta("grid_id"):
-		return "[color=%s]Eso no es una grid.[/color]" % COLOR_ERR
+		return "[color=%s]A %.1f m has dado con %s, que no pertenece a ninguna grid.[/color]" % [
+			COLOR_ERR, dist, what]
+
 	var aimed := GridManager.get_grid_for_block(collider as Node3D)
+	if aimed == null:
+		return "[color=%s]%s dice ser de la grid '%s', pero no está registrada.[/color]" % [
+			COLOR_ERR, what, (collider as Node).get_meta("grid_id")]
 	if not (aimed is PlanetGrid):
-		return "[color=%s]Solo las grids estáticas se cimentan; esa es dinámica.[/color]" % COLOR_ERR
+		return "[color=%s]'%s' es dinámica; solo las estáticas se cimentan.[/color]" % [
+			COLOR_ERR, aimed.grid_id]
 
 	var group: Array = []
 	for grid: GridBase in GridManager.get_grid_group(aimed.grid_id):
@@ -645,15 +663,12 @@ func _cmd_anchors(_args: PackedStringArray) -> String:
 		would_fall += int(piece["count"])
 
 	var color := COLOR_OK if anchored > 0 and would_fall == 0 else COLOR_ERR
-	var sample := ""
-	if anchored == 0 and not group.is_empty():
-		sample = "
-[color=%s]sin un solo apoyo; muestra en crudo del sondeo:
-%s[/color]" % [
-			COLOR_MUTED, (group[0] as PlanetGrid).debug_anchor_sample()]
 	var out := "[color=%s]'%s' · %d grids · %d bloques\n" % [color, aimed.grid_id, group.size(), blocks]
 	out += "  apoyados en el suelo: %d   (sondeo %.1f ms)\n" % [anchored, probe_usec / 1000.0]
 	out += "  se caerían ahora: %d   (alcance = lado mayor x %.2f, mínimo %d · sondeo %.1f m)[/color]" % [
 		would_fall, GridManager.COLLAPSE_SPAN_FRACTION, GridManager.COLLAPSE_MIN_SPAN,
 		PlanetGrid.ANCHOR_PROBE]
-	return out + sample
+	if anchored == 0 and not group.is_empty():
+		out += "\n[color=%s]sin un solo apoyo; muestra en crudo del sondeo:\n%s[/color]" % [
+			COLOR_MUTED, (group[0] as PlanetGrid).debug_anchor_sample()]
+	return out
