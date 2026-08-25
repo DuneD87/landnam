@@ -124,8 +124,11 @@ static func _capture_grid(grid: GridBase, cell_offset: Vector3i, offset_m: Vecto
 
 
 ## Reconstruye el blueprint en el planeta, con su esquina en origin_world y orientado según
-## basis_world. Devuelve las grids creadas (ya dinámicas si el blueprint lo era).
-static func instantiate(data: Dictionary, planet: Node3D, origin_world: Vector3, basis_world: Basis) -> Array:
+## basis_world. Devuelve las grids creadas (ya dinámicas si el blueprint lo era y no se fuerza
+## force_static, que las deja ancladas al planeta).
+static func instantiate(data: Dictionary, planet: Node3D, origin_world: Vector3, basis_world: Basis,
+	force_static: bool = false) -> Array:
+
 	var grids_data: Array = data.get("grids", [])
 	if grids_data.is_empty() or not planet:
 		return []
@@ -147,7 +150,7 @@ static func instantiate(data: Dictionary, planet: Node3D, origin_world: Vector3,
 		_restore_props(grid, grid_data.get("props", []))
 		created.append(grid)
 
-	if data.get("dynamic", false) and reference:
+	if data.get("dynamic", false) and not force_static and reference:
 		var dynamic_grids := GridManager.convert_to_dynamic(reference.grid_id)
 		if not dynamic_grids.is_empty():
 			return dynamic_grids

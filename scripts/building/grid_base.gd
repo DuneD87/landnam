@@ -13,7 +13,7 @@ const config_ref = preload("res://scripts/config.gd")
 const CHUNK_SHIFT := 4
 
 ## Energía (J) que absorbe un bloque de 1 m³ antes de romperse, si su BlockData no la define.
-const DEFAULT_IMPACT_TOUGHNESS := 600.0
+const DEFAULT_IMPACT_TOUGHNESS := 6000.0
 ## Tope de alcance de un impacto, en celdas de radio: sin él una caída fuerte borraría la nave entera.
 const IMPACT_MAX_RADIUS_CELLS := 50
 ## Tope de bloques destruidos por impacto. El radio acota la forma, esto acota el COSTE: a

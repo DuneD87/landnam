@@ -9,7 +9,7 @@ extends CanvasLayer
 signal save_requested(blueprint_name: String)
 signal delete_requested()
 signal convert_requested()
-signal load_requested(blueprint_name: String)
+signal load_requested(blueprint_name: String, as_static: bool)
 signal closed()
 
 ## Grupo de grids sobre el que opera el menú; null en modo biblioteca.
@@ -25,6 +25,7 @@ var _convert_btn: Button
 var _delete_btn: Button
 var _blueprint_list: ItemList
 var _blueprint_stats: Label
+var _as_static_check: CheckBox
 var _load_btn: Button
 var _delete_bp_btn: Button
 var _delete_armed: bool = false
@@ -132,6 +133,7 @@ func _refresh_blueprint_list() -> void:
 	_blueprint_stats.text = "No hay blueprints guardados." if empty else "Selecciona un blueprint."
 	_load_btn.disabled = true
 	_delete_bp_btn.disabled = true
+	_as_static_check.disabled = true
 
 
 func _on_blueprint_selected(index: int) -> void:
@@ -145,6 +147,8 @@ func _on_blueprint_selected(index: int) -> void:
 		return
 
 	var stats := GridBlueprint.get_stats(data)
+	# La casilla solo tiene sentido en blueprints dinámicos: los estáticos ya se colocan así.
+	_as_static_check.disabled = not stats["dynamic"]
 	var size: Vector3 = stats["size"]
 	_blueprint_stats.text = "\n".join([
 		"Tipo: %s" % ("dinámica" if stats["dynamic"] else "estática"),
@@ -175,7 +179,8 @@ func _on_load_pressed() -> void:
 	var selected := _blueprint_list.get_selected_items()
 	if selected.is_empty():
 		return
-	load_requested.emit(_blueprint_list.get_item_text(selected[0]))
+	var as_static := _as_static_check.button_pressed and not _as_static_check.disabled
+	load_requested.emit(_blueprint_list.get_item_text(selected[0]), as_static)
 
 
 func _on_delete_blueprint_pressed() -> void:
@@ -292,6 +297,12 @@ func _build_library_section(parent: VBoxContainer) -> void:
 	_blueprint_stats = Label.new()
 	_blueprint_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_library_section.add_child(_blueprint_stats)
+
+	_as_static_check = CheckBox.new()
+	_as_static_check.text = "Colocar como estática"
+	_as_static_check.tooltip_text = "Ancla el blueprint al planeta en vez de crear un cuerpo dinámico."
+	_as_static_check.disabled = true
+	_library_section.add_child(_as_static_check)
 
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)

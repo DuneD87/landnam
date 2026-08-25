@@ -992,7 +992,7 @@ func _on_grid_convert_requested() -> void:
 
 
 ## Cierra el menú y pasa a modo colocación: el blueprint sigue al puntero hasta que confirmes.
-func _on_blueprint_load_requested(blueprint_name: String) -> void:
+func _on_blueprint_load_requested(blueprint_name: String, as_static: bool) -> void:
 	var data := GridBlueprint.load_from_disk(blueprint_name)
 	if data.is_empty():
 		grid_manipulator_menu.set_status("No se ha podido leer '%s'." % blueprint_name)
@@ -1004,7 +1004,7 @@ func _on_blueprint_load_requested(blueprint_name: String) -> void:
 
 	grid_manipulator_menu.close()
 	capture_mouse(true)
-	blueprint_placer.begin(data, planet, self, camera)
+	blueprint_placer.begin(data, planet, self, camera, as_static)
 	# La rueda solo se le cede al placer si de verdad ha arrancado; si no, el zoom se quedaría
 	# apagado para siempre.
 	if blueprint_placer.is_active():

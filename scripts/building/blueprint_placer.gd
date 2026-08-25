@@ -36,6 +36,7 @@ var _depth_offset: float = 0.0
 var _height_offset: float = 0.0
 var _move_step: float = 1.0
 var _placement: Transform3D = Transform3D.IDENTITY
+var _as_static: bool = false
 var _active: bool = false
 
 
@@ -61,12 +62,16 @@ func is_active() -> bool:
 	return _active
 
 
-## Entra en modo colocación con el blueprint ya leído de disco.
-func begin(data: Dictionary, planet: Node3D, player: Node3D, camera: Camera3D) -> void:
+## Entra en modo colocación con el blueprint ya leído de disco. Con as_static, un blueprint
+## dinámico se ancla al planeta en vez de reconstruirse como cuerpo dinámico.
+func begin(data: Dictionary, planet: Node3D, player: Node3D, camera: Camera3D,
+	as_static: bool = false) -> void:
+
 	if data.is_empty() or not planet or not player or not camera:
 		return
 
 	_data = data
+	_as_static = as_static
 	_planet = planet
 	_player = player
 	_camera = camera
@@ -121,7 +126,8 @@ func confirm() -> void:
 		return
 
 	var t0 := Time.get_ticks_msec()
-	var grids := GridBlueprint.instantiate(_data, _planet, _placement.origin, _placement.basis)
+	var grids := GridBlueprint.instantiate(_data, _planet, _placement.origin, _placement.basis,
+		_as_static)
 	var blocks := 0
 	for grid: GridBase in grids:
 		blocks += grid.get_block_count()
