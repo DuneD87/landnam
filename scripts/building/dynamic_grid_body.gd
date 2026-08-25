@@ -788,8 +788,15 @@ func _victim_grid_id(other: Object) -> String:
 func _apply_impact(world_pos: Vector3, energy: float, victim_grid_id: String = "") -> void:
 	if not is_inside_tree():
 		return
-
 	_damage_static_victim(world_pos, energy, victim_grid_id)
+	apply_damage_at(world_pos, energy)
+
+
+## Abre un boquete en este casco desde fuera del sistema de colisiones —un proyectil, por ejemplo,
+## que no genera contacto que _integrate_forces pueda ver—. Devuelve los bloques destruidos.
+func apply_damage_at(world_pos: Vector3, energy: float, radius_meters: float = 0.0) -> int:
+	if not is_inside_tree():
+		return 0
 
 	var destroyed := 0
 	var damaged := 0
@@ -800,7 +807,7 @@ func _apply_impact(world_pos: Vector3, energy: float, victim_grid_id: String = "
 		if budget <= 0.0:
 			break
 		grid.begin_batch_edit()
-		var result: Dictionary = grid.damage_sphere(world_pos, budget)
+		var result: Dictionary = grid.damage_sphere(world_pos, budget, radius_meters)
 		grid.end_batch_edit()
 		budget -= result["spent"]
 		var hit: int = (result["destroyed"] as Array).size()
@@ -816,7 +823,7 @@ func _apply_impact(world_pos: Vector3, energy: float, victim_grid_id: String = "
 			if planet_node:
 				up_chip = (world_pos - planet_node.global_pos).normalized()
 			BlockDebris.burst(self, world_pos, up_chip, 1, debris_cell)
-		return
+		return 0
 
 	# La masa y las cajas de flotación ya las invalida block_removed; aquí solo el efecto.
 	var up := Vector3.UP
@@ -824,6 +831,7 @@ func _apply_impact(world_pos: Vector3, energy: float, victim_grid_id: String = "
 		up = (global_position - planet_node.global_pos).normalized()
 	BlockDebris.burst(self, world_pos, up, destroyed, debris_cell)
 	blocks_destroyed.emit(world_pos, destroyed)
+	return destroyed
 
 
 ## Abre el boquete en la estructura estática golpeada. El reparto no conserva energía a propósito:

@@ -53,6 +53,22 @@ func dig_hole(radius: float, distance: float):
 		var amount := rand_num_gen.randi_range(drop.min_count, drop.max_count)
 		voxel_mined.emit(drop.item_id, amount)
 
+## Lanza una bala de cañón desde 'origin' hacia donde mira la cámara. ItemData.damage son los
+## julios que descarga POR BLOQUE alcanzado; el tamaño del boquete lo pone el radio de la bala.
+func fire_cannonball(camera: Camera3D, origin: Vector3, item: ItemData, planet_node: Node3D,
+	blast_radius: float = Cannonball.DEFAULT_RADIUS) -> void:
+	if camera == null:
+		return
+
+	var energy := Cannonball.DEFAULT_ENERGY_PER_BLOCK
+	if item != null and item.damage > 0:
+		energy = float(item.damage)
+
+	var ball := Cannonball.new()
+	get_tree().current_scene.add_child(ball)
+	ball.setup(origin, -camera.global_transform.basis.z, energy, planet_node, blast_radius)
+
+
 ## Recorre 'steps' voxels hacia dentro del rayo y devuelve el type_id del ore dominante (mayor peso).
 func _read_best_ore_along_ray(voxel_tool: VoxelTool, start: Vector3i, dir: Vector3, steps: int) -> int:
 	var best_id := 0

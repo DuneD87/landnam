@@ -4,7 +4,7 @@ const config = preload("res://scripts/config.gd")
 
 enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR, BLOCK}
 enum ToolType {NONE, PICKAXE, AXE, HAMMER, TORCH}
-enum WeaponType {NONE, SWORD, SPEAR, BOW}
+enum WeaponType {NONE, SWORD, SPEAR, BOW, CANNON}
 enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND}
 
 @export var id: StringName  # "stone_pickaxe"

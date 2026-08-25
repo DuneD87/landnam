@@ -549,7 +549,7 @@ func impact_cost(block_id: int) -> float:
 ## hacia fuera; un bloque que no se pueda pagar detiene la propagación. Devuelve
 ## {spent, destroyed: [{grid_pos, block_id, world_pos}]}. Conviene envolverla en
 ## begin_batch_edit/end_batch_edit: si no, cada bloque dispara su propio rebuild de chunk.
-func damage_sphere(world_center: Vector3, energy: float) -> Dictionary:
+func damage_sphere(world_center: Vector3, energy: float, radius_meters: float = 0.0) -> Dictionary:
 	var destroyed: Array = []
 	if energy <= 0.0 or _blocks.is_empty():
 		return {"spent": 0.0, "destroyed": destroyed}
@@ -557,10 +557,16 @@ func damage_sphere(world_center: Vector3, energy: float) -> Dictionary:
 	var xform := get_grid_world_transform()
 	var center := (xform.affine_inverse() * world_center) / cell_size
 
-	# El radio sale del presupuesto —una esfera con tantas celdas como el impacto puede pagar a
-	# dureza nominal—, así un golpe pequeño no barre igualmente el radio máximo.
-	var affordable := maxf(energy / maxf(DEFAULT_IMPACT_TOUGHNESS * _cell_volume(), 0.001), 1.0)
-	var radius := clampf(pow(affordable * 0.75 / PI, 1.0 / 3.0) + 0.5, 1.0, float(IMPACT_MAX_RADIUS_CELLS))
+	# Con radio explícito (un proyectil, que tiene su propio tamaño) manda ese. Sin él —el caso de
+	# una colisión, que no tiene tamaño— sale del presupuesto: una esfera con tantas celdas como el
+	# impacto puede pagar a dureza nominal, para que un golpe pequeño no barra el radio máximo.
+	# El mínimo de una celda existe para que un proyectil diminuto rompa al menos lo que toca.
+	var radius: float
+	if radius_meters > 0.0:
+		radius = clampf(radius_meters / cell_size, 1.0, float(IMPACT_MAX_RADIUS_CELLS))
+	else:
+		var affordable := maxf(energy / maxf(DEFAULT_IMPACT_TOUGHNESS * _cell_volume(), 0.001), 1.0)
+		radius = clampf(pow(affordable * 0.75 / PI, 1.0 / 3.0) + 0.5, 1.0, float(IMPACT_MAX_RADIUS_CELLS))
 	var radius_sq := radius * radius
 
 	var lo := Vector3i((center - Vector3.ONE * radius).floor())

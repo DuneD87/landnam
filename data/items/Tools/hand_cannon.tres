@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" uid="uid://8hwq6tmcum3b" path="res://textures/icons/items/tools/stone_axe_01.png" id="1_icon"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_script"]
+
+[resource]
+script = ExtResource("2_script")
+id = &"hand_cannon_01"
+display_name = "Cañón de mano"
+description = "Dispara una bala capaz de abrir un boquete en un casco."
+icon = ExtResource("1_icon")
+category = 1
+scene_path = "res://scenes/items/weapons/hand_cannon.tscn"
+weapon_type = 4
+armor_slot = 6
+damage = 1200
+stackable = false
+max_stack = 1
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

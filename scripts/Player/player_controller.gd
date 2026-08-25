@@ -17,6 +17,13 @@ const GROUND_READY_POLL_INTERVAL := 0.1
 ## que no existe bajo sus pies. Un spawn normal confirma suelo mucho antes de este tope.
 const GROUND_READY_TIMEOUT := 15.0
 
+## Altura de la boca del cañón sobre el origen de PlayerModel, que está a ras de pies. Es la del
+## centro de la cápsula del jugador (0.901 en third_person_player.tscn): la bala sale del pecho.
+const MUZZLE_HEIGHT := 0.9
+## Segundos manteniendo el gatillo para llegar al boquete máximo. La carga escala el RADIO, y el
+## radio decide la energía, así que un disparo cargado del todo cuesta ~500 veces más que uno seco.
+const CANNON_CHARGE_TIME := 3.0
+
 const config = preload("res://scripts/config.gd")
 const data = preload("res://scripts/items/item_data.gd")
 @onready var movement: Movement = $Movement
@@ -81,6 +88,12 @@ var current_water_time: float = 0.0
 var water_sampler: WaterHeightSampler
 var mouse_captured = true
 var free_flight_enabled = false
+
+## Gatillo del cañón: se carga mientras se mantiene y dispara al soltar. La acumulación va en
+## _physics_process y no por eventos, para que funcione igual en vuelo libre, cuyo camino de input
+## corta antes de llegar al ataque.
+var _cannon_charging: bool = false
+var _cannon_charge: float = 0.0
 var current_swimming_pitch: float = 0.0
 var current_animation = config.ANIMATION.IDLE
 
@@ -830,7 +843,12 @@ func _input(event):
 	if building_system.build_mode and not blueprint_placer.is_active():
 		_handle_build_input(event)
 
+	# El cañón sí se dispara volando: es la forma cómoda de probar impactos contra barcos sin
+	# tener que acercarse por tierra. Va ANTES del corte de vuelo libre, que apaga todo el input
+	# de personaje de aquí abajo.
 	if free_flight_enabled:
+		if Input.is_action_just_pressed("attack_1") and right_hand_equipped 				and not building_system.build_mode and not inventory_ui.visible 				and equiped_weapon != null 				and equiped_weapon.weapon_type == ItemData.WeaponType.CANNON:
+			_begin_cannon_charge()
 		return
 
 	# Colocando un blueprint no se ataca, ni se recoge, ni se abre el inventario: el clic es
@@ -864,6 +882,9 @@ func _input(event):
  
  
 	if Input.is_action_just_pressed("attack_1") && can_perform_action() && !building_system.build_mode && right_hand_equipped:
+		if equiped_weapon.weapon_type == ItemData.WeaponType.CANNON:
+			_begin_cannon_charge()
+			return
 		if !equiped_weapon.is_attack_animation:
 			is_holding_atack = true
 			return
@@ -881,6 +902,39 @@ func _input(event):
 			deer.add_to_group("floating_origin")
 	elif Input.is_action_just_released("attack_1"):
 		is_holding_atack = false
+
+
+func _begin_cannon_charge() -> void:
+	_cannon_charging = true
+	_cannon_charge = 0.0
+
+
+## Acumula la carga y dispara en cuanto el gatillo deja de estar pulsado. Se resuelve por sondeo y
+## no por el evento de soltar porque el camino de input se corta en varios sitios (menús, vuelo
+## libre) y un release perdido dejaría el gatillo cargado para siempre.
+func _update_cannon_charge(delta: float) -> void:
+	if not _cannon_charging:
+		return
+
+	if inventory_ui.visible or grid_manipulator_menu.visible or world_map_ui.visible:
+		_cannon_charging = false
+		return
+
+	if Input.is_action_pressed("attack_1"):
+		_cannon_charge = minf(_cannon_charge + delta, CANNON_CHARGE_TIME)
+		return
+
+	_cannon_charging = false
+	_fire_cannon(_cannon_charge / CANNON_CHARGE_TIME)
+
+
+## Lanza una bala desde el centro del personaje hacia donde mira la cámara. En vuelo libre el
+## modelo está oculto y la colisión desactivada, pero el cuerpo sí sigue a la cámara
+## (update_free_flight hace move_and_slide), así que el origen vale igual en los dos modos.
+func _fire_cannon(charge: float) -> void:
+	var muzzle = $PlayerModel.global_position - gravity_direction * MUZZLE_HEIGHT
+	var blast := lerpf(Cannonball.DEFAULT_RADIUS, Cannonball.MAX_CHARGED_RADIUS, clampf(charge, 0.0, 1.0))
+	action_controller.fire_cannonball(camera, muzzle, equiped_weapon, planet, blast)
 
 
 ## true si el foco está en un campo de texto (p. ej. el SpinBox del menú de barco), donde las
@@ -1106,6 +1160,7 @@ func _check_needs_swimming(delta: float):
 
 
 func _physics_process(delta: float):
+	_update_cannon_charge(delta)
 	if not input_enabled:
 		if GameManager.current_state == GameManager.State.PLAYING:
 			camera_controller.update_camera_transform()
