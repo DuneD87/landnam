@@ -153,12 +153,11 @@ func _init_uniform_buffers() -> void:
 ## Segundos sin ediciones antes de comprobar si una estructura estática se ha quedado sin apoyo
 ## (coalesce de ráfagas: un impacto quita decenas de bloques de golpe).
 const COLLAPSE_DEBOUNCE := 0.4
-## Alcance del voladizo, RELATIVO al tamaño de la estructura: su lado mayor por esta fracción. A 1.0
-## solo se desprende lo que se aleja de un anclaje más que el propio ancho del edificio, o sea un
-## saliente absurdo. Bájalo para que ceda antes; ver GridSplitAnalyzer.analyze_support.
-const COLLAPSE_SPAN_FRACTION := 1.0
-## Suelo del alcance, para que una construcción pequeña no quede con un margen ridículo.
-const COLLAPSE_MIN_SPAN := 12
+## Cuánto alcanza a sostener cada unidad de tamaño lineal de la cimentación: el alcance del
+## voladizo es √(apoyos) · esto. Súbelo y las estructuras aguantan con menos suelo debajo.
+const COLLAPSE_SPAN_PER_ANCHOR := 2.5
+## Suelo del alcance, para que un cobertizo con cuatro apoyos no quede con margen cero.
+const COLLAPSE_MIN_SPAN := 3
 
 var _collapse_pending: Dictionary = {}
 ## Solo un análisis de apoyo en vuelo a la vez: son raros y así no hay que casar resultados con
@@ -264,7 +263,13 @@ func _start_collapse_check(grid_id: String) -> void:
 		var grid: PlanetGrid = group[i]
 		_collapse_versions[i] = grid.edit_version
 		grids_data.append({"cells": grid.get_all_blocks().keys(), "cell_size": grid.cell_size})
-		anchors.append(grid.compute_anchor_cells())
+		var probe: Dictionary = grid.compute_anchor_cells()
+		# Sin poder consultar el terreno no se decide nada: cero apoyos significaría "no lo sé" y
+		# con eso se derrumban edificios enteros. Se abandona la revisión; la próxima baja de
+		# bloque volverá a marcarla, sin quedarse reintentando en bucle mientras tanto.
+		if not probe["ok"]:
+			return
+		anchors.append(probe["cells"])
 
 	_collapse_group = group
 	_collapse_running = true
@@ -273,7 +278,9 @@ func _start_collapse_check(grid_id: String) -> void:
 
 
 func _run_collapse_analysis(grids_data: Array, anchors: Array) -> void:
-	var falling := GridSplitAnalyzer.analyze_support(grids_data, anchors, COLLAPSE_MIN_SPAN, COLLAPSE_SPAN_FRACTION)
+	# Aquí solo se llega con todos los sondeos válidos, así que cero apoyos sí es concluyente.
+	var falling := GridSplitAnalyzer.analyze_support(grids_data, anchors, COLLAPSE_MIN_SPAN,
+		COLLAPSE_SPAN_PER_ANCHOR, true)
 	call_deferred("_apply_collapse", falling)
 
 

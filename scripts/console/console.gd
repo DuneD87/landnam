@@ -647,28 +647,32 @@ func _cmd_anchors(args: PackedStringArray) -> String:
 	var blocks := 0
 	var anchored := 0
 	var probe_usec := 0
+	var probe_ok := true
 	for grid: PlanetGrid in group:
 		grids_data.append({"cells": grid.get_all_blocks().keys(), "cell_size": grid.cell_size})
 		var t0 := Time.get_ticks_usec()
-		var found := grid.compute_anchor_cells()
+		var probe: Dictionary = grid.compute_anchor_cells()
 		probe_usec += Time.get_ticks_usec() - t0
+		probe_ok = probe_ok and probe["ok"]
+		var found: Dictionary = probe["cells"]
 		anchors.append(found)
 		blocks += grid.get_block_count()
 		anchored += found.size()
 
 	var falling := GridSplitAnalyzer.analyze_support(grids_data, anchors,
-		GridManager.COLLAPSE_MIN_SPAN, GridManager.COLLAPSE_SPAN_FRACTION)
+		GridManager.COLLAPSE_MIN_SPAN, GridManager.COLLAPSE_SPAN_PER_ANCHOR, probe_ok)
 	var would_fall := 0
 	for piece: Dictionary in falling:
 		would_fall += int(piece["count"])
 
 	var color := COLOR_OK if anchored > 0 and would_fall == 0 else COLOR_ERR
 	var out := "[color=%s]'%s' · %d grids · %d bloques\n" % [color, aimed.grid_id, group.size(), blocks]
-	out += "  apoyados en el suelo: %d   (sondeo %.1f ms)\n" % [anchored, probe_usec / 1000.0]
-	out += "  se caerían ahora: %d   (alcance = lado mayor x %.2f, mínimo %d · sondeo %.1f m)[/color]" % [
-		would_fall, GridManager.COLLAPSE_SPAN_FRACTION, GridManager.COLLAPSE_MIN_SPAN,
+	out += "  apoyados en el suelo: %d   (sondeo %.1f ms%s)\n" % [anchored, probe_usec / 1000.0,
+		"" if probe_ok else " · SIN PODER CONSULTAR EL TERRENO"]
+	out += "  se caerían ahora: %d   (alcance = raiz(apoyos) x %.2f, minimo %d · sondeo %.1f m)[/color]" % [
+		would_fall, GridManager.COLLAPSE_SPAN_PER_ANCHOR, GridManager.COLLAPSE_MIN_SPAN,
 		PlanetGrid.ANCHOR_PROBE]
-	if anchored == 0 and not group.is_empty():
+	if anchored == 0 and probe_ok and not group.is_empty():
 		out += "\n[color=%s]sin un solo apoyo; muestra en crudo del sondeo:\n%s[/color]" % [
 			COLOR_MUTED, (group[0] as PlanetGrid).debug_anchor_sample()]
 	return out

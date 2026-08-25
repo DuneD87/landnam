@@ -18,30 +18,34 @@ var basis_local: Basis = Basis.IDENTITY
 var _collision_body: StaticBody3D = null
 
 
-## Celdas apoyadas en el TERRENO. Se sondea con el raycast de VoxelTool y no con el de física: la
-## pregunta es solo si hay suelo debajo, así que los colliders sobran, y un DDA sobre los vóxeles no
-## pasa por el servidor de física. Con rayos de física esto costaba ~200 ms en el hilo de física de
-## un casco grande, porque se lanza uno por cada celda sin bloque debajo y en un casco hueco eso son
-## todos los techos y huecos interiores, no la base.
+## {ok, cells}: 'ok' dice si se PUDO consultar el terreno, y 'cells' qué se encontró. Distinguirlo
+## importa porque cero apoyos significa dos cosas opuestas —la estructura flota de verdad, o no
+## había con qué preguntar— y una manda derrumbar mientras la otra manda no tocar nada.
+##
+## Celdas apoyadas en el TERRENO. No se lanza ningún rayo: la pregunta es solo "¿hay roca aquí?",
+## que es una consulta puntual al SDF. Con rayos de física esto costaba ~200 ms en el hilo de física
+## de un casco grande, y además fallaba en los dos casos que importan (ver más abajo).
 ##
 ## El rayo va hacia el ABAJO GRAVITACIONAL, no el -Y de la grid, que solo coincide si se construyó
 ## alineada a la superficie. Otras grids no cuentan como cimiento: apoyarse en otro edificio no es
 ## estar en el suelo.
 func compute_anchor_cells() -> Dictionary:
 	var anchors: Dictionary = {}
-	if _blocks.is_empty() or not planet_node or not planet_node.is_inside_tree():
-		return anchors
+	if _blocks.is_empty():
+		return {"ok": true, "cells": anchors}
+	if not planet_node or not planet_node.is_inside_tree():
+		return {"ok": false, "cells": anchors}
 
 	var xform := get_grid_world_transform()
 	var down_world : Vector3 = (planet_node.global_pos - xform.origin).normalized()
 	if down_world.is_zero_approx():
-		return anchors
+		return {"ok": false, "cells": anchors}
 	var terrain: VoxelLodTerrain = planet_node.voxel_terrain
 	if not terrain:
-		return anchors
+		return {"ok": false, "cells": anchors}
 	var voxel_tool: VoxelTool = terrain.get_voxel_tool()
 	if not voxel_tool:
-		return anchors
+		return {"ok": false, "cells": anchors}
 
 	var down_cell := -up_cell()
 	# VoxelTool trabaja en el espacio del terreno, no en el del mundo: el planeta se mueve con el
@@ -72,7 +76,7 @@ func compute_anchor_cells() -> Dictionary:
 		if _is_solid_terrain(voxel_tool, to_terrain * below):
 			anchors[cell] = true
 
-	return anchors
+	return {"ok": true, "cells": anchors}
 
 
 ## True si hay materia de terreno en ese punto (en espacio del terreno). En godot_voxel el SDF es

@@ -32,15 +32,13 @@ static func analyze(grids_data: Array) -> Array:
 ## pegado). 'anchors' es paralelo a grids_data: anchors[i] = Dictionary[Vector3i, true] con las
 ## celdas de esa grid que se apoyan en algo firme.
 ##
-## El alcance NO es absoluto: sale del propio tamaño de la estructura (su lado mayor por
-## span_fraction, con suelo en min_span). Un número fijo no puede valer para un cobertizo y para un
-## casco de 23.000 bloques a la vez: solo se anclan las celdas sin bloque debajo, así que en algo
-## medio enterrado los anclajes son la capa inferior y todo lo demás queda a tantos pasos como alto
-## sea. Con alcance fijo, cualquier cosa más alta que ese número se decapitaba sola.
+## El alcance NO es absoluto ni sale del tamaño del edificio: sale del de su CIMENTACIÓN, como
+## √(apoyos) · span_per_anchor. Un número fijo decapitaba cualquier torre más alta que él, y atarlo
+## al tamaño del edificio hacía que un solo bloque apoyado sostuviera un casco entero.
 ##
 ## Devuelve las piezas que caen, agrupadas por componente, o [] si no cae nada.
 static func analyze_support(grids_data: Array, anchors: Array, min_span: int,
-	span_fraction: float = 1.0) -> Array:
+	span_per_anchor: float = 2.5, anchors_reliable: bool = false) -> Array:
 
 	var raster := _rasterize(grids_data)
 	if raster.is_empty():
@@ -50,7 +48,6 @@ static func analyze_support(grids_data: Array, anchors: Array, min_span: int,
 	var fine: Dictionary = raster["fine"]
 	var extent: Vector3i = raster["extent"]
 	var longest := maxi(maxi(extent.x, extent.y), extent.z)
-	var max_span := maxi(min_span, int(ceil(float(longest) * span_fraction)))
 
 	var anchored: Dictionary = {}
 	for oi in owners.size():
@@ -58,12 +55,19 @@ static func analyze_support(grids_data: Array, anchors: Array, min_span: int,
 		if gi < anchors.size() and (anchors[gi] as Dictionary).has(owners[oi][1]):
 			anchored[oi] = true
 
-	# Sin NINGÚN anclaje no se toca nada. "De verdad flota" y "el sondeo no encontró el suelo" dan
-	# el mismo dato, y son mucho más frecuentes los fallos de sondeo (terreno aún sin cargar, un
-	# cambio en cómo se sondea) que las estructuras genuinamente flotantes, que además ya estaban
-	# ahí antes de romper nada. Ante la duda, no derrumbar: el fallo contrario tira edificios enteros.
+	# Sin NINGÚN anclaje solo se derrumba todo si quien sondeó confirma que pudo consultar el
+	# terreno. Si no pudo, cero apoyos no significa "flota", significa "no lo sé", y decidir con eso
+	# tira edificios enteros. Con el dato fiable sí cae: es el caso de minarle los cimientos.
 	if anchored.is_empty():
-		return []
+		return _group_components(fine, owners, raster["cell_sizes"], {}) if anchors_reliable else []
+
+	# El alcance sale del tamaño de la CIMENTACIÓN, no del edificio. Salía del lado mayor del
+	# bounding box, y a esa escala un único bloque apoyado sostenía un casco de 23.000: el alcance
+	# valía ~150 celdas y llegaba a todas partes. Una cimentación de A celdas tiene tamaño lineal
+	# √A, así que el alcance crece con la raíz del número de apoyos: muchos cimientos sostienen
+	# lejos, uno solo casi nada. Nunca más que el propio edificio, que no tendría sentido.
+	var max_span := maxi(min_span, int(ceil(sqrt(float(anchored.size())) * span_per_anchor)))
+	max_span = mini(max_span, longest)
 
 	# BFS multi-origen desde todas las celdas ancladas, en anchura (FIFO con puntero: pop_front
 	# sobre un Array es O(n) y aquí serían decenas de miles de celdas).
