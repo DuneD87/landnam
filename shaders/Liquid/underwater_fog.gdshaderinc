@@ -1,7 +1,9 @@
-// Paleta de niebla submarina compartida: color de in-scatter por tramos según la profundidad
-// de la cámara. La incluyen underwater.gdshader (quad de pantalla completa sobre la escena
-// opaca) y water_shader.gdshader (la superficie vista desde abajo se niebla a sí misma,
-// porque el quad de niebla no cubre la pasada transparente).
+// Niebla submarina compartida: la paleta de in-scatter por tramos de profundidad, el corte de la
+// línea de flotación y el núcleo de la composición (absorción + in-scatter). Tres consumidores:
+// underwater.gdshader (el quad de pantalla completa, que compone la escena opaca sumergida),
+// water_shader.gdshader (solo el corte de flotación, para descartar su mitad sumergida) y
+// glass_block.gdshader (los paneles traslúcidos, que se nieblan solos porque el quad se descarta
+// entero con la cámara en un compartimento seco y la pasada transparente no recibe su niebla).
 
 uniform vec4 fog_color : source_color = vec4(0.7, 0.8, 0.9, 1.0);
 uniform vec4 deep_fog_color : source_color = vec4(0.1, 0.2, 0.3, 1.0);

@@ -218,8 +218,6 @@ void fragment() {
 
     float water_column = water_path * fog_density;
 
-    // L = escena * T + scatter * (1 - T), con transmitancia Beer-Lambert por canal RGB.
-    vec3 transmission = exp(-absorption_coefficients * water_column);
     float cam_depth = v_cam_surface_radius - v_cam_radius;
 
     // La luz llega de arriba: el scatter mirando hacia la superficie es el de aguas menos
@@ -228,10 +226,8 @@ void fragment() {
     // profundo es el tramo al que converge la niebla (el horizonte sumergido cae a deep/abyss).
     vec3 up = normalize(ro - planet_center);
     float up_amount = dot(rd, up) * 0.5 + 0.5;
-    float scatter_depth = cam_depth
-        + mix(scatter_vertical_range, -scatter_vertical_range * 0.5, up_amount)
-        + min(water_column * distance_depth_gain, distance_depth_max);
-    vec3 scatter_color = depth_tier_color(max(scatter_depth, 0.0));
+    vec3 scatter_color = depth_tier_color(underwater_scatter_depth(cam_depth, up_amount,
+        water_column, scatter_vertical_range, distance_depth_gain, distance_depth_max));
 
     // In-scatter direccional barato: halo hacia el sol. Ojo al convenio: sun_controller
     // propaga sun_dir apuntando HACIA el sol (posición de la luz normalizada), al contrario
@@ -313,13 +309,13 @@ void fragment() {
     // inferior de la superficie es un espejo del agua profunda, no una ventana al cielo.
     // El fundido ancho evita un borde duro en el anillo de Snell.
     if (surface_ahead) {
-        float cos_incidence = dot(rd, exit_normal);
-        float tir = 1.0 - smoothstep(0.55, 0.72, cos_incidence);
+        float tir = underwater_tir_amount(rd, exit_normal);
         vec3 tir_color = depth_tier_color(cam_depth + tir_reflection_depth);
         screen = mix(screen, tir_color, tir);
     }
 
-    ALBEDO = screen * transmission + lit_scatter * (1.0 - transmission);
+    // L = escena * T + scatter * (1 - T), con transmitancia Beer-Lambert por canal RGB.
+    ALBEDO = underwater_apply(screen, absorption_coefficients, water_column, lit_scatter);
 
     // Godrays: en cada muestra del segmento de agua se proyecta hasta la superficie siguiendo
     // el sol REFRACTADO (Snell: los haces se inclinan hacia la vertical) y se muestrea el
