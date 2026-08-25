@@ -71,18 +71,6 @@ varying float v_cam_surface_radius;
 uniform vec3 waterline_point;
 uniform vec3 waterline_normal;
 
-// Distancia de salida del rayo de la esfera de radio r; -1.0 si no hay intersección delante.
-float ray_sphere_exit(vec3 center, float r, vec3 ro, vec3 rd) {
-    vec3 oc = ro - center;
-    float b = dot(oc, rd);
-    float c = dot(oc, oc) - r * r;
-    float disc = b * b - c;
-    if (disc <= 0.0) {
-        return -1.0;
-    }
-    return -b + sqrt(disc);
-}
-
 void vertex() {
     POSITION = vec4(VERTEX.xy, 1.0, 1.0);
 

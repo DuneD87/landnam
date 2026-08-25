@@ -6,6 +6,8 @@ extends Node
 const ICON_SIZE := 256
 const CAMERA_FOV := 35.0
 const CAMERA_DISTANCE := 2.8
+## Alpha mínimo con el que se pinta un material traslúcido en su icono.
+const MIN_ICON_ALPHA := 0.7
 
 # Ángulos de la cámara isométrica (grados).
 const PITCH := -30.0
@@ -60,6 +62,19 @@ func _position_camera() -> void:
 	_camera.position = -direction * CAMERA_DISTANCE
 
 
+## Copia del material apta para el icono. Un material muy traslúcido sobre el fondo transparente del
+## viewport sale casi invisible, así que para el icono se le sube el alpha mínimo.
+static func _icon_material(material: Material) -> Material:
+	var base := material as BaseMaterial3D
+	if not base or base.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:
+		return material
+	if base.albedo_color.a >= MIN_ICON_ALPHA:
+		return material
+	var copy := base.duplicate() as BaseMaterial3D
+	copy.albedo_color.a = MIN_ICON_ALPHA
+	return copy
+
+
 ## Genera una icona (ImageTexture ICON_SIZE×ICON_SIZE RGBA) para un mesh con material opcional.
 func generate_icon(mesh: Mesh, material: Material = null) -> ImageTexture:
 	if not _is_ready:
@@ -71,7 +86,7 @@ func generate_icon(mesh: Mesh, material: Material = null) -> ImageTexture:
 	_mesh_instance.mesh = mesh
 	_mesh_instance.position = -center
 
-	_mesh_instance.material_override = material
+	_mesh_instance.material_override = _icon_material(material)
 
 	var size := aabb.size.length()
 	var dist := size / (2.0 * tan(deg_to_rad(CAMERA_FOV * 0.5)))

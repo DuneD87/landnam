@@ -24,6 +24,11 @@ const DAMAGE_STEPS := 4
 ## materiales de bloque consumen con vertex_color_use_as_albedo.
 const DAMAGE_TINT := Color(0.30, 0.26, 0.24)
 
+## Ids de material que dejan ver lo que hay detrás. Los publica BlockDatabase al arrancar: la
+## opacidad de un ShaderMaterial (el cristal) no se puede leer del recurso y el culling depende
+## de ella. Un id que no esté aquí se juzga por su BaseMaterial3D, y si tampoco, es opaco.
+static var translucent_material_ids: Dictionary = {}
+
 
 ## Escalón de daño de una vida normalizada. Intacto = DAMAGE_STEPS.
 static func damage_step(hp: float) -> int:
@@ -39,7 +44,8 @@ static func damage_tint(hp: float) -> Color:
 
 
 ## Construye la ArrayMesh de los bloques (todos, o solo las celdas de `subset` si se pasa),
-## con una surface por material. La oclusión de caras consulta siempre el diccionario completo.
+## con una surface por material. La oclusión de caras consulta siempre el diccionario completo, y
+## depende del material: un vecino traslúcido no tapa la cara de al lado.
 static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Transform3D, materials: Dictionary = {}, subset: Dictionary = {}) -> ArrayMesh:
 	var source: Dictionary = subset if not subset.is_empty() else blocks
 	if source.is_empty():
@@ -54,6 +60,7 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 
 	var mesh := ArrayMesh.new()
 	var grid_inv := grid_transform.affine_inverse()
+	var opaque := _opaque_materials(materials)
 
 	for mat_id: String in groups:
 		var st := SurfaceTool.new()
@@ -71,7 +78,7 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 			st.set_color(damage_tint(info.get("hp", 1.0)))
 
 			if _is_solid(block_id):
-				_emit_cube(st, grid_pos, offset, rot, cell_size, blocks, false)
+				_emit_cube(st, grid_pos, offset, rot, cell_size, blocks, false, mat_id, opaque)
 			else:
 				var actual_rot := rot
 				var actual_flip := false
@@ -131,7 +138,9 @@ static func _emit_cube(
 	rot: Basis,
 	size: float,
 	blocks: Dictionary,
-	flip: bool
+	flip: bool,
+	mat_id: String,
+	opaque: Dictionary
 ) -> void:
 	var h := size
 
@@ -144,17 +153,17 @@ static func _emit_cube(
 	var v6 := rot * Vector3(h, h, 0) + offset
 	var v7 := rot * Vector3(0, h, 0) + offset
 
-	if not _is_face_occluded(blocks, grid_pos, Face.FRONT):
+	if not _is_face_occluded(blocks, grid_pos, Face.FRONT, mat_id, opaque):
 		_add_quad(st, v0, v1, v5, v4, flip)
-	if not _is_face_occluded(blocks, grid_pos, Face.BACK):
+	if not _is_face_occluded(blocks, grid_pos, Face.BACK, mat_id, opaque):
 		_add_quad(st, v2, v3, v7, v6, flip)
-	if not _is_face_occluded(blocks, grid_pos, Face.RIGHT):
+	if not _is_face_occluded(blocks, grid_pos, Face.RIGHT, mat_id, opaque):
 		_add_quad(st, v1, v2, v6, v5, flip)
-	if not _is_face_occluded(blocks, grid_pos, Face.LEFT):
+	if not _is_face_occluded(blocks, grid_pos, Face.LEFT, mat_id, opaque):
 		_add_quad(st, v3, v0, v4, v7, flip)
-	if not _is_face_occluded(blocks, grid_pos, Face.TOP):
+	if not _is_face_occluded(blocks, grid_pos, Face.TOP, mat_id, opaque):
 		_add_quad(st, v4, v5, v6, v7, flip)
-	if not _is_face_occluded(blocks, grid_pos, Face.BOTTOM):
+	if not _is_face_occluded(blocks, grid_pos, Face.BOTTOM, mat_id, opaque):
 		_add_quad(st, v3, v2, v1, v0, flip)
 
 
@@ -251,12 +260,35 @@ static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, f
 		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
 
 
-static func _is_face_occluded(blocks: Dictionary, grid_pos: Vector3i, face: Face) -> bool:
+## Materiales que tapan lo que tienen detrás. Un material sin entrada, o que no sea BaseMaterial3D,
+## se da por opaco: es como se comportaba la oclusión antes de que hubiera materiales traslúcidos.
+static func _opaque_materials(materials: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	for mat_id: String in materials:
+		var base := materials[mat_id] as BaseMaterial3D
+		out[mat_id] = base == null or base.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED
+	# Los declarados traslúcidos mandan sobre lo que diga el recurso, y entran aunque la grid no
+	# tenga su material cargado: si no, un cristal sin entrada volvería a contar como opaco.
+	for mat_id: String in translucent_material_ids:
+		out[mat_id] = false
+	return out
+
+
+## Si la cara de un cubo se puede quitar por tenerla tapada el vecino. Un vecino traslúcido solo
+## tapa la cara si es de su mismo material: así el cristal contra cristal no apila dos capas de
+## alpha en la cara interior común, pero la piedra pegada al cristal conserva su cara y no se ve
+## un agujero al mirar a través.
+static func _is_face_occluded(blocks: Dictionary, grid_pos: Vector3i, face: Face, mat_id: String, opaque: Dictionary) -> bool:
 	var neighbor_pos := grid_pos + FACE_DIRS[face]
 	if not blocks.has(neighbor_pos):
 		return false
-	var neighbor_id: int = blocks[neighbor_pos]["block_id"]
-	return _is_solid(neighbor_id)
+	var neighbor: Dictionary = blocks[neighbor_pos]
+	if not _is_solid(neighbor["block_id"]):
+		return false
+	var neighbor_mat: String = neighbor.get("material_id", "")
+	if opaque.get(neighbor_mat, true):
+		return true
+	return neighbor_mat == mat_id
 
 
 static func _is_solid(block_id: int) -> bool:

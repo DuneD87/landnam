@@ -8,6 +8,12 @@ extends Resource
 @export var item: ItemData = null
 @export var base_cost: int = 1
 @export var preview_color: Color = Color.WHITE
+## Si el material deja ver lo que hay detrás. No se puede deducir de surface_material cuando es un
+## ShaderMaterial, y de ello depende el culling de caras (ChunkMeshBuilder).
+@export var translucent: bool = false
+## Material con el que se renderiza el icono, si el de verdad no vale (un traslúcido sobre el fondo
+## transparente del generador sale fantasma). Vacío = se usa surface_material.
+@export var icon_material: Material = null
 
 ## Returns the actual cost for a given cell size (minimum 1).
 func get_cost_for_size(cell_size: float) -> int:

@@ -17,6 +17,7 @@ var build_materials: Array[BuildMaterial] = []
 var _block_material_items: Array[ItemData] = []
 var _icon_generator: BlockIconGenerator = null
 var _materials_generated: bool = false
+var _translucent_materials: Array[Material] = []
 
 func _ready() -> void:
 	_register_default_blocks()
@@ -62,10 +63,68 @@ func _register_default_materials() -> void:
 	wood.surface_material = wood.item.surface_material
 	build_materials.append(wood)
 
+	var glass := BuildMaterial.new()
+	glass.material_id = "glass"
+	glass.display_name = "Glass"
+	glass.item = config_ref.get_item(&"glass_01")
+	glass.base_cost = 1
+	glass.surface_material = glass.item.surface_material
+	glass.preview_color = Color(0.60, 0.85, 0.95)
+	glass.translucent = true
+	# El icono se renderiza sobre fondo transparente y con el shader del cristal saldría un
+	# fantasma; se dibuja con un sucedáneo opaco del mismo color.
+	var glass_icon := StandardMaterial3D.new()
+	glass_icon.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass_icon.albedo_color = Color(0.74, 0.85, 0.87, 0.7)
+	glass_icon.roughness = 0.25
+	glass.icon_material = glass_icon
+	build_materials.append(glass)
+
+	_publish_translucent_materials()
 	print("[BlockDatabase] Registered %d materials." % build_materials.size())
+
+
+## Publica al mallador qué materiales dejan ver lo que hay detrás. La opacidad de un ShaderMaterial
+## no se puede leer del recurso y el culling de caras depende de ella.
+func _publish_translucent_materials() -> void:
+	var ids: Dictionary = {}
+	_translucent_materials.clear()
+	for mat in build_materials:
+		if not mat.translucent:
+			continue
+		ids[mat.material_id] = true
+		if mat.surface_material:
+			_translucent_materials.append(mat.surface_material)
+	ChunkMeshBuilder.translucent_material_ids = ids
+
+
+## Materiales de construcción traslúcidos. Los usa el sistema de agua para empujarles los
+## parámetros de niebla cada frame (un cristal sumergido se nieblea a sí mismo), así que devuelve
+## el array cacheado y no uno nuevo.
+func get_translucent_materials() -> Array[Material]:
+	return _translucent_materials
+
+## Material con el que dibujar el icono de un material de construcción.
+func _icon_material_of(mat: BuildMaterial) -> Material:
+	return mat.icon_material if mat.icon_material else mat.surface_material
+
+
+## Rellena el icono de los items de material que no traen uno pintado, renderizando un cubo con su
+## material. Los que ya tienen icono (piedra, madera) se dejan como están.
+func _generate_material_item_icons() -> void:
+	var cube := get_block(BLOCK_CUBE_ID)
+	if not cube:
+		return
+	for mat in build_materials:
+		if not mat.item or mat.item.icon:
+			continue
+		var icon := await _icon_generator.generate_icon(cube.mesh, _icon_material_of(mat))
+		if icon:
+			mat.item.icon = icon
 
 func _generate_block_material_items() -> void:
 	_block_material_items.clear()
+	await _generate_material_item_icons()
 	for mat in build_materials:
 		for block_id in get_all_ids():
 			var block := get_block(block_id)
@@ -80,7 +139,7 @@ func _generate_block_material_items() -> void:
 			item.stackable = false
 			item.max_stack = 1
 
-			var icon := await _icon_generator.generate_icon(block.mesh, mat.surface_material)
+			var icon := await _icon_generator.generate_icon(block.mesh, _icon_material_of(mat))
 			if icon:
 				item.icon = icon
 				if not block.preview_icon:

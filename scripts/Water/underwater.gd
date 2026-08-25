@@ -70,6 +70,19 @@ const _SYNCED_WATER_PARAMS: Array[StringName] = [
 	&"interior_axis_x", &"interior_axis_y", &"interior_axis_z",
 ]
 
+# Lo que necesita el shader de los bloques traslúcidos (cristal) para nieblarse solo cuando queda
+# bajo el agua. Se copian del material del quad, NO del material del agua: así los tres leen el
+# mismo valor y el corte no puede divergir aunque alguien retoque la niebla en caliente.
+const _TRANSLUCENT_BLOCK_PARAMS: Array[StringName] = [
+	&"planet_center", &"water_radius",
+	&"absorption_coefficients", &"fog_density",
+	&"fog_color", &"deep_fog_color", &"abyss_fog_color",
+	&"deep_transition_depth", &"abyss_transition_depth",
+	&"distance_depth_gain", &"distance_depth_max",
+	&"sun_direction", &"sun_glow_intensity", &"sun_glow_power",
+	&"atmosphere_leak_distance", &"atmosphere_leak_falloff",
+]
+
 # Parámetros de cáusticas espejados del water_shader una sola vez en el setup (no los muta el weather).
 const _CAUSTICS_PARAMS: Array[StringName] = [
 	&"caustics_texture", &"caustics_scale", &"caustics_speed",
@@ -147,3 +160,17 @@ func _process(_delta: float) -> void:
 		material.set_shader_parameter(param, water_material.get_shader_parameter(param))
 	material.set_shader_parameter(&"sun_direction", sun_direction)
 	_apply_settings()
+	_sync_translucent_block_materials()
+
+
+## Empuja al material de los bloques traslúcidos los parámetros de agua y niebla del quad. Hace
+## falta porque el quad se descarta entero con la cámara dentro de un compartimento seco
+## (underwater.gdshader: inside_ship_interior), y entonces una ventana sumergida es lo único que
+## puede nieblar lo que se ve por ella.
+func _sync_translucent_block_materials() -> void:
+	for block_material in BlockDatabase.get_translucent_materials():
+		var shader_material := block_material as ShaderMaterial
+		if not shader_material:
+			continue
+		for param in _TRANSLUCENT_BLOCK_PARAMS:
+			shader_material.set_shader_parameter(param, material.get_shader_parameter(param))
