@@ -78,6 +78,22 @@ static func analyze(grids_data: Array) -> Array:
 			outside[n] = true
 			queue.append(n)
 
+	# Un bloque parcial pegado al aire exterior es piel del casco y su medio hueco puede caer
+	# FUERA: ni se absorbe ni sirve para crecer, porque taparlo recorta mar a la vista desde el
+	# costado. Los de dentro sí: ahí el hueco es aire del compartimento.
+	var growable: Dictionary = blocks.duplicate()
+	var inner_partial: Dictionary = {}
+	for c: Vector3i in partial:
+		var skin := false
+		for d: Vector3i in _DIRS_ALL:
+			if outside.has(c + d):
+				skin = true
+				break
+		if skin:
+			growable.erase(c)
+		else:
+			inner_partial[c] = true
+
 	# Componentes conexas (6-dir) del aire interior no alcanzado por el exterior.
 	var out: Array = []
 	var visited: Dictionary = {}
@@ -123,15 +139,16 @@ static func analyze(grids_data: Array) -> Array:
 								sill_cell = cell
 							break
 
-				# El rasterizado dio por macizas las celdas de bloque parcial, y su medio hueco
-				# es aire de este compartimento: se absorben como hojas (entran en las cajas,
-				# pero el BFS no se propaga a través de ellas, que siguen siendo pared). Cada
-				# celda va a un solo compartimento para no contar su volumen dos veces.
+				# El rasterizado dio por macizas las celdas de bloque parcial interiores, y su
+				# medio hueco es aire de este compartimento: se absorben como hojas (entran en
+				# las cajas, pero el BFS no se propaga a través de ellas, que siguen siendo
+				# pared). Cada celda va a un solo compartimento para no contar su volumen dos
+				# veces.
 				var air_count := comp_cells.size()
 				for cell: Vector3i in comp_cells.keys():
 					for d4: Vector3i in _DIRS_ALL:
 						var n4 := cell + d4
-						if not partial.has(n4) or partial_taken.has(n4):
+						if not inner_partial.has(n4) or partial_taken.has(n4):
 							continue
 						partial_taken[n4] = true
 						comp_cells[n4] = true
@@ -139,12 +156,12 @@ static func analyze(grids_data: Array) -> Array:
 						cmax = Vector3i(maxi(cmax.x, n4.x), maxi(cmax.y, n4.y), maxi(cmax.z, n4.z))
 				var leaf_count := comp_cells.size() - air_count
 
-				# Las cajas pueden crecer dentro del sólido del casco (invisible: el bloque tapa
-				# el agua enmascarada de más) pero nunca sobre aire exterior ni sobre otro
-				# compartimento, que puede estar inundado. Sin esto una bodega escalonada gasta
-				# más de 100 cajas y revienta el presupuesto de la máscara.
+				# Las cajas pueden crecer dentro del sólido macizo del casco (invisible: el
+				# bloque tapa el agua enmascarada de más) pero nunca sobre aire exterior, sobre
+				# otro compartimento (que puede estar inundado) ni sobre la piel parcial. Sin
+				# esto una bodega escalonada gasta más de 100 cajas y revienta el presupuesto.
 				var boxes: Array = []
-				for box: Dictionary in GridColliderBuilder.merge_boxes(comp_cells, blocks, true):
+				for box: Dictionary in GridColliderBuilder.merge_boxes(comp_cells, growable, true):
 					boxes.append({
 						"pos": (Vector3(box["pos"]) + Vector3(box["size"]) * 0.5) * finest,
 						"half": Vector3(box["size"]) * 0.5 * finest,
