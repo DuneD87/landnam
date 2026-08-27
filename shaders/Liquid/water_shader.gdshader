@@ -31,6 +31,8 @@ uniform float wave_world_scale : hint_range(1.0, 500.0) = 60.0; // metros por ti
 #include "res://shaders/liquid/gerstner_waves.gdshaderinc"
 // waterline_signed(): corte de línea de flotación compartido con underwater.gdshader.
 #include "res://shaders/liquid/underwater_fog.gdshaderinc"
+// calculate_sky_color(): cielo sintético reflejado, compartido con glass_block.gdshader.
+#include "res://shaders/lib/sky_reflection.gdshaderinc"
 // inside_ship_interior(): OBB de cascos de barcos donde no se dibuja agua.
 #include "res://shaders/liquid/ship_interiors.gdshaderinc"
 
@@ -61,14 +63,10 @@ uniform float depth_alpha_end : hint_range(0.001, 10000.0) = 40.0;
 uniform float depth_alpha_power : hint_range(0.01, 10.0) = 1.4;
 uniform float grazing_shore_fade : hint_range(0.0, 20.0, 0.1) = 3.0; // profundidad (m) a la que el oscurecido rasante llega a pleno; evita la línea oscura en la orilla
 
-uniform vec3 sky_color_horizon : source_color = vec3(0.75, 0.85, 0.95);
-uniform vec3 sky_color_zenith : source_color = vec3(0.30, 0.55, 0.85);
-// Mismo degradado con el sol bajo el horizonte: sin esto el agua reflejaba cielo de día 24 h.
-uniform vec3 sky_color_horizon_night : source_color = vec3(0.03, 0.04, 0.07);
-uniform vec3 sky_color_zenith_night : source_color = vec3(0.01, 0.015, 0.035);
+// El degradado de cielo y sus colores viven en sky_reflection.gdshaderinc, compartidos con los
+// bloques traslúcidos: los dos sintetizan el mismo cielo porque no hay cubemap que reflejar.
 uniform float sky_influence : hint_range(0.0, 20.0) = 0.6;
 uniform float sky_fresnel_power : hint_range(0.1, 100.0) = 5.0;
-uniform float sky_gradient_power : hint_range(0.1, 50.0) = 2.5;
 
 uniform vec3 sun_direction = vec3(0.4, -0.7, 0.3);
 uniform vec3 sun_color : source_color = vec3(1.0, 0.95, 0.85);
@@ -156,17 +154,6 @@ varying float spec_light_atten;
 
 float fresnel(float amount, vec3 normal, vec3 view) {
     return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
-}
-
-// Degradado horizonte→cenit del cielo reflejado. `up` es la radial del planeta: usar el eje Y
-// del mundo daba por hecho un mundo plano, y el rayo en view-space ataba el degradado al eje
-// vertical de la CÁMARA (giraba al mover la vista). `day` funde al cielo nocturno.
-vec3 calculate_sky_color(vec3 view_direction, vec3 up, float day) {
-    float vertical_angle = clamp(dot(view_direction, up) * 0.5 + 0.5, 0.0, 1.0);
-    vertical_angle = pow(vertical_angle, sky_gradient_power);
-    vec3 horizon = mix(sky_color_horizon_night, sky_color_horizon, day);
-    vec3 zenith = mix(sky_color_zenith_night, sky_color_zenith, day);
-    return mix(horizon, zenith, vertical_angle);
 }
 
 // Triplanar con UDN blend — devuelve normal en WORLD SPACE

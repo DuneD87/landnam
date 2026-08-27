@@ -83,6 +83,14 @@ const _TRANSLUCENT_BLOCK_PARAMS: Array[StringName] = [
 	&"atmosphere_leak_distance", &"atmosphere_leak_falloff",
 ]
 
+# Colores del cielo sintético, que el cristal refleja igual que la superficie del agua. Estos NO
+# los tiene el quad: su origen es el material del agua, que es donde están afinados.
+const _SKY_PARAMS_FROM_WATER: Array[StringName] = [
+	&"sky_color_horizon", &"sky_color_zenith",
+	&"sky_color_horizon_night", &"sky_color_zenith_night",
+	&"sky_gradient_power",
+]
+
 # Parámetros de cáusticas espejados del water_shader una sola vez en el setup (no los muta el weather).
 const _CAUSTICS_PARAMS: Array[StringName] = [
 	&"caustics_texture", &"caustics_scale", &"caustics_speed",
@@ -169,8 +177,14 @@ func _process(_delta: float) -> void:
 ## puede nieblar lo que se ve por ella.
 func _sync_translucent_block_materials() -> void:
 	for block_material in BlockDatabase.get_translucent_materials():
-		var shader_material := block_material as ShaderMaterial
-		if not shader_material:
-			continue
-		for param in _TRANSLUCENT_BLOCK_PARAMS:
-			shader_material.set_shader_parameter(param, material.get_shader_parameter(param))
+		# El cristal son dos materiales encadenados (transmisión + reflejo) y los dos necesitan
+		# saber dónde está el mar: si solo se le empuja al primero, sus tests de sumergido divergen.
+		var pass_material: Material = block_material
+		while pass_material != null:
+			var shader_material := pass_material as ShaderMaterial
+			if shader_material:
+				for param in _TRANSLUCENT_BLOCK_PARAMS:
+					shader_material.set_shader_parameter(param, material.get_shader_parameter(param))
+				for param in _SKY_PARAMS_FROM_WATER:
+					shader_material.set_shader_parameter(param, water_material.get_shader_parameter(param))
+			pass_material = pass_material.next_pass

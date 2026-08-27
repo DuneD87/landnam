@@ -2,12 +2,23 @@
 
 [ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="1_glass"]
 [ext_resource type="Shader" uid="uid://drfjjwt108xe0" path="res://shaders/materials/glass_block.gdshader" id="2_glass"]
+[ext_resource type="Shader" path="res://shaders/materials/glass_block_tint.gdshader" id="3_glass"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_glass"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_glass_reflect"]
+render_priority = 2
 shader = ExtResource("2_glass")
-shader_parameter/glass_color = Color(0.74, 0.85, 0.87, 0.14)
 shader_parameter/glass_roughness = 0.25
 shader_parameter/glass_specular = 0.5
+shader_parameter/glass_f0 = 0.04
+shader_parameter/glass_reflect_max = 0.55
+shader_parameter/glass_fresnel_power = 5.0
+shader_parameter/sky_influence = 1.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_glass"]
+render_priority = 2
+next_pass = SubResource("ShaderMaterial_glass_reflect")
+shader = ExtResource("3_glass")
+shader_parameter/glass_tint = Color(0.78, 0.9, 0.85, 1)
 
 [resource]
 script = ExtResource("1_glass")
