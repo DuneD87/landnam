@@ -70,7 +70,10 @@ transform = Transform3D(0.028570997, 0.00014801975, 5.465001e-05, -0.00014804606
 light_color = Color(1, 0.7845677, 0.5370987, 1)
 light_energy = 2.0
 light_size = 1.0
-omni_range = 39.43362
+shadow_enabled = true
+distance_fade_enabled = true
+distance_fade_shadow = 15.0
+omni_range = 12.0
 
 [node name="Flame" type="MeshInstance3D" parent="." unique_id=1961831159]
 transform = Transform3D(0.028568745, -0.00023431331, -0.00031352276, 0.00027058413, 0.02835974, 0.0034611274, 0.0002828152, -0.0034638087, 0.028359288, 0.00049296767, 0.7425438, 0.008927946)
