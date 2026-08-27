@@ -1,5 +1,53 @@
-# Normalize EOL for all files that Git considers text files.
+# Texto: normaliza EOL a LF en el repo.
 * text=auto eol=lf
+
+# Fuentes de Godot: texto explicito (evita heuristicas con ficheros grandes).
+*.gd      text eol=lf
+*.tscn    text eol=lf
+*.tres    text eol=lf
+*.gdshader     text eol=lf
+*.gdshaderinc  text eol=lf
+*.import  text eol=lf
+*.uid     text eol=lf
+*.godot   text eol=lf
+*.cfg     text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+# Binarios: sin normalizacion de EOL y sin intentar diffear.
+# (`binary` = -text -diff -merge)
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.bmp   binary
+*.tga   binary
+*.webp  binary
+*.dds   binary
+*.ktx   binary
+*.exr   binary
+*.hdr   binary
+*.psd   binary
+*.glb   binary
+*.fbx   binary
+*.blend binary
+*.obj   binary
+*.bin   binary
+*.res   binary
+*.scn   binary
+*.pck   binary
+*.gltf  -text -diff
+*.ttf   binary
+*.otf   binary
+*.dll   binary
+*.so    binary
+*.dylib binary
+*.exe   binary
+*.pdb   binary
+*.cap   binary
+# Audio (preparado para cuando entre).
+*.ogg   binary
+*.wav   binary
+*.mp3   binary
+*.flac  binary
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs -text

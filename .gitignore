@@ -1,3 +1,24 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Exports
+/build/
+/export/
+*.pck
+
+# Basura temporal de Windows / Godot al reemplazar ficheros
+*.tmp
+*.TMP
+~*
+desktop.ini
+Thumbs.db
+.DS_Store
+*.bak
+*.orig
+*.blend1
+*.blend2
+
+# Binarios nativos de plataformas que no se usan (addons redescargables)
+addons/godot-git-plugin/macos/
+addons/godot-git-plugin/linux/
