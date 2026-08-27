@@ -6,6 +6,8 @@ const BLOCK_CUBE_ID := 0
 const BLOCK_SLOPE_ID := 1
 const BLOCK_CORNER_ID := 2
 const BLOCK_INV_CORNER_ID := 3
+const BLOCK_PANE_ID := 4
+const BLOCK_PANE_SLOPE_ID := 5
 
 signal materials_ready
 
@@ -217,6 +219,26 @@ func _register_default_blocks() -> void:
 	inv_corner.can_rotate = true
 	inv_corner.rotation_steps = 4
 	register_block(inv_corner)
+
+	var pane := BlockData.new()
+	pane.block_id = BLOCK_PANE_ID
+	pane.block_name = "pane"
+	pane.block_description = "Panel plano de una sola lámina, para ventanas"
+	pane.mesh = BlockMeshGenerator.generate_pane()
+	pane.collision_shape = BlockMeshGenerator.generate_pane_collision()
+	pane.can_rotate = true
+	pane.rotation_steps = 4
+	register_block(pane)
+
+	var pane_slope := BlockData.new()
+	pane_slope.block_id = BLOCK_PANE_SLOPE_ID
+	pane_slope.block_name = "pane_slope"
+	pane_slope.block_description = "Panel plano inclinado, en el plano de la rampa"
+	pane_slope.mesh = BlockMeshGenerator.generate_pane_slope()
+	pane_slope.collision_shape = BlockMeshGenerator.generate_pane_slope_collision()
+	pane_slope.can_rotate = true
+	pane_slope.rotation_steps = 4
+	register_block(pane_slope)
 
 func _create_block_item(block: BlockData) -> ItemData:
 	var item := ItemData.new()
