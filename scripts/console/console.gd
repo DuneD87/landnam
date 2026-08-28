@@ -275,7 +275,26 @@ func _register_commands() -> void:
 		"Estado de la retirada de restos: qué condición bloquea a cada cuerpo dinámico.", _cmd_derelicts))
 	_add(ConsoleCommand.new("audio", "audio [evento]",
 		"Estado del pool de voces y descartes; con un evento, lo dispara en el jugador.", _cmd_audio, 1))
+	_add(ConsoleCommand.new("ocean", "ocean",
+		"Mezcla del mar: cuanto se oye, cuanta costa y cuanto temporal.", _cmd_ocean))
 
+
+
+
+## Los dos factores que cruzan los cuatro loops del mar, mas la ganancia global. Si el mar suena
+## raro, aqui se ve si es por la mezcla o por los clips.
+func _cmd_ocean(_args: PackedStringArray) -> String:
+	# El planeta del jugador es el que se oye; PlanetaryBody ya mantiene cual es el mas cercano.
+	var player := _get_player()
+	var loader = player.planet if player != null else null
+	var amb: OceanAmbience = loader.ocean_ambience if loader != null else null
+	if amb == null:
+		return "[color=%s]No hay lecho sonoro de mar montado.[/color]" % COLOR_ERR
+	var out := "[color=%s]Mar[/color]\n" % COLOR_INFO
+	out += "  se oye:   [color=%s]%.2f[/color]\n" % [COLOR_OK, amb.last_gain]
+	out += "  costa:    [color=%s]%.2f[/color]  (1 = rompiente, 0 = mar abierto)\n" % [COLOR_OK, amb.last_shore]
+	out += "  temporal: [color=%s]%.2f[/color]  (0 = tendida, 1 = pleno)" % [COLOR_OK, amb.last_storm]
+	return out
 
 
 ## Diagnóstico del audio. Sin argumento, el estado del pool: si dropped_no_voice sube en juego

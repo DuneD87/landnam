@@ -43,21 +43,29 @@ extends Resource
 var _last_index: int = -1
 
 
+## Un .tres puede referenciar un clip que todavía no está en disco; ese hueco llega como null.
 func is_valid() -> bool:
-	return not streams.is_empty()
+	for stream in streams:
+		if stream != null:
+			return true
+	return false
 
 
 ## Elige una variante al azar, evitando repetir la anterior cuando hay más de una.
 func pick_stream() -> AudioStream:
-	if streams.is_empty():
+	var usable: Array[AudioStream] = []
+	for stream in streams:
+		if stream != null:
+			usable.append(stream)
+	if usable.is_empty():
 		return null
-	if streams.size() == 1:
-		return streams[0]
-	var index := randi() % streams.size()
+	if usable.size() == 1:
+		return usable[0]
+	var index := randi() % usable.size()
 	if index == _last_index:
-		index = (index + 1) % streams.size()
+		index = (index + 1) % usable.size()
 	_last_index = index
-	return streams[index]
+	return usable[index]
 
 
 func roll_volume_db() -> float:
