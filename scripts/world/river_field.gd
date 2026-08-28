@@ -184,8 +184,8 @@ static func _paint(net: Dictionary, hydro_size: Vector2i, size: Vector2i, radius
 
 	for k in count:
 		var o := k * 8
-		var a := _hydro_dir(seg[o], seg[o + 1], hw, hh)
-		var b := _hydro_dir(seg[o + 2], seg[o + 3], hw, hh)
+		var a := hydro_dir(seg[o], seg[o + 1], hw, hh)
+		var b := hydro_dir(seg[o + 2], seg[o + 3], hw, hh)
 		var pa := a * radius
 		var pb := b * radius
 		var ab := pb - pa
@@ -264,7 +264,7 @@ static func _paint(net: Dictionary, hydro_size: Vector2i, size: Vector2i, radius
 
 ## Dirección de una coordenada de téxel fraccionaria del mapa de hidrología (convención acos, la de
 ## WorldMapData).
-static func _hydro_dir(px: float, py: float, w: int, h: int) -> Vector3:
+static func hydro_dir(px: float, py: float, w: int, h: int) -> Vector3:
 	var theta := clampf(py / h, 0.0, 1.0) * PI
 	var lon := (px / w - 0.5) * TAU
 	var st := sin(theta)

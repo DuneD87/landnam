@@ -275,25 +275,29 @@ func _register_commands() -> void:
 		"Estado de la retirada de restos: qué condición bloquea a cada cuerpo dinámico.", _cmd_derelicts))
 	_add(ConsoleCommand.new("audio", "audio [evento]",
 		"Estado del pool de voces y descartes; con un evento, lo dispara en el jugador.", _cmd_audio, 1))
-	_add(ConsoleCommand.new("ocean", "ocean",
-		"Mezcla del mar: cuanto se oye, cuanta costa y cuanto temporal.", _cmd_ocean))
+	_add(ConsoleCommand.new("water", "water",
+		"Mezcla del agua: mar/lago/rio, cuanta costa y cuanto temporal.", _cmd_water))
 
 
 
 
 ## Los dos factores que cruzan los cuatro loops del mar, mas la ganancia global. Si el mar suena
 ## raro, aqui se ve si es por la mezcla o por los clips.
-func _cmd_ocean(_args: PackedStringArray) -> String:
+## Los factores que cruzan las camas del agua. Si el agua suena rara, aqui se ve si es cosa de la
+## mezcla o de los clips.
+func _cmd_water(_args: PackedStringArray) -> String:
 	# El planeta del jugador es el que se oye; PlanetaryBody ya mantiene cual es el mas cercano.
 	var player := _get_player()
 	var loader = player.planet if player != null else null
-	var amb: OceanAmbience = loader.ocean_ambience if loader != null else null
+	var amb: WaterAmbience = loader.water_ambience if loader != null else null
 	if amb == null:
-		return "[color=%s]No hay lecho sonoro de mar montado.[/color]" % COLOR_ERR
-	var out := "[color=%s]Mar[/color]\n" % COLOR_INFO
-	out += "  se oye:   [color=%s]%.2f[/color]\n" % [COLOR_OK, amb.last_gain]
-	out += "  costa:    [color=%s]%.2f[/color]  (1 = rompiente, 0 = mar abierto)\n" % [COLOR_OK, amb.last_shore]
-	out += "  temporal: [color=%s]%.2f[/color]  (0 = tendida, 1 = pleno)" % [COLOR_OK, amb.last_storm]
+		return "[color=%s]No hay lecho sonoro de agua montado.[/color]" % COLOR_ERR
+	var kind := "lago" if amb.last_is_lake else "mar"
+	var out := "[color=%s]Agua[/color]\n" % COLOR_INFO
+	out += "  agua quieta: [color=%s]%.2f[/color]  (%s)\n" % [COLOR_OK, amb.last_gain, kind]
+	out += "  costa:       [color=%s]%.2f[/color]  (1 = rompiente, 0 = mar abierto)\n" % [COLOR_OK, amb.last_shore]
+	out += "  temporal:    [color=%s]%.2f[/color]  (0 = tendida, 1 = pleno)\n" % [COLOR_OK, amb.last_storm]
+	out += "  rio:         [color=%s]%.2f[/color]" % [COLOR_OK, amb.last_river]
 	return out
 
 
