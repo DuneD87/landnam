@@ -10,6 +10,16 @@ const Config = preload("res://scripts/config.gd")
 
 const _SIDES := 2
 const _EPS := 0.0001
+## Margen antes de dar el IK por interrumpido DE VERDAD, a efectos de pisadas. Sobre una cubierta
+## que cabecea, is_on_floor() parpadea uno o dos ticks en cada seno de ola (el barco no esta en
+## platform_floor_layers del cuerpo, asi que no hay enganche de plataforma que lo evite). Eso no
+## es un salto: sin este margen, cada parpadeo se comia la zancada en curso.
+const STEP_REARM_GRACE := 0.2
+
+## Emitido en el instante en que un pie toca el suelo: [side] 0 izquierdo / 1 derecho, [hit]
+## el sondeo (posicion, normal y collider). Da a la vez el momento y sobre que se ha pisado,
+## que es todo lo que necesita el audio de pisadas.
+signal foot_planted(side: int, hit: Dictionary)
 
 @export_group("Huesos")
 @export var hips_bone: String = "mixamorig_Hips"
@@ -34,6 +44,17 @@ const _EPS := 0.0001
 @export var plant_lift_min: float = 0.18
 @export var plant_lift_max: float = 0.40
 
+@export_group("Pisadas")
+## Peso de apoyo por debajo del cual el pie se da por en vuelo y se ARMA la deteccion. Es una
+## medida de la animacion (pie contra cuerpo, los dos a bordo del mismo barco), asi que el mar no
+## puede armar una pisada: una cubierta que se aleja de un pie quieto no es una zancada. Subirlo
+## admite zancadas mas cortas; bajarlo exige levantar mas el pie.
+@export_range(0.0, 1.0) var step_arm_plant: float = 0.5
+## Altura del pie sobre el suelo sondeado, en metros, a la que se DISPARA la pisada. Esta mitad va
+## contra el impacto del rayo y no contra el cuerpo, que es lo que la hace inmune al desfase entre
+## la pose (frame de render) y el cuerpo (tick de fisica, ademas teletransportado en un barco).
+@export var step_fire_lift: float = 0.20
+
 @export_group("Limites")
 @export var max_rise: float = 0.45
 @export var max_drop: float = 0.45
@@ -57,6 +78,13 @@ var _pelvis_offset: float = 0.0
 var _anim_foot_world: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var _has_pose: bool = false
 var _idle: bool = true
+
+## Por pie: si su pisada ya esta contada. Estado del detector, independiente del peso de
+## apoyo que usa el IK. Ver _update_step_edge.
+var _step_down: Array[bool] = [true, true]
+var _was_step_enabled: bool = false
+## Cuanto lleva el IK apagado, para distinguir un parpadeo de un salto.
+var _disabled_time: float = 0.0
 
 var _hips_written: Vector3 = Vector3.INF
 var _hips_shift: Vector3 = Vector3.ZERO
@@ -119,23 +147,32 @@ func _physics_process(delta: float) -> void:
 	var enabled := _is_enabled()
 	var lowest := 0.0
 
+	# El detector de pisadas aguanta un apagon corto; el IK no lo necesita, porque su peso de
+	# apoyo ya se suaviza solo. Con el margen, un parpadeo de is_on_floor pasa desapercibido y
+	# solo un salto de verdad vuelve a cebar los pies.
+	_disabled_time = 0.0 if enabled else _disabled_time + delta
+	var step_enabled := enabled or _disabled_time <= STEP_REARM_GRACE
+	var rearm := step_enabled and not _was_step_enabled
+
 	for i in _SIDES:
 		var target_offset := 0.0
 		var target_normal := up
 
-		var plant := _plant_weight(i, up) if enabled else 0.0
-		if plant > 0.0:
-			var hit := _probe(_anim_foot_world[i], up)
-			if not hit.is_empty():
-				var contact: Vector3 = hit["position"] + up * foot_height
-				target_offset = clampf((contact - _anim_foot_world[i]).dot(up), -max_drop, max_rise) * plant
-				target_normal = up.lerp(hit["normal"], plant).normalized()
+		var plant := _plant_weight(i, up) if step_enabled else 0.0
+		var hit := _probe(_anim_foot_world[i], up) if step_enabled else {}
+		if enabled and plant > 0.0 and not hit.is_empty():
+			var contact: Vector3 = hit["position"] + up * foot_height
+			target_offset = clampf((contact - _anim_foot_world[i]).dot(up), -max_drop, max_rise) * plant
+			target_normal = up.lerp(hit["normal"], plant).normalized()
+		_update_step_edge(i, plant, hit, up, step_enabled, rearm)
 
 		var t_pos := 1.0 - exp(-offset_speed * delta)
 		var t_rot := 1.0 - exp(-normal_speed * delta)
 		_foot_offset[i] = lerpf(_foot_offset[i], target_offset, t_pos)
 		_foot_normal[i] = _foot_normal[i].lerp(target_normal, t_rot).normalized()
 		lowest = minf(lowest, _foot_offset[i])
+
+	_was_step_enabled = step_enabled
 
 	var target_pelvis := clampf(lowest, -max_pelvis_drop, 0.0)
 	_pelvis_offset = lerpf(_pelvis_offset, target_pelvis, 1.0 - exp(-pelvis_speed * delta))
@@ -149,6 +186,30 @@ func _physics_process(delta: float) -> void:
 func _plant_weight(side: int, up: Vector3) -> float:
 	var lift := (_anim_foot_world[side] - _body.global_position).dot(up)
 	return 1.0 - smoothstep(plant_lift_min, plant_lift_max, lift)
+
+
+## Emite foot_planted cuando el pie baja al suelo tras haber estado claramente en vuelo. La
+## altura se mide contra el impacto del sondeo, que sale del propio pie: por eso vale igual sobre
+## un barco cabeceando, donde el origen del cuerpo se mueve centimetros por tick y no sirve de
+## referencia. Con el IK apagado el estado se congela, y al volver se ceba como ya pisado: ese
+## golpe es el aterrizaje de un salto y tiene su propio sonido, no dos pisadas.
+func _update_step_edge(side: int, plant: float, hit: Dictionary, up: Vector3, enabled: bool,
+		rearm: bool) -> void:
+	if not enabled or hit.is_empty():
+		return
+	if rearm:
+		_step_down[side] = true
+		return
+	# Armar es cosa de la animacion: solo una zancada de verdad levanta el pie respecto al cuerpo.
+	if _step_down[side]:
+		if plant <= step_arm_plant:
+			_step_down[side] = false
+		return
+	# Disparar es cosa de la geometria: el pie ha llegado al suelo que tiene debajo, sea el que sea.
+	var ground: Vector3 = hit["position"]
+	if (_anim_foot_world[side] - ground).dot(up) <= step_fire_lift:
+		_step_down[side] = true
+		foot_planted.emit(side, hit)
 
 
 ## El IK solo actua con el personaje apoyado, fuera del agua y cerca de la camara.

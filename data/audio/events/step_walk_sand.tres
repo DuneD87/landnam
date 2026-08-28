@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=22 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="script"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_01.wav" id="snd_0"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_02.wav" id="snd_1"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_03.wav" id="snd_2"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_04.wav" id="snd_3"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_05.wav" id="snd_4"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_06.wav" id="snd_5"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_07.wav" id="snd_6"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_08.wav" id="snd_7"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_09.wav" id="snd_8"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_10.wav" id="snd_9"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_11.wav" id="snd_10"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_12.wav" id="snd_11"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_13.wav" id="snd_12"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_14.wav" id="snd_13"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_15.wav" id="snd_14"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_16.wav" id="snd_15"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_17.wav" id="snd_16"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_18.wav" id="snd_17"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_19.wav" id="snd_18"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_sand/footsteps_sand_walk/footsteps_sand_walk_20.wav" id="snd_19"]
+
+[resource]
+script = ExtResource("script")
+event_id = &"step_walk_sand"
+streams = Array[AudioStream]([ExtResource("snd_0"), ExtResource("snd_1"), ExtResource("snd_2"), ExtResource("snd_3"), ExtResource("snd_4"), ExtResource("snd_5"), ExtResource("snd_6"), ExtResource("snd_7"), ExtResource("snd_8"), ExtResource("snd_9"), ExtResource("snd_10"), ExtResource("snd_11"), ExtResource("snd_12"), ExtResource("snd_13"), ExtResource("snd_14"), ExtResource("snd_15"), ExtResource("snd_16"), ExtResource("snd_17"), ExtResource("snd_18"), ExtResource("snd_19")])
+volume_db = -12.00
+volume_jitter_db = 2.50
+pitch_jitter = 0.08
+max_distance = 18.00
+unit_size = 1.50
+max_voices = 4
+cooldown = 0.05

@@ -1,6 +1,7 @@
 [gd_scene format=4 uid="uid://c1vquhxt75l31"]
 
 [ext_resource type="Script" uid="uid://cn32aycdueqh7" path="res://scripts/player/player_controller.gd" id="1_smlm8"]
+[ext_resource type="Script" path="res://scripts/audio/character_footsteps.gd" id="footsteps_audio"]
 [ext_resource type="Script" uid="uid://coeewlktybkhm" path="res://scripts/player/movement.gd" id="2_l8r5w"]
 [ext_resource type="Script" uid="uid://cw1dc0n2atqjh" path="res://scripts/player/cam_controller.gd" id="4_5at7g"]
 [ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/ui/inventory/inventory.gd" id="4_05eln"]
@@ -232,6 +233,9 @@ floor_max_angle = 1.0471976
 platform_on_leave = 2
 platform_floor_layers = 4294901760
 script = ExtResource("1_smlm8")
+
+[node name="Footsteps" type="Node" parent="." unique_id=1770045312]
+script = ExtResource("footsteps_audio")
 
 [node name="Movement" type="Node" parent="." unique_id=2138193274]
 script = ExtResource("2_l8r5w")

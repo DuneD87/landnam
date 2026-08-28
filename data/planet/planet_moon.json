@@ -25,6 +25,8 @@
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png",
 			"res://textures/Terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png"
 		],
+		"sound_materials": ["gravel", "snow", "dirtyground"],
+		"slope_sound_material": "dirtyground",
 		"normal_textures": [
 			"res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Normal-ogl.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png",

@@ -25,6 +25,7 @@ GameManager="*res://scripts/autoload/game_manager.gd"
 BlockDatabase="*uid://c3g5h784f1gjq"
 GridManager="*uid://d2t2hkl7mbh3b"
 Console="*res://scripts/console/console.gd"
+AudioManager="*res://scripts/audio/audio_manager.gd"
 
 [display]
 

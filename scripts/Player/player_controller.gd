@@ -1128,6 +1128,7 @@ func _apply_water_flow() -> void:
 
 func _check_needs_swimming(delta: float):
 	if !planet || !planet.planet.has_water || not is_inside_tree():
+		AudioManager.set_underwater(false)
 		return
 
 	var to_center := global_position - planet.global_position
@@ -1154,6 +1155,12 @@ func _check_needs_swimming(delta: float):
 	# En un compartimento seco de un barco el agua no existe: sin nado bajo la superficie.
 	movement.is_swimming = distance_from_center <= (_water_surface_radius - swimming_offset) \
 		and not GridManager.is_point_in_dry_interior(global_position)
+
+	# El filtro submarino lo decide la cámara, no el cuerpo: en tercera persona se nada con los
+	# oídos fuera del agua, y el sonido tiene que ir con lo que se ve. El radio de superficie es
+	# el muestreado en el jugador; a la distancia de cámara la diferencia es una ola.
+	var ears := camera.global_position if camera else global_position
+	AudioManager.set_underwater(ears.distance_to(_water_surface_center) <= _water_surface_radius)
 	
 	current_water_time += delta
 

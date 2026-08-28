@@ -273,7 +273,33 @@ func _register_commands() -> void:
 		"De la estructura apuntada: cuántos bloques se apoyan en el suelo y cuántos se caerían.", _cmd_anchors))
 	_add(ConsoleCommand.new("derelicts", "derelicts",
 		"Estado de la retirada de restos: qué condición bloquea a cada cuerpo dinámico.", _cmd_derelicts))
+	_add(ConsoleCommand.new("audio", "audio [evento]",
+		"Estado del pool de voces y descartes; con un evento, lo dispara en el jugador.", _cmd_audio, 1))
 
+
+
+## Diagnóstico del audio. Sin argumento, el estado del pool: si dropped_no_voice sube en juego
+## normal el pool se queda corto, y si sube dropped_budget es que un evento se está pidiendo en
+## ráfaga y su cooldown lo está tapando.
+func _cmd_audio(args: PackedStringArray) -> String:
+	if args.size() >= 1:
+		var event_id := StringName(args[0])
+		if not AudioManager.has_event(event_id):
+			return "[color=%s]No existe el evento '%s'.[/color]" % [COLOR_ERR, args[0]]
+		var player := _get_player()
+		if player == null:
+			return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+		if AudioManager.play_3d(event_id, player.global_position) == null:
+			return "[color=%s]'%s' descartado (mudo, sin voz o en cooldown).[/color]" % [COLOR_INFO, args[0]]
+		return "[color=%s]Sonando '%s'.[/color]" % [COLOR_OK, args[0]]
+
+	var stats := AudioManager.get_debug_stats()
+	var out := "[color=%s]Audio[/color]
+" % COLOR_INFO
+	for key in stats:
+		out += "  %s: [color=%s]%s[/color]
+" % [key, COLOR_OK, stats[key]]
+	return out.strip_edges()
 
 
 func _cmd_help(args: PackedStringArray) -> String:

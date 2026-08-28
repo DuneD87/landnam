@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3 uid="uid://wsaj3f8akhdk"]
+
+[ext_resource type="Script" uid="uid://c1svcu0j5y2m3" path="res://scripts/audio/sound_event.gd" id="1_sound_event"]
+[ext_resource type="AudioStream" uid="uid://nojk4esowbxe" path="res://audio/building/remove_block.wav" id="2_1wais"]
+
+[resource]
+script = ExtResource("1_sound_event")
+event_id = &"block_remove"
+streams = Array[AudioStream]([ExtResource("2_1wais")])
+volume_db = -3.0
+volume_jitter_db = 2.0
+pitch_jitter = 0.1
+max_distance = 45.0
+unit_size = 3.0
+cooldown = 0.04

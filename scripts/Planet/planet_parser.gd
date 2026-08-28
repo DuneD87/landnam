@@ -38,6 +38,12 @@ class_name PlanetParser extends Node3D
 @export var ao_textures: Array[Texture2D] = []
 @export var height_textures: Array[Texture2D] = []
 
+## Familia de sonido de cada textura de terreno, en el mismo orden que "textures". La usan
+## las pisadas (ver SurfaceAudio): sin ella, todo el planeta suena a la familia por defecto.
+@export var sound_materials: Array[StringName] = []
+## Familia de sonido de la textura de pendiente.
+@export var slope_sound_material: StringName = &"rock"
+
 @export var slope_texture: Texture2D
 @export var slope_normal_texture: Texture2D
 @export var slope_roughness_texture: Texture2D
@@ -197,6 +203,11 @@ func load_config(config_path: String):
 	height_transition_noise_strength = float(biome_settings.get("height_transition_noise_strength", height_transition_noise_strength))
 	macro_variation_scale = float(biome_settings.get("macro_variation_scale", macro_variation_scale))
 	macro_variation_strength = float(biome_settings.get("macro_variation_strength", macro_variation_strength))
+	slope_sound_material = StringName(biome_settings.get("slope_sound_material", slope_sound_material))
+
+	sound_materials = []
+	for value in biome_settings.get("sound_materials", []):
+		sound_materials.append(StringName(value))
 
 	max_heights = []
 	for value in biome_settings.max_heights:

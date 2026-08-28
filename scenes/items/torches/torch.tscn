@@ -6,6 +6,7 @@
 [ext_resource type="Texture2D" uid="uid://gdsnb21ahjpr" path="res://models/equipable/torches/torch_normal.png" id="4_7dgni"]
 [ext_resource type="Material" uid="uid://cqdcgc12ykrc7" path="res://data/resources/torch_flame_material.tres" id="5_flame"]
 [ext_resource type="Script" uid="uid://fcv4r3r1ybwh" path="res://scripts/effects/volumetric_fire.gd" id="6_flame"]
+[ext_resource type="Script" uid="uid://dc3bas65yhik5" path="res://scripts/audio/entity_audio.gd" id="7_audio"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qo3w8"]
 resource_name = "Material_0"
@@ -82,3 +83,7 @@ extra_cull_margin = 1.0
 instance_shader_parameters/up_axis = Vector3(0.88344294, 0.46065846, -0.08557127)
 mesh = SubResource("QuadMesh_flame")
 script = ExtResource("6_flame")
+
+[node name="EntityAudio" type="Node" parent="Flame" unique_id=1770045311]
+script = ExtResource("7_audio")
+loop_event = &"fire_loop"

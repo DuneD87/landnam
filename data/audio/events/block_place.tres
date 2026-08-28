@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3 uid="uid://cf42wef8vhdbb"]
+
+[ext_resource type="Script" uid="uid://c1svcu0j5y2m3" path="res://scripts/audio/sound_event.gd" id="1_sound_event"]
+[ext_resource type="AudioStream" uid="uid://b7rnnr1miobrl" path="res://audio/building/place_block.wav" id="2_arp6w"]
+
+[resource]
+script = ExtResource("1_sound_event")
+event_id = &"block_place"
+streams = Array[AudioStream]([ExtResource("2_arp6w")])
+volume_db = -4.0
+volume_jitter_db = 2.0
+pitch_jitter = 0.08
+max_distance = 40.0
+unit_size = 3.0
+cooldown = 0.04

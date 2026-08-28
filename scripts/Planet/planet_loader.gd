@@ -191,6 +191,8 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.biome_transition_smoothness = planet_parser.biome_transition_smoothness
 	planet.max_heights = planet_parser.max_heights
 	planet.biome_texture_indices = planet_parser.biome_texture_indices
+	planet.sound_materials = planet_parser.sound_materials
+	planet.slope_sound_material = planet_parser.slope_sound_material
 	planet.biome_noise_enabled = planet_parser.biome_noise_enabled
 	planet.biome_noise_source_texture_indices = planet_parser.biome_noise_source_texture_indices
 	planet.biome_noise_target_texture_indices = planet_parser.biome_noise_target_texture_indices

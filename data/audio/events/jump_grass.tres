@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="script"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_01.wav" id="snd_0"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_02.wav" id="snd_1"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_03.wav" id="snd_2"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_04.wav" id="snd_3"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_05.wav" id="snd_4"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_06.wav" id="snd_5"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_07.wav" id="snd_6"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_08.wav" id="snd_7"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_09.wav" id="snd_8"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_jump/footsteps_grass_jump_start_10.wav" id="snd_9"]
+
+[resource]
+script = ExtResource("script")
+event_id = &"jump_grass"
+streams = Array[AudioStream]([ExtResource("snd_0"), ExtResource("snd_1"), ExtResource("snd_2"), ExtResource("snd_3"), ExtResource("snd_4"), ExtResource("snd_5"), ExtResource("snd_6"), ExtResource("snd_7"), ExtResource("snd_8"), ExtResource("snd_9")])
+volume_db = -8.00
+volume_jitter_db = 2.00
+pitch_jitter = 0.06
+max_distance = 22.00
+unit_size = 2.00
+max_voices = 2
+cooldown = 0.08

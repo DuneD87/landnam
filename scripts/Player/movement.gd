@@ -38,6 +38,8 @@ var ai_direction: Vector3 = Vector3.ZERO
 
 ## Emitido al aterrizar tras un vuelo. [impact_speed] = velocidad descendente máxima (m/s).
 signal landed(impact_speed: float)
+## Emitido en el frame en que arranca un salto.
+signal jumped()
 var _was_on_floor: bool = true
 var _peak_airborne_speed: float = 0.0
 
@@ -48,6 +50,7 @@ func handle_jump_movement(delta: float, gravity_strength: float, gravity_directi
 		is_jumping = true
 		jump_velocity = sqrt(2 * jump_height * gravity_strength)
 		current_animation = Config.ANIMATION.JUMP_START
+		jumped.emit()
 		
 	if is_jumping:
 		velocity += -gravity_direction.normalized() * jump_velocity * delta * mass

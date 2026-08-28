@@ -32,6 +32,12 @@ const config = preload("res://scripts/config.gd")
 @export var roughness_textures: Array[Texture2D] = []
 @export var ao_textures: Array[Texture2D] = []
 @export var height_textures: Array[Texture2D] = []
+
+## Familia de sonido de cada textura de terreno, en el mismo orden que "textures". La usan
+## las pisadas (ver SurfaceAudio): sin ella, todo el planeta suena a la familia por defecto.
+@export var sound_materials: Array[StringName] = []
+## Familia de sonido de la textura de pendiente.
+@export var slope_sound_material: StringName = &"rock"
 @export var slope_texture: Texture2D
 @export var slope_normal_texture: Texture2D
 @export var slope_roughness_texture: Texture2D

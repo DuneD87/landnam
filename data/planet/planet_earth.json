@@ -48,6 +48,8 @@
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
 			"res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png"
 		],
+		"sound_materials": ["sand", "grass", "snow", "dirtyground", "rock"],
+		"slope_sound_material": "dirtyground",
 		"normal_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_normal-ogl.png",
 			"res://textures/Terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png",

@@ -577,6 +577,9 @@ func try_place_block() -> bool:
 		push_error("[BuildingSystem] Failed to place block.")
 		return false
 
+	AudioManager.play_material(&"block_place", _sound_material_for(block_data, mat),
+		_target_world_pos)
+
 	if _should_mirror():
 		var mirror_pos := _get_mirror_pos(_target_grid_pos, grid)
 		if mirror_pos != _target_grid_pos and not grid.has_block(mirror_pos):
@@ -620,6 +623,8 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 
 	var data := grid.remove_block(grid_pos)
 	_refund_block(data, grid.cell_size)
+	AudioManager.play_material(&"block_remove", _removed_sound_material(data),
+		grid.grid_to_world(grid_pos))
 
 	if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid \
 	   and (grid == mirror_grid or _basis_compatible(grid.get_basis_world(), mirror_grid.get_basis_world())):
@@ -694,6 +699,20 @@ func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
 	var refund := mini(cost, ceili(cost * clampf(hp, 0.0, 1.0)))
 	if refund > 0:
 		_inventory.add_item(build_mat.item, refund)
+
+
+## Familia de sonido de un bloque: manda la del propio BlockData (props, bloques fijos) y,
+## si no la declara, la del material con el que se construye.
+func _sound_material_for(block_data: BlockData, mat: BuildMaterial) -> StringName:
+	if block_data and block_data.sound_material != &"":
+		return block_data.sound_material
+	return mat.sound_material if mat else &""
+
+
+## Igual, para un bloque ya retirado: el dict de remove_block() solo conserva su material_id.
+func _removed_sound_material(block_info: Dictionary) -> StringName:
+	var mat := _find_build_material(block_info.get("material_id", ""))
+	return mat.sound_material if mat else &""
 
 
 func _find_build_material(mat_id: String) -> BuildMaterial:

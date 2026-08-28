@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_sound_event"]
+
+[resource]
+script = ExtResource("1_sound_event")
+event_id = &"ui_open"
+bus = "UI"
+volume_db = -6.00
+max_voices = 2
+cooldown = 0.02

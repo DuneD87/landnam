@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="script"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_tile/footsteps_tile_run/footsteps_tile_run_01.wav" id="snd_0"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_tile/footsteps_tile_run/footsteps_tile_run_02.wav" id="snd_1"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_tile/footsteps_tile_run/footsteps_tile_run_03.wav" id="snd_2"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_tile/footsteps_tile_run/footsteps_tile_run_04.wav" id="snd_3"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_tile/footsteps_tile_run/footsteps_tile_run_05.wav" id="snd_4"]
+[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_tile/footsteps_tile_run/footsteps_tile_run_06.wav" id="snd_5"]
+
+[resource]
+script = ExtResource("script")
+event_id = &"step_run_tile"
+streams = Array[AudioStream]([ExtResource("snd_0"), ExtResource("snd_1"), ExtResource("snd_2"), ExtResource("snd_3"), ExtResource("snd_4"), ExtResource("snd_5")])
+volume_db = -8.00
+volume_jitter_db = 2.50
+pitch_jitter = 0.08
+max_distance = 24.00
+unit_size = 2.00
+max_voices = 4
+cooldown = 0.05

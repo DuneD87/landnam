@@ -20,6 +20,9 @@ extends Resource
 
 ## Material
 @export var material_override: Material = null
+## Familia de sonido de respaldo, para bloques que no pasan por un BuildMaterial.
+## Vacía = manda la del BuildMaterial con el que se coloque.
+@export var sound_material: StringName = &""
 
 ## Tamaño de celda en la grid (por defecto 1m³)
 @export var cell_size: float = 1.0

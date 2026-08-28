@@ -54,6 +54,7 @@ func _register_default_materials() -> void:
 	stone.display_name = "Stone"
 	stone.item = config_ref.get_item(&"stone_01")
 	stone.base_cost = 1
+	stone.sound_material = &"rock"
 	stone.surface_material = stone.item.surface_material
 	build_materials.append(stone)
 
@@ -62,6 +63,7 @@ func _register_default_materials() -> void:
 	wood.display_name = "Wood"
 	wood.item = config_ref.get_item(&"wood_01")
 	wood.base_cost = 1
+	wood.sound_material = &"wood"
 	wood.surface_material = wood.item.surface_material
 	build_materials.append(wood)
 
@@ -70,6 +72,7 @@ func _register_default_materials() -> void:
 	glass.display_name = "Glass"
 	glass.item = config_ref.get_item(&"glass_01")
 	glass.base_cost = 1
+	glass.sound_material = &"tile"
 	glass.surface_material = glass.item.surface_material
 	glass.preview_color = Color(0.60, 0.85, 0.95)
 	glass.translucent = true
