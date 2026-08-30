@@ -124,7 +124,7 @@ var _interior_debounce: float = 0.0
 var _analysis_running: bool = false
 var _analysis_task_id: int = -1
 
-var _boat_speed_levels: Array[float] = [0.0, 50.0, 100.0, 200.0]
+var _boat_speed_levels: Array[float] = [0.0, 5.0, 10.0, 20.0]
 var _boat_speed_index: int = 0
 var _boat_target_speed: float = 0.0
 var _boat_current_speed: float = 0.0
@@ -771,6 +771,11 @@ func _detect_impact(state: PhysicsDirectBodyState3D) -> void:
 	var best_other: Object = null
 
 	for i in contacts:
+		# Un personaje es kinemático: el solver lo trata como inmóvil y la energía saldría de la masa
+		# del CASCO, así que un jugador quieto sobre cubierta abriría un boquete a su alrededor.
+		var other := state.get_contact_collider_object(i)
+		if other is CharacterBody3D:
+			continue
 		var pos := state.get_contact_collider_position(i)
 		var arm := pos - com
 		if arm.length_squared() < 0.0001:
@@ -789,7 +794,7 @@ func _detect_impact(state: PhysicsDirectBodyState3D) -> void:
 		if closing > best_speed:
 			best_speed = closing
 			best_pos = pos
-			best_other = state.get_contact_collider_object(i)
+			best_other = other
 
 	if best_speed <= IMPACT_MIN_SPEED:
 		return
