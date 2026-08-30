@@ -30,6 +30,10 @@ func setup(hbar: Hotbar, bsys: BuildingSystem) -> void:
 	building_system = bsys
 	hotbar.hotbar_slot_clicked.connect(_on_hotbar_slot_clicked)
 	_populate_blocks()
+	# Al arrancar los items ya existen pero sus iconos aún se están renderizando: se repuebla
+	# cuando terminen para no enseñar una rejilla de huecos vacíos.
+	if not BlockDatabase.are_materials_ready():
+		BlockDatabase.materials_ready.connect(_populate_blocks)
 
 
 func toggle() -> void:

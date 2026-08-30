@@ -10,6 +10,9 @@ const BLOCK_PANE_ID := 4
 const BLOCK_PANE_SLOPE_ID := 5
 
 signal materials_ready
+## Salta cada vez que un item estrena icono, para que la UI ya pintada se refresque sobre la
+## marcha en vez de esperar al final de una tanda que dura segundos.
+signal icon_generated
 
 var _blocks: Dictionary = {}
 var _blocks_by_name: Dictionary = {}
@@ -26,28 +29,55 @@ func _ready() -> void:
 	_register_default_materials()
 	_icon_generator = BlockIconGenerator.new()
 	add_child(_icon_generator)
-	_generate_block_icons()
-	_generate_block_material_items()
-	
+	_create_block_material_items()
+	_generate_all_icons()
+
 	print("[BlockDatabase] Registrados %d bloques." % _blocks.size())
-	
-func _generate_block_icons() -> void:
-	for id in get_all_ids():
-		var block := get_block(id)
-		if block.preview_icon:
+
+
+## Si los iconos ya están renderizados. Quien pinte items antes de tiempo tiene que repintarlos
+## con icon_generated, o se queda con la textura vacía para siempre.
+func are_materials_ready() -> bool:
+	return _materials_generated
+
+
+## Renderiza en serie todos los iconos del juego. Un único coroutine a propósito: el generador
+## comparte viewport y MeshInstance, y dos cadenas de iconos a la vez se pisan el render entre
+## await y await, de modo que cada una acaba capturando el bloque de la otra.
+func _generate_all_icons() -> void:
+	await _generate_material_item_icons()
+	await _generate_block_material_icons()
+	_assign_generic_block_icons()
+	_materials_generated = true
+	materials_ready.emit()
+
+	var missing := 0
+	for item in _block_material_items:
+		if not item.icon:
+			missing += 1
+	if missing > 0:
+		push_warning("[BlockDatabase] %d de %d items bloque+material se quedaron sin icono." % [missing, _block_material_items.size()])
+	print("[BlockDatabase] Generated icons for %d block+material items." % _block_material_items.size())
+
+
+## El icono del bloque genérico es el del mismo bloque en el primer material, que ya está
+## renderizado: se reutiliza en vez de volver a pasar por el viewport. Cada render cuesta dos
+## frames y en el arranque, con el terreno streameando, esos frames son décimas de segundo.
+func _assign_generic_block_icons() -> void:
+	if build_materials.is_empty():
+		return
+	var first_id := build_materials[0].material_id
+	for item in _block_material_items:
+		if item.build_material_id != first_id or not item.icon:
 			continue
-		var mat: Material = null
-		if not build_materials.is_empty():
-			mat = build_materials[0].surface_material
-		var icon := await _icon_generator.generate_icon(block.mesh, mat)
-		if icon:
-			block.preview_icon = icon
-			var item := _block_items.get(id) as ItemData
-			if item:
-				item.icon = icon
-	print("[BlockDatabase] Generated icons for %d blocks." % _blocks.size())
-	
-	
+		var block := get_block(item.block_id)
+		if block and not block.preview_icon:
+			block.preview_icon = item.icon
+		var generic := _block_items.get(item.block_id) as ItemData
+		if generic and not generic.icon:
+			generic.icon = item.icon
+
+
 func _register_default_materials() -> void:
 	var stone := BuildMaterial.new()
 	stone.material_id = "stone"
@@ -126,10 +156,13 @@ func _generate_material_item_icons() -> void:
 		var icon := await _icon_generator.generate_icon(cube.mesh, _icon_material_of(mat))
 		if icon:
 			mat.item.icon = icon
+			icon_generated.emit()
 
-func _generate_block_material_items() -> void:
+## Crea el ItemData de cada combinación bloque+material. Síncrono a propósito: el hotbar restaura
+## sus huecos por (block_id, material_id) y, si los items todavía no existen, cae al bloque
+## genérico —que no lleva material— y acaba colocando el que hubiera seleccionado.
+func _create_block_material_items() -> void:
 	_block_material_items.clear()
-	await _generate_material_item_icons()
 	for mat in build_materials:
 		for block_id in get_all_ids():
 			var block := get_block(block_id)
@@ -143,18 +176,21 @@ func _generate_block_material_items() -> void:
 			item.surface_material = mat.surface_material
 			item.stackable = false
 			item.max_stack = 1
-
-			var icon := await _icon_generator.generate_icon(block.mesh, _icon_material_of(mat))
-			if icon:
-				item.icon = icon
-				if not block.preview_icon:
-					block.preview_icon = icon
-
 			_block_material_items.append(item)
 
-	_materials_generated = true
-	materials_ready.emit()
-	print("[BlockDatabase] Generated %d block+material items with icons." % _block_material_items.size())
+
+## Rellena el icono de los items bloque+material, ya creados.
+func _generate_block_material_icons() -> void:
+	for item in _block_material_items:
+		var block := get_block(item.block_id)
+		var mat := get_material_by_id(item.build_material_id)
+		if not block or not mat:
+			continue
+		var icon := await _icon_generator.generate_icon(block.mesh, _icon_material_of(mat))
+		if icon:
+			item.icon = icon
+			icon_generated.emit()
+
 
 func get_block_items_by_material() -> Dictionary:
 	var result := {}

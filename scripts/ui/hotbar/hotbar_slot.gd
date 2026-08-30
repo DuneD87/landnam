@@ -53,6 +53,13 @@ func assign(item_data: ItemData) -> void:
 	_update_style()
 
 
+## Vuelve a leer el icono del item. Los de bloque se renderizan en el arranque y pueden llegar
+## después de que el hueco se haya rellenado (restaurar una partida), y assign() solo copia.
+func refresh_icon() -> void:
+	if assigned_data:
+		icon_rect.texture = assigned_data.icon
+
+
 func clear() -> void:
 	assigned_data = null
 	icon_rect.texture = null

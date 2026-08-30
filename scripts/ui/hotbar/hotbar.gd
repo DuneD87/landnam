@@ -22,6 +22,25 @@ var _key_actions: Array[StringName] = [
 func _ready() -> void:
 	_ensure_input_actions()
 	_create_slots()
+	# Los iconos de bloque se renderizan uno a uno al arrancar y la tanda dura segundos. assign()
+	# copia la textura del item en ese instante y no vuelve a mirarla, así que restaurar una
+	# partida a medias dejaba en blanco todo lo que aún no se hubiera renderizado. Repintar solo al
+	# final tampoco basta: hay huecos que estrenan icono en mitad de la tanda, así que se repinta
+	# con cada uno hasta que están todos.
+	if not BlockDatabase.are_materials_ready():
+		BlockDatabase.icon_generated.connect(_refresh_slot_icons)
+		BlockDatabase.materials_ready.connect(_on_block_icons_ready)
+
+
+func _on_block_icons_ready() -> void:
+	if BlockDatabase.icon_generated.is_connected(_refresh_slot_icons):
+		BlockDatabase.icon_generated.disconnect(_refresh_slot_icons)
+	_refresh_slot_icons()
+
+
+func _refresh_slot_icons() -> void:
+	for slot in slots:
+		slot.refresh_icon()
 
 func _process(delta: float) -> void:
 	if Input.is_action_pressed("left_ctrl"):
@@ -144,7 +163,18 @@ func get_save_data() -> Array:
 	return result
 
 
+## Vuelca en la barra los huecos guardados. Cargar puede pasar sobre una partida en curso, así que
+## primero se vacía entera: los huecos que el save dejó vacíos tienen que quedar vacíos, y la
+## selección se reinicia para que select_slot() no lea el hueco ya elegido como un clic y lo apague.
 func restore_save_data(data: Array, config: Object) -> void:
+	var previous: ItemData = get_selected_data()
+	for i in HOTBAR_SLOTS:
+		slots[i].set_selected(false)
+		slots[i].clear()
+	selected_index = -1
+	if previous:
+		selection_changed.emit(previous, null)
+
 	for i in mini(data.size(), HOTBAR_SLOTS):
 		var value = data[i]
 		if value == null:
@@ -160,6 +190,7 @@ func restore_save_data(data: Array, config: Object) -> void:
 							item_data = item
 							break
 			if not item_data:
+				push_warning("[Hotbar] Sin item para bloque %s de material '%s'; se restaura el bloque genérico." % [value["block_id"], mat_id])
 				item_data = BlockDatabase.get_block_item(value["block_id"])
 		else:
 			item_data = config.get_item(StringName(value["id"]))

@@ -25,7 +25,6 @@ signal action_mode_changed(mode: ActionMode)
 @export var cell_size: float = 1.0
 @export var max_build_distance: float = 8.0
 
-var _icon_generator: BlockIconGenerator
 var _mirror_visual: MirrorPlaneVisual = null
 
 var mirror_axis: MirrorAxis = MirrorAxis.NONE
@@ -66,12 +65,19 @@ var _cached_grid_for_placement: GridBase = null
 var _hit_grid_for_alignment: GridBase = null
 var current_action_mode: ActionMode = ActionMode.BUILD
 
+## Cambia el material de construcción activo. Un id que no case (bloque genérico, sin material)
+## solía dejar puesto el anterior, y el bloque salía del material elegido la vez anterior aunque
+## el icono del hotbar dijera otra cosa; ahora cae al primero, con el que se pinta ese icono.
 func set_material_by_id(mat_id: String) -> void:
 	for i in BlockDatabase.build_materials.size():
 		if BlockDatabase.build_materials[i].material_id == mat_id:
 			current_material_index = i
 			material_changed.emit(get_current_material())
 			return
+	if mat_id != "":
+		push_warning("[BuildingSystem] Material de construcción desconocido: '%s'." % mat_id)
+	current_material_index = 0
+	material_changed.emit(get_current_material())
 
 func _add_mirror_visual_to_scene() -> void:
 	get_tree().current_scene.add_child(_mirror_visual)

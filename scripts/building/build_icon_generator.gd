@@ -18,6 +18,7 @@ var _camera: Camera3D
 var _light: DirectionalLight3D
 var _mesh_instance: MeshInstance3D
 var _is_ready := false
+var _busy := false
 
 
 func _ready() -> void:
@@ -80,6 +81,17 @@ func generate_icon(mesh: Mesh, material: Material = null) -> ImageTexture:
 	if not _is_ready:
 		push_warning("[BlockIconGenerator] Not ready yet.")
 		return null
+	# Antes de tomar el turno: un mesh nulo aborta la función a medias y deja _busy puesto, con lo
+	# que todos los iconos que vengan detrás se quedan esperando un turno que no llega nunca.
+	if not mesh:
+		push_warning("[BlockIconGenerator] Mesh nulo, no hay icono que generar.")
+		return null
+
+	# El viewport y el MeshInstance son únicos, y entre await y await no hay nada que los proteja:
+	# dos generaciones simultáneas se pisan el mesh y cada una captura el render de la otra.
+	while _busy:
+		await get_tree().process_frame
+	_busy = true
 
 	var aabb := mesh.get_aabb()
 	var center := aabb.get_center()
@@ -104,5 +116,6 @@ func generate_icon(mesh: Mesh, material: Material = null) -> ImageTexture:
 	_mesh_instance.mesh = null
 	_mesh_instance.material_override = null
 	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_busy = false
 
 	return texture
