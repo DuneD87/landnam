@@ -9,7 +9,9 @@ extends Node
 ## Carpeta que se escanea al arrancar. Cada .tres de SoundEvent que caiga ahí entra al catálogo.
 const EVENTS_DIR := "res://data/audio/events/"
 const POOL_3D_SIZE := 24
-const POOL_2D_SIZE := 8
+## Sube por encima de la UI porque las pisadas del jugador tambien salen de aqui: no van
+## posicionadas, y a la carrera son varias voces a la vez.
+const POOL_2D_SIZE := 16
 
 ## Buses que se apagan al sumergirse, y la frecuencia de corte del filtro cuando lo están.
 const FILTERED_BUSES: Array[StringName] = [&"SFX", &"Ambient", &"Voice"]
@@ -121,6 +123,19 @@ func play_material(prefix: StringName, sound_material: StringName, world_pos: Ve
 		if ev != null and ev.is_valid():
 			return play_3d(specific, world_pos, opts)
 	return play_3d(prefix, world_pos, opts)
+
+
+## Igual que play_material pero SIN posición: suena a volumen pleno vengan de donde vengan los
+## oídos. Es para el cuerpo del propio jugador —pisadas, saltos, chapoteos—, que en tercera
+## persona queda a la distancia de cámara y se apagaría solo por alejar la vista.
+func play_material_flat(prefix: StringName, sound_material: StringName,
+		opts: Dictionary = {}) -> AudioStreamPlayer:
+	if sound_material != &"":
+		var specific := StringName("%s_%s" % [prefix, sound_material])
+		var ev: SoundEvent = _events.get(specific)
+		if ev != null and ev.is_valid():
+			return play_ui(specific, opts)
+	return play_ui(prefix, opts)
 
 
 ## Dispara [event_id] sin posición (UI, notificaciones, narración).

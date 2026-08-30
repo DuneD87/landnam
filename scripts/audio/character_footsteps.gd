@@ -22,6 +22,10 @@ extends Node
 ## cada transicion de is_on_floor(), y sobre una cubierta que cabecea eso es una vez por ola:
 ## sin minimo, cada ola metia un golpe. El gameplay ya hace lo mismo con fall_damage_min_speed.
 @export var land_min_speed: float = 3.0
+## Sonidos del propio cuerpo sin atenuar por distancia. Solo aplica al jugador local: en tercera
+## persona la cámara está metros por detrás y sus propias pisadas se apagarían por alejar la
+## vista, cuando en primera persona sonaban a pleno y ese es el volumen bueno.
+@export var flat_for_local_player: bool = true
 ## Nodos concretos; vacío = se buscan bajo el cuerpo.
 @export var foot_ik_path: NodePath
 @export var movement_path: NodePath
@@ -77,16 +81,28 @@ func _on_water_crossed(speed: float, _entering: bool) -> void:
 	if speed < splash_min_speed:
 		return
 	var loudness := clampf(speed / maxf(splash_full_speed, 0.001), 0.0, 1.0)
-	AudioManager.play_3d(&"water_splash", _body.global_position,
-		{"volume_offset_db": volume_offset_db + lerpf(-14.0, 0.0, loudness)})
+	var opts := {"volume_offset_db": volume_offset_db + lerpf(-14.0, 0.0, loudness)}
+	if _is_listener_body():
+		AudioManager.play_ui(&"water_splash", opts)
+		return
+	AudioManager.play_3d(&"water_splash", _body.global_position, opts)
 
 
 func _play(prefix: StringName, hit: Dictionary, extra_db: float) -> void:
 	if hit.is_empty():
 		return
 	var family := SurfaceAudio.resolve(hit, _planet_root(), _up())
-	AudioManager.play_material(prefix, family, hit["position"],
-		{"volume_offset_db": volume_offset_db + extra_db})
+	var opts := {"volume_offset_db": volume_offset_db + extra_db}
+	if _is_listener_body():
+		AudioManager.play_material_flat(prefix, family, opts)
+		return
+	AudioManager.play_material(prefix, family, hit["position"], opts)
+
+
+## True si este cuerpo es el del jugador local. Se consulta al vuelo y no en _ready porque el
+## jugador se registra en GameManager despues de montarse sus componentes.
+func _is_listener_body() -> bool:
+	return flat_for_local_player and _body != null and GameManager.player == _body
 
 
 ## Sondeo vertical bajo el cuerpo, para los eventos que no vienen de un pie (saltar, aterrizar).
