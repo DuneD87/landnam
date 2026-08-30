@@ -22,18 +22,24 @@ extends Node
 const CULL_HYSTERESIS := 1.25
 
 var _target: Node3D
-var _loop_player: AudioStreamPlayer3D
+## Sin tipar: el loop es AudioStreamPlayer3D o AudioStreamPlayer segun de quien cuelgue, y en
+## Godot no comparten clase base propia. Solo se le tocan volume_db, playing, play y stop.
+var _loop_player: Node
 var _loop_tween: Tween
 var _loop_event_res: SoundEvent
 ## Lo que pide el juego, y lo que permite la distancia. El loop suena solo si ambos son true.
 var _loop_wanted: bool = false
 var _loop_audible: bool = true
+## True si esto cuelga del jugador local: entonces el sonido es SUYO y no se atenua con la
+## distancia de camara, igual que sus pisadas.
+var _flat: bool = false
 
 
 func _ready() -> void:
 	_target = get_node_or_null(target_path) as Node3D
 	if _target == null:
 		_target = _find_target()
+	_flat = _hangs_from_local_player()
 	_connect_signal_events()
 	if loop_event == &"":
 		return
@@ -59,6 +65,11 @@ func set_loop_active(active: bool) -> void:
 
 ## Reevalúa el loop contra la posición de los oídos. La llama el barrido del AudioManager.
 func update_distance_cull(ears: Vector3) -> void:
+	if _flat:
+		# Lo que llevas encima no se atenua, pero el reintento de voz sigue haciendo falta.
+		if _loop_wanted and _loop_player == null:
+			_refresh_loop()
+		return
 	if _loop_event_res == null or _target == null or not is_instance_valid(_target):
 		return
 	# Un objeto de equipo desequipado sale del árbol pero sigue vivo (equip_item hace
@@ -82,6 +93,9 @@ func update_distance_cull(ears: Vector3) -> void:
 ## es una señal (una animación, una máquina de estados).
 func fire(event_id: StringName, opts: Dictionary = {}) -> void:
 	if _target == null or not is_instance_valid(_target) or not _target.is_inside_tree():
+		return
+	if _flat:
+		AudioManager.play_ui(event_id, opts)
 		return
 	AudioManager.play_3d(event_id, _target.global_position, opts)
 
@@ -109,11 +123,24 @@ func _refresh_loop() -> void:
 		_loop_tween.tween_callback(_loop_player.stop)
 
 
-func _make_loop_player(ev: SoundEvent) -> AudioStreamPlayer3D:
+func _make_loop_player(ev: SoundEvent) -> Node:
 	var stream := ev.pick_stream()
 	if stream == null:
 		return null
 	_force_loop(stream)
+	if _flat:
+		var flat := AudioStreamPlayer.new()
+		flat.name = "LoopVoice"
+		flat.stream = stream
+		flat.bus = ev.bus
+		flat.pitch_scale = ev.roll_pitch()
+		flat.volume_db = -60.0
+		if not is_inside_tree():
+			flat.free()
+			return null
+		add_child(flat)
+		return flat
+
 	var player := AudioStreamPlayer3D.new()
 	player.name = "LoopVoice"
 	player.stream = stream
@@ -193,6 +220,20 @@ func _on_signal_2(_a: Variant, _b: Variant, event_id: StringName) -> void:
 
 func _on_signal_3(_a: Variant, _b: Variant, _c: Variant, event_id: StringName) -> void:
 	fire(event_id)
+
+
+## True si este componente cuelga del jugador local. Lo que llevas encima lo produces tu, y no
+## puede apagarse porque la camara se aleje en tercera persona.
+func _hangs_from_local_player() -> bool:
+	var body := GameManager.player
+	if body == null:
+		return false
+	var n := get_parent()
+	while n != null:
+		if n == body:
+			return true
+		n = n.get_parent()
+	return false
 
 
 ## Primer Node3D subiendo por la jerarquía: el componente puede colgar de un Node plano.

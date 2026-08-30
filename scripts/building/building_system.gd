@@ -577,8 +577,9 @@ func try_place_block() -> bool:
 		push_error("[BuildingSystem] Failed to place block.")
 		return false
 
-	AudioManager.play_material(&"block_place", _sound_material_for(block_data, mat),
-		_target_world_pos)
+	# Plano: lo coloca el jugador local, y en tercera persona el punto de construccion queda a
+	# distancia de camara y se apagaria solo por alejar la vista.
+	AudioManager.play_material_flat(&"block_place", _sound_material_for(block_data, mat))
 
 	if _should_mirror():
 		var mirror_pos := _get_mirror_pos(_target_grid_pos, grid)
@@ -623,8 +624,7 @@ func try_remove_block(ray_hit: Dictionary) -> bool:
 
 	var data := grid.remove_block(grid_pos)
 	_refund_block(data, grid.cell_size)
-	AudioManager.play_material(&"block_remove", _removed_sound_material(data),
-		grid.grid_to_world(grid_pos))
+	AudioManager.play_material_flat(&"block_remove", _removed_sound_material(data))
 
 	if _mirror_active and mirror_axis != MirrorAxis.NONE and mirror_grid \
 	   and (grid == mirror_grid or _basis_compatible(grid.get_basis_world(), mirror_grid.get_basis_world())):
