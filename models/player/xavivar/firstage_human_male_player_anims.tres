@@ -1,4 +1,4 @@
-[gd_resource type="AnimationLibrary" load_steps=14 format=3]
+[gd_resource type="AnimationLibrary" format=3 uid="uid://cwe7tjl3xketo"]
 
 [sub_resource type="Animation" id="Animation_hoyfy"]
 resource_name = "attack_horizontal"

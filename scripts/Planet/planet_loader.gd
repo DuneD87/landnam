@@ -139,6 +139,9 @@ var impostor: PlanetImpostor
 @export var world_map_height_range: float = 2000.0
 
 var world_map: PlanetWorldMap
+## Lecho sonoro del mar. Se monta con el mapa porque los dos factores de su mezcla —distancia
+## al litoral y estado de mar— salen del campo de orilla horneado.
+var water_ambience: WaterAmbience
 
 @export_group("Anti-tiling (de-repetición de texturas)")
 
@@ -336,8 +339,21 @@ func _push_world_map_to_water(map: WorldMapData) -> void:
 		mat.set_shader_parameter("shore_waves_enabled", true)
 
 	water_sphere.world_map = world_map
+	_setup_water_ambience()
 	if weather_controller != null:
 		weather_controller.set_world_map(world_map)
+
+
+## Monta el lecho sonoro del océano. Va aquí y no antes porque necesita el mapa ya horneado:
+## sin campo de orilla no sabría distinguir rompiente de mar abierto.
+func _setup_water_ambience() -> void:
+	if water_sphere == null or world_map == null:
+		return
+	if water_ambience == null:
+		water_ambience = WaterAmbience.new()
+		water_ambience.name = "WaterAmbience"
+		add_child(water_ambience)
+	water_ambience.setup(world_map, water_sphere.quadtree_material as ShaderMaterial, planet)
 
 
 ## Crea el impostor analítico del planeta y le dice qué nodos apagar cuando esté a pleno.

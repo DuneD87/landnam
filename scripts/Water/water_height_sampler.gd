@@ -195,6 +195,32 @@ static func get_water_time(mat: ShaderMaterial) -> float:
 	return _get_frame_params(mat)["time"]
 
 ## Relee los parámetros que el weather muta en caliente sobre el material.
+## Relee del material lo que weather muta en caliente, una vez por frame de física: la flotación
+## entra aquí una vez por caja y no puede pagar el refresco en cada una.
+func _ensure_frame_params() -> void:
+	if _material == null:
+		return
+	var frame := Engine.get_physics_frames()
+	if _frame_stamp == frame:
+		return
+	_frame_stamp = frame
+	_refresh_dynamic_params()
+	_rebuild_octave_table()
+
+
+## Estado de mar en [0,1]: 0 = mar tendida, 1 = temporal pleno. Es la MISMA medida con la que
+## se resuelve la corriente; está expuesta para que nadie (el audio del océano, por ejemplo)
+## invente otra escala y acabe discrepando de la física sobre cuánto sopla.
+func get_sea_state() -> float:
+	_ensure_frame_params()
+	return _sea_state()
+
+
+func _sea_state() -> float:
+	return clampf(
+		(wave_amplitude / maxf(wave_calm_amplitude, 0.01) - 1.0) / CURRENT_SEA_STATE_SPAN, 0.0, 1.0)
+
+
 func _refresh_dynamic_params() -> void:
 	var params := _get_frame_params(_material)
 	wave_speed = params["speed"]
@@ -269,12 +295,7 @@ func _rebuild_octave_table() -> void:
 func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> float:
 	if _material == null:
 		return 0.0
-	# Los uniforms solo cambian entre frames de física y la flotación llama aquí una vez por caja.
-	var frame := Engine.get_physics_frames()
-	if _frame_stamp != frame:
-		_frame_stamp = frame
-		_refresh_dynamic_params()
-		_rebuild_octave_table()
+	_ensure_frame_params()
 
 	var local_q := world_pos - planet_center
 	# Una sola vez por muestra, no dentro de la inversión: el punto fijo mueve la posición unos
@@ -414,8 +435,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 
 	# Corriente de mar abierto, en el sentido de avance del swell principal. La exposición entra como
 	# atenuador con suelo, no mezclada en la amplitud: distingue una rada sin dejar la costa a cero.
-	var storm_state := clampf(
-		(wave_amplitude / maxf(wave_calm_amplitude, 0.01) - 1.0) / CURRENT_SEA_STATE_SPAN, 0.0, 1.0)
+	var storm_state := _sea_state()
 	var current_mag := lerpf(CURRENT_CALM, CURRENT_STORM, storm_state) * drift_scale \
 		* lerpf(CURRENT_SHELTERED_FRAC, 1.0, exposure)
 	if current_mag > 0.0:

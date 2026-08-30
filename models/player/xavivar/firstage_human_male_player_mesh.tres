@@ -1,4 +1,4 @@
-[gd_resource type="ArrayMesh" load_steps=4 format=3]
+[gd_resource type="ArrayMesh" format=4 uid="uid://dnjnsxcj84m0j"]
 
 [ext_resource type="Texture2D" uid="uid://cyddaj2xfdqqt" path="res://textures/player/xavivar/firstage_human_male_player_Image_0.jpg" id="15_2xesl"]
 [ext_resource type="Texture2D" uid="uid://xmhmbbsefee3" path="res://textures/player/xavivar/firstage_human_male_player_Image_2.jpg" id="16_k6f0r"]

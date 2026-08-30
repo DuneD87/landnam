@@ -1,4 +1,4 @@
-[gd_resource type="AnimationLibrary" load_steps=31 format=3]
+[gd_resource type="AnimationLibrary" format=3 uid="uid://b1psyum002blt"]
 
 [sub_resource type="Animation" id="Animation_46nmf"]
 resource_name = "atk run"

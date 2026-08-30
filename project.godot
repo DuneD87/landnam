@@ -19,6 +19,10 @@ run/main_scene="uid://8hm5q6k01tb8"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
+[audio]
+
+buses/default_bus_layout="uid://wun7716afl1f"
+
 [autoload]
 
 GameManager="*res://scripts/autoload/game_manager.gd"
@@ -31,6 +35,7 @@ AudioManager="*res://scripts/audio/audio_manager.gd"
 
 window/size/viewport_width=2560
 window/size/viewport_height=1440
+window/vsync/vsync_mode=0
 
 [dotnet]
 

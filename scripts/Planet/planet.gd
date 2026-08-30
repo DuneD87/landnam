@@ -1254,6 +1254,12 @@ func setup_voxel_generator() -> void:
 ## Hornea (o recupera del caché) el campo de ríos y lo enchufa al grafo. Devuelve true si el grafo
 ## cambió y hay que recompilar.
 ##
+## Red de cauces horneada, o {} si este planeta no tiene rios. Trae la sopa de segmentos en
+## coordenadas del mapa de hidrologia y su semianchura, que es lo que consume el audio del agua.
+func get_river_network() -> Dictionary:
+	return _river_field
+
+
 ## El horneado necesita el relieve del propio generador, así que se hace sobre una copia limpia: la
 ## que se hornea lleva las imágenes neutras y no talla nada, que es justo el terreno "sin ríos" del
 ## que hay que deducir por dónde corre el agua.

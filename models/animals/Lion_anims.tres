@@ -1,4 +1,4 @@
-[gd_resource type="AnimationLibrary" load_steps=84 format=3]
+[gd_resource type="AnimationLibrary" format=3 uid="uid://dlnmr02ewcjvr"]
 
 [sub_resource type="Animation" id="Animation_u37k7"]
 resource_name = "A_lion_idle_aggressive_02"

@@ -13,8 +13,8 @@
 [ext_resource type="Script" uid="uid://v8nkfaw2cl4h" path="res://scripts/NPC/perception.gd" id="11_rdpah"]
 [ext_resource type="Texture2D" uid="uid://dj1oy0724o00b" path="res://scenes/animals/Lion_lion_male_common_dif.ddsc.DECA.png" id="12_d4ptx"]
 [ext_resource type="Texture2D" uid="uid://chuejwn1n4vmw" path="res://scenes/animals/Lion_lion_mane_common_alpha_dif.ddsc.DECA.png" id="13_qosvf"]
+[ext_resource type="AnimationLibrary" uid="uid://dlnmr02ewcjvr" path="res://models/animals/Lion_anims.tres" id="x_ddgmf"]
 
-[ext_resource type="AnimationLibrary" path="res://models/animals/Lion_anims.tres" id="x_ddgmf"]
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_few7p"]
 margin = 0.004
 radius = 0.8041992
@@ -487,7 +487,6 @@ animation = &"A_lion_idle_aggressive_02"
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_rkg83"]
 
 [sub_resource type="AnimationNodeBlendTree" id="AnimationNodeBlendTree_uva7x"]
-graph_offset = Vector2(-356.59756, 439.83038)
 nodes/output/position = Vector2(950, 70)
 nodes/Animation/node = SubResource("AnimationNodeAnimation_i4sn7")
 nodes/Animation/position = Vector2(-362.34323, 100.74159)
@@ -510,13 +509,17 @@ nodes/death/position = Vector2(736.89874, 618.1247)
 node_connections = [&"output", 0, &"attack_horizontal", &"bRun", 0, &"Animation", &"bRun", 1, &"Animation 2", &"attack_horizontal", 0, &"death", &"attack_horizontal", 1, &"Animation 3", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Animation 4", &"death", 0, &"bSprint", &"death", 1, &"Animation 5"]
 
 [node name="Node3D" type="CharacterBody3D" unique_id=1313280763]
+collision_layer = 2
+collision_mask = 3
 floor_stop_on_slope = false
 floor_block_on_wall = false
+floor_max_angle = 1.2217305
 safe_margin = 0.008
 script = ExtResource("1_d4ptx")
 detect_state = &"CombatState"
 lose_state = &"IdleState"
 npc_type = &"Lion"
+entity_id = "npc_2095021370816"
 
 [node name="Movement" type="Node" parent="." unique_id=397881995]
 script = ExtResource("2_qosvf")
