@@ -99,6 +99,12 @@ var _to: WeatherState
 var _blend: float = 1.0
 var _elapsed: float = 0.0
 var _duration: float = 120.0
+## Estado ya interpolado que se esta aplicando. Lo que quiera reaccionar al clima debe leer
+## esto y no _to, que es el destino de la transicion y llega antes que el mundo.
+var _resolved: WeatherState
+## Lecho sonoro del clima. Cuelga de aqui porque todo lo que necesita —estado resuelto,
+## oclusion y la senal de rayo— sale de este nodo.
+var ambience: WeatherAmbience
 var _current: String = "clear"
 var _current_biome: int = 0
 var _ready_to_run: bool = false
@@ -141,6 +147,10 @@ func setup(
 	_lightning = WeatherLightning.new()
 	_setup_lightning_light()
 
+	ambience = WeatherAmbience.new()
+	ambience.name = "WeatherAmbience"
+	add_child(ambience)
+	ambience.setup(self)
 	_current = _choose_from(_active_profile(), "")
 	_to = _events.get(_current, _fallback_state())
 	_from = _to
@@ -288,9 +298,11 @@ func _process(delta: float) -> void:
 	# Antes de aplicar nada: el estado sumergido apaga precipitación y niebla de este frame.
 	_update_submersion()
 	var st: WeatherState = _to
+	_resolved = st
 	if _blend < 1.0:
 		_blend = minf(1.0, _blend + delta / maxf(transition_time, 0.01))
 		st = WeatherState.blend(_from, _to, smoothstep(0.0, 1.0, _blend))
+		_resolved = st
 		_apply_state(st)
 	else:
 		_apply_precipitation(_to)
@@ -338,6 +350,26 @@ func clear_force() -> void:
 
 func is_forced() -> bool:
 	return _forced
+
+
+## Altitud del jugador sobre el radio del planeta. La usa el audio para que en una cima sople
+## viento aunque el parte este tendido.
+func get_player_altitude() -> float:
+	return _current_altitude()
+
+
+## Clima aplicado ahora mismo, con la transicion ya resuelta.
+func get_resolved_state() -> WeatherState:
+	return _resolved if _resolved != null else _to
+
+
+## True con techo encima (cueva, voladizo, interior). Sale del mismo barrido de oclusion que
+## decide si te caen gotas encima.
+func is_sheltered() -> bool:
+	if _fx == null or not is_instance_valid(_fx):
+		return false
+	var field := _fx.get_occlusion_field()
+	return field != null and field.player_occluded
 
 
 func get_current_weather_name() -> String:

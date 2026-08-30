@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="script"]
+[ext_resource type="AudioStream" path="res://audio/effects/thunder_near.wav" id="clip"]
+
+[resource]
+script = ExtResource("script")
+event_id = &"thunder_near"
+streams = Array[AudioStream]([ExtResource("clip")])
+bus = "Ambient"
+volume_db = -2.00
+max_voices = 3
+cooldown = 0.00
+volume_jitter_db = 1.50
+pitch_jitter = 0.05

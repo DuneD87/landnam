@@ -303,9 +303,9 @@ func _cmd_water(_args: PackedStringArray) -> String:
 	return out
 
 
-## Diagnóstico del audio. Sin argumento, el estado del pool: si dropped_no_voice sube en juego
-## normal el pool se queda corto, y si sube dropped_budget es que un evento se está pidiendo en
-## ráfaga y su cooldown lo está tapando.
+## Diagnostico del audio. Sin argumento, el estado del pool y la mezcla del clima: si
+## dropped_no_voice sube en juego normal el pool se queda corto, y si sube dropped_budget es que
+## un evento se esta pidiendo en rafaga y su cooldown lo esta tapando.
 func _cmd_audio(args: PackedStringArray) -> String:
 	if args.size() >= 1:
 		var event_id := StringName(args[0])
@@ -318,12 +318,18 @@ func _cmd_audio(args: PackedStringArray) -> String:
 			return "[color=%s]'%s' descartado (mudo, sin voz o en cooldown).[/color]" % [COLOR_INFO, args[0]]
 		return "[color=%s]Sonando '%s'.[/color]" % [COLOR_OK, args[0]]
 
-	var stats := AudioManager.get_debug_stats()
-	var out := "[color=%s]Audio[/color]
-" % COLOR_INFO
-	for key in stats:
-		out += "  %s: [color=%s]%s[/color]
-" % [key, COLOR_OK, stats[key]]
+	var out := "[color=%s]Audio[/color]\n" % COLOR_INFO
+	for key in AudioManager.get_debug_stats():
+		out += "  %s: [color=%s]%s[/color]\n" % [key, COLOR_OK,
+			AudioManager.get_debug_stats()[key]]
+
+	var weather := _get_weather()
+	var amb: WeatherAmbience = weather.ambience if weather != null else null
+	if amb != null:
+		var roof := "bajo techo" if amb.last_sheltered else "a cielo abierto"
+		out += "[color=%s]Clima[/color]\n" % COLOR_INFO
+		out += "  lluvia: [color=%s]%.2f[/color]  (%s)\n" % [COLOR_OK, amb.last_rain, roof]
+		out += "  viento: [color=%s]%.2f[/color]\n" % [COLOR_OK, amb.last_wind]
 	return out.strip_edges()
 
 
