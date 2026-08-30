@@ -277,6 +277,8 @@ func _register_commands() -> void:
 		"Estado del pool de voces y descartes; con un evento, lo dispara en el jugador.", _cmd_audio, 1))
 	_add(ConsoleCommand.new("water", "water",
 		"Mezcla del agua: mar/lago/rio, cuanta costa y cuanto temporal.", _cmd_water))
+	_add(ConsoleCommand.new("perf", "perf [on|off]",
+		"Perfilado por fases: vuelca cada pico a consola con su desglose (sin argumento, alterna).", _cmd_perf))
 
 
 
@@ -451,6 +453,18 @@ func _cmd_sun(args: PackedStringArray) -> String:
 	if args.size() >= 2 and args[1].is_valid_float():
 		sun._set_elevation(args[1].to_float())
 	return "[color=%s]Sol → azimuth %.1f°, elevación %.1f°.[/color]" % [COLOR_OK, sun.sun_azimuth_deg, sun.sun_elevation_deg]
+
+
+## Enciende o apaga el perfilado. Apagado, los report_cost repartidos por el juego no hacen nada
+## y el detector de picos ni siquiera pide estadísticas al terreno.
+func _cmd_perf(args: PackedStringArray) -> String:
+	if args.is_empty():
+		DebugStats.profiling = not DebugStats.profiling
+	else:
+		DebugStats.profiling = args[0].to_lower() in ["on", "1", "true"]
+	if not DebugStats.profiling:
+		return "[color=%s]Perfilado: OFF.[/color]" % COLOR_MUTED
+	return "[color=%s]Perfilado: ON.[/color] Cada pico va a consola con sus fases; F3 enseña el overlay." % COLOR_OK
 
 
 func _cmd_wake(args: PackedStringArray) -> String:

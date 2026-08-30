@@ -109,6 +109,12 @@ func _install_surface(planet: Planet) -> void:
 
 
 func _process(_delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_process_step(_delta)
+	DebugStats.report_cost(&"planeta:impostor", Time.get_ticks_usec() - _t0)
+
+
+func _process_step(_delta: float) -> void:
 	if Engine.is_editor_hint() or _center_node == null or _mat == null:
 		return
 	var cam := get_viewport().get_camera_3d()

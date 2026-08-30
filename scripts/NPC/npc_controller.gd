@@ -88,6 +88,12 @@ func _ready() -> void:
 	inventory.add_item(Config.get_item(&"stone_01"), 37)
 
 func _physics_process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_physics_step(delta)
+	DebugStats.report_cost(&"npc:control", Time.get_ticks_usec() - _t0)
+
+
+func _physics_step(delta: float) -> void:
 	if not planet:
 		update_nearest_planet()
 		return

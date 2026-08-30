@@ -93,7 +93,9 @@ func _physics_process(delta: float) -> void:
 
 	# Actualiza el campo primero: así player_occluded refleja la posición de este frame, no la anterior.
 	_field.ground_enabled = _splash != null and _splash.emitting
+	var _t0 := Time.get_ticks_usec()
 	var committed := _field.update(delta)
+	DebugStats.report_cost(&"clima:oclusion", Time.get_ticks_usec() - _t0)
 
 	# Al aire libre la precipitación sigue al jugador; bajo techo nace sobre el claro más cercano
 	# (la boca de la cueva), y si no hay ninguno en la rejilla vuelve al jugador: allí la oculta

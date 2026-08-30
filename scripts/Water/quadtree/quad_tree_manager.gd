@@ -95,6 +95,12 @@ func _create_root_quads():
 		root_quads.append(root_quad)
 
 func _process(_delta):
+	var _t0 := Time.get_ticks_usec()
+	_process_step(_delta)
+	DebugStats.report_cost(&"agua:quadtree", Time.get_ticks_usec() - _t0)
+
+
+func _process_step(_delta):
 	if Engine.is_editor_hint():
 		return
 	var camera_pos = player.camera.global_position

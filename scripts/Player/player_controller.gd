@@ -1167,6 +1167,12 @@ func _check_needs_swimming(delta: float):
 
 
 func _physics_process(delta: float):
+	var _t0 := Time.get_ticks_usec()
+	_physics_step(delta)
+	DebugStats.report_cost(&"player:control", Time.get_ticks_usec() - _t0)
+
+
+func _physics_step(delta: float):
 	_update_cannon_charge(delta)
 	if not input_enabled:
 		if GameManager.current_state == GameManager.State.PLAYING:

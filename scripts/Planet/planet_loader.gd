@@ -547,7 +547,9 @@ func post_restore() -> void:
 func _process(_delta: float) -> void:
 	if planet != null:
 		planet.sun_dir = sun_dir
+		var _t0 := Time.get_ticks_usec()
 		planet._update_planet()
+		DebugStats.report_cost(&"planeta:materiales", Time.get_ticks_usec() - _t0)
 		if planet.has_water:
 			water_sphere.sun_dir = sun_dir
 			_apply_underwater_settings()

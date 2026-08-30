@@ -294,6 +294,12 @@ func get_statistics() -> Dictionary:
 	return stats
 	
 func _process(_delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_process_step(_delta)
+	DebugStats.report_cost(&"agua:mallas", Time.get_ticks_usec() - _t0)
+
+
+func _process_step(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 	_advance_surface_work()

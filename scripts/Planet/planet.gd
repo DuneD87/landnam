@@ -308,6 +308,10 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 	multi_mesh_item.generator = generator
 	multi_mesh_item.lod_index = lod_index
 
+	# 'instance_as_scene': false marca decorado estático: hierba y parches, que no se talan ni se
+	# recogen. Los items que no traen la clave son interactivos, como hasta ahora.
+	var interactive: bool = item.get("instance_as_scene", true)
+
 	var lm: Array = shared_data.get("lod_meshes", [])
 	if lm.size() == 4:
 		# 4 mesh-LOD: cerca lm[0] (full), lejos lm[3] (impostor). El near->far lo hace el módulo
@@ -342,6 +346,19 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		else:
 			push_warning("VoxelInstanceLibraryMultiMeshItem sin 'cast_shadow' en esta versión del módulo")
 
+	# Radio (m) dentro del cual el módulo crea colliders, independiente del alcance visual: un
+	# árbol de la banda 4 se sigue viendo a 700 m pero deja de llevar cuerpo físico. Además pasa
+	# el alta y baja de colliders a la vía presupuestada por distancia
+	# (collision_update_budget_microseconds del instancer), que la reparte entre frames en vez de
+	# tirar miles de nodos en uno. El módulo compara contra la distancia al CHUNK, no a la
+	# instancia, así que el corte real es más grueso que este número.
+	var collision_distance: float = float(item.get("collision_distance_m", -1.0))
+	if collision_distance > 0.0:
+		if "collision_distance" in multi_mesh_item:
+			multi_mesh_item.collision_distance = collision_distance
+		else:
+			push_warning("VoxelInstanceLibraryMultiMeshItem sin 'collision_distance' en esta versión del módulo")
+
 	var library_id = _next_library_id
 	_next_library_id += 1
 	voxel_instancer.library.add_item(library_id, multi_mesh_item)
@@ -349,8 +366,10 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 	# Plantilla para clonar el item al talarlo (action_controller). Va en un dict aparte
 	# y NO en multi_mesh_item.scene: ponerla ahí haría que el módulo instancie un nodo por
 	# árbol cercano en cada banda de LOD (bajón de rendimiento). La colisión de los árboles
-	# con LOD ya la dan collision_shapes.
-	planet_item_packed_scenes[library_id] = shared_data.packed_scene
+	# con LOD ya la dan collision_shapes. El decorado estático no se registra: sin plantilla,
+	# handle_attack sale sin hacer nada aunque algo llegue a apuntarle.
+	if interactive:
+		planet_item_packed_scenes[library_id] = shared_data.packed_scene
 
 	var wind_speed: float = item.wind_speed if item.has("wind_speed") else 0.0
 	multi_mesh_array.append({"mesh_item": multi_mesh_item, "wind_speed": wind_speed})
@@ -424,6 +443,14 @@ func _load_vegetation() -> void:
 	# lod_index, los fade de la hierba y los mesh_lod_distances_m de los árboles.
 	if voxel_terrain != null and voxel_terrain.has_method("get_lod_distances"):
 		print("[vegetation] alcance por lod_index (m): ", voxel_terrain.get_lod_distances())
+	elif voxel_terrain != null:
+		# Sin get_lod_distances() en esta versión del módulo, el mismo cálculo de respaldo que usa
+		# _get_lod_view_distance: sin esto no hay forma de calibrar lod_index con números.
+		var fallback: Array[float] = []
+		for n in voxel_terrain.lod_count:
+			fallback.append(float(voxel_terrain.lod_distance) * float(1 << n))
+		print("[vegetation] alcance por lod_index (m, estimado lod_distance=%s): %s"
+			% [voxel_terrain.lod_distance, fallback])
 
 	# async: _load_vegetation_item hornea el impostor LOD3 de los árboles con await
 	# (render-to-texture). _load_vegetation se lanza como corrutina desde planet_loader

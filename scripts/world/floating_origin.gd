@@ -36,6 +36,7 @@ func _physics_process(_delta: float) -> void:
 
 ## Resta 'offset' a todo el mundo, devolviendo al jugador cerca del origen sin cambiar posiciones relativas.
 func _rebase(offset: Vector3) -> void:
+	var _t0 := Time.get_ticks_usec()
 	for child in _planets.get_children():
 		if child is Node3D:
 			child.position -= offset
@@ -61,6 +62,7 @@ func _rebase(offset: Vector3) -> void:
 
 	total_offset += offset
 	RenderingServer.global_shader_parameter_set("u_world_offset", total_offset)
+	DebugStats.report_cost(&"origen:rebase", Time.get_ticks_usec() - _t0)
 
 	if debug_log:
 		print("[FloatingOrigin] rebase offset=", offset, "  total_offset=", total_offset)

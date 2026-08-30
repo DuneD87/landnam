@@ -81,6 +81,12 @@ func _ready():
 			camera_position = camera.global_position
 
 func _process(delta):
+	var _t0 := Time.get_ticks_usec()
+	_process_step(delta)
+	DebugStats.report_cost(&"agua:parches", Time.get_ticks_usec() - _t0)
+
+
+func _process_step(delta):
 	if not enable_ocean_animation:
 		return
 		

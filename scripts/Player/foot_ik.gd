@@ -140,6 +140,12 @@ func _get_up() -> Vector3:
 ## Sondea el suelo bajo cada pie y actualiza los desplazamientos suavizados. Va en fisica porque
 ## las consultas al espacio no son validas dentro de la fase de modificadores del esqueleto.
 func _physics_process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_physics_step(delta)
+	DebugStats.report_cost(&"player:footik", Time.get_ticks_usec() - _t0)
+
+
+func _physics_step(delta: float) -> void:
 	if not active or not _has_pose:
 		return
 

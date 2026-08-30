@@ -83,6 +83,12 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_physics_step(delta)
+	DebugStats.report_cost(&"npc:spawner", Time.get_ticks_usec() - _t0)
+
+
+func _physics_step(delta: float) -> void:
 	_recycle_timer += delta
 	if _recycle_timer < RECYCLE_CHECK_INTERVAL:
 		return

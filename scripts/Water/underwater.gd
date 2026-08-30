@@ -162,6 +162,12 @@ func _apply_settings() -> void:
 	material.set_shader_parameter(&"godray_min_phase", godray_min_phase)
 
 func _process(_delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_process_step(_delta)
+	DebugStats.report_cost(&"agua:underwater", Time.get_ticks_usec() - _t0)
+
+
+func _process_step(_delta: float) -> void:
 	if material == null or water_material == null:
 		return
 	for param in _SYNCED_WATER_PARAMS:

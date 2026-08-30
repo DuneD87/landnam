@@ -108,6 +108,12 @@ func _setup_ui():
 		canvas_layer.add_child(stats_label)
 
 func _process(delta):
+	var _t0 := Time.get_ticks_usec()
+	_process_step(delta)
+	DebugStats.report_cost(&"agua:oceano", Time.get_ticks_usec() - _t0)
+
+
+func _process_step(delta):
 	# El sol se mueve en vivo (día/noche): leemos la dirección actual del planeta en lugar
 	# del export, que solo se fijaba al cargar y dejaba el agua iluminada como de día siempre.
 	# to_sun apunta HACIA el sol. La superficie niega sun_direction internamente (espera la
