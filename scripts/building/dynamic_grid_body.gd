@@ -158,6 +158,19 @@ var _derelict_timer: float = 0.0
 signal speed_changed(level: int, speed: float)
 signal blocks_destroyed(world_pos: Vector3, count: int)
 
+## Bloques a los que el estruendo del impacto ya suena a pleno. Por encima no crece: un embiste
+## que arranca medio casco no puede sonar diez veces mas que uno que arranca veinte bloques.
+const IMPACT_LOUD_BLOCKS := 40.0
+
+
+## Estruendo del impacto. Cuelga de blocks_destroyed y no de cada baja de bloque porque esa señal
+## ya viene agregada: un choque es UN sonido, no doscientos.
+func _on_blocks_destroyed(world_pos: Vector3, count: int) -> void:
+	var loudness := clampf(float(count) / IMPACT_LOUD_BLOCKS, 0.0, 1.0)
+	AudioManager.play_3d(&"block_impact", world_pos,
+		{"volume_offset_db": lerpf(-12.0, 0.0, loudness)})
+
+
 func on_block_removed(_grid_pos: Vector3i, _grid: GridBase = null) -> void:
 	mark_points_dirty()
 	# Solo quitar bloques puede partir el casco; colocarlos únicamente puede unir piezas.
@@ -577,6 +590,7 @@ func _ready() -> void:
 	contact_monitor = true
 	max_contacts_reported = MAX_CONTACTS_REPORTED
 	add_to_group("floating_origin")
+	blocks_destroyed.connect(_on_blocks_destroyed)
 	add_to_group("dynamic_grid_body")
 	_setup_water_sampler()
 	BlockDebris.prewarm(self)

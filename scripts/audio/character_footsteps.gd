@@ -13,6 +13,11 @@ extends Node
 @export_range(-24.0, 12.0) var volume_offset_db: float = 0.0
 ## Velocidad de impacto (m/s) a la que el aterrizaje ya suena a plena potencia.
 @export var land_full_volume_speed: float = 18.0
+## Velocidad vertical (m/s) a la que una zambullida ya salpica a plena potencia.
+@export var splash_full_speed: float = 8.0
+## Velocidad de cruce por debajo de la cual no hay chapoteo. Parado en la orilla, la lamina sube
+## y baja con cada ola y cruza los pies una y otra vez: sin minimo, el oleaje ametralla salpicones.
+@export var splash_min_speed: float = 1.2
 ## Velocidad de impacto por debajo de la cual el aterrizaje no suena. Movement emite "landed" en
 ## cada transicion de is_on_floor(), y sobre una cubierta que cabecea eso es una vez por ola:
 ## sin minimo, cada ola metia un golpe. El gameplay ya hace lo mismo con fall_damage_min_speed.
@@ -41,6 +46,7 @@ func _ready() -> void:
 	if _movement != null:
 		_movement.jumped.connect(_on_jumped)
 		_movement.landed.connect(_on_landed)
+		_movement.water_crossed.connect(_on_water_crossed)
 
 
 func _on_foot_planted(_side: int, hit: Dictionary) -> void:
@@ -61,6 +67,18 @@ func _on_landed(impact_speed: float) -> void:
 		return
 	var loudness := clampf(impact_speed / maxf(land_full_volume_speed, 0.001), 0.0, 1.0)
 	_play(&"land", _probe_ground(), lerpf(-10.0, 0.0, loudness))
+
+
+## Chapoteo al entrar o salir del agua. La salpicadura escala con la velocidad del cruce: una
+## zambullida desde un acantilado no suena como meter el pie en la orilla.
+func _on_water_crossed(speed: float, _entering: bool) -> void:
+	if _body == null or not _body.is_inside_tree():
+		return
+	if speed < splash_min_speed:
+		return
+	var loudness := clampf(speed / maxf(splash_full_speed, 0.001), 0.0, 1.0)
+	AudioManager.play_3d(&"water_splash", _body.global_position,
+		{"volume_offset_db": volume_offset_db + lerpf(-14.0, 0.0, loudness)})
 
 
 func _play(prefix: StringName, hit: Dictionary, extra_db: float) -> void:

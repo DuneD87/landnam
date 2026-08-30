@@ -101,6 +101,9 @@ var _water_surface_radius: float = 0.0
 var _water_surface_center: Vector3 = Vector3.ZERO
 ## Corriente del agua en la posición del jugador, muestreada en _check_needs_swimming.
 var _water_flow: Vector3 = Vector3.ZERO
+## Si los pies estaban dentro del agua en la ultima comprobacion. El chapoteo va en el CRUCE de
+## la lamina, no en el estado de nado, que empieza metro y medio mas abajo.
+var _feet_in_water: bool = false
 
 var equiped_weapon: ItemData
 var right_hand_equipped: bool = false
@@ -1155,6 +1158,14 @@ func _check_needs_swimming(delta: float):
 	# En un compartimento seco de un barco el agua no existe: sin nado bajo la superficie.
 	movement.is_swimming = distance_from_center <= (_water_surface_radius - swimming_offset) \
 		and not GridManager.is_point_in_dry_interior(global_position)
+
+	# Chapoteo al cruzar la lámina con los pies. El origen del cuerpo está en los pies, así que la
+	# comparación es directa; el nado no sirve de disparador porque arranca mucho más abajo.
+	var feet_wet := distance_from_center <= _water_surface_radius
+	if feet_wet != _feet_in_water:
+		_feet_in_water = feet_wet
+		var up := to_center / maxf(distance_from_center, 0.001)
+		movement.water_crossed.emit(absf(movement.velocity.dot(up)), feet_wet)
 
 	# El filtro submarino lo decide la cámara, no el cuerpo: en tercera persona se nada con los
 	# oídos fuera del agua, y el sonido tiene que ir con lo que se ve. El radio de superficie es

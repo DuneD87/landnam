@@ -10,5 +10,5 @@ volume_jitter_db = 2.00
 pitch_jitter = 0.10
 max_distance = 35.00
 unit_size = 3.00
-max_voices = 3
-cooldown = 0.08
+max_voices = 2
+cooldown = 0.35

@@ -40,6 +40,9 @@ var ai_direction: Vector3 = Vector3.ZERO
 signal landed(impact_speed: float)
 ## Emitido en el frame en que arranca un salto.
 signal jumped()
+## Emitido al cruzar la lamina de agua con los pies. [speed] es la velocidad vertical del cruce
+## (positiva hacia abajo) y [entering] distingue zambullirse de salir.
+signal water_crossed(speed: float, entering: bool)
 var _was_on_floor: bool = true
 var _peak_airborne_speed: float = 0.0
 
