@@ -1,30 +1,28 @@
-[gd_resource type="Resource" script_class="SoundEvent" load_steps=17 format=3]
+[gd_resource type="Resource" script_class="SoundEvent" format=3 uid="uid://bmssaqpvoa7ny"]
 
-[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="script"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_01.wav" id="snd_0"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_02.wav" id="snd_1"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_03.wav" id="snd_2"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_04.wav" id="snd_3"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_05.wav" id="snd_4"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_06.wav" id="snd_5"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_07.wav" id="snd_6"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_08.wav" id="snd_7"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_09.wav" id="snd_8"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_10.wav" id="snd_9"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_11.wav" id="snd_10"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_12.wav" id="snd_11"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_13.wav" id="snd_12"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_14.wav" id="snd_13"]
-[ext_resource type="AudioStreamWAV" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_15.wav" id="snd_14"]
+[ext_resource type="Script" uid="uid://c1svcu0j5y2m3" path="res://scripts/audio/sound_event.gd" id="script"]
+[ext_resource type="AudioStream" uid="uid://c0errocluvr5w" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_01.wav" id="snd_0"]
+[ext_resource type="AudioStream" uid="uid://bifynb2ub0sst" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_02.wav" id="snd_1"]
+[ext_resource type="AudioStream" uid="uid://dx23jil643fts" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_03.wav" id="snd_2"]
+[ext_resource type="AudioStream" uid="uid://einm3i144rdf" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_04.wav" id="snd_3"]
+[ext_resource type="AudioStream" uid="uid://c3yvlolwusl74" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_05.wav" id="snd_4"]
+[ext_resource type="AudioStream" uid="uid://b6xklhsyaxquc" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_06.wav" id="snd_5"]
+[ext_resource type="AudioStream" uid="uid://jjdnk2lid4fx" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_07.wav" id="snd_6"]
+[ext_resource type="AudioStream" uid="uid://cg0y3yqa4qf1d" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_08.wav" id="snd_7"]
+[ext_resource type="AudioStream" uid="uid://duwm03lb8u627" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_09.wav" id="snd_8"]
+[ext_resource type="AudioStream" uid="uid://cm0cv6trttqve" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_10.wav" id="snd_9"]
+[ext_resource type="AudioStream" uid="uid://o2c5wn8alj8x" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_11.wav" id="snd_10"]
+[ext_resource type="AudioStream" uid="uid://c4uq2xa3vsuif" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_12.wav" id="snd_11"]
+[ext_resource type="AudioStream" uid="uid://nbl13rwsygci" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_13.wav" id="snd_12"]
+[ext_resource type="AudioStream" uid="uid://dcng2kaopp00s" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_14.wav" id="snd_13"]
+[ext_resource type="AudioStream" uid="uid://df0yuh6oaekok" path="res://audio/human/footsteps/footsteps_grass/footsteps_grass_run/footsteps_grass_run_15.wav" id="snd_14"]
 
 [resource]
 script = ExtResource("script")
 event_id = &"step_run_grass"
 streams = Array[AudioStream]([ExtResource("snd_0"), ExtResource("snd_1"), ExtResource("snd_2"), ExtResource("snd_3"), ExtResource("snd_4"), ExtResource("snd_5"), ExtResource("snd_6"), ExtResource("snd_7"), ExtResource("snd_8"), ExtResource("snd_9"), ExtResource("snd_10"), ExtResource("snd_11"), ExtResource("snd_12"), ExtResource("snd_13"), ExtResource("snd_14")])
-volume_db = -8.00
-volume_jitter_db = 2.50
+volume_db = -8.0
+volume_jitter_db = 2.5
 pitch_jitter = 0.08
-max_distance = 24.00
-unit_size = 2.00
-max_voices = 4
-cooldown = 0.05
+max_distance = 24.0
+unit_size = 2.0
