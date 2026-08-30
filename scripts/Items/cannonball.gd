@@ -127,6 +127,10 @@ func _damage_static(node: Node, point: Vector3) -> int:
 	var destroyed: int = (result["destroyed"] as Array).size()
 	if destroyed > 0:
 		BlockDebris.burst(self, point, _up_at(point), destroyed, grid.cell_size)
+		var loudness := clampf(float(destroyed) / DynamicGridBody.IMPACT_LOUD_BLOCKS, 0.0, 1.0)
+		AudioManager.play_material(&"block_impact",
+			SurfaceAudio.dominant_family(result["destroyed"]), point,
+			{"volume_offset_db": lerpf(-12.0, 0.0, loudness)})
 	return destroyed
 
 

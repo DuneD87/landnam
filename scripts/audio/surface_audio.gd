@@ -43,6 +43,25 @@ static func resolve(hit: Dictionary, planet_root: Node3D, up: Vector3) -> String
 	return _biome_family(planet, pos, center)
 
 
+## Familia de sonido dominante entre los bloques que devuelve GridBase.damage_sphere. Un impacto
+## es un golpe único: mezclar dos familias sonaría a dos choques, así que manda la que más
+## bloques puso en el boquete. Devuelve vacío solo si no había material que reconocer, que es
+## la señal para que suene el evento genérico.
+static func dominant_family(destroyed_blocks: Array) -> StringName:
+	var tally: Dictionary = {}
+	var best_id := ""
+	var best_count := 0
+	for block: Dictionary in destroyed_blocks:
+		var mat_id := String(block.get("material_id", ""))
+		var n := int(tally.get(mat_id, 0)) + 1
+		tally[mat_id] = n
+		if n > best_count:
+			best_count = n
+			best_id = mat_id
+	var mat := BlockDatabase.get_material_by_id(best_id)
+	return _family(mat.sound_material) if mat != null else &""
+
+
 ## Familia del bloque pisado, o vacío si el rayo no dio en una rejilla de construcción.
 static func _grid_family(hit: Dictionary) -> StringName:
 	var collider := hit.get("collider") as Node3D

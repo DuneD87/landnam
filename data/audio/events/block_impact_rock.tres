@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="script"]
+[ext_resource type="AudioStream" path="res://audio/effects/block_impact_rock.wav" id="clip"]
+
+[resource]
+script = ExtResource("script")
+event_id = &"block_impact_rock"
+streams = Array[AudioStream]([ExtResource("clip")])
+volume_db = 0.00
+volume_jitter_db = 2.00
+pitch_jitter = 0.12
+max_distance = 180.00
+unit_size = 12.00
+max_voices = 3
+cooldown = 0.12

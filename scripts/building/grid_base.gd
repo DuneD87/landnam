@@ -626,9 +626,13 @@ func damage_sphere(world_center: Vector3, energy: float, radius_meters: float = 
 			continue
 
 		var world_pos := xform * ((Vector3(cell) + Vector3.ONE * 0.5) * cell_size)
-		if remove_block(cell).is_empty():
+		# El material viaja con el destruido: al emitirse el impacto el bloque ya no existe, y
+		# sondear su hueco despues no encuentra nada con lo que elegir el sonido.
+		var removed := remove_block(cell)
+		if removed.is_empty():
 			continue
-		destroyed.append({"grid_pos": cell, "block_id": block_id, "world_pos": world_pos})
+		destroyed.append({"grid_pos": cell, "block_id": block_id, "world_pos": world_pos,
+			"material_id": removed.get("material_id", "")})
 
 	return {"spent": energy - budget, "destroyed": destroyed, "damaged": damaged}
 

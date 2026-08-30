@@ -156,7 +156,9 @@ var spawned_from_split: bool = false
 var _derelict_timer: float = 0.0
 
 signal speed_changed(level: int, speed: float)
-signal blocks_destroyed(world_pos: Vector3, count: int)
+## [material] es la familia de sonido dominante entre lo que se llevo por delante: un impacto
+## es un solo golpe, asi que no puede sonar a madera y a piedra a la vez.
+signal blocks_destroyed(world_pos: Vector3, count: int, material: StringName)
 
 ## Bloques a los que el estruendo del impacto ya suena a pleno. Por encima no crece: un embiste
 ## que arranca medio casco no puede sonar diez veces mas que uno que arranca veinte bloques.
@@ -165,9 +167,14 @@ const IMPACT_LOUD_BLOCKS := 40.0
 
 ## Estruendo del impacto. Cuelga de blocks_destroyed y no de cada baja de bloque porque esa señal
 ## ya viene agregada: un choque es UN sonido, no doscientos.
-func _on_blocks_destroyed(world_pos: Vector3, count: int) -> void:
+## Estruendo de un boquete, venga de este casco o de la victima estatica.
+func _play_impact(world_pos: Vector3, count: int, destroyed_blocks: Array) -> void:
+	_on_blocks_destroyed(world_pos, count, SurfaceAudio.dominant_family(destroyed_blocks))
+
+
+func _on_blocks_destroyed(world_pos: Vector3, count: int, material: StringName) -> void:
 	var loudness := clampf(float(count) / IMPACT_LOUD_BLOCKS, 0.0, 1.0)
-	AudioManager.play_3d(&"block_impact", world_pos,
+	AudioManager.play_material(&"block_impact", material, world_pos,
 		{"volume_offset_db": lerpf(-12.0, 0.0, loudness)})
 
 
@@ -825,6 +832,7 @@ func apply_damage_at(world_pos: Vector3, energy: float, radius_meters: float = 0
 	var damaged := 0
 	var budget := energy
 	var debris_cell := 1.0
+	var all_destroyed: Array = []
 
 	for grid in _grids:
 		if budget <= 0.0:
@@ -833,11 +841,13 @@ func apply_damage_at(world_pos: Vector3, energy: float, radius_meters: float = 0
 		var result: Dictionary = grid.damage_sphere(world_pos, budget, radius_meters)
 		grid.end_batch_edit()
 		budget -= result["spent"]
-		var hit: int = (result["destroyed"] as Array).size()
+		var hit_blocks: Array = result["destroyed"]
+		var hit: int = hit_blocks.size()
 		damaged += int(result.get("damaged", 0))
 		if hit > 0:
 			destroyed += hit
 			debris_cell = grid.cell_size
+			all_destroyed.append_array(hit_blocks)
 
 	# Un golpe que solo mella también tiene que verse, o el jugador no sabe que está haciendo algo.
 	if destroyed == 0:
@@ -853,7 +863,7 @@ func apply_damage_at(world_pos: Vector3, energy: float, radius_meters: float = 0
 	if planet_node:
 		up = (global_position - planet_node.global_pos).normalized()
 	BlockDebris.burst(self, world_pos, up, destroyed, debris_cell)
-	blocks_destroyed.emit(world_pos, destroyed)
+	blocks_destroyed.emit(world_pos, destroyed, SurfaceAudio.dominant_family(all_destroyed))
 	return destroyed
 
 
@@ -879,6 +889,7 @@ func _damage_static_victim(world_pos: Vector3, energy: float, victim_grid_id: St
 	if planet_node:
 		up = (world_pos - planet_node.global_pos).normalized()
 	BlockDebris.burst(self, world_pos, up, count, victim.cell_size)
+	_play_impact(world_pos, count, result["destroyed"])
 
 
 func _physics_process(delta: float) -> void:

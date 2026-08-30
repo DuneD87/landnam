@@ -115,7 +115,10 @@ func play_material(prefix: StringName, sound_material: StringName, world_pos: Ve
 		opts: Dictionary = {}) -> AudioStreamPlayer3D:
 	if sound_material != &"":
 		var specific := StringName("%s_%s" % [prefix, sound_material])
-		if _events.has(specific):
+		# Declarado PERO sin clip cuenta como no declarado: un .tres preparado por adelantado,
+		# esperando a que lleguen los audios, no puede dejar mudo al evento genérico.
+		var ev: SoundEvent = _events.get(specific)
+		if ev != null and ev.is_valid():
 			return play_3d(specific, world_pos, opts)
 	return play_3d(prefix, world_pos, opts)
 
