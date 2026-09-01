@@ -513,6 +513,20 @@ func _ready() -> void:
 	
 	entity_id = "planet_%s" % name.to_lower()
 	voxel_terrain.stream.database_path = "user://saves/%s.sqlite" % [entity_id]
+	# Con stream asignado, cada bloque de datos de cada LOD pasa por una tarea LoadBlockData antes de
+	# poder mallarse, y esas tareas corren EN SERIE (push_async_io_task las encola con serial=true,
+	# porque comparten recursos con lock). Sin esta caché cada una hace una consulta SQLite real,
+	# también para los bloques que nadie ha editado nunca, y el mallado se queda esperando datos que
+	# llegan de uno en uno.
+	#
+	# Con la caché, el stream carga las claves de los bloques que sí existen al abrir la conexión y
+	# un bloque no editado se resuelve en memoria. Viene desactivada por defecto y no sale en el
+	# inspector (no tiene ADD_PROPERTY): solo se puede activar por código.
+	var terrain_stream: VoxelStream = voxel_terrain.stream
+	if terrain_stream != null and terrain_stream.has_method("set_key_cache_enabled"):
+		terrain_stream.call("set_key_cache_enabled", true)
+	else:
+		push_warning("Planet: este build del módulo no trae la caché de claves del VoxelStreamSQLite.")
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	if config_file_path != "res://data/planet/default.json":
 		_load_planet()

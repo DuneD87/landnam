@@ -4,7 +4,7 @@
 [ext_resource type="VoxelGraphFunction" uid="uid://byiklq6sp1ntr" path="res://data/graph_functions/cave_field.tres" id="1_420af"]
 [ext_resource type="VoxelGraphFunction" uid="uid://b3rp22i5ldnk8" path="res://data/graph_functions/earth_ore_field.tres" id="3_l0e7e"]
 [ext_resource type="VoxelGraphFunction" uid="uid://crmjlhy1m7p2o" path="res://data/graph_functions/cave_ore_field.tres" id="4_cvore"]
-[ext_resource type="VoxelGraphFunction" uid="uid://br4ghjahc0vbt" path="res://data/graph_functions/river_carve.tres" id="5_river"]
+[ext_resource type="VoxelGraphFunction" uid="uid://br4cxjhdkjvxe" path="res://data/graph_functions/river_carve.tres" id="5_river"]
 
 [resource]
 graph_data = {

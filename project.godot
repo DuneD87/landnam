@@ -236,5 +236,5 @@ u_world_offset={
 
 [voxel]
 
-threads/count/margin_below_max=4
-threads/count/ratio_over_max=0.25
+threads/count/margin_below_max=2
+threads/main/time_budget_ms=12
