@@ -207,6 +207,15 @@ void vertex() {
 }
 
 void fragment() {
+#ifdef LOD_FADE_ENABLED
+    // 0) Fundido de LOD: el bloque que se va y el que llega se reparten los pixeles con
+    // un patron ordenado, asi que el salto de LOD se difumina en vez de aparecer de golpe.
+    // Va lo primero para no muestrear texturas de un pixel que se descarta.
+    if (debug_lod_fade == 0 && lod_fade_discards(FRAGCOORD.xy)) {
+        discard;
+    }
+#endif
+
     // 1) Normal del voxel (detail normal map del atlas, con fallback a geometría)
     vec3 normal_model = safe_normalize(v_normal_model, vec3(0.0, 1.0, 0.0));
     get_voxel_normal_view_model(
@@ -579,6 +588,16 @@ void fragment() {
 			EMISSION = vec3(clamp(final_roughness, 0.0, 1.0));
 		}
 	}
+
+#ifdef LOD_FADE_ENABLED
+	// 8.8) Debug del fundido de LOD: emisivo plano, verde el bloque que aparece y rojo el
+	// que desaparece, con la intensidad = progreso. Todo negro = no hay fundido en curso.
+	if (debug_lod_fade > 0) {
+		float fade_t = clamp(u_lod_fade.x, 0.0, 1.0);
+		final_color = vec3(0.0);
+		EMISSION = u_lod_fade.y > 0.5 ? vec3(0.0, fade_t, 0.0) : vec3(fade_t, 0.0, 0.0);
+	}
+#endif
 
     ALBEDO = final_color;
 	NORMAL = normalize((VIEW_MATRIX * vec4(safe_normalize(final_normal, normal_world), 0.0)).xyz);

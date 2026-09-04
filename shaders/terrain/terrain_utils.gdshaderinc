@@ -318,6 +318,39 @@ vec3 get_transvoxel_position(vec3 vertex_pos, vec4 fdata, int transition_mask) {
     return pos;
 }
 
+// Interruptor del fundido de LOD. Descomentar para activarlo, y emparejarlo con
+// lod_fade_duration del VoxelLodTerrain (0 = apagado). Cuesta caro y DE FORMA CONSTANTE,
+// haya fundido en curso o no: un shader con discard pierde el early-Z y deja de poder usar
+// el material de sombra compartido, asi que el terreno ejecuta fragment() tambien en el
+// prepass de profundidad y en las 4 cascadas del sol. Es el shader con mas overdraw del
+// juego, asi que el peaje se nota en todo el frame.
+//#define LOD_FADE_ENABLED
+
+// Fundido de LOD. Con VoxelLodTerrain.lod_fade_duration > 0 el modulo escribe u_lod_fade
+// en el material de cada bloque: x = progreso 0..1 del fundido, y = 1 mientras el bloque
+// aparece y 0 mientras desaparece. Con el fundido apagado nadie lo escribe y el cero por
+// defecto (y = 0, x = 0) deja el bloque entero visible.
+uniform vec2 u_lod_fade;
+// 0 = off, 1 = tinta los bloques en fundido (verde aparece, rojo desaparece) sin recortar.
+uniform int debug_lod_fade : hint_range(0, 1) = 0;
+
+// Umbral ordenado 4x4 (Bayer) en pixeles de pantalla, 16 escalones en [0,1).
+float lod_fade_dither(vec2 frag_coord) {
+    vec2 a = floor(frag_coord);
+    vec2 b = floor(frag_coord * 0.5);
+    float fine = fract(a.x * 0.5 + a.y * a.y * 0.75);
+    float coarse = fract(b.x * 0.5 + b.y * b.y * 0.75);
+    return coarse * 0.25 + fine;
+}
+
+// true si este pixel le toca al bloque hermano del otro LOD. Los dos bloques comparten
+// umbral y comparan al reves, asi que se reparten la pantalla sin huecos ni solapes.
+bool lod_fade_discards(vec2 frag_coord) {
+    float threshold = lod_fade_dither(frag_coord);
+    bool appearing = u_lod_fade.y > 0.5;
+    return appearing ? (threshold >= u_lod_fade.x) : (threshold < u_lod_fade.x);
+}
+
 // Función de hash
 float hash(vec3 p) {
     p = fract(p * 0.3183099 + 0.1);

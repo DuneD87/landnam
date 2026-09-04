@@ -3,12 +3,12 @@
 importer="glsl"
 type="RDShaderFile"
 uid="uid://dwki278b5wglk"
-path="res://.godot/imported/god_rays.glsl-8e448a64ee152f2ca8b05fc84722a979.res"
+path="res://.godot/imported/god_rays.glsl-9a7f16662842ef650d0ac60532ec6758.res"
 
 [deps]
 
-source_file="res://shaders/Atmosphere/god_rays.glsl"
-dest_files=["res://.godot/imported/god_rays.glsl-8e448a64ee152f2ca8b05fc84722a979.res"]
+source_file="res://shaders/atmosphere/god_rays.glsl"
+dest_files=["res://.godot/imported/god_rays.glsl-9a7f16662842ef650d0ac60532ec6758.res"]
 
 [params]
 
