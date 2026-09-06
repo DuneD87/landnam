@@ -13,6 +13,15 @@ uniform float wave_steepness : hint_range(0.0, 1.0, 0.01) = 0.5;     // Q: 0 = s
 uniform int wave_octaves : hint_range(1, 6) = 4;
 uniform vec3 wave_pole = vec3(0.0, 1.0, 0.0); // eje de referencia del marco de olas (las olas viajan en su plano ecuatorial)
 
+// Jerarquía de escalas: cada octava conserva 0.5 * decay de la altura anterior.
+// 1 recupera el espectro anterior; valores menores dejan respirar al mar de fondo.
+uniform float wave_detail_decay : hint_range(0.3, 1.0, 0.01) = 0.72;
+// Series viajeras de mar abierto. El pico conserva la amplitud del clima; las pausas la reducen.
+uniform float wave_group_strength : hint_range(0.0, 0.8, 0.01) = 0.45;
+uniform float wave_group_waves : hint_range(2.0, 12.0, 0.1) = 4.5;
+// Variación de fase y altura a lo largo de cada frente; 0 conserva las series uniformes.
+uniform float wave_irregularity : hint_range(0.0, 1.0, 0.01) = 0.8;
+
 const int WAVE_MAX = 6;
 
 // Abanico y lacunaridad del oleaje. Las dos existen para lo mismo: que la suma de octavas no sea
@@ -27,10 +36,28 @@ const int WAVE_MAX = 6;
 //
 // La lacunaridad tenía que ser 0.5 exacto, así que todas las octavas eran armónicas de la primera y
 // el patrón entero se repetía cada wave_base_length metros. Con un factor que no divide a la
-// fundamental el periodo común se va a cientos de metros. No se toca la caída de amplitud (sigue a
-// la mitad por octava): esa es la pendiente del espectro, no la que crea el estampado.
+// fundamental el periodo común se va a cientos de metros. La caída de amplitud se controla aparte
+// con wave_detail_decay; la irregularidad espacial rompe además los frentes de cada octava.
 const float WAVE_FAN = 0.7;
 const float WAVE_LACUNARITY = 0.53;
+
+// x = envolvente, y = derivada espacial a lo largo del swell, z = derivada temporal.
+// La fase del oleaje no se modifica: la serie viaja a la mitad de la velocidad de la
+// ola principal. Dos escalas evitan que todas las series tengan la misma intensidad.
+// Réplica CPU: WaterHeightSampler._wave_group().
+vec3 wave_group(float signed_arc, float t) {
+    float strength = clamp(wave_group_strength, 0.0, 0.8);
+    if (strength <= 0.0) { return vec3(1.0, 0.0, 0.0); }
+    float k = 6.28318530718 / max(wave_base_length, 0.1);
+    float count = max(wave_group_waves, 2.0);
+    float group_k = k / count;
+    float group_omega = wave_speed * sqrt(k) * 0.5 / count;
+    float p1 = group_k * signed_arc + group_omega * t + 0.7;
+    float p2 = group_k * 0.61 * signed_arc + group_omega * 0.61 * t + 2.3;
+    float slope = -strength * (0.35 * sin(p1) + 0.15 * 0.61 * sin(p2));
+    return vec3(1.0 - strength * (0.5 - 0.35 * cos(p1) - 0.15 * cos(p2)),
+                slope * group_k, slope * group_omega);
+}
 
 // --- Máscara de temporal ---------------------------------------------------------------------
 // El clima sube el oleaje sobre un ÚNICO material para todo el planeta, así que sin esto una
@@ -181,8 +208,8 @@ uniform int shore_debug_mode : hint_range(0, 5) = 0;                 // ver shor
 // min_length = longitud de onda mínima (m) que tiene sentido dibujar aquí; las octavas por debajo
 // se desvanecen. 0 = sin LOD, evalúa todas.
 // Todo lo que la superficie necesita del mapa mundial en un punto. Se resuelve UNA vez y se
-// reutiliza: la inversión de punto fijo evalúa la superficie tres veces sobre puntos separados unos
-// metros, y releer las texturas en cada una triplicaba las lecturas para un dato que varía en
+// reutiliza: la inversión de punto fijo evalúa la superficie cuatro veces sobre puntos separados unos
+// metros, y releer las texturas en cada una cuadruplicaría las lecturas para un dato que varía en
 // decenas de metros. WaterHeightSampler ya muestreaba fuera de la iteración, así que esto además
 // acerca CPU y GPU en vez de separarlas.
 struct WaveContext {
@@ -262,6 +289,16 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
     float steepness = mix(wave_calm_steepness, wave_steepness, ctx.exposure);
     float len = wave_base_length;
     int octaves = clamp(wave_octaves, 1, WAVE_MAX);
+    float detail_decay = clamp(wave_detail_decay, 0.3, 1.0);
+    float detail_weight = 1.0;
+    float weight_sum = detail_decay > 0.9999 ? float(octaves)
+        : (1.0 - pow(detail_decay, float(octaves))) / (1.0 - detail_decay);
+    // Reservar margen para el gradiente de la envolvente en el arrastre horizontal.
+    float group_budget = 1.0 + 0.45 * clamp(wave_group_strength, 0.0, 0.8) / max(wave_group_waves, 2.0);
+    float irregularity = clamp(wave_irregularity, 0.0, 1.0);
+    // Cota de los gradientes añadidos de fase (<0.58k) y amplitud (<0.11k).
+    group_budget *= 1.0 + 0.7 * irregularity;
+    vec3 packet = vec3(1.0, 0.0, 0.0);
 
     for (int i = 0; i < WAVE_MAX; i++) {
         if (i >= octaves) break;
@@ -281,14 +318,40 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
             swell_dir = -dir_unit;
         }
 
-        // Steepness repartida entre octavas para no auto-intersecar las crestas.
-        float q = steepness / max(k * amp * float(octaves), 1e-4);
+        // Repartir también el pliegue: reducir solo amp se cancelaría dentro de q,
+        // dejando las olas pequeñas igual de afiladas pese a perder altura.
+        float q = steepness * detail_weight / max(k * amp * weight_sum * group_budget, 1e-4);
         // Distancia geodésica firmada al gran círculo de la ola. Su gradiente tangente
         // tiene módulo 1: conserva la longitud de onda en vez de estirarla en el ecuador.
         float signed_arc = length(local) * asin(dir_dot);
+        if (i == 0) { packet = wave_group(signed_arc, t); }
         // El desfase por octava es constante, así que no aporta gradiente y no puede rajar la malla.
         // Sin él las seis octavas cruzan el cero a la vez sobre su gran círculo y ahí se alinean.
-        float phase = k * signed_arc + t * wave_speed * sqrt(k) + float(i) * 2.399963;
+        float omega = wave_speed * sqrt(k);
+        float phase = k * signed_arc + t * omega + float(i) * 2.399963;
+        vec3 phase_gradient = dir_unit * k;
+        float shape_amplitude = 1.0;
+        vec3 amplitude_gradient = vec3(0.0);
+        if (irregularity > 0.0) {
+            // Dominios globales continuos, oblicuos al swell y distintos por octava.
+            // No se altera k según la posición: se añade una fase acotada y derivable.
+            // Así las crestas se curvan y pierden altura a tramos, sin costuras entre parches.
+            vec3 side = cross(pole, dir_fixed);
+            vec3 a = normalize(dir_fixed * 0.42 + side * 0.86 + pole * 0.29) * (k / 3.7);
+            vec3 b = normalize(-dir_fixed * 0.68 + side * 0.31 - pole * 0.66) * (k / 2.3);
+            float p1 = dot(local, a) + t * omega * 0.12 + float(i) * 1.71;
+            float p2 = dot(local, b) - t * omega * 0.17 + float(i) * 2.43 + 1.3;
+            float s1 = sin(p1);
+            float c1 = cos(p1);
+            float s2 = sin(p2);
+            float c2 = cos(p2);
+            vec3 a_tan = a - radial * dot(a, radial);
+            vec3 b_tan = b - radial * dot(b, radial);
+            phase += irregularity * (1.25 * s1 + 0.55 * s2);
+            phase_gradient += irregularity * (1.25 * c1 * a_tan + 0.55 * c2 * b_tan);
+            shape_amplitude = 1.0 - irregularity * (0.32 + 0.22 * c1 + 0.10 * c2);
+            amplitude_gradient = irregularity * (0.22 * s1 * a_tan + 0.10 * s2 * b_tan);
+        }
         float c = cos(phase);
         float s = sin(phase);
 
@@ -315,15 +378,25 @@ vec3 gerstner_surface_ctx(vec3 local, vec3 radial, float t, float min_length, Wa
         float chop_shallow = clamp(ctx.shore_depth * 0.4 / max(amp, 0.01), 0.0, 1.0);
         lod_weight *= max(ocean_weight, shore_chop * chop_gate * chop_shallow);
 
-        horiz += q * amp * dir_unit * c * lod_weight;
-        vert  += amp * s * lod_weight;
+        horiz += q * amp * shape_amplitude * dir_unit * c * lod_weight;
+        vert  += amp * shape_amplitude * s * lod_weight;
 
-        grad += dir_unit * (k * amp * c) * lod_weight;
-        n_up_sub += q * k * amp * s * lod_weight;
+        grad += amp * (shape_amplitude * c * phase_gradient + s * amplitude_gradient) * lod_weight;
+        n_up_sub += q * amp * (shape_amplitude * s * dot(dir_unit, phase_gradient)
+                    - c * dot(dir_unit, amplitude_gradient)) * lod_weight;
 
-        amp *= 0.5;
+        amp *= 0.5 * detail_decay;
+        detail_weight *= detail_decay;
         len *= WAVE_LACUNARITY;
     }
+
+    // Regla del producto: la normal y la señal de cresta siguen la forma de la serie,
+    // incluidos sus flancos. Aplicar antes de la familia costera conserva su relevo.
+    vec3 packet_grad = -swell_dir * packet.y;
+    grad = grad * packet.x + packet_grad * vert;
+    n_up_sub = n_up_sub * packet.x - dot(horiz, packet_grad);
+    horiz *= packet.x;
+    vert *= packet.x;
 
     // Familia de orilla: una sola ola cuya fase es la distancia al litoral. Suma a los mismos
     // acumuladores que las octavas, así normal y cresta salen consistentes para todos los callers.
@@ -477,14 +550,15 @@ vec3 gerstner_surface(vec3 local, vec3 radial, float t, out vec3 out_normal) {
 // Ambos salen del mismo punto invertido: la normal evaluada en 'local' sin invertir pertenece a
 // otra fase de la ola y desalinea el corte de la línea de flotación.
 float gerstner_surface_height_normal(vec3 local, float t, out vec3 out_normal) {
-    // El mapa se resuelve UNA vez para las tres evaluaciones. El punto fijo mueve el punto unos
-    // metros y estos datos varían en decenas, así que la diferencia no se aprecia y ahorra dos
-    // tercios de las lecturas — que aquí pesan, porque la marcha de rayos de la niebla submarina
+    // El mapa se resuelve UNA vez para las cuatro evaluaciones. El punto fijo mueve el punto unos
+    // metros y estos datos varían en decenas, así que la diferencia no se aprecia y ahorra tres
+    // cuartas partes de las lecturas — que aquí pesan, porque la marcha de rayos de la niebla submarina
     // llama a esta función decenas de veces por píxel. Es además lo que ya hacía WaterHeightSampler.
     WaveContext ctx = wave_context(local);
     float unused_crest;
     vec3 guess = local;
-    for (int i = 0; i < 2; i++) {
+    // Mismo número que WaterHeightSampler._INVERT_ITERATIONS, también con series activas.
+    for (int i = 0; i < 3; i++) {
         vec3 radial = normalize(guess);
         vec3 disp = gerstner_surface_ctx(guess, radial, t, 0.0, ctx, out_normal, unused_crest);
         vec3 horiz = disp - radial * dot(disp, radial);

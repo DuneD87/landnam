@@ -279,6 +279,10 @@ func _register_commands() -> void:
 		"Mezcla del agua: mar/lago/rio, cuanta costa y cuanto temporal.", _cmd_water))
 	_add(ConsoleCommand.new("perf", "perf [on|off]",
 		"Perfilado por fases: vuelca cada pico a consola con su desglose (sin argumento, alterna).", _cmd_perf))
+	_add(ConsoleCommand.new("escala", "escala [0.25-2.0]",
+		"Escala de render 3D: bisecciona si el coste de dibujar es de pixel o de envio.", _cmd_escala))
+	_add(ConsoleCommand.new("fps", "fps [n]",
+		"Techo de FPS (0 = sin techo), para fijar el ritmo mientras se mide.", _cmd_fps))
 
 
 
@@ -471,6 +475,33 @@ func _cmd_perf(args: PackedStringArray) -> String:
 	if not DebugStats.profiling:
 		return "[color=%s]Perfilado: OFF.[/color]" % COLOR_MUTED
 	return "[color=%s]Perfilado: ON.[/color] Cada pico va a consola con sus fases; F3 enseña el overlay." % COLOR_OK
+
+
+## Escala de render 3D. Es la biseccion de la fase 'dibujo': si un pico se cae al bajar la escala el
+## cuello es de pixel (fill), y si no se mueve es envio de comandos o driver.
+func _cmd_escala(args: PackedStringArray) -> String:
+	var vp := get_viewport()
+	if not args.is_empty():
+		if not args[0].is_valid_float():
+			return "[color=%s]Uso: escala <0.25-2.0>.[/color]" % COLOR_ERR
+		vp.scaling_3d_scale = clampf(args[0].to_float(), 0.25, 2.0)
+	var size := vp.get_visible_rect().size
+	return "[color=%s]Escala 3D %.2f → %dx%d de %dx%d.[/color]" % [
+		COLOR_OK, vp.scaling_3d_scale,
+		int(size.x * vp.scaling_3d_scale), int(size.y * vp.scaling_3d_scale),
+		int(size.x), int(size.y)]
+
+
+## Techo de FPS. Sin vsync el frame corre tan rapido como la GPU deje, asi que fijar el ritmo separa
+## un paron de verdad de la variacion normal.
+func _cmd_fps(args: PackedStringArray) -> String:
+	if not args.is_empty():
+		if not args[0].is_valid_int():
+			return "[color=%s]Uso: fps <n> | fps 0 para quitar el techo.[/color]" % COLOR_ERR
+		Engine.max_fps = maxi(args[0].to_int(), 0)
+	if Engine.max_fps == 0:
+		return "[color=%s]FPS sin techo.[/color]" % COLOR_MUTED
+	return "[color=%s]Techo de FPS: %d.[/color]" % [COLOR_OK, Engine.max_fps]
 
 
 func _cmd_wake(args: PackedStringArray) -> String:

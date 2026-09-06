@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode blend_mix, shadows_disabled, depth_draw_always;
 
-uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_linear_mipmap;
+uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_nearest, repeat_disable;
 uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
 uniform vec3 albedo : source_color = vec3(0.05, 0.20, 0.30);
 uniform vec3 albedo2 : source_color = vec3(0.10, 0.35, 0.50);
@@ -108,6 +108,8 @@ uniform float foam_crest_amount    : hint_range(0.0, 10.0, 0.1) = 2.0;
 uniform float foam_noise_amount    : hint_range(0.0, 1.0, 0.01) = 0.2; // cuánto deforma el ruido el borde de la banda de cresta
 uniform float foam_noise_warp      : hint_range(0.0, 4.0, 0.01) = 1.5; // domain warp: riza el borde en vez de ondularlo
 uniform float foam_night_level     : hint_range(0.0, 1.0, 0.01) = 0.35; // brillo de la espuma con el sol bajo el horizonte; 0 = invisible, 1 = igual que de día
+uniform float foam_breakup : hint_range(0.0, 1.0, 0.01) = 0.65;
+uniform float shore_foam_amount : hint_range(0.0, 1.0, 0.01) = 0.75;
 
 // Estela de espuma de las grids dinámicas (lo rellena FoamWakeManager por frame).
 // Cada estela = rango de puntos [wake_ranges] con culling por esfera envolvente [wake_bounds].
@@ -171,6 +173,8 @@ vec3 triplanar_normal_udn(sampler2D tex, vec3 pos, vec3 surface_normal,
                  + world_n_xy * weights.z
                  + world_n_yz * weights.x;
 
+    // Perturbación tangente: no inclinar la normal hacia dentro de la esfera.
+    blended -= surface_normal * dot(blended, surface_normal);
     return normalize(blended + surface_normal);
 }
 
@@ -225,10 +229,12 @@ vec3 screen_space_reflection(vec3 view_pos, vec3 view_normal, mat4 projection,
                              mat4 inv_projection, out float hit) {
     hit = 0.0;
     vec3 refl = reflect(normalize(view_pos), view_normal);
-    float step_len = ssr_step;
-    vec3 p = view_pos;
+    float step_len = max(ssr_step, 0.05);
+    vec3 p = view_pos + view_normal * 0.08;
+    float previous_diff = -1.0;
 
     for (int i = 0; i < ssr_max_steps; i++) {
+        vec3 previous_p = p;
         p += refl * step_len;
         if (-p.z <= 0.0) {
             break; // el rayo pasa por detrás de la cámara
@@ -238,14 +244,39 @@ vec3 screen_space_reflection(vec3 view_pos, vec3 view_normal, mat4 projection,
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
             break; // fuera de pantalla
         }
-        float scene = linearize_depth(uv, texture(DEPTH_TEXTURE, uv).r, inv_projection);
+        float depth_sample = textureLod(DEPTH_TEXTURE, uv, 0.0).r;
+        if (depth_sample <= 0.0) {
+            previous_diff = -1.0;
+            step_len *= 1.15;
+            continue;
+        }
+        float scene = linearize_depth(uv, depth_sample, inv_projection);
         float ray_depth = -p.z;
         float diff = ray_depth - scene;
-        if (diff > 0.0 && diff < ssr_thickness) {
+        if (diff > 0.0 && previous_diff <= 0.0) {
+            // Refinar el cruce para que el reflejo no salte entre pasos del ray-march.
+            vec3 low = previous_p;
+            vec3 high = p;
+            for (int j = 0; j < 4; j++) {
+                vec3 mid = (low + high) * 0.5;
+                vec4 mid_clip = projection * vec4(mid, 1.0);
+                vec2 mid_uv = mid_clip.xy / mid_clip.w * 0.5 + 0.5;
+                float mid_sample = textureLod(DEPTH_TEXTURE, mid_uv, 0.0).r;
+                float mid_depth = linearize_depth(mid_uv, mid_sample, inv_projection);
+                if (mid_sample > 0.0 && -mid.z > mid_depth) { high = mid; }
+                else { low = mid; }
+            }
+            vec4 hit_clip = projection * vec4(high, 1.0);
+            uv = hit_clip.xy / hit_clip.w * 0.5 + 0.5;
+            float hit_sample = textureLod(DEPTH_TEXTURE, uv, 0.0).r;
+            diff = -high.z - linearize_depth(uv, hit_sample, inv_projection);
+            if (hit_sample <= 0.0 || diff < 0.0 || diff >= ssr_thickness) { break; }
             vec2 edge = abs(uv - 0.5) * 2.0;
-            hit = smoothstep(1.0, 0.7, max(edge.x, edge.y)); // desvanecer en bordes de pantalla
-            return textureLod(SCREEN_TEXTURE, uv, 0.0).rgb;
+            hit = (1.0 - smoothstep(0.7, 1.0, max(edge.x, edge.y)))
+                * (1.0 - smoothstep(0.0, ssr_thickness, diff));
+            return textureLod(SCREEN_TEXTURE, uv, roughness * 3.0).rgb;
         }
+        previous_diff = diff;
         step_len *= 1.15; // pasos crecientes: precisión cerca, alcance lejos
     }
     return vec3(0.0);
@@ -360,8 +391,8 @@ void fragment() {
     vec3 final_world_normal = wave_world_normal;
 
     if (detail_fade < 0.999) {
-        vec2 time  = (TIME * wave_direction)  * time_scale;
-        vec2 time2 = (TIME * wave_direction2) * time_scale;
+        vec2 time  = (water_time * wave_direction)  * time_scale;
+        vec2 time2 = (water_time * wave_direction2) * time_scale;
         vec3 tri_pos = world_pos - planet_center;
 
         vec3 blend_weights = abs(wave_world_normal);
@@ -373,9 +404,8 @@ void fragment() {
         vec3 n3 = triplanar_normal_udn(texture_normal,  tri_pos, wave_world_normal, blend_weights, normal_scale3, time * 1.3);
 
         vec3 detailed_normal = normalize(mix(mix(n1, n2, 0.5), n3, 0.3));
-        detailed_normal = normalize(
-            mix(wave_world_normal, detailed_normal, clamp(normal_intensity, 0.0, 100.0))
-        );
+        vec3 detail_slope = detailed_normal - wave_world_normal * dot(detailed_normal, wave_world_normal);
+        detailed_normal = normalize(wave_world_normal + detail_slope * clamp(normal_intensity, 0.0, 100.0));
 
         // Fade hacia normal radial lisa con la distancia
         final_world_normal = normalize(mix(detailed_normal, wave_world_normal, detail_fade));
@@ -396,10 +426,18 @@ void fragment() {
     float warp = fbm3d(foam_np * 0.45 + foam_drift * 1.6 + vec3(13.1));
     float crest_noise = fbm3d(foam_np + foam_drift + (warp - 0.5) * foam_noise_warp * vec3(1.0, 0.35, 1.0));
     float deformed_crest = wave_crest_signal + (crest_noise - 0.5) * foam_noise_amount;
-    float wave_crest_factor = smoothstep(foam_crest_threshold, foam_crest_threshold + foam_crest_softness, deformed_crest);
+    float crest_aa = max(fwidth(deformed_crest), 0.001);
+    float wave_crest_factor = smoothstep(foam_crest_threshold - crest_aa,
+        foam_crest_threshold + max(foam_crest_softness, 0.001) + crest_aa, deformed_crest);
     wave_crest_factor = pow(wave_crest_factor, 1.5) * foam_crest_amount;
-    float crest_foam = clamp(wave_crest_factor, 0.0, 1.0);
-    float foam_level = crest_foam;
+    // Ruido filtrado por huella de píxel: filamentos cerca, cobertura estable lejos.
+    float foam_aa = max(fwidth(crest_noise), 0.025);
+    float foam_cells = smoothstep(0.42 - foam_aa, 0.62 + foam_aa, crest_noise);
+    float foam_texture = mix(1.0, foam_cells, foam_breakup * (1.0 - detail_fade));
+    float crest_foam = clamp(wave_crest_factor, 0.0, 1.0) * foam_texture;
+    float shore_contact = (1.0 - smoothstep(0.0, max(shore_soft_width, 0.01), max(z_dif, 0.0)))
+                        * mix(0.35, 1.0, foam_texture) * shore_foam_amount;
+    float foam_level = max(crest_foam, shore_contact);
 
     // Refracción — suprimida donde aparece espuma
     vec3 tangent_deviation = final_world_normal - radial_normal;
@@ -426,10 +464,15 @@ void fragment() {
                            * refraction_angle_factor
                            * (1.0 - foam_level); // sin refracción en orillas
 
+    // Desvanecer el desplazamiento cerca del marco, sin arrastrar una franja de
+    // pantalla hacia dentro cuando el material usa un margen UV grande.
+    vec2 screen_edge = min(SCREEN_UV, vec2(1.0) - SCREEN_UV);
+    refraction_offset *= smoothstep(0.0, max(refraction_uv_margin, 0.001), min(screen_edge.x, screen_edge.y));
+
     vec2 refracted_uv = clamp(
         SCREEN_UV + refraction_offset,
-        vec2(refraction_uv_margin),
-        vec2(1.0 - refraction_uv_margin)
+        vec2(0.001),
+        vec2(0.999)
     );
 
     float refracted_depth_sample = texture(DEPTH_TEXTURE, refracted_uv).r;
@@ -470,9 +513,9 @@ void fragment() {
 
 	    // Coordenadas mundiales escaladas. Cada plano de proyección parametriza la cara
 	    // perpendicular a ese eje sin estirarse.
-	    vec3 cp = bg_world_pos * caustics_scale;
-	    vec2 scroll1 = vec2(TIME * caustics_speed, 0.0);
-	    vec2 scroll2 = vec2(0.0, -TIME * caustics_speed * 0.8);
+	    vec3 cp = (bg_world_pos - planet_center) * caustics_scale;
+	    vec2 scroll1 = vec2(water_time * caustics_speed, 0.0);
+	    vec2 scroll2 = vec2(0.0, -water_time * caustics_speed * 0.8);
 
 	    // Tres proyecciones (top XZ, front XY, side YZ), cada una con sus dos capas animadas.
 	    float c_xz = texture(caustics_texture, cp.xz + scroll1).r
@@ -500,8 +543,9 @@ void fragment() {
 
     float sphere_water_depth = ray_sphere_depth(CAMERA_POSITION_WORLD, view_dir_w, planet_center, water_radius);
     float measured_water_depth = max(terrain_water_depth, water_column);
-    float has_scene_depth = 1.0 - step(0.9999, scene_depth_sample);
-    float use_sphere_fallback = (1.0 - has_scene_depth) * (1.0 - step(0.001, measured_water_depth));
+    // Godot 4.3+: reverse-Z, el cielo/far vacío es 0, no 1.
+    float has_scene_depth = scene_depth_sample > 0.0 ? 1.0 : 0.0;
+    float use_sphere_fallback = 1.0 - has_scene_depth;
     float opacity_depth = mix(measured_water_depth, sphere_water_depth, use_sphere_fallback);
     float depth_alpha_factor = smoothstep(depth_alpha_start, depth_alpha_end, opacity_depth);
     depth_alpha_factor = pow(depth_alpha_factor, depth_alpha_power);
@@ -512,14 +556,15 @@ void fragment() {
     grazing_opacity *= smoothstep(0.0, grazing_shore_fade, water_depth);
     float opacity_factor = max(max(depth_alpha_factor, view_opacity_factor), grazing_opacity);
 
-    vec3 transmission = exp(-absorption_coefficients * opacity_depth);
+    vec3 transmission = exp(-max(absorption_coefficients, vec3(0.0)) * opacity_depth);
 
     float scatter_t = 1.0 - exp(-opacity_depth * 0.08);
     vec3 water_scatter = mix(color_shallow.rgb, color_deep.rgb, scatter_t);
 
     float visibility = max(max(transmission.r, transmission.g), transmission.b) * (1.0 - opacity_factor);
     vec3 refracted_light = screen_color * transmission;
-    vec3 color = mix(water_scatter, refracted_light, visibility);
+    // Una sola absorción por canal, complementada por la luz dispersada.
+    vec3 color = refracted_light + water_scatter * (vec3(1.0) - transmission);
     color = mix(color, color_deep.rgb, view_opacity_factor);
 
     vec3 view_normal = normalize((VIEW_MATRIX * vec4(final_world_normal, 0.0)).xyz);
@@ -539,6 +584,9 @@ void fragment() {
     vec3 sun_dir_norm = normalize(-safe_sun_direction);
     vec3 to_sun = sun_dir_norm;              // desde la superficie hacia el sol
     float sun_up = smoothstep(-0.1, 0.15, dot(radial_normal, to_sun)); // apaga con sol bajo el horizonte
+    // La cáustica pertenece al fondo: desaparece sin sol, sin geometría y bajo espuma.
+    caustics_contrib *= sun_up * has_scene_depth * (1.0 - foam_level) * visibility;
+    color += screen_color * caustics_contrib * transmission;
 
     // De noche el especular de la luna sobre el agua casi-espejo reventaba las crestas en manchas
     // blancas (mala mar = muchas facetas apuntando a la luna). Lo atenuamos SOLO en las crestas
@@ -565,7 +613,7 @@ void fragment() {
     vec3 surface_color = mix(albedo, albedo2, fresnel_value);
     vec3 final_albedo = mix(color, reflection_color, fresnel_value);
     final_albedo += surface_color * fresnel_value * 0.15;
-    final_albedo = mix(final_albedo, color_deep.rgb, opacity_factor);
+    // La opacidad afecta al fondo transmitido; el reflejo sigue visible en mar profundo.
 
     // Subsurface scattering: cuánto se mira "hacia el sol" a través de la ola. En world space;
     // antes cruzaba VIEW (view-space) con la dirección del sol (world), espacios distintos.
@@ -586,9 +634,6 @@ void fragment() {
     float glint_shore_fade = smoothstep(0.0, glint_depth_fade, water_depth);
     final_albedo += sun_color * sun_energy * sun_glint
                   * sun_specular_intensity * sun_up * (1.0 - foam_level) * glint_shore_fade;
-
-    // Espuma suave de orilla: línea blanca difusa justo en el contacto agua-terreno (z_dif ≈ 0).
-    float shore_contact = smoothstep(shore_soft_width, 0.0, max(z_dif, 0.0));
 
     // Estela de espuma de los barcos: solo los píxeles dentro de la esfera envolvente
     // de alguna estela recorren sus puntos.
@@ -619,6 +664,7 @@ void fragment() {
             wake_foam = max(wake_foam, m * wa);
         }
     }
+    wake_foam *= foam_texture;
     // La espuma es casi blanca y de noche trazaba un perfil blanco en la orilla. Oscurecemos
     // su COLOR con el nivel de sol en vez de bajar la mezcla: así conserva forma y cobertura
     // (bajar la mezcla la funde con el agua y la hace desaparecer), solo se ve menos iluminada.
@@ -631,8 +677,6 @@ void fragment() {
     float foam_wet = max(crest_foam, max(shore_contact, wake_foam));
     float foam_glint = pow(max(dot(final_world_normal, half_vec), 0.0), 60.0);
     final_albedo += sun_color * sun_energy * foam_glint * foam_wet * 0.3 * sun_up;
-    // Screen blend: añade luz sin quemar los colores existentes (A + B - A*B)
-    final_albedo = final_albedo + caustics_contrib - final_albedo * caustics_contrib;
 
     ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
 
@@ -646,7 +690,7 @@ void fragment() {
     final_alpha = mix(final_alpha, 1.0, edge_disable);
     ALPHA = clamp(final_alpha, 0.0, deep_alpha);
 
-    ROUGHNESS = mix(roughness, 0.8, clamp(max(crest_foam, wake_foam), 0.0, 1.0));
+    ROUGHNESS = mix(roughness, 0.8, clamp(foam_wet, 0.0, 1.0));
     SPECULAR = 0.5;
     METALLIC = metallic;
 
@@ -673,7 +717,8 @@ void light() {
     // negro (con oleaje fuerte, Lambert puro pintaba bandas negras siguiendo los dorsos de ola).
     // El pico (cara a la luz) no cambia; solo se levanta la zona muerta ndl <= 0.
     float ndotl = clamp((ndl + light_diffuse_wrap) / (1.0 + light_diffuse_wrap), 0.0, 1.0);
-    DIFFUSE_LIGHT += ALBEDO * ndotl * ATTENUATION * LIGHT_COLOR * light_diffuse_strength;
+    // LIGHT_COLOR ya incluye PI en Godot; normalizar evita quemar la espuma al sol.
+    DIFFUSE_LIGHT += ALBEDO * ndotl * ATTENUATION * LIGHT_COLOR * (light_diffuse_strength / PI);
 
     // Especular con suelo de rugosidad y tope duro (distintos para direccional y puntual: ver
     // uniforms) para que ninguna luz individual pueda saturar a blanco. Se enmascara con el
