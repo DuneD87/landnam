@@ -5,11 +5,22 @@
 [ext_resource type="VoxelGraphFunction" uid="uid://b3rp22i5ldnk8" path="res://data/graph_functions/earth_ore_field.tres" id="3_l0e7e"]
 [ext_resource type="VoxelGraphFunction" uid="uid://crmjlhy1m7p2o" path="res://data/graph_functions/cave_ore_field.tres" id="4_cvore"]
 [ext_resource type="VoxelGraphFunction" uid="uid://br4cxjhdkjvxe" path="res://data/graph_functions/river_carve.tres" id="5_river"]
+[ext_resource type="VoxelGraphFunction" uid="uid://ccrh7wqeqy6wt" path="res://data/graph_functions/coastal_reefs.tres" id="6_reef"]
 
 [resource]
 graph_data = {
-"connections": [[100, 0, 82, 3], [100, 0, 85, 3], [81, 0, 100, 3], [82, 0, 4, 0], [82, 0, 90, 3], [85, 0, 83, 0], [85, 1, 84, 0], [90, 0, 91, 0]],
+"connections": [[100, 0, 82, 3], [100, 0, 85, 3], [81, 0, 100, 3], [82, 0, 101, 3], [101, 0, 4, 0], [82, 0, 90, 3], [85, 0, 83, 0], [85, 1, 84, 0], [90, 0, 91, 0]],
 "nodes": {
+"101": {
+"_function": ExtResource("6_reef"),
+"auto_connect": true,
+"earth_field": 0.0,
+"gui_position": Vector2(3060, 1440),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
 "100": {
 "_function": ExtResource("5_river"),
 "auto_connect": true,

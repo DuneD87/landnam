@@ -85,6 +85,9 @@ class_name PlanetParser extends Node3D
 @export_group("River Settings")
 ## Bloque opcional "river_settings" del JSON. Vacío = planeta sin ríos.
 @export var river_settings: Dictionary = {}
+## Bloque opcional "reef_settings" del JSON: los escollos de la franja costera. Vacío = los valores
+## que trae coastal_reefs.tres.
+@export var reef_settings: Dictionary = {}
 
 @export_group("Underwater settings")
 @export var fog_density: float = 0.5
@@ -350,6 +353,7 @@ func load_config(config_path: String):
 	print("DEBUG: Loaded weather settings: ", weather_settings)
 
 	river_settings = _parse_river_settings(config.get("river_settings", {}))
+	reef_settings = config.get("reef_settings", {})
 
 
 ## Normaliza el bloque de ríos: los tamaños llegan como pares [ancho, alto] desde el JSON y el resto

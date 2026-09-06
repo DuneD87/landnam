@@ -1,0 +1,219 @@
+[gd_resource type="VoxelGraphFunction" format=3 uid="uid://ccrh7wqeqy6wt"]
+
+[sub_resource type="FastNoise2" id="FastNoise2_sfhmc"]
+noise_type = 1
+period = 90.0
+fractal_type = 1
+fractal_octaves = 4
+
+[sub_resource type="FastNoise2" id="FastNoise2_ihnkp"]
+noise_type = 1
+seed = 7717
+period = 2500.0
+
+[resource]
+graph_data = {
+"connections": [[1, 0, 5, 0], [1, 0, 11, 0], [2, 0, 5, 1], [2, 0, 11, 1], [3, 0, 5, 2], [3, 0, 11, 2], [4, 0, 7, 1], [4, 0, 27, 0], [4, 0, 28, 0], [4, 0, 29, 1], [5, 0, 6, 0], [6, 0, 7, 0], [6, 0, 12, 1], [6, 0, 28, 2], [6, 0, 29, 2], [7, 0, 8, 0], [7, 0, 9, 0], [7, 0, 23, 0], [8, 0, 10, 0], [9, 0, 10, 1], [10, 0, 21, 2], [11, 0, 13, 0], [11, 1, 14, 0], [11, 2, 15, 0], [11, 3, 12, 0], [12, 0, 13, 1], [12, 0, 14, 1], [12, 0, 15, 1], [13, 0, 16, 0], [13, 0, 19, 0], [14, 0, 16, 1], [14, 0, 19, 1], [15, 0, 16, 2], [15, 0, 19, 2], [16, 0, 17, 0], [17, 0, 18, 0], [18, 0, 22, 1], [19, 0, 20, 0], [20, 0, 21, 1], [21, 0, 22, 2], [22, 0, 25, 0], [23, 0, 24, 0], [24, 0, 25, 1], [25, 0, 26, 0], [26, 0, 27, 1], [27, 0, 28, 1], [28, 0, 29, 0], [29, 0, 30, 0]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(-1300, -60),
+"type": "InputX"
+},
+"10": {
+"auto_connect": false,
+"gui_position": Vector2(-360, -20),
+"name": &"reef_band",
+"type": "Multiply"
+},
+"11": {
+"auto_connect": true,
+"gui_position": Vector2(-1100, 300),
+"name": &"reef_dir",
+"type": "Normalize"
+},
+"12": {
+"auto_connect": false,
+"gui_position": Vector2(-920, 420),
+"name": &"reef_sea_radius",
+"type": "Subtract"
+},
+"13": {
+"auto_connect": false,
+"gui_position": Vector2(-740, 240),
+"name": &"reef_proj_0",
+"type": "Multiply"
+},
+"14": {
+"auto_connect": false,
+"gui_position": Vector2(-740, 310),
+"name": &"reef_proj_1",
+"type": "Multiply"
+},
+"15": {
+"auto_connect": false,
+"gui_position": Vector2(-740, 380),
+"name": &"reef_proj_2",
+"type": "Multiply"
+},
+"16": {
+"auto_connect": false,
+"gui_position": Vector2(-540, 300),
+"name": &"reef_noise",
+"noise": SubResource("FastNoise2_sfhmc"),
+"type": "FastNoise2_3D"
+},
+"17": {
+"auto_connect": false,
+"edge0": 0.0,
+"edge1": 1.0,
+"gui_position": Vector2(-360, 300),
+"name": &"reef_coverage",
+"type": "Smoothstep"
+},
+"18": {
+"auto_connect": false,
+"gui_position": Vector2(-200, 300),
+"name": &"reef_sharpness",
+"power": 1,
+"type": "Powi"
+},
+"19": {
+"auto_connect": false,
+"gui_position": Vector2(-540, 560),
+"name": &"reef_zone_noise",
+"noise": SubResource("FastNoise2_ihnkp"),
+"type": "FastNoise2_3D"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(-1300, 20),
+"type": "InputY"
+},
+"20": {
+"auto_connect": false,
+"edge0": -0.2,
+"edge1": 0.15,
+"gui_position": Vector2(-360, 560),
+"name": &"reef_zone",
+"type": "Smoothstep"
+},
+"21": {
+"a": 0.0,
+"auto_connect": false,
+"gui_position": Vector2(-160, 60),
+"name": &"reef_zoned_band",
+"type": "Mix"
+},
+"22": {
+"a": 0.0,
+"auto_connect": false,
+"gui_position": Vector2(20, 140),
+"name": &"reef_head",
+"type": "Mix"
+},
+"23": {
+"auto_connect": false,
+"b": -1.0,
+"gui_position": Vector2(-360, 700),
+"name": &"reef_depth",
+"type": "Multiply"
+},
+"24": {
+"auto_connect": false,
+"b": 24.0,
+"gui_position": Vector2(-160, 700),
+"name": &"reef_crest",
+"type": "Add"
+},
+"25": {
+"auto_connect": false,
+"gui_position": Vector2(200, 300),
+"name": &"reef_rise_raw",
+"type": "Multiply"
+},
+"26": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(360, 300),
+"name": &"reef_rise",
+"type": "Max"
+},
+"27": {
+"auto_connect": false,
+"gui_position": Vector2(520, 160),
+"name": &"reef_carved",
+"type": "Subtract"
+},
+"28": {
+"auto_connect": false,
+"gui_position": Vector2(700, 220),
+"name": &"reef_shell_lo",
+"threshold": -70.0,
+"type": "Select"
+},
+"29": {
+"auto_connect": false,
+"gui_position": Vector2(880, 160),
+"name": &"reef_shell_hi",
+"threshold": 42.0,
+"type": "Select"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(-1300, 100),
+"type": "InputZ"
+},
+"30": {
+"auto_connect": false,
+"gui_position": Vector2(1060, 160),
+"name": &"reef_field",
+"type": "CustomOutput"
+},
+"4": {
+"auto_connect": false,
+"gui_position": Vector2(-1300, 320),
+"name": &"earth_field",
+"type": "CustomInput"
+},
+"5": {
+"auto_connect": true,
+"gui_position": Vector2(-1100, -40),
+"name": &"reef_planet_sdf",
+"radius": 30000.0,
+"type": "SdfSphere"
+},
+"6": {
+"auto_connect": false,
+"b": 50.0,
+"gui_position": Vector2(-920, -40),
+"name": &"reef_sea_offset",
+"type": "Add"
+},
+"7": {
+"auto_connect": false,
+"gui_position": Vector2(-740, 40),
+"name": &"reef_ground_height",
+"type": "Subtract"
+},
+"8": {
+"auto_connect": false,
+"edge0": -45.0,
+"edge1": -28.0,
+"gui_position": Vector2(-540, -80),
+"name": &"reef_deep_gate",
+"type": "Smoothstep"
+},
+"9": {
+"auto_connect": false,
+"edge0": 1.0,
+"edge1": -3.0,
+"gui_position": Vector2(-540, 40),
+"name": &"reef_land_gate",
+"type": "Smoothstep"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0], ["earth_field", "CustomInput", 0]]
+output_definitions = [["reef_field", "CustomOutput", 0]]

@@ -40,9 +40,14 @@ const _SHORE_COAST_SMOOTH := 1
 ## verdad, y de ahí para fuera propaga el barrido.
 const _SHORE_SEED_RADIUS := 2
 
-## Salida que declara la etapa de grafo que perfora el terreno y que el mapa ignora al hornear, y
-## entrada por la que esa etapa recibe el terreno intacto. Ver _ground_only_generator.
-const _CAVE_OUTPUT := "cave_field"
+## Salidas que declaran las etapas de grafo que el mapa ignora al hornear, y entrada por la que
+## esas etapas reciben el terreno intacto. Ver _ground_only_generator.
+##
+## Las cuevas se pelan porque el bake pierde las montañas con ellas. Los arrecifes, porque a 2048
+## téxeles de ancho un téxel del ecuador mide ~92 m, justo el periodo de una cabeza de arrecife: lo
+## único que aportarían al mapa es aliasing en la línea de costa, y ese ruido se propaga a la
+## clasificación de cuerpos de agua y de ahí al campo de orilla.
+const _BYPASSED_OUTPUTS := ["cave_field", "reef_field"]
 const _CAVE_TERRAIN_INPUT := "earth_field"
 ## Tope de etapas encadenadas que se pelan; solo evita un bucle infinito si el grafo se muerde la cola.
 const _MAX_CAVE_STAGES := 8
@@ -56,8 +61,8 @@ const _MAX_CAVE_STAGES := 8
 ## contra el SDF real). NO es la convención que asume planet_impostor.gdshader, que está girada 90°
 ## y espejada. Aquí se voltea la imagen para dejar el norte arriba.
 ##
-## Se hornea el terreno SIN las cuevas (ver _ground_only_generator): con ellas el bake pierde las
-## montañas.
+## Se hornea el terreno SIN cuevas ni arrecifes (ver _ground_only_generator): con las cuevas el bake
+## pierde las montañas, y los arrecifes son del tamaño de un téxel y solo meten ruido en la costa.
 static func bake_heights(generator: Object, size: Vector2i, radius: float,
 		sea_level_radius: float, has_water: bool, height_range: float) -> WorldMapData:
 	if generator == null:
@@ -147,7 +152,7 @@ static func _ground_only_generator(generator: Object) -> Object:
 		if stage.is_empty() or fn.get_node_type_id(stage.node) != function_type:
 			break
 		var f: Resource = fn.get_node_param(stage.node, 0)
-		if f == null or not _declares_output(f, _CAVE_OUTPUT):
+		if f == null or not _declares_any_output(f, _BYPASSED_OUTPUTS):
 			break
 		var port: int = fn.get_node_input_index(stage.node, _CAVE_TERRAIN_INPUT)
 		if port < 0:
@@ -167,6 +172,14 @@ static func _ground_only_generator(generator: Object) -> Object:
 			% result.get("message", ""))
 		return generator
 	return copy
+
+
+## True si la función de grafo declara alguna de esas salidas.
+static func _declares_any_output(graph_function: Resource, output_names: Array) -> bool:
+	for name in output_names:
+		if _declares_output(graph_function, String(name)):
+			return true
+	return false
 
 
 ## True si la función de grafo declara una salida con ese nombre. Se lee de output_definitions, que

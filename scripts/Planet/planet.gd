@@ -83,6 +83,9 @@ var external_planet_materials: Array[ShaderMaterial] = []
 ## Bloque "river_settings" del JSON. Vacío = planeta sin ríos (el grafo lleva imágenes neutras que
 ## no tallan nada, así que no hace falta desconectar nada).
 @export var river_settings: Dictionary = {}
+## Bloque "reef_settings" del JSON: los escollos de la franja costera. Vacío = valores por defecto
+## de coastal_reefs.tres; "enabled": false los apaga sin tocar el grafo.
+@export var reef_settings: Dictionary = {}
 ## Identificador del planeta, para nombrar el caché del campo de ríos.
 @export var entity_id: String = ""
 
@@ -1176,7 +1179,38 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", radius - water_radius)
 
+	_setup_reef_shader_parameters()
 	_setup_ore_shader_parameters()
+
+
+## Textura de los escollos y la franja en que manda. Sin las cuatro texturas se queda apagado: la
+## roca sale con la arena de la orilla, que es lo que había antes, y no con samplers sin enlazar.
+func _setup_reef_shader_parameters() -> void:
+	var albedo := load(reef_settings.get("texture", "")) as Texture2D
+	var nrm := load(reef_settings.get("normal_texture", "")) as Texture2D
+	var rough := load(reef_settings.get("roughness_texture", "")) as Texture2D
+	var ao := load(reef_settings.get("ao_texture", "")) as Texture2D
+	var ready: bool = has_water and albedo != null and nrm != null and rough != null and ao != null
+	shader_material.set_shader_parameter("reef_enabled", 1 if ready else 0)
+	if not ready:
+		return
+
+	shader_material.set_shader_parameter("reef_texture", albedo)
+	shader_material.set_shader_parameter("reef_normal_texture", nrm)
+	shader_material.set_shader_parameter("reef_roughness_texture", rough)
+	shader_material.set_shader_parameter("reef_ao_texture", ao)
+	# Por defecto la franja cubre el arrecife entero: desde el borde hondo hasta un poco por encima
+	# de la cresta, para que la punta emergida no vuelva a ser arena justo al salir del agua.
+	var depth_max: float = maxf(float(reef_settings.get("depth_max", 45.0)), 1.0)
+	var crest: float = float(reef_settings.get("crest_height", 14.0))
+	shader_material.set_shader_parameter("reef_band_low",
+		float(reef_settings.get("band_low", -depth_max)))
+	shader_material.set_shader_parameter("reef_band_high",
+		float(reef_settings.get("band_high", crest + 4.0)))
+	shader_material.set_shader_parameter("reef_slope_threshold",
+		float(reef_settings.get("texture_slope_threshold", 0.10)))
+	shader_material.set_shader_parameter("reef_slope_softness",
+		float(reef_settings.get("texture_slope_softness", 0.14)))
 
 func _setup_ore_shader_parameters() -> void:
 	var ore_albedo: Array[Texture2D] = []
@@ -1236,6 +1270,9 @@ func setup_voxel_generator() -> void:
 		_apply_ore_params(all_functions, ore_settings)
 		needs_compile = true
 
+	if _apply_reef_params(all_functions):
+		needs_compile = true
+
 	if _setup_rivers(graph_generator):
 		needs_compile = true
 
@@ -1279,6 +1316,7 @@ func _setup_rivers(graph_generator: VoxelGeneratorGraph) -> bool:
 	if field.is_empty():
 		var started := Time.get_ticks_msec()
 		var source: VoxelGeneratorGraph = graph_generator.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+		_disable_reefs(source)
 		source.compile()
 		field = RiverGenerator.build_field(source, radius, sea_level_radius, height_range,
 			river_settings)
@@ -1366,6 +1404,111 @@ func _apply_cave_ore_band(functions: Array, type_id: int, ore: Dictionary) -> vo
 
 	var shell: float = maxf(float(ore.get("cave_shell", 12.0)), 0.001)
 	_set_smoothstep(functions, "cave_gate_%d" % type_id, -shell, 0.0)
+
+## Margen (m) con que la cáscara radial de poda envuelve al arrecife por debajo y por encima.
+## Tiene que dejar dentro la isosuperficie más un vóxel del LOD más lejano en que el arrecife aún se
+## malla: por dentro la cáscara no cambia nada, y por fuera es lo único que evita evaluar el ruido.
+const _REEF_SHELL_BELOW := 25.0
+const _REEF_SHELL_ABOVE := 17.5
+
+
+## Empuja al grafo la franja de escollos de la costa. Devuelve true si tocó algo y hay que recompilar.
+##
+## El offset del nivel del mar se escribe SIEMPRE, lo pida o no el JSON: lo dicta water_radius, y sin
+## él el arrecife se sitúa a la altura equivocada. La cáscara radial de reef_shell_* se deriva de la
+## propia franja en vez de dejarla fija, porque quedarse corta recortaría el arrecife por arriba o
+## por abajo en cuanto se tocaran depth_max o crest_height.
+func _apply_reef_params(functions: Array) -> bool:
+	if _find_owner(functions, "reef_sea_offset") == null:
+		return false
+
+	# El grafo razona en altura sobre el mar, y el mar está en radius - water_radius.
+	_set_graph_value(functions, "reef_sea_offset", "b", water_radius)
+	# El radio se lo pone el arrecife, no _apply_radius: allí se busca entre los inputs pero se
+	# escribe como param, y en SdfSphere el radio es un input, así que la escritura no llega nunca.
+	_set_graph_value(functions, "reef_planet_sdf", "radius", radius)
+
+	if not has_water or not bool(reef_settings.get("enabled", true)):
+		# Ventana radial vacía: el Select se queda siempre con el terreno y el ruido ni se evalúa.
+		_set_graph_value(functions, "reef_shell_lo", "threshold", 1.0e9)
+		_set_graph_value(functions, "reef_shell_hi", "threshold", -1.0e9)
+		return true
+
+	var depth_max: float = maxf(float(reef_settings.get("depth_max", 45.0)), 1.0)
+	var depth_soft: float = clampf(float(reef_settings.get("depth_softness", 17.0)), 0.1, depth_max)
+	var shore_margin: float = float(reef_settings.get("shore_margin", 1.0))
+	var shore_soft: float = maxf(float(reef_settings.get("shore_softness", 4.0)), 0.1)
+	var crest: float = float(reef_settings.get("crest_height", 24.0))
+	var threshold: float = float(reef_settings.get("rock_threshold", 0.0))
+	# La altura de la roca es lerp(lecho, crest_height, cobertura), así que TODO punto donde la
+	# cobertura sature a 1 queda exactamente a crest_height: mesetas planas a cota constante, y muy
+	# visibles porque las crestas del ruido van agrupadas. La cura es que este borde alto quede por
+	# encima del máximo del ruido (~0.8 con 4 octavas), para que la cobertura nunca llegue a tocar 1
+	# y la altura siga siendo función estrictamente creciente del ruido: cada cabeza, una cima.
+	var rock_soft: float = maxf(float(reef_settings.get("rock_softness", 1.0)), 0.01)
+	# Afilado extra. No es lo que quita la meseta —eso lo hace rock_softness—: estrecha las puntas,
+	# a cambio de comerse la cobertura muy deprisa.
+	var sharpness: int = maxi(int(reef_settings.get("sharpness", 1)), 1)
+
+	# Tramos francos. El ruido de zona reparte la costa en tramos con arrecife y tramos limpios por
+	# los que se puede entrar; sin esto la roca orla el planeta entero por igual. gap_threshold es el
+	# umbral: subirlo abre más costa, bajarlo la cierra.
+	var gap_threshold: float = float(reef_settings.get("gap_threshold", -0.2))
+	var gap_soft: float = maxf(float(reef_settings.get("gap_softness", 0.35)), 0.01)
+
+	_set_smoothstep(functions, "reef_deep_gate", -depth_max, -(depth_max - depth_soft))
+	_set_smoothstep(functions, "reef_land_gate", shore_margin, shore_margin - shore_soft)
+	_set_smoothstep(functions, "reef_coverage", threshold, threshold + rock_soft)
+	_set_smoothstep(functions, "reef_zone", gap_threshold, gap_threshold + gap_soft)
+	_set_graph_value(functions, "reef_sharpness", "power", sharpness)
+	_set_graph_value(functions, "reef_crest", "b", crest)
+	_set_graph_value(functions, "reef_shell_lo", "threshold", -(depth_max + _REEF_SHELL_BELOW))
+	_set_graph_value(functions, "reef_shell_hi", "threshold", crest + _REEF_SHELL_ABOVE)
+
+	if reef_settings.has("head_size"):
+		_set_noise_period(functions, "reef_noise", maxf(float(reef_settings.head_size), 1.0))
+	if reef_settings.has("gap_scale"):
+		_set_noise_period(functions, "reef_zone_noise", maxf(float(reef_settings.gap_scale), 1.0))
+	return true
+
+
+## Deja una copia del generador sin escollos. La hidrología se deduce de un equirect de 1024x512
+## —unos 180 m por téxel—, donde una cabeza de arrecife no llega a ocupar un téxel: lo único que
+## aportaría es picar la línea de costa y mover desembocaduras. Se apaga dejando vacía la ventana
+## radial, igual que "enabled": false, que además ahorra el ruido durante todo el horneado.
+func _disable_reefs(generator: VoxelGeneratorGraph) -> void:
+	var main: VoxelGraphFunction = generator.get_main_function()
+	var functions: Array = [main]
+	_gather_subfunctions(main, functions)
+	if _find_owner(functions, "reef_shell_lo") == null:
+		return
+	_set_graph_value(functions, "reef_shell_lo", "threshold", 1.0e9)
+	_set_graph_value(functions, "reef_shell_hi", "threshold", -1.0e9)
+
+
+## Escala de uno de los dos ruidos del arrecife: es el periodo del FastNoise2 colgado del nodo, no
+## un param del nodo. Se puede escribir porque el generador llega deep-duplicado; sobre el recurso
+## de disco ensuciaría el .tres.
+func _set_noise_period(functions: Array, node_name: String, period: float) -> void:
+	var fn := _find_owner(functions, node_name)
+	if fn == null:
+		return
+	var noise = fn.get_node_param(fn.find_node_by_name(node_name), 0)
+	if noise != null:
+		noise.period = period
+
+
+## Localiza un nodo por nombre en cualquier (sub)función y le fija ese ajuste, sea un input por
+## defecto o un param del nodo. Devuelve false si el nodo no está en ninguna.
+func _set_graph_value(functions: Array, node_name: String, setting: String, value) -> bool:
+	var fn := _find_owner(functions, node_name)
+	if fn == null:
+		push_warning("Planet: no se encontró el nodo '%s' del grafo." % node_name)
+		return false
+	var node_id := fn.find_node_by_name(node_name)
+	_push_param(fn, node_id, fn.get_node_type_id(node_id), setting, value)
+	return true
+
 
 ## Localiza un Smoothstep por nombre en cualquier (sub)función y le fija edge0/edge1.
 func _set_smoothstep(functions: Array, node_name: String, edge0: float, edge1: float) -> void:

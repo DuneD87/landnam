@@ -646,6 +646,27 @@
 	  [-10.0, 0.35], [-25.0, 0.5], [-45.0, 1.2], [-65.0, 0.5], [-90.0, 0.15]
 	]
   },
+  "reef_settings": {
+	"enabled": true,
+	"depth_max": 75.0,
+	"depth_softness": 17.0,
+	"shore_margin": 1.0,
+	"shore_softness": 4.0,
+	"crest_height": 34.0,
+	"sharpness": 1,
+	"rock_threshold": 0.0,
+	"rock_softness": 1.0,
+	"head_size": 90.0,
+	"gap_scale": 250.0,
+	"gap_threshold": -0.2,
+	"gap_softness": 0.35,
+	"texture": "res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_albedo.png",
+	"normal_texture": "res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_Normal-ogl.png",
+	"roughness_texture": "res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_Roughness.png",
+	"ao_texture": "res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_ao.png",
+	"texture_slope_threshold": 0.10,
+	"texture_slope_softness": 0.14
+  },
   "weather_settings": {
 	"enabled": true,
 	"min_duration": 300.0,

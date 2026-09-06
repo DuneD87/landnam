@@ -57,6 +57,24 @@ uniform sampler2D slope_height_texture;
 uniform sampler2D slope_ao_texture;
 uniform float slope_threshold = 0.5;
 uniform float slope_smoothness = 0.5;
+
+// Escollos de la costa. La roca de la rompiente no puede llevar la arena de la playa que tiene al
+// lado, y en la franja del mar todos los biomas caen en su banda de altura más baja, que es
+// justo la arena. La máscara es "cerca del nivel del mar Y en pendiente": un arrecife sale
+// empinado y la orilla llana no, así que la playa se queda como está sin tener que distinguirla.
+uniform sampler2D reef_texture;
+uniform sampler2D reef_normal_texture;
+uniform sampler2D reef_roughness_texture;
+uniform sampler2D reef_ao_texture;
+uniform int reef_enabled = 0;
+// Alturas sobre el nivel del mar entre las que la roca de arrecife manda. El ancho del contacto NO
+// es un valor propio: son transition_smoothness y el ruido de transition_height, los mismos que
+// reparten las bandas de altura de los biomas, para que el borde se lea igual que los demás.
+uniform float reef_band_low = -50.0;
+uniform float reef_band_high = 18.0;
+// Pendiente a partir de la cual cuenta como arrecife. Se mide con el mismo 'slope' que la roca.
+uniform float reef_slope_threshold = 0.10;
+uniform float reef_slope_softness = 0.14;
 // Mezcla por height map en el contacto pendiente<->bioma. 0 = degradado lineal por angulo
 // (comportamiento anterior). Con >0 la roca gana donde su height map sobresale y pierde en
 // los huecos, asi que el borde se interdigita en vez de ser un aerografo.
@@ -521,6 +539,42 @@ void fragment() {
         final_ao = 1.0;
         final_normal = normal_world;
         final_detail_factor = 1.0;
+    }
+
+    // 6b) Escollos: se pinta ENCIMA del reparto bioma/pendiente ya normalizado, igual que hace el
+    // overlay de mena justo debajo. Los muestreos van dentro del if, así que tierra adentro y en
+    // mar abierto esto no cuesta nada: la banda es una franja contigua en pantalla y el branch sale
+    // coherente.
+    if (reef_enabled != 0 && has_water != 0) {
+        // transition_height ya trae la variacion macro y el ruido de transicion de altura, y va
+        // medido sobre el radio: (radius - water_radius) lo pasa a altura sobre el mar. Usarlo aqui
+        // es lo que rompe el contorno; contra la altura cruda el borde sale siguiendo una isolinea.
+        float reef_h = transition_height + (radius - water_radius);
+        float reef_band =
+            smoothstep(-transition_smoothness, transition_smoothness, reef_h - reef_band_low)
+            * (1.0 - smoothstep(-transition_smoothness, transition_smoothness, reef_h - reef_band_high));
+        float reef_w = reef_band * smoothstep(reef_slope_threshold,
+            reef_slope_threshold + reef_slope_softness, slope);
+        if (reef_w > 0.001) {
+            // Eje de mezcla = normal geometrica, igual que la roca de pendiente: estas caras son
+            // paredes y la proyeccion cenital las estira.
+            TriplanarUVs reef_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+            vec3 reef_color = triplanar_sample_uvs(reef_texture, reef_uvs, geometry_normal_world);
+            vec4 reef_n_v = triplanar_normal_sample_uvs_v(reef_normal_texture, reef_uvs, normal_world);
+            float reef_rough = triplanar_scalar_sample_uvs(reef_roughness_texture, reef_uvs, geometry_normal_world);
+            float reef_ao_s = triplanar_scalar_sample_uvs(reef_ao_texture, reef_uvs, geometry_normal_world);
+            vec3 reef_normal = apply_normal_strength(normal_world,
+                safe_normalize(reef_n_v.xyz, normal_world), normal_strength);
+
+            // Reparto lineal a proposito: el ancho y la rotura del contacto ya vienen dentro de
+            // reef_w, que es como reparten entre si las bandas de altura de los biomas. Un
+            // height-lerp encima (el del contacto con la pendiente) estrecha el contacto a
+            // slope_height_blend_sharpness y devuelve la linea marcada.
+            final_color     = mix(final_color, reef_color * final_detail_factor, reef_w);
+            final_normal    = safe_normalize(mix(final_normal, reef_normal, reef_w), normal_world);
+            final_roughness = mix(final_roughness, reef_rough, reef_w);
+            final_ao        = mix(final_ao, reef_ao_s, reef_w);
+        }
     }
 
     // 7) Ore overlay leído del voxel (sistema de texturing 4-blend, canal CUSTOM1).
