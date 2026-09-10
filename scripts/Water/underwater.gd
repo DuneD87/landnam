@@ -49,9 +49,8 @@ var _mesh_instance: MeshInstance3D
 # Uniforms del material del agua que definen la superficie y se replican cada frame.
 const _SYNCED_WATER_PARAMS: Array[StringName] = [
 	&"wave_direction", &"wave_speed", &"wave_amplitude", &"wave_base_length",
-	&"wave_steepness", &"wave_octaves", &"wave_pole",
-	&"wave_detail_decay", &"wave_group_strength", &"wave_group_waves",
-	&"wave_irregularity",
+	&"wave_steepness", &"wave_pole",
+	&"spectrum_spread",
 	&"water_time", &"planet_center", &"water_radius",
 	# Máscara de temporal: la niebla submarina evalúa la MISMA superficie, así que si no recibe la
 	# máscara su corte se separa del de la superficie justo en lagos y orilla.

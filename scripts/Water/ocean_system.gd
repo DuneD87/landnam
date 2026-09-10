@@ -24,6 +24,7 @@ class_name OceanSystem
 ## Vista de depuración del campo de orilla; ver shore_debug_color en gerstner_waves.gdshaderinc.
 ## 0 = off | 1 = peso | 2 = fase | 3 = sentido contra la batimetría | 4 = relevo | 5 = amplitud
 @export_range(0, 5) var shore_debug_mode: int = 0
+@export_range(0, 5) var water_debug_mode: int = 0
 
 @export_group("Debug")
 ## Marca roja sobre la superficie que calcula la CPU bajo el jugador. Sirve para separar tres fallos
@@ -132,6 +133,8 @@ func _process_step(delta):
 	if mesh_manager && mesh_manager.default_material:
 		(mesh_manager.default_material as ShaderMaterial).set_shader_parameter(
 			&"shore_debug_mode", shore_debug_mode)
+		(mesh_manager.default_material as ShaderMaterial).set_shader_parameter(
+			&"water_debug_mode", water_debug_mode)
 	_update_waterline()
 	_update_water_marker()
 

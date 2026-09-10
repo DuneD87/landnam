@@ -616,6 +616,11 @@ func _update_sky_light(delta: float, st: WeatherState) -> void:
 	if _world_env and _world_env.environment:
 		_world_env.environment.ambient_light_energy = \
 			_base_ambient_energy * lerpf(1.0, st.ambient_energy, _shade)
+	# Water composes reflected/transmitted radiance directly; keep its scattering
+	# and synthetic sky under the same cloud attenuation as the scene lights.
+	if _water_mat:
+		_water_mat.set_shader_parameter("weather_light_scale", Vector2(
+			lerpf(1.0, st.sun_energy, _shade), lerpf(1.0, st.ambient_energy, _shade)))
 
 
 ## Marca si la CÁMARA (no el jugador: en tercera persona se sumergen por separado) está bajo la

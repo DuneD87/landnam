@@ -1,733 +1,235 @@
 shader_type spatial;
-render_mode blend_mix, shadows_disabled, depth_draw_always;
+render_mode blend_mix, depth_draw_always, shadows_disabled;
 
-uniform sampler2D DEPTH_TEXTURE: hint_depth_texture, filter_nearest, repeat_disable;
-uniform sampler2D SCREEN_TEXTURE: hint_screen_texture, filter_linear_mipmap;
-uniform vec3 albedo : source_color = vec3(0.05, 0.20, 0.30);
-uniform vec3 albedo2 : source_color = vec3(0.10, 0.35, 0.50);
-uniform float metallic : hint_range(0.0, 1.0, 0.1) = 0.0;
-uniform float roughness : hint_range(0.0, 1.0, 0.1) = 0.05;
+// Surface simulation is shared with buoyancy and the underwater ray marcher.
+#include "res://shaders/liquid/gerstner_waves.gdshaderinc"
+#include "res://shaders/liquid/underwater_fog.gdshaderinc"
+#include "res://shaders/liquid/ship_interiors.gdshaderinc"
+#include "res://shaders/lib/sky_reflection.gdshaderinc"
+#include "res://shaders/liquid/ocean_optics.gdshaderinc"
+#include "res://shaders/liquid/ocean_foam.gdshaderinc"
 
+uniform float water_time=0.0;
+uniform vec3 planet_center=vec3(0.0);
+uniform vec3 waterline_point=vec3(0.0);
+uniform vec3 waterline_normal=vec3(0.0,1.0,0.0);
+uniform float wave_lod_start : hint_range(50.0,20000.0) = 800.0;
+uniform float wave_lod_falloff : hint_range(1.0,4.0) = 1.6;
 uniform sampler2D texture_normal : hint_normal, repeat_enable, filter_linear_mipmap;
 uniform sampler2D texture_normal2 : hint_normal, repeat_enable, filter_linear_mipmap;
-uniform sampler2D wave : repeat_enable, filter_linear_mipmap;
+uniform float normal_scale1 : hint_range(0.1,100.0) = 8.0;
+uniform float normal_scale2 : hint_range(0.1,100.0) = 23.0;
+uniform float normal_intensity : hint_range(0.0,4.0) = 0.65;
+uniform float normal_slope_limit : hint_range(0.01,1.0) = 0.16;
+uniform float roughness : hint_range(0.02,1.0) = 0.12;
+uniform float specular_antialiasing : hint_range(0.0,1.0) = 0.4;
+uniform float detail_fade_start=150.0;
+uniform float detail_fade_end=1200.0;
+uniform vec3 sun_direction=vec3(0.4,-0.7,0.3);
+uniform vec3 sun_color : source_color = vec3(1.0,0.95,0.85);
+uniform float sun_energy=1.0;
+uniform vec2 weather_light_scale=vec2(1.0);
+uniform vec3 sss_color : source_color = vec3(0.08,0.46,0.32);
+uniform float sss_intensity : hint_range(0.0,3.0) = 0.7;
+uniform float light_diffuse_strength=1.0;
+uniform float light_specular_clamp=0.65;
+uniform float directional_specular_clamp=0.65;
+uniform float light_roughness_floor=0.22;
+uniform float directional_roughness_floor=0.08;
+uniform sampler2D caustics_texture : repeat_enable, filter_linear_mipmap;
+uniform float caustics_scale=0.5;
+uniform float caustics_speed=0.1;
+uniform float caustics_intensity=0.25;
+uniform int water_debug_mode : hint_range(0,5) = 0;
 
-uniform vec2 wave_direction2 = vec2(0.0, 1.0);
-uniform float time_scale : hint_range(0.0, 0.2, 0.001) = 0.0025;
-uniform float noise_scale = 8.0;
-uniform float height_scale = 0.35;
-uniform float spec_factor : hint_range(1.0, 1024.0) = 512;
-// Parámetros para romper el tiling de las normales
-uniform float normal_scale1 : hint_range(0.1, 500.0) = 40.0;
-uniform float normal_scale2 : hint_range(0.1, 500.0) = 120.0;
-uniform float normal_scale3 : hint_range(0.1, 500.0) = 350.0;
-uniform float normal_intensity : hint_range(0.0, 200.0) = 7.0;
-uniform float wave_normal_sample_distance : hint_range(0.01, 100.0, 0.01) = 2.0;
+varying vec3 surface_world;
+varying vec3 material_position;
+varying vec3 radial_up;
+varying vec3 geometry_normal;
+varying float wave_height;
+varying float geometric_compression;
+varying float minimum_wavelength;
+varying vec4 sea_context;
+varying float coast_depth;
 
-uniform float wave_frequency = 2.0;
-uniform float wave_world_scale : hint_range(1.0, 500.0) = 60.0; // metros por tile
-
-// Uniforms y suma de olas Gerstner compartidos con la niebla submarina.
-#include "res://shaders/liquid/gerstner_waves.gdshaderinc"
-// waterline_signed(): corte de línea de flotación compartido con underwater.gdshader.
-#include "res://shaders/liquid/underwater_fog.gdshaderinc"
-// calculate_sky_color(): cielo sintético reflejado, compartido con glass_block.gdshader.
-#include "res://shaders/lib/sky_reflection.gdshaderinc"
-// inside_ship_interior(): OBB de cascos de barcos donde no se dibuja agua.
-#include "res://shaders/liquid/ship_interiors.gdshaderinc"
-
-uniform vec4 color_deep : source_color = vec4(0.02, 0.14, 0.25, 1.0);
-uniform vec4 color_shallow : source_color = vec4(0.37, 0.72, 0.71, 1.0);
-uniform float beers_law = 1.5;
-uniform float depth_offset = 0.0;
-
-// Coeficientes de absorción Beer-Lambert por canal RGB.
-uniform vec3 absorption_coefficients = vec3(0.45, 0.18, 0.06);
-
-uniform float edge_scale = 10.0;
-uniform float edge_disable_start : hint_range(0.0, 1000.0) = 60.0;
-uniform float edge_disable_end : hint_range(0.0, 1000.0) = 150.0;
-uniform float detail_fade_start : hint_range(0.0, 20000.0) = 80.0;
-uniform float detail_fade_end : hint_range(0.0, 20000.0) = 250.0;
-uniform float refraction_blur : hint_range(0.0, 3.0, 0.05) = 2.5; // mip máx del fondo refractado con la profundidad; 0 = nítido (sin línea oscura de orilla)
-
-uniform float surface_alpha : hint_range(0.0, 1.0) = 0.15;
-uniform float deep_alpha : hint_range(0.0, 1.0) = 1.0;
-uniform float refraction_alpha_floor : hint_range(0.0, 1.0) = 0.32;
-uniform float refraction_strength : hint_range(0.0, 2.0, 0.001) = 0.05;
-uniform float refraction_depth_fade : hint_range(0.01, 100.0, 0.01) = 8.0;
-uniform float refraction_uv_margin : hint_range(0.0, 0.05, 0.001) = 0.002;
-uniform float refraction_edge_soft : hint_range(0.001, 5.0, 0.001) = 0.5; // ancho de la transición on/off de refracción
-uniform float depth_alpha_start : hint_range(0.0, 1000.0) = 0.0;
-uniform float depth_alpha_end : hint_range(0.001, 10000.0) = 40.0;
-uniform float depth_alpha_power : hint_range(0.01, 10.0) = 1.4;
-uniform float grazing_shore_fade : hint_range(0.0, 20.0, 0.1) = 3.0; // profundidad (m) a la que el oscurecido rasante llega a pleno; evita la línea oscura en la orilla
-
-// El degradado de cielo y sus colores viven en sky_reflection.gdshaderinc, compartidos con los
-// bloques traslúcidos: los dos sintetizan el mismo cielo porque no hay cubemap que reflejar.
-uniform float sky_influence : hint_range(0.0, 20.0) = 0.6;
-uniform float sky_fresnel_power : hint_range(0.1, 100.0) = 5.0;
-
-uniform vec3 sun_direction = vec3(0.4, -0.7, 0.3);
-uniform vec3 sun_color : source_color = vec3(1.0, 0.95, 0.85);
-uniform float sun_energy : hint_range(0.0, 16.0) = 1.0;
-uniform float sun_specular_intensity : hint_range(0.0, 8.0) = 0.3;
-uniform float glint_depth_fade : hint_range(0.0, 20.0) = 3.0; // profundidad a la que el glint alcanza su fuerza plena
-
-// Control de iluminación puntual (antorcha, etc.) para evitar reventones de especular
-uniform float light_specular_clamp : hint_range(0.0, 4.0) = 0.6;   // tope de especular por luz
-uniform float light_roughness_floor : hint_range(0.0, 1.0) = 0.25; // ensancha el brillo puntual
-uniform float light_diffuse_strength : hint_range(0.0, 2.0) = 1.0;
-uniform float light_diffuse_wrap : hint_range(0.0, 1.0) = 0.6; // 0 = Lambert puro (dorso de ola a negro), 1 = half-Lambert
-uniform float crest_night_specular : hint_range(0.0, 1.0) = 0.5; // fracción del especular de luz que conservan las crestas de noche (0 = apagado, 1 = como de día)
-
-// Lóbulo y tope propios para la luz DIRECCIONAL (sol/luna). El suelo de rugosidad de arriba está
-// pensado para antorchas cercanas; aplicado a una luz en el infinito extiende el reflejo sobre
-// kilómetros de mar. Poner el tope a 0 desactiva el especular direccional sin tocar las antorchas.
-uniform float directional_roughness_floor : hint_range(0.0, 1.0) = 0.06;
-uniform float directional_specular_clamp : hint_range(0.0, 4.0) = 0.15;
-
-// Screen-space reflections
-uniform bool ssr_enabled = true;
-uniform int ssr_max_steps : hint_range(0, 64) = 20;
-uniform float ssr_step : hint_range(0.05, 5.0) = 0.6;         // paso inicial en metros (view space)
-uniform float ssr_thickness : hint_range(0.05, 10.0) = 10.0;   // grosor de impacto tolerado
-uniform float ssr_distance_fade : hint_range(1.0, 5000.0) = 400.0; // apaga SSR con la distancia
-
-uniform vec3 sss_color : source_color = vec3(0.15, 0.55, 0.45);
-uniform float sss_intensity : hint_range(0.0, 3.0) = 0.8;
-uniform float sss_power : hint_range(1.0, 8.0) = 4.0;
-
-// Espuma procedural
-uniform vec3 foam_color : source_color = vec3(0.92, 0.96, 0.98);
-uniform float foam_noise_scale : hint_range(0.0, 10.0, 0.01) = 2.0;
-uniform float foam_noise_speed : hint_range(0.0, 2.0, 0.01) = 1.0;
-uniform float foam_crest_threshold : hint_range(0.0, 1.0, 0.01) = 0.7;
-uniform float foam_crest_softness  : hint_range(0.02, 0.8, 0.01) = 0.3; // ancho de la banda de cresta (dot). Bajo = línea dura
-uniform float foam_crest_amount    : hint_range(0.0, 10.0, 0.1) = 2.0;
-uniform float foam_noise_amount    : hint_range(0.0, 1.0, 0.01) = 0.2; // cuánto deforma el ruido el borde de la banda de cresta
-uniform float foam_noise_warp      : hint_range(0.0, 4.0, 0.01) = 1.5; // domain warp: riza el borde en vez de ondularlo
-uniform float foam_night_level     : hint_range(0.0, 1.0, 0.01) = 0.35; // brillo de la espuma con el sol bajo el horizonte; 0 = invisible, 1 = igual que de día
-uniform float foam_breakup : hint_range(0.0, 1.0, 0.01) = 0.65;
-uniform float shore_foam_amount : hint_range(0.0, 1.0, 0.01) = 0.75;
-
-// Estela de espuma de las grids dinámicas (lo rellena FoamWakeManager por frame).
-// Cada estela = rango de puntos [wake_ranges] con culling por esfera envolvente [wake_bounds].
-const int MAX_WAKES = 8;
-const int MAX_WAKE_POINTS = 512;
-uniform int wake_count = 0;
-uniform vec4 wake_bounds[MAX_WAKES];    // xyz = centro, w = radio de la esfera envolvente
-uniform vec2 wake_ranges[MAX_WAKES];    // x = primer punto, y = nº de puntos
-uniform vec4 wake_points[MAX_WAKE_POINTS];  // xyz = posición world, w = radio del punto
-uniform float wake_alphas[MAX_WAKE_POINTS];
-uniform float shore_soft_width : hint_range(0.01, 10.0, 0.01) = 1.5;
-
-// Caustics
-uniform sampler2D caustics_texture : filter_linear_mipmap, repeat_enable;
-uniform float caustics_scale : hint_range(0.1, 10.0, 0.1) = 2.0;
-uniform float caustics_speed : hint_range(0.0, 1.0, 0.01) = 0.1;
-uniform float caustics_intensity : hint_range(0.0, 2.0, 0.1) = 0.8;
-uniform float caustics_depth_fade : hint_range(0.0, 1.0, 0.01) = 0.7;
-uniform float caustics_near_fade : hint_range(0.0, 10.0, 0.1) = 1.5;
-
-uniform float water_time;
-uniform vec3 planet_center;
-uniform float water_radius;
-// Distancia (m) hasta la que el oleaje se dibuja entero. Por debajo NO cambia nada respecto a no
-// tener LOD; a partir de ahí la longitud de onda mínima crece con la distancia y las octavas
-// cortas se van apagando. El exponente marca cuánto más rápido que la distancia crece: 1 = a la
-// par que la separación de vértices del quadtree, >1 = simplifica antes.
-uniform float wave_lod_start : hint_range(50.0, 20000.0, 10.0) = 500.0;
-uniform float wave_lod_falloff : hint_range(1.0, 4.0, 0.1) = 2.0;
-
-varying vec3 world_pos;
-varying vec3 base_world_pos;
-varying float view_depth;
-varying vec3 world_normal_radial;
-varying vec3 world_gerstner_normal;
-varying float wave_crest_signal;
-// Plano local de la línea de flotación: los píxeles que arrancan bajo el agua no se dibujan aquí
-// —la vista sumergida la renderiza entera el quad de niebla contra la MISMA superficie Gerstner—,
-// y el corte lo decide cada píxel contra este plano.
-uniform vec3 waterline_point;
-uniform vec3 waterline_normal;
-// Atenuación del especular por luz que fragment() pasa a light(): baja el glint en las crestas de noche.
-varying float spec_light_atten;
-
-float fresnel(float amount, vec3 normal, vec3 view) {
-    return pow((1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0)), amount);
+vec3 ocean_wind() {
+    vec3 pole=length(wave_pole)>0.0001 ? normalize(wave_pole) : vec3(0,1,0);
+    vec3 gx=normalize(cross(pole,abs(pole.x)<0.9 ? vec3(1,0,0) : vec3(0,0,1)));
+    vec3 gy=cross(pole,gx);
+    vec2 d=dot(wave_direction,wave_direction)>0.0001 ? normalize(wave_direction) : vec2(1,0);
+    return gx*d.x+gy*d.y;
 }
-
-// Triplanar con UDN blend — devuelve normal en WORLD SPACE
-vec3 triplanar_normal_udn(sampler2D tex, vec3 pos, vec3 surface_normal,
-                          vec3 weights, float scale, vec2 time_offset) {
-    vec3 n_xz = texture(tex, pos.xz / scale + time_offset).rgb * 2.0 - 1.0;
-    vec3 n_xy = texture(tex, pos.xy / scale + time_offset).rgb * 2.0 - 1.0;
-    vec3 n_yz = texture(tex, pos.yz / scale + time_offset).rgb * 2.0 - 1.0;
-
-    vec3 world_n_xz = vec3(n_xz.x, 0.0, n_xz.y);
-    vec3 world_n_xy = vec3(n_xy.x, n_xy.y, 0.0);
-    vec3 world_n_yz = vec3(0.0, n_yz.y, n_yz.x);
-
-    vec3 blended = world_n_xz * weights.y
-                 + world_n_xy * weights.z
-                 + world_n_yz * weights.x;
-
-    // Perturbación tangente: no inclinar la normal hacia dentro de la esfera.
-    blended -= surface_normal * dot(blended, surface_normal);
-    return normalize(blended + surface_normal);
+vec3 ocean_detail(sampler2D map,vec3 p,vec3 normal,float scale,vec3 scroll) {
+    vec3 weights=pow(abs(normal),vec3(4.0));
+    weights/=max(weights.x+weights.y+weights.z,0.001);
+    vec2 x=texture(map,(p.yz+scroll.yz)/scale).rg*2.0-1.0;
+    vec2 y=texture(map,(p.xz+scroll.xz)/scale).rg*2.0-1.0;
+    vec2 z=texture(map,(p.xy+scroll.xy)/scale).rg*2.0-1.0;
+    vec3 slope=vec3(0,x.y,x.x)*weights.x+vec3(y.x,0,y.y)*weights.y+vec3(z.x,z.y,0)*weights.z;
+    return slope-normal*dot(slope,normal);
 }
-
-float linearize_depth(vec2 uv, float depth_sample, mat4 inv_projection_matrix) {
-    vec3 ndc;
-    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
-        ndc = vec3(uv, depth_sample) * 2.0 - 1.0;
-    #else
-        ndc = vec3(uv * 2.0 - 1.0, depth_sample);
-    #endif
-
-    vec4 view = inv_projection_matrix * vec4(ndc, 1.0);
-    view.xyz /= view.w;
-    return -view.z;
-}
-
-vec3 reconstruct_world_position(vec2 uv, float depth_sample, mat4 inv_projection_matrix, mat4 inv_view_matrix) {
-    vec3 ndc;
-    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
-        ndc = vec3(uv, depth_sample) * 2.0 - 1.0;
-    #else
-        ndc = vec3(uv * 2.0 - 1.0, depth_sample);
-    #endif
-
-    vec4 world = inv_view_matrix * inv_projection_matrix * vec4(ndc, 1.0);
-    return world.xyz / world.w;
-}
-
-float ray_sphere_depth(vec3 ray_origin, vec3 ray_direction, vec3 sphere_center, float sphere_radius) {
-    if (sphere_radius <= 0.0) {
-        return 0.0;
-    }
-
-    vec3 offset = ray_origin - sphere_center;
-    float b = dot(offset, ray_direction);
-    float c = dot(offset, offset) - sphere_radius * sphere_radius;
-    float discriminant = b * b - c;
-
-    if (discriminant <= 0.0) {
-        return 0.0;
-    }
-
-    float root = sqrt(discriminant);
-    float enter_distance = max(-b - root, 0.0);
-    float exit_distance = max(-b + root, 0.0);
-    return max(exit_distance - enter_distance, 0.0);
-}
-
-// Ray-march del rayo reflejado contra el depth buffer. Devuelve el color de escena
-// reflejado y en `hit` la confianza [0,1] (0 = fallo → usar cielo como fallback).
-vec3 screen_space_reflection(vec3 view_pos, vec3 view_normal, mat4 projection,
-                             mat4 inv_projection, out float hit) {
-    hit = 0.0;
-    vec3 refl = reflect(normalize(view_pos), view_normal);
-    float step_len = max(ssr_step, 0.05);
-    vec3 p = view_pos + view_normal * 0.08;
-    float previous_diff = -1.0;
-
-    for (int i = 0; i < ssr_max_steps; i++) {
-        vec3 previous_p = p;
-        p += refl * step_len;
-        if (-p.z <= 0.0) {
-            break; // el rayo pasa por detrás de la cámara
-        }
-        vec4 clip = projection * vec4(p, 1.0);
-        vec2 uv = (clip.xy / clip.w) * 0.5 + 0.5;
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-            break; // fuera de pantalla
-        }
-        float depth_sample = textureLod(DEPTH_TEXTURE, uv, 0.0).r;
-        if (depth_sample <= 0.0) {
-            previous_diff = -1.0;
-            step_len *= 1.15;
-            continue;
-        }
-        float scene = linearize_depth(uv, depth_sample, inv_projection);
-        float ray_depth = -p.z;
-        float diff = ray_depth - scene;
-        if (diff > 0.0 && previous_diff <= 0.0) {
-            // Refinar el cruce para que el reflejo no salte entre pasos del ray-march.
-            vec3 low = previous_p;
-            vec3 high = p;
-            for (int j = 0; j < 4; j++) {
-                vec3 mid = (low + high) * 0.5;
-                vec4 mid_clip = projection * vec4(mid, 1.0);
-                vec2 mid_uv = mid_clip.xy / mid_clip.w * 0.5 + 0.5;
-                float mid_sample = textureLod(DEPTH_TEXTURE, mid_uv, 0.0).r;
-                float mid_depth = linearize_depth(mid_uv, mid_sample, inv_projection);
-                if (mid_sample > 0.0 && -mid.z > mid_depth) { high = mid; }
-                else { low = mid; }
-            }
-            vec4 hit_clip = projection * vec4(high, 1.0);
-            uv = hit_clip.xy / hit_clip.w * 0.5 + 0.5;
-            float hit_sample = textureLod(DEPTH_TEXTURE, uv, 0.0).r;
-            diff = -high.z - linearize_depth(uv, hit_sample, inv_projection);
-            if (hit_sample <= 0.0 || diff < 0.0 || diff >= ssr_thickness) { break; }
-            vec2 edge = abs(uv - 0.5) * 2.0;
-            hit = (1.0 - smoothstep(0.7, 1.0, max(edge.x, edge.y)))
-                * (1.0 - smoothstep(0.0, ssr_thickness, diff));
-            return textureLod(SCREEN_TEXTURE, uv, roughness * 3.0).rgb;
-        }
-        previous_diff = diff;
-        step_len *= 1.15; // pasos crecientes: precisión cerca, alcance lejos
-    }
-    return vec3(0.0);
-}
-
-// --- Foam noise helpers ---
-
-float hash13(vec3 p) {
-    uvec3 q = uvec3(ivec3(p)) * uvec3(1597334677u, 3812015801u, 2798796415u);
-    uint n = (q.x ^ q.y ^ q.z) * 1597334677u;
-    return float(n) * (1.0 / 4294967295.0);
-}
-
-float noise3d(in vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    // Fade quíntico (Perlin mejorado): derivada segunda continua, sin rejilla visible.
-    f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-    return mix(
-        mix(
-            mix(hash13(i + vec3(0.0, 0.0, 0.0)), hash13(i + vec3(1.0, 0.0, 0.0)), f.x),
-            mix(hash13(i + vec3(0.0, 1.0, 0.0)), hash13(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
-        mix(
-            mix(hash13(i + vec3(0.0, 0.0, 1.0)), hash13(i + vec3(1.0, 0.0, 1.0)), f.x),
-            mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
-}
-
-// fBm de 3 octavas rotando el dominio entre capas para no acumular artefactos de eje.
-// Devuelve ~[0,1].
-float fbm3d(vec3 p) {
-    const mat3 rot = mat3(
-        vec3( 0.00,  0.80,  0.60),
-        vec3(-0.80,  0.36, -0.48),
-        vec3(-0.60, -0.48,  0.64));
-    float v = 0.0;
-    float a = 0.5;
-    for (int i = 0; i < 3; i++) {
-        v += a * noise3d(p);
-        p = rot * p * 2.03 + vec3(31.7);
-        a *= 0.5;
-    }
-    return v * (1.0 / 0.875);
-}
-
-// ---
-
 void vertex() {
-    base_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-    vec3 sphere_dir = normalize(base_world_pos - planet_center);
-
-    // Longitud de onda mínima que merece la pena dibujar aquí: 1 m hasta wave_lod_start y a partir
-    // de ahí creciendo con la distancia elevada a wave_lod_falloff. Anclarlo a una distancia (y no
-    // a Nyquist) deja intacto el mar cercano, cuyas octavas cortas ya van submuestreadas a
-    // propósito: ese "ruido" es el picado.
-    float lod_rel = max(distance(CAMERA_POSITION_WORLD, base_world_pos) / wave_lod_start, 1.0);
-    float lod_min_length = pow(lod_rel, wave_lod_falloff);
-
-    vec3 gerstner_normal;
-    float crest_signal;
-    vec3 disp = gerstner_surface_lod(base_world_pos - planet_center, sphere_dir, water_time, lod_min_length, gerstner_normal, crest_signal);
-    wave_crest_signal = crest_signal;
-
-    // disp es world-space; lo llevamos al espacio local del modelo para modificar VERTEX.
-    VERTEX += inverse(mat3(MODEL_MATRIX)) * disp;
-    world_normal_radial = sphere_dir;
-    world_gerstner_normal = gerstner_normal;
-    world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-
-    vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
-    view_depth = -view_pos.z - 0.5;
-
+    vec3 world=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;
+    material_position=world-planet_center;
+    radial_up=normalize(material_position);
+    float relative_distance=max(distance(CAMERA_POSITION_WORLD,world)/max(wave_lod_start,1.0),1.0);
+    minimum_wavelength=pow(relative_distance,wave_lod_falloff);
+    WaveContext ctx=wave_context(material_position);
+    float presence_lod=smoothstep(minimum_wavelength*0.5,minimum_wavelength*1.5,shore_length);
+    float presence=ctx.shore_gate*smoothstep(1.0,max(shore_length*0.25,shore_depth_fade),ctx.shore_dist)*presence_lod;
+    sea_context=vec4(max(mix(wave_calm_amplitude,wave_amplitude,ctx.exposure),0.0),
+        mix(wave_calm_steepness,wave_steepness,ctx.exposure),
+        1.0-smoothstep(0.0,shore_handover,presence),presence);
+    coast_depth=ctx.shore_depth;
+    vec3 sampled_normal;
+    float sampled_compression;
+    vec3 displacement=gerstner_surface_ctx(material_position,radial_up,water_time,
+        minimum_wavelength,ctx,sampled_normal,sampled_compression);
+    geometry_normal=sampled_normal;
+    geometric_compression=sampled_compression;
+    wave_height=dot(displacement,radial_up);
+    VERTEX+=inverse(mat3(MODEL_MATRIX))*displacement;
+    surface_world=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;
 }
-
 void fragment() {
-    // Dentro de un casco el agua no existe: se descarta la superficie píxel a píxel (los
-    // parches del quadtree son mucho mayores que un barco, no se puede cullear por quad).
-    if (inside_ship_interior(world_pos)) {
-        discard;
-    }
+    if(inside_ship_interior(surface_world)) discard;
+    vec3 near_view=ocean_view_position(SCREEN_UV,1.0,INV_PROJECTION_MATRIX);
+    vec3 near_world=(INV_VIEW_MATRIX*vec4(near_view,1.0)).xyz;
+    if(waterline_signed(near_world,waterline_point,waterline_normal)<0.0) discard;
 
-    // Corte de línea de flotación por píxel: mismo test y argumentos que underwater.gdshader,
-    // así ambos particionan la pantalla píxel-exacto al cruzar la superficie.
-    vec4 wl_near_view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, 1.0, 1.0);
-    wl_near_view.xyz /= wl_near_view.w;
-    vec3 wl_p_near = (INV_VIEW_MATRIX * vec4(wl_near_view.xyz, 1.0)).xyz;
-    if (waterline_signed(wl_p_near, waterline_point, waterline_normal) < 0.0) {
-        discard;
-    }
+    vec3 radial=normalize(radial_up);
+    vec3 macro_normal=normalize(geometry_normal);
+    vec3 eye_ray=normalize(surface_world-CAMERA_POSITION_WORLD);
+    vec3 surface_view=(VIEW_MATRIX*vec4(surface_world,1.0)).xyz;
+    float view_distance=length(surface_view);
+    vec3 wind=ocean_wind();
+    OceanBreakers history=ocean_breaker_history(material_position,radial,wind,water_time,
+        sea_context.x,sea_context.y,minimum_wavelength,sea_context.z,coast_depth);
+    // Coastal family supplies its own geometric contraction through the same surface.
+    history.recent.x=max(history.recent.x,geometric_compression*sea_context.w*2.0);
+    history.activity=max(history.activity,smoothstep(0.01,0.1,geometric_compression*sea_context.w));
+    vec4 foam_pattern=ocean_foam_pattern(material_position,radial,wind,water_time);
+    vec2 caps=ocean_whitecaps(history,foam_pattern,foam_crest_amount);
+    float foam=1.0-(1.0-caps.x)*(1.0-caps.y);
 
-    float scene_depth_sample = texture(DEPTH_TEXTURE, SCREEN_UV).r;
-    float frag_linear = linearize_depth(SCREEN_UV, FRAGCOORD.z, INV_PROJECTION_MATRIX);
-    vec3 view_dir_w = normalize(world_pos - CAMERA_POSITION_WORLD);
-    vec3 cam_fwd    = -normalize((INV_VIEW_MATRIX * vec4(0.0, 0.0, -1.0, 0.0)).xyz);
-    float cos_view  = max(abs(dot(view_dir_w, cam_fwd)), 0.15);
-    vec3 scene_world_pos = reconstruct_world_position(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
-    float terrain_water_depth = max(water_radius - length(scene_world_pos - planet_center), 0.0);
-    float detail_fade = smoothstep(detail_fade_start, detail_fade_end, view_depth);
-	float water_depth = terrain_water_depth + depth_offset;
-    float depth_blend = exp(water_depth * -beers_law);
-    depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);
-    float depth_blend_power = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
+    float raw_depth=texture(DEPTH_TEXTURE,SCREEN_UV).r;
+    vec3 scene_view=ocean_view_position(SCREEN_UV,raw_depth,INV_PROJECTION_MATRIX);
+    float separation=max(surface_view.z-scene_view.z,0.0);
+    float contact=(1.0-smoothstep(0.0,shore_soft_width,separation))*float(raw_depth>0.0);
+    contact=ocean_foam_coverage(contact*shore_foam_amount*3.0,foam_pattern,0.45);
+    float wake=ocean_foam_coverage(ocean_wake(surface_world,radial)*2.5,foam_pattern,0.7);
+    foam=1.0-(1.0-foam)*(1.0-contact)*(1.0-wake);
 
-    float view_distance = length(world_pos - CAMERA_POSITION_WORLD);
-    float view_opacity_factor = smoothstep(0.0, edge_disable_end, view_distance);
-    float adjusted_depth_blend = mix(depth_blend_power, 1.0, view_opacity_factor);
+    float detail=1.0-smoothstep(detail_fade_start,detail_fade_end,view_distance);
+    vec3 slope=ocean_detail(texture_normal,material_position,macro_normal,normal_scale1,wind*water_time*0.35);
+    slope+=ocean_detail(texture_normal2,material_position,macro_normal,normal_scale2,-wind*water_time*0.19)*0.55;
+    slope*=normal_intensity*detail*(1.0-foam*0.8);
+    slope/=sqrt(1.0+dot(slope,slope)/max(normal_slope_limit*normal_slope_limit,0.0001));
+    vec3 n=normalize(macro_normal+slope);
+    vec3 ndx=dFdx(n), ndy=dFdy(n);
+    float filtered_roughness=clamp(sqrt(roughness*roughness+min((dot(ndx,ndx)+dot(ndy,ndy))*specular_antialiasing,0.15)),0.04,1.0);
+    vec3 view_normal=normalize(mat3(VIEW_MATRIX)*n);
+    float fresnel=0.02037+0.97963*pow(1.0-max(dot(n,-eye_ray),0.0),5.0);
 
-    float z_dif = linearize_depth(SCREEN_UV, scene_depth_sample, INV_PROJECTION_MATRIX) - frag_linear;
-    float edge_disable = smoothstep(edge_disable_start, edge_disable_end, view_depth);
-
-    vec3 radial_normal = normalize(world_normal_radial);
-    vec3 wave_world_normal = normalize(world_gerstner_normal);
-    vec3 final_world_normal = wave_world_normal;
-
-    if (detail_fade < 0.999) {
-        vec2 time  = (water_time * wave_direction)  * time_scale;
-        vec2 time2 = (water_time * wave_direction2) * time_scale;
-        vec3 tri_pos = world_pos - planet_center;
-
-        vec3 blend_weights = abs(wave_world_normal);
-        blend_weights = pow(blend_weights, vec3(4.0));
-        blend_weights /= (blend_weights.x + blend_weights.y + blend_weights.z);
-
-        vec3 n1 = triplanar_normal_udn(texture_normal,  tri_pos, wave_world_normal, blend_weights, normal_scale1, time);
-        vec3 n2 = triplanar_normal_udn(texture_normal2, tri_pos, wave_world_normal, blend_weights, normal_scale2, time2 * 0.8);
-        vec3 n3 = triplanar_normal_udn(texture_normal,  tri_pos, wave_world_normal, blend_weights, normal_scale3, time * 1.3);
-
-        vec3 detailed_normal = normalize(mix(mix(n1, n2, 0.5), n3, 0.3));
-        vec3 detail_slope = detailed_normal - wave_world_normal * dot(detailed_normal, wave_world_normal);
-        detailed_normal = normalize(wave_world_normal + detail_slope * clamp(normal_intensity, 0.0, 100.0));
-
-        // Fade hacia normal radial lisa con la distancia
-        final_world_normal = normalize(mix(detailed_normal, wave_world_normal, detail_fade));
-    }
-
-    float normal_edge_factor = smoothstep(0.0, edge_scale * 3.0, z_dif);
-    normal_edge_factor = mix(normal_edge_factor, 1.0, edge_disable);
-    final_world_normal = normalize(mix(radial_normal, final_world_normal, normal_edge_factor));
-
-    // Detección de cresta: usamos wave_crest_signal (término de pliegue Gerstner), que PICA en
-    // la cresta real (sin(phase)=1). La normal, en cambio, se inclina en los flancos, así que la
-    // espuma antigua caía en las laderas y no en el pico. Señal alta = cresta; banda suave con el
-    // umbral deformado por ruido para romper la línea.
-    // fBm con domain warp: una primera pasada de ruido desplaza el dominio de la segunda,
-    // rizando el borde de la banda con filamentos orgánicos en lugar de manchas blandas.
-    vec3 foam_np = (world_pos - planet_center) * foam_noise_scale;
-    vec3 foam_drift = vec3(0.0, water_time * foam_noise_speed, 0.0);
-    float warp = fbm3d(foam_np * 0.45 + foam_drift * 1.6 + vec3(13.1));
-    float crest_noise = fbm3d(foam_np + foam_drift + (warp - 0.5) * foam_noise_warp * vec3(1.0, 0.35, 1.0));
-    float deformed_crest = wave_crest_signal + (crest_noise - 0.5) * foam_noise_amount;
-    float crest_aa = max(fwidth(deformed_crest), 0.001);
-    float wave_crest_factor = smoothstep(foam_crest_threshold - crest_aa,
-        foam_crest_threshold + max(foam_crest_softness, 0.001) + crest_aa, deformed_crest);
-    wave_crest_factor = pow(wave_crest_factor, 1.5) * foam_crest_amount;
-    // Ruido filtrado por huella de píxel: filamentos cerca, cobertura estable lejos.
-    float foam_aa = max(fwidth(crest_noise), 0.025);
-    float foam_cells = smoothstep(0.42 - foam_aa, 0.62 + foam_aa, crest_noise);
-    float foam_texture = mix(1.0, foam_cells, foam_breakup * (1.0 - detail_fade));
-    float crest_foam = clamp(wave_crest_factor, 0.0, 1.0) * foam_texture;
-    float shore_contact = (1.0 - smoothstep(0.0, max(shore_soft_width, 0.01), max(z_dif, 0.0)))
-                        * mix(0.35, 1.0, foam_texture) * shore_foam_amount;
-    float foam_level = max(crest_foam, shore_contact);
-
-    // Refracción — suprimida donde aparece espuma
-    vec3 tangent_deviation = final_world_normal - radial_normal;
-    vec3 enhanced_deviation = tangent_deviation * 5.0;
-    vec3 tangent_dev_view = (VIEW_MATRIX * vec4(enhanced_deviation, 0.0)).xyz;
-
-    vec2 probe_offset = tangent_dev_view.xy * refraction_strength * 0.5;
-    vec2 probe_uv = clamp(SCREEN_UV + probe_offset,
-                          vec2(refraction_uv_margin),
-                          vec2(1.0 - refraction_uv_margin));
-    float probe_depth_sample = texture(DEPTH_TEXTURE, probe_uv).r;
-    float probe_linear = linearize_depth(probe_uv, probe_depth_sample, INV_PROJECTION_MATRIX);
-    float depth_at_probe = max(probe_linear - frag_linear, 0.0);
-
-    float depth_fac = clamp(depth_at_probe / refraction_depth_fade, 0.0, 4.0);
-
-    float refraction_angle_factor = smoothstep(0.15, 0.6, cos_view);
-    vec4 dev_clip = PROJECTION_MATRIX * VIEW_MATRIX * vec4(enhanced_deviation, 0.0);
-    vec2 dev_screen = dev_clip.xy / max(frag_linear, 0.001);
-
-    vec2 refraction_offset = dev_screen
-                           * refraction_strength
-                           * depth_fac
-                           * refraction_angle_factor
-                           * (1.0 - foam_level); // sin refracción en orillas
-
-    // Desvanecer el desplazamiento cerca del marco, sin arrastrar una franja de
-    // pantalla hacia dentro cuando el material usa un margen UV grande.
-    vec2 screen_edge = min(SCREEN_UV, vec2(1.0) - SCREEN_UV);
-    refraction_offset *= smoothstep(0.0, max(refraction_uv_margin, 0.001), min(screen_edge.x, screen_edge.y));
-
-    vec2 refracted_uv = clamp(
-        SCREEN_UV + refraction_offset,
-        vec2(0.001),
-        vec2(0.999)
-    );
-
-    float refracted_depth_sample = texture(DEPTH_TEXTURE, refracted_uv).r;
-    float refr_linear = linearize_depth(refracted_uv, refracted_depth_sample, INV_PROJECTION_MATRIX);
-    // Transición suave (antes step() → línea dura donde el punto refractado cruza la superficie).
-    float refracted_is_under_water = smoothstep(frag_linear, frag_linear + refraction_edge_soft, refr_linear);
-    // Clamp a [0,1]: depth_fac llega a 4 y sin clamp el mix EXTRAPOLA la UV fuera de rango.
-    float refract_mix = clamp(refracted_is_under_water * depth_fac, 0.0, 1.0);
-    vec2 final_uv = mix(SCREEN_UV, refracted_uv, refract_mix);
-	float final_uv_depth_sample = texture(DEPTH_TEXTURE, final_uv).r;
-	
-    vec3 screen_color = textureLod(SCREEN_TEXTURE, final_uv, adjusted_depth_blend * refraction_blur).rgb;
-
-    // Cáusticas submarinas con triplanar mapping (evita estiramiento en caras verticales)
-	vec4 bg_ndc = vec4(final_uv * 2.0 - 1.0, final_uv_depth_sample, 1.0);
-	#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
-	bg_ndc.z = bg_ndc.z * 2.0 - 1.0;
-	#endif
-	vec4 bg_world = INV_VIEW_MATRIX * INV_PROJECTION_MATRIX * bg_ndc;
-	vec3 bg_world_pos = bg_world.xyz / bg_world.w;
-
-	// Normal del fondo desde derivadas. FUERA de la rama: dFdx/dFdy no está definido en
-	// control de flujo no uniforme. Y en el borde de profundidad cross(...) ≈ 0 →
-	// normalize(0) = NaN, que colaba como línea negra (NaN * caustics_intensity sigue siendo NaN).
-	vec3 bg_dx = dFdx(bg_world_pos);
-	vec3 bg_dy = dFdy(bg_world_pos);
-	vec3 bg_cross = cross(bg_dy, bg_dx);
-	float bg_cross_len = length(bg_cross);
-	vec3 bg_normal = bg_cross_len > 1e-6 ? bg_cross / bg_cross_len : radial_normal;
-
-	float caustics_contrib = 0.0;
-	if (water_depth > 0.0) {
-	    // Pesos triplanar XYZ. Exponente alto para que el plano dominante "gane" claramente
-	    // y evitar mezclas borrosas en transiciones.
-	    vec3 tri_weights = abs(bg_normal);
-	    tri_weights = pow(tri_weights, vec3(4.0));
-	    tri_weights /= (tri_weights.x + tri_weights.y + tri_weights.z + 1e-5);
-
-	    // Coordenadas mundiales escaladas. Cada plano de proyección parametriza la cara
-	    // perpendicular a ese eje sin estirarse.
-	    vec3 cp = (bg_world_pos - planet_center) * caustics_scale;
-	    vec2 scroll1 = vec2(water_time * caustics_speed, 0.0);
-	    vec2 scroll2 = vec2(0.0, -water_time * caustics_speed * 0.8);
-
-	    // Tres proyecciones (top XZ, front XY, side YZ), cada una con sus dos capas animadas.
-	    float c_xz = texture(caustics_texture, cp.xz + scroll1).r
-	               * texture(caustics_texture, cp.xz * 0.7 + scroll2).r;
-	    float c_xy = texture(caustics_texture, cp.xy + scroll1).r
-	               * texture(caustics_texture, cp.xy * 0.7 + scroll2).r;
-	    float c_yz = texture(caustics_texture, cp.yz + scroll1).r
-	               * texture(caustics_texture, cp.yz * 0.7 + scroll2).r;
-
-	    // Mezcla según la normal: tri_weights.y → cara horizontal (normal en Y),
-	    // tri_weights.z → cara perpendicular a Z, tri_weights.x → cara perpendicular a X.
-	    float caustics_value = c_xz * tri_weights.y
-	                         + c_xy * tri_weights.z
-	                         + c_yz * tri_weights.x;
-
-	    float caustics_fade = smoothstep(0.0, caustics_near_fade, water_depth)
-	                        * (1.0 - clamp(water_depth * caustics_depth_fade, 0.0, 1.0));
-	    caustics_contrib = caustics_value * caustics_intensity * caustics_fade;
-	}
-
-    // Absorción Beer-Lambert con corrección por ángulo
-    float scene_linear = linearize_depth(final_uv, final_uv_depth_sample, INV_PROJECTION_MATRIX);
-    float depth_diff = max(scene_linear - frag_linear, 0.0);
-    float water_column = depth_diff / cos_view;
-
-    float sphere_water_depth = ray_sphere_depth(CAMERA_POSITION_WORLD, view_dir_w, planet_center, water_radius);
-    float measured_water_depth = max(terrain_water_depth, water_column);
-    // Godot 4.3+: reverse-Z, el cielo/far vacío es 0, no 1.
-    float has_scene_depth = scene_depth_sample > 0.0 ? 1.0 : 0.0;
-    float use_sphere_fallback = 1.0 - has_scene_depth;
-    float opacity_depth = mix(measured_water_depth, sphere_water_depth, use_sphere_fallback);
-    float depth_alpha_factor = smoothstep(depth_alpha_start, depth_alpha_end, opacity_depth);
-    depth_alpha_factor = pow(depth_alpha_factor, depth_alpha_power);
-    float grazing = 1.0 - clamp(dot(radial_normal, -view_dir_w), 0.0, 1.0);
-    float grazing_opacity = smoothstep(0.65, 0.95, grazing);
-    // El oscurecido rasante (→ color_deep) solo tiene sentido en mar profundo; en la orilla
-    // creaba una línea oscura en la silueta agua-terreno. Lo desvanecemos con la profundidad.
-    grazing_opacity *= smoothstep(0.0, grazing_shore_fade, water_depth);
-    float opacity_factor = max(max(depth_alpha_factor, view_opacity_factor), grazing_opacity);
-
-    vec3 transmission = exp(-max(absorption_coefficients, vec3(0.0)) * opacity_depth);
-
-    float scatter_t = 1.0 - exp(-opacity_depth * 0.08);
-    vec3 water_scatter = mix(color_shallow.rgb, color_deep.rgb, scatter_t);
-
-    float visibility = max(max(transmission.r, transmission.g), transmission.b) * (1.0 - opacity_factor);
-    vec3 refracted_light = screen_color * transmission;
-    // Una sola absorción por canal, complementada por la luz dispersada.
-    vec3 color = refracted_light + water_scatter * (vec3(1.0) - transmission);
-    color = mix(color, color_deep.rgb, view_opacity_factor);
-
-    vec3 view_normal = normalize((VIEW_MATRIX * vec4(final_world_normal, 0.0)).xyz);
-    NORMAL = view_normal;
-
-    // Fresnel Schlick dieléctrico (F0 ≈ 0.02 para agua): ~0 mirando recto abajo,
-    // ~1 a rasante. Sustituye el pow ad-hoc anterior.
-    float ndv = max(dot(view_normal, normalize(VIEW)), 0.0);
-    float fresnel_value = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
-
-    // Dirección al sol y terminador día/noche. Se calculan aquí porque el reflejo del cielo
-    // ya los necesita; mismo criterio que compute_planet_vertex_light (planet_lighting.gdshaderinc).
-    vec3 safe_sun_direction = sun_direction;
-    if (dot(safe_sun_direction, safe_sun_direction) < 0.0001) {
-        safe_sun_direction = vec3(0.4, -0.7, 0.3);
-    }
-    vec3 sun_dir_norm = normalize(-safe_sun_direction);
-    vec3 to_sun = sun_dir_norm;              // desde la superficie hacia el sol
-    float sun_up = smoothstep(-0.1, 0.15, dot(radial_normal, to_sun)); // apaga con sol bajo el horizonte
-    // La cáustica pertenece al fondo: desaparece sin sol, sin geometría y bajo espuma.
-    caustics_contrib *= sun_up * has_scene_depth * (1.0 - foam_level) * visibility;
-    color += screen_color * caustics_contrib * transmission;
-
-    // De noche el especular de la luna sobre el agua casi-espejo reventaba las crestas en manchas
-    // blancas (mala mar = muchas facetas apuntando a la luna). Lo atenuamos SOLO en las crestas
-    // (crest_foam) y SOLO con el sol bajo el horizonte (1 - sun_up); de día queda intacto.
-    spec_light_atten = mix(1.0, crest_night_specular, crest_foam * (1.0 - sun_up));
-
-    // Reflexión: cielo procedural como base, refinado con SSR donde acierta. El rayo se calcula
-    // en WORLD space para poder medir el degradado contra la radial del planeta.
-    vec3 reflected_world = reflect(view_dir_w, final_world_normal);
-    vec3 sky_reflection = calculate_sky_color(reflected_world, radial_normal, sun_up) * sky_influence;
-    vec3 reflection_color = sky_reflection;
-
-    if (ssr_enabled) {
-        float ssr_dist_fade = 1.0 - smoothstep(ssr_distance_fade * 0.5, ssr_distance_fade, view_distance);
-        if (ssr_dist_fade > 0.001) {
-            float ssr_hit;
-            vec3 ssr_col = screen_space_reflection(VERTEX, view_normal, PROJECTION_MATRIX, INV_PROJECTION_MATRIX, ssr_hit);
-            // Sin reflejo bajo espuma; funde a cielo en fallos y con la distancia.
-            float ssr_weight = ssr_hit * ssr_dist_fade * (1.0 - foam_level);
-            reflection_color = mix(sky_reflection, ssr_col, ssr_weight);
+    // Snell refraction, projected to the opaque background depth. Validate the
+    // proposed sample before using it so foreground rocks cannot smear into water.
+    vec3 refracted_direction=mat3(VIEW_MATRIX)*refract(eye_ray,n,1.0/1.333);
+    float travel=min(separation/max(-refracted_direction.z,0.1),30.0);
+    vec2 refracted_uv=ocean_project(surface_view+refracted_direction*travel,PROJECTION_MATRIX);
+    float border=smoothstep(0.0,0.04,min(min(SCREEN_UV.x,SCREEN_UV.y),min(1.0-SCREEN_UV.x,1.0-SCREEN_UV.y)));
+    refracted_uv=mix(SCREEN_UV,refracted_uv,refraction_strength*border*(1.0-foam));
+    // A screen buffer cannot recover surfaces hidden behind an object. Bound the
+    // distortion footprint instead of stretching those missing pixels into large patches.
+    vec2 refracted_offset=refracted_uv-SCREEN_UV;
+    refracted_offset*=min(1.0,refraction_max_offset/max(length(refracted_offset),0.00001));
+    refracted_uv=SCREEN_UV+refracted_offset;
+    refracted_uv=clamp(refracted_uv,vec2(0.001),vec2(0.999));
+    vec2 sample_uv=SCREEN_UV;
+    if(raw_depth>0.0 && refraction_strength>0.0) {
+        // Validate the UV actually used, not just the end of an offset. Blending
+        // valid/invalid endpoints can land on a foreground silhouette in between.
+        for(int attempt=0;attempt<4;attempt++) {
+            float candidate_depth=textureLod(DEPTH_TEXTURE,refracted_uv,0.0).r;
+            vec3 candidate_view=ocean_view_position(refracted_uv,candidate_depth,INV_PROJECTION_MATRIX);
+            vec3 candidate_world=(INV_VIEW_MATRIX*vec4(candidate_view,1.0)).xyz;
+            if(candidate_depth>0.0 && surface_view.z-candidate_view.z>0.05
+                    && dot(candidate_world-surface_world,radial)<-0.02) {
+                sample_uv=refracted_uv;
+                break;
+            }
+            refracted_uv=mix(SCREEN_UV,refracted_uv,0.5);
         }
     }
+    float sample_depth=texture(DEPTH_TEXTURE,sample_uv).r;
+    vec3 background_view=ocean_view_position(sample_uv,sample_depth,INV_PROJECTION_MATRIX);
+    // The refracted endpoint lies on another screen ray. Its camera-Z difference
+    // can be almost zero despite meters of water: use the actual segment length.
+    float optical_depth=sample_depth>0.0 ? length(background_view-surface_view) : 160.0;
+    vec3 background_world=(INV_VIEW_MATRIX*vec4(background_view,1.0)).xyz;
+    float bottom_depth=sample_depth>0.0 ? max(water_radius-length(background_world-planet_center),0.0) : 160.0;
+    vec3 transmission=exp(-max(absorption_coefficients,vec3(0.0))*optical_depth);
+    vec3 background=textureLod(SCREEN_TEXTURE,sample_uv,refraction_blur*(1.0-exp(-optical_depth*0.08))).rgb;
+    vec3 to_sun=normalize(length(sun_direction)>0.001 ? -sun_direction : vec3(-0.4,0.7,-0.3));
+    float daylight=smoothstep(-0.1,0.15,dot(radial,to_sun));
+    vec3 illumination=mix(vec3(0.018,0.028,0.045)*weather_light_scale.y,
+        vec3(0.2)*weather_light_scale.y+sun_color*sun_energy*weather_light_scale.x*0.8,daylight);
+    vec3 scatter=mix(color_shallow.rgb,color_deep.rgb,1.0-exp(-optical_depth*0.13))*illumination;
+    vec3 body=background*transmission+scatter*(vec3(1.0)-transmission);
+    // Caustics are transmitted background light, strongest in a shallow sunlit column.
+    vec3 cp=(background_world-planet_center)*caustics_scale;
+    vec3 tw=pow(abs(radial),vec3(4.0)); tw/=max(tw.x+tw.y+tw.z,0.001);
+    vec2 scroll=vec2(water_time*caustics_speed,-water_time*caustics_speed*0.7);
+    float caustics=texture(caustics_texture,cp.yz+scroll).r*tw.x
+        +texture(caustics_texture,cp.xz+scroll).r*tw.y+texture(caustics_texture,cp.xy+scroll).r*tw.z;
+    caustics*=caustics*caustics_intensity*daylight*weather_light_scale.x*exp(-bottom_depth*0.22)*float(sample_depth>0.0);
+    body+=background*transmission*caustics;
+    float backlight=pow(max(dot(eye_ray,to_sun),0.0),4.0);
+    float crest=smoothstep(0.0,1.1,wave_height/max(sea_context.x,0.1));
+    body+=sss_color*sss_intensity*backlight*crest*daylight*weather_light_scale.x;
 
-    vec3 surface_color = mix(albedo, albedo2, fresnel_value);
-    vec3 final_albedo = mix(color, reflection_color, fresnel_value);
-    final_albedo += surface_color * fresnel_value * 0.15;
-    // La opacidad afecta al fondo transmitido; el reflejo sigue visible en mar profundo.
-
-    // Subsurface scattering: cuánto se mira "hacia el sol" a través de la ola. En world space;
-    // antes cruzaba VIEW (view-space) con la dirección del sol (world), espacios distintos.
-    float sss_dot = pow(clamp(dot(view_dir_w, to_sun), 0.0, 1.0), sss_power);
-    float sss_depth_mask = clamp(1.0 - adjusted_depth_blend, 0.0, 1.0);
-    // Es luz del sol atravesando el agua: sin sol sobre el horizonte no existe.
-    vec3 sss_contrib = sss_color * sss_dot * sss_intensity * sss_depth_mask * visibility * sun_up;
-    final_albedo += sss_contrib;
-
-    // Glint especular del sol (Blinn-Phong estrecho): lo que "chispea" en las crestas.
-    vec3 to_cam = -view_dir_w;               // hacia la cámara
-    vec3 half_vec = normalize(to_sun + to_cam);
-    float ndh = max(dot(final_world_normal, half_vec), 0.0);
-    float spec_power = mix(spec_factor, 16.0, roughness);   // crestas afiladas con poca rugosidad
-    float sun_glint = pow(ndh, spec_power);
-    // En agua somera la superficie se aplana hacia la radial y el glint forma una franja
-    // continua exagerada en la orilla. Lo desvanecemos con la profundidad del agua.
-    float glint_shore_fade = smoothstep(0.0, glint_depth_fade, water_depth);
-    final_albedo += sun_color * sun_energy * sun_glint
-                  * sun_specular_intensity * sun_up * (1.0 - foam_level) * glint_shore_fade;
-
-    // Estela de espuma de los barcos: solo los píxeles dentro de la esfera envolvente
-    // de alguna estela recorren sus puntos.
-    float wake_foam = 0.0;
-    // Se evalúa por TRAMOS entre puntos consecutivos: la unión de discos con max() deja el borde
-    // festoneado y se ven los escalones de radio y alfa. Interpolando sale una cinta continua.
-    //
-    // La distancia al tramo va TANGENTE a la esfera: los puntos se emiten sobre el radio de reposo
-    // y este píxel está en la superficie desplazada, que en 3D son metros de separación, más que el
-    // radio del tramo. Sin descartar la componente radial la espuma se borra en crestas y senos.
-    for (int w = 0; w < wake_count; w++) {
-        vec3 bd = world_pos - wake_bounds[w].xyz;
-        float br = wake_bounds[w].w;
-        if (dot(bd, bd) > br * br) { continue; }
-        int p_start = int(wake_ranges[w].x);
-        int p_end = p_start + int(wake_ranges[w].y);
-        for (int i = p_start; i < p_end - 1; i++) {
-            vec4 pa = wake_points[i];
-            vec4 pb = wake_points[i + 1];
-            vec3 ab = pb.xyz - pa.xyz;
-            vec3 ap = world_pos - pa.xyz;
-            float t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
-            vec3 wd = ap - ab * t;
-            float wt = length(wd - radial_normal * dot(wd, radial_normal));
-            float wr = mix(pa.w, pb.w, t);
-            float wa = mix(wake_alphas[i], wake_alphas[i + 1], t);
-            float m = 1.0 - smoothstep(wr * 0.25, wr, wt);
-            wake_foam = max(wake_foam, m * wa);
-        }
+    vec3 reflection=calculate_sky_color(reflect(eye_ray,n),radial,daylight)*sky_influence*weather_light_scale.y;
+    float ssr_fade=1.0-smoothstep(ssr_distance_fade*0.5,ssr_distance_fade,view_distance);
+    if(ssr_enabled && ssr_fade>0.001 && foam<0.95) {
+        vec4 reflected=ocean_reflection(surface_view,view_normal,PROJECTION_MATRIX,INV_PROJECTION_MATRIX,
+            INV_VIEW_MATRIX,planet_center,water_radius,filtered_roughness);
+        reflection=mix(reflection,reflected.rgb,reflected.a*ssr_fade);
     }
-    wake_foam *= foam_texture;
-    // La espuma es casi blanca y de noche trazaba un perfil blanco en la orilla. Oscurecemos
-    // su COLOR con el nivel de sol en vez de bajar la mezcla: así conserva forma y cobertura
-    // (bajar la mezcla la funde con el agua y la hace desaparecer), solo se ve menos iluminada.
-    vec3 foam_albedo = foam_color * mix(foam_night_level, 1.0, sun_up);
-    final_albedo = mix(final_albedo, foam_albedo, crest_foam);
-    final_albedo = mix(final_albedo, foam_albedo, shore_contact);
-    final_albedo = mix(final_albedo, foam_albedo, wake_foam);
+    NORMAL=view_normal;
+    ALBEDO=foam_color*foam*mix(0.72,1.0,foam_pattern.y);
+    EMISSION=mix(body,reflection,fresnel)*(1.0-foam);
+    ROUGHNESS=mix(filtered_roughness,0.88,foam);
+    SPECULAR=0.0;
+    METALLIC=0.0;
+    ALPHA=deep_alpha*mix(smoothstep(0.0,0.12,separation),1.0,float(raw_depth<=0.0));
 
-    // La espuma está mojada: capta el sol con un brillo más ancho que el glint de agua.
-    float foam_wet = max(crest_foam, max(shore_contact, wake_foam));
-    float foam_glint = pow(max(dot(final_world_normal, half_vec), 0.0), 60.0);
-    final_albedo += sun_color * sun_energy * foam_glint * foam_wet * 0.3 * sun_up;
-
-    ALBEDO = clamp(final_albedo, vec3(0.0), vec3(1.0));
-
-    // Alpha: se desvanece suavemente en la línea de contacto con el terreno
-    float shore_alpha_fade = smoothstep(0.0, shore_soft_width, max(z_dif, 0.0));
-    float base_alpha = mix(surface_alpha, deep_alpha, opacity_factor);
-    float refraction_alpha = refraction_alpha_floor * (1.0 - opacity_factor);
-    float foam_opacity = max(crest_foam, max(shore_contact, wake_foam));
-    float final_alpha = max(max(base_alpha, refraction_alpha), foam_opacity);
-    final_alpha *= shore_alpha_fade;
-    final_alpha = mix(final_alpha, 1.0, edge_disable);
-    ALPHA = clamp(final_alpha, 0.0, deep_alpha);
-
-    ROUGHNESS = mix(roughness, 0.8, clamp(foam_wet, 0.0, 1.0));
-    SPECULAR = 0.5;
-    METALLIC = metallic;
-
-    // Diagnóstico del campo costero desde el inspector remoto de OceanSystem. La función y el
-    // uniform ya existían, pero no se aplicaban al shader visible y los modos 1..5 no hacían nada.
-    if (shore_debug_mode > 0) {
-        vec3 debug_color = shore_debug_color(world_pos - planet_center, water_time);
-        ALBEDO = debug_color;
-        EMISSION = debug_color * 0.35;
-        ALPHA = 1.0;
-        ROUGHNESS = 1.0;
-        SPECULAR = 0.0;
-        METALLIC = 0.0;
+    if(water_debug_mode>0) {
+        ALBEDO=vec3(0.0); ROUGHNESS=1.0;
+        if(water_debug_mode==1) EMISSION=macro_normal*0.5+0.5;
+        if(water_debug_mode==2) EMISSION=vec3(foam);
+        if(water_debug_mode==3) EMISSION=vec3(history.recent.x);
+        if(water_debug_mode==5) EMISSION=vec3(history.crest);
+        if(water_debug_mode==4) EMISSION=vec3(clamp(0.5+wave_height/max(sea_context.x*4.0,0.1),0.0,1.0));
+        ALPHA=1.0;
+    }
+    if(shore_debug_mode>0) {
+        ALBEDO=vec3(0.0); EMISSION=shore_debug_color(material_position,water_time); ALPHA=1.0;
     }
 }
-
-// Iluminación custom: reemplaza el lighting por defecto del motor para el agua.
-// Sin esto, una luz puntual cercana y brillante (antorcha) revienta el especular
-// del agua casi-espejo (roughness ~0.05) a un óvalo blanco saturado.
 void light() {
-    float ndl = dot(NORMAL, LIGHT);
-
-    // Difuso wrap: el agua dispersa la luz internamente, así que la ladera a contraluz no cae a
-    // negro (con oleaje fuerte, Lambert puro pintaba bandas negras siguiendo los dorsos de ola).
-    // El pico (cara a la luz) no cambia; solo se levanta la zona muerta ndl <= 0.
-    float ndotl = clamp((ndl + light_diffuse_wrap) / (1.0 + light_diffuse_wrap), 0.0, 1.0);
-    // LIGHT_COLOR ya incluye PI en Godot; normalizar evita quemar la espuma al sol.
-    DIFFUSE_LIGHT += ALBEDO * ndotl * ATTENUATION * LIGHT_COLOR * (light_diffuse_strength / PI);
-
-    // Especular con suelo de rugosidad y tope duro (distintos para direccional y puntual: ver
-    // uniforms) para que ninguna luz individual pueda saturar a blanco. Se enmascara con el
-    // ndl real: un dorso sin línea de visión a la luz no puede tener brillo especular.
-    vec3 half_dir = normalize(LIGHT + VIEW);
-    float ndh = max(dot(NORMAL, half_dir), 0.0);
-    float r = max(ROUGHNESS, LIGHT_IS_DIRECTIONAL ? directional_roughness_floor : light_roughness_floor);
-    float shininess = 2.0 / max(r * r, 1e-4) - 2.0;
-    float spec = pow(ndh, shininess) * max(ndl, 0.0);
-    spec = min(spec, LIGHT_IS_DIRECTIONAL ? directional_specular_clamp : light_specular_clamp);
-    SPECULAR_LIGHT += spec * ATTENUATION * LIGHT_COLOR * SPECULAR_AMOUNT * spec_light_atten;
+    if(water_debug_mode==0 && shore_debug_mode==0) {
+    float nl=max(dot(NORMAL,LIGHT),0.0);
+    float nv=max(dot(NORMAL,VIEW),0.001);
+    DIFFUSE_LIGHT+=ALBEDO*LIGHT_COLOR*ATTENUATION*((nl*0.8+0.2)*light_diffuse_strength/PI);
+    vec3 h=normalize(LIGHT+VIEW);
+    float nh=max(dot(NORMAL,h),0.0);
+    float r=max(ROUGHNESS,LIGHT_IS_DIRECTIONAL ? directional_roughness_floor : light_roughness_floor);
+    float a2=pow(r,4.0);
+    float denominator=nh*nh*(a2-1.0)+1.0;
+    float d=a2/max(PI*denominator*denominator,0.00000001);
+    float gv=2.0*nv/(nv+sqrt(a2+(1.0-a2)*nv*nv));
+    float gl=2.0*nl/max(nl+sqrt(a2+(1.0-a2)*nl*nl),0.001);
+    float f=0.02037+0.97963*pow(1.0-max(dot(VIEW,h),0.0),5.0);
+    float spec=min(d*gv*gl*f/(4.0*nv),LIGHT_IS_DIRECTIONAL ? directional_specular_clamp : light_specular_clamp);
+    SPECULAR_LIGHT+=spec*LIGHT_COLOR*ATTENUATION*SPECULAR_AMOUNT;
+    }
 }

@@ -1,4 +1,7 @@
 class_name WaterHeightSampler extends Node
+const Spectrum = preload("res://scripts/water/ocean_spectrum.gd")
+var _wind := Vector3(0,0,-1)
+var spectrum_spread: float = 0.8
 
 ## Réplica en CPU de las olas Gerstner de water_shader.gdshader para física/flotabilidad.
 ## Devuelve el radio de superficie (desplazamiento radial) en una posición, invirtiendo el
@@ -9,15 +12,10 @@ var wave_speed: float
 var wave_amplitude: float
 var wave_steepness: float
 var wave_base_length: float
-var wave_octaves: int
 var wave_direction: Vector2
 var wave_pole: Vector3
 var wave_calm_amplitude: float
 var wave_calm_steepness: float
-var wave_detail_decay: float = 0.72
-var wave_group_strength: float = 0.45
-var wave_group_waves: float = 4.5
-var wave_irregularity: float = 0.8
 
 ## Olas de orilla. Se releen con los demás params dinámicos y no en setup(): el mapa del planeta
 ## enciende shore_waves_enabled cuando termina de hornearse, mucho después de montar el sampler.
@@ -60,34 +58,18 @@ var _water_radius: float = 0.0
 ## Normal analítica de la última evaluación de _gerstner_disp. Se acumula siempre porque sale casi
 ## gratis del mismo bucle; la lee get_surface_at.
 var _last_normal: Vector3 = Vector3.UP
+var _last_du := Vector3.ZERO
+var _last_dv := Vector3.ZERO
 
-## Por octava, lo que no depende de la posición muestreada: dirección fija, número de onda, frecuencia
-## angular y puerta de chop. Se resuelve una vez por frame de física porque el bucle de Gerstner es
-## el punto caliente de CPU (hasta 16 muestras por barco, cada una con 4 evaluaciones).
+## Parámetros y marco de viento actualizados una vez por frame de física.
+## OceanSpectrum comparte los modos constantes entre todas las sondas.
 var _frame_stamp: int = -1
-var _oct_dir := PackedVector3Array()
-var _oct_k := PackedFloat32Array()
-var _oct_omega := PackedFloat32Array()
-var _oct_chop := PackedFloat32Array()
-var _oct_detail := PackedFloat32Array()
-var _oct_warp_a := PackedVector3Array()
-var _oct_warp_b := PackedVector3Array()
-var _detail_weight_sum: float = 1.0
-var _group_budget: float = 1.0
-var _group_k: float = 0.0
-var _group_omega: float = 0.0
 
 static var _frame_cache: Dictionary = {}
 ## Defaults declarados por el shader, por RID de shader y nombre. Ver _param.
 static var _default_cache: Dictionary = {}
 
-const _GOLDEN_ANGLE := 2.399963
-## Abanico direccional y lacunaridad de las octavas; ver WAVE_FAN/WAVE_LACUNARITY en
-## gerstner_waves.gdshaderinc, donde está el razonamiento. Cambiar una obliga a cambiar la otra.
-const _WAVE_FAN := 0.7
-const _WAVE_LACUNARITY := 0.53
 const _TAU := 6.28318530718
-const _INVERT_ITERATIONS := 3
 
 ## Corriente superficial en m/s con mar tendida y con temporal pleno. Su magnitud sale de los
 ## uniforms globales del oleaje y NO de la geometría local de la ola: donde flota un barco (poco
@@ -129,16 +111,6 @@ static func _shore_breakup(local: Vector3, time: float, wavelength: float) -> Ve
 		lerpf(0.25, 1.0, smoothstep(0.2, 0.8, packet)))
 
 
-## Réplica de wave_group(): envolvente y derivadas espacial/temporal.
-func _wave_group(signed_arc: float, time: float) -> Vector3:
-	if wave_group_strength <= 0.0:
-		return Vector3(1.0, 0.0, 0.0)
-	var p1 := _group_k * signed_arc + _group_omega * time + 0.7
-	var p2 := _group_k * 0.61 * signed_arc + _group_omega * 0.61 * time + 2.3
-	var slope := -wave_group_strength * (0.35 * sin(p1) + 0.15 * 0.61 * sin(p2))
-	return Vector3(1.0 - wave_group_strength * (0.5 - 0.35 * cos(p1) - 0.15 * cos(p2)),
-		slope * _group_k, slope * _group_omega)
-
 ## Lee del material los parámetros que intervienen en la altura de ola. 'planet_map' es opcional;
 ## ver el comentario de 'world_map'. 'surface_radius' solo lo necesita get_surface_at (la línea de
 ## flotación): pásalo cuando lo conozcas, porque el uniform water_radius del material lo pone el
@@ -147,10 +119,10 @@ func setup(water_material: ShaderMaterial, planet_map: PlanetWorldMap = null,
 		surface_radius: float = -1.0) -> void:
 	_material = water_material
 	world_map = planet_map
-	# Cambiar de material o de planeta invalida la tabla de octavas aunque no haya cambiado el frame.
+	# Cambiar de material o de planeta invalida los parámetros aunque no haya cambiado el frame.
 	_frame_stamp = -1
-	wave_octaves = int(water_material.get_shader_parameter("wave_octaves"))
-	wave_direction = water_material.get_shader_parameter("wave_direction")
+	var direction: Variant = _param(water_material,"wave_direction")
+	wave_direction = direction if direction != null else Vector2(2,0)
 	var pole: Variant = water_material.get_shader_parameter("wave_pole")
 	wave_pole = pole if pole != null else Vector3(0, 1, 0)
 	if surface_radius >= 0.0:
@@ -184,18 +156,19 @@ static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
 		var time: Variant = mat.get_shader_parameter("water_time")
 		cached = {
 			"frame": frame,
-			"speed": mat.get_shader_parameter("wave_speed"),
-			"amplitude": mat.get_shader_parameter("wave_amplitude"),
-			"steepness": mat.get_shader_parameter("wave_steepness"),
-			"base_length": mat.get_shader_parameter("wave_base_length"),
-			"detail_decay": _param(mat, "wave_detail_decay"),
-			"group_strength": _param(mat, "wave_group_strength"),
-			"group_waves": _param(mat, "wave_group_waves"),
-			"irregularity": _param(mat, "wave_irregularity"),
+			"speed": _param(mat,"wave_speed"),
+			"amplitude": _param(mat,"wave_amplitude"),
+			"steepness": _param(mat,"wave_steepness"),
+			"base_length": _param(mat,"wave_base_length"),
+			"spectrum_spread": _param(mat,"spectrum_spread"),
+			"direction": _param(mat,"wave_direction"),
+			"pole": _param(mat,"wave_pole"),
+			"radius": _param(mat,"water_radius"),
+
 			# Si el material no los expone (planeta sin clima), la calma es el estado actual y la
 			# mezcla de más abajo se vuelve una identidad.
-			"calm_amplitude": mat.get_shader_parameter("wave_calm_amplitude"),
-			"calm_steepness": mat.get_shader_parameter("wave_calm_steepness"),
+			"calm_amplitude": _param(mat,"wave_calm_amplitude"),
+			"calm_steepness": _param(mat,"wave_calm_steepness"),
 			"time": time if time != null else 0.0,
 			# Olas de orilla. shore_on se enciende cuando el mapa del planeta termina de hornearse,
 			# así que no se puede resolver una vez en setup().
@@ -231,7 +204,7 @@ func _ensure_frame_params() -> void:
 		return
 	_frame_stamp = frame
 	_refresh_dynamic_params()
-	_rebuild_octave_table()
+	_rebuild_wave_frame()
 
 
 ## Estado de mar en [0,1]: 0 = mar tendida, 1 = temporal pleno. Es la MISMA medida con la que
@@ -249,19 +222,18 @@ func _sea_state() -> float:
 
 func _refresh_dynamic_params() -> void:
 	var params := _get_frame_params(_material)
+	var spread_value: Variant = params["spectrum_spread"]
+	spectrum_spread = float(spread_value) if spread_value != null else 0.8
+	if params.direction != null:
+		wave_direction = params.direction
+	if params.pole != null:
+		wave_pole = params.pole
+	if _water_radius<=0.0 and params.radius != null:
+		_water_radius = params.radius
 	wave_speed = params["speed"]
 	wave_amplitude = params["amplitude"]
 	wave_steepness = params["steepness"]
 	wave_base_length = params["base_length"]
-	# Shaders antiguos sin estos uniforms conservan su espectro y no reciben series.
-	var decay: Variant = params["detail_decay"]
-	var group_strength: Variant = params["group_strength"]
-	var group_waves: Variant = params["group_waves"]
-	wave_detail_decay = clampf(float(decay), 0.3, 1.0) if decay != null else 1.0
-	wave_group_strength = clampf(float(group_strength), 0.0, 0.8) if group_strength != null else 0.0
-	wave_group_waves = maxf(float(group_waves), 2.0) if group_waves != null else 4.5
-	var irregularity: Variant = params["irregularity"]
-	wave_irregularity = clampf(float(irregularity), 0.0, 1.0) if irregularity != null else 0.0
 	var calm_amp: Variant = params["calm_amplitude"]
 	var calm_steep: Variant = params["calm_steepness"]
 	wave_calm_amplitude = calm_amp if calm_amp != null else wave_amplitude
@@ -291,64 +263,29 @@ func _refresh_dynamic_params() -> void:
 	shore_chop = chop if chop != null else 0.0
 
 
-## Rellena la tabla por octava. Depende solo de los uniforms del frame, nunca de dónde se muestrea.
-func _rebuild_octave_table() -> void:
-	var octaves := clampi(wave_octaves, 1, 6)
-	if _oct_dir.size() != octaves:
-		_oct_dir.resize(octaves)
-		_oct_k.resize(octaves)
-		_oct_omega.resize(octaves)
-		_oct_chop.resize(octaves)
-		_oct_detail.resize(octaves)
-		_oct_warp_a.resize(octaves)
-		_oct_warp_b.resize(octaves)
-	_detail_weight_sum = float(octaves) if wave_detail_decay > 0.9999 else \
-		(1.0 - pow(wave_detail_decay, float(octaves))) / (1.0 - wave_detail_decay)
-	_group_budget = 1.0 + 0.45 * wave_group_strength / wave_group_waves
-	_group_budget *= 1.0 + 0.7 * wave_irregularity
-	var base_k := _TAU / maxf(wave_base_length, 0.1)
-	_group_k = base_k / wave_group_waves
-	_group_omega = wave_speed * sqrt(base_k) * 0.5 / wave_group_waves
-
-	var pole := wave_pole.normalized()
-	var gx := pole.cross(Vector3(1, 0, 0) if absf(pole.x) < 0.9 else Vector3(0, 0, 1)).normalized()
+## Marco de viento compartido por los grupos locales.
+func _rebuild_wave_frame() -> void:
+	var pole := wave_pole.normalized() if wave_pole.length_squared()>0.0001 else Vector3.UP
+	var gx := pole.cross(Vector3.RIGHT if absf(pole.x)<0.9 else Vector3(0,0,1)).normalized()
 	var gy := pole.cross(gx)
-
-	var base_dir := wave_direction
-	if absf(base_dir.x) + absf(base_dir.y) < 1e-4:
-		base_dir = Vector2(1.0, 0.0)
-	else:
-		base_dir = base_dir.normalized()
-
-	var length := wave_base_length
-	var chop_ref := maxf(shore_length, 1.0)
-	var detail_weight := 1.0
-	for i in octaves:
-		var ang := _WAVE_FAN * sin(float(i) * _GOLDEN_ANGLE)
-		var ca := cos(ang)
-		var sa := sin(ang)
-		var k := _TAU / maxf(length, 0.1)
-		_oct_dir[i] = (gx * (base_dir.x * ca - base_dir.y * sa)
-			+ gy * (base_dir.x * sa + base_dir.y * ca)).normalized()
-		_oct_k[i] = k
-		_oct_omega[i] = wave_speed * sqrt(k)
-		_oct_chop[i] = 1.0 - smoothstep(chop_ref * 0.25, chop_ref * 0.75, length)
-		_oct_detail[i] = detail_weight
-		var side := pole.cross(_oct_dir[i])
-		_oct_warp_a[i] = (_oct_dir[i] * 0.42 + side * 0.86 + pole * 0.29).normalized() * (k / 3.7)
-		_oct_warp_b[i] = (-_oct_dir[i] * 0.68 + side * 0.31 - pole * 0.66).normalized() * (k / 2.3)
-		detail_weight *= wave_detail_decay
-		length *= _WAVE_LACUNARITY
+	var d := wave_direction.normalized() if wave_direction.length_squared()>0.0001 else Vector2.RIGHT
+	_wind = gx*d.x+gy*d.y
 
 
-## Altura de ola (desplazamiento radial) en world_pos. Invierte por punto-fijo el arrastre
+## Altura en world_pos. Invierte con Newton el arrastre
 ## horizontal de Gerstner: sin esto, con oleaje marcado la física y el visual se separan varios metros.
 func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> float:
 	if _material == null:
 		return 0.0
 	_ensure_frame_params()
 
-	var local_q := world_pos - planet_center
+	var input_local := world_pos - planet_center
+	if input_local.length_squared()<0.0001:
+		last_flow = Vector3.ZERO
+		_last_normal = Vector3.UP
+		return 0.0
+	var radius := _water_radius if _water_radius>0.0 else input_local.length()
+	var local_q := input_local.normalized()*radius
 	# Una sola vez por muestra, no dentro de la inversión: el punto fijo mueve la posición unos
 	# metros y la máscara varía en decenas, así que la diferencia no se aprecia y ahorra 3/4 del coste.
 	var exposure := world_map.storm_exposure_local(local_q) if world_map != null else 1.0
@@ -372,18 +309,36 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 
 	# Busca la posición "en reposo" cuya ola desplazada horizontalmente cae bajo world_pos.
 	var guess := local_q
-	for _i in _INVERT_ITERATIONS:
+	var target_up := local_q.normalized()
+	var target_u := target_up.cross(Vector3.RIGHT if absf(target_up.x)<0.9 else Vector3.UP).normalized()
+	var target_v := target_up.cross(target_u)
+	for _i in 4:
 		var radial := guess.normalized()
 		var disp := _gerstner_disp(
 			guess, radial, time, exposure,
 			shore_dir, shore_signed_dist, shore_quality, shore_depth)
-		var horiz := disp - radial * disp.dot(radial)
-		guess = local_q - horiz
+		var residual := guess+disp-local_q
+		var error := Vector2(residual.dot(target_u),residual.dot(target_v))
+		if error.length_squared()<0.000025:
+			return (guess+disp).length()-radius
+		var a := _last_du.dot(target_u)
+		var b := _last_dv.dot(target_u)
+		var c := _last_du.dot(target_v)
+		var d := _last_dv.dot(target_v)
+		var det := a*d-b*c
+		var u := radial.cross(Vector3.RIGHT if absf(radial.x)<0.9 else Vector3.UP).normalized()
+		var v := radial.cross(u)
+		if det>0.05:
+			var step := (u*(d*error.x-b*error.y)+v*(a*error.y-c*error.x))/det
+			guess = (guess-step.limit_length(maxf(wave_base_length*0.4,1.0))).normalized()*radius
+		else:
+			guess = (local_q-(disp-radial*disp.dot(radial))).normalized()*radius
 
 	var final_radial := guess.normalized()
-	return _gerstner_disp(
+	var final_disp := _gerstner_disp(
 		guess, final_radial, time, exposure,
-		shore_dir, shore_signed_dist, shore_quality, shore_depth).dot(final_radial)
+		shore_dir, shore_signed_dist, shore_quality, shore_depth)
+	return (guess+final_disp).length()-radius
 
 
 ## Velocidad del agua en world_pos: vaivén orbital de la ola más la corriente superficial, que es la
@@ -412,12 +367,11 @@ func get_surface_at(world_pos: Vector3, time: float, planet_center: Vector3) -> 
 	}
 
 ## Desplazamiento world-space (tangencial + radial) de la suma de olas Gerstner en 'local'.
-## Réplica de gerstner_surface() del shader (posición; la normal no hace falta en CPU).
+## Réplica de gerstner_surface() del shader: posición, normal y tangentes para la inversión.
 func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: float,
 		shore_dir: Vector3, shore_signed_dist: float,
 		shore_quality: float, shore_depth: float) -> Vector3:
 	var shore_dist := absf(shore_signed_dist)
-	var octaves := _oct_dir.size()
 	# Relevo entre familias: donde manda la orilla, el oleaje de mar abierto se apaga. Suma de las
 	# dos a la vez y en una costa a sotavento el swell global viaja mar adentro sobre la rompiente.
 	var shore_gate := 0.0
@@ -435,7 +389,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 	var ocean_weight := 1.0 - smoothstep(0.0, shore_handover, shore_presence)
 
 	# Misma mezcla que gerstner_surface_lod; la exposición viene resuelta de get_height_at.
-	var amp := lerpf(wave_calm_amplitude, wave_amplitude, exposure)
+	var amp := maxf(lerpf(wave_calm_amplitude, wave_amplitude, exposure),0.0)
 	var steepness := lerpf(wave_calm_steepness, wave_steepness, exposure)
 	var horiz := Vector3.ZERO
 	var vert := 0.0
@@ -450,80 +404,13 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 	# Suelo del relevo para las octavas mucho más cortas que la rompiente; ver shore_chop en
 	# gerstner_waves.gdshaderinc. Sin familia costera el relevo no existe y esto queda en 0.
 	var chop_floor := shore_chop if shore_enabled else 0.0
-	var local_len := local.length()
-	var packet := Vector3(1.0, 0.0, 0.0)
-
-	for i in octaves:
-		# Tope de rompiente en agua somera; ver chop_shallow en gerstner_waves.gdshaderinc.
-		var chop_shallow := clampf(shore_depth * 0.4 / maxf(amp, 0.01), 0.0, 1.0)
-		var octave_weight := maxf(ocean_weight, chop_floor * _oct_chop[i] * chop_shallow)
-		var k: float = _oct_k[i]
-		var dir_fixed: Vector3 = _oct_dir[i]
-		var dir_dot := clampf(dir_fixed.dot(radial), -1.0, 1.0)
-		var dir_tan := dir_fixed - radial * dir_dot
-		var tan_len := dir_tan.length()
-		var dir_unit := (dir_tan / tan_len) if tan_len > 1e-4 else Vector3.ZERO
-		if i == 0:
-			swell_dir = -dir_unit
-		var q := steepness * _oct_detail[i] / maxf(k * amp * _detail_weight_sum * _group_budget, 1e-4)
-		# Distancia geodésica firmada al gran círculo de la ola. Su gradiente tangente
-		# tiene módulo 1, así la longitud de onda no cambia con latitud/longitud.
-		var signed_arc := local_len * asin(dir_dot)
-		if i == 0:
-			packet = _wave_group(signed_arc, time)
-			last_amp_effective = amp * octave_weight * packet.x
-		var omega: float = _oct_omega[i]
-		var phase := k * signed_arc + time * omega + float(i) * _GOLDEN_ANGLE
-		var phase_gradient := dir_unit * k
-		var phase_velocity := omega
-		var shape_amplitude := 1.0
-		var amplitude_gradient := Vector3.ZERO
-		var amplitude_velocity := 0.0
-		if wave_irregularity > 0.0:
-			# Réplica del dominio oblicuo del shader, con sus derivadas para normal y órbita.
-			var a: Vector3 = _oct_warp_a[i]
-			var b: Vector3 = _oct_warp_b[i]
-			var p1 := local.dot(a) + time * omega * 0.12 + float(i) * 1.71
-			var p2 := local.dot(b) - time * omega * 0.17 + float(i) * 2.43 + 1.3
-			var s1 := sin(p1)
-			var c1 := cos(p1)
-			var s2 := sin(p2)
-			var c2 := cos(p2)
-			var a_tan := a - radial * a.dot(radial)
-			var b_tan := b - radial * b.dot(radial)
-			phase += wave_irregularity * (1.25 * s1 + 0.55 * s2)
-			phase_gradient += wave_irregularity * (1.25 * c1 * a_tan + 0.55 * c2 * b_tan)
-			phase_velocity += wave_irregularity * omega * (1.25 * c1 * 0.12 - 0.55 * c2 * 0.17)
-			shape_amplitude = 1.0 - wave_irregularity * (0.32 + 0.22 * c1 + 0.10 * c2)
-			amplitude_gradient = wave_irregularity * (0.22 * s1 * a_tan + 0.10 * s2 * b_tan)
-			amplitude_velocity = wave_irregularity * omega * (0.22 * s1 * 0.12 - 0.10 * s2 * 0.17)
-		var c := cos(phase)
-		var s := sin(phase)
-		horiz += dir_unit * (q * amp * shape_amplitude * c * octave_weight)
-		vert += amp * shape_amplitude * s * octave_weight
-		grad += amp * (shape_amplitude * c * phase_gradient + s * amplitude_gradient) * octave_weight
-		n_up_sub += q * amp * (shape_amplitude * s * dir_unit.dot(phase_gradient) \
-			- c * dir_unit.dot(amplitude_gradient)) * octave_weight
-		if i == 0:
-			last_amp_effective *= shape_amplitude
-		# Órbita: d/dt del desplazamiento de arriba. Es el vaivén y sí va con la geometría local de la
-		# ola (si ahí no hay ola, no hay vaivén); del transporte se ocupa la corriente de más abajo.
-		var orbital := dir_unit * (q * amp * (amplitude_velocity * c - shape_amplitude * s * phase_velocity)) \
-			+ radial * (amp * (amplitude_velocity * s + shape_amplitude * c * phase_velocity))
-		# La serie cambia de amplitud con el tiempo: incluir también d(envolvente)/dt.
-		var displacement := (dir_unit * (q * amp * c) + radial * (amp * s)) * shape_amplitude
-		orbital = orbital * packet.x + displacement * packet.z
-		if depth_fade:
-			orbital *= exp(-k * flow_depth)
-		flow += orbital * octave_weight
-		amp *= 0.5 * wave_detail_decay
-
-	# Idéntica regla del producto que en GPU; la familia de orilla se suma después.
-	var packet_grad := -swell_dir * packet.y
-	grad = grad * packet.x + packet_grad * vert
-	n_up_sub = n_up_sub * packet.x - horiz.dot(packet_grad)
-	horiz *= packet.x
-	vert *= packet.x
+	var wind := _wind
+	swell_dir = -(wind-radial*wind.dot(radial)).normalized()
+	var surface_field := Spectrum.evaluate(local,wind,time,amp,steepness,wave_base_length,wave_speed,
+		spectrum_spread,ocean_weight,shore_depth,maxf(shore_length,1.0),chop_floor,flow_depth)
+	flow = surface_field.velocity
+	last_amp_effective = amp*ocean_weight
+	var shore_axis := Vector3.ZERO
 
 	# Corriente de mar abierto, en el sentido de avance del swell principal. La exposición entra como
 	# atenuador con suelo, no mezclada en la amplitud: distingue una rada sin dejar la costa a cero.
@@ -563,6 +450,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		w *= breakup.y
 		# Solo el arrastre horizontal se reduce cuando dos riberas dan direcciones opuestas. La
 		# amplitud vertical y la cresta permanecen continuas, evitando tanto picos como cortes.
+		shore_axis = seaward
 		horiz += seaward * (q * amp_ref * cos(phase) * w * shore_quality)
 		vert += amp_ref * sin(phase) * w
 		grad += seaward * (k * amp_ref * cos(phase) * w * shore_quality)
@@ -579,5 +467,17 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		flow += (shore_orbital + shore_current) * w
 
 	last_flow = flow
-	_last_normal = (radial * (1.0 - n_up_sub) - grad).normalized()
-	return horiz + radial * vert
+	surface_field.lateral += horiz
+	surface_field.height += vert
+	surface_field.slope += grad
+	var jacobian: Basis = surface_field.jacobian
+	surface_field.jacobian = Basis(jacobian.x-shore_axis*(shore_axis.x*n_up_sub),
+		jacobian.y-shore_axis*(shore_axis.y*n_up_sub),jacobian.z-shore_axis*(shore_axis.z*n_up_sub))
+	var u := radial.cross(Vector3.RIGHT if absf(radial.x)<0.9 else Vector3.UP).normalized()
+	var v := radial.cross(u)
+	var du := Spectrum.tangent(u,radial,maxf(local.length(),1.0),surface_field)
+	var dv := Spectrum.tangent(v,radial,maxf(local.length(),1.0),surface_field)
+	_last_normal = du.cross(dv).normalized()
+	_last_du = du
+	_last_dv = dv
+	return surface_field.lateral-radial*radial.dot(surface_field.lateral)+radial*surface_field.height

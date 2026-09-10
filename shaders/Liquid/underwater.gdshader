@@ -14,7 +14,6 @@ render_mode unshaded, depth_draw_always;
 #include "res://shaders/liquid/ship_interiors.gdshaderinc"
 
 uniform vec3 planet_center;
-uniform float water_radius = 10000.0;
 uniform float water_time = 0.0;
 uniform vec3 sun_direction = vec3(1.0, 0.0, 0.0);
 
@@ -109,8 +108,9 @@ void fragment() {
 
     float waterline = waterline_signed(p_near, waterline_point, waterline_normal);
 
-    // Franja radial que contiene toda la superficie posible: R ± amplitud total de las octavas.
-    float band = wave_amplitude * 2.0 + 0.5;
+    // Franja radial conservadora para los grupos solapados y la familia costera.
+    float band = max(wave_amplitude,wave_calm_amplitude)*5.2
+        + min(shore_amplitude*shore_shoal_max,shore_length*0.08)*1.5 + 0.5;
 
     // Sellado del near-field: los píxeles que arrancan en aire no se descartan de inmediato.
     // Si el rayo entra en la superficie ANALÍTICA a menos de waterline_seal_distance, se niebla
