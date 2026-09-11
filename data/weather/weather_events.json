@@ -77,13 +77,13 @@
 	},
 
 	"fog": {
-	  "cloud_coverage": 0.35, "cloud_density": 0.4, "cloud_absorption": 0.16,
+	  "cloud_coverage": 0.99, "cloud_density": 0.6, "cloud_absorption": 0.16,
 	  "cloud_albedo": 0.8,
 	  "cloud_shadow": 0.3, "cloud_min_height": 500.0, "cloud_max_height": 800.0,
 	  "cloud_wind_speed": 0.03,
-	  "fog_density": 1.0, "fog_coverage": 1.0, "fog_wind_speed": 0.025,
-	  "fog_floor_height": 0.0, "fog_top_height": 160.0,
-	  "sun_energy": 0.6, "ambient_energy": 0.8, "atmosphere_scatter": 0.5, "wind_multiplier": 0.5,
+	  "fog_density": 1.3, "fog_coverage": 1.0, "fog_wind_speed": 0.025,
+	  "fog_floor_height": -160.0, "fog_top_height": 160.0,
+	  "sun_energy": 0.3, "ambient_energy": 0.6, "atmosphere_scatter": 0.5, "wind_multiplier": 0.5,
 	  "god_ray_strength": 2.4, "god_ray_reach": 0.25,
 	  "water_wave_multiplier": 0.3, "water_speed_multiplier": 0.6, "water_foam_multiplier": 0.3,
 	  "water_steepness": 0.2, "water_wave_length_mult": 0.9,
