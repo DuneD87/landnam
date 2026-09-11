@@ -40,6 +40,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat, rng: RandomNumbe
 	_stop_ambient_audio()
 	_audio_timer = _next_audio_interval()
 	_collision.disabled = false
+	impact_radius = 0.3
 	_seek_perch()
 	reset_physics_interpolation()
 
@@ -52,6 +53,10 @@ func deactivate() -> void:
 	super.deactivate()
 	if is_instance_valid(_collision):
 		_collision.disabled = true
+
+
+func audio_family() -> StringName:
+	return &"bird"
 
 
 func _exit_tree() -> void:
@@ -143,6 +148,9 @@ func _step(delta: float) -> void:
 	_time += delta
 	_timer -= delta
 	_model.animate(_time, state != State.PERCHED, delta)
+	# A perched bird has no collider, so only a flying one can be swept by a hull.
+	if not _collision.disabled and _check_moving_ships(delta):
+		return
 	var up := _forest.up_at(global_position)
 	if not _perch.is_empty():
 		var current := _forest.resolve(_perch)
@@ -196,7 +204,11 @@ func _step(delta: float) -> void:
 	# overshoot the ascent route or orbit the final approach point.
 	var speed := minf(_speed, maxf(0.3, distance * 2.5))
 	velocity = velocity.lerp(direction * speed, 1.0 - exp(-delta * 6.0))
+	var incoming_velocity := velocity
 	move_and_slide()
+	for index in get_slide_collision_count():
+		if _resolve_ship_hit(get_slide_collision(index), incoming_velocity):
+			return
 	if get_slide_collision_count() > 0:
 		_takeoff()
 		velocity = get_slide_collision(0).get_normal() * 2.0 + up

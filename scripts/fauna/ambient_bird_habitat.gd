@@ -4,6 +4,10 @@ var terrain: Node3D
 var observer: Node3D
 
 
+func host() -> Node3D:
+	return terrain
+
+
 func up_at(point: Vector3) -> Vector3:
 	return (point - terrain.global_position).normalized()
 

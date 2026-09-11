@@ -93,6 +93,9 @@ func _cruise_step(water: WaterBirdHabitat, delta: float) -> void:
 	_time += delta
 	_cruise_remaining -= delta
 	_model.animate(_time, true, delta)
+	# Gulls cruise low over the shipping lanes: a hull can catch one in mid air.
+	if not _collision.disabled and _check_moving_ships(delta):
+		return
 	if _cruise_remaining <= 0.0 and _cruise_distance >= water.settings.flight_distance_min:
 		_cruising = false
 		super._seek_perch()
@@ -110,7 +113,11 @@ func _cruise_step(water: WaterBirdHabitat, delta: float) -> void:
 	var desired := (goal - global_position).normalized() * _speed if _goal_valid else Vector3.ZERO
 	velocity = velocity.lerp(desired, 1.0 - exp(-delta * 3.0))
 	var before := global_position
+	var incoming_velocity := velocity
 	move_and_slide()
+	for index in get_slide_collision_count():
+		if _resolve_ship_hit(get_slide_collision(index), incoming_velocity):
+			return
 	_cruise_distance += (global_position - before).slide(up).length()
 	if get_slide_collision_count() > 0:
 		_goal_valid = false

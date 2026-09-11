@@ -3,6 +3,8 @@ render_mode unshaded, cull_disabled, depth_draw_never;
 
 instance uniform vec3 planet_center = vec3(0.0);
 instance uniform float water_radius = 1.0;
+// 1 underwater: clip at the surface and tint with the sea fog. 0 in the air.
+instance uniform float underwater = 1.0;
 varying vec3 world_position;
 
 void vertex() {
@@ -16,13 +18,14 @@ void vertex() {
 }
 
 void fragment() {
-    if (length(world_position - planet_center) >= water_radius) discard;
+    if (underwater > 0.5 && length(world_position - planet_center) >= water_radius) discard;
     vec2 p = UV * 2.0 - 1.0;
     float fringe = 0.10 * sin(p.x * 12.0 + TIME * 0.7) * sin(p.y * 10.0 - TIME * 0.4);
     float density = 1.0 - smoothstep(0.12, 1.0, dot(p, p) + fringe);
     // Transparent particles render after underwater fog: attenuate their tint with
     // distance too, so a remote puff doesn't appear bright red through the whole sea.
     float distance_m = length(world_position - INV_VIEW_MATRIX[3].xyz);
-    ALBEDO = mix(vec3(0.28, 0.006, 0.018), vec3(0.0, 0.12, 0.16), 1.0 - exp(-distance_m * 0.06));
-    ALPHA = density * COLOR.a * exp(-distance_m * 0.015);
+    vec3 submerged = mix(vec3(0.28, 0.006, 0.018), vec3(0.0, 0.12, 0.16), 1.0 - exp(-distance_m * 0.06));
+    ALBEDO = mix(vec3(0.34, 0.015, 0.02), submerged, underwater);
+    ALPHA = density * COLOR.a * exp(-distance_m * mix(0.004, 0.015, underwater));
 }

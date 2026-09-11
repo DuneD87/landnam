@@ -4,7 +4,6 @@ const CLEARANCE: float = 0.95
 ## -1 mixes all species; select one in the scene Inspector for a dedicated population.
 @export_enum("Aleatorio:-1", "Sardina:0", "Dorada:1", "Pez payaso:2", "Pez mariposa:3", "Cirujano azul:4", "Lábrido:5") var fish_type: int = -1
 var current_type: int = 0
-@export var lethal_ship_impact_speed: float = 5.0
 var _water: WaterFaunaHabitat
 var _rng := RandomNumberGenerator.new()
 var _target_local := Vector3.ZERO
@@ -39,6 +38,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	(_collision.shape as BoxShape3D).size = bounds.size * size
 	_collision.position = bounds.get_center() * size
 	_collision.disabled = false
+	impact_radius = CLEARANCE
 	_visual.set_instance_shader_parameter("fish_type", current_type)
 	_visual.set_instance_shader_parameter("fish_color", Color.from_hsv(_rng.randf(), _rng.randf_range(0.015, 0.09), _rng.randf_range(0.88, 1.0)))
 	_visual.set_instance_shader_parameter("swim_phase", _rng.randf_range(0.0, TAU))
@@ -56,6 +56,10 @@ func deactivate() -> void:
 	super.deactivate()
 	if is_instance_valid(_collision):
 		_collision.disabled = true
+
+
+func audio_family() -> StringName:
+	return &"fish"
 
 
 func _physics_process(delta: float) -> void:
@@ -115,51 +119,6 @@ func _swim(delta: float) -> void:
 		var forward := velocity.normalized()
 		if absf(forward.dot(up)) < 0.98:
 			global_basis = global_basis.slerp(Basis.looking_at(forward, up), 1.0 - exp(-delta * 4.0)).orthonormalized()
-
-
-static func closing_speed(fish_velocity: Vector3, hull_velocity: Vector3, normal: Vector3) -> float:
-	return maxf((hull_velocity - fish_velocity).dot(normal), 0.0)
-
-
-func _resolve_ship_hit(hit: KinematicCollision3D, incoming: Vector3) -> bool:
-	if not active:
-		return false
-	for index in hit.get_collision_count():
-		var body := hit.get_collider(index) as DynamicGridBody
-		if body == null or body.movement_type != DynamicGridBody.MovementType.BOAT:
-			continue
-		var speed := closing_speed(incoming, _ship_velocity_at(body, hit.get_position(index)), hit.get_normal(index))
-		if speed > lethal_ship_impact_speed:
-			# Keep the puff on the water side of the contact, at the fish's position.
-			_water.burst_blood(global_position)
-			deactivate()
-			return true
-	return false
-
-
-func _check_moving_ships(delta: float) -> bool:
-	for node in _water.nearby_ships():
-		if not is_instance_valid(node) or not node is DynamicGridBody:
-			continue
-		var body := node as DynamicGridBody
-		var hull_velocity := _ship_velocity_at(body, global_position)
-		var relative_motion := (velocity - hull_velocity) * delta
-		if not body.contains_point(global_position, CLEARANCE + relative_motion.length()):
-			continue
-		# Relative sweep detects a boat hitting a nearly stationary fish, including
-		# its angular velocity, even when normal kinematic movement misses the impact.
-		var hit := move_and_collide(relative_motion, true, 0.02, true, 4)
-		if hit != null and _resolve_ship_hit(hit, velocity):
-			return true
-	return false
-
-
-static func _ship_velocity_at(body: DynamicGridBody, point: Vector3) -> Vector3:
-	var state := PhysicsServer3D.body_get_direct_state(body.get_rid())
-	var mass_center := body.global_position
-	if state != null:
-		mass_center = state.transform.origin + state.center_of_mass
-	return body.linear_velocity + body.angular_velocity.cross(point - mass_center)
 
 
 func _pick_target() -> void:

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_sound_event"]
+[ext_resource type="AudioStream" uid="uid://2wlv50lcjse5" path="res://audio/effects/squash_01.mp3" id="2_squash_01"]
+[ext_resource type="AudioStream" uid="uid://bk6lr8784ivdn" path="res://audio/effects/squash_02.mp3" id="3_squash_02"]
+
+[resource]
+script = ExtResource("1_sound_event")
+event_id = &"fauna_burst"
+streams = Array[AudioStream]([ExtResource("2_squash_01"), ExtResource("3_squash_02")])
+volume_db = -2.0
+volume_jitter_db = 2.0
+pitch_jitter = 0.15
+max_distance = 70.0
+unit_size = 8.0
+max_voices = 3
+cooldown = 0.08

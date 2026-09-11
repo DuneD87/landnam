@@ -8,10 +8,6 @@ var world_map: PlanetWorldMap
 var sampler := WaterHeightSampler.new()
 var _voxels: VoxelTool
 var _clearance_shape := SphereShape3D.new()
-var _ship_frame: int = -1
-var _ships: Array[Node] = []
-var _blood_pool: Array[FishBloodCloud] = []
-var _blood_cursor: int = 0
 
 
 func setup(ground: VoxelLodTerrain, sea: OceanSystem, map: PlanetWorldMap) -> void:
@@ -28,8 +24,12 @@ func _notification(what: int) -> void:
 		sampler.free()
 
 
-func center() -> Vector3:
-	return terrain.global_position
+func host() -> Node3D:
+	return terrain
+
+
+func is_underwater() -> bool:
+	return true
 
 
 func surface_radius(point: Vector3) -> float:
@@ -74,32 +74,6 @@ func intersects_ship(point: Vector3, clearance: float) -> bool:
 		if is_instance_valid(body) and body is DynamicGridBody and body.contains_point(point, clearance + 0.5):
 			return true
 	return false
-
-
-func nearby_ships() -> Array[Node]:
-	# One group lookup per physics frame for the whole population. This small bounds
-	# check also catches moving hulls that overrun a kinematic fish between sweeps.
-	var frame := Engine.get_physics_frames()
-	if frame != _ship_frame:
-		_ship_frame = frame
-		_ships = terrain.get_tree().get_nodes_in_group("dynamic_grid_body")
-	return _ships
-
-
-func burst_blood(point: Vector3) -> void:
-	var cloud: FishBloodCloud
-	for entry in _blood_pool:
-		if is_instance_valid(entry) and not entry.active:
-			cloud = entry
-			break
-	if cloud == null and _blood_pool.size() < 8:
-		cloud = FishBloodCloud.new()
-		terrain.add_child(cloud)
-		_blood_pool.append(cloud)
-	if cloud == null:
-		cloud = _blood_pool[_blood_cursor]
-		_blood_cursor = (_blood_cursor + 1) % _blood_pool.size()
-	cloud.burst(point, self)
 
 
 func is_swimmable(point: Vector3, clearance: float) -> bool:

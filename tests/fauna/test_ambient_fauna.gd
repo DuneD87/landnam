@@ -254,11 +254,11 @@ func _test_impact_threshold(fish: AmbientFish, water: WaterFaunaHabitat, rng: Ra
 		_check(water._blood_pool.size() == before + 1, "Lethal impact creates a small independent blood effect")
 		fish._resolve_ship_hit(hit, Vector3(0, 0, -20))
 		_check(water._blood_pool.size() == before + 1, "The same fish cannot burst twice")
-	_check(is_zero_approx(AmbientFish.closing_speed(Vector3(10, 0, 0), Vector3(10, 0, 0), Vector3.RIGHT)),
+	_check(is_zero_approx(AmbientAnimal.closing_speed(Vector3(10, 0, 0), Vector3(10, 0, 0), Vector3.RIGHT)),
 		"Equal fish and boat velocities do not count as an impact")
 	for cloud in water._blood_pool:
-		cloud._process(FishBloodCloud.LIFETIME + 0.2)
-	_check(water._blood_pool.all(func(cloud: FishBloodCloud) -> bool: return not cloud.active and not cloud.visible),
+		cloud._process(BloodCloud.LIFETIME + 0.2)
+	_check(water._blood_pool.all(func(cloud: BloodCloud) -> bool: return not cloud.active and not cloud.visible),
 		"Blood clouds dissipate and stop processing after three seconds")
 	var pool_size := water._blood_pool.size()
 	water.burst_blood(Vector3(0, 990, 0))

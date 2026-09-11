@@ -84,11 +84,31 @@ func _physics_process(delta: float) -> void:
 	query.collision_mask = HIT_MASK
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 
+	var reached: Vector3 = to if hit.is_empty() else hit["position"]
+	_burst_fauna(from, reached)
+
 	if hit.is_empty():
 		global_position = to
 		return
 
 	_on_hit(hit)
+
+
+## Peces y pájaros que la bala cruza en este paso. No tienen capa de colisión propia (si la
+## tuvieran, el jugador y los barcos tropezarían con ellos), así que se buscan por grupo y se
+## miden contra el segmento recorrido. No frenan la bala: revientan y el disparo sigue.
+func _burst_fauna(from: Vector3, to: Vector3) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	for node in tree.get_nodes_in_group(AmbientAnimal.GROUP):
+		var animal := node as AmbientAnimal
+		if animal == null or not animal.active:
+			continue
+		var reach := radius + animal.impact_radius
+		var closest := Geometry3D.get_closest_point_to_segment(animal.global_position, from, to)
+		if closest.distance_squared_to(animal.global_position) <= reach * reach:
+			animal.burst(animal.global_position)
 
 
 func _on_hit(hit: Dictionary) -> void:
