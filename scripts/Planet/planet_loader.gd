@@ -286,13 +286,12 @@ func _load_planet() -> void:
 	if not Engine.is_editor_hint():
 		_setup_weather(planet_parser)
 
-	_setup_npc_spawners(planet_parser)
-
 	if world_map_enabled and not Engine.is_editor_hint():
 		_setup_world_map()
 
 	if not Engine.is_editor_hint():
 		_setup_ambient_fauna()
+		_setup_ground_fauna(planet_parser)
 
 	if impostor_enabled:
 		_setup_impostor()
@@ -454,9 +453,6 @@ func refresh_world_anchors() -> void:
 			wmat.set_shader_parameter("planet_center", voxel_terrain.global_position)
 	if weather_controller != null:
 		weather_controller.set_planet_center(voxel_terrain.global_position)
-	for child in get_children():
-		if child is NPCSpawner:
-			child.set_planet_center(voxel_terrain.global_position)
 
 ## Aplica (o suelta) el override de clima en el controlador. No-op si aún no existe (en
 ## editor o antes de cargar el planeta); _setup_weather lo vuelve a llamar al final.
@@ -468,20 +464,46 @@ func _apply_weather_override() -> void:
 	else:
 		weather_controller.clear_force()
 
-func _setup_npc_spawners(planet_parser: PlanetParser) -> void:
-	var planet_center := voxel_terrain.global_position
-	for spawner_config in planet_parser.npc_spawners:
-		var spawner := NPCSpawner.new()
-		spawner.setup(
-			spawner_config,
-			planet_parser.radius,
-			planet_parser.atmosphere_height,
-			planet_center,
-			planet_parser.biome_latitude_ranges,
-			players,
-			get_parent()
-		)
-		add_child(spawner)
+## Un spawner por especie de superficie, con la misma maquinaria de pool que peces y pájaros.
+## Cada especie es un GroundFaunaProfile en disco; el JSON del planeta solo dice cuáles viven aquí.
+func _setup_ground_fauna(planet_parser: PlanetParser) -> void:
+	if not ambient_fauna_enabled or players.is_empty():
+		return
+	for profile_path in planet_parser.ground_fauna:
+		var source := load(profile_path) as GroundFaunaProfile
+		if source == null:
+			push_error("GroundFauna: '%s' no es un GroundFaunaProfile" % profile_path)
+			continue
+		# El planeta rellena animal_scene al cargar, y el recurso de disco es compartido.
+		var settings := source.duplicate() as GroundFaunaProfile
+		if settings.scene_path.is_empty():
+			push_error("GroundFauna: '%s' no declara scene_path" % profile_path)
+			continue
+		var habitat := GroundFaunaHabitat.new()
+		habitat.setup(voxel_terrain, get_parent(), planet_parser.radius,
+			planet_parser.atmosphere_height, planet_parser.biome_latitude_ranges, world_map)
+		var spawner := AmbientFaunaSpawner.new()
+		spawner.name = settings.scene_path.get_file().get_basename()
+		spawner.setup(settings, habitat, players[0])
+		voxel_terrain.add_child(spawner)
+		ResourceLoader.load_threaded_request(settings.scene_path)
+		_resolve_animal_scene(settings, settings.scene_path)
+
+
+## Deja en el perfil la escena del animal cuando termina su carga en hilo. Leerla cuesta decenas
+## de ms en caliente y segundos en frío; el spawner no puebla mientras animal_scene siga vacía.
+func _resolve_animal_scene(settings: GroundFaunaProfile, path: String) -> void:
+	while is_inside_tree():
+		var status := ResourceLoader.load_threaded_get_status(path)
+		if status == ResourceLoader.THREAD_LOAD_LOADED:
+			settings.animal_scene = ResourceLoader.load_threaded_get(path) as PackedScene
+			if settings.animal_scene == null:
+				push_error("GroundFauna: '%s' no es una PackedScene" % path)
+			return
+		if status != ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			push_error("GroundFauna: no se puede cargar la escena '%s'" % path)
+			return
+		await get_tree().process_frame
 
 
 func _setup_ambient_fauna() -> void:

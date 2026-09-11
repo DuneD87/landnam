@@ -8,6 +8,25 @@ extends RigidBody3D
 
 enum MovementType { BOAT, LAND_VEHICLE, SPACESHIP }
 
+## Grupo de todos los cuerpos dinámicos en juego.
+const GROUP := &"dynamic_grid_body"
+
+## Cuerpos en juego, resueltos una vez por frame de física. Lo comparten los chequeos de spawn
+## de la fauna y los barridos de impacto de cada criatura, que si no harían una búsqueda cada uno.
+static var _in_play_frame: int = -1
+static var _in_play: Array[Node] = []
+
+
+static func bodies_in_play(tree: SceneTree) -> Array[Node]:
+	if tree == null:
+		return []
+	var frame := Engine.get_physics_frames()
+	if frame != _in_play_frame:
+		_in_play_frame = frame
+		_in_play = tree.get_nodes_in_group(GROUP)
+	return _in_play
+
+
 @export var movement_type: MovementType = MovementType.BOAT
 @export var damage_enabled: bool = true
 @export var turn_speed: float = 2.0
@@ -598,7 +617,7 @@ func _ready() -> void:
 	max_contacts_reported = MAX_CONTACTS_REPORTED
 	add_to_group("floating_origin")
 	blocks_destroyed.connect(_on_blocks_destroyed)
-	add_to_group("dynamic_grid_body")
+	add_to_group(GROUP)
 	_setup_water_sampler()
 	BlockDebris.prewarm(self)
 

@@ -277,6 +277,8 @@ func _register_commands() -> void:
 		"Estado del pool de voces y descartes; con un evento, lo dispara en el jugador.", _cmd_audio, 1))
 	_add(ConsoleCommand.new("water", "water",
 		"Mezcla del agua: mar/lago/rio, cuanta costa y cuanto temporal.", _cmd_water))
+	_add(ConsoleCommand.new("fauna", "fauna",
+		"Población de cada especie y por qué se descartan sus puntos de spawn.", _cmd_fauna))
 	_add(ConsoleCommand.new("perf", "perf [on|off]",
 		"Perfilado por fases: vuelca cada pico a consola con su desglose (sin argumento, alterna).", _cmd_perf))
 	_add(ConsoleCommand.new("escala", "escala [0.25-2.0]",
@@ -666,6 +668,32 @@ func _damage_report(grid: GridBase, cell: Vector3i) -> String:
 
 ## Por qué NO se está retirando cada resto. Las cinco condiciones se evalúan juntas dentro de
 ## _update_derelict y desde fuera son indistinguibles entre sí: aquí van una a una.
+## Por qué una especie no aparece: cuántos hay vivos, cuántos caben y en qué filtro se cae cada
+## candidato. Sin esto, un spawn que no cuaja solo se puede diagnosticar dando vueltas por el mapa.
+func _cmd_fauna(_args: PackedStringArray) -> String:
+	var spawners := get_tree().get_nodes_in_group(AmbientFaunaSpawner.GROUP)
+	if spawners.is_empty():
+		return "[color=%s]No hay ningún spawner de fauna en juego.[/color]" % COLOR_ERR
+	var lines: Array[String] = []
+	for node in spawners:
+		var spawner := node as AmbientFaunaSpawner
+		if spawner == null or spawner.profile == null:
+			continue
+		var alive := 0
+		for animal in spawner._pool:
+			if animal.active:
+				alive += 1
+		lines.append("[color=%s]%s[/color]  vivos %d/%d   pool %d   radio %.0f m" % [
+			COLOR_INFO, spawner.name, alive, spawner.profile.population,
+			spawner._pool.size(), spawner.profile.spawn_radius])
+		var ground := spawner.habitat as GroundFaunaHabitat
+		if ground == null:
+			continue
+		lines.append("[color=%s]   %s[/color]" % [COLOR_MUTED, ground.report()])
+	return "
+".join(lines)
+
+
 func _cmd_derelicts(_args: PackedStringArray) -> String:
 	var bodies := get_tree().get_nodes_in_group("dynamic_grid_body")
 	if bodies.is_empty():

@@ -9,6 +9,9 @@ var _pool: Array[AmbientAnimal] = []
 var _rng := RandomNumberGenerator.new()
 var _elapsed: float = 0.0
 
+## Grupo de todos los spawners en juego, para los informes de la consola.
+const GROUP := &"fauna_spawner"
+
 
 func setup(settings: AmbientFaunaProfile, environment: AmbientFaunaHabitat,
 		player: Node3D) -> void:
@@ -16,6 +19,7 @@ func setup(settings: AmbientFaunaProfile, environment: AmbientFaunaHabitat,
 	habitat = environment
 	observer = player
 	_rng.randomize()
+	add_to_group(GROUP)
 
 
 func _physics_process(delta: float) -> void:
@@ -44,12 +48,13 @@ func update_population() -> void:
 	var count := 0
 	var recycle := maxf(profile.recycle_distance, profile.spawn_radius + 5.0)
 	for animal in _pool:
-		if not animal.active:
+		if not animal.in_play():
 			continue
 		var distance := observer.global_position.distance_to(animal.global_position)
 		if distance > recycle and (distance > recycle * 1.5 or not _in_view(animal.global_position)):
 			animal.deactivate()
 		else:
+			animal.set_detail(distance)
 			count += 1
 	var activated := 0
 	for _attempt in profile.attempts_per_update:
@@ -74,7 +79,7 @@ func update_population() -> void:
 
 func _get_available_animal() -> AmbientAnimal:
 	for animal in _pool:
-		if not animal.active:
+		if not animal.in_play():
 			return animal
 	var node := profile.animal_scene.instantiate()
 	var animal := node as AmbientAnimal

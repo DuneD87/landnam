@@ -1,10 +1,18 @@
 extends Node
 class_name ActionController
 
-## Acciones del jugador con el mundo: excavar voxels (con drop de ore), atacar objetos destruibles y
-## recoger items por raycast central o cono.
+## Acciones del jugador con el mundo: excavar voxels (con drop de ore), atacar objetos destruibles
+## y criaturas, y recoger items por raycast central o cono.
 
 const Config = preload("res://scripts/config.gd")
+
+## Alcance del cuerpo a cuerpo contra criaturas, en metros: un oso es ancho y el rayo golpea su
+## colisionador, no su centro.
+const MELEE_RANGE := 3.5
+const MELEE_DAMAGE_MIN := 50.0
+const MELEE_DAMAGE_MAX := 100.0
+## Segundos entre golpes.
+const MELEE_COOLDOWN := 1.7
 
 signal voxel_mined(item_id: StringName, amount: int)
 
@@ -29,6 +37,8 @@ func _ready() -> void:
 	attack_raycast = RayCast3D.new()
 	add_child(attack_raycast)
 	attack_raycast.enabled = false
+	# Terreno y objetos, más la capa de NPCs vivos: sin ella el rayo atraviesa a los animales.
+	attack_raycast.collision_mask = 1 | NPCController.NPC_LIVE_LAYER
 
 func dig_hole(radius: float, distance: float):
 	var voxel_tool: VoxelTool = current_voxel.get_voxel_tool()
@@ -211,6 +221,18 @@ func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_
 	if target_node == null:
 		return
 	var hit_distance = raycast_result["hit_distance"]
+
+	var creature := target_node as AmbientAnimal
+	if creature != null and creature.active and hit_distance < MELEE_RANGE:
+		creature.take_damage(rand_num_gen.randf_range(MELEE_DAMAGE_MIN, MELEE_DAMAGE_MAX), get_parent())
+		# Sin entrada en attacking_nodes, on_timeout cierra el golpe: uno por clic.
+		current_target_id = 0
+		current_target_node = null
+		is_voxel = false
+		is_attacking = true
+		timer.start(MELEE_COOLDOWN)
+		return target_node
+
 	if target_node is VoxelInstancerRigidBody && hit_distance < 3.0:
 		var instance_id = target_node.get_instance_id()
 		current_target_id = instance_id

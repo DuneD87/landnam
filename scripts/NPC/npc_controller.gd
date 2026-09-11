@@ -1,11 +1,11 @@
 @tool
-extends PlanetaryBody
+extends AmbientAnimal
 class_name NPCController
 
 const Config = preload("res://scripts/config.gd")
 
-## Controlador base de los NPCs (animales, humanos…): hereda de PlanetaryBody y orquesta sus
-## componentes hijo (Movement, HealthComponent, AIController + estados, Inventory, y opcionalmente
+## Controlador de los NPCs con esqueleto (animales, humanos…): es una AmbientAnimal que además
+## orquesta sus componentes hijo (Movement, AIController + estados, Inventory, y opcionalmente
 ## AnimationController y Perception), gestionando gravedad, animación, daño, muerte y guardado.
 
 ## Nombre del estado inicial de la FSM (nombre de un nodo hijo de AIController).
@@ -18,10 +18,12 @@ const Config = preload("res://scripts/config.gd")
 @export var npc_type: StringName = &""
 ## Identificador único para guardado; se genera automáticamente si está vacío.
 @export var entity_id: String = ""
+## Solo los NPCs únicos se guardan. Los de población se reciclan por distancia, así que
+## guardarlos sería resucitar copias que el spawner ya no controla.
+@export var persistent: bool = false
 var save_category: String = "npc"
 
 @onready var movement: Movement = $Movement
-@onready var health_component: HealthComponent = $HealthComponent
 @onready var ai_controller: AIController = $AIController
 @onready var inventory: Inventory = $Inventory
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
@@ -42,11 +44,14 @@ var _hit_timer: float = 0.0
 
 var _frame_offset: int = 0
 var _ai_update_stride: int = 1
-var _physics_interval: float = 0.0
-var _physics_timer: float = 0.0
+## Cuenta de activaciones: un temporizador de cadáver de una vida anterior no debe tocar a la
+## criatura que el pool ya ha vuelto a sacar.
+var _life_id: int = 0
 
 # Layer de NPCs vivos; los muertos pasan a layer 0.
 const NPC_LIVE_LAYER := 2
+## Una de cada cuántas actualizaciones de IA corre cuando la criatura está lejos.
+const AI_STRIDE_FAR := 4
 
 func _ready() -> void:
 	safe_margin = 0.008
@@ -57,8 +62,15 @@ func _ready() -> void:
 
 	if entity_id.is_empty():
 		entity_id = "npc_%d" % get_instance_id()
-	add_to_group(GameManager.SAVEABLE_GROUP)
+	if persistent:
+		add_to_group(GameManager.SAVEABLE_GROUP)
 	add_to_group("npc")
+	# Vivo y alcanzable: cañones y cascos buscan a las criaturas por el grupo de AmbientAnimal.
+	# El pool llama a deactivate() justo después de instanciar, así que uno de población
+	# arranca dormido y uno suelto en una escena arranca vivo.
+	active = true
+	add_to_group(GROUP)
+	impact_radius = 0.8
 
 	movement.use_ai_input = true
 
@@ -78,7 +90,8 @@ func _ready() -> void:
 
 	movement.landed.connect(_on_landed)
 	health_component.damaged.connect(_on_damaged)
-	health_component.died.connect(_on_died)
+	if not health_component.died.is_connected(_on_health_depleted):
+		health_component.died.connect(_on_health_depleted)
 
 	update_nearest_planet()
 
@@ -111,7 +124,11 @@ func _physics_step(delta: float) -> void:
 		move_and_slide()
 		return
 
-	if not _is_dying and Engine.get_physics_frames() % _ai_update_stride == _frame_offset:
+	# Un casco a velocidad lo mata; los que ya están muriendo no se atropellan dos veces.
+	if active and _check_moving_ships(delta):
+		return
+
+	if not _is_dying and Engine.get_physics_frames() % _ai_update_stride == _frame_offset % _ai_update_stride:
 		ai_controller.gravity_direction = gravity_direction
 		ai_controller.update(delta * _ai_update_stride)
 
@@ -152,28 +169,117 @@ func _on_target_lost() -> void:
 	ai_controller.transition_to(lose_state)
 
 
-func _on_damaged(_amount: float, _source: Node) -> void:
+func _on_damaged(_amount: float, source: Node) -> void:
 	if is_dead:
 		return
 	is_hit = true
 	_hit_timer = hit_stun_duration
 	if animation_controller:
 		animation_controller.trigger_hit()
+	# Quien te pega es un objetivo aunque Perception no lo vigile.
+	if detect_state != &"" and source is Node3D and not _is_dying:
+		ai_controller.target = source
+		ai_controller.transition_to(detect_state)
 
 
 func _on_landed(impact_speed: float) -> void:
 	health_component.take_fall_damage(impact_speed)
 
 
+## Sale del pool: repone salud, estado, IA y animación, para quedar indistinguible de uno
+## recién instanciado.
+func activate(point: Vector3, environment: AmbientFaunaHabitat,
+		rng: RandomNumberGenerator) -> void:
+	var ground := environment as GroundFaunaHabitat
+	if ground != null:
+		planets = ground.planets
+	var settings := profile as GroundFaunaProfile
+	corpse_duration = settings.corpse_duration if settings != null else 0.0
+	_life_id += 1
+	is_dead = false
+	_is_dying = false
+	is_hit = false
+	_hit_timer = 0.0
+	collision_layer = NPC_LIVE_LAYER
+	collision_mask = 1 | NPC_LIVE_LAYER
+	_frame_offset = rng.randi() % AI_STRIDE_FAR
+	_ai_update_stride = 1
+	super.activate(point, environment, rng)
+	if persistent:
+		add_to_group(GameManager.SAVEABLE_GROUP)
+	update_nearest_planet()
+	if planet != null:
+		gravity_direction = planet.get_gravity_direction(global_position)
+		up_direction = -gravity_direction
+		align_to_gravity(gravity_direction, 1.0)
+	ai_controller.target = null
+	ai_controller.is_attacking = false
+	ai_controller.desired_direction = Vector3.ZERO
+	if initial_ai_state != &"":
+		ai_controller.transition_to(initial_ai_state)
+	current_animation = Config.ANIMATION.IDLE
+	if animation_controller:
+		animation_controller.handle_animations(0.0, Config.ANIMATION.IDLE, false)
+	if perception:
+		perception.set_physics_process(true)
+	set_physics_process(true)
+	reset_physics_interpolation()
+
+
+## Un cadáver reciclado por distancia suelta su plaza: sin limpiar la muerte aquí, in_play()
+## seguiría siendo cierto y el pool no lo volvería a usar nunca.
+func deactivate() -> void:
+	is_dead = false
+	_is_dying = false
+	super.deactivate()
+	if perception:
+		perception.set_physics_process(false)
+	if is_in_group(GameManager.SAVEABLE_GROUP):
+		remove_from_group(GameManager.SAVEABLE_GROUP)
+
+
+func in_play() -> bool:
+	return active or is_dead or _is_dying
+
+
+## Detalle por distancia: lejos deja de simularse entero en vez de reciclarse.
+func set_detail(distance: float) -> void:
+	var settings := profile as GroundFaunaProfile
+	if settings == null:
+		return
+	# Un cuerpo que aún cae, o que se está muriendo, se simula esté donde esté.
+	var awake := settings.full_detail_distance <= 0.0 or distance <= settings.full_detail_distance 		or not active or not is_on_floor()
+	set_physics_process(awake)
+	if perception:
+		perception.set_physics_process(awake and active)
+	_ai_update_stride = 1 if distance <= settings.near_detail_distance else AI_STRIDE_FAR
+
+
+## Un impacto letal (casco, bala) lo mata por su HealthComponent, para que corra la animación
+## de muerte y deje cadáver. La sangre marca el punto del golpe.
+func die(point: Vector3) -> void:
+	if not active or _is_dying:
+		return
+	_is_dying = true
+	if habitat != null:
+		habitat.burst_blood(point)
+	if health_component != null and not health_component.is_dead:
+		health_component.take_damage(health_component.health, self)
+	_on_died()
+
+
 func _on_died() -> void:
 	_is_dying = true
+	active = false
 	ai_controller.desired_direction = Vector3.ZERO
 	ai_controller.is_attacking = false
 	if perception:
 		perception.set_physics_process(false)
 
 	await get_tree().create_timer(0.4).timeout
-	if not is_instance_valid(self):
+	# El pool puede haberlo reciclado por distancia durante la espera; deactivate() limpia
+	# _is_dying, y entonces esta muerte ya no va con este cuerpo.
+	if not is_instance_valid(self) or not _is_dying:
 		return
 
 	is_dead = true
@@ -183,12 +289,21 @@ func _on_died() -> void:
 	if animation_controller:
 		animation_controller.trigger_death()
 	if corpse_duration <= 0.0:
-		queue_free()
+		_retire()
 		return
 	ai_controller.transition_to(&"DeathState")
+	var life := _life_id
 	get_tree().create_timer(corpse_duration).timeout.connect(
-		func(): if is_instance_valid(self): queue_free()
+		func(): if is_instance_valid(self) and _life_id == life: _retire()
 	)
+
+
+## Fin del cadáver: al pool si lo gobierna un spawner, o fuera de la escena si es suelto.
+func _retire() -> void:
+	if profile != null:
+		deactivate()
+	else:
+		queue_free()
 
 
 func get_save_data() -> Dictionary:

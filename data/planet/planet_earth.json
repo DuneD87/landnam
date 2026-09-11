@@ -111,59 +111,11 @@
 		"slope_roughness_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png", 
 		"slope_ao_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_ao.png",
 		"slope_height_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_height.png",
-		"npc_spawners": [
-			{
-				"biomes": [1,3],
-				"scene": "res://scenes/animals/Deer.tscn",
-				"min_spawn_distance": 20,
-				"lod_active_dist": 50,
-				"max_distance": 300,
-				"max_recycle_distance": 850,
-				"recycle_on_death": true,
-				"corpse_duration": 60.0,
-				"min_height": -50,
-				"max_height": 200,
-				"max_npcs": 10
-			},
-			{
-				"biomes": [1,3],
-				"scene": "res://scenes/animals/Bear.tscn",
-				"min_spawn_distance": 50,
-				"lod_active_dist": 50,
-				"max_distance": 300.0,
-				"max_recycle_distance": 850,
-				"recycle_on_death": true,
-				"corpse_duration": 120.0,
-				"min_height": 100,
-				"max_height": 300,
-				"max_npcs": 10
-			},
-			{
-				"biomes": [2],
-				"scene": "res://scenes/animals/Lion.tscn",
-				"min_spawn_distance": 50,
-				"lod_active_dist": 50,
-				"max_distance": 400.0,
-				"max_recycle_distance": 850,
-				"recycle_on_death": true,
-				"corpse_duration": 90.0,
-				"min_height": -50,
-				"max_height": 150,
-				"max_npcs": 3
-			},
-			{
-				"biomes": [2],
-				"scene": "res://scenes/animals/Buffalo.tscn",
-				"min_spawn_distance": 50,
-				"lod_active_dist": 50,
-				"max_distance": 500.0,
-				"max_recycle_distance": 850,
-				"recycle_on_death": true,
-				"corpse_duration": 90.0,
-				"min_height": -50,
-				"max_height": 150,
-				"max_npcs": 10
-			},
+		"ground_fauna": [
+			"res://data/fauna/deer.tres",
+			"res://data/fauna/bear.tres",
+			"res://data/fauna/lion.tres",
+			"res://data/fauna/buffalo.tres"
 		]
 
 	},
@@ -648,13 +600,13 @@
   },
   "reef_settings": {
 	"enabled": true,
-	"depth_max": 75.0,
-	"depth_softness": 17.0,
+	"depth_max": 105.0,
+	"depth_softness": 27.0,
 	"shore_margin": 1.0,
 	"shore_softness": 4.0,
-	"crest_height": 34.0,
+	"crest_height": 64.0,
 	"sharpness": 1,
-	"rock_threshold": 0.0,
+	"rock_threshold": 0.1,
 	"rock_softness": 1.0,
 	"head_size": 90.0,
 	"texture": "res://textures/Terrain/mud-with-vegetation-bl/mud_with_vegetation_albedo.png",

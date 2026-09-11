@@ -2,8 +2,6 @@ class_name AmbientFaunaHabitat extends RefCounted
 
 var _blood_pool: Array[BloodCloud] = []
 var _blood_cursor: int = 0
-var _ship_frame: int = -1
-var _ships: Array[Node] = []
 
 
 ## A candidate is a world position, or null when the habitat is unavailable.
@@ -38,17 +36,13 @@ func is_underwater() -> bool:
 	return false
 
 
-## Dynamic hulls near the population. One group lookup per physics frame for the whole
-## population, shared by spawn checks and by the animals' own impact sweeps.
+## Dynamic hulls near the population, for spawn checks. Shares the per-frame lookup with
+## the creatures' own impact sweeps.
 func nearby_ships() -> Array[Node]:
 	var node := host()
 	if node == null or not node.is_inside_tree():
 		return []
-	var frame := Engine.get_physics_frames()
-	if frame != _ship_frame:
-		_ship_frame = frame
-		_ships = node.get_tree().get_nodes_in_group("dynamic_grid_body")
-	return _ships
+	return DynamicGridBody.bodies_in_play(node.get_tree())
 
 
 ## Pooled blood puff at a lethal impact. Bounded: a crowded moment reuses the oldest cloud.

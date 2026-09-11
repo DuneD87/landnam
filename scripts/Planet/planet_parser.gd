@@ -12,7 +12,8 @@ class_name PlanetParser extends Node3D
 @export var water_level: float
 
 @export_group("Biome Settings")
-@export var npc_spawners: Array[Dictionary] = []
+## Rutas a los GroundFaunaProfile de las especies de superficie de este planeta.
+@export var ground_fauna: Array[String] = []
 @export var ore_settings: Array[Dictionary] = []
 @export var biome_count: int
 @export var textures_per_biome: int
@@ -226,9 +227,9 @@ func load_config(config_path: String):
 
 	_load_biome_noise_texture_overrides(biome_settings)
 
-	npc_spawners.clear()
-	for spawner_data in biome_settings.get("npc_spawners", []):
-		npc_spawners.append(spawner_data)
+	ground_fauna.clear()
+	for profile_path in biome_settings.get("ground_fauna", []):
+		ground_fauna.append(str(profile_path))
 
 	ore_settings.clear()
 	for ore_data in config.get("ore_settings", []):
