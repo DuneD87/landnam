@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="SoundEvent" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="SoundEvent" format=3 uid="uid://b65dt0x1ujft2"]
 
-[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_sound_event"]
+[ext_resource type="Script" uid="uid://c1svcu0j5y2m3" path="res://scripts/audio/sound_event.gd" id="1_sound_event"]
 [ext_resource type="AudioStream" uid="uid://2wlv50lcjse5" path="res://audio/effects/squash_01.mp3" id="2_squash_01"]
 [ext_resource type="AudioStream" uid="uid://bk6lr8784ivdn" path="res://audio/effects/squash_02.mp3" id="3_squash_02"]
 
