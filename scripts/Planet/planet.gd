@@ -170,8 +170,6 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 				push_error("El nodo 'Noise_01' no es de tipo FastNoise3D")
 				return
 
-			var noise: ZN_FastNoiseLite = graph_function.get_node_param(noise_id, 0)
-			print(noise)
 	return generator
 
 func _build_tree_collision(trunk_inst: MeshInstance3D, radius: float) -> CollisionShape3D:
@@ -386,13 +384,8 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 			if mat is ShaderMaterial:
 				item_transparent_materials.append({"shader": mat as ShaderMaterial, "wind_speed": wind_speed})
 
-## Asigna a cada mesh-LOD su variante de material: LOD0 conserva la doble cara
-## (volumen de cerca) y LOD1/LOD2 pasan a una cara (mitad de fill). Con
-## debug_lod_colors además tiñe cada LOD para ver in-game cuál se usa y dónde.
-## Los duplicados se registran en item_transparent_materials o se quedarían sin el
-## push de sol/viento. LOD3 es el impostor (otro shader): esta función no lo toca;
-## su material se crea y registra aparte en _build_impostor_cross_mesh.
-## Se llama UNA vez por item, antes de registrar sus bandas.
+## LOD0 conserva la doble cara; LOD1/2 usan una cara. LOD3 tiene su propio material.
+## Registra los duplicados para actualizar el sol y el viento.
 func _apply_lod_material_variants(lm: Array, wind_speed: float) -> void:
 	if _twig_singleside_shader == null:
 		_twig_singleside_shader = load("res://shaders/transparent_material_shader_singleside.gdshader")
@@ -404,7 +397,7 @@ func _apply_lod_material_variants(lm: Array, wind_speed: float) -> void:
 			continue
 		var want_singleside: bool = lod_i > 0 and _twig_singleside_shader != null
 		if not want_singleside:
-			continue  # LOD0 sin debug: se queda con el material original
+			continue  # LOD0 conserva el material original.
 		for s in mesh.get_surface_count():
 			var mat = mesh.surface_get_material(s)
 			if not (mat is ShaderMaterial):
@@ -441,19 +434,6 @@ func _load_vegetation() -> void:
 	multi_mesh_array.clear()
 	item_transparent_materials.clear()
 	_next_library_id = 0
-
-	# Alcance real de cada banda de voxel-LOD: es lo que hay que mirar para calibrar
-	# lod_index, los fade de la hierba y los mesh_lod_distances_m de los árboles.
-	if voxel_terrain != null and voxel_terrain.has_method("get_lod_distances"):
-		print("[vegetation] alcance por lod_index (m): ", voxel_terrain.get_lod_distances())
-	elif voxel_terrain != null:
-		# Sin get_lod_distances() en esta versión del módulo, el mismo cálculo de respaldo que usa
-		# _get_lod_view_distance: sin esto no hay forma de calibrar lod_index con números.
-		var fallback: Array[float] = []
-		for n in voxel_terrain.lod_count:
-			fallback.append(float(voxel_terrain.lod_distance) * float(1 << n))
-		print("[vegetation] alcance por lod_index (m, estimado lod_distance=%s): %s"
-			% [voxel_terrain.lod_distance, fallback])
 
 	# async: _load_vegetation_item hornea el impostor LOD3 de los árboles con await
 	# (render-to-texture). _load_vegetation se lanza como corrutina desde planet_loader
@@ -794,17 +774,6 @@ func _bake_grass_patch(source_mesh: Mesh, cfg: Dictionary) -> Mesh:
 		push_warning("Planet: el parche de hierba se horneó vacío; el item se queda sin tarjeta.")
 		return null
 
-	# Volcado de las dos vistas tal cual salen del render, antes de mipmaps y UVs:
-	# es la única forma de separar "la textura sale mal" de "la tarjeta la mapea mal".
-	if bool(cfg.get("debug_dump", false)):
-		var tag: String = str(int(cfg.get("seed", 0)))
-		side_img.save_png("user://grass_patch_%s_side.png" % tag)
-		top_img.save_png("user://grass_patch_%s_top.png" % tag)
-		print("[grass_patch] volcado %s: encuadre %.2f m a %d px/m | pintado %.2f x %.2f m (lateral), %.2f x %.2f m (cenital)" % [
-			tag, view_size, int(tex_size / view_size),
-			side_rect.size.x * view_size / tex_size, side_rect.size.y * view_size / tex_size,
-			top_rect.size.x * view_size / tex_size, top_rect.size.y * view_size / tex_size])
-
 	side_img = _fill_transparent_rgb(side_img)
 	top_img = _fill_transparent_rgb(top_img)
 	side_img.generate_mipmaps()
@@ -821,14 +790,8 @@ func _bake_grass_patch(source_mesh: Mesh, cfg: Dictionary) -> Mesh:
 	return card
 
 
-## Reparte el relevo hierba->tarjeta a partir del corte duro de la banda de LOD de la
-## hierba: pasado ese alcance el instancer ya no tiene esos bloques y la hierba se corta
-## en seco, así que TODO el relevo tiene que terminar antes. El orden es tarjeta primero:
-## cuando la hierba empieza a irse, la tarjeta ya está entera, y nunca hay una franja con
-## las dos a medias.
-## Escribe los dos materiales desde el mismo sitio para que no puedan desincronizarse; el
-## de la mata es el mismo recurso que usa el item de hierba (los dos cargan esa escena),
-## así que esto también fija el fade de la hierba cercana y manda sobre el .tscn.
+## Completa la transición a tarjetas antes del límite de distancia de la hierba.
+## Actualiza ambos materiales para que la tarjeta sea visible antes de desvanecer la hierba.
 func _apply_grass_handoff(card: Mesh, source_mesh: Mesh, cfg: Dictionary) -> void:
 	var card_width: float = float(cfg.get("fade_width_m", 20.0))
 	var grass_width: float = float(cfg.get("grass_fade_width_m", 20.0))
@@ -850,9 +813,6 @@ func _apply_grass_handoff(card: Mesh, source_mesh: Mesh, cfg: Dictionary) -> voi
 	if card_mat != null:
 		card_mat.set_shader_parameter("fade_start", maxf(grass_start - card_width, 1.0))
 		card_mat.set_shader_parameter("fade_width", card_width)
-
-	print("[grass_patch] relevo: tarjeta %.0f->%.0f m, hierba %.0f->%.0f m" % [
-		maxf(grass_start - card_width, 1.0), grass_start, grass_start, grass_end])
 
 
 ## Pinta de color medio el RGB de los píxeles transparentes, conservando el alfa.
@@ -1359,19 +1319,13 @@ func _river_cache_key(height_range: float) -> String:
 
 ## Empuja los parámetros de ore del JSON a los nodos nombrados del VoxelGraph (autorados en el editor).
 func _apply_ore_params(functions: Array, ores: Array) -> void:
-	var probe: VoxelGraphFunction = functions[0]
-	print("[ore-graph] set_node_default_input disponible: ", probe.has_method("set_node_default_input"))
-	_dump_node_info(probe, VoxelGraphFunction.NODE_SPOTS_3D, "Spots3D")
-	_dump_node_info(probe, VoxelGraphFunction.NODE_DIVIDE, "Divide")
-	_dump_node_info(probe, VoxelGraphFunction.NODE_OUTPUT_WEIGHT, "OutputWeight")
-
 	for ore in ores:
 		var type_id := int(ore.get("type_id", 1))
 		var spots_name := "ore_spots_%d" % type_id
 
 		var spots_fn := _find_owner(functions, spots_name)
 		if spots_fn == null:
-			push_warning("Planet: no se encontró el nodo Spots3D '%s' en ninguna función; ¿lo creaste y nombraste?" % spots_name)
+			push_warning("Planet: no se encontró el nodo Spots3D '%s' en ninguna función." % spots_name)
 		else:
 			var spots := spots_fn.find_node_by_name(spots_name)
 			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "seed", int(ore.get("noise_seed", 0)))
@@ -1412,12 +1366,8 @@ const _REEF_SHELL_BELOW := 25.0
 const _REEF_SHELL_ABOVE := 17.5
 
 
-## Empuja al grafo la franja de escollos de la costa. Devuelve true si tocó algo y hay que recompilar.
-##
-## El offset del nivel del mar se escribe SIEMPRE, lo pida o no el JSON: lo dicta water_radius, y sin
-## él el arrecife se sitúa a la altura equivocada. La cáscara radial de reef_shell_* se deriva de la
-## propia franja en vez de dejarla fija, porque quedarse corta recortaría el arrecife por arriba o
-## por abajo en cuanto se tocaran depth_max o crest_height.
+## Ajusta los arrecifes al nivel del mar y deriva la envolvente radial de su altura y profundidad.
+## Devuelve true si el grafo necesita recompilarse.
 func _apply_reef_params(functions: Array) -> bool:
 	if _find_owner(functions, "reef_sea_offset") == null:
 		return false
@@ -1440,26 +1390,14 @@ func _apply_reef_params(functions: Array) -> bool:
 	var shore_soft: float = maxf(float(reef_settings.get("shore_softness", 4.0)), 0.1)
 	var crest: float = float(reef_settings.get("crest_height", 24.0))
 	var threshold: float = float(reef_settings.get("rock_threshold", 0.0))
-	# La altura de la roca es lerp(lecho, crest_height, cobertura), así que TODO punto donde la
-	# cobertura sature a 1 queda exactamente a crest_height: mesetas planas a cota constante, y muy
-	# visibles porque las crestas del ruido van agrupadas. La cura es que este borde alto quede por
-	# encima del máximo del ruido (~0.8 con 4 octavas), para que la cobertura nunca llegue a tocar 1
-	# y la altura siga siendo función estrictamente creciente del ruido: cada cabeza, una cima.
+	# Una cobertura saturada aplana las crestas; rock_softness regula esa saturación.
 	var rock_soft: float = maxf(float(reef_settings.get("rock_softness", 1.0)), 0.01)
-	# Afilado extra. No es lo que quita la meseta —eso lo hace rock_softness—: estrecha las puntas,
-	# a cambio de comerse la cobertura muy deprisa.
+	# Una potencia mayor estrecha las crestas y reduce su cobertura.
 	var sharpness: int = maxi(int(reef_settings.get("sharpness", 1)), 1)
-
-	# Tramos francos. El ruido de zona reparte la costa en tramos con arrecife y tramos limpios por
-	# los que se puede entrar; sin esto la roca orla el planeta entero por igual. gap_threshold es el
-	# umbral: subirlo abre más costa, bajarlo la cierra.
-	var gap_threshold: float = float(reef_settings.get("gap_threshold", -0.2))
-	var gap_soft: float = maxf(float(reef_settings.get("gap_softness", 0.35)), 0.01)
 
 	_set_smoothstep(functions, "reef_deep_gate", -depth_max, -(depth_max - depth_soft))
 	_set_smoothstep(functions, "reef_land_gate", shore_margin, shore_margin - shore_soft)
 	_set_smoothstep(functions, "reef_coverage", threshold, threshold + rock_soft)
-	_set_smoothstep(functions, "reef_zone", gap_threshold, gap_threshold + gap_soft)
 	_set_graph_value(functions, "reef_sharpness", "power", sharpness)
 	_set_graph_value(functions, "reef_crest", "b", crest)
 	_set_graph_value(functions, "reef_shell_lo", "threshold", -(depth_max + _REEF_SHELL_BELOW))
@@ -1467,15 +1405,11 @@ func _apply_reef_params(functions: Array) -> bool:
 
 	if reef_settings.has("head_size"):
 		_set_noise_period(functions, "reef_noise", maxf(float(reef_settings.head_size), 1.0))
-	if reef_settings.has("gap_scale"):
-		_set_noise_period(functions, "reef_zone_noise", maxf(float(reef_settings.gap_scale), 1.0))
 	return true
 
 
-## Deja una copia del generador sin escollos. La hidrología se deduce de un equirect de 1024x512
-## —unos 180 m por téxel—, donde una cabeza de arrecife no llega a ocupar un téxel: lo único que
-## aportaría es picar la línea de costa y mover desembocaduras. Se apaga dejando vacía la ventana
-## radial, igual que "enabled": false, que además ahorra el ruido durante todo el horneado.
+## Excluye los arrecifes del generador de hidrología: son menores que la resolución del mapa
+## y pueden desplazar artificialmente la costa y las desembocaduras.
 func _disable_reefs(generator: VoxelGeneratorGraph) -> void:
 	var main: VoxelGraphFunction = generator.get_main_function()
 	var functions: Array = [main]
@@ -1486,9 +1420,7 @@ func _disable_reefs(generator: VoxelGeneratorGraph) -> void:
 	_set_graph_value(functions, "reef_shell_hi", "threshold", -1.0e9)
 
 
-## Escala de uno de los dos ruidos del arrecife: es el periodo del FastNoise2 colgado del nodo, no
-## un param del nodo. Se puede escribir porque el generador llega deep-duplicado; sobre el recurso
-## de disco ensuciaría el .tres.
+## Modifica el recurso de ruido de la copia del generador, sin alterar el recurso de disco.
 func _set_noise_period(functions: Array, node_name: String, period: float) -> void:
 	var fn := _find_owner(functions, node_name)
 	if fn == null:
@@ -1598,12 +1530,6 @@ func _publish_ore_drop_table() -> void:
 			"max_count": int(ore.get("drop_count_max", 1)),
 		}
 	voxel_terrain.set_meta("ore_drops", table)
-
-func _dump_node_info(fn: VoxelGraphFunction, type_id: int, label: String) -> void:
-	print("[ore-graph] %s node_type_info: %s" % [label, fn.get_node_type_info(type_id)])
-
-func _ready() -> void:
-	pass
 
 func update_world_center() -> void:
 	planet_position = voxel_terrain.get_parent().position

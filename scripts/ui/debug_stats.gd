@@ -1,18 +1,10 @@
 class_name DebugStats
 extends CanvasLayer
 
-## Overlay de depuración (F3) y detector de picos de frame. Mide con Time.get_ticks_usec() y una
-## sonda hija que corre la primera del frame, así que parte el frame en fases enteras en vez de
-## fiarse del delta de _process (Godot lo suaviza y lo cuantiza al refresco) o de los monitores
-## TIME_*, que publican el máximo de la última ventana de un segundo. El registro de picos va solo.
+## Overlay F3 y detector de picos activado con el comando 'perf'.
 
 const UPDATE_INTERVAL := 0.25
 const SMOOTHING := 0.1
-
-# --- Detector de picos ---------------------------------------------------------------------
-# Un pico es un frame que se sale de la línea base reciente. Al detectarlo se vuelca una línea con
-# todo lo atribuible EN ESE MISMO FRAME, para no tener que averiguar el culpable por descarte.
-# Funciona con el overlay oculto: solo el volcado a consola importa.
 
 ## Cuántas veces la línea base tiene que durar un frame para considerarse pico.
 const SPIKE_FACTOR := 2.5
@@ -94,7 +86,6 @@ var _bodies := 0
 var _bodies_delta := 0
 var _origin: Node = null
 var _refs_resolved := false
-var _threads_schema_dumped := false
 
 ## Interruptor global del perfilado. Apagado, ni se detectan picos ni se acumulan costes: el
 ## detector pediría get_statistics() a cada terreno EN CADA FRAME, que no es gratis. Se enciende
@@ -106,9 +97,7 @@ static var profiling := false
 static var _frame_costs: Dictionary = {}
 
 
-## Apunta el coste de un tramo de código en el frame actual, para que el volcado de picos lo
-## atribuya. Con el perfilado apagado no hace nada: los envoltorios que la llaman se quedan en
-## dos lecturas de reloj, que sí son gratis.
+## Acumula el coste de un sistema, en microsegundos, mientras 'perf' está activo.
 static func report_cost(label: StringName, usec: int) -> void:
 	if not profiling:
 		return
@@ -347,20 +336,7 @@ func _detect_spike(frame_ms: float) -> void:
 	_frame_costs.clear()
 
 
-## Una línea por pico con todo lo que se puede atribuir. Cómo leerla:
-##   dibujo alto         -> el main thread está BLOQUEADO esperando al hilo de render. Si además
-##                          rendCPU y gpu son bajos, ese hilo no está ocupado: no consigue CPU
-##                          (mirar hilos[] y voxel/threads/count en project.godot)
-##   proc / callbk altos -> es GDScript: mirar la cola de '·' para saber quién
-##   sim alto            -> PhysicsServer3D::step (cuerpos, colisiones del terreno)
-##   difer alto          -> envío de comandos de render: demasiados objetos visibles
-##   gpu alto            -> límite de GPU (draw calls / fill), no de CPU
-##   nodos +N grande     -> alguien crea nodos ese frame (colisiones del terreno, vegetación)
-##   drops +N            -> el streaming no da abasto y descarta trabajo: vas más rápido que él
-##   pipelines +N        -> Godot compila variantes de shader al entrar material nuevo en cuadro
-##   REBASE              -> ese frame el origen flotante movió el mundo entero
-##   d= y t=             -> metros y segundos desde el pico anterior: distingue un disparo por
-##                          distancia recorrida (streaming) de uno por reloj (tarea periódica)
+## Resume las fases del pico. Los tiempos CPU/GPU de render son lecturas diferidas.
 func _dump_spike(frame_ms: float, node_delta: int, mem_delta: float,
 		drop_delta: Vector2i, pipeline_delta: int, rebased: bool) -> void:
 	var vp_rid := get_viewport().get_viewport_rid()
@@ -380,7 +356,7 @@ func _dump_spike(frame_ms: float, node_delta: int, mem_delta: float,
 	if costs != "":
 		head.append(costs)
 	head.append("rendCPU %.1f" % RenderingServer.viewport_get_measured_render_time_cpu(vp_rid))
-	head.append("gpu %.1f" % RenderingServer.viewport_get_measured_render_time_gpu(vp_rid))
+	head.append("gpu %.1f (lecturas diferidas)" % RenderingServer.viewport_get_measured_render_time_gpu(vp_rid))
 	head.append("nodos %+d" % node_delta)
 	if rebased:
 		head.append("REBASE")
@@ -449,8 +425,7 @@ func _canonical_pos() -> Vector3:
 	return p
 
 
-## Lo que han reportado los propios sistemas este frame, de mayor a menor. Es la atribución fiable:
-## a diferencia de los monitores TIME_*, esto sí es de este frame y sí dice quién.
+## Costes reportados por los sistemas durante el frame, ordenados de mayor a menor.
 func _costs_report() -> String:
 	if _frame_costs.is_empty():
 		return ""
@@ -462,8 +437,7 @@ func _costs_report() -> String:
 	return "· " + "  ".join(parts)
 
 
-## Variantes de shader compiladas hasta ahora. Cuando esto sube en un pico, el tirón es de Godot
-## compilando pipelines al entrar en cuadro material que no había usado todavía.
+## Contador acumulado de compilaciones de variantes de shader.
 func _pipeline_compilations() -> int:
 	return int(Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_CANVAS)) \
 		+ int(Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_MESH)) \
@@ -472,7 +446,8 @@ func _pipeline_compilations() -> int:
 		+ int(Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SPECIALIZATION))
 
 
-## Tiempos del propio VoxelLodTerrain, sumados si hay varios planetas. Vienen en MICROsegundos.
+## Última actualización de streaming, en microsegundos; puede llegar diferida.
+## io/mesh miden el envío de solicitudes y están incluidos en update.
 func _terrain_report() -> String:
 	if _terrains.is_empty():
 		return "terreno n/d"
@@ -488,12 +463,11 @@ func _terrain_report() -> String:
 		io += int(s.get("time_io_requests", 0))
 		mesh += int(s.get("time_mesh_requests", 0))
 		update += int(s.get("time_update_task", 0))
-	return "terreno[detect %.1f io %.1f mesh %.1f update %.1f ms]" % [
+	return "streaming[detect %.1f envio_io %.1f envio_mesh %.1f update_total %.1f ms; ultima tarea]" % [
 		detect / 1000.0, io / 1000.0, mesh / 1000.0, update / 1000.0]
 
 
-## Ocupación de los hilos del VoxelEngine. Si 'activos' == 'hilos' de forma permanente con la cola
-## llena, el terreno tiene la máquina saturada y el hilo de render se queda sin turno.
+## Instantánea de los hilos y las tareas pendientes del VoxelEngine.
 func _threads_report() -> String:
 	if not Engine.has_singleton("VoxelEngine"):
 		return ""
@@ -501,11 +475,6 @@ func _threads_report() -> String:
 	if ve == null or not ve.has_method("get_stats"):
 		return ""
 	var s: Dictionary = ve.get_stats()
-	# El esquema del dict cambia entre versiones del módulo: se vuelca crudo una vez para poder
-	# afinar las claves de abajo sin adivinar.
-	if not _threads_schema_dumped:
-		_threads_schema_dumped = true
-		print("[pico] esquema VoxelEngine.get_stats(): ", s)
 	var pools = s.get("thread_pools", s)
 	var parts := PackedStringArray()
 	if pools is Dictionary:
@@ -517,7 +486,19 @@ func _threads_report() -> String:
 					int(p.get("tasks", 0))])
 	if parts.is_empty():
 		return ""
-	return "hilos[" + "  ".join(parts) + "]"
+	var report := "hilos[" + "  ".join(parts) + "]"
+	# El pool puede estar vacío mientras quedan mallas por aplicar en el hilo principal.
+	# Son contadores de tareas en esta instantánea, no tiempos ni trabajo del mismo frame.
+	var tasks = s.get("tasks", {})
+	if tasks is Dictionary:
+		var pending := PackedStringArray()
+		for key in ["streaming", "generation", "meshing", "main_thread", "gpu"]:
+			if tasks.has(key):
+				pending.append("%s %d" % [key, int(tasks[key])])
+		if not pending.is_empty():
+			report += "  tareas[" + " ".join(pending) + "]"
+	# MeshBlockTask puede generar vóxeles antes de mallar: generation=0 no descarta ruido.
+	return report
 
 
 ## Cuerpos de colisión vivos del VoxelInstancer (los crea como hijos suyos, uno por instancia con
@@ -528,9 +509,7 @@ func _instancer_report() -> String:
 	return "instancer[cuerpos %d %+d]" % [_bodies, _bodies_delta]
 
 
-## Las instancias vivas por item de la librería, de mayor a menor (solo las 5 primeras). Dice QUÉ
-## item hay que recortar en vez de estimarlo por área y densidad. El id es el orden de registro:
-## los items del JSON en orden, uno por cada entrada de su lod_index.
+## Cinco items con más instancias. El recuento no mide su coste de procesamiento.
 func _item_counts_report() -> String:
 	for inst in _instancers:
 		if not is_instance_valid(inst) or not inst.has_method("debug_get_instance_counts"):

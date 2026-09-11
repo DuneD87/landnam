@@ -2,8 +2,7 @@
 
 [ext_resource type="Shader" uid="uid://cj6vnnneyciag" path="res://shaders/liquid/water_shader.gdshader" id="1_8rr25"]
 [ext_resource type="Texture2D" uid="uid://bpq0hrluosimg" path="res://textures/planet/water/caust00.png" id="2_2w31q"]
-
-[ext_resource type="Texture2D" path="res://textures/planet/water/foam_density.png" id="3_foam"]
+[ext_resource type="Texture2D" uid="uid://t66kkw3mjk5v" path="res://textures/planet/water/foam_density.png" id="3_foam"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_2w31q"]
 
@@ -76,10 +75,10 @@ shader_parameter/sky_color_horizon_night = Color(0.03, 0.04, 0.07, 1)
 shader_parameter/sky_color_zenith_night = Color(0.01, 0.015, 0.035, 1)
 shader_parameter/sky_gradient_power = 2.5
 shader_parameter/ssr_enabled = true
-shader_parameter/ssr_max_steps = 20
-shader_parameter/ssr_distance_fade = 180.0
-shader_parameter/ssr_thickness = 0.25
-shader_parameter/refraction_strength = 1.0
+shader_parameter/ssr_max_steps = 24
+shader_parameter/ssr_distance_fade = 200.0
+shader_parameter/ssr_thickness = 0.2
+shader_parameter/refraction_strength = 0.18
 shader_parameter/refraction_max_offset = 0.012
 shader_parameter/refraction_blur = 0.6
 shader_parameter/absorption_coefficients = Vector3(0.32, 0.095, 0.055)
@@ -92,10 +91,10 @@ shader_parameter/foam_crest_threshold = 0.10000000405148
 shader_parameter/foam_crest_softness = 0.1
 shader_parameter/foam_crest_amount = 1.4
 shader_parameter/foam_trail_strength = 0.38
+shader_parameter/foam_density_texture = ExtResource("3_foam")
 shader_parameter/foam_scale = 1.2
 shader_parameter/foam_edge_breakup = 0.65
 shader_parameter/foam_crest_width = 0.65
-shader_parameter/foam_density_texture = ExtResource("3_foam")
 shader_parameter/shore_foam_amount = 0.75
 shader_parameter/shore_soft_width = 1.2
 shader_parameter/wake_count = 0
