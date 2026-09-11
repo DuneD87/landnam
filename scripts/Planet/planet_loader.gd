@@ -143,6 +143,14 @@ var world_map: PlanetWorldMap
 ## al litoral y estado de mar— salen del campo de orilla horneado.
 var water_ambience: WaterAmbience
 
+@export_group("Ambient Fauna")
+@export var ambient_fauna_enabled: bool = true
+@export var fish_profile: AmbientFaunaProfile = preload("res://data/fauna/coastal_fish.tres")
+@export var bird_profile: AmbientFaunaProfile = preload("res://data/fauna/forest_birds.tres")
+@export var bird_perches_debug: bool = false
+@export var gull_profile: WaterBirdProfile = preload("res://data/fauna/coastal_gulls.tres")
+@export var duck_profile: WaterBirdProfile = preload("res://data/fauna/river_ducks.tres")
+
 @export_group("Anti-tiling (de-repetición de texturas)")
 
 @export var antitiling_enabled: bool = false:
@@ -282,6 +290,9 @@ func _load_planet() -> void:
 
 	if world_map_enabled and not Engine.is_editor_hint():
 		_setup_world_map()
+
+	if not Engine.is_editor_hint():
+		_setup_ambient_fauna()
 
 	if impostor_enabled:
 		_setup_impostor()
@@ -471,6 +482,40 @@ func _setup_npc_spawners(planet_parser: PlanetParser) -> void:
 			get_parent()
 		)
 		add_child(spawner)
+
+
+func _setup_ambient_fauna() -> void:
+	if not ambient_fauna_enabled or players.is_empty():
+		return
+	if bird_profile != null:
+		var forest := ForestBirdHabitat.new()
+		forest.setup(voxel_terrain, players[0], planet)
+		forest.debug_perches = bird_perches_debug
+		var birds := AmbientFaunaSpawner.new()
+		birds.name = "ForestBirds"
+		birds.setup(bird_profile, forest, players[0])
+		voxel_terrain.add_child(birds)
+	if water_sphere == null:
+		return
+	for settings in [gull_profile, duck_profile]:
+		if settings == null:
+			continue
+		var waterside := WaterBirdHabitat.new()
+		waterside.setup(voxel_terrain, players[0], water_sphere, world_map, planet.get_river_network(), settings)
+		var water_birds := AmbientFaunaSpawner.new()
+		water_birds.name = "CoastalGulls" if settings == gull_profile else "RiverDucks"
+		water_birds.setup(settings, waterside, players[0])
+		voxel_terrain.add_child(water_birds)
+	if fish_profile == null:
+		return
+	var habitat := WaterFaunaHabitat.new()
+	habitat.setup(voxel_terrain, water_sphere, world_map)
+	var spawner := AmbientFaunaSpawner.new()
+	spawner.name = "CoastalFish"
+	spawner.setup(fish_profile, habitat, players[0])
+	# The terrain is translated by FloatingOrigin; its children follow once. Habitat
+	# centres and swim targets use terrain-local coordinates, never cached world anchors.
+	voxel_terrain.add_child(spawner)
 
 func _on_file_selected(path: String) -> void:
 	config_file_path = path

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3 uid="uid://dwuexbictyri3"]
+
+[ext_resource type="Script" uid="uid://c1svcu0j5y2m3" path="res://scripts/audio/sound_event.gd" id="1"]
+[ext_resource type="AudioStream" uid="uid://d2tevk37gxx47" path="res://audio/effects/birds_01.wav" id="2"]
+[ext_resource type="AudioStream" uid="uid://dvi30tspcuhw6" path="res://audio/effects/bird_02.wav" id="3_j4vo5"]
+[ext_resource type="AudioStream" uid="uid://cgqgvuq5jcptg" path="res://audio/effects/bird_03.wav" id="4_pxm6b"]
+
+[resource]
+script = ExtResource("1")
+event_id = &"forest_birds"
+streams = Array[AudioStream]([ExtResource("2"), ExtResource("3_j4vo5"), ExtResource("4_pxm6b")])
+bus = "Ambient"
+volume_db = -6.0
+volume_jitter_db = 2.0
+pitch_jitter = 0.08
+unit_size = 12.0
+high_frequency_attenuation_db = 0.0
+max_voices = 3
+cooldown = 0.25

@@ -1,0 +1,21 @@
+[gd_scene format=3 uid="uid://qs8jjnp4ia62"]
+
+[ext_resource type="Script" uid="uid://f26id0h0vj2i" path="res://scripts/fauna/ambient_water_bird.gd" id="1"]
+[ext_resource type="Script" uid="uid://c8vwmx4iwv43n" path="res://scripts/fauna/simple_bird_model.gd" id="2"]
+
+[sub_resource type="SphereShape3D" id="Shape"]
+radius = 0.32
+
+[node name="AmbientDuck" type="CharacterBody3D" unique_id=688314424]
+collision_layer = 0
+motion_mode = 1
+platform_floor_layers = 0
+script = ExtResource("1")
+bird_type = 4
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=112993484]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+shape = SubResource("Shape")
+
+[node name="Model" type="Node3D" parent="." unique_id=1367113596]
+script = ExtResource("2")

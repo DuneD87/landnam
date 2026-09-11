@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AmbientBirdProfile" format=3 uid="uid://dvp1qo8o34t6h"]
+
+[ext_resource type="Script" uid="uid://c4vxywfybyaey" path="res://scripts/fauna/ambient_bird_profile.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/animals/ambient_bird.tscn" id="2"]
+[ext_resource type="Resource" uid="uid://dwuexbictyri3" path="res://data/audio/events/forest_birds.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+flight_speed_min = 12.0
+flight_speed_max = 18.0
+perch_time_min = 1.0
+perch_time_max = 3.0
+ambient_sound = ExtResource("3")
+animal_scene = ExtResource("2")
+population = 64
+spawn_min_distance = 2.0
+spawn_radius = 5.0
+clearance = 0.5

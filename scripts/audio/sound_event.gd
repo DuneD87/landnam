@@ -27,6 +27,9 @@ extends Resource
 ## Radio (m) dentro del cual suena a volume_db sin atenuar.
 @export var unit_size: float = 4.0
 @export var attenuation: AudioStreamPlayer3D.AttenuationModel = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+## Additional high-frequency attenuation with distance. 0 preserves bright calls
+## such as birds; the default matches AudioStreamPlayer3D for existing events.
+@export_range(-80.0, 0.0, 0.1, "suffix:dB") var high_frequency_attenuation_db: float = -24.0
 
 @export_group("Presupuesto")
 ## Voces simultáneas de ESTE evento. Un impacto que rompe 40 bloques no son 40 sonidos.

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="WaterBirdProfile" format=3 uid="uid://cllh33xaixxy8"]
+
+[ext_resource type="Script" uid="uid://bjkhluarhbg4f" path="res://scripts/fauna/water_bird_profile.gd" id="1"]
+[ext_resource type="Resource" uid="uid://d2vb7q8brk05o" path="res://data/audio/events/seagull_audio.tres" id="1_hwo7w"]
+[ext_resource type="PackedScene" path="res://scenes/animals/ambient_gull.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+max_offshore_distance = 250.0
+coast_inland_distance = 50.0
+river_bank_distance = 40.0
+flight_height_min = 3.0
+flight_height_max = 12.0
+swim_speed = 0.7
+flight_speed_min = 12.0
+flight_speed_max = 18.0
+perch_time_min = 4.0
+perch_time_max = 9.0
+ambient_sound = ExtResource("1_hwo7w")
+animal_scene = ExtResource("2")
+population = 6
+spawn_min_distance = 8.0
+spawn_radius = 45.0
+recycle_distance = 75.0
+clearance = 0.85

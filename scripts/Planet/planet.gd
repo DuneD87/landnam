@@ -97,6 +97,8 @@ var planet_item_scenes: Dictionary
 ## library_id -> PackedScene plantilla, para clonar el item al talarlo sin instanciar
 ## nada en el módulo (ver _register_multi_mesh_item).
 var planet_item_packed_scenes: Dictionary
+## library_id -> baked local branch anchors and wood BVH, shared across instances.
+var tree_perch_catalog: Dictionary = {}
 var _next_library_id: int = 0
 
 ## Shader de follaje de doble cara (LOD cercano) y su variante de una cara (LOD lejano).
@@ -242,6 +244,7 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 		result.effective_mesh = tree_data.mesh
 		result.lod_meshes = tree_data.get("lod_meshes", [])
 		result.collision_shapes = tree_data.get("collision_shapes", [])
+		result.perch_data = tree_data.get("perch_data", {})
 		result.registered_scene = tree_data.scene.instantiate()
 
 	elif source_node is Rock3D:
@@ -363,6 +366,8 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 	var library_id = _next_library_id
 	_next_library_id += 1
 	voxel_instancer.library.add_item(library_id, multi_mesh_item)
+	if not shared_data.get("perch_data", {}).is_empty():
+		tree_perch_catalog[library_id] = shared_data.perch_data
 
 	# Plantilla para clonar el item al talarlo (action_controller). Va en un dict aparte
 	# y NO en multi_mesh_item.scene: ponerla ahí haría que el módulo instancie un nodo por
@@ -431,6 +436,7 @@ func _load_vegetation() -> void:
 	voxel_instancer.library.clear()
 	planet_item_scenes.clear()
 	planet_item_packed_scenes.clear()
+	tree_perch_catalog.clear()
 	multi_mesh_array.clear()
 	item_transparent_materials.clear()
 	_next_library_id = 0
@@ -560,6 +566,17 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 		collision_shapes = [collision_child.shape, collision_child.transform]
 
 	var tree_scene := PackedScene.new()
+	var perch_data: Dictionary = {}
+	if tree3d is Tree3D:
+		var manual: Array[Vector3] = []
+		for marker in scene_instantiated.find_children("BirdPerch*", "Marker3D", true, false):
+			var xf := (marker as Node3D).transform
+			var parent := marker.get_parent()
+			while parent != scene_instantiated and parent is Node3D:
+				xf = (parent as Node3D).transform * xf
+				parent = parent.get_parent()
+			manual.append(xf.origin)
+		perch_data = TreePerchBaker.bake(combined_mesh, manual)
 	var err := tree_scene.pack(new_root)
 	if err != OK:
 		push_error("No se pudo empaquetar el árbol: %s" % err)
@@ -570,6 +587,7 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 		"mesh": combined_mesh,
 		"lod_meshes": lod_meshes,
 		"collision_shapes": collision_shapes,
+		"perch_data": perch_data,
 	}
 
 

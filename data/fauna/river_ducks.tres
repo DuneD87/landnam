@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WaterBirdProfile" format=3 uid="uid://cfwcpd0k4mo0m"]
+
+[ext_resource type="Script" uid="uid://bjkhluarhbg4f" path="res://scripts/fauna/water_bird_profile.gd" id="1"]
+[ext_resource type="Resource" uid="uid://ddbv2mye42q7t" path="res://data/audio/events/ducks_audio.tres" id="1_fxll6"]
+[ext_resource type="PackedScene" uid="uid://qs8jjnp4ia62" path="res://scenes/animals/ambient_duck.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+flight_time_min = 8.0
+flight_time_max = 16.0
+flight_distance_min = 35.0
+max_offshore_distance = 80.0
+coast_inland_distance = 30.0
+river_bank_distance = 30.0
+flight_height_min = 1.0
+flight_height_max = 5.0
+swim_speed = 1.4
+flight_speed_min = 10.0
+flight_speed_max = 15.0
+perch_time_min = 10.0
+perch_time_max = 20.0
+ambient_sound = ExtResource("1_fxll6")
+animal_scene = ExtResource("2")
+population = 4
+spawn_min_distance = 8.0
+spawn_radius = 35.0
+clearance = 0.7

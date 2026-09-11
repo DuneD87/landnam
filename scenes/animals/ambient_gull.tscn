@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3]
+[ext_resource type="Script" path="res://scripts/fauna/ambient_water_bird.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/fauna/simple_bird_model.gd" id="2"]
+[sub_resource type="SphereShape3D" id="Shape"]
+radius = 0.32
+[node name="AmbientGull" type="CharacterBody3D"]
+collision_layer = 0
+collision_mask = 1
+motion_mode = 1
+platform_floor_layers = 0
+platform_wall_layers = 0
+script = ExtResource("1")
+bird_type = 3
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.3, 0)
+shape = SubResource("Shape")
+[node name="Model" type="Node3D" parent="."]
+script = ExtResource("2")

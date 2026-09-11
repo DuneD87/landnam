@@ -76,15 +76,22 @@ func _process(delta: float) -> void:
 ## (lo desplaza, para intensidades que dependen del gameplay).
 func play_3d(event_id: StringName, world_pos: Vector3, opts: Dictionary = {}) -> AudioStreamPlayer3D:
 	var ev := get_event(event_id)
+	return play_event_3d(ev, world_pos, opts)
+
+
+## Resource variant for entity profiles, with the same shared pool and budgets.
+## source_id optionally identifies the owner of a following/cancellable voice.
+func play_event_3d(ev: SoundEvent, world_pos: Vector3, opts: Dictionary = {}) -> AudioStreamPlayer3D:
 	if ev == null or not ev.is_valid():
 		return null
+	var event_key := ev.event_id if ev.event_id != &"" else StringName("resource_%d" % ev.get_instance_id())
 	var listener := _get_listener()
 	if listener != null:
 		var reach: float = ev.max_distance
 		if listener.global_position.distance_squared_to(world_pos) > reach * reach:
 			dropped_distance += 1
 			return null
-	if not _budget_allows(ev):
+	if not _budget_allows(ev, event_key):
 		dropped_budget += 1
 		return null
 
@@ -100,14 +107,24 @@ func play_3d(event_id: StringName, world_pos: Vector3, opts: Dictionary = {}) ->
 	player.max_distance = ev.max_distance
 	player.unit_size = ev.unit_size
 	player.attenuation_model = ev.attenuation
+	player.attenuation_filter_db = ev.high_frequency_attenuation_db
 	player.global_position = world_pos
-	player.set_meta(&"event_id", ev.event_id)
+	player.set_meta(&"event_id", event_key)
+	player.set_meta(&"source_id", opts.get("source_id", 0))
 	# El origen flotante desplaza el mundo bajo los pies: una voz que dure más que un rebase se
 	# quedaría a 4 km de donde suena si no viajase con él (ver FloatingOrigin._rebase).
 	player.add_to_group(&"floating_origin")
-	_active_voices[ev.event_id] = int(_active_voices.get(ev.event_id, 0)) + 1
+	_active_voices[event_key] = int(_active_voices.get(event_key, 0)) + 1
 	player.play()
 	return player
+
+
+## Do not stop a pooled voice that has already been reassigned to another source.
+func stop_source_voice(player: AudioStreamPlayer3D, source_id: int) -> void:
+	if not is_instance_valid(player) or player.get_meta(&"source_id", 0) != source_id:
+		return
+	player.stop()
+	_on_voice_finished(player)
 
 
 ## Dispara la variante de [prefix] para la familia de material [sound_material], cayendo al evento
@@ -303,14 +320,16 @@ func _cull_loops() -> void:
 	_loops = alive
 
 
-func _budget_allows(ev: SoundEvent) -> bool:
-	if int(_active_voices.get(ev.event_id, 0)) >= ev.max_voices:
+func _budget_allows(ev: SoundEvent, event_key: StringName = &"") -> bool:
+	if event_key == &"":
+		event_key = ev.event_id
+	if int(_active_voices.get(event_key, 0)) >= ev.max_voices:
 		return false
 	if ev.cooldown > 0.0:
 		var now := Time.get_ticks_msec()
-		if now < int(_next_allowed.get(ev.event_id, 0)):
+		if now < int(_next_allowed.get(event_key, 0)):
 			return false
-		_next_allowed[ev.event_id] = now + int(ev.cooldown * 1000.0)
+		_next_allowed[event_key] = now + int(ev.cooldown * 1000.0)
 	return true
 
 
@@ -329,6 +348,8 @@ func _acquire_2d() -> AudioStreamPlayer:
 
 
 func _on_voice_finished(player: Node) -> void:
+	if player.has_meta(&"source_id"):
+		player.remove_meta(&"source_id")
 	var event_id: StringName = player.get_meta(&"event_id", &"")
 	if event_id != &"":
 		_active_voices[event_id] = maxi(0, int(_active_voices.get(event_id, 0)) - 1)
