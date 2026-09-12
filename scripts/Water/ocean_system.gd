@@ -3,7 +3,7 @@ class_name OceanSystem
 
 ## Sistema de océano de un planeta: monta el quadtree de agua (QuadTreeManager + mesh manager) y la
 ## niebla submarina (Underwater), propaga sus ajustes y muestra estadísticas opcionales.
-
+@onready var underwater: Underwater = $Underwater
 @export_group("Underwater settings")
 @export var sun_dir: Vector3
 
@@ -35,7 +35,6 @@ class_name OceanSystem
 ##   - la marca va en otra fase que las crestas -> la réplica CPU diverge del shader de verdad
 @export var debug_water_marker: bool = false
 
-@export var underwater: Underwater
 var quadtree_manager: QuadTreeManager
 var mesh_manager: QuadTreeMeshManager
 var stats_label: Label
@@ -59,8 +58,6 @@ func _ready() -> void:
 func load_watersphere(_planet: Planet):
 	if !Engine.is_editor_hint():
 		planet = _planet
-		underwater = Underwater.new()
-		add_child(underwater)
 		underwater.setup_underwater(quadtree_material as ShaderMaterial, radius)
 
 	_setup_managers()
@@ -75,7 +72,8 @@ func load_watersphere(_planet: Planet):
 		if use_gpu_compute 
 		else QuadTreeMeshManager.ComputeMode.CPU
 	)
-	
+
+
 func _setup_managers():
 	quadtree_manager = QuadTreeManager.new()
 	mesh_manager = QuadTreeMeshManager.new()

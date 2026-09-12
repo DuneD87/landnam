@@ -94,8 +94,8 @@ void vertex() {
 void fragment() {
     if(inside_ship_interior(surface_world)) discard;
     vec3 near_view=ocean_view_position(SCREEN_UV,1.0,INV_PROJECTION_MATRIX);
-    vec3 near_world=(INV_VIEW_MATRIX*vec4(near_view,1.0)).xyz;
-    if(waterline_signed(near_world,waterline_point,waterline_normal)<0.0) discard;
+    vec3 near_offset=mat3(INV_VIEW_MATRIX)*near_view;
+    if(waterline_signed_relative(CAMERA_POSITION_WORLD,near_offset,waterline_point,waterline_normal)<0.0) discard;
 
     vec3 radial=normalize(radial_up);
     vec3 macro_normal=normalize(geometry_normal);

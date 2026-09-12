@@ -77,8 +77,9 @@ La fauna es ambiental y se regenera al cargar; no añade datos a las partidas.
    y añadirlo bajo el terreno/planeta correspondiente. El generador gestiona
    límites, cámara, reintentos y reutilización sin conocer el tipo de animal.
 
-Las nuevas familias necesitan su hábitat y movimiento. Peces y aves ya usan esta
-infraestructura compartida; los animales terrestres todavía no están implementados.
+Las nuevas familias necesitan su hábitat y movimiento. Peces, aves y animales
+terrestres usan esta infraestructura compartida. Los conejos, zorros y ratones
+se describen en [small_ground_fauna.md](small_ground_fauna.md).
 
 ## Verificación
 

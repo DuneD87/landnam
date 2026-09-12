@@ -730,6 +730,7 @@ func _interpolate_rotation(t: float, from_quat: Quaternion, to_quat: Quaternion)
 
 ## Keep camera following player during cinematic
 func _process(_delta: float) -> void:
+	_advance_water_time(_delta)
 	if GameManager.current_state == GameManager.State.CINEMATIC:
 		camera_controller.camera_pivot.global_position = global_position
 	_perform_raycast()
@@ -1129,7 +1130,24 @@ func _apply_water_flow() -> void:
 	velocity += _water_flow - radial_dir * _water_flow.dot(radial_dir)
 
 
-func _check_needs_swimming(delta: float):
+## El reloj de la ola avanza por FOTOGRAMA, no por tick de física. La interpolación de
+## física del proyecto suaviza transforms, no uniforms: con la física a 60 Hz y el render
+## sin tope, la fase de la ola —y todo lo que la sigue, incluidos los haces de luz— se
+## movía a saltos de 60 Hz mientras el resto iba fluido. La física lee esta misma variable,
+## así que el muestreo CPU del oleaje y lo que se dibuja siguen sobre un único reloj.
+func _advance_water_time(delta: float) -> void:
+	if !planet || !planet.planet.has_water || not is_inside_tree():
+		return
+	current_water_time += delta
+	var sphere: Variant = planet.water_sphere
+	if sphere == null or sphere.mesh_manager == null:
+		return
+	var mat := sphere.mesh_manager.default_material as ShaderMaterial
+	if mat != null:
+		mat.set_shader_parameter("water_time", current_water_time)
+
+
+func _check_needs_swimming(_delta: float):
 	if !planet || !planet.planet.has_water || not is_inside_tree():
 		AudioManager.set_underwater(false)
 		return
@@ -1172,8 +1190,6 @@ func _check_needs_swimming(delta: float):
 	# el muestreado en el jugador; a la distancia de cámara la diferencia es una ola.
 	var ears := camera.global_position if camera else global_position
 	AudioManager.set_underwater(ears.distance_to(_water_surface_center) <= _water_surface_radius)
-	
-	current_water_time += delta
 
 
 

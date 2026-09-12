@@ -210,6 +210,8 @@ const GROUP_TEX_H := 128
 var god_rays_weather_strength: float = 1.0
 var god_rays_weather_reach: float = 1.0
 
+var underwater_pass := UnderwaterRenderPass.new()
+
 var rd: RenderingDevice
 var shader: RID
 var pipeline: RID
@@ -263,8 +265,16 @@ func _init() -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE:
-		_free_compute()
+	if what == NOTIFICATION_PREDELETE and rd != null:
+		# At refcount zero calling another instance method is invalid. Capture only
+		# owned resources and release them on the render thread through a static helper.
+		var resources: Array[RID] = []
+		resources.append_array(params_buffers)
+		resources.append_array(_mask_textures)
+		resources.append_array([depth_sampler, noise_sampler, noise_tex, group_sampler,
+			group_tex, _noise_gen_shader, _god_rays_shader, _mask_sampler, shader])
+		RenderingServer.call_on_render_thread(
+			UnderwaterRenderPass.release_owned_resources.bind(rd, underwater_pass, resources))
 
 
 func set_planet_data(
@@ -318,7 +328,18 @@ func set_fog_occlusion(
 func _load_compute_spirv(path: String) -> RDShaderSPIRV:
 	print("PlanetAtmosphere: loading shader from: ", path)
 
-	var resource := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	# El importador de RDShaderFile NO rastrea las dependencias #include: editar un
+	# .glslinc no marca sucio al .glsl que lo incluye, así que el juego sigue corriendo el
+	# SPIR-V viejo sin avisar de nada. Eso hace que un cambio de shader parezca no existir
+	# mientras los cambios de GDScript sí se ven, que es imposible de depurar a ciegas.
+	# Corriendo desde el editor se compila del texto, que relee los includes del disco.
+	# En un export NO se puede: las plantillas de release no llevan glslang, así que allí
+	# manda el recurso importado, que además está garantizado al día por la exportación.
+	var resource: Resource = null
+	if not OS.has_feature("editor"):
+		resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	else:
+		print("PlanetAtmosphere: editor run, compiling from source to pick up #include edits.")
 
 	if resource != null:
 		print("PlanetAtmosphere: loaded resource class: ", resource.get_class())
@@ -343,6 +364,8 @@ func _load_compute_spirv(path: String) -> RDShaderSPIRV:
 		return null
 
 	shader_code = shader_code.replace("#[compute]", "")
+	shader_code = shader_code.replace('#include "../liquid/underwater_optics.glslinc"', FileAccess.get_file_as_string("res://shaders/liquid/underwater_optics.glslinc"))
+	shader_code = shader_code.replace('#include "../liquid/underwater_params.glslinc"', FileAccess.get_file_as_string("res://shaders/liquid/underwater_params.glslinc"))
 
 	var shader_source := RDShaderSource.new()
 	shader_source.language = RenderingDevice.SHADER_LANGUAGE_GLSL
@@ -542,6 +565,7 @@ func _generate_cloud_noise() -> void:
 	rd.compute_list_dispatch(compute_list, groups, groups, groups)
 	rd.compute_list_end()
 
+	rd.free_rid(gen_set)
 	print("PlanetAtmosphere: cloud noise 3D texture generated (%d³)." % NOISE_TEX_SIZE)
 
 
@@ -653,61 +677,6 @@ func get_cloud_group_envelope(world_pos: Vector3) -> float:
 	return lerpf(1.0, _group_image.get_pixel(x, y).r, clampf(cloud_group_strength, 0.0, 1.0))
 
 
-func _free_compute() -> void:
-	if rd == null:
-		return
-
-	for buffer in params_buffers:
-		if buffer.is_valid():
-			rd.free_rid(buffer)
-	params_buffers.clear()
-
-	if depth_sampler.is_valid():
-		rd.free_rid(depth_sampler)
-	depth_sampler = RID()
-
-	if noise_sampler.is_valid():
-		rd.free_rid(noise_sampler)
-	noise_sampler = RID()
-
-	if noise_tex.is_valid():
-		rd.free_rid(noise_tex)
-	noise_tex = RID()
-
-	if group_sampler.is_valid():
-		rd.free_rid(group_sampler)
-	group_sampler = RID()
-
-	if group_tex.is_valid():
-		rd.free_rid(group_tex)
-	group_tex = RID()
-
-	if _noise_gen_shader.is_valid():
-		rd.free_rid(_noise_gen_shader)
-	_noise_gen_shader = RID()
-	_noise_gen_pipeline = RID()
-
-	if _god_rays_shader.is_valid():
-		rd.free_rid(_god_rays_shader)
-	_god_rays_shader = RID()
-	_god_rays_pipeline = RID()
-
-	for tex in _mask_textures:
-		if tex.is_valid():
-			rd.free_rid(tex)
-	_mask_textures.clear()
-	_mask_size = Vector2i.ZERO
-
-	if _mask_sampler.is_valid():
-		rd.free_rid(_mask_sampler)
-	_mask_sampler = RID()
-
-	if shader.is_valid():
-		rd.free_rid(shader)
-	shader = RID()
-	pipeline = RID()
-
-
 func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data: RenderData) -> void:
 	if not enabled:
 		return
@@ -764,6 +733,10 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		var depth_image: RID = render_scene_buffers.get_depth_layer(view, false)
 
 		if not color_image.is_valid() or not depth_image.is_valid():
+			continue
+
+		var water_images := underwater_pass.prepare(rd, size, scene_data, projection, view, depth_image, color_image)
+		if water_images.is_empty():
 			continue
 
 		var params_bytes := _build_params_bytes(size, scene_data, projection, view)
@@ -833,6 +806,7 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		var compute_list := rd.compute_list_begin()
 		rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 		rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
+		rd.compute_list_bind_uniform_set(compute_list, underwater_pass.bind_optics(shader, water_images), 1)
 		rd.compute_list_dispatch(compute_list, x_groups, y_groups, 1)
 		rd.compute_list_end()
 
@@ -860,8 +834,10 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 			var rays_list := rd.compute_list_begin()
 			rd.compute_list_bind_compute_pipeline(rays_list, _god_rays_pipeline)
 			rd.compute_list_bind_uniform_set(rays_list, rays_set, 0)
+			rd.compute_list_bind_uniform_set(rays_list, underwater_pass.bind_optics(_god_rays_shader, water_images), 1)
 			rd.compute_list_dispatch(rays_list, x_groups, y_groups, 1)
 			rd.compute_list_end()
+
 
 
 func _ensure_params_buffers(count: int) -> void:

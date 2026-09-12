@@ -1,0 +1,524 @@
+// Fused into the atmospheric pass. Only the small surface cache is sampled;
+// no full-screen transport targets, colour copies or neighbour colour reads.
+layout(set=1, binding=1) uniform sampler2D uw_surface;
+layout(set=1, binding=2) uniform sampler2D uw_caustics;
+layout(set=1, binding=3) uniform sampler2D uw_surface_near;
+// Los mismos mapas de detalle que usa el mar visto desde arriba, pero muestreados
+// por píxel en el punto de salida en vez de horneados en el caché.
+layout(set=1, binding=4) uniform sampler2D uw_detail_map1;
+layout(set=1, binding=5) uniform sampler2D uw_detail_map2;
+layout(set=1, binding=6) uniform sampler2D uw_background;
+#define UW_near_extent (water_params.data[12].y)
+#define UW_camera water_params.data[11].xyz
+#define UW_inv_projection mat4(water_params.data[0], water_params.data[1], water_params.data[2], water_params.data[3])
+
+bool uw_pixel_wet(vec2 uv) {
+    if (water_params.data[12].x < 0.5) return false;
+    vec4 v = UW_inv_projection * vec4(uv * 2.0 - 1.0, 1.0, 1.0);
+    vec3 offset = mat3(water_params.data[8].xyz, water_params.data[9].xyz, water_params.data[10].xyz) * (v.xyz / v.w);
+    return dot(UW_camera - UW_waterline_point + offset, UW_waterline_normal) < 0.0;
+}
+
+// Coordenada del punto sobre el plano tangente del campo, común a los dos niveles.
+vec2 uw_field_plane(vec3 world) {
+    vec3 d = world - water_params.data[15].xyz;
+    return vec2(dot(d, water_params.data[13].xyz), dot(d, water_params.data[14].xyz));
+}
+
+// Peso del nivel LEJANO: 0 dentro de la caja cercana, 1 fuera de ella.
+float uw_near_blend(vec2 plane, out vec2 near_uv) {
+    near_uv = plane / (2.0 * max(UW_near_extent, 0.01)) + 0.5;
+    return smoothstep(0.40, 0.5, max(abs(near_uv.x - 0.5), abs(near_uv.y - 0.5)));
+}
+
+vec4 uw_surface_at(vec3 world) {
+    vec2 plane = uw_field_plane(world);
+    vec2 near_uv;
+    float near_edge = uw_near_blend(plane, near_uv);
+    vec2 uv = plane / (2.0 * water_params.data[13].w) + 0.5;
+    float edge = smoothstep(0.43, 0.5, max(abs(uv.x - 0.5), abs(uv.y - 0.5)));
+    vec4 cache = textureLod(uw_surface, clamp(uv, vec2(0.002), vec2(0.998)), 0.0);
+    // El nivel cercano cubre pocos metros con los mismos téxeles: a poca profundidad la
+    // ventana de Snell mide 1.135 por la profundidad, y el campo lejano solo le dedicaba
+    // una docena de téxeles. Desde que el detalle se evalúa por píxel los dos niveles solo
+    // llevan la ola analítica, así que esto es ya únicamente precisión de la altura con la
+    // que se marcha el rayo; el lejano puede por eso cubrir mucho más lejos.
+    if (near_edge < 1.0) {
+        cache = mix(textureLod(uw_surface_near, clamp(near_uv, vec2(0.002), vec2(0.998)), 0.0), cache, near_edge);
+    }
+    return vec4(mix(cache.x, 0.0, edge), normalize(mix(cache.yzw, normalize(world - UW_planet_center), edge)));
+}
+
+// Cubic filtering keeps small animated slopes from exposing the cache grid
+// along the Snell boundary. Four bilinear taps, only at the final ray exit.
+vec3 uw_cubic_normal(sampler2D field, vec2 uv) {
+    vec2 size = vec2(textureSize(field, 0));
+    vec2 pixel = uv * size - 0.5;
+    vec2 f = fract(pixel);
+    vec2 a = 1.0 - f;
+    vec2 w0 = a*a*a / 6.0;
+    vec2 w1 = (3.0*f*f*f - 6.0*f*f + 4.0) / 6.0;
+    vec2 w2 = (-3.0*f*f*f + 3.0*f*f + 3.0*f + 1.0) / 6.0;
+    vec2 w3 = f*f*f / 6.0;
+    vec2 g0 = w0 + w1;
+    vec2 g1 = w2 + w3;
+    vec2 p0 = (floor(pixel) - 0.5 + w1/g0) / size;
+    vec2 p1 = (floor(pixel) + 1.5 + w3/g1) / size;
+    return mix(mix(textureLod(field, p0, 0.0).yzw,
+                   textureLod(field, vec2(p1.x, p0.y), 0.0).yzw, g1.x),
+               mix(textureLod(field, vec2(p0.x, p1.y), 0.0).yzw,
+                   textureLod(field, p1, 0.0).yzw, g1.x), g1.y);
+}
+
+vec3 uw_filtered_normal(vec3 world, sampler2D near_field, sampler2D far_field) {
+    vec2 plane = uw_field_plane(world);
+    vec2 near_uv;
+    float near_edge = uw_near_blend(plane, near_uv);
+    vec2 uv = plane / (2.0 * water_params.data[13].w) + 0.5;
+    // Solo la banda de fusión paga los dos niveles; dentro o fuera es un filtrado.
+    vec3 n;
+    if (near_edge <= 0.0) n = uw_cubic_normal(near_field, near_uv);
+    else if (near_edge >= 1.0) n = uw_cubic_normal(far_field, uv);
+    else n = normalize(mix(uw_cubic_normal(near_field, near_uv), uw_cubic_normal(far_field, uv), near_edge));
+    float edge = smoothstep(0.43, 0.5, max(abs(uv.x - 0.5), abs(uv.y - 0.5)));
+    return normalize(mix(n, normalize(world - UW_planet_center), edge));
+}
+
+float uw_sphere_exit(float radius, vec3 ro, vec3 dir) {
+    vec3 local = ro - UW_planet_center;
+    float b = dot(local, dir);
+    float c = (length(local) - radius) * (length(local) + radius);
+    float h = b*b - c;
+    return h >= 0.0 ? -b + sqrt(h) : -1.0;
+}
+
+// Triplanar de una sola textura con la huella del píxel como filtro. Las pendientes
+// se devuelven en espacio planeta, tangentes a la normal de la ola.
+vec4 uw_detail_tap(sampler2D map, vec3 p, vec3 n, vec3 weights, float scale, vec3 scroll, float footprint) {
+    scale = max(scale, 0.01);
+    float lod = max(log2(max(footprint / scale * float(textureSize(map, 0).x), 1.0)), 0.0);
+    vec2 x = textureLod(map, (p.yz + scroll.yz) / scale, lod).rg * 2.0 - 1.0;
+    vec2 y = textureLod(map, (p.xz + scroll.xz) / scale, lod).rg * 2.0 - 1.0;
+    vec2 z = textureLod(map, (p.xy + scroll.xy) / scale, lod).rg * 2.0 - 1.0;
+    vec3 slope = vec3(0,x.y,x.x)*weights.x + vec3(y.x,0,y.y)*weights.y + vec3(z.x,z.y,0)*weights.z;
+    return vec4(slope - n * dot(slope, n), 0.0);
+}
+
+// Ondulación fina del techo. El caché cubre decenas de metros con 256 téxeles y no
+// puede resolver nada por debajo del palmo, que es justo la escala que parte la
+// ventana de Snell en fragmentos en vez de dejarla como una burbuja lisa. Aquí la
+// huella la marca el píxel: nítido de cerca, se funde solo en la distancia.
+// Dirección en la que viaja el oleaje, en espacio planeta. La misma que usa el caché.
+vec3 uw_wind_direction() {
+    vec3 pole = length(UW_wave_pole) > 0.0001 ? normalize(UW_wave_pole) : vec3(0,1,0);
+    vec3 gx = normalize(cross(pole, abs(pole.x) < 0.9 ? vec3(1,0,0) : vec3(0,0,1)));
+    vec2 direction = dot(UW_wave_direction, UW_wave_direction) > 0.0001 ? normalize(UW_wave_direction) : vec2(1,0);
+    return gx * direction.x + cross(pole, gx) * direction.y;
+}
+
+vec3 uw_detail_normal(vec3 world, vec3 wave_normal, float footprint, out float roughness) {
+    roughness = 0.0;
+    if (UW_surface_ripple_strength <= 0.0) return wave_normal;
+    vec3 local = world - UW_planet_center;
+    vec3 wind = uw_wind_direction();
+    vec3 weights = pow(abs(wave_normal), vec3(4.0));
+    weights /= max(weights.x + weights.y + weights.z, 0.001);
+    float ripple = max(UW_surface_ripple_scale, 0.01);
+    vec3 slope = vec3(0.0);
+    if (water_params.data[14].w > 0.5) {
+        vec4 tap = uw_detail_tap(uw_detail_map1, local, wave_normal, weights,
+            UW_normal_scale1 * ripple, wind * UW_water_time * 0.35, footprint);
+        slope += tap.xyz;
+    }
+    if (water_params.data[15].w > 0.5) {
+        vec4 tap = uw_detail_tap(uw_detail_map2, local, wave_normal, weights,
+            UW_normal_scale2 * ripple, -wind * UW_water_time * 0.19, footprint);
+        slope += tap.xyz * 0.55;
+    }
+    // La fuerza escala también el tope de pendiente: si no, normal_slope_limit (que lo
+    // fija el material del mar exterior, 0.16 = 9 grados) deja la faceta demasiado plana
+    // para cruzar el ángulo crítico salvo justo en el borde, y la ventana sale entera con
+    // los bordes deshilachados en vez de abrirse en ventanas sueltas por todo el techo.
+    float strength = max(UW_surface_ripple_strength, 0.0);
+    slope *= UW_normal_intensity * strength;
+    float limit = max(UW_normal_slope_limit, 0.0001) * max(strength, 0.05);
+    slope /= sqrt(1.0 + dot(slope, slope) / (limit * limit));
+    // Un tercio del tope: es la inclinación que la ondulación imprime por DEBAJO de lo que
+    // el filtrado resuelve, y con ella se ensancha el corte crítico. Con el tope entero el
+    // corte se borra (contraste 0.076 frente a 0.190) y con 0 el techo motea y parpadea.
+    // Medido a 0.3: la mitad de moteado por un 10% de estructura.
+    roughness = limit * 0.3;
+    return normalize(wave_normal + slope);
+}
+
+vec3 uw_geometry_normal(vec3 world) {
+    // La onda analítica, sin detalle: es lo único que guarda ya el caché.
+    return uw_filtered_normal(world, uw_surface_near, uw_surface);
+}
+
+// El campo de cáusticas, muestreado siempre en el punto por donde la luz ENTRÓ en el agua.
+// Es lo que hace que la mancha del suelo y el haz que la ilumina sean el mismo valor, así
+// que el haz se ve aterrizar en ella. Muestreado en el punto receptor, como estaba el suelo,
+// el patrón era una proyección vertical sin relación con la dirección de la luz: el haz y su
+// mancha no coincidían nunca y los haces no parecían proyectarse sobre el terreno.
+float uw_caustic_field(vec3 entry_local, float grain, float speed_bias) {
+    vec3 tri = pow(abs(normalize(entry_local)), vec3(4.0));
+    tri /= max(tri.x + tri.y + tri.z, 0.001);
+    vec3 cp = entry_local * (UW_caustics_scale * grain);
+    vec2 scroll = vec2(1.0, -0.7) * (UW_water_time * UW_caustics_speed * grain * speed_bias);
+    return textureLod(uw_caustics, cp.yz + scroll, 0.0).r * tri.x
+        + textureLod(uw_caustics, cp.xz + scroll, 0.0).r * tri.y
+        + textureLod(uw_caustics, cp.xy + scroll, 0.0).r * tri.z;
+}
+
+vec3 uw_depth_color(float depth) {
+    float deep = max(UW_deep_transition_depth, 0.01);
+    float abyss = max(UW_abyss_transition_depth, deep + 0.01);
+    return depth < deep ? mix(UW_fog_color.rgb, UW_deep_fog_color.rgb, clamp(depth / deep, 0.0, 1.0))
+        : mix(UW_deep_fog_color.rgb, UW_abyss_fog_color.rgb, clamp((depth - deep) / (abyss - deep), 0.0, 1.0));
+}
+
+struct WaterOptics {
+    bool wet;
+    bool air_visible;
+    vec3 transmission;
+    vec3 scatter;
+    vec3 caustic_gain;
+    vec3 background_transmission;
+    float background_sky_weight;
+    vec3 air_direction;
+    float exit_distance;
+};
+
+vec3 uw_refracted_background(vec3 original, WaterOptics water) {
+    mat3 camera_basis = mat3(water_params.data[8].xyz, water_params.data[9].xyz, water_params.data[10].xyz);
+    mat4 projection = mat4(water_params.data[4], water_params.data[5], water_params.data[6], water_params.data[7]);
+    vec4 clip = projection * vec4(transpose(camera_basis) * water.air_direction, 0.0);
+    vec3 fallback = original * water.background_sky_weight;
+    if (clip.w <= 0.0) return fallback;
+    vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return fallback;
+    vec4 background = textureLod(uw_background, uv, 0.0);
+    // Do not pull a foreground rock/fish across the roof. Distant opaque bodies
+    // (including other planets) can participate if they are outside the water.
+    if (background.a > 0.0) {
+        vec4 view = UW_inv_projection * vec4(uv * 2.0 - 1.0, background.a, 1.0);
+        vec3 world = UW_camera + camera_basis * (view.xyz / view.w);
+        float band = max(UW_wave_amplitude, UW_wave_calm_amplitude) * 5.2 + 0.5;
+        if (length(world - UW_planet_center) < UW_water_radius + band) return fallback;
+    }
+    vec2 edge = min(uv, 1.0 - uv);
+    float confidence = smoothstep(0.0, 0.02, min(edge.x, edge.y));
+    // A valid reprojection already represents the bent direction: applying the
+    // old angular attenuation here would incorrectly dim the refracted sun.
+    return mix(fallback, background.rgb, confidence);
+}
+
+vec3 uw_medium_scatter(float camera_depth, float ray_up, float distance,
+                       vec3 extinction, vec3 albedo, float sun_up, float illumination) {
+    vec3 scatter = vec3(0.0);
+    for (int i = 0; i < 3; ++i) {
+        float t0 = float(i) * distance / 3.0;
+        float t1 = float(i + 1) * distance / 3.0;
+        float depth = max(camera_depth - ray_up * (t0 + t1) * 0.5, 0.0);
+        vec3 source = uw_depth_color(depth) * albedo
+            * exp(-extinction * depth / max(sun_up, 0.35)) * illumination;
+        scatter += source * (exp(-extinction * t0) - exp(-extinction * t1));
+    }
+    return scatter;
+}
+
+WaterOptics uw_trace(vec2 uv, vec3 dir, float scene_distance, bool has_scene_depth, float pixel_spread) {
+    WaterOptics w;
+    w.wet = uw_pixel_wet(uv);
+    w.air_visible = true;
+    w.transmission = vec3(1.0);
+    w.scatter = vec3(0.0);
+    w.caustic_gain = vec3(1.0);
+    w.background_transmission = vec3(0.0);
+    w.background_sky_weight = 1.0;
+    w.air_direction = dir;
+    w.exit_distance = 0.0;
+    if (!w.wet) return w;
+
+    vec3 ro = UW_camera;
+    vec3 up = normalize(ro - UW_planet_center);
+    float cam_depth = max(dot(UW_waterline_point - ro, UW_waterline_normal), 0.0);
+    float band = max(UW_wave_amplitude, UW_wave_calm_amplitude) * 5.2
+        + min(UW_shore_amplitude * UW_shore_shoal_max, UW_shore_length * 0.08) * 1.5 + 0.5;
+    vec3 sigma_s = max(UW_scattering_coefficients, vec3(0.0)) * max(UW_fog_density, 0.0);
+    vec3 absorption = max(UW_absorption_coefficients, vec3(0.0)) * max(UW_absorption_scale, 0.0) * max(UW_fog_density, 0.0) + sigma_s;
+    float min_absorption = min(absorption.x, min(absorption.y, absorption.z));
+    // Beyond this range even the least-absorbed channel carries under 0.5%.
+    float optical_limit = min(256.0, 5.3 / max(min_absorption, 0.001));
+    float lo = max(uw_sphere_exit(UW_water_radius - band, ro, dir), 0.0);
+    float hi = min(max(uw_sphere_exit(UW_water_radius + band, ro, dir), lo), min(scene_distance, optical_limit));
+    float exit_t = min(scene_distance, optical_limit);
+    bool found = false;
+    if (lo < hi) {
+        float previous = lo;
+        vec3 start = ro + dir * lo;
+        float previous_value = length(start - UW_planet_center) - UW_water_radius - uw_surface_at(start).x;
+        // First crossing along the ray, then refinement. Each query is one cache tap.
+        for (int i = 1; i <= 12; ++i) {
+            float candidate = mix(lo, hi, float(i) / 12.0);
+            vec3 p = ro + dir * candidate;
+            float candidate_value = length(p - UW_planet_center) - UW_water_radius - uw_surface_at(p).x;
+            if (candidate_value >= 0.0) {
+                float left = previous;
+                float right = candidate;
+                float left_value = previous_value;
+                float right_value = candidate_value;
+                for (int j = 0; j < 6; ++j) {
+                    float mid = (left + right) * 0.5;
+                    vec3 m = ro + dir * mid;
+                    float value = length(m - UW_planet_center) - UW_water_radius - uw_surface_at(m).x;
+                    if (value < 0.0) { left = mid; left_value = value; }
+                    else { right = mid; right_value = value; }
+                }
+                // The midpoint quantized the roof into discrete distance bands.
+                // Interpolate the final bracket using already sampled values:
+                // smoother normals/refraction without more refinement queries.
+                exit_t = mix(left, right, clamp(-left_value / max(right_value - left_value, 1e-6), 0.0, 1.0));
+                found = exit_t < scene_distance;
+                break;
+            }
+            previous = candidate;
+            previous_value = candidate_value;
+        }
+    }
+    w.exit_distance = exit_t;
+    // Fade the COMPLETE surface response before the detailed field ends, not
+    // just the transmitted sky. The far endpoint must equal a ray without a roof.
+    float roof_end = min(optical_limit, max(water_params.data[13].w * 0.8, 1.0));
+    float roof_weight = found ? 1.0 - smoothstep(roof_end * 0.45, roof_end, exit_t) : 0.0;
+    float background_distance = min(scene_distance, optical_limit);
+    float medium_distance = roof_weight > 0.0 ? exit_t : background_distance;
+    w.air_visible = found && roof_weight > 0.0;
+    w.transmission = (roof_weight > 0.0 || has_scene_depth)
+        ? exp(-absorption * medium_distance) : vec3(0.0);
+    vec3 sun = length(UW_sun_direction) > 0.01 ? normalize(UW_sun_direction) : up;
+    // Dirección desde la que llega la luz bajo el agua, ya refractada. La usan tanto los
+    // haces como las cáusticas del suelo: es lo que las mantiene alineadas.
+    vec3 light_dir = -refract(-sun, up, 1.0 / 1.333);
+    float daylight = smoothstep(-0.08, 0.2, dot(up, sun));
+    // Single-scattering source: sigma_s / sigma_t, illuminated from the surface.
+    // Integrate three stratified depth samples with exact Beer-Lambert weights.
+    // Unlike the old palette fog this cannot replace a nearby object with a
+    // self-illuminated blue colour, and darkness increases with actual light depth.
+    vec3 scattering_albedo = sigma_s / max(absorption, vec3(0.0001));
+    w.scatter = uw_medium_scatter(cam_depth, dot(dir, up), medium_distance,
+        absorption, scattering_albedo, dot(up, sun), mix(0.04, 1.8, daylight));
+    vec3 normal = up;
+    vec3 godray_debug = vec3(0.0);
+    if (found && roof_weight > 0.0) {
+        if (roof_weight < 1.0) {
+            vec3 continuation = uw_medium_scatter(cam_depth, dot(dir, up), background_distance,
+                absorption, scattering_albedo, dot(up, sun), mix(0.04, 1.8, daylight));
+            w.scatter = mix(continuation, w.scatter, roof_weight);
+            if (has_scene_depth)
+                w.background_transmission = exp(-absorption * background_distance) * (1.0 - roof_weight);
+        }
+        vec3 surface_point = ro + dir * exit_t;
+        vec3 geometry_normal = uw_geometry_normal(surface_point);
+        // La huella crece con la distancia, así que las ondas se funden solas al fondo
+        // en vez de hervir. El suelo evita un LOD 0 con la superficie pegada a la cara.
+        // Y se divide por el coseno de incidencia: a ras de superficie el píxel se
+        // proyecta en una elipse larguísima, y filtrarla como si fuese redonda es lo
+        // que estiraba el borde crítico en filamentos en vez de romperlo en trozos.
+        float grazing = max(dot(dir, geometry_normal), 0.1);
+        float ripple_roughness = 0.0;
+        normal = uw_detail_normal(surface_point, geometry_normal,
+            max(exit_t * pixel_spread / grazing, 0.01), ripple_roughness);
+        // Continuous artistic projection onto the actual wave intersection.
+        // Exact water-to-air Snell produces a finite cone with a visible boundary.
+        // This mapping keeps its small-angle bending (eta) but continuously covers
+        // the whole upper hemisphere: cos(theta_air) = cos(theta_water)^(eta^2).
+        // Visibility is controlled by world-space travel distance, not a cone mask.
+        float cos_i = clamp(dot(dir, geometry_normal), 0.0, 1.0);
+        float cos_air = pow(cos_i, 1.333 * 1.333);
+        vec3 tangent = dir - geometry_normal * dot(dir, geometry_normal);
+        vec3 projected = geometry_normal * cos_air + tangent * sqrt(max(1.0 - cos_air*cos_air, 0.0)
+            / max(dot(tangent, tangent), 1e-6));
+        float refraction_strength = clamp(UW_underside_refraction / 1.5, 0.0, 1.0);
+        vec3 macro_direction = normalize(mix(dir, projected, refraction_strength));
+        w.background_sky_weight = smoothstep(0.906, 0.985, dot(dir, macro_direction));
+        // Ripples displace the sampled sky/cloud direction, not its opacity or
+        // tint. Tangential perturbation keeps the outgoing ray on the air side
+        // instead of folding it through the horizon into featureless water patches.
+        // Dividido por la fuerza a propósito: surface_ripple_strength decide QUÉ facetas
+        // abren al aire (por interface_cos, arriba), y underside_refraction decide cuánto
+        // se tuerce el cielo que se ve por ellas. Si la fuerza tirase también de la
+        // dirección, subir el picado mandaba los rayos fuera de pantalla, donde el fondo
+        // reproyectado no tiene datos y aparecen manchas que se mueven con el oleaje.
+        vec3 ripple_slope = (normal - geometry_normal * dot(normal, geometry_normal))
+            / max(UW_surface_ripple_strength, 1.0);
+        // The hemisphere projection reaches full strength at 1.5; values above
+        // that still amplify the optical ripples. Previously the control clamped
+        // both together, so most of its inspector range did nothing.
+        float ripple_gain = max(clamp(UW_underside_refraction, 0.0, 8.0) / 1.5, 1.0);
+        vec3 refracted = normalize(projected - ripple_slope * ripple_gain * max(1.333 * cos_i - cos_air, 0.0));
+        w.air_direction = normalize(mix(dir, refracted, refraction_strength));
+        float surface_visibility = exp(-exit_t / max(UW_surface_projection_distance, 1.0));
+        // The finite cache/ray budget must never appear as a distant seam.
+        surface_visibility *= 1.0 - smoothstep(optical_limit * 0.65, optical_limit, exit_t);
+        float fresnel = 0.02037 + 0.97963 * pow(1.0 - cos_i, 5.0);
+        // The resolved wave facets choose reflection versus transmission.
+        // A broad rough-interface transition replaces a hard critical angle;
+        // its nonzero tail and the distance fade keep the roof continuous.
+        // Optical detail is low-pass filtered in world space by the cache, so
+        // this creates coherent light openings rather than fine colour noise.
+        float interface_cos = clamp(dot(dir, normal), 0.0, 1.0);
+        // Centrada en el coseno crítico real (0.662 para n=1.333). Con sharpness 0 la
+        // transición vuelve a ser la rampa ancha de antes, que cubría toda la bóveda de
+        // 0.40 a 0.88 y por eso el techo salía como un degradado liso: sin un borde
+        // definido las ondas no tienen nada que romper. Con 1 es el corte físico.
+        // Un interfaz rugoso NO tiene un ángulo crítico nítido: el corte se ensancha con la
+        // inclinación que la ondulación puede imprimir. Sin esto, cada píxel conmutaba en
+        // binario entre cielo y reflejo y el techo salía moteado y parpadeando. Se intentó
+        // antes estimar la rugosidad por Toksvig (el acortamiento de la normal al filtrar el
+        // mip) y NO sirve con estos mapas: son bumps suaves, la media apenas se acorta.
+        float half_width = mix(0.24, 0.02, clamp(UW_surface_window_sharpness, 0.0, 1.0))
+            + ripple_roughness;
+        float facet_transmission = mix(0.04, 1.0,
+            smoothstep(0.662 - half_width, 0.662 + half_width, interface_cos));
+        fresnel = mix(fresnel, max(fresnel, 1.0 - facet_transmission),
+            clamp(UW_surface_reflection_strength, 0.0, 1.0));
+        float reflectance = 1.0 - (1.0 - fresnel) * surface_visibility;
+        // Reflected water radiance follows the geometric waves. Fine ripples
+        // belong to the transmitted direction above: using them here also painted
+        // a moving tint pattern over the scene, especially at grazing angles.
+        vec3 reflected = reflect(dir, geometry_normal);
+        float reflected_span = min(max(UW_tir_reflection_depth, 1.0), optical_limit);
+        vec3 reflection_light = vec3(0.0);
+        for (int i = 0; i < 3; ++i) {
+            float t0 = float(i) * reflected_span / 3.0;
+            float t1 = float(i + 1) * reflected_span / 3.0;
+            // Arranca en la superficie, así que la profundidad de cada muestra la marca
+            // el propio rayo reflejado y no la de la cámara.
+            float depth = max(-dot(reflected, up) * (t0 + t1) * 0.5, 0.0);
+            vec3 downwelling = exp(-absorption * depth / max(dot(up, sun), 0.35));
+            vec3 source = uw_depth_color(depth) * scattering_albedo * downwelling * mix(0.04, 1.8, daylight);
+            reflection_light += source * (exp(-absorption * t0) - exp(-absorption * t1));
+        }
+        w.scatter += reflection_light * reflectance * w.transmission * roof_weight;
+        w.transmission *= (1.0 - reflectance) * roof_weight;
+        w.air_visible = (1.0 - reflectance) * roof_weight > 0.0001;
+        w.scatter += UW_fog_color.rgb * (1.0 - smoothstep(0.0, max(UW_meniscus_width, 0.001), exit_t)) * UW_meniscus_strength * roof_weight;
+    }
+
+    // Project onto the actual depth-buffer receiver in planet coordinates.
+    // Camera-tangent axes rotate on a sphere and made the pattern follow the eye.
+    if (!found && has_scene_depth && scene_distance < optical_limit && UW_caustics_intensity > 0.0) {
+        vec3 p = ro + dir * scene_distance;
+        float depth = max(UW_water_radius + uw_surface_at(p).x - length(p - UW_planet_center), 0.0);
+        // Desde el receptor, hacia atrás por el rayo de luz hasta la superficie.
+        float receiver_path = max(uw_sphere_exit(UW_water_radius, p, light_dir), 0.0);
+        float c = uw_caustic_field(p + light_dir * receiver_path - UW_planet_center, 1.0, 1.0);
+        c *= c * UW_caustics_intensity * daylight * smoothstep(0.0, max(UW_caustics_near_fade, 0.001), depth)
+            * exp(-depth * max(UW_caustics_depth_fade, 0.0));
+        w.caustic_gain += vec3(c);
+    }
+    if (UW_godray_intensity > 0.001 && daylight > 0.001 && water_params.data[12].z > 0.5) {
+        vec3 rays = vec3(0.0);
+        float distance = min(mix(background_distance, exit_t, roof_weight), UW_godray_max_distance);
+        // El tope estaba en 6 y scenes/maps/sun.tscn pide 24: el ajuste no hacía nada.
+        int steps = clamp(UW_godray_samples, 1, 32);
+        // Paso FIJO en metros, no una fracción de la distancia. Colocar las muestras como
+        // fracción de `distance` las ataba al choque del rayo con la superficie ondulada:
+        // al pasar la ola, exit_t se movía un 20% y las 24 muestras se deslizaban TODAS a
+        // la vez, así que el haz cambiaba de brillo sin que cambiase la luz. Ese era el
+        // modulador residual que no respondía a ningún ajuste del patrón. Ahora las
+        // posiciones son absolutas sobre el rayo y sólo entra o sale la última, con peso
+        // fraccionario para que tampoco dé un salto al hacerlo.
+        float step_length = max(UW_godray_max_distance, 1.0) / float(steps);
+        for (int i = 0; i < steps; ++i) {
+            float t = (float(i) + 0.5) * step_length;
+            float coverage = clamp((distance - t) / step_length + 0.5, 0.0, 1.0);
+            if (coverage <= 0.0) break;
+            vec3 p = ro + dir * t;
+            float light_path = max(uw_sphere_exit(UW_water_radius, p, light_dir), 0.0);
+            vec3 entry_world = p + light_dir * light_path;
+            vec3 entry = entry_world - UW_planet_center;
+            // EL MISMO CAMPO DE CÁUSTICAS QUE ILUMINA EL FONDO: mismo triplanar en espacio
+            // planeta, misma escala y el mismo scroll. Así un haz cae sobre su mancha del
+            // suelo, y sobre todo hereda su movimiento, que es el que se ve correcto.
+            //
+            // Lo de antes eran DOS capas multiplicadas sobre un plano perpendicular a la
+            // luz, con su propia escala y su propia velocidad. Un haz sólo existe donde las
+            // dos coinciden, así que cualquier diferencia de velocidad entre ellas —o entre
+            // ellas y el resto— aparece y desaparece sin desplazarse. Eso era el parpadeo.
+            //
+            // godray_pattern_scale multiplica escala Y scroll a la vez: cambia el tamaño de
+            // celda SIN cambiar la velocidad en metros por segundo, que queda clavada a la
+            // de las cáusticas. godray_pattern_speed (1.0) es un sesgo sobre esa velocidad.
+            // El mismo campo, en el mismo punto de entrada y a la misma escala que la
+            // mancha del suelo: con grain y sesgo a 1.0 el haz y su mancha son el MISMO
+            // valor. Separarlos los desalinea, y entonces los haces dejan de verse
+            // proyectados sobre el terreno y parecen pegados a la vista.
+            float c = uw_caustic_field(entry, max(UW_godray_pattern_scale, 0.001),
+                max(UW_godray_pattern_speed, 0.0));
+            float mask = pow(clamp(c * c * 2.5, 0.0, 1.0), max(UW_godray_sharpness, 0.01));
+            // La ola de donde sale la luz, no un patrón flotando por su cuenta: una faceta
+            // encarada al sol transmite y concentra, y una de canto no. Con la longitud de
+            // onda del oleaje eso convierte las celdas redondas del patrón en cuchillas
+            // paralelas a las crestas, que es la forma que tienen los haces de verdad.
+            // Es una consulta al mismo caché que dibuja la ventana de Snell.
+            if (UW_godray_surface_focus > 0.01) {
+                vec3 wave_normal = uw_surface_at(entry_world).yzw;
+                // Normalizado contra el mar EN CALMA: una faceta tan encarada al sol como
+                // lo estaría un mar plano vale 1, y solo las que se apartan oscurecen. Sin
+                // esa referencia, subir el enfoque apagaba los haces enteros en vez de
+                // tallarlos, porque pow() de un coseno menor que uno solo sabe bajar.
+                float flat_reference = max(dot(normalize(entry), light_dir), 0.001);
+                float aligned = clamp(dot(wave_normal, light_dir) / flat_reference, 0.0, 1.0);
+                // Con SUELO: la ola atenúa el haz, no lo apaga. Sin él, pow() llevaba la
+                // faceta a cero cada vez que la ola pasaba por su punto de entrada, así que
+                // cada haz se encendía y se apagaba entero ~1 vez por segundo. Eso es lo que
+                // se percibe como parpadeo; respirando entre 0.35 y 1 se lee como luz viva.
+                mask *= mix(0.35, 1.0, pow(aligned, UW_godray_surface_focus));
+            }
+            rays += mask * coverage * exp(-absorption * (light_path + t));
+        }
+        float phase = mix(UW_godray_min_phase, 1.0, pow(max(dot(dir, light_dir), 0.0), UW_godray_phase_power));
+        // Shafts scatter the same incoming light as the medium, instead of adding
+        // an unbounded screen glow. Their energy vanishes with distance/turbidity.
+        // Sin el 0.12 arbitrario, que dejaba los haces en un 3% de la luz que dispersa el
+        // medio: la forma era correcta y aun así no se veía ninguna. godray_intensity
+        // queda recalibrada (1.0 equivale a 8.3 de las de antes).
+        godray_debug = rays * step_length * sigma_s
+            * UW_godray_intensity * daylight * phase;
+        w.scatter += godray_debug;
+    }
+    if (UW_debug_mode != 0) {
+        vec3 debug_transmission = w.transmission;
+        w.air_visible = false;
+        w.transmission = vec3(0.0);
+        w.background_transmission = vec3(0.0);
+        if (UW_debug_mode == 1) w.scatter = vec3(0, 1, found ? 1 : 0);
+        if (UW_debug_mode == 2) w.scatter = vec3(clamp(exit_t / max(UW_debug_scale, 0.001), 0.0, 1.0));
+        if (UW_debug_mode == 3) w.scatter = found ? normal * 0.5 + 0.5 : vec3(0.0);
+        if (UW_debug_mode == 4) w.scatter = found ? vec3(0, clamp(exit_t / max(UW_debug_scale, 0.001), 0.0, 1.0), 0) : vec3(1,0,0);
+        // 5: caustic gain above one, scaled. 6: red = reflected surface,
+        // green = transmitted sky, blue = no surface hit along the ray.
+        if (UW_debug_mode == 5) w.scatter = (w.caustic_gain - 1.0) * max(UW_debug_scale, 0.001);
+        if (UW_debug_mode == 6) w.scatter = found
+            ? vec3(1.0 - debug_transmission.g, debug_transmission.g, 0.0) : vec3(0, 0, 1);
+        // 7: elevation the ray leaves with. A working Snell window sweeps the full
+        // ramp inside the critical cone; an unrefracted one only reaches the FOV.
+        if (UW_debug_mode == 7) w.scatter = found
+            ? vec3(clamp(dot(w.air_direction, up), 0.0, 1.0)) : vec3(1, 0, 0);
+        // 8: solo los haces, sin la niebla de fondo, para juzgar su forma.
+        if (UW_debug_mode == 8) w.scatter = godray_debug * max(UW_debug_scale, 0.001);
+    }
+    return w;
+}
+
+vec3 uw_surface_radiance(vec3 light) {
+    // Preserve HDR light until AFTER water transport and the renderer's tone
+    // mapping. Compressing incoming light here capped bright openings before
+    // absorption and made them converge to the same dull colour as reflection.
+    float luminance = dot(light, vec3(0.2126, 0.7152, 0.0722));
+    light = mix(vec3(luminance), light, UW_surface_saturation);
+    return light * UW_surface_exposure;
+}

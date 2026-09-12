@@ -3,10 +3,13 @@ render_mode blend_mix, depth_draw_always, cull_back, diffuse_burley, specular_sc
 
 // Pasada 2 del cristal: el reflejo, con ALPHA = fracción de Fresnel. La transmisión la pone antes
 // glass_block_tint.gdshader multiplicando, así que entre las dos sale fondo*tinte*(1-R) + cielo*R.
-// Un panel sumergido se nieblea además él mismo: el quad de niebla se descarta entero con la cámara
+// Un panel sumergido se nieblea además él mismo: el compositor excluye el agua con la cámara
 // dentro de un compartimento seco, y una ventana es lo único que puede mirar fuera desde ahí.
 
 #include "res://shaders/liquid/underwater_fog.gdshaderinc"
+#include "res://shaders/liquid/ship_interiors.gdshaderinc"
+uniform vec3 waterline_point;
+uniform vec3 waterline_normal;
 // calculate_sky_color(): el cielo hay que sintetizarlo, no existe cubemap que reflejar (el del
 // Environment es el espacio exterior y el cielo visible lo pinta el compositor). Mismo que el agua.
 #include "res://shaders/lib/sky_reflection.gdshaderinc"
@@ -23,7 +26,7 @@ uniform float glass_reflect_max : hint_range(0.0, 1.0) = 0.55;
 uniform float glass_fresnel_power : hint_range(1.0, 8.0) = 5.0;
 uniform float sky_influence : hint_range(0.0, 4.0) = 1.0;
 
-// Agua y niebla: los empuja Underwater._process desde el material del quad, o sea el MISMO origen
+// Agua y niebla: los empuja Underwater._process desde el material de parámetros, o sea el MISMO origen
 // del que salen los suyos (dos cuentas independientes acaban divergiendo). planet_center y
 // water_radius viven en glass_common, compartidos con la pasada de transmisión.
 uniform vec3 absorption_coefficients = vec3(0.45, 0.18, 0.06);
@@ -79,7 +82,13 @@ void fragment() {
 	float depth_raw = textureLod(depth_texture, SCREEN_UV, 0.0).x;
 	float out_depth = depth_raw;
 
-	if (pane_depth > 0.0) {
+	// Wet pixels now receive optical transport after ALL transparents. Applying it
+	// here too would double the absorption and write artificial depth in the ocean.
+	vec4 near_view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, 1.0, 1.0);
+	vec3 near_offset = mat3(INV_VIEW_MATRIX) * (near_view.xyz / near_view.w);
+	bool compositor_water = waterline_signed_relative(CAMERA_POSITION_WORLD, near_offset, waterline_point, waterline_normal) < 0.0
+		&& !inside_ship_interior(CAMERA_POSITION_WORLD);
+	if (pane_depth > 0.0 && !compositor_water) {
 		vec3 ro = CAMERA_POSITION_WORLD;
 		vec3 rd = normalize(v_world_pos - ro);
 		float t_pane = length(v_world_pos - ro);
@@ -99,7 +108,7 @@ void fragment() {
 				column, scatter_vertical_range, distance_depth_gain, distance_depth_max);
 		vec3 scatter = depth_tier_color(scatter_depth);
 
-		// Halo hacia el sol, mismo convenio que el quad: sun_direction apunta HACIA el sol.
+		// Halo hacia el sol, mismo convenio que el compositor: sun_direction apunta HACIA el sol.
 		float sun_glow = pow(max(dot(rd, to_sun_w), 0.0), sun_glow_power);
 		scatter *= 1.0 + sun_glow * sun_glow_intensity;
 
@@ -127,7 +136,7 @@ void fragment() {
 		EMISSION = underwater_apply(screen, absorption_coefficients, column, scatter) * COLOR.rgb;
 		ALPHA = 1.0;
 
-		// Fuga de atmósfera, igual que el quad: el compositor va POST_TRANSPARENT y pinta cielo
+		// Tratamiento heredado de ventanas vistas desde un compartimento seco: el compositor pinta cielo
 		// donde el depth buffer no tiene escena. La distancia escrita decae con la columna de agua.
 		float leak_t = atmosphere_leak_distance * exp(-atmosphere_leak_falloff * column);
 		leak_t = clamp(leak_t, 0.01, scene_distance * 0.995);

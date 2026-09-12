@@ -1,9 +1,8 @@
 // Niebla submarina compartida: la paleta de in-scatter por tramos de profundidad, el corte de la
 // línea de flotación y el núcleo de la composición (absorción + in-scatter). Tres consumidores:
-// underwater.gdshader (el quad de pantalla completa, que compone la escena opaca sumergida),
+// underwater_optics.glslinc (compositor, con coeficientes propios de dispersión),
 // water_shader.gdshader (solo el corte de flotación, para descartar su mitad sumergida) y
-// glass_block.gdshader (los paneles traslúcidos, que se nieblan solos porque el quad se descarta
-// entero con la cámara en un compartimento seco y la pasada transparente no recibe su niebla).
+// glass_block.gdshader (niebla local de ventanas vistas desde compartimentos secos).
 
 uniform vec4 fog_color : source_color = vec4(0.7, 0.8, 0.9, 1.0);
 uniform vec4 deep_fog_color : source_color = vec4(0.1, 0.2, 0.3, 1.0);
@@ -18,6 +17,12 @@ uniform float abyss_transition_depth = 250.0;
 // píxel-exacta de la pantalla, sin rizados artificiales que desalineen el corte.
 float waterline_signed(vec3 p_near_world, vec3 surface_point, vec3 surface_normal) {
     return dot(p_near_world - surface_point, surface_normal);
+}
+
+// Keep the centimetre-scale near offset out of the large planet coordinates.
+// This order matches the compute compositor exactly, including at 30 km radii.
+float waterline_signed_relative(vec3 camera_world, vec3 near_offset, vec3 surface_point, vec3 surface_normal) {
+    return dot((camera_world - surface_point) + near_offset, surface_normal);
 }
 
 // Color de in-scatter según la profundidad (fog → deep → abyss).
@@ -47,9 +52,9 @@ float ray_sphere_exit(vec3 center, float r, vec3 ro, vec3 rd) {
 }
 
 // Núcleo de la niebla submarina: absorción Beer-Lambert por canal más in-scatter. `column` son
-// metros de agua atravesados y `scatter` el color de in-scatter ya iluminado. Lo comparten el quad
+// metros de agua atravesados y `scatter` el color de in-scatter ya iluminado. Lo comparten el compositor
 // de pantalla completa y cualquier superficie transparente que tenga que nieblar lo que se ve a
-// través de ella, que el quad no cubre (ver cabecera).
+// través de ella, que el compositor no cubre (ver cabecera).
 vec3 underwater_apply(vec3 background, vec3 absorption, float column, vec3 scatter) {
     vec3 transmission = exp(-absorption * column);
     return background * transmission + scatter * (1.0 - transmission);

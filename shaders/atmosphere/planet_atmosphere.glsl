@@ -37,6 +37,10 @@ layout(set = 0, binding = 5) uniform sampler2D cloud_group_tex;
 // depth buffer no ve el raymarch.
 layout(r8, set = 0, binding = 6) uniform restrict writeonly image2D occlusion_mask;
 
+#include "../liquid/underwater_params.glslinc"
+// El techo de reflexión total se marcha con la integral del medio (ver el include).
+#include "../liquid/underwater_optics.glslinc"
+
 #define P(i) params_buffer.data[i]
 
 // El canal R se horneó con frecuencia base 4 por tile → 1 unidad de noise_pos (la longitud
@@ -1090,6 +1094,47 @@ void main() {
 		}
 	}
 
+	vec4 scene_color = imageLoad(color_image, pixel);
+	// Ancho angular de un píxel: es la huella con la que el techo filtra su detalle.
+	vec4 spread_a = UW_inv_projection * vec4(uv * 2.0 - 1.0, 1.0, 1.0);
+	vec4 spread_b = UW_inv_projection * vec4((uv + vec2(1.0 / float(size.x), 0.0)) * 2.0 - 1.0, 1.0, 1.0);
+	float pixel_spread = length(normalize(spread_b.xyz / spread_b.w) - normalize(spread_a.xyz / spread_a.w));
+	WaterOptics water = uw_trace(uv, ray_dir, scene_t, has_scene_depth, pixel_spread);
+	// uw_trace sale antes del bloque de depuración cuando el píxel está seco, así que
+	// un modo debug que no cambia NADA es ambiguo: puede ser "el efecto no hace nada"
+	// o "la cámara no está en el agua", que son dos problemas distintos y en ficheros
+	// distintos. Los píxeles secos se pintan de magenta para que no se confundan.
+	if (UW_debug_mode != 0 && !water.wet) {
+		// MAGENTA: el pase entero está desactivado (data[12].x). Lo decide la CPU en
+		// UnderwaterRenderPass.prepare: _camera_near_water dijo que la cámara no está
+		// cerca del agua, o _inside_interior que está en un compartimento seco.
+		// NARANJA: el pase está activo, pero el plano de flotación clasifica el píxel
+		// como seco, así que el fallo estaría en waterline_point / waterline_normal.
+		bool pass_active = water_params.data[12].x >= 0.5;
+		vec3 mark = pass_active ? vec3(0.95, 0.45, 0.0) : vec3(0.45, 0.0, 0.45);
+		imageStore(color_image, pixel, vec4(mark, scene_color.a));
+		return;
+	}
+	scene_color.rgb *= water.caustic_gain;
+	vec3 water_background = scene_color.rgb * water.background_transmission;
+	imageStore(occlusion_mask, pixel, vec4(0.0));
+	if (water.wet) {
+		if (!water.air_visible || max(water.transmission.r, max(water.transmission.g, water.transmission.b)) < 0.005) {
+			imageStore(color_image, pixel, vec4(scene_color.rgb * water.transmission + water.scatter + water_background, scene_color.a));
+			return;
+		}
+		camera_position += ray_dir * water.exit_distance;
+		// The raster sky contains the actual solar disc, moon and stars. Sample
+		// its immutable snapshot along the SAME refracted ray as the atmosphere.
+		// Attenuating the original pixel left a sharp, stationary solar circle.
+		scene_color.rgb = uw_refracted_background(scene_color.rgb, water);
+		ray_dir = water.air_direction;
+		scene_t = max(scene_t - water.exit_distance, 0.0);
+		atmo = ray_sphere(planet_center, atmo_radius, camera_position, ray_dir);
+		dst_to_atmo = atmo.x;
+		dst_through_atmo = atmo.y;
+	}
+
 	// Máscara de god rays, parte de geometría. Un oclusor cercano se descuenta (P(32).x de
 	// referencia): en pantalla tapa muchísimo, pero solo ensombrece el pedacito de aire que tiene
 	// detrás, no la columna entera. Se escribe antes del early-out de abajo para que ningún píxel
@@ -1100,10 +1145,11 @@ void main() {
 	// Limita el recorrido por el terreno/objetos (clave para que se vea atmósfera sobre el suelo).
 	dst_through_atmo = min(dst_through_atmo, max(scene_t - dst_to_atmo, 0.0));
 
-	if (dst_through_atmo <= 0.0) return;
+	if (dst_through_atmo <= 0.0) {
+		imageStore(color_image, pixel, vec4(scene_color.rgb * water.transmission + water.scatter + water_background, scene_color.a));
+		return;
+	}
 
-	// El color de escena solo se lee cuando de verdad vamos a componer algo encima.
-	vec4 scene_color = imageLoad(color_image, pixel);
 
 	vec3 entry_point = camera_position + ray_dir * (dst_to_atmo + EPSILON);
 
@@ -1294,5 +1340,6 @@ void main() {
 		}
 	}
 
-	imageStore(color_image, pixel, vec4(light, scene_color.a));
+	if (water.wet) light = uw_surface_radiance(light);
+	imageStore(color_image, pixel, vec4(light * water.transmission + water.scatter + water_background, scene_color.a));
 }

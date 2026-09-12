@@ -22,9 +22,9 @@ var save_category: String = "planet"
 
 @export_group("Underwater Fog")
 @export var fog_density: float = 1.0
-@export var fog_color: Color = Color("00526e")
-@export var deep_fog_color: Color = Color(0.1, 0.2, 0.3, 1.0)
-@export var abyss_fog_color: Color = Color(0.1, 0.1, 0.15, 1.0)
+@export var fog_color: Color = Color("6e8073")
+@export var deep_fog_color: Color = Color("263d36")
+@export var abyss_fog_color: Color = Color("081511")
 @export var deep_transition_depth: float = 100.0
 @export var abyss_transition_depth: float = 250.0
 @export var distance_depth_gain: float = 0.7
@@ -33,14 +33,23 @@ var save_category: String = "planet"
 @export var sun_glow_power: float = 8.0
 
 @export_group("Underwater Godrays")
-@export var godray_intensity: float = 3.0
-@export var godray_samples: int = 12
+@export var godray_intensity: float = 1.0
+@export var godray_samples: int = 24
 @export var godray_max_distance: float = 40.0
-@export var godray_pattern_scale: float = 0.01
-@export var godray_pattern_speed: float = 0.01
-@export var godray_sharpness: float = 2.5
+@export var godray_pattern_scale: float = 1.0
+@export var godray_pattern_speed: float = 1.0
+@export var godray_sharpness: float = 6.0
 @export var godray_phase_power: float = 6.0
 @export var godray_min_phase: float = 0.15
+## Ata los haces a la ola. A 0 por defecto: los ata también a su velocidad (~10 m/s), y
+## entonces o viajan a esa velocidad o el patrón se desliza contra ellos y eso se ve como
+## parpadeo. Las cuchillas ya las dibuja la textura.
+@export var godray_surface_focus: float = 0.0
+
+@export_group("Underwater Caustics")
+@export var caustics_intensity: float = 0.8
+@export var caustics_depth_fade: float = 0.18
+@export var caustics_near_fade: float = 1.5
 
 # Mismos nombres que los exports de Underwater: se copian tal cual cada frame.
 # (absorption_coefficients queda fuera a propósito: se hereda del .tres del agua
@@ -52,8 +61,14 @@ const _UNDERWATER_PARAMS: Array[StringName] = [
 	&"sun_glow_intensity", &"sun_glow_power",
 	&"godray_intensity", &"godray_samples", &"godray_max_distance",
 	&"godray_pattern_scale", &"godray_pattern_speed", &"godray_sharpness",
-	&"godray_phase_power", &"godray_min_phase",
+	&"godray_phase_power", &"godray_min_phase", &"godray_surface_focus",
+	&"caustics_intensity", &"caustics_depth_fade", &"caustics_near_fade",
 ]
+
+# Último valor propagado al nodo Underwater, para no pisar sus ajustes cada frame.
+var _pushed_underwater := {}
+
+const WATER_SPHERE_SCENE := preload("res://scenes/planet/WaterSphere.tscn")
 
 var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
@@ -269,7 +284,14 @@ func _load_planet() -> void:
 	add_child(planet)
 	global_pos = planet.global_position
 	if planet_parser.has_water:
-		water_sphere = OceanSystem.new()
+		# Instanciar la escena, no OceanSystem.new(): el nodo Underwater vive dentro de
+		# WaterSphere.tscn y es el que se ajusta desde el inspector. Construyéndolo por
+		# código el OceanSystem nacía sin hijos, su @onready quedaba en null y acababa
+		# creándose un Underwater aparte, así que el de la escena no llegaba a existir y
+		# ningún uniform tocado a mano tenía efecto.
+		water_sphere = WATER_SPHERE_SCENE.instantiate()
+		# add_child ejecuta _ready de todo el subárbol de forma síncrona, así que a partir
+		# de aquí el @onready del OceanSystem ya apunta a su Underwater.
 		add_child(water_sphere)
 		water_sphere.subdivision_factor = 1.5
 		water_sphere.max_lod = 10
@@ -479,11 +501,16 @@ func _setup_ground_fauna(planet_parser: PlanetParser) -> void:
 		if settings.scene_path.is_empty():
 			push_error("GroundFauna: '%s' no declara scene_path" % profile_path)
 			continue
-		var habitat := GroundFaunaHabitat.new()
+		var habitat: GroundFaunaHabitat = SmallGroundFaunaHabitat.new() if settings is SmallGroundFaunaProfile else GroundFaunaHabitat.new()
 		habitat.setup(voxel_terrain, get_parent(), planet_parser.radius,
 			planet_parser.atmosphere_height, planet_parser.biome_latitude_ranges, world_map)
+		if habitat is SmallGroundFaunaHabitat:
+			habitat.observer = players[0]
+			habitat.sea_radius = water_sphere.radius if is_instance_valid(water_sphere) else 0.0
 		var spawner := AmbientFaunaSpawner.new()
 		spawner.name = settings.scene_path.get_file().get_basename()
+		if settings is SmallGroundFaunaProfile:
+			spawner.name = profile_path.get_file().get_basename().to_pascal_case()
 		spawner.setup(settings, habitat, players[0])
 		voxel_terrain.add_child(spawner)
 		ResourceLoader.load_threaded_request(settings.scene_path)
@@ -653,10 +680,20 @@ func _process(_delta: float) -> void:
 			_apply_underwater_settings()
 		_apply_impostor_settings()
 
-## Copia los exports de niebla/godrays al nodo Underwater; este los reaplica al material,
-## así cualquier cambio en el inspector se ve en el mismo frame.
+## Copia los exports de niebla/godrays/cáusticas al nodo Underwater, que los reaplica al
+## material, así un cambio aquí se ve en el mismo frame.
+##
+## Solo empuja el parámetro cuando el valor de ESTE nodo ha cambiado. Copiarlos todos cada
+## frame hacía que el nodo Underwater fuese intocable desde el inspector: cualquier ajuste
+## suyo en la lista se pisaba al frame siguiente, y los que no están en la lista
+## (absorption_scale, debug_mode, surface_exposure...) tampoco existen aquí, así que según
+## qué nodo tocaras no había forma de mover nada. Con la guarda valen los dos sitios.
 func _apply_underwater_settings() -> void:
 	if water_sphere == null or water_sphere.underwater == null:
 		return
 	for param in _UNDERWATER_PARAMS:
-		water_sphere.underwater.set(param, get(param))
+		var value: Variant = get(param)
+		if _pushed_underwater.has(param) and _pushed_underwater[param] == value:
+			continue
+		_pushed_underwater[param] = value
+		water_sphere.underwater.set(param, value)

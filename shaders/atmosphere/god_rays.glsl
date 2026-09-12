@@ -20,6 +20,9 @@ layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
 	vec4 data[33];
 } params_buffer;
 
+#include "../liquid/underwater_params.glslinc"
+#include "../liquid/underwater_optics.glslinc"
+
 #define P(i) params_buffer.data[i]
 
 const float EPSILON = 0.000001;
@@ -86,6 +89,8 @@ void main() {
 	if (sun_vis <= 0.001 && debug_mode == 0) return;
 
 	vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(size);
+	// Wet pixels already contain refracted underwater shafts in the fused pass.
+	if (uw_pixel_wet(uv)) return;
 
 	// Debug 1: máscara cruda + cruz en el sol proyectado (verde = activo, rojo = gateado).
 	if (debug_mode == 1) {
