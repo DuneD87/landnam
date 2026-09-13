@@ -75,6 +75,7 @@ func set_submerged(value: bool) -> void:
 	if value == _submerged:
 		return
 	_submerged = value
+	DebugStats.report_event(&"clima:sumergir" if value else &"clima:emerger")
 	visible = not value
 	if _submerged:
 		return
@@ -122,6 +123,7 @@ func _physics_process(delta: float) -> void:
 
 	if not committed:
 		return
+	DebugStats.report_event(&"clima:textura_oclusion")
 	var tex := _field.get_height_texture()
 	for effect_name in _effects:
 		var fx: WeatherParticles = _effects[effect_name]
@@ -140,6 +142,7 @@ func _physics_process(delta: float) -> void:
 
 ## Refresca el centro del planeta y reinicia las partículas tras un rebase de origen flotante.
 func on_origin_shift(new_center: Vector3) -> void:
+	DebugStats.report_event(&"clima:rebase")
 	_planet_center = new_center
 	if _field != null and _field.has_method("set_planet_center"):
 		_field.set_planet_center(new_center)

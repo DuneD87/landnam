@@ -283,6 +283,8 @@ func _register_commands() -> void:
 		"Perfilado por fases: vuelca cada pico a consola con su desglose (sin argumento, alterna).", _cmd_perf))
 	_add(ConsoleCommand.new("escala", "escala [0.25-2.0]",
 		"Escala de render 3D: bisecciona si el coste de dibujar es de pixel o de envio.", _cmd_escala))
+	_add(ConsoleCommand.new("terreno", "terreno [colision <lods>] [normalmap on|off]",
+		"Ajustes de coste del terreno en caliente, para comparar picos de 'proc'; sin argumentos, informa.", _cmd_terreno))
 	_add(ConsoleCommand.new("fps", "fps [n]",
 		"Techo de FPS (0 = sin techo), para fijar el ritmo mientras se mide.", _cmd_fps))
 
@@ -492,6 +494,33 @@ func _cmd_escala(args: PackedStringArray) -> String:
 		COLOR_OK, vp.scaling_3d_scale,
 		int(size.x * vp.scaling_3d_scale), int(size.y * vp.scaling_3d_scale),
 		int(size.x), int(size.y)]
+
+
+## Colisión y normalmaps de detalle de todos los VoxelLodTerrain. collision_lod_count 0 = colisión en
+## TODOS los LOD (medido); solo afecta a los bloques que se mallen a partir de ahora.
+func _cmd_terreno(args: PackedStringArray) -> String:
+	var terrains := get_tree().root.find_children("*", "VoxelLodTerrain", true, false)
+	if terrains.is_empty():
+		return "[color=%s]No hay terrenos cargados.[/color]" % COLOR_ERR
+	var i := 0
+	while i + 1 < args.size():
+		var key := args[i].to_lower()
+		var value := args[i + 1].to_lower()
+		for t: VoxelLodTerrain in terrains:
+			if key == "colision" and value.is_valid_int():
+				t.collision_lod_count = maxi(value.to_int(), 0)
+			elif key == "normalmap":
+				t.normalmap_enabled = value in ["on", "1", "true"]
+			else:
+				return "[color=%s]Uso: terreno [colision <lods>] [normalmap on|off].[/color]" % COLOR_ERR
+		i += 2
+	var out := "[color=%s]Terrenos[/color]" % COLOR_INFO
+	for t: VoxelLodTerrain in terrains:
+		var owner_name: String = t.owner.name if t.owner != null else t.name
+		out += "\n  %s: colision %s de %d LOD, normalmap %s" % [owner_name,
+			"todos" if t.collision_lod_count == 0 else str(t.collision_lod_count), t.lod_count,
+			"on" if t.normalmap_enabled else "off"]
+	return out
 
 
 ## Techo de FPS. Sin vsync el frame corre tan rapido como la GPU deje, asi que fijar el ritmo separa

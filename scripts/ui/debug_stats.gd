@@ -5,6 +5,13 @@ extends CanvasLayer
 
 const UPDATE_INTERVAL := 0.25
 const SMOOTHING := 0.1
+const RENDER_TRACE := preload("res://scripts/ui/render_spike_trace.gd")
+var _render_trace := RENDER_TRACE.new()
+const PHASE_PROBE := preload("res://scripts/ui/phase_probe.gd")
+var _physics_probe := PHASE_PROBE.new(true)
+var _idle_probe := PHASE_PROBE.new(false)
+## A partir de cuánto 'callbk' o 'proc' se imprime su reparto por grupos.
+const PROBE_REPORT_MS := 3.0
 
 ## Cuántas veces la línea base tiene que durar un frame para considerarse pico.
 const SPIKE_FACTOR := 2.5
@@ -95,6 +102,17 @@ static var profiling := false
 ## Costes del frame que reportan otros sistemas, en microsegundos. Es estático para que cualquiera
 ## pueda alimentarlo sin cablear una referencia, y se vacía al final de cada frame.
 static var _frame_costs: Dictionary = {}
+static var _pending_render_events: Dictionary = {}
+var _draw_events: Dictionary = {}
+var _previous_costs: Dictionary = {}
+var _removed_nodes: Dictionary = {}
+
+
+## Eventos enviados al renderer. Se congelan en pre_draw para que una salida del agua o un
+## relámpago del _process actual no se atribuyan al dibujo ANTERIOR que está cerrando el detector.
+static func report_event(label: StringName, count: int = 1) -> void:
+	if profiling:
+		_pending_render_events[label] = int(_pending_render_events.get(label, 0)) + count
 
 
 ## Acumula el coste de un sistema, en microsegundos, mientras 'perf' está activo.
@@ -117,6 +135,7 @@ func _ready() -> void:
 
 	RenderingServer.frame_pre_draw.connect(_on_pre_draw)
 	RenderingServer.frame_post_draw.connect(_on_post_draw)
+	get_tree().node_removed.connect(_on_node_removed)
 
 	_build_ui()
 	# Sin esto los tiempos de render del viewport se quedan siempre a cero.
@@ -133,14 +152,30 @@ func toggle() -> void:
 
 func _on_pre_draw() -> void:
 	_pre_draw = Time.get_ticks_usec()
+	if profiling:
+		_draw_events = _pending_render_events.duplicate()
+	_pending_render_events.clear()
 
 
 func _on_post_draw() -> void:
 	_post_draw = Time.get_ticks_usec()
+	_render_trace.poll()
+
+
+## Inventario de bajas reales, sin recorrer el árbol ni retener los nodos que se van.
+func _on_node_removed(node: Node) -> void:
+	if not profiling:
+		return
+	var script: Script = node.get_script()
+	var key := script.resource_path.get_file().get_basename() if script != null else node.get_class()
+	_removed_nodes[key] = int(_removed_nodes.get(key, 0)) + 1
 
 
 func _physics_process(_delta: float) -> void:
-	_phys_last.append(Time.get_ticks_usec())
+	var now := Time.get_ticks_usec()
+	_phys_last.append(now)
+	if not _phys_first.is_empty():
+		_physics_probe.close_tick(int(_phys_first[-1]), now)
 
 
 func _build_ui() -> void:
@@ -166,15 +201,26 @@ func _build_ui() -> void:
 
 
 func _process(delta: float) -> void:
+	# Antes que nada: lo que cuesten las sondas no debe caer dentro de 'proc'.
+	var idle_last := Time.get_ticks_usec()
+	_idle_probe.close_tick(_idle_first, idle_last)
+	_render_trace.set_enabled(profiling)
+	for probe in [_physics_probe, _idle_probe]:
+		probe.set_enabled(profiling, self)
+		probe.flush_pending()
+	if not profiling:
+		_frame_costs.clear()
+		_previous_costs.clear()
+		_removed_nodes.clear()
+		_draw_events.clear()
 	# Con el overlay oculto y el perfilado apagado no hay nada que medir: ni siquiera se trocea
 	# el frame, que aunque es aritmética construye un diccionario por frame.
 	if not visible and not profiling:
-		_prev_idle_last = Time.get_ticks_usec()
+		_prev_idle_last = idle_last
 		_phys_first.clear()
 		_phys_last.clear()
 		return
 
-	var idle_last := Time.get_ticks_usec()
 	var total_ms := _close_frame(idle_last)
 
 	# El detector va con el overlay oculto también: lo que interesa es el volcado a consola.
@@ -333,7 +379,11 @@ func _detect_spike(frame_ms: float) -> void:
 	_prev_memory = memory
 	_prev_drops = drops
 	_prev_pipelines = pipelines
+	_previous_costs = _frame_costs.duplicate()
 	_frame_costs.clear()
+	_removed_nodes.clear()
+	_physics_probe.reset_frame()
+	_idle_probe.reset_frame()
 
 
 ## Resume las fases del pico. Los tiempos CPU/GPU de render son lecturas diferidas.
@@ -344,6 +394,7 @@ func _dump_spike(frame_ms: float, node_delta: int, mem_delta: float,
 	# la primera. La segunda es el inventario del mundo alrededor del pico.
 	var head := PackedStringArray([
 		"[pico] %6.1f ms (base %.1f)" % [frame_ms, _baseline_ms],
+		"#%d" % _spike_count,
 		_phases_line(_ph),
 		_since_last_spike(),
 	])
@@ -352,7 +403,7 @@ func _dump_spike(frame_ms: float, node_delta: int, mem_delta: float,
 	var threads := _threads_report()
 	if threads != "":
 		head.append(threads)
-	var costs := _costs_report()
+	var costs := _costs_report(_frame_costs)
 	if costs != "":
 		head.append(costs)
 	head.append("rendCPU %.1f" % RenderingServer.viewport_get_measured_render_time_cpu(vp_rid))
@@ -364,6 +415,7 @@ func _dump_spike(frame_ms: float, node_delta: int, mem_delta: float,
 
 	var tail := PackedStringArray([
 		"[pico+] draws %d" % int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
+		"prepRender %.1f ms" % RenderingServer.get_frame_setup_time_cpu(),
 		"mem %+.1f MB" % mem_delta,
 		_terrain_report(),
 		_instancer_report(),
@@ -376,6 +428,36 @@ func _dump_spike(frame_ms: float, node_delta: int, mem_delta: float,
 	if pipeline_delta > 0:
 		tail.append("pipelines +%d" % pipeline_delta)
 	print("  ".join(tail))
+	# Los costes de scripts que prepararon este dibujo pertenecen a la ventana anterior.
+	# No se suman al total actual; sirven para localizar altas/bajas y uploads diferidos.
+	var context := PackedStringArray(["[pico contexto]"])
+	if not _draw_events.is_empty():
+		context.append(_counts_report("eventos del dibujo", _draw_events))
+	if not _removed_nodes.is_empty():
+		context.append(_counts_report("bajas en ventana", _removed_nodes))
+	if not _previous_costs.is_empty():
+		context.append("scripts previos " + _costs_report(_previous_costs))
+	print("  ".join(context))
+	for entry in [["callbk", _physics_probe], ["proc", _idle_probe]]:
+		if float(_ph.get(entry[0], 0.0)) >= PROBE_REPORT_MS:
+			var split: String = entry[1].report()
+			if split != "":
+				print(split)
+	if _ph.has("dibujo"):
+		_render_trace.record_spike(_spike_count, _pre_draw, _post_draw)
+
+
+func _exit_tree() -> void:
+	_render_trace.set_enabled(false)
+	_physics_probe.set_enabled(false, self)
+	_idle_probe.set_enabled(false, self)
+
+
+func _counts_report(label: String, counts: Dictionary) -> String:
+	var parts := PackedStringArray()
+	for key in counts:
+		parts.append("%s:%d" % [key, int(counts[key])])
+	return "%s[%s]" % [label, " ".join(parts)]
 
 
 ## Acumula el último segundo y publica FPS reales, media y qué fracción de frames se salió. Es lo
@@ -426,14 +508,14 @@ func _canonical_pos() -> Vector3:
 
 
 ## Costes reportados por los sistemas durante el frame, ordenados de mayor a menor.
-func _costs_report() -> String:
-	if _frame_costs.is_empty():
+func _costs_report(costs: Dictionary) -> String:
+	if costs.is_empty():
 		return ""
-	var labels := _frame_costs.keys()
-	labels.sort_custom(func(a, b) -> bool: return _frame_costs[a] > _frame_costs[b])
+	var labels := costs.keys()
+	labels.sort_custom(func(a, b) -> bool: return costs[a] > costs[b])
 	var parts := PackedStringArray()
 	for label in labels:
-		parts.append("%s %.1f ms" % [label, int(_frame_costs[label]) / 1000.0])
+		parts.append("%s %.1f ms" % [label, int(costs[label]) / 1000.0])
 	return "· " + "  ".join(parts)
 
 

@@ -173,6 +173,7 @@ func _follow_player() -> void:
 ## Rehace las partículas conservando el estado de emisión. Al ocultarse el emisor la simulación
 ## queda congelada, así que al volver a mostrarlo hay que tirar el fotograma viejo.
 func respawn() -> void:
+	DebugStats.report_event(&"clima:reinicio_activo" if emitting else &"clima:reinicio_inactivo")
 	_follow_player()
 	var was := emitting
 	restart()

@@ -668,7 +668,11 @@ func _update_lightning(delta: float, st: WeatherState) -> void:
 ## Aplica el destello del rayo a la luz auxiliar (superficies de escena) y a las nubes del compute (uniform).
 func _apply_flash(flash: float) -> void:
 	if _aux_light != null:
+		if _aux_light.visible != (flash > 0.0):
+			DebugStats.report_event(&"clima:rayo_on" if flash > 0.0 else &"clima:rayo_off")
 		if flash > 0.0:
+			if _aux_light.shadow_enabled:
+				DebugStats.report_event(&"clima:rayo_sombras")
 			if _player != null and is_instance_valid(_player):
 				var up := _player.global_position - _planet_center
 				up = up.normalized() if up.length_squared() > 0.0001 else Vector3.UP
