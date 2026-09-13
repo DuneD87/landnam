@@ -53,7 +53,7 @@ uniform int godray_samples : hint_range(4, 32) = 24;
 uniform float godray_max_distance = 40.0;
 // Multiplicador del tamaño de celda respecto a caustics_scale. Toca escala y scroll a la
 // vez, así que cambia el grano sin cambiar la velocidad en metros por segundo.
-uniform float godray_pattern_scale = 1.0;
+uniform float godray_pattern_scale = 0.1;
 // Sesgo sobre la velocidad de las cáusticas: 1.0 = exactamente su mismo movimiento.
 uniform float godray_pattern_speed = 1.0;
 uniform float godray_sharpness : hint_range(0.5, 16.0) = 6.0;

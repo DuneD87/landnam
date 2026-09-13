@@ -15,5 +15,3 @@ wireframe_material = ExtResource("3_pcij0")
 script = ExtResource("4_68i28")
 surface_projection_distance = 8.0
 debug_scale = 60.0
-godray_intensity = 0.5
-godray_pattern_speed = 2.0
