@@ -1,6 +1,7 @@
 class_name SimpleFishMesh extends RefCounted
 
-## Stylized marine species. One cached surface per species; one shared material.
+## Stylized marine species. Geometry is baked by tools/fauna/bake_fish_meshes.gd;
+## spawning a new species never runs the SurfaceTool builder during play.
 enum Kind { SARDINE, BREAM, CLOWNFISH, BUTTERFLY, BLUE_TANG, WRASSE }
 const MAX_SCALE: float = 1.1
 const ANIMATION_MARGIN: float = 0.09
@@ -20,9 +21,15 @@ const TYPES: Array[Dictionary] = [
 ]
 static var _meshes: Dictionary = {}
 static var _material: ShaderMaterial
+const BAKED_MESHES: Array[ArrayMesh] = [preload("res://data/fauna/meshes/fish/0.res"), preload("res://data/fauna/meshes/fish/1.res"), preload("res://data/fauna/meshes/fish/2.res"), preload("res://data/fauna/meshes/fish/3.res"), preload("res://data/fauna/meshes/fish/4.res"), preload("res://data/fauna/meshes/fish/5.res")]
 
 
 static func mesh(kind: int = Kind.SARDINE) -> ArrayMesh:
+	return BAKED_MESHES[clampi(kind, 0, TYPES.size() - 1)]
+
+
+## Offline builder kept to regenerate assets without changing their geometry.
+static func build_mesh(kind: int = Kind.SARDINE) -> ArrayMesh:
 	kind = clampi(kind, 0, TYPES.size() - 1)
 	if _meshes.has(kind):
 		return _meshes[kind]

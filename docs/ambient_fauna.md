@@ -35,6 +35,14 @@ escala entre 0,75 y 1,1, con pequeñas variaciones de tono y velocidad. El expor
 seis usando `Aleatorio` (por defecto). El catálogo de formas y paletas está en
 `SimpleFishMesh.TYPES`.
 
+Las seis mallas están horneadas en `data/fauna/meshes/fish/` y se precargan: el
+alta de un pez nunca ejecuta el `SurfaceTool` (costaba 10-15 ms por especie la
+primera vez). Tras cambiar `TYPES`, regenerarlas con:
+
+```
+godot --headless --path . --script res://tools/fauna/bake_fish_meshes.gd
+```
+
 La caja de colisión se calcula a partir de la malla elegida, incluyendo margen
 para el movimiento de las aletas. Las pruebas comprueban que cada modelo a su
 máxima escala cabe en el radio de seguridad de spawn. Los peces son opacos y
