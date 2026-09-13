@@ -80,6 +80,12 @@ func _rest_local() -> Vector3:
 ## Actualiza la direccion de mirada suavizada. En espacio local del cuerpo para que no la rompan
 ## ni un rebase de FloatingOrigin ni el giro del personaje.
 func _physics_process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_update_aim(delta)
+	DebugStats.report_cost(&"player:lookik", Time.get_ticks_usec() - _t0)
+
+
+func _update_aim(delta: float) -> void:
 	if not active:
 		return
 
@@ -94,13 +100,21 @@ func _physics_process(delta: float) -> void:
 		if angle <= max_radians:
 			target = local
 		elif angle < deg_to_rad(maxf(release_angle, max_angle)) and PI - angle > _EPS:
-			var clamped := rest.slerp(local, max_radians / angle)
+			var clamped := _slerp(rest, local, max_radians / angle)
 			var fade := deg_to_rad(maxf(release_angle, max_angle)) - max_radians
 			var t := clampf((angle - max_radians) / maxf(fade, _EPS), 0.0, 1.0)
-			target = rest.slerp(clamped, 1.0 - t)
+			target = _slerp(rest, clamped, 1.0 - t)
 
-	_aim_local = _aim_local.slerp(target, 1.0 - exp(-turn_speed * delta)).normalized()
+	_aim_local = _slerp(_aim_local, target, 1.0 - exp(-turn_speed * delta)).normalized()
 	_idle = _aim_local.dot(rest) > 0.99995
+
+
+## Vector3.slerp con vectores casi paralelos saca un eje sin normalizar por precisión y Godot escribe
+## un error con traza en cada llamada; ya convergida la mirada eso bloqueaba el hilo 15-25 ms.
+func _slerp(from: Vector3, to: Vector3, weight: float) -> Vector3:
+	if from.cross(to).length_squared() < 1e-6:
+		return from.lerp(to, weight)
+	return from.slerp(to, weight)
 
 
 ## Direccion de mirada en mundo, o cero si ahora mismo no hay a donde mirar.
