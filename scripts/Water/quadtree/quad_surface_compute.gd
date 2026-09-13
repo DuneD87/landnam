@@ -14,6 +14,11 @@ var face_right: Vector3
 var quad_level: int
 var needs_update: bool = true
 
+## La superficie base del océano es una proyección esférica; las olas van en el material.
+## Resolverla directamente evita submit + sync + tres readbacks por cada parche nuevo.
+## Se conserva la ruta compute para comparar resultados y para el modo con ruido.
+@export var use_direct_projection: bool = true
+
 @export_group("Noise Settings")
 @export var enable_noise: bool = false
 @export var noise_amplitude: float = 150.0
@@ -60,7 +65,7 @@ func setup(_position: Vector3, size: float, normal: Vector3, up: Vector3, right:
 	quad_resolution = sub_divisions
 	cast_shadow = SHADOW_CASTING_SETTING_OFF
 
-	if not is_using_shared_resources:
+	if not is_using_shared_resources and (not use_direct_projection or enable_noise):
 		_setup_own_compute_resources()
 	
 	generate_mesh()
@@ -242,7 +247,13 @@ func _read_buffers_and_create_mesh():
 	mesh = array_mesh
 
 func generate_mesh():
-	if not needs_update or not rd or not compute_shader.is_valid():
+	if not needs_update:
+		return
+	if use_direct_projection and not enable_noise:
+		_generate_projected_mesh()
+		needs_update = false
+		return
+	if not rd or not compute_shader.is_valid():
 		return
 	
 	_create_buffers()
@@ -252,6 +263,40 @@ func generate_mesh():
 	_cleanup_buffers()
 	
 	needs_update = false
+
+
+## Mismas posiciones, normales radiales, UV e índices que quad_surface_compute.glsl.
+## No usa QuadSurface: esa clase también tiene ruido y animación CPU propios.
+func _generate_projected_mesh() -> void:
+	var side := quad_resolution + 1
+	var vertex_array := PackedVector3Array()
+	var normal_array := PackedVector3Array()
+	var uv_array := PackedVector2Array()
+	vertex_array.resize(side * side)
+	normal_array.resize(side * side)
+	uv_array.resize(side * side)
+	var step := quad_size / float(quad_resolution)
+	var half_size := quad_size * 0.5
+	for y in side:
+		for x in side:
+			var index := y * side + x
+			var plane := face_right * (float(x) * step - half_size) + face_up * (float(y) * step - half_size)
+			var spherical := (position + plane).normalized() * sphere_radius
+			vertex_array[index] = spherical - position
+			normal_array[index] = spherical.normalized()
+			uv_array[index] = Vector2(float(x), float(y)) / float(quad_resolution)
+	if cached_indices.size() != quad_resolution * quad_resolution * 6:
+		cached_indices.resize(quad_resolution * quad_resolution * 6)
+		_fill_indices(cached_indices)
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertex_array
+	arrays[Mesh.ARRAY_NORMAL] = normal_array
+	arrays[Mesh.ARRAY_TEX_UV] = uv_array
+	arrays[Mesh.ARRAY_INDEX] = cached_indices
+	var projected := ArrayMesh.new()
+	projected.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh = projected
 
 ## Libera el uniform set y los buffers del compute; los RID quedan a cero para que sea reentrante.
 func _cleanup_buffers():

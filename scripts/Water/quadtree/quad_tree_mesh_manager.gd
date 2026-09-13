@@ -11,16 +11,18 @@ enum ComputeMode {
 
 @export var default_material: Material
 @export var compute_mode: ComputeMode = ComputeMode.GPU
+## La base esférica no necesita un viaje GPU->CPU. El shader visual sigue animando el agua.
+@export var direct_sphere_projection: bool = true
 @export var preload_compute_shader: bool = true
 @export var atmosphere_height: float = 1000.0
 @export var radius: float
 @export var sub_divisions: int = 32
 @export var player: CharacterBody3D
 
-## Presupuesto por frame para dar de alta y de baja parches. Se acota por tiempo y no por número
-## porque el coste de crear uno varía mucho: en modo GPU cada parche es un submit() + sync() + tres
-## lecturas de buffer, un viaje a la GPU que bloquea el hilo principal.
+## Presupuesto CPU para crear parches. La ruta compute de comparación incluye una espera GPU.
 @export var surface_budget_ms: float = 3.0
+## queue_free solo encola: su tiempo no acota la destrucción diferida de recursos.
+@export_range(1, 64, 1) var surface_retire_limit: int = 8
 
 var active_quads: Dictionary = {}
 var quad_tree_manager: Node3D
@@ -43,7 +45,7 @@ func initialize(quadtree_manager: Node3D):
 	quad_tree_manager = quadtree_manager
 	quad_tree_manager.quadtree_changed.connect(_on_quadtree_changed)
 	
-	if compute_mode == ComputeMode.GPU and preload_compute_shader:
+	if compute_mode == ComputeMode.GPU and preload_compute_shader and not direct_sphere_projection:
 		_initialize_compute_resources()
 
 func _initialize_compute_resources():
@@ -136,9 +138,12 @@ func _advance_surface_work() -> void:
 		_commit_target()
 		_needs_commit = false
 
-	while not _retiring.is_empty():
+	var retired := 0
+	while not _retiring.is_empty() and retired < maxi(surface_retire_limit, 1):
 		var surface = _retiring.pop_back()
+		retired += 1
 		if is_instance_valid(surface):
+			DebugStats.report_event(&"agua:retirar_parche")
 			surface.queue_free()
 		if not unlimited and Time.get_ticks_usec() >= deadline:
 			break
@@ -148,6 +153,7 @@ func _advance_surface_work() -> void:
 ## vean a la vez un quad y sus hijos. Mostrar y ocultar es gratis, así que da igual que toque
 ## cientos de parches; lo caro (construir y liberar) queda fuera, repartido.
 func _commit_target() -> void:
+	DebugStats.report_event(&"agua:relevo")
 	for quad_id in _staged:
 		var surface = _staged[quad_id]
 		surface.visible = true
@@ -164,15 +170,18 @@ func _commit_target() -> void:
 ## Construye un parche y lo devuelve oculto y sin dar de alta: quién lo enseña lo decide
 ## _commit_target.
 func _create_quad_surface(quad_info: Dictionary) -> Node3D:
+	DebugStats.report_event(&"agua:crear_parche")
 	var quad_surface
 
 	if compute_mode == ComputeMode.GPU:
-		if not compute_shader_loaded:
+		if not compute_shader_loaded and not direct_sphere_projection:
 			_initialize_compute_resources()
 		
 		if compute_mode == ComputeMode.GPU:
 			quad_surface = QuadSurfaceCompute.new()
-			quad_surface.set_shared_resources(shared_rd, shared_compute_shader, shared_compute_pipeline)
+			quad_surface.use_direct_projection = direct_sphere_projection
+			if compute_shader_loaded:
+				quad_surface.set_shared_resources(shared_rd, shared_compute_shader, shared_compute_pipeline)
 		else:
 			quad_surface = QuadSurface.new()
 	else:
@@ -248,7 +257,7 @@ func set_compute_mode(mode: ComputeMode):
 		shared_rd.free_rid(shared_compute_shader)
 		shared_compute_shader = RID()
 		compute_shader_loaded = false
-	elif mode == ComputeMode.GPU and not compute_shader_loaded:
+	elif mode == ComputeMode.GPU and not compute_shader_loaded and not direct_sphere_projection:
 		_initialize_compute_resources()
 	
 	var quad_data = []
@@ -281,7 +290,7 @@ func set_compute_mode(mode: ComputeMode):
 func get_statistics() -> Dictionary:
 	var stats = {
 		"active_quads": active_quads.size(),
-		"compute_mode": "GPU" if compute_mode == ComputeMode.GPU else "CPU",
+		"compute_mode": ("CPU proyeccion" if direct_sphere_projection else "GPU") if compute_mode == ComputeMode.GPU else "CPU",
 		"total_vertices": 0,
 		"total_triangles": 0
 	}
