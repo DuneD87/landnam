@@ -16,6 +16,13 @@ class GenericHabitat extends AmbientFaunaHabitat:
 	func is_spawn_valid(_point: Vector3, _clearance: float) -> bool:
 		return valid
 
+class SlowHabitat extends GenericHabitat:
+	func sample_spawn(anchor: Vector3, settings: AmbientFaunaProfile,
+			rng: RandomNumberGenerator) -> Variant:
+		# Una consulta indivisible ya excede el presupuesto: no debe arrancar la siguiente.
+		OS.delay_usec(AmbientFaunaSpawner.FRAME_BUDGET_USEC + 1000)
+		return super.sample_spawn(anchor, settings, rng)
+
 var _failures: int = 0
 var _world: Node3D
 
@@ -38,6 +45,7 @@ func _run() -> void:
 	GameManager.current_state = GameManager.State.PLAYING
 	_test_species_geometry()
 	await _test_population()
+	await _test_shared_spawn_budget()
 	await _test_water_and_collisions()
 	await _test_loaded_voxel_habitat()
 	_world.queue_free()
@@ -112,6 +120,40 @@ func _test_population() -> void:
 	_check(not spawner._in_view(Vector3(0, 0, 10)), "Camera frustum permits candidates behind the camera")
 	camera.queue_free()
 	spawner.queue_free()
+	observer.queue_free()
+	await get_tree().process_frame
+
+
+func _test_shared_spawn_budget() -> void:
+	var observer := Node3D.new()
+	_world.add_child(observer)
+	var profile := AmbientFaunaProfile.new()
+	var template := AmbientAnimal.new()
+	profile.animal_scene = PackedScene.new()
+	profile.animal_scene.pack(template)
+	template.free()
+	var slow := SlowHabitat.new()
+	var other := GenericHabitat.new()
+	var spawners: Array[AmbientFaunaSpawner] = []
+	for habitat in [slow, other]:
+		var spawner := AmbientFaunaSpawner.new()
+		spawner.setup(profile, habitat, observer)
+		_world.add_child(spawner)
+		spawner.set_physics_process(false)
+		spawners.append(spawner)
+	await get_tree().process_frame
+	var start := Time.get_ticks_usec()
+	spawners[0]._physics_process(1.0)
+	spawners[1]._physics_process(1.0)
+	spawners[0]._physics_process(1.0) # Simula otro tick de recuperación del mismo frame.
+	_check(slow.calls == 1 and other.calls == 0, "Spawn budget is shared across species and catch-up ticks")
+	_check(spawners[0]._pool.size() == 1, "A slow valid attempt completes, so expensive habitats cannot starve forever")
+	print("SPAWN_BUDGET_TEST one_frame_ms=%.3f" % ((Time.get_ticks_usec() - start) / 1000.0))
+	await get_tree().process_frame
+	spawners[1]._physics_process(0.0)
+	_check(other.calls > 0, "Deferred species gets its turn on the next frame")
+	for spawner in spawners:
+		spawner.queue_free()
 	observer.queue_free()
 	await get_tree().process_frame
 
@@ -323,4 +365,3 @@ func _test_loaded_voxel_habitat() -> void:
 	terrain.queue_free()
 	await get_tree().process_frame
 	ocean.free()
-
