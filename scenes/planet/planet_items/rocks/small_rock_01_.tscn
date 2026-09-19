@@ -4,7 +4,7 @@
 [ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_8txvh"]
 [ext_resource type="Texture2D" uid="uid://44wvh6od3ykm" path="res://textures/planet/rocks/rock_green_02/rock_green_02_albedo.png" id="3_8sv1y"]
 [ext_resource type="Texture2D" uid="uid://cb2ta3hhln3jk" path="res://textures/planet/rocks/rock_green_02/rock_green_02_ao.png" id="4_2532t"]
-[ext_resource type="Texture2D" uid="uid://bbgtl64p1t6fy" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_Height.png" id="5_rnddf"]
+[ext_resource type="Texture2D" uid="uid://bbgtl64p1t6fy" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Height.png" id="5_rnddf"]
 [ext_resource type="Texture2D" uid="uid://h57k2ari4nwh" path="res://textures/planet/rocks/rock_green_02/rock_green_02_metal.png" id="6_m8tyj"]
 [ext_resource type="Texture2D" uid="uid://1fmu1xyutgt7" path="res://textures/planet/rocks/rock_green_02/rock_green_02_normal-ogl.png" id="7_k0ghy"]
 [ext_resource type="Texture2D" uid="uid://b2dqk1astl6cq" path="res://textures/planet/rocks/rock_green_02/rock_green_02_roughness.png" id="8_qm3v6"]

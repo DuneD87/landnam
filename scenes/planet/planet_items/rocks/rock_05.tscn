@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_pmg3p"]
 [ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_64anj"]
 [ext_resource type="Shader" uid="uid://csa5tbyrlrn5i" path="res://shaders/opaque_planet_material.gdshader" id="3_l5ehx"]
-[ext_resource type="Texture2D" uid="uid://qh4jl245swvw" path="res://textures/Terrain/sandy_rocks1_bl/sandy_rocks1_albedo.png" id="4_kfvpn"]
+[ext_resource type="Texture2D" uid="uid://qh4jl245swvw" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_albedo.png" id="4_kfvpn"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_q58v1"]
 noise_type = 4

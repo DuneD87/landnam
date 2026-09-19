@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_cubpc"]
 [ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_c00hj"]
 [ext_resource type="Shader" uid="uid://csa5tbyrlrn5i" path="res://shaders/opaque_planet_material.gdshader" id="3_5mujd"]
-[ext_resource type="Texture2D" uid="uid://cxavhy34vnp3p" path="res://textures/Terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png" id="4_cubpc"]
+[ext_resource type="Texture2D" uid="uid://cxavhy34vnp3p" path="res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png" id="4_cubpc"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_cubpc"]
 noise_type = 5
