@@ -162,6 +162,20 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 		generator.min_scale = generator_config.min_scale * scale_gain
 	if generator_config.has("max_scale"):
 		generator.max_scale = generator_config.max_scale * scale_gain
+	# Ruido simple de parcheo: praderas y manchas sin montar un grafo de vóxel entero.
+	# "noise": {"frequency": 0.01, "octaves": 2, "dimension": "2D", "on_scale": 0.3}
+	if generator_config.has("noise"):
+		var noise_config: Dictionary = generator_config.noise
+		var noise := FastNoiseLite.new()
+		noise.seed = int(noise_config.get("seed", 0))
+		noise.frequency = float(noise_config.get("frequency", 0.01))
+		noise.fractal_octaves = int(noise_config.get("octaves", 2))
+		generator.noise = noise
+		generator.noise_dimension = (VoxelInstanceGenerator.DIMENSION_3D
+				if noise_config.get("dimension", "2D") == "3D"
+				else VoxelInstanceGenerator.DIMENSION_2D)
+		if noise_config.has("on_scale"):
+			generator.noise_on_scale = float(noise_config.on_scale)
 	if generator_config.has("noise_graph"):
 		for graph_func in graph_functions:
 			if graph_func.name == generator_config.noise_graph:

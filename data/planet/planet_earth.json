@@ -346,6 +346,42 @@
 			"noise_graph": "hemisphere_sand_graph_path"
 		},
 		{
+		  "name": "seagrass_generator",
+		  "emit_mode": "EMIT_FROM_VERTICES",
+		  "density": 0.9,
+		  "min_height": -72, "max_height": -52,
+		  "max_slope_degrees": 30,
+		  "min_scale": 0.8, "max_scale": 1.8,
+		  "noise": { "frequency": 0.004, "octaves": 2, "seed": 41 }
+		},
+		{
+		  "name": "kelp_generator",
+		  "emit_mode": "EMIT_FROM_VERTICES",
+		  "density": 0.09,
+		  "min_height": -90, "max_height": -56,
+		  "max_slope_degrees": 35,
+		  "min_scale": 0.7, "max_scale": 1.5,
+		  "noise": { "frequency": 0.0025, "octaves": 2, "seed": 77 }
+		},
+		{
+		  "name": "sea_fan_generator",
+		  "emit_mode": "EMIT_FROM_VERTICES",
+		  "density": 0.035,
+		  "min_height": -85, "max_height": -55,
+		  "max_slope_degrees": 60,
+		  "min_scale": 0.6, "max_scale": 1.4,
+		  "noise": { "frequency": 0.006, "octaves": 2, "seed": 13 }
+		},
+		{
+		  "name": "coral_generator",
+		  "emit_mode": "EMIT_FROM_VERTICES",
+		  "density": 0.05,
+		  "min_height": -70, "max_height": -53,
+		  "max_slope_degrees": 45,
+		  "min_scale": 0.6, "max_scale": 1.6,
+		  "noise": { "frequency": 0.005, "octaves": 2, "seed": 5 }
+		},
+		{
 		  "name": "cave_moss_generator",
 		  "emit_mode": "EMIT_FROM_VERTICES",
 		  "density": 1.0,
@@ -464,6 +500,26 @@
 			"scene": "res://scenes/planet/planet_items/rocks/small_rock_01.tscn",
 			"generator": ["small_rocks_generator_green"],
 			"wind_speed": 0.3, "lod_index": [0, 1], "material_type": "STONE"
+		},
+		{
+			"scene": "res://scenes/planet/planet_items/vegetation/marine/seagrass.tscn",
+			"generator": ["seagrass_generator"],
+			"lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false
+		},
+		{
+			"scene": "res://scenes/planet/planet_items/vegetation/marine/kelp.tscn",
+			"generator": ["kelp_generator"],
+			"lod_index": [0, 1, 2], "instance_as_scene": false, "cast_shadow": false
+		},
+		{
+			"scene": "res://scenes/planet/planet_items/vegetation/marine/sea_fan.tscn",
+			"generator": ["sea_fan_generator"],
+			"lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false
+		},
+		{
+			"scene": "res://scenes/planet/planet_items/vegetation/marine/coral.tscn",
+			"generator": ["coral_generator"],
+			"lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass.tscn",
