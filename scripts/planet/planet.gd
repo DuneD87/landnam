@@ -5,6 +5,8 @@ class_name Planet extends Node3D
 ## (VoxelInstancer) con sus colisiones, y parchea el VoxelGraph (radio, ores) desde datos JSON.
 
 const config = preload("res://scripts/config.gd")
+const GrassGeometryLods = preload("res://scripts/planet/grass_geometry_lods.gd")
+var _grass_lod_cache: Dictionary = {}
 @export_group("Terrain Settings")
 @export var radius: float
 @export var terrain_generator_path: String
@@ -318,7 +320,8 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 
 	var lm: Array = shared_data.get("lod_meshes", [])
 	if lm.size() == 4:
-		# 4 mesh-LOD: cerca lm[0] (full), lejos lm[3] (impostor). El near->far lo hace el módulo
+		# 4 mesh-LOD: cerca lm[0], lejos lm[3] (geometría simple o impostor según item).
+		# El near->far lo hace el módulo
 		# eligiendo la malla por bloque según distancia (cuidado: por CENTRO de bloque -> salta a
 		# saltos, más notorio cuanto mayor el lod_index; es by-design del multimesh).
 		multi_mesh_item.set_mesh(lm[0], 0)
@@ -439,6 +442,7 @@ func _load_vegetation() -> void:
 	tree_perch_catalog.clear()
 	multi_mesh_array.clear()
 	item_transparent_materials.clear()
+	_grass_lod_cache.clear()
 	_next_library_id = 0
 
 	# async: _load_vegetation_item hornea el impostor LOD3 de los árboles con await
@@ -466,6 +470,14 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 	# horneado, y su material ya se registra dentro del bake. La mata original solo
 	# sirve de fuente para el horneado, así que deja de registrarse.
 	var patch_cfg: Dictionary = item.get("grass_patch", {})
+	var grass_cfg: Dictionary = item.get("grass_lods", {})
+	if not grass_cfg.is_empty():
+		var source_mesh: Mesh = shared_data.effective_mesh
+		if not _grass_lod_cache.has(source_mesh):
+			_grass_lod_cache[source_mesh] = GrassGeometryLods.build(source_mesh)
+		shared_data.lod_meshes = _grass_lod_cache[source_mesh]
+		if shared_data.lod_meshes.size() != 4:
+			return
 	if not patch_cfg.is_empty():
 		var card := await _bake_grass_patch(shared_data.effective_mesh, patch_cfg)
 		if card == null:
@@ -473,11 +485,11 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 		shared_data.lod_meshes = [card, card, card, card]
 		shared_data.effective_mesh = null
 
-	# LOD3 = impostor (aspa) solo para árboles Tree3D: son los únicos con lod_meshes de 4
-	# entradas (Bush3D/Rock/MeshInstance -> []). Se hornea UNA vez por item, antes del bucle
+	# Fuera de las rutas de hierba, LOD3 = impostor (aspa) para árboles Tree3D.
+	# Se hornea UNA vez por item, antes del bucle
 	# de registro, para que set_mesh(lm[3], 3) instale el impostor directamente (sin hot-swap).
 	var lm: Array = shared_data.lod_meshes
-	if patch_cfg.is_empty():
+	if patch_cfg.is_empty() and grass_cfg.is_empty():
 		if lm.size() == 4 and item.get("lod3_impostor", true):
 			var impostor := await _bake_tree_impostor(lm[0])
 			if impostor != null:
@@ -502,10 +514,48 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 
 		for lod_index in lod_indices:
 			var generator: VoxelInstanceGenerator = _build_generator(generator_config, graph_functions, lod_index)
+			var band_data: Dictionary = shared_data
+			if not grass_cfg.is_empty():
+				band_data = shared_data.duplicate()
+				band_data.lod_meshes = _build_grass_band_meshes(shared_data.lod_meshes,
+					grass_cfg, lod_index, float(item.get("wind_speed", 0.2)))
+				# El material común a los cuatro LODs ya se ha registrado arriba.
+				band_data.effective_mesh = null
 			if emit_as_scene:
-				_register_scene_item(item, shared_data, generator, lod_index)
+				_register_scene_item(item, band_data, generator, lod_index)
 			else:
-				_register_multi_mesh_item(i, item, shared_data, generator, lod_index)
+				_register_multi_mesh_item(i, item, band_data, generator, lod_index)
+
+
+## Las capas del instancer se solapan. Cada banda lejana recibe su propio material
+## para entrar cuando sale la anterior, sin duplicar densidad cerca de la cámara.
+func _build_grass_band_meshes(lods: Array, cfg: Dictionary, lod_index: int, wind_speed: float) -> Array:
+	var material: ShaderMaterial = lods[0].surface_get_material(0).duplicate()
+	var width: float = float(cfg.get("fade_width_m", 24.0))
+	var near_end: float = maxf(_get_lod_view_distance(1) - 8.0, width + 1.0)
+	var fade_end: float = near_end
+	if cfg.get("layer", "near") == "far":
+		var previous_end: float = near_end if lod_index == 2 else _grass_band_end(lod_index - 1, cfg)
+		material.set_shader_parameter("fade_in_start", maxf(previous_end - width, 1.0))
+		material.set_shader_parameter("fade_in_end", previous_end)
+		fade_end = _grass_band_end(lod_index, cfg)
+	else:
+		material.set_shader_parameter("fade_in_start", 0.0)
+		material.set_shader_parameter("fade_in_end", 0.0)
+	material.set_shader_parameter("fade_start", maxf(fade_end - width, 1.0))
+	material.set_shader_parameter("fade_end", fade_end)
+	material.set_shader_parameter("distant_normal_strength", 0.25)
+	item_transparent_materials.append({"shader": material, "wind_speed": wind_speed})
+	var meshes: Array = []
+	for original in lods:
+		var mesh: ArrayMesh = original.duplicate()
+		mesh.surface_set_material(0, material)
+		meshes.append(mesh)
+	return meshes
+
+
+func _grass_band_end(lod_index: int, cfg: Dictionary) -> float:
+	return minf(float(cfg.get("max_distance_m", 320.0)), _get_lod_view_distance(lod_index) - 16.0)
 
 
 ## Normaliza un entero o lista de enteros a una lista de enteros no vacía.

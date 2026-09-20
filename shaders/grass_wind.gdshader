@@ -35,12 +35,16 @@ uniform float gust_speed : hint_range(0.0, 5.0, 0.01)  = 1.0;  // velocidad de a
 uniform float flutter_speed  : hint_range(0.0, 20.0, 0.01) = 6.0;
 uniform float flutter_amount : hint_range(0.0, 1.0, 0.01)  = 0.25;
 
-// --- Desvanecido lejano: la mata se encoge hasta desaparecer y la tarjeta de
-//     parche (grass_patch_impostor.gdshader) toma el relevo. Sus rangos deben
-//     solaparse con el fade_start/fade_width de la tarjeta o queda una banda
-//     pelada. fade_end <= fade_start desactiva el efecto.
+// --- Relevo entre capas del instancer. Cada capa conserva geometría de hojas.
+//     Los rangos se coordinan en planet.gd. end <= start desactiva cada efecto.
 uniform float fade_start : hint_range(0.0, 3000.0, 1.0) = 70.0;
 uniform float fade_end   : hint_range(0.0, 3000.0, 1.0) = 100.0;
+uniform float fade_in_start = 0.0;
+uniform float fade_in_end = 0.0;
+// Atenuación moderada del contraste entre hojas subpíxel, sin aplanar la luz cerca.
+uniform float distant_normal_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float distant_normal_start = 95.0;
+uniform float distant_normal_end = 240.0;
 
 // --- Iluminación planetaria: los uniforms compartidos viven en planet_lighting.gdshaderinc.
 //     Aquí solo el control de especular propio del shader.
@@ -49,22 +53,33 @@ uniform float specular_roughness : hint_range(0.0, 1.0, 0.01) = 0.7;
 
 // vertex_position_global y planet_normal se declaran en el include.
 varying float height_factor;         // 0 en la base, 1 en la punta
+varying float normal_softening;
 
 void vertex() {
     // Posiciones en espacio mundo
     vec3 base = MODEL_MATRIX[3].xyz;                 // origen de la instancia = base de la brizna
+    vec3 up = normalize(base - planet_position);
+    // El color usa la altura original: encoger la mata no debe volverla del color
+    // oscuro de la raíz. w=0 evita restar posiciones mundo grandes.
+    float h = dot((MODEL_MATRIX * vec4(VERTEX, 0.0)).xyz, up);
+    height_factor = clamp(h / grass_height, 0.0, 1.0);
     // El pivote está en la base, así que encoger hacia el origen local la hunde
     // en el suelo en vez de dejarla flotando.
-    VERTEX *= 1.0 - smoothstep(fade_start, max(fade_end, fade_start + 0.001),
-                               distance(base, CAMERA_POSITION_WORLD));
+    float camera_distance = distance(base, CAMERA_POSITION_WORLD);
+    float visibility = fade_end > fade_start
+        ? 1.0 - smoothstep(fade_start, fade_end, camera_distance)
+        : 1.0;
+    visibility *= fade_in_end > fade_in_start
+        ? smoothstep(fade_in_start, fade_in_end, camera_distance) : 1.0;
+    // La escala afecta alto y ancho: sqrt mantiene mejor la cobertura durante el relevo.
+    visibility = sqrt(visibility);
+    normal_softening = distant_normal_strength * smoothstep(distant_normal_start,
+        max(distant_normal_end, distant_normal_start + 0.001), camera_distance);
+    VERTEX *= visibility;
     vec3 world_vertex = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-    // "Arriba" radial del planeta en la base de la brizna (independiente de la malla)
-    vec3 up = normalize(base - planet_position);
 
-    // Altura del vértice a lo largo del eje radial -> máscara de doblez
-    float h = dot(world_vertex - base, up);
-    height_factor = clamp(h / grass_height, 0.0, 1.0);
-    float mask = pow(height_factor, bend_curve);     // base rígida, punta suelta
+    // Mantener la atenuación del viento durante el encogimiento, incluso al llegar a 0.
+    float mask = pow(height_factor * visibility, bend_curve);
 
     // Viento proyectado al plano tangente del suelo (dobla de lado, no hacia el planeta)
     vec3 wt = wind_direction - up * dot(wind_direction, up);
@@ -105,6 +120,8 @@ void fragment() {
     if (!FRONT_FACING) {
         NORMAL = -NORMAL; // malla de doble cara
     }
+    vec3 radial_normal = normalize((VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz);
+    NORMAL = normalize(mix(NORMAL, radial_normal, normal_softening));
 }
 void light() {
     // Iluminación planetaria compartida (ver planet_lighting.gdshaderinc).

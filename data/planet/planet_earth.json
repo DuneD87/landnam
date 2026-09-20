@@ -239,39 +239,39 @@
 			"noise_graph": "hemisphere_sand_grass_graph_path"
 	  	},
 	 	{
-			"name": "grass_patch_generator_green",
+			"name": "grass_far_generator_green",
 			"emit_mode": "EMIT_FROM_FACES",
-			"density": 0.05,
+			"density": 0.6,
 			"lod_density_falloff": 1.0,
 			"min_height": -15,
 			"max_height": 150,
 			"max_slope_degrees": 35,
-			"min_scale": 1.4,
-			"max_scale": 1.4,
+			"min_scale": 0.5,
+			"max_scale": 2.0,
 			"noise_graph": "hemisphere_green_graph_path"
 	  	},
 	 	{
-			"name": "grass_patch_generator_green_sand",
+			"name": "grass_far_generator_green_sand",
 			"emit_mode": "EMIT_FROM_FACES",
-			"density": 0.0006,
+			"density": 0.006,
 			"lod_density_falloff": 1.0,
 			"min_height": -35,
 			"max_height": 150,
 			"max_slope_degrees": 35,
-			"min_scale": 1.4,
-			"max_scale": 1.4,
+			"min_scale": 0.5,
+			"max_scale": 1.5,
 			"noise_graph": "hemisphere_green_sand_graph_path"
 	  	},
 	 	{
-			"name": "grass_patch_generator_sand",
+			"name": "grass_far_generator_sand",
 			"emit_mode": "EMIT_FROM_FACES",
-			"density": 0.02,
+			"density": 0.003,
 			"lod_density_falloff": 1.0,
 			"min_height": -35,
 			"max_height": 150,
 			"max_slope_degrees": 35,
-			"min_scale": 1.4,
-			"max_scale": 1.4,
+			"min_scale": 0.5,
+			"max_scale": 1.5,
 			"noise_graph": "hemisphere_sand_grass_graph_path"
 	  	},
   		{
@@ -468,47 +468,44 @@
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass.tscn",
 			"generator": ["grass_generator_green"],
-			"wind_speed": 0.2, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false
+			"wind_speed": 0.2, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
+			"mesh_lod_distances_m": [40, 95, 180],
+			"grass_lods": {"layer": "near", "fade_width_m": 24.0}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_green_yellow.tscn",
 			"generator": ["grass_generator_green_sand"],
-			"wind_speed": 0.2, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false
+			"wind_speed": 0.2, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
+			"mesh_lod_distances_m": [40, 95, 180],
+			"grass_lods": {"layer": "near", "fade_width_m": 24.0}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_yellow.tscn",
 			"generator": ["grass_generator_sand"],
-			"wind_speed": 0.2, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false
+			"wind_speed": 0.2, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
+			"mesh_lod_distances_m": [40, 95, 180],
+			"grass_lods": {"layer": "near", "fade_width_m": 24.0}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass.tscn",
-			"generator": ["grass_patch_generator_green"],
-			"lod_index": [2, 3], "instance_as_scene": false, "cast_shadow": false,
-			"grass_patch": {
-				"size_m": 1.0, "clump_count": 20, "clump_scale": 1.0, "clump_scale_jitter": 0.5,
-				"tex_size": 512, "alpha_scissor": 0.7,
-				"ground_quad_height": 0.25, "fade_width_m": 20.0, "grass_fade_width_m": 20.0, "seed": 1337
-			}
+			"generator": ["grass_far_generator_green"],
+			"wind_speed": 0.2, "lod_index": [2, 3], "instance_as_scene": false, "cast_shadow": false,
+			"mesh_lod_distances_m": [40, 95, 180],
+			"grass_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 320.0}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_green_yellow.tscn",
-			"generator": ["grass_patch_generator_green_sand"],
-			"lod_index": [2, 3], "instance_as_scene": false, "cast_shadow": false,
-			"grass_patch": {
-				"size_m": 1.0, "clump_count": 16, "clump_scale": 1.0, "clump_scale_jitter": 0.5,
-				"tex_size": 512, "alpha_scissor": 0.25,
-				"ground_quad_height": 0.25, "fade_width_m": 20.0, "grass_fade_width_m": 20.0, "seed": 4242
-			}
+			"generator": ["grass_far_generator_green_sand"],
+			"wind_speed": 0.2, "lod_index": [2, 3], "instance_as_scene": false, "cast_shadow": false,
+			"mesh_lod_distances_m": [40, 95, 180],
+			"grass_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 320.0}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_yellow.tscn",
-			"generator": ["grass_patch_generator_sand"],
-			"lod_index": [2, 3], "instance_as_scene": false, "cast_shadow": false,
-			"grass_patch": {
-				"size_m": 1.0, "clump_count": 12, "clump_scale": 1.0, "clump_scale_jitter": 0.5,
-				"tex_size": 512, "alpha_scissor": 0.25,
-				"ground_quad_height": 0.25, "fade_width_m": 20.0, "grass_fade_width_m": 20.0, "seed": 9001
-			}
+			"generator": ["grass_far_generator_sand"],
+			"wind_speed": 0.2, "lod_index": [2, 3], "instance_as_scene": false, "cast_shadow": false,
+			"mesh_lod_distances_m": [40, 95, 180],
+			"grass_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 320.0}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/mushroom/cave_mushroom_01.tscn",
