@@ -250,6 +250,8 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 	if source_node is MeshInstance3D:
 		result.packed_scene = scene
 		result.effective_mesh = (source_node as MeshInstance3D).mesh
+		if item.has("understory_lods") and source_node.has_method("bake_lods"):
+			result.lod_meshes = source_node.bake_lods()
 		if item.has("material_type"):
 			result.registered_scene = scene_instantiated
 		else:
@@ -485,14 +487,19 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 	# horneado, y su material ya se registra dentro del bake. La mata original solo
 	# sirve de fuente para el horneado, así que deja de registrarse.
 	var patch_cfg: Dictionary = item.get("grass_patch", {})
-	var grass_cfg: Dictionary = item.get("grass_lods", {})
-	if not grass_cfg.is_empty():
+	# El sotobosque trae sus propias mallas; comparte con la hierba solo el relevo
+	# de bandas, material, viento e iluminación.
+	var grass_cfg: Dictionary = item.get("grass_lods", item.get("understory_lods", {}))
+	if item.has("grass_lods"):
 		var source_mesh: Mesh = shared_data.effective_mesh
 		if not _grass_lod_cache.has(source_mesh):
 			_grass_lod_cache[source_mesh] = GrassGeometryLods.build(source_mesh)
 		shared_data.lod_meshes = _grass_lod_cache[source_mesh]
 		if shared_data.lod_meshes.size() != 4:
 			return
+	if item.has("understory_lods") and shared_data.lod_meshes.size() != 4:
+		push_error("El sotobosque necesita cuatro LODs: " + str(item.scene))
+		return
 	if not patch_cfg.is_empty():
 		var card := await _bake_grass_patch(shared_data.effective_mesh, patch_cfg)
 		if card == null:
@@ -559,7 +566,8 @@ func _build_grass_band_meshes(lods: Array, cfg: Dictionary, lod_index: int, wind
 		material.set_shader_parameter("fade_in_end", 0.0)
 	material.set_shader_parameter("fade_start", maxf(fade_end - width, 1.0))
 	material.set_shader_parameter("fade_end", fade_end)
-	material.set_shader_parameter("distant_normal_strength", 0.25)
+	# Cada material decide su suavizado de normales; no imponer el de la hierba
+	# a las hojas y ramas del sotobosque. El shader conserva 0.25 por defecto.
 	item_transparent_materials.append({"shader": material, "wind_speed": wind_speed})
 	var meshes: Array = []
 	for original in lods:

@@ -18,36 +18,40 @@ static func build(source: Mesh) -> Array:
 		return []
 	var ordered: Array = _order_blades(blades, vertices)
 	var material: Material = source.surface_get_material(0)
-	var full := ArrayMesh.new()
-	# Copiar los arrays elimina los LODs automáticos importados, que eliminaban hojas
-	# antes de que el instancer eligiera nuestro LOD y no compensaban su anchura.
-	full.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	full.surface_set_material(0, material)
-	var result: Array = [full]
-	for lod in range(1, 4):
+	# La curva se calcula una vez por hoja y se muestrea igual en todos los LODs.
+	# UV: transversal / semilla. UV2: raíz->punta / marca de geometría refinada.
+	var result: Array = []
+	for lod in 4:
 		var count: int = maxi(blades.size() >> lod, 1)
 		var width: float = [1.0, 1.45, 2.0, 2.8][lod]
+		var segments: int = [5, 3, 2, 1][lod]
 		var output_vertices := PackedVector3Array()
 		var output_normals := PackedVector3Array()
+		var output_uvs := PackedVector2Array()
+		var output_uv2s := PackedVector2Array()
 		var output_indices := PackedInt32Array()
 		for blade_index in count:
-			var blade: Array = ordered[blade_index]
-			if lod == 1:
-				_append_original_blade(blade, vertices, normals, indices, width,
-					output_vertices, output_normals, output_indices)
-			else:
-				_append_blade(blade, vertices, normals, indices, 2 if lod == 2 else 1,
-					width, output_vertices, output_normals, output_indices)
+			_append_curved_blade(ordered[blade_index], vertices, normals, segments,
+				width, _blade_seed(blade_index), output_vertices, output_normals,
+				output_uvs, output_uv2s, output_indices)
 		var output: Array = []
 		output.resize(Mesh.ARRAY_MAX)
 		output[Mesh.ARRAY_VERTEX] = output_vertices
 		output[Mesh.ARRAY_NORMAL] = output_normals
+		output[Mesh.ARRAY_TEX_UV] = output_uvs
+		output[Mesh.ARRAY_TEX_UV2] = output_uv2s
 		output[Mesh.ARRAY_INDEX] = output_indices
 		var mesh := ArrayMesh.new()
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, output)
 		mesh.surface_set_material(0, material)
 		result.append(mesh)
 	return result
+
+
+static func _blade_seed(index: int) -> float:
+	var h: int = ((index + 1) * 2654435761) & 0x7FFFFFFF
+	h = ((h ^ (h >> 13)) * 1274126177) & 0x7FFFFFFF
+	return float((h ^ (h >> 16)) & 0xFFFF) / 65535.0
 
 
 static func _find_blades(vertices: PackedVector3Array, indices: PackedInt32Array) -> Array:
@@ -99,76 +103,55 @@ static func _order_blades(blades: Array, vertices: PackedVector3Array) -> Array:
 	return chosen
 
 
-static func _section(blade: Array, vertices: PackedVector3Array,
-		normals: PackedVector3Array, indices: PackedInt32Array, height: float) -> Array:
-	var points: Array = []
-	for offset in range(0, indices.size(), 3):
-		if not indices[offset] in blade:
-			continue
-		for edge in 3:
-			var a: int = indices[offset + edge]
-			var b: int = indices[offset + (edge + 1) % 3]
-			var dy: float = vertices[b].y - vertices[a].y
-			if absf(dy) < 0.00001:
-				continue
-			var t: float = (height - vertices[a].y) / dy
-			if t >= 0.0 and t <= 1.0:
-				points.append([vertices[a].lerp(vertices[b], t), normals[a].lerp(normals[b], t).normalized()])
-	var pair: Array = []
-	var distance: float = -1.0
-	for a in points:
-		for b in points:
-			var d: float = a[0].distance_squared_to(b[0])
-			if d > distance:
-				distance = d
-				pair = [a, b]
-	return pair
-
-
-static func _append_original_blade(blade: Array, vertices: PackedVector3Array,
-		normals: PackedVector3Array, indices: PackedInt32Array, width: float,
+## Conserva raíces, puntas y reparto del asset, pero reconstruye una cinta curva.
+## La sección se ensancha en el tercio inferior y acaba en una punta fina; las
+## normales siguen la tangente real de la curva en vez de heredar caras planas.
+static func _append_curved_blade(blade: Array, vertices: PackedVector3Array,
+		normals: PackedVector3Array, segments: int, width: float, seed: float,
 		out_vertices: PackedVector3Array, out_normals: PackedVector3Array,
-		out_indices: PackedInt32Array) -> void:
-	var remap: Dictionary = {}
-	for index in blade:
-		var position: Vector3 = vertices[index]
-		var section: Array = _section(blade, vertices, normals, indices, position.y)
-		if section.size() == 2:
-			var center: Vector3 = (section[0][0] + section[1][0]) * 0.5
-			position = center + (position - center) * width
-		remap[index] = out_vertices.size()
-		out_vertices.append(position)
-		out_normals.append(normals[index])
-	for offset in range(0, indices.size(), 3):
-		if remap.has(indices[offset]):
-			for corner in 3:
-				out_indices.append(remap[indices[offset + corner]])
-
-
-static func _append_blade(blade: Array, vertices: PackedVector3Array,
-		normals: PackedVector3Array, indices: PackedInt32Array, segments: int, width: float,
-		out_vertices: PackedVector3Array, out_normals: PackedVector3Array,
+		out_uvs: PackedVector2Array, out_uv2s: PackedVector2Array,
 		out_indices: PackedInt32Array) -> void:
 	var base: int = out_vertices.size()
-	var root_center: Vector3 = (vertices[blade[0]] + vertices[blade[1]]) * 0.5
+	var root: Vector3 = (vertices[blade[0]] + vertices[blade[1]]) * 0.5
 	var tip: Vector3 = vertices[blade.back()]
-	var direction: Vector3 = (vertices[blade[1]] - vertices[blade[0]]).normalized()
-	for segment in segments:
-		var pair: Array
-		if segment == 0:
-			pair = [[vertices[blade[0]], normals[blade[0]]], [vertices[blade[1]], normals[blade[1]]]]
-		else:
-			pair = _section(blade, vertices, normals, indices,
-				lerpf(root_center.y, tip.y, float(segment) / float(segments)))
-		# Las secciones mantienen el mismo lado para no cruzar la tira de triángulos.
-		if (pair[1][0] - pair[0][0]).dot(direction) < 0.0:
-			pair.reverse()
-		var center: Vector3 = (pair[0][0] + pair[1][0]) * 0.5
-		for point in pair:
-			out_vertices.append(center + (point[0] - center) * width)
-			out_normals.append(point[1])
-	out_vertices.append(tip)
-	out_normals.append(normals[blade.back()])
+	var height: float = tip.y - root.y
+	var side: Vector3 = vertices[blade[1]] - vertices[blade[0]]
+	side.y = 0.0
+	var root_width: float = side.length()
+	side = side.normalized()
+	var lean := Vector3(tip.x - root.x, 0.0, tip.z - root.z)
+	# Arranque vertical, arco abierto arriba. Mantiene la altura de la mata.
+	var control_a: Vector3 = root + Vector3.UP * height * 0.60 + lean * 0.06
+	var control_b: Vector3 = tip - lean * 0.40 - Vector3.UP * height * (0.015 + seed * 0.085)
+	var blade_width: float = maxf(root_width * 1.20, height * 0.065)
+	var reference_normal: Vector3 = normals[blade[0]]
+	# La orientación se decide en la raíz y se mantiene en toda la cinta.
+	# Reevaluarla contra la normal importada en cada sección puede invertir la
+	# normal cuando la punta se curva más de 90 grados respecto a esa referencia.
+	var facing: float = -1.0 if (control_a - root).cross(side).dot(reference_normal) < 0.0 else 1.0
+	for segment in segments + 1:
+		var t: float = float(segment) / float(segments)
+		var center: Vector3 = root.bezier_interpolate(control_a, control_b, tip, t)
+		var tangent: Vector3 = root.bezier_derivative(control_a, control_b, tip, t).normalized()
+		# Una torsión pequeña evita que todas las caras de una hoja brillen a la vez.
+		var section_side: Vector3 = side.rotated(Vector3.UP, (seed - 0.5) * 0.42 * t)
+		var normal: Vector3 = tangent.cross(section_side).normalized() * facing
+		if segment == segments:
+			out_vertices.append(tip)
+			out_normals.append(normal)
+			out_uvs.append(Vector2(0.5, seed))
+			out_uv2s.append(Vector2(1.0, 1.0))
+			continue
+		# Ancho uniforme al arrancar, hombro suave y estrechamiento hasta la punta.
+		var profile: float = (1.0 - pow(t, 1.65)) * (0.56 + 0.75 * sin(PI * t))
+		# Un único triángulo conserva área aproximada de la cinta completa.
+		if segments == 1:
+			profile = 1.02
+		for edge in 2:
+			out_vertices.append(center + section_side * (float(edge) - 0.5) * blade_width * width * profile)
+			out_normals.append(normal)
+			out_uvs.append(Vector2(float(edge), seed))
+			out_uv2s.append(Vector2(t, 1.0))
 	for segment in segments:
 		var a: int = base + segment * 2
 		_append_triangle(a, a + 1, a + 2, out_vertices, out_normals, out_indices)
