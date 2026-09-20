@@ -29,6 +29,17 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 		deactivate()
 		return
 	_rng.seed = rng.randi()
+	_configure_visual()
+	_surface_radius = _water.surface_radius(point)
+	_check_timer = _rng.randf_range(0.0, 0.25)
+	_pick_target()
+	var direction := (_water.terrain.to_global(_target_local) - global_position).normalized()
+	global_basis = _swim_basis(direction, (point - _water.center()).normalized())
+	velocity = direction * _speed
+	reset_physics_interpolation()
+
+
+func _configure_visual() -> void:
 	current_type = _rng.randi_range(0, SimpleFishMesh.TYPES.size() - 1) if fish_type < 0 else clampi(fish_type, 0, SimpleFishMesh.TYPES.size() - 1)
 	_speed = _rng.randf_range(0.8, 1.4) * float(SimpleFishMesh.TYPES[current_type].speed)
 	var size := _rng.randf_range(0.75, SimpleFishMesh.MAX_SCALE)
@@ -43,13 +54,6 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	_visual.set_instance_shader_parameter("fish_color", Color.from_hsv(_rng.randf(), _rng.randf_range(0.015, 0.09), _rng.randf_range(0.88, 1.0)))
 	_visual.set_instance_shader_parameter("swim_phase", _rng.randf_range(0.0, TAU))
 	_visual.set_instance_shader_parameter("swim_frequency", _speed * 6.0)
-	_surface_radius = _water.surface_radius(point)
-	_check_timer = _rng.randf_range(0.0, 0.25)
-	_pick_target()
-	var direction := (_water.terrain.to_global(_target_local) - global_position).normalized()
-	global_basis = Basis.looking_at(direction, (point - _water.center()).normalized())
-	velocity = direction * _speed
-	reset_physics_interpolation()
 
 
 func deactivate() -> void:
@@ -84,8 +88,8 @@ func _swim(delta: float) -> void:
 	_check_timer -= delta
 	if _check_timer <= 0.0:
 		_check_timer = 0.25
-		if not _water.is_swimmable(global_position, CLEARANCE):
-			deactivate()
+		if not _in_habitat():
+			_leave_habitat()
 			return
 		_surface_radius = _water.surface_radius(global_position)
 	var target := _water.terrain.to_global(_target_local)
@@ -95,11 +99,11 @@ func _swim(delta: float) -> void:
 	var up := (global_position - _water.center()).normalized()
 	var direction := (target - global_position).normalized()
 	var depth := _surface_radius - global_position.distance_to(_water.center())
-	if depth < 5.0:
+	if depth < _cruise_depth():
 		_surface_radius = _water.surface_radius(global_position)
 		depth = _surface_radius - global_position.distance_to(_water.center())
 		direction = (direction.slide(up) - up * 0.8).normalized()
-	velocity = velocity.lerp(direction * _speed, 1.0 - exp(-delta * 1.8))
+	velocity = _steer(direction, up, delta)
 	# Box sweep and penetration recovery handle normal contact with terrain and hulls.
 	# Never teleport a swimming fish to its destination or force it through the surface.
 	var incoming_velocity := velocity
@@ -112,13 +116,40 @@ func _swim(delta: float) -> void:
 		velocity = (normal + up.cross(normal) * 0.7).normalized() * _speed
 		_target_local = _water.terrain.to_local(global_position + velocity * 5.0)
 		_turn_timer = 1.5
-	if _surface_radius - global_position.distance_to(_water.center()) < CLEARANCE + 0.6:
-		deactivate()
+	if _surface_radius - global_position.distance_to(_water.center()) < _surface_clearance() + 0.6:
+		_leave_habitat()
 		return
 	if velocity.length_squared() > 0.01:
 		var forward := velocity.normalized()
 		if absf(forward.dot(up)) < 0.98:
-			global_basis = global_basis.slerp(Basis.looking_at(forward, up), 1.0 - exp(-delta * 4.0)).orthonormalized()
+			global_basis = global_basis.slerp(_swim_basis(forward, up), 1.0 - exp(-delta * 4.0)).orthonormalized()
+
+
+func _in_habitat() -> bool:
+	return _water.is_swimmable(global_position, impact_radius)
+
+
+## Depth below which the swimmer is steered back down, away from the surface.
+func _cruise_depth() -> float:
+	return maxf(5.0, _surface_clearance() + 2.0)
+
+
+## New velocity towards `direction`. Small fish may dart; large bodies override this.
+func _steer(direction: Vector3, _up: Vector3, delta: float) -> Vector3:
+	return velocity.lerp(direction * _speed, 1.0 - exp(-delta * 1.8))
+
+
+func _surface_clearance() -> float:
+	return impact_radius
+
+
+## The swimmer no longer fits its water. Small fish vanish; large bodies may fade out.
+func _leave_habitat() -> void:
+	deactivate()
+
+
+func _swim_basis(forward: Vector3, up: Vector3) -> Basis:
+	return Basis.looking_at(forward, up)
 
 
 func _pick_target() -> void:

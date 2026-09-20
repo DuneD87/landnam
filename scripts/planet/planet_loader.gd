@@ -165,6 +165,10 @@ var water_ambience: WaterAmbience
 @export var bird_perches_debug: bool = false
 @export var gull_profile: WaterBirdProfile = preload("res://data/fauna/coastal_gulls.tres")
 @export var duck_profile: WaterBirdProfile = preload("res://data/fauna/river_ducks.tres")
+@export var shark_profile: MarineFaunaProfile = preload("res://data/fauna/shark.tres")
+@export var whale_profile: MarineFaunaProfile = preload("res://data/fauna/whale.tres")
+@export var orca_profile: MarineFaunaProfile = preload("res://data/fauna/orca.tres")
+@export var turtle_profile: MarineFaunaProfile = preload("res://data/fauna/turtle.tres")
 
 @export_group("Anti-tiling (de-repetición de texturas)")
 
@@ -555,6 +559,16 @@ func _setup_ambient_fauna() -> void:
 		water_birds.name = "CoastalGulls" if settings == gull_profile else "RiverDucks"
 		water_birds.setup(settings, waterside, players[0])
 		voxel_terrain.add_child(water_birds)
+	for settings in [shark_profile, whale_profile, orca_profile, turtle_profile]:
+		if settings == null:
+			continue
+		var marine := MarineFaunaHabitat.new()
+		marine.settings = settings
+		marine.setup(voxel_terrain, water_sphere, world_map)
+		var animals := AmbientFaunaSpawner.new()
+		animals.name = settings.resource_path.get_file().get_basename().to_pascal_case() + "Population"
+		animals.setup(settings, marine, players[0])
+		voxel_terrain.add_child(animals)
 	if fish_profile == null:
 		return
 	var habitat := WaterFaunaHabitat.new()

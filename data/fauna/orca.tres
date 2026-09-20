@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="MarineFaunaProfile" format=3 uid="uid://cwm0hnqnp41mv"]
+
+[ext_resource type="Script" uid="uid://cmojxvh0wc21j" path="res://scripts/fauna/marine_fauna_profile.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/animals/ambient_orca.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+min_swim_depth = 11.0
+max_swim_depth = 20.0
+vertical_clearance = 8.0
+use_bathymetry = true
+animal_scene = ExtResource("2")
+population = 3
+spawn_min_distance = 40.0
+spawn_radius = 200.0
+recycle_distance = 280.0
+update_interval = 0.5
+attempts_per_update = 3
+activations_per_update = 1
+clearance = 19.5
+min_spacing = 50.0
+view_margin = 5.0

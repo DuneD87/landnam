@@ -39,7 +39,8 @@ antes de consultar colisiones. Los máximos de población se mantienen.
 | Leones | 50–240 m | 65 m | 360 m |
 | Búfalos | 50–300 m | 30 m | 450 m |
 
-`min_spacing` limita nuevas apariciones de la misma población; los
+La fauna marina grande conserva sus radios amplios y separaciones descritos
+más abajo. `min_spacing` limita nuevas apariciones de la misma población; los
 animales pueden acercarse después durante su movimiento normal. La distancia
 de reciclaje mayor evita reemplazos constantes cuando el jugador se mueve.
 Se conservan los filtros de terreno cargado y hábitat, el límite de intentos y
@@ -81,6 +82,144 @@ La caja de colisión se calcula a partir de la malla elegida, incluyendo margen
 para el movimiento de las aletas. Las pruebas comprueban que cada modelo a su
 máxima escala cabe en el radio de seguridad de spawn. Los peces son opacos y
 participan en el efecto submarino existente.
+
+## Tiburones, ballenas, orcas y tortugas
+
+Los planetas con agua añaden cuatro poblaciones independientes. Sus perfiles
+están en `data/fauna/` y se exponen en `PlanetLoader / Ambient Fauna`:
+
+| Perfil | Población máxima cercana | Hábitat | Profundidad inicial |
+| --- | --- | --- | --- |
+| `shark.tres` | 4 | Alta mar | 10–15 m |
+| `whale.tres` | 2 | Alta mar | 12–18 m |
+| `orca.tres` | 3 | Costa y alta mar | 11–20 m |
+| `turtle.tres` | 6 | Costa y alta mar | 4–12 m |
+
+Alta mar empieza a **150 metros del litoral**, más el radio de seguridad del
+animal completo. Se ajusta con `min_offshore_distance`; cero permite también
+la costa. La distancia procede del campo de orilla del mapa planetario, tanto
+en océanos como en mares. No aparecen en lagos, charcas ni tierra. Si falta el
+mapa se espera a que esté listo; tiburones y ballenas necesitan además el campo
+de orilla. Un campo cuyo alcance sea menor que el límite configurado no sirve
+para confirmar alta mar y rechaza esas apariciones.
+
+Las distancias de búsqueda/reciclaje se adaptan a cada tamaño: tiburones
+50–240/330 m, ballenas 70–320/450 m, orcas 40–200/280 m y tortugas 25–110/160 m.
+Cada perfil fija además una separación mínima (`min_spacing`) respecto a los
+individuos activos de su especie: 60 m tiburones, 110 m ballenas, 50 m orcas y
+20 m tortugas, para que no aparezcan amontonados.
+
+El giro depende del tamaño: el rumbo cambia como mucho a velocidad / (radio de
+giro), con un radio de un largo de cuerpo (`TURN_RADIUS_LENGTHS` en
+`AmbientMarineAnimal`). Un giro de 90° lleva unos 41 s a la ballena, 15 s al
+tiburón, 12 s a la orca y 5 s a la tortuga. Los rumbos nuevos se eligen dentro
+de ±72° del actual y no se cambian hasta haber tenido tiempo de alcanzarlos; la
+profundidad se sigue corrigiendo al mismo ritmo para esquivar la superficie.
+
+### Ataques de tiburón a barcos
+
+Un tiburón ataca a cualquier barco (`DynamicGridBody` de tipo `BOAT`) cuyo casco
+se le acerque a menos de `attack_radius` (45 m; con 0 no ataca nunca). Como
+aparecen a 50 m o más, el ataque solo empieza si es el barco quien se acerca.
+
+1. **Carga:** acelera a `charge_speed_factor` (×1.8) y sube hasta la mitad del
+   calado del casco. Si el barco queda de costado dentro de su círculo de giro,
+   sigue recto para ganar distancia y vira después, en vez de orbitarlo.
+2. **Mordisco:** cuando el hocico toca la caja del casco, o su cuerpo choca con
+   él, aplica `apply_damage_at` con `bite_energy` (15 000 J) en un radio de
+   `bite_radius` (1.2 m). Con celdas de 1 m arranca unos 2–3 bloques bajo la
+   línea de flotación y la inundación hace el resto. El casco recibe además un
+   empujón de 0.8 m/s (hasta 20 t de masa).
+3. **Retirada:** se aleja `retreat_distance` (45 m) y vuelve a aguas profundas.
+   Si el barco sigue cerca, repite; si escapa a más de 2.5 × `attack_radius`, se
+   hunde o desaparece, lo deja y descansa 8 s antes de elegir otro.
+
+Mientras ataca, solo se exigen mar y fondo suficiente: puede asomar el lomo y la
+aleta. Su propia embestida no lo mata; solo lo hace un barco que lo embista a
+más de 5 m/s o un cañonazo, igual que antes. Con los valores actuales, el primer
+mordisco llega en unos 30 s y los siguientes cada ~40 s.
+
+Al bucear acompañan la profundidad del jugador. Las reglas de hábitat
+se comprueban también durante el nado y los destinos de tiburones y ballenas
+se mantienen mar adentro. Las comprobaciones de terreno cargado, superficie,
+barcos y colisiones son las mismas que para los peces, con márgenes adecuados
+al tamaño de cada especie. Poner un perfil a `null` desactiva solo esa población.
+
+Cada especie tiene una malla horneada y compartida, con cuerpo continuo de
+secciones interpoladas, normales suaves y aletas curvas con grosor. El tiburón
+tiene cinco branquias por lado, boca y aletas pélvicas; la ballena, pliegues
+ventrales y espiráculo; la orca, manchas integradas en la piel y silla gris; la
+tortuga, caparazón abovedado con placas delimitadas y borde. Los ojos siguen la
+curvatura de la cabeza, con córnea poco abultada, iris discreto y párpado superior.
+Las proporciones y posiciones se ajustan por especie a partir de
+[referencias fotográficas](marine_model_references.md): mandíbula bajo el hocico
+del tiburón, rostro ancho y ojo retrasado en la ballena, frente redondeada y ojo
+separado de la mancha blanca en la orca, y pico romo en la tortuga.
+Las bocas tienen recorridos propios y costuras finas. La mancha blanca de la
+orca tiene un contorno curvo ajustado a la piel. El caparazón tiene pigmentación
+radial en sus placas y las aletas de las tortugas muestran un patrón de escamas.
+El moteado y la rugosidad se hornean en los colores de vértice: el shader no
+calcula ruido por píxel. Las bocas, branquias, cresta del rostro y pliegues se esculpen en la piel;
+las placas del caparazón tienen surcos hundidos. La interpolación de las
+secciones respeta su separación real para suavizar mandíbula, hombros y cola.
+Cada modelo conserva una sola superficie. Los tres animales grandes usan
+39–43 mil triángulos de cerca; la tortuga, unos 24 mil. El horneado genera
+seis niveles de detalle automáticos, hasta unos cientos de triángulos a gran
+distancia. No se genera geometría ni se calcula la simplificación al jugar.
+
+**Tiburones y ballenas tienen escala lineal ×6 y las orcas ×4**, respecto a la
+malla original (unos 30 m el tiburón y 58 m la ballena). Las tortugas mantienen ×1. `SimpleMarineMesh.MODEL_SCALES` controla el tamaño
+y se aplica tanto a la malla como a la caja de colisión y al margen de animación.
+Los perfiles aumentan también profundidad y radio de seguridad; los destinos de
+nado se separan según el tamaño del animal. Un shader anima
+la cola lateralmente en tiburones, verticalmente en cetáceos y las aletas en
+tortugas. La cadencia disminuye con el tamaño, las normales acompañan la
+flexión y los pesos de las aletas mantienen rígido el caparazón. Ballenas,
+orcas y tortugas son fauna ambiental: solo el tiburón tiene `attack_radius`.
+
+`tests/fauna/marine_preview.tscn` permite revisar cada especie con las teclas
+1–4 y comparar las cuatro a escala relativa con 0. Arrastrar el ratón gira la
+vista y la rueda ajusta el zoom. H alterna entre cabeza y cuerpo; P muestra el
+perfil. La etiqueta muestra la escala de cada especie
+y la cámara encuadra automáticamente sus dimensiones.
+Para regenerar las mallas:
+
+```sh
+godot --headless --path . --script res://tools/fauna/bake_marine_meshes.gd
+```
+
+### Aparición de los ejemplares grandes
+
+Tiburones, ballenas y orcas (`use_bathymetry`) son más grandes que la zona que el
+terreno mantiene cargada a detalle completo. Donde los vóxeles bajo el cuerpo no
+están cargados, el fondo se comprueba con el mapa de alturas del planeta: el
+centro y dos anillos de 6 y 12 muestras sobre la huella, con `bathymetry_margin`
+de agua libre bajo el cuerpo. Al aparecer, si los vóxeles están cargados, se
+comprueba además el cilindro exacto, pero solo tras pasar el filtro del mapa: con
+el fondo cerca, ese recorrido cuesta de 2 a 14 ms por ballena. Mientras nadan
+solo se comprueba el mapa (sin margen) y las rocas que no recoge las resuelve su
+caja de colisión. Los destinos de nado se eligen donde el mapa garantiza el
+margen, así que evitan los bajíos. Las muestras más hondas de lo que permite el fondo se elevan en vez de
+descartarse. Tiburones y ballenas dirigen el 75 % de las muestras mar adentro
+según el campo de orilla.
+
+Aparecen con un fundido por tramado de 2,5 s, así que el margen fuera de cámara
+(`view_margin`) puede ser menor que su longitud. Al salir del hábitat se desvanecen
+en 1,5 s en lugar de desaparecer de golpe.
+
+### Coste de las comprobaciones de terreno
+
+Los animales con un radio de seguridad mayor de 2 m leen el SDF del volumen
+completo en bloque. La comprobación usa memoria contigua y resuelve los volúmenes
+uniformes en código nativo, evitando una consulta al terreno por cada vóxel.
+Los volúmenes no uniformes se subdividen por su eje mayor; solo los fragmentos
+de hasta 4.096 vóxeles pasan al recorrido de valores. Así los ejemplares gigantes
+no recorren millones de muestras en GDScript por un pequeño cambio local.
+Se conserva la comprobación previa de que todo el volumen está cargado y se
+examinan todos los valores si el SDF no es uniforme, incluidos obstáculos de
+un solo vóxel. El buffer se reutiliza, pero los datos se leen de nuevo en cada
+consulta para respetar las ediciones del terreno. Las cajas de colisión y los
+barridos contra cascos siguen activos.
 
 ## Barcos e impactos
 

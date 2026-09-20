@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="MarineFaunaProfile" format=3 uid="uid://djqketat17m2l"]
+
+[ext_resource type="Script" uid="uid://cmojxvh0wc21j" path="res://scripts/fauna/marine_fauna_profile.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/animals/ambient_whale.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+min_offshore_distance = 150.0
+min_swim_depth = 12.0
+max_swim_depth = 18.0
+vertical_clearance = 7.7
+use_bathymetry = true
+animal_scene = ExtResource("2")
+population = 2
+spawn_min_distance = 70.0
+spawn_radius = 320.0
+recycle_distance = 450.0
+update_interval = 0.5
+activations_per_update = 1
+clearance = 38.5
+min_spacing = 110.0
+view_margin = 10.0

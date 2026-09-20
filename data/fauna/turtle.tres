@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MarineFaunaProfile" format=3 uid="uid://duownbaigxavx"]
+
+[ext_resource type="Script" uid="uid://cmojxvh0wc21j" path="res://scripts/fauna/marine_fauna_profile.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/animals/ambient_turtle.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+max_swim_depth = 12.0
+vertical_clearance = 0.75
+animal_scene = ExtResource("2")
+population = 6
+spawn_min_distance = 25.0
+spawn_radius = 110.0
+recycle_distance = 160.0
+update_interval = 0.5
+attempts_per_update = 3
+activations_per_update = 1
+clearance = 2.3
+min_spacing = 20.0

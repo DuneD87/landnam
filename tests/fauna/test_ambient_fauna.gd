@@ -6,6 +6,20 @@ class OpenWater extends WaterFaunaHabitat:
 	func terrain_is_clear(_point: Vector3, _clearance: float) -> bool:
 		return true
 
+class OpenSea extends MarineFaunaHabitat:
+	func surface_radius(_point: Vector3) -> float:
+		return 1000.0
+	func habitat_allowed(_point: Vector3) -> bool:
+		return true
+	func bathymetry_is_clear(_point: Vector3, _margin: float) -> bool:
+		return true
+
+class BittenBoat extends DynamicGridBody:
+	var bites: Array[Vector3] = []
+	func apply_damage_at(world_pos: Vector3, _energy: float, _radius_meters: float = 0.0) -> int:
+		bites.append(world_pos)
+		return 1
+
 class GenericHabitat extends AmbientFaunaHabitat:
 	var valid: bool = true
 	var calls: int = 0
@@ -48,6 +62,7 @@ func _run() -> void:
 	await _test_shared_spawn_budget()
 	await _test_water_and_collisions()
 	await _test_loaded_voxel_habitat()
+	await _test_shark_attack()
 	_world.queue_free()
 	await get_tree().process_frame
 	print("FAUNA TESTS: %d failures" % _failures)
@@ -365,3 +380,75 @@ func _test_loaded_voxel_habitat() -> void:
 	terrain.queue_free()
 	await get_tree().process_frame
 	ocean.free()
+
+
+func _test_shark_attack() -> void:
+	var terrain := VoxelLodTerrain.new()
+	_world.add_child(terrain)
+	var sea := OpenSea.new()
+	sea.terrain = terrain
+	sea.settings = load("res://data/fauna/shark.tres")
+	var boat := BittenBoat.new()
+	boat.freeze = true
+	boat.damage_enabled = false
+	boat.collision_layer = 1
+	var collider := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(6, 3, 16)
+	collider.shape = box
+	boat.add_child(collider)
+	boat.position = Vector3(0, 999.5, -200)
+	_world.add_child(boat)
+	boat._aggregate_box = {"pos": Vector3.ZERO, "half": box.size * 0.5}
+	boat._recalc_boxes = false
+	if not boat.is_in_group("dynamic_grid_body"):
+		boat.add_to_group("dynamic_grid_body")
+	var shark: AmbientMarineAnimal = load("res://scenes/animals/ambient_shark.tscn").instantiate()
+	terrain.add_child(shark)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	shark.activate(Vector3(0, 988, 0), sea, rng)
+	shark.set_physics_process(false)
+	shark._set_fade(1.0)
+	shark._fade_step = 0.0
+	shark.collision_layer = shark._solid_layer
+	await get_tree().physics_frame
+	var step := 1.0 / 60.0
+	for _frame in 180:
+		shark._swim(step)
+		await get_tree().physics_frame
+	_check(shark.active and shark._attack == AmbientMarineAnimal.Attack.NONE, "A distant boat is left alone")
+	# The boat comes within the attack radius, beside the shark.
+	var up := shark.global_position.normalized()
+	boat.global_position = shark.global_position + up * (999.5 - shark.global_position.length()) + shark.global_basis.x * 35.0
+	var charged := false
+	var fastest := 0.0
+	var first_bite := -1.0
+	var retreated := false
+	var elapsed := 0.0
+	while elapsed < 150.0 and shark.active and boat.bites.size() < 2:
+		shark._swim(step)
+		await get_tree().physics_frame
+		elapsed += step
+		charged = charged or shark._attack == AmbientMarineAnimal.Attack.CHARGE
+		fastest = maxf(fastest, shark.velocity.length())
+		if first_bite < 0.0 and boat.bites.size() > 0:
+			first_bite = elapsed
+			retreated = shark._attack == AmbientMarineAnimal.Attack.RETREAT
+	print("Shark attack: first bite at %.1f s, %d bites in %.1f s, top speed %.1f m/s" % [first_bite, boat.bites.size(), elapsed, fastest])
+	_check(charged and fastest > float(SimpleMarineMesh.SPEEDS[0]) * 1.2, "A nearby boat triggers a faster charge")
+	_check(first_bite >= 0.0 and retreated, "The shark bites the hull and then swims off")
+	_check(shark.active, "The shark survives its own charges")
+	_check(boat.bites.size() >= 2, "The shark returns for another bite while the boat stays near")
+	_check(boat.bites.all(func(point: Vector3) -> bool: return point.length() < 1000.0),
+		"Bites land below the waterline")
+	# A sunk hull ends the attack; the shark heads back to deep water.
+	boat.global_position = boat.global_position.normalized() * 990.0
+	for _frame in 60:
+		shark._swim(step)
+		await get_tree().physics_frame
+	_check(shark._prey == null and shark._attack != AmbientMarineAnimal.Attack.CHARGE, "A sunk boat is no longer attacked")
+	shark.queue_free()
+	boat.queue_free()
+	terrain.queue_free()
+	await get_tree().process_frame

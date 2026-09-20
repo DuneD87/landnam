@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b0bfdunu53o6p"]
+
+[ext_resource type="Script" uid="uid://vepctm3kb5c4" path="res://tests/fauna/marine_preview.gd" id="1"]
+
+[node name="MarinePreview" type="Node3D" unique_id=1376538297]
+script = ExtResource("1")

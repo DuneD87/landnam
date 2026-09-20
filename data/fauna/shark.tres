@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="MarineFaunaProfile" format=3 uid="uid://bvkwd6dmy4bmm"]
+
+[ext_resource type="Script" uid="uid://cmojxvh0wc21j" path="res://scripts/fauna/marine_fauna_profile.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/animals/ambient_shark.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+min_offshore_distance = 150.0
+min_swim_depth = 10.0
+max_swim_depth = 15.0
+vertical_clearance = 7.9
+use_bathymetry = true
+attack_radius = 45.0
+animal_scene = ExtResource("2")
+population = 4
+spawn_min_distance = 50.0
+spawn_radius = 240.0
+recycle_distance = 330.0
+update_interval = 0.5
+activations_per_update = 1
+clearance = 21.5
+min_spacing = 60.0
+view_margin = 5.0
