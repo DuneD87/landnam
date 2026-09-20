@@ -1,10 +1,15 @@
 # Aves de bosque
 
 `ForestBirds` reutiliza el pool y las reglas de aparición de la fauna ambiental.
-Hay tres modelos procedurales sencillos: gorrión, petirrojo y herrerillo, con
-cuerpo, ojos, pico, patas, cola y alas que baten en vuelo y se pliegan al posarse.
-Cada especie comparte sus mallas entre todas las instancias. El ave mide unos
+Hay tres modelos estilizados: gorrión, petirrojo y herrerillo, con cuerpo continuo,
+plumaje propio, ojos pequeños con párpados, picos con volumen y plumas solapadas
+en alas y cola. Las alas baten en vuelo y se recogen sobre los flancos al posarse.
+Las mallas se hornean fuera del juego y comparten recursos y LOD entre instancias.
+El ave mide unos
 40 cm de alto; su tamaño no aumenta con el árbol.
+
+La construcción, referencias, presupuestos y galería interactiva de las cinco
+aves se describen en [bird_models.md](bird_models.md).
 
 ## Ramas e instancing
 

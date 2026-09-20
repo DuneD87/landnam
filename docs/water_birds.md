@@ -3,8 +3,12 @@
 `PlanetLoader` crea dos poblaciones independientes cerca del jugador cuando el
 planeta tiene océano. Comparten el pool de fauna y el comportamiento de vuelo de
 las aves del bosque mediante `AmbientBirdHabitat`; `WaterBirdHabitat` sustituye
-las ramas por puntos sobre el agua. Los modelos procedurales tienen siluetas,
-colores, envergaduras y aleteos distintos; reutilizan mallas por especie.
+las ramas por puntos sobre el agua. Los modelos horneados tienen siluetas,
+colores, envergaduras y aleteos distintos; reutilizan mallas y LOD por especie.
+La gaviota tiene pico con volumen y marca rojiza, y plumas oscuras con puntas
+claras; el pato tiene pico aplanado, collar, franjas azules en las alas y cola
+curvada. Ambos conservan patas palmeadas. La galería y el proceso de construcción
+se describen en [bird_models.md](bird_models.md).
 
 ## Configuración
 
