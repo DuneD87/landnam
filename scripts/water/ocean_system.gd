@@ -43,6 +43,7 @@ var planet: Planet
 var _last_sun_dir := Vector3.INF
 var _stats_accum := 0.0
 var _waterline_sampler: WaterHeightSampler
+var _dust: UnderwaterDust
 var _water_marker: MeshInstance3D
 var _swim_marker: MeshInstance3D
 ## Mapa del planeta, que llega cuando termina de hornearse. Sin él la línea de flotación de CPU no
@@ -72,6 +73,20 @@ func load_watersphere(_planet: Planet):
 		if use_gpu_compute 
 		else QuadTreeMeshManager.ComputeMode.CPU
 	)
+	_setup_dust()
+
+
+## Polvo en suspensión bajo el agua. Lee la misma línea de flotación que la niebla, así
+## que aparece exactamente donde la cámara se sumerge.
+func _setup_dust() -> void:
+	if Engine.is_editor_hint() or _dust != null:
+		return
+	_dust = UnderwaterDust.new()
+	_dust.name = "UnderwaterDust"
+	add_child(_dust)
+	_dust.camera = camera
+	_dust.water_material = mesh_manager.default_material as ShaderMaterial
+	_dust.optics = underwater
 
 
 func _setup_managers():

@@ -13,5 +13,6 @@ wireframe_material = ExtResource("3_pcij0")
 
 [node name="Underwater" type="Node3D" parent="." unique_id=1758110060]
 script = ExtResource("4_68i28")
+surface_saturation = 1.0
 surface_projection_distance = 8.0
 debug_scale = 60.0
