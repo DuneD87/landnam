@@ -7,7 +7,8 @@
 script = ExtResource("1")
 animal_scene = ExtResource("2")
 population = 28
-spawn_min_distance = 12.0
-spawn_radius = 40.0
-recycle_distance = 60.0
+spawn_min_distance = 18.0
+spawn_radius = 65.0
+recycle_distance = 100.0
 clearance = 0.95
+min_spacing = 3.0

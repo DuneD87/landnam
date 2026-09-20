@@ -36,6 +36,9 @@ anclajes porque tanto los destinos como los árboles dependen del terreno.
 - El perfil `data/fauna/forest_birds.tres` configura población, intervalo de
   aparición y distancia de reciclaje. `population` es el máximo de aves activas;
   `attempts_per_update` controla los intentos de aparición.
+  Las 64 plazas se distribuyen entre 18 y 60 m del jugador, con al menos 7 m
+  entre nuevas apariciones y reciclaje desde 100 m. El muestreo reparte por
+  superficie para evitar concentrarlas en el borde interior del anillo.
 - En el mismo recurso, el grupo **Flight** permite ajustar `flight_speed_min`
   y `flight_speed_max` en metros por segundo. Los valores iniciales son **8–12 m/s**.
   Cada ave elige una velocidad del intervalo al aparecer o reciclarse; para una

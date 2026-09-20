@@ -15,8 +15,11 @@ Los perfiles heredan de `GroundFaunaProfile`: se pueden ajustar población,
 biomas, alturas, distancias y frecuencia de aparición. `SmallGroundFaunaProfile`
 añade especie, velocidades, distancia de paseo y pendiente máxima. Los tres
 perfiles iniciales habitan las bandas templadas 1 y 3, entre -49,5 y 240 m sobre
-el radio nominal del planeta. Aparecen fuera de cámara entre 8 y 35 m, con hasta
-dos activaciones cada 0,35 s, y se reciclan a partir de 55 m según visibilidad.
+el radio nominal del planeta. Aparecen fuera de cámara, con hasta dos
+activaciones cada 0,35 s. Los conejos se reparten entre 20–70 m del jugador,
+los ratones entre 18–60 m y los zorros entre 30–100 m, con separaciones mínimas
+al aparecer de 10, 7 y 25 m respectivamente. El reciclaje empieza a 110, 95 y
+150 m según visibilidad. Se conservan las poblaciones máximas.
 
 `SimpleSmallAnimalModel` carga una malla horneada por especie desde
 `data/fauna/meshes/`. El cuerpo, cuello, cabeza, orejas, patas y cola forman una

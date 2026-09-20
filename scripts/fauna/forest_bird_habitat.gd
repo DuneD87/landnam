@@ -121,7 +121,7 @@ func sample_spawn(anchor: Vector3, profile: AmbientFaunaProfile, rng: RandomNumb
 	var right := up.cross(reference).normalized()
 	var forward := right.cross(up).normalized()
 	var angle := rng.randf_range(0.0, TAU)
-	var distance := rng.randf_range(maxf(0.0, profile.spawn_min_distance), profile.spawn_radius)
+	var distance := profile.sample_spawn_distance(rng)
 	# Near the player's height, with room to flap. Preserve the full 3D radius
 	# rather than adding altitude after sampling the horizontal distance.
 	var height := rng.randf_range(0.8, 2.5) * minf(1.0, distance / 3.0)

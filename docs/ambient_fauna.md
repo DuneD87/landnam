@@ -11,10 +11,44 @@ Su funcionamiento y ajustes se describen en [forest_birds.md](forest_birds.md).
 
 ## Ajustes iniciales
 
-`data/fauna/coastal_fish.tres` configura 28 peces, búsqueda entre 12 y 40 metros
-del jugador, reciclaje a partir de 60 metros y un máximo de dos activaciones
+`data/fauna/coastal_fish.tres` configura 28 peces, búsqueda entre 18 y 65 metros
+del jugador, reciclaje a partir de 100 metros y un máximo de dos activaciones
 cada 0,25 segundos. Las apariciones se buscan fuera de cámara. Los peces muy
 lejanos se retiran incluso si siguen dentro del encuadre para acotar el coste.
+
+### Distribución de las apariciones
+
+Todos los hábitats muestrean el radio con probabilidad uniforme por superficie
+del anillo, mediante `AmbientFaunaProfile.sample_spawn_distance()`. Así las
+bandas exteriores, que tienen más superficie, reciben más ejemplares. El spawner
+comprueba ambas distancias sobre la posición final, después de la proyección del
+hábitat, y rechaza posiciones demasiado próximas a un ejemplar de esa población
+antes de consultar colisiones. Los máximos de población se mantienen.
+
+| Población | Aparición desde el jugador | Separación al aparecer | Reciclaje desde |
+| --- | --- | --- | --- |
+| Aves del bosque | 18–60 m | 7 m | 100 m |
+| Gaviotas | 25–100 m | 22 m | 150 m |
+| Patos | 20–80 m | 18 m | 120 m |
+| Peces | 18–65 m | 3 m | 100 m |
+| Conejos | 20–70 m | 10 m | 110 m |
+| Ratones | 18–60 m | 7 m | 95 m |
+| Zorros | 30–100 m | 25 m | 150 m |
+| Ciervos | 30–120 m | 22 m | 180 m |
+| Osos | 50–180 m | 55 m | 270 m |
+| Leones | 50–240 m | 65 m | 360 m |
+| Búfalos | 50–300 m | 30 m | 450 m |
+
+`min_spacing` limita nuevas apariciones de la misma población; los
+animales pueden acercarse después durante su movimiento normal. La distancia
+de reciclaje mayor evita reemplazos constantes cuando el jugador se mueve.
+Se conservan los filtros de terreno cargado y hábitat, el límite de intentos y
+el presupuesto compartido de 2 ms: un área sin espacio puede quedar por debajo
+del máximo de población.
+
+`tests/fauna/test_fauna_distribution.tscn` comprueba el reparto por superficie,
+la separación y cobertura con tres semillas, el origen flotante y el rechazo
+de posiciones proyectadas fuera del intervalo permitido.
 
 El hábitat acuático busca entre 4 y 16 metros bajo la superficie; al bucear,
 acompaña la profundidad del jugador. Consulta las olas y el SDF del terreno,

@@ -85,9 +85,12 @@ func update_population(deadline_usec: int = 0) -> void:
 		if not candidate is Vector3:
 			continue
 		var point: Vector3 = candidate
-		if point.distance_to(observer.global_position) > profile.spawn_radius:
+		# Habitats can project onto terrain or water after sampling. Enforce both
+		# bounds on the final position as well, before expensive collision checks.
+		var spawn_distance := point.distance_to(observer.global_position)
+		if spawn_distance < maxf(0.0, profile.spawn_min_distance) or spawn_distance > profile.spawn_radius:
 			continue
-		if _in_view(point):
+		if _in_view(point) or _crowded(point):
 			continue
 		var check_start := Time.get_ticks_usec()
 		var valid := habitat.is_spawn_valid(point, profile.clearance)
@@ -106,6 +109,15 @@ func update_population(deadline_usec: int = 0) -> void:
 		DebugStats.report_cost(&"fauna:spawner/alta", Time.get_ticks_usec() - activation_start)
 		count += 1
 		activated += 1
+
+
+func _crowded(point: Vector3) -> bool:
+	if profile.min_spacing <= 0.0:
+		return false
+	for animal in _pool:
+		if animal.in_play() and animal.global_position.distance_squared_to(point) < profile.min_spacing ** 2:
+			return true
+	return false
 
 
 func _get_available_animal() -> AmbientAnimal:
@@ -129,7 +141,8 @@ func _in_view(point: Vector3) -> bool:
 	if camera == null:
 		return false
 	# Include a margin so a tail cannot visibly pop in at the edge of the screen.
+	var margin := profile.view_margin if profile.view_margin >= 0.0 else profile.clearance
 	for plane in camera.get_frustum():
-		if plane.distance_to(point) > profile.clearance:
+		if plane.distance_to(point) > margin:
 			return false
 	return true

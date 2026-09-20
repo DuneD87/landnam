@@ -45,7 +45,7 @@ func sample_spawn(anchor: Vector3, profile: AmbientFaunaProfile,
 	var right := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
 	var forward := up.cross(right)
 	var angle := rng.randf_range(0.0, TAU)
-	var distance := sqrt(rng.randf_range(profile.spawn_min_distance ** 2, profile.spawn_radius ** 2))
+	var distance := profile.sample_spawn_distance(rng)
 	var direction := (anchor - center() + (right * cos(angle) + forward * sin(angle)) * distance).normalized()
 	var point := center() + direction * ocean.radius
 	# Near the surface populate the water below; when diving follow the observer's depth.

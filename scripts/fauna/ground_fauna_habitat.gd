@@ -53,7 +53,7 @@ func sample_spawn(anchor: Vector3, profile: AmbientFaunaProfile,
 	var forward := up.cross(right)
 	var angle := rng.randf_range(0.0, TAU)
 	# Raíz del radio para repartir por área, o se apelotonan cerca del observador.
-	var distance := sqrt(rng.randf_range(profile.spawn_min_distance ** 2, profile.spawn_radius ** 2))
+	var distance := profile.sample_spawn_distance(rng)
 	var direction := (anchor + (right * cos(angle) + forward * sin(angle)) * distance - origin).normalized()
 	if not _in_biome(direction, settings):
 		_reject(&"bioma")

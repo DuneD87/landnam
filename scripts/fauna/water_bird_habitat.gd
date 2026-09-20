@@ -102,7 +102,7 @@ func sample_spawn(anchor: Vector3, profile: AmbientFaunaProfile, rng: RandomNumb
 	var right := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
 	var forward := right.cross(up)
 	var angle := rng.randf_range(0.0, TAU)
-	var radius := rng.randf_range(maxf(0.0, profile.spawn_min_distance), maxf(profile.spawn_min_distance, profile.spawn_radius))
+	var radius := profile.sample_spawn_distance(rng)
 	var candidate := anchor + (right * cos(angle) + forward * sin(angle)) * radius
 	var height := rng.randf_range(minf(settings.flight_height_min, settings.flight_height_max), maxf(settings.flight_height_min, settings.flight_height_max))
 	var water := surface_point(candidate)

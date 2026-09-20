@@ -12,8 +12,10 @@ Editar los recursos `.tres`, también desde el inspector de Godot:
 
 | Ajuste | `data/fauna/coastal_gulls.tres` | `data/fauna/river_ducks.tres` |
 | --- | --- | --- |
-| `population` | 16 | 12 |
-| `spawn_min_distance` / `spawn_radius` | 8–45 m | 8–35 m |
+| `population` | 6 | 4 |
+| `spawn_min_distance` / `spawn_radius` | 25–100 m | 20–80 m |
+| `min_spacing` | 22 m | 18 m |
+| `recycle_distance` | 150 m | 120 m |
 | `max_offshore_distance` | 250 m desde tierra | 80 m desde tierra |
 | `coast_inland_distance` | 50 m hacia tierra | 30 m hacia tierra |
 | `river_bank_distance` | 40 m desde el borde del cauce | 30 m desde el borde del cauce |
