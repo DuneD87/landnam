@@ -5,6 +5,7 @@ class_name Planet extends Node3D
 ## (VoxelInstancer) con sus colisiones, y parchea el VoxelGraph (radio, ores) desde datos JSON.
 
 const config = preload("res://scripts/config.gd")
+const GrassPatchMipmaps = preload("res://scripts/planet/grass_patch_mipmaps.gd")
 const GrassGeometryLods = preload("res://scripts/planet/grass_geometry_lods.gd")
 var _grass_lod_cache: Dictionary = {}
 @export_group("Terrain Settings")
@@ -844,8 +845,9 @@ func _bake_grass_patch(source_mesh: Mesh, cfg: Dictionary) -> Mesh:
 
 	side_img = _fill_transparent_rgb(side_img)
 	top_img = _fill_transparent_rgb(top_img)
-	side_img.generate_mipmaps()
-	top_img.generate_mipmaps()
+	var alpha_threshold: float = float(cfg.get("alpha_scissor", 0.25))
+	side_img = GrassPatchMipmaps.generate(side_img, alpha_threshold)
+	top_img = GrassPatchMipmaps.generate(top_img, alpha_threshold)
 	# Texture2DArray y no un atlas en una sola imagen: con atlas los mips mezclan las
 	# dos vistas entre sí y el aspa acaba con manchas de la cenital.
 	var atlas := Texture2DArray.new()

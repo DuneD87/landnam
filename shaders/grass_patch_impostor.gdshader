@@ -28,11 +28,11 @@
 //  item_transparent_materials). NO renombrar.
 // =============================================================================
 shader_type spatial;
-render_mode cull_disabled, depth_draw_opaque, diffuse_burley;
+render_mode cull_disabled, depth_draw_opaque, diffuse_burley, alpha_to_coverage;
 
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
 
-uniform sampler2DArray patch_atlas : source_color, filter_linear_mipmap;
+uniform sampler2DArray patch_atlas : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform float alpha_scissor_threshold : hint_range(0.0, 1.0, 0.01) = 0.25;
 
 // Aparición por distancia: por debajo de fade_start la tarjeta no existe.
@@ -93,10 +93,16 @@ void vertex() {
 
 void fragment() {
 	vec4 tex = texture(patch_atlas, vec3(UV, atlas_layer));
-	// Los modos 2 y 3 quieren ver el quad entero, así que se saltan el recorte.
-	if (tex.a < alpha_scissor_threshold && debug_mode < 2) {
-		discard;
-	}
+	// Recorte nativo: con MSAA suaviza la silueta por cobertura; sin MSAA sigue
+	// recortando el fondo. No descartar antes los píxeles que el MSAA necesita.
+	ALPHA = debug_mode >= 2 ? 1.0 : tex.a;
+	ALPHA_SCISSOR_THRESHOLD = alpha_scissor_threshold;
+	// Godot suma EDGE al umbral de recorte. 0 mantiene el borde en el mismo
+	// alfa con el que se preservó la cobertura, sin erosionar otra vez los mips.
+	ALPHA_ANTIALIASING_EDGE = 0.0;
+	// Los mips ya conservan cobertura al hornearse. Coordenadas normalizadas
+	// evitan aplicar además el refuerzo de alfa por mip del antialiasing de Godot.
+	ALPHA_TEXTURE_COORDINATE = UV;
 
 	vec3 debug_col = vec3(0.0);
 	if (debug_mode == 1) {
