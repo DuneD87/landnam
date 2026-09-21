@@ -517,24 +517,9 @@ func _setup_ground_fauna(planet_parser: PlanetParser) -> void:
 			spawner.name = profile_path.get_file().get_basename().to_pascal_case()
 		spawner.setup(settings, habitat, players[0])
 		voxel_terrain.add_child(spawner)
-		ResourceLoader.load_threaded_request(settings.scene_path)
-		_resolve_animal_scene(settings, settings.scene_path)
-
-
-## Deja en el perfil la escena del animal cuando termina su carga en hilo. Leerla cuesta decenas
-## de ms en caliente y segundos en frío; el spawner no puebla mientras animal_scene siga vacía.
-func _resolve_animal_scene(settings: GroundFaunaProfile, path: String) -> void:
-	while is_inside_tree():
-		var status := ResourceLoader.load_threaded_get_status(path)
-		if status == ResourceLoader.THREAD_LOAD_LOADED:
-			settings.animal_scene = ResourceLoader.load_threaded_get(path) as PackedScene
-			if settings.animal_scene == null:
-				push_error("GroundFauna: '%s' no es una PackedScene" % path)
-			return
-		if status != ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-			push_error("GroundFauna: no se puede cargar la escena '%s'" % path)
-			return
-		await get_tree().process_frame
+		settings.animal_scene = load(settings.scene_path) as PackedScene
+		if settings.animal_scene == null:
+			push_error("GroundFauna: '%s' no es una PackedScene" % settings.scene_path)
 
 
 func _setup_ambient_fauna() -> void:
