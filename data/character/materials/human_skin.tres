@@ -1,0 +1,10 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/character/human_skin.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" path="res://textures/character/human/skin/mask_lips.jpg" id="2_lips"]
+[ext_resource type="Texture2D" path="res://textures/character/human/skin/mask_eyelids.jpg" id="3_lids"]
+
+[resource]
+shader = ExtResource("1_shader")
+shader_parameter/lips_mask = ExtResource("2_lips")
+shader_parameter/eyelids_mask = ExtResource("3_lids")

@@ -9,6 +9,9 @@ enum State {
 	MENU,
 	CINEMATIC,
 	PLAYING,
+	## Pantalla de creación de personaje, entre "Start Game" y la cinemática. Va al final
+	## para no cambiar el valor de los estados que ya hay guardados.
+	CHARACTER_CREATION,
 }
 
 const SAVEABLE_GROUP: String = "saveable"
@@ -21,6 +24,9 @@ const PLAYER_ENTITY_ID: String = "player"
 
 var current_state: State = State.MENU
 var player: CharacterBody3D
+## Personaje de la partida: lo rellena la creación de personaje y lo restaura el jugador al
+## cargar. Null en partidas anteriores a la creación de personaje.
+var character: CharacterData
 
 
 func _ready() -> void:
@@ -31,9 +37,24 @@ func register_player(p: CharacterBody3D) -> void:
 	player = p
 
 
-func start_game() -> void:
+func begin_character_creation() -> void:
 	if current_state != State.MENU:
 		return
+	_change_state(State.CHARACTER_CREATION)
+
+
+func cancel_character_creation() -> void:
+	if current_state != State.CHARACTER_CREATION:
+		return
+	_change_state(State.MENU)
+
+
+## Arranca la partida desde el menú o desde la creación, con el personaje creado si lo hay.
+func start_game(new_character: CharacterData = null) -> void:
+	if current_state != State.MENU and current_state != State.CHARACTER_CREATION:
+		return
+	if new_character != null:
+		character = new_character
 	_change_state(State.CINEMATIC)
 
 

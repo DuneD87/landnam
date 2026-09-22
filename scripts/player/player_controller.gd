@@ -50,6 +50,8 @@ var grid_manipulator_menu: GridManipulatorMenu
 var world_map_ui: WorldMapUI
 var blueprint_placer: BlueprintPlacer
 var debug_stats: DebugStats
+## Aplica la apariencia de GameManager.character al PlayerModel (ver CharacterAppearanceRig).
+var appearance_rig: CharacterAppearanceRig
 
 @export var main_menu: Control
 @export var spawn_point: Marker3D
@@ -431,6 +433,11 @@ func _ready():
 	# El cuerpo del jugador no pasa por el equipamiento: se registra aquí para que también
 	# reciba el sol si su malla usa un material planetario.
 	_register_worn_node(player_model)
+	appearance_rig = CharacterAppearanceRig.new()
+	appearance_rig.name = "AppearanceRig"
+	player_model.add_child(appearance_rig)
+	# The body comes from the rig; until a character is created or loaded it is the default one.
+	appearance_rig.apply(GameManager.character.appearance if GameManager.character else CharacterAppearance.new())
 	var btnSave := main_menu.find_child("btnSaveGame")
 	btnSave.visible = false
 	# Si hay partida guardada, el SpawnPoint se adelanta a la posición guardada del jugador antes de
@@ -494,6 +501,7 @@ func get_save_data() -> Dictionary:
 		},
 		"hotbar": hotbar.get_save_data(),
 		"hotbar_selected": hotbar.selected_index,
+		"character": GameManager.character.to_dict() if GameManager.character else {},
 	}
 
 	
@@ -512,6 +520,11 @@ func restore_save_data(save: Dictionary) -> void:
 	camera_controller.camera_distance = save.camera.distance
 	camera_controller.update_camera_transform()
 	
+	var character_data: Variant = save.get("character")
+	if character_data is Dictionary and not character_data.is_empty():
+		GameManager.character = CharacterData.from_dict(character_data)
+		appearance_rig.apply(GameManager.character.appearance)
+
 	free_flight_enabled = save.game_state.free_flight
 	input_enabled = save.game_state.input_enabled
 	current_water_time = save.game_state.get("current_water_time", 0.0)
@@ -654,6 +667,8 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 			btnStartGame.visible = true
 		GameManager.State.CINEMATIC:
 			input_enabled = false
+			if GameManager.character:
+				appearance_rig.apply(GameManager.character.appearance)
 			_play_cinematic()
 		GameManager.State.PLAYING:
 			var btnSave := main_menu.find_child("btnSaveGame")
@@ -765,6 +780,9 @@ func is_mouse_captured() -> bool:
 	return Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
 	
 func _input(event):
+	# La pantalla de creación de personaje gestiona su propio Escape.
+	if GameManager.current_state == GameManager.State.CHARACTER_CREATION:
+		return
 	if Input.is_action_just_pressed("ui_cancel"):
 		if blueprint_placer and blueprint_placer.is_active():
 			blueprint_placer.cancel()

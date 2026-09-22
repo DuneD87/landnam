@@ -50,10 +50,26 @@ func fade_out(duration: float = fade_duration) -> void:
 	tween.tween_callback(func(): visible = false)
 
 
+## "Start Game" pasa por la creación de personaje; la partida arranca al confirmarla.
 func _on_start_pressed() -> void:
 	fade_out()
 	await get_tree().create_timer(fade_duration).timeout
-	GameManager.start_game()
+	var screen := CharacterCreationScreen.new()
+	screen.finished.connect(_on_character_created.bind(screen))
+	screen.cancelled.connect(_on_character_creation_cancelled.bind(screen))
+	get_parent().add_child(screen)
+	GameManager.begin_character_creation()
+
+
+func _on_character_created(character: CharacterData, screen: CharacterCreationScreen) -> void:
+	screen.queue_free()
+	GameManager.start_game(character)
+
+
+func _on_character_creation_cancelled(screen: CharacterCreationScreen) -> void:
+	screen.queue_free()
+	GameManager.cancel_character_creation()
+	fade_in()
 
 
 func _on_quit_pressed() -> void:
@@ -92,7 +108,7 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 				_save_button.visible = false
 			if _load_button:
 				_load_button.visible = GameManager.has_save(GameManager.MAIN_SLOT)
-		GameManager.State.CINEMATIC:
+		GameManager.State.CINEMATIC, GameManager.State.CHARACTER_CREATION:
 			visible = false
 		GameManager.State.PLAYING:
 			visible = false
