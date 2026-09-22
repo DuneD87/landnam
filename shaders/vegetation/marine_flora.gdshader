@@ -47,7 +47,10 @@ void vertex() {
 
 void fragment() {
 	// Los colores se hornean como muestras sRGB, igual que en la fauna marina.
-	vec3 srgb = COLOR.rgb;
+	// Con MSAA el color se interpola en el centro del píxel aunque caiga fuera del
+	// triángulo, y en las puntas finas la extrapolación lo saca de [0, 1]: pow() de un
+	// negativo da NaN, y el mip borroso de la refracción del agua lo esparce en manchas.
+	vec3 srgb = clamp(COLOR.rgb, 0.0, 1.0);
 	ALBEDO = mix(srgb / 12.92, pow((srgb + 0.055) / 1.055, vec3(2.4)), step(0.04045, srgb));
 	// Tinte y claridad propios de la planta: una pradera entera del mismo verde canta.
 	ALBEDO *= mix(tint_cool, tint_warm, instance_tone);

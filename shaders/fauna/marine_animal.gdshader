@@ -40,8 +40,10 @@ void fragment() {
 	}
 	// Mottling, scute pigments and wet-eye roughness are baked in vertex colors.
 	// The baker picks sRGB swatches; decode them so black orcas stay black.
-	vec3 srgb = COLOR.rgb;
+	// MSAA extrapolates the color past thin fins; clamp it so pow() never sees a
+	// negative and returns NaN.
+	vec3 srgb = clamp(COLOR.rgb, 0.0, 1.0);
+	ROUGHNESS = clamp(COLOR.a, 0.0, 1.0);
 	ALBEDO = mix(srgb / 12.92, pow((srgb + 0.055) / 1.055, vec3(2.4)), step(0.04045, srgb));
-	ROUGHNESS = COLOR.a;
 	SPECULAR = 0.45;
 }
