@@ -35,8 +35,39 @@ comparten un marco por punto para curvarse sin aristas.
 Los colores de vértice se eligen como muestras sRGB y el shader los decodifica
 a lineal; sin esa conversión la orca se veía gris pizarra y la tortuga pálida.
 
+Cada vértice lleva dos muestras de color (`COLOR` y `CUSTOM0`) y una distancia
+con signo en `UV2.x`; el shader muestra la segunda donde la distancia es
+positiva, con un borde antialiasado de un píxel. La distancia se interpola
+linealmente, así que los contornos se mantienen nítidos a cualquier distancia en
+lugar de difuminarse sobre la rejilla del cuerpo:
+
+- **Tiburón blanco**: línea de contrasombreado nítida e irregular, justo sobre la
+  boca en la cabeza, baja en branquias y pectorales, alta en el flanco y
+  descendiendo hacia el pedúnculo. La boca se define por altura absoluta: vista
+  de frente es un arco y de perfil desciende sin sonrisa. Ojo negro mayor,
+  hocico cónico sobre la mandíbula, lomo recto, pectorales largas inclinadas
+  hacia abajo con punta negra por debajo y cinco ranuras branquiales como
+  tubos finos en su pliegue. Piel más mate que la de los cetáceos.
+- **Orca**: vientre blanco que se estrecha entre las aletas, lóbulo del flanco
+  que sube hacia atrás tras la dorsal (unión suave, sin esquinas) y silla gris
+  clara tras la dorsal.
+
+El moteado de la **ballena azul** no tiene bordes definidos y sigue horneado en
+el color: manchas amplias y motas finas de bajo contraste. Su cuerpo es más
+esbelto (longitud ≈ 6 veces el grosor), con cabeza ancha y plana y pliegues
+ventrales hasta el ombligo.
+
+El caparazón de la **tortuga verde** sigue la disposición real de escudos: cinco
+vertebrales, cuatro costales por lado y un anillo de marginales. Cada escudo es
+la celda de Voronoi de su semilla, teselada desde su centro de crecimiento hasta
+sus costuras, que ambos vecinos comparten exactamente; así las costuras son
+nítidas, cada placa se abomba ligeramente y las vetas ámbar irradian desde su
+centro. Cabeza y aletas llevan escamas oscuras con borde amarillo pálido, y el
+borde de salida de las aletas es claro. Las aletas traseras baten con el 40 %
+de la amplitud de las delanteras.
+
 El horneado concentra más secciones en las cabezas y conserva una sola
-superficie por animal y seis LOD automáticos. No añade nodos ni colisiones.
+superficie por animal y cinco o seis LOD automáticos. No añade nodos ni colisiones.
 Los tamaños del juego se siguen controlando en `SimpleMarineMesh`.
 
 Para revisar las proporciones, ejecutar `tests/fauna/marine_preview.tscn`:
