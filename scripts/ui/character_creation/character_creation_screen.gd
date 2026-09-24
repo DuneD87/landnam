@@ -155,7 +155,7 @@ func _build_footer() -> void:
 	view.offset_left = _px(876)
 	view.offset_bottom = -_px(52)
 	var hint := Label.new()
-	hint.text = "Arrastra para girar · Rueda para acercar"
+	hint.text = "Clic izquierdo: girar · Clic derecho: subir y bajar · Rueda: acercar"
 	hint.theme_type_variation = "HintLabel"
 	hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	view.add_child(hint)

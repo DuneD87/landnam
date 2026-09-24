@@ -2,7 +2,8 @@ extends Node
 
 ## Runs the character creation screen on its own and prints the resulting
 ## character. With `-- --capture` it goes through a few states (default,
-## female with long hair, face close-up, random) saving screenshots under
+## female with long hair, face close-up, random, camera moved with the mouse)
+## saving screenshots under
 ## build/character/creation/ and quits. Needs a window.
 
 var _screen: CharacterCreationScreen
@@ -43,11 +44,49 @@ func _capture() -> void:
 	appearance.randomize_values(rng)
 	step._select_category(AppearanceCatalog.categories()[0])
 	await _shot("05_male_random", 1.0)
-	appearance.set_value(AppearanceCatalog.HAIR_STYLE, &"ponytail01")
+	appearance.set_value(AppearanceCatalog.HAIR_STYLE, &"topknot")
 	appearance.set_value(&"skin_color", Color("7f5236"))
 	_screen.preview.focus(&"head")
 	await _shot("06_ponytail", 1.0)
+	# The camera, through real mouse input: zoom towards the chest, move the
+	# view down to the hands, then orbit to look from above.
+	_screen.preview.focus(&"body")
+	await _shot("07_body", 1.0)
+	var size := get_viewport().get_visible_rect().size
+	var chest := Vector2(size.x * 0.62, size.y * 0.36)
+	for i in 8:
+		_click(chest, MOUSE_BUTTON_WHEEL_UP, true)
+		_click(chest, MOUSE_BUTTON_WHEEL_UP, false)
+	await _shot("08_zoom_chest")
+	_drag(chest, MOUSE_BUTTON_RIGHT, Vector2(0, -size.y * 0.3))
+	await _shot("09_pan_down")
+	_drag(chest, MOUSE_BUTTON_LEFT, Vector2(size.x * 0.1, size.y * 0.15))
+	await _shot("10_orbit")
 	get_tree().quit()
+
+
+func _click(at: Vector2, button: MouseButton, pressed: bool) -> void:
+	var event := InputEventMouseButton.new()
+	event.position = at
+	event.global_position = at
+	event.button_index = button
+	event.pressed = pressed
+	event.factor = 1.0
+	get_viewport().push_input(event)
+
+
+## Holds `button` at `from` and moves the mouse by `by` in small steps.
+func _drag(from: Vector2, button: MouseButton, by: Vector2) -> void:
+	_click(from, button, true)
+	var steps := 20
+	for i in steps:
+		var event := InputEventMouseMotion.new()
+		event.position = from + by * (i + 1) / steps
+		event.global_position = event.position
+		event.relative = by / steps
+		event.button_mask = MOUSE_BUTTON_MASK_LEFT if button == MOUSE_BUTTON_LEFT else MOUSE_BUTTON_MASK_RIGHT
+		get_viewport().push_input(event)
+	_click(from + by, button, false)
 
 
 func _shot(name: String, wait := 0.3) -> void:

@@ -1,10 +1,16 @@
 [gd_resource type="ShaderMaterial" format=3]
 
 [ext_resource type="Shader" path="res://shaders/character/human_skin.gdshader" id="1_shader"]
-[ext_resource type="Texture2D" path="res://textures/character/human/skin/mask_lips.jpg" id="2_lips"]
-[ext_resource type="Texture2D" path="res://textures/character/human/skin/mask_eyelids.jpg" id="3_lids"]
+[ext_resource type="Texture2D" path="res://textures/character/human/skin/mask_lips.png" id="2_lips"]
+[ext_resource type="Texture2D" path="res://textures/character/human/skin/mask_eyelids.png" id="3_lids"]
+[ext_resource type="Texture2D" path="res://textures/character/human/skin/masks.png" id="4_masks"]
+[ext_resource type="Texture2D" path="res://textures/character/human/skin/stubble.png" id="5_stubble"]
+[ext_resource type="Texture2D" path="res://textures/character/human/skin/body_masks.png" id="6_body_masks"]
 
 [resource]
 shader = ExtResource("1_shader")
 shader_parameter/lips_mask = ExtResource("2_lips")
 shader_parameter/eyelids_mask = ExtResource("3_lids")
+shader_parameter/masks_texture = ExtResource("4_masks")
+shader_parameter/stubble_texture = ExtResource("5_stubble")
+shader_parameter/body_masks_texture = ExtResource("6_body_masks")

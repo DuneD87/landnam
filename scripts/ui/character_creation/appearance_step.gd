@@ -102,11 +102,20 @@ func _build_panel() -> void:
 	var actions := HBoxContainer.new()
 	var randomize_button := Button.new()
 	randomize_button.text = "Aleatorio"
+	randomize_button.tooltip_text = "Todo el personaje"
 	randomize_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	randomize_button.pressed.connect(func() -> void:
 		character.appearance.randomize_values(_rng)
 		_rebuild_options())
 	actions.add_child(randomize_button)
+	var vary_button := Button.new()
+	vary_button.text = "Variar"
+	vary_button.tooltip_text = "Solo esta categoría"
+	vary_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vary_button.pressed.connect(func() -> void:
+		character.appearance.randomize_values(_rng, _category.options)
+		_rebuild_options())
+	actions.add_child(vary_button)
 	var reset_button := Button.new()
 	reset_button.text = "Restablecer"
 	reset_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -123,7 +132,7 @@ func _select_category(category: Dictionary) -> void:
 		_category_buttons[id].set_pressed_no_signal(id == category.id)
 	_rebuild_options()
 	if preview and is_visible_in_tree():
-		preview.focus(category.focus)
+		preview.focus(category.focus, true, true)
 
 
 func _on_sex_selected(sex: StringName) -> void:
@@ -147,6 +156,8 @@ func _rebuild_options() -> void:
 				_options_box.add_child(_color_row(option))
 			AppearanceOption.Kind.CHOICE:
 				_options_box.add_child(_choice_row(option))
+			AppearanceOption.Kind.PRESET:
+				_options_box.add_child(_preset_row(option))
 	_scroll.scroll_vertical = 0
 
 
@@ -222,11 +233,30 @@ func _choice_row(option: AppearanceOption) -> Control:
 	var buttons := HFlowContainer.new()
 	var group := ButtonGroup.new()
 	var current: StringName = character.appearance.get_value(option.id)
-	for choice in option.choices:
+	for choice in option.choices_for(character.appearance.get_sex()):
 		var button := _toggle(choice.label, group)
 		button.custom_minimum_size.x = px(150)
 		button.set_pressed_no_signal(choice.id == current)
 		button.pressed.connect(character.appearance.set_value.bind(option.id, choice.id))
+		buttons.add_child(button)
+	row.add_child(buttons)
+	return row
+
+
+## Buttons that set several options at once (face presets).
+func _preset_row(option: AppearanceOption) -> Control:
+	var row := VBoxContainer.new()
+	row.add_child(_label(option.label))
+	var buttons := HFlowContainer.new()
+	var group := ButtonGroup.new()
+	var current: StringName = character.appearance.get_value(option.id)
+	for preset in option.choices_for(character.appearance.get_sex()):
+		var button := _toggle(preset.label, group)
+		button.custom_minimum_size.x = px(62)
+		button.set_pressed_no_signal(preset.id == current)
+		button.pressed.connect(func() -> void:
+			character.appearance.apply_preset(option, preset.id)
+			_rebuild_options.call_deferred())
 		buttons.add_child(button)
 	row.add_child(buttons)
 	return row

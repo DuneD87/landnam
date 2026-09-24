@@ -1,6 +1,12 @@
 [gd_resource type="ShaderMaterial" format=3]
 
 [ext_resource type="Shader" path="res://shaders/character/human_hair.gdshader" id="1_shader"]
+[ext_resource type="Shader" path="res://shaders/character/human_hair_fringe.gdshader" id="2_fringe"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_fringe"]
+render_priority = 1
+shader = ExtResource("2_fringe")
 
 [resource]
+next_pass = SubResource("ShaderMaterial_fringe")
 shader = ExtResource("1_shader")

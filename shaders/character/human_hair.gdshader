@@ -1,41 +1,38 @@
 shader_type spatial;
 render_mode cull_disabled;
 
-// Hair, eyebrow and eyelash cards of the MakeHuman assets. The texture's
-// strands are recoloured with hair_color relative to the texture's own mean
-// tone (texture_tone), so one colour looks alike on every style. Alpha is cut
-// with alpha to coverage, which keeps soft strand edges under MSAA without
-// sorting.
+// Hair and beards, first pass: the solid core of the MakeHuman hair cards,
+// opaque, cut at half alpha with alpha to coverage for soft edges under MSAA.
+// The strands' colour is hair_color relative to the texture's own mean tone
+// (human_hair_common.gdshaderinc), the highlight runs along them (strand_axis
+// says whether they follow U or V) and hair near the scalp (UV2.x, distance to
+// the body) is shaded as inner layers are. human_hair_fringe.gdshader, the
+// next pass, blends the thin fringe this pass cuts away.
 
-uniform sampler2D albedo_texture : source_color, filter_linear_mipmap_anisotropic;
-uniform vec3 texture_tone : source_color = vec3(0.3, 0.24, 0.2);
-uniform vec3 hair_color : source_color = vec3(0.23, 0.16, 0.11);
-uniform float roughness : hint_range(0.0, 1.0) = 0.55;
+#include "res://shaders/character/human_hair_common.gdshaderinc"
 
-const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
-
-vec3 to_linear(vec3 c) {
-	c = clamp(c, 0.0, 1.0);
-	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
-}
-
-vec3 to_srgb(vec3 c) {
-	c = clamp(c, 0.0, 1.0);
-	return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+void vertex() {
+	depth_from_body = UV2.x;
+	VERTEX = lifted(VERTEX, NORMAL, UV2.x);
 }
 
 void fragment() {
 	vec4 texel = texture(albedo_texture, UV);
-	float tone_luma = to_srgb(vec3(dot(texture_tone, LUMA))).r;
-	float relative = to_srgb(vec3(dot(texel.rgb, LUMA))).r / max(tone_luma, 0.02);
-	// Near-black textures (eyelashes) carry no shading to keep, and the RGB
-	// of half-transparent texels is unreliable: fall back to the flat tint.
-	relative = mix(1.0, relative, smoothstep(0.05, 0.1, tone_luma) * smoothstep(0.3, 0.8, texel.a));
-	ALBEDO = to_linear(to_srgb(hair_color) * clamp(relative, 0.0, 1.8));
+	vec3 col = strand_color(texel, UV);
+	ALBEDO = col;
 	ALPHA = texel.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
-	ALPHA_ANTIALIASING_EDGE = 0.3;
+	ALPHA_ANTIALIASING_EDGE = 0.25;
 	ALPHA_TEXTURE_COORDINATE = UV * vec2(textureSize(albedo_texture, 0));
+	if (use_normal) {
+		NORMAL_MAP = texture(normal_texture, UV).rgb;
+	}
 	ROUGHNESS = roughness;
-	SPECULAR = 0.35;
+	SPECULAR = 0.18;
+	ANISOTROPY = 0.45;
+	ANISOTROPY_FLOW = strand_axis == 1 ? vec2(0.0, 1.0) : vec2(1.0, 0.0);
+	BACKLIGHT = col * 0.25;
+	float inner = 1.0 - smoothstep(0.0, occlusion_depth, depth_from_body);
+	AO = 1.0 - 0.5 * inner;
+	AO_LIGHT_AFFECT = 0.35;
 }
