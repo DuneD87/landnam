@@ -36,9 +36,7 @@ func _ready() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(200, 200)
 	ground.mesh = plane
-	var ground_material := StandardMaterial3D.new()
-	ground_material.albedo_color = Color(0.23, 0.27, 0.16)
-	ground.material_override = ground_material
+	ground.material_override = preload("res://tests/vegetation/grass_lod_preview.gd").meadow_ground_material()
 	add_child(ground)
 	var builder = load("res://build/grass_quality/opus/geometry.gd") if _baseline else GrassLods
 	for variant in 3:

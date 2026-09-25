@@ -8,6 +8,8 @@ const config = preload("res://scripts/config.gd")
 const GrassPatchMipmaps = preload("res://scripts/planet/grass_patch_mipmaps.gd")
 const GrassGeometryLods = preload("res://scripts/planet/grass_geometry_lods.gd")
 var _grass_lod_cache: Dictionary = {}
+## Malla sin superficies para los bloques de una banda que su relevo oculta enteros.
+var _empty_band_mesh := ArrayMesh.new()
 ## Campo de ríos para la vegetación, con la distancia reducida. Ver _vegetation_river_field.
 var _vegetation_field: Dictionary = {}
 @export_group("Terrain Settings")
@@ -166,6 +168,8 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 		generator.max_scale = generator_config.max_scale * scale_gain
 	# Ruido simple de parcheo: praderas y manchas sin montar un grafo de vóxel entero.
 	# "noise": {"frequency": 0.01, "octaves": 2, "dimension": "2D", "on_scale": 0.3}
+	# threshold (-1..1) desplaza qué parte del suelo queda dentro de las manchas y
+	# falloff suaviza su borde: la densidad baja hacia fuera en vez de cortarse.
 	if generator_config.has("noise"):
 		var noise_config: Dictionary = generator_config.noise
 		var noise := FastNoiseLite.new()
@@ -178,6 +182,10 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 				else VoxelInstanceGenerator.DIMENSION_2D)
 		if noise_config.has("on_scale"):
 			generator.noise_on_scale = float(noise_config.on_scale)
+		if noise_config.has("threshold"):
+			generator.noise_threshold = float(noise_config.threshold)
+		if noise_config.has("falloff"):
+			generator.noise_falloff = float(noise_config.falloff)
 	if generator_config.has("noise_graph"):
 		for graph_func in graph_functions:
 			if graph_func.name == generator_config.noise_graph:
@@ -283,10 +291,21 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 ## Escribe los 4 mesh_lodN_distance_ratio tal cual, sin conversión ni clamp.
 ## Sirve para calibrar empíricamente cómo interpreta el módulo estos ratios.
 func _apply_mesh_lod_ratios_raw(multi_mesh_item, lod_index: int, r: Array) -> void:
-	multi_mesh_item.mesh_lod0_distance_ratio = float(r[0])
-	multi_mesh_item.mesh_lod1_distance_ratio = float(r[1])
-	multi_mesh_item.mesh_lod2_distance_ratio = float(r[2])
-	multi_mesh_item.mesh_lod3_distance_ratio = float(r[3])
+	_set_mesh_lod_ratios(multi_mesh_item, r)
+
+
+## El módulo recorta cada ratio al intervalo [anterior, siguiente] con los valores que
+## tiene en ese momento. Asignados en orden, un ratio mayor que el valor por defecto del
+## siguiente quedaba recortado (la hierba pedía LOD0 hasta 40 m y usaba 0,35 · 48 m).
+## Una pasada inversa y otra directa dejan cualquier secuencia creciente tal cual.
+func _set_mesh_lod_ratios(multi_mesh_item, ratios: Array) -> void:
+	for order in [[3, 2, 1, 0], [0, 1, 2, 3]]:
+		for k in order:
+			multi_mesh_item.set("mesh_lod%d_distance_ratio" % k, float(ratios[k]))
+	for k in 4:
+		if not is_equal_approx(multi_mesh_item.get("mesh_lod%d_distance_ratio" % k), float(ratios[k])):
+			push_error("Vegetación: el módulo no aceptó los ratios de LOD %s" % str(ratios))
+			return
 	
 
 ## Alcance en metros de una banda de voxel-LOD. Prefiere get_lod_distances() del
@@ -323,10 +342,7 @@ func _apply_mesh_lod_distances(multi_mesh_item, lod_index: int, distances_m: Arr
 		ratios[k] = r
 		prev = r
 
-	multi_mesh_item.mesh_lod0_distance_ratio = ratios[0]
-	multi_mesh_item.mesh_lod1_distance_ratio = ratios[1]
-	multi_mesh_item.mesh_lod2_distance_ratio = ratios[2]
-	multi_mesh_item.mesh_lod3_distance_ratio = ratios[3]
+	_set_mesh_lod_ratios(multi_mesh_item, ratios)
 
 func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator: VoxelInstanceGenerator, lod_index: int) -> void:
 	var multi_mesh_item := VoxelInstanceLibraryMultiMeshItem.new()
@@ -352,13 +368,21 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		if not cs.is_empty():
 			multi_mesh_item.collision_shapes = cs
 
-		# "mesh_lod_ratios" (4 valores) tiene prioridad: se escriben crudos, para
-		# calibrar la semántica real del módulo sin mi conversión desde metros.
+		# Hierba y sotobosque traen los ratios de su banda ya calculados (ver
+		# _build_grass_band). "mesh_lod_ratios" (4 valores) se escribe crudo, para
+		# calibrar la semántica real del módulo sin la conversión desde metros.
+		var band_ratios: Array = shared_data.get("lod_ratios", [])
 		var raw_ratios: Array = item.get("mesh_lod_ratios", [])
-		if raw_ratios.size() == 4:
+		if band_ratios.size() == 4:
+			_set_mesh_lod_ratios(multi_mesh_item, band_ratios)
+			multi_mesh_item.hide_beyond_max_lod = true
+		elif raw_ratios.size() == 4:
 			_apply_mesh_lod_ratios_raw(multi_mesh_item, lod_index, raw_ratios)
 		else:
-			var dists: Array = item.get("mesh_lod_distances_m", [384, 768, 2500])
+			# Los árboles no traen distancias: son las que venían usando de hecho. Antes
+			# se pedían [384, 768, 2500], pero el orden de asignación de los ratios las
+			# recortaba a 0,35 / 0,6 / 1,0 de su banda (768 m).
+			var dists: Array = item.get("mesh_lod_distances_m", [270, 460, 768])
 			_apply_mesh_lod_distances(multi_mesh_item, lod_index, dists)
 	else:
 		# items sin LOD (MeshInstance directa, Rock3D): sin collision_shapes, dependen de
@@ -547,9 +571,12 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 			var band_data: Dictionary = shared_data
 			if not grass_cfg.is_empty():
 				band_data = shared_data.duplicate()
-				band_data.lod_meshes = _build_grass_band_meshes(shared_data.lod_meshes,
-					grass_cfg, lod_index, float(item.get("wind_speed", 0.2)))
-				# El material común a los cuatro LODs ya se ha registrado arriba.
+				var band: Dictionary = _build_grass_band(shared_data.lod_meshes, grass_cfg, lod_index,
+					float(item.get("wind_speed", 0.2)),
+					GrassGeometryLods.WIDTH_GROWTH if item.has("grass_lods") else -1.0)
+				band_data.lod_meshes = band.meshes
+				band_data.lod_ratios = band.ratios
+				# El material de la banda ya se ha registrado en _build_grass_band.
 				band_data.effective_mesh = null
 			if emit_as_scene:
 				_register_scene_item(item, band_data, generator, lod_index)
@@ -557,36 +584,110 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 				_register_multi_mesh_item(i, item, band_data, generator, lod_index)
 
 
-## Las capas del instancer se solapan. Cada banda lejana recibe su propio material
-## para entrar cuando sale la anterior, sin duplicar densidad cerca de la cámara.
-func _build_grass_band_meshes(lods: Array, cfg: Dictionary, lod_index: int, wind_speed: float) -> Array:
+## Las bandas del instancer son cajas anidadas que llegan todas hasta la cámara: la
+## banda 2 genera matas a 5 m aunque solo se vean a partir de 64 m. Cada banda recibe
+## su propio material para entrar cuando sale la anterior, sin duplicar densidad, y
+## registra solo las mallas que una mata visible puede necesitar: los bloques que el
+## relevo oculta enteros usan una malla vacía y los que quedan más allá del último
+## relevo no se dibujan. Con el morph de LOD del shader, cada bloque cambia de malla
+## cuando todas sus matas ya han terminado la transición.
+func _build_grass_band(lods: Array, cfg: Dictionary, lod_index: int, wind_speed: float,
+		width_growth: float) -> Dictionary:
 	var material: ShaderMaterial = lods[0].surface_get_material(0).duplicate()
-	var width: float = float(cfg.get("fade_width_m", 24.0))
-	var near_end: float = maxf(_get_lod_view_distance(1) - 8.0, width + 1.0)
-	var fade_end: float = near_end
-	if cfg.get("layer", "near") == "far":
-		var previous_end: float = near_end if lod_index == 2 else _grass_band_end(lod_index - 1, cfg)
-		material.set_shader_parameter("fade_in_start", maxf(previous_end - width, 1.0))
-		material.set_shader_parameter("fade_in_end", previous_end)
-		fade_end = _grass_band_end(lod_index, cfg)
-	else:
-		material.set_shader_parameter("fade_in_start", 0.0)
-		material.set_shader_parameter("fade_in_end", 0.0)
-	material.set_shader_parameter("fade_start", maxf(fade_end - width, 1.0))
-	material.set_shader_parameter("fade_end", fade_end)
+	var limits: Dictionary = _grass_band_limits(cfg, lod_index)
+	material.set_shader_parameter("fade_in_start", limits.in_start)
+	material.set_shader_parameter("fade_in_end", limits.in_end)
+	material.set_shader_parameter("fade_start", limits.out_start)
+	material.set_shader_parameter("fade_end", limits.out_end)
+	var morph_start: Array = cfg.get("lod_morph_start_m", [])
+	var morph_end: Array = cfg.get("lod_morph_end_m", [])
+	var morph: bool = morph_start.size() == 3 and morph_end.size() == 3
+	material.set_shader_parameter("lod_morph_enabled", morph)
+	if morph:
+		material.set_shader_parameter("lod_morph_start", Vector3(morph_start[0], morph_start[1], morph_start[2]))
+		material.set_shader_parameter("lod_morph_end", Vector3(morph_end[0], morph_end[1], morph_end[2]))
+	if width_growth > 0.0:
+		material.set_shader_parameter("lod_width_growth", width_growth)
 	# Cada material decide su suavizado de normales; no imponer el de la hierba
 	# a las hojas y ramas del sotobosque. El shader conserva 0.25 por defecto.
 	item_transparent_materials.append({"shader": material, "wind_speed": wind_speed})
+
+	# Del centro del bloque a su esquina más lejana: una mata puede estar así de lejos
+	# (o de cerca) de la distancia con la que el instancer elige la malla del bloque.
+	var block: float = float(_instancer_block_size(lod_index))
+	var reach: float = block * 0.866 + 2.0
+	var hide_distance: float = limits.out_end + reach
+	var first_lod: int = 0
+	if morph:
+		while first_lod < 3 and float(morph_end[first_lod]) <= limits.in_start:
+			first_lod += 1
+	# Tramos [malla, distancia hasta la que se usa], de cerca a lejos.
+	var entries: Array = []
+	var empty_until: float = limits.in_start - reach
+	if empty_until > 0.0 and first_lod > 0:
+		entries.append([_empty_band_mesh, empty_until])
+	for lod in range(first_lod, 4):
+		var until: float = hide_distance
+		if lod < 3:
+			# Sin morph (configuración incompleta) el bloque salta a distancias fijas.
+			var switch_distance: float = float(cfg.get("mesh_lod_distances_m", [24, 55, 100])[lod])
+			if morph:
+				switch_distance = float(morph_end[lod]) + reach
+			until = minf(switch_distance, hide_distance)
+		entries.append([_band_mesh(lods[lod], material), until])
+		# Más allá todo está oculto: un LOD más simple no llegaría a verse.
+		if until >= hide_distance:
+			break
+	while entries.size() < 4:
+		entries.push_front([entries[0][0], 0.0])
+	var view: float = _get_lod_view_distance(lod_index)
 	var meshes: Array = []
-	for original in lods:
-		var mesh: ArrayMesh = original.duplicate()
-		mesh.surface_set_material(0, material)
-		meshes.append(mesh)
-	return meshes
+	var ratios: Array = []
+	var previous: float = 0.0
+	for entry in entries:
+		meshes.append(entry[0])
+		var ratio: float = maxf(entry[1] / view, previous + 0.001)
+		ratios.append(ratio)
+		previous = ratio
+	return {"meshes": meshes, "ratios": ratios}
 
 
-func _grass_band_end(lod_index: int, cfg: Dictionary) -> float:
-	return minf(float(cfg.get("max_distance_m", 320.0)), _get_lod_view_distance(lod_index) - 16.0)
+func _band_mesh(original: ArrayMesh, material: Material) -> ArrayMesh:
+	var mesh: ArrayMesh = original.duplicate()
+	mesh.surface_set_material(0, material)
+	return mesh
+
+
+## Lado de los bloques del instancer en una banda (mesh_block_size · 2^banda).
+func _instancer_block_size(lod_index: int) -> int:
+	return int(voxel_terrain.mesh_block_size) << lod_index
+
+
+## Relevo de una banda: entra mientras sale la anterior. La banda 0 cede a la 1 en
+## split_m; las demás terminan en max_distance_m o 8 m antes de su alcance. Medido con
+## la cámara en distintos puntos de su bloque, la caja de la banda N cubre en todas
+## direcciones al menos ese alcance (banda 1 ≥ 132 m, 2 ≥ 196 m, 3 ≥ 388 m).
+func _grass_band_limits(cfg: Dictionary, lod_index: int) -> Dictionary:
+	var ends: Array = []
+	var widths: Array = []
+	for band in lod_index + 1:
+		var end: float
+		var width: float = float(cfg.get("fade_width_m", 24.0))
+		if band == 0:
+			end = float(cfg.get("split_m", 40.0))
+			width = float(cfg.get("split_fade_m", 12.0))
+		elif band == 1:
+			end = _get_lod_view_distance(1) - 8.0
+		else:
+			end = minf(float(cfg.get("max_distance_m", 320.0)), _get_lod_view_distance(band) - 8.0)
+		ends.append(end)
+		widths.append(minf(width, end - 1.0))
+	var limits := {"in_start": 0.0, "in_end": 0.0,
+		"out_start": maxf(ends[lod_index] - widths[lod_index], 1.0), "out_end": ends[lod_index]}
+	if lod_index > 0:
+		limits.in_start = maxf(ends[lod_index - 1] - widths[lod_index - 1], 1.0)
+		limits.in_end = ends[lod_index - 1]
+	return limits
 
 
 ## Normaliza un entero o lista de enteros a una lista de enteros no vacía.

@@ -262,23 +262,24 @@
 	  	},
 	  	{
 			"name": "grass_generator_green",
-			"emit_mode": "EMIT_FROM_VERTICES",
-			"density": 1.0,
-			"lod_density_falloff": 1.0,
+			"emit_mode": "EMIT_FROM_FACES",
+			"density": 1.2,
+			"lod_density_falloff": 0.7,
 			"lod_scale_gain": 1.0,
 			"min_height": -15,
 			"max_height": 150,
 			"max_slope_degrees": 35,
 			"offset_along_normal": -0.0,
-			"min_scale": 0.5,
+			"min_scale": 0.75,
 			"max_scale": 2.0,
-			"noise_graph": "hemisphere_green_graph_path"
+			"noise_graph": "hemisphere_green_graph_path",
+			"noise": {"frequency": 0.045, "octaves": 3, "dimension": "3D", "seed": 17, "threshold": 0.3, "falloff": 0.25, "on_scale": 0.3}
 	  	},
 		{
 			"name": "grass_generator_green_sand",
-			"emit_mode": "EMIT_FROM_VERTICES",
+			"emit_mode": "EMIT_FROM_FACES",
 			"density": 0.01,
-			"lod_density_falloff": 1.0,
+			"lod_density_falloff": 0.7,
 			"lod_scale_gain": 1.0,
 			"min_height": -35,
 			"max_height": 150,
@@ -290,9 +291,9 @@
 	  	},
 	 	{
 			"name": "grass_generator_sand",
-			"emit_mode": "EMIT_FROM_VERTICES",
+			"emit_mode": "EMIT_FROM_FACES",
 			"density": 0.005,
-			"lod_density_falloff": 1.0,
+			"lod_density_falloff": 0.7,
 			"lod_scale_gain": 1.0,
 			"min_height": -35,
 			"max_height": 150,
@@ -305,14 +306,15 @@
 	 	{
 			"name": "grass_far_generator_green",
 			"emit_mode": "EMIT_FROM_FACES",
-			"density": 0.6,
+			"density": 0.75,
 			"lod_density_falloff": 1.0,
 			"min_height": -15,
 			"max_height": 150,
 			"max_slope_degrees": 35,
-			"min_scale": 0.5,
+			"min_scale": 0.75,
 			"max_scale": 2.0,
-			"noise_graph": "hemisphere_green_graph_path"
+			"noise_graph": "hemisphere_green_graph_path",
+			"noise": {"frequency": 0.045, "octaves": 3, "dimension": "3D", "seed": 17, "threshold": 0.3, "falloff": 0.25, "on_scale": 0.3}
 	  	},
 	 	{
 			"name": "grass_far_generator_green_sand",
@@ -590,43 +592,43 @@
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass.tscn",
 			"generator": ["grass_generator_green"],
 			"wind_speed": 0.2, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"mesh_lod_distances_m": [40, 95, 180],
-			"grass_lods": {"layer": "near", "fade_width_m": 24.0}
+			"grass_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0,
+				"lod_morph_start_m": [10, 24, 46], "lod_morph_end_m": [16, 34, 62]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_green_yellow.tscn",
 			"generator": ["grass_generator_green_sand"],
 			"wind_speed": 0.2, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"mesh_lod_distances_m": [40, 95, 180],
-			"grass_lods": {"layer": "near", "fade_width_m": 24.0}
+			"grass_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0,
+				"lod_morph_start_m": [10, 24, 46], "lod_morph_end_m": [16, 34, 62]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_yellow.tscn",
 			"generator": ["grass_generator_sand"],
 			"wind_speed": 0.2, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"mesh_lod_distances_m": [40, 95, 180],
-			"grass_lods": {"layer": "near", "fade_width_m": 24.0}
+			"grass_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0,
+				"lod_morph_start_m": [10, 24, 46], "lod_morph_end_m": [16, 34, 62]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass.tscn",
 			"generator": ["grass_far_generator_green"],
-			"wind_speed": 0.2, "lod_index": [2, 3], "instance_as_scene": false, "cast_shadow": false,
-			"mesh_lod_distances_m": [40, 95, 180],
-			"grass_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 320.0}
+			"wind_speed": 0.2, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
+			"grass_lods": {"fade_width_m": 24.0, "max_distance_m": 184.0,
+				"lod_morph_start_m": [10, 24, 46], "lod_morph_end_m": [16, 34, 62]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_green_yellow.tscn",
 			"generator": ["grass_far_generator_green_sand"],
-			"wind_speed": 0.2, "lod_index": [2, 3], "instance_as_scene": false, "cast_shadow": false,
-			"mesh_lod_distances_m": [40, 95, 180],
-			"grass_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 320.0}
+			"wind_speed": 0.2, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
+			"grass_lods": {"fade_width_m": 24.0, "max_distance_m": 184.0,
+				"lod_morph_start_m": [10, 24, 46], "lod_morph_end_m": [16, 34, 62]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_yellow.tscn",
 			"generator": ["grass_far_generator_sand"],
-			"wind_speed": 0.2, "lod_index": [2, 3], "instance_as_scene": false, "cast_shadow": false,
-			"mesh_lod_distances_m": [40, 95, 180],
-			"grass_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 320.0}
+			"wind_speed": 0.2, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
+			"grass_lods": {"fade_width_m": 24.0, "max_distance_m": 184.0,
+				"lod_morph_start_m": [10, 24, 46], "lod_morph_end_m": [16, 34, 62]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/mushroom/cave_mushroom_01.tscn",
@@ -637,113 +639,129 @@
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/wood_fern.tscn",
 			"generator": ["wood_fern_generator"],
 			"wind_speed": 0.18, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "near", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/wood_fern.tscn",
 			"generator": ["wood_fern_generator"],
 			"wind_speed": 0.18, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/royal_fern.tscn",
 			"generator": ["royal_fern_generator"],
 			"wind_speed": 0.18, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "near", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/royal_fern.tscn",
 			"generator": ["royal_fern_generator"],
 			"wind_speed": 0.18, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/round_shrub.tscn",
 			"generator": ["round_shrub_generator"],
 			"wind_speed": 0.18, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "near", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/round_shrub.tscn",
 			"generator": ["round_shrub_generator"],
 			"wind_speed": 0.18, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/willow_shrub.tscn",
 			"generator": ["willow_shrub_generator"],
 			"wind_speed": 0.18, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "near", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/willow_shrub.tscn",
 			"generator": ["willow_shrub_generator"],
 			"wind_speed": 0.18, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/flowering_shrub.tscn",
 			"generator": ["flowering_shrub_generator"],
 			"wind_speed": 0.18, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "near", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/flowering_shrub.tscn",
 			"generator": ["flowering_shrub_generator"],
 			"wind_speed": 0.18, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/wild_asparagus.tscn",
 			"generator": ["wild_asparagus_generator"],
 			"wind_speed": 0.18, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "near", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/wild_asparagus.tscn",
 			"generator": ["wild_asparagus_generator"],
 			"wind_speed": 0.18, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/broadleaf.tscn",
 			"generator": ["broadleaf_generator"],
 			"wind_speed": 0.18, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "near", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/broadleaf.tscn",
 			"generator": ["broadleaf_generator"],
 			"wind_speed": 0.18, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/wildflowers.tscn",
 			"generator": ["wildflowers_generator"],
 			"wind_speed": 0.18, "lod_index": [0, 1], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "near", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"split_m": 40.0, "split_fade_m": 12.0, "fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/understory/wildflowers.tscn",
 			"generator": ["wildflowers_generator"],
 			"wind_speed": 0.18, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"lod3_impostor": false, "mesh_lod_distances_m": [24, 55, 100],
-			"understory_lods": {"layer": "far", "fade_width_m": 24.0, "max_distance_m": 176.0}
+			"lod3_impostor": false,
+			"understory_lods": {"fade_width_m": 24.0, "max_distance_m": 176.0,
+				"lod_morph_start_m": [14, 30, 48], "lod_morph_end_m": [20, 42, 64]}
 		}
 	]
   },

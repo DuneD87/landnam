@@ -41,7 +41,18 @@ func _run() -> void:
 				valid = valid and face.length_squared() > 1e-16
 				valid = valid and face.dot(normals[a] + normals[b] + normals[c]) <= 0.0000001
 			_check(valid, "Geometría, colores y atributos válidos: " + species)
+			var custom = arrays[Mesh.ARRAY_CUSTOM0]
+			var morph_valid: bool = custom is PackedFloat32Array and custom.size() == vertices.size() * 4
+			if morph_valid:
+				var level: int = counts.size() - 1
+				for i in vertices.size():
+					var packed: int = int(custom[i * 4 + 3])
+					# Cada pieza conoce el LOD de su malla y sigue al menos hasta él.
+					morph_valid = morph_valid and packed >> 2 == level and (packed & 3) >= level
+			_check(morph_valid, "Datos de morph por vértice: " + species)
 			_check(mesh.get_aabb().size.y > 0.25 and mesh.get_aabb().size.y < 2.0, "Escala en metros: " + species)
+		var material: ShaderMaterial = meshes[0].surface_get_material(0)
+		_check(material.get_shader_parameter("lod_width_growth") == Builder.WIDTH_GROWTH, "Morph con el ensanchado de la geometría")
 		_check(counts[0] < 6000, "Presupuesto cercano: " + species)
 		_check(counts[3] < counts[0] * 0.35, "Presupuesto lejano: " + species)
 		var prefab: Node = load("res://scenes/planet/planet_items/vegetation/understory/%s.tscn" % species).instantiate()
@@ -73,22 +84,34 @@ func _integration() -> void:
 		_check(item.generator.noise != null and item.generator.noise_dimension == VoxelInstanceGenerator.DIMENSION_3D, "Ruido de grupos sobre la esfera")
 		_check(item.generator.noise_graph != null, "Máscara de bioma conectada")
 		_check(item.generator.min_height > planet.radius - 50.0, "Vegetación por encima del mar")
-		var material: ShaderMaterial = item.get_mesh(0).surface_get_material(0)
+		var material: ShaderMaterial = _band_material(item)
 		_check(material.get_shader_parameter("use_vertex_color") == true, "Paleta de hojas, tallos y flores")
+		_check(material.get_shader_parameter("lod_morph_enabled") == true, "Morph de LOD activo")
+		_check(item.hide_beyond_max_lod, "Los bloques más allá del relevo no se dibujan")
 		if item.lod_index >= 2:
 			_check(material.get_shader_parameter("fade_end") <= planet._get_lod_view_distance(item.lod_index), "Fade dentro del alcance")
 		for lod in 4:
-			_check(item.get_mesh(lod).surface_get_material(0) == material, "LOD mantiene material de banda")
+			if item.get_mesh(lod).get_surface_count() > 0:
+				_check(item.get_mesh(lod).surface_get_material(0) == material, "LOD mantiene material de banda")
 	# Cada especie se registra en orden: banda 0, banda 1 y banda 2.
 	for species in 8:
-		var near: ShaderMaterial = planet.voxel_instancer.library.get_item(species * 3 + 1).get_mesh(0).surface_get_material(0)
-		var far: ShaderMaterial = planet.voxel_instancer.library.get_item(species * 3 + 2).get_mesh(0).surface_get_material(0)
-		_check(near.get_shader_parameter("fade_start") == far.get_shader_parameter("fade_in_start"), "Relevo coordinado")
-		_check(near.get_shader_parameter("fade_end") == far.get_shader_parameter("fade_in_end"), "Relevo sin hueco")
+		for pair in [[0, 1], [1, 2]]:
+			var out_mat: ShaderMaterial = _band_material(planet.voxel_instancer.library.get_item(species * 3 + pair[0]))
+			var in_mat: ShaderMaterial = _band_material(planet.voxel_instancer.library.get_item(species * 3 + pair[1]))
+			_check(out_mat.get_shader_parameter("fade_start") == in_mat.get_shader_parameter("fade_in_start"), "Relevo coordinado")
+			_check(out_mat.get_shader_parameter("fade_end") == in_mat.get_shader_parameter("fade_in_end"), "Relevo sin hueco")
 	planet.voxel_instancer.free()
 	planet.voxel_terrain.free()
 	planet.free()
 	await process_frame
+
+
+## La banda lejana puede empezar por una malla vacía (bloques ocultos por el relevo).
+func _band_material(item) -> ShaderMaterial:
+	for lod in 4:
+		if item.get_mesh(lod).get_surface_count() > 0:
+			return item.get_mesh(lod).surface_get_material(0)
+	return null
 
 
 func _check(condition: bool, message: String) -> void:

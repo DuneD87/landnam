@@ -44,9 +44,7 @@ func _ready() -> void:
 	generator.height = 30000.0
 	_terrain.generator = generator
 	_terrain.mesher = VoxelMesherTransvoxel.new()
-	var ground_material := StandardMaterial3D.new()
-	ground_material.albedo_color = Color(0.16, 0.23, 0.09)
-	_terrain.material = ground_material
+	_terrain.material = meadow_ground_material()
 	_planet = Planet.new(_terrain)
 	_planet.radius = 30000.0
 	_planet.planet_position = _terrain.position
@@ -78,6 +76,23 @@ func _ready() -> void:
 	_planet._update_planet()
 	if _capture_mode:
 		await _capture()
+
+
+## Suelo del bioma verde con la textura y la escala triplanar del terreno del planeta
+## (texture_scale 0.5 en planet_biomes.gdshader). Con un color liso, los claros entre
+## matas parecían agujeros y no el césped corto que se ve en el juego.
+static func meadow_ground_material() -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	var folder := "res://textures/terrain/whispy-grass-meadow-bl/"
+	material.albedo_texture = load(folder + "wispy-grass-meadow_albedo.png")
+	material.normal_enabled = true
+	material.normal_texture = load(folder + "wispy-grass-meadow_normal-ogl.png")
+	material.roughness = 1.0
+	material.uv1_triplanar = true
+	material.uv1_world_triplanar = true
+	material.uv1_scale = Vector3(0.5, 0.5, 0.5)
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return material
 
 
 ## Copia del entorno de scenes/maps/sun.tscn. El sombreado de la hierba se juzga
