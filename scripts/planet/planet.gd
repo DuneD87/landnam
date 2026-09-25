@@ -8,6 +8,8 @@ const config = preload("res://scripts/config.gd")
 const GrassPatchMipmaps = preload("res://scripts/planet/grass_patch_mipmaps.gd")
 const GrassGeometryLods = preload("res://scripts/planet/grass_geometry_lods.gd")
 var _grass_lod_cache: Dictionary = {}
+## Campo de ríos para la vegetación, con la distancia reducida. Ver _vegetation_river_field.
+var _vegetation_field: Dictionary = {}
 @export_group("Terrain Settings")
 @export var radius: float
 @export var terrain_generator_path: String
@@ -361,7 +363,12 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 	else:
 		# items sin LOD (MeshInstance directa, Rock3D): sin collision_shapes, dependen de
 		# 'scene' para que el módulo instancie el nodo físico cerca del jugador.
-		multi_mesh_item.scene = shared_data.packed_scene
+		if item.get("collision", true):
+			multi_mesh_item.scene = shared_data.packed_scene
+		else:
+			# Decorado sin física: solo la malla. Con la escena, el módulo crea un cuerpo por
+			# instancia al cargar cada bloque: unas 2300 piedras pequeñas solo alrededor del spawn.
+			multi_mesh_item.set_mesh(shared_data.effective_mesh, 0)
 
 
 	if not item.get("cast_shadow", true):
@@ -460,6 +467,7 @@ func _load_vegetation() -> void:
 	multi_mesh_array.clear()
 	item_transparent_materials.clear()
 	_grass_lod_cache.clear()
+	_vegetation_field = {}
 	_next_library_id = 0
 
 	# async: _load_vegetation_item hornea el impostor LOD3 de los árboles con await
@@ -1386,14 +1394,35 @@ func _setup_rivers(graph_generator: VoxelGeneratorGraph) -> bool:
 ## Carga un grafo de densidad de vegetación con el campo de ríos ya metido. Se duplica porque
 ## varios generadores comparten el mismo recurso y aquí se le escriben parámetros: sin duplicar, el
 ## parcheo se propagaría al recurso cacheado por el ResourceLoader.
+##
+## Una copia por generador, aunque el grafo sea el mismo: compartida, asignarla a un generador nuevo
+## espera a los hilos que ya generan instancias con ella, y en el arranque (con el terreno cargando
+## alrededor del spawn) eso multiplicaba por tres el coste total.
 func _load_vegetation_graph(path: String) -> VoxelGraphFunction:
 	var graph: VoxelGraphFunction = load(path)
 	if graph == null or _river_field.is_empty():
 		return graph
 	var copy: VoxelGraphFunction = graph.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
-	if RiverGenerator.apply(copy, _river_field):
+	if RiverGenerator.apply(copy, _vegetation_river_field()):
 		return copy
 	return graph
+
+
+## El campo de ríos con la imagen de distancias reducida, para los grafos de vegetación. El módulo
+## procesa la imagen entera cada vez que se asigna el grafo a un generador (~0.44 s a 16384x8192,
+## ~0.03 s a 4096x2048) y hay unos 60 generadores. La vegetación solo reconstruye la ladera del valle
+## para sus compuertas de profundidad, y esa reconstrucción ya la limita la imagen del lecho, mucho
+## más gruesa: la resolución fina solo le hace falta al tallado del terreno.
+func _vegetation_river_field() -> Dictionary:
+	if _vegetation_field.is_empty():
+		_vegetation_field = _river_field.duplicate()
+		var width := int(river_settings.get("vegetation_dist_width", 4096))
+		var dist: Image = _river_field.dist
+		if width > 0 and width < dist.get_width():
+			var small: Image = dist.duplicate()
+			small.resize(width, width * dist.get_height() / dist.get_width(), Image.INTERPOLATE_BILINEAR)
+			_vegetation_field.dist = small
+	return _vegetation_field
 
 
 ## Identifica la configuración con la que se horneó el campo. Incluye la huella del generador, así

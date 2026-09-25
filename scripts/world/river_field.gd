@@ -24,7 +24,8 @@ const _BED_MARGIN := 1.6
 const FILE_MAGIC := "GVRF"
 ## 2: el fichero incluye la red de tramos, de la que sale la lámina de agua.
 ## 3: y los parámetros de rugosidad de las paredes.
-const FILE_VERSION := 3
+## 4: comprimido con zstd. La imagen de distancias es casi toda ceros y en crudo pasaba de 130 MB.
+const FILE_VERSION := 4
 
 ## Escalares del campo, en el orden en que se serializan.
 const _SCALARS := ["radius", "height_min", "height_span", "carve_range", "bank_slope",
@@ -35,7 +36,7 @@ const _SCALARS := ["radius", "height_min", "height_span", "carve_range", "bank_s
 ## el horneado entero (unos siete segundos en el planeta Tierra).
 static func save_to(field: Dictionary, path: String, key: String) -> void:
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
-	var f := FileAccess.open(path, FileAccess.WRITE)
+	var f := FileAccess.open_compressed(path, FileAccess.WRITE, FileAccess.COMPRESSION_ZSTD)
 	if f == null:
 		push_warning("[rivers] no se pudo escribir el caché en %s" % path)
 		return
@@ -67,7 +68,8 @@ static func save_to(field: Dictionary, path: String, key: String) -> void:
 static func load_from(path: String, key: String) -> Dictionary:
 	if not FileAccess.file_exists(path):
 		return {}
-	var f := FileAccess.open(path, FileAccess.READ)
+	# Un fichero de antes de la compresión no pasa de aquí: se rehornea y se reescribe comprimido.
+	var f := FileAccess.open_compressed(path, FileAccess.READ, FileAccess.COMPRESSION_ZSTD)
 	if f == null:
 		return {}
 	if f.get_buffer(4).get_string_from_ascii() != FILE_MAGIC or f.get_32() != FILE_VERSION:

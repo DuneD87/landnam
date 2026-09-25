@@ -24,8 +24,8 @@ const MAX_STORM_BODIES := 8
 ## dónde llegan. Subirlo cuesta memoria y tiempo de horneado, y obliga a rehornear el mapa.
 const SHORE_RANGE := 300.0
 
-## Sube esto SIEMPRE que cambie el formato o el criterio de horneado. La clave del caché mira la
-## fecha del generador, no la de este código: sin subirlo, un mapa horneado con reglas viejas se
+## Sube esto SIEMPRE que cambie el formato o el criterio de horneado. La clave del caché mira el
+## contenido del generador, no el de este código: sin subirlo, un mapa horneado con reglas viejas se
 ## sigue leyendo tal cual y el cambio no se ve por ningún lado.
 const BAKE_VERSION := 15
 
@@ -250,7 +250,9 @@ func _build_cache_key(planet: Planet, size: Vector2i, height_range: float) -> St
 	return "|".join(parts).sha256_text()
 
 
-## Ruta y fecha de un recurso y de todo lo que arrastra, en orden estable.
+## Ruta y contenido de un recurso y de todo lo que arrastra, en orden estable. Por contenido y no
+## por fecha: un checkout o un guardado sin cambios no tira el caché (y los ~7 s de ríos), y en un
+## build exportado, donde la fecha de lo empaquetado no dice nada, una actualización del terreno sí.
 static func _resource_fingerprint(path: String) -> String:
 	var seen := {}
 	var pending: Array[String] = [path]
@@ -260,7 +262,7 @@ static func _resource_fingerprint(path: String) -> String:
 		if p == "" or seen.has(p):
 			continue
 		seen[p] = true
-		parts.append("%s@%d" % [p, FileAccess.get_modified_time(p)])
+		parts.append("%s@%s" % [p, _content_hash(p)])
 		for dep in ResourceLoader.get_dependencies(p):
 			# El formato de cada dependencia varía ("uid::tipo::ruta", "ruta::tipo"...): se busca
 			# el trozo que es una ruta de recurso en vez de asumir una posición.
@@ -269,3 +271,16 @@ static func _resource_fingerprint(path: String) -> String:
 					pending.append(slice)
 	parts.sort()
 	return "|".join(parts)
+
+
+## md5 del fichero. Al exportar, el .tres puede quedar convertido a binario detrás de un .remap y
+## el original no existe en el paquete: entonces se hashea el fichero al que apunta.
+static func _content_hash(path: String) -> String:
+	if FileAccess.file_exists(path):
+		return FileAccess.get_md5(path)
+	var remap := ConfigFile.new()
+	if remap.load(path + ".remap") == OK:
+		var target := str(remap.get_value("remap", "path", ""))
+		if target != "" and FileAccess.file_exists(target):
+			return FileAccess.get_md5(target)
+	return ""
