@@ -234,6 +234,46 @@ u_world_offset={
 "type": "vec3",
 "value": Vector3(0, 0, 0)
 }
+sky_sun_radiance={
+"type": "vec3",
+"value": Vector3(1, 0.95, 0.88)
+}
+sky_sun_direction={
+"type": "vec3",
+"value": Vector3(0, 1, 0)
+}
+sky_moon_radiance={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+sky_moon_direction={
+"type": "vec3",
+"value": Vector3(0, 1, 0)
+}
+sky_ambient_radiance={
+"type": "vec3",
+"value": Vector3(0.14, 0.19, 0.27)
+}
+sky_zenith_radiance={
+"type": "vec3",
+"value": Vector3(0.3, 0.55, 0.85)
+}
+sky_horizon_sun_radiance={
+"type": "vec3",
+"value": Vector3(0.75, 0.85, 0.95)
+}
+sky_horizon_side_radiance={
+"type": "vec3",
+"value": Vector3(0.75, 0.85, 0.95)
+}
+sky_horizon_anti_radiance={
+"type": "vec3",
+"value": Vector3(0.75, 0.85, 0.95)
+}
+sky_sun_glow_radiance={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
 
 [voxel]
 

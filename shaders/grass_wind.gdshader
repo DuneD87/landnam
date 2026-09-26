@@ -211,10 +211,6 @@ void vertex() {
 
     vertex_position_global = world_vertex + world_offset;
     planet_normal = normalize(vertex_position_global - planet_position);
-    float day;
-    vec3 ambient;
-    compute_planet_vertex_light(vertex_position_global, planet_normal, day, ambient);
-    planet_day_factor = day;
 }
 
 void fragment() {
@@ -251,11 +247,8 @@ void fragment() {
     // Pliegue suave: gradiente de luz transversal, sin dibujar una raya brillante.
     NORMAL = normalize(NORMAL + side / max(length(side), 0.0001) * (UV.x - 0.5) * 2.0 * blade_curvature);
     NORMAL = normalize(mix(NORMAL, radial_normal, normal_softening));
-    // Relleno del cielo una sola vez, independiente de las sombras del sol.
-    // Se calcula aquí para no duplicarlo al añadir luces locales.
-    float hemisphere = clamp(dot(NORMAL, radial_normal) * 0.5 + 0.5, 0.0, 1.0);
-    vec3 sky_fill = mix(ambient_color_bottom.rgb, ambient_color_top.rgb, hemisphere);
-    EMISSION = ALBEDO * sky_fill * ambient_intensity * AO * mix(0.015, 1.0, planet_day_factor);
+    // El relleno del cielo lo pone el ambiente del entorno (el cielo del observador): una sola
+    // vez, con AO, independiente de las sombras y de la hora sin paleta propia.
 }
 
 void light() {
@@ -267,7 +260,10 @@ void light() {
     float transmission = pow(toward_sun, transmission_sharpness)
         * mix(max(-ndl, 0.0), 1.0, transmission_wrap)
         * mix(transmission_base, 1.0, height_factor) * transmission_strength;
-    float day = LIGHT_IS_DIRECTIONAL ? planet_day_factor : 1.0;
+    // Horizonte del planeta POR LUZ: el sol y la luna salen y se ponen cada uno por su lado.
+    float day = LIGHT_IS_DIRECTIONAL
+        ? planet_light_visibility(normalize((VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz), LIGHT)
+        : 1.0;
     vec3 energy = LIGHT_COLOR * ATTENUATION * day / PI;
     DIFFUSE_LIGHT += (vec3(wrapped) + transmission * transmission_color.rgb) * energy * ao;
     vec3 half_sum = LIGHT + VIEW;

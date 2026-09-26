@@ -59,10 +59,9 @@ void fragment() {
 	reflect_amount = min(reflect_amount, glass_reflect_max);
 
 	vec3 to_sun_w = dot(sun_direction, sun_direction) > 1e-6 ? normalize(sun_direction) : world_up;
-	float day = smoothstep(-0.1, 0.15, dot(world_up, to_sun_w));
 	vec3 view_w = normalize(v_world_pos - CAMERA_POSITION_WORLD);
 	vec3 normal_w = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	vec3 sky = calculate_sky_color(reflect(view_w, normal_w), world_up, day) * sky_influence;
+	vec3 sky = calculate_sky_color(reflect(view_w, normal_w), world_up) * sky_influence;
 
 	// ALPHA es la fracción reflejada y nada más: lo transmitido ya lo tiñó la pasada anterior.
 	// COLOR es el tinte de daño, por color de vértice.

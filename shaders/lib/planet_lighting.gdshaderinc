@@ -7,31 +7,33 @@
 //    2. Especular GGX/Cook-Torrance (respeta metallic/roughness, estilo StandardMaterial3D)
 //    3. Translucencia / SSS (luz a contraluz que atraviesa el material)
 //    4. Fresnel / Rim
-//    5. Ambient hemisférico (cielo/suelo)
-//    6. Sombra planetaria (terminador día/noche)
+//    5. Horizonte del planeta POR LUZ (terminador día/noche del sol y de la luna)
+//
+//  El relleno ambiente ya NO se calcula aquí: lo pone el entorno, que es el cielo del observador
+//  (SkyLighting → pase de cubemap de space_sky.gdshader), una sola vez por fragmento, con AO y
+//  sin pasar por la sombra de ninguna luz. El de antes se sumaba dentro de light() —una vez por
+//  luz direccional, así que con la luna contaría doble— y multiplicado por ATTENUATION: a la sombra
+//  de un árbol el follaje se quedaba sin difuso Y sin ambiente, negro puro. Tampoco era un
+//  hemisferio de cielo: mezclaba sus colores con la altura del SOL, y de día salía el del suelo.
 //
 //  IMPORTANTE (bug de compilación): la función NO lee los varyings como globales.
 //  Acceder a un `varying` dentro de una función auxiliar llamada desde light()
-//  cuelga el compilador de Godot. Por eso world_pos/planet_n se pasan como
-//  parámetros y los varyings solo se leen DIRECTAMENTE dentro de light().
+//  cuelga el compilador de Godot. Por eso los varyings se pasan como parámetros y
+//  solo se leen DIRECTAMENTE dentro de light().
 //
 //  Uso desde un shader spatial:
 //    #include "res://shaders/lib/planet_lighting.gdshaderinc"
 //
-//    En vertex() rellena los varyings (terminador y ambient se precalculan ahí
-//    porque son señales de frecuencia planetaria; por píxel eran coste inútil):
+//    En vertex():
 //      vertex_position_global = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; // tras viento, si lo hay
 //      planet_normal          = normalize(vertex_position_global - planet_position);
-//      float day_f; vec3 amb;
-//      compute_planet_vertex_light(vertex_position_global, planet_normal, day_f, amb);
-//      planet_day_factor = day_f;
-//      planet_ambient    = amb;
 //
 //    En light():
+//      vec3 up_view = normalize((VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz);
 //      vec3 d, s;
 //      compute_planet_light(NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
-//          ALBEDO, METALLIC, ROUGHNESS, specular_uniform, 1.0,
-//          planet_day_factor, planet_ambient, LIGHT_IS_DIRECTIONAL, d, s);
+//          ALBEDO, METALLIC, ROUGHNESS, specular_uniform,
+//          up_view, LIGHT_IS_DIRECTIONAL, 1.0, d, s);
 //      DIFFUSE_LIGHT  += d;   // el motor multiplica DIFFUSE_LIGHT por ALBEDO
 //      SPECULAR_LIGHT += s;   // opcional (grass/transparent lo omiten)
 //
@@ -44,12 +46,6 @@
 // --- Alimentados por el planeta ---
 uniform vec3  light_direction = vec3(1.0, 0.0, 0.0);
 uniform vec3  planet_position;
-uniform float transition_width : hint_range(0.0, 1.0, 0.01) = 0.2; // ancho del terminador
-
-// --- Ambient hemisférico ---
-uniform float ambient_intensity : hint_range(0.0, 1.0, 0.01) = 0.15;
-uniform vec4  ambient_color_top    : source_color = vec4(0.6, 0.7, 1.0, 1.0); // cielo
-uniform vec4  ambient_color_bottom : source_color = vec4(0.2, 0.15, 0.1, 1.0); // suelo
 
 // --- Translucencia / SSS ---
 uniform float translucency_strength : hint_range(0.0, 1.0, 0.01) = 0.45;
@@ -65,37 +61,31 @@ uniform float rim_strength : hint_range(0.0, 1.0, 0.01) = 0.3;
 varying vec3 vertex_position_global;
 varying vec3 planet_normal;
 
-// Señales del sol precalculadas por vértice: terminador día/noche (0 noche,
-// 1 día) y ambient hemisférico (con intensity incluida, sin attenuation).
-varying float planet_day_factor;
-varying vec3  planet_ambient;
+// Visibilidad de una luz direccional sobre el horizonte local del planeta. Va POR LUZ: el sol y la
+// luna salen y se ponen cada uno por su lado. Estrecha a propósito: la radiancia de cada luz ya se
+// apaga con su propio ocaso en el horizonte del observador (SkyLighting); esto solo separa el día
+// de la noche en la vegetación lejana y corta la luz que el planeta tiene delante. El terminador
+// ancho de antes (±11°, solo del sol) apagaba la vegetación mucho antes que el suelo que pisaba.
+const float PLANET_TERMINATOR_SOFTNESS = 0.035;
 
-// Calcula las señales de baja frecuencia del sol para un vértice. Llamar desde
-// vertex() con locales y copiar el resultado a planet_day_factor/planet_ambient.
-void compute_planet_vertex_light(vec3 world_pos, vec3 planet_n,
-		out float out_day_factor, out vec3 out_ambient) {
-	vec3 sun_dir = normalize(-light_direction);
-	vec3 to_planet = normalize(planet_position - world_pos);
-	out_day_factor = smoothstep(-transition_width, transition_width, dot(to_planet, sun_dir));
-	float hemisphere_factor = dot(planet_n, sun_dir) * 0.5 + 0.5;
-	out_ambient = mix(ambient_color_bottom.rgb, ambient_color_top.rgb, hemisphere_factor) * ambient_intensity;
+float planet_light_visibility(vec3 up_view, vec3 L) {
+	return smoothstep(-PLANET_TERMINATOR_SOFTNESS, PLANET_TERMINATOR_SOFTNESS, dot(up_view, L));
 }
 
 // out_diffuse  -> DIFFUSE_LIGHT  (el motor lo multiplica por ALBEDO)
 // out_specular -> SPECULAR_LIGHT (NO se multiplica por ALBEDO)
 //
-// is_directional distingue el sol (luz direccional) de las luces locales
-// (antorchas, hogueras...). El terminador día/noche y el ambient hemisférico
-// solo tienen sentido para el sol; aplicarlos a una luz local la apagaría de
-// noche (planet_shadow ~ 0) y sumaría el ambient una vez por luz. Pasa
-// LIGHT_IS_DIRECTIONAL desde el light() de cada shader.
+// is_directional distingue el sol y la luna (luces direccionales) de las luces locales
+// (antorchas, hogueras...). El horizonte del planeta solo tiene sentido para las primeras;
+// aplicarlo a una luz local la apagaría según hacia dónde quede. Pasa LIGHT_IS_DIRECTIONAL
+// desde el light() de cada shader.
 // El parámetro `detail` (0..1) escala y GATEA la translucencia/rim: cuando es 0
 // (p.ej. follaje lejano) se salta esos pow/normalize por completo. Pasar 1.0
 // para conservar el comportamiento original.
 void compute_planet_light(
 		vec3 N, vec3 V, vec3 L, vec3 light_color, float attenuation,
-		vec3 albedo, float metallic, float roughness, float specular_amount, float ao,
-		float day_factor, vec3 ambient_rgb, bool is_directional, float detail,
+		vec3 albedo, float metallic, float roughness, float specular_amount,
+		vec3 up_view, bool is_directional, float detail,
 		out vec3 out_diffuse, out vec3 out_specular) {
 
 	vec3 light_energy = attenuation * light_color;
@@ -127,25 +117,11 @@ void compute_planet_light(
 		rim = vec3(fresnel * rim_strength / PI) * detail;
 	}
 
-	vec3 lit = (diffuse + translucency + rim) * light_energy;
+	// === 5. Horizonte del planeta, por luz ===
+	float horizon = is_directional ? planet_light_visibility(up_view, L) : 1.0;
 
-	// Luces locales (antorchas, etc.): sin terminador planetario ni ambient
-	// (el ambient lo aporta solo el sol). Así iluminan también de noche.
-	if (!is_directional) {
-		out_diffuse  = lit;
-		out_specular = specular * light_energy;
-		return;
-	}
-
-	// === 5+6. Ambient hemisférico y terminador día/noche ===
-	// Precalculados por vértice en compute_planet_vertex_light; aquí solo se
-	// aplica la attenuation (por luz) y se compone.
-	vec3 ambient = ambient_rgb * attenuation;
-
-	// === Composición ===
-	out_diffuse  = lit * day_factor
-				 + ambient * mix(0.3, 1.0, day_factor) * ao; // la noche no queda negra del todo
-	out_specular = specular * light_energy * day_factor;
+	out_diffuse  = (diffuse + translucency + rim) * light_energy * horizon;
+	out_specular = specular * light_energy * horizon;
 }
 
 #endif // PLANET_LIGHTING_INC

@@ -9,6 +9,7 @@
 [ext_resource type="PackedScene" uid="uid://c1vquhxt75l31" path="res://scenes/player/third_person_player.tscn" id="5_05w5h"]
 [ext_resource type="PackedScene" uid="uid://dg37kdrqlecel" path="res://scenes/menu/main_menu.tscn" id="6_x6u8n"]
 [ext_resource type="Script" uid="uid://cs78lt1ehklkt" path="res://scripts/world/floating_origin.gd" id="7_fltorg"]
+[ext_resource type="Script" uid="uid://cdjstblkh6fcs" path="res://scripts/planet/sky_lighting.gd" id="8_skylit"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_tcpsq"]
 shader = ExtResource("3_cpkft")
@@ -49,6 +50,17 @@ shader_parameter/milky_way_core_color = Vector3(1, 0.9, 0.75)
 shader_parameter/milky_way_edge_color = Vector3(0.45, 0.55, 0.85)
 shader_parameter/milky_way_dust = 0.55
 shader_parameter/bloom_strength = 8.0
+shader_parameter/night_sky_visibility = 1.0
+shader_parameter/amb_up = Vector3(0, 1, 0)
+shader_parameter/amb_sun_ref = Vector3(1, 0, 0)
+shader_parameter/amb_zenith = Vector3(0.1, 0.15, 0.24)
+shader_parameter/amb_mid_sun = Vector3(0.14, 0.18, 0.26)
+shader_parameter/amb_mid_anti = Vector3(0.14, 0.18, 0.26)
+shader_parameter/amb_hor_sun = Vector3(0.2, 0.23, 0.27)
+shader_parameter/amb_hor_side = Vector3(0.2, 0.23, 0.27)
+shader_parameter/amb_hor_anti = Vector3(0.2, 0.23, 0.27)
+shader_parameter/amb_ground = Vector3(0.05, 0.045, 0.035)
+shader_parameter/amb_horizon_sin = 0.0
 
 [sub_resource type="Sky" id="Sky_hj7oe"]
 sky_material = SubResource("ShaderMaterial_tcpsq")
@@ -56,10 +68,7 @@ sky_material = SubResource("ShaderMaterial_tcpsq")
 [sub_resource type="Environment" id="Environment_0x85g"]
 background_mode = 2
 sky = SubResource("Sky_hj7oe")
-ambient_light_source = 2
-ambient_light_color = Color(1, 1, 1, 1)
-ambient_light_sky_contribution = 0.0
-ambient_light_energy = 0.05
+ambient_light_source = 3
 reflected_light_source = 1
 tonemap_mode = 3
 ssil_radius = 16.0
@@ -96,14 +105,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15000)
 sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_earth.json"
 players = [NodePath("../../Player")]
-water_sphere = NodePath("@Node3D@20544")
+water_sphere = NodePath("WaterSphere")
 global_pos = Vector3(0, 0, 15000)
-planet = NodePath("@Node3D@20543")
+planet = NodePath("@Node3D@47884")
 entity_id = "planet_earth"
-godray_samples = 24
-godray_pattern_scale = 0.1
-godray_pattern_speed = 1.0
-godray_sharpness = 6.0
 force_weather = true
 forced_weather = "clear"
 impostor_enabled = false
@@ -126,7 +131,7 @@ sun_path = NodePath("../../DirectionalLight3D")
 config_file_path = "res://data/planet/planet_moon.json"
 sun_dir = Vector3(0, 0, 155000)
 global_pos = Vector3(0, 0, -120404.02)
-planet = NodePath("@Node3D@20552")
+planet = NodePath("@Node3D@47886")
 entity_id = "planet_moon"
 antitiling_enabled = true
 antitiling_variation_scale = 2.3
@@ -137,17 +142,38 @@ transform = Transform3D(-0.93699, 0, 0.349357, 0, 1, 0, -0.349357, 0, -0.93699, 
 light_bake_mode = 0
 shadow_enabled = true
 shadow_normal_bias = 2.627
-shadow_opacity = 0.7
+shadow_opacity = 0.85
 directional_shadow_split_1 = 0.02
 directional_shadow_split_2 = 0.07
 directional_shadow_blend_splits = true
 directional_shadow_fade_start = 0.761
 directional_shadow_max_distance = 1500.0
 
+[node name="MoonLight" type="DirectionalLight3D" parent="." unique_id=807423234]
+visible = false
+light_color = Color(0.62, 0.73, 1, 1)
+light_energy = 0.0
+light_bake_mode = 0
+shadow_enabled = true
+shadow_normal_bias = 2.627
+shadow_opacity = 0.85
+directional_shadow_split_1 = 0.02
+directional_shadow_split_2 = 0.07
+directional_shadow_blend_splits = true
+directional_shadow_fade_start = 0.761
+directional_shadow_max_distance = 600.0
+
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1273357776]
 environment = SubResource("Environment_0x85g")
 compositor = SubResource("Compositor_cpkft")
 script = ExtResource("4_7qkn8")
+
+[node name="SkyLighting" type="Node" parent="." unique_id=379070015 node_paths=PackedStringArray("sun_light", "moon_light", "world_environment", "planets")]
+script = ExtResource("8_skylit")
+sun_light = NodePath("../DirectionalLight3D")
+moon_light = NodePath("../MoonLight")
+world_environment = NodePath("../WorldEnvironment")
+planets = NodePath("../Planets")
 
 [node name="Player" parent="." unique_id=783931208 node_paths=PackedStringArray("main_menu", "spawn_point", "planets") instance=ExtResource("5_05w5h")]
 transform = Transform3D(0.1595815, 0.29166493, -0.9431151, -0.034847043, 0.9564268, 0.28988552, 0.9865696, -0.013395568, 0.16279171, -60562.305, 33474.453, 15114.492)

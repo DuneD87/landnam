@@ -49,12 +49,6 @@ uniform float ground_fade_max : hint_range(0.0, 1.0, 0.01) = 0.35;
 // Subirlo acerca el tono al de la hierba cercana a contraluz, a cambio de fragmento.
 uniform float light_detail : hint_range(0.0, 1.0, 0.01) = 0.0;
 
-// Suelo de luz ambiente propio. El include multiplica SU ambient por ATTENUATION, que
-// ya lleva dentro el término de sombra, así que una tarjeta a la sombra se quedaba sin
-// difuso Y sin ambiente: negro puro. Este se suma al margen de la sombra, solo con el
-// sol, para que quede oscura pero perteneciendo al paisaje. 0 = comportamiento anterior.
-uniform float ambient_floor : hint_range(0.0, 2.0, 0.01) = 1.0;
-
 // Diagnóstico: apagar un quad para ver cuál sostiene realmente la imagen.
 uniform float cross_enabled : hint_range(0.0, 1.0, 1.0) = 1.0;
 uniform float ground_enabled : hint_range(0.0, 1.0, 1.0) = 1.0;
@@ -84,11 +78,6 @@ void vertex() {
 
 	vertex_position_global = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	planet_normal = up;
-	float day_f;
-	vec3 amb;
-	compute_planet_vertex_light(vertex_position_global, planet_normal, day_f, amb);
-	planet_day_factor = day_f;
-	planet_ambient = amb;
 }
 
 void fragment() {
@@ -119,19 +108,15 @@ void fragment() {
 }
 
 void light() {
-	// Mismos parámetros que grass_wind.gdshader (specular y ao a 0) para que el
-	// relevo no se note; detail 0 salta translucencia/rim, que a esta distancia no
-	// se aprecian y cuestan 3 pow por fragmento.
+	// Mismos parámetros que grass_wind.gdshader (specular a 0) para que el relevo no se
+	// note; detail 0 salta translucencia/rim, que a esta distancia no se aprecian y
+	// cuestan 3 pow por fragmento. El relleno de la tarjeta a la sombra ya no hace falta
+	// sumarlo aquí: lo da el ambiente del entorno, que no pasa por la sombra.
+	vec3 up_view = normalize((VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz);
 	vec3 d, s;
 	compute_planet_light(
 		NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
-		ALBEDO, METALLIC, ROUGHNESS, 0.0, 0.0,
-		planet_day_factor, planet_ambient, LIGHT_IS_DIRECTIONAL, light_detail, d, s);
+		ALBEDO, METALLIC, ROUGHNESS, 0.0,
+		up_view, LIGHT_IS_DIRECTIONAL, light_detail, d, s);
 	DIFFUSE_LIGHT += d;
-
-	// Solo con el sol: en light() por luz, sumarlo sin condición lo contaría una vez
-	// por antorcha.
-	if (LIGHT_IS_DIRECTIONAL) {
-		DIFFUSE_LIGHT += planet_ambient * mix(0.3, 1.0, planet_day_factor) * ambient_floor;
-	}
 }

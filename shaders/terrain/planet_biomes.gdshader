@@ -124,6 +124,9 @@ uniform float parallax_max_distance = 10.0;
 uniform float parallax_fade_start = 5.0;
 
 uniform float direct_ao_strength : hint_range(0.0, 1.0) = 0.35;
+// AO de las texturas sobre el ambiente de cielo. Con el ambiente plano de antes (0.05) daba igual;
+// ahora que el cielo rellena las sombras, sin esto las grietas y rincones quedan planos.
+uniform float ambient_ao_strength : hint_range(0.0, 1.0) = 0.85;
 uniform float specular_ao_strength : hint_range(0.0, 1.0) = 0.65;
 uniform float terrain_specular_strength : hint_range(0.0, 1.0) = 0.12;
 uniform float water_light_depth = 1000.0;
@@ -657,7 +660,7 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(safe_normalize(final_normal, normal_world), 0.0)).xyz);
     ROUGHNESS = final_roughness;
     v_fragment_ao = mix(clamp(final_ao, 0.0, 1.0), 1.0, underwater);
-    AO = 1.0;
+    AO = mix(1.0, v_fragment_ao, ambient_ao_strength);
     AO_LIGHT_AFFECT = 0.0;
     METALLIC = 0.0;
 }

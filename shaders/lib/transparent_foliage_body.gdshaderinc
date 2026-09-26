@@ -78,12 +78,6 @@ void vertex() {
     vertex_position_global = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     planet_normal = normalize(vertex_position_global - planet_position);
 
-    float day_f;
-    vec3 amb;
-    compute_planet_vertex_light(vertex_position_global, planet_normal, day_f, amb);
-    planet_day_factor = day_f;
-    planet_ambient = amb;
-
     // Up del planeta en view space (baja frecuencia): antes se hacía por píxel.
     up_view = (VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz;
 
@@ -108,6 +102,10 @@ void fragment() {
     }
     // Dobla la normal hacia el up del planeta (interpolado desde vertex) para sombrear como masa
     NORMAL = normalize(mix(NORMAL, up_view, normal_up_bias));
+    // La misma oclusión de base que la luz directa (light()), ahora también para el ambiente del
+    // cielo, que es el que rellena la copa a la sombra.
+    AO = mix(ao_base, 1.0, height_ao);
+    AO_LIGHT_AFFECT = 0.0;
 
     if (debug_lod_tint.a > 0.0) {
         ALBEDO = debug_lod_tint.rgb;
@@ -120,7 +118,7 @@ void light() {
     vec3 d, s;
     compute_planet_light(
         NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
-        ALBEDO, METALLIC, ROUGHNESS, specular_strength, 1.0,
-        planet_day_factor, planet_ambient, LIGHT_IS_DIRECTIONAL, foliage_detail, d, s);
+        ALBEDO, METALLIC, ROUGHNESS, specular_strength,
+        normalize(up_view), LIGHT_IS_DIRECTIONAL, foliage_detail, d, s);
     DIFFUSE_LIGHT += d * mix(ao_base, 1.0, height_ao);
 }

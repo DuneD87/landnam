@@ -165,7 +165,11 @@ func _has_active_effect() -> bool:
 
 
 ## Color de luz que multiplica el albedo de las partículas según día/noche, con tinte cálido en el terminador.
+## Con SkyLighting en la escena sale de las mismas luces que el resto (sol, luna, cielo y clima).
 func _compute_sun_light() -> Color:
+	var sky := get_tree().get_first_node_in_group(SkyLighting.GROUP) as SkyLighting
+	if sky != null:
+		return sky.get_particle_light()
 	if _player == null or not is_instance_valid(_player):
 		return Color.WHITE
 	var up := _player.global_position - _planet_center

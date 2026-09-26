@@ -1,8 +1,8 @@
 shader_type spatial;
 // Material OPACO equivalente a StandardMaterial3D (albedo, metallic, roughness,
 // AO, emission) pero iluminado con la luz planetaria custom del proyecto
-// (terminador día/noche, ambient hemisférico, translucencia, rim) y con
-// especular GGX que respeta metallic/roughness.
+// (horizonte del planeta por luz, translucencia, rim) y con especular GGX que
+// respeta metallic/roughness. El ambiente es el del entorno (cielo del observador).
 //
 // Pensado para rocas y superficies sólidas sobre el planeta esférico.
 // El planeta debe alimentar cada frame light_direction y planet_position
@@ -47,20 +47,12 @@ uniform float emission_energy : hint_range(0.0, 16.0, 0.01) = 1.0;
 uniform vec3 uv1_scale  = vec3(1.0, 1.0, 1.0);
 uniform vec3 uv1_offset = vec3(0.0);
 
-varying float ao_value; // oclusión muestreada en fragment, usada en light()
-
 void vertex() {
 	UV = UV * uv1_scale.xy + uv1_offset.xy;
 
 	// Datos en espacio mundo para la iluminación planetaria.
 	vertex_position_global = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	planet_normal = normalize(vertex_position_global - planet_position);
-
-	float day_f;
-	vec3 amb;
-	compute_planet_vertex_light(vertex_position_global, planet_normal, day_f, amb);
-	planet_day_factor = day_f;
-	planet_ambient = amb;
 }
 
 void fragment() {
@@ -78,9 +70,8 @@ void fragment() {
 	NORMAL_MAP = texture(texture_normal, base_uv).rgb;
 	NORMAL_MAP_DEPTH = normal_scale;
 
-	// Oclusión ambiental: la aplicamos a nuestro ambient custom en light()
-	ao_value = dot(texture(texture_ambient_occlusion, base_uv), ao_texture_channel);
-	AO = ao_value; // también disponible para GI/ambient del entorno
+	// Oclusión ambiental: la aplica el motor al ambiente del entorno (el cielo).
+	AO = dot(texture(texture_ambient_occlusion, base_uv), ao_texture_channel);
 
 	// Emisión
 	EMISSION = (emission.rgb + texture(texture_emission, base_uv).rgb) * emission_energy;
@@ -89,11 +80,12 @@ void fragment() {
 void light() {
 	// SPECULAR no está disponible en light(); pasamos el uniform.
 	// Los varyings se LEEN aquí y se pasan como parámetros (no dentro de la función).
+	vec3 up_view = normalize((VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz);
 	vec3 d, s;
 	compute_planet_light(
 		NORMAL, VIEW, LIGHT, LIGHT_COLOR, ATTENUATION,
-		ALBEDO, METALLIC, ROUGHNESS, specular, ao_value,
-		planet_day_factor, planet_ambient, LIGHT_IS_DIRECTIONAL, 1.0, d, s);
+		ALBEDO, METALLIC, ROUGHNESS, specular,
+		up_view, LIGHT_IS_DIRECTIONAL, 1.0, d, s);
 
 	DIFFUSE_LIGHT  += d;
 	SPECULAR_LIGHT += s;

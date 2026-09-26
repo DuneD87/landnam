@@ -26,7 +26,7 @@ func _ready() -> void:
 	# proyecta (cast_shadow=false en los items) pero sí las recibe.
 	_light.shadow_enabled = true
 	_light.shadow_normal_bias = 2.627
-	_light.shadow_opacity = 0.7
+	_light.shadow_opacity = 0.85
 	_light.directional_shadow_split_1 = 0.02
 	_light.directional_shadow_split_2 = 0.07
 	_light.directional_shadow_blend_splits = true
@@ -99,15 +99,17 @@ static func meadow_ground_material() -> StandardMaterial3D:
 ## DESPUÉS del tonemap y del glow, así que un entorno lineal y sin bloom hacía que
 ## el preview aprobara ajustes que en el juego se queman. Lo único que no se
 ## reproduce es el cielo: el juego usa el shader de espacio y aquí basta un color
-## plano, que además deja la silueta de la mata más legible.
+## plano, que además deja la silueta de la mata más legible. El ambiente del juego
+## sale del cielo del observador (SkyLighting); aquí se fija el de un mediodía
+## despejado, que es con el que se ajusta la hierba.
 func _build_environment() -> Environment:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.38, 0.52, 0.67)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(1, 1, 1)
+	env.ambient_light_color = Color(0.2, 0.26, 0.35)
 	env.ambient_light_sky_contribution = 0.0
-	env.ambient_light_energy = 0.05
+	env.ambient_light_energy = 1.0
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.glow_enabled = true

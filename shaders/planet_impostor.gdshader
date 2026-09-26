@@ -215,7 +215,10 @@ void fragment() {
 		// El terminador global se marca con la normal LISA, para que el relieve no rompa su línea.
 		float day = smoothstep(-terminator_softness, terminator_softness, dot(n, sun));
 		float diffuse = max(ndl, 0.0);
-		float lit = mix(night_light, 1.0, day) * (0.15 + 0.85 * sqrt(diffuse));
+		// La cara nocturna recibe night_light entero (luz que le devuelve el otro cuerpo, p.ej. la
+		// tierra sobre la luna nueva). Antes iba multiplicada por el difuso del sol, que en esa cara
+		// es cero: quedaba en un 15% del valor y el disco ceniciento no llegaba a verse nunca.
+		float lit = day * (0.15 + 0.85 * sqrt(diffuse)) + (1.0 - day) * night_light;
 
 		col = albedo * lit;
 

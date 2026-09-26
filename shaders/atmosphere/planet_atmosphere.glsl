@@ -7,10 +7,10 @@ layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D depth_texture;
 
 // UBO en vez de SSBO: todos los hilos leen los mismos parámetros, así que van por la
-// constant cache. El tamaño (33) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd
+// constant cache. El tamaño (38) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd
 // y con la declaración de god_rays.glsl, que comparte este mismo buffer.
 layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
-	vec4 data[33];
+	vec4 data[38];
 } params_buffer;
 
 // Rejilla de oclusión radial del WeatherOcclusionField (R = altura del techo de cueva). La niebla
@@ -96,6 +96,142 @@ vec2 ray_sphere(vec3 center, float radius, vec3 ro, vec3 rd) {
 }
 
 
+// ===== MODELO DE CIELO =====
+// Rayleigh + Mie + capa de ozono, con la transmitancia hacia el sol analítica (función de Chapman)
+// en una geometría efectiva. El planeta mide 30 km y su atmósfera 3: con su curvatura real la luz
+// rasante apenas cruza aire (el horizonte está a 13 km), el sol casi no se enrojece y, peor, a 10 km
+// hacia el sol ya es media tarde. De ahí salía el antiguo "tinte de terminador", que teñía de naranja
+// el cielo entero, cénit incluido, y dejaba la hora dorada de color lavanda. Aquí el camino al sol va
+// a escala terrestre (P(36).w) sobre la curvatura de un planeta P(37).y veces mayor, y el color sale
+// solo: blanco cálido alto, dorado, naranja y rojo al tocar el horizonte; el cénit sigue azul porque
+// el aire alto recibe luz menos filtrada, y la capa de ozono lo mantiene azul en el crepúsculo.
+//   P(35): .x = dispersión de Mie (1/m), .y = anisotropía g, .z = aerosoles más bajos que el aire
+//          (multiplica density_falloff), .w = dispersión múltiple.
+//   P(36): .rgb = espesor óptico vertical del ozono, .w = escala del camino al sol.
+//   P(37): .x = escala del espesor óptico de los rayos de cielo, .y = curvatura efectiva,
+//          .zw = base y techo de la capa de ozono (fracción del grosor de la atmósfera).
+struct Sky {
+	vec3  sig_r;      // dispersión (= extinción) de Rayleigh, 1/m
+	float sig_m;      // dispersión de Mie, 1/m
+	float sig_me;     // extinción de Mie, 1/m (albedo 0.9)
+	float falloff_m;  // caída de densidad de los aerosoles
+	float h_r;        // escala de altura del aire (m)
+	float h_m;        // escala de altura de los aerosoles (m)
+	float r_eff;      // radio efectivo del planeta para la transmitancia al sol
+	float k_sun;      // escala del espesor óptico en el camino al sol
+	vec3  ozone;      // espesor óptico vertical de la capa de ozono
+	float oz_h1;      // base de la capa de ozono (m sobre la superficie)
+	float oz_h2;      // techo
+	float g;          // anisotropía de Mie
+	float ms;         // dispersión múltiple
+	vec3  ms_tint;    // color de la luz de cielo (azulado, lavado)
+};
+
+Sky make_sky(vec3 scattering_coeffs, float planet_radius, float atmo_radius, float density_falloff) {
+	Sky s;
+	float thick = max(atmo_radius - planet_radius, 1.0);
+	s.sig_r = scattering_coeffs;
+	s.sig_m = P(35).x;
+	s.sig_me = P(35).x * 1.11;
+	s.falloff_m = density_falloff * max(P(35).z, 1.0);
+	s.h_r = thick / max(density_falloff, 0.1);
+	s.h_m = thick / max(s.falloff_m, 0.1);
+	s.r_eff = planet_radius * max(P(37).y, 1.0);
+	s.k_sun = max(P(36).w, 0.0);
+	s.ozone = max(P(36).rgb, vec3(0.0));
+	s.oz_h1 = thick * P(37).z;
+	s.oz_h2 = max(thick * P(37).w, s.oz_h1 + 1.0);
+	s.g = clamp(P(35).y, 0.0, 0.99);
+	s.ms = max(P(35).w, 0.0);
+	float peak = max(scattering_coeffs.r, max(scattering_coeffs.g, scattering_coeffs.b));
+	s.ms_tint = mix(vec3(1.0), scattering_coeffs / max(peak, EPSILON), 0.7);
+	return s;
+}
+
+// Densidad relativa a una altura (m); la misma curva que density_at_point.
+float sky_density(float h, float thick, float falloff) {
+	float h01 = clamp(h / thick, 0.0, 1.0);
+	return exp(-h01 * falloff) * (1.0 - h01);
+}
+
+// Función de Chapman (aproximación de Schüler): espesor óptico relativo, en unidades de ρ0·H, desde
+// la altura h (en escalas de altura) hasta el infinito con coseno cenital mu. X = radio / H. Bajo el
+// horizonte del punto usa la identidad del punto tangente, así que la sombra del planeta sale sola:
+// cuando el rayo pasa por debajo del suelo el espesor se dispara y la transmitancia cae a cero.
+float chapman(float X, float h, float mu) {
+	float x = X + h;
+	float c = sqrt(1.5707963 * x);
+	if (mu >= 0.0) return exp(-h) * c / ((c - 1.0) * mu + 1.0);
+	float xt = x * sqrt(max(1.0 - mu * mu, 0.0));
+	float ht = max(xt - X, -30.0);
+	float ct = sqrt(1.5707963 * max(xt, 0.001));
+	return 2.0 * exp(-ht) * ct - exp(-h) * c / ((c - 1.0) * (-mu) + 1.0);
+}
+
+// Recorrido dentro de la bola de radio r + dr de la semirrecta que sale a radio r con coseno mu
+// respecto a su vertical. dr en metros (preciso aunque los radios sean de cientos de km).
+float ball_path(float r, float mu, float dr) {
+	float disc = dr * (2.0 * r + dr) + r * r * mu * mu;   // Rs² - b²
+	if (dr >= 0.0) return -r * mu + sqrt(max(disc, 0.0));
+	if (mu >= 0.0 || disc <= 0.0) return 0.0;
+	return 2.0 * sqrt(disc);
+}
+
+// Luz del sol (o de la luna) que llega a una altura h con coseno mu respecto a la vertical local.
+vec3 sky_sun_transmittance(Sky s, float h, float mu) {
+	h = max(h, 0.0);
+	float r = s.r_eff + h;
+	// Rayo muy por debajo del suelo efectivo: sombra del planeta, nada que calcular.
+	if (mu < 0.0 && r * sqrt(max(1.0 - mu * mu, 0.0)) - s.r_eff < -4.0 * s.h_r) return vec3(0.0);
+	float od_r = s.h_r * chapman(s.r_eff / s.h_r, h / s.h_r, mu);
+	float od_m = s.h_m * chapman(s.r_eff / s.h_m, h / s.h_m, mu);
+	float oz = ball_path(r, mu, s.oz_h2 - h) - ball_path(r, mu, s.oz_h1 - h);
+	vec3 tau = (s.sig_r * od_r + vec3(s.sig_me * od_m)) * s.k_sun + s.ozone * (oz / (s.oz_h2 - s.oz_h1));
+	return exp(-tau);
+}
+
+float phase_rayleigh(float nu) {
+	return 0.75 * (1.0 + nu * nu);
+}
+
+// Cornette-Shanks, normalizada a media 1 como la de Rayleigh (×4π).
+float phase_mie(float nu, float g) {
+	float g2 = g * g;
+	float k = 1.5 * (1.0 - g2) / (2.0 + g2);
+	return k * (1.0 + nu * nu) / pow(max(1.0 + g2 - 2.0 * g * nu, 0.0001), 1.5);
+}
+
+// Luz de cielo (dispersión múltiple) disponible con el sol a coseno mu: plena de día y se prolonga
+// unos grados tras el ocaso —el cielo de alrededor sigue iluminado—. Con el sol ya bajo el
+// horizonte pesa más (hora azul): es la que da el azul profundo del crepúsculo, que la dispersión
+// simple de la luz rasante (roja) no produce. El realce no toca el ocaso (mu > 0) para no lavar su
+// banda naranja.
+const float SKY_MS_TWILIGHT = 1.5;
+float sky_ms_brightness(float mu) {
+	float twilight = smoothstep(-0.25, -0.08, mu) * (1.0 - smoothstep(-0.06, 0.0, mu));
+	return smoothstep(-0.25, 0.02, mu) + SKY_MS_TWILIGHT * twilight;
+}
+
+// Luz de la bóveda que baña nubes y niebla con el sol a coseno mu, relativa a la de pleno día.
+// Ajustada al ambiente que integra SkyLighting con este mismo modelo: 0,72 con el sol a 7°, 0,29
+// al ponerse, 0,06 en el crepúsculo civil y casi nada en el náutico. No vale sky_ms_brightness:
+// su realce de la hora azul da color al cielo, pero como luz absoluta dejaba las nubes del
+// crepúsculo con el doble de ambiente que a mediodía (manchas blancas pasado el terminador,
+// vistas desde órbita).
+float sky_ambient_level(float mu) {
+	float m = mu - 0.01;
+	return m >= 0.0 ? 1.0 - 0.71 * exp(-m / 0.12) : 0.29 * exp(m / 0.042);
+}
+
+// Coseno del astro respecto a la vertical "aplanada": a lo largo del rayo la vertical local gira
+// inv_flat veces lo que gira de verdad. En un planeta de 30 km, a 10 km hacia el sol la vertical ya
+// ha girado 19° y allí sería media tarde: sin aplanar, el cielo del ocaso se iluminaba con luz de
+// tarde (blanca) y las nubes de alrededor no se encendían todas a la vez.
+float flat_cos(vec3 up, vec3 up_obs, float inv_flat, vec3 dir) {
+	return dot(normalize(up_obs + (up - up_obs) * inv_flat), dir);
+}
+
+
 // ===== NUBES VOLUMÉTRICAS =====
 
 float _hash3f(vec3 p) {
@@ -112,6 +248,13 @@ float ign_jitter(ivec2 pixel, float offset) {
 	vec2 p = vec2(pixel) + vec2(5.588238, 1.715) * offset;
 	return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
 }
+
+// Asimetría del Mie en los rayos que acaban en el terreno. El cielo lleva el halo de los aerosoles
+// (sky.g, ~0,85), pero sobre el relieve ese lóbulo pintaba un resplandor alrededor del sol encima de
+// laderas que están a la sombra de la propia montaña: el aire no sabe qué lo tapa, y sombrearlo en
+// pantalla dejaba franjas en las siluetas. Casi isótropo conserva la bruma sin el foco; la silueta
+// oscura contra el cielo encendido la da el cielo.
+const float TERRAIN_MIE_G = 0.2;
 
 float _vnoise(vec3 p) {
 	vec3 i = floor(p);
@@ -494,6 +637,7 @@ void march_clouds(
 	vec3 sun_dir, float sun_intensity, float planet_radius,
 	vec3 scattering_coeffs,
 	float jitter, float pixel_angle,
+	Sky sky, vec3 up_obs, float inv_flat,
 	out vec3 out_color, out float out_trans, out float out_dist
 ) {
 	out_color = vec3(0.0);
@@ -542,6 +686,13 @@ void march_clouds(
 	// al sol; el lóbulo trasero fijo añade la retro-dispersión que hace brillar las nubes con
 	// el sol a la espalda (con un solo lóbulo quedaban planas y muertas en esa dirección).
 	float phase = mix(hg_phase(cos_theta, g), hg_phase(cos_theta, -0.3), 0.3);
+
+	// Luna: donde el sol ya no llega (cara nocturna) la marcha de luz va hacia ella, así que de
+	// noche las nubes quedan plateadas con el mismo coste que de día. P(33)/P(34) como en el cielo.
+	vec3 moon_dir = normalize(P(33).xyz);
+	float moon_intensity = P(33).w;
+	float cos_theta_moon = dot(rd, moon_dir);
+	float moon_phase = mix(hg_phase(cos_theta_moon, g), hg_phase(cos_theta_moon, -0.3), 0.3);
 
 	// Tinte del ambiente derivado de los coeficientes de Rayleigh: a las zonas en sombra de la
 	// nube las ilumina la bóveda del cielo, así que heredan su azul — y siguen el color de la
@@ -596,58 +747,66 @@ void march_clouds(
 		}
 
 		{
-			float l_od = cloud_light_od(p, sun_dir, planet_center, cloud_min_r, cloud_max_r,
-										thr, dens, noise_scale, cov.z);
+			// Qué luz ilumina esta muestra: el sol, con el color que le deja el aire que cruza hasta
+			// ella (sky_sun_transmittance: el ocaso las enciende de naranja y rosa, y las altas siguen
+			// al sol un rato después de que el suelo quede en sombra), y en la cara nocturna la luna.
+			// Una sola marcha de luz por muestra, y ninguna donde solo queda la luz del cielo.
+			vec3 up_c = normalize(p - planet_center);
+			float h_c = length(p - planet_center) - planet_radius;
+			float mu_sun = flat_cos(up_c, up_obs, inv_flat, sun_dir);
+			vec3 sun_col = sky_sun_transmittance(sky, h_c, mu_sun);
+			float sun_peak = max(sun_col.r, max(sun_col.g, sun_col.b));
+			float sky_light = sky_ambient_level(mu_sun);
+			vec3 moon_col = vec3(0.0);
+			float moon_vis = 0.0;
+			if (moon_intensity > 0.0 && sun_peak <= 0.002) {
+				moon_col = sky_sun_transmittance(sky, h_c, flat_cos(up_c, up_obs, inv_flat, moon_dir));
+				moon_vis = max(moon_col.r, max(moon_col.g, moon_col.b));
+			}
+			bool by_moon = moon_vis > 0.001;
+			bool direct = sun_peak > 0.002 || by_moon;
+			vec3 light_dir = by_moon ? moon_dir : sun_dir;
 
-			float shadow_softness = max(cloud_max_r - cloud_min_r, planet_radius * 0.005);
+			vec3 lighting = vec3(0.0);
+			if (direct || sky_light > 0.001) {
+				float shadow_softness = max(cloud_max_r - cloud_min_r, planet_radius * 0.005);
+				float shadow = cloud_sun_visibility(p, light_dir, planet_center, planet_radius, shadow_softness);
 
-			float shadow = cloud_sun_visibility(
-				p,
-				sun_dir,
-				planet_center,
-				planet_radius,
-				shadow_softness
-			);
+				float direct_light = 0.0;
+				if (direct) {
+					float l_od = cloud_light_od(p, light_dir, planet_center, cloud_min_r, cloud_max_r,
+												thr, dens, noise_scale, cov.z);
+					// Multi-scattering aproximado (Schneider): el Beer puro apagaba cualquier nube
+					// gruesa en gris plomo uniforme. La segunda exponencial —absorción ×0.25, techo
+					// 0.7— simula la luz que rebota varias veces dentro de la nube e ilumina el
+					// interior; el max conserva intacto el pico de la directa en los bordes finos.
+					float beer   = max(exp(-l_od * absorption), 0.7 * exp(-l_od * absorption * 0.25));
+					// El powder aproxima el oscurecimiento cerca de la superficie iluminada, así que su
+					// escala de profundidad es una propiedad de la NUBE, no del integrador: va con una
+					// longitud de referencia fija (proporcional al grosor) y NO con step_size, para que
+					// la radiancia no cambie con la dirección de vista ni con la posición de la cámara.
+					float powder = 1.0 - exp(-d * (thickness * 0.05) * absorption * 2.0);
+					direct_light = beer * powder * 2.0 * (by_moon ? moon_phase : phase) * shadow;
+				}
 
-			// Multi-scattering aproximado (Schneider): el Beer puro apagaba cualquier nube
-			// gruesa en gris plomo uniforme. La segunda exponencial —absorción ×0.25, techo
-			// 0.7— simula la luz que rebota varias veces dentro de la nube e ilumina el
-			// interior; el max conserva intacto el pico de la directa en los bordes finos.
-			float beer   = max(exp(-l_od * absorption), 0.7 * exp(-l_od * absorption * 0.25));
-			// El powder aproxima el oscurecimiento cerca de la superficie iluminada, así que su
-			// escala de profundidad es una propiedad de la NUBE, no del integrador: va con una
-			// longitud de referencia fija (proporcional al grosor, para que escale con las nubes
-			// de tormenta) y NO con step_size. Así la radiancia es invariante al paso — el peso
-			// diferencial ya lo aporta el (1 - s_trans) de la acumulación, que sí lo lleva.
-			// Con step_size aquí, el brillo de la directa cambiaba hasta 3.5× según la dirección
-			// de vista y la posición de la cámara. El 0.05 es el knob de intensidad del powder.
-			float powder = 1.0 - exp(-d * (thickness * 0.05) * absorption * 2.0);
+				// Ambiente celeste con gradiente de altura: la cima ve toda la bóveda (más luz), la base
+				// casi nada; así el sol rasante del amanecer SÍ puede encender las bases. Es la luz del
+				// cielo, que dura un poco más que la directa tras el ocaso.
+				float h_amb = clamp((length(p - planet_center) - cloud_min_r) / thickness, 0.0, 1.0);
+				vec3 ambient_light = sky_ambient * (mix(0.05, 0.16, h_amb) * shadow);
 
-			float direct_light = beer * powder * 2.0 * phase * shadow;
-
-			// Ambiente celeste con gradiente de altura: la cima ve toda la bóveda (más luz),
-			// la base casi nada. Sustituye al ambiente plano 0.10 y al oscurecimiento fijo de
-			// la base (cloud_underside_darkening): la penumbra de la base ahora la ponen este
-			// gradiente y el self-shadowing real de la marcha de luz, no un ×0.25 a ciegas —
-			// así el sol rasante del amanecer SÍ puede encender las bases.
-			float h_amb = clamp((length(p - planet_center) - cloud_min_r) / thickness, 0.0, 1.0);
-			vec3 ambient_light = sky_ambient * (mix(0.05, 0.16, h_amb) * shadow);
-
-			// Gradiente día/noche y tinte de atardecer: sincronizan las nubes con la atmósfera.
-			vec3 to_cloud = normalize(p - planet_center);
-			float sun_dot_c = dot(to_cloud, sun_dir);
-			float day_night = smoothstep(-0.15, 0.15, sun_dot_c);
-
-			// Tinte cálido del terminador SOLO sobre la luz DIRECTA (la del sol, que al rasar la
-			// atmósfera se enrojece). El ambiente (relleno difuso) queda neutro. Así se auto-regula:
-			// el cielo despejado al atardecer glow naranja (domina la directa), pero una nube de
-			// tormenta —gruesa, con la directa apagada por su grosor/albedo— se queda gris en vez de
-			// teñirse de naranja falso. Sin parámetro por evento.
-			float sunset_f = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot_c));
-			vec3 sunset_tint = mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_f);
-
-			vec3 lit = (vec3(direct_light) * sunset_tint + ambient_light) * sun_intensity;
-			vec3 lighting = lit * day_night;
+				// La luz del cielo (el aire de encima, aún con sol en el crepúsculo) va con o sin luna.
+				// Una nube de tormenta —gruesa, con la directa apagada por su grosor/albedo— se queda
+				// gris en vez de teñirse: el color del ocaso solo va en la directa.
+				lighting = ambient_light * (sky_light * sun_intensity);
+				if (by_moon) {
+					// Luz de luna: fría, y rojiza también ella cuando está baja.
+					lighting += (moon_col * direct_light + ambient_light * moon_vis)
+						* (sun_intensity * moon_intensity) * P(34).rgb;
+				} else {
+					lighting += sun_col * (direct_light * sun_intensity);
+				}
+			}
 
 			// Albedo de la nube (P(23).z): su reflectividad. 1 = brillo pleno (nube blanca); valores
 			// bajos la oscurecen hacia un gris de tormenta. Multiplica TODA la radiancia (directa +
@@ -812,6 +971,7 @@ void march_fog(
 	vec3 wind_dir, float wind_offset,
 	vec3 sun_dir, float sun_intensity, vec3 fog_color,
 	int steps, float jitter, float view_distance,
+	Sky sky, vec3 up_obs, float inv_flat, float planet_radius,
 	out vec3 out_color, out float out_trans
 ) {
 	out_color = vec3(0.0);
@@ -859,33 +1019,33 @@ void march_fog(
 			d *= 1.0 - smoothstep(view_distance * 0.6, view_distance, t);
 		}
 		if (d > 0.0001) {
-			// Iluminación simple: ambiente + ganancia diurna + tinte cálido en el terminador.
-			vec3 to_p = normalize(p - planet_center);
-			float sun_dot = dot(to_p, sun_dir);
-			// `day`: 0 en el lado nocturno, 1 en el diurno. Antes el suelo de ambiente (0.05)
-			// NO estaba multiplicado por `day`, asi que con sun_intensity alto (20 por defecto)
-			// la niebla quedaba igual de clara de noche -> no parecia afectada por el sol. Las
-			// nubes en cambio multiplican TODO su lit por este factor. Lo replicamos aqui.
-			float day = smoothstep(-0.15, 0.15, sun_dot);
-			// Tinte de terminador CONDICIONAL al cielo despejado: lo escalamos por atmosphere_scatter
-			// (P(23).w, ~1 en clear y ~0 en tormenta). Niebla de amanecer naranja, bruma de tormenta
-			// gris (sol tapado por las nubes). La niebla es luz de sol pura: este gate es su "solo directa".
-			float sunset_f = (1.0 - smoothstep(0.0, 0.3, abs(sun_dot))) * clamp(P(23).w, 0.0, 1.0);
-
-			float lit_amount = 0.16 * day;
+			// Iluminación simple: la luz del sol que llega al banco (con el color que le deja el aire:
+			// niebla de amanecer naranja), más la del cielo, que dura un poco tras el ocaso, más el
+			// resplandor nocturno y la luna.
+			vec3 up_p = normalize(p - planet_center);
+			float h_p = length(p - planet_center) - planet_radius;
+			float mu_sun = flat_cos(up_p, up_obs, inv_flat, sun_dir);
+			vec3 sun_col = sky_sun_transmittance(sky, h_p, mu_sun);
+			float sky_l = sky_ambient_level(mu_sun);
+			// El color del ocaso es luz de sol directa: con el cielo tapado (P(23).w, atmosphere_scatter,
+			// ~1 despejado y ~0 en tormenta) se queda en su luminancia → bruma de tormenta gris.
+			float sun_lum = dot(sun_col, vec3(0.2126, 0.7152, 0.0722));
+			sun_col = mix(vec3(sun_lum), sun_col, clamp(P(23).w, 0.0, 1.0));
 
 			// Ambiente nocturno (P(26).y): de noche la niebla no se apaga del todo — la sigue
 			// iluminando el resplandor del cielo. Es un valor ABSOLUTO, NO escalado por
-			// sun_intensity: el suelo que hubo aquí antes sí lo escalaba y con sun_intensity 20
-			// daba ~0.34 de base, que con ACES + bloom se leía como niebla BLANCA en plena
-			// oscuridad. Al ser absoluto, tunear el sol no lo arrastra y el rango del inspector
-			// significa lo que promete. Queda NEUTRO a propósito, sin el tinte de terminador (que
-			// es luz solar rasante): el viraje azul de la noche lo pone el paso de Purkinje del
-			// final, que a esta luminancia actúa de lleno — tintarlo aquí lo azularía dos veces.
-			float night_ambient = max(P(26).y, 0.0) * (1.0 - day);
+			// sun_intensity (escalado, con sun_intensity 20 se leía como niebla BLANCA en plena
+			// oscuridad). Queda NEUTRO a propósito: el viraje azul de la noche lo pone el paso de
+			// Purkinje del final, que a esta luminancia actúa de lleno.
+			float night_ambient = max(P(26).y, 0.0) * (1.0 - min(sky_l, 1.0));
 
-			vec3 sunset_tint = mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_f);
-			vec3 lit = fog_color * (sunset_tint * (sun_intensity * lit_amount) + vec3(night_ambient));
+			vec3 lit = fog_color * ((sun_col * 0.75 + sky.ms_tint * (0.25 * sky_l)) * (sun_intensity * 0.16)
+				+ vec3(night_ambient));
+			// Luz de luna (P(33)/P(34)): de noche el banco se ilumina con ella igual que con el sol.
+			if (P(33).w > 0.0) {
+				vec3 moon_col = sky_sun_transmittance(sky, h_p, flat_cos(up_p, up_obs, inv_flat, normalize(P(33).xyz)));
+				lit += fog_color * P(34).rgb * moon_col * (sun_intensity * 0.16 * P(33).w * (1.0 - min(sky_l, 1.0)));
+			}
 
 			float s_trans = exp(-d * step_size * density * 0.02);
 			out_color += out_trans * (1.0 - s_trans) * lit;
@@ -912,6 +1072,26 @@ float density_at_point(
 }
 
 
+float optical_depth_points(
+	vec3 ro,
+	vec3 rd,
+	float ray_length,
+	vec3 planet_center,
+	float planet_radius,
+	float atmo_radius,
+	float density_falloff,
+	int points
+) {
+	vec3 p = ro;
+	float step_size = ray_length / float(points - 1);
+	float od = 0.0;
+	for (int i = 0; i < points; i++) {
+		od += density_at_point(p, planet_center, planet_radius, atmo_radius, density_falloff) * step_size;
+		p += rd * step_size;
+	}
+	return od;
+}
+
 float optical_depth(
 	vec3 ro,
 	vec3 rd,
@@ -921,16 +1101,9 @@ float optical_depth(
 	float atmo_radius,
 	float density_falloff
 ) {
-	vec3 p = ro;
-	float step_size = ray_length / float(NUM_OPTICAL_DEPTH_POINTS - 1);
-	float od = 0.0;
-	for (int i = 0; i < NUM_OPTICAL_DEPTH_POINTS; i++) {
-		od += density_at_point(p, planet_center, planet_radius, atmo_radius, density_falloff) * step_size;
-		p += rd * step_size;
-	}
-	return od;
+	return optical_depth_points(ro, rd, ray_length, planet_center, planet_radius, atmo_radius,
+		density_falloff, NUM_OPTICAL_DEPTH_POINTS);
 }
-
 
 vec3 calculate_light(
 	vec3 ro,
@@ -942,87 +1115,112 @@ vec3 calculate_light(
 	float planet_radius,
 	float atmo_radius,
 	float density_falloff,
-	vec3 scattering_coeffs,
+	Sky sky,
 	float sun_intensity,
 	float view_from_space,
 	float in_scatter_mult,
-	float cloud_min_r,
-	float cloud_max_r
+	float cloud_min_h,
+	float cloud_max_h,
+	vec3 up_obs,
+	float inv_flat,
+	float view_scale,
+	float scatter_scale,
+	float mie_g
 ) {
-	vec3 in_scatter_point = ro;
 	float step_size = ray_length / float(NUM_IN_SCATTER_POINTS - 1);
-	vec3 in_scattered_light = vec3(0.0);
+	float thick = max(atmo_radius - planet_radius, 1.0);
 
-	// Optical depth de vista acumulado incrementalmente (regla del trapecio) con las mismas
-	// muestras del bucle, en vez de re-marchar 12 puntos hacia atrás en cada iteración:
-	// elimina la mitad de las evaluaciones de densidad del píxel sin diferencia visible.
-	float view_ray_optical_depth = 0.0;
-	float prev_density = 0.0;
+	// Las fases no cambian a lo largo del rayo.
+	float nu = dot(rd, sun_dir);
+	float ph_r = phase_rayleigh(nu);
+	float ph_m = phase_mie(nu, mie_g);
+	vec3 moon_dir = normalize(P(33).xyz);
+	float moon_intensity = P(33).w;
+	float nu_moon = dot(rd, moon_dir);
 
+	vec3 acc_r = vec3(0.0);
+	vec3 acc_m = vec3(0.0);
+	vec3 acc_ms = vec3(0.0);
+	vec3 moon_r = vec3(0.0);
+	vec3 moon_m = vec3(0.0);
+	// Espesor óptico de vista acumulado (regla del trapecio) con las mismas muestras del bucle.
+	vec3 view_od = vec3(0.0);
+	float prev_r = 0.0;
+	float prev_m = 0.0;
+
+	vec3 p = ro;
 	for (int i = 0; i < NUM_IN_SCATTER_POINTS; i++) {
-		// Sombra suave angular: transición gradual alrededor del terminador.
-		// sun_dot > 0 → día, sun_dot < 0 → noche; smoothstep da el gradiente.
-		vec3 scatter_rel = in_scatter_point - planet_center;
-		float scatter_r = length(scatter_rel);
-		vec3 to_scatter = scatter_rel / max(scatter_r, EPSILON);
-		float sun_dot = dot(to_scatter, sun_dir);
-		float shadow_factor = smoothstep(-0.15, 0.15, sun_dot);
+		vec3 rel = p - planet_center;
+		float r = length(rel);
+		vec3 up = rel / max(r, EPSILON);
+		float h = r - planet_radius;
 
 		// Gate VERTICAL del cielo encapotado: la nube tapa el sol desde ARRIBA, así que solo
-		// apaga el velo de Rayleigh del aire que tiene debajo. Por encima del techo de la capa
-		// el aire recibe luz plena y dispersa normal. Sin esto, `in_scatter_mult` multiplicaba
-		// el rayo entero y una tormenta apagaba también la atmósfera por encima de ella — se
-		// notaba al volar sobre el frente y al mirar el planeta desde el espacio.
-		// La localización HORIZONTAL (solo bajo la celda de tormenta) ya viene aplicada en
-		// in_scatter_mult por el llamador; esto la completa en la vertical.
-		float overcast = mix(in_scatter_mult, 1.0,
-			smoothstep(cloud_min_r, cloud_max_r, scatter_r));
+		// apaga el velo del aire que tiene debajo. Por encima del techo de la capa el aire recibe
+		// luz plena y dispersa normal. Sin esto, `in_scatter_mult` multiplicaba el rayo entero y
+		// una tormenta apagaba también la atmósfera por encima de ella — se notaba al volar sobre el
+		// frente y al mirar el planeta desde el espacio. La localización HORIZONTAL (solo bajo la
+		// celda de tormenta) ya viene aplicada en in_scatter_mult por el llamador.
+		float overcast = mix(in_scatter_mult, 1.0, smoothstep(cloud_min_h, cloud_max_h, h));
 
-		float local_density = density_at_point(
-			in_scatter_point, planet_center, planet_radius, atmo_radius, density_falloff
-		);
+		float d_r = sky_density(h, thick, density_falloff);
+		float d_m = sky_density(h, thick, sky.falloff_m);
 		if (i > 0) {
-			view_ray_optical_depth += 0.5 * (prev_density + local_density) * step_size;
+			view_od += (sky.sig_r * (prev_r + d_r) + vec3(sky.sig_me * (prev_m + d_m))) * (0.5 * step_size);
 		}
-		prev_density = local_density;
+		prev_r = d_r;
+		prev_m = d_m;
+		vec3 view_t = exp(-view_od * view_scale);
+		float w = ((i == 0 || i == NUM_IN_SCATTER_POINTS - 1) ? 0.5 : 1.0) * step_size * overcast;
 
-		// Distancia desde el punto de muestra hasta salir de la atmósfera siguiendo al sol.
-		float sun_ray_length = ray_sphere(planet_center, atmo_radius, in_scatter_point, sun_dir).y;
-		float sun_ray_od = optical_depth(
-			in_scatter_point, sun_dir, sun_ray_length,
-			planet_center, planet_radius, atmo_radius, density_falloff
-		);
+		float mu = flat_cos(up, up_obs, inv_flat, sun_dir);
+		vec3 sun_t = sky_sun_transmittance(sky, h, mu);
+		vec3 lit = view_t * sun_t * w;
+		acc_r += lit * d_r;
+		acc_m += lit * d_m;
+		acc_ms += view_t * (sky.sig_r * d_r + vec3(sky.sig_m * d_m)) * (sky_ms_brightness(mu) * w);
 
-		vec3 transmittance = exp(-(sun_ray_od + view_ray_optical_depth) * scattering_coeffs);
-
-		// Tinte cálido en el terminador: rojo-naranja cuando sun_dot ≈ 0.
-		float sunset_factor = 1.0 - smoothstep(0.0, 0.3, abs(sun_dot));
-		vec3 sunset_tint = mix(vec3(1.0), vec3(3.0, 0.45, 0.05), sunset_factor);
-
-		in_scattered_light += local_density * transmittance * scattering_coeffs * step_size * shadow_factor * sunset_tint * overcast;
-		in_scatter_point += rd * step_size;
+		// Cielo de luna: la misma dispersión con la luna como fuente, solo donde el sol ya no
+		// ilumina el aire (la luna del juego está comprimida para que la noche se lea y de día
+		// añadiría un cielo que no existe). Sin luna (intensidad 0, siempre de día) no cuesta nada.
+		if (moon_intensity > 0.0) {
+			float night = 1.0 - smoothstep(-0.12, 0.02, mu);
+			if (night > 0.0) {
+				vec3 moon_t = sky_sun_transmittance(sky, h, flat_cos(up, up_obs, inv_flat, moon_dir));
+				vec3 lm = view_t * moon_t * (w * night);
+				moon_r += lm * d_r;
+				moon_m += lm * d_m;
+			}
+		}
+		p += rd * step_size;
 	}
 
-	// La atenuación por cielo encapotado ya va aplicada POR MUESTRA (overcast), que es lo que le
-	// permite afectar solo al aire bajo las nubes. Aquí solo queda la intensidad del sol. En
-	// ambos casos toca únicamente el término aditivo, no los coeficientes, para no alterar la
-	// extinción de lo que hay detrás.
-	in_scattered_light *= sun_intensity;
+	// La atenuación por cielo encapotado ya va aplicada POR MUESTRA (overcast). Solo toca el término
+	// aditivo, no la extinción de lo que hay detrás. La aureola de la luna es su lóbulo de Mie.
+	vec3 in_scattered_light = sky.sig_r * acc_r * ph_r + acc_m * (sky.sig_m * ph_m)
+		+ acc_ms * sky.ms_tint * sky.ms;
+	if (moon_intensity > 0.0) {
+		in_scattered_light += (sky.sig_r * moon_r * phase_rayleigh(nu_moon)
+			+ moon_m * (sky.sig_m * phase_mie(nu_moon, mie_g))) * (moon_intensity * P(34).rgb);
+	}
+	in_scattered_light *= sun_intensity * scatter_scale;
 
-	// Oscurecer la superficie del planeta en el lado nocturno (solo desde el espacio).
+	// Desde el espacio: la superficie la ilumina el sol del observador (en órbita, sin filtrar), así
+	// que aquí se le aplica el aire que cruza el sol hasta ella: casi blanca bajo el sol, naranja y
+	// cada vez más tenue hacia el terminador. En el lado nocturno se oscurece.
 	vec3 lit_original = original_color;
 	if (view_from_space > 0.5) {
 		vec2 planet_hit = ray_sphere(planet_center, planet_radius + 400, ro, rd);
 		if (planet_hit.y > 0.0) {
 			vec3 surface_pt = ro + rd * planet_hit.x;
 			float sn_dot = dot(normalize(surface_pt - planet_center), sun_dir);
-			lit_original *= mix(0.05, 1.0, smoothstep(-0.15, 0.15, sn_dot));
+			vec3 sun_t = sky_sun_transmittance(sky, 0.0, sn_dot);
+			lit_original *= mix(vec3(0.05), sun_t, smoothstep(-0.15, 0.15, sn_dot));
 		}
 	}
 
 	// Atenuación de lo que había detrás (terreno, objetos, cielo).
-	vec3 original_color_transmittance = exp(-view_ray_optical_depth * scattering_coeffs);
-	return lit_original * original_color_transmittance + in_scattered_light;
+	return lit_original * exp(-view_od * view_scale) + in_scattered_light;
 }
 
 
@@ -1139,8 +1337,15 @@ void main() {
 	// referencia): en pantalla tapa muchísimo, pero solo ensombrece el pedacito de aire que tiene
 	// detrás, no la columna entera. Se escribe antes del early-out de abajo para que ningún píxel
 	// conserve el valor del frame anterior; el bloque de nubes la reescribe.
-	float geo_mask = (scene_t < MAX_FLOAT) ? exp(-scene_t / max(P(32).x, 0.1)) : 1.0;
+	// Lo que queda fuera del aire (la luna, otros astros) no ensombrece ningún haz: solo cuentan los
+	// oclusores dentro de la atmósfera. El impostor de la luna escribe profundidad a decenas de km y
+	// proyectaba una franja oscura desde su disco, alejándose del sol.
+	bool beyond_air = dst_through_atmo <= 0.0 || scene_t >= dst_to_atmo + dst_through_atmo - 1.0;
+	float geo_mask = beyond_air ? 1.0 : exp(-scene_t / max(P(32).x, 0.1));
 	imageStore(occlusion_mask, pixel, vec4(geo_mask));
+
+	// Rayo de cielo: no hay geometría antes de salir de la atmósfera (cielo, luna, astros).
+	bool sky_ray = scene_t >= dst_to_atmo + dst_through_atmo - 1.0;
 
 	// Limita el recorrido por el terreno/objetos (clave para que se vea atmósfera sobre el suelo).
 	dst_through_atmo = min(dst_through_atmo, max(scene_t - dst_to_atmo, 0.0));
@@ -1224,25 +1429,61 @@ void main() {
 		in_scatter_mult = mix(1.0, in_scatter_mult, presence);
 	}
 
+	// Marco del cielo. Con la cámara dentro del aire el cielo se calcula como el de un planeta
+	// sky_curvature veces mayor (ver MODELO DE CIELO) y se funde con la geometría real al subir:
+	// desde el espacio se ve el planeta que hay. frame_w = 1 en superficie, 0 en el techo del aire.
+	Sky sky = make_sky(scattering_coefficients, planet_radius, atmo_radius, density_falloff);
+	float thick = atmo_radius - planet_radius;
+	float cam_h = cam_dist - planet_radius;
+	float frame_w = 1.0 - smoothstep(0.3 * thick, thick, cam_h);
+	float flat_w = mix(1.0, max(P(37).y, 1.0), frame_w);
+	vec3 up_obs = normalize(camera_position - planet_center);
+	float cloud_min_h = P(12).x;
+	float cloud_max_h = P(12).y;
+	// sun_intensity está afinado para que un aire de 3 km luzca desde el suelo; visto desde fuera,
+	// ese mismo velo pesaba unas 5 veces lo que refleja el océano (en la Tierra, ~1.6) y el planeta
+	// se veía de un cian lavado. Se funde al alejarse, como la densificación de las nubes.
+	float scatter_scale = mix(1.0, clamp(P(26).z, 0.0, 1.0), smoothstep(atmo_radius, planet_radius * 2.0, cam_dist));
+
 	// Nubes volumétricas — se aplican antes del scattering atmosférico.
 	// 1. Primero calcula la atmósfera sobre la escena original.
-	vec3 light = calculate_light(
-		entry_point,
-		ray_dir,
-		max(dst_through_atmo - EPSILON * 2.0, 0.0),
-		scene_color.rgb,
-		sun_direction,
-		planet_center,
-		planet_radius,
-		atmo_radius,
-		density_falloff,
-		scattering_coefficients,
-		sun_intensity,
-		view_from_space,
-		in_scatter_mult,
-		cloud_min_r,
-		cloud_max_r
-	);
+	vec3 light;
+	if (sky_ray && frame_w > 0.001) {
+		// Rayo de cielo en el planeta virtual: mismo observador (altura) y misma dirección respecto
+		// a su vertical, y el espesor óptico de vista a escala terrestre (P(37).x), que es lo que
+		// satura el horizonte: blanco a mediodía, naranja al ponerse el sol. El terreno se queda con
+		// el aire real (su bruma ya está afinada): distinto cielo detrás de la silueta es lo normal.
+		float r_v = planet_radius * flat_w;
+		float h_v = max(cam_h, 0.0);
+		vec3 center_v = camera_position - up_obs * (r_v + h_v);
+		// Bajo el horizonte virtual (huecos del terreno o del agua) vale el color del horizonte: el
+		// rayo cruzaría el planeta virtual entero.
+		float sin_dip = sqrt(h_v * (2.0 * r_v + h_v)) / (r_v + h_v);
+		float e = dot(ray_dir, up_obs);
+		vec3 rd_v = ray_dir;
+		if (e < -sin_dip) {
+			vec3 flat_dir = ray_dir - up_obs * e;
+			float flat_len = length(flat_dir);
+			flat_dir = flat_len > 1e-5 ? flat_dir / flat_len : normalize(cross(up_obs, vec3(0.0, 0.0, 1.0)));
+			float e_v = -sin_dip * 0.999;
+			rd_v = flat_dir * sqrt(1.0 - e_v * e_v) + up_obs * e_v;
+		}
+		vec2 hit_v = ray_sphere(center_v, r_v + thick, camera_position, rd_v);
+		light = calculate_light(
+			camera_position + rd_v * (hit_v.x + EPSILON), rd_v, max(hit_v.y - EPSILON * 2.0, 0.0),
+			scene_color.rgb, sun_direction, center_v, r_v, r_v + thick, density_falloff, sky,
+			sun_intensity, 0.0, in_scatter_mult, cloud_min_h, cloud_max_h,
+			up_obs, 1.0, mix(1.0, max(P(37).x, 1.0), frame_w), scatter_scale, sky.g
+		);
+	} else {
+		float mie_g = (has_scene_depth && !sky_ray) ? TERRAIN_MIE_G : sky.g;
+		light = calculate_light(
+			entry_point, ray_dir, max(dst_through_atmo - EPSILON * 2.0, 0.0),
+			scene_color.rgb, sun_direction, planet_center, planet_radius, atmo_radius,
+			density_falloff, sky, sun_intensity, view_from_space, in_scatter_mult,
+			cloud_min_h, cloud_max_h, up_obs, 1.0 / flat_w, 1.0, scatter_scale, mie_g
+		);
+	}
 
 	// 2. Después compón las nubes delante de la atmósfera.
 	if (P(13).w > 0.5) {
@@ -1264,6 +1505,7 @@ void main() {
 			sun_direction, sun_intensity, planet_radius,
 			scattering_coefficients,
 			cloud_jitter, pixel_angle,
+			sky, up_obs, 1.0 / flat_w,
 			cloud_col, cloud_trans, cloud_dist
 		);
 
@@ -1314,6 +1556,7 @@ void main() {
 			P(14).xyz, P(18).y,
 			sun_direction, sun_intensity, P(17).rgb,
 			int(P(18).z), fog_jitter, P(18).w,
+			sky, up_obs, 1.0 / flat_w, planet_radius,
 			fog_col, fog_trans
 		);
 

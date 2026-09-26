@@ -114,6 +114,9 @@ var _active_fog_density: float = 0.0
 
 # Oscurecimiento local del sol/ambiente, suavizado en el tiempo. -1 = sin inicializar (se engancha al valor exacto).
 var _shade: float = -1.0
+## Iluminación día/noche de la escena, si la hay: recibe las escalas del clima en vez de que el
+## clima escriba las luces a mano.
+var _sky_lighting: SkyLighting
 
 
 ## Inyecta dependencias y arranca el sistema. Lo llama planet_loader tras cargar el planeta.
@@ -611,16 +614,19 @@ func _update_sky_light(delta: float, st: WeatherState) -> void:
 	else:
 		_shade = lerpf(_shade, target, 1.0 - exp(-delta * SHADE_SMOOTH_RATE))
 
+	var sun_scale := lerpf(1.0, st.sun_energy, _shade)
+	var ambient_scale := lerpf(1.0, st.ambient_energy, _shade)
+	# Con SkyLighting las luces las gobierna él (hora, luna, exposición): el clima solo le pasa sus
+	# escalas, y él las aplica también a los uniforms globales que leen el agua y los impostores.
+	if _sky_lighting == null or not is_instance_valid(_sky_lighting):
+		_sky_lighting = get_tree().get_first_node_in_group(SkyLighting.GROUP) as SkyLighting
+	if _sky_lighting != null:
+		_sky_lighting.set_weather_scales(sun_scale, ambient_scale, _shade, get_parent())
+		return
 	if _sun:
-		_sun.light_energy = _base_sun_energy * lerpf(1.0, st.sun_energy, _shade)
+		_sun.light_energy = _base_sun_energy * sun_scale
 	if _world_env and _world_env.environment:
-		_world_env.environment.ambient_light_energy = \
-			_base_ambient_energy * lerpf(1.0, st.ambient_energy, _shade)
-	# Water composes reflected/transmitted radiance directly; keep its scattering
-	# and synthetic sky under the same cloud attenuation as the scene lights.
-	if _water_mat:
-		_water_mat.set_shader_parameter("weather_light_scale", Vector2(
-			lerpf(1.0, st.sun_energy, _shade), lerpf(1.0, st.ambient_energy, _shade)))
+		_world_env.environment.ambient_light_energy = _base_ambient_energy * ambient_scale
 
 
 ## Marca si la CÁMARA (no el jugador: en tercera persona se sumergen por separado) está bajo la

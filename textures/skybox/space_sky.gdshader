@@ -57,6 +57,29 @@ uniform float milky_way_dust : hint_range(0.0, 10.0) = 0.55;   // vetas de polvo
 // === BLOOM / HDR ===
 uniform float bloom_strength : hint_range(1.0, 8.0) = 2.5;
 
+// === CIELO DEL OBSERVADOR (lo empuja SkyLighting cada frame) ===
+// El cielo que se VE lo pinta el compute de atmósfera encima de este fondo; aquí solo se
+// decide cuánto asoman las estrellas (de día el cielo las tapa, en el espacio siempre están).
+uniform float night_sky_visibility : hint_range(0.0, 1.0) = 1.0;
+// Radiancia del cielo para el pase de CUBEMAP, que no se ve: es la luz ambiente y los reflejos
+// de toda la escena. SkyLighting la saca del mismo modelo de dispersión que el compute en seis
+// direcciones del marco local del observador, y aquí se reconstruye por dirección.
+uniform vec3 amb_up = vec3(0.0, 1.0, 0.0);
+// Horizontal unitaria hacia el azimut del sol (referencia de "lado del sol" en el horizonte).
+uniform vec3 amb_sun_ref = vec3(1.0, 0.0, 0.0);
+// Los valores por defecto son un cielo de día razonable para la vista previa del editor, donde
+// SkyLighting no corre.
+uniform vec3 amb_zenith = vec3(0.10, 0.15, 0.24);
+uniform vec3 amb_mid_sun = vec3(0.14, 0.18, 0.26);
+uniform vec3 amb_mid_anti = vec3(0.14, 0.18, 0.26);
+uniform vec3 amb_hor_sun = vec3(0.20, 0.23, 0.27);
+uniform vec3 amb_hor_side = vec3(0.20, 0.23, 0.27);
+uniform vec3 amb_hor_anti = vec3(0.20, 0.23, 0.27);
+uniform vec3 amb_ground = vec3(0.05, 0.045, 0.035);
+// Seno de la depresión del horizonte geométrico (<= 0): a ras de suelo ~0, desde órbita el
+// planeta solo ocupa un cono alrededor del nadir y el resto es espacio.
+uniform float amb_horizon_sin = 0.0;
+
 // ─────────────────────────────────────────────
 // NOISE UTILITIES
 // ─────────────────────────────────────────────
@@ -422,11 +445,34 @@ vec3 milkyWay(vec3 ray) {
 }
 
 // ─────────────────────────────────────────────
+// AMBIENT SKY (pase de cubemap)
+// ─────────────────────────────────────────────
+// Interpola las seis muestras del observador: en elevación horizonte → 35° → cenit, y en azimut
+// entre el lado del sol, el perpendicular y el opuesto. Bajo el horizonte geométrico, el suelo.
+vec3 ambient_sky(vec3 dir) {
+	float e = dot(dir, amb_up);
+	vec3 flat_dir = dir - amb_up * e;
+	float flat_len = length(flat_dir);
+	float a = flat_len > 1e-4 ? dot(flat_dir / flat_len, amb_sun_ref) : 0.0;
+	vec3 mid_side = 0.5 * (amb_mid_sun + amb_mid_anti);
+	vec3 hor = a >= 0.0 ? mix(amb_hor_side, amb_hor_sun, a) : mix(amb_hor_side, amb_hor_anti, -a);
+	vec3 mid = a >= 0.0 ? mix(mid_side, amb_mid_sun, a) : mix(mid_side, amb_mid_anti, -a);
+	const float MID_SIN = 0.5736; // sin(35°), elevación de las muestras intermedias
+	// Por debajo de 0 (entre el horizontal y el horizonte geométrico) vale el color de horizonte.
+	vec3 sky_col = e < MID_SIN
+		? mix(hor, mid, smoothstep(0.0, MID_SIN, e))
+		: mix(mid, amb_zenith, smoothstep(MID_SIN, 1.0, e));
+	// Bajo el horizonte geométrico, el suelo iluminado. En órbita solo el cono del planeta.
+	float ground_w = 1.0 - smoothstep(amb_horizon_sin - 0.04, amb_horizon_sin + 0.02, e);
+	return mix(sky_col, amb_ground, ground_w);
+}
+
+// ─────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────
 void sky() {
 	if (AT_CUBEMAP_PASS) {
-		COLOR = vec3(0.005, 0.005, 0.01);
+		COLOR = ambient_sky(normalize(EYEDIR));
 	} else {
 		vec3 ray = normalize(EYEDIR);
 		float time = TIME * animation_speed;
@@ -465,7 +511,7 @@ void sky() {
 		) * mr;
 
 		// ────── BACKGROUND: STARS + MILKY WAY ──────
-		vec3 col = starField(ray) + milkyWay(ray);
+		vec3 col = (starField(ray) + milkyWay(ray)) * night_sky_visibility;
 
 		// Mask background stars near the main star to avoid bleed-through.
 		// Clamp t>=0 para medir el rayo (semirrecta), no la recta: sin el max()

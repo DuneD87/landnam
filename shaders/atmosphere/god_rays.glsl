@@ -14,10 +14,10 @@ layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D occlusion_mask;
 layout(set = 0, binding = 3) uniform sampler2D depth_texture;
 
-// Mismo ParamsBuffer que planet_atmosphere.glsl: el tamaño (33) debe coincidir con
+// Mismo ParamsBuffer que planet_atmosphere.glsl: el tamaño (38) debe coincidir con
 // PARAM_VEC4_COUNT en planet_atmosphere.gd. Aquí se usan P(0)-P(10) y P(27)-P(32).
 layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
-	vec4 data[33];
+	vec4 data[38];
 } params_buffer;
 
 #include "../liquid/underwater_params.glslinc"
@@ -212,8 +212,18 @@ void main() {
 		return;
 	}
 
+	// Lóbulo de dispersión hacia delante alrededor del sol: la luz de los haces la dispersan los
+	// aerosoles, que la mandan casi toda cerca de su dirección. Sin él, accum ≈ 1 en todo el cielo
+	// abierto y el pase sumaba un velo uniforme sobre la pantalla entera cuando se miraba hacia el
+	// sol —lo que dejaba el cielo de la hora dorada blanco-lavanda y rosa el del ocaso—. El halo
+	// en sí ya lo pinta el cielo (Mie); aquí solo quedan los haces, más marcados junto al sol.
+	float nu = dot(view_ray(uv), normalize(P(10).xyz));
+	const float LOBE_G = 0.75;
+	float lobe = pow((1.0 + LOBE_G * LOBE_G - 2.0 * LOBE_G) / (1.0 + LOBE_G * LOBE_G - 2.0 * LOBE_G * nu), 1.5);
+	lobe = mix(0.06, 1.0, lobe);
+
 	// Los rayos escalan con sun_intensity: tunear el sol no descuadra la exposición.
-	vec3 rays = P(27).rgb * (accum * P(27).w * sun_vis * P(7).w);
+	vec3 rays = P(27).rgb * (accum * lobe * P(27).w * sun_vis * P(7).w);
 
 	vec4 scene_color = imageLoad(color_image, pixel);
 	imageStore(color_image, pixel, vec4(scene_color.rgb + rays, scene_color.a));

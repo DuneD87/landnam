@@ -26,9 +26,13 @@ uniform float specular_antialiasing : hint_range(0.0,1.0) = 0.4;
 uniform float detail_fade_start=150.0;
 uniform float detail_fade_end=1200.0;
 uniform vec3 sun_direction=vec3(0.4,-0.7,0.3);
-uniform vec3 sun_color : source_color = vec3(1.0,0.95,0.85);
-uniform float sun_energy=1.0;
-uniform vec2 weather_light_scale=vec2(1.0);
+// Luz de la escena (SkyLighting): radiancia efectiva del sol y de la luna (color × energía, con la
+// hora, la extinción y el clima ya aplicados) y la del cielo que baña el agua. Antes el agua tenía
+// su propio sol blanco fijo y una paleta día/noche: al atardecer seguía iluminada a pleno día.
+global uniform vec3 sky_sun_radiance;
+global uniform vec3 sky_moon_radiance;
+global uniform vec3 sky_moon_direction;
+global uniform vec3 sky_ambient_radiance;
 uniform vec3 sss_color : source_color = vec3(0.08,0.46,0.32);
 uniform float sss_intensity : hint_range(0.0,3.0) = 0.7;
 uniform float light_diffuse_strength=1.0;
@@ -45,6 +49,9 @@ uniform int water_debug_mode : hint_range(0,5) = 0;
 varying vec3 surface_world;
 varying vec3 material_position;
 varying vec3 radial_up;
+// Vertical del planeta en espacio de vista, para el horizonte de cada luz en light() (como el
+// terreno: se calcula en vertex()).
+varying vec3 radial_up_view;
 varying vec3 geometry_normal;
 varying float wave_height;
 varying float geometric_compression;
@@ -72,6 +79,7 @@ void vertex() {
     vec3 world=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;
     material_position=world-planet_center;
     radial_up=normalize(material_position);
+    radial_up_view=(VIEW_MATRIX*vec4(radial_up,0.0)).xyz;
     float relative_distance=max(distance(CAMERA_POSITION_WORLD,world)/max(wave_lod_start,1.0),1.0);
     minimum_wavelength=pow(relative_distance,wave_lod_falloff);
     WaveContext ctx=wave_context(material_position);
@@ -170,9 +178,12 @@ void fragment() {
     vec3 transmission=exp(-max(absorption_coefficients,vec3(0.0))*optical_depth);
     vec3 background=textureLod(SCREEN_TEXTURE,sample_uv,refraction_blur*(1.0-exp(-optical_depth*0.08))).rgb;
     vec3 to_sun=normalize(length(sun_direction)>0.001 ? -sun_direction : vec3(-0.4,0.7,-0.3));
-    float daylight=smoothstep(-0.1,0.15,dot(radial,to_sun));
-    vec3 illumination=mix(vec3(0.018,0.028,0.045)*weather_light_scale.y,
-        vec3(0.2)*weather_light_scale.y+sun_color*sun_energy*weather_light_scale.x*0.8,daylight);
+    // Terminador estrecho: la radiancia ya se apaga con el sol en el horizonte del observador;
+    // esto solo separa el agua lejana que queda al otro lado de la línea día/noche.
+    float daylight=smoothstep(-0.05,0.05,dot(radial,to_sun));
+    float moonlight=smoothstep(-0.05,0.05,dot(radial,sky_moon_direction));
+    float sun_level=dot(sky_sun_radiance,vec3(0.2126,0.7152,0.0722))*daylight;
+    vec3 illumination=sky_ambient_radiance+(sky_sun_radiance*daylight+sky_moon_radiance*moonlight)*0.8;
     vec3 scatter=mix(color_shallow.rgb,color_deep.rgb,1.0-exp(-optical_depth*0.13))*illumination;
     vec3 body=background*transmission+scatter*(vec3(1.0)-transmission);
     // Caustics are transmitted background light, strongest in a shallow sunlit column.
@@ -181,13 +192,13 @@ void fragment() {
     vec2 scroll=vec2(water_time*caustics_speed,-water_time*caustics_speed*0.7);
     float caustics=texture(caustics_texture,cp.yz+scroll).r*tw.x
         +texture(caustics_texture,cp.xz+scroll).r*tw.y+texture(caustics_texture,cp.xy+scroll).r*tw.z;
-    caustics*=caustics*caustics_intensity*daylight*weather_light_scale.x*exp(-bottom_depth*0.22)*float(sample_depth>0.0);
+    caustics*=caustics*caustics_intensity*sun_level*exp(-bottom_depth*0.22)*float(sample_depth>0.0);
     body+=background*transmission*caustics;
     float backlight=pow(max(dot(eye_ray,to_sun),0.0),4.0);
     float crest=smoothstep(0.0,1.1,wave_height/max(sea_context.x,0.1));
-    body+=sss_color*sss_intensity*backlight*crest*daylight*weather_light_scale.x;
+    body+=sss_color*sss_intensity*backlight*crest*sun_level;
 
-    vec3 reflection=calculate_sky_color(reflect(eye_ray,n),radial,daylight)*sky_influence*weather_light_scale.y;
+    vec3 reflection=calculate_sky_color(reflect(eye_ray,n),radial)*sky_influence;
     float ssr_fade=1.0-smoothstep(ssr_distance_fade*0.5,ssr_distance_fade,view_distance);
     if(ssr_enabled && ssr_fade>0.001 && foam<0.95) {
         vec4 reflected=ocean_reflection(surface_view,view_normal,PROJECTION_MATRIX,INV_PROJECTION_MATRIX,
@@ -219,7 +230,15 @@ void light() {
     if(water_debug_mode==0 && shore_debug_mode==0) {
     float nl=max(dot(NORMAL,LIGHT),0.0);
     float nv=max(dot(NORMAL,VIEW),0.001);
-    DIFFUSE_LIGHT+=ALBEDO*LIGHT_COLOR*ATTENUATION*((nl*0.8+0.2)*light_diffuse_strength/PI);
+    // El sol y la luna solo alumbran el agua que los tiene sobre su horizonte: sin esto la espuma
+    // del lado nocturno se llevaba el 20% envolvente del sol (se veía desde órbita). El margen va
+    // por debajo del horizonte: la puesta ya la apaga la energía del sol, esto solo corta el agua
+    // lejana del otro lado del terminador.
+    float horizon=1.0;
+    if(LIGHT_IS_DIRECTIONAL) {
+        horizon=smoothstep(-0.15,-0.02,dot(normalize(radial_up_view),LIGHT));
+    }
+    DIFFUSE_LIGHT+=ALBEDO*LIGHT_COLOR*ATTENUATION*((nl*0.8+0.2)*light_diffuse_strength/PI)*horizon;
     vec3 h=normalize(LIGHT+VIEW);
     float nh=max(dot(NORMAL,h),0.0);
     float r=max(ROUGHNESS,LIGHT_IS_DIRECTIONAL ? directional_roughness_floor : light_roughness_floor);
@@ -230,6 +249,6 @@ void light() {
     float gl=2.0*nl/max(nl+sqrt(a2+(1.0-a2)*nl*nl),0.001);
     float f=0.02037+0.97963*pow(1.0-max(dot(VIEW,h),0.0),5.0);
     float spec=min(d*gv*gl*f/(4.0*nv),LIGHT_IS_DIRECTIONAL ? directional_specular_clamp : light_specular_clamp);
-    SPECULAR_LIGHT+=spec*LIGHT_COLOR*ATTENUATION*SPECULAR_AMOUNT;
+    SPECULAR_LIGHT+=spec*LIGHT_COLOR*ATTENUATION*SPECULAR_AMOUNT*horizon;
     }
 }

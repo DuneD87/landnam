@@ -111,11 +111,9 @@ const _TRANSLUCENT_BLOCK_PARAMS: Array[StringName] = [
 	&"sun_direction", &"sun_glow_intensity", &"sun_glow_power",
 ]
 
-# Colores del cielo sintético, que el cristal refleja igual que la superficie del agua. Estos NO
-# los tiene el material de parámetros: su origen es el material del agua, que es donde están afinados.
+# Forma del cielo sintético, que el cristal refleja igual que la superficie del agua. Los colores
+# ya son uniforms globales (SkyLighting); el degradado sigue afinado en el material del agua.
 const _SKY_PARAMS_FROM_WATER: Array[StringName] = [
-	&"sky_color_horizon", &"sky_color_zenith",
-	&"sky_color_horizon_night", &"sky_color_zenith_night",
 	&"sky_gradient_power",
 ]
 

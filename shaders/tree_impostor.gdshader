@@ -1,16 +1,14 @@
 // =============================================================================
 //  tree_impostor.gdshader
 //  Aspa billboard usada como LOD3 de los árboles (ver planet.gd::_bake_tree_impostor).
-//  Es "unshaded" (barato de lejos) PERO respeta el terminador día/noche del
-//  planeta: oscurece la cara nocturna igual que el resto de la vegetación, en
-//  vez de brillar a albedo pleno de noche.
+//  Es "unshaded" (barato de lejos): sin light(), se ilumina a mano con las MISMAS
+//  radiancias que las luces reales de la escena (uniforms globales de SkyLighting):
+//  sol y luna, cada uno con su horizonte, más el ambiente del cielo. Así el bosque
+//  lejano se dora al atardecer, se azula con la luna y casa con el cercano, en vez
+//  de brillar a albedo pleno de día y quedarse a un 20% fijo de noche.
 //
-//  El terminador se calcula por vértice con la MISMA fórmula que
-//  planet_lighting.gdshaderinc::compute_planet_vertex_light. No incluimos ese
-//  archivo porque aquí no hay light() (unshaded) y solo necesitamos day_factor.
-//
-//  planet.gd empuja cada frame light_direction y planet_position (igual que a
-//  los materiales de follaje, vía item_transparent_materials). NO renombrar.
+//  planet.gd empuja cada frame planet_position (igual que a los materiales de
+//  follaje, vía item_transparent_materials). NO renombrar.
 // =============================================================================
 shader_type spatial;
 render_mode unshaded, cull_disabled;
@@ -18,21 +16,28 @@ render_mode unshaded, cull_disabled;
 uniform sampler2D albedo_texture : source_color, filter_linear_mipmap;
 uniform float alpha_scissor_threshold : hint_range(0.0, 1.0, 0.01) = 0.5;
 
-// Alimentados por el planeta (mismos nombres que planet_lighting.gdshaderinc).
-uniform vec3 light_direction = vec3(1.0, 0.0, 0.0);
+// Alimentado por el planeta (mismo nombre que en planet_lighting.gdshaderinc).
 uniform vec3 planet_position;
-uniform float transition_width : hint_range(0.0, 1.0, 0.01) = 0.2;
-// Cuánta luz conserva la cara nocturna (0 = negro puro). Evita que el impostor
-// desaparezca de noche y aproxima el ambient del follaje cercano.
-uniform float night_light : hint_range(0.0, 1.0, 0.01) = 0.2;
+// Fracción media de la luz directa que recibe una copa vista de lejos: su cara al sol,
+// su cara en sombra y lo que se tapa a sí misma.
+uniform float direct_fraction : hint_range(0.0, 1.0, 0.01) = 0.55;
 
-varying float day_factor;
+global uniform vec3 sky_sun_radiance;
+global uniform vec3 sky_sun_direction;
+global uniform vec3 sky_moon_radiance;
+global uniform vec3 sky_moon_direction;
+global uniform vec3 sky_ambient_radiance;
+
+varying vec3 light_rgb;
 
 void vertex() {
 	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	vec3 sun_dir = normalize(-light_direction);
-	vec3 to_planet = normalize(planet_position - world_pos);
-	day_factor = smoothstep(-transition_width, transition_width, dot(to_planet, sun_dir));
+	vec3 up = normalize(world_pos - planet_position);
+	// Mismo horizonte por luz que la vegetación cercana (planet_lighting.gdshaderinc).
+	float sun_vis = smoothstep(-0.035, 0.035, dot(up, sky_sun_direction));
+	float moon_vis = smoothstep(-0.035, 0.035, dot(up, sky_moon_direction));
+	light_rgb = (sky_sun_radiance * sun_vis + sky_moon_radiance * moon_vis) * direct_fraction
+		+ sky_ambient_radiance;
 }
 
 void fragment() {
@@ -40,5 +45,5 @@ void fragment() {
 	if (tex.a < alpha_scissor_threshold) {
 		discard;
 	}
-	ALBEDO = tex.rgb * mix(night_light, 1.0, day_factor);
+	ALBEDO = tex.rgb * light_rgb;
 }

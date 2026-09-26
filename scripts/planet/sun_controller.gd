@@ -11,8 +11,13 @@ extends Node3D
 @onready var planets = $Planets
 var sky_material : ShaderMaterial
 
+## Guardado: la hora del día es la posición del sol. GameManager la restaura por este id.
+var entity_id: String = "sun"
+var save_category: String = "planet"
+
 func _ready() -> void:
 	add_to_group("sun_controller")
+	add_to_group(GameManager.SAVEABLE_GROUP)
 	var env := $WorldEnvironment
 	'for planet in planets.planets:
 		planet.sun = $DirectionalLight3'
@@ -59,3 +64,13 @@ func _update_sun() -> void:
 
 	sky_material.set_shader_parameter("sun_azimuth_deg",   sun_azimuth_deg)
 	sky_material.set_shader_parameter("sun_elevation_deg", sun_elevation_deg)
+
+
+func get_save_data() -> Dictionary:
+	return {"azimuth_deg": sun_azimuth_deg, "elevation_deg": sun_elevation_deg}
+
+
+func restore_save_data(data: Dictionary) -> void:
+	sun_azimuth_deg = wrapf(float(data.get("azimuth_deg", sun_azimuth_deg)), -180.0, 180.0)
+	sun_elevation_deg = clampf(float(data.get("elevation_deg", sun_elevation_deg)), -10.0, 90.0)
+	_update_sun()

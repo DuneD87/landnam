@@ -7,7 +7,7 @@ const NOISE_GEN_SHADER_PATH := "res://shaders/atmosphere/cloud_noise_gen.glsl"
 ## Segundo pase (god rays screen-space). Comparte el UBO de params de este efecto.
 const GOD_RAYS_SHADER_PATH := "res://shaders/atmosphere/god_rays.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 33
+const PARAM_VEC4_COUNT := 38
 ## Lado de la textura 3D de ruido de nubes (RGBA8 → size³ × 4 bytes; 128 ≈ 8.4 MB de VRAM).
 const NOISE_TEX_SIZE := 128
 ## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
@@ -33,6 +33,33 @@ const GROUP_TEX_H := 128
 @export_range(0.1, 30.0, 0.01) var density_falloff: float = 4.0
 @export_range(0.01, 30.0, 0.00015) var scattering_strength: float = 0.55
 @export_range(0.0, 100.0, 0.01) var sun_intensity: float = 20.0
+
+@export_group("Sky Model")
+## Aerosoles (Mie): el halo alrededor del sol y la bruma clara del horizonte. Relativo a
+## scattering_strength.
+@export_range(0.0, 1.0, 0.005) var mie_strength: float = 0.04
+## Anisotropía de Mie: cuánto se concentra el halo alrededor del sol (y de la luna).
+@export_range(0.0, 0.99, 0.01) var mie_g: float = 0.85
+## Cuánto más pegados al suelo están los aerosoles que el aire (multiplica density_falloff).
+@export_range(1.0, 10.0, 0.1) var mie_height_ratio: float = 3.0
+## Capa de ozono: absorbe el naranja de la luz rasante y mantiene azul el cénit al atardecer y en
+## el crepúsculo. 0 = cénit gris-amarillento tras la puesta.
+@export_range(0.0, 10.0, 0.05) var ozone_strength: float = 2.5
+## Escala del espesor óptico en el camino al sol. Con el aire real del planeta (1) la luz rasante
+## apenas se filtra; a escala terrestre sale blanca cálida alta, dorada, naranja y roja al tocar el
+## horizonte. La misma curva da el color de la luz del sol en SkyLighting.
+@export_range(1.0, 20.0, 0.1) var sun_path_scale: float = 4.5
+## Escala del espesor óptico de los rayos de cielo (no los del terreno): satura el horizonte, que
+## pasa a blanco a mediodía y a naranja al ponerse el sol.
+@export_range(1.0, 30.0, 0.1) var sky_view_scale: float = 9.0
+## El cielo se calcula como el de un planeta tantas veces mayor (a ras de suelo; se funde con la
+## geometría real al salir de la atmósfera). En el real, a 10 km hacia el sol ya es media tarde.
+@export_range(1.0, 64.0, 0.5) var sky_curvature: float = 16.0
+## Dispersión múltiple: luz de cielo que rellena la bóveda y da el azul del crepúsculo.
+@export_range(0.0, 0.5, 0.005) var multiple_scattering: float = 0.06
+## Velo del aire visto desde fuera, respecto al de la superficie (se funde al alejarse). A 1 el
+## planeta se ve cian lavado: sun_intensity está afinado para el cielo desde el suelo.
+@export_range(0.0, 1.0, 0.01) var space_scatter_scale: float = 0.35
 
 @export_group("Clouds")
 @export var clouds_enabled: bool = true
@@ -210,6 +237,22 @@ const GROUP_TEX_H := 128
 var god_rays_weather_strength: float = 1.0
 var god_rays_weather_reach: float = 1.0
 
+## Luz de luna que empuja SkyLighting cada frame: dirección HACIA la luna, intensidad relativa al
+## sol (0 = sin luna: el compute se salta todo su trabajo) y color. Ilumina el cielo nocturno, las
+## nubes y la niebla con la misma integral que el sol. Sin exportar: es estado, no tuning.
+var moon_direction: Vector3 = Vector3.UP
+var moon_intensity: float = 0.0
+var moon_color: Color = Color(0.62, 0.73, 1.0)
+## Color de la luz del sol en el observador (normalizado), para los god rays: al atardecer los haces
+## son naranjas. Lo empuja SkyLighting; blanco si nadie lo hace.
+var sun_tint: Color = Color(1.0, 1.0, 1.0)
+
+## Espesor óptico vertical de la capa de ozono por ozone_strength (R, G, B a 700/530/440 nm: la
+## banda de Chappuis absorbe verde y naranja y casi nada de azul). Ya en escala del camino al sol.
+const OZONE_COLUMN := Vector3(0.0045, 0.016, 0.0007)
+## Base y techo de la capa de ozono, en fracción del grosor de la atmósfera.
+const OZONE_LAYER := Vector2(0.43, 0.93)
+
 var underwater_pass := UnderwaterRenderPass.new()
 
 var rd: RenderingDevice
@@ -292,6 +335,23 @@ func set_planet_data(
 	if p_sun_direction.length_squared() > 0.000001:
 		sun_direction = p_sun_direction.normalized()
 
+	_params_mutex.unlock()
+
+
+## La empuja SkyLighting. `intensity` va relativa al sol (luna llena alta ≈ 0.15).
+func set_moon_light(direction: Vector3, intensity: float, color: Vector3) -> void:
+	_params_mutex.lock()
+	if direction.length_squared() > 0.000001:
+		moon_direction = direction.normalized()
+	moon_intensity = maxf(intensity, 0.0)
+	moon_color = Color(color.x, color.y, color.z)
+	_params_mutex.unlock()
+
+
+## La empuja SkyLighting: color de la luz del sol que ve el observador (el tono de los god rays).
+func set_sun_tint(color: Color) -> void:
+	_params_mutex.lock()
+	sun_tint = color
 	_params_mutex.unlock()
 
 
@@ -928,6 +988,10 @@ func _build_params_bytes(
 	var local_occ_margin      := _occ_margin
 	var local_ray_strength    := god_rays_weather_strength
 	var local_ray_reach       := god_rays_weather_reach
+	var local_moon_dir        := moon_direction
+	var local_moon_intensity  := moon_intensity
+	var local_moon_color      := moon_color
+	var local_sun_tint        := sun_tint
 	_params_mutex.unlock()
 
 	var floats := PackedFloat32Array()
@@ -1032,14 +1096,15 @@ func _build_params_bytes(
 	))
 
 	# P(26): .x=variación de tamaño de nube entre regiones, .y=brillo nocturno de la niebla
-	# (absoluto, sin escalar por sun_intensity). .zw libres.
-	_append_vec4(floats, Vector4(local_size_variation, local_fog_night_amb, 0.0, 0.0))
+	# (absoluto, sin escalar por sun_intensity), .z=velo del aire visto desde el espacio. .w libre.
+	_append_vec4(floats, Vector4(local_size_variation, local_fog_night_amb, space_scatter_scale, 0.0))
 
 	# P(27-32): god rays. Los consume god_rays.glsl salvo P(32).x, que lo aplica el shader de
 	# atmósfera al escribir la máscara.
 	# P(27): tinte (.rgb) + exposición (.w), escalada por el clima.
 	_append_vec4(floats, Vector4(
-		god_rays_tint.r, god_rays_tint.g, god_rays_tint.b,
+		god_rays_tint.r * local_sun_tint.r, god_rays_tint.g * local_sun_tint.g,
+		god_rays_tint.b * local_sun_tint.b,
 		god_rays_exposure * local_ray_strength
 	))
 
@@ -1075,6 +1140,22 @@ func _build_params_bytes(
 	_append_vec4(floats, Vector4(
 		god_rays_occluder_distance, god_rays_edge_fade, 0.0, 0.0
 	))
+
+	# P(33): dirección hacia la luna (.xyz) + intensidad relativa al sol (.w; 0 = sin luna).
+	_append_vec4(floats, Vector4(local_moon_dir.x, local_moon_dir.y, local_moon_dir.z, local_moon_intensity))
+	# P(34): color de la luz de luna (.rgb). .w libre.
+	_append_vec4(floats, Vector4(local_moon_color.r, local_moon_color.g, local_moon_color.b, 0.0))
+
+	# P(35-37): modelo de cielo (ver MODELO DE CIELO en planet_atmosphere.glsl).
+	# P(35): dispersión de Mie (1/m), anisotropía, aerosoles más bajos que el aire, dispersión múltiple.
+	_append_vec4(floats, Vector4(
+		mie_strength * local_scattering, mie_g, mie_height_ratio, multiple_scattering
+	))
+	# P(36): espesor óptico vertical del ozono (.rgb) + escala del camino al sol (.w).
+	var ozone := OZONE_COLUMN * ozone_strength
+	_append_vec4(floats, Vector4(ozone.x, ozone.y, ozone.z, sun_path_scale))
+	# P(37): escala óptica de los rayos de cielo, curvatura efectiva, base y techo del ozono.
+	_append_vec4(floats, Vector4(sky_view_scale, sky_curvature, OZONE_LAYER.x, OZONE_LAYER.y))
 
 	return floats.to_byte_array()
 
