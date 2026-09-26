@@ -37,7 +37,7 @@ const SPECIES := {
 			"branch_twig_count": 7, "branch_twig_angle": 35.0, "branch_leaf_size": 1.45, "branch_leaf_width": 1.0,
 			"branch_leaf_jitter": 0.25, "branch_leaf_up": 0.8, "branch_leaf_droop": 0.1, "branch_leaf_cross": 0.15,
 			"branch_leaf_start": 0.3, "branch_leaf_outward": 0.3,
-			"branch_crown_normal": 0.7, "branch_crown_ao": 0.4, "branch_bark_tile": 1.2, "branch_lod_card_boost": 1.0,
+			"branch_crown_normal": 0.7, "branch_crown_ao": 0.4, "branch_bark_tile": 1.2, "branch_lod_card_boost": 1.12,
 		},
 		"foliage": {"albedo_tint": Color(0.92, 1.0, 0.95), "transmission_color": Color(0.9, 1.0, 0.55)},
 		"bark_material": {"moss_amount": 0.15},

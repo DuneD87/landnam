@@ -32,7 +32,7 @@ uniform vec4 transmission_color : source_color = vec4(1.0, 0.95, 0.6, 1.0);
 uniform float ao_strength : hint_range(0.0, 1.0, 0.01) = 1.0;
 uniform float direct_occlusion : hint_range(0.0, 1.0, 0.01) = 0.45;
 
-varying float v_band;
+varying vec2 v_band;
 varying vec3 v_tint;
 varying vec2 v_uv0;
 varying vec2 v_uv1;
@@ -56,7 +56,7 @@ void vertex() {
 	float seed = tree_seed(relative_base, 17u);
 	float hue = tree_seed(relative_base, 53u);
 	v_tint = mix(variation_cool_tint, variation_warm_tint, hue) * (1.0 + (seed - 0.5) * 2.0 * tint_variation);
-	v_band = tree_band_visibility(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
+	v_band = tree_band_fades(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
 
 	// Dirección hacia el observador en espacio del objeto, desde el centro de la copa.
 	mat3 basis = mat3(MODEL_MATRIX);
@@ -78,7 +78,7 @@ void vertex() {
 	// arriba, el terreno recortaba la parte baja del árbol.
 	VERTEX = center + offset + d * (radius * 0.25);
 	NORMAL = d;
-	if (v_band <= 0.0) {
+	if (min(v_band.x, v_band.y) <= 0.0) {
 		VERTEX = vec3(0.0);
 	}
 

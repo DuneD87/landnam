@@ -98,7 +98,7 @@ branch_leaf_outward = 0.3
 branch_crown_normal = 0.7
 branch_crown_ao = 0.4
 branch_bark_tile = 1.2
-branch_lod_card_boost = 1.0
+branch_lod_card_boost = 1.12
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)

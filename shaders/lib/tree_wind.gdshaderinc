@@ -114,20 +114,23 @@ uniform float fade_in_end = 0.0;
 uniform float fade_out_start = 0.0;
 uniform float fade_out_end = 0.0;
 
-float tree_band_visibility(vec3 base_world, mat4 main_cam_inv_view) {
+// x: fundido de entrada, y: de salida (1 = visible). Por árbol, desde su base.
+vec2 tree_band_fades(vec3 base_world, mat4 main_cam_inv_view) {
 	float d = distance(base_world, main_cam_inv_view[3].xyz);
-	float v = fade_out_end > fade_out_start ? 1.0 - smoothstep(fade_out_start, fade_out_end, d) : 1.0;
-	v *= fade_in_end > fade_in_start ? smoothstep(fade_in_start, fade_in_end, d) : 1.0;
-	return v;
+	float fade_out = fade_out_end > fade_out_start ? 1.0 - smoothstep(fade_out_start, fade_out_end, d) : 1.0;
+	float fade_in = fade_in_end > fade_in_start ? smoothstep(fade_in_start, fade_in_end, d) : 1.0;
+	return vec2(fade_in, fade_out);
 }
 
-// Tramado estable en pantalla: descarta el fragmento si la visibilidad no lo cubre.
-bool tree_band_discard(float visibility, vec2 frag) {
-	if (visibility >= 0.999) {
+// Tramado estable en pantalla. La entrada usa el ruido invertido: el LOD que sale y el que
+// entra se reparten los píxeles de la misma copa sin solaparse ni dejar huecos (con el mismo
+// ruido, a mitad del relevo los dos cubrían los mismos píxeles y el resto quedaba vacío).
+bool tree_band_discard(vec2 fades, vec2 frag) {
+	if (fades.x >= 0.999 && fades.y >= 0.999) {
 		return false;
 	}
 	float noise = fract(52.9829189 * fract(dot(frag, vec2(0.06711056, 0.00583715))));
-	return visibility <= noise;
+	return fades.y <= noise || fades.x <= 1.0 - noise;
 }
 
 #endif // TREE_WIND_INC

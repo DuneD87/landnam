@@ -60,29 +60,46 @@ de ruido que forman bosquetes y claros (`threshold` 0,25). Antes emitía por vé
 banda 4: filas regulares y, con el `lod_density_falloff` por defecto, 16 veces menos
 densidad de la que decía el JSON.
 
-## Bandas y relevo
+## LODs y relevo al impostor
 
-`"tree_lods": {}` en el item activa `Planet._register_tree_bands`:
+`"tree_lods": {}` en el item activa `Planet._register_tree_item`. Cada árbol se registra
+**una sola vez**, en la banda 4 del instancer, con el impostor octaédrico, la colisión, la
+tala y los posaderos. El instancer crea un `VoxelInstancerRigidBody` por árbol a menos de
+`collision_distance_m` (160 m) con el transform exacto de la instancia, y
+`TreeDetailRenderer` (`scripts/planet/tree_detail_renderer.gd`) dibuja la geometría en esas
+mismas posiciones:
 
-| Banda | Bloques | Mallas | Distancia |
-|---|---|---|---|
-| 1 (cercana) | 32 m | LOD0 < 30 m, LOD1 < 60 m, LOD2 | hasta el relevo, 105-125 m |
-| 4 (lejana) | 256 m | impostor octaédrico | desde el relevo hasta ~768 m |
+| Distancia al árbol | Malla | Fundido |
+|---|---|---|
+| < 30 m | LOD0 | 28-32 m |
+| 30-57 m | LOD1 | 55-59 m |
+| 57-92 m | LOD2 | 90-95 m |
+| > 92 m | impostor | hasta ~768 m |
 
-El instancer elige la malla por centro de bloque: con un solo registro en la banda 4, el
-LOD0 llegaba a árboles a 270 m. Cada banda genera sus propias posiciones con la misma
-densidad; el relevo es un tramado en pantalla (`tree_band_visibility`) y los árboles de una
-banda que están del todo fuera de ella se colapsan en el vertex shader. Solo la banda cercana
-lleva colisión (cilindro del tronco hasta la copa), posaderos de pájaros y tala.
+Cada relevo es un tramado complementario sobre **el mismo árbol** (`tree_band_fades` /
+`tree_band_discard`): el que sale y el que entra se reparten los píxeles, sin huecos ni
+solapes. Antes había una banda cercana aparte y el instancer genera posiciones distintas
+en cada item (su semilla lleva el id), así que en el relevo unos árboles se desvanecían y
+aparecían otros; además el LOD se elegía por centro de bloque.
+
+`TreeDetailRenderer` indexa los cuerpos en `TreeInstanceIndex` (C++, extensión Tree3D) y,
+cuando la cámara se mueve 2 m, reparte los árboles cercanos en MultiMesh por celda de 32 m
+y LOD (con uno solo por LOD, Godot no recortaba nada) y sube solo las celdas que cambian.
+Coste de CPU: ~0,4-0,7 ms por reparto en el bosque de prueba (9.800 cuerpos), 0,65 ms en el
+juego a ras de suelo.
+
+Para que el LOD2 y el impostor se parezcan: las tarjetas del LOD2 miran más hacia fuera,
+conservan el 32 % de tarjetas y los planos cruzados; el impostor no hornea la oclusión en
+el color (el shader ya la aplica) y oscurece la corteza, que en la geometría queda a la
+sombra de la copa.
 
 En el pase de sombras se descarta una fracción de tarjetas (70 % se quedan cerca, 25 % desde
-100 m) y las ramas secundarias a más de 12 m (`tree_shadow_skip`): con la banda cercana de
-64 m, las sombras de los árboles eran ~2 ms de los 7,3 ms del fotograma del bosque.
+100 m) y las ramas secundarias a más de 12 m (`tree_shadow_skip`).
 
 ## Impostores octaédricos
 
 `TreeOctaImpostor` (`scripts/planet/tree_octa_impostor.gd`): 8×8 vistas del hemisferio
-superior de 128 px (horneadas a 256 px) en dos atlas por árbol,
+superior de 192 px (horneadas a 384 px) en dos atlas por árbol,
 `textures/planet/vegetation/tree/impostors/<escena>_albedo.png` (color, cobertura) y
 `_normal.png` (normal de copa octaédrica en RG, oclusión en B; importado sin compresión de
 normal map). El shader `tree_octa_impostor` orienta un quad hacia la cámara (hacia la luz en
@@ -105,18 +122,18 @@ mismo modelo que el follaje, así que el bosque lejano cambia con la hora como e
 GPU, RTX 4080 SUPER, Godot 4.6 Forward+.
 
 Juego (`tests/lighting/lighting_capture.tscn --views=forest --times=noon --perf`, 1920×1080,
-misma vista que antes del cambio): fotograma 5,1-5,4 ms antes y 5,37 ms después, con unas
+misma vista que antes del cambio): fotograma 5,1-5,4 ms antes y 5,34 ms después, con unas
 cuatro veces más árboles en el bosque. Vegetación del planeta (fotograma menos el mismo con
-el instancer oculto): 1,17 → 1,42 ms.
+el instancer y el detalle ocultos): 1,17 → 1,29 ms.
 
 Bosque plano de prueba (`tests/vegetation/tree_quality_preview.tscn -- --perf`, 2560×1440, solo
 árboles, sin máscara de bioma: bosque en el ~70 % del terreno hasta el horizonte):
 
-| Vista | Antes (29.052 árboles) | Después (290.778 árboles) |
+| Vista | Antes (29.052 árboles) | Después (288.029 árboles) |
 |---|---:|---:|
-| A ras de suelo | 1,30 ms | 2,28 ms |
-| Elevada (25 m) | 1,36 ms | 1,27 ms |
-| Alta (90 m) | 1,05 ms | 0,52 ms |
+| A ras de suelo | 1,30 ms | 2,17 ms |
+| Elevada (25 m) | 1,36 ms | 1,29 ms |
+| Alta (90 m) | 1,05 ms | 0,50 ms |
 
 Descartado: tarjetas con un polígono de 8 lados ajustado al alfa. Quitaban un 20 % de
 píxeles pero costaban 0,4 ms más en el bosque: el coste está en los vértices de miles de
@@ -125,9 +142,10 @@ tarjetas, no en los píxeles.
 ## Pruebas
 
 `tests/vegetation/test_trees.gd` (headless): forma, presupuesto de triángulos por LOD,
-silueta estable, datos por vértice, normales de copa, atlas presentes y registro en dos
-bandas con relevo complementario. Capturas de comparación: `tree_quality_preview.tscn`
-(`--capture`, `--lineup` con figura de 1,8 m) en `build/tree_quality/`.
+silueta estable, datos por vértice, normales de copa, atlas presentes, registro en una sola
+banda y fundidos encadenados LOD0 → LOD1 → LOD2 → impostor. Capturas de comparación:
+`tree_quality_preview.tscn` (`--capture`, `--lineup` con figura de 1,8 m, `--relay` con el
+LOD2 junto al impostor a 110 m y un recorrido cruzando el relevo) en `build/tree_quality/`.
 
 ## Texturas de corteza
 

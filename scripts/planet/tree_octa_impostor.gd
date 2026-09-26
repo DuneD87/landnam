@@ -11,7 +11,7 @@ extends RefCounted
 ## La codificación es la de shaders/lib/octahedral.gdshaderinc.
 
 const FRAMES := 8
-const FRAME_PX := 128
+const FRAME_PX := 192
 const BAKE_SUPERSAMPLE := 2
 const ATLAS_DIR := "res://textures/planet/vegetation/tree/impostors/"
 const IMPOSTOR_SHADER := preload("res://shaders/vegetation/tree_octa_impostor.gdshader")

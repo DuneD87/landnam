@@ -13,7 +13,7 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled;
 
-// Solo el relevo entre bandas (tree_band_visibility); los uniforms de viento no se usan.
+// Solo el fundido por distancia (tree_band_fades); los uniforms de viento no se usan.
 #include "res://shaders/lib/tree_wind.gdshaderinc"
 
 uniform sampler2D albedo_texture : source_color, filter_linear_mipmap;
@@ -32,11 +32,11 @@ global uniform vec3 sky_moon_direction;
 global uniform vec3 sky_ambient_radiance;
 
 varying vec3 light_rgb;
-varying float v_band;
+varying vec2 v_band;
 
 void vertex() {
-	v_band = tree_band_visibility(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
-	if (v_band <= 0.0) {
+	v_band = tree_band_fades(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
+	if (min(v_band.x, v_band.y) <= 0.0) {
 		VERTEX = vec3(0.0);
 	}
 	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;

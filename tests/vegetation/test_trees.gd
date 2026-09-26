@@ -5,7 +5,7 @@ extends SceneTree
 ##   godot --headless --path . -s res://tests/vegetation/test_trees.gd
 
 ## Presupuesto de triángulos por LOD (el pino, la especie más cargada, ronda 10,4k en LOD0).
-const MAX_TRIANGLES := [11000, 4000, 1200, 500]
+const MAX_TRIANGLES := [11000, 4000, 1400, 500]
 
 var _failures := 0
 
@@ -114,34 +114,43 @@ func _check_registration(tree_items: Array, generators: Array) -> void:
 	var item: Dictionary = tree_items[0].duplicate(true)
 	item.generator = [item.generator[0]]
 	await planet._load_vegetation_item(0, item, generators, [])
-	_check(planet._next_library_id == 2, "Un árbol se registra en dos bandas")
-	if planet._next_library_id != 2:
+	_check(planet._next_library_id == 1, "Un árbol se registra en una sola banda (mismas posiciones cerca y lejos)")
+	if planet._next_library_id != 1:
 		return
-	var near = planet.voxel_instancer.library.get_item(0)
-	var far = planet.voxel_instancer.library.get_item(1)
-	_check(near.lod_index == 1 and far.lod_index == 4, "Banda cercana 1 y lejana 4")
-	_check(not near.collision_shapes.is_empty() and far.collision_shapes.is_empty(), "Colisión solo en la banda cercana")
-	_check(planet.planet_item_packed_scenes.has(0) and not planet.planet_item_packed_scenes.has(1),
-		"Solo la banda cercana se puede talar")
-	var mesh_height: float = near.get_mesh(0).get_aabb().end.y
+	var band = planet.voxel_instancer.library.get_item(0)
+	_check(band.lod_index == 4, "Banda lejana 4")
+	_check(not band.collision_shapes.is_empty() and planet.planet_item_packed_scenes.has(0),
+		"Colisión y tala en el item del árbol")
+	_check(band.collision_distance >= TreeDetailRenderer.LOD_FADES[2].y,
+		"La colisión (cuerpos) cubre el último fundido del detalle")
+	var mesh_height: float = planet.tree_detail_renderer.lod_meshes(0)[0].get_aabb().end.y
 	var heights: Array = item.height_m
-	_check(is_equal_approx(near.generator.min_scale * mesh_height, float(heights[0]))
-		and is_equal_approx(near.generator.max_scale * mesh_height, float(heights[1])), "height_m fija la altura real")
-	var ratios: Array = []
-	for k in 4:
-		ratios.append(near.get("mesh_lod%d_distance_ratio" % k))
-	_check(ratios[0] < ratios[1] and ratios[1] < ratios[2] and ratios[2] < ratios[3], "Ratios de LOD crecientes " + str(ratios))
-	var near_material: ShaderMaterial = near.get_mesh(0).surface_get_material(1)
-	var far_material: ShaderMaterial = far.get_mesh(0).surface_get_material(0)
-	_check(far_material.shader.resource_path.ends_with("tree_octa_impostor.gdshader"), "La banda lejana usa el impostor octaédrico")
-	_check(is_equal_approx(near_material.get_shader_parameter("fade_out_end"), far_material.get_shader_parameter("fade_in_end"))
-		and is_equal_approx(near_material.get_shader_parameter("fade_out_start"), far_material.get_shader_parameter("fade_in_start")),
-		"El relevo sale de una banda donde entra la otra")
+	_check(is_equal_approx(band.generator.min_scale * mesh_height, float(heights[0]))
+		and is_equal_approx(band.generator.max_scale * mesh_height, float(heights[1])), "height_m fija la altura real")
+	var impostor_material: ShaderMaterial = band.get_mesh(0).surface_get_material(0)
+	_check(impostor_material.shader.resource_path.ends_with("tree_octa_impostor.gdshader"), "El item dibuja el impostor octaédrico")
+	var renderer: TreeDetailRenderer = planet.tree_detail_renderer
+	var detail: Array = renderer.lod_meshes(0) if renderer != null else []
+	_check(detail.size() == 3, "Detalle registrado: tres LODs de geometría")
+	if detail.size() != 3:
+		return
+	# Fundidos encadenados sobre el mismo árbol: cada LOD entra donde sale el anterior y el
+	# impostor donde sale el LOD2.
+	var previous_out := Vector2.ZERO
+	for lod in 3:
+		var material: ShaderMaterial = detail[lod].surface_get_material(1)
+		var fade_in := Vector2(material.get_shader_parameter("fade_in_start") if lod > 0 else 0.0,
+			material.get_shader_parameter("fade_in_end") if lod > 0 else 0.0)
+		var fade_out := Vector2(material.get_shader_parameter("fade_out_start"), material.get_shader_parameter("fade_out_end"))
+		_check(lod == 0 or fade_in.is_equal_approx(previous_out), "LOD%d entra donde sale el LOD%d" % [lod, lod - 1])
+		previous_out = fade_out
+	var imp_in := Vector2(impostor_material.get_shader_parameter("fade_in_start"), impostor_material.get_shader_parameter("fade_in_end"))
+	_check(imp_in.is_equal_approx(previous_out), "El impostor entra donde sale el LOD2")
 	var registered := 0
 	for entry in planet.item_transparent_materials:
-		if entry.shader == near_material or entry.shader == far_material:
+		if entry.shader == impostor_material or entry.shader == detail[0].surface_get_material(1):
 			registered += 1
-	_check(registered == 2, "Materiales de las dos bandas reciben sol, planeta y viento")
+	_check(registered == 2, "Impostor y detalle reciben sol, planeta y viento")
 	planet.free()
 	terrain.free()
 

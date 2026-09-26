@@ -106,6 +106,8 @@ var planet_item_scenes: Dictionary
 var planet_item_packed_scenes: Dictionary
 ## library_id -> baked local branch anchors and wood BVH, shared across instances.
 var tree_perch_catalog: Dictionary = {}
+## Geometría cercana de los árboles Branching (ver _register_tree_item).
+var tree_detail_renderer: TreeDetailRenderer = null
 var _next_library_id: int = 0
 
 ## Shader de follaje de doble cara (LOD cercano) y su variante de una cara (LOD lejano).
@@ -488,6 +490,9 @@ func _load_vegetation() -> void:
 	planet_item_scenes.clear()
 	planet_item_packed_scenes.clear()
 	tree_perch_catalog.clear()
+	if tree_detail_renderer != null:
+		tree_detail_renderer.queue_free()
+		tree_detail_renderer = null
 	multi_mesh_array.clear()
 	item_transparent_materials.clear()
 	_grass_lod_cache.clear()
@@ -569,7 +574,7 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 			continue
 
 		if item.has("tree_lods"):
-			_register_tree_bands(i, item, shared_data, generator_config, graph_functions)
+			_register_tree_item(i, item, shared_data, generator_config, graph_functions)
 			continue
 
 		for lod_index in lod_indices:
@@ -591,45 +596,22 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 				_register_multi_mesh_item(i, item, band_data, generator, lod_index)
 
 
-## Árboles en dos bandas del instancer. Una sola banda de LOD 4 elige la malla por bloques
-## de 256 m: el LOD0 llegaba a árboles a 270 m y no se podía acercar. La banda cercana
-## (bloques de 32 m, alcance ≥ 132 m) lleva la geometría LOD0-LOD2 y se funde con tramado
-## en relay_m; la lejana solo lleva el impostor octaédrico (TreeOctaImpostor) y entra en el
-## mismo tramo. Cada banda genera sus propias posiciones con la misma densidad por área, así
-## que el relevo cambia unos árboles por otros a ~115 m, donde el tramado lo disimula.
-## Las sombras de la geometría cercana eran lo más caro del bosque: acercar el relevo es lo
-## que deja el LOD0 con más detalle dentro del presupuesto.
-## "tree_lods": {"near_band": 1, "far_band": 4, "mesh_lod_distances_m": [30, 60],
-##               "relay_m": [105, 125]}
-func _register_tree_bands(i: int, item: Dictionary, shared_data: Dictionary, generator_config: Dictionary,
+## Árboles Branching ("tree_lods": {}): un solo item en la banda lejana (4) con el impostor
+## octaédrico, la colisión, la tala y los posaderos. La geometría cercana la dibuja
+## TreeDetailRenderer en las posiciones de los cuerpos que el instancer crea para cada árbol
+## cercano, con el LOD elegido por la distancia real de cada árbol y fundidos por árbol
+## (LOD0 < 30 m, LOD1 < 58 m, LOD2 < 94 m, impostor más allá).
+## Antes había una banda cercana aparte: el instancer genera posiciones distintas en cada
+## item (su semilla lleva el id), así que en el relevo unos árboles se cambiaban por otros.
+## La distancia de colisión (por chunk) debe cubrir el último fundido del detalle.
+func _register_tree_item(i: int, item: Dictionary, shared_data: Dictionary, generator_config: Dictionary,
 		graph_functions: Array) -> void:
-	var cfg: Dictionary = item.tree_lods
 	var lm: Array = shared_data.lod_meshes
 	if lm.size() != 4:
 		push_error("Árbol sin cuatro LODs: " + str(item.scene))
 		return
-	var relay: Array = cfg.get("relay_m", [105.0, 125.0])
 	var wind_speed: float = float(item.get("wind_speed", 0.0))
-	var near_band: int = int(cfg.get("near_band", 1))
-	var far_band: int = int(cfg.get("far_band", 4))
-
-	var near_data: Dictionary = shared_data.duplicate()
-	var near_fade := {"fade_out_start": float(relay[0]), "fade_out_end": float(relay[1])}
-	near_data.lod_meshes = _tree_band_meshes([lm[0], lm[1], lm[2], lm[2]], near_fade, wind_speed)
-	var view: float = _get_lod_view_distance(near_band)
-	var dists: Array = cfg.get("mesh_lod_distances_m", [30.0, 60.0])
-	near_data.lod_ratios = [minf(float(dists[0]) / view, 0.997), minf(float(dists[1]) / view, 0.998), 0.999, 1.0]
-	near_data.effective_mesh = null
-	var near_generator := _build_generator(generator_config, graph_functions, near_band)
-	_apply_item_height(near_generator, item, shared_data)
-	_register_multi_mesh_item(i, item, near_data, near_generator, near_band)
-
-	# Lejos: solo el impostor, sin colisión, sin posaderos y sin registro para talar.
-	var far_item: Dictionary = item.duplicate()
-	far_item["instance_as_scene"] = false
-	far_item.erase("collision_distance_m")
-	var far_data: Dictionary = shared_data.duplicate()
-	var far_fade := {"fade_in_start": float(relay[0]), "fade_in_end": float(relay[1])}
+	var band: int = int(item.tree_lods.get("band", 4))
 	var impostor: Mesh = lm[3]
 	var scene_name: String = str(item.scene).get_file().get_basename()
 	if TreeOctaImpostor.has_atlases(scene_name):
@@ -639,18 +621,27 @@ func _register_tree_bands(i: int, item: Dictionary, shared_data: Dictionary, gen
 			if material is ShaderMaterial and material.shader.resource_path.ends_with("tree_foliage.gdshader"):
 				foliage = material
 		impostor = TreeOctaImpostor.build_mesh(lm[0], scene_name, foliage)
-	far_data.lod_meshes = _tree_band_meshes([impostor, impostor, impostor, impostor], far_fade, wind_speed)
-	far_data.lod_ratios = [0.997, 0.998, 0.999, 1.0]
-	far_data.collision_shapes = []
-	far_data.perch_data = {}
-	far_data.effective_mesh = null
-	var far_generator := _build_generator(generator_config, graph_functions, far_band)
-	_apply_item_height(far_generator, item, shared_data)
-	_register_multi_mesh_item(i, far_item, far_data, far_generator, far_band)
+	var data: Dictionary = shared_data.duplicate()
+	data.lod_meshes = _tree_band_meshes([impostor, impostor, impostor, impostor],
+		TreeDetailRenderer.impostor_fade(), wind_speed)
+	data.lod_ratios = [0.997, 0.998, 0.999, 1.0]
+	data.effective_mesh = null
+	var generator := _build_generator(generator_config, graph_functions, band)
+	_apply_item_height(generator, item, shared_data)
+	var library_id: int = _next_library_id
+	_register_multi_mesh_item(i, item, data, generator, band)
+
+	var detail: Array = []
+	for lod in 3:
+		detail.append(_tree_band_meshes([lm[lod]], TreeDetailRenderer.lod_fade(lod), wind_speed)[0])
+	if tree_detail_renderer == null:
+		tree_detail_renderer = TreeDetailRenderer.new(voxel_instancer)
+		voxel_terrain.add_child(tree_detail_renderer)
+	tree_detail_renderer.register_item(library_id, detail)
 
 
-## Copia las mallas de una banda con materiales propios (fundido de relevo) y los registra
-## para recibir sol, planeta y viento. Una malla repetida comparte copia.
+## Copia las mallas con materiales propios (fundido por distancia) y los registra para
+## recibir sol, planeta y viento. Una malla repetida comparte copia.
 func _tree_band_meshes(meshes: Array, fade: Dictionary, wind_speed: float) -> Array:
 	var mesh_copies: Dictionary = {}
 	var material_copies: Dictionary = {}

@@ -249,20 +249,30 @@ func _run() -> void:
 				# con su instancer oculto.
 				var veg_ms := -1.0
 				var instancer: Node3D = _vegetation_instancer(view)
+				var detail: Node3D = _tree_detail(view)
 				if instancer != null:
 					# Tres ciclos alternos con mediana: una sola pareja variaba ±1 ms.
 					var diffs: Array[float] = []
 					for cycle in 3:
 						var on := await _median_gpu()
 						instancer.visible = false
+						if detail != null:
+							detail.visible = false
 						await _settle(0.3)
 						var off := await _median_gpu()
 						instancer.visible = true
+						if detail != null:
+							detail.visible = true
 						await _settle(0.3)
 						diffs.append(on - off)
 					diffs.sort()
 					veg_ms = diffs[1]
-				print("PERF %s_%s gpu_ms=%.3f vegetation_ms=%.3f" % [view_name, time_name, gpu, veg_ms])
+				var sweep_ms := -1.0
+				var detail_node := _tree_detail(view)
+				if detail_node != null:
+					sweep_ms = (detail_node as TreeDetailRenderer).last_sweep_usec / 1000.0
+				print("PERF %s_%s gpu_ms=%.3f vegetation_ms=%.3f tree_sweep_cpu_ms=%.2f" % [
+					view_name, time_name, gpu, veg_ms, sweep_ms])
 			await _save("%s_%s" % [view_name, time_name])
 			_print_state("%s_%s" % [view_name, time_name])
 
@@ -332,6 +342,12 @@ func _vegetation_instancer(view: Dictionary) -> Node3D:
 	var body: Node = _moon if view.get("body", "earth") == "moon" else _earth
 	var planet = body.get("planet")
 	return (planet as Planet).voxel_instancer if planet is Planet else null
+
+
+func _tree_detail(view: Dictionary) -> Node3D:
+	var body: Node = _moon if view.get("body", "earth") == "moon" else _earth
+	var planet = body.get("planet")
+	return (planet as Planet).tree_detail_renderer if planet is Planet else null
 
 
 func _median_gpu() -> float:

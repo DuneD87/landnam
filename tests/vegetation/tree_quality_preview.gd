@@ -5,6 +5,7 @@ extends Node3D
 ##   godot --path . res://tests/vegetation/tree_quality_preview.tscn -- --capture --tag=before
 ##   ... -- --lineup --tag=before      retratos por especie y hojas de LOD0..LOD3
 ##   ... -- --perf                     coste de GPU de los árboles (con/sin instancer)
+##   ... -- --relay --tag=x            relevo LOD2/impostor: pares a 110 m y recorrido
 ##
 ## El bosque sale del generador "tree_generator_green" sobre un terreno plano, sin la
 ## máscara de bioma, con la hierba del planeta alrededor (salvo en --perf, que carga solo
@@ -36,7 +37,7 @@ func _ready() -> void:
 	for arg in args:
 		if arg.begins_with("--tag="):
 			_tag = arg.substr(6)
-		elif arg in ["--capture", "--lineup", "--perf"]:
+		elif arg in ["--capture", "--lineup", "--perf", "--relay"]:
 			_mode = arg.substr(2)
 	if _mode == "perf":
 		get_window().size = Vector2i(2560, 1440)
@@ -98,6 +99,8 @@ func _ready() -> void:
 			await _capture_lineup()
 		"perf":
 			await _measure_perf()
+		"relay":
+			await _capture_relay()
 		_:
 			return
 	print("TREE QUALITY PREVIEW COMPLETE")
@@ -201,18 +204,18 @@ func _measure_perf() -> void:
 		_set_sun(view[3])
 		_camera.position = view[1]
 		_camera.look_at(view[2])
-		_planet.voxel_instancer.visible = true
+		_set_forest_visible(true)
 		await _wait(2.0)
 		var with_trees := await _gpu_median(rid)
 		var prims := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
 		var draws := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
-		_planet.voxel_instancer.visible = false
+		_set_forest_visible(false)
 		await _wait(0.5)
 		var without := await _gpu_median(rid)
 		var prims_off := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
 		print("PERF %s trees_ms=%.3f frame_ms=%.3f prims=%d draws=%d" % [
 			view[0], with_trees - without, with_trees, prims - prims_off, draws])
-	_planet.voxel_instancer.visible = true
+	_set_forest_visible(true)
 
 
 func _gpu_median(rid: RID) -> float:
@@ -226,12 +229,66 @@ func _gpu_median(rid: RID) -> float:
 	return samples[samples.size() / 2]
 
 
+# --- Relevo geometría / impostor --------------------------------------------------------
+
+## Comprueba el relevo LOD2/impostor: (1) cada especie en LOD2 y como impostor, lado a lado
+## a 110 m con teleobjetivo (mismo aspecto); (2) la cámara retrocede a pasos desde 30 m
+## mirando copas a ~90-130 m (no deben aparecer ni desaparecer árboles).
+func _capture_relay() -> void:
+	await _wait(10.0)
+	_set_sun(Vector3(0.4, 0.8, 0.3))
+	var shots: Array[Image] = []
+	for step in 8:
+		_camera.position = Vector3(0, 30.0, 20.0 + step * 4.0)
+		_camera.look_at(Vector3(0, 0.0, -80.0))
+		await _wait(0.6)
+		await RenderingServer.frame_post_draw
+		shots.append(get_viewport().get_texture().get_image().get_region(Rect2i(480, 300, 960, 400)))
+	_save_strip(shots, "relay_walk")
+
+	_set_forest_visible(false)
+	_camera.fov = 12.0
+	_camera.position = Vector3(0, 3.0, 110.0)
+	_camera.look_at(Vector3(0, 3.0, 0))
+	var holder := Node3D.new()
+	add_child(holder)
+	var pairs: Array[Image] = []
+	for sp in _species:
+		if _planet.tree_detail_renderer == null or _planet.tree_detail_renderer.lod_meshes(sp.ids[0]).is_empty():
+			continue
+		for child in holder.get_children():
+			child.free()
+		for side in 2:
+			var inst := MeshInstance3D.new()
+			inst.mesh = _without_band_fade(_species_lod(sp, 2 if side == 0 else 3))
+			inst.scale = Vector3.ONE * sp.scale
+			inst.position = Vector3(-6.0 if side == 0 else 6.0, 0, 0)
+			holder.add_child(inst)
+		await _wait(0.5)
+		await RenderingServer.frame_post_draw
+		pairs.append(get_viewport().get_texture().get_image().get_region(Rect2i(360, 140, 1200, 800)))
+	_save_sheet(pairs, 3, "relay_pairs")
+
+
+func _save_strip(shots: Array[Image], name: String) -> void:
+	var w := shots[0].get_width()
+	var h := shots[0].get_height()
+	var sheet := Image.create(w * 2, h * ceili(shots.size() / 2.0), false, Image.FORMAT_RGBA8)
+	for i in shots.size():
+		var img := shots[i]
+		img.convert(Image.FORMAT_RGBA8)
+		sheet.blit_rect(img, Rect2i(0, 0, w, h), Vector2i((i % 2) * w, (i / 2) * h))
+	var path := "%s/%s_%s.png" % [OUT_DIR, _tag, name]
+	sheet.save_png(path)
+	print("CAPTURE ", path)
+
+
 # --- Retratos y LODs ------------------------------------------------------------------
 
 ## Cada especie a su escala media en el planeta, junto a una figura de 1,8 m, en una hoja
 ## de retratos; y sus cuatro LODs lado a lado en hojas de cuatro especies.
 func _capture_lineup() -> void:
-	_planet.voxel_instancer.visible = false
+	_set_forest_visible(false)
 	var vp := SubViewport.new()
 	vp.size = PORTRAIT_SIZE
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -259,7 +316,7 @@ func _capture_lineup() -> void:
 		_set_sun(lights[light_name])
 		var shots: Array[Image] = []
 		for sp in _species:
-			var mesh: Mesh = _planet.voxel_instancer.library.get_item(sp.ids[0]).get_mesh(0)
+			var mesh: Mesh = _species_lod(sp, 0)
 			_place_tree(holder, mesh, sp.scale, 0.0)
 			holder.add_child(human)
 			var size: Vector3 = mesh.get_aabb().size * sp.scale
@@ -278,21 +335,34 @@ func _capture_lineup() -> void:
 			if index >= _species.size():
 				break
 			var sp: Dictionary = _species[index]
-			var item = _planet.voxel_instancer.library.get_item(sp.ids[0])
-			# Árboles con relevo: el impostor está en el item de la banda lejana.
-			var far_item = _planet.voxel_instancer.library.get_item(sp.ids[-1])
 			for lod in 4:
-				var mesh: Mesh = far_item.get_mesh(0) if lod == 3 and sp.ids.size() > 1 else item.get_mesh(lod)
-				if lod == 3 and sp.ids.size() > 1:
-					mesh = _without_band_fade(mesh)
+				var mesh: Mesh = _without_band_fade(_species_lod(sp, lod))
 				_place_tree(holder, mesh, sp.scale, 0.0)
-				_frame(cam, item.get_mesh(0).get_aabb(), sp.scale, 0.0)
+				_frame(cam, _species_lod(sp, 0).get_aabb(), sp.scale, 0.0)
 				shots.append(await _grab(vp))
 		_save_sheet(shots, 4, "lods_%d" % sheet)
 	human.free()
 
 
-## El impostor de la banda lejana solo aparece más allá del relevo: en el retrato se quita.
+## Instancer (impostores, hierba) y geometría cercana de los árboles.
+func _set_forest_visible(visible: bool) -> void:
+	_planet.voxel_instancer.visible = visible
+	if _planet.tree_detail_renderer != null:
+		_planet.tree_detail_renderer.visible = visible
+
+
+## LOD0-2 del detalle cercano o, con lod 3, el impostor del item del instancer. Los árboles
+## sin detalle (palmeras) usan las cuatro mallas del item.
+func _species_lod(sp: Dictionary, lod: int) -> Mesh:
+	var item = _planet.voxel_instancer.library.get_item(sp.ids[0])
+	var renderer: TreeDetailRenderer = _planet.tree_detail_renderer
+	var detail: Array = renderer.lod_meshes(sp.ids[0]) if renderer != null else []
+	if detail.is_empty():
+		return item.get_mesh(lod)
+	return item.get_mesh(0) if lod == 3 else detail[lod]
+
+
+## El impostor y los LOD solo aparecen en su tramo de distancia: en el retrato se quita.
 func _without_band_fade(mesh: Mesh) -> Mesh:
 	var copy: ArrayMesh = mesh.duplicate()
 	for s in copy.get_surface_count():

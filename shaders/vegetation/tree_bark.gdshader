@@ -28,7 +28,7 @@ uniform float moss_amount : hint_range(0.0, 1.0, 0.01) = 0.35;
 uniform float tint_variation : hint_range(0.0, 0.5, 0.01) = 0.12;
 
 varying float v_ao;
-varying float v_band;
+varying vec2 v_band;
 varying float v_moss;
 varying vec3 v_tint;
 
@@ -36,11 +36,11 @@ void vertex() {
 	vec3 relative_base = MODEL_MATRIX[3].xyz - planet_position;
 	vec3 up = tree_up(relative_base);
 	float seed = tree_seed(relative_base, 17u);
-	v_band = tree_band_visibility(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
+	v_band = tree_band_fades(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
 	VERTEX += tree_wind_offset(VERTEX, NORMAL, COLOR, UV2, MODEL_MATRIX, up, seed, TIME);
 	// Fuera de su banda el árbol se colapsa: triángulos degenerados, sin rasterizar nada.
 	float camera_distance = distance(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX[3].xyz);
-	if (v_band <= 0.0 || (IN_SHADOW_PASS && tree_shadow_skip(COLOR, UV2, camera_distance))) {
+	if (min(v_band.x, v_band.y) <= 0.0 || (IN_SHADOW_PASS && tree_shadow_skip(COLOR, UV2, camera_distance))) {
 		VERTEX = vec3(0.0);
 	}
 

@@ -17,8 +17,13 @@ uniform vec4 albedo_tint : source_color = vec4(1.0);
 uniform float saturation = 1.0;
 uniform float alpha_scissor_threshold = 0.4;
 uniform bool is_foliage = true;
-// Parte de la oclusión que se hornea en el color (la otra va al canal B de la normal).
-uniform float ao_in_albedo = 0.35;
+// Parte de la oclusión que se hornea en el color. 0: el impostor ya aplica la del canal B
+// de la normal igual que el follaje; hornearla también en el color la contaba dos veces y
+// el impostor salía más oscuro que el LOD2 al que releva.
+uniform float ao_in_albedo = 0.0;
+// La madera del impostor no recibe la sombra de su copa: el tronco salía claro frente al de
+// la geometría, que queda casi siempre a la sombra de la copa.
+uniform float bark_shade = 0.45;
 
 varying vec3 v_normal;
 varying float v_ao;
@@ -42,7 +47,7 @@ void fragment() {
 		vec3 color = tex.rgb * albedo_tint.rgb;
 		float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
 		color = mix(vec3(luma), color, saturation);
-		ALBEDO = color * mix(1.0, v_ao, ao_in_albedo);
+		ALBEDO = color * mix(1.0, v_ao, ao_in_albedo) * (is_foliage ? 1.0 : bark_shade);
 	} else {
 		ALBEDO = linear_from_srgb(vec3(oct_normal_encode(normalize(v_normal)), v_ao));
 	}
