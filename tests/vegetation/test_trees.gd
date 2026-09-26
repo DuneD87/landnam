@@ -130,6 +130,8 @@ func _check_registration(tree_items: Array, generators: Array) -> void:
 	var impostor_material: ShaderMaterial = band.get_mesh(0).surface_get_material(0)
 	_check(impostor_material.shader.resource_path.ends_with("tree_octa_impostor.gdshader"), "El item dibuja el impostor octaédrico")
 	var renderer: TreeDetailRenderer = planet.tree_detail_renderer
+	_check(renderer != null and renderer.physics_interpolation_mode == Node.PHYSICS_INTERPOLATION_MODE_OFF,
+		"El detalle no se interpola: al rehacer una celda cada índice pasa a ser otro árbol")
 	var detail: Array = renderer.lod_meshes(0) if renderer != null else []
 	_check(detail.size() == 3, "Detalle registrado: tres LODs de geometría")
 	if detail.size() != 3:

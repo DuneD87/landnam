@@ -45,6 +45,11 @@ func _init(p_instancer: VoxelInstancer) -> void:
 	name = "TreeDetailRenderer"
 	instancer = p_instancer
 	top_level = true
+	# El proyecto tiene la interpolación física activada: un MultiMesh interpolado mezcla cada
+	# instancia con la del mismo índice en el buffer anterior. Al rehacer el reparto de una
+	# celda cambia qué árbol ocupa cada índice, y durante un fotograma los árboles aparecían a
+	# medio camino entre dos árboles distintos (parpadeo, árboles de otro tamaño).
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_index.cell_size = CELL_SIZE
 	for lod in 3:
 		_lod_ranges.append(0.0 if lod == 0 else LOD_FADES[lod - 1].x - MARGIN)

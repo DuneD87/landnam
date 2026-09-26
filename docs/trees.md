@@ -88,6 +88,15 @@ y LOD (con uno solo por LOD, Godot no recortaba nada) y sube solo las celdas que
 Coste de CPU: ~0,4-0,7 ms por reparto en el bosque de prueba (9.800 cuerpos), 0,65 ms en el
 juego a ras de suelo.
 
+El renderizador tiene la interpolación física desactivada (el proyecto la activa): un
+MultiMesh interpolado mezcla cada instancia con la del mismo índice en el buffer anterior y,
+al rehacer una celda, cada índice pasa a ser otro árbol. Se veía como parpadeo: árboles de
+otros tamaños a medio camino entre dos árboles durante un fotograma.
+
+Un solo item por árbol en la banda 4 no es "solo lejos": el instancer genera sus instancias
+en los bloques de LOD 4, que llegan hasta la cámara, así que los mismos árboles existen en
+todos los anillos y solo cambia la malla con la que se dibujan.
+
 Para que el LOD2 y el impostor se parezcan: las tarjetas del LOD2 miran más hacia fuera,
 conservan el 32 % de tarjetas y los planos cruzados; el impostor no hornea la oclusión en
 el color (el shader ya la aplica) y oscurece la corteza, que en la geometría queda a la
@@ -146,6 +155,11 @@ silueta estable, datos por vértice, normales de copa, atlas presentes, registro
 banda y fundidos encadenados LOD0 → LOD1 → LOD2 → impostor. Capturas de comparación:
 `tree_quality_preview.tscn` (`--capture`, `--lineup` con figura de 1,8 m, `--relay` con el
 LOD2 junto al impostor a 110 m y un recorrido cruzando el relevo) en `build/tree_quality/`.
+
+`tree_walk_capture.tscn` recorre el bosque del juego real en PLAYING (con el origen flotante
+activo) y guarda fotogramas en `build/tree_walk/`. En cada uno imprime `DIAG`: árboles a
+menos de 88 m sin geometría (`missing`), geometría sin árbol (`ghosts`) y cuerpos que se han
+movido; los tres deben ser 0. `EVENTS` lista los cuerpos que el instancer crea y destruye.
 
 ## Texturas de corteza
 
