@@ -114,11 +114,36 @@ func _check_registration(tree_items: Array, generators: Array) -> void:
 	var item: Dictionary = tree_items[0].duplicate(true)
 	item.generator = [item.generator[0]]
 	await planet._load_vegetation_item(0, item, generators, [])
-	_check(planet._next_library_id == 1, "Un árbol se registra en una sola banda (mismas posiciones cerca y lejos)")
-	if planet._next_library_id != 1:
+	# Item principal (banda 4: impostor, cuerpos y detalle, mismas posiciones cerca y lejos) e
+	# items de impostores lejanos (bandas 5 y 6), registrados al final: no desplazan los ids.
+	_check(planet._next_library_id == 1, "Los impostores lejanos se registran después del resto")
+	planet._register_far_tree_items()
+	_check(planet._next_library_id == 3, "Un árbol: item principal y dos de impostores lejanos")
+	if planet._next_library_id != 3:
 		return
+	var far_id := 1
 	var band = planet.voxel_instancer.library.get_item(0)
 	_check(band.lod_index == 4, "Banda lejana 4")
+	var far = planet.voxel_instancer.library.get_item(far_id)
+	_check(far.lod_index == 5 and far.collision_shapes.is_empty() and not planet.planet_item_packed_scenes.has(far_id)
+		and far.cast_shadow == RenderingServer.SHADOW_CASTING_SETTING_OFF,
+		"Impostores lejanos en la banda 5, sin cuerpos, tala ni sombra")
+	var near_out := Vector2(band.get_mesh(0).surface_get_material(0).get_shader_parameter("fade_out_start"),
+		band.get_mesh(0).surface_get_material(0).get_shader_parameter("fade_out_end"))
+	var far_in := Vector2(far.get_mesh(0).surface_get_material(0).get_shader_parameter("fade_in_start"),
+		far.get_mesh(0).surface_get_material(0).get_shader_parameter("fade_in_end"))
+	_check(near_out.y > near_out.x and near_out.is_equal_approx(far_in), "Los impostores lejanos entran donde salen los de la banda 4")
+	var farther = planet.voxel_instancer.library.get_item(far_id + 1)
+	var far_out := Vector2(far.get_mesh(0).surface_get_material(0).get_shader_parameter("fade_out_start"),
+		far.get_mesh(0).surface_get_material(0).get_shader_parameter("fade_out_end"))
+	var farther_in := Vector2(farther.get_mesh(0).surface_get_material(0).get_shader_parameter("fade_in_start"),
+		farther.get_mesh(0).surface_get_material(0).get_shader_parameter("fade_in_end"))
+	_check(farther.lod_index == 6 and far_out.is_equal_approx(farther_in) and far_out.x > near_out.y,
+		"La banda 6 entra donde sale la 5")
+	_check(farther.generator.snap_to_generator_sdf_search_distance > band.generator.snap_to_generator_sdf_search_distance,
+		"La búsqueda del SDF crece con la banda")
+	_check(band.generator.snap_to_generator_sdf_enabled,
+		"Las instancias se ajustan al SDF del generador (la malla de LOD 4 se separa del suelo)")
 	_check(not band.collision_shapes.is_empty() and planet.planet_item_packed_scenes.has(0),
 		"Colisión y tala en el item del árbol")
 	_check(band.collision_distance >= TreeDetailRenderer.LOD_FADES[2].y,
@@ -148,6 +173,13 @@ func _check_registration(tree_items: Array, generators: Array) -> void:
 		previous_out = fade_out
 	var imp_in := Vector2(impostor_material.get_shader_parameter("fade_in_start"), impostor_material.get_shader_parameter("fade_in_end"))
 	_check(imp_in.is_equal_approx(previous_out), "El impostor entra donde sale el LOD2")
+	# La sombra del impostor entra donde sale la del último LOD que proyecta (los siguientes no
+	# proyectan): ni hueco ni doble sombra en el relevo.
+	var last_shadow: ShaderMaterial = detail[TreeDetailRenderer.SHADOW_LODS - 1].surface_get_material(1)
+	var imp_shadow_in := Vector2(impostor_material.get_shader_parameter("shadow_fade_in_start"),
+		impostor_material.get_shader_parameter("shadow_fade_in_end"))
+	_check(imp_shadow_in.is_equal_approx(Vector2(last_shadow.get_shader_parameter("fade_out_start"),
+		last_shadow.get_shader_parameter("fade_out_end"))), "La sombra del impostor entra donde sale la del LOD%d" % (TreeDetailRenderer.SHADOW_LODS - 1))
 	var registered := 0
 	for entry in planet.item_transparent_materials:
 		if entry.shader == impostor_material or entry.shader == detail[0].surface_get_material(1):

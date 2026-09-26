@@ -19,18 +19,32 @@ extends Node3D
 
 ## [inicio, fin] del fundido de salida de LOD0, LOD1 y LOD2 (el impostor entra en el último).
 ## Tramos cortos: sin TAA el tramado se ve como un punteado mientras dura.
-const LOD_FADES := [Vector2(28.0, 32.0), Vector2(55.0, 59.0), Vector2(90.0, 95.0)]
+const LOD_FADES := [Vector2(28.0, 32.0), Vector2(55.0, 59.0), Vector2(140.0, 155.0)]
 ## Margen de pertenencia: cuánto puede moverse la cámara entre dos repartos.
 const MARGIN := 4.0
-const REFRESH_MOVE := 2.0
+const REFRESH_MOVE := 3.0
+## Presupuesto por fotograma para subir celdas cambiadas (µs). Un reparto cambia ~200 celdas
+## y subirlas de golpe costaba ~1 ms en un solo fotograma; MARGIN cubre el retraso.
+const UPLOAD_BUDGET_USEC := 350
 ## Celdas de los MultiMesh. Godot recorta un MultiMesh entero por su AABB: con uno solo por
 ## LOD se dibujaban todos sus árboles (y en cada cascada de sombra) aunque casi todos
 ## quedaran fuera de cámara.
 const CELL_SIZE := 32.0
+## Multiplicador de celda por LOD: el anillo del LOD2 tiene la mayoría de los árboles, y con
+## celdas de 32 m eran ~1.200 MultiMesh (9 especies x 3 LODs).
+const LOD_CELL_SCALES: Array[int] = [1, 1, 2]
+## LODs que proyectan sombra. Desde el LOD2 la sombra la proyecta el impostor (un quad visto
+## desde la luz) con el mismo tramado con que sale la del LOD1: la geometría del LOD2 en las
+## cascadas eran 12 M de primitivas y ~1 ms de GPU en un bosque denso.
+const SHADOW_LODS := 2
 
 var instancer: VoxelInstancer
-## Coste del último reparto (µs), para las medidas.
+## Coste del último reparto (µs) y del último _process (µs), para las medidas.
 var last_sweep_usec := 0
+var last_frame_usec := 0
+## Parte del reparto que se va en el índice (C++) y número de celdas subidas.
+var last_collect_usec := 0
+var last_changed_cells := 0
 ## library id -> {"meshes": [Mesh x3], "cells": {Vector4i(celda, lod): MultiMeshInstance3D}}
 var _items: Dictionary = {}
 var _index := TreeInstanceIndex.new()
@@ -39,6 +53,8 @@ var _pending: Array[VoxelInstancerRigidBody] = []
 var _dirty := true
 var _last_camera := Vector3(INF, INF, INF)
 var _lod_ranges := PackedFloat32Array()
+## Celdas cambiadas pendientes de subir: [library id, Vector4i, PackedFloat32Array].
+var _uploads: Array = []
 
 
 func _init(p_instancer: VoxelInstancer) -> void:
@@ -51,6 +67,7 @@ func _init(p_instancer: VoxelInstancer) -> void:
 	# medio camino entre dos árboles distintos (parpadeo, árboles de otro tamaño).
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_index.cell_size = CELL_SIZE
+	_index.lod_cell_scales = PackedInt32Array(LOD_CELL_SCALES)
 	for lod in 3:
 		_lod_ranges.append(0.0 if lod == 0 else LOD_FADES[lod - 1].x - MARGIN)
 		_lod_ranges.append(LOD_FADES[lod].y + MARGIN)
@@ -67,9 +84,12 @@ static func lod_fade(lod: int) -> Dictionary:
 	return fade
 
 
-## Fundido de entrada del impostor: el mismo tramo en que sale el LOD2.
+## Fundido de entrada del impostor: el mismo tramo en que sale el LOD2. Su sombra entra
+## donde deja de proyectarla la geometría (ver SHADOW_LODS).
 static func impostor_fade() -> Dictionary:
-	return {"fade_in_start": LOD_FADES[2].x, "fade_in_end": LOD_FADES[2].y}
+	return {"fade_in_start": LOD_FADES[2].x, "fade_in_end": LOD_FADES[2].y,
+		"shadow_fade_in_start": LOD_FADES[SHADOW_LODS - 1].x,
+		"shadow_fade_in_end": LOD_FADES[SHADOW_LODS - 1].y}
 
 
 func register_item(library_id: int, lod_meshes: Array) -> void:
@@ -109,12 +129,18 @@ func _process(_delta: float) -> void:
 	if camera == null or _items.is_empty():
 		return
 	var eye := camera.global_position
-	if _dirty or eye.distance_to(_last_camera) >= REFRESH_MOVE:
-		refresh(eye)
+	var frame_start := Time.get_ticks_usec()
+	# El reparto y la subida van en fotogramas distintos: juntos sumaban ~1,5 ms en uno.
+	if _uploads.is_empty() and (_dirty or eye.distance_to(_last_camera) >= REFRESH_MOVE):
+		refresh(eye, false)
+	else:
+		_flush_uploads(UPLOAD_BUDGET_USEC)
+	last_frame_usec = Time.get_ticks_usec() - frame_start
 
 
-## Reparte los árboles cercanos entre los MultiMesh de su celda y LOD.
-func refresh(eye: Vector3) -> void:
+## Reparte los árboles cercanos entre los MultiMesh de su celda y LOD. Con immediate = false
+## las celdas cambiadas se suben en los fotogramas siguientes (ver UPLOAD_BUDGET_USEC).
+func refresh(eye: Vector3, immediate: bool = true) -> void:
 	var t0 := Time.get_ticks_usec()
 	_dirty = false
 	_last_camera = eye
@@ -124,9 +150,27 @@ func refresh(eye: Vector3) -> void:
 	_pending.clear()
 
 	# Solo llegan las celdas que cambian (y las que se vacían, con el buffer vacío).
-	for result in _index.collect_changes(eye, LOD_FADES[2].y + MARGIN, _lod_ranges):
-		_set_cell(result[0], result[1], result[2])
+	var t1 := Time.get_ticks_usec()
+	var changes: Array = _index.collect_changes(eye, LOD_FADES[2].y + MARGIN, _lod_ranges)
+	last_collect_usec = Time.get_ticks_usec() - t1
+	last_changed_cells = changes.size()
+	_uploads.append_array(changes)
+	if immediate:
+		_flush_uploads(-1)
 	last_sweep_usec = Time.get_ticks_usec() - t0
+
+
+## Sube celdas pendientes hasta agotar el presupuesto (µs); -1 = todas.
+func _flush_uploads(budget_usec: int) -> void:
+	var start := Time.get_ticks_usec()
+	var done := 0
+	while done < _uploads.size():
+		var result: Array = _uploads[done]
+		_set_cell(result[0], result[1], result[2])
+		done += 1
+		if budget_usec >= 0 and Time.get_ticks_usec() - start >= budget_usec:
+			break
+	_uploads = _uploads.slice(done)
 
 
 ## Sube `buffer` al MultiMesh de la celda (lo crea si hace falta) o lo oculta si está vacío.
@@ -144,6 +188,8 @@ func _set_cell(library_id: int, slot: Vector4i, buffer: PackedFloat32Array) -> v
 		multimesh.mesh = _items[library_id].meshes[slot.w]
 		mmi = MultiMeshInstance3D.new()
 		mmi.multimesh = multimesh
+		if slot.w >= SHADOW_LODS:
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
 		cells[slot] = mmi
 	var count: int = buffer.size() / 12

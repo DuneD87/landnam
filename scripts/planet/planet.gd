@@ -109,6 +109,8 @@ var tree_perch_catalog: Dictionary = {}
 ## Geometría cercana de los árboles Branching (ver _register_tree_item).
 var tree_detail_renderer: TreeDetailRenderer = null
 var _next_library_id: int = 0
+## Items de impostores lejanos pendientes: se registran al final (ver _register_far_tree_items).
+var _far_tree_items: Array[Callable] = []
 
 ## Shader de follaje de doble cara (LOD cercano) y su variante de una cara (LOD lejano).
 const _TWIG_SHADER_PATH := "res://shaders/transparent_material_shader.gdshader"
@@ -160,6 +162,15 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 		generator.max_slope_degrees = generator_config.max_slope_degrees
 	if generator_config.has("vertical_alignment"):
 		generator.vertical_alignment = generator_config.vertical_alignment
+	# Las instancias salen sobre la malla del LOD de su item. En LOD 4 esa malla se separa del
+	# terreno que se ve de cerca (LOD 0) hasta ~1,5 m: los árboles flotaban o se hundían.
+	# El módulo puede buscar la superficie del SDF del generador a lo largo de la normal.
+	# "snap_to_sdf": {"search_distance": 4.0, "samples": 8}
+	if generator_config.has("snap_to_sdf"):
+		var snap: Dictionary = generator_config.snap_to_sdf
+		generator.snap_to_generator_sdf_enabled = true
+		generator.snap_to_generator_sdf_search_distance = float(snap.get("search_distance", 4.0))
+		generator.snap_to_generator_sdf_sample_count = int(snap.get("samples", 8))
 	# Un bloque de LOD N tiene los mismos vóxeles pero cubre 4x más área, así que
 	# EMIT_FROM_VERTICES da 4x menos instancias por m² en cada banda. lod_scale_gain
 	# las agranda para compensar parte de esa pérdida de cobertura (1.0 = sin cambio).
@@ -498,6 +509,7 @@ func _load_vegetation() -> void:
 	_grass_lod_cache.clear()
 	_vegetation_field = {}
 	_next_library_id = 0
+	_far_tree_items.clear()
 
 	# async: _load_vegetation_item hornea el impostor LOD3 de los árboles con await
 	# (render-to-texture). _load_vegetation se lanza como corrutina desde planet_loader
@@ -505,6 +517,7 @@ func _load_vegetation() -> void:
 	# carga del planeta. Los items sin impostor (rocas, arbustos, grass) no suspenden.
 	for i in vegetation.items.size():
 		await _load_vegetation_item(i, vegetation.items[i], generators, graph_functions)
+	_register_far_tree_items()
 
 
 func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
@@ -600,7 +613,10 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 ## octaédrico, la colisión, la tala y los posaderos. La geometría cercana la dibuja
 ## TreeDetailRenderer en las posiciones de los cuerpos que el instancer crea para cada árbol
 ## cercano, con el LOD elegido por la distancia real de cada árbol y fundidos por árbol
-## (LOD0 < 30 m, LOD1 < 58 m, LOD2 < 94 m, impostor más allá).
+## (TreeDetailRenderer.LOD_FADES, impostor más allá).
+## Más allá del alcance de la banda 4, items solo de impostores en las bandas siguientes (sin
+## colisión ni sombra) siguen el bosque: "far_bands" en tree_lods (por defecto 2: bandas 5 y
+## 6, hasta ~2,2 km; 0 = sin ellos).
 ## Antes había una banda cercana aparte: el instancer genera posiciones distintas en cada
 ## item (su semilla lleva el id), así que en el relevo unos árboles se cambiaban por otros.
 ## La distancia de colisión (por chunk) debe cubrir el último fundido del detalle.
@@ -621,15 +637,25 @@ func _register_tree_item(i: int, item: Dictionary, shared_data: Dictionary, gene
 			if material is ShaderMaterial and material.shader.resource_path.ends_with("tree_foliage.gdshader"):
 				foliage = material
 		impostor = TreeOctaImpostor.build_mesh(lm[0], scene_name, foliage)
+	var far_bands: int = int(item.tree_lods.get("far_bands", 2))
+	var fade: Dictionary = TreeDetailRenderer.impostor_fade()
+	if far_bands > 0:
+		var handoff: Vector2 = _tree_band_reach(band)
+		fade["fade_out_start"] = handoff.x
+		fade["fade_out_end"] = handoff.y
 	var data: Dictionary = shared_data.duplicate()
-	data.lod_meshes = _tree_band_meshes([impostor, impostor, impostor, impostor],
-		TreeDetailRenderer.impostor_fade(), wind_speed)
+	data.lod_meshes = _tree_band_meshes([impostor, impostor, impostor, impostor], fade, wind_speed)
 	data.lod_ratios = [0.997, 0.998, 0.999, 1.0]
 	data.effective_mesh = null
 	var generator := _build_generator(generator_config, graph_functions, band)
 	_apply_item_height(generator, item, shared_data)
 	var library_id: int = _next_library_id
 	_register_multi_mesh_item(i, item, data, generator, band)
+
+	var far_density: Array = item.tree_lods.get("far_density", FAR_TREE_DENSITY)
+	for k in far_bands:
+		_far_tree_items.append(_register_far_tree_item.bind(i, item, shared_data, generator_config,
+			graph_functions, impostor, band, band + k + 1, float(far_density[mini(k, far_density.size() - 1)])))
 
 	var detail: Array = []
 	for lod in 3:
@@ -638,6 +664,68 @@ func _register_tree_item(i: int, item: Dictionary, shared_data: Dictionary, gene
 		tree_detail_renderer = TreeDetailRenderer.new(voxel_instancer)
 		voxel_terrain.add_child(tree_detail_renderer)
 	tree_detail_renderer.register_item(library_id, detail)
+
+
+## Registra los items de impostores lejanos después de toda la vegetación. La semilla del
+## instancer lleva el id del item: intercalados, desplazaban los ids de los siguientes y
+## cambiaban las posiciones de todos los árboles (y de lo que se registra después) al añadir o
+## quitar bandas lejanas. Con ids fuera de la secuencia (10000+) el instancer no generaba nada.
+func _register_far_tree_items() -> void:
+	for register in _far_tree_items:
+		register.call()
+	_far_tree_items.clear()
+
+
+## Densidad de cada banda de impostores lejanos respecto a la del bosque (la última se repite).
+const FAR_TREE_DENSITY := [1.0, 1.0]
+
+
+## Tramo [inicio, fin] en que un item de árboles de la banda `band` se desvanece árbol a
+## árbol: termina antes de que pueda faltar un bloque. hide_beyond_max_lod oculta bloques
+## enteros por la distancia a su centro, así que el borde real del item es escalonado entre
+## alcance - media diagonal del bloque y alcance + media diagonal.
+func _tree_band_reach(band: int) -> Vector2:
+	var end: float = _get_lod_view_distance(band) - float(_instancer_block_size(band)) * sqrt(3.0) * 0.5
+	return Vector2(end - 40.0, end)
+
+
+## Impostores de la banda `far_band`: mismos generador y malla que el item principal, sin
+## colisión, tala ni sombra. Entra donde sale la banda anterior y sale en su alcance, donde
+## entra la siguiente (la última deja así un borde redondo, sin los escalones de sus bloques). Sus árboles están en otras posiciones (la semilla lleva el id del item),
+## pero el relevo más cercano es a ~500 m, donde cada árbol son unos pocos píxeles, y con el
+## mismo tramado complementario que los LODs cercanos.
+func _register_far_tree_item(i: int, item: Dictionary, shared_data: Dictionary,
+		generator_config: Dictionary, graph_functions: Array, impostor: Mesh, band: int, far_band: int, density_factor: float) -> void:
+	var handoff: Vector2 = _tree_band_reach(far_band - 1)
+	var reach: Vector2 = _tree_band_reach(far_band)
+	var fade := {"fade_in_start": handoff.x, "fade_in_end": handoff.y,
+		"fade_out_start": reach.x, "fade_out_end": reach.y}
+	var data: Dictionary = shared_data.duplicate()
+	data.lod_meshes = _tree_band_meshes([impostor, impostor, impostor, impostor], fade, 0.0)
+	data.lod_ratios = [0.997, 0.998, 0.999, 1.0]
+	data.effective_mesh = null
+	data.collision_shapes = []
+	data.perch_data = {}
+	var far_item: Dictionary = item.duplicate()
+	far_item.erase("collision_distance_m")
+	far_item.instance_as_scene = false
+	far_item.cast_shadow = false
+	var generator := _build_generator(generator_config, graph_functions, far_band)
+	_apply_item_height(generator, item, shared_data)
+	# La malla de cada banda se separa del SDF el doble que la anterior: la búsqueda de la
+	# superficie crece igual o los árboles lejanos flotaban sobre las lomas.
+	if generator.snap_to_generator_sdf_enabled:
+		generator.snap_to_generator_sdf_search_distance *= float(1 << (far_band - band))
+	# Menos árboles y más grandes, con la misma cobertura (densidad x escala²): la caja de la
+	# banda llega hasta la cámara y la mayoría de sus instancias quedan colapsadas fuera de su
+	# tramo, pero cuestan igual en la GPU.
+	if density_factor <= 0.0:
+		generator.density = 0.0
+	elif density_factor < 1.0:
+		generator.density *= density_factor
+		generator.min_scale /= sqrt(density_factor)
+		generator.max_scale /= sqrt(density_factor)
+	_register_multi_mesh_item(i, far_item, data, generator, far_band)
 
 
 ## Copia las mallas con materiales propios (fundido por distancia) y los registra para

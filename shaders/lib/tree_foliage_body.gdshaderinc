@@ -93,7 +93,10 @@ void light() {
 	// La luz que atraviesa la copa se difunde entre hojas: la transmisión solo pierde parte
 	// de su energía a la sombra de las hojas de encima, o el interior de la copa, visto
 	// desde debajo, quedaba negro a mediodía.
-	float transmitted = mix(ATTENUATION, 1.0, transmission_through_shadow);
+	// Solo el sol y la luna: en las luces locales ATTENUATION es también la caída con la
+	// distancia, y saltársela iluminaba las hojas en recuadros de la rejilla de luces (las
+	// setas de cueva, bajo tierra, teñían de amarillo el follaje de encima).
+	float transmitted = LIGHT_IS_DIRECTIONAL ? mix(ATTENUATION, 1.0, transmission_through_shadow) : ATTENUATION;
 	DIFFUSE_LIGHT += vec3(wrapped) * occlusion * ATTENUATION * light_energy
 		+ transmission * transmission_color.rgb * v_ao * transmitted * light_energy;
 	vec3 half_sum = LIGHT + VIEW;

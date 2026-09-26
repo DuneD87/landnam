@@ -235,6 +235,7 @@
 			"max_slope_degrees": 25,
 			"min_scale": 2.5,
 			"max_scale": 5,
+			"snap_to_sdf": {"search_distance": 4.0, "samples": 8},
 			"noise_graph": "hemisphere_sand_graph_path" 
 	  	},
 	 	{
@@ -247,12 +248,13 @@
 			"max_slope_degrees": 25,
 			"min_scale": 1.875,
 			"max_scale": 2.5,
+			"snap_to_sdf": {"search_distance": 4.0, "samples": 8},
 			"noise_graph": "hemisphere_green_sand_graph_path" 
 	  	},
 	 	{
 			"name": "tree_generator_green",
 			"emit_mode": "EMIT_FROM_FACES",
-			"density": 0.01,
+			"density": 0.007,
 			"lod_density_falloff": 1.0,
 			"min_height": -15,
 			"max_height": 125,
@@ -260,6 +262,7 @@
 			"offset_along_normal": -0.4,
 			"min_scale": 2.5,
 			"max_scale": 7.5,
+			"snap_to_sdf": {"search_distance": 4.0, "samples": 8},
 			"noise_graph": "hemisphere_green_graph_path",
 			"noise": {"frequency": 0.003, "octaves": 3, "dimension": "3D", "seed": 29, "threshold": 0.25, "falloff": 0.3, "on_scale": 0.25}
 	  	},
@@ -503,47 +506,47 @@
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_01.tscn",
 			"generator": ["tree_generator_green"],
-			"tree_lods": {}, "height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 160, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 200, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_02.tscn",
 			"generator": ["tree_generator_green"],
-			"tree_lods": {}, "height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 160, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 200, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_03.tscn",
 			"generator": ["tree_generator_green"],
-			"tree_lods": {}, "height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 160, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 200, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/olive_01.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"tree_lods": {}, "height_m": [4, 7], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 160, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [4, 7], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 200, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/olive_02.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"tree_lods": {}, "height_m": [4, 7], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 160, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [4, 7], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 200, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_01.tscn",
 			"generator": ["tree_generator_green"],
-			"tree_lods": {}, "height_m": [4, 7.5], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 160, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [4, 7.5], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 200, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_02.tscn",
 			"generator": ["tree_generator_green"],
-			"tree_lods": {}, "height_m": [4, 7.5], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 160, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [4, 7.5], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 200, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_01.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"tree_lods": {}, "height_m": [5, 8], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 160, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [5, 8], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 200, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_02.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"tree_lods": {}, "height_m": [5, 8], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 160, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [5, 8], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 200, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/palm_01.tscn",
@@ -616,21 +619,21 @@
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass.tscn",
 			"generator": ["grass_far_generator_green"],
 			"wind_speed": 0.2, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"grass_lods": {"fade_width_m": 24.0, "max_distance_m": 184.0,
+			"grass_lods": {"fade_width_m": 24.0, "max_distance_m": 130.0,
 				"lod_morph_start_m": [10, 24, 46], "lod_morph_end_m": [16, 34, 62]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_green_yellow.tscn",
 			"generator": ["grass_far_generator_green_sand"],
 			"wind_speed": 0.2, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"grass_lods": {"fade_width_m": 24.0, "max_distance_m": 184.0,
+			"grass_lods": {"fade_width_m": 24.0, "max_distance_m": 130.0,
 				"lod_morph_start_m": [10, 24, 46], "lod_morph_end_m": [16, 34, 62]}
 		},
 		{
 			"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_yellow.tscn",
 			"generator": ["grass_far_generator_sand"],
 			"wind_speed": 0.2, "lod_index": [2], "instance_as_scene": false, "cast_shadow": false,
-			"grass_lods": {"fade_width_m": 24.0, "max_distance_m": 184.0,
+			"grass_lods": {"fade_width_m": 24.0, "max_distance_m": 130.0,
 				"lod_morph_start_m": [10, 24, 46], "lod_morph_end_m": [16, 34, 62]}
 		},
 		{

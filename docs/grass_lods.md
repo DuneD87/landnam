@@ -43,7 +43,7 @@ anterior, y solo registra las mallas que una mata visible puede necesitar:
 |---|---|---|---|
 | 0 | 0–40 m | 28–40 m (`split_m`, `split_fade_m`) | LOD0–LOD2 |
 | 1 | 28–88 m | 64–88 m (alcance de la banda − 8 m) | LOD1–LOD3 |
-| 2 | 64–184 m | 160–184 m (`max_distance_m`) | LOD3 |
+| 2 | 64–130 m | 106–130 m (`max_distance_m`) | LOD3 |
 
 - Los bloques cuyas matas quedan todas dentro del relevo de entrada usan una malla
   vacía, y los que quedan enteros más allá del relevo de salida no se dibujan
@@ -52,7 +52,11 @@ anterior, y solo registra las mallas que una mata visible puede necesitar:
   cámara en varios puntos de su bloque, banda 1 ≥ 132 m, 2 ≥ 196 m, 3 ≥ 388 m. Por eso
   las bandas terminan 8 m antes de `48 · 2^banda`.
 - La banda 3 ya no se usa para la hierba: cubría el anillo de 152 a 320 m con bloques
-  de 128 m y costaba más de la mitad del total. La hierba termina ahora en 184 m.
+  de 128 m y costaba más de la mitad del total. La hierba termina ahora en 130 m.
+- Con los bosques de árboles Branching, la banda 2 hasta 184 m era la parte más cara de la
+  vegetación en GPU (0,3-0,7 ms a 2560×1440, más que cualquier parte de los árboles): el
+  follaje la tapaba y, con bosques menos densos, quedaba a la vista. Terminarla en 130 m dio
+  +3 fps andando y +6 volando quieto; bajo los árboles y a ras de suelo no se distingue.
 
 `Planet._set_mesh_lod_ratios` asigna los cuatro ratios en dos pasadas. El módulo
 recorta cada ratio al intervalo [anterior, siguiente] con los valores que tiene en ese

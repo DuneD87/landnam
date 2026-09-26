@@ -19,6 +19,7 @@ const BAKE_SHADER := preload("res://shaders/vegetation/tree_impostor_bake.gdshad
 ## Parámetros del follaje que el impostor copia para que el tinte y la luz casen.
 const SHARED_FOLIAGE_PARAMETERS := ["tint_variation", "variation_cool_tint", "variation_warm_tint",
 	"diffuse_wrap", "transmission_strength", "transmission_sharpness", "transmission_color",
+	"transmission_through_shadow",
 	"ao_strength", "direct_occlusion"]
 
 
