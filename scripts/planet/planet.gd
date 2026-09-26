@@ -568,6 +568,7 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 
 		for lod_index in lod_indices:
 			var generator: VoxelInstanceGenerator = _build_generator(generator_config, graph_functions, lod_index)
+			_apply_item_height(generator, item, shared_data)
 			var band_data: Dictionary = shared_data
 			if not grass_cfg.is_empty():
 				band_data = shared_data.duplicate()
@@ -688,6 +689,24 @@ func _grass_band_limits(cfg: Dictionary, lod_index: int) -> Dictionary:
 		limits.in_start = maxf(ends[lod_index - 1] - widths[lod_index - 1], 1.0)
 		limits.in_end = ends[lod_index - 1]
 	return limits
+
+
+## "height_m": [min, max] fija la altura real del item en metros y sustituye la escala del
+## generador. Los árboles comparten generador y sus mallas miden de 3 a 14 m: una escala
+## común de 2,5 a 7,5 dejaba pinos de 90 m y olivos de 22 m, con la corteza y las hojas
+## estiradas en la misma proporción.
+func _apply_item_height(generator: VoxelInstanceGenerator, item: Dictionary, shared_data: Dictionary) -> void:
+	var heights: Array = item.get("height_m", [])
+	if heights.size() != 2:
+		return
+	var lm: Array = shared_data.get("lod_meshes", [])
+	var mesh: Mesh = lm[0] if not lm.is_empty() else shared_data.get("effective_mesh")
+	if mesh == null or mesh.get_aabb().end.y <= 0.0:
+		push_warning("Vegetación: height_m sin malla con altura en " + str(item.scene))
+		return
+	var mesh_height: float = mesh.get_aabb().end.y
+	generator.min_scale = float(heights[0]) / mesh_height
+	generator.max_scale = float(heights[1]) / mesh_height
 
 
 ## Normaliza un entero o lista de enteros a una lista de enteros no vacía.
