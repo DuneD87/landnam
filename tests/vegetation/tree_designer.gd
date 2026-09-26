@@ -13,6 +13,8 @@ const PANEL := Vector2i(720, 1080)
 const PLANET_POSITION := Vector3(0, -100000, 0)
 
 var _tag := "designer"
+## --wind=X: viento durante las capturas (0 por defecto, para comparar formas).
+var _wind := 0.0
 var _only: PackedStringArray = []
 var _sun: DirectionalLight3D
 var _vp: SubViewport
@@ -24,6 +26,8 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--tag="):
 			_tag = arg.substr(6)
+		elif arg.begins_with("--wind="):
+			_wind = float(arg.substr(7))
 		elif arg.begins_with("--only="):
 			_only = arg.substr(7).split(",")
 	var world := WorldEnvironment.new()
@@ -64,7 +68,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	for material in _materials:
 		material.set_shader_parameter("planet_position", PLANET_POSITION)
-		material.set_shader_parameter("wind_speed", 0.0)
+		material.set_shader_parameter("wind_speed", _wind)
 
 
 func _design(scene_name: String) -> void:
@@ -103,6 +107,10 @@ func _design(scene_name: String) -> void:
 	_set_sun(Vector3(0.4, 0.8, 0.3))
 	_frame(aabb)
 	shots.append(await _grab())
+	if _wind > 0.0:
+		# Segunda toma medio segundo después: el viento debe mover copa y ramas juntas.
+		await get_tree().create_timer(0.5).timeout
+		shots.append(await _grab())
 	_set_sun(Vector3(0.15, 0.25, -1.0))
 	shots.append(await _grab())
 	# Desde debajo de la copa, a la altura de los ojos, mirando hacia arriba.
