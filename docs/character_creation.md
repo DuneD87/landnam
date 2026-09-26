@@ -157,14 +157,79 @@ ventana).
   adaptan solas. Los datos nuevos van en `CharacterData` y en su
   `to_dict`/`from_dict`.
 
+## Armaduras
+
+Las armaduras equipables se modelaron sobre el escaneo anterior del jugador,
+un hombre de 1,90 m bastante más corpulento que el cuerpo de MakeHuman. Al
+equiparlas, `CharacterAppearanceRig.dress()` las ajusta al cuerpo del
+personaje en dos pasos (`ArmorFit`):
+
+- **Medidas.** `BodyMeasurements` mide un cuerpo en la pose de reposo del
+  esqueleto: para cada hueso, los vértices que más mueve, en el marco del
+  hueso, cortados en seis rodajas a lo largo de él, con el ancho y el fondo
+  de cada una. Las del escaneo están horneadas en
+  `data/character/armor_fit/reference_body.tres`; las del personaje se toman
+  al cambiar su cuerpo (`rig.measurements()`). Cada vértice de la armadura
+  pasa, hueso a hueso según sus pesos, de las rodajas del escaneo a las del
+  personaje: a lo largo del hueso, de una región a la otra, y a lo ancho y a
+  lo hondo, escalado dentro del contorno del escaneo y a la misma distancia
+  fuera de él, para que la armadura conserve su grosor y su holgura.
+- **Holgura.** Lo que aún queda dentro del cuerpo (o a menos de 4 mm) se
+  empuja hacia fuera por la normal de la piel (cuerpo y genitales). El empuje
+  es un campo suave en el espacio, no por la malla: las armaduras son piezas
+  sueltas y capas que se tocan, y así se mueven juntas sin abrir rendijas.
+
+- **Pelo bajo capuchas y cascos.** Una pieza que cubre la cabeza (el jugador
+  lo indica al equipar las de la ranura `HEAD`: `dress(item, true)`) mete
+  debajo el pelo y la barba (`HairTuck`). Desde el centro de la cabeza, la
+  pieza es un mapa octaédrico de a qué distancia está su superficie interior
+  en cada dirección. En las que cubre, el pelo se comprime hacia la cabeza
+  hasta caber debajo, conservando sus capas (de su punto más interior al más
+  exterior, todo se escala al hueco que deja la pieza). Donde no cubre, en la
+  abertura de la cara o bajo el borde, el pelo no se toca, así que el
+  flequillo, los mechones de la cara o el pelo largo que cae por debajo se
+  siguen viendo. El mapa se difumina en los bordes para que el pelo salga de
+  ellos sin escalón. Al quitar la pieza (`undress()`) el pelo vuelve a su
+  forma.
+
+Las medidas también dan un resumen con nombre en metros (`summary`: altura,
+hombros, contorno de pecho, cintura, cadera, cabeza, brazo, antebrazo,
+muslo, gemelo, largo de brazo, pierna y torso, y ancho y fondo de pecho,
+cintura y cadera). Se parecen a las de un sastre sin ser las mismas: cada
+región acaba donde su hueso deja de ser el que más mueve la piel. No se
+guardan en la partida porque salen del aspecto.
+
+El ajuste tarda unos 100 ms por pieza y corre en el `WorkerThreadPool`,
+igual que el del pelo, que va después; mientras tanto la pieza está oculta
+(`is_dressing()`), así que nunca se ve el pelo atravesándola. Cada malla ajustada
+se guarda por pieza y cuerpo, y un cuerpo nuevo vuelve a ajustar lo que el
+personaje lleva puesto. La malla nueva conserva materiales y LODs.
+
+```sh
+# Medidas de referencia (solo si cambian el escaneo, su piel o el esqueleto)
+godot --headless --path . --script res://tools/character/bake_armor_reference.gd
+# Pruebas
+godot --headless --path . --script res://tests/character/test_armor_fit.gd
+# Capturas de seis cuerpos y el escaneo con cada conjunto (necesita ventana);
+# --unfitted deja las armaduras como se hicieron y --untucked el pelo suelto,
+# para comparar
+godot --path . res://tests/character/armor_fit_preview.tscn -- --out res://build/character/armor_fit/after
+```
+
 `CharacterAppearanceRig` sirve para cualquier modelo con la estructura
 `Armature/Skeleton3D/Mesh_0` (el `PlayerModel` o
 `scenes/character/character_model.tscn`), así que también puede vestir PNJ.
 
 ## Limitaciones
 
-- Las armaduras equipables se hicieron para el escaneo anterior y no se ajustan
-  al cuerpo nuevo.
+- Las armaduras tienen huecos de diseño (muslo del pantalón de cuero, rotos
+  de la túnica de pieles) por los que en el escaneo se veían sus calzoncillos
+  y ahora se ve la piel. Entre muslos que se tocan (cuerpos muy corpulentos)
+  pueden quedar unos pocos vértices del pantalón dentro del cuerpo, donde no
+  se ven. La capucha de pieles está abierta por detrás: por ahí se ve el pelo
+  (o el cuero cabelludo pintado si va rapado).
+- El pelo largo que cae por la espalda aún atraviesa el peto: solo las piezas
+  de cabeza lo recogen.
 - El aspecto es el de MakeHuman: limpio y de juego, no fotográfico. Algunos
   peinados son mallas esculpidas más que mechones.
 - El mundo usa ACES, que apaga algo la piel respecto a la vista previa.

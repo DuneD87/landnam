@@ -260,6 +260,8 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 				var item = scene.instantiate()
 				item.item_data = ItemData.clone(data)
 				player_model.get_node("Armature/Skeleton3D").add_child(item)
+				# Made for the old scan; the rig fits it to this character's body.
+				appearance_rig.dress(item, data.armor_slot == ItemData.ArmorSlot.HEAD)
 				_register_worn_node(item)
 	else:
 		match category:
@@ -279,6 +281,7 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.FEET && child.item_data.armor_slot == ItemData.ArmorSlot.FEET
 
 						if remove_condition:
+							appearance_rig.undress(child)
 							_unregister_worn_node(child)
 							player_model.get_node("Armature/Skeleton3D").remove_child(child)
 						

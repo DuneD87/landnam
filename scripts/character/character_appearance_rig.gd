@@ -17,6 +17,11 @@ extends Node
 ## everything is baked into static meshes on apply, which costs a moment once
 ## but nothing per frame (gameplay). Either way the blink stays a blend shape
 ## of the body and the eyelashes, which a HumanBlink child animates.
+##
+## Armour made for the player scan is fitted to the body with dress(): the
+## body is measured (BodyMeasurements) and ArmorFit carries each piece from
+## the scan's measurements to its own. Dressed pieces are fitted again when
+## the body changes.
 
 const BODY_DATA := "res://data/character/human/body.res"
 const PROXY_PATH := "res://data/character/human/proxies/%s.res"
@@ -33,6 +38,9 @@ const SKIN_MATERIAL := "res://data/character/materials/human_skin.tres"
 const EYELASH_COLOR := Color("1c1612")
 ## Buzz cut density painted on the scalp under any haircut.
 const UNDER_HAIR_SCALP := 0.6
+## Slots tucked under hoods and helmets.
+const HAIR_SLOTS: Array[StringName] = [&"hair", &"beard"]
+const HEAD_BONE := &"mixamorig_Head"
 const SLOTS: Array[StringName] = [&"eyes", &"teeth", &"tongue", &"eyebrows", &"eyelashes", &"hair", &"beard",
 		&"genitals"]
 
@@ -56,9 +64,35 @@ var _applied_sex := &""
 var _rest_origins: PackedVector3Array
 var _bone_indices: PackedInt32Array
 var _parents: PackedInt32Array
+## Measurements of the current body; null until asked for after a change.
+var _measurements: BodyMeasurements
+## Bumped on every change of the body, to tell fitted armour that is stale.
+var _body_version := 0
+## Armour pieces handed to dress().
+var _dressed: Array[Node] = []
+## Source armour mesh -> {version, mesh, points}: the last fit of each.
+var _fitted := {}
+## Source armour mesh -> {task, version, surfaces}: the fit running for it.
+var _fitting := {}
+## Fits whose body changed while they ran, still to be waited for.
+var _stale_tasks: Array[int] = []
+## Dressed pieces that cover the hair -> true.
+var _covering := {}
+## The hair must be tucked again; each change bumps the version, so a tuck
+## that started before it is dropped.
+var _hair_dirty := false
+var _hair_version := 0
+var _hair_task := -1
+## {version, slots: slot -> surfaces (ArmorFit.source())} of the running tuck.
+var _hair_job := {}
+## Measurements, joints and skin of the current body for ArmorFit.
+var _fit_context: ArmorFit
+
+static var _reference: BodyMeasurements
 
 
 func _ready() -> void:
+	set_process(false)
 	_setup()
 
 
@@ -79,14 +113,23 @@ func apply(appearance: CharacterAppearance) -> void:
 	}
 
 	var geometry_changed := weights != _applied_weights or sex != _applied_sex
+	var hair_changed: bool = geometry_changed or parts[&"hair"] != _slots[&"hair"].part \
+			or parts[&"beard"] != _slots[&"beard"].part
 	if geometry_changed:
 		_shape.set_weights(weights, sex)
 		_applied_weights = weights
 		_applied_sex = sex
 		_update_body(weights)
 		_update_skeleton()
+		_measurements = null
+		_body_version += 1
 	for slot in SLOTS:
 		_show(slot, parts[slot], geometry_changed)
+	if geometry_changed:
+		# After the proxies: the armour clears the genitals too.
+		_refit_dressed()
+	if hair_changed and not _covering.is_empty():
+		_hair_changed()
 	_update_blink()
 
 	var shader := _shader_values(appearance)
@@ -194,6 +237,244 @@ func _update_skeleton() -> void:
 		var local := globals[b].origin if parent < 0 else globals[parent].affine_inverse() * globals[b].origin
 		offsets[bone] = local - _rest_origins[b]
 	_proportions.bone_offsets = offsets
+
+
+## The current body's measurements, taken in the skeleton's rest pose.
+func measurements() -> BodyMeasurements:
+	if _measurements == null and _setup():
+		# The live body keeps its morphs as blend shapes; measure them baked.
+		var mesh: ArrayMesh = _shape.body_baked() if live else _body.mesh
+		_measurements = BodyMeasurements.measure([[mesh, _data.skin]], _skeleton, _body_globals(),
+				_armature.transform * _skeleton.transform)
+	return _measurements
+
+
+## Fits the armour `item` (a MeshInstance3D and its children skinned to this
+## model's skeleton, made for the player scan) to the body, and keeps it
+## fitted while it stays under the skeleton. A piece that `covers_hair`
+## (a hood, a helmet) also tucks the hair and beard under it (HairTuck). The
+## work runs on worker threads; until it is done the piece is hidden (see
+## is_dressing()).
+func dress(item: Node, covers_hair := false) -> void:
+	if not _setup():
+		return
+	if not _dressed.has(item):
+		_dressed.append(item)
+	if covers_hair:
+		_covering[item] = true
+		_hair_changed()
+	_fit(item)
+
+
+## Forgets a piece taken off, and lets the hair out if it covered it.
+func undress(item: Node) -> void:
+	_dressed.erase(item)
+	if _covering.erase(item):
+		_hair_changed()
+
+
+## Whether some armour is still being fitted, or the hair tucked under it.
+func is_dressing() -> bool:
+	return not _fitting.is_empty() or _hair_task >= 0 or _hair_dirty
+
+
+func _refit_dressed() -> void:
+	_fit_context = null
+	_dressed = _dressed.filter(func(item: Node) -> bool:
+			return is_instance_valid(item) and _skeleton.is_ancestor_of(item))
+	for item in _covering.keys():
+		if not _dressed.has(item):
+			_covering.erase(item)
+	for item in _dressed:
+		_fit(item)
+
+
+func _hair_changed() -> void:
+	_hair_dirty = true
+	_hair_version += 1
+	set_process(true)
+
+
+func _fit(item: Node) -> void:
+	for instance in _armour_meshes(item):
+		if not instance.has_meta(&"armor_source"):
+			instance.set_meta(&"armor_source", instance.mesh)
+		var source: ArrayMesh = instance.get_meta(&"armor_source")
+		var fitted: Dictionary = _fitted.get(source, {})
+		if fitted.get("version", -1) == _body_version:
+			instance.mesh = fitted.mesh
+			continue
+		if instance.visible:
+			instance.visible = false
+			instance.set_meta(&"armor_hidden", true)
+		var running: Dictionary = _fitting.get(source, {})
+		if running.get("version", -1) == _body_version:
+			continue
+		var surfaces := ArmorFit.source(source)
+		var binds: Array[Transform3D] = []
+		for b in instance.skin.get_bind_count():
+			binds.append(instance.skin.get_bind_pose(b))
+		var bones := BodyMeasurements.bind_bones(instance.skin, _skeleton)
+		var task := WorkerThreadPool.add_task(_context().fit.bind(surfaces, binds, bones), false,
+				"Armour fit")
+		if running.has("task"):
+			_stale_tasks.append(running.task)
+		_fitting[source] = {task = task, version = _body_version, surfaces = surfaces}
+		set_process(true)
+
+
+## Picks up the fits that are done and hands their meshes to the armour,
+## then tucks the hair under what covers it, then shows the pieces.
+func _process(_delta: float) -> void:
+	_stale_tasks = _stale_tasks.filter(func(task: int) -> bool:
+			if not WorkerThreadPool.is_task_completed(task):
+				return true
+			WorkerThreadPool.wait_for_task_completion(task)
+			return false)
+	for source: ArrayMesh in _fitting.keys():
+		var running: Dictionary = _fitting[source]
+		if not WorkerThreadPool.is_task_completed(running.task):
+			continue
+		WorkerThreadPool.wait_for_task_completion(running.task)
+		_fitting.erase(source)
+		if running.version != _body_version:
+			continue
+		var mesh := ArmorFit.build(running.surfaces, source.resource_name)
+		# Its points at rest, for tucking the hair under it.
+		var points := PackedVector3Array()
+		for surface in running.surfaces:
+			points.append_array(surface.points)
+		_fitted[source] = {version = running.version, mesh = mesh, points = points}
+		for item in _dressed:
+			if not is_instance_valid(item):
+				continue
+			for instance in _armour_meshes(item):
+				if instance.get_meta(&"armor_source", null) == source:
+					instance.mesh = mesh
+					if _covering.has(item):
+						_hair_changed()
+	if _fitting.is_empty():
+		if _hair_task >= 0 and WorkerThreadPool.is_task_completed(_hair_task):
+			WorkerThreadPool.wait_for_task_completion(_hair_task)
+			_hair_task = -1
+			if _hair_job.version == _hair_version:
+				for slot in _hair_job.slots:
+					var instance: MeshInstance3D = _slots[slot].instance
+					instance.mesh = ArmorFit.build(_hair_job.slots[slot], _slots[slot].mesh.resource_name)
+		if _hair_dirty and _hair_task < 0:
+			_tuck_hair()
+		if _hair_task < 0 and not _hair_dirty:
+			_reveal()
+	if _fitting.is_empty() and _stale_tasks.is_empty() and _hair_task < 0 and not _hair_dirty:
+		set_process(false)
+
+
+## Starts tucking the hair and beard under the covering pieces, or lets them
+## out when there are none.
+func _tuck_hair() -> void:
+	_hair_dirty = false
+	var cover := PackedVector3Array()
+	for item in _covering:
+		if not is_instance_valid(item) or not _skeleton.is_ancestor_of(item):
+			continue
+		for instance in _armour_meshes(item):
+			var fitted: Dictionary = _fitted.get(instance.get_meta(&"armor_source", null), {})
+			if fitted.get("version", -1) != _body_version:
+				continue
+			cover.append_array(fitted.points)
+	var slots := {}
+	for slot in HAIR_SLOTS:
+		var state: Dictionary = _slots[slot]
+		if state.mesh == null or not state.instance.visible:
+			continue
+		if cover.is_empty():
+			state.instance.mesh = state.mesh
+		else:
+			slots[slot] = ArmorFit.source(state.mesh)
+	if slots.is_empty():
+		return
+	var context := _context()
+	var head := _skeleton.find_bone(HEAD_BONE)
+	var span := context.body.spans[head]
+	var middle := context.body.section_at(head, 0.5)
+	var centre := context.body_globals[head] * Vector3((middle[0] + middle[1]) * 0.5, (span.x + span.y) * 0.5,
+			(middle[2] + middle[3]) * 0.5)
+	var binds: Array[Transform3D] = []
+	for b in _data.skin.get_bind_count():
+		binds.append(_data.skin.get_bind_pose(b))
+	_hair_job = {version = _hair_version, slots = slots}
+	_hair_task = WorkerThreadPool.add_task(_tuck.bind(slots, cover, centre, context.body_globals[head].basis,
+			context.body_globals, context.units, binds, BodyMeasurements.bind_bones(_data.skin, _skeleton)),
+			false, "Hair tuck")
+
+
+static func _tuck(slots: Dictionary, cover: PackedVector3Array, centre: Vector3, head_basis: Basis,
+		globals: Array[Transform3D], units: float, binds: Array[Transform3D], bones: PackedInt32Array) -> void:
+	var tuck := HairTuck.new(cover, centre, head_basis, globals, units)
+	for slot in slots:
+		for surface in slots[slot]:
+			tuck.tuck(surface.arrays, binds, bones)
+
+
+## Shows the pieces hidden while they were fitted.
+func _reveal() -> void:
+	for item in _dressed:
+		if not is_instance_valid(item):
+			continue
+		for instance in _armour_meshes(item):
+			if instance.get_meta(&"armor_hidden", false):
+				instance.visible = true
+				instance.remove_meta(&"armor_hidden")
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		for running in _fitting.values():
+			WorkerThreadPool.wait_for_task_completion(running.task)
+		for task in _stale_tasks:
+			WorkerThreadPool.wait_for_task_completion(task)
+		if _hair_task >= 0:
+			WorkerThreadPool.wait_for_task_completion(_hair_task)
+
+
+## The skinned meshes of an armour piece.
+func _armour_meshes(item: Node) -> Array[MeshInstance3D]:
+	var result: Array[MeshInstance3D] = []
+	var nodes: Array[Node] = [item]
+	nodes.append_array(item.find_children("*", "MeshInstance3D", true, false))
+	for node in nodes:
+		var instance := node as MeshInstance3D
+		if instance != null and instance.skin != null and (instance.mesh != null or instance.has_meta(&"armor_source")):
+			result.append(instance)
+	return result
+
+
+## What the armour is fitted with for the current body.
+func _context() -> ArmorFit:
+	if _fit_context != null:
+		return _fit_context
+	if _reference == null:
+		_reference = load(BodyMeasurements.REFERENCE)
+	var context := ArmorFit.new()
+	context.reference = _reference
+	context.reference_globals = BodyMeasurements.rest_globals(_skeleton)
+	context.body = measurements()
+	context.body_globals = _body_globals()
+	context.units = 1.0 / (_armature.transform * _skeleton.transform).basis.get_scale().x
+	# The skin it must clear: the body and the genitals, which sit on it.
+	var mesh: ArrayMesh = _shape.body_baked() if live else _body.mesh
+	var skin_meshes := [[mesh, _data.skin]]
+	var genitals: MeshInstance3D = _slots[&"genitals"].instance
+	if genitals.visible and genitals.mesh != null:
+		skin_meshes.append([genitals.mesh, _data.skin])
+	context.surface = ArmorFit.body_surface(skin_meshes, _skeleton, context.body_globals, context.units)
+	_fit_context = context
+	return context
+
+
+## Every bone at rest in skeleton space, with the body's joints.
+func _body_globals() -> Array[Transform3D]:
+	return BodyMeasurements.rest_globals(_skeleton, _proportions.bone_offsets)
 
 
 func _apply_skin_material(appearance: CharacterAppearance, sex: StringName, hair_style: Dictionary, shader: Dictionary) -> void:
