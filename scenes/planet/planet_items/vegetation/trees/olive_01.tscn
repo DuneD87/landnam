@@ -1,70 +1,28 @@
-[gd_scene format=3 uid="uid://4lhr6e3khpj1"]
+[gd_scene format=3]
 
-[ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_vtbcy"]
-[ext_resource type="Resource" uid="uid://c1hsrchnwebje" path="res://data/items/material/wood.tres" id="2_gpcdd"]
-[ext_resource type="Texture2D" uid="uid://ngbm62oopq2l" path="res://textures/planet/vegetation/tree/trunk/bark_default.jpg" id="3_oysaj"]
-[ext_resource type="Shader" uid="uid://csa5tbyrlrn5i" path="res://shaders/opaque_planet_material.gdshader" id="3_xeuxc"]
-[ext_resource type="Shader" uid="uid://b0t2jf5f15bsm" path="res://shaders/transparent_material_shader.gdshader" id="4_xeuxc"]
-[ext_resource type="Texture2D" uid="uid://bkuntxomqr2ey" path="res://textures/planet/vegetation/tree/twigs/twig_olive.png" id="5_mwsdk"]
+[ext_resource type="Script" path="res://scripts/items/item.gd" id="1_vtbcy"]
+[ext_resource type="Resource" path="res://data/items/material/wood.tres" id="2_gpcdd"]
+[ext_resource type="Shader" path="res://shaders/vegetation/tree_bark.gdshader" id="3_jd3a4"]
+[ext_resource type="Texture2D" path="res://textures/planet/vegetation/tree/trunk/bark_olive_albedo.jpg" id="4_v1xpw"]
+[ext_resource type="Texture2D" path="res://textures/planet/vegetation/tree/trunk/bark_olive_normal.jpg" id="5_dj1ix"]
+[ext_resource type="Texture2D" path="res://textures/planet/vegetation/tree/twigs/twig_olive.png" id="5_mwsdk"]
+[ext_resource type="Texture2D" path="res://textures/planet/vegetation/tree/trunk/bark_olive_roughness.jpg" id="6_m78gj"]
+[ext_resource type="Shader" path="res://shaders/vegetation/tree_foliage.gdshader" id="7_1l0y7"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_mwsdk"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_jd3a4"]
 render_priority = 0
-shader = ExtResource("3_xeuxc")
-shader_parameter/light_direction = Vector3(1, 0, 0)
-shader_parameter/planet_position = Vector3(0, 0, 0)
-shader_parameter/transition_width = 0.2
-shader_parameter/ambient_intensity = 0.15
-shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
-shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
-shader_parameter/translucency_strength = 0.45
-shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
-shader_parameter/translucency_power = 2.0
-shader_parameter/rim_strength = 0.3
-shader_parameter/albedo = Color(1, 1, 1, 1)
-shader_parameter/texture_albedo = ExtResource("3_oysaj")
-shader_parameter/metallic = 0.0
-shader_parameter/specular = 0.0
-shader_parameter/metallic_texture_channel = Vector4(1, 0, 0, 0)
-shader_parameter/roughness = 0.8
-shader_parameter/roughness_texture_channel = Vector4(1, 0, 0, 0)
-shader_parameter/normal_scale = 1.0
-shader_parameter/ao_texture_channel = Vector4(1, 0, 0, 0)
-shader_parameter/emission = Color(0, 0, 0, 0)
-shader_parameter/emission_energy = 1.0
-shader_parameter/uv1_scale = Vector3(1, 1, 1)
-shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader = ExtResource("3_jd3a4")
+shader_parameter/texture_albedo = ExtResource("4_v1xpw")
+shader_parameter/texture_normal = ExtResource("5_dj1ix")
+shader_parameter/texture_roughness = ExtResource("6_m78gj")
+shader_parameter/moss_amount = 0.3
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_oysaj"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_v1xpw"]
 render_priority = 0
-shader = ExtResource("4_xeuxc")
-shader_parameter/light_direction = Vector3(1, 0, 0)
-shader_parameter/planet_position = Vector3(0, 0, 0)
-shader_parameter/transition_width = 0.2
-shader_parameter/ambient_intensity = 0.15
-shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
-shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
-shader_parameter/translucency_strength = 0.45
-shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
-shader_parameter/translucency_power = 2.0
-shader_parameter/rim_strength = 0.3
-shader_parameter/albedo = Color(0, 0, 0, 1)
+shader = ExtResource("7_1l0y7")
 shader_parameter/texture_albedo = ExtResource("5_mwsdk")
-shader_parameter/alpha_scissor_threshold = 0.400000019
-shader_parameter/uv1_scale = Vector3(1, 1, 1)
-shader_parameter/uv1_offset = Vector3(0, 0, 0)
-shader_parameter/specular_strength = 0.15
-shader_parameter/specular_roughness = 0.7
-shader_parameter/normal_up_bias = 0.6
-shader_parameter/ao_base = 0.5
-shader_parameter/detail_start = 40.0
-shader_parameter/detail_end = 80.0
-shader_parameter/debug_lod_tint = Color(0, 0, 0, 0)
-shader_parameter/wind_direction = Vector3(1, 0, 0)
-shader_parameter/wind_speed = 1.0
-shader_parameter/wind_base_height = 0.0
-shader_parameter/wind_falloff = 1.0
-shader_parameter/wind_amplitude = 0.1
-shader_parameter/wind_frequency = 2.0
+shader_parameter/albedo_tint = Color(0.95, 1, 0.97, 1)
+shader_parameter/transmission_color = Color(0.95, 1, 0.7, 1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
 size = Vector3(0.231934, 5.74695, 0.482483)
@@ -80,9 +38,10 @@ item_data = ExtResource("2_gpcdd")
 lod_twig_scale_1 = 1.79
 lod_twig_scale_2 = 2.65
 lod_twig_scale_3 = 2.8
+shape = 3
 twig_planes = 4
 twig_droop = 0.0
-seed = 260
+seed = 5
 trunk_branches_count = 3
 trunk_branch_length = 0.453
 trunk_branch_length_falloff = 0.952
@@ -93,8 +52,48 @@ trunk_drop_amount = 0.1
 trunk_climb_rate = 0.1
 trunk_length = 1.205
 twig_scale = 0.217
-material_trunk = SubResource("ShaderMaterial_mwsdk")
-twig_materials = Array[Material]([SubResource("ShaderMaterial_oysaj")])
+material_trunk = SubResource("ShaderMaterial_jd3a4")
+twig_materials = Array[Material]([SubResource("ShaderMaterial_v1xpw")])
+branch_height = 5.5
+branch_trunk_radius = 0.2
+branch_trunk_taper = 0.5
+branch_root_flare = 1.7
+branch_flare_height = 0.6
+branch_root_lobes = 5
+branch_lobe_depth = 0.25
+branch_gnarl = 0.35
+branch_lean = 0.12
+branch_wobble = 0.25
+branch_split_height = 0.3
+branch_split_count = 3
+branch_split_angle = 35.0
+branch_crown_base = 0.3
+branch_crown_shape = 1
+branch_l1_count = 16
+branch_l1_length = 0.4
+branch_l1_angle = 60.0
+branch_l1_angle_top = 40.0
+branch_l1_gravity = 0.05
+branch_l1_radius = 0.6
+branch_l2_count = 7
+branch_l2_length = 0.5
+branch_l2_angle = 50.0
+branch_l2_gravity = -0.2
+branch_l2_radius = 0.6
+branch_twig_count = 7
+branch_twig_angle = 45.0
+branch_leaf_size = 0.8
+branch_leaf_width = 1.0
+branch_leaf_jitter = 0.25
+branch_leaf_up = 0.4
+branch_leaf_droop = 0.3
+branch_leaf_cross = 0.15
+branch_leaf_start = 0.25
+branch_leaf_outward = 0.35
+branch_crown_normal = 0.7
+branch_crown_ao = 0.4
+branch_bark_tile = 1.0
+branch_lod_card_boost = 1.0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)

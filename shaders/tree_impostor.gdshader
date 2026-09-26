@@ -13,6 +13,9 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled;
 
+// Solo el relevo entre bandas (tree_band_visibility); los uniforms de viento no se usan.
+#include "res://shaders/lib/tree_wind.gdshaderinc"
+
 uniform sampler2D albedo_texture : source_color, filter_linear_mipmap;
 uniform float alpha_scissor_threshold : hint_range(0.0, 1.0, 0.01) = 0.5;
 
@@ -29,8 +32,13 @@ global uniform vec3 sky_moon_direction;
 global uniform vec3 sky_ambient_radiance;
 
 varying vec3 light_rgb;
+varying float v_band;
 
 void vertex() {
+	v_band = tree_band_visibility(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
+	if (v_band <= 0.0) {
+		VERTEX = vec3(0.0);
+	}
 	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	vec3 up = normalize(world_pos - planet_position);
 	// Mismo horizonte por luz que la vegetación cercana (planet_lighting.gdshaderinc).
@@ -41,6 +49,9 @@ void vertex() {
 }
 
 void fragment() {
+	if (tree_band_discard(v_band, FRAGCOORD.xy)) {
+		discard;
+	}
 	vec4 tex = texture(albedo_texture, UV);
 	if (tex.a < alpha_scissor_threshold) {
 		discard;

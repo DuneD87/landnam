@@ -1,0 +1,152 @@
+extends SceneTree
+
+## Árboles Branching: mallas por LOD, datos por vértice para viento/sombras/luz, atlas de
+## impostor y registro en dos bandas del instancer.
+##   godot --headless --path . -s res://tests/vegetation/test_trees.gd
+
+## Presupuesto de triángulos por LOD (el pino, la especie más cargada, ronda 10,4k en LOD0).
+const MAX_TRIANGLES := [11000, 4000, 1200, 500]
+
+var _failures := 0
+
+
+func _initialize() -> void:
+	_run.call_deferred()
+
+
+func _run() -> void:
+	var config := JSON.new()
+	config.parse(FileAccess.get_file_as_string("res://data/planet/planet_earth.json"))
+	var vegetation: Dictionary = config.data.vegetation_settings
+	var tree_items: Array = []
+	for item in vegetation.items:
+		if item.has("tree_lods"):
+			tree_items.append(item)
+	_check(tree_items.size() == 9, "Nueve árboles con relevo de bandas (pinos, olivos, manzanos, almendros)")
+
+	for item in tree_items:
+		var scene_name: String = str(item.scene).get_file().get_basename()
+		var root: Node = load(item.scene).instantiate()
+		var tree: Tree3D = null
+		for child in root.get_children():
+			if child is Tree3D:
+				tree = child
+		_check(tree != null and tree.shape == Tree3D.SHAPE_BRANCHING, scene_name + ": forma Branching")
+		if tree == null:
+			root.free()
+			continue
+		var lods: Array = tree.bake_lods()
+		_check_lods(scene_name, lods)
+		_check(TreeOctaImpostor.has_atlases(scene_name), scene_name + ": atlas de impostor horneados")
+		if TreeOctaImpostor.has_atlases(scene_name):
+			var atlas: Texture2D = load(TreeOctaImpostor.atlas_paths(scene_name)[0])
+			_check(atlas.get_width() == TreeOctaImpostor.FRAMES * TreeOctaImpostor.FRAME_PX,
+				scene_name + ": atlas de %d vistas de %d px" % [TreeOctaImpostor.FRAMES, TreeOctaImpostor.FRAME_PX])
+		_check(tree.get_collision_height() >= 1.0 and tree.get_collision_radius() > 0.05,
+			scene_name + ": cilindro de colisión del tronco")
+		root.free()
+
+	await _check_registration(tree_items, vegetation.generators)
+	print("TREE TESTS: %d failures" % _failures)
+	quit(1 if _failures > 0 else 0)
+
+
+func _check_lods(scene_name: String, lods: Array) -> void:
+	_check(lods.size() == 4, scene_name + ": cuatro LODs")
+	var size0: Vector3 = lods[0].get_aabb().size
+	var previous := 1 << 30
+	for lod in lods.size():
+		var mesh: Mesh = lods[lod]
+		var tris := 0
+		for s in mesh.get_surface_count():
+			tris += mesh.surface_get_arrays(s)[Mesh.ARRAY_INDEX].size() / 3
+		_check(tris <= MAX_TRIANGLES[lod], "%s: LOD%d con %d triángulos (máx %d)" % [scene_name, lod, tris, MAX_TRIANGLES[lod]])
+		_check(tris < previous, "%s: LOD%d más ligero que el anterior" % [scene_name, lod])
+		previous = tris
+		# Misma silueta en los LODs que se dibujan: el esqueleto es el mismo. El LOD3 geométrico
+		# no se usa con relevo de bandas (lejos va el impostor) y agranda mucho sus tarjetas.
+		var size: Vector3 = mesh.get_aabb().size
+		_check(lod == 3 or absf(size.y - size0.y) / size0.y < 0.15 and absf(size.x - size0.x) / size0.x < 0.3,
+			"%s: LOD%d conserva el tamaño del LOD0" % [scene_name, lod])
+	_check_vertex_data(scene_name, lods[0])
+
+
+func _check_vertex_data(scene_name: String, mesh: Mesh) -> void:
+	_check(mesh.get_surface_count() >= 2, scene_name + ": madera y follaje en superficies separadas")
+	var wood := mesh.surface_get_arrays(0)
+	var wood_colors: PackedColorArray = wood[Mesh.ARRAY_COLOR]
+	var wood_uv2: PackedVector2Array = wood[Mesh.ARRAY_TEX_UV2]
+	_check(not wood_colors.is_empty() and not wood_uv2.is_empty(), scene_name + ": madera con COLOR y UV2")
+	var wood_ok := true
+	for c in wood_colors:
+		wood_ok = wood_ok and is_equal_approx(c.a, 1.0) and c.r > 0.0 and c.r <= 1.0
+	_check(wood_ok, scene_name + ": madera marcada (COLOR.a = 1) con oclusión en (0, 1]")
+	_check(not wood[Mesh.ARRAY_TANGENT].is_empty(), scene_name + ": madera con tangentes para el normal map")
+
+	var leaves := mesh.surface_get_arrays(1)
+	var verts: PackedVector3Array = leaves[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = leaves[Mesh.ARRAY_NORMAL]
+	var colors: PackedColorArray = leaves[Mesh.ARRAY_COLOR]
+	var uv2: PackedVector2Array = leaves[Mesh.ARRAY_TEX_UV2]
+	_check(colors.size() == verts.size() and uv2.size() == verts.size(), scene_name + ": tarjetas con COLOR y UV2")
+	var center := Vector3.ZERO
+	for v in verts:
+		center += v
+	center /= maxf(verts.size(), 1)
+	var outward := 0
+	var cards_ok := true
+	var finite := true
+	for k in verts.size():
+		if normals[k].dot(verts[k] - center) > 0.0:
+			outward += 1
+		cards_ok = cards_ok and colors[k].a < 0.95 and colors[k].b >= 0.0 and colors[k].b <= 1.0 \
+			and uv2[k].y >= 0.0 and uv2[k].y <= 1.0
+		finite = finite and normals[k].is_finite() and is_equal_approx(normals[k].length(), 1.0)
+	_check(cards_ok, scene_name + ": tarjetas con aleatorio < 0,9 en COLOR.a y pesos de viento en [0, 1]")
+	_check(finite, scene_name + ": normales de tarjeta finitas y unitarias")
+	_check(outward > verts.size() * 0.85, scene_name + ": normales de copa hacia fuera (%d %%)" % (100 * outward / maxi(verts.size(), 1)))
+
+
+func _check_registration(tree_items: Array, generators: Array) -> void:
+	var terrain := VoxelLodTerrain.new()
+	var planet := Planet.new(terrain)
+	planet.radius = 30000.0
+	var item: Dictionary = tree_items[0].duplicate(true)
+	item.generator = [item.generator[0]]
+	await planet._load_vegetation_item(0, item, generators, [])
+	_check(planet._next_library_id == 2, "Un árbol se registra en dos bandas")
+	if planet._next_library_id != 2:
+		return
+	var near = planet.voxel_instancer.library.get_item(0)
+	var far = planet.voxel_instancer.library.get_item(1)
+	_check(near.lod_index == 1 and far.lod_index == 4, "Banda cercana 1 y lejana 4")
+	_check(not near.collision_shapes.is_empty() and far.collision_shapes.is_empty(), "Colisión solo en la banda cercana")
+	_check(planet.planet_item_packed_scenes.has(0) and not planet.planet_item_packed_scenes.has(1),
+		"Solo la banda cercana se puede talar")
+	var mesh_height: float = near.get_mesh(0).get_aabb().end.y
+	var heights: Array = item.height_m
+	_check(is_equal_approx(near.generator.min_scale * mesh_height, float(heights[0]))
+		and is_equal_approx(near.generator.max_scale * mesh_height, float(heights[1])), "height_m fija la altura real")
+	var ratios: Array = []
+	for k in 4:
+		ratios.append(near.get("mesh_lod%d_distance_ratio" % k))
+	_check(ratios[0] < ratios[1] and ratios[1] < ratios[2] and ratios[2] < ratios[3], "Ratios de LOD crecientes " + str(ratios))
+	var near_material: ShaderMaterial = near.get_mesh(0).surface_get_material(1)
+	var far_material: ShaderMaterial = far.get_mesh(0).surface_get_material(0)
+	_check(far_material.shader.resource_path.ends_with("tree_octa_impostor.gdshader"), "La banda lejana usa el impostor octaédrico")
+	_check(is_equal_approx(near_material.get_shader_parameter("fade_out_end"), far_material.get_shader_parameter("fade_in_end"))
+		and is_equal_approx(near_material.get_shader_parameter("fade_out_start"), far_material.get_shader_parameter("fade_in_start")),
+		"El relevo sale de una banda donde entra la otra")
+	var registered := 0
+	for entry in planet.item_transparent_materials:
+		if entry.shader == near_material or entry.shader == far_material:
+			registered += 1
+	_check(registered == 2, "Materiales de las dos bandas reciben sol, planeta y viento")
+	planet.free()
+	terrain.free()
+
+
+func _check(condition: bool, label: String) -> void:
+	if not condition:
+		_failures += 1
+		print("FAIL: ", label)

@@ -544,14 +544,16 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 	# de registro, para que set_mesh(lm[3], 3) instale el impostor directamente (sin hot-swap).
 	var lm: Array = shared_data.lod_meshes
 	if patch_cfg.is_empty() and grass_cfg.is_empty():
-		if lm.size() == 4 and item.get("lod3_impostor", true):
+		var octa_impostor: bool = item.has("tree_lods") \
+			and TreeOctaImpostor.has_atlases(str(item.scene).get_file().get_basename())
+		if lm.size() == 4 and item.get("lod3_impostor", true) and not octa_impostor:
 			var impostor := await _bake_tree_impostor(lm[0])
 			if impostor != null:
 				lm[3] = impostor
 
 		# Variantes de material por mesh-LOD (una cara en los lejanos, tinte de debug).
 		# Aquí y no en el registro: el item se registra una vez por banda y duplicaría.
-		if lm.size() == 4:
+		if lm.size() == 4 and not item.has("tree_lods"):
 			_apply_lod_material_variants(lm, item.wind_speed if item.has("wind_speed") else 0.0)
 
 	var emit_as_scene: bool = item.get("instance_as_scene", false)
@@ -564,6 +566,10 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 				break
 		if generator_config == null:
 			push_error("Error parsing vegetation, generator with name %s not found." % generator_name)
+			continue
+
+		if item.has("tree_lods"):
+			_register_tree_bands(i, item, shared_data, generator_config, graph_functions)
 			continue
 
 		for lod_index in lod_indices:
@@ -583,6 +589,92 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 				_register_scene_item(item, band_data, generator, lod_index)
 			else:
 				_register_multi_mesh_item(i, item, band_data, generator, lod_index)
+
+
+## Árboles en dos bandas del instancer. Una sola banda de LOD 4 elige la malla por bloques
+## de 256 m: el LOD0 llegaba a árboles a 270 m y no se podía acercar. La banda cercana
+## (bloques de 32 m, alcance ≥ 132 m) lleva la geometría LOD0-LOD2 y se funde con tramado
+## en relay_m; la lejana solo lleva el impostor octaédrico (TreeOctaImpostor) y entra en el
+## mismo tramo. Cada banda genera sus propias posiciones con la misma densidad por área, así
+## que el relevo cambia unos árboles por otros a ~115 m, donde el tramado lo disimula.
+## Las sombras de la geometría cercana eran lo más caro del bosque: acercar el relevo es lo
+## que deja el LOD0 con más detalle dentro del presupuesto.
+## "tree_lods": {"near_band": 1, "far_band": 4, "mesh_lod_distances_m": [30, 60],
+##               "relay_m": [105, 125]}
+func _register_tree_bands(i: int, item: Dictionary, shared_data: Dictionary, generator_config: Dictionary,
+		graph_functions: Array) -> void:
+	var cfg: Dictionary = item.tree_lods
+	var lm: Array = shared_data.lod_meshes
+	if lm.size() != 4:
+		push_error("Árbol sin cuatro LODs: " + str(item.scene))
+		return
+	var relay: Array = cfg.get("relay_m", [105.0, 125.0])
+	var wind_speed: float = float(item.get("wind_speed", 0.0))
+	var near_band: int = int(cfg.get("near_band", 1))
+	var far_band: int = int(cfg.get("far_band", 4))
+
+	var near_data: Dictionary = shared_data.duplicate()
+	var near_fade := {"fade_out_start": float(relay[0]), "fade_out_end": float(relay[1])}
+	near_data.lod_meshes = _tree_band_meshes([lm[0], lm[1], lm[2], lm[2]], near_fade, wind_speed)
+	var view: float = _get_lod_view_distance(near_band)
+	var dists: Array = cfg.get("mesh_lod_distances_m", [30.0, 60.0])
+	near_data.lod_ratios = [minf(float(dists[0]) / view, 0.997), minf(float(dists[1]) / view, 0.998), 0.999, 1.0]
+	near_data.effective_mesh = null
+	var near_generator := _build_generator(generator_config, graph_functions, near_band)
+	_apply_item_height(near_generator, item, shared_data)
+	_register_multi_mesh_item(i, item, near_data, near_generator, near_band)
+
+	# Lejos: solo el impostor, sin colisión, sin posaderos y sin registro para talar.
+	var far_item: Dictionary = item.duplicate()
+	far_item["instance_as_scene"] = false
+	far_item.erase("collision_distance_m")
+	var far_data: Dictionary = shared_data.duplicate()
+	var far_fade := {"fade_in_start": float(relay[0]), "fade_in_end": float(relay[1])}
+	var impostor: Mesh = lm[3]
+	var scene_name: String = str(item.scene).get_file().get_basename()
+	if TreeOctaImpostor.has_atlases(scene_name):
+		var foliage: ShaderMaterial = null
+		for s in lm[0].get_surface_count():
+			var material = lm[0].surface_get_material(s)
+			if material is ShaderMaterial and material.shader.resource_path.ends_with("tree_foliage.gdshader"):
+				foliage = material
+		impostor = TreeOctaImpostor.build_mesh(lm[0], scene_name, foliage)
+	far_data.lod_meshes = _tree_band_meshes([impostor, impostor, impostor, impostor], far_fade, wind_speed)
+	far_data.lod_ratios = [0.997, 0.998, 0.999, 1.0]
+	far_data.collision_shapes = []
+	far_data.perch_data = {}
+	far_data.effective_mesh = null
+	var far_generator := _build_generator(generator_config, graph_functions, far_band)
+	_apply_item_height(far_generator, item, shared_data)
+	_register_multi_mesh_item(i, far_item, far_data, far_generator, far_band)
+
+
+## Copia las mallas de una banda con materiales propios (fundido de relevo) y los registra
+## para recibir sol, planeta y viento. Una malla repetida comparte copia.
+func _tree_band_meshes(meshes: Array, fade: Dictionary, wind_speed: float) -> Array:
+	var mesh_copies: Dictionary = {}
+	var material_copies: Dictionary = {}
+	var result: Array = []
+	for mesh in meshes:
+		if mesh_copies.has(mesh):
+			result.append(mesh_copies[mesh])
+			continue
+		var copy: ArrayMesh = mesh.duplicate()
+		for s in copy.get_surface_count():
+			var material = copy.surface_get_material(s)
+			if not (material is ShaderMaterial):
+				continue
+			var dup: ShaderMaterial = material_copies.get(material)
+			if dup == null:
+				dup = material.duplicate()
+				for key in fade:
+					dup.set_shader_parameter(key, fade[key])
+				material_copies[material] = dup
+				item_transparent_materials.append({"shader": dup, "wind_speed": wind_speed})
+			copy.surface_set_material(s, dup)
+		mesh_copies[mesh] = copy
+		result.append(copy)
+	return result
 
 
 ## Las bandas del instancer son cajas anidadas que llegan todas hasta la cámara: la
@@ -756,8 +848,20 @@ func _build_tree_packed_scene(scene_instantiated: Node, tree3d) -> Dictionary:
 	new_root.add_child(tree_mesh_child)
 	tree_mesh_child.owner = new_root
 
-	var col_radius: float = (tree3d.get_stem_origin_radius() * 1.1) if tree3d is Bush3D else (tree3d.trunk_max_radius * 1.1)
-	var collision_child := _build_tree_collision(trunk, col_radius)
+	var collision_child: CollisionShape3D
+	if tree3d is Tree3D and tree3d.shape == Tree3D.SHAPE_BRANCHING:
+		# Solo el tronco, del suelo a la copa: el cilindro con la altura de toda la malla,
+		# centrado en el origen, dejaba media colisión bajo tierra y cortaba el paso bajo la copa.
+		var height: float = tree3d.get_collision_height()
+		var shape := CylinderShape3D.new()
+		shape.height = height
+		shape.radius = tree3d.get_collision_radius()
+		collision_child = CollisionShape3D.new()
+		collision_child.shape = shape
+		collision_child.position.y = height * 0.5
+	else:
+		var col_radius: float = (tree3d.get_stem_origin_radius() * 1.1) if tree3d is Bush3D else (tree3d.trunk_max_radius * 1.1)
+		collision_child = _build_tree_collision(trunk, col_radius)
 	new_root.add_child(collision_child)
 	_set_owner_recursive(collision_child, new_root)
 

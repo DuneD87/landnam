@@ -279,13 +279,32 @@ func _capture_lineup() -> void:
 				break
 			var sp: Dictionary = _species[index]
 			var item = _planet.voxel_instancer.library.get_item(sp.ids[0])
+			# Árboles con relevo: el impostor está en el item de la banda lejana.
+			var far_item = _planet.voxel_instancer.library.get_item(sp.ids[-1])
 			for lod in 4:
-				var mesh: Mesh = item.get_mesh(lod)
+				var mesh: Mesh = far_item.get_mesh(0) if lod == 3 and sp.ids.size() > 1 else item.get_mesh(lod)
+				if lod == 3 and sp.ids.size() > 1:
+					mesh = _without_band_fade(mesh)
 				_place_tree(holder, mesh, sp.scale, 0.0)
 				_frame(cam, item.get_mesh(0).get_aabb(), sp.scale, 0.0)
 				shots.append(await _grab(vp))
 		_save_sheet(shots, 4, "lods_%d" % sheet)
 	human.free()
+
+
+## El impostor de la banda lejana solo aparece más allá del relevo: en el retrato se quita.
+func _without_band_fade(mesh: Mesh) -> Mesh:
+	var copy: ArrayMesh = mesh.duplicate()
+	for s in copy.get_surface_count():
+		var material = copy.surface_get_material(s)
+		if material is ShaderMaterial:
+			var dup: ShaderMaterial = material.duplicate()
+			for key in ["fade_in_start", "fade_in_end", "fade_out_start", "fade_out_end"]:
+				dup.set_shader_parameter(key, 0.0)
+			dup.set_shader_parameter("planet_position", _planet.planet_position)
+			dup.set_shader_parameter("light_direction", _sun)
+			copy.surface_set_material(s, dup)
+	return copy
 
 
 func _place_tree(holder: Node3D, mesh: Mesh, scale: float, x: float) -> void:

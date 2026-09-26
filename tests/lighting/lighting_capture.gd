@@ -47,6 +47,8 @@ const AZIMUTH_TIMES := {"midnight": 180.0}
 var VIEWS := {
 	"forest": {"dir": Vector3(0.635139, 0.469472, -0.613347), "yaw": 0.0, "pitch": -2.0},
 	"forest_moon": {"dir": Vector3(0.635139, 0.469472, -0.613347), "look": "moon", "pitch": 14.0},
+	# El mismo bosque desde 60 m: copas medias y lejanas (relevo de bandas e impostores).
+	"forest_high": {"dir": Vector3(0.635139, 0.469472, -0.613347), "yaw": 0.0, "pitch": -12.0, "height": 60.0},
 	"dunes": {"dir": Vector3(0.708411, 0.173648, -0.684105), "yaw": 180.0, "pitch": 0.0},
 	"dunes_sun": {"dir": Vector3(0.708411, 0.173648, -0.684105), "look": "sun", "pitch": 3.0},
 	# El mismo sitio girado: el sol bajo queda escondido detrás de la colina de la izquierda (el aire
@@ -243,7 +245,24 @@ func _run() -> void:
 			await _settle(2.5)
 			if _perf:
 				var gpu := await _measure_gpu()
-				print("PERF %s_%s gpu_ms=%.3f" % [view_name, time_name, gpu])
+				# Coste de la vegetación del planeta (árboles, hierba, rocas): el mismo fotograma
+				# con su instancer oculto.
+				var veg_ms := -1.0
+				var instancer: Node3D = _vegetation_instancer(view)
+				if instancer != null:
+					# Tres ciclos alternos con mediana: una sola pareja variaba ±1 ms.
+					var diffs: Array[float] = []
+					for cycle in 3:
+						var on := await _median_gpu()
+						instancer.visible = false
+						await _settle(0.3)
+						var off := await _median_gpu()
+						instancer.visible = true
+						await _settle(0.3)
+						diffs.append(on - off)
+					diffs.sort()
+					veg_ms = diffs[1]
+				print("PERF %s_%s gpu_ms=%.3f vegetation_ms=%.3f" % [view_name, time_name, gpu, veg_ms])
 			await _save("%s_%s" % [view_name, time_name])
 			_print_state("%s_%s" % [view_name, time_name])
 
@@ -307,6 +326,25 @@ func _set_sun_elevation(view: Dictionary, elevation_deg: float, morning: bool) -
 	_sun_ctrl.sun_elevation_deg = 0.0
 	_sun_ctrl.sun_azimuth_deg = wrapf(rad_to_deg(az), -180.0, 180.0)
 	_sun_ctrl._update_sun()
+
+
+func _vegetation_instancer(view: Dictionary) -> Node3D:
+	var body: Node = _moon if view.get("body", "earth") == "moon" else _earth
+	var planet = body.get("planet")
+	return (planet as Planet).voxel_instancer if planet is Planet else null
+
+
+func _median_gpu() -> float:
+	var rid := get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(rid, true)
+	for i in 10:
+		await RenderingServer.frame_post_draw
+	var samples: Array[float] = []
+	for i in PERF_FRAMES:
+		await RenderingServer.frame_post_draw
+		samples.append(RenderingServer.viewport_get_measured_render_time_gpu(rid))
+	samples.sort()
+	return samples[samples.size() / 2]
 
 
 func _measure_gpu() -> float:

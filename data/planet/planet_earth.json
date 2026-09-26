@@ -188,7 +188,7 @@
 		},
 		{
 			"name": "willow_shrub_generator",
-			"emit_mode": "EMIT_FROM_FACES", "density": 0.008, "lod_density_falloff": 1.0,
+			"emit_mode": "EMIT_FROM_FACES", "density": 0.01, "lod_density_falloff": 1.0,
 			"min_height": -35, "max_height": 135, "max_slope_degrees": 32,
 			"offset_along_normal": -0.025, "min_scale": 0.8, "max_scale": 1.5,
 			"noise_graph": "hemisphere_green_graph_path",
@@ -239,8 +239,9 @@
 	  	},
 	 	{
 			"name": "tree_generator_green_sand",
-			"emit_mode": "EMIT_FROM_VERTICES",
-			"density": 0.26,
+			"emit_mode": "EMIT_FROM_FACES",
+			"density": 0.002,
+			"lod_density_falloff": 1.0,
 			"min_height": -25,
 			"max_height": 50,
 			"max_slope_degrees": 25,
@@ -251,7 +252,8 @@
 	 	{
 			"name": "tree_generator_green",
 			"emit_mode": "EMIT_FROM_FACES",
-			"density": 0.04,
+			"density": 0.01,
+			"lod_density_falloff": 1.0,
 			"min_height": -15,
 			"max_height": 125,
 			"max_slope_degrees": 25,
@@ -259,7 +261,7 @@
 			"min_scale": 2.5,
 			"max_scale": 7.5,
 			"noise_graph": "hemisphere_green_graph_path",
-			"noise": {"frequency": 0.003, "octaves": 3, "dimension": "3D", "seed": 29, "threshold": 0.05, "falloff": 0.35, "on_scale": 0.25}
+			"noise": {"frequency": 0.003, "octaves": 3, "dimension": "3D", "seed": 29, "threshold": 0.25, "falloff": 0.3, "on_scale": 0.25}
 	  	},
 	  	{
 			"name": "grass_generator_green",
@@ -501,47 +503,47 @@
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_01.tscn",
 			"generator": ["tree_generator_green"],
-			"height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_02.tscn",
 			"generator": ["tree_generator_green"],
-			"height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_03.tscn",
 			"generator": ["tree_generator_green"],
-			"height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [11, 19], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/olive_01.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"height_m": [4, 7], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [4, 7], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/olive_02.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"height_m": [4, 7], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [4, 7], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_01.tscn",
 			"generator": ["tree_generator_green"],
-			"height_m": [4, 7.5], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [4, 7.5], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_02.tscn",
 			"generator": ["tree_generator_green"],
-			"height_m": [4, 7.5], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [4, 7.5], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_01.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"height_m": [5, 8], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [5, 8], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_02.tscn",
 			"generator": ["tree_generator_green", "tree_generator_green_sand"],
-			"height_m": [5, 8], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
+			"tree_lods": {}, "height_m": [5, 8], "wind_speed": 0.3, "lod_index": [4], "collision_distance_m": 256, "material_type": "WOOD"
 		},
 		{ 
 			"scene": "res://scenes/planet/planet_items/vegetation/trees/palm_01.tscn",
