@@ -71,20 +71,26 @@ Todas siguen la misma convención: metros, origen en el agarre, +Y hacia la punt
 - **Esquiva**: 18 de aguante. La voltereta dura 0,68 s y recorre 4,4 m; su hurtbox
   se apaga entre 0,04 s y 0,46 s. Quieto hace un paso atrás más corto. Se puede
   cancelar la recuperación de un golpe rodando.
-- **Animaciones de Mixamo**: la voltereta viene de Mixamo
-  (`models/player/mixamo/combat/`, descargada con un personaje de Character Creator).
+- **Animaciones de Mixamo**: la voltereta y el arco vienen de Mixamo
+  (`models/player/mixamo/combat/`, descargadas con un personaje de Character Creator; las del
+  arco, del Pro Longbow Pack en `Pro_Longbow_Pack/`).
   `tools/combat/retarget_mixamo.gd` reorienta esas animaciones al esqueleto del
   jugador (otros nombres de hueso y reposo en A en vez de en T: se transfiere el giro de
   cada hueso respecto a su reposo, no la rotación local) y las guarda como la librería
   `combat` en `models/player/mixamo/combat_anims.tres`. La librería también trae paso
-  atrás, reacción al golpe, muerte, arco y lanzamiento, pero esas acciones se ven mejor
-  con las versiones procedurales. Qué acción usa cuál se elige en
+  atrás, reacción al golpe, muerte y lanzamiento, pero esas acciones se ven mejor con las
+  versiones procedurales, y del arquero andar apuntando, reposo, sacar y guardar el arco, que
+  aún no se usan. Qué acción usa cuál se elige en
   `PlayerCombat.USE_MIXAMO`. Para añadir o cambiar una animación: dejar el FBX en esa
   carpeta, añadirla a `CLIPS` (con el tramo a usar) y ejecutar
   `godot --headless --path . --script res://tools/combat/retarget_mixamo.gd`.
-- **Canales de acción**: `PlayerCombat` pone dos one-shots encima del árbol de
-  animación, uno de cuerpo entero (voltereta, paso atrás, tambaleo, muerte) y otro
-  filtrado al tronco y los brazos (arco, lanza: las piernas siguen andando). Se pueden
+- **Canales de acción**: `PlayerCombat` pone dos canales encima del árbol de
+  animación, uno de cuerpo entero (voltereta, paso atrás, tambaleo, muerte; un OneShot) y otro
+  filtrado al tronco y los brazos (arco, lanza: las piernas siguen andando). Este último es un
+  Blend2 con el peso llevado a mano: un OneShot cuenta su propio tiempo desde que se dispara y
+  se apaga al pasar la duración del clip aunque el clip vaya arrastrado (tensar y sostener).
+  `_act_switch` cambia de clip dentro del canal sin fundido, para encadenar clips que empiezan
+  donde acaba el anterior. Se pueden
   reproducir, acelerar o arrastrar: el tensado del arco y la carga de la lanza siguen
   exactamente a lo que se mantiene pulsado, y la lanza sale en el instante en que la
   mano la suelta en la animación. El tronco se inclina hacia el blanco sobre la pose.
@@ -99,14 +105,30 @@ Todas siguen la misma convención: metros, origen en el agarre, +Y hacia la punt
 - **Poses sin animación**: `CombatPose` (modificador del esqueleto) monta por código lo que
   el rig no trae animado, sobre la animación que suene. Tiene utilidades para orientar
   manos (repartiendo la torsión con el antebrazo, como la pronación, para que no se
-  retuerza la muñeca), cerrar dedos en poses absolutas y girar clavículas. `HitReact` da
+  retuerza la muñeca, y con un límite de cuánto se dobla), cerrar dedos en poses absolutas y
+  girar clavículas. `arm_ik` es el IK de brazo anatómico: el brazo gira sobre su eje hasta que la
+  bisagra del codo (medida en las animaciones) queda perpendicular al plano del brazo y el codo
+  solo dobla sobre ella. El rig no tiene huesos de torsión: si el codo doblara sobre cualquier
+  eje, lo que sobra acabaría retorciendo el antebrazo y la piel (y la armadura) se estrujaría. `HitReact` da
   el respingo al encajar un golpe (jugador y osos).
-- **Arco** (`ArcheryPose`): ciclo completo del arquero. De perfil al blanco (quieto, el
+- **Arco** (Pro Longbow Pack y `BowAnimRig`): el cuerpo lo ponen las animaciones en el canal de
+  tronco y brazos, encadenadas sin saltos: `bow_draw` (la mano va por encima del hombro a la
+  aljaba, saca la flecha, la encaja y tensa; el tensado arrastra el clip con la tensión real),
+  `bow_overdraw` (sostener a tope, con el tiempo que lleva) y `bow_recoil` (soltar; acaba donde
+  empieza `bow_draw`, así que si sigue apuntando va a por otra flecha sin cortes). El tronco se
+  inclina hacia el blanco. `BowAnimRig` coloca el arco en el puño izquierdo (su orientación en
+  el marco de la mano está medida a tope), la cuerda entre el índice y el corazón de la derecha,
+  la flecha (en la mano desde que pasa por la aljaba, encajada desde `NOCK_T`) y la flexión de
+  las palas por la distancia de tensado; al soltar, la cuerda vibra y las palas rebotan. Con
+  `USE_MIXAMO.bow = false` vuelve el arco procedural.
+- **Arco procedural** (`ArcheryPose`): ciclo completo del arquero. De perfil al blanco (quieto, el
   cuerpo entero gira 50° y el tronco pone el resto; andando, solo el tronco; en cuestas
   gira menos para no dejar un pie en el aire), la T entera se inclina por la cintura para
   tiros altos o bajos. Puño cerrado en diagonal sobre la empuñadura, gancho de tres dedos
   en la cuerda, tensado por la línea de la flecha hasta el anclaje bajo el pómulo con el
-  codo detrás y la escápula cerrada. Sostener a tope más de un segundo (o sin aguante)
+  codo detrás, en línea con la flecha, a la altura del hombro y lejos de la cabeza, y la escápula
+  cerrada. La palma de la cuerda mira al cuello algo vuelta hacia abajo: de lado del todo el
+  antebrazo tendría que girar más de lo que da de sí. Sostener a tope más de un segundo (o sin aguante)
   hace temblar el pulso. Al soltar se abren los dedos, la mano sigue hacia atrás, la cuerda
   vibra, las palas rebotan (la malla del arco tiene una forma de mezcla "drawn") y el arco
   cabecea. Después, si sigue apuntando, la mano va por encima del hombro a la aljaba de la
@@ -176,19 +198,25 @@ la vida y el aguante llenos y conserva el inventario. Las criaturas que iban a p
 
 ```
 godot --headless --path . res://tests/combat/test_combat_core.tscn
-godot --path . res://tests/combat/combat_capture.tscn -- --tag=x [--runs=melee,bow,death]
+godot --path . res://tests/combat/combat_capture.tscn -- --tag=x [--runs=melee,bow,death,bowterrain]
 godot --path . --script res://tests/combat/pose_preview.gd -- --tag=x
 godot --path . --audio-driver Dummy --script res://tests/combat/anim_preview.gd -- --tag=x --background
 godot --path . --audio-driver Dummy --script res://tests/combat/roll_preview.gd -- --tag=x --background
 godot --path . --script res://tests/combat/weapon_preview.gd -- --tag=x
-godot --path . --audio-driver Dummy --fixed-fps 30 --script res://tests/combat/anim_stage.gd -- --tag=x --scene=bow [--views=front,side,game] [--frames] --background
+godot --path . --audio-driver Dummy --fixed-fps 30 --script res://tests/combat/anim_stage.gd -- --tag=x --scene=bow [--views=front,side,game] [--frames] [--armor=leather_armor] [--twist] --background
 ```
 
 `anim_stage` es el escenario de animación: el cuerpo del jugador sobre suelo plano con
 las poses conducidas por una línea de tiempo fija y varias cámaras a la vez (también
 primeros planos que siguen a manos o cabeza). Escenas: `bow`, `bow_walk`, `throw`,
-`stagger`, `backstep`, `death`, `melee_h`, `melee_v`, `grip`, `fingers`.
+`bow_anim`, `stagger`, `backstep`, `death`, `melee_h`, `melee_v`, `grip`, `fingers`. `--armor` viste un
+conjunto (los fallos de deformación se ven mucho más con armadura) y `--twist` imprime cuánto se
+retuerce cada hueso de los brazos en el arco.
 `combat_capture` acepta `--showcase` para sacar los fotogramas desde una cámara cercana.
+
+`combat_capture --runs=bowterrain` dispara un minuto andando por terreno irregular y cuenta los
+fotogramas con el brazo dentro del tronco y los tirones de la mano. En `anim_stage`, la escena
+`bow_anim` es el ciclo del arco con las animaciones.
 
 `test_combat_core` comprueba el barrido, las esquivas, el daño, el aguante y los
 proyectiles. `roll_preview` compara la voltereta anterior con la actual fotograma a fotograma

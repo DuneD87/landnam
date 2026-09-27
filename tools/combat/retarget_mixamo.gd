@@ -28,6 +28,15 @@ const CLIPS := {
 	"bow_draw": ["Standing Draw Arrow", 0.0, -1.0, false],
 	"bow_recoil": ["Standing Aim Recoil", 0.0, -1.0, false],
 	"hit_react": ["Standing React Small From Front 02", 0.0, -1.0, false],
+	# Pro Longbow Pack (Mixamo): el ciclo del arquero y andar apuntando.
+	"bow_overdraw": ["Pro_Longbow_Pack/standing aim overdraw", 0.0, -1.0, false],
+	"bow_idle": ["Pro_Longbow_Pack/standing idle 01", 0.0, -1.0, false],
+	"bow_equip": ["Pro_Longbow_Pack/standing equip bow", 0.0, -1.0, false],
+	"bow_disarm": ["Pro_Longbow_Pack/standing disarm bow", 0.0, -1.0, false],
+	"bow_aim_walk_forward": ["Pro_Longbow_Pack/standing aim walk forward", 0.0, -1.0, true],
+	"bow_aim_walk_back": ["Pro_Longbow_Pack/standing aim walk back", 0.0, -1.0, true],
+	"bow_aim_walk_left": ["Pro_Longbow_Pack/standing aim walk left", 0.0, -1.0, true],
+	"bow_aim_walk_right": ["Pro_Longbow_Pack/standing aim walk right", 0.0, -1.0, true],
 }
 
 ## Hueso del jugador ← hueso de origen.

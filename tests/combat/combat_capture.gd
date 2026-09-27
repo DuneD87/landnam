@@ -9,6 +9,7 @@ extends "res://tests/lighting/lighting_capture.gd"
 ##   melee  espada, objetivo fijado: esquiva rodando los zarpazos y castiga en la recuperación
 ##   bow    arco: apunta, tensa y dispara al oso que se acerca
 ##   death  sin defenderse: el oso lo mata, sale "HAS MUERTO" y reaparece con la vida llena
+##   bowterrain  un minuto de arco andando por terreno irregular: brazo dentro del tronco y tirones
 
 const ItemConfig = preload("res://scripts/config.gd")
 const OUT := "res://build/combat"
@@ -64,7 +65,7 @@ func _run() -> void:
 	_pc.health_component.invincible = false
 	print("player active=%s pos=%s" % [_pc.input_enabled, _pc.global_position])
 	await _settle(1.0)
-	for run in ["roll", "melee", "bow", "throw", "death", "bowstill"]:
+	for run in ["roll", "melee", "bow", "throw", "death", "bowstill", "bowterrain"]:
 		if not only.is_empty() and run not in only:
 			continue
 		_run_name = run
@@ -88,6 +89,8 @@ func _run() -> void:
 				await _death()
 			"bowstill":
 				await _bow_still()
+			"bowterrain":
+				await _bow_terrain()
 		print("RUN %s %s" % [run, _stats])
 	for line in _log:
 		print(line)
@@ -443,6 +446,85 @@ func _bow_still() -> void:
 		moved = maxf(moved, (samples[i].pos as Vector3).distance_to(samples[i - 1].pos) * 1000.0)
 		aim_jit = maxf(aim_jit, rad_to_deg((samples[i].aim as Vector3).angle_to(samples[i - 1].aim)))
 	_note("cuerpo: salto máx entre fotogramas %.1f mm; dirección de tiro: salto máx %.2f°" % [moved, aim_jit])
+
+
+## Arco un buen rato por terreno irregular (IK de pies activo): apunta, tensa, suelta y recarga
+## sin parar mientras anda en distintas direcciones y la cámara sube y baja. En cada fotograma
+## mide lo cerca que quedan el codo y la mano de la cuerda del eje del tronco, y anota cuándo se
+## meten en el cuerpo junto con el estado del IK de pies.
+func _bow_terrain() -> void:
+	await _equip(&"hunting_bow")
+	_pc.inventory.add_item(ItemConfig.get_item(&"arrow"), 200)
+	await _run_for(0.5, Callable())
+	var combat := _pc.combat
+	var foot_ik: Node = combat._foot_ik
+	var cam: Node = _pc.get_node("CameraController")
+	var original: Callable = combat.pose.after_pose
+	var worst := {"d": INF, "bad": 0, "total": 0, "last_print": -10.0, "jumps": 0, "prev": null}
+	combat.pose.after_pose = func(p: CombatPose) -> void:
+		original.call(p)
+		if p.aim_weight < 0.99:
+			worst.prev = null
+			return
+		worst.total += 1
+		# Tirones: la mano de la cuerda, en el marco del cuerpo, no debería saltar de un tic de
+		# física al siguiente (un cambio de clip con fundido desde la locomoción se ve así). Los
+		# barridos rápidos de la propia animación (la mano sobre la cabeza, el chasquido al
+		# soltar) dan unos 10-15 cm por tic.
+		var rh_local := _pc.player_model.global_transform.affine_inverse() * p.bone_world("mixamorig_RightHand")
+		var ticks: int = Engine.get_physics_frames() - int(worst.get("prev_tick", 0))
+		worst.prev_tick = Engine.get_physics_frames()
+		if worst.prev != null and ticks <= 1 and (worst.prev as Vector3).distance_to(rh_local) > 0.09:
+			worst.jumps += 1
+			print("SALTO mano der %.2f m t=%.2f fase=%s clip=%s %.2f" % [(worst.prev as Vector3).distance_to(rh_local), _clock,
+				combat._bow_phase, p.bow_rig.clip, p.bow_rig.time])
+		worst.prev = rh_local
+		var hips := p.bone_world("mixamorig_Hips")
+		var neck := p.bone_world("mixamorig_Neck")
+		var seg := func(x: Vector3) -> float:
+			var ab := neck - hips
+			var k := clampf((x - hips).dot(ab) / ab.length_squared(), 0.0, 1.0)
+			return x.distance_to(hips + ab * k)
+		var elbow: float = seg.call(p.bone_world("mixamorig_RightForeArm"))
+		var hand: float = seg.call(p.bone_world("mixamorig_RightHand"))
+		var d := minf(elbow, hand)
+		var up := -_pc.gravity_direction.normalized()
+		var info := "t=%.2f fase=%s clip=%s %.2f tensión=%.2f codo-tronco %.2f mano-tronco %.2f | pies: influencia %.2f pelvis %.3f pies %s | pendiente %.1f° giro %.1f° tiro %.0f°" % [
+			_clock, combat._bow_phase, p.bow_rig.clip, p.bow_rig.time, combat._draw, elbow, hand,
+			foot_ik.influence if foot_ik else -1.0, foot_ik._pelvis_offset if foot_ik else 0.0,
+			foot_ik._foot_offset if foot_ik else PackedFloat32Array(),
+			rad_to_deg(_pc.get_floor_normal().angle_to(up)), combat._stance_yaw,
+			rad_to_deg(asin(clampf(combat._aim_dir.dot(up), -1.0, 1.0)))]
+		if d < worst.d:
+			worst.d = d
+			worst.info = info
+		if d < 0.12:
+			worst.bad += 1
+			if _clock - worst.last_print > 0.25:
+				worst.last_print = _clock
+				print("DENTRO ", info)
+	_press(&"attack_2", true)
+	var moves := [&"", &"move_forward", &"move_left", &"", &"move_right", &"move_back", &"move_forward", &""]
+	var t := 0.0
+	var shot := 0
+	while t < 60.0:
+		var move: StringName = moves[int(t / 2.5) % moves.size()]
+		for m in [&"move_forward", &"move_left", &"move_right", &"move_back"]:
+			_press(m, m == move)
+		# Cámara: vaivén lento de lado y arriba/abajo (tiros altos y bajos).
+		cam.delta_yaw += sin(t * 0.7) * 0.006
+		cam.delta_pitch += cos(t * 0.9) * 0.004
+		var cycle := fmod(t, 2.6)
+		_press(&"attack_1", cycle < 1.4)
+		if cycle >= 1.4 and cycle - 1.0 / 60.0 < 1.4:
+			shot += 1
+		await _tick()
+		t += 1.0 / 60.0
+	for m in [&"move_forward", &"move_left", &"move_right", &"move_back", &"attack_1", &"attack_2"]:
+		_press(m, false)
+	combat.pose.after_pose = original
+	_note("arco en terreno: %d disparos (%d flechas quedan), %d de %d fotogramas con el brazo dentro del tronco, %d tirones; peor %.2f m: %s" % [
+		shot, combat.ammo_count(), worst.bad, worst.total, worst.jumps, worst.d, worst.get("info", "")])
 
 
 func _run_for(seconds: float, _each: Callable) -> void:

@@ -4,10 +4,12 @@ extends SceneTree
 ## combate conducidas por una línea de tiempo fija (sin juego ni física de por medio), visto a
 ## la vez desde varias cámaras. Sirve para comparar antes/después de tocar una animación.
 ##   godot --path . --audio-driver Dummy --fixed-fps 30 --script res://tests/combat/anim_stage.gd \
-##       -- --tag=x --scene=bow [--background] [--frames]
+##       -- --tag=x --scene=bow [--background] [--frames] [--armor=leather_armor] [--twist]
 ## Guarda build/combat/stage/<tag>_<scene>_<vista>.png (tira de fotogramas por vista) y, con
 ## --frames, cada fotograma en build/combat/stage/frames/ para montar un GIF.
 ## --fixed-fps hace que cada fotograma avance exactamente 1/30 s (muelles deterministas).
+## --armor viste un conjunto de scenes/items/armor/ (las deformaciones se ven mucho más con
+## armadura); --twist imprime cuánto se retuercen los huesos de los brazos en el arco.
 
 const MODEL := "res://scenes/character/character_model.tscn"
 const OUT := "res://build/combat/stage"
@@ -34,12 +36,18 @@ const FOLLOW_VIEWS := {
 	"rh_back": ["mixamorig_RightHandMiddle1", Vector3(-0.05, 0.05, -0.5)],
 	"rh_out": ["mixamorig_RightHandMiddle1", Vector3(-0.5, 0.05, 0.02)],
 	"rh_down": ["mixamorig_RightHandMiddle1", Vector3(-0.1, -0.5, 0.05)],
+	"relbow": ["mixamorig_RightForeArm", Vector3(-0.35, 0.25, -0.45)],
+	"relbow_out": ["mixamorig_RightForeArm", Vector3(0.1, 0.15, -0.6)],
 }
 
 var _tag := "preview"
 var _scene := "bow"
 var _save_frames := false
 var _views: PackedStringArray = ["front", "side", "game"]
+## Conjunto de armadura puesto (carpeta de scenes/items/armor/, p. ej. leather_armor), o "".
+var _armor := ""
+## Imprime la torsión de los huesos de los brazos durante el arco (--twist).
+var _twist_log := false
 
 var model: Node3D
 var skel: Skeleton3D
@@ -69,6 +77,12 @@ func _initialize() -> void:
 			_views = arg.substr(8).split(",")
 		elif arg.begins_with("--stance="):
 			_stance_override = float(arg.substr(9))
+		elif arg.begins_with("--pitch="):
+			_aim_pitch = float(arg.substr(8))
+		elif arg.begins_with("--armor="):
+			_armor = arg.substr(8)
+		elif arg == "--twist":
+			_twist_log = true
 		elif arg == "--frames":
 			_save_frames = true
 		elif arg == "--background":
@@ -182,8 +196,26 @@ func _add_right_item(item: String) -> void:
 	pose.grip_right = true
 
 
+## Viste al personaje con todas las piezas del conjunto [_armor], ajustadas a su cuerpo como en
+## el juego (CharacterAppearanceRig.dress), y espera a que acabe el ajuste.
+func _dress() -> void:
+	if _armor == "":
+		return
+	var rig := model.get_node("AppearanceRig") as CharacterAppearanceRig
+	var dir := "res://scenes/items/armor/%s" % _armor
+	for file in DirAccess.get_files_at(dir):
+		if not file.ends_with("_equipable.tscn"):
+			continue
+		var item: Node = load(dir + "/" + file).instantiate()
+		skel.add_child(item)
+		rig.dress(item, file.contains("hood") or file.contains("helmet"))
+	while rig.is_dressing():
+		await process_frame
+
+
 func _run() -> void:
 	_build_world()
+	await _dress()
 	var duration := 1.0
 	var driver: Callable
 	var base_anim := "idle"
@@ -195,6 +227,11 @@ func _run() -> void:
 			if _scene == "bow_walk":
 				base_anim = "running"
 				_walking = true
+		"bow_anim":
+			_add_bow()
+			anim.add_animation_library(&"combat", load("res://models/player/mixamo/combat_anims.tres"))
+			duration = 5.6
+			driver = _drive_bow_anim
 		"fingers":
 			duration = 1.0
 			driver = _drive_fingers
@@ -302,6 +339,8 @@ static func _ramp(t: float, a: float, b: float) -> float:
 var _walking := false
 ## Giro del cuerpo al apuntar quieto (--stance=N), como BOW_STANCE_YAW.
 var _stance_override := -50.0
+## Inclinación del tiro en grados (--pitch=N): positivo hacia arriba, como en una ladera.
+var _aim_pitch := 0.0
 
 
 func _drive_bow(t: float) -> void:
@@ -332,9 +371,38 @@ func _drive_bow(t: float) -> void:
 	a.nocked = true
 	pose.aim_weight = aim
 	pose.aim_style = &"bow"
-	pose.aim_dir = (Vector3(0, 0.0, 1)).normalized()
+	pose.aim_dir = Vector3(0, sin(deg_to_rad(_aim_pitch)), cos(deg_to_rad(_aim_pitch)))
 	pose.draw = a.draw
 	_placer = _place_bow
+
+
+## Arco con las animaciones de Mixamo (cuerpo entero, como quieto en el juego): saca la
+## flecha, tensa, sostiene, suelta y repite. Los clips se encadenan sin saltos.
+const BOW_ANIM_TIMELINE := [["bow_draw", 1.0333], ["bow_overdraw", 1.4], ["bow_recoil", 0.7],
+	["bow_draw", 1.0333], ["bow_overdraw", 0.5], ["bow_recoil", 0.7]]
+
+
+func _drive_bow_anim(t: float) -> void:
+	var rig := pose.bow_rig
+	var start := 0.0
+	for i in BOW_ANIM_TIMELINE.size():
+		var entry: Array = BOW_ANIM_TIMELINE[i]
+		if t < start + entry[1] or i == BOW_ANIM_TIMELINE.size() - 1:
+			rig.clip = StringName(entry[0])
+			rig.time = minf(t - start, entry[1])
+			break
+		start += entry[1]
+	anim.play("combat/" + String(rig.clip))
+	anim.seek(rig.time, true)
+	anim.pause()
+	stance_yaw = 0.0
+	pose.aim_weight = _ramp(t, 0.0, 0.2)
+	pose.aim_style = &"bow"
+	pose.aim_arms_ik = false
+	pose.upper_hips_yaw = NAN
+	pose.aim_dir = Vector3(0, sin(deg_to_rad(_aim_pitch)), cos(deg_to_rad(_aim_pitch)))
+	_placer = func(p: CombatPose) -> void:
+		_show_bow(p, p.bow_rig)
 
 
 func _after_pose(p: CombatPose) -> void:
@@ -359,6 +427,22 @@ func _place_bow(p: CombatPose) -> void:
 		print("draw=%.2f hombros-vs-flecha %.0f°  brazo izq-vs-flecha %.0f°  codo der detrás del hombro %.2f m, a su lado %.2f m, altura codo-hombro %.2f m, mano der-hombro der %.2f m" % [a.draw,
 			rad_to_deg((flat.call(ls - rs) as Vector3).angle_to(aim)), rad_to_deg((flat.call(lh - ls) as Vector3).angle_to(aim)),
 			-(re - rs).dot(aim), (re - rs).dot(Vector3(-1, 0, 0)), (re - rs).y, rh.distance_to(rs)])
+	if _twist_log and Engine.get_process_frames() % 6 == 0:
+		# Torsión (sobre su eje) y giro del resto de cada hueso del brazo respecto a su reposo: sin
+		# huesos de torsión, más de unos 80° en el antebrazo estruja la piel del codo.
+		var out := "draw=%.2f recarga=%.2f" % [a.draw, a.reload]
+		for bn in ["mixamorig_RightShoulder", "mixamorig_RightArm", "mixamorig_RightForeArm", "mixamorig_RightHand", "mixamorig_LeftArm", "mixamorig_LeftForeArm", "mixamorig_LeftHand"]:
+			var i := skel.find_bone(bn)
+			var q := skel.get_bone_rest(i).basis.get_rotation_quaternion().inverse() * skel.get_bone_pose_rotation(i)
+			var tw := rad_to_deg(2.0 * atan2(q.y, q.w))
+			var sw := rad_to_deg(2.0 * acos(clampf(sqrt(q.w * q.w + q.y * q.y), 0.0, 1.0)))
+			out += "  %s tw=%.0f sw=%.0f" % [bn.replace("mixamorig_", ""), wrapf(tw, -180, 180), sw]
+		print(out)
+	_show_bow(p, a)
+
+
+## Arco, cuerda, flecha y aljaba donde los deja [a] (ArcheryPose o BowAnimRig).
+func _show_bow(p: CombatPose, a: Object) -> void:
 	var q := ArcheryPose.quiver_skel(p)
 	var skel_xf := skel.global_transform
 	quiver.global_transform = Transform3D((skel_xf.basis * q.basis).orthonormalized(), skel_xf * q.origin)

@@ -73,6 +73,8 @@ var motion_travel: Callable = BodyMotion.stagger_travel
 var archery := ArcheryPose.new()
 ## Lanzamiento de lanza por IK.
 var throw := ThrowPose.new()
+## Arco con las animaciones de Mixamo (con aim_arms_ik apagado): coloca arco, cuerda y flecha.
+var bow_rig := BowAnimRig.new()
 
 ## Arma de combate en la mano derecha: los dedos cierran el puño alrededor del mango y
 ## right_grip_xform (mundo) dice dónde va el marco de agarre del arma (+Y hacia la punta, +Z
@@ -265,6 +267,78 @@ func two_bone(chain: Array, target: Vector3, pole: Vector3, weight: float) -> vo
 	rotate_bone(chain[1], q2)
 
 
+## Eje de la bisagra del codo en el marco de reposo del antebrazo: doblar el codo es girar en
+## positivo sobre él (medido en las animaciones de correr y nadar; la X pequeña es el ángulo de
+## carga del brazo).
+const ELBOW_HINGE := {"Left": Vector3(0.11, 0.0, 0.99), "Right": Vector3(0.17, 0.0, -0.98)}
+
+
+## IK de brazo como two_bone, pero anatómico: el brazo rota sobre su eje hasta que la bisagra del
+## codo queda perpendicular al plano hombro-codo-muñeca, y el antebrazo solo dobla sobre esa
+## bisagra. Con two_bone el codo dobla sobre cualquier eje y la torsión que sobra acaba en el
+## antebrazo (o salta de un lado a otro al tensar), y la piel sin huesos de torsión se estruja.
+## [side] "Left"/"Right"; [target] y [pole] como en two_bone.
+func arm_ik(side: String, target: Vector3, pole: Vector3, weight: float) -> void:
+	var chain: Array = L_ARM if side == "Left" else R_ARM
+	var i0: int = bone_idx(chain[0])
+	var i1: int = bone_idx(chain[1])
+	var i2: int = bone_idx(chain[2])
+	if i0 < 0 or i1 < 0 or i2 < 0 or weight <= 0.0:
+		return
+	var anim0 := _skel.get_bone_pose_rotation(i0)
+	var anim1 := _skel.get_bone_pose_rotation(i1)
+	var p0 := _skel.get_bone_global_pose(i0).origin
+	var l1 := p0.distance_to(_skel.get_bone_global_pose(i1).origin)
+	var l2 := _skel.get_bone_global_pose(i1).origin.distance_to(_skel.get_bone_global_pose(i2).origin)
+	var to_target := target - p0
+	var d := clampf(to_target.length(), 0.001, (l1 + l2) * 0.999)
+	var dir := to_target.normalized()
+	var a := (l1 * l1 - l2 * l2 + d * d) / (2.0 * d)
+	var h := sqrt(maxf(l1 * l1 - a * a, 0.0))
+	var bend := pole - dir * pole.dot(dir)
+	if bend.length_squared() < 1e-8:
+		bend = dir.cross(Vector3.RIGHT if absf(dir.x) < 0.9 else Vector3.UP)
+	bend = bend.normalized()
+	var elbow := p0 + dir * a + bend * h
+	# Normal del plano del brazo (definida aunque el brazo vaya recto): la bisagra va por ella.
+	var normal := bend.cross(dir).normalized()
+	# Antebrazo en reposo respecto al brazo: su torsión la pone luego orient_hand.
+	_skel.set_bone_pose_rotation(i1, _skel.get_bone_rest(i1).basis.get_rotation_quaternion())
+	rotate_bone(chain[0], arc(_skel.get_bone_global_pose(i1).origin - p0, elbow - p0))
+	var hinge_local: Vector3 = ELBOW_HINGE[side].normalized()
+	var upper := (elbow - p0).normalized()
+	var hinge := _skel.get_bone_global_pose(i1).basis.orthonormalized() * hinge_local
+	rotate_bone(chain[0], Quaternion(upper, _signed_angle(hinge, normal, upper)))
+	# El codo dobla sobre la bisagra, y un retoque mínimo por el ángulo de carga.
+	hinge = _skel.get_bone_global_pose(i1).basis.orthonormalized() * hinge_local
+	var p1 := _skel.get_bone_global_pose(i1).origin
+	var fore := _skel.get_bone_global_pose(i2).origin - p1
+	rotate_bone(chain[1], Quaternion(hinge.normalized(), _signed_angle(fore, target - p1, hinge.normalized())))
+	p1 = _skel.get_bone_global_pose(i1).origin
+	rotate_bone(chain[1], arc(_skel.get_bone_global_pose(i2).origin - p1, target - p1))
+	if weight < 1.0:
+		_skel.set_bone_pose_rotation(i0, anim0.slerp(_skel.get_bone_pose_rotation(i0), weight))
+		_skel.set_bone_pose_rotation(i1, anim1.slerp(_skel.get_bone_pose_rotation(i1), weight))
+
+
+## Eje para girar [from] hacia [to] (uno cualquiera perpendicular si son opuestos).
+static func _perp_axis(from: Vector3, to: Vector3) -> Vector3:
+	var axis := from.cross(to)
+	if axis.length_squared() < 1e-8:
+		axis = from.cross(Vector3.RIGHT if absf(from.x) < 0.9 else Vector3.UP)
+	return axis.normalized()
+
+
+## Ángulo con signo que lleva [from] a [to] girando sobre [axis] (proyectados en su plano).
+static func _signed_angle(from: Vector3, to: Vector3, axis: Vector3) -> float:
+	var n := axis.normalized()
+	var u := from - n * from.dot(n)
+	var v := to - n * to.dot(n)
+	if u.length_squared() < 1e-10 or v.length_squared() < 1e-10:
+		return 0.0
+	return atan2(n.dot(u.cross(v)), u.dot(v))
+
+
 ## Unidades del esqueleto por metro (este rig va en centímetros).
 func unit() -> float:
 	return frame_node.global_basis.get_scale().x / _skel.global_basis.get_scale().x
@@ -337,16 +411,23 @@ func hand_frame(side: String, rest: bool = false) -> Basis:
 ## Gira la mano para que sus nudillos apunten a [dir] y la palma mire a [palm] (espacio del
 ## esqueleto). La parte del giro que es torcer la muñeca sobre el antebrazo la hace sobre todo
 ## el antebrazo (pronación), como el cuerpo: si la hiciera solo la mano, la piel de la muñeca se
-## retorcería.
-func orient_hand(side: String, dir: Vector3, palm: Vector3, weight: float, forearm_share: float = 0.7) -> void:
+## retorcería. [max_bend] (grados) limita cuánto se dobla la muñeca respecto al antebrazo: si
+## la dirección pedida se pasa, la mano se queda en el límite, apuntando lo más cerca posible.
+func orient_hand(side: String, dir: Vector3, palm: Vector3, weight: float, forearm_share: float = 0.7,
+		max_bend: float = 180.0) -> void:
 	if weight <= 0.001:
 		return
-	var d := dir.normalized()
-	var n := (palm - d * palm.dot(d)).normalized()
-	var want := Basis(d, n, d.cross(n))
 	var forearm := "mixamorig_%sForeArm" % side
 	var hand := "mixamorig_%sHand" % side
 	var axis := (bone_pos(hand) - bone_pos(forearm)).normalized()
+	var d := dir.normalized()
+	var p := palm
+	if max_bend < 180.0 and axis.angle_to(d) > deg_to_rad(max_bend):
+		var limited := axis.rotated(_perp_axis(axis, d), deg_to_rad(max_bend))
+		p = arc(d, limited) * p
+		d = limited
+	var n := (p - d * p.dot(d)).normalized()
+	var want := Basis(d, n, d.cross(n))
 	var q := (want * hand_frame(side).inverse()).get_rotation_quaternion()
 	# Giro alrededor del eje del antebrazo (descomposición swing-twist).
 	var proj := axis * Vector3(q.x, q.y, q.z).dot(axis)
@@ -589,13 +670,15 @@ func _apply_aim(w: float) -> void:
 		if not is_nan(upper_hips_yaw):
 			var delta := wrapf(upper_hips_yaw - hips_yaw(), -180.0, 180.0)
 			rotate_about(SPINE[0], up_m, delta * w)
-		# La animación ya apunta al frente (el arquero de Mixamo, unos 10° a su derecha, y 2°
-		# arriba): solo falta llevar el tronco a la altura y al lado del blanco.
-		var yaw_fix := 10.0 if aim_style == &"bow" else 0.0
-		var pitch_fix := pitch - (2.0 if aim_style == &"bow" else 0.0)
+		# La animación ya apunta al frente (la flecha del arquero de Mixamo, ver BowAnimRig):
+		# solo falta llevar el tronco a la altura y al lado del blanco.
+		var yaw_fix := -BowAnimRig.ANIM_ARROW_YAW if aim_style == &"bow" else 0.0
+		var pitch_fix := pitch - (BowAnimRig.ANIM_ARROW_PITCH if aim_style == &"bow" else 0.0)
 		for bone_name in SPINE:
 			rotate_about(bone_name, up_m, yaw_fix / SPINE.size() * w)
 			rotate_about(bone_name, Vector3.RIGHT, -pitch_fix / SPINE.size() * w)
+		if aim_style == &"bow":
+			bow_rig.apply(self)
 		return
 	if aim_style == &"bow":
 		archery.apply(self, w, _delta)

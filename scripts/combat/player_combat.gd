@@ -71,13 +71,14 @@ const RESPAWN_DELAY := 5.0
 ## segundos de cada animación, medidos sobre ella.
 const COMBAT_LIBRARY := "res://models/player/mixamo/combat_anims.tres"
 ## Qué acciones usan la animación de Mixamo (true) y cuáles la procedural (false). Elegido a ojo
-## en el juego: la voltereta de Mixamo gustó más; el resto, las procedurales.
+## en el juego: la voltereta y el arco (Pro Longbow Pack, con BowAnimRig) de Mixamo; el resto,
+## las procedurales. Con el arco en false vuelve ArcheryPose.
 const USE_MIXAMO := {
 	&"roll": true,
 	&"dodge_back": false,
 	&"hit_react": false,
 	&"death": false,
-	&"bow": false,
+	&"bow": true,
 	&"throw": false,
 }
 const ROLL_ANIM_SPEED := 1.35
@@ -85,11 +86,10 @@ const BACKSTEP_ANIM_FROM := 0.2
 const BACKSTEP_ANIM_SPEED := 1.5
 const HIT_ANIM_SPEED := 1.3
 const DEATH_ANIM_SPEED := 1.15
-## bow_draw: hasta aquí levanta el arco y encaja la flecha; de aquí al final, tensa.
-const BOW_NOCKED := 0.6
-const BOW_NOCK_SPEED := 2.2
-## bow_recoil: cuándo se puede volver a encajar otra flecha.
-const BOW_RECOIL_DONE := 0.45
+## Arco con animaciones (Pro Longbow Pack, ver BowAnimRig): velocidad de sacar la flecha de la
+## aljaba y encajarla (bow_draw hasta BowAnimRig.NOCK_T), y del retroceso al soltar.
+const BOW_NOCK_SPEED := 1.2
+const BOW_RECOIL_SPEED := 1.2
 ## throw: brazo listo, brazo atrás del todo y suelta.
 const THROW_READY := 0.4
 const THROW_COCKED := 1.15
@@ -171,8 +171,12 @@ var _anims_ready: bool = false
 ## Estado de los dos canales de acción: "full" (cuerpo entero) y "upper" (tronco y brazos).
 var _act := {
 	"full": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false},
-	"upper": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false},
+	"upper": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
+		"weight": 0.0},
 }
+## Fundidos del canal de tronco y brazos (s): entrar y salir.
+const UPPER_FADE_IN := 0.12
+const UPPER_FADE_OUT := 0.25
 ## Arco: "" (sin arco en alto), "nock" (encajando), "ready" (encajada, tensa con el clic) o
 ## "recoil" (acaba de soltar).
 var _bow_phase: StringName = &""
@@ -291,8 +295,11 @@ func _setup_animation() -> void:
 
 ## Dos canales de acción encima de todo el árbol: "full" (voltereta, paso atrás, tambaleo,
 ## muerte) y "upper", filtrado al tronco y los brazos (arco, lanzamiento: las piernas siguen con
-## la locomoción). Cada uno: animación → TimeSeek → TimeScale → OneShot, para poder
-## reproducirla, acelerarla o arrastrarla a un instante concreto.
+## la locomoción). Cada uno: animación → TimeSeek → TimeScale → mezcla, para poder
+## reproducirla, acelerarla o arrastrarla a un instante concreto. "full" mezcla con un OneShot;
+## "upper" con un Blend2 cuyo peso lleva _act_advance: un OneShot cuenta su propio tiempo desde
+## que se dispara y se apaga al pasar la duración del clip aunque este vaya arrastrado (tensar y
+## sostener el arco), y al cambiar de clip dentro de él se daría por acabado.
 func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 	var animator: AnimationPlayer = player.animation_controller.animator
 	if animator == null or not ResourceLoader.exists(COMBAT_LIBRARY):
@@ -311,9 +318,14 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 	for channel in ["upper", "full"]:
 		var anim := AnimationNodeAnimation.new()
 		anim.animation = &"combat/roll"
-		var shot := AnimationNodeOneShot.new()
-		shot.fadein_time = 0.12
-		shot.fadeout_time = 0.25
+		var shot: AnimationNode
+		if channel == "upper":
+			shot = AnimationNodeBlend2.new()
+		else:
+			var oneshot := AnimationNodeOneShot.new()
+			oneshot.fadein_time = 0.12
+			oneshot.fadeout_time = 0.25
+			shot = oneshot
 		if channel == "upper":
 			shot.filter_enabled = true
 			var root_bone := _skeleton.find_bone(UPPER_ROOT)
@@ -355,7 +367,30 @@ func _act_play(channel: String, anim_name: StringName, speed: float, from: float
 	ch.hold_end = hold_end
 	_tree.set("parameters/act_%s_seek/seek_request" % channel, from)
 	_tree.set("parameters/act_%s_speed/scale" % channel, speed)
-	_tree.set("parameters/act_%s/request" % channel, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+	if channel != "upper":
+		_tree.set("parameters/act_%s/request" % channel, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+
+
+## Cambia la animación de un canal que ya suena sin volver a dispararlo (disparar hace un fundido
+## desde lo de debajo): para encadenar clips que empiezan donde acaba el anterior. Si el canal no
+## suena, la reproduce como _act_play.
+func _act_switch(channel: String, anim_name: StringName, speed: float, from: float = 0.0) -> void:
+	if not _anims_ready:
+		return
+	var ch: Dictionary = _act[channel]
+	if not ch.active or (channel != "upper" and not bool(_tree.get("parameters/act_%s/active" % channel))):
+		_act_play(channel, anim_name, speed, from)
+		return
+	var tree_root := _tree.tree_root as AnimationNodeBlendTree
+	var anim_path := StringName("combat/" + String(anim_name))
+	(tree_root.get_node(StringName("act_%s_anim" % channel)) as AnimationNodeAnimation).animation = anim_path
+	ch.anim = anim_name
+	ch.length = _clip_length(anim_name)
+	ch.time = from
+	ch.speed = speed
+	ch.hold_end = false
+	_tree.set("parameters/act_%s_seek/seek_request" % channel, from)
+	_tree.set("parameters/act_%s_speed/scale" % channel, speed)
 
 
 ## Deja el canal quieto en [time] (tensar el arco, cargar la lanza): se arrastra, no se reproduce.
@@ -382,7 +417,8 @@ func _act_stop(channel: String) -> void:
 	_act[channel].active = false
 	_act[channel].hold_end = false
 	_tree.set("parameters/act_%s_speed/scale" % channel, 1.0)
-	_tree.set("parameters/act_%s/request" % channel, AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
+	if channel != "upper":
+		_tree.set("parameters/act_%s/request" % channel, AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
 
 
 ## Giro de la cadera (grados, marco del modelo) en [anim_name] a [time], leído de la pista.
@@ -408,6 +444,12 @@ func _act_time(channel: String) -> float:
 ## Lleva la cuenta del tiempo de cada canal (para sincronizar golpes, disparos e invulnerabilidad
 ## con la animación) y congela al final los que lo piden.
 func _act_advance(delta: float) -> void:
+	if _anims_ready:
+		# El canal de tronco y brazos entra y sale fundiéndose (Blend2, ver _setup_action_channels).
+		var up: Dictionary = _act["upper"]
+		up.weight = move_toward(up.weight, 1.0 if up.active else 0.0,
+			delta / (UPPER_FADE_IN if up.active else UPPER_FADE_OUT))
+		_tree.set("parameters/act_upper/blend_amount", smoothstep(0.0, 1.0, up.weight))
 	for channel in _act:
 		var ch: Dictionary = _act[channel]
 		if not ch.active:
@@ -994,7 +1036,7 @@ func _update_aim(delta: float) -> void:
 		return
 	var is_bow := data.weapon_type == ItemData.WeaponType.BOW
 	if is_bow and _mixamo(&"bow"):
-		_update_bow_anim()
+		_update_bow_anim(delta)
 	elif is_bow:
 		_update_bow_cycle(delta)
 	if _release_t >= 0.0:
@@ -1081,29 +1123,75 @@ func _update_bow_cycle(delta: float) -> void:
 	a.fatigue = clampf(1.0 - stamina.stamina / (stamina.max_stamina * 0.25), 0.0, 1.0)
 
 
-## Arco con las animaciones de Mixamo: levanta el arco y encaja la flecha (bow_draw hasta
-## BOW_NOCKED), luego el tensado sigue a la tensión real (se arrastra la animación) y al soltar
-## suena el retroceso (bow_recoil) antes de volver a encajar.
-func _update_bow_anim() -> void:
+## Arco con las animaciones del Pro Longbow Pack (BowAnimRig coloca arco, cuerda y flecha): la
+## mano va por encima del hombro a la aljaba, saca la flecha y la encaja (bow_draw hasta
+## NOCK_T); tensar arrastra el resto de bow_draw con la tensión real; a tope sostiene
+## (bow_overdraw, con el tiempo que lleva) y al soltar suena bow_recoil, que acaba donde empieza
+## bow_draw: si sigue apuntando, va a por otra flecha sin cortes.
+func _update_bow_anim(delta: float) -> void:
+	var has_ammo := ammo_count() > 0
+	var keep := _aim_held or _draw_held
+	var t := _act_time("upper")
 	match _bow_phase:
 		&"":
-			_act_play("upper", &"bow_draw", BOW_NOCK_SPEED)
-			_bow_phase = &"nock"
+			_bow_nocked = false
+			if has_ammo:
+				_bow_clip(&"bow_draw", 0.0)
+				_bow_phase = &"nock"
+			else:
+				_bow_phase = &"empty"
 		&"nock":
-			if _act_time("upper") >= BOW_NOCKED:
+			t += delta * BOW_NOCK_SPEED
+			_bow_clip(&"bow_draw", minf(t, BowAnimRig.NOCK_T))
+			if t >= BowAnimRig.NOCK_T:
 				_bow_phase = &"ready"
+				_bow_nocked = true
 		&"ready":
-			var length: float = _act["upper"].length
-			_act_scrub("upper", lerpf(BOW_NOCKED, length, clampf(_draw, 0.0, 1.0)))
+			if not has_ammo:
+				_bow_phase = &"empty"
+				_bow_nocked = false
+				_act_stop("upper")
+			elif _draw >= 1.0:
+				_bow_clip(&"bow_overdraw", _bow_hold)
+			else:
+				var length := _clip_length(&"bow_draw")
+				_bow_clip(&"bow_draw", lerpf(BowAnimRig.NOCK_T, length, clampf(_draw, 0.0, 1.0)))
 		&"recoil":
-			if _act_time("upper") >= BOW_RECOIL_DONE:
-				if _aim_held or _draw_held:
-					# Mano a la aljaba y otra flecha: se retoma la animación desde que baja la mano.
-					_act_play("upper", &"bow_draw", BOW_NOCK_SPEED, 0.35)
+			_bow_nocked = false
+			t += delta * BOW_RECOIL_SPEED
+			var length := _clip_length(&"bow_recoil")
+			_bow_clip(&"bow_recoil", minf(t, length))
+			if t >= length:
+				if keep and has_ammo:
+					_bow_clip(&"bow_draw", 0.0)
 					_bow_phase = &"nock"
 				else:
-					_bow_phase = &""
-					_end_aim()
+					_bow_phase = &"empty" if keep else &""
+					if not keep:
+						_end_aim()
+		&"empty":
+			if has_ammo and keep:
+				_bow_phase = &""
+	_bow_hold = _bow_hold + delta if _draw >= 1.0 else 0.0
+	var rig := pose.bow_rig
+	var ch: Dictionary = _act["upper"]
+	rig.clip = ch.anim if ch.active else &""
+	rig.time = ch.time
+
+
+## Deja el canal de tronco y brazos en [anim_name] a [time], arrastrado (el tiempo lo lleva el
+## arco): los clips del arquero se encadenan sin fundidos y el canal no se acaba solo.
+func _bow_clip(anim_name: StringName, time: float) -> void:
+	if _act["upper"].anim != anim_name or not _act["upper"].active:
+		_act_switch("upper", anim_name, 0.0, time)
+	else:
+		_act_scrub("upper", time)
+
+
+func _clip_length(anim_name: StringName) -> float:
+	var animator: AnimationPlayer = player.animation_controller.animator
+	var path := StringName("combat/" + String(anim_name))
+	return animator.get_animation(path).length if animator.has_animation(path) else 1.0
 
 
 ## Lanza con la animación de Mixamo: con el botón derecho el brazo se queda listo; cargando se
@@ -1199,8 +1287,9 @@ func _fire(data: ItemData, draw: float) -> void:
 	_fire_cooldown = 0.35
 	_arrow_visual.visible = false
 	if _mixamo(&"bow") and data.weapon_type == ItemData.WeaponType.BOW:
-		_act_play("upper", &"bow_recoil", 1.0)
+		_bow_clip(&"bow_recoil", 0.0)
 		_bow_phase = &"recoil"
+		_bow_nocked = false
 	elif data.weapon_type == ItemData.WeaponType.BOW:
 		_bow_phase = &"release"
 		_bow_release = 0.0
@@ -1263,9 +1352,10 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 		var q := ArcheryPose.quiver_skel(p)
 		var skel_xf := p.skeleton().global_transform
 		_quiver.global_transform = Transform3D((skel_xf.basis * q.basis).orthonormalized(), skel_xf * q.origin)
-		var in_hand := 1 if (_bow_nocked or pose.archery.arrow_mode != &"") and state == State.AIM else 0
+		var arrow_mode: StringName = pose.bow_rig.arrow_mode if _mixamo(&"bow") else pose.archery.arrow_mode
+		var in_hand := 1 if (_bow_nocked or arrow_mode != &"") and state == State.AIM else 0
 		_quiver.set_count(ammo_count() - in_hand)
-	if data.weapon_type == ItemData.WeaponType.BOW and not _mixamo(&"bow"):
+	if data.weapon_type == ItemData.WeaponType.BOW:
 		_place_bow(p, data)
 		return
 	if data.is_left_handed():
@@ -1324,10 +1414,10 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 		_arrow_visual.visible = false
 
 
-## Arco procedural: arco, cuerda y flecha donde los deja ArcheryPose. Mientras sube o baja, el
-## arco pasa del agarre de colgar al de tirar sin saltos.
+## Arco, cuerda y flecha donde los deja BowAnimRig (con animaciones) o ArcheryPose (procedural).
+## Mientras sube o baja, el arco pasa del agarre de colgar al de tirar sin saltos.
 func _place_bow(p: CombatPose, _data: ItemData) -> void:
-	var a := p.archery
+	var a: Object = p.bow_rig if _mixamo(&"bow") else p.archery
 	var visual := _weapon_node as RangedWeaponVisual
 	if p.aim_weight <= 0.001:
 		_weapon_node.top_level = false

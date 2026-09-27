@@ -51,6 +51,17 @@ const GRIP_OFFSET := Vector2(0.075, 0.03)
 ## Cuerda en el pliegue de la primera falange, respecto a la muñeca (adelante, palma).
 const NOCK_OFFSET := Vector2(0.105, 0.03)
 
+## Codo de la cuerda a tope respecto a la muñeca (m): cuánto detrás en la línea de tiro, cuánto
+## hacia el pecho y cuánto más bajo. En línea con la flecha el antebrazo apenas gira; más alto o
+## más hacia la espalda, el brazo sube pegado a la cabeza y el antebrazo se retuerce.
+const DRAW_ELBOW := Vector3(0.24, 0.04, 0.01)
+## La palma de la cuerda mira al cuello algo vuelta hacia abajo (tangente de la inclinación).
+const DRAW_PALM_TILT := 0.36
+
+## Cuánto puede doblarse la muñeca de la cuerda (grados): en la aljaba la mano apunta hacia
+## abajo con el antebrazo hacia arriba, y sin límite se plegaría del todo.
+const WRIST_MAX_BEND := 75.0
+
 ## Duración de la recarga completa, en segundos (la cuenta PlayerCombat).
 const RELOAD_TIME := 0.72
 
@@ -218,10 +229,15 @@ func apply(p: CombatPose, w: float, delta: float) -> void:
 	# 6. Mano de la cuerda.
 	var string_rest := bow_want * (Vector3(0, ARROW_REST, WeaponMeshes.bow_tip(true).z) * m)
 	var r_dir := (f - y_b * 0.12).normalized()
-	var r_palm := x_b
+	# Palma hacia el cuello, algo vuelta hacia abajo: de lado del todo el antebrazo tendría que
+	# girar más de lo que da de sí y la piel del codo se retorcería.
+	var r_palm := (x_b - y_b * DRAW_PALM_TILT).normalized()
 	var nock := string_rest.lerp(anchor, _ease_draw(dd)) + tremble
 	var r_fingers: Dictionary = HOOK
-	var r_pole := -f * 0.9 + up * 0.08 + l * 0.25
+	# Codo: abajo y atrás con la cuerda en reposo; tensando, va a quedar detrás de la mano en la
+	# línea de la flecha y algo hacia el pecho, lejos de la cabeza (ver DRAW_ELBOW). Al soltar se
+	# queda donde estaba y en la recarga pasa por encima del hombro.
+	var elbow_k := _ease_draw(dd)
 	if releasing:
 		# Suelta: los dedos se abren al instante y la mano sigue hacia atrás por la mandíbula.
 		var from := string_rest.lerp(anchor, _ease_draw(_release_draw))
@@ -229,23 +245,28 @@ func apply(p: CombatPose, w: float, delta: float) -> void:
 		var settle := smoothstep(0.35, 0.8, release_t)
 		nock = from + ((-f * 0.10 - face.x * 0.02 - up * 0.01) * follow * _release_draw * (1.0 - 0.3 * settle)) * m
 		r_fingers = CombatPose.blend_fingers(OPEN, RELAXED, settle)
+		elbow_k = _ease_draw(_release_draw)
 	if rl >= 0.0:
 		var path := _reload_path(p, anchor, string_rest, face, f, up, rl)
 		nock = path.point
 		r_dir = path.dir
 		r_palm = path.palm
 		r_fingers = path.fingers
-		r_pole = r_pole.lerp(up * 0.9 + f * 0.3 - l * 0.2, lower)
+		elbow_k = _ease_draw(_release_draw) * (1.0 - smoothstep(0.2, 0.9, rl))
 	var r_off := (r_dir * NOCK_OFFSET.x + (r_palm - r_dir * r_palm.dot(r_dir)).normalized() * NOCK_OFFSET.y) * m
 	var r_wrist := nock - r_off
 	var rn := (r_palm - r_dir * r_palm.dot(r_dir)).normalized()
+	var elbow_line := r_wrist - (f * DRAW_ELBOW.x + l * DRAW_ELBOW.y + up * DRAW_ELBOW.z) * m
+	var r_pole := (l * 0.64 - up * 0.77).lerp((elbow_line - p.bone_pos(R_ARM[0])).normalized(), elbow_k)
+	if rl >= 0.0:
+		r_pole = r_pole.lerp(up * 0.9 + f * 0.3 - l * 0.2, lower)
 	var r_want := Transform3D(Basis(r_dir, rn, r_dir.cross(rn)), r_wrist)
 
 	# 7. Brazos, manos y dedos.
-	p.two_bone(L_ARM, l_wrist, l * 0.7 - up * 0.7, w)
-	p.two_bone(R_ARM, r_wrist, r_pole, w)
+	p.arm_ik("Left", l_wrist, l * 0.7 - up * 0.7, w)
+	p.arm_ik("Right", r_wrist, r_pole, w)
 	p.orient_hand("Left", l_dir, l_palm, w)
-	p.orient_hand("Right", r_dir, rn, w)
+	p.orient_hand("Right", r_dir, rn, w, 0.7, WRIST_MAX_BEND)
 	p.pose_fingers("Left", GRIP, w)
 	p.pose_fingers("Right", r_fingers, w)
 
