@@ -237,6 +237,11 @@ const GROUP_TEX_H := 128
 var god_rays_weather_strength: float = 1.0
 var god_rays_weather_reach: float = 1.0
 
+## Calidad de las opciones gráficas (SettingsManager): escala de los pasos de nubes y niebla sobre
+## los del inspector (0 = sin nubes) y god rays. Sin exportar, por lo mismo que las del clima.
+var quality_step_scale: float = 1.0
+var quality_god_rays: bool = true
+
 ## Luz de luna que empuja SkyLighting cada frame: dirección HACIA la luna, intensidad relativa al
 ## sol (0 = sin luna: el compute se salta todo su trabajo) y color. Ilumina el cielo nocturno, las
 ## nubes y la niebla con la misma integral que el sol. Sin exportar: es estado, no tuning.
@@ -357,6 +362,13 @@ func set_sun_tint(color: Color) -> void:
 
 ## La empuja el WeatherController por evento: aire con más vapor o polvo dispersa más (shafts más
 ## marcados) y a menos distancia (shafts que ya se ven en el primer plano, como en la niebla).
+func set_quality(step_scale: float, god_rays: bool) -> void:
+	_params_mutex.lock()
+	quality_step_scale = maxf(step_scale, 0.0)
+	quality_god_rays = god_rays
+	_params_mutex.unlock()
+
+
 func set_god_ray_weather(strength: float, reach: float) -> void:
 	_params_mutex.lock()
 	god_rays_weather_strength = maxf(strength, 0.0)
@@ -872,7 +884,7 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 
 		# Pase 2: god rays. En su PROPIA compute list para que la barrera implícita del
 		# compute_list_end() de arriba garantice que la máscara ya está escrita.
-		if god_rays_enabled and _god_rays_pipeline.is_valid():
+		if god_rays_enabled and quality_god_rays and _god_rays_pipeline.is_valid():
 			var mask_sampled_uniform := RDUniform.new()
 			mask_sampled_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
 			mask_sampled_uniform.binding = 1
@@ -939,7 +951,7 @@ func _build_params_bytes(
 	var local_density       := density_falloff
 	var local_scattering    := scattering_strength / 10000.0
 	var local_sun_intensity   := sun_intensity
-	var local_clouds_enabled  := clouds_enabled
+	var local_clouds_enabled  := clouds_enabled and quality_step_scale > 0.0
 	var local_cloud_min_h     := cloud_min_height
 	var local_cloud_max_h     := cloud_max_height
 	var local_cloud_density   := cloud_density
@@ -961,9 +973,9 @@ func _build_params_bytes(
 	var local_lightning_flash := lightning_flash
 	var local_purkinje        := purkinje_strength
 	var local_purkinje_tint   := purkinje_tint
-	var local_cloud_steps     := cloud_steps
-	var local_light_steps     := cloud_light_steps
-	var local_shadow_steps    := cloud_shadow_steps
+	var local_cloud_steps     := maxi(1, roundi(cloud_steps * quality_step_scale))
+	var local_light_steps     := maxi(1, roundi(cloud_light_steps * quality_step_scale))
+	var local_shadow_steps    := maxi(1, roundi(cloud_shadow_steps * quality_step_scale))
 	var local_fog_enabled     := fog_enabled
 	var local_fog_density     := fog_density
 	var local_fog_coverage    := fog_coverage
@@ -974,7 +986,8 @@ func _build_params_bytes(
 	var local_fog_night_amb   := fog_night_ambient
 	var local_fog_wind_speed  := fog_wind_speed
 	var local_fog_nscale      := fog_noise_scale
-	var local_fog_steps       := fog_steps
+	# Sin nubes la niebla sigue: sus pasos no bajan de la mitad.
+	var local_fog_steps       := maxi(1, roundi(fog_steps * maxf(quality_step_scale, 0.5)))
 	var local_fog_view_dist   := fog_view_distance
 	var local_occ_soft        := fog_occlusion_softness
 	var local_occ_enabled     := _occ_enabled
@@ -1117,7 +1130,7 @@ func _build_params_bytes(
 	# P(29): .xy=posición del sol en pantalla, .z=visibilidad [0,1], .w=habilitado.
 	var sun_screen := _build_god_ray_sun(cam_transform, cam_origin, projection, local_sun_dir, local_center)
 	_append_vec4(floats, Vector4(
-		sun_screen.x, sun_screen.y, sun_screen.z, 1.0 if god_rays_enabled else 0.0
+		sun_screen.x, sun_screen.y, sun_screen.z, 1.0 if god_rays_enabled and quality_god_rays else 0.0
 	))
 
 	# P(30): .x=modo debug, .y=fuerza del shimmer, .z=frecuencia del patrón (ciclos por metro, de

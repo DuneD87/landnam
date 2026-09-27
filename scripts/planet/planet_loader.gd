@@ -622,6 +622,8 @@ func _ready() -> void:
 	else:
 		push_warning("Planet: este build del módulo no trae la caché de claves del VoxelStreamSQLite.")
 	add_to_group(GameManager.SAVEABLE_GROUP)
+	# Alcance y normalmaps del terreno según las opciones gráficas: antes de mallar nada.
+	SettingsManager.apply_terrain(voxel_terrain)
 	if config_file_path != "res://data/planet/default.json":
 		_load_planet()
 		

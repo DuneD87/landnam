@@ -6,6 +6,8 @@ extends GPUParticles3D
 ## cada frame hacia el centro del planeta (abajo radial del jugador).
 
 static var _shared_dot_texture: ImageTexture
+## Fracción de preset.amount que se emite, según las opciones gráficas (SettingsManager).
+static var amount_scale: float = 1.0
 
 const DRAW_SHADER := preload("res://shaders/weather/weather_particle.gdshader")
 # Salto (m) del volumen de emisión a partir del cual se considera teletransporte, no seguimiento.
@@ -34,7 +36,7 @@ func setup(player: Node3D, planet_center: Vector3, preset: WeatherParticlePreset
 
 func apply_preset(preset: WeatherParticlePreset) -> void:
 	_preset = preset
-	amount = maxi(preset.amount, 1)
+	amount = maxi(roundi(preset.amount * amount_scale), 1)
 	lifetime = maxf(preset.lifetime, 0.05)
 	preprocess = preset.lifetime
 	_proc = _build_process_material(preset)
@@ -43,6 +45,12 @@ func apply_preset(preset: WeatherParticlePreset) -> void:
 	var reach := preset.box_extents + Vector3.ONE * (preset.initial_velocity_max \
 		+ preset.gravity_strength * preset.lifetime) * preset.lifetime
 	visibility_aabb = AABB(-reach, reach * 2.0)
+
+
+## Recalcula el nº de partículas tras cambiar amount_scale. Cambiar amount reinicia el emisor.
+func refresh_amount() -> void:
+	if _preset != null:
+		amount = maxi(roundi(_preset.amount * amount_scale), 1)
 
 
 ## Intensidad 0..1 (rate del clima): escala el nº de partículas y enciende/apaga la emisión.

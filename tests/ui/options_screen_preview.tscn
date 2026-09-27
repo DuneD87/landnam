@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/ui/options_screen_preview.gd" id="1"]
+
+[node name="OptionsScreenPreview" type="Node"]
+script = ExtResource("1")

@@ -774,7 +774,7 @@ func _cmd_fauna(_args: PackedStringArray) -> String:
 			if animal.active:
 				alive += 1
 		lines.append("[color=%s]%s[/color]  vivos %d/%d   pool %d   radio %.0f m" % [
-			COLOR_INFO, spawner.name, alive, spawner.profile.population,
+			COLOR_INFO, spawner.name, alive, spawner.target_population(),
 			spawner._pool.size(), spawner.profile.spawn_radius])
 		var ground := spawner.habitat as GroundFaunaHabitat
 		if ground == null:

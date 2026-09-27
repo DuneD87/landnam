@@ -19,6 +19,10 @@ static var _budget_spent_usec: int = 0
 ## Grupo de todos los spawners en juego, para los informes de la consola.
 const GROUP := &"fauna_spawner"
 
+## Fracción de la población de cada perfil que se mantiene, según las opciones gráficas
+## (SettingsManager). Al bajarla, el siguiente barrido libera los nodos sobrantes.
+static var population_scale: float = 1.0
+
 
 func setup(settings: AmbientFaunaProfile, environment: AmbientFaunaHabitat,
 		player: Node3D) -> void:
@@ -56,11 +60,19 @@ func _physics_process(delta: float) -> void:
 	DebugStats.report_cost(&"fauna:spawner", elapsed)
 
 
+## Población del perfil con la escala de las opciones; una especie presente no baja de uno.
+func target_population() -> int:
+	if profile.population <= 0:
+		return 0
+	return maxi(1, roundi(profile.population * population_scale))
+
+
 func update_population(deadline_usec: int = 0) -> void:
 	if profile.animal_scene == null:
 		return
 	# Reducing the configured population also releases the surplus pool nodes.
-	while _pool.size() > profile.population:
+	var population := target_population()
+	while _pool.size() > population:
 		_pool.pop_back().queue_free()
 	var count := 0
 	var recycle := maxf(profile.recycle_distance, profile.spawn_radius + 5.0)
@@ -75,7 +87,7 @@ func update_population(deadline_usec: int = 0) -> void:
 			count += 1
 	var activated := 0
 	for _attempt in profile.attempts_per_update:
-		if count >= profile.population or activated >= profile.activations_per_update:
+		if count >= population or activated >= profile.activations_per_update:
 			break
 		if deadline_usec > 0 and Time.get_ticks_usec() >= deadline_usec:
 			break

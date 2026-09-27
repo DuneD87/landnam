@@ -39,6 +39,9 @@ const LOD_CELL_SCALES: Array[int] = [1, 1, 2]
 const SHADOW_LODS := 2
 
 var instancer: VoxelInstancer
+## LODs que proyectan sombra con las opciones gráficas: todos los de SHADOW_LODS, solo el LOD0
+## (sombras de vegetación cercanas) o ninguno.
+var _shadow_lods := SHADOW_LODS
 ## Coste del último reparto (µs) y del último _process (µs), para las medidas.
 var last_sweep_usec := 0
 var last_frame_usec := 0
@@ -60,6 +63,7 @@ var _uploads: Array = []
 func _init(p_instancer: VoxelInstancer) -> void:
 	name = "TreeDetailRenderer"
 	instancer = p_instancer
+	_shadow_lods = [0, 1, SHADOW_LODS][SettingsManager.vegetation_shadows()]
 	top_level = true
 	# El proyecto tiene la interpolación física activada: un MultiMesh interpolado mezcla cada
 	# instancia con la del mismo índice en el buffer anterior. Al rehacer el reparto de una
@@ -188,7 +192,7 @@ func _set_cell(library_id: int, slot: Vector4i, buffer: PackedFloat32Array) -> v
 		multimesh.mesh = _items[library_id].meshes[slot.w]
 		mmi = MultiMeshInstance3D.new()
 		mmi.multimesh = multimesh
-		if slot.w >= SHADOW_LODS:
+		if slot.w >= _shadow_lods:
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
 		cells[slot] = mmi

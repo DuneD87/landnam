@@ -37,6 +37,8 @@ var _underwater: bool = false
 var _underwater_blend: float = 0.0
 ## Índices [bus, efecto] de cada filtro paso bajo encontrado en FILTERED_BUSES.
 var _filters: Array[Vector2i] = []
+## Volumen del layout de cada bus (dB), guardado la primera vez que se toca desde opciones.
+var _mix_db: Dictionary = {}
 
 ## Sonidos continuos registrados. Las entradas muertas se limpian en el propio barrido.
 var _loops: Array[EntityAudio] = []
@@ -207,12 +209,15 @@ func set_underwater(active: bool) -> void:
 	_underwater = active
 
 
-## Volumen de un bus en lineal [0..1], para el menú de opciones.
+## Volumen de un bus en lineal [0..1], para el menú de opciones. Es relativo a la mezcla del
+## layout (la música ya va a -6 dB): 1.0 deja el bus como lo dejó el layout.
 func set_bus_volume(bus_name: StringName, linear: float) -> void:
 	var index := AudioServer.get_bus_index(bus_name)
 	if index < 0:
 		return
-	AudioServer.set_bus_volume_db(index, linear_to_db(clampf(linear, 0.0, 1.0)))
+	var mix_db: float = _mix_db.get(bus_name, AudioServer.get_bus_volume_db(index))
+	_mix_db[bus_name] = mix_db
+	AudioServer.set_bus_volume_db(index, mix_db + linear_to_db(clampf(linear, 0.0, 1.0)))
 	AudioServer.set_bus_mute(index, linear <= 0.001)
 
 
@@ -220,7 +225,8 @@ func get_bus_volume(bus_name: StringName) -> float:
 	var index := AudioServer.get_bus_index(bus_name)
 	if index < 0:
 		return 0.0
-	return db_to_linear(AudioServer.get_bus_volume_db(index))
+	var mix_db: float = _mix_db.get(bus_name, AudioServer.get_bus_volume_db(index))
+	return db_to_linear(AudioServer.get_bus_volume_db(index) - mix_db)
 
 
 ## Estado del pool y descartes acumulados, para la consola de depuración.

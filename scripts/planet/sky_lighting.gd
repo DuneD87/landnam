@@ -319,9 +319,12 @@ func _update(observer: Vector3, delta: float) -> void:
 	if moon_light != null and moon != null:
 		var hint := up if absf(up.dot(moon_dir)) < 0.99 else Vector3.RIGHT
 		moon_light.global_basis = Basis.looking_at(-moon_dir, hint)
-	# Una sola luz con sombras a la vez: la luna las toma cuando el sol ya no alumbra.
-	if moon_light != null and moon_light.shadow_enabled == sun_light.visible:
-		moon_light.shadow_enabled = not sun_light.visible
+	# Una sola luz con sombras a la vez: la luna las toma cuando el sol ya no alumbra, si el sol
+	# las tiene (las opciones gráficas las apagan en el sol).
+	if moon_light != null:
+		var moon_shadows := sun_light.shadow_enabled and not sun_light.visible
+		if moon_light.shadow_enabled != moon_shadows:
+			moon_light.shadow_enabled = moon_shadows
 
 	# --- Cielo ---
 	var sun_ref := sun_dir - up * sun_sin

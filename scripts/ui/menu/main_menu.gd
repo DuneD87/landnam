@@ -6,6 +6,7 @@ extends Control
 
 var _save_button: Button
 var _load_button: Button
+var _options_button: Button
 
 
 func _ready() -> void:
@@ -16,6 +17,9 @@ func _ready() -> void:
 
 	_save_button = find_child("btnSaveGame")
 	_load_button = find_child("btnLoadGame")
+	_options_button = find_child("btnOptions")
+	if _options_button:
+		_options_button.pressed.connect(_on_options_pressed)
 
 	if _save_button:
 		_save_button.pressed.connect(_on_save_pressed)
@@ -72,6 +76,11 @@ func _on_character_creation_cancelled(screen: CharacterCreationScreen) -> void:
 	fade_in()
 
 
+## Encima del menú, que sigue debajo al cerrarla (también en partida, donde hace de pausa).
+func _on_options_pressed() -> void:
+	get_parent().add_child(OptionsScreen.new())
+
+
 func _on_quit_pressed() -> void:
 	get_tree().quit()
 
@@ -125,6 +134,8 @@ func _set_buttons_disabled(disabled: bool) -> void:
 		_save_button.disabled = disabled
 	if _load_button:
 		_load_button.disabled = disabled
+	if _options_button:
+		_options_button.disabled = disabled
 
 
 func _get_all_controls() -> Array[Control]:

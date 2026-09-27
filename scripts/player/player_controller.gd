@@ -802,6 +802,9 @@ func _input(event):
 	# La pantalla de creación de personaje gestiona su propio Escape.
 	if GameManager.current_state == GameManager.State.CHARACTER_CREATION:
 		return
+	# La pantalla de opciones se cierra con su propio Escape.
+	if OptionsScreen.is_open():
+		return
 	if Input.is_action_just_pressed("ui_cancel"):
 		if blueprint_placer and blueprint_placer.is_active():
 			blueprint_placer.cancel()
@@ -869,8 +872,9 @@ func _input(event):
 	if free_flight_enabled:
 		player_model.visible = false
 		if event is InputEventMouseMotion and mouse_captured:
-			free_flight_controller.delta_yaw += -event.relative.x * mouse_sensitivity
-			free_flight_controller.delta_pitch += -event.relative.y * mouse_sensitivity * (-1 if invert_y else 1)
+			var sensitivity := mouse_sensitivity * SettingsManager.mouse_scale
+			free_flight_controller.delta_yaw += -event.relative.x * sensitivity
+			free_flight_controller.delta_pitch += -event.relative.y * sensitivity * (-1 if invert_y != SettingsManager.invert_y else 1)
 	else:
 		if !camera_controller.first_person:
 			player_model.visible = true

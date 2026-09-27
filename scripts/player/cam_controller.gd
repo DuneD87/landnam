@@ -62,13 +62,18 @@ func reset_camera_rotation():
 	camera.position = Vector3.ZERO
 	update_camera_transform()
 
+## Sensibilidad de la escena por el multiplicador de las opciones.
+func _look_sensitivity() -> float:
+	return mouse_sensitivity * SettingsManager.mouse_scale
+
+
 func _input(event: InputEvent):
 	if event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED \
 			and lock_point != null:
-		_lock_swipe += -event.relative.x * mouse_sensitivity
+		_lock_swipe += -event.relative.x * _look_sensitivity()
 	elif event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
-		delta_yaw += -event.relative.x * mouse_sensitivity
-		delta_pitch += -event.relative.y * mouse_sensitivity * (-1 if invert_y else 1)
+		delta_yaw += -event.relative.x * _look_sensitivity()
+		delta_pitch += -event.relative.y * _look_sensitivity() * (-1 if invert_y != SettingsManager.invert_y else 1)
 	elif event is InputEventMouseButton and event.pressed:
 		if not zoom_enabled:
 			return

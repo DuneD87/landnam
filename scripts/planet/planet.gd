@@ -408,7 +408,12 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 			multi_mesh_item.set_mesh(shared_data.effective_mesh, 0)
 
 
-	if not item.get("cast_shadow", true):
+	# Opciones gráficas: sin sombras de vegetación, o solo las de los árboles cercanos (las del
+	# impostor, que es lo que proyecta a partir del LOD2, se quitan; ver TreeDetailRenderer).
+	var shadows_level: int = SettingsManager.vegetation_shadows()
+	var casts: bool = item.get("cast_shadow", true) and shadows_level > 0 \
+		and not (shadows_level == 1 and item.has("tree_lods"))
+	if not casts:
 		if "cast_shadow" in multi_mesh_item:
 			multi_mesh_item.cast_shadow = RenderingServer.SHADOW_CASTING_SETTING_OFF
 		else:
@@ -576,6 +581,16 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 
 	var emit_as_scene: bool = item.get("instance_as_scene", false)
 
+	# Hierba y sotobosque siguen las opciones gráficas: menos densidad y, de cerca a lejos, se
+	# quitan bandas enteras (la última que queda ya se desvanece en su propio alcance).
+	var ground_cover: bool = not grass_cfg.is_empty() or not patch_cfg.is_empty()
+	var cover_density: float = 1.0
+	if ground_cover:
+		cover_density = SettingsManager.grass_density_scale()
+		lod_indices = lod_indices.filter(func(lod: int) -> bool: return lod <= SettingsManager.grass_max_band())
+		if lod_indices.is_empty():
+			return
+
 	for generator_name in generator_names:
 		var generator_config = null
 		for gc in generators:
@@ -592,6 +607,7 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 
 		for lod_index in lod_indices:
 			var generator: VoxelInstanceGenerator = _build_generator(generator_config, graph_functions, lod_index)
+			generator.density *= cover_density
 			_apply_item_height(generator, item, shared_data)
 			var band_data: Dictionary = shared_data
 			if not grass_cfg.is_empty():
@@ -637,7 +653,7 @@ func _register_tree_item(i: int, item: Dictionary, shared_data: Dictionary, gene
 			if material is ShaderMaterial and material.shader.resource_path.ends_with("tree_foliage.gdshader"):
 				foliage = material
 		impostor = TreeOctaImpostor.build_mesh(lm[0], scene_name, foliage)
-	var far_bands: int = int(item.tree_lods.get("far_bands", 2))
+	var far_bands: int = SettingsManager.forest_far_bands(int(item.tree_lods.get("far_bands", 2)))
 	var fade: Dictionary = TreeDetailRenderer.impostor_fade()
 	if far_bands > 0:
 		var handoff: Vector2 = _tree_band_reach(band)
