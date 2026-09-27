@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/iron_mace.res" id="1_cwkj7"]
+
+[node name="IronMace" type="Node3D" unique_id=1609122726]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1506932382]
+mesh = ExtResource("1_cwkj7")

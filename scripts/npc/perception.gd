@@ -70,6 +70,12 @@ func _physics_step(delta: float) -> void:
 		target_lost.emit()
 
 
+## Olvida al objetivo detectado sin avisar (reaparición del jugador: la criatura se calma).
+func forget() -> void:
+	_detected = null
+	_timer = check_interval
+
+
 func _scan() -> Node3D:
 	if detect_player and is_instance_valid(_player_cache) and _can_detect(_player_cache):
 		return _player_cache

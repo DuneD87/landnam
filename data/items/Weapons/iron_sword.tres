@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/iron_sword.png" id="1_icon"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_script"]
+
+[resource]
+script = ExtResource("2_script")
+id = &"iron_sword"
+display_name = "Espada de hierro"
+description = "Hoja recta de doble filo. Rápida y equilibrada: encadena golpes sin dejar hueco."
+icon = ExtResource("1_icon")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/iron_sword.tscn"
+armor_slot = 6
+weapon_type = 1
+damage = 30
+attack_speed = 1.45
+reach = 0.93
+blade_start = 0.14
+blade_radius = 0.07
+damage_kind = 0
+stamina_cost = 16.0
+poise_damage = 18.0
+heavy_multiplier = 1.8
+stackable = false
+max_stack = 1
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

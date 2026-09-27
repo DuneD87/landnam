@@ -39,6 +39,18 @@ var _is_dying: bool = false
 
 ## Segundos que el NPC queda paralizado tras recibir un golpe.
 @export var hit_stun_duration: float = 0.35
+
+@export_group("Combate")
+## Hueso de la cabeza: lleva un hurtbox propio que duele más. Vacío = solo el del cuerpo.
+@export var head_bone: StringName = &""
+@export var head_radius: float = 0.35
+@export var head_multiplier: float = 1.5
+## Cadena de huesos que dobla el respingo al encajar un golpe (tronco → cabeza).
+@export var flinch_bones: Array[String] = []
+
+## Zonas que reciben golpes: el cuerpo (copia de la cápsula de colisión) y la cabeza.
+var hurtboxes: Array[Hurtbox] = []
+var hit_react: HitReact
 var is_hit: bool = false
 var _hit_timer: float = 0.0
 
@@ -88,8 +100,11 @@ func _ready() -> void:
 	ai_controller.npc = self
 	ai_controller.movement = movement
 
+	_build_hurtboxes()
+
 	movement.landed.connect(_on_landed)
 	health_component.damaged.connect(_on_damaged)
+	health_component.hit_received.connect(_on_hit_received)
 	if not health_component.died.is_connected(_on_health_depleted):
 		health_component.died.connect(_on_health_depleted)
 
@@ -107,6 +122,11 @@ func _physics_process(delta: float) -> void:
 
 
 func _physics_step(delta: float) -> void:
+	if _head_holder != null:
+		# El hueso trae la escala del armature (0,01): se deshace para que la esfera mida metros.
+		var s := _head_holder.get_parent_node_3d().global_basis.get_scale().x
+		if s > 1e-4:
+			_head_holder.scale = Vector3.ONE / s
 	if not planet:
 		update_nearest_planet()
 		return
@@ -182,6 +202,59 @@ func _on_damaged(_amount: float, source: Node) -> void:
 		ai_controller.transition_to(detect_state)
 
 
+## Hurtboxes del cuerpo y de la cabeza, y el respingo. Se crean aquí para que cualquier criatura
+## con esqueleto se pueda golpear sin tocar su escena.
+func _build_hurtboxes() -> void:
+	if collision_shape != null and collision_shape.shape != null:
+		var body_box := Hurtbox.attach(self, self, collision_shape.shape, collision_shape.transform, &"body")
+		body_box.health = health_component
+		hurtboxes.append(body_box)
+	var skeleton := npc_model.get_node_or_null("Armature/Skeleton3D") as Skeleton3D
+	if skeleton == null:
+		return
+	if head_bone != &"" and skeleton.find_bone(head_bone) >= 0:
+		var attachment := BoneAttachment3D.new()
+		attachment.name = "HeadHurtbox"
+		attachment.bone_name = head_bone
+		skeleton.add_child(attachment)
+		var sphere := SphereShape3D.new()
+		# La esfera se mide en metros aunque el hueso venga escalado (el armature va a 0,01).
+		sphere.radius = head_radius
+		var holder := Node3D.new()
+		attachment.add_child(holder)
+		holder.set_as_top_level(false)
+		var head_box := Hurtbox.attach(holder, self, sphere, Transform3D.IDENTITY, &"head", head_multiplier)
+		head_box.health = health_component
+		holder.scale = Vector3.ONE / maxf(attachment.global_basis.get_scale().x, 1e-4) if attachment.is_inside_tree() else Vector3.ONE
+		hurtboxes.append(head_box)
+		_head_holder = holder
+	if not flinch_bones.is_empty():
+		hit_react = HitReact.new()
+		hit_react.name = "HitReact"
+		hit_react.chain = flinch_bones
+		hit_react.max_angle = 14.0
+		skeleton.add_child(hit_react)
+
+
+var _head_holder: Node3D
+
+
+func _set_hurtboxes_enabled(value: bool) -> void:
+	for box in hurtboxes:
+		if is_instance_valid(box):
+			box.set_enabled(value)
+
+
+func _on_hit_received(info: DamageInfo, applied: float) -> void:
+	if hit_react != null and applied > 0.0:
+		hit_react.flinch(info.direction, up_direction, clampf(applied / 30.0, 0.35, 1.2))
+
+
+## Punto al que se apunta al fijar este objetivo (centro de la cápsula).
+func get_lock_point() -> Vector3:
+	return collision_shape.global_position if collision_shape != null else global_position
+
+
 func _on_landed(impact_speed: float) -> void:
 	health_component.take_fall_damage(impact_speed)
 
@@ -202,6 +275,9 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	_hit_timer = 0.0
 	collision_layer = NPC_LIVE_LAYER
 	collision_mask = 1 | NPC_LIVE_LAYER
+	_set_hurtboxes_enabled(true)
+	if health_component != null:
+		health_component.revive()
 	_frame_offset = rng.randi() % AI_STRIDE_FAR
 	_ai_update_stride = 1
 	super.activate(point, environment, rng)
@@ -231,6 +307,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 func deactivate() -> void:
 	is_dead = false
 	_is_dying = false
+	_set_hurtboxes_enabled(false)
 	super.deactivate()
 	if perception:
 		perception.set_physics_process(false)
@@ -271,6 +348,7 @@ func die(point: Vector3) -> void:
 func _on_died() -> void:
 	_is_dying = true
 	active = false
+	_set_hurtboxes_enabled(false)
 	ai_controller.desired_direction = Vector3.ZERO
 	ai_controller.is_attacking = false
 	if perception:

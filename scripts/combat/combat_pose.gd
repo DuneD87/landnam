@@ -1,0 +1,641 @@
+class_name CombatPose
+extends SkeletonModifier3D
+
+## Poses de combate que el esqueleto Mixamo no trae animadas, montadas por código sobre la
+## animación que esté sonando:
+##   - ovillo al rodar (pose absoluta, no sumada a la animación; el giro y el apoyo en el suelo
+##     los pone RollMotion sobre PlayerModel),
+##   - apuntar con arco, tirachinas o lanza (torso de perfil y brazos por IK de dos huesos hacia
+##     el blanco y la mejilla),
+##   - caída al morir (brazos abiertos y cabeza ladeada; el vuelco lo pone PlayerCombat).
+##
+## Todos los giros se expresan en el marco del modelo (adelante +Z, arriba +Y, +X a la izquierda
+## del personaje) y se convierten al del esqueleto, así que no dependen de los ejes de cada hueso.
+## Después de posar llama a [after_pose], donde el dueño coloca el arco, la flecha o la lanza
+## sobre las manos ya resueltas.
+
+## Marco de agarre en la mano derecha (hueso RightHandMiddle2, que va en centímetros): el +Y
+## del arma (hacia la punta) sale por el lado del pulgar, el +Z (filo) hacia el dorso de la
+## mano. Medido sobre cómo sujeta el rig el hacha y el pico de piedra que ya existían.
+const RIGHT_GRIP := Transform3D(Basis(Vector3(0, 0, 100), Vector3(100, 0, 0), Vector3(0, 100, 0)), Vector3(-1.5, -2.0, 1.0))
+## Lo mismo en la izquierda: el rig refleja el eje X de los huesos del lado izquierdo.
+const LEFT_GRIP := Transform3D(Basis(Vector3(0, 0, -100), Vector3(-100, 0, 0), Vector3(0, 100, 0)), Vector3(1.5, -2.0, 1.0))
+
+const B_HIPS := "mixamorig_Hips"
+const SPINE := ["mixamorig_Spine", "mixamorig_Spine1", "mixamorig_Spine2"]
+const NECK := ["mixamorig_Neck", "mixamorig_Head"]
+const L_ARM := ["mixamorig_LeftArm", "mixamorig_LeftForeArm", "mixamorig_LeftHand"]
+const R_ARM := ["mixamorig_RightArm", "mixamorig_RightForeArm", "mixamorig_RightHand"]
+const L_LEG := ["mixamorig_LeftUpLeg", "mixamorig_LeftLeg", "mixamorig_LeftFoot"]
+const R_LEG := ["mixamorig_RightUpLeg", "mixamorig_RightLeg", "mixamorig_RightFoot"]
+
+## Nodo cuyo marco manda (PlayerModel): +Z adelante, +Y arriba.
+var frame_node: Node3D
+
+## 0..1 cuánto ovillo (agachada del paso atrás).
+var tuck: float = 0.0
+## Fase de la voltereta (0..1), o negativo si no está rodando. Ver RollMotion.
+var roll_x: float = -1.0
+## Rueda sobre el hombro izquierdo en vez del derecho.
+var roll_mirror: bool = false
+## 0..1 cuánto manda la pose de apuntar.
+var aim_weight: float = 0.0
+## Dirección de tiro en mundo (normalizada).
+var aim_dir: Vector3 = Vector3.FORWARD
+## 0..1 tensión (arco/tirachinas) o carga del lanzamiento.
+var draw: float = 0.0
+## &"bow", &"sling" o &"throw".
+var aim_style: StringName = &"bow"
+## 0..1 avance del brazo al soltar la lanza.
+var release: float = 0.0
+## Brazos por IK al apuntar. Con una animación de apuntar (arco, lanza) va apagado y solo se
+## inclina el tronco hacia el blanco, sobre la pose de la animación.
+var aim_arms_ik: bool = true
+## Giro (grados, marco del modelo) de la cadera en la animación de tronco que suena, o NAN si
+## no hay. Ese canal no mueve la cadera (las piernas siguen andando), así que el tronco se
+## lleva a donde lo tendría sobre la cadera de la animación: el arquero y el lanzador se ponen
+## de perfil como en el original.
+var upper_hips_yaw: float = NAN
+## 0..1 pose de muerto.
+var death: float = 0.0
+## Movimiento de cuerpo entero en curso (BodyMotion.STAGGER o BACKSTEP), su fase 0..1 (o
+## negativa si no hay), hacia dónde se mueve el cuerpo (marco del modelo, horizontal), cuántos
+## metros recorre, cuánta fuerza (escala los gestos) y qué pie da el primer paso.
+var motion: Dictionary = {}
+var motion_x: float = -1.0
+var motion_push: Vector3 = Vector3.FORWARD
+var motion_distance: float = 0.0
+var motion_power: float = 1.0
+var motion_left_first: bool = true
+var motion_travel: Callable = BodyMotion.stagger_travel
+
+## Ciclo del arquero (arco con los brazos por IK).
+var archery := ArcheryPose.new()
+## Lanzamiento de lanza por IK.
+var throw := ThrowPose.new()
+
+## Arma de combate en la mano derecha: los dedos cierran el puño alrededor del mango y
+## right_grip_xform (mundo) dice dónde va el marco de agarre del arma (+Y hacia la punta, +Z
+## hacia donde mira el filo), respecto a la palma y no a un dedo.
+var grip_right: bool = false
+var right_grip_xform: Transform3D
+
+## Llamado tras posar, con este modificador (para colocar visuales sobre las manos).
+var after_pose: Callable
+## Si está activo, tras posar mide los huesos de contacto de la voltereta (RollMotion.sample) y
+## los deja en contact_sample. Tiene que ser aquí: fuera del modificador el esqueleto devuelve la
+## pose animada, sin el ovillo.
+var sample_contacts: bool = false
+var contact_sample: Dictionary = {}
+var _contact_cache: Dictionary = {}
+
+var _skel: Skeleton3D
+var _idx: Dictionary = {}
+var _delta: float = 1.0 / 60.0
+
+
+func _ready() -> void:
+	_skel = get_skeleton()
+	if _skel == null:
+		active = false
+		return
+	for group in [[B_HIPS], SPINE, NECK, L_ARM, R_ARM, L_LEG, R_LEG,
+			["mixamorig_LeftShoulder", "mixamorig_RightShoulder"]]:
+		for bone_name in group:
+			_idx[bone_name] = _skel.find_bone(bone_name)
+
+
+func _process_modification_with_delta(delta: float) -> void:
+	_delta = delta
+	_apply()
+
+
+func _process_modification() -> void:
+	_apply()
+
+
+func is_idle() -> bool:
+	return tuck <= 0.001 and aim_weight <= 0.001 and death <= 0.001 and roll_x < 0.0 and motion_x < 0.0
+
+
+func _apply() -> void:
+	if _skel == null or frame_node == null:
+		return
+	if not is_idle():
+		if roll_x >= 0.0:
+			_apply_roll(roll_x)
+		elif tuck > 0.001:
+			_apply_tuck(tuck)
+		if motion_x >= 0.0 and not motion.is_empty():
+			_apply_motion(motion_x)
+		if death > 0.001:
+			_apply_death(death)
+		if aim_weight > 0.001:
+			_apply_aim(aim_weight)
+	if grip_right:
+		_apply_grip()
+	if sample_contacts:
+		contact_sample = RollMotion.sample(_skel, frame_node, _contact_cache)
+	if after_pose.is_valid():
+		after_pose.call(self)
+
+
+# ---------------------------------------------------------------------------------------------
+# Utilidades
+
+
+## Eje del marco del modelo expresado en el espacio del esqueleto.
+func model_dir(model_axis: Vector3) -> Vector3:
+	var world := frame_node.global_basis * model_axis
+	return (_skel.global_basis.inverse() * world).normalized()
+
+
+## Dirección de mundo al espacio del esqueleto.
+func to_skel_dir(world: Vector3) -> Vector3:
+	return (_skel.global_basis.inverse() * world).normalized()
+
+
+func to_skel_point(world: Vector3) -> Vector3:
+	return _skel.global_transform.affine_inverse() * world
+
+
+func to_world_point(skel_point: Vector3) -> Vector3:
+	return _skel.global_transform * skel_point
+
+
+func bone_idx(bone_name: String) -> int:
+	if not _idx.has(bone_name) and _skel != null:
+		_idx[bone_name] = _skel.find_bone(bone_name)
+	return _idx.get(bone_name, -1)
+
+
+## Giro de la cadera en el marco del modelo, en grados (mismo criterio que
+## PlayerCombat._anim_hips_yaw: el +Z de su base proyectado en el suelo).
+func hips_yaw() -> float:
+	var hips := bone_idx(B_HIPS)
+	if hips < 0:
+		return 0.0
+	var basis := frame_node.global_basis.inverse() * _skel.global_basis * _skel.get_bone_global_pose(hips).basis
+	var z := basis.orthonormalized().z
+	return rad_to_deg(atan2(z.x, z.z))
+
+
+func bone_world(bone_name: String) -> Vector3:
+	var i: int = bone_idx(bone_name)
+	if i < 0:
+		return Vector3.ZERO
+	return _skel.global_transform * _skel.get_bone_global_pose(i).origin
+
+
+## Transform del hueso en mundo, con la escala del esqueleto (para colgar cosas en su marco).
+func bone_world_xform(bone_name: String) -> Transform3D:
+	var i: int = bone_idx(bone_name)
+	if i < 0:
+		return _skel.global_transform
+	return _skel.global_transform * _skel.get_bone_global_pose(i)
+
+
+func bone_world_basis(bone_name: String) -> Basis:
+	var i: int = bone_idx(bone_name)
+	if i < 0:
+		return Basis.IDENTITY
+	return (_skel.global_transform * _skel.get_bone_global_pose(i)).basis.orthonormalized()
+
+
+## Gira el hueso [rot] (espacio del esqueleto) sobre su pose actual, conservando su origen.
+func rotate_bone(bone_name: String, rot: Quaternion) -> void:
+	var bone: int = bone_idx(bone_name)
+	if bone < 0:
+		return
+	var new_basis := Basis(rot) * _skel.get_bone_global_pose(bone).basis
+	var parent := _skel.get_bone_parent(bone)
+	if parent >= 0:
+		new_basis = _skel.get_bone_global_pose(parent).basis.inverse() * new_basis
+	_skel.set_bone_pose_rotation(bone, new_basis.get_rotation_quaternion())
+
+
+func rotate_about(bone_name: String, model_axis: Vector3, degrees: float) -> void:
+	if absf(degrees) < 0.01:
+		return
+	rotate_bone(bone_name, Quaternion(model_dir(model_axis), deg_to_rad(degrees)))
+
+
+## Rotación mínima que lleva [from] a [to].
+static func arc(from: Vector3, to: Vector3) -> Quaternion:
+	var a := from.normalized()
+	var b := to.normalized()
+	var axis := a.cross(b)
+	var s := axis.length()
+	if s < 1e-6:
+		return Quaternion.IDENTITY
+	return Quaternion(axis / s, atan2(s, a.dot(b)))
+
+
+## IK analítico de dos huesos. [target] y [pole] en espacio del esqueleto. [weight] mezcla con la
+## pose animada.
+func two_bone(chain: Array, target: Vector3, pole: Vector3, weight: float) -> void:
+	var i0: int = bone_idx(chain[0])
+	var i1: int = bone_idx(chain[1])
+	var i2: int = bone_idx(chain[2])
+	if i0 < 0 or i1 < 0 or i2 < 0 or weight <= 0.0:
+		return
+	var p0 := _skel.get_bone_global_pose(i0).origin
+	var p1 := _skel.get_bone_global_pose(i1).origin
+	var p2 := _skel.get_bone_global_pose(i2).origin
+	var l1 := p0.distance_to(p1)
+	var l2 := p1.distance_to(p2)
+	var to_target := target - p0
+	var d := clampf(to_target.length(), 0.001, (l1 + l2) * 0.999)
+	var dir := to_target.normalized()
+	var a := (l1 * l1 - l2 * l2 + d * d) / (2.0 * d)
+	var h := sqrt(maxf(l1 * l1 - a * a, 0.0))
+	var bend := pole - dir * pole.dot(dir)
+	if bend.length_squared() < 1e-8:
+		bend = dir.cross(Vector3.RIGHT if absf(dir.x) < 0.9 else Vector3.UP)
+	bend = bend.normalized()
+	var elbow := p0 + dir * a + bend * h
+	var q1 := arc(p1 - p0, elbow - p0)
+	q1 = Quaternion.IDENTITY.slerp(q1, weight)
+	rotate_bone(chain[0], q1)
+	# Tras girar el brazo, el antebrazo arranca en el codo nuevo.
+	var p1n := _skel.get_bone_global_pose(i1).origin
+	var p2n := _skel.get_bone_global_pose(i2).origin
+	var q2 := arc(p2n - p1n, target - p1n)
+	q2 = Quaternion.IDENTITY.slerp(q2, weight)
+	rotate_bone(chain[1], q2)
+
+
+## Unidades del esqueleto por metro (este rig va en centímetros).
+func unit() -> float:
+	return frame_node.global_basis.get_scale().x / _skel.global_basis.get_scale().x
+
+
+func skeleton() -> Skeleton3D:
+	return _skel
+
+
+## Posición del hueso en el espacio del esqueleto (pose ya modificada hasta aquí).
+func bone_pos(bone_name: String) -> Vector3:
+	var i := bone_idx(bone_name)
+	return _skel.get_bone_global_pose(i).origin if i >= 0 else Vector3.ZERO
+
+
+## Cuánto ha girado el hueso respecto a su reposo, en el espacio del esqueleto: lleva una
+## dirección del cuerpo en reposo a donde apunta ahora.
+func rest_delta(bone_name: String) -> Basis:
+	var i := bone_idx(bone_name)
+	if i < 0:
+		return Basis.IDENTITY
+	var now := _skel.get_bone_global_pose(i).basis.orthonormalized()
+	var rest := _skel.get_bone_global_rest(i).basis.orthonormalized()
+	return now * rest.inverse()
+
+
+## Marco de la cara en el espacio del esqueleto: x a su derecha, y arriba, z hacia donde mira.
+func face_frame() -> Basis:
+	var d := rest_delta(NECK[1])
+	var fwd := (d * model_dir(Vector3.BACK)).normalized()
+	var up := (d * model_dir(Vector3.UP)).normalized()
+	return Basis(fwd.cross(up), up, fwd)
+
+
+## Rota el hueso para que su segmento (hasta [child]) se incline [degrees] hacia [toward].
+func swing_bone(bone_name: String, child: String, toward: Vector3, degrees: float) -> void:
+	if absf(degrees) < 0.01:
+		return
+	var seg := bone_pos(child) - bone_pos(bone_name)
+	var axis := seg.cross(toward)
+	if axis.length_squared() < 1e-10:
+		return
+	rotate_bone(bone_name, Quaternion(axis.normalized(), deg_to_rad(degrees)))
+
+
+# ---------------------------------------------------------------------------------------------
+# Manos
+
+
+const FINGERS := ["Index", "Middle", "Ring", "Pinky"]
+
+
+## Marco de la mano [side] ("Left"/"Right") en el espacio del esqueleto: x de la muñeca al
+## nudillo del corazón, y la normal de la palma (hacia donde se cierran los dedos) y z el eje
+## sobre el que se doblan (x × y). Con [rest], el de la pose de reposo.
+func hand_frame(side: String, rest: bool = false) -> Basis:
+	var pos := func(bone_name: String) -> Vector3:
+		var i := bone_idx(bone_name)
+		if i < 0:
+			return Vector3.ZERO
+		return (_skel.get_bone_global_rest(i) if rest else _skel.get_bone_global_pose(i)).origin
+	var hand: Vector3 = pos.call("mixamorig_%sHand" % side)
+	var d: Vector3 = (pos.call("mixamorig_%sHandMiddle1" % side) - hand).normalized()
+	var lat: Vector3 = pos.call("mixamorig_%sHandPinky1" % side) - pos.call("mixamorig_%sHandIndex1" % side)
+	var n := d.cross(lat) if side == "Right" else lat.cross(d)
+	n = (n - d * n.dot(d)).normalized()
+	return Basis(d, n, d.cross(n))
+
+
+## Gira la mano para que sus nudillos apunten a [dir] y la palma mire a [palm] (espacio del
+## esqueleto). La parte del giro que es torcer la muñeca sobre el antebrazo la hace sobre todo
+## el antebrazo (pronación), como el cuerpo: si la hiciera solo la mano, la piel de la muñeca se
+## retorcería.
+func orient_hand(side: String, dir: Vector3, palm: Vector3, weight: float, forearm_share: float = 0.7) -> void:
+	if weight <= 0.001:
+		return
+	var d := dir.normalized()
+	var n := (palm - d * palm.dot(d)).normalized()
+	var want := Basis(d, n, d.cross(n))
+	var forearm := "mixamorig_%sForeArm" % side
+	var hand := "mixamorig_%sHand" % side
+	var axis := (bone_pos(hand) - bone_pos(forearm)).normalized()
+	var q := (want * hand_frame(side).inverse()).get_rotation_quaternion()
+	# Giro alrededor del eje del antebrazo (descomposición swing-twist).
+	var proj := axis * Vector3(q.x, q.y, q.z).dot(axis)
+	var twist := Quaternion(proj.x, proj.y, proj.z, q.w)
+	if twist.length_squared() > 1e-8:
+		twist = twist.normalized()
+		rotate_bone(forearm, Quaternion.IDENTITY.slerp(twist, forearm_share * weight))
+	q = (want * hand_frame(side).inverse()).get_rotation_quaternion()
+	rotate_bone(hand, Quaternion.IDENTITY.slerp(q, weight))
+
+
+## Dedos de la mano [side] en una pose absoluta, sea cual sea la animación: [curls] da por dedo
+## ("Index", "Middle", "Ring", "Pinky") los grados que se dobla cada falange (Vector3, de la base
+## a la punta) y para "Thumb" (oposición hacia la palma, flexión de la segunda y la tercera). Se
+## conserva la separación de los dedos del reposo.
+func pose_fingers(side: String, curls: Dictionary, weight: float) -> void:
+	if weight <= 0.001:
+		return
+	var rest_hand := hand_frame(side, true)
+	var hand := hand_frame(side)
+	var s := 1.0 if side == "Right" else -1.0
+	for finger in FINGERS + ["Thumb"]:
+		var angles: Vector3 = curls.get(finger, Vector3.ZERO)
+		var total := 0.0
+		for k in 3:
+			var bone := "mixamorig_%sHand%s%d" % [side, finger, k + 1]
+			var child := "mixamorig_%sHand%s%d" % [side, finger, k + 2]
+			var bi := bone_idx(bone)
+			var ci := bone_idx(child)
+			if bi < 0 or ci < 0:
+				break
+			var rest_dir := rest_hand.inverse() * (_skel.get_bone_global_rest(ci).origin - _skel.get_bone_global_rest(bi).origin).normalized()
+			var want: Vector3
+			if finger == "Thumb":
+				# Oposición: el pulgar gira sobre el eje de la mano hacia la palma; luego se dobla.
+				var opp := Basis(Vector3.RIGHT, deg_to_rad(-s * angles.x))
+				var dir := opp * rest_dir
+				if k > 0:
+					total += angles[k]
+					var flex_axis := dir.cross(Vector3.UP).normalized()
+					dir = Basis(flex_axis, deg_to_rad(total)) * dir
+				want = hand * dir
+			else:
+				total += angles[k]
+				want = hand * (Basis(Vector3.BACK, deg_to_rad(total)) * rest_dir)
+			var cur := _skel.get_bone_global_pose(ci).origin - _skel.get_bone_global_pose(bi).origin
+			rotate_bone(bone, Quaternion.IDENTITY.slerp(arc(cur, want), weight))
+
+
+## Mezcla dos poses de dedos (ver pose_fingers).
+static func blend_fingers(a: Dictionary, b: Dictionary, t: float) -> Dictionary:
+	var out := {}
+	for key in a:
+		out[key] = (a[key] as Vector3).lerp(b.get(key, a[key]), t)
+	return out
+
+
+# ---------------------------------------------------------------------------------------------
+# Poses
+
+
+## Ovillo de voltereta como pose ABSOLUTA, en cuclillas y con la espalda redonda (sin girar es
+## como se acaba la voltereta; el tirarse de cabeza lo pone el giro de RollMotion): cada segmento apunta a una dirección fija del marco
+## del cuerpo, sea cual sea la animación de debajo (si se sumara a la de correr, las piernas
+## seguirían corriendo dentro del ovillo). Espalda redonda, barbilla al pecho, muslos contra el
+## pecho, talones a las nalgas y brazos abrazando las espinillas.
+## [hueso, hijo, dirección en el marco del modelo (+Z adelante, +Y arriba, +X izquierda)].
+static func _tuck_segments() -> Array:
+	if not _tuck_cache.is_empty():
+		return _tuck_cache
+	var arc_dir := func(deg: float) -> Vector3:
+		return Vector3(0.0, cos(deg_to_rad(deg)), sin(deg_to_rad(deg)))
+	var segs: Array = [
+		["mixamorig_Hips", "mixamorig_Spine", arc_dir.call(8.0)],
+		["mixamorig_Spine", "mixamorig_Spine1", arc_dir.call(24.0)],
+		["mixamorig_Spine1", "mixamorig_Spine2", arc_dir.call(42.0)],
+		["mixamorig_Spine2", "mixamorig_Neck", arc_dir.call(62.0)],
+		["mixamorig_Neck", "mixamorig_Head", arc_dir.call(88.0)],
+		["mixamorig_Head", "mixamorig_HeadTop_End", arc_dir.call(112.0)],
+	]
+	for side in [["Left", 1.0], ["Right", -1.0]]:
+		var n: String = side[0]
+		var s: float = side[1]
+		segs.append(["mixamorig_%sUpLeg" % n, "mixamorig_%sLeg" % n, Vector3(0.13 * s, 0.62, 0.78).normalized()])
+		segs.append(["mixamorig_%sLeg" % n, "mixamorig_%sFoot" % n, Vector3(0.05 * s, -0.22, -0.97).normalized()])
+		segs.append(["mixamorig_%sFoot" % n, "mixamorig_%sToeBase" % n, Vector3(0.0, -0.55, -0.83).normalized()])
+		segs.append(["mixamorig_%sArm" % n, "mixamorig_%sForeArm" % n, Vector3(0.30 * s, -0.50, 0.81).normalized()])
+		segs.append(["mixamorig_%sForeArm" % n, "mixamorig_%sHand" % n, Vector3(-0.60 * s, -0.05, 0.80).normalized()])
+	_tuck_cache = segs
+	return segs
+
+
+static var _tuck_cache: Array = []
+
+
+## Voltereta por posturas clave (RollMotion): cada segmento a su dirección de la fase actual,
+## mezclada con la animación según el peso de entrada y salida.
+func _apply_roll(x: float) -> void:
+	var w := RollMotion.weight(x)
+	if w <= 0.001:
+		return
+	for seg in RollMotion.SEGMENTS:
+		var bone := bone_idx(seg[0])
+		var child := bone_idx(seg[1])
+		if bone < 0 or child < 0:
+			continue
+		var current := _skel.get_bone_global_pose(child).origin - _skel.get_bone_global_pose(bone).origin
+		var q := arc(current, model_dir(RollMotion.direction(seg[2], x, roll_mirror)))
+		rotate_bone(seg[0], Quaternion.IDENTITY.slerp(q, w))
+
+
+func _apply_tuck(w: float) -> void:
+	for seg in _tuck_segments():
+		var bone := bone_idx(seg[0])
+		var child := bone_idx(seg[1])
+		if bone < 0 or child < 0:
+			continue
+		var current := _skel.get_bone_global_pose(child).origin - _skel.get_bone_global_pose(bone).origin
+		var q := arc(current, model_dir(seg[2]))
+		rotate_bone(seg[0], Quaternion.IDENTITY.slerp(q, w))
+
+
+## Puño cerrado sobre un mango (dedos casi del todo doblados, el pulgar por encima).
+const FIST := {"Index": Vector3(58, 72, 42), "Middle": Vector3(66, 78, 44), "Ring": Vector3(72, 78, 42),
+	"Pinky": Vector3(78, 74, 40), "Thumb": Vector3(52, 30, 28)}
+## Mango respecto a la muñeca, en el marco de la mano (hacia los nudillos, hacia la palma), m.
+const FIST_HANDLE := Vector2(0.078, 0.026)
+## El arma sale del puño algo inclinada hacia los nudillos (grados).
+const FIST_TILT := 14.0
+
+
+func _apply_grip() -> void:
+	# La lanza apuntada la agarra ThrowPose a su manera.
+	var w := 1.0
+	if aim_style == &"throw":
+		w = 1.0 - clampf(aim_weight, 0.0, 1.0)
+	pose_fingers("Right", FIST, w)
+	var hand := hand_frame("Right")
+	var m := unit()
+	# El mango cruza la palma: la punta sale por el lado del pulgar (+Z del marco de la mano en
+	# la derecha) y el filo mira al dorso.
+	var y := hand.z.rotated(hand.y, deg_to_rad(-FIST_TILT)).normalized()
+	var z := -hand.y
+	var x := y.cross(z).normalized()
+	z = x.cross(y)
+	var origin := bone_pos("mixamorig_RightHand") + (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * m
+	var to_world := _skel.global_transform
+	right_grip_xform = Transform3D((to_world.basis.orthonormalized() * Basis(x, y, z)).orthonormalized(), to_world * origin)
+
+
+## Tambaleo o paso atrás (BodyMotion): cadera, tronco, cabeza y brazos por claves, y las
+## piernas por IK hacia donde toca cada pie (apoyado, fijo al suelo, o en el aire dando el paso).
+func _apply_motion(x: float) -> void:
+	var w := smoothstep(0.0, 0.05, x) * (1.0 - smoothstep(0.85, 1.0, x))
+	if w <= 0.001:
+		return
+	var push := Vector3(motion_push.x, 0.0, motion_push.z)
+	push = push.normalized() if push.length_squared() > 1e-6 else Vector3.FORWARD
+	var power := clampf(motion_power, 0.4, 1.5)
+	var lean_axis := Vector3.UP.cross(push).normalized()
+	var get := func(key: String) -> float:
+		return float(BodyMotion.sample(motion[key], x))
+	# Pies: dónde estaban en la animación (ya apoyados por el IK de pies) antes de mover nada.
+	var feet := {}
+	for chain in [L_LEG, R_LEG]:
+		feet[chain[2]] = bone_pos(chain[2])
+	var foot_basis := {}
+	for chain in [L_LEG, R_LEG]:
+		foot_basis[chain[2]] = _skel.get_bone_global_pose(bone_idx(chain[2])).basis
+	# Cadera: empujada y hundida (rodillas que ceden).
+	var hips := bone_idx(B_HIPS)
+	if hips >= 0:
+		var shift: Vector3 = (push * get.call("hips_push") * power + Vector3.DOWN * get.call("hips_down")) * w
+		var shift_s: Vector3 = _skel.global_basis.inverse() * (frame_node.global_basis * shift)
+		_skel.set_bone_pose_position(hips, _skel.get_bone_pose_position(hips) + shift_s)
+	# Tronco y cabeza hacia el empujón.
+	var lean: float = get.call("lean") * power * w
+	var shares := [0.3, 0.35, 0.35]
+	for i in SPINE.size():
+		rotate_about(SPINE[i], lean_axis, lean * shares[i])
+	rotate_about(NECK[1], lean_axis, get.call("head") * power * w)
+	# Brazos: se quedan atrás (contra el empujón) y se abren para equilibrar.
+	var fling: float = get.call("arms_fling") * w
+	var out: float = get.call("arms_out") * w
+	var elbows: float = get.call("elbows") * w
+	rotate_about(L_ARM[0], lean_axis, -fling)
+	rotate_about(R_ARM[0], lean_axis, -fling)
+	rotate_about(L_ARM[0], Vector3.BACK, out)
+	rotate_about(R_ARM[0], Vector3.BACK, -out)
+	swing_bone(L_ARM[1], L_ARM[2], model_dir(Vector3.BACK) + model_dir(Vector3.UP) * 0.3, elbows)
+	swing_bone(R_ARM[1], R_ARM[2], model_dir(Vector3.BACK) + model_dir(Vector3.UP) * 0.3, elbows)
+	# Piernas: primero el pie del lado del empujón (o el que toque si va recto).
+	var side := push.dot(Vector3.RIGHT)
+	var left_first := side > 0.3 or (absf(side) <= 0.3 and motion_left_first)
+	var steps: Array = motion["steps"]
+	var order := [L_LEG, R_LEG] if left_first else [R_LEG, L_LEG]
+	var knee_pole := model_dir(Vector3.BACK)
+	for k in 2:
+		var chain: Array = order[k]
+		var off := BodyMotion.foot_offset(x, steps[k], push, motion_distance, motion_travel)
+		# Del marco del modelo (m) al del esqueleto (sus unidades) pasando por el mundo.
+		var target: Vector3 = feet[chain[2]] + _skel.global_basis.inverse() * (frame_node.global_basis * off)
+		two_bone(chain, target, knee_pole, w)
+		# El pie conserva su orientación (plano), no la que le deja el giro de la pierna.
+		var foot := bone_idx(chain[2])
+		var want: Basis = foot_basis[chain[2]]
+		var now := _skel.get_bone_global_pose(foot).basis
+		rotate_bone(chain[2], Quaternion.IDENTITY.slerp((want.orthonormalized() * now.orthonormalized().inverse()).get_rotation_quaternion(), w))
+
+
+## Muerto boca arriba: brazos abiertos, rodillas algo dobladas, cabeza ladeada.
+func _apply_death(w: float) -> void:
+	rotate_about(L_ARM[0], Vector3.BACK, 45.0 * w)
+	rotate_about(R_ARM[0], Vector3.BACK, -40.0 * w)
+	rotate_about(L_ARM[1], Vector3.RIGHT, -25.0 * w)
+	rotate_about(R_ARM[1], Vector3.RIGHT, -35.0 * w)
+	rotate_about(L_LEG[0], Vector3.RIGHT, -18.0 * w)
+	rotate_about(L_LEG[1], Vector3.RIGHT, 30.0 * w)
+	rotate_about(R_LEG[0], Vector3.BACK, -8.0 * w)
+	rotate_about(NECK[1], Vector3.UP, 35.0 * w)
+
+
+## Torso de perfil hacia el blanco y brazos por IK: la izquierda sostiene (arco/tirachinas) o
+## equilibra (lanza), la derecha tensa hasta la mejilla o echa la lanza atrás.
+func _apply_aim(w: float) -> void:
+	var up_m := Vector3.UP
+	# El arquero se pone de perfil: el pecho gira a la derecha y el hombro izquierdo apunta.
+	var twist := 0.0
+	match aim_style:
+		&"bow":
+			twist = -42.0
+		&"sling":
+			twist = -22.0
+		&"throw":
+			twist = lerpf(-35.0, 10.0, release)
+	# Reparto del giro y de la inclinación hacia el blanco entre las vértebras.
+	var aim_local := (frame_node.global_basis.inverse() * aim_dir).normalized()
+	var pitch := rad_to_deg(asin(clampf(aim_local.y, -1.0, 1.0)))
+	if not aim_arms_ik:
+		if not is_nan(upper_hips_yaw):
+			var delta := wrapf(upper_hips_yaw - hips_yaw(), -180.0, 180.0)
+			rotate_about(SPINE[0], up_m, delta * w)
+		# La animación ya apunta al frente (el arquero de Mixamo, unos 10° a su derecha, y 2°
+		# arriba): solo falta llevar el tronco a la altura y al lado del blanco.
+		var yaw_fix := 10.0 if aim_style == &"bow" else 0.0
+		var pitch_fix := pitch - (2.0 if aim_style == &"bow" else 0.0)
+		for bone_name in SPINE:
+			rotate_about(bone_name, up_m, yaw_fix / SPINE.size() * w)
+			rotate_about(bone_name, Vector3.RIGHT, -pitch_fix / SPINE.size() * w)
+		return
+	if aim_style == &"bow":
+		archery.apply(self, w, _delta)
+		return
+	if aim_style == &"throw":
+		throw.apply(self, w)
+		return
+	for bone_name in SPINE:
+		rotate_about(bone_name, up_m, twist / SPINE.size() * w)
+		rotate_about(bone_name, Vector3.RIGHT, -pitch * 0.18 * w)
+
+	var aim_s := to_skel_dir(aim_dir)
+	var up_s := model_dir(Vector3.UP)
+	var left_s := model_dir(Vector3.RIGHT)
+	var right_s := -left_s
+	var l_shoulder := _skel.get_bone_global_pose(_idx[L_ARM[0]]).origin
+	var r_shoulder := _skel.get_bone_global_pose(_idx[R_ARM[0]]).origin
+	var head := _skel.get_bone_global_pose(_idx[NECK[1]]).origin
+	# Las longitudes del esqueleto van en su espacio (centímetros en este rig).
+	var arm_len := l_shoulder.distance_to(_skel.get_bone_global_pose(_idx[L_ARM[1]]).origin) \
+		+ _skel.get_bone_global_pose(_idx[L_ARM[1]]).origin.distance_to(_skel.get_bone_global_pose(_idx[L_ARM[2]]).origin)
+	var unit := arm_len / 0.56 # metros → unidades del esqueleto
+
+	match aim_style:
+		&"bow", &"sling":
+			var reach := 0.97 if aim_style == &"bow" else 0.93
+			var hold := l_shoulder + aim_s * arm_len * reach
+			two_bone(L_ARM, hold, -up_s * 0.6 + left_s, w)
+			# Mano derecha: de la cuerda en reposo al ancla bajo el pómulo.
+			var string_rest := hold - aim_s * 0.16 * unit
+			var anchor := head + right_s * 0.06 * unit - up_s * 0.08 * unit + aim_s * 0.03 * unit
+			if aim_style == &"sling":
+				string_rest = hold - aim_s * 0.10 * unit - up_s * 0.02 * unit
+				anchor = head + right_s * 0.09 * unit - up_s * 0.06 * unit - aim_s * 0.02 * unit
+			var pull := string_rest.lerp(anchor, clampf(draw, 0.0, 1.0))
+			two_bone(R_ARM, pull, right_s * 0.8 + up_s * 0.35 - aim_s * 0.5, w)
+		&"throw":
+			var back := r_shoulder + up_s * 0.20 * unit + right_s * 0.12 * unit - aim_s * (0.30 + 0.12 * draw) * unit
+			var forward := r_shoulder + aim_s * 0.50 * unit + up_s * 0.02 * unit
+			var hand := back.lerp(forward, release)
+			two_bone(R_ARM, hand, right_s + -up_s * 0.6 - aim_s * 0.4, w)
+			var balance := l_shoulder + aim_s * 0.38 * unit - up_s * 0.12 * unit + left_s * 0.10 * unit
+			two_bone(L_ARM, balance, -up_s + left_s * 0.5, w * 0.8)

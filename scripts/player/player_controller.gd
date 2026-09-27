@@ -1,4 +1,5 @@
 extends PlanetaryBody
+class_name PlayerController
 
 ## Controlador del jugador: orquesta movimiento, cámara, nado/flotación, construcción, combate,
 ## inventario/equipamiento, la cinemática de entrada y el guardado/carga, sobre un cuerpo planetario.
@@ -52,6 +53,8 @@ var blueprint_placer: BlueprintPlacer
 var debug_stats: DebugStats
 ## Aplica la apariencia de GameManager.character al PlayerModel (ver CharacterAppearanceRig).
 var appearance_rig: CharacterAppearanceRig
+## Combate cuerpo a cuerpo y a distancia, esquivas, objetivo fijado y muerte (ver PlayerCombat).
+var combat: PlayerCombat
 
 @export var main_menu: Control
 @export var spawn_point: Marker3D
@@ -250,10 +253,12 @@ func _rebind_worn_materials() -> void:
 func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data: ItemData, category: ItemData.Category) -> void:
 	if equip:
 		match category:
-			ItemData.Category.TOOL:
+			ItemData.Category.TOOL, ItemData.Category.WEAPON:
 				equiped_weapon = data
 				var item = scene.instantiate()
-				player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").add_child(item)
+				# El combate decide la mano y el marco de agarre (armas en metros, arco en la
+				# izquierda, herramientas antiguas con su propia escala).
+				combat.attach_weapon(item, data)
 				_register_worn_node(item)
 				right_hand_equipped = true
 			ItemData.Category.ARMOR:
@@ -265,10 +270,11 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 				_register_worn_node(item)
 	else:
 		match category:
-			ItemData.Category.TOOL:
-				var equipped_child = player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").get_child(0)
-				_unregister_worn_node(equipped_child)
-				player_model.get_node("Armature/Skeleton3D/RigthHandAttachment").remove_child(equipped_child)
+			ItemData.Category.TOOL, ItemData.Category.WEAPON:
+				var equipped_child := combat.detach_weapon()
+				if equipped_child != null:
+					_unregister_worn_node(equipped_child)
+					equipped_child.queue_free()
 				right_hand_equipped = false
 			ItemData.Category.ARMOR:
 				var children = player_model.get_node("Armature/Skeleton3D").get_children()
@@ -412,6 +418,9 @@ func _ready():
 	add_child(blueprint_placer)
 	debug_stats = DebugStats.new()
 	add_child(debug_stats)
+	combat = PlayerCombat.new()
+	add_child(combat)
+	combat.setup(self)
 	world_map_ui = WorldMapUI.new()
 	world_map_ui.setup(self)
 	add_child(world_map_ui)
@@ -427,6 +436,11 @@ func _ready():
 	inventory.add_item(config.get_item(&"firstage_skin_hood"), 1)
 	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
+	# Armas para plantar cara a la fauna hostil: una de cada familia y su munición.
+	for weapon_id in [&"iron_sword", &"battle_axe", &"iron_mace", &"hunting_bow", &"slingshot"]:
+		inventory.add_item(config.get_item(weapon_id), 1)
+	inventory.add_item(config.get_item(&"spear"), 3)
+	inventory.add_item(config.get_item(&"arrow"), 40)
 	inventory.add_item(config.get_item(&"wood_01"), 100)
 	inventory.add_item(config.get_item(&"stone_01"), 100)
 
@@ -560,6 +574,7 @@ func restore_save_data(save: Dictionary) -> void:
 		hotbar.restore_save_data(save.hotbar, config)
 	if save.has("hotbar_selected") and save.hotbar_selected >= 0:
 		hotbar.select_slot(save.hotbar_selected)
+	combat.on_restored()
 	_activate_player()
 
 func place_block_at_player() -> void:
@@ -622,12 +637,12 @@ func post_restore() -> void:
 
 
 func _clear_visual_equipment() -> void:
-	var hand = player_model.get_node("Armature/Skeleton3D/RigthHandAttachment")
-	for child in hand.get_children():
-		_unregister_worn_node(child)
-		hand.remove_child(child)
-		child.queue_free()
+	var weapon_node := combat.detach_weapon()
+	if weapon_node != null:
+		_unregister_worn_node(weapon_node)
+		weapon_node.queue_free()
 	equiped_weapon = null
+	right_hand_equipped = false
 
 	var skeleton = player_model.get_node("Armature/Skeleton3D")
 	for child in skeleton.get_children():
@@ -649,6 +664,7 @@ func _find_nearby_corpse(max_dist: float = 4.0) -> NPCController:
 
 func can_perform_action() -> bool:
 	return not (
+		combat.is_busy() or
 		action_controller.is_attacking or
 		movement.is_running or
 		movement.is_sprinting or
@@ -821,6 +837,9 @@ func _input(event):
  
 	if not input_enabled:
 		return
+	# Muerto no se hace nada hasta reaparecer (el menú de Escape sí, arriba).
+	if combat.is_dead():
+		return
  
 	if event is InputEventKey and event.pressed and not blueprint_placer.is_active():
 		if event.is_action_pressed("open_build_menu"):
@@ -897,6 +916,8 @@ func _input(event):
 		if corpse:
 			inventory_ui.open_loot(corpse.inventory)
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		elif combat.try_pickup():
+			pass
 		else:
 			var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 			var item_data = action_controller.handle_pickup(camera, ray_origin)
@@ -906,6 +927,11 @@ func _input(event):
 		inventory_ui.close()
  
  
+	# Golpes, esquivas, apuntar y fijar objetivo. Lo que el combate no consume (talar o picar
+	# con una herramienta sin enemigos cerca, el cañón) sigue abajo.
+	if combat.handle_input(event):
+		return
+
 	if Input.is_action_just_pressed("attack_1") && can_perform_action() && !building_system.build_mode && right_hand_equipped:
 		if equiped_weapon.weapon_type == ItemData.WeaponType.CANNON:
 			_begin_cannon_charge()
@@ -915,16 +941,6 @@ func _input(event):
 			return
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
-	elif Input.is_action_just_pressed("attack_2"):
-		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
-		var raycast_result = action_controller.perform_raycast(ray_origin, camera.global_rotation, true)
-		if raycast_result["has_hit"]:
-			print("hit_pos:", raycast_result["hit_pos"], "\nhit_distance: ", raycast_result["hit_distance"])
-			var deer = load("res://scenes/animals/Bear.tscn").instantiate() as CharacterBody3D
-			get_tree().current_scene.add_child(deer)
-			deer.planets = planets
-			deer.global_position = raycast_result["hit_pos"] - gravity_direction * 10
-			deer.add_to_group("floating_origin")
 	elif Input.is_action_just_released("attack_1"):
 		is_holding_atack = false
 
@@ -1392,10 +1408,13 @@ func update_normal_movement(delta: float) -> void:
 	if right_hand_equipped && (action_controller.is_attacking || (is_holding_atack && !movement.is_running)):
 		current_animation = equiped_weapon.attack_animation
 
+	combat.physics_update(delta, input_dir)
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
-	velocity = movement.velocity
+	velocity = combat.apply_motion(movement.velocity)
 
-	if movement.is_running || movement.is_sprinting:
+	if combat.update_facing(delta, input_dir):
+		pass
+	elif movement.is_running || movement.is_sprinting:
 		rotate_toward_movement(input_dir, delta)
 
 	if movement.is_swimming:

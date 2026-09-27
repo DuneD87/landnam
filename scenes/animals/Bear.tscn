@@ -7,7 +7,7 @@
 [ext_resource type="Script" uid="uid://0eobro8himhn" path="res://scripts/npc/ai/states/idle_state.gd" id="5_dtiw3"]
 [ext_resource type="Script" uid="uid://cyr0kqn4qtln3" path="res://scripts/npc/ai/states/wander_state.gd" id="6_rp2fm"]
 [ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/ui/inventory/inventory.gd" id="8_cp55a"]
-[ext_resource type="Script" uid="uid://dkowfe0604bg1" path="res://scripts/npc/ai/states/combat_state.gd" id="8_hodw2"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/creature_melee_state.gd" id="8_hodw2"]
 [ext_resource type="Script" uid="uid://crifabnl3t42p" path="res://scripts/npc/ai/states/death_state.gd" id="9_r2nls"]
 [ext_resource type="Texture2D" uid="uid://dgt1c40bhgh57" path="res://scenes/animals/Bear_Bear.png" id="11_xli2l"]
 [ext_resource type="Texture2D" uid="uid://uatyskg48vfa" path="res://scenes/animals/Bear_Bear_N.png" id="12_hodw2"]
@@ -224,6 +224,10 @@ script = ExtResource("1_hodw2")
 detect_state = &"CombatState"
 lose_state = &"IdleState"
 npc_type = &"Bear"
+hit_stun_duration = 0.0
+head_bone = &"RigHead"
+head_radius = 0.38
+flinch_bones = Array[String](["RigSpine2", "RigChest", "RigNeck1", "RigHead"])
 entity_id = "npc_2069117348020"
 
 [node name="Movement" type="Node" parent="." unique_id=397881995]
@@ -232,6 +236,7 @@ metadata/_custom_type_script = "uid://coeewlktybkhm"
 
 [node name="HealthComponent" type="Node" parent="." unique_id=1332760514]
 script = ExtResource("3_4fg8c")
+max_health = 240.0
 metadata/_custom_type_script = "uid://c2gobysiknl4o"
 
 [node name="AIController" type="Node" parent="." unique_id=1830328244]
@@ -251,10 +256,7 @@ metadata/_custom_type_script = "uid://cyr0kqn4qtln3"
 
 [node name="CombatState" type="Node" parent="AIController" unique_id=1318050335]
 script = ExtResource("8_hodw2")
-disengage_distance = 2000.0
-attack_cooldown = 2.5
-speed_multiplier = 2.0
-attack_anim_duration = 2.2
+disengage_distance = 45.0
 
 [node name="DeathState" type="Node" parent="AIController" unique_id=1621652429]
 script = ExtResource("9_r2nls")
@@ -271,12 +273,11 @@ metadata/_custom_type_script = "uid://dsyulr1uf8n11"
 
 [node name="Perception" type="Node" parent="." unique_id=987654321]
 script = ExtResource("13_74tfl")
-vision_range = 50.0
+vision_range = 32.0
 vision_half_angle = 70.0
-hearing_range = 20.0
-check_interval = 2.0
+hearing_range = 14.0
+check_interval = 0.5
 hostile_npc_types = Array[StringName]([&"Deer", &"Lion"])
-detect_player = false
 
 [node name="NPCModel" type="Node3D" parent="." unique_id=166788051]
 

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/battle_axe.png" id="1_icon"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_script"]
+
+[resource]
+script = ExtResource("2_script")
+id = &"battle_axe"
+display_name = "Hacha de guerra"
+description = "Cabeza barbada de hierro sobre astil de fresno. Más lenta que la espada, pero cada tajo abre la guardia."
+icon = ExtResource("1_icon")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/battle_axe.tscn"
+armor_slot = 6
+weapon_type = 5
+damage = 38
+attack_speed = 1.25
+reach = 0.60
+blade_start = 0.34
+blade_radius = 0.11
+damage_kind = 0
+stamina_cost = 20.0
+poise_damage = 30.0
+heavy_multiplier = 1.9
+stackable = false
+max_stack = 1
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

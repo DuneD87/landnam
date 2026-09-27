@@ -13,4 +13,5 @@ category = 4
 scene_path = "res://scenes/items/armor/leather_armor/leather_hood_equipable.tscn"
 tool_type = 2
 armor_slot = 1
+defense = 2
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

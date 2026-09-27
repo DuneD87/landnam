@@ -90,12 +90,12 @@ func _move_spawn_point_to_player() -> void:
 	spawn_point.global_position = player.global_position
 
 
-## Lee del disco solo la posición canónica del jugador, sin cargar la partida.
-## Devuelve un Vector3, o null si no hay save o no es legible.
-func peek_player_position(slot_name: String = MAIN_SLOT) -> Variant:
+## Lee del disco los datos guardados del jugador (posición canónica, orientación, cámara…)
+## sin cargar la partida. Diccionario vacío si no hay save o no es legible.
+func peek_player_data(slot_name: String = MAIN_SLOT) -> Dictionary:
 	var data: Variant = _read_json(_save_file_path(slot_name, "player"))
 	if not (data is Dictionary):
-		return null
+		return {}
 
 	var entry: Variant = data.get(PLAYER_ENTITY_ID)
 	if entry == null:
@@ -103,10 +103,17 @@ func peek_player_position(slot_name: String = MAIN_SLOT) -> Variant:
 			entry = data[id]
 			break
 	if not (entry is Dictionary):
-		return null
+		return {}
 
 	var entry_data: Variant = entry.get("data")
-	if not (entry_data is Dictionary):
+	return entry_data if entry_data is Dictionary else {}
+
+
+## Lee del disco solo la posición canónica del jugador, sin cargar la partida.
+## Devuelve un Vector3, o null si no hay save o no es legible.
+func peek_player_position(slot_name: String = MAIN_SLOT) -> Variant:
+	var entry_data := peek_player_data(slot_name)
+	if entry_data.is_empty():
 		return null
 	var pos: Variant = entry_data.get("position")
 	if not (pos is Dictionary):

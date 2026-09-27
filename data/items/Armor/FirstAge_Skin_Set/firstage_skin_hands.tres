@@ -13,4 +13,5 @@ category = 4
 scene_path = "res://scenes/items/armor/firstage_skin_set/firstage_skin_hands_equipable.tscn"
 tool_type = 2
 armor_slot = 3
+defense = 1
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

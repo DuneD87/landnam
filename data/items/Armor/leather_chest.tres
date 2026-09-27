@@ -13,4 +13,5 @@ category = 4
 scene_path = "res://scenes/Armor/leather_armor.tscn"
 tool_type = 2
 armor_slot = 2
+defense = 5
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

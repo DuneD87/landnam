@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/ranged_weapon_visual.gd" id="1_xcnfr"]
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/slingshot.res" id="2_7xt2o"]
+
+[node name="Slingshot" type="Node3D" unique_id=36861637]
+script = ExtResource("1_xcnfr")
+anchors = PackedVector3Array()
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1395748096]
+mesh = ExtResource("2_7xt2o")

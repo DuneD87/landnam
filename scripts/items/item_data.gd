@@ -4,7 +4,10 @@ const config = preload("res://scripts/config.gd")
 
 enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR, BLOCK}
 enum ToolType {NONE, PICKAXE, AXE, HAMMER, TORCH}
-enum WeaponType {NONE, SWORD, SPEAR, BOW, CANNON}
+## Los valores nuevos van al final: los .tres guardan el número, no el nombre.
+enum WeaponType {NONE, SWORD, SPEAR, BOW, CANNON, AXE, MACE, SLINGSHOT}
+## Cómo muerde el golpe. Solo cambia la sensación (sonido, sangre, empuje), no la cuenta.
+enum DamageKind {SLASH, BLUNT, PIERCE}
 enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND}
 
 @export var id: StringName  # "stone_pickaxe"
@@ -32,7 +35,31 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export_group("Weapon Stats")
 @export var weapon_type: WeaponType = WeaponType.NONE
 @export var damage: int = 0
+## Ritmo de los golpes: escala de tiempo de la animación de ataque (>1 más rápido).
 @export var attack_speed: float = 1.0
+
+@export_group("Combat")
+## Distancia del agarre a la punta del arma, en metros. Es la hoja que barre el golpe.
+@export var reach: float = 0.0
+## Distancia del agarre a donde empieza la parte que corta (la mano y el mango no hieren).
+@export var blade_start: float = 0.15
+## Grosor del barrido, en metros: una maza golpea con más cabeza que el filo de una espada.
+@export var blade_radius: float = 0.08
+@export var damage_kind: DamageKind = DamageKind.SLASH
+## Estamina que cuesta un golpe ligero; el pesado cuesta 1,6 veces esto.
+@export var stamina_cost: float = 16.0
+## Desgaste de la guardia del rival por golpe: al romperla, se tambalea.
+@export var poise_damage: float = 20.0
+## Multiplicador de daño y desgaste del golpe pesado a carga máxima.
+@export var heavy_multiplier: float = 1.8
+## Munición que consume al disparar (id de item). Vacío = se lanza a sí misma (lanza).
+@export var ammo_id: StringName = &""
+## Velocidad de salida del proyectil a tensión completa, en m/s.
+@export var projectile_speed: float = 0.0
+## Segundos para tensar del todo.
+@export var draw_time: float = 0.8
+## Se puede arrojar (lanzas): el arma sale de la mano y hay que recogerla.
+@export var throwable: bool = false
 
 @export_group("Armor Stats")
 @export var armor_slot: ArmorSlot = ArmorSlot.NONE
@@ -70,6 +97,21 @@ func copy_from(source: ItemData) -> void:
 	weapon_type = source.weapon_type
 	damage = source.damage
 	attack_speed = source.attack_speed
+	reach = source.reach
+	blade_start = source.blade_start
+	blade_radius = source.blade_radius
+	damage_kind = source.damage_kind
+	stamina_cost = source.stamina_cost
+	poise_damage = source.poise_damage
+	heavy_multiplier = source.heavy_multiplier
+	ammo_id = source.ammo_id
+	projectile_speed = source.projectile_speed
+	draw_time = source.draw_time
+	throwable = source.throwable
+	attack_animation = source.attack_animation
+	idle_animation = source.idle_animation
+	running_animation = source.running_animation
+	is_attack_animation = source.is_attack_animation
 	armor_slot = source.armor_slot
 	defense = source.defense
 	resistance = source.resistance
@@ -83,6 +125,24 @@ func copy_from(source: ItemData) -> void:
 	placeable_on_wall = source.placeable_on_wall
 	placeable_on_ceiling = source.placeable_on_ceiling
 	placed_collider_size = source.placed_collider_size
+
+
+## Sirve para pegar: lleva hoja que barre golpes (espadas, hachas, mazas, lanzas, y las
+## herramientas con alcance, que también hieren).
+func is_melee() -> bool:
+	return reach > 0.0 and weapon_type != WeaponType.BOW and weapon_type != WeaponType.SLINGSHOT \
+		and weapon_type != WeaponType.CANNON
+
+
+## Dispara o se arroja apuntando: arco, tirachinas y lanza.
+func is_ranged() -> bool:
+	return weapon_type == WeaponType.BOW or weapon_type == WeaponType.SLINGSHOT or throwable
+
+
+## Se lleva en la mano izquierda (el arco y el tirachinas se sujetan con la izquierda y la
+## derecha tensa).
+func is_left_handed() -> bool:
+	return weapon_type == WeaponType.BOW or weapon_type == WeaponType.SLINGSHOT
 
 
 	

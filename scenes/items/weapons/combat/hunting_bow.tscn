@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/ranged_weapon_visual.gd" id="1_48q1b"]
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/hunting_bow.res" id="2_4pwho"]
+
+[node name="HuntingBow" type="Node3D" unique_id=1599226327]
+script = ExtResource("1_48q1b")
+anchors = PackedVector3Array()
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=40408587]
+mesh = ExtResource("2_4pwho")
+blend_shapes/drawn = 0.0

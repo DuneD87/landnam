@@ -285,6 +285,10 @@ func _register_commands() -> void:
 		"Escala de render 3D: bisecciona si el coste de dibujar es de pixel o de envio.", _cmd_escala))
 	_add(ConsoleCommand.new("terreno", "terreno [colision <lods>] [normalmap on|off]",
 		"Ajustes de coste del terreno en caliente, para comparar picos de 'proc'; sin argumentos, informa.", _cmd_terreno))
+	_add(ConsoleCommand.new("spawn", "spawn <oso|ciervo|leon|bufalo> [cantidad] [distancia]",
+		"Suelta animales delante del jugador (el oso es hostil: sirve para probar el combate).", _cmd_spawn, 1, _complete_animals))
+	_add(ConsoleCommand.new("morir", "morir",
+		"Mata al jugador (prueba la muerte y la vuelta al último punto guardado).", _cmd_die))
 	_add(ConsoleCommand.new("fps", "fps [n]",
 		"Techo de FPS (0 = sin techo), para fijar el ritmo mientras se mide.", _cmd_fps))
 
@@ -609,6 +613,63 @@ func _get_health() -> Node:
 		return null
 	return player.get("health_component")
 
+
+
+const ANIMAL_SCENES := {
+	"oso": "res://scenes/animals/Bear.tscn",
+	"ciervo": "res://scenes/animals/Deer.tscn",
+	"leon": "res://scenes/animals/Lion.tscn",
+	"bufalo": "res://scenes/animals/Buffalo.tscn",
+}
+
+
+func _complete_animals() -> PackedStringArray:
+	return PackedStringArray(ANIMAL_SCENES.keys())
+
+
+## Suelta animales sobre el terreno delante del jugador, repartidos en abanico. Quedan fuera del
+## pool de fauna (no se reciclan por distancia) y su cadáver dura dos minutos para despellejarlo.
+func _cmd_spawn(args: PackedStringArray) -> String:
+	var player := _get_player() as PlayerController
+	if player == null or player.planet == null:
+		return "[color=%s]No hay jugador sobre un planeta.[/color]" % COLOR_ERR
+	var kind := args[0].to_lower()
+	if not ANIMAL_SCENES.has(kind):
+		return "[color=%s]Animal desconocido: %s (%s).[/color]" % [COLOR_ERR, kind, ", ".join(ANIMAL_SCENES.keys())]
+	var count := clampi(args[1].to_int(), 1, 12) if args.size() >= 2 and args[1].is_valid_int() else 1
+	var distance := clampf(args[2].to_float(), 3.0, 80.0) if args.size() >= 3 and args[2].is_valid_float() else 14.0
+	var scene: PackedScene = load(ANIMAL_SCENES[kind])
+	var up := -player.gravity_direction.normalized()
+	var forward := -player.camera.global_basis.z
+	forward = (forward - up * forward.dot(up)).normalized()
+	var side := up.cross(forward)
+	var space := player.get_world_3d().direct_space_state
+	var placed := 0
+	for i in count:
+		var spread := (float(i) - (count - 1) * 0.5) * 4.0
+		var guess := player.global_position + forward * distance + side * spread
+		var query := PhysicsRayQueryParameters3D.create(guess + up * 40.0, guess - up * 60.0)
+		query.collision_mask = 1
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			continue
+		var animal := scene.instantiate() as NPCController
+		get_tree().current_scene.add_child(animal)
+		animal.planets = player.planets
+		animal.corpse_duration = 120.0
+		animal.global_position = hit.position + up * 1.2
+		animal.add_to_group("floating_origin")
+		placed += 1
+	return "[color=%s]%d × %s a %.0f m.[/color]" % [COLOR_OK, placed, kind, distance]
+
+
+func _cmd_die(_args: PackedStringArray) -> String:
+	var hc := _get_health() as HealthComponent
+	if hc == null:
+		return "[color=%s]No hay componente de salud en el jugador.[/color]" % COLOR_ERR
+	hc.invincible = false
+	hc.take_damage(hc.health + 1.0)
+	return "[color=%s]Has muerto.[/color]" % COLOR_OK
 
 
 func _complete_item_ids() -> PackedStringArray:

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/slingshot.png" id="1_icon"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_script"]
+
+[resource]
+script = ExtResource("2_script")
+id = &"slingshot"
+display_name = "Tirachinas"
+description = "Horquilla de avellano y badana. Dispara piedras: poco daño, pero rápido y aturde."
+icon = ExtResource("1_icon")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/slingshot.tscn"
+armor_slot = 6
+weapon_type = 7
+damage = 14
+ammo_id = &"stone_01"
+projectile_speed = 40.0
+draw_time = 0.45
+damage_kind = 1
+stamina_cost = 5.0
+poise_damage = 16.0
+stackable = false
+max_stack = 1
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

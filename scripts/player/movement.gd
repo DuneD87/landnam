@@ -32,6 +32,12 @@ var gravity_velocity = 0.0
 var velocity: Vector3 = Vector3.ZERO
 var direction: Vector3 = Vector3.ZERO
 
+## Lo que el combate recorta: velocidad al apuntar, y sin correr ni saltar mientras golpea,
+## esquiva o se tambalea (o sin aguante para correr).
+var speed_scale: float = 1.0
+var sprint_blocked: bool = false
+var jump_blocked: bool = false
+
 ## Si true, get_input_direction() devuelve ai_direction en vez de leer Input (modo IA de los NPCs).
 var use_ai_input: bool = false
 var ai_direction: Vector3 = Vector3.ZERO
@@ -49,7 +55,7 @@ var _peak_airborne_speed: float = 0.0
 func handle_jump_movement(delta: float, gravity_strength: float, gravity_direction: Vector3 , is_on_floor: bool):
 	if is_swimming:
 		return
-	if Input.is_action_just_pressed("jump") and !is_jumping && !is_falling:
+	if Input.is_action_just_pressed("jump") and !is_jumping && !is_falling and not jump_blocked:
 		is_jumping = true
 		jump_velocity = sqrt(2 * jump_height * gravity_strength)
 		current_animation = Config.ANIMATION.JUMP_START
@@ -86,7 +92,7 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 		
 	# Correr exige input de movimiento: con Shift pulsado y quieto se quedaba la animación de
 	# sprint en el sitio (y bloqueaba can_perform_action).
-	if Input.is_action_pressed("Sprint") && input_dir.length() > 0.1:
+	if Input.is_action_pressed("Sprint") && input_dir.length() > 0.1 and not sprint_blocked and not use_ai_input:
 		if !is_jumping && !is_falling && !use_swim_animations:
 			is_sprinting = true
 			velocity = velocity * 1.8
@@ -167,6 +173,6 @@ func project_on_plane(vector: Vector3, normal: Vector3) -> Vector3:
 func update_movement(delta: float, direction_input: Vector3):
 	direction = direction.lerp(direction_input, delta * acceleration)
 	if !is_swimming:
-		velocity = direction * speed
+		velocity = direction * speed * speed_scale
 	else:
 		velocity = direction * swim_speed
