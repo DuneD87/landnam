@@ -25,6 +25,10 @@ const MARGIN := 4.0
 const REFRESH_MOVE := 3.0
 ## Presupuesto por fotograma para subir celdas cambiadas (µs). Un reparto cambia ~200 celdas
 ## y subirlas de golpe costaba ~1 ms en un solo fotograma; MARGIN cubre el retraso.
+## Solo mientras la cámara va despacio: el retraso de la subida diferida es REFRESH_MOVE más lo
+## que avanza durante la subida, y al volar deprisa pasaba de MARGIN y los árboles de los
+## bordes de cada LOD quedaban en la celda de otro (a 80 m/s, huecos de hasta 240 árboles
+## que parpadeaban). Entonces el reparto se sube entero en su fotograma.
 const UPLOAD_BUDGET_USEC := 350
 ## Celdas de los MultiMesh. Godot recorta un MultiMesh entero por su AABB: con uno solo por
 ## LOD se dibujaban todos sus árboles (y en cada cascada de sombra) aunque casi todos
@@ -55,6 +59,10 @@ var _index := TreeInstanceIndex.new()
 var _pending: Array[VoxelInstancerRigidBody] = []
 var _dirty := true
 var _last_camera := Vector3(INF, INF, INF)
+var _previous_eye := Vector3(INF, INF, INF)
+## Fotogramas que lleva la subida diferida en curso y los que tardó la última.
+var _upload_frames := 0
+var _last_upload_frames := 3
 var _lod_ranges := PackedFloat32Array()
 ## Celdas cambiadas pendientes de subir: [library id, Vector4i, PackedFloat32Array].
 var _uploads: Array = []
@@ -134,11 +142,22 @@ func _process(_delta: float) -> void:
 		return
 	var eye := camera.global_position
 	var frame_start := Time.get_ticks_usec()
+	var step := eye.distance_to(_previous_eye) if _previous_eye.is_finite() else 0.0
+	_previous_eye = eye
+	var due := _dirty or eye.distance_to(_last_camera) >= REFRESH_MOVE
+	if step * (_last_upload_frames + 1) > MARGIN - REFRESH_MOVE:
+		_flush_uploads(-1)
+		if due:
+			refresh(eye, true)
 	# El reparto y la subida van en fotogramas distintos: juntos sumaban ~1,5 ms en uno.
-	if _uploads.is_empty() and (_dirty or eye.distance_to(_last_camera) >= REFRESH_MOVE):
+	elif _uploads.is_empty() and due:
 		refresh(eye, false)
-	else:
+		_upload_frames = 0
+	elif not _uploads.is_empty():
 		_flush_uploads(UPLOAD_BUDGET_USEC)
+		_upload_frames += 1
+		if _uploads.is_empty():
+			_last_upload_frames = _upload_frames
 	last_frame_usec = Time.get_ticks_usec() - frame_start
 
 

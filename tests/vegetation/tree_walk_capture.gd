@@ -5,6 +5,9 @@ extends "res://tests/lighting/lighting_capture.gd"
 ## los relevos de LOD, los impostores y lo que aparece o desaparece se ven comparando
 ## fotogramas seguidos.
 ##   godot --path . res://tests/vegetation/tree_walk_capture.tscn -- --tag=x [--runs=walk,fly]
+## --flybench mide el vuelo sin capturas (ver _fly_bench): --speeds=0,20,80 --pingpong=250
+## (ida y vuelta sobre el bosque) --holes (árboles sin dibujar) --profile (fases de DebugStats)
+## --items (instancias por item) --set=graphics/clave:valor --drop-lods=0,1 [--keep=id].
 
 const WALK_DIR := Vector3(0.635139, 0.469472, -0.613347)
 const OUT := "res://build/tree_walk"
@@ -24,6 +27,15 @@ var _frame_events := {"exit": 0, "enter": 0, "same": 0, "moved": 0}
 var _events_log: Array[String] = []
 var _last_body_pos := {}
 var _frame_cost_max := 0.0
+
+
+## --set=graphics/grass_distance:0 fuerza un ajuste gráfico antes de que cargue el planeta.
+func _init() -> void:
+	SettingsManager._ensure_loaded()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--set="):
+			var kv := arg.substr(6).split(":")
+			SettingsManager._values[kv[0]] = str_to_var(kv[1])
 
 
 func _run() -> void:
@@ -52,6 +64,9 @@ func _run() -> void:
 		return
 	if "--look" in OS.get_cmdline_user_args():
 		await _look_around()
+		return
+	if "--flybench" in OS.get_cmdline_user_args():
+		await _fly_bench()
 		return
 	for run_name in RUNS:
 		if not only.is_empty() and run_name not in only:
@@ -390,3 +405,185 @@ func _tone_compare() -> void:
 func _detail_frame_cost() -> float:
 	var planet: Planet = _earth.get("planet")
 	return planet.tree_detail_renderer.last_frame_usec / 1000.0
+
+
+## Vuelo sin capturas a varias velocidades: fps, coste por sistema y cuerpos de árbol cerca de
+## la cámara (la geometría cercana solo existe donde el instancer ya ha creado el cuerpo).
+##   godot --path . res://tests/vegetation/tree_walk_capture.tscn -- --flybench [--speeds=0,20,60]
+func _fly_bench() -> void:
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	var speeds: Array[float] = [0.0, 20.0, 60.0]
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--speeds="):
+			speeds.clear()
+			for s in arg.substr(9).split(","):
+				speeds.append(float(s))
+	var planet: Planet = _earth.get("planet")
+	var detail := planet.tree_detail_renderer
+	# --drop-lods=0,1 quita de la librería los items de esas bandas (--keep=id los conserva);
+	# --drop-lods=trees, los árboles con colisión (banda 4).
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--drop-lods="):
+			var what := arg.substr(12).split(",")
+			var keep := PackedStringArray()
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--keep="):
+					keep = a.substr(7).split(",")
+			var lib := planet.voxel_instancer.library
+			for id in planet.voxel_instancer.debug_get_instance_counts().keys():
+				var item := lib.get_item(id) as VoxelInstanceLibraryMultiMeshItem
+				if item == null or str(id) in keep:
+					continue
+				var is_tree: bool = item.collision_distance > 0.0
+				if ("trees" in what and is_tree) or (str(item.lod_index) in what and not is_tree):
+					lib.remove_item(id)
+	var start_up := WALK_DIR.normalized()
+	var frame := _local_frame(start_up)
+	var heading := (frame.z).normalized()
+	var axis := start_up.cross(heading).normalized()
+	var radius: float = 30000.0
+	var travelled := 0.0
+	# --pingpong=250: ida y vuelta sobre los primeros 250 m (el bosque) en vez de en línea recta.
+	var pingpong := 0.0
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--pingpong="):
+			pingpong = float(arg.substr(11))
+	var holes_check := "--holes" in OS.get_cmdline_user_args()
+	var created := [0]
+	var on_enter := func(n: Node) -> void:
+		if n is VoxelInstancerRigidBody:
+			created[0] += 1
+	planet.voxel_instancer.child_entered_tree.connect(on_enter)
+	var rid := get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(rid, true)
+	_move_camera(start_up, axis, 0.0, 30.0, deg_to_rad(-14.0), radius)
+	await _settle(4.0)
+	for speed in speeds:
+		var duration := 12.0
+		var elapsed := 0.0
+		var frames: Array[float] = []
+		var gpu: Array[float] = []
+		var proc: Array[float] = []
+		var phys: Array[float] = []
+		var detail_ms: Array[float] = []
+		var near_samples: Array[int] = []
+		var draws: Array[float] = []
+		var holes: Array[int] = []
+		created[0] = 0
+		var next_sample := 0.0
+		var profile: bool = "--profile" in OS.get_cmdline_user_args()
+		var move_dt := 0.0
+		while elapsed < duration:
+			var dt := get_process_delta_time()
+			elapsed += dt
+			# El fotograma que sigue a una comprobación de huecos es largo por la propia
+			# comprobación: la cámara avanza como en el anterior para no falsear el resultado.
+			move_dt = dt if not holes_check or move_dt == 0.0 or dt < move_dt * 2.0 else move_dt
+			travelled += speed * move_dt
+			var along := pingpong_f(travelled, pingpong) if pingpong > 0.0 else travelled
+			_move_camera(start_up, axis, along, 30.0, deg_to_rad(-14.0), radius)
+			await RenderingServer.frame_post_draw
+			if elapsed < 1.0:
+				continue
+			if profile and not DebugStats.profiling:
+				DebugStats.profiling = true
+			frames.append(dt * 1000.0)
+			gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(rid))
+			proc.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
+			phys.append(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0)
+			draws.append(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+			detail_ms.append(detail.last_frame_usec / 1000.0)
+			if elapsed >= next_sample:
+				next_sample = elapsed + 0.5
+				var eye := _camera.global_position
+				var n := 0
+				for child in planet.voxel_instancer.get_children():
+					var body := child as VoxelInstancerRigidBody
+					if body != null and body.global_position.distance_to(eye) < 140.0:
+						n += 1
+				near_samples.append(n)
+				if holes_check:
+					holes.append(_tree_holes(planet, eye))
+		if "--items" in OS.get_cmdline_user_args():
+			var counts: Dictionary = planet.voxel_instancer.debug_get_instance_counts()
+			var lib := planet.voxel_instancer.library
+			var lines := PackedStringArray()
+			for id in counts:
+				var item := lib.get_item(id) as VoxelInstanceLibraryMultiMeshItem
+				var mesh_name := ""
+				if item != null and item.get_mesh(0) != null:
+					mesh_name = str(item.get_mesh(0).resource_name)
+				var gen_info := ""
+				if item != null and item.generator != null:
+					var g := item.generator
+					gen_info = " emit=%d dens=%.3f noise=%s snap=%s hide=%s" % [g.emit_mode, g.density,
+						str(g.noise_graph != null or g.noise != null), str(g.snap_to_generator_sdf_enabled),
+						str(item.hide_beyond_max_lod)]
+				lines.append("%s(lod%d %s col=%.0f%s)=%d" % [id, item.lod_index if item else -1, mesh_name,
+					item.collision_distance if item else -1.0, gen_info, counts[id]])
+			print("ITEMS blocks=%s\n  %s" % [str(planet.voxel_instancer.debug_get_block_count()), "\n  ".join(lines)])
+		if profile:
+			DebugStats.profiling = false
+			await get_tree().process_frame
+			await get_tree().process_frame
+		near_samples.sort()
+		if holes_check:
+			holes.sort()
+			var total := 0
+			for h in holes:
+				total += h
+			print("HOLES speed=%.0f samples=%d with_holes=%d total=%d max=%d" % [speed, holes.size(),
+				holes.filter(func(h: int) -> bool: return h > 0).size(), total, holes[-1] if holes.size() else 0])
+		print("FLYBENCH speed=%.0f fps_med=%.0f frame_ms[med=%.1f p95=%.1f] gpu_ms=%.1f process_ms[med=%.1f p95=%.1f] physics_ms[med=%.1f p95=%.1f] detail_ms[p95=%.2f] draws=%.0f bodies_created/s=%.0f bodies<140m[min=%d med=%d max=%d]" % [
+			speed, 1000.0 / _pct(frames, 0.5), _pct(frames, 0.5), _pct(frames, 0.95), _pct(gpu, 0.5),
+			_pct(proc, 0.5), _pct(proc, 0.95), _pct(phys, 0.5), _pct(phys, 0.95), _pct(detail_ms, 0.95),
+			_pct(draws, 0.5), created[0] / (duration - 1.0),
+			near_samples[0], near_samples[near_samples.size() / 2], near_samples[-1]])
+
+
+func pingpong_f(value: float, length: float) -> float:
+	return length - absf(fmod(value, 2.0 * length) - length)
+
+
+## Árboles con cuerpo a menos de 150 m que ningún MultiMesh del detalle dibuja a su distancia:
+## el fundido del shader solo deja ver cada LOD en su tramo (LOD_FADES) y el impostor entra a
+## partir de LOD_FADES[2].x, así que un árbol en la celda de otro LOD es un hueco en pantalla.
+func _tree_holes(planet: Planet, eye: Vector3) -> int:
+	var detail := planet.tree_detail_renderer
+	var fades: Array = TreeDetailRenderer.LOD_FADES
+	var lods_at := {}
+	for cells in detail._items.values():
+		for slot in cells.cells:
+			var mmi: MultiMeshInstance3D = cells.cells[slot]
+			if not mmi.visible:
+				continue
+			var buffer := mmi.multimesh.buffer
+			var xf := mmi.global_transform
+			for i in range(0, buffer.size(), 12):
+				var key := Vector3i(((xf * Vector3(buffer[i + 3], buffer[i + 7], buffer[i + 11])) * 10.0).round())
+				lods_at[key] = int(lods_at.get(key, 0)) | (1 << (slot as Vector4i).w)
+	var count := 0
+	for child in planet.voxel_instancer.get_children():
+		var body := child as VoxelInstancerRigidBody
+		if body == null or detail.lod_meshes(body.get_library_item_id()).size() != 3:
+			continue
+		var d := body.global_position.distance_to(eye)
+		if d >= fades[2].x:
+			continue
+		var mask := int(lods_at.get(Vector3i((body.global_position * 10.0).round()), 0))
+		var shown := false
+		for lod in 3:
+			var start: float = 0.0 if lod == 0 else fades[lod - 1].x
+			if mask & (1 << lod) and d > start and d < fades[lod].y:
+				shown = true
+		if not shown:
+			count += 1
+	return count
+
+
+func _pct(values: Array[float], q: float) -> float:
+	if values.is_empty():
+		return 0.0
+	var sorted := values.duplicate()
+	sorted.sort()
+	return sorted[mini(int(sorted.size() * q), sorted.size() - 1)]

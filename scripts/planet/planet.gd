@@ -8,8 +8,6 @@ const config = preload("res://scripts/config.gd")
 const GrassPatchMipmaps = preload("res://scripts/planet/grass_patch_mipmaps.gd")
 const GrassGeometryLods = preload("res://scripts/planet/grass_geometry_lods.gd")
 var _grass_lod_cache: Dictionary = {}
-## Malla sin superficies para los bloques de una banda que su relevo oculta enteros.
-var _empty_band_mesh := ArrayMesh.new()
 ## Campo de ríos para la vegetación, con la distancia reducida. Ver _vegetation_river_field.
 var _vegetation_field: Dictionary = {}
 @export_group("Terrain Settings")
@@ -775,10 +773,13 @@ func _tree_band_meshes(meshes: Array, fade: Dictionary, wind_speed: float) -> Ar
 ## Las bandas del instancer son cajas anidadas que llegan todas hasta la cámara: la
 ## banda 2 genera matas a 5 m aunque solo se vean a partir de 64 m. Cada banda recibe
 ## su propio material para entrar cuando sale la anterior, sin duplicar densidad, y
-## registra solo las mallas que una mata visible puede necesitar: los bloques que el
-## relevo oculta enteros usan una malla vacía y los que quedan más allá del último
-## relevo no se dibujan. Con el morph de LOD del shader, cada bloque cambia de malla
-## cuando todas sus matas ya han terminado la transición.
+## los bloques más allá de su último relevo no se dibujan.
+## Cada banda usa UNA sola malla en sus cuatro slots de LOD: la del nivel que se ve
+## cuando la banda ya ha entrado del todo. El morph del shader simplifica más allá (una
+## malla más detallada imita las siguientes). Cambiar la malla de un bloque es muy caro
+## en este motor: al volar a 20 m/s los cambios de LOD de hierba y sotobosque costaban
+## ~9 ms por fotograma en el VoxelInstancer (de 110 a 50 fps); con una malla por banda
+## no hay cambios y la GPU paga menos de 1 ms más quieta.
 func _build_grass_band(lods: Array, cfg: Dictionary, lod_index: int, wind_speed: float,
 		width_growth: float) -> Dictionary:
 	var material: ShaderMaterial = lods[0].surface_get_material(0).duplicate()
@@ -805,39 +806,17 @@ func _build_grass_band(lods: Array, cfg: Dictionary, lod_index: int, wind_speed:
 	var block: float = float(_instancer_block_size(lod_index))
 	var reach: float = block * 0.866 + 2.0
 	var hide_distance: float = limits.out_end + reach
-	var first_lod: int = 0
-	if morph:
-		while first_lod < 3 and float(morph_end[first_lod]) <= limits.in_start:
-			first_lod += 1
-	# Tramos [malla, distancia hasta la que se usa], de cerca a lejos.
-	var entries: Array = []
-	var empty_until: float = limits.in_start - reach
-	if empty_until > 0.0 and first_lod > 0:
-		entries.append([_empty_band_mesh, empty_until])
-	for lod in range(first_lod, 4):
-		var until: float = hide_distance
-		if lod < 3:
-			# Sin morph (configuración incompleta) el bloque salta a distancias fijas.
-			var switch_distance: float = float(cfg.get("mesh_lod_distances_m", [24, 55, 100])[lod])
-			if morph:
-				switch_distance = float(morph_end[lod]) + reach
-			until = minf(switch_distance, hide_distance)
-		entries.append([_band_mesh(lods[lod], material), until])
-		# Más allá todo está oculto: un LOD más simple no llegaría a verse.
-		if until >= hide_distance:
-			break
-	while entries.size() < 4:
-		entries.push_front([entries[0][0], 0.0])
+	# Sin morph (configuración incompleta) los niveles cambian a distancias fijas.
+	var lod_ends: Array = morph_end if morph else cfg.get("mesh_lod_distances_m", [24, 55, 100])
+	var band_lod: int = 0
+	while band_lod < 3 and float(lod_ends[band_lod]) <= limits.in_end:
+		band_lod += 1
+	var mesh: ArrayMesh = _band_mesh(lods[band_lod], material)
 	var view: float = _get_lod_view_distance(lod_index)
-	var meshes: Array = []
 	var ratios: Array = []
-	var previous: float = 0.0
-	for entry in entries:
-		meshes.append(entry[0])
-		var ratio: float = maxf(entry[1] / view, previous + 0.001)
-		ratios.append(ratio)
-		previous = ratio
-	return {"meshes": meshes, "ratios": ratios}
+	for k in 4:
+		ratios.append(maxf(hide_distance / view, 0.004) - 0.001 * (3 - k))
+	return {"meshes": [mesh, mesh, mesh, mesh], "ratios": ratios}
 
 
 func _band_mesh(original: ArrayMesh, material: Material) -> ArrayMesh:
