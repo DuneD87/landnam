@@ -447,7 +447,7 @@
 			{
 				"name": "grass_generator_green_sand",
 				"emit_mode": "EMIT_FROM_FACES",
-				"density": 0.01,
+				"density": 1.0,
 				"lod_density_falloff": 0.7,
 				"lod_scale_gain": 1.0,
 				"min_height": -35.0,
@@ -456,7 +456,15 @@
 				"offset_along_normal": 0.0,
 				"min_scale": 0.5,
 				"max_scale": 1.5,
-				"noise_graph": "hemisphere_green_sand_graph_path"
+				"noise_graph": "hemisphere_green_sand_graph_path",
+				"noise": {
+					"frequency": 0.045,
+					"octaves": 3.0,
+					"dimension": "3D",
+					"seed": 23.0,
+					"threshold": 0.1,
+					"falloff": 0.25
+				}
 			},
 			{
 				"name": "grass_generator_sand",
@@ -496,14 +504,22 @@
 			{
 				"name": "grass_far_generator_green_sand",
 				"emit_mode": "EMIT_FROM_FACES",
-				"density": 0.006,
+				"density": 0.625,
 				"lod_density_falloff": 1.0,
 				"min_height": -35.0,
 				"max_height": 150.0,
 				"max_slope_degrees": 35.0,
 				"min_scale": 0.5,
 				"max_scale": 1.5,
-				"noise_graph": "hemisphere_green_sand_graph_path"
+				"noise_graph": "hemisphere_green_sand_graph_path",
+				"noise": {
+					"frequency": 0.045,
+					"octaves": 3.0,
+					"dimension": "3D",
+					"seed": 23.0,
+					"threshold": 0.1,
+					"falloff": 0.25
+				}
 			},
 			{
 				"name": "grass_far_generator_sand",

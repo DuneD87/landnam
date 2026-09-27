@@ -197,10 +197,21 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 			generator.noise_threshold = float(noise_config.threshold)
 		if noise_config.has("falloff"):
 			generator.noise_falloff = float(noise_config.falloff)
+	var noise_graph: VoxelGraphFunction = null
 	if generator_config.has("noise_graph"):
 		for graph_func in graph_functions:
 			if graph_func.name == generator_config.noise_graph:
-				generator.noise_graph = _load_vegetation_graph(graph_func.path)
+				noise_graph = _load_vegetation_graph(graph_func.path)
+	# Con noise_threshold puesto, el módulo deja de aplicar el noise_graph (y el propio ruido): la
+	# máscara de bioma no filtraba nada y la hierba y los árboles del bioma verde salían en el
+	# desierto y en la nieve. Esas manchas se evalúan entonces dentro del grafo.
+	if noise_graph != null and generator.noise != null and generator.noise_threshold != 0.0:
+		noise_graph = _with_patch_noise(noise_graph, generator_config.noise)
+		generator.noise = null
+		generator.noise_threshold = 0.0
+		generator.noise_falloff = 0.0
+	# Se asigna ya terminado: el módulo compila el grafo al asignarlo y no ve cambios posteriores.
+	generator.noise_graph = noise_graph
 
 	var graph_function = generator.noise_graph
 	if graph_function:
@@ -1687,6 +1698,91 @@ func _setup_rivers(graph_generator: VoxelGeneratorGraph) -> bool:
 
 	_river_field = field
 	return RiverGenerator.apply(graph_generator, field)
+
+
+## Copia del grafo de densidad con las manchas de "noise" multiplicadas a su salida, para los
+## generadores con threshold (ver _build_generator). Reproduce la regla que aplica el módulo al
+## ruido cuando no hay grafo, medida contando instancias: cada punto se queda con probabilidad
+## clamp((ruido + threshold) / falloff, 0, 1)², o si ruido + threshold > 0 cuando falloff es 0.
+## El azar por punto sale de un hash de la posición. Se pierde "on_scale": el grafo solo filtra.
+static func _with_patch_noise(source: VoxelGraphFunction, noise_config: Dictionary) -> VoxelGraphFunction:
+	var graph := source
+	# Sin campo de ríos llega el recurso cacheado del ResourceLoader, que no se puede tocar.
+	if graph.resource_path != "":
+		graph = source.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+	var output := -1
+	var inputs := {}
+	for id in graph.get_node_ids():
+		var type := graph.get_node_type_id(id)
+		if type == VoxelGraphFunction.NODE_CUSTOM_OUTPUT:
+			output = id
+		elif type in [VoxelGraphFunction.NODE_INPUT_X, VoxelGraphFunction.NODE_INPUT_Y, VoxelGraphFunction.NODE_INPUT_Z]:
+			inputs[type] = id
+	var mask := {}
+	for c in graph.get_connections():
+		if c.dst_node_id == output:
+			mask = c
+	if mask.is_empty() or inputs.size() != 3:
+		push_error("Vegetación: el grafo de densidad no tiene salida o entradas x, y, z; manchas sin aplicar.")
+		return source
+	graph.remove_connection(mask.src_node_id, mask.src_port_index, output, mask.dst_port_index)
+	var x: int = inputs[VoxelGraphFunction.NODE_INPUT_X]
+	var y: int = inputs[VoxelGraphFunction.NODE_INPUT_Y]
+	var z: int = inputs[VoxelGraphFunction.NODE_INPUT_Z]
+
+	# Mismo ruido que el FastNoiseLite de _build_generator (OpenSimplex2S, FBm, lacunarity 2, gain 0.5).
+	var noise := ZN_FastNoiseLite.new()
+	noise.noise_type = ZN_FastNoiseLite.TYPE_OPEN_SIMPLEX_2S
+	noise.seed = int(noise_config.get("seed", 0))
+	noise.period = 1.0 / float(noise_config.get("frequency", 0.01))
+	noise.fractal_type = ZN_FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = int(noise_config.get("octaves", 2))
+	noise.fractal_lacunarity = 2.0
+	noise.fractal_gain = 0.5
+	var noise_node: int
+	if noise_config.get("dimension", "2D") == "3D":
+		noise_node = graph.create_node(VoxelGraphFunction.NODE_FAST_NOISE_3D, Vector2())
+		graph.add_connection(x, 0, noise_node, 0)
+		graph.add_connection(y, 0, noise_node, 1)
+		graph.add_connection(z, 0, noise_node, 2)
+	else:
+		noise_node = graph.create_node(VoxelGraphFunction.NODE_FAST_NOISE_2D, Vector2())
+		graph.add_connection(x, 0, noise_node, 0)
+		graph.add_connection(z, 0, noise_node, 1)
+	graph.set_node_param(noise_node, 0, noise)
+	var patch := _graph_op(graph, VoxelGraphFunction.NODE_ADD, noise_node, float(noise_config.get("threshold", 0.0)))
+
+	var falloff := float(noise_config.get("falloff", 0.0))
+	if falloff > 0.0:
+		var ramp := _graph_op(graph, VoxelGraphFunction.NODE_MULTIPLY, patch, 1.0 / falloff)
+		ramp = _graph_op(graph, VoxelGraphFunction.NODE_MIN, _graph_op(graph, VoxelGraphFunction.NODE_MAX, ramp, 0.0), 1.0)
+		var chance := _graph_op(graph, VoxelGraphFunction.NODE_MULTIPLY, ramp, ramp)
+		# fract(sin(x·12.9898 + y·78.233 + z·37.719) · 43758.5453), en [0, 1).
+		var h := _graph_op(graph, VoxelGraphFunction.NODE_ADD,
+			_graph_op(graph, VoxelGraphFunction.NODE_MULTIPLY, x, 12.9898),
+			_graph_op(graph, VoxelGraphFunction.NODE_MULTIPLY, y, 78.233))
+		h = _graph_op(graph, VoxelGraphFunction.NODE_ADD, h, _graph_op(graph, VoxelGraphFunction.NODE_MULTIPLY, z, 37.719))
+		h = _graph_op(graph, VoxelGraphFunction.NODE_MULTIPLY, _graph_op(graph, VoxelGraphFunction.NODE_SIN, h), 43758.5453)
+		var dice := _graph_op(graph, VoxelGraphFunction.NODE_SUBTRACT, h, _graph_op(graph, VoxelGraphFunction.NODE_FLOOR, h))
+		patch = _graph_op(graph, VoxelGraphFunction.NODE_SUBTRACT, chance, dice)
+
+	# La máscara nunca es negativa: el signo del producto es el de la mancha y fuera del bioma da 0.
+	var result := _graph_op(graph, VoxelGraphFunction.NODE_MULTIPLY, mask.src_node_id, patch,
+		mask.src_port_index)
+	graph.add_connection(result, 0, output, 0)
+	return graph
+
+
+## Nodo conectado a `a` por su primera entrada; `b` (segunda entrada) es un id de nodo si es int,
+## una constante si es float y nada en los nodos de una entrada (Sin, Floor).
+static func _graph_op(graph: VoxelGraphFunction, type: int, a: int, b = null, a_port: int = 0) -> int:
+	var node := graph.create_node(type, Vector2())
+	graph.add_connection(a, a_port, node, 0)
+	if b is int:
+		graph.add_connection(b, 0, node, 1)
+	elif b != null:
+		graph.set_node_default_input(node, 1, float(b))
+	return node
 
 
 ## Carga un grafo de densidad de vegetación con el campo de ríos ya metido. Se duplica porque
