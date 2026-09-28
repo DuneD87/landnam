@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix, depth_draw_always, shadows_disabled;
+render_mode blend_mix, depth_draw_always;
 
 // Surface simulation is shared with buoyancy and the underwater ray marcher.
 #include "res://shaders/liquid/gerstner_waves.gdshaderinc"
@@ -46,6 +46,19 @@ uniform float caustics_speed=0.1;
 uniform float caustics_intensity=0.25;
 uniform int water_debug_mode : hint_range(0,5) = 0;
 
+// --- Banquisa (hielo marino, ver sea_ice_fraction en gerstner_waves.gdshaderinc) ---------------
+// En el borde del hielo el mar se rompe en témpanos (celdas de Voronoi que se sueldan al enfriar);
+// dentro, una placa continua con grietas recongeladas, ventisqueros de nieve y hielo azul desnudo.
+uniform vec3 ice_snow_color : source_color = vec3(0.90, 0.93, 0.97);
+uniform vec3 ice_bare_color : source_color = vec3(0.50, 0.66, 0.78);
+uniform float ice_floe_size : hint_range(4.0, 200.0) = 38.0;
+uniform float ice_crack_width : hint_range(0.0, 2.0) = 0.35;
+// Témpanos con volumen (SeaIceFloes) hasta esta distancia de la cámara: ahí el agua solo pone la
+// placa cerrada entre ellos, y los sueltos los dibuja a partir de ice_geometry_start → end, mientras
+// los de verdad encogen. 0 = sin témpanos 3D (todo dibujado aquí).
+uniform float ice_geometry_start = 0.0;
+uniform float ice_geometry_end = 0.0;
+
 varying vec3 surface_world;
 varying vec3 material_position;
 varying vec3 radial_up;
@@ -58,6 +71,10 @@ varying float geometric_compression;
 varying float minimum_wavelength;
 varying vec4 sea_context;
 varying float coast_depth;
+// Hielo marino del vértice (0..1).
+varying float sea_ice;
+// Banquisa que cubre el píxel (0..1): light() la ilumina como un sólido difuso.
+varying float ice_cover;
 
 vec3 ocean_wind() {
     vec3 pole=length(wave_pole)>0.0001 ? normalize(wave_pole) : vec3(0,1,0);
@@ -75,6 +92,36 @@ vec3 ocean_detail(sampler2D map,vec3 p,vec3 normal,float scale,vec3 scroll) {
     vec3 slope=vec3(0,x.y,x.x)*weights.x+vec3(y.x,0,y.y)*weights.y+vec3(z.x,z.y,0)*weights.z;
     return slope-normal*dot(slope,normal);
 }
+float ice_hash(vec3 p) {
+    p=fract(p*0.1031);
+    p+=dot(p,p.zyx+31.32);
+    return fract((p.x+p.y)*p.z);
+}
+// Giro fijo para que la rejilla del ruido de valor no se alinee con los ejes: sin él la banquisa
+// enseñaba cuadros regulares vista desde lejos.
+const mat3 ICE_ROTATION=mat3(vec3(0.8,0.6,0.0),vec3(-0.48,0.64,0.6),vec3(0.36,-0.48,0.8));
+float ice_value_noise(vec3 p) {
+    p=ICE_ROTATION*p;
+    vec3 i=floor(p), f=fract(p);
+    f=f*f*(3.0-2.0*f);
+    return mix(mix(mix(ice_hash(i),ice_hash(i+vec3(1,0,0)),f.x),mix(ice_hash(i+vec3(0,1,0)),ice_hash(i+vec3(1,1,0)),f.x),f.y),
+        mix(mix(ice_hash(i+vec3(0,0,1)),ice_hash(i+vec3(1,0,1)),f.x),mix(ice_hash(i+vec3(0,1,1)),ice_hash(i+vec3(1,1,1)),f.x),f.y),f.z);
+}
+// Voronoi 3D: x = distancia al borde de la celda (m), y = azar de la celda.
+vec2 ice_cells(vec3 p, float size) {
+    vec3 q=p/size;
+    vec3 base=floor(q);
+    float best=1e9, second=1e9, id=0.0;
+    for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) for(int z=-1;z<=1;z++) {
+        vec3 c=base+vec3(float(x),float(y),float(z));
+        vec3 o=c+vec3(ice_hash(c),ice_hash(c+vec3(17.1)),ice_hash(c+vec3(31.7)))*0.9;
+        float d=length(q-o);
+        if(d<best) { second=best; best=d; id=ice_hash(c+vec3(5.3)); }
+        else if(d<second) { second=d; }
+    }
+    return vec2((second-best)*0.5*size,id);
+}
+
 void vertex() {
     vec3 world=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;
     material_position=world-planet_center;
@@ -89,6 +136,7 @@ void vertex() {
         mix(wave_calm_steepness,wave_steepness,ctx.exposure),
         1.0-smoothstep(0.0,shore_handover,presence),presence);
     coast_depth=ctx.shore_depth;
+    sea_ice=ctx.ice;
     vec3 sampled_normal;
     float sampled_compression;
     vec3 displacement=gerstner_surface_ctx(material_position,radial_up,water_time,
@@ -213,6 +261,58 @@ void fragment() {
     METALLIC=0.0;
     ALPHA=deep_alpha*mix(smoothstep(0.0,0.12,separation),1.0,float(raw_depth<=0.0));
 
+    // Banquisa. Cada témpano es una celda que se hiela cuando el hielo del sitio supera su umbral:
+    // al enfriar se juntan y la placa se cierra, con las grietas entre celdas ya soldadas.
+    ice_cover=0.0;
+    if(sea_ice>0.002) {
+        vec2 cell=ice_cells(material_position,ice_floe_size);
+        float threshold=0.08+cell.y*0.84;
+        float floe=smoothstep(threshold-0.04,threshold+0.04,sea_ice);
+        // Canal abierto entre témpanos mientras el hielo no está cerrado; grieta fina después.
+        float lead=mix(ice_crack_width*6.0+2.5,ice_crack_width,smoothstep(0.85,1.0,sea_ice));
+        float pixel=max(fwidth(cell.x),0.02);
+        float edge=smoothstep(lead-pixel,lead+pixel,cell.x);
+        // Con el hielo cerrado las grietas quedan soldadas del todo: ni una fracción del agua (su
+        // normal y su reflejo aliasean en un rayado fino a esta distancia).
+        float closed=smoothstep(0.9,0.98,sea_ice);
+        float cover=floe*mix(edge,1.0,closed);
+        if(ice_geometry_end>0.0) {
+            // Cerca, los témpanos sueltos son geometría: aquí solo el hielo nuevo que suelda las
+            // grietas de la banquisa cerrada.
+            float geometry=1.0-smoothstep(ice_geometry_start,ice_geometry_end,view_distance);
+            cover=mix(cover,floe*closed,geometry);
+        }
+        // Metros por píxel: cada octava de ruido se apaga antes de caber en un píxel, o de lejos la
+        // banquisa se llena de moiré en cuadrícula.
+        float footprint=length(fwidth(material_position));
+        float fine_fade=1.0-smoothstep(0.2,0.5,footprint*1.3);
+        float mid_fade=1.0-smoothstep(0.2,0.5,footprint*0.3);
+        // Nieve venteada a manchas; el hielo desnudo es azul y liso.
+        float drift=ice_value_noise(material_position*0.045)*0.6
+            +mix(0.5,ice_value_noise(material_position*0.19+vec3(5.0)),1.0-smoothstep(0.2,0.5,footprint*0.19))*0.4;
+        float snowy=smoothstep(0.42,0.58,drift+cell.y*0.2);
+        // Crestas de presión en los bordes de las placas grandes: hielo roto y amontonado.
+        vec2 plate=ice_cells(material_position+vec3(97.0),ice_floe_size*5.0);
+        float ridge=(1.0-smoothstep(0.0,3.5,plate.x))*smoothstep(0.9,1.0,sea_ice);
+        vec3 ice_albedo=mix(ice_bare_color,ice_snow_color,max(snowy,ridge*0.8));
+        ice_albedo*=mix(1.0,mix(0.9,1.04,ice_value_noise(material_position*1.3)),fine_fade);
+        // Grietas recongeladas: hielo nuevo, más oscuro y liso, en el borde de las celdas.
+        float refrozen=(1.0-smoothstep(ice_crack_width,ice_crack_width*4.0+0.3,cell.x))*smoothstep(0.9,0.98,sea_ice);
+        ice_albedo=mix(ice_albedo,ice_bare_color*0.7,refrozen*(1.0-ridge));
+        // Relieve: el gradiente de un solo ruido (diferencias finitas), más marcado en las crestas.
+        float h0=ice_value_noise(material_position*0.3);
+        vec3 slope=vec3(ice_value_noise(material_position*0.3+vec3(0.08,0,0)),
+            ice_value_noise(material_position*0.3+vec3(0,0.08,0)),ice_value_noise(material_position*0.3+vec3(0,0,0.08)))-h0;
+        slope=(slope-radial*dot(slope,radial))*(2.2*snowy+6.0*ridge)*mid_fade;
+        vec3 ice_normal=normalize(radial-slope);
+        ALBEDO=mix(ALBEDO,ice_albedo,cover);
+        EMISSION*=1.0-cover;
+        NORMAL=normalize(mix(NORMAL,normalize(mat3(VIEW_MATRIX)*ice_normal),cover));
+        ROUGHNESS=mix(ROUGHNESS,mix(0.3,0.8,max(snowy,ridge)),cover);
+        ALPHA=mix(ALPHA,1.0,cover);
+        ice_cover=cover;
+    }
+
     if(water_debug_mode>0) {
         ALBEDO=vec3(0.0); ROUGHNESS=1.0;
         if(water_debug_mode==1) EMISSION=macro_normal*0.5+0.5;
@@ -238,7 +338,11 @@ void light() {
     if(LIGHT_IS_DIRECTIONAL) {
         horizon=smoothstep(-0.15,-0.02,dot(normalize(radial_up_view),LIGHT));
     }
-    DIFFUSE_LIGHT+=ALBEDO*LIGHT_COLOR*ATTENUATION*((nl*0.8+0.2)*light_diffuse_strength/PI)*horizon;
+    // La espuma lleva el albedo aquí además del que aplica el motor, y un 20 % envolvente; la
+    // banquisa es un sólido: Lambert normal, con su albedo una sola vez.
+    float wrap=mix(0.2,0.0,ice_cover);
+    DIFFUSE_LIGHT+=mix(ALBEDO,vec3(1.0),ice_cover)*LIGHT_COLOR*ATTENUATION
+        *((nl*(1.0-wrap)+wrap)*light_diffuse_strength/PI)*horizon;
     vec3 h=normalize(LIGHT+VIEW);
     float nh=max(dot(NORMAL,h),0.0);
     float r=max(ROUGHNESS,LIGHT_IS_DIRECTIONAL ? directional_roughness_floor : light_roughness_floor);

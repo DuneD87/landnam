@@ -93,6 +93,12 @@ var external_planet_materials: Array[ShaderMaterial] = []
 @export var reef_settings: Dictionary = {}
 ## Identificador del planeta, para nombrar el caché del campo de ríos.
 @export var entity_id: String = ""
+## Bloque "climate_settings" del JSON. Vacío = sin clima frío: ni nieve por frío, ni hielo marino, ni
+## máscaras de taiga o tundra (ver ClimateField y shaders/lib/climate.gdshaderinc).
+@export var climate_settings: Dictionary = {}
+## Campo de frío del planeta, la réplica en CPU del de los shaders. Siempre existe; sin
+## climate_settings está apagado (enabled = false).
+var climate: ClimateField = ClimateField.new()
 
 ## Campo de ríos horneado. Lo consume el terreno y también los grafos de densidad de vegetación,
 ## que sin él confunden un cauce hondo con una cueva.
@@ -210,6 +216,13 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 		generator.noise = null
 		generator.noise_threshold = 0.0
 		generator.noise_falloff = 0.0
+	# Banda del campo de frío: "climate": {"min": 41, "max": 53, "soft": 1.5} (grados, ver
+	# ClimateField). Sin "min" o "max" ese lado queda abierto: el bioma verde lleva solo "max" y se
+	# para donde empieza la taiga.
+	if noise_graph != null and generator_config.has("climate") and climate.enabled:
+		var band: Dictionary = generator_config.climate
+		noise_graph = ClimateGraph.gate(noise_graph, climate, float(band.get("min", -100.0)),
+			float(band.get("max", 200.0)), float(band.get("soft", 1.5)))
 	# Se asigna ya terminado: el módulo compila el grafo al asignarlo y no ve cambios posteriores.
 	generator.noise_graph = noise_graph
 
@@ -1547,6 +1560,19 @@ func setup_shader_parameters() -> void:
 
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", radius - water_radius)
+
+	climate = ClimateField.new(climate_settings, radius)
+	if climate.enabled:
+		climate.push_shader_globals()
+	shader_material.set_shader_parameter("climate_enabled", climate.enabled)
+	# Índices en "textures" de la nieve que pinta el frío y del hielo glaciar de las laderas.
+	var climate_terrain: Dictionary = climate_settings.get("terrain", {})
+	shader_material.set_shader_parameter("snow_texture_index", int(climate_terrain.get("snow_texture", 2)))
+	shader_material.set_shader_parameter("glacier_texture_index", int(climate_terrain.get("glacier_texture", -1)))
+	# Vista de depuración de la nieve (ver planet_biomes.gdshader). Tiene que ir antes del primer
+	# mallado: los bloques ya mallados guardan su copia del material y no ven cambios posteriores.
+	if OS.get_cmdline_user_args().has("--debug-snow"):
+		shader_material.set_shader_parameter("debug_snow_view", 1)
 
 	_setup_reef_shader_parameters()
 	_setup_ore_shader_parameters()

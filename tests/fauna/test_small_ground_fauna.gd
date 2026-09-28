@@ -39,7 +39,7 @@ func _run() -> void:
 	_habitat.observer = _observer
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	for name in ["rabbits", "foxes", "mice"]:
+	for name in ["rabbits", "foxes", "mice", "arctic_hares", "arctic_foxes", "lemmings"]:
 		await _test_species(name)
 	_test_animation_clock()
 	await _test_radial_ground()

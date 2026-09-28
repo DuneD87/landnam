@@ -75,8 +75,10 @@ func _integration() -> void:
 		if entry.has("understory_lods"):
 			await planet._load_vegetation_item(count, entry, vegetation.generators, vegetation.hemisphere_graph_function)
 			count += 1
-	_check(count == 16 and planet._next_library_id == 24, "Ocho especies, 24 bandas registradas")
-	_check(planet.item_transparent_materials.size() == 24, "Materiales reciben el clima")
+	var species_count: int = Builder.SPECIES.size()
+	_check(count == species_count * 2 and planet._next_library_id == species_count * 3,
+		"%d especies, %d bandas registradas" % [species_count, species_count * 3])
+	_check(planet.item_transparent_materials.size() == species_count * 3, "Materiales reciben el clima")
 	for id in planet._next_library_id:
 		var item = planet.voxel_instancer.library.get_item(id)
 		_check(item.scene == null and item.collision_shapes.is_empty(), "Decoración sin nodos ni colliders")
@@ -94,7 +96,7 @@ func _integration() -> void:
 			if item.get_mesh(lod).get_surface_count() > 0:
 				_check(item.get_mesh(lod).surface_get_material(0) == material, "LOD mantiene material de banda")
 	# Cada especie se registra en orden: banda 0, banda 1 y banda 2.
-	for species in 8:
+	for species in species_count:
 		for pair in [[0, 1], [1, 2]]:
 			var out_mat: ShaderMaterial = _band_material(planet.voxel_instancer.library.get_item(species * 3 + pair[0]))
 			var in_mat: ShaderMaterial = _band_material(planet.voxel_instancer.library.get_item(species * 3 + pair[1]))

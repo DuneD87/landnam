@@ -2,6 +2,7 @@ shader_type spatial;
 render_mode blend_mix;
 #include "res://shaders/terrain/terrain_utils.gdshaderinc"
 #include "res://shaders/terrain/virtual_texturing.gdshaderinc"
+#include "res://shaders/lib/climate.gdshaderinc"
 
 // Escala en 1/metros: 0.006 => manchas de ~170 m, que es lo que rompe una ladera entera.
 // Estaba en 0.15 (rasgos de ~7 m): a distancia se promediaba a cero y de cerca solo
@@ -135,22 +136,44 @@ uniform float specular_aa_strength : hint_range(0.0, 4.0) = 4.0;
 
 uniform float sun_shadow_opacity : hint_range(0.0, 1.0) = 0.7;
 
-// --- Clima (modulado por WeatherController) ---
-// Nieve POR FRAGMENTO: cada punto decide cuánta nieve cuaja según SU latitud y altitud
-// (línea de nieve). weather_snow_coverage es solo la intensidad global del clima de
-// nieve (0 = sin nevada). Así nievan polos y montañas, no el planeta entero.
-uniform float weather_snow_coverage : hint_range(0.0, 1.0) = 0.0;
-uniform vec3 weather_snow_color : source_color = vec3(0.92, 0.94, 1.0);
-// Línea de nieve por latitud absoluta (grados) y por altitud (m sobre el radio base).
-uniform float weather_snow_latitude_start = 35.0;
-uniform float weather_snow_latitude_full = 55.0;
-uniform float weather_snow_altitude_start = 1500.0;
-uniform float weather_snow_altitude_full = 3500.0;
+// --- Nieve y hielo del clima frío (climate.gdshaderinc) ---
+// La nieve NO es una banda de textura por latitud: la decide el campo de frío del planeta
+// (latitud + altitud + ruido), el mismo con el que crecen la taiga y la tundra y se hiela el mar.
+// Cubre primero los huecos del suelo (height blend), resbala de las pendientes y en el casquete
+// las laderas que no la sostienen enseñan hielo glaciar. La nevada del clima (climate_fresh_snow)
+// baja la cota. Solo en planetas con "climate_settings" (Planet.setup_shader_parameters).
+uniform bool climate_enabled = false;
+uniform int snow_texture_index = 2;
+// Hielo glaciar de las laderas del casquete. -1 = roca, como sin clima.
+uniform int glacier_texture_index = -1;
+// Pendiente (1 - cos) a partir de la que la nieve resbala, templada y en el casquete.
+uniform float snow_slope_limit : hint_range(0.0, 1.0) = 0.3;
+uniform float snow_slope_limit_glacier : hint_range(0.0, 1.0) = 0.46;
+uniform float snow_slope_softness : hint_range(0.01, 0.4) = 0.10;
+// Rotura del borde de la nieve en manchas (grados de frío que suma el ruido) y su escala.
+uniform float snow_patch_strength : hint_range(0.0, 20.0) = 7.0;
+uniform float snow_patch_scale : hint_range(0.001, 0.2) = 0.03;
+// Contacto nieve/suelo por height map: la nieve rellena los huecos primero.
+uniform float snow_height_blend : hint_range(0.0, 1.0) = 0.6;
+uniform float snow_height_sharpness : hint_range(0.02, 1.0) = 0.18;
+uniform vec3 snow_tint : source_color = vec3(0.94, 0.96, 0.99);
+// Luminancia media (lineal) de la textura de nieve, para quedarse solo con su relieve.
+uniform float snow_texture_mean_luma = 0.49;
+uniform float snow_detail_strength : hint_range(0.0, 1.0) = 0.55;
+// Destellos de los cristales de nieve al sol (fracción de celdas de ~15 cm que brillan).
+uniform float snow_sparkle_density : hint_range(0.0, 0.2) = 0.035;
+uniform float snow_sparkle_strength : hint_range(0.0, 40.0) = 14.0;
+uniform float snow_sparkle_distance = 45.0;
+// Depuración: 1 = cobertura del clima (R), sujeción por pendiente (G), nieve final (B).
+uniform int debug_snow_view : hint_range(0, 1) = 0;
 
 varying vec3 world_pos;
 varying float height;
 varying float v_fragment_ao;
+// Máscara de destellos de la nieve, de fragment() a light().
+varying float v_snow_sparkle;
 varying vec3 v_planet_up_view;
+global uniform vec3 sky_sun_direction;
 varying float v_surface_radius;
 
 varying vec3 v_normal_model;
@@ -613,17 +636,96 @@ void fragment() {
 	float macro_factor = 1.0 + macro_n * macro_variation_strength;
 	final_color *= macro_factor;
 
-	// 8.5) Clima: nieve por fragmento. Solo cuaja en terreno frío/alto (línea de nieve por
-	// latitud + altitud) y en caras hacia arriba; el clima solo aporta la intensidad global.
-	if (weather_snow_coverage > 0.001) {
-		float up_face = clamp(dot(normal_world, planet_up), 0.0, 1.0);
-		float lat_factor = smoothstep(weather_snow_latitude_start, weather_snow_latitude_full, abs(latitude));
-		float alt_factor = smoothstep(weather_snow_altitude_start, weather_snow_altitude_full, height);
-		float cold = lat_factor * alt_factor;
-		float snow = weather_snow_coverage * cold * smoothstep(0.35, 0.8, up_face);
-		final_color = mix(final_color, weather_snow_color, snow);
-		final_roughness = mix(final_roughness, 0.55, snow);
-		final_normal = normalize(mix(final_normal, planet_up, snow * 0.5));
+	// 8.5) Nieve y hielo del clima frío. Va después de la variación macro: la nieve no se
+	// ensucia con las manchas de 170 m del suelo. Las vetas de mena la atraviesan, que se minan.
+	v_snow_sparkle = 0.0;
+	float cold = climate_enabled ? climate_snow_coldness(planet_pos, snow_patch_strength) : -100.0;
+	// Ni con las manchas a favor ni con la nevada llega a la cota: sin nieve, y sin pagar las manchas.
+	bool snow_possible = cold + snow_patch_strength + climate_fresh_snow * CLIMATE_FRESH_SHIFT > climate_snow.x;
+	if (debug_snow_view == 1 && cold > -50.0) {
+		snow_possible = true;
+	}
+	if (cold > -50.0 && underwater < 0.5 && snow_possible) {
+		// Manchas: el borde de la nieve se rompe a dos escalas (ventisqueros de ~30 m y calvas
+		// de pocos metros). Suman grados de frío, así que las manchas se cierran al enfriar.
+		float patches = signed_fbm(planet_pos * snow_patch_scale) * 0.7
+			+ signed_fbm(planet_pos * snow_patch_scale * 6.3) * 0.3;
+		float cover = climate_snow_cover(cold + patches * snow_patch_strength);
+		float glacier = climate_glacier(cold);
+		float limit = mix(snow_slope_limit, snow_slope_limit_glacier, glacier);
+		float hold = 1.0 - smoothstep(limit - snow_slope_softness, limit + snow_slope_softness, slope);
+		// Peso de mena: solo los slots con un tipo de mena (índice > 0); el 0 es el suelo sin mena
+		// y lleva casi siempre todo el peso.
+		float ore_w = 0.0;
+		for (int slot = 0; slot < 4; slot++) {
+			ore_w = max(ore_w, v_ore_indices[slot] > 0.5 ? v_ore_weights[slot] : 0.0);
+		}
+		float snow = cover * hold * (1.0 - smoothstep(0.1, 0.5, ore_w * float(ore_count > 0)));
+		// Hielo glaciar donde el casquete no sostiene la nieve: seracs azules en vez de roca.
+		float ice = (glacier_texture_index >= 0) ? glacier * (1.0 - hold) * cover : 0.0;
+		if (debug_snow_view == 1) {
+			v_snow_sparkle = -1.0;
+			final_color = vec3(cover, hold, snow);
+		}
+		if (debug_snow_view == 0 && (snow > 0.002 || ice > 0.002)) {
+			TriplanarUVs snow_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+			float snow_h = triplanar_scalar_sample_uvs(height_textures[snow_texture_index], snow_uvs, planet_up);
+			if (snow_height_blend > 0.0001 && snow < 0.999) {
+				// Height-lerp: la nieve (altura + cobertura) contra el suelo (altura + resto).
+				float ground_h = (total_factor > 0.0001) ? final_material_height / total_factor : 0.5;
+				float d = snow_height_sharpness;
+				float ha = snow_h + snow;
+				float hb = ground_h + (1.0 - snow);
+				float m = max(ha, hb) - d;
+				float wa = max(ha - m, 0.0);
+				float wb = max(hb - m, 0.0);
+				snow = mix(snow, wa / max(wa + wb, 0.0001), snow_height_blend) * step(0.002, snow);
+			}
+			// La textura de nieve es oscura y azul (albedo ~0,5): se usa solo su relieve de luminancia
+			// sobre el blanco de la nieve real, que a la sombra el cielo ya tiñe de azul.
+			vec3 snow_tex = triplanar_sample_uvs(textures[snow_texture_index], snow_uvs, planet_up);
+			float snow_detail = dot(snow_tex, vec3(0.2126, 0.7152, 0.0722)) / max(snow_texture_mean_luma, 0.01);
+			vec3 snow_c = snow_tint * mix(1.0, snow_detail, snow_detail_strength);
+			vec4 snow_n = triplanar_normal_sample_uvs_v(normal_textures[snow_texture_index], snow_uvs, normal_world);
+			float snow_r = triplanar_scalar_sample_uvs(roughness_textures[snow_texture_index], snow_uvs, planet_up);
+			float snow_ao = triplanar_scalar_sample_uvs(ao_textures[snow_texture_index], snow_uvs, planet_up);
+			vec3 snow_normal = apply_normal_strength(normal_world, safe_normalize(snow_n.xyz, normal_world), normal_strength);
+			if (ice > 0.002) {
+				TriplanarUVs ice_uvs = compute_triplanar_uvs(planet_pos, texture_scale * 0.6);
+				vec3 ice_c = triplanar_sample_uvs(textures[glacier_texture_index], ice_uvs, geometry_normal_world);
+				vec4 ice_n = triplanar_normal_sample_uvs_v(normal_textures[glacier_texture_index], ice_uvs, normal_world);
+				float ice_r = triplanar_scalar_sample_uvs(roughness_textures[glacier_texture_index], ice_uvs, geometry_normal_world);
+				vec3 ice_normal = apply_normal_strength(normal_world, safe_normalize(ice_n.xyz, normal_world), normal_strength);
+				final_color = mix(final_color, ice_c, ice);
+				final_normal = safe_normalize(mix(final_normal, ice_normal, ice), normal_world);
+				final_roughness = mix(final_roughness, ice_r * 0.6, ice);
+			}
+			final_color = mix(final_color, snow_c, snow);
+			final_normal = safe_normalize(mix(final_normal, snow_normal, snow), normal_world);
+			final_roughness = mix(final_roughness, snow_r, snow);
+			final_ao = mix(final_ao, mix(1.0, snow_ao, 0.5), snow);
+
+			// Destellos: algunas celdas de ~15 cm son un cristal con su propia faceta, que brilla
+			// cuando refleja el sol hacia la cámara. Al moverse la vista se encienden y apagan
+			// otras. light() les pone la sombra y el color del sol. Solo de cerca.
+			float view_d = length(CAMERA_POSITION_WORLD - world_pos);
+			if (snow_sparkle_density > 0.0 && view_d < snow_sparkle_distance && snow > 0.5) {
+				vec3 cell = floor(planet_pos * 6.5);
+				if (hash(cell) > 1.0 - snow_sparkle_density) {
+					vec3 jitter = vec3(hash(cell + vec3(3.1)), hash(cell + vec3(5.7)), hash(cell + vec3(9.3))) - 0.5;
+					vec3 facet = normalize(snow_normal + jitter * 1.3);
+					vec3 half_dir = normalize(normalize(sky_sun_direction) + normalize(CAMERA_POSITION_WORLD - world_pos));
+					v_snow_sparkle = pow(max(dot(facet, half_dir), 0.0), 300.0)
+						* (1.0 - smoothstep(snow_sparkle_distance * 0.5, snow_sparkle_distance, view_d))
+						* smoothstep(0.5, 0.9, snow);
+				}
+			}
+		}
+	}
+
+	if (debug_snow_view == 1) {
+		EMISSION = cold > -50.0 ? final_color : vec3(1.0, 0.0, 1.0);
+		final_color = vec3(0.0);
 	}
 
 	// 8.6) Debug del detail blend: emisivo plano, gris medio = factor 1.0 (neutro).
@@ -715,4 +817,10 @@ void light()
     specular *= specular_ao * (1.0 - roughness);
 
     SPECULAR_LIGHT += specular * LIGHT_COLOR;
+
+    // Destello de nieve (solo el sol), con la sombra y el horizonte del resto de la luz.
+    if (v_snow_sparkle > 0.0 && LIGHT_IS_DIRECTIONAL
+            && dot(l, normalize((VIEW_MATRIX * vec4(sky_sun_direction, 0.0)).xyz)) > 0.999) {
+        SPECULAR_LIGHT += v_snow_sparkle * snow_sparkle_strength * ndotl * light_visibility * LIGHT_COLOR;
+    }
 }

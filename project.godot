@@ -287,6 +287,30 @@ sky_sun_glow_radiance={
 "type": "vec3",
 "value": Vector3(0, 0, 0)
 }
+climate_shape={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+climate_noise={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+climate_seeds={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+climate_snow={
+"type": "vec4",
+"value": Vector4(37, 49, 64, 72)
+}
+climate_sea_ice={
+"type": "vec4",
+"value": Vector4(56, 62, 9, 300)
+}
+climate_fresh_snow={
+"type": "float",
+"value": 0.0
+}
 
 [voxel]
 

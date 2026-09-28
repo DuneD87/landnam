@@ -20,6 +20,8 @@ var world_map: PlanetWorldMap
 var planet_radius: float = 0.0
 var atmosphere_height: float = 1400.0
 var latitude_ranges: Array[float] = []
+## Campo de frío del planeta, para GroundFaunaProfile.climate_min/max. Null = sin filtro.
+var climate: ClimateField
 
 ## Cuentas de aceptación y rechazo por motivo, para el comando `fauna` de la consola.
 var accepted: int = 0
@@ -97,6 +99,12 @@ func _surface_point(direction: Vector3, settings: GroundFaunaProfile,
 	if height < settings.min_height or height > settings.max_height:
 		_reject(&"altura")
 		return null
+	if climate != null and climate.enabled \
+			and (settings.climate_min > -1000.0 or settings.climate_max < 1000.0):
+		var cold := climate.coldness(terrain.global_basis.inverse() * (point - origin))
+		if cold < settings.climate_min or cold > settings.climate_max:
+			_reject(&"clima")
+			return null
 	if (hit["normal"] as Vector3).dot(direction) < cos(deg_to_rad(MAX_SLOPE_DEGREES)):
 		_reject(&"pendiente")
 		return null
@@ -110,10 +118,12 @@ func _surface_point(direction: Vector3, settings: GroundFaunaProfile,
 ## La latitud se mide en el marco del planeta, no en el del mundo: es la misma convención que
 ## usa el mapa horneado (WorldMapData.dir_to_latlon).
 func _in_biome(direction: Vector3, settings: GroundFaunaProfile) -> bool:
-	if settings.biomes.is_empty() or latitude_ranges.size() < 2:
-		return true
 	var local := terrain.global_basis.inverse() * direction
 	var latitude := rad_to_deg(asin(clampf(local.normalized().y, -1.0, 1.0)))
+	if settings.hemisphere != 0 and signf(latitude) != float(settings.hemisphere):
+		return false
+	if settings.biomes.is_empty() or latitude_ranges.size() < 2:
+		return true
 	for index in settings.biomes:
 		if index < 0 or index + 1 >= latitude_ranges.size():
 			continue

@@ -5,7 +5,8 @@ const Builder = preload("res://scripts/planet/understory_geometry.gd")
 const GrassLods = preload("res://scripts/planet/grass_geometry_lods.gd")
 const FieldPreview = preload("res://tests/vegetation/grass_lod_preview.gd")
 const NAMES := ["Helecho de bosque", "Helecho alto", "Arbusto redondo", "Arbusto de hoja larga",
-	"Arbusto florido", "Esparraguera", "Hojas anchas", "Flores silvestres"]
+	"Arbusto florido", "Esparraguera", "Hojas anchas", "Flores silvestres",
+	"Enebro rastrero", "Abedul enano", "Brezo", "Algodoncillo", "Liquen de los renos", "Amapola ártica"]
 var _camera: Camera3D
 var _sun: DirectionalLight3D
 var _materials: Array[ShaderMaterial] = []
@@ -43,7 +44,7 @@ func _ready() -> void:
 		_prepare_material(material)
 		var plant := MeshInstance3D.new()
 		plant.mesh = meshes[0]
-		plant.position = Vector3((i % 4 - 1.5) * 2.4, 0.025, -4.1 if i < 4 else 0.4)
+		plant.position = Vector3((i % 4 - 1.5) * 2.4, 0.025, -4.1 + (i / 4) * 4.5)
 		_catalog.add_child(plant)
 		_plants.append(plant)
 		var label := Label3D.new()
@@ -59,10 +60,12 @@ func _ready() -> void:
 	_camera = Camera3D.new()
 	_camera.fov = 45.0
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	_camera.size = 7.7
+	var rows: int = ceili(Builder.SPECIES.size() / 4.0)
+	_camera.size = 7.7 * rows / 2.0
 	add_child(_camera)
-	_camera.position = Vector3(0, 9.0, 10.0)
-	_camera.look_at(Vector3(0, 0.60, -1.9))
+	var middle: float = -4.1 + (rows - 1) * 2.25
+	_camera.position = Vector3(0, 9.0, middle + 12.0)
+	_camera.look_at(Vector3(0, 0.60, middle))
 	_camera.current = true
 	if "--capture" in OS.get_cmdline_user_args():
 		await _capture()

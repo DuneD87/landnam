@@ -145,7 +145,6 @@ func setup(
 	_build_events(config)
 	_compute_calm_sea()
 	_build_biome_profiles(config)
-	_push_snow_line_params()
 	_setup_fx()
 	_lightning = WeatherLightning.new()
 	_setup_lightning_light()
@@ -257,17 +256,6 @@ func _setup_water_sampler() -> void:
 	_water_sampler = WaterHeightSampler.new()
 	add_child(_water_sampler)
 	_water_sampler.setup(_water_mat)
-
-
-## Empuja al shader de terreno la línea de nieve (latitud/altitud) desde la config de clima.
-func _push_snow_line_params() -> void:
-	if _planet == null or _planet.shader_material == null:
-		return
-	var sm := _planet.shader_material
-	sm.set_shader_parameter("weather_snow_latitude_full", snowy_latitude)
-	sm.set_shader_parameter("weather_snow_latitude_start", maxf(snowy_latitude - 20.0, 0.0))
-	sm.set_shader_parameter("weather_snow_altitude_start", cold_altitude)
-	sm.set_shader_parameter("weather_snow_altitude_full", snow_altitude)
 
 
 ## Crea el gestor de partículas de precipitación, que sigue al jugador.
@@ -467,16 +455,34 @@ func _biome_for_latitude(lat: float) -> int:
 	return 0 if lat < float(_biome_latitude_ranges[0]) else _biome_count - 1
 
 
-## Perfil de eventos activo según bioma y altitud (frío al subir, nieve en picos).
+## Perfil de eventos activo según bioma y altitud (frío al subir, nieve en picos). Con clima frío
+## manda el campo de frío del planeta: la taiga refuerza la nieve y la niebla, y la tundra y el
+## casquete (polos y cumbres) usan el perfil de picos.
 func _active_profile() -> Array:
 	_current_biome = _biome_for_latitude(_current_latitude())
 	var base: Array = _profile_for_biome(_current_biome)
 	var alt := _current_altitude()
 	if alt >= snow_altitude:
 		return _peaks_profile
+	if _planet != null and _planet.climate.enabled and _player != null and is_instance_valid(_player):
+		var climate: ClimateField = _planet.climate
+		match climate.zone(climate.coldness(_player.global_position - _planet_center)):
+			ClimateField.Zone.TUNDRA, ClimateField.Zone.ICE:
+				return _peaks_profile
+			ClimateField.Zone.TAIGA:
+				return _boost_cold(base)
 	if alt >= cold_altitude:
 		return _boost_cold(base)
 	return base
+
+
+## 0..1: cuánto de la precipitación cae como nieve sobre el jugador (0 en tierra templada).
+func _cold_precipitation() -> float:
+	if _planet == null or not _planet.climate.enabled or _player == null or not is_instance_valid(_player):
+		return 0.0
+	var climate: ClimateField = _planet.climate
+	var cold := climate.coldness(_player.global_position - _planet_center)
+	return smoothstep(climate.snow_start - 3.0, climate.snow_start + 3.0, cold)
 
 
 ## Copia del perfil con los eventos de _cold_boost reforzados para zonas altas frías.
@@ -571,8 +577,9 @@ func _apply_state(st: WeatherState) -> void:
 
 	if _planet:
 		_planet.weather_wind_multiplier = st.wind_multiplier
-		if _planet.shader_material:
-			_planet.shader_material.set_shader_parameter("weather_snow_coverage", st.snow_coverage)
+		# Nieve reciente: la nevada, y en tierra fría también la precipitación del temporal, que
+		# allí cae como nieve. Baja la cota de nieve del suelo, los árboles y las rocas.
+		_planet.climate.set_fresh_snow(maxf(st.snow_coverage, _cold_precipitation() * clampf(st.rain_rate, 0.0, 1.0)))
 
 	if _water_mat:
 		_water_mat.set_shader_parameter("wave_amplitude", _base_wave_amplitude * st.water_wave_multiplier)
@@ -654,8 +661,10 @@ func _apply_precipitation(st: WeatherState) -> void:
 	# global sea una tormenta; el umbral precip_cloud_start/full ya hace el resto.
 	var cloud_factor := smoothstep(precip_cloud_start, precip_cloud_full, _local_cloud_coverage(st))
 	var gate := below * cloud_factor
-	_fx.set_intensity("rain", st.rain_rate * gate)
-	_fx.set_intensity("snow", st.snow_rate * gate)
+	# En tierra fría la lluvia del temporal cae como nieve.
+	var cold := _cold_precipitation()
+	_fx.set_intensity("rain", st.rain_rate * gate * (1.0 - cold))
+	_fx.set_intensity("snow", maxf(st.snow_rate, st.rain_rate * cold) * gate)
 
 
 ## Avanza el generador de rayos y aplica el destello del frame; emite lightning_struck al iniciar la descarga.

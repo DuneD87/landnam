@@ -43,6 +43,33 @@ uniform float wave_calm_steepness = 0.5;
 // Los mapas storm_* son en realidad el mapa mundial horneado (PlanetWorldMap) enchufado al agua:
 // los comparten la máscara de temporal y las olas de orilla de más abajo.
 
+// --- Hielo marino ------------------------------------------------------------------------------
+// Donde hace frío el mar se hiela: sin oleaje (superficie, niebla submarina y flotación) y con la
+// banquisa dibujada encima (water_shader). Es la misma función que climate_sea_ice_at de
+// climate.gdshaderinc, repetida aquí con uniforms propios porque este archivo también se traduce al
+// compute submarino (tools/water/build_underwater_shared.py), que no entiende globales ni el ruido
+// del clima. Solo latitud y distancia a la costa: esto se evalúa decenas de veces por píxel.
+// ClimateField.sea_ice_with es la réplica CPU; los valores los empuja PlanetLoader.
+// x = |latitud| a la que empieza, y = |latitud| helada, z = grados que se adelanta junto a la costa,
+// w = alcance de ese adelanto (m).
+uniform bool sea_ice_enabled = false;
+uniform vec4 sea_ice_params = vec4(57.0, 63.0, 10.0, 300.0);
+
+// shore_dist < 0 = sin dato de costa.
+float sea_ice_fraction(vec3 local, float shore_dist) {
+    if (!sea_ice_enabled) {
+        return 0.0;
+    }
+    vec3 d = normalize(local);
+    float lat = degrees(asin(clamp(abs(d.y), 0.0, 1.0)));
+    float lon = atan(d.z, d.x);
+    lat += sin(lon * 7.0) * 1.6 + sin(lon * 17.0 + 1.3) * 0.7;
+    float coast = shore_dist >= 0.0
+        ? (1.0 - smoothstep(sea_ice_params.w * 0.25, sea_ice_params.w, shore_dist)) * sea_ice_params.z
+        : 0.0;
+    return smoothstep(sea_ice_params.x, sea_ice_params.y, lat + coast);
+}
+
 // Misma convención equirect que WorldMapData.dir_to_uv.
 vec2 world_map_uv(vec3 dir) {
     return vec2(fract(0.5 - atan(dir.z, dir.x) / 6.28318530718),
@@ -174,6 +201,8 @@ struct WaveContext {
     float shore_quality;
     float shore_depth;
     float shore_gate;
+    // Hielo marino 0..1: apaga el oleaje (ver sea_ice_fraction).
+    float ice;
 };
 
 WaveContext wave_context(vec3 local) {
@@ -184,7 +213,9 @@ WaveContext wave_context(vec3 local) {
     ctx.shore_quality = 0.0;
     ctx.shore_depth = 0.0;
     ctx.shore_gate = 0.0;
+    ctx.ice = 0.0;
     if (!storm_mask_enabled && !shore_waves_enabled) {
+        ctx.ice = sea_ice_fraction(local, -1.0);
         return ctx;
     }
 
@@ -208,6 +239,10 @@ WaveContext wave_context(vec3 local) {
                 - smoothstep(reach * (1.0 - shore_fade), reach, ctx.shore_dist);
         }
     }
+    // Lagos y charcas (id interior confirmado, sin familia costera) cuentan como costa: se hielan
+    // antes que el mar abierto, igual que los ríos y las bahías estrechas.
+    float ice_shore = !shore_waves_enabled ? -1.0 : (shore_allowed ? ctx.shore_dist : 0.0);
+    ctx.ice = sea_ice_fraction(local, ice_shore);
     return ctx;
 }
 
@@ -223,7 +258,7 @@ vec3 gerstner_surface_differential(vec3 local, vec3 radial, float t, float min_l
     float presence_lod = min_length>0.0 ? smoothstep(min_length*0.5,min_length*1.5,shore_length) : 1.0;
     float shore_presence = ctx.shore_gate*smoothstep(1.0,max(shore_length*0.25,shore_depth_fade),ctx.shore_dist)*presence_lod;
     float ocean_weight = 1.0-smoothstep(0.0,shore_handover,shore_presence);
-    float amp = max(mix(wave_calm_amplitude,wave_amplitude,ctx.exposure),0.0);
+    float amp = max(mix(wave_calm_amplitude,wave_amplitude,ctx.exposure),0.0) * (1.0-ctx.ice);
     float steepness = mix(wave_calm_steepness,wave_steepness,ctx.exposure);
     OceanField field = ocean_field(local,wind,t,amp,steepness,min_length,ocean_weight,ctx.shore_depth);
     vec3 horiz = vec3(0.0);
@@ -258,7 +293,7 @@ vec3 gerstner_surface_differential(vec3 local, vec3 radial, float t, float min_l
         float lee_target = mix(0.35, 1.0,
             smoothstep(-0.9, 0.6, dot(swell_dir, -seaward)));
         float lee = mix(1.0, lee_target, shore_incidence * ctx.shore_quality);
-        float w = shore_presence * lee;
+        float w = shore_presence * lee * (1.0-ctx.ice);
 
         float k = 6.28318530718 / max(shore_length, 0.1);
         // amp_ref va SIN el peso: la Q de Gerstner se normaliza contra la amplitud y se cancelaría

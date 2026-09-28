@@ -98,8 +98,15 @@ class Sculpt:
         return m
 
 
+# Especies de invierno: la misma anatomía (y la misma animación del shader) que su pariente
+# templado, con retoques y otro pelaje. 3 liebre ártica, 4 zorro ártico, 5 lemming.
+NAMES = ['rabbit', 'fox', 'mouse', 'arctic_hare', 'arctic_fox', 'lemming']
+BASE = [0, 1, 2, 0, 1, 2]
+
+
 def anatomy(kind):
-    if kind == 0:
+    base = BASE[kind]
+    if base == 0:
         s = Sculpt(kind, (-.23,-.035,-.43), (.23,.73,.39), .0038, .022)
         # Low crouch: large pelvis, sloping back, narrow forequarters and an elongated face.
         for c,r,a in [((0,.215,.09),(.139,.171,.219),(8,0,0)),
@@ -119,7 +126,7 @@ def anatomy(kind):
         s.ell((0,.186,.289),(.047,.049,.055),blend=.01)
         for side in (-1,1):
             s.ell((side*.048,.508,-.192),(.017,.113,.011),(-12,0,-side*12),blend=.004,cut=True)
-    elif kind == 1:
+    elif base == 1:
         s = Sculpt(kind, (-.23,-.035,-.65), (.23,.79,.87), .0048, .025)
         for c,r,a in [((0,.343,.002),(.092,.108,.289),(0,0,0)),
                       ((0,.336,.185),(.098,.114,.151),(-8,0,0)),
@@ -141,21 +148,26 @@ def anatomy(kind):
             s.ell((side*.103,.023,.182),(.026,.024,.050),blend=.010)
             # Cheek ruff broadens behind the jaw while the muzzle stays fine.
             s.ell((side*.056,.442,-.318),(.036,.045,.066),(0,side*18,0),blend=.015)
-            # Compact triangular pinnae: broad lower fold and a narrow upright tip.
+            # Compact triangular pinnae: broad lower fold and a narrow upright tip. El zorro ártico
+            # las tiene más cortas y redondeadas (pierde menos calor).
+            ear_height = .127 if kind == 1 else .075
             for t in np.linspace(0,1,10):
-                w=.048*(1-t)+.003
-                s.ell((side*(.052+t*.033),.520+t*.127,-.318+t*.012),
+                w=(.048*(1-t)+.003)*(1.0 if kind == 1 else 1.1)
+                s.ell((side*(.052+t*.033),.520+t*ear_height,-.318+t*.012),
                       (w,.022,.021*(1-t)+.004),blend=.006)
         # Dense tapered sweep follows the actual centreline, avoiding segmented lobes.
+        tail_gain = 1.0 if kind == 1 else 1.3
         for t in np.linspace(0,1,33):
-            radius=.035*(1-t)+.051*np.sin(np.pi*t)**.85+.002
+            radius=(.035*(1-t)+.051*np.sin(np.pi*t)**.85)*tail_gain+.002
             s.ell((.018*np.sin(t*4),.328-.167*np.sin(t*np.pi*.75),.285+t*.475),
                   (radius,radius,radius),blend=.010)
         for side in (-1,1):
-            s.ell((side*.064,.574,-.338),(.026,.049,.012),(-7,0,-side*15),blend=.003,cut=True)
+            s.ell((side*.064,.520+(.054 if kind == 1 else .032),-.338),(.026,.049 if kind == 1 else .03,.012),
+                  (-7,0,-side*15),blend=.003,cut=True)
     else:
         s = Sculpt(kind, (-.125,-.018,-.215), (.125,.22,.41), .0018, .008)
-        for c,r,a in [((0,.076,.032),(.056,.066,.112),(8,0,0)),
+        plump = 1.0 if kind == 2 else 1.15
+        for c,r,a in [((0,.076,.032),(.056*plump,.066*plump,.112),(8,0,0)),
                       ((0,.070,-.049),(.043,.047,.077),(-12,0,0)),
                       ((0,.086,-.093),(.037,.040,.055),(12,0,0)),
                       ((0,.064,-.139),(.024,.021,.042),(-8,0,0))]:
@@ -168,7 +180,8 @@ def anatomy(kind):
             s.ell((side*.051,.009,.017),(.015,.009,.031),blend=.004)
             s.ell((side*.038,.131,-.074),(.030,.034,.011),(-12,side*22,-side*17),blend=.004)
         previous = np.array((0,.057,.133))
-        for i in range(1,21):
+        # El lemming tiene la cola muy corta.
+        for i in range(1,21 if kind == 2 else 5):
             t = i/20
             point = np.array((.035*np.sin(t*4), .050-.039*np.sin(t*np.pi*.65), .133+t*.245))
             s.rod(previous,point,.0065*(1-t)+.0012,blend=.003)
@@ -180,7 +193,28 @@ def anatomy(kind):
 
 def coat(kind, v, normals):
     x,y,z = v.T
-    if kind == 0:
+    if kind == 3:
+        # Liebre ártica en invierno: blanca, algo gris en el lomo y las puntas de las orejas negras.
+        color=np.tile(rgb('eeede8'),(len(v),1))
+        saddle=ss(.20,.34,y)*(1-ss(-.10,-.20,z))
+        color*=1-.06*saddle[:,None]
+        tips=ss(.60,.66,y)
+        color=color*(1-tips[:,None]*.92)+rgb('26221f')*tips[:,None]*.92
+    elif kind == 4:
+        # Zorro ártico: blanco crema, un punto más cálido en el lomo, cola igual de blanca.
+        color=np.tile(rgb('f0ede4'),(len(v),1))
+        saddle=ss(.405,.475,y)*ss(-.22,-.06,z)*(1-ss(.30,.37,z))
+        color=color*(1-saddle[:,None]*.35)+rgb('ddd3c0')*saddle[:,None]*.35
+    elif kind == 5:
+        # Lemming noruego: cabeza y hombros negros, lomo pardo anaranjado y vientre amarillento.
+        color=np.tile(rgb('9c6a34'),(len(v),1))
+        head=ss(-.035,-.075,z)*ss(.045,.075,y)
+        color=color*(1-head[:,None])+rgb('1f1a17')*head[:,None]
+        belly=ss(.06,.03,y)*(1-ss(.13,.16,z))
+        color=color*(1-belly[:,None])+rgb('c8ac72')*belly[:,None]
+        flank=ss(.03,.06,np.abs(x))*ss(.07,.05,y)
+        color=color*(1-flank[:,None]*.5)+rgb('b9934f')*flank[:,None]*.5
+    elif kind == 0:
         color=np.tile(rgb('83705a'),(len(v),1))
         light=rgb('c6b69b')
         belly=ss(.16,.07,y)*(1-ss(.12,.17,np.abs(x)))
@@ -239,6 +273,7 @@ def detail_sphere(center, scale, normal, color, surface=0):
 
 
 def weights(kind,v):
+    kind=BASE[kind]
     x,y,z=v.T
     uv=np.zeros((len(v),2))
     # Smooth deformation weights vanish before reaching the torso.
@@ -265,28 +300,29 @@ def weights(kind,v):
 
 
 def bake(kind):
-    names=['rabbit','fox','mouse']
+    names=NAMES
     s=anatomy(kind)
+    base=BASE[kind]
     main=s.mesh()
     meshes=[main]; colors=[coat(kind,main.vertices,main.vertex_normals)]
-    eye_pos=[(.063,.341,-.257),(.060,.483,-.387),(.030,.096,-.119)][kind]
-    eye_size=[.012,.014,.009][kind]
+    eye_pos=[(.063,.341,-.257),(.060,.483,-.387),(.030,.096,-.119)][base]
+    eye_size=[.012,.014,.009][base]
     for side in (-1,1):
         p,n=s.surface((side*eye_pos[0],eye_pos[1],eye_pos[2]),(side*.82,.15,-.55))
         # Lens lies against the skin, with iris aligned to the outward surface normal.
         for c,sc,col,surf in [(p-n*eye_size*.15,(eye_size,eye_size*.83,eye_size*.42),'171713',0),
-                              (p+n*eye_size*.30,(eye_size*.65,eye_size*.62,eye_size*.12),'967342' if kind==1 else '3a2c20',0),
+                              (p+n*eye_size*.30,(eye_size*.65,eye_size*.62,eye_size*.12),'967342' if base==1 else '3a2c20',0),
                               (p+n*eye_size*.40,(eye_size*.32,eye_size*.45,eye_size*.07),'090d10',0)]:
             m,c=detail_sphere(c,sc,n,col,surf);meshes.append(m);colors.append(c)
         # A restrained catchlight, not a separate bulging eye.
         m,c=detail_sphere(p+n*eye_size*.46+np.array((0,eye_size*.22,0)),(eye_size*.10,)*3,n,'ede3cd',0)
         meshes.append(m);colors.append(c)
-    nose=[((0,.289,-.351),(.014,.010,.009),'725249'),((0,.436,-.570),(.017,.011,.012),'232421'),((0,.064,-.178),(.007,.005,.006),'b7837b')][kind]
+    nose=[((0,.289,-.351),(.014,.010,.009),'725249'),((0,.436,-.570),(.017,.011,.012),'232421'),((0,.064,-.178),(.007,.005,.006),'b7837b')][base]
     m,c=detail_sphere(nose[0],nose[1],(0,0,-1),nose[2],.25);meshes.append(m);colors.append(c)
     # Fine whiskers, curved and tapered, grouped into the same draw surface.
-    if kind in (0,2):
-        root=np.array([(.029,.284,-.326),(.015,.065,-.158)][0 if kind==0 else 1])
-        length=.072 if kind==0 else .050
+    if base in (0,2):
+        root=np.array([(.029,.284,-.326),(.015,.065,-.158)][0 if base==0 else 1])
+        length=.072 if base==0 else .050
         for side in (-1,1):
             for strand in (-1,0,1):
                 start=root*np.array((side,1,1))
@@ -294,7 +330,7 @@ def bake(kind):
                     a=t/4; b=(t+1)/4
                     def point(q): return start+np.array((side*length*q,strand*length*.13*q-length*.08*q*q,strand*length*.25*q))
                     a1,b1=point(a),point(b)
-                    radius=(.00065 if kind==0 else .00035)*(1-a*.7)
+                    radius=(.00065 if base==0 else .00035)*(1-a*.7)
                     m=trimesh.creation.cylinder(radius=radius,segment=np.array([a1,b1]),sections=5)
                     meshes.append(m);colors.append(np.tile(np.r_[rgb('b9ac94'),.4],(len(m.vertices),1)))
     mesh=trimesh.util.concatenate(meshes)
@@ -310,5 +346,5 @@ def bake(kind):
 
 if __name__=='__main__':
     import sys
-    for kind in ([int(sys.argv[1])] if len(sys.argv)>1 else range(3)):
+    for kind in ([int(a) for a in sys.argv[1:]] if len(sys.argv)>1 else range(len(NAMES))):
         bake(kind)

@@ -10,6 +10,7 @@
 // =============================================================================
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
 #include "res://shaders/lib/tree_wind.gdshaderinc"
+#include "res://shaders/lib/climate.gdshaderinc"
 
 uniform sampler2D texture_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform vec4 albedo_tint : source_color = vec4(1.0);
@@ -34,6 +35,11 @@ uniform float direct_occlusion : hint_range(0.0, 1.0, 0.01) = 0.45;
 varying float v_ao;
 varying vec2 v_band;
 varying vec3 v_tint;
+// Nieve del clima frío (por árbol) y la que queda en el fragmento, que light() usa para que la
+// luz no atraviese las ramas nevadas.
+varying float v_snow_cover;
+varying float v_glacier;
+varying float v_snow;
 
 void vertex() {
 	vec3 relative_base = MODEL_MATRIX[3].xyz - planet_position;
@@ -51,6 +57,13 @@ void vertex() {
 	planet_normal = normalize(vertex_position_global - planet_position);
 
 	v_ao = mix(1.0, COLOR.r, ao_strength);
+	v_snow_cover = 0.0;
+	v_glacier = 0.0;
+	if (!IN_SHADOW_PASS) {
+		float cold = climate_snow_coldness(relative_base);
+		v_snow_cover = climate_snow_cover(cold);
+		v_glacier = climate_glacier(cold);
+	}
 	float hue = tree_seed(relative_base, 53u);
 	v_tint = mix(variation_cool_tint, variation_warm_tint, hue)
 		* (1.0 + (seed - 0.5) * 2.0 * tint_variation);
@@ -76,6 +89,15 @@ void fragment() {
 	}
 	AO = v_ao;
 	AO_LIGHT_AFFECT = 0.0;
+	// Nieve sobre las ramas: la normal ya es la de la copa, así que cubre su parte alta y las
+	// ramas horizontales; el grano la reparte en pellas en vez de un casquete liso.
+	v_snow = 0.0;
+	if (v_snow_cover > 0.001) {
+		float facing = dot(normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz), planet_normal);
+		v_snow = climate_object_snow(v_snow_cover, v_glacier, facing + 0.12, vertex_position_global - planet_position);
+		ALBEDO = mix(ALBEDO, CLIMATE_SNOW_ALBEDO, v_snow);
+		ROUGHNESS = mix(ROUGHNESS, 0.85, v_snow);
+	}
 }
 
 void light() {
@@ -84,7 +106,7 @@ void light() {
 	float wrapped = max(ndl + diffuse_wrap, 0.0) / (1.0 + diffuse_wrap);
 	float toward_sun = max(dot(VIEW, -LIGHT), 0.0);
 	float transmission = pow(toward_sun, transmission_sharpness)
-		* mix(max(-ndl, 0.0), 1.0, 0.4) * transmission_strength;
+		* mix(max(-ndl, 0.0), 1.0, 0.4) * transmission_strength * (1.0 - v_snow);
 	float day = LIGHT_IS_DIRECTIONAL
 		? planet_light_visibility(normalize((VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz), LIGHT)
 		: 1.0;

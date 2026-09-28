@@ -17,6 +17,7 @@ clearance = 1.15
 biomes = Array[int]([1, 3])
 min_height = -49.5
 max_height = 240.0
+climate_max = 50.0
 walk_speed = 1.4
 flee_speed = 5
 flee_distance = 8

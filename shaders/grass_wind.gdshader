@@ -3,6 +3,7 @@ render_mode cull_disabled, depth_draw_opaque;
 
 // El planeta actualiza estos uniforms a través del include compartido.
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
+#include "res://shaders/lib/climate.gdshaderinc"
 
 uniform vec4 base_color : source_color = vec4(0.23, 0.36, 0.21, 1.0);
 uniform vec4 tip_color : source_color = vec4(0.58, 0.70, 0.42, 1.0);
@@ -90,6 +91,14 @@ varying vec3 instance_tint;
 varying float instance_dryness;
 varying float instance_seed;
 varying float wind_shade;
+// Nieve del clima frío en el sitio de la mata: x = cobertura, y = casquete.
+varying vec2 v_snow_climate;
+
+// Fracción de la altura de la mata que se hunde en la nieve con el suelo nevado del todo: la hierba
+// asoma en matas cortas en vez de crecer encima de la nieve.
+uniform float snow_burial : hint_range(0.0, 1.0) = 0.35;
+// Escarcha en las puntas de las hojas donde el clima ya deja nieve (0 = sin escarcha).
+uniform float snow_frost : hint_range(0.0, 1.0) = 0.35;
 
 uint grass_hash(uint x) {
     x ^= x >> 16u;
@@ -185,6 +194,11 @@ void vertex() {
         VERTEX += CUSTOM0.xyz * (presence * widen * pixel_gain - 1.0);
     }
     VERTEX *= visibility;
+    // Medio enterrada en la nieve. También en el pase de sombras: si no, la sombra sería la de la
+    // mata entera. En tierra templada climate_snow_coldness no evalúa ruido y esto no cuesta nada.
+    float snow_cold = climate_snow_coldness(relative_base);
+    v_snow_climate = vec2(climate_snow_cover(snow_cold), climate_glacier(snow_cold));
+    VERTEX.y -= v_snow_climate.x * snow_burial * grass_height;
     vec3 world_vertex = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 
     vec3 wt = wind_direction - up * dot(wind_direction, up);
@@ -231,6 +245,15 @@ void fragment() {
     ALBEDO = mix(vec3(luma), albedo, albedo_saturation);
     if (use_vertex_color) {
         ALBEDO *= COLOR.rgb;
+    }
+    // Nieve sobre las hojas que miran al cielo y escarcha en las puntas.
+    if (v_snow_climate.x > 0.001) {
+        vec3 world_n = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
+        float facing = abs(dot(world_n, planet_normal)) + height_factor * 0.3 - 0.1;
+        float snow = climate_object_snow(v_snow_climate.x, v_snow_climate.y, facing,
+            vertex_position_global - planet_position);
+        float frost = v_snow_climate.x * snow_frost * smoothstep(0.3, 1.0, height_factor);
+        ALBEDO = mix(ALBEDO, CLIMATE_SNOW_ALBEDO, max(snow, frost));
     }
     ROUGHNESS = specular_roughness;
     SPECULAR = specular_strength;

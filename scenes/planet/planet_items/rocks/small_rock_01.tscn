@@ -45,6 +45,7 @@ shader_parameter/emission = Color(0, 0, 0, 0)
 shader_parameter/emission_energy = 0.0
 shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
+shader_parameter/climate_snow_amount = 1.0
 
 [node name="Node3D" type="StaticBody3D" unique_id=1075421542]
 script = ExtResource("1_hi1wi")

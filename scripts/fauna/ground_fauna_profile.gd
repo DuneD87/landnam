@@ -9,6 +9,12 @@ class_name GroundFaunaProfile extends AmbientFaunaProfile
 
 ## Índices de banda de biome_latitude_ranges del planeta donde aparece la especie.
 @export var biomes: Array[int] = []
+## Frío admitido (grados del campo de frío del planeta, ver ClimateField): la fauna templada no
+## sube a la tundra y la polar no baja del hielo. Sin clima en el planeta no filtra.
+@export var climate_min: float = -1000.0
+@export var climate_max: float = 1000.0
+## 0 = los dos hemisferios, 1 = solo el norte, -1 = solo el sur (los pingüinos).
+@export_range(-1, 1, 1) var hemisphere: int = 0
 ## Altura admitida sobre el radio NOMINAL del planeta, en metros. El mar está en -water_level,
 ## así que 0 no es la orilla: en el planeta Tierra la orilla es -50.
 @export var min_height: float = -50.0

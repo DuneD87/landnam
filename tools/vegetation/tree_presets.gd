@@ -19,9 +19,61 @@ const SCENES := {
 	"apple_02": {"species": "apple", "seed": 31, "overrides": {"branch_height": 6.2, "branch_split_count": 3}},
 	"almond_01": {"species": "almond", "seed": 3, "overrides": {}},
 	"almond_02": {"species": "almond", "seed": 37, "overrides": {"branch_height": 5.6, "branch_split_angle": 34.0}},
+	# Bioma nevado: picea de la taiga (también la enana de la línea de árboles, escalada con
+	# height_m) y abedul de su borde templado.
+	"spruce_01": {"species": "spruce", "seed": 13, "overrides": {}},
+	"spruce_02": {"species": "spruce", "seed": 29, "overrides": {"branch_height": 16.0, "branch_l1_count": 24, "branch_lean": 0.06}},
+	"spruce_03": {"species": "spruce", "seed": 47, "overrides": {"branch_height": 20.0, "branch_l1_gravity": 0.7, "branch_crown_base": 0.14}},
+	"birch_01": {"species": "birch", "seed": 7, "overrides": {}},
+	"birch_02": {"species": "birch", "seed": 23, "overrides": {"branch_crown_shape": 1, "branch_l1_length": 0.45, "branch_crown_base": 0.3, "branch_lean": 0.12, "branch_l1_count": 18, "branch_l2_count": 7}},
 }
 
 const SPECIES := {
+	# Picea: un solo guía hasta la punta, verticilos de ramas casi horizontales desde el suelo que
+	# se levantan arriba, y ramillas colgantes (la "peineta" de la picea de Noruega).
+	"spruce": {
+		"bark": "spruce", "twig": "twig_spruce.png",
+		"params": {
+			"branch_height": 18.0, "branch_trunk_radius": 0.27, "branch_trunk_taper": 0.75,
+			"branch_root_flare": 1.45, "branch_flare_height": 0.45, "branch_root_lobes": 5,
+			"branch_lobe_depth": 0.12, "branch_gnarl": 0.02, "branch_lean": 0.03, "branch_wobble": 0.04,
+			"branch_split_height": 1.0, "branch_split_count": 1, "branch_split_angle": 5.0,
+			"branch_crown_base": 0.08, "branch_crown_shape": 0,
+			"branch_l1_count": 26, "branch_l1_length": 0.26, "branch_l1_angle": 96.0, "branch_l1_angle_top": 30.0,
+			"branch_l1_gravity": 0.6, "branch_l1_radius": 0.34,
+			"branch_l2_count": 5, "branch_l2_length": 0.46, "branch_l2_angle": 58.0, "branch_l2_gravity": 0.55,
+			"branch_l2_radius": 0.5,
+			"branch_twig_count": 6, "branch_twig_angle": 38.0, "branch_leaf_size": 0.9, "branch_leaf_width": 1.0,
+			"branch_leaf_jitter": 0.2, "branch_leaf_up": 0.55, "branch_leaf_droop": 0.35, "branch_leaf_cross": 0.2,
+			"branch_leaf_start": 0.12, "branch_leaf_outward": 0.3,
+			"branch_crown_normal": 0.75, "branch_crown_ao": 0.5, "branch_bark_tile": 1.0, "branch_lod_card_boost": 1.15,
+		},
+		"foliage": {"albedo_tint": Color(0.92, 1.0, 1.0), "transmission_color": Color(0.7, 0.9, 0.5),
+			"transmission_strength": 0.55},
+		"bark_material": {"moss_amount": 0.12},
+	},
+	# Abedul: tronco blanco esbelto y algo ondulado, copa oval y ramillas péndulas, en su otoño
+	# dorado (la textura de ramita ya lo trae).
+	"birch": {
+		"bark": "birch", "twig": "twig_birch.png",
+		"params": {
+			"branch_height": 14.0, "branch_trunk_radius": 0.14, "branch_trunk_taper": 0.55,
+			"branch_root_flare": 1.3, "branch_flare_height": 0.35, "branch_root_lobes": 3,
+			"branch_lobe_depth": 0.08, "branch_gnarl": 0.04, "branch_lean": 0.08, "branch_wobble": 0.2,
+			"branch_split_height": 0.62, "branch_split_count": 3, "branch_split_angle": 24.0,
+			"branch_crown_base": 0.28, "branch_crown_shape": 5,
+			"branch_l1_count": 24, "branch_l1_length": 0.42, "branch_l1_angle": 46.0, "branch_l1_angle_top": 28.0,
+			"branch_l1_gravity": 0.3, "branch_l1_radius": 0.45,
+			"branch_l2_count": 8, "branch_l2_length": 0.55, "branch_l2_angle": 42.0, "branch_l2_gravity": 0.85,
+			"branch_l2_radius": 0.5,
+			"branch_twig_count": 7, "branch_twig_angle": 35.0, "branch_leaf_size": 1.1, "branch_leaf_width": 1.0,
+			"branch_leaf_jitter": 0.3, "branch_leaf_up": 0.3, "branch_leaf_droop": 0.6, "branch_leaf_cross": 0.2,
+			"branch_leaf_start": 0.15, "branch_leaf_outward": 0.35,
+			"branch_crown_normal": 0.7, "branch_crown_ao": 0.4, "branch_bark_tile": 1.1, "branch_lod_card_boost": 1.0,
+		},
+		"foliage": {"albedo_tint": Color(1.0, 0.97, 0.9), "transmission_color": Color(1.0, 0.82, 0.35)},
+		"bark_material": {"moss_amount": 0.05},
+	},
 	"pine": {
 		"bark": "pine", "twig": "twig_pine.png",
 		"params": {

@@ -1,0 +1,133 @@
+[gd_resource type="VoxelGraphFunction" format=3]
+
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/earth_terrain_base.tres" id="1_5nouu"]
+
+[sub_resource type="Image" id="Image_dm60c"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0),
+"format": "Red8",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="Image" id="Image_k1mau"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+"format": "RFloat",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[resource]
+graph_data = {
+"connections": [[71, 0, 61, 0], [69, 0, 70, 0], [70, 0, 71, 1], [2, 0, 63, 1], [2, 0, 64, 1], [2, 0, 65, 1], [61, 0, 17, 0], [3, 0, 63, 2], [3, 0, 64, 2], [3, 0, 65, 2], [60, 0, 71, 0], [1, 0, 63, 0], [1, 0, 64, 0], [1, 0, 65, 0], [63, 0, 66, 1], [64, 0, 66, 0], [65, 0, 69, 0], [66, 0, 67, 0], [67, 0, 68, 0], [68, 0, 69, 1]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(26.6667, -106.667),
+"type": "InputX"
+},
+"17": {
+"auto_connect": false,
+"gui_position": Vector2(2693.3333, 257.77777),
+"type": "CustomOutput"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(26.6667, 53.3333),
+"type": "InputY"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(26.6667, 213.333),
+"type": "InputZ"
+},
+"60": {
+"_function": ExtResource("1_5nouu"),
+"auto_connect": true,
+"gui_position": Vector2(1795.5555, 471.1111),
+"name": &"cave_mask",
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"61": {
+"auto_connect": false,
+"edge0": -3.0,
+"edge1": 0.0,
+"gui_position": Vector2(2088.889, 471.1111),
+"name": &"surface_gate",
+"type": "Smoothstep"
+},
+"63": {
+"auto_connect": true,
+"gui_position": Vector2(-520, 700),
+"name": &"river_planet_sdf",
+"radius": 30000.0,
+"type": "SdfSphere"
+},
+"64": {
+"auto_connect": true,
+"factor": 240.0,
+"gui_position": Vector2(-520, 820),
+"image": SubResource("Image_dm60c"),
+"name": &"river_dist_map",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"65": {
+"auto_connect": true,
+"factor": -1000.0,
+"gui_position": Vector2(-520, 960),
+"image": SubResource("Image_k1mau"),
+"name": &"river_bed_map",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"66": {
+"auto_connect": false,
+"gui_position": Vector2(-280, 780),
+"name": &"river_dist_sub",
+"type": "Subtract"
+},
+"67": {
+"auto_connect": false,
+"b": 240.0,
+"gui_position": Vector2(-120, 780),
+"name": &"river_distance_m",
+"type": "Add"
+},
+"68": {
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(40, 860),
+"name": &"river_bank_slope",
+"type": "Multiply"
+},
+"69": {
+"auto_connect": false,
+"gui_position": Vector2(220, 900),
+"name": &"river_valley_surface",
+"type": "Subtract"
+},
+"70": {
+"auto_connect": false,
+"b": 34.0,
+"gui_position": Vector2(400, 900),
+"name": &"river_wall_amplitude",
+"type": "Add"
+},
+"71": {
+"auto_connect": false,
+"gui_position": Vector2(560, 800),
+"name": &"river_carved_surface",
+"type": "Max"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0]]
+output_definitions = [["", "CustomOutput", 0]]

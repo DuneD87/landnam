@@ -1,0 +1,103 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/items/item.gd" id="1_soix5"]
+[ext_resource type="Resource" path="res://data/items/material/wood.tres" id="2_7d7bl"]
+[ext_resource type="Shader" path="res://shaders/vegetation/tree_bark.gdshader" id="3_w36r8"]
+[ext_resource type="Texture2D" path="res://textures/planet/vegetation/tree/trunk/bark_birch_albedo.jpg" id="4_8osiq"]
+[ext_resource type="Texture2D" path="res://textures/planet/vegetation/tree/trunk/bark_birch_normal.jpg" id="5_o180i"]
+[ext_resource type="Texture2D" path="res://textures/planet/vegetation/tree/trunk/bark_birch_roughness.jpg" id="6_b8g45"]
+[ext_resource type="Shader" path="res://shaders/vegetation/tree_foliage.gdshader" id="7_682th"]
+[ext_resource type="Texture2D" path="res://textures/planet/vegetation/tree/twigs/twig_birch.png" id="8_dpbp3"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_8osiq"]
+render_priority = 0
+shader = ExtResource("3_w36r8")
+shader_parameter/texture_albedo = ExtResource("4_8osiq")
+shader_parameter/texture_normal = ExtResource("5_o180i")
+shader_parameter/texture_roughness = ExtResource("6_b8g45")
+shader_parameter/moss_amount = 0.05
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_o180i"]
+render_priority = 0
+shader = ExtResource("7_682th")
+shader_parameter/texture_albedo = ExtResource("8_dpbp3")
+shader_parameter/albedo_tint = Color(1, 0.97, 0.9, 1)
+shader_parameter/transmission_color = Color(1, 0.82, 0.35, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
+size = Vector3(0.231934, 5.74695, 0.482483)
+
+[node name="Node3D" type="StaticBody3D" unique_id=1075421542]
+script = ExtResource("1_soix5")
+health = 100
+drop_amount_min = 4
+drop_amount_max = 6
+item_data = ExtResource("2_7d7bl")
+
+[node name="Tree3D" type="Tree3D" parent="." unique_id=1858449836]
+lod_twig_scale_1 = 2.35
+lod_twig_scale_2 = 3.37
+lod_twig_scale_3 = 3.59
+shape = 3
+twig_planes = 4
+twig_scale_variance = 1.0
+twig_rotation_variance = 3.14
+seed = 7
+trunk_branches_count = 4
+trunk_height = 7
+trunk_branch_length = 1.011
+trunk_branch_length_falloff = 0.754
+trunk_branch_factor = 11.21
+trunk_branch_clump_min = 0.0
+trunk_drop_amount = 0.09
+trunk_grow_amount = 1.171
+trunk_max_radius = 0.24
+trunk_kink = 0.0
+trunk_length = 6.894
+twig_scale = 0.5
+material_trunk = SubResource("ShaderMaterial_8osiq")
+twig_materials = Array[Material]([SubResource("ShaderMaterial_o180i")])
+branch_height = 14.0
+branch_trunk_radius = 0.14
+branch_trunk_taper = 0.55
+branch_root_flare = 1.3
+branch_flare_height = 0.35
+branch_root_lobes = 3
+branch_lobe_depth = 0.08
+branch_gnarl = 0.04
+branch_lean = 0.08
+branch_wobble = 0.2
+branch_split_height = 0.62
+branch_split_count = 3
+branch_split_angle = 24.0
+branch_crown_base = 0.28
+branch_crown_shape = 5
+branch_l1_count = 24
+branch_l1_length = 0.42
+branch_l1_angle = 46.0
+branch_l1_angle_top = 28.0
+branch_l1_gravity = 0.3
+branch_l1_radius = 0.45
+branch_l2_count = 8
+branch_l2_length = 0.55
+branch_l2_angle = 42.0
+branch_l2_gravity = 0.85
+branch_l2_radius = 0.5
+branch_twig_count = 7
+branch_twig_angle = 35.0
+branch_leaf_size = 1.1
+branch_leaf_width = 1.0
+branch_leaf_jitter = 0.3
+branch_leaf_up = 0.3
+branch_leaf_droop = 0.6
+branch_leaf_cross = 0.2
+branch_leaf_start = 0.15
+branch_leaf_outward = 0.35
+branch_crown_normal = 0.7
+branch_crown_ao = 0.4
+branch_bark_tile = 1.1
+branch_lod_card_boost = 1.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602228501]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028862, 2.80907, 0.0509522)
+shape = SubResource("BoxShape3D_cs0ur")

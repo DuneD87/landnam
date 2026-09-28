@@ -18,79 +18,81 @@ layout(set=0, binding=7) uniform sampler2D storm_body_map;
 #define storm_depth_full (uw.data[37].x)
 #define wave_calm_amplitude (uw.data[38].x)
 #define wave_calm_steepness (uw.data[39].x)
-#define shore_waves_enabled ((uw.data[40].x > 0.5))
+#define sea_ice_enabled ((uw.data[40].x > 0.5))
+#define sea_ice_params (uw.data[41])
+#define shore_waves_enabled ((uw.data[42].x > 0.5))
 layout(set=0, binding=8) uniform sampler2D shore_offset_map;
-#define shore_amplitude (uw.data[41].x)
-#define shore_length (uw.data[42].x)
-#define shore_speed (uw.data[43].x)
-#define shore_steepness (uw.data[44].x)
-#define shore_depth_fade (uw.data[45].x)
-#define shore_shoal_max (uw.data[46].x)
-#define shore_incidence (uw.data[47].x)
-#define shore_reach (uw.data[48].x)
-#define shore_range (uw.data[49].x)
-#define shore_fade (uw.data[50].x)
-#define shore_handover (uw.data[51].x)
-#define shore_chop (uw.data[52].x)
-#define shore_debug_mode (floatBitsToInt(uw.data[53].x))
-#define spectrum_spread (uw.data[54].x)
-#define fog_color (uw.data[55])
-#define deep_fog_color (uw.data[56])
-#define abyss_fog_color (uw.data[57])
-#define deep_transition_depth (uw.data[58].x)
-#define abyss_transition_depth (uw.data[59].x)
-#define interior_count (floatBitsToInt(uw.data[60].x))
-#define planet_center (uw.data[573].xyz)
-#define water_time (uw.data[574].x)
-#define sun_direction (uw.data[575].xyz)
-#define absorption_coefficients (uw.data[576].xyz)
-#define absorption_scale (uw.data[577].x)
-#define scattering_coefficients (uw.data[578].xyz)
-#define surface_exposure (uw.data[579].x)
-#define surface_saturation (uw.data[580].x)
-#define fog_density (uw.data[581].x)
-#define sun_glow_intensity (uw.data[582].x)
-#define sun_glow_power (uw.data[583].x)
-#define tir_reflection_depth (uw.data[584].x)
-#define scatter_vertical_range (uw.data[585].x)
-#define distance_depth_gain (uw.data[586].x)
-#define distance_depth_max (uw.data[587].x)
-#define meniscus_width (uw.data[588].x)
-#define meniscus_strength (uw.data[589].x)
-#define waterline_seal_distance (uw.data[590].x)
-#define waterline_seal_band (uw.data[591].x)
-#define surface_search_distance (uw.data[592].x)
-#define underside_refraction (uw.data[593].x)
-#define surface_projection_distance (uw.data[594].x)
-#define surface_reflection_strength (uw.data[595].x)
-#define surface_ripple_scale (uw.data[596].x)
-#define surface_ripple_strength (uw.data[597].x)
-#define surface_window_sharpness (uw.data[598].x)
+#define shore_amplitude (uw.data[43].x)
+#define shore_length (uw.data[44].x)
+#define shore_speed (uw.data[45].x)
+#define shore_steepness (uw.data[46].x)
+#define shore_depth_fade (uw.data[47].x)
+#define shore_shoal_max (uw.data[48].x)
+#define shore_incidence (uw.data[49].x)
+#define shore_reach (uw.data[50].x)
+#define shore_range (uw.data[51].x)
+#define shore_fade (uw.data[52].x)
+#define shore_handover (uw.data[53].x)
+#define shore_chop (uw.data[54].x)
+#define shore_debug_mode (floatBitsToInt(uw.data[55].x))
+#define spectrum_spread (uw.data[56].x)
+#define fog_color (uw.data[57])
+#define deep_fog_color (uw.data[58])
+#define abyss_fog_color (uw.data[59])
+#define deep_transition_depth (uw.data[60].x)
+#define abyss_transition_depth (uw.data[61].x)
+#define interior_count (floatBitsToInt(uw.data[62].x))
+#define planet_center (uw.data[575].xyz)
+#define water_time (uw.data[576].x)
+#define sun_direction (uw.data[577].xyz)
+#define absorption_coefficients (uw.data[578].xyz)
+#define absorption_scale (uw.data[579].x)
+#define scattering_coefficients (uw.data[580].xyz)
+#define surface_exposure (uw.data[581].x)
+#define surface_saturation (uw.data[582].x)
+#define fog_density (uw.data[583].x)
+#define sun_glow_intensity (uw.data[584].x)
+#define sun_glow_power (uw.data[585].x)
+#define tir_reflection_depth (uw.data[586].x)
+#define scatter_vertical_range (uw.data[587].x)
+#define distance_depth_gain (uw.data[588].x)
+#define distance_depth_max (uw.data[589].x)
+#define meniscus_width (uw.data[590].x)
+#define meniscus_strength (uw.data[591].x)
+#define waterline_seal_distance (uw.data[592].x)
+#define waterline_seal_band (uw.data[593].x)
+#define surface_search_distance (uw.data[594].x)
+#define underside_refraction (uw.data[595].x)
+#define surface_projection_distance (uw.data[596].x)
+#define surface_reflection_strength (uw.data[597].x)
+#define surface_ripple_scale (uw.data[598].x)
+#define surface_ripple_strength (uw.data[599].x)
+#define surface_window_sharpness (uw.data[600].x)
 layout(set=0, binding=9) uniform sampler2D texture_normal;
 layout(set=0, binding=10) uniform sampler2D texture_normal2;
-#define normal_scale1 (uw.data[599].x)
-#define normal_scale2 (uw.data[600].x)
-#define normal_intensity (uw.data[601].x)
-#define normal_slope_limit (uw.data[602].x)
-#define godray_intensity (uw.data[603].x)
-#define godray_samples (floatBitsToInt(uw.data[604].x))
-#define godray_max_distance (uw.data[605].x)
-#define godray_pattern_scale (uw.data[606].x)
-#define godray_pattern_speed (uw.data[607].x)
-#define godray_sharpness (uw.data[608].x)
-#define godray_phase_power (uw.data[609].x)
-#define godray_min_phase (uw.data[610].x)
-#define godray_surface_focus (uw.data[611].x)
+#define normal_scale1 (uw.data[601].x)
+#define normal_scale2 (uw.data[602].x)
+#define normal_intensity (uw.data[603].x)
+#define normal_slope_limit (uw.data[604].x)
+#define godray_intensity (uw.data[605].x)
+#define godray_samples (floatBitsToInt(uw.data[606].x))
+#define godray_max_distance (uw.data[607].x)
+#define godray_pattern_scale (uw.data[608].x)
+#define godray_pattern_speed (uw.data[609].x)
+#define godray_sharpness (uw.data[610].x)
+#define godray_phase_power (uw.data[611].x)
+#define godray_min_phase (uw.data[612].x)
+#define godray_surface_focus (uw.data[613].x)
 layout(set=0, binding=11) uniform sampler2D caustics_texture;
-#define caustics_scale (uw.data[612].x)
-#define caustics_speed (uw.data[613].x)
-#define caustics_intensity (uw.data[614].x)
-#define caustics_depth_fade (uw.data[615].x)
-#define caustics_near_fade (uw.data[616].x)
-#define debug_mode (floatBitsToInt(uw.data[617].x))
-#define debug_scale (uw.data[618].x)
-#define waterline_point (uw.data[619].xyz)
-#define waterline_normal (uw.data[620].xyz)
+#define caustics_scale (uw.data[614].x)
+#define caustics_speed (uw.data[615].x)
+#define caustics_intensity (uw.data[616].x)
+#define caustics_depth_fade (uw.data[617].x)
+#define caustics_near_fade (uw.data[618].x)
+#define debug_mode (floatBitsToInt(uw.data[619].x))
+#define debug_scale (uw.data[620].x)
+#define waterline_point (uw.data[621].xyz)
+#define waterline_normal (uw.data[622].xyz)
 // Parameter carrier for UnderwaterRenderPass. Never attached to geometry.
 
 
@@ -139,6 +141,33 @@ layout(set=0, binding=11) uniform sampler2D caustics_texture;
 
 // Los mapas storm_* son en realidad el mapa mundial horneado (PlanetWorldMap) enchufado al agua:
 // los comparten la máscara de temporal y las olas de orilla de más abajo.
+
+// --- Hielo marino ------------------------------------------------------------------------------
+// Donde hace frío el mar se hiela: sin oleaje (superficie, niebla submarina y flotación) y con la
+// banquisa dibujada encima (water_shader). Es la misma función que climate_sea_ice_at de
+// climate.gdshaderinc, repetida aquí con uniforms propios porque este archivo también se traduce al
+// compute submarino (tools/water/build_underwater_shared.py), que no entiende globales ni el ruido
+// del clima. Solo latitud y distancia a la costa: esto se evalúa decenas de veces por píxel.
+// ClimateField.sea_ice_with es la réplica CPU; los valores los empuja PlanetLoader.
+// x = |latitud| a la que empieza, y = |latitud| helada, z = grados que se adelanta junto a la costa,
+// w = alcance de ese adelanto (m).
+
+
+
+// shore_dist < 0 = sin dato de costa.
+float sea_ice_fraction(vec3 local, float shore_dist) {
+    if (!sea_ice_enabled) {
+        return 0.0;
+    }
+    vec3 d = normalize(local);
+    float lat = degrees(asin(clamp(abs(d.y), 0.0, 1.0)));
+    float lon = atan(d.z, d.x);
+    lat += sin(lon * 7.0) * 1.6 + sin(lon * 17.0 + 1.3) * 0.7;
+    float coast = shore_dist >= 0.0
+        ? (1.0 - smoothstep(sea_ice_params.w * 0.25, sea_ice_params.w, shore_dist)) * sea_ice_params.z
+        : 0.0;
+    return smoothstep(sea_ice_params.x, sea_ice_params.y, lat + coast);
+}
 
 // Misma convención equirect que WorldMapData.dir_to_uv.
 vec2 world_map_uv(vec3 dir) {
@@ -328,6 +357,8 @@ struct WaveContext {
     float shore_quality;
     float shore_depth;
     float shore_gate;
+    // Hielo marino 0..1: apaga el oleaje (ver sea_ice_fraction).
+    float ice;
 };
 
 WaveContext wave_context(vec3 local) {
@@ -338,7 +369,9 @@ WaveContext wave_context(vec3 local) {
     ctx.shore_quality = 0.0;
     ctx.shore_depth = 0.0;
     ctx.shore_gate = 0.0;
+    ctx.ice = 0.0;
     if (!storm_mask_enabled && !shore_waves_enabled) {
+        ctx.ice = sea_ice_fraction(local, -1.0);
         return ctx;
     }
 
@@ -362,6 +395,10 @@ WaveContext wave_context(vec3 local) {
                 - smoothstep(reach * (1.0 - shore_fade), reach, ctx.shore_dist);
         }
     }
+    // Lagos y charcas (id interior confirmado, sin familia costera) cuentan como costa: se hielan
+    // antes que el mar abierto, igual que los ríos y las bahías estrechas.
+    float ice_shore = !shore_waves_enabled ? -1.0 : (shore_allowed ? ctx.shore_dist : 0.0);
+    ctx.ice = sea_ice_fraction(local, ice_shore);
     return ctx;
 }
 
@@ -446,7 +483,7 @@ vec3 gerstner_surface_differential(vec3 local, vec3 radial, float t, float min_l
     float presence_lod = min_length>0.0 ? smoothstep(min_length*0.5,min_length*1.5,shore_length) : 1.0;
     float shore_presence = ctx.shore_gate*smoothstep(1.0,max(shore_length*0.25,shore_depth_fade),ctx.shore_dist)*presence_lod;
     float ocean_weight = 1.0-smoothstep(0.0,shore_handover,shore_presence);
-    float amp = max(mix(wave_calm_amplitude,wave_amplitude,ctx.exposure),0.0);
+    float amp = max(mix(wave_calm_amplitude,wave_amplitude,ctx.exposure),0.0) * (1.0-ctx.ice);
     float steepness = mix(wave_calm_steepness,wave_steepness,ctx.exposure);
     OceanField field = ocean_field(local,wind,t,amp,steepness,min_length,ocean_weight,ctx.shore_depth);
     vec3 horiz = vec3(0.0);
@@ -481,7 +518,7 @@ vec3 gerstner_surface_differential(vec3 local, vec3 radial, float t, float min_l
         float lee_target = mix(0.35, 1.0,
             smoothstep(-0.9, 0.6, dot(swell_dir, -seaward)));
         float lee = mix(1.0, lee_target, shore_incidence * ctx.shore_quality);
-        float w = shore_presence * lee;
+        float w = shore_presence * lee * (1.0-ctx.ice);
 
         float k = 6.28318530718 / max(shore_length, 0.1);
         // amp_ref va SIN el peso: la Q de Gerstner se normaliza contra la amplitud y se cancelaría
@@ -757,10 +794,10 @@ bool inside_ship_interior(vec3 p) {
         if (i >= interior_count) {
             break;
         }
-        vec3 d = p - uw.data[61 + (i)].xyz;
-        if (abs(dot(d, uw.data[189 + (i)].xyz)) < uw.data[189 + (i)].w
-            && abs(dot(d, uw.data[317 + (i)].xyz)) < uw.data[317 + (i)].w
-            && abs(dot(d, uw.data[445 + (i)].xyz)) < uw.data[445 + (i)].w) {
+        vec3 d = p - uw.data[63 + (i)].xyz;
+        if (abs(dot(d, uw.data[191 + (i)].xyz)) < uw.data[191 + (i)].w
+            && abs(dot(d, uw.data[319 + (i)].xyz)) < uw.data[319 + (i)].w
+            && abs(dot(d, uw.data[447 + (i)].xyz)) < uw.data[447 + (i)].w) {
             return true;
         }
     }

@@ -10,6 +10,7 @@ render_mode depth_draw_opaque, cull_back;
 
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
 #include "res://shaders/lib/tree_wind.gdshaderinc"
+#include "res://shaders/lib/climate.gdshaderinc"
 
 uniform vec4 albedo : source_color = vec4(1.0);
 uniform sampler2D texture_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -31,6 +32,11 @@ varying float v_ao;
 varying vec2 v_band;
 varying float v_moss;
 varying vec3 v_tint;
+// Nieve del clima frío: cobertura del sitio del árbol, casquete y cara hacia el cielo (con la
+// ventisca de la base sumada).
+varying float v_snow_cover;
+varying float v_glacier;
+varying float v_snow_facing;
 
 void vertex() {
 	vec3 relative_base = MODEL_MATRIX[3].xyz - planet_position;
@@ -52,6 +58,16 @@ void vertex() {
 	float base = 1.0 - smoothstep(0.0, 1.4, VERTEX.y * length(MODEL_MATRIX[1].xyz));
 	v_moss = clamp(facing_sky * 0.8 + base * 0.7, 0.0, 1.0) * moss_amount;
 	v_ao = mix(1.0, COLOR.r, ao_strength);
+	// Un frío por árbol (en su base): la corteza, la copa y el impostor nievan igual.
+	v_snow_cover = 0.0;
+	v_glacier = 0.0;
+	v_snow_facing = 0.0;
+	if (!IN_SHADOW_PASS) {
+		float cold = climate_snow_coldness(relative_base);
+		v_snow_cover = climate_snow_cover(cold);
+		v_glacier = climate_glacier(cold);
+		v_snow_facing = dot(world_normal, up) + base * 0.9;
+	}
 	float seed2 = tree_seed(relative_base, 91u);
 	v_tint = vec3(1.0 + (seed - 0.5) * 2.0 * tint_variation)
 		* mix(vec3(0.96, 1.0, 1.04), vec3(1.04, 1.0, 0.95), seed2);
@@ -66,6 +82,12 @@ void fragment() {
 	float luma = dot(bark, vec3(0.2126, 0.7152, 0.0722));
 	float moss = v_moss * smoothstep(0.05, 0.35, luma + v_moss * 0.3);
 	ALBEDO = mix(bark, moss_color.rgb * (0.7 + luma), moss);
+	if (v_snow_cover > 0.001) {
+		// Nieve sobre las ramas y al pie del tronco; se queda en los surcos claros primero.
+		float snow = climate_object_snow(v_snow_cover, v_glacier, v_snow_facing + (luma - 0.3) * 0.4,
+			vertex_position_global - planet_position);
+		ALBEDO = mix(ALBEDO, CLIMATE_SNOW_ALBEDO, snow);
+	}
 	NORMAL_MAP = texture(texture_normal, UV).rgb;
 	NORMAL_MAP_DEPTH = normal_scale;
 	ROUGHNESS = max(texture(texture_roughness, UV).r, roughness_min);

@@ -14,6 +14,7 @@ render_mode depth_draw_opaque, cull_disabled;
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
 #include "res://shaders/lib/tree_wind.gdshaderinc"
 #include "res://shaders/lib/octahedral.gdshaderinc"
+#include "res://shaders/lib/climate.gdshaderinc"
 
 uniform sampler2D albedo_atlas : source_color, filter_linear_mipmap, repeat_disable;
 uniform sampler2D normal_atlas : filter_linear_mipmap, repeat_disable;
@@ -55,7 +56,12 @@ varying vec2 v_uv3;
 varying flat vec4 v_cells01;
 varying flat vec4 v_cells23;
 varying flat vec4 v_weights;
-varying float v_ao;
+// x = oclusión, y = nieve del fragmento (las dos las lee light()). Juntas: el shader está en el
+// tope de varyings.
+varying vec2 v_ao_snow;
+// Nieve del clima frío, la misma regla que el follaje con la normal de copa horneada:
+// x = cobertura del sitio, y = casquete.
+varying vec2 v_snow_climate;
 // Base de la instancia en espacio de vista. En fragment(), MODEL_MATRIX de un MultiMesh es la
 // del nodo, sin el transform de la instancia: las normales del atlas salían sin la inclinación
 // de cada árbol (la vertical del planeta) y la copa se iluminaba de lado.
@@ -76,6 +82,11 @@ void vertex() {
 	float seed = tree_seed(relative_base, 17u);
 	float hue = tree_seed(relative_base, 53u);
 	v_tint = mix(variation_cool_tint, variation_warm_tint, hue) * (1.0 + (seed - 0.5) * 2.0 * tint_variation);
+	v_snow_climate = vec2(0.0);
+	if (!IN_SHADOW_PASS) {
+		float cold = climate_snow_coldness(relative_base);
+		v_snow_climate = vec2(climate_snow_cover(cold), climate_glacier(cold));
+	}
 	v_band = tree_band_fades(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
 	if (IN_SHADOW_PASS && shadow_fade_in_end > shadow_fade_in_start) {
 		float d = distance(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX[3].xyz);
@@ -165,8 +176,11 @@ void fragment() {
 	vec3 n_object = oct_normal_decode(normal_ao.xy);
 	NORMAL = normalize(mat3(v_basis_x, v_basis_y, v_basis_z) * n_object);
 	ALBEDO = color.rgb * v_tint;
-	v_ao = mix(1.0, normal_ao.z, ao_strength);
-	AO = v_ao;
+	// Sin grano: a esta distancia cada árbol son pocos píxeles y la media es la que cuenta.
+	float snow = climate_surface_snow(v_snow_climate.x, n_object.y + 0.12, v_snow_climate.y) * 0.85;
+	ALBEDO = mix(ALBEDO, CLIMATE_SNOW_ALBEDO, snow);
+	v_ao_snow = vec2(mix(1.0, normal_ao.z, ao_strength), snow);
+	AO = v_ao_snow.x;
 	AO_LIGHT_AFFECT = 0.0;
 	ROUGHNESS = 0.8;
 	SPECULAR = 0.1;
@@ -179,16 +193,16 @@ void light() {
 	float wrapped = max(ndl + diffuse_wrap, 0.0) / (1.0 + diffuse_wrap);
 	float toward_sun = max(dot(VIEW, -LIGHT), 0.0);
 	float transmission = pow(toward_sun, transmission_sharpness)
-		* mix(max(-ndl, 0.0), 1.0, 0.4) * transmission_strength;
+		* mix(max(-ndl, 0.0), 1.0, 0.4) * transmission_strength * (1.0 - v_ao_snow.y);
 	float day = LIGHT_IS_DIRECTIONAL
 		? planet_light_visibility(normalize((VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz), LIGHT)
 		: 1.0;
-	float occlusion = mix(1.0, v_ao, direct_occlusion);
+	float occlusion = mix(1.0, v_ao_snow.x, direct_occlusion);
 	vec3 light_energy = LIGHT_COLOR * day / PI;
 	// Solo el sol y la luna: en las luces locales ATTENUATION es también la caída con la
 	// distancia, y saltársela iluminaba las hojas en recuadros de la rejilla de luces (las
 	// setas de cueva, bajo tierra, teñían de amarillo el follaje de encima).
 	float transmitted = LIGHT_IS_DIRECTIONAL ? mix(ATTENUATION, 1.0, transmission_through_shadow) : ATTENUATION;
 	DIFFUSE_LIGHT += vec3(wrapped) * occlusion * ATTENUATION * light_energy
-		+ transmission * transmission_color.rgb * v_ao * transmitted * light_energy;
+		+ transmission * transmission_color.rgb * v_ao_snow.x * transmitted * light_energy;
 }

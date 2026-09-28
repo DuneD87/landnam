@@ -1,5 +1,5 @@
 {
-  "slots": 621,
+  "slots": 623,
   "uniforms": [
     {
       "name": "wave_direction",
@@ -131,9 +131,23 @@
       "color": false
     },
     {
-      "name": "shore_waves_enabled",
+      "name": "sea_ice_enabled",
       "type": "bool",
       "slot": 40,
+      "count": 1,
+      "color": false
+    },
+    {
+      "name": "sea_ice_params",
+      "type": "vec4",
+      "slot": 41,
+      "count": 1,
+      "color": false
+    },
+    {
+      "name": "shore_waves_enabled",
+      "type": "bool",
+      "slot": 42,
       "count": 1,
       "color": false
     },
@@ -145,350 +159,350 @@
     {
       "name": "shore_amplitude",
       "type": "float",
-      "slot": 41,
+      "slot": 43,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_length",
       "type": "float",
-      "slot": 42,
+      "slot": 44,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_speed",
       "type": "float",
-      "slot": 43,
+      "slot": 45,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_steepness",
       "type": "float",
-      "slot": 44,
+      "slot": 46,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_depth_fade",
       "type": "float",
-      "slot": 45,
+      "slot": 47,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_shoal_max",
       "type": "float",
-      "slot": 46,
+      "slot": 48,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_incidence",
       "type": "float",
-      "slot": 47,
+      "slot": 49,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_reach",
       "type": "float",
-      "slot": 48,
+      "slot": 50,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_range",
       "type": "float",
-      "slot": 49,
+      "slot": 51,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_fade",
       "type": "float",
-      "slot": 50,
+      "slot": 52,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_handover",
       "type": "float",
-      "slot": 51,
+      "slot": 53,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_chop",
       "type": "float",
-      "slot": 52,
+      "slot": 54,
       "count": 1,
       "color": false
     },
     {
       "name": "shore_debug_mode",
       "type": "int",
-      "slot": 53,
+      "slot": 55,
       "count": 1,
       "color": false
     },
     {
       "name": "spectrum_spread",
       "type": "float",
-      "slot": 54,
+      "slot": 56,
       "count": 1,
       "color": false
     },
     {
       "name": "fog_color",
       "type": "vec4",
-      "slot": 55,
+      "slot": 57,
       "count": 1,
       "color": true
     },
     {
       "name": "deep_fog_color",
       "type": "vec4",
-      "slot": 56,
+      "slot": 58,
       "count": 1,
       "color": true
     },
     {
       "name": "abyss_fog_color",
       "type": "vec4",
-      "slot": 57,
+      "slot": 59,
       "count": 1,
       "color": true
     },
     {
       "name": "deep_transition_depth",
       "type": "float",
-      "slot": 58,
+      "slot": 60,
       "count": 1,
       "color": false
     },
     {
       "name": "abyss_transition_depth",
       "type": "float",
-      "slot": 59,
+      "slot": 61,
       "count": 1,
       "color": false
     },
     {
       "name": "interior_count",
       "type": "int",
-      "slot": 60,
+      "slot": 62,
       "count": 1,
       "color": false
     },
     {
       "name": "interior_center",
       "type": "vec4",
-      "slot": 61,
+      "slot": 63,
       "count": 128,
       "color": false
     },
     {
       "name": "interior_axis_x",
       "type": "vec4",
-      "slot": 189,
+      "slot": 191,
       "count": 128,
       "color": false
     },
     {
       "name": "interior_axis_y",
       "type": "vec4",
-      "slot": 317,
+      "slot": 319,
       "count": 128,
       "color": false
     },
     {
       "name": "interior_axis_z",
       "type": "vec4",
-      "slot": 445,
+      "slot": 447,
       "count": 128,
       "color": false
     },
     {
       "name": "planet_center",
       "type": "vec3",
-      "slot": 573,
+      "slot": 575,
       "count": 1,
       "color": false
     },
     {
       "name": "water_time",
       "type": "float",
-      "slot": 574,
+      "slot": 576,
       "count": 1,
       "color": false
     },
     {
       "name": "sun_direction",
       "type": "vec3",
-      "slot": 575,
+      "slot": 577,
       "count": 1,
       "color": false
     },
     {
       "name": "absorption_coefficients",
       "type": "vec3",
-      "slot": 576,
+      "slot": 578,
       "count": 1,
       "color": false
     },
     {
       "name": "absorption_scale",
       "type": "float",
-      "slot": 577,
+      "slot": 579,
       "count": 1,
       "color": false
     },
     {
       "name": "scattering_coefficients",
       "type": "vec3",
-      "slot": 578,
+      "slot": 580,
       "count": 1,
       "color": false
     },
     {
       "name": "surface_exposure",
       "type": "float",
-      "slot": 579,
+      "slot": 581,
       "count": 1,
       "color": false
     },
     {
       "name": "surface_saturation",
       "type": "float",
-      "slot": 580,
+      "slot": 582,
       "count": 1,
       "color": false
     },
     {
       "name": "fog_density",
       "type": "float",
-      "slot": 581,
+      "slot": 583,
       "count": 1,
       "color": false
     },
     {
       "name": "sun_glow_intensity",
       "type": "float",
-      "slot": 582,
+      "slot": 584,
       "count": 1,
       "color": false
     },
     {
       "name": "sun_glow_power",
       "type": "float",
-      "slot": 583,
+      "slot": 585,
       "count": 1,
       "color": false
     },
     {
       "name": "tir_reflection_depth",
       "type": "float",
-      "slot": 584,
+      "slot": 586,
       "count": 1,
       "color": false
     },
     {
       "name": "scatter_vertical_range",
       "type": "float",
-      "slot": 585,
+      "slot": 587,
       "count": 1,
       "color": false
     },
     {
       "name": "distance_depth_gain",
       "type": "float",
-      "slot": 586,
+      "slot": 588,
       "count": 1,
       "color": false
     },
     {
       "name": "distance_depth_max",
       "type": "float",
-      "slot": 587,
+      "slot": 589,
       "count": 1,
       "color": false
     },
     {
       "name": "meniscus_width",
       "type": "float",
-      "slot": 588,
+      "slot": 590,
       "count": 1,
       "color": false
     },
     {
       "name": "meniscus_strength",
       "type": "float",
-      "slot": 589,
+      "slot": 591,
       "count": 1,
       "color": false
     },
     {
       "name": "waterline_seal_distance",
       "type": "float",
-      "slot": 590,
+      "slot": 592,
       "count": 1,
       "color": false
     },
     {
       "name": "waterline_seal_band",
       "type": "float",
-      "slot": 591,
+      "slot": 593,
       "count": 1,
       "color": false
     },
     {
       "name": "surface_search_distance",
       "type": "float",
-      "slot": 592,
+      "slot": 594,
       "count": 1,
       "color": false
     },
     {
       "name": "underside_refraction",
       "type": "float",
-      "slot": 593,
+      "slot": 595,
       "count": 1,
       "color": false
     },
     {
       "name": "surface_projection_distance",
       "type": "float",
-      "slot": 594,
+      "slot": 596,
       "count": 1,
       "color": false
     },
     {
       "name": "surface_reflection_strength",
       "type": "float",
-      "slot": 595,
+      "slot": 597,
       "count": 1,
       "color": false
     },
     {
       "name": "surface_ripple_scale",
       "type": "float",
-      "slot": 596,
+      "slot": 598,
       "count": 1,
       "color": false
     },
     {
       "name": "surface_ripple_strength",
       "type": "float",
-      "slot": 597,
+      "slot": 599,
       "count": 1,
       "color": false
     },
     {
       "name": "surface_window_sharpness",
       "type": "float",
-      "slot": 598,
+      "slot": 600,
       "count": 1,
       "color": false
     },
@@ -505,91 +519,91 @@
     {
       "name": "normal_scale1",
       "type": "float",
-      "slot": 599,
+      "slot": 601,
       "count": 1,
       "color": false
     },
     {
       "name": "normal_scale2",
       "type": "float",
-      "slot": 600,
+      "slot": 602,
       "count": 1,
       "color": false
     },
     {
       "name": "normal_intensity",
       "type": "float",
-      "slot": 601,
+      "slot": 603,
       "count": 1,
       "color": false
     },
     {
       "name": "normal_slope_limit",
       "type": "float",
-      "slot": 602,
+      "slot": 604,
       "count": 1,
       "color": false
     },
     {
       "name": "godray_intensity",
       "type": "float",
-      "slot": 603,
+      "slot": 605,
       "count": 1,
       "color": false
     },
     {
       "name": "godray_samples",
       "type": "int",
-      "slot": 604,
+      "slot": 606,
       "count": 1,
       "color": false
     },
     {
       "name": "godray_max_distance",
       "type": "float",
-      "slot": 605,
+      "slot": 607,
       "count": 1,
       "color": false
     },
     {
       "name": "godray_pattern_scale",
       "type": "float",
-      "slot": 606,
+      "slot": 608,
       "count": 1,
       "color": false
     },
     {
       "name": "godray_pattern_speed",
       "type": "float",
-      "slot": 607,
+      "slot": 609,
       "count": 1,
       "color": false
     },
     {
       "name": "godray_sharpness",
       "type": "float",
-      "slot": 608,
+      "slot": 610,
       "count": 1,
       "color": false
     },
     {
       "name": "godray_phase_power",
       "type": "float",
-      "slot": 609,
+      "slot": 611,
       "count": 1,
       "color": false
     },
     {
       "name": "godray_min_phase",
       "type": "float",
-      "slot": 610,
+      "slot": 612,
       "count": 1,
       "color": false
     },
     {
       "name": "godray_surface_focus",
       "type": "float",
-      "slot": 611,
+      "slot": 613,
       "count": 1,
       "color": false
     },
@@ -601,63 +615,63 @@
     {
       "name": "caustics_scale",
       "type": "float",
-      "slot": 612,
+      "slot": 614,
       "count": 1,
       "color": false
     },
     {
       "name": "caustics_speed",
       "type": "float",
-      "slot": 613,
+      "slot": 615,
       "count": 1,
       "color": false
     },
     {
       "name": "caustics_intensity",
       "type": "float",
-      "slot": 614,
+      "slot": 616,
       "count": 1,
       "color": false
     },
     {
       "name": "caustics_depth_fade",
       "type": "float",
-      "slot": 615,
+      "slot": 617,
       "count": 1,
       "color": false
     },
     {
       "name": "caustics_near_fade",
       "type": "float",
-      "slot": 616,
+      "slot": 618,
       "count": 1,
       "color": false
     },
     {
       "name": "debug_mode",
       "type": "int",
-      "slot": 617,
+      "slot": 619,
       "count": 1,
       "color": false
     },
     {
       "name": "debug_scale",
       "type": "float",
-      "slot": 618,
+      "slot": 620,
       "count": 1,
       "color": false
     },
     {
       "name": "waterline_point",
       "type": "vec3",
-      "slot": 619,
+      "slot": 621,
       "count": 1,
       "color": false
     },
     {
       "name": "waterline_normal",
       "type": "vec3",
-      "slot": 620,
+      "slot": 622,
       "count": 1,
       "color": false
     }

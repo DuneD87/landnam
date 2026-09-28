@@ -19,7 +19,7 @@
 		"biome_transition_smoothness": 1.0,
 		"max_heights": [
 			-30.0,
-			70.0,
+			170.0,
 			4000.0,
 			-30.0,
 			150.0,
@@ -31,25 +31,25 @@
 			150.0,
 			4000.0,
 			-30.0,
-			70.0,
+			170.0,
 			4000.0
 		],
 		"biome_texture_indices": [
-			2.0,
-			2.0,
-			2.0,
+			3.0,
+			5.0,
+			4.0,
 			0.0,
 			1.0,
-			2.0,
+			5.0,
 			0.0,
 			0.0,
 			0.0,
 			0.0,
 			1.0,
-			2.0,
-			2.0,
-			2.0,
-			2.0
+			5.0,
+			3.0,
+			5.0,
+			4.0
 		],
 		"slope_threshold": 0.3,
 		"slope_smoothness": 0.2,
@@ -73,13 +73,17 @@
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Base_Color.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
-			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png"
+			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_albedo.png",
+			"res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_albedo.png",
+			"res://textures/terrain/ice-field-bl -ue/ice_field_albedo.png"
 		],
 		"sound_materials": [
 			"sand",
 			"grass",
 			"snow",
 			"dirtyground",
+			"rock",
+			"grass",
 			"rock"
 		],
 		"slope_sound_material": "dirtyground",
@@ -88,28 +92,36 @@
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_normal-ogl.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Normal-ogl.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png",
-			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_normal-ogl.png"
+			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_normal-ogl.png",
+			"res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_Normal-ogl.png",
+			"res://textures/terrain/ice-field-bl -ue/ice_field_normal-dx.png"
 		],
 		"roughness_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_roughness.png",
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_roughness.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Roughness.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png",
-			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_roughness.png"
+			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_roughness.png",
+			"res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_Roughness.png",
+			"res://textures/terrain/ice-field-bl -ue/ice_field_roughness.png"
 		],
 		"ao_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_ao.png",
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_ao.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_ao.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_ao.png",
-			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_ao.png"
+			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_ao.png",
+			"res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_ao.png",
+			"res://textures/terrain/ice-field-bl -ue/ice_field_ao.png"
 		],
 		"height_textures": [
 			"res://textures/terrain/wavy-sand-bl/wavy-sand_height.png",
 			"res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_height.png",
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Height.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_height.png",
-			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_height.png"
+			"res://textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground_height.png",
+			"res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_Height.png",
+			"res://textures/terrain/ice-field-bl -ue/ice_field_height.png"
 		],
 		"biome_noise_texture_overrides": [
 			{
@@ -151,7 +163,12 @@
 			"res://data/fauna/buffalo.tres",
 			"res://data/fauna/rabbits.tres",
 			"res://data/fauna/foxes.tres",
-			"res://data/fauna/mice.tres"
+			"res://data/fauna/mice.tres",
+			"res://data/fauna/polar_bear.tres",
+			"res://data/fauna/caribou.tres",
+			"res://data/fauna/arctic_hares.tres",
+			"res://data/fauna/arctic_foxes.tres",
+			"res://data/fauna/lemmings.tres"
 		]
 	},
 	"atmosphere_settings": {
@@ -196,6 +213,10 @@
 			{
 				"name": "cave_vegetation_graph_path",
 				"path": "res://data/graph_functions/cave_vegetation_field.tres"
+			},
+			{
+				"name": "surface_graph_path",
+				"path": "res://data/graph_functions/earth_terrain_surface.tres"
 			}
 		],
 		"wind_direction": [
@@ -222,6 +243,10 @@
 					"dimension": "3D",
 					"seed": 51.0,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -242,6 +267,10 @@
 					"dimension": "3D",
 					"seed": 53.0,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -262,6 +291,10 @@
 					"dimension": "3D",
 					"seed": 57.0,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -282,6 +315,10 @@
 					"dimension": "3D",
 					"seed": 61.0,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -302,6 +339,10 @@
 					"dimension": "3D",
 					"seed": 67.0,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -322,6 +363,10 @@
 					"dimension": "3D",
 					"seed": 71.0,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -342,6 +387,10 @@
 					"dimension": "3D",
 					"seed": 73.0,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -362,6 +411,10 @@
 					"dimension": "3D",
 					"seed": 79.0,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -377,7 +430,11 @@
 					"search_distance": 4.0,
 					"samples": 8.0
 				},
-				"noise_graph": "hemisphere_sand_graph_path"
+				"noise_graph": "hemisphere_sand_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "tree_generator_green_sand",
@@ -393,7 +450,11 @@
 					"search_distance": 4.0,
 					"samples": 8.0
 				},
-				"noise_graph": "hemisphere_green_sand_graph_path"
+				"noise_graph": "hemisphere_green_sand_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "tree_generator_green",
@@ -419,6 +480,10 @@
 					"threshold": 0.25,
 					"falloff": 0.3,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -442,6 +507,10 @@
 					"threshold": 0.3,
 					"falloff": 0.25,
 					"on_scale": 0.3
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -464,6 +533,10 @@
 					"seed": 23.0,
 					"threshold": 0.1,
 					"falloff": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -478,7 +551,11 @@
 				"offset_along_normal": 0.0,
 				"min_scale": 0.5,
 				"max_scale": 1.5,
-				"noise_graph": "hemisphere_sand_grass_graph_path"
+				"noise_graph": "hemisphere_sand_grass_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "grass_far_generator_green",
@@ -499,6 +576,10 @@
 					"threshold": 0.3,
 					"falloff": 0.25,
 					"on_scale": 0.3
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -519,6 +600,10 @@
 					"seed": 23.0,
 					"threshold": 0.1,
 					"falloff": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
 				}
 			},
 			{
@@ -531,7 +616,11 @@
 				"max_slope_degrees": 35.0,
 				"min_scale": 0.5,
 				"max_scale": 1.5,
-				"noise_graph": "hemisphere_sand_grass_graph_path"
+				"noise_graph": "hemisphere_sand_grass_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "bushes_generator_green",
@@ -542,7 +631,11 @@
 				"max_slope_degrees": 25.0,
 				"min_scale": 1.0,
 				"max_scale": 3.0,
-				"noise_graph": "hemisphere_green_graph_path"
+				"noise_graph": "hemisphere_green_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "bushes_generator_green_sand",
@@ -553,7 +646,11 @@
 				"max_slope_degrees": 25.0,
 				"min_scale": 1.0,
 				"max_scale": 3.0,
-				"noise_graph": "hemisphere_green_graph_path"
+				"noise_graph": "hemisphere_green_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "large_rock_generator_green",
@@ -565,7 +662,11 @@
 				"min_scale": 3.0,
 				"max_scale": 7.0,
 				"vertical_alignment": 0.3,
-				"noise_graph": "hemisphere_green_graph_path"
+				"noise_graph": "hemisphere_green_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "small_rocks_generator_green",
@@ -577,7 +678,11 @@
 				"min_scale": 1.0,
 				"max_scale": 6.0,
 				"vertical_alignment": 0.4,
-				"noise_graph": "hemisphere_green_graph_path"
+				"noise_graph": "hemisphere_green_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "large_rocks_generator_green_sand",
@@ -589,7 +694,11 @@
 				"min_scale": 0.5,
 				"max_scale": 3.0,
 				"vertical_alignment": 0.4,
-				"noise_graph": "hemisphere_green_sand_graph_path"
+				"noise_graph": "hemisphere_green_sand_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "large_rocks_generator_sand",
@@ -601,7 +710,11 @@
 				"min_scale": 0.5,
 				"max_scale": 1.0,
 				"vertical_alignment": 0.4,
-				"noise_graph": "hemisphere_sand_graph_path"
+				"noise_graph": "hemisphere_sand_graph_path",
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
 			},
 			{
 				"name": "seagrass_generator",
@@ -684,6 +797,349 @@
 				"min_scale": 3.5,
 				"max_scale": 7.5,
 				"noise_graph": "cave_vegetation_graph_path"
+			},
+			{
+				"name": "tree_generator_taiga",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.008,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 28.0,
+				"offset_along_normal": -0.4,
+				"min_scale": 2.5,
+				"max_scale": 7.5,
+				"snap_to_sdf": {
+					"search_distance": 4.0,
+					"samples": 8.0
+				},
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 41.0,
+					"max": 52.5,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.004,
+					"octaves": 3.0,
+					"dimension": "3D",
+					"seed": 131.0,
+					"threshold": 0.3,
+					"falloff": 0.3,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "tree_generator_birch",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.004,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 400.0,
+				"max_slope_degrees": 25.0,
+				"offset_along_normal": -0.4,
+				"min_scale": 2.5,
+				"max_scale": 7.5,
+				"snap_to_sdf": {
+					"search_distance": 4.0,
+					"samples": 8.0
+				},
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 39.0,
+					"max": 47.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.006,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 137.0,
+					"threshold": 0.0,
+					"falloff": 0.35,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "tree_generator_treeline",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.0025,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 30.0,
+				"offset_along_normal": -0.3,
+				"min_scale": 1.0,
+				"max_scale": 3.0,
+				"snap_to_sdf": {
+					"search_distance": 4.0,
+					"samples": 8.0
+				},
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 51.0,
+					"max": 56.0,
+					"soft": 1.0
+				},
+				"noise": {
+					"frequency": 0.01,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 139.0,
+					"threshold": 0.1,
+					"falloff": 0.4,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "dwarf_juniper_generator",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.02,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 34.0,
+				"offset_along_normal": -0.025,
+				"min_scale": 0.7,
+				"max_scale": 1.3,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 41.0,
+					"max": 60.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.05,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 151.0,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "dwarf_birch_generator",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.02,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 34.0,
+				"offset_along_normal": -0.025,
+				"min_scale": 0.7,
+				"max_scale": 1.4,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 46.0,
+					"max": 63.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.04,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 157.0,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "heather_generator",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.03,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 34.0,
+				"offset_along_normal": -0.025,
+				"min_scale": 0.7,
+				"max_scale": 1.3,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 41.0,
+					"max": 58.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.06,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 163.0,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "cottongrass_generator",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.025,
+				"lod_density_falloff": 1.0,
+				"min_height": -47.0,
+				"max_height": 250.0,
+				"max_slope_degrees": 20.0,
+				"offset_along_normal": -0.025,
+				"min_scale": 0.8,
+				"max_scale": 1.3,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 50.0,
+					"max": 64.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.07,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 167.0,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "reindeer_lichen_generator",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.045,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 34.0,
+				"offset_along_normal": -0.025,
+				"min_scale": 0.35,
+				"max_scale": 0.7,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 48.0,
+					"max": 69.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.08,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 173.0,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "arctic_poppy_generator",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.02,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 34.0,
+				"offset_along_normal": -0.025,
+				"min_scale": 0.8,
+				"max_scale": 1.3,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 50.0,
+					"max": 63.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.09,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 179.0,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "grass_generator_tundra",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.7,
+				"lod_density_falloff": 0.7,
+				"lod_scale_gain": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 35.0,
+				"offset_along_normal": 0.0,
+				"min_scale": 0.5,
+				"max_scale": 1.2,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 41.0,
+					"max": 63.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.05,
+					"octaves": 3.0,
+					"dimension": "3D",
+					"seed": 181.0,
+					"threshold": 0.1,
+					"falloff": 0.3
+				}
+			},
+			{
+				"name": "grass_far_generator_tundra",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.44,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 35.0,
+				"min_scale": 0.5,
+				"max_scale": 1.2,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 41.0,
+					"max": 63.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.05,
+					"octaves": 3.0,
+					"dimension": "3D",
+					"seed": 181.0,
+					"threshold": 0.1,
+					"falloff": 0.3
+				}
+			},
+			{
+				"name": "large_rock_generator_cold",
+				"emit_mode": "EMIT_FROM_VERTICES",
+				"density": 0.0015,
+				"min_height": -45.0,
+				"max_height": 800.0,
+				"max_slope_degrees": 30.0,
+				"min_scale": 3.0,
+				"max_scale": 7.0,
+				"vertical_alignment": 0.3,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 41.0,
+					"soft": 1.5
+				}
+			},
+			{
+				"name": "small_rocks_generator_cold",
+				"emit_mode": "EMIT_FROM_VERTICES",
+				"density": 0.05,
+				"min_height": -45.0,
+				"max_height": 800.0,
+				"max_slope_degrees": 30.0,
+				"min_scale": 1.0,
+				"max_scale": 5.0,
+				"vertical_alignment": 0.4,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 44.0,
+					"soft": 1.5
+				}
+			},
+			{
+				"name": "ice_block_generator",
+				"emit_mode": "EMIT_FROM_VERTICES",
+				"density": 0.004,
+				"min_height": -45.0,
+				"max_height": 800.0,
+				"max_slope_degrees": 35.0,
+				"min_scale": 2.5,
+				"max_scale": 6.0,
+				"vertical_alignment": 0.2,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 64.0,
+					"soft": 2.0
+				}
 			}
 		],
 		"items": [
@@ -747,9 +1203,7 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {
-
-				},
+				"tree_lods": {},
 				"height_m": [
 					11.0,
 					19.0
@@ -766,9 +1220,7 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {
-
-				},
+				"tree_lods": {},
 				"height_m": [
 					11.0,
 					19.0
@@ -785,9 +1237,7 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {
-
-				},
+				"tree_lods": {},
 				"height_m": [
 					11.0,
 					19.0
@@ -805,9 +1255,7 @@
 					"tree_generator_green",
 					"tree_generator_green_sand"
 				],
-				"tree_lods": {
-
-				},
+				"tree_lods": {},
 				"height_m": [
 					4.0,
 					7.0
@@ -825,9 +1273,7 @@
 					"tree_generator_green",
 					"tree_generator_green_sand"
 				],
-				"tree_lods": {
-
-				},
+				"tree_lods": {},
 				"height_m": [
 					4.0,
 					7.0
@@ -844,9 +1290,7 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {
-
-				},
+				"tree_lods": {},
 				"height_m": [
 					4.0,
 					7.5
@@ -863,9 +1307,7 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {
-
-				},
+				"tree_lods": {},
 				"height_m": [
 					4.0,
 					7.5
@@ -883,9 +1325,7 @@
 					"tree_generator_green",
 					"tree_generator_green_sand"
 				],
-				"tree_lods": {
-
-				},
+				"tree_lods": {},
 				"height_m": [
 					5.0,
 					8.0
@@ -903,9 +1343,7 @@
 					"tree_generator_green",
 					"tree_generator_green_sand"
 				],
-				"tree_lods": {
-
-				},
+				"tree_lods": {},
 				"height_m": [
 					5.0,
 					8.0
@@ -1675,6 +2113,590 @@
 						64.0
 					]
 				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/rock_04.tscn",
+				"generator": [
+					"large_rock_generator_cold"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/rock_05.tscn",
+				"generator": [
+					"large_rock_generator_cold"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/rock_06.tscn",
+				"generator": [
+					"large_rock_generator_cold"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/rock_07.tscn",
+				"generator": [
+					"large_rock_generator_cold"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/small_rock_01.tscn",
+				"generator": [
+					"small_rocks_generator_cold"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					0.0,
+					1.0
+				],
+				"material_type": "STONE",
+				"collision": false,
+				"instance_as_scene": false
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/ice_block_01.tscn",
+				"generator": [
+					"ice_block_generator"
+				],
+				"wind_speed": 0.0,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/trees/spruce_01.tscn",
+				"generator": [
+					"tree_generator_taiga"
+				],
+				"tree_lods": {},
+				"height_m": [
+					14.0,
+					22.0
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					4.0
+				],
+				"collision_distance_m": 200.0,
+				"material_type": "WOOD"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/trees/spruce_02.tscn",
+				"generator": [
+					"tree_generator_taiga"
+				],
+				"tree_lods": {},
+				"height_m": [
+					12.0,
+					19.0
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					4.0
+				],
+				"collision_distance_m": 200.0,
+				"material_type": "WOOD"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/trees/spruce_03.tscn",
+				"generator": [
+					"tree_generator_taiga"
+				],
+				"tree_lods": {},
+				"height_m": [
+					16.0,
+					25.0
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					4.0
+				],
+				"collision_distance_m": 200.0,
+				"material_type": "WOOD"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/trees/pine_01.tscn",
+				"generator": [
+					"tree_generator_taiga"
+				],
+				"tree_lods": {},
+				"height_m": [
+					11.0,
+					18.0
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					4.0
+				],
+				"collision_distance_m": 200.0,
+				"material_type": "WOOD"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/trees/birch_01.tscn",
+				"generator": [
+					"tree_generator_birch"
+				],
+				"tree_lods": {},
+				"height_m": [
+					9.0,
+					15.0
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					4.0
+				],
+				"collision_distance_m": 200.0,
+				"material_type": "WOOD"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/trees/birch_02.tscn",
+				"generator": [
+					"tree_generator_birch"
+				],
+				"tree_lods": {},
+				"height_m": [
+					9.0,
+					15.0
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					4.0
+				],
+				"collision_distance_m": 200.0,
+				"material_type": "WOOD"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/trees/spruce_02.tscn",
+				"generator": [
+					"tree_generator_treeline"
+				],
+				"tree_lods": {},
+				"height_m": [
+					2.5,
+					5.0
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					4.0
+				],
+				"collision_distance_m": 200.0,
+				"material_type": "WOOD"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_tundra.tscn",
+				"generator": [
+					"grass_generator_tundra"
+				],
+				"wind_speed": 0.2,
+				"lod_index": [
+					0.0,
+					1.0
+				],
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"grass_lods": {
+					"split_m": 40.0,
+					"split_fade_m": 12.0,
+					"fade_width_m": 24.0,
+					"lod_morph_start_m": [
+						10.0,
+						24.0,
+						46.0
+					],
+					"lod_morph_end_m": [
+						16.0,
+						34.0,
+						62.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/grass/low_poly_grass_tundra.tscn",
+				"generator": [
+					"grass_far_generator_tundra"
+				],
+				"wind_speed": 0.2,
+				"lod_index": [
+					2.0
+				],
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"grass_lods": {
+					"fade_width_m": 24.0,
+					"max_distance_m": 130.0,
+					"lod_morph_start_m": [
+						10.0,
+						24.0,
+						46.0
+					],
+					"lod_morph_end_m": [
+						16.0,
+						34.0,
+						62.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/dwarf_juniper.tscn",
+				"generator": [
+					"dwarf_juniper_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					0.0,
+					1.0
+				],
+				"understory_lods": {
+					"split_m": 40.0,
+					"split_fade_m": 12.0,
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/dwarf_juniper.tscn",
+				"generator": [
+					"dwarf_juniper_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					2.0
+				],
+				"understory_lods": {
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/dwarf_birch.tscn",
+				"generator": [
+					"dwarf_birch_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					0.0,
+					1.0
+				],
+				"understory_lods": {
+					"split_m": 40.0,
+					"split_fade_m": 12.0,
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/dwarf_birch.tscn",
+				"generator": [
+					"dwarf_birch_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					2.0
+				],
+				"understory_lods": {
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/heather.tscn",
+				"generator": [
+					"heather_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					0.0,
+					1.0
+				],
+				"understory_lods": {
+					"split_m": 40.0,
+					"split_fade_m": 12.0,
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/heather.tscn",
+				"generator": [
+					"heather_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					2.0
+				],
+				"understory_lods": {
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/cottongrass.tscn",
+				"generator": [
+					"cottongrass_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					0.0,
+					1.0
+				],
+				"understory_lods": {
+					"split_m": 40.0,
+					"split_fade_m": 12.0,
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/cottongrass.tscn",
+				"generator": [
+					"cottongrass_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					2.0
+				],
+				"understory_lods": {
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/reindeer_lichen.tscn",
+				"generator": [
+					"reindeer_lichen_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					0.0,
+					1.0
+				],
+				"understory_lods": {
+					"split_m": 40.0,
+					"split_fade_m": 12.0,
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/reindeer_lichen.tscn",
+				"generator": [
+					"reindeer_lichen_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					2.0
+				],
+				"understory_lods": {
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/arctic_poppy.tscn",
+				"generator": [
+					"arctic_poppy_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					0.0,
+					1.0
+				],
+				"understory_lods": {
+					"split_m": 40.0,
+					"split_fade_m": 12.0,
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/arctic_poppy.tscn",
+				"generator": [
+					"arctic_poppy_generator"
+				],
+				"wind_speed": 0.18,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"lod_index": [
+					2.0
+				],
+				"understory_lods": {
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
 			}
 		]
 	},
@@ -1830,6 +2852,38 @@
 		"ao_texture": "res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_ao.png",
 		"texture_slope_threshold": 0.1,
 		"texture_slope_softness": 0.14
+	},
+	"climate_settings": {
+		"enabled": true,
+		"lapse_deg_per_m": 0.085,
+		"lapse_base_height": -20.0,
+		"noise_period": 1800.0,
+		"noise_amplitude": 4.5,
+		"noise_seed": 1301.0,
+		"detail_period": 260.0,
+		"detail_amplitude": 1.5,
+		"detail_seed": 1307.0,
+		"zones": {
+			"taiga": 41.0,
+			"tundra": 53.0,
+			"ice": 67.0
+		},
+		"snow": {
+			"start": 37.0,
+			"full": 50.0,
+			"glacier_start": 64.0,
+			"glacier_full": 74.0
+		},
+		"sea_ice": {
+			"start": 57.0,
+			"full": 63.0,
+			"shore_bias": 10.0,
+			"shore_range": 300.0
+		},
+		"terrain": {
+			"snow_texture": 2.0,
+			"glacier_texture": 6.0
+		}
 	},
 	"weather_settings": {
 		"enabled": true,

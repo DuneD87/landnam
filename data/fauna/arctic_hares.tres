@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="SmallGroundFaunaProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/fauna/small_ground_fauna_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+scene_path = "res://scenes/animals/ambient_small_ground_animal.tscn"
+species = 3
+population = 10
+spawn_min_distance = 20.0
+spawn_radius = 70.0
+recycle_distance = 110.0
+update_interval = 0.35
+attempts_per_update = 6
+activations_per_update = 2
+clearance = 0.85
+biomes = Array[int]([])
+min_height = -49.5
+max_height = 500.0
+climate_min = 46.0
+climate_max = 68.0
+walk_speed = 1.1
+flee_speed = 4.4
+flee_distance = 7
+wander_distance = 5
+min_spacing = 10.0

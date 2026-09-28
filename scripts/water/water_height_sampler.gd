@@ -52,6 +52,13 @@ var last_exposure: float = 1.0
 var last_ocean_weight: float = 1.0
 var last_shore_presence: float = 0.0
 var last_amp_effective: float = 0.0
+## Hielo marino (0..1) de la última evaluación: 1 = banquisa, sin oleaje. Lo lee el jugador para
+## caminar sobre el hielo en vez de nadar.
+var last_ice: float = 0.0
+
+## Hielo marino del material (sea_ice_enabled / sea_ice_params de gerstner_waves.gdshaderinc).
+var sea_ice_enabled: bool = false
+var sea_ice_params := Vector4(57.0, 63.0, 10.0, 300.0)
 
 var _material: ShaderMaterial
 var _water_radius: float = 0.0
@@ -185,6 +192,8 @@ static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
 			"shore_fade": _param(mat, "shore_fade"),
 			"shore_handover": _param(mat, "shore_handover"),
 			"shore_chop": _param(mat, "shore_chop"),
+			"sea_ice_enabled": _param(mat, "sea_ice_enabled"),
+			"sea_ice_params": _param(mat, "sea_ice_params"),
 		}
 		_frame_cache[key] = cached
 	return cached
@@ -238,6 +247,11 @@ func _refresh_dynamic_params() -> void:
 	var calm_steep: Variant = params["calm_steepness"]
 	wave_calm_amplitude = calm_amp if calm_amp != null else wave_amplitude
 	wave_calm_steepness = calm_steep if calm_steep != null else wave_steepness
+	var ice_on: Variant = params["sea_ice_enabled"]
+	sea_ice_enabled = ice_on != null and bool(ice_on)
+	var ice_params: Variant = params["sea_ice_params"]
+	if ice_params is Vector4:
+		sea_ice_params = ice_params
 
 	var shore_on: Variant = params["shore_on"]
 	var amp: Variant = params["shore_amplitude"]
@@ -286,26 +300,14 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 		return 0.0
 	var radius := _water_radius if _water_radius>0.0 else input_local.length()
 	var local_q := input_local.normalized()*radius
-	# Una sola vez por muestra, no dentro de la inversión: el punto fijo mueve la posición unos
-	# metros y la máscara varía en decenas, así que la diferencia no se aprecia y ahorra 3/4 del coste.
-	var exposure := world_map.storm_exposure_local(local_q) if world_map != null else 1.0
-	# El campo de orilla y la profundidad, por lo mismo, una sola vez por muestra.
-	var shore_dir := Vector3.ZERO
-	var shore_signed_dist := 0.0
-	var shore_quality := 0.0
-	var shore_depth := 0.0
-	if shore_enabled and world_map.shore_waves_allowed_local(local_q):
-		var field := world_map.shore_sample_local(local_q)
-		var raw_dir := Vector3(field.x, field.y, field.z)
-		shore_quality = clampf(raw_dir.length(), 0.0, 1.0)
-		# Fuera del if a propósito: el shader resuelve shore_depth en cuanto la costera está permitida,
-		# sin mirar la distancia. Daba igual mientras solo lo usara el shoaling (que vive dentro de la
-		# rama de distancia), pero el tope de agua somera del chop lo consulta SIEMPRE, y dejarlo aquí
-		# dentro apagaba el chop en CPU y no en GPU justo en la línea de agua.
-		shore_depth = world_map.water_depth_local(local_q)
-		if absf(field.w) > 1.0:
-			shore_dir = raw_dir / shore_quality if shore_quality > 1e-4 else Vector3.ZERO
-			shore_signed_dist = field.w
+	var ctx := _context(local_q)
+	var exposure: float = ctx[0]
+	var shore_dir: Vector3 = ctx[1]
+	var shore_signed_dist: float = ctx[2]
+	var shore_quality: float = ctx[3]
+	var shore_depth: float = ctx[4]
+	var ice: float = ctx[5]
+	last_ice = ice
 
 	# Busca la posición "en reposo" cuya ola desplazada horizontalmente cae bajo world_pos.
 	var guess := local_q
@@ -316,7 +318,7 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 		var radial := guess.normalized()
 		var disp := _gerstner_disp(
 			guess, radial, time, exposure,
-			shore_dir, shore_signed_dist, shore_quality, shore_depth)
+			shore_dir, shore_signed_dist, shore_quality, shore_depth, ice)
 		var residual := guess+disp-local_q
 		var error := Vector2(residual.dot(target_u),residual.dot(target_v))
 		if error.length_squared()<0.000025:
@@ -337,8 +339,59 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 	var final_radial := guess.normalized()
 	var final_disp := _gerstner_disp(
 		guess, final_radial, time, exposure,
-		shore_dir, shore_signed_dist, shore_quality, shore_depth)
+		shore_dir, shore_signed_dist, shore_quality, shore_depth, ice)
 	return (guess+final_disp).length()-radius
+
+
+## Lo que la superficie necesita del mapa del planeta en un punto (réplica de wave_context):
+## [exposición, dirección a tierra, distancia firmada, calidad, profundidad, hielo]. Se resuelve una
+## vez por muestra, no dentro de la inversión: el punto fijo mueve la posición unos metros y la
+## máscara varía en decenas, así que la diferencia no se aprecia y ahorra 3/4 del coste.
+func _context(local_q: Vector3) -> Array:
+	var exposure := world_map.storm_exposure_local(local_q) if world_map != null else 1.0
+	# El campo de orilla y la profundidad, por lo mismo, una sola vez por muestra.
+	var shore_dir := Vector3.ZERO
+	var shore_signed_dist := 0.0
+	var shore_quality := 0.0
+	var shore_depth := 0.0
+	# Distancia a la costa para el hielo: igual que ice_shore en wave_context (gerstner_waves).
+	var ice_shore := -1.0
+	if shore_enabled:
+		ice_shore = 0.0
+	if shore_enabled and world_map.shore_waves_allowed_local(local_q):
+		var field := world_map.shore_sample_local(local_q)
+		var raw_dir := Vector3(field.x, field.y, field.z)
+		shore_quality = clampf(raw_dir.length(), 0.0, 1.0)
+		ice_shore = absf(field.w)
+		# Fuera del if a propósito: el shader resuelve shore_depth en cuanto la costera está permitida,
+		# sin mirar la distancia. Daba igual mientras solo lo usara el shoaling (que vive dentro de la
+		# rama de distancia), pero el tope de agua somera del chop lo consulta SIEMPRE, y dejarlo aquí
+		# dentro apagaba el chop en CPU y no en GPU justo en la línea de agua.
+		shore_depth = world_map.water_depth_local(local_q)
+		if absf(field.w) > 1.0:
+			shore_dir = raw_dir / shore_quality if shore_quality > 1e-4 else Vector3.ZERO
+			shore_signed_dist = field.w
+	var ice := ClimateField.sea_ice_with(local_q, ice_shore, sea_ice_params) if sea_ice_enabled else 0.0
+	return [exposure, shore_dir, shore_signed_dist, shore_quality, shore_depth, ice]
+
+
+## Desplazamiento de la partícula de agua que en reposo está en `local_rest` (relativa al centro,
+## sobre el radio del mar), sin inversión: es lo que sigue un cuerpo que flota con la ola, como un
+## témpano. min_length apaga las octavas más cortas que él, igual que gerstner_surface_ctx en el
+## shader. Deja la normal en last_normal y el hielo en last_ice.
+func rest_displacement(local_rest: Vector3, time: float, min_length: float) -> Vector3:
+	if _material == null:
+		return Vector3.ZERO
+	_ensure_frame_params()
+	var ctx := _context(local_rest)
+	last_ice = ctx[5]
+	return _gerstner_disp(local_rest, local_rest.normalized(), time, ctx[0],
+		ctx[1], ctx[2], ctx[3], ctx[4], ctx[5], min_length)
+
+
+## Normal analítica de la última evaluación.
+func last_normal() -> Vector3:
+	return _last_normal
 
 
 ## Velocidad del agua en world_pos: vaivén orbital de la ola más la corriente superficial, que es la
@@ -370,7 +423,8 @@ func get_surface_at(world_pos: Vector3, time: float, planet_center: Vector3) -> 
 ## Réplica de gerstner_surface() del shader: posición, normal y tangentes para la inversión.
 func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: float,
 		shore_dir: Vector3, shore_signed_dist: float,
-		shore_quality: float, shore_depth: float) -> Vector3:
+		shore_quality: float, shore_depth: float, ice: float = 0.0,
+		min_length: float = 0.0) -> Vector3:
 	var shore_dist := absf(shore_signed_dist)
 	# Relevo entre familias: donde manda la orilla, el oleaje de mar abierto se apaga. Suma de las
 	# dos a la vez y en una costa a sotavento el swell global viaja mar adentro sobre la rompiente.
@@ -385,11 +439,13 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 	var shoreline_fade := smoothstep(
 		1.0, maxf(shore_length * 0.25, shore_depth_fade), shore_dist)
 	var shore_presence := shore_gate * shoreline_fade
+	if min_length > 0.0:
+		shore_presence *= smoothstep(min_length * 0.5, min_length * 1.5, shore_length)
 	# Asimétrico a propósito: ver shore_handover en gerstner_waves.gdshaderinc.
 	var ocean_weight := 1.0 - smoothstep(0.0, shore_handover, shore_presence)
 
 	# Misma mezcla que gerstner_surface_lod; la exposición viene resuelta de get_height_at.
-	var amp := maxf(lerpf(wave_calm_amplitude, wave_amplitude, exposure),0.0)
+	var amp := maxf(lerpf(wave_calm_amplitude, wave_amplitude, exposure),0.0) * (1.0 - ice)
 	var steepness := lerpf(wave_calm_steepness, wave_steepness, exposure)
 	var horiz := Vector3.ZERO
 	var vert := 0.0
@@ -407,7 +463,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 	var wind := _wind
 	swell_dir = -(wind-radial*wind.dot(radial)).normalized()
 	var surface_field := Spectrum.evaluate(local,wind,time,amp,steepness,wave_base_length,wave_speed,
-		spectrum_spread,ocean_weight,shore_depth,maxf(shore_length,1.0),chop_floor,flow_depth)
+		spectrum_spread,ocean_weight,shore_depth,maxf(shore_length,1.0),chop_floor,flow_depth,min_length)
 	flow = surface_field.velocity
 	last_amp_effective = amp*ocean_weight
 	var shore_axis := Vector3.ZERO
@@ -439,7 +495,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		var lee_target := lerpf(
 			0.35, 1.0, smoothstep(-0.9, 0.6, swell_dir.dot(-seaward)))
 		var lee := lerpf(1.0, lee_target, shore_incidence * shore_quality)
-		var w := shore_presence * lee
+		var w := shore_presence * lee * (1.0 - ice)
 
 		var k := _TAU / maxf(shore_length, 0.1)
 		var amp_ref := minf(shore_amplitude * shoal, shore_length * 0.08)

@@ -4,7 +4,8 @@ extends MeshInstance3D
 ## Prefabs de sotobosque sin texturas. Se construyen una vez por especie y se
 ## comparten entre instancias; el planeta duplica solo los materiales por banda.
 const Builder = preload("res://scripts/planet/understory_geometry.gd")
-@export_enum("wood_fern", "royal_fern", "round_shrub", "willow_shrub", "flowering_shrub", "wild_asparagus", "broadleaf", "wildflowers")
+@export_enum("wood_fern", "royal_fern", "round_shrub", "willow_shrub", "flowering_shrub", "wild_asparagus", "broadleaf", "wildflowers",
+	"dwarf_juniper", "dwarf_birch", "heather", "cottongrass", "reindeer_lichen", "arctic_poppy")
 var species: String = "wood_fern":
 	set(value):
 		species = value

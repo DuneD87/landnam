@@ -2,11 +2,16 @@ class_name SimpleSmallAnimalModel extends Node3D
 
 ## Continuous offline-sculpted skin, animated on the GPU with smooth joint weights.
 ## Mesh resources and material are shared; no geometry is generated during play.
-const NAMES := ["Conejo", "Zorro", "Ratón"]
-const RADII := [0.13, 0.18, 0.055]
-const HEIGHTS := [0.40, 0.65, 0.14]
-const MAX_ANIMATION_DISPLACEMENT := [0.09, 0.20, 0.035]
-const MESHES: Array[ArrayMesh] = [preload("res://data/fauna/meshes/rabbit.res"), preload("res://data/fauna/meshes/fox.res"), preload("res://data/fauna/meshes/mouse.res")]
+const NAMES := ["Conejo", "Zorro", "Ratón", "Liebre ártica", "Zorro ártico", "Lemming"]
+## Las especies de invierno comparten anatomía, esqueleto de animación (el "species" del shader) y
+## forma de moverse con su pariente templado: solo cambian el pelaje y algún retoque de la malla.
+const BASE := [0, 1, 2, 0, 1, 2]
+const RADII := [0.13, 0.18, 0.055, 0.13, 0.18, 0.06]
+const HEIGHTS := [0.40, 0.65, 0.14, 0.40, 0.60, 0.14]
+const MAX_ANIMATION_DISPLACEMENT := [0.09, 0.20, 0.035, 0.09, 0.20, 0.035]
+const MESHES: Array[ArrayMesh] = [preload("res://data/fauna/meshes/rabbit.res"), preload("res://data/fauna/meshes/fox.res"),
+	preload("res://data/fauna/meshes/mouse.res"), preload("res://data/fauna/meshes/arctic_hare.res"),
+	preload("res://data/fauna/meshes/arctic_fox.res"), preload("res://data/fauna/meshes/lemming.res")]
 static var _material: ShaderMaterial
 var body: MeshInstance3D
 var _kind: int = 0
@@ -26,13 +31,15 @@ func _ready() -> void:
 
 
 func set_species(kind: int) -> void:
-	_kind = clampi(kind, 0, 2)
+	var species := clampi(kind, 0, MESHES.size() - 1)
+	# _kind es el esqueleto de animación, el mismo en las especies de invierno.
+	_kind = BASE[species]
 	if _material == null:
 		_material = ShaderMaterial.new()
 		_material.shader = preload("res://shaders/fauna/small_animal.gdshader")
-	body.mesh = MESHES[_kind]
+	body.mesh = MESHES[species]
 	body.material_override = _material
-	body.extra_cull_margin = MAX_ANIMATION_DISPLACEMENT[_kind]
+	body.extra_cull_margin = MAX_ANIMATION_DISPLACEMENT[species]
 	body.set_instance_shader_parameter("species", _kind)
 	_phase = 0.0
 	_clock = 0.0

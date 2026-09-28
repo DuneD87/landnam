@@ -6,7 +6,9 @@ extends RefCounted
 ## Las hojas se orientan hacia fuera de la copa y sus normales se curvan hacia la
 ## dirección radial: la planta se ilumina como un volumen y no como facetas sueltas.
 const SPECIES := ["wood_fern", "royal_fern", "round_shrub", "willow_shrub",
-	"flowering_shrub", "wild_asparagus", "broadleaf", "wildflowers"]
+	"flowering_shrub", "wild_asparagus", "broadleaf", "wildflowers",
+	# Bioma nevado: taiga, tundra y alta montaña.
+	"dwarf_juniper", "dwarf_birch", "heather", "cottongrass", "reindeer_lichen", "arctic_poppy"]
 const GRASS_SHADER = preload("res://shaders/grass_wind.gdshader")
 ## Ensanchado de las hojas supervivientes por LOD. grass_wind.gdshader usa el mismo
 ## factor para el morph continuo entre niveles (lod_width_growth).
@@ -52,6 +54,18 @@ static func build(species: String) -> Array:
 			builder._broadleaf()
 		"wildflowers":
 			builder._wildflowers()
+		"dwarf_juniper":
+			builder._juniper()
+		"dwarf_birch":
+			builder._dwarf_birch()
+		"heather":
+			builder._heather()
+		"cottongrass":
+			builder._cottongrass()
+		"reindeer_lichen":
+			builder._lichen()
+		"arctic_poppy":
+			builder._poppy()
 	var material: ShaderMaterial = builder._material(species)
 	var result: Array = []
 	for lod in 4:
@@ -83,7 +97,7 @@ func _material(species: String) -> ShaderMaterial:
 	material.set_shader_parameter("transmission_strength", 0.35)
 	material.set_shader_parameter("grass_height", _height)
 	material.set_shader_parameter("bend_curve", 2.0)
-	material.set_shader_parameter("wind_amplitude", 0.55 if "fern" in species else 0.35)
+	material.set_shader_parameter("wind_amplitude", 0.55 if "fern" in species or species == "cottongrass" else 0.35)
 	material.set_shader_parameter("wind_speed", 0.18)
 	material.set_shader_parameter("flutter_amount", 0.07)
 	material.set_shader_parameter("ambient_intensity", 0.14)
@@ -322,6 +336,183 @@ func _wildflowers() -> void:
 			var end: Vector3 = base + direction.rotated(Vector3.UP, side * 1.1) * 0.18 + Vector3.UP * 0.06
 			_leaf(base, base.lerp(end, 0.5) + Vector3.UP * 0.06, end, 0.055, green, true)
 		_flower(head, 0.070, Color(0.90, 0.85, 0.68) if stalk % 3 else Color(0.68, 0.62, 0.79))
+
+
+## Enebro rastrero: brazos leñosos tumbados en abanico, cubiertos de acículas cortas azuladas,
+## con alguna gálbula azul. Una alfombra baja y ancha, que asoma de la nieve.
+func _juniper() -> void:
+	var needle := Color(0.21, 0.34, 0.29)
+	var wood := Color(0.37, 0.27, 0.21)
+	_canopy_center = Vector3(0.0, 0.14, 0.0)
+	_canopy_size = Vector3(0.78, 0.26, 0.78)
+	_volume_strength = 0.55
+	_occlusion = 0.40
+	for arm in 10:
+		var angle: float = arm * TAU / 10.0 + _rng.randf_range(-0.25, 0.25)
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var reach: float = _rng.randf_range(0.40, 0.66)
+		var root: Vector3 = direction * 0.04
+		var knee: Vector3 = direction * reach * 0.45 + Vector3.UP * _rng.randf_range(0.14, 0.26)
+		var end: Vector3 = direction * reach + Vector3.UP * _rng.randf_range(0.10, 0.22)
+		_stem(root, knee, 0.032, wood)
+		_stem(knee, end, 0.02, wood.lightened(0.05))
+		var arm_color: Color = _shade(needle, _rng.randf_range(-0.05, 0.05), 0.06)
+		for node in 10:
+			var t: float = 0.04 + node * 0.1
+			var origin: Vector3 = knee.lerp(end, t) if t > 0.2 else root.lerp(knee, 0.6 + t * 2.0)
+			for spray in 2:
+				var outward: Vector3 = (direction + Vector3.UP * (0.4 + spray * 0.5) + Vector3(_rng.randf_range(-0.5, 0.5), 0.0,
+					_rng.randf_range(-0.5, 0.5))).normalized()
+				_leaf_cluster(origin + outward * 0.03, outward, 7, 0.13, 0.18,
+					arm_color.lightened(_rng.randf_range(0.0, 0.09)), _cluster_tier(node > 1 and spray == 1))
+				if spray == 1 and _rng.randf() < 0.18:
+					_flower(origin + outward * 0.07, 0.016, Color(0.40, 0.47, 0.62), outward, 2, 3)
+
+
+## Abedul enano de la tundra: mata baja de tallos rojizos y hojitas redondas en rojo y naranja
+## de otoño, con alguna todavía verde.
+func _dwarf_birch() -> void:
+	var palette := [Color(0.74, 0.24, 0.12), Color(0.84, 0.40, 0.14), Color(0.62, 0.17, 0.13),
+		Color(0.56, 0.54, 0.20)]
+	var wood := Color(0.36, 0.19, 0.15)
+	var radius: float = 0.46
+	var height: float = 0.58
+	_canopy_center = Vector3(0.0, height * 0.55, 0.0)
+	_canopy_size = Vector3(radius, height * 0.47, radius)
+	_volume_strength = 0.7
+	_occlusion = 0.35
+	var forks: Array = []
+	for trunk in 8:
+		var angle: float = trunk * TAU / 8.0 + _rng.randf_range(-0.3, 0.3)
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var fork: Vector3 = direction * radius * _rng.randf_range(0.3, 0.5) + Vector3.UP * height * _rng.randf_range(0.3, 0.5)
+		_stem(direction * 0.03, fork, 0.02, wood)
+		var tip: Vector3 = fork + direction * radius * 0.35 + Vector3.UP * height * _rng.randf_range(0.2, 0.4)
+		_stem(fork, tip, 0.012, wood.lightened(0.1))
+		forks.append(tip)
+	for k in 54:
+		var y: float = lerpf(0.97, -0.3, (k + 0.5) / 54.0)
+		var ring: float = sqrt(maxf(1.0 - y * y, 0.0))
+		var phi: float = k * 2.399963 + _rng.randf_range(-0.2, 0.2)
+		var outward := Vector3(cos(phi) * ring, y, sin(phi) * ring)
+		var outer: bool = k % 4 != 0
+		var anchor: Vector3 = _canopy_center + outward * _canopy_size * (1.0 if outer else 0.66)
+		anchor.y = maxf(anchor.y, 0.08)
+		_stem(anchor.lerp(_closest(forks, anchor), 0.5), anchor, 0.006, wood, 0)
+		var color: Color = palette[_rng.randi() % palette.size()]
+		_leaf_cluster(anchor, outward, 5, 0.065, 0.85, color.lightened(_rng.randf_range(-0.05, 0.08)),
+			_cluster_tier(outer))
+
+
+## Brezo: matorral bajo de tallos rectos con hojitas en escama y espigas de flores malva.
+func _heather() -> void:
+	var leaf := Color(0.24, 0.33, 0.19)
+	var flowers := [Color(0.74, 0.44, 0.68), Color(0.83, 0.57, 0.77), Color(0.66, 0.36, 0.62)]
+	_canopy_center = Vector3(0.0, 0.2, 0.0)
+	_canopy_size = Vector3(0.36, 0.26, 0.36)
+	_volume_strength = 0.45
+	_occlusion = 0.3
+	for stalk in 26:
+		var angle: float = stalk * 2.399963
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var root: Vector3 = direction * _rng.randf_range(0.02, 0.26)
+		var top: Vector3 = root + direction * 0.12 + Vector3.UP * _rng.randf_range(0.24, 0.40)
+		_stem(root, top, 0.009, Color(0.36, 0.25, 0.20))
+		for level in 4:
+			var point: Vector3 = root.lerp(top, 0.14 + level * 0.13)
+			_leaf_cluster(point, (direction + Vector3.UP).normalized(), 5, 0.05, 0.3,
+				leaf.lightened(_rng.randf_range(0.0, 0.08)), 1 if level % 2 else 0)
+		var color: Color = flowers[_rng.randi() % flowers.size()]
+		for bud in 7:
+			var point: Vector3 = root.lerp(top, 0.6 + bud * 0.06)
+			var side: Vector3 = direction.rotated(Vector3.UP, bud * 2.2)
+			_flower(point + side * 0.016, 0.02, color.lightened(_rng.randf_range(-0.04, 0.08)),
+				(side + Vector3.UP * 0.5).normalized(), 3 if bud % 2 == 0 else 1, 4)
+
+
+## Algodoncillo: macolla de hojas de junco arqueadas y tallos finos con el penacho blanco.
+func _cottongrass() -> void:
+	var green := Color(0.43, 0.50, 0.28)
+	var straw := Color(0.62, 0.52, 0.30)
+	_canopy_center = Vector3(0.0, 0.22, 0.0)
+	_canopy_size = Vector3(0.3, 0.35, 0.3)
+	_volume_strength = 0.2
+	_occlusion = 0.2
+	for blade in 14:
+		var angle: float = blade * 2.399963
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var root: Vector3 = direction * 0.03
+		var length: float = _rng.randf_range(0.24, 0.40)
+		var tip: Vector3 = root + direction * length * 0.6 + Vector3.UP * length * 0.7
+		var color: Color = green.lerp(straw, _rng.randf_range(0.0, 0.6))
+		_leaf(root, root.lerp(tip, 0.5) + Vector3.UP * length * 0.25, tip, 0.02, color, blade % 3 == 0,
+			(Vector3.UP + direction * 0.4).normalized())
+	for head in 6:
+		var angle: float = head * 2.399963 + 0.7
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var root: Vector3 = direction * 0.04
+		var top: Vector3 = root + direction * _rng.randf_range(0.04, 0.12) + Vector3.UP * _rng.randf_range(0.38, 0.55)
+		_stem(root, top, 0.009, Color(0.45, 0.47, 0.30))
+		# Penacho: pelos blancos en todas direcciones, los de fuera hasta el LOD lejano.
+		var radius: float = _rng.randf_range(0.055, 0.075)
+		for hair in 22:
+			var up: float = lerpf(-0.6, 1.0, _rng.randf())
+			var ring: float = sqrt(maxf(1.0 - up * up, 0.0))
+			var phi: float = _rng.randf() * TAU
+			var out := Vector3(cos(phi) * ring, up, sin(phi) * ring)
+			var center: Vector3 = top + Vector3.UP * radius * 0.6
+			# La cara del pelo, perpendicular a él: paralela, la hoja se aplasta en una línea.
+			_leaf(center, center + out * radius * 0.6 + Vector3.UP * 0.006, center + out * radius,
+				radius * 0.75, Color(0.95, 0.95, 0.92), true, _frame(out)[1], 3 if hair < 8 else 1)
+
+
+## Liquen de los renos: cojines gris verdoso claro de ramitas finas en forma de coral.
+func _lichen() -> void:
+	var pale := Color(0.80, 0.82, 0.71)
+	_canopy_center = Vector3(0.0, 0.1, 0.0)
+	_canopy_size = Vector3(0.32, 0.16, 0.32)
+	_volume_strength = 0.6
+	_occlusion = 0.35
+	for mound in 5:
+		var angle: float = mound * TAU / 5.0 + _rng.randf_range(-0.4, 0.4)
+		var center: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * (0.0 if mound == 0 else _rng.randf_range(0.12, 0.2))
+		var height: float = _rng.randf_range(0.36, 0.40) if mound == 0 else _rng.randf_range(0.14, 0.24)
+		var color: Color = pale.lerp(Color(0.70, 0.76, 0.60), _rng.randf())
+		var width: float = height * 0.9
+		for branch in 30:
+			# Puntas repartidas sobre la cúpula del cojín, no en un haz.
+			var up: float = lerpf(0.25, 1.0, sqrt(_rng.randf()))
+			var ring: float = sqrt(maxf(1.0 - up * up, 0.0))
+			var phi: float = _rng.randf() * TAU
+			var out := Vector3(cos(phi) * ring, up, sin(phi) * ring)
+			var tip: Vector3 = center + out * Vector3(width, height, width)
+			_stem(center + Vector3(out.x, 0.0, out.z) * width * 0.3, tip, 0.012, color.darkened(0.08), 2)
+			for fork in 4:
+				var spread: Vector3 = (out + Vector3(_rng.randf_range(-0.6, 0.6), 0.3, _rng.randf_range(-0.6, 0.6))).normalized()
+				_leaf(tip, tip + spread * 0.025, tip + spread * 0.055, 0.024,
+					color.lightened(_rng.randf_range(0.0, 0.1)), fork == 0, _frame(spread)[1], -1)
+
+
+## Amapola ártica: roseta de hojas vellosas y tallos con la copa amarilla abierta al sol.
+func _poppy() -> void:
+	var leaf := Color(0.46, 0.53, 0.37)
+	_canopy_center = Vector3(0.0, 0.12, 0.0)
+	_canopy_size = Vector3(0.2, 0.2, 0.2)
+	_volume_strength = 0.25
+	_occlusion = 0.2
+	for basal in 9:
+		var angle: float = basal * 2.399963
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var tip: Vector3 = direction * _rng.randf_range(0.09, 0.14) + Vector3.UP * 0.05
+		_leaf(direction * 0.01, direction * 0.06 + Vector3.UP * 0.06, tip, 0.035,
+			leaf.lightened(_rng.randf_range(-0.03, 0.06)), basal % 3 == 0, (Vector3.UP + direction * 0.5).normalized())
+	for stalk in 6:
+		var angle: float = stalk * 2.399963 + 0.4
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var head: Vector3 = direction * _rng.randf_range(0.03, 0.08) + Vector3.UP * _rng.randf_range(0.2, 0.3)
+		_stem(direction * 0.01, head, 0.009, Color(0.42, 0.48, 0.30))
+		var color := Color(0.98, 0.84, 0.24).lerp(Color(0.98, 0.93, 0.62), _rng.randf_range(0.0, 0.5))
+		_flower(head, 0.06, color, (Vector3.UP + direction * 0.35).normalized(), 3, 4)
 
 
 ## Grupo de hojas pequeñas alrededor de un brote, inclinadas hacia fuera y sin

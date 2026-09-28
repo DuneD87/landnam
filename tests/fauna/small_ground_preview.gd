@@ -47,15 +47,16 @@ func _ready() -> void:
 	plane.material = mat
 	floor_mesh.mesh = plane
 	add_child(floor_mesh)
+	var winter := 3 if "--winter" in OS.get_cmdline_user_args() else 0
 	for i in 3:
 		var animal := SimpleSmallAnimalModel.new()
 		animal.position.x = (i - 1) * 1.15
 		animal.rotation_degrees.y = -140
 		add_child(animal)
-		animal.set_species(i)
+		animal.set_species(i + winter)
 		models.append(animal)
 		var label := Label3D.new()
-		label.text = SimpleSmallAnimalModel.NAMES[i]
+		label.text = SimpleSmallAnimalModel.NAMES[i + winter]
 		label.font_size = 48
 		label.pixel_size = 0.0018
 		label.outline_size = 0
@@ -143,6 +144,8 @@ func _detail_board(environment: Environment) -> void:
 	title.position = Vector2(36, 24)
 	title.add_theme_font_size_override("font_size", 25)
 	panel.add_child(title)
+	# --winter enseña las especies de invierno (liebre ártica, zorro ártico y lemming).
+	var first := 3 if "--winter" in OS.get_cmdline_user_args() else 0
 	for i in 3:
 		var container := SubViewportContainer.new()
 		container.position = Vector2(12 + i * 424, 80)
@@ -167,7 +170,7 @@ func _detail_board(environment: Environment) -> void:
 			root.add_child(light)
 		var animal := SimpleSmallAnimalModel.new()
 		root.add_child(animal)
-		animal.set_species(i)
+		animal.set_species(first + i)
 		animal.rotation_degrees.y = -140
 		var camera := Camera3D.new()
 		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -178,7 +181,7 @@ func _detail_board(environment: Environment) -> void:
 		root.add_child(camera)
 		camera.look_at(target)
 		var label := Label.new()
-		label.text = SimpleSmallAnimalModel.NAMES[i]
+		label.text = SimpleSmallAnimalModel.NAMES[first + i]
 		label.position = Vector2(12 + i * 424, 624)
 		label.size.x = 408
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -186,4 +189,5 @@ func _detail_board(environment: Environment) -> void:
 		panel.add_child(label)
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png("res://build/fauna/small_ground_rebuilt.png")
+	get_viewport().get_texture().get_image().save_png("res://build/fauna/small_ground_%s.png"
+		% ("winter" if first > 0 else "rebuilt"))

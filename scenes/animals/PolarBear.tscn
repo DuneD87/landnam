@@ -1,0 +1,29 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/animals/Bear.tscn" id="1_base"]
+[ext_resource type="Texture2D" path="res://scenes/animals/PolarBear_Bear.png" id="2_fur"]
+[ext_resource type="Texture2D" path="res://scenes/animals/Bear_Bear_N.png" id="3_normal"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_polar"]
+resource_name = "PolarBear"
+cull_mode = 2
+albedo_texture = ExtResource("2_fur")
+roughness = 0.85
+normal_enabled = true
+normal_texture = ExtResource("3_normal")
+uv1_offset = Vector3(0, -1, 0)
+
+[node name="Node3D" instance=ExtResource("1_base")]
+npc_type = &"PolarBear"
+
+[node name="HealthComponent" parent="."]
+max_health = 320.0
+
+[node name="Perception" parent="."]
+hostile_npc_types = Array[StringName]([&"Caribou", &"Deer"])
+
+[node name="NPCModel" parent="."]
+transform = Transform3D(1.15, 0, 0, 0, 1.15, 0, 0, 0, 1.15, 0, 0, 0)
+
+[node name="SK_AnimalsBear_Bear" parent="NPCModel/Armature/Skeleton3D"]
+surface_material_override/0 = SubResource("StandardMaterial3D_polar")

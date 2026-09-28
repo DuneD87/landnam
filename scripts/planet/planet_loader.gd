@@ -157,6 +157,8 @@ var world_map: PlanetWorldMap
 ## Lecho sonoro del mar. Se monta con el mapa porque los dos factores de su mezcla —distancia
 ## al litoral y estado de mar— salen del campo de orilla horneado.
 var water_ambience: WaterAmbience
+## Témpanos e icebergs con volumen donde el mar se hiela (solo planetas con clima).
+var sea_ice_floes: SeaIceFloes
 
 @export_group("Ambient Fauna")
 @export var ambient_fauna_enabled: bool = true
@@ -266,6 +268,7 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.ore_settings = planet_parser.ore_settings
 	planet.river_settings = planet_parser.river_settings
 	planet.reef_settings = planet_parser.reef_settings
+	planet.climate_settings = planet_parser.climate_settings
 	planet.entity_id = entity_id
 	planet.vegetation = planet_parser.vegetation
 	planet.wind_direction = planet_parser.wind_direction
@@ -306,8 +309,16 @@ func _load_planet() -> void:
 		var water_shader: ShaderMaterial = water_sphere.quadtree_material as ShaderMaterial
 		water_shader.set_shader_parameter("planet_center", voxel_terrain.global_position)
 		print(voxel_terrain.global_position)
+		# Hielo marino del clima frío: el agua (superficie, compute submarino y WaterHeightSampler)
+		# lo evalúa con estos dos uniforms, sin el ruido del clima.
+		water_shader.set_shader_parameter("sea_ice_enabled", planet.climate.enabled)
+		water_shader.set_shader_parameter("sea_ice_params", planet.climate.sea_ice_params())
 		water_sphere.wireframe_material = load("res://data/resources/WaterSphere_wireframe_material.tres")
 		water_sphere.load_watersphere(planet)
+		if planet.climate.enabled and not Engine.is_editor_hint():
+			sea_ice_floes = SeaIceFloes.new()
+			add_child(sea_ice_floes)
+			sea_ice_floes.setup(water_shader, null, water_sphere.radius, players[0])
 
 	if not Engine.is_editor_hint():
 		_setup_weather(planet_parser)
@@ -376,6 +387,8 @@ func _push_world_map_to_water(map: WorldMapData) -> void:
 		mat.set_shader_parameter("shore_waves_enabled", true)
 
 	water_sphere.world_map = world_map
+	if sea_ice_floes != null:
+		sea_ice_floes.set_world_map(world_map)
 	_setup_water_ambience()
 	if weather_controller != null:
 		weather_controller.set_world_map(world_map)
@@ -508,6 +521,7 @@ func _setup_ground_fauna(planet_parser: PlanetParser) -> void:
 		var habitat: GroundFaunaHabitat = SmallGroundFaunaHabitat.new() if settings is SmallGroundFaunaProfile else GroundFaunaHabitat.new()
 		habitat.setup(voxel_terrain, get_parent(), planet_parser.radius,
 			planet_parser.atmosphere_height, planet_parser.biome_latitude_ranges, world_map)
+		habitat.climate = planet.climate
 		if habitat is SmallGroundFaunaHabitat:
 			habitat.observer = players[0]
 			habitat.sea_radius = water_sphere.radius if is_instance_valid(water_sphere) else 0.0

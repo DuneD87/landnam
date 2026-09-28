@@ -22,7 +22,9 @@ func _run() -> void:
 	for item in vegetation.items:
 		if item.has("tree_lods"):
 			tree_items.append(item)
-	_check(tree_items.size() == 9, "Nueve árboles con relevo de bandas (pinos, olivos, manzanos, almendros)")
+	# Nueve templados (pinos, olivos, manzanos, almendros) y siete del bioma nevado (tres piceas, un
+	# pino y dos abedules en la taiga, y la picea enana de la línea de árboles).
+	_check(tree_items.size() == 16, "Dieciséis árboles con relevo de bandas")
 
 	for item in tree_items:
 		var scene_name: String = str(item.scene).get_file().get_basename()

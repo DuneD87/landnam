@@ -88,7 +88,7 @@ func _step(delta: float) -> void:
 	var vertical := velocity.dot(up_direction)
 	if is_on_floor():
 		vertical = 0.0
-		if _settings.species == 0 and speed > 0.1 and _hop_timer <= 0.0:
+		if SimpleSmallAnimalModel.BASE[_settings.species] == 0 and speed > 0.1 and _hop_timer <= 0.0:
 			vertical = 2.4 if state == State.FLEE else 1.6
 			_hop_timer = 0.48 if state == State.FLEE else 0.65
 	vertical -= 12.0 * delta

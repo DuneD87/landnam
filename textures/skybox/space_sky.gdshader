@@ -61,6 +61,11 @@ uniform float bloom_strength : hint_range(1.0, 8.0) = 2.5;
 // El cielo que se VE lo pinta el compute de atmósfera encima de este fondo; aquí solo se
 // decide cuánto asoman las estrellas (de día el cielo las tapa, en el espacio siempre están).
 uniform float night_sky_visibility : hint_range(0.0, 1.0) = 1.0;
+// Aurora polar (0 = nada). La empuja SkyLighting según la latitud del observador y su actividad,
+// que sube y baja despacio. Solo se dibuja de noche (multiplica por night_sky_visibility).
+uniform float aurora_intensity : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 aurora_low_color = vec3(0.10, 1.0, 0.45);
+uniform vec3 aurora_high_color = vec3(0.75, 0.25, 0.85);
 // Radiancia del cielo para el pase de CUBEMAP, que no se ve: es la luz ambiente y los reflejos
 // de toda la escena. SkyLighting la saca del mismo modelo de dispersión que el compute en seis
 // direcciones del marco local del observador, y aquí se reconstruye por dirección.
@@ -470,6 +475,63 @@ vec3 ambient_sky(vec3 dir) {
 // ─────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// AURORA: cortinas de luz sobre un techo a gran altura, en el marco local del observador (amb_up).
+// Ruido triangular retorcido (el de las auroras de nimitz, Shadertoy XtGGRt) que se desplaza
+// despacio; unas pocas capas apiladas dan la caída vertical de las cortinas, verdes abajo y
+// violáceas arriba.
+// ─────────────────────────────────────────────
+float aurora_tri(float x) { return clamp(abs(fract(x) - 0.5), 0.01, 0.49); }
+vec2 aurora_tri2(vec2 p) { return vec2(aurora_tri(p.x) + aurora_tri(p.y), aurora_tri(p.y + aurora_tri(p.x))); }
+mat2 aurora_rot(float a) { float c = cos(a), s = sin(a); return mat2(vec2(c, s), vec2(-s, c)); }
+
+float aurora_noise(vec2 p, float t) {
+	float z = 1.8;
+	float z2 = 2.5;
+	float rz = 0.0;
+	p *= aurora_rot(p.x * 0.06);
+	vec2 bp = p;
+	for (int i = 0; i < 5; i++) {
+		vec2 dg = aurora_tri2(bp * 1.85) * 0.75;
+		dg *= aurora_rot(t * 0.06);
+		p -= dg / z2;
+		bp *= 1.3;
+		z2 *= 0.45;
+		z *= 0.42;
+		p *= 1.21 + (rz - 1.0) * 0.02;
+		rz += aurora_tri(p.x + aurora_tri(p.y)) * z;
+		p *= mat2(vec2(-0.95534, -0.29552), vec2(0.29552, -0.95534));
+	}
+	return clamp(1.0 / pow(rz * 29.0, 1.3), 0.0, 0.55);
+}
+
+vec3 aurora(vec3 ray, float t, vec2 frag) {
+	vec3 up = normalize(amb_up);
+	float elevation = dot(ray, up);
+	if (elevation <= 0.0) {
+		return vec3(0.0);
+	}
+	vec3 east = normalize(cross(abs(up.y) < 0.95 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0), up));
+	vec3 north = cross(up, east);
+	vec2 across = vec2(dot(ray, east), dot(ray, north));
+	vec3 sum = vec3(0.0);
+	vec3 avg = vec3(0.0);
+	float dither = fract(sin(dot(frag, vec2(12.9898, 78.233))) * 43758.5453) * 0.006;
+	for (int i = 0; i < 32; i++) {
+		float fi = float(i);
+		float layer = (0.8 + pow(fi, 1.4) * 0.0032) / (elevation * 2.0 + 0.4) - dither * smoothstep(0.0, 10.0, fi);
+		vec2 p = across * layer;
+		// Arcos: una o dos bandas que serpentean sobre el cielo; fuera de ellas no hay cortina.
+		float arc = p.y * 1.4 + sin(p.x * 1.3 + t * 0.02) * 0.35 + sin(p.x * 3.1 - t * 0.03) * 0.12;
+		float band = exp(-pow((fract(arc * 0.5 + 0.25) - 0.5) * 5.0, 2.0));
+		float n = aurora_noise(p * 1.2, t) * band;
+		vec3 tone = mix(aurora_low_color, aurora_high_color, smoothstep(6.0, 30.0, fi));
+		avg = mix(avg, tone * n, 0.5);
+		sum += avg * exp2(-fi * 0.1 - 2.5) * smoothstep(0.0, 4.0, fi);
+	}
+	return sum * clamp(elevation * 12.0 + 0.2, 0.0, 1.0) * 1.1;
+}
+
 void sky() {
 	if (AT_CUBEMAP_PASS) {
 		COLOR = ambient_sky(normalize(EYEDIR));
@@ -512,6 +574,9 @@ void sky() {
 
 		// ────── BACKGROUND: STARS + MILKY WAY ──────
 		vec3 col = (starField(ray) + milkyWay(ray)) * night_sky_visibility;
+		if (aurora_intensity * night_sky_visibility > 0.001) {
+			col += aurora(ray, TIME, FRAGCOORD.xy) * aurora_intensity * night_sky_visibility;
+		}
 
 		// Mask background stars near the main star to avoid bleed-through.
 		// Clamp t>=0 para medir el rayo (semirrecta), no la recta: sin el max()

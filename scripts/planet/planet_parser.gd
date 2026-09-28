@@ -90,6 +90,11 @@ class_name PlanetParser extends Node3D
 ## que trae coastal_reefs.tres.
 @export var reef_settings: Dictionary = {}
 
+@export_group("Climate Settings")
+## Bloque opcional "climate_settings" del JSON: el campo de frío (nieve, taiga, tundra, hielo
+## marino). Vacío = planeta sin clima frío (ver ClimateField).
+@export var climate_settings: Dictionary = {}
+
 @export_group("Underwater settings")
 @export var fog_density: float = 0.5
 @export var fog_color: Color = Color(0.3, 0.2, 0.8, 1.0)
@@ -355,6 +360,7 @@ func load_config(config_path: String):
 
 	river_settings = _parse_river_settings(config.get("river_settings", {}))
 	reef_settings = config.get("reef_settings", {})
+	climate_settings = config.get("climate_settings", {})
 
 
 ## Normaliza el bloque de ríos: los tamaños llegan como pares [ancho, alto] desde el JSON y el resto

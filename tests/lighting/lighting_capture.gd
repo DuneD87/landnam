@@ -453,6 +453,11 @@ func _place(view: Dictionary) -> void:
 	forward = (forward * cos(pitch) + up * sin(pitch)).normalized()
 	_camera.global_transform = Transform3D(Basis.looking_at(forward, up), pos)
 	_player.global_position = pos + up * 0.5
+	# El quadtree del océano refina alrededor de la cámara DEL JUGADOR, que en el arnés no se
+	# actualiza sola: sin esto el agua junto a la toma se quedaba sin malla y se veía el fondo.
+	var player_camera: Node3D = _player.get("camera")
+	if player_camera != null:
+		player_camera.global_position = pos
 
 
 ## Dirección radial de un punto de tierra a `back` metros de la orilla, siguiendo el rumbo del agua.

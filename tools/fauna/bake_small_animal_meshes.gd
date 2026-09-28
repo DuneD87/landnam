@@ -3,8 +3,11 @@ extends SceneTree
 ## Converts offline sculpt data to native cached ArrayMesh resources.
 func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute("res://data/fauna/meshes")
-	for animal in ["rabbit", "fox", "mouse"]:
+	for animal in ["rabbit", "fox", "mouse", "arctic_hare", "arctic_fox", "lemming"]:
 		var path := "res://build/fauna/sculpted/%s.json" % animal
+		# Solo se hornean las especies esculpidas: las demás conservan su .res del repositorio.
+		if not FileAccess.file_exists(path) and FileAccess.file_exists("res://data/fauna/meshes/%s.res" % animal):
+			continue
 		if not FileAccess.file_exists(path):
 			push_error("Missing sculpt: " + path)
 			quit(1)

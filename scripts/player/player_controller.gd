@@ -91,6 +91,8 @@ var _platform_miss_time: float = 0.0
 
 var current_water_time: float = 0.0
 var water_sampler: WaterHeightSampler
+## Suelo de la banquisa; se crea la primera vez que el jugador llega al mar helado.
+var _sea_ice_floor: SeaIceFloor
 var mouse_captured = true
 var free_flight_enabled = false
 
@@ -1209,6 +1211,8 @@ func _check_needs_swimming(_delta: float):
 	var base_water_radius: float = planet.planet.radius - planet.planet.water_radius
 	var water_surface_radius := base_water_radius + wave_height
 	_water_surface_radius = water_surface_radius
+	# Banquisa: el hielo del mar apaga el oleaje y SeaIceFloor pone suelo bajo los pies.
+	var on_ice := _follow_sea_ice(base_water_radius)
 	# Para la muestra del frame siguiente: la profundidad no se sabe hasta tener la superficie.
 	water_sampler.flow_depth = maxf(_water_surface_radius - distance_from_center, 0.0)
 	var mat = planet.water_sphere.mesh_manager.default_material as ShaderMaterial
@@ -1216,11 +1220,11 @@ func _check_needs_swimming(_delta: float):
 	_water_surface_center = planet.global_position
 	# En un compartimento seco de un barco el agua no existe: sin nado bajo la superficie.
 	movement.is_swimming = distance_from_center <= (_water_surface_radius - swimming_offset) \
-		and not GridManager.is_point_in_dry_interior(global_position)
+		and not GridManager.is_point_in_dry_interior(global_position) and not on_ice
 
 	# Chapoteo al cruzar la lámina con los pies. El origen del cuerpo está en los pies, así que la
 	# comparación es directa; el nado no sirve de disparador porque arranca mucho más abajo.
-	var feet_wet := distance_from_center <= _water_surface_radius
+	var feet_wet := distance_from_center <= _water_surface_radius and not on_ice
 	if feet_wet != _feet_in_water:
 		_feet_in_water = feet_wet
 		var up := to_center / maxf(distance_from_center, 0.001)
@@ -1230,7 +1234,44 @@ func _check_needs_swimming(_delta: float):
 	# oídos fuera del agua, y el sonido tiene que ir con lo que se ve. El radio de superficie es
 	# el muestreado en el jugador; a la distancia de cámara la diferencia es una ola.
 	var ears := camera.global_position if camera else global_position
-	AudioManager.set_underwater(ears.distance_to(_water_surface_center) <= _water_surface_radius)
+	AudioManager.set_underwater(not on_ice and ears.distance_to(_water_surface_center) <= _water_surface_radius)
+
+
+## Coloca el suelo de la banquisa bajo el jugador si el mar está helado donde pisa. Devuelve true
+## si camina sobre el hielo: sobre un témpano (SeaIceFloes) o sobre la banquisa cerrada. Témpanos y
+## suelo van en su propia capa, que solo el jugador añade a su máscara.
+func _follow_sea_ice(sea_radius: float) -> bool:
+	var floes: SeaIceFloes = planet.sea_ice_floes
+	var on_floe := false
+	if floes != null:
+		collision_mask |= SeaIceFloor.LAYER
+		on_floe = not floes.floe_under(global_position).is_empty()
+	var min_ice := SeaIceFloor.PACK_ICE if floes != null else SeaIceFloor.MIN_ICE
+	if water_sampler.last_ice < min_ice and _sea_ice_floor == null:
+		return on_floe
+	if _sea_ice_floor == null:
+		_sea_ice_floor = SeaIceFloor.new()
+		get_parent().add_child(_sea_ice_floor)
+		collision_mask |= SeaIceFloor.LAYER
+	var on_pack := _sea_ice_floor.follow(global_position, planet.global_position, sea_radius,
+		water_sampler.last_ice, min_ice)
+	return on_pack or on_floe
+
+
+## Nadando junto a un témpano, saltar lo sube encima (el canto asoma medio metro sobre el agua y a
+## nado no se puede saltar). Devuelve true si ha subido.
+func _try_haul_out() -> bool:
+	var floes: SeaIceFloes = planet.sea_ice_floes
+	if floes == null:
+		return false
+	var point := floes.haul_out_point(global_position)
+	if not point.is_finite():
+		return false
+	global_position = point
+	velocity = Vector3.ZERO
+	movement.velocity = Vector3.ZERO
+	reset_physics_interpolation()
+	return true
 
 
 
@@ -1399,6 +1440,9 @@ func update_normal_movement(delta: float) -> void:
 	
 	var was_swimming = movement.is_swimming
 	_check_needs_swimming(delta)
+	if movement.is_swimming and not movement.use_ai_input and Input.is_action_just_pressed("jump") \
+			and _try_haul_out():
+		movement.is_swimming = false
 	was_swimming = was_swimming && !movement.is_swimming
 	var idle_animation = config.ANIMATION.IDLE if !right_hand_equipped else equiped_weapon.idle_animation
 	var run_animation = config.ANIMATION.RUN if !right_hand_equipped else equiped_weapon.running_animation

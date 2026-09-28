@@ -33,14 +33,37 @@ static func resolve(hit: Dictionary, planet_root: Node3D, up: Vector3) -> String
 
 	var pos: Vector3 = hit["position"]
 	var center: Vector3 = planet_root.global_position
+	var normal: Vector3 = hit.get("normal", up)
+	var snow := _snow_family(planet, planet_root, pos, center, normal, up)
+	if snow != &"":
+		return snow
 	if _is_wet(planet, planet_root, pos, center):
 		return &"water"
 
-	var normal: Vector3 = hit.get("normal", up)
 	if 1.0 - normal.dot(up) > planet.slope_threshold:
 		return _family(planet.slope_sound_material)
 
 	return _biome_family(planet, pos, center)
+
+
+## Nieve del clima frío (la misma cobertura que pinta el terreno, sin sus manchas finas) y la
+## banquisa, que también suena a nieve. Vacío si no hay nieve bajo los pies.
+static func _snow_family(planet: Planet, planet_root: Node3D, pos: Vector3, center: Vector3,
+		normal: Vector3, up: Vector3) -> StringName:
+	var climate: ClimateField = planet.climate
+	if climate == null or not climate.enabled:
+		return &""
+	var local := pos - center
+	var sea_radius := planet.radius - planet.water_radius
+	if planet.has_water and absf(local.length() - sea_radius) < 1.0:
+		var map = planet_root.get(&"world_map")
+		var water: bool = map != null and map.is_ready() and map.is_water_at(pos)
+		if water and climate.sea_ice(local, 0.0) > 0.5:
+			return &"snow"
+	# Misma sujeción por pendiente que el shader (snow_slope_limit ~ 0,26 de 1 - cos).
+	if 1.0 - normal.dot(up) > 0.3:
+		return &""
+	return &"snow" if climate.snow_cover(climate.coldness(local)) > 0.55 else &""
 
 
 ## Familia de sonido dominante entre los bloques que devuelve GridBase.damage_sphere. Un impacto
