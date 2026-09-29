@@ -81,6 +81,10 @@ var bow_rig := BowAnimRig.new()
 ## hacia donde mira el filo), respecto a la palma y no a un dedo.
 var grip_right: bool = false
 var right_grip_xform: Transform3D
+## 0..1 cuánto manda la pose de llevar el arma al correr (ver _apply_carry), y si el arma va
+## perpendicular al antebrazo (hojas) o con la inclinación de la lanza.
+var carry: float = 0.0
+var carry_perpendicular: bool = true
 
 ## Llamado tras posar, con este modificador (para colocar visuales sobre las manos).
 var after_pose: Callable
@@ -135,6 +139,8 @@ func _apply() -> void:
 		if aim_weight > 0.001:
 			_apply_aim(aim_weight)
 	if grip_right:
+		if carry > 0.001:
+			_apply_carry(carry)
 		_apply_grip()
 	if sample_contacts:
 		contact_sample = RollMotion.sample(_skel, frame_node, _contact_cache)
@@ -559,6 +565,72 @@ const FIST_HANDLE := Vector2(0.078, 0.026)
 const FIST_TILT := 14.0
 
 
+## Llevar el arma al correr. La animación de correr cruza el puño por delante del pecho y la
+## hoja, que sale por el lado del pulgar, atraviesa la cabeza y el torso. Aquí el brazo corre por
+## un costado, por fuera de la cadera, casi colgando y al compás del balanceo de la animación, y
+## el arma va rígida en el puño, perpendicular al antebrazo, con el filo hacia los nudillos: hacia
+## abajo. El péndulo lo hace el propio brazo: delante, la punta sube; atrás, el arma queda casi
+## horizontal (no más abajo: la rodilla de ese lado viene subiendo).
+## Mano por fuera del hombro (m): lo justo para no rozar el muslo (deja unos 4 cm). Más abre el
+## brazo hacia fuera y se nota.
+const CARRY_OUT := 0.10
+## Brazo (grados desde colgando, + hacia delante) y flexión del codo, con el brazo atrás y
+## delante.
+const CARRY_UPPER := Vector2(-20.0, 16.0)
+const CARRY_ELBOW := Vector2(25.0, 24.0)
+## Balanceo de la mano en la animación (m, atrás y adelante del hombro) que va de un extremo al
+## otro del péndulo; medido en running (-0.16, 0.34) y sprinting (-0.26, 0.26).
+const CARRY_SWING_RANGE := Vector2(-0.2, 0.3)
+## Cuánto se abre el arma hacia fuera (grados; con el filo hacia abajo va en el plano de la
+## zancada y no hace falta), y el codo (hacia fuera por cada uno hacia atrás).
+const CARRY_YAW := 0.0
+const CARRY_ELBOW_OUT := 0.2
+## La lanza no va perpendicular (quedaría de pie): su inclinación sobre la horizontal (grados)
+## con el brazo atrás y delante, y la punta algo hacia dentro para que la cola salga atrás y por
+## fuera, lejos de las piernas y del suelo.
+const CARRY_PITCH_SPEAR := Vector2(6.0, 28.0)
+const CARRY_YAW_SPEAR := -7.0
+
+
+func _apply_carry(w: float) -> void:
+	var m := unit()
+	var fwd := model_dir(Vector3.BACK)
+	var up := model_dir(Vector3.UP)
+	var out := model_dir(Vector3.RIGHT) * -1.0
+	var shoulder := bone_pos(R_ARM[0])
+	var elbow := bone_pos(R_ARM[1])
+	var wrist := bone_pos(R_ARM[2])
+	var phase := smoothstep(CARRY_SWING_RANGE.x, CARRY_SWING_RANGE.y, (wrist - shoulder).dot(fwd) / m)
+	# Brazo y antebrazo en el plano de la zancada, con sus largos reales.
+	var upper := deg_to_rad(lerpf(CARRY_UPPER.x, CARRY_UPPER.y, phase))
+	var fore := upper + deg_to_rad(lerpf(CARRY_ELBOW.x, CARRY_ELBOW.y, phase))
+	var target := shoulder + out * CARRY_OUT * m \
+		+ (fwd * sin(upper) - up * cos(upper)) * shoulder.distance_to(elbow) \
+		+ (fwd * sin(fore) - up * cos(fore)) * elbow.distance_to(wrist)
+	# Codo atrás y algo hacia fuera, como al correr.
+	arm_ik("Right", target, -fwd + out * CARRY_ELBOW_OUT, w)
+	var blade: Vector3
+	if carry_perpendicular:
+		# Perpendicular al antebrazo, hacia delante y arriba, abierta CARRY_YAW hacia fuera.
+		var forearm := (bone_pos(R_ARM[2]) - bone_pos(R_ARM[1])).normalized()
+		var side := (out - forearm * out.dot(forearm)).normalized()
+		blade = side.cross(forearm)
+		if blade.dot(fwd + up) < 0.0:
+			blade = -blade
+		blade = blade * cos(deg_to_rad(CARRY_YAW)) + side * sin(deg_to_rad(CARRY_YAW))
+	else:
+		var pitch := deg_to_rad(lerpf(CARRY_PITCH_SPEAR.x, CARRY_PITCH_SPEAR.y, phase))
+		var yaw := deg_to_rad(CARRY_YAW_SPEAR)
+		blade = (fwd * cos(yaw) + out * sin(yaw)) * cos(pitch) + up * sin(pitch)
+	blade = blade.normalized()
+	# Puño: la palma mira al cuerpo y el pulgar (el arma sale inclinada FIST_TILT hacia los
+	# nudillos) hacia donde toca.
+	var palm := -out
+	palm = (palm - blade * palm.dot(blade)).normalized()
+	var thumb := blade.rotated(palm, deg_to_rad(FIST_TILT))
+	orient_hand("Right", palm.cross(thumb), palm, w, 0.7, 70.0)
+
+
 func _apply_grip() -> void:
 	# La lanza apuntada la agarra ThrowPose a su manera.
 	var w := 1.0
@@ -568,9 +640,10 @@ func _apply_grip() -> void:
 	var hand := hand_frame("Right")
 	var m := unit()
 	# El mango cruza la palma: la punta sale por el lado del pulgar (+Z del marco de la mano en
-	# la derecha) y el filo mira al dorso.
+	# la derecha) y el filo mira hacia los nudillos, como un martillo: con el brazo colgando,
+	# hacia abajo; al golpear, por delante.
 	var y := hand.z.rotated(hand.y, deg_to_rad(-FIST_TILT)).normalized()
-	var z := -hand.y
+	var z := hand.x
 	var x := y.cross(z).normalized()
 	z = x.cross(y)
 	var origin := bone_pos("mixamorig_RightHand") + (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * m

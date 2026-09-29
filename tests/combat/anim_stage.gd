@@ -10,6 +10,8 @@ extends SceneTree
 ## --fixed-fps hace que cada fotograma avance exactamente 1/30 s (muelles deterministas).
 ## --armor viste un conjunto de scenes/items/armor/ (las deformaciones se ven mucho más con
 ## armadura); --twist imprime cuánto se retuercen los huesos de los brazos en el arco.
+## --scene=run|sprint --item=<arma> corre con el arma en la mano (CombatPose.carry; --no-carry la
+## quita) e imprime la holgura mínima entre el arma y cada parte del cuerpo.
 
 const MODEL := "res://scenes/character/character_model.tscn"
 const OUT := "res://build/combat/stage"
@@ -48,6 +50,8 @@ var _views: PackedStringArray = ["front", "side", "game"]
 var _armor := ""
 ## Imprime la torsión de los huesos de los brazos durante el arco (--twist).
 var _twist_log := false
+## Corrección de llevar el arma al correr (CombatPose.carry); --no-carry la apaga para comparar.
+var _carry := true
 
 var model: Node3D
 var skel: Skeleton3D
@@ -81,6 +85,8 @@ func _initialize() -> void:
 			_aim_pitch = float(arg.substr(8))
 		elif arg.begins_with("--armor="):
 			_armor = arg.substr(8)
+		elif arg == "--no-carry":
+			_carry = false
 		elif arg == "--twist":
 			_twist_log = true
 		elif arg == "--frames":
@@ -260,6 +266,20 @@ func _run() -> void:
 			base_anim = "attack_horizontal" if _scene == "melee_h" else "attack_vertical"
 			duration = anim.get_animation(base_anim).length
 			driver = func(_t: float) -> void: pass
+		"run", "sprint":
+			# Correr con un arma en la mano (--item=): la hoja no debe meterse en el cuerpo.
+			var item := "iron_sword"
+			for arg in OS.get_cmdline_user_args():
+				if arg.begins_with("--item="):
+					item = arg.substr(7)
+			_add_right_item(item)
+			if item == "spear":
+				pose.carry_perpendicular = false
+			base_anim = "running" if _scene == "run" else "sprinting"
+			duration = anim.get_animation(base_anim).length
+			driver = func(_t: float) -> void:
+				pose.carry = 1.0 if _carry else 0.0
+			_placer = _measure_clearance
 		"death":
 			duration = 3.0
 			driver = _drive_death
@@ -311,11 +331,61 @@ func _run() -> void:
 					Vector2i((slot % SHEET_COLS) * CELL.x, (slot / SHEET_COLS) * CELL.y))
 			if _save_frames:
 				img.save_png("%s/frames/%s_%s_%s_%03d.png" % [OUT, _tag, _scene, view, f])
+	for part in _clearance:
+		print("holgura %s: %.3f m" % [part, _clearance[part]])
+	if not _clearance.is_empty():
+		print("arma-antebrazo: %.0f..%.0f grados" % [_forearm_angle.x, _forearm_angle.y])
 	for view in _views:
 		var path := "%s/%s_%s_%s.png" % [OUT, _tag, _scene, view]
 		sheets[view].save_png(path)
 		print("saved ", path)
 	quit()
+
+
+## Holgura (m) entre el arma de la mano derecha y el cuerpo, por partes: el eje del arma (fuera
+## del puño) contra cada segmento de hueso, menos el grosor de la carne. Negativo = se mete.
+## Se imprime el mínimo de cada parte al acabar.
+const CLEARANCE_BONES := {
+	"muslo": ["mixamorig_RightUpLeg", "mixamorig_RightLeg", 0.09],
+	"espinilla": ["mixamorig_RightLeg", "mixamorig_RightFoot", 0.06],
+	"muslo_izq": ["mixamorig_LeftUpLeg", "mixamorig_LeftLeg", 0.09],
+	"tronco": ["mixamorig_Hips", "mixamorig_Neck", 0.16],
+	"cabeza": ["mixamorig_Neck", "mixamorig_HeadTop_End", 0.11],
+}
+var _clearance: Dictionary = {}
+## Ángulo (grados) entre el arma y el antebrazo: mínimo y máximo.
+var _forearm_angle := Vector2(INF, -INF)
+
+
+func _measure_clearance(p: CombatPose) -> void:
+	if right_item == null:
+		return
+	var span := Vector2(INF, -INF)
+	for mesh_node in right_item.find_children("*", "MeshInstance3D", true, false):
+		var mi := mesh_node as MeshInstance3D
+		var box := right_item.transform * mi.transform * mi.get_aabb()
+		span = Vector2(minf(span.x, box.position.y), maxf(span.y, box.end.y))
+	var grip := p.right_grip_xform
+	var forearm := p.bone_world("mixamorig_RightHand") - p.bone_world("mixamorig_RightForeArm")
+	var angle := rad_to_deg(forearm.angle_to(grip.basis.y))
+	_forearm_angle = Vector2(minf(_forearm_angle.x, angle), maxf(_forearm_angle.y, angle))
+	# Fuera del puño (unos 6 cm a cada lado del agarre).
+	var ends := {}
+	if span.y > 0.06:
+		ends[""] = [grip * Vector3(0, 0.06, 0), grip * Vector3(0, span.y, 0)]
+	if span.x < -0.06:
+		ends[" (pomo)"] = [grip * Vector3(0, -0.06, 0), grip * Vector3(0, span.x, 0)]
+	# La mano (muñeca a nudillos, unos 4 cm de grosor) también cuenta.
+	ends[" (mano)"] = [p.bone_world("mixamorig_RightHand"), p.bone_world("mixamorig_RightHandMiddle1")]
+	for part in CLEARANCE_BONES:
+		var bone: Array = CLEARANCE_BONES[part]
+		var a := p.bone_world(bone[0])
+		var b := p.bone_world(bone[1])
+		for end in ends:
+			var seg: Array = ends[end]
+			var pts := Geometry3D.get_closest_points_between_segments(seg[0], seg[1], a, b)
+			var d: float = pts[0].distance_to(pts[1]) - bone[2] - (0.04 if end == " (mano)" else 0.0)
+			_clearance[part + end] = minf(_clearance.get(part + end, INF), d)
 
 
 ## Marca de tiempo: una raya por décima de segundo (roja cada segundo).

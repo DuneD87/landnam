@@ -191,6 +191,9 @@ var _bow_nocked: bool = false
 var _quiver: QuiverVisual = null
 ## Giro del cuerpo (grados) al apuntar con el arco quieto: de perfil al blanco.
 var _stance_yaw: float = 0.0
+## 0..1 llevar el arma al correr (CombatPose.carry), y a qué ritmo entra y sale (1/s).
+var _carry: float = 0.0
+const CARRY_BLEND_SPEED := 5.0
 
 ## Punto de reaparición cuando no hay partida guardada: donde empezó a jugar (canónico).
 var _spawn_canonical: Variant = null
@@ -696,6 +699,7 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 	_update_lock(delta)
 	_update_limits(delta, input_dir)
 	_update_aim_blend(delta)
+	_update_carry(delta)
 
 
 ## Velocidad final del cuerpo: en golpe, esquiva, tambaleo y muerte el combate manda en el plano
@@ -1437,6 +1441,21 @@ func _place_bow(p: CombatPose, _data: ItemData) -> void:
 	_arrow_visual.visible = a.arrow_mode != &"" and state == State.AIM and ammo_count() > 0 and k > 0.5
 	if _arrow_visual.visible:
 		_arrow_visual.global_transform = a.arrow_xform
+
+
+## Al correr con un arma de combate en la derecha, el brazo la lleva a un costado (ver
+## CombatPose._apply_carry): la animación de correr cruza la hoja por el cuerpo.
+func _update_carry(delta: float) -> void:
+	var m := player.movement
+	var data := weapon()
+	var target := 1.0 if pose.grip_right and data != null and state == State.IDLE \
+		and (m.is_running or m.is_sprinting) and not m.is_swimming else 0.0
+	# Al golpear, esquivar o apuntar se suelta enseguida para no arrastrarla sobre la acción.
+	var rate := CARRY_BLEND_SPEED if state == State.IDLE else CARRY_BLEND_SPEED * 3.0
+	_carry = move_toward(_carry, target, delta * rate)
+	pose.carry = smoothstep(0.0, 1.0, _carry)
+	if data != null:
+		pose.carry_perpendicular = data.weapon_type != ItemData.WeaponType.SPEAR
 
 
 func _update_aim_blend(delta: float) -> void:
