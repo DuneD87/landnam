@@ -14,6 +14,9 @@ class_name SeaIceFloes extends Node3D
 ##   con la réplica CPU del mismo movimiento (_pose). Van en la capa de SeaIceFloor, que solo mira
 ##   el jugador: los barcos los atraviesan.
 ## - Icebergs: mallas propias y colisión estática en la capa del mundo (los barcos chocan).
+## - Témpanos sueltos: al acercarse un barco, los de su alrededor salen de la malla de su bloque y
+##   pasan a ser cuerpos rígidos (SeaIceRigidFloe) que el barco empuja y parte; los que van a la
+##   deriva sueltan a su vez a los que tocan. Vuelven a su sitio cuando su bloque se descarga.
 
 const SHADER := preload("res://shaders/liquid/sea_ice.gdshader")
 
@@ -35,6 +38,16 @@ const WORLD_LAYER := 1
 ## Olas que no mueven un témpano: las más cortas que su radio por esto (sea_ice.gdshader usa el mismo
 ## factor). Más alto, el témpano va más quieto pero el agua le pasa por encima en los cantos.
 const FLOE_WAVE_FILTER := 1.2
+## Témpanos sueltos a la vez, como mucho. Por encima el barco atraviesa los que falten.
+const MAX_LOOSE := 60
+## Metros alrededor del casco (más lo que recorre en 0,8 s) en que los témpanos se sueltan.
+const BOAT_REACH := 14.0
+## Un témpano suelto más rápido que esto suelta a los que toca.
+const CHAIN_SPEED := 0.6
+## Trozos más pequeños que esto (m²) se deshacen en el agua al partirse.
+const MIN_PIECE_AREA := 3.0
+## Cuántos bloques rehace como mucho por fotograma al soltar témpanos.
+const REBUILDS_PER_FRAME := 2
 
 var water_material: ShaderMaterial
 var world_map: PlanetWorldMap
@@ -71,6 +84,13 @@ var _shapes: Dictionary = {}
 var _free_bodies: Array[AnimatableBody3D] = []
 var _nearby: Array[Dictionary] = []
 var _nearby_timer := 0.0
+var _loose_material: ShaderMaterial
+## id -> {body: SeaIceRigidFloe, floe, chunk}. Los trozos de uno partido llevan ids nuevos.
+var _loose: Dictionary = {}
+## id del témpano original -> bloque: ya no se dibuja en la malla del bloque.
+var _removed: Dictionary = {}
+var _dirty_chunks: Dictionary = {}
+var _next_piece := 0
 
 
 func setup(water: ShaderMaterial, map: PlanetWorldMap, radius: float, who: Node3D) -> void:
@@ -89,6 +109,10 @@ func setup(water: ShaderMaterial, map: PlanetWorldMap, radius: float, who: Node3
 	_berg_material = ShaderMaterial.new()
 	_berg_material.shader = SHADER
 	_berg_material.set_shader_parameter(&"floating", false)
+	_loose_material = ShaderMaterial.new()
+	_loose_material.shader = SHADER
+	_loose_material.set_shader_parameter(&"floating", false)
+	_loose_material.set_shader_parameter(&"rigid", true)
 	var water_names := {}
 	for uniform in water.shader.get_shader_uniform_list():
 		water_names[StringName(uniform.name)] = true
@@ -130,7 +154,9 @@ func _process(delta: float) -> void:
 	var center: Variant = water_material.get_shader_parameter(&"planet_center")
 	_floe_material.set_shader_parameter(&"planet_center", center)
 	_berg_material.set_shader_parameter(&"planet_center", center)
+	_loose_material.set_shader_parameter(&"planet_center", center)
 	_collect_jobs()
+	_rebuild_dirty()
 	_scan_timer -= delta
 	if _scan_timer <= 0.0:
 		_scan_timer = SCAN_INTERVAL
@@ -144,6 +170,7 @@ func _sync_params() -> void:
 		if value != null:
 			_floe_material.set_shader_parameter(pname, value)
 			_berg_material.set_shader_parameter(pname, value)
+			_loose_material.set_shader_parameter(pname, value)
 
 
 func _sample_context() -> Dictionary:
@@ -360,11 +387,18 @@ func _apply_bergs(found: Dictionary) -> void:
 func _drop_chunk(key: Vector3i) -> void:
 	var entry: Dictionary = _chunks[key]
 	_chunks.erase(key)
+	_dirty_chunks.erase(key)
 	if entry.get("mesh") != null:
 		(entry.mesh as Node).queue_free()
 	for floe in entry.get("floes", []):
 		_release_collider(floe.id)
 		_shapes.erase(floe.id)
+		_removed.erase(floe.id)
+	# Lo soltado de este bloque se va con él: al volver, la banquisa está como siempre.
+	for id in _loose.keys():
+		if _loose[id].chunk == key:
+			(_loose[id].body as Node).queue_free()
+			_loose.erase(id)
 
 
 func _clear_all() -> void:
@@ -374,6 +408,10 @@ func _clear_all() -> void:
 	for c in _bergs:
 		(_bergs[c].node as Node).queue_free()
 	_bergs.clear()
+	for id in _loose:
+		(_loose[id].body as Node).queue_free()
+	_loose.clear()
+	_removed.clear()
 	_last_scan = Vector3.INF
 	_last_berg_scan = Vector3.INF
 
@@ -386,6 +424,7 @@ func _physics_process(delta: float) -> void:
 			for id in _colliders.keys():
 				_release_collider(id)
 		return
+	_release_near_boats()
 	var local := player.global_position - global_position
 	_nearby_timer -= delta
 	if _nearby_timer <= 0.0:
@@ -419,7 +458,8 @@ func _floes_near(local: Vector3, reach: float) -> Array[Dictionary]:
 				var entry: Dictionary = _chunks.get(Vector3i(base) + Vector3i(dx, dy, dz), {})
 				for floe in entry.get("floes", []):
 					var r: float = floe.radius + reach
-					if (floe.center as Vector3).distance_squared_to(local) < r * r:
+					if (floe.center as Vector3).distance_squared_to(local) < r * r \
+							and not _removed.has(floe.id):
 						out.append(floe)
 	out.sort_custom(func(a, b): return (a.center as Vector3).distance_squared_to(local) \
 		< (b.center as Vector3).distance_squared_to(local))
@@ -485,14 +525,159 @@ func _release_collider(id: Vector4i) -> void:
 	_free_bodies.append(body)
 
 
+# --- Témpanos sueltos --------------------------------------------------------------------------
+
+func wave_sampler() -> WaterHeightSampler:
+	return _sampler
+
+
+## Suelta los témpanos alrededor de cada barco, y los que tocan los témpanos sueltos a la deriva.
+func _release_near_boats() -> void:
+	for node in DynamicGridBody.bodies_in_play(get_tree()):
+		var boat := node as DynamicGridBody
+		if boat == null or not boat.is_inside_tree():
+			continue
+		var bounds := boat.get_hull_bounds()
+		if bounds.is_empty():
+			continue
+		var local := boat.get_hull_center_world() - global_position
+		var reach: float = (bounds.half as Vector3).length() + BOAT_REACH + boat.linear_velocity.length() * 0.8
+		if absf(local.length() - sea_radius) > reach + 10.0:
+			continue
+		for floe in _floes_near(local, reach):
+			_loosen(floe)
+	for id in _loose.keys():
+		var body: SeaIceRigidFloe = _loose[id].body
+		if body.linear_velocity.length() > CHAIN_SPEED:
+			for floe in _floes_near(body.position, 2.5):
+				_loosen(floe)
+
+
+## Saca un témpano de la malla de su bloque y lo convierte en cuerpo rígido, justo donde el shader
+## lo estaba dibujando y con la velocidad que llevaba.
+func _loosen(floe: Dictionary) -> void:
+	if _removed.has(floe.id) or _loose.size() >= MAX_LOOSE:
+		return
+	var id: Vector4i = floe.id
+	var chunk := Vector3i(floori(id.x / float(SeaIceLayout.CHUNK_CELLS)),
+		floori(id.y / float(SeaIceLayout.CHUNK_CELLS)), floori(id.z / float(SeaIceLayout.CHUNK_CELLS)))
+	var time := WaterHeightSampler.get_water_time(water_material)
+	var pose := _pose(floe, time)
+	var velocity := (_pose(floe, time + 0.1).origin - pose.origin) / 0.1
+	_release_collider(id)
+	_removed[id] = chunk
+	_dirty_chunks[chunk] = true
+	_spawn_loose(id, floe, chunk, pose, velocity)
+
+
+func _spawn_loose(id: Vector4i, floe: Dictionary, chunk: Vector3i, xf: Transform3D, velocity: Vector3) -> SeaIceRigidFloe:
+	var body := SeaIceRigidFloe.new()
+	add_child(body)
+	body.setup(self, floe, xf, _loose_material, velocity)
+	_loose[id] = {"body": body, "floe": floe, "chunk": chunk}
+	return body
+
+
+## Rehace las mallas de los bloques de los que se han soltado témpanos, sin ellos.
+func _rebuild_dirty() -> void:
+	var done := 0
+	for key in _dirty_chunks.keys():
+		if done >= REBUILDS_PER_FRAME:
+			break
+		_dirty_chunks.erase(key)
+		var entry: Dictionary = _chunks.get(key, {})
+		if entry.is_empty() or entry.has("pending"):
+			continue
+		done += 1
+		var kept: Array[Dictionary] = []
+		for floe in entry.floes:
+			if not _removed.has(floe.id):
+				kept.append(floe)
+		var instance: MeshInstance3D = entry.get("mesh")
+		if instance == null:
+			continue
+		var arrays := SeaIceMeshes.floe_arrays(kept, instance.position)
+		if arrays.is_empty():
+			instance.queue_free()
+			entry.mesh = null
+			continue
+		var mesh := ArrayMesh.new()
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, SeaIceMeshes.FLOE_FORMAT)
+		mesh.surface_set_material(0, _floe_material)
+		mesh.custom_aabb = mesh.get_aabb().grow(6.0)
+		instance.mesh = mesh
+
+
+## Parte un témpano suelto por donde lo ha golpeado un barco: dos o tres trozos que se separan,
+## y los que quedan demasiado pequeños se deshacen en el agua.
+func shatter(body: SeaIceRigidFloe, world_pos: Vector3, rammer: Node) -> void:
+	var key: Variant = null
+	for id in _loose:
+		if _loose[id].body == body:
+			key = id
+			break
+	if key == null or body.is_queued_for_deletion():
+		return
+	var entry: Dictionary = _loose[key]
+	_loose.erase(key)
+	var floe: Dictionary = body.floe
+	var xf := body.transform
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(key) ^ _next_piece
+	# La grieta pasa por el punto del golpe, no por el centro.
+	var hit := xf.affine_inverse() * (world_pos - global_position)
+	var cuts := 1 if body.damage < body._break_energy * 2.0 else 2
+	var pieces := SeaIceLayout._break_through(floe.poly, rng, cuts, Vector2(hit.x, hit.z))
+	var push := Vector3.ZERO
+	if rammer is RigidBody3D:
+		push = (rammer as RigidBody3D).linear_velocity * 0.25
+	var up := xf.basis.y
+	for piece in pieces:
+		var area := absf(SeaIceLayout._area(piece))
+		if area < MIN_PIECE_AREA:
+			continue
+		var pc := SeaIceLayout._centroid(piece)
+		var local_poly := PackedVector2Array()
+		var radius := 0.0
+		for v in piece:
+			local_poly.append(v - pc)
+			radius = maxf(radius, v.distance_to(pc))
+		var offset := xf.basis * Vector3(pc.x, 0.0, pc.y)
+		var part := floe.duplicate()
+		part.poly = local_poly
+		part.radius = radius
+		_next_piece += 1
+		part.id = Vector4i(-1, -1, _next_piece, 0)
+		var out_dir := (offset - up * offset.dot(up)).normalized() if offset.length() > 0.01 else Vector3.ZERO
+		var velocity := body.linear_velocity + body.angular_velocity.cross(offset) + out_dir * 1.2 + push
+		var piece_body := _spawn_loose(part.id, part, entry.chunk,
+			Transform3D(xf.basis, xf.origin + offset), velocity)
+		piece_body.angular_velocity = body.angular_velocity + up * rng.randf_range(-0.3, 0.3)
+	body.queue_free()
+	var world_up := (world_pos - global_position).normalized()
+	BlockDebris.burst(self, world_pos, world_up, 6, 0.5)
+	AudioManager.play_material(&"block_impact", &"rock", world_pos, {"volume_offset_db": 0.0})
+	AudioManager.play_3d(&"water_splash", world_pos)
+
+
+## Cuerpos de témpano que el jugador puede pisar: los que siguen a la ola junto a él y los sueltos.
+func _bodies() -> Array:
+	var out := []
+	for id in _colliders:
+		out.append(_colliders[id])
+	for id in _loose:
+		out.append(_loose[id])
+	return out
+
+
 # --- Consultas del jugador ---------------------------------------------------------------------
 
 ## El témpano (con colisión) sobre el que está `world_pos`, o {} si ninguno. Sirve para decidir
 ## que el jugador camina y no nada.
 func floe_under(world_pos: Vector3, margin: float = 0.35) -> Dictionary:
-	for id in _colliders:
-		var body: AnimatableBody3D = _colliders[id].body
-		var floe: Dictionary = _colliders[id].floe
+	for entry in _bodies():
+		var body: Node3D = entry.body
+		var floe: Dictionary = entry.floe
 		var p := body.global_transform.affine_inverse() * world_pos
 		if p.y < float(floe.bottom) or p.y > float(floe.top) + 1.4:
 			continue
@@ -505,9 +690,9 @@ func floe_under(world_pos: Vector3, margin: float = 0.35) -> Dictionary:
 func haul_out_point(world_pos: Vector3) -> Vector3:
 	var best := Vector3.INF
 	var best_d := 1.6
-	for id in _colliders:
-		var body: AnimatableBody3D = _colliders[id].body
-		var floe: Dictionary = _colliders[id].floe
+	for entry in _bodies():
+		var body: Node3D = entry.body
+		var floe: Dictionary = entry.floe
 		var xf := body.global_transform
 		var p := xf.affine_inverse() * world_pos
 		# Nadando, el origen del cuerpo va unos 2,5 m bajo la superficie (swimming_offset).

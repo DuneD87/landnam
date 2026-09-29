@@ -260,6 +260,37 @@ static func _break(poly: PackedVector2Array, rng: RandomNumberGenerator, cuts: i
 	return pieces
 
 
+## Parte un témpano con cortes que pasan cerca de `through` (el punto de un golpe), separados por
+## una grieta fina. Como _break, nunca deja la lista vacía.
+static func _break_through(poly: PackedVector2Array, rng: RandomNumberGenerator, cuts: int,
+		through: Vector2) -> Array[PackedVector2Array]:
+	var pieces: Array[PackedVector2Array] = [poly]
+	for _i in cuts:
+		var best := 0
+		var best_d := INF
+		for j in pieces.size():
+			var d := _centroid(pieces[j]).distance_to(through)
+			if d < best_d:
+				best_d = d
+				best = j
+		var target := pieces[best]
+		# La grieta va del golpe hacia el centro del trozo, con algo de desvío.
+		var dir := (_centroid(target) - through)
+		if dir.length() < 0.1:
+			dir = Vector2.from_angle(rng.randf() * TAU)
+		dir = dir.normalized().rotated(rng.randf_range(-0.5, 0.5))
+		var n := Vector2(-dir.y, dir.x)
+		var d := n.dot(through)
+		var a := _clip_line(target, n, d - 0.15)
+		var b := _clip_line(target, -n, -d - 0.15)
+		if a.size() < 3 or b.size() < 3:
+			break
+		pieces.remove_at(best)
+		pieces.append(a)
+		pieces.append(b)
+	return pieces
+
+
 ## Cambia cada esquina por dos puntos sobre sus aristas: el témpano deja de ser un polígono de
 ## aristas vivas, como los de verdad, que se redondean al chocar.
 static func _chamfer(poly: PackedVector2Array) -> PackedVector2Array:

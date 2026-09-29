@@ -821,10 +821,17 @@ func _detect_impact(state: PhysicsDirectBodyState3D) -> void:
 	# Solo el excedente sobre el umbral cuenta, para que un golpe justo en el límite no rompa nada.
 	var excess := best_speed - IMPACT_MIN_SPEED
 	var effective_mass := minf(mass, IMPACT_MAX_EFFECTIVE_MASS)
+	# Contra un cuerpo suelto que no es otro casco (un témpano) cuenta la masa reducida: un trozo
+	# de hielo de una tonelada sale despedido y apenas raya el casco, una placa de cientos cierra
+	# el paso como una roca. Entre cascos se queda como estaba (cada uno mide su propio golpe).
+	if best_other is RigidBody3D and not (best_other is DynamicGridBody):
+		var other_mass := (best_other as RigidBody3D).mass
+		effective_mass = effective_mass * other_mass / (effective_mass + other_mass)
 	var energy := 0.5 * effective_mass * excess * excess * IMPACT_ENERGY_FACTOR
 	_impact_cooldown = IMPACT_COOLDOWN_FRAMES
 	# Editar la grid libera CollisionShape3D del propio body mientras el servidor está pisando: diferido.
-	call_deferred("_apply_impact", best_pos, energy, _victim_grid_id(best_other))
+	call_deferred("_apply_impact", best_pos, energy, _victim_grid_id(best_other),
+		best_other.get_instance_id() if best_other is Node and best_other.has_method("ram_damage") else 0)
 
 
 ## Id de la grid ESTÁTICA golpeada, o "" si no lo es. Si la víctima es otro DynamicGridBody se
@@ -838,11 +845,17 @@ func _victim_grid_id(other: Object) -> String:
 
 
 ## Reparte la energía del impacto entre las grids del body (multi-size), con un solo rebuild por
-## grid, y lanza los escombros. Se llama diferido desde _detect_impact.
-func _apply_impact(world_pos: Vector3, energy: float, victim_grid_id: String = "") -> void:
+## grid, y lanza los escombros. Se llama diferido desde _detect_impact. `rammed_id`: id de lo
+## golpeado si sabe encajar un embiste (ram_damage: rocas, témpanos), que se lleva la misma parte
+## que una grid. Va por id porque en el diferido puede haber desaparecido ya.
+func _apply_impact(world_pos: Vector3, energy: float, victim_grid_id: String = "",
+		rammed_id: int = 0) -> void:
 	if not is_inside_tree():
 		return
 	_damage_static_victim(world_pos, energy, victim_grid_id)
+	var rammed := instance_from_id(rammed_id) as Node if rammed_id != 0 else null
+	if rammed != null and rammed.is_inside_tree():
+		rammed.ram_damage(energy * IMPACT_VICTIM_SHARE, world_pos, self)
 	apply_damage_at(world_pos, energy)
 
 

@@ -15,6 +15,10 @@ uniform float water_time = 0.0;
 uniform vec3 planet_center = vec3(0.0);
 // false = iceberg: no se mueve (demasiada masa para la ola que deja el hielo).
 uniform bool floating = true;
+// Témpano suelto (SeaIceRigidFloe): lo mueve la física. La malla va en su marco local (y = arriba,
+// 0 = línea de agua) y rest_origin es dónde estaba al soltarse, para que la textura no resbale.
+uniform bool rigid = false;
+instance uniform vec3 rest_origin = vec3(0.0, 1.0, 0.0);
 // Los témpanos encogen hasta desaparecer entre estas distancias; más allá la banquisa la dibuja el
 // agua (water_shader, ice_geometry_start/end).
 uniform float fade_start = 380.0;
@@ -98,6 +102,13 @@ void vertex() {
 		vec3 world = center_world + disp + drift + offset * fade;
 		VERTEX = transpose(model_basis) * (world - MODEL_MATRIX[3].xyz);
 		NORMAL = transpose(model_basis) * moved_normal;
+	} else if (rigid) {
+		v_up = normalize(rest_origin);
+		vec3 u = normalize(cross(v_up, abs(v_up.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0)));
+		v_rest = rest_origin + u * VERTEX.x + v_up * VERTEX.y + cross(u, v_up) * VERTEX.z;
+		v_height = VERTEX.y;
+		v_facing = NORMAL.y;
+		v_seed = fract(dot(rest_origin, vec3(0.013, 0.007, 0.011)));
 	} else {
 		v_up = normalize(v_rest);
 		v_height = length(v_rest) - water_radius;
