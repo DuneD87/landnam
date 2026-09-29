@@ -1129,9 +1129,9 @@ func _update_bow_cycle(delta: float) -> void:
 
 ## Arco con las animaciones del Pro Longbow Pack (BowAnimRig coloca arco, cuerda y flecha): la
 ## mano va por encima del hombro a la aljaba, saca la flecha y la encaja (bow_draw hasta
-## NOCK_T); tensar arrastra el resto de bow_draw con la tensión real; a tope sostiene
-## (bow_overdraw, con el tiempo que lleva) y al soltar suena bow_recoil, que acaba donde empieza
-## bow_draw: si sigue apuntando, va a por otra flecha sin cortes.
+## NOCK_T); tensar arrastra el resto de bow_draw con la tensión real y a tope se queda en su
+## final; al soltar suena bow_recoil, que acaba donde empieza bow_draw: si sigue apuntando, va a
+## por otra flecha sin cortes.
 func _update_bow_anim(delta: float) -> void:
 	var has_ammo := ammo_count() > 0
 	var keep := _aim_held or _draw_held
@@ -1155,9 +1155,8 @@ func _update_bow_anim(delta: float) -> void:
 				_bow_phase = &"empty"
 				_bow_nocked = false
 				_act_stop("upper")
-			elif _draw >= 1.0:
-				_bow_clip(&"bow_overdraw", _bow_hold)
 			else:
+				# A tope se queda en el último fotograma (ver BowAnimRig).
 				var length := _clip_length(&"bow_draw")
 				_bow_clip(&"bow_draw", lerpf(BowAnimRig.NOCK_T, length, clampf(_draw, 0.0, 1.0)))
 		&"recoil":
@@ -1176,7 +1175,6 @@ func _update_bow_anim(delta: float) -> void:
 		&"empty":
 			if has_ammo and keep:
 				_bow_phase = &""
-	_bow_hold = _bow_hold + delta if _draw >= 1.0 else 0.0
 	var rig := pose.bow_rig
 	var ch: Dictionary = _act["upper"]
 	rig.clip = ch.anim if ch.active else &""
@@ -1463,6 +1461,11 @@ func _update_aim_blend(delta: float) -> void:
 	var target := 1.0 if state == State.AIM and data != null and data.is_ranged() else 0.0
 	_aim_weight = move_toward(_aim_weight, target, delta * 6.0)
 	pose.aim_weight = smoothstep(0.0, 1.0, _aim_weight)
+	# Al apuntar, la pose lleva el tronco y la cabeza al blanco: si la mirada (LookAtIK, que va
+	# antes) también se inclinara hacia la cámara, el tronco se pasaría del blanco y la cabeza,
+	# que sube más que los brazos, dejaría la mano de la cuerda en el cuello.
+	if _look_ik:
+		_look_ik.influence = 1.0 - pose.aim_weight
 	pose.aim_dir = _aim_dir
 	pose.draw = _draw
 	pose.release = clampf(_release_t, 0.0, 1.0) if _release_t >= 0.0 else 0.0

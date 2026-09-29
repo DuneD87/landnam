@@ -725,6 +725,30 @@ func _apply_death(w: float) -> void:
 
 ## Torso de perfil hacia el blanco y brazos por IK: la izquierda sostiene (arco/tirachinas) o
 ## equilibra (lanza), la derecha tensa hasta la mejilla o echa la lanza atrás.
+## Con la cuerda tensada, el anclaje de la animación deja la mano derecha bajo la mandíbula, y
+## con guante y capucha se mete en el cuello. Las dos manos se apartan de la cara lo mismo, en
+## horizontal y de lado a la flecha: la línea de tiro se separa sin cambiar de dirección.
+const BOW_FACE_CLEARANCE := 0.04
+
+
+func _clear_face(w: float) -> void:
+	if w <= 0.001:
+		return
+	var fingers := (bone_pos("mixamorig_RightHandIndex2") + bone_pos("mixamorig_RightHandMiddle2")) * 0.5
+	var arrow := (bone_pos(L_ARM[2]) - fingers).normalized()
+	var up := model_dir(Vector3.UP)
+	var away := fingers - bone_pos(NECK[1])
+	away -= arrow * away.dot(arrow)
+	away -= up * away.dot(up)
+	if away.length_squared() < 1e-8:
+		return
+	var offset := away.normalized() * BOW_FACE_CLEARANCE * unit() * w
+	for chain in [L_ARM, R_ARM]:
+		# El codo sigue en el plano que le da la animación.
+		var shoulder := bone_pos(chain[0])
+		two_bone(chain, bone_pos(chain[2]) + offset, bone_pos(chain[1]) - shoulder, 1.0)
+
+
 func _apply_aim(w: float) -> void:
 	var up_m := Vector3.UP
 	# El arquero se pone de perfil: el pecho gira a la derecha y el hombro izquierdo apunta.
@@ -751,6 +775,7 @@ func _apply_aim(w: float) -> void:
 			rotate_about(bone_name, up_m, yaw_fix / SPINE.size() * w)
 			rotate_about(bone_name, Vector3.RIGHT, -pitch_fix / SPINE.size() * w)
 		if aim_style == &"bow":
+			_clear_face(w * bow_rig.face_clearance_weight())
 			bow_rig.apply(self)
 		return
 	if aim_style == &"bow":

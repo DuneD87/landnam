@@ -50,6 +50,12 @@ var _views: PackedStringArray = ["front", "side", "game"]
 var _armor := ""
 ## Imprime la torsión de los huesos de los brazos durante el arco (--twist).
 var _twist_log := false
+## Monta un LookAtIK como el del jugador, mirando al blanco (--look).
+var _look := false
+var _look_full := false
+## Imprime la altura y el cabeceo de la cabeza en cada fotograma del arco (--head-log).
+var _head_log := false
+var look_ik: LookAtIK
 ## Corrección de llevar el arma al correr (CombatPose.carry); --no-carry la apaga para comparar.
 var _carry := true
 
@@ -85,6 +91,14 @@ func _initialize() -> void:
 			_aim_pitch = float(arg.substr(8))
 		elif arg.begins_with("--armor="):
 			_armor = arg.substr(8)
+		elif arg == "--head-log":
+			_head_log = true
+		elif arg == "--look":
+			_look = true
+		elif arg == "--look-full":
+			# La mirada sin apagar al apuntar (como antes), para comparar.
+			_look = true
+			_look_full = true
 		elif arg == "--no-carry":
 			_carry = false
 		elif arg == "--twist":
@@ -148,10 +162,25 @@ func _build_world() -> void:
 	world.add_child(post)
 
 	model = load(MODEL).instantiate()
-	world.add_child(model)
+	var holder: Node3D = world
+	if _look:
+		# LookAtIK como en el jugador (antes de CombatPose), mirando al blanco: necesita un cuerpo.
+		holder = CharacterBody3D.new()
+		world.add_child(holder)
+	holder.add_child(model)
 	(model.get_node("AppearanceRig") as CharacterAppearanceRig).apply(CharacterAppearance.new())
 	skel = model.get_node("Armature/Skeleton3D")
 	anim = model.get_node("AnimationPlayer")
+	if _look:
+		var target := Node3D.new()
+		target.name = "LookTarget"
+		world.add_child(target)
+		target.position = Vector3(0, 1.5, 0) + Vector3(0, sin(deg_to_rad(_aim_pitch)), cos(deg_to_rad(_aim_pitch))) * 20.0
+		look_ik = LookAtIK.new()
+		look_ik.name = "LookAtIK"
+		look_ik.body_forward = Vector3.BACK
+		skel.add_child(look_ik)
+		look_ik.target_path = look_ik.get_path_to(target)
 	pose = CombatPose.new()
 	pose.frame_node = model
 	pose.after_pose = _after_pose
@@ -233,10 +262,14 @@ func _run() -> void:
 			if _scene == "bow_walk":
 				base_anim = "running"
 				_walking = true
-		"bow_anim":
+		"bow_anim", "bow_hold":
 			_add_bow()
 			anim.add_animation_library(&"combat", load("res://models/player/mixamo/combat_anims.tres"))
 			duration = 5.6
+			if _scene == "bow_hold":
+				# Tensar y sostener a tope unos segundos.
+				_bow_timeline = [["bow_draw", 4.8]]
+				duration = 4.8
 			driver = _drive_bow_anim
 		"fingers":
 			duration = 1.0
@@ -448,18 +481,20 @@ func _drive_bow(t: float) -> void:
 
 ## Arco con las animaciones de Mixamo (cuerpo entero, como quieto en el juego): saca la
 ## flecha, tensa, sostiene, suelta y repite. Los clips se encadenan sin saltos.
-const BOW_ANIM_TIMELINE := [["bow_draw", 1.0333], ["bow_overdraw", 1.4], ["bow_recoil", 0.7],
-	["bow_draw", 1.0333], ["bow_overdraw", 0.5], ["bow_recoil", 0.7]]
+## Clip y cuánto dura; bow_draw más largo que el clip se queda en su final (sostener a tope).
+const BOW_ANIM_TIMELINE := [["bow_draw", 2.4333], ["bow_recoil", 0.7], ["bow_draw", 1.5333],
+	["bow_recoil", 0.7]]
+var _bow_timeline: Array = BOW_ANIM_TIMELINE
 
 
 func _drive_bow_anim(t: float) -> void:
 	var rig := pose.bow_rig
 	var start := 0.0
-	for i in BOW_ANIM_TIMELINE.size():
-		var entry: Array = BOW_ANIM_TIMELINE[i]
-		if t < start + entry[1] or i == BOW_ANIM_TIMELINE.size() - 1:
+	for i in _bow_timeline.size():
+		var entry: Array = _bow_timeline[i]
+		if t < start + entry[1] or i == _bow_timeline.size() - 1:
 			rig.clip = StringName(entry[0])
-			rig.time = minf(t - start, entry[1])
+			rig.time = minf(minf(t - start, entry[1]), anim.get_animation("combat/" + entry[0]).length)
 			break
 		start += entry[1]
 	anim.play("combat/" + String(rig.clip))
@@ -467,6 +502,8 @@ func _drive_bow_anim(t: float) -> void:
 	anim.pause()
 	stance_yaw = 0.0
 	pose.aim_weight = _ramp(t, 0.0, 0.2)
+	if look_ik and not _look_full:
+		look_ik.influence = 1.0 - pose.aim_weight
 	pose.aim_style = &"bow"
 	pose.aim_arms_ik = false
 	pose.upper_hips_yaw = NAN
@@ -521,12 +558,37 @@ func _show_bow(p: CombatPose, a: Object) -> void:
 		bow.global_transform = Transform3D(Basis.IDENTITY, Vector3(0, -5, 0))
 		arrow.visible = false
 		return
+	if _scene == "bow_hold" and Engine.get_process_frames() % 3 == 0:
+		_print_draw_arm(p, a)
+	if _head_log:
+		# Altura (mm, marco del personaje) y cabeceo (grados) de la cabeza, en cada fotograma.
+		var hb := p.bone_world_basis("mixamorig_Head")
+		var fwd := model.global_basis.inverse() * (hb * Vector3.FORWARD)
+		print("head %s %.3f %.1f %.2f" % [a.clip, a.time, (model.global_transform.affine_inverse() * p.bone_world("mixamorig_Head")).y * 1000.0,
+			rad_to_deg(asin(clampf(fwd.normalized().y, -1.0, 1.0)))])
 	bow.global_transform = a.bow_xform
 	bow.flex = a.bow_flex
 	bow.set_draw_point(a.string_point)
 	arrow.visible = a.arrow_mode != &""
 	if arrow.visible:
 		arrow.global_transform = a.arrow_xform
+
+
+## Sostener a tope (bow_hold): holgura del antebrazo derecho con la cabeza (cápsula de 11 cm
+## sobre cuello-coronilla) y tensión de la cuerda (1 = anclaje al final de bow_draw).
+func _print_draw_arm(p: CombatPose, a: Object) -> void:
+	var neck := p.bone_world("mixamorig_Neck")
+	var top := p.bone_world("mixamorig_HeadTop_End")
+	var elbow := p.bone_world("mixamorig_RightForeArm")
+	var wrist := p.bone_world("mixamorig_RightHand")
+	var pts := Geometry3D.get_closest_points_between_segments(elbow, wrist, neck, top)
+	var pull := p.bone_world("mixamorig_LeftHand").distance_to(
+		(p.bone_world("mixamorig_RightHandIndex2") + p.bone_world("mixamorig_RightHandMiddle2")) * 0.5)
+	# Dedos de la cuerda contra el cuello (cápsula de 6 cm de cuello a cabeza).
+	var fingers := (p.bone_world("mixamorig_RightHandIndex2") + p.bone_world("mixamorig_RightHandMiddle2")) * 0.5
+	var on_neck := Geometry3D.get_closest_point_to_segment(fingers, neck, p.bone_world("mixamorig_Head"))
+	print("%s %.2f  antebrazo-cabeza %.3f m  dedos-cuello %.3f m  mano-mano %.3f m  flex %.2f" % [a.clip,
+		a.time, pts[0].distance_to(pts[1]) - 0.11, fingers.distance_to(on_neck) - 0.06, pull, a.bow_flex])
 
 
 var ragdoll: Ragdoll

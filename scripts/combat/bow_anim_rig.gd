@@ -1,15 +1,18 @@
 class_name BowAnimRig
 extends RefCounted
 
-## Arco sobre las animaciones del Pro Longbow Pack de Mixamo (bow_draw, bow_overdraw y
-## bow_recoil de la librería "combat"): el cuerpo lo pone la animación y aquí solo se colocan
+## Arco sobre las animaciones del Pro Longbow Pack de Mixamo (bow_draw y bow_recoil de la
+## librería "combat"): el cuerpo lo pone la animación y aquí solo se colocan
 ## el arco en el puño izquierdo, la cuerda en los dedos de la derecha y la flecha, en el mismo
 ## fotograma. Da los mismos resultados que ArcheryPose, así que quien lleva el arco los coloca
 ## igual con una u otra.
 ##
-## Los clips se encadenan sin saltos: bow_draw acaba a tope donde empiezan bow_overdraw
-## (sostener) y bow_recoil (soltar), y bow_recoil acaba donde empieza bow_draw (la mano atrás,
-## que sube por encima del hombro a la aljaba, saca la flecha, la encaja y tensa).
+## Los clips se encadenan sin saltos: bow_draw acaba a tope donde empieza bow_recoil (soltar), y
+## bow_recoil acaba donde empieza bow_draw (la mano atrás, que sube por encima del hombro a la
+## aljaba, saca la flecha, la encaja y tensa). Sostener a tope es quedarse en el último
+## fotograma de bow_draw: bow_overdraw no sirve (sigue tensando 13 cm más en sus 3,8 s hasta
+## llevar la mano tras la cabeza, su cabeza tiembla 3° de cabeceo y no empieza donde acaba
+## bow_draw: la cabeza cae 3 cm al pasar de uno a otro).
 
 ## Instantes de bow_draw (s): la mano pasa por la boca de la aljaba y se lleva la flecha, y la
 ## encaja en la cuerda; desde ahí tensa hasta el anclaje (final del clip).
@@ -30,7 +33,7 @@ const CANT := 10.0
 
 # --- Entradas (las pone PlayerCombat o el escenario de pruebas) ---
 
-## Clip que suena en el canal de tronco y brazos (&"bow_draw", &"bow_overdraw", &"bow_recoil"),
+## Clip que suena en el canal de tronco y brazos (&"bow_draw", &"bow_recoil"),
 ## o vacío, y su instante.
 var clip: StringName = &""
 var time: float = 0.0
@@ -43,6 +46,17 @@ var string_point: Vector3
 var string_pulled: bool = false
 var arrow_mode: StringName = &""
 var arrow_xform: Transform3D
+
+
+## 0..1 cuánto se aparta la línea de tiro de la cara (CombatPose._clear_face): entra mientras
+## tensa, a tope se queda y al soltar se va con el retroceso.
+func face_clearance_weight() -> float:
+	match clip:
+		&"bow_draw":
+			return smoothstep(NOCK_T, NOCK_T + 0.25, time)
+		&"bow_recoil":
+			return 1.0 - smoothstep(0.0, 0.35, time)
+	return 0.0
 
 
 func apply(p: CombatPose) -> void:
@@ -62,7 +76,7 @@ func apply(p: CombatPose) -> void:
 
 	bow_xform = Transform3D((to_world.basis * bow_skel.basis).orthonormalized(), to_world * bow_skel.origin)
 	var drawing := clip == &"bow_draw" and time >= NOCK_T
-	string_pulled = drawing or clip == &"bow_overdraw"
+	string_pulled = drawing
 	string_point = to_world * (fingers if string_pulled else rest)
 	var pull := (grip.distance_to(fingers) / m - brace) / (FULL_DRAW - brace)
 	bow_flex = clampf(pull, 0.0, 1.0) if string_pulled else 0.0
