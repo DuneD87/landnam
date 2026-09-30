@@ -13,7 +13,36 @@ func _seek_perch() -> void:
 	_start_cruise()
 
 
-func _takeoff() -> void:
+func _takeoff(threat: Variant = null) -> void:
+	if threat is Vector3 and state == State.PERCHED:
+		# The whole raft goes up together, and the first leg heads away from the threat.
+		_threat = threat
+		_warn_neighbours()
+		var up := _forest.up_at(global_position)
+		var away := (global_position - _threat).slide(up).normalized()
+		if not away.is_zero_approx():
+			velocity = (away + up).normalized() * _speed * 0.5
+	_start_cruise()
+
+
+func _idle(_delta: float) -> void:
+	# Afloat, the body follows the swimming direction; only a gentle sway on the water.
+	_model.rotation = Vector3(0.0, sin(_time * 0.75) * 0.12, 0.0)
+	_model.position = Vector3.ZERO
+
+
+## Water birds roam by cruising: broad legs over the water instead of canopy hops.
+func _wander() -> void:
+	_start_cruise()
+
+
+## Their landing search is a handful of water probes, cheap enough to skip the frame budget,
+## and a failed one simply means another cruise.
+func _search_slot() -> bool:
+	return true
+
+
+func _leave() -> void:
 	_start_cruise()
 
 
@@ -29,7 +58,8 @@ func _start_cruise() -> void:
 	water.release(get_instance_id())
 	_perch = {}
 	_route_local.clear()
-	_model.rotation.y = 0.0
+	_model.rotation = Vector3.ZERO
+	_model.position = Vector3.ZERO
 	_collision.disabled = false
 	state = State.FLYING
 	_cruising = true
@@ -41,6 +71,9 @@ func _start_cruise() -> void:
 		maxf(settings.flight_height_min, settings.flight_height_max))
 	_turn_sign = -1.0 if _rng.randf() < 0.5 else 1.0
 	_check_timer = 0.0
+	_flapping = true
+	_flap_timer = _rng.randf_range(0.8, 1.5)
+	_reset_stall()
 	_choose_cruise_goal(water)
 
 
@@ -92,7 +125,7 @@ func _step(delta: float) -> void:
 func _cruise_step(water: WaterBirdHabitat, delta: float) -> void:
 	_time += delta
 	_cruise_remaining -= delta
-	_model.animate(_time, true, delta)
+	_update_wings(delta)
 	# Gulls cruise low over the shipping lanes: a hull can catch one in mid air.
 	if not _collision.disabled and _check_moving_ships(delta):
 		return
@@ -110,8 +143,14 @@ func _cruise_step(water: WaterBirdHabitat, delta: float) -> void:
 		if not _goal_valid or global_position.distance_to(goal) < maxf(3.0, _speed * 0.6) or not water.path_clear(nose, nose + direction * maxf(2.0, _speed * 0.4)):
 			_choose_cruise_goal(water)
 			goal = water.terrain.to_global(_goal_local)
-	var desired := (goal - global_position).normalized() * _speed if _goal_valid else Vector3.ZERO
-	velocity = velocity.lerp(desired, 1.0 - exp(-delta * 3.0))
+	var heading := (goal - global_position).normalized()
+	if not _goal_valid:
+		# No open leg right now: hold altitude in a wide turn instead of stalling in mid air.
+		heading = velocity.slide(up).normalized()
+		if heading.is_zero_approx():
+			heading = (-global_basis.z).slide(up).normalized()
+		heading = heading.rotated(up, deg_to_rad(35.0) * _turn_sign)
+	_steer(heading, _speed, up, delta)
 	var before := global_position
 	var incoming_velocity := velocity
 	move_and_slide()
@@ -121,6 +160,6 @@ func _cruise_step(water: WaterBirdHabitat, delta: float) -> void:
 	_cruise_distance += (global_position - before).slide(up).length()
 	if get_slide_collision_count() > 0:
 		_goal_valid = false
-		velocity = get_slide_collision(0).get_normal() * 2.0 + up * 2.0
-	if velocity.length_squared() > 0.02 and absf(velocity.normalized().dot(up)) < 0.98:
-		global_basis = global_basis.slerp(Basis.looking_at(velocity.normalized(), up), 1.0 - exp(-delta * 5.0)).orthonormalized()
+		var normal := get_slide_collision(0).get_normal()
+		velocity = velocity.slide(normal) + normal * 2.0 + up * 2.0
+	_orient(up, delta)

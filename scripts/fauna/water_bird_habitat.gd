@@ -143,6 +143,9 @@ func reserve(owner_id: int, near: Vector3, rng: RandomNumberGenerator) -> Dictio
 		var candidate := surface_point(near + (right * cos(angle) + right.cross(up) * sin(angle)) * rng.randf_range(3.0, 20.0))
 		if not _water_is_open(candidate):
 			continue
+		# Settle beyond the distance the observer would flush it from.
+		if is_instance_valid(observer) and candidate.distance_to(observer.global_position) < settings.flush_distance_max:
+			continue
 		var occupied := false
 		for other in _owners.values():
 			if (other as Vector3).distance_to(terrain.to_local(candidate)) < 1.2:

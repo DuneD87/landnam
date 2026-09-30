@@ -21,6 +21,8 @@ var left: MeshInstance3D
 var right: MeshInstance3D
 var body: MeshInstance3D
 var _fold: float = 1.0
+## 0 while beating, 1 while gliding (gulls, ducks) or bounding with the wings shut (small birds).
+var _glide: float = 0.0
 var _kind: int = 0
 
 
@@ -41,6 +43,7 @@ func _ready() -> void:
 func set_species(kind: int) -> void:
 	kind = clampi(kind, 0, NAMES.size() - 1)
 	_kind = kind
+	_glide = 0.0
 	if _material == null:
 		_material = StandardMaterial3D.new()
 		_material.vertex_color_use_as_albedo = true
@@ -58,18 +61,30 @@ func set_species(kind: int) -> void:
 	left.position = Vector3(-wing_origin.x, wing_origin.y, wing_origin.z)
 
 
-func animate(time: float, flying: bool, delta: float) -> void:
+## [flap] below 1 blends into the glide: large birds hold their wings spread, small ones close
+## them between bursts, which is the undulating flight of finches and tits.
+func animate(time: float, flying: bool, delta: float, flap: float = 1.0) -> void:
 	_fold = move_toward(_fold, 0.0 if flying else 1.0, delta * 5.0)
+	_glide = move_toward(_glide, 1.0 - clampf(flap, 0.0, 1.0), delta * 6.0)
+	var soaring := soars()
 	var beat := 10.0 if _kind == 3 else (18.0 if _kind == 4 else 22.0)
-	var flight := Basis(Vector3.BACK, sin(time * beat) * 0.7)
+	var stroke := sin(time * beat) * 0.7
+	# A slight dihedral on the glide, like a gull holding the wind.
+	var flight := Basis(Vector3.BACK, lerpf(stroke, 0.10, _glide) if soaring else stroke)
 	# Resting feathers lie down the flanks, with their long axis toward the tail.
 	var along := Vector3(0.12, -0.12, 1.0).normalized()
 	var trailing := (Vector3.DOWN - along * along.dot(Vector3.DOWN)).normalized()
 	var folded := Basis(along, trailing.cross(along), trailing)
-	var orientation := Basis(flight.get_rotation_quaternion().slerp(folded.get_rotation_quaternion(), _fold))
-	var span := lerpf(1.0, 0.78 if _kind >= 3 else 0.74, _fold)
-	var chord := lerpf(1.0, 0.28, _fold)
+	var fold := _fold if soaring else maxf(_fold, _glide)
+	var orientation := Basis(flight.get_rotation_quaternion().slerp(folded.get_rotation_quaternion(), fold))
+	var span := lerpf(1.0, 0.78 if _kind >= 3 else 0.74, fold)
+	var chord := lerpf(1.0, 0.28, fold)
 	right.basis = orientation * Basis.from_scale(Vector3(span, 1.0, chord))
 	left.basis = Basis.from_scale(Vector3(-1, 1, 1)) * right.basis
 	# A little breathing while resting, without moving the feet.
 	body.scale.y = 1.0 + sin(time * 3.0) * 0.008 * _fold
+
+
+## Gulls and ducks glide on open wings; the small tree birds bound with them closed.
+func soars() -> bool:
+	return _kind >= 3

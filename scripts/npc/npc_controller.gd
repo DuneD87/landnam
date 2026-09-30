@@ -353,6 +353,7 @@ func die(point: Vector3) -> void:
 func _on_died() -> void:
 	_is_dying = true
 	active = false
+	startle_near(get_tree(), global_position, DEATH_STARTLE_RADIUS)
 	_set_hurtboxes_enabled(false)
 	ai_controller.desired_direction = Vector3.ZERO
 	ai_controller.is_attacking = false

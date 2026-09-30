@@ -16,6 +16,8 @@ const PICKUP_GROUP := &"weapon_pickup"
 ## Terreno, grids y barcos.
 const WORLD_MASK := 1
 const MAX_LIFETIME := 8.0
+## Un impacto espanta a las aves posadas a esta distancia.
+const STARTLE_RADIUS := 7.0
 ## Segundos que queda algo clavado en el suelo antes de desaparecer (la lanza no caduca).
 const STUCK_LIFETIME := 30.0
 
@@ -161,6 +163,7 @@ func _hit_hurtbox(box: Hurtbox, point: Vector3) -> void:
 	if applied > 0.0:
 		CombatFx.blood(box.owner_body, point, velocity)
 	CombatFx.impact(self, point, damage_kind, true)
+	AmbientAnimal.startle_near(get_tree(), point, STARTLE_RADIUS)
 	if kind == Kind.STONE:
 		queue_free()
 		return
@@ -178,6 +181,7 @@ func _hit_hurtbox(box: Hurtbox, point: Vector3) -> void:
 func _hit_world(hit: Dictionary) -> void:
 	var point: Vector3 = hit.position
 	CombatFx.impact(self, point, damage_kind, false)
+	AmbientAnimal.startle_near(get_tree(), point, STARTLE_RADIUS)
 	if kind == Kind.STONE:
 		queue_free()
 		return

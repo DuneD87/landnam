@@ -560,6 +560,7 @@ func _setup_ambient_fauna() -> void:
 		var forest := ForestBirdHabitat.new()
 		forest.setup(voxel_terrain, players[0], planet)
 		forest.debug_perches = bird_perches_debug
+		forest.ocean = water_sphere
 		var birds := AmbientFaunaSpawner.new()
 		birds.name = "ForestBirds"
 		birds.setup(bird_profile, forest, players[0])

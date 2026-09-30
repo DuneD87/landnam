@@ -13,6 +13,9 @@ var profile: AmbientFaunaProfile
 ## Pool lifecycle. Subclasses implement movement and reset their own state in activate().
 var active: bool = false
 var habitat: AmbientFaunaHabitat
+## A death scares the birds resting around it.
+const DEATH_STARTLE_RADIUS := 12.0
+
 ## Closing speed, in m/s, above which a hull or a projectile kills the creature.
 @export var lethal_impact_speed: float = 5.0
 ## Half-size used for impacts: hull proximity sweeps and projectile paths.
@@ -77,6 +80,23 @@ func lockable() -> bool:
 	return active and is_inside_tree() and visible
 
 
+## Something alarming happened at [point] (an arrow striking, a death). Timid creatures override
+## this to flee; the rest ignore it.
+func startle(_point: Vector3) -> void:
+	pass
+
+
+## Startles every active creature within [radius] of [point].
+static func startle_near(tree: SceneTree, point: Vector3, radius: float) -> void:
+	if tree == null:
+		return
+	for node in tree.get_nodes_in_group(GROUP):
+		var creature := node as AmbientAnimal
+		if creature != null and creature.active \
+				and creature.global_position.distance_squared_to(point) < radius * radius:
+			creature.startle(point)
+
+
 ## Damage from a projectile, a hull or an attacker. Without a HealthComponent the creature
 ## is fragile: anything that reaches it kills it.
 func take_damage(amount: float, source: Node = null) -> void:
@@ -97,6 +117,7 @@ func die(point: Vector3) -> void:
 		habitat.burst_blood(point)
 	AudioManager.play_material(&"fauna_burst", audio_family(), point)
 	deactivate()
+	startle_near(get_tree(), point, DEATH_STARTLE_RADIUS)
 
 
 func _on_health_depleted() -> void:

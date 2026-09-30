@@ -93,7 +93,10 @@ func update_population(deadline_usec: int = 0) -> void:
 			break
 		var sample_start := Time.get_ticks_usec()
 		var candidate: Variant = habitat.sample_spawn(observer.global_position, profile, _rng)
-		DebugStats.report_cost(&"fauna:spawner/muestreo", Time.get_ticks_usec() - sample_start)
+		var sample_cost := Time.get_ticks_usec() - sample_start
+		DebugStats.report_cost(&"fauna:spawner/muestreo", sample_cost)
+		if DebugStats.profiling:
+			DebugStats.report_cost(StringName("fauna:muestreo/" + name), sample_cost)
 		if not candidate is Vector3:
 			continue
 		var point: Vector3 = candidate

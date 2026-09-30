@@ -88,6 +88,8 @@ func _run() -> void:
 	# Keep the general landing fixture independent of the user's tuning.
 	profile = profile.duplicate()
 	profile.spawn_radius = 55.0
+	# These birds must arrive by air: the resting spawns have their own test.
+	profile.perched_spawn_chance = 0.0
 	for i in 6:
 		var point: Variant = forest.sample_spawn(observer.global_position, profile, rng)
 		if not point is Vector3:
