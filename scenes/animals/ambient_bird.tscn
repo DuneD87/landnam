@@ -1,17 +1,20 @@
-[gd_scene load_steps=4 format=3]
-[ext_resource type="Script" path="res://scripts/fauna/ambient_bird.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/fauna/simple_bird_model.gd" id="2"]
+[gd_scene format=3 uid="uid://dp0gjwgsud36"]
+
+[ext_resource type="Script" uid="uid://b0gywctxquf2v" path="res://scripts/fauna/ambient_bird.gd" id="1"]
+[ext_resource type="Script" uid="uid://c8vwmx4iwv43n" path="res://scripts/fauna/simple_bird_model.gd" id="2"]
+
 [sub_resource type="SphereShape3D" id="Shape"]
 radius = 0.16
-[node name="AmbientBird" type="CharacterBody3D"]
+
+[node name="AmbientBird" type="CharacterBody3D" unique_id=601366462]
 collision_layer = 0
-collision_mask = 1
 motion_mode = 1
 platform_floor_layers = 0
-platform_wall_layers = 0
 script = ExtResource("1")
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-position = Vector3(0, 0.18, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=370162004]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0)
 shape = SubResource("Shape")
-[node name="Model" type="Node3D" parent="."]
+
+[node name="Model" type="Node3D" parent="." unique_id=1977777983]
 script = ExtResource("2")
