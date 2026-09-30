@@ -66,6 +66,17 @@ func set_detail(_distance: float) -> void:
 	pass
 
 
+## Point the player's lock-on frames and aims at: the middle of the body, not the feet.
+func lock_point() -> Vector3:
+	var shape := get_node_or_null("CollisionShape3D") as Node3D
+	return shape.global_position if shape != null else global_position
+
+
+## Whether the player can lock onto it right now: alive and in the world.
+func lockable() -> bool:
+	return active and is_inside_tree() and visible
+
+
 ## Damage from a projectile, a hull or an attacker. Without a HealthComponent the creature
 ## is fragile: anything that reaches it kills it.
 func take_damage(amount: float, source: Node = null) -> void:

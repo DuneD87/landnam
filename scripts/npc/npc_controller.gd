@@ -319,6 +319,11 @@ func in_play() -> bool:
 	return active or is_dead or _is_dying
 
 
+func lockable() -> bool:
+	return super.lockable() and not is_dead and not _is_dying \
+		and health_component != null and not health_component.is_dead
+
+
 ## Detalle por distancia: lejos deja de simularse entero en vez de reciclarse.
 func set_detail(distance: float) -> void:
 	var settings := profile as GroundFaunaProfile

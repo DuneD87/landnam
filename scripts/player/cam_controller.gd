@@ -116,7 +116,8 @@ func _track_lock_point() -> void:
 	var dist := to.length()
 	# Algo por encima del objetivo, más cuanto más cerca (encuadra la cabeza del oso sin
 	# tapar al personaje).
-	var desired := clampf(asin(clampf(to.normalized().dot(up), -1.0, 1.0)) - lerpf(0.32, 0.14, clampf(dist / 20.0, 0.0, 1.0)), min_pitch, 0.4)
+	# Hasta el límite normal de la cámara: un ave fijada puede ir muy por encima.
+	var desired := clampf(asin(clampf(to.normalized().dot(up), -1.0, 1.0)) - lerpf(0.32, 0.14, clampf(dist / 20.0, 0.0, 1.0)), min_pitch, max_pitch)
 	pitch = lerpf(pitch, desired, 0.12)
 
 

@@ -63,6 +63,9 @@ const LOCK_RANGE := 28.0
 const LOCK_BREAK_RANGE := 34.0
 ## Ratón acumulado (radianes de giro de cámara) para cambiar de objetivo fijado.
 const LOCK_SWITCH_THRESHOLD := 0.09
+## Penalización de puntuación de la fauna menuda (aves, conejos, peces) frente a los NPCs: con un
+## oso y un gorrión en el mismo encuadre, se fija el oso.
+const LOCK_SMALL_FAUNA_BIAS := 0.35
 const HITSTOP_TIME := 0.075
 const DEATH_SCREEN_DELAY := 1.3
 const RESPAWN_DELAY := 5.0
@@ -1238,6 +1241,11 @@ func _update_aim_point(data: ItemData) -> void:
 		var target := _lock_point(lock_target)
 		var speed := maxf(data.projectile_speed, 1.0)
 		var flight := player.global_position.distance_to(target) / speed
+		# Adelanto: donde estará el objetivo cuando llegue el proyectil (dos pasadas bastan).
+		var lead := _lock_velocity(lock_target)
+		for _pass in 2:
+			flight = player.global_position.distance_to(target + lead * flight) / speed
+		target += lead * flight
 		var g: float = player.planet.gravity_strength if player.planet else 9.8
 		_aim_point = target - player.gravity_direction * (0.5 * g * flight * flight)
 	else:
@@ -1726,15 +1734,24 @@ func release_lock() -> void:
 
 
 func _lock_point(target: Node3D) -> Vector3:
-	var npc := target as NPCController
-	if npc != null and npc.collision_shape != null:
-		return npc.collision_shape.global_position
+	var creature := target as AmbientAnimal
+	if creature != null:
+		return creature.lock_point()
 	return target.global_position - player.gravity_direction * 0.8
 
 
-func _lockable(npc: NPCController) -> bool:
-	return npc != null and is_instance_valid(npc) and npc.active and not npc.is_dead \
-		and npc.health_component != null and not npc.health_component.is_dead
+## Cualquier criatura viva (NPCs, aves, fauna menuda) se puede fijar.
+func _lockable(target: Node) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	var creature := target as AmbientAnimal
+	return creature != null and creature.lockable()
+
+
+## Velocidad del objetivo para adelantar el tiro: sin ella, un ave en vuelo es imposible de acertar.
+func _lock_velocity(target: Node3D) -> Vector3:
+	var body := target as CharacterBody3D
+	return body.velocity if body != null else Vector3.ZERO
 
 
 ## Mejor candidato: el más centrado en pantalla y cerca. [side] != 0 busca solo a ese lado del
@@ -1748,11 +1765,11 @@ func _find_lock_target(side: float) -> Node3D:
 	var current_x := 0.0
 	if lock_target != null:
 		current_x = (_lock_point(lock_target) - cam.global_position).normalized().dot(cam_right)
-	for node in get_tree().get_nodes_in_group("npc"):
-		var npc := node as NPCController
-		if not _lockable(npc) or npc == lock_target:
+	for node in get_tree().get_nodes_in_group(AmbientAnimal.GROUP):
+		var creature := node as AmbientAnimal
+		if not _lockable(creature) or creature == lock_target:
 			continue
-		var point := _lock_point(npc)
+		var point := _lock_point(creature)
 		var dist := player.global_position.distance_to(point)
 		if dist > LOCK_RANGE:
 			continue
@@ -1763,14 +1780,16 @@ func _find_lock_target(side: float) -> Node3D:
 		var x := to.dot(cam_right)
 		if side != 0.0 and signf(x - current_x) != signf(side):
 			continue
-		if not _has_line_of_sight(point, npc):
+		if not _has_line_of_sight(point, creature):
 			continue
 		var score := acos(clampf(facing, -1.0, 1.0)) * 2.0 + dist / LOCK_RANGE
 		if side != 0.0:
 			score = absf(x - current_x) * 3.0 + dist / LOCK_RANGE
+		if not creature is NPCController:
+			score += LOCK_SMALL_FAUNA_BIAS
 		if score < best_score:
 			best_score = score
-			best = npc
+			best = creature
 	return best
 
 
@@ -1790,7 +1809,7 @@ func _update_lock(delta: float) -> void:
 		player.camera_controller.lock_point = null
 		return
 	var npc := lock_target as NPCController
-	if not _lockable(npc) or player.global_position.distance_to(lock_target.global_position) > LOCK_BREAK_RANGE:
+	if not _lockable(lock_target) or player.global_position.distance_to(lock_target.global_position) > LOCK_BREAK_RANGE:
 		release_lock()
 		# Si cae uno, se pasa al siguiente como en los souls.
 		if npc != null and npc.is_dead:
