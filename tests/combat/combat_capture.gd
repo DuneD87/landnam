@@ -10,6 +10,10 @@ extends "res://tests/lighting/lighting_capture.gd"
 ##   bow    arco: apunta, tensa y dispara al oso que se acerca
 ##   death  sin defenderse: el oso lo mata, sale "HAS MUERTO" y reaparece con la vida llena
 ##   bowterrain  un minuto de arco andando por terreno irregular: brazo dentro del tronco y tirones
+##   atomic golpes cuerpo a cuerpo con cada arma (--weapons=iron_sword,war_hammer...): golpe y
+##          esquiva enseguida (la esquiva espera al final del golpe), combo machacando el botón,
+##          pesado cargado y golpe a la carrera; registra los cambios de estado con su hora
+##   melee usa --melee-weapon=<arma> (espada por defecto)
 
 const ItemConfig = preload("res://scripts/config.gd")
 const OUT := "res://build/combat"
@@ -65,7 +69,7 @@ func _run() -> void:
 	_pc.health_component.invincible = false
 	print("player active=%s pos=%s" % [_pc.input_enabled, _pc.global_position])
 	await _settle(1.0)
-	for run in ["roll", "melee", "bow", "throw", "death", "bowstill", "bowterrain"]:
+	for run in ["roll", "melee", "atomic", "bow", "throw", "death", "bowstill", "bowterrain"]:
 		if not only.is_empty() and run not in only:
 			continue
 		_run_name = run
@@ -81,6 +85,8 @@ func _run() -> void:
 				await _rolls()
 			"melee":
 				await _melee()
+			"atomic":
+				await _atomic()
 			"bow":
 				await _bow()
 			"throw":
@@ -196,7 +202,11 @@ func _tick() -> void:
 
 
 func _melee() -> void:
-	await _equip(&"iron_sword")
+	var weapon := &"iron_sword"
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--melee-weapon="):
+			weapon = StringName(arg.substr(15))
+	await _equip(weapon)
 	await _spawn_bear(11.0)
 	if _bear == null:
 		_note("no se pudo soltar el oso")
@@ -278,6 +288,58 @@ func _rolls() -> void:
 
 
 var FRAME_EVERY_OVERRIDE := -1.0
+
+
+## Golpes atómicos con cada arma, sin enemigos: registra cuándo empieza y acaba cada golpe y
+## cuándo sale lo pulsado mientras tanto.
+func _atomic() -> void:
+	var weapons: PackedStringArray = ["iron_sword", "battle_axe", "iron_mace", "spear", "greatsword", "great_axe", "war_hammer"]
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--weapons="):
+			weapons = arg.substr(10).split(",")
+	var combat := _pc.combat
+	var on_state := func(st: PlayerCombat.State) -> void:
+		var extra := ""
+		if st == PlayerCombat.State.ATTACK:
+			extra = " %s#%d (%s, hasta %.2f s)" % [combat._move_kind, combat._combo, combat._move.anim, float(combat._move.commit)]
+		_note("  estado %s%s" % [PlayerCombat.State.keys()[st], extra])
+	combat.state_changed.connect(on_state)
+	for w in weapons:
+		await _equip(StringName(w))
+		combat.stamina.refill()
+		await _run_for(0.6, Callable())
+		_note("%s — golpe y esquiva al instante" % w)
+		FRAME_EVERY_OVERRIDE = 0.06
+		await _tap(&"attack_1")
+		for i in 3:
+			await _tick()
+		await _tap(&"dodge")
+		await _run_for(1.8, Callable())
+		combat.stamina.refill()
+		_note("%s — combo machacando el botón" % w)
+		for i in 4:
+			await _tap(&"attack_1")
+			await _run_for(0.12, Callable())
+		await _run_for(3.2, Callable())
+		combat.stamina.refill()
+		_note("%s — pesado cargado 1 s" % w)
+		_press(&"attack_2", true)
+		await _run_for(1.3, Callable())
+		_press(&"attack_2", false)
+		_note("  carga %.2f" % combat._charge)
+		await _run_for(1.8, Callable())
+		combat.stamina.refill()
+		_note("%s — golpe a la carrera" % w)
+		_press(&"move_forward", true)
+		_press(&"Sprint", true)
+		await _run_for(0.8, Callable())
+		await _tap(&"attack_1")
+		await _run_for(0.4, Callable())
+		_press(&"Sprint", false)
+		_press(&"move_forward", false)
+		await _run_for(1.4, Callable())
+		FRAME_EVERY_OVERRIDE = -1.0
+	combat.state_changed.disconnect(on_state)
 
 
 func _bow() -> void:

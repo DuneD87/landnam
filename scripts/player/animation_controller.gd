@@ -24,6 +24,9 @@ func _ready() -> void:
 var animation_states = {
 	Config.ANIMATION.IDLE: {
 	},
+	Config.ANIMATION.WALK: {
+		"bWalk": 1.0,
+	},
 	Config.ANIMATION.RUN: {
 		"bRun": 1.0,
 	},
@@ -73,6 +76,7 @@ var animation_states = {
 }
 
 var current_values = {
+	"bWalk": 0.0,
 	"bRun": 0.0,
 	"bSprint": 0.0,
 	"bJumpStart": 0.0,

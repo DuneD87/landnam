@@ -416,6 +416,94 @@ static func mace() -> ArrayMesh:
 	return b.commit(make_material)
 
 
+## Espadón a dos manos: hoja larga y ancha, guarda recta, puño largo para las dos manos
+## (la izquierda va 0,13 m por debajo de la derecha) y pomo de disco.
+static func greatsword() -> ArrayMesh:
+	var b := Builder.new()
+	var steel := b.st(STEEL)
+	set_flat(steel, true)
+	blade(steel, 0.135, 1.05, 0.064, 0.013, 0.13)
+	var iron := b.st(IRON)
+	box(iron, Vector3(0, 0.112, 0), Vector3(0.032, 0.026, 0.30))
+	# Remates de la guarda.
+	for z in [-0.155, 0.155]:
+		box(iron, Vector3(0, 0.112, z), Vector3(0.036, 0.036, 0.02))
+	set_flat(iron, false)
+	lathe(iron, [Vector2(0.021, 0.086), Vector2(0.024, 0.094), Vector2(0.018, 0.100)], 8)
+	# Pomo de disco.
+	lathe(iron, [Vector2(0.0, -0.335), Vector2(0.018, -0.332), Vector2(0.034, -0.318),
+		Vector2(0.034, -0.300), Vector2(0.018, -0.288), Vector2(0.014, -0.280)], 12)
+	wrapped_grip(b.st(LEATHER), -0.282, 0.088, 0.018, 16)
+	return b.commit(make_material)
+
+
+## Astil largo de las armas grandes a dos manos, de [y0] a [y1], con vendas donde van las manos.
+static func _long_haft(b: Builder, y0: float, y1: float, radius: float) -> void:
+	lathe(b.st(WOOD), [Vector2(0.0, y0), Vector2(radius * 1.05, y0), Vector2(radius * 1.12, y0 + 0.03),
+		Vector2(radius, y0 + 0.12), Vector2(radius * 0.95, y1 - 0.05), Vector2(0.0, y1)], 10, Vector3.ZERO, 1.0, 1.0)
+	wrapped_grip(b.st(LEATHER), -0.34, 0.08, radius * 1.1, 14)
+	# Regatón de hierro al pie.
+	lathe(b.st(IRON), [Vector2(0.0, y0 - 0.03), Vector2(radius * 1.2, y0 - 0.02), Vector2(radius * 1.2, y0 + 0.02),
+		Vector2(radius * 1.05, y0 + 0.03)], 8)
+
+
+## Hacha grande a dos manos: la cabeza del hacha de guerra, mayor, al final de un astil largo.
+static func great_axe() -> ArrayMesh:
+	var b := Builder.new()
+	_long_haft(b, -0.40, 0.99, 0.021)
+	var iron := b.st(IRON)
+	set_flat(iron, true)
+	var cols := 14
+	var rings := []
+	for i in cols + 1:
+		var t := float(i) / cols
+		var z := lerpf(-0.045, 0.235, t)
+		var top := 0.955 + 0.05 * t * t
+		var bottom := 0.835 - 0.19 * pow(t, 2.0)
+		var th := lerpf(0.016, 0.0016, smoothstep(0.2, 1.0, t))
+		rings.append(PackedVector3Array([
+			Vector3(-th, bottom, z), Vector3(th, bottom, z), Vector3(th, top, z), Vector3(-th, top, z)]))
+	loft(iron, rings)
+	box(iron, Vector3(0, 0.90, -0.005), Vector3(0.058, 0.12, 0.07))
+	# Pico trasero.
+	loft(iron, [
+		PackedVector3Array([Vector3(-0.014, 0.87, -0.04), Vector3(0.014, 0.87, -0.04), Vector3(0.014, 0.93, -0.04), Vector3(-0.014, 0.93, -0.04)]),
+		PackedVector3Array([Vector3(-0.003, 0.885, -0.13), Vector3(0.003, 0.885, -0.13), Vector3(0.003, 0.895, -0.13), Vector3(-0.003, 0.895, -0.13)]),
+	])
+	return b.commit(make_material)
+
+
+## Martillo de guerra a dos manos: mazo de hierro con la cara hacia el filo (+Z) y un pico
+## detrás, sobre un astil largo con barras de hierro bajo la cabeza.
+static func war_hammer() -> ArrayMesh:
+	var b := Builder.new()
+	_long_haft(b, -0.40, 0.98, 0.022)
+	var iron := b.st(IRON)
+	set_flat(iron, true)
+	# Mazo: prisma de sección octogonal a lo largo de Z.
+	var faces := []
+	for z in [-0.02, 0.10, 0.125]:
+		var r := 0.058 if z < 0.12 else 0.050
+		var ring := PackedVector3Array()
+		for k in 8:
+			var a := TAU * (k + 0.5) / 8.0
+			ring.append(Vector3(cos(a) * r, 0.90 + sin(a) * r, z))
+		faces.append(ring)
+	loft(iron, faces)
+	# Pico trasero, curvado hacia abajo.
+	loft(iron, [
+		PackedVector3Array([Vector3(-0.022, 0.87, -0.02), Vector3(0.022, 0.87, -0.02), Vector3(0.022, 0.93, -0.02), Vector3(-0.022, 0.93, -0.02)]),
+		PackedVector3Array([Vector3(-0.012, 0.875, -0.10), Vector3(0.012, 0.875, -0.10), Vector3(0.012, 0.905, -0.10), Vector3(-0.012, 0.905, -0.10)]),
+		PackedVector3Array([Vector3(-0.002, 0.855, -0.17), Vector3(0.002, 0.855, -0.17), Vector3(0.002, 0.862, -0.17), Vector3(-0.002, 0.862, -0.17)]),
+	])
+	# Barras de refuerzo bajo la cabeza y remate.
+	for side in [-1.0, 1.0]:
+		box(iron, Vector3(side * 0.024, 0.78, 0), Vector3(0.006, 0.18, 0.02))
+	set_flat(iron, false)
+	lathe(iron, [Vector2(0.0, 0.955), Vector2(0.016, 0.96), Vector2(0.010, 0.99), Vector2(0.0, 1.01)], 8)
+	return b.commit(make_material)
+
+
 static func spear() -> ArrayMesh:
 	var b := Builder.new()
 	lathe(b.st(WOOD), [Vector2(0.0, -0.92), Vector2(0.014, -0.92), Vector2(0.016, -0.88),

@@ -17,7 +17,8 @@ const TARGET_SCENE := "res://scenes/character/character_model.tscn"
 const FPS := 30.0
 
 ## Animación de salida: [archivo, desde (s), hasta (s) o -1 = final, quitar desplazamiento
-## horizontal de la cadera].
+## horizontal de la cadera, en bucle (opcional)]. El archivo va respecto a SOURCE_DIR, o con su
+## ruta res:// entera (ActorCore, también con esqueleto de Character Creator).
 const CLIPS := {
 	"roll": ["Sprinting Forward Roll", 0.0, -1.0, true],
 	# Lo que sigue a 1,5 s es volver andando al sitio.
@@ -37,6 +38,11 @@ const CLIPS := {
 	"bow_aim_walk_back": ["Pro_Longbow_Pack/standing aim walk back", 0.0, -1.0, true],
 	"bow_aim_walk_left": ["Pro_Longbow_Pack/standing aim walk left", 0.0, -1.0, true],
 	"bow_aim_walk_right": ["Pro_Longbow_Pack/standing aim walk right", 0.0, -1.0, true],
+	# Espada a una mano: combo de tres tajos (MeleeMoveset lo parte en golpes) y pesado.
+	"sword_combo": ["melee/one_handed_sword_combo_light", 0.0, -1.0, true],
+	"sword_heavy": ["melee/one_handed_sword_slash_heavy", 0.0, -1.0, true],
+	# ActorCore: paseo relajado (el ciclo; son 3 pasos dobles que cierran el bucle).
+	"walk_relaxed": ["res://models/player/actorcore/walk_relaxed/walk_relaxed_loop", 0.0, -1.0, true, true],
 }
 
 ## Hueso del jugador ← hueso de origen.
@@ -113,7 +119,8 @@ static func _arc(from: Vector3, to: Vector3) -> Basis:
 
 
 func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
-	var source: Node3D = load(SOURCE_DIR + clip[0] + ".fbx").instantiate()
+	var file: String = clip[0] if String(clip[0]).begins_with("res://") else SOURCE_DIR + clip[0]
+	var source: Node3D = load(file + ".fbx").instantiate()
 	root.add_child(source)
 	var sskel: Skeleton3D = source.find_children("*", "Skeleton3D", true, false)[0]
 	var player: AnimationPlayer = source.find_children("*", "AnimationPlayer", true, false)[0]
@@ -169,6 +176,8 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 	var to: float = src_anim.length if clip[2] < 0.0 else clip[2]
 	var anim := Animation.new()
 	anim.length = to - from
+	if clip.size() > 4 and clip[4]:
+		anim.loop_mode = Animation.LOOP_LINEAR
 	var tracks := {}
 	var order: Array = []
 	for i in tskel.get_bone_count():

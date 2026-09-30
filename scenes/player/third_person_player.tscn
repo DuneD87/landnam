@@ -21,6 +21,7 @@
 [ext_resource type="Script" uid="uid://fcpmv360rb1c" path="res://scripts/player/look_at_ik.gd" id="19_lkik0"]
 
 [ext_resource type="AnimationLibrary" path="res://models/player/xavivar/firstage_human_male_player_anims.tres" id="x_k6f0r"]
+[ext_resource type="AnimationLibrary" path="res://models/player/mixamo/combat_anims.tres" id="combat_anims"]
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_sv2hv"]
 margin = 0.005
 radius = 0.44726563
@@ -840,3 +841,4 @@ parameters/bTorchFocus/blend_amount = 0.0
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="PlayerModel" unique_id=1322103511]
 libraries/ = ExtResource("x_k6f0r")
+libraries/combat = ExtResource("combat_anims")

@@ -3,13 +3,20 @@ extends Node
 
 ## Combate del jugador, al estilo souls: todo en tiempo real y por colisión.
 ##
-##   Clic izquierdo   golpe ligero (encadena combo) · con arco/tirachinas: tensar y soltar
+##   Clic izquierdo   golpe ligero (encadena combo; corriendo o tras rodar, golpe a la carrera)
+##                    · con arco/tirachinas: tensar y soltar
 ##   Clic derecho     golpe pesado (mantener = cargar) · con arco/tirachinas/lanza: apuntar
 ##   Alt              esquivar rodando hacia donde te mueves; quieto, paso atrás
 ##   Q / rueda (clic) fijar objetivo; mover el ratón de lado cambia de objetivo
 ##
-## Los golpes de hoja se resuelven barriendo la hoja real del arma (la que mueve la animación)
-## contra los Hurtbox de las criaturas en la ventana activa de cada animación. Rodar apaga el
+## Los golpes cuerpo a cuerpo son atómicos: una vez empezados llegan hasta el final (preparar,
+## tajo y seguimiento); lo que se pulse mientras tanto, otro golpe o una esquiva, se guarda y
+## sale en cuanto acaba. Solo los corta un tambaleo, y los golpes pesados y los de las armas a
+## dos manos aguantan más mientras se descargan (hyperarmor). Cada familia de armas tiene su
+## repertorio de animaciones y tiempos (MeleeMoveset).
+##
+## Los golpes de hoja se resuelven barriendo la hoja real del arma (la que mueve la pose)
+## contra los Hurtbox de las criaturas en la ventana activa de cada golpe. Rodar apaga el
 ## hurtbox propio durante los fotogramas de invulnerabilidad. La estamina limita golpes,
 ## esquivas, carrera y tensar.
 ##
@@ -25,16 +32,16 @@ const Config = preload("res://scripts/config.gd")
 const RIGHT_GRIP := CombatPose.RIGHT_GRIP
 const LEFT_GRIP := CombatPose.LEFT_GRIP
 
-## Ataques sobre las dos animaciones de golpe del rig. Tiempos en segundos de la animación a
-## velocidad 1 (medidos por la velocidad de la mano): hit = ventana en que la hoja hiere,
-## combo = desde cuándo encadena el siguiente, end = cuándo termina, lunge = (desde, hasta,
-## metros) del paso adelante, hold = dónde se congela el pesado mientras se carga.
-const ATTACKS := {
-	&"h": {"oneshot": "attack_horizontal", "speed": "atk_h_speed", "hit": Vector2(0.74, 1.08),
-		"combo": 1.0, "end": 1.62, "lunge": Vector3(0.40, 0.95, 0.85), "hold": 0.55},
-	&"v": {"oneshot": "attack_vertical", "speed": "atk_v_speed", "hit": Vector2(0.62, 0.98),
-		"combo": 0.94, "end": 1.50, "lunge": Vector3(0.36, 0.88, 0.75), "hold": 0.50},
-}
+## Segundos para cargar del todo un golpe pesado manteniendo el botón.
+const CHARGE_TIME := 0.9
+## Un golpe ligero hasta estos segundos después de rodar sale como golpe a la carrera.
+const DASH_WINDOW := 0.3
+## Fundido (s) de las animaciones de golpe al entrar, y al salir de vuelta a la guardia: al
+## encadenar, el siguiente golpe se funde sobre el anterior.
+const ATTACK_FADE_IN := 0.15
+const ATTACK_FADE_OUT := 0.3
+## Tras acabar un golpe, segundos en que otro golpe todavía sigue el combo.
+const COMBO_WINDOW := 0.4
 
 const ROLL_COST := 18.0
 const BACKSTEP_COST := 10.0
@@ -121,17 +128,29 @@ var lock_target: Node3D = null
 var state: State = State.IDLE
 var _t: float = 0.0
 
-# Golpe
-var _attack_id: StringName = &""
-var _attack: Dictionary = {}
+# Golpe: el de MeleeMoveset en curso (o el último, mientras su animación acaba), de qué tipo
+# es ("light", "heavy", "dash"), su puesto en el combo y en qué canal de ataque suena.
+var _move: Dictionary = {}
+var _move_kind: String = ""
+var _move_family: StringName = &""
+var _combo: int = 0
+var _attack_slot: String = "attack_a"
+var _attack_t_prev: float = 0.0
+## Ritmo del golpe (escala de tiempo de su animación) y segundos de animación ya sonados.
+var _move_speed: float = 1.0
 var _heavy: bool = false
 var _charge: float = 0.0
-var _combo: int = 0
+var _charged: bool = false
+var _whooshed: bool = false
 var _attack_dir: Vector3 = Vector3.FORWARD
-var _attack_speed: float = 1.0
 var _hitstop: float = 0.0
 var _sweep: MeleeSweep
-var _swing_hits: int = 0
+## La animación del último golpe sigue hasta su final aunque ya se pueda actuar; moverse o
+## hacer otra cosa la corta.
+var _recovering: bool = false
+var _combo_window: float = 0.0
+var _since_dodge: float = 999.0
+var _trail: WeaponTrail
 var _buffered: StringName = &""
 var _buffer_age: float = 0.0
 
@@ -174,6 +193,8 @@ var _anims_ready: bool = false
 ## Estado de los dos canales de acción: "full" (cuerpo entero) y "upper" (tronco y brazos).
 var _act := {
 	"full": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false},
+	"attack_a": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false},
+	"attack_b": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false},
 	"upper": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
 		"weight": 0.0},
 }
@@ -266,6 +287,9 @@ func setup(owner_player: PlayerController) -> void:
 
 	_sweep = MeleeSweep.new()
 	_sweep.exclude = [hurtbox.get_rid()]
+	_trail = WeaponTrail.new()
+	_trail.name = "WeaponTrail"
+	add_child(_trail)
 	_setup_animation()
 
 	hud = CombatHUD.new()
@@ -274,34 +298,20 @@ func setup(owner_player: PlayerController) -> void:
 	hud.setup(self)
 
 
-## Mete un escalador de tiempo entre cada animación de golpe y su one-shot, para que cada arma
-## golpee a su ritmo y el pesado pueda congelarse mientras se carga.
+## Monta los canales de acción sobre una copia del árbol de animación del jugador.
 func _setup_animation() -> void:
 	_tree = player.animation_controller.animation_tree
 	if _tree == null or not (_tree.tree_root is AnimationNodeBlendTree):
 		return
 	var tree_root := (_tree.tree_root as AnimationNodeBlendTree).duplicate(true) as AnimationNodeBlendTree
-	var connections: Array = tree_root.get("node_connections")
-	for id in ATTACKS:
-		var info: Dictionary = ATTACKS[id]
-		var oneshot := StringName(info.oneshot)
-		var source := StringName()
-		for i in range(0, connections.size(), 3):
-			if connections[i] == oneshot and int(connections[i + 1]) == 1:
-				source = connections[i + 2]
-		if source == StringName() or tree_root.has_node(StringName(info.speed)):
-			continue
-		tree_root.add_node(StringName(info.speed), AnimationNodeTimeScale.new())
-		tree_root.disconnect_node(oneshot, 1)
-		tree_root.connect_node(StringName(info.speed), 0, source)
-		tree_root.connect_node(oneshot, 1, StringName(info.speed))
 	_setup_action_channels(tree_root)
 	_tree.tree_root = tree_root
 
 
-## Dos canales de acción encima de todo el árbol: "full" (voltereta, paso atrás, tambaleo,
-## muerte) y "upper", filtrado al tronco y los brazos (arco, lanzamiento: las piernas siguen con
-## la locomoción). Cada uno: animación → TimeSeek → TimeScale → mezcla, para poder
+## Canales de acción encima de todo el árbol: "upper", filtrado al tronco y los brazos (arco,
+## lanzamiento: las piernas siguen con la locomoción); "attack_a" y "attack_b", los golpes
+## cuerpo a cuerpo, que se turnan para que el siguiente se funda sobre el anterior al
+## encadenar; y "full" (voltereta, paso atrás, tambaleo, muerte), encima de todo. Cada uno: animación → TimeSeek → TimeScale → mezcla, para poder
 ## reproducirla, acelerarla o arrastrarla a un instante concreto. "full" mezcla con un OneShot;
 ## "upper" con un Blend2 cuyo peso lleva _act_advance: un OneShot cuenta su propio tiempo desde
 ## que se dispara y se apaga al pasar la duración del clip aunque este vaya arrastrado (tensar y
@@ -321,7 +331,7 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 		return
 	tree_root.disconnect_node(&"output", 0)
 	var below := top
-	for channel in ["upper", "full"]:
+	for channel in ["upper", "attack_a", "attack_b", "full"]:
 		var anim := AnimationNodeAnimation.new()
 		anim.animation = &"combat/roll"
 		var shot: AnimationNode
@@ -329,8 +339,8 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 			shot = AnimationNodeBlend2.new()
 		else:
 			var oneshot := AnimationNodeOneShot.new()
-			oneshot.fadein_time = 0.12
-			oneshot.fadeout_time = 0.25
+			oneshot.fadein_time = 0.12 if channel == "full" else ATTACK_FADE_IN
+			oneshot.fadeout_time = 0.25 if channel == "full" else ATTACK_FADE_OUT
 			shot = oneshot
 		if channel == "upper":
 			shot.filter_enabled = true
@@ -354,7 +364,15 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 	_anims_ready = true
 
 
-## Reproduce [anim_name] (de la librería "combat") en el canal, desde [from] y a [speed].
+## Ruta de la animación [anim_name] en el AnimationPlayer: la de la librería "combat" si está
+## ahí, si no la de la librería por defecto (las que trae el rig, como los golpes originales).
+func _anim_path(anim_name: StringName) -> StringName:
+	var combat := StringName("combat/" + String(anim_name))
+	var animator: AnimationPlayer = player.animation_controller.animator
+	return combat if animator == null or animator.has_animation(combat) else anim_name
+
+
+## Reproduce [anim_name] (ver _anim_path) en el canal, desde [from] y a [speed].
 ## [hold_end] la deja congelada en su último fotograma (muerte).
 func _act_play(channel: String, anim_name: StringName, speed: float, from: float = 0.0,
 		hold_end: bool = false) -> void:
@@ -362,7 +380,7 @@ func _act_play(channel: String, anim_name: StringName, speed: float, from: float
 		return
 	var ch: Dictionary = _act[channel]
 	var tree_root := _tree.tree_root as AnimationNodeBlendTree
-	var anim_path := StringName("combat/" + String(anim_name))
+	var anim_path := _anim_path(anim_name)
 	(tree_root.get_node(StringName("act_%s_anim" % channel)) as AnimationNodeAnimation).animation = anim_path
 	var animator: AnimationPlayer = player.animation_controller.animator
 	ch.anim = anim_name
@@ -388,7 +406,7 @@ func _act_switch(channel: String, anim_name: StringName, speed: float, from: flo
 		_act_play(channel, anim_name, speed, from)
 		return
 	var tree_root := _tree.tree_root as AnimationNodeBlendTree
-	var anim_path := StringName("combat/" + String(anim_name))
+	var anim_path := _anim_path(anim_name)
 	(tree_root.get_node(StringName("act_%s_anim" % channel)) as AnimationNodeAnimation).animation = anim_path
 	ch.anim = anim_name
 	ch.length = _clip_length(anim_name)
@@ -639,15 +657,14 @@ func _try_buffered() -> void:
 				_start_attack(heavy)
 
 
+## Un golpe no se corta ni con otro golpe ni con una esquiva: lo pulsado espera a que acabe
+## (_finish_attack) y sale entonces.
 func _can_dodge_now() -> bool:
 	if player.movement.is_swimming or player.movement.is_falling or player.movement.is_jumping:
 		return false
 	match state:
 		State.IDLE, State.AIM:
 			return true
-		State.ATTACK:
-			# Cancelar la recuperación: ya ha pasado la ventana que hiere.
-			return _t >= float(_attack.hit.y) and _hitstop <= 0.0
 		State.DODGE:
 			return _t >= _dodge_time() * 0.82
 	return false
@@ -659,8 +676,6 @@ func _can_attack_now() -> bool:
 	match state:
 		State.IDLE:
 			return true
-		State.ATTACK:
-			return _t >= float(_attack.combo) and not _heavy
 		State.DODGE:
 			return _t >= _dodge_time() * 0.9
 	return false
@@ -674,9 +689,13 @@ func _can_attack_now() -> bool:
 ## de leer el input de movimiento y antes de fijar la velocidad.
 func physics_update(delta: float, input_dir: Vector3) -> void:
 	_record_spawn()
-	_buffer_age += delta
+	# Lo pulsado durante un golpe no caduca: sale en cuanto el golpe acaba.
+	if state != State.ATTACK:
+		_buffer_age += delta
 	if _buffer_age > INPUT_BUFFER:
 		_buffered = &""
+	_since_dodge += delta
+	_combo_window = maxf(0.0, _combo_window - delta)
 	_lock_switch_cooldown = maxf(0.0, _lock_switch_cooldown - delta)
 	_fire_cooldown = maxf(0.0, _fire_cooldown - delta)
 	_motion_h = Vector3.ZERO
@@ -703,6 +722,7 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 	_update_limits(delta, input_dir)
 	_update_aim_blend(delta)
 	_update_carry(delta)
+	_update_recovery(input_dir)
 
 
 ## Velocidad final del cuerpo: en golpe, esquiva, tambaleo y muerte el combate manda en el plano
@@ -720,7 +740,10 @@ func update_facing(delta: float, input_dir: Vector3) -> bool:
 		State.DODGE, State.STAGGER, State.DEAD:
 			return true
 		State.ATTACK:
-			if _t < float(_attack.hit.x):
+			# Se puede reorientar mientras prepara; desde el tajo, el golpe va a donde iba.
+			if _act_time(_attack_slot) < float(_move.get("track", 0.5)):
+				if lock_target != null:
+					_attack_dir = _flat(_lock_point(lock_target) - player.global_position)
 				_face(_attack_dir, delta, 9.0)
 			return true
 		State.AIM:
@@ -782,35 +805,42 @@ func _start_attack(heavy: bool) -> void:
 	var data := weapon()
 	if data == null:
 		return
-	var cost := data.stamina_cost * (1.6 if heavy else 1.0)
+	var family := MeleeMoveset.family_for(data)
+	var kind := "heavy" if heavy else "light"
+	if not heavy and (player.movement.is_sprinting or state == State.DODGE or _since_dodge < DASH_WINDOW):
+		kind = "dash"
+	# Encadena el combo si la animación del anterior aún suena o acaba de terminar.
+	var chained := (_recovering or _combo_window > 0.0) and _move_family == family and not _move.is_empty()
+	var index := _combo + 1 if chained and kind == _move_kind else 0
+	var mv := MeleeMoveset.move(family, kind, index)
+	var cost := data.stamina_cost * float(mv.get("stamina", 1.0)) * (1.6 if heavy else 1.0)
 	if not stamina.spend(cost):
 		hud.flash_stamina()
 		return
-	var chained := state == State.ATTACK
-	var previous := _attack
 	if state == State.AIM:
 		_end_aim()
-	_combo = (_combo + 1) if chained else 0
-	_attack_id = &"v" if heavy else (&"h" if _combo % 2 == 0 else &"v")
-	# La lanza pica de arriba abajo; es lo más parecido a una estocada que trae el rig.
-	if data.weapon_type == ItemData.WeaponType.SPEAR and not heavy:
-		_attack_id = &"v"
-	_attack = ATTACKS[_attack_id]
+	_move = mv
+	_move_kind = kind
+	_move_family = family
+	_combo = index
 	_heavy = heavy
 	_charge = 0.0
-	_attack_speed = maxf(data.attack_speed, 0.3) * (0.85 if heavy else 1.0)
+	_charged = false
+	_move_speed = maxf(data.attack_speed, 0.3) * float(mv.get("speed", 1.0))
 	_attack_dir = _choose_attack_dir()
 	_sweep.radius = maxf(data.blade_radius, 0.04)
 	_sweep.reset()
-	_swing_hits = 0
 	_hitstop = 0.0
+	_whooshed = false
+	_recovering = false
+	_combo_window = 0.0
+	# Cada golpe en el canal que no suena: se funde sobre el anterior.
+	var previous := _attack_slot
+	_attack_slot = "attack_b" if _attack_slot == "attack_a" else "attack_a"
+	_act_stop(previous)
+	_attack_t_prev = float(mv.get("from", 0.0))
+	_act_play(_attack_slot, mv.anim, _move_speed, _attack_t_prev)
 	_set_state(State.ATTACK)
-	_t = 0.0
-	if chained and not previous.is_empty() and previous.oneshot != _attack.oneshot:
-		_tree_set("parameters/%s/request" % previous.oneshot, AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
-	_tree_set("parameters/%s/scale" % _attack.speed, _attack_speed)
-	_tree_set("parameters/%s/request" % _attack.oneshot, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
-	CombatFx.play(&"swing_windup", player.global_position, {"pitch": randf_range(0.9, 1.1)})
 
 
 ## Hacia dónde sale el golpe: al objetivo fijado; si no, hacia donde se mueve; si no, hacia
@@ -825,37 +855,85 @@ func _choose_attack_dir() -> Vector3:
 	return cam if cam != Vector3.ZERO else _body_forward()
 
 
+## El golpe avanza con su animación: los tiempos del golpe (MeleeMoveset) son segundos de ella.
+## _act_advance ya la ha avanzado en este tick; lo que ha sonado va de _attack_t_prev a ahora.
 func _update_attack(delta: float) -> void:
 	var data := weapon()
-	if data == null:
+	if data == null or _move.is_empty():
 		_end_attack()
 		return
-	var speed := _attack_speed
+	var t := _act_time(_attack_slot)
+	var prev := _attack_t_prev
+	_attack_t_prev = t
+	# Paso adelante: lo que ha recorrido la animación dentro del tramo del paso, a velocidad;
+	# se frena pegado a lo que tiene delante.
+	var lunge: Vector3 = _move.get("lunge", Vector3.ZERO)
+	if lunge.z > 0.0 and lunge.y > lunge.x and not _blocked_ahead():
+		var covered := maxf(0.0, minf(t, lunge.y) - maxf(prev, lunge.x))
+		var dist := covered / (lunge.y - lunge.x) * lunge.z * (1.0 + 0.3 * _charge)
+		_motion_h = _body_forward() * dist / maxf(delta, 1e-4)
+	var hit: Vector2 = _move.hit
+	if t >= hit.x and prev <= hit.y:
+		if not _whooshed:
+			_whooshed = true
+			CombatFx.play(&"swing_windup", player.global_position, {"pitch": _swing_pitch(data) * randf_range(0.94, 1.06)})
+		_sweep_blade(data)
+	if t >= float(_move.commit):
+		_finish_attack()
+		return
+	# Ritmo del siguiente tick: casi parado en el hitstop; cargando, quieto arriba mientras se
+	# mantiene el botón (la carga completa lo suelta sola) y al soltar baja algo más deprisa.
+	var speed := _move_speed
 	if _hitstop > 0.0:
 		_hitstop -= delta
-		speed = 0.02
-	elif _heavy and _t >= float(_attack.hold) and _charge < 1.0 and Input.is_action_pressed("attack_2"):
-		# Cargando el pesado: la animación se congela arriba y la carga sube.
-		speed = 0.0
-		_charge = minf(1.0, _charge + delta / 0.9)
-	elif _heavy and _t >= float(_attack.hold):
-		speed = _attack_speed * 1.25
-	_tree_set("parameters/%s/scale" % _attack.speed, speed)
-	var prev_t := _t
-	_t += delta * speed
-	# Paso adelante mientras el golpe arranca; se frena pegado al objetivo.
-	var lunge: Vector3 = _attack.lunge
-	if _t > lunge.x and prev_t < lunge.y and speed > 0.0:
-		var span := (lunge.y - lunge.x) / maxf(_attack_speed, 0.01)
-		var step := lunge.z * (1.4 if _heavy else 1.0) / span
-		var close := lock_target != null and player.global_position.distance_to(lock_target.global_position) < 1.9
-		if not close:
-			_motion_h = _flat(player.global_basis.z) * step * (speed / _attack_speed)
-	var hit: Vector2 = _attack.hit
-	if _t >= hit.x and prev_t <= hit.y:
-		_sweep_blade(data)
-	if _t >= float(_attack.end):
-		_end_attack()
+		speed *= 0.03
+	elif _heavy and _move.has("charge") and not _charged and t >= float(_move.charge):
+		if Input.is_action_pressed("attack_2") and _charge < 1.0:
+			_charge = minf(1.0, _charge + delta / CHARGE_TIME)
+			speed = 0.0
+		else:
+			_charged = true
+	if _charged and _hitstop <= 0.0:
+		speed *= 1.25
+	_act_set_speed(_attack_slot, speed)
+
+
+## Tono del silbido del arma: las ligeras más agudas, las grandes más graves.
+func _swing_pitch(data: ItemData) -> float:
+	var pitch := 1.15
+	match data.weapon_type:
+		ItemData.WeaponType.AXE, ItemData.WeaponType.MACE:
+			pitch = 0.95
+	if data.two_handed:
+		pitch = 0.78
+	return pitch * (0.9 if _heavy else 1.0)
+
+
+## Hay algo pegado delante (el objetivo fijado o una criatura en la cara): el paso del golpe no
+## lo atraviesa.
+func _blocked_ahead() -> bool:
+	var forward := _body_forward()
+	if lock_target != null and is_instance_valid(lock_target):
+		var to := lock_target.global_position - player.global_position
+		if to.length() < 1.9 and _flat(to).dot(forward) > 0.3:
+			return true
+	for node in get_tree().get_nodes_in_group("npc"):
+		var npc := node as NPCController
+		if npc == null or not npc.active or npc.is_dead:
+			continue
+		var to := npc.global_position - player.global_position
+		if to.length() < 1.3 and _flat(to).dot(forward) > 0.4:
+			return true
+	return false
+
+
+## Guardia extra mientras dura la ventana de hyperarmor del golpe.
+func _attack_armor() -> float:
+	if state != State.ATTACK or _move.is_empty() or not _move.has("armor"):
+		return 0.0
+	var a: Vector3 = _move.armor
+	var t := _act_time(_attack_slot)
+	return a.z if t >= a.x and t <= a.y else 0.0
 
 
 func _sweep_blade(data: ItemData) -> void:
@@ -863,14 +941,12 @@ func _sweep_blade(data: ItemData) -> void:
 	var base := frame * Vector3(0, data.blade_start, 0)
 	var tip := frame * Vector3(0, data.reach, 0)
 	var space := player.get_world_3d().direct_space_state
-	var damage := float(data.damage)
-	var poise_damage := data.poise_damage
+	var damage := float(data.damage) * float(_move.get("damage", 1.0))
+	var poise_damage := data.poise_damage * float(_move.get("poise", 1.0))
 	if _heavy:
-		var mult := lerpf(1.3, data.heavy_multiplier, _charge)
+		var mult := lerpf(1.25, data.heavy_multiplier, _charge)
 		damage *= mult
 		poise_damage *= mult
-	elif _combo >= 2:
-		damage *= 1.1
 	for hit in _sweep.sweep(space, base, tip):
 		var box: Hurtbox = hit.hurtbox
 		if box.owner_body == player:
@@ -878,7 +954,8 @@ func _sweep_blade(data: ItemData) -> void:
 		var dir := _flat(box.owner_body.global_position - player.global_position)
 		var info := DamageInfo.create(damage, player, hit.point, dir if dir != Vector3.ZERO else hit.direction, poise_damage)
 		info.kind = data.damage_kind
-		info.knockback = 0.6 if data.damage_kind == ItemData.DamageKind.BLUNT else 0.3
+		info.knockback = (0.6 if data.damage_kind == ItemData.DamageKind.BLUNT else 0.3) \
+			* (1.5 if data.two_handed else 1.0) * (1.3 if _heavy else 1.0)
 		var applied := box.receive(info)
 		if applied > 0.0:
 			_on_blade_hit(box, hit.point, info)
@@ -889,30 +966,58 @@ func _sweep_blade(data: ItemData) -> void:
 
 
 func _on_blade_hit(box: Hurtbox, point: Vector3, info: DamageInfo) -> void:
-	_swing_hits += 1
-	_hitstop = HITSTOP_TIME * (1.6 if _heavy else 1.0)
-	player.camera_controller.add_shake(0.10 if _heavy else 0.05)
+	var data := weapon()
+	var weight := (1.6 if _heavy else 1.0) * (1.3 if data != null and data.two_handed else 1.0)
+	_hitstop = HITSTOP_TIME * weight
+	player.camera_controller.add_shake(0.05 * weight)
 	CombatFx.blood(box.owner_body, point, info.direction)
 	CombatFx.impact(player, point, info.kind, true)
 	hud.note_enemy_hit(box.owner_body)
 
 
-func _end_attack() -> void:
-	if not _attack.is_empty():
-		_tree_set("parameters/%s/request" % _attack.oneshot, AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
-		_tree_set("parameters/%s/scale" % _attack.speed, 1.0)
-	_attack = {}
+## El golpe ha llegado al final de su gesto: queda libre para lo siguiente (lo que se pulsó
+## sale ahora) y su animación sigue hasta acabar mientras no se haga otra cosa.
+func _finish_attack() -> void:
 	_heavy = false
+	_recovering = true
+	_combo_window = COMBO_WINDOW
+	_act_set_speed(_attack_slot, _move_speed)
 	if state == State.ATTACK:
 		_set_state(State.IDLE)
 	if _aim_held or _draw_held:
 		_enter_aim()
 
 
-func _abort_attack_anim() -> void:
-	for id in ATTACKS:
-		_tree_set("parameters/%s/request" % ATTACKS[id].oneshot, AnimationNodeOneShot.ONE_SHOT_REQUEST_FADE_OUT)
-		_tree_set("parameters/%s/scale" % ATTACKS[id].speed, 1.0)
+## La animación del último golpe acaba sola en MeleeMoveset "end", o antes si se mueve o hace
+## otra cosa.
+func _update_recovery(input_dir: Vector3) -> void:
+	if not _recovering:
+		return
+	var done: bool = _move.is_empty() or _act_time(_attack_slot) >= float(_move.get("end", 99.0)) \
+		or not _act[_attack_slot].active
+	if state != State.IDLE or input_dir.length() > 0.2 or done:
+		_recovering = false
+		if state != State.ATTACK:
+			_act_stop(_attack_slot)
+
+
+## Sin golpe de golpe (se ha soltado el arma).
+func _end_attack() -> void:
+	_abort_attack()
+	_move = {}
+	if state == State.ATTACK:
+		_set_state(State.IDLE)
+	if _aim_held or _draw_held:
+		_enter_aim()
+
+
+## Corta el golpe y su animación (tambaleo, esquiva, muerte, carga de partida).
+func _abort_attack() -> void:
+	_heavy = false
+	_recovering = false
+	_hitstop = 0.0
+	_act_stop("attack_a")
+	_act_stop("attack_b")
 
 
 func _tree_set(path: String, value: Variant) -> void:
@@ -954,9 +1059,7 @@ func _start_dodge() -> void:
 	if not stamina.spend(ROLL_COST if _dodge_roll else BACKSTEP_COST):
 		hud.flash_stamina()
 		return
-	if state == State.ATTACK:
-		_abort_attack_anim()
-		_attack = {}
+	_abort_attack()
 	if state == State.AIM:
 		_end_aim(true)
 	_dodge_dir = _flat(move) if _dodge_roll else -_body_forward()
@@ -995,6 +1098,7 @@ func _update_dodge(delta: float, _input_dir: Vector3) -> void:
 		pose.motion_x = -1.0
 		hurtbox.set_enabled(true)
 		_act_stop("full")
+		_since_dodge = 0.0
 		_set_state(State.IDLE)
 		if _aim_held or _draw_held:
 			_enter_aim()
@@ -1195,7 +1299,7 @@ func _bow_clip(anim_name: StringName, time: float) -> void:
 
 func _clip_length(anim_name: StringName) -> float:
 	var animator: AnimationPlayer = player.animation_controller.animator
-	var path := StringName("combat/" + String(anim_name))
+	var path := _anim_path(anim_name)
 	return animator.get_animation(path).length if animator.has_animation(path) else 1.0
 
 
@@ -1353,6 +1457,7 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 	if p.grip_right:
 		_right_grip.global_transform = p.right_grip_xform
 	var data := weapon()
+	_update_trail(data)
 	if data == null or _weapon_node == null or not is_instance_valid(_weapon_node):
 		_arrow_visual.visible = false
 		return
@@ -1424,6 +1529,17 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 		_arrow_visual.visible = false
 
 
+## Estela de la hoja mientras el golpe hiere.
+func _update_trail(data: ItemData) -> void:
+	var t := _act_time(_attack_slot)
+	var active := data != null and state == State.ATTACK and not _move.is_empty() \
+		and t >= float(_move.hit.x) and t <= float(_move.hit.y)
+	var frame := _right_grip.global_transform
+	var base := frame * Vector3(0, data.blade_start if data != null else 0.0, 0)
+	var tip := frame * Vector3(0, data.reach if data != null else 0.0, 0)
+	_trail.push(base, tip, active, get_process_delta_time())
+
+
 ## Arco, cuerda y flecha donde los deja BowAnimRig (con animaciones) o ArcheryPose (procedural).
 ## Mientras sube o baja, el arco pasa del agarre de colgar al de tirar sin saltos.
 func _place_bow(p: CombatPose, _data: ItemData) -> void:
@@ -1454,8 +1570,9 @@ func _place_bow(p: CombatPose, _data: ItemData) -> void:
 func _update_carry(delta: float) -> void:
 	var m := player.movement
 	var data := weapon()
-	var target := 1.0 if pose.grip_right and data != null and state == State.IDLE \
-		and (m.is_running or m.is_sprinting) and not m.is_swimming else 0.0
+	# Andando el brazo va como en la animación de andar, que no lo cruza por delante.
+	var target := 1.0 if pose.grip_right and data != null and not data.two_handed and state == State.IDLE \
+		and (m.is_sprinting or (m.is_running and not m.walking)) and not m.is_swimming else 0.0
 	# Al golpear, esquivar o apuntar se suelta enseguida para no arrastrarla sobre la acción.
 	var rate := CARRY_BLEND_SPEED if state == State.IDLE else CARRY_BLEND_SPEED * 3.0
 	_carry = move_toward(_carry, target, delta * rate)
@@ -1513,14 +1630,13 @@ func _on_hit_received(info: DamageInfo, applied: float) -> void:
 	CombatFx.play(&"player_hurt", player.global_position)
 	if player.health_component.health - applied <= 0.0:
 		return
-	if info.poise >= PLAYER_POISE and state != State.DODGE:
+	# Los golpes pesados y los de dos manos aguantan mientras se descargan (hyperarmor).
+	if info.poise >= PLAYER_POISE + _attack_armor() and state != State.DODGE:
 		_start_stagger(info)
 
 
 func _start_stagger(info: DamageInfo) -> void:
-	if state == State.ATTACK:
-		_abort_attack_anim()
-		_attack = {}
+	_abort_attack()
 	if state == State.AIM:
 		_end_aim(true)
 	var push := _flat(info.direction)
@@ -1568,8 +1684,7 @@ func _start_body_motion(motion: Dictionary, travel: Callable, push: Vector3, dis
 func _on_died() -> void:
 	if state == State.DEAD:
 		return
-	_abort_attack_anim()
-	_attack = {}
+	_abort_attack()
 	_end_aim()
 	release_lock()
 	hurtbox.set_enabled(false)
@@ -1653,10 +1768,10 @@ func _respawn() -> void:
 
 ## Al cargar una partida: fuera de cualquier golpe, esquiva o muerte, y con todo lleno.
 func on_restored() -> void:
-	_abort_attack_anim()
+	_abort_attack()
+	_move = {}
 	_act_stop("full")
 	_act_stop("upper")
-	_attack = {}
 	_end_aim()
 	release_lock()
 	if player.health_component.is_dead:
@@ -1847,7 +1962,7 @@ func _update_limits(delta: float, input_dir: Vector3) -> void:
 	player.current_animation = Config.ANIMATION.DEATH if state == State.DEAD else player.current_animation
 	# Tambaleo y paso atrás procedurales van sobre la animación de estar quieto: los pasos los
 	# dan las piernas por IK (si debajo corriera, las piernas seguirían corriendo).
-	if pose.motion_x >= 0.0:
+	if pose.motion_x >= 0.0 or state == State.ATTACK:
 		player.current_animation = player.equiped_weapon.idle_animation if player.right_hand_equipped \
 			else Config.ANIMATION.IDLE
 	_update_body_visual()

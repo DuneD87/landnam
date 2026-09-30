@@ -3,7 +3,7 @@ extends SceneTree
 ## Hornea las armas de combate: mallas (data/items/meshes/weapons/), escenas de arma
 ## (scenes/items/weapons/combat/) e iconos de inventario (textures/icons/items/weapons/).
 ## Los iconos se renderizan, así que NO va con --headless:
-##   godot --path . --script res://tools/combat/bake_weapons.gd
+##   godot --path . --script res://tools/combat/bake_weapons.gd [-- --only=greatsword,war_hammer]
 ## Después, `godot --headless --path . --import` para importar los PNG nuevos.
 
 const MESH_DIR := "res://data/items/meshes/weapons/"
@@ -17,6 +17,9 @@ var WEAPONS := {
 	"battle_axe": [WeaponMeshes.battle_axe, "", -40.0],
 	"iron_mace": [WeaponMeshes.mace, "", -40.0],
 	"spear": [WeaponMeshes.spear, "", -45.0],
+	"greatsword": [WeaponMeshes.greatsword, "", -45.0],
+	"great_axe": [WeaponMeshes.great_axe, "", -40.0],
+	"war_hammer": [WeaponMeshes.war_hammer, "", -40.0],
 	"hunting_bow": [WeaponMeshes.bow_flexing, "res://scripts/combat/ranged_weapon_visual.gd", -35.0],
 	"slingshot": [WeaponMeshes.slingshot, "res://scripts/combat/ranged_weapon_visual.gd", -25.0],
 	"arrow": [WeaponMeshes.arrow, "", -45.0],
@@ -48,7 +51,13 @@ func _run() -> void:
 	root.transparent_bg = true
 	for dir in [MESH_DIR, SCENE_DIR, ICON_DIR]:
 		DirAccess.make_dir_recursive_absolute(dir)
+	var only: PackedStringArray = []
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--only="):
+			only = arg.substr(7).split(",")
 	for weapon_name in WEAPONS:
+		if not only.is_empty() and weapon_name not in only:
+			continue
 		var entry: Array = WEAPONS[weapon_name]
 		var mesh: ArrayMesh = (entry[0] as Callable).call()
 		var mesh_path: String = MESH_DIR + weapon_name + ".res"
@@ -57,6 +66,10 @@ func _run() -> void:
 		if weapon_name != "arrow":
 			_save_scene(weapon_name, mesh, entry[1])
 		await _render_icon(weapon_name, mesh, entry[2])
+	if not only.is_empty():
+		print("BAKE WEAPONS DONE")
+		quit()
+		return
 	# La piedra del tirachinas: solo malla (el proyectil la carga).
 	var pebble := WeaponMeshes.pebble()
 	_check(ResourceSaver.save(pebble, MESH_DIR + "pebble.res"), "pebble")
@@ -91,8 +104,16 @@ func _save_scene(weapon_name: String, mesh: ArrayMesh, script_path: String) -> v
 
 
 func _render_icon(weapon_name: String, mesh: ArrayMesh, roll_deg: float) -> void:
+	# En un SubViewport de tamaño fijo y fondo transparente: la ventana raíz puede acabar al
+	# tamaño de la pantalla (y opaca) según el escritorio.
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(ICON_SIZE, ICON_SIZE)
+	viewport.transparent_bg = true
+	viewport.own_world_3d = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(viewport)
 	var stage := Node3D.new()
-	root.add_child(stage)
+	viewport.add_child(stage)
 	var shader: Shader = load("res://shaders/icon_toon.gdshader")
 	var holder := Node3D.new()
 	stage.add_child(holder)
@@ -153,9 +174,9 @@ func _render_icon(weapon_name: String, mesh: ArrayMesh, roll_deg: float) -> void
 	for i in 4:
 		await process_frame
 	await RenderingServer.frame_post_draw
-	var image := root.get_texture().get_image()
+	var image := viewport.get_texture().get_image()
 	image.convert(Image.FORMAT_RGBA8)
 	var path := ICON_DIR + weapon_name + ".png"
 	_check(image.save_png(path), path)
-	stage.queue_free()
+	viewport.queue_free()
 	await process_frame

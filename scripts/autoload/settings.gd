@@ -94,7 +94,8 @@ const MAX_MOUSE_SENSITIVITY := 3.0
 const REBINDABLE_ACTIONS := [
 	["Movimiento", [
 		[&"move_forward", "Avanzar"], [&"move_back", "Retroceder"], [&"move_left", "Izquierda"],
-		[&"move_right", "Derecha"], [&"jump", "Saltar"], [&"Sprint", "Correr"], [&"dodge", "Esquivar"],
+		[&"move_right", "Derecha"], [&"jump", "Saltar"], [&"Sprint", "Correr"],
+		[&"walk_toggle", "Andar / correr"], [&"dodge", "Esquivar"],
 		[&"toggle_free_flight", "Vuelo libre"]]],
 	["Combate", [
 		[&"attack_1", "Ataque principal"], [&"attack_2", "Ataque secundario"], [&"lock_on", "Fijar objetivo"]]],

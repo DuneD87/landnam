@@ -423,6 +423,7 @@ func _ready():
 	combat = PlayerCombat.new()
 	add_child(combat)
 	combat.setup(self)
+	_setup_walk()
 	world_map_ui = WorldMapUI.new()
 	world_map_ui.setup(self)
 	add_child(world_map_ui)
@@ -439,7 +440,8 @@ func _ready():
 	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
 	# Armas para plantar cara a la fauna hostil: una de cada familia y su munición.
-	for weapon_id in [&"iron_sword", &"battle_axe", &"iron_mace", &"hunting_bow", &"slingshot"]:
+	for weapon_id in [&"iron_sword", &"battle_axe", &"iron_mace", &"greatsword", &"great_axe", &"war_hammer",
+			&"hunting_bow", &"slingshot"]:
 		inventory.add_item(config.get_item(weapon_id), 1)
 	inventory.add_item(config.get_item(&"spear"), 3)
 	inventory.add_item(config.get_item(&"arrow"), 40)
@@ -797,6 +799,19 @@ func _activate_player() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
 	
+## Andar: la animación (walk_relaxed, de ActorCore) avanza WALK_CLIP_SPEED m/s a ritmo 1 (lo
+## que retrocede el pie apoyado, medido sobre este cuerpo). Se reproduce a walk_anim_rate y el
+## cuerpo va a la velocidad que le toca a ese ritmo, así los pies no patinan.
+const WALK_CLIP_SPEED := 0.50
+@export var walk_anim_rate: float = 1.2
+
+
+func _setup_walk() -> void:
+	movement.walk_speed = WALK_CLIP_SPEED * walk_anim_rate
+	if animation_controller.animation_tree:
+		animation_controller.animation_tree.set("parameters/walk_scale/scale", walk_anim_rate)
+
+
 func is_mouse_captured() -> bool:
 	return Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
 	
@@ -882,6 +897,10 @@ func _input(event):
 			player_model.visible = true
 		camera_controller._input(event)
  
+	# Andar o correr (Bloq Mayús por defecto): se queda puesto hasta volver a pulsarlo.
+	if event.is_action_pressed("walk_toggle") and not _is_text_field_focused():
+		movement.walking = not movement.walking
+
 	if event.is_action_pressed("toggle_free_flight"):
 		free_flight_enabled = !free_flight_enabled
 		if free_flight_enabled:

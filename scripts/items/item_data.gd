@@ -52,6 +52,9 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export var poise_damage: float = 20.0
 ## Multiplicador de daño y desgaste del golpe pesado a carga máxima.
 @export var heavy_multiplier: float = 1.8
+## Se empuña con las dos manos (espadones, hachas y martillos grandes): otro repertorio de
+## golpes, más lentos, anchos y con más guardia mientras se descargan.
+@export var two_handed: bool = false
 ## Munición que consume al disparar (id de item). Vacío = se lanza a sí misma (lanza).
 @export var ammo_id: StringName = &""
 ## Velocidad de salida del proyectil a tensión completa, en m/s.
@@ -104,6 +107,7 @@ func copy_from(source: ItemData) -> void:
 	stamina_cost = source.stamina_cost
 	poise_damage = source.poise_damage
 	heavy_multiplier = source.heavy_multiplier
+	two_handed = source.two_handed
 	ammo_id = source.ammo_id
 	projectile_speed = source.projectile_speed
 	draw_time = source.draw_time

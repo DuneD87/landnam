@@ -3,6 +3,7 @@ extends SceneTree
 ## Animaciones de combate de Mixamo (librería "combat", reorientada al jugador) sobre el cuerpo
 ## real, fotograma a fotograma. Una fila por animación.
 ##   godot --path . --audio-driver Dummy --script res://tests/combat/anim_preview.gd -- --tag=x [--background] [--only=roll,death]
+##       [--weapon=iron_sword] (el arma en la mano derecha, agarrada como en el juego) [--cols=16]
 ## Guarda build/combat/anims_<tag>.png y cierra.
 
 const MODEL := "res://scenes/character/character_model.tscn"
@@ -12,6 +13,7 @@ const CELL := Vector2i(240, 280)
 
 var _tag := "preview"
 var _only: PackedStringArray = []
+var _weapon := ""
 
 
 func _initialize() -> void:
@@ -22,6 +24,8 @@ func _initialize() -> void:
 			_only = arg.substr(7).split(",")
 		elif arg.begins_with("--cols="):
 			COLS = int(arg.substr(7))
+		elif arg.begins_with("--weapon="):
+			_weapon = arg.substr(9)
 		elif arg == "--background":
 			root.unfocusable = true
 			root.position = Vector2i(-4000, -4000)
@@ -36,9 +40,16 @@ func _run() -> void:
 			names.append(n)
 	root.size = CELL
 	var sheet := Image.create(CELL.x * COLS, CELL.y * names.size(), false, Image.FORMAT_RGBA8)
+	# En un SubViewport de tamaño fijo: la ventana raíz puede acabar al tamaño de la pantalla
+	# (con --background o en pantallas HiDPI) y el recorte saldría mal.
+	var viewport := SubViewport.new()
+	viewport.size = CELL
+	viewport.own_world_3d = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(viewport)
 	var world := Node3D.new()
 	world.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	root.add_child(world)
+	viewport.add_child(world)
 	var env := WorldEnvironment.new()
 	env.environment = Environment.new()
 	env.environment.background_mode = Environment.BG_COLOR
@@ -68,6 +79,17 @@ func _run() -> void:
 	(model.get_node("AppearanceRig") as CharacterAppearanceRig).apply(CharacterAppearance.new())
 	var player: AnimationPlayer = model.get_node("AnimationPlayer")
 	player.add_animation_library(&"combat", library)
+	if _weapon != "":
+		# Como PlayerCombat: el puño cerrado (CombatPose) y el arma en su marco de agarre.
+		var pose := CombatPose.new()
+		pose.frame_node = model
+		pose.grip_right = true
+		model.get_node("Armature/Skeleton3D").add_child(pose)
+		var item: Node3D = load("res://scenes/items/weapons/combat/%s.tscn" % _weapon).instantiate()
+		item.top_level = true
+		world.add_child(item)
+		pose.after_pose = func(p: CombatPose) -> void:
+			item.global_transform = p.right_grip_xform
 	for row in names.size():
 		var anim_name := "combat/" + String(names[row])
 		var anim := player.get_animation(anim_name)
@@ -79,7 +101,7 @@ func _run() -> void:
 			await process_frame
 			cam.look_at_from_position(Vector3(-2.6, 1.5, 2.6), Vector3(0, 0.75, 0.3))
 			await RenderingServer.frame_post_draw
-			var img := root.get_texture().get_image()
+			var img := viewport.get_texture().get_image()
 			# Marca de tiempo en la esquina (en décimas), para elegir tramos.
 			var tenth := int(round(t * 10.0))
 			for d in range(mini(tenth, 60)):

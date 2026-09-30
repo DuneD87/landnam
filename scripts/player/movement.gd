@@ -9,6 +9,8 @@ const Config = preload("res://scripts/config.gd")
 const SWIM_TRANSITION_DELAY = 0.3
 
 @export var speed: float = 5.0
+## Velocidad al andar (el jugador la ajusta al ritmo de su animación de andar).
+@export var walk_speed: float = 0.6
 @export var swim_speed: float = 2.5
 @export var acceleration: float = 10.0
 @export var fall_speed_threshold: float = 5.0
@@ -37,6 +39,9 @@ var direction: Vector3 = Vector3.ZERO
 var speed_scale: float = 1.0
 var sprint_blocked: bool = false
 var jump_blocked: bool = false
+
+## Andar en vez de correr (el jugador lo alterna con walk_toggle). Esprintar sigue a su velocidad.
+var walking: bool = false
 
 ## Si true, get_input_direction() devuelve ai_direction en vez de leer Input (modo IA de los NPCs).
 var use_ai_input: bool = false
@@ -75,7 +80,9 @@ func handle_jump_movement(delta: float, gravity_strength: float, gravity_directi
 
 func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Vector3, camera: Camera3D, idle_animation: Config.ANIMATION, run_animation: Config.ANIMATION) -> Vector3:
 	var input_dir = get_input_direction(camera, gravity_direction)
-	update_movement(delta, input_dir)
+	var wants_sprint: bool = Input.is_action_pressed("Sprint") and input_dir.length() > 0.1 \
+		and not sprint_blocked and not use_ai_input
+	update_movement(delta, input_dir, walking and not wants_sprint)
 	
 	if is_swimming != was_swimming:
 		swim_transition_timer = SWIM_TRANSITION_DELAY
@@ -105,8 +112,10 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 		
 		if !is_running:
 			current_animation = Config.ANIMATION.SWIM_IDLE if use_swim_animations else idle_animation
+		elif use_swim_animations:
+			current_animation = Config.ANIMATION.SWIM
 		else:
-			current_animation = Config.ANIMATION.SWIM if use_swim_animations else run_animation
+			current_animation = Config.ANIMATION.WALK if walking else run_animation
 			
 	return input_dir
 
@@ -170,9 +179,9 @@ func get_input_direction(camera: Camera3D, gravity_dir: Vector3) -> Vector3:
 func project_on_plane(vector: Vector3, normal: Vector3) -> Vector3:
 	return vector - normal * vector.dot(normal)
 
-func update_movement(delta: float, direction_input: Vector3):
+func update_movement(delta: float, direction_input: Vector3, walk: bool = false):
 	direction = direction.lerp(direction_input, delta * acceleration)
 	if !is_swimming:
-		velocity = direction * speed * speed_scale
+		velocity = direction * (walk_speed if walk else speed) * speed_scale
 	else:
 		velocity = direction * swim_speed
