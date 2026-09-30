@@ -1224,6 +1224,28 @@ vec3 calculate_light(
 }
 
 
+// Efecto Purkinje: en penumbra los bastones dominan la visión → la escena pierde saturación y vira
+// a azul. Se decide por el OBSERVADOR (cámara en lado nocturno), no por píxel, y el peso mesópico
+// protege los píxeles brillantes (luna, antorchas, relámpagos), que conservan su color fotópico.
+// P(24) = tinte escotópico.rgb + fuerza.w. Es de la vista, no del aire: vale igual para los píxeles
+// cuyo rayo no cruza la atmósfera. Aplicado solo a los que la cruzan, en el crepúsculo visto desde
+// justo encima del aire su borde cortaba el cielo en seco (estrellas grises dentro, color fuera).
+vec3 purkinje(vec3 c, vec3 cam, vec3 center, vec3 sun_dir, float planet_r, float atmo_r) {
+	float strength = P(24).w;
+	if (strength <= 0.001) return c;
+	vec3 rel = cam - center;
+	float cam_dist = length(rel);
+	// Mismo gradiente ±0.15 del terminador que usa el resto del shader.
+	float night = 1.0 - smoothstep(-0.15, 0.05, dot(rel / max(cam_dist, EPSILON), sun_dir));
+	// Solo cerca del aire: desde el espacio no hay visión escotópica que simular.
+	night *= 1.0 - smoothstep(atmo_r, planet_r * 2.0, cam_dist);
+	if (night <= 0.001) return c;
+	float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+	float mesopic = 1.0 - smoothstep(0.02, 0.5, lum);
+	return mix(c, lum * P(24).rgb, strength * night * mesopic);
+}
+
+
 // ─────────────────────────────────────────────
 // AURORA VISTA DESDE FUERA. Desde dentro del aire la pinta el cielo (space_sky.gdshader, en el
 // marco del observador); al subir por encima de sus cortinas esa se apaga y entra esta, anclada
@@ -1469,7 +1491,8 @@ void main() {
 	dst_through_atmo = min(dst_through_atmo, max(scene_t - dst_to_atmo, 0.0));
 
 	if (dst_through_atmo <= 0.0) {
-		imageStore(color_image, pixel, vec4(scene_color.rgb * water.transmission + water.scatter + water_background, scene_color.a));
+		vec3 seen = purkinje(scene_color.rgb, camera_position, planet_center, sun_direction, planet_radius, atmo_radius);
+		imageStore(color_image, pixel, vec4(seen * water.transmission + water.scatter + water_background, scene_color.a));
 		return;
 	}
 
@@ -1689,25 +1712,8 @@ void main() {
 		light = light * fog_trans + fog_col;
 	}
 
-	// 4. Efecto Purkinje: en penumbra los bastones dominan la visión → la escena pierde
-	//    saturación y vira a azul. Se decide por el OBSERVADOR (cámara en lado nocturno),
-	//    no por píxel, y el peso mesópico protege los píxeles brillantes (luna, antorchas,
-	//    relámpagos), que conservan su color fotópico. P(24) = tinte escotópico.rgb + fuerza.w.
-	float purkinje_strength = P(24).w;
-	if (purkinje_strength > 0.001) {
-		vec3 obs_up = normalize(camera_position - planet_center);
-		float obs_sun = dot(obs_up, sun_direction);
-		// Mismo gradiente ±0.15 del terminador que usa el resto del shader.
-		float night = 1.0 - smoothstep(-0.15, 0.05, obs_sun);
-		// Solo dentro de la atmósfera: desde el espacio no hay visión escotópica que simular.
-		night *= 1.0 - smoothstep(atmo_radius, planet_radius * 2.0, cam_dist);
-		if (night > 0.001) {
-			float lum = dot(light, vec3(0.2126, 0.7152, 0.0722));
-			float mesopic = 1.0 - smoothstep(0.02, 0.5, lum);
-			vec3 scotopic = lum * P(24).rgb;
-			light = mix(light, scotopic, purkinje_strength * night * mesopic);
-		}
-	}
+	// 4. Efecto Purkinje (ver purkinje()).
+	light = purkinje(light, camera_position, planet_center, sun_direction, planet_radius, atmo_radius);
 
 	if (water.wet) light = uw_surface_radiance(light);
 	imageStore(color_image, pixel, vec4(light * water.transmission + water.scatter + water_background, scene_color.a));

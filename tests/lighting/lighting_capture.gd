@@ -61,6 +61,9 @@ var VIEWS := {
 	"space_aurora": {"dir": Vector3(0.36, 0.93, -0.08), "space": true, "distance": 62000.0},
 	"limb_aurora": {"dir": Vector3(0.62, 0.72, -0.30), "space": true, "distance": 36000.0,
 		"target": Vector3(-0.2, 0.98, 0.0)},
+	# Limbo mirando al sol desde justo encima del techo de la atmósfera. En el crepúsculo (civil,
+	# nautical) es donde se veía el borde del aire como una esfera nítida.
+	"limb_day_top": {"dir": Vector3(0.62, 0.30, -0.72), "space": true, "distance": 33200.0, "look": "sun", "pitch": -10.0},
 	"shore": {"dir": Vector3(0.623694, 0.241922, -0.74329), "look": "sea", "shore": true, "shore_back": 25.0, "yaw": 40.0, "pitch": -4.0, "height": 2.5},
 	# Cara de la luna que mira a la tierra, con la tierra en el encuadre.
 	"moon_surface": {"body": "moon", "dir": Vector3(0.35, 0.25, 0.9), "look": "earth", "pitch": 12.0, "height": 2.0},
@@ -425,7 +428,15 @@ func _place(view: Dictionary) -> void:
 		if view.has("target"):
 			target = center + (view["target"] as Vector3).normalized() * _body_radius(view)
 		var to := (target - pos).normalized()
+		if view.get("look", "") == "sun":
+			# Rumbo del sol en el horizonte local, con el cabeceo de la vista (negativo = abajo).
+			var sun := _sun_dir()
+			var flat_sun := (sun - up * sun.dot(up)).normalized()
+			var pitch := deg_to_rad(float(view.get("pitch", 0.0)))
+			to = flat_sun * cos(pitch) + up * sin(pitch)
 		var hint := Vector3.UP if absf(to.dot(Vector3.UP)) < 0.99 else Vector3.FORWARD
+		if view.get("look", "") == "sun":
+			hint = up
 		_camera.global_transform = Transform3D(Basis.looking_at(to, hint), pos)
 		_player.global_position = pos
 		return
