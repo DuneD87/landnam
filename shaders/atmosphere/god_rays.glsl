@@ -14,10 +14,10 @@ layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D occlusion_mask;
 layout(set = 0, binding = 3) uniform sampler2D depth_texture;
 
-// Mismo ParamsBuffer que planet_atmosphere.glsl: el tamaño (38) debe coincidir con
+// Mismo ParamsBuffer que planet_atmosphere.glsl: el tamaño (42) debe coincidir con
 // PARAM_VEC4_COUNT en planet_atmosphere.gd. Aquí se usan P(0)-P(10) y P(27)-P(32).
 layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
-	vec4 data[38];
+	vec4 data[42];
 } params_buffer;
 
 #include "../liquid/underwater_params.glslinc"

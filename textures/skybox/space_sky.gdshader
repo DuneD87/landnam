@@ -64,6 +64,9 @@ uniform float night_sky_visibility : hint_range(0.0, 1.0) = 1.0;
 // Aurora polar (0 = nada). La empuja SkyLighting según la latitud del observador y su actividad,
 // que sube y baja despacio. Solo se dibuja de noche (multiplica por night_sky_visibility).
 uniform float aurora_intensity : hint_range(0.0, 1.0) = 0.0;
+// Altura del observador sobre el suelo en unidades del pie de las cortinas (0 = suelo, 1 = pie,
+// ~1.49 = techo). Al subir, las capas que quedan por debajo dejan de verse.
+uniform float aurora_altitude = 0.0;
 uniform vec3 aurora_low_color = vec3(0.10, 1.0, 0.45);
 uniform vec3 aurora_high_color = vec3(0.75, 0.25, 0.85);
 // Radiancia del cielo para el pase de CUBEMAP, que no se ve: es la luz ambiente y los reflejos
@@ -477,6 +480,8 @@ vec3 ambient_sky(vec3 dir) {
 // ─────────────────────────────────────────────
 // ─────────────────────────────────────────────
 // AURORA: cortinas de luz sobre un techo a gran altura, en el marco local del observador (amb_up).
+// El techo está en la parte alta de la atmósfera (aurora_altitude): al subir hacia él las
+// cortinas se acercan y las capas que quedan por debajo desaparecen; por encima no hay aurora.
 // Ruido triangular retorcido (el de las auroras de nimitz, Shadertoy XtGGRt) que se desplaza
 // despacio; unas pocas capas apiladas dan la caída vertical de las cortinas, verdes abajo y
 // violáceas arriba.
@@ -519,7 +524,12 @@ vec3 aurora(vec3 ray, float t, vec2 frag) {
 	float dither = fract(sin(dot(frag, vec2(12.9898, 78.233))) * 43758.5453) * 0.006;
 	for (int i = 0; i < 32; i++) {
 		float fi = float(i);
-		float layer = (0.8 + pow(fi, 1.4) * 0.0032) / (elevation * 2.0 + 0.4) - dither * smoothstep(0.0, 10.0, fi);
+		// Altura de la capa sobre el observador: el pie de las cortinas está a 0.8.
+		float height = 0.8 + pow(fi, 1.4) * 0.0032 - 0.8 * aurora_altitude;
+		if (height <= 0.0) {
+			continue;
+		}
+		float layer = max(height / (elevation * 2.0 + 0.4) - dither * smoothstep(0.0, 10.0, fi), 0.0);
 		vec2 p = across * layer;
 		// Arcos: una o dos bandas que serpentean sobre el cielo; fuera de ellas no hay cortina.
 		float arc = p.y * 1.4 + sin(p.x * 1.3 + t * 0.02) * 0.35 + sin(p.x * 3.1 - t * 0.03) * 0.12;

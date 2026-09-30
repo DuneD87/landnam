@@ -41,6 +41,9 @@ const SKY_UNIFORMS := [
 const BAND_WEIGHTS := Vector3(0.25, 0.63, 0.12)
 ## Tono del cielo iluminado por la luna (dispersión de Rayleigh, como el de día).
 const MOON_SKY_TINT := Vector3(0.55, 0.7, 1.0)
+## Techo de las cortinas de aurora respecto a su pie: la capa más alta del shader
+## (0.8 + 31^1.4 * 0.0032 frente a 0.8 en aurora() de space_sky.gdshader).
+const AURORA_TOP_RATIO := 1.49
 
 @export var sun_light: DirectionalLight3D
 @export var moon_light: DirectionalLight3D
@@ -366,8 +369,18 @@ func _update(observer: Vector3, delta: float) -> void:
 		var moon_up := smoothstep(-0.05, 0.05, moon_sin)
 		var stars := _night_visibility * (1.0 - 0.35 * clampf(moon_raw / maxf(moon_energy, 0.0001), 0.0, 1.0) * moon_up)
 		_sky_material.set_shader_parameter(&"night_sky_visibility", clampf(stars, 0.0, 1.0))
+		# Aurora del cielo: la configura la atmósfera del cuerpo (JSON del planeta). Sus cortinas
+		# están a una altura fija: al subir se quedan debajo y por encima ya no hay en el cielo.
+		var atmo := home.atmosphere
+		var aurora_alt := INF
+		if atmo != null and atmo.aurora_enabled:
+			var thickness := maxf(atmo.atmosphere_radius - home.radius, 1.0)
+			aurora_alt = altitude / (thickness * atmo.aurora_base_height)
+			_sky_material.set_shader_parameter(&"aurora_low_color", _color_vec(atmo.aurora_low_color))
+			_sky_material.set_shader_parameter(&"aurora_high_color", _color_vec(atmo.aurora_high_color))
+		_sky_material.set_shader_parameter(&"aurora_altitude", minf(aurora_alt, AURORA_TOP_RATIO))
 		_sky_material.set_shader_parameter(&"aurora_intensity",
-			_aurora_intensity(home, up, weather_overcast) if home.atmosphere != null else 0.0)
+			_aurora_intensity(home, up, weather_overcast) if aurora_alt < AURORA_TOP_RATIO else 0.0)
 
 	sun_radiance = sun_rgb
 	moon_radiance = moon_rgb
@@ -384,6 +397,7 @@ func _update(observer: Vector3, delta: float) -> void:
 	RenderingServer.global_shader_parameter_set(&"sky_sun_glow_radiance", sun_rgb * sun_glow_reflection)
 
 	_update_atmosphere_moons(home, moon_dir, moon_raw * weather_sun, sun_dir)
+	_update_space_auroras(observer)
 
 	if collect_debug_state:
 		debug_state = {
@@ -729,17 +743,47 @@ static func _any_perpendicular(v: Vector3) -> Vector3:
 	return v.cross(ref).normalized()
 
 
-## Aurora del cielo del observador: óvalo alrededor de los polos (|latitud| de ~55 a ~80 grados,
-## en el marco del planeta), con una actividad que sube y baja en ciclos de decenas de minutos y
-## que las nubes tapan. night_sky_visibility (el sol bajo el horizonte) la multiplica en el shader.
+## Aurora del cielo del observador: óvalo alrededor de los polos (|latitud| de ~16° antes a ~20°
+## después de aurora_latitude, en el marco del planeta), con una actividad que sube y baja en ciclos
+## de decenas de minutos y que las nubes tapan. night_sky_visibility (el sol bajo el horizonte) la
+## multiplica en el shader.
 func _aurora_intensity(home: Body, up: Vector3, overcast: float) -> float:
 	var local_up: Vector3 = up
 	if home.loader != null and home.loader.get(&"voxel_terrain") is Node3D:
 		local_up = (home.loader.voxel_terrain as Node3D).global_basis.inverse() * up
 	var lat := rad_to_deg(asin(clampf(absf(local_up.normalized().y), 0.0, 1.0)))
-	var oval := smoothstep(52.0, 62.0, lat) * (1.0 - smoothstep(80.0, 88.0, lat))
+	var c := home.atmosphere.aurora_latitude
+	var oval := smoothstep(c - 16.0, c - 6.0, lat) * (1.0 - smoothstep(c + 12.0, c + 20.0, lat))
 	if oval <= 0.0:
 		return 0.0
-	var t := Time.get_ticks_msec() / 1000.0
-	var activity := 0.55 + 0.3 * sin(t * 0.0041) + 0.15 * sin(t * 0.0173 + 1.7)
+	var activity := _aurora_activity() * home.atmosphere.aurora_strength
 	return clampf(oval * activity * (1.0 - clampf(overcast, 0.0, 1.0) * 0.85), 0.0, 1.0)
+
+
+## Actividad de la aurora: sube y baja en ciclos de decenas de minutos. La comparten la del cielo
+## y la vista desde fuera.
+static func _aurora_activity() -> float:
+	var t := Time.get_ticks_msec() / 1000.0
+	return 0.55 + 0.3 * sin(t * 0.0041) + 0.15 * sin(t * 0.0173 + 1.7)
+
+
+## Aurora de cada cuerpo con atmósfera vista desde fuera de sus cortinas (el compute de atmósfera la
+## dibuja anclada al planeta). Entra mientras el observador sube por las cortinas, a la vez que la
+## del cielo se va quedando debajo, y desde otro cuerpo se ve entera.
+func _update_space_auroras(observer: Vector3) -> void:
+	var activity := _aurora_activity()
+	for body in _bodies:
+		var atmo := body.atmosphere
+		if atmo == null:
+			continue
+		var thickness := maxf(atmo.atmosphere_radius - body.radius, 1.0)
+		var base_h := thickness * atmo.aurora_base_height
+		var top_h := base_h * AURORA_TOP_RATIO
+		var altitude := observer.distance_to(body.center()) - body.radius
+		var fade := smoothstep(base_h, top_h, altitude) if atmo.aurora_enabled else 0.0
+		atmo.set_aurora(body.center_node.global_basis.y, activity * atmo.aurora_strength * fade,
+			Vector2(base_h, top_h))
+
+
+static func _color_vec(c: Color) -> Vector3:
+	return Vector3(c.r, c.g, c.b)

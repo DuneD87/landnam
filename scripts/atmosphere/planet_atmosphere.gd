@@ -7,7 +7,7 @@ const NOISE_GEN_SHADER_PATH := "res://shaders/atmosphere/cloud_noise_gen.glsl"
 ## Segundo pase (god rays screen-space). Comparte el UBO de params de este efecto.
 const GOD_RAYS_SHADER_PATH := "res://shaders/atmosphere/god_rays.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 38
+const PARAM_VEC4_COUNT := 42
 ## Lado de la textura 3D de ruido de nubes (RGBA8 → size³ × 4 bytes; 128 ≈ 8.4 MB de VRAM).
 const NOISE_TEX_SIZE := 128
 ## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
@@ -232,6 +232,23 @@ const GROUP_TEX_H := 128
 ## por distancia (negro = primer plano, blanco = cielo).
 @export_enum("Off:0", "Occlusion mask:1", "Rays only:2", "Depth falloff:3") var god_rays_debug: int = 0
 
+@export_group("Aurora")
+## Auroras polares: la del cielo del observador (space_sky.gdshader) y la vista desde fuera de sus
+## cortinas (este compute). Las gobierna SkyLighting con estos valores.
+@export var aurora_enabled: bool = true
+## Multiplicador de la actividad (que sube y baja sola en ciclos de decenas de minutos).
+@export_range(0.0, 4.0, 0.01) var aurora_strength: float = 1.0
+## Altura del pie de las cortinas, como fracción del grosor de la atmósfera. El techo queda
+## SkyLighting.AURORA_TOP_RATIO veces más arriba: por encima de 0.67 se saldría del aire.
+@export_range(0.05, 0.67, 0.01) var aurora_base_height: float = 0.6
+## Latitud del centro del óvalo (grados). Desde el suelo se ve de ~16° antes a ~20° después.
+@export_range(30.0, 85.0, 0.5) var aurora_latitude: float = 68.0
+## Brillo de la aurora vista desde fuera (una columna vertical; rasante al limbo sale más).
+@export_range(0.0, 10.0, 0.05) var aurora_space_gain: float = 2.2
+## Color del pie de las cortinas (verde del oxígeno) y de su parte alta (violeta).
+@export var aurora_low_color: Color = Color(0.10, 1.0, 0.45)
+@export var aurora_high_color: Color = Color(0.75, 0.25, 0.85)
+
 ## Escalas por evento climático que empuja el WeatherController. Sin exportar a propósito: así el
 ## inspector sigue siendo la referencia y un guardado del .tres no puede pisar el tuning.
 var god_rays_weather_strength: float = 1.0
@@ -251,6 +268,11 @@ var moon_color: Color = Color(0.62, 0.73, 1.0)
 ## Color de la luz del sol en el observador (normalizado), para los god rays: al atardecer los haces
 ## son naranjas. Lo empuja SkyLighting; blanco si nadie lo hace.
 var sun_tint: Color = Color(1.0, 1.0, 1.0)
+## Aurora vista desde fuera de sus cortinas, que empuja SkyLighting: eje del polo del planeta,
+## intensidad (0 = el compute no la recorre) y alturas del pie y del techo sobre la superficie.
+var aurora_pole: Vector3 = Vector3.UP
+var aurora_intensity: float = 0.0
+var aurora_heights: Vector2 = Vector2(1800.0, 2700.0)
 
 ## Espesor óptico vertical de la capa de ozono por ozone_strength (R, G, B a 700/530/440 nm: la
 ## banda de Chappuis absorbe verde y naranja y casi nada de azul). Ya en escala del camino al sol.
@@ -350,6 +372,16 @@ func set_moon_light(direction: Vector3, intensity: float, color: Vector3) -> voi
 		moon_direction = direction.normalized()
 	moon_intensity = maxf(intensity, 0.0)
 	moon_color = Color(color.x, color.y, color.z)
+	_params_mutex.unlock()
+
+
+## La empuja SkyLighting. `heights` = pie y techo de las cortinas sobre la superficie (m).
+func set_aurora(pole: Vector3, intensity: float, heights: Vector2) -> void:
+	_params_mutex.lock()
+	if pole.length_squared() > 0.000001:
+		aurora_pole = pole.normalized()
+	aurora_intensity = maxf(intensity, 0.0)
+	aurora_heights = Vector2(maxf(heights.x, 1.0), maxf(heights.y, heights.x + 1.0))
 	_params_mutex.unlock()
 
 
@@ -1005,6 +1037,13 @@ func _build_params_bytes(
 	var local_moon_intensity  := moon_intensity
 	var local_moon_color      := moon_color
 	var local_sun_tint        := sun_tint
+	var local_aurora_pole     := aurora_pole
+	var local_aurora_int      := aurora_intensity
+	var local_aurora_h        := aurora_heights
+	var local_aurora_low      := aurora_low_color
+	var local_aurora_high     := aurora_high_color
+	var local_aurora_gain     := aurora_space_gain
+	var local_aurora_oval     := cos(deg_to_rad(aurora_latitude))
 	_params_mutex.unlock()
 
 	var floats := PackedFloat32Array()
@@ -1169,6 +1208,16 @@ func _build_params_bytes(
 	_append_vec4(floats, Vector4(ozone.x, ozone.y, ozone.z, sun_path_scale))
 	# P(37): escala óptica de los rayos de cielo, curvatura efectiva, base y techo del ozono.
 	_append_vec4(floats, Vector4(sky_view_scale, sky_curvature, OZONE_LAYER.x, OZONE_LAYER.y))
+
+	# P(38-41): aurora vista desde fuera (ver AURORA VISTA DESDE FUERA en planet_atmosphere.glsl).
+	# P(38): eje del polo (.xyz) + intensidad (.w). P(39): pie y techo de las cortinas sobre la
+	# superficie, tiempo (envuelto: el ruido solo lo usa en senos y giros lentos), brillo.
+	# P(40): color bajo + radio del óvalo (seno de su colatitud). P(41): color alto.
+	var aurora_time := fmod(Time.get_ticks_msec() / 1000.0, 36000.0)
+	_append_vec4(floats, Vector4(local_aurora_pole.x, local_aurora_pole.y, local_aurora_pole.z, local_aurora_int))
+	_append_vec4(floats, Vector4(local_aurora_h.x, local_aurora_h.y, aurora_time, local_aurora_gain))
+	_append_vec4(floats, Vector4(local_aurora_low.r, local_aurora_low.g, local_aurora_low.b, local_aurora_oval))
+	_append_vec4(floats, Vector4(local_aurora_high.r, local_aurora_high.g, local_aurora_high.b, 0.0))
 
 	return floats.to_byte_array()
 

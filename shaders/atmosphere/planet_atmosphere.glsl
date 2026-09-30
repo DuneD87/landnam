@@ -7,10 +7,10 @@ layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D depth_texture;
 
 // UBO en vez de SSBO: todos los hilos leen los mismos parámetros, así que van por la
-// constant cache. El tamaño (38) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd
+// constant cache. El tamaño (42) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd
 // y con la declaración de god_rays.glsl, que comparte este mismo buffer.
 layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
-	vec4 data[38];
+	vec4 data[42];
 } params_buffer;
 
 // Rejilla de oclusión radial del WeatherOcclusionField (R = altura del techo de cueva). La niebla
@@ -1224,6 +1224,124 @@ vec3 calculate_light(
 }
 
 
+// ─────────────────────────────────────────────
+// AURORA VISTA DESDE FUERA. Desde dentro del aire la pinta el cielo (space_sky.gdshader, en el
+// marco del observador); al subir por encima de sus cortinas esa se apaga y entra esta, anclada
+// al planeta: una cáscara entre P(39).x y P(39).y sobre la superficie con el óvalo alrededor de
+// cada polo, extruido en vertical (cortinas). Se compone delante de las nubes, que quedan debajo.
+//   P(38): eje del polo (.xyz) + intensidad (.w; 0 = nada que hacer)
+//   P(39): .x = altura del pie de las cortinas, .y = altura del techo, .z = tiempo (s), .w = brillo
+//   P(40): color bajo (.rgb) + radio del óvalo (.w, seno de su colatitud), P(41): color alto (.rgb)
+// El ruido es el mismo de las cortinas del cielo (nimitz, Shadertoy XtGGRt) a la misma escala en
+// metros, para que el paso de una a otra no cambie el grano.
+// ─────────────────────────────────────────────
+float aurora_tri(float x) { return clamp(abs(fract(x) - 0.5), 0.01, 0.49); }
+vec2 aurora_tri2(vec2 p) { return vec2(aurora_tri(p.x) + aurora_tri(p.y), aurora_tri(p.y + aurora_tri(p.x))); }
+mat2 aurora_rot(float a) { float c = cos(a), s = sin(a); return mat2(vec2(c, s), vec2(-s, c)); }
+
+float aurora_noise(vec2 p, float t) {
+	float z = 1.8;
+	float z2 = 2.5;
+	float rz = 0.0;
+	p *= aurora_rot(p.x * 0.06);
+	vec2 bp = p;
+	mat2 drift = aurora_rot(t * 0.06);
+	for (int i = 0; i < 5; i++) {
+		vec2 dg = aurora_tri2(bp * 1.85) * 0.75;
+		dg *= drift;
+		p -= dg / z2;
+		bp *= 1.3;
+		z2 *= 0.45;
+		z *= 0.42;
+		p *= 1.21 + (rz - 1.0) * 0.02;
+		rz += aurora_tri(p.x + aurora_tri(p.y)) * z;
+		p *= mat2(vec2(-0.95534, -0.29552), vec2(0.29552, -0.95534));
+	}
+	return clamp(1.0 / pow(rz * 29.0, 1.3), 0.0, 0.55);
+}
+
+// Semiancho del óvalo, en seno de la colatitud (su centro va en P(40).w).
+const float AURORA_OVAL_W = 0.045;
+// Unidad del patrón del cielo en múltiplos de P(39).x: el pie de sus cortinas está a 0.8 unidades.
+const float AURORA_UNIT_PER_BASE = 1.25;
+
+// Emisión en el punto `p` (relativo al centro del planeta, `r` = su radio).
+vec3 aurora_emission(vec3 p, float r, float r_base, float r_top, vec3 pole, vec3 e1, vec3 e2,
+		vec2 oval_shift, vec3 sun_dir, float t) {
+	float h01 = (r - r_base) / (r_top - r_base);
+	if (h01 <= 0.0 || h01 >= 1.0) return vec3(0.0);
+	vec3 n = p / r;
+	float sl = dot(n, pole);
+	// Lejos del óvalo no hay nada: descarte barato por el seno de la colatitud (|q| sin el
+	// desplazamiento ni la ondulación, que suman menos de 0.15).
+	float sin_colat = sqrt(max(1.0 - sl * sl, 0.0));
+	if (abs(sin_colat - P(40).w) > 0.15 + 2.2 * AURORA_OVAL_W) return vec3(0.0);
+	// Solo en la noche del punto: de día el cielo iluminado la tapa.
+	float night = smoothstep(0.15, -0.1, dot(n, sun_dir));
+	if (night <= 0.0) return vec3(0.0);
+	float hemi = sl >= 0.0 ? 1.0 : -1.0;
+	// Proyección polar: |q| = seno de la colatitud. El óvalo se desplaza hacia el lado nocturno.
+	vec2 q = vec2(dot(n, e1), dot(n, e2) * hemi) - oval_shift * vec2(1.0, hemi);
+	float phi = atan(q.y, q.x);
+	float wig = 0.035 * sin(3.0 * phi + t * 0.011 + hemi)
+		+ 0.018 * sin(7.0 * phi - t * 0.023 + hemi * 2.0)
+		+ 0.008 * sin(13.0 * phi + t * 0.05);
+	float d = length(q) - (P(40).w + wig);
+	float env = exp(-pow(d / AURORA_OVAL_W, 2.0));
+	if (env < 0.01) return vec3(0.0);
+	// Arcos paralelos dentro del óvalo, como las bandas del cielo.
+	float arcs = exp(-pow((fract(d / 0.02 + 0.5) - 0.5) * 3.0, 2.0));
+	// Proyección en metros desde el polo, pasada a unidades del patrón del cielo (y su * 1.2).
+	vec2 np = vec2(dot(n, e1), dot(n, e2) * hemi) * (r_base / (AURORA_UNIT_PER_BASE * max(P(39).x, 1.0))) * 1.2;
+	float curtain = aurora_noise(np, t) * env * mix(0.15, 1.0, arcs);
+	// Perfil vertical: borde inferior nítido, verde intenso abajo y violeta tenue arriba.
+	float prof = smoothstep(0.0, 0.05, h01) * (0.2 + 0.8 * exp(-h01 * 4.0)) * (1.0 - smoothstep(0.75, 1.0, h01));
+	vec3 tone = mix(P(40).rgb, P(41).rgb, smoothstep(0.2, 0.8, h01));
+	return tone * (curtain * prof * night);
+}
+
+// Suma de la emisión a lo largo de un tramo del rayo.
+vec3 aurora_march(vec3 ro, vec3 rd, float t0, float t1, int steps, float jitter, vec3 center,
+		float r_base, float r_top, vec3 pole, vec3 e1, vec3 e2, vec2 oval_shift, vec3 sun_dir, float t) {
+	if (t1 <= t0 || steps <= 0) return vec3(0.0);
+	float dt = (t1 - t0) / float(steps);
+	vec3 sum = vec3(0.0);
+	for (int i = 0; i < steps; i++) {
+		vec3 p = ro + rd * (t0 + (float(i) + jitter) * dt) - center;
+		float r = length(p);
+		sum += aurora_emission(p, r, r_base, r_top, pole, e1, e2, oval_shift, sun_dir, t);
+	}
+	return sum * dt;
+}
+
+vec3 aurora_shell(vec3 ro, vec3 rd, float t_max, vec3 center, float planet_r, vec3 sun_dir, float jitter) {
+	float r_base = planet_r + P(39).x;
+	float r_top = planet_r + P(39).y;
+	vec2 top = ray_sphere(center, r_top, ro, rd);
+	if (top.y <= 0.0) return vec3(0.0);
+	float t0 = top.x;
+	float t1 = min(top.x + top.y, t_max);
+	if (t1 <= t0) return vec3(0.0);
+	vec3 pole = normalize(P(38).xyz);
+	vec3 e1 = normalize(cross(pole, abs(pole.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0)));
+	vec3 e2 = cross(pole, e1);
+	vec2 oval_shift = -vec2(dot(sun_dir, e1), dot(sun_dir, e2)) * 0.04;
+	float t = P(39).z;
+	// El hueco bajo el pie de las cortinas no se recorre: tramo de entrada y de salida.
+	vec2 base = ray_sphere(center, r_base, ro, rd);
+	float a1 = base.y > 0.0 ? min(t1, base.x) : t1;
+	float b0 = base.y > 0.0 ? max(t0, base.x + base.y) : t1;
+	const int STEPS = 40;
+	bool two = a1 > t0 && t1 > b0;
+	int steps_a = two ? STEPS / 2 : STEPS;
+	vec3 sum = aurora_march(ro, rd, t0, a1, steps_a, jitter, center, r_base, r_top, pole, e1, e2, oval_shift, sun_dir, t);
+	sum += aurora_march(ro, rd, b0, t1, STEPS - (a1 > t0 ? steps_a : 0), jitter, center, r_base, r_top, pole, e1, e2, oval_shift, sun_dir, t);
+	// Normalizada al grosor de la cáscara: una columna vertical vale lo que su perfil.
+	// Brillo de una columna vertical; rasante al limbo el rayo cruza muchas cortinas y sale más.
+	return sum * (P(39).w * P(38).w / (r_top - r_base));
+}
+
+
 void main() {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
 	ivec2 size = ivec2(P(0).xy);
@@ -1535,6 +1653,14 @@ void main() {
 		}
 
 		light = light * cloud_trans + cloud_col;
+	}
+
+	// 2b. Aurora vista desde fuera: por encima de las nubes, así que va delante de ellas.
+	if (P(38).w > 0.0) {
+		light += aurora_shell(
+			camera_position, ray_dir, dst_to_atmo + dst_through_atmo, planet_center,
+			planet_radius, sun_direction, ign_jitter(pixel, 11.0)
+		);
 	}
 
 	// 3. Niebla a ras de suelo — lo más cercano, se compone delante de todo. Su banco
