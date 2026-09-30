@@ -274,6 +274,19 @@ var aurora_pole: Vector3 = Vector3.UP
 var aurora_intensity: float = 0.0
 var aurora_heights: Vector2 = Vector2(1800.0, 2700.0)
 
+## Propiedades que no se configuran desde el JSON del planeta: las pisa el WeatherController en cada
+## evento (se ajustan en weather_events.json) o el PlanetAtmosphereController cada frame.
+const WEATHER_DRIVEN_PROPERTIES: Array[StringName] = [
+	&"clouds_enabled", &"cloud_coverage", &"cloud_density", &"cloud_absorption",
+	&"cloud_shadow_strength", &"cloud_albedo", &"atmosphere_scatter", &"cloud_min_height",
+	&"cloud_max_height", &"cloud_wind_speed", &"fog_density", &"fog_coverage",
+	&"fog_group_strength", &"fog_wind_speed", &"fog_floor_height", &"fog_top_height",
+	&"lightning_flash",
+]
+const CONTROLLER_DRIVEN_PROPERTIES: Array[StringName] = [
+	&"planet_center", &"planet_radius", &"atmosphere_radius", &"sun_direction",
+]
+
 ## Espesor óptico vertical de la capa de ozono por ozone_strength (R, G, B a 700/530/440 nm: la
 ## banda de Chappuis absorbe verde y naranja y casi nada de azul). Ya en escala del camino al sol.
 const OZONE_COLUMN := Vector3(0.0045, 0.016, 0.0007)
@@ -383,6 +396,56 @@ func set_aurora(pole: Vector3, intensity: float, heights: Vector2) -> void:
 	aurora_intensity = maxf(intensity, 0.0)
 	aurora_heights = Vector2(maxf(heights.x, 1.0), maxf(heights.y, heights.x + 1.0))
 	_params_mutex.unlock()
+
+
+## Aplica la sección "atmosphere_settings" del JSON del planeta: cada grupo ("look", "sky_model",
+## "clouds", "night", "fog", "cloud_quality", "god_rays", "aurora") es un diccionario de propiedades
+## de este efecto por su nombre. Los grupos solo ordenan el JSON; las claves de primer nivel que no
+## son diccionarios ("enabled", "atmosphere_height") las lee el PlanetLoader. Vector3 y Color van
+## como arrays ([r, g, b] o [r, g, b, a]); un Color también admite "#rrggbb".
+func apply_settings(settings: Dictionary) -> void:
+	for group in settings:
+		var props: Variant = settings[group]
+		if not props is Dictionary:
+			continue
+		for key in props:
+			var prop := StringName(key)
+			if prop in WEATHER_DRIVEN_PROPERTIES:
+				push_warning("PlanetAtmosphere: '%s.%s' lo fija el clima en cada evento (weather_events.json); se ignora." % [group, key])
+				continue
+			if prop in CONTROLLER_DRIVEN_PROPERTIES:
+				push_warning("PlanetAtmosphere: '%s.%s' lo pone el PlanetAtmosphereController; se ignora." % [group, key])
+				continue
+			var current: Variant = get(prop)
+			if current == null:
+				push_warning("PlanetAtmosphere: '%s.%s' no es una propiedad de la atmósfera." % [group, key])
+				continue
+			var value: Variant = _settings_value(props[key], typeof(current))
+			if value == null:
+				push_warning("PlanetAtmosphere: valor no válido para '%s.%s': %s" % [group, key, props[key]])
+				continue
+			set(prop, value)
+
+
+static func _settings_value(raw: Variant, type: int) -> Variant:
+	match type:
+		TYPE_BOOL:
+			return bool(raw) if raw is bool or raw is float or raw is int else null
+		TYPE_INT:
+			return int(raw) if raw is float or raw is int else null
+		TYPE_FLOAT:
+			return float(raw) if raw is float or raw is int else null
+		TYPE_STRING:
+			return str(raw)
+		TYPE_VECTOR3:
+			if raw is Array and raw.size() == 3:
+				return Vector3(raw[0], raw[1], raw[2])
+		TYPE_COLOR:
+			if raw is String and Color.html_is_valid(raw):
+				return Color.html(raw)
+			if raw is Array and (raw.size() == 3 or raw.size() == 4):
+				return Color(raw[0], raw[1], raw[2], raw[3] if raw.size() == 4 else 1.0)
+	return null
 
 
 ## La empuja SkyLighting: color de la luz del sol que ve el observador (el tono de los god rays).

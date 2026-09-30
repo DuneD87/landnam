@@ -321,6 +321,7 @@ func _load_planet() -> void:
 			sea_ice_floes.setup(water_shader, null, water_sphere.radius, players[0])
 
 	if not Engine.is_editor_hint():
+		_setup_atmosphere(planet_parser)
 		_setup_weather(planet_parser)
 
 	if world_map_enabled and not Engine.is_editor_hint():
@@ -435,10 +436,26 @@ func _apply_impostor_settings() -> void:
 		impostor.set(param, get("impostor_" + param))
 
 
-## Crea el sistema meteorológico si este planeta tiene atmósfera (controlador presente).
-func _setup_weather(planet_parser: PlanetParser) -> void:
+## Configura la atmósfera (el compute) con la sección "atmosphere_settings" del JSON: si la hay,
+## su grosor y todo su aspecto. Solo en juego: en el editor el .tres compartido quedaría sucio.
+func _setup_atmosphere(planet_parser: PlanetParser) -> void:
 	var atmo_ctrl: PlanetAtmosphereController = get_node_or_null("PlanetAtmosphereController")
 	if atmo_ctrl == null or atmo_ctrl.effect == null:
+		if planet_parser.atmosphere_enabled:
+			push_warning("'%s': el JSON pide atmósfera pero el planeta no tiene PlanetAtmosphereController." % name)
+		return
+	atmo_ctrl.effect.enabled = planet_parser.atmosphere_enabled
+	if not planet_parser.atmosphere_enabled:
+		return
+	atmo_ctrl.planet_radius = planet.radius
+	atmo_ctrl.atmosphere_height = planet_parser.atmosphere_height
+	atmo_ctrl.effect.apply_settings(planet_parser.atmosphere_settings)
+
+
+## Crea el sistema meteorológico si este planeta tiene atmósfera (controlador presente y activo).
+func _setup_weather(planet_parser: PlanetParser) -> void:
+	var atmo_ctrl: PlanetAtmosphereController = get_node_or_null("PlanetAtmosphereController")
+	if atmo_ctrl == null or atmo_ctrl.effect == null or not atmo_ctrl.effect.enabled:
 		return
 
 	weather_controller = WeatherController.new()

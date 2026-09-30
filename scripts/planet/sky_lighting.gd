@@ -220,7 +220,7 @@ func _refresh_bodies() -> void:
 		body.center_node = planet.voxel_terrain
 		body.radius = planet.radius
 		var ctrl := child.get_node_or_null("PlanetAtmosphereController") as PlanetAtmosphereController
-		body.atmosphere = ctrl.effect if ctrl != null else null
+		body.atmosphere = ctrl.effect if ctrl != null and ctrl.effect != null and ctrl.effect.enabled else null
 		body.albedo = atmosphere_body_albedo if body.atmosphere != null else airless_body_albedo
 		body.terrain_material = planet.shader_material
 		_bodies.append(body)

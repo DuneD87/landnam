@@ -54,13 +54,8 @@
 		"slope_height_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_height.png"
 	},
 	"atmosphere_settings": {
-		"atmosphere_height": 900.0,
-		"atmosphere_density": 0.03,
-		"scattering_wavelength": [300.0, 580.0, 700.0],
-		"atmosphere_modulate": [0.1, 0.3, 0.6],
-		"sun_path": "",
-		"sun_dir": [0, 1, 0],
-		"has_clouds": false
+		"enabled": false,
+		"atmosphere_height": 900.0
 	},
 	"vegetation_settings": {
 		"hemisphere_graph_function": [],

@@ -69,15 +69,13 @@ class_name PlanetParser extends Node3D
 @export var macro_variation_strength: float = 0.18
 
 @export_group("Atmosphere Settings")
-@export var atmosphere_radius: float
+## Sección "atmosphere_settings" del JSON: "enabled", "atmosphere_height" (grosor del aire sobre
+## la superficie) y los grupos de propiedades del PlanetAtmosphere (ver apply_settings).
+@export var atmosphere_enabled: bool = false
 @export var atmosphere_height: float
-@export var atmosphere_density: float
-@export var atmosphere_scattering: Vector3
-@export var atmosphere_modulate: Vector3
+@export var atmosphere_settings: Dictionary = {}
 @export var sun: DirectionalLight3D
-@export var sun_dir: Vector3
 @export var wind_direction: Vector3 = Vector3.ZERO
-@export var has_clouds: bool = true
 
 @export_group("Weather Settings")
 ## Bloque opcional "weather_settings" del JSON. Vacío = el WeatherController usa sus defaults.
@@ -319,41 +317,10 @@ func load_config(config_path: String):
 		return
 	print("DEBUG: Loaded slope height texture: " + biome_settings.slope_height_texture)
 	
-	var atmosphere_settings = config.get("atmosphere_settings", {})
-	print(atmosphere_settings)
-	if not atmosphere_settings.has_all(["atmosphere_height", "atmosphere_density"]):
-		push_error("DEBUG: Invalid atmosphere settings in config.")
-		return
-	
-	atmosphere_height = atmosphere_settings.atmosphere_height
-	atmosphere_density = atmosphere_settings.atmosphere_density
-	
-	atmosphere_scattering.x = atmosphere_settings.scattering_wavelength[0]
-	atmosphere_scattering.y = atmosphere_settings.scattering_wavelength[1]
-	atmosphere_scattering.z = atmosphere_settings.scattering_wavelength[2]
-	
-	atmosphere_modulate.x = atmosphere_settings.atmosphere_modulate[0]
-	atmosphere_modulate.y = atmosphere_settings.atmosphere_modulate[1]
-	atmosphere_modulate.z = atmosphere_settings.atmosphere_modulate[2]
-	
-	has_clouds = atmosphere_settings.has_clouds
-
-	print("DEBUG: Loaded atmosphere settings: height=", atmosphere_height, ", density=", atmosphere_density)
-	
-	if atmosphere_settings.has("sun_path") and atmosphere_settings.sun_path:
-		sun = get_node_or_null(atmosphere_settings.sun_path) as DirectionalLight3D
-		if not sun:
-			push_warning("DEBUG: Sun node not found at path: " + atmosphere_settings.sun_path)
-		else:
-			print("DEBUG: Loaded sun node at path: " + atmosphere_settings.sun_path)
-	
-	if atmosphere_settings.has("sun_dir") and atmosphere_settings.sun_dir.size() == 3:
-		sun_dir = Vector3(
-			atmosphere_settings.sun_dir[0],
-			atmosphere_settings.sun_dir[1],
-			atmosphere_settings.sun_dir[2]
-		)
-		print("DEBUG: Loaded sun_dir: ", sun_dir)
+	atmosphere_settings = config.get("atmosphere_settings", {})
+	atmosphere_enabled = bool(atmosphere_settings.get("enabled", false))
+	atmosphere_height = float(atmosphere_settings.get("atmosphere_height", 0.0))
+	print("DEBUG: Loaded atmosphere settings: enabled=", atmosphere_enabled, ", height=", atmosphere_height)
 
 	weather_settings = config.get("weather_settings", {})
 	print("DEBUG: Loaded weather settings: ", weather_settings)

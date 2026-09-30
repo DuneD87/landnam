@@ -172,25 +172,113 @@
 		]
 	},
 	"atmosphere_settings": {
-		"atmosphere_height": 1400.0,
-		"atmosphere_density": 0.045,
-		"scattering_wavelength": [
-			700.0,
-			530.0,
-			440.0
-		],
-		"atmosphere_modulate": [
-			0.59,
-			0.64,
-			0.99
-		],
-		"sun_path": "",
-		"sun_dir": [
-			0.0,
-			0.0,
-			0.0
-		],
-		"has_clouds": false
+		"enabled": true,
+		"atmosphere_height": 3000.0,
+		"look": {
+			"wavelengths": [
+				700.0,
+				530.0,
+				440.0
+			],
+			"density_falloff": 4.0,
+			"scattering_strength": 0.55,
+			"sun_intensity": 20.0
+		},
+		"sky_model": {
+			"mie_strength": 0.04,
+			"mie_g": 0.85,
+			"mie_height_ratio": 3.0,
+			"ozone_strength": 2.5,
+			"sun_path_scale": 4.5,
+			"sky_view_scale": 9.0,
+			"sky_curvature": 16.0,
+			"multiple_scattering": 0.06,
+			"space_scatter_scale": 0.35
+		},
+		"clouds": {
+			"cloud_g": 0.99,
+			"cloud_noise_scale": 150.0,
+			"cloud_shape_ratio": 0.2,
+			"cloud_size_variation": 1.0,
+			"cloud_wind_direction": [
+				1.0,
+				0.0,
+				0.0
+			],
+			"cloud_edge_softness": 0.08,
+			"cloud_field_sigma": 0.455,
+			"cloud_group_strength": 2.99,
+			"cloud_group_scale": 4.5,
+			"cloud_group_contrast": 0.6,
+			"cloud_group_front_strength": 0.5,
+			"cloud_group_density_variation": 0.45
+		},
+		"cloud_quality": {
+			"cloud_steps": 10,
+			"cloud_light_steps": 4,
+			"cloud_shadow_steps": 8
+		},
+		"fog": {
+			"fog_enabled": true,
+			"fog_color": [
+				0.82,
+				0.84,
+				0.88
+			],
+			"fog_night_ambient": 0.08,
+			"fog_noise_scale": 2.0,
+			"fog_steps": 12,
+			"fog_view_distance": 25.0,
+			"fog_occlusion_softness": 15.0
+		},
+		"night": {
+			"purkinje_strength": 0.65,
+			"purkinje_tint": [
+				0.45,
+				0.6,
+				1.0
+			]
+		},
+		"god_rays": {
+			"god_rays_enabled": true,
+			"god_rays_exposure": 0.02,
+			"god_rays_tint": [
+				1.0,
+				0.92,
+				0.78
+			],
+			"god_rays_max_angle": 85.0,
+			"god_rays_angle_falloff": 1.2,
+			"god_rays_density": 0.85,
+			"god_rays_max_length": 0.6,
+			"god_rays_decay": 0.96,
+			"god_rays_samples": 48,
+			"god_rays_blur": 0.006,
+			"god_rays_shimmer": 0.35,
+			"god_rays_shimmer_size": 60.0,
+			"god_rays_shimmer_speed": 0.05,
+			"god_rays_wobble": 0.02,
+			"god_rays_scatter_distance": 150.0,
+			"god_rays_occluder_distance": 20.0,
+			"god_rays_edge_fade": 0.15
+		},
+		"aurora": {
+			"aurora_enabled": true,
+			"aurora_strength": 1.0,
+			"aurora_base_height": 0.6,
+			"aurora_latitude": 68.0,
+			"aurora_space_gain": 2.2,
+			"aurora_low_color": [
+				0.1,
+				1.0,
+				0.45
+			],
+			"aurora_high_color": [
+				0.75,
+				0.25,
+				0.85
+			]
+		}
 	},
 	"vegetation_settings": {
 		"hemisphere_graph_function": [
