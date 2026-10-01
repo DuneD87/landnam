@@ -51,6 +51,17 @@ var gravity: Vector3 = Vector3(0, -9.8, 0)
 var world_mask: int = 1
 ## Cuerpo que no debe tocar (el del jugador).
 var exclude_body: PhysicsBody3D
+## Huesos que ya no están (miembros cercenados): no llevan cuerpo, ni tampoco las piezas que van
+## pegadas a ellos (la mano de un antebrazo cortado).
+var skip_bones: PackedStringArray = []
+## Si no está vacío, solo se simulan estos segmentos (un miembro cercenado, SeveredLimb).
+var only_parts: PackedStringArray = []
+## Hueso → punto (mundo) donde empieza su segmento en vez de en su articulación: el corte de un
+## miembro cercenado. Pesa en proporción a lo que queda.
+var segment_start: Dictionary = {}
+## Huesos que siguen a su cuerpo también en posición, no solo en giro: la raíz de una pieza suelta,
+## cuyo hueso padre se ha quedado en el cuerpo.
+var root_bones: PackedStringArray = []
 
 var _skel: Skeleton3D
 var _root: Node3D
@@ -88,13 +99,20 @@ func start(velocity: Vector3 = Vector3.ZERO, push: Vector3 = Vector3.ZERO) -> vo
 	for part in PARTS:
 		var bone := _skel.find_bone(part[0])
 		var tip := _skel.find_bone(part[1])
-		if bone < 0 or tip < 0:
+		if bone < 0 or tip < 0 or skip_bones.has(part[0]):
+			continue
+		if not only_parts.is_empty() and not only_parts.has(part[0]):
 			continue
 		var p0 := skel_xf * _skel.get_bone_global_pose(bone).origin
 		var p1 := skel_xf * _skel.get_bone_global_pose(tip).origin
+		var mass: float = part[3]
+		if segment_start.has(part[0]):
+			var start_at: Vector3 = segment_start[part[0]]
+			mass *= clampf(start_at.distance_to(p1) / maxf(p0.distance_to(p1), 1e-4), 0.3, 1.0)
+			p0 = start_at
 		var body := RigidBody3D.new()
 		body.name = String(part[0]).trim_prefix("mixamorig_")
-		body.mass = part[3]
+		body.mass = mass
 		body.gravity_scale = 0.0
 		body.linear_damp = 0.15
 		body.angular_damp = 2.5
@@ -109,9 +127,11 @@ func start(velocity: Vector3 = Vector3.ZERO, push: Vector3 = Vector3.ZERO) -> vo
 		body.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 		_root.add_child(body)
 		body.global_transform = _segment_xform(p0, p1)
+		# Los cuerpos van sueltos en el mundo: se mueven con el origen flotante por su cuenta.
+		body.add_to_group(&"floating_origin")
 		_add_capsule(body, p0, p1, part[2])
 		for extra in EXTRA_SHAPES:
-			if extra[0] == part[0]:
+			if extra[0] == part[0] and not skip_bones.has(extra[1]):
 				var a := _skel.find_bone(extra[1])
 				var b := _skel.find_bone(extra[2])
 				if a >= 0 and b >= 0:
@@ -138,6 +158,16 @@ func start(velocity: Vector3 = Vector3.ZERO, push: Vector3 = Vector3.ZERO) -> vo
 	_blend = 0.0
 	_time = 0.0
 	active = true
+
+
+## Los cuerpos rígidos del muñeco.
+func bodies() -> Array:
+	return _bone_of.keys()
+
+
+## El cuerpo del segmento de [bone_name], o null.
+func body_for(bone_name: StringName) -> RigidBody3D:
+	return _bodies.get(_skel.find_bone(bone_name)) if _skel != null else null
 
 
 ## Dónde está el muñeco (la pelvis), en mundo.
@@ -290,7 +320,7 @@ func _process_modification_with_delta(delta: float) -> void:
 		var local: Transform3D = want
 		if parent >= 0:
 			local = _skel.get_bone_global_pose(parent).affine_inverse() * want
-		else:
+		if parent < 0 or root_bones.has(_skel.get_bone_name(bone)):
 			_skel.set_bone_pose_position(bone, _skel.get_bone_pose_position(bone).lerp(local.origin, _blend))
 		var q: Quaternion = local.basis.orthonormalized().get_rotation_quaternion()
 		_skel.set_bone_pose_rotation(bone, _skel.get_bone_pose_rotation(bone).slerp(q, _blend))

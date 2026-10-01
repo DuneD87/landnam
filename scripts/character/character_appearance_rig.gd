@@ -600,6 +600,8 @@ func _setup() -> bool:
 		var instance := MeshInstance3D.new()
 		instance.name = "Human" + String(slot).capitalize()
 		instance.visible = false
+		# Ojos, pelo, dientes...: no llegan a ningún miembro que se pueda cercenar (Dismemberment).
+		instance.set_meta(&"no_dismember", true)
 		_skeleton.add_child(instance)
 		instance.skeleton = instance.get_path_to(_skeleton)
 		instance.lod_bias = _body.lod_bias

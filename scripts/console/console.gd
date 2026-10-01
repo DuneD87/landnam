@@ -256,7 +256,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>",
 		"Teletransporta al jugador a una posición global.", _cmd_tp, 3))
 	_add(ConsoleCommand.new("heal", "heal [cantidad]",
-		"Cura al jugador (sin argumento, cura al máximo).", _cmd_heal))
+		"Cura al jugador (sin argumento, cura al máximo, cierra las heridas y le devuelve los miembros).", _cmd_heal))
 	_add(ConsoleCommand.new("god", "god [on|off]",
 		"Invulnerabilidad del jugador (sin argumento, alterna).", _cmd_god))
 	_add(ConsoleCommand.new("noclip", "noclip",
@@ -289,6 +289,12 @@ func _register_commands() -> void:
 		"Suelta animales delante del jugador (el oso es hostil: sirve para probar el combate).", _cmd_spawn, 1, _complete_animals))
 	_add(ConsoleCommand.new("morir", "morir",
 		"Mata al jugador (prueba la muerte y la vuelta al último punto guardado).", _cmd_die))
+	_add(ConsoleCommand.new("mutilar", "mutilar [0-1|auto]",
+		"Probabilidad de que un tajo en un brazo o una pierna lo cercene (auto: la natural). Sin argumento, informa.", _cmd_mutilate))
+	_add(ConsoleCommand.new("sangre", "sangre",
+		"Cuántos charcos y salpicaduras de sangre hay y a qué distancia está el más cercano.", _cmd_blood))
+	_add(ConsoleCommand.new("cortar", "cortar [brazo|antebrazo|muslo|pierna] [izq|der]",
+		"Cercena un miembro del jugador al momento (sin argumentos, uno al azar).", _cmd_cut, 0, _complete_cuts))
 	_add(ConsoleCommand.new("fps", "fps [n]",
 		"Techo de FPS (0 = sin techo), para fijar el ritmo mientras se mide.", _cmd_fps))
 
@@ -432,6 +438,9 @@ func _cmd_heal(args: PackedStringArray) -> String:
 	if args.size() >= 1 and args[0].is_valid_float():
 		amount = args[0].to_float()
 	hc.heal(amount)
+	var combat := _get_combat()
+	if args.is_empty() and combat != null and combat.body_damage != null:
+		combat.body_damage.restore()
 	return "[color=%s]Curado +%s (salud: %s/%s).[/color]" % [COLOR_OK, str(amount), str(hc.health), str(hc.max_health)]
 
 
@@ -670,6 +679,56 @@ func _cmd_die(_args: PackedStringArray) -> String:
 	hc.invincible = false
 	hc.take_damage(hc.health + 1.0)
 	return "[color=%s]Has muerto.[/color]" % COLOR_OK
+
+
+func _get_combat() -> PlayerCombat:
+	var player := _get_player() as PlayerController
+	return player.combat if player != null else null
+
+
+func _cmd_blood(_args: PackedStringArray) -> String:
+	var player := _get_player() as Node3D
+	if player == null:
+		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+	return "[color=%s]%s[/color]" % [COLOR_OK, BloodPool.report(player.global_position)]
+
+
+func _cmd_mutilate(args: PackedStringArray) -> String:
+	if not args.is_empty():
+		if args[0].to_lower() == "auto":
+			BodyDamage.sever_chance = -1.0
+		elif args[0].is_valid_float():
+			BodyDamage.sever_chance = clampf(args[0].to_float(), 0.0, 1.0)
+		else:
+			return "[color=%s]Uso: mutilar [0-1|auto].[/color]" % COLOR_ERR
+	var chance := BodyDamage.sever_chance
+	if chance < 0.0:
+		return "[color=%s]Cercenar: natural (solo si el tajo deja el miembro bajo cero).[/color]" % COLOR_OK
+	return "[color=%s]Cercenar: %d %% de los tajos en brazos y piernas.[/color]" % [COLOR_OK, roundi(chance * 100.0)]
+
+
+const CUT_PARTS := {"brazo": ["arm", true], "antebrazo": ["arm", false], "muslo": ["leg", true],
+	"pierna": ["leg", false]}
+
+
+func _complete_cuts() -> PackedStringArray:
+	return PackedStringArray(CUT_PARTS.keys())
+
+
+func _cmd_cut(args: PackedStringArray) -> String:
+	var combat := _get_combat()
+	if combat == null or combat.body_damage == null:
+		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+	var part: String = args[0].to_lower() if args.size() >= 1 else CUT_PARTS.keys().pick_random()
+	if not CUT_PARTS.has(part):
+		return "[color=%s]Parte desconocida. Uso: cortar [brazo|antebrazo|muslo|pierna] [izq|der].[/color]" % COLOR_ERR
+	var side: String = args[1].to_lower() if args.size() >= 2 else ["izq", "der"].pick_random()
+	var zone := StringName(("left_" if side.begins_with("i") else "right_") + String(CUT_PARTS[part][0]))
+	if SettingsManager.gore_level() != SettingsManager.GORE_FULL:
+		return "[color=%s]Las mutilaciones están desactivadas en Opciones > Juego.[/color]" % COLOR_ERR
+	if not combat.body_damage.sever_zone(zone, CUT_PARTS[part][1]):
+		return "[color=%s]Ese miembro ya está cortado (heal lo devuelve).[/color]" % COLOR_ERR
+	return "[color=%s]Cercenado: %s %s.[/color]" % [COLOR_OK, part, "izquierdo" if side.begins_with("i") else "derecho"]
 
 
 func _complete_item_ids() -> PackedStringArray:

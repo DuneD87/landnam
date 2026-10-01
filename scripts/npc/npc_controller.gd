@@ -64,6 +64,9 @@ var _life_id: int = 0
 const NPC_LIVE_LAYER := 2
 ## Una de cada cuántas actualizaciones de IA corre cuando la criatura está lejos.
 const AI_STRIDE_FAR := 4
+## El charco bajo el cadáver: cuándo sale tras morir (s, ya caído) y lo que tarda en extenderse (s).
+const BLEED_OUT_DELAY := 1.6
+const BLEED_OUT_GROW := 16.0
 
 func _ready() -> void:
 	safe_margin = 0.008
@@ -269,6 +272,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	var settings := profile as GroundFaunaProfile
 	corpse_duration = settings.corpse_duration if settings != null else 0.0
 	_life_id += 1
+	BloodStains.clear(self)
 	is_dead = false
 	_is_dying = false
 	is_hit = false
@@ -377,9 +381,24 @@ func _on_died() -> void:
 		return
 	ai_controller.transition_to(&"DeathState")
 	var life := _life_id
+	_bleed_out(life)
 	get_tree().create_timer(corpse_duration).timeout.connect(
 		func(): if is_instance_valid(self) and _life_id == life: _retire()
 	)
+
+
+## El cadáver se desangra: ya en el suelo, un charco debajo que se va extendiendo, a la medida de
+## la criatura.
+func _bleed_out(life: int) -> void:
+	await get_tree().create_timer(BLEED_OUT_DELAY).timeout
+	if not is_instance_valid(self) or _life_id != life or not is_dead:
+		return
+	var size := 1.0
+	var capsule := collision_shape.shape as CapsuleShape3D if collision_shape != null else null
+	if capsule != null:
+		size = clampf(capsule.radius * 8.0, 1.5, 3.8)
+	var at := collision_shape.global_position if collision_shape != null else global_position
+	BloodPool.spawn(self, at, gravity_direction * 9.8, size, BLEED_OUT_GROW, 1)
 
 
 ## Fin del cadáver: al pool si lo gobierna un spawner, o fuera de la escena si es suelto.

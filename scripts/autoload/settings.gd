@@ -16,6 +16,10 @@ enum Upscaler {BILINEAR, FSR1, FSR2}
 enum Antialiasing {OFF, FXAA, MSAA_2X, MSAA_4X, TAA}
 enum Preset {LOW, MEDIUM, HIGH, ULTRA}
 const PRESET_CUSTOM := -1
+## Sangre y mutilaciones ("game/gore"): nada de sangre, sangre sin cercenar, o todo.
+const GORE_OFF := 0
+const GORE_BLOOD := 1
+const GORE_FULL := 2
 
 const AUDIO_BUSES: Array[StringName] = [&"Master", &"Music", &"SFX", &"Ambient", &"UI", &"Voice"]
 
@@ -53,6 +57,7 @@ const DEFAULTS := {
 	"audio/Ambient": 1.0,
 	"audio/UI": 1.0,
 	"audio/Voice": 1.0,
+	"game/gore": GORE_FULL,
 	"controls/mouse_sensitivity": 1.0,
 	"controls/invert_y": false,
 	## Acción -> eventos serializados, solo de las acciones que el jugador ha cambiado.
@@ -159,6 +164,11 @@ static func value(key: String) -> Variant:
 ## Índice de una opción por niveles, acotado a los que tiene su tabla.
 static func level(key: String, count: int) -> int:
 	return clampi(int(value(key)), 0, count - 1)
+
+
+## Cuánto gore se ve (GORE_OFF, GORE_BLOOD o GORE_FULL).
+static func gore_level() -> int:
+	return level("game/gore", 3)
 
 
 static func grass_density_scale() -> float:

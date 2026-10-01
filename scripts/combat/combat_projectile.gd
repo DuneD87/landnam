@@ -161,7 +161,7 @@ func _hit_hurtbox(box: Hurtbox, point: Vector3) -> void:
 	info.knockback = 0.3 if kind == Kind.SPEAR else 0.0
 	var applied := box.receive(info)
 	if applied > 0.0:
-		CombatFx.blood(box.owner_body, point, velocity)
+		CombatFx.blood(box.owner_body, point, velocity, info.kind, info.amount)
 	CombatFx.impact(self, point, damage_kind, true)
 	AmbientAnimal.startle_near(get_tree(), point, STARTLE_RADIUS)
 	if kind == Kind.STONE:

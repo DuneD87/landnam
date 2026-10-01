@@ -278,7 +278,7 @@ func _sweep_hit(hit: Dictionary, sweeps: Array) -> void:
 			info.knockback = hit.knockback
 			var applied := box.receive(info)
 			if applied > 0.0:
-				CombatFx.blood(box.owner_body, result.point, dir)
+				CombatFx.blood(box.owner_body, result.point, dir, ItemData.DamageKind.SLASH, hit.damage)
 				CombatFx.impact(npc, result.point, ItemData.DamageKind.SLASH, true)
 
 

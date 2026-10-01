@@ -1,7 +1,8 @@
 # Opciones del juego
 
-Pantalla de opciones (`scripts/ui/menu/options_screen.gd`) con cuatro pestañas: Pantalla, Gráficos,
-Audio y Controles. Se abre con el botón *Options* del menú principal, que en partida hace de menú de
+Pantalla de opciones (`scripts/ui/menu/options_screen.gd`) con cinco pestañas: Pantalla, Gráficos,
+Audio, Controles y Juego (de momento, cuánta sangre y si se cercenan miembros; ver
+[combat.md](combat.md)). Se abre con el botón *Options* del menú principal, que en partida hace de menú de
 pausa (Escape). Los cambios se ven al momento; *Aceptar* o Escape los guardan en
 `user://settings.cfg` y *Cancelar* vuelve a como estaba todo al abrir. Un cambio de ventana pide
 confirmación y se deshace solo a los 10 s.

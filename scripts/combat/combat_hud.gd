@@ -1,7 +1,7 @@
 class_name CombatHUD
 extends CanvasLayer
 
-## Interfaz de combate: vida y aguante arriba a la izquierda (con el tramo perdido que se vacía
+## Interfaz de combate: vida y aguante arriba a la derecha (con el tramo perdido que se vacía
 ## con retraso, como en los souls), marca del objetivo fijado, barras de vida sobre los enemigos
 ## tocados, mira al apuntar con la tensión y la munición, destello rojo al recibir, la pantalla
 ## de muerte y los fundidos a negro de la reaparición.
@@ -15,6 +15,13 @@ const FRAME := Color(0.03, 0.03, 0.03, 0.78)
 const BAR_BACK := Color(0.10, 0.09, 0.08, 0.7)
 ## Segundos que se ve la barra de una criatura después de golpearla.
 const ENEMY_BAR_TIME := 6.0
+const BLOOD_LOSS_SHADER := preload("res://shaders/combat/blood_loss.gdshader")
+## Distancia de las barras a la esquina de arriba a la derecha (en la escala base de 1440).
+const HUD_MARGIN := Vector2(48, 44)
+## Desangrarse: a cuánta sangre perdida por segundo llega al máximo, y por debajo de qué vida empieza
+## (y en qué tramo llega al máximo).
+const LOSS_FULL_BLEED := 2.0
+const LOSS_LOW_HEALTH := Vector2(0.35, 0.25)
 
 var combat: PlayerCombat
 var _canvas: Control
@@ -32,6 +39,10 @@ var _damage_flash: float = 0.0
 var _enemy_seen: Dictionary = {}
 var _enemy_trail: Dictionary = {}
 var _death_shown: bool = false
+## Desangrarse: el mundo pierde color y los bordes laten (blood_loss.gdshader), con el corazón.
+var _blood_loss: ColorRect
+var _loss: float = 0.0
+var _beat: float = 0.0
 
 
 func setup(owner_combat: PlayerCombat) -> void:
@@ -44,6 +55,18 @@ func setup(owner_combat: PlayerCombat) -> void:
 	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_canvas.draw.connect(_on_draw)
 	add_child(_canvas)
+
+	# Debajo de todo lo demás de la capa: las barras no pierden el color.
+	_blood_loss = ColorRect.new()
+	_blood_loss.name = "BloodLoss"
+	_blood_loss.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_blood_loss.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var loss_material := ShaderMaterial.new()
+	loss_material.shader = BLOOD_LOSS_SHADER
+	_blood_loss.material = loss_material
+	_blood_loss.visible = false
+	add_child(_blood_loss)
+	move_child(_blood_loss, 0)
 
 	_vignette = TextureRect.new()
 	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -124,6 +147,7 @@ func _relayout() -> void:
 	var size := get_viewport().get_visible_rect().size
 	_scale = clampf(size.y / 1440.0, 0.5, 2.0)
 	_vignette.size = size
+	_blood_loss.size = size
 	_fade.size = size
 	var band_h := 260.0 * _scale
 	_death_band.position = Vector2(0, size.y * 0.5 - band_h * 0.5)
@@ -168,8 +192,38 @@ func _process(delta: float) -> void:
 	_st_flash = maxf(0.0, _st_flash - delta * 2.5)
 	_damage_flash = maxf(0.0, _damage_flash - delta * 1.8)
 	_vignette.modulate.a = _damage_flash
+	_update_blood_loss(delta)
 	_update_ammo()
 	_canvas.queue_redraw()
+
+
+## Cuánto se está desangrando (sangre perdida por segundo, o poca vida) y el latido: el corazón
+## se acelera con ello, y por encima de un poco se oye.
+func _update_blood_loss(delta: float) -> void:
+	var health := combat.player.health_component
+	var damage := combat.body_damage
+	var target := 0.0
+	if not health.is_dead and damage != null:
+		var bleeding := clampf(damage.bleed_rate() / LOSS_FULL_BLEED, 0.0, 1.0) * 0.8
+		var weak := clampf((LOSS_LOW_HEALTH.x - health.get_health_ratio()) / LOSS_LOW_HEALTH.y, 0.0, 1.0)
+		target = maxf(bleeding, weak)
+	_loss = move_toward(_loss, target, delta * 0.5)
+	_blood_loss.visible = _loss > 0.01
+	if not _blood_loss.visible:
+		return
+	var bpm := lerpf(70.0, 140.0, _loss)
+	var before := _beat
+	_beat = fmod(_beat + delta * bpm / 60.0, 1.0)
+	if _beat < before and _loss > 0.25:
+		CombatFx.play(&"heartbeat", combat.player.global_position, {"volume_offset_db": lerpf(-12.0, 0.0, _loss)})
+	# "Pum-pum": el segundo golpe va 0,17 s después del primero, como en el sonido.
+	var dub := 0.17 * bpm / 60.0
+	var pulse := exp(-_beat * 14.0)
+	if _beat >= dub:
+		pulse += 0.6 * exp(-(_beat - dub) * 14.0)
+	var mat := _blood_loss.material as ShaderMaterial
+	mat.set_shader_parameter("amount", _loss)
+	mat.set_shader_parameter("pulse", clampf(pulse, 0.0, 1.0))
 
 
 func _update_ammo() -> void:
@@ -215,6 +269,7 @@ func _on_draw() -> void:
 	if combat.player.free_flight_enabled or not combat.player.visible:
 		return
 	_draw_player_bars()
+	_draw_body()
 	_draw_enemy_bars()
 	_draw_lock()
 	_draw_crosshair()
@@ -231,19 +286,83 @@ func _bar(pos: Vector2, size: Vector2, fill: float, trail: float, color: Color, 
 	_canvas.draw_rect(Rect2(pos, Vector2(size.x * clampf(fill, 0.0, 1.0), size.y * 0.35)), Color(1, 1, 1, 0.10))
 
 
+## Las barras van pegadas al margen derecho (a la izquierda está el panel de rendimiento): si sube
+## el máximo, crecen hacia dentro.
 func _draw_player_bars() -> void:
 	var health := combat.player.health_component
-	var origin := Vector2(48, 44) * _scale
+	var right := get_viewport().get_visible_rect().size.x - HUD_MARGIN.x * _scale
 	var per_point := 3.4 * _scale
 	var hp_size := Vector2(health.max_health * per_point, 14.0 * _scale)
+	var origin := Vector2(right - hp_size.x, HUD_MARGIN.y * _scale)
 	_bar(origin, hp_size, health.get_health_ratio(), _hp_trail, HP_COLOR, HP_TRAIL)
 	var st := combat.stamina
 	var st_size := Vector2(st.max_stamina * per_point, 10.0 * _scale)
+	origin.x = right - st_size.x
 	var st_color := ST_COLOR
 	if st.exhausted:
 		st_color = ST_COLOR.darkened(0.45)
 	st_color = st_color.lerp(Color(0.85, 0.75, 0.3), _st_flash)
 	_bar(origin + Vector2(0, 26 * _scale), st_size, st.get_ratio(), 0.0, st_color, st_color)
+
+
+## Silueta de espaldas (como se ve al personaje) bajo las barras, con cada parte del cuerpo del color
+## de su estado; solo cuando hay algo herido. Un miembro perdido queda en contorno con el muñón rojo,
+## y una gota late mientras sangra.
+const BODY_SHAPES := {
+	&"head": Rect2(15, 0, 12, 13),
+	&"chest": Rect2(12, 15, 18, 15),
+	&"stomach": Rect2(13, 31, 16, 12),
+	&"left_arm": Rect2(4, 16, 7, 30),
+	&"right_arm": Rect2(31, 16, 7, 30),
+	&"left_leg": Rect2(12, 45, 8, 38),
+	&"right_leg": Rect2(22, 45, 8, 38),
+}
+
+
+func _draw_body() -> void:
+	var damage := combat.body_damage
+	if damage == null or not damage.is_hurt():
+		return
+	var s := 1.15 * _scale
+	# Bajo las barras, contra el margen derecho (la silueta y la gota ocupan 52 de ancho).
+	var origin := Vector2(get_viewport().get_visible_rect().size.x - HUD_MARGIN.x * _scale - 52.0 * s,
+			96.0 * _scale)
+	var t := Time.get_ticks_msec() / 1000.0
+	for zone: StringName in BODY_SHAPES:
+		var r: Rect2 = BODY_SHAPES[zone]
+		var rect := Rect2(origin + r.position * s, r.size * s)
+		if damage.is_severed(zone):
+			# Lo que queda del miembro (el arranque) y el muñón.
+			var stub := Rect2(rect.position, Vector2(rect.size.x, rect.size.y * 0.35))
+			_canvas.draw_rect(rect, Color(0.6, 0.55, 0.5, 0.35), false, maxf(1.0, s))
+			_canvas.draw_rect(stub, Color(0.30, 0.03, 0.03, 0.9))
+			_canvas.draw_rect(Rect2(stub.position + Vector2(0, stub.size.y - 2.0 * s), Vector2(stub.size.x, 2.0 * s)),
+				Color(0.85, 0.08, 0.06))
+			continue
+		var color := _zone_color(damage.zone_ratio(zone))
+		if zone == damage.last_zone:
+			color = color.lerp(Color(1, 0.9, 0.8), _damage_flash * 0.6)
+		if zone == &"head":
+			_canvas.draw_circle(rect.get_center(), rect.size.x * 0.55, color)
+		else:
+			_canvas.draw_rect(rect, color)
+	var bleed := damage.bleed_rate()
+	if bleed > 0.0:
+		var pulse := 0.55 + 0.45 * sin(t * TAU * clampf(0.8 + bleed * 1.5, 0.8, 3.0))
+		var c := origin + Vector2(46, 70) * s
+		var drop := Color(0.75, 0.04, 0.04, clampf(0.35 + bleed, 0.4, 1.0) * pulse)
+		_canvas.draw_circle(c, 4.5 * s, drop)
+		_canvas.draw_colored_polygon(PackedVector2Array([c + Vector2(-4.2, -1.5) * s, c + Vector2(0, -11) * s,
+			c + Vector2(4.2, -1.5) * s]), drop)
+
+
+## Sana: hueso claro y transparente; herida: de ámbar a rojo; inutilizada (bajo cero): granate.
+static func _zone_color(ratio: float) -> Color:
+	if ratio >= 0.999:
+		return Color(0.82, 0.78, 0.70, 0.45)
+	if ratio > 0.0:
+		return Color(0.80, 0.16, 0.08, 0.9).lerp(Color(0.90, 0.72, 0.40, 0.85), ratio)
+	return Color(0.42, 0.03, 0.04, 0.95).lerp(Color(0.18, 0.01, 0.02, 0.95), clampf(-ratio, 0.0, 1.0))
 
 
 func _draw_enemy_bars() -> void:

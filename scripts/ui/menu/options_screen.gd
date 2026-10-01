@@ -8,9 +8,9 @@ extends CanvasLayer
 
 signal closed
 
-const TABS: Array[String] = ["Pantalla", "Gráficos", "Audio", "Controles"]
+const TABS: Array[String] = ["Pantalla", "Gráficos", "Audio", "Controles", "Juego"]
 ## Prefijo de las claves de SettingsManager de cada pestaña, para "Restablecer".
-const TAB_PREFIXES: Array[String] = ["display/", "graphics/", "audio/", "controls/"]
+const TAB_PREFIXES: Array[String] = ["display/", "graphics/", "audio/", "controls/", "game/"]
 const CONFIRM_SECONDS := 10.0
 const RESOLUTIONS: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1366, 768), Vector2i(1600, 900),
 	Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(3840, 2160)]
@@ -219,6 +219,7 @@ func _show_tab(index: int) -> void:
 		1: _build_graphics_page()
 		2: _build_audio_page()
 		3: _build_controls_page()
+		4: _build_game_page()
 	_scroll.add_child(_page)
 	# El ScrollContainer recalcula su rango al siguiente frame.
 	_scroll.set_deferred("scroll_vertical", scroll_position)
@@ -307,6 +308,11 @@ func _build_graphics_page() -> void:
 func _build_audio_page() -> void:
 	for bus in SettingsManager.AUDIO_BUSES:
 		_row(AUDIO_LABELS.get(bus, String(bus)), _slider_control("audio/%s" % bus, 0.0, 1.0, 0.01))
+
+
+func _build_game_page() -> void:
+	_row("Sangre y mutilaciones", _choice_control("game/gore", ["Sin sangre", "Solo sangre", "Completo"]),
+		"Completo: un tajo fuerte puede cercenar un brazo o una pierna.")
 
 
 func _build_controls_page() -> void:

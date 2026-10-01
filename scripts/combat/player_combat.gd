@@ -75,6 +75,11 @@ const LOCK_SWITCH_THRESHOLD := 0.09
 const LOCK_SMALL_FAUNA_BIAS := 0.35
 const HITSTOP_TIME := 0.075
 const DEATH_SCREEN_DELAY := 1.3
+## El charco bajo el cuerpo: cuándo sale (s, ya asentado el muñeco), su tamaño (m) y lo que tarda
+## en extenderse (s).
+const DEATH_POOL_DELAY := 1.6
+const DEATH_POOL_SIZE := Vector2(2.2, 2.8)
+const DEATH_POOL_GROW := 14.0
 const RESPAWN_DELAY := 5.0
 
 ## Animaciones de Mixamo reorientadas al jugador (tools/combat/retarget_mixamo.gd). Tiempos en
@@ -123,6 +128,8 @@ var pose: CombatPose
 var hit_react: HitReact
 ## Muñeco de trapo al morir (si la muerte no es la animación de Mixamo).
 var ragdoll: Ragdoll
+## Daño por partes, sangrado y miembros cercenados.
+var body_damage: BodyDamage
 var lock_target: Node3D = null
 
 var state: State = State.IDLE
@@ -174,6 +181,8 @@ var _arrow_visual: MeshInstance3D
 var _knock: Vector3 = Vector3.ZERO
 var _motion_h: Vector3 = Vector3.ZERO
 var _death_time: float = 0.0
+## Ya hay charco bajo el cuerpo de esta muerte.
+var _death_pool: bool = false
 ## Dirección y fuerza del último golpe encajado (para cómo cae al morir).
 var _last_hit_push: Vector3 = Vector3.ZERO
 var _respawning: bool = false
@@ -276,6 +285,18 @@ func setup(owner_player: PlayerController) -> void:
 	ragdoll.world_mask = player.collision_mask
 	ragdoll.exclude_body = player
 	_skeleton.add_child(ragdoll)
+
+	body_damage = BodyDamage.new()
+	body_damage.name = "BodyDamage"
+	add_child(body_damage)
+	body_damage.setup(player.health_component, _skeleton, player)
+	var body_mesh := _skeleton.get_node_or_null("Mesh_0") as MeshInstance3D
+	if body_mesh != null:
+		body_damage.dismemberment.capped.append(body_mesh)
+	body_damage.dismemberment.frame_node = player.player_model
+	body_damage.dismemberment.world_mask = player.collision_mask
+	body_damage.dismemberment.exclude_body = player
+	body_damage.limb_lost.connect(_on_limb_lost)
 
 	_arrow_visual = MeshInstance3D.new()
 	_arrow_visual.name = "NockedArrow"
@@ -970,7 +991,7 @@ func _on_blade_hit(box: Hurtbox, point: Vector3, info: DamageInfo) -> void:
 	var weight := (1.6 if _heavy else 1.0) * (1.3 if data != null and data.two_handed else 1.0)
 	_hitstop = HITSTOP_TIME * weight
 	player.camera_controller.add_shake(0.05 * weight)
-	CombatFx.blood(box.owner_body, point, info.direction)
+	CombatFx.blood(box.owner_body, point, info.direction, info.kind, info.amount)
 	CombatFx.impact(player, point, info.kind, true)
 	hud.note_enemy_hit(box.owner_body)
 
@@ -1635,6 +1656,19 @@ func _on_hit_received(info: DamageInfo, applied: float) -> void:
 		_start_stagger(info)
 
 
+## Sin la mano que lo sostiene, el arma vuelve al inventario: el arco y el tirachinas se tensan con
+## la derecha, y las armas a dos manos necesitan las dos.
+func _on_limb_lost(zone: StringName, _cut: Dictionary) -> void:
+	player.camera_controller.add_shake(0.45)
+	hud.flash_damage(1.0)
+	var data := weapon()
+	if data == null:
+		return
+	if zone == &"right_arm" or (zone == &"left_arm" and (data.is_left_handed() or data.two_handed)):
+		player._unequip_right_hand()
+		player.inventory.inventory_changed.emit()
+
+
 func _start_stagger(info: DamageInfo) -> void:
 	_abort_attack()
 	if state == State.AIM:
@@ -1690,6 +1724,7 @@ func _on_died() -> void:
 	hurtbox.set_enabled(false)
 	_set_state(State.DEAD)
 	_death_time = 0.0
+	_death_pool = false
 	_act_stop("upper")
 	if _mixamo(&"death"):
 		_act_play("full", &"death", DEATH_ANIM_SPEED, 0.0, true)
@@ -1697,6 +1732,7 @@ func _on_died() -> void:
 		# Cae como un muñeco desde la pose que tenga, empujado por el golpe que lo mata.
 		player.player_model.transform = Transform3D.IDENTITY
 		ragdoll.gravity = player.gravity_direction.normalized() * (player.planet.gravity_strength if player.planet else 9.8)
+		ragdoll.skip_bones = body_damage.dismemberment.lost_bone_names()
 		ragdoll.start(player.velocity, _last_hit_push)
 	if _foot_ik:
 		_foot_ik.influence = 0.0
@@ -1707,6 +1743,12 @@ func _on_died() -> void:
 
 func _update_dead(delta: float) -> void:
 	_death_time += delta
+	if not _death_pool and _death_time >= DEATH_POOL_DELAY:
+		_death_pool = true
+		var at := ragdoll.center() if ragdoll.is_running() else player.global_position
+		var gravity: Vector3 = player.gravity_direction.normalized() * (player.planet.gravity_strength if player.planet else 9.8)
+		BloodPool.spawn(player, at, gravity, randf_range(DEATH_POOL_SIZE.x, DEATH_POOL_SIZE.y),
+				DEATH_POOL_GROW, player.collision_mask)
 	_t += delta
 	if ragdoll.is_running():
 		# El cuerpo físico (y con él la cámara) sigue al muñeco si rueda ladera abajo.
@@ -1740,6 +1782,7 @@ func _respawn() -> void:
 	_act_stop("upper")
 	player.health_component.revive()
 	stamina.refill()
+	body_damage.restore()
 	pose.death = 0.0
 	pose.tuck = 0.0
 	hurtbox.set_enabled(true)
@@ -1777,6 +1820,7 @@ func on_restored() -> void:
 	if player.health_component.is_dead:
 		player.health_component.revive()
 	stamina.refill()
+	body_damage.restore()
 	hurtbox.set_enabled(true)
 	ragdoll.stop()
 	pose.death = 0.0

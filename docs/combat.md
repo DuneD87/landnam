@@ -161,6 +161,51 @@ Todas siguen la misma convención: metros, origen en el agarre, +Y hacia la punt
   hace tambalearse. Los osos aguantan 85 de desgaste acumulado y, al romperla, se
   quedan 1,5 s vendidos.
 
+## Heridas y mutilaciones
+
+Daño por partes al estilo Kenshi (`BodyDamage`, en el jugador): cabeza, pecho, vientre, brazos y
+piernas llevan su propia vida aparte de la general, que sigue siendo la que mata. Un golpe cae en la
+parte cuyo tramo del esqueleto queda más cerca de por donde entra. El HUD dibuja bajo las barras una
+silueta de espaldas con cada parte del color de su estado (solo si hay algo herido); un miembro
+perdido queda en contorno con el muñón rojo y una gota late mientras sangra.
+
+- **Sangrado**: toda herida sangra un rato y resta vida general (más un tajo que un golpe
+  contundente); un muñón sangra a borbotones, ~1 de vida/s al principio, y se va cortando.
+- **Cercenar**: un tajo (`SLASH`, zarpas incluidas) de al menos `SEVER_MIN_DAMAGE` en un brazo o
+  una pierna lo corta con probabilidad `BodyDamage.sever_chance` (0,75 mientras se prueba; negativa,
+  la natural: solo si deja el miembro bajo cero). Cada miembro se corta una vez: por el brazo o el
+  antebrazo, el muslo o la pierna, a la altura por donde entra el golpe e inclinado hacia donde iba.
+  Sin la mano del arma, el arma vuelve al inventario.
+- **El corte** (`Dismemberment`, `LimbCutter`): todas las mallas con piel del esqueleto (cuerpo y
+  armadura) se parten por un plano en el marco del hueso; los triángulos que lo cruzan se parten,
+  así que el borde es un anillo limpio. Lo que cuelga del hueso cortado se mide con el miembro
+  estirado y las articulaciones donde las ponen las proporciones del cuerpo: la caña de una bota se
+  corta a la altura de la pierna y una mano no se queda en el muñón por llevar el codo doblado. El
+  muñón se tapa con carne, grasa y hueso (`shaders/combat/stump_flesh.gdshader`). Corta en un hilo
+  y rehace el corte solo si la armadura o el cuerpo cambian de malla.
+- **Lo que cae** (`SeveredLimb`): una copia del esqueleto en la pose del corte con las mallas
+  cortadas, movida por un `Ragdoll` solo de sus segmentos (el codo y la rodilla doblan). Gotea por el
+  corte unos segundos y, quieto, deja un charco que se extiende. Dura dos minutos.
+- **Sangre de los golpes** (`CombatFx.blood`): gotas en forma de lágrima alineadas con su velocidad
+  (`blood_droplet.gdshader`) y una neblina que se funde con lo que toca (`blood_mist.gdshader`).
+  Cada tipo salpica a su manera: un tajo, muchas gotas rápidas en abanico; una estocada, un chorro
+  estrecho; un golpe contundente, pocas gotas y más neblina. La cantidad sale del daño.
+- **Sangre en el suelo** (`BloodPool`): decals bajo el punto, siguiendo la gravedad del planeta. Las
+  gotas de cada golpe manchan el suelo por delante, un muñón al gotear (reguero si se anda), lo
+  cortado deja su charco y los cadáveres (el jugador y las criaturas) uno a su medida. Brillan
+  mojados, se oscurecen al secarse y se van a los tres minutos.
+- **Sangre en el cuerpo** (`BloodStains`): cada golpe deja una mancha con regueros hacia abajo,
+  pegada al hueso más cercano. Solo pinta las mallas del personaje (llevan la capa de render 20,
+  la única del `cull_mask` de las manchas). Se limpian al reaparecer o al reciclar la criatura.
+- **Desangrarse**: con mucha sangre perdida por segundo o poca vida, el mundo pierde color y los
+  bordes se oscurecen a cada latido (`blood_loss.gdshader`), y se oye el corazón cada vez más
+  deprisa.
+- Las texturas de la sangre las hornea `tools/combat/bake_blood_decals.gd`.
+
+*Opciones > Juego > Sangre y mutilaciones*: sin sangre, solo sangre (no se cercena) o completo.
+
+Todo se cura al reaparecer, al cargar partida o con `heal` (los miembros aún no se guardan).
+
 ## Osos
 
 `CreatureMeleeState` sustituye al antiguo `CombatState` en `Bear.tscn`. El oso ve
@@ -192,6 +237,10 @@ la vida y el aguante llenos y conserva el inventario. Las criaturas que iban a p
 - `spawn oso [cantidad] [distancia]`: suelta osos delante (también `ciervo`, `leon`,
   `bufalo`). Sus cadáveres duran dos minutos.
 - `morir`: mata al jugador para probar la muerte y la reaparición.
+- `cortar [brazo|antebrazo|muslo|pierna] [izq|der]`: cercena un miembro del jugador al momento.
+- `mutilar [0-1|auto]`: probabilidad de que un tajo en un brazo o una pierna lo cercene.
+- `heal` sin argumento también cierra las heridas y devuelve los miembros.
+- `sangre`: cuántos charcos y salpicaduras hay y a qué distancia está el más cercano.
 - `god`, `heal`, `give <id> [n]` siguen igual.
 
 ## Pruebas
