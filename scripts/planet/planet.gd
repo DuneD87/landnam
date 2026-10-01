@@ -65,6 +65,10 @@ var _vegetation_field: Dictionary = {}
 @export var height_transition_noise_strength: float = 12.0
 @export var macro_variation_scale: float = 0.006
 @export var macro_variation_strength: float = 0.18
+## Calibración del albedo de cada textura, en el orden de "textures": xyz = multiplicador lineal,
+## w = saturación (PlanetParser.parse_albedo_adjust). Las que falten quedan sin tocar.
+@export var texture_albedo_adjust: PackedVector4Array = PackedVector4Array()
+@export var slope_albedo_adjust: Vector4 = Vector4.ONE
 @export var vegetation: Dictionary
 @export var wind_direction : Vector3
 
@@ -1557,6 +1561,12 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("parallax_strength", parallax_strength)
 	shader_material.set_shader_parameter("macro_variation_scale", macro_variation_scale)
 	shader_material.set_shader_parameter("macro_variation_strength", macro_variation_strength)
+	# El uniform es un array fijo de MAX_TEXTURES (8): sin rellenar, las que falten valdrían 0 (negro).
+	var albedo_adjust := texture_albedo_adjust.duplicate()
+	while albedo_adjust.size() < 8:
+		albedo_adjust.append(Vector4.ONE)
+	shader_material.set_shader_parameter("texture_albedo_adjust", albedo_adjust)
+	shader_material.set_shader_parameter("slope_albedo_adjust", slope_albedo_adjust)
 
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", radius - water_radius)

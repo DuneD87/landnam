@@ -73,31 +73,6 @@ mat2 antitiling_region_rot(float idx) {
     return mat2(vec2(c, s), vec2(-s, c));
 }
 
-vec4 antitiling_region_color(sampler2D tex, vec2 uv, float idx) {
-    mat2 R = antitiling_region_rot(idx);
-    vec2 o = antitiling_region_offset(idx);
-    return texture(tex, R * uv + o);
-}
-
-vec3 antitiling_region_normal(sampler2D tex, vec2 uv, float idx) {
-    mat2 R = antitiling_region_rot(idx);
-    vec2 o = antitiling_region_offset(idx);
-    vec3 n = texture(tex, R * uv + o).rgb * 2.0 - 1.0;
-    n.xy = n.xy * R; // n.xy * R == transpose(R) * n.xy
-    return n;
-}
-
-vec3 antitiling_region_weights(vec2 uv) {
-    // ~8 regiones a lo largo del rango del ruido; las transiciones siguen las
-    // isocurvas del ruido → fronteras orgánicas, no una rejilla recta.
-    float l  = antitiling_value_noise(uv * antitiling_variation_scale) * 8.0;
-    float ia = floor(l);
-    float f  = l - ia;
-    float s = max(antitiling_blend_softness, 0.001);
-    float w = smoothstep(0.5 - s, 0.5 + s, f);
-    return vec3(ia, ia + 1.0, w);
-}
-
 float antitiling_detile_factor(vec2 uv) {
     vec2 dx = dFdx(uv);
     vec2 dy = dFdy(uv);
@@ -105,63 +80,113 @@ float antitiling_detile_factor(vec2 uv) {
     return 1.0 - smoothstep(antitiling_fade_start, antitiling_fade_end, fp);
 }
 
-vec4 tex_notile(sampler2D tex, vec2 uv) {
-    if (!antitiling_enabled) {
-        return texture(tex, uv);
-    }
-    float detile = antitiling_detile_factor(uv);
-    if (detile <= 0.001) {
-        return texture(tex, uv); // lejos: 1 muestra plana
-    }
+// Reparto de un plano triplanar en regiones (~8 a lo largo del rango del ruido; las fronteras
+// siguen sus isocurvas, así que son orgánicas y no una rejilla). Solo depende de las UV, así que
+// se calcula UNA vez por plano y fragmento (notile_frame) y lo reutilizan todas las texturas que
+// se muestrean a esa escala. Antes cada lectura rehacía el ruido, los hashes y los senos: con
+// ~27 lecturas por fragmento era el 65 % del coste del terreno.
+//
+// Paridad: la región par va siempre en un hueco y la impar en el otro. Al cruzar una frontera la
+// región que sigue mandando no cambia de hueco, así que sus derivadas (su mip) son continuas; la
+// que entra y la que sale pesan 0 justo ahí.
+struct NotilePlane {
+    mat2 rot_even;
+    vec2 off_even;
+    mat2 rot_odd;
+    vec2 off_odd;
+    float w_odd;  // peso de la región impar; la par lleva 1 - w_odd
+    float detile; // 1 = de-tilado completo, 0 = muestra plana (lejos o anti-tiling apagado)
+};
 
-    vec3 rw = antitiling_region_weights(uv);
-    vec4 d;
-    if (rw.z <= 0.001) {
-        d = antitiling_region_color(tex, uv, rw.x);
-    } else if (rw.z >= 0.999) {
-        d = antitiling_region_color(tex, uv, rw.y);
-    } else {
-        d = mix(
-            antitiling_region_color(tex, uv, rw.x),
-            antitiling_region_color(tex, uv, rw.y),
-            rw.z
-        );
-    }
+struct NotileFrame {
+    NotilePlane x;
+    NotilePlane y;
+    NotilePlane z;
+};
 
-    if (detile >= 0.999) {
-        return d; // cerca: solo de-tilado
+NotilePlane notile_plane(vec2 uv) {
+    NotilePlane p;
+    p.rot_even = mat2(1.0);
+    p.off_even = vec2(0.0);
+    p.rot_odd = mat2(1.0);
+    p.off_odd = vec2(0.0);
+    p.w_odd = 0.0;
+    p.detile = antitiling_enabled ? antitiling_detile_factor(uv) : 0.0;
+    if (p.detile <= 0.001) {
+        return p;
     }
-    return mix(texture(tex, uv), d, detile); // banda de distancia: plano <-> de-tilado
+    float l = antitiling_value_noise(uv * antitiling_variation_scale) * 8.0;
+    float ia = floor(l);
+    // Con más de 0.5 la mezcla no es pura en f = 0 ni en f = 1: al saltar de región una de las
+    // dos copias cambia de golpe (una costura cada metro) y nunca basta una sola muestra.
+    float s = clamp(antitiling_blend_softness, 0.001, 0.5);
+    float w = smoothstep(0.5 - s, 0.5 + s, l - ia); // peso de la región ia + 1
+    bool ia_even = mod(ia, 2.0) < 0.5;
+    float even_idx = ia_even ? ia : ia + 1.0;
+    float odd_idx = ia_even ? ia + 1.0 : ia;
+    p.w_odd = ia_even ? w : 1.0 - w;
+    p.rot_even = antitiling_region_rot(even_idx);
+    p.off_even = antitiling_region_offset(even_idx);
+    p.rot_odd = antitiling_region_rot(odd_idx);
+    p.off_odd = antitiling_region_offset(odd_idx);
+    return p;
 }
 
+// Tiene que llamarse fuera de ramas: lleva derivadas de pantalla.
+NotileFrame notile_frame(vec3 pos, float scale) {
+    NotileFrame f;
+    f.x = notile_plane(pos.yz * scale);
+    f.y = notile_plane(pos.xz * scale);
+    f.z = notile_plane(pos.xy * scale);
+    return f;
+}
 
-vec3 antitiling_normal_notile(sampler2D tex, vec2 uv) {
-    if (!antitiling_enabled) {
-        return texture(tex, uv).rgb * 2.0 - 1.0;
+// Siempre las dos regiones, sin ramas. Saltarse la que pesa 0 (o un plano triplanar sin peso)
+// salía MÁS caro: con las lecturas dentro de ramas la GPU ya no las lanza juntas y espera a cada
+// una. Y donde los cuatro píxeles de un quad no tomaban la misma rama las derivadas implícitas
+// salían mal: puntos sueltos con el mip equivocado a lo largo de las fronteras de región.
+// Las ramas de 'detile' sí se quedan: siguen la distancia (zonas enteras de pantalla) y en su
+// frontera lo que cambia de rama pesa ~0.
+vec4 notile_sample(sampler2D tex, vec2 uv, NotilePlane p) {
+    if (p.detile <= 0.001) {
+        return texture(tex, uv); // lejos: 1 muestra plana
     }
-    float detile = antitiling_detile_factor(uv);
-    if (detile <= 0.001) {
-        return texture(tex, uv).rgb * 2.0 - 1.0; // lejos: 1 muestra plana
-    }
-
-    vec3 rw = antitiling_region_weights(uv);
-    vec3 d;
-    if (rw.z <= 0.001) {
-        d = antitiling_region_normal(tex, uv, rw.x);
-    } else if (rw.z >= 0.999) {
-        d = antitiling_region_normal(tex, uv, rw.y);
-    } else {
-        d = mix(
-            antitiling_region_normal(tex, uv, rw.x),
-            antitiling_region_normal(tex, uv, rw.y),
-            rw.z
-        );
-    }
-
-    if (detile >= 0.999) {
+    vec2 uv_even = p.rot_even * uv + p.off_even;
+    vec2 uv_odd = p.rot_odd * uv + p.off_odd;
+    vec4 d = mix(texture(tex, uv_even), texture(tex, uv_odd), p.w_odd);
+    if (p.detile >= 0.999) {
         return d; // cerca: solo de-tilado
     }
-    return mix(texture(tex, uv).rgb * 2.0 - 1.0, d, detile);
+    return mix(texture(tex, uv), d, p.detile); // banda de distancia: plano <-> de-tilado
+}
+
+// Igual para normal maps (-1..1): la normal de cada región se gira de vuelta a las UV sin rotar.
+// n.xy * R == transpose(R) * n.xy
+vec3 notile_normal(sampler2D tex, vec2 uv, NotilePlane p) {
+    if (p.detile <= 0.001) {
+        return texture(tex, uv).rgb * 2.0 - 1.0;
+    }
+    vec2 uv_even = p.rot_even * uv + p.off_even;
+    vec2 uv_odd = p.rot_odd * uv + p.off_odd;
+    vec3 n_even = texture(tex, uv_even).rgb * 2.0 - 1.0;
+    vec3 n_odd = texture(tex, uv_odd).rgb * 2.0 - 1.0;
+    n_even.xy = n_even.xy * p.rot_even;
+    n_odd.xy = n_odd.xy * p.rot_odd;
+    vec3 d = mix(n_even, n_odd, p.w_odd);
+    if (p.detile >= 0.999) {
+        return d;
+    }
+    return mix(texture(tex, uv).rgb * 2.0 - 1.0, d, p.detile);
+}
+
+// Versiones sueltas, para lo que se muestrea a otra escala (el hielo glaciar): calculan su propio
+// reparto en cada llamada, así que no las uses donde valga el marco compartido.
+vec4 tex_notile(sampler2D tex, vec2 uv) {
+    return notile_sample(tex, uv, notile_plane(uv));
+}
+
+vec3 antitiling_normal_notile(sampler2D tex, vec2 uv) {
+    return notile_normal(tex, uv, notile_plane(uv));
 }
 
 TriplanarUVs compute_triplanar_uvs(vec3 pos, float scale) {
@@ -259,7 +284,16 @@ TriplanarUVs compute_parallax_uvs_limited(
     return r;
 }
 
-// Versiones de sample que aceptan UVs precomputados
+// Versiones de sample que aceptan UVs precomputados. Las _nt usan el reparto de anti-tiling
+// compartido (notile_frame), calculado con las mismas UV base.
+vec3 triplanar_sample_nt(sampler2D tex, TriplanarUVs uvs, vec3 normal, NotileFrame nt) {
+    vec3 col_x = notile_sample(tex, uvs.uv_x, nt.x).rgb;
+    vec3 col_y = notile_sample(tex, uvs.uv_y, nt.y).rgb;
+    vec3 col_z = notile_sample(tex, uvs.uv_z, nt.z).rgb;
+    vec3 blend = triplanar_blend_weights(normal, 3.0);
+    return col_x * blend.x + col_y * blend.y + col_z * blend.z;
+}
+
 vec3 triplanar_sample_uvs(sampler2D tex, TriplanarUVs uvs, vec3 normal) {
     vec3 col_x = tex_notile(tex, uvs.uv_x).rgb;
     vec3 col_y = tex_notile(tex, uvs.uv_y).rgb;
@@ -268,21 +302,30 @@ vec3 triplanar_sample_uvs(sampler2D tex, TriplanarUVs uvs, vec3 normal) {
     return col_x * blend.x + col_y * blend.y + col_z * blend.z;
 }
 
-// Factor de brillo del detail blend, normalizado por la media real de la textura (mip 1x1).
-// Devuelve 1.0 donde el detalle vale lo que la media, así que la mezcla no cambia la
-// luminancia de la textura sea clara u oscura (el clásico *2.0 solo era neutro con media 0.5,
-// y en lineal la hierba está en ~0.05: perdía el 45% de brillo).
-float detail_blend_factor(sampler2D tex, TriplanarUVs uvs_detail, vec3 axis, float weight) {
+// Sin anti-tiling: para la capa lejana, cuya repetición (~12 m) ya no se distingue a la
+// distancia a la que manda.
+vec3 triplanar_sample_plain(sampler2D tex, TriplanarUVs uvs, vec3 normal) {
+    vec3 col_x = texture(tex, uvs.uv_x).rgb;
+    vec3 col_y = texture(tex, uvs.uv_y).rgb;
+    vec3 col_z = texture(tex, uvs.uv_z).rgb;
+    vec3 blend = triplanar_blend_weights(normal, 3.0);
+    return col_x * blend.x + col_y * blend.y + col_z * blend.z;
+}
+
+// Factor de brillo de una capa de la misma textura a otra escala (el detalle de cerca, la capa
+// lejana), normalizado por la media real de la textura (mip 1x1). Devuelve 1.0 donde la capa vale
+// lo que la media, así que la mezcla no cambia la luminancia de la textura sea clara u oscura
+// (el clásico *2.0 solo era neutro con media 0.5, y en lineal la hierba está en ~0.05).
+float layer_blend_factor(sampler2D tex, vec3 layer_color, float weight) {
     const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
-    vec3 detail = triplanar_sample_uvs(tex, uvs_detail, axis);
     vec3 avg = textureLod(tex, vec2(0.5), 20.0).rgb; // mip más bajo = media de la textura
-    float ratio = dot(detail, LUMA) / max(dot(avg, LUMA), 0.002);
+    float ratio = dot(layer_color, LUMA) / max(dot(avg, LUMA), 0.002);
     return mix(1.0, clamp(ratio, 0.25, 3.0), weight);
 }
 
 // Mapas escalares (roughness/AO/height): muestreo PLANO (sin anti-tiling). La repetición
 // de roughness/AO/height es prácticamente imperceptible frente a la del albedo, pero
-// de-tilarlos cuesta lo mismo. Aquí solo albedo y normal pasan por tex_notile; esto
+// de-tilarlos cuesta lo mismo. Aquí solo albedo y normal pasan por el anti-tiling; esto
 // recorta ~la mitad de las muestras de-tiladas en todos los píxeles. (Si ves tiling en el
 // reparto hierba/tierra por el height bias, bajar height_blend_strength o de-tilar height.)
 float triplanar_scalar_sample_uvs(sampler2D tex, TriplanarUVs uvs, vec3 normal) {
@@ -292,7 +335,6 @@ float triplanar_scalar_sample_uvs(sampler2D tex, TriplanarUVs uvs, vec3 normal) 
     vec3 blend = triplanar_blend_weights(normal, 3.0);
     return r * blend.x + g * blend.y + b * blend.z;
 }
-
 
 
 
@@ -477,20 +519,13 @@ vec3 apply_normal_strength(vec3 base_normal, vec3 detail_normal, float strength)
     return safe_normalize(mix(base_normal, detail_normal, s), base_normal);
 }
 
-vec4 triplanar_normal_sample_uvs_v(sampler2D tex, TriplanarUVs uvs, vec3 surface_normal) {
-
-    vec3 raw_x = antitiling_normal_notile(tex, uvs.uv_x);
-    vec3 raw_y = antitiling_normal_notile(tex, uvs.uv_y);
-    vec3 raw_z = antitiling_normal_notile(tex, uvs.uv_z);
-
-    vec3 blend = triplanar_blend_weights(surface_normal, 4.0);
-
-    // Tightness: 1.0 = sin promediado de mip, <1.0 = mip promedió perturbaciones
+// Whiteout blend de las tres muestras crudas (-1..1) de un normal map triplanar. w = tightness:
+// 1.0 = sin promediado de mip, <1.0 = el mip promedió perturbaciones (lo usa la specular AA).
+vec4 triplanar_normal_combine(vec3 raw_x, vec3 raw_y, vec3 raw_z, vec3 blend, vec3 surface_normal) {
     float avg_len = length(raw_x) * blend.x
                   + length(raw_y) * blend.y
                   + length(raw_z) * blend.z;
 
-    // Whiteout blend igual que antes, pero con los samples ya normalizados
     vec3 tn_x = safe_normalize(raw_x, vec3(0.0, 0.0, 1.0));
     vec3 tn_y = safe_normalize(raw_y, vec3(0.0, 0.0, 1.0));
     vec3 tn_z = safe_normalize(raw_z, vec3(0.0, 0.0, 1.0));
@@ -506,6 +541,24 @@ vec4 triplanar_normal_sample_uvs_v(sampler2D tex, TriplanarUVs uvs, vec3 surface
     );
 
     return vec4(n, avg_len);
+}
+
+vec4 triplanar_normal_sample_nt_v(sampler2D tex, TriplanarUVs uvs, vec3 surface_normal, NotileFrame nt) {
+    vec3 blend = triplanar_blend_weights(surface_normal, 4.0);
+    return triplanar_normal_combine(
+        notile_normal(tex, uvs.uv_x, nt.x),
+        notile_normal(tex, uvs.uv_y, nt.y),
+        notile_normal(tex, uvs.uv_z, nt.z),
+        blend, surface_normal);
+}
+
+vec4 triplanar_normal_sample_uvs_v(sampler2D tex, TriplanarUVs uvs, vec3 surface_normal) {
+    vec3 blend = triplanar_blend_weights(surface_normal, 4.0);
+    return triplanar_normal_combine(
+        antitiling_normal_notile(tex, uvs.uv_x),
+        antitiling_normal_notile(tex, uvs.uv_y),
+        antitiling_normal_notile(tex, uvs.uv_z),
+        blend, surface_normal);
 }
 
 vec3 triplanar_normal_sample(sampler2D tex, vec3 pos, vec3 surface_normal, float scale) {

@@ -14,6 +14,21 @@ uniform float macro_variation_contrast : hint_range(0.5, 3.0) = 1.4;
 uniform bool detail_blend_enabled = true;
 uniform float detail_scale_multiplier : hint_range(2.0, 16.0) = 5.7;  // primo o irracional, NO 4.0 ni 8.0
 uniform float detail_blend_weight : hint_range(0.0, 1.0) = 0.5;
+// El detalle repite cada ~35 cm: más allá de unas decenas de metros el mip ya lo ha promediado a
+// 1.0 y solo cuesta lecturas. Se apaga entre estas distancias (m) y deja de muestrearse.
+uniform float detail_fade_start = 25.0;
+uniform float detail_fade_end = 50.0;
+
+// Capa lejana: la misma textura a una escala ~6 veces mayor (repite cada ~12.6 m con
+// texture_scale = 0.5) modula el brillo de la muestra base. De lejos esa ya es su color
+// medio por el mip y el suelo se leía como un color liso; esta capa es la que pone manchas y
+// estructura ahí. De cerca pesa poco y solo rompe la repetición de 2 m. Ratio no múltiplo del
+// detalle ni de 1/2, o los patrones se alinean.
+uniform float far_scale_ratio : hint_range(0.05, 0.5) = 0.159;
+uniform float far_blend_near : hint_range(0.0, 1.0) = 0.25;
+uniform float far_blend_far : hint_range(0.0, 1.0) = 0.9;
+uniform float far_fade_start = 10.0;
+uniform float far_fade_end = 80.0;
 
 uniform int u_transition_mask;
 uniform float radius = 5000.0;
@@ -34,6 +49,12 @@ uniform sampler2D normal_textures[MAX_TEXTURES];
 uniform sampler2D roughness_textures[MAX_TEXTURES];
 uniform sampler2D ao_textures[MAX_TEXTURES];
 uniform sampler2D height_textures[MAX_TEXTURES];
+
+// Calibración del albedo por textura (planet.gd lo rellena siempre, desde "texture_albedo" del
+// JSON): xyz = multiplicador lineal, w = saturación. Las texturas vienen de fuentes distintas y su
+// albedo medio va de 0.025 a 0.36; sin esto unas salían casi negras al lado de otras.
+uniform vec4 texture_albedo_adjust[MAX_TEXTURES];
+uniform vec4 slope_albedo_adjust = vec4(1.0);
 
 uniform float max_heights[MAX_HEIGHTS]; // 3 alturas por bioma
 uniform int biome_count = 6;
@@ -98,6 +119,14 @@ uniform float slope_breakup_anisotropy : hint_range(1.0, 6.0) = 2.5;
 uniform float slope_strata_thickness : hint_range(2.0, 120.0) = 18.0;
 uniform float slope_strata_strength : hint_range(0.0, 0.4) = 0.0;
 uniform float slope_strata_warp : hint_range(0.0, 1.0) = 0.35;
+// Pendiente a distancia. El height blend y la rotura fina dibujan un borde de pocos metros; desde
+// lejos eso es subpíxel y el contacto se queda en una raya dura de 1-2 píxeles que además
+// parpadea. Según los metros que cubre un píxel se apagan y la transición se ensancha, así que un
+// escalón lejano tiñe la ladera en vez de rayarla. Metros por píxel donde empieza y acaba.
+uniform float slope_far_footprint_start = 0.1;
+uniform float slope_far_footprint_end = 0.8;
+// Cuánto se ensancha la transición (slope_smoothness) a distancia: 1.5 = 2.5 veces más ancha.
+uniform float slope_far_widen : hint_range(0.0, 4.0) = 1.5;
 // 0=off, 1=mascara de pendiente (rojo=slope puro), 2=angulo crudo en grados/90,
 // 3=roughness final. Para tunear slope_threshold/smoothness viendo lo que decide.
 uniform int debug_slope_view : hint_range(0, 3) = 0;
@@ -211,6 +240,8 @@ float biome_noise_lat_gate(int b, float latitude) {
 // Mascara del override: replica el ruido ridged del grafo de densidad de vegetacion
 // (ZN_FastNoiseLite, 6 octavas, lacunarity 6, gain 0.1) para pintar tierra donde ese mismo
 // ruido deja el terreno sin plantas. 1 = textura de destino, 0 = textura de origen.
+// Solo las 3 primeras octavas: con gain 0.1 la 4.ª ya pesa 0.001 y mueve el borde menos de lo
+// que se ve, pero cada una es un simplex 3D completo por fragmento.
 float biome_noise_mask(vec3 planet_pos, int b) {
     int biome_seed = int(round(biome_noise_seeds[b]));
     float base_scale = biome_noise_scales[b]; // 1/period del nodo FastNoise3D del grafo
@@ -218,7 +249,7 @@ float biome_noise_mask(vec3 planet_pos, int b) {
     float amp    = 1.0;
     float fscale = base_scale;
     float norm   = 0.0;
-    for (int o = 0; o < 6; o++) {
+    for (int o = 0; o < 3; o++) {
         float v = abs(fast_noise_lite_open_simplex2_3d(planet_pos, fscale, biome_seed + o));
         n      += (v * -2.0 + 1.0) * amp;
         norm   += amp;
@@ -234,6 +265,28 @@ float biome_noise_mask(vec3 planet_pos, int b) {
         mask = 1.0 - mask;
     }
     return mask;
+}
+
+vec3 adjust_albedo(vec3 c, vec4 adjust) {
+    float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    return mix(vec3(luma), c, adjust.w) * adjust.xyz;
+}
+
+// Albedo de un material: muestra de-tilada, detalle de cerca, capa lejana y calibración.
+// detail_factor devuelve el factor del detalle solo (lo reutilizan los escollos y el debug).
+vec3 material_albedo(sampler2D tex, vec4 adjust, TriplanarUVs uvs, vec3 axis, NotileFrame nt,
+        TriplanarUVs detail_uvs, float detail_w, TriplanarUVs far_uvs, float far_w,
+        out float detail_factor) {
+    vec3 c = triplanar_sample_nt(tex, uvs, axis, nt);
+    detail_factor = 1.0;
+    if (detail_w > 0.001) {
+        detail_factor = layer_blend_factor(tex, triplanar_sample_nt(tex, detail_uvs, axis, nt), detail_w);
+    }
+    float far_factor = 1.0;
+    if (far_w > 0.001) {
+        far_factor = layer_blend_factor(tex, triplanar_sample_plain(tex, far_uvs, axis), far_w);
+    }
+    return adjust_albedo(c, adjust) * (detail_factor * far_factor);
 }
 
 void vertex() {
@@ -289,6 +342,23 @@ void fragment() {
         use_parallax = effective_height > 0.00001;
     }
 
+    // 2b) Lo que comparten todos los materiales: el reparto del anti-tiling (una vez por plano,
+    // y aquí, fuera de ramas, porque lleva derivadas), las UV del detalle y de la capa lejana, y
+    // cuánto pesa cada capa a esta distancia.
+    float view_dist = length(CAMERA_POSITION_WORLD - world_pos);
+    TriplanarUVs base_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+    NotileFrame nt = notile_frame(planet_pos, texture_scale);
+    TriplanarUVs detail_uvs = compute_triplanar_uvs(planet_pos, texture_scale * detail_scale_multiplier);
+    float detail_w = detail_blend_enabled
+        ? detail_blend_weight * (1.0 - smoothstep(detail_fade_start, detail_fade_end, view_dist))
+        : 0.0;
+    TriplanarUVs far_uvs = compute_triplanar_uvs(planet_pos, texture_scale * far_scale_ratio);
+    float far_w = mix(far_blend_near, far_blend_far, smoothstep(far_fade_start, far_fade_end, view_dist));
+    // Metros que cubre el píxel (rasante cuenta más que de frente): decide cuánto se suaviza la
+    // máscara de pendiente.
+    float pixel_footprint = max(length(dFdx(world_pos)), length(dFdy(world_pos)));
+    float slope_far_t = smoothstep(slope_far_footprint_start, slope_far_footprint_end, pixel_footprint);
+
     // 3) Variables de mezcla
     float noise_value = signed_fbm(planet_pos * noise_scale) * noise_strength;
     float transition_noise_active = step(0.0001, height_transition_noise_scale) * height_transition_noise_strength;
@@ -317,17 +387,19 @@ void fragment() {
         float bands = sin(strata_h * f) * 0.6 + sin(strata_h * f * 2.37 + 1.7) * 0.4;
         slope_thr -= bands * slope_strata_strength;
     }
+    float slope_smooth = slope_smoothness * (1.0 + slope_far_widen * slope_far_t);
     if (slope_breakup_strength > 0.0001) {
         float band = 1.0 - clamp(abs(slope - slope_thr)
-            / max(slope_smoothness * 3.0, 0.0001), 0.0, 1.0);
+            / max(slope_smooth * 3.0, 0.0001), 0.0, 1.0);
         vec3 breakup_pos = planet_pos
             - planet_up * (distance_to_center * (1.0 - 1.0 / max(slope_breakup_anisotropy, 1.0)));
+        // La octava fina (~4 m) se apaga de lejos: ahí solo rizaría la raya.
         float breakup = signed_fbm(breakup_pos * slope_breakup_scale) * 0.7
-                      + signed_fbm(breakup_pos * slope_breakup_scale * 9.0) * 0.3;
+                      + signed_fbm(breakup_pos * slope_breakup_scale * 9.0) * 0.3 * (1.0 - slope_far_t);
         slope += breakup * slope_breakup_strength * band;
     }
-    float slope_factor = smoothstep(slope_thr - slope_smoothness,
-                                     slope_thr + slope_smoothness, slope);
+    float slope_factor = smoothstep(slope_thr - slope_smooth,
+                                     slope_thr + slope_smooth, slope);
 
     // 4) Slope con UVs base o parallax, segun el toggle. Eje de mezcla triplanar =
     // normal GEOMETRICA, no planet_up. Con planet_up la roca se proyectaba siempre en
@@ -337,7 +409,7 @@ void fragment() {
     // mascara de pendiente unas lineas mas arriba.
 	float final_tightness = 0.0;
 
-    TriplanarUVs slope_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+    TriplanarUVs slope_uvs = base_uvs;
     if (use_parallax) {
         slope_uvs = compute_parallax_uvs_limited(
             slope_height_texture, planet_pos, normal_world, view_world,
@@ -346,14 +418,10 @@ void fragment() {
         );
     }
 
-    vec3 slope_color = triplanar_sample_uvs(slope_texture, slope_uvs, geometry_normal_world);
-    float slope_detail_factor = 1.0;
-    if (detail_blend_enabled) {
-        TriplanarUVs slope_uvs_detail = compute_triplanar_uvs(planet_pos, texture_scale * detail_scale_multiplier);
-        slope_detail_factor = detail_blend_factor(slope_texture, slope_uvs_detail, geometry_normal_world, detail_blend_weight);
-        slope_color *= slope_detail_factor;
-    }
-    vec4 slope_n_v    = triplanar_normal_sample_uvs_v(slope_normal_texture, slope_uvs, normal_world);
+    float slope_detail_factor;
+    vec3 slope_color = material_albedo(slope_texture, slope_albedo_adjust, slope_uvs,
+        geometry_normal_world, nt, detail_uvs, detail_w, far_uvs, far_w, slope_detail_factor);
+    vec4 slope_n_v    = triplanar_normal_sample_nt_v(slope_normal_texture, slope_uvs, normal_world, nt);
 	vec3 slope_normal = slope_n_v.xyz;
     float slope_rough = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, geometry_normal_world);
     float slope_ao_v  = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, geometry_normal_world);
@@ -436,7 +504,7 @@ void fragment() {
             }
 
             // UVs (y parallax opcional) para la textura fuente
-            TriplanarUVs uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+            TriplanarUVs uvs = base_uvs;
             if (use_parallax) {
                 uvs = compute_parallax_uvs_limited(
                     height_textures[tex_index], planet_pos, normal_world, view_world,
@@ -458,14 +526,10 @@ void fragment() {
             }
 
             // planet_up como eje de mezcla triplanar: invariante al LOD y a la normal del mesh.
-            vec3 c = triplanar_sample_uvs(textures[tex_index], uvs, planet_up);
-			float c_detail_factor = 1.0;
-			if (detail_blend_enabled) {
-			    TriplanarUVs uvs_detail = compute_triplanar_uvs(planet_pos, texture_scale * detail_scale_multiplier);
-			    c_detail_factor = detail_blend_factor(textures[tex_index], uvs_detail, planet_up, detail_blend_weight);
-			    c *= c_detail_factor;
-			}
-            vec4 n_v = triplanar_normal_sample_uvs_v(normal_textures[tex_index], uvs, normal_world);
+            float c_detail_factor;
+            vec3 c = material_albedo(textures[tex_index], texture_albedo_adjust[tex_index], uvs,
+                planet_up, nt, detail_uvs, detail_w, far_uvs, far_w, c_detail_factor);
+            vec4 n_v = triplanar_normal_sample_nt_v(normal_textures[tex_index], uvs, normal_world, nt);
 
             float r = triplanar_scalar_sample_uvs(roughness_textures[tex_index], uvs, planet_up);
             float ao = triplanar_scalar_sample_uvs(ao_textures[tex_index], uvs, planet_up);
@@ -479,7 +543,7 @@ void fragment() {
             final_detail_factor += c_detail_factor * base_factor;
 
             if (override_factor > 0.001) {
-                TriplanarUVs override_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+                TriplanarUVs override_uvs = base_uvs;
                 if (use_parallax) {
                     override_uvs = compute_parallax_uvs_limited(
                         height_textures[override_tex_index], planet_pos, normal_world, view_world,
@@ -497,17 +561,12 @@ void fragment() {
                     final_material_height += clamp(override_height, 0.0, 1.0) * override_factor;
                 }
 
-                vec3 override_c = triplanar_sample_uvs(textures[override_tex_index], override_uvs, planet_up);
-                // Mismo detail blend que la textura fuente: sin el sale plana.
-                float override_detail_factor = 1.0;
-                if (detail_blend_enabled) {
-                    TriplanarUVs override_uvs_detail = compute_triplanar_uvs(
-                        planet_pos, texture_scale * detail_scale_multiplier);
-                    override_detail_factor = detail_blend_factor(textures[override_tex_index],
-                        override_uvs_detail, planet_up, detail_blend_weight);
-                    override_c *= override_detail_factor;
-                }
-                vec4 override_n_v = triplanar_normal_sample_uvs_v(normal_textures[override_tex_index], override_uvs, normal_world);
+                // Mismo detalle y capa lejana que la textura fuente: sin ellos sale plana.
+                float override_detail_factor;
+                vec3 override_c = material_albedo(textures[override_tex_index],
+                    texture_albedo_adjust[override_tex_index], override_uvs, planet_up, nt,
+                    detail_uvs, detail_w, far_uvs, far_w, override_detail_factor);
+                vec4 override_n_v = triplanar_normal_sample_nt_v(normal_textures[override_tex_index], override_uvs, normal_world, nt);
                 float override_r = triplanar_scalar_sample_uvs(roughness_textures[override_tex_index], override_uvs, planet_up);
                 float override_ao = triplanar_scalar_sample_uvs(ao_textures[override_tex_index], override_uvs, planet_up);
 
@@ -535,7 +594,9 @@ void fragment() {
         float m  = max(ha, hb) - d;
         float wa = max(ha - m, 0.0);
         float wb = max(hb - m, 0.0);
-        slope_mix = mix(slope_factor, wa / max(wa + wb, 0.0001), slope_height_blend_strength);
+        // De lejos el borde interdigitado es subpíxel: vuelve al reparto por ángulo.
+        slope_mix = mix(slope_factor, wa / max(wa + wb, 0.0001),
+            slope_height_blend_strength * (1.0 - slope_far_t));
     }
 
     // Slope contribution. tightness DEBE sumarse igual que en el bucle de biomas: si no,
@@ -584,9 +645,9 @@ void fragment() {
         if (reef_w > 0.001) {
             // Eje de mezcla = normal geometrica, igual que la roca de pendiente: estas caras son
             // paredes y la proyeccion cenital las estira.
-            TriplanarUVs reef_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
-            vec3 reef_color = triplanar_sample_uvs(reef_texture, reef_uvs, geometry_normal_world);
-            vec4 reef_n_v = triplanar_normal_sample_uvs_v(reef_normal_texture, reef_uvs, normal_world);
+            TriplanarUVs reef_uvs = base_uvs;
+            vec3 reef_color = triplanar_sample_nt(reef_texture, reef_uvs, geometry_normal_world, nt);
+            vec4 reef_n_v = triplanar_normal_sample_nt_v(reef_normal_texture, reef_uvs, normal_world, nt);
             float reef_rough = triplanar_scalar_sample_uvs(reef_roughness_texture, reef_uvs, geometry_normal_world);
             float reef_ao_s = triplanar_scalar_sample_uvs(reef_ao_texture, reef_uvs, geometry_normal_world);
             vec3 reef_normal = apply_normal_strength(normal_world,
@@ -619,9 +680,9 @@ void fragment() {
             if (ore_w > 0.0001) {
                 // Eje de mezcla = normal geometrica, igual que la roca: las vetas viven en
                 // paredes y techos de cueva, donde la proyeccion cenital estira sin limite.
-                TriplanarUVs ore_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
-                vec3 ore_color = triplanar_sample_uvs(ore_albedo_textures[oi], ore_uvs, geometry_normal_world);
-                vec4 ore_n_v = triplanar_normal_sample_uvs_v(ore_normal_textures[oi], ore_uvs, normal_world);
+                TriplanarUVs ore_uvs = base_uvs;
+                vec3 ore_color = triplanar_sample_nt(ore_albedo_textures[oi], ore_uvs, geometry_normal_world, nt);
+                vec4 ore_n_v = triplanar_normal_sample_nt_v(ore_normal_textures[oi], ore_uvs, normal_world, nt);
                 float ore_rough = triplanar_scalar_sample_uvs(ore_roughness_textures[oi], ore_uvs, geometry_normal_world);
                 final_color = mix(final_color, ore_color, ore_w);
                 final_normal = mix(final_normal, ore_n_v.xyz, ore_w);
@@ -668,7 +729,7 @@ void fragment() {
 			final_color = vec3(cover, hold, snow);
 		}
 		if (debug_snow_view == 0 && (snow > 0.002 || ice > 0.002)) {
-			TriplanarUVs snow_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
+			TriplanarUVs snow_uvs = base_uvs;
 			float snow_h = triplanar_scalar_sample_uvs(height_textures[snow_texture_index], snow_uvs, planet_up);
 			if (snow_height_blend > 0.0001 && snow < 0.999) {
 				// Height-lerp: la nieve (altura + cobertura) contra el suelo (altura + resto).
@@ -683,16 +744,18 @@ void fragment() {
 			}
 			// La textura de nieve es oscura y azul (albedo ~0,5): se usa solo su relieve de luminancia
 			// sobre el blanco de la nieve real, que a la sombra el cielo ya tiñe de azul.
-			vec3 snow_tex = triplanar_sample_uvs(textures[snow_texture_index], snow_uvs, planet_up);
+			vec3 snow_tex = triplanar_sample_nt(textures[snow_texture_index], snow_uvs, planet_up, nt);
 			float snow_detail = dot(snow_tex, vec3(0.2126, 0.7152, 0.0722)) / max(snow_texture_mean_luma, 0.01);
 			vec3 snow_c = snow_tint * mix(1.0, snow_detail, snow_detail_strength);
-			vec4 snow_n = triplanar_normal_sample_uvs_v(normal_textures[snow_texture_index], snow_uvs, normal_world);
+			vec4 snow_n = triplanar_normal_sample_nt_v(normal_textures[snow_texture_index], snow_uvs, normal_world, nt);
 			float snow_r = triplanar_scalar_sample_uvs(roughness_textures[snow_texture_index], snow_uvs, planet_up);
 			float snow_ao = triplanar_scalar_sample_uvs(ao_textures[snow_texture_index], snow_uvs, planet_up);
 			vec3 snow_normal = apply_normal_strength(normal_world, safe_normalize(snow_n.xyz, normal_world), normal_strength);
 			if (ice > 0.002) {
 				TriplanarUVs ice_uvs = compute_triplanar_uvs(planet_pos, texture_scale * 0.6);
-				vec3 ice_c = triplanar_sample_uvs(textures[glacier_texture_index], ice_uvs, geometry_normal_world);
+				vec3 ice_c = adjust_albedo(
+					triplanar_sample_uvs(textures[glacier_texture_index], ice_uvs, geometry_normal_world),
+					texture_albedo_adjust[glacier_texture_index]);
 				vec4 ice_n = triplanar_normal_sample_uvs_v(normal_textures[glacier_texture_index], ice_uvs, normal_world);
 				float ice_r = triplanar_scalar_sample_uvs(roughness_textures[glacier_texture_index], ice_uvs, geometry_normal_world);
 				vec3 ice_normal = apply_normal_strength(normal_world, safe_normalize(ice_n.xyz, normal_world), normal_strength);
@@ -708,7 +771,7 @@ void fragment() {
 			// Destellos: algunas celdas de ~15 cm son un cristal con su propia faceta, que brilla
 			// cuando refleja el sol hacia la cámara. Al moverse la vista se encienden y apagan
 			// otras. light() les pone la sombra y el color del sol. Solo de cerca.
-			float view_d = length(CAMERA_POSITION_WORLD - world_pos);
+			float view_d = view_dist;
 			if (snow_sparkle_density > 0.0 && view_d < snow_sparkle_distance && snow > 0.5) {
 				vec3 cell = floor(planet_pos * 6.5);
 				if (hash(cell) > 1.0 - snow_sparkle_density) {

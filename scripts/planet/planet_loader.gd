@@ -184,7 +184,11 @@ var sea_ice_floes: SeaIceFloes
 		antitiling_variation_scale = value
 		_apply_antitiling_settings()
 
-@export_range(0.005, 2.5, 0.01) var antitiling_blend_softness: float = 2.5:
+## Ancho de la mezcla entre dos regiones giradas (fracción de cada región). Por encima de 0.5 el
+## shader lo recorta: la mezcla dejaría de ser pura en las fronteras y saldrían costuras. Cuanto
+## más bajo, más superficie enseña una sola copia de la textura, con todo su contraste; la mezcla
+## de dos copias a medias la deja lavada. (Antes valía 2.5: mezcla a medias en todo el suelo.)
+@export_range(0.005, 0.5, 0.01) var antitiling_blend_softness: float = 0.2:
 	set(value):
 		antitiling_blend_softness = value
 		_apply_antitiling_settings()
@@ -263,6 +267,8 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.height_transition_noise_strength = planet_parser.height_transition_noise_strength
 	planet.macro_variation_scale = planet_parser.macro_variation_scale
 	planet.macro_variation_strength = planet_parser.macro_variation_strength
+	planet.texture_albedo_adjust = planet_parser.texture_albedo_adjust
+	planet.slope_albedo_adjust = planet_parser.slope_albedo_adjust
 	planet.has_water = planet_parser.has_water
 	planet.water_radius = planet_parser.water_level
 	planet.ore_settings = planet_parser.ore_settings

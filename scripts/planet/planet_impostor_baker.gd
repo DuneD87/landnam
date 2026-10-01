@@ -56,7 +56,7 @@ static func bake(planet: Planet, size: Vector2i, height_range: float) -> Diction
 		# reconstruye la altura en unidades de mundo, que es lo que compara con max_heights.
 		"height_min": -height_range,
 		"height_range": height_range * 2.0,
-		"biome_colors": _average_colors(planet.textures),
+		"biome_colors": _average_colors(planet.textures, planet.texture_albedo_adjust),
 	}
 
 
@@ -70,10 +70,13 @@ static func _method_arg_count(obj: Object, method: String) -> int:
 
 ## Color medio de cada textura de albedo, ya en espacio lineal. A distancia de impostor el
 ## tileado se promedia igual, así que la media es literalmente lo que se ve. Se linealiza aquí
-## porque 'source_color' no vale como hint en un uniform de array.
-static func _average_colors(textures: Array) -> PackedVector3Array:
+## porque 'source_color' no vale como hint en un uniform de array. Lleva la misma calibración
+## (saturación y luego ganancia) que aplica planet_biomes.gdshader: ambas son lineales, así que
+## calibrar la media es lo mismo que promediar la textura calibrada.
+static func _average_colors(textures: Array, adjust: PackedVector4Array) -> PackedVector3Array:
 	var out := PackedVector3Array()
-	for t in textures:
+	for i in textures.size():
+		var t = textures[i]
 		var c := Color(0.5, 0.5, 0.5).srgb_to_linear()
 		if t is Texture2D:
 			var img: Image = t.get_image()
@@ -89,6 +92,11 @@ static func _average_colors(textures: Array) -> PackedVector3Array:
 						for x in 8:
 							acc += img.get_pixel(x, y).srgb_to_linear()
 					c = acc / 64.0
-		out.append(Vector3(c.r, c.g, c.b))
+		var avg := Vector3(c.r, c.g, c.b)
+		if i < adjust.size():
+			var a := adjust[i]
+			var luma := avg.dot(Vector3(0.2126, 0.7152, 0.0722))
+			avg = (Vector3(luma, luma, luma).lerp(avg, a.w)) * Vector3(a.x, a.y, a.z)
+		out.append(avg)
 	print("[impostor-bake] colores medios (lineal) de %d texturas: %s" % [out.size(), out])
 	return out

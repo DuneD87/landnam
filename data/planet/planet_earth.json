@@ -59,7 +59,7 @@
 		"slope_breakup_strength": 0.09,
 		"slope_breakup_anisotropy": 2.5,
 		"slope_strata_thickness": 22.0,
-		"slope_strata_strength": 0.11,
+		"slope_strata_strength": 0.0,
 		"slope_strata_warp": 0.35,
 		"parallax_enabled": true,
 		"parallax_strength": 0.09,
@@ -123,6 +123,15 @@
 			"res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_Height.png",
 			"res://textures/terrain/ice-field-bl -ue/ice_field_height.png"
 		],
+		"texture_albedo": [
+			{"saturation": 0.75},
+			{"gain": 1.4},
+			{},
+			{},
+			{"gain": 3.2},
+			{"gain": 3.6},
+			{}
+		],
 		"biome_noise_texture_overrides": [
 			{
 				"biome": 1.0,
@@ -151,6 +160,7 @@
 				"latitude_smoothness": 3.5
 			}
 		],
+		"slope_albedo": {"gain": 0.55, "tint": [1.05, 1.0, 0.92]},
 		"slope_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
 		"slope_normal_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png",
 		"slope_roughness_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png",

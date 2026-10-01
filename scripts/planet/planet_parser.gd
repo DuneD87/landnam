@@ -67,6 +67,9 @@ class_name PlanetParser extends Node3D
 @export var height_transition_noise_strength: float = 12.0
 @export var macro_variation_scale: float = 0.006
 @export var macro_variation_strength: float = 0.18
+## Calibración del albedo de cada textura, en el orden de "textures" (ver parse_albedo_adjust).
+@export var texture_albedo_adjust: PackedVector4Array = PackedVector4Array()
+@export var slope_albedo_adjust: Vector4 = Vector4.ONE
 
 @export_group("Atmosphere Settings")
 ## Sección "atmosphere_settings" del JSON: "enabled", "atmosphere_height" (grosor del aire sobre
@@ -210,6 +213,10 @@ func load_config(config_path: String):
 	height_transition_noise_strength = float(biome_settings.get("height_transition_noise_strength", height_transition_noise_strength))
 	macro_variation_scale = float(biome_settings.get("macro_variation_scale", macro_variation_scale))
 	macro_variation_strength = float(biome_settings.get("macro_variation_strength", macro_variation_strength))
+	texture_albedo_adjust = PackedVector4Array()
+	for entry in biome_settings.get("texture_albedo", []):
+		texture_albedo_adjust.append(parse_albedo_adjust(entry))
+	slope_albedo_adjust = parse_albedo_adjust(biome_settings.get("slope_albedo", {}))
 	slope_sound_material = StringName(biome_settings.get("slope_sound_material", slope_sound_material))
 
 	sound_materials = []
@@ -340,6 +347,18 @@ func _parse_river_settings(cfg: Dictionary) -> Dictionary:
 		if out.has(key) and out[key] is Array and out[key].size() == 2:
 			out[key] = Vector2i(int(out[key][0]), int(out[key][1]))
 	return out
+
+
+## Una entrada de "texture_albedo"/"slope_albedo": {"gain": 1.0, "tint": [r, g, b], "saturation": 1.0},
+## todas opcionales. Devuelve xyz = gain * tint (multiplicador lineal) y w = saturación, que es lo
+## que espera planet_biomes.gdshader. Lo que no sea un diccionario cuenta como textura sin calibrar.
+static func parse_albedo_adjust(entry: Variant) -> Vector4:
+	if not entry is Dictionary:
+		return Vector4.ONE
+	var gain := float(entry.get("gain", 1.0))
+	var tint: Array = entry.get("tint", [1.0, 1.0, 1.0])
+	return Vector4(gain * float(tint[0]), gain * float(tint[1]), gain * float(tint[2]),
+		float(entry.get("saturation", 1.0)))
 
 
 func _load_biome_noise_texture_overrides(biome_settings: Dictionary) -> void:
