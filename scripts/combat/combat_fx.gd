@@ -57,6 +57,8 @@ static func blood(target: Node, point: Vector3, direction: Vector3,
 			_mist(host, point, dir, int(14 * power))
 	_ground_splats(target, point, dir, power)
 	BloodStains.stain(target, point, dir, power)
+	# Salpica las matas de alrededor, a la altura del golpe.
+	BloodFoliage.add(point + dir * 0.3, 0.5 * power)
 
 
 ## Al cercenar un miembro: un chorro grande y abierto desde el muñón ([direction], hacia fuera).
@@ -69,6 +71,7 @@ static func sever_burst(target: Node, point: Vector3, direction: Vector3) -> voi
 	_droplets(host, point, dir, 20, 40.0, Vector2(1.0, 3.5), Vector2(2.5, 4.0), 1.3)
 	_mist(host, point, dir, 24)
 	_ground_splats(target, point, dir, 2.0)
+	BloodFoliage.add(point + dir * 0.4, 1.0)
 	play(&"hit_blunt", point, {"pitch": randf_range(0.65, 0.75)})
 
 

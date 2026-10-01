@@ -31,6 +31,8 @@ var character: CharacterData
 
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
+	# Antes de que cargue el planeta: el shader de la vegetación las necesita para compilar.
+	BloodFoliage.register_globals()
 
 
 func register_player(p: CharacterBody3D) -> void:

@@ -4,6 +4,7 @@ render_mode cull_disabled, depth_draw_opaque;
 // El planeta actualiza estos uniforms a través del include compartido.
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
 #include "res://shaders/lib/climate.gdshaderinc"
+#include "res://shaders/lib/blood_splats.gdshaderinc"
 
 uniform vec4 base_color : source_color = vec4(0.23, 0.36, 0.21, 1.0);
 uniform vec4 tip_color : source_color = vec4(0.58, 0.70, 0.42, 1.0);
@@ -93,6 +94,8 @@ varying float instance_seed;
 varying float wind_shade;
 // Nieve del clima frío en el sitio de la mata: x = cobertura, y = casquete.
 varying vec2 v_snow_climate;
+// Sangre en la hoja (BloodFoliage): x = cuánta, y = lo seca que está.
+varying vec2 v_blood;
 
 // Fracción de la altura de la mata que se hunde en la nieve con el suelo nevado del todo: la hierba
 // asoma en matas cortas en vez de crecer encima de la nieve.
@@ -200,6 +203,8 @@ void vertex() {
     v_snow_climate = vec2(climate_snow_cover(snow_cold), climate_glacier(snow_cold));
     VERTEX.y -= v_snow_climate.x * snow_burial * grass_height;
     vec3 world_vertex = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    // Sangre sobre la hoja en reposo, para que vaya pegada a ella con el viento. La sombra no la usa.
+    v_blood = IN_SHADOW_PASS ? vec2(0.0) : blood_amount(world_vertex);
 
     vec3 wt = wind_direction - up * dot(wind_direction, up);
     wt /= max(length(wt), 0.0001);
@@ -255,7 +260,13 @@ void fragment() {
         float frost = v_snow_climate.x * snow_frost * smoothstep(0.3, 1.0, height_factor);
         ALBEDO = mix(ALBEDO, CLIMATE_SNOW_ALBEDO, max(snow, frost));
     }
-    ROUGHNESS = specular_roughness;
+    // Salpicada de sangre, a gotas, y mojada mientras está fresca.
+    float bleed = 0.0;
+    if (v_blood.x > 0.001) {
+        bleed = blood_spots(UV, instance_seed, v_blood.x);
+        ALBEDO = mix(ALBEDO, blood_color(v_blood.y), bleed);
+    }
+    ROUGHNESS = mix(specular_roughness, 0.25, bleed * (1.0 - v_blood.y));
     SPECULAR = specular_strength;
     AO = 1.0 - root * base_occlusion;
     AO_LIGHT_AFFECT = 0.0;

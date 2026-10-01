@@ -76,6 +76,8 @@ static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float
 	side = side.rotated(up, randf() * TAU)
 	pool.global_transform = Transform3D(Basis(side, up, side.cross(up)), hit.position)
 	pool.add_to_group(&"floating_origin")
+	# Las hojas de la hierba y los arbustos de encima también se manchan.
+	BloodFoliage.add(hit.position, size * (0.8 if splat else 0.55))
 	var list := _splats if splat else _pools
 	list.append(pool)
 	while list.size() > (MAX_SPLATS if splat else MAX_POOLS):

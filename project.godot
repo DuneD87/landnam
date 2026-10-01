@@ -316,6 +316,18 @@ climate_fresh_snow={
 "type": "float",
 "value": 0.0
 }
+blood_splats={
+"type": "sampler2D",
+"value": ""
+}
+blood_splat_count={
+"type": "int",
+"value": 0
+}
+blood_splat_bounds={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
 
 [voxel]
 

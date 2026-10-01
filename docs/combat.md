@@ -197,6 +197,13 @@ perdido queda en contorno con el muñón rojo y una gota late mientras sangra.
 - **Sangre en el cuerpo** (`BloodStains`): cada golpe deja una mancha con regueros hacia abajo,
   pegada al hueso más cercano. Solo pinta las mallas del personaje (llevan la capa de render 20,
   la única del `cull_mask` de las manchas). Se limpian al reaparecer o al reciclar la criatura.
+- **Sangre en la vegetación** (`BloodFoliage`): cada mancha o charco en el suelo, cada golpe (a su
+  altura) y cada corte apuntan una salpicadura en una lista de 128 (las que caen casi encima se
+  juntan) que el shader de la hierba y los arbustos (`shaders/lib/blood_splats.gdshaderinc`) lee
+  como textura global, repartidas por cercanía en 16 grupos de 8 con su esfera: una hoja solo
+  recorre los grupos en cuya esfera cae, así que el coste no crece con el total. Tiñe a gotas las
+  hojas que caen dentro, sobre su posición en reposo: la sangre va pegada a la hoja con el viento.
+  Se secan y se van con los charcos.
 - **Desangrarse**: con mucha sangre perdida por segundo o poca vida, el mundo pierde color y los
   bordes se oscurecen a cada latido (`blood_loss.gdshader`), y se oye el corazón cada vez más
   deprisa.
