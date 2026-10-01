@@ -37,6 +37,7 @@ Todas empiezan en el inventario. `give <id>` en la consola da más.
 | `spear` | Lanza | 26 (×1,5 lanzada) | 1,40 | Pica a 1,2 m o se arroja; hasta 5 |
 | `hunting_bow` | Arco de caza | 36 a tensión completa | — | Gasta `arrow` |
 | `slingshot` | Tirachinas | 14 | — | Gasta piedras (`stone_01`) |
+| `branch_01` | Rama | 9 | 1,15 | Garrote largo (1,1 m), contundente; se recoge del suelo |
 | `stone_axe_01`, `stone_pickaxe_01` | Herramientas | 18 / 16 | — | Solo con enemigo delante |
 
 Las estadísticas viven en el `.tres` de cada item (grupo *Combat* de `ItemData`):
@@ -54,6 +55,20 @@ godot --headless --path . --import
 
 Todas siguen la misma convención: metros, origen en el agarre, +Y hacia la punta y
 +Z hacia el filo. `CombatPose.RIGHT_GRIP` / `LEFT_GRIP` las colocan en las manos.
+
+### Ramas y piedras del suelo
+
+Las ramas caídas (`scenes/planet/planet_items/litter/fallen_branch_0..2.tscn`) y las
+piedras pequeñas (`small_rock_01`) son objetos del planeta como el resto: van en
+`planet_earth.json` con `"pickup": true`, `"pickup_item"` (lo que dan; por defecto
+`stone_01`) y `"collision_distance_m": 40` (el módulo lo mide hasta el bloque, no hasta cada objeto). Cerca llevan un cuerpo en la capa
+física 13 (`Planet.PICKUP_LAYER`), con la que nadie choca, y `GroundPickup` coge lo más
+cercano a 2,4 m con la tecla de acción y lo quita del instancer. Una piedra da munición
+según su tamaño (1,5 por unidad de escala, hasta 5); las de escala > 3 no se levantan.
+Las ramas salen con los generadores `fallen_branches_generator_*` (bosque verde, taiga
+y abedules), que copian el ruido y el clima de los árboles de su bioma: caen en las
+mismas manchas de bosque. `suelo` en la consola dice qué hay para recoger cerca.
+Mallas y escenas: `bake_weapons.gd -- --only=branch,litter`.
 
 ## Cómo funciona
 

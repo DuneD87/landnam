@@ -124,13 +124,27 @@
 			"res://textures/terrain/ice-field-bl -ue/ice_field_height.png"
 		],
 		"texture_albedo": [
-			{"saturation": 0.75},
-			{"gain": 1.4},
-			{},
-			{},
-			{"gain": 3.2},
-			{"gain": 3.6},
-			{}
+			{
+				"saturation": 0.75
+			},
+			{
+				"gain": 1.4
+			},
+			{
+
+			},
+			{
+
+			},
+			{
+				"gain": 3.2
+			},
+			{
+				"gain": 3.6
+			},
+			{
+
+			}
 		],
 		"biome_noise_texture_overrides": [
 			{
@@ -160,7 +174,14 @@
 				"latitude_smoothness": 3.5
 			}
 		],
-		"slope_albedo": {"gain": 0.55, "tint": [1.05, 1.0, 0.92]},
+		"slope_albedo": {
+			"gain": 0.55,
+			"tint": [
+				1.05,
+				1.0,
+				0.92
+			]
+		},
 		"slope_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
 		"slope_normal_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png",
 		"slope_roughness_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png",
@@ -224,9 +245,9 @@
 			"cloud_group_density_variation": 0.45
 		},
 		"cloud_quality": {
-			"cloud_steps": 10,
-			"cloud_light_steps": 4,
-			"cloud_shadow_steps": 8
+			"cloud_steps": 10.0,
+			"cloud_light_steps": 4.0,
+			"cloud_shadow_steps": 8.0
 		},
 		"fog": {
 			"fog_enabled": true,
@@ -237,7 +258,7 @@
 			],
 			"fog_night_ambient": 0.08,
 			"fog_noise_scale": 2.0,
-			"fog_steps": 12,
+			"fog_steps": 12.0,
 			"fog_view_distance": 25.0,
 			"fog_occlusion_softness": 15.0
 		},
@@ -262,7 +283,7 @@
 			"god_rays_density": 0.85,
 			"god_rays_max_length": 0.6,
 			"god_rays_decay": 0.96,
-			"god_rays_samples": 48,
+			"god_rays_samples": 48.0,
 			"god_rays_blur": 0.006,
 			"god_rays_shimmer": 0.35,
 			"god_rays_shimmer_size": 60.0,
@@ -779,6 +800,80 @@
 				"noise_graph": "hemisphere_green_graph_path",
 				"climate": {
 					"max": 41.0,
+					"soft": 1.5
+				}
+			},
+			{
+				"name": "fallen_branches_generator_green",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.025,
+				"max_slope_degrees": 25.0,
+				"min_scale": 1.8,
+				"max_scale": 2.6,
+				"vertical_alignment": 1.0,
+				"min_height": -15.0,
+				"max_height": 125.0,
+				"noise_graph": "hemisphere_green_graph_path",
+				"noise": {
+					"frequency": 0.003,
+					"octaves": 3.0,
+					"dimension": "3D",
+					"seed": 29.0,
+					"threshold": 0.25,
+					"falloff": 0.3
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
+			},
+			{
+				"name": "fallen_branches_generator_taiga",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.025,
+				"max_slope_degrees": 25.0,
+				"min_scale": 1.8,
+				"max_scale": 2.6,
+				"vertical_alignment": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"noise_graph": "surface_graph_path",
+				"noise": {
+					"frequency": 0.004,
+					"octaves": 3.0,
+					"dimension": "3D",
+					"seed": 131.0,
+					"threshold": 0.3,
+					"falloff": 0.3
+				},
+				"climate": {
+					"min": 41.0,
+					"max": 52.5,
+					"soft": 1.5
+				}
+			},
+			{
+				"name": "fallen_branches_generator_birch",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.025,
+				"max_slope_degrees": 25.0,
+				"min_scale": 1.8,
+				"max_scale": 2.6,
+				"vertical_alignment": 1.0,
+				"min_height": -45.0,
+				"max_height": 400.0,
+				"noise_graph": "surface_graph_path",
+				"noise": {
+					"frequency": 0.006,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 137.0,
+					"threshold": 0.0,
+					"falloff": 0.35
+				},
+				"climate": {
+					"min": 39.0,
+					"max": 47.0,
 					"soft": 1.5
 				}
 			},
@@ -1301,7 +1396,9 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					11.0,
 					19.0
@@ -1318,7 +1415,9 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					11.0,
 					19.0
@@ -1335,7 +1434,9 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					11.0,
 					19.0
@@ -1353,7 +1454,9 @@
 					"tree_generator_green",
 					"tree_generator_green_sand"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					4.0,
 					7.0
@@ -1371,7 +1474,9 @@
 					"tree_generator_green",
 					"tree_generator_green_sand"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					4.0,
 					7.0
@@ -1388,7 +1493,9 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					4.0,
 					7.5
@@ -1405,7 +1512,9 @@
 				"generator": [
 					"tree_generator_green"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					4.0,
 					7.5
@@ -1423,7 +1532,9 @@
 					"tree_generator_green",
 					"tree_generator_green_sand"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					5.0,
 					8.0
@@ -1441,7 +1552,9 @@
 					"tree_generator_green",
 					"tree_generator_green_sand"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					5.0,
 					8.0
@@ -1529,6 +1642,59 @@
 				],
 				"material_type": "STONE",
 				"collision": false,
+				"pickup": true,
+				"collision_distance_m": 40.0,
+				"instance_as_scene": false
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/litter/fallen_branch_0.tscn",
+				"generator": [
+					"fallen_branches_generator_green",
+					"fallen_branches_generator_taiga",
+					"fallen_branches_generator_birch"
+				],
+				"lod_index": [
+					0.0
+				],
+				"material_type": "WOOD",
+				"collision": false,
+				"pickup": true,
+				"pickup_item": "branch_01",
+				"collision_distance_m": 40.0,
+				"instance_as_scene": false
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/litter/fallen_branch_1.tscn",
+				"generator": [
+					"fallen_branches_generator_green",
+					"fallen_branches_generator_taiga",
+					"fallen_branches_generator_birch"
+				],
+				"lod_index": [
+					0.0
+				],
+				"material_type": "WOOD",
+				"collision": false,
+				"pickup": true,
+				"pickup_item": "branch_01",
+				"collision_distance_m": 40.0,
+				"instance_as_scene": false
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/litter/fallen_branch_2.tscn",
+				"generator": [
+					"fallen_branches_generator_green",
+					"fallen_branches_generator_taiga",
+					"fallen_branches_generator_birch"
+				],
+				"lod_index": [
+					0.0
+				],
+				"material_type": "WOOD",
+				"collision": false,
+				"pickup": true,
+				"pickup_item": "branch_01",
+				"collision_distance_m": 40.0,
 				"instance_as_scene": false
 			},
 			{
@@ -2268,6 +2434,8 @@
 				],
 				"material_type": "STONE",
 				"collision": false,
+				"pickup": true,
+				"collision_distance_m": 40.0,
 				"instance_as_scene": false
 			},
 			{
@@ -2286,7 +2454,9 @@
 				"generator": [
 					"tree_generator_taiga"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					14.0,
 					22.0
@@ -2303,7 +2473,9 @@
 				"generator": [
 					"tree_generator_taiga"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					12.0,
 					19.0
@@ -2320,7 +2492,9 @@
 				"generator": [
 					"tree_generator_taiga"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					16.0,
 					25.0
@@ -2337,7 +2511,9 @@
 				"generator": [
 					"tree_generator_taiga"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					11.0,
 					18.0
@@ -2354,7 +2530,9 @@
 				"generator": [
 					"tree_generator_birch"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					9.0,
 					15.0
@@ -2371,7 +2549,9 @@
 				"generator": [
 					"tree_generator_birch"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					9.0,
 					15.0
@@ -2388,7 +2568,9 @@
 				"generator": [
 					"tree_generator_treeline"
 				],
-				"tree_lods": {},
+				"tree_lods": {
+
+				},
 				"height_m": [
 					2.5,
 					5.0

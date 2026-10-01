@@ -943,6 +943,8 @@ func _input(event):
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		elif combat.try_pickup():
 			pass
+		elif GroundPickup.try_pickup(self, inventory):
+			pass
 		else:
 			var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
 			var item_data = action_controller.handle_pickup(camera, ray_origin)

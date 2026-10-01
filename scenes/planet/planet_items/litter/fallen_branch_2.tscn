@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/litter/fallen_branch_2.res" id="1_capeh"]
+
+[node name="FallenBranch2" type="Node3D" unique_id=1082225698]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=131174799]
+mesh = ExtResource("1_capeh")

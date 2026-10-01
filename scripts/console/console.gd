@@ -257,6 +257,8 @@ func _register_commands() -> void:
 		"Teletransporta al jugador a una posición global.", _cmd_tp, 3))
 	_add(ConsoleCommand.new("heal", "heal [cantidad]",
 		"Cura al jugador (sin argumento, cura al máximo, cierra las heridas y le devuelve los miembros).", _cmd_heal))
+	_add(ConsoleCommand.new("suelo", "suelo",
+		"Ramas y piedras que se pueden recoger alrededor.", _cmd_litter))
 	_add(ConsoleCommand.new("god", "god [on|off]",
 		"Invulnerabilidad del jugador (sin argumento, alterna).", _cmd_god))
 	_add(ConsoleCommand.new("noclip", "noclip",
@@ -691,6 +693,13 @@ func _cmd_blood(_args: PackedStringArray) -> String:
 	if player == null:
 		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
 	return "[color=%s]%s[/color]" % [COLOR_OK, BloodPool.report(player.global_position)]
+
+
+func _cmd_litter(_args: PackedStringArray) -> String:
+	var player := _get_player() as Node3D
+	if player == null:
+		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+	return "[color=%s]%s[/color]" % [COLOR_OK, GroundPickup.report(player)]
 
 
 func _cmd_mutilate(args: PackedStringArray) -> String:

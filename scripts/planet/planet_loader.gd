@@ -336,6 +336,7 @@ func _load_planet() -> void:
 	if not Engine.is_editor_hint():
 		_setup_ambient_fauna()
 		_setup_ground_fauna(planet_parser)
+		GroundPickup.setup(planet)
 
 	if impostor_enabled:
 		_setup_impostor()

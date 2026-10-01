@@ -114,6 +114,12 @@ var planet_item_scenes: Dictionary
 var planet_item_packed_scenes: Dictionary
 ## library_id -> baked local branch anchors and wood BVH, shared across instances.
 var tree_perch_catalog: Dictionary = {}
+## library_id -> id del item que da al recogerlo con la tecla de acción ("pickup" y "pickup_item" en
+## el JSON: ramas caídas y piedras pequeñas). Llevan colisión solo cerca, en PICKUP_LAYER.
+var pickup_library_ids: Dictionary = {}
+## Capa física 13: la de lo que se recoge del suelo. Nadie choca con ella; solo la consulta
+## GroundPickup.
+const PICKUP_LAYER := 1 << 12
 ## Geometría cercana de los árboles Branching (ver _register_tree_item).
 var tree_detail_renderer: TreeDetailRenderer = null
 var _next_library_id: int = 0
@@ -426,7 +432,15 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 	else:
 		# items sin LOD (MeshInstance directa, Rock3D): sin collision_shapes, dependen de
 		# 'scene' para que el módulo instancie el nodo físico cerca del jugador.
-		if item.get("collision", true):
+		if item.get("pickup", false):
+			# Se recoge: la malla y, solo cerca (collision_distance_m), un cuerpo en PICKUP_LAYER que
+			# no estorba a nadie, para encontrarla y quitarla de la multimalla al cogerla.
+			var mesh: Mesh = shared_data.effective_mesh
+			multi_mesh_item.set_mesh(mesh, 0)
+			multi_mesh_item.collision_shapes = [mesh.create_convex_shape(true, true), Transform3D.IDENTITY]
+			multi_mesh_item.collision_layer = PICKUP_LAYER
+			multi_mesh_item.collision_mask = 0
+		elif item.get("collision", true):
 			multi_mesh_item.scene = shared_data.packed_scene
 		else:
 			# Decorado sin física: solo la malla. Con la escena, el módulo crea un cuerpo por
@@ -463,6 +477,8 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 	voxel_instancer.library.add_item(library_id, multi_mesh_item)
 	if not shared_data.get("perch_data", {}).is_empty():
 		tree_perch_catalog[library_id] = shared_data.perch_data
+	if item.get("pickup", false):
+		pickup_library_ids[library_id] = StringName(item.get("pickup_item", "stone_01"))
 
 	# Plantilla para clonar el item al talarlo (action_controller). Va en un dict aparte
 	# y NO en multi_mesh_item.scene: ponerla ahí haría que el módulo instancie un nodo por
@@ -532,6 +548,7 @@ func _load_vegetation() -> void:
 	planet_item_scenes.clear()
 	planet_item_packed_scenes.clear()
 	tree_perch_catalog.clear()
+	pickup_library_ids.clear()
 	if tree_detail_renderer != null:
 		tree_detail_renderer.queue_free()
 		tree_detail_renderer = null

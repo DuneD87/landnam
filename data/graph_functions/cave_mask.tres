@@ -1,5 +1,19 @@
 [gd_resource type="VoxelGraphFunction" format=3 uid="uid://cvmask7q3x2k1"]
 
+[sub_resource type="FastNoise2" id="FastNoise2_e12gd"]
+noise_type = 1
+seed = 72
+period = 250.0
+fractal_type = 1
+fractal_octaves = 2
+
+[sub_resource type="FastNoise2" id="FastNoise2_mb1gl"]
+noise_type = 1
+seed = 71
+period = 250.0
+fractal_type = 1
+fractal_octaves = 2
+
 [sub_resource type="FastNoise2" id="FastNoise2_a1m5i"]
 noise_type = 1
 seed = 73
@@ -22,23 +36,9 @@ fractal_type = 1
 fractal_octaves = 4
 fractal_gain = 0.4
 
-[sub_resource type="FastNoise2" id="FastNoise2_mb1gl"]
-noise_type = 1
-seed = 71
-period = 250.0
-fractal_type = 1
-fractal_octaves = 2
-
-[sub_resource type="FastNoise2" id="FastNoise2_e12gd"]
-noise_type = 1
-seed = 72
-period = 250.0
-fractal_type = 1
-fractal_octaves = 2
-
 [resource]
 graph_data = {
-"connections": [[1, 0, 6, 0], [10, 0, 11, 0], [11, 0, 12, 1], [12, 0, 13, 2], [13, 0, 14, 0], [14, 0, 18, 0], [15, 0, 16, 0], [16, 0, 17, 0], [17, 0, 18, 1], [18, 0, 19, 0], [2, 0, 9, 0], [3, 0, 12, 0], [4, 0, 5, 0], [5, 0, 6, 1], [6, 0, 13, 0], [7, 0, 8, 0], [8, 0, 9, 1], [9, 0, 13, 1]],
+"connections": [[9, 0, 13, 1], [8, 0, 9, 1], [7, 0, 8, 0], [6, 0, 13, 0], [5, 0, 6, 1], [4, 0, 5, 0], [1, 0, 6, 0], [14, 0, 18, 0], [10, 0, 11, 0], [11, 0, 12, 1], [12, 0, 13, 2], [13, 0, 14, 0], [15, 0, 16, 0], [2, 0, 9, 0], [16, 0, 17, 0], [3, 0, 12, 0], [17, 0, 18, 1], [18, 0, 19, 0]],
 "nodes": {
 "1": {
 "auto_connect": false,

@@ -18,6 +18,7 @@ const FLINT := &"flint"
 const FEATHER := &"feather"
 const CORD := &"cord"
 const STONE := &"stone"
+const BARK := &"bark"
 
 
 ## Materiales compartidos, uno por tipo. El grano va en la textura de ruido y las UV lo estiran
@@ -58,6 +59,10 @@ static func make_material(kind: StringName) -> StandardMaterial3D:
 		STONE:
 			mat.albedo_texture = _noise_texture(Color(0.22, 0.20, 0.18), Color(0.42, 0.39, 0.35), 6.0, 23)
 			mat.roughness = 0.9
+		BARK:
+			# Corteza gris parda, con el grano a lo largo como la madera.
+			mat.albedo_texture = _noise_texture(Color(0.10, 0.08, 0.06), Color(0.30, 0.26, 0.21), 1.6, 29)
+			mat.roughness = 0.92
 	return mat
 
 
@@ -693,3 +698,55 @@ static func pebble() -> ArrayMesh:
 	for i in indices:
 		st.add_index(i)
 	return b.commit(make_material)
+
+
+## Rama caída: un palo torcido de corteza con un par de ramitas, para recoger del suelo. Se empuña
+## por el origen, cerca del extremo grueso, y +Y va hacia la punta. [variant] cambia la forma y el
+## largo (la 0 es la que se lleva en la mano).
+static func branch(variant: int = 0) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7919 + variant * 104729
+	var length := 1.3 if variant == 0 else rng.randf_range(0.95, 1.5)
+	var b := Builder.new()
+	var bark := b.st(BARK)
+	var points := PackedVector3Array()
+	var radii := PackedVector2Array()
+	var steps := 9
+	var bend := Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).normalized()
+	for i in steps + 1:
+		var t := float(i) / steps
+		# Curva suave de un lado y nudos que tuercen un poco el palo.
+		var wobble := bend * sin(t * PI) * 0.045 + Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)) * 0.008
+		points.append(Vector3(0, -0.18 + length * t, 0) + wobble)
+		var r := lerpf(0.026, 0.012, t) * rng.randf_range(0.92, 1.08)
+		radii.append(Vector2(r, r * rng.randf_range(0.85, 1.0)))
+	tube(bark, points, radii, 8, Vector3.RIGHT, true)
+	# Ramitas: salen hacia la punta, finas y cortas, alguna partida.
+	for k in rng.randi_range(2, 3):
+		var at := rng.randf_range(0.35, 0.85)
+		var i := int(at * steps)
+		var base := points[i]
+		var around := rng.randf() * TAU
+		var dir := (Vector3(cos(around), 0, sin(around)) * rng.randf_range(0.6, 1.0) + Vector3.UP * rng.randf_range(0.6, 1.1)).normalized()
+		var twig_length := rng.randf_range(0.08, 0.26)
+		var twig := PackedVector3Array([base, base + dir * twig_length * 0.5 + Vector3(0, 0.01, 0), base + dir * twig_length])
+		var r0 := radii[i].x * 0.45
+		tube(bark, twig, PackedVector2Array([Vector2(r0, r0), Vector2(r0 * 0.7, r0 * 0.7), Vector2(r0 * 0.4, r0 * 0.4)]), 5, Vector3.RIGHT, true)
+	return b.commit(make_material)
+
+
+
+## La rama tirada en el suelo (objeto del planeta): tumbada, con el palo a lo largo de -Z, centrada
+## en el origen y con lo más bajo un centímetro por debajo de y = 0.
+static func lying_branch(variant: int) -> ArrayMesh:
+	var source := branch(variant)
+	var length := source.get_aabb().size.y
+	var xf := Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(0, 0, length * 0.5 - 0.18))
+	xf.origin.y = -(xf * source.get_aabb()).position.y - 0.01
+	var mesh := ArrayMesh.new()
+	for surface in source.get_surface_count():
+		var st := SurfaceTool.new()
+		st.append_from(source, surface, xf)
+		st.set_material(source.surface_get_material(surface))
+		st.commit(mesh)
+	return mesh

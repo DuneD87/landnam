@@ -23,7 +23,13 @@ var WEAPONS := {
 	"hunting_bow": [WeaponMeshes.bow_flexing, "res://scripts/combat/ranged_weapon_visual.gd", -35.0],
 	"slingshot": [WeaponMeshes.slingshot, "res://scripts/combat/ranged_weapon_visual.gd", -25.0],
 	"arrow": [WeaponMeshes.arrow, "", -45.0],
+	"branch": [WeaponMeshes.branch, "", -45.0],
 }
+
+## Ramas tiradas por el suelo (objetos del planeta, planet_earth.json): malla tumbada y escena.
+const LITTER_DIR := "res://data/items/meshes/litter/"
+const LITTER_SCENE_DIR := "res://scenes/planet/planet_items/litter/"
+const LITTER_BRANCHES := 3
 
 ## Colores de icono por material (paleta de los iconos dibujados existentes). Alfa < 1 = brillo.
 const ICON_COLORS := {
@@ -36,6 +42,7 @@ const ICON_COLORS := {
 	&"feather": Color(0.88, 0.32, 0.25, 1.0),
 	&"cord": Color(0.99, 0.89, 0.76, 1.0),
 	&"stone": Color(0.56, 0.63, 0.69, 1.0),
+	&"bark": Color(0.55, 0.42, 0.33, 1.0),
 }
 
 
@@ -49,7 +56,7 @@ func _initialize() -> void:
 func _run() -> void:
 	root.size = Vector2i(ICON_SIZE, ICON_SIZE)
 	root.transparent_bg = true
-	for dir in [MESH_DIR, SCENE_DIR, ICON_DIR]:
+	for dir in [MESH_DIR, SCENE_DIR, ICON_DIR, LITTER_DIR, LITTER_SCENE_DIR]:
 		DirAccess.make_dir_recursive_absolute(dir)
 	var only: PackedStringArray = []
 	for arg in OS.get_cmdline_user_args():
@@ -66,6 +73,11 @@ func _run() -> void:
 		if weapon_name != "arrow":
 			_save_scene(weapon_name, mesh, entry[1])
 		await _render_icon(weapon_name, mesh, entry[2])
+	if only.is_empty() or "litter" in only:
+		for variant in LITTER_BRANCHES:
+			var path := LITTER_DIR + "fallen_branch_%d.res" % variant
+			_check(ResourceSaver.save(WeaponMeshes.lying_branch(variant + 1), path), path)
+			_save_litter_scene("fallen_branch_%d" % variant, load(path))
 	if not only.is_empty():
 		print("BAKE WEAPONS DONE")
 		quit()
@@ -99,6 +111,22 @@ func _save_scene(weapon_name: String, mesh: ArrayMesh, script_path: String) -> v
 	var packed := PackedScene.new()
 	packed.pack(root_node)
 	var path := SCENE_DIR + weapon_name + ".tscn"
+	_check(ResourceSaver.save(packed, path), path)
+	root_node.free()
+
+
+## Escena de objeto del planeta: raíz y la malla como primer hijo (Planet la lee de ahí).
+func _save_litter_scene(scene_name: String, mesh: ArrayMesh) -> void:
+	var root_node := Node3D.new()
+	root_node.name = scene_name.to_pascal_case()
+	var mi := MeshInstance3D.new()
+	mi.name = "Mesh"
+	mi.mesh = mesh
+	root_node.add_child(mi)
+	mi.owner = root_node
+	var packed := PackedScene.new()
+	packed.pack(root_node)
+	var path := LITTER_SCENE_DIR + scene_name + ".tscn"
 	_check(ResourceSaver.save(packed, path), path)
 	root_node.free()
 

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/branch.png" id="1_icon"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_script"]
+
+[resource]
+script = ExtResource("2_script")
+id = &"branch_01"
+display_name = "Rama"
+description = "Una rama recia caída de un árbol. Pega poco, pero llega lejos y aguanta el peso de quien se apoye en ella."
+icon = ExtResource("1_icon")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/branch.tscn"
+armor_slot = 6
+weapon_type = 6
+damage = 9
+attack_speed = 1.15
+reach = 1.1
+blade_start = 0.55
+blade_radius = 0.05
+damage_kind = 1
+stamina_cost = 10.0
+poise_damage = 14.0
+heavy_multiplier = 1.6
+stackable = false
+max_stack = 1
+metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

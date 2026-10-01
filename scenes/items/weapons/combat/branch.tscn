@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/branch.res" id="1_vsq5f"]
+
+[node name="Branch" type="Node3D" unique_id=750191747]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=266112287]
+mesh = ExtResource("1_vsq5f")
