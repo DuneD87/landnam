@@ -17,8 +17,10 @@ const TARGET_SCENE := "res://scenes/character/character_model.tscn"
 const FPS := 30.0
 
 ## Animación de salida: [archivo, desde (s), hasta (s) o -1 = final, quitar desplazamiento
-## horizontal de la cadera, en bucle (opcional)]. El archivo va respecto a SOURCE_DIR, o con su
-## ruta res:// entera (ActorCore, también con esqueleto de Character Creator).
+## horizontal de la cadera, en bucle (opcional), opciones (opcional)]. El archivo va respecto a
+## SOURCE_DIR, o con su ruta res:// entera (ActorCore, también con esqueleto de Character Creator).
+## Opciones: "mirror" la saca reflejada (izquierda por derecha); "height_from" toma la altura de
+## la cadera de pie de otra descarga del mismo personaje (para las que no empiezan de pie).
 const CLIPS := {
 	"roll": ["Sprinting Forward Roll", 0.0, -1.0, true],
 	# Lo que sigue a 1,5 s es volver andando al sitio.
@@ -43,6 +45,15 @@ const CLIPS := {
 	"sword_heavy": ["melee/one_handed_sword_slash_heavy", 0.0, -1.0, true],
 	# ActorCore: paseo relajado (el ciclo; son 3 pasos dobles que cierran el bucle).
 	"walk_relaxed": ["res://models/player/actorcore/walk_relaxed/walk_relaxed_loop", 0.0, -1.0, true, true],
+	# Lisiado (PlayerCombat, canal "cripple"): cojera con la pierna derecha mala y su espejo, y
+	# arrastrarse por el suelo con las piernas muertas.
+	"injured_idle": ["injury/Injured Idle", 0.0, -1.0, true, true],
+	"injured_walk": ["injury/Injured Walk", 0.0, -1.0, true, true],
+	"injured_walk_back": ["injury/Injured Walk Backwards", 0.0, -1.0, true, true],
+	"injured_idle_mirror": ["injury/Injured Idle", 0.0, -1.0, true, true, {"mirror": true}],
+	"injured_walk_mirror": ["injury/Injured Walk", 0.0, -1.0, true, true, {"mirror": true}],
+	"injured_walk_back_mirror": ["injury/Injured Walk Backwards", 0.0, -1.0, true, true, {"mirror": true}],
+	"crawl": ["injury/Zombie Crawl", 0.0, -1.0, true, true, {"height_from": "injury/Injured Idle"}],
 }
 
 ## Hueso del jugador ← hueso de origen.
@@ -165,12 +176,36 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 	var src_hips_h: float = (src_rest["CC_Base_Hip"] as Transform3D).origin.y
 	# El reposo de origen puede estar en otra escala que la animación: se mide la cadera en el
 	# primer fotograma, que en todas estas empieza de pie.
-	player.seek(clip[1], true)
-	sskel.force_update_all_bone_transforms()
-	var first_hips := smodel * sskel.global_transform * sskel.get_bone_global_pose(sskel.find_bone("CC_Base_Hip"))
-	if first_hips.origin.y > 0.3:
-		src_hips_h = first_hips.origin.y
+	var opts: Dictionary = clip[5] if clip.size() > 5 else {}
+	if opts.has("height_from"):
+		src_hips_h = await _first_hips_height(opts.height_from)
+	else:
+		player.seek(clip[1], true)
+		sskel.force_update_all_bone_transforms()
+		var first_hips := smodel * sskel.global_transform * sskel.get_bone_global_pose(sskel.find_bone("CC_Base_Hip"))
+		if first_hips.origin.y > 0.3:
+			src_hips_h = first_hips.origin.y
 	var scale := hips_rest_h / maxf(src_hips_h, 0.01)
+	# Espejo: reflejo por el plano medio del jugador (normal = de la cadera derecha a la izquierda).
+	# Cada hueso toma el giro reflejado de su pareja del otro lado, corregido para que en reposo
+	# coincida con su propio reposo.
+	var mirror: bool = opts.get("mirror", false)
+	var reflect := Basis.IDENTITY
+	var partner := {}
+	var mirror_fix := {}
+	if mirror:
+		var n := tl.normalized()
+		reflect = Basis(Vector3.RIGHT - 2.0 * n * n.x, Vector3.UP - 2.0 * n * n.y, Vector3.BACK - 2.0 * n * n.z)
+		for i in tskel.get_bone_count():
+			var bone_name := tskel.get_bone_name(i)
+			var other := bone_name.replace("Left", "#").replace("Right", "Left").replace("#", "Right")
+			var j := tskel.find_bone(other)
+			partner[i] = j if j >= 0 else i
+		for i in tskel.get_bone_count():
+			var j: int = partner[i]
+			var rest_i := _rot(t_rest_world[tskel.get_bone_name(i)])
+			var rest_j := _rot(t_rest_world[tskel.get_bone_name(j)])
+			mirror_fix[j] = (reflect * rest_i * reflect).inverse() * rest_j
 
 	var from: float = clip[1]
 	var to: float = src_anim.length if clip[2] < 0.0 else clip[2]
@@ -212,6 +247,12 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 			else:
 				var parent_world: Basis = world[parent] if parent >= 0 else tsk_rot
 				world[i] = (parent_world * tskel.get_bone_rest(i).basis.orthonormalized()).orthonormalized()
+		if mirror:
+			var mirrored := {}
+			for i in tskel.get_bone_count():
+				var j: int = partner[i]
+				mirrored[j] = (reflect * (world[i] as Basis) * reflect * (mirror_fix[j] as Basis)).orthonormalized()
+			world = mirrored
 		for i in order:
 			var parent := tskel.get_bone_parent(i)
 			var parent_world: Basis = world[parent] if parent >= 0 else tsk_rot
@@ -224,10 +265,29 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 			start_xz = Vector3(p.x, 0, p.z)
 		if clip[3]:
 			p -= Vector3(p.x, 0, p.z) - start_xz
+		if mirror:
+			p = reflect * p
 		anim.position_track_insert_key(hips_pos_track, t - from, to_tmodel.affine_inverse() * p)
 	source.queue_free()
 	await process_frame
 	return anim
+
+
+## Altura de la cadera (en el marco del modelo de origen) en el primer fotograma de [file].
+func _first_hips_height(file: String) -> float:
+	var source: Node3D = load(SOURCE_DIR + file + ".fbx").instantiate()
+	root.add_child(source)
+	var sskel: Skeleton3D = source.find_children("*", "Skeleton3D", true, false)[0]
+	var player: AnimationPlayer = source.find_children("*", "AnimationPlayer", true, false)[0]
+	player.play(player.get_animation_list()[0])
+	player.pause()
+	player.seek(0.0, true)
+	sskel.force_update_all_bone_transforms()
+	var hips := source.global_transform.affine_inverse() * sskel.global_transform \
+		* sskel.get_bone_global_pose(sskel.find_bone("CC_Base_Hip"))
+	source.queue_free()
+	await process_frame
+	return hips.origin.y
 
 
 func _standing_hips_height(target: Node3D, tskel: Skeleton3D, to_tmodel: Transform3D) -> float:

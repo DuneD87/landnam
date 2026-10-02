@@ -130,6 +130,10 @@ var hit_react: HitReact
 var ragdoll: Ragdoll
 ## Daño por partes, sangrado y miembros cercenados.
 var body_damage: BodyDamage
+## Andar lisiado (muleta o arrastrarse) cuando le falta una pierna.
+var cripple: Cripple
+## La rama la coloca Cripple como muleta (o el arma va escondida al arrastrarse).
+var _cripple_visual: bool = false
 var lock_target: Node3D = null
 
 var state: State = State.IDLE
@@ -306,6 +310,7 @@ func setup(owner_player: PlayerController) -> void:
 	_arrow_visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_arrow_visual)
 
+	cripple = Cripple.new(self)
 	_sweep = MeleeSweep.new()
 	_sweep.exclude = [hurtbox.get_rid()]
 	_trail = WeaponTrail.new()
@@ -351,7 +356,7 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 	if top == StringName():
 		return
 	tree_root.disconnect_node(&"output", 0)
-	var below := top
+	var below := Cripple.build(tree_root, top)
 	for channel in ["upper", "attack_a", "attack_b", "full"]:
 		var anim := AnimationNodeAnimation.new()
 		anim.animation = &"combat/roll"
@@ -681,6 +686,8 @@ func _try_buffered() -> void:
 ## Un golpe no se corta ni con otro golpe ni con una esquiva: lo pulsado espera a que acabe
 ## (_finish_attack) y sale entonces.
 func _can_dodge_now() -> bool:
+	if cripple.active():
+		return false
 	if player.movement.is_swimming or player.movement.is_falling or player.movement.is_jumping:
 		return false
 	match state:
@@ -692,6 +699,8 @@ func _can_dodge_now() -> bool:
 
 
 func _can_attack_now() -> bool:
+	if cripple.active():
+		return false
 	if player.movement.is_swimming or player.movement.is_falling or weapon() == null:
 		return false
 	match state:
@@ -725,7 +734,7 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 		State.IDLE:
 			_try_buffered()
 			var data := weapon()
-			if (_aim_held or _draw_held) and data != null and data.is_ranged():
+			if (_aim_held or _draw_held) and data != null and data.is_ranged() and not cripple.active():
 				_enter_aim()
 		State.ATTACK:
 			_update_attack(delta)
@@ -741,6 +750,7 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 		_try_buffered()
 	_update_lock(delta)
 	_update_limits(delta, input_dir)
+	cripple.update(delta, input_dir)
 	_update_aim_blend(delta)
 	_update_carry(delta)
 	_update_recovery(input_dir)
@@ -1482,6 +1492,8 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 	if data == null or _weapon_node == null or not is_instance_valid(_weapon_node):
 		_arrow_visual.visible = false
 		return
+	if _place_cripple_visual(p):
+		return
 	var aiming := _aim_weight > 0.02
 	var up := -player.gravity_direction.normalized()
 	if _quiver != null:
@@ -1548,6 +1560,29 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 			_weapon_node.visible = not released
 	else:
 		_arrow_visual.visible = false
+
+
+## Arrastrándose el arma no se ve; con muleta, la rama va donde la deja CombatPose. Devuelve true
+## si se ha ocupado del arma.
+func _place_cripple_visual(p: CombatPose) -> bool:
+	if cripple.mode == Cripple.Mode.CRAWL:
+		_weapon_node.visible = false
+		_arrow_visual.visible = false
+		_cripple_visual = true
+		return true
+	if p.crutch > 0.5:
+		_weapon_node.visible = true
+		_weapon_node.top_level = true
+		_weapon_node.global_transform = p.crutch_xform
+		_arrow_visual.visible = false
+		_cripple_visual = true
+		return true
+	if _cripple_visual:
+		_cripple_visual = false
+		_weapon_node.visible = true
+		_weapon_node.top_level = false
+		_weapon_node.transform = Transform3D.IDENTITY
+	return false
 
 
 ## Estela de la hoja mientras el golpe hiere.

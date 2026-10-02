@@ -84,7 +84,8 @@ static func clear(target: Node) -> void:
 
 
 static func _skeleton(body: Node3D) -> Skeleton3D:
-	var cached: Variant = body.get_meta(META_SKELETON, null)
+	# get_meta con null por defecto cuenta como "sin defecto" y escribe un error si no está.
+	var cached: Variant = body.get_meta(META_SKELETON) if body.has_meta(META_SKELETON) else null
 	if cached is Skeleton3D and is_instance_valid(cached):
 		return cached
 	var skel := body.find_child("Skeleton3D", true, false) as Skeleton3D

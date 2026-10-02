@@ -228,6 +228,18 @@ perdido queda en contorno con el muñón rojo y una gota late mientras sangra.
 
 Todo se cura al reaparecer, al cargar partida o con `heal` (los miembros aún no se guardan).
 
+### Lisiado
+
+`Cripple` (`scripts/combat/cripple.gd`) decide cómo anda el jugador según lo que le falta:
+sin una pierna y con una rama (`branch_01`) empuñada, cojea con la rama de muleta en el
+lado de esa pierna (hace falta la mano de ese lado); sin rama, sin esa mano o sin las dos
+piernas, se arrastra. Lisiado no corre, no salta, no esquiva ni pega. Las animaciones
+(`injury/` de Mixamo: Injured Idle/Walk/Walk Backwards y Zombie Crawl) van en un canal
+encima de la locomoción; la cojera original es de la pierna izquierda y el retarget saca
+su espejo (`*_mirror`). Velocidades medidas en los clips: cojear ~0,9 m/s, arrastrarse
+~0,4 m/s. La muleta es un pie más: la punta se queda clavada y da un paso cuando se queda
+atrás; el brazo la agarra por IK (`CombatPose._apply_crutch`).
+
 ## Osos
 
 `CreatureMeleeState` sustituye al antiguo `CombatState` en `Bear.tscn`. El oso ve

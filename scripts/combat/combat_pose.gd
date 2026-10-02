@@ -86,6 +86,16 @@ var right_grip_xform: Transform3D
 var carry: float = 0.0
 var carry_perpendicular: bool = true
 
+## Muleta (Cripple): 0..1 cuánto manda, de qué lado va ("Left"/"Right", el de la pierna que
+## falta), dónde se clava la punta y dónde debería quedar el puño (mundo; los pone Cripple). Tras
+## posar, crutch_xform (mundo) es dónde va la rama: su +Y de la punta al puño, que pasa por el
+## puño ya resuelto.
+var crutch: float = 0.0
+var crutch_side: String = "Left"
+var crutch_tip: Vector3
+var crutch_fist: Vector3
+var crutch_xform: Transform3D
+
 ## Llamado tras posar, con este modificador (para colocar visuales sobre las manos).
 var after_pose: Callable
 ## Si está activo, tras posar mide los huesos de contacto de la voltereta (RollMotion.sample) y
@@ -142,6 +152,8 @@ func _apply() -> void:
 		if carry > 0.001:
 			_apply_carry(carry)
 		_apply_grip()
+	if crutch > 0.001:
+		_apply_crutch(crutch)
 	if sample_contacts:
 		contact_sample = RollMotion.sample(_skel, frame_node, _contact_cache)
 	if after_pose.is_valid():
@@ -649,6 +661,34 @@ func _apply_grip() -> void:
 	var origin := bone_pos("mixamorig_RightHand") + (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * m
 	var to_world := _skel.global_transform
 	right_grip_xform = Transform3D((to_world.basis.orthonormalized() * Basis(x, y, z)).orthonormalized(), to_world * origin)
+
+
+## Hasta dónde baja la rama por debajo de su agarre (la malla empieza 0,18 m por detrás de él).
+const CRUTCH_BUTT := 0.18
+
+
+## Muleta: el brazo de su lado lleva el puño a crutch_fist (el codo atrás y hacia fuera), la mano
+## la agarra con los nudillos adelante y la palma hacia el cuerpo, y la rama va de la punta al
+## puño que ha quedado.
+func _apply_crutch(w: float) -> void:
+	var m := unit()
+	var side := crutch_side
+	var fwd := model_dir(Vector3.BACK)
+	var out := model_dir(Vector3.RIGHT) * (1.0 if side == "Left" else -1.0)
+	var fist := to_skel_point(crutch_fist)
+	var wrist := fist - (fwd * FIST_HANDLE.x - out * FIST_HANDLE.y) * m
+	arm_ik(side, wrist, -fwd + out * 0.6, w)
+	orient_hand(side, fwd, -out, w, 0.7, 70.0)
+	pose_fingers(side, FIST, w)
+	var hand := hand_frame(side)
+	var grip := bone_pos("mixamorig_%sHand" % side) + (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * m
+	var top := to_world_point(grip)
+	var axis := (top - crutch_tip).normalized()
+	var forward := frame_node.global_basis.z
+	var x := axis.cross(forward).normalized()
+	if x.length_squared() < 1e-6:
+		x = frame_node.global_basis.x
+	crutch_xform = Transform3D(Basis(x, axis, x.cross(axis)), crutch_tip + axis * CRUTCH_BUTT)
 
 
 ## Tambaleo o paso atrás (BodyMotion): cadera, tronco, cabeza y brazos por claves, y las

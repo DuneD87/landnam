@@ -349,7 +349,7 @@ func _process(_delta: float) -> void:
 			if not is_instance_valid(item):
 				continue
 			for instance in _armour_meshes(item):
-				if instance.get_meta(&"armor_source", null) == source:
+				if instance.has_meta(&"armor_source") and instance.get_meta(&"armor_source") == source:
 					instance.mesh = mesh
 					if _covering.has(item):
 						_hair_changed()
@@ -378,7 +378,7 @@ func _tuck_hair() -> void:
 		if not is_instance_valid(item) or not _skeleton.is_ancestor_of(item):
 			continue
 		for instance in _armour_meshes(item):
-			var fitted: Dictionary = _fitted.get(instance.get_meta(&"armor_source", null), {})
+			var fitted: Dictionary = _fitted.get(instance.get_meta(&"armor_source") if instance.has_meta(&"armor_source") else null, {})
 			if fitted.get("version", -1) != _body_version:
 				continue
 			cover.append_array(fitted.points)
