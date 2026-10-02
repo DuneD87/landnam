@@ -45,7 +45,10 @@ static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float
 	var host := context.get_tree().current_scene
 	if host == null:
 		return null
-	var down := gravity.normalized() if gravity.length_squared() > 1e-6 else Vector3.DOWN
+	# Sin gravedad no hay abajo (en una esfera no hay uno fijo): sin charco.
+	if gravity.length_squared() < 1e-6:
+		return null
+	var down := gravity.normalized()
 	var query := PhysicsRayQueryParameters3D.create(point - down * 0.3, point + down * REACH, mask)
 	var hit := context.get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty():

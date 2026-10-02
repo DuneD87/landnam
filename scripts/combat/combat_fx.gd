@@ -110,7 +110,8 @@ static func _down() -> Vector3:
 	var p := GameManager.player
 	if p != null and is_instance_valid(p) and "gravity_direction" in p:
 		return (p.gravity_direction as Vector3).normalized()
-	return Vector3.DOWN
+	# En una esfera no hay abajo fijo: sin el del jugador, ninguno.
+	return Vector3.ZERO
 
 
 static func _spray(host: Node, point: Vector3, direction: Vector3, color: Color, amount: int,
@@ -236,6 +237,8 @@ static func _ground_splats(target: Node, point: Vector3, dir: Vector3, power: fl
 	if body == null or not body.is_inside_tree():
 		return
 	var down := _down()
+	if down == Vector3.ZERO:
+		return
 	var flat := dir - down * dir.dot(down)
 	flat = flat.normalized() if flat.length_squared() > 1e-4 else Vector3.ZERO
 	var side := flat.cross(down)

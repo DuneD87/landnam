@@ -648,3 +648,11 @@ func _start_hop() -> void:
 	_perch = moved
 	_yaw_target = _yaw + turn
 	_hop = 0.0
+
+
+func _corpse_model() -> Node3D:
+	return _model
+
+
+func _up() -> Vector3:
+	return _forest.up_at(global_position) if _forest != null else Vector3.ZERO

@@ -163,3 +163,8 @@ func _cruise_step(water: WaterBirdHabitat, delta: float) -> void:
 		var normal := get_slide_collision(0).get_normal()
 		velocity = velocity.slide(normal) + normal * 2.0 + up * 2.0
 	_orient(up, delta)
+
+
+## Afloat it would sink: no corpse on the water, only blood.
+func _corpse_model() -> Node3D:
+	return null if state == State.PERCHED else _model

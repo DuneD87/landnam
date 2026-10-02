@@ -46,7 +46,8 @@ const EXTRA_SHAPES := [
 ## Nodo cuyo marco manda (+Z adelante, +Y arriba), para saber hacia dónde doblan codos y rodillas.
 var frame_node: Node3D
 ## Gravedad en mundo (m/s²). La cambia quien lo lleva si cambia (planeta).
-var gravity: Vector3 = Vector3(0, -9.8, 0)
+## La pone quien lo arranca (la del cuerpo): en una esfera no hay abajo fijo.
+var gravity: Vector3 = Vector3.ZERO
 ## Máscara del suelo con el que choca.
 var world_mask: int = 1
 ## Cuerpo que no debe tocar (el del jugador).

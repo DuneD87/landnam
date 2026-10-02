@@ -284,7 +284,7 @@ func _drip_on_ground(wound: Dictionary, point: Vector3, strength: float) -> void
 func _gravity() -> Vector3:
 	var direction: Variant = owner_body.get(&"gravity_direction") if owner_body != null else null
 	if not direction is Vector3:
-		return Vector3(0, -9.8, 0)
+		return Vector3.ZERO
 	var strength := 9.8
 	var planet: Variant = owner_body.get(&"planet")
 	if planet is Object and is_instance_valid(planet) and &"gravity_strength" in planet:

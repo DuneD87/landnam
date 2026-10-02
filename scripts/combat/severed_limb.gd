@@ -23,7 +23,7 @@ static var _alive: Array[SeveredLimb] = []
 ## La copia del esqueleto que mueve sus mallas, y el muñeco que la mueve.
 var skeleton: Skeleton3D
 var ragdoll: Ragdoll
-var _gravity := Vector3(0, -9.8, 0)
+var _gravity := Vector3.ZERO
 var _world_mask := 1
 var _time := 0.0
 var _drip := 0.0

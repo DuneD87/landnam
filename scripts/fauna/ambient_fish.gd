@@ -159,3 +159,9 @@ func _pick_target() -> void:
 	var target := global_position + tangent * _rng.randf_range(5.0, 12.0) + up * _rng.randf_range(-2.0, 2.0)
 	_target_local = _water.terrain.to_local(target)
 	_turn_timer = _rng.randf_range(3.0, 7.0)
+
+
+## Underwater the blood is a cloud, and nothing is left behind.
+func _death_fx(point: Vector3) -> void:
+	if habitat != null:
+		habitat.burst_blood(point)

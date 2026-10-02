@@ -13,8 +13,9 @@ extends Node
 ## Cada miembro se corta una sola vez: el brazo o la pierna que ya ha perdido algo no se vuelve a
 ## cortar más arriba.
 
-## Lo cortado ya ha caído y el muñón ya está tapado.
-signal limb_dropped(cut: Dictionary, limb: SeveredLimb)
+## Lo cortado ya ha caído y el muñón ya está tapado ([limb]: SeveredLimb, o SeveredChunk con
+## rigid_parts).
+signal limb_dropped(cut: Dictionary, limb: Node3D)
 
 ## Huesos que se pueden cortar: [hueso hacia el que apunta, tramo del hueso por el que puede ir el
 ## corte (fracción), inclinación máxima del corte (grados)]. Los tramos dejan lejos las
@@ -38,12 +39,18 @@ const CAP_META := &"stump_cap"
 const STUMP_SHADER := preload("res://shaders/combat/stump_flesh.gdshader")
 
 var skeleton: Skeleton3D
+## Qué se puede cortar (como CUTTABLE, que es lo del jugador): los animales traen su tabla.
+var cuttable: Dictionary = CUTTABLE
+## Lo cortado cae de una pieza (SeveredChunk) en vez de como muñeco de trapo (SeveredLimb, que
+## necesita los segmentos humanos de Ragdoll).
+var rigid_parts := false
 ## Mallas que llevan tapa en el muñón (el cuerpo); la armadura solo se corta.
 var capped: Array[MeshInstance3D] = []
 ## Para lo que cae: el marco del cuerpo (+Z adelante, hacia dónde doblan codos y rodillas; ver
 ## Ragdoll.frame_node), gravedad (mundo), máscara del suelo y cuerpo que no debe tocar.
 var frame_node: Node3D
-var gravity := Vector3(0, -9.8, 0)
+## La del cuerpo (la pone el dueño). Sin ella lo cortado no cae: se queda sin soltar.
+var gravity := Vector3.ZERO
 var world_mask := 1
 var exclude_body: PhysicsBody3D
 
@@ -62,6 +69,9 @@ var _jobs: Array[Dictionary] = []
 var _generation := 0
 ## Cuenta atrás para leer por adelantado la siguiente malla (ver _prewarm).
 var _prewarm_wait := 0.0
+## Mallas sueltas pegadas a lo cortado (cuernos en la cabeza) que se han escondido: se van con el
+## trozo y vuelven al restaurar.
+var _hidden: Array[Node3D] = []
 
 static var _stump_material: ShaderMaterial
 
@@ -82,9 +92,9 @@ func _notification(what: int) -> void:
 ## el hueso (0 su articulación, 1 la siguiente). Devuelve el corte, o {} si ese miembro ya había
 ## perdido algo.
 func cut(bone_name: StringName, hit: Vector3, blow: Vector3, fling: Vector3, fraction := -1.0) -> Dictionary:
-	if skeleton == null or not CUTTABLE.has(bone_name):
+	if skeleton == null or not cuttable.has(bone_name):
 		return {}
-	var spec: Array = CUTTABLE[bone_name]
+	var spec: Array = cuttable[bone_name]
 	var bone := skeleton.find_bone(bone_name)
 	var tip := skeleton.find_bone(spec[0])
 	if bone < 0 or tip < 0:
@@ -175,6 +185,10 @@ func restore() -> void:
 	_entries.clear()
 	_caps.clear()
 	_cuts.clear()
+	for node in _hidden:
+		if is_instance_valid(node):
+			node.visible = true
+	_hidden.clear()
 
 
 func _process(_delta: float) -> void:
@@ -277,6 +291,8 @@ func _queue(instances: Array[MeshInstance3D], new_cut: Dictionary) -> void:
 			instance = inst, expect = inst.mesh, source = source, data = _sources[source],
 			specs = specs, capped = capped.has(inst),
 			new_index = _cuts.find(new_cut) if not new_cut.is_empty() else -1,
+			# Lo que cae de una pieza se hornea en el hilo, en la pose del corte.
+			pose = SeveredChunk.pose_matrices(inst.skin, skeleton) if rigid_parts and not new_cut.is_empty() else [],
 		})
 		entry.pending += 1
 	if items.is_empty():
@@ -359,9 +375,15 @@ func _run(job: Dictionary) -> void:
 					cap = r.cap_kept
 			surfaces = next
 			caps.append(cap)
+		var pose: Array[Transform3D] = []
+		pose.assign(item.pose)
+		if not pose.is_empty():
+			severed = severed.map(func(surface: Dictionary) -> Dictionary: return SeveredChunk.bake_surface(surface, pose))
+			if severed_cap != null:
+				severed_cap = SeveredChunk.bake_surface(severed_cap, pose)
 		item.result = {
 			touched = touched, surfaces = surfaces, caps = caps, severed = severed,
-			severed_cap = severed_cap,
+			severed_cap = severed_cap, baked = not pose.is_empty(),
 		}
 
 
@@ -397,14 +419,15 @@ func _finish(job: Dictionary) -> void:
 		var relative := skeleton.global_transform.affine_inverse() * inst.global_transform
 		if not res.severed.is_empty():
 			parts.append({
-				mesh = LimbCutter.build(res.severed, data.blend_names, data.blend_mode,
-						data.name + "_severed", false),
-				skin = inst.skin, transform = relative, material_override = inst.material_override,
+				mesh = LimbCutter.build(res.severed, PackedStringArray() if res.baked else data.blend_names,
+						data.blend_mode, data.name + "_severed", false),
+				skin = null if res.baked else inst.skin, transform = relative,
+				material_override = inst.material_override,
 			})
 		if res.severed_cap != null:
 			parts.append({
 				mesh = LimbCutter.build([res.severed_cap], PackedStringArray(), 0, "StumpCap", false),
-				skin = inst.skin, transform = relative, material_override = _stump(),
+				skin = null if res.baked else inst.skin, transform = relative, material_override = _stump(),
 			})
 	if current and not job.cut.is_empty() and not parts.is_empty():
 		_drop(job.cut, parts)
@@ -443,8 +466,28 @@ func _drop(c: Dictionary, parts: Array) -> void:
 		if bone == c.bone or (bone >= 0 and _descends(bone, c.bone)):
 			chain.append(part[0])
 	var ends := stump(c)
+	var fall := gravity
+	if fall.length_squared() < 1e-6:
+		return
+	if rigid_parts:
+		var extras: Array[Node3D] = []
+		for node in skeleton.find_children("*", "BoneAttachment3D", false, false):
+			var attachment := node as BoneAttachment3D
+			var bone := skeleton.find_bone(attachment.bone_name)
+			if bone < 0 or not (bone == c.bone or _descends(bone, c.bone)):
+				continue
+			for child in attachment.get_children():
+				if child is MeshInstance3D and (child as MeshInstance3D).visible:
+					extras.append(child)
+		var chunk := SeveredChunk.spawn(host, skeleton, parts, extras, ends[0], -ends[1], c.fling,
+				fall, world_mask, exclude_body)
+		for node in extras:
+			node.visible = false
+			_hidden.append(node)
+		limb_dropped.emit(c, chunk)
+		return
 	var limb := SeveredLimb.spawn(host, skeleton, frame_node, parts, c.name, chain, ends[0], -ends[1],
-			c.fling, gravity, world_mask, exclude_body)
+			c.fling, fall, world_mask, exclude_body)
 	limb_dropped.emit(c, limb)
 
 

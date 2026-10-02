@@ -104,6 +104,7 @@ func _ready() -> void:
 	ai_controller.movement = movement
 
 	_build_hurtboxes()
+	_gore = AnimalGore.attach(self, npc_model, health_component)
 
 	movement.landed.connect(_on_landed)
 	health_component.damaged.connect(_on_damaged)
@@ -240,6 +241,8 @@ func _build_hurtboxes() -> void:
 
 
 var _head_holder: Node3D
+## Mutilaciones al morir (solo los esqueletos con tabla en AnimalGore).
+var _gore: AnimalGore
 
 
 func _set_hurtboxes_enabled(value: bool) -> void:
@@ -273,6 +276,8 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	corpse_duration = settings.corpse_duration if settings != null else 0.0
 	_life_id += 1
 	BloodStains.clear(self)
+	if _gore != null:
+		_gore.reset()
 	is_dead = false
 	_is_dying = false
 	is_hit = false
@@ -347,8 +352,9 @@ func die(point: Vector3) -> void:
 	if not active or _is_dying:
 		return
 	_is_dying = true
-	if habitat != null:
-		habitat.burst_blood(point)
+	CombatFx.blood(self, point, -gravity_direction.normalized(), ItemData.DamageKind.BLUNT, 60.0)
+	if _gore != null:
+		_gore.note_blast(point)
 	if health_component != null and not health_component.is_dead:
 		health_component.take_damage(health_component.health, self)
 	_on_died()

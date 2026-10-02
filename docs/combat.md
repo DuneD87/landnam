@@ -228,6 +228,28 @@ perdido queda en contorno con el muñón rojo y una gota late mientras sangra.
 
 Todo se cura al reaparecer, al cargar partida o con `heal` (los miembros aún no se guardan).
 
+### Animales mutilados al morir
+
+`AnimalGore` (`scripts/combat/animal_gore.gd`) se monta en cada `NPCController` cuyo
+esqueleto tenga tabla (oso, ciervo y búfalo, león). El golpe que lo mata, si es un tajo
+o un porrazo de 14 o más (un pinchazo necesita 45) y el gore está entero, corta con
+probabilidad `AnimalGore.sever_chance` (0,75 mientras se prueba) el tramo más cercano al
+golpe: dos tramos por pata, el cuello o la cola. Un cañonazo letal (`die(point)`) cuenta
+como porrazo. Lo cortado cae de una pieza (`SeveredChunk`: la malla horneada en la pose
+del corte, en el hilo del corte, dentro de un RigidBody con caja), gotea, deja charco y
+se va a los 2 minutos (10 a la vez). Los cuernos se van con la cabeza. Al volver del
+pool el animal está entero.
+
+### Muerte de la fauna
+
+Al morir, la fauna ambiental (`AmbientAnimal.die`) sangra con los efectos del combate
+(`CombatFx.blood`: chorro, gotas, salpicaduras en el suelo y en la hierba) en vez de la
+nube vieja, que se queda solo para peces y animales marinos (bajo el agua). Conejos,
+zorros, ratones y aves dejan un cadáver (`FaunaCorpse`): copia quieta de las mallas del
+modelo en la pose en que murió, en un RigidBody que cae y se vuelca; al pararse deja un
+charco y se va a los 90 s (16 a la vez). Un pato o una gaviota posados en el agua no dejan
+cadáver (se hundiría). Los animales grandes ya dejaban cuerpo; ahora también sangran así.
+
 ### Lisiado
 
 `Cripple` (`scripts/combat/cripple.gd`) decide cómo anda el jugador según lo que le falta:

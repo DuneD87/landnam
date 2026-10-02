@@ -152,3 +152,11 @@ func _choose_goal(direction: Vector3) -> void:
 	_timer = 0.3
 	_goal_local = _ground.terrain.to_local(global_position)
 	velocity = up_direction * velocity.dot(up_direction)
+
+
+func _corpse_model() -> Node3D:
+	return _model
+
+
+func _up() -> Vector3:
+	return up_direction

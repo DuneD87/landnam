@@ -108,14 +108,20 @@ func take_damage(amount: float, source: Node = null) -> void:
 	health_component.take_damage(amount, source)
 
 
-## Death at [point]: blood cloud and back to the pool. Creatures that leave a corpse and
-## play a death animation override this.
+## Death at [point]: blood, a corpse when the species leaves one (FaunaCorpse, apart from the
+## creature) and back to the pool. Creatures that play a death animation override this.
 func die(point: Vector3) -> void:
 	if not active:
 		return
-	if habitat != null:
-		habitat.burst_blood(point)
+	_death_fx(point)
 	AudioManager.play_material(&"fauna_burst", audio_family(), point)
+	var model := _corpse_model()
+	if model != null and model.is_visible_in_tree() and SettingsManager.gore_level() != SettingsManager.GORE_OFF:
+		var host := get_tree().current_scene
+		if host != null:
+			var up := _up()
+			if up != Vector3.ZERO:
+				FaunaCorpse.spawn(host, model, velocity, -up * 9.8, 1)
 	deactivate()
 	startle_near(get_tree(), point, DEATH_STARTLE_RADIUS)
 
@@ -167,3 +173,24 @@ func _check_moving_ships(delta: float) -> bool:
 		if hit != null and _resolve_ship_hit(hit, velocity):
 			return true
 	return false
+
+
+## Blood where it dies: the combat effects (spray, droplets, splats on the ground and on the grass),
+## scaled to the creature. Swimmers override it with the underwater cloud.
+func _death_fx(point: Vector3) -> void:
+	var up := _up()
+	if up == Vector3.ZERO:
+		return
+	var dir := (up + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).slide(up) * 0.6).normalized()
+	CombatFx.blood(self, point, dir, ItemData.DamageKind.BLUNT, clampf(impact_radius * 50.0, 10.0, 35.0))
+
+
+## The visual model the corpse copies, or null to leave none (fish, a duck on the water).
+func _corpse_model() -> Node3D:
+	return null
+
+
+## Arriba donde está, el mismo con el que se mueve (cada especie lo lleva a su manera). ZERO si no
+## lo sabe: entonces ni cadáver ni chorro.
+func _up() -> Vector3:
+	return Vector3.ZERO
