@@ -48,9 +48,9 @@ const SEGMENTS := [
 ]
 
 ## Probabilidad de que un tajo que cae en un brazo o una pierna lo cercene. Negativa: la natural
-## (solo si deja el miembro por debajo de cero, y más cuanto más fuerte y más hondo). Alta mientras
-## se prueba; `mutilar` en la consola la cambia.
-static var sever_chance: float = 0.75
+## (solo si deja el miembro por debajo de cero, y más cuanto más fuerte y más hondo). `mutilar` en
+## la consola la cambia.
+static var sever_chance: float = 0.5
 ## Daño mínimo de un tajo (ya descontada la armadura) para poder cercenar.
 const SEVER_MIN_DAMAGE := 14.0
 
@@ -111,6 +111,37 @@ func restore() -> void:
 		dismemberment.restore()
 	if owner_body != null:
 		BloodStains.clear(owner_body)
+
+
+## Los miembros perdidos, para la partida guardada: por zona, el corte en el marco de su hueso.
+func save_data() -> Array:
+	var out := []
+	for zone: StringName in _severed:
+		var c: Dictionary = _severed[zone]
+		var o: Vector3 = c.origin
+		var n: Vector3 = c.normal
+		out.append({"zone": String(zone), "bone": String(c.name), "t": c.t,
+			"origin": [o.x, o.y, o.z], "normal": [n.x, n.y, n.z]})
+	return out
+
+
+## Vuelve a dejar perdidos los miembros de [data] (de save_data()), sin sangre ni miembro que caiga
+## (el muñón ya estaba cerrado) y sin avisar con limb_lost: no es una herida nueva.
+func load_data(data: Array) -> void:
+	if dismemberment == null:
+		return
+	for entry: Dictionary in data:
+		var zone := StringName(entry.get("zone", ""))
+		if not ZONE_HEALTH.has(zone) or is_severed(zone):
+			continue
+		var o: Array = entry.get("origin", [0, 0, 0])
+		var n: Array = entry.get("normal", [0, 1, 0])
+		var c := dismemberment.add_saved(StringName(entry.get("bone", "")), float(entry.get("t", 0.5)),
+			Vector3(o[0], o[1], o[2]), Vector3(n[0], n[1], n[2]))
+		if c.is_empty():
+			continue
+		_severed[zone] = c
+		_hp[zone] = -zone_max(zone)
 
 
 func zone_max(zone: StringName) -> float:

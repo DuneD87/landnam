@@ -134,6 +134,26 @@ func cut(bone_name: StringName, hit: Vector3, blow: Vector3, fling: Vector3, fra
 	return new_cut
 
 
+## Rehace un corte guardado ([bone_name], la altura [t] y el plano [origin]/[normal] en el marco del
+## hueso, como los da cut()): vuelve a cortar las mallas y a tapar el muñón, sin soltar nada.
+func add_saved(bone_name: StringName, t: float, origin: Vector3, normal: Vector3) -> Dictionary:
+	if skeleton == null or not cuttable.has(bone_name):
+		return {}
+	var bone := skeleton.find_bone(bone_name)
+	if bone < 0:
+		return {}
+	for other in _cuts:
+		if other.bone == bone or _descends(bone, other.bone) or _descends(other.bone, bone):
+			return {}
+	var saved := {bone = bone, name = bone_name, t = t, origin = origin, normal = normal.normalized(),
+		fling = Vector3.ZERO}
+	_cuts.append(saved)
+	for entry: Dictionary in _entries.values():
+		entry.stale = true
+	set_process(true)
+	return saved
+
+
 func cuts() -> Array[Dictionary]:
 	return _cuts
 

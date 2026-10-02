@@ -187,7 +187,7 @@ perdido queda en contorno con el muñón rojo y una gota late mientras sangra.
 - **Sangrado**: toda herida sangra un rato y resta vida general (más un tajo que un golpe
   contundente); un muñón sangra a borbotones, ~1 de vida/s al principio, y se va cortando.
 - **Cercenar**: un tajo (`SLASH`, zarpas incluidas) de al menos `SEVER_MIN_DAMAGE` en un brazo o
-  una pierna lo corta con probabilidad `BodyDamage.sever_chance` (0,75 mientras se prueba; negativa,
+  una pierna lo corta con probabilidad `BodyDamage.sever_chance` (0,5; negativa,
   la natural: solo si deja el miembro bajo cero). Cada miembro se corta una vez: por el brazo o el
   antebrazo, el muslo o la pierna, a la altura por donde entra el golpe e inclinado hacia donde iba.
   Sin la mano del arma, el arma vuelve al inventario.
@@ -228,12 +228,20 @@ perdido queda en contorno con el muñón rojo y una gota late mientras sangra.
 
 Todo se cura al reaparecer, al cargar partida o con `heal` (los miembros aún no se guardan).
 
+### Miembros perdidos en la partida guardada
+
+La partida del jugador guarda los miembros perdidos (`"severed"`: zona, hueso y el plano
+del corte en el marco del hueso, `BodyDamage.save_data`). Al cargar, después de
+`on_restored` (que deja el cuerpo entero), `BodyDamage.load_data` los rehace con
+`Dismemberment.add_saved`: corta las mallas y tapa el muñón otra vez, sin sangre ni
+miembro que caiga. Reaparecer tras morir sigue devolviendo el cuerpo entero.
+
 ### Animales mutilados al morir
 
 `AnimalGore` (`scripts/combat/animal_gore.gd`) se monta en cada `NPCController` cuyo
 esqueleto tenga tabla (oso, ciervo y búfalo, león). El golpe que lo mata, si es un tajo
 o un porrazo de 14 o más (un pinchazo necesita 45) y el gore está entero, corta con
-probabilidad `AnimalGore.sever_chance` (0,75 mientras se prueba) el tramo más cercano al
+probabilidad `AnimalGore.sever_chance` (0,5) el tramo más cercano al
 golpe: dos tramos por pata, el cuello o la cola. Un cañonazo letal (`die(point)`) cuenta
 como porrazo. Lo cortado cae de una pieza (`SeveredChunk`: la malla horneada en la pose
 del corte, en el hilo del corte, dentro de un RigidBody con caja), gotea, deja charco y

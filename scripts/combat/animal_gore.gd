@@ -9,8 +9,8 @@ extends Node
 ## Cada esqueleto trae su tabla, en el formato de Dismemberment.CUTTABLE; se elige la primera cuyos
 ## huesos tenga el esqueleto.
 
-## Probabilidad de cortar con el golpe que mata (alta mientras se prueba).
-static var sever_chance := 0.75
+## Probabilidad de cortar con el golpe que mata.
+static var sever_chance := 0.5
 ## Daño mínimo del golpe; un golpe que pincha (flecha, lanza) necesita bastante más.
 const MIN_DAMAGE := 14.0
 const PIERCE_MIN_DAMAGE := 45.0

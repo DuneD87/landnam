@@ -523,6 +523,7 @@ func get_save_data() -> Dictionary:
 		"hotbar": hotbar.get_save_data(),
 		"hotbar_selected": hotbar.selected_index,
 		"character": GameManager.character.to_dict() if GameManager.character else {},
+		"severed": combat.body_damage.save_data() if combat != null and combat.body_damage != null else [],
 	}
 
 	
@@ -579,6 +580,9 @@ func restore_save_data(save: Dictionary) -> void:
 	if save.has("hotbar_selected") and save.hotbar_selected >= 0:
 		hotbar.select_slot(save.hotbar_selected)
 	combat.on_restored()
+	# Después de on_restored, que deja el cuerpo entero: los miembros perdidos siguen perdidos.
+	if save.has("severed") and combat.body_damage != null:
+		combat.body_damage.load_data(save.severed)
 	_activate_player()
 
 func place_block_at_player() -> void:
