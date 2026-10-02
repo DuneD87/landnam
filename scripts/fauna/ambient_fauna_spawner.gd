@@ -67,6 +67,15 @@ func target_population() -> int:
 	return maxi(1, roundi(profile.population * population_scale))
 
 
+## Parte de la población activa ahora donde está el observador (noche, estación), 0..1. El
+## spawner cuelga del terreno del planeta, cuyo origen es el centro del planeta.
+func activity() -> float:
+	var planet := get_parent() as Node3D
+	if planet == null or not is_instance_valid(observer):
+		return 1.0
+	return profile.activity_at(observer.global_position - planet.global_position)
+
+
 func update_population(deadline_usec: int = 0) -> void:
 	if profile.animal_scene == null:
 		return
@@ -74,6 +83,8 @@ func update_population(deadline_usec: int = 0) -> void:
 	var population := target_population()
 	while _pool.size() > population:
 		_pool.pop_back().queue_free()
+	# Los que están en juego con la actividad de ahora; el pool se queda entero para cuando vuelva.
+	var active_target := mini(population, roundi(population * activity()))
 	var count := 0
 	var recycle := maxf(profile.recycle_distance, profile.spawn_radius + 5.0)
 	for animal in _pool:
@@ -85,9 +96,10 @@ func update_population(deadline_usec: int = 0) -> void:
 		else:
 			animal.set_detail(distance)
 			count += 1
+	count = _retire_surplus(count, active_target)
 	var activated := 0
 	for _attempt in profile.attempts_per_update:
-		if count >= population or activated >= profile.activations_per_update:
+		if count >= active_target or activated >= profile.activations_per_update:
 			break
 		if deadline_usec > 0 and Time.get_ticks_usec() >= deadline_usec:
 			break
@@ -124,6 +136,36 @@ func update_population(deadline_usec: int = 0) -> void:
 		DebugStats.report_cost(&"fauna:spawner/alta", Time.get_ticks_usec() - activation_start)
 		count += 1
 		activated += 1
+
+
+## Con menos actividad (anochece, llega el invierno) sobran ejemplares. Los que no se ven y no
+## están encima del observador (spawn_min_distance: un oso que pelea a su espalda no se esfuma) se
+## retiran ya. Si aún sobran, tantos como sobren de los que están a la vista se van por su cuenta
+## (retire: las aves echan a volar y se pierden de vista) y se retiran en cuanto dejan de verse.
+## Ninguno desaparece delante de la cámara.
+func _retire_surplus(count: int, active_target: int) -> int:
+	if count <= active_target:
+		return count
+	var near := maxf(0.0, profile.spawn_min_distance)
+	var leaving := 0
+	for animal in _pool:
+		if count - leaving <= active_target:
+			break
+		if not animal.active or not animal.in_play():
+			continue
+		var where := animal.global_position
+		if not _in_view(where) and where.distance_to(observer.global_position) > near:
+			animal.deactivate()
+			count -= 1
+		elif animal.retiring:
+			leaving += 1
+	for animal in _pool:
+		if count - leaving <= active_target:
+			break
+		if animal.active and animal.in_play() and not animal.retiring and _in_view(animal.global_position):
+			animal.retire()
+			leaving += 1
+	return count
 
 
 func _crowded(point: Vector3) -> bool:

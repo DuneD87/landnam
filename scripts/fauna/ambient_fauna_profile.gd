@@ -19,6 +19,24 @@ class_name AmbientFaunaProfile extends Resource
 ## that fade in on activation can use a smaller margin than their full length.
 @export var view_margin: float = -1.0
 
+@export_group("Activity")
+## Parte de la población activa de día, en el crepúsculo y de noche, por la altura del sol sobre el
+## horizonte del observador (Seasons.light_weights): las aves duermen de noche; conejos, zorros y
+## ciervos salen al anochecer.
+@export_range(0.0, 1.0, 0.05) var day_activity: float = 1.0
+@export_range(0.0, 1.0, 0.05) var twilight_activity: float = 1.0
+@export_range(0.0, 1.0, 0.05) var night_activity: float = 1.0
+## Parte activa en primavera, verano, otoño e invierno (Seasons): migración, hibernación. En el
+## ecuador, sin estaciones, no cuenta.
+@export var season_activity: PackedFloat32Array = PackedFloat32Array([1.0, 1.0, 1.0, 1.0])
+
+
+## Parte de la población activa ahora en `local` (relativa al centro del planeta), 0..1.
+func activity_at(local: Vector3) -> float:
+	var light := Seasons.light_weights(local)
+	var by_light := light.x * day_activity + light.y * twilight_activity + light.z * night_activity
+	return clampf(by_light * Seasons.seasonal_value(local, season_activity), 0.0, 1.0)
+
 
 ## Equal probability per unit area of the spawn annulus. Uniform radius would
 ## concentrate the population into its much smaller inner rings.

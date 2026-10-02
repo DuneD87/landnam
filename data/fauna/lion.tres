@@ -21,3 +21,6 @@ corpse_duration = 90.0
 full_detail_distance = 50.0
 near_detail_distance = 20.0
 min_spacing = 65.0
+day_activity = 0.5
+twilight_activity = 1.0
+night_activity = 0.9

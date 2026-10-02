@@ -11,6 +11,7 @@
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
 #include "res://shaders/lib/tree_wind.gdshaderinc"
 #include "res://shaders/lib/climate.gdshaderinc"
+#include "res://shaders/lib/season.gdshaderinc"
 
 uniform sampler2D texture_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform vec4 albedo_tint : source_color = vec4(1.0);
@@ -31,6 +32,22 @@ uniform float ao_strength : hint_range(0.0, 1.0, 0.01) = 1.0;
 // Parte de la oclusión de copa que también atenúa el sol: sin sombras propias finas, es la
 // que separa la cara al sol de la copa de su interior.
 uniform float direct_occlusion : hint_range(0.0, 1.0, 0.01) = 0.45;
+// Hoja caduca (season.gdshaderinc): brota, amarillea, enrojece y cae con las estaciones. Los
+// perennes solo reciben la nieve. leaf_luma_ref y leaf_chroma_ref: luminancia y cromaticidad verde
+// (g / (r + g + b)) medias de la hoja de la textura, en lineal; los colores de otoño son los de esa
+// hoja media.
+uniform bool deciduous = false;
+uniform vec4 autumn_early : source_color = vec4(0.92, 0.75, 0.22, 1.0);
+uniform vec4 autumn_late : source_color = vec4(0.85, 0.4, 0.12, 1.0);
+uniform vec4 autumn_withered : source_color = vec4(0.5, 0.33, 0.17, 1.0);
+uniform float leaf_luma_ref = 0.2;
+uniform float leaf_chroma_ref = 0.49;
+// Umbrales de la máscara hoja/madera de la textura (season_leaf_mask).
+uniform vec4 leaf_mask_edges = vec4(0.45, 0.6, -0.25, -0.05);
+// Adelanto (negativo) de la brotación de la especie, en fase: el almendro florece en invierno.
+uniform float spring_shift = 0.0;
+// Flor de los frutales al brotar (alfa 0 = sin flor). Cada tarjeta va de este color al blanco.
+uniform vec4 blossom_color : source_color = vec4(1.0, 1.0, 1.0, 0.0);
 
 varying float v_ao;
 varying vec2 v_band;
@@ -40,6 +57,10 @@ varying vec3 v_tint;
 varying float v_snow_cover;
 varying float v_glacier;
 varying float v_snow;
+// Hoja de la tarjeta (season_card): x = tiene hoja, y = etapa de otoño, z = hoja tierna.
+varying vec3 v_season;
+// Flor de la tarjeta: x = cuánta (season_blossom), y = mezcla hacia el blanco.
+varying vec2 v_blossom;
 
 void vertex() {
 	vec3 relative_base = MODEL_MATRIX[3].xyz - planet_position;
@@ -67,6 +88,19 @@ void vertex() {
 	float hue = tree_seed(relative_base, 53u);
 	v_tint = mix(variation_cool_tint, variation_warm_tint, hue)
 		* (1.0 + (seed - 0.5) * 2.0 * tint_variation);
+	// También en el pase de sombras: la hoja caída deja pasar el sol.
+	v_season = vec3(1.0, 0.0, 0.0);
+	v_blossom = vec2(0.0);
+	if (deciduous) {
+		vec2 state = season_leaf_state(relative_base, (tree_seed(relative_base, 71u) - 0.5) * SEASON_TREE_JITTER,
+			spring_shift);
+		float card = clamp(COLOR.a / 0.9, 0.0, 0.999);
+		v_season = season_card(state, card);
+		v_ao = mix(v_ao, 1.0, (1.0 - season_leaf_cover(state)) * SEASON_BARE_AO_LIFT);
+		if (blossom_color.a > 0.0) {
+			v_blossom = vec2(season_blossom(state.x), fract(card * 3.7) * 0.7);
+		}
+	}
 }
 
 void fragment() {
@@ -79,6 +113,22 @@ void fragment() {
 	float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
 	ALBEDO = mix(vec3(luma), color, saturation);
 	ALPHA = tex.a;
+	if (deciduous && (v_season.x < 0.5 || v_season.y > 0.0 || v_season.z > 0.0)) {
+		float leaf = season_leaf_mask_wide(tex.rgb, texture(texture_albedo, UV, SEASON_MASK_BLUR_BIAS).rgb,
+			leaf_mask_edges);
+		// Sin hoja queda la madera de la ramilla.
+		if (v_season.x < 0.5) {
+			ALPHA *= step(leaf, 0.5);
+		} else {
+			vec3 leaf_color = season_leaf_color(ALBEDO, v_season, autumn_early.rgb, autumn_late.rgb,
+				autumn_withered.rgb, vec2(leaf_luma_ref, leaf_chroma_ref));
+			if (v_blossom.x > 0.0) {
+				vec3 flower = mix(blossom_color.rgb, SEASON_BLOSSOM_WHITE, v_blossom.y);
+				leaf_color = mix(leaf_color, season_flower_color(ALBEDO, flower, leaf_luma_ref), v_blossom.x);
+			}
+			ALBEDO = mix(ALBEDO, leaf_color, leaf);
+		}
+	}
 	ALPHA_SCISSOR_THRESHOLD = alpha_scissor_threshold;
 	ROUGHNESS = specular_roughness;
 	SPECULAR = specular_strength;

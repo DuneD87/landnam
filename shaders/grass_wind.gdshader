@@ -4,6 +4,7 @@ render_mode cull_disabled, depth_draw_opaque;
 // El planeta actualiza estos uniforms a través del include compartido.
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
 #include "res://shaders/lib/climate.gdshaderinc"
+#include "res://shaders/lib/season.gdshaderinc"
 #include "res://shaders/lib/blood_splats.gdshaderinc"
 
 uniform vec4 base_color : source_color = vec4(0.23, 0.36, 0.21, 1.0);
@@ -96,12 +97,33 @@ varying float wind_shade;
 varying vec2 v_snow_climate;
 // Sangre en la hoja (BloodFoliage): x = cuánta, y = lo seca que está.
 varying vec2 v_blood;
+// Estación. Hierba: x = sequedad, y = verdor tierno.
+// Sotobosque (hojas): x = etapa de otoño, y = hoja tierna.
+varying vec4 v_season;
 
 // Fracción de la altura de la mata que se hunde en la nieve con el suelo nevado del todo: la hierba
 // asoma en matas cortas en vez de crecer encima de la nieve.
 uniform float snow_burial : hint_range(0.0, 1.0) = 0.35;
 // Escarcha en las puntas de las hojas donde el clima ya deja nieve (0 = sin escarcha).
 uniform float snow_frost : hint_range(0.0, 1.0) = 0.35;
+
+// Estaciones (season.gdshaderinc). La hierba sigue a la pradera: tierna en primavera, agostada en
+// otoño, parda y algo acostada en invierno.
+// Fracción de la altura que pierde la hierba parda del invierno.
+uniform float winter_flatten : hint_range(0.0, 1.0) = 0.2;
+// Sotobosque (use_vertex_color): COLOR.a marca la pieza (1 hoja, 0,75 tallo, 0,5 flor) y
+// season_kind lo que hace cada especie con sus hojas: 0 nada, 1 herbácea (se agosta con la
+// pradera), 2 arbusto caduco (cambia de color y pierde la hoja), 3 perenne. Las flores se abren en
+// su ventana (bloom_center, bloom_width: fase local) en todas.
+uniform int season_kind = 0;
+uniform vec4 autumn_early : source_color = vec4(0.75, 0.68, 0.3, 1.0);
+uniform vec4 autumn_late : source_color = vec4(0.62, 0.45, 0.2, 1.0);
+uniform vec4 autumn_withered : source_color = vec4(0.42, 0.32, 0.2, 1.0);
+// Luminancia y cromaticidad verde medias de las hojas (lineal), las de los colores de otoño.
+uniform float leaf_luma_ref = 0.15;
+uniform float leaf_chroma_ref = 0.5;
+uniform float bloom_center = 0.14;
+uniform float bloom_width = 0.32;
 
 uint grass_hash(uint x) {
     x ^= x >> 16u;
@@ -166,6 +188,35 @@ void vertex() {
     instance_dryness = max(smoothstep(1.0 - max(dry_ratio, 0.001), 1.0, r_dry) * dry_amount,
         dry_zone * dry_patch_amount);
 
+    // Estaciones. season_width escala la anchura de la pieza (CUSTOM0): 0 la quita (hoja caída,
+    // flor cerrada).
+    float season_width = 1.0;
+    v_season = vec4(0.0);
+    if (!use_vertex_color) {
+        vec2 meadow = season_meadow_state(relative_base);
+        float blade_seed = fract(UV.y + instance_seed);
+        // Unas hojas se agostan antes que otras: en invierno queda alguna verde.
+        float dry = clamp(meadow.x * (1.15 - 0.3 * fract(blade_seed * 5.13)), 0.0, 1.0);
+        v_season = vec4(dry, meadow.y, 0.0, 0.0);
+        instance_dryness *= 1.0 - meadow.y;
+        VERTEX.y *= 1.0 - winter_flatten * smoothstep(0.6, 1.0, meadow.x);
+    } else if (season_kind > 0) {
+        if (COLOR.a < 0.625) {
+            // Flor: se abre y se cierra en su ventana, cada mata a su ritmo.
+            float bloom = season_bloom(relative_base, bloom_center, bloom_width);
+            season_width = smoothstep(0.0, 0.35, clamp(bloom * 1.6 - instance_seed * 0.6, 0.0, 1.0));
+        } else if (COLOR.a > 0.875) {
+            if (season_kind == 2) {
+                vec2 state = season_leaf_state(relative_base, (instance_seed - 0.5) * SEASON_TREE_JITTER, 0.0);
+                vec3 card = season_card(state, fract(UV.y * 7.13 + instance_seed));
+                season_width = card.x;
+                v_season.xy = card.yz;
+            } else if (season_kind == 1) {
+                v_season.xy = season_meadow_state(relative_base);
+            }
+        }
+    }
+
     // Distancia a la cámara del jugador también en el pase de sombras: con la de la
     // luz, el morph y los relevos no coincidirían entre la planta y su sombra.
     float camera_distance = distance(base, MAIN_CAM_INV_VIEW_MATRIX[3].xyz);
@@ -194,7 +245,9 @@ void vertex() {
             pixel_gain = clamp(min_half_width_pixels * metres_per_pixel / max(half_width, 0.00001),
                 1.0, max_pixel_widening);
         }
-        VERTEX += CUSTOM0.xyz * (presence * widen * pixel_gain - 1.0);
+        VERTEX += CUSTOM0.xyz * (presence * widen * pixel_gain * season_width - 1.0);
+    } else {
+        VERTEX += CUSTOM0.xyz * (season_width - 1.0);
     }
     VERTEX *= visibility;
     // Medio enterrada en la nieve. También en el pase de sombras: si no, la sombra sería la de la
@@ -242,6 +295,9 @@ void fragment() {
     float dead = step(1.0 - dead_blade_ratio, fract(blade * 7.31 + instance_seed * 3.17));
     albedo = mix(albedo, dry_color.rgb * mix(0.7, 1.05, gradient), dead * dead_blade_amount);
     albedo *= instance_tint;
+    if (!use_vertex_color) {
+        albedo = season_meadow_color(albedo, v_season.xy);
+    }
     albedo = mix(albedo, albedo * vec3(1.22, 1.2, 1.05) + vec3(0.012, 0.014, 0.004),
         clamp(wind_shade, 0.0, 1.0) * wind_sheen);
     float root = 1.0 - smoothstep(0.0, base_occlusion_height, height_factor);
@@ -250,6 +306,10 @@ void fragment() {
     ALBEDO = mix(vec3(luma), albedo, albedo_saturation);
     if (use_vertex_color) {
         ALBEDO *= COLOR.rgb;
+        if (season_kind > 0 && COLOR.a > 0.875 && (v_season.x > 0.0 || v_season.y > 0.0)) {
+            ALBEDO = season_leaf_color(ALBEDO, vec3(1.0, v_season.x, v_season.y), autumn_early.rgb,
+                autumn_late.rgb, autumn_withered.rgb, vec2(leaf_luma_ref, leaf_chroma_ref));
+        }
     }
     // Nieve sobre las hojas que miran al cielo y escarcha en las puntas.
     if (v_snow_climate.x > 0.001) {

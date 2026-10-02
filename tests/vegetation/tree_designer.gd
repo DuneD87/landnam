@@ -5,6 +5,9 @@ extends Node3D
 ## LOD0 a mediodía, LOD0 a contraluz, vista desde debajo de la copa y LOD1-LOD3.
 ##   godot --path . res://tests/vegetation/tree_designer.tscn -- --tag=v1 [--only=olive_01,pine_01]
 ## Imprime los triángulos de cada LOD.
+## --season=0.6: fija la fase del año (los árboles están en el polo norte del planeta de prueba:
+## 0 equinoccio de primavera, 0,25 verano, 0,5 otoño, 0,75 invierno). Con --seasons=0.1,0.38,0.6
+## la hoja es otra: el LOD0 a mediodía en cada fase, de izquierda a derecha.
 
 const Presets = preload("res://tools/vegetation/tree_presets.gd")
 const GrassPreview = preload("res://tests/vegetation/grass_lod_preview.gd")
@@ -16,6 +19,7 @@ var _tag := "designer"
 ## --wind=X: viento durante las capturas (0 por defecto, para comparar formas).
 var _wind := 0.0
 var _only: PackedStringArray = []
+var _seasons: PackedFloat32Array = []
 var _sun: DirectionalLight3D
 var _vp: SubViewport
 var _cam: Camera3D
@@ -30,6 +34,11 @@ func _ready() -> void:
 			_wind = float(arg.substr(7))
 		elif arg.begins_with("--only="):
 			_only = arg.substr(7).split(",")
+		elif arg.begins_with("--season="):
+			_set_season(float(arg.substr(9)))
+		elif arg.begins_with("--seasons="):
+			for phase in arg.substr(10).split(","):
+				_seasons.append(float(phase))
 	var world := WorldEnvironment.new()
 	var field = GrassPreview.new()
 	world.environment = field._build_environment()
@@ -106,6 +115,15 @@ func _design(scene_name: String) -> void:
 	inst.mesh = lods[0]
 	_set_sun(Vector3(0.4, 0.8, 0.3))
 	_frame(aabb)
+	if not _seasons.is_empty():
+		var by_phase: Array[Image] = []
+		for phase in _seasons:
+			_set_season(phase)
+			by_phase.append(await _grab())
+		inst.queue_free()
+		human.queue_free()
+		_save_sheet(by_phase, by_phase.size(), "seasons_%s_%s" % [_tag, scene_name])
+		return
 	shots.append(await _grab())
 	if _wind > 0.0:
 		# Segunda toma medio segundo después: el viento debe mover copa y ramas juntas.
@@ -126,6 +144,10 @@ func _design(scene_name: String) -> void:
 	inst.queue_free()
 	human.queue_free()
 	_save_sheet(shots, 3, "designer_%s_%s" % [_tag, scene_name])
+
+
+func _set_season(phase: float) -> void:
+	Seasons.push_globals(phase, 23.44)
 
 
 func _set_sun(direction: Vector3) -> void:

@@ -86,7 +86,12 @@ func _choose_cruise_goal(water: WaterBirdHabitat) -> void:
 		heading = global_basis.x.slide(up).normalized()
 	var home := (water.observer.global_position - global_position).slide(up)
 	var radius := maxf(profile.recycle_distance, profile.spawn_radius + 5.0) * 0.8
-	if home.length() > radius * 0.7:
+	if _leaving:
+		# Se va (retire): rumbo contrario al observador y sin el límite de la zona poblada.
+		if not home.is_zero_approx():
+			heading = -home.normalized()
+		radius = INF
+	elif home.length() > radius * 0.7:
 		heading = home.normalized()
 	_goal_valid = false
 	# Linked waypoints make broad turns inside the population area. Keep moving
@@ -129,7 +134,12 @@ func _cruise_step(water: WaterBirdHabitat, delta: float) -> void:
 	# Gulls cruise low over the shipping lanes: a hull can catch one in mid air.
 	if not _collision.disabled and _check_moving_ships(delta):
 		return
-	if _cruise_remaining <= 0.0 and _cruise_distance >= water.settings.flight_distance_min:
+	if _leaving:
+		# Sin posarse: vuelve al pool en cuanto está lejos y fuera de cámara.
+		if global_position.distance_to(water.observer.global_position) > profile.spawn_radius and _out_of_sight():
+			deactivate()
+			return
+	elif _cruise_remaining <= 0.0 and _cruise_distance >= water.settings.flight_distance_min:
 		_cruising = false
 		super._seek_perch()
 		return

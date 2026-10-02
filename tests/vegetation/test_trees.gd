@@ -44,6 +44,7 @@ func _run() -> void:
 			var atlas: Texture2D = load(TreeOctaImpostor.atlas_paths(scene_name)[0])
 			_check(atlas.get_width() == TreeOctaImpostor.FRAMES * TreeOctaImpostor.FRAME_PX,
 				scene_name + ": atlas de %d vistas de %d px" % [TreeOctaImpostor.FRAMES, TreeOctaImpostor.FRAME_PX])
+		_check_seasons(scene_name, tree)
 		_check(tree.get_collision_height() >= 1.0 and tree.get_collision_radius() > 0.05,
 			scene_name + ": cilindro de colisión del tronco")
 		root.free()
@@ -51,6 +52,23 @@ func _run() -> void:
 	await _check_registration(tree_items, vegetation.generators)
 	print("TREE TESTS: %d failures" % _failures)
 	quit(1 if _failures > 0 else 0)
+
+
+## Todos los árboles Branching son caducos: follaje y corteza marcados y atlas sin hoja del
+## impostor (con mipmaps, como el normal: sin ellos el bosque lejano parpadea en invierno).
+func _check_seasons(scene_name: String, tree: Tree3D) -> void:
+	var foliage := tree.twig_materials[0] as ShaderMaterial
+	var bark := tree.material_trunk as ShaderMaterial
+	_check(foliage != null and foliage.get_shader_parameter("deciduous") == true, scene_name + ": follaje caduco")
+	_check(bark != null and bark.get_shader_parameter("deciduous") == true, scene_name + ": corteza de caduco")
+	_check(TreeOctaImpostor.has_atlases(scene_name, true), scene_name + ": atlas de impostor sin hoja")
+	if TreeOctaImpostor.has_atlases(scene_name, true):
+		for path in TreeOctaImpostor.atlas_paths(scene_name, true):
+			var atlas: Texture2D = load(path)
+			var import_settings := FileAccess.get_file_as_string(path + ".import")
+			_check(atlas.get_width() == TreeOctaImpostor.FRAMES * TreeOctaImpostor.FRAME_PX
+				and "mipmaps/generate=true" in import_settings and "compress/mode=2" in import_settings,
+				path.get_file() + ": tamaño, mipmaps y compresión VRAM")
 
 
 func _check_lods(scene_name: String, lods: Array) -> void:

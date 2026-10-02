@@ -11,6 +11,7 @@ render_mode depth_draw_opaque, cull_back;
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
 #include "res://shaders/lib/tree_wind.gdshaderinc"
 #include "res://shaders/lib/climate.gdshaderinc"
+#include "res://shaders/lib/season.gdshaderinc"
 
 uniform vec4 albedo : source_color = vec4(1.0);
 uniform sampler2D texture_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -27,6 +28,9 @@ uniform vec4 moss_color : source_color = vec4(0.26, 0.31, 0.12, 1.0);
 uniform float moss_amount : hint_range(0.0, 1.0, 0.01) = 0.35;
 // Variación de brillo y temperatura entre árboles.
 uniform float tint_variation : hint_range(0.0, 0.5, 0.01) = 0.12;
+// Hoja caduca (season.gdshaderinc): sin hoja, las ramas dejan de estar a la sombra de la copa y
+// la oclusión horneada de su interior se aclara (la de la base del tronco se queda).
+uniform bool deciduous = false;
 
 varying float v_ao;
 varying vec2 v_band;
@@ -58,6 +62,10 @@ void vertex() {
 	float base = 1.0 - smoothstep(0.0, 1.4, VERTEX.y * length(MODEL_MATRIX[1].xyz));
 	v_moss = clamp(facing_sky * 0.8 + base * 0.7, 0.0, 1.0) * moss_amount;
 	v_ao = mix(1.0, COLOR.r, ao_strength);
+	if (deciduous) {
+		float bare = 1.0 - season_leaf_cover(season_leaf_state(relative_base, (tree_seed(relative_base, 71u) - 0.5) * SEASON_TREE_JITTER, 0.0));
+		v_ao = mix(v_ao, 1.0, bare * SEASON_BARE_AO_LIFT * smoothstep(0.02, 0.1, UV2.x));
+	}
 	// Un frío por árbol (en su base): la corteza, la copa y el impostor nievan igual.
 	v_snow_cover = 0.0;
 	v_glacier = 0.0;

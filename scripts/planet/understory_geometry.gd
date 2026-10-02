@@ -13,6 +13,39 @@ const GRASS_SHADER = preload("res://shaders/grass_wind.gdshader")
 ## Ensanchado de las hojas supervivientes por LOD. grass_wind.gdshader usa el mismo
 ## factor para el morph continuo entre niveles (lod_width_growth).
 const WIDTH_GROWTH := 1.23
+## Pieza de cada vértice en COLOR.a, para las estaciones de grass_wind.gdshader.
+const PART_LEAF := 1.0
+const PART_STEM := 0.75
+const PART_FLOWER := 0.5
+## Paletas de las flores de los arbustos.
+const FLOWER_PINK := [Color(0.88, 0.62, 0.76), Color(0.93, 0.78, 0.86), Color(0.80, 0.66, 0.88)]
+const FLOWER_YELLOW := [Color(0.98, 0.84, 0.2), Color(0.95, 0.76, 0.14), Color(1.0, 0.9, 0.36)]
+const FLOWER_WHITE := [Color(0.95, 0.94, 0.9), Color(0.9, 0.88, 0.95), Color(0.86, 0.78, 0.92)]
+## Estaciones por especie (shaders/lib/season.gdshaderinc, grass_wind.gdshader):
+##   kind: 0 nada, 1 herbácea (se agosta con la pradera), 2 arbusto caduco (cambia de color y pierde
+##         la hoja), 3 perenne (solo sus flores).
+##   autumn: colores de otoño de la hoja (primero, pleno y seco).
+##   bloom: ventana de floración [centro, ancho] en fase local (0 = equinoccio de primavera). Fuera de
+##          ella las flores (y sus tallos de flor) se cierran.
+const SEASONS := {
+	"wood_fern": {"kind": 1, "autumn": [Color(0.72, 0.6, 0.25), Color(0.66, 0.38, 0.16), Color(0.45, 0.3, 0.18)]},
+	"royal_fern": {"kind": 1, "autumn": [Color(0.72, 0.6, 0.25), Color(0.66, 0.38, 0.16), Color(0.45, 0.3, 0.18)]},
+	"round_shrub": {"kind": 2, "autumn": [Color(0.8, 0.6, 0.22), Color(0.72, 0.32, 0.14), Color(0.48, 0.3, 0.18)],
+		"bloom": [0.12, 0.24]},
+	"flowering_shrub": {"kind": 2, "autumn": [Color(0.85, 0.6, 0.25), Color(0.7, 0.28, 0.2), Color(0.48, 0.3, 0.2)],
+		"bloom": [0.14, 0.3]},
+	"willow_shrub": {"kind": 2, "autumn": [Color(0.82, 0.72, 0.3), Color(0.72, 0.55, 0.22), Color(0.5, 0.38, 0.22)],
+		"bloom": [0.05, 0.16]},
+	"wild_asparagus": {"kind": 3},
+	"broadleaf": {"kind": 1, "bloom": [0.2, 0.26]},
+	"wildflowers": {"kind": 1, "bloom": [0.14, 0.34]},
+	"dwarf_juniper": {"kind": 3, "bloom": [0.0, 2.0]},
+	"dwarf_birch": {"kind": 2, "autumn": [Color(0.84, 0.4, 0.14), Color(0.74, 0.24, 0.12), Color(0.5, 0.25, 0.15)]},
+	"heather": {"kind": 3, "bloom": [0.42, 0.24]},
+	"cottongrass": {"kind": 1, "bloom": [0.3, 0.3]},
+	"reindeer_lichen": {"kind": 0},
+	"arctic_poppy": {"kind": 1, "bloom": [0.28, 0.26]},
+}
 static var _cache: Dictionary = {}
 
 var _leaves: Array = []
@@ -109,14 +142,42 @@ func _material(species: String) -> ShaderMaterial:
 	material.set_shader_parameter("fade_end", 176.0)
 	material.set_shader_parameter("lod_width_growth", WIDTH_GROWTH)
 	material.set_shader_parameter("volume_normal_both_faces", _volume_strength > 0.0)
+	_season_parameters(material, species)
 	return material
+
+
+func _season_parameters(material: ShaderMaterial, species: String) -> void:
+	var season: Dictionary = SEASONS[species]
+	material.set_shader_parameter("season_kind", season.kind)
+	if season.has("autumn"):
+		material.set_shader_parameter("autumn_early", season.autumn[0])
+		material.set_shader_parameter("autumn_late", season.autumn[1])
+		material.set_shader_parameter("autumn_withered", season.autumn[2])
+	if season.has("bloom"):
+		material.set_shader_parameter("bloom_center", season.bloom[0])
+		material.set_shader_parameter("bloom_width", season.bloom[1])
+	# Hoja media de la especie (lineal), la de los colores de otoño.
+	var luma := 0.0
+	var chroma := 0.0
+	var count := 0
+	for leaf in _leaves:
+		if leaf.part != PART_LEAF:
+			continue
+		var c: Color = leaf.color.srgb_to_linear()
+		luma += c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722
+		chroma += c.g / maxf(c.r + c.g + c.b, 0.0001)
+		count += 1
+	if count > 0:
+		material.set_shader_parameter("leaf_luma_ref", luma / count)
+		material.set_shader_parameter("leaf_chroma_ref", chroma / count)
 
 
 ## tier: último LOD en el que sigue la hoja (-1 = aleatorio, mitad por nivel).
 ## segments: tramos en LOD0 (0 = los de por defecto según su anchura).
+## part: PART_LEAF o PART_FLOWER (los pétalos se abren y cierran con las estaciones).
 func _leaf(a: Vector3, b: Vector3, c: Vector3, width: float, color: Color,
 		terminal: bool = false, facing: Vector3 = Vector3.UP, tier: int = -1,
-		segments: int = 0) -> void:
+		segments: int = 0, part: float = PART_LEAF) -> void:
 	var seed: float = _rng.randf()
 	if tier < 0:
 		tier = 3 if terminal else 0
@@ -125,17 +186,19 @@ func _leaf(a: Vector3, b: Vector3, c: Vector3, width: float, color: Color,
 			while tier < 3 and (selection & (1 << tier)) == 0:
 				tier += 1
 	_leaves.append({"a": a, "b": b, "c": c, "width": width, "color": color,
-		"seed": seed, "tier": clampi(tier, 0, 3), "facing": facing, "segments": segments})
+		"seed": seed, "tier": clampi(tier, 0, 3), "facing": facing, "segments": segments, "part": part})
 	_height = maxf(_height, maxf(b.y, c.y))
 
 
 ## survival: último LOD en el que sigue el tallo. Los finos solo llegan a LOD1.
-func _stem(a: Vector3, b: Vector3, width: float, color: Color, survival: int = -1) -> void:
+## part: PART_STEM, o PART_FLOWER para el tallo de una flor (se cierra con ella).
+func _stem(a: Vector3, b: Vector3, width: float, color: Color, survival: int = -1,
+		part: float = PART_STEM) -> void:
 	if a.distance_squared_to(b) < 0.000001:
 		return
 	if survival < 0:
 		survival = 1 if width < 0.008 else 3
-	_stems.append({"a": a, "b": b, "width": width, "color": color, "survival": survival})
+	_stems.append({"a": a, "b": b, "width": width, "color": color, "survival": survival, "part": part})
 	_height = maxf(_height, maxf(a.y, b.y))
 
 
@@ -205,6 +268,7 @@ func _round_shrub(flowers: bool) -> void:
 			_stem(fork, tip, 0.015, wood.lightened(0.08))
 			forks.append(tip)
 	var clusters: int = 62
+	var blossom_sites: Array = []
 	for k in clusters:
 		# Espiral de Fibonacci sobre el domo, desde la copa hasta algo bajo el ecuador.
 		var y: float = lerpf(0.97, -0.38, (k + 0.5) / clusters)
@@ -225,6 +289,12 @@ func _round_shrub(flowers: bool) -> void:
 		_leaf_cluster(anchor, outward, 6, 0.16 if outer else 0.18, 0.60, color, cluster_tier)
 		if flowers and outer and y > 0.12 and k % 3 == 0:
 			_flower_cluster(anchor + outward * 0.035, outward, cluster_tier)
+		elif outer and y > -0.05 and (k % 3 == 1 if flowers else k % 2 == 1):
+			blossom_sites.append([anchor, outward, cluster_tier])
+	# Flor de primavera: el florido, más racimos rosas; el redondo, flor amarilla de retama. Al
+	# final y no en el bucle: el generador es uno solo y la copa y sus hojas quedan como estaban.
+	for site in blossom_sites:
+		_flower_cluster(site[0] + site[1] * 0.035, site[1], site[2], FLOWER_PINK if flowers else FLOWER_YELLOW)
 
 
 ## Sauce arbustivo: varas largas con hojas estrechas que cuelgan hacia fuera.
@@ -235,6 +305,7 @@ func _willow_shrub() -> void:
 	_canopy_size = Vector3(0.62, 0.78, 0.62)
 	_volume_strength = 0.5
 	_occlusion = 0.30
+	var catkin_sites: Array = []
 	for branch in 11:
 		var angle: float = branch * 2.399963 + _rng.randf_range(-0.25, 0.25)
 		var direction := Vector3(cos(angle), 0, sin(angle))
@@ -261,6 +332,16 @@ func _willow_shrub() -> void:
 					node == 5, (lateral * 0.35 + Vector3.UP).normalized())
 		_leaf(end - Vector3.UP * 0.04, end + Vector3.UP * 0.14,
 			end + direction * 0.10 + Vector3.UP * 0.18, 0.10, branch_color.lightened(0.12), true)
+		catkin_sites.append([knee, end, direction])
+	# Amentos de principios de primavera, colgando de la mitad alta de cada vara. Al final, como
+	# las flores del arbusto redondo, para no mover el resto de la mata.
+	for site in catkin_sites:
+		for c in 4:
+			var origin: Vector3 = site[0].lerp(site[1], 0.45 + c * 0.14)
+			var side: Vector3 = site[2].rotated(Vector3.UP, (c % 2 - 0.5) * 2.2)
+			var tip: Vector3 = origin + side * 0.03 - Vector3.UP * 0.07
+			_leaf(origin, origin.lerp(tip, 0.5) + side * 0.01, tip, 0.022,
+				Color(0.88, 0.85, 0.45).lightened(_rng.randf_range(-0.04, 0.06)), true, side, 1 if c < 2 else 0, 0, PART_FLOWER)
 
 
 func _asparagus() -> void:
@@ -317,6 +398,19 @@ func _broadleaf() -> void:
 		_leaf(neck, mid, tip, _rng.randf_range(0.20, 0.29) * lerpf(0.85, 1.08, age),
 			leaf_color.lightened(_rng.randf_range(0, 0.06)), leaf % 3 == 0,
 			(Vector3.UP + radial * 0.35).normalized(), -1, 4)
+	# Dos espigas de flor blanca y lila que salen del centro en primavera; el tallo se cierra con
+	# ellas. Al final, para no mover las hojas.
+	for spike in 2:
+		var lean := Vector3(cos(spike * PI + 0.6), 0.0, sin(spike * PI + 0.6))
+		var base := lean * 0.03 + Vector3.UP * 0.12
+		var top: Vector3 = base + lean * 0.12 + Vector3.UP * (0.62 if spike == 0 else 0.5)
+		_stem(base, top, 0.012, Color(0.42, 0.52, 0.32), 2, PART_FLOWER)
+		var spike_color: Color = FLOWER_WHITE[_rng.randi() % FLOWER_WHITE.size()]
+		for bloom in 7:
+			var t: float = 0.45 + bloom * 0.08
+			var side: Vector3 = lean.rotated(Vector3.UP, bloom * 2.4)
+			_flower(base.lerp(top, t) + side * 0.03, 0.03, spike_color.lightened(_rng.randf_range(-0.04, 0.05)),
+				(side + Vector3.UP * 0.6).normalized(), 2 if bloom % 2 == 0 else 1, 5)
 
 
 func _wildflowers() -> void:
@@ -369,11 +463,11 @@ func _juniper() -> void:
 					_flower(origin + outward * 0.07, 0.016, Color(0.40, 0.47, 0.62), outward, 2, 3)
 
 
-## Abedul enano de la tundra: mata baja de tallos rojizos y hojitas redondas en rojo y naranja
-## de otoño, con alguna todavía verde.
+## Abedul enano de la tundra: mata baja de tallos rojizos y hojitas redondas, verdes en verano. El
+## rojo y el naranja del otoño los pone el shader (SEASONS).
 func _dwarf_birch() -> void:
-	var palette := [Color(0.74, 0.24, 0.12), Color(0.84, 0.40, 0.14), Color(0.62, 0.17, 0.13),
-		Color(0.56, 0.54, 0.20)]
+	var palette := [Color(0.36, 0.52, 0.22), Color(0.43, 0.57, 0.25), Color(0.31, 0.47, 0.2),
+		Color(0.5, 0.58, 0.26)]
 	var wood := Color(0.36, 0.19, 0.15)
 	var radius: float = 0.46
 	var height: float = 0.58
@@ -463,7 +557,7 @@ func _cottongrass() -> void:
 			var center: Vector3 = top + Vector3.UP * radius * 0.6
 			# La cara del pelo, perpendicular a él: paralela, la hoja se aplasta en una línea.
 			_leaf(center, center + out * radius * 0.6 + Vector3.UP * 0.006, center + out * radius,
-				radius * 0.75, Color(0.95, 0.95, 0.92), true, _frame(out)[1], 3 if hair < 8 else 1)
+				radius * 0.75, Color(0.95, 0.95, 0.92), true, _frame(out)[1], 3 if hair < 8 else 1, 0, PART_FLOWER)
 
 
 ## Liquen de los renos: cojines gris verdoso claro de ramitas finas en forma de coral.
@@ -537,8 +631,8 @@ func _leaf_cluster(anchor: Vector3, outward: Vector3, count: int, length: float,
 
 
 ## Ramillete de flores pequeñas en la punta de un brote.
-func _flower_cluster(center: Vector3, outward: Vector3, cluster_tier: int) -> void:
-	var palette := [Color(0.88, 0.62, 0.76), Color(0.93, 0.78, 0.86), Color(0.80, 0.66, 0.88)]
+func _flower_cluster(center: Vector3, outward: Vector3, cluster_tier: int,
+		palette: Array = FLOWER_PINK) -> void:
 	var color: Color = palette[_rng.randi() % palette.size()]
 	var frame: Array = _frame(outward)
 	for f in 5:
@@ -556,11 +650,11 @@ func _flower(center: Vector3, radius: float, color: Color, facing: Vector3 = Vec
 		var angle: float = petal * TAU / petals
 		var outward: Vector3 = frame[0] * cos(angle) + frame[1] * sin(angle)
 		_leaf(center, center + outward * radius * 0.5 + facing * 0.025 * radius / 0.07,
-			center + outward * radius, radius * 0.65, color, true, facing, tier)
+			center + outward * radius, radius * 0.65, color, true, facing, tier, 0, PART_FLOWER)
 	# Centro cálido sin material ni draw call adicional.
 	_leaf(center - frame[0] * radius * 0.20 + facing * 0.005,
 		center + facing * 0.032 * radius / 0.07, center + frame[0] * radius * 0.20 + facing * 0.005,
-		radius * 0.42, Color(0.79, 0.62, 0.28), true, facing, tier)
+		radius * 0.42, Color(0.79, 0.62, 0.28), true, facing, tier, 0, PART_FLOWER)
 
 
 func _cluster_tier(outer: bool) -> int:
@@ -658,8 +752,8 @@ func _append_leaf(leaf: Dictionary, lod: int) -> void:
 			offset += row_normal * (1.0 - absf(u * 2.0 - 1.0)) * width * 0.13
 			var n: Vector3 = (row_normal + side * (u - 0.5) * 0.35).normalized()
 			_vertex(center + offset, n, Vector2(u, leaf.seed), leaf.color * lerpf(0.83, 1.08, t),
-				offset, packed)
-	_vertex(leaf.c, normal, Vector2(0.5, leaf.seed), leaf.color * 1.08, Vector3.ZERO, packed)
+				offset, packed, leaf.part)
+	_vertex(leaf.c, normal, Vector2(0.5, leaf.seed), leaf.color * 1.08, Vector3.ZERO, packed, leaf.part)
 	for row in segments - 1:
 		for column in columns - 1:
 			var a: int = base + row * columns + column
@@ -739,7 +833,8 @@ func _append_stem(stem: Dictionary, lod: int) -> void:
 		for corner in 4:
 			var along: Vector3 = stem.a if corner < 2 else stem.b
 			var offset: Vector3 = side * stem.width * (0.7 if corner < 2 else 0.4) * (-1.0 if corner % 2 == 0 else 1.0)
-			_vertex(along + offset, normal, Vector2(float(corner % 2), 0.5), stem.color, offset, packed)
+			_vertex(along + offset, normal, Vector2(float(corner % 2), 0.5), stem.color, offset, packed,
+				stem.part)
 		_triangle(base, base + 1, base + 2)
 		_triangle(base + 1, base + 3, base + 2)
 		return
@@ -752,7 +847,7 @@ func _append_stem(stem: Dictionary, lod: int) -> void:
 			var angle: float = TAU * face / sides
 			var n: Vector3 = side * cos(angle) + normal * sin(angle)
 			_vertex(center + n * radius, n, Vector2(float(face) / sides, 0.5), stem.color,
-				n * radius, packed)
+				n * radius, packed, stem.part)
 	for face in sides:
 		var next: int = (face + 1) % sides
 		_triangle(base + face, base + next, base + sides + face)
@@ -760,14 +855,14 @@ func _append_stem(stem: Dictionary, lod: int) -> void:
 
 
 func _vertex(position: Vector3, normal: Vector3, uv: Vector2, color: Color,
-		morph_offset: Vector3, packed: float) -> void:
+		morph_offset: Vector3, packed: float, part: float) -> void:
 	_v.append(position)
 	_n.append(normal)
 	_uv.append(uv)
 	_uv2.append(Vector2(clampf(position.y / _height, 0, 1), 1.0))
 	# COLOR no lleva la conversión source_color de los uniforms.
 	var linear: Color = (color * _occlusion_at(position)).srgb_to_linear()
-	linear.a = 1.0
+	linear.a = part
 	_colors.append(linear)
 	# CUSTOM0: desplazamiento respecto al eje de la hoja o tallo y niveles, para el
 	# morph de LOD del shader (4 * LOD de la malla + último LOD de la pieza).

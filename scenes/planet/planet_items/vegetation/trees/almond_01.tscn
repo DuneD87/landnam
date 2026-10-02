@@ -16,11 +16,20 @@ shader_parameter/texture_albedo = ExtResource("4_e0nul")
 shader_parameter/texture_normal = ExtResource("5_iig0t")
 shader_parameter/texture_roughness = ExtResource("6_8gsiu")
 shader_parameter/moss_amount = 0.25
+shader_parameter/deciduous = true
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_e0nul"]
 render_priority = 0
 shader = ExtResource("7_mv8av")
 shader_parameter/texture_albedo = ExtResource("5_5npqh")
+shader_parameter/deciduous = true
+shader_parameter/autumn_early = Color(0.73, 0.61, 0.22, 1)
+shader_parameter/autumn_late = Color(0.68, 0.33, 0.19, 1)
+shader_parameter/autumn_withered = Color(0.6, 0.37, 0.23, 1)
+shader_parameter/leaf_luma_ref = 0.24
+shader_parameter/leaf_chroma_ref = 0.49
+shader_parameter/spring_shift = -0.05
+shader_parameter/blossom_color = Color(0.97, 0.76, 0.84, 1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_cs0ur"]
 size = Vector3(0.231934, 5.74695, 0.482483)

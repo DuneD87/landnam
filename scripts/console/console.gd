@@ -265,6 +265,9 @@ func _register_commands() -> void:
 		"Alterna el vuelo libre / atravesar terreno.", _cmd_noclip))
 	_add(ConsoleCommand.new("sun", "sun <azimuth> [elevación] | sun auto <on|off>",
 		"Coloca el sol o (des)activa su rotación automática.", _cmd_sun, 1))
+	_add(ConsoleCommand.new("estacion", "estacion [primavera|verano|otoño|invierno|<día>] | estacion velocidad <x>",
+		"Fecha y estación donde estás; salta a una estación de tu hemisferio o a un día del año, o acelera el calendario.",
+		_cmd_season, 0, _complete_season))
 	_add(ConsoleCommand.new("wake", "wake [on|off]",
 		"Apaga la espuma de estela, para aislar su coste por píxel.", _cmd_wake))
 	_add(ConsoleCommand.new("drift", "drift [factor]",
@@ -482,6 +485,51 @@ func _cmd_sun(args: PackedStringArray) -> String:
 	if args.size() >= 2 and args[1].is_valid_float():
 		sun._set_elevation(args[1].to_float())
 	return "[color=%s]Sol → azimuth %.1f°, elevación %.1f°.[/color]" % [COLOR_OK, sun.sun_azimuth_deg, sun.sun_elevation_deg]
+
+
+## Fase local a la que salta cada estación: brotes, pleno verano, pleno color del otoño, pelado.
+const SEASON_JUMPS := {"primavera": 0.07, "verano": 0.38, "otoño": 0.6, "otono": 0.6, "invierno": 0.85}
+
+
+func _cmd_season(args: PackedStringArray) -> String:
+	var sun := _get_sun()
+	if sun == null:
+		return "[color=%s]No hay controlador de sol activo.[/color]" % COLOR_ERR
+	var player := _get_player()
+	var loader = player.planet if player != null else null
+	var local: Vector3 = player.global_position - loader.global_position if loader != null else Vector3.UP
+	if not args.is_empty():
+		var arg := args[0].to_lower()
+		if arg == "velocidad":
+			if args.size() < 2 or not args[1].is_valid_float():
+				return "[color=%s]Uso: estacion velocidad <x> (1 = normal).[/color]" % COLOR_ERR
+			sun.season_speed = maxf(args[1].to_float(), 0.0)
+		elif SEASON_JUMPS.has(arg):
+			# En el sur la misma estación cae medio año más tarde.
+			var phase: float = SEASON_JUMPS[arg] - Seasons.local_phase(local, 0.0)
+			sun.set_day_of_year(fposmod(phase, 1.0) * sun.year_days())
+		elif arg.is_valid_float():
+			sun.set_day_of_year(arg.to_float())
+		else:
+			return "[color=%s]Uso: estacion [primavera|verano|otoño|invierno|<día>] | estacion velocidad <x>.[/color]" % COLOR_ERR
+		sun._update_sun()
+		# Tras un salto de fecha el tiempo se sortea con la estación nueva.
+		var weather := _get_weather()
+		if arg != "velocidad" and weather != null and weather.has_method("reroll"):
+			weather.reroll()
+	var phase: float = sun.year_phase()
+	var here := Seasons.local_phase(local, phase)
+	var latitude := Seasons.latitude_deg(local)
+	var out := "[color=%s]Día %.1f de %.0f · declinación %+.1f° · calendario ×%.1f[/color]\n" % [
+		COLOR_INFO, sun.day_of_year, sun.year_days(), sun.declination_deg(), sun.season_speed]
+	out += "  aquí (%.1f° %s): [color=%s]%s[/color] · %.1f h de luz · estaciones al %d %%" % [
+		absf(latitude), "N" if latitude >= 0.0 else "S", COLOR_OK, Seasons.NAMES[Seasons.season_index(here)],
+		Seasons.daylight_hours(latitude, sun.declination_deg()), roundi(Seasons.strength(local) * 100.0)]
+	return out
+
+
+func _complete_season() -> PackedStringArray:
+	return PackedStringArray(["primavera", "verano", "otoño", "invierno", "velocidad"])
 
 
 ## Enciende o apaga el perfilado. Apagado, los report_cost repartidos por el juego no hacen nada
@@ -841,8 +889,10 @@ func _cmd_fauna(_args: PackedStringArray) -> String:
 		for animal in spawner._pool:
 			if animal.active:
 				alive += 1
-		lines.append("[color=%s]%s[/color]  vivos %d/%d   pool %d   radio %.0f m" % [
-			COLOR_INFO, spawner.name, alive, spawner.target_population(),
+		var activity := spawner.activity()
+		lines.append("[color=%s]%s[/color]  vivos %d/%d   actividad %d %%   pool %d   radio %.0f m" % [
+			COLOR_INFO, spawner.name, alive, mini(spawner.target_population(),
+			roundi(spawner.target_population() * activity)), roundi(activity * 100.0),
 			spawner._pool.size(), spawner.profile.spawn_radius])
 		var ground := spawner.habitat as GroundFaunaHabitat
 		if ground == null:

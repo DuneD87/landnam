@@ -46,7 +46,7 @@
 	},
 
 	"snow": {
-	  "cloud_coverage": 0.75, "cloud_density": 0.9, "cloud_absorption": 0.28,
+	  "cloud_coverage": 0.95, "cloud_density": 0.9, "cloud_absorption": 0.28,
 	  "cloud_albedo": 0.95,
 	  "cloud_shadow": 0.7, "cloud_min_height": 350.0, "cloud_max_height": 600.0,
 	  "cloud_wind_speed": 0.04,

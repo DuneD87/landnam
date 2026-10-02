@@ -5,7 +5,9 @@ extends RefCounted
 ##
 ## El horneado (bake) fotografía el LOD0 desde FRAMES×FRAMES direcciones del hemisferio
 ## superior en dos atlas: color con cobertura, y normal de copa (octaédrica, RG) con la
-## oclusión (B). Lo lanza tools/vegetation/bake_tree_impostors.gd y los atlas se guardan
+## oclusión (B). Los árboles caducos llevan otro par horneado sin hoja (_bare), que el impostor
+## mezcla con el normal según la estación (shaders/lib/season.gdshaderinc).
+## Lo lanza tools/vegetation/bake_tree_impostors.gd y los atlas se guardan
 ## junto a las texturas de árbol: hornear 64 vistas en cada arranque tardaría segundos.
 ## En juego, build_mesh() crea el quad y el material de tree_octa_impostor.gdshader.
 ## La codificación es la de shaders/lib/octahedral.gdshaderinc.
@@ -20,15 +22,20 @@ const BAKE_SHADER := preload("res://shaders/vegetation/tree_impostor_bake.gdshad
 const SHARED_FOLIAGE_PARAMETERS := ["tint_variation", "variation_cool_tint", "variation_warm_tint",
 	"diffuse_wrap", "transmission_strength", "transmission_sharpness", "transmission_color",
 	"transmission_through_shadow",
-	"ao_strength", "direct_occlusion"]
+	"ao_strength", "direct_occlusion",
+	"autumn_early", "autumn_late", "autumn_withered", "leaf_luma_ref", "leaf_chroma_ref", "leaf_mask_edges", "spring_shift", "blossom_color"]
+## Sombra de la copa sobre la madera del atlas sin hoja (bark_shade del horneado). Sin copa le da
+## más el sol que en el atlas normal (0,45), pero la oclusión de la base sigue.
+const BARE_BARK_SHADE := 0.75
 
 
-static func atlas_paths(scene_name: String) -> Array[String]:
-	return [ATLAS_DIR + scene_name + "_albedo.png", ATLAS_DIR + scene_name + "_normal.png"]
+static func atlas_paths(scene_name: String, bare: bool = false) -> Array[String]:
+	var stem := ATLAS_DIR + scene_name + ("_bare" if bare else "")
+	return [stem + "_albedo.png", stem + "_normal.png"]
 
 
-static func has_atlases(scene_name: String) -> bool:
-	for path in atlas_paths(scene_name):
+static func has_atlases(scene_name: String, bare: bool = false) -> bool:
+	for path in atlas_paths(scene_name, bare):
 		if not ResourceLoader.exists(path):
 			return false
 	return true
@@ -76,6 +83,14 @@ static func build_mesh(lod0: Mesh, scene_name: String, foliage_material: ShaderM
 			var value = foliage_material.get_shader_parameter(key)
 			if value != null:
 				material.set_shader_parameter(key, value)
+		if foliage_material.get_shader_parameter("deciduous") == true:
+			if has_atlases(scene_name, true):
+				var bare_paths := atlas_paths(scene_name, true)
+				material.set_shader_parameter("deciduous", true)
+				material.set_shader_parameter("bare_albedo_atlas", load(bare_paths[0]))
+				material.set_shader_parameter("bare_normal_atlas", load(bare_paths[1]))
+			else:
+				push_warning("Árbol caduco sin atlas de impostor sin hoja (de lejos no cambia con las estaciones): " + scene_name)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	# El vertex shader coloca las esquinas; aquí solo cuentan las UV.
@@ -92,8 +107,9 @@ static func build_mesh(lod0: Mesh, scene_name: String, foliage_material: ShaderM
 
 
 ## Hornea los dos atlas de `mesh` (LOD0 con sus materiales de juego). `host` debe estar en
-## el árbol de escena. Devuelve {"albedo": Image, "normal": Image}.
-static func bake(mesh: Mesh, host: Node) -> Dictionary:
+## el árbol de escena. `bare`: sin la hoja de las tarjetas (atlas de invierno de los caducos).
+## Devuelve {"albedo": Image, "normal": Image}.
+static func bake(mesh: Mesh, host: Node, bare: bool = false) -> Dictionary:
 	var b := bounds(mesh)
 	var center: Vector3 = b.center
 	var radius: float = b.radius
@@ -104,6 +120,10 @@ static func bake(mesh: Mesh, host: Node) -> Dictionary:
 	env.glow_enabled = false
 	world.environment = env
 	var bake_materials := _bake_materials(mesh)
+	if bare:
+		for material in bake_materials:
+			material.set_shader_parameter("bare", true)
+			material.set_shader_parameter("bark_shade", BARE_BARK_SHADE)
 
 	var px := FRAME_PX * BAKE_SUPERSAMPLE
 	var viewports: Array[SubViewport] = []
@@ -169,7 +189,7 @@ static func _bake_materials(mesh: Mesh) -> Array[ShaderMaterial]:
 			var tint = src.get_shader_parameter("albedo_tint" if foliage else "albedo")
 			if tint != null:
 				bake.set_shader_parameter("albedo_tint", tint)
-			for key in ["saturation", "alpha_scissor_threshold"]:
+			for key in ["saturation", "alpha_scissor_threshold", "leaf_mask_edges"]:
 				var value = src.get_shader_parameter(key)
 				if value != null:
 					bake.set_shader_parameter(key, value)

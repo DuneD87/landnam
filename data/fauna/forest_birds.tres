@@ -26,3 +26,7 @@ spawn_radius = 60.0
 clearance = 0.5
 recycle_distance = 100.0
 min_spacing = 7.0
+day_activity = 1.0
+twilight_activity = 0.4
+night_activity = 0.0
+season_activity = PackedFloat32Array(1, 1, 0.75, 0.4)

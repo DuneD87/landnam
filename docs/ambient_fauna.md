@@ -9,6 +9,43 @@ Las aves del bosque aparecen en aire libre cerca del jugador si hay árboles pr�
 buscan ramas para posarse después de aparecer.
 Su funcionamiento y ajustes se describen en [forest_birds.md](forest_birds.md).
 
+## Actividad: noche y estaciones
+
+Cada perfil (`AmbientFaunaProfile`) dice qué parte de su población está activa de día, en el
+crepúsculo y de noche (`day_activity`, `twilight_activity`, `night_activity`) y en cada estación
+(`season_activity`: primavera, verano, otoño, invierno). La luz es la altura del sol sobre el
+horizonte del observador (`Seasons.light_weights`: día por encima de unos grados, noche por debajo
+del crepúsculo náutico); la estación, la de su sitio ([seasons.md](seasons.md)), y en el ecuador no
+cuenta. El spawner mantiene el pool entero y pone en juego `población × actividad`.
+
+| Especie | Día | Crepúsculo | Noche | Estaciones (P, V, O, I) |
+| --- | --- | --- | --- | --- |
+| Aves del bosque | 1 | 0,4 | 0 | 1, 1, 0,75, 0,4 (migran) |
+| Gaviotas | 1 | 0,5 | 0 | 1, 1, 1, 0,8 |
+| Patos | 1 | 0,7 | 0,15 | 1, 1, 0,8, 0,5 |
+| Conejos | 0,6 | 1 | 0,7 | 1, 1, 1, 0,7 |
+| Ratones | 0,4 | 1 | 1 | 1, 1, 1, 0,5 |
+| Zorros | 0,4 | 1 | 0,9 | — |
+| Ciervos | 0,7 | 1 | 0,5 | — |
+| Osos | 1 | 0,8 | 0,3 | 0,8, 1, 1, 0 (hibernan) |
+| Leones | 0,5 | 1 | 0,9 | — |
+| Búfalos, caribúes | 1 | 1 | 0,6 | — |
+| Zorros árticos | 0,7 | 1 | 0,8 | — |
+| Liebres árticas | 0,6 | 1 | 0,8 | — |
+| Lémmings | 0,8 | 1 | 0,8 | 1, 1, 1, 0,3 (bajo la nieve) |
+
+Peces, fauna marina y osos polares no cambian.
+
+Cuando baja la actividad (anochece, llega el invierno) nadie desaparece delante de la cámara
+(`AmbientFaunaSpawner._retire_surplus`): los que sobran y no se ven se retiran, salvo los que están
+a menos de `spawn_min_distance` del observador (un oso que pelea a su espalda no se esfuma). Si aún
+sobran, los que están a la vista reciben `retire()`: las aves despegan y se alejan del observador
+sin volver a posarse hasta perderse de vista; el resto sigue a lo suyo y se retira en cuanto deja de
+verse. Al subir la actividad (amanece) el spawner vuelve a llenar el pool como siempre, fuera de
+cámara.
+
+La consola `fauna` muestra la actividad de cada población.
+
 ## Ajustes iniciales
 
 `data/fauna/coastal_fish.tres` configura 28 peces, búsqueda entre 18 y 65 metros

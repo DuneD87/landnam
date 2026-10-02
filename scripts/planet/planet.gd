@@ -1595,6 +1595,13 @@ func setup_shader_parameters() -> void:
 	# Índices en "textures" de la nieve que pinta el frío y del hielo glaciar de las laderas.
 	var climate_terrain: Dictionary = climate_settings.get("terrain", {})
 	shader_material.set_shader_parameter("snow_texture_index", int(climate_terrain.get("snow_texture", 2)))
+	# Cuánto sigue cada textura a la pradera con las estaciones (índice en "textures": peso).
+	var meadow := PackedFloat32Array()
+	meadow.resize(8)
+	var meadow_cfg: Dictionary = climate_terrain.get("meadow_textures", {})
+	for key in meadow_cfg:
+		meadow[int(key)] = float(meadow_cfg[key])
+	shader_material.set_shader_parameter("texture_meadow", meadow)
 	shader_material.set_shader_parameter("glacier_texture_index", int(climate_terrain.get("glacier_texture", -1)))
 	# Vista de depuración de la nieve (ver planet_biomes.gdshader). Tiene que ir antes del primer
 	# mallado: los bloques ya mallados guardan su copia del material y no ven cambios posteriores.

@@ -9,11 +9,11 @@ Son decoración: no crean nodos, colisiones ni objetos recolectables por instanc
 |---|---|---:|---:|---:|---:|---:|
 | Helecho de bosque | wood_fern | 0,035 | 2886 | 1103 | 557 | 167 |
 | Helecho alto | royal_fern | 0,015 | 2028 | 848 | 475 | 138 |
-| Arbusto redondo | round_shrub | 0,013 | 2748 | 516 | 222 | 70 |
-| Arbusto de hoja larga | willow_shrub | 0,008 | 2398 | 1458 | 309 | 87 |
-| Arbusto florido | flowering_shrub | 0,010 | 3423 | 717 | 354 | 125 |
+| Arbusto redondo | round_shrub | 0,016 | 4473 | 1041 | 507 | 135 |
+| Arbusto de hoja larga | willow_shrub | 0,008 | 2530 | 1480 | 309 | 87 |
+| Arbusto florido | flowering_shrub | 0,020 | 4323 | 967 | 504 | 160 |
 | Esparraguera | wild_asparagus | 0,020 | 3018 | 1012 | 309 | 187 |
-| Planta de hojas anchas | broadleaf | 0,023 | 286 | 168 | 96 | 32 |
+| Planta de hojas anchas | broadleaf | 0,023 | 554 | 264 | 156 | 32 |
 | Flores silvestres | wildflowers | 0,030 | 792 | 486 | 270 | 90 |
 
 Las columnas de LOD cuentan triángulos por planta. Las densidades son anteriores
@@ -122,3 +122,12 @@ El coste medido junto con la hierba está en `grass_lods.md`.
 
 Para ver las incorporaciones en una partida abierta, recargar la escena del
 planeta: los items y mallas se registran durante la carga.
+
+## Estaciones
+
+Cada pieza lleva su tipo en `COLOR.a` (hoja, tallo o flor) y cada especie su comportamiento en
+`SEASONS` de `understory_geometry.gd`: las herbáceas se agostan, los arbustos caducos cambian de
+color y pierden la hoja, y las flores se abren en su ventana. En primavera florecen el arbusto
+redondo (amarillo), el florido (más racimos rosas), el sauce (amentos) y la hoja ancha (espigas);
+las flores se generan al final de cada especie para no cambiar la forma de la mata. Ver
+[seasons.md](seasons.md).

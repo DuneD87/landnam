@@ -3,6 +3,7 @@ render_mode blend_mix;
 #include "res://shaders/terrain/terrain_utils.gdshaderinc"
 #include "res://shaders/terrain/virtual_texturing.gdshaderinc"
 #include "res://shaders/lib/climate.gdshaderinc"
+#include "res://shaders/lib/season.gdshaderinc"
 
 // Escala en 1/metros: 0.006 => manchas de ~170 m, que es lo que rompe una ladera entera.
 // Estaba en 0.15 (rasgos de ~7 m): a distancia se promediaba a cero y de cerca solo
@@ -172,6 +173,10 @@ uniform float sun_shadow_opacity : hint_range(0.0, 1.0) = 0.7;
 // las laderas que no la sostienen enseñan hielo glaciar. La nevada del clima (climate_fresh_snow)
 // baja la cota. Solo en planetas con "climate_settings" (Planet.setup_shader_parameters).
 uniform bool climate_enabled = false;
+// Estaciones (season.gdshaderinc): cuánto sigue cada textura a la pradera (0 nada, 1 entera): se
+// agosta en otoño, queda parda en invierno y está tierna en primavera, como la hierba que crece
+// encima, que termina a 130 m. "meadow_textures" en "climate_settings.terrain" del JSON.
+uniform float texture_meadow[MAX_TEXTURES];
 uniform int snow_texture_index = 2;
 // Hielo glaciar de las laderas del casquete. -1 = roca, como sin clima.
 uniform int glacier_texture_index = -1;
@@ -454,6 +459,8 @@ void fragment() {
     float final_material_height = 0.0;
     float final_detail_factor = 0.0; // solo para debug_detail_blend_view
 
+    vec2 meadow_state = season_meadow_state(planet_pos);
+    bool meadow_season = meadow_state.x > 0.0 || meadow_state.y > 0.0;
     for (int b = 0; b < biome_count; b++) {
         float biome_weight = biome_weights[b];
         if (biome_weight < 0.01) continue;
@@ -529,6 +536,9 @@ void fragment() {
             float c_detail_factor;
             vec3 c = material_albedo(textures[tex_index], texture_albedo_adjust[tex_index], uvs,
                 planet_up, nt, detail_uvs, detail_w, far_uvs, far_w, c_detail_factor);
+            if (meadow_season && texture_meadow[tex_index] > 0.0) {
+                c = mix(c, season_meadow_color(c, meadow_state), texture_meadow[tex_index]);
+            }
             vec4 n_v = triplanar_normal_sample_nt_v(normal_textures[tex_index], uvs, normal_world, nt);
 
             float r = triplanar_scalar_sample_uvs(roughness_textures[tex_index], uvs, planet_up);
@@ -566,6 +576,10 @@ void fragment() {
                 vec3 override_c = material_albedo(textures[override_tex_index],
                     texture_albedo_adjust[override_tex_index], override_uvs, planet_up, nt,
                     detail_uvs, detail_w, far_uvs, far_w, override_detail_factor);
+                if (meadow_season && texture_meadow[override_tex_index] > 0.0) {
+                    override_c = mix(override_c, season_meadow_color(override_c, meadow_state),
+                        texture_meadow[override_tex_index]);
+                }
                 vec4 override_n_v = triplanar_normal_sample_nt_v(normal_textures[override_tex_index], override_uvs, normal_world, nt);
                 float override_r = triplanar_scalar_sample_uvs(roughness_textures[override_tex_index], override_uvs, planet_up);
                 float override_ao = triplanar_scalar_sample_uvs(ao_textures[override_tex_index], override_uvs, planet_up);

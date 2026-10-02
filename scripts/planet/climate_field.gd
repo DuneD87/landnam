@@ -124,6 +124,15 @@ func coldness(local: Vector3) -> float:
 	return cold
 
 
+## Frío para la nieve y la precipitación: el de coldness más el de la estación (Seasons.chill), como
+## climate_snow_coldness en los shaders. Las zonas (fauna, hábitats) usan coldness, sin estación.
+func snow_coldness(local: Vector3) -> float:
+	var cold := coldness(local)
+	if cold <= -100.0:
+		return cold
+	return cold + Seasons.WINTER_COLD * Seasons.chill(local)
+
+
 func snow_cover(cold: float) -> float:
 	var shift := fresh_snow * FRESH_SHIFT
 	return smoothstep(snow_start - shift, snow_full - shift, cold)

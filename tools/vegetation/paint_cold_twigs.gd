@@ -3,12 +3,13 @@ extends SceneTree
 ## Pinta las texturas de ramita de los árboles fríos, que no tienen foto de partida como las demás:
 ##   twig_spruce.png  rama pinnada de picea: brotes alternos cubiertos de acículas cortas,
 ##                    verde azulado oscuro con los brotes nuevos más claros.
-##   twig_birch.png   ramillas finas de abedul con hojas ovadas y dentadas en otoño boreal
-##                    (amarillo dorado, algo de verde lima y naranja).
+##   twig_birch.png   ramillas finas de abedul con hojas ovadas y dentadas en verano, de
+##                    varios verdes (el dorado del otoño lo pone shaders/lib/season.gdshaderinc,
+##                    que separa la hoja de la ramilla por su color: la ramilla, parda violácea).
 ## Mismo encuadre que las fotos (tallo abajo en el centro, abanico hacia arriba) para que el
 ## generador Branching las oriente igual. Después hay que rellenar el color de las zonas
 ## transparentes: python3 tools/vegetation/fill_transparent_color.py (ver docs/trees.md).
-##   godot --path . -s res://tools/vegetation/paint_cold_twigs.gd
+##   godot --path . -s res://tools/vegetation/paint_cold_twigs.gd [-- --only=birch]
 
 const SIZE := 2048
 const OUT_DIR := "res://textures/planet/vegetation/tree/twigs/"
@@ -101,8 +102,9 @@ class Painter extends Node2D:
 			_stroke(start, ctrl, end, 9.0, 3.0, twig.lightened(0.05))
 			tips.append([start, ctrl, end])
 		# Hojas a lo largo de cada ramilla, alternas, algo colgantes; de las puntas a la base.
-		var palette := [Color(0.93, 0.74, 0.18), Color(0.88, 0.62, 0.12), Color(0.97, 0.83, 0.30),
-			Color(0.70, 0.72, 0.22), Color(0.90, 0.52, 0.12)]
+		# Verdes de verano, unos más amarillos que otros: en otoño, los amarillentos van por delante.
+		var palette := [Color(0.5, 0.69, 0.25), Color(0.43, 0.63, 0.21), Color(0.58, 0.74, 0.3),
+			Color(0.4, 0.58, 0.2), Color(0.55, 0.68, 0.26)]
 		for spec in tips:
 			var leaves := 22
 			for k in leaves:
@@ -164,7 +166,11 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for kind in ["spruce", "birch"]:
+	var kinds := ["spruce", "birch"]
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--only="):
+			kinds = Array(arg.substr(7).split(","))
+	for kind in kinds:
 		var viewport := SubViewport.new()
 		viewport.size = Vector2i(SIZE, SIZE)
 		viewport.transparent_bg = true

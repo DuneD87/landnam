@@ -31,7 +31,9 @@ func _run() -> void:
 				valid = valid and vertices[i].is_finite() and normals[i].is_finite()
 				valid = valid and normals[i].length_squared() > 0.9
 				valid = valid and uv2[i].x >= 0.0 and uv2[i].x <= 1.0 and uv2[i].y == 1.0
-				valid = valid and colors[i].a == 1.0
+				# El alfa marca la pieza para las estaciones: hoja (1), tallo (0,75) o flor (0,5).
+				var part: float = colors[i].a
+				valid = valid and (absf(part - 1.0) < 0.01 or absf(part - 0.75) < 0.01 or absf(part - 0.5) < 0.01)
 			for i in range(0, indices.size(), 3):
 				var a: int = indices[i]
 				var b: int = indices[i + 1]

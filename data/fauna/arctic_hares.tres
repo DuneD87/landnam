@@ -24,3 +24,6 @@ flee_speed = 4.4
 flee_distance = 7
 wander_distance = 5
 min_spacing = 10.0
+day_activity = 0.6
+twilight_activity = 1.0
+night_activity = 0.8

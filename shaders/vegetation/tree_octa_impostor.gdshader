@@ -15,9 +15,24 @@ render_mode depth_draw_opaque, cull_disabled;
 #include "res://shaders/lib/tree_wind.gdshaderinc"
 #include "res://shaders/lib/octahedral.gdshaderinc"
 #include "res://shaders/lib/climate.gdshaderinc"
+#include "res://shaders/lib/season.gdshaderinc"
 
 uniform sampler2D albedo_atlas : source_color, filter_linear_mipmap, repeat_disable;
 uniform sampler2D normal_atlas : filter_linear_mipmap, repeat_disable;
+// Hoja caduca: el mismo árbol horneado sin hoja (la madera y las ramillas de las tarjetas). Las
+// hojas caídas del atlas normal se sustituyen por lo que hay detrás en este.
+uniform bool deciduous = false;
+uniform sampler2D bare_albedo_atlas : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D bare_normal_atlas : filter_linear_mipmap, repeat_disable;
+// Mismos colores de otoño que el follaje.
+uniform vec4 autumn_early : source_color = vec4(0.92, 0.75, 0.22, 1.0);
+uniform vec4 autumn_late : source_color = vec4(0.85, 0.4, 0.12, 1.0);
+uniform vec4 autumn_withered : source_color = vec4(0.5, 0.33, 0.17, 1.0);
+uniform float leaf_luma_ref = 0.2;
+uniform float leaf_chroma_ref = 0.49;
+uniform vec4 leaf_mask_edges = vec4(0.45, 0.6, -0.25, -0.05);
+uniform float spring_shift = 0.0;
+uniform vec4 blossom_color : source_color = vec4(1.0, 1.0, 1.0, 0.0);
 uniform int frames = 8;
 uniform vec3 center;
 uniform float radius = 1.0;
@@ -60,8 +75,8 @@ varying flat vec4 v_weights;
 // tope de varyings.
 varying vec2 v_ao_snow;
 // Nieve del clima frío, la misma regla que el follaje con la normal de copa horneada:
-// x = cobertura del sitio, y = casquete.
-varying vec2 v_snow_climate;
+// x = cobertura del sitio, y = casquete. zw = estado de la hoja caduca (season_leaf_state).
+varying vec4 v_snow_climate;
 // Base de la instancia en espacio de vista. En fragment(), MODEL_MATRIX de un MultiMesh es la
 // del nodo, sin el transform de la instancia: las normales del atlas salían sin la inclinación
 // de cada árbol (la vertical del planeta) y la copa se iluminaba de lado.
@@ -82,10 +97,14 @@ void vertex() {
 	float seed = tree_seed(relative_base, 17u);
 	float hue = tree_seed(relative_base, 53u);
 	v_tint = mix(variation_cool_tint, variation_warm_tint, hue) * (1.0 + (seed - 0.5) * 2.0 * tint_variation);
-	v_snow_climate = vec2(0.0);
+	v_snow_climate = vec4(0.0, 0.0, 2.0, 0.0);
 	if (!IN_SHADOW_PASS) {
 		float cold = climate_snow_coldness(relative_base);
-		v_snow_climate = vec2(climate_snow_cover(cold), climate_glacier(cold));
+		v_snow_climate.xy = vec2(climate_snow_cover(cold), climate_glacier(cold));
+	}
+	if (deciduous) {
+		v_snow_climate.zw = season_leaf_state(relative_base, (tree_seed(relative_base, 71u) - 0.5) * SEASON_TREE_JITTER,
+			spring_shift);
 	}
 	v_band = tree_band_fades(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
 	if (IN_SHADOW_PASS && shadow_fade_in_end > shadow_fade_in_start) {
@@ -137,18 +156,43 @@ void vertex() {
 	v_basis_z = model_view[2];
 }
 
-void sample_frame(vec2 cell, vec2 uv, float weight, inout vec4 color, inout vec3 normal_ao, inout float total) {
+// season: 0 = sin estaciones (solo el atlas con hoja), 1 = mezcla por manchas, 2 = solo el atlas
+// sin hoja. leaf_stage acumula (etapa de otoño, peso) de los píxeles de hoja.
+void sample_frame(vec2 cell, vec2 uv, float weight, int season, vec2 state, inout vec4 color,
+		inout vec3 normal_ao, inout float total, inout vec2 leaf_stage) {
 	if (weight <= 0.0 || any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
 		return;
 	}
 	vec2 atlas_uv = (cell + uv) / float(frames);
-	vec4 c = texture(albedo_atlas, atlas_uv);
-	vec3 n = texture(normal_atlas, atlas_uv).rgb;
+	vec4 c;
+	vec3 n;
+	float leaf = 0.0;
+	float stage = 0.0;
+	if (season == 2) {
+		c = texture(bare_albedo_atlas, atlas_uv);
+		n = texture(bare_normal_atlas, atlas_uv).rgb;
+	} else {
+		c = texture(albedo_atlas, atlas_uv);
+		n = texture(normal_atlas, atlas_uv).rgb;
+		if (season == 1) {
+			// Las tarjetas son manchas de ruido en la vista, del tamaño de un ramillete.
+			float noise = climate_value_noise(vec3(uv * SEASON_IMPOSTOR_CELLS, dot(cell, vec2(1.0, 8.0)) * 3.7));
+			vec3 card = season_card(state, clamp((noise - 0.5) * 1.8 + 0.5, 0.0, 0.999));
+			leaf = season_leaf_mask(c.rgb, leaf_mask_edges);
+			if (leaf > 0.5 && card.x < 0.5) {
+				c = texture(bare_albedo_atlas, atlas_uv);
+				n = texture(bare_normal_atlas, atlas_uv).rgb;
+				leaf = 0.0;
+			}
+			stage = card.y;
+		}
+	}
 	float w = weight * c.a;
 	color.rgb += c.rgb * w;
 	color.a += c.a * weight;
 	normal_ao += n * w;
 	total += w;
+	leaf_stage += vec2(stage, 1.0) * leaf * w;
 }
 
 void fragment() {
@@ -158,10 +202,16 @@ void fragment() {
 	vec4 color = vec4(0.0);
 	vec3 normal_ao = vec3(0.0);
 	float total = 0.0;
-	sample_frame(v_cells01.xy, v_uv0, v_weights.x, color, normal_ao, total);
-	sample_frame(v_cells01.zw, v_uv1, v_weights.y, color, normal_ao, total);
-	sample_frame(v_cells23.xy, v_uv2, v_weights.z, color, normal_ao, total);
-	sample_frame(v_cells23.zw, v_uv3, v_weights.w, color, normal_ao, total);
+	vec2 leaf_stage = vec2(0.0);
+	vec2 state = v_snow_climate.zw;
+	int season = 0;
+	if (deciduous && (state.x < 2.0 || state.y > 0.0)) {
+		season = season_leaf_cover(state) <= 0.0 ? 2 : 1;
+	}
+	sample_frame(v_cells01.xy, v_uv0, v_weights.x, season, state, color, normal_ao, total, leaf_stage);
+	sample_frame(v_cells01.zw, v_uv1, v_weights.y, season, state, color, normal_ao, total, leaf_stage);
+	sample_frame(v_cells23.xy, v_uv2, v_weights.z, season, state, color, normal_ao, total, leaf_stage);
+	sample_frame(v_cells23.zw, v_uv3, v_weights.w, season, state, color, normal_ao, total, leaf_stage);
 	if (color.a < alpha_scissor_threshold || total <= 0.0) {
 		discard;
 	}
@@ -176,6 +226,18 @@ void fragment() {
 	vec3 n_object = oct_normal_decode(normal_ao.xy);
 	NORMAL = normalize(mat3(v_basis_x, v_basis_y, v_basis_z) * n_object);
 	ALBEDO = color.rgb * v_tint;
+	if (leaf_stage.y > 0.0) {
+		vec3 card = vec3(1.0, leaf_stage.x / leaf_stage.y, clamp(2.0 - state.x, 0.0, 1.0));
+		vec3 leaf_color = season_leaf_color(ALBEDO, card, autumn_early.rgb, autumn_late.rgb,
+			autumn_withered.rgb, vec2(leaf_luma_ref, leaf_chroma_ref));
+		if (blossom_color.a > 0.0) {
+			// Sin tarjetas: la media entre el color de la flor y el blanco.
+			vec3 flower = mix(blossom_color.rgb, SEASON_BLOSSOM_WHITE, 0.35);
+			leaf_color = mix(leaf_color, season_flower_color(ALBEDO, flower, leaf_luma_ref),
+				season_blossom(state.x));
+		}
+		ALBEDO = mix(ALBEDO, leaf_color, leaf_stage.y / total);
+	}
 	// Sin grano: a esta distancia cada árbol son pocos píxeles y la media es la que cuenta.
 	float snow = climate_surface_snow(v_snow_climate.x, n_object.y + 0.12, v_snow_climate.y) * 0.85;
 	ALBEDO = mix(ALBEDO, CLIMATE_SNOW_ALBEDO, snow);

@@ -24,3 +24,7 @@ flee_speed = 3.4
 flee_distance = 5
 wander_distance = 5
 min_spacing = 6.0
+day_activity = 0.8
+twilight_activity = 1.0
+night_activity = 0.8
+season_activity = PackedFloat32Array(1, 1, 1, 0.3)

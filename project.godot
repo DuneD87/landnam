@@ -316,6 +316,10 @@ climate_fresh_snow={
 "type": "float",
 "value": 0.0
 }
+season_state={
+"type": "vec4",
+"value": Vector4(0.27, 0, 0, 0)
+}
 blood_splats={
 "type": "sampler2D",
 "value": ""

@@ -395,7 +395,7 @@
 			{
 				"name": "round_shrub_generator",
 				"emit_mode": "EMIT_FROM_FACES",
-				"density": 0.013,
+				"density": 0.016,
 				"lod_density_falloff": 1.0,
 				"min_height": -25.0,
 				"max_height": 190.0,
@@ -443,7 +443,7 @@
 			{
 				"name": "flowering_shrub_generator",
 				"emit_mode": "EMIT_FROM_FACES",
-				"density": 0.01,
+				"density": 0.02,
 				"lod_density_falloff": 1.0,
 				"min_height": -20.0,
 				"max_height": 160.0,
@@ -599,6 +599,66 @@
 					"threshold": 0.25,
 					"falloff": 0.3,
 					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
+			},
+			{
+				"name": "tree_generator_almond_grove",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.009,
+				"lod_density_falloff": 1.0,
+				"min_height": -15.0,
+				"max_height": 125.0,
+				"max_slope_degrees": 20.0,
+				"offset_along_normal": -0.4,
+				"min_scale": 2.5,
+				"max_scale": 7.5,
+				"snap_to_sdf": {
+					"search_distance": 4.0,
+					"samples": 8.0
+				},
+				"noise_graph": "hemisphere_green_graph_path",
+				"noise": {
+					"frequency": 0.012,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 101.0,
+					"threshold": 0.42,
+					"falloff": 0.15,
+					"on_scale": 0.15
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
+			},
+			{
+				"name": "tree_generator_apple_grove",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.009,
+				"lod_density_falloff": 1.0,
+				"min_height": -15.0,
+				"max_height": 125.0,
+				"max_slope_degrees": 20.0,
+				"offset_along_normal": -0.4,
+				"min_scale": 2.5,
+				"max_scale": 7.5,
+				"snap_to_sdf": {
+					"search_distance": 4.0,
+					"samples": 8.0
+				},
+				"noise_graph": "hemisphere_green_graph_path",
+				"noise": {
+					"frequency": 0.012,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 202.0,
+					"threshold": 0.42,
+					"falloff": 0.15,
+					"on_scale": 0.15
 				},
 				"climate": {
 					"max": 41.0,
@@ -1491,7 +1551,7 @@
 			{
 				"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_01.tscn",
 				"generator": [
-					"tree_generator_green"
+					"tree_generator_apple_grove"
 				],
 				"tree_lods": {
 
@@ -1510,7 +1570,7 @@
 			{
 				"scene": "res://scenes/planet/planet_items/vegetation/trees/apple_02.tscn",
 				"generator": [
-					"tree_generator_green"
+					"tree_generator_apple_grove"
 				],
 				"tree_lods": {
 
@@ -1529,7 +1589,7 @@
 			{
 				"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_01.tscn",
 				"generator": [
-					"tree_generator_green",
+					"tree_generator_almond_grove",
 					"tree_generator_green_sand"
 				],
 				"tree_lods": {
@@ -1549,7 +1609,7 @@
 			{
 				"scene": "res://scenes/planet/planet_items/vegetation/trees/almond_02.tscn",
 				"generator": [
-					"tree_generator_green",
+					"tree_generator_almond_grove",
 					"tree_generator_green_sand"
 				],
 				"tree_lods": {
@@ -3162,7 +3222,11 @@
 		},
 		"terrain": {
 			"snow_texture": 2.0,
-			"glacier_texture": 6.0
+			"glacier_texture": 6.0,
+			"meadow_textures": {
+				"1": 1.0,
+				"5": 0.5
+			}
 		}
 	},
 	"weather_settings": {
@@ -3175,6 +3239,33 @@
 		"cold_boost": {
 			"snow": 0.4,
 			"fog": 0.2
+		},
+		"season_weights": {
+			"spring": {
+				"clear": 1.0,
+				"storm": 1.2,
+				"wind": 1.2,
+				"fog": 0.8
+			},
+			"summer": {
+				"clear": 1.8,
+				"storm": 0.8,
+				"wind": 0.8,
+				"fog": 0.4,
+				"snow": 0.5
+			},
+			"autumn": {
+				"clear": 0.7,
+				"storm": 1.6,
+				"wind": 1.4,
+				"fog": 1.8
+			},
+			"winter": {
+				"clear": 0.8,
+				"storm": 1.2,
+				"fog": 1.5,
+				"snow": 1.6
+			}
 		},
 		"peaks_profile": [
 			{

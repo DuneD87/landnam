@@ -10,6 +10,7 @@ shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_opaque;
 
 #include "res://shaders/lib/octahedral.gdshaderinc"
+#include "res://shaders/lib/season.gdshaderinc"
 
 uniform int mode = 0;
 uniform sampler2D texture_albedo : source_color, filter_linear_mipmap, repeat_enable;
@@ -24,6 +25,10 @@ uniform float ao_in_albedo = 0.0;
 // La madera del impostor no recibe la sombra de su copa: el tronco salía claro frente al de
 // la geometría, que queda casi siempre a la sombra de la copa.
 uniform float bark_shade = 0.45;
+// Atlas sin hoja de los árboles caducos: las tarjetas solo dejan la madera de la ramilla
+// (season_leaf_mask), como el follaje en invierno.
+uniform bool bare = false;
+uniform vec4 leaf_mask_edges = vec4(0.45, 0.6, -0.25, -0.05);
 
 varying vec3 v_normal;
 varying float v_ao;
@@ -40,6 +45,11 @@ vec3 linear_from_srgb(vec3 c) {
 void fragment() {
 	vec4 tex = texture(texture_albedo, UV);
 	float alpha = is_foliage ? tex.a : 1.0;
+	if (bare && is_foliage
+			&& season_leaf_mask_wide(tex.rgb, texture(texture_albedo, UV, SEASON_MASK_BLUR_BIAS).rgb,
+				leaf_mask_edges) > 0.5) {
+		discard;
+	}
 	if (alpha < alpha_scissor_threshold) {
 		discard;
 	}

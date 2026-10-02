@@ -4,7 +4,10 @@
 //  agua), en los grafos de vegetación (ClimateGraph) y en CPU (ClimateField). Así la
 //  nieve del suelo, la de las copas, el hielo del mar y dónde crece cada planta coinciden.
 //
-//  frío = |latitud| + gradiente · altura + dos octavas de ruido OpenSimplex2 (grados).
+//  frío = |latitud| + gradiente · altura + dos octavas de ruido OpenSimplex2 (grados), más el frío
+//  de la estación (season_chill: 0 en verano, SEASON_WINTER_COLD en pleno invierno): la cota de
+//  nieve baja en invierno. Las zonas de vegetación (ClimateGraph) no lo llevan: el bosque no se
+//  mueve con las estaciones.
 //  La altura suma frío como si fuera latitud: la alta montaña sale sola, sin bioma aparte.
 //  Lo empuja Planet.setup_shader_parameters() desde "climate_settings" del JSON del planeta; los
 //  planetas sin ese bloque no lo tocan y aquí se queda apagado (climate_shape.w = 0).
@@ -16,6 +19,7 @@
 #define CLIMATE_INC
 
 #include "res://shaders/lib/fnl_simplex.gdshaderinc"
+#include "res://shaders/lib/season_calendar.gdshaderinc"
 
 // x = radio nominal, y = grados de frío por metro de altura, z = altura (m sobre el radio) desde
 // la que empieza a enfriar, w = 1 si el planeta tiene clima.
@@ -46,13 +50,19 @@ float climate_latitude(vec3 local) {
 	return degrees(asin(clamp(abs(local.y) / max(length(local), 0.001), 0.0, 1.0)));
 }
 
+// Frío sin ruido: latitud, altura y estación.
+float climate_base_coldness(vec3 local) {
+	float height = length(local) - climate_shape.x;
+	return climate_latitude(local) + climate_shape.y * max(height - climate_shape.z, 0.0)
+		+ SEASON_WINTER_COLD * season_chill(local);
+}
+
 // Frío en grados de latitud equivalente. -100 donde no hay clima.
 float climate_coldness(vec3 local) {
 	if (!climate_active(local)) {
 		return -100.0;
 	}
-	float height = length(local) - climate_shape.x;
-	float cold = climate_latitude(local) + climate_shape.y * max(height - climate_shape.z, 0.0);
+	float cold = climate_base_coldness(local);
 	cold += fast_noise_lite_open_simplex2_3d(local, climate_noise.x, int(climate_seeds.x)) * climate_noise.y;
 	cold += fast_noise_lite_open_simplex2_3d(local, climate_noise.z, int(climate_seeds.y)) * climate_noise.w;
 	return cold;
@@ -66,8 +76,7 @@ float climate_snow_coldness(vec3 local, float margin) {
 	if (!climate_active(local)) {
 		return -100.0;
 	}
-	float height = length(local) - climate_shape.x;
-	float cold = climate_latitude(local) + climate_shape.y * max(height - climate_shape.z, 0.0);
+	float cold = climate_base_coldness(local);
 	float reach = abs(climate_noise.y) + abs(climate_noise.w) + climate_fresh_snow * CLIMATE_FRESH_SHIFT + margin;
 	if (cold + reach < climate_snow.x) {
 		return cold;
@@ -83,8 +92,7 @@ float climate_snow_coldness(vec3 local) {
 	if (!climate_active(local)) {
 		return -100.0;
 	}
-	float height = length(local) - climate_shape.x;
-	float cold = climate_latitude(local) + climate_shape.y * max(height - climate_shape.z, 0.0);
+	float cold = climate_base_coldness(local);
 	if (cold + abs(climate_noise.y) + climate_fresh_snow * CLIMATE_FRESH_SHIFT < climate_snow.x) {
 		return cold;
 	}

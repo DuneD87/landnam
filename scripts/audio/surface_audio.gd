@@ -63,7 +63,7 @@ static func _snow_family(planet: Planet, planet_root: Node3D, pos: Vector3, cent
 	# Misma sujeción por pendiente que el shader (snow_slope_limit ~ 0,26 de 1 - cos).
 	if 1.0 - normal.dot(up) > 0.3:
 		return &""
-	return &"snow" if climate.snow_cover(climate.coldness(local)) > 0.55 else &""
+	return &"snow" if climate.snow_cover(climate.snow_coldness(local)) > 0.55 else &""
 
 
 ## Familia de sonido dominante entre los bloques que devuelve GridBase.damage_sphere. Un impacto

@@ -49,11 +49,13 @@ const SPECIES := {
 			"branch_crown_normal": 0.75, "branch_crown_ao": 0.5, "branch_bark_tile": 1.0, "branch_lod_card_boost": 1.15,
 		},
 		"foliage": {"albedo_tint": Color(0.92, 1.0, 1.0), "transmission_color": Color(0.7, 0.9, 0.5),
-			"transmission_strength": 0.55},
-		"bark_material": {"moss_amount": 0.12},
+			"transmission_strength": 0.55, "deciduous": true,
+			"autumn_early": Color(0.62, 0.55, 0.2), "autumn_late": Color(0.66, 0.45, 0.17),
+			"autumn_withered": Color(0.48, 0.34, 0.2), "leaf_luma_ref": 0.061, "leaf_chroma_ref": 0.54},
+		"bark_material": {"moss_amount": 0.12, "deciduous": true},
 	},
-	# Abedul: tronco blanco esbelto y algo ondulado, copa oval y ramillas péndulas, en su otoño
-	# dorado (la textura de ramita ya lo trae).
+	# Abedul: tronco blanco esbelto y algo ondulado, copa oval y ramillas péndulas. Caduco: en
+	# otoño se pone dorado (el color lo pone el shader de follaje sobre la ramita verde).
 	"birch": {
 		"bark": "birch", "twig": "twig_birch.png",
 		"params": {
@@ -71,8 +73,10 @@ const SPECIES := {
 			"branch_leaf_start": 0.15, "branch_leaf_outward": 0.35,
 			"branch_crown_normal": 0.7, "branch_crown_ao": 0.4, "branch_bark_tile": 1.1, "branch_lod_card_boost": 1.0,
 		},
-		"foliage": {"albedo_tint": Color(1.0, 0.97, 0.9), "transmission_color": Color(1.0, 0.82, 0.35)},
-		"bark_material": {"moss_amount": 0.05},
+		"foliage": {"transmission_color": Color(0.9, 1.0, 0.55), "deciduous": true,
+			"autumn_early": Color(0.75, 0.65, 0.22), "autumn_late": Color(0.77, 0.54, 0.19),
+			"autumn_withered": Color(0.66, 0.5, 0.27), "leaf_luma_ref": 0.27, "leaf_chroma_ref": 0.6},
+		"bark_material": {"moss_amount": 0.05, "deciduous": true},
 	},
 	"pine": {
 		"bark": "pine", "twig": "twig_pine.png",
@@ -91,8 +95,11 @@ const SPECIES := {
 			"branch_leaf_start": 0.3, "branch_leaf_outward": 0.3,
 			"branch_crown_normal": 0.7, "branch_crown_ao": 0.4, "branch_bark_tile": 1.2, "branch_lod_card_boost": 1.12,
 		},
-		"foliage": {"albedo_tint": Color(0.92, 1.0, 0.95), "transmission_color": Color(0.9, 1.0, 0.55)},
-		"bark_material": {"moss_amount": 0.15},
+		"foliage": {"albedo_tint": Color(0.92, 1.0, 0.95), "transmission_color": Color(0.9, 1.0, 0.55),
+			"deciduous": true, "leaf_mask_edges": Vector4(0.1, 0.2, -0.2, -0.05),
+			"autumn_early": Color(0.62, 0.55, 0.2), "autumn_late": Color(0.66, 0.45, 0.17),
+			"autumn_withered": Color(0.48, 0.34, 0.2), "leaf_luma_ref": 0.107, "leaf_chroma_ref": 0.44},
+		"bark_material": {"moss_amount": 0.15, "deciduous": true},
 	},
 	"olive": {
 		"bark": "olive", "twig": "twig_olive.png",
@@ -111,8 +118,11 @@ const SPECIES := {
 			"branch_leaf_start": 0.25, "branch_leaf_outward": 0.35,
 			"branch_crown_normal": 0.7, "branch_crown_ao": 0.4, "branch_bark_tile": 1.0, "branch_lod_card_boost": 1.0,
 		},
-		"foliage": {"albedo_tint": Color(0.95, 1.0, 0.97), "transmission_color": Color(0.95, 1.0, 0.7)},
-		"bark_material": {"moss_amount": 0.3},
+		"foliage": {"albedo_tint": Color(0.95, 1.0, 0.97), "transmission_color": Color(0.95, 1.0, 0.7),
+			"deciduous": true, "leaf_mask_edges": Vector4(0.1, 0.2, -0.3, -0.15),
+			"autumn_early": Color(0.7, 0.64, 0.28), "autumn_late": Color(0.66, 0.48, 0.22),
+			"autumn_withered": Color(0.55, 0.42, 0.26), "leaf_luma_ref": 0.23, "leaf_chroma_ref": 0.46},
+		"bark_material": {"moss_amount": 0.3, "deciduous": true},
 	},
 	"apple": {
 		"bark": "apple", "twig": "twig_apple.png",
@@ -131,8 +141,11 @@ const SPECIES := {
 			"branch_leaf_start": 0.25, "branch_leaf_outward": 0.35,
 			"branch_crown_normal": 0.7, "branch_crown_ao": 0.4, "branch_bark_tile": 1.0, "branch_lod_card_boost": 1.0,
 		},
-		"foliage": {},
-		"bark_material": {"moss_amount": 0.35},
+		"foliage": {"deciduous": true,
+			"autumn_early": Color(0.68, 0.63, 0.25), "autumn_late": Color(0.7, 0.49, 0.22),
+			"autumn_withered": Color(0.6, 0.45, 0.26), "leaf_luma_ref": 0.21, "leaf_chroma_ref": 0.5,
+			"blossom_color": Color(0.98, 0.86, 0.9, 1.0)},
+		"bark_material": {"moss_amount": 0.35, "deciduous": true},
 	},
 	"almond": {
 		"bark": "almond", "twig": "twig_almond.png",
@@ -151,10 +164,22 @@ const SPECIES := {
 			"branch_leaf_start": 0.25, "branch_leaf_outward": 0.35,
 			"branch_crown_normal": 0.7, "branch_crown_ao": 0.4, "branch_bark_tile": 1.1, "branch_lod_card_boost": 1.0,
 		},
-		"foliage": {},
-		"bark_material": {"moss_amount": 0.25},
+		# Florece al brotar (blossom_color: rosa que va al blanco por tarjeta), a finales del
+		# invierno (spring_shift): antes que el manzano.
+		"foliage": {"deciduous": true,
+			"autumn_early": Color(0.73, 0.61, 0.22), "autumn_late": Color(0.68, 0.33, 0.19),
+			"autumn_withered": Color(0.6, 0.37, 0.23), "leaf_luma_ref": 0.24, "leaf_chroma_ref": 0.49,
+			"blossom_color": Color(0.97, 0.76, 0.84, 1.0), "spring_shift": -0.05},
+		"bark_material": {"moss_amount": 0.25, "deciduous": true},
 	},
 }
+
+
+## Hoja caduca: todos los árboles Branching. Pino y picea como un alerce (dorados en otoño, sin
+## acícula en invierno). El follaje cambia con las estaciones (shaders/lib/season.gdshaderinc) y
+## el impostor lleva además el atlas sin hoja.
+static func is_deciduous(scene_name: String) -> bool:
+	return bool(SPECIES[SCENES[scene_name].species].foliage.get("deciduous", false))
 
 
 static func params_for(scene_name: String) -> Dictionary:

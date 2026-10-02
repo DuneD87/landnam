@@ -23,7 +23,9 @@ las zonas.
 
 Con la configuración actual (`climate_settings` en `planet_earth.json`: lapse 0,085 °/m desde 30 m
 sobre el mar) la taiga empieza a nivel del mar hacia los 41° y, a 25° de latitud, por encima de
-~210 m. La cota de nieve (`snow.start`/`full`: 37 → 50) va algo por delante de la taiga.
+~210 m. La cota de nieve (`snow.start`/`full`: 37 → 50) va algo por delante de la taiga. Es la del
+verano: en invierno el frío de la estación la baja hasta 14° ([seasons.md](seasons.md)); las zonas
+de vegetación no se mueven.
 
 Tres implementaciones del mismo campo, comprobadas entre sí por los tests:
 
@@ -72,8 +74,9 @@ de cuevas y cauces) sin banda de latitud, derivada con `tools/vegetation/build_s
 
 - `spruce_01..03`: picea, un solo guía, verticilos casi hasta el suelo y ramillas colgantes. Corteza
   `knotted_pine_bark` de Poly Haven (CC0). La ramita la pinta `tools/vegetation/paint_cold_twigs.gd`.
-- `birch_01..02`: abedul de tronco blanco y copa dorada de otoño boreal. Corteza procedural
-  (`tools/vegetation/paint_birch_bark.py`) y ramita pintada.
+- `birch_01..02`: abedul de tronco blanco, caduco: verde en verano y dorado en otoño
+  ([seasons.md](seasons.md)). Corteza procedural (`tools/vegetation/paint_birch_bark.py`) y ramita
+  pintada.
 - Los pinos existentes también crecen en la taiga, y `spruce_02` se repite a 2,5–5 m como picea enana
   en la línea de árboles.
 - Impostores octaédricos horneados como los demás (`bake_tree_impostors.tscn`).

@@ -18,6 +18,8 @@ extends Node
 ## --atmo=prop:valor,...  cambia propiedades del PlanetAtmosphere (p. ej. mie_strength:0) para A/B.
 ## --weather=NOMBRE  fija el clima (clear, wind, storm...). Sin él lo elige el azar y con él el
 ##            oleaje: dos tandas de capturas del mar no serían comparables.
+## --day=N    día del año del calendario (estaciones: 0 equinoccio de primavera del norte, 8 por
+##            estación). La hora sigue saliendo de --times con el sol en el ecuador.
 
 const MAIN_SCENE := "res://scenes/maps/sun.tscn"
 const OUT_DIR := "res://build/lighting"
@@ -86,6 +88,7 @@ var _ssao_forced := false
 var _only_views: PackedStringArray = []
 var _only_times: PackedStringArray = []
 var _weather := ""
+var _day := -1.0
 var _no_clouds_effect: Object
 var _main: Node
 var _sun_ctrl: Node
@@ -103,6 +106,8 @@ func _ready() -> void:
 			_explore = true
 		elif arg == "--perf":
 			_perf = true
+		elif arg.begins_with("--day="):
+			_day = float(arg.substr(6))
 		elif arg == "--ssao":
 			_ssao = true
 		elif arg == "--no-ssao":
@@ -130,6 +135,8 @@ func _ready() -> void:
 		env.ssao_enabled = _ssao
 	_sun_ctrl = _main
 	_sun_ctrl.auto_rotate = false
+	if _day >= 0.0:
+		_sun_ctrl.set_day_of_year(_day)
 	_earth = _main.get_node("Planets/Earth")
 	_moon = _main.get_node("Planets/Moon")
 	for arg in OS.get_cmdline_user_args():

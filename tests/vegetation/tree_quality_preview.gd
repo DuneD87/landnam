@@ -7,7 +7,8 @@ extends Node3D
 ##   ... -- --perf                     coste de GPU de los árboles (con/sin instancer)
 ##   ... -- --relay --tag=x            relevo LOD2/impostor: pares a 110 m y recorrido
 ##
-## El bosque sale del generador "tree_generator_green" sobre un terreno plano, sin la
+## El bosque sale de los generadores del bosque verde y de los bosquetes de frutales
+## (FOREST_GENERATORS) sobre un terreno plano, sin la
 ## máscara de bioma, con la hierba del planeta alrededor (salvo en --perf, que carga solo
 ## árboles para que ocultar el instancer reste exactamente su coste). Las palmeras solo
 ## entran en --lineup: su generador es el de arena.
@@ -16,7 +17,7 @@ extends Node3D
 
 const GrassPreview = preload("res://tests/vegetation/grass_lod_preview.gd")
 const OUT_DIR := "res://build/tree_quality"
-const FOREST_GENERATOR := "tree_generator_green"
+const FOREST_GENERATORS := ["tree_generator_green", "tree_generator_almond_grove", "tree_generator_apple_grove"]
 const PERF_FRAMES := 200
 const PORTRAIT_SIZE := Vector2i(720, 1080)
 
@@ -122,8 +123,9 @@ func _load_items() -> void:
 			if seen.has(scene):
 				continue
 			seen[scene] = true
-			if FOREST_GENERATOR in gens:
-				loaded.generator = [FOREST_GENERATOR]
+			var forest: Array = gens.filter(func(gen) -> bool: return gen in FOREST_GENERATORS)
+			if not forest.is_empty():
+				loaded.generator = [forest[0]]
 			elif _mode != "lineup":
 				continue
 		elif _mode == "perf" or _mode == "lineup" or not item.has("grass_lods"):

@@ -138,6 +138,18 @@ func startle(point: Vector3) -> void:
 		_alarm(point, _rng.randf_range(0.0, 0.25))
 
 
+## Anochece o migra: despega si está posada y se aleja hasta perderse de vista (_leave).
+func retire() -> void:
+	if not active or retiring:
+		return
+	super.retire()
+	_leaving = true
+	if state == State.PERCHED:
+		_takeoff()
+	else:
+		_leave()
+
+
 func _alarm(point: Vector3, delay: float) -> void:
 	if _alarm_delay >= 0.0 and _alarm_delay <= delay:
 		return
@@ -415,7 +427,10 @@ func _step(delta: float) -> void:
 		_reset_stall()
 	if state == State.TAKEOFF:
 		if _timer <= 0.0:
-			_seek_perch()
+			if _leaving:
+				_leave()
+			else:
+				_seek_perch()
 			return
 	elif state == State.FLYING and _perch.is_empty():
 		if _leaving:

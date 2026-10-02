@@ -43,7 +43,8 @@ Flujo al cambiar un árbol:
 2. Escribir los presets en las escenas:
    `godot --headless --path . -s res://tools/vegetation/apply_tree_presets.gd`.
 3. Rehornear los impostores (necesita renderer):
-   `godot --path . res://tools/vegetation/bake_tree_impostors.tscn`.
+   `godot --path . res://tools/vegetation/bake_tree_impostors.tscn`. Todos son caducos y
+   hornean además el atlas sin hoja del invierno ([seasons.md](seasons.md)).
 4. Si se ha tocado el C++: `scons platform=linux target=template_debug` en
    `~/ProceduralPlanetItems` y copiar `demo/addons/Tree3D/libTree3D.linux.template_debug.x86_64.so`
    a `addons/Tree3D/`. La DLL de Windows del repositorio no se ha recompilado.
@@ -62,6 +63,10 @@ densidad de la que decía el JSON. Con 0,01 el sotobosque quedaba cerrado (a ras
 cámara acababa dentro de una copa en cualquier dirección) y costaba ~6 fps más corriendo a
 2560×1440; con 0,007 hay troncos, claros y cielo entre las copas, y desde arriba la cubierta
 sigue cerrada.
+
+Almendros y manzanos no salen de él sino de sus bosquetes (`tree_generator_almond_grove`,
+`tree_generator_apple_grove`): pocas manchas de ~80 m con 0,009 árboles/m² por variante, cada especie
+con su semilla de ruido, para que en flor se lean como cúmulos ([seasons.md](seasons.md)).
 
 ## LODs y relevo al impostor
 

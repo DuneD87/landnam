@@ -20,6 +20,17 @@ const PROFILE_FALLBACK := [["clear", 0.5], ["storm", 0.2], ["wind", 0.15], ["fog
 const DEFAULT_PEAKS_PROFILE := [["snow", 0.7], ["fog", 0.2], ["storm", 0.1]]
 # Refuerzo de frío (cold_altitude..snow_altitude): probabilidad extra sumada. Fallback si falta 'cold_boost' en el JSON.
 const DEFAULT_COLD_BOOST := {"snow": 0.4, "fog": 0.2}
+# Multiplicadores de cada evento por estación, en la del jugador (Seasons). Fallback si falta
+# 'season_weights' en el JSON. La nieve de invierno no sale de aquí sino del frío de la estación,
+# que lleva la taiga y su refuerzo de nieve hacia el ecuador.
+const DEFAULT_SEASON_WEIGHTS := {
+	"spring": {"clear": 1.0, "storm": 1.2, "wind": 1.2, "fog": 0.8},
+	"summer": {"clear": 1.8, "storm": 0.8, "wind": 0.8, "fog": 0.4, "snow": 0.5},
+	"autumn": {"clear": 0.7, "storm": 1.6, "wind": 1.4, "fog": 1.8},
+	"winter": {"clear": 0.8, "storm": 1.2, "fog": 1.5, "snow": 1.6},
+}
+# Transición mínima entre eventos con el calendario acelerado (s): por debajo, el cielo salta.
+const MIN_TRANSITION_TIME := 2.0
 # Velocidad del suavizado del oscurecimiento local (1/s): ~4 s para entrar o salir de la celda.
 const SHADE_SMOOTH_RATE := 0.7
 
@@ -70,6 +81,9 @@ var _profiles_by_biome: Dictionary = {}
 
 var _peaks_profile: Array = DEFAULT_PEAKS_PROFILE
 var _cold_boost: Dictionary = DEFAULT_COLD_BOOST
+var _season_weights: Dictionary = DEFAULT_SEASON_WEIGHTS
+## Calendario (sun_controller.gd): su season_speed acelera también la sucesión de eventos.
+var _calendar: Node
 
 var _base_sun_energy: float = 1.0
 var _base_ambient_energy: float = 1.0
@@ -190,6 +204,8 @@ func _apply_config(config: Dictionary) -> void:
 		_cold_boost = config["cold_boost"]
 	else:
 		push_warning("WeatherController: falta 'cold_boost' en weather_settings; uso el fallback %s. Defínelo en el JSON del planeta." % str(DEFAULT_COLD_BOOST))
+	if config.get("season_weights") is Dictionary:
+		_season_weights = config["season_weights"]
 
 
 func _read_base_values() -> void:
@@ -285,13 +301,17 @@ func _process(delta: float) -> void:
 	if not _ready_to_run:
 		return
 
-	_elapsed += delta
+	# Con el calendario acelerado los eventos duran proporcionalmente menos: el tiempo sigue a la
+	# estación. La transición se acorta igual, sin bajar de MIN_TRANSITION_TIME.
+	var speed := _calendar_speed()
+	_elapsed += delta * speed
 	# Antes de aplicar nada: el estado sumergido apaga precipitación y niebla de este frame.
 	_update_submersion()
 	var st: WeatherState = _to
 	_resolved = st
 	if _blend < 1.0:
-		_blend = minf(1.0, _blend + delta / maxf(transition_time, 0.01))
+		var transition := maxf(transition_time / speed, minf(transition_time, MIN_TRANSITION_TIME))
+		_blend = minf(1.0, _blend + delta / maxf(transition, 0.01))
 		st = WeatherState.blend(_from, _to, smoothstep(0.0, 1.0, _blend))
 		_resolved = st
 		_apply_state(st)
@@ -309,6 +329,23 @@ func _process(delta: float) -> void:
 		var profile := _active_profile()
 		if _elapsed >= _duration or not _profile_has(profile, _current):
 			_transition_to(_choose_from(profile, _current))
+
+
+## Velocidad del calendario (1 = normal). Más lento que el normal no frena el tiempo.
+func _calendar_speed() -> float:
+	if _calendar == null or not is_instance_valid(_calendar):
+		_calendar = get_tree().get_first_node_in_group("sun_controller")
+	if _calendar == null:
+		return 1.0
+	return maxf(float(_calendar.get("season_speed")), 1.0)
+
+
+## Vuelve a sortear el evento con la estación de ahora (tras un salto del calendario). No toca un
+## evento forzado.
+func reroll() -> void:
+	if not _ready_to_run or _forced:
+		return
+	_transition_to(_choose_from(_active_profile(), ""))
 
 
 ## Fuerza un evento por nombre (para testeo o eventos de juego).
@@ -455,10 +492,16 @@ func _biome_for_latitude(lat: float) -> int:
 	return 0 if lat < float(_biome_latitude_ranges[0]) else _biome_count - 1
 
 
-## Perfil de eventos activo según bioma y altitud (frío al subir, nieve en picos). Con clima frío
-## manda el campo de frío del planeta: la taiga refuerza la nieve y la niebla, y la tundra y el
-## casquete (polos y cumbres) usan el perfil de picos.
+## Perfil de eventos activo: el del sitio (_place_profile) con los pesos de la estación.
 func _active_profile() -> Array:
+	return _seasonal(_place_profile())
+
+
+## Perfil de eventos según bioma y altitud (frío al subir, nieve en picos). Con clima frío manda el
+## campo de frío del planeta, con el de la estación: la taiga refuerza la nieve y la niebla, y la
+## tundra y el casquete (polos y cumbres) usan el perfil de picos. En invierno ese frío llega más
+## cerca del ecuador.
+func _place_profile() -> Array:
 	_current_biome = _biome_for_latitude(_current_latitude())
 	var base: Array = _profile_for_biome(_current_biome)
 	var alt := _current_altitude()
@@ -466,7 +509,7 @@ func _active_profile() -> Array:
 		return _peaks_profile
 	if _planet != null and _planet.climate.enabled and _player != null and is_instance_valid(_player):
 		var climate: ClimateField = _planet.climate
-		match climate.zone(climate.coldness(_player.global_position - _planet_center)):
+		match climate.zone(climate.snow_coldness(_player.global_position - _planet_center)):
 			ClimateField.Zone.TUNDRA, ClimateField.Zone.ICE:
 				return _peaks_profile
 			ClimateField.Zone.TAIGA:
@@ -481,8 +524,27 @@ func _cold_precipitation() -> float:
 	if _planet == null or not _planet.climate.enabled or _player == null or not is_instance_valid(_player):
 		return 0.0
 	var climate: ClimateField = _planet.climate
-	var cold := climate.coldness(_player.global_position - _planet_center)
+	var cold := climate.snow_coldness(_player.global_position - _planet_center)
 	return smoothstep(climate.snow_start - 3.0, climate.snow_start + 3.0, cold)
+
+
+## Copia del perfil con los pesos de la estación del jugador, entre las dos estaciones más cercanas.
+## En el ecuador (sin estaciones) no cambia.
+func _seasonal(profile: Array) -> Array:
+	if not Seasons.enabled or _player == null or not is_instance_valid(_player):
+		return profile
+	var local := _player.global_position - _planet_center
+	var strength := Seasons.strength(local)
+	if strength <= 0.0:
+		return profile
+	var blend: Array = Seasons.blend(local)
+	var first: Dictionary = _season_weights.get(Seasons.KEYS[blend[0]], {})
+	var second: Dictionary = _season_weights.get(Seasons.KEYS[blend[1]], {})
+	var result: Array = []
+	for entry in profile:
+		var factor := lerpf(float(first.get(entry[0], 1.0)), float(second.get(entry[0], 1.0)), blend[2])
+		result.append([entry[0], float(entry[1]) * lerpf(1.0, factor, strength)])
+	return result
 
 
 ## Copia del perfil con los eventos de _cold_boost reforzados para zonas altas frías.
@@ -508,7 +570,7 @@ func _profile_for_biome(biome_idx: int) -> Array:
 
 func _profile_has(profile: Array, event_name: String) -> bool:
 	for entry in profile:
-		if entry[0] == event_name and _events.has(event_name):
+		if entry[0] == event_name and _events.has(event_name) and float(entry[1]) > 0.0:
 			return true
 	return false
 

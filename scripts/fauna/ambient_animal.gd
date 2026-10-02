@@ -12,6 +12,9 @@ var profile: AmbientFaunaProfile
 
 ## Pool lifecycle. Subclasses implement movement and reset their own state in activate().
 var active: bool = false
+## Sobra con la actividad de ahora (anochece, migra, hiberna): se está yendo y el spawner lo retira
+## en cuanto deja de verse. Ver retire().
+var retiring: bool = false
 var habitat: AmbientFaunaHabitat
 ## A death scares the birds resting around it.
 const DEATH_STARTLE_RADIUS := 12.0
@@ -30,6 +33,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	global_position = point
 	velocity = Vector3.ZERO
 	active = true
+	retiring = false
 	process_mode = Node.PROCESS_MODE_INHERIT
 	add_to_group(GROUP)
 	if health_component != null:
@@ -78,6 +82,12 @@ func lock_point() -> Vector3:
 ## Whether the player can lock onto it right now: alive and in the world.
 func lockable() -> bool:
 	return active and is_inside_tree() and visible
+
+
+## El spawner le pide que se vaya porque sobra (noche, estación) y está a la vista. Por defecto
+## solo queda marcado y sigue a lo suyo hasta salir de cámara; las aves echan a volar y se van.
+func retire() -> void:
+	retiring = true
 
 
 ## Something alarming happened at [point] (an arrow striking, a death). Timid creatures override

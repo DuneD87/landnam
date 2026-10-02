@@ -21,3 +21,7 @@ corpse_duration = 120.0
 full_detail_distance = 50.0
 near_detail_distance = 20.0
 min_spacing = 55.0
+day_activity = 1.0
+twilight_activity = 0.8
+night_activity = 0.3
+season_activity = PackedFloat32Array(0.8, 1, 1, 0)
