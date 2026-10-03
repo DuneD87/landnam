@@ -9,7 +9,7 @@
 
 [resource]
 graph_data = {
-"connections": [[100, 0, 82, 3], [100, 0, 85, 3], [81, 0, 100, 3], [82, 0, 101, 3], [101, 0, 4, 0], [82, 0, 90, 3], [85, 0, 83, 0], [85, 1, 84, 0], [90, 0, 91, 0]],
+"connections": [[100, 0, 82, 3], [100, 0, 85, 3], [81, 0, 100, 3], [82, 0, 101, 3], [101, 0, 4, 0], [82, 0, 90, 3], [85, 0, 83, 0], [85, 1, 84, 0], [90, 0, 91, 0], [100, 0, 110, 0], [110, 0, 111, 0], [111, 0, 112, 0], [112, 0, 113, 0], [113, 0, 114, 0]],
 "nodes": {
 "101": {
 "_function": ExtResource("6_reef"),
@@ -106,6 +106,39 @@ graph_data = {
 "auto_connect": false,
 "gui_position": Vector2(3540, 1260),
 "layer": 3,
+"type": "OutputWeight"
+},
+"110": {
+"auto_connect": false,
+"b": -0.015625,
+"gui_position": Vector2(2900, 1700),
+"name": &"underground_depth_scale",
+"type": "Multiply"
+},
+"111": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(3060, 1700),
+"name": &"underground_depth_floor",
+"type": "Max"
+},
+"112": {
+"auto_connect": false,
+"gui_position": Vector2(3200, 1700),
+"name": &"underground_depth_sqrt",
+"type": "Sqrt"
+},
+"113": {
+"auto_connect": false,
+"b": 0.0333333,
+"gui_position": Vector2(3340, 1700),
+"name": &"underground_depth_round",
+"type": "Add"
+},
+"114": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 1700),
+"layer": 15,
 "type": "OutputWeight"
 }
 },

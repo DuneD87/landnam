@@ -166,6 +166,25 @@ uniform float specular_aa_strength : hint_range(0.0, 4.0) = 4.0;
 
 uniform float sun_shadow_opacity : hint_range(0.0, 1.0) = 0.7;
 
+// --- Profundidad bajo tierra (scripts/planet/underground_depth.gd) ---
+// Metros de roca sobre cada vértice contra la superficie sin cuevas: valles y cumbres valen 0, solo
+// lo que vació una cueva queda por debajo. La escribe el generador como el peso de la capa
+// UNDERGROUND_DEPTH_LAYER (CUSTOM1, como las menas), codificada en raíz cuadrada sobre el rango.
+// El cielo no llega dentro de la roca: con ella caen el ambiente y sus reflejos.
+#define UNDERGROUND_DEPTH_LAYER 15
+const float UNDERGROUND_DEPTH_RANGE = 64.0;
+// Profundidad (m) donde el ambiente de cielo empieza a caer y donde ya no llega nada.
+uniform float underground_dark_start : hint_range(0.0, 64.0) = 3.0;
+uniform float underground_dark_end : hint_range(0.0, 64.0) = 16.0;
+// Ambiente que queda en lo más hondo. 0 = negro: solo alumbran las antorchas.
+uniform float underground_min_ambient : hint_range(0.0, 1.0) = 0.0;
+// Distancia del primer anillo de LOD del VoxelLodTerrain (la pone Planet): con ella se estima el
+// tamaño del vóxel a cada distancia.
+uniform float underground_lod_distance = 32.0;
+// Depuración: la profundidad leída, emisiva (verde = cielo abierto, rojo = underground_dark_end o más).
+uniform int debug_underground_view : hint_range(0, 1) = 0;
+varying float v_underground_depth;
+
 // --- Nieve y hielo del clima frío (climate.gdshaderinc) ---
 // La nieve NO es una banda de textura por latitud: la decide el campo de frío del planeta
 // (latitud + altitud + ruido), el mismo con el que crecen la taiga y la tundra y se hiela el mar.
@@ -306,6 +325,19 @@ void vertex() {
 
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	height = length(world_pos - (center - u_world_offset)) - radius;
+
+	// Profundidad bajo tierra. El nivel de 4 bits llega ×16 en los 8 bits del peso: el 15 (todo el
+	// rango) es 240/255. El mallador interpola el peso por la arista entre el vóxel de dentro y el de
+	// fuera, así que una ladera queda con una profundidad falsa de hasta ~1/4 de vóxel: nada a LOD 0,
+	// metros en los lejanos. Se descuenta con el vóxel que toca a esta distancia (entre d/L y 2d/L);
+	// MODEL_MATRIX no lo dice, porque el mallador ya escala los vértices de cada LOD.
+	float depth_w = 0.0;
+	for (int slot = 0; slot < 4; slot++) {
+		depth_w = int(v_ore_indices[slot] + 0.5) == UNDERGROUND_DEPTH_LAYER ? v_ore_weights[slot] : depth_w;
+	}
+	float depth_s = clamp(depth_w * (255.0 / 240.0), 0.0, 1.0);
+	float voxel_size = max(1.0, 2.0 * length(CAMERA_POSITION_WORLD - world_pos) / max(underground_lod_distance, 1.0));
+	v_underground_depth = max(depth_s * depth_s * UNDERGROUND_DEPTH_RANGE - 0.25 * voxel_size, 0.0);
 }
 
 void fragment() {
@@ -730,10 +762,11 @@ void fragment() {
 		float limit = mix(snow_slope_limit, snow_slope_limit_glacier, glacier);
 		float hold = 1.0 - smoothstep(limit - snow_slope_softness, limit + snow_slope_softness, slope);
 		// Peso de mena: solo los slots con un tipo de mena (índice > 0); el 0 es el suelo sin mena
-		// y lleva casi siempre todo el peso.
+		// y lleva casi siempre todo el peso. La profundidad bajo tierra viaja en otro slot y no es mena.
 		float ore_w = 0.0;
 		for (int slot = 0; slot < 4; slot++) {
-			ore_w = max(ore_w, v_ore_indices[slot] > 0.5 ? v_ore_weights[slot] : 0.0);
+			int slot_id = int(v_ore_indices[slot] + 0.5);
+			ore_w = max(ore_w, slot_id > 0 && slot_id != UNDERGROUND_DEPTH_LAYER ? v_ore_weights[slot] : 0.0);
 		}
 		float snow = cover * hold * (1.0 - smoothstep(0.1, 0.5, ore_w * float(ore_count > 0)));
 		// Hielo glaciar donde el casquete no sostiene la nieve: seracs azules en vez de roca.
@@ -839,8 +872,18 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(safe_normalize(final_normal, normal_world), 0.0)).xyz);
     ROUGHNESS = final_roughness;
     v_fragment_ao = mix(clamp(final_ao, 0.0, 1.0), 1.0, underwater);
-    AO = mix(1.0, v_fragment_ao, ambient_ao_strength);
+    // Bajo tierra el cielo no llega: el ambiente cae con la roca que hay encima, y con él los
+    // reflejos del cielo (el motor saca la oclusión especular de ese ambiente). La luz directa no
+    // pasa por la AO (AO_LIGHT_AFFECT = 0): las antorchas alumbran igual.
+    float sky_visibility = mix(underground_min_ambient, 1.0,
+        1.0 - smoothstep(underground_dark_start, underground_dark_end, v_underground_depth));
+    AO = mix(1.0, v_fragment_ao, ambient_ao_strength) * sky_visibility;
     AO_LIGHT_AFFECT = 0.0;
+    if (debug_underground_view == 1) {
+        float t = clamp(v_underground_depth / max(underground_dark_end, 0.001), 0.0, 1.0);
+        ALBEDO = vec3(0.0);
+        EMISSION = mix(vec3(0.05, 0.6, 0.1), vec3(0.8, 0.05, 0.05), t);
+    }
     METALLIC = 0.0;
 }
 void light()

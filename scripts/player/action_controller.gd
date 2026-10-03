@@ -92,7 +92,8 @@ func _read_best_ore_along_ray(voxel_tool: VoxelTool, start: Vector3i, dir: Vecto
 		var idx := [indices.x, indices.y, indices.z, indices.w]
 		var w := [weights.r, weights.g, weights.b, weights.a]
 		for s in 4:
-			if idx[s] > 0 and w[s] > best_w:
+			# La profundidad bajo tierra viaja en otro slot de los pesos y no es una mena.
+			if idx[s] > 0 and idx[s] != UndergroundDepth.LAYER and w[s] > best_w:
 				best_w = w[s]
 				best_id = idx[s]
 	return best_id

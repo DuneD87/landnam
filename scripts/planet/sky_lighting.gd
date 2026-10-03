@@ -114,6 +114,18 @@ const AURORA_TOP_RATIO := 1.49
 ## Velocidad de adaptación (1/s).
 @export_range(0.05, 10.0, 0.05) var adaptation_speed: float = 1.5
 
+@export_group("Underground")
+## Bajo tierra no llega el cielo. El terreno lo resuelve por vértice en su shader (profundidad bajo la
+## superficie sin cuevas, ver UndergroundDepth); lo demás (personajes, fauna, objetos, vegetación de
+## cueva) no lleva esa profundidad, así que se apaga con la de la cámara: el ambiente y los reflejos
+## del cielo caen entre estas dos profundidades (m), y las luces dejan de colarse por las sombras.
+## Empieza más hondo que en el terreno porque cerca de la boca la cámara aún ve fuera, y fuera las
+## sombras pierden su relleno mientras dura.
+@export_range(0.0, 64.0, 0.5) var underground_dark_start: float = 6.0
+@export_range(0.0, 64.0, 0.5) var underground_dark_end: float = 18.0
+## Velocidad (1/s) con que se apaga o vuelve el cielo al entrar o salir.
+@export_range(0.1, 10.0, 0.1) var underground_fade_speed: float = 2.0
+
 ## Escalas del clima (las pide el WeatherController): luz directa, ambiente y cuánto encapotado
 ## está el cielo sobre el observador (desatura el ambiente hacia el gris de las nubes).
 var _weather_sun := 1.0
@@ -124,6 +136,7 @@ var _weather_source: Node = null
 
 class Body:
 	var loader: Node
+	var planet: Planet
 	var center_node: Node3D
 	var radius: float
 	var atmosphere: PlanetAtmosphere
@@ -163,6 +176,11 @@ var _p_g := 0.8
 var _p_ms := 0.0
 var _p_ms_tint := Vector3.ONE
 var _exposure := 1.0
+## Cuánto está la cámara bajo tierra: 0 = cielo abierto, 1 = el cielo no llega. Suavizado.
+var _underground := 0.0
+## Opacidad de sombra de cada luz tal como viene de la escena; bajo tierra sube hacia 1.
+var _sun_shadow_opacity := 1.0
+var _moon_shadow_opacity := 1.0
 ## Cuánto se ve el cielo nocturno (estrellas, luz cenicienta): 0 de día, 1 con el cielo oscuro. La
 ## luz cenicienta se actualiza antes que el cielo y usa la del frame anterior.
 var _night_visibility := 1.0
@@ -194,6 +212,10 @@ func _ready() -> void:
 		_env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 		_env.ambient_light_sky_contribution = 1.0
 		_env.ambient_light_energy = 1.0
+	if sun_light != null:
+		_sun_shadow_opacity = sun_light.shadow_opacity
+	if moon_light != null:
+		_moon_shadow_opacity = moon_light.shadow_opacity
 	_refresh_bodies()
 
 
@@ -217,6 +239,7 @@ func _refresh_bodies() -> void:
 			continue
 		var body := Body.new()
 		body.loader = child
+		body.planet = planet
 		body.center_node = planet.voxel_terrain
 		body.radius = planet.radius
 		var ctrl := child.get_node_or_null("PlanetAtmosphereController") as PlanetAtmosphereController
@@ -227,7 +250,8 @@ func _refresh_bodies() -> void:
 	# El relleno de las sombras lo pone el ambiente de cielo; la opacidad de las luces (0.85) solo
 	# deja pasar un poco de luz cálida, como el rebote que no simulamos. El terreno remapea
 	# ATTENUATION con esta misma opacidad para que las cuevas queden a oscuras: tienen que coincidir.
-	var opacity := sun_light.shadow_opacity if sun_light != null else 1.0
+	# Es la de la escena: bajo tierra las luces suben a 1 y el remapeo sigue dando sombra plena.
+	var opacity := _sun_shadow_opacity
 	for body in _bodies:
 		if body.terrain_material != null:
 			body.terrain_material.set_shader_parameter(&"sun_shadow_opacity", opacity)
@@ -355,12 +379,19 @@ func _update(observer: Vector3, delta: float) -> void:
 	var ground_col := Vector3(ground_albedo.r, ground_albedo.g, ground_albedo.b)
 	var ground := ground_col * (sun_rgb * maxf(sun_sin, 0.0) + moon_rgb * maxf(moon_sin, 0.0) + ambient_up)
 
+	# Bajo tierra: lo que ilumina el cielo (ambiente, rebote del suelo, reflejos) se apaga con la
+	# profundidad de la cámara. La exposición sigue mirando el cielo sin apagar: entrar en una cueva
+	# no la sube, y lo hondo queda negro.
+	var sky_open := 1.0 - _update_underground(home, observer, delta)
+	_apply_shadow_opacity(sun_light, _sun_shadow_opacity)
+	_apply_shadow_opacity(moon_light, _moon_shadow_opacity)
+
 	if _sky_material != null:
 		_sky_material.set_shader_parameter(&"amb_up", up)
 		_sky_material.set_shader_parameter(&"amb_sun_ref", sun_ref)
 		for i in SKY_UNIFORMS.size():
-			_sky_material.set_shader_parameter(SKY_UNIFORMS[i], ambient[i])
-		_sky_material.set_shader_parameter(&"amb_ground", ground)
+			_sky_material.set_shader_parameter(SKY_UNIFORMS[i], ambient[i] * sky_open)
+		_sky_material.set_shader_parameter(&"amb_ground", ground * sky_open)
 		_sky_material.set_shader_parameter(&"amb_horizon_sin", horizon_sin)
 		# Las estrellas asoman al oscurecerse el cielo (crepúsculo náutico) y una luna brillante
 		# apaga las más débiles. Sin atmósfera o desde el espacio el cielo es negro: siempre.
@@ -384,17 +415,17 @@ func _update(observer: Vector3, delta: float) -> void:
 
 	sun_radiance = sun_rgb
 	moon_radiance = moon_rgb
-	ambient_radiance = ambient_up
+	ambient_radiance = ambient_up * sky_open
 	RenderingServer.global_shader_parameter_set(&"sky_sun_radiance", sun_rgb)
 	RenderingServer.global_shader_parameter_set(&"sky_sun_direction", sun_dir)
 	RenderingServer.global_shader_parameter_set(&"sky_moon_radiance", moon_rgb)
 	RenderingServer.global_shader_parameter_set(&"sky_moon_direction", moon_dir)
-	RenderingServer.global_shader_parameter_set(&"sky_ambient_radiance", ambient_up)
-	RenderingServer.global_shader_parameter_set(&"sky_zenith_radiance", reflected[0])
-	RenderingServer.global_shader_parameter_set(&"sky_horizon_sun_radiance", reflected[3])
-	RenderingServer.global_shader_parameter_set(&"sky_horizon_side_radiance", reflected[4])
-	RenderingServer.global_shader_parameter_set(&"sky_horizon_anti_radiance", reflected[5])
-	RenderingServer.global_shader_parameter_set(&"sky_sun_glow_radiance", sun_rgb * sun_glow_reflection)
+	RenderingServer.global_shader_parameter_set(&"sky_ambient_radiance", ambient_up * sky_open)
+	RenderingServer.global_shader_parameter_set(&"sky_zenith_radiance", reflected[0] * sky_open)
+	RenderingServer.global_shader_parameter_set(&"sky_horizon_sun_radiance", reflected[3] * sky_open)
+	RenderingServer.global_shader_parameter_set(&"sky_horizon_side_radiance", reflected[4] * sky_open)
+	RenderingServer.global_shader_parameter_set(&"sky_horizon_anti_radiance", reflected[5] * sky_open)
+	RenderingServer.global_shader_parameter_set(&"sky_sun_glow_radiance", sun_rgb * (sun_glow_reflection * sky_open))
 
 	_update_atmosphere_moons(home, moon_dir, moon_raw * weather_sun, sun_dir)
 	_update_space_auroras(observer)
@@ -404,7 +435,7 @@ func _update(observer: Vector3, delta: float) -> void:
 			"sun_elev": sun_elev, "sun_rgb": sun_rgb, "moon_rgb": moon_rgb, "moon_raw": moon_raw,
 			"moon_elev": rad_to_deg(asin(clampf(moon_sin, -1.0, 1.0))), "ambient_up": ambient_up,
 			"sky_raw": _sky_raw.duplicate(), "ambient": ambient, "ground": ground, "reflected": reflected,
-			"exposure": _exposure, "altitude": altitude,
+			"exposure": _exposure, "altitude": altitude, "underground": _underground,
 		}
 	if _env != null:
 		if auto_exposure:
@@ -594,6 +625,29 @@ func _apply_light(light: DirectionalLight3D, rgb: Vector3) -> void:
 		return
 	light.light_color = Color(rgb.x / peak, rgb.y / peak, rgb.z / peak)
 	light.light_energy = peak
+
+
+## Cuánto está la cámara bajo tierra (0 = cielo abierto, 1 = el cielo no llega), suavizado. Sin dato
+## (terreno sin cargar, un cuerpo cuyo grafo no escribe la profundidad) cuenta como cielo abierto.
+func _update_underground(home: Body, observer: Vector3, delta: float) -> float:
+	var target := 0.0
+	if home.planet != null and is_instance_valid(home.planet):
+		var depth := home.planet.get_underground_depth(observer)
+		if depth > 0.0:
+			target = smoothstep(underground_dark_start, underground_dark_end, depth)
+	_underground = lerpf(_underground, target, 1.0 - exp(-delta * underground_fade_speed)) if _sky_primed else target
+	return _underground
+
+
+## La opacidad de sombra < 1 deja pasar un poco de la luz como rebote barato; bajo tierra no hay
+## rebote del sol que valga, así que sube a 1. El terreno remapea con la de la escena (_refresh_bodies)
+## y con la luz a 1 el remapeo sigue dando sombra plena.
+func _apply_shadow_opacity(light: DirectionalLight3D, scene_opacity: float) -> void:
+	if light == null:
+		return
+	var opacity := lerpf(scene_opacity, 1.0, _underground)
+	if absf(light.shadow_opacity - opacity) > 0.002:
+		light.shadow_opacity = opacity
 
 
 ## Evalúa el modelo de dispersión en las direcciones de muestreo. Si el cielo cambia poco (casi

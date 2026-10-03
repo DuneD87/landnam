@@ -144,6 +144,10 @@ var _grass_patch_bake_shader: Shader = null
 ## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
 var weather_wind_multiplier: float = 1.0
 
+## VoxelTool propio de get_underground_depth: cambia de canal en cada lectura y no debe pisar el de
+## nadie.
+var _depth_tool: VoxelTool = null
+
 func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_index: int = 0) -> VoxelInstanceGenerator:
 	var generator : VoxelInstanceGenerator = VoxelInstanceGenerator.new()
 
@@ -1534,6 +1538,10 @@ func setup_shader_parameters() -> void:
 
 	shader_material.set_shader_parameter("center", planet_position)
 	shader_material.set_shader_parameter("radius", radius)
+	# Con esto el shader estima el vóxel de cada LOD para no leer profundidad bajo tierra en laderas
+	# lejanas (ver UndergroundDepth y el vertex() del shader).
+	shader_material.set_shader_parameter("underground_lod_distance",
+		minf(voxel_terrain.lod_distance, voxel_terrain.secondary_lod_distance))
 
 	shader_material.set_shader_parameter("max_heights", max_heights)
 	shader_material.set_shader_parameter("biome_count", biome_count)
@@ -1724,6 +1732,16 @@ func setup_voxel_generator() -> void:
 ## coordenadas del mapa de hidrologia y su semianchura, que es lo que consume el audio del agua.
 func get_river_network() -> Dictionary:
 	return _river_field
+
+
+## Metros de roca sobre `world_pos` contra la superficie sin cuevas (ver UndergroundDepth): 0 al aire
+## libre, en valles y cumbres incluidos; -1 si el terreno de ahí no está cargado a LOD 0.
+func get_underground_depth(world_pos: Vector3) -> float:
+	if voxel_terrain == null:
+		return -1.0
+	if _depth_tool == null:
+		_depth_tool = voxel_terrain.get_voxel_tool()
+	return UndergroundDepth.at(voxel_terrain, _depth_tool, world_pos)
 
 
 ## El horneado necesita el relieve del propio generador, así que se hace sobre una copia limpia: la

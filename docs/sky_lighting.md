@@ -73,6 +73,36 @@ integral para las muestras de ambiente (con el halo de Mie ensanchado).
   quedaba en un punto en el horizonte, a menudo tapado por las rocas. Solo afecta a las luces
   direccionales; el reflejo del cielo conserva la rugosidad del material.
 
+## Cuevas: profundidad bajo tierra
+
+El ambiente sale del cielo y el motor no sabe que una cueva tiene roca encima: sin más, su interior
+recibe el mismo relleno que una sombra al aire libre. Lo resuelve la **profundidad bajo tierra**
+(`scripts/planet/underground_depth.gd`): los metros de roca sobre un punto, medidos contra la
+superficie del planeta antes de tallar las cuevas (con los ríos ya tallados). Un valle o una cumbre
+son superficie y valen 0; solo lo que vació una cueva queda por debajo.
+
+- **Generador**: `earth_terrain_terraces.tres` la saca de la salida de `river_carve` (nodos
+  `underground_depth_*`) como el peso de la capa 15, que viaja con el vóxel hasta la malla (CUSTOM1,
+  como las menas). Se guarda en 4 bits en raíz cuadrada sobre 64 m: el nivel n vale (n/15)²·64 m,
+  fino cerca de la superficie y saturado en 64 m.
+- **Terreno** (`planet_biomes.gdshader`): multiplica la `AO` por la visibilidad del cielo, que cae
+  entre `underground_dark_start` (3 m) y `underground_dark_end` (16 m) hasta `underground_min_ambient`
+  (0, negro). Con el ambiente caen los reflejos del cielo (la oclusión especular del motor sale de
+  él); la luz directa no pasa por la `AO` y las antorchas alumbran igual. El mallador interpola el
+  peso por la arista, así que una ladera lejana llevaría unos metros falsos: se descuenta un cuarto
+  del vóxel que toca a esa distancia (`underground_lod_distance`, lo pone Planet).
+  `debug_underground_view` = 1 la pinta (verde cielo abierto, rojo `underground_dark_end`).
+- **Lo demás** (personajes, fauna, objetos, vegetación de cueva) no lleva la profundidad en su
+  malla: SkyLighting lee la de la cámara (`Planet.get_underground_depth`) y entre
+  `underground_dark_start` (6 m) y `underground_dark_end` (18 m) apaga el ambiente, el rebote del
+  suelo y los reflejos del cielo, y sube la opacidad de sombra del sol y la luna a 1. La exposición
+  no cambia. Mientras dura, las sombras de fuera que se vean por la boca pierden también su relleno.
+- **Límites**: mide la roca en vertical, así que en una boca abierta en un acantilado vertical
+  oscurece antes de lo que debería. Excavar no la cambia (solo toca el SDF): un pozo hondo
+  oscurece como una cueva. Los bloques guardados en la partida antes de existir no la llevan. Los 4
+  huecos de pesos del vóxel los comparten las menas (capas 1-3) y esta capa; una cuarta mena
+  competiría por ellos.
+
 ## God rays
 
 Los haces se concentran junto al sol (lóbulo de dispersión hacia delante): antes el pase sumaba un
