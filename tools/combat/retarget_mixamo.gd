@@ -74,6 +74,12 @@ const CLIPS := {
 		{"height_from": "Dying", "offset": Vector3(0.0, -1.36, -0.098)}],
 	"climb_top": ["res://models/player/mixamo/climbing/Climbing To Top", 0.0, -1.0, false, false,
 		{"height_from": "Dying", "end_at_origin": true}],
+	# De lado: Braced Hang Shimmy va hacia la izquierda del personaje y viene 0,58 m más alto y
+	# 0,19 m más lejos de la pared que subir; la derecha es su espejo.
+	"climb_left": ["res://models/player/mixamo/climbing/Braced Hang Shimmy", 0.0, -1.0, false, true,
+		{"height_from": "Dying", "offset": Vector3(0.0, -0.58, -0.19)}],
+	"climb_right": ["res://models/player/mixamo/climbing/Braced Hang Shimmy", 0.0, -1.0, false, true,
+		{"height_from": "Dying", "offset": Vector3(0.0, -0.58, -0.19), "mirror": true}],
 }
 
 ## Hueso del jugador ← hueso de origen.

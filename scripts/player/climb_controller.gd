@@ -10,6 +10,7 @@ extends Node
 ##
 ##   Empujar contra la pared   agarrarse (andando, tras un instante; saltando, al momento)
 ##   Adelante / atrás          subir / bajar
+##   Izquierda / derecha       de lado (según la cámara), si la pared sigue por ese lado
 ##   Saltar                    soltarse
 ##
 ## Como al correr, la animación tiene que casar con el cuerpo: se reproduce al ritmo que hace
@@ -21,11 +22,12 @@ enum Mode {NONE, CLIMB, TOP}
 
 const Config = preload("res://scripts/config.gd")
 
-## Lo que avanzan manos y pies apoyados a ritmo 1 (m/s) en climb_up y climb_down, y a qué distancia
-## por delante de los pies tocan la pared. Como RUN_CLIP_SPEED al correr: medido sobre el
-## esqueleto del jugador.
-const UP_CLIP_SPEED := 0.75
-const DOWN_CLIP_SPEED := 0.74
+## Lo que avanza a ritmo 1 (m/s) la mano que agarra en climb_up, climb_down y climb_left/right, y a
+## qué distancia por delante de los pies tocan la pared. Como RUN_CLIP_SPEED al correr: medido
+## sobre el esqueleto del jugador.
+const UP_CLIP_SPEED := 0.76
+const DOWN_CLIP_SPEED := 0.76
+const SIDE_CLIP_SPEED := 0.46
 const CLIMB_WALL := 0.36
 ## Aguante por segundo trepando y colgado quieto.
 const CLIMB_DRAIN := 5.0
@@ -45,7 +47,7 @@ const LOST_WALL_TICKS := 4
 ## Rapidez (1/s) con la que la normal de la pared sigue a la que se toca y el cuerpo se gira a ella.
 const WALL_SMOOTH := 10.0
 const TURN_SPEED := 12.0
-## Fundidos (s): al agarrarse o pasar a coronar (y entre subir y bajar), y al volver a la locomoción.
+## Fundidos (s): al agarrarse o pasar a coronar (y entre direcciones), y al volver a la locomoción.
 const BLEND_IN := 0.25
 const BLEND_OUT := 0.3
 ## Muestras por segundo del recorrido de la cadera al coronar.
@@ -54,10 +56,13 @@ const PATH_FPS := 30.0
 var player: PlayerController
 var mode: Mode = Mode.NONE
 
-## Pesos del canal: escalada sobre la locomoción, coronar sobre los ciclos y bajar sobre subir.
+## Pesos del canal: escalada sobre la locomoción, coronar sobre los ciclos, de lado sobre arriba y
+## abajo, bajar sobre subir y derecha sobre izquierda.
 var _w := 0.0
 var _top_w := 0.0
+var _axis_w := 0.0
 var _dir_w := 0.0
+var _side_w := 0.0
 ## Fundido de la transición en curso (agarrarse o pasar a coronar), de 0 a 1, y lo que se veía al
 ## empezarla (PlayerModel en mundo).
 var _blend := 1.0
@@ -103,7 +108,7 @@ func holds_model() -> bool:
 
 ## Monta el canal encima de [below] y devuelve el nodo que queda arriba.
 static func build(tree_root: AnimationNodeBlendTree, below: StringName) -> StringName:
-	for clip in ["up", "down", "top"]:
+	for clip in ["up", "down", "left", "right", "top"]:
 		var anim := AnimationNodeAnimation.new()
 		anim.animation = StringName("combat/climb_" + clip)
 		tree_root.add_node(StringName("cl_%s_anim" % clip), anim)
@@ -114,11 +119,19 @@ static func build(tree_root: AnimationNodeBlendTree, below: StringName) -> Strin
 	tree_root.connect_node(&"cl_top_speed", 0, &"cl_top_seek")
 	tree_root.connect_node(&"cl_up_speed", 0, &"cl_up_anim")
 	tree_root.connect_node(&"cl_down_speed", 0, &"cl_down_anim")
+	tree_root.connect_node(&"cl_left_speed", 0, &"cl_left_anim")
+	tree_root.connect_node(&"cl_right_speed", 0, &"cl_right_anim")
 	tree_root.add_node(&"cl_dir", AnimationNodeBlend2.new())
 	tree_root.connect_node(&"cl_dir", 0, &"cl_up_speed")
 	tree_root.connect_node(&"cl_dir", 1, &"cl_down_speed")
+	tree_root.add_node(&"cl_side", AnimationNodeBlend2.new())
+	tree_root.connect_node(&"cl_side", 0, &"cl_left_speed")
+	tree_root.connect_node(&"cl_side", 1, &"cl_right_speed")
+	tree_root.add_node(&"cl_axis", AnimationNodeBlend2.new())
+	tree_root.connect_node(&"cl_axis", 0, &"cl_dir")
+	tree_root.connect_node(&"cl_axis", 1, &"cl_side")
 	tree_root.add_node(&"cl_mode", AnimationNodeBlend2.new())
-	tree_root.connect_node(&"cl_mode", 0, &"cl_dir")
+	tree_root.connect_node(&"cl_mode", 0, &"cl_axis")
 	tree_root.connect_node(&"cl_mode", 1, &"cl_top_speed")
 	tree_root.add_node(&"climb", AnimationNodeBlend2.new())
 	tree_root.connect_node(&"climb", 0, below)
@@ -190,7 +203,7 @@ func _try_start(delta: float) -> bool:
 		if _push_time < GRAB_DELAY:
 			return false
 	_push_time = 0.0
-	if not _wall_at_head(wall.normal, wall.point, up):
+	if not _wall_at(wall.normal, wall.point, _along_up(wall.normal, up) * _head_height()):
 		return false
 	_begin()
 	mode = Mode.CLIMB
@@ -198,7 +211,9 @@ func _try_start(delta: float) -> bool:
 	_contact = wall.point
 	_lost = 0
 	_top_w = 0.0
+	_axis_w = 0.0
 	_dir_w = 0.0
+	_side_w = 0.0
 	player.motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 	return true
 
@@ -276,26 +291,38 @@ func _update_climb(delta: float) -> void:
 		_let_go()
 		return
 	var up := _up()
-	var axis := Input.get_axis(&"move_back", &"move_forward")
-	var want := signf(axis) if absf(axis) > 0.2 else 0.0
+	var t_up := _along_up(_normal, up)
+	# La derecha del personaje a lo largo de la pared (mira a -_normal).
+	var t_right := (-_normal).cross(t_up).normalized()
+	var lateral := Input.get_axis(&"move_left", &"move_right")
+	# De lado según la cámara: con ella de frente, la izquierda de la pantalla es su derecha.
+	if player.camera.global_basis.x.dot(t_right) < 0.0:
+		lateral = -lateral
+	var vertical := Input.get_axis(&"move_back", &"move_forward")
+	var move := Vector2(signf(lateral) if absf(lateral) > 0.2 else 0.0,
+		signf(vertical) if absf(vertical) > 0.2 else 0.0)
 	# Por encima de la cabeza se acaba la pared: a coronar, si arriba hay dónde ponerse de pie (si
 	# no, no se sube más).
-	if want > 0.0 and not _wall_at_head(_normal, _contact, up):
+	if move.y > 0.0 and not _wall_at(_normal, _contact, t_up * _head_height()):
 		if _start_top(up):
 			_update_top(0.0)
 			return
-		want = 0.0
-	if not combat.stamina.drain(CLIMB_DRAIN if want != 0.0 else HANG_DRAIN, delta):
+		move.y = 0.0
+	# De lado, solo si la pared sigue por ese lado (a un cuerpo de distancia, a media altura).
+	if move.x != 0.0 and not _wall_at(_normal, _contact,
+			t_right * move.x * _radius() * 2.0 + t_up * _head_height() * 0.5):
+		move.x = 0.0
+	if not combat.stamina.drain(CLIMB_DRAIN if move != Vector2.ZERO else HANG_DRAIN, delta):
 		_let_go()
 		return
 
 	var speed := player.movement.walk_speed
-	var t_up := (up - _normal * up.dot(_normal)).normalized()
-	player.velocity = t_up * want * speed - _normal * STICK_SPEED
+	var dir := (t_up * move.y + t_right * move.x).normalized()
+	player.velocity = dir * speed - _normal * STICK_SPEED
 	player.move_and_slide()
-	# Moviéndose, tocar algo que se puede andar es haber llegado (abajo, o arriba si la pared se
-	# tumba). Al agarrarse desde el suelo aún lo roza: no cuenta hasta acabar el fundido.
-	if want != 0.0 and _blend >= 1.0 and _touches_floor(up):
+	# Subiendo o bajando, tocar algo que se puede andar es haber llegado (abajo, o arriba si la
+	# pared se tumba). Al agarrarse desde el suelo aún lo roza: no cuenta hasta acabar el fundido.
+	if move.y != 0.0 and _blend >= 1.0 and _touches_floor(up):
 		_end()
 		return
 	var wall := _wall_contact(up)
@@ -309,19 +336,27 @@ func _update_climb(delta: float) -> void:
 		_normal = _normal.slerp(wall.normal, 1.0 - exp(-WALL_SMOOTH * delta)).normalized()
 		_contact = wall.point
 
-	t_up = (up - _normal * up.dot(_normal)).normalized()
+	t_up = _along_up(_normal, up)
 	_face(-_flat(_normal, up), up, delta)
 	# PlayerModel inclinado con la pared y a CLIMB_WALL de ella (la cápsula se queda a su radio).
 	var gap := (player.global_position - _contact).dot(_normal)
 	_set_frame(Transform3D(Basis(t_up.cross(-_normal).normalized(), t_up, -_normal),
 		player.global_position + _normal * (CLIMB_WALL - gap)))
 
-	if want != 0.0:
-		_dir_w = move_toward(_dir_w, 1.0 if want < 0.0 else 0.0, delta / BLEND_IN)
+	# Cada clip en su sentido a su ritmo; en diagonal se mezclan. Quieto, se paran donde iban.
+	if move != Vector2.ZERO:
+		var to := delta / BLEND_IN
+		_axis_w = move_toward(_axis_w, absf(move.x) / (absf(move.x) + absf(move.y)), to)
+		if move.y != 0.0:
+			_dir_w = move_toward(_dir_w, 1.0 if move.y < 0.0 else 0.0, to)
+		if move.x != 0.0:
+			_side_w = move_toward(_side_w, 1.0 if move.x > 0.0 else 0.0, to)
 	var tree := player.animation_controller.animation_tree
 	if tree != null and combat._anims_ready:
-		tree.set(&"parameters/cl_up_speed/scale", speed / UP_CLIP_SPEED if want > 0.0 else 0.0)
-		tree.set(&"parameters/cl_down_speed/scale", speed / DOWN_CLIP_SPEED if want < 0.0 else 0.0)
+		tree.set(&"parameters/cl_up_speed/scale", speed / UP_CLIP_SPEED if move.y > 0.0 else 0.0)
+		tree.set(&"parameters/cl_down_speed/scale", speed / DOWN_CLIP_SPEED if move.y < 0.0 else 0.0)
+		tree.set(&"parameters/cl_left_speed/scale", speed / SIDE_CLIP_SPEED if move.x < 0.0 else 0.0)
+		tree.set(&"parameters/cl_right_speed/scale", speed / SIDE_CLIP_SPEED if move.x > 0.0 else 0.0)
 
 
 ## La pared que ha tocado el último move_and_slide: {normal (media) y point (un punto de ella)}, o
@@ -362,15 +397,13 @@ func _grabbable(collider: Object, normal: Vector3, up: Vector3) -> bool:
 	return angle > rad_to_deg(player.floor_max_angle) and angle < MAX_WALL_ANGLE
 
 
-## La pared (de normal [normal], que pasa por [point]) sigue a la altura de la cabeza, medida a lo
-## largo de ella desde los pies: vale igual para una pared vertical que para una ladera.
-func _wall_at_head(normal: Vector3, point: Vector3, up: Vector3) -> bool:
-	var capsule := player.collision_shape.shape as CapsuleShape3D
-	var radius := capsule.radius if capsule != null else 0.45
-	var t_up := (up - normal * up.dot(normal)).normalized()
+## La pared (de normal [normal], que pasa por [point]) sigue en [along] desde los pies, medido a lo
+## largo de ella: vale igual para una pared vertical que para una ladera.
+func _wall_at(normal: Vector3, point: Vector3, along: Vector3) -> bool:
+	var radius := _radius()
 	var feet := player.global_position - normal * (player.global_position - point).dot(normal)
-	var head := feet + t_up * _head_height() + normal * radius
-	return not _ray(head, head - normal * radius * 2.0).is_empty()
+	var from := feet + along + normal * radius
+	return not _ray(from, from - normal * radius * 2.0).is_empty()
 
 
 # ---------------------------------------------------------------------------------------------
@@ -403,8 +436,8 @@ func _start_top(up: Vector3) -> bool:
 	if tree != null and player.combat._anims_ready:
 		tree.set(&"parameters/cl_top_seek/seek_request", 0.0)
 		tree.set(&"parameters/cl_top_speed/scale", 1.0)
-		tree.set(&"parameters/cl_up_speed/scale", 0.0)
-		tree.set(&"parameters/cl_down_speed/scale", 0.0)
+		for clip in ["up", "down", "left", "right"]:
+			tree.set("parameters/cl_%s_speed/scale" % clip, 0.0)
 	return true
 
 
@@ -492,7 +525,9 @@ func _apply_tree() -> void:
 		return
 	tree.set(&"parameters/climb/blend_amount", smoothstep(0.0, 1.0, _w))
 	tree.set(&"parameters/cl_mode/blend_amount", smoothstep(0.0, 1.0, _top_w))
+	tree.set(&"parameters/cl_axis/blend_amount", smoothstep(0.0, 1.0, _axis_w))
 	tree.set(&"parameters/cl_dir/blend_amount", smoothstep(0.0, 1.0, _dir_w))
+	tree.set(&"parameters/cl_side/blend_amount", smoothstep(0.0, 1.0, _side_w))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -505,6 +540,16 @@ func _up() -> Vector3:
 
 func _skeleton() -> Skeleton3D:
 	return player.player_model.get_node("Armature/Skeleton3D")
+
+
+## Hacia arriba a lo largo de la pared de normal [normal].
+static func _along_up(normal: Vector3, up: Vector3) -> Vector3:
+	return (up - normal * up.dot(normal)).normalized()
+
+
+func _radius() -> float:
+	var capsule := player.collision_shape.shape as CapsuleShape3D
+	return capsule.radius if capsule != null else 0.45
 
 
 ## Altura de la cabeza: lo alto de la cápsula.
