@@ -74,6 +74,12 @@ animation = &"combat/walk_relaxed"
 
 [sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_walk"]
 
+[sub_resource type="AnimationNodeTimeScale" id="AnimationNodeTimeScale_run"]
+
+[sub_resource type="AnimationNodeTimeScale" id="AnimationNodeTimeScale_run_torch"]
+
+[sub_resource type="AnimationNodeTimeScale" id="AnimationNodeTimeScale_sprint"]
+
 [resource]
 graph_offset = Vector2(76.538635, 97.57703)
 nodes/output/position = Vector2(3110, 1490)
@@ -109,6 +115,12 @@ nodes/walk_scale/node = SubResource("AnimationNodeTimeScale_walk")
 nodes/walk_scale/position = Vector2(-600, -120)
 nodes/bWalk/node = SubResource("AnimationNodeBlend2_walk")
 nodes/bWalk/position = Vector2(-330, -60)
+nodes/run_scale/node = SubResource("AnimationNodeTimeScale_run")
+nodes/run_scale/position = Vector2(-300, 220)
+nodes/sprint_scale/node = SubResource("AnimationNodeTimeScale_sprint")
+nodes/sprint_scale/position = Vector2(-280, 380)
+nodes/run_torch_scale/node = SubResource("AnimationNodeTimeScale_run_torch")
+nodes/run_torch_scale/position = Vector2(-280, 1350)
 nodes/bRun/node = SubResource("AnimationNodeBlend2_bgx5p")
 nodes/bRun/position = Vector2(-190, 80)
 nodes/bSprint/node = SubResource("AnimationNodeBlend2_bgqbl")
@@ -133,4 +145,4 @@ nodes/bTorchFocus/node = SubResource("AnimationNodeBlend2_0kacu")
 nodes/bTorchFocus/position = Vector2(1173.8424, 2308.9583)
 "nodes/Animation 5/node" = SubResource("AnimationNodeAnimation_3qjv2")
 "nodes/Animation 5/position" = Vector2(-420, 1680)
-node_connections = [&"output", 0, &"attack_vertical", &"bSwimIdle", 0, &"bSwim", &"bSwimIdle", 1, &"SWIM_IDLE", &"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"bSprint", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"bWalk", &"bWalk", 0, &"IDle", &"bWalk", 1, &"walk_scale", &"walk_scale", 0, &"WALK", &"bRun", 1, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"Sprint", &"bSwim", 0, &"bJumpLand", &"bSwim", 1, &"SWIM", &"attack_horizontal", 0, &"bTorchFocus", &"attack_horizontal", 1, &"Attack_1", &"attack_vertical", 0, &"attack_horizontal", &"attack_vertical", 1, &"Animation 2", &"bIdleTorch", 0, &"bRunningTorch", &"bIdleTorch", 1, &"Animation 3", &"bRunningTorch", 0, &"bSwimIdle", &"bRunningTorch", 1, &"Animation 4", &"bTorchFocus", 0, &"bIdleTorch", &"bTorchFocus", 1, &"Animation 5"]
+node_connections = [&"output", 0, &"attack_vertical", &"bSwimIdle", 0, &"bSwim", &"bSwimIdle", 1, &"SWIM_IDLE", &"bJumpIdle", 0, &"bJumpStart", &"bJumpIdle", 1, &"JUMP_IDLE", &"bJumpLand", 0, &"bJumpIdle", &"bJumpLand", 1, &"JUMP_LAND", &"bJumpStart", 0, &"bSprint", &"bJumpStart", 1, &"JUMP_START", &"bRun", 0, &"bWalk", &"bWalk", 0, &"IDle", &"bWalk", 1, &"walk_scale", &"walk_scale", 0, &"WALK", &"bRun", 1, &"run_scale", &"run_scale", 0, &"Animation", &"bSprint", 0, &"bRun", &"bSprint", 1, &"sprint_scale", &"sprint_scale", 0, &"Sprint", &"bSwim", 0, &"bJumpLand", &"bSwim", 1, &"SWIM", &"attack_horizontal", 0, &"bTorchFocus", &"attack_horizontal", 1, &"Attack_1", &"attack_vertical", 0, &"attack_horizontal", &"attack_vertical", 1, &"Animation 2", &"bIdleTorch", 0, &"bRunningTorch", &"bIdleTorch", 1, &"Animation 3", &"bRunningTorch", 0, &"bSwimIdle", &"bRunningTorch", 1, &"run_torch_scale", &"run_torch_scale", 0, &"Animation 4", &"bTorchFocus", 0, &"bIdleTorch", &"bTorchFocus", 1, &"Animation 5"]

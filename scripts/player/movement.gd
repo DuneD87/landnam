@@ -11,6 +11,8 @@ const SWIM_TRANSITION_DELAY = 0.3
 @export var speed: float = 5.0
 ## Velocidad al andar (el jugador la ajusta al ritmo de su animación de andar).
 @export var walk_speed: float = 0.6
+## Velocidad al esprintar (el jugador la fija en _setup_gaits; los NPCs no esprintan).
+@export var sprint_speed: float = 9.0
 @export var swim_speed: float = 2.5
 @export var acceleration: float = 10.0
 @export var fall_speed_threshold: float = 5.0
@@ -102,7 +104,7 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 	if Input.is_action_pressed("Sprint") && input_dir.length() > 0.1 and not sprint_blocked and not use_ai_input:
 		if !is_jumping && !is_falling && !use_swim_animations:
 			is_sprinting = true
-			velocity = velocity * 1.8
+			velocity = direction * sprint_speed * speed_scale
 			current_animation = Config.ANIMATION.SPRINT
 	else:
 		is_sprinting = false
@@ -147,8 +149,9 @@ func handle_idle_movement(delta: float, gravity_direction: Vector3, is_on_floor:
 	else:
 		gravity_velocity = 0.0
 	
-func get_input_direction(camera: Camera3D, gravity_dir: Vector3) -> Vector3:
-	if is_falling:
+## [even_falling] lee el input también cayendo (agarrarse a una pared en el aire).
+func get_input_direction(camera: Camera3D, gravity_dir: Vector3, even_falling: bool = false) -> Vector3:
+	if is_falling and not even_falling:
 		return Vector3.ZERO
 
 	if use_ai_input:

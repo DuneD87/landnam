@@ -20,7 +20,10 @@ const FPS := 30.0
 ## horizontal de la cadera, en bucle (opcional), opciones (opcional)]. El archivo va respecto a
 ## SOURCE_DIR, o con su ruta res:// entera (ActorCore, también con esqueleto de Character Creator).
 ## Opciones: "mirror" la saca reflejada (izquierda por derecha); "height_from" toma la altura de
-## la cadera de pie de otra descarga del mismo personaje (para las que no empiezan de pie).
+## la cadera de pie de otra descarga del mismo personaje (para las que no empiezan de pie);
+## "offset" desplaza la cadera (m del origen, se escala con ella) para que dos clips que se
+## mezclan compartan marco; "end_at_origin" la desplaza para que el clip acabe de pie en el origen
+## (lo que recorre lo pone el código moviendo el cuerpo).
 const CLIPS := {
 	"roll": ["Sprinting Forward Roll", 0.0, -1.0, true],
 	# Lo que sigue a 1,5 s es volver andando al sitio.
@@ -54,6 +57,16 @@ const CLIPS := {
 	"injured_walk_mirror": ["injury/Injured Walk", 0.0, -1.0, true, true, {"mirror": true}],
 	"injured_walk_back_mirror": ["injury/Injured Walk Backwards", 0.0, -1.0, true, true, {"mirror": true}],
 	"crawl": ["injury/Zombie Crawl", 0.0, -1.0, true, true, {"height_from": "injury/Injured Idle"}],
+	# Escalada (ClimbController). Subir y bajar son ciclos en el sitio y conservan el vaivén de la
+	# cadera (si no, las manos patinarían por la pared). Bajar viene 1,36 m más alto y 0,10 m más
+	# lejos de la pared que subir: se lleva al marco de subir para mezclarlas sin saltos. Coronar
+	# acaba de pie en el origen. Ninguna empieza de pie: la escala sale de una que sí.
+	"climb_up": ["res://models/player/mixamo/climbing/Climbing Up Wall", 0.0, -1.0, false, true,
+		{"height_from": "Dying"}],
+	"climb_down": ["res://models/player/mixamo/climbing/Climbing Down Wall", 0.0, -1.0, false, true,
+		{"height_from": "Dying", "offset": Vector3(0.0, -1.36, -0.098)}],
+	"climb_top": ["res://models/player/mixamo/climbing/Climbing To Top", 0.0, -1.0, false, false,
+		{"height_from": "Dying", "end_at_origin": true}],
 }
 
 ## Hueso del jugador ← hueso de origen.
@@ -222,10 +235,11 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 			var track := anim.add_track(Animation.TYPE_ROTATION_3D)
 			anim.track_set_path(track, "Armature/Skeleton3D:mixamorig_" + name)
 			tracks[i] = track
-	var hips_idx := tskel.find_bone("mixamorig_Hips")
 	var hips_pos_track := anim.add_track(Animation.TYPE_POSITION_3D)
 	anim.track_set_path(hips_pos_track, "Armature/Skeleton3D:mixamorig_Hips")
 	var start_xz := Vector3.ZERO
+	var offset: Vector3 = opts.get("offset", Vector3.ZERO) * scale
+	var hips_keys: Array = []
 
 	var frames := int(ceil(anim.length * FPS))
 	for f in frames + 1:
@@ -260,14 +274,22 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 			anim.rotation_track_insert_key(tracks[i], t - from, local)
 		# Cadera: posición de origen escalada, pasada al espacio del esqueleto del jugador.
 		var s_hips := smodel * sskel.global_transform * sskel.get_bone_global_pose(sskel.find_bone("CC_Base_Hip"))
-		var p: Vector3 = yaw_fix * s_hips.origin * scale
+		var p: Vector3 = yaw_fix * s_hips.origin * scale + offset
 		if f == 0:
 			start_xz = Vector3(p.x, 0, p.z)
 		if clip[3]:
 			p -= Vector3(p.x, 0, p.z) - start_xz
 		if mirror:
 			p = reflect * p
-		anim.position_track_insert_key(hips_pos_track, t - from, to_tmodel.affine_inverse() * p)
+		hips_keys.append([t - from, p])
+	# Acabar de pie en el origen: la cadera del último fotograma va sobre él, a la altura de pie.
+	if opts.get("end_at_origin", false):
+		var last: Vector3 = hips_keys[-1][1]
+		var shift := Vector3(last.x, last.y - hips_rest_h, last.z)
+		for key in hips_keys:
+			key[1] -= shift
+	for key in hips_keys:
+		anim.position_track_insert_key(hips_pos_track, key[0], to_tmodel.affine_inverse() * (key[1] as Vector3))
 	source.queue_free()
 	await process_frame
 	return anim

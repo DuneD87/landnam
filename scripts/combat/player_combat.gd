@@ -59,6 +59,8 @@ const BACKSTEP_DISTANCE := 2.1
 const BACKSTEP_IFRAMES := Vector2(0.03, 0.24)
 const BACKSTEP_ANIM_IFRAMES := Vector2(0.04, 0.30)
 const SPRINT_DRAIN := 11.0
+## Correr (sin andar ni esprintar) también cansa, despacio, y mientras se corre no se recupera.
+const RUN_DRAIN := 2.0
 const HOLD_DRAW_DRAIN := 6.0
 ## Guardia del jugador: un golpe que la supera le hace tambalearse.
 const PLAYER_POISE := 24.0
@@ -334,10 +336,11 @@ func _setup_animation() -> void:
 	_tree.tree_root = tree_root
 
 
-## Canales de acción encima de todo el árbol: "upper", filtrado al tronco y los brazos (arco,
-## lanzamiento: las piernas siguen con la locomoción); "attack_a" y "attack_b", los golpes
-## cuerpo a cuerpo, que se turnan para que el siguiente se funda sobre el anterior al
-## encadenar; y "full" (voltereta, paso atrás, tambaleo, muerte), encima de todo. Cada uno: animación → TimeSeek → TimeScale → mezcla, para poder
+## Canales de acción encima de todo el árbol (solo la escalada va encima de ellos): "upper",
+## filtrado al tronco y los brazos (arco, lanzamiento: las piernas siguen con la locomoción);
+## "attack_a" y "attack_b", los golpes cuerpo a cuerpo, que se turnan para que el siguiente se
+## funda sobre el anterior al encadenar; y "full" (voltereta, paso atrás, tambaleo, muerte),
+## encima de los otros. Cada uno: animación → TimeSeek → TimeScale → mezcla, para poder
 ## reproducirla, acelerarla o arrastrarla a un instante concreto. "full" mezcla con un OneShot;
 ## "upper" con un Blend2 cuyo peso lleva _act_advance: un OneShot cuenta su propio tiempo desde
 ## que se dispara y se apaga al pasar la duración del clip aunque este vaya arrastrado (tensar y
@@ -386,6 +389,8 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 		tree_root.connect_node(StringName("act_%s" % channel), 0, below)
 		tree_root.connect_node(StringName("act_%s" % channel), 1, StringName("act_%s_speed" % channel))
 		below = StringName("act_%s" % channel)
+	# La escalada, encima de todo: en la pared no se golpea ni se apunta.
+	below = ClimbController.build(tree_root, below)
 	tree_root.connect_node(&"output", 0, below)
 	_anims_ready = true
 
@@ -592,6 +597,8 @@ func handle_input(event: InputEvent) -> bool:
 	if state == State.DEAD or _respawning:
 		return event is InputEventMouseButton or event.is_action("dodge") or event.is_action("lock_on")
 	if player.inventory_ui.visible or player.building_system.build_mode:
+		return false
+	if player.climb != null and player.climb.is_active():
 		return false
 	if event.is_action_pressed("lock_on"):
 		if lock_target != null:
@@ -822,6 +829,15 @@ func _set_state(new_state: State) -> void:
 
 func is_busy() -> bool:
 	return state != State.IDLE
+
+
+## Al agarrarse a una pared: sin objetivo fijado ni nada pulsado pendiente, y el arma fuera de la
+## postura de carrera. Mientras trepa no pasa por physics_update (ClimbController).
+func on_climb_start() -> void:
+	release_lock()
+	_buffered = &""
+	_carry = 0.0
+	pose.carry = 0.0
 
 
 func is_dead() -> bool:
@@ -2032,9 +2048,14 @@ func _update_lock(delta: float) -> void:
 
 func _update_limits(delta: float, input_dir: Vector3) -> void:
 	var movement: Movement = player.movement
-	var sprinting := Input.is_action_pressed("Sprint") and input_dir.length() > 0.1 and state == State.IDLE
+	var moving := input_dir.length() > 0.1 and state == State.IDLE
+	var sprinting := Input.is_action_pressed("Sprint") and moving
 	if sprinting and not stamina.drain(SPRINT_DRAIN, delta):
 		sprinting = false
+	# Correr no deja recuperar, ni siquiera agotado: para descansar hay que andar o pararse.
+	if moving and not sprinting and not movement.walking and not movement.is_swimming and not cripple.active():
+		stamina.drain(RUN_DRAIN, delta)
+		stamina.hold_regen()
 	movement.sprint_blocked = state != State.IDLE or stamina.exhausted
 	movement.jump_blocked = state != State.IDLE
 	movement.speed_scale = 0.45 if state == State.AIM else 1.0
@@ -2172,7 +2193,8 @@ func _update_body_visual() -> void:
 					var slope := rad_to_deg(player.get_floor_normal().angle_to(up))
 					target *= 1.0 - smoothstep(8.0, 22.0, slope)
 			_stance_yaw = move_toward(_stance_yaw, target, 240.0 * get_physics_process_delta_time())
-			if not player.movement.is_swimming:
+			# Recién soltado de una pared, PlayerModel lo sigue colocando la escalada.
+			if not player.movement.is_swimming and not player.climb.holds_model():
 				var want := Transform3D.IDENTITY
 				if absf(_stance_yaw) > 0.01:
 					want = Transform3D(Basis(Vector3.UP, deg_to_rad(_stance_yaw)), Vector3.ZERO)

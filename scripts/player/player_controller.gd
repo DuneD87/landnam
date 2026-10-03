@@ -55,6 +55,8 @@ var debug_stats: DebugStats
 var appearance_rig: CharacterAppearanceRig
 ## Combate cuerpo a cuerpo y a distancia, esquivas, objetivo fijado y muerte (ver PlayerCombat).
 var combat: PlayerCombat
+## Trepar por paredes que no se pueden andar y coronarlas (ver ClimbController).
+var climb: ClimbController
 
 @export var main_menu: Control
 @export var spawn_point: Marker3D
@@ -423,7 +425,10 @@ func _ready():
 	combat = PlayerCombat.new()
 	add_child(combat)
 	combat.setup(self)
-	_setup_walk()
+	climb = ClimbController.new()
+	add_child(climb)
+	climb.setup(self)
+	_setup_gaits()
 	world_map_ui = WorldMapUI.new()
 	world_map_ui.setup(self)
 	add_child(world_map_ui)
@@ -547,6 +552,7 @@ func restore_save_data(save: Dictionary) -> void:
 		GameManager.character = CharacterData.from_dict(character_data)
 		appearance_rig.apply(GameManager.character.appearance)
 
+	climb.cancel()
 	free_flight_enabled = save.game_state.free_flight
 	input_enabled = save.game_state.input_enabled
 	current_water_time = save.game_state.get("current_water_time", 0.0)
@@ -615,6 +621,8 @@ func shift_origin(offset: Vector3) -> void:
 	# también o _apply_platform_movement le aplicaría un salto de 'offset' extra al jugador.
 	if _platform_body and is_instance_valid(_platform_body):
 		_platform_prev_xform.origin -= offset
+	if climb != null:
+		climb.shift_origin(offset)
 
 
 func post_restore() -> void:
@@ -673,6 +681,7 @@ func _find_nearby_corpse(max_dist: float = 4.0) -> NPCController:
 func can_perform_action() -> bool:
 	return not (
 		combat.is_busy() or
+		climb.is_active() or
 		action_controller.is_attacking or
 		movement.is_running or
 		movement.is_sprinting or
@@ -808,12 +817,25 @@ func _activate_player() -> void:
 ## cuerpo va a la velocidad que le toca a ese ritmo, así los pies no patinan.
 const WALK_CLIP_SPEED := 0.50
 @export var walk_anim_rate: float = 1.2
+## Correr va a RUN_SPEED y esprintar a SPRINT_SPEED. Sus animaciones (running y running-torch;
+## sprinting) avanzan RUN_CLIP_SPEED y SPRINT_CLIP_SPEED m/s a ritmo 1 y, como la de andar, se
+## reproducen al ritmo de su velocidad. Trepar va a la velocidad de andar (ClimbController).
+const RUN_CLIP_SPEED := 4.3
+const SPRINT_CLIP_SPEED := 4.4
+const RUN_SPEED := 4.0
+const SPRINT_SPEED := 6.0
 
 
-func _setup_walk() -> void:
+func _setup_gaits() -> void:
 	movement.walk_speed = WALK_CLIP_SPEED * walk_anim_rate
-	if animation_controller.animation_tree:
-		animation_controller.animation_tree.set("parameters/walk_scale/scale", walk_anim_rate)
+	movement.speed = RUN_SPEED
+	movement.sprint_speed = SPRINT_SPEED
+	var tree := animation_controller.animation_tree
+	if tree:
+		tree.set("parameters/walk_scale/scale", walk_anim_rate)
+		tree.set("parameters/run_scale/scale", movement.speed / RUN_CLIP_SPEED)
+		tree.set("parameters/run_torch_scale/scale", movement.speed / RUN_CLIP_SPEED)
+		tree.set("parameters/sprint_scale/scale", SPRINT_SPEED / SPRINT_CLIP_SPEED)
 
 
 func is_mouse_captured() -> bool:
@@ -906,6 +928,7 @@ func _input(event):
 		movement.walking = not movement.walking
 
 	if event.is_action_pressed("toggle_free_flight"):
+		climb.cancel()
 		free_flight_enabled = !free_flight_enabled
 		if free_flight_enabled:
 			print("Free flight activado")
@@ -940,7 +963,7 @@ func _input(event):
 	if event.is_action_pressed("character_window"):
 		character_window.toggle()
  
-	if event.is_action_pressed("action") && !free_flight_enabled:
+	if event.is_action_pressed("action") && !free_flight_enabled and not climb.is_active():
 		var corpse := _find_nearby_corpse()
 		if corpse:
 			inventory_ui.open_loot(corpse.inventory)
@@ -1469,6 +1492,11 @@ func update_normal_movement(delta: float) -> void:
 			and _try_haul_out():
 		movement.is_swimming = false
 	was_swimming = was_swimming && !movement.is_swimming
+	# Trepando, el cuerpo lo lleva la escalada: sin gravedad, input de carrera ni combate.
+	if climb.physics_update(delta):
+		animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
+		camera_controller.update_camera_rotation()
+		return
 	var idle_animation = config.ANIMATION.IDLE if !right_hand_equipped else equiped_weapon.idle_animation
 	var run_animation = config.ANIMATION.RUN if !right_hand_equipped else equiped_weapon.running_animation
 	var input_dir = movement.handle_run_movement(delta, action_controller.is_attacking, gravity_direction, camera, idle_animation, run_animation)

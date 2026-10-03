@@ -1,9 +1,9 @@
 class_name StaminaComponent
 extends Node
 
-## Aguante: lo gastan los golpes, las esquivas, tensar y correr. Se recupera solo tras una pausa
-## sin gastar, y si se agota del todo hay que esperar a que se rehaga un poco antes de volver a
-## gastar (evita encadenar acciones con la barra en cero).
+## Aguante: lo gastan los golpes, las esquivas, tensar, correr y trepar. Se recupera solo tras una
+## pausa sin gastar, y si se agota del todo hay que esperar a que se rehaga un poco antes de volver
+## a gastar (evita encadenar acciones con la barra en cero).
 
 signal changed(current: float, maximum: float)
 
@@ -62,6 +62,11 @@ func drain(rate: float, delta: float) -> bool:
 	_since_spent = minf(_since_spent, regen_delay * 0.5)
 	changed.emit(stamina, max_stamina)
 	return not exhausted
+
+
+## Llamado cada tick, no deja recuperar (aunque no se gaste, p. ej. corriendo ya agotado).
+func hold_regen() -> void:
+	_since_spent = minf(_since_spent, regen_delay * 0.5)
 
 
 func refill() -> void:

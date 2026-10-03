@@ -170,7 +170,8 @@ Mallas y escenas: `bake_weapons.gd -- --only=branch,litter`.
 - **Proyectiles** (`CombatProjectile`): avanzan a mano con la gravedad del planeta y
   un rayo por tick contra terreno y hurtboxes. Flechas y lanzas se clavan. Lo que se
   clava en una criatura va a su inventario; una lanza en el suelo se recoge con E.
-- **Aguante**: golpes, esquivas, correr (11/s) y mantener la cuerda tensa. Si se
+- **Aguante**: golpes, esquivas, correr (2/s, y corriendo no se recupera), esprintar
+  (11/s), mantener la cuerda tensa y trepar (ver [climbing.md](climbing.md)). Si se
   agota, hay que recuperar un poco antes de volver a gastar.
 - **Guardia (poise)**: un golpe con más desgaste que la guardia del jugador (24) le
   hace tambalearse. Los osos aguantan 85 de desgaste acumulado y, al romperla, se

@@ -229,7 +229,7 @@ bind/64/pose = Transform3D(-98.48727, 2.5856326, -17.13355, -17.152615, -0.55075
 [node name="Player" type="CharacterBody3D" unique_id=1155706043]
 collision_layer = 2
 collision_mask = 5
-floor_max_angle = 1.0471976
+floor_max_angle = 0.87266463
 platform_on_leave = 2
 platform_floor_layers = 4294901760
 script = ExtResource("1_smlm8")
