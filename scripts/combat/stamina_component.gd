@@ -15,6 +15,9 @@ signal changed(current: float, maximum: float)
 ## Tras agotarse, cuánto hay que recuperar antes de poder gastar otra vez.
 @export var exhausted_threshold: float = 22.0
 
+## Multiplica regen_rate (lo pone el combate cada tick, de los estados: una intoxicación cansa).
+var regen_scale: float = 1.0
+
 var stamina: float
 var exhausted: bool = false
 var _since_spent: float = 999.0
@@ -28,7 +31,7 @@ func _physics_process(delta: float) -> void:
 	_since_spent += delta
 	if _since_spent < regen_delay or stamina >= max_stamina:
 		return
-	stamina = minf(max_stamina, stamina + regen_rate * delta)
+	stamina = minf(max_stamina, stamina + regen_rate * regen_scale * delta)
 	if exhausted and stamina >= exhausted_threshold:
 		exhausted = false
 	changed.emit(stamina, max_stamina)

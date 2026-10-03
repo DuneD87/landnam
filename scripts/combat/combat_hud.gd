@@ -30,6 +30,8 @@ var _fade: ColorRect
 var _death_band: TextureRect
 var _death_label: Label
 var _ammo_label: Label
+## Estados en curso (pierna rota…) con lo que les queda, bajo la silueta.
+var _status_label: Label
 
 var _scale: float = 1.0
 var _hp_trail: float = 1.0
@@ -96,6 +98,15 @@ func setup(owner_combat: PlayerCombat) -> void:
 	_ammo_label.visible = false
 	add_child(_ammo_label)
 
+	_status_label = Label.new()
+	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_status_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
+	_status_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_status_label.add_theme_constant_override("outline_size", 5)
+	_status_label.visible = false
+	add_child(_status_label)
+
 	_death_band = TextureRect.new()
 	_death_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_death_band.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -156,6 +167,7 @@ func _relayout() -> void:
 	_death_label.size = _death_band.size
 	_death_label.add_theme_font_size_override("font_size", int(150 * _scale))
 	_ammo_label.add_theme_font_size_override("font_size", int(26 * _scale))
+	_status_label.add_theme_font_size_override("font_size", int(20 * _scale))
 
 
 func _process(delta: float) -> void:
@@ -194,6 +206,7 @@ func _process(delta: float) -> void:
 	_vignette.modulate.a = _damage_flash
 	_update_blood_loss(delta)
 	_update_ammo()
+	_update_status()
 	_canvas.queue_redraw()
 
 
@@ -224,6 +237,26 @@ func _update_blood_loss(delta: float) -> void:
 	var mat := _blood_loss.material as ShaderMaterial
 	mat.set_shader_parameter("amount", _loss)
 	mat.set_shader_parameter("pulse", clampf(pulse, 0.0, 1.0))
+
+
+## Un renglón por estado, con los minutos y segundos que le quedan, bajo la silueta.
+func _update_status() -> void:
+	var status := combat.status
+	var shown := status != null and not status.effects().is_empty() and not combat.player.free_flight_enabled \
+		and combat.player.visible
+	_status_label.visible = shown
+	if not shown:
+		return
+	var lines := PackedStringArray()
+	for effect in status.effects():
+		var left := ceili(maxf(effect.remaining, 0.0))
+		lines.append("%s  %d:%02d" % [effect.label(), floori(left / 60.0), left % 60])
+	_status_label.text = "\n".join(lines)
+	var width := 360.0 * _scale
+	var origin := _body_origin()
+	_status_label.size = Vector2(width, 0.0)
+	_status_label.position = Vector2(get_viewport().get_visible_rect().size.x - HUD_MARGIN.x * _scale - width,
+		origin.y + 90.0 * BODY_SCALE * _scale)
 
 
 func _update_ammo() -> void:
@@ -306,8 +339,8 @@ func _draw_player_bars() -> void:
 
 
 ## Silueta de espaldas (como se ve al personaje) bajo las barras, con cada parte del cuerpo del color
-## de su estado; solo cuando hay algo herido. Un miembro perdido queda en contorno con el muñón rojo,
-## y una gota late mientras sangra.
+## de su estado; solo cuando hay algo herido (o algún estado en curso). Un miembro perdido queda en
+## contorno con el muñón rojo, uno roto amoratado y con la grieta, y una gota late mientras sangra.
 const BODY_SHAPES := {
 	&"head": Rect2(15, 0, 12, 13),
 	&"chest": Rect2(12, 15, 18, 15),
@@ -319,14 +352,26 @@ const BODY_SHAPES := {
 }
 
 
+const BODY_SCALE := 1.15
+const BRUISE := Color(0.42, 0.24, 0.50, 0.92)
+const CRACK := Color(0.96, 0.92, 0.80)
+
+
+## Esquina de arriba a la izquierda de la silueta: bajo las barras, contra el margen derecho (la
+## silueta y la gota ocupan 52 de ancho).
+func _body_origin() -> Vector2:
+	var s := BODY_SCALE * _scale
+	return Vector2(get_viewport().get_visible_rect().size.x - HUD_MARGIN.x * _scale - 52.0 * s, 96.0 * _scale)
+
+
 func _draw_body() -> void:
 	var damage := combat.body_damage
-	if damage == null or not damage.is_hurt():
+	var status := combat.status
+	var has_status := status != null and not status.effects().is_empty()
+	if damage == null or not (damage.is_hurt() or has_status):
 		return
-	var s := 1.15 * _scale
-	# Bajo las barras, contra el margen derecho (la silueta y la gota ocupan 52 de ancho).
-	var origin := Vector2(get_viewport().get_visible_rect().size.x - HUD_MARGIN.x * _scale - 52.0 * s,
-			96.0 * _scale)
+	var s := BODY_SCALE * _scale
+	var origin := _body_origin()
 	var t := Time.get_ticks_msec() / 1000.0
 	for zone: StringName in BODY_SHAPES:
 		var r: Rect2 = BODY_SHAPES[zone]
@@ -342,10 +387,15 @@ func _draw_body() -> void:
 		var color := _zone_color(damage.zone_ratio(zone))
 		if zone == damage.last_zone:
 			color = color.lerp(Color(1, 0.9, 0.8), _damage_flash * 0.6)
+		var broken := status != null and status.is_zone_impaired(zone)
+		if broken:
+			color = BRUISE.lerp(color, 0.25)
 		if zone == &"head":
 			_canvas.draw_circle(rect.get_center(), rect.size.x * 0.55, color)
 		else:
 			_canvas.draw_rect(rect, color)
+		if broken:
+			_draw_crack(rect, s)
 	var bleed := damage.bleed_rate()
 	if bleed > 0.0:
 		var pulse := 0.55 + 0.45 * sin(t * TAU * clampf(0.8 + bleed * 1.5, 0.8, 3.0))
@@ -354,6 +404,18 @@ func _draw_body() -> void:
 		_canvas.draw_circle(c, 4.5 * s, drop)
 		_canvas.draw_colored_polygon(PackedVector2Array([c + Vector2(-4.2, -1.5) * s, c + Vector2(0, -11) * s,
 			c + Vector2(4.2, -1.5) * s]), drop)
+
+
+## Grieta en zigzag de lado a lado, a media altura del miembro.
+func _draw_crack(rect: Rect2, s: float) -> void:
+	var y := rect.position.y + rect.size.y * 0.55
+	var x0 := rect.position.x - 1.5 * s
+	var w := rect.size.x + 3.0 * s
+	var points := PackedVector2Array()
+	for i in 5:
+		points.append(Vector2(x0 + w * i / 4.0, y + (3.0 if i % 2 == 1 else -3.0) * s))
+	_canvas.draw_polyline(points, Color(0, 0, 0, 0.6), maxf(2.5, 2.5 * s))
+	_canvas.draw_polyline(points, CRACK, maxf(1.2, 1.2 * s))
 
 
 ## Sana: hueso claro y transparente; herida: de ámbar a rojo; inutilizada (bajo cero): granate.

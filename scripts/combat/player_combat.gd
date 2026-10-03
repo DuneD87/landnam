@@ -132,7 +132,9 @@ var hit_react: HitReact
 var ragdoll: Ragdoll
 ## Daño por partes, sangrado y miembros cercenados.
 var body_damage: BodyDamage
-## Andar lisiado (muleta o arrastrarse) cuando le falta una pierna.
+## Estados duraderos (pierna rota…): los límites que ponen los pregunta el combate cada tick.
+var status: StatusEffects
+## Andar lisiado (cojear, muleta o arrastrarse) cuando tiene una pierna perdida o rota.
 var cripple: Cripple
 ## La rama la coloca Cripple como muleta (o el arma va escondida al arrastrarse).
 var _cripple_visual: bool = false
@@ -303,6 +305,11 @@ func setup(owner_player: PlayerController) -> void:
 	body_damage.dismemberment.world_mask = player.collision_mask
 	body_damage.dismemberment.exclude_body = player
 	body_damage.limb_lost.connect(_on_limb_lost)
+	status = StatusEffects.new()
+	status.name = "StatusEffects"
+	status.health = player.health_component
+	add_child(status)
+	status.applied.connect(_on_status_applied)
 
 	_arrow_visual = MeshInstance3D.new()
 	_arrow_visual.name = "NockedArrow"
@@ -693,7 +700,7 @@ func _try_buffered() -> void:
 ## Un golpe no se corta ni con otro golpe ni con una esquiva: lo pulsado espera a que acabe
 ## (_finish_attack) y sale entonces.
 func _can_dodge_now() -> bool:
-	if cripple.active():
+	if cripple.active() or status.blocks(&"dodge"):
 		return false
 	if player.movement.is_swimming or player.movement.is_falling or player.movement.is_jumping:
 		return false
@@ -706,7 +713,7 @@ func _can_dodge_now() -> bool:
 
 
 func _can_attack_now() -> bool:
-	if cripple.active():
+	if cripple.active() or status.blocks(&"attack"):
 		return false
 	if player.movement.is_swimming or player.movement.is_falling or weapon() == null:
 		return false
@@ -1642,9 +1649,11 @@ func _place_bow(p: CombatPose, _data: ItemData) -> void:
 func _update_carry(delta: float) -> void:
 	var m := player.movement
 	var data := weapon()
-	# Andando el brazo va como en la animación de andar, que no lo cruza por delante.
+	# Andando el brazo va como en la animación de andar, que no lo cruza por delante; cojeando,
+	# como en la de cojear (la pose de correr lo pegaría al costado).
 	var target := 1.0 if pose.grip_right and data != null and not data.two_handed and state == State.IDLE \
-		and (m.is_sprinting or (m.is_running and not m.walking)) and not m.is_swimming else 0.0
+		and (m.is_sprinting or (m.is_running and not m.walking)) and not m.is_swimming \
+		and not cripple.active() else 0.0
 	# Al golpear, esquivar o apuntar se suelta enseguida para no arrastrarla sobre la acción.
 	var rate := CARRY_BLEND_SPEED if state == State.IDLE else CARRY_BLEND_SPEED * 3.0
 	_carry = move_toward(_carry, target, delta * rate)
@@ -1718,6 +1727,15 @@ func _on_limb_lost(zone: StringName, _cut: Dictionary) -> void:
 	if zone == &"right_arm" or (zone == &"left_arm" and (data.is_left_handed() or data.two_handed)):
 		player._unequip_right_hand()
 		player.inventory.inventory_changed.emit()
+
+
+## Romperse algo se nota: sacudida, destello y quejido.
+func _on_status_applied(effect: StatusEffect) -> void:
+	if not effect.data.impairs_zone:
+		return
+	player.camera_controller.add_shake(0.35)
+	hud.flash_damage(0.8)
+	CombatFx.play(&"player_hurt", player.global_position)
 
 
 func _start_stagger(info: DamageInfo) -> void:
@@ -1834,6 +1852,7 @@ func _respawn() -> void:
 	player.health_component.revive()
 	stamina.refill()
 	body_damage.restore()
+	status.restore()
 	pose.death = 0.0
 	pose.tuck = 0.0
 	hurtbox.set_enabled(true)
@@ -1872,6 +1891,7 @@ func on_restored() -> void:
 		player.health_component.revive()
 	stamina.refill()
 	body_damage.restore()
+	status.restore()
 	hurtbox.set_enabled(true)
 	ragdoll.stop()
 	pose.death = 0.0
@@ -2056,9 +2076,10 @@ func _update_limits(delta: float, input_dir: Vector3) -> void:
 	if moving and not sprinting and not movement.walking and not movement.is_swimming and not cripple.active():
 		stamina.drain(RUN_DRAIN, delta)
 		stamina.hold_regen()
-	movement.sprint_blocked = state != State.IDLE or stamina.exhausted
-	movement.jump_blocked = state != State.IDLE
-	movement.speed_scale = 0.45 if state == State.AIM else 1.0
+	movement.sprint_blocked = state != State.IDLE or stamina.exhausted or status.blocks(&"sprint")
+	movement.jump_blocked = state != State.IDLE or status.blocks(&"jump")
+	movement.speed_scale = (0.45 if state == State.AIM else 1.0) * status.speed_mult()
+	stamina.regen_scale = status.stamina_regen_mult()
 	player.current_animation = Config.ANIMATION.DEATH if state == State.DEAD else player.current_animation
 	# Tambaleo y paso atrás procedurales van sobre la animación de estar quieto: los pasos los
 	# dan las piernas por IK (si debajo corriera, las piernas seguirían corriendo).

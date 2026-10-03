@@ -15,6 +15,9 @@ const SOURCE_DIR := "res://models/player/mixamo/combat/"
 const OUT := "res://models/player/mixamo/combat_anims.tres"
 const TARGET_SCENE := "res://scenes/character/character_model.tscn"
 const FPS := 30.0
+## Suavizado de la cabeza (ver la opción "smooth"): a 30 fps, sigma 2 borra el temblor y deja casi
+## entero el cabeceo de cada paso.
+const SMOOTH_HEAD := {"Head": 2.0}
 
 ## Animación de salida: [archivo, desde (s), hasta (s) o -1 = final, quitar desplazamiento
 ## horizontal de la cadera, en bucle (opcional), opciones (opcional)]. El archivo va respecto a
@@ -23,7 +26,8 @@ const FPS := 30.0
 ## la cadera de pie de otra descarga del mismo personaje (para las que no empiezan de pie);
 ## "offset" desplaza la cadera (m del origen, se escala con ella) para que dos clips que se
 ## mezclan compartan marco; "end_at_origin" la desplaza para que el clip acabe de pie en el origen
-## (lo que recorre lo pone el código moviendo el cuerpo).
+## (lo que recorre lo pone el código moviendo el cuerpo); "smooth" suaviza el giro de esos huesos
+## ({hueso sin mixamorig_: sigma en fotogramas}), para capturas que tiemblan de un fotograma a otro.
 const CLIPS := {
 	"roll": ["Sprinting Forward Roll", 0.0, -1.0, true],
 	# Lo que sigue a 1,5 s es volver andando al sitio.
@@ -49,14 +53,17 @@ const CLIPS := {
 	# ActorCore: paseo relajado (el ciclo; son 3 pasos dobles que cierran el bucle).
 	"walk_relaxed": ["res://models/player/actorcore/walk_relaxed/walk_relaxed_loop", 0.0, -1.0, true, true],
 	# Lisiado (PlayerCombat, canal "cripple"): cojera con la pierna derecha mala y su espejo, y
-	# arrastrarse por el suelo con las piernas muertas.
-	"injured_idle": ["injury/Injured Idle", 0.0, -1.0, true, true],
-	"injured_walk": ["injury/Injured Walk", 0.0, -1.0, true, true],
-	"injured_walk_back": ["injury/Injured Walk Backwards", 0.0, -1.0, true, true],
-	"injured_idle_mirror": ["injury/Injured Idle", 0.0, -1.0, true, true, {"mirror": true}],
-	"injured_walk_mirror": ["injury/Injured Walk", 0.0, -1.0, true, true, {"mirror": true}],
-	"injured_walk_back_mirror": ["injury/Injured Walk Backwards", 0.0, -1.0, true, true, {"mirror": true}],
-	"crawl": ["injury/Zombie Crawl", 0.0, -1.0, true, true, {"height_from": "injury/Injured Idle"}],
+	# arrastrarse por el suelo con las piernas muertas. En las descargas la cabeza tiembla respecto
+	# al cuello (saltos de 3-7° de un fotograma a otro): se suaviza, conservando el cabeceo del paso.
+	"injured_idle": ["injury/Injured Idle", 0.0, -1.0, true, true, {"smooth": SMOOTH_HEAD}],
+	"injured_walk": ["injury/Injured Walk", 0.0, -1.0, true, true, {"smooth": SMOOTH_HEAD}],
+	"injured_walk_back": ["injury/Injured Walk Backwards", 0.0, -1.0, true, true, {"smooth": SMOOTH_HEAD}],
+	"injured_idle_mirror": ["injury/Injured Idle", 0.0, -1.0, true, true, {"mirror": true, "smooth": SMOOTH_HEAD}],
+	"injured_walk_mirror": ["injury/Injured Walk", 0.0, -1.0, true, true, {"mirror": true, "smooth": SMOOTH_HEAD}],
+	"injured_walk_back_mirror": ["injury/Injured Walk Backwards", 0.0, -1.0, true, true,
+		{"mirror": true, "smooth": SMOOTH_HEAD}],
+	"crawl": ["injury/Zombie Crawl", 0.0, -1.0, true, true,
+		{"height_from": "injury/Injured Idle", "smooth": SMOOTH_HEAD}],
 	# Escalada (ClimbController). Subir y bajar son ciclos en el sitio y conservan el vaivén de la
 	# cadera (si no, las manos patinarían por la pared). Bajar viene 1,36 m más alto y 0,10 m más
 	# lejos de la pared que subir: se lleva al marco de subir para mezclarlas sin saltos. Coronar
@@ -290,9 +297,35 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 			key[1] -= shift
 	for key in hips_keys:
 		anim.position_track_insert_key(hips_pos_track, key[0], to_tmodel.affine_inverse() * (key[1] as Vector3))
+	var smooth: Dictionary = opts.get("smooth", {})
+	for bone_name in smooth:
+		var bone := tskel.find_bone("mixamorig_" + bone_name)
+		if tracks.has(bone):
+			_smooth_track(anim, tracks[bone], float(smooth[bone_name]), anim.loop_mode != Animation.LOOP_NONE)
 	source.queue_free()
 	await process_frame
 	return anim
+
+
+## Media gaussiana del giro de una pista de rotación (una clave por fotograma), [sigma] en
+## fotogramas. En bucle los extremos miran al otro lado del ciclo (la última clave repite la
+## primera); si no, se quedan con la clave del borde.
+static func _smooth_track(anim: Animation, track: int, sigma: float, loop: bool) -> void:
+	var count := anim.track_get_key_count(track)
+	var keys: Array[Quaternion] = []
+	for k in count:
+		keys.append(anim.track_get_key_value(track, k))
+	var period := count - 1 if loop else count
+	var radius := ceili(sigma * 3.0)
+	for k in count:
+		var center := keys[k]
+		var sum := Quaternion(0.0, 0.0, 0.0, 0.0)
+		for o in range(-radius, radius + 1):
+			var q := keys[posmod(k + o, period) if loop else clampi(k + o, 0, count - 1)]
+			if q.dot(center) < 0.0:
+				q = -q
+			sum += q * exp(-0.5 * (o / sigma) * (o / sigma))
+		anim.track_set_key_value(track, k, sum.normalized())
 
 
 ## Altura de la cadera (en el marco del modelo de origen) en el primer fotograma de [file].

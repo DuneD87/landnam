@@ -529,6 +529,7 @@ func get_save_data() -> Dictionary:
 		"hotbar_selected": hotbar.selected_index,
 		"character": GameManager.character.to_dict() if GameManager.character else {},
 		"severed": combat.body_damage.save_data() if combat != null and combat.body_damage != null else [],
+		"status": combat.status.save_data() if combat != null and combat.status != null else [],
 	}
 
 	
@@ -589,6 +590,9 @@ func restore_save_data(save: Dictionary) -> void:
 	# Después de on_restored, que deja el cuerpo entero: los miembros perdidos siguen perdidos.
 	if save.has("severed") and combat.body_damage != null:
 		combat.body_damage.load_data(save.severed)
+	# Igual con los estados (pierna rota…): siguen con el tiempo que les quedaba al guardar.
+	if save.has("status") and combat.status != null:
+		combat.status.load_data(save.status)
 	_activate_player()
 
 func place_block_at_player() -> void:
@@ -770,7 +774,8 @@ func _on_cinematic_tween_finished() -> void:
 
 
 func _on_landed(impact_speed: float) -> void:
-	health_component.take_fall_damage(impact_speed)
+	var damage := health_component.take_fall_damage(impact_speed)
+	FallInjury.roll(combat.status, combat.body_damage, impact_speed, damage)
 
 func _on_player_died() -> void:
 	# TODO: pantalla de muerte, respawn, etc.

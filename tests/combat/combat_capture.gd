@@ -14,6 +14,10 @@ extends "res://tests/lighting/lighting_capture.gd"
 ##          esquiva enseguida (la esquiva espera al final del golpe), combo machacando el botón,
 ##          pesado cargado y golpe a la carrera; registra los cambios de estado con su hora
 ##   melee usa --melee-weapon=<arma> (espada por defecto)
+##   crutch pierna rota y la rama de muleta (en la otra mano): anda, se para y anda hacia atrás,
+##          con cada pierna; registra cuánto se desliza la rama por la mano y cómo va la punta.
+##          Va antes al suelo más llano de alrededor (--slope: se queda en la ladera); --topdown
+##          con --showcase mira desde arriba
 
 const ItemConfig = preload("res://scripts/config.gd")
 const OUT := "res://build/combat"
@@ -31,6 +35,12 @@ var _stats := {}
 ## Con --showcase los fotogramas salen de una cámara que sigue al jugador de cerca, de tres
 ## cuartos por delante a su derecha (la del juego sigue mandando en apuntar y moverse).
 var _showcase: Camera3D = null
+## Lado desde el que mira la cámara de --showcase: 1 a la derecha del jugador, -1 a la izquierda.
+var _showcase_side := 1.0
+## Muestras de la muleta mientras se miden (ver _crutch): [hora, punta, puño, en el aire, cuerpo,
+## donde querría ir la mano].
+var _crutch_samples: Array = []
+var _crutch_track := false
 
 
 ## Ventana discreta con --background: sin foco (no roba el teclado) y fuera de la pantalla,
@@ -69,7 +79,7 @@ func _run() -> void:
 	_pc.health_component.invincible = false
 	print("player active=%s pos=%s" % [_pc.input_enabled, _pc.global_position])
 	await _settle(1.0)
-	for run in ["roll", "melee", "atomic", "bow", "throw", "death", "bowstill", "bowterrain"]:
+	for run in ["roll", "melee", "atomic", "bow", "throw", "death", "bowstill", "bowterrain", "crutch"]:
 		if not only.is_empty() and run not in only:
 			continue
 		_run_name = run
@@ -97,6 +107,8 @@ func _run() -> void:
 				await _bow_still()
 			"bowterrain":
 				await _bow_terrain()
+			"crutch":
+				await _crutch()
 		print("RUN %s %s" % [run, _stats])
 	for line in _log:
 		print(line)
@@ -182,7 +194,20 @@ func _tick() -> void:
 		var fwd := body.basis.z.normalized()
 		var right := fwd.cross(up).normalized()
 		var target := body.origin + up * 1.1
-		_showcase.look_at_from_position(target + fwd * 2.2 + right * 2.2 + up * 0.5, target, up)
+		if "--topdown" in OS.get_cmdline_user_args():
+			_showcase.look_at_from_position(body.origin + up * 4.5, body.origin, fwd)
+		else:
+			_showcase.look_at_from_position(target + fwd * 2.2 + right * 2.2 * _showcase_side + up * 0.5, target, up)
+	if _crutch_track:
+		var pose := _pc.combat.pose
+		_crutch_samples.append([_clock, pose.crutch_tip, pose.crutch_grip, _pc.combat.cripple._swing_t >= 0.0,
+			_pc.global_position, pose.crutch_hand])
+		# Cada 0,2 s, punta y puño en el marco del cuerpo: hacia su izquierda, arriba, adelante (m).
+		if _crutch_samples.size() % 12 == 1:
+			var b := _pc.global_basis.orthonormalized()
+			var o := _pc.player_model.global_position
+			_note("  punta %s  puño %s  en el aire %s" % [_fmt(b.inverse() * (pose.crutch_tip - o)),
+				_fmt(b.inverse() * (pose.crutch_grip - o)), _pc.combat.cripple._swing_t >= 0.0])
 	if _clock >= _next_frame:
 		_next_frame = _clock + (FRAME_EVERY_OVERRIDE if FRAME_EVERY_OVERRIDE > 0.0 else FRAME_EVERY)
 		await RenderingServer.frame_post_draw
@@ -587,6 +612,130 @@ func _bow_terrain() -> void:
 	combat.pose.after_pose = original
 	_note("arco en terreno: %d disparos (%d flechas quedan), %d de %d fotogramas con el brazo dentro del tronco, %d tirones; peor %.2f m: %s" % [
 		shot, combat.ammo_count(), worst.bad, worst.total, worst.jumps, worst.d, worst.get("info", "")])
+
+
+## Pierna rota y la rama de muleta, con cada pierna: anda 4 s, se para, anda hacia atrás 2 s.
+func _crutch() -> void:
+	var combat := _pc.combat
+	if not "--slope" in OS.get_cmdline_user_args():
+		await _go_flat()
+	for leg in [&"left_leg", &"right_leg"]:
+		combat.status.restore()
+		combat.status.apply(&"broken_leg", leg, 0.5, 600.0)
+		await _equip(&"branch_01")
+		await _run_for(1.5, Callable())
+		_showcase_side = 1.0 if combat.cripple.crutch_side == "Right" else -1.0
+		_note("%s rota: modo %s, muleta en la mano %s" % [leg, Cripple.Mode.keys()[combat.cripple.mode],
+			combat.cripple.crutch_side])
+		FRAME_EVERY_OVERRIDE = 0.1
+		for leg_run in [[&"move_forward", 4.0, "adelante"], [&"", 1.2, "parado"], [&"move_back", 2.0, "atrás"]]:
+			_crutch_samples = []
+			_crutch_track = true
+			if leg_run[0] != &"":
+				_press(leg_run[0], true)
+			await _run_for(leg_run[1], Callable())
+			if leg_run[0] != &"":
+				_press(leg_run[0], false)
+			_crutch_track = false
+			_crutch_report("%s %s" % [leg, leg_run[2]])
+		FRAME_EVERY_OVERRIDE = -1.0
+		await _run_for(0.5, Callable())
+	combat.status.restore()
+
+
+## Lleva al jugador al trozo de suelo más llano de alrededor (40 m): el que menos se aparta de su
+## centro en un radio de 3 m, mirando por rayos.
+func _go_flat() -> void:
+	var up := -_pc.gravity_direction.normalized()
+	var x := up.cross(Vector3.FORWARD if absf(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT).normalized()
+	var z := x.cross(up)
+	var origin := _pc.global_position
+	var best := origin
+	var best_score := INF
+	for ix in range(-8, 9):
+		for iz in range(-8, 9):
+			var c := origin + (x * ix + z * iz) * 5.0
+			var hc: Variant = _ground_at(c, up)
+			if hc == null:
+				continue
+			var worst := 0.0
+			for k in 8:
+				var a := TAU * k / 8.0
+				var h: Variant = _ground_at(c + (x * cos(a) + z * sin(a)) * 3.0, up)
+				worst = maxf(worst, 9.0 if h == null else absf((h as Vector3 - hc as Vector3).dot(up)))
+			if worst < best_score:
+				best_score = worst
+				best = hc
+	_note("suelo llano a %.1f m: desnivel %.2f m en 3 m" % [best.distance_to(origin), best_score])
+	_pc.global_position = best + up * 0.3
+	_pc.velocity = Vector3.ZERO
+	_pc.reset_physics_interpolation()
+	await _run_for(1.5, Callable())
+
+
+func _ground_at(p: Vector3, up: Vector3) -> Variant:
+	var query := PhysicsRayQueryParameters3D.create(p + up * 30.0, p - up * 30.0, _pc.collision_mask)
+	query.exclude = [_pc.get_rid()]
+	var hit := _pc.get_world_3d().direct_space_state.intersect_ray(query)
+	return hit.position if not hit.is_empty() else null
+
+
+## Resumen de _crutch_samples: cuánto se desliza la rama por la mano (la distancia de la punta al
+## puño cambia), lo rápido que va el puño, y la punta clavada y en el aire.
+func _crutch_report(label: String) -> void:
+	var n := _crutch_samples.size()
+	if n < 2:
+		return
+	var grip_min := INF
+	var grip_max := -INF
+	var slide := 0.0
+	var slide_peak := 0.0
+	var hand_speed := 0.0
+	var steps := 0
+	var air := 0
+	var planted_drift := 0.0
+	var want_min := INF
+	var want_max := -INF
+	var tip_speed := 0.0
+	for i in range(1, n):
+		var a: Array = _crutch_samples[i - 1]
+		var b: Array = _crutch_samples[i]
+		var dt: float = b[0] - a[0]
+		if dt <= 0.0:
+			continue
+		var la: float = (a[2] - a[1]).length()
+		var lb: float = (b[2] - b[1]).length()
+		grip_min = minf(grip_min, lb)
+		grip_max = maxf(grip_max, lb)
+		slide += absf(lb - la)
+		# Picos en ventanas de 0,1 s (la pose va a ritmo de render y las muestras a ritmo de física).
+		if i >= 6:
+			var w: Array = _crutch_samples[i - 6]
+			var wdt: float = b[0] - w[0]
+			slide_peak = maxf(slide_peak, absf(lb - (w[2] - w[1]).length()) / wdt)
+			# El puño respecto al cuerpo (lo que se ve moverse la mano).
+			hand_speed = maxf(hand_speed, ((b[2] - b[4]) - (w[2] - w[4])).length() / wdt)
+		var want: float = (b[5] - b[1]).length()
+		want_min = minf(want_min, want)
+		want_max = maxf(want_max, want)
+		if i >= 6:
+			var w: Array = _crutch_samples[i - 6]
+			tip_speed = maxf(tip_speed, ((b[1] - b[4]) - (w[1] - w[4])).length() / (b[0] - w[0]))
+		if b[3] and not a[3]:
+			steps += 1
+		if b[3]:
+			air += 1
+		elif not a[3]:
+			planted_drift = maxf(planted_drift, (b[1] - a[1]).length())
+	var seconds: float = _crutch_samples[n - 1][0] - _crutch_samples[0][0]
+	_note("muleta %s: la mano querría ir a %.2f..%.2f m de la punta, punta respecto al cuerpo hasta %.2f m/s" % [label, want_min, want_max, tip_speed])
+	_note("muleta %s: puño a %.2f..%.2f m de la punta, la rama se desliza %.2f m/s de media (pico %.2f), puño respecto al cuerpo hasta %.2f m/s, %d pasos (%.1f/s), en el aire %d%%, punta clavada se mueve %.3f m" % [
+		label, grip_min, grip_max, slide / maxf(seconds, 0.01), slide_peak, hand_speed, steps,
+		steps / maxf(seconds, 0.01), roundi(100.0 * air / n), planted_drift])
+
+
+func _fmt(v: Vector3) -> String:
+	return "(%+.2f %+.2f %+.2f)" % [v.x, v.y, v.z]
 
 
 func _run_for(seconds: float, _each: Callable) -> void:

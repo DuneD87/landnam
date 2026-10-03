@@ -86,15 +86,17 @@ var right_grip_xform: Transform3D
 var carry: float = 0.0
 var carry_perpendicular: bool = true
 
-## Muleta (Cripple): 0..1 cuánto manda, de qué lado va ("Left"/"Right", el de la pierna que
-## falta), dónde se clava la punta y dónde debería quedar el puño (mundo; los pone Cripple). Tras
-## posar, crutch_xform (mundo) es dónde va la rama: su +Y de la punta al puño, que pasa por el
-## puño ya resuelto.
+## Muleta (Cripple): 0..1 cuánto manda, en qué mano va ("Left"/"Right": la del lado de la
+## pierna que falta, o la contraria a la pierna rota) y dónde se clava la punta (mundo; los pone
+## Cripple). El puño lo pone _apply_crutch respecto al hombro. Tras posar, crutch_hand (mundo) es
+## dónde querría ir la mano (Cripple clava la punta debajo), crutch_xform dónde va la rama (su +Y
+## de la punta al puño) y crutch_grip dónde ha quedado el puño.
 var crutch: float = 0.0
 var crutch_side: String = "Left"
 var crutch_tip: Vector3
-var crutch_fist: Vector3
+var crutch_hand: Vector3
 var crutch_xform: Transform3D
+var crutch_grip: Vector3
 
 ## Llamado tras posar, con este modificador (para colocar visuales sobre las manos).
 var after_pose: Callable
@@ -648,6 +650,9 @@ func _apply_grip() -> void:
 	var w := 1.0
 	if aim_style == &"throw":
 		w = 1.0 - clampf(aim_weight, 0.0, 1.0)
+	# Con la muleta en la izquierda, la derecha se queda sin nada que agarrar.
+	if crutch_side == "Left":
+		w *= 1.0 - clampf(crutch, 0.0, 1.0)
 	pose_fingers("Right", FIST, w)
 	var hand := hand_frame("Right")
 	var m := unit()
@@ -665,30 +670,77 @@ func _apply_grip() -> void:
 
 ## Hasta dónde baja la rama por debajo de su agarre (la malla empieza 0,18 m por detrás de él).
 const CRUTCH_BUTT := 0.18
+## Puño de la muleta respecto al hombro (m, marco del modelo): hacia fuera, abajo y adelante. Como
+## quien lleva un bastón: el codo doblado a medias y el antebrazo hacia delante, que así la muñeca
+## va casi recta (con el brazo colgando habría que doblarla 90° para rodear la rama). Va con el
+## hombro, así que acompaña al cuerpo cuando la cojera lo balancea.
+const CRUTCH_FIST := Vector3(0.16, 0.36, 0.28)
+## Hacia dónde sale el codo de la muleta (marco del modelo: fuera, arriba, adelante): atrás y abajo,
+## apenas hacia fuera. Cuanto más hacia fuera, más tiene que girar el antebrazo para que la palma
+## mire a la rama con el pulgar arriba (y se ve retorcido).
+const CRUTCH_ELBOW := Vector3(0.2, -1.0, -0.6)
+## La mano agarra la rama a esta distancia de la punta (m; quedan 33 cm por encima) y no resbala
+## por el puño: lo que la cojera sube y baja el hombro lo absorbe el codo. En cuesta (el suelo bajo
+## la mano más alto o más bajo que los pies) se recoloca despacio, a CRUTCH_REGRIP m/s, dentro de
+## CRUTCH_GRIP_RANGE.
+const CRUTCH_GRIP := 0.95
+const CRUTCH_GRIP_RANGE := Vector2(0.75, 1.15)
+const CRUTCH_REGRIP := 0.1
+var _crutch_grip_len := CRUTCH_GRIP
 
 
-## Muleta: el brazo de su lado lleva el puño a crutch_fist (el codo atrás y hacia fuera), la mano
-## la agarra con los nudillos adelante y la palma hacia el cuerpo, y la rama va de la punta al
-## puño que ha quedado.
+## Muleta: la punta está clavada (crutch_tip, bajo donde va la mano) y la rama pivota en ella hasta
+## la mano, que la agarra a CRUTCH_GRIP de la punta, hacia donde querría estar: bajo el hombro y por
+## delante (CRUTCH_FIST). El codo va atrás y abajo, y la mano rodea la rama con el pulgar arriba (el
+## meñique hacia la punta) y los nudillos siguiendo al antebrazo, así que la muñeca casi no se
+## dobla ni se tuerce.
 func _apply_crutch(w: float) -> void:
 	var m := unit()
 	var side := crutch_side
+	var chain: Array = L_ARM if side == "Left" else R_ARM
 	var fwd := model_dir(Vector3.BACK)
+	var up := model_dir(Vector3.UP)
 	var out := model_dir(Vector3.RIGHT) * (1.0 if side == "Left" else -1.0)
-	var fist := to_skel_point(crutch_fist)
-	var wrist := fist - (fwd * FIST_HANDLE.x - out * FIST_HANDLE.y) * m
-	arm_ik(side, wrist, -fwd + out * 0.6, w)
-	orient_hand(side, fwd, -out, w, 0.7, 70.0)
+	var tip := to_skel_point(crutch_tip)
+	var shoulder := bone_pos(chain[0])
+	var wanted := shoulder + (out * CRUTCH_FIST.x - up * CRUTCH_FIST.y + fwd * CRUTCH_FIST.z) * m
+	crutch_hand = to_world_point(wanted)
+	var stick := (wanted - tip).normalized()
+	var need := clampf(wanted.distance_to(tip) / m, CRUTCH_GRIP_RANGE.x, CRUTCH_GRIP_RANGE.y)
+	_crutch_grip_len = move_toward(_crutch_grip_len, need, CRUTCH_REGRIP * _delta)
+	var fist := tip + stick * _crutch_grip_len * m
+	# Primero los nudillos van hacia donde está el puño; con el brazo ya puesto, siguen al antebrazo.
+	var knuckles := _around_stick(fist - shoulder, stick, fwd)
+	var palm := _crutch_palm(side, knuckles, stick)
+	var elbow := out * CRUTCH_ELBOW.x + up * CRUTCH_ELBOW.y + fwd * CRUTCH_ELBOW.z
+	arm_ik(side, fist - (knuckles * FIST_HANDLE.x + palm * FIST_HANDLE.y) * m, elbow, w)
+	knuckles = _around_stick(bone_pos(chain[2]) - bone_pos(chain[1]), stick, knuckles)
+	orient_hand(side, knuckles, _crutch_palm(side, knuckles, stick), w, 0.7, 70.0)
 	pose_fingers(side, FIST, w)
 	var hand := hand_frame(side)
 	var grip := bone_pos("mixamorig_%sHand" % side) + (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * m
 	var top := to_world_point(grip)
+	crutch_grip = top
 	var axis := (top - crutch_tip).normalized()
 	var forward := frame_node.global_basis.z
 	var x := axis.cross(forward).normalized()
 	if x.length_squared() < 1e-6:
 		x = frame_node.global_basis.x
 	crutch_xform = Transform3D(Basis(x, axis, x.cross(axis)), crutch_tip + axis * CRUTCH_BUTT)
+
+
+## [v] sin su parte a lo largo de la rama: hacia dónde apuntan los nudillos que la rodean. Si [v] va
+## casi a lo largo de ella, manda [fallback].
+static func _around_stick(v: Vector3, stick: Vector3, fallback: Vector3) -> Vector3:
+	var a := v.normalized() + fallback.normalized() * 0.2
+	a -= stick * a.dot(stick)
+	return a.normalized() if a.length_squared() > 1e-6 else fallback
+
+
+## Palma de la mano que rodea la rama con el pulgar arriba, en el marco de hand_frame: sale de los
+## nudillos y del meñique, que mira a la punta.
+static func _crutch_palm(side: String, knuckles: Vector3, stick: Vector3) -> Vector3:
+	return knuckles.cross(-stick) if side == "Right" else (-stick).cross(knuckles)
 
 
 ## Tambaleo o paso atrás (BodyMotion): cadera, tronco, cabeza y brazos por claves, y las

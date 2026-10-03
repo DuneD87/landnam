@@ -172,7 +172,7 @@ func _try_start(delta: float) -> bool:
 	var movement := player.movement
 	var combat := player.combat
 	if _cooldown > 0.0 or combat.is_busy() or combat.cripple.active() or movement.is_swimming \
-			or combat.stamina.exhausted or combat.stamina.stamina <= 0.0:
+			or combat.stamina.exhausted or combat.stamina.stamina <= 0.0 or combat.status.blocks(&"climb"):
 		_push_time = 0.0
 		return false
 	var up := _up()

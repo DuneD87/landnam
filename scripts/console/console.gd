@@ -256,7 +256,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>",
 		"Teletransporta al jugador a una posición global.", _cmd_tp, 3))
 	_add(ConsoleCommand.new("heal", "heal [cantidad]",
-		"Cura al jugador (sin argumento, cura al máximo, cierra las heridas y le devuelve los miembros).", _cmd_heal))
+		"Cura al jugador (sin argumento, cura al máximo, cierra las heridas, le devuelve los miembros y le quita los estados).", _cmd_heal))
 	_add(ConsoleCommand.new("suelo", "suelo",
 		"Ramas y piedras que se pueden recoger alrededor.", _cmd_litter))
 	_add(ConsoleCommand.new("god", "god [on|off]",
@@ -300,6 +300,9 @@ func _register_commands() -> void:
 		"Cuántos charcos y salpicaduras de sangre hay y a qué distancia está el más cercano.", _cmd_blood))
 	_add(ConsoleCommand.new("cortar", "cortar [brazo|antebrazo|muslo|pierna] [izq|der]",
 		"Cercena un miembro del jugador al momento (sin argumentos, uno al azar).", _cmd_cut, 0, _complete_cuts))
+	_add(ConsoleCommand.new("estado", "estado [<id> [izq|der|zona] [segundos] | quitar [id]]",
+		"Estados duraderos del jugador (pierna rota…): sin argumento, los lista con lo que les queda; con un id, se lo pone (izq/der: pierna; sin zona, al azar); quitar los cura.",
+		_cmd_status, 0, _complete_status))
 	_add(ConsoleCommand.new("fps", "fps [n]",
 		"Techo de FPS (0 = sin techo), para fijar el ritmo mientras se mide.", _cmd_fps))
 
@@ -446,6 +449,7 @@ func _cmd_heal(args: PackedStringArray) -> String:
 	var combat := _get_combat()
 	if args.is_empty() and combat != null and combat.body_damage != null:
 		combat.body_damage.restore()
+		combat.status.restore()
 	return "[color=%s]Curado +%s (salud: %s/%s).[/color]" % [COLOR_OK, str(amount), str(hc.health), str(hc.max_health)]
 
 
@@ -786,6 +790,56 @@ func _cmd_cut(args: PackedStringArray) -> String:
 	if not combat.body_damage.sever_zone(zone, CUT_PARTS[part][1]):
 		return "[color=%s]Ese miembro ya está cortado (heal lo devuelve).[/color]" % COLOR_ERR
 	return "[color=%s]Cercenado: %s %s.[/color]" % [COLOR_OK, part, "izquierdo" if side.begins_with("i") else "derecho"]
+
+
+func _complete_status() -> PackedStringArray:
+	var out := StatusEffectData.ids()
+	out.append("quitar")
+	return out
+
+
+func _cmd_status(args: PackedStringArray) -> String:
+	var combat := _get_combat()
+	if combat == null or combat.status == null:
+		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+	var status := combat.status
+	var known := ", ".join(StatusEffectData.ids())
+	if args.is_empty():
+		if status.effects().is_empty():
+			return "[color=%s]Sin estados. Disponibles: %s.[/color]" % [COLOR_OK, known]
+		var lines := PackedStringArray()
+		for effect in status.effects():
+			lines.append("%s: %d s (gravedad %.2f)" % [effect.label(), ceili(effect.remaining), effect.severity])
+		return "[color=%s]%s[/color]" % [COLOR_OK, "\n".join(lines)]
+	if args[0].to_lower() == "quitar":
+		if args.size() < 2:
+			status.restore()
+			return "[color=%s]Sin estados.[/color]" % COLOR_OK
+		if not status.remove(StringName(args[1])):
+			return "[color=%s]No tiene '%s'.[/color]" % [COLOR_ERR, args[1]]
+		return "[color=%s]Curado: %s.[/color]" % [COLOR_OK, args[1]]
+	var data := StatusEffectData.find(StringName(args[0]))
+	if data == null:
+		return "[color=%s]Estado desconocido. Disponibles: %s.[/color]" % [COLOR_ERR, known]
+	var zone := &""
+	var seconds := -1.0
+	for arg in args.slice(1):
+		if arg.is_valid_float():
+			seconds = arg.to_float()
+		elif arg.to_lower().begins_with("izq"):
+			zone = &"left_leg"
+		elif arg.to_lower().begins_with("der"):
+			zone = &"right_leg"
+		elif BodyDamage.ZONES.has(StringName(arg)):
+			zone = StringName(arg)
+		else:
+			return "[color=%s]Zona desconocida: %s (izq, der o %s).[/color]" % [COLOR_ERR, arg, ", ".join(PackedStringArray(BodyDamage.ZONES))]
+	if data.per_zone and zone == &"":
+		zone = [&"left_leg", &"right_leg"].pick_random()
+	var effect := status.apply(data.id, zone, 0.5, seconds)
+	if effect == null:
+		return "[color=%s]No se ha podido (¿está muerto?).[/color]" % COLOR_ERR
+	return "[color=%s]%s: %d s.[/color]" % [COLOR_OK, effect.label(), ceili(effect.remaining)]
 
 
 func _complete_item_ids() -> PackedStringArray:

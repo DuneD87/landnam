@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatusEffectData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/status/status_effect_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"broken_leg"
+display_name = "Pierna rota"
+per_zone = true
+duration = Vector2(360, 600)
+stacking = 0
+cure_tags = Array[StringName]([&"fracture"])
+impairs_zone = true

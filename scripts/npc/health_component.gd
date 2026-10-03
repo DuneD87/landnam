@@ -79,15 +79,16 @@ func heal(amount: float) -> void:
 	healed.emit(amount)
 
 
-## Aplica daño por caída según la velocidad de impacto (m/s).
-func take_fall_damage(impact_speed: float) -> void:
-	if not fall_damage_enabled:
-		return
+## Aplica daño por caída según la velocidad de impacto (m/s). Devuelve el daño (0 si no hubo).
+func take_fall_damage(impact_speed: float) -> float:
+	if not fall_damage_enabled or is_dead or invincible:
+		return 0.0
 	if impact_speed <= fall_damage_min_speed:
-		return
+		return 0.0
 	var excess := impact_speed - fall_damage_min_speed
 	var damage := excess * fall_damage_multiplier
 	take_damage(damage)
+	return damage
 
 
 func get_health_ratio() -> float:
