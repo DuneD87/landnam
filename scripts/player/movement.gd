@@ -16,7 +16,7 @@ const SWIM_TRANSITION_DELAY = 0.3
 @export var swim_speed: float = 2.5
 @export var acceleration: float = 10.0
 @export var fall_speed_threshold: float = 5.0
-@export var jump_height: float = 3.0
+@export var jump_height: float = 1.0
 @export var mass: float = 70.0
 
 var current_animation = Config.ANIMATION.IDLE
