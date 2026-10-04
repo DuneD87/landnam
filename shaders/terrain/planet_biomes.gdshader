@@ -50,6 +50,12 @@ uniform sampler2D normal_textures[MAX_TEXTURES];
 uniform sampler2D roughness_textures[MAX_TEXTURES];
 uniform sampler2D ao_textures[MAX_TEXTURES];
 uniform sampler2D height_textures[MAX_TEXTURES];
+// Con packed_materials, height_textures y slope_height_texture contienen R=roughness,
+// G=AO, B=height. Se reutilizan los samplers para no añadir ocho más al material.
+uniform bool packed_materials = false;
+uniform bool albedo_means_ready = false;
+uniform float texture_mean_luma[MAX_TEXTURES];
+uniform float slope_mean_luma = 0.5;
 
 // Calibración del albedo por textura (planet.gd lo rellena siempre, desde "texture_albedo" del
 // JSON): xyz = multiplicador lineal, w = saturación. Las texturas vienen de fuentes distintas y su
@@ -89,6 +95,8 @@ uniform sampler2D reef_texture;
 uniform sampler2D reef_normal_texture;
 uniform sampler2D reef_roughness_texture;
 uniform sampler2D reef_ao_texture;
+// El mapa empaquetado del arrecife se enlaza a reef_roughness_texture (R/G).
+uniform bool reef_packed_material = false;
 uniform int reef_enabled = 0;
 // Alturas sobre el nivel del mar entre las que la roca de arrecife manda. El ancho del contacto NO
 // es un valor propio: son transition_smoothness y el ruido de transition_height, los mismos que
@@ -298,19 +306,38 @@ vec3 adjust_albedo(vec3 c, vec4 adjust) {
 
 // Albedo de un material: muestra de-tilada, detalle de cerca, capa lejana y calibración.
 // detail_factor devuelve el factor del detalle solo (lo reutilizan los escollos y el debug).
-vec3 material_albedo(sampler2D tex, vec4 adjust, TriplanarUVs uvs, vec3 axis, NotileFrame nt,
+vec3 material_albedo(sampler2D tex, float mean_luma, vec4 adjust, TriplanarUVs uvs, vec3 axis, NotileFrame nt,
         TriplanarUVs detail_uvs, float detail_w, TriplanarUVs far_uvs, float far_w,
         out float detail_factor) {
     vec3 c = triplanar_sample_nt(tex, uvs, axis, nt);
+    // Compatibilidad con ShaderMaterials creados fuera de Planet.setup_shader_parameters.
+    if (!albedo_means_ready) {
+        mean_luma = dot(textureLod(tex, vec2(0.5), 20.0).rgb, vec3(0.2126, 0.7152, 0.0722));
+    }
     detail_factor = 1.0;
     if (detail_w > 0.001) {
-        detail_factor = layer_blend_factor(tex, triplanar_sample_nt(tex, detail_uvs, axis, nt), detail_w);
+        detail_factor = layer_blend_factor(mean_luma, triplanar_sample_nt(tex, detail_uvs, axis, nt), detail_w);
     }
     float far_factor = 1.0;
     if (far_w > 0.001) {
-        far_factor = layer_blend_factor(tex, triplanar_sample_plain(tex, far_uvs, axis), far_w);
+        far_factor = layer_blend_factor(mean_luma, triplanar_sample_plain(tex, far_uvs, axis), far_w);
     }
     return adjust_albedo(c, adjust) * (detail_factor * far_factor);
+}
+
+// Tres lecturas triplanares recuperan todos los mapas escalares. Los JSON antiguos
+// conservan sus mapas independientes y la misma proyección y derivadas.
+vec3 material_maps(sampler2D height_tex, sampler2D rough_tex, sampler2D ao_tex,
+        TriplanarUVs uvs, vec3 axis, bool need_height) {
+    if (packed_materials) {
+        return triplanar_sample_plain(height_tex, uvs, axis);
+    }
+    float h = 0.0;
+    if (need_height) {
+        h = triplanar_scalar_sample_uvs(height_tex, uvs, axis);
+    }
+    return vec3(triplanar_scalar_sample_uvs(rough_tex, uvs, axis),
+        triplanar_scalar_sample_uvs(ao_tex, uvs, axis), h);
 }
 
 void vertex() {
@@ -549,15 +576,19 @@ void fragment() {
         TriplanarUVs uvs = base_uvs;
         if (use_parallax) {
             uvs = compute_parallax_uvs_limited(
-                height_textures[tex_index], planet_pos, normal_world, view_world,
+                height_textures[tex_index], packed_materials ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0),
+                planet_pos, normal_world, view_world,
                 texture_scale, effective_height,
                 parallax_height_center, parallax_height_contrast, parallax_min_view_dot
             );
         }
 
         float height_factor = texture_height_factors[tex_index];
-        if ((height_blend_strength > 0.0001 || slope_height_blend_strength > 0.0001) && height_factor > 0.0) {
-            float material_height = triplanar_scalar_sample_uvs(height_textures[tex_index], uvs, planet_up);
+        bool need_height = (height_blend_strength > 0.0001 || slope_height_blend_strength > 0.0001) && height_factor > 0.0;
+        vec3 maps = material_maps(height_textures[tex_index], roughness_textures[tex_index],
+            ao_textures[tex_index], uvs, planet_up, need_height);
+        if (need_height) {
+            float material_height = maps.b;
             if (height_blend_strength > 0.0001) {
                 float height_bias = mix(0.35, 1.35, pow(clamp(material_height, 0.0, 1.0), height_blend_contrast));
                 float biased_factor = height_factor * mix(1.0, height_bias, height_blend_strength);
@@ -569,21 +600,18 @@ void fragment() {
 
         // planet_up como eje de mezcla triplanar: invariante al LOD y a la normal del mesh.
         float c_detail_factor;
-        vec3 c = material_albedo(textures[tex_index], texture_albedo_adjust[tex_index], uvs,
+        vec3 c = material_albedo(textures[tex_index], texture_mean_luma[tex_index], texture_albedo_adjust[tex_index], uvs,
             planet_up, nt, detail_uvs, detail_w, far_uvs, far_w, c_detail_factor);
         if (meadow_season && texture_meadow[tex_index] > 0.0) {
             c = mix(c, season_meadow_color(c, meadow_state), texture_meadow[tex_index]);
         }
         vec4 n_v = triplanar_normal_sample_nt_v(normal_textures[tex_index], uvs, normal_world, nt);
 
-        float r = triplanar_scalar_sample_uvs(roughness_textures[tex_index], uvs, planet_up);
-        float ao = triplanar_scalar_sample_uvs(ao_textures[tex_index], uvs, planet_up);
-
         final_color     += c * base_factor;
         final_normal    += n_v.xyz * base_factor;
         final_tightness += n_v.w   * base_factor;
-        final_roughness += r * base_factor;
-        final_ao        += ao * base_factor;
+        final_roughness += maps.r * base_factor;
+        final_ao        += maps.g * base_factor;
         total_factor    += base_factor;
         final_detail_factor += c_detail_factor * base_factor;
     }
@@ -597,13 +625,21 @@ void fragment() {
     TriplanarUVs slope_uvs = base_uvs;
     if (use_parallax && (slope_factor > 0.0 || slope_height_active)) {
         slope_uvs = compute_parallax_uvs_limited(
-            slope_height_texture, planet_pos, normal_world, view_world,
+            slope_height_texture, packed_materials ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0),
+            planet_pos, normal_world, view_world,
             texture_scale, effective_height,
             parallax_height_center, parallax_height_contrast, parallax_min_view_dot
         );
     }
+    vec3 slope_maps = vec3(0.0);
+    if (packed_materials && (slope_height_active || slope_factor > 0.0)) {
+        slope_maps = triplanar_sample_plain(slope_height_texture, slope_uvs, geometry_normal_world);
+    }
     if (slope_height_active) {
-        float slope_height = triplanar_scalar_sample_uvs(slope_height_texture, slope_uvs, geometry_normal_world);
+        float slope_height = slope_maps.b;
+        if (!packed_materials) {
+            slope_height = triplanar_scalar_sample_uvs(slope_height_texture, slope_uvs, geometry_normal_world);
+        }
         float biome_height = (total_factor > 0.0001) ? (final_material_height / total_factor) : 0.5;
         float d  = max(slope_height_blend_sharpness, 0.0001);
         float ha = slope_height + slope_factor;
@@ -623,16 +659,18 @@ void fragment() {
     // hace sobre slope_mix, después del blend, para conservar esos contactos.
     if (slope_mix > 0.0) {
         float slope_detail_factor;
-        vec3 slope_color = material_albedo(slope_texture, slope_albedo_adjust, slope_uvs,
+        vec3 slope_color = material_albedo(slope_texture, slope_mean_luma, slope_albedo_adjust, slope_uvs,
             geometry_normal_world, nt, detail_uvs, detail_w, far_uvs, far_w, slope_detail_factor);
         vec4 slope_n_v = triplanar_normal_sample_nt_v(slope_normal_texture, slope_uvs, normal_world, nt);
-        float slope_rough = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, geometry_normal_world);
-        float slope_ao_v = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, geometry_normal_world);
+        if (!packed_materials) {
+            slope_maps.r = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, geometry_normal_world);
+            slope_maps.g = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, geometry_normal_world);
+        }
         final_color     += slope_color  * slope_mix;
         final_normal    += slope_n_v.xyz * slope_mix;
         final_tightness += slope_n_v.w   * slope_mix;
-        final_roughness += slope_rough  * slope_mix;
-        final_ao        += slope_ao_v   * slope_mix;
+        final_roughness += slope_maps.r * slope_mix;
+        final_ao        += slope_maps.g * slope_mix;
         total_factor    += slope_mix;
         final_detail_factor += slope_detail_factor * slope_mix;
     }
@@ -675,8 +713,13 @@ void fragment() {
             TriplanarUVs reef_uvs = base_uvs;
             vec3 reef_color = triplanar_sample_nt(reef_texture, reef_uvs, geometry_normal_world, nt);
             vec4 reef_n_v = triplanar_normal_sample_nt_v(reef_normal_texture, reef_uvs, normal_world, nt);
-            float reef_rough = triplanar_scalar_sample_uvs(reef_roughness_texture, reef_uvs, geometry_normal_world);
-            float reef_ao_s = triplanar_scalar_sample_uvs(reef_ao_texture, reef_uvs, geometry_normal_world);
+            vec2 reef_maps;
+            if (reef_packed_material) {
+                reef_maps = triplanar_sample_plain(reef_roughness_texture, reef_uvs, geometry_normal_world).rg;
+            } else {
+                reef_maps = vec2(triplanar_scalar_sample_uvs(reef_roughness_texture, reef_uvs, geometry_normal_world),
+                    triplanar_scalar_sample_uvs(reef_ao_texture, reef_uvs, geometry_normal_world));
+            }
             vec3 reef_normal = apply_normal_strength(normal_world,
                 safe_normalize(reef_n_v.xyz, normal_world), normal_strength);
 
@@ -686,8 +729,8 @@ void fragment() {
             // slope_height_blend_sharpness y devuelve la linea marcada.
             final_color     = mix(final_color, reef_color * final_detail_factor, reef_w);
             final_normal    = safe_normalize(mix(final_normal, reef_normal, reef_w), normal_world);
-            final_roughness = mix(final_roughness, reef_rough, reef_w);
-            final_ao        = mix(final_ao, reef_ao_s, reef_w);
+            final_roughness = mix(final_roughness, reef_maps.r, reef_w);
+            final_ao        = mix(final_ao, reef_maps.g, reef_w);
         }
     }
 
@@ -759,7 +802,9 @@ void fragment() {
 		}
 		if (debug_snow_view == 0 && (snow > 0.002 || ice > 0.002)) {
 			TriplanarUVs snow_uvs = base_uvs;
-			float snow_h = triplanar_scalar_sample_uvs(height_textures[snow_texture_index], snow_uvs, planet_up);
+            vec3 snow_maps = material_maps(height_textures[snow_texture_index], roughness_textures[snow_texture_index],
+                ao_textures[snow_texture_index], snow_uvs, planet_up, true);
+            float snow_h = snow_maps.b;
 			if (snow_height_blend > 0.0001 && snow < 0.999) {
 				// Height-lerp: la nieve (altura + cobertura) contra el suelo (altura + resto).
 				float ground_h = (total_factor > 0.0001) ? final_material_height / total_factor : 0.5;
@@ -777,8 +822,6 @@ void fragment() {
 			float snow_detail = dot(snow_tex, vec3(0.2126, 0.7152, 0.0722)) / max(snow_texture_mean_luma, 0.01);
 			vec3 snow_c = snow_tint * mix(1.0, snow_detail, snow_detail_strength);
 			vec4 snow_n = triplanar_normal_sample_nt_v(normal_textures[snow_texture_index], snow_uvs, normal_world, nt);
-			float snow_r = triplanar_scalar_sample_uvs(roughness_textures[snow_texture_index], snow_uvs, planet_up);
-			float snow_ao = triplanar_scalar_sample_uvs(ao_textures[snow_texture_index], snow_uvs, planet_up);
 			vec3 snow_normal = apply_normal_strength(normal_world, safe_normalize(snow_n.xyz, normal_world), normal_strength);
 			if (ice > 0.002) {
 				TriplanarUVs ice_uvs = compute_triplanar_uvs(planet_pos, texture_scale * 0.6);
@@ -786,7 +829,12 @@ void fragment() {
 					triplanar_sample_uvs(textures[glacier_texture_index], ice_uvs, geometry_normal_world),
 					texture_albedo_adjust[glacier_texture_index]);
 				vec4 ice_n = triplanar_normal_sample_uvs_v(normal_textures[glacier_texture_index], ice_uvs, normal_world);
-				float ice_r = triplanar_scalar_sample_uvs(roughness_textures[glacier_texture_index], ice_uvs, geometry_normal_world);
+                float ice_r;
+                if (packed_materials) {
+                    ice_r = triplanar_scalar_sample_uvs(height_textures[glacier_texture_index], ice_uvs, geometry_normal_world);
+                } else {
+                    ice_r = triplanar_scalar_sample_uvs(roughness_textures[glacier_texture_index], ice_uvs, geometry_normal_world);
+                }
 				vec3 ice_normal = apply_normal_strength(normal_world, safe_normalize(ice_n.xyz, normal_world), normal_strength);
 				final_color = mix(final_color, ice_c, ice);
 				final_normal = safe_normalize(mix(final_normal, ice_normal, ice), normal_world);
@@ -794,8 +842,8 @@ void fragment() {
 			}
 			final_color = mix(final_color, snow_c, snow);
 			final_normal = safe_normalize(mix(final_normal, snow_normal, snow), normal_world);
-			final_roughness = mix(final_roughness, snow_r, snow);
-			final_ao = mix(final_ao, mix(1.0, snow_ao, 0.5), snow);
+            final_roughness = mix(final_roughness, snow_maps.r, snow);
+            final_ao = mix(final_ao, mix(1.0, snow_maps.g, 0.5), snow);
 
 			// Destellos: algunas celdas de ~15 cm son un cristal con su propia faceta, que brilla
 			// cuando refleja el sol hacia la cámara. Al moverse la vista se encienden y apagan

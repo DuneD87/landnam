@@ -299,6 +299,8 @@ func _build_graphics_page() -> void:
 		"Hasta dónde llega el terreno detallado. Pesa en CPU y GPU.", true)
 	_row("Relieve fino del terreno", _toggle_control("graphics/terrain_normalmaps"),
 		"Mapas de normales del terreno lejano. Apagarlo aligera la CPU.", true)
+	_row("Material del terreno", _choice_control("graphics/terrain_material", ["Bajo", "Medio", "Alto"]),
+		"Detalle de las texturas y profundidad del relieve cercano. Pesa en GPU.", true)
 	_row("Densidad de la hierba", _choice_control("graphics/grass_density", ["Baja", "Media", "Alta"]), "", true)
 	_row("Distancia de la hierba", _choice_control("graphics/grass_distance", ["Corta", "Media", "Larga"]), "", true)
 	_row("Bosque lejano", _choice_control("graphics/forest_distance", ["Cercano", "Medio", "Hasta el horizonte"]), "", true)

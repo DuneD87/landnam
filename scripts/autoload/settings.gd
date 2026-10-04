@@ -40,6 +40,7 @@ const PRESETS := {
 	"graphics/fauna": [0, 1, 2, 2],
 	"graphics/terrain_detail": [0, 1, 2, 3],
 	"graphics/terrain_normalmaps": [false, true, true, true],
+	"graphics/terrain_material": [0, 1, 2, 2],
 	"graphics/grass_density": [0, 1, 2, 2],
 	"graphics/grass_distance": [1, 2, 2, 2],
 	"graphics/forest_distance": [1, 1, 2, 2],
@@ -68,6 +69,7 @@ const DEFAULTS := {
 ## hasta reiniciar.
 const RESTART_KEYS: Array[String] = [
 	"graphics/vegetation_shadows", "graphics/terrain_detail", "graphics/terrain_normalmaps",
+	"graphics/terrain_material",
 	"graphics/grass_density", "graphics/grass_distance", "graphics/forest_distance",
 ]
 
@@ -198,6 +200,19 @@ static func apply_terrain(terrain: VoxelLodTerrain) -> void:
 	var base: float = terrain.get_meta(&"settings_base_secondary_lod")
 	terrain.secondary_lod_distance = base * TERRAIN_DETAIL_SCALE[level("graphics/terrain_detail", TERRAIN_DETAIL_SCALE.size())]
 	terrain.normalmap_enabled = bool(value("graphics/terrain_normalmaps"))
+
+
+## Se aplica después de los parámetros del planeta y antes del primer mallado:
+## los bloques de VoxelLodTerrain guardan copias del material.
+static func apply_terrain_material(material: ShaderMaterial) -> void:
+	if Engine.is_editor_hint() or material == null:
+		return
+	var quality := level("graphics/terrain_material", 3)
+	if quality < 2:
+		material.set_shader_parameter("detail_blend_enabled", false)
+		material.set_shader_parameter("parallax_enabled", false)
+	if quality == 0:
+		material.set_shader_parameter("antitiling_enabled", false)
 
 
 ## Preset con el que coinciden todos los ajustes gráficos, o PRESET_CUSTOM.

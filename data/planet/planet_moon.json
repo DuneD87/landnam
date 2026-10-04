@@ -47,6 +47,12 @@
 			"res://textures/terrain/crusted_snow/Crusted_snow2_Height.png",
 			"res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_height.png"
 		],
+		"packed_material_textures": [
+			"res://textures/terrain/sandy_rocks1_bl/material_rah.png",
+			"res://textures/terrain/crusted_snow/material_rah.png",
+			"res://textures/terrain/bumpy-worn-ground-bl/material_rah.png"
+		],
+		"slope_packed_material_texture": "res://textures/terrain/bumpy-worn-ground-bl/material_rah.png",
 		"slope_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png",
 		"slope_normal_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png",
 		"slope_roughness_texture": "res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_roughness.png", 
