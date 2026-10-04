@@ -21,26 +21,15 @@ vec3 fnl_gradient_3d(int hash) {
     hash ^= hash >> 15;
     int index = (hash & 252) >> 2;
 
-    if (index >= 60) {
-        if (index == 60) return vec3(1.0, 1.0, 0.0);
-        if (index == 61) return vec3(0.0, -1.0, 1.0);
-        if (index == 62) return vec3(-1.0, 1.0, 0.0);
-        return vec3(0.0, -1.0, -1.0);
-    }
-
-    int g = index % 12;
-    if (g == 0) return vec3(0.0, 1.0, 1.0);
-    if (g == 1) return vec3(0.0, -1.0, 1.0);
-    if (g == 2) return vec3(0.0, 1.0, -1.0);
-    if (g == 3) return vec3(0.0, -1.0, -1.0);
-    if (g == 4) return vec3(1.0, 0.0, 1.0);
-    if (g == 5) return vec3(-1.0, 0.0, 1.0);
-    if (g == 6) return vec3(1.0, 0.0, -1.0);
-    if (g == 7) return vec3(-1.0, 0.0, -1.0);
-    if (g == 8) return vec3(1.0, 1.0, 0.0);
-    if (g == 9) return vec3(-1.0, 1.0, 0.0);
-    if (g == 10) return vec3(1.0, -1.0, 0.0);
-    return vec3(-1.0, -1.0, 0.0);
+    // Los primeros 60 índices repiten 12 gradientes. Solo 60 y 62 rompen
+    // el ciclo: corresponden a los gradientes 8 y 9; 61 y 63 ya dan 1 y 3.
+    // Reconstruye la misma tabla sin recorrer ramas distintas por muestra.
+    int g = index % 12 + 8 * int(index == 60) + 7 * int(index == 62);
+    float a = 1.0 - 2.0 * float(g & 1);
+    float b = 1.0 - 2.0 * float((g >> 1) & 1);
+    return vec3(a * float(g >= 4),
+        mix(b, a, float(g < 8)) * float(g < 4 || g >= 8),
+        b * float(g < 8));
 }
 
 float fnl_grad_coord_3d(int seed, int x_primed, int y_primed, int z_primed, float xd, float yd, float zd) {

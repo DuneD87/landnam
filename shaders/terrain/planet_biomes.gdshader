@@ -314,7 +314,6 @@ vec3 material_albedo(sampler2D tex, vec4 adjust, TriplanarUVs uvs, vec3 axis, No
 }
 
 void vertex() {
-	int i = 0;
 	v_vertex_pos_model = VERTEX; // posición original antes de transvoxel — el atlas fue bakeado con estas coords
 	VERTEX = get_transvoxel_position(VERTEX, CUSTOM0, u_transition_mask);
 	v_normal_model = NORMAL;
@@ -366,15 +365,17 @@ void fragment() {
     v_planet_up_view = safe_normalize((VIEW_MATRIX * vec4(planet_up, 0.0)).xyz, NORMAL);
     v_surface_radius = max(radius + height, radius + 0.001);
 
-    // 2) Parallax opcional. Si esta apagado, no se calcula vista/distancia ni se muestrean height maps para desplazar UVs.
+    // Distancia compartida por parallax, detalle, capa lejana y destellos.
+    vec3 camera_delta = CAMERA_POSITION_WORLD - world_pos;
+    float view_dist = length(camera_delta);
+
+    // 2) Parallax opcional. Si esta apagado, no se muestrean height maps para desplazar UVs.
     bool use_parallax = parallax_enabled && parallax_strength > 0.0001 && underwater < 0.5;
     vec3 view_world = normal_world;
     float effective_height = 0.0;
     if (use_parallax) {
-        vec3 camera_delta = CAMERA_POSITION_WORLD - world_pos;
         view_world = safe_normalize(camera_delta, normal_world);
-        float dist = length(camera_delta);
-        float parallax_fade = 1.0 - smoothstep(parallax_fade_start, parallax_max_distance, dist);
+        float parallax_fade = 1.0 - smoothstep(parallax_fade_start, parallax_max_distance, view_dist);
         effective_height = parallax_strength * parallax_fade;
         use_parallax = effective_height > 0.00001;
     }
@@ -382,7 +383,6 @@ void fragment() {
     // 2b) Lo que comparten todos los materiales: el reparto del anti-tiling (una vez por plano,
     // y aquí, fuera de ramas, porque lleva derivadas), las UV del detalle y de la capa lejana, y
     // cuánto pesa cada capa a esta distancia.
-    float view_dist = length(CAMERA_POSITION_WORLD - world_pos);
     TriplanarUVs base_uvs = compute_triplanar_uvs(planet_pos, texture_scale);
     NotileFrame nt = notile_frame(planet_pos, texture_scale);
     TriplanarUVs detail_uvs = compute_triplanar_uvs(planet_pos, texture_scale * detail_scale_multiplier);
@@ -397,9 +397,15 @@ void fragment() {
     float slope_far_t = smoothstep(slope_far_footprint_start, slope_far_footprint_end, pixel_footprint);
 
     // 3) Variables de mezcla
-    float noise_value = signed_fbm(planet_pos * noise_scale) * noise_strength;
+    float noise_value = 0.0;
+    if (noise_strength != 0.0) {
+        noise_value = signed_fbm(planet_pos * noise_scale) * noise_strength;
+    }
     float transition_noise_active = step(0.0001, height_transition_noise_scale) * height_transition_noise_strength;
-    float transition_noise = signed_fbm(planet_pos * height_transition_noise_scale) * transition_noise_active;
+    float transition_noise = 0.0;
+    if (transition_noise_active != 0.0) {
+        transition_noise = signed_fbm(planet_pos * height_transition_noise_scale) * transition_noise_active;
+    }
     float adjusted_height = height + noise_value;
     float transition_height = adjusted_height + transition_noise;
 
@@ -428,81 +434,52 @@ void fragment() {
     if (slope_breakup_strength > 0.0001) {
         float band = 1.0 - clamp(abs(slope - slope_thr)
             / max(slope_smooth * 3.0, 0.0001), 0.0, 1.0);
-        vec3 breakup_pos = planet_pos
-            - planet_up * (distance_to_center * (1.0 - 1.0 / max(slope_breakup_anisotropy, 1.0)));
-        // La octava fina (~4 m) se apaga de lejos: ahí solo rizaría la raya.
-        float breakup = signed_fbm(breakup_pos * slope_breakup_scale) * 0.7
-                      + signed_fbm(breakup_pos * slope_breakup_scale * 9.0) * 0.3 * (1.0 - slope_far_t);
-        slope += breakup * slope_breakup_strength * band;
+        if (band > 0.0) {
+            vec3 breakup_pos = planet_pos
+                - planet_up * (distance_to_center * (1.0 - 1.0 / max(slope_breakup_anisotropy, 1.0)));
+            // La octava fina (~4 m) se apaga de lejos: ahí solo rizaría la raya.
+            float breakup = signed_fbm(breakup_pos * slope_breakup_scale) * 0.7;
+            if (slope_far_t < 1.0) {
+                breakup += signed_fbm(breakup_pos * slope_breakup_scale * 9.0) * 0.3 * (1.0 - slope_far_t);
+            }
+            slope += breakup * slope_breakup_strength * band;
+        }
     }
     float slope_factor = smoothstep(slope_thr - slope_smooth,
                                      slope_thr + slope_smooth, slope);
 
-    // 4) Slope con UVs base o parallax, segun el toggle. Eje de mezcla triplanar =
-    // normal GEOMETRICA, no planet_up. Con planet_up la roca se proyectaba siempre en
-    // cenital, y una pared vertical apenas cambia de UV al bajar por ella: la textura salia
-    // estirada en vertical justo donde la roca vive. normal_world tampoco vale (viene de la
-    // virtual texture y nada entre LODs); la geometrica es el mismo compromiso que ya usa la
-    // mascara de pendiente unas lineas mas arriba.
-	float final_tightness = 0.0;
-
-    TriplanarUVs slope_uvs = base_uvs;
-    if (use_parallax) {
-        slope_uvs = compute_parallax_uvs_limited(
-            slope_height_texture, planet_pos, normal_world, view_world,
-            texture_scale, effective_height,
-            parallax_height_center, parallax_height_contrast, parallax_min_view_dot
-        );
+    // 4) Reparto por bioma/altura, sin muestrear materiales. Una textura puede aparecer en
+    // varias bandas, biomas vecinos o como override: se suman sus pesos y se lee UNA vez.
+    // El corte de 0.01 sigue aplicándose a cada banda, antes de sumar, como hasta ahora.
+    uint active_textures = uint(0);
+    float texture_factors[MAX_TEXTURES];
+    float texture_height_factors[MAX_TEXTURES];
+    for (int i = 0; i < MAX_TEXTURES; i++) {
+        texture_factors[i] = 0.0;
+        texture_height_factors[i] = 0.0;
     }
-
-    float slope_detail_factor;
-    vec3 slope_color = material_albedo(slope_texture, slope_albedo_adjust, slope_uvs,
-        geometry_normal_world, nt, detail_uvs, detail_w, far_uvs, far_w, slope_detail_factor);
-    vec4 slope_n_v    = triplanar_normal_sample_nt_v(slope_normal_texture, slope_uvs, normal_world, nt);
-	vec3 slope_normal = slope_n_v.xyz;
-    float slope_rough = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, geometry_normal_world);
-    float slope_ao_v  = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, geometry_normal_world);
-    float slope_height = (slope_height_blend_strength > 0.0001)
-        ? triplanar_scalar_sample_uvs(slope_height_texture, slope_uvs, geometry_normal_world)
-        : 0.0;
-
-    // 5) Pesos de bioma
-    float biome_weights[MAX_BIOMES];
-    for (int i = 0; i < MAX_BIOMES; i++) biome_weights[i] = 0.0;
     float latitude = degrees(asin(planet_up.y));
-
-    for (int i = 0; i < biome_count; i++) {
-        float lower = biome_latitude_ranges[i];
-        float upper = biome_latitude_ranges[i + 1];
+    for (int b = 0; b < biome_count; b++) {
+        float lower = biome_latitude_ranges[b];
+        float upper = biome_latitude_ranges[b + 1];
         float center_lat = (lower + upper) * 0.5;
         float range = upper - lower;
         float w = 1.0 - abs(latitude - center_lat) / (range * biome_transition_smoothness);
-        biome_weights[i] = smoothstep(0.0, 1.0, clamp(w, 0.0, 1.0));
-    }
-
-    // 6) Acumulación con parallax por textura
-    vec3 final_color = vec3(0.0);
-    vec3 final_normal = vec3(0.0);
-    float final_roughness = 0.0;
-    float final_ao = 0.0;
-    float total_factor = 0.0;
-    // Altura media de los materiales de bioma en este fragmento; es el lado "bioma" del
-    // height blend contra la pendiente. Solo se acumula si ese blend esta activo.
-    float final_material_height = 0.0;
-    float final_detail_factor = 0.0; // solo para debug_detail_blend_view
-
-    vec2 meadow_state = season_meadow_state(planet_pos);
-    bool meadow_season = meadow_state.x > 0.0 || meadow_state.y > 0.0;
-    for (int b = 0; b < biome_count; b++) {
-        float biome_weight = biome_weights[b];
+        float biome_weight = smoothstep(0.0, 1.0, clamp(w, 0.0, 1.0));
         if (biome_weight < 0.01) continue;
 
         int offset = b * textures_per_biome;
+        int override_tex_index = biome_noise_target_texture_indices[b];
+        bool has_override = biome_noise_enabled[b] != 0
+            && override_tex_index >= 0 && override_tex_index < MAX_TEXTURES;
+        float lat_gate = has_override ? biome_noise_lat_gate(b, latitude) : 0.0;
+        // El mismo ruido puede usarse en varias bandas del bioma. Se evalúa al primer uso.
+        float override_mask = -1.0;
 
         for (int j = 0; j < textures_per_biome; j++) {
             int tex_index = biome_texture_indices[offset + j];
 
-            // Calcular factor primero — si es despreciable, saltar parallax
+            // Calcular factor primero — si es despreciable, saltar la banda.
             float factor;
             if (j == 0) {
                 factor = smoothstep(-transition_smoothness, transition_smoothness,
@@ -517,122 +494,116 @@ void fragment() {
             factor *= (1.0 - slope_factor) * biome_weight;
             if (factor < 0.01) continue;  // si la textura no aporta, ni parallax ni muestras
 
-            // --- Noise override: se calcula ANTES del height bias para que el split
-            //     hierba/tierra no quede contaminado por el height map de la hierba.
-            //     Si height_blend se aplicara antes, override_factor heredaría el bias
-            //     de la hierba y luego recibiría también el de la tierra, creando
-            //     cortes donde el height map de origen tiene variaciones fuertes. ---
-            float base_factor = factor;   // peso pre-bias de la textura fuente
+            // El override divide el peso ANTES del height bias: cada material recibe
+            // solo el sesgo de su propio height map en el bucle de muestreo.
+            float base_factor = factor;
             float override_factor = 0.0;
-            int override_tex_index = biome_noise_target_texture_indices[b];
-            // El gate de latitud primero: fuera de su banda no se paga el fBm (6 octavas de
-            // simplex por fragmento) ni las muestras triplanares del target.
-            float lat_gate = biome_noise_lat_gate(b, latitude);
             if (
-                biome_noise_enabled[b] != 0 &&
+                has_override &&
                 lat_gate > 0.001 &&
                 tex_index == biome_noise_source_texture_indices[b] &&
-                override_tex_index >= 0 &&
-                override_tex_index < MAX_TEXTURES &&
                 override_tex_index != tex_index
             ) {
-                // División limpia: el ratio hierba/tierra lo decide el noise mask,
-                // sin contaminación del height map de la fuente.
-                override_factor = factor * biome_noise_mask(planet_pos, b) * lat_gate;
+                if (override_mask < 0.0) {
+                    override_mask = biome_noise_mask(planet_pos, b) * lat_gate;
+                }
+                override_factor = factor * override_mask;
                 base_factor     = factor - override_factor;
             }
 
-            // UVs (y parallax opcional) para la textura fuente
-            TriplanarUVs uvs = base_uvs;
-            if (use_parallax) {
-                uvs = compute_parallax_uvs_limited(
-                    height_textures[tex_index], planet_pos, normal_world, view_world,
-                    texture_scale, effective_height,
-                    parallax_height_center, parallax_height_contrast, parallax_min_view_dot
-                );
+            active_textures |= uint(1) << uint(tex_index);
+            texture_factors[tex_index] += base_factor;
+            // Conserva el umbral original del height bias de la fuente: los restos
+            // <= 0.0001 aportan color sin sesgo ni altura, aunque se sumen a otra banda.
+            if (base_factor > 0.0001) {
+                texture_height_factors[tex_index] += base_factor;
             }
-
-            // Height bias aplicado SOLO al peso de la textura fuente (no al override).
-            // Así el height map de la hierba solo afecta a la hierba, y el de la tierra
-            // solo afecta a la tierra (en la sección de override más abajo).
-            if ((height_blend_strength > 0.0001 || slope_height_blend_strength > 0.0001) && base_factor > 0.0001) {
-                float material_height = triplanar_scalar_sample_uvs(height_textures[tex_index], uvs, planet_up);
-                if (height_blend_strength > 0.0001) {
-                    float height_bias = mix(0.35, 1.35, pow(clamp(material_height, 0.0, 1.0), height_blend_contrast));
-                    base_factor *= mix(1.0, height_bias, height_blend_strength);
-                }
-                final_material_height += clamp(material_height, 0.0, 1.0) * base_factor;
-            }
-
-            // planet_up como eje de mezcla triplanar: invariante al LOD y a la normal del mesh.
-            float c_detail_factor;
-            vec3 c = material_albedo(textures[tex_index], texture_albedo_adjust[tex_index], uvs,
-                planet_up, nt, detail_uvs, detail_w, far_uvs, far_w, c_detail_factor);
-            if (meadow_season && texture_meadow[tex_index] > 0.0) {
-                c = mix(c, season_meadow_color(c, meadow_state), texture_meadow[tex_index]);
-            }
-            vec4 n_v = triplanar_normal_sample_nt_v(normal_textures[tex_index], uvs, normal_world, nt);
-
-            float r = triplanar_scalar_sample_uvs(roughness_textures[tex_index], uvs, planet_up);
-            float ao = triplanar_scalar_sample_uvs(ao_textures[tex_index], uvs, planet_up);
-
-            final_color     += c * base_factor;
-            final_normal    += n_v.xyz * base_factor;
-			final_tightness += n_v.w   * base_factor;
-            final_roughness += r * base_factor;
-            final_ao        += ao * base_factor;
-            total_factor    += base_factor;
-            final_detail_factor += c_detail_factor * base_factor;
-
             if (override_factor > 0.001) {
-                TriplanarUVs override_uvs = base_uvs;
-                if (use_parallax) {
-                    override_uvs = compute_parallax_uvs_limited(
-                        height_textures[override_tex_index], planet_pos, normal_world, view_world,
-                        texture_scale, effective_height,
-                        parallax_height_center, parallax_height_contrast, parallax_min_view_dot
-                    );
-                }
-
-                if (height_blend_strength > 0.0001 || slope_height_blend_strength > 0.0001) {
-                    float override_height = triplanar_scalar_sample_uvs(height_textures[override_tex_index], override_uvs, planet_up);
-                    if (height_blend_strength > 0.0001) {
-                        float override_height_bias = mix(0.35, 1.35, pow(clamp(override_height, 0.0, 1.0), height_blend_contrast));
-                        override_factor *= mix(1.0, override_height_bias, height_blend_strength);
-                    }
-                    final_material_height += clamp(override_height, 0.0, 1.0) * override_factor;
-                }
-
-                // Mismo detalle y capa lejana que la textura fuente: sin ellos sale plana.
-                float override_detail_factor;
-                vec3 override_c = material_albedo(textures[override_tex_index],
-                    texture_albedo_adjust[override_tex_index], override_uvs, planet_up, nt,
-                    detail_uvs, detail_w, far_uvs, far_w, override_detail_factor);
-                if (meadow_season && texture_meadow[override_tex_index] > 0.0) {
-                    override_c = mix(override_c, season_meadow_color(override_c, meadow_state),
-                        texture_meadow[override_tex_index]);
-                }
-                vec4 override_n_v = triplanar_normal_sample_nt_v(normal_textures[override_tex_index], override_uvs, normal_world, nt);
-                float override_r = triplanar_scalar_sample_uvs(roughness_textures[override_tex_index], override_uvs, planet_up);
-                float override_ao = triplanar_scalar_sample_uvs(ao_textures[override_tex_index], override_uvs, planet_up);
-
-                final_color     += override_c * override_factor;
-                final_normal    += override_n_v.xyz * override_factor;
-			    final_tightness += override_n_v.w   * override_factor;
-                final_roughness += override_r * override_factor;
-                final_ao        += override_ao * override_factor;
-                total_factor    += override_factor;
-                final_detail_factor += override_detail_factor * override_factor;
+                active_textures |= uint(1) << uint(override_tex_index);
+                texture_factors[override_tex_index] += override_factor;
+                texture_height_factors[override_tex_index] += override_factor;
             }
         }
     }
 
-    // Height blend del contacto pendiente<->bioma. El peso angular actua como offset de
+    // 5) Acumulación con parallax y height bias por textura única.
+    vec3 final_color = vec3(0.0);
+    vec3 final_normal = vec3(0.0);
+    float final_tightness = 0.0;
+    float final_roughness = 0.0;
+    float final_ao = 0.0;
+    float total_factor = 0.0;
+    float final_material_height = 0.0;
+    float final_detail_factor = 0.0; // lo reutilizan el arrecife y el debug
+
+    vec2 meadow_state = season_meadow_state(planet_pos);
+    bool meadow_season = meadow_state.x > 0.0 || meadow_state.y > 0.0;
+    for (int tex_index = 0; tex_index < MAX_TEXTURES; tex_index++) {
+        float base_factor = texture_factors[tex_index];
+        // Una fuente reemplazada al 100 % conserva sus muestras de peso cero. Cortar
+        // aquí por base_factor cambia las derivadas implícitas de sus vecinos en los
+        // quads del borde del override, y dibuja puntos con el mip equivocado a distancia.
+        if ((active_textures & (uint(1) << uint(tex_index))) == uint(0)) continue;
+
+        // UVs (y parallax opcional) compartidas por todas las apariciones del material.
+        TriplanarUVs uvs = base_uvs;
+        if (use_parallax) {
+            uvs = compute_parallax_uvs_limited(
+                height_textures[tex_index], planet_pos, normal_world, view_world,
+                texture_scale, effective_height,
+                parallax_height_center, parallax_height_contrast, parallax_min_view_dot
+            );
+        }
+
+        float height_factor = texture_height_factors[tex_index];
+        if ((height_blend_strength > 0.0001 || slope_height_blend_strength > 0.0001) && height_factor > 0.0) {
+            float material_height = triplanar_scalar_sample_uvs(height_textures[tex_index], uvs, planet_up);
+            if (height_blend_strength > 0.0001) {
+                float height_bias = mix(0.35, 1.35, pow(clamp(material_height, 0.0, 1.0), height_blend_contrast));
+                float biased_factor = height_factor * mix(1.0, height_bias, height_blend_strength);
+                base_factor = (base_factor - height_factor) + biased_factor;
+                height_factor = biased_factor;
+            }
+            final_material_height += clamp(material_height, 0.0, 1.0) * height_factor;
+        }
+
+        // planet_up como eje de mezcla triplanar: invariante al LOD y a la normal del mesh.
+        float c_detail_factor;
+        vec3 c = material_albedo(textures[tex_index], texture_albedo_adjust[tex_index], uvs,
+            planet_up, nt, detail_uvs, detail_w, far_uvs, far_w, c_detail_factor);
+        if (meadow_season && texture_meadow[tex_index] > 0.0) {
+            c = mix(c, season_meadow_color(c, meadow_state), texture_meadow[tex_index]);
+        }
+        vec4 n_v = triplanar_normal_sample_nt_v(normal_textures[tex_index], uvs, normal_world, nt);
+
+        float r = triplanar_scalar_sample_uvs(roughness_textures[tex_index], uvs, planet_up);
+        float ao = triplanar_scalar_sample_uvs(ao_textures[tex_index], uvs, planet_up);
+
+        final_color     += c * base_factor;
+        final_normal    += n_v.xyz * base_factor;
+        final_tightness += n_v.w   * base_factor;
+        final_roughness += r * base_factor;
+        final_ao        += ao * base_factor;
+        total_factor    += base_factor;
+        final_detail_factor += c_detail_factor * base_factor;
+    }
+
+    // 6) Height blend del contacto pendiente<->bioma. El peso angular actua como offset de
     // altura de cada lado (height-lerp clasico): quien sobresale mas, gana. Solo se
     // recalcula el peso de la pendiente; los de bioma ya estan acumulados y la division
     // por total_factor reparte lo que sobra, igual que hace el resto del shader.
     float slope_mix = slope_factor;
-    if (slope_height_blend_strength > 0.0001) {
+    bool slope_height_active = slope_height_blend_strength > 0.0001 && slope_far_t < 1.0;
+    TriplanarUVs slope_uvs = base_uvs;
+    if (use_parallax && (slope_factor > 0.0 || slope_height_active)) {
+        slope_uvs = compute_parallax_uvs_limited(
+            slope_height_texture, planet_pos, normal_world, view_world,
+            texture_scale, effective_height,
+            parallax_height_center, parallax_height_contrast, parallax_min_view_dot
+        );
+    }
+    if (slope_height_active) {
+        float slope_height = triplanar_scalar_sample_uvs(slope_height_texture, slope_uvs, geometry_normal_world);
         float biome_height = (total_factor > 0.0001) ? (final_material_height / total_factor) : 0.5;
         float d  = max(slope_height_blend_sharpness, 0.0001);
         float ha = slope_height + slope_factor;
@@ -648,13 +619,23 @@ void fragment() {
     // Slope contribution. tightness DEBE sumarse igual que en el bucle de biomas: si no,
     // se diluye por total_factor y la specular AA de abajo satura la roughness a 1.0 en
     // cuanto hay algo de pendiente (con specular_aa_strength=4, a partir de ~39 grados).
-    final_color     += slope_color  * slope_mix;
-    final_normal    += slope_normal * slope_mix;
-	final_tightness += slope_n_v.w  * slope_mix;
-    final_roughness += slope_rough  * slope_mix;
-    final_ao        += slope_ao_v   * slope_mix;
-    total_factor    += slope_mix;
-    final_detail_factor += slope_detail_factor * slope_mix;
+    // Incluso con slope_factor = 0, el height blend puede introducir roca. El corte se
+    // hace sobre slope_mix, después del blend, para conservar esos contactos.
+    if (slope_mix > 0.0) {
+        float slope_detail_factor;
+        vec3 slope_color = material_albedo(slope_texture, slope_albedo_adjust, slope_uvs,
+            geometry_normal_world, nt, detail_uvs, detail_w, far_uvs, far_w, slope_detail_factor);
+        vec4 slope_n_v = triplanar_normal_sample_nt_v(slope_normal_texture, slope_uvs, normal_world, nt);
+        float slope_rough = triplanar_scalar_sample_uvs(slope_roughness_texture, slope_uvs, geometry_normal_world);
+        float slope_ao_v = triplanar_scalar_sample_uvs(slope_ao_texture, slope_uvs, geometry_normal_world);
+        final_color     += slope_color  * slope_mix;
+        final_normal    += slope_n_v.xyz * slope_mix;
+        final_tightness += slope_n_v.w   * slope_mix;
+        final_roughness += slope_rough  * slope_mix;
+        final_ao        += slope_ao_v   * slope_mix;
+        total_factor    += slope_mix;
+        final_detail_factor += slope_detail_factor * slope_mix;
+    }
 
     if (total_factor > 0.0) {
         final_color     /= total_factor;
@@ -738,10 +719,11 @@ void fragment() {
     }
 
     // 8) Salidas
-	float macro_n = signed_fbm(planet_pos * macro_variation_scale);
-	macro_n = sign(macro_n) * pow(abs(macro_n), 1.0 / macro_variation_contrast);
-	float macro_factor = 1.0 + macro_n * macro_variation_strength;
-	final_color *= macro_factor;
+	if (macro_variation_strength != 0.0) {
+		float macro_n = signed_fbm(planet_pos * macro_variation_scale);
+		macro_n = sign(macro_n) * pow(abs(macro_n), 1.0 / macro_variation_contrast);
+		final_color *= 1.0 + macro_n * macro_variation_strength;
+	}
 
 	// 8.5) Nieve y hielo del clima frío. Va después de la variación macro: la nieve no se
 	// ensucia con las manchas de 170 m del suelo. Las vetas de mena la atraviesan, que se minan.
