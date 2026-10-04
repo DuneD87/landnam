@@ -33,6 +33,7 @@ const PRESETS := {
 	"graphics/shadow_distance": [0, 1, 2, 2],
 	"graphics/vegetation_shadows": [0, 1, 2, 2],
 	"graphics/clouds": [1, 2, 3, 3],
+	"graphics/atmosphere_quality": [0, 1, 1, 2],
 	"graphics/god_rays": [false, true, true, true],
 	"graphics/glow": [false, true, true, true],
 	"graphics/ssao": [false, false, false, true],
@@ -415,7 +416,7 @@ func _apply(key: String) -> void:
 			_apply_to_lights()
 		"graphics/shadow_distance":
 			_apply_to_lights()
-		"graphics/clouds", "graphics/god_rays", "graphics/glow", "graphics/ssao":
+		"graphics/clouds", "graphics/atmosphere_quality", "graphics/god_rays", "graphics/glow", "graphics/ssao":
 			_apply_to_environments()
 		"graphics/weather_particles":
 			WeatherParticles.amount_scale = WEATHER_PARTICLE_SCALE[level(key, WEATHER_PARTICLE_SCALE.size())]
@@ -533,7 +534,8 @@ func _apply_world_environment(world: WorldEnvironment) -> void:
 	var step_scale: float = CLOUD_STEP_SCALE[level("graphics/clouds", CLOUD_STEP_SCALE.size())]
 	for effect in world.compositor.compositor_effects:
 		if effect is PlanetAtmosphere:
-			effect.set_quality(step_scale, bool(value("graphics/god_rays")))
+			effect.set_quality(step_scale, bool(value("graphics/god_rays")),
+				[4, 2, 1][level("graphics/atmosphere_quality", 3)])
 
 
 func _apply_bindings() -> void:

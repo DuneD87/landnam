@@ -1,8 +1,9 @@
 #[compute]
 #version 450
 
-// Nubes, sombras, niebla y aurora a resolución completa; solo el aire usa el caché.
+// Solo transporte suave del aire: los volúmenes con jitter van en el pase completo.
 #include "../liquid/underwater_params.glslinc"
 #include "../liquid/underwater_optics.glslinc"
 
+#define ATMOSPHERE_CACHE_PASS
 #include "planet_atmosphere_pass.glslinc"

@@ -287,6 +287,8 @@ func _build_graphics_page() -> void:
 		"", true)
 
 	_section("Cielo y efectos")
+	_row("Calidad de la atmósfera", _choice_control("graphics/atmosphere_quality", ["Baja", "Media", "Alta"]),
+		"Nitidez del cielo y rayos de luz. Las nubes y la niebla conservan su resolución.")
 	_row("Nubes", _choice_control("graphics/clouds", ["Desactivadas", "Bajas", "Medias", "Altas"]))
 	_row("Rayos de luz", _toggle_control("graphics/god_rays"), "Haces de sol entre nubes y árboles.")
 	_row("Resplandor", _toggle_control("graphics/glow"))

@@ -3,11 +3,14 @@ extends CompositorEffect
 class_name PlanetAtmosphere
 
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
+const CACHE_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere_cache.glsl"
 const NOISE_GEN_SHADER_PATH := "res://shaders/atmosphere/cloud_noise_gen.glsl"
 ## Segundo pase (god rays screen-space). Comparte el UBO de params de este efecto.
 const GOD_RAYS_SHADER_PATH := "res://shaders/atmosphere/god_rays.glsl"
+const GOD_RAYS_CACHE_SHADER_PATH := "res://shaders/atmosphere/god_rays_cache.glsl"
+const GOD_RAYS_COMPOSITE_SHADER_PATH := "res://shaders/atmosphere/god_rays_composite.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 42
+const PARAM_VEC4_COUNT := 43
 ## Lado de la textura 3D de ruido de nubes (RGBA8 → size³ × 4 bytes; 128 ≈ 8.4 MB de VRAM).
 const NOISE_TEX_SIZE := 128
 ## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
@@ -19,6 +22,10 @@ const GROUP_TEX_W := 256
 const GROUP_TEX_H := 128
 
 @export var shader_file_path: String = DEFAULT_SHADER_PATH
+## Solo se reducen el aire (Rayleigh/Mie) y los rayos; nubes/niebla/sombra/aurora
+## mantienen resolución completa. Nunca se reduce el color de la escena.
+## Los bordes sin profundidad compatible y los píxeles bajo el agua usan el pase completo.
+@export_enum("Completa:1", "Mitad:2", "Un cuarto:4") var resolution_divisor: int = 2
 
 @export_group("Planet")
 @export var planet_center: Vector3 = Vector3.ZERO
@@ -308,6 +315,15 @@ var _noise_gen_pipeline: RID
 
 var _god_rays_shader: RID
 var _god_rays_pipeline: RID
+var _god_rays_cache_shader: RID
+var _god_rays_cache_pipeline: RID
+var _god_rays_composite_shader: RID
+var _god_rays_composite_pipeline: RID
+var _cache_shader: RID
+var _cache_pipeline: RID
+var _scatter_textures: Array[RID] = []
+var _transmittance_textures: Array[RID] = []
+var _cache_size := Vector2i.ZERO
 ## Máscara de oclusión (R8) que escribe el pase de atmósfera y lee el de god rays. Una por vista,
 ## recreadas al cambiar el tamaño interno del render.
 var _mask_textures: Array[RID] = []
@@ -354,8 +370,11 @@ func _notification(what: int) -> void:
 		var resources: Array[RID] = []
 		resources.append_array(params_buffers)
 		resources.append_array(_mask_textures)
+		resources.append_array(_scatter_textures)
+		resources.append_array(_transmittance_textures)
 		resources.append_array([depth_sampler, noise_sampler, noise_tex, group_sampler,
-			group_tex, _noise_gen_shader, _god_rays_shader, _mask_sampler, shader])
+			group_tex, _noise_gen_shader, _god_rays_shader, _god_rays_cache_shader,
+			_god_rays_composite_shader, _cache_shader, _mask_sampler, shader])
 		RenderingServer.call_on_render_thread(
 			UnderwaterRenderPass.release_owned_resources.bind(rd, underwater_pass, resources))
 
@@ -455,15 +474,17 @@ func set_sun_tint(color: Color) -> void:
 	_params_mutex.unlock()
 
 
-## La empuja el WeatherController por evento: aire con más vapor o polvo dispersa más (shafts más
-## marcados) y a menos distancia (shafts que ya se ven en el primer plano, como en la niebla).
-func set_quality(step_scale: float, god_rays: bool) -> void:
+## SettingsManager aplica los pasos de nubes/niebla, los rayos y la resolución del aire.
+func set_quality(step_scale: float, god_rays: bool, divisor: int = 2) -> void:
 	_params_mutex.lock()
 	quality_step_scale = maxf(step_scale, 0.0)
 	quality_god_rays = god_rays
+	resolution_divisor = divisor if divisor in [1, 2, 4] else 2
 	_params_mutex.unlock()
 
 
+## La empuja el WeatherController por evento: aire con más vapor o polvo dispersa más (shafts más
+## marcados) y a menos distancia (shafts que ya se ven en el primer plano, como en la niebla).
 func set_god_ray_weather(strength: float, reach: float) -> void:
 	_params_mutex.lock()
 	god_rays_weather_strength = maxf(strength, 0.0)
@@ -492,6 +513,19 @@ func set_fog_occlusion(
 	_params_mutex.unlock()
 
 
+func _compute_source(path: String) -> String:
+	var code := FileAccess.get_file_as_string(path)
+	var include_pattern := RegEx.new()
+	include_pattern.compile('#include "([^"]+)"')
+	# Los pases completo y reducido comparten el código de los includes.
+	for include_match in include_pattern.search_all(code):
+		var include_path := include_match.get_string(1)
+		if not include_path.begins_with("res://"):
+			include_path = path.get_base_dir().path_join(include_path).simplify_path()
+		code = code.replace(include_match.get_string(), _compute_source(include_path))
+	return code.replace("#[compute]", "")
+
+
 func _load_compute_spirv(path: String) -> RDShaderSPIRV:
 	print("PlanetAtmosphere: loading shader from: ", path)
 
@@ -501,7 +535,7 @@ func _load_compute_spirv(path: String) -> RDShaderSPIRV:
 	# mientras los cambios de GDScript sí se ven, que es imposible de depurar a ciegas.
 	# Corriendo desde el editor se compila del texto, que relee los includes del disco.
 	# En un export NO se puede: las plantillas de release no llevan glslang, así que allí
-	# manda el recurso importado, que además está garantizado al día por la exportación.
+	# manda el recurso importado: hay que reimportar las entradas tras editar sus includes.
 	var resource: Resource = null
 	if not OS.has_feature("editor"):
 		resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
@@ -524,15 +558,11 @@ func _load_compute_spirv(path: String) -> RDShaderSPIRV:
 
 	print("PlanetAtmosphere: compiling manually from text.")
 
-	var shader_code := FileAccess.get_file_as_string(path)
+	var shader_code := _compute_source(path)
 
 	if shader_code.is_empty():
 		push_error("PlanetAtmosphere: shader file is empty or could not be read: %s" % path)
 		return null
-
-	shader_code = shader_code.replace("#[compute]", "")
-	shader_code = shader_code.replace('#include "../liquid/underwater_optics.glslinc"', FileAccess.get_file_as_string("res://shaders/liquid/underwater_optics.glslinc"))
-	shader_code = shader_code.replace('#include "../liquid/underwater_params.glslinc"', FileAccess.get_file_as_string("res://shaders/liquid/underwater_params.glslinc"))
 
 	var shader_source := RDShaderSource.new()
 	shader_source.language = RenderingDevice.SHADER_LANGUAGE_GLSL
@@ -627,6 +657,7 @@ func _initialize_compute() -> void:
 	_generate_cloud_noise()
 	_create_group_texture()
 	_initialize_god_rays()
+	_initialize_atmosphere_cache()
 
 	print("PlanetAtmosphere: compute initialized OK.")
 
@@ -647,6 +678,70 @@ func _initialize_god_rays() -> void:
 	_god_rays_pipeline = rd.compute_pipeline_create(_god_rays_shader)
 	if not _god_rays_pipeline.is_valid():
 		push_error("PlanetAtmosphere: pipeline de god rays inválido.")
+		return
+	var cache_spirv := _load_compute_spirv(GOD_RAYS_CACHE_SHADER_PATH)
+	var composite_spirv := _load_compute_spirv(GOD_RAYS_COMPOSITE_SHADER_PATH)
+	for reduced_spirv in [cache_spirv, composite_spirv]:
+		if reduced_spirv == null or reduced_spirv.compile_error_compute != "" or reduced_spirv.bytecode_compute.is_empty():
+			push_error("PlanetAtmosphere: rayos reducidos no disponibles; se usa el pase completo.")
+			return
+	_god_rays_cache_shader = rd.shader_create_from_spirv(cache_spirv)
+	_god_rays_composite_shader = rd.shader_create_from_spirv(composite_spirv)
+	if _god_rays_cache_shader.is_valid() and _god_rays_composite_shader.is_valid():
+		_god_rays_cache_pipeline = rd.compute_pipeline_create(_god_rays_cache_shader)
+		_god_rays_composite_pipeline = rd.compute_pipeline_create(_god_rays_composite_shader)
+
+
+func _initialize_atmosphere_cache() -> void:
+	var spirv := _load_compute_spirv(CACHE_SHADER_PATH)
+	if spirv == null or spirv.compile_error_compute != "" or spirv.bytecode_compute.is_empty():
+		push_error("PlanetAtmosphere: caché volumétrico no disponible; se usa resolución completa.")
+		return
+	_cache_shader = rd.shader_create_from_spirv(spirv)
+	if _cache_shader.is_valid():
+		_cache_pipeline = rd.compute_pipeline_create(_cache_shader)
+
+
+## Dos RGBA16F por vista: luz del aire + profundidad guía, transmisión del aire.
+## Se reconstruyen al cambiar tamaño/calidad; no conservan historia temporal.
+func _ensure_atmosphere_cache(size: Vector2i, count: int) -> bool:
+	if _cache_size == size and _scatter_textures.size() == count and _transmittance_textures.size() == count:
+		return true
+	for texture in _scatter_textures + _transmittance_textures:
+		if texture.is_valid():
+			rd.free_rid(texture)
+	_scatter_textures.clear()
+	_transmittance_textures.clear()
+	_cache_size = Vector2i.ZERO
+	var format := RDTextureFormat.new()
+	format.format = RenderingDevice.DATA_FORMAT_R16G16B16A16_SFLOAT
+	format.width = size.x
+	format.height = size.y
+	format.usage_bits = RenderingDevice.TEXTURE_USAGE_STORAGE_BIT | RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT
+	for i in count:
+		var scatter := rd.texture_create(format, RDTextureView.new(), [])
+		var transmittance := rd.texture_create(format, RDTextureView.new(), [])
+		_scatter_textures.append(scatter)
+		_transmittance_textures.append(transmittance)
+		if not scatter.is_valid() or not transmittance.is_valid():
+			push_error("PlanetAtmosphere: no se pudo crear el caché volumétrico.")
+			return false
+	_cache_size = size
+	return true
+
+
+func _cache_uniform_set(view: int, target_shader: RID, storage: bool) -> RID:
+	var uniforms: Array[RDUniform] = []
+	var textures: Array[RID] = [_scatter_textures[view], _transmittance_textures[view]]
+	for binding in textures.size():
+		var uniform := RDUniform.new()
+		uniform.binding = binding
+		uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE if storage else RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+		if not storage:
+			uniform.add_id(depth_sampler)
+		uniform.add_id(textures[binding])
+		uniforms.append(uniform)
+	return UniformSetCacheRD.get_cache(target_shader, 2, uniforms)
 
 
 ## Máscara de oclusión, una por vista, al tamaño interno del render. La necesita SIEMPRE el pase
@@ -879,6 +974,21 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 
 	var view_count: int = render_scene_buffers.get_view_count()
 	_ensure_params_buffers(view_count)
+	_params_mutex.lock()
+	var divisor := resolution_divisor
+	_params_mutex.unlock()
+	if divisor not in [1, 2, 4] or not _cache_pipeline.is_valid():
+		divisor = 1
+	@warning_ignore("integer_division")
+	var cache_size := Vector2i((size.x + divisor - 1) / divisor, (size.y + divisor - 1) / divisor) if divisor > 1 else Vector2i.ONE
+	if not _ensure_atmosphere_cache(cache_size, view_count):
+		if divisor == 1:
+			return
+		# El pase completo solo necesita imágenes de 1×1 para sus bindings inactivos.
+		divisor = 1
+		cache_size = Vector2i.ONE
+		if not _ensure_atmosphere_cache(cache_size, view_count):
+			return
 
 	# El pase de atmósfera declara la máscara de oclusión en el binding 6, así que sin ella no se
 	# puede completar el uniform set y no hay nada que despachar.
@@ -906,7 +1016,7 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		if water_images.is_empty():
 			continue
 
-		var params_bytes := _build_params_bytes(size, scene_data, projection, view)
+		var params_bytes := _build_params_bytes(size, scene_data, projection, view, divisor)
 		rd.buffer_update(params_buffers[view], 0, params_bytes.size(), params_bytes)
 
 		var color_uniform := RDUniform.new()
@@ -969,17 +1079,32 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 				occ_uniform, noise_uniform, group_uniform, mask_image_uniform
 			]
 		)
+		if divisor > 1:
+			var cache_set := UniformSetCacheRD.get_cache(_cache_shader, 0,
+				[depth_uniform, params_uniform, occ_uniform, noise_uniform, group_uniform])
+			var cache_list := rd.compute_list_begin()
+			rd.compute_list_bind_compute_pipeline(cache_list, _cache_pipeline)
+			rd.compute_list_bind_uniform_set(cache_list, cache_set, 0)
+			rd.compute_list_bind_uniform_set(cache_list, underwater_pass.bind_optics(_cache_shader, water_images), 1)
+			rd.compute_list_bind_uniform_set(cache_list, _cache_uniform_set(view, _cache_shader, true), 2)
+			@warning_ignore("integer_division")
+			rd.compute_list_dispatch(cache_list, (cache_size.x + LOCAL_SIZE - 1) / LOCAL_SIZE,
+				(cache_size.y + LOCAL_SIZE - 1) / LOCAL_SIZE, 1)
+			# The separate list provides the write→sample dependency before composition.
+			rd.compute_list_end()
 
 		var compute_list := rd.compute_list_begin()
 		rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 		rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 		rd.compute_list_bind_uniform_set(compute_list, underwater_pass.bind_optics(shader, water_images), 1)
+		rd.compute_list_bind_uniform_set(compute_list, _cache_uniform_set(view, shader, false), 2)
 		rd.compute_list_dispatch(compute_list, x_groups, y_groups, 1)
 		rd.compute_list_end()
 
 		# Pase 2: god rays. En su PROPIA compute list para que la barrera implícita del
 		# compute_list_end() de arriba garantice que la máscara ya está escrita.
-		if god_rays_enabled and quality_god_rays and _god_rays_pipeline.is_valid():
+		var rays_visible := params_bytes.decode_float((29 * 4 + 2) * 4) > 0.001
+		if god_rays_enabled and quality_god_rays and _god_rays_pipeline.is_valid() and (rays_visible or god_rays_debug != 0):
 			var mask_sampled_uniform := RDUniform.new()
 			mask_sampled_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
 			mask_sampled_uniform.binding = 1
@@ -998,6 +1123,38 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 				0,
 				[color_uniform, mask_sampled_uniform, params_uniform, rays_depth_uniform]
 			)
+			if divisor > 1 and god_rays_debug == 0 and _god_rays_cache_pipeline.is_valid() and _god_rays_composite_pipeline.is_valid():
+				# The atmosphere cache has already been consumed; reuse its scatter image.
+				var rays_output := RDUniform.new()
+				rays_output.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
+				rays_output.binding = 0
+				rays_output.add_id(_scatter_textures[view])
+				var rays_cache_set := UniformSetCacheRD.get_cache(_god_rays_cache_shader, 0,
+					[rays_output, mask_sampled_uniform, params_uniform, rays_depth_uniform])
+				var cache_list := rd.compute_list_begin()
+				rd.compute_list_bind_compute_pipeline(cache_list, _god_rays_cache_pipeline)
+				rd.compute_list_bind_uniform_set(cache_list, rays_cache_set, 0)
+				rd.compute_list_bind_uniform_set(cache_list, underwater_pass.bind_optics(_god_rays_cache_shader, water_images), 1)
+				@warning_ignore("integer_division")
+				rd.compute_list_dispatch(cache_list, (cache_size.x + LOCAL_SIZE - 1) / LOCAL_SIZE,
+					(cache_size.y + LOCAL_SIZE - 1) / LOCAL_SIZE, 1)
+				rd.compute_list_end()
+				var cached_rays := RDUniform.new()
+				cached_rays.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+				cached_rays.binding = 0
+				cached_rays.add_id(_mask_sampler)
+				cached_rays.add_id(_scatter_textures[view])
+				var composite_set := UniformSetCacheRD.get_cache(_god_rays_composite_shader, 0,
+					[color_uniform, mask_sampled_uniform, params_uniform, rays_depth_uniform])
+				var composite_list := rd.compute_list_begin()
+				rd.compute_list_bind_compute_pipeline(composite_list, _god_rays_composite_pipeline)
+				rd.compute_list_bind_uniform_set(composite_list, composite_set, 0)
+				rd.compute_list_bind_uniform_set(composite_list, underwater_pass.bind_optics(_god_rays_composite_shader, water_images), 1)
+				rd.compute_list_bind_uniform_set(composite_list,
+					UniformSetCacheRD.get_cache(_god_rays_composite_shader, 2, [cached_rays]), 2)
+				rd.compute_list_dispatch(composite_list, x_groups, y_groups, 1)
+				rd.compute_list_end()
+				continue
 			var rays_list := rd.compute_list_begin()
 			rd.compute_list_bind_compute_pipeline(rays_list, _god_rays_pipeline)
 			rd.compute_list_bind_uniform_set(rays_list, rays_set, 0)
@@ -1027,7 +1184,8 @@ func _build_params_bytes(
 	size: Vector2i,
 	scene_data,
 	projection: Projection,
-	view: int
+	view: int,
+	divisor: int = 1
 ) -> PackedByteArray:
 	var cam_transform: Transform3D = scene_data.get_cam_transform()
 	var cam_origin: Vector3 = cam_transform.origin
@@ -1282,6 +1440,8 @@ func _build_params_bytes(
 	_append_vec4(floats, Vector4(local_aurora_low.r, local_aurora_low.g, local_aurora_low.b, local_aurora_oval))
 	_append_vec4(floats, Vector4(local_aurora_high.r, local_aurora_high.g, local_aurora_high.b, 0.0))
 
+	# 42: resolución del transporte (1 = completo; 2/4 = reconstrucción bilateral).
+	_append_vec4(floats, Vector4(divisor, 0.0, 0.0, 0.0))
 	return floats.to_byte_array()
 
 
