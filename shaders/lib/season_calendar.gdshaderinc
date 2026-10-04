@@ -12,6 +12,13 @@
 // y = declinación del sol (grados), z = inclinación del eje (grados), w = 1 con estaciones.
 // Con w = 0 (herramientas, horneado) todo se queda en verano.
 global uniform vec4 season_state;
+// Depuración de coste (consola: estacion perf): partes de la estación que se quedan como en verano.
+// Bits: SEASON_OFF_LEAVES (hoja caduca), SEASON_OFF_CHILL (frío: cota de nieve), SEASON_OFF_MEADOW
+// (pradera). 0 = todo normal.
+global uniform int season_debug_off;
+#define SEASON_OFF_LEAVES 1
+#define SEASON_OFF_CHILL 2
+#define SEASON_OFF_MEADOW 4
 
 // Franja del ecuador sin estaciones: el ciclo entra entre estas dos latitudes (grados). Estrecha a
 // propósito: los bosques caducos llegan casi al ecuador y el punto de partida está a 17°.
@@ -43,6 +50,9 @@ float season_strength(vec3 local) {
 
 // Frío de la estación: 0 en lo más cálido del verano .. 1 en lo más frío del invierno.
 float season_chill(vec3 local) {
+	if ((season_debug_off & SEASON_OFF_CHILL) != 0) {
+		return 0.0;
+	}
 	float p = season_local_phase(local);
 	return (1.0 - cos(TAU * (p - 0.25 - SEASON_THERMAL_LAG))) * 0.5 * season_strength(local);
 }

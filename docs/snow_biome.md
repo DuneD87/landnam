@@ -184,3 +184,9 @@ malla del océano.
 Bosque templado de referencia a 3840×2160: 5,98 ms antes y 6,27 ms después (vegetación 0,65 →
 0,70 ms). Esa vista está cerca de la cota de nieve (28°, lomas): en el trópico los shaders no
 evalúan el ruido. Taiga y línea de árboles: 7,2–8,5 ms en las mismas condiciones.
+
+Con las estaciones, el frío del otoño y del invierno lleva esa evaluación a la zona templada. A
+18° S y 87 m, en hierba alta a 2560×1440: verano 125 FPS, otoño ~113, invierno 98; con el frío
+apagado (`estacion perf frio`), otoño 128 e invierno 125. Apagando cada consumidor por separado, en
+invierno: nieve del terreno 1,2 ms, frío de la hierba (por vértice) 0,6, nieve por píxel de la
+hierba 0,2, árboles y rocas ~0,1-0,2. La hoja caída suma ~1,3 ms más (`estacion perf hojas`).

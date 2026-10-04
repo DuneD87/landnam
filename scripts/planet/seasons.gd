@@ -27,6 +27,10 @@ static var enabled: bool = false
 ## Dirección hacia el sol (mundo), la de sun_controller.gd. Sin sol, siempre es de día.
 static var sun_direction: Vector3 = Vector3.UP
 static var has_sun: bool = false
+## Depuración de coste (consola: estacion perf): partes de la estación que los shaders dejan como en
+## verano (uniform global season_debug_off). Solo cambia lo que se ve; la réplica en CPU sigue igual.
+const DEBUG_OFF := {"hojas": 1, "frio": 2, "pradera": 4}
+static var debug_off: int = 0
 
 
 ## Declinación del sol (grados) en una fase del año.
@@ -39,6 +43,11 @@ static func push_globals(phase: float, tilt_deg: float) -> void:
 	enabled = true
 	RenderingServer.global_shader_parameter_set(&"season_state",
 		Vector4(phase, declination_deg(phase, tilt_deg), tilt_deg, 1.0))
+
+
+static func set_debug_off(mask: int) -> void:
+	debug_off = mask
+	RenderingServer.global_shader_parameter_set(&"season_debug_off", mask)
 
 
 ## Latitud (grados, con signo) de una posición relativa al centro del planeta.

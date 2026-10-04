@@ -88,7 +88,7 @@ float season_cold_shift(vec3 local) {
 // (negativo) o retraso de la brotación de la especie (el almendro florece a finales del invierno).
 vec2 season_leaf_state(vec3 local, float jitter, float spring_shift) {
 	float strength = season_strength(local);
-	if (strength <= 0.0) {
+	if (strength <= 0.0 || (season_debug_off & SEASON_OFF_LEAVES) != 0) {
 		return vec2(2.0, 0.0);
 	}
 	float shift = season_cold_shift(local);
@@ -117,7 +117,7 @@ float season_blossom(float age) {
 // primavera (0..1). Sin estaciones, (0, 0): el verano.
 vec2 season_meadow_state(vec3 local) {
 	float strength = season_strength(local);
-	if (strength <= 0.0) {
+	if (strength <= 0.0 || (season_debug_off & SEASON_OFF_MEADOW) != 0) {
 		return vec2(0.0);
 	}
 	float shift = season_cold_shift(local);

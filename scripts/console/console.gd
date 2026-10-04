@@ -265,11 +265,13 @@ func _register_commands() -> void:
 		"Alterna el vuelo libre / atravesar terreno.", _cmd_noclip))
 	_add(ConsoleCommand.new("sun", "sun <azimuth> [elevación] | sun auto <on|off>",
 		"Coloca el sol o (des)activa su rotación automática.", _cmd_sun, 1))
-	_add(ConsoleCommand.new("estacion", "estacion [primavera|verano|otoño|invierno|<día>] | estacion velocidad <x>",
-		"Fecha y estación donde estás; salta a una estación de tu hemisferio o a un día del año, o acelera el calendario.",
+	_add(ConsoleCommand.new("estacion", "estacion [primavera|verano|otoño|invierno|<día>] | estacion velocidad <x> | estacion perf [hojas|frio|pradera|nada]",
+		"Fecha y estación donde estás; salta a una estación de tu hemisferio o a un día del año, o acelera el calendario. perf deja una parte como en verano para aislar su coste.",
 		_cmd_season, 0, _complete_season))
 	_add(ConsoleCommand.new("wake", "wake [on|off]",
 		"Apaga la espuma de estela, para aislar su coste por píxel.", _cmd_wake))
+	_add(ConsoleCommand.new("sombras", "sombras [on|off]",
+		"Apaga las sombras del sol, para aislar su coste (cambia con la altura del sol y la estación).", _cmd_shadows))
 	_add(ConsoleCommand.new("drift", "drift [factor]",
 		"Fuerza de la corriente del mar; sin argumento, informe de cómo la ven barco y jugador.", _cmd_drift))
 	_add(ConsoleCommand.new("damage", "damage [julios]",
@@ -502,6 +504,8 @@ func _cmd_season(args: PackedStringArray) -> String:
 	var player := _get_player()
 	var loader = player.planet if player != null else null
 	var local: Vector3 = player.global_position - loader.global_position if loader != null else Vector3.UP
+	if not args.is_empty() and args[0].to_lower() == "perf":
+		return _season_perf(args)
 	if not args.is_empty():
 		var arg := args[0].to_lower()
 		if arg == "velocidad":
@@ -515,7 +519,7 @@ func _cmd_season(args: PackedStringArray) -> String:
 		elif arg.is_valid_float():
 			sun.set_day_of_year(arg.to_float())
 		else:
-			return "[color=%s]Uso: estacion [primavera|verano|otoño|invierno|<día>] | estacion velocidad <x>.[/color]" % COLOR_ERR
+			return "[color=%s]Uso: estacion [primavera|verano|otoño|invierno|<día>] | estacion velocidad <x> | estacion perf [hojas|frio|pradera|nada].[/color]" % COLOR_ERR
 		sun._update_sun()
 		# Tras un salto de fecha el tiempo se sortea con la estación nueva.
 		var weather := _get_weather()
@@ -532,8 +536,29 @@ func _cmd_season(args: PackedStringArray) -> String:
 	return out
 
 
+## estacion perf [hojas|frio|pradera|nada]: alterna esa parte de la estación como en verano (solo en
+## los shaders) para aislar lo que cuesta; nada la vuelve a poner entera. Sin parte, dice cuáles están
+## apagadas.
+func _season_perf(args: PackedStringArray) -> String:
+	if args.size() >= 2:
+		var part := args[1].to_lower().replace("í", "i")
+		if part == "nada":
+			Seasons.set_debug_off(0)
+		elif Seasons.DEBUG_OFF.has(part):
+			Seasons.set_debug_off(Seasons.debug_off ^ int(Seasons.DEBUG_OFF[part]))
+		else:
+			return "[color=%s]Uso: estacion perf [hojas|frio|pradera|nada].[/color]" % COLOR_ERR
+	var off := PackedStringArray()
+	for part: String in Seasons.DEBUG_OFF:
+		if Seasons.debug_off & int(Seasons.DEBUG_OFF[part]):
+			off.append(part)
+	if off.is_empty():
+		return "[color=%s]Estación entera en los shaders.[/color]" % COLOR_MUTED
+	return "[color=%s]Como en verano: %s.[/color]" % [COLOR_OK, ", ".join(off)]
+
+
 func _complete_season() -> PackedStringArray:
-	return PackedStringArray(["primavera", "verano", "otoño", "invierno", "velocidad"])
+	return PackedStringArray(["primavera", "verano", "otoño", "invierno", "velocidad", "perf"])
 
 
 ## Enciende o apaga el perfilado. Apagado, los report_cost repartidos por el juego no hacen nada
@@ -609,6 +634,27 @@ func _cmd_wake(args: PackedStringArray) -> String:
 		COLOR_OK if GridManager.wake_enabled else COLOR_MUTED,
 		"ON" if GridManager.wake_enabled else "OFF",
 		GridManager.wake_stat_wakes, GridManager.wake_stat_points]
+
+
+func _cmd_shadows(args: PackedStringArray) -> String:
+	var sun := _get_sun()
+	var light: DirectionalLight3D = sun.get("sun_light") if sun != null else null
+	if light == null:
+		return "[color=%s]No hay sol activo.[/color]" % COLOR_ERR
+	if not args.is_empty():
+		light.shadow_enabled = args[0].to_lower() in ["on", "1", "true"]
+	var elevation := rad_to_deg(asin(clampf(light.global_basis.z.normalized().dot(_local_up()), -1.0, 1.0))) if _local_up() != Vector3.ZERO else NAN
+	return "[color=%s]Sombras del sol: %s · sol a %.1f° sobre el horizonte.[/color]" % [
+		COLOR_OK if light.shadow_enabled else COLOR_MUTED, "ON" if light.shadow_enabled else "OFF", elevation]
+
+
+## Arriba local del jugador (desde el centro de su planeta), o cero sin jugador.
+func _local_up() -> Vector3:
+	var player := _get_player()
+	var loader = player.planet if player != null else null
+	if loader == null:
+		return Vector3.ZERO
+	return (player.global_position - loader.global_position).normalized()
 
 
 func _cmd_drift(args: PackedStringArray) -> String:

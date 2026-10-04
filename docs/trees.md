@@ -50,9 +50,9 @@ Flujo al cambiar un árbol:
    a `addons/Tree3D/`. La DLL de Windows del repositorio no se ha recompilado.
 
 `height_m: [min, max]` en `planet_earth.json` fija la altura real de cada item (planet.gd la
-convierte en escala a partir de su LOD0): pinos 11-19 m, olivos 4-7 m, manzanos 4-7,5 m,
-almendros 5-8 m, palmeras 8-15 m. La escala común de 2,5 a 7,5 del generador dejaba pinos de
-90 m y olivos de 22 m.
+convierte en escala a partir de su LOD0): pinos 14-24 m, olivos 5-8,5 m, manzanos 4-7,5 m,
+almendros 5-8 m, palmeras 8-15 m; en la taiga, piceas de 14 a 30 m y pinos de 14-22 m. La
+escala común de 2,5 a 7,5 del generador dejaba pinos de 90 m y olivos de 22 m.
 
 ## Distribución
 
@@ -63,6 +63,14 @@ densidad de la que decía el JSON. Con 0,01 el sotobosque quedaba cerrado (a ras
 cámara acababa dentro de una copa en cualquier dirección) y costaba ~6 fps más corriendo a
 2560×1440; con 0,007 hay troncos, claros y cielo entre las copas, y desde arriba la cubierta
 sigue cerrada.
+
+La densidad es **por especie**: cada item crea su propio generador, así que el bosque templado (3 pinos
+y 2 olivos) suma 5 veces la del JSON. Con 0,007 eran 0,035 árboles/m² en las manchas, uno cada
+~5 m: una masa de árboles medianos. Ahora 0,003 (0,015/m², uno cada ~8 m, ~150 por hectárea) con
+pinos más altos (14-24 m): menos pies, más grandes y con más luz entre ellos, como un pinar maduro.
+La taiga baja de 0,008 a 0,005 por especie (4 especies: 0,02/m²) con piceas y pinos ~20 % más
+altos. Las bandas de impostores lejanos usan la misma densidad y bajan con ella. Los bosquetes de
+almendros y manzanos, el abedul y la línea de árboles no cambian.
 
 Almendros y manzanos no salen de él sino de sus bosquetes (`tree_generator_almond_grove`,
 `tree_generator_apple_grove`): pocas manchas de ~80 m con 0,009 árboles/m² por variante, cada especie
