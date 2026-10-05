@@ -188,7 +188,7 @@ func capture_mouse(capture: bool):
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if capture else Input.MOUSE_MODE_VISIBLE)
 
 ## Da de alta en el planeta los materiales de iluminación planetaria de un nodo que el jugador
-## pasa a llevar encima (armadura, herramienta) para que reciban el push de sol cada frame.
+## pasa a llevar encima (armadura, herramienta) para que reciban sus parámetros de iluminación.
 func _register_worn_node(node: Node) -> void:
 	for mat in _collect_planet_materials(node):
 		if not _worn_planet_materials.has(mat):
@@ -207,8 +207,8 @@ func _unregister_worn_node(node: Node) -> void:
 
 ## ShaderMaterials del subárbol que usan la iluminación planetaria, mirando override de nodo,
 ## overrides de superficie y los materiales propios de la malla (donde viven los de los .tscn
-## de equipo). Se identifican por tener el uniform light_direction: así entra cualquier shader
-## que incluya planet_lighting.gdshaderinc sin listar rutas.
+## de equipo). El uniform planet_position identifica el include de iluminación;
+## también se admite light_direction para materiales antiguos.
 func _collect_planet_materials(node: Node) -> Array[ShaderMaterial]:
 	var found: Array[ShaderMaterial] = []
 	for mesh in _find_mesh_instances(node):
@@ -222,7 +222,7 @@ func _collect_planet_materials(node: Node) -> Array[ShaderMaterial]:
 			if shader_mat == null or shader_mat.shader == null or found.has(shader_mat):
 				continue
 			for uniform in shader_mat.shader.get_shader_uniform_list():
-				if uniform.name == "light_direction":
+				if uniform.name == "planet_position" or uniform.name == "light_direction":
 					found.append(shader_mat)
 					break
 	return found
@@ -237,7 +237,7 @@ func _find_mesh_instances(node: Node) -> Array[MeshInstance3D]:
 	return meshes
 
 
-## Traslada el registro de lo que lleva puesto al planeta actual. El push de sol lo hace cada
+## Traslada el registro de lo que lleva puesto al planeta actual. Los parámetros los actualiza cada
 ## planeta sobre su propia lista, así que al cambiar de planeta hay que rehacerlo o el equipo
 ## se quedaría iluminado con el centro y el sol del anterior. Mientras el planeta no haya
 ## terminado de cargar no hay a quién registrarse y se reintenta en el siguiente frame.

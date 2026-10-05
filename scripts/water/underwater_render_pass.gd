@@ -20,6 +20,8 @@ var _field_sampler: RID
 var _detail_sampler: RID
 var _views: Array[Dictionary] = []
 var _slots := {}
+var _default_shader: Shader
+var _default_values := {}
 
 func _init() -> void:
 	for entry in layout.uniforms:
@@ -28,6 +30,13 @@ func _init() -> void:
 
 
 func update_material(material: ShaderMaterial) -> void:
+	if material != null and material.shader != _default_shader:
+		if _default_shader != null:
+			_default_shader.changed.disconnect(_clear_default_values)
+		_default_shader = material.shader
+		_default_values.clear()
+		if _default_shader != null:
+			_default_shader.changed.connect(_clear_default_values)
 	var bytes := PackedByteArray()
 	bytes.resize(int(layout.slots) * 16)
 	var textures: Array[Texture2D] = []
@@ -37,7 +46,11 @@ func update_material(material: ShaderMaterial) -> void:
 		if material != null:
 			value = material.get_shader_parameter(entry.name)
 			if value == null:
-				value = RenderingServer.shader_get_parameter_default(material.shader.get_rid(), entry.name)
+				# Evita consultar al servidor de render cada frame. El default solo
+				# cambia al sustituir el shader o editar su código.
+				if not _default_values.has(entry.name):
+					_default_values[entry.name] = RenderingServer.shader_get_parameter_default(material.shader.get_rid(), entry.name)
+				value = _default_values[entry.name]
 		if entry.type == "sampler2D":
 			textures.append(value as Texture2D)
 			continue
@@ -73,6 +86,10 @@ func update_material(material: ShaderMaterial) -> void:
 	_snapshot = bytes
 	_textures = textures
 	_mutex.unlock()
+
+
+func _clear_default_values() -> void:
+	_default_values.clear()
 
 
 static func _put_vec4(bytes: PackedByteArray, offset: int, v: Vector4) -> void:

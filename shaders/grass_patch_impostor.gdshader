@@ -24,7 +24,7 @@
 //  solaparse con el fade_start/fade_end de grass_wind.gdshader o se verá un hueco
 //  sin hierba en la banda intermedia.
 //
-//  planet.gd empuja cada frame light_direction y planet_position (vía
+//  planet.gd mantiene planet_position actualizado (vía
 //  item_transparent_materials). NO renombrar.
 // =============================================================================
 shader_type spatial;

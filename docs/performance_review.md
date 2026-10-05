@@ -71,7 +71,7 @@ no se toma una sola pareja allí como una mejora o regresión general. Los ciclo
 aproximados de GPU permanecen prácticamente constantes con el cambio de CPU;
 una bajada de milisegundos GPU por mayor frecuencia no es ahorro de shader.
 
-Prueba `tests/water/test_underwater_snapshot.gd`: 0, 1, 2 y 128 interiores activos,
+Validación del snapshot: 0, 1, 2 y 128 interiores activos,
 vuelta de 128 a 0, exclusión de interiores inactivos, conservación de los demás
 arrays y desactivación con material nulo. Resultado: cero fallos en el proyecto
 aislado sin GPU.
@@ -96,3 +96,64 @@ Registros locales de la revisión (artefactos ignorados por Git):
 
 Las mediciones corresponden a estos dos puntos en verano, con la cámara quieta;
 no cuantifican otros biomas, el invierno ni el streaming durante el movimiento.
+
+## Partida de otoño en la zona nevada
+
+Commit de control solicitado antes de esta segunda revisión: `5c57596`.
+Se mide una copia de `main_save`, con el día 19,203801 del año, clima despejado,
+posición canónica (21585,6875; 15315,9971; 803,0516) y distancia de cámara 3,2 m.
+La cámara conserva el encuadre guardado; el sol y el calendario siguen avanzando.
+
+Ajustes actuales: ventana efectiva 2560×1440, bilineal, escala 0,75 (3D a
+1920×1080), MSAA 2x, densidad/distancia de hierba, fauna y detalle de terreno en
+nivel 1. Se conservan las sombras, incluido el alcance de 1500 m del sol.
+
+### Cambios conservados
+
+- `_update_planet()` envía el centro, viento y velocidad únicamente cuando cambian.
+  Inicializa materiales nuevos o sustituidos y conserva las actualizaciones del
+  sol para shaders antiguos que realmente declaran `light_direction`. El include
+  moderno usa `LIGHT` y deja de declarar ese uniform sin uso; el registro del
+  equipo reconoce `planet_position` y sigue admitiendo shaders antiguos.
+  Se invalida la consulta de uniforms al cambiar el código de un shader.
+- Celdas de árboles de 64/64/128 m en lugar de 32/32/64 m: mismas posiciones,
+  mallas, densidad, distancias de LOD y sombras, agrupadas en menos MultiMeshes.
+  En esta vista se reducen unas 650–700 llamadas de dibujo.
+- Caché de defaults del shader en el snapshot del agua. Los overrides del
+  material siguen leyéndose en cada actualización; cambiar el shader o su código
+  invalida la caché. Evita consultas repetidas al servidor de render.
+
+### Comparación final
+
+El arnés mide FPS medios con el tiempo real de 400 fotogramas por variante,
+alternando el estado anterior y el optimizado dentro de la misma partida, con
+controles y física activos. El estado anterior restaura las celdas de 32 m y los
+envíos de uniforms por frame; conserva las comprobaciones del código nuevo.
+
+| Pareja | Estado anterior | Optimizado |
+|---|---:|---:|
+| 1 | 84,12 FPS / 11,888 ms | 106,99 FPS / 9,347 ms |
+| 2 | 86,00 FPS / 11,628 ms | 109,38 FPS / 9,142 ms |
+| 3 | 88,85 FPS / 11,255 ms | 111,90 FPS / 8,936 ms |
+| 4 | 88,51 FPS / 11,298 ms | 110,12 FPS / 9,081 ms |
+
+La preparación de render baja aproximadamente de 1,2–1,4 a 0,3–0,4 ms en las
+muestras de control. La frecuencia de GPU también sube al aliviar la CPU.
+Las mediciones del arnés quedan en 107–112 FPS; el usuario confirma **120 FPS y
+algo más en el juego** tras los cambios. Son observaciones de ejecuciones
+distintas: las comparaciones alternas cuantifican la mejora y la comprobación
+del usuario valida el objetivo en su partida.
+
+### Validación y limpieza
+
+Validación: prueba de actualización de materiales (sol, rebase, viento, clima,
+velocidad de especie, sustitución/recarga, equipo, shader moderno y cambio de
+shader en vivo), cero fallos; prueba existente de árboles, cero fallos; snapshot
+del agua con 0/1/2/128 interiores y transición a cero, cero fallos sin GPU; defaults,
+overrides y sustitución de shader, cero fallos con OpenGL.
+Se retiran las pruebas y los arneses temporales añadidos durante esta revisión
+a petición del usuario; se conservan los tests existentes.
+
+Registros locales ignorados por Git: `build/ab/save_paired.log` (comparación final),
+`build/ab/planet_material_updates_final.log`, `build/ab/tree_tests_after.log` y
+`build/ab/snapshot_final_{headless,gpu}2.log` (validación).

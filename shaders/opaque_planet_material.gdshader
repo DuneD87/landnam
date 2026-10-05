@@ -5,7 +5,7 @@ shader_type spatial;
 // respeta metallic/roughness. El ambiente es el del entorno (cielo del observador).
 //
 // Pensado para rocas y superficies sólidas sobre el planeta esférico.
-// El planeta debe alimentar cada frame light_direction y planet_position
+// El planeta alimenta planet_position cuando cambia el centro
 // (planet.gd::_update_planet). Ver planet_lighting.gdshaderinc.
 
 render_mode depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;

@@ -77,6 +77,12 @@ var _vegetation_field: Dictionary = {}
 ## lista aparte porque _load_vegetation vacía item_transparent_materials en cada carga del
 ## planeta y estos tienen que sobrevivir a ella (el jugador se registra una sola vez).
 var external_planet_materials: Array[ShaderMaterial] = []
+var _material_uniforms_initialized := false
+var _last_material_sun := Vector3.ZERO
+var _last_material_position := Vector3.ZERO
+var _last_material_wind := Vector3.ZERO
+var _last_external_material_count := -1
+var _sun_parameter_shaders: Dictionary = {}
 @export var shader_material: ShaderMaterial
 @export var caustics_material: ShaderMaterial
 @export var multi_mesh_array: Array[Dictionary] = []
@@ -2128,24 +2134,71 @@ func update_world_center() -> void:
 	planet_position = voxel_terrain.get_parent().position
 
 func _update_planet() -> void:
+	var sun_changed := not _material_uniforms_initialized or sun_dir != _last_material_sun
+	var position_changed := not _material_uniforms_initialized or planet_position != _last_material_position
+	var wind_changed := not _material_uniforms_initialized or wind_direction != _last_material_wind
 	for mat_struct in item_transparent_materials:
 		var mat = mat_struct.shader as ShaderMaterial
-		mat.set_shader_parameter("light_direction", sun_dir)
-		mat.set_shader_parameter("planet_position", planet_position)
-		mat.set_shader_parameter("wind_direction", wind_direction)
-		mat.set_shader_parameter("wind_speed", mat_struct.wind_speed * weather_wind_multiplier)
-	for mat in external_planet_materials:
-		mat.set_shader_parameter("light_direction", sun_dir)
-		mat.set_shader_parameter("planet_position", planet_position)
+		# Los materiales que se añaden o reemplazan reciben todo en su primer frame.
+		var fresh: bool = mat_struct.get("_updated_material") != mat or mat_struct.get("_updated_shader") != mat.shader
+		if (fresh or sun_changed) and _shader_uses_sun_parameter(mat.shader):
+			mat.set_shader_parameter("light_direction", sun_dir)
+		if fresh or position_changed:
+			mat.set_shader_parameter("planet_position", planet_position)
+		if fresh or wind_changed:
+			mat.set_shader_parameter("wind_direction", wind_direction)
+		var speed: float = mat_struct.wind_speed * weather_wind_multiplier
+		if fresh or speed != mat_struct.get("_updated_wind_speed"):
+			mat.set_shader_parameter("wind_speed", speed)
+			mat_struct["_updated_wind_speed"] = speed
+		if fresh:
+			mat_struct["_updated_material"] = mat
+			mat_struct["_updated_shader"] = mat.shader
+	var external_changed := external_planet_materials.size() != _last_external_material_count
+	if sun_changed or position_changed or external_changed:
+		for mat in external_planet_materials:
+			if (sun_changed or external_changed) and _shader_uses_sun_parameter(mat.shader):
+				mat.set_shader_parameter("light_direction", sun_dir)
+			if position_changed or external_changed:
+				mat.set_shader_parameter("planet_position", planet_position)
+	_last_material_sun = sun_dir
+	_last_material_position = planet_position
+	_last_material_wind = wind_direction
+	_last_external_material_count = external_planet_materials.size()
+	_material_uniforms_initialized = true
+
+
+## Los shaders modernos usan LIGHT; los antiguos que declaran el uniform conservan
+## su actualización. Consultar una vez por shader evita invalidar materiales que no lo usan.
+func _shader_uses_sun_parameter(shader: Shader) -> bool:
+	if not _sun_parameter_shaders.has(shader):
+		var uses_sun := false
+		if shader != null:
+			for uniform in shader.get_shader_uniform_list():
+				if uniform.name == "light_direction":
+					uses_sun = true
+					break
+			var on_changed := _on_planet_shader_changed.bind(shader)
+			if not shader.changed.is_connected(on_changed):
+				shader.changed.connect(on_changed)
+		_sun_parameter_shaders[shader] = uses_sun
+	return _sun_parameter_shaders[shader]
+
+
+func _on_planet_shader_changed(shader: Shader) -> void:
+	_sun_parameter_shaders.erase(shader)
+	_material_uniforms_initialized = false
 
 
 ## Da de alta un material con iluminación planetaria que no viene de la vegetación
-## (equipo del jugador, props colocados). Sin esto se queda con el light_direction /
-## planet_position por defecto del .tscn y el objeto se ve casi negro: toda la luz
-## directa va multiplicada por el day_factor que sale de esos dos uniforms.
+## (equipo del jugador, props colocados). Recibe el centro del planeta y, en los shaders
+## antiguos que la necesitan, la dirección del sol.
 func register_planet_material(mat: ShaderMaterial) -> void:
 	if mat != null and not external_planet_materials.has(mat):
 		external_planet_materials.append(mat)
+		if _shader_uses_sun_parameter(mat.shader):
+			mat.set_shader_parameter("light_direction", sun_dir)
+		mat.set_shader_parameter("planet_position", planet_position)
 
 
 func unregister_planet_material(mat: ShaderMaterial) -> void:

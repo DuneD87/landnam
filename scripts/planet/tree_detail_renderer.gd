@@ -33,9 +33,10 @@ const UPLOAD_BUDGET_USEC := 350
 ## Celdas de los MultiMesh. Godot recorta un MultiMesh entero por su AABB: con uno solo por
 ## LOD se dibujaban todos sus árboles (y en cada cascada de sombra) aunque casi todos
 ## quedaran fuera de cámara.
-const CELL_SIZE := 32.0
+const CELL_SIZE := 64.0
 ## Multiplicador de celda por LOD: el anillo del LOD2 tiene la mayoría de los árboles, y con
-## celdas de 32 m eran ~1.200 MultiMesh (9 especies x 3 LODs).
+## celdas de 32 m eran ~1.200 MultiMesh (9 especies x 3 LODs). Con celdas base de 64 m
+## se reducen las llamadas sin cambiar posiciones, mallas ni distancias de los relevos.
 const LOD_CELL_SCALES: Array[int] = [1, 1, 2]
 ## LODs que proyectan sombra. Desde el LOD2 la sombra la proyecta el impostor (un quad visto
 ## desde la luz) con el mismo tramado con que sale la del LOD1: la geometría del LOD2 en las

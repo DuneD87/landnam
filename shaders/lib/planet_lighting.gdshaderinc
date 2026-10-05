@@ -37,14 +37,13 @@
 //      DIFFUSE_LIGHT  += d;   // el motor multiplica DIFFUSE_LIGHT por ALBEDO
 //      SPECULAR_LIGHT += s;   // opcional (grass/transparent lo omiten)
 //
-//  El planeta (planet.gd::_update_planet) escribe cada frame light_direction y
-//  planet_position sobre cada material. NO renombrar esos uniforms.
+//  El planeta alimenta planet_position al cambiar el centro. La dirección y el
+//  color de cada luz llegan por LIGHT/LIGHT_COLOR en light().
 // =============================================================================
 #ifndef PLANET_LIGHTING_INC
 #define PLANET_LIGHTING_INC
 
 // --- Alimentados por el planeta ---
-uniform vec3  light_direction = vec3(1.0, 0.0, 0.0);
 uniform vec3  planet_position;
 
 // --- Translucencia / SSS ---
