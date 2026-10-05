@@ -43,7 +43,12 @@ func update_material(material: ShaderMaterial) -> void:
 			continue
 		if value == null:
 			continue
-		for index in int(entry.count):
+		var count := int(entry.count)
+		# Los consumidores solo leen los interiores activos. El resto del buffer ya
+		# está a cero: no copiar las 128 plazas de cada array en tierra firme.
+		if count > 1 and String(entry.name).begins_with("interior_"):
+			count = mini(count, clampi(bytes.decode_s32(int(_slots.interior_count) * 16), 0, 128))
+		for index in count:
 			var item: Variant = value
 			if int(entry.count) > 1:
 				if index >= value.size():

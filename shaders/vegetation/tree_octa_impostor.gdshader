@@ -208,10 +208,23 @@ void fragment() {
 	if (deciduous && (state.x < 2.0 || state.y > 0.0)) {
 		season = season_leaf_cover(state) <= 0.0 ? 2 : 1;
 	}
-	sample_frame(v_cells01.xy, v_uv0, v_weights.x, season, state, color, normal_ao, total, leaf_stage);
-	sample_frame(v_cells01.zw, v_uv1, v_weights.y, season, state, color, normal_ao, total, leaf_stage);
-	sample_frame(v_cells23.xy, v_uv2, v_weights.z, season, state, color, normal_ao, total, leaf_stage);
-	sample_frame(v_cells23.zw, v_uv3, v_weights.w, season, state, color, normal_ao, total, leaf_stage);
+	if (IN_SHADOW_PASS) {
+		// En la sombra basta la silueta del frame que más pesa. Las cuatro lecturas del atlas
+		// por fragmento eran ~1,6 ms de GPU en un bosque (miles de quads recortados por alfa en
+		// las cascadas), sin diferencia visible en la sombra.
+		vec2 cell = v_cells01.xy;
+		vec2 uv = v_uv0;
+		float best = v_weights.x;
+		if (v_weights.y > best) { best = v_weights.y; cell = v_cells01.zw; uv = v_uv1; }
+		if (v_weights.z > best) { best = v_weights.z; cell = v_cells23.xy; uv = v_uv2; }
+		if (v_weights.w > best) { cell = v_cells23.zw; uv = v_uv3; }
+		sample_frame(cell, uv, 1.0, season, state, color, normal_ao, total, leaf_stage);
+	} else {
+		sample_frame(v_cells01.xy, v_uv0, v_weights.x, season, state, color, normal_ao, total, leaf_stage);
+		sample_frame(v_cells01.zw, v_uv1, v_weights.y, season, state, color, normal_ao, total, leaf_stage);
+		sample_frame(v_cells23.xy, v_uv2, v_weights.z, season, state, color, normal_ao, total, leaf_stage);
+		sample_frame(v_cells23.zw, v_uv3, v_weights.w, season, state, color, normal_ao, total, leaf_stage);
+	}
 	if (color.a < alpha_scissor_threshold || total <= 0.0) {
 		discard;
 	}
