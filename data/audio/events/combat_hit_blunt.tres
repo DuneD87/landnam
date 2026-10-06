@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_mquym"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_blunt/hit_blunt_01.ogg" id="2_5yqum"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_blunt/hit_blunt_02.ogg" id="3_6qrui"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_blunt/hit_blunt_03.ogg" id="4_mju3d"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_blunt/hit_blunt_04.ogg" id="5_d5kn2"]
+
+[resource]
+script = ExtResource("1_mquym")
+event_id = &"combat_hit_blunt"
+streams = Array[AudioStream]([ExtResource("2_5yqum"), ExtResource("3_6qrui"), ExtResource("4_mju3d"), ExtResource("5_d5kn2")])
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 40.0
+max_voices = 6
+cooldown = 0.02

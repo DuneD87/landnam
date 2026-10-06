@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_yhn3e"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_light/swing_light_01.ogg" id="2_5c4k3"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_light/swing_light_02.ogg" id="3_f4fkd"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_light/swing_light_03.ogg" id="4_iupp3"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_light/swing_light_04.ogg" id="5_l1uf7"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_light/swing_light_05.ogg" id="6_30v81"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_light/swing_light_06.ogg" id="7_hyyer"]
+
+[resource]
+script = ExtResource("1_yhn3e")
+event_id = &"combat_swing_light"
+streams = Array[AudioStream]([ExtResource("2_5c4k3"), ExtResource("3_f4fkd"), ExtResource("4_iupp3"), ExtResource("5_l1uf7"), ExtResource("6_30v81"), ExtResource("7_hyyer")])
+volume_db = -6.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 30.0
+unit_size = 3.0
+cooldown = 0.03

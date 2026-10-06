@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="CreatureCombatProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="1_137vu"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/bear_swipe.tres" id="2_5kp2w"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/bear_double.tres" id="3_ky4ip"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/bear_charge.tres" id="4_0vm2e"]
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_combat_profile.gd" id="5_ptowx"]
+
+[resource]
+script = ExtResource("5_ptowx")
+attacks = Array[ExtResource("1_137vu")]([ExtResource("2_5kp2w"), ExtResource("3_ky4ip"), ExtResource("4_0vm2e")])
+disengage_distance = 60.0
+threaten_sound = &"bear_roar"
+chase_speed = 8.0
+sprint_speed = 11.5
+sprint_distance = 12.0
+sprint_stamina = 6.0
+chase_lead = 0.8
+recover_time = Vector2(0.35, 0.7)
+recover_turn_rate = 200.0
+circle_chance = 0.15
+repeat_penalty = 0.5
+max_combo = 3
+max_poise = 110.0
+poise_regen = 25.0
+stagger_time = 1.0
+action_fade_in = 0.2
+action_fade_out = 0.35
+attack_sound = &"bear_growl"
+swing_sound = &"claw_swipe"
+stagger_sound = &"bear_hurt"

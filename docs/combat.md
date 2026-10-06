@@ -174,8 +174,8 @@ Mallas y escenas: `bake_weapons.gd -- --only=branch,litter`.
   (11/s), mantener la cuerda tensa y trepar (ver [climbing.md](climbing.md)). Si se
   agota, hay que recuperar un poco antes de volver a gastar.
 - **Guardia (poise)**: un golpe con más desgaste que la guardia del jugador (24) le
-  hace tambalearse. Los osos aguantan 85 de desgaste acumulado y, al romperla, se
-  quedan 1,5 s vendidos.
+  hace tambalearse. Los osos aguantan 110 de desgaste acumulado (más la armadura de su
+  ataque) y, al romperla, se quedan 1 s vendidos.
 
 ## Heridas y mutilaciones
 
@@ -271,23 +271,141 @@ su espejo (`*_mirror`). Velocidades medidas en los clips: cojear ~0,9 m/s, arras
 ~0,4 m/s. La muleta es un pie más: la punta se queda clavada y da un paso cuando se queda
 atrás; el brazo la agarra por IK (`CombatPose._apply_crutch`).
 
-## Osos
+## Criaturas
 
-`CreatureMeleeState` sustituye al antiguo `CombatState` en `Bear.tscn`. El oso ve
-al jugador a 32 m (cono de 140°) y lo oye a 14 m, ruge y persigue a 6,2 m/s. Tiene
-tres ataques:
+El combate de las criaturas es común a todas las especies; lo propio de cada una son datos. El
+tono es realista y letal: avisan poco, castigan los errores y no se las deja atrás corriendo.
 
-| Ataque | Animación | Distancia | Daño |
-| --- | --- | --- | --- |
-| Zarpazo | `atk stand2` | < 3,3 m | 32 |
-| Doble zarpazo | `atk stand` | < 3,0 m | 20 + 28 |
-| Embestida | `atk run` | 4,5–10 m | 26 |
+- **`CreatureCombatState`** (`scripts/npc/ai/states/`): el estado de combate. Amenaza al
+  empezar contra el jugador; persigue hacia donde va a estar el objetivo (`chase_lead`), a fondo
+  si está lejos y le queda fuelle (`sprint_*`); lanza un ataque en cuanto alguno llega; encadena
+  otros (`follow_ups`) o se queda vendido después y a veces rodea al objetivo; y se tambalea si
+  le rompen la guardia.
+- **`CreatureCombatProfile`** (`data/fauna/combat/<especie>_combat.tres`): el temperamento de la
+  especie (velocidades, fuelle, distancias, guardia, recuperación, combo máximo, penalización por
+  repetir, sonidos, clip de tambaleo) y la lista de sus ataques.
+- **`CreatureAttack`** (`data/fauna/combat/attacks/*.tres`): un ataque. Los tiempos están en
+  segundos del clip a ritmo 1.
+  - Clip, distancias y ángulo a los que se elige, peso, cooldown.
+  - `situations`: multiplicadores del peso según lo que hace el objetivo (ver `CombatRead`).
+  - Aviso: `tell` (plantado) y `windup_speed` (el clip lento hasta poco antes del primer golpe).
+  - Seguimiento: gira hacia el objetivo a `track_windup` °/s hasta comprometerse (`commit`, por
+    defecto justo antes del primer golpe) y a `track_active` °/s después, apuntando a donde
+    estará (`lead`). Apartarse en el momento justo funciona; hacerlo pronto, no.
+  - Avance (`lunge`), que se frena para quedarse a `lunge_min_distance` del objetivo.
+  - Armadura (`armor`): guardia extra en un tramo, que los golpes gastan antes que la suya.
+  - Combo: `follow_ups` (ids del mismo perfil), su probabilidad y desde cuándo pueden salir.
+  - Ventanas de golpe (**`CreatureHit`**): tramo del clip, huesos que hieren, radio, daño,
+    desgaste de guardia, empujón y tipo de daño.
 
-Cada ataque avisa: la primera parte de la animación va más lenta y el oso se encara.
-Cuando empieza el golpe se compromete y ya no gira, así que apartarse o rodar a
-tiempo lo evita. Las zarpas y la cabeza hieren por colisión solo dentro de la ventana
-activa. Después de cada ataque se queda un momento quieto (la ventana para castigar)
-y a veces rodea al jugador gruñendo. Tiene 240 de vida. Deja de perseguir a 45 m.
+  Las especies con el mismo esqueleto comparten ataques (el oso polar usa los del oso).
+- **`CreatureAttackRunner`** (`scripts/npc/ai/combat/`): ejecuta un ataque, sea cual sea el estado
+  que lo lanza: aviso, seguimiento, avance, barrido de los huesos contra los hurtboxes y armadura.
+- **`CombatRead`**: lo que la criatura sabe de su objetivo. El objetivo cuenta lo suyo con
+  `get_combat_situation()` (`windup`, `active`, `recovering`, `dodging`, `aiming`, `staggered`;
+  el jugador lo saca de `PlayerCombat.get_situation()` y una criatura de su estado de combate) y
+  desde fuera se ve `fleeing`, `back_turned` y `weak`. Un objetivo nuevo (un humano) entra con
+  solo implementar `get_combat_situation()`.
+- **`CreatureActionChannel`**: el canal de animación de acción de cada criatura, encima de la
+  locomoción y sobre su propia copia del árbol. Son dos ranuras que se turnan, para que un golpe
+  encadenado se funda sobre el anterior. Lo da `NPCController.get_action_channel()`.
+- **`TerritorialState`**: defender un sitio sin ir a por nadie mientras no haga falta. Lo enciende
+  `IdleState`/`WanderState` (su `threat_state`) cuando el objetivo entra en su radio. Lo vigila
+  encarado; a menos de `warn_distance` le amenaza cada poco (clips y sonido) y se le gasta la
+  paciencia, más deprisa cuanto más cerca; a menos de `attack_distance`, al acabarse la paciencia
+  o si le hieren (`NPCController.provoked_state`), pasa al combate; más allá de `calm_distance`
+  se calma. La paciencia gastada se recupera despacio. En combate, `leash_distance` del perfil
+  hace que deje de perseguir al que se aleja de su sitio (`NPCController.get_home()`, guardado en
+  el marco del planeta para que sobreviva a los rebases del origen flotante).
+- **Cuerpo**: `AIController.desired_facing` y `turn_rate` separan hacia dónde mira de hacia dónde
+  anda y limitan el giro; `AIController.target_velocity` mide cómo se mueve el objetivo.
+  `NPCController.sprint_anim_speed` pasa al clip de esprintar por encima de esa velocidad, y
+  `run_clip_speed`/`sprint_clip_speed` (la velocidad de suelo de cada clip, medida en él) aceleran
+  o frenan esos clips a la velocidad del cuerpo para que las patas no patinen.
+- **Percepción**: si el estado suelta al objetivo (se rinde, se calma) y lo sigue viendo, se lo
+  vuelve a dar; los muertos no se perciben.
+
+Una especie nueva necesita su perfil, sus ataques medidos sobre sus clips y un nodo
+`CombatState` con `CreatureCombatState` y el perfil en su escena. `test_creature_combat` comprueba
+que los ataques de cada escena casen con sus clips y su esqueleto, y que cada uno acierte a un
+blanco quieto en los dos extremos de su distancia. `ia [radio]` en la consola dice qué piensa cada
+criatura cercana.
+
+Para medir los clips (ninguno de los animales trae movimiento de raíz: el avance lo pone el
+`lunge`), lo que sirve es la posición y la velocidad de zarpas y cabeza respecto a la raíz a lo
+largo del clip, y la velocidad de suelo de los pies en apoyo en los de correr.
+
+### Osos
+
+El oso ve al jugador a 32 m (cono de 140°) y lo oye a 14 m, ruge y persigue a 8 m/s, la velocidad
+de suelo de su clip de correr; a más de 12 m esprinta a 11,5 m/s mientras le dura el fuelle (6 s).
+El jugador esprintando va a 9 m/s: no se le deja atrás. Sus ataques (`bear_combat.tres`):
+
+| Ataque | Animación | Distancia | Daño | Prefiere | Encadena |
+| --- | --- | --- | --- | --- | --- |
+| Zarpazo (`bear_swipe`) | `atk stand2` | < 3,3 m | 48 | al que se recupera, se tambalea o da la espalda | doble (35 %) |
+| Doble zarpazo (`bear_double`) | `atk stand` | < 3 m | 28 + 42 | al que se tambalea o esquiva | zarpazo (25 %) |
+| Embestida (`bear_charge`) | `atk run` | 4,5–7,5 m | 42 | al que huye o apunta | zarpazo (50 %) |
+
+Avisa poco (0,12–0,15 s plantado y el clip algo lento) y, comprometido, aún sigue al objetivo a
+25–60 °/s. Tiene 240 de vida (el polar, 320) y 110 de guardia, más la armadura de cada ataque; al
+romperla se queda vendido 1 s. Deja de perseguir a 60 m.
+
+### León
+
+Defiende su territorio: no va a por el jugador por verlo. Lo ve a 60 m (cono de 220°) y lo oye a
+20 m. Si se le acerca a menos de 28 m pasa a `TerritorialState`: lo vigila; a menos de 22 m ruge
+(`lion_aggressive_roar_01`, `lion_alerted_roar`) cada 3–4,5 s y se impacienta (6 s al borde,
+unos 2 s pegado a 10 m); a menos de 10 m, al acabarse la paciencia o si le hieren, ataca. Se calma
+si el intruso se aleja a más de 34 m, y en combate deja de perseguir al que se va a más de 45 m
+de su sitio. Carga a 12,5 m/s con el clip de esprintar. Sus ataques (`lion_combat.tres`):
+
+| Ataque | Animación | Distancia | Daño | Prefiere | Encadena |
+| --- | --- | --- | --- | --- | --- |
+| Zarpazo izquierdo (`lion_swipe_l`) | `lion_attack_close_lft` | < 2,6 m | 38 | al que se recupera o se tambalea | el derecho (50 %) |
+| Zarpazo derecho (`lion_swipe_r`) | `lion_attack_close_rgt` | < 2,6 m | 38 | ídem | el izquierdo (50 %) |
+| Salto (`lion_pounce`) | `lion_attack_fwd_01` | 3–7 m | 52 | al que huye, da la espalda o apunta | un zarpazo (60 %) |
+
+Apenas avisa (0,06–0,08 s) y es ágil (sigue al objetivo a 70 °/s comprometido en los zarpazos).
+Tiene 170 de vida y 70 de guardia; al romperla se tambalea 0,8 s con `lion_hit_chest_lft/rgt_01`.
+
+## Sonido
+
+Cada sonido del combate es un `SoundEvent` del catálogo de `AudioManager`,
+`data/audio/events/combat_<id>.tres`, con varias variantes que se turnan. `CombatFx.play(id)` lo
+busca ahí y, si no existe, suena su versión sintetizada (la de antes; `SYNTH_STANDIN` dice cuál
+hace las veces de los que solo existen grabados). `heartbeat`, `lock` y `dodge` siguen siendo
+sintéticos.
+
+| Ids | Qué |
+| --- | --- |
+| `swing_light`, `swing_heavy` | Silbido del arma (hachas, mazas y armas a dos manos: el pesado) |
+| `hit_slash`, `hit_pierce`, `hit_blunt` | Golpe en carne según el tipo de daño |
+| `hit_world`, `bow_release`, `throw` | Arma contra el suelo, suelta del arco, lanzamiento |
+| `player_hurt`, `player_death` | Voz del jugador (un solo actor); con `_female`, la de la jugadora (una sola actriz), que se elige por el sexo del personaje |
+| `claw_swipe` | Zarpazo de las fieras |
+| `bear_growl`, `bear_roar`, `bear_huff`, `bear_hurt`, `bear_death` | Oso |
+| `lion_roar`, `lion_growl`, `lion_hurt`, `lion_death` | León |
+
+Las criaturas los nombran en sus datos: el perfil de combate (`threaten_sound`, `attack_sound`,
+`swing_sound`, `stagger_sound`), cada ataque (`sound`, la embestida del oso resopla) y cada golpe,
+`TerritorialState.warn_sound` y `NPCController.hurt_sound`/`death_sound`. `test_creature_combat`
+comprueba que todos suenen.
+
+Los clips son grabaciones CC0 de Freesound (créditos en [audio_credits.md](audio_credits.md)):
+
+```
+build/fauna_tools/bin/python tools/audio/build_combat_sounds.py [--only=bear_roar,...] [--sheets]
+godot --headless --editor --quit --path .
+godot --headless --path . --script res://tools/audio/build_combat_events.gd
+```
+
+El primero descarga las fuentes (en `build/audio/freesound/`), las recorta (entera, desde el
+golpe o troceando una grabación larga en vocalizaciones), las pasa a mono, iguala el volumen de
+las variantes y escribe `audio/combat/<evento>/`; `--sheets` deja un espectrograma por evento en
+`build/audio/` para revisar los cortes. El último crea los `SoundEvent` con la mezcla de cada uno
+(volumen, tono, alcance, voces, cooldown: la tabla `MIX`). En la consola, `audio combat_bear_roar`
+suena un evento junto al jugador.
 
 ## Muerte
 
@@ -301,6 +419,8 @@ la vida y el aguante llenos y conserva el inventario. Las criaturas que iban a p
 
 - `spawn oso [cantidad] [distancia]`: suelta osos delante (también `ciervo`, `leon`,
   `bufalo`). Sus cadáveres duran dos minutos.
+- `ia [radio]`: estado, fase, ataque, combo, guardia y fuelle de cada criatura cercana, y lo que
+  lee de su objetivo.
 - `morir`: mata al jugador para probar la muerte y la reaparición.
 - `cortar [brazo|antebrazo|muslo|pierna] [izq|der]`: cercena un miembro del jugador al momento.
 - `mutilar [0-1|auto]`: probabilidad de que un tajo en un brazo o una pierna lo cercene.
@@ -312,6 +432,7 @@ la vida y el aguante llenos y conserva el inventario. Las criaturas que iban a p
 
 ```
 godot --headless --path . res://tests/combat/test_combat_core.tscn
+godot --headless --path . res://tests/combat/test_creature_combat.tscn
 godot --path . res://tests/combat/combat_capture.tscn -- --tag=x [--runs=melee,bow,death,bowterrain]
 godot --path . --script res://tests/combat/pose_preview.gd -- --tag=x
 godot --path . --audio-driver Dummy --script res://tests/combat/anim_preview.gd -- --tag=x --background

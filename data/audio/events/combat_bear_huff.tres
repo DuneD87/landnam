@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_bui37"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_huff/bear_huff_01.ogg" id="2_uku30"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_huff/bear_huff_02.ogg" id="3_i5ek2"]
+
+[resource]
+script = ExtResource("1_bui37")
+event_id = &"combat_bear_huff"
+streams = Array[AudioStream]([ExtResource("2_uku30"), ExtResource("3_i5ek2")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 40.0
+unit_size = 5.0
+max_voices = 2
+cooldown = 0.3

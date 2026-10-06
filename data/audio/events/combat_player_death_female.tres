@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_yg5mk"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death_female/player_death_female_01.ogg" id="2_pup1o"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death_female/player_death_female_02.ogg" id="3_5cmm2"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death_female/player_death_female_03.ogg" id="4_kpptp"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death_female/player_death_female_04.ogg" id="5_dx12s"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death_female/player_death_female_05.ogg" id="6_udu2u"]
+
+[resource]
+script = ExtResource("1_yg5mk")
+event_id = &"combat_player_death_female"
+streams = Array[AudioStream]([ExtResource("2_pup1o"), ExtResource("3_5cmm2"), ExtResource("4_kpptp"), ExtResource("5_dx12s"), ExtResource("6_udu2u")])
+bus = "Voice"
+volume_jitter_db = 1.5
+pitch_jitter = 0.03
+max_distance = 40.0
+max_voices = 1
+cooldown = 1.0

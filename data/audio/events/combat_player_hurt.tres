@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_jjed8"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_01.ogg" id="2_4jb2s"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_02.ogg" id="3_xo28f"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_03.ogg" id="4_748tl"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_04.ogg" id="5_smrbw"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_05.ogg" id="6_35qso"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_06.ogg" id="7_25kv8"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_07.ogg" id="8_qahtq"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_08.ogg" id="9_p7slr"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_09.ogg" id="10_pxrll"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_10.ogg" id="11_ytteh"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_11.ogg" id="12_gpuh0"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt/player_hurt_12.ogg" id="13_j5a0n"]
+
+[resource]
+script = ExtResource("1_jjed8")
+event_id = &"combat_player_hurt"
+streams = Array[AudioStream]([ExtResource("2_4jb2s"), ExtResource("3_xo28f"), ExtResource("4_748tl"), ExtResource("5_smrbw"), ExtResource("6_35qso"), ExtResource("7_25kv8"), ExtResource("8_qahtq"), ExtResource("9_p7slr"), ExtResource("10_pxrll"), ExtResource("11_ytteh"), ExtResource("12_gpuh0"), ExtResource("13_j5a0n")])
+bus = "Voice"
+volume_db = -3.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.04
+max_distance = 30.0
+unit_size = 3.0
+max_voices = 2
+cooldown = 0.2

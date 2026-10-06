@@ -7,7 +7,9 @@
 [ext_resource type="Script" uid="uid://0eobro8himhn" path="res://scripts/npc/ai/states/idle_state.gd" id="5_kgwwn"]
 [ext_resource type="Script" uid="uid://cyr0kqn4qtln3" path="res://scripts/npc/ai/states/wander_state.gd" id="6_uva7x"]
 [ext_resource type="Script" uid="uid://crifabnl3t42p" path="res://scripts/npc/ai/states/death_state.gd" id="8_d4ptx"]
-[ext_resource type="Script" uid="uid://dkowfe0604bg1" path="res://scripts/npc/ai/states/combat_state.gd" id="8_wptcs"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/creature_combat_state.gd" id="8_wptcs"]
+[ext_resource type="Resource" path="res://data/fauna/combat/lion_combat.tres" id="8_lcomb"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/territorial_state.gd" id="8_terri"]
 [ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/ui/inventory/inventory.gd" id="9_0bmxr"]
 [ext_resource type="Script" uid="uid://dsyulr1uf8n11" path="res://scripts/player/animation_controller.gd" id="10_0qfj2"]
 [ext_resource type="Script" uid="uid://v8nkfaw2cl4h" path="res://scripts/npc/perception.gd" id="11_rdpah"]
@@ -516,9 +518,18 @@ floor_block_on_wall = false
 floor_max_angle = 1.2217305
 safe_margin = 0.008
 script = ExtResource("1_d4ptx")
-detect_state = &"CombatState"
 lose_state = &"IdleState"
+provoked_state = &"CombatState"
 npc_type = &"Lion"
+hit_stun_duration = 0.0
+sprint_anim_speed = 7.0
+run_clip_speed = 3.1
+sprint_clip_speed = 15.4
+head_bone = &"Head"
+head_radius = 0.3
+flinch_bones = Array[String](["Spine3", "Spine4", "Neck01", "Head"])
+hurt_sound = &"lion_hurt"
+death_sound = &"lion_death"
 entity_id = "npc_2095021370816"
 
 [node name="Movement" type="Node" parent="." unique_id=397881995]
@@ -527,6 +538,7 @@ metadata/_custom_type_script = "uid://coeewlktybkhm"
 
 [node name="HealthComponent" type="Node" parent="." unique_id=1332760514]
 script = ExtResource("3_i4sn7")
+max_health = 170.0
 metadata/_custom_type_script = "uid://c2gobysiknl4o"
 
 [node name="AIController" type="Node" parent="." unique_id=1830328244]
@@ -535,6 +547,8 @@ metadata/_custom_type_script = "uid://yedbuvmlni0y"
 
 [node name="IdleState" type="Node" parent="AIController" unique_id=638521341]
 script = ExtResource("5_kgwwn")
+flee_trigger_radius = 28.0
+threat_state = &"TerritorialState"
 metadata/_custom_type_script = "uid://0eobro8himhn"
 
 [node name="WanderState" type="Node" parent="AIController" unique_id=1893630132]
@@ -542,15 +556,23 @@ script = ExtResource("6_uva7x")
 wander_radius = 20.0
 arrival_threshold = 3.0
 max_wander_time = 5.0
+flee_trigger_radius = 28.0
+threat_state = &"TerritorialState"
 metadata/_custom_type_script = "uid://cyr0kqn4qtln3"
+
+[node name="TerritorialState" type="Node" parent="AIController" unique_id=1742093315]
+script = ExtResource("8_terri")
+warn_distance = 22.0
+attack_distance = 10.0
+calm_distance = 34.0
+patience = 6.0
+warn_anims = Array[StringName]([&"lion_aggressive_roar_01", &"lion_alerted_roar"])
+warn_sound = &"lion_roar"
+warn_interval = Vector2(3, 4.5)
 
 [node name="CombatState" type="Node" parent="AIController" unique_id=1318050335]
 script = ExtResource("8_wptcs")
-disengage_distance = 2000.0
-attack_range = 3.8
-attack_damage = 45.0
-attack_cooldown = 2.5
-attack_anim_duration = 1.9
+profile = ExtResource("8_lcomb")
 
 [node name="DeathState" type="Node" parent="AIController" unique_id=2059513064]
 script = ExtResource("8_d4ptx")
@@ -568,11 +590,11 @@ metadata/_custom_type_script = "uid://dsyulr1uf8n11"
 
 [node name="Perception" type="Node" parent="." unique_id=987654321]
 script = ExtResource("11_rdpah")
-vision_range = 150.0
-vision_half_angle = 200.0
-hearing_range = 40.0
+vision_range = 60.0
+vision_half_angle = 110.0
+hearing_range = 20.0
+check_interval = 0.4
 hostile_npc_types = Array[StringName]([&"Bear"])
-detect_player = false
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1074435694]
 transform = Transform3D(-0.01396218, -4.4321688e-08, -0.99990267, -0.99990255, -4.370712e-08, 0.013962182, -4.4321695e-08, 0.9999998, -4.3707132e-08, -0.021644086, 0.8494673, 0.27909112)

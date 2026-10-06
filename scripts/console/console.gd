@@ -294,6 +294,8 @@ func _register_commands() -> void:
 		"Ajustes de coste del terreno en caliente, para comparar picos de 'proc'; sin argumentos, informa.", _cmd_terreno))
 	_add(ConsoleCommand.new("spawn", "spawn <oso|ciervo|leon|bufalo> [cantidad] [distancia]",
 		"Suelta animales delante del jugador (el oso es hostil: sirve para probar el combate).", _cmd_spawn, 1, _complete_animals))
+	_add(ConsoleCommand.new("ia", "ia [radio]",
+		"Qué está pensando cada criatura cercana: estado, fase, ataque, combo, guardia y lo que lee de su objetivo.", _cmd_ai))
 	_add(ConsoleCommand.new("morir", "morir",
 		"Mata al jugador (prueba la muerte y la vuelta al último punto guardado).", _cmd_die))
 	_add(ConsoleCommand.new("mutilar", "mutilar [0-1|auto]",
@@ -770,6 +772,34 @@ func _cmd_spawn(args: PackedStringArray) -> String:
 		animal.add_to_group("floating_origin")
 		placed += 1
 	return "[color=%s]%d × %s a %.0f m.[/color]" % [COLOR_OK, placed, kind, distance]
+
+
+func _cmd_ai(args: PackedStringArray) -> String:
+	var player := _get_player() as Node3D
+	if player == null:
+		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+	var radius := clampf(args[0].to_float(), 5.0, 500.0) if args.size() >= 1 and args[0].is_valid_float() else 80.0
+	var found: Array = []
+	for node in get_tree().get_nodes_in_group("npc"):
+		var npc := node as NPCController
+		if npc == null or not npc.active:
+			continue
+		var dist := npc.global_position.distance_to(player.global_position)
+		if dist <= radius:
+			found.append([dist, npc])
+	if found.is_empty():
+		return "[color=%s]Ninguna criatura a menos de %.0f m.[/color]" % [COLOR_MUTED, radius]
+	found.sort_custom(func(a, b): return a[0] < b[0])
+	var lines: Array[String] = []
+	for entry in found:
+		var npc: NPCController = entry[1]
+		var ai := npc.ai_controller
+		var line := "[color=%s]%s[/color] %.0f m  %s" % [COLOR_INFO, npc.npc_type, entry[0], ai.get_current_state()]
+		var state := ai.get_node_or_null(NodePath(ai.get_current_state()))
+		if state != null and state.has_method(&"debug_line"):
+			line += "  " + state.debug_line()
+		lines.append(line)
+	return "\n".join(lines)
 
 
 func _cmd_die(_args: PackedStringArray) -> String:

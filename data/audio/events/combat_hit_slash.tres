@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_lrr2c"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_slash/hit_slash_01.ogg" id="2_1vno1"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_slash/hit_slash_02.ogg" id="3_uk6xe"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_slash/hit_slash_03.ogg" id="4_1mb2s"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_slash/hit_slash_04.ogg" id="5_xasjb"]
+
+[resource]
+script = ExtResource("1_lrr2c")
+event_id = &"combat_hit_slash"
+streams = Array[AudioStream]([ExtResource("2_1vno1"), ExtResource("3_uk6xe"), ExtResource("4_1mb2s"), ExtResource("5_xasjb")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 40.0
+max_voices = 6
+cooldown = 0.02

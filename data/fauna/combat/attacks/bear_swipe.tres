@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="CreatureAttack" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_hit.gd" id="1_f8s3a"]
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="2_pan8n"]
+
+[sub_resource type="Resource" id="Resource_d48fa"]
+script = ExtResource("1_f8s3a")
+from = 0.42
+to = 0.95
+bones = Array[StringName]([&"RigRFLegDigit11", &"RigRFLeg2"])
+radius = 0.42
+damage = 48.0
+poise = 60.0
+knockback = 2.2
+
+[resource]
+script = ExtResource("2_pan8n")
+id = &"swipe"
+anim = &"atk stand2"
+distance = Vector2(0, 3.3)
+cooldown = 1.0
+max_angle = 100.0
+situations = Dictionary[StringName, float]({
+&"back_turned": 2.0,
+&"recovering": 3.0,
+&"staggered": 2.5,
+&"windup": 1.5
+})
+tell = 0.12
+windup_speed = 0.85
+speed = 1.15
+end = 1.65
+track_active = 45.0
+lead = 0.25
+lunge = Vector3(0.3, 0.85, 1.5)
+lunge_min_distance = 1.3
+armor = Vector3(0.2, 0.95, 40)
+follow_ups = Array[StringName]([&"double"])
+follow_up_chance = 0.35
+follow_up_at = 1.2
+hits = Array[ExtResource("1_f8s3a")]([SubResource("Resource_d48fa")])

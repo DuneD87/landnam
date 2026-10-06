@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_0ki87"]
+[ext_resource type="AudioStream" path="res://audio/combat/throw/throw_01.ogg" id="2_ekrw6"]
+[ext_resource type="AudioStream" path="res://audio/combat/throw/throw_02.ogg" id="3_nylj6"]
+[ext_resource type="AudioStream" path="res://audio/combat/throw/throw_03.ogg" id="4_hthnw"]
+
+[resource]
+script = ExtResource("1_0ki87")
+event_id = &"combat_throw"
+streams = Array[AudioStream]([ExtResource("2_ekrw6"), ExtResource("3_nylj6"), ExtResource("4_hthnw")])
+volume_db = -5.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 30.0
+unit_size = 3.0
+max_voices = 3

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_vhun8"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_death/lion_death_01.ogg" id="2_kfm78"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_death/lion_death_02.ogg" id="3_sgm2u"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_death/lion_death_03.ogg" id="4_1yhvs"]
+
+[resource]
+script = ExtResource("1_vhun8")
+event_id = &"combat_lion_death"
+streams = Array[AudioStream]([ExtResource("2_kfm78"), ExtResource("3_sgm2u"), ExtResource("4_1yhvs")])
+volume_jitter_db = 1.5
+pitch = 0.92
+pitch_jitter = 0.04
+max_distance = 70.0
+unit_size = 6.0
+max_voices = 2
+cooldown = 1.0

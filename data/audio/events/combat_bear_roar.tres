@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_g2el0"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_roar/bear_roar_01.ogg" id="2_mcop7"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_roar/bear_roar_02.ogg" id="3_nmpry"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_roar/bear_roar_03.ogg" id="4_y5r3b"]
+
+[resource]
+script = ExtResource("1_g2el0")
+event_id = &"combat_bear_roar"
+streams = Array[AudioStream]([ExtResource("2_mcop7"), ExtResource("3_nmpry"), ExtResource("4_y5r3b")])
+volume_db = 2.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.05
+max_distance = 90.0
+unit_size = 8.0
+max_voices = 2
+cooldown = 1.0

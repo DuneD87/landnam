@@ -7,7 +7,8 @@
 [ext_resource type="Script" uid="uid://0eobro8himhn" path="res://scripts/npc/ai/states/idle_state.gd" id="5_dtiw3"]
 [ext_resource type="Script" uid="uid://cyr0kqn4qtln3" path="res://scripts/npc/ai/states/wander_state.gd" id="6_rp2fm"]
 [ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/ui/inventory/inventory.gd" id="8_cp55a"]
-[ext_resource type="Script" path="res://scripts/npc/ai/states/creature_melee_state.gd" id="8_hodw2"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/creature_combat_state.gd" id="8_hodw2"]
+[ext_resource type="Resource" path="res://data/fauna/combat/bear_combat.tres" id="8_bcomb"]
 [ext_resource type="Script" uid="uid://crifabnl3t42p" path="res://scripts/npc/ai/states/death_state.gd" id="9_r2nls"]
 [ext_resource type="Texture2D" uid="uid://dgt1c40bhgh57" path="res://scenes/animals/Bear_Bear.png" id="11_xli2l"]
 [ext_resource type="Texture2D" uid="uid://uatyskg48vfa" path="res://scenes/animals/Bear_Bear_N.png" id="12_hodw2"]
@@ -225,9 +226,14 @@ detect_state = &"CombatState"
 lose_state = &"IdleState"
 npc_type = &"Bear"
 hit_stun_duration = 0.0
+sprint_anim_speed = 10.0
+run_clip_speed = 8.06
+sprint_clip_speed = 12.3
 head_bone = &"RigHead"
 head_radius = 0.38
 flinch_bones = Array[String](["RigSpine2", "RigChest", "RigNeck1", "RigHead"])
+hurt_sound = &"bear_hurt"
+death_sound = &"bear_death"
 entity_id = "npc_2069117348020"
 
 [node name="Movement" type="Node" parent="." unique_id=397881995]
@@ -245,6 +251,7 @@ metadata/_custom_type_script = "uid://yedbuvmlni0y"
 
 [node name="IdleState" type="Node" parent="AIController" unique_id=638521341]
 script = ExtResource("5_dtiw3")
+flee_trigger_radius = 0.0
 metadata/_custom_type_script = "uid://0eobro8himhn"
 
 [node name="WanderState" type="Node" parent="AIController" unique_id=1893630132]
@@ -252,11 +259,12 @@ script = ExtResource("6_rp2fm")
 wander_radius = 20.0
 arrival_threshold = 3.0
 max_wander_time = 5.0
+flee_trigger_radius = 0.0
 metadata/_custom_type_script = "uid://cyr0kqn4qtln3"
 
 [node name="CombatState" type="Node" parent="AIController" unique_id=1318050335]
 script = ExtResource("8_hodw2")
-disengage_distance = 45.0
+profile = ExtResource("8_bcomb")
 
 [node name="DeathState" type="Node" parent="AIController" unique_id=1621652429]
 script = ExtResource("9_r2nls")

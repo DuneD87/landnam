@@ -5,12 +5,25 @@ class_name AIController
 ## auto-registran por su nombre; cada frame update() avanza el estado activo y gestiona transiciones.
 ## Expone helpers para los estados: proyección sobre la gravedad, distancias al target y evitar agua.
 
+## Velocidad con la que el cuerpo aún gira hacia desired_direction casi sin desplazarse.
+const TURN_ONLY_SPEED := 0.01
+
 var npc: CharacterBody3D
 var movement: Movement
 var gravity_direction: Vector3 = Vector3.DOWN
 var desired_direction: Vector3 = Vector3.ZERO
+## Hacia dónde quiere mirar el cuerpo cuando no es hacia donde anda (seguir al objetivo durante un
+## golpe, encararlo mientras se mueve de lado). ZERO = hacia donde anda. Se limpia en cada update().
+var desired_facing: Vector3 = Vector3.ZERO
+## Giro máximo hacia desired_facing, en grados/s. 0 = el giro normal del cuerpo.
+var turn_rate: float = 0.0
 var target: Node3D = null
 var is_attacking: bool = false
+## Velocidad del objetivo (m/s), medida de una actualización de IA a la siguiente.
+var target_velocity: Vector3 = Vector3.ZERO
+
+var _tracked: Node3D = null
+var _tracked_pos: Vector3 = Vector3.ZERO
 
 var _states: Dictionary = {}
 var _current_state: AIState = null
@@ -40,6 +53,9 @@ func update(delta: float) -> void:
 		return
 
 	desired_direction = Vector3.ZERO
+	desired_facing = Vector3.ZERO
+	turn_rate = 0.0
+	_track_target(delta)
 
 	var next := _current_state.update(delta)
 	if next != &"":
@@ -88,6 +104,31 @@ func distance_to_target() -> float:
 	if not target or not is_instance_valid(target):
 		return INF
 	return npc.global_position.distance_to(target.global_position)
+
+
+## Dónde estará el objetivo dentro de [seconds] si sigue como va, sin pasar de [max_offset] metros
+## de donde está.
+func predicted_target_position(seconds: float, max_offset: float = 4.0) -> Vector3:
+	if not target or not is_instance_valid(target):
+		return npc.global_position
+	return target.global_position + (target_velocity * seconds).limit_length(max_offset)
+
+
+func _track_target(delta: float) -> void:
+	if not target or not is_instance_valid(target):
+		_tracked = null
+		target_velocity = Vector3.ZERO
+		return
+	var pos := target.global_position
+	if target != _tracked or delta <= 0.0:
+		target_velocity = Vector3.ZERO
+	else:
+		# Suavizado: un tirón de un fotograma (rebase del origen, un golpe) no es una carrera.
+		var measured := (pos - _tracked_pos) / delta
+		if measured.length() < 40.0:
+			target_velocity = target_velocity.lerp(measured, clampf(delta * 8.0, 0.0, 1.0))
+	_tracked = target
+	_tracked_pos = pos
 
 
 ## Devuelve true si pos está sumergida en el agua del planeta del NPC.

@@ -1,11 +1,22 @@
 class_name CombatFx
 extends RefCounted
 
-## Efectos de combate: sangre, polvo de impacto y sonidos. El proyecto no trae audio de combate,
-## así que los sonidos se sintetizan una vez (ruido filtrado, golpes graves, cuerda) y se sirven
-## por AudioManager con su reparto de voces y distancias, como cualquier otro evento.
+## Efectos de combate: sangre, polvo de impacto y sonidos. Cada sonido es el SoundEvent
+## "combat_<id>" del catálogo de AudioManager (clips de verdad en audio/combat/, ver
+## tools/audio/build_combat_sounds.py); si no está, suena una versión sintetizada (ruido filtrado,
+## golpes graves, cuerda), la suya o la de SYNTH_STANDIN, servida igual por AudioManager.
 
 const RATE := 22050
+## Sonido sintetizado que hace las veces de uno que solo existe con clips de verdad.
+const SYNTH_STANDIN := {
+	&"swing_light": &"swing_windup", &"swing_heavy": &"swing_windup", &"claw_swipe": &"bear_swipe",
+	&"hit_slash": &"hit_flesh", &"hit_pierce": &"hit_flesh",
+	&"bear_huff": &"bear_growl", &"bear_hurt": &"bear_growl", &"bear_death": &"bear_roar",
+	&"lion_roar": &"bear_roar", &"lion_growl": &"bear_growl", &"lion_hurt": &"bear_growl",
+	&"lion_death": &"bear_roar",
+	# El remate grave del cartel de HAS MUERTO: el quejido sintético, no el grito del jugador.
+	&"death_stinger": &"player_death",
+}
 
 static var _events: Dictionary = {}
 static var _droplet_mesh: QuadMesh
@@ -91,8 +102,13 @@ static func spurt(target: Node, point: Vector3, direction: Vector3, strength: fl
 ## Golpe contra algo: sonido según el tipo de golpe y, si no es carne, polvo.
 static func impact(node: Node, point: Vector3, kind: ItemData.DamageKind, flesh: bool) -> void:
 	if flesh:
-		play(&"hit_blunt" if kind == ItemData.DamageKind.BLUNT else &"hit_flesh", point,
-			{"pitch": randf_range(0.9, 1.1)})
+		var id := &"hit_slash"
+		match kind:
+			ItemData.DamageKind.BLUNT:
+				id = &"hit_blunt"
+			ItemData.DamageKind.PIERCE:
+				id = &"hit_pierce"
+		play(id, point, {"pitch": randf_range(0.94, 1.06)})
 	else:
 		play(&"hit_world", point, {"pitch": randf_range(0.85, 1.15)})
 		var host := _host(node)
@@ -323,9 +339,26 @@ static func _mist_fade_ramp() -> GradientTexture1D:
 # Sonido sintetizado
 
 
+## Si [id] suena (con clips o sintetizado): para comprobar los nombres que traen los datos.
+static func has_sound(id: StringName) -> bool:
+	return _event(id) != null
+
+
 static func _event(id: StringName) -> SoundEvent:
 	if _events.has(id):
 		return _events[id]
+	var recorded := StringName("combat_" + String(id))
+	if AudioManager.has_event(recorded):
+		_events[id] = AudioManager.get_event(recorded)
+		return _events[id]
+	if SYNTH_STANDIN.has(id):
+		_events[id] = _synth(SYNTH_STANDIN[id])
+		return _events[id]
+	_events[id] = _synth(id)
+	return _events[id]
+
+
+static func _synth(id: StringName) -> SoundEvent:
 	var ev := SoundEvent.new()
 	ev.event_id = StringName("combat_" + String(id))
 	ev.bus = "SFX"
@@ -385,7 +418,6 @@ static func _event(id: StringName) -> SoundEvent:
 			ev.volume_db = -14.0
 		_:
 			return null
-	_events[id] = ev
 	return ev
 
 

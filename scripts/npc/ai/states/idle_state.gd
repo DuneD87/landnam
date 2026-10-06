@@ -2,7 +2,7 @@ extends AIState
 class_name IdleState
 
 ## El NPC se queda quieto un tiempo aleatorio y luego deambula.
-## Si detecta una amenaza (controller.target dentro del radio) huye.
+## Si detecta una amenaza (controller.target dentro del radio) pasa a threat_state (huir, por defecto).
 
 ## Duración mínima del estado idle (segundos).
 @export var min_idle_time: float = 2.0
@@ -10,6 +10,8 @@ class_name IdleState
 @export var max_idle_time: float = 6.0
 ## Radio de detección de amenaza. 0 = sin detección.
 @export var flee_trigger_radius: float = 10.0
+## Estado al que pasa cuando la amenaza entra en ese radio (huir; defender su territorio…).
+@export var threat_state: StringName = &"FleeState"
 
 var _timer: float = 0.0
 
@@ -22,7 +24,7 @@ func enter() -> void:
 
 func update(delta: float) -> StringName:
 	if flee_trigger_radius > 0.0 and controller.is_target_within(flee_trigger_radius):
-		return &"FleeState"
+		return threat_state
 
 	_timer -= delta
 	if _timer <= 0.0:

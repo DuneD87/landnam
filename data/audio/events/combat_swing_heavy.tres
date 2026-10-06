@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_tdowy"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_01.ogg" id="2_j8mm8"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_02.ogg" id="3_uxosd"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_03.ogg" id="4_2n1uh"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_04.ogg" id="5_kbnwx"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_05.ogg" id="6_a4i0p"]
+
+[resource]
+script = ExtResource("1_tdowy")
+event_id = &"combat_swing_heavy"
+streams = Array[AudioStream]([ExtResource("2_j8mm8"), ExtResource("3_uxosd"), ExtResource("4_2n1uh"), ExtResource("5_kbnwx"), ExtResource("6_a4i0p")])
+volume_db = -4.0
+volume_jitter_db = 1.5
+pitch = 0.82
+pitch_jitter = 0.05
+max_distance = 35.0
+unit_size = 3.0
+cooldown = 0.03

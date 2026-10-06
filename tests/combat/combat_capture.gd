@@ -9,6 +9,8 @@ extends "res://tests/lighting/lighting_capture.gd"
 ##   melee  espada, objetivo fijado: esquiva rodando los zarpazos y castiga en la recuperación
 ##   bow    arco: apunta, tensa y dispara al oso que se acerca
 ##   death  sin defenderse: el oso lo mata, sale "HAS MUERTO" y reaparece con la vida llena
+##   lion   un león a 26 m: se acerca despacio y registra cómo pasa de vigilar a avisar y a atacar
+##          (TerritorialState → CombatState); luego pelea como en melee
 ##   bowterrain  un minuto de arco andando por terreno irregular: brazo dentro del tronco y tirones
 ##   atomic golpes cuerpo a cuerpo con cada arma (--weapons=iron_sword,war_hammer...): golpe y
 ##          esquiva enseguida (la esquiva espera al final del golpe), combo machacando el botón,
@@ -30,7 +32,9 @@ var _frame := 0
 var _next_frame := 0.0
 var _clock := 0.0
 var _run_name := ""
+## La criatura con la que pelea (el oso, salvo en lion) y cómo se la nombra en el registro.
 var _bear: NPCController
+var _foe_name := "oso"
 var _stats := {}
 ## Con --showcase los fotogramas salen de una cámara que sigue al jugador de cerca, de tres
 ## cuartos por delante a su derecha (la del juego sigue mandando en apuntar y moverse).
@@ -79,7 +83,7 @@ func _run() -> void:
 	_pc.health_component.invincible = false
 	print("player active=%s pos=%s" % [_pc.input_enabled, _pc.global_position])
 	await _settle(1.0)
-	for run in ["roll", "melee", "atomic", "bow", "throw", "death", "bowstill", "bowterrain", "crutch"]:
+	for run in ["roll", "melee", "lion", "atomic", "bow", "throw", "death", "bowstill", "bowterrain", "crutch"]:
 		if not only.is_empty() and run not in only:
 			continue
 		_run_name = run
@@ -95,6 +99,8 @@ func _run() -> void:
 				await _rolls()
 			"melee":
 				await _melee()
+			"lion":
+				await _lion()
 			"atomic":
 				await _atomic()
 			"bow":
@@ -141,22 +147,29 @@ func _equip(item_id: StringName) -> void:
 
 
 func _spawn_bear(distance: float) -> void:
+	await _spawn_creature("oso", &"Bear", distance)
+
+
+## Suelta delante una criatura de la consola ([kind]: oso, leon…) y la deja en _bear; quita antes
+## las que soltaron otras pruebas.
+func _spawn_creature(kind: String, type: StringName, distance: float) -> void:
 	for node in get_tree().get_nodes_in_group("npc"):
-		if node is NPCController and node.npc_type == &"Bear" and node.get_parent() == get_tree().current_scene:
+		if node is NPCController and node.get_parent() == get_tree().current_scene:
 			node.queue_free()
 	await get_tree().process_frame
 	var before := get_tree().get_nodes_in_group("npc")
-	var msg: String = Console._cmd_spawn(PackedStringArray(["oso", "1", str(distance)]))
+	var msg: String = Console._cmd_spawn(PackedStringArray([kind, "1", str(distance)]))
 	print(msg)
 	_bear = null
+	_foe_name = kind
 	for node in get_tree().get_nodes_in_group("npc"):
-		if node is NPCController and node not in before and node.npc_type == &"Bear":
+		if node is NPCController and node not in before and node.npc_type == type:
 			_bear = node
 	if _bear != null:
 		_bear.health_component.hit_received.connect(func(info, applied):
 			_stats.dealt += applied
 			_stats.hits_on_bear += 1
-			_note("oso encaja %.0f (%s, de %s) → %.0f/%.0f" % [applied, _part(info), info.source.name if info.source else "?", _bear.health_component.health - applied, _bear.health_component.max_health]))
+			_note("%s encaja %.0f (%s, de %s) → %.0f/%.0f" % [_foe_name, applied, _part(info), info.source.name if info.source else "?", _bear.health_component.health - applied, _bear.health_component.max_health]))
 	if not _pc.health_component.hit_received.is_connected(_on_player_hit):
 		_pc.health_component.hit_received.connect(_on_player_hit)
 
@@ -177,10 +190,10 @@ func _note(text: String) -> void:
 	print(line)
 
 
-func _bear_state() -> CreatureMeleeState:
+func _bear_state() -> CreatureCombatState:
 	if _bear == null or not is_instance_valid(_bear):
 		return null
-	return _bear.ai_controller.get_node_or_null("CombatState") as CreatureMeleeState
+	return _bear.ai_controller.get_node_or_null("CombatState") as CreatureCombatState
 
 
 ## Avanza un tick de física y guarda fotograma cuando toca.
@@ -237,43 +250,91 @@ func _melee() -> void:
 		_note("no se pudo soltar el oso")
 		return
 	await _run_for(1.0, Callable())
+	await _fight(30.0)
+
+
+## Un león a 26 m, delante: el bot se le acerca andando despacio y se registra cada cambio de
+## estado (vigila, avisa, ataca) con la distancia y la paciencia que le queda; cuando ataca, pelea.
+func _lion() -> void:
+	await _equip(&"iron_sword")
+	await _spawn_creature("leon", &"Lion", 26.0)
+	if _bear == null:
+		_note("no se pudo soltar el león")
+		return
+	await _run_for(2.0, Callable())
+	var last := &""
+	var elapsed := 0.0
+	_pc.movement.walking = true
+	while elapsed < 40.0 and is_instance_valid(_bear) and not _bear.is_dead and not _pc.combat.is_dead():
+		var state := _bear.ai_controller.get_current_state()
+		var dist := _pc.global_position.distance_to(_bear.global_position)
+		if state != last:
+			var extra := ""
+			var territorial := _bear.ai_controller.get_node_or_null("TerritorialState") as TerritorialState
+			if territorial != null:
+				extra = "  paciencia gastada %.1f s" % territorial.annoyance
+			_note("león: %s a %.1f m%s" % [state, dist, extra])
+			last = state
+		if state == &"CombatState":
+			break
+		# Hacia el león, andando.
+		var to := _bear.global_position - _pc.global_position
+		var cam_fwd := -_pc.camera.global_basis.z
+		var up := -_pc.gravity_direction.normalized()
+		var side := up.cross(cam_fwd).normalized()
+		_press(&"move_forward", to.dot(cam_fwd) > 1.0)
+		_press(&"move_left", to.dot(side) > 1.5)
+		_press(&"move_right", to.dot(side) < -1.5)
+		await _tick()
+		elapsed += 1.0 / 60.0
+	for action in [&"move_forward", &"move_left", &"move_right"]:
+		_press(action, false)
+	_pc.movement.walking = false
+	_note("león: %s tras %.1f s" % [_bear.ai_controller.get_current_state() if is_instance_valid(_bear) else &"?", elapsed])
+	await _fight(30.0)
+
+
+## Pelea con _bear [seconds]: fija el objetivo, esquiva rodando cada golpe poco antes de que llegue
+## y castiga en sus huecos (recuperación, tambaleo, rodeo, amenaza).
+func _fight(seconds: float) -> void:
+	if _bear == null or not is_instance_valid(_bear):
+		return
 	await _tap(&"lock_on")
 	_note("fijado: %s" % (_pc.combat.lock_target != null))
 	var dodged_attack := -1
 	var elapsed := 0.0
 	var dodge_side := &"move_left"
 	var was_attacking := false
-	while elapsed < 30.0 and _bear != null and is_instance_valid(_bear) and not _bear.is_dead \
+	var last_combo := 0
+	while elapsed < seconds and _bear != null and is_instance_valid(_bear) and not _bear.is_dead \
 			and not _pc.combat.is_dead():
 		var st := _bear_state()
 		var dist := _pc.global_position.distance_to(_bear.global_position)
-		var attacking := st != null and st._phase == CreatureMeleeState.Phase.ATTACK and not st._attack.is_empty()
-		if attacking and not was_attacking:
+		var attacking := st != null and st.phase == CreatureCombatState.Phase.ATTACK and st.current_attack() != null
+		var attack_id: StringName = st.current_attack().id if attacking else &""
+		if attacking and (not was_attacking or st.combo != last_combo):
 			_stats.bear_attacks += 1
-			_note("oso ataca: %s a %.1f m" % [st._attack.name, dist])
+			_note("%s ataca: %s a %.1f m%s" % [_foe_name, attack_id, dist, " (combo %d)" % st.combo if st.combo > 1 else ""])
 		was_attacking = attacking
-		if attacking and st._pre <= 0.0:
-			var first := -1.0
-			for hit in st._attack.hits:
-				if hit.from > st._t:
-					first = hit.from
-					break
-			if first > 0.0 and st._t > first - 0.30 and dodged_attack != int(first * 100):
+		last_combo = st.combo if attacking else 0
+		if attacking and not st.runner.in_tell():
+			var first := st.runner.next_hit_time()
+			if first > 0.0 and st.runner.time > first - 0.30 and dodged_attack != int(first * 100):
 				dodged_attack = int(first * 100)
 				_press(dodge_side, true)
 				for i in 3:
 					await _tick()
 				await _tap(&"dodge")
 				_stats.dodges += 1
-				_note("esquiva (%s) con el golpe a %.2f s" % [dodge_side, first - st._t])
+				_note("esquiva (%s) con el golpe a %.2f s" % [dodge_side, first - st.runner.time])
 				for i in 12:
 					await _tick()
 				_press(dodge_side, false)
 				dodge_side = &"move_right" if dodge_side == &"move_left" else &"move_left"
 				elapsed += 23.0 / 60.0
 				continue
-		var opening := st != null and st._phase in [CreatureMeleeState.Phase.RECOVER,
-			CreatureMeleeState.Phase.STAGGER, CreatureMeleeState.Phase.CIRCLE, CreatureMeleeState.Phase.ROAR]
+		var opening := st != null and st.phase in [CreatureCombatState.Phase.RECOVER,
+			CreatureCombatState.Phase.STAGGER, CreatureCombatState.Phase.CIRCLE, CreatureCombatState.Phase.THREATEN]
 		if opening and dist < 2.9 and _pc.combat.state == PlayerCombat.State.IDLE and _pc.combat.stamina.stamina > 30.0:
 			await _tap(&"attack_1")
 			_stats.attacks += 1
@@ -287,7 +348,7 @@ func _melee() -> void:
 			_press(&"move_forward", false)
 		await _tick()
 		elapsed += 1.0 / 60.0
-	_note("fin melee: oso %s, vida jugador %.0f" % ["muerto" if _bear != null and _bear.is_dead else "vivo", _pc.health_component.health])
+	_note("fin de la pelea: %s %s, vida jugador %.0f" % [_foe_name, "muerto" if _bear != null and is_instance_valid(_bear) and _bear.is_dead else "vivo", _pc.health_component.health])
 	await _run_for(2.0, Callable())
 
 

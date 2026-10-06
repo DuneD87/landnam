@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_rdxq7"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_01.ogg" id="2_2sbpy"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_02.ogg" id="3_o8haf"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_03.ogg" id="4_d6y1q"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_04.ogg" id="5_e1kc8"]
+[ext_resource type="AudioStream" path="res://audio/combat/swing_heavy/swing_heavy_05.ogg" id="6_hqke2"]
+
+[resource]
+script = ExtResource("1_rdxq7")
+event_id = &"combat_claw_swipe"
+streams = Array[AudioStream]([ExtResource("2_2sbpy"), ExtResource("3_o8haf"), ExtResource("4_d6y1q"), ExtResource("5_e1kc8"), ExtResource("6_hqke2")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch = 0.68
+pitch_jitter = 0.06
+max_distance = 50.0
+max_voices = 3

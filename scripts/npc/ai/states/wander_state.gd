@@ -3,7 +3,7 @@ class_name WanderState
 
 ## El NPC elige un punto aleatorio en la superficie del planeta y camina hacia él.
 ## Vuelve a IdleState al llegar o al agotar el tiempo máximo.
-## Si detecta una amenaza (controller.target dentro del radio) huye.
+## Si detecta una amenaza (controller.target dentro del radio) pasa a threat_state (huir, por defecto).
 
 ## Distancia máxima del punto de destino respecto a la posición actual.
 @export var wander_radius: float = 10.0
@@ -13,6 +13,8 @@ class_name WanderState
 @export var max_wander_time: float = 10.0
 ## Radio de detección de amenaza. 0 = sin detección.
 @export var flee_trigger_radius: float = 10.0
+## Estado al que pasa cuando la amenaza entra en ese radio (huir; defender su territorio…).
+@export var threat_state: StringName = &"FleeState"
 
 var _target_pos: Vector3
 var _timer: float = 0.0
@@ -27,7 +29,7 @@ func enter() -> void:
 
 func update(delta: float) -> StringName:
 	if flee_trigger_radius > 0.0 and controller.is_target_within(flee_trigger_radius):
-		return &"FleeState"
+		return threat_state
 
 	_timer -= delta
 	if _timer <= 0.0:

@@ -500,7 +500,7 @@ func show_death() -> void:
 	var tween := create_tween().set_parallel(true)
 	tween.tween_property(_death_band, "modulate:a", 1.0, 1.2)
 	tween.tween_property(_death_label, "modulate:a", 1.0, 1.8).set_trans(Tween.TRANS_SINE)
-	CombatFx.play(&"player_death", combat.player.global_position, {"volume_offset_db": -6.0, "pitch": 0.7})
+	CombatFx.play(&"death_stinger", combat.player.global_position, {"volume_offset_db": -6.0, "pitch": 0.7})
 
 
 func hide_death() -> void:

@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="CreatureAttack" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_hit.gd" id="1_4kbig"]
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="2_docsd"]
+
+[sub_resource type="Resource" id="Resource_vbwvo"]
+script = ExtResource("1_4kbig")
+from = 0.36
+to = 0.68
+bones = Array[StringName]([&"LeftHand", &"RightHand", &"Head"])
+damage = 52.0
+poise = 90.0
+knockback = 3.0
+
+[resource]
+script = ExtResource("2_docsd")
+id = &"pounce"
+anim = &"lion_attack_fwd_01"
+distance = Vector2(3, 7)
+cooldown = 3.0
+max_angle = 40.0
+situations = Dictionary[StringName, float]({
+&"aiming": 2.5,
+&"back_turned": 3.0,
+&"fleeing": 4.0,
+&"weak": 2.0
+})
+tell = 0.08
+windup_speed = 0.95
+end = 1.05
+track_windup = 300.0
+track_active = 35.0
+lead = 0.4
+lunge = Vector3(0.08, 0.55, 5)
+lunge_min_distance = 1.2
+armor = Vector3(0, 0.7, 60)
+follow_ups = Array[StringName]([&"swipe_l", &"swipe_r"])
+follow_up_chance = 0.6
+follow_up_at = 0.85
+hits = Array[ExtResource("1_4kbig")]([SubResource("Resource_vbwvo")])

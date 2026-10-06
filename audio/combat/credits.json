@@ -1,0 +1,1018 @@
+{
+ "events": {
+  "swing_light": [
+   {
+    "file": "audio/combat/swing_light/swing_light_01.ogg",
+    "source": 60030,
+    "dur": 0.42
+   },
+   {
+    "file": "audio/combat/swing_light/swing_light_02.ogg",
+    "source": 60026,
+    "dur": 0.49
+   },
+   {
+    "file": "audio/combat/swing_light/swing_light_03.ogg",
+    "source": 59988,
+    "dur": 0.28
+   },
+   {
+    "file": "audio/combat/swing_light/swing_light_04.ogg",
+    "source": 60029,
+    "dur": 0.4
+   },
+   {
+    "file": "audio/combat/swing_light/swing_light_05.ogg",
+    "source": 60023,
+    "dur": 0.38
+   },
+   {
+    "file": "audio/combat/swing_light/swing_light_06.ogg",
+    "source": 59992,
+    "dur": 0.42
+   }
+  ],
+  "swing_heavy": [
+   {
+    "file": "audio/combat/swing_heavy/swing_heavy_01.ogg",
+    "source": 60027,
+    "dur": 0.49
+   },
+   {
+    "file": "audio/combat/swing_heavy/swing_heavy_02.ogg",
+    "source": 475135,
+    "dur": 0.72
+   },
+   {
+    "file": "audio/combat/swing_heavy/swing_heavy_03.ogg",
+    "source": 514162,
+    "dur": 0.22
+   },
+   {
+    "file": "audio/combat/swing_heavy/swing_heavy_04.ogg",
+    "source": 60024,
+    "dur": 0.56
+   },
+   {
+    "file": "audio/combat/swing_heavy/swing_heavy_05.ogg",
+    "source": 60026,
+    "dur": 0.49
+   }
+  ],
+  "hit_slash": [
+   {
+    "file": "audio/combat/hit_slash/hit_slash_01.ogg",
+    "source": 504615,
+    "dur": 0.5
+   },
+   {
+    "file": "audio/combat/hit_slash/hit_slash_02.ogg",
+    "source": 323526,
+    "dur": 0.5
+   },
+   {
+    "file": "audio/combat/hit_slash/hit_slash_03.ogg",
+    "source": 395370,
+    "dur": 0.5
+   },
+   {
+    "file": "audio/combat/hit_slash/hit_slash_04.ogg",
+    "source": 179222,
+    "dur": 0.43
+   }
+  ],
+  "hit_pierce": [
+   {
+    "file": "audio/combat/hit_pierce/hit_pierce_01.ogg",
+    "source": 411743,
+    "dur": 0.4
+   },
+   {
+    "file": "audio/combat/hit_pierce/hit_pierce_02.ogg",
+    "source": 395373,
+    "dur": 0.4
+   },
+   {
+    "file": "audio/combat/hit_pierce/hit_pierce_03.ogg",
+    "source": 205938,
+    "dur": 0.4
+   },
+   {
+    "file": "audio/combat/hit_pierce/hit_pierce_04.ogg",
+    "source": 708223,
+    "dur": 0.29
+   }
+  ],
+  "hit_blunt": [
+   {
+    "file": "audio/combat/hit_blunt/hit_blunt_01.ogg",
+    "source": 399183,
+    "dur": 0.34
+   },
+   {
+    "file": "audio/combat/hit_blunt/hit_blunt_02.ogg",
+    "source": 434147,
+    "dur": 0.25
+   },
+   {
+    "file": "audio/combat/hit_blunt/hit_blunt_03.ogg",
+    "source": 733904,
+    "dur": 0.6
+   },
+   {
+    "file": "audio/combat/hit_blunt/hit_blunt_04.ogg",
+    "source": 276600,
+    "dur": 0.52
+   }
+  ],
+  "hit_world": [
+   {
+    "file": "audio/combat/hit_world/hit_world_01.ogg",
+    "source": 733887,
+    "dur": 0.57
+   },
+   {
+    "file": "audio/combat/hit_world/hit_world_02.ogg",
+    "source": 815415,
+    "dur": 0.6
+   }
+  ],
+  "bow_release": [
+   {
+    "file": "audio/combat/bow_release/bow_release_01.ogg",
+    "source": 263675,
+    "dur": 0.45
+   },
+   {
+    "file": "audio/combat/bow_release/bow_release_02.ogg",
+    "source": 394179,
+    "dur": 0.3
+   },
+   {
+    "file": "audio/combat/bow_release/bow_release_03.ogg",
+    "source": 384918,
+    "dur": 0.17
+   },
+   {
+    "file": "audio/combat/bow_release/bow_release_04.ogg",
+    "source": 536068,
+    "dur": 0.16
+   }
+  ],
+  "throw": [
+   {
+    "file": "audio/combat/throw/throw_01.ogg",
+    "source": 346373,
+    "dur": 0.22
+   },
+   {
+    "file": "audio/combat/throw/throw_02.ogg",
+    "source": 523230,
+    "dur": 0.48
+   },
+   {
+    "file": "audio/combat/throw/throw_03.ogg",
+    "source": 394873,
+    "dur": 0.2
+   }
+  ],
+  "player_hurt": [
+   {
+    "file": "audio/combat/player_hurt/player_hurt_01.ogg",
+    "source": 547203,
+    "dur": 0.28
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_02.ogg",
+    "source": 547202,
+    "dur": 0.25
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_03.ogg",
+    "source": 547201,
+    "dur": 0.3
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_04.ogg",
+    "source": 547200,
+    "dur": 0.31
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_05.ogg",
+    "source": 547207,
+    "dur": 0.32
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_06.ogg",
+    "source": 547206,
+    "dur": 0.3
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_07.ogg",
+    "source": 547205,
+    "dur": 0.44
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_08.ogg",
+    "source": 547204,
+    "dur": 0.5
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_09.ogg",
+    "source": 547209,
+    "dur": 0.32
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_10.ogg",
+    "source": 547208,
+    "dur": 0.4
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_11.ogg",
+    "source": 547194,
+    "dur": 0.44
+   },
+   {
+    "file": "audio/combat/player_hurt/player_hurt_12.ogg",
+    "source": 547195,
+    "dur": 0.34
+   }
+  ],
+  "player_death": [
+   {
+    "file": "audio/combat/player_death/player_death_01.ogg",
+    "source": 547185,
+    "dur": 1.16
+   },
+   {
+    "file": "audio/combat/player_death/player_death_02.ogg",
+    "source": 547186,
+    "dur": 1.01
+   },
+   {
+    "file": "audio/combat/player_death/player_death_03.ogg",
+    "source": 547187,
+    "dur": 0.75
+   },
+   {
+    "file": "audio/combat/player_death/player_death_04.ogg",
+    "source": 547188,
+    "dur": 0.73
+   },
+   {
+    "file": "audio/combat/player_death/player_death_05.ogg",
+    "source": 547189,
+    "dur": 1.07
+   },
+   {
+    "file": "audio/combat/player_death/player_death_06.ogg",
+    "source": 547190,
+    "dur": 1.27
+   }
+  ],
+  "bear_growl": [
+   {
+    "file": "audio/combat/bear_growl/bear_growl_01.ogg",
+    "source": 763026,
+    "dur": 2.62
+   },
+   {
+    "file": "audio/combat/bear_growl/bear_growl_02.ogg",
+    "source": 519599,
+    "dur": 3.28
+   },
+   {
+    "file": "audio/combat/bear_growl/bear_growl_03.ogg",
+    "source": 519599,
+    "dur": 3.28
+   },
+   {
+    "file": "audio/combat/bear_growl/bear_growl_04.ogg",
+    "source": 519599,
+    "dur": 2.93
+   },
+   {
+    "file": "audio/combat/bear_growl/bear_growl_05.ogg",
+    "source": 519596,
+    "dur": 1.0
+   }
+  ],
+  "bear_roar": [
+   {
+    "file": "audio/combat/bear_roar/bear_roar_01.ogg",
+    "source": 479825,
+    "dur": 2.1
+   },
+   {
+    "file": "audio/combat/bear_roar/bear_roar_02.ogg",
+    "source": 479825,
+    "dur": 2.36
+   },
+   {
+    "file": "audio/combat/bear_roar/bear_roar_03.ogg",
+    "source": 479825,
+    "dur": 2.79
+   }
+  ],
+  "bear_huff": [
+   {
+    "file": "audio/combat/bear_huff/bear_huff_01.ogg",
+    "source": 519598,
+    "dur": 0.36
+   },
+   {
+    "file": "audio/combat/bear_huff/bear_huff_02.ogg",
+    "source": 519597,
+    "dur": 0.44
+   }
+  ],
+  "bear_hurt": [
+   {
+    "file": "audio/combat/bear_hurt/bear_hurt_01.ogg",
+    "source": 763026,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/bear_hurt/bear_hurt_02.ogg",
+    "source": 519599,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/bear_hurt/bear_hurt_03.ogg",
+    "source": 519599,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/bear_hurt/bear_hurt_04.ogg",
+    "source": 519599,
+    "dur": 0.76
+   }
+  ],
+  "bear_death": [
+   {
+    "file": "audio/combat/bear_death/bear_death_01.ogg",
+    "source": 519599,
+    "dur": 4.28
+   },
+   {
+    "file": "audio/combat/bear_death/bear_death_02.ogg",
+    "source": 519599,
+    "dur": 4.28
+   },
+   {
+    "file": "audio/combat/bear_death/bear_death_03.ogg",
+    "source": 479825,
+    "dur": 2.1
+   }
+  ],
+  "lion_roar": [
+   {
+    "file": "audio/combat/lion_roar/lion_roar_01.ogg",
+    "source": 405211,
+    "dur": 1.98
+   },
+   {
+    "file": "audio/combat/lion_roar/lion_roar_02.ogg",
+    "source": 405211,
+    "dur": 4.28
+   },
+   {
+    "file": "audio/combat/lion_roar/lion_roar_03.ogg",
+    "source": 405211,
+    "dur": 2.64
+   },
+   {
+    "file": "audio/combat/lion_roar/lion_roar_04.ogg",
+    "source": 869002,
+    "dur": 1.5
+   },
+   {
+    "file": "audio/combat/lion_roar/lion_roar_05.ogg",
+    "source": 869002,
+    "dur": 2.08
+   },
+   {
+    "file": "audio/combat/lion_roar/lion_roar_06.ogg",
+    "source": 869003,
+    "dur": 1.82
+   },
+   {
+    "file": "audio/combat/lion_roar/lion_roar_07.ogg",
+    "source": 869003,
+    "dur": 1.3
+   },
+   {
+    "file": "audio/combat/lion_roar/lion_roar_08.ogg",
+    "source": 69572,
+    "dur": 1.34
+   },
+   {
+    "file": "audio/combat/lion_roar/lion_roar_09.ogg",
+    "source": 69572,
+    "dur": 1.34
+   }
+  ],
+  "lion_growl": [
+   {
+    "file": "audio/combat/lion_growl/lion_growl_01.ogg",
+    "source": 223978,
+    "dur": 1.97
+   },
+   {
+    "file": "audio/combat/lion_growl/lion_growl_02.ogg",
+    "source": 223978,
+    "dur": 1.99
+   },
+   {
+    "file": "audio/combat/lion_growl/lion_growl_03.ogg",
+    "source": 223978,
+    "dur": 1.85
+   },
+   {
+    "file": "audio/combat/lion_growl/lion_growl_04.ogg",
+    "source": 223978,
+    "dur": 2.13
+   },
+   {
+    "file": "audio/combat/lion_growl/lion_growl_05.ogg",
+    "source": 270383,
+    "dur": 1.33
+   },
+   {
+    "file": "audio/combat/lion_growl/lion_growl_06.ogg",
+    "source": 270383,
+    "dur": 2.01
+   }
+  ],
+  "lion_hurt": [
+   {
+    "file": "audio/combat/lion_hurt/lion_hurt_01.ogg",
+    "source": 223978,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/lion_hurt/lion_hurt_02.ogg",
+    "source": 223978,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/lion_hurt/lion_hurt_03.ogg",
+    "source": 223978,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/lion_hurt/lion_hurt_04.ogg",
+    "source": 270383,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/lion_hurt/lion_hurt_05.ogg",
+    "source": 270383,
+    "dur": 0.76
+   }
+  ],
+  "lion_death": [
+   {
+    "file": "audio/combat/lion_death/lion_death_01.ogg",
+    "source": 223978,
+    "dur": 1.97
+   },
+   {
+    "file": "audio/combat/lion_death/lion_death_02.ogg",
+    "source": 405211,
+    "dur": 1.98
+   },
+   {
+    "file": "audio/combat/lion_death/lion_death_03.ogg",
+    "source": 869003,
+    "dur": 1.82
+   }
+  ],
+  "player_hurt_female": [
+   {
+    "file": "audio/combat/player_hurt_female/player_hurt_female_01.ogg",
+    "source": 242623,
+    "dur": 0.36
+   },
+   {
+    "file": "audio/combat/player_hurt_female/player_hurt_female_02.ogg",
+    "source": 242622,
+    "dur": 0.36
+   },
+   {
+    "file": "audio/combat/player_hurt_female/player_hurt_female_03.ogg",
+    "source": 344004,
+    "dur": 0.52
+   },
+   {
+    "file": "audio/combat/player_hurt_female/player_hurt_female_04.ogg",
+    "source": 252231,
+    "dur": 0.32
+   },
+   {
+    "file": "audio/combat/player_hurt_female/player_hurt_female_05.ogg",
+    "source": 252235,
+    "dur": 0.25
+   },
+   {
+    "file": "audio/combat/player_hurt_female/player_hurt_female_06.ogg",
+    "source": 253776,
+    "dur": 0.28
+   },
+   {
+    "file": "audio/combat/player_hurt_female/player_hurt_female_07.ogg",
+    "source": 252232,
+    "dur": 0.37
+   },
+   {
+    "file": "audio/combat/player_hurt_female/player_hurt_female_08.ogg",
+    "source": 344045,
+    "dur": 0.8
+   },
+   {
+    "file": "audio/combat/player_hurt_female/player_hurt_female_09.ogg",
+    "source": 344013,
+    "dur": 0.67
+   }
+  ],
+  "player_death_female": [
+   {
+    "file": "audio/combat/player_death_female/player_death_female_01.ogg",
+    "source": 241522,
+    "dur": 0.65
+   },
+   {
+    "file": "audio/combat/player_death_female/player_death_female_02.ogg",
+    "source": 241573,
+    "dur": 0.72
+   },
+   {
+    "file": "audio/combat/player_death_female/player_death_female_03.ogg",
+    "source": 343954,
+    "dur": 0.64
+   },
+   {
+    "file": "audio/combat/player_death_female/player_death_female_04.ogg",
+    "source": 343999,
+    "dur": 2.1
+   },
+   {
+    "file": "audio/combat/player_death_female/player_death_female_05.ogg",
+    "source": 241545,
+    "dur": 1.31
+   }
+  ]
+ },
+ "sources": {
+  "60030": {
+   "title": "Swosh / Whoosh / Air Cut",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/60030/"
+  },
+  "60026": {
+   "title": "Swosh swoosh whoosh air sound, free, high quality",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/60026/"
+  },
+  "59988": {
+   "title": "SWOSH-01 44.1kHz",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/59988/"
+  },
+  "60029": {
+   "title": "Swosh 42",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/60029/"
+  },
+  "60023": {
+   "title": "swosh windy 36.flac",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/60023/"
+  },
+  "59992": {
+   "title": "Swosh Sword Swing",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/59992/"
+  },
+  "60027": {
+   "title": "Slow Swosh 40",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/60027/"
+  },
+  "475135": {
+   "title": "FX - Swoosh - Low Pitch",
+   "author": "bolkmar",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/475135/"
+  },
+  "514162": {
+   "title": "Swinging axe.mp3",
+   "author": "ZHRØ",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/514162/"
+  },
+  "60024": {
+   "title": "swosh swinging sword 37.flac",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/60024/"
+  },
+  "504615": {
+   "title": "Slicing through flesh",
+   "author": "NeoSpica",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/504615/"
+  },
+  "323526": {
+   "title": "Bloody Blade 2.wav",
+   "author": "Kreastricon62",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/323526/"
+  },
+  "395370": {
+   "title": "Sword stab 1",
+   "author": "ihitokage",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/395370/"
+  },
+  "179222": {
+   "title": "Knife Stab.wav",
+   "author": "Mixedupmoviestuff",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/179222/"
+  },
+  "411743": {
+   "title": "Knife Stab.wav",
+   "author": "neilsher",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/411743/"
+  },
+  "395373": {
+   "title": "Sword stab 2",
+   "author": "ihitokage",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/395373/"
+  },
+  "205938": {
+   "title": "Arrow Impact",
+   "author": "Twisted_Euphoria",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/205938/"
+  },
+  "708223": {
+   "title": "Arrow_Hit_1",
+   "author": "Mythmazter",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/708223/"
+  },
+  "399183": {
+   "title": "Major punch",
+   "author": "janbezouska",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/399183/"
+  },
+  "434147": {
+   "title": "Punch",
+   "author": "NeoSpica",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/434147/"
+  },
+  "733904": {
+   "title": "Punch 02 - Hit",
+   "author": "velcronator",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/733904/"
+  },
+  "276600": {
+   "title": "body_hit.wav",
+   "author": "insanity54",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/276600/"
+  },
+  "733887": {
+   "title": "Sword Impact",
+   "author": "velcronator",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/733887/"
+  },
+  "815415": {
+   "title": "AAD SWORD FALL ON DIRT",
+   "author": "AwenAudio",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/815415/"
+  },
+  "263675": {
+   "title": "Bow_release.wav",
+   "author": "PorkMuncher",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/263675/"
+  },
+  "394179": {
+   "title": "Longbow Release 2.wav",
+   "author": "saturdaysoundguy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/394179/"
+  },
+  "384918": {
+   "title": "Bow Release (Bow and Arrow) 3",
+   "author": "Ali_6868",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/384918/"
+  },
+  "536068": {
+   "title": "Bow Release Hit",
+   "author": "EminYILDIRIM",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/536068/"
+  },
+  "346373": {
+   "title": "Throwing / Whip Effect",
+   "author": "denao270",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/346373/"
+  },
+  "523230": {
+   "title": "Hard Swing 1",
+   "author": "magnuswaker",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/523230/"
+  },
+  "394873": {
+   "title": "Throw 1.mp3",
+   "author": "deleted_user_6479820",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/394873/"
+  },
+  "547203": {
+   "title": "Voice_AdultMale_PainGrunts_01.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547203/"
+  },
+  "547202": {
+   "title": "Voice_AdultMale_PainGrunts_02.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547202/"
+  },
+  "547201": {
+   "title": "Voice_AdultMale_PainGrunts_03.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547201/"
+  },
+  "547200": {
+   "title": "Voice_AdultMale_PainGrunts_04.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547200/"
+  },
+  "547207": {
+   "title": "Voice_AdultMale_PainGrunts_05.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547207/"
+  },
+  "547206": {
+   "title": "Voice_AdultMale_PainGrunts_06.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547206/"
+  },
+  "547205": {
+   "title": "Voice_AdultMale_PainGrunts_07.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547205/"
+  },
+  "547204": {
+   "title": "Voice_AdultMale_PainGrunts_08.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547204/"
+  },
+  "547209": {
+   "title": "Voice_AdultMale_PainGrunts_09.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547209/"
+  },
+  "547208": {
+   "title": "Voice_AdultMale_PainGrunts_10.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547208/"
+  },
+  "547194": {
+   "title": "Voice_AdultMale_PainGrunts_11.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547194/"
+  },
+  "547195": {
+   "title": "Voice_AdultMale_PainGrunts_12.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547195/"
+  },
+  "547185": {
+   "title": "Voice_AdultMale_DeathScream_08.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547185/"
+  },
+  "547186": {
+   "title": "Voice_AdultMale_DeathScream_07.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547186/"
+  },
+  "547187": {
+   "title": "Voice_AdultMale_DeathScream_06.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547187/"
+  },
+  "547188": {
+   "title": "Voice_AdultMale_DeathScream_05.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547188/"
+  },
+  "547189": {
+   "title": "Voice_AdultMale_DeathScream_10.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547189/"
+  },
+  "547190": {
+   "title": "Voice_AdultMale_DeathScream_09.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547190/"
+  },
+  "763026": {
+   "title": "Bear Angry Growl",
+   "author": "celldroid",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/763026/"
+  },
+  "519599": {
+   "title": "Grizzly Bear growl eating",
+   "author": "Nivatius",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/519599/"
+  },
+  "519596": {
+   "title": "move and growl grizzly bear",
+   "author": "Nivatius",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/519596/"
+  },
+  "479825": {
+   "title": "R19-13-Bear Roaring.wav",
+   "author": "craigsmith",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/479825/"
+  },
+  "519598": {
+   "title": "huf grizzly",
+   "author": "Nivatius",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/519598/"
+  },
+  "519597": {
+   "title": "huf grizzly bear",
+   "author": "Nivatius",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/519597/"
+  },
+  "405211": {
+   "title": "Lions screaming during the night",
+   "author": "felix.blume",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/405211/"
+  },
+  "869002": {
+   "title": "Lions Roaring 1",
+   "author": "Filmscore",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/869002/"
+  },
+  "869003": {
+   "title": "Lions Roaring 2",
+   "author": "Filmscore",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/869003/"
+  },
+  "69572": {
+   "title": "Lion roaring.mp3",
+   "author": "Bidone",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/69572/"
+  },
+  "223978": {
+   "title": "Lion lament",
+   "author": "roman_cgr",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/223978/"
+  },
+  "270383": {
+   "title": "lion_growls.wav",
+   "author": "stratcat322",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/270383/"
+  },
+  "242623": {
+   "title": "grunt.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/242623/"
+  },
+  "242622": {
+   "title": "grunt2.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/242622/"
+  },
+  "344004": {
+   "title": "heavy grunt.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/344004/"
+  },
+  "252231": {
+   "title": "rough grunt.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/252231/"
+  },
+  "252235": {
+   "title": "soft grunt.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/252235/"
+  },
+  "253776": {
+   "title": "surprised grunt.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/253776/"
+  },
+  "252232": {
+   "title": "weird grunt.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/252232/"
+  },
+  "344045": {
+   "title": "long grunt.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/344045/"
+  },
+  "344013": {
+   "title": "high pitched ah2.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/344013/"
+  },
+  "241522": {
+   "title": "murder scream (LOUD).wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/241522/"
+  },
+  "241573": {
+   "title": "short scream.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/241573/"
+  },
+  "343954": {
+   "title": "SCREAMAH.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/343954/"
+  },
+  "343999": {
+   "title": "something dying.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/343999/"
+  },
+  "241545": {
+   "title": "painful growl.wav",
+   "author": "Reitanna",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/241545/"
+  }
+ }
+}

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_i61xu"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death/player_death_01.ogg" id="2_7w05r"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death/player_death_02.ogg" id="3_iayi3"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death/player_death_03.ogg" id="4_74cq4"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death/player_death_04.ogg" id="5_gyxbo"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death/player_death_05.ogg" id="6_d0jxx"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_death/player_death_06.ogg" id="7_iuvkk"]
+
+[resource]
+script = ExtResource("1_i61xu")
+event_id = &"combat_player_death"
+streams = Array[AudioStream]([ExtResource("2_7w05r"), ExtResource("3_iayi3"), ExtResource("4_74cq4"), ExtResource("5_gyxbo"), ExtResource("6_d0jxx"), ExtResource("7_iuvkk")])
+bus = "Voice"
+volume_jitter_db = 1.5
+pitch_jitter = 0.03
+max_distance = 40.0
+max_voices = 1
+cooldown = 1.0

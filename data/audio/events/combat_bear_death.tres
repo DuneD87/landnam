@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_gtq0i"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_death/bear_death_01.ogg" id="2_0yyrj"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_death/bear_death_02.ogg" id="3_4brt7"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_death/bear_death_03.ogg" id="4_cqvfe"]
+
+[resource]
+script = ExtResource("1_gtq0i")
+event_id = &"combat_bear_death"
+streams = Array[AudioStream]([ExtResource("2_0yyrj"), ExtResource("3_4brt7"), ExtResource("4_cqvfe")])
+volume_jitter_db = 1.5
+pitch = 0.9
+pitch_jitter = 0.04
+max_distance = 70.0
+unit_size = 6.0
+max_voices = 2
+cooldown = 1.0

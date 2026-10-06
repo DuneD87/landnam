@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="CreatureAttack" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_hit.gd" id="1_vyfms"]
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="2_i6a4i"]
+
+[sub_resource type="Resource" id="Resource_07prm"]
+script = ExtResource("1_vyfms")
+from = 0.38
+to = 0.7
+bones = Array[StringName]([&"RigLFLegDigit11"])
+damage = 28.0
+poise = 30.0
+
+[sub_resource type="Resource" id="Resource_fqhgm"]
+script = ExtResource("1_vyfms")
+from = 0.9
+to = 1.22
+bones = Array[StringName]([&"RigRFLegDigit11", &"RigHead"])
+radius = 0.42
+damage = 42.0
+poise = 60.0
+knockback = 2.2
+
+[resource]
+script = ExtResource("2_i6a4i")
+id = &"double"
+anim = &"atk stand"
+cooldown = 1.3
+max_angle = 90.0
+situations = Dictionary[StringName, float]({
+&"dodging": 2.0,
+&"recovering": 1.5,
+&"staggered": 3.0
+})
+tell = 0.15
+windup_speed = 0.8
+speed = 1.1
+end = 1.75
+track_active = 60.0
+lead = 0.2
+lunge = Vector3(0.25, 1.15, 1.9)
+lunge_min_distance = 1.3
+armor = Vector3(0.2, 1.22, 40)
+follow_ups = Array[StringName]([&"swipe"])
+follow_up_chance = 0.25
+follow_up_at = 1.4
+hits = Array[ExtResource("1_vyfms")]([SubResource("Resource_07prm"), SubResource("Resource_fqhgm")])

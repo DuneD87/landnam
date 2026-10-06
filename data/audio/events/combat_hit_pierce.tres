@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_58ena"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_pierce/hit_pierce_01.ogg" id="2_3f4ns"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_pierce/hit_pierce_02.ogg" id="3_7h6d1"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_pierce/hit_pierce_03.ogg" id="4_81lou"]
+[ext_resource type="AudioStream" path="res://audio/combat/hit_pierce/hit_pierce_04.ogg" id="5_cg7i8"]
+
+[resource]
+script = ExtResource("1_58ena")
+event_id = &"combat_hit_pierce"
+streams = Array[AudioStream]([ExtResource("2_3f4ns"), ExtResource("3_7h6d1"), ExtResource("4_81lou"), ExtResource("5_cg7i8")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 40.0
+max_voices = 6
+cooldown = 0.02

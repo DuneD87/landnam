@@ -682,6 +682,11 @@ func _find_nearby_corpse(max_dist: float = 4.0) -> NPCController:
 	return null
 
 
+## Lo que está haciendo en combate, para las criaturas que pelean con él (CombatRead).
+func get_combat_situation() -> StringName:
+	return combat.get_situation() if combat != null else &""
+
+
 func can_perform_action() -> bool:
 	return not (
 		combat.is_busy() or

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_yp4ar"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt_female/player_hurt_female_01.ogg" id="2_dgtae"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt_female/player_hurt_female_02.ogg" id="3_57fjc"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt_female/player_hurt_female_03.ogg" id="4_ooxwl"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt_female/player_hurt_female_04.ogg" id="5_dkk5u"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt_female/player_hurt_female_05.ogg" id="6_7wb7v"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt_female/player_hurt_female_06.ogg" id="7_f33s8"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt_female/player_hurt_female_07.ogg" id="8_i0bmt"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt_female/player_hurt_female_08.ogg" id="9_2rsuy"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_hurt_female/player_hurt_female_09.ogg" id="10_00qsa"]
+
+[resource]
+script = ExtResource("1_yp4ar")
+event_id = &"combat_player_hurt_female"
+streams = Array[AudioStream]([ExtResource("2_dgtae"), ExtResource("3_57fjc"), ExtResource("4_ooxwl"), ExtResource("5_dkk5u"), ExtResource("6_7wb7v"), ExtResource("7_f33s8"), ExtResource("8_i0bmt"), ExtResource("9_2rsuy"), ExtResource("10_00qsa")])
+bus = "Voice"
+volume_db = -3.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.04
+max_distance = 30.0
+unit_size = 3.0
+max_voices = 2
+cooldown = 0.2

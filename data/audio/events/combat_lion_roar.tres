@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_k7wqi"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_roar/lion_roar_01.ogg" id="2_u3ljl"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_roar/lion_roar_02.ogg" id="3_t2ktb"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_roar/lion_roar_03.ogg" id="4_064ca"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_roar/lion_roar_04.ogg" id="5_keh5x"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_roar/lion_roar_05.ogg" id="6_c4lij"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_roar/lion_roar_06.ogg" id="7_33iem"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_roar/lion_roar_07.ogg" id="8_w74le"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_roar/lion_roar_08.ogg" id="9_83u5j"]
+[ext_resource type="AudioStream" path="res://audio/combat/lion_roar/lion_roar_09.ogg" id="10_ttduu"]
+
+[resource]
+script = ExtResource("1_k7wqi")
+event_id = &"combat_lion_roar"
+streams = Array[AudioStream]([ExtResource("2_u3ljl"), ExtResource("3_t2ktb"), ExtResource("4_064ca"), ExtResource("5_keh5x"), ExtResource("6_c4lij"), ExtResource("7_33iem"), ExtResource("8_w74le"), ExtResource("9_83u5j"), ExtResource("10_ttduu")])
+volume_db = 3.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.04
+max_distance = 120.0
+unit_size = 8.0
+max_voices = 2
+cooldown = 1.0

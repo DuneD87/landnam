@@ -14,6 +14,8 @@ const Config = preload("res://scripts/config.gd")
 @export var detect_state: StringName = &""
 ## Estado al que ir cuando Perception pierde el objetivo. Vacío = decide el estado activo.
 @export var lose_state: StringName = &""
+## Estado al que ir cuando alguien le hiere. Vacío = detect_state.
+@export var provoked_state: StringName = &""
 ## Tipo de NPC, usado por Perception de otros NPCs para identificar amenazas (ej: &"bear", &"deer").
 @export var npc_type: StringName = &""
 ## Identificador único para guardado; se genera automáticamente si está vacío.
@@ -39,6 +41,14 @@ var _is_dying: bool = false
 
 ## Segundos que el NPC queda paralizado tras recibir un golpe.
 @export var hit_stun_duration: float = 0.35
+## Desde esta velocidad (m/s) corre con la animación de esprintar en vez de la de correr.
+## 0 = nunca. Conviene que esté entre la velocidad de suelo de un clip y la del otro.
+@export var sprint_anim_speed: float = 0.0
+## Velocidad de suelo (m/s) de los clips de correr y esprintar, medida en ellos: con ella cada
+## clip se acelera o se frena a la velocidad a la que va el cuerpo, para que las patas no
+## patinen. 0 = el clip a su ritmo.
+@export var run_clip_speed: float = 0.0
+@export var sprint_clip_speed: float = 0.0
 
 @export_group("Combate")
 ## Hueso de la cabeza: lleva un hurtbox propio que duele más. Vacío = solo el del cuerpo.
@@ -47,6 +57,9 @@ var _is_dying: bool = false
 @export var head_multiplier: float = 1.5
 ## Cadena de huesos que dobla el respingo al encajar un golpe (tronco → cabeza).
 @export var flinch_bones: Array[String] = []
+## Lo que suena al encajar daño y al morir (ids de CombatFx). Vacío = nada.
+@export var hurt_sound: StringName = &""
+@export var death_sound: StringName = &""
 
 ## Zonas que reciben golpes: el cuerpo (copia de la cápsula de colisión) y la cabeza.
 var hurtboxes: Array[Hurtbox] = []
@@ -105,6 +118,7 @@ func _ready() -> void:
 
 	_build_hurtboxes()
 	_gore = AnimalGore.attach(self, npc_model, health_component)
+	_setup_gait()
 
 	movement.landed.connect(_on_landed)
 	health_component.damaged.connect(_on_damaged)
@@ -169,20 +183,42 @@ func _physics_step(delta: float) -> void:
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 
 	current_animation = movement.current_animation
+	if current_animation == Config.ANIMATION.RUN and sprint_anim_speed > 0.0 \
+			and movement.speed >= sprint_anim_speed:
+		current_animation = Config.ANIMATION.SPRINT
 	if ai_controller.is_attacking:
 		current_animation = Config.ANIMATION.ATTACK_1
 	if animation_controller:
 		animation_controller.handle_animations(delta, current_animation, false)
+	if not _gait.is_empty():
+		_update_gait()
 
 	velocity = movement.velocity
 
-	var rot_dir := project_on_gravity_plane(movement.direction)
+	var facing := ai_controller.desired_facing
+	var rot_dir := project_on_gravity_plane(facing if facing != Vector3.ZERO else movement.direction)
 	if rot_dir.length() > 0.1:
-		rotate_toward_direction(rot_dir, delta)
+		if ai_controller.turn_rate > 0.0:
+			_turn_toward(rot_dir, deg_to_rad(ai_controller.turn_rate) * delta)
+		else:
+			rotate_toward_direction(rot_dir, delta)
 
 	align_to_gravity(gravity_direction, delta)
 
 	move_and_slide()
+
+
+## Gira sobre la vertical hacia [dir] como mucho [max_angle] radianes.
+func _turn_toward(dir: Vector3, max_angle: float) -> void:
+	var up := -gravity_direction.normalized()
+	var forward := project_on_gravity_plane(global_basis.z)
+	if forward == Vector3.ZERO:
+		return
+	var step := clampf(forward.signed_angle_to(dir, up), -max_angle, max_angle)
+	if absf(step) < 1e-5:
+		return
+	global_basis = Basis(up, step) * global_basis
+	orthonormalize()
 
 
 func _on_target_detected(_target: Node3D) -> void:
@@ -200,10 +236,14 @@ func _on_damaged(_amount: float, source: Node) -> void:
 	_hit_timer = hit_stun_duration
 	if animation_controller:
 		animation_controller.trigger_hit()
+	# El golpe que mata suena con la muerte.
+	if hurt_sound != &"" and health_component.health > 0.0:
+		CombatFx.play(hurt_sound, global_position)
 	# Quien te pega es un objetivo aunque Perception no lo vigile.
-	if detect_state != &"" and source is Node3D and not _is_dying:
+	var provoked := provoked_state if provoked_state != &"" else detect_state
+	if provoked != &"" and source is Node3D and source != self and not _is_dying:
 		ai_controller.target = source
-		ai_controller.transition_to(detect_state)
+		ai_controller.transition_to(provoked)
 
 
 ## Hurtboxes del cuerpo y de la cabeza, y el respingo. Se crean aquí para que cualquier criatura
@@ -213,7 +253,7 @@ func _build_hurtboxes() -> void:
 		var body_box := Hurtbox.attach(self, self, collision_shape.shape, collision_shape.transform, &"body")
 		body_box.health = health_component
 		hurtboxes.append(body_box)
-	var skeleton := npc_model.get_node_or_null("Armature/Skeleton3D") as Skeleton3D
+	var skeleton := get_skeleton()
 	if skeleton == null:
 		return
 	if head_bone != &"" and skeleton.find_bone(head_bone) >= 0:
@@ -243,6 +283,80 @@ func _build_hurtboxes() -> void:
 var _head_holder: Node3D
 ## Mutilaciones al morir (solo los esqueletos con tabla en AnimalGore).
 var _gore: AnimalGore
+var _skeleton: Skeleton3D
+var _action_channel: CreatureActionChannel
+## Dónde vive (donde apareció), en el marco del planeta: así sobrevive a los rebases del origen
+## flotante. INF = aún no se sabe.
+var _home_local := Vector3.INF
+## Escaladores de ritmo de los clips de correr y esprintar (ver run_clip_speed): [nodo, m/s].
+var _gait: Array = []
+
+
+## El esqueleto del modelo, esté donde esté dentro de él (cada rig lo cuelga de un sitio).
+func get_skeleton() -> Skeleton3D:
+	if _skeleton == null and npc_model != null:
+		var found := npc_model.find_children("*", "Skeleton3D", true, false)
+		if not found.is_empty():
+			_skeleton = found[0] as Skeleton3D
+	return _skeleton
+
+
+## Fija dónde vive (centro de su territorio).
+func set_home(point: Vector3) -> void:
+	_home_local = planet.to_local(point) if planet != null else Vector3.INF
+
+
+## Dónde vive, en mundo. La primera vez que se pide sin saberlo, donde está ahora (una criatura
+## soltada a mano no pasa por activate()). INF si aún no tiene planeta.
+func get_home() -> Vector3:
+	if planet == null:
+		return Vector3.INF
+	if _home_local == Vector3.INF:
+		set_home(global_position)
+	return planet.to_global(_home_local)
+
+
+## Mete un TimeScale delante de los clips de correr y esprintar del árbol (las entradas 1 de los
+## Blend2 bRun y bSprint, que es como los nombra AnimationController en todas las especies).
+func _setup_gait() -> void:
+	# En el editor no: el árbol cambiado se guardaría con la escena.
+	if Engine.is_editor_hint() or animation_controller == null \
+			or (run_clip_speed <= 0.0 and sprint_clip_speed <= 0.0):
+		return
+	var tree := animation_controller.animation_tree
+	if tree == null or not (tree.tree_root is AnimationNodeBlendTree):
+		return
+	var tree_root := (tree.tree_root as AnimationNodeBlendTree).duplicate(true) as AnimationNodeBlendTree
+	var connections: Array = tree_root.get("node_connections")
+	for gait in [[&"bRun", &"gait_run", run_clip_speed], [&"bSprint", &"gait_sprint", sprint_clip_speed]]:
+		if gait[2] <= 0.0:
+			continue
+		var source := StringName()
+		for i in range(0, connections.size(), 3):
+			if connections[i] == gait[0] and int(connections[i + 1]) == 1:
+				source = connections[i + 2]
+		if source == StringName():
+			continue
+		tree_root.add_node(gait[1], AnimationNodeTimeScale.new())
+		tree_root.disconnect_node(gait[0], 1)
+		tree_root.connect_node(gait[1], 0, source)
+		tree_root.connect_node(gait[0], 1, gait[1])
+		_gait.append([gait[1], gait[2]])
+	tree.tree_root = tree_root
+
+
+func _update_gait() -> void:
+	var speed := movement.velocity.length()
+	for gait in _gait:
+		var rate := clampf(speed / gait[1], 0.5, 2.0) if speed > 0.3 else 1.0
+		animation_controller.animation_tree.set("parameters/%s/scale" % gait[0], rate)
+
+
+## Canal de animaciones de acción (ataques) encima de la locomoción; se monta la primera vez.
+func get_action_channel() -> CreatureActionChannel:
+	if _action_channel == null and animation_controller != null:
+		_action_channel = CreatureActionChannel.build(animation_controller.animation_tree)
+	return _action_channel
 
 
 func _set_hurtboxes_enabled(value: bool) -> void:
@@ -254,6 +368,17 @@ func _set_hurtboxes_enabled(value: bool) -> void:
 func _on_hit_received(info: DamageInfo, applied: float) -> void:
 	if hit_react != null and applied > 0.0:
 		hit_react.flinch(info.direction, up_direction, clampf(applied / 30.0, 0.35, 1.2))
+
+
+## Lo que está haciendo en combate, para quien pelea con él (CombatRead): lo cuenta su estado de
+## IA si sabe (get_situation), y si no, nada.
+func get_combat_situation() -> StringName:
+	if is_dead or _is_dying:
+		return &"dead"
+	var state := ai_controller.get_node_or_null(NodePath(ai_controller.get_current_state()))
+	if state != null and state.has_method(&"get_situation"):
+		return state.get_situation()
+	return &""
 
 
 ## Punto al que se apunta al fijar este objetivo (centro de la cápsula).
@@ -293,6 +418,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	if persistent:
 		add_to_group(GameManager.SAVEABLE_GROUP)
 	update_nearest_planet()
+	set_home(point)
 	if planet != null:
 		gravity_direction = planet.get_gravity_direction(global_position)
 		up_direction = -gravity_direction
@@ -300,6 +426,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	ai_controller.target = null
 	ai_controller.is_attacking = false
 	ai_controller.desired_direction = Vector3.ZERO
+	ai_controller.desired_facing = Vector3.ZERO
 	if initial_ai_state != &"":
 		ai_controller.transition_to(initial_ai_state)
 	current_animation = Config.ANIMATION.IDLE
@@ -363,9 +490,12 @@ func die(point: Vector3) -> void:
 func _on_died() -> void:
 	_is_dying = true
 	active = false
+	if death_sound != &"":
+		CombatFx.play(death_sound, global_position)
 	startle_near(get_tree(), global_position, DEATH_STARTLE_RADIUS)
 	_set_hurtboxes_enabled(false)
 	ai_controller.desired_direction = Vector3.ZERO
+	ai_controller.desired_facing = Vector3.ZERO
 	ai_controller.is_attacking = false
 	if perception:
 		perception.set_physics_process(false)

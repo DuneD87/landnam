@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_o3je8"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_growl/bear_growl_01.ogg" id="2_uv708"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_growl/bear_growl_02.ogg" id="3_b7yn7"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_growl/bear_growl_03.ogg" id="4_n47gt"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_growl/bear_growl_04.ogg" id="5_map6c"]
+[ext_resource type="AudioStream" path="res://audio/combat/bear_growl/bear_growl_05.ogg" id="6_8skah"]
+
+[resource]
+script = ExtResource("1_o3je8")
+event_id = &"combat_bear_growl"
+streams = Array[AudioStream]([ExtResource("2_uv708"), ExtResource("3_b7yn7"), ExtResource("4_n47gt"), ExtResource("5_map6c"), ExtResource("6_8skah")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+unit_size = 6.0
+max_voices = 3
+cooldown = 0.5

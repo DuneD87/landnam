@@ -851,6 +851,40 @@ func is_dead() -> bool:
 	return state == State.DEAD
 
 
+## El sonido de voz [id] con la voz del personaje: el "<id>_female" si es mujer y lo hay.
+func _voice(id: StringName) -> StringName:
+	var character: CharacterData = GameManager.character
+	if character != null and character.appearance != null and character.appearance.get_sex() == &"female":
+		var female := StringName(String(id) + "_female")
+		if CombatFx.has_sound(female):
+			return female
+	return id
+
+
+## Lo que está haciendo, tal como lo leen las criaturas que pelean con él (CombatRead):
+## &"windup" (un golpe que aún no hiere), &"active", &"recovering" (después del golpe),
+## &"dodging", &"aiming", &"staggered", &"dead" o &"" (nada de eso).
+func get_situation() -> StringName:
+	match state:
+		State.DEAD:
+			return &"dead"
+		State.STAGGER:
+			return &"staggered"
+		State.DODGE:
+			return &"dodging"
+		State.AIM:
+			return &"aiming"
+		State.ATTACK:
+			if _move.is_empty():
+				return &"active"
+			var hit: Vector2 = _move.hit
+			var t := _act_time(_attack_slot)
+			if t < hit.x:
+				return &"windup"
+			return &"active" if t <= hit.y else &"recovering"
+	return &"recovering" if _recovering else &""
+
+
 # ---------------------------------------------------------------------------------------------
 # Golpes
 
@@ -930,7 +964,7 @@ func _update_attack(delta: float) -> void:
 	if t >= hit.x and prev <= hit.y:
 		if not _whooshed:
 			_whooshed = true
-			CombatFx.play(&"swing_windup", player.global_position, {"pitch": _swing_pitch(data) * randf_range(0.94, 1.06)})
+			CombatFx.play(_swing_sound(data), player.global_position, {"pitch": _swing_pitch(data) * randf_range(0.96, 1.04)})
 		_sweep_blade(data)
 	if t >= float(_move.commit):
 		_finish_attack()
@@ -952,15 +986,22 @@ func _update_attack(delta: float) -> void:
 	_act_set_speed(_attack_slot, speed)
 
 
-## Tono del silbido del arma: las ligeras más agudas, las grandes más graves.
+## Tono del silbido del arma: algo más grave en las de dos manos y en el golpe pesado.
 func _swing_pitch(data: ItemData) -> float:
-	var pitch := 1.15
+	var pitch := 1.0
+	if data.two_handed:
+		pitch = 0.9
+	return pitch * (0.92 if _heavy else 1.0)
+
+
+## El silbido del arma: las pesadas (hachas, mazas, las de dos manos) mueven más aire.
+func _swing_sound(data: ItemData) -> StringName:
+	if data.two_handed:
+		return &"swing_heavy"
 	match data.weapon_type:
 		ItemData.WeaponType.AXE, ItemData.WeaponType.MACE:
-			pitch = 0.95
-	if data.two_handed:
-		pitch = 0.78
-	return pitch * (0.9 if _heavy else 1.0)
+			return &"swing_heavy"
+	return &"swing_light"
 
 
 ## Hay algo pegado delante (el objetivo fijado o una criatura en la cara): el paso del golpe no
@@ -1708,7 +1749,7 @@ func _on_hit_received(info: DamageInfo, applied: float) -> void:
 	hit_react.flinch(info.direction, up, clampf(applied / 22.0, 0.3, 1.2))
 	player.camera_controller.add_shake(clampf(applied / 60.0, 0.06, 0.35))
 	hud.flash_damage(clampf(applied / 40.0, 0.25, 1.0))
-	CombatFx.play(&"player_hurt", player.global_position)
+	CombatFx.play(_voice(&"player_hurt"), player.global_position)
 	if player.health_component.health - applied <= 0.0:
 		return
 	# Los golpes pesados y los de dos manos aguantan mientras se descargan (hyperarmor).
@@ -1735,7 +1776,7 @@ func _on_status_applied(effect: StatusEffect) -> void:
 		return
 	player.camera_controller.add_shake(0.35)
 	hud.flash_damage(0.8)
-	CombatFx.play(&"player_hurt", player.global_position)
+	CombatFx.play(_voice(&"player_hurt"), player.global_position)
 
 
 func _start_stagger(info: DamageInfo) -> void:
@@ -1807,7 +1848,7 @@ func _on_died() -> void:
 		_foot_ik.influence = 0.0
 	if _look_ik:
 		_look_ik.active = false
-	CombatFx.play(&"player_death", player.global_position)
+	CombatFx.play(_voice(&"player_death"), player.global_position)
 
 
 func _update_dead(delta: float) -> void:

@@ -60,7 +60,9 @@ func _physics_step(delta: float) -> void:
 
 	var found := _scan()
 
-	if found and found != _detected:
+	# También si el estado soltó el objetivo (se rindió, se calmó) y lo sigue percibiendo: así los
+	# estados que reaccionan por distancia (IdleState, WanderState) lo vuelven a tener.
+	if found and (found != _detected or controller.target == null):
 		_detected = found
 		controller.target = found
 		target_detected.emit(found)
@@ -102,6 +104,9 @@ func _scan() -> Node3D:
 
 func _can_detect(target: Node3D) -> bool:
 	if not is_instance_valid(target):
+		return false
+	var health := target.get_node_or_null("HealthComponent") as HealthComponent
+	if health != null and health.is_dead:
 		return false
 
 	var to_target := target.global_position - npc.global_position

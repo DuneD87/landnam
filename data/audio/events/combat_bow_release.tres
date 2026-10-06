@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_ji7ui"]
+[ext_resource type="AudioStream" path="res://audio/combat/bow_release/bow_release_01.ogg" id="2_36pax"]
+[ext_resource type="AudioStream" path="res://audio/combat/bow_release/bow_release_02.ogg" id="3_koxr6"]
+[ext_resource type="AudioStream" path="res://audio/combat/bow_release/bow_release_03.ogg" id="4_nyhcv"]
+[ext_resource type="AudioStream" path="res://audio/combat/bow_release/bow_release_04.ogg" id="5_bg1ca"]
+
+[resource]
+script = ExtResource("1_ji7ui")
+event_id = &"combat_bow_release"
+streams = Array[AudioStream]([ExtResource("2_36pax"), ExtResource("3_koxr6"), ExtResource("4_nyhcv"), ExtResource("5_bg1ca")])
+volume_db = -4.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.04
+max_distance = 40.0
+unit_size = 3.0
+max_voices = 3
