@@ -16,6 +16,8 @@ const SYNTH_STANDIN := {
 	&"lion_death": &"bear_roar",
 	# El remate grave del cartel de HAS MUERTO: el quejido sintético, no el grito del jugador.
 	&"death_stinger": &"player_death",
+	&"block_wood": &"hit_blunt", &"block_metal": &"hit_world", &"parry": &"hit_world",
+	&"guard_break": &"hit_blunt",
 }
 
 static var _events: Dictionary = {}
@@ -169,6 +171,47 @@ static func _spray(host: Node, point: Vector3, direction: Vector3, color: Color,
 	particles.add_to_group(&"floating_origin")
 	particles.emitting = true
 	particles.get_tree().create_timer(1.6).timeout.connect(particles.queue_free)
+
+
+## Chispas de metal contra metal (una guardia que para un golpe): pocas, muy rápidas, encendidas y
+## que se apagan enseguida. [power] (0–1) da la cantidad.
+static func sparks(node: Node, point: Vector3, direction: Vector3, power: float = 1.0) -> void:
+	var host := _host(node)
+	if host == null:
+		return
+	var particles := GPUParticles3D.new()
+	particles.amount = int(lerpf(6.0, 22.0, clampf(power, 0.0, 1.0)))
+	particles.lifetime = 0.35
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	particles.local_coords = false
+	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var process := ParticleProcessMaterial.new()
+	process.direction = direction.normalized() if direction.length_squared() > 1e-6 else -_down()
+	process.spread = 60.0
+	process.initial_velocity_min = 3.0
+	process.initial_velocity_max = 8.0
+	process.gravity = _down() * 9.8
+	process.scale_min = 0.5
+	process.scale_max = 1.0
+	particles.process_material = process
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2(0.012, 0.05)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.albedo_color = Color(1.0, 0.72, 0.3)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.6, 0.2)
+	mat.emission_energy_multiplier = 4.0
+	mesh.material = mat
+	particles.draw_pass_1 = mesh
+	particles.visibility_aabb = AABB(Vector3.ONE * -3.0, Vector3.ONE * 6.0)
+	host.add_child(particles)
+	particles.global_position = point
+	particles.add_to_group(&"floating_origin")
+	particles.emitting = true
+	particles.get_tree().create_timer(0.8).timeout.connect(particles.queue_free)
 
 
 ## Gotas de sangre: lágrimas alineadas con su velocidad (blood_droplet.gdshader) que salen de una

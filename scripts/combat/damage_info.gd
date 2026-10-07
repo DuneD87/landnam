@@ -18,6 +18,14 @@ var knockback: float = 0.0
 var kind: ItemData.DamageKind = ItemData.DamageKind.SLASH
 ## Multiplicador que añade la parte golpeada (cabeza) — lo rellena el Hurtbox.
 var part_multiplier: float = 1.0
+## Viene de lejos (flecha, piedra, lanza arrojada): solo lo para un escudo, y no se puede hacer
+## una parada contra él.
+var ranged: bool = false
+## Se puede parar en seco (Guard.parry_window). Una embestida o un salto de fiera, no.
+var parryable: bool = true
+## Lo que hizo con él la guardia del que lo recibe (Guard.Result): el daño y el desgaste ya vienen
+## rebajados, y quien reacciona al golpe (sangre, tajos, tambaleo) lo tiene en cuenta.
+var guarded: int = 0
 
 
 static func create(amount_: float, source_: Node3D, point_: Vector3, direction_: Vector3,

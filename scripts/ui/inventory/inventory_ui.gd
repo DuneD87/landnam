@@ -3,6 +3,10 @@ class_name InventoryUI
 
 const SlotScene = preload("res://scenes/ui/inventory_slot.tscn")
 
+## Lo que se arrastra fuera de las ventanas (o se lleva en el cursor y se pincha fuera) se suelta
+## al suelo: lo hace el jugador (DroppedItem).
+signal drop_requested(data: ItemData, quantity: int)
+
 @onready var panel: PanelContainer = $CenterContainer/PanelContainer
 @onready var title_label: Label = $CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header/TitleLabel
 @onready var close_button: Button = $CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Header/CloseButton
@@ -31,6 +35,9 @@ var floating_slot_index: int = -1
 var floating_display: Control = null
 var floating_icon: TextureRect = null
 var floating_label: Label = null
+## Botón con el que se acaba de coger lo que va en el cursor (soltarlo fuera de las ventanas lo tira
+## al suelo: arrastrar), o -1 si se cogió con un clic anterior.
+var _picked_with: int = -1
 
 
 func _ready() -> void:
@@ -308,10 +315,13 @@ func _on_loot_slot_clicked(slot: InventorySlot, button_index: int) -> void:
 
 
 func _on_slot_clicked(slot: InventorySlot, button_index: int) -> void:
+	var had_item := floating_item != null
 	if button_index == MOUSE_BUTTON_LEFT:
 		_handle_inventory_left_click(slot)
 	elif button_index == MOUSE_BUTTON_RIGHT:
 		_handle_inventory_right_click(slot)
+	if not had_item and floating_item != null:
+		_picked_with = button_index
 
 
 func _handle_inventory_left_click(slot: InventorySlot) -> void:
@@ -336,6 +346,7 @@ func _on_equipment_slot_clicked(slot: EquipmentSlot) -> void:
 		_drop_to_equipment(slot)
 	elif slot.has_item():
 		_pickup_from_equipment(slot)
+		_picked_with = MOUSE_BUTTON_LEFT
 
 
 
@@ -482,8 +493,36 @@ func _cancel_floating_item() -> void:
 func _clear_floating_item() -> void:
 	floating_item = null
 	floating_slot_index = -1
+	_picked_with = -1
 	if floating_display:
 		floating_display.visible = false
+
+
+## Tira al suelo [amount] de lo que va en el cursor.
+func _drop_to_world(amount: int) -> void:
+	var n := mini(amount, floating_item.quantity)
+	drop_requested.emit(floating_item.data, n)
+	floating_item.remove(n)
+	if floating_item.quantity <= 0:
+		_clear_floating_item()
+	else:
+		_update_floating_display()
+	inventory.inventory_changed.emit()
+	_refresh()
+
+
+## El ratón está sobre alguna ventana (inventario, botín, personaje o barra rápida).
+func _over_ui(mp: Vector2) -> bool:
+	var areas: Array[Control] = [panel, _loot_panel_node]
+	if character_window != null and character_window.visible:
+		areas.append(character_window.panel)
+	if hotbar != null and hotbar.visible:
+		areas.append(hotbar.get_panel())
+	for area in areas:
+		if area != null and is_instance_valid(area) and area.is_visible_in_tree() \
+				and area.get_global_rect().has_point(mp):
+			return true
+	return false
 
 
 func _update_floating_display() -> void:
@@ -505,6 +544,20 @@ func _input(event: InputEvent) -> void:
 
 	if not visible:
 		return
+
+	if event is InputEventMouseButton and floating_item:
+		var mb := event as InputEventMouseButton
+		var dragged := not mb.pressed and mb.button_index == _picked_with
+		if not mb.pressed:
+			_picked_with = -1
+		# Fuera de las ventanas: soltarlo tras arrastrarlo o pinchar con él lo tira entero; el clic
+		# derecho, de uno en uno.
+		if not _over_ui(mb.global_position) and (dragged or mb.pressed) \
+				and mb.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+			var one := mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT
+			_drop_to_world(1 if one else floating_item.quantity)
+			get_viewport().set_input_as_handled()
+			return
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:

@@ -28,6 +28,8 @@ signal hit_received(info: DamageInfo, applied: float)
 
 ## Reducción porcentual del daño de combate (armadura), de 0 a 80.
 var defense: float = 0.0
+## Escudo o arma con la que se para (Guard). null = no se defiende: le llega todo.
+var guard: Guard
 
 var health: float
 var is_dead: bool = false
@@ -49,9 +51,14 @@ func take_damage(amount: float, source: Node = null) -> void:
 		died.emit()
 
 
-## Aplica un golpe de combate: parte golpeada y armadura primero. Devuelve el daño descontado.
+## Aplica un golpe de combate: guardia, parte golpeada y armadura. Devuelve el daño descontado.
 func receive_hit(info: DamageInfo) -> float:
 	if is_dead or invincible:
+		return 0.0
+	if guard != null and guard.intercept(info) == Guard.Result.PARRIED:
+		# Parado en seco: no llega nada y el que lo dio queda vendido.
+		if info.source != null and is_instance_valid(info.source) and info.source.has_method(&"on_parried"):
+			info.source.on_parried(info)
 		return 0.0
 	var reduction := clampf(defense, 0.0, 80.0) / 100.0
 	var amount := info.amount * info.part_multiplier * (1.0 - reduction)

@@ -24,6 +24,7 @@ max_combo = 3
 max_poise = 110.0
 poise_regen = 25.0
 stagger_time = 1.0
+parried_time = 1.1
 action_fade_in = 0.2
 action_fade_out = 0.35
 attack_sound = &"bear_growl"

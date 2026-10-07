@@ -64,6 +64,23 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 ## Se puede arrojar (lanzas): el arma sale de la mano y hay que recogerla.
 @export var throwable: bool = false
 
+@export_group("Guard")
+## Lo que para de cada golpe bloqueado (0–1). 0 = con esto no se bloquea. Lo usan los escudos y
+## las armas a dos manos (Guard).
+@export_range(0.0, 1.0) var guard_reduction: float = 0.0
+## Estabilidad (0–100): cuánto de la fuerza del golpe (su desgaste de guardia) aguanta sin gastar
+## aguante. Más estable = cada golpe parado cuesta menos.
+@export_range(0.0, 100.0) var guard_stability: float = 0.0
+## Medio ángulo (grados) delante del cuerpo en el que para golpes.
+@export_range(0.0, 180.0) var guard_arc: float = 60.0
+## Segundos, desde que se alza la guardia, en los que un golpe cuerpo a cuerpo se para del todo y
+## deja vendido al que lo da. 0 = no hace paradas.
+@export var parry_window: float = 0.0
+## Para flechas y piedras (los escudos; una espada, no).
+@export var guard_projectiles: bool = false
+## Lo que suena al parar un golpe (id de CombatFx).
+@export var guard_sound: StringName = &"block_metal"
+
 @export_group("Armor Stats")
 @export var armor_slot: ArmorSlot = ArmorSlot.NONE
 @export var defense: int = 0
@@ -141,6 +158,11 @@ func is_melee() -> bool:
 ## Dispara o se arroja apuntando: arco, tirachinas y lanza.
 func is_ranged() -> bool:
 	return weapon_type == WeaponType.BOW or weapon_type == WeaponType.SLINGSHOT or throwable
+
+
+## Escudo: va en la mano secundaria (ranura OFFHAND) y se alza para bloquear.
+func is_shield() -> bool:
+	return armor_slot == ArmorSlot.OFFHAND and guard_reduction > 0.0
 
 
 ## Se lleva en la mano izquierda (el arco y el tirachinas se sujetan con la izquierda y la

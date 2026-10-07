@@ -196,7 +196,7 @@ func update(delta: float) -> StringName:
 				_set_phase(Phase.CHASE)
 		Phase.STAGGER:
 			movement.speed = AIController.TURN_ONLY_SPEED
-			if _phase_time > profile.stagger_time:
+			if _phase_time > _phase_length:
 				_poise = profile.max_poise
 				_set_phase(Phase.CHASE)
 	if sprinting:
@@ -291,6 +291,23 @@ func _angle_to_target() -> float:
 	return rad_to_deg(forward.angle_to(to))
 
 
+## Le han parado el golpe en seco: corta el ataque y se queda vendido parried_time.
+func on_parried(_info: DamageInfo) -> void:
+	runner.cancel()
+	combo = 0
+	_poise_idle = 0.0
+	_stagger(profile.parried_time)
+
+
+func _stagger(seconds: float) -> void:
+	_set_phase(Phase.STAGGER, seconds)
+	var npc := controller.npc as NPCController
+	if not profile.stagger_anims.is_empty() and npc.get_action_channel() != null:
+		npc.get_action_channel().play(profile.stagger_anims.pick_random(), 1.0, 0.1, profile.action_fade_out)
+	if profile.stagger_sound != &"":
+		CombatFx.play(profile.stagger_sound, npc.global_position, {"pitch": profile.voice_pitch})
+
+
 func _on_hit(info: DamageInfo, _applied: float) -> void:
 	if controller.get_current_state() != StringName(name):
 		return
@@ -300,9 +317,4 @@ func _on_hit(info: DamageInfo, _applied: float) -> void:
 	if _poise <= 0.0 and phase != Phase.STAGGER:
 		runner.cancel()
 		combo = 0
-		_set_phase(Phase.STAGGER)
-		var npc := controller.npc as NPCController
-		if not profile.stagger_anims.is_empty() and npc.get_action_channel() != null:
-			npc.get_action_channel().play(profile.stagger_anims.pick_random(), 1.0, 0.1, profile.action_fade_out)
-		if profile.stagger_sound != &"":
-			CombatFx.play(profile.stagger_sound, npc.global_position, {"pitch": profile.voice_pitch})
+		_stagger(profile.stagger_time)

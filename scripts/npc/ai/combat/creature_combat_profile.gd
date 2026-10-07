@@ -60,6 +60,8 @@ extends Resource
 ## una al azar (ninguna = se queda quieto).
 @export var stagger_time: float = 1.5
 @export var stagger_anims: Array[StringName] = []
+## Segundos que se queda vendido cuando le paran un golpe en seco (la ventana del contraataque).
+@export var parried_time: float = 1.2
 
 @export_group("Animation")
 ## Fundidos de entrada y salida de las animaciones de ataque.

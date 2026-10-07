@@ -235,7 +235,9 @@ func _on_hit(info: DamageInfo, _applied: float) -> void:
 	var rate := amount * float(BLEED_PER_DAMAGE.get(info.kind, 0.01))
 	if rate > BLEED_STOP:
 		_wounds.append({rate = rate, half_life = WOUND_HALF_LIFE})
+	# Lo que pasa a través de la guardia hiere, pero no cercena.
 	if hit.cut_bone != &"" and info.kind == ItemData.DamageKind.SLASH and amount >= SEVER_MIN_DAMAGE \
+			and info.guarded == Guard.Result.NONE \
 			and not is_severed(zone) and SettingsManager.gore_level() == SettingsManager.GORE_FULL:
 		var chance := sever_chance if sever_chance >= 0.0 else _natural_chance(zone, amount)
 		if randf() < chance:

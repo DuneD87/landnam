@@ -41,6 +41,12 @@ EVENTS = {
     "hit_world": {"mode": "impact", "max_dur": 0.7, "sources": [733887, 815415]},
     "bow_release": {"mode": "whole", "max_dur": 0.45, "sources": [263675, 394179, 384918, 536068]},
     "throw": {"mode": "whole", "max_dur": 0.6, "sources": [346373, 523230, 394873]},
+    # La guardia: madera (escudos, mangos), metal (espadas, cantos de hierro), la parada en seco y
+    # la guardia que cede.
+    "block_wood": {"mode": "impact", "max_dur": 0.45, "sources": [783059, 536736, 693581, 693582]},
+    "block_metal": {"mode": "impact", "max_dur": 0.5, "sources": [326868, 326867, 326864, 326861, 326857]},
+    "parry": {"mode": "impact", "max_dur": 0.9, "sources": [760636, 760635, 760634, 760633]},
+    "guard_break": {"mode": "impact", "max_dur": 0.8, "sources": [529396, 693582]},
     # Una sola voz (MrFossy, Voice – Male Grunts and Screams).
     "player_hurt": {"mode": "whole", "max_dur": 0.8, "sources": [547203, 547202, 547201, 547200, 547207, 547206,
         547205, 547204, 547209, 547208, 547194, 547195]},
@@ -68,6 +74,8 @@ NAMES = {
     "swing_light": "Silbido de arma ligera", "swing_heavy": "Silbido de arma pesada (y zarpazo de fiera, `claw_swipe`)",
     "hit_slash": "Tajo en carne", "hit_pierce": "Estocada o flecha en carne", "hit_blunt": "Golpe contundente en carne",
     "hit_world": "Arma contra el suelo", "bow_release": "Suelta del arco", "throw": "Lanzamiento",
+    "block_wood": "Golpe parado con madera", "block_metal": "Golpe parado con metal",
+    "parry": "Parada en seco", "guard_break": "Guardia rota",
     "player_hurt": "Quejidos del jugador", "player_death": "Muerte del jugador",
     "player_hurt_female": "Quejidos de la jugadora", "player_death_female": "Muerte de la jugadora",
     "bear_growl": "Gruñido de oso", "bear_roar": "Rugido de oso", "bear_huff": "Resoplido de oso",

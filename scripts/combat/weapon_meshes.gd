@@ -509,6 +509,78 @@ static func war_hammer() -> ArrayMesh:
 	return b.commit(make_material)
 
 
+# ---------------------------------------------------------------------------------------------
+# Escudos: origen en el centro de la cara de atrás (donde va el antebrazo), +Z hacia fuera (la cara
+# que para los golpes) y +Y hacia el canto de arriba. CombatPose los pone sobre el antebrazo.
+
+
+## Anillo en el plano XY a la altura [z], en el sentido de las agujas del reloj visto desde
+## delante (+Z): así loft deja las caras hacia fuera y la tapa final hacia delante.
+static func _circle(radius: float, z: float, segments: int) -> PackedVector3Array:
+	var ring := PackedVector3Array()
+	for i in segments:
+		var a := -TAU * float(i) / float(segments)
+		ring.append(Vector3(cos(a) * radius, sin(a) * radius, z))
+	return ring
+
+
+## Rodela de madera: tablas encoladas algo abombadas, umbo de hierro y canto de cuero. Ø 0,62 m.
+static func round_shield() -> ArrayMesh:
+	var b := Builder.new()
+	var r := 0.31
+	var t := 0.014
+	var wood := b.st(WOOD)
+	loft(wood, [_circle(r, 0.0, 32), _circle(r, t, 32), _circle(r * 0.7, t + 0.008, 32),
+		_circle(0.09, t + 0.012, 32)], true, false)
+	var iron := b.st(IRON)
+	loft(iron, [_circle(0.092, t + 0.010, 20), _circle(0.085, t + 0.03, 20), _circle(0.065, t + 0.05, 20),
+		_circle(0.03, t + 0.06, 20)], false, true)
+	loft(b.st(LEATHER), [_circle(r - 0.006, -0.004, 32), _circle(r + 0.006, -0.002, 32),
+		_circle(r + 0.006, t + 0.002, 32), _circle(r - 0.006, t + 0.006, 32)], false, false)
+	# Asa por detrás, de lado a lado del umbo.
+	box(b.st(DARK_WOOD), Vector3(0.0, 0.0, -0.016), Vector3(0.22, 0.03, 0.024), Basis(Vector3.BACK, PI * 0.5))
+	return b.commit(make_material)
+
+
+## Contorno de un escudo heráldico (canto de arriba recto, lados que bajan curvos hasta la punta),
+## combado hacia atrás por los lados para abrazar el cuerpo. [grow] lo agranda (el canto).
+static func _heater_ring(z: float, grow: float) -> PackedVector3Array:
+	var w := 0.27 + grow
+	var top := 0.30 + grow
+	var tip := 0.42 + grow
+	var points := PackedVector3Array()
+	# Como _circle, en el sentido de las agujas del reloj visto desde delante: arriba de izquierda
+	# a derecha, y luego por la derecha hasta la punta y de vuelta por la izquierda.
+	for i in 6:
+		points.append(Vector3(w - 2.0 * w * float(i) / 6.0, top, 0.0))
+	for i in 10:
+		var u := float(i) / 10.0
+		points.append(Vector3(-w * sqrt(maxf(0.0, 1.0 - pow(u, 2.2))), top - (top + tip) * u, 0.0))
+	for i in 10:
+		var u := 1.0 - float(i) / 10.0
+		points.append(Vector3(w * sqrt(maxf(0.0, 1.0 - pow(u, 2.2))), top - (top + tip) * u, 0.0))
+	points.reverse()
+	for i in points.size():
+		var p := points[i]
+		points[i] = Vector3(p.x, p.y, z - 0.05 * pow(p.x / 0.27, 2.0))
+	return points
+
+
+## Escudo de roble con canto de hierro: heráldico, 0,54 × 0,72 m, con un refuerzo de hierro de
+## arriba abajo y umbo pequeño.
+static func heater_shield() -> ArrayMesh:
+	var b := Builder.new()
+	var t := 0.018
+	loft(b.st(DARK_WOOD), [_heater_ring(0.0, 0.0), _heater_ring(t, 0.0)])
+	var iron := b.st(IRON)
+	loft(iron, [_heater_ring(-0.004, -0.008), _heater_ring(-0.002, 0.008), _heater_ring(t + 0.002, 0.008),
+		_heater_ring(t + 0.006, -0.008)], false, false)
+	box(iron, Vector3(0.0, -0.06, t + 0.003), Vector3(0.045, 0.62, 0.006))
+	loft(iron, [_circle(0.07, t + 0.004, 18), _circle(0.06, t + 0.022, 18), _circle(0.03, t + 0.034, 18)], false, true)
+	box(b.st(LEATHER), Vector3(0.0, 0.0, -0.016), Vector3(0.24, 0.035, 0.02), Basis(Vector3.BACK, PI * 0.5))
+	return b.commit(make_material)
+
+
 static func spear() -> ArrayMesh:
 	var b := Builder.new()
 	lathe(b.st(WOOD), [Vector2(0.0, -0.92), Vector2(0.014, -0.92), Vector2(0.016, -0.88),

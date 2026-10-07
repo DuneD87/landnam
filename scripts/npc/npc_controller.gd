@@ -381,6 +381,13 @@ func get_combat_situation() -> StringName:
 	return &""
 
 
+## Le han parado un golpe en seco (Guard): se lo cuenta a su estado de IA, que sabrá qué hacer.
+func on_parried(info: DamageInfo) -> void:
+	var state := ai_controller.get_node_or_null(NodePath(ai_controller.get_current_state()))
+	if state != null and state.has_method(&"on_parried"):
+		state.on_parried(info)
+
+
 ## Punto al que se apunta al fijar este objetivo (centro de la cápsula).
 func get_lock_point() -> Vector3:
 	return collision_shape.global_position if collision_shape != null else global_position

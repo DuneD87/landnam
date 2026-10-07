@@ -182,6 +182,11 @@ func _on_target_destroyed(position: Vector3, amount: int, item_data: ItemData) -
 
 func _spawn_dropped_items(item_data: ItemData, amount: int, position: Vector3) -> void:
 	pass
+
+
+## Lo que se arrastra fuera del inventario cae al suelo, delante.
+func _on_inventory_drop(data: ItemData, quantity: int) -> void:
+	DroppedItem.spawn(self, data, quantity, gravity_direction)
 	
 func capture_mouse(capture: bool):
 	mouse_captured = capture
@@ -265,6 +270,11 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 				combat.attach_weapon(item, data)
 				_register_worn_node(item)
 				right_hand_equipped = true
+			ItemData.Category.ARMOR when data.is_shield():
+				# El escudo no se viste: va en el antebrazo izquierdo (PlayerCombat).
+				var shield := scene.instantiate() as Node3D
+				combat.attach_shield(shield, data)
+				_register_worn_node(shield)
 			ItemData.Category.ARMOR:
 				var item = scene.instantiate()
 				item.item_data = ItemData.clone(data)
@@ -280,6 +290,11 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 					_unregister_worn_node(equipped_child)
 					equipped_child.queue_free()
 				right_hand_equipped = false
+			ItemData.Category.ARMOR when data.is_shield():
+				var shield := combat.detach_shield()
+				if shield != null:
+					_unregister_worn_node(shield)
+					shield.queue_free()
 			ItemData.Category.ARMOR:
 				var children = player_model.get_node("Armature/Skeleton3D").get_children()
 				for child in children:
@@ -449,11 +464,14 @@ func _ready():
 			&"hunting_bow", &"slingshot"]:
 		inventory.add_item(config.get_item(weapon_id), 1)
 	inventory.add_item(config.get_item(&"spear"), 3)
+	for shield_id in [&"wooden_shield", &"heater_shield"]:
+		inventory.add_item(config.get_item(shield_id), 1)
 	inventory.add_item(config.get_item(&"arrow"), 40)
 	inventory.add_item(config.get_item(&"wood_01"), 100)
 	inventory.add_item(config.get_item(&"stone_01"), 100)
 
 	inventory_ui.setup(inventory, character_window, hotbar)
+	inventory_ui.drop_requested.connect(_on_inventory_drop)
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
 	character_window.equipment_changed.connect(on_equipment_changed)
 	# El cuerpo del jugador no pasa por el equipamiento: se registra aquí para que también
@@ -975,12 +993,20 @@ func _input(event):
  
 	if event.is_action_pressed("action") && !free_flight_enabled and not climb.is_active():
 		var corpse := _find_nearby_corpse()
-		if corpse:
+		# Lo soltado que se está mirando va antes que el cadáver de al lado (tirar lo que sobra
+		# mientras se saquea y volver a cogerlo); sin mirarlo, después de todo lo demás.
+		var looked := DroppedItem.find(self, camera.global_position, -camera.global_basis.z)
+		var nearest := DroppedItem.find(self)
+		if looked and looked.pick_into(inventory):
+			pass
+		elif corpse:
 			inventory_ui.open_loot(corpse.inventory)
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		elif combat.try_pickup():
 			pass
 		elif GroundPickup.try_pickup(self, inventory):
+			pass
+		elif nearest and nearest.pick_into(inventory):
 			pass
 		else:
 			var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5

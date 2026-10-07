@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_kisct"]
+[ext_resource type="AudioStream" path="res://audio/combat/block_wood/block_wood_01.ogg" id="2_q44k1"]
+[ext_resource type="AudioStream" path="res://audio/combat/block_wood/block_wood_02.ogg" id="3_sf2cv"]
+[ext_resource type="AudioStream" path="res://audio/combat/block_wood/block_wood_03.ogg" id="4_y4kva"]
+[ext_resource type="AudioStream" path="res://audio/combat/block_wood/block_wood_04.ogg" id="5_ct7dv"]
+
+[resource]
+script = ExtResource("1_kisct")
+event_id = &"combat_block_wood"
+streams = Array[AudioStream]([ExtResource("2_q44k1"), ExtResource("3_sf2cv"), ExtResource("4_y4kva"), ExtResource("5_ct7dv")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.07
+max_distance = 40.0
+cooldown = 0.03

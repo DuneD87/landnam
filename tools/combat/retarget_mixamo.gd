@@ -1,8 +1,9 @@
 extends SceneTree
 
 ## Reorienta las animaciones de Mixamo de models/player/mixamo/combat/ (descargadas con un
-## personaje de Character Creator: huesos CC_Base_*) al esqueleto del jugador (mixamorig_*), y
-## las guarda como la librería "combat" en models/player/mixamo/combat_anims.tres.
+## personaje de Character Creator, huesos CC_Base_*, o con el de Mixamo, mixamorig_*) al esqueleto
+## del jugador (mixamorig_*), y las guarda como la librería "combat" en
+## models/player/mixamo/combat_anims.tres.
 ##   godot --headless --path . --script res://tools/combat/retarget_mixamo.gd
 ##
 ## Los dos esqueletos no coinciden ni en nombres ni en reposo (el del jugador está en A, con los
@@ -80,20 +81,28 @@ const CLIPS := {
 		{"height_from": "Dying", "offset": Vector3(0.0, -0.58, -0.19)}],
 	"climb_right": ["res://models/player/mixamo/climbing/Braced Hang Shimmy", 0.0, -1.0, false, true,
 		{"height_from": "Dying", "offset": Vector3(0.0, -0.58, -0.19), "mirror": true}],
+	# Guardia (PlayerCombat, canal de tronco y brazos), descargadas con el personaje de Mixamo. Con
+	# escudo: alzarlo (acaba en la pose de la guardia), sostenerla y encajar un golpe (empieza y
+	# acaba en ella). Con espadón, sostenerla. Todas agachadas: la escala sale de una de pie.
+	"shield_block": ["block/Sword And Shield Block", 0.0, -1.0, true, false,
+		{"height_from": "block/Great Sword Impact"}],
+	"shield_block_idle": ["block/Sword And Shield Block Idle", 0.0, -1.0, true, true,
+		{"height_from": "block/Great Sword Impact"}],
+	"shield_block_hit": ["block/Sword And Shield Impact", 0.0, -1.0, true, false,
+		{"height_from": "block/Great Sword Impact"}],
+	"greatsword_block_idle": ["block/Great Sword Blocking", 0.0, -1.0, true, true,
+		{"height_from": "block/Great Sword Impact"}],
 }
 
-## Hueso del jugador ← hueso de origen.
+## Hueso del jugador ← hueso de origen (personaje de Character Creator; con el de Mixamo se llaman
+## como los del jugador, ver _source_names).
 var MAP := {
 	"Hips": "CC_Base_Hip", "Spine": "CC_Base_Waist", "Spine1": "CC_Base_Spine01",
 	"Spine2": "CC_Base_Spine02", "Neck": "CC_Base_NeckTwist01", "Head": "CC_Base_Head",
 }
 
-## Para igualar reposos: [hueso del jugador, su hijo, hijo de origen correspondiente].
-var ALIGN := [
-	["Hips", "Spine", "CC_Base_Waist"], ["Spine", "Spine1", "CC_Base_Spine01"],
-	["Spine1", "Spine2", "CC_Base_Spine02"], ["Spine2", "Neck", "CC_Base_NeckTwist01"],
-	["Neck", "Head", "CC_Base_Head"],
-]
+## Para igualar reposos: [hueso del jugador, su hijo] (el de origen, el que le corresponde).
+var ALIGN := [["Hips", "Spine"], ["Spine", "Spine1"], ["Spine1", "Spine2"], ["Spine2", "Neck"], ["Neck", "Head"]]
 
 
 func _initialize() -> void:
@@ -108,18 +117,18 @@ func _initialize() -> void:
 		MAP["%sLeg" % m] = "CC_Base_%s_Calf" % c
 		MAP["%sFoot" % m] = "CC_Base_%s_Foot" % c
 		MAP["%sToeBase" % m] = "CC_Base_%s_ToeBase" % c
-		ALIGN.append(["%sShoulder" % m, "%sArm" % m, "CC_Base_%s_Upperarm" % c])
-		ALIGN.append(["%sArm" % m, "%sForeArm" % m, "CC_Base_%s_Forearm" % c])
-		ALIGN.append(["%sForeArm" % m, "%sHand" % m, "CC_Base_%s_Hand" % c])
-		ALIGN.append(["%sHand" % m, "%sHandMiddle1" % m, "CC_Base_%s_Mid1" % c])
-		ALIGN.append(["%sUpLeg" % m, "%sLeg" % m, "CC_Base_%s_Calf" % c])
-		ALIGN.append(["%sLeg" % m, "%sFoot" % m, "CC_Base_%s_Foot" % c])
-		ALIGN.append(["%sFoot" % m, "%sToeBase" % m, "CC_Base_%s_ToeBase" % c])
+		ALIGN.append(["%sShoulder" % m, "%sArm" % m])
+		ALIGN.append(["%sArm" % m, "%sForeArm" % m])
+		ALIGN.append(["%sForeArm" % m, "%sHand" % m])
+		ALIGN.append(["%sHand" % m, "%sHandMiddle1" % m])
+		ALIGN.append(["%sUpLeg" % m, "%sLeg" % m])
+		ALIGN.append(["%sLeg" % m, "%sFoot" % m])
+		ALIGN.append(["%sFoot" % m, "%sToeBase" % m])
 		for finger in [["Thumb", "Thumb"], ["Index", "Index"], ["Middle", "Mid"], ["Ring", "Ring"], ["Pinky", "Pinky"]]:
 			for k in [1, 2, 3]:
 				MAP["%sHand%s%d" % [m, finger[0], k]] = "CC_Base_%s_%s%d" % [c, finger[1], k]
-			ALIGN.append(["%sHand%s1" % [m, finger[0]], "%sHand%s2" % [m, finger[0]], "CC_Base_%s_%s2" % [c, finger[1]]])
-			ALIGN.append(["%sHand%s2" % [m, finger[0]], "%sHand%s3" % [m, finger[0]], "CC_Base_%s_%s3" % [c, finger[1]]])
+			ALIGN.append(["%sHand%s1" % [m, finger[0]], "%sHand%s2" % [m, finger[0]]])
+			ALIGN.append(["%sHand%s2" % [m, finger[0]], "%sHand%s3" % [m, finger[0]]])
 	_run.call_deferred()
 
 
@@ -155,11 +164,23 @@ static func _arc(from: Vector3, to: Vector3) -> Basis:
 	return Basis(axis / s, atan2(s, a.dot(b)))
 
 
+## Hueso del jugador → hueso de [sskel]: MAP si es de Character Creator; si es el de Mixamo, el
+## mismo nombre que en el jugador.
+func _source_names(sskel: Skeleton3D) -> Dictionary:
+	if sskel.find_bone("mixamorig_Hips") < 0:
+		return MAP
+	var names := {}
+	for key in MAP:
+		names[key] = "mixamorig_" + key
+	return names
+
+
 func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 	var file: String = clip[0] if String(clip[0]).begins_with("res://") else SOURCE_DIR + clip[0]
 	var source: Node3D = load(file + ".fbx").instantiate()
 	root.add_child(source)
 	var sskel: Skeleton3D = source.find_children("*", "Skeleton3D", true, false)[0]
+	var names := _source_names(sskel)
 	var player: AnimationPlayer = source.find_children("*", "AnimationPlayer", true, false)[0]
 	var src_anim := player.get_animation(player.get_animation_list()[0])
 	player.play(player.get_animation_list()[0])
@@ -175,7 +196,7 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 		src_rest[sskel.get_bone_name(i)] = smodel * sskel.global_transform * sskel.get_bone_global_rest(i)
 	# Orientación: el personaje de origen puede mirar hacia otro lado que el jugador.
 	var tl := _tpos(tskel, to_tmodel, "LeftUpLeg") - _tpos(tskel, to_tmodel, "RightUpLeg")
-	var sl: Vector3 = (src_rest["CC_Base_L_Thigh"] as Transform3D).origin - (src_rest["CC_Base_R_Thigh"] as Transform3D).origin
+	var sl: Vector3 = (src_rest[names["LeftUpLeg"]] as Transform3D).origin - (src_rest[names["RightUpLeg"]] as Transform3D).origin
 	var yaw_fix := _arc(Vector3(sl.x, 0, sl.z), Vector3(tl.x, 0, tl.z))
 
 	# Reposo del jugador y reposo "igualado" (cada hueso apuntando como el de origen).
@@ -188,8 +209,8 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 	for entry in ALIGN:
 		var tb: String = "mixamorig_" + entry[0]
 		var tc: String = "mixamorig_" + entry[1]
-		var sb: String = MAP[entry[0]]
-		var sc: String = entry[2]
+		var sb: String = names[entry[0]]
+		var sc: String = names[entry[1]]
 		if not t_rest_world.has(tc) or not src_rest.has(sc):
 			continue
 		var tdir: Vector3 = (t_rest_world[tc] as Transform3D).origin - (t_rest_world[tb] as Transform3D).origin
@@ -199,7 +220,7 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 	# Altura de la cadera de pie del jugador: la de su "idle", no la del reposo (el reposo del
 	# rig tiene la cadera a 12 cm del suelo).
 	var hips_rest_h := _standing_hips_height(target, tskel, to_tmodel)
-	var src_hips_h: float = (src_rest["CC_Base_Hip"] as Transform3D).origin.y
+	var src_hips_h: float = (src_rest[names["Hips"]] as Transform3D).origin.y
 	# El reposo de origen puede estar en otra escala que la animación: se mide la cadera en el
 	# primer fotograma, que en todas estas empieza de pie.
 	var opts: Dictionary = clip[5] if clip.size() > 5 else {}
@@ -208,7 +229,7 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 	else:
 		player.seek(clip[1], true)
 		sskel.force_update_all_bone_transforms()
-		var first_hips := smodel * sskel.global_transform * sskel.get_bone_global_pose(sskel.find_bone("CC_Base_Hip"))
+		var first_hips := smodel * sskel.global_transform * sskel.get_bone_global_pose(sskel.find_bone(names["Hips"]))
 		if first_hips.origin.y > 0.3:
 			src_hips_h = first_hips.origin.y
 	var scale := hips_rest_h / maxf(src_hips_h, 0.01)
@@ -266,9 +287,9 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 			var key := bone_name.trim_prefix("mixamorig_")
 			var parent := tskel.get_bone_parent(i)
 			if MAP.has(key):
-				var sidx := sskel.find_bone(MAP[key])
+				var sidx := sskel.find_bone(names[key])
 				var s_now := _rot(smodel * sskel.global_transform * sskel.get_bone_global_pose(sidx))
-				var s_rest := _rot(src_rest[MAP[key]])
+				var s_rest := _rot(src_rest[names[key]])
 				var delta := yaw_fix * s_now * s_rest.inverse() * yaw_fix.inverse()
 				world[i] = (delta * t_ref[key]).orthonormalized()
 			else:
@@ -286,7 +307,7 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 			var local: Quaternion = (parent_world.inverse() * (world[i] as Basis)).get_rotation_quaternion()
 			anim.rotation_track_insert_key(tracks[i], t - from, local)
 		# Cadera: posición de origen escalada, pasada al espacio del esqueleto del jugador.
-		var s_hips := smodel * sskel.global_transform * sskel.get_bone_global_pose(sskel.find_bone("CC_Base_Hip"))
+		var s_hips := smodel * sskel.global_transform * sskel.get_bone_global_pose(sskel.find_bone(names["Hips"]))
 		var p: Vector3 = yaw_fix * s_hips.origin * scale + offset
 		if f == 0:
 			start_xz = Vector3(p.x, 0, p.z)
@@ -345,7 +366,7 @@ func _first_hips_height(file: String) -> float:
 	player.seek(0.0, true)
 	sskel.force_update_all_bone_transforms()
 	var hips := source.global_transform.affine_inverse() * sskel.global_transform \
-		* sskel.get_bone_global_pose(sskel.find_bone("CC_Base_Hip"))
+		* sskel.get_bone_global_pose(sskel.find_bone(_source_names(sskel)["Hips"]))
 	source.queue_free()
 	await process_frame
 	return hips.origin.y

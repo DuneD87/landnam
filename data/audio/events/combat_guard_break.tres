@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_atouy"]
+[ext_resource type="AudioStream" path="res://audio/combat/guard_break/guard_break_01.ogg" id="2_omg16"]
+[ext_resource type="AudioStream" path="res://audio/combat/guard_break/guard_break_02.ogg" id="3_ljuu5"]
+
+[resource]
+script = ExtResource("1_atouy")
+event_id = &"combat_guard_break"
+streams = Array[AudioStream]([ExtResource("2_omg16"), ExtResource("3_ljuu5")])
+volume_db = 1.0
+volume_jitter_db = 1.5
+pitch = 0.85
+pitch_jitter = 0.05
+max_distance = 45.0
+max_voices = 2
+cooldown = 0.1

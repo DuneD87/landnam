@@ -11,6 +11,7 @@ bones = Array[StringName]([&"LeftHand", &"RightHand", &"Head"])
 damage = 52.0
 poise = 90.0
 knockback = 3.0
+parryable = false
 
 [resource]
 script = ExtResource("2_docsd")
@@ -23,7 +24,8 @@ situations = Dictionary[StringName, float]({
 &"aiming": 2.5,
 &"back_turned": 3.0,
 &"fleeing": 4.0,
-&"weak": 2.0
+&"weak": 2.0,
+&"guarding": 0.5
 })
 tell = 0.08
 windup_speed = 0.95

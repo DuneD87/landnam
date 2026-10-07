@@ -32,6 +32,11 @@ func _ready() -> void:
 		BlockDatabase.materials_ready.connect(_on_block_icons_ready)
 
 
+## El panel de la barra (el inventario mira si el ratón está encima).
+func get_panel() -> Control:
+	return $BottomAnchor/PanelContainer
+
+
 func _on_block_icons_ready() -> void:
 	if BlockDatabase.icon_generated.is_connected(_refresh_slot_icons):
 		BlockDatabase.icon_generated.disconnect(_refresh_slot_icons)

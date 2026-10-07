@@ -28,6 +28,7 @@ poise_regen = 30.0
 poise_regen_delay = 1.5
 stagger_time = 0.8
 stagger_anims = Array[StringName]([&"lion_hit_chest_lft_01", &"lion_hit_chest_rgt_01"])
+parried_time = 0.9
 action_fade_in = 0.12
 action_fade_out = 0.3
 attack_sound = &"lion_growl"

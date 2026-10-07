@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/wooden_shield.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_script"]
+
+[resource]
+script = ExtResource("2_script")
+id = &"wooden_shield"
+display_name = "Rodela de madera"
+description = "Tablas de pino encoladas con umbo de hierro y canto de cuero. Ligera: para casi todo lo que llega de frente, también flechas, y deja hacer paradas rápidas."
+icon = ExtResource("1_icon")
+category = 4
+scene_path = "res://scenes/items/weapons/combat/wooden_shield.tscn"
+guard_reduction = 0.9
+guard_stability = 45.0
+guard_arc = 65.0
+parry_window = 0.2
+guard_projectiles = true
+guard_sound = &"block_wood"
+armor_slot = 8
+stackable = false
+max_stack = 1

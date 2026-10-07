@@ -18,5 +18,8 @@ extends Resource
 ## Metros que desplaza al que lo recibe si le hace tambalearse.
 @export var knockback: float = 1.0
 @export var kind: ItemData.DamageKind = ItemData.DamageKind.SLASH
+## Se puede parar en seco con la guardia (Guard): un zarpazo sí; una embestida o un salto, que
+## llevan todo el peso del animal, solo se bloquean.
+@export var parryable: bool = true
 ## Lo que suena al abrirse la ventana. Vacío = el swing_sound del perfil.
 @export var sound: StringName = &""

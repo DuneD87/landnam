@@ -561,6 +561,89 @@
     "source": 241545,
     "dur": 1.31
    }
+  ],
+  "block_wood": [
+   {
+    "file": "audio/combat/block_wood/block_wood_01.ogg",
+    "source": 783059,
+    "dur": 0.2
+   },
+   {
+    "file": "audio/combat/block_wood/block_wood_02.ogg",
+    "source": 536736,
+    "dur": 0.45
+   },
+   {
+    "file": "audio/combat/block_wood/block_wood_03.ogg",
+    "source": 693581,
+    "dur": 0.45
+   },
+   {
+    "file": "audio/combat/block_wood/block_wood_04.ogg",
+    "source": 693582,
+    "dur": 0.45
+   }
+  ],
+  "block_metal": [
+   {
+    "file": "audio/combat/block_metal/block_metal_01.ogg",
+    "source": 326868,
+    "dur": 0.33
+   },
+   {
+    "file": "audio/combat/block_metal/block_metal_02.ogg",
+    "source": 326867,
+    "dur": 0.5
+   },
+   {
+    "file": "audio/combat/block_metal/block_metal_03.ogg",
+    "source": 326864,
+    "dur": 0.23
+   },
+   {
+    "file": "audio/combat/block_metal/block_metal_04.ogg",
+    "source": 326861,
+    "dur": 0.36
+   },
+   {
+    "file": "audio/combat/block_metal/block_metal_05.ogg",
+    "source": 326857,
+    "dur": 0.29
+   }
+  ],
+  "parry": [
+   {
+    "file": "audio/combat/parry/parry_01.ogg",
+    "source": 760636,
+    "dur": 0.9
+   },
+   {
+    "file": "audio/combat/parry/parry_02.ogg",
+    "source": 760635,
+    "dur": 0.9
+   },
+   {
+    "file": "audio/combat/parry/parry_03.ogg",
+    "source": 760634,
+    "dur": 0.9
+   },
+   {
+    "file": "audio/combat/parry/parry_04.ogg",
+    "source": 760633,
+    "dur": 0.9
+   }
+  ],
+  "guard_break": [
+   {
+    "file": "audio/combat/guard_break/guard_break_01.ogg",
+    "source": 529396,
+    "dur": 0.8
+   },
+   {
+    "file": "audio/combat/guard_break/guard_break_02.ogg",
+    "source": 693582,
+    "dur": 0.8
+   }
   ]
  },
  "sources": {
@@ -1013,6 +1096,90 @@
    "author": "Reitanna",
    "license": "http://creativecommons.org/publicdomain/zero/1.0/",
    "url": "https://freesound.org/s/241545/"
+  },
+  "783059": {
+   "title": "Sword Hitting Wood",
+   "author": "hushless",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/783059/"
+  },
+  "536736": {
+   "title": "Chop.ogg",
+   "author": "egomassive",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/536736/"
+  },
+  "693581": {
+   "title": "drop-item-heavy1.mp3",
+   "author": "rottako",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/693581/"
+  },
+  "693582": {
+   "title": "drop-item-heavy2.mp3",
+   "author": "rottako",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/693582/"
+  },
+  "326868": {
+   "title": "Sword_Clash (7).wav",
+   "author": "JohnBuhr",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/326868/"
+  },
+  "326867": {
+   "title": "Sword_Clash (9).wav",
+   "author": "JohnBuhr",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/326867/"
+  },
+  "326864": {
+   "title": "Sword_Clash (6).wav",
+   "author": "JohnBuhr",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/326864/"
+  },
+  "326861": {
+   "title": "Sword_Clash (53).wav",
+   "author": "JohnBuhr",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/326861/"
+  },
+  "326857": {
+   "title": "Sword_Clash (49).wav",
+   "author": "JohnBuhr",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/326857/"
+  },
+  "760636": {
+   "title": "Metal_Sword_Parry_Impact_Hit_4",
+   "author": "chungkury",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/760636/"
+  },
+  "760635": {
+   "title": "Metal_Sword_Parry_Impact_Hit_3",
+   "author": "chungkury",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/760635/"
+  },
+  "760634": {
+   "title": "Metal_Sword_Parry_Impact_Hit_2",
+   "author": "chungkury",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/760634/"
+  },
+  "760633": {
+   "title": "Metal_Sword_Parry_Impact_Hit_1",
+   "author": "chungkury",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/760633/"
+  },
+  "529396": {
+   "title": "thump_thud_slam_fist_heavy.wav",
+   "author": "bouncyballblue",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/529396/"
   }
  }
 }

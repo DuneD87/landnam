@@ -159,11 +159,16 @@ func _hit_hurtbox(box: Hurtbox, point: Vector3) -> void:
 	var info := DamageInfo.create(_scaled_damage(), shooter, point, velocity, poise)
 	info.kind = damage_kind
 	info.knockback = 0.3 if kind == Kind.SPEAR else 0.0
+	info.ranged = true
 	var applied := box.receive(info)
+	AmbientAnimal.startle_near(get_tree(), point, STARTLE_RADIUS)
+	if info.guarded == Guard.Result.BLOCKED:
+		# Parado con el escudo: rebota (el escudo suena por su cuenta, Guard).
+		queue_free()
+		return
 	if applied > 0.0:
 		CombatFx.blood(box.owner_body, point, velocity, info.kind, info.amount)
 	CombatFx.impact(self, point, damage_kind, true)
-	AmbientAnimal.startle_near(get_tree(), point, STARTLE_RADIUS)
 	if kind == Kind.STONE:
 		queue_free()
 		return

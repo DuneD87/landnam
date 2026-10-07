@@ -9,9 +9,11 @@ y sirven de banco de pruebas.
 
 | Acción | Tecla |
 | --- | --- |
-| Golpe ligero (encadena combo) | Clic izquierdo |
-| Golpe pesado (mantener = cargar) | Clic derecho |
-| Apuntar (arco, tirachinas, lanza) | Clic derecho mantenido |
+| Golpe ligero (encadena combo) | Clic izquierdo (un toque) |
+| Golpe pesado (sigue cargando mientras se mantiene) | Clic izquierdo mantenido |
+| Guardia (escudo con arma de una mano, o arma a dos manos) | Clic derecho mantenido |
+| Parada | Alzar la guardia justo antes del golpe |
+| Apuntar (arco, tirachinas, lanza sin escudo) | Clic derecho mantenido |
 | Tensar y disparar / cargar y lanzar | Clic izquierdo mantenido, soltar |
 | Picar con la lanza sin apuntar | Clic izquierdo |
 | Esquivar rodando (quieto: paso atrás) | Alt o botón lateral del ratón |
@@ -21,6 +23,9 @@ y sirven de banco de pruebas.
 
 Con un objetivo fijado, flechas, piedras y lanzas van a él con la caída compensada;
 sin fijar, van a lo que hay bajo la mira.
+
+El clic izquierdo decide al soltar: soltado antes de 0,18 s (`HOLD_TO_HEAVY`) es el golpe
+ligero; mantenido hasta ahí, sale el pesado, que se sigue cargando mientras no se suelte.
 
 Con una herramienta (hacha o pico de piedra) el clic sigue talando y picando; solo
 pega como arma cuando hay una criatura delante o un objetivo fijado.
@@ -69,6 +74,52 @@ Las ramas salen con los generadores `fallen_branches_generator_*` (bosque verde,
 y abedules), que copian el ruido y el clima de los árboles de su bioma: caen en las
 mismas manchas de bosque. `suelo` en la consola dice qué hay para recoger cerca.
 Mallas y escenas: `bake_weapons.gd -- --only=branch,litter`.
+
+## Guardia y parada
+
+Se para con un escudo (ranura de mano secundaria de la ventana del personaje, con un arma de una
+mano, una herramienta o nada en la derecha) o con un arma a dos manos. Con el arco o el tirachinas
+el escudo no se lleva en la mano (no se ve) y el clic derecho apunta; con la lanza y escudo, el
+clic derecho bloquea y la lanza solo pica.
+
+- **`Guard`** (`scripts/combat/guard.gd`): cuelga del `HealthComponent` de quien se defiende y
+  decide antes de descontar cada golpe. Sirve igual para un humano enemigo.
+  - **Parada**: un golpe cuerpo a cuerpo que llega de frente en los primeros `parry_window`
+    segundos de alzarla no hace nada; el atacante recibe `on_parried` (una criatura corta el
+    ataque y se queda vendida `parried_time` de su perfil) y el siguiente golpe del jugador en
+    1,2 s es un contraataque (×1,6 de daño, ×2 de desgaste de guardia). Alzarla y bajarla sin
+    parar nada cierra las paradas 0,6 s: machacar el botón no sirve.
+  - **Bloqueo**: de frente y dentro de `guard_arc`, pasa `1 - guard_reduction` del daño, no
+    tambalea y empuja poco; cuesta aguante según la fuerza del golpe (su desgaste de guardia,
+    menos lo que absorbe `guard_stability`). En guardia se anda a la mitad y el aguante recupera
+    a un tercio.
+  - **Rotura**: si no hay aguante (o está agotado), la guardia cede: pasa lo que no se ha podido
+    pagar del golpe y tambalea.
+  - Por la espalda o de lado no para nada. Las flechas solo las para un escudo
+    (`guard_projectiles`) y rebotan en él. Una embestida o un salto de fiera
+    (`CreatureHit.parryable = false`) se bloquea pero no se para.
+  - Lo parado ni sangra ni corta miembros: suena la guardia (`guard_sound`: `block_wood` o
+    `block_metal`), y con metal saltan chispas (`CombatFx.sparks`).
+- **Datos** (`ItemData`, grupo *Guard*): `guard_reduction`, `guard_stability`, `guard_arc`,
+  `parry_window`, `guard_projectiles`, `guard_sound`.
+
+| Con qué | Para | Estabilidad | Arco | Parada | Flechas |
+| --- | --- | --- | --- | --- | --- |
+| Rodela de madera (`wooden_shield`) | 90 % | 45 | 65° | 0,20 s | sí |
+| Escudo de roble (`heater_shield`) | 100 % | 68 | 60° | 0,15 s | sí |
+| Espadón | 65 % | 35 | 50° | 0,13 s | no |
+| Hacha grande | 55 % | 30 | 45° | 0,10 s | no |
+| Martillo de guerra | 60 % | 35 | 45° | 0,10 s | no |
+
+Las criaturas lo leen (`guarding` en `CombatRead`): el oso embiste más contra la guardia para
+romperla. El escudo va en el antebrazo izquierdo (`CombatPose.shield_xform`, sus mallas en
+`WeaponMeshes.round_shield`/`heater_shield`). La guardia es de Mixamo, en el canal de tronco y
+brazos (`PlayerCombat.GUARD_ANIMS`): con escudo, alzarlo (`shield_block`, a ×1,4: arriba a los
+~0,25 s, lo que dura la parada), sostenerlo (`shield_block_idle`, en bucle) y encajar
+(`shield_block_hit`); con un arma a dos manos, sostenerla (`greatsword_block_idle`) y el golpe lo
+encaja `HitReact`. Las grabaciones están de lado (la cadera girada 50-70°) y en el jugador la
+cadera va con las piernas: `CombatPose._apply_guard` gira el tronco sobre ella hasta dejar el
+escudo, o las manos en el arma, delante del cuerpo.
 
 ## Cómo funciona
 
@@ -382,6 +433,7 @@ sintéticos.
 | `swing_light`, `swing_heavy` | Silbido del arma (hachas, mazas y armas a dos manos: el pesado) |
 | `hit_slash`, `hit_pierce`, `hit_blunt` | Golpe en carne según el tipo de daño |
 | `hit_world`, `bow_release`, `throw` | Arma contra el suelo, suelta del arco, lanzamiento |
+| `block_wood`, `block_metal`, `parry`, `guard_break` | Golpe parado con madera o metal, parada en seco, guardia que cede |
 | `player_hurt`, `player_death` | Voz del jugador (un solo actor); con `_female`, la de la jugadora (una sola actriz), que se elige por el sexo del personaje |
 | `claw_swipe` | Zarpazo de las fieras |
 | `bear_growl`, `bear_roar`, `bear_huff`, `bear_hurt`, `bear_death` | Oso |

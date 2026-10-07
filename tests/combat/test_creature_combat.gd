@@ -38,6 +38,7 @@ func _run() -> void:
 	await _check_home_and_gait()
 	_check_sound_events()
 	_check_player_voice()
+	await _check_parried()
 	print("CREATURE COMBAT TESTS: %d failures" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
 
@@ -412,6 +413,47 @@ func _check_sound_events() -> void:
 		if CombatFx._event(id) != AudioManager.get_event(ev.event_id):
 			problems.append("CombatFx no usa el grabado de %s" % id)
 	check(count >= 20 and problems.is_empty(), "%d sonidos grabados del combate, todos con clips %s" % [count, problems])
+
+
+## Un zarpazo parado en seco a mitad de barrido: el ataque se corta sin romper nada, el blanco no
+## pierde vida y el oso se queda vendido parried_time.
+func _check_parried() -> void:
+	var bear := _spawn_bear()
+	var target := _target(Vector3(0, 0, 1.9))
+	# El blanco mira al oso (los cuerpos miran por +Z) y alza un escudo justo antes del golpe.
+	target.body.global_basis = Basis(Vector3.UP, PI)
+	var shield := ItemData.new()
+	shield.armor_slot = ItemData.ArmorSlot.OFFHAND
+	shield.guard_reduction = 0.9
+	# Ventana amplia: aquí se prueba qué pasa al parar, no la puntería.
+	shield.parry_window = 1.0
+	shield.guard_arc = 70.0
+	var guard := Guard.new()
+	guard.item = shield
+	guard.body = target.body
+	(target.health as HealthComponent).guard = guard
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var state := _engage(bear, target.body)
+	var swipe := _attack(state, &"swipe")
+	state._set_phase(CreatureCombatState.Phase.ATTACK)
+	state.runner.start(swipe)
+	var dt := 1.0 / Engine.physics_ticks_per_second
+	var frames := 0
+	while state.runner.is_running() and frames < 600:
+		if not guard.raised and state.runner.time > swipe.hits[0].from:
+			guard.raise()
+		guard.update(dt)
+		state.runner.update(dt)
+		await get_tree().physics_frame
+		frames += 1
+	var health := target.health as HealthComponent
+	check(health.health == health.max_health and state.phase == CreatureCombatState.Phase.STAGGER
+		and is_equal_approx(state._phase_length, state.profile.parried_time),
+		"parado en seco: el blanco no pierde vida y el oso se queda vendido %.1f s" % state.profile.parried_time)
+	state.exit()
+	bear.queue_free()
+	target.body.queue_free()
 
 
 ## La voz del jugador va con su sexo: la de mujer si el personaje lo es.

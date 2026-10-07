@@ -24,7 +24,11 @@ var WEAPONS := {
 	"slingshot": [WeaponMeshes.slingshot, "res://scripts/combat/ranged_weapon_visual.gd", -25.0],
 	"arrow": [WeaponMeshes.arrow, "", -45.0],
 	"branch": [WeaponMeshes.branch, "", -45.0],
+	"wooden_shield": [WeaponMeshes.round_shield, "", 0.0],
+	"heater_shield": [WeaponMeshes.heater_shield, "", -8.0],
 }
+## Los que se ven de frente en el icono (no de canto): el tirachinas y los escudos.
+const FACE_ON := ["slingshot", "wooden_shield", "heater_shield"]
 
 ## Ramas tiradas por el suelo (objetos del planeta, planet_earth.json): malla tumbada y escena.
 const LITTER_DIR := "res://data/items/meshes/litter/"
@@ -173,7 +177,7 @@ func _render_icon(weapon_name: String, mesh: ArrayMesh, roll_deg: float) -> void
 	# El arma de lado (plano de la hoja hacia la cámara) y girada en diagonal.
 	# De plano: la anchura de la hoja (Z) pasa a la horizontal de la cámara. El tirachinas ya
 	# tiene las horquillas en X.
-	var yaw := 0.0 if weapon_name == "slingshot" else 90.0
+	var yaw := 0.0 if weapon_name in FACE_ON else 90.0
 	holder.basis = Basis(Vector3.BACK, deg_to_rad(roll_deg)) * Basis(Vector3.UP, deg_to_rad(yaw))
 	# Encuadre: AABB en espacio de cámara.
 	var aabb: AABB = Transform3D(holder.basis, Vector3.ZERO) * mesh.get_aabb()

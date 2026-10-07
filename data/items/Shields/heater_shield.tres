@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/heater_shield.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_script"]
+
+[resource]
+script = ExtResource("2_script")
+id = &"heater_shield"
+display_name = "Escudo de roble"
+description = "Roble con canto y refuerzo de hierro. Pesa más, pero para del todo y aguanta golpes que a una rodela le costarían el brazo. La parada exige más precisión."
+icon = ExtResource("1_icon")
+category = 4
+scene_path = "res://scenes/items/weapons/combat/heater_shield.tscn"
+guard_reduction = 1.0
+guard_stability = 68.0
+guard_arc = 60.0
+parry_window = 0.15
+guard_projectiles = true
+guard_sound = &"block_metal"
+armor_slot = 8
+stackable = false
+max_stack = 1

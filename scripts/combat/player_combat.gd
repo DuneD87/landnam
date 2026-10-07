@@ -3,9 +3,11 @@ extends Node
 
 ## Combate del jugador, al estilo souls: todo en tiempo real y por colisión.
 ##
-##   Clic izquierdo   golpe ligero (encadena combo; corriendo o tras rodar, golpe a la carrera)
+##   Clic izquierdo   golpe ligero (encadena combo; corriendo o tras rodar, golpe a la carrera);
+##                    mantenido, el pesado (se carga mientras se mantenga)
 ##                    · con arco/tirachinas: tensar y soltar
-##   Clic derecho     golpe pesado (mantener = cargar) · con arco/tirachinas/lanza: apuntar
+##   Clic derecho     guardia (escudo con un arma de una mano, o el arma a dos manos): alzarla
+##                    justo antes del golpe lo para en seco · con arco/tirachinas/lanza: apuntar
 ##   Alt              esquivar rodando hacia donde te mueves; quieto, paso atrás
 ##   Q / rueda (clic) fijar objetivo; mover el ratón de lado cambia de objetivo
 ##
@@ -25,7 +27,7 @@ extends Node
 
 signal state_changed(new_state: State)
 
-enum State {IDLE, ATTACK, DODGE, AIM, STAGGER, DEAD}
+enum State {IDLE, ATTACK, DODGE, AIM, STAGGER, DEAD, GUARD}
 
 const Config = preload("res://scripts/config.gd")
 
@@ -68,6 +70,28 @@ const STAGGER_TIME := 0.55
 const STAGGER_ANIM_TIME := 0.59
 ## Cuánto tiempo sirve una pulsación guardada (golpe o esquiva) mientras otra acción termina.
 const INPUT_BUFFER := 0.45
+## Clic izquierdo: soltado antes de esto es un golpe ligero; mantenido hasta aquí, el pesado.
+const HOLD_TO_HEAVY := 0.18
+## En guardia: velocidad (fracción de la de andar/correr) y lo que recupera el aguante.
+const GUARD_SPEED := 0.5
+const GUARD_REGEN := 0.35
+## Un toque al botón de guardia la deja alzada al menos esto: el gesto de la parada entero.
+const GUARD_MIN_TIME := 0.25
+## Animaciones de guardia (canal de tronco y brazos) según con qué se para: alzarla (acaba en la
+## pose de sostenerla), sostenerla y encajar un golpe (empieza y acaba en ella). Sin "raise", el
+## fundido del canal la alza; sin "hit", el golpe solo sacude el tronco (HitReact).
+const GUARD_ANIMS := {
+	&"shield": {"raise": &"shield_block", "hold": &"shield_block_idle", "hit": &"shield_block_hit"},
+	&"two_handed": {"hold": &"greatsword_block_idle"},
+}
+## Ritmo de alzar el escudo (a 1,4 queda arriba a los ~0,25 s: lo que dura la ventana de parada)
+## y de encajar un golpe.
+const GUARD_RAISE_SPEED := 1.4
+const GUARD_HIT_SPEED := 1.3
+## Tras una parada, segundos en los que el siguiente golpe es un contraataque, y cuánto más hace.
+const RIPOSTE_WINDOW := 1.2
+const RIPOSTE_DAMAGE := 1.6
+const RIPOSTE_POISE := 2.0
 const LOCK_RANGE := 28.0
 const LOCK_BREAK_RANGE := 34.0
 ## Ratón acumulado (radianes de giro de cámara) para cambiar de objetivo fijado.
@@ -167,6 +191,18 @@ var _combo_window: float = 0.0
 var _since_dodge: float = 999.0
 var _trail: WeaponTrail
 var _buffered: StringName = &""
+## Escudo o arma con la que se para (cuelga del HealthComponent); ver _guard_item().
+var guard: Guard
+## Se mantiene el botón de guardia.
+var _guard_held: bool = false
+## Clic izquierdo pulsado y aún sin decidir si es ligero o pesado (HOLD_TO_HEAVY).
+var _press_pending: bool = false
+var _press_t: float = 0.0
+var _riposte_left: float = 0.0
+## Empujón que deja un golpe encajado en guardia (m/s, se va apagando).
+var _guard_push: Vector3 = Vector3.ZERO
+var _shield_node: Node3D = null
+var _shield_data: ItemData = null
 var _buffer_age: float = 0.0
 
 # Esquiva
@@ -207,13 +243,17 @@ var _foot_ik: SkeletonModifier3D
 var _look_ik: SkeletonModifier3D
 var _tree: AnimationTree
 var _anims_ready: bool = false
-## Estado de los dos canales de acción: "full" (cuerpo entero) y "upper" (tronco y brazos).
+## Estado de los canales de acción: "full" (cuerpo entero), "attack_a"/"attack_b" (golpes) y
+## "upper" (tronco y brazos). "loop": la animación es un ciclo y suena hasta que se pare.
 var _act := {
-	"full": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false},
-	"attack_a": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false},
-	"attack_b": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false},
+	"full": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
+		"loop": false},
+	"attack_a": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
+		"loop": false},
+	"attack_b": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
+		"loop": false},
 	"upper": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
-		"weight": 0.0},
+		"loop": false, "weight": 0.0},
 }
 ## Fundidos del canal de tronco y brazos (s): entrar y salir.
 const UPPER_FADE_IN := 0.12
@@ -255,6 +295,13 @@ func setup(owner_player: PlayerController) -> void:
 	hurtbox.health = player.health_component
 	player.health_component.max_health = 100.0
 	player.health_component.hit_received.connect(_on_hit_received)
+	guard = Guard.new()
+	guard.body = player
+	guard.stamina = stamina
+	guard.blocked.connect(_on_guard_blocked)
+	guard.parried.connect(_on_guard_parried)
+	guard.broken.connect(_on_guard_broken)
+	player.health_component.guard = guard
 	player.health_component.died.connect(_on_died)
 
 	_skeleton = player.player_model.get_node("Armature/Skeleton3D")
@@ -420,9 +467,9 @@ func _act_play(channel: String, anim_name: StringName, speed: float, from: float
 	var tree_root := _tree.tree_root as AnimationNodeBlendTree
 	var anim_path := _anim_path(anim_name)
 	(tree_root.get_node(StringName("act_%s_anim" % channel)) as AnimationNodeAnimation).animation = anim_path
-	var animator: AnimationPlayer = player.animation_controller.animator
 	ch.anim = anim_name
-	ch.length = animator.get_animation(anim_path).length if animator.has_animation(anim_path) else 1.0
+	ch.length = _clip_length(anim_name)
+	ch.loop = _clip_loops(anim_name)
 	ch.time = from
 	ch.speed = speed
 	ch.active = true
@@ -448,6 +495,7 @@ func _act_switch(channel: String, anim_name: StringName, speed: float, from: flo
 	(tree_root.get_node(StringName("act_%s_anim" % channel)) as AnimationNodeAnimation).animation = anim_path
 	ch.anim = anim_name
 	ch.length = _clip_length(anim_name)
+	ch.loop = _clip_loops(anim_name)
 	ch.time = from
 	ch.speed = speed
 	ch.hold_end = false
@@ -504,7 +552,7 @@ func _act_time(channel: String) -> float:
 
 
 ## Lleva la cuenta del tiempo de cada canal (para sincronizar golpes, disparos e invulnerabilidad
-## con la animación) y congela al final los que lo piden.
+## con la animación), congela al final los que lo piden y da la vuelta a los ciclos.
 func _act_advance(delta: float) -> void:
 	if _anims_ready:
 		# El canal de tronco y brazos entra y sale fundiéndose (Blend2, ver _setup_action_channels).
@@ -517,7 +565,9 @@ func _act_advance(delta: float) -> void:
 		if not ch.active:
 			continue
 		ch.time += delta * ch.speed
-		if ch.hold_end and ch.time >= ch.length - 0.03 and ch.speed > 0.0:
+		if ch.loop and ch.speed > 0.0:
+			ch.time = fmod(ch.time, maxf(ch.length, 0.001))
+		elif ch.hold_end and ch.time >= ch.length - 0.03 and ch.speed > 0.0:
 			_act_scrub(channel, ch.length - 0.03)
 		elif not ch.hold_end and ch.speed > 0.0 and ch.time >= ch.length:
 			ch.active = false
@@ -554,6 +604,9 @@ func attach_weapon(node: Node3D, data: ItemData) -> void:
 		_right_attachment.add_child(node)
 	if state == State.AIM and _release_t < 0.0:
 		_end_aim(true)
+	if state == State.GUARD and _guard_item() == null:
+		_set_state(State.IDLE)
+	_update_shield_visibility()
 
 
 ## Suelta el arma de la mano y la devuelve (el que llama la libera).
@@ -571,6 +624,7 @@ func detach_weapon() -> Node3D:
 		node.get_parent().remove_child(node)
 	if state == State.ATTACK:
 		_end_attack()
+	_update_shield_visibility()
 	return node
 
 
@@ -616,6 +670,14 @@ func handle_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("dodge"):
 		_request(&"dodge")
 		return true
+	# Clic derecho: guardia, si hay con qué (escudo con un arma de una mano, o arma a dos manos).
+	if event.is_action("attack_2") and _guard_item() != null:
+		if event.is_action_pressed("attack_2"):
+			_guard_held = true
+			_request(&"guard")
+		elif event.is_action_released("attack_2"):
+			_guard_held = false
+		return true
 	var data := weapon()
 	if data == null:
 		return false
@@ -627,13 +689,16 @@ func handle_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("attack_1"):
 		if is_tool and not _enemy_near():
 			return false
-		_request(&"light")
+		# Toque: golpe ligero al soltar; mantener: el pesado, que se carga (_update_press).
+		_press_pending = true
+		_press_t = 0.0
 		return true
-	if event.is_action_pressed("attack_2"):
-		if is_tool and not _enemy_near():
-			return false
-		_request(&"heavy")
-		return true
+	if event.is_action_released("attack_1"):
+		if _press_pending:
+			_press_pending = false
+			_request(&"light")
+			return true
+		return state == State.ATTACK and _heavy
 	return false
 
 
@@ -695,6 +760,10 @@ func _try_buffered() -> void:
 				var heavy := _buffered == &"heavy"
 				_buffered = &""
 				_start_attack(heavy)
+		&"guard":
+			if _can_guard_now():
+				_buffered = &""
+				_start_guard()
 
 
 ## Un golpe no se corta ni con otro golpe ni con una esquiva: lo pulsado espera a que acabe
@@ -742,7 +811,10 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 	_combo_window = maxf(0.0, _combo_window - delta)
 	_lock_switch_cooldown = maxf(0.0, _lock_switch_cooldown - delta)
 	_fire_cooldown = maxf(0.0, _fire_cooldown - delta)
+	_riposte_left = maxf(0.0, _riposte_left - delta)
 	_motion_h = Vector3.ZERO
+	_update_press(delta)
+	guard.update(delta)
 	_act_advance(delta)
 	match state:
 		State.IDLE:
@@ -760,12 +832,15 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 			_update_stagger(delta)
 		State.DEAD:
 			_update_dead(delta)
+		State.GUARD:
+			_update_guard(delta)
 	if state != State.DEAD:
 		_try_buffered()
 	_update_lock(delta)
 	_update_limits(delta, input_dir)
 	cripple.update(delta, input_dir)
 	_update_aim_blend(delta)
+	_update_guard_blend()
 	_update_carry(delta)
 	_update_recovery(input_dir)
 
@@ -775,6 +850,8 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 func apply_motion(velocity: Vector3) -> Vector3:
 	if state == State.IDLE or state == State.AIM:
 		return velocity
+	if state == State.GUARD:
+		return velocity + _guard_push
 	var up := -player.gravity_direction.normalized()
 	return up * velocity.dot(up) + _motion_h
 
@@ -793,6 +870,11 @@ func update_facing(delta: float, input_dir: Vector3) -> bool:
 			return true
 		State.AIM:
 			_face(_camera_forward_h(), delta, 14.0)
+			return true
+		State.GUARD:
+			# En guardia se mira al peligro: al fijado o hacia donde mira la cámara.
+			var to := _flat(_lock_point(lock_target) - player.global_position) if lock_target != null else _camera_forward_h()
+			_face(to, delta, 12.0)
 			return true
 	if lock_target != null:
 		var moving := input_dir.length() > 0.2
@@ -826,6 +908,9 @@ func _body_forward() -> Vector3:
 func _set_state(new_state: State) -> void:
 	if new_state == state:
 		return
+	if state == State.GUARD:
+		guard.lower()
+		_act_stop("upper")
 	state = new_state
 	_t = 0.0
 	# Un tambaleo o paso atrás cortado (muerte, otra acción) no sigue posando.
@@ -843,6 +928,10 @@ func is_busy() -> bool:
 func on_climb_start() -> void:
 	release_lock()
 	_buffered = &""
+	_guard_held = false
+	_press_pending = false
+	if state == State.GUARD:
+		_set_state(State.IDLE)
 	_carry = 0.0
 	pose.carry = 0.0
 
@@ -863,7 +952,7 @@ func _voice(id: StringName) -> StringName:
 
 ## Lo que está haciendo, tal como lo leen las criaturas que pelean con él (CombatRead):
 ## &"windup" (un golpe que aún no hiere), &"active", &"recovering" (después del golpe),
-## &"dodging", &"aiming", &"staggered", &"dead" o &"" (nada de eso).
+## &"dodging", &"aiming", &"guarding", &"staggered", &"dead" o &"" (nada de eso).
 func get_situation() -> StringName:
 	match state:
 		State.DEAD:
@@ -874,6 +963,8 @@ func get_situation() -> StringName:
 			return &"dodging"
 		State.AIM:
 			return &"aiming"
+		State.GUARD:
+			return &"guarding"
 		State.ATTACK:
 			if _move.is_empty():
 				return &"active"
@@ -886,7 +977,162 @@ func get_situation() -> StringName:
 
 
 # ---------------------------------------------------------------------------------------------
+# Guardia
+
+
+## Con qué se para ahora: el arma si es a dos manos y para golpes; si no, el escudo, si lo hay y
+## la derecha lleva un arma de una mano cuerpo a cuerpo, una herramienta o nada. null = sin guardia
+## (arco, tirachinas, o una lanza sin escudo: el clic derecho apunta).
+func _guard_item() -> ItemData:
+	var data := weapon()
+	if data != null and data.two_handed:
+		return data if data.guard_reduction > 0.0 else null
+	if _shield_data == null or (data != null and data.is_left_handed()) or not _shield_arm():
+		return null
+	return _shield_data
+
+
+## El escudo va en el brazo izquierdo: sin él, ni se lleva ni para nada.
+func _shield_arm() -> bool:
+	return body_damage == null or not body_damage.is_severed(&"left_arm")
+
+
+func _can_guard_now() -> bool:
+	if cripple.active() or status.blocks(&"attack") or _guard_item() == null:
+		return false
+	if player.movement.is_swimming or player.movement.is_falling or player.movement.is_jumping:
+		return false
+	match state:
+		State.IDLE:
+			return true
+		State.DODGE:
+			return _t >= _dodge_time() * 0.82
+	return false
+
+
+func _start_guard() -> void:
+	guard.item = _guard_item()
+	pose.guard_style = &"two_handed" if guard.item.two_handed else &"shield"
+	_set_state(State.GUARD)
+	guard.raise()
+	var anims: Dictionary = GUARD_ANIMS[pose.guard_style]
+	if anims.has("raise"):
+		_act_play("upper", anims.raise, GUARD_RAISE_SPEED)
+	else:
+		_act_play("upper", anims.hold, 1.0)
+
+
+func _update_guard(delta: float) -> void:
+	_t += delta
+	_guard_push = _guard_push.move_toward(Vector3.ZERO, _guard_push.length() * 6.0 * delta + 0.5 * delta)
+	if guard.item != _guard_item():
+		_set_state(State.IDLE)
+		return
+	# Soltar el botón la baja, pero un toque dura al menos el gesto de la parada.
+	if not _guard_held and _t >= maxf(GUARD_MIN_TIME, guard.item.parry_window):
+		_set_state(State.IDLE)
+		return
+	# Alzarla y encajar un golpe acaban en la pose de sostenerla (un ciclo): de ahí, a sostenerla.
+	if not _act["upper"].active:
+		_act_switch("upper", GUARD_ANIMS[pose.guard_style].hold, 1.0)
+
+
+## La pose de guardia (CombatPose.guard, que la lleva al frente) entra y sale con su animación.
+func _update_guard_blend() -> void:
+	var up: Dictionary = _act["upper"]
+	pose.guard = smoothstep(0.0, 1.0, up.weight) if _is_guard_anim(up.anim) else 0.0
+
+
+func _is_guard_anim(anim_name: StringName) -> bool:
+	for anims: Dictionary in GUARD_ANIMS.values():
+		if anim_name in anims.values():
+			return true
+	return false
+
+
+## Un golpe parado con la guardia: suena lo que para, salta alguna chispa si es metal y empuja un
+## poco hacia atrás.
+func _on_guard_blocked(info: DamageInfo, _cost: float) -> void:
+	CombatFx.play(guard.item.guard_sound, info.point, {"pitch": randf_range(0.94, 1.06)})
+	# Encajarlo con la animación si la guardia ya está arriba (alzándola, saltaría de pose).
+	var anims: Dictionary = GUARD_ANIMS[pose.guard_style]
+	if anims.has("hit") and _act["upper"].active and _act["upper"].anim == anims.hold:
+		_act_switch("upper", anims.hit, GUARD_HIT_SPEED)
+	if guard.item.guard_sound != &"block_wood":
+		CombatFx.sparks(player, info.point, -info.direction, 0.6)
+	_guard_push = _flat(info.direction) * info.knockback * 4.0
+	player.camera_controller.add_shake(clampf(0.06 + info.knockback * 0.08, 0.06, 0.25))
+	hit_react.flinch(info.direction, -player.gravity_direction.normalized(), 0.35)
+	hud.flash_stamina()
+
+
+## Parada en seco: el atacante queda vendido (on_parried) y el siguiente golpe es un contraataque.
+func _on_guard_parried(info: DamageInfo) -> void:
+	CombatFx.play(&"parry", info.point)
+	CombatFx.sparks(player, info.point, -info.direction, 1.0)
+	player.camera_controller.add_shake(0.14)
+	_riposte_left = RIPOSTE_WINDOW
+
+
+## Sin aguante para pararlo: la guardia cede y tambalea (lo que pasa del golpe llega después).
+func _on_guard_broken(info: DamageInfo) -> void:
+	CombatFx.play(&"guard_break", info.point)
+	if guard.item.guard_sound != &"block_wood":
+		CombatFx.sparks(player, info.point, -info.direction, 0.8)
+	_start_stagger(info)
+
+
+## Escudo en la mano secundaria (ranura OFFHAND): va en el antebrazo izquierdo y se ve salvo
+## cuando esa mano tiene otra cosa (arco, tirachinas) o el arma es a dos manos.
+func attach_shield(node: Node3D, data: ItemData) -> void:
+	detach_shield()
+	_shield_node = node
+	_shield_data = data
+	node.top_level = true
+	add_child(node)
+	_update_shield_visibility()
+
+
+func detach_shield() -> Node3D:
+	var node := _shield_node
+	_shield_node = null
+	_shield_data = null
+	if pose != null:
+		pose.shield_on = false
+	if state == State.GUARD and _guard_item() == null:
+		_set_state(State.IDLE)
+	if node != null and is_instance_valid(node) and node.get_parent() != null:
+		node.get_parent().remove_child(node)
+	return node
+
+
+func _update_shield_visibility() -> void:
+	if _shield_node == null or not is_instance_valid(_shield_node) or pose == null:
+		return
+	var data := weapon()
+	var free_hand := data == null or not (data.is_left_handed() or data.two_handed)
+	_shield_node.visible = free_hand and _shield_arm() and state != State.DEAD \
+		and (cripple == null or not cripple.active())
+	pose.shield_on = _shield_node.visible
+
+
+# ---------------------------------------------------------------------------------------------
 # Golpes
+
+
+## Clic izquierdo mantenido: al pasar HOLD_TO_HEAVY sin soltar sale el pesado (que se sigue
+## cargando mientras se mantenga); si se suelta antes, el ligero.
+func _update_press(delta: float) -> void:
+	if not _press_pending:
+		return
+	if not Input.is_action_pressed("attack_1"):
+		_press_pending = false
+		_request(&"light")
+		return
+	_press_t += delta
+	if _press_t >= HOLD_TO_HEAVY:
+		_press_pending = false
+		_request(&"heavy")
 
 
 func _start_attack(heavy: bool) -> void:
@@ -976,7 +1222,7 @@ func _update_attack(delta: float) -> void:
 		_hitstop -= delta
 		speed *= 0.03
 	elif _heavy and _move.has("charge") and not _charged and t >= float(_move.charge):
-		if Input.is_action_pressed("attack_2") and _charge < 1.0:
+		if Input.is_action_pressed("attack_1") and _charge < 1.0:
 			_charge = minf(1.0, _charge + delta / CHARGE_TIME)
 			speed = 0.0
 		else:
@@ -1042,6 +1288,11 @@ func _sweep_blade(data: ItemData) -> void:
 		var mult := lerpf(1.25, data.heavy_multiplier, _charge)
 		damage *= mult
 		poise_damage *= mult
+	# Contraataque tras una parada: el golpe entra con todo.
+	var riposte := _riposte_left > 0.0
+	if riposte:
+		damage *= RIPOSTE_DAMAGE
+		poise_damage *= RIPOSTE_POISE
 	for hit in _sweep.sweep(space, base, tip):
 		var box: Hurtbox = hit.hurtbox
 		if box.owner_body == player:
@@ -1054,6 +1305,8 @@ func _sweep_blade(data: ItemData) -> void:
 		var applied := box.receive(info)
 		if applied > 0.0:
 			_on_blade_hit(box, hit.point, info)
+			if riposte:
+				_riposte_left = 0.0
 	for creature in MeleeSweep.loose_creatures_on_segment(get_tree(), base, tip, _sweep.radius):
 		if not _sweep.has_hit(creature):
 			_sweep.mark_hit(creature)
@@ -1398,6 +1651,12 @@ func _clip_length(anim_name: StringName) -> float:
 	return animator.get_animation(path).length if animator.has_animation(path) else 1.0
 
 
+func _clip_loops(anim_name: StringName) -> bool:
+	var animator: AnimationPlayer = player.animation_controller.animator
+	var path := _anim_path(anim_name)
+	return animator.has_animation(path) and animator.get_animation(path).loop_mode != Animation.LOOP_NONE
+
+
 ## Lanza con la animación de Mixamo: con el botón derecho el brazo se queda listo; cargando se
 ## lleva atrás (se arrastra la animación hasta el brazo del todo atrás) y al soltar se reproduce
 ## el lanzamiento; la lanza sale en el instante en que la mano la suelta en la animación.
@@ -1551,6 +1810,8 @@ func try_pickup() -> bool:
 func _place_ranged_visuals(p: CombatPose) -> void:
 	if p.grip_right:
 		_right_grip.global_transform = p.right_grip_xform
+	if p.shield_on and _shield_node != null and is_instance_valid(_shield_node):
+		_shield_node.global_transform = p.shield_xform
 	var data := weapon()
 	_update_trail(data)
 	if data == null or _weapon_node == null or not is_instance_valid(_weapon_node):
@@ -1744,6 +2005,13 @@ func _on_hit_received(info: DamageInfo, applied: float) -> void:
 	if state == State.DEAD:
 		return
 	var up := -player.gravity_direction.normalized()
+	if info.guarded == Guard.Result.BLOCKED:
+		# Lo que pasa a través de la guardia: duele, pero ni tambalea ni arranca un quejido salvo
+		# que sea mucho.
+		hud.flash_damage(clampf(applied / 40.0, 0.15, 0.6))
+		if applied >= 12.0:
+			CombatFx.play(_voice(&"player_hurt"), player.global_position)
+		return
 	var push_dir := _flat(info.direction)
 	_last_hit_push = push_dir * clampf(35.0 + applied * 1.2 + info.poise * 0.8, 35.0, 110.0) + up * 8.0
 	hit_react.flinch(info.direction, up, clampf(applied / 22.0, 0.3, 1.2))
@@ -1752,8 +2020,10 @@ func _on_hit_received(info: DamageInfo, applied: float) -> void:
 	CombatFx.play(_voice(&"player_hurt"), player.global_position)
 	if player.health_component.health - applied <= 0.0:
 		return
-	# Los golpes pesados y los de dos manos aguantan mientras se descargan (hyperarmor).
-	if info.poise >= PLAYER_POISE + _attack_armor() and state != State.DODGE:
+	# Los golpes pesados y los de dos manos aguantan mientras se descargan (hyperarmor). Con la
+	# guardia rota ya se tambalea (_on_guard_broken).
+	if info.poise >= PLAYER_POISE + _attack_armor() and state != State.DODGE \
+			and info.guarded != Guard.Result.BROKEN:
 		_start_stagger(info)
 
 
@@ -1762,6 +2032,9 @@ func _on_hit_received(info: DamageInfo, applied: float) -> void:
 func _on_limb_lost(zone: StringName, _cut: Dictionary) -> void:
 	player.camera_controller.add_shake(0.45)
 	hud.flash_damage(1.0)
+	_update_shield_visibility()
+	if state == State.GUARD and _guard_item() == null:
+		_set_state(State.IDLE)
 	var data := weapon()
 	if data == null:
 		return
@@ -1830,6 +2103,11 @@ func _on_died() -> void:
 		return
 	_abort_attack()
 	_end_aim()
+	# El escudo va con la pose, y el muñeco de trapo no la sigue: fuera hasta reaparecer.
+	_guard_held = false
+	if _shield_node != null and is_instance_valid(_shield_node):
+		_shield_node.visible = false
+		pose.shield_on = false
 	release_lock()
 	hurtbox.set_enabled(false)
 	_set_state(State.DEAD)
@@ -1915,6 +2193,7 @@ func _respawn() -> void:
 		waited += 0.1
 		confirmations = confirmations + 1 if player.is_ground_ready() else 0
 	_set_state(State.IDLE)
+	_update_shield_visibility()
 	player.input_enabled = true
 	_respawning = false
 	await hud.fade_from_black(1.2)
@@ -2119,8 +2398,9 @@ func _update_limits(delta: float, input_dir: Vector3) -> void:
 		stamina.hold_regen()
 	movement.sprint_blocked = state != State.IDLE or stamina.exhausted or status.blocks(&"sprint")
 	movement.jump_blocked = state != State.IDLE or status.blocks(&"jump")
-	movement.speed_scale = (0.45 if state == State.AIM else 1.0) * status.speed_mult()
-	stamina.regen_scale = status.stamina_regen_mult()
+	var pace := 0.45 if state == State.AIM else (GUARD_SPEED if state == State.GUARD else 1.0)
+	movement.speed_scale = pace * status.speed_mult()
+	stamina.regen_scale = status.stamina_regen_mult() * (GUARD_REGEN if state == State.GUARD else 1.0)
 	player.current_animation = Config.ANIMATION.DEATH if state == State.DEAD else player.current_animation
 	# Tambaleo y paso atrás procedurales van sobre la animación de estar quieto: los pasos los
 	# dan las piernas por IK (si debajo corriera, las piernas seguirían corriendo).

@@ -12,6 +12,7 @@ radius = 0.45
 damage = 42.0
 poise = 80.0
 knockback = 3.5
+parryable = false
 
 [resource]
 script = ExtResource("2_yweco")
@@ -22,7 +23,8 @@ cooldown = 3.5
 max_angle = 45.0
 situations = Dictionary[StringName, float]({
 &"aiming": 3.0,
-&"fleeing": 4.0
+&"fleeing": 4.0,
+&"guarding": 2.5
 })
 tell = 0.15
 windup_speed = 0.95

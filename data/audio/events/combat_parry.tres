@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_elbwa"]
+[ext_resource type="AudioStream" path="res://audio/combat/parry/parry_01.ogg" id="2_dli2k"]
+[ext_resource type="AudioStream" path="res://audio/combat/parry/parry_02.ogg" id="3_bqmoo"]
+[ext_resource type="AudioStream" path="res://audio/combat/parry/parry_03.ogg" id="4_txctu"]
+[ext_resource type="AudioStream" path="res://audio/combat/parry/parry_04.ogg" id="5_43fwm"]
+
+[resource]
+script = ExtResource("1_elbwa")
+event_id = &"combat_parry"
+streams = Array[AudioStream]([ExtResource("2_dli2k"), ExtResource("3_bqmoo"), ExtResource("4_txctu"), ExtResource("5_43fwm")])
+volume_jitter_db = 1.5
+pitch_jitter = 0.04
+max_distance = 50.0
+unit_size = 5.0
+max_voices = 3

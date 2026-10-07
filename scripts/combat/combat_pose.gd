@@ -91,6 +91,16 @@ var carry_perpendicular: bool = true
 ## Cripple). El puño lo pone _apply_crutch respecto al hombro. Tras posar, crutch_hand (mundo) es
 ## dónde querría ir la mano (Cripple clava la punta debajo), crutch_xform dónde va la rama (su +Y
 ## de la punta al puño) y crutch_grip dónde ha quedado el puño.
+## Guardia alzada (0–1) y con qué: &"shield" (escudo en el antebrazo) o &"two_handed" (el arma
+## con las dos manos). La pose es la de la animación de guardia (canal de tronco y brazos de
+## PlayerCombat); aquí solo se lleva al frente (_apply_guard).
+var guard: float = 0.0
+var guard_style: StringName = &"shield"
+## Escudo en el antebrazo izquierdo: dónde va (mundo). Lo calcula _place_shield cada fotograma y
+## lo usa PlayerCombat para colocar la malla.
+var shield_on: bool = false
+var shield_xform: Transform3D
+
 var crutch: float = 0.0
 var crutch_side: String = "Left"
 var crutch_tip: Vector3
@@ -150,12 +160,16 @@ func _apply() -> void:
 			_apply_death(death)
 		if aim_weight > 0.001:
 			_apply_aim(aim_weight)
+	if guard > 0.001:
+		_apply_guard(guard)
 	if grip_right:
 		if carry > 0.001:
 			_apply_carry(carry)
 		_apply_grip()
 	if crutch > 0.001:
 		_apply_crutch(crutch)
+	if shield_on:
+		_place_shield()
 	if sample_contacts:
 		contact_sample = RollMotion.sample(_skel, frame_node, _contact_cache)
 	if after_pose.is_valid():
@@ -666,6 +680,53 @@ func _apply_grip() -> void:
 	var origin := bone_pos("mixamorig_RightHand") + (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * m
 	var to_world := _skel.global_transform
 	right_grip_xform = Transform3D((to_world.basis.orthonormalized() * Basis(x, y, z)).orthonormalized(), to_world * origin)
+
+
+# ---------------------------------------------------------------------------------------------
+# Guardia
+
+
+## El escudo en el antebrazo: su centro, hacia el codo desde la muñeca y hacia fuera del dorso (m).
+const SHIELD_ON_FOREARM := Vector2(0.11, 0.07)
+## Giro máximo del tronco sobre la cadera para llevar la guardia al frente (grados).
+const GUARD_MAX_TWIST := 60.0
+
+
+## Las animaciones de guardia se grabaron de lado (la cadera girada 50-70°, el escudo o la hoja
+## delante de quien la hace), y en el jugador la cadera va con las piernas: el tronco gira sobre
+## ella hasta que lo que para (el escudo, o las manos en el arma a dos manos) quede delante del
+## cuerpo, que es hacia donde se encara en guardia.
+func _apply_guard(w: float) -> void:
+	var up := model_dir(Vector3.UP)
+	var fwd := model_dir(Vector3.BACK)
+	var center := _shield_center() if guard_style == &"shield" \
+		else (bone_pos(L_ARM[2]) + bone_pos(R_ARM[2])) * 0.5
+	var to := center - bone_pos(SPINE[0])
+	to -= up * to.dot(up)
+	if to.length() < 0.05 * unit():
+		return
+	var twist := clampf(rad_to_deg(atan2(up.dot(to.cross(fwd)), to.dot(fwd))), -GUARD_MAX_TWIST, GUARD_MAX_TWIST)
+	for bone_name in SPINE:
+		rotate_bone(bone_name, Quaternion(up, deg_to_rad(twist / SPINE.size() * w)))
+
+
+## Centro del escudo (espacio del esqueleto): sobre el dorso del antebrazo izquierdo.
+func _shield_center() -> Vector3:
+	var hand := hand_frame("Left")
+	return bone_pos("mixamorig_LeftHand") - hand.x * SHIELD_ON_FOREARM.x * unit() \
+		- hand.y * SHIELD_ON_FOREARM.y * unit()
+
+
+## Dónde va el escudo: en el antebrazo izquierdo, sobre el dorso, con la cara hacia fuera y el
+## canto de arriba hacia el pulgar.
+func _place_shield() -> void:
+	var hand := hand_frame("Left")
+	var thumb := bone_pos("mixamorig_LeftHandIndex1") - bone_pos("mixamorig_LeftHandPinky1")
+	var out := -hand.y
+	var top := (thumb - out * thumb.dot(out)).normalized()
+	var to_world := _skel.global_transform
+	var basis := Basis(top.cross(out), top, out)
+	shield_xform = Transform3D((to_world.basis.orthonormalized() * basis).orthonormalized(), to_world * _shield_center())
 
 
 ## Hasta dónde baja la rama por debajo de su agarre (la malla empieza 0,18 m por detrás de él).

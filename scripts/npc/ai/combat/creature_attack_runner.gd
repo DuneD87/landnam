@@ -154,6 +154,9 @@ func update(delta: float) -> bool:
 				if sound != &"":
 					CombatFx.play(sound, _npc.global_position)
 			_sweep_hit(hit, _sweeps[i])
+			# Una parada corta el ataque en mitad del barrido (on_parried → cancel()).
+			if attack == null:
+				return false
 	if time >= attack.end:
 		cancel()
 		return false
@@ -198,10 +201,14 @@ func _sweep_hit(hit: CreatureHit, sweeps: Array) -> void:
 			var info := DamageInfo.create(hit.damage, _npc, result.point, dir, hit.poise)
 			info.kind = hit.kind
 			info.knockback = hit.knockback
-			if box.receive(info) > 0.0:
+			info.parryable = hit.parryable
+			# Lo parado con la guardia ni sangra ni suena a carne: suena la guardia (Guard).
+			if box.receive(info) > 0.0 and info.guarded != Guard.Result.BLOCKED:
 				landed += 1
 				CombatFx.blood(box.owner_body, result.point, dir, hit.kind, hit.damage)
 				CombatFx.impact(_npc, result.point, hit.kind, true)
+			if attack == null:
+				return
 
 
 func _bone_world(bone: StringName) -> Vector3:
