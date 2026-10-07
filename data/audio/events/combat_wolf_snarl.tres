@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_0wh04"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_snarl/wolf_snarl_01.ogg" id="2_epv2p"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_snarl/wolf_snarl_02.ogg" id="3_ncop6"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_snarl/wolf_snarl_03.ogg" id="4_41uej"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_snarl/wolf_snarl_04.ogg" id="5_ywky7"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_snarl/wolf_snarl_05.ogg" id="6_53b1r"]
+
+[resource]
+script = ExtResource("1_0wh04")
+event_id = &"combat_wolf_snarl"
+streams = Array[AudioStream]([ExtResource("2_epv2p"), ExtResource("3_ncop6"), ExtResource("4_41uej"), ExtResource("5_ywky7"), ExtResource("6_53b1r")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch = 0.9
+pitch_jitter = 0.05
+max_distance = 50.0
+unit_size = 5.0
+max_voices = 3
+cooldown = 0.4

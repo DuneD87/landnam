@@ -11,6 +11,9 @@ class_name WanderState
 @export var arrival_threshold: float = 1.0
 ## Timeout de seguridad para evitar quedarse atascado.
 @export var max_wander_time: float = 10.0
+## Si > 0, deambula alrededor de su casa (NPCController.get_home()) sin salirse de este radio, en
+## vez de ir a la deriva: una manada que comparte casa no se dispersa.
+@export var home_radius: float = 0.0
 ## Radio de detección de amenaza. 0 = sin detección.
 @export var flee_trigger_radius: float = 10.0
 ## Estado al que pasa cuando la amenaza entra en ese radio (huir; defender su territorio…).
@@ -75,11 +78,15 @@ func _pick_wander_target() -> Vector3:
 	var right := up.cross(ref).normalized()
 	var fwd   := right.cross(up).normalized()
 
+	var center := controller.npc.global_position
+	var npc := controller.npc as NPCController
+	var home := npc.get_home() if home_radius > 0.0 and npc != null else Vector3.INF
 	for _i in range(8):
 		var angle := randf_range(0.0, TAU)
-		var dist  := randf_range(wander_radius * 0.4, wander_radius)
 		var dir   := (right * cos(angle) + fwd * sin(angle)).normalized()
-		var candidate := controller.npc.global_position + dir * dist
+		var candidate := center + dir * randf_range(wander_radius * 0.4, wander_radius)
+		if home != Vector3.INF:
+			candidate = home + dir * home_radius * sqrt(randf())
 
 		if not controller.is_in_water(candidate):
 			return candidate

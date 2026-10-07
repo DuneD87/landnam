@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_436re"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_death/wolf_death_01.ogg" id="2_twh4p"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_death/wolf_death_02.ogg" id="3_4hmfw"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_death/wolf_death_03.ogg" id="4_yo147"]
+
+[resource]
+script = ExtResource("1_436re")
+event_id = &"combat_wolf_death"
+streams = Array[AudioStream]([ExtResource("2_twh4p"), ExtResource("3_4hmfw"), ExtResource("4_yo147")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch = 0.85
+pitch_jitter = 0.04
+max_distance = 55.0
+unit_size = 5.0
+max_voices = 2
+cooldown = 1.0

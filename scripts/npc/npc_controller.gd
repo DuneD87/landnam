@@ -61,6 +61,29 @@ var _is_dying: bool = false
 @export var hurt_sound: StringName = &""
 @export var death_sound: StringName = &""
 
+@export_group("Manada")
+## Al ver a un objetivo o al ser herido, avisa a los de su especie (npc_type) que estén a menos de
+## esto (m): los que no estén ya con él van a por el mismo. 0 = va por libre.
+@export var alert_radius: float = 0.0
+## Lo que suena al avisar (un aullido), si acude alguno.
+@export var alert_sound: StringName = &""
+
+@export_group("Variedad")
+## Variantes de la especie (CreatureVariant): al aparecer sortea una y su tamaño dentro de ella.
+## Ninguna = todos como en la escena.
+@export var variants: Array[CreatureVariant] = []
+## Tintes del pelaje (multiplican la textura), uno al azar por individuo. Ninguno = el de la textura.
+@export var coat_tints: Array[Color] = []
+
+## La variante que le ha tocado (null = la de la escena) y la escala de su cuerpo, y lo que de ella
+## leen el combate (CreatureCombatState, CreatureAttackRunner) y los sonidos.
+var variant: CreatureVariant
+var body_size: float = 1.0
+var damage_scale: float = 1.0
+var poise_scale: float = 1.0
+var speed_scale: float = 1.0
+var voice_pitch: float = 1.0
+
 ## Zonas que reciben golpes: el cuerpo (copia de la cápsula de colisión) y la cabeza.
 var hurtboxes: Array[Hurtbox] = []
 var hit_react: HitReact
@@ -116,9 +139,14 @@ func _ready() -> void:
 	ai_controller.npc = self
 	ai_controller.movement = movement
 
+	if not Engine.is_editor_hint():
+		_capture_base()
 	_build_hurtboxes()
 	_gore = AnimalGore.attach(self, npc_model, health_component)
 	_setup_gait()
+	# Uno suelto (consola, escena) sortea aquí; los del pool, otra vez al salir (activate).
+	if not Engine.is_editor_hint():
+		roll_variant(null)
 
 	movement.landed.connect(_on_landed)
 	health_component.damaged.connect(_on_damaged)
@@ -184,7 +212,7 @@ func _physics_step(delta: float) -> void:
 
 	current_animation = movement.current_animation
 	if current_animation == Config.ANIMATION.RUN and sprint_anim_speed > 0.0 \
-			and movement.speed >= sprint_anim_speed:
+			and movement.speed >= sprint_anim_speed * body_size:
 		current_animation = Config.ANIMATION.SPRINT
 	if ai_controller.is_attacking:
 		current_animation = Config.ANIMATION.ATTACK_1
@@ -221,8 +249,42 @@ func _turn_toward(dir: Vector3, max_angle: float) -> void:
 	orthonormalize()
 
 
-func _on_target_detected(_target: Node3D) -> void:
+func _on_target_detected(target: Node3D) -> void:
 	ai_controller.transition_to(detect_state)
+	_alert_pack(target)
+
+
+## Avisa de [target] a los de su especie a menos de alert_radius. Los que acuden no avisan a su
+## vez: el que avisa ya llega a todos los que tiene cerca.
+func _alert_pack(target: Node3D) -> void:
+	if alert_radius <= 0.0 or npc_type == &"" or target == null or _is_dying:
+		return
+	var called := 0
+	for node in get_tree().get_nodes_in_group("npc"):
+		var ally := node as NPCController
+		if ally == null or ally == self or ally.npc_type != npc_type or not ally.active or ally.is_dead:
+			continue
+		if ally.global_position.distance_to(global_position) <= alert_radius and ally.answer_call(target):
+			called += 1
+	if called > 0 and alert_sound != &"":
+		CombatFx.play(alert_sound, global_position, {"pitch": voice_pitch})
+
+
+## Los de su misma especie (npc_type) son aliados: no se muerden entre ellos al atacar en grupo.
+func is_ally(other: Node) -> bool:
+	var npc := other as NPCController
+	return npc != null and npc != self and npc_type != &"" and npc.npc_type == npc_type
+
+
+## Un compañero le avisa de [target]: va a por él (lo recuerda aunque aún no lo vea, ver
+## Perception.memory_time). Devuelve true si acude, false si ya estaba con él o no puede.
+func answer_call(target: Node3D) -> bool:
+	var state := provoked_state if provoked_state != &"" else detect_state
+	if _is_dying or state == &"" or ai_controller.target == target:
+		return false
+	ai_controller.target = target
+	ai_controller.transition_to(state)
+	return true
 
 
 func _on_target_lost() -> void:
@@ -238,12 +300,15 @@ func _on_damaged(_amount: float, source: Node) -> void:
 		animation_controller.trigger_hit()
 	# El golpe que mata suena con la muerte.
 	if hurt_sound != &"" and health_component.health > 0.0:
-		CombatFx.play(hurt_sound, global_position)
+		CombatFx.play(hurt_sound, global_position, {"pitch": voice_pitch})
 	# Quien te pega es un objetivo aunque Perception no lo vigile.
 	var provoked := provoked_state if provoked_state != &"" else detect_state
 	if provoked != &"" and source is Node3D and source != self and not _is_dying:
+		var known := ai_controller.target == source
 		ai_controller.target = source
 		ai_controller.transition_to(provoked)
+		if not known:
+			_alert_pack(source)
 
 
 ## Hurtboxes del cuerpo y de la cabeza, y el respingo. Se crean aquí para que cualquier criatura
@@ -253,6 +318,7 @@ func _build_hurtboxes() -> void:
 		var body_box := Hurtbox.attach(self, self, collision_shape.shape, collision_shape.transform, &"body")
 		body_box.health = health_component
 		hurtboxes.append(body_box)
+		_body_box_shape = body_box.get_child(0) as CollisionShape3D
 	var skeleton := get_skeleton()
 	if skeleton == null:
 		return
@@ -263,7 +329,8 @@ func _build_hurtboxes() -> void:
 		skeleton.add_child(attachment)
 		var sphere := SphereShape3D.new()
 		# La esfera se mide en metros aunque el hueso venga escalado (el armature va a 0,01).
-		sphere.radius = head_radius
+		sphere.radius = head_radius * body_size
+		_head_sphere = sphere
 		var holder := Node3D.new()
 		attachment.add_child(holder)
 		holder.set_as_top_level(false)
@@ -281,6 +348,17 @@ func _build_hurtboxes() -> void:
 
 
 var _head_holder: Node3D
+var _head_sphere: SphereShape3D
+var _body_box_shape: CollisionShape3D
+## Lo de la escena antes de ninguna variante (_capture_base), y los materiales del pelaje (copias
+## propias, para teñirlas) con su color de partida.
+var _base: Dictionary = {}
+var _coat: Array[StandardMaterial3D] = []
+var _coat_colors: Array[Color] = []
+## Manada con la que salió (join_group): quién la encabeza y, en él, los que se le unieron.
+var _pack_leader: NPCController
+var _pack: Array[NPCController] = []
+var _variant_rng: RandomNumberGenerator
 ## Mutilaciones al morir (solo los esqueletos con tabla en AnimalGore).
 var _gore: AnimalGore
 var _skeleton: Skeleton3D
@@ -348,8 +426,153 @@ func _setup_gait() -> void:
 func _update_gait() -> void:
 	var speed := movement.velocity.length()
 	for gait in _gait:
-		var rate := clampf(speed / gait[1], 0.5, 2.0) if speed > 0.3 else 1.0
+		# Uno más grande da zancadas más largas: el mismo ciclo cubre más suelo.
+		var rate := clampf(speed / (gait[1] * body_size), 0.5, 2.0) if speed > 0.3 else 1.0
 		animation_controller.animation_tree.set("parameters/%s/scale" % gait[0], rate)
+
+
+# ---------------------------------------------------------------------------------------------
+# Variedad
+
+
+## Guarda lo de la escena que cambia con la variante. La forma de colisión pasa a ser propia: la
+## comparten todos los de la escena y cada uno la escala a su tamaño.
+func _capture_base() -> void:
+	_base = {
+		"max_health": health_component.max_health,
+		"speed": movement.speed,
+		"model_scale": npc_model.scale,
+		"eye_height": perception.eye_height if perception != null else 0.0,
+	}
+	if collision_shape != null and collision_shape.shape != null:
+		collision_shape.shape = collision_shape.shape.duplicate()
+		_base.shape_origin = collision_shape.position
+		var capsule := collision_shape.shape as CapsuleShape3D
+		if capsule != null:
+			_base.radius = capsule.radius
+			_base.height = capsule.height
+	if coat_tints.is_empty():
+		return
+	var copies := {}
+	for node in npc_model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance.mesh == null:
+			continue
+		for i in mesh_instance.mesh.get_surface_count():
+			var material := mesh_instance.get_surface_override_material(i)
+			if material == null:
+				material = mesh_instance.mesh.surface_get_material(i)
+			if not material is StandardMaterial3D:
+				continue
+			if not copies.has(material):
+				var copy := material.duplicate() as StandardMaterial3D
+				copies[material] = copy
+				_coat.append(copy)
+				_coat_colors.append(copy.albedo_color)
+			mesh_instance.set_surface_override_material(i, copies[material])
+
+
+## Sortea su variante (por peso, sin pasar del tope de su manada), su tamaño dentro de ella y su
+## pelaje. [rng] null = uno propio al azar.
+func roll_variant(rng: RandomNumberGenerator) -> void:
+	if _base.is_empty():
+		return
+	if rng == null:
+		rng = RandomNumberGenerator.new()
+		rng.randomize()
+	_variant_rng = rng
+	var picked := _pick_variant(rng)
+	apply_variant(picked, rng.randf_range(picked.size.x, picked.size.y) if picked != null else 1.0)
+	if not coat_tints.is_empty():
+		var tint := coat_tints[rng.randi() % coat_tints.size()]
+		for i in _coat.size():
+			_coat[i].albedo_color = _coat_colors[i] * tint
+
+
+## Le pone la variante [v] con el cuerpo a escala [size] (<= 0: la media de la variante). null = la
+## de la escena, a escala 1. Repone la vida entera: es para cuando aparece.
+func apply_variant(v: CreatureVariant, size: float = -1.0) -> void:
+	if _base.is_empty():
+		return
+	variant = v
+	body_size = size if size > 0.0 else (v.mid_size() if v != null else 1.0)
+	var ratio := body_size / v.mid_size() if v != null and v.mid_size() > 0.0 else 1.0
+	var strength := ratio * ratio
+	damage_scale = (v.damage if v != null else 1.0) * strength
+	poise_scale = (v.poise if v != null else 1.0) * strength
+	speed_scale = v.speed if v != null else 1.0
+	voice_pitch = v.voice_pitch if v != null else 1.0
+	health_component.max_health = _base.max_health * (v.health if v != null else 1.0) * strength
+	health_component.health = health_component.max_health
+	movement.speed = _base.speed * speed_scale
+	npc_model.scale = _base.model_scale * body_size
+	if perception != null:
+		perception.eye_height = _base.eye_height * body_size
+	if _base.has("shape_origin"):
+		collision_shape.position = _base.shape_origin * body_size
+		if _body_box_shape != null:
+			_body_box_shape.position = collision_shape.position
+	var capsule := collision_shape.shape as CapsuleShape3D if collision_shape != null else null
+	if capsule != null and _base.has("radius"):
+		capsule.radius = _base.radius * body_size
+		capsule.height = _base.height * body_size
+	if _head_sphere != null:
+		_head_sphere.radius = head_radius * body_size
+
+
+## Si su variante sabe hacer el ataque [id] del perfil.
+func can_use_attack(id: StringName) -> bool:
+	return variant == null or not id in variant.excluded_attacks
+
+
+## La variante y el tamaño, para la consola: "grande ×1,18".
+func describe_variant() -> String:
+	if variant == null:
+		return ""
+	return "%s ×%.2f" % [variant.id, body_size]
+
+
+func _pick_variant(rng: RandomNumberGenerator) -> CreatureVariant:
+	var options: Array[CreatureVariant] = []
+	var total := 0.0
+	for v in variants:
+		if v == null or v.weight <= 0.0 or (v.max_per_group > 0 and _pack_count(v) >= v.max_per_group):
+			continue
+		options.append(v)
+		total += v.weight
+	if options.is_empty():
+		return null
+	var roll := rng.randf() * total
+	for v in options:
+		roll -= v.weight
+		if roll <= 0.0:
+			return v
+	return options.back()
+
+
+## Cuántos otros de su manada llevan la variante [v].
+func _pack_count(v: CreatureVariant) -> int:
+	var head := _pack_leader if _pack_leader != null and is_instance_valid(_pack_leader) else self
+	var count := 0
+	for member in [head] + head._pack:
+		if member == self or not is_instance_valid(member) or not member.in_play() or member.variant != v:
+			continue
+		if member == head or member._pack_leader == head:
+			count += 1
+	return count
+
+
+## Sale en la manada de [leader]: vive donde él y, si la variante que ha sorteado ya está cubierta
+## en la manada (max_per_group: un solo macho grande), sortea otra.
+func join_group(leader: AmbientAnimal) -> void:
+	var head := leader as NPCController
+	if head == null or head == self:
+		return
+	set_home(head.get_home())
+	_pack_leader = head
+	head._pack.append(self)
+	if variant != null and variant.max_per_group > 0 and _pack_count(variant) >= variant.max_per_group:
+		roll_variant(_variant_rng)
 
 
 ## Canal de animaciones de acción (ataques) encima de la locomoción; se monta la primera vez.
@@ -417,6 +640,9 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	collision_layer = NPC_LIVE_LAYER
 	collision_mask = 1 | NPC_LIVE_LAYER
 	_set_hurtboxes_enabled(true)
+	_pack_leader = null
+	_pack.clear()
+	roll_variant(rng)
 	if health_component != null:
 		health_component.revive()
 	_frame_offset = rng.randi() % AI_STRIDE_FAR
@@ -498,7 +724,7 @@ func _on_died() -> void:
 	_is_dying = true
 	active = false
 	if death_sound != &"":
-		CombatFx.play(death_sound, global_position)
+		CombatFx.play(death_sound, global_position, {"pitch": voice_pitch})
 	startle_near(get_tree(), global_position, DEATH_STARTLE_RADIUS)
 	_set_hurtboxes_enabled(false)
 	ai_controller.desired_direction = Vector3.ZERO
@@ -565,6 +791,8 @@ func get_save_data() -> Dictionary:
 			"zx": global_basis.z.x, "zy": global_basis.z.y, "zz": global_basis.z.z,
 		},
 		"health": health_component.health,
+		"variant": String(variant.id) if variant != null else "",
+		"size": body_size,
 		"ai_state": str(ai_controller.get_current_state()),
 		"planets_path": str(planets.get_path()) if planets else "",
 	}
@@ -578,6 +806,11 @@ func restore_save_data(save: Dictionary) -> void:
 		Vector3(b.yx, b.yy, b.yz),
 		Vector3(b.zx, b.zy, b.zz),
 	)
+	var saved_variant: CreatureVariant = null
+	for v in variants:
+		if v != null and String(v.id) == save.get("variant", ""):
+			saved_variant = v
+	apply_variant(saved_variant, save.get("size", 1.0))
 	health_component.health = save.health
 
 	var planets_path: String = save.get("planets_path", "")

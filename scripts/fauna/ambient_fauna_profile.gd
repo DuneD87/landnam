@@ -18,6 +18,10 @@ class_name AmbientFaunaProfile extends Resource
 ## Margin outside the camera frustum for new spawns. Negative uses clearance. Animals
 ## that fade in on activation can use a smaller margin than their full length.
 @export var view_margin: float = -1.0
+## Ejemplares que salen juntos (una manada), al azar entre los dos, a menos de group_spread metros
+## del primero y con su misma casa (NPCController.get_home()). (1, 1) = de uno en uno.
+@export var group_size := Vector2i(1, 1)
+@export var group_spread: float = 8.0
 
 @export_group("Activity")
 ## Parte de la población activa de día, en el crepúsculo y de noche, por la altura del sol sobre el

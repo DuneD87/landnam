@@ -1,0 +1,171 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/npc_controller.gd" id="1_npc"]
+[ext_resource type="Script" path="res://scripts/player/movement.gd" id="2_move"]
+[ext_resource type="Script" path="res://scripts/npc/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://scripts/npc/ai/ai_controller.gd" id="4_ai"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/idle_state.gd" id="5_idle"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/wander_state.gd" id="6_wander"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/creature_combat_state.gd" id="7_combat"]
+[ext_resource type="Resource" path="res://data/fauna/combat/wolf_combat.tres" id="8_profile"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/death_state.gd" id="9_death"]
+[ext_resource type="Script" path="res://scripts/ui/inventory/inventory.gd" id="10_inventory"]
+[ext_resource type="Script" path="res://scripts/player/animation_controller.gd" id="11_anim"]
+[ext_resource type="Script" path="res://scripts/npc/perception.gd" id="12_perception"]
+[ext_resource type="PackedScene" path="res://models/animals/wolf/wolf.fbx" id="13_model"]
+[ext_resource type="Material" path="res://models/animals/wolf/wolf_body.tres" id="14_material"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/Wolf_anims.res" id="15_anims"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="16_variant"]
+[ext_resource type="Resource" path="res://data/fauna/variants/wolf_young.tres" id="17_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/wolf_adult.tres" id="18_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/wolf_large.tres" id="19_large"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.34
+height = 1.45
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_idle"]
+animation = &"Idle"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_trot"]
+animation = &"Trot"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_sprint"]
+animation = &"Sprint"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_attack"]
+animation = &"Attack_BiteForward"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_death"]
+animation = &"Death_Stand_R01"
+
+[sub_resource type="AnimationNodeTimeSeek" id="AnimationNodeTimeSeek_death"]
+
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_run"]
+
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_sprint"]
+
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_death"]
+
+[sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_attack"]
+
+[sub_resource type="AnimationNodeBlendTree" id="AnimationNodeBlendTree_wolf"]
+nodes/output/position = Vector2(900, 100)
+nodes/idle/node = SubResource("AnimationNodeAnimation_idle")
+nodes/idle/position = Vector2(-300, 0)
+nodes/trot/node = SubResource("AnimationNodeAnimation_trot")
+nodes/trot/position = Vector2(-300, 160)
+nodes/sprint/node = SubResource("AnimationNodeAnimation_sprint")
+nodes/sprint/position = Vector2(-300, 320)
+nodes/attack/node = SubResource("AnimationNodeAnimation_attack")
+nodes/attack/position = Vector2(400, 300)
+nodes/death_anim/node = SubResource("AnimationNodeAnimation_death")
+nodes/death_anim/position = Vector2(-300, 480)
+nodes/death_seek/node = SubResource("AnimationNodeTimeSeek_death")
+nodes/death_seek/position = Vector2(-60, 480)
+nodes/bRun/node = SubResource("AnimationNodeBlend2_run")
+nodes/bRun/position = Vector2(0, 80)
+nodes/bSprint/node = SubResource("AnimationNodeBlend2_sprint")
+nodes/bSprint/position = Vector2(200, 200)
+nodes/death/node = SubResource("AnimationNodeBlend2_death")
+nodes/death/position = Vector2(420, 120)
+nodes/attack_horizontal/node = SubResource("AnimationNodeOneShot_attack")
+nodes/attack_horizontal/position = Vector2(660, 100)
+node_connections = [&"output", 0, &"attack_horizontal", &"attack_horizontal", 0, &"death", &"attack_horizontal", 1, &"attack", &"death", 0, &"bSprint", &"death", 1, &"death_seek", &"death_seek", 0, &"death_anim", &"bSprint", 0, &"bRun", &"bSprint", 1, &"sprint", &"bRun", 0, &"idle", &"bRun", 1, &"trot"]
+
+[node name="Wolf" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 3
+floor_stop_on_slope = false
+floor_block_on_wall = false
+floor_max_angle = 1.2217305
+safe_margin = 0.008
+script = ExtResource("1_npc")
+detect_state = &"CombatState"
+lose_state = &"IdleState"
+npc_type = &"Wolf"
+hit_stun_duration = 0.0
+sprint_anim_speed = 5.5
+run_clip_speed = 2.54
+sprint_clip_speed = 12.56
+head_bone = &"RigHead"
+head_radius = 0.17
+flinch_bones = Array[String](["RigSpine2", "RigChest", "RigNeck1", "RigHead"])
+hurt_sound = &"wolf_hurt"
+death_sound = &"wolf_death"
+alert_radius = 45.0
+alert_sound = &"wolf_howl"
+variants = Array[ExtResource("16_variant")]([ExtResource("17_young"), ExtResource("18_adult"), ExtResource("19_large")])
+coat_tints = Array[Color]([Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 0.9, 0.76, 1), Color(0.9, 0.93, 0.98, 1), Color(0.58, 0.56, 0.56, 1)])
+
+[node name="Movement" type="Node" parent="."]
+script = ExtResource("2_move")
+speed = 2.5
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+max_health = 85.0
+
+[node name="AIController" type="Node" parent="."]
+script = ExtResource("4_ai")
+
+[node name="IdleState" type="Node" parent="AIController"]
+script = ExtResource("5_idle")
+flee_trigger_radius = 0.0
+
+[node name="WanderState" type="Node" parent="AIController"]
+script = ExtResource("6_wander")
+wander_radius = 18.0
+arrival_threshold = 2.0
+max_wander_time = 6.0
+home_radius = 25.0
+flee_trigger_radius = 0.0
+
+[node name="CombatState" type="Node" parent="AIController"]
+script = ExtResource("7_combat")
+profile = ExtResource("8_profile")
+
+[node name="DeathState" type="Node" parent="AIController"]
+script = ExtResource("9_death")
+
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("10_inventory")
+
+[node name="AnimationController" type="Node" parent="." node_paths=PackedStringArray("animator", "animation_tree")]
+script = ExtResource("11_anim")
+animator = NodePath("../NPCModel/AnimationPlayer")
+animation_tree = NodePath("../NPCModel/AnimationTree")
+blend_speed = 3.0
+
+[node name="Perception" type="Node" parent="."]
+script = ExtResource("12_perception")
+vision_range = 45.0
+vision_half_angle = 120.0
+eye_height = 0.75
+hearing_range = 16.0
+memory_time = 15.0
+check_interval = 0.3
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.36, 0.05)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="NPCModel" type="Node3D" parent="."]
+
+[node name="wolf" parent="NPCModel" instance=ExtResource("13_model")]
+
+[node name="SK-Wolf_001" parent="NPCModel/wolf/SK-Wolf/Skeleton3D" index="0"]
+surface_material_override/0 = ExtResource("14_material")
+surface_material_override/1 = ExtResource("14_material")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="NPCModel"]
+libraries/ = ExtResource("15_anims")
+
+[node name="AnimationTree" type="AnimationTree" parent="NPCModel"]
+tree_root = SubResource("AnimationNodeBlendTree_wolf")
+anim_player = NodePath("../AnimationPlayer")
+parameters/bRun/blend_amount = 0.0
+parameters/bSprint/blend_amount = 0.0
+parameters/death/blend_amount = 0.0
+
+[editable path="NPCModel/wolf"]

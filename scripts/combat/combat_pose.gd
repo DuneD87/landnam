@@ -687,9 +687,15 @@ func _apply_grip() -> void:
 
 
 ## El escudo en el antebrazo: su centro, hacia el codo desde la muñeca y hacia fuera del dorso (m).
-const SHIELD_ON_FOREARM := Vector2(0.11, 0.07)
+## Las escenas de escudo llevan el origen en el centro de la cara interior de la tabla (lo que da
+## al brazo), así que esto es lo que separa la tabla del eje del antebrazo: las correas y el
+## grosor del brazo, sin que la mano la atraviese al doblar la muñeca.
+const SHIELD_ON_FOREARM := Vector2(0.13, 0.08)
 ## Giro máximo del tronco sobre la cadera para llevar la guardia al frente (grados).
 const GUARD_MAX_TWIST := 60.0
+## Dorso y lado del pulgar del antebrazo izquierdo en el marco de su hueso (de la pose de reposo).
+var _forearm_out := Vector3.ZERO
+var _forearm_top := Vector3.ZERO
 
 
 ## Las animaciones de guardia se grabaron de lado (la cadera girada 50-70°, el escudo o la hoja
@@ -712,21 +718,43 @@ func _apply_guard(w: float) -> void:
 
 ## Centro del escudo (espacio del esqueleto): sobre el dorso del antebrazo izquierdo.
 func _shield_center() -> Vector3:
-	var hand := hand_frame("Left")
-	return bone_pos("mixamorig_LeftHand") - hand.x * SHIELD_ON_FOREARM.x * unit() \
-		- hand.y * SHIELD_ON_FOREARM.y * unit()
+	var frame := _shield_frame()
+	var elbow := (bone_pos("mixamorig_LeftForeArm") - frame.origin).normalized()
+	return frame.origin + (elbow * SHIELD_ON_FOREARM.x + frame.basis.z * SHIELD_ON_FOREARM.y) * unit()
+
+
+## El escudo va atado al antebrazo izquierdo (espacio del esqueleto): origen en la muñeca, z hacia
+## fuera del dorso, y hacia el canto de arriba (el lado del pulgar) y x a lo largo del antebrazo.
+## Sigue al antebrazo y no a la mano, como con las correas: la muñeca se dobla sin mover el escudo
+## (en el idle la mano cuelga con el dorso hacia arriba, y con el marco de la mano el escudo
+## quedaba plano, como una bandeja, atravesando el brazo).
+func _shield_frame() -> Transform3D:
+	var fi := bone_idx("mixamorig_LeftForeArm")
+	if _forearm_out == Vector3.ZERO:
+		var rest := _skel.get_bone_global_rest(fi).basis.inverse()
+		var hand := hand_frame("Left", true)
+		var thumb := _skel.get_bone_global_rest(bone_idx("mixamorig_LeftHandIndex1")).origin \
+			- _skel.get_bone_global_rest(bone_idx("mixamorig_LeftHandPinky1")).origin
+		_forearm_out = rest * -hand.y
+		_forearm_top = rest * thumb
+	var wrist := bone_pos("mixamorig_LeftHand")
+	var along := (wrist - bone_pos("mixamorig_LeftForeArm")).normalized()
+	var pose := _skel.get_bone_global_pose(fi).basis
+	var out := pose * _forearm_out
+	out = (out - along * out.dot(along)).normalized()
+	var top := out.cross(along)
+	if top.dot(pose * _forearm_top) < 0.0:
+		top = -top
+	return Transform3D(Basis(top.cross(out), top, out), wrist)
 
 
 ## Dónde va el escudo: en el antebrazo izquierdo, sobre el dorso, con la cara hacia fuera y el
 ## canto de arriba hacia el pulgar.
 func _place_shield() -> void:
-	var hand := hand_frame("Left")
-	var thumb := bone_pos("mixamorig_LeftHandIndex1") - bone_pos("mixamorig_LeftHandPinky1")
-	var out := -hand.y
-	var top := (thumb - out * thumb.dot(out)).normalized()
+	var frame := _shield_frame()
 	var to_world := _skel.global_transform
-	var basis := Basis(top.cross(out), top, out)
-	shield_xform = Transform3D((to_world.basis.orthonormalized() * basis).orthonormalized(), to_world * _shield_center())
+	shield_xform = Transform3D((to_world.basis.orthonormalized() * frame.basis).orthonormalized(),
+		to_world * _shield_center())
 
 
 ## Hasta dónde baja la rama por debajo de su agarre (la malla empieza 0,18 m por detrás de él).

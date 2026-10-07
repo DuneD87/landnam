@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="CreatureCombatProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="1_attack"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/wolf_bite.tres" id="2_bite"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/wolf_leap.tres" id="3_leap"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/wolf_takedown.tres" id="4_takedown"]
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_combat_profile.gd" id="5_profile"]
+
+[resource]
+script = ExtResource("5_profile")
+attacks = Array[ExtResource("1_attack")]([ExtResource("2_bite"), ExtResource("3_leap"), ExtResource("4_takedown")])
+disengage_distance = 70.0
+threaten_time = 1.0
+threaten_anim = &"Performance_Roar"
+threaten_sound = &"wolf_snarl"
+chase_speed = 9.5
+circle_speed = 3.5
+sprint_speed = 13.0
+sprint_distance = 10.0
+sprint_stamina = 10.0
+chase_lead = 1.0
+recover_time = Vector2(0.3, 0.6)
+recover_turn_rate = 300.0
+circle_chance = 0.5
+circle_max_distance = 6.0
+circle_distance = 4.5
+circle_time = 1.2
+wait_distance = 5.5
+flank_bias = 0.9
+wait_time = Vector2(0.8, 2.0)
+wait_sound = &"wolf_growl"
+wait_growl = Vector2(2.5, 5.0)
+search_lead = 3.0
+search_speed = 0.7
+repeat_penalty = 0.5
+max_combo = 2
+max_poise = 45.0
+poise_regen = 20.0
+poise_regen_delay = 1.5
+stagger_time = 0.9
+stagger_anims = Array[StringName]([&"Hit_Stand_L01", &"Hit_Stand_R01"])
+parried_time = 1.0
+action_fade_in = 0.15
+action_fade_out = 0.3
+attack_sound = &"wolf_snarl"
+stagger_sound = &"wolf_hurt"

@@ -17,10 +17,24 @@ var desired_direction: Vector3 = Vector3.ZERO
 var desired_facing: Vector3 = Vector3.ZERO
 ## Giro máximo hacia desired_facing, en grados/s. 0 = el giro normal del cuerpo.
 var turn_rate: float = 0.0
-var target: Node3D = null
+## A quién va (o de quién huye). Ponerlo cuenta como verlo: sabe dónde está en ese momento.
+var target: Node3D = null:
+	set(value):
+		target = value
+		target_seen = true
+		unseen_time = 0.0
 var is_attacking: bool = false
 ## Velocidad del objetivo (m/s), medida de una actualización de IA a la siguiente.
 var target_velocity: Vector3 = Vector3.ZERO
+## Si ahora mismo percibe al objetivo. Perception lo apaga cuando lo pierde pero aún lo recuerda
+## (memory_time): entonces sabe dónde y a qué velocidad iba al verlo por última vez
+## (last_seen_position, last_seen_velocity), no dónde está.
+var target_seen: bool = true
+## Segundos desde que dejó de percibirlo.
+var unseen_time: float = 0.0
+var last_seen_velocity: Vector3 = Vector3.ZERO
+## Dónde lo vio por última vez, en el marco del planeta si lo hay (sobrevive al rebase del origen).
+var _last_seen_local: Vector3 = Vector3.INF
 
 var _tracked: Node3D = null
 var _tracked_pos: Vector3 = Vector3.ZERO
@@ -114,10 +128,39 @@ func predicted_target_position(seconds: float, max_offset: float = 4.0) -> Vecto
 	return target.global_position + (target_velocity * seconds).limit_length(max_offset)
 
 
+## Dónde vio al objetivo por última vez (donde está, si lo ve ahora).
+func last_seen_position() -> Vector3:
+	if target_seen and target != null and is_instance_valid(target):
+		return target.global_position
+	if _last_seen_local == Vector3.INF:
+		return npc.global_position
+	var frame := _frame()
+	return frame.to_global(_last_seen_local) if frame != null else _last_seen_local
+
+
+## Dónde buscarlo si no lo ve: donde lo vio por última vez, seguido en la dirección en que iba lo
+## que lleva sin verlo (como mucho [max_lead] segundos y [max_offset] metros).
+func search_position(max_lead: float, max_offset: float = 12.0) -> Vector3:
+	var lead := minf(unseen_time, max_lead) if not target_seen else 0.0
+	return last_seen_position() + (last_seen_velocity * lead).limit_length(max_offset)
+
+
+## Nodo en cuyo marco se guarda lo recordado: el planeta del NPC (se mueve con el rebase).
+func _frame() -> Node3D:
+	var npc_controller := npc as NPCController
+	return npc_controller.planet as Node3D if npc_controller != null else null
+
+
 func _track_target(delta: float) -> void:
 	if not target or not is_instance_valid(target):
 		_tracked = null
 		target_velocity = Vector3.ZERO
+		return
+	if not target_seen:
+		# Sin verlo no sabe por dónde va: se queda con lo último que vio; al volver a verlo, la
+		# velocidad se mide de nuevo.
+		unseen_time += delta
+		_tracked = null
 		return
 	var pos := target.global_position
 	if target != _tracked or delta <= 0.0:
@@ -129,6 +172,9 @@ func _track_target(delta: float) -> void:
 			target_velocity = target_velocity.lerp(measured, clampf(delta * 8.0, 0.0, 1.0))
 	_tracked = target
 	_tracked_pos = pos
+	var frame := _frame()
+	_last_seen_local = frame.to_local(pos) if frame != null else pos
+	last_seen_velocity = target_velocity
 
 
 ## Devuelve true si pos está sumergida en el agua del planeta del NPC.

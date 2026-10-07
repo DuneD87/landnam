@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CreatureVariant" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="1_variant"]
+
+[resource]
+script = ExtResource("1_variant")
+id = &"grande"
+weight = 0.15
+max_per_group = 1
+size = Vector2(1.12, 1.22)
+health = 1.6
+damage = 1.4
+poise = 1.7
+speed = 0.95
+voice_pitch = 0.85

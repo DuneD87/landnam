@@ -11,6 +11,14 @@ func sample_spawn(_anchor: Vector3, _profile: AmbientFaunaProfile,
 	return null
 
 
+## Un punto a menos de [spread] metros de [point] para un compañero de grupo (manada, banco), o
+## null. Por defecto, cualquiera a esa distancia; los hábitats que pegan al suelo lo reproyectan.
+func sample_near(point: Vector3, spread: float, _profile: AmbientFaunaProfile,
+		rng: RandomNumberGenerator) -> Variant:
+	var direction := Vector3(rng.randfn(), rng.randfn(), rng.randfn()).normalized()
+	return point + direction * spread * pow(rng.randf(), 1.0 / 3.0)
+
+
 func is_spawn_valid(_point: Vector3, _clearance: float) -> bool:
 	return false
 

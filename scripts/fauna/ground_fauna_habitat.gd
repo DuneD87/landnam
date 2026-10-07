@@ -63,6 +63,20 @@ func sample_spawn(anchor: Vector3, profile: AmbientFaunaProfile,
 	return _surface_point(direction, settings, profile.clearance)
 
 
+## A menos de [spread] metros de [point] por el suelo, con los mismos filtros que el primero.
+func sample_near(point: Vector3, spread: float, profile: AmbientFaunaProfile,
+		rng: RandomNumberGenerator) -> Variant:
+	var settings := profile as GroundFaunaProfile
+	if settings == null or not is_instance_valid(terrain) or not terrain.is_inside_tree():
+		return null
+	var up := (point - center()).normalized()
+	var right := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	var forward := up.cross(right)
+	var angle := rng.randf_range(0.0, TAU)
+	var offset := (right * cos(angle) + forward * sin(angle)) * spread * sqrt(rng.randf_range(0.1, 1.0))
+	return _surface_point((point + offset - center()).normalized(), settings, profile.clearance)
+
+
 func is_spawn_valid(point: Vector3, clearance: float) -> bool:
 	if not is_instance_valid(terrain) or not terrain.is_inside_tree():
 		return false

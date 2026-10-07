@@ -292,8 +292,8 @@ func _register_commands() -> void:
 		"Escala de render 3D: bisecciona si el coste de dibujar es de pixel o de envio.", _cmd_escala))
 	_add(ConsoleCommand.new("terreno", "terreno [colision <lods>] [normalmap on|off]",
 		"Ajustes de coste del terreno en caliente, para comparar picos de 'proc'; sin argumentos, informa.", _cmd_terreno))
-	_add(ConsoleCommand.new("spawn", "spawn <oso|ciervo|leon|bufalo> [cantidad] [distancia]",
-		"Suelta animales delante del jugador (el oso es hostil: sirve para probar el combate).", _cmd_spawn, 1, _complete_animals))
+	_add(ConsoleCommand.new("spawn", "spawn <oso|ciervo|leon|bufalo|lobo> [cantidad] [distancia] [variante]",
+		"Suelta animales delante del jugador (el oso es hostil: sirve para probar el combate). Los que salen juntos van en manada; con variante (lobo: joven, adulto, grande) salen todos de esa.", _cmd_spawn, 1, _complete_animals))
 	_add(ConsoleCommand.new("ia", "ia [radio]",
 		"Qué está pensando cada criatura cercana: estado, fase, ataque, combo, guardia y lo que lee de su objetivo.", _cmd_ai))
 	_add(ConsoleCommand.new("morir", "morir",
@@ -731,6 +731,7 @@ const ANIMAL_SCENES := {
 	"ciervo": "res://scenes/animals/Deer.tscn",
 	"leon": "res://scenes/animals/Lion.tscn",
 	"bufalo": "res://scenes/animals/Buffalo.tscn",
+	"lobo": "res://scenes/animals/Wolf.tscn",
 }
 
 
@@ -740,6 +741,7 @@ func _complete_animals() -> PackedStringArray:
 
 ## Suelta animales sobre el terreno delante del jugador, repartidos en abanico. Quedan fuera del
 ## pool de fauna (no se reciclan por distancia) y su cadáver dura dos minutos para despellejarlo.
+## Salen como una manada (join_group); una palabra que no sea número es la variante para todos.
 func _cmd_spawn(args: PackedStringArray) -> String:
 	var player := _get_player() as PlayerController
 	if player == null or player.planet == null:
@@ -747,8 +749,15 @@ func _cmd_spawn(args: PackedStringArray) -> String:
 	var kind := args[0].to_lower()
 	if not ANIMAL_SCENES.has(kind):
 		return "[color=%s]Animal desconocido: %s (%s).[/color]" % [COLOR_ERR, kind, ", ".join(ANIMAL_SCENES.keys())]
-	var count := clampi(args[1].to_int(), 1, 12) if args.size() >= 2 and args[1].is_valid_int() else 1
-	var distance := clampf(args[2].to_float(), 3.0, 80.0) if args.size() >= 3 and args[2].is_valid_float() else 14.0
+	var numbers: Array[String] = []
+	var variant_id := ""
+	for arg in args.slice(1):
+		if arg.is_valid_float():
+			numbers.append(arg)
+		else:
+			variant_id = arg.to_lower()
+	var count := clampi(numbers[0].to_int(), 1, 12) if numbers.size() >= 1 and numbers[0].is_valid_int() else 1
+	var distance := clampf(numbers[1].to_float(), 3.0, 80.0) if numbers.size() >= 2 else 14.0
 	var scene: PackedScene = load(ANIMAL_SCENES[kind])
 	var up := -player.gravity_direction.normalized()
 	var forward := -player.camera.global_basis.z
@@ -756,6 +765,7 @@ func _cmd_spawn(args: PackedStringArray) -> String:
 	var side := up.cross(forward)
 	var space := player.get_world_3d().direct_space_state
 	var placed := 0
+	var leader: NPCController = null
 	for i in count:
 		var spread := (float(i) - (count - 1) * 0.5) * 4.0
 		var guess := player.global_position + forward * distance + side * spread
@@ -770,8 +780,23 @@ func _cmd_spawn(args: PackedStringArray) -> String:
 		animal.corpse_duration = 120.0
 		animal.global_position = hit.position + up * 1.2
 		animal.add_to_group("floating_origin")
+		if leader == null:
+			leader = animal
+		else:
+			animal.join_group(leader)
+		if variant_id != "":
+			var known: Array[String] = []
+			for v in animal.variants:
+				known.append(String(v.id))
+				if String(v.id) == variant_id:
+					animal.apply_variant(v, randf_range(v.size.x, v.size.y))
+			if not variant_id in known:
+				animal.queue_free()
+				return "[color=%s]%s no tiene la variante %s (%s).[/color]" % [COLOR_ERR, kind, variant_id,
+					", ".join(known) if not known.is_empty() else "ninguna"]
 		placed += 1
-	return "[color=%s]%d × %s a %.0f m.[/color]" % [COLOR_OK, placed, kind, distance]
+	return "[color=%s]%d × %s%s a %.0f m.[/color]" % [COLOR_OK, placed, kind,
+		" " + variant_id if variant_id != "" else "", distance]
 
 
 func _cmd_ai(args: PackedStringArray) -> String:
@@ -794,7 +819,8 @@ func _cmd_ai(args: PackedStringArray) -> String:
 	for entry in found:
 		var npc: NPCController = entry[1]
 		var ai := npc.ai_controller
-		var line := "[color=%s]%s[/color] %.0f m  %s" % [COLOR_INFO, npc.npc_type, entry[0], ai.get_current_state()]
+		var line := "[color=%s]%s[/color] %.0f m  %s" % [COLOR_INFO, ("%s %s" % [npc.npc_type, npc.describe_variant()]).strip_edges(),
+			entry[0], ai.get_current_state()]
 		var state := ai.get_node_or_null(NodePath(ai.get_current_state()))
 		if state != null and state.has_method(&"debug_line"):
 			line += "  " + state.debug_line()

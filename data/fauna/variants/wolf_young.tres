@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CreatureVariant" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="1_variant"]
+
+[resource]
+script = ExtResource("1_variant")
+id = &"joven"
+weight = 0.3
+size = Vector2(0.8, 0.88)
+health = 0.6
+damage = 0.6
+poise = 0.6
+speed = 1.05
+excluded_attacks = Array[StringName]([&"takedown"])
+voice_pitch = 1.2

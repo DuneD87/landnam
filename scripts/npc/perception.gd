@@ -3,6 +3,11 @@ class_name Perception
 
 ## Detecta objetivos (jugador y NPCs hostiles) con un cono de visión (con LOS opcional) y una esfera
 ## de oído, asignando y limpiando controller.target y emitiendo target_detected / target_lost.
+##   - El cono mira hacia donde mira el cuerpo (+Z) y la línea de visión va de los ojos al pecho.
+##   - Al objetivo que ya tiene no lo pierde por girarse: mientras lo tenga a la vista (alcance y
+##     línea de visión), lo sigue viendo aunque quede fuera del cono.
+##   - Con memory_time, al perderlo no lo suelta enseguida: lo recuerda (controller.target_seen
+##     apagado, AIController.last_seen_position) y lo busca; si no lo vuelve a ver, lo olvida.
 
 signal target_detected(target: Node3D)
 signal target_lost()
@@ -15,9 +20,16 @@ signal target_lost()
 @export var check_line_of_sight: bool = true
 ## Máscara de colisión para el raycast de LOS (debe incluir la capa del terreno).
 @export_flags_3d_physics var los_mask: int = 1
+## Altura de los ojos sobre los pies (m): de ahí sale la línea de visión, hacia el pecho del objetivo.
+@export var eye_height: float = 1.0
 
 @export_group("Hearing")
 @export var hearing_range: float = 4.0
+
+@export_group("Memory")
+## Segundos que sigue tras un objetivo que ha dejado de percibir (va a donde lo vio por última vez y
+## lo busca) antes de olvidarlo. 0 = lo olvida en cuanto lo pierde.
+@export var memory_time: float = 0.0
 
 @export_group("Performance")
 ## Segundos entre comprobaciones. 0.1-0.3 es suficiente para la mayoría de NPCs.
@@ -58,6 +70,12 @@ func _physics_step(delta: float) -> void:
 	if not npc or not controller:
 		return
 
+	# Con memoria, también recuerda al que le han puesto de objetivo (quien le ha herido): sabe de
+	# dónde le vino el golpe aunque no lo vea.
+	if memory_time > 0.0 and controller.target != null and controller.target != _detected \
+			and is_instance_valid(controller.target):
+		_detected = controller.target
+
 	var found := _scan()
 
 	# También si el estado soltó el objetivo (se rindió, se calmó) y lo sigue percibiendo: así los
@@ -66,10 +84,15 @@ func _physics_step(delta: float) -> void:
 		_detected = found
 		controller.target = found
 		target_detected.emit(found)
-	elif not found and _detected:
-		_detected = null
-		controller.target = null
-		target_lost.emit()
+	elif found:
+		controller.target_seen = true
+	elif _detected:
+		if controller.target == _detected and controller.unseen_time < memory_time:
+			controller.target_seen = false
+		else:
+			_detected = null
+			controller.target = null
+			target_lost.emit()
 
 
 ## Olvida al objetivo detectado sin avisar (reaparición del jugador: la criatura se calma).
@@ -116,10 +139,11 @@ func _can_detect(target: Node3D) -> bool:
 		return true
 
 	if dist <= vision_range:
-		var dir := to_target / dist
-		var forward := -npc.global_transform.basis.z
-		var angle_deg := rad_to_deg(acos(clamp(forward.dot(dir), -1.0, 1.0)))
-		if angle_deg <= vision_half_angle:
+		# Al que ya tiene encarado no lo pierde por girarse.
+		var engaged := target == _detected and controller.target == target
+		var dir := to_target / maxf(dist, 0.001)
+		var angle_deg := rad_to_deg(npc.global_basis.z.normalized().angle_to(dir))
+		if engaged or angle_deg <= vision_half_angle:
 			if not check_line_of_sight or _has_los(target):
 				return true
 
@@ -127,11 +151,18 @@ func _can_detect(target: Node3D) -> bool:
 
 
 func _has_los(target: Node3D) -> bool:
+	var up := -controller.gravity_direction.normalized()
 	var space := npc.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(
-		npc.global_position, target.global_position
-	)
+	var query := PhysicsRayQueryParameters3D.create(npc.global_position + up * eye_height, _chest(target, up))
 	query.exclude = [npc.get_rid()]
 	query.collision_mask = los_mask
 	var result := space.intersect_ray(query)
 	return result.is_empty() or result.get("collider") == target
+
+
+## Adónde mira para verlo: el centro de su cuerpo (el de su cápsula si lo dice), o un metro sobre
+## sus pies.
+static func _chest(target: Node3D, up: Vector3) -> Vector3:
+	if target.has_method(&"get_lock_point"):
+		return target.get_lock_point()
+	return target.global_position + up

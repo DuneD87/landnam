@@ -281,6 +281,8 @@ metadata/_custom_type_script = "uid://dsyulr1uf8n11"
 
 [node name="Perception" type="Node" parent="." unique_id=987654321]
 script = ExtResource("13_74tfl")
+eye_height = 1.1
+memory_time = 10.0
 vision_range = 32.0
 vision_half_angle = 70.0
 hearing_range = 14.0

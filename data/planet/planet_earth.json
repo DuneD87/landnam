@@ -190,6 +190,7 @@
 		"ground_fauna": [
 			"res://data/fauna/deer.tres",
 			"res://data/fauna/bear.tres",
+			"res://data/fauna/wolves.tres",
 			"res://data/fauna/lion.tres",
 			"res://data/fauna/buffalo.tres",
 			"res://data/fauna/rabbits.tres",

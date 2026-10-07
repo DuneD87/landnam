@@ -34,8 +34,15 @@ de 2026.
 | Gruñido de león (`lion_growl`) | [Lion lament](https://freesound.org/s/223978/) (roman_cgr), [lion_growls.wav](https://freesound.org/s/270383/) (stratcat322) |
 | León herido (`lion_hurt`) | [Lion lament](https://freesound.org/s/223978/) (roman_cgr), [lion_growls.wav](https://freesound.org/s/270383/) (stratcat322) |
 | Muerte del león (`lion_death`) | [Lion lament](https://freesound.org/s/223978/) (roman_cgr), [Lions screaming during the night](https://freesound.org/s/405211/) (felix.blume), [Lions Roaring 2](https://freesound.org/s/869003/) (Filmscore) |
+| Gruñido de lobo (`wolf_growl`) | [Dog Growling](https://freesound.org/s/672736/) (DaniloSFX), [Dog Growling Snarling Grumbling](https://freesound.org/s/122183/) (qubodup) |
+| Lobo enseñando los dientes (`wolf_snarl`) | [Dog Angry Snarling](https://freesound.org/s/672732/) (DaniloSFX), [Dog Growling Snarling Grumbling](https://freesound.org/s/122183/) (qubodup) |
+| Lobo herido (`wolf_hurt`) | [Dog's Yelping 7](https://freesound.org/s/160478/) (unfa) |
+| Muerte del lobo (`wolf_death`) | [S02-06 Dog whines, whimpers, snarls.wav](https://freesound.org/s/675407/) (craigsmith), [dog whine.wav](https://freesound.org/s/505827/) (jedg) |
+| Aullido de lobo (`wolf_howl`) | [Cooper Creek 20160313_014852 solitary wolf howl very clear.wav](https://freesound.org/s/500646/) (betchkal), [wolfs.wav](https://freesound.org/s/143568/) (ondrosik) |
 
 Los osos son de verdad: grizzlis de Yellowstone (del Servicio de Parques Nacionales de EE. UU.,
 subidos por Nivatius), un oso negro en Whistler (celldroid) y una librería antigua de efectos
-(craigsmith). Los leones están grabados en zoológicos y en un santuario de fauna. Cada voz del
+(craigsmith). Los leones están grabados en zoológicos y en un santuario de fauna. Los aullidos
+son de lobos de verdad (uno salvaje en Alaska y un coro de cinco); los gruñidos, gañidos y
+gemidos de cerca, de perros. Cada voz del
 jugador es de una sola persona: MrFossy la de hombre y Reitanna la de mujer, sin palabras.

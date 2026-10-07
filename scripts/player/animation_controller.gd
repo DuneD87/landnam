@@ -10,6 +10,8 @@ const Config = preload("res://scripts/config.gd")
 
 var _valid_blend_paths: Array[String] = []
 var _has_hit_anim: bool = false
+## El árbol pasa la animación de muerte por un TimeSeek (death_seek): trigger_death la arranca.
+var _has_death_seek: bool = false
 
 func _ready() -> void:
 	if not animator:
@@ -101,6 +103,7 @@ func _cache_valid_paths() -> void:
 		if prop_names.has(path):
 			_valid_blend_paths.append(path)
 	_has_hit_anim = prop_names.has("parameters/bHit/request")
+	_has_death_seek = prop_names.has("parameters/death_seek/seek_request")
 
 func update_tree() -> void:
 	if not is_instance_valid(animation_tree):
@@ -136,8 +139,12 @@ func trigger_hit() -> void:
 	animation_tree["parameters/bHit/request"] = AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE
 
 
+## Arranca la animación de muerte desde el principio, si el árbol la pasa por death_seek: si no,
+## el clip, que suena desde que se creó el árbol, ya habría acabado y solo se fundiría su última
+## pose.
 func trigger_death() -> void:
-	pass
+	if is_instance_valid(animation_tree) and _has_death_seek:
+		animation_tree["parameters/death_seek/seek_request"] = 0.0
 
 func add_animation_state(state_name, parameter_values: Dictionary):
 	animation_states[state_name] = parameter_values

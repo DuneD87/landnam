@@ -644,6 +644,111 @@
     "source": 693582,
     "dur": 0.8
    }
+  ],
+  "wolf_growl": [
+   {
+    "file": "audio/combat/wolf_growl/wolf_growl_01.ogg",
+    "source": 672736,
+    "dur": 1.63
+   },
+   {
+    "file": "audio/combat/wolf_growl/wolf_growl_02.ogg",
+    "source": 672736,
+    "dur": 1.08
+   },
+   {
+    "file": "audio/combat/wolf_growl/wolf_growl_03.ogg",
+    "source": 672736,
+    "dur": 1.29
+   },
+   {
+    "file": "audio/combat/wolf_growl/wolf_growl_04.ogg",
+    "source": 122183,
+    "dur": 2.78
+   },
+   {
+    "file": "audio/combat/wolf_growl/wolf_growl_05.ogg",
+    "source": 122183,
+    "dur": 2.1
+   }
+  ],
+  "wolf_snarl": [
+   {
+    "file": "audio/combat/wolf_snarl/wolf_snarl_01.ogg",
+    "source": 672732,
+    "dur": 1.18
+   },
+   {
+    "file": "audio/combat/wolf_snarl/wolf_snarl_02.ogg",
+    "source": 672732,
+    "dur": 2.04
+   },
+   {
+    "file": "audio/combat/wolf_snarl/wolf_snarl_03.ogg",
+    "source": 672732,
+    "dur": 2.28
+   },
+   {
+    "file": "audio/combat/wolf_snarl/wolf_snarl_04.ogg",
+    "source": 672732,
+    "dur": 1.11
+   },
+   {
+    "file": "audio/combat/wolf_snarl/wolf_snarl_05.ogg",
+    "source": 122183,
+    "dur": 2.1
+   }
+  ],
+  "wolf_hurt": [
+   {
+    "file": "audio/combat/wolf_hurt/wolf_hurt_01.ogg",
+    "source": 160478,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/wolf_hurt/wolf_hurt_02.ogg",
+    "source": 160478,
+    "dur": 0.76
+   }
+  ],
+  "wolf_death": [
+   {
+    "file": "audio/combat/wolf_death/wolf_death_01.ogg",
+    "source": 675407,
+    "dur": 1.25
+   },
+   {
+    "file": "audio/combat/wolf_death/wolf_death_02.ogg",
+    "source": 675407,
+    "dur": 1.41
+   },
+   {
+    "file": "audio/combat/wolf_death/wolf_death_03.ogg",
+    "source": 505827,
+    "dur": 1.37
+   }
+  ],
+  "wolf_howl": [
+   {
+    "file": "audio/combat/wolf_howl/wolf_howl_01.ogg",
+    "source": 500646,
+    "dur": 8.28
+   },
+   {
+    "file": "audio/combat/wolf_howl/wolf_howl_02.ogg",
+    "source": 500646,
+    "dur": 8.11
+   },
+   {
+    "file": "audio/combat/wolf_howl/wolf_howl_03.ogg",
+    "source": 500646,
+    "dur": 8.28
+   },
+   {
+    "file": "audio/combat/wolf_howl/wolf_howl_04.ogg",
+    "source": 143568,
+    "dur": 3.99
+   }
   ]
  },
  "sources": {
@@ -1180,6 +1285,66 @@
    "author": "bouncyballblue",
    "license": "http://creativecommons.org/publicdomain/zero/1.0/",
    "url": "https://freesound.org/s/529396/"
+  },
+  "672736": {
+   "title": "Dog Growling",
+   "author": "DaniloSFX",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/672736/"
+  },
+  "122183": {
+   "title": "Dog Growling Snarling Grumbling",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/122183/"
+  },
+  "672732": {
+   "title": "Dog Angry Snarling",
+   "author": "DaniloSFX",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/672732/"
+  },
+  "675407": {
+   "title": "S02-06 Dog whines, whimpers, snarls.wav",
+   "author": "craigsmith",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/675407/"
+  },
+  "160478": {
+   "title": "Dog's Yelping 7",
+   "author": "unfa",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/160478/"
+  },
+  "827541": {
+   "title": "Barking and Yelping",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/827541/"
+  },
+  "505827": {
+   "title": "dog whine.wav",
+   "author": "jedg",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/505827/"
+  },
+  "500646": {
+   "title": "Cooper Creek 20160313_014852 solitary wolf howl very clear.wav",
+   "author": "betchkal",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/500646/"
+  },
+  "143568": {
+   "title": "wolfs.wav",
+   "author": "ondrosik",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/143568/"
+  },
+  "651193": {
+   "title": "Wolfes howl howling Wolf Pack heulen",
+   "author": "Borgory",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/651193/"
   }
  }
 }

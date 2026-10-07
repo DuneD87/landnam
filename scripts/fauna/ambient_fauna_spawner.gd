@@ -136,6 +136,7 @@ func update_population(deadline_usec: int = 0) -> void:
 		DebugStats.report_cost(&"fauna:spawner/alta", Time.get_ticks_usec() - activation_start)
 		count += 1
 		activated += 1
+		count += _spawn_group(animal, point, active_target - count)
 
 
 ## Con menos actividad (anochece, llega el invierno) sobran ejemplares. Los que no se ven y no
@@ -166,6 +167,28 @@ func _retire_surplus(count: int, active_target: int) -> int:
 			animal.retire()
 			leaving += 1
 	return count
+
+
+## Los compañeros de [leader] si la especie sale en grupo (group_size): cerca de él, y se unen a
+## él (join_group: su misma casa, para que deambulen juntos). Como mucho [room]. Devuelve cuántos
+## han salido.
+func _spawn_group(leader: AmbientAnimal, point: Vector3, room: int) -> int:
+	var extra := mini(_rng.randi_range(profile.group_size.x, profile.group_size.y) - 1, room)
+	var placed := 0
+	for i in extra:
+		for _try in 4:
+			var near: Variant = habitat.sample_near(point, profile.group_spread, profile, _rng)
+			if not near is Vector3 or _in_view(near) or not habitat.is_spawn_valid(near, profile.clearance):
+				continue
+			var member := _get_available_animal()
+			if member == null:
+				return placed
+			member.profile = profile
+			member.activate(near, habitat, _rng)
+			member.join_group(leader)
+			placed += 1
+			break
+	return placed
 
 
 func _crowded(point: Vector3) -> bool:

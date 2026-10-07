@@ -39,6 +39,13 @@ const MIX := {
 	&"lion_growl": {"volume": -2.0, "pitch_jitter": 0.06, "max": 60.0, "unit": 6.0, "voices": 3, "cooldown": 0.5},
 	&"lion_hurt": {"volume": -1.0, "pitch": 1.1, "pitch_jitter": 0.06, "max": 50.0, "unit": 5.0, "voices": 2, "cooldown": 0.35},
 	&"lion_death": {"volume": 0.0, "pitch": 0.92, "pitch_jitter": 0.04, "max": 70.0, "unit": 6.0, "voices": 2, "cooldown": 1.0},
+	# Los de perro, algo más graves: un lobo pesa el doble que un perro grande. El aullido se oye
+	# lejos (en el bosque, a kilómetros).
+	&"wolf_growl": {"volume": -3.0, "pitch": 0.88, "pitch_jitter": 0.06, "max": 45.0, "unit": 4.0, "voices": 4, "cooldown": 0.4},
+	&"wolf_snarl": {"volume": -1.0, "pitch": 0.9, "pitch_jitter": 0.05, "max": 50.0, "unit": 5.0, "voices": 3, "cooldown": 0.4},
+	&"wolf_hurt": {"volume": -2.0, "pitch": 0.85, "pitch_jitter": 0.06, "max": 45.0, "unit": 4.0, "voices": 3, "cooldown": 0.3},
+	&"wolf_death": {"volume": -1.0, "pitch": 0.85, "pitch_jitter": 0.04, "max": 55.0, "unit": 5.0, "voices": 2, "cooldown": 1.0},
+	&"wolf_howl": {"volume": 2.0, "pitch_jitter": 0.04, "max": 400.0, "unit": 20.0, "voices": 2, "cooldown": 2.0},
 }
 
 

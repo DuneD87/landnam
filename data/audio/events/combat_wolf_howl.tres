@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_vvgvs"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_howl/wolf_howl_01.ogg" id="2_42nuj"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_howl/wolf_howl_02.ogg" id="3_k06vc"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_howl/wolf_howl_03.ogg" id="4_6m0bd"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_howl/wolf_howl_04.ogg" id="5_5vtk6"]
+
+[resource]
+script = ExtResource("1_vvgvs")
+event_id = &"combat_wolf_howl"
+streams = Array[AudioStream]([ExtResource("2_42nuj"), ExtResource("3_k06vc"), ExtResource("4_6m0bd"), ExtResource("5_5vtk6")])
+volume_db = 2.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.04
+max_distance = 400.0
+unit_size = 20.0
+max_voices = 2
+cooldown = 2.0

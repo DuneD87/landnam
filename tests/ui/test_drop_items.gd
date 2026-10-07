@@ -113,8 +113,8 @@ func _run() -> void:
 	full.items[0] = InventoryItem.new(stone, stone.max_stack - 9)
 	check(stones.pick_into(full) and stones.quantity == 21, "con hueco para 9, entran 9 y quedan %d" % stones.quantity)
 
-	# Desde la ventana: lo cogido de una casilla y soltado fuera de las ventanas sale por
-	# drop_requested; soltado sobre la ventana, no.
+	# Desde la ventana: lo que va en el cursor sale por drop_requested con un clic fuera de las
+	# ventanas; soltar el botón (sobre la ventana o fuera) no lo tira.
 	var ui: InventoryUI = load("res://scenes/ui/inventory_ui.tscn").instantiate()
 	var character_window: CharacterWindow = load("res://scenes/ui/character_window.tscn").instantiate()
 	var hotbar: Hotbar = load("res://scenes/ui/hotbar.tscn").instantiate()
@@ -144,7 +144,9 @@ func _run() -> void:
 	ui._refresh()
 	ui._on_slot_clicked(ui.slots[0], MOUSE_BUTTON_LEFT)
 	_release(ui, outside, MOUSE_BUTTON_LEFT)
-	check(dropped.size() == 3 and dropped[2] == [&"stone_01", 10], "arrastrado fuera y soltado: al suelo (%s)" % [dropped])
+	check(dropped.size() == 2 and ui.floating_item != null, "arrastrado fuera y soltado: sigue en el cursor (%s)" % [dropped])
+	_click(ui, outside, MOUSE_BUTTON_LEFT)
+	check(dropped.size() == 3 and dropped[2] == [&"stone_01", 10], "y un clic fuera lo tira (%s)" % [dropped])
 
 	print("RESULT: %s (%d failures)" % ["OK" if failures == 0 else "FAILED", failures])
 	get_tree().quit(1 if failures > 0 else 0)

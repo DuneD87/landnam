@@ -44,6 +44,27 @@ extends Resource
 @export var circle_distance: float = 4.5
 @export var circle_time: float = 1.6
 
+@export_group("Pack")
+## Con el objetivo ya atacado por otros (CombatDirector reparte los turnos), espera su turno en
+## corro a esta distancia, rondándolo a circle_speed.
+@export var wait_distance: float = 7.0
+## Dónde se pone en el corro: 0 = donde le pille, repartido con los demás; 1 = a la espalda del
+## objetivo (lobos).
+@export_range(0.0, 1.0) var flank_bias: float = 0.3
+## Tras atacar, si hay otros esperando, se aparta al corro al menos estos segundos (al azar entre
+## los dos) para cederles el turno.
+@export var wait_time := Vector2(1.0, 2.5)
+## Lo que suena mientras espera (gruñidos) y cada cuánto (s, al azar entre los dos).
+@export var wait_sound: StringName = &""
+@export var wait_growl := Vector2(3.0, 6.0)
+
+@export_group("Search")
+## Al perderlo de vista (con memoria, Perception.memory_time) va a donde lo vio por última vez,
+## adelantado lo que llevaba corriendo como mucho search_lead segundos, a search_speed × chase_speed,
+## y allí mira alrededor.
+@export var search_lead: float = 2.0
+@export_range(0.1, 1.0) var search_speed: float = 0.6
+
 @export_group("Choice")
 ## Peso del ataque que acaba de usar, para que no repita siempre el mismo.
 @export_range(0.0, 1.0) var repeat_penalty: float = 1.0

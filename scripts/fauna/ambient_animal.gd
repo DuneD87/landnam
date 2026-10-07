@@ -73,6 +73,12 @@ func set_detail(_distance: float) -> void:
 	pass
 
 
+## Sale con [leader] en un grupo (group_size del perfil), justo después de activate(). Las
+## criaturas que viven en manada comparten su casa y su reparto de variantes; el resto, nada.
+func join_group(_leader: AmbientAnimal) -> void:
+	pass
+
+
 ## Point the player's lock-on frames and aims at: the middle of the body, not the feet.
 func lock_point() -> Vector3:
 	var shape := get_node_or_null("CollisionShape3D") as Node3D

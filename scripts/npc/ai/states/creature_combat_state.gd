@@ -9,10 +9,14 @@ class_name CreatureCombatState
 ##     objetivo (CombatRead): castiga al que falla, embiste al que huye o apunta;
 ##   - puede encadenar ataques (follow_ups) y, si no, se queda un momento vendido y a veces rodea
 ##     al objetivo;
-##   - si le rompen la guardia (poise) se tambalea y deja de atacar un rato.
+##   - si le rompen la guardia (poise) se tambalea y deja de atacar un rato;
+##   - si ya le atacan otros (CombatDirector reparte los turnos), espera el suyo en corro,
+##     repartido con los demás o a la espalda del objetivo (flank_bias); tras atacar, si hay otros
+##     esperando, se aparta para cederles el turno;
+##   - si lo pierde de vista (Perception.memory_time), va a donde lo vio por última vez y lo busca.
 ## Vuelve a IdleState si pierde al objetivo o se aleja demasiado de él.
 
-enum Phase {THREATEN, CHASE, ATTACK, RECOVER, CIRCLE, STAGGER}
+enum Phase {THREATEN, CHASE, ATTACK, RECOVER, CIRCLE, STAGGER, FLANK, SEARCH}
 
 @export var profile: CreatureCombatProfile
 
@@ -34,6 +38,12 @@ var _poise_idle: float = 0.0
 var _sprint_left: float = 0.0
 var _circle_sign: float = 1.0
 var _original_speed: float = 0.0
+## Contra quién está apuntado en el reparto de turnos.
+var _joined: Node3D = null
+## Dónde del corro quiere esperar (dirección desde el objetivo), y cuándo lo vuelve a pensar.
+var _flank_dir: Vector3 = Vector3.ZERO
+var _flank_rethink: float = 0.0
+var _next_growl: float = 0.0
 
 
 func enter() -> void:
@@ -44,7 +54,7 @@ func enter() -> void:
 	if runner == null:
 		runner = CreatureAttackRunner.new(npc, profile)
 	_original_speed = controller.movement.speed
-	_poise = profile.max_poise
+	_poise = _max_poise()
 	_poise_idle = 0.0
 	_sprint_left = profile.sprint_stamina
 	_cooldowns.clear()
@@ -52,12 +62,13 @@ func enter() -> void:
 	combo = 0
 	if not npc.health_component.hit_received.is_connected(_on_hit):
 		npc.health_component.hit_received.connect(_on_hit)
+	_join(controller.target)
 	if profile.threaten_time > 0.0 and _target_is_player():
 		_set_phase(Phase.THREATEN)
 		if profile.threaten_anim != &"" and npc.get_action_channel() != null:
 			npc.get_action_channel().play(profile.threaten_anim, 1.0, profile.action_fade_in, profile.action_fade_out)
 		if profile.threaten_sound != &"":
-			CombatFx.play(profile.threaten_sound, npc.global_position, {"pitch": profile.voice_pitch})
+			CombatFx.play(profile.threaten_sound, npc.global_position, {"pitch": _voice()})
 	else:
 		_set_phase(Phase.CHASE)
 
@@ -68,6 +79,8 @@ func exit() -> void:
 	controller.is_attacking = false
 	if runner != null:
 		runner.cancel()
+	CombatDirector.leave_all(controller.npc)
+	_joined = null
 
 
 ## El ataque en curso, o null.
@@ -89,6 +102,11 @@ func get_situation() -> StringName:
 	return &""
 
 
+## Una criatura en corro esperando turno (las pruebas y la consola).
+func is_waiting() -> bool:
+	return phase == Phase.FLANK
+
+
 ## Una línea para la consola (ia): fase, ataque, combo, guardia, fuelle y lo que lee del objetivo.
 func debug_line() -> String:
 	var text := String(Phase.keys()[phase]).to_lower()
@@ -97,7 +115,14 @@ func debug_line() -> String:
 		text += " %s %s" % [attack.id, "aviso" if runner.in_tell() else "%.2f/%.2f s" % [runner.time, attack.end]]
 	if combo > 1:
 		text += " combo %d" % combo
-	text += "  guardia %.0f/%.0f" % [_poise, profile.max_poise]
+	if _joined != null and is_instance_valid(_joined):
+		var engaged := CombatDirector.engaged(_joined).size()
+		if engaged > 1:
+			text += "  %s (%d/%d atacan, %d en total)" % ["con turno" if CombatDirector.has_turn(_joined, controller.npc)
+				else "esperando", CombatDirector.turns(_joined), CombatDirector.MAX_TURNS, engaged]
+	if not controller.target_seen:
+		text += "  sin verlo %.1f s" % controller.unseen_time
+	text += "  guardia %.0f/%.0f" % [_poise, _max_poise()]
 	if profile.sprint_speed > 0.0:
 		text += "  fuelle %.1f s" % _sprint_left
 	var target := controller.target
@@ -135,11 +160,17 @@ func update(delta: float) -> StringName:
 	if phase != Phase.ATTACK and (not controller.is_target_within(profile.disengage_distance) or _past_leash()):
 		controller.target = null
 		return &"IdleState"
+	if target != _joined:
+		_join(target)
+	# Sin verlo no ataca ni lo persigue: va a donde lo vio por última vez.
+	if not controller.target_seen and phase != Phase.ATTACK and phase != Phase.STAGGER and phase != Phase.SEARCH:
+		_release_turn()
+		_set_phase(Phase.SEARCH)
 	for key in _cooldowns.keys():
 		_cooldowns[key] = maxf(0.0, _cooldowns[key] - delta)
 	_poise_idle += delta
 	if _poise_idle > profile.poise_regen_delay:
-		_poise = minf(profile.max_poise, _poise + profile.poise_regen * delta)
+		_poise = minf(_max_poise(), _poise + profile.poise_regen * _npc().poise_scale * delta)
 	_phase_time += delta
 	var movement := controller.movement
 	var sprinting := false
@@ -152,11 +183,14 @@ func update(delta: float) -> StringName:
 		Phase.CHASE:
 			var dist := controller.distance_to_target()
 			var choice := _pick_attack(dist, profile.attacks)
-			if choice != null:
+			# Atacar, o acercarse a donde se ataca, pide turno; sin él, espera en corro.
+			if (choice != null or dist < profile.wait_distance) and not _request_turn():
+				_enter_flank(Vector2.ZERO)
+			elif choice != null:
 				_start_attack(choice, false)
 			else:
 				sprinting = profile.sprint_speed > 0.0 and dist > profile.sprint_distance and _sprint_left > 0.0
-				movement.speed = profile.sprint_speed if sprinting else profile.chase_speed
+				movement.speed = (profile.sprint_speed if sprinting else profile.chase_speed) * _npc().speed_scale
 				controller.desired_direction = controller.steer_clear_of_water(_chase_dir(dist, movement.speed))
 		Phase.ATTACK:
 			var current := runner.attack
@@ -179,14 +213,17 @@ func update(delta: float) -> StringName:
 				controller.desired_facing = _to_target_flat()
 				controller.turn_rate = profile.recover_turn_rate
 			if _phase_time > _phase_length:
-				if randf() < profile.circle_chance and controller.distance_to_target() < profile.circle_max_distance:
+				_release_turn()
+				if _others_waiting():
+					_enter_flank(profile.wait_time)
+				elif randf() < profile.circle_chance and controller.distance_to_target() < profile.circle_max_distance:
 					_circle_sign = -1.0 if randf() < 0.5 else 1.0
 					_set_phase(Phase.CIRCLE)
 				else:
 					_set_phase(Phase.CHASE)
 		Phase.CIRCLE:
 			# Rodea al objetivo gruñendo, antes de volver a entrar.
-			movement.speed = profile.circle_speed
+			movement.speed = profile.circle_speed * _npc().speed_scale
 			var to := _to_target_flat()
 			var up := -controller.gravity_direction.normalized()
 			var side := up.cross(to) * _circle_sign
@@ -197,13 +234,159 @@ func update(delta: float) -> StringName:
 		Phase.STAGGER:
 			movement.speed = AIController.TURN_ONLY_SPEED
 			if _phase_time > _phase_length:
-				_poise = profile.max_poise
+				_poise = _max_poise()
 				_set_phase(Phase.CHASE)
+		Phase.FLANK:
+			var dist := controller.distance_to_target()
+			# Si se le mete encima se defiende, con turno o sin él; si se aleja, lo persigue.
+			var defend := _pick_attack(dist, profile.attacks) if dist < profile.wait_distance * 0.5 else null
+			if defend != null:
+				_start_attack(defend, false)
+			elif dist > profile.wait_distance + 4.0:
+				_set_phase(Phase.CHASE)
+			else:
+				_update_flank(delta)
+				if _phase_time > _phase_length and _request_turn():
+					_set_phase(Phase.CHASE)
+		Phase.SEARCH:
+			if controller.target_seen:
+				_set_phase(Phase.CHASE)
+			else:
+				_update_search()
 	if sprinting:
 		_sprint_left = maxf(0.0, _sprint_left - delta)
 	else:
 		_sprint_left = minf(profile.sprint_stamina, _sprint_left + delta * 0.5)
 	return &""
+
+
+# ---------------------------------------------------------------------------------------------
+# Turnos, corro y búsqueda
+
+
+## Se apunta al reparto de turnos contra [target] (y deja el anterior).
+func _join(target: Node3D) -> void:
+	CombatDirector.leave_all(controller.npc)
+	_joined = target
+	if target != null:
+		CombatDirector.join(target, controller.npc)
+
+
+func _request_turn() -> bool:
+	return CombatDirector.request_turn(controller.target, controller.npc)
+
+
+func _release_turn() -> void:
+	if controller.target != null:
+		CombatDirector.release_turn(controller.target, controller.npc)
+
+
+## Hay otras criaturas peleando con su objetivo que esperan turno.
+func _others_waiting() -> bool:
+	var target := controller.target
+	var waiting := CombatDirector.engaged(target).size() - CombatDirector.turns(target)
+	if not CombatDirector.has_turn(target, controller.npc):
+		waiting -= 1
+	return waiting > 0
+
+
+## Al corro: al menos [wait] segundos (al azar entre los dos) antes de pedir turno otra vez.
+func _enter_flank(wait: Vector2) -> void:
+	_set_phase(Phase.FLANK, randf_range(wait.x, wait.y))
+	_flank_rethink = 0.0
+	_next_growl = randf_range(profile.wait_growl.x, profile.wait_growl.y) * 0.5
+
+
+## Ronda al objetivo a wait_distance hacia su sitio del corro (_pick_flank_dir); allí, quieto y
+## encarado. Gruñe de vez en cuando.
+func _update_flank(delta: float) -> void:
+	var npc := controller.npc
+	var target := controller.target
+	_flank_rethink -= delta
+	if _flank_rethink <= 0.0 or _flank_dir == Vector3.ZERO:
+		_flank_rethink = 0.5
+		_flank_dir = _pick_flank_dir()
+	var up := -controller.gravity_direction.normalized()
+	var from_target := controller.project_on_gravity_plane(npc.global_position - target.global_position)
+	var to_target := -from_target
+	var angle := from_target.signed_angle_to(_flank_dir, up) if from_target != Vector3.ZERO else 0.0
+	var radial := clampf((controller.distance_to_target() - profile.wait_distance) * 0.5, -1.0, 1.0)
+	var move := up.cross(from_target) * signf(angle) * clampf(absf(angle) / deg_to_rad(30.0), 0.0, 1.0) \
+		+ to_target * radial
+	if move.length() < 0.25:
+		controller.movement.speed = AIController.TURN_ONLY_SPEED
+		controller.desired_facing = to_target
+	else:
+		controller.movement.speed = profile.circle_speed * _npc().speed_scale
+		controller.desired_direction = controller.steer_clear_of_water(controller.project_on_gravity_plane(move))
+	_next_growl -= delta
+	if _next_growl <= 0.0:
+		_next_growl = randf_range(profile.wait_growl.x, profile.wait_growl.y)
+		if profile.wait_sound != &"":
+			CombatFx.play(profile.wait_sound, npc.global_position, {"pitch": _voice() * randf_range(0.95, 1.05)})
+
+
+## Dónde esperar alrededor del objetivo (dirección desde él): lejos de los demás que pelean con
+## él, a su espalda cuanto más flank_bias, y sin dar mucha vuelta desde donde está.
+func _pick_flank_dir() -> Vector3:
+	var npc := controller.npc
+	var target := controller.target
+	var up := -controller.gravity_direction.normalized()
+	var current := controller.project_on_gravity_plane(npc.global_position - target.global_position)
+	var facing := controller.project_on_gravity_plane(target.global_basis.z)
+	if current == Vector3.ZERO:
+		current = -facing if facing != Vector3.ZERO else controller.project_on_gravity_plane(npc.global_basis.z)
+	var others: Array[Vector3] = []
+	for other in CombatDirector.engaged(target):
+		if other != npc:
+			var dir := controller.project_on_gravity_plane(other.global_position - target.global_position)
+			if dir != Vector3.ZERO:
+				others.append(dir)
+	var best := current
+	var best_score := -INF
+	for i in 16:
+		var dir := current.rotated(up, TAU * i / 16.0)
+		var score := -0.4 * dir.angle_to(current) / PI
+		if facing != Vector3.ZERO:
+			score -= profile.flank_bias * dir.dot(facing)
+		for other in others:
+			var gap := rad_to_deg(dir.angle_to(other))
+			if gap < 60.0:
+				score -= (1.0 - gap / 60.0) * 1.5
+		if score > best_score:
+			best = dir
+			best_score = score
+	return best
+
+
+## Va a donde lo vio por última vez (adelantado lo que iba corriendo); allí mira a un lado y a otro.
+func _update_search() -> void:
+	var npc := controller.npc
+	var up := -controller.gravity_direction.normalized()
+	var to := controller.search_position(profile.search_lead) - npc.global_position
+	to -= up * to.dot(up)
+	if to.length() > 1.5:
+		controller.movement.speed = profile.chase_speed * profile.search_speed * _npc().speed_scale
+		controller.desired_direction = controller.steer_clear_of_water(to.normalized())
+		return
+	controller.movement.speed = AIController.TURN_ONLY_SPEED
+	var sweep := signf(sin(_phase_time * 1.2))
+	controller.desired_facing = controller.project_on_gravity_plane(npc.global_basis.z).rotated(up, sweep * 0.9)
+	controller.turn_rate = 70.0
+
+
+func _npc() -> NPCController:
+	return controller.npc as NPCController
+
+
+## Guardia entera: la del perfil, a la medida de su variante.
+func _max_poise() -> float:
+	return profile.max_poise * _npc().poise_scale
+
+
+## Tono de su voz: el de la especie y el de su variante.
+func _voice() -> float:
+	return profile.voice_pitch * _npc().voice_pitch
 
 
 func _to_target_flat() -> Vector3:
@@ -236,13 +419,16 @@ func _start_attack(attack: CreatureAttack, chained: bool) -> void:
 	runner.start(attack, chained)
 
 
-## Uno de [attacks] que llegue a [dist], que no espere su cooldown y que caiga dentro de su ángulo,
-## al azar por su peso: el suyo, por lo que haga el objetivo, y menos si acaba de usarlo.
+## Uno de [attacks] que llegue a [dist], que no espere su cooldown, que caiga dentro de su ángulo y
+## que su variante sepa hacer, al azar por su peso: el suyo, por lo que haga el objetivo, y menos si
+## acaba de usarlo. Las distancias crecen con el tamaño del cuerpo.
 func _pick_attack(dist: float, attacks: Array[CreatureAttack], ignore_cooldown: bool = false) -> CreatureAttack:
 	var angle := _angle_to_target()
+	var npc := _npc()
 	var options: Array[CreatureAttack] = []
 	for attack in attacks:
-		if dist < attack.distance.x or dist > attack.distance.y or angle > attack.max_angle:
+		var reach := attack.distance * npc.body_size
+		if dist < reach.x or dist > reach.y or angle > attack.max_angle or not npc.can_use_attack(attack.id):
 			continue
 		if not ignore_cooldown and _cooldowns.get(attack.id, 0.0) > 0.0:
 			continue
@@ -300,12 +486,13 @@ func on_parried(_info: DamageInfo) -> void:
 
 
 func _stagger(seconds: float) -> void:
+	_release_turn()
 	_set_phase(Phase.STAGGER, seconds)
 	var npc := controller.npc as NPCController
 	if not profile.stagger_anims.is_empty() and npc.get_action_channel() != null:
 		npc.get_action_channel().play(profile.stagger_anims.pick_random(), 1.0, 0.1, profile.action_fade_out)
 	if profile.stagger_sound != &"":
-		CombatFx.play(profile.stagger_sound, npc.global_position, {"pitch": profile.voice_pitch})
+		CombatFx.play(profile.stagger_sound, npc.global_position, {"pitch": _voice()})
 
 
 func _on_hit(info: DamageInfo, _applied: float) -> void:

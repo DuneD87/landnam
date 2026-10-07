@@ -67,6 +67,15 @@ EVENTS = {
     "lion_growl": {"mode": "segments", "dur": (0.5, 2.5), "sources": [(223978, 4), (270383, 2)]},
     "lion_hurt": {"mode": "segments", "dur": (0.35, 0.6), "take": "start", "sources": [(223978, 3), (270383, 2)]},
     "lion_death": {"mode": "segments", "dur": (1.5, 4.5), "sources": [(223978, 1), (405211, 1), (869003, 1)]},
+    # Lobos: aullidos de lobos de verdad (uno salvaje en Wrangell-St. Elias, betchkal, y un coro de
+    # cinco, ondrosik). Los gruñidos, gañidos y gemidos de cerca son de perros (DaniloSFX, qubodup,
+    # unfa, jedg y craigsmith): un perro grande suena casi igual. El gruñido largo de lobo
+    # (JoseAgudelo) y los coros del Harz y de Wolf Haven no se dejan trocear: son un continuo.
+    "wolf_growl": {"mode": "segments", "dur": (0.6, 2.5), "sources": [(672736, 3), (122183, 2)]},
+    "wolf_snarl": {"mode": "segments", "dur": (0.5, 2.0), "sources": [(672732, 4), (122183, 1)]},
+    "wolf_hurt": {"mode": "segments", "dur": (0.15, 0.6), "take": "start", "sources": [(160478, 5)]},
+    "wolf_death": {"mode": "segments", "dur": (0.8, 3.0), "sources": [(675407, 2), (505827, 1)]},
+    "wolf_howl": {"mode": "segments", "dur": (2.0, 8.0), "sources": [(500646, 3), (143568, 1)]},
 }
 
 # Cómo se llama cada evento en docs/audio_credits.md.
@@ -81,6 +90,8 @@ NAMES = {
     "bear_growl": "Gruñido de oso", "bear_roar": "Rugido de oso", "bear_huff": "Resoplido de oso",
     "bear_hurt": "Oso herido", "bear_death": "Muerte del oso", "lion_roar": "Rugido de león",
     "lion_growl": "Gruñido de león", "lion_hurt": "León herido", "lion_death": "Muerte del león",
+    "wolf_growl": "Gruñido de lobo", "wolf_snarl": "Lobo enseñando los dientes", "wolf_hurt": "Lobo herido",
+    "wolf_death": "Muerte del lobo", "wolf_howl": "Aullido de lobo",
 }
 
 FRAME = 0.02
@@ -303,7 +314,9 @@ def write_credits_doc(credits):
         lines.append("| %s (`%s`) | %s |" % (NAMES.get(name, name), name, ", ".join(refs)))
     lines += ["", "Los osos son de verdad: grizzlis de Yellowstone (del Servicio de Parques Nacionales de EE. UU.,",
         "subidos por Nivatius), un oso negro en Whistler (celldroid) y una librería antigua de efectos",
-        "(craigsmith). Los leones están grabados en zoológicos y en un santuario de fauna. Cada voz del",
+        "(craigsmith). Los leones están grabados en zoológicos y en un santuario de fauna. Los aullidos",
+        "son de lobos de verdad (uno salvaje en Alaska y un coro de cinco); los gruñidos, gañidos y",
+        "gemidos de cerca, de perros. Cada voz del",
         "jugador es de una sola persona: MrFossy la de hombre y Reitanna la de mujer, sin palabras."]
     open(os.path.join(ROOT, "docs", "audio_credits.md"), "w").write("\n".join(lines) + "\n")
 

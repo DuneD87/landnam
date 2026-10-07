@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_m1xq1"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_hurt/wolf_hurt_01.ogg" id="2_6nsr7"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_hurt/wolf_hurt_02.ogg" id="3_pgxph"]
+
+[resource]
+script = ExtResource("1_m1xq1")
+event_id = &"combat_wolf_hurt"
+streams = Array[AudioStream]([ExtResource("2_6nsr7"), ExtResource("3_pgxph")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch = 0.85
+pitch_jitter = 0.06
+max_distance = 45.0
+max_voices = 3
+cooldown = 0.3

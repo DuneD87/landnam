@@ -112,12 +112,14 @@ clic derecho bloquea y la lanza solo pica.
 | Martillo de guerra | 60 % | 35 | 45° | 0,10 s | no |
 
 Las criaturas lo leen (`guarding` en `CombatRead`): el oso embiste más contra la guardia para
-romperla. El escudo va en el antebrazo izquierdo (`CombatPose.shield_xform`, sus mallas en
-`WeaponMeshes.round_shield`/`heater_shield`). La guardia es de Mixamo, en el canal de tronco y
-brazos (`PlayerCombat.GUARD_ANIMS`): con escudo, alzarlo (`shield_block`, a ×1,4: arriba a los
-~0,25 s, lo que dura la parada), sostenerlo (`shield_block_idle`, en bucle) y encajar
-(`shield_block_hit`); con un arma a dos manos, sostenerla (`greatsword_block_idle`) y el golpe lo
-encaja `HitReact`. Las grabaciones están de lado (la cadera girada 50-70°) y en el jugador la
+romperla. El escudo va atado al antebrazo izquierdo (`CombatPose.shield_xform`, sus mallas en
+`WeaponMeshes.round_shield`/`heater_shield`): sigue el giro del antebrazo y no el de la mano, como
+con correas, así que doblar la muñeca no lo mueve. Las escenas de escudo llevan el origen en el
+centro de la cara interior de la tabla, y `SHIELD_ON_FOREARM` la separa del brazo. La guardia
+es de Mixamo, en el canal de tronco y brazos (`PlayerCombat.GUARD_ANIMS`): con escudo, alzarlo
+(`shield_block`, a ×1,4: arriba a los ~0,25 s, lo que dura la parada), sostenerlo
+(`shield_block_idle`, en bucle) y encajar (`shield_block_hit`); con un arma a dos manos,
+sostenerla (`greatsword_block_idle`) y el golpe lo encaja `HitReact`. Las grabaciones están de lado (la cadera girada 50-70°) y en el jugador la
 cadera va con las piernas: `CombatPose._apply_guard` gira el tronco sobre ella hasta dejar el
 escudo, o las manos en el arma, delante del cuerpo.
 
@@ -373,8 +375,31 @@ tono es realista y letal: avisan poco, castigan los errores y no se las deja atr
   `NPCController.sprint_anim_speed` pasa al clip de esprintar por encima de esa velocidad, y
   `run_clip_speed`/`sprint_clip_speed` (la velocidad de suelo de cada clip, medida en él) aceleran
   o frenan esos clips a la velocidad del cuerpo para que las patas no patinen.
-- **Percepción**: si el estado suelta al objetivo (se rinde, se calma) y lo sigue viendo, se lo
-  vuelve a dar; los muertos no se perciben.
+- **Percepción** (`Perception`): un cono hacia donde mira el cuerpo (+Z) y una esfera de oído.
+  La línea de visión va de los ojos (`eye_height`) al pecho del objetivo, así que un murete no lo
+  tapa y una pared sí. Al objetivo que ya tiene no lo pierde por girarse: mientras lo tenga a tiro
+  y a la vista, lo ve aunque quede fuera del cono. Si el estado suelta al objetivo (se rinde, se
+  calma) y lo sigue viendo, se lo vuelve a dar; los muertos no se perciben.
+- **Memoria** (`Perception.memory_time`): al perderlo de vista no lo suelta enseguida.
+  `AIController.target_seen` se apaga y guarda dónde lo vio y a qué velocidad iba
+  (`last_seen_position`, en el marco del planeta). El combate deja de atacar y va a buscarlo
+  (fase `SEARCH`): adonde lo vio, adelantado lo que iba corriendo (`search_lead`), y allí mira a
+  un lado y a otro. Si lo vuelve a ver, sigue; si pasa `memory_time`, lo olvida. Al que le hiere
+  también lo recuerda: sabe de dónde le vino el golpe.
+- **Varios a la vez** (`CombatDirector`): como mucho dos criaturas atacan a la vez a un mismo
+  objetivo. Las demás esperan turno en corro a `wait_distance` (fase `FLANK`), gruñendo
+  (`wait_sound`), repartidas lejos unas de otras y a la espalda del objetivo cuanto más
+  `flank_bias`. Tras atacar, si hay otras esperando, se aparta `wait_time` para cederles el
+  turno. Si el objetivo se mete encima de una que espera, se defiende sin turno; si se aleja, lo
+  persigue. Las de la misma especie (`npc_type`) no se hieren entre ellas (`is_ally`).
+- **Variantes** (`CreatureVariant`, en `variants` de la escena): al aparecer cada una sortea la
+  suya por peso, y su tamaño dentro de ella. Con el tamaño crecen el modelo, la cápsula, la cabeza
+  que se golpea, la altura de los ojos, el alcance y el avance de los ataques y la zancada (los
+  clips de correr se ajustan a ella). La variante multiplica la vida, el daño, la guardia, la
+  velocidad y el tono de voz de la especie, y puede quitarle ataques (`excluded_attacks`); dentro
+  de una variante la vida, el daño y la guardia van además con el cuadrado del tamaño.
+  `max_per_group` limita cuántas salen en una misma manada (`join_group`). `coat_tints` tiñe el
+  pelaje de cada individuo, en una copia propia del material.
 
 Una especie nueva necesita su perfil, sus ataques medidos sobre sus clips y un nodo
 `CombatState` con `CreatureCombatState` y el perfil en su escena. `test_creature_combat` comprueba
@@ -388,8 +413,8 @@ largo del clip, y la velocidad de suelo de los pies en apoyo en los de correr.
 
 ### Osos
 
-El oso ve al jugador a 32 m (cono de 140°) y lo oye a 14 m, ruge y persigue a 8 m/s, la velocidad
-de suelo de su clip de correr; a más de 12 m esprinta a 11,5 m/s mientras le dura el fuelle (6 s).
+El oso ve al jugador a 32 m (cono de 140° por delante) y lo oye a 14 m, ruge y persigue a 8 m/s,
+la velocidad de suelo de su clip de correr; a más de 12 m esprinta a 11,5 m/s mientras le dura el fuelle (6 s).
 El jugador esprintando va a 9 m/s: no se le deja atrás. Sus ataques (`bear_combat.tres`):
 
 | Ataque | Animación | Distancia | Daño | Prefiere | Encadena |
@@ -400,7 +425,8 @@ El jugador esprintando va a 9 m/s: no se le deja atrás. Sus ataques (`bear_comb
 
 Avisa poco (0,12–0,15 s plantado y el clip algo lento) y, comprometido, aún sigue al objetivo a
 25–60 °/s. Tiene 240 de vida (el polar, 320) y 110 de guardia, más la armadura de cada ataque; al
-romperla se queda vendido 1 s. Deja de perseguir a 60 m.
+romperla se queda vendido 1 s. Deja de perseguir a 60 m. Te recuerda 10 s sin verte y, con
+otros osos, espera en corro a 8,5 m resoplando (`bear_huff`); apenas flanquea (`flank_bias` 0,2).
 
 ### León
 
@@ -419,6 +445,33 @@ de su sitio. Carga a 12,5 m/s con el clip de esprintar. Sus ataques (`lion_comba
 
 Apenas avisa (0,06–0,08 s) y es ágil (sigue al objetivo a 70 °/s comprometido en los zarpazos).
 Tiene 170 de vida y 70 de guardia; al romperla se tambalea 0,8 s con `lion_hit_chest_lft/rgt_01`.
+Te recuerda 12 s sin verte y, con otros leones, espera en corro a 8 m buscando tu espalda
+(`flank_bias` 0,6).
+
+### Lobos
+
+Van en manada de 3 a 5 por encima de 10° de latitud en los dos hemisferios (`wolves.tres`), más
+al anochecer y de noche, y deambulan sin alejarse 25 m de su casa, que es la de toda la manada.
+Ven a 45 m (cono de 240°) y oyen a 16 m. El que ve al jugador aúlla (`wolf_howl`) y acuden los de
+su manada a menos de 45 m. Persiguen a 9,5 m/s y a más de 10 m esprintan a 13 m/s (10 s de
+fuelle). Esperan turno a 5,5 m buscando la espalda (`flank_bias` 0,9) y gruñendo, y recuerdan al
+jugador 15 s sin verlo. Sus ataques (`wolf_combat.tres`):
+
+| Ataque | Animación | Distancia | Daño | Encadena |
+| --- | --- | --- | --- | --- |
+| Mordisco (`bite`) | `Attack_BiteForward` | < 2,2 m | 24 | otro mordisco (25 %) |
+| Salto (`leap`) | `Attack_Run_01_AttackF` | 2,5–5,5 m | 34, no se para | |
+| Derribo (`takedown`) | `Attack_JumpBearDown_01` | 1,8–4,5 m | 30 + 22, no se para | |
+
+Tienen 85 de vida y 45 de guardia. Cada uno es de una variante:
+
+| Variante | Sale | Tamaño | Vida | Daño | Guardia | Velocidad | |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Joven (`wolf_young.tres`) | 30 % | 0,80–0,88 | ×0,6 | ×0,6 | ×0,6 | ×1,05 | no derriba, voz aguda |
+| Adulto (`wolf_adult.tres`) | 55 % | 0,95–1,05 | ×1 | ×1 | ×1 | ×1 | |
+| Grande (`wolf_large.tres`) | 15 %, uno por manada | 1,12–1,22 | ×1,6 | ×1,4 | ×1,7 | ×0,95 | voz grave |
+
+El pelaje sale natural, pardo, gris frío u oscuro.
 
 ## Sonido
 
@@ -469,10 +522,11 @@ la vida y el aguante llenos y conserva el inventario. Las criaturas que iban a p
 
 ## Consola
 
-- `spawn oso [cantidad] [distancia]`: suelta osos delante (también `ciervo`, `leon`,
-  `bufalo`). Sus cadáveres duran dos minutos.
-- `ia [radio]`: estado, fase, ataque, combo, guardia y fuelle de cada criatura cercana, y lo que
-  lee de su objetivo.
+- `spawn oso [cantidad] [distancia] [variante]`: suelta osos delante (también `ciervo`, `leon`,
+  `bufalo`, `lobo`). Los que salen juntos van en manada; con variante (`spawn lobo 4 grande`)
+  salen todos de esa. Sus cadáveres duran dos minutos.
+- `ia [radio]`: variante, estado, fase, ataque, combo, guardia y fuelle de cada criatura
+  cercana, y lo que lee de su objetivo.
 - `morir`: mata al jugador para probar la muerte y la reaparición.
 - `cortar [brazo|antebrazo|muslo|pierna] [izq|der]`: cercena un miembro del jugador al momento.
 - `mutilar [0-1|auto]`: probabilidad de que un tajo en un brazo o una pierna lo cercene.

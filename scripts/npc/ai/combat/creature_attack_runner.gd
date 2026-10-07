@@ -58,14 +58,14 @@ func start(next: CreatureAttack, chained: bool = false) -> void:
 	for hit in next.hits:
 		var per_bone: Array[MeleeSweep] = []
 		for bone in hit.bones:
-			var sweep := MeleeSweep.new(hit.radius)
+			var sweep := MeleeSweep.new(hit.radius * _npc.body_size)
 			for box in _npc.hurtboxes:
 				sweep.exclude.append(box.get_rid())
 			per_bone.append(sweep)
 		_sweeps.append(per_bone)
 	var sound := next.sound if next.sound != &"" else _profile.attack_sound
 	if sound != &"":
-		CombatFx.play(sound, _npc.global_position, {"pitch": randf_range(0.9, 1.1) * _profile.voice_pitch})
+		CombatFx.play(sound, _npc.global_position, {"pitch": randf_range(0.9, 1.1) * _profile.voice_pitch * _npc.voice_pitch})
 	if _tell <= 0.0:
 		_play_anim()
 
@@ -137,12 +137,13 @@ func update(delta: float) -> bool:
 	var prev := time
 	time += delta * speed
 	_face(attack.track_active if time >= attack.commit_time() else attack.track_windup)
+	# El avance y donde se frena van con el tamaño del cuerpo, como el alcance de la animación.
 	var lunge := attack.lunge
 	if lunge.z > 0.0 and lunge.y > lunge.x and time >= lunge.x and prev <= lunge.y:
-		var full := lunge.z / ((lunge.y - lunge.x) / maxf(attack.speed, 0.01))
+		var full := lunge.z * _npc.body_size / ((lunge.y - lunge.x) / maxf(attack.speed, 0.01))
 		var room := INF
 		if attack.lunge_min_distance > 0.0:
-			room = maxf(0.0, _controller.distance_to_target() - attack.lunge_min_distance)
+			room = maxf(0.0, _controller.distance_to_target() - attack.lunge_min_distance * _npc.body_size)
 		var left := maxf((lunge.y - time) / maxf(attack.speed, 0.01), delta)
 		movement.speed = maxf(minf(full, room / left), AIController.TURN_ONLY_SPEED)
 		_controller.desired_direction = _forward()
@@ -195,17 +196,18 @@ func _sweep_hit(hit: CreatureHit, sweeps: Array) -> void:
 			var box: Hurtbox = result.hurtbox
 			for other in sweeps:
 				(other as MeleeSweep).mark_hit(box.owner_body)
-			if box.owner_body == _npc:
+			if box.owner_body == _npc or _npc.is_ally(box.owner_body):
 				continue
 			var dir := _controller.project_on_gravity_plane(box.owner_body.global_position - _npc.global_position)
-			var info := DamageInfo.create(hit.damage, _npc, result.point, dir, hit.poise)
+			var info := DamageInfo.create(hit.damage * _npc.damage_scale, _npc, result.point, dir,
+				hit.poise * _npc.damage_scale)
 			info.kind = hit.kind
 			info.knockback = hit.knockback
 			info.parryable = hit.parryable
 			# Lo parado con la guardia ni sangra ni suena a carne: suena la guardia (Guard).
 			if box.receive(info) > 0.0 and info.guarded != Guard.Result.BLOCKED:
 				landed += 1
-				CombatFx.blood(box.owner_body, result.point, dir, hit.kind, hit.damage)
+				CombatFx.blood(box.owner_body, result.point, dir, hit.kind, info.amount)
 				CombatFx.impact(_npc, result.point, hit.kind, true)
 			if attack == null:
 				return

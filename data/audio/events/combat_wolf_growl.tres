@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_a778j"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_growl/wolf_growl_01.ogg" id="2_sfvbt"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_growl/wolf_growl_02.ogg" id="3_spb6j"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_growl/wolf_growl_03.ogg" id="4_qrbrf"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_growl/wolf_growl_04.ogg" id="5_u4ot2"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_growl/wolf_growl_05.ogg" id="6_slsp4"]
+
+[resource]
+script = ExtResource("1_a778j")
+event_id = &"combat_wolf_growl"
+streams = Array[AudioStream]([ExtResource("2_sfvbt"), ExtResource("3_spb6j"), ExtResource("4_qrbrf"), ExtResource("5_u4ot2"), ExtResource("6_slsp4")])
+volume_db = -3.0
+volume_jitter_db = 1.5
+pitch = 0.88
+pitch_jitter = 0.06
+max_distance = 45.0
+cooldown = 0.4
