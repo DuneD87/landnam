@@ -3,7 +3,11 @@ class_name AmbientFish extends AmbientAnimal
 const CLEARANCE: float = 0.95
 ## -1 mixes all species; select one in the scene Inspector for a dedicated population.
 @export_enum("Aleatorio:-1", "Sardina:0", "Dorada:1", "Pez payaso:2", "Pez mariposa:3", "Cirujano azul:4", "Lábrido:5") var fish_type: int = -1
+## Peces de un pack (FishSpecies): cada uno sortea, por su peso, entre los que viven en el agua
+## donde sale (mar o lago). Vacío = los procedurales de SimpleFishMesh (fish_type).
+@export var pack_species: Array[FishSpecies] = []
 var current_type: int = 0
+var current_species: FishSpecies
 var _water: WaterFaunaHabitat
 var _rng := RandomNumberGenerator.new()
 var _target_local := Vector3.ZERO
@@ -16,8 +20,9 @@ var _surface_radius: float = 0.0
 
 
 func _ready() -> void:
-	_visual.mesh = SimpleFishMesh.mesh()
-	_visual.material_override = SimpleFishMesh.material()
+	if pack_species.is_empty():
+		_visual.mesh = SimpleFishMesh.mesh()
+		_visual.material_override = SimpleFishMesh.material()
 	_collision.shape = _collision.shape.duplicate()
 
 
@@ -40,6 +45,9 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 
 
 func _configure_visual() -> void:
+	if not pack_species.is_empty():
+		_configure_species()
+		return
 	current_type = _rng.randi_range(0, SimpleFishMesh.TYPES.size() - 1) if fish_type < 0 else clampi(fish_type, 0, SimpleFishMesh.TYPES.size() - 1)
 	_speed = _rng.randf_range(0.8, 1.4) * float(SimpleFishMesh.TYPES[current_type].speed)
 	var size := _rng.randf_range(0.75, SimpleFishMesh.MAX_SCALE)
@@ -54,6 +62,60 @@ func _configure_visual() -> void:
 	_visual.set_instance_shader_parameter("fish_color", Color.from_hsv(_rng.randf(), _rng.randf_range(0.015, 0.09), _rng.randf_range(0.88, 1.0)))
 	_visual.set_instance_shader_parameter("swim_phase", _rng.randf_range(0.0, TAU))
 	_visual.set_instance_shader_parameter("swim_frequency", _speed * 6.0)
+
+
+## Un pez del pack: la especie del agua donde sale, su malla y materiales, su tamaño (su variante),
+## velocidad y caja, y lo que necesita su shader para nadar (dónde tiene la cabeza y la cola, cuánto
+## y qué deprisa coletea: avanza unos 0,7 largos por coletazo).
+func _configure_species() -> void:
+	current_species = _pick_species()
+	roll_variant(_rng)
+	var size := current_species.scale * body_size
+	_speed = current_species.speed * speed_scale * _rng.randf_range(0.8, 1.2)
+	_visual.mesh = current_species.mesh
+	_visual.material_override = null
+	for i in current_species.materials.size():
+		_visual.set_surface_override_material(i, current_species.materials[i])
+	_visual.scale = Vector3.ONE * size
+	var bounds := current_species.collision_bounds()
+	(_collision.shape as BoxShape3D).size = bounds.size * size
+	_collision.position = bounds.get_center() * size
+	_collision.disabled = false
+	impact_radius = CLEARANCE
+	var box := current_species.mesh.get_aabb()
+	_visual.set_instance_shader_parameter("head_z", box.position.z)
+	_visual.set_instance_shader_parameter("tail_z", box.end.z)
+	_visual.set_instance_shader_parameter("sway", current_species.sway)
+	_visual.set_instance_shader_parameter("swim_phase", _rng.randf_range(0.0, TAU))
+	_visual.set_instance_shader_parameter("swim_frequency", TAU * _speed / (0.7 * box.size.z * size))
+	_visual.set_instance_shader_parameter("tint", Color.from_hsv(_rng.randf(), _rng.randf_range(0.0, 0.06), _rng.randf_range(0.9, 1.0)))
+
+
+## Los del pack, los tamaños de su especie; los procedurales, los del perfil.
+func get_variants() -> Array[CreatureVariant]:
+	return current_species.variants if current_species != null and not pack_species.is_empty() \
+		else super.get_variants()
+
+
+## La especie, por su peso, entre las que viven en el agua de aquí (si el mapa lo sabe; si no, o si
+## ninguna vive ahí, entre todas).
+func _pick_species() -> FishSpecies:
+	var water := -1
+	if _water != null and _water.world_map != null and _water.world_map.is_ready():
+		water = _water.world_map.get_water_type_at(global_position)
+	var options := pack_species.filter(func(entry: FishSpecies) -> bool:
+		return entry != null and (entry.water_types.is_empty() or water in entry.water_types))
+	if options.is_empty():
+		options = pack_species.filter(func(entry: FishSpecies) -> bool: return entry != null)
+	var total := 0.0
+	for entry in options:
+		total += entry.weight
+	var roll := _rng.randf() * total
+	for entry in options:
+		roll -= entry.weight
+		if roll <= 0.0:
+			return entry
+	return options.back()
 
 
 func deactivate() -> void:

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="FishSpecies" format=3]
+
+[ext_resource type="Script" path="res://scripts/fauna/fish_species.gd" id="1_species"]
+[ext_resource type="ArrayMesh" path="res://models/animals/fish/bluegill_mesh.res" id="2_mesh"]
+[ext_resource type="Material" path="res://models/animals/fish/bluegill_eye.tres" id="3_eye"]
+[ext_resource type="Material" path="res://models/animals/fish/bluegill_body.tres" id="4_body"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/fish_young.tres" id="v_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/fish_adult.tres" id="v_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/fish_large.tres" id="v_large"]
+
+[resource]
+script = ExtResource("1_species")
+id = &"pez_sol"
+mesh = ExtResource("2_mesh")
+materials = Array[Material]([ExtResource("3_eye"), ExtResource("4_body")])
+scale = 0.68
+speed = 0.7
+sway = 0.08
+water_types = Array[int]([2, 3])
+weight = 1.5
+variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])

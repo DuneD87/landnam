@@ -22,7 +22,10 @@ static var _planets: Array[Planet] = []
 
 
 static func setup(world: Planet) -> void:
-	_planets = _planets.filter(func(p: Planet) -> bool: return is_instance_valid(p))
+	# Sin filter: un planeta liberado no entra en un parámetro tipado.
+	for i in range(_planets.size() - 1, -1, -1):
+		if not is_instance_valid(_planets[i]):
+			_planets.remove_at(i)
 	if world != null and world not in _planets:
 		_planets.append(world)
 

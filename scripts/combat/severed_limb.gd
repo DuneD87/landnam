@@ -95,7 +95,10 @@ static func spawn(host: Node, source: Skeleton3D, frame_node: Node3D, parts: Arr
 		limb._cut_point = limb._cut_body.global_transform.affine_inverse() * cut_point
 		limb._cut_dir = limb._cut_body.global_basis.inverse() * cut_dir
 
-	_alive = _alive.filter(func(other: SeveredLimb) -> bool: return is_instance_valid(other))
+	# Fuera los que ya se han ido. Sin filter: un liberado no entra en un parámetro tipado.
+	for i in range(_alive.size() - 1, -1, -1):
+		if not is_instance_valid(_alive[i]):
+			_alive.remove_at(i)
 	_alive.append(limb)
 	while _alive.size() > MAX_ALIVE:
 		_alive.pop_front().queue_free()

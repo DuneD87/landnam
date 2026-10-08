@@ -85,7 +85,10 @@ static func spawn(host: Node, source: Skeleton3D, parts: Array, extras: Array[No
 	chunk.angular_velocity = Vector3(randf_range(-6, 6), randf_range(-6, 6), randf_range(-6, 6))
 	chunk._cut_point = chunk.global_transform.affine_inverse() * cut_point
 	chunk._cut_dir = chunk.global_basis.inverse() * cut_dir
-	_alive = _alive.filter(func(other: SeveredChunk) -> bool: return is_instance_valid(other))
+	# Fuera los que ya se han ido. Sin filter: un liberado no entra en un parámetro tipado.
+	for i in range(_alive.size() - 1, -1, -1):
+		if not is_instance_valid(_alive[i]):
+			_alive.remove_at(i)
 	_alive.append(chunk)
 	while _alive.size() > MAX_ALIVE:
 		_alive.pop_front().queue_free()

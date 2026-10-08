@@ -14,6 +14,10 @@
 [ext_resource type="Script" uid="uid://v8nkfaw2cl4h" path="res://scripts/npc/perception.gd" id="14_0s15x"]
 
 [ext_resource type="AnimationLibrary" path="res://models/animals/Buffalo_anims.tres" id="x_ev0pn"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_large"]
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_few7p"]
 margin = 0.004
 radius = 0.5605469
@@ -306,6 +310,7 @@ safe_margin = 0.008
 script = ExtResource("1_wc82b")
 detect_state = &"FleeState"
 entity_id = "npc_121302308467617"
+variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1074435694]
 transform = Transform3D(1.9106855e-15, 4.371139e-08, 1, 1, -4.371139e-08, 0, 4.371139e-08, 1, -4.371139e-08, -0.0066976547, 0.59783804, 0)

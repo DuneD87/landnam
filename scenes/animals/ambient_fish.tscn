@@ -1,6 +1,10 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/fauna/ambient_fish.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/fauna/fish_species.gd" id="2_species"]
+[ext_resource type="Resource" path="res://data/fauna/fish/tuna.tres" id="3_tuna"]
+[ext_resource type="Resource" path="res://data/fauna/fish/trout.tres" id="4_trout"]
+[ext_resource type="Resource" path="res://data/fauna/fish/bluegill.tres" id="5_bluegill"]
 
 [sub_resource type="BoxShape3D" id="Box"]
 size = Vector3(0.55, 0.65, 1.1)
@@ -12,6 +16,7 @@ motion_mode = 1
 platform_floor_layers = 0
 platform_wall_layers = 0
 script = ExtResource("1")
+pack_species = Array[ExtResource("2_species")]([ExtResource("3_tuna"), ExtResource("4_trout"), ExtResource("5_bluegill")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 position = Vector3(0, 0, 0.13)

@@ -75,14 +75,9 @@ var _is_dying: bool = false
 ## Tintes del pelaje (multiplican la textura), uno al azar por individuo. Ninguno = el de la textura.
 @export var coat_tints: Array[Color] = []
 
-## La variante que le ha tocado (null = la de la escena) y la escala de su cuerpo, y lo que de ella
-## leen el combate (CreatureCombatState, CreatureAttackRunner) y los sonidos.
-var variant: CreatureVariant
-var body_size: float = 1.0
-var damage_scale: float = 1.0
+## De la variante que le ha tocado (AmbientAnimal: variant, body_size, damage_scale, speed_scale,
+## voice_pitch, que leen el combate y los sonidos), lo que aguanta su guardia.
 var poise_scale: float = 1.0
-var speed_scale: float = 1.0
-var voice_pitch: float = 1.0
 
 ## Zonas que reciben golpes: el cuerpo (copia de la cápsula de colisión) y la cabeza.
 var hurtboxes: Array[Hurtbox] = []
@@ -472,6 +467,10 @@ func _capture_base() -> void:
 			mesh_instance.set_surface_override_material(i, copies[material])
 
 
+func get_variants() -> Array[CreatureVariant]:
+	return variants
+
+
 ## Sortea su variante (por peso, sin pasar del tope de su manada), su tamaño dentro de ella y su
 ## pelaje. [rng] null = uno propio al azar.
 func roll_variant(rng: RandomNumberGenerator) -> void:
@@ -481,27 +480,21 @@ func roll_variant(rng: RandomNumberGenerator) -> void:
 		rng = RandomNumberGenerator.new()
 		rng.randomize()
 	_variant_rng = rng
-	var picked := _pick_variant(rng)
-	apply_variant(picked, rng.randf_range(picked.size.x, picked.size.y) if picked != null else 1.0)
+	super.roll_variant(rng)
 	if not coat_tints.is_empty():
 		var tint := coat_tints[rng.randi() % coat_tints.size()]
 		for i in _coat.size():
 			_coat[i].albedo_color = _coat_colors[i] * tint
 
 
-## Le pone la variante [v] con el cuerpo a escala [size] (<= 0: la media de la variante). null = la
-## de la escena, a escala 1. Repone la vida entera: es para cuando aparece.
+## Además de los números (AmbientAnimal), la vida, la guardia, la velocidad, el modelo, la
+## percepción y lo que choca. Repone la vida entera: es para cuando aparece.
 func apply_variant(v: CreatureVariant, size: float = -1.0) -> void:
 	if _base.is_empty():
 		return
-	variant = v
-	body_size = size if size > 0.0 else (v.mid_size() if v != null else 1.0)
-	var ratio := body_size / v.mid_size() if v != null and v.mid_size() > 0.0 else 1.0
-	var strength := ratio * ratio
-	damage_scale = (v.damage if v != null else 1.0) * strength
+	super.apply_variant(v, size)
+	var strength := v.strength(body_size) if v != null else 1.0
 	poise_scale = (v.poise if v != null else 1.0) * strength
-	speed_scale = v.speed if v != null else 1.0
-	voice_pitch = v.voice_pitch if v != null else 1.0
 	health_component.max_health = _base.max_health * (v.health if v != null else 1.0) * strength
 	health_component.health = health_component.max_health
 	movement.speed = _base.speed * speed_scale
@@ -525,29 +518,8 @@ func can_use_attack(id: StringName) -> bool:
 	return variant == null or not id in variant.excluded_attacks
 
 
-## La variante y el tamaño, para la consola: "grande ×1,18".
-func describe_variant() -> String:
-	if variant == null:
-		return ""
-	return "%s ×%.2f" % [variant.id, body_size]
-
-
-func _pick_variant(rng: RandomNumberGenerator) -> CreatureVariant:
-	var options: Array[CreatureVariant] = []
-	var total := 0.0
-	for v in variants:
-		if v == null or v.weight <= 0.0 or (v.max_per_group > 0 and _pack_count(v) >= v.max_per_group):
-			continue
-		options.append(v)
-		total += v.weight
-	if options.is_empty():
-		return null
-	var roll := rng.randf() * total
-	for v in options:
-		roll -= v.weight
-		if roll <= 0.0:
-			return v
-	return options.back()
+func _variant_allowed(v: CreatureVariant) -> bool:
+	return v.max_per_group <= 0 or _pack_count(v) < v.max_per_group
 
 
 ## Cuántos otros de su manada llevan la variante [v].

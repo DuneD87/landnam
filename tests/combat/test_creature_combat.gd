@@ -122,6 +122,8 @@ func _check_profile(file: String, animal: NPCController, profile: CreatureCombat
 	check(problems.is_empty(), "%s: ataques coherentes con su esqueleto y sus clips %s" % [file, problems])
 	# Sus variantes: con nombre único, tamaños con sentido y que solo quitan ataques que tiene.
 	var variant_problems: PackedStringArray = []
+	if animal.variants.size() < 2:
+		variant_problems.append("sin variedad de tamaños")
 	var variant_ids := {}
 	for v in animal.variants:
 		if v == null or v.id == &"" or variant_ids.has(v.id):
@@ -380,6 +382,7 @@ func _land(scene: PackedScene, id: StringName, dist: float, extreme: int = 0) ->
 func _check_territory() -> void:
 	var lion := (load("%s/Lion.tscn" % ANIMALS_DIR) as PackedScene).instantiate() as NPCController
 	add_child(lion)
+	lion.apply_variant(null)
 	lion.global_transform = Transform3D.IDENTITY
 	var target := _target(Vector3(0, 0, 26))
 	await get_tree().physics_frame
@@ -417,6 +420,7 @@ func _check_territory() -> void:
 func _check_home_and_gait() -> void:
 	var lion := (load("%s/Lion.tscn" % ANIMALS_DIR) as PackedScene).instantiate() as NPCController
 	add_child(lion)
+	lion.apply_variant(null)
 	var planet := Node3D.new()
 	add_child(planet)
 	lion.planet = planet
@@ -898,6 +902,8 @@ func _check_player_voice() -> void:
 func _spawn_bear() -> NPCController:
 	var bear := (load("%s/Bear.tscn" % ANIMALS_DIR) as PackedScene).instantiate() as NPCController
 	add_child(bear)
+	# Al tamaño de la escena: al aparecer sortea uno de sus variantes.
+	bear.apply_variant(null)
 	bear.global_transform = Transform3D.IDENTITY
 	return bear
 

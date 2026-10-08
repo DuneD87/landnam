@@ -280,8 +280,10 @@ func is_dressing() -> bool:
 
 func _refit_dressed() -> void:
 	_fit_context = null
-	_dressed = _dressed.filter(func(item: Node) -> bool:
-			return is_instance_valid(item) and _skeleton.is_ancestor_of(item))
+	# Sin filter: una prenda liberada no entra en un parámetro tipado.
+	for i in range(_dressed.size() - 1, -1, -1):
+		if not is_instance_valid(_dressed[i]) or not _skeleton.is_ancestor_of(_dressed[i]):
+			_dressed.remove_at(i)
 	for item in _covering.keys():
 		if not _dressed.has(item):
 			_covering.erase(item)

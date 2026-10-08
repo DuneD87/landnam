@@ -1,11 +1,17 @@
-[gd_resource type="Resource" script_class="SmallGroundFaunaProfile" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SmallGroundFaunaProfile" format=3]
 
 [ext_resource type="Script" path="res://scripts/fauna/small_ground_fauna_profile.gd" id="1"]
+[ext_resource type="Resource" path="res://data/fauna/models/arctic_hare.tres" id="2_model"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_young.tres" id="v_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_adult.tres" id="v_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_large.tres" id="v_large"]
 
 [resource]
 script = ExtResource("1")
 scene_path = "res://scenes/animals/ambient_small_ground_animal.tscn"
 species = 3
+model = ExtResource("2_model")
 population = 10
 spawn_min_distance = 20.0
 spawn_radius = 70.0
@@ -19,11 +25,12 @@ min_height = -49.5
 max_height = 500.0
 climate_min = 46.0
 climate_max = 68.0
-walk_speed = 1.1
-flee_speed = 4.4
+walk_speed = 0.7
+flee_speed = 6.5
 flee_distance = 7
 wander_distance = 5
 min_spacing = 10.0
 day_activity = 0.6
 twilight_activity = 1.0
 night_activity = 0.8
+variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])

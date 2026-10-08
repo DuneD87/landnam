@@ -10,6 +10,18 @@ claras; el pato tiene pico aplanado, collar, franjas azules en las alas y cola
 curvada. Ambos conservan patas palmeadas. La galería y el proceso de construcción
 se describen en [bird_models.md](bird_models.md).
 
+El pato ya no usa el modelo procedural: es el `Duck` del pack de animales (WildMesh), con
+esqueleto (`SkinnedBirdModel` y `data/fauna/models/duck.tres`, un `BirdModelData`). El clip sale
+del estado del ave: flotando, una de sus siete variantes de quieto (una se zambulle), sorteada al
+posarse, o `SwimMoveMedium` si la deriva lo mueve; al despegar, `TakeOff_RunUp` (corre sobre el
+agua aleteando); volando, `FlyFlapping`; llegando a posarse frena en el aire con
+`Landing_PreLanding` y se queda así hasta tocar el agua, y entonces `Landing_Touch`. Sus clips de
+nadar llevan el cuerpo a la altura de pie, así que flotando se hunde 13 cm (`float_depth`). Como
+los animales pequeños del pack, se anima menos lejos y fuera de cámara (`fauna:birds/anim`). La
+gaviota sigue siendo procedural: el pack no trae ninguna. Patos y gaviotas salen de tres tamaños
+(`bird_*`, ver [ambient_fauna.md](ambient_fauna.md#tamaños)): el modelo y su esfera de choque van a
+escala, y los grandes graznan algo más grave.
+
 ## Configuración
 
 Editar los recursos `.tres`, también desde el inspector de Godot:

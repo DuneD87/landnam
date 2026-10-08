@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="BirdModelData" format=3]
+
+[ext_resource type="Script" path="res://scripts/fauna/bird_model_data.gd" id="1_data"]
+[ext_resource type="PackedScene" path="res://models/animals/duck/duck.fbx" id="2_scene"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/Duck_anims.res" id="3_anims"]
+[ext_resource type="Material" path="res://models/animals/duck/duck_body.tres" id="4_material"]
+
+[resource]
+script = ExtResource("1_data")
+scene = ExtResource("2_scene")
+animations = ExtResource("3_anims")
+material = ExtResource("4_material")
+idle_clip = &"SwimSteady_1"
+blend_time = 0.25
+perched_clips = Array[StringName]([&"SwimSteady_1", &"SwimSteady_2", &"SwimSteady_3", &"SwimSteady_4", &"SwimSteady_5", &"SwimSteady_6", &"SwimSteady_7"])
+swim_clip = &"SwimMoveMedium"
+touchdown_clip = &"Landing_Touch"
+takeoff_clip = &"TakeOff_RunUp"
+fly_clip = &"FlyFlapping"
+brake_clip = &"Landing_PreLanding"
+float_depth = 0.13

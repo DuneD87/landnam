@@ -17,6 +17,10 @@
 [ext_resource type="Script" uid="uid://crifabnl3t42p" path="res://scripts/npc/ai/states/death_state.gd" id="15_d11b7"]
 
 [ext_resource type="AnimationLibrary" path="res://models/animals/Deer_anims.tres" id="x_t52uy"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_large"]
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_few7p"]
 margin = 0.004
 radius = 0.5605469
@@ -331,6 +335,7 @@ script = ExtResource("1_ppta3")
 detect_state = &"FleeState"
 npc_type = &"Deer"
 entity_id = "npc_2067255076834"
+variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1074435694]
 transform = Transform3D(1.9106855e-15, 4.371139e-08, 1, 1, -4.371139e-08, 0, 4.371139e-08, 1, -4.371139e-08, -0.0066976547, 0.59783804, 0)

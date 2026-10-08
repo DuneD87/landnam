@@ -15,6 +15,10 @@
 [ext_resource type="Script" uid="uid://dsyulr1uf8n11" path="res://scripts/player/animation_controller.gd" id="12_suyl2"]
 [ext_resource type="Script" uid="uid://v8nkfaw2cl4h" path="res://scripts/npc/perception.gd" id="13_74tfl"]
 [ext_resource type="AnimationLibrary" uid="uid://b1psyum002blt" path="res://models/animals/Bear_anims.tres" id="x_8jtgt"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_large"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v1jdd"]
 resource_name = "Bear"
@@ -235,6 +239,7 @@ flinch_bones = Array[String](["RigSpine2", "RigChest", "RigNeck1", "RigHead"])
 hurt_sound = &"bear_hurt"
 death_sound = &"bear_death"
 entity_id = "npc_2069117348020"
+variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])
 
 [node name="Movement" type="Node" parent="." unique_id=397881995]
 script = ExtResource("2_r2nls")

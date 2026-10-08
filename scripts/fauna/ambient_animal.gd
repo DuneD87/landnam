@@ -26,6 +26,15 @@ var impact_radius: float = 0.4
 ## Optional child: a creature without one is fragile and any hit that reaches it is lethal.
 @onready var health_component: HealthComponent = get_node_or_null("HealthComponent")
 
+## Su tamaño (roll_variant): la variante que le ha tocado al salir (null = la de la especie tal
+## cual), la escala de su cuerpo y lo que cambia con ello. Cada especie lo aplica a lo suyo (modelo,
+## colisión, velocidad, mordisco) al montarse.
+var variant: CreatureVariant
+var body_size: float = 1.0
+var damage_scale: float = 1.0
+var speed_scale: float = 1.0
+var voice_pitch: float = 1.0
+
 
 func activate(point: Vector3, environment: AmbientFaunaHabitat,
 		_rng: RandomNumberGenerator) -> void:
@@ -77,6 +86,44 @@ func set_detail(_distance: float) -> void:
 ## criaturas que viven en manada comparten su casa y su reparto de variantes; el resto, nada.
 func join_group(_leader: AmbientAnimal) -> void:
 	pass
+
+
+## De qué tamaños sale su especie: las variantes de su perfil. Las criaturas con escena propia
+## (NPCController) y los peces de varias especies (AmbientFish) las sacan de otro sitio.
+func get_variants() -> Array[CreatureVariant]:
+	return profile.variants if profile != null else ([] as Array[CreatureVariant])
+
+
+## Sortea su variante (por peso, entre las que _variant_allowed deja) y su tamaño dentro de ella, y
+## se la pone (apply_variant). Sin variantes, la especie tal cual. [rng] null = uno propio al azar.
+func roll_variant(rng: RandomNumberGenerator) -> void:
+	if rng == null:
+		rng = RandomNumberGenerator.new()
+		rng.randomize()
+	var picked := CreatureVariant.pick(get_variants(), rng, _variant_allowed)
+	apply_variant(picked, picked.roll_size(rng) if picked != null else 1.0)
+
+
+## Le pone la variante [v] con el cuerpo a escala [size] (<= 0: la media de la variante). null = la
+## especie tal cual, a escala 1. Aquí solo los números; cada especie los aplica al montarse.
+func apply_variant(v: CreatureVariant, size: float = -1.0) -> void:
+	variant = v
+	body_size = size if size > 0.0 else (v.mid_size() if v != null else 1.0)
+	damage_scale = v.damage * v.strength(body_size) if v != null else 1.0
+	speed_scale = v.speed if v != null else 1.0
+	voice_pitch = v.voice_pitch if v != null else 1.0
+
+
+## La variante y el tamaño, para la consola: "grande ×1,18". Vacío sin variante.
+func describe_variant() -> String:
+	if variant == null:
+		return ""
+	return "%s ×%.2f" % [variant.id, body_size]
+
+
+## Si puede salir de la variante [v] (NPCController: sin pasar del tope de su manada).
+func _variant_allowed(_v: CreatureVariant) -> bool:
+	return true
 
 
 ## Point the player's lock-on frames and aims at: the middle of the body, not the feet.
@@ -137,7 +184,7 @@ func die(point: Vector3) -> void:
 		if host != null:
 			var up := _up()
 			if up != Vector3.ZERO:
-				FaunaCorpse.spawn(host, model, velocity, -up * 9.8, 1)
+				FaunaCorpse.spawn(host, model, velocity, -up * 9.8, 1, _corpse_death())
 	deactivate()
 	startle_near(get_tree(), point, DEATH_STARTLE_RADIUS)
 
@@ -203,6 +250,11 @@ func _death_fx(point: Vector3) -> void:
 
 ## The visual model the corpse copies, or null to leave none (fish, a duck on the water).
 func _corpse_model() -> Node3D:
+	return null
+
+
+## La animación de muerte que hace el cadáver (pistas desde su esqueleto), o null.
+func _corpse_death() -> Animation:
 	return null
 
 

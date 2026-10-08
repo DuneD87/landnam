@@ -1,6 +1,10 @@
 [gd_resource type="Resource" script_class="SmallGroundFaunaProfile" load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/fauna/small_ground_fauna_profile.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_young.tres" id="v_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_adult.tres" id="v_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_large.tres" id="v_large"]
 
 [resource]
 script = ExtResource("1")
@@ -27,3 +31,4 @@ day_activity = 0.4
 twilight_activity = 1.0
 night_activity = 1.0
 season_activity = PackedFloat32Array(1, 1, 1, 0.5)
+variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])

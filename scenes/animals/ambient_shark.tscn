@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/fauna/ambient_marine_animal.gd" id="1"]
+[ext_resource type="Resource" path="res://data/fauna/models/shark.tres" id="2_model"]
 [sub_resource type="BoxShape3D" id="Box"]
 
 [node name="Sharks" type="CharacterBody3D"]
@@ -11,6 +12,7 @@ platform_floor_layers = 0
 platform_wall_layers = 0
 script = ExtResource("1")
 species = 0
+model = ExtResource("2_model")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("Box")

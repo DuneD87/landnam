@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="MarineModelData" format=3]
+
+[ext_resource type="Script" path="res://scripts/fauna/marine_model_data.gd" id="1_data"]
+[ext_resource type="PackedScene" path="res://models/animals/shark/shark.fbx" id="2_scene"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/Shark_anims.res" id="3_anims"]
+[ext_resource type="Material" path="res://models/animals/shark/shark_body.tres" id="4_body"]
+[ext_resource type="Material" path="res://models/animals/shark/shark_body2.tres" id="5_mouth"]
+[ext_resource type="Material" path="res://models/animals/shark/shark_body3.tres" id="6_fins"]
+[ext_resource type="Material" path="res://models/animals/shark/shark_body4.tres" id="7_belly"]
+
+[resource]
+script = ExtResource("1_data")
+scene = ExtResource("2_scene")
+animations = ExtResource("3_anims")
+surface_materials = Array[Material]([ExtResource("4_body"), ExtResource("5_mouth"), ExtResource("6_fins"), ExtResource("7_belly")])
+scale = 4.0
+idle_clip = &"Swim"
+blend_time = 0.5
+swim_clip = &"Swim"
+turn_left_clip = &"SwimLeft"
+turn_right_clip = &"SwimRight"
+turn_rate = 0.05
+swim_speed = 1.4
+dash_clip = &"SwimAt"
+dash_speed = 2.8
+bite_left_clip = &"BiteLeft"
+bite_right_clip = &"BiteRight"
+swim_margin = 0.05

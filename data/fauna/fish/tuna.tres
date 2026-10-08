@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="FishSpecies" format=3]
+
+[ext_resource type="Script" path="res://scripts/fauna/fish_species.gd" id="1_species"]
+[ext_resource type="ArrayMesh" path="res://models/animals/fish/tuna_mesh.res" id="2_mesh"]
+[ext_resource type="Material" path="res://models/animals/fish/tuna_eye.tres" id="3_eye"]
+[ext_resource type="Material" path="res://models/animals/fish/tuna_body.tres" id="4_body"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/fish_young.tres" id="v_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/fish_adult.tres" id="v_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/fish_large.tres" id="v_large"]
+
+[resource]
+script = ExtResource("1_species")
+id = &"atun"
+mesh = ExtResource("2_mesh")
+materials = Array[Material]([ExtResource("3_eye"), ExtResource("4_body")])
+scale = 1.35
+speed = 1.5
+sway = 0.06
+water_types = Array[int]([0, 1])
+weight = 1.0
+variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])

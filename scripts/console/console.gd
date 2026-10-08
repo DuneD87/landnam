@@ -293,7 +293,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("terreno", "terreno [colision <lods>] [normalmap on|off]",
 		"Ajustes de coste del terreno en caliente, para comparar picos de 'proc'; sin argumentos, informa.", _cmd_terreno))
 	_add(ConsoleCommand.new("spawn", "spawn <oso|ciervo|leon|bufalo|lobo> [cantidad] [distancia] [variante]",
-		"Suelta animales delante del jugador (el oso es hostil: sirve para probar el combate). Los que salen juntos van en manada; con variante (lobo: joven, adulto, grande) salen todos de esa.", _cmd_spawn, 1, _complete_animals))
+		"Suelta animales delante del jugador (el oso es hostil: sirve para probar el combate). Los que salen juntos van en manada; con variante (joven, adulto, grande) salen todos de esa.", _cmd_spawn, 1, _complete_animals))
 	_add(ConsoleCommand.new("ia", "ia [radio]",
 		"Qué está pensando cada criatura cercana: estado, fase, ataque, combo, guardia y lo que lee de su objetivo.", _cmd_ai))
 	_add(ConsoleCommand.new("morir", "morir",

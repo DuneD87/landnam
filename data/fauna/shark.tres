@@ -2,6 +2,10 @@
 
 [ext_resource type="Script" uid="uid://cmojxvh0wc21j" path="res://scripts/fauna/marine_fauna_profile.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/animals/ambient_shark.tscn" id="2"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/marine_young.tres" id="v_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/marine_adult.tres" id="v_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/marine_large.tres" id="v_large"]
 
 [resource]
 script = ExtResource("1")
@@ -21,3 +25,4 @@ activations_per_update = 1
 clearance = 21.5
 min_spacing = 60.0
 view_margin = 5.0
+variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])

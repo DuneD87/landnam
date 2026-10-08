@@ -46,6 +46,31 @@ cámara.
 
 La consola `fauna` muestra la actividad de cada población.
 
+## Tamaños
+
+Como los lobos, toda la fauna sale de varios tamaños: cada uno sortea al aparecer una variante
+(`CreatureVariant`) por su peso, y su tamaño dentro de ella (`AmbientAnimal.roll_variant`). Las de
+la fauna ambiental van en su perfil (`variants` de `AmbientFaunaProfile`), salvo las de los peces del
+pack, que van en su especie (`FishSpecies`), y las de las criaturas con escena propia (osos, ciervos,
+leones…; ver [combat.md](combat.md)), que van en su escena. Varias especies comparten las mismas,
+en `data/fauna/variants/`:
+
+| Juego (`data/fauna/variants/`) | Para | Variantes (peso: tamaño) |
+| --- | --- | --- |
+| `small_mammal_*` | conejos, liebres, ratones, lémmings, zorros | joven 0,25: 0,65–0,8; adulto 0,6: 0,92–1,06; grande 0,15: 1,06–1,15 |
+| `bird_*` | aves del bosque, gaviotas, patos | pequeña 0,3: 0,86–0,94; mediana 0,5: 0,95–1,05; grande 0,2: 1,05–1,14 |
+| `fish_*` | atún, trucha, pez sol | joven 0,35: 0,6–0,78; adulto 0,5: 0,85–1,1; grande 0,15: 1,15–1,4 |
+| `marine_*` | tiburón, ballena, orca, tortuga | joven 0,25: 0,6–0,75; adulto 0,6: 0,88–1,02; grande 0,15: 1,04–1,12 |
+| `mammal_*` | oso, oso polar, búfalo, ciervo, caribú, león | joven 0,25: 0,78–0,88; adulto 0,6: 0,94–1,06; grande 0,15: 1,1–1,2 |
+
+Las aves apenas cambian (los pollos no salen del nido): solo lo que va de hembras a machos y de uno a
+otro. Los peces crecen toda la vida, así que van de un alevín crecido a un ejemplar viejo. Con el
+tamaño crecen el modelo y lo que choca; la variante cambia además la velocidad (`speed`: los jóvenes
+nadan y huyen algo más despacio), el tono del canto de las aves (`voice_pitch`) y el mordisco del
+tiburón al casco (`damage`: más energía y un agujero más grande). Los marinos coletean más despacio
+cuanto más grandes. El despeje de aparición de cada perfil (`clearance`) tiene que abarcar al más
+grande (`largest_size()`); `test_ambient_fauna` lo comprueba.
+
 ## Ajustes iniciales
 
 `data/fauna/coastal_fish.tres` configura 28 peces, búsqueda entre 18 y 65 metros
@@ -119,6 +144,33 @@ La caja de colisión se calcula a partir de la malla elegida, incluyendo margen
 para el movimiento de las aletas. Las pruebas comprueban que cada modelo a su
 máxima escala cabe en el radio de seguridad de spawn. Los peces son opacos y
 participan en el efecto submarino existente.
+
+### Peces del pack
+
+`ambient_fish.tscn` lleva en `pack_species` los peces del pack de animales (WildMesh), y entonces
+los procedurales de arriba no se usan:
+
+| Especie (`data/fauna/fish/`) | Aguas | Largo adulto (de joven a grande) | Velocidad |
+| --- | --- | --- | --- |
+| Atún (`tuna.tres`) | océano y mar | 0,70–0,90 m (0,49–1,15 m) | 1,5 m/s |
+| Trucha (`trout.tres`) | lago y charca | 0,41–0,53 m (0,29–0,67 m) | 1,0 m/s |
+| Pez sol (`bluegill.tres`) | lago y charca | 0,20–0,26 m (0,14–0,33 m) | 0,7 m/s |
+
+`scale` es la escala de la malla para un adulto medio; sus `variants` (las de `fish_*`) la reparten.
+
+Cada pez sortea, por su peso, entre las especies del agua donde sale (`WorldMapData.WaterType` del
+mapa; sin mapa, entre todas). Nadan sin esqueleto: `tools/fauna/bake_static_mesh.gd` hornea la pose
+de reposo del FBX como malla estática (cabeza hacia -Z, centrada en su caja, con sus dos
+superficies: ojo y cuerpo), y `pack_fish.gdshader` ondula el cuerpo de lado, más hacia la cola,
+con la onda corriendo de la cabeza a la cola (`sway`, en fracción del largo). El coletazo va con la
+velocidad: unos 0,7 largos por coletazo. Un banco de 28 peces con esqueleto costaría 28 esqueletos
+animados; así cuesta lo mismo que los procedurales. La caja de colisión es la de la malla más lo
+que barre la cola.
+
+```
+godot --headless --path . --script res://tools/fauna/bake_static_mesh.gd -- \
+    --source=res://models/animals/fish/tuna.fbx --out=res://models/animals/fish/tuna_mesh.res
+```
 
 ## Tiburones, ballenas, orcas y tortugas
 
@@ -213,6 +265,24 @@ la cola lateralmente en tiburones, verticalmente en cetáceos y las aletas en
 tortugas. La cadencia disminuye con el tamaño, las normales acompañan la
 flexión y los pesos de las aletas mantienen rígido el caparazón. Ballenas,
 orcas y tortugas son fauna ambiental: solo el tiburón tiene `attack_radius`.
+
+### Tiburón del pack
+
+El tiburón ya no usa la malla procedural: es el `Jaws` del pack estilizado de WildMesh (el realista
+no trae tiburones ni tortugas marinas; su tortuga es de tierra, así que la nuestra sigue siendo la
+procedural, como la ballena y la orca). `ambient_shark.tscn` lleva `model`, un `MarineModelData`
+(`data/fauna/models/shark.tres`), y entonces `SkinnedMarineModel` lo monta centrado en su caja, a
+escala 4 (26 m de adulto, como el procedural), con un material por superficie (cuerpo, boca y
+dientes, aletas, vientre) y `pack_marine.gdshader`, que hace el mismo fundido tramado al aparecer y
+al irse. La especie (`species`) sigue mandando en la velocidad.
+
+El clip sale de lo que hace el cuerpo: de crucero `Swim`; girando más de `turn_rate` (0,05 rad/s),
+`SwimLeft` o `SwimRight`, sin perder la fase de la cola; a la carga y al alejarse después de morder,
+`SwimAt`; y al morder el casco, `BiteLeft` o `BiteRight` según el lado del barco, una vez. El ritmo
+va con la velocidad (`swim_speed`, `dash_speed`: a qué velocidad de la especie va el clip a ritmo 1)
+y baja con el tamaño. La caja de colisión es la del modelo en reposo más `swim_margin` del largo, y
+el hocico (donde muerde) es su frente. Como los demás del pack, se anima menos lejos y fuera de
+cámara (`fauna:marine/anim`). Al morir, como antes, nube de sangre y nada más.
 
 `tests/fauna/marine_preview.tscn` permite revisar cada especie con las teclas
 1–4 y comparar las cuatro a escala relativa con 0. Arrastrar el ratón gira la

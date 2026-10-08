@@ -23,14 +23,13 @@ func up_at(point: Vector3) -> Vector3:
 	return (point - center()).normalized()
 
 
+## Suelo donde se puede pisar bajo [point]: el terreno a menos de [depth] m, sin pasarse de
+## max_slope_degrees y fuera del agua; {} si no.
 func ground_at(point: Vector3, depth: float, settings: SmallGroundFaunaProfile) -> Dictionary:
-	if not is_instance_valid(terrain) or not terrain.is_inside_tree():
-		return {}
-	var up := up_at(point)
-	var query := PhysicsRayQueryParameters3D.create(point + up * 0.3, point - up * depth, 1)
-	var hit := terrain.get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := terrain_under(point, 0.3, depth)
 	if hit.is_empty():
 		return {}
+	var up := up_at(point)
 	var surface: Vector3 = hit.position
 	if (hit.normal as Vector3).dot(up) < cos(deg_to_rad(settings.max_slope_degrees)):
 		return {}
@@ -39,6 +38,18 @@ func ground_at(point: Vector3, depth: float, settings: SmallGroundFaunaProfile) 
 	if world_map != null and world_map.is_ready() and world_map.is_water_at(surface):
 		return {}
 	return hit
+
+
+## El terreno bajo [point], sea como sea (en cuesta, bajo el agua): la primera cara que mira hacia
+## arriba bajando desde [above] m por encima hasta [depth] m por debajo, o {} si ahí no hay
+## colisión cargada. Las caras de debajo de un saliente no cuentan.
+func terrain_under(point: Vector3, above: float, depth: float) -> Dictionary:
+	if not is_instance_valid(terrain) or not terrain.is_inside_tree():
+		return {}
+	var up := up_at(point)
+	var query := PhysicsRayQueryParameters3D.create(point + up * above, point - up * depth, 1)
+	query.hit_back_faces = false
+	return terrain.get_world_3d().direct_space_state.intersect_ray(query)
 
 
 func can_step(from: Vector3, to: Vector3, settings: SmallGroundFaunaProfile) -> bool:

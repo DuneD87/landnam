@@ -3,6 +3,10 @@
 [ext_resource type="Script" uid="uid://bjkhluarhbg4f" path="res://scripts/fauna/water_bird_profile.gd" id="1"]
 [ext_resource type="Resource" uid="uid://d2vb7q8brk05o" path="res://data/audio/events/seagull_audio.tres" id="1_hwo7w"]
 [ext_resource type="PackedScene" path="res://scenes/animals/ambient_gull.tscn" id="2"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/bird_small.tres" id="v_small"]
+[ext_resource type="Resource" path="res://data/fauna/variants/bird_medium.tres" id="v_medium"]
+[ext_resource type="Resource" path="res://data/fauna/variants/bird_large.tres" id="v_large"]
 
 [resource]
 script = ExtResource("1")
@@ -35,3 +39,4 @@ day_activity = 1.0
 twilight_activity = 0.5
 night_activity = 0.0
 season_activity = PackedFloat32Array(1, 1, 1, 0.8)
+variants = Array[ExtResource("v_script")]([ExtResource("v_small"), ExtResource("v_medium"), ExtResource("v_large")])

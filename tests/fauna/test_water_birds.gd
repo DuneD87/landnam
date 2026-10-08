@@ -210,5 +210,45 @@ func _run() -> void:
 	map.queue_free()
 	await get_tree().process_frame
 	ocean.free()
+	await _check_duck_model()
 	print("WATER BIRD TESTS: %d failures" % failures)
 	get_tree().quit(1 if failures else 0)
+
+
+## El pato del pack: el clip va con lo que hace el ave (flotando, despegando, volando, frenando
+## para posarse y al tocar el agua), y flotando se hunde float_depth.
+func _check_duck_model() -> void:
+	var duck := load("res://scenes/animals/ambient_duck.tscn").instantiate() as AmbientWaterBird
+	add_child(duck)
+	var model := duck.get_node("Model") as SkinnedBirdModel
+	var data := model.model
+	check(model != null and data != null, "El pato lleva el modelo del pack")
+	model.set_species(4)
+	var step := 1.0 / 60.0
+	duck.state = AmbientBird.State.PERCHED
+	model.animate(0.0, false, step)
+	check(model.current_clip in data.perched_clips and is_equal_approx(model._skin.position.y, -data.float_depth),
+		"Flotando: uno de sus clips de quieto (%s), hundido %.2f m" % [model.current_clip, -model._skin.position.y])
+	duck.state = AmbientBird.State.FLYING
+	model.animate(0.0, true, step)
+	check(model.current_clip == data.takeoff_clip, "Al despegar, el despegue (%s)" % model.current_clip)
+	for frame in 120:
+		model.player.advance(step)
+		model.animate(0.0, true, step)
+	check(model.current_clip == data.fly_clip and model._skin.position.y > -0.001,
+		"Despegado, aletea (%s) fuera del agua" % model.current_clip)
+	duck.state = AmbientBird.State.APPROACH
+	for frame in 60:
+		model.player.advance(step)
+		model.animate(0.0, true, step)
+	check(model.current_clip == data.brake_clip and not model.player.is_playing(),
+		"Llegando, frena en el aire y se queda así (%s)" % model.current_clip)
+	duck.state = AmbientBird.State.PERCHED
+	model.animate(0.0, false, step)
+	check(model.current_clip == data.touchdown_clip, "Al tocar el agua, el de posarse (%s)" % model.current_clip)
+	for frame in 200:
+		model.player.advance(step)
+		model.animate(0.0, false, step)
+	check(model.current_clip in data.perched_clips, "Y luego, a flotar (%s)" % model.current_clip)
+	duck.queue_free()
+	await get_tree().process_frame

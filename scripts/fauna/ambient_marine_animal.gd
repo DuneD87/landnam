@@ -35,6 +35,9 @@ const BITE_JOLT_MASS := 20000.0
 const SUNK_DEPTH := 4.0
 
 @export_enum("Tiburón", "Ballena", "Orca", "Tortuga") var species: int = 0
+## Modelo de un pack con esqueleto (MarineModelData) en vez de la malla procedural de species, que
+## sigue mandando en la velocidad. null = la procedural.
+@export var model: MarineModelData
 var _fade: float = 1.0
 ## Fade change per second: positive while appearing, negative while leaving.
 var _fade_step: float = 0.0
@@ -49,35 +52,59 @@ var _attack_timer: float = 0.0
 var _scan_timer: float = 0.0
 ## Snout tip in the body's local space.
 var _snout := Vector3.ZERO
+## El modelo del pack (si hay model) y el rumbo del paso anterior, para su giro.
+var _skinned: SkinnedMarineModel
+var _course := Vector3.ZERO
 
 
 func _ready() -> void:
 	_solid_layer = collision_layer
 	_collision.shape = _collision.shape.duplicate()
+	if model != null:
+		_skinned = SkinnedMarineModel.new()
+		_skinned.name = "Skinned"
+		add_child(_skinned)
+		_visual.visible = false
+		return
 	_visual.mesh = SimpleMarineMesh.mesh(species)
 	_visual.material_override = SimpleMarineMesh.material()
 
 
 func _configure_visual() -> void:
-	var size := _rng.randf_range(0.85, 1.0)
-	_speed = float(SimpleMarineMesh.SPEEDS[species]) * _rng.randf_range(0.85, 1.15)
-	_visual.scale = Vector3.ONE * size * SimpleMarineMesh.MODEL_SCALES[species]
-	var bounds := SimpleMarineMesh.collision_bounds(species)
+	roll_variant(_rng)
+	var size := body_size
+	_speed = float(SimpleMarineMesh.SPEEDS[species]) * speed_scale * _rng.randf_range(0.85, 1.15)
+	# El cuerpo (en metros de la especie, a escala 1) y la caja que choca, que abarca además lo
+	# que se mueven aletas y cola.
+	var body: AABB
+	var bounds: AABB
+	if _skinned != null:
+		_skinned.set_data(model, _rng.randi())
+		_skinned.scale = Vector3.ONE * size
+		body = _skinned.bounds
+		bounds = body.grow(body.size.z * model.swim_margin)
+	else:
+		var model_scale: float = SimpleMarineMesh.MODEL_SCALES[species]
+		_visual.scale = Vector3.ONE * size * model_scale
+		var mesh_bounds := SimpleMarineMesh.mesh(species).get_aabb()
+		body = AABB(mesh_bounds.position * model_scale, mesh_bounds.size * model_scale)
+		bounds = SimpleMarineMesh.collision_bounds(species)
 	(_collision.shape as BoxShape3D).size = bounds.size * size
 	_collision.position = bounds.get_center() * size
 	_collision.disabled = false
-	impact_radius = SimpleMarineMesh.clearance(species)
-	var mesh_bounds := SimpleMarineMesh.mesh(species).get_aabb()
-	var model_size: float = size * SimpleMarineMesh.MODEL_SCALES[species]
-	_turn_radius = TURN_RADIUS_LENGTHS * mesh_bounds.size.z * model_size
-	_snout = Vector3(0.0, 0.0, mesh_bounds.position.z * model_size)
+	impact_radius = (bounds.position.abs().max(bounds.end.abs())).length() * size
+	_turn_radius = TURN_RADIUS_LENGTHS * body.size.z * size
+	_snout = Vector3(0.0, 0.0, body.position.z * size)
+	_course = Vector3.ZERO
 	_cruise_speed = _speed
 	_attack = Attack.NONE
 	_prey = null
 	_scan_timer = _rng.randf_range(0.0, PREY_SCAN_INTERVAL)
-	_visual.set_instance_shader_parameter("species", species)
-	_visual.set_instance_shader_parameter("swim_phase", _rng.randf_range(0.0, TAU))
-	_visual.set_instance_shader_parameter("swim_frequency", SimpleMarineMesh.swim_frequency(species, _speed))
+	if _skinned == null:
+		_visual.set_instance_shader_parameter("species", species)
+		_visual.set_instance_shader_parameter("swim_phase", _rng.randf_range(0.0, TAU))
+		# Uno más grande, a la misma velocidad, coletea más despacio.
+		_visual.set_instance_shader_parameter("swim_frequency", SimpleMarineMesh.swim_frequency(species, _speed) / sqrt(size))
 	_turn_timer = 0.0
 	# Large bodies spawn close to the frustum; dissolve in instead of popping.
 	_set_fade(0.0)
@@ -96,6 +123,8 @@ func _swim(delta: float) -> void:
 			collision_layer = _solid_layer
 	_update_attack(delta)
 	super._swim(delta)
+	if _skinned != null and active:
+		_animate_skinned(delta)
 
 
 func _leave_habitat() -> void:
@@ -110,7 +139,22 @@ func _leave_habitat() -> void:
 
 func _set_fade(value: float) -> void:
 	_fade = value
-	_visual.set_instance_shader_parameter("fade", value)
+	if _skinned != null:
+		_skinned.set_fade(value)
+	else:
+		_visual.set_instance_shader_parameter("fade", value)
+
+
+## Al modelo del pack, lo que hace el cuerpo: su velocidad, lo que ha girado desde el paso anterior
+## y si va a la carga.
+func _animate_skinned(delta: float) -> void:
+	var up := (global_position - _water.center()).normalized()
+	var course := (-global_basis.z).slide(up).normalized()
+	var turn := 0.0
+	if _course != Vector3.ZERO and delta > 0.0:
+		turn = _course.signed_angle_to(course, up) / delta
+	_course = course
+	_skinned.swim(velocity.length(), turn, _attack != Attack.NONE, body_size)
 
 
 func _pick_target() -> void:
@@ -282,7 +326,10 @@ func _bite(point: Vector3) -> void:
 	var inward := (_prey.get_hull_center_world() - point).slide(up)
 	inward = inward.normalized() if inward.length_squared() > 0.0001 else -global_basis.z
 	var bite_point := point + inward * 0.5
-	_prey.apply_damage_at(bite_point, settings.bite_energy, settings.bite_radius)
+	if _skinned != null:
+		_skinned.bite(-inward.dot(global_basis.x))
+	# Uno más grande abre más agujero y lo abre más grande.
+	_prey.apply_damage_at(bite_point, settings.bite_energy * damage_scale, settings.bite_radius * body_size)
 	var jolt := minf(_prey.mass, BITE_JOLT_MASS) * BITE_JOLT
 	_prey.apply_impulse(inward * jolt, bite_point - _prey.global_position)
 	_start_retreat()

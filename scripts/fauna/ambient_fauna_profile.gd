@@ -22,6 +22,10 @@ class_name AmbientFaunaProfile extends Resource
 ## del primero y con su misma casa (NPCController.get_home()). (1, 1) = de uno en uno.
 @export var group_size := Vector2i(1, 1)
 @export var group_spread: float = 8.0
+## De qué tamaños salen (CreatureVariant: joven, adulto, grande…): cada uno sortea una al salir.
+## Ninguna = todos a escala 1. Las criaturas con escena propia (NPCController) las llevan en ella, y
+## los peces del pack en su especie (FishSpecies). clearance tiene que abarcar al más grande.
+@export var variants: Array[CreatureVariant] = []
 
 @export_group("Activity")
 ## Parte de la población activa de día, en el crepúsculo y de noche, por la altura del sol sobre el
@@ -33,6 +37,16 @@ class_name AmbientFaunaProfile extends Resource
 ## Parte activa en primavera, verano, otoño e invierno (Seasons): migración, hibernación. En el
 ## ecuador, sin estaciones, no cuenta.
 @export var season_activity: PackedFloat32Array = PackedFloat32Array([1.0, 1.0, 1.0, 1.0])
+
+
+## La mayor escala a la que sale uno (la mayor de sus variantes; 1 sin variantes): clearance tiene
+## que abarcarlo.
+func largest_size() -> float:
+	var largest := 1.0 if variants.is_empty() else 0.0
+	for v in variants:
+		if v != null:
+			largest = maxf(largest, v.size.y)
+	return largest
 
 
 ## Parte de la población activa ahora en `local` (relativa al centro del planeta), 0..1.

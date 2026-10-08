@@ -58,6 +58,9 @@ func _run() -> void:
 	add_child(_world)
 	GameManager.current_state = GameManager.State.PLAYING
 	_test_species_geometry()
+	_test_pack_fish()
+	_test_size_variants()
+	_test_pack_shark()
 	await _test_population()
 	await _test_shared_spawn_budget()
 	await _test_water_and_collisions()
@@ -67,6 +70,122 @@ func _run() -> void:
 	await get_tree().process_frame
 	print("FAUNA TESTS: %d failures" % _failures)
 	get_tree().quit(1 if _failures else 0)
+
+
+## Los peces del pack: malla horneada sin huesos y con un material por superficie; su caja y el
+## despeje de aparición caben el pez más grande coleteando; y cada agua (mar, lago) tiene los suyos.
+func _test_pack_fish() -> void:
+	var fish: AmbientFish = load("res://scenes/animals/ambient_fish.tscn").instantiate()
+	_check(fish.pack_species.size() == 3, "The fish scene uses the three pack species")
+	var waters := {}
+	for entry in fish.pack_species:
+		var box := entry.mesh.get_aabb()
+		var bones = entry.mesh.surface_get_arrays(0)[Mesh.ARRAY_BONES]
+		_check(entry.materials.size() == entry.mesh.get_surface_count() and (bones == null or bones.is_empty()),
+			"%s: static baked mesh with a material per surface" % entry.id)
+		var swing := entry.sway * box.size.z
+		var widest := maxf(maxf(absf(box.position.z), absf(box.end.z)), maxf(absf(box.position.x) + swing, absf(box.end.y)))
+		_check(entry.collision_bounds().has_point(Vector3(box.position.x - swing, 0, box.end.z) * 0.99)
+			and widest * entry.largest_scale() <= AmbientFish.CLEARANCE,
+			"%s: collision and spawn clearance contain the largest swimming fish (%.2f m)" % [entry.id, widest * entry.largest_scale()])
+		for water in entry.water_types:
+			waters[water] = true
+	_check(waters.has(WorldMapData.WaterType.OCEAN) and waters.has(WorldMapData.WaterType.SEA)
+		and waters.has(WorldMapData.WaterType.LAKE) and waters.has(WorldMapData.WaterType.POND),
+		"Every kind of water has its fish (%s)" % [waters.keys()])
+	fish.free()
+
+
+## Tamaños: toda la fauna ambiental sale de varios (sus variantes, en el perfil o en la especie del
+## pez), el sorteo da todos y dentro de sus rangos, y el despeje de cada perfil marino abarca al más
+## grande de su especie.
+func _test_size_variants() -> void:
+	var profiles := ["rabbits", "arctic_hares", "mice", "lemmings", "foxes", "arctic_foxes",
+		"forest_birds", "coastal_gulls", "river_ducks", "shark", "whale", "orca", "turtle"]
+	var missing: PackedStringArray = []
+	for name in profiles:
+		var profile := load("res://data/fauna/%s.tres" % name) as AmbientFaunaProfile
+		if profile.variants.size() < 2:
+			missing.append(name)
+	var fish: AmbientFish = load("res://scenes/animals/ambient_fish.tscn").instantiate()
+	for entry in fish.pack_species:
+		if entry.variants.size() < 2:
+			missing.append(String(entry.id))
+	fish.free()
+	_check(missing.is_empty(), "Every ambient species comes in several sizes (missing: %s)" % [missing])
+	# El sorteo: todas las variantes salen, cada tamaño dentro de la suya, y el cuerpo va de joven a
+	# grande de verdad.
+	var animal := AmbientAnimal.new()
+	animal.profile = load("res://data/fauna/rabbits.tres")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var seen := {}
+	var inside := true
+	var smallest := INF
+	var largest := 0.0
+	for i in 300:
+		animal.roll_variant(rng)
+		seen[animal.variant.id] = true
+		inside = inside and animal.body_size >= animal.variant.size.x and animal.body_size <= animal.variant.size.y
+		smallest = minf(smallest, animal.body_size)
+		largest = maxf(largest, animal.body_size)
+	_check(seen.size() == animal.profile.variants.size() and inside and largest / smallest > 1.5,
+		"Rolled sizes cover every variant within its range (%.2f–%.2f, %s)" % [smallest, largest, seen.keys()])
+	animal.free()
+	for name in ["whale", "orca", "turtle"]:
+		var profile := load("res://data/fauna/%s.tres" % name) as MarineFaunaProfile
+		var kind := SimpleMarineMesh.IDS.find(name)
+		var radius := SimpleMarineMesh.clearance(kind) * profile.largest_size()
+		_check(radius <= profile.clearance, "%s: spawn clearance holds the largest one (%.1f of %.1f m)" % [name, radius, profile.clearance])
+
+
+## El tiburón del pack: con esqueleto, de cara hacia donde nada, del largo del procedural; el más
+## grande cabe en el despeje de su perfil; y el clip sigue lo que hace (crucero, giro, carga,
+## mordisco) y se funde al aparecer.
+func _test_pack_shark() -> void:
+	var shark: AmbientMarineAnimal = load("res://scenes/animals/ambient_shark.tscn").instantiate()
+	_world.add_child(shark)
+	var model := shark._skinned
+	_check(model != null and not shark._visual.visible, "The shark uses the pack model")
+	if model == null:
+		shark.free()
+		return
+	model.set_data(shark.model, 3)
+	var profile := load("res://data/fauna/shark.tres") as MarineFaunaProfile
+	var body := model.bounds
+	var box := body.grow(body.size.z * shark.model.swim_margin)
+	var radius := (box.position.abs().max(box.end.abs())).length() * profile.largest_size()
+	var height := maxf(absf(box.position.y), absf(box.end.y)) * profile.largest_size()
+	var procedural := SimpleMarineMesh.mesh(0).get_aabb().size.z * SimpleMarineMesh.MODEL_SCALES[0]
+	_check(absf(body.size.z - procedural) < procedural * 0.1, "The pack shark is as long as the old one (%.1f m)" % body.size.z)
+	_check(radius <= profile.clearance and height <= profile.vertical_clearance,
+		"The largest shark fits its spawn clearance (%.1f of %.1f m, %.1f of %.1f m tall)"
+		% [radius, profile.clearance, height, profile.vertical_clearance])
+	# La boca (la superficie de dientes y ojos) va delante, hacia -Z.
+	var mesh := model.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	var mouth: PackedVector3Array = mesh.mesh.surface_get_arrays(1)[Mesh.ARRAY_VERTEX]
+	var sum := Vector3.ZERO
+	for vertex in mouth:
+		sum += vertex
+	var to_model := model.global_transform.affine_inverse() * mesh.global_transform
+	_check((to_model * (sum / mouth.size())).z < body.get_center().z - body.size.z * 0.3, "The shark faces where it swims")
+	var clips := []
+	model.swim(2.8, 0.0, false, 1.0)
+	clips.append(model.current_clip)
+	model.swim(2.8, 0.1, false, 1.0)
+	clips.append(model.current_clip)
+	model.swim(2.8, -0.1, false, 1.0)
+	clips.append(model.current_clip)
+	model.swim(5.0, 0.0, true, 1.0)
+	clips.append(model.current_clip)
+	model.bite(-1.0)
+	model.swim(5.0, 0.0, true, 1.0)
+	clips.append(model.current_clip)
+	_check(clips == [&"Swim", &"SwimLeft", &"SwimRight", &"SwimAt", &"BiteRight"],
+		"The shark swims, turns, charges and bites with its clips (%s)" % [clips])
+	shark._set_fade(0.4)
+	_check(is_equal_approx(mesh.get_instance_shader_parameter(&"fade"), 0.4), "The pack shark fades in like the old one")
+	shark.free()
 
 
 func _test_species_geometry() -> void:
@@ -206,23 +325,25 @@ func _test_water_and_collisions() -> void:
 	terrain.add_child(fish)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 42
+	# Peces del pack: el mismo pez reactivado con cada especie cambia de malla, materiales y caja.
+	var all_species: Array[FishSpecies] = fish.pack_species.duplicate()
 	var variants_reset := true
-	for kind in SimpleFishMesh.TYPES.size():
-		fish.fish_type = kind
+	for entry in all_species:
+		fish.pack_species = [entry]
 		fish.activate(Vector3(0, 990, 0), water, rng)
 		fish.set_physics_process(false)
 		var visual := fish.get_node("Visual") as MeshInstance3D
 		var shape_node := fish.get_node("CollisionShape3D") as CollisionShape3D
-		var expected := SimpleFishMesh.collision_bounds(kind)
-		variants_reset = variants_reset and fish.current_type == kind and visual.mesh == SimpleFishMesh.mesh(kind)
+		var expected := entry.collision_bounds()
+		variants_reset = variants_reset and fish.current_species == entry and visual.mesh == entry.mesh
+		variants_reset = variants_reset and visual.get_surface_override_material(entry.materials.size() - 1) == entry.materials.back()
 		variants_reset = variants_reset and (shape_node.shape as BoxShape3D).size.is_equal_approx(expected.size * visual.scale.x)
 		variants_reset = variants_reset and shape_node.position.is_equal_approx(expected.get_center() * visual.scale.x)
 		fish.deactivate()
-	_check(variants_reset, "Reusing a fish across all six types resets the mesh and matching collision box")
-	fish.fish_type = -1
+	_check(variants_reset, "Reusing a fish across the pack species resets the mesh, materials and collision box")
+	fish.pack_species = all_species
 	fish.activate(Vector3(0, 990, 0), water, rng)
 	fish.set_physics_process(false)
-	_check(fish.get_node("Visual").mesh.get_surface_count() == 1, "Simple fish uses one shared mesh surface")
 	# Swept collision against a stationary thin wall.
 	var wall := StaticBody3D.new()
 	wall.position = Vector3(0, 990, -2)
@@ -425,6 +546,7 @@ func _test_shark_attack() -> void:
 	var fastest := 0.0
 	var first_bite := -1.0
 	var retreated := false
+	var bite_clip := &""
 	var elapsed := 0.0
 	while elapsed < 150.0 and shark.active and boat.bites.size() < 2:
 		shark._swim(step)
@@ -435,9 +557,11 @@ func _test_shark_attack() -> void:
 		if first_bite < 0.0 and boat.bites.size() > 0:
 			first_bite = elapsed
 			retreated = shark._attack == AmbientMarineAnimal.Attack.RETREAT
+			bite_clip = shark._skinned.current_clip if shark._skinned != null else &""
 	print("Shark attack: first bite at %.1f s, %d bites in %.1f s, top speed %.1f m/s" % [first_bite, boat.bites.size(), elapsed, fastest])
 	_check(charged and fastest > float(SimpleMarineMesh.SPEEDS[0]) * 1.2, "A nearby boat triggers a faster charge")
 	_check(first_bite >= 0.0 and retreated, "The shark bites the hull and then swims off")
+	_check(bite_clip in [&"BiteLeft", &"BiteRight"], "The bite plays a bite clip (%s)" % bite_clip)
 	_check(shark.active, "The shark survives its own charges")
 	_check(boat.bites.size() >= 2, "The shark returns for another bite while the boat stays near")
 	_check(boat.bites.all(func(point: Vector3) -> bool: return point.length() < 1000.0),

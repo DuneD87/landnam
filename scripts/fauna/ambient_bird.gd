@@ -66,8 +66,13 @@ var _failed_searches: int = 0
 var _leaving: bool = false
 var _stall_timer: float = 0.0
 var _stall_origin := Vector3.ZERO
-@onready var _model: SimpleBirdModel = $Model
+## El modelo: SimpleBirdModel (procedural) o SkinnedBirdModel (de un pack, con esqueleto). Los
+## dos se animan con set_species, animate y soars.
+@onready var _model: Node3D = $Model
 @onready var _collision: CollisionShape3D = $CollisionShape3D
+## La esfera de la escena, antes de escalarla a su tamaño (-1 = aún no).
+var _base_radius: float = -1.0
+var _base_origin := Vector3.ZERO
 
 
 func activate(point: Vector3, environment: AmbientFaunaHabitat, rng: RandomNumberGenerator) -> void:
@@ -81,6 +86,10 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat, rng: RandomNumbe
 	_model.rotation = Vector3.ZERO
 	_model.position = Vector3.ZERO
 	_model.set_species(_rng.randi_range(0, 2) if bird_type < 0 else bird_type)
+	roll_variant(_rng)
+	# El giro y la posición del modelo cambian al volar y posarse; su escala se queda.
+	_model.scale = Vector3.ONE * body_size
+	_size_collision()
 	_time = _rng.randf_range(0, TAU)
 	_wing_time = _time
 	_settings = profile as AmbientBirdProfile
@@ -99,7 +108,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat, rng: RandomNumbe
 	_stop_ambient_audio()
 	_audio_timer = _next_audio_interval()
 	_collision.disabled = false
-	impact_radius = 0.3
+	impact_radius = 0.3 * body_size
 	var resting := _forest.claim_spawn_perch(get_instance_id(), point)
 	if not resting.is_empty():
 		# Spawned already resting, part-way through its stay.
@@ -111,6 +120,21 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat, rng: RandomNumbe
 		var ahead := (_forest.terrain.to_global(_goal_local) - global_position).normalized()
 		velocity = ahead * _speed * 0.8
 	reset_physics_interpolation()
+
+
+## La esfera que choca, a su tamaño: una propia (la de la escena la comparten todas), con su
+## radio y su altura de la escena por body_size.
+func _size_collision() -> void:
+	var sphere := _collision.shape as SphereShape3D
+	if sphere == null:
+		return
+	if _base_radius < 0.0:
+		_base_radius = sphere.radius
+		_base_origin = _collision.position
+		sphere = sphere.duplicate() as SphereShape3D
+		_collision.shape = sphere
+	sphere.radius = _base_radius * body_size
+	_collision.position = _base_origin * body_size
 
 
 func deactivate() -> void:
@@ -390,7 +414,9 @@ func _update_ambient_audio(delta: float) -> void:
 	if _audio_timer > 0.0:
 		return
 	_audio_timer = _next_audio_interval()
-	_audio_player = AudioManager.play_event_3d(_settings.ambient_sound, global_position, {"source_id": get_instance_id()})
+	# Uno más grande canta algo más grave (voice_pitch de su variante).
+	_audio_player = AudioManager.play_event_3d(_settings.ambient_sound, global_position,
+		{"source_id": get_instance_id(), "pitch": _settings.ambient_sound.roll_pitch() * voice_pitch})
 
 
 ## Distance at which the observer flushes this bird: farther when the observer moves fast.

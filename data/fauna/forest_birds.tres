@@ -3,6 +3,10 @@
 [ext_resource type="Script" uid="uid://c4vxywfybyaey" path="res://scripts/fauna/ambient_bird_profile.gd" id="1"]
 [ext_resource type="PackedScene" uid="uid://dp0gjwgsud36" path="res://scenes/animals/ambient_bird.tscn" id="2"]
 [ext_resource type="Resource" uid="uid://dwuexbictyri3" path="res://data/audio/events/forest_birds.tres" id="3"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/bird_small.tres" id="v_small"]
+[ext_resource type="Resource" path="res://data/fauna/variants/bird_medium.tres" id="v_medium"]
+[ext_resource type="Resource" path="res://data/fauna/variants/bird_large.tres" id="v_large"]
 
 [resource]
 script = ExtResource("1")
@@ -28,3 +32,4 @@ min_spacing = 7.0
 twilight_activity = 0.4
 night_activity = 0.0
 season_activity = PackedFloat32Array(1, 1, 0.75, 0.4)
+variants = Array[ExtResource("v_script")]([ExtResource("v_small"), ExtResource("v_medium"), ExtResource("v_large")])

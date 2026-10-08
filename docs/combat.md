@@ -393,7 +393,10 @@ tono es realista y letal: avisan poco, castigan los errores y no se las deja atr
   turno. Si el objetivo se mete encima de una que espera, se defiende sin turno; si se aleja, lo
   persigue. Las de la misma especie (`npc_type`) no se hieren entre ellas (`is_ally`).
 - **Variantes** (`CreatureVariant`, en `variants` de la escena): al aparecer cada una sortea la
-  suya por peso, y su tamaño dentro de ella. Con el tamaño crecen el modelo, la cápsula, la cabeza
+  suya por peso, y su tamaño dentro de ella (`AmbientAnimal.roll_variant`, el mismo sorteo que la
+  fauna ambiental; ver [ambient_fauna.md](ambient_fauna.md#tamaños)). Oso, búfalo, ciervo y león
+  (y el oso polar y el caribú, que heredan su escena) comparten `data/fauna/variants/mammal_*`:
+  joven, adulto y grande; el lobo tiene las suyas. Con el tamaño crecen el modelo, la cápsula, la cabeza
   que se golpea, la altura de los ojos, el alcance y el avance de los ataques y la zancada (los
   clips de correr se ajustan a ella). La variante multiplica la vida, el daño, la guardia, la
   velocidad y el tono de voz de la especie, y puede quitarle ataques (`excluded_attacks`); dentro
@@ -523,7 +526,8 @@ la vida y el aguante llenos y conserva el inventario. Las criaturas que iban a p
 ## Consola
 
 - `spawn oso [cantidad] [distancia] [variante]`: suelta osos delante (también `ciervo`, `leon`,
-  `bufalo`, `lobo`). Los que salen juntos van en manada; con variante (`spawn lobo 4 grande`)
+  `bufalo`, `lobo`). Los que salen juntos van en manada; con variante (`spawn lobo 4 grande`,
+  `spawn oso joven`)
   salen todos de esa. Sus cadáveres duran dos minutos.
 - `ia [radio]`: variante, estado, fase, ataque, combo, guardia y fuelle de cada criatura
   cercana, y lo que lee de su objetivo.

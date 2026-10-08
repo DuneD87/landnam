@@ -16,6 +16,10 @@
 [ext_resource type="Texture2D" uid="uid://dj1oy0724o00b" path="res://scenes/animals/Lion_lion_male_common_dif.ddsc.DECA.png" id="12_d4ptx"]
 [ext_resource type="Texture2D" uid="uid://chuejwn1n4vmw" path="res://scenes/animals/Lion_lion_mane_common_alpha_dif.ddsc.DECA.png" id="13_qosvf"]
 [ext_resource type="AnimationLibrary" uid="uid://dlnmr02ewcjvr" path="res://models/animals/Lion_anims.tres" id="x_ddgmf"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_large"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_few7p"]
 margin = 0.004
@@ -531,6 +535,7 @@ flinch_bones = Array[String](["Spine3", "Spine4", "Neck01", "Head"])
 hurt_sound = &"lion_hurt"
 death_sound = &"lion_death"
 entity_id = "npc_2095021370816"
+variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])
 
 [node name="Movement" type="Node" parent="." unique_id=397881995]
 script = ExtResource("2_qosvf")
