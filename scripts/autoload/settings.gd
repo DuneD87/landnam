@@ -33,6 +33,7 @@ const PRESETS := {
 	"graphics/shadow_distance": [0, 1, 2, 2],
 	"graphics/vegetation_shadows": [0, 1, 2, 2],
 	"graphics/clouds": [1, 2, 3, 3],
+	"graphics/atmosphere_quality": [0, 1, 1, 2],
 	"graphics/god_rays": [false, true, true, true],
 	"graphics/glow": [false, true, true, true],
 	"graphics/ssao": [false, false, false, true],
@@ -40,6 +41,7 @@ const PRESETS := {
 	"graphics/fauna": [0, 1, 2, 2],
 	"graphics/terrain_detail": [0, 1, 2, 3],
 	"graphics/terrain_normalmaps": [false, true, true, true],
+	"graphics/terrain_material": [0, 1, 2, 2],
 	"graphics/grass_density": [0, 1, 2, 2],
 	"graphics/grass_distance": [1, 2, 2, 2],
 	"graphics/forest_distance": [1, 1, 2, 2],
@@ -68,6 +70,7 @@ const DEFAULTS := {
 ## hasta reiniciar.
 const RESTART_KEYS: Array[String] = [
 	"graphics/vegetation_shadows", "graphics/terrain_detail", "graphics/terrain_normalmaps",
+	"graphics/terrain_material",
 	"graphics/grass_density", "graphics/grass_distance", "graphics/forest_distance",
 ]
 
@@ -198,6 +201,19 @@ static func apply_terrain(terrain: VoxelLodTerrain) -> void:
 	var base: float = terrain.get_meta(&"settings_base_secondary_lod")
 	terrain.secondary_lod_distance = base * TERRAIN_DETAIL_SCALE[level("graphics/terrain_detail", TERRAIN_DETAIL_SCALE.size())]
 	terrain.normalmap_enabled = bool(value("graphics/terrain_normalmaps"))
+
+
+## Se aplica después de los parámetros del planeta y antes del primer mallado:
+## los bloques de VoxelLodTerrain guardan copias del material.
+static func apply_terrain_material(material: ShaderMaterial) -> void:
+	if Engine.is_editor_hint() or material == null:
+		return
+	var quality := level("graphics/terrain_material", 3)
+	if quality < 2:
+		material.set_shader_parameter("detail_blend_enabled", false)
+		material.set_shader_parameter("parallax_enabled", false)
+	if quality == 0:
+		material.set_shader_parameter("antitiling_enabled", false)
 
 
 ## Preset con el que coinciden todos los ajustes gráficos, o PRESET_CUSTOM.
@@ -400,7 +416,7 @@ func _apply(key: String) -> void:
 			_apply_to_lights()
 		"graphics/shadow_distance":
 			_apply_to_lights()
-		"graphics/clouds", "graphics/god_rays", "graphics/glow", "graphics/ssao":
+		"graphics/clouds", "graphics/atmosphere_quality", "graphics/god_rays", "graphics/glow", "graphics/ssao":
 			_apply_to_environments()
 		"graphics/weather_particles":
 			WeatherParticles.amount_scale = WEATHER_PARTICLE_SCALE[level(key, WEATHER_PARTICLE_SCALE.size())]
@@ -518,7 +534,8 @@ func _apply_world_environment(world: WorldEnvironment) -> void:
 	var step_scale: float = CLOUD_STEP_SCALE[level("graphics/clouds", CLOUD_STEP_SCALE.size())]
 	for effect in world.compositor.compositor_effects:
 		if effect is PlanetAtmosphere:
-			effect.set_quality(step_scale, bool(value("graphics/god_rays")))
+			effect.set_quality(step_scale, bool(value("graphics/god_rays")),
+				[4, 2, 1][level("graphics/atmosphere_quality", 3)])
 
 
 func _apply_bindings() -> void:

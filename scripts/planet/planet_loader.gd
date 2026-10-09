@@ -245,6 +245,7 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.roughness_textures = planet_parser.roughness_textures
 	planet.ao_textures = planet_parser.ao_textures
 	planet.height_textures = planet_parser.height_textures
+	planet.packed_materials = planet_parser.packed_materials
 	planet.slope_texture = planet_parser.slope_texture
 	planet.slope_normal_texture = planet_parser.slope_normal_texture
 	planet.slope_roughness_texture = planet_parser.slope_roughness_texture
@@ -292,6 +293,7 @@ func _load_planet() -> void:
 	planet.setup_shader_parameters()
 	_apply_antitiling_settings()
 	_apply_texture_scale()
+	SettingsManager.apply_terrain_material(planet.shader_material)
 	planet.setup_voxel_generator()
 	planet._load_vegetation()
 	add_child(planet)

@@ -123,6 +123,16 @@
 			"res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_Height.png",
 			"res://textures/terrain/ice-field-bl -ue/ice_field_height.png"
 		],
+		"packed_material_textures": [
+			"res://textures/terrain/wavy-sand-bl/material_rah.png",
+			"res://textures/terrain/whispy-grass-meadow-bl/material_rah.png",
+			"res://textures/terrain/crusted_snow/material_rah.png",
+			"res://textures/terrain/bumpy-worn-ground-bl/material_rah.png",
+			"res://textures/terrain/jagged-rocky-ground1-bl/material_rah.png",
+			"res://textures/terrain/mud-with-vegetation-bl/material_rah.png",
+			"res://textures/terrain/ice-field-bl -ue/material_rah.png"
+		],
+		"slope_packed_material_texture": "res://textures/terrain/bumpy-worn-ground-bl/material_rah.png",
 		"texture_albedo": [
 			{
 				"saturation": 0.75
@@ -3202,6 +3212,7 @@
 		"texture": "res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_albedo.png",
 		"normal_texture": "res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_Normal-ogl.png",
 		"roughness_texture": "res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_Roughness.png",
+		"packed_material_texture": "res://textures/terrain/mud-with-vegetation-bl/material_rah.png",
 		"ao_texture": "res://textures/terrain/mud-with-vegetation-bl/mud_with_vegetation_ao.png",
 		"texture_slope_threshold": 0.1,
 		"texture_slope_softness": 0.14

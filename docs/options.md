@@ -16,18 +16,25 @@ confirmación y se deshace solo a los 10 s.
   audio, teclas, ratón) lo hace el propio autoload. Luces y `WorldEnvironment` los recoge al entrar
   en el árbol (`node_added`) y guarda sus valores de escena en metadatos para escalar sobre ellos.
 - Lo que solo vale al cargar el planeta está en `RESTART_KEYS` y la pantalla avisa de que hace falta
-  reiniciar: detalle del terreno (`secondary_lod_distance`), normalmaps del terreno, densidad y
+  reiniciar: detalle del terreno (`secondary_lod_distance`), normalmaps y material del terreno, densidad y
   distancia de la hierba, bandas de bosque lejano y sombras de vegetación.
 
 ## Presets
 
-Alto es exactamente el juego antes de las opciones y es el valor por defecto. Medido con
+Alto es el valor por defecto. La calidad de la atmósfera usa Media en Alto y resolución completa
+en Ultra; ver [atmosphere_performance.md](atmosphere_performance.md). Como referencia anterior a
+la reducción del aire y los rayos, medido con
 `tests/lighting/lighting_capture.tscn --perf`, a mediodía y con el tiempo despejado:
 
 | Vista  | Alto (GPU) | Bajo (GPU) |
 |--------|-----------:|-----------:|
 | forest | 5,6 ms     | 2,6 ms     |
 | shore  | 4,6 ms     | 2,4 ms     |
+
+La calidad de **Material del terreno** es independiente de la geometría y las normales lejanas:
+baja desactiva detalle cercano, parallax y antitiling; media conserva antitiling y desactiva detalle
+y parallax; alta conserva los valores del planeta. Los presets Bajo/Medio/Alto/Ultra usan,
+respectivamente, material Bajo/Medio/Alto/Alto. Se aplica antes del primer mallado y requiere reiniciar.
 
 ## Añadir un ajuste
 

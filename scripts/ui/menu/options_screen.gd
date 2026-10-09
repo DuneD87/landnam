@@ -287,6 +287,8 @@ func _build_graphics_page() -> void:
 		"", true)
 
 	_section("Cielo y efectos")
+	_row("Calidad de la atmósfera", _choice_control("graphics/atmosphere_quality", ["Baja", "Media", "Alta"]),
+		"Nitidez del cielo y rayos de luz. Las nubes y la niebla conservan su resolución.")
 	_row("Nubes", _choice_control("graphics/clouds", ["Desactivadas", "Bajas", "Medias", "Altas"]))
 	_row("Rayos de luz", _toggle_control("graphics/god_rays"), "Haces de sol entre nubes y árboles.")
 	_row("Resplandor", _toggle_control("graphics/glow"))
@@ -299,6 +301,8 @@ func _build_graphics_page() -> void:
 		"Hasta dónde llega el terreno detallado. Pesa en CPU y GPU.", true)
 	_row("Relieve fino del terreno", _toggle_control("graphics/terrain_normalmaps"),
 		"Mapas de normales del terreno lejano. Apagarlo aligera la CPU.", true)
+	_row("Material del terreno", _choice_control("graphics/terrain_material", ["Bajo", "Medio", "Alto"]),
+		"Detalle de las texturas y profundidad del relieve cercano. Pesa en GPU.", true)
 	_row("Densidad de la hierba", _choice_control("graphics/grass_density", ["Baja", "Media", "Alta"]), "", true)
 	_row("Distancia de la hierba", _choice_control("graphics/grass_distance", ["Corta", "Media", "Larga"]), "", true)
 	_row("Bosque lejano", _choice_control("graphics/forest_distance", ["Cercano", "Medio", "Hasta el horizonte"]), "", true)

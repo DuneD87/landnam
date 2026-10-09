@@ -1,0 +1,13 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://kjlx1f4efnc6"
+path="res://.godot/imported/planet_atmosphere_cache.glsl-57241781dbf7a0e63fb32c128f617df1.res"
+
+[deps]
+
+source_file="res://shaders/atmosphere/planet_atmosphere_cache.glsl"
+dest_files=["res://.godot/imported/planet_atmosphere_cache.glsl-57241781dbf7a0e63fb32c128f617df1.res"]
+
+[params]

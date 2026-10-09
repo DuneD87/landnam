@@ -38,6 +38,8 @@ class_name PlanetParser extends Node3D
 @export var roughness_textures: Array[Texture2D] = []
 @export var ao_textures: Array[Texture2D] = []
 @export var height_textures: Array[Texture2D] = []
+## Si está activo, height_textures contiene los mapas R=roughness/G=AO/B=height.
+var packed_materials: bool = false
 
 ## Familia de sonido de cada textura de terreno, en el mismo orden que "textures". La usan
 ## las pisadas (ver SurfaceAudio): sin ella, todo el planeta suena a la familia por defecto.
@@ -247,6 +249,17 @@ func load_config(config_path: String):
 
 	print("DEBUG: Loaded biome settings: count=", biome_count, ", textures_per_biome=", textures_per_biome)
 	
+	# Los campos nuevos son opcionales: los JSON anteriores mantienen sus mapas separados.
+	packed_materials = biome_settings.has("packed_material_textures")
+	if packed_materials:
+		if biome_settings.packed_material_textures.size() != biome_settings.textures.size() or not biome_settings.has("slope_packed_material_texture"):
+			push_error("PlanetParser: mapas empaquetados incompletos")
+			return
+	roughness_textures.clear()
+	ao_textures.clear()
+	slope_roughness_texture = null
+	slope_ao_texture = null
+
 	textures = []
 	for path in biome_settings.textures:
 		var texture = load(path) as Texture2D
@@ -267,26 +280,28 @@ func load_config(config_path: String):
 			push_error("DEBUG: Failed to load normal texture: " + path)
 			return
 	
-	roughness_textures = []
-	for path in biome_settings.roughness_textures:
-		var texture = load(path) as Texture2D
-		if texture:
-			roughness_textures.append(texture)
-			print("DEBUG: Loaded roughness texture: " + path)
-		else:
-			push_error("DEBUG: Failed to load roughness texture: " + path)
-			return
-	ao_textures = []
-	for path in biome_settings.ao_textures:
-		var texture = load(path) as Texture2D
-		if texture:
-			ao_textures.append(texture)
-			print("DEBUG: Loaded ambient oclussion texture: " + path)
-		else:
-			push_error("DEBUG: Failed to load ambient oclussion texture: " + path)
-			return
+	if not packed_materials:
+		roughness_textures = []
+		for path in biome_settings.roughness_textures:
+			var texture = load(path) as Texture2D
+			if texture:
+				roughness_textures.append(texture)
+				print("DEBUG: Loaded roughness texture: " + path)
+			else:
+				push_error("DEBUG: Failed to load roughness texture: " + path)
+				return
+		ao_textures = []
+		for path in biome_settings.ao_textures:
+			var texture = load(path) as Texture2D
+			if texture:
+				ao_textures.append(texture)
+				print("DEBUG: Loaded ambient oclussion texture: " + path)
+			else:
+				push_error("DEBUG: Failed to load ambient oclussion texture: " + path)
+				return
 	height_textures = []
-	for path in biome_settings.height_textures:
+	var height_paths: Array = biome_settings.packed_material_textures if packed_materials else biome_settings.height_textures
+	for path in height_paths:
 		var texture = load(path) as Texture2D
 		if texture:
 			height_textures.append(texture)
@@ -306,23 +321,25 @@ func load_config(config_path: String):
 		return
 	print("DEBUG: Loaded slope normal texture: " + biome_settings.slope_normal_texture)
 	
-	slope_roughness_texture = load(biome_settings.slope_roughness_texture) as Texture2D
-	if not slope_roughness_texture:
-		push_error("DEBUG: Failed to load slope roughness texture: " + biome_settings.slope_roughness_texture)
-		return
-	print("DEBUG: Loaded slope roughness texture: " + biome_settings.slope_roughness_texture)
+	if not packed_materials:
+		slope_roughness_texture = load(biome_settings.slope_roughness_texture) as Texture2D
+		if not slope_roughness_texture:
+			push_error("DEBUG: Failed to load slope roughness texture: " + biome_settings.slope_roughness_texture)
+			return
+		print("DEBUG: Loaded slope roughness texture: " + biome_settings.slope_roughness_texture)
 	
-	slope_ao_texture = load(biome_settings.slope_ao_texture) as Texture2D
-	if not slope_ao_texture:
-		push_error("DEBUG: Failed to load slope ao texture: " + biome_settings.slope_ao_texture)
-		return
-	print("DEBUG: Loaded slope ao texture: " + biome_settings.slope_ao_texture)
+		slope_ao_texture = load(biome_settings.slope_ao_texture) as Texture2D
+		if not slope_ao_texture:
+			push_error("DEBUG: Failed to load slope ao texture: " + biome_settings.slope_ao_texture)
+			return
+		print("DEBUG: Loaded slope ao texture: " + biome_settings.slope_ao_texture)
 	
-	slope_height_texture = load(biome_settings.slope_height_texture) as Texture2D
+	var slope_height_path: String = biome_settings.slope_packed_material_texture if packed_materials else biome_settings.slope_height_texture
+	slope_height_texture = load(slope_height_path) as Texture2D
 	if not slope_height_texture:
-		push_error("DEBUG: Failed to load slope height texture: " + biome_settings.slope_height_texture)
+		push_error("DEBUG: Failed to load slope height texture: " + slope_height_path)
 		return
-	print("DEBUG: Loaded slope height texture: " + biome_settings.slope_height_texture)
+	print("DEBUG: Loaded slope height texture: " + slope_height_path)
 	
 	atmosphere_settings = config.get("atmosphere_settings", {})
 	atmosphere_enabled = bool(atmosphere_settings.get("enabled", false))

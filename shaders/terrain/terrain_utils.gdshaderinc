@@ -249,7 +249,7 @@ TriplanarUVs compute_parallax_uvs(
 }
 
 TriplanarUVs compute_parallax_uvs_limited(
-    sampler2D height_tex,
+    sampler2D height_tex, vec3 height_channel,
     vec3 pos, vec3 surface_normal, vec3 view_world,
     float scale, float height_scale,
     float height_center, float height_contrast, float min_view_dot
@@ -273,9 +273,9 @@ TriplanarUVs compute_parallax_uvs_limited(
     float sy = signed_axis(n.y);
     float sz = signed_axis(n.z);
 
-    float hx = (texture(height_tex, r.uv_x).r - height_center) * height_contrast;
-    float hy = (texture(height_tex, r.uv_y).r - height_center) * height_contrast;
-    float hz = (texture(height_tex, r.uv_z).r - height_center) * height_contrast;
+    float hx = (dot(texture(height_tex, r.uv_x).rgb, height_channel) - height_center) * height_contrast;
+    float hy = (dot(texture(height_tex, r.uv_y).rgb, height_channel) - height_center) * height_contrast;
+    float hz = (dot(texture(height_tex, r.uv_z).rgb, height_channel) - height_center) * height_contrast;
 
     r.uv_x -= limited_parallax_offset(v.yz * sx, v.x * sx, hx, uv_height_scale, min_view_dot) * mask_x;
     r.uv_y -= limited_parallax_offset(v.xz * sy, v.y * sy, hy, uv_height_scale, min_view_dot) * mask_y;
@@ -316,10 +316,9 @@ vec3 triplanar_sample_plain(sampler2D tex, TriplanarUVs uvs, vec3 normal) {
 // lejana), normalizado por la media real de la textura (mip 1x1). Devuelve 1.0 donde la capa vale
 // lo que la media, así que la mezcla no cambia la luminancia de la textura sea clara u oscura
 // (el clásico *2.0 solo era neutro con media 0.5, y en lineal la hierba está en ~0.05).
-float layer_blend_factor(sampler2D tex, vec3 layer_color, float weight) {
+float layer_blend_factor(float mean_luma, vec3 layer_color, float weight) {
     const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
-    vec3 avg = textureLod(tex, vec2(0.5), 20.0).rgb; // mip más bajo = media de la textura
-    float ratio = dot(layer_color, LUMA) / max(dot(avg, LUMA), 0.002);
+    float ratio = dot(layer_color, LUMA) / max(mean_luma, 0.002);
     return mix(1.0, clamp(ratio, 0.25, 3.0), weight);
 }
 

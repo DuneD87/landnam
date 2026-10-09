@@ -37,6 +37,7 @@ var _vegetation_field: Dictionary = {}
 @export var roughness_textures: Array[Texture2D] = []
 @export var ao_textures: Array[Texture2D] = []
 @export var height_textures: Array[Texture2D] = []
+var packed_materials: bool = false
 
 ## Familia de sonido de cada textura de terreno, en el mismo orden que "textures". La usan
 ## las pisadas (ver SurfaceAudio): sin ella, todo el planeta suena a la familia por defecto.
@@ -1559,6 +1560,14 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("roughness_textures", roughness_textures)
 	shader_material.set_shader_parameter("ao_textures", ao_textures)
 	shader_material.set_shader_parameter("height_textures", height_textures)
+	shader_material.set_shader_parameter("packed_materials", packed_materials)
+	var means := PackedFloat32Array()
+	means.resize(8)
+	for i in mini(textures.size(), means.size()):
+		means[i] = TerrainMaterialData.mean_luma(textures[i])
+	shader_material.set_shader_parameter("texture_mean_luma", means)
+	shader_material.set_shader_parameter("slope_mean_luma", TerrainMaterialData.mean_luma(slope_texture))
+	shader_material.set_shader_parameter("albedo_means_ready", true)
 
 	shader_material.set_shader_parameter("biome_texture_indices", biome_texture_indices)
 	shader_material.set_shader_parameter("biome_noise_enabled", biome_noise_enabled)
@@ -1631,17 +1640,23 @@ func setup_shader_parameters() -> void:
 func _setup_reef_shader_parameters() -> void:
 	var albedo := load(reef_settings.get("texture", "")) as Texture2D
 	var nrm := load(reef_settings.get("normal_texture", "")) as Texture2D
-	var rough := load(reef_settings.get("roughness_texture", "")) as Texture2D
-	var ao := load(reef_settings.get("ao_texture", "")) as Texture2D
-	var ready: bool = has_water and albedo != null and nrm != null and rough != null and ao != null
+	var packed_path: String = reef_settings.get("packed_material_texture", "")
+	var packed := not packed_path.is_empty()
+	var rough := load(packed_path if packed else reef_settings.get("roughness_texture", "")) as Texture2D
+	var ao: Texture2D = null
+	if not packed:
+		ao = load(reef_settings.get("ao_texture", "")) as Texture2D
+	var ready: bool = has_water and albedo != null and nrm != null and rough != null and (packed or ao != null)
 	shader_material.set_shader_parameter("reef_enabled", 1 if ready else 0)
+	shader_material.set_shader_parameter("reef_packed_material", packed)
 	if not ready:
 		return
 
 	shader_material.set_shader_parameter("reef_texture", albedo)
 	shader_material.set_shader_parameter("reef_normal_texture", nrm)
 	shader_material.set_shader_parameter("reef_roughness_texture", rough)
-	shader_material.set_shader_parameter("reef_ao_texture", ao)
+	if not packed:
+		shader_material.set_shader_parameter("reef_ao_texture", ao)
 	# Por defecto la franja cubre el arrecife entero: desde el borde hondo hasta un poco por encima
 	# de la cresta, para que la punta emergida no vuelva a ser arena justo al salir del agua.
 	var depth_max: float = maxf(float(reef_settings.get("depth_max", 45.0)), 1.0)

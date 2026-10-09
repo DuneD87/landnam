@@ -6,6 +6,10 @@ el observador. `scripts/planet/sky_lighting.gd` (nodo `SkyLighting` de `sun.tscn
 resuelve cada frame, para la cámara activa, en qué cuerpo está y a qué altura tiene el
 sol y la luna sobre **su** horizonte, y con eso gobierna todas las luces de la escena.
 
+La resolución de la dispersión del aire y los rayos se controla con **Calidad de la atmósfera**;
+ver [atmosphere_performance.md](atmosphere_performance.md). El modelo físico se mantiene en
+`planet_atmosphere_pass.glslinc`, compartido por los pases completo y reducido.
+
 | Pieza | Qué hace |
 |---|---|
 | Sol (`DirectionalLight3D`) | Color y energía con la transmitancia del modelo de cielo (abajo): blanco cálido alto, dorado a ~7°, naranja rojizo rasante. Se funde mientras el disco (2,9° de radio) cruza el horizonte y se apaga (`visible = false`) al hundirse. |
