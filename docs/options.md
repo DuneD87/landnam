@@ -19,6 +19,14 @@ confirmación y se deshace solo a los 10 s.
   reiniciar: detalle del terreno (`secondary_lod_distance`), normalmaps y material del terreno, densidad y
   distancia de la hierba, bandas de bosque lejano y sombras de vegetación.
 
+## V-Sync y tope de fotogramas
+
+Por defecto, V-Sync activado y tope de 120 fps. Con V-Sync desactivado y sin tope, en Linux con
+Wayland y NVIDIA (el juego va por XWayland, también incrustado en el editor) el juego se congela a
+los pocos segundos: el hilo principal se queda en el driver esperando a que XWayland devuelva una
+imagen de la cadena de presentación, con la GPU parada, sin errores en el log y sin responder a la
+pausa del depurador. Cuantos más fps, antes salta.
+
 ## Presets
 
 Alto es el valor por defecto. La calidad de la atmósfera usa Media en Alto y resolución completa
