@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 scene_path = "res://scenes/animals/Rhinoceros.tscn"
-population = 2
+population = 4
 spawn_min_distance = 60.0
 spawn_radius = 260.0
 recycle_distance = 390.0

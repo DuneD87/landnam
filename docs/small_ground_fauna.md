@@ -7,13 +7,13 @@ desactiva. No requieren modelos externos ni añaden datos a las partidas.
 
 | Perfil en `data/fauna/` | Población máxima | Paseo / huida | Distancia de alarma |
 | --- | ---: | ---: | ---: |
-| `rabbits.tres` | 6 | 0,55 / 5 m/s | 6 m |
-| `foxes.tres` | 2 | 1,4 / 5 m/s | 8 m |
-| `mice.tres` | 7 | 0,65 / 2,4 m/s | 3,5 m |
+| `rabbits.tres` | 12 | 0,55 / 5 m/s | 6 m |
+| `foxes.tres` | 4 | 1,4 / 5 m/s | 8 m |
+| `mice.tres` | 14 | 0,65 / 2,4 m/s | 3,5 m |
 
-En el frío, `arctic_hares.tres` (5), `arctic_foxes.tres` (2) y `lemmings.tres` (7, 0,6 / 2,4 m/s).
-Las poblaciones se bajaron a la mitad cuando llegaron las criaturas grandes del pack (ver
-[creature_species.md](creature_species.md#población)).
+En el frío, `arctic_hares.tres` (10), `arctic_foxes.tres` (4) y `lemmings.tres` (14, 0,6 / 2,4 m/s).
+Las poblaciones se bajaron a la mitad cuando llegaron las criaturas grandes del pack y se
+recuperaron al abaratar las criaturas (ver [creature_species.md](creature_species.md#población)).
 
 Los perfiles heredan de `GroundFaunaProfile`: se pueden ajustar población,
 biomas, alturas, distancias y frecuencia de aparición. `SmallGroundFaunaProfile`

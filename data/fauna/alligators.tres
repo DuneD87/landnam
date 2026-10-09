@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 scene_path = "res://scenes/animals/Alligator.tscn"
-population = 2
+population = 4
 spawn_min_distance = 40.0
 spawn_radius = 160.0
 recycle_distance = 240.0

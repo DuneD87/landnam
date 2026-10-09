@@ -11,18 +11,18 @@ clips, sus materiales y sus números. Los tamaños (joven, adulto, grande) son l
 
 | Especie | `spawn` | Escena | Dónde sale (población) | Conducta | Vida |
 | --- | --- | --- | --- | --- | ---: |
-| Cierva | `cierva` | `Hind` | templado (6) | huye | 55 |
-| Jabalí | `jabali` | `Boar` | templado (5) | huye; herido, carga | 80 |
-| Alce | `alce` | `Moose` | templado frío y frío (2) | huye; herido, carga | 180 |
-| Lince | `lince` | `Lynx` | templado y frío (1) | huye | 45 |
-| Cabra montés | `cabra_montes` | `MountainGoat` | templado frío y frío (4) | huye | 60 |
-| Mamut | `mamut` | `Mammoth` | frío (3) | carga si te acercas a menos de 15 m | 900 |
-| Leona | `leona` | `Lioness` | sabana (3) | ataca al verte: zarpazos y salto | 120 |
-| Ñu | `nu` | `Wildebeest` | sabana (8) | huye | 80 |
-| Hiena | `hiena` | `Hyena` | sabana (4), en grupos de 2 a 4 | ataca al verte y avisa al grupo: mordisco | 70 |
-| Caimán | `caiman` | `Alligator` | sabana, a menos de 25 m del agua (2) | ataca al verte: mordisco | 150 |
-| Rinoceronte | `rinoceronte` | `Rhinoceros` | sabana (2) | carga a menos de 18 m | 400 |
-| Elefante | `elefante` | `Elephant` | sabana (4) | carga a menos de 20 m | 800 |
+| Cierva | `cierva` | `Hind` | templado (12) | huye | 55 |
+| Jabalí | `jabali` | `Boar` | templado (10) | huye; herido, carga | 80 |
+| Alce | `alce` | `Moose` | templado frío y frío (4) | huye; herido, carga | 180 |
+| Lince | `lince` | `Lynx` | templado y frío (2) | huye | 45 |
+| Cabra montés | `cabra_montes` | `MountainGoat` | templado frío y frío (8) | huye | 60 |
+| Mamut | `mamut` | `Mammoth` | frío (6) | carga si te acercas a menos de 15 m | 900 |
+| Leona | `leona` | `Lioness` | sabana (6) | ataca al verte: zarpazos y salto | 120 |
+| Ñu | `nu` | `Wildebeest` | sabana (16) | huye | 80 |
+| Hiena | `hiena` | `Hyena` | sabana (8), en grupos de 2 a 4 | ataca al verte y avisa al grupo: mordisco | 70 |
+| Caimán | `caiman` | `Alligator` | sabana, a menos de 25 m del agua (4) | ataca al verte: mordisco | 150 |
+| Rinoceronte | `rinoceronte` | `Rhinoceros` | sabana (4) | carga a menos de 18 m | 400 |
+| Elefante | `elefante` | `Elephant` | sabana (8) | carga a menos de 20 m | 800 |
 | Puma | `puma` | `Puma` | solo consola | ataca al verte: zarpazos y salto | 90 |
 | Muflón | `muflon` | `Bighorn` | solo consola | huye | 60 |
 | Berrendo | `berrendo` | `Pronghorn` | solo consola | huye | 45 |
@@ -46,24 +46,33 @@ que tengan grabaciones propias.
 Cada perfil tiene su propia población, así que cada especie que se añade a una zona suma
 criaturas. Con todas las especies nuevas, en la partida guardada había 50 en juego en vez de 28. Y
 una criatura grande cuesta aunque esté lejos: su cuerpo físico, sus zonas de golpe pegadas a los
-huesos y su esqueleto. Por eso las poblaciones de cada zona se bajaron a la mitad o menos:
+huesos y su esqueleto. Por eso las poblaciones se bajaron a la mitad o menos, y se recuperaron
+(las de antes del pack a su valor, las nuevas al doble) al abaratar la percepción y los esqueletos:
 
 | Zona | Especies (población) | Total |
 | --- | --- | ---: |
-| Templado (biomas 1 y 3) | ciervo 8, cierva 6, oso 4, lobos 5, jabalí 5, lince 1; en lo frío, alce 2 y cabra montés 4 | ~30–35 |
-| Frío (por clima) | caribú 8, oso polar 2, mamut 3, y los lobos, alces, linces y cabras que comparte | ~25 |
-| Sabana (bioma 2) | ñu 8, búfalo 5, elefante 4, hiena 4, leona 3, león 2, rinoceronte 2, caimán 2 | 30 |
+| Templado (biomas 1 y 3) | ciervo 20, cierva 12, oso 10, lobos 8, jabalí 10, lince 2; en lo frío, alce 4 y cabra montés 8 | ~60–75 |
+| Frío (por clima) | caribú 16, oso polar 3, mamut 6, y los lobos, alces, linces y cabras que comparte | ~45 |
+| Sabana (bioma 2) | ñu 16, búfalo 10, elefante 8, hiena 8, leona 6, león 3, rinoceronte 4, caimán 4 | 59 |
 
-Los animales pequeños también se bajaron a la mitad (ver
+Son poblaciones con la fauna de las opciones al máximo: el nivel bajo deja el 40 % y el medio el
+70 % (`FAUNA_SCALE`). Los animales pequeños siguen la misma vuelta (ver
 [small_ground_fauna.md](small_ground_fauna.md)). Al añadir una especie a una zona, la población
 se quita a las otras de esa zona, no se suma.
 
 ## Coste de la animación
 
 Lo que más cuesta de una criatura es su esqueleto, en CPU: mezclar los clips del `AnimationTree` y
-posar los huesos. Los rigs del pack tienen de 90 a 547 huesos (el caballo), frente a los 38–60 de
+posar los huesos. Los rigs del pack traían de 90 a 547 huesos (el caballo), frente a los 38–60 de
 los primeros animales. Animados en cada fotograma, cada uno costaba unos 87 µs frente a 27, y los
 22 nuevos en juego sumaban 1,9 ms.
+
+Muchos de esos huesos no deforman nada (IK, ayudantes, puntas) y aun así cuestan en cada fotograma:
+sus pistas se mezclan, se posan y, con bind en la piel, se suben al servidor de render.
+`tools/fauna/prune_skeleton.gd` los quita del modelo y de sus clips (ver el paso 8 más abajo). Ya
+podados, los del pack tienen de 33 a 122 huesos y el caballo 238; por ejemplo, el ñu pasó de 119 a
+59, la cabra montés de 119 a 57 y el elefante de 146 a 106. Los primeros animales (ciervo, oso,
+búfalo, león) no tenían nada que quitar, y el lobo usa su FBX tal cual.
 
 `AnimationController.throttled` (lo enciende `NPCController`) avanza el árbol a mano:
 
@@ -127,6 +136,13 @@ importe, y de ahí se saca solo lo que se usa.
    población, `group_size`, distancias de detalle y `near_water` para los que viven junto al agua)
    va en `biome_settings.ground_fauna` de `planet_earth.json`. El nombre de consola va en
    `ANIMAL_SCENES` de `scripts/console/console.gd`.
+8. **Podar.** `tools/fauna/prune_skeleton.gd -- --creature=res://scenes/animals/<Escena>.tscn`
+   (`--dry` solo informa) quita del `.scn` y de su librería los huesos sin peso en la malla que no
+   son ancestros de uno con peso ni los nombra el juego: `head_bone`, `flinch_bones`, los huesos de
+   los golpes (`CreatureHit.bones`), las tablas de `AnimalGore` y los `BoneAttachment3D`. Por eso va
+   después de la escena y del combate. La malla no se vuelve a codificar (solo se renumeran los
+   índices de hueso de la piel), así que se conservan compresión y LOD. Hay que volver a pasarla si
+   se reimporta el modelo con `import_pack_model`.
 
 `near_water` (m) acepta un punto si hay un río a esa distancia (`RiverField.distance_at`, con la
 red de ríos del planeta) o agua del mapa (lago, mar) en dos corros de 8 puntos, a esa distancia y

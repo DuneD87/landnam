@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 scene_path = "res://scenes/animals/Mammoth.tscn"
-population = 3
+population = 6
 spawn_min_distance = 70.0
 spawn_radius = 300.0
 recycle_distance = 450.0

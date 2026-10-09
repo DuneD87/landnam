@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 scene_path = "res://scenes/animals/Wildebeest.tscn"
-population = 8
+population = 16
 spawn_min_distance = 40.0
 spawn_radius = 240.0
 recycle_distance = 360.0
