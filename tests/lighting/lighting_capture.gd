@@ -53,6 +53,8 @@ var VIEWS := {
 	"forest_high": {"dir": Vector3(0.635139, 0.469472, -0.613347), "yaw": 0.0, "pitch": -12.0, "height": 60.0},
 	"dunes": {"dir": Vector3(0.708411, 0.173648, -0.684105), "yaw": 180.0, "pitch": 0.0},
 	"dunes_sun": {"dir": Vector3(0.708411, 0.173648, -0.684105), "look": "sun", "pitch": 3.0},
+	# Cielo sobre las dunas: las nubes vistas desde abajo (grano y detalle de su raymarch).
+	"clouds_up": {"dir": Vector3(0.708411, 0.173648, -0.684105), "yaw": 180.0, "pitch": 55.0},
 	# El mismo sitio girado: el sol bajo queda escondido detrás de la colina de la izquierda (el aire
 	# de delante está a su sombra y no debe brillar).
 	"dunes_sun_hidden": {"dir": Vector3(0.708411, 0.173648, -0.684105), "look": "sun", "yaw": 35.0, "pitch": 3.0},

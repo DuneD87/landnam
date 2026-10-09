@@ -4,6 +4,7 @@ class_name PlanetAtmosphere
 
 const DEFAULT_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere.glsl"
 const CACHE_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere_cache.glsl"
+const CLOUD_SHADER_PATH := "res://shaders/atmosphere/planet_atmosphere_clouds.glsl"
 const NOISE_GEN_SHADER_PATH := "res://shaders/atmosphere/cloud_noise_gen.glsl"
 ## Segundo pase (god rays screen-space). Comparte el UBO de params de este efecto.
 const GOD_RAYS_SHADER_PATH := "res://shaders/atmosphere/god_rays.glsl"
@@ -26,6 +27,14 @@ const GROUP_TEX_H := 128
 ## mantienen resolución completa. Nunca se reduce el color de la escena.
 ## Los bordes sin profundidad compatible y los píxeles bajo el agua usan el pase completo.
 @export_enum("Completa:1", "Mitad:2", "Un cuarto:4") var resolution_divisor: int = 2
+## Las nubes se marchan en su propia capa, que la composición filtra para quitar el tramado del
+## jitter. Con la escala de render por debajo del 100 % la capa va a más resolución que la escena:
+## esta fracción del camino que va de la resolución interna a la de salida (0 = la de la escena,
+## 1 = la nativa). El coste de las nubes crece con su área.
+@export_range(0.0, 1.0, 0.05) var cloud_resolution_boost: float = 1.5
+## Margen del filtro de la capa de nubes, en texels, más allá de la huella del píxel: 1,5 = 1-2-1 a
+## la misma resolución. Quita el tramado del jitter del march; 0 = sin filtro (solo la huella).
+@export_range(0.0, 3.0, 0.1) var cloud_filter_margin: float = 1.5
 
 @export_group("Planet")
 @export var planet_center: Vector3 = Vector3.ZERO
@@ -324,6 +333,13 @@ var _cache_pipeline: RID
 var _scatter_textures: Array[RID] = []
 var _transmittance_textures: Array[RID] = []
 var _cache_size := Vector2i.ZERO
+var _cloud_shader: RID
+var _cloud_pipeline: RID
+## Capa de nubes por vista: RGBA16F (color con perspectiva aérea + transmitancia) y RG16F
+## (transmitancia en crudo para la máscara de los rayos + guía de profundidad del filtro).
+var _cloud_textures: Array[RID] = []
+var _cloud_mask_textures: Array[RID] = []
+var _cloud_size := Vector2i.ZERO
 ## Máscara de oclusión (R8) que escribe el pase de atmósfera y lee el de god rays. Una por vista,
 ## recreadas al cambiar el tamaño interno del render.
 var _mask_textures: Array[RID] = []
@@ -372,9 +388,11 @@ func _notification(what: int) -> void:
 		resources.append_array(_mask_textures)
 		resources.append_array(_scatter_textures)
 		resources.append_array(_transmittance_textures)
+		resources.append_array(_cloud_textures)
+		resources.append_array(_cloud_mask_textures)
 		resources.append_array([depth_sampler, noise_sampler, noise_tex, group_sampler,
 			group_tex, _noise_gen_shader, _god_rays_shader, _god_rays_cache_shader,
-			_god_rays_composite_shader, _cache_shader, _mask_sampler, shader])
+			_god_rays_composite_shader, _cache_shader, _cloud_shader, _mask_sampler, shader])
 		RenderingServer.call_on_render_thread(
 			UnderwaterRenderPass.release_owned_resources.bind(rd, underwater_pass, resources))
 
@@ -658,6 +676,7 @@ func _initialize_compute() -> void:
 	_create_group_texture()
 	_initialize_god_rays()
 	_initialize_atmosphere_cache()
+	_initialize_cloud_layer()
 
 	print("PlanetAtmosphere: compute initialized OK.")
 
@@ -702,6 +721,60 @@ func _initialize_atmosphere_cache() -> void:
 		_cache_pipeline = rd.compute_pipeline_create(_cache_shader)
 
 
+func _initialize_cloud_layer() -> void:
+	var spirv := _load_compute_spirv(CLOUD_SHADER_PATH)
+	if spirv == null or spirv.compile_error_compute != "" or spirv.bytecode_compute.is_empty():
+		push_error("PlanetAtmosphere: capa de nubes no disponible; las nubes se marchan sin filtro en el pase completo.")
+		return
+	_cloud_shader = rd.shader_create_from_spirv(spirv)
+	if _cloud_shader.is_valid():
+		_cloud_pipeline = rd.compute_pipeline_create(_cloud_shader)
+
+
+## Sin capa activa se dejan imágenes de 1×1: el pase completo las declara aunque no las lea.
+func _ensure_cloud_layer(size: Vector2i, count: int) -> bool:
+	if _cloud_size == size and _cloud_textures.size() == count and _cloud_mask_textures.size() == count:
+		return true
+	for texture in _cloud_textures + _cloud_mask_textures:
+		if texture.is_valid():
+			rd.free_rid(texture)
+	_cloud_textures.clear()
+	_cloud_mask_textures.clear()
+	_cloud_size = Vector2i.ZERO
+	var color_format := RDTextureFormat.new()
+	color_format.format = RenderingDevice.DATA_FORMAT_R16G16B16A16_SFLOAT
+	color_format.width = size.x
+	color_format.height = size.y
+	color_format.usage_bits = RenderingDevice.TEXTURE_USAGE_STORAGE_BIT | RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT
+	var mask_format := RDTextureFormat.new()
+	mask_format.format = RenderingDevice.DATA_FORMAT_R16G16_SFLOAT
+	mask_format.width = size.x
+	mask_format.height = size.y
+	mask_format.usage_bits = color_format.usage_bits
+	for i in count:
+		var color := rd.texture_create(color_format, RDTextureView.new(), [])
+		var mask := rd.texture_create(mask_format, RDTextureView.new(), [])
+		_cloud_textures.append(color)
+		_cloud_mask_textures.append(mask)
+		if not color.is_valid() or not mask.is_valid():
+			push_error("PlanetAtmosphere: no se pudo crear la capa de nubes.")
+			return false
+	_cloud_size = size
+	return true
+
+
+func _cloud_uniform_set(view: int) -> RID:
+	var uniforms: Array[RDUniform] = []
+	var textures: Array[RID] = [_cloud_textures[view], _cloud_mask_textures[view]]
+	for binding in textures.size():
+		var uniform := RDUniform.new()
+		uniform.binding = binding
+		uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
+		uniform.add_id(textures[binding])
+		uniforms.append(uniform)
+	return UniformSetCacheRD.get_cache(_cloud_shader, 2, uniforms)
+
+
 ## Dos RGBA16F por vista: luz del aire + profundidad guía, transmisión del aire.
 ## Se reconstruyen al cambiar tamaño/calidad; no conservan historia temporal.
 func _ensure_atmosphere_cache(size: Vector2i, count: int) -> bool:
@@ -730,9 +803,12 @@ func _ensure_atmosphere_cache(size: Vector2i, count: int) -> bool:
 	return true
 
 
+## Set 2. El pase completo lee además la capa de nubes (bindings 2 y 3).
 func _cache_uniform_set(view: int, target_shader: RID, storage: bool) -> RID:
 	var uniforms: Array[RDUniform] = []
 	var textures: Array[RID] = [_scatter_textures[view], _transmittance_textures[view]]
+	if not storage:
+		textures.append_array([_cloud_textures[view], _cloud_mask_textures[view]])
 	for binding in textures.size():
 		var uniform := RDUniform.new()
 		uniform.binding = binding
@@ -976,7 +1052,22 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 	_ensure_params_buffers(view_count)
 	_params_mutex.lock()
 	var divisor := resolution_divisor
+	var cloud_boost := clampf(cloud_resolution_boost, 0.0, 1.0)
 	_params_mutex.unlock()
+
+	# Capa de nubes entre la resolución interna y la de salida. Hasta el doble por eje: es lo que
+	# cubre el filtro de la composición (cached_clouds) y lo que da la escala mínima del menú (50 %).
+	var target_size: Vector2i = render_scene_buffers.get_target_size()
+	var cloud_size := Vector2i((Vector2(size) + Vector2(target_size - size).maxf(0.0) * cloud_boost).round())
+	cloud_size = cloud_size.clamp(size, size * 2)
+	var cloud_layer := _cloud_pipeline.is_valid()
+	if not _ensure_cloud_layer(cloud_size if cloud_layer else Vector2i.ONE, view_count):
+		if not cloud_layer:
+			return
+		cloud_layer = false
+		if not _ensure_cloud_layer(Vector2i.ONE, view_count):
+			return
+
 	if divisor not in [1, 2, 4] or not _cache_pipeline.is_valid():
 		divisor = 1
 	@warning_ignore("integer_division")
@@ -1016,7 +1107,7 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 		if water_images.is_empty():
 			continue
 
-		var params_bytes := _build_params_bytes(size, scene_data, projection, view, divisor)
+		var params_bytes := _build_params_bytes(size, scene_data, projection, view, divisor, cloud_layer)
 		rd.buffer_update(params_buffers[view], 0, params_bytes.size(), params_bytes)
 
 		var color_uniform := RDUniform.new()
@@ -1091,6 +1182,21 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 			rd.compute_list_dispatch(cache_list, (cache_size.x + LOCAL_SIZE - 1) / LOCAL_SIZE,
 				(cache_size.y + LOCAL_SIZE - 1) / LOCAL_SIZE, 1)
 			# The separate list provides the write→sample dependency before composition.
+			rd.compute_list_end()
+
+		# Capa de nubes: solo con nubes activas (P(13).w); sin ellas el pase completo no la lee.
+		if cloud_layer and params_bytes.decode_float((13 * 4 + 3) * 4) > 0.5:
+			var cloud_set := UniformSetCacheRD.get_cache(_cloud_shader, 0,
+				[depth_uniform, params_uniform, occ_uniform, noise_uniform, group_uniform])
+			var cloud_list := rd.compute_list_begin()
+			rd.compute_list_bind_compute_pipeline(cloud_list, _cloud_pipeline)
+			rd.compute_list_bind_uniform_set(cloud_list, cloud_set, 0)
+			rd.compute_list_bind_uniform_set(cloud_list, underwater_pass.bind_optics(_cloud_shader, water_images), 1)
+			rd.compute_list_bind_uniform_set(cloud_list, _cloud_uniform_set(view), 2)
+			@warning_ignore("integer_division")
+			rd.compute_list_dispatch(cloud_list, (cloud_size.x + LOCAL_SIZE - 1) / LOCAL_SIZE,
+				(cloud_size.y + LOCAL_SIZE - 1) / LOCAL_SIZE, 1)
+			# Lista propia: su fin ordena la escritura de la capa antes de que la lea la composición.
 			rd.compute_list_end()
 
 		var compute_list := rd.compute_list_begin()
@@ -1185,7 +1291,8 @@ func _build_params_bytes(
 	scene_data,
 	projection: Projection,
 	view: int,
-	divisor: int = 1
+	divisor: int = 1,
+	cloud_layer: bool = false
 ) -> PackedByteArray:
 	var cam_transform: Transform3D = scene_data.get_cam_transform()
 	var cam_origin: Vector3 = cam_transform.origin
@@ -1213,6 +1320,7 @@ func _build_params_bytes(
 	var local_cloud_g         := cloud_g
 	var local_cloud_nscale    := cloud_noise_scale
 	var local_shape_ratio     := cloud_shape_ratio
+	var local_cloud_filter    := clampf(cloud_filter_margin, 0.0, 3.0)
 	var local_size_variation  := cloud_size_variation
 	var local_wind_direction  := cloud_wind_direction
 	var local_wind_speed      := cloud_wind_speed
@@ -1440,8 +1548,9 @@ func _build_params_bytes(
 	_append_vec4(floats, Vector4(local_aurora_low.r, local_aurora_low.g, local_aurora_low.b, local_aurora_oval))
 	_append_vec4(floats, Vector4(local_aurora_high.r, local_aurora_high.g, local_aurora_high.b, 0.0))
 
-	# 42: resolución del transporte (1 = completo; 2/4 = reconstrucción bilateral).
-	_append_vec4(floats, Vector4(divisor, 0.0, 0.0, 0.0))
+	# 42: resolución del transporte (1 = completo; 2/4 = reconstrucción bilateral), capa de nubes
+	# (1 = el pase completo filtra la capa en vez de marchar las nubes) y margen de su filtro.
+	_append_vec4(floats, Vector4(divisor, 1.0 if cloud_layer else 0.0, local_cloud_filter, 0.0))
 	return floats.to_byte_array()
 
 

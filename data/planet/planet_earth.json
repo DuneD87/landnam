@@ -268,7 +268,7 @@
 			"cloud_group_density_variation": 0.45
 		},
 		"cloud_quality": {
-			"cloud_steps": 10.0,
+			"cloud_steps": 24.0,
 			"cloud_light_steps": 4.0,
 			"cloud_shadow_steps": 8.0
 		},

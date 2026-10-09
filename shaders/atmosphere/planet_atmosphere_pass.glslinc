@@ -1,7 +1,13 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
-#ifndef ATMOSPHERE_CACHE_PASS
+// Tres pases comparten este código: el completo (compone todo sobre la escena), el caché del
+// aire (ATMOSPHERE_CACHE_PASS) y la capa de nubes (ATMOSPHERE_CLOUD_PASS).
+#if !defined(ATMOSPHERE_CACHE_PASS) && !defined(ATMOSPHERE_CLOUD_PASS)
+#define ATMOSPHERE_FULL_PASS
+#endif
+
+#ifdef ATMOSPHERE_FULL_PASS
 layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 #endif
 layout(set = 0, binding = 1) uniform sampler2D depth_texture;
@@ -35,16 +41,24 @@ layout(set = 0, binding = 5) uniform sampler2D cloud_group_tex;
 // Máscara de emisión para el segundo pase (god_rays.glsl): 1 = cielo abierto, 0 = ocluido,
 // intermedio = nube. La escribe este shader porque es el único que sabe cuánta nube hay: el
 // depth buffer no ve el raymarch.
-#ifndef ATMOSPHERE_CACHE_PASS
+#ifdef ATMOSPHERE_FULL_PASS
 layout(r8, set = 0, binding = 6) uniform restrict writeonly image2D occlusion_mask;
 layout(set = 2, binding = 0) uniform sampler2D atmosphere_scatter;
 layout(set = 2, binding = 1) uniform sampler2D atmosphere_transmittance;
-#else
+// Capa de nubes (P(42).y): color con su perspectiva aérea + transmitancia, y la transmitancia en
+// crudo para la máscara de los rayos + la guía de profundidad del filtro. Sin capa se bindean
+// imágenes de 1×1 que no se leen.
+layout(set = 2, binding = 2) uniform sampler2D cloud_layer;
+layout(set = 2, binding = 3) uniform sampler2D cloud_layer_mask;
+#elif defined(ATMOSPHERE_CACHE_PASS)
 layout(rgba16f, set = 2, binding = 0) uniform restrict writeonly image2D atmosphere_scatter;
 layout(rgba16f, set = 2, binding = 1) uniform restrict writeonly image2D atmosphere_transmittance;
+#else
+layout(rgba16f, set = 2, binding = 0) uniform restrict writeonly image2D cloud_layer;
+layout(rg16f, set = 2, binding = 1) uniform restrict writeonly image2D cloud_layer_mask;
 #endif
 
-#ifndef ATMOSPHERE_CACHE_PASS
+#ifdef ATMOSPHERE_FULL_PASS
 void store_occlusion(ivec2 pixel, float value) {
     imageStore(occlusion_mask, pixel, vec4(value));
 }
@@ -1381,7 +1395,65 @@ float atmosphere_guide(float scene_t, float air_exit, float air_length) {
     return scene_t >= air_exit - 1.0 ? -1.0 : min(scene_t, 60000.0);
 }
 
-#ifndef ATMOSPHERE_CACHE_PASS
+// Peso de una muestra filtrada según su guía de profundidad: cielo, aire vacío y relieve no se
+// mezclan entre sí, ni dos profundidades que difieran más del 3 %.
+float guide_match(float guide, float sample_guide) {
+    if (guide < 0.0 || sample_guide < 0.0) return guide == sample_guide ? 1.0 : 0.0;
+    float relative_error = abs(sample_guide - guide) / max(guide, 1.0);
+    return max(1.0 - relative_error / 0.03, 0.0);
+}
+
+// Píxel interno que contiene una columna (o fila) de la capa de nubes, cuya razón de tamaño con la
+// escena va de 1 a 2. El pase de nubes marcha cada texel con la profundidad de ese píxel.
+int cloud_owner(int texel, float ratio) {
+    return int(floor((float(texel) + 0.5) / ratio));
+}
+
+#ifdef ATMOSPHERE_FULL_PASS
+// Filtro de tienda sobre la capa de nubes, ponderado por la guía de profundidad para que la nube
+// no se cuele por las siluetas. Su margen más allá de la huella del píxel (P(42).z, en texels) va
+// porque el jitter IGN del march reparte su error para que lo absorba un entorno de 3×3: sin filtro
+// (ni TAA), los bordes de nube que cruzan pocos pasos se ven como un tramado de puntos. Vale para
+// la composición porque la luz de detrás es la misma en todas las muestras:
+// media(luz*T + C) = luz*media(T) + media(C).
+bool cached_clouds(ivec2 pixel, ivec2 size, float guide, out vec3 color, out float trans, out float raw_trans) {
+    ivec2 layer_size = textureSize(cloud_layer, 0);
+    vec2 ratio = vec2(layer_size) / vec2(size);
+    vec2 center = (vec2(pixel) + 0.5) * ratio - 0.5;
+    vec2 radius = 0.5 * ratio + clamp(P(42).z, 0.0, 3.0);
+    ivec2 first = ivec2(floor(center - radius)) + 1;
+    color = vec3(0.0);
+    trans = 0.0;
+    raw_trans = 0.0;
+    float total = 0.0;
+    // Con razón ≤ 2 y margen ≤ 3 el radio no pasa de 4 texels: como mucho 8 por eje.
+    for (int j = 0; j < 9; j++) {
+        int ty = first.y + j;
+        float wy = 1.0 - abs(float(ty) - center.y) / radius.y;
+        if (ty < 0 || ty >= layer_size.y || wy <= 0.0) continue;
+        for (int i = 0; i < 9; i++) {
+            int tx = first.x + i;
+            float wx = 1.0 - abs(float(tx) - center.x) / radius.x;
+            if (tx < 0 || tx >= layer_size.x || wx <= 0.0) continue;
+            vec2 mask = texelFetch(cloud_layer_mask, ivec2(tx, ty), 0).rg;
+            float weight = wx * wy * guide_match(guide, mask.g);
+            if (weight <= 0.0) continue;
+            vec4 c = texelFetch(cloud_layer, ivec2(tx, ty), 0);
+            color += c.rgb * weight;
+            trans += c.a * weight;
+            raw_trans += mask.r * weight;
+            total += weight;
+        }
+    }
+    if (total < 0.05) return false;
+    color /= total;
+    trans /= total;
+    raw_trans /= total;
+    return true;
+}
+#endif
+
+#ifdef ATMOSPHERE_FULL_PASS
 // Reconstrucción bilateral: conserva el color original a resolución completa y
 // filtra solo los coeficientes del aire C/T de C + color*T. Si el bloque no contiene una
 // muestra compatible (una rama fina, una silueta), se calcula ese píxel completo.
@@ -1398,14 +1470,7 @@ bool cached_atmosphere(ivec2 pixel, float guide, out vec3 scatter, out vec3 tran
         for (int x = 0; x < 2; x++) {
             ivec2 tap = clamp(base + ivec2(x, y), ivec2(0), last);
             vec4 c = texelFetch(atmosphere_scatter, tap, 0);
-            float compatible = 0.0;
-            if (guide < 0.0 || c.a < 0.0) {
-                compatible = guide == c.a ? 1.0 : 0.0;
-            } else {
-                float relative_error = abs(c.a - guide) / max(guide, 1.0);
-                compatible = max(1.0 - relative_error / 0.03, 0.0);
-            }
-            float weight = (x == 0 ? 1.0 - f.x : f.x) * (y == 0 ? 1.0 - f.y : f.y) * compatible;
+            float weight = (x == 0 ? 1.0 - f.x : f.x) * (y == 0 ? 1.0 - f.y : f.y) * guide_match(guide, c.a);
             if (weight <= 0.0) continue;
             vec4 t = texelFetch(atmosphere_transmittance, tap, 0);
             scatter += c.rgb * weight;
@@ -1428,6 +1493,17 @@ void main() {
     if (any(greaterThanEqual(cache_pixel, imageSize(atmosphere_scatter)))) return;
     int divisor = int(P(42).x);
     pixel = min(cache_pixel * divisor + ivec2(divisor / 2), size - 1);
+#elif defined(ATMOSPHERE_CLOUD_PASS)
+    // Cada texel marcha su propio rayo; la profundidad y el agua son las del píxel que lo contiene.
+    ivec2 cloud_texel = pixel;
+    ivec2 layer_size = imageSize(cloud_layer);
+    if (any(greaterThanEqual(cloud_texel, layer_size))) return;
+    // Sin march (agua, sin aire) el texel queda transparente y con una guía (-4) que ningún
+    // píxel comparte, así el filtro de la composición no lo mezcla.
+    imageStore(cloud_layer, cloud_texel, vec4(0.0, 0.0, 0.0, 1.0));
+    imageStore(cloud_layer_mask, cloud_texel, vec4(1.0, -4.0, 0.0, 0.0));
+    vec2 cloud_ratio = vec2(layer_size) / vec2(size);
+    pixel = min(ivec2(cloud_owner(cloud_texel.x, cloud_ratio.x), cloud_owner(cloud_texel.y, cloud_ratio.y)), size - 1);
 #else
     if (pixel.x >= size.x || pixel.y >= size.y) return;
 #endif
@@ -1437,6 +1513,14 @@ void main() {
 	if (P(11).w < 0.5) return;
 
 	vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(size);
+	// Rayo y huella de píxel: en la capa de nubes, los del texel (más finos que los del píxel).
+#ifdef ATMOSPHERE_CLOUD_PASS
+	vec2 ray_uv = (vec2(cloud_texel) + vec2(0.5)) / vec2(layer_size);
+	float ray_texel_v = 1.0 / float(layer_size.y);
+#else
+	vec2 ray_uv = uv;
+	float ray_texel_v = 1.0 / float(size.y);
+#endif
 
 	float planet_radius       = P(0).z;
 	float atmo_radius         = P(0).w;
@@ -1450,7 +1534,7 @@ void main() {
 	vec3 wavelengths     = P(11).rgb;         // nm (p.ej. 700, 530, 440)
 
 	// Dirección del rayo en mundo.
-	vec3 view_probe = reconstruct_view_position(uv, 0.0001);
+	vec3 view_probe = reconstruct_view_position(ray_uv, 0.0001);
 	vec3 ray_dir = normalize(view_to_world_dir(view_probe));
 
 	// Intersección con la atmósfera.
@@ -1464,7 +1548,7 @@ void main() {
 
 	float scene_t = MAX_FLOAT;
 	if (has_scene_depth) {
-		vec3 scene_view_position = reconstruct_view_position(uv, depth_sample);
+		vec3 scene_view_position = reconstruct_view_position(ray_uv, depth_sample);
 		scene_t = length(scene_view_position);
 	} else if (dst_to_atmo > EPSILON) {
 		// Sin geometría en el depth buffer (planeta más allá del far plane de la cámara o del
@@ -1495,13 +1579,16 @@ void main() {
         return;
     }
     vec4 scene_color = vec4(0.0);
-#else
+#elif defined(ATMOSPHERE_FULL_PASS)
     vec4 scene_color = imageLoad(color_image, pixel);
     if (P(42).x > 1.0 && dst_through_atmo > 0.0 && UW_debug_mode == 0 && !uw_pixel_wet(uv)) {
         // El caché solo sustituye la integral suave del aire. Nubes, sombra, niebla
         // y aurora se calculan después por píxel, con su jitter y detalle originales.
         use_cached_air = cached_atmosphere(pixel, guide, cached_scatter, cached_transmittance);
     }
+#else
+    // Bajo el agua el rayo se refracta: esos píxeles marchan sus nubes en el pase completo.
+    if (uw_pixel_wet(uv) || UW_debug_mode != 0) return;
 #endif
 	// Coeficientes de scattering tipo Rayleigh: (400/λ)^4 * strength.
 	vec3 scattering_coefficients = vec3(
@@ -1512,10 +1599,10 @@ void main() {
 
 	// Ángulo que subtiende un píxel, sacado de la propia proyección: así el LOD del ruido de las
 	// nubes sigue a la resolución y al FOV sin parámetro nuevo que mantener sincronizado.
-	vec3 probe_dy = reconstruct_view_position(uv + vec2(0.0, 1.0 / float(size.y)), 0.0001);
+	vec3 probe_dy = reconstruct_view_position(ray_uv + vec2(0.0, ray_texel_v), 0.0001);
 	float pixel_angle = length(normalize(probe_dy) - normalize(view_probe));
 
-#ifndef ATMOSPHERE_CACHE_PASS
+#ifdef ATMOSPHERE_FULL_PASS
 	// Ancho angular de un píxel: es la huella con la que el techo filtra su detalle.
 	vec4 spread_a = UW_inv_projection * vec4(uv * 2.0 - 1.0, 1.0, 1.0);
 	vec4 spread_b = UW_inv_projection * vec4((uv + vec2(1.0 / float(size.x), 0.0)) * 2.0 - 1.0, 1.0, 1.0);
@@ -1558,7 +1645,7 @@ void main() {
 
 #endif
 
-#ifndef ATMOSPHERE_CACHE_PASS
+#ifdef ATMOSPHERE_FULL_PASS
 	// Máscara de god rays, parte de geometría. Un oclusor cercano se descuenta (P(32).x de
 	// referencia): en pantalla tapa muchísimo, pero solo ensombrece el pedacito de aire que tiene
 	// detrás, no la columna entera. Se escribe antes del early-out de abajo para que ningún píxel
@@ -1582,7 +1669,7 @@ void main() {
 #ifdef ATMOSPHERE_CACHE_PASS
         imageStore(atmosphere_scatter, cache_pixel, vec4(0.0, 0.0, 0.0, guide));
         imageStore(atmosphere_transmittance, cache_pixel, vec4(1.0, 1.0, 1.0, 0.0));
-#else
+#elif defined(ATMOSPHERE_FULL_PASS)
 		vec3 seen = purkinje(scene_color.rgb, camera_position, planet_center, sun_direction, planet_radius, atmo_radius);
 		imageStore(color_image, pixel, vec4(seen * water.transmission + water.scatter + water_background, scene_color.a));
 #endif
@@ -1608,7 +1695,7 @@ void main() {
 	float cloud_min_r = planet_radius + P(12).x;
 	float cloud_max_r = planet_radius + P(12).y;
 
-#ifndef ATMOSPHERE_CACHE_PASS
+#ifdef ATMOSPHERE_FULL_PASS
 	// Sombra de las nubes proyectada sobre el terreno visible. Se aplica al color de
 	// escena ANTES de la atmósfera, para que el in-scatter se calcule sobre la
 	// superficie ya oscurecida. Reutiliza la misma densidad que dibuja las nubes,
@@ -1634,6 +1721,7 @@ void main() {
 
 #endif
 
+#ifndef ATMOSPHERE_CLOUD_PASS
 	// Multiplicador del in-scatter de Rayleigh (velo azul de perspectiva aérea), parámetro propio del
 	// clima (P(23).w, atmosphere_scatter): 1 = dispersión plena, 0 = horizonte plomizo sin azul. Se
 	// fija por evento en weather_events.json, desligado de cloud_shadow.
@@ -1666,6 +1754,7 @@ void main() {
 		float presence = mix(1.0, texture(cloud_group_tex, latlong_uv(env_dir)).r, scatter_group);
 		in_scatter_mult = mix(1.0, in_scatter_mult, presence);
 	}
+#endif
 
 	// Marco del cielo. Con la cámara dentro del aire el cielo se calcula como el de un planeta
 	// sky_curvature veces mayor (ver MODELO DE CIELO) y se funde con la geometría real al subir:
@@ -1683,6 +1772,7 @@ void main() {
 	// se veía de un cian lavado. Se funde al alejarse, como la densificación de las nubes.
 	float scatter_scale = mix(1.0, clamp(P(26).z, 0.0, 1.0), smoothstep(atmo_radius, planet_radius * 2.0, cam_dist));
 
+#ifndef ATMOSPHERE_CLOUD_PASS
 	// Nubes volumétricas — se aplican antes del scattering atmosférico.
 	// 1. Primero calcula la atmósfera sobre la escena original.
 	vec3 light;
@@ -1726,6 +1816,7 @@ void main() {
 			cloud_min_h, cloud_max_h, up_obs, 1.0 / flat_w, 1.0, scatter_scale, mie_g, air_transmittance
 		);
 	}
+#endif
 
 #ifdef ATMOSPHERE_CACHE_PASS
     // Solo Rayleigh/Mie y perspectiva aérea: no hay jitter ni volumen de nube
@@ -1737,54 +1828,77 @@ void main() {
 	if (P(13).w > 0.5) {
 		vec3  cloud_col;
 		float cloud_trans;
-		float cloud_dist;
+		// Transmitancia EN CRUDO, antes de la perspectiva aérea: es la que ocluye los god rays.
+		float cloud_raw_trans;
 
-		float cloud_max_dist = min(scene_t, dst_to_atmo + dst_through_atmo);
+#ifdef ATMOSPHERE_FULL_PASS
+		// Las nubes ya vienen marchadas en su capa (P(42).y), a la resolución de la escena o más:
+		// aquí se filtran. El agua refracta el rayo, así que sus píxeles las siguen marchando aquí.
+		bool layered = P(42).y > 0.5 && !water.wet
+			&& cached_clouds(pixel, size, guide, cloud_col, cloud_trans, cloud_raw_trans);
+#else
+		const bool layered = false;
+#endif
+		if (!layered) {
+			float cloud_dist;
+			float cloud_max_dist = min(scene_t, dst_to_atmo + dst_through_atmo);
 
-		// Jitter por píxel: desplaza el origen del march de forma distinta en cada píxel
-		// para que los artefactos de escalón no sean coherentes al mover la cámara.
-		float cloud_jitter = ign_jitter(pixel, 0.0);
+			// Jitter por píxel: desplaza el origen del march de forma distinta en cada píxel
+			// para que los artefactos de escalón no sean coherentes al mover la cámara.
+#ifdef ATMOSPHERE_CLOUD_PASS
+			float cloud_jitter = ign_jitter(cloud_texel, 0.0);
+#else
+			float cloud_jitter = ign_jitter(pixel, 0.0);
+#endif
 
-		march_clouds(
-			camera_position, ray_dir, cloud_max_dist,
-			planet_center, cloud_min_r, cloud_max_r,
-			cloud_density_eff, P(12).w,
-			P(13).x, P(13).y, P(13).z,
-			sun_direction, sun_intensity, planet_radius,
-			scattering_coefficients,
-			cloud_jitter, pixel_angle,
-			sky, up_obs, 1.0 / flat_w,
-			cloud_col, cloud_trans, cloud_dist
-		);
-
-		// Las nubes ocluyen los god rays. Se toma la transmitancia EN CRUDO, antes de la
-		// perspectiva aérea de abajo: esa la abre para fundir las nubes lejanas con la bruma, y
-		// con ese valor el horizonte dejaría pasar rayos a través de la capa lejana.
-		store_occlusion(pixel, geo_mask * cloud_trans);
-
-		// Perspectiva aérea sobre las nubes. Se componen DELANTE de la atmósfera, así que sin
-		// esto `cloud_col` no recibe extinción ninguna: una nube a varios km se dibujaba a pleno
-		// contraste mientras el terreno que tiene detrás sí se llevaba el velo azul entero. Es lo
-		// que hacía que la capa llegase al horizonte igual de nítida que sobre tu cabeza y luego
-		// terminara en una línea dura, en vez de disolverse en la bruma como el resto de la
-		// escena. Reutiliza el mismo optical_depth que usa la atmósfera, así que la nube lejana
-		// se funde exactamente hacia el color de bruma que le corresponde a esa distancia.
-		if (cloud_dist > 0.0 && cloud_trans < 0.999) {
-			float cloud_od = optical_depth(
-				camera_position, ray_dir, cloud_dist,
-				planet_center, planet_radius, atmo_radius, density_falloff
+			march_clouds(
+				camera_position, ray_dir, cloud_max_dist,
+				planet_center, cloud_min_r, cloud_max_r,
+				cloud_density_eff, P(12).w,
+				P(13).x, P(13).y, P(13).z,
+				sun_direction, sun_intensity, planet_radius,
+				scattering_coefficients,
+				cloud_jitter, pixel_angle,
+				sky, up_obs, 1.0 / flat_w,
+				cloud_col, cloud_trans, cloud_dist
 			);
-			vec3 cloud_ext = exp(-cloud_od * scattering_coefficients);
-			// El color propio de la nube se extingue y su opacidad se va abriendo, de modo que lo
-			// que asoma por detrás es `light` — que ya ES el cielo con su in-scatter a esa
-			// distancia, o sea la bruma correcta. Sin término aditivo aparte.
-			cloud_col  *= cloud_ext;
-			cloud_trans = mix(1.0, cloud_trans, dot(cloud_ext, vec3(1.0 / 3.0)));
+
+			// Las nubes ocluyen los god rays. Se toma la transmitancia EN CRUDO, antes de la
+			// perspectiva aérea de abajo: esa la abre para fundir las nubes lejanas con la bruma, y
+			// con ese valor el horizonte dejaría pasar rayos a través de la capa lejana.
+			cloud_raw_trans = cloud_trans;
+
+			// Perspectiva aérea sobre las nubes. Se componen DELANTE de la atmósfera, así que sin
+			// esto `cloud_col` no recibe extinción ninguna: una nube a varios km se dibujaba a pleno
+			// contraste mientras el terreno que tiene detrás sí se llevaba el velo azul entero. Es lo
+			// que hacía que la capa llegase al horizonte igual de nítida que sobre tu cabeza y luego
+			// terminara en una línea dura, en vez de disolverse en la bruma como el resto de la
+			// escena. Reutiliza el mismo optical_depth que usa la atmósfera, así que la nube lejana
+			// se funde exactamente hacia el color de bruma que le corresponde a esa distancia.
+			if (cloud_dist > 0.0 && cloud_trans < 0.999) {
+				float cloud_od = optical_depth(
+					camera_position, ray_dir, cloud_dist,
+					planet_center, planet_radius, atmo_radius, density_falloff
+				);
+				vec3 cloud_ext = exp(-cloud_od * scattering_coefficients);
+				// El color propio de la nube se extingue y su opacidad se va abriendo, de modo que lo
+				// que asoma por detrás es `light` — que ya ES el cielo con su in-scatter a esa
+				// distancia, o sea la bruma correcta. Sin término aditivo aparte.
+				cloud_col  *= cloud_ext;
+				cloud_trans = mix(1.0, cloud_trans, dot(cloud_ext, vec3(1.0 / 3.0)));
+			}
 		}
 
+#ifdef ATMOSPHERE_CLOUD_PASS
+		imageStore(cloud_layer, cloud_texel, vec4(cloud_col, cloud_trans));
+		imageStore(cloud_layer_mask, cloud_texel, vec4(cloud_raw_trans, guide, 0.0, 0.0));
+#else
+		store_occlusion(pixel, geo_mask * cloud_raw_trans);
 		light = light * cloud_trans + cloud_col;
+#endif
 	}
 
+#ifdef ATMOSPHERE_FULL_PASS
 	// 2b. Aurora vista desde fuera: por encima de las nubes, así que va delante de ellas.
 	if (P(38).w > 0.0) {
 		light += aurora_shell(
@@ -1824,5 +1938,6 @@ void main() {
 
 	if (water.wet) light = uw_surface_radiance(light);
 	imageStore(color_image, pixel, vec4(light * water.transmission + water.scatter + water_background, scene_color.a));
+#endif
 #endif
 }
