@@ -57,6 +57,8 @@ var appearance_rig: CharacterAppearanceRig
 var combat: PlayerCombat
 ## Trepar por paredes que no se pueden andar y coronarlas (ver ClimbController).
 var climb: ClimbController
+## Andar y correr en todas direcciones, y agacharse (ver Locomotion).
+var locomotion: Locomotion
 
 @export var main_menu: Control
 @export var spawn_point: Marker3D
@@ -443,6 +445,10 @@ func _ready():
 	climb = ClimbController.new()
 	add_child(climb)
 	climb.setup(self)
+	locomotion = Locomotion.new()
+	locomotion.name = "Locomotion"
+	add_child(locomotion)
+	locomotion.setup(self)
 	_setup_gaits()
 	world_map_ui = WorldMapUI.new()
 	world_map_ui.setup(self)
@@ -672,6 +678,7 @@ func post_restore() -> void:
 
 	current_swimming_pitch = 0.0
 	player_model.rotation = Vector3.ZERO
+	locomotion.reset()
 
 
 func _clear_visual_equipment() -> void:
@@ -823,6 +830,7 @@ func _activate_player() -> void:
 	visible = true
 	player_model.rotation = Vector3.ZERO
 	current_swimming_pitch = 0.0
+	locomotion.reset()
 
 	update_nearest_planet()
 	if planet:
@@ -1421,6 +1429,11 @@ func update_free_flight(delta: float) -> void:
 func rotate_toward_movement(input_dir: Vector3, delta: float):
 	if input_dir.length() < 0.1:
 		return
+	# Esprintar solo va hacia delante, y agachado solo hay andar hacia delante: miran hacia donde
+	# van. Si no, el cuerpo mira con la cámara y Locomotion pone el paso de lado o hacia atrás.
+	if movement.is_sprinting or locomotion.crouching:
+		rotate_toward_direction(project_on_gravity_plane(input_dir), delta, 8.0)
+		return
 	var target_dir := project_on_gravity_plane(-camera.global_transform.basis.z)
 	rotate_toward_direction(target_dir, delta, 3.0)
 
@@ -1533,6 +1546,7 @@ func update_normal_movement(delta: float) -> void:
 		animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 		camera_controller.update_camera_rotation()
 		return
+	locomotion.pre_update()
 	var idle_animation = config.ANIMATION.IDLE if !right_hand_equipped else equiped_weapon.idle_animation
 	var run_animation = config.ANIMATION.RUN if !right_hand_equipped else equiped_weapon.running_animation
 	var input_dir = movement.handle_run_movement(delta, action_controller.is_attacking, gravity_direction, camera, idle_animation, run_animation)
@@ -1547,6 +1561,7 @@ func update_normal_movement(delta: float) -> void:
 
 	combat.physics_update(delta, input_dir)
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
+	locomotion.update(delta)
 	velocity = combat.apply_motion(movement.velocity)
 
 	if combat.update_facing(delta, input_dir):

@@ -3,8 +3,9 @@ extends SceneTree
 ## Reorienta las animaciones de Mixamo de models/player/mixamo/combat/ (descargadas con un
 ## personaje de Character Creator, huesos CC_Base_*, o con el de Mixamo, mixamorig_*) al esqueleto
 ## del jugador (mixamorig_*), y las guarda como la librería "combat" en
-## models/player/mixamo/combat_anims.tres.
-##   godot --headless --path . --script res://tools/combat/retarget_mixamo.gd
+## models/player/mixamo/combat_anims.tres. También las de MoCap Online (esqueleto MotusMan: los
+## mismos nombres que el de Mixamo, sin el prefijo), que van en su propia tanda (SETS).
+##   godot --headless --path . --script res://tools/combat/retarget_mixamo.gd [-- --set=<tanda>]
 ##
 ## Los dos esqueletos no coinciden ni en nombres ni en reposo (el del jugador está en A, con los
 ## brazos ~52° abajo). Por eso no se copian las rotaciones locales: por cada hueso se toma cuánto
@@ -94,6 +95,31 @@ const CLIPS := {
 		{"height_from": "block/Great Sword Impact"}],
 }
 
+## La escala de la cadera de MotusMan (MoCap Online), de un clip de pie: andar agachado no
+## empieza erguido.
+const MCO_V55 := {"height_from": "res://models/player/mocaponline/sample/MOB1_Stand_Relaxed_Idle"}
+
+const LOCO := "res://models/player/mixamo/locomotion/"
+
+## Otras tandas, cada una a su librería: [salida, clips como en CLIPS]. Sin --set, la de combate.
+const SETS := {
+	# Locomoción en todas direcciones (Locomotion): atrás y a la
+	# izquierda de Mixamo (la derecha es su espejo), y agachado: quieto de Mixamo y andar de MoCap
+	# Online (muestra gratuita, en el sitio; atrás es él mismo al revés).
+	"locomotion": ["res://models/player/locomotion_anims.tres", {
+		"walk_back": [LOCO + "Walking Backwards", 0.0, -1.0, true, true],
+		"walk_left": [LOCO + "Left Strafe Walking", 0.0, -1.0, true, true],
+		"walk_right": [LOCO + "Left Strafe Walking", 0.0, -1.0, true, true, {"mirror": true}],
+		"run_back": [LOCO + "Running Backward", 0.0, -1.0, true, true],
+		"run_left": [LOCO + "Left Strafe", 0.0, -1.0, true, true],
+		"run_right": [LOCO + "Left Strafe", 0.0, -1.0, true, true, {"mirror": true}],
+		"crouch_idle": ["res://models/player/mixamo/crouch/Crouching Idle", 0.0, -1.0, true, true,
+			{"height_from": "block/Great Sword Impact"}],
+		"crouch_walk": ["res://models/player/mocaponline/sample/MOB1_CrouchWalk_F_IPC", 0.0, -1.0, true, true,
+			MCO_V55],
+	}],
+}
+
 ## Hueso del jugador ← hueso de origen (personaje de Character Creator; con el de Mixamo se llaman
 ## como los del jugador, ver _source_names).
 var MAP := {
@@ -137,15 +163,26 @@ func _run() -> void:
 	root.add_child(target)
 	var tskel: Skeleton3D = target.get_node("Armature/Skeleton3D")
 	await process_frame
+	var clips := CLIPS
+	var out := OUT
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--set="):
+			var set_name := arg.trim_prefix("--set=")
+			if not SETS.has(set_name):
+				push_error("No hay tanda '%s' (%s)" % [set_name, ", ".join(SETS.keys())])
+				quit(1)
+				return
+			out = SETS[set_name][0]
+			clips = SETS[set_name][1]
 	var library := AnimationLibrary.new()
-	for clip_name in CLIPS:
-		var clip: Array = CLIPS[clip_name]
+	for clip_name in clips:
+		var clip: Array = clips[clip_name]
 		var anim := await _retarget(clip, target, tskel)
 		if anim != null:
 			library.add_animation(clip_name, anim)
 			print("retargeted %s ← %s (%.2f s, %d pistas)" % [clip_name, clip[0], anim.length, anim.get_track_count()])
-	var err := ResourceSaver.save(library, OUT)
-	print("saved %s (%d)" % [OUT, err])
+	var err := ResourceSaver.save(library, out)
+	print("saved %s (%d)" % [out, err])
 	quit()
 
 
@@ -165,19 +202,26 @@ static func _arc(from: Vector3, to: Vector3) -> Basis:
 
 
 ## Hueso del jugador → hueso de [sskel]: MAP si es de Character Creator; si es el de Mixamo, el
-## mismo nombre que en el jugador.
+## mismo nombre que en el jugador, y si es MotusMan (MoCap Online), ese nombre sin el prefijo.
 func _source_names(sskel: Skeleton3D) -> Dictionary:
+	var prefix := "mixamorig_"
 	if sskel.find_bone("mixamorig_Hips") < 0:
-		return MAP
+		if sskel.find_bone("Hips") < 0:
+			return MAP
+		prefix = ""
 	var names := {}
 	for key in MAP:
-		names[key] = "mixamorig_" + key
+		names[key] = prefix + key
 	return names
 
 
+## Ruta del FBX de un clip: respecto a SOURCE_DIR, o entera si empieza por res://.
+static func _source_file(file: String) -> String:
+	return (file if file.begins_with("res://") else SOURCE_DIR + file) + ".fbx"
+
+
 func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
-	var file: String = clip[0] if String(clip[0]).begins_with("res://") else SOURCE_DIR + clip[0]
-	var source: Node3D = load(file + ".fbx").instantiate()
+	var source: Node3D = load(_source_file(clip[0])).instantiate()
 	root.add_child(source)
 	var sskel: Skeleton3D = source.find_children("*", "Skeleton3D", true, false)[0]
 	var names := _source_names(sskel)
@@ -216,6 +260,12 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 		var tdir: Vector3 = (t_rest_world[tc] as Transform3D).origin - (t_rest_world[tb] as Transform3D).origin
 		var sdir: Vector3 = yaw_fix * ((src_rest[sc] as Transform3D).origin - (src_rest[sb] as Transform3D).origin)
 		t_ref[entry[0]] = _arc(tdir, sdir) * _rot(t_rest_world[tb])
+	# La cabeza no tiene hijo con que apuntarla: gira con el cuello. Si no, se quedaría con lo que
+	# el reposo de origen tenga de inclinado: MotusMan v55 lo trae echado ~25° adelante y miraba
+	# al cielo. (Las puntas de los dedos y de los pies tampoco tienen hijo, pero con lo que traen
+	# las animaciones de combate ya están ajustadas.)
+	t_ref["Head"] = (t_ref["Neck"] as Basis) * _rot(t_rest_world["mixamorig_Neck"]).inverse() \
+		* _rot(t_rest_world["mixamorig_Head"])
 
 	# Altura de la cadera de pie del jugador: la de su "idle", no la del reposo (el reposo del
 	# rig tiene la cadera a 12 cm del suelo).
@@ -357,7 +407,7 @@ static func _smooth_track(anim: Animation, track: int, sigma: float, loop: bool)
 
 ## Altura de la cadera (en el marco del modelo de origen) en el primer fotograma de [file].
 func _first_hips_height(file: String) -> float:
-	var source: Node3D = load(SOURCE_DIR + file + ".fbx").instantiate()
+	var source: Node3D = load(_source_file(file)).instantiate()
 	root.add_child(source)
 	var sskel: Skeleton3D = source.find_children("*", "Skeleton3D", true, false)[0]
 	var player: AnimationPlayer = source.find_children("*", "AnimationPlayer", true, false)[0]

@@ -8,6 +8,7 @@ extends SceneTree
 ##       [--upper] (como el canal de tronco y brazos de PlayerCombat: del tronco para arriba, sobre
 ##       el idle) [--guard=shield|two_handed] (con la guardia de CombatPose, que la lleva al frente)
 ##       [--cam=x,y,z] (desde dónde mira la cámara; el personaje mira a +Z)
+##       [--library=res://...tres] (otra librería reorientada, p. ej. la de MoCap Online)
 ## Guarda build/combat/anims_<tag>.png y cierra.
 
 const MODEL := "res://scenes/character/character_model.tscn"
@@ -16,6 +17,7 @@ var COLS := 8
 const CELL := Vector2i(240, 280)
 
 var _tag := "preview"
+var _library := LIBRARY
 var _only: PackedStringArray = []
 var _weapon := ""
 var _shield := ""
@@ -28,6 +30,8 @@ func _initialize() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--tag="):
 			_tag = arg.substr(6)
+		elif arg.begins_with("--library="):
+			_library = arg.substr(10)
 		elif arg.begins_with("--only="):
 			_only = arg.substr(7).split(",")
 		elif arg.begins_with("--cols="):
@@ -50,7 +54,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var library: AnimationLibrary = load(LIBRARY)
+	var library: AnimationLibrary = load(_library)
 	var names: Array = []
 	for n in library.get_animation_list():
 		if _only.is_empty() or String(n) in _only:

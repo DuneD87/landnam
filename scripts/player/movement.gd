@@ -39,6 +39,9 @@ var direction: Vector3 = Vector3.ZERO
 ## Lo que el combate recorta: velocidad al apuntar, y sin correr ni saltar mientras golpea,
 ## esquiva o se tambalea (o sin aguante para correr).
 var speed_scale: float = 1.0
+## Lo que el jugador va más despacio según hacia dónde va respecto a donde mira (de lado, hacia
+## atrás) o agachado (Locomotion). Esprintar no lo usa.
+var gait_scale: float = 1.0
 var sprint_blocked: bool = false
 var jump_blocked: bool = false
 
@@ -185,6 +188,6 @@ func project_on_plane(vector: Vector3, normal: Vector3) -> Vector3:
 func update_movement(delta: float, direction_input: Vector3, walk: bool = false):
 	direction = direction.lerp(direction_input, delta * acceleration)
 	if !is_swimming:
-		velocity = direction * (walk_speed if walk else speed) * speed_scale
+		velocity = direction * (walk_speed if walk else speed) * speed_scale * gait_scale
 	else:
 		velocity = direction * swim_speed

@@ -16,6 +16,8 @@ class_name CameraController
 
 @export var fp_threshold: float = 0.5
 @export var fp_eye_height: float = 1.7
+## Lo que baja el ojo agachado (Locomotion), en tercera y en primera persona.
+var crouch_drop: float = 0.0
 @onready var camera_pivot: Node3D = $"../CameraPivot"
 @onready var pitch_pivot: Node3D = $"../CameraPivot/PitchPivot"
 @onready var camera: Camera3D = $"../CameraPivot/PitchPivot/Camera3D"
@@ -101,7 +103,7 @@ func add_shake(amount: float) -> void:
 func _track_lock_point() -> void:
 	var player = get_parent()
 	var up: Vector3 = _current_up_axis
-	var eye: Vector3 = player.global_position + up * target_height_offset
+	var eye: Vector3 = player.global_position + up * (target_height_offset - crouch_drop)
 	var to: Vector3 = (lock_point as Vector3) - eye
 	var to_h := to - up * to.dot(up)
 	# El PitchPivot de la escena va girado 180°: la cámara mira hacia -Z del pivote de yaw.
@@ -190,12 +192,12 @@ func update_camera_transform():
 	_shake = maxf(0.0, _shake - 0.02)
 
 	if first_person:
-		camera.global_position = player_pos + up_axis * fp_eye_height
+		camera.global_position = player_pos + up_axis * (fp_eye_height - crouch_drop)
 		var fp_forward = pitch_pivot.global_transform.basis * Vector3.BACK
 		camera.look_at(camera.global_position + fp_forward, up_axis)
 	else:
 		var orbit_dir = -pitch_pivot.global_transform.basis.z
-		var target_pos = player_pos + up_axis * target_height_offset
+		var target_pos = player_pos + up_axis * (target_height_offset - crouch_drop)
 		# Apuntando: el encuadre se corre al hombro derecho y se acerca.
 		if aim_ease > 0.0:
 			var right: Vector3 = camera.global_transform.basis.x
