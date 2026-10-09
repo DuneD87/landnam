@@ -319,6 +319,8 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 	var category = data.category
 	if category == ItemData.Category.TOOL || category == ItemData.Category.WEAPON || category == ItemData.Category.ARMOR:
 		equip_item(equip, slot, scene, data, category)
+	if slot == ItemData.ArmorSlot.OFFHAND:
+		_sync_hotbar_offhand()
 
 func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> void:
 	var old_is_block := old_data != null and old_data.category == ItemData.Category.BLOCK
@@ -378,6 +380,35 @@ func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
 	inventory.inventory_changed.emit()
 
 
+## Tecla de un escudo en la barra: si es el que lleva, se lo quita; si no, se lo pone (y el que
+## llevara vuelve al inventario). La mano derecha no se toca.
+func _on_hotbar_offhand_toggled(data: ItemData) -> void:
+	var eq_slot: EquipmentSlot = character_window.equipment_slots.get(ItemData.ArmorSlot.OFFHAND)
+	if eq_slot == null:
+		return
+	if eq_slot.has_item() and eq_slot.equipped_item.data.id == data.id:
+		# Sin hueco en el inventario se queda puesto: quitárselo lo perdería.
+		if inventory.find_empty_slot() < 0:
+			return
+		var unequipped = character_window.unequip_item(eq_slot)
+		if unequipped:
+			inventory.add_item(unequipped.data, 1)
+		return
+	# Se pone el del inventario: si ya no está (tirado, en un cofre), la tecla no hace nada.
+	if inventory.remove_item(data, 1) == 0:
+		return
+	var returned = character_window.equip_item(eq_slot, InventoryItem.new(data, 1))
+	if returned:
+		inventory.add_item(returned.data, 1)
+	inventory.inventory_changed.emit()
+
+
+## El hueco de la barra con lo que lleva la otra mano se resalta.
+func _sync_hotbar_offhand() -> void:
+	var eq_slot: EquipmentSlot = character_window.equipment_slots.get(ItemData.ArmorSlot.OFFHAND)
+	hotbar.set_offhand(eq_slot.equipped_item.data if eq_slot and eq_slot.has_item() else null)
+
+
 func _unequip_right_hand() -> void:
 	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
 	if eq_slot and eq_slot.has_item():
@@ -415,6 +446,7 @@ func _ready():
 	GameManager.register_player(self)
 	GameManager.state_changed.connect(_on_game_state_changed)
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
+	hotbar.offhand_toggled.connect(_on_hotbar_offhand_toggled)
 	building_system.set_equipped_item_hooks(_get_right_hand_item, _consume_right_hand_item)
 	movement.landed.connect(_on_landed)
 	health_component.died.connect(_on_player_died)
@@ -610,6 +642,8 @@ func restore_save_data(save: Dictionary) -> void:
 		hotbar.restore_save_data(save.hotbar, config)
 	if save.has("hotbar_selected") and save.hotbar_selected >= 0:
 		hotbar.select_slot(save.hotbar_selected)
+	# El equipo se ha restaurado sin pasar por equipment_changed.
+	_sync_hotbar_offhand()
 	combat.on_restored()
 	# Después de on_restored, que deja el cuerpo entero: los miembros perdidos siguen perdidos.
 	if save.has("severed") and combat.body_damage != null:
@@ -688,6 +722,10 @@ func _clear_visual_equipment() -> void:
 		weapon_node.queue_free()
 	equiped_weapon = null
 	right_hand_equipped = false
+	var shield_node := combat.detach_shield()
+	if shield_node != null:
+		_unregister_worn_node(shield_node)
+		shield_node.queue_free()
 
 	var skeleton = player_model.get_node("Armature/Skeleton3D")
 	for child in skeleton.get_children():

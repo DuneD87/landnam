@@ -3,6 +3,9 @@ extends CanvasLayer
 
 signal selection_changed(old_data: ItemData, new_data: ItemData)
 signal hotbar_slot_clicked(slot_index: int)
+## La tecla de un escudo no lo selecciona: lo pone en la otra mano o lo quita, y el arma de la
+## derecha sigue donde estaba.
+signal offhand_toggled(data: ItemData)
 
 const HOTBAR_SLOTS := 10
 const HotbarSlotScene = preload("res://scenes/ui/hotbar_slot.tscn")
@@ -12,6 +15,8 @@ const HotbarSlotScene = preload("res://scenes/ui/hotbar_slot.tscn")
 var slots: Array[HotbarSlot] = []
 var selected_index: int = -1
 var is_ctrl_hold: bool = false
+## Lo que lleva la otra mano (id), para resaltar su hueco. Lo dice el jugador con set_offhand().
+var _offhand_id: StringName = &""
 
 var _key_actions: Array[StringName] = [
 	&"hotbar_1", &"hotbar_2", &"hotbar_3", &"hotbar_4", &"hotbar_5",
@@ -77,8 +82,16 @@ func assign_to_slot(index: int, item_data: ItemData) -> void:
 	slots[index].assign(item_data)
 	
 	if index == selected_index:
-		selection_changed.emit(old_data, item_data)
-		
+		var new_data := item_data
+		# Un escudo no queda seleccionado: se suelta lo que había en la mano.
+		if item_data != null and item_data.is_shield():
+			slots[index].set_selected(false)
+			selected_index = -1
+			new_data = null
+		selection_changed.emit(old_data, new_data)
+	_refresh_offhand_marks()
+
+
 func clear_slot(index: int) -> void:
 	if index >= 0 and index < HOTBAR_SLOTS:
 		if index == selected_index:
@@ -86,6 +99,19 @@ func clear_slot(index: int) -> void:
 			selection_changed.emit(slots[index].assigned_data, null)
 			selected_index = -1
 		slots[index].clear()
+		slots[index].set_equipped(false)
+
+
+## Resalta el hueco de lo que lleva la otra mano (null = nada).
+func set_offhand(data: ItemData) -> void:
+	_offhand_id = data.id if data != null else &""
+	_refresh_offhand_marks()
+
+
+func _refresh_offhand_marks() -> void:
+	for slot in slots:
+		slot.set_equipped(_offhand_id != &"" and slot.assigned_data != null \
+			and slot.assigned_data.id == _offhand_id)
 
 
 func get_selected_data() -> ItemData:
@@ -98,6 +124,9 @@ func select_slot(index: int) -> void:
 	if index < 0 or index >= HOTBAR_SLOTS:
 		return
 	if not slots[index].assigned_data:
+		return
+	if slots[index].assigned_data.is_shield():
+		offhand_toggled.emit(slots[index].assigned_data)
 		return
 
 	var old_data: ItemData = slots[selected_index].assigned_data if selected_index >= 0 else null
@@ -130,11 +159,23 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is InputEventMouseButton and event.pressed and is_ctrl_hold:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			select_slot(posmod(selected_index - 1, HOTBAR_SLOTS))
+			_select_step(-1)
 			get_viewport().set_input_as_handled()
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			select_slot(posmod(selected_index + 1, HOTBAR_SLOTS))
+			_select_step(1)
 			get_viewport().set_input_as_handled()
+
+
+## Ctrl+rueda: el hueco de al lado, saltando los escudos (pasar por encima no los pone ni los
+## quita).
+func _select_step(step: int) -> void:
+	var index := selected_index
+	for i in HOTBAR_SLOTS:
+		index = posmod(index + step, HOTBAR_SLOTS)
+		var data := slots[index].assigned_data
+		if data == null or not data.is_shield():
+			select_slot(index)
+			return
 
 
 func _ensure_input_actions() -> void:
@@ -201,4 +242,5 @@ func restore_save_data(data: Array, config: Object) -> void:
 			item_data = config.get_item(StringName(value["id"]))
 		if item_data:
 			slots[i].assign(item_data)
+	_refresh_offhand_marks()
 		

@@ -10,9 +10,12 @@ signal slot_clicked(slot: HotbarSlot, button_index: int)
 
 var assigned_data: ItemData = null
 var selected: bool = false
+## Lo lleva puesto la otra mano (el escudo): se resalta aparte de la selección.
+var equipped: bool = false
 var style_empty: StyleBoxFlat
 var style_filled: StyleBoxFlat
 var style_selected: StyleBoxFlat
+var style_equipped: StyleBoxFlat
 
 
 func _ready() -> void:
@@ -40,6 +43,12 @@ func _create_styles() -> void:
 	style_selected.set_corner_radius_all(4)
 	style_selected.set_border_width_all(2)
 	style_selected.border_color = Color(0.9, 0.75, 0.3, 1.0)
+
+	style_equipped = StyleBoxFlat.new()
+	style_equipped.bg_color = Color(0.16, 0.19, 0.22, 0.95)
+	style_equipped.set_corner_radius_all(4)
+	style_equipped.set_border_width_all(2)
+	style_equipped.border_color = Color(0.45, 0.65, 0.85, 1.0)
 
 
 func assign(item_data: ItemData) -> void:
@@ -73,9 +82,16 @@ func set_selected(value: bool) -> void:
 	_update_style()
 
 
+func set_equipped(value: bool) -> void:
+	equipped = value
+	_update_style()
+
+
 func _update_style() -> void:
 	if selected:
 		add_theme_stylebox_override("panel", style_selected)
+	elif equipped and assigned_data:
+		add_theme_stylebox_override("panel", style_equipped)
 	elif assigned_data:
 		add_theme_stylebox_override("panel", style_filled)
 	else:
