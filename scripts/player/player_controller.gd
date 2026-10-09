@@ -1596,6 +1596,14 @@ func update_normal_movement(delta: float) -> void:
 
 	if right_hand_equipped && (action_controller.is_attacking || (is_holding_atack && !movement.is_running)):
 		current_animation = equiped_weapon.attack_animation
+	# Con la antorcha, el brazo en alto también andando, esprintando y agachado. Agachado, el de
+	# quieto: el de correr bota al paso de la carrera.
+	if run_animation == config.ANIMATION.RUNNING_TORCH:
+		if current_animation == config.ANIMATION.WALK \
+				or (locomotion.crouching and current_animation == config.ANIMATION.RUNNING_TORCH):
+			current_animation = config.ANIMATION.WALK_TORCH
+		elif current_animation == config.ANIMATION.SPRINT:
+			current_animation = config.ANIMATION.SPRINT_TORCH
 
 	combat.physics_update(delta, input_dir)
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)

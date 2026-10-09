@@ -406,7 +406,7 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 	if not animator.has_animation_library(&"combat"):
 		animator.add_animation_library(&"combat", load(COMBAT_LIBRARY))
 	# Andar y correr en todas direcciones y agachado, dentro de la locomoción de debajo.
-	Locomotion.build(tree_root, animator)
+	Locomotion.build(tree_root, animator, _skeleton)
 	var connections: Array = tree_root.get("node_connections")
 	var top := StringName()
 	for i in range(0, connections.size(), 3):

@@ -109,10 +109,21 @@ var animation_states = {
 	Config.ANIMATION.HIT: {
 		"bHit": 1.0
 	},
+	# Los de la antorcha solo ponen el brazo derecho (Locomotion.build): el resto del cuerpo, el
+	# de debajo.
 	Config.ANIMATION.IDLE_TORCH: {
 		"bIdleTorch": 1.0
 	},
 	Config.ANIMATION.RUNNING_TORCH: {
+		"bRun": 1.0,
+		"bRunningTorch": 1.0
+	},
+	Config.ANIMATION.WALK_TORCH: {
+		"bWalk": 1.0,
+		"bIdleTorch": 1.0
+	},
+	Config.ANIMATION.SPRINT_TORCH: {
+		"bSprint": 1.0,
 		"bRunningTorch": 1.0
 	}
 }

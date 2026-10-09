@@ -54,7 +54,8 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var library: AnimationLibrary = load(_library)
+	# Una copia: la librería de serie del modelo ya es suya y no se puede añadir otra vez.
+	var library: AnimationLibrary = (load(_library) as AnimationLibrary).duplicate()
 	var names: Array = []
 	for n in library.get_animation_list():
 		if _only.is_empty() or String(n) in _only:

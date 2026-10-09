@@ -15,6 +15,10 @@ extends Node
 ## con la cápsula baja y la cámara más abajo. De andar agachado solo hay hacia delante (muestra
 ## gratuita de MoCap Online): agachado, el cuerpo mira hacia donde va. Saltar o esprintar lo
 ## levantan, si cabe de pie.
+##
+## La antorcha (bIdleTorch, bRunningTorch, bTorchFocus) solo pone el brazo derecho, que es en lo
+## único que sus clips se apartan de quieto y correr: lo demás sale de aquí, en todas direcciones
+## y agachado.
 
 const LIBRARY := "res://models/player/locomotion_anims.tres"
 
@@ -63,9 +67,10 @@ var _crouch_shape: CapsuleShape3D
 var _crouch_y := 0.0
 
 
-## Cambia andar y correr del árbol del jugador por sus BlendSpace2D ("loco_walk", "loco_run") y
-## mete el agachado ("crouch") debajo del salto. Antes de que el árbol se asigne (PlayerCombat).
-static func build(tree_root: AnimationNodeBlendTree, animator: AnimationPlayer) -> void:
+## Cambia andar y correr del árbol del jugador por sus BlendSpace2D ("loco_walk", "loco_run"),
+## mete el agachado ("crouch") debajo del salto y deja la antorcha en el brazo derecho. Antes de
+## que el árbol se asigne (PlayerCombat).
+static func build(tree_root: AnimationNodeBlendTree, animator: AnimationPlayer, skeleton: Skeleton3D) -> void:
 	if not animator.has_animation_library(&"loco"):
 		animator.add_animation_library(&"loco", load(LIBRARY))
 	_replace(tree_root, &"WALK", &"walk_scale", &"loco_walk", _space(WALK_CLIPS, animator))
@@ -88,6 +93,16 @@ static func build(tree_root: AnimationNodeBlendTree, animator: AnimationPlayer) 
 	tree_root.connect_node(&"crouch", 0, below)
 	tree_root.connect_node(&"crouch", 1, &"crouch_move")
 	tree_root.connect_node(&"bJumpStart", 0, &"crouch")
+	var arm := skeleton.find_bone("mixamorig_RightShoulder")
+	for node in [&"bIdleTorch", &"bRunningTorch", &"bTorchFocus"]:
+		var blend := tree_root.get_node(node) as AnimationNodeBlend2
+		blend.filter_enabled = true
+		for bone in skeleton.get_bone_count():
+			var parent := bone
+			while parent >= 0 and parent != arm:
+				parent = skeleton.get_bone_parent(parent)
+			if parent == arm:
+				blend.set_filter_path(NodePath("Armature/Skeleton3D:" + skeleton.get_bone_name(bone)), true)
 
 
 static func _space(clips: Array, animator: AnimationPlayer) -> AnimationNodeBlendSpace2D:
