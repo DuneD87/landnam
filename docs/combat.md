@@ -379,7 +379,11 @@ tono es realista y letal: avisan poco, castigan los errores y no se las deja atr
   La línea de visión va de los ojos (`eye_height`) al pecho del objetivo, así que un murete no lo
   tapa y una pared sí. Al objetivo que ya tiene no lo pierde por girarse: mientras lo tenga a tiro
   y a la vista, lo ve aunque quede fuera del cono. Si el estado suelta al objetivo (se rinde, se
-  calma) y lo sigue viendo, se lo vuelve a dar; los muertos no se perciben.
+  calma) y lo sigue viendo, se lo vuelve a dar; los muertos no se perciben. Las criaturas
+  hostiles las busca solo entre las que están en juego en las celdas cercanas (`CreatureGrid`,
+  celdas de 64 m que se rehacen como mucho una vez por fotograma de física), no en el grupo `npc`
+  entero; las que esperan en el pool no se perciben. El aviso a la manada (`alert_radius`) pregunta
+  igual.
 - **Memoria** (`Perception.memory_time`): al perderlo de vista no lo suelta enseguida.
   `AIController.target_seen` se apaga y guarda dónde lo vio y a qué velocidad iba
   (`last_seen_position`, en el marco del planeta). El combate deja de atacar y va a buscarlo

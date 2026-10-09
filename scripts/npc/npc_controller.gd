@@ -116,6 +116,8 @@ func _ready() -> void:
 	# arranca dormido y uno suelto en una escena arranca vivo.
 	active = true
 	add_to_group(GROUP)
+	if not Engine.is_editor_hint():
+		CreatureGrid.add(self)
 	impact_radius = 0.8
 
 	movement.use_ai_input = true
@@ -260,9 +262,8 @@ func _alert_pack(target: Node3D) -> void:
 	if alert_radius <= 0.0 or npc_type == &"" or target == null or _is_dying:
 		return
 	var called := 0
-	for node in get_tree().get_nodes_in_group("npc"):
-		var ally := node as NPCController
-		if ally == null or ally == self or ally.npc_type != npc_type or not ally.active or ally.is_dead:
+	for ally in CreatureGrid.near(global_position, alert_radius):
+		if ally == self or ally.npc_type != npc_type or not ally.active or ally.is_dead:
 			continue
 		if ally.global_position.distance_to(global_position) <= alert_radius and ally.answer_call(target):
 			called += 1
@@ -629,6 +630,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	super.activate(point, environment, rng)
 	if persistent:
 		add_to_group(GameManager.SAVEABLE_GROUP)
+	CreatureGrid.add(self)
 	update_nearest_planet()
 	set_home(point)
 	if planet != null:
@@ -657,6 +659,7 @@ func deactivate() -> void:
 	_is_dying = false
 	_set_hurtboxes_enabled(false)
 	super.deactivate()
+	CreatureGrid.remove(self)
 	if perception:
 		perception.set_physics_process(false)
 	if is_in_group(GameManager.SAVEABLE_GROUP):
@@ -665,6 +668,17 @@ func deactivate() -> void:
 
 func in_play() -> bool:
 	return active or is_dead or _is_dying
+
+
+## Sale de la rejilla también si se libera o se saca del árbol sin pasar por el pool; y vuelve si
+## entra otra vez estando activa.
+func _enter_tree() -> void:
+	if active and not Engine.is_editor_hint():
+		CreatureGrid.add(self)
+
+
+func _exit_tree() -> void:
+	CreatureGrid.remove(self)
 
 
 func lockable() -> bool:

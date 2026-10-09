@@ -110,11 +110,9 @@ func _scan() -> Node3D:
 
 	var best: Node3D = null
 	var best_dist: float = INF
-	for node in get_tree().get_nodes_in_group("npc"):
-		if not is_instance_valid(node) or node == npc:
-			continue
-		var other := node as NPCController
-		if not other or other.is_dead or other.npc_type not in hostile_npc_types:
+	# Solo las criaturas en juego de las celdas cercanas (CreatureGrid), no el grupo "npc" entero.
+	for other in CreatureGrid.near(npc.global_position, vision_range):
+		if other == npc or other.is_dead or other.npc_type not in hostile_npc_types:
 			continue
 		var dist := npc.global_position.distance_to(other.global_position)
 		if dist > vision_range:
