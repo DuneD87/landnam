@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="CreatureAttack" format=3]
+[gd_resource type="Resource" script_class="CreatureAttack" format=3 uid="uid://1wde1qlq0pll"]
 
-[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_hit.gd" id="1_hit"]
-[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="2_attack"]
+[ext_resource type="Script" uid="uid://buw4tepu2820q" path="res://scripts/npc/ai/combat/creature_hit.gd" id="1_hit"]
+[ext_resource type="Script" uid="uid://dkofwgail74yt" path="res://scripts/npc/ai/combat/creature_attack.gd" id="2_attack"]
 
 [sub_resource type="Resource" id="Resource_hit0"]
 script = ExtResource("1_hit")
@@ -18,7 +18,7 @@ kind = 2
 script = ExtResource("2_attack")
 id = &"bite"
 anim = &"Attack Aggressive fwd"
-distance = Vector2(0.0, 2.6)
+distance = Vector2(0, 2.6)
 cooldown = 1.6
 max_angle = 60.0
 situations = Dictionary[StringName, float]({
@@ -33,5 +33,5 @@ track_active = 40.0
 lead = 0.3
 lunge = Vector3(0.4, 0.6, 1.5)
 lunge_min_distance = 1.0
-armor = Vector3(0.1, 0.7, 60.0)
+armor = Vector3(0.1, 0.7, 60)
 hits = Array[ExtResource("1_hit")]([SubResource("Resource_hit0")])

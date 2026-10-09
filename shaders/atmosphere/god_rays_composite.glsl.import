@@ -11,3 +11,4 @@ source_file="res://shaders/atmosphere/god_rays_composite.glsl"
 dest_files=["res://.godot/imported/god_rays_composite.glsl-eb2af21f769a1cc7c8a356272c82e3c2.res"]
 
 [params]
+

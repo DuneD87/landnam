@@ -1,15 +1,15 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://c7loa3bvf6i8l"]
 
-[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="1_skin"]
-[ext_resource type="AnimationLibrary" path="res://models/player/xavivar/firstage_human_male_player_anims.tres" id="3_anims"]
-[ext_resource type="Script" path="res://scripts/character/character_appearance_rig.gd" id="4_rig"]
+[ext_resource type="Skin" uid="uid://cl44a82giaixl" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="1_skin"]
+[ext_resource type="AnimationLibrary" uid="uid://cwe7tjl3xketo" path="res://models/player/xavivar/firstage_human_male_player_anims.tres" id="3_anims"]
+[ext_resource type="Script" uid="uid://c5p2lx42dbvdw" path="res://scripts/character/character_appearance_rig.gd" id="4_rig"]
 
-[node name="CharacterModel" type="Node3D"]
+[node name="CharacterModel" type="Node3D" unique_id=790285468]
 
-[node name="Armature" type="Node3D" parent="."]
+[node name="Armature" type="Node3D" parent="." unique_id=1615223552]
 transform = Transform3D(0.01, 0, 0, 0, 0, -0.01, 0, 0.01, 0, 0, 0, 0)
 
-[node name="Skeleton3D" type="Skeleton3D" parent="Armature"]
+[node name="Skeleton3D" type="Skeleton3D" parent="Armature" unique_id=1584739430]
 bones/0/name = "mixamorig_Hips"
 bones/0/parent = -1
 bones/0/rest = Transform3D(1, 0, 0, 0, 0, 1, 0, -0.9999999, 0, -0.093299866, -2.2874043, -12.030719)
@@ -466,11 +466,11 @@ bones/64/position = Vector3(1.1920929e-06, 6.849324, 4.8726797e-06)
 bones/64/rotation = Quaternion(-1.4901163e-08, -4.7410147e-08, -6.8939707e-09, 1)
 bones/64/scale = Vector3(0.99999994, 0.99999994, 0.99999994)
 
-[node name="Mesh_0" type="MeshInstance3D" parent="Armature/Skeleton3D"]
+[node name="Mesh_0" type="MeshInstance3D" parent="Armature/Skeleton3D" unique_id=1545599178]
 skin = ExtResource("1_skin")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=2054209303]
 libraries/ = ExtResource("3_anims")
 
-[node name="AppearanceRig" type="Node" parent="."]
+[node name="AppearanceRig" type="Node" parent="." unique_id=795621814]
 script = ExtResource("4_rig")

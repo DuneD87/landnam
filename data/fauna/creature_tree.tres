@@ -1,4 +1,20 @@
-[gd_resource type="AnimationNodeBlendTree" format=3]
+[gd_resource type="AnimationNodeBlendTree" format=3 uid="uid://c1k8vtj5kmt6"]
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_attack"]
+animation = &"Attack"
+
+[sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_attack"]
+
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_run"]
+
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_sprint"]
+
+[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_death"]
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_death"]
+animation = &"Death"
+
+[sub_resource type="AnimationNodeTimeSeek" id="AnimationNodeTimeSeek_death"]
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_idle"]
 animation = &"Idle"
@@ -8,22 +24,6 @@ animation = &"Run"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_sprint"]
 animation = &"Sprint"
-
-[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_attack"]
-animation = &"Attack"
-
-[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_death"]
-animation = &"Death"
-
-[sub_resource type="AnimationNodeTimeSeek" id="AnimationNodeTimeSeek_death"]
-
-[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_run"]
-
-[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_sprint"]
-
-[sub_resource type="AnimationNodeBlend2" id="AnimationNodeBlend2_death"]
-
-[sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_attack"]
 
 [resource]
 nodes/output/position = Vector2(900, 100)
@@ -47,4 +47,4 @@ nodes/death/node = SubResource("AnimationNodeBlend2_death")
 nodes/death/position = Vector2(420, 120)
 nodes/attack_horizontal/node = SubResource("AnimationNodeOneShot_attack")
 nodes/attack_horizontal/position = Vector2(660, 100)
-node_connections = [&"output", 0, &"attack_horizontal", &"attack_horizontal", 0, &"death", &"attack_horizontal", 1, &"attack", &"death", 0, &"bSprint", &"death", 1, &"death_seek", &"death_seek", 0, &"death_anim", &"bSprint", 0, &"bRun", &"bSprint", 1, &"sprint", &"bRun", 0, &"idle", &"bRun", 1, &"run"]
+node_connections = [&"output", 0, &"attack_horizontal", &"death_seek", 0, &"death_anim", &"bRun", 0, &"idle", &"bRun", 1, &"run", &"bSprint", 0, &"bRun", &"bSprint", 1, &"sprint", &"death", 0, &"bSprint", &"death", 1, &"death_seek", &"attack_horizontal", 0, &"death", &"attack_horizontal", 1, &"attack"]

@@ -11,3 +11,4 @@ source_file="res://shaders/atmosphere/planet_atmosphere_cache.glsl"
 dest_files=["res://.godot/imported/planet_atmosphere_cache.glsl-57241781dbf7a0e63fb32c128f617df1.res"]
 
 [params]
+
