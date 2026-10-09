@@ -26,27 +26,7 @@ func surface_point(point: Vector3) -> Vector3:
 
 
 func _river_distance(point: Vector3) -> float:
-	if rivers.is_empty() or not rivers.has("dist"):
-		return INF
-	var up := up_at(point)
-	# RiverField uses the voxel heightmap's polynomial latitude, not map UVs.
-	var uv := Vector2(fposmod(0.5 - atan2(up.z, up.x) / TAU, 1.0), RiverField.node_v(up.y))
-	var value := _sample_image(rivers.dist, uv)
-	if value <= 0.0:
-		return INF
-	return (1.0 - value) * float(rivers.carve_range)
-
-
-static func _sample_image(img: Image, uv: Vector2) -> float:
-	var x := uv.x * img.get_width() - 0.5
-	var y := uv.y * img.get_height() - 0.5
-	var ix := int(floor(x))
-	var iy := int(floor(y))
-	var a := img.get_pixel(wrapi(ix, 0, img.get_width()), clampi(iy, 0, img.get_height() - 1)).r
-	var b := img.get_pixel(wrapi(ix + 1, 0, img.get_width()), clampi(iy, 0, img.get_height() - 1)).r
-	var c := img.get_pixel(wrapi(ix, 0, img.get_width()), clampi(iy + 1, 0, img.get_height() - 1)).r
-	var d := img.get_pixel(wrapi(ix + 1, 0, img.get_width()), clampi(iy + 1, 0, img.get_height() - 1)).r
-	return lerpf(lerpf(a, b, x - floor(x)), lerpf(c, d, x - floor(x)), y - floor(y))
+	return RiverField.distance_at(rivers, up_at(point))
 
 
 func habitat_allowed(point: Vector3) -> bool:

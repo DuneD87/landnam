@@ -10,8 +10,8 @@ extends SkinnedModel
 const STILL_SPEED := 0.12
 ## Cambia de ciclo de marcha solo si el nuevo le va bastante mejor (en logaritmo del ritmo).
 const GAIT_HYSTERESIS := 0.2
-## Ritmo de los clips de marcha, como mucho.
-const RATE_RANGE := Vector2(0.5, 2.0)
+## Ritmo de los clips de marcha, como poco (el máximo es el de cada modelo, max_rate).
+const MIN_RATE := 0.5
 
 var _gait: int = -1
 var _speed: float = 0.0
@@ -60,7 +60,7 @@ func _pick(delta: float) -> void:
 		if _gait >= 0 and best != _gait and absf(_rate_log(best)) + GAIT_HYSTERESIS > absf(_rate_log(_gait)):
 			best = _gait
 		_gait = best
-		var rate := clampf(_speed / _gait_speed(best), RATE_RANGE.x, RATE_RANGE.y)
+		var rate := clampf(_speed / _gait_speed(best), MIN_RATE, data.max_rate)
 		_play(data.gait_clips[best], data.blend_time, rate)
 		return
 	_gait = -1

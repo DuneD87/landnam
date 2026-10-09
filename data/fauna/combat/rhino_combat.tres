@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="CreatureCombatProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="1_attack"]
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_combat_profile.gd" id="2_profile"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/rhino_horn_r.tres" id="a0"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/rhino_horn_l.tres" id="a1"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/rhino_charge.tres" id="a2"]
+
+[resource]
+script = ExtResource("2_profile")
+attacks = Array[ExtResource("1_attack")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2")])
+disengage_distance = 40.0
+leash_distance = 45.0
+threaten_time = 0.0
+chase_speed = 8.0
+circle_speed = 2.5
+chase_lead = 0.5
+recover_time = Vector2(0.4, 0.8)
+recover_turn_rate = 240.0
+circle_chance = 0.1
+circle_max_distance = 6.0
+circle_distance = 4.5
+circle_time = 1.4
+wait_distance = 7.0
+flank_bias = 0.5
+repeat_penalty = 0.5
+max_combo = 1
+max_poise = 140.0
+poise_regen = 20.0
+poise_regen_delay = 1.5
+stagger_time = 0.9
+parried_time = 1.0
+action_fade_in = 0.15
+action_fade_out = 0.3
+stagger_anims = Array[StringName]([&"Hit_ChestL_Heavy-IP"])
+attack_sound = &"bear_huff"
+voice_pitch = 0.6

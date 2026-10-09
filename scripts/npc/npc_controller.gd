@@ -121,6 +121,8 @@ func _ready() -> void:
 	movement.use_ai_input = true
 
 	animation_controller = get_node_or_null("AnimationController")
+	if animation_controller:
+		animation_controller.throttled = true
 
 	perception = get_node_or_null("Perception")
 	if perception:
@@ -213,6 +215,9 @@ func _physics_step(delta: float) -> void:
 		current_animation = Config.ANIMATION.ATTACK_1
 	if animation_controller:
 		animation_controller.handle_animations(delta, current_animation, false)
+		# Un ataque (o un tambaleo del canal de acciones) mide sus golpes con los huesos.
+		animation_controller.full_rate = ai_controller.is_attacking \
+			or (_action_channel != null and _action_channel.is_playing())
 	if not _gait.is_empty():
 		_update_gait()
 
@@ -509,6 +514,8 @@ func apply_variant(v: CreatureVariant, size: float = -1.0) -> void:
 	if capsule != null and _base.has("radius"):
 		capsule.radius = _base.radius * body_size
 		capsule.height = _base.height * body_size
+		if animation_controller != null:
+			animation_controller.lod_radius = collision_shape.position.length() + maxf(capsule.height * 0.5, capsule.radius)
 	if _head_sphere != null:
 		_head_sphere.radius = head_radius * body_size
 
@@ -673,6 +680,8 @@ func set_detail(distance: float) -> void:
 	# Un cuerpo que aún cae, o que se está muriendo, se simula esté donde esté.
 	var awake := settings.full_detail_distance <= 0.0 or distance <= settings.full_detail_distance 		or not active or not is_on_floor()
 	set_physics_process(awake)
+	if not awake and animation_controller != null:
+		animation_controller.full_rate = false
 	if perception:
 		perception.set_physics_process(awake and active)
 	_ai_update_stride = 1 if distance <= settings.near_detail_distance else AI_STRIDE_FAR

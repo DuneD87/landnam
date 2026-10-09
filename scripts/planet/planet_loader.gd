@@ -546,6 +546,7 @@ func _setup_ground_fauna(planet_parser: PlanetParser) -> void:
 		habitat.setup(voxel_terrain, get_parent(), planet_parser.radius,
 			planet_parser.atmosphere_height, planet_parser.biome_latitude_ranges, world_map)
 		habitat.climate = planet.climate
+		habitat.rivers = planet.get_river_network()
 		if habitat is SmallGroundFaunaHabitat:
 			habitat.observer = players[0]
 			habitat.sea_radius = water_sphere.radius if is_instance_valid(water_sphere) else 0.0

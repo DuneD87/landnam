@@ -1,0 +1,69 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/animals/base/creature_base.tscn" id="1_base"]
+[ext_resource type="PackedScene" path="res://models/animals/pronghorn/pronghorn.scn" id="2_model"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/pronghorn/pronghorn_anims.res" id="3_anims"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Material" path="res://models/animals/pronghorn/pronghorn_body.tres" id="m0"]
+[ext_resource type="Material" path="res://models/animals/pronghorn/pronghorn_teeth.tres" id="m1"]
+[ext_resource type="Material" path="res://models/animals/pronghorn/pronghorn_head.tres" id="m2"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_mammal_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_mammal_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_mammal_large"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.4
+height = 1.4
+
+[node name="Pronghorn" instance=ExtResource("1_base")]
+npc_type = &"Pronghorn"
+hit_stun_duration = 0.3
+sprint_anim_speed = 3.5
+run_clip_speed = 1.45
+sprint_clip_speed = 6.45
+head_bone = &"RigHead"
+head_radius = 0.12
+flinch_bones = Array[String](["RigSpine2", "RigChest", "RigNeck1", "RigHead"])
+variants = Array[ExtResource("v_script")]([ExtResource("v_mammal_young"), ExtResource("v_mammal_adult"), ExtResource("v_mammal_large")])
+
+[node name="Movement" parent="."]
+speed = 1.2
+
+[node name="HealthComponent" parent="."]
+max_health = 45.0
+
+[node name="IdleState" parent="AIController"]
+flee_trigger_radius = 45.0
+
+[node name="WanderState" parent="AIController"]
+flee_trigger_radius = 45.0
+wander_radius = 30.0
+
+[node name="FleeState" parent="AIController"]
+speed_multiplier = 9.0
+safe_distance = 140.0
+max_flee_time = 25.0
+
+[node name="Perception" parent="."]
+vision_range = 80.0
+eye_height = 1.15
+hearing_range = 30.0
+
+[node name="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.42, 0.05)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="NPCModel" parent="."]
+transform = Transform3D(0.85, 0, 0, 0, 0.85, 0, 0, 0, 0.85, 0, 0, 0)
+
+[node name="pronghorn" parent="NPCModel" instance=ExtResource("2_model")]
+
+[node name="sm_1_0_0" parent="NPCModel/pronghorn/Pronghorn_Animated/RigRoot/Skeleton3D"]
+surface_material_override/0 = ExtResource("m0")
+surface_material_override/1 = ExtResource("m1")
+surface_material_override/2 = ExtResource("m2")
+
+[node name="AnimationPlayer" parent="NPCModel"]
+libraries/ = ExtResource("3_anims")
+
+[editable path="NPCModel/pronghorn"]

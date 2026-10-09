@@ -7,9 +7,13 @@ desactiva. No requieren modelos externos ni añaden datos a las partidas.
 
 | Perfil en `data/fauna/` | Población máxima | Paseo / huida | Distancia de alarma |
 | --- | ---: | ---: | ---: |
-| `rabbits.tres` | 12 | 0,55 / 5 m/s | 6 m |
-| `foxes.tres` | 4 | 1,4 / 5 m/s | 8 m |
-| `mice.tres` | 14 | 0,65 / 2,4 m/s | 3,5 m |
+| `rabbits.tres` | 6 | 0,55 / 5 m/s | 6 m |
+| `foxes.tres` | 2 | 1,4 / 5 m/s | 8 m |
+| `mice.tres` | 7 | 0,65 / 2,4 m/s | 3,5 m |
+
+En el frío, `arctic_hares.tres` (5), `arctic_foxes.tres` (2) y `lemmings.tres` (7, 0,6 / 2,4 m/s).
+Las poblaciones se bajaron a la mitad cuando llegaron las criaturas grandes del pack (ver
+[creature_species.md](creature_species.md#población)).
 
 Los perfiles heredan de `GroundFaunaProfile`: se pueden ajustar población,
 biomas, alturas, distancias y frecuencia de aparición. `SmallGroundFaunaProfile`
@@ -35,14 +39,25 @@ jóvenes andan y huyen algo más despacio.
 | --- | --- | ---: | --- |
 | Conejo | `Rabbit` | 0,7 | `HoppingSlow_F` a 0,55 m/s / `RunFast_F` a 5 m/s |
 | Liebre ártica | `Rabbit`, pelaje blanco | 1,0 | ídem a 0,7 / 6,5 m/s |
+| Zorro | `Fox` | 0,95 | `WalkSlow`, `Walk`, `Trot`, `Run`, `Sprint` (0,37 / 0,65 / 2,01 / 4,72 / 8,86 m/s) |
+| Zorro ártico | `Fox`, pelaje blanco | 0,8 | ídem |
+| Ratón | `Rat` | 0,36 | los mismos clips (0,11 / 0,2 / 0,48 / 1,34 / 1,82 m/s), hasta ×4 |
+| Lémming | `Rat`, más dorado | 0,45 | ídem |
+
+Los modelos de zorro y rata salen de sus FBX con `tools/fauna/import_pack_model.gd` (ver
+[creature_species.md](creature_species.md#de-un-fbx-del-pack-a-una-especie)): solo la malla y los
+clips que se usan, no el FBX entero. Las velocidades de suelo de cada clip las mide
+`tools/fauna/measure_gait.gd` sobre los pies en apoyo. Un ratón con el clip de una rata mueve las
+patas mucho más deprisa que ella, así que su `max_rate` (el ritmo máximo del clip, ×2 por defecto)
+es 4. Las dos muertes vienen en el propio modelo.
 
 `SkinnedFaunaModel` monta el modelo y elige el clip: quieto, `Idle`, y a veces (`rest_chance`)
 se agacha a pastar (`rest_clips`: entrada y bucle) mientras siga quieto; en marcha, el ciclo cuya
 velocidad de suelo (`gait_speeds`, medida sobre los pies en apoyo) menos tenga que cambiar, al
 ritmo del cuerpo (×0,5–×2) para que las patas no patinen. El conejo ya salta en su clip: el cuerpo
-no da saltos físicos. Los clips se avanzan a mano: cerca de la cámara cada fotograma, a más de 12,
-30 y 60 m uno de cada 2, 3 y 4, y fuera de cámara uno de cada 8 (`fauna:small_ground/anim` en
-DebugStats).
+no da saltos físicos. Los clips se avanzan a mano (`AnimationLod`): cerca de la cámara cada
+fotograma, a más de 12, 30 y 60 m uno de cada 2, 3 y 4, y fuera de cámara uno de cada 8
+(`fauna:small_ground/anim` en DebugStats).
 
 Al morir, `FaunaCorpse` copia el esqueleto con la pose del momento. Si el modelo trae `death`, la
 copia hace esa animación fundiéndose desde esa pose (0,2 s), y el cuerpo rígido ya no rueda: lo

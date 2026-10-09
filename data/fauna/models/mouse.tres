@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="FaunaModelData" format=3]
+
+[ext_resource type="Script" path="res://scripts/fauna/fauna_model_data.gd" id="1_data"]
+[ext_resource type="PackedScene" path="res://models/animals/rat/rat.scn" id="2_scene"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/rat/rat_anims.res" id="3_anims"]
+[ext_resource type="Animation" path="res://models/animals/rat/rat_death.res" id="4_death"]
+[ext_resource type="Material" path="res://models/animals/rat/rat_body.tres" id="m0"]
+
+[resource]
+script = ExtResource("1_data")
+scene = ExtResource("2_scene")
+animations = ExtResource("3_anims")
+material = ExtResource("m0")
+scale = 0.36
+collision_radius = 0.03
+collision_height = 0.06
+idle_clip = &"Idle"
+rest_clips = Array[StringName]([&"IdleToSit", &"Sit01"])
+rest_chance = 0.4
+gait_clips = Array[StringName]([&"WalkSlow", &"Walk", &"Trot", &"Run", &"Sprint"])
+gait_speeds = PackedFloat32Array(0.11, 0.2, 0.48, 1.34, 1.82)
+max_rate = 4.0
+death = ExtResource("4_death")

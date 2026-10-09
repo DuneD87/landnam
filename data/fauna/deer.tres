@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1")
-population = 20
+population = 8
 spawn_min_distance = 30.0
 spawn_radius = 120.0
 recycle_distance = 180.0

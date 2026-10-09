@@ -1,0 +1,86 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/animals/base/creature_base.tscn" id="1_base"]
+[ext_resource type="PackedScene" path="res://models/animals/boar/boar.scn" id="2_model"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/boar/boar_anims.res" id="3_anims"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Material" path="res://models/animals/boar/boar_body.tres" id="m0"]
+[ext_resource type="Material" path="res://models/animals/boar/boar_lower.tres" id="m1"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_mammal_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_mammal_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_mammal_large"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/creature_combat_state.gd" id="c_state"]
+[ext_resource type="Resource" path="res://data/fauna/combat/boar_combat.tres" id="c_profile"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.36
+height = 1.4
+
+[node name="Boar" instance=ExtResource("1_base")]
+npc_type = &"Boar"
+provoked_state = &"CombatState"
+lose_state = &"IdleState"
+hit_stun_duration = 0.0
+sprint_anim_speed = 3.0
+run_clip_speed = 0.9
+sprint_clip_speed = 8.95
+head_bone = &"Head"
+head_radius = 0.16
+flinch_bones = Array[String](["Spine2", "Chest", "Neck1", "Head"])
+variants = Array[ExtResource("v_script")]([ExtResource("v_mammal_young"), ExtResource("v_mammal_adult"), ExtResource("v_mammal_large")])
+
+[node name="Movement" parent="."]
+speed = 1.0
+
+[node name="HealthComponent" parent="."]
+max_health = 80.0
+
+[node name="IdleState" parent="AIController"]
+flee_trigger_radius = 25.0
+
+[node name="WanderState" parent="AIController"]
+flee_trigger_radius = 25.0
+wander_radius = 30.0
+
+[node name="FleeState" parent="AIController"]
+speed_multiplier = 7.5
+safe_distance = 70.0
+max_flee_time = 25.0
+
+[node name="CombatState" type="Node" parent="AIController"]
+script = ExtResource("c_state")
+profile = ExtResource("c_profile")
+
+[node name="Perception" parent="."]
+vision_range = 30.0
+eye_height = 0.6
+hearing_range = 30.0
+
+[node name="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.38, 0.06)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="NPCModel" parent="."]
+transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0, 0, 0)
+
+[node name="boar" parent="NPCModel" instance=ExtResource("2_model")]
+
+[node name="Boar_M_Fur_001" parent="NPCModel/boar/Boar/Skeleton3D"]
+surface_material_override/0 = ExtResource("m0")
+
+[node name="Boar_Lower" parent="NPCModel/boar/Boar/Skeleton3D/Boar_Lower"]
+surface_material_override/0 = ExtResource("m1")
+
+[node name="Boar_Lower_001" parent="NPCModel/boar/Boar/Skeleton3D/Boar_Lower_001"]
+surface_material_override/0 = ExtResource("m1")
+
+[node name="Boar_Upper" parent="NPCModel/boar/Boar/Skeleton3D/Boar_Upper"]
+surface_material_override/0 = ExtResource("m1")
+
+[node name="Boar_Upper_001" parent="NPCModel/boar/Boar/Skeleton3D/Boar_Upper_001"]
+surface_material_override/0 = ExtResource("m1")
+
+[node name="AnimationPlayer" parent="NPCModel"]
+libraries/ = ExtResource("3_anims")
+
+[editable path="NPCModel/boar"]

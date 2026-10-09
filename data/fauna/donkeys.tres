@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="GroundFaunaProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/fauna/ground_fauna_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+scene_path = "res://scenes/animals/Donkey.tscn"
+population = 5
+spawn_min_distance = 40.0
+spawn_radius = 200.0
+recycle_distance = 300.0
+update_interval = 0.5
+attempts_per_update = 8
+activations_per_update = 2
+clearance = 1.2
+corpse_duration = 90.0
+full_detail_distance = 50.0
+near_detail_distance = 20.0
+min_spacing = 80.0
+biomes = Array[int]([2])
+min_height = -50.0
+max_height = 250.0
+climate_max = 45.0
+group_size = Vector2i(2, 4)
+group_spread = 10.0

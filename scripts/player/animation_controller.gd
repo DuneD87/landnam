@@ -8,12 +8,24 @@ const Config = preload("res://scripts/config.gd")
 @export var animation_tree: AnimationTree
 @export var blend_speed: float = 5.0
 
+## Las criaturas lo encienden (NPCController): el árbol se avanza a mano, cada fotograma en cámara y
+## uno de cada AnimationLod.HIDDEN_STRIDE fuera de ella, y oculto (en el pool) no se anima. El
+## jugador lo deja apagado.
+var throttled: bool = false: set = set_throttled
+## Fuerza cada fotograma: un ataque mide sus golpes con los huesos.
+var full_rate: bool = false
+## Radio del cuerpo (m), para ver si asoma en cámara con el origen fuera.
+var lod_radius: float = 0.0
+
 var _valid_blend_paths: Array[String] = []
 var _has_hit_anim: bool = false
 ## El árbol pasa la animación de muerte por un TimeSeek (death_seek): trigger_death la arranca.
 var _has_death_seek: bool = false
+var _accum: float = 0.0
+var _frame: int = 0
 
 func _ready() -> void:
+	set_process(throttled)
 	if not animator:
 		animator = get_node_or_null("../PlayerModel/AnimationPlayer")
 	if not animation_tree:
@@ -22,6 +34,34 @@ func _ready() -> void:
 		push_warning("AnimationController '%s': animator o animation_tree no encontrado." % name)
 		return
 	_cache_valid_paths()
+
+
+func set_throttled(value: bool) -> void:
+	throttled = value
+	if is_instance_valid(animation_tree):
+		animation_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL if value \
+			else AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
+	# Repartidos: los que animan uno de cada pocos fotogramas no lo hacen todos en el mismo.
+	_frame = randi() % 8
+	_accum = 0.0
+	set_process(value)
+
+
+func _process(delta: float) -> void:
+	if not is_instance_valid(animation_tree) or not animation_tree.active:
+		return
+	var body := get_parent() as Node3D
+	if body == null or not body.is_visible_in_tree():
+		_accum = 0.0
+		return
+	_accum += delta
+	_frame += 1
+	# Se mira en cada fotograma: al girar la cámara, el que entra en vista ya anima entero.
+	if full_rate or _frame % AnimationLod.HIDDEN_STRIDE == 0 or AnimationLod.in_view(body, lod_radius):
+		var start := Time.get_ticks_usec()
+		animation_tree.advance(_accum)
+		_accum = 0.0
+		DebugStats.report_cost(&"npc:anim", Time.get_ticks_usec() - start)
 
 var animation_states = {
 	Config.ANIMATION.IDLE: {

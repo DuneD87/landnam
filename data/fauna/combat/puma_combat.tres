@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="CreatureCombatProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="1_attack"]
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_combat_profile.gd" id="2_profile"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/puma_swipe_l.tres" id="a0"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/puma_swipe_r.tres" id="a1"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/puma_pounce.tres" id="a2"]
+
+[resource]
+script = ExtResource("2_profile")
+attacks = Array[ExtResource("1_attack")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2")])
+disengage_distance = 35.0
+leash_distance = 50.0
+threaten_time = 0.8
+chase_speed = 10.0
+circle_speed = 2.8
+chase_lead = 0.5
+recover_time = Vector2(0.4, 0.8)
+recover_turn_rate = 240.0
+circle_chance = 0.5
+circle_max_distance = 6.0
+circle_distance = 4.5
+circle_time = 1.4
+wait_distance = 7.0
+flank_bias = 0.5
+repeat_penalty = 0.4
+max_combo = 3
+max_poise = 55.0
+poise_regen = 25.0
+poise_regen_delay = 1.5
+stagger_time = 0.8
+parried_time = 0.9
+action_fade_in = 0.15
+action_fade_out = 0.3
+threaten_anim = &"aggressive_roar"
+threaten_sound = &"lion_growl"
+wait_sound = &"lion_growl"
+stagger_anims = Array[StringName]([&"hit_chest_lft", &"hit_chest_rgt"])
+attack_sound = &"lion_growl"
+swing_sound = &"claw_swipe"
+stagger_sound = &"lion_hurt"
+voice_pitch = 1.3

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="FaunaModelData" format=3]
+
+[ext_resource type="Script" path="res://scripts/fauna/fauna_model_data.gd" id="1_data"]
+[ext_resource type="PackedScene" path="res://models/animals/fox/fox.scn" id="2_scene"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/fox/fox_anims.res" id="3_anims"]
+[ext_resource type="Animation" path="res://models/animals/fox/fox_death.res" id="4_death"]
+[ext_resource type="Material" path="res://models/animals/fox/fox_fur.tres" id="m0"]
+[ext_resource type="Material" path="res://models/animals/fox/fox_body.tres" id="m1"]
+
+[resource]
+script = ExtResource("1_data")
+scene = ExtResource("2_scene")
+animations = ExtResource("3_anims")
+surface_materials = Array[Material]([ExtResource("m0"), ExtResource("m1")])
+scale = 0.95
+collision_radius = 0.17
+collision_height = 0.42
+idle_clip = &"Idle"
+rest_clips = Array[StringName]([&"Trans_Stand_to_Sitting", &"Sitting_Breathing_01"])
+rest_chance = 0.4
+gait_clips = Array[StringName]([&"WalkSlow", &"Walk", &"Trot", &"Run", &"Sprint"])
+gait_speeds = PackedFloat32Array(0.37, 0.65, 2.01, 4.72, 8.86)
+death = ExtResource("4_death")

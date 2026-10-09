@@ -5,12 +5,14 @@
 [ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_young.tres" id="v_young"]
 [ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_adult.tres" id="v_adult"]
 [ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_large.tres" id="v_large"]
+[ext_resource type="Resource" path="res://data/fauna/models/fox.tres" id="2_model"]
 
 [resource]
 script = ExtResource("1")
 scene_path = "res://scenes/animals/ambient_small_ground_animal.tscn"
 species = 1
-population = 4
+model = ExtResource("2_model")
+population = 2
 spawn_min_distance = 30.0
 spawn_radius = 100.0
 recycle_distance = 150.0

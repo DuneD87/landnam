@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://models/animals/rat/rat_body.png" id="1_tex"]
+
+[resource]
+resource_name = "M_Lemming"
+albedo_color = Color(1.25, 1.0, 0.68, 1)
+cull_mode = 2
+albedo_texture = ExtResource("1_tex")
+roughness = 0.9

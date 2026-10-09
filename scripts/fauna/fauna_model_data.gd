@@ -37,6 +37,10 @@ extends Resource
 ## cuerpo, y se usa el que menos tenga que cambiar.
 @export var gait_clips: Array[StringName] = []
 @export var gait_speeds: PackedFloat32Array = []
+## Ritmo de los clips de marcha, como mucho: más deprisa que esto, las patas patinan. Los roedores,
+## con el clip de un animal más grande, mueven las patas mucho más deprisa (un ratón da unas doce
+## zancadas por segundo).
+@export var max_rate: float = 2.0
 ## Muerte: la hace el cadáver (FaunaCorpse) sobre su copia del esqueleto, así que las pistas van
 ## desde el Skeleton3D (".:Hueso", como las saca tools/fauna/retarget_clip.gd). null = el cadáver se
 ## queda en la pose en que murió y rueda.

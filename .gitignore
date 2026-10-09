@@ -22,3 +22,7 @@ Thumbs.db
 # Binarios nativos de plataformas que no se usan (addons redescargables)
 addons/godot-git-plugin/macos/
 addons/godot-git-plugin/linux/
+
+# FBX de los packs de animales mientras se sacan de ellos el modelo y los clips que se usan
+# (tools/fauna/import_pack_model.gd): llevan todas sus animaciones y pesan cientos de MB.
+/models/_pack/

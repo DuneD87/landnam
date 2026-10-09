@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="CreatureCombatProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="1_attack"]
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_combat_profile.gd" id="2_profile"]
+[ext_resource type="Resource" path="res://data/fauna/combat/attacks/alligator_bite.tres" id="a0"]
+
+[resource]
+script = ExtResource("2_profile")
+attacks = Array[ExtResource("1_attack")]([ExtResource("a0")])
+disengage_distance = 18.0
+leash_distance = 25.0
+threaten_time = 0.8
+chase_speed = 3.8
+circle_speed = 1.5
+chase_lead = 0.5
+recover_time = Vector2(0.6, 1.0)
+recover_turn_rate = 240.0
+circle_chance = 0.1
+circle_max_distance = 6.0
+circle_distance = 4.5
+circle_time = 1.4
+wait_distance = 7.0
+flank_bias = 0.5
+repeat_penalty = 0.5
+max_combo = 1
+max_poise = 90.0
+poise_regen = 20.0
+poise_regen_delay = 1.5
+stagger_time = 1.0
+parried_time = 1.0
+action_fade_in = 0.15
+action_fade_out = 0.3
+threaten_anim = &"Idle call shared"
+sprint_speed = 5.0
+sprint_distance = 6.0
+sprint_stamina = 3.0
+stagger_anims = Array[StringName]([&"Hit chest back"])

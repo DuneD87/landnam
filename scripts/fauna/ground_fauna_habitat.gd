@@ -22,6 +22,8 @@ var atmosphere_height: float = 1400.0
 var latitude_ranges: Array[float] = []
 ## Campo de frío del planeta, para GroundFaunaProfile.climate_min/max. Null = sin filtro.
 var climate: ClimateField
+## Red de ríos del planeta (Planet.get_river_network()), para GroundFaunaProfile.near_water.
+var rivers: Dictionary = {}
 
 ## Cuentas de aceptación y rechazo por motivo, para el comando `fauna` de la consola.
 var accepted: int = 0
@@ -126,7 +128,27 @@ func _surface_point(direction: Vector3, settings: GroundFaunaProfile,
 	if world_map != null and world_map.is_ready() and world_map.is_water_at(point):
 		_reject(&"agua")
 		return null
+	if settings.near_water > 0.0 and not _near_water(point, direction, settings.near_water):
+		_reject(&"lejos_del_agua")
+		return null
 	return point + direction * (clearance + GROUND_MARGIN)
+
+
+## Si hay un río a menos de [distance] de [point], o agua del mapa (lago, mar) en un corro a esa
+## distancia o a la mitad. Sin mapa ni ríos, no.
+func _near_water(point: Vector3, up: Vector3, distance: float) -> bool:
+	if RiverField.distance_at(rivers, up) <= distance:
+		return true
+	if world_map == null or not world_map.is_ready():
+		return false
+	var right := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	var forward := up.cross(right)
+	for ring in [0.5, 1.0]:
+		for i in 8:
+			var angle := TAU * i / 8.0
+			if world_map.is_water_at(point + (right * cos(angle) + forward * sin(angle)) * distance * ring):
+				return true
+	return false
 
 
 ## La latitud se mide en el marco del planeta, no en el del mundo: es la misma convención que

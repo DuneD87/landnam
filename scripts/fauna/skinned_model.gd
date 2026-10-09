@@ -3,16 +3,8 @@ extends Node3D
 
 ## Un animal con esqueleto de un pack (FaunaModelData) para la fauna ambiental: lo monta (escena,
 ## material, escala, giro y clips) y avanza sus clips a mano: cerca de la cámara, cada fotograma;
-## lejos o fuera de cámara, uno de cada pocos (con el tiempo acumulado), que el esqueleto es lo que
-## cuesta. Qué clip suena lo deciden SkinnedFaunaModel (por la marcha) y SkinnedBirdModel (por el
-## vuelo).
-
-## Cada cuánto se vuelve a mirar lo lejos que está la cámara (s), y de cada cuántos fotogramas se
-## anima según la distancia (m) y fuera de cámara.
-const DETAIL_CHECK := 0.5
-const STRIDES := [[12.0, 1], [30.0, 2], [60.0, 3]]
-const FAR_STRIDE := 4
-const HIDDEN_STRIDE := 8
+## lejos o fuera de cámara, uno de cada pocos (AnimationLod). Qué clip suena lo deciden
+## SkinnedFaunaModel (por la marcha) y SkinnedBirdModel (por el vuelo).
 
 var data: FaunaModelData
 ## El clip que suena (las pruebas lo miran).
@@ -69,8 +61,8 @@ func _process(delta: float) -> void:
 		return
 	_detail_timer -= delta
 	if _detail_timer <= 0.0:
-		_detail_timer = DETAIL_CHECK * _rng.randf_range(0.8, 1.2)
-		_stride = _stride_for_camera()
+		_detail_timer = AnimationLod.CHECK_INTERVAL * _rng.randf_range(0.8, 1.2)
+		_stride = AnimationLod.stride_for(self)
 	_accum += delta
 	_frame += 1
 	if _frame % _stride == 0:
@@ -78,19 +70,6 @@ func _process(delta: float) -> void:
 		player.advance(_accum)
 		_accum = 0.0
 		DebugStats.report_cost(cost_label, Time.get_ticks_usec() - start)
-
-
-func _stride_for_camera() -> int:
-	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
-	if camera == null:
-		return 1
-	if not camera.is_position_in_frustum(global_position):
-		return HIDDEN_STRIDE
-	var distance := camera.global_position.distance_to(global_position)
-	for step in STRIDES:
-		if distance < step[0]:
-			return step[1]
-	return FAR_STRIDE
 
 
 func _clip_done() -> bool:

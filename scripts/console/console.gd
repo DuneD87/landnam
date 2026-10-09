@@ -292,8 +292,8 @@ func _register_commands() -> void:
 		"Escala de render 3D: bisecciona si el coste de dibujar es de pixel o de envio.", _cmd_escala))
 	_add(ConsoleCommand.new("terreno", "terreno [colision <lods>] [normalmap on|off]",
 		"Ajustes de coste del terreno en caliente, para comparar picos de 'proc'; sin argumentos, informa.", _cmd_terreno))
-	_add(ConsoleCommand.new("spawn", "spawn <oso|ciervo|leon|bufalo|lobo> [cantidad] [distancia] [variante]",
-		"Suelta animales delante del jugador (el oso es hostil: sirve para probar el combate). Los que salen juntos van en manada; con variante (joven, adulto, grande) salen todos de esa.", _cmd_spawn, 1, _complete_animals))
+	_add(ConsoleCommand.new("spawn", "spawn <animal> [cantidad] [distancia] [variante]",
+		"Suelta animales delante del jugador (ver la lista con el tabulador; el oso es hostil: sirve para probar el combate). Los que salen juntos van en manada; con variante (joven, adulto, grande) salen todos de esa.", _cmd_spawn, 1, _complete_animals))
 	_add(ConsoleCommand.new("ia", "ia [radio]",
 		"Qué está pensando cada criatura cercana: estado, fase, ataque, combo, guardia y lo que lee de su objetivo.", _cmd_ai))
 	_add(ConsoleCommand.new("morir", "morir",
@@ -732,6 +732,28 @@ const ANIMAL_SCENES := {
 	"leon": "res://scenes/animals/Lion.tscn",
 	"bufalo": "res://scenes/animals/Buffalo.tscn",
 	"lobo": "res://scenes/animals/Wolf.tscn",
+	"cierva": "res://scenes/animals/Hind.tscn",
+	"jabali": "res://scenes/animals/Boar.tscn",
+	"alce": "res://scenes/animals/Moose.tscn",
+	"lince": "res://scenes/animals/Lynx.tscn",
+	"cabra_montes": "res://scenes/animals/MountainGoat.tscn",
+	"muflon": "res://scenes/animals/Bighorn.tscn",
+	"puma": "res://scenes/animals/Puma.tscn",
+	"leona": "res://scenes/animals/Lioness.tscn",
+	"nu": "res://scenes/animals/Wildebeest.tscn",
+	"berrendo": "res://scenes/animals/Pronghorn.tscn",
+	"hiena": "res://scenes/animals/Hyena.tscn",
+	"caiman": "res://scenes/animals/Alligator.tscn",
+	"burro": "res://scenes/animals/Donkey.tscn",
+	"caballo": "res://scenes/animals/Horse.tscn",
+	"rinoceronte": "res://scenes/animals/Rhinoceros.tscn",
+	"elefante": "res://scenes/animals/Elephant.tscn",
+	"mamut": "res://scenes/animals/Mammoth.tscn",
+	"vaca": "res://scenes/animals/Cow.tscn",
+	"ternero": "res://scenes/animals/Calf.tscn",
+	"cabra": "res://scenes/animals/Goat.tscn",
+	"labrador": "res://scenes/animals/Labrador.tscn",
+	"sabueso": "res://scenes/animals/Bloodhound.tscn",
 }
 
 

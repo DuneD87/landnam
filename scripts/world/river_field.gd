@@ -273,6 +273,32 @@ static func hydro_dir(px: float, py: float, w: int, h: int) -> Vector3:
 	return Vector3(st * cos(lon), cos(theta), -st * sin(lon))
 
 
+## Distancia (m) al río más cercano en la dirección [up] desde el centro del planeta, con la red de
+## Planet.get_river_network() (su campo "dist" y su "carve_range"). INF sin red o lejos de todo río.
+## Usa la latitud polinómica del mapa de alturas del vóxel, no las UV del mapa del mundo.
+static func distance_at(rivers: Dictionary, up: Vector3) -> float:
+	if rivers.is_empty() or not rivers.has("dist"):
+		return INF
+	var uv := Vector2(fposmod(0.5 - atan2(up.z, up.x) / TAU, 1.0), node_v(up.y))
+	var value := sample(rivers.dist, uv)
+	if value <= 0.0:
+		return INF
+	return (1.0 - value) * float(rivers.carve_range)
+
+
+## [img] (canal rojo) en [uv], bilineal y dando la vuelta en horizontal.
+static func sample(img: Image, uv: Vector2) -> float:
+	var x := uv.x * img.get_width() - 0.5
+	var y := uv.y * img.get_height() - 0.5
+	var ix := int(floor(x))
+	var iy := int(floor(y))
+	var a := img.get_pixel(wrapi(ix, 0, img.get_width()), clampi(iy, 0, img.get_height() - 1)).r
+	var b := img.get_pixel(wrapi(ix + 1, 0, img.get_width()), clampi(iy, 0, img.get_height() - 1)).r
+	var c := img.get_pixel(wrapi(ix, 0, img.get_width()), clampi(iy + 1, 0, img.get_height() - 1)).r
+	var d := img.get_pixel(wrapi(ix + 1, 0, img.get_width()), clampi(iy + 1, 0, img.get_height() - 1)).r
+	return lerpf(lerpf(a, b, x - floor(x)), lerpf(c, d, x - floor(x)), y - floor(y))
+
+
 ## Fila normalizada que SdfSphereHeightmap asigna a una componente Y (unitaria). Medido contra el
 ## nodo, no documentado: encaja hasta el sexto decimal en todo el barrido de latitudes.
 static func node_v(y: float) -> float:

@@ -200,7 +200,19 @@
 			"res://data/fauna/caribou.tres",
 			"res://data/fauna/arctic_hares.tres",
 			"res://data/fauna/arctic_foxes.tres",
-			"res://data/fauna/lemmings.tres"
+			"res://data/fauna/lemmings.tres",
+			"res://data/fauna/hinds.tres",
+			"res://data/fauna/boars.tres",
+			"res://data/fauna/moose.tres",
+			"res://data/fauna/lynxes.tres",
+			"res://data/fauna/mountain_goats.tres",
+			"res://data/fauna/lionesses.tres",
+			"res://data/fauna/wildebeests.tres",
+			"res://data/fauna/hyenas.tres",
+			"res://data/fauna/alligators.tres",
+			"res://data/fauna/rhinos.tres",
+			"res://data/fauna/elephants.tres",
+			"res://data/fauna/mammoths.tres"
 		]
 	},
 	"atmosphere_settings": {

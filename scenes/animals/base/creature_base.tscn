@@ -1,0 +1,92 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/npc_controller.gd" id="1_npc"]
+[ext_resource type="Script" path="res://scripts/player/movement.gd" id="2_move"]
+[ext_resource type="Script" path="res://scripts/npc/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://scripts/npc/ai/ai_controller.gd" id="4_ai"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/idle_state.gd" id="5_idle"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/wander_state.gd" id="6_wander"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/flee_state.gd" id="7_flee"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/death_state.gd" id="8_death"]
+[ext_resource type="Script" path="res://scripts/ui/inventory/inventory.gd" id="9_inventory"]
+[ext_resource type="Script" path="res://scripts/player/animation_controller.gd" id="10_anim"]
+[ext_resource type="Script" path="res://scripts/npc/perception.gd" id="11_perception"]
+[ext_resource type="AnimationNodeBlendTree" path="res://data/fauna/creature_tree.tres" id="12_tree"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.4
+height = 1.6
+
+[node name="Creature" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 3
+floor_stop_on_slope = false
+floor_block_on_wall = false
+floor_max_angle = 1.2217305
+safe_margin = 0.008
+script = ExtResource("1_npc")
+detect_state = &"FleeState"
+
+[node name="Movement" type="Node" parent="."]
+script = ExtResource("2_move")
+speed = 1.5
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+
+[node name="AIController" type="Node" parent="."]
+script = ExtResource("4_ai")
+
+[node name="IdleState" type="Node" parent="AIController"]
+script = ExtResource("5_idle")
+flee_trigger_radius = 30.0
+
+[node name="WanderState" type="Node" parent="AIController"]
+script = ExtResource("6_wander")
+wander_radius = 25.0
+arrival_threshold = 2.0
+max_wander_time = 12.0
+home_radius = 60.0
+flee_trigger_radius = 30.0
+
+[node name="FleeState" type="Node" parent="AIController"]
+script = ExtResource("7_flee")
+safe_distance = 90.0
+max_flee_time = 20.0
+speed_multiplier = 5.0
+
+[node name="DeathState" type="Node" parent="AIController"]
+script = ExtResource("8_death")
+
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("9_inventory")
+
+[node name="AnimationController" type="Node" parent="." node_paths=PackedStringArray("animator", "animation_tree")]
+script = ExtResource("10_anim")
+animator = NodePath("../NPCModel/AnimationPlayer")
+animation_tree = NodePath("../NPCModel/AnimationTree")
+blend_speed = 3.0
+
+[node name="Perception" type="Node" parent="."]
+script = ExtResource("11_perception")
+vision_range = 40.0
+vision_half_angle = 120.0
+eye_height = 1.0
+hearing_range = 16.0
+memory_time = 10.0
+check_interval = 0.3
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.5, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="NPCModel" type="Node3D" parent="."]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="NPCModel"]
+
+[node name="AnimationTree" type="AnimationTree" parent="NPCModel"]
+tree_root = ExtResource("12_tree")
+anim_player = NodePath("../AnimationPlayer")
+parameters/bRun/blend_amount = 0.0
+parameters/bSprint/blend_amount = 0.0
+parameters/death/blend_amount = 0.0

@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="CreatureAttack" format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_hit.gd" id="1_hit"]
+[ext_resource type="Script" path="res://scripts/npc/ai/combat/creature_attack.gd" id="2_attack"]
+
+[sub_resource type="Resource" id="Resource_hit0"]
+script = ExtResource("1_hit")
+from = 0.15
+to = 0.85
+bones = Array[StringName]([&"Head"])
+radius = 0.7
+damage = 40.0
+poise = 72.0
+knockback = 3.0
+kind = 1
+parryable = false
+
+[resource]
+script = ExtResource("2_attack")
+id = &"charge"
+anim = &"RunFast_F"
+distance = Vector2(0.0, 7.0)
+cooldown = 3.0
+max_angle = 35.0
+situations = Dictionary[StringName, float]({
+&"aiming": 3.0,
+&"fleeing": 4.0,
+&"guarding": 2.5
+})
+tell = 0.2
+windup_speed = 0.9
+end = 1.0
+track_windup = 300.0
+track_active = 30.0
+lead = 0.5
+lunge = Vector3(0.05, 0.85, 5.5)
+lunge_min_distance = 0.0
+armor = Vector3(0.0, 0.85, 60.0)
+hits = Array[ExtResource("1_hit")]([SubResource("Resource_hit0")])

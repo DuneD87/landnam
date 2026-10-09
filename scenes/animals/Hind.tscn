@@ -1,0 +1,67 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/animals/base/creature_base.tscn" id="1_base"]
+[ext_resource type="PackedScene" path="res://models/animals/hind/hind.scn" id="2_model"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/hind/hind_anims.res" id="3_anims"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Material" path="res://data/fauna/hidden_surface.tres" id="m0"]
+[ext_resource type="Material" path="res://models/animals/hind/hind_femaledeer.tres" id="m1"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_mammal_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_mammal_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_mammal_large"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.5
+height = 1.8
+
+[node name="Hind" instance=ExtResource("1_base")]
+npc_type = &"Hind"
+hit_stun_duration = 0.3
+sprint_anim_speed = 4.0
+run_clip_speed = 1.34
+sprint_clip_speed = 10.06
+head_bone = &"RigHead"
+head_radius = 0.16
+flinch_bones = Array[String](["RigSpine2", "RigChest", "RigNeck1", "RigHead"])
+variants = Array[ExtResource("v_script")]([ExtResource("v_mammal_young"), ExtResource("v_mammal_adult"), ExtResource("v_mammal_large")])
+
+[node name="Movement" parent="."]
+speed = 1.4
+
+[node name="HealthComponent" parent="."]
+max_health = 55.0
+
+[node name="IdleState" parent="AIController"]
+flee_trigger_radius = 40.0
+
+[node name="WanderState" parent="AIController"]
+flee_trigger_radius = 40.0
+wander_radius = 30.0
+
+[node name="FleeState" parent="AIController"]
+speed_multiplier = 8.0
+safe_distance = 120.0
+max_flee_time = 25.0
+
+[node name="Perception" parent="."]
+vision_range = 60.0
+eye_height = 1.45
+hearing_range = 30.0
+
+[node name="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.52, 0.1)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="NPCModel" parent="."]
+transform = Transform3D(1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0, 0, 0, 0)
+
+[node name="hind" parent="NPCModel" instance=ExtResource("2_model")]
+
+[node name="SK-Deer_Female_001" parent="NPCModel/hind/SK-Deer_Female/Skeleton3D"]
+surface_material_override/0 = ExtResource("m0")
+surface_material_override/1 = ExtResource("m1")
+
+[node name="AnimationPlayer" parent="NPCModel"]
+libraries/ = ExtResource("3_anims")
+
+[editable path="NPCModel/hind"]

@@ -19,6 +19,8 @@ class_name GroundFaunaProfile extends AmbientFaunaProfile
 ## así que 0 no es la orilla: en el planeta Tierra la orilla es -50.
 @export var min_height: float = -50.0
 @export var max_height: float = 200.0
+## Vive a menos de esto (m) de un río, un lago o la costa (los caimanes). 0 = donde sea.
+@export var near_water: float = 0.0
 ## Segundos que el cadáver se queda antes de volver al pool. 0 = desaparece al morir.
 @export_range(0.0, 600.0, 1.0, "or_greater", "suffix:s") var corpse_duration: float = 0.0
 ## Distancia hasta la que la criatura corre con todo el detalle. Más allá el spawner la adormece

@@ -1,0 +1,9 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://models/animals/mountain_goat/mountaingoat_antler.png" id="1_tex"]
+
+[resource]
+resource_name = "M_mountain_goat_mountaingoat_antler"
+cull_mode = 2
+albedo_texture = ExtResource("1_tex")
+roughness = 0.9

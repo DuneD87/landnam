@@ -1,0 +1,71 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/animals/base/creature_base.tscn" id="1_base"]
+[ext_resource type="PackedScene" path="res://models/animals/rhino/rhino.scn" id="2_model"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/rhino/rhino_anims.res" id="3_anims"]
+[ext_resource type="Script" path="res://scripts/npc/creature_variant.gd" id="v_script"]
+[ext_resource type="Material" path="res://models/animals/rhino/rhinoceros.tres" id="m0"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_mammal_young"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_mammal_adult"]
+[ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_mammal_large"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/creature_combat_state.gd" id="c_state"]
+[ext_resource type="Resource" path="res://data/fauna/combat/rhino_combat.tres" id="c_profile"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.8
+height = 3.4
+
+[node name="Rhinoceros" instance=ExtResource("1_base")]
+npc_type = &"Rhinoceros"
+detect_state = &""
+provoked_state = &"CombatState"
+lose_state = &"IdleState"
+hit_stun_duration = 0.0
+sprint_anim_speed = 3.0
+run_clip_speed = 0.9
+sprint_clip_speed = 7.02
+head_bone = &"RigHead"
+head_radius = 0.35
+flinch_bones = Array[String](["RigSpine2", "RigChest", "RigNeck1", "RigHead"])
+variants = Array[ExtResource("v_script")]([ExtResource("v_mammal_young"), ExtResource("v_mammal_adult"), ExtResource("v_mammal_large")])
+
+[node name="Movement" parent="."]
+speed = 0.9
+
+[node name="HealthComponent" parent="."]
+max_health = 400.0
+
+[node name="IdleState" parent="AIController"]
+flee_trigger_radius = 18.0
+threat_state = &"CombatState"
+
+[node name="WanderState" parent="AIController"]
+flee_trigger_radius = 18.0
+threat_state = &"CombatState"
+wander_radius = 30.0
+
+[node name="CombatState" type="Node" parent="AIController"]
+script = ExtResource("c_state")
+profile = ExtResource("c_profile")
+
+[node name="Perception" parent="."]
+vision_range = 25.0
+eye_height = 1.3
+hearing_range = 35.0
+
+[node name="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.82, 0.05)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="NPCModel" parent="."]
+transform = Transform3D(1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0, 0, 0, 0)
+
+[node name="rhino" parent="NPCModel" instance=ExtResource("2_model")]
+
+[node name="WhiteRhinoceros_M_001" parent="NPCModel/rhino/WhiteRhinoceros_M/Skeleton3D"]
+surface_material_override/0 = ExtResource("m0")
+
+[node name="AnimationPlayer" parent="NPCModel"]
+libraries/ = ExtResource("3_anims")
+
+[editable path="NPCModel/rhino"]

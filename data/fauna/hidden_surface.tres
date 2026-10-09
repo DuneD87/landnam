@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "M_Hidden"
+transparency = 2
+alpha_scissor_threshold = 0.5
+albedo_color = Color(1, 1, 1, 0)

@@ -5,12 +5,14 @@
 [ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_young.tres" id="v_young"]
 [ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_adult.tres" id="v_adult"]
 [ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_large.tres" id="v_large"]
+[ext_resource type="Resource" path="res://data/fauna/models/lemming.tres" id="2_model"]
 
 [resource]
 script = ExtResource("1")
 scene_path = "res://scenes/animals/ambient_small_ground_animal.tscn"
 species = 5
-population = 14
+model = ExtResource("2_model")
+population = 7
 spawn_min_distance = 20.0
 spawn_radius = 70.0
 recycle_distance = 110.0
@@ -23,8 +25,8 @@ min_height = -49.5
 max_height = 500.0
 climate_min = 52.0
 climate_max = 66.0
-walk_speed = 0.9
-flee_speed = 3.4
+walk_speed = 0.6
+flee_speed = 2.4
 flee_distance = 5
 wander_distance = 5
 min_spacing = 6.0
