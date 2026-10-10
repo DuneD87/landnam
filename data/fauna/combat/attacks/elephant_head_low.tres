@@ -5,10 +5,10 @@
 
 [sub_resource type="Resource" id="Resource_hit0"]
 script = ExtResource("1_hit")
-from = 0.85
-to = 1.5
-bones = Array[StringName]([&"RigHead"])
-radius = 1.0
+from = 0.6
+to = 1.0
+bones = Array[StringName]([&"RigTrunk5", &"RigTrunk7", &"RigTrunk9", &"RigTrunk11", &"RigTrunkLipF1"])
+radius = 0.5
 damage = 70.0
 poise = 112.0
 knockback = 2.0

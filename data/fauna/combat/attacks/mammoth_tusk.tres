@@ -5,10 +5,10 @@
 
 [sub_resource type="Resource" id="Resource_hit0"]
 script = ExtResource("1_hit")
-from = 0.5
-to = 0.85
-bones = Array[StringName]([&"c_head"])
-radius = 1.0
+from = 0.3
+to = 0.6
+bones = Array[StringName]([&"r_tusk", &"l_tusk", &"c_trunkUpperGrip", &"c_trunkLowerGrip"])
+radius = 0.5
 damage = 70.0
 poise = 112.0
 knockback = 2.0
