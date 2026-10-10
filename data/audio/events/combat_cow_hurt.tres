@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_q5lsr"]
+[ext_resource type="AudioStream" path="res://audio/combat/cow_hurt/cow_hurt_01.ogg" id="2_14gq1"]
+[ext_resource type="AudioStream" path="res://audio/combat/cow_hurt/cow_hurt_02.ogg" id="3_u8l4n"]
+[ext_resource type="AudioStream" path="res://audio/combat/cow_hurt/cow_hurt_03.ogg" id="4_54u8q"]
+[ext_resource type="AudioStream" path="res://audio/combat/cow_hurt/cow_hurt_04.ogg" id="5_dknem"]
+[ext_resource type="AudioStream" path="res://audio/combat/cow_hurt/cow_hurt_05.ogg" id="6_hbtdw"]
+
+[resource]
+script = ExtResource("1_q5lsr")
+event_id = &"combat_cow_hurt"
+streams = Array[AudioStream]([ExtResource("2_14gq1"), ExtResource("3_u8l4n"), ExtResource("4_54u8q"), ExtResource("5_dknem"), ExtResource("6_hbtdw")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.05
+max_distance = 80.0
+unit_size = 6.0
+max_voices = 3
+cooldown = 0.4

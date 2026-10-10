@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_kr7xx"]
+[ext_resource type="AudioStream" path="res://audio/combat/bison_bellow/bison_bellow_01.ogg" id="2_qmps8"]
+[ext_resource type="AudioStream" path="res://audio/combat/bison_bellow/bison_bellow_02.ogg" id="3_7hpiq"]
+[ext_resource type="AudioStream" path="res://audio/combat/bison_bellow/bison_bellow_03.ogg" id="4_h8eo6"]
+
+[resource]
+script = ExtResource("1_kr7xx")
+event_id = &"combat_moose_hurt"
+streams = Array[AudioStream]([ExtResource("2_qmps8"), ExtResource("3_7hpiq"), ExtResource("4_h8eo6")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch = 1.2
+pitch_jitter = 0.05
+max_distance = 90.0
+unit_size = 7.0
+max_voices = 2
+cooldown = 0.4

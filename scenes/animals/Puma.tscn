@@ -27,8 +27,8 @@ sprint_clip_speed = 11.21
 head_bone = &"Head"
 head_radius = 0.13
 flinch_bones = Array[String](["Spine2", "Spine4", "Neck01", "Head"])
-hurt_sound = &"lion_hurt"
-death_sound = &"lion_death"
+hurt_sound = &"puma_hurt"
+death_sound = &"puma_death"
 variants = Array[ExtResource("v_script")]([ExtResource("v_mammal_young"), ExtResource("v_mammal_adult"), ExtResource("v_mammal_large")])
 
 [node name="Movement" parent="."]

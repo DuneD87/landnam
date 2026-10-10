@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_ulkol"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_squeal/boar_squeal_01.ogg" id="2_0lh63"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_squeal/boar_squeal_02.ogg" id="3_ntvb3"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_squeal/boar_squeal_03.ogg" id="4_ih7p0"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_squeal/boar_squeal_04.ogg" id="5_ws0ui"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_squeal/boar_squeal_05.ogg" id="6_3bs33"]
+
+[resource]
+script = ExtResource("1_ulkol")
+event_id = &"combat_boar_squeal"
+streams = Array[AudioStream]([ExtResource("2_0lh63"), ExtResource("3_ntvb3"), ExtResource("4_ih7p0"), ExtResource("5_ws0ui"), ExtResource("6_3bs33")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 70.0
+unit_size = 5.0
+max_voices = 3
+cooldown = 0.3

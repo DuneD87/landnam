@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_4lgpq"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_hiss/cat_hiss_01.ogg" id="2_6w5v4"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_hiss/cat_hiss_02.ogg" id="3_tlh7g"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_hiss/cat_hiss_03.ogg" id="4_30ckl"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_hiss/cat_hiss_04.ogg" id="5_a7wwr"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_hiss/cat_hiss_05.ogg" id="6_ipekr"]
+
+[resource]
+script = ExtResource("1_4lgpq")
+event_id = &"combat_puma_hiss"
+streams = Array[AudioStream]([ExtResource("2_6w5v4"), ExtResource("3_tlh7g"), ExtResource("4_30ckl"), ExtResource("5_a7wwr"), ExtResource("6_ipekr")])
+volume_jitter_db = 1.5
+pitch = 0.6
+pitch_jitter = 0.05
+max_distance = 50.0
+unit_size = 5.0
+max_voices = 2
+cooldown = 0.5

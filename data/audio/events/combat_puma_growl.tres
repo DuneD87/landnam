@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_oxv0s"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_growl/cat_growl_01.ogg" id="2_ute0c"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_growl/cat_growl_02.ogg" id="3_1h8ix"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_growl/cat_growl_03.ogg" id="4_t1dw5"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_growl/cat_growl_04.ogg" id="5_qkix3"]
+
+[resource]
+script = ExtResource("1_oxv0s")
+event_id = &"combat_puma_growl"
+streams = Array[AudioStream]([ExtResource("2_ute0c"), ExtResource("3_1h8ix"), ExtResource("4_t1dw5"), ExtResource("5_qkix3")])
+volume_jitter_db = 1.5
+pitch = 0.62
+pitch_jitter = 0.05
+max_distance = 55.0
+unit_size = 5.0
+max_voices = 3
+cooldown = 0.5

@@ -30,6 +30,8 @@ head_bone = &"c_head"
 head_radius = 0.7
 flinch_bones = Array[String](["c_head"])
 variants = Array[ExtResource("v_script")]([ExtResource("v_mammal_young"), ExtResource("v_mammal_adult"), ExtResource("v_mammal_large")])
+hurt_sound = &"mammoth_hurt"
+death_sound = &"mammoth_death"
 
 [node name="Movement" parent="."]
 speed = 0.8

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_e8doa"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_hurt/deer_hurt_01.ogg" id="2_4sccd"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_hurt/deer_hurt_02.ogg" id="3_g46rq"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_hurt/deer_hurt_03.ogg" id="4_ybnph"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_hurt/deer_hurt_04.ogg" id="5_r1n3o"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_hurt/deer_hurt_05.ogg" id="6_o2iqs"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_hurt/deer_hurt_06.ogg" id="7_cub3a"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_hurt/deer_hurt_07.ogg" id="8_6hs1b"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_hurt/deer_hurt_08.ogg" id="9_m3gw2"]
+
+[resource]
+script = ExtResource("1_e8doa")
+event_id = &"combat_deer_hurt"
+streams = Array[AudioStream]([ExtResource("2_4sccd"), ExtResource("3_g46rq"), ExtResource("4_ybnph"), ExtResource("5_r1n3o"), ExtResource("6_o2iqs"), ExtResource("7_cub3a"), ExtResource("8_6hs1b"), ExtResource("9_m3gw2")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 50.0
+max_voices = 3
+cooldown = 0.3

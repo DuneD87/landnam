@@ -24,6 +24,8 @@ head_bone = &"Head"
 head_radius = 0.16
 flinch_bones = Array[String](["Spine_01", "Spine_02", "NeckBase", "Head"])
 variants = Array[ExtResource("v_script")]([ExtResource("v_mammal_young"), ExtResource("v_mammal_adult"), ExtResource("v_mammal_large")])
+hurt_sound = &"donkey_hurt"
+death_sound = &"donkey_death"
 
 [node name="Movement" parent="."]
 speed = 0.85

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_dwbj7"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_hurt/alligator_hurt_01.ogg" id="2_2mxwo"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_hurt/alligator_hurt_02.ogg" id="3_15c3a"]
+
+[resource]
+script = ExtResource("1_dwbj7")
+event_id = &"combat_alligator_hurt"
+streams = Array[AudioStream]([ExtResource("2_2mxwo"), ExtResource("3_15c3a")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch = 0.55
+pitch_jitter = 0.05
+max_distance = 45.0
+max_voices = 2
+cooldown = 0.35

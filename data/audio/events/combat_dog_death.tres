@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_t1i33"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_death/wolf_death_01.ogg" id="2_ev5c5"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_death/wolf_death_02.ogg" id="3_xg5yc"]
+[ext_resource type="AudioStream" path="res://audio/combat/wolf_death/wolf_death_03.ogg" id="4_3tg0q"]
+
+[resource]
+script = ExtResource("1_t1i33")
+event_id = &"combat_dog_death"
+streams = Array[AudioStream]([ExtResource("2_ev5c5"), ExtResource("3_xg5yc"), ExtResource("4_3tg0q")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.04
+max_distance = 50.0
+unit_size = 5.0
+max_voices = 2
+cooldown = 1.0

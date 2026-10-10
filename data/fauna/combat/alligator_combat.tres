@@ -35,3 +35,6 @@ sprint_speed = 5.0
 sprint_distance = 6.0
 sprint_stamina = 3.0
 stagger_anims = Array[StringName]([&"Hit chest back"])
+threaten_sound = &"alligator_hiss"
+attack_sound = &"alligator_growl"
+stagger_sound = &"alligator_hurt"

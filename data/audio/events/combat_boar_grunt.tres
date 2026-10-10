@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_d6yl8"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_grunt/boar_grunt_01.ogg" id="2_a6kfp"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_grunt/boar_grunt_02.ogg" id="3_kt8p8"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_grunt/boar_grunt_03.ogg" id="4_d5au4"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_grunt/boar_grunt_04.ogg" id="5_jeio5"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_grunt/boar_grunt_05.ogg" id="6_qpjub"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_grunt/boar_grunt_06.ogg" id="7_sik44"]
+
+[resource]
+script = ExtResource("1_d6yl8")
+event_id = &"combat_boar_grunt"
+streams = Array[AudioStream]([ExtResource("2_a6kfp"), ExtResource("3_kt8p8"), ExtResource("4_d5au4"), ExtResource("5_jeio5"), ExtResource("6_qpjub"), ExtResource("7_sik44")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch = 0.9
+pitch_jitter = 0.06
+max_distance = 45.0
+max_voices = 3
+cooldown = 0.3

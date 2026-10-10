@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_pg8g6"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_death/goat_death_01.ogg" id="2_iija6"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_death/goat_death_02.ogg" id="3_rp4v2"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_death/goat_death_03.ogg" id="4_063ck"]
+
+[resource]
+script = ExtResource("1_pg8g6")
+event_id = &"combat_goat_death"
+streams = Array[AudioStream]([ExtResource("2_iija6"), ExtResource("3_rp4v2"), ExtResource("4_063ck")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch = 0.92
+pitch_jitter = 0.04
+max_distance = 50.0
+max_voices = 2
+cooldown = 1.0

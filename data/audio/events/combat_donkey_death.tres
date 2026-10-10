@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_bxco8"]
+[ext_resource type="AudioStream" path="res://audio/combat/donkey_death/donkey_death_01.ogg" id="2_8j5lj"]
+[ext_resource type="AudioStream" path="res://audio/combat/donkey_death/donkey_death_02.ogg" id="3_edr4g"]
+
+[resource]
+script = ExtResource("1_bxco8")
+event_id = &"combat_donkey_death"
+streams = Array[AudioStream]([ExtResource("2_8j5lj"), ExtResource("3_edr4g")])
+volume_jitter_db = 1.5
+pitch = 0.92
+pitch_jitter = 0.04
+max_distance = 120.0
+unit_size = 7.0
+max_voices = 2
+cooldown = 1.0

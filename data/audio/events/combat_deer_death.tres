@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_dw8rw"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_death/deer_death_01.ogg" id="2_nphf5"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_death/deer_death_02.ogg" id="3_ftx3m"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_death/deer_death_03.ogg" id="4_qxili"]
+[ext_resource type="AudioStream" path="res://audio/combat/deer_death/deer_death_04.ogg" id="5_1es0n"]
+
+[resource]
+script = ExtResource("1_dw8rw")
+event_id = &"combat_deer_death"
+streams = Array[AudioStream]([ExtResource("2_nphf5"), ExtResource("3_ftx3m"), ExtResource("4_qxili"), ExtResource("5_1es0n")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch = 0.85
+pitch_jitter = 0.04
+unit_size = 5.0
+max_voices = 2
+cooldown = 1.0

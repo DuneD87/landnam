@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_n6tnc"]
+[ext_resource type="AudioStream" path="res://audio/combat/bison_bellow/bison_bellow_01.ogg" id="2_nlywr"]
+[ext_resource type="AudioStream" path="res://audio/combat/bison_bellow/bison_bellow_02.ogg" id="3_jqquj"]
+[ext_resource type="AudioStream" path="res://audio/combat/bison_bellow/bison_bellow_03.ogg" id="4_gmqkm"]
+
+[resource]
+script = ExtResource("1_n6tnc")
+event_id = &"combat_moose_death"
+streams = Array[AudioStream]([ExtResource("2_nlywr"), ExtResource("3_jqquj"), ExtResource("4_gmqkm")])
+volume_db = 1.0
+volume_jitter_db = 1.5
+pitch = 0.95
+pitch_jitter = 0.04
+max_distance = 110.0
+unit_size = 8.0
+max_voices = 2
+cooldown = 1.0

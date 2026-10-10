@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_qdp1x"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_hurt/goat_hurt_01.ogg" id="2_tukxj"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_hurt/goat_hurt_02.ogg" id="3_3068p"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_hurt/goat_hurt_03.ogg" id="4_sdepj"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_hurt/goat_hurt_04.ogg" id="5_5m6bm"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_hurt/goat_hurt_05.ogg" id="6_a1ux4"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_hurt/goat_hurt_06.ogg" id="7_i7cfa"]
+[ext_resource type="AudioStream" path="res://audio/combat/goat_hurt/goat_hurt_07.ogg" id="8_0go11"]
+
+[resource]
+script = ExtResource("1_qdp1x")
+event_id = &"combat_goat_hurt"
+streams = Array[AudioStream]([ExtResource("2_tukxj"), ExtResource("3_3068p"), ExtResource("4_sdepj"), ExtResource("5_5m6bm"), ExtResource("6_a1ux4"), ExtResource("7_i7cfa"), ExtResource("8_0go11")])
+volume_db = -3.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 45.0
+unit_size = 3.0
+max_voices = 3
+cooldown = 0.3

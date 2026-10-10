@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_haqlc"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_01.ogg" id="2_8vj1c"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_02.ogg" id="3_fed7p"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_03.ogg" id="4_ykaf6"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_04.ogg" id="5_fosyy"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_05.ogg" id="6_l3aq5"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_06.ogg" id="7_wdu2m"]
+
+[resource]
+script = ExtResource("1_haqlc")
+event_id = &"combat_elephant_hurt"
+streams = Array[AudioStream]([ExtResource("2_8vj1c"), ExtResource("3_fed7p"), ExtResource("4_ykaf6"), ExtResource("5_fosyy"), ExtResource("6_l3aq5"), ExtResource("7_wdu2m")])
+volume_db = 1.0
+volume_jitter_db = 1.5
+pitch = 1.12
+pitch_jitter = 0.05
+max_distance = 180.0
+unit_size = 10.0
+max_voices = 2
+cooldown = 0.4

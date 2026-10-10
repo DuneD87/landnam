@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_n4uy0"]
+[ext_resource type="AudioStream" path="res://audio/combat/horse_death/horse_death_01.ogg" id="2_0sqxe"]
+[ext_resource type="AudioStream" path="res://audio/combat/horse_death/horse_death_02.ogg" id="3_1quo0"]
+[ext_resource type="AudioStream" path="res://audio/combat/horse_death/horse_death_03.ogg" id="4_rjkaf"]
+
+[resource]
+script = ExtResource("1_n4uy0")
+event_id = &"combat_horse_death"
+streams = Array[AudioStream]([ExtResource("2_0sqxe"), ExtResource("3_1quo0"), ExtResource("4_rjkaf")])
+volume_jitter_db = 1.5
+pitch = 0.9
+pitch_jitter = 0.04
+max_distance = 90.0
+unit_size = 6.0
+max_voices = 2
+cooldown = 1.0

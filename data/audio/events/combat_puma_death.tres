@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_w0kdg"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_growl/cat_growl_01.ogg" id="2_m0w2n"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_growl/cat_growl_02.ogg" id="3_q2ew3"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_growl/cat_growl_03.ogg" id="4_jihfa"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_growl/cat_growl_04.ogg" id="5_qna40"]
+
+[resource]
+script = ExtResource("1_w0kdg")
+event_id = &"combat_puma_death"
+streams = Array[AudioStream]([ExtResource("2_m0w2n"), ExtResource("3_q2ew3"), ExtResource("4_jihfa"), ExtResource("5_qna40")])
+volume_db = 1.0
+volume_jitter_db = 1.5
+pitch = 0.55
+pitch_jitter = 0.04
+unit_size = 5.0
+max_voices = 2
+cooldown = 1.0

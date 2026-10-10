@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_r7koy"]
+[ext_resource type="AudioStream" path="res://audio/combat/bison_bellow/bison_bellow_01.ogg" id="2_upydg"]
+[ext_resource type="AudioStream" path="res://audio/combat/bison_bellow/bison_bellow_02.ogg" id="3_dhg81"]
+[ext_resource type="AudioStream" path="res://audio/combat/bison_bellow/bison_bellow_03.ogg" id="4_k3bq2"]
+
+[resource]
+script = ExtResource("1_r7koy")
+event_id = &"combat_bison_bellow"
+streams = Array[AudioStream]([ExtResource("2_upydg"), ExtResource("3_dhg81"), ExtResource("4_k3bq2")])
+volume_db = 1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.05
+max_distance = 120.0
+unit_size = 8.0
+max_voices = 2
+cooldown = 1.0

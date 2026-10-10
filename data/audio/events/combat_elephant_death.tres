@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_trhk3"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_01.ogg" id="2_cnxax"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_02.ogg" id="3_yb7kn"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_03.ogg" id="4_ajv8b"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_04.ogg" id="5_knqi0"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_05.ogg" id="6_idjq3"]
+[ext_resource type="AudioStream" path="res://audio/combat/elephant_trumpet/elephant_trumpet_06.ogg" id="7_ngnbl"]
+
+[resource]
+script = ExtResource("1_trhk3")
+event_id = &"combat_elephant_death"
+streams = Array[AudioStream]([ExtResource("2_cnxax"), ExtResource("3_yb7kn"), ExtResource("4_ajv8b"), ExtResource("5_knqi0"), ExtResource("6_idjq3"), ExtResource("7_ngnbl")])
+volume_db = 2.0
+volume_jitter_db = 1.5
+pitch = 0.82
+pitch_jitter = 0.04
+max_distance = 220.0
+unit_size = 12.0
+max_voices = 2
+cooldown = 1.0

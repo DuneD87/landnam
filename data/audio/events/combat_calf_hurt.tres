@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_y0bxg"]
+[ext_resource type="AudioStream" path="res://audio/combat/calf_hurt/calf_hurt_01.ogg" id="2_fbpev"]
+[ext_resource type="AudioStream" path="res://audio/combat/calf_hurt/calf_hurt_02.ogg" id="3_wgnat"]
+[ext_resource type="AudioStream" path="res://audio/combat/calf_hurt/calf_hurt_03.ogg" id="4_282d8"]
+[ext_resource type="AudioStream" path="res://audio/combat/calf_hurt/calf_hurt_04.ogg" id="5_kmupg"]
+[ext_resource type="AudioStream" path="res://audio/combat/calf_hurt/calf_hurt_05.ogg" id="6_67wjl"]
+
+[resource]
+script = ExtResource("1_y0bxg")
+event_id = &"combat_calf_hurt"
+streams = Array[AudioStream]([ExtResource("2_fbpev"), ExtResource("3_wgnat"), ExtResource("4_282d8"), ExtResource("5_kmupg"), ExtResource("6_67wjl")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_voices = 3
+cooldown = 0.35

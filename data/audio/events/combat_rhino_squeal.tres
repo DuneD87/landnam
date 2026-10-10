@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_ya4ld"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_squeal/rhino_squeal_01.ogg" id="2_eqh6x"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_squeal/rhino_squeal_02.ogg" id="3_7khot"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_squeal/rhino_squeal_03.ogg" id="4_qlbxr"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_squeal/rhino_squeal_04.ogg" id="5_t0ybw"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_squeal/rhino_squeal_05.ogg" id="6_ddve7"]
+
+[resource]
+script = ExtResource("1_ya4ld")
+event_id = &"combat_rhino_squeal"
+streams = Array[AudioStream]([ExtResource("2_eqh6x"), ExtResource("3_7khot"), ExtResource("4_qlbxr"), ExtResource("5_t0ybw"), ExtResource("6_ddve7")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+unit_size = 5.0
+max_voices = 2
+cooldown = 0.35

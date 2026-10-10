@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_0k13f"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_death/sheep_death_01.ogg" id="2_11sx5"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_death/sheep_death_02.ogg" id="3_fsca2"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_death/sheep_death_03.ogg" id="4_qfwfr"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_death/sheep_death_04.ogg" id="5_67ivk"]
+
+[resource]
+script = ExtResource("1_0k13f")
+event_id = &"combat_sheep_death"
+streams = Array[AudioStream]([ExtResource("2_11sx5"), ExtResource("3_fsca2"), ExtResource("4_qfwfr"), ExtResource("5_67ivk")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch = 0.82
+pitch_jitter = 0.04
+max_distance = 50.0
+max_voices = 2
+cooldown = 1.0

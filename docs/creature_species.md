@@ -37,9 +37,23 @@ El clima exacto de cada una está en su perfil (`climate_min`/`climate_max` de
 para los asentamientos. Puma, muflón y berrendo son americanos y repetían papel con el lince, la
 cabra montés y el ñu.
 
-Las voces se reutilizan: la leona, el puma y la hiena usan las del león y el lobo con otro tono
-(`voice_pitch`). El jabalí, el alce, el rinoceronte, el elefante y el mamut van casi mudos hasta
-que tengan grabaciones propias.
+Cada especie suena con grabaciones de su animal o de uno muy parecido (ver
+[audio_credits.md](audio_credits.md)): `hurt_sound` y `death_sound` en la escena y, las que pelean,
+amenaza, ataque y tambaleo en su perfil de combate. Las voces se comparten por familias, cada especie
+con su tono en su `SoundEvent` (`tools/audio/build_combat_events.gd`):
+
+| Voz | Especies |
+| --- | --- |
+| ciervo (corzos y ciervos) | cierva, berrendo, ciervo, caribú |
+| cabra / oveja | cabra y cabra montés / muflón |
+| vaca, ternero, caballo, burro | la suya cada uno |
+| bisonte | búfalo, alce (más agudo) y ñu (aún más): no hay alces ni ñus libres |
+| cerdo | jabalí |
+| elefante | elefante y mamut (más grave) |
+| rinoceronte, caimán | la suya cada uno |
+| felino (lince, serval, gatos) | lince y puma (más grave: sisea y gruñe, no ruge) |
+| perro (las del lobo) | labrador, sabueso |
+| león / lobo | leona / hiena, con otro tono (`voice_pitch`) |
 
 ## Población
 

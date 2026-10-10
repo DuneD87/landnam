@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_y1wdf"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_hiss/alligator_hiss_01.ogg" id="2_cj2w8"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_hiss/alligator_hiss_02.ogg" id="3_po8nt"]
+
+[resource]
+script = ExtResource("1_y1wdf")
+event_id = &"combat_alligator_hiss"
+streams = Array[AudioStream]([ExtResource("2_cj2w8"), ExtResource("3_po8nt")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.05
+max_distance = 40.0
+unit_size = 5.0
+max_voices = 2
+cooldown = 0.5

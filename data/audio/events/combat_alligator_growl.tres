@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_trp2t"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_growl/alligator_growl_01.ogg" id="2_36ags"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_growl/alligator_growl_02.ogg" id="3_dld3j"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_growl/alligator_growl_03.ogg" id="4_3pofr"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_growl/alligator_growl_04.ogg" id="5_mtuue"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_growl/alligator_growl_05.ogg" id="6_4vabx"]
+[ext_resource type="AudioStream" path="res://audio/combat/alligator_growl/alligator_growl_06.ogg" id="7_k3sqc"]
+
+[resource]
+script = ExtResource("1_trp2t")
+event_id = &"combat_alligator_growl"
+streams = Array[AudioStream]([ExtResource("2_36ags"), ExtResource("3_dld3j"), ExtResource("4_3pofr"), ExtResource("5_mtuue"), ExtResource("6_4vabx"), ExtResource("7_k3sqc")])
+volume_jitter_db = 1.5
+pitch_jitter = 0.05
+max_distance = 70.0
+unit_size = 6.0
+max_voices = 2
+cooldown = 0.6

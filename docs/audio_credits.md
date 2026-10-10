@@ -39,6 +39,33 @@ de 2026.
 | Lobo herido (`wolf_hurt`) | [Dog's Yelping 7](https://freesound.org/s/160478/) (unfa) |
 | Muerte del lobo (`wolf_death`) | [S02-06 Dog whines, whimpers, snarls.wav](https://freesound.org/s/675407/) (craigsmith), [dog whine.wav](https://freesound.org/s/505827/) (jedg) |
 | Aullido de lobo (`wolf_howl`) | [Cooper Creek 20160313_014852 solitary wolf howl very clear.wav](https://freesound.org/s/500646/) (betchkal), [wolfs.wav](https://freesound.org/s/143568/) (ondrosik) |
+| Ciervo herido (`deer_hurt`) | [Roe Deer calls Forest of Saou](https://freesound.org/s/724578/) (Sacha.Julien), [two roe-deers](https://freesound.org/s/850406/) (bruno.auzet), [Deer Meewing 01.wav](https://freesound.org/s/351113/) (msantoro11) |
+| Muerte del ciervo (`deer_death`) | [Deer Meewing 01.wav](https://freesound.org/s/351113/) (msantoro11), [Roe Deer calls Forest of Saou](https://freesound.org/s/724578/) (Sacha.Julien) |
+| Cabra herida (`goat_hurt`) | [Single Goat Bleating 2x](https://freesound.org/s/581240/) (Kinoton), [mini Goat Baa](https://freesound.org/s/677218/) (satoristudios3), [Nigerian Dwarf Buck Goat](https://freesound.org/s/677220/) (satoristudios3), [Goat Baa.mp3](https://freesound.org/s/677217/) (satoristudios3), [Goat bleating](https://freesound.org/s/842964/) (papimre) |
+| Muerte de la cabra (`goat_death`) | [Baby goat bleating](https://freesound.org/s/200333/) (jsbarrett), [Goat bleating](https://freesound.org/s/842964/) (papimre) |
+| Oveja herida (muflón) (`sheep_hurt`) | [Sheep bleating](https://freesound.org/s/362283/) (zachrau), [Sheep Bleating](https://freesound.org/s/471162/) (Sheyvan), [sheep bleat sound](https://freesound.org/s/428103/) (Garuda1982) |
+| Muerte de la oveja (muflón) (`sheep_death`) | [Sheep bleating](https://freesound.org/s/383144/) (zachrau), [Sheep Bleating](https://freesound.org/s/471162/) (Sheyvan), [sheep bleat sound](https://freesound.org/s/428103/) (Garuda1982) |
+| Vaca herida (`cow_hurt`) | [Cow mooing in south of France (Limousin)](https://freesound.org/s/163727/) (felix.blume), [Cow moo #8](https://freesound.org/s/513565/) (spurioustransients), [Cow Moo](https://freesound.org/s/546481/) (invertedturtle), [Cow Moo 2](https://freesound.org/s/546479/) (invertedturtle), [z-moo01.wav](https://freesound.org/s/59245/) (Zozzy) |
+| Muerte de la vaca (`cow_death`) | [Distressed Mother Cow and Calves.wav](https://freesound.org/s/194899/) (lolamadeus), [Cow mooing in south of France (Limousin)](https://freesound.org/s/163727/) (felix.blume) |
+| Ternero herido (`calf_hurt`) | [Bovines - Cattle; Calf Bawling, Single](https://freesound.org/s/860984/) (TheKingOfGeeks360), [calves in the barn.wav](https://freesound.org/s/660694/) (bruno.auzet) |
+| Muerte del ternero (`calf_death`) | [calves in the barn.wav](https://freesound.org/s/660694/) (bruno.auzet), [Bovines - Cattle; Calf Bawling, Single](https://freesound.org/s/860984/) (TheKingOfGeeks360) |
+| Caballo herido (`horse_hurt`) | [G38-15-Perfect Horse Whinny.wav](https://freesound.org/s/437110/) (craigsmith), [horse's whinny](https://freesound.org/s/347036/) (Kubuzz), [horse.mp3](https://freesound.org/s/59569/) (3bagbrew), [Horse_Whinny.wav](https://freesound.org/s/149024/) (foxen10) |
+| Muerte del caballo (`horse_death`) | [G38-15-Perfect Horse Whinny.wav](https://freesound.org/s/437110/) (craigsmith), [horse.mp3](https://freesound.org/s/59569/) (3bagbrew), [horse's whinny](https://freesound.org/s/347036/) (Kubuzz) |
+| Burro herido (`donkey_hurt`) | [Donkey braying loud with distant village atmosphere, close recording](https://freesound.org/s/705300/) (felix.blume), [S02-01 Donkey braying.wav](https://freesound.org/s/675411/) (craigsmith) |
+| Muerte del burro (`donkey_death`) | [Donkey braying loud with distant village atmosphere, close recording](https://freesound.org/s/705300/) (felix.blume), [S02-01 Donkey braying.wav](https://freesound.org/s/675411/) (craigsmith) |
+| Bramido de bisonte (alce, ñu, búfalo) (`bison_bellow`) | [Bison bellowing - Yellowstone National Park](https://freesound.org/s/519594/) (Nivatius) |
+| Gruñido de jabalí (`boar_grunt`) | [Swine - Pig; Dinosaur-like Grunt](https://freesound.org/s/842313/) (TheKingOfGeeks360), [Two pigs by the river, grunting and squealing. Iruya, Northwest Argentina. ](https://freesound.org/s/147240/) (MatiasEzcurra), [LONG_Pig_Grunt_01.flac](https://freesound.org/s/620080/) (wwstudioswastaken) |
+| Chillido de jabalí (`boar_squeal`) | [Pig in slop squealing](https://freesound.org/s/344972/) (mrmunk), [Two pigs by the river, grunting and squealing. Iruya, Northwest Argentina. ](https://freesound.org/s/147240/) (MatiasEzcurra) |
+| Muerte del jabalí (`boar_death`) | [Pig in slop squealing](https://freesound.org/s/344972/) (mrmunk), [Two pigs by the river, grunting and squealing. Iruya, Northwest Argentina. ](https://freesound.org/s/147240/) (MatiasEzcurra) |
+| Trompeta de elefante (y mamut) (`elephant_trumpet`) | [Elephant sound](https://freesound.org/s/819668/) (ikbenraar), [Elephant Trumpets Growls.flac](https://freesound.org/s/527845/) (D.jones), [G12-44-Elephants and Tigers.wav](https://freesound.org/s/437977/) (craigsmith) |
+| Gruñido de rinoceronte (`rhino_grunt`) | [white Rhino   fighting](https://freesound.org/s/792852/) (geoffvt), [Indian rhinoceros (Rhinoceros unicornis)](https://freesound.org/s/535810/) (Breviceps) |
+| Rinoceronte herido (`rhino_squeal`) | [white Rhino   fighting](https://freesound.org/s/792852/) (geoffvt), [Indian rhinoceros (Rhinoceros unicornis)](https://freesound.org/s/535810/) (Breviceps) |
+| Gruñido de caimán (`alligator_growl`) | [G12-01-Alligator Growl.wav](https://freesound.org/s/437933/) (craigsmith), [S27-21 Alligator hiss twice.wav](https://freesound.org/s/675513/) (craigsmith), [Alligator Growls 02.wav](https://freesound.org/s/527844/) (D.jones) |
+| Siseo de caimán (`alligator_hiss`) | [S27-21 Alligator hiss twice.wav](https://freesound.org/s/675513/) (craigsmith) |
+| Caimán herido (`alligator_hurt`) | [Crocodile scream (Amazonian Rainforest)](https://freesound.org/s/403373/) (felix.blume) |
+| Siseo de felino (lince, puma) (`cat_hiss`) | [Cat Hissing](https://freesound.org/s/485952/) (aunrea), [catHisses1.wav](https://freesound.org/s/146963/) (Zabuhailo), [Wild Cats - Serval, Hiss, some Room Tone, Close Perspective](https://freesound.org/s/867552/) (TheKingOfGeeks360), [Angry Cat](https://freesound.org/s/656619/) (Kinoton) |
+| Gruñido de felino (lince, puma) (`cat_growl`) | [Wild Cats - Siberian Lynx, Huff](https://freesound.org/s/844316/) (TheKingOfGeeks360), [Angry Cat](https://freesound.org/s/656619/) (Kinoton) |
+| Felino herido (lince, puma) (`cat_hurt`) | [Angry Cat](https://freesound.org/s/656619/) (Kinoton) |
 
 Los osos son de verdad: grizzlis de Yellowstone (del Servicio de Parques Nacionales de EE. UU.,
 subidos por Nivatius), un oso negro en Whistler (celldroid) y una librería antigua de efectos
@@ -46,3 +73,12 @@ subidos por Nivatius), un oso negro en Whistler (celldroid) y una librería anti
 son de lobos de verdad (uno salvaje en Alaska y un coro de cinco); los gruñidos, gañidos y
 gemidos de cerca, de perros. Cada voz del
 jugador es de una sola persona: MrFossy la de hombre y Reitanna la de mujer, sin palabras.
+
+Las especies del pack WildMesh también suenan a animales de verdad: corzos en el bosque y ciervos
+de un parque (cierva, berrendo, ciervo, caribú), cabras, ovejas (el muflón), vacas y terneros,
+caballos y burros de granja, cerdos grabados de cerca (el jabalí), elefantes (el mamut, con su
+voz más grave), rinocerontes blancos peleando en Sudáfrica, caimanes y una cría de cocodrilo en
+el Amazonas, y un lince, un serval y gatos (el lince y, más grave, el puma). No hay grabaciones
+libres de alces ni de ñus: el alce, el ñu y el búfalo braman con los bisontes de Yellowstone,
+cada uno con su tono. Las grabaciones de campo pasan antes por un paso banda ("band") que deja
+fuera los grillos y el viento.

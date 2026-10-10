@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_t0gry"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_death/boar_death_01.ogg" id="2_87p3i"]
+[ext_resource type="AudioStream" path="res://audio/combat/boar_death/boar_death_02.ogg" id="3_1yhm4"]
+
+[resource]
+script = ExtResource("1_t0gry")
+event_id = &"combat_boar_death"
+streams = Array[AudioStream]([ExtResource("2_87p3i"), ExtResource("3_1yhm4")])
+volume_jitter_db = 1.5
+pitch = 0.92
+pitch_jitter = 0.04
+max_distance = 70.0
+unit_size = 5.0
+max_voices = 2
+cooldown = 1.0

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_cnx4r"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_grunt/rhino_grunt_01.ogg" id="2_hjq62"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_grunt/rhino_grunt_02.ogg" id="3_fv87j"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_grunt/rhino_grunt_03.ogg" id="4_qp63f"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_grunt/rhino_grunt_04.ogg" id="5_yh3me"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_grunt/rhino_grunt_05.ogg" id="6_b238y"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_grunt/rhino_grunt_06.ogg" id="7_g3xnu"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_grunt/rhino_grunt_07.ogg" id="8_cdbvm"]
+[ext_resource type="AudioStream" path="res://audio/combat/rhino_grunt/rhino_grunt_08.ogg" id="9_teakn"]
+
+[resource]
+script = ExtResource("1_cnx4r")
+event_id = &"combat_rhino_death"
+streams = Array[AudioStream]([ExtResource("2_hjq62"), ExtResource("3_fv87j"), ExtResource("4_qp63f"), ExtResource("5_yh3me"), ExtResource("6_b238y"), ExtResource("7_g3xnu"), ExtResource("8_cdbvm"), ExtResource("9_teakn")])
+volume_jitter_db = 1.5
+pitch = 0.85
+pitch_jitter = 0.04
+max_distance = 70.0
+unit_size = 6.0
+max_voices = 2
+cooldown = 1.0

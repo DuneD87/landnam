@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_jg5xj"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_hurt/cat_hurt_01.ogg" id="2_wodci"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_hurt/cat_hurt_02.ogg" id="3_uisak"]
+[ext_resource type="AudioStream" path="res://audio/combat/cat_hurt/cat_hurt_03.ogg" id="4_pfvta"]
+
+[resource]
+script = ExtResource("1_jg5xj")
+event_id = &"combat_puma_hurt"
+streams = Array[AudioStream]([ExtResource("2_wodci"), ExtResource("3_uisak"), ExtResource("4_pfvta")])
+volume_jitter_db = 1.5
+pitch = 0.62
+pitch_jitter = 0.05
+max_distance = 50.0
+unit_size = 5.0
+max_voices = 2
+cooldown = 0.35

@@ -14,7 +14,13 @@ Modos de recorte:
             ruido que llevan delante algunas grabaciones de golpes
   segments  trocea una grabación larga en sus vocalizaciones (envolvente sobre el ruido de fondo)
             y se queda con las n más fuertes cuya duración cae en dur; las más largas se
-            recortan a su tramo más fuerte, o a su arranque con "take": "start" (quejidos)
+            recortan a su tramo más fuerte, o a su arranque con "take": "start" (quejidos).
+            Cada trozo empieza en su ataque, y su parte fuerte llega en MAX_LEAD como mucho: el
+            juego lo dispara con la acción, y lo que va delante se oiría como un retraso.
+            Una fuente (id, "whole") es una sola llamada corta: entra entera, hasta dur[1]
+
+"band": (lo, hi) en Hz filtra la grabación antes de cortarla: en las de campo, la detección ya no
+confunde los grillos (agudos) o el viento (graves) con una llamada, y el clip sale sin ellos.
 
 Los cortes se revisan con las láminas (--sheets) y con la planitud espectral: una vocalización
 tiene bandas armónicas graves; el ruido de movimiento o de fondo, textura gris uniforme.
@@ -76,6 +82,65 @@ EVENTS = {
     "wolf_hurt": {"mode": "segments", "dur": (0.15, 0.6), "take": "start", "sources": [(160478, 5)]},
     "wolf_death": {"mode": "segments", "dur": (0.8, 3.0), "sources": [(675407, 2), (505827, 1)]},
     "wolf_howl": {"mode": "segments", "dur": (2.0, 8.0), "sources": [(500646, 3), (143568, 1)]},
+    # Ciervos (cierva, berrendo, ciervo y caribú): llamadas de corzos en el bosque (Sacha.Julien,
+    # bruno.auzet) y de ciervos en un parque (msantoro11), sin los grillos de la noche; la muerte, las
+    # más largas, que su SoundEvent baja de tono. Los ladridos de Spamanator, mattl83 y Katerios y los
+    # bramidos de celo lejanos se quedan bajo el ruido; el reclamo de caza y el "cervatillo" (un
+    # cordero alterado) no son animales.
+    "deer_hurt": {"mode": "segments", "dur": (0.2, 0.9), "take": "start", "band": (250, 3500),
+        "sources": [(724578, 3), (850406, 3), (351113, 2)]},
+    "deer_death": {"mode": "segments", "dur": (0.6, 1.8), "band": (200, 4000), "sources": [(351113, 2), (724578, 2)]},
+    # Cabras (cabra, cabra montés) grabadas de cerca; la muerte, una cabrita enferma (jsbarrett).
+    "goat_hurt": {"mode": "segments", "dur": (0.3, 1.4), "take": "start",
+        "sources": [(581240, 2), (677218, 1), (677220, 1), (677217, 1), (842964, 2)]},
+    "goat_death": {"mode": "segments", "dur": (0.8, 2.5), "sources": [(200333, 2), (842964, 2)]},
+    # Ovejas (el muflón) en granjas (zachrau, Sheyvan, Garuda1982).
+    "sheep_hurt": {"mode": "segments", "dur": (0.3, 1.2), "take": "start",
+        "sources": [(362283, 3), (471162, 3), (428103, 2)]},
+    "sheep_death": {"mode": "segments", "dur": (0.8, 2.5), "sources": [(383144, 2), (471162, 1), (428103, 1)]},
+    # Vacas y terneros; la angustia, una vaca con sus terneros separados por una carretera (lolamadeus).
+    "cow_hurt": {"mode": "segments", "dur": (0.6, 2.0), "take": "start",
+        "sources": [(163727, 2), (513565, 2), (546481, "whole"), (546479, "whole"), (59245, "whole")]},
+    "cow_death": {"mode": "segments", "dur": (1.2, 3.5), "sources": [(194899, 3), (163727, 1)]},
+    "calf_hurt": {"mode": "segments", "dur": (0.4, 1.5), "take": "start", "sources": [(860984, 1), (660694, 4)]},
+    "calf_death": {"mode": "segments", "dur": (0.8, 2.5), "sources": [(660694, 2), (860984, 1)]},
+    # Caballo (craigsmith, Kubuzz, 3bagbrew, foxen10) y burro (felix.blume, craigsmith). El de
+    # Mercantour lleva los cencerros del rebaño encima y la imitación con la boca no vale.
+    "horse_hurt": {"mode": "segments", "dur": (0.6, 2.0), "take": "start",
+        "sources": [(437110, 1), (347036, 1), (59569, 2), (149024, 1)]},
+    "horse_death": {"mode": "segments", "dur": (1.0, 3.0), "sources": [(437110, 1), (59569, 1), (347036, 1)]},
+    "donkey_hurt": {"mode": "segments", "dur": (0.5, 1.5), "take": "start",
+        "sources": [(705300, 2), (675411, 2)]},
+    "donkey_death": {"mode": "segments", "dur": (1.5, 4.0), "sources": [(705300, "whole"), (675411, 1)]},
+    # Bramidos de bisontes de Yellowstone (NPS, subido por Nivatius). No hay alces ni ñus libres: el
+    # alce y el ñu, y el búfalo, usan estos con otro tono. Los resoplidos de cerca (TheKingOfGeeks360)
+    # y la manada de Oklahoma (felix.blume) no se separan del masticar y el pisar.
+    "bison_bellow": {"mode": "segments", "dur": (0.8, 3.0), "sources": [(519594, 3)]},
+    # Cerdos grabados de cerca (MatiasEzcurra, a 20 cm; mrmunk; TheKingOfGeeks360; wwstudioswastaken):
+    # un jabalí suena igual. Los jabalíes salvajes de felix.blume, bruno.auzet y Garuda1982 quedan
+    # lejos, bajo el retumbo, la hierba y los pájaros, y el juguete no vale.
+    "boar_grunt": {"mode": "segments", "dur": (0.3, 1.5), "sources": [(842313, 1), (147240, 4), (620080, 1)]},
+    "boar_squeal": {"mode": "segments", "dur": (0.3, 1.0), "band": (250, 7000), "sources": [(344972, 2), (147240, 4)]},
+    "boar_death": {"mode": "segments", "dur": (0.8, 2.5), "band": (200, 7000), "sources": [(344972, 1), (147240, 2)]},
+    # Elefantes de verdad: uno en un zoo (ikbenraar), D.jones y la librería de craigsmith (con tigres
+    # de fondo; se toman los trompetazos). El tubo de PVC y la boca no valen. El mamut, más grave.
+    "elephant_trumpet": {"mode": "segments", "dur": (0.8, 3.5), "sources": [(819668, 2), (527845, 1), (437977, 3)]},
+    # Rinocerontes blancos peleando en una charca de Umfolozi (geoffvt) y uno indio (Breviceps). La
+    # trompa "de rinoceronte" no vale.
+    "rhino_grunt": {"mode": "segments", "dur": (0.3, 1.5), "band": (70, 2500), "sources": [(792852, 5), (535810, 3)]},
+    "rhino_squeal": {"mode": "segments", "dur": (0.2, 0.8), "take": "start", "band": (150, 5000), "sources": [(792852, 3), (535810, 2)]},
+    # Caimanes: gruñidos de la librería de craigsmith y de D.jones; herido, una cría de cocodrilo
+    # chillando en el Amazonas (felix.blume), que su SoundEvent baja de tono.
+    "alligator_growl": {"mode": "segments", "dur": (0.8, 4.0), "sources": [(437933, 3), (675513, 1), (527844, 2)]},
+    "alligator_hiss": {"mode": "segments", "dur": (0.5, 3.0), "sources": [(675513, 2)]},
+    "alligator_hurt": {"mode": "segments", "dur": (0.2, 0.8), "take": "start", "sources": [(403373, 4)]},
+    # Felinos (el lince; el puma, más grave: sisea y gruñe, no ruge): lince siberiano y serval
+    # (TheKingOfGeeks360) y gatos grabados de cerca (aunrea, Zabuhailo, Kinoton). La imitación de
+    # rickismyname y el "jaguar" con la boca no valen.
+    "cat_hiss": {"mode": "segments", "dur": (0.3, 1.5),
+        "sources": [(485952, "whole"), (146963, 1), (867552, "whole"), (656619, 2)]},
+    "cat_growl": {"mode": "segments", "dur": (0.5, 2.5), "sources": [(844316, 1), (656619, 3)]},
+    "cat_hurt": {"mode": "segments", "dur": (0.3, 1.0), "take": "start", "sources": [(656619, 4)]},
 }
 
 # Cómo se llama cada evento en docs/audio_credits.md.
@@ -92,10 +157,29 @@ NAMES = {
     "lion_growl": "Gruñido de león", "lion_hurt": "León herido", "lion_death": "Muerte del león",
     "wolf_growl": "Gruñido de lobo", "wolf_snarl": "Lobo enseñando los dientes", "wolf_hurt": "Lobo herido",
     "wolf_death": "Muerte del lobo", "wolf_howl": "Aullido de lobo",
+    "deer_hurt": "Ciervo herido", "deer_death": "Muerte del ciervo", "goat_hurt": "Cabra herida",
+    "goat_death": "Muerte de la cabra", "sheep_hurt": "Oveja herida (muflón)", "sheep_death": "Muerte de la oveja (muflón)",
+    "cow_hurt": "Vaca herida", "cow_death": "Muerte de la vaca", "calf_hurt": "Ternero herido",
+    "calf_death": "Muerte del ternero", "horse_hurt": "Caballo herido", "horse_death": "Muerte del caballo",
+    "donkey_hurt": "Burro herido", "donkey_death": "Muerte del burro",
+"bison_bellow": "Bramido de bisonte (alce, ñu, búfalo)",
+    "boar_grunt": "Gruñido de jabalí", "boar_squeal": "Chillido de jabalí", "boar_death": "Muerte del jabalí",
+    "elephant_trumpet": "Trompeta de elefante (y mamut)", "rhino_grunt": "Gruñido de rinoceronte",
+    "rhino_squeal": "Rinoceronte herido", "alligator_growl": "Gruñido de caimán", "alligator_hiss": "Siseo de caimán",
+    "alligator_hurt": "Caimán herido", "cat_hiss": "Siseo de felino (lince, puma)",
+    "cat_growl": "Gruñido de felino (lince, puma)", "cat_hurt": "Felino herido (lince, puma)",
 }
 
 FRAME = 0.02
 HOP = 0.01
+## Lo más flojo (dB por debajo de su pico) con lo que puede arrancar una voz.
+ATTACK_DB = 15.0
+## La parte fuerte de una voz: a menos de esto (dB) de su pico.
+LOUD_DB = 6.0
+## Lo más tarde (s) que puede llegar la parte fuerte desde el arranque.
+MAX_LEAD = 0.3
+## Lo que se deja delante de la parte fuerte al recortar una que llega tarde (s).
+LEAD_KEEP = 0.15
 
 
 def fetch(url):
@@ -135,6 +219,15 @@ def source(sid):
         open(audio_path, "wb").write(data)
     audio, rate = sf.read(audio_path, always_2d=True)
     return meta, audio.mean(axis=1), rate
+
+
+def bandpass(x, rate, lo, hi):
+    """Paso banda por FFT con flancos suaves de un tercio de octava."""
+    spec = np.fft.rfft(x)
+    f = np.fft.rfftfreq(len(x), 1.0 / rate)
+    gain = np.clip(np.log2(np.maximum(f, 1e-3) / (lo / 1.26)) / np.log2(1.26), 0, 1) \
+        * np.clip(np.log2(hi * 1.26 / np.maximum(f, 1e-3)) / np.log2(1.26), 0, 1)
+    return np.fft.irfft(spec * gain, len(x))
 
 
 def envelope(x, rate):
@@ -179,6 +272,21 @@ def cut_impact(x, rate, max_dur):
     return [fade(x[start:end], rate, 0.002, 0.05)]
 
 
+def attack(env, a, b, end, width):
+    """El tramo [a, b) de una voz desde su ataque. El clip se dispara con la acción (el golpe, el
+    ataque), y lo que va delante de su parte fuerte se oye como un retraso: lo muy flojo (un rumor,
+    un resoplido, la cola de otra llamada) se quita, y si aun así la parte fuerte llega tarde (la
+    ventana de más energía de una vocalización larga puede acabar en su pico) el tramo empieza poco
+    antes de ella y se alarga hasta [end], el final de la vocalización, sin pasar de [width]."""
+    peak = env[a:b].max()
+    a += int(np.argmax(env[a:b] > peak - ATTACK_DB))
+    loud = a + int(np.argmax(env[a:b] > peak - LOUD_DB))
+    if (loud - a) * HOP > MAX_LEAD:
+        a = loud - int(LEAD_KEEP / HOP)
+        b = min(end, a + width)
+    return a, b
+
+
 def cut_segments(x, rate, n, dur, take="loudest"):
     env = envelope(x, rate)
     floor = np.percentile(env, 20)
@@ -198,21 +306,23 @@ def cut_segments(x, rate, n, dur, take="loudest"):
         else:
             merged.append(g)
     picks = []
+    width = int(dur[1] / HOP)
     for a, b in merged:
         length = (b - a) * HOP
         if length < dur[0]:
             continue
+        end = b
         if length > dur[1]:
             # Lo más fuerte de la vocalización larga (o su arranque), a la duración máxima.
-            width = int(dur[1] / HOP)
             if take == "loudest":
                 sums = np.convolve(env[a:b], np.ones(width), "valid")
                 a += int(np.argmax(sums))
             b = a + width
-        picks.append((float(np.mean(env[a:b])), a, b))
+        picks.append((float(np.mean(env[a:b])), a, b, end))
     picks.sort(reverse=True)
     clips = []
-    for _, a, b in picks[:n]:
+    for _, a, b, end in picks[:n]:
+        a, b = attack(env, a, b, end, width)
         s = max(0, int((a * HOP - 0.06) * rate))
         tail = 0.08 if take == "start" else 0.2
         e = min(len(x), int((b * HOP + FRAME + tail) * rate))
@@ -264,7 +374,11 @@ def build(name, spec, sheets):
     for entry in spec["sources"]:
         sid, n = entry if isinstance(entry, tuple) else (entry, 1)
         meta, x, rate = source(sid)
-        if spec["mode"] == "whole":
+        if "band" in spec:
+            x = bandpass(x, rate, *spec["band"])
+        if n == "whole":
+            got = cut_whole(x, rate, spec["dur"][1])
+        elif spec["mode"] == "whole":
             got = cut_whole(x, rate, spec["max_dur"])
         elif spec["mode"] == "impact":
             got = cut_impact(x, rate, spec["max_dur"])
@@ -317,7 +431,15 @@ def write_credits_doc(credits):
         "(craigsmith). Los leones están grabados en zoológicos y en un santuario de fauna. Los aullidos",
         "son de lobos de verdad (uno salvaje en Alaska y un coro de cinco); los gruñidos, gañidos y",
         "gemidos de cerca, de perros. Cada voz del",
-        "jugador es de una sola persona: MrFossy la de hombre y Reitanna la de mujer, sin palabras."]
+        "jugador es de una sola persona: MrFossy la de hombre y Reitanna la de mujer, sin palabras.", "",
+        "Las especies del pack WildMesh también suenan a animales de verdad: corzos en el bosque y ciervos",
+        "de un parque (cierva, berrendo, ciervo, caribú), cabras, ovejas (el muflón), vacas y terneros,",
+        "caballos y burros de granja, cerdos grabados de cerca (el jabalí), elefantes (el mamut, con su",
+        "voz más grave), rinocerontes blancos peleando en Sudáfrica, caimanes y una cría de cocodrilo en",
+        "el Amazonas, y un lince, un serval y gatos (el lince y, más grave, el puma). No hay grabaciones",
+        "libres de alces ni de ñus: el alce, el ñu y el búfalo braman con los bisontes de Yellowstone,",
+        "cada uno con su tono. Las grabaciones de campo pasan antes por un paso banda (\"band\") que deja",
+        "fuera los grillos y el viento."]
     open(os.path.join(ROOT, "docs", "audio_credits.md"), "w").write("\n".join(lines) + "\n")
 
 

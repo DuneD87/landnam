@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_fo6ki"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_hurt/sheep_hurt_01.ogg" id="2_v2pck"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_hurt/sheep_hurt_02.ogg" id="3_tres4"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_hurt/sheep_hurt_03.ogg" id="4_24ejw"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_hurt/sheep_hurt_04.ogg" id="5_aijsr"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_hurt/sheep_hurt_05.ogg" id="6_rfukr"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_hurt/sheep_hurt_06.ogg" id="7_lfs0d"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_hurt/sheep_hurt_07.ogg" id="8_2440f"]
+[ext_resource type="AudioStream" path="res://audio/combat/sheep_hurt/sheep_hurt_08.ogg" id="9_tmk3p"]
+
+[resource]
+script = ExtResource("1_fo6ki")
+event_id = &"combat_sheep_hurt"
+streams = Array[AudioStream]([ExtResource("2_v2pck"), ExtResource("3_tres4"), ExtResource("4_24ejw"), ExtResource("5_aijsr"), ExtResource("6_rfukr"), ExtResource("7_lfs0d"), ExtResource("8_2440f"), ExtResource("9_tmk3p")])
+volume_db = -3.0
+volume_jitter_db = 1.5
+pitch = 0.88
+pitch_jitter = 0.06
+max_distance = 45.0
+unit_size = 3.0
+max_voices = 3
+cooldown = 0.3

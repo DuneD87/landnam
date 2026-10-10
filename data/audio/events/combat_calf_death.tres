@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_ijr1v"]
+[ext_resource type="AudioStream" path="res://audio/combat/calf_death/calf_death_01.ogg" id="2_tt5yb"]
+[ext_resource type="AudioStream" path="res://audio/combat/calf_death/calf_death_02.ogg" id="3_nh7f6"]
+[ext_resource type="AudioStream" path="res://audio/combat/calf_death/calf_death_03.ogg" id="4_cu4ie"]
+
+[resource]
+script = ExtResource("1_ijr1v")
+event_id = &"combat_calf_death"
+streams = Array[AudioStream]([ExtResource("2_tt5yb"), ExtResource("3_nh7f6"), ExtResource("4_cu4ie")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch = 0.95
+pitch_jitter = 0.04
+max_distance = 70.0
+unit_size = 5.0
+max_voices = 2
+cooldown = 1.0
