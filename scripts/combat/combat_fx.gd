@@ -31,11 +31,17 @@ const DROPLET_SHADER := preload("res://shaders/combat/blood_droplet.gdshader")
 const MIST_SHADER := preload("res://shaders/combat/blood_mist.gdshader")
 
 
-## Suena el efecto [id] en [pos]. opts se pasa a AudioManager (pitch, volume_offset_db…).
+## Suena el efecto [id] en [pos]. opts se pasa a AudioManager (pitch, volume_offset_db…), salvo
+## que aquí el pitch es relativo: multiplica el del evento, en vez de sustituirlo. Es lo que piden
+## quienes lo pasan (la voz de la criatura, una variación), y el del evento lleva el tono de la
+## familia: el mamut barrita con los clips del elefante, más graves; el puma, con los de un gato.
 static func play(id: StringName, pos: Vector3, opts: Dictionary = {}) -> void:
 	var ev := _event(id)
 	if ev == null:
 		return
+	if opts.has("pitch"):
+		opts = opts.duplicate()
+		opts["pitch"] = float(opts["pitch"]) * ev.roll_pitch()
 	AudioManager.play_event_3d(ev, pos, opts)
 
 
