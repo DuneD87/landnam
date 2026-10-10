@@ -357,7 +357,7 @@ metadata/_custom_type_script = "uid://yedbuvmlni0y"
 
 [node name="IdleState" type="Node" parent="AIController" unique_id=638521341]
 script = ExtResource("6_4t5nn")
-flee_trigger_radius = 50.0
+flee_trigger_radius = 30.0
 metadata/_custom_type_script = "uid://0eobro8himhn"
 
 [node name="WanderState" type="Node" parent="AIController" unique_id=1893630132]

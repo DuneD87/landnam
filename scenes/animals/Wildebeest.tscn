@@ -34,10 +34,10 @@ speed = 0.8
 max_health = 80.0
 
 [node name="IdleState" parent="AIController"]
-flee_trigger_radius = 35.0
+flee_trigger_radius = 25.0
 
 [node name="WanderState" parent="AIController"]
-flee_trigger_radius = 35.0
+flee_trigger_radius = 25.0
 wander_radius = 30.0
 
 [node name="FleeState" parent="AIController"]
@@ -46,7 +46,7 @@ safe_distance = 120.0
 max_flee_time = 25.0
 
 [node name="Perception" parent="."]
-vision_range = 60.0
+vision_range = 45.0
 eye_height = 1.2
 hearing_range = 30.0
 

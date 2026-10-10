@@ -25,6 +25,16 @@ const MUZZLE_HEIGHT := 0.9
 ## radio decide la energía, así que un disparo cargado del todo cuesta ~500 veces más que uno seco.
 const CANNON_CHARGE_TIME := 3.0
 
+## Lo que se le oye a cada paso, para el oído de las criaturas (ver get_noise): 1 = corriendo.
+const NOISE_STILL := 0.15
+const NOISE_CROUCH := 0.25
+const NOISE_WALK := 0.5
+const NOISE_SPRINT := 1.3
+## Por debajo de esta velocidad (m/s) está quieto, para el ruido.
+const STILL_SPEED := 0.3
+## Lo que se le ve agachado, para la vista de las criaturas (ver get_visibility).
+const VISIBILITY_CROUCH := 0.6
+
 const config = preload("res://scripts/config.gd")
 const data = preload("res://scripts/items/item_data.gd")
 @onready var movement: Movement = $Movement
@@ -748,6 +758,23 @@ func _find_nearby_corpse(max_dist: float = 4.0) -> NPCController:
 ## Lo que está haciendo en combate, para las criaturas que pelean con él (CombatRead).
 func get_combat_situation() -> StringName:
 	return combat.get_situation() if combat != null else &""
+
+
+## Lo que se le oye, para el oído de las criaturas (Perception escala su hearing_range): todo
+## corriendo, más esprintando, la mitad andando, poco agachado y casi nada quieto.
+func get_noise() -> float:
+	if movement.velocity.length() < STILL_SPEED:
+		return NOISE_STILL
+	if locomotion != null and locomotion.crouching:
+		return NOISE_CROUCH
+	if movement.is_sprinting:
+		return NOISE_SPRINT
+	return NOISE_WALK if movement.walking else 1.0
+
+
+## Lo que se le ve, para la vista de las criaturas (Perception escala su vision_range).
+func get_visibility() -> float:
+	return VISIBILITY_CROUCH if locomotion != null and locomotion.crouching else 1.0
 
 
 func can_perform_action() -> bool:

@@ -132,13 +132,22 @@ func _can_detect(target: Node3D) -> bool:
 
 	var to_target := target.global_position - npc.global_position
 	var dist := to_target.length()
+	# Al que ya tiene encarado no lo pierde por girarse, ni porque se agache o se quede quieto.
+	var engaged := target == _detected and controller.target == target
+	# Al que aún no tiene, lo oye según el ruido que hace y lo ve según cuánto se deja ver: el
+	# jugador agachado, andando o quieto (PlayerController.get_noise y get_visibility).
+	var hearing := hearing_range
+	var vision := vision_range
+	if not engaged:
+		if target.has_method(&"get_noise"):
+			hearing *= target.get_noise()
+		if target.has_method(&"get_visibility"):
+			vision *= target.get_visibility()
 
-	if dist <= hearing_range:
+	if dist <= hearing:
 		return true
 
-	if dist <= vision_range:
-		# Al que ya tiene encarado no lo pierde por girarse.
-		var engaged := target == _detected and controller.target == target
+	if dist <= vision:
 		var dir := to_target / maxf(dist, 0.001)
 		var angle_deg := rad_to_deg(npc.global_basis.z.normalized().angle_to(dir))
 		if engaged or angle_deg <= vision_half_angle:

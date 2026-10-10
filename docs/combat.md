@@ -384,6 +384,11 @@ tono es realista y letal: avisan poco, castigan los errores y no se las deja atr
   celdas de 64 m que se rehacen como mucho una vez por fotograma de física), no en el grupo `npc`
   entero; las que esperan en el pool no se perciben. El aviso a la manada (`alert_radius`) pregunta
   igual.
+- **Sigilo**: al jugador que aún no tiene, la criatura lo oye según el ruido que hace
+  (`PlayerController.get_noise`, que escala `hearing_range`): todo corriendo, 1,3 esprintando, la
+  mitad andando, un cuarto agachado y 0,15 quieto. Agachado también se le ve desde menos lejos
+  (`get_visibility`, 0,6 de `vision_range`). Así `hearing_range` es lo que oye a uno que corre; al
+  que ya tiene no lo pierde porque se agache o se quede quieto.
 - **Memoria** (`Perception.memory_time`): al perderlo de vista no lo suelta enseguida.
   `AIController.target_seen` se apaga y guarda dónde lo vio y a qué velocidad iba
   (`last_seen_position`, en el marco del planeta). El combate deja de atacar y va a buscarlo

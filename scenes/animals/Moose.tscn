@@ -38,10 +38,10 @@ speed = 1.0
 max_health = 180.0
 
 [node name="IdleState" parent="AIController"]
-flee_trigger_radius = 30.0
+flee_trigger_radius = 22.0
 
 [node name="WanderState" parent="AIController"]
-flee_trigger_radius = 30.0
+flee_trigger_radius = 22.0
 wander_radius = 30.0
 
 [node name="FleeState" parent="AIController"]

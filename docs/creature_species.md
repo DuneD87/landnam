@@ -37,6 +37,12 @@ El clima exacto de cada una está en su perfil (`climate_min`/`climate_max` de
 para los asentamientos. Puma, muflón y berrendo son americanos y repetían papel con el lince, la
 cabra montés y el ñu.
 
+Las que huyen lo hacen cuando el jugador entra en su `flee_trigger_radius` (en `IdleState` y
+`WanderState`) y ya lo han percibido: lo oyen según el ruido que hace y lo ven peor agachado (ver
+el sigilo en [combat.md](combat.md)). Las más asustadizas huyen a 25-30 m (ciervo, caribú,
+berrendo, cierva, caballo, muflón, cabra montés, ñu), y la vista de las presas llega a 50 m como
+mucho. El jabalí y el burro huyen a 15 m.
+
 Cada especie suena con grabaciones de su animal o de uno muy parecido (ver
 [audio_credits.md](audio_credits.md)): `hurt_sound` y `death_sound` en la escena y, las que pelean,
 amenaza, ataque y tambaleo en su perfil de combate. Las voces se comparten por familias, cada especie
