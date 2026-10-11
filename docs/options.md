@@ -21,11 +21,19 @@ confirmación y se deshace solo a los 10 s.
 
 ## V-Sync y tope de fotogramas
 
-Por defecto, V-Sync activado y tope de 120 fps. Con V-Sync desactivado y sin tope, en Linux con
-Wayland y NVIDIA (el juego va por XWayland, también incrustado en el editor) el juego se congela a
-los pocos segundos: el hilo principal se queda en el driver esperando a que XWayland devuelva una
-imagen de la cadena de presentación, con la GPU parada, sin errores en el log y sin responder a la
-pausa del depurador. Cuantos más fps, antes salta.
+Por defecto, V-Sync activado y tope de 120 fps.
+
+En Linux con Wayland y NVIDIA, el juego **incrustado en el editor** (la pestaña Juego) se congela
+de vez en cuando, y el editor con él. Los dos van por XWayland, con la ventana del juego dentro de
+la del editor, y XWayland deja de devolver las imágenes de la cadena de presentación:
+
+- El juego se queda en `fence_wait` de Vulkan, con la GPU parada y sin errores en el log.
+- El editor se queda en la espera de sincronización (`drm_syncobj`), sin responder ni a la pausa,
+  y vuelve en cuanto se mata el juego.
+
+V-Sync y el tope lo hacen menos frecuente, pero no lo evitan. Lo evita lanzar el juego en su propia
+ventana: Configuración del editor → Ejecutar → Colocación de ventana → Modo de incrustación del juego
+= Desactivado. El cambio se aplica al reiniciar el editor.
 
 ## Presets
 

@@ -51,8 +51,8 @@ const DEFAULTS := {
 	"display/window_mode": WindowMode.WINDOWED,
 	## Solo en ventana. Vector2i.ZERO = el tamaño con que arranca el proyecto.
 	"display/resolution": Vector2i.ZERO,
-	## Con V-Sync desactivado y sin tope, en Linux con Wayland y NVIDIA (el juego va por XWayland) la
-	## presentación se queda esperando una imagen que XWayland no devuelve y el juego se congela.
+	## Con V-Sync y tope de 120 fps. (El cuelgue del juego incrustado en el editor con Wayland y
+	## NVIDIA no es esto: ver docs/options.md.)
 	"display/vsync": DisplayServer.VSYNC_ENABLED,
 	"display/max_fps": 120,
 	"audio/Master": 1.0,
