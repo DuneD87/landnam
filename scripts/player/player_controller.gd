@@ -138,6 +138,10 @@ var _worn_materials_planet: Node = null
 
 var input_enabled: bool = false
 var _cinematic_tween: Tween
+## Primera persona: lo que se aparta la mirada del frente del cuerpo, quieto, antes de que este
+## se gire (ver _turn_in_place), y si se está girando.
+const FP_TURN_START := deg_to_rad(50.0)
+var _fp_turning := false
 
 func _perform_raycast() -> void:
 	_ray_hit = {}
@@ -530,6 +534,9 @@ func _ready():
 	player_model.add_child(appearance_rig)
 	# The body comes from the rig; until a character is created or loaded it is the default one.
 	appearance_rig.apply(GameManager.character.appearance if GameManager.character else CharacterAppearance.new())
+	camera_controller.first_person_changed.connect(_on_first_person_changed)
+	if camera_controller.first_person:
+		_on_first_person_changed(true)
 	var btnSave := main_menu.find_child("btnSaveGame")
 	btnSave.visible = false
 	# Si hay partida guardada, el SpawnPoint se adelanta a la posición guardada del jugador antes de
@@ -876,6 +883,17 @@ func _on_player_died() -> void:
 	# TODO: pantalla de muerte, respawn, etc.
 	print("[Player] Died — impact or damage")
 
+## En primera persona la cámara ve el cuerpo sin cabeza (CharacterAppearanceRig) y el tronco sigue
+## más a la mirada (LookAtIK), para que brazos y arma suban y bajen con ella.
+func _on_first_person_changed(enabled: bool) -> void:
+	_fp_turning = false
+	if appearance_rig != null:
+		appearance_rig.set_first_person(enabled)
+	var look_ik := player_model.get_node_or_null("Armature/Skeleton3D/LookAtIK") as LookAtIK
+	if look_ik != null:
+		look_ik.first_person = enabled
+
+
 func _interpolate_rotation(t: float, from_quat: Quaternion, to_quat: Quaternion) -> void:
 	global_basis = Basis(from_quat.slerp(to_quat, t))
 
@@ -1020,8 +1038,7 @@ func _input(event):
 			free_flight_controller.delta_yaw += -event.relative.x * sensitivity
 			free_flight_controller.delta_pitch += -event.relative.y * sensitivity * (-1 if invert_y != SettingsManager.invert_y else 1)
 	else:
-		if !camera_controller.first_person:
-			player_model.visible = true
+		player_model.visible = true
 		camera_controller._input(event)
  
 	# Andar o correr (Bloq Mayús por defecto): se queda puesto hasta volver a pulsarlo.
@@ -1500,7 +1517,25 @@ func rotate_toward_movement(input_dir: Vector3, delta: float):
 		rotate_toward_direction(project_on_gravity_plane(input_dir), delta, 8.0)
 		return
 	var target_dir := project_on_gravity_plane(-camera.global_transform.basis.z)
-	rotate_toward_direction(target_dir, delta, 3.0)
+	# En primera persona brazos y arma tienen que ir a donde se mira.
+	rotate_toward_direction(target_dir, delta, 8.0 if camera_controller.first_person else 3.0)
+
+
+## Primera persona, quieto: el cuerpo se queda donde está hasta que la mirada se aparta
+## FP_TURN_START de su frente, y entonces se gira hasta ponerse de cara (LookAtIK cubre lo de
+## en medio). Si no, mirando atrás la cámara vería el cuerpo por dentro.
+func _turn_in_place(delta: float) -> void:
+	var target_dir := project_on_gravity_plane(-camera.global_transform.basis.z)
+	var forward := project_on_gravity_plane(global_transform.basis.z)
+	if target_dir == Vector3.ZERO or forward == Vector3.ZERO:
+		return
+	var angle := forward.angle_to(target_dir)
+	if angle > FP_TURN_START:
+		_fp_turning = true
+	if _fp_turning:
+		rotate_toward_direction(target_dir, delta, 8.0)
+		# rotate_toward_direction se para a 5°.
+		_fp_turning = angle > deg_to_rad(6.0)
 
 func apply_swimming_pitch(input_dir: Vector3, delta: float):
 	var vertical_component = 0.0
@@ -1641,6 +1676,8 @@ func update_normal_movement(delta: float) -> void:
 		pass
 	elif movement.is_running || movement.is_sprinting:
 		rotate_toward_movement(input_dir, delta)
+	elif camera_controller.first_person and not movement.is_swimming:
+		_turn_in_place(delta)
 
 	if movement.is_swimming:
 		apply_swimming_pitch(input_dir, delta)

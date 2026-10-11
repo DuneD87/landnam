@@ -1,6 +1,9 @@
 extends Node
 class_name CameraController
 
+## Al entrar y salir de primera persona (el jugador esconde la cabeza y ajusta LookAtIK).
+signal first_person_changed(enabled: bool)
+
 @export var mouse_sensitivity := 0.001
 @export var invert_y := false
 @export var max_pitch := 1.2
@@ -15,13 +18,19 @@ class_name CameraController
 @export var collision_padding: float = 0.5
 
 @export var fp_threshold: float = 0.5
+## Altura del ojo en primera persona mientras no hay pose de la que sacarlo.
 @export var fp_eye_height: float = 1.7
+## Primera persona: rapidez (1/s) con la que el ojo sigue a la cabeza animada. Quita el temblor
+## de un fotograma a otro sin que la cámara se salga de la cabeza en una voltereta.
+@export var fp_follow_sharpness: float = 25.0
+## Lo que se adelanta la cámara del punto entre los ojos (m), hacia donde mira en horizontal.
+@export var fp_eye_forward: float = 0.03
 ## Lo que baja el ojo agachado (Locomotion), en tercera y en primera persona.
 var crouch_drop: float = 0.0
 @onready var camera_pivot: Node3D = $"../CameraPivot"
 @onready var pitch_pivot: Node3D = $"../CameraPivot/PitchPivot"
 @onready var camera: Camera3D = $"../CameraPivot/PitchPivot/Camera3D"
-@onready var player_model: Node3D = $"../PlayerModel"
+@onready var _skeleton: Skeleton3D = $"../PlayerModel/Armature/Skeleton3D"
 
 ## Se apaga mientras otro modo usa la rueda (colocar un blueprint); el giro de ratón sigue vivo.
 var zoom_enabled := true
@@ -48,6 +57,8 @@ var delta_yaw := 0.0
 var delta_pitch := 0.0
 var target_distance: float
 var first_person := false
+## Ojo en primera persona en el espacio del jugador, ya suavizado; NAN hasta la primera pose.
+var _fp_eye := Vector3(NAN, NAN, NAN)
 var _current_up_axis: Vector3 = Vector3.UP
 var _prev_platform_basis: Basis = Basis.IDENTITY
 var _tracking_platform: DynamicGridBody = null
@@ -138,11 +149,9 @@ func update_camera_rotation():
 	camera_distance = lerp(camera_distance, target_distance, 0.15)
 
 	if not first_person and camera_distance <= fp_threshold:
-		first_person = true
-		player_model.visible = false
+		_set_first_person(true)
 	elif first_person and camera_distance > fp_threshold + 0.5:
-		first_person = false
-		player_model.visible = true
+		_set_first_person(false)
 
 	update_camera_transform()
 	delta_yaw = 0.0
@@ -192,8 +201,14 @@ func update_camera_transform():
 	_shake = maxf(0.0, _shake - 0.02)
 
 	if first_person:
-		camera.global_position = player_pos + up_axis * (fp_eye_height - crouch_drop)
 		var fp_forward = pitch_pivot.global_transform.basis * Vector3.BACK
+		if is_nan(_fp_eye.x):
+			camera.global_position = player_pos + up_axis * (fp_eye_height - crouch_drop)
+		else:
+			# Agachado ya baja la cabeza la animación: aquí no cuenta crouch_drop.
+			var flat: Vector3 = fp_forward - up_axis * fp_forward.dot(up_axis)
+			var ahead := flat.normalized() * fp_eye_forward if flat.length_squared() > 1e-6 else Vector3.ZERO
+			camera.global_position = player.global_transform * _fp_eye + ahead
 		camera.look_at(camera.global_position + fp_forward, up_axis)
 	else:
 		var orbit_dir = -pitch_pivot.global_transform.basis.z
@@ -210,6 +225,36 @@ func update_camera_transform():
 			final_pos += (camera_pivot.global_transform.basis.x * sin(t * 71.0) + up_axis * sin(t * 83.0 + 1.3)) * _shake * 0.12
 		camera.global_position = final_pos
 		camera.look_at(target_pos, up_axis)
+
+func _set_first_person(enabled: bool) -> void:
+	first_person = enabled
+	_fp_eye = Vector3(NAN, NAN, NAN)
+	if enabled:
+		_skeleton.skeleton_updated.connect(_track_eye)
+	elif _skeleton.skeleton_updated.is_connected(_track_eye):
+		_skeleton.skeleton_updated.disconnect(_track_eye)
+	first_person_changed.emit(enabled)
+
+
+## Toma el ojo de la pose final, con las IK y las proporciones del cuerpo puestas: fuera de
+## skeleton_updated el esqueleto ya ha vuelto a la pose de la animación. Se guarda en el espacio
+## del jugador, así que el suavizado solo frena lo que se mueve la cabeza sobre el cuerpo, no lo
+## que anda el cuerpo.
+func _track_eye() -> void:
+	var player = get_parent()
+	if player.appearance_rig == null:
+		return
+	var eye: Vector3 = player.appearance_rig.first_person_eye()
+	var head := _skeleton.find_bone(CharacterAppearanceRig.HEAD_BONE)
+	if is_nan(eye.x) or head < 0:
+		return
+	var world := _skeleton.global_transform * (_skeleton.get_bone_global_pose(head) * eye)
+	var target: Vector3 = player.global_transform.affine_inverse() * world
+	if is_nan(_fp_eye.x):
+		_fp_eye = target
+	else:
+		_fp_eye = _fp_eye.lerp(target, 1.0 - exp(-fp_follow_sharpness * get_process_delta_time()))
+
 
 func adjust_for_collisions(target_pos: Vector3, ideal_pos: Vector3) -> Vector3:
 	var space_state = camera.get_world_3d().direct_space_state

@@ -30,6 +30,7 @@ func _run() -> void:
 	_check_appearance()
 	_check_shape(body)
 	_check_rig()
+	_check_first_person()
 	print("CHARACTER APPEARANCE TESTS: %d failures" % failures)
 	quit(1 if failures else 0)
 
@@ -236,4 +237,52 @@ func _check_rig() -> void:
 	var genitals: MeshInstance3D = model.get_node("Armature/Skeleton3D/HumanGenitals")
 	check(genitals.visible and genitals.material_override == body.material_override,
 			"a male body shows its genitals, in the body's own skin material")
+	model.queue_free()
+
+
+func _check_first_person() -> void:
+	var model: Node3D = load("res://scenes/character/character_model.tscn").instantiate()
+	root.add_child(model)
+	var rig: CharacterAppearanceRig = model.get_node("AppearanceRig")
+	var skeleton: Skeleton3D = model.get_node("Armature/Skeleton3D")
+	var body: MeshInstance3D = skeleton.get_node("Mesh_0")
+	var hair: MeshInstance3D = skeleton.get_node("HumanHair")
+	var eyes: MeshInstance3D = skeleton.get_node("HumanEyes")
+	var genitals: MeshInstance3D = skeleton.get_node("HumanGenitals")
+	var appearance := CharacterAppearance.new()
+	appearance.set_sex(&"male")
+	rig.apply(appearance)
+	rig.set_first_person(true)
+	var fp: MeshInstance3D = skeleton.get_node_or_null("FirstPersonBody")
+	check(fp != null and fp.visible and fp.mesh == body.mesh and fp.material_override == body.material_override
+			and fp.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and fp.has_meta(&"no_dismember"),
+			"first person shows the body again, without a shadow of its own, out of the dismemberment's reach")
+	var shadows_only := GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	check(body.cast_shadow == shadows_only and hair.cast_shadow == shadows_only and eyes.cast_shadow == shadows_only
+			and genitals.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON,
+			"in first person the whole body and the head's parts only cast the shadow")
+	var head := skeleton.find_bone(CharacterAppearanceRig.HEAD_BONE)
+	var spine := skeleton.find_bone(&"mixamorig_Spine2")
+	var head_scale := -1.0
+	var spine_kept := false
+	for b in fp.skin.get_bind_count():
+		var bone := skeleton.find_bone(fp.skin.get_bind_name(b))
+		if bone == head:
+			head_scale = fp.skin.get_bind_pose(b).basis.get_scale().x / body.skin.get_bind_pose(b).basis.get_scale().x
+		elif bone == spine:
+			spine_kept = fp.skin.get_bind_pose(b).is_equal_approx(body.skin.get_bind_pose(b))
+	check(is_equal_approx(head_scale, CharacterAppearanceRig.FOLDED_HEAD_SCALE) and spine_kept,
+			"the first-person skin folds the head and leaves the rest of the body alone")
+	var eye := rig.first_person_eye()
+	var to_model := model.global_transform.affine_inverse() * skeleton.global_transform
+	# The rest pose stands with the hips on the ground (the animations lift them): measured from
+	# the head joint, at the top of the neck.
+	var from_head := to_model * (skeleton.get_bone_global_rest(head) * eye) - to_model * skeleton.get_bone_global_rest(head).origin
+	check(not is_nan(eye.x) and absf(from_head.x) < 0.01 and from_head.y > 0.02 and from_head.y < 0.15
+			and from_head.z > 0.04 and from_head.z < 0.15,
+			"the first-person eye sits between the eyes, above and ahead of the head joint (%s)" % from_head)
+	rig.set_first_person(false)
+	var on := GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	check(not fp.visible and body.cast_shadow == on and hair.cast_shadow == on and eyes.cast_shadow == on,
+			"leaving first person gives the head back to the camera")
 	model.queue_free()

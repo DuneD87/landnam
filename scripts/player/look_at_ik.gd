@@ -14,6 +14,9 @@ const _EPS := 0.0001
 ## Cadena de huesos y cuanto giro se lleva cada uno. Los pesos deben sumar 1.
 @export var chain: Array[String] = ["mixamorig_Spine1", "mixamorig_Spine2", "mixamorig_Neck", "mixamorig_Head"]
 @export var weights: Array[float] = [0.15, 0.15, 0.25, 0.45]
+## Los de primera persona: la cabeza no se ve y el tronco se lleva más giro, para que brazos y
+## arma suban y bajen con la mirada.
+@export var first_person_weights: Array[float] = [0.3, 0.3, 0.15, 0.25]
 
 ## Frente del personaje en espacio del cuerpo. Si la cabeza mira justo al reves, ponlo en (0,0,1).
 @export var body_forward: Vector3 = Vector3.FORWARD
@@ -31,10 +34,15 @@ const _EPS := 0.0001
 @export_range(0.0, 180.0) var release_angle: float = 110.0
 @export var turn_speed: float = 8.0
 
+## Lo cambia el jugador al entrar y salir de primera persona (ver first_person_weights).
+var first_person := false: set = set_first_person
+
 var _skel: Skeleton3D
 var _body: CharacterBody3D
 var _bones: PackedInt32Array = PackedInt32Array()
 var _bone_weights: PackedFloat32Array = PackedFloat32Array()
+## Posición en `chain` de cada hueso de _bones.
+var _bone_links: PackedInt32Array = PackedInt32Array()
 
 var _aim_local: Vector3 = Vector3.FORWARD
 var _idle: bool = true
@@ -43,7 +51,7 @@ var _idle: bool = true
 func _ready() -> void:
 	_skel = get_skeleton()
 	_body = _find_body()
-	if not _skel or not _body or chain.size() != weights.size():
+	if not _skel or not _body or chain.size() != weights.size() or chain.size() != first_person_weights.size():
 		push_warning("LookAtIK '%s': falta esqueleto/cuerpo o los pesos no cuadran con la cadena." % name)
 		active = false
 		return
@@ -52,13 +60,26 @@ func _ready() -> void:
 		var idx := _skel.find_bone(chain[i])
 		if idx >= 0:
 			_bones.append(idx)
-			_bone_weights.append(weights[i])
+			_bone_links.append(i)
+	_pick_weights()
 	if _bones.is_empty():
 		push_warning("LookAtIK '%s': ninguno de los huesos de la cadena existe." % name)
 		active = false
 		return
 
 	_aim_local = _rest_local()
+
+
+func set_first_person(value: bool) -> void:
+	first_person = value
+	_pick_weights()
+
+
+func _pick_weights() -> void:
+	var source := first_person_weights if first_person else weights
+	_bone_weights.resize(_bone_links.size())
+	for i in _bone_links.size():
+		_bone_weights[i] = source[_bone_links[i]]
 
 
 func _find_body() -> CharacterBody3D:

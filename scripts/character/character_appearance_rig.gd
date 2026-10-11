@@ -22,6 +22,11 @@ extends Node
 ## body is measured (BodyMeasurements) and ArmorFit carries each piece from
 ## the scan's measurements to its own. Dressed pieces are fitted again when
 ## the body changes.
+##
+## In first person (set_first_person()) the camera sits inside the head: it
+## sees FirstPersonBody, Mesh_0 again with a skin that folds the head into the
+## top of the neck, while Mesh_0, the head's proxies and whatever covers the
+## hair only cast their shadow, which keeps its head.
 
 const BODY_DATA := "res://data/character/human/body.res"
 const PROXY_PATH := "res://data/character/human/proxies/%s.res"
@@ -43,8 +48,15 @@ const HAIR_SLOTS: Array[StringName] = [&"hair", &"beard"]
 const HEAD_BONE := &"mixamorig_Head"
 const SLOTS: Array[StringName] = [&"eyes", &"teeth", &"tongue", &"eyebrows", &"eyelashes", &"hair", &"beard",
 		&"genitals"]
+## Slots on the head, which the first-person camera does not see.
+const HEAD_SLOTS: Array[StringName] = [&"eyes", &"teeth", &"tongue", &"eyebrows", &"eyelashes", &"hair", &"beard"]
+## How much FirstPersonBody's skin scales the head's binds: next to nothing,
+## but not zero, so their normals still normalise.
+const FOLDED_HEAD_SCALE := 0.001
 
 @export var live := false
+## See set_first_person().
+var first_person := false
 
 var _data: HumanBodyData
 var _shape: HumanShape
@@ -87,6 +99,11 @@ var _hair_task := -1
 var _hair_job := {}
 ## Measurements, joints and skin of the current body for ArmorFit.
 var _fit_context: ArmorFit
+## The body the first-person camera sees; made on the first switch.
+var _fp_body: MeshInstance3D
+## The eyes' mesh the eye point was taken from, and that point (head bone space).
+var _eye_mesh: ArrayMesh
+var _eye_point := Vector3.ZERO
 
 static var _reference: BodyMeasurements
 
@@ -263,6 +280,9 @@ func dress(item: Node, covers_hair := false) -> void:
 	if covers_hair:
 		_covering[item] = true
 		_hair_changed()
+		if first_person:
+			for instance in _armour_meshes(item):
+				_shadow_only(instance, true)
 	_fit(item)
 
 
@@ -271,6 +291,103 @@ func undress(item: Node) -> void:
 	_dressed.erase(item)
 	if _covering.erase(item):
 		_hair_changed()
+		for instance in _armour_meshes(item):
+			_shadow_only(instance, false)
+
+
+## Switches the first-person view (see the class notes).
+func set_first_person(enabled: bool) -> void:
+	if enabled == first_person or not _setup():
+		return
+	first_person = enabled
+	if enabled and _fp_body == null:
+		_fp_body = MeshInstance3D.new()
+		_fp_body.name = "FirstPersonBody"
+		# Dismemberment cuts Mesh_0, and this one takes its mesh (_sync_first_person_body).
+		_fp_body.set_meta(&"no_dismember", true)
+		_fp_body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_fp_body.material_override = _skin_material
+		_fp_body.lod_bias = _body.lod_bias
+		_skeleton.add_child(_fp_body)
+		_fp_body.skeleton = _fp_body.get_path_to(_skeleton)
+		_fp_body.skin = _folded_head_skin()
+	_shadow_only(_body, enabled)
+	for slot in HEAD_SLOTS:
+		_shadow_only(_slots[slot].instance, enabled)
+	for item in _covering:
+		if is_instance_valid(item):
+			for instance in _armour_meshes(item):
+				_shadow_only(instance, enabled)
+	_fp_body.visible = enabled
+	if enabled:
+		_sync_first_person_body()
+		_skeleton.skeleton_updated.connect(_sync_first_person_body)
+	elif _skeleton.skeleton_updated.is_connected(_sync_first_person_body):
+		_skeleton.skeleton_updated.disconnect(_sync_first_person_body)
+
+
+## Where the first-person camera goes, between the eyes, in the head bone's
+## space; NAN without eyes.
+func first_person_eye() -> Vector3:
+	if not _setup():
+		return Vector3(NAN, NAN, NAN)
+	var eyes: Dictionary = _slots[&"eyes"]
+	if eyes.mesh == null or not eyes.instance.visible:
+		return Vector3(NAN, NAN, NAN)
+	if eyes.mesh != _eye_mesh:
+		var bind := _bind_of(_data.skin, _skeleton.find_bone(HEAD_BONE))
+		if bind < 0:
+			return Vector3(NAN, NAN, NAN)
+		_eye_mesh = eyes.mesh
+		_eye_point = _data.skin.get_bind_pose(bind) * _eye_mesh.get_aabb().get_center()
+	return _eye_point
+
+
+## FirstPersonBody shows whatever Mesh_0 has: another body, or one with a limb cut off.
+func _sync_first_person_body() -> void:
+	if _fp_body.mesh != _body.mesh:
+		_fp_body.mesh = _body.mesh
+	# Blood stains tag the meshes there are when it is first hit (BloodStains).
+	_fp_body.layers = _body.layers
+
+
+## The body's skin with the head and what hangs from it shrunk onto the head
+## joint, at the top of the neck.
+func _folded_head_skin() -> Skin:
+	var skin: Skin = _data.skin.duplicate()
+	var head := _skeleton.find_bone(HEAD_BONE)
+	for b in skin.get_bind_count():
+		var bone := _bind_bone(skin, b)
+		while bone >= 0 and bone != head:
+			bone = _skeleton.get_bone_parent(bone)
+		if bone == head:
+			skin.set_bind_pose(b, skin.get_bind_pose(b).scaled(Vector3.ONE * FOLDED_HEAD_SCALE))
+	return skin
+
+
+## The skeleton bone of a skin's bind.
+func _bind_bone(skin: Skin, bind: int) -> int:
+	var bind_name := skin.get_bind_name(bind)
+	return _skeleton.find_bone(bind_name) if bind_name != &"" else skin.get_bind_bone(bind)
+
+
+## The bind of a skeleton bone in a skin, or -1.
+func _bind_of(skin: Skin, bone: int) -> int:
+	for b in skin.get_bind_count():
+		if _bind_bone(skin, b) == bone:
+			return b
+	return -1
+
+
+## Leaves a mesh to the shadows (first person), or gives it back to the camera.
+static func _shadow_only(instance: GeometryInstance3D, enabled: bool) -> void:
+	if enabled:
+		if not instance.has_meta(&"camera_cast_shadow"):
+			instance.set_meta(&"camera_cast_shadow", instance.cast_shadow)
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	elif instance.has_meta(&"camera_cast_shadow"):
+		instance.cast_shadow = instance.get_meta(&"camera_cast_shadow")
+		instance.remove_meta(&"camera_cast_shadow")
 
 
 ## Whether some armour is still being fitted, or the hair tucked under it.
