@@ -1,8 +1,9 @@
 extends Node
 class_name ActionController
 
-## Acciones del jugador con el mundo: excavar voxels (con drop de ore), atacar objetos destruibles
-## y criaturas, y recoger items por raycast central o cono.
+## Acciones del jugador con el mundo: excavar voxels (con drop de ore), golpear criaturas y
+## recoger items por raycast central o cono. La tala va con el golpe del hacha (PlayerCombat,
+## TreeFelling).
 
 const Config = preload("res://scripts/config.gd")
 
@@ -20,15 +21,12 @@ signal voxel_mined(item_id: StringName, amount: int)
 @export var show_raycast_debug: bool = false
 
 var rand_num_gen: RandomNumberGenerator = RandomNumberGenerator.new()
-var attacking_nodes: Dictionary
 var is_attacking = false
 var attack_raycast: RayCast3D
 var is_voxel: bool
 var current_voxel: VoxelLodTerrain
 var current_origin: Vector3
 var current_direction: Vector3
-var current_target_id: int
-var current_target_node: VoxelInstancerRigidBody
 
 func _ready() -> void:
 	timer = Timer.new()
@@ -105,30 +103,14 @@ func _get_ore_drop(type_id: int) -> Dictionary:
 	var drops: Dictionary = current_voxel.get_meta("ore_drops", {})
 	return drops.get(type_id, fallback)
 		
+## Fin del golpe: uno por clic (el pico excava al acabar el gesto).
 func on_timeout():
-	if is_attacking:
-		if is_voxel:
-			dig_hole(5.0, 5.0)
-		if !Input.is_action_pressed("attack_1"):
-			is_attacking = false
-			timer.stop()
-		else:
-			if !attacking_nodes.has(current_target_id):
-				is_attacking = false
-				timer.stop()
-				return
-				
-			attacking_nodes[current_target_id].take_damage(rand_num_gen.randf_range(50, 100))
-			print(attacking_nodes[current_target_id].health)
-			if attacking_nodes[current_target_id].health <= 0:
-				current_target_node.queue_free_and_notify_instancer()
-				attacking_nodes.erase(current_target_node)
-				current_target_id = -1
-				timer.stop()
-				is_attacking = false
-			else:
-				timer.start(1.7)
-				
+	if is_attacking and is_voxel:
+		dig_hole(5.0, 5.0)
+	is_attacking = false
+	timer.stop()
+
+
 func perform_raycast(origin: Vector3, rotation: Vector3, show_debug: bool) -> Dictionary:
 	var ray_origin = origin
 	
@@ -214,7 +196,7 @@ func cone_raycast(origin: Vector3, forward: Vector3, up: Vector3, right: Vector3
 	
 	return closest_node
 	
-func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_callback: Callable) -> Node3D:
+func handle_attack(camera: Camera3D, origin: Vector3) -> Node3D:
 	if is_attacking:
 		return
 	var raycast_result = perform_raycast(origin, camera.global_rotation, true)
@@ -226,31 +208,11 @@ func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_
 	var creature := target_node as AmbientAnimal
 	if creature != null and creature.active and hit_distance < MELEE_RANGE:
 		creature.take_damage(rand_num_gen.randf_range(MELEE_DAMAGE_MIN, MELEE_DAMAGE_MAX), get_parent())
-		# Sin entrada en attacking_nodes, on_timeout cierra el golpe: uno por clic.
-		current_target_id = 0
-		current_target_node = null
 		is_voxel = false
 		is_attacking = true
 		timer.start(MELEE_COOLDOWN)
 		return target_node
 
-	if target_node is VoxelInstancerRigidBody && hit_distance < 3.0:
-		var instance_id = target_node.get_instance_id()
-		current_target_id = instance_id
-		current_target_node = target_node
-		if !attacking_nodes.has(instance_id):
-			var item_id = target_node.get_library_item_id()
-			var packed_scene = planet.planet_item_packed_scenes.get(item_id)
-			if packed_scene == null:
-				return target_node
-			var scene = packed_scene.instantiate()
-			var registered = planet.planet_item_scenes.get(item_id)
-			if registered != null:
-				scene.health = registered.health
-			if not scene.destroyed.is_connected(destroyed_callback):
-				scene.destroyed.connect(destroyed_callback)
-			attacking_nodes[instance_id] = scene
-			
 	is_voxel = target_node && target_node is VoxelLodTerrain
 	if is_voxel:
 		current_voxel = target_node as VoxelLodTerrain
@@ -258,6 +220,6 @@ func handle_attack(camera: Camera3D, origin: Vector3, planet: Planet, destroyed_
 		current_direction = -camera.global_transform.basis.z
 		
 	is_attacking = true
-	timer.start(1.7)
+	timer.start(MELEE_COOLDOWN)
 
 	return target_node

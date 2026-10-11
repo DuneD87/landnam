@@ -116,7 +116,7 @@ var climate: ClimateField = ClimateField.new()
 var _river_field: Dictionary = {}
 
 var planet_item_scenes: Dictionary
-## library_id -> PackedScene plantilla, para clonar el item al talarlo sin instanciar
+## library_id -> PackedScene plantilla de los items interactivos (los que se talan) sin instanciar
 ## nada en el módulo (ver _register_multi_mesh_item).
 var planet_item_packed_scenes: Dictionary
 ## library_id -> baked local branch anchors and wood BVH, shared across instances.
@@ -129,6 +129,8 @@ var pickup_library_ids: Dictionary = {}
 const PICKUP_LAYER := 1 << 12
 ## Geometría cercana de los árboles Branching (ver _register_tree_item).
 var tree_detail_renderer: TreeDetailRenderer = null
+## Tala de los árboles: hachazos, caídas y tocones.
+var tree_felling: TreeFelling = null
 var _next_library_id: int = 0
 ## Items de impostores lejanos pendientes: se registran al final (ver _register_far_tree_items).
 var _far_tree_items: Array[Callable] = []
@@ -491,11 +493,11 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 	if item.get("pickup", false):
 		pickup_library_ids[library_id] = StringName(item.get("pickup_item", "stone_01"))
 
-	# Plantilla para clonar el item al talarlo (action_controller). Va en un dict aparte
+	# Plantilla del item, que marca lo que se tala (TreeFelling). Va en un dict aparte
 	# y NO en multi_mesh_item.scene: ponerla ahí haría que el módulo instancie un nodo por
 	# árbol cercano en cada banda de LOD (bajón de rendimiento). La colisión de los árboles
 	# con LOD ya la dan collision_shapes. El decorado estático no se registra: sin plantilla,
-	# handle_attack sale sin hacer nada aunque algo llegue a apuntarle.
+	# no se tala aunque se le dé un hachazo.
 	if interactive:
 		planet_item_packed_scenes[library_id] = shared_data.packed_scene
 
@@ -560,6 +562,7 @@ func _load_vegetation() -> void:
 	planet_item_packed_scenes.clear()
 	tree_perch_catalog.clear()
 	pickup_library_ids.clear()
+	tree_felling.clear_species()
 	if tree_detail_renderer != null:
 		tree_detail_renderer.queue_free()
 		tree_detail_renderer = null
@@ -1530,6 +1533,8 @@ func _init(_voxel_terrain: VoxelLodTerrain) -> void:
 	voxel_instancer.library = VoxelInstanceLibrary.new()
 	voxel_instancer.up_mode = VoxelInstancer.UP_MODE_SPHERE
 	voxel_terrain.add_child(voxel_instancer)
+	tree_felling = TreeFelling.new(self)
+	voxel_terrain.add_child(tree_felling)
 	shader_material = ShaderMaterial.new()
 	shader_material.shader = load("res://shaders/terrain/planet_biomes.gdshader")
 

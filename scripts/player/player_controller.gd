@@ -201,16 +201,6 @@ func _on_voxel_mined(item_id: StringName, amount: int) -> void:
 		var excess := inventory.add_item(item_data, amount)
 		print("+%d %s" % [amount - excess, item_data.display_name])
 
-func _on_target_destroyed(position: Vector3, amount: int, item_data: ItemData) -> void:
-	var excess = inventory.add_item(item_data, amount)
-	print("+%d %s" % [amount - excess, item_data.display_name])
-	if excess > 0:
-		_spawn_dropped_items(item_data, excess, position)
-	
-
-func _spawn_dropped_items(item_data: ItemData, amount: int, position: Vector3) -> void:
-	pass
-
 
 ## Lo que se arrastra fuera del inventario cae al suelo, delante.
 func _on_inventory_drop(data: ItemData, quantity: int) -> void:
@@ -1170,8 +1160,8 @@ func _input(event):
 		inventory_ui.close()
  
  
-	# Golpes, esquivas, apuntar y fijar objetivo. Lo que el combate no consume (talar o picar
-	# con una herramienta sin enemigos cerca, el cañón) sigue abajo.
+	# Golpes (también talar), esquivas, apuntar y fijar objetivo. Lo que el combate no consume
+	# (el cañón, picar con el pico, las herramientas que no golpean) sigue abajo.
 	if combat.handle_input(event):
 		return
 	# Lo que se come, se bebe o se planta desde la barra.
@@ -1187,7 +1177,7 @@ func _input(event):
 			is_holding_atack = true
 			return
 		var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
-		action_controller.handle_attack(camera, ray_origin, planet.planet, _on_target_destroyed)
+		action_controller.handle_attack(camera, ray_origin)
 	elif Input.is_action_just_released("attack_1"):
 		is_holding_atack = false
 

@@ -52,8 +52,10 @@ vec3 tree_up(vec3 relative_base) {
 }
 
 // Desplazamiento en espacio LOCAL del vértice. up: vertical del planeta en la base.
-vec3 tree_wind_offset(vec3 vertex, vec3 normal, vec4 color, vec2 uv2, mat4 model, vec3 up,
-		float seed, float time) {
+// trunk_scale escala la inclinación del tronco: 0 en un árbol talado y tumbado, que si no se
+// deslizaba por el suelo con el viento.
+vec3 tree_wind_offset_scaled(vec3 vertex, vec3 normal, vec4 color, vec2 uv2, mat4 model, vec3 up,
+		float seed, float time, float trunk_scale) {
 	vec3 wt = wind_direction - up * dot(wind_direction, up);
 	wt /= max(length(wt), 0.0001);
 	float t = time * wind_frequency;
@@ -63,7 +65,7 @@ vec3 tree_wind_offset(vec3 vertex, vec3 normal, vec4 color, vec2 uv2, mat4 model
 	// Tronco: se inclina a favor del viento y oscila despacio alrededor de esa inclinación.
 	float gust = sin(t * 0.9 + seed * 6.2832) * 0.6 + sin(t * 0.37 + seed * 2.1) * 0.4;
 	float height = max(vertex.y, 0.0) * scale;
-	vec3 offset = wt * (sqrt(uv2.x) * height * trunk_sway * strength * (0.65 + 0.35 * gust));
+	vec3 offset = wt * (sqrt(uv2.x) * height * trunk_sway * trunk_scale * strength * (0.65 + 0.35 * gust));
 
 	// Rama: fase propia heredada por sus ramas y tarjetas.
 	float phase = color.g * 6.2832 + seed * 6.2832;
@@ -84,6 +86,11 @@ vec3 tree_wind_offset(vec3 vertex, vec3 normal, vec4 color, vec2 uv2, mat4 model
 		dot(model[0].xyz, offset) / dot(model[0].xyz, model[0].xyz),
 		dot(model[1].xyz, offset) / dot(model[1].xyz, model[1].xyz),
 		dot(model[2].xyz, offset) / dot(model[2].xyz, model[2].xyz));
+}
+
+vec3 tree_wind_offset(vec3 vertex, vec3 normal, vec4 color, vec2 uv2, mat4 model, vec3 up,
+		float seed, float time) {
+	return tree_wind_offset_scaled(vertex, normal, color, uv2, model, up, seed, time, 1.0);
 }
 
 // --- Pase de sombras aligerado -----------------------------------------------------------

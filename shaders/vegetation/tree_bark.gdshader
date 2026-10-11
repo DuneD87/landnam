@@ -10,6 +10,7 @@ render_mode depth_draw_opaque, cull_back;
 
 #include "res://shaders/lib/planet_lighting.gdshaderinc"
 #include "res://shaders/lib/tree_wind.gdshaderinc"
+#include "res://shaders/lib/tree_felled.gdshaderinc"
 #include "res://shaders/lib/climate.gdshaderinc"
 #include "res://shaders/lib/season.gdshaderinc"
 
@@ -43,11 +44,13 @@ varying float v_glacier;
 varying float v_snow_facing;
 
 void vertex() {
-	vec3 relative_base = MODEL_MATRIX[3].xyz - planet_position;
+	// Talado: la madera de debajo del corte se aplasta contra él (es la que queda en el tocón).
+	VERTEX.y = max(VERTEX.y, fell_cut_height);
+	vec3 relative_base = tree_relative_base(MODEL_MATRIX, planet_position, fell_base);
 	vec3 up = tree_up(relative_base);
 	float seed = tree_seed(relative_base, 17u);
 	v_band = tree_band_fades(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX);
-	VERTEX += tree_wind_offset(VERTEX, NORMAL, COLOR, UV2, MODEL_MATRIX, up, seed, TIME);
+	VERTEX += tree_wind_offset_scaled(VERTEX, NORMAL, COLOR, UV2, MODEL_MATRIX, up, seed, TIME, fell_sway);
 	// Fuera de su banda el árbol se colapsa: triángulos degenerados, sin rasterizar nada.
 	float camera_distance = distance(MODEL_MATRIX[3].xyz, MAIN_CAM_INV_VIEW_MATRIX[3].xyz);
 	if (min(v_band.x, v_band.y) <= 0.0 || (IN_SHADOW_PASS && tree_shadow_skip(COLOR, UV2, camera_distance))) {

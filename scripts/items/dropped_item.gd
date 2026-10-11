@@ -31,6 +31,8 @@ var item_data: ItemData
 var quantity: int = 1
 
 var _down: Vector3 = Vector3.DOWN
+## Malla propia que sustituye a la del item (los leños de un árbol talado).
+var _visual: Node3D = null
 var _fall_left: float = 0.0
 var _fall_speed: float = 0.0
 
@@ -49,6 +51,23 @@ static func spawn(dropper: Node3D, data: ItemData, amount: int, down: Vector3) -
 	if dropper is CollisionObject3D:
 		exclude.append((dropper as CollisionObject3D).get_rid())
 	item._drop(dropper.global_position + up * DROP_HEIGHT, forward, up, exclude)
+	return item
+
+
+## Suelta [amount] de [data] desde [from] (mundo), que cae con la gravedad [down] hasta el suelo de
+## debajo, girado al azar. [visual]: su malla en vez de la del item, con lo de abajo en el origen.
+static func spawn_at(context: Node, data: ItemData, amount: int, from: Vector3, down: Vector3,
+		visual: Node3D = null) -> DroppedItem:
+	var item := DroppedItem.new()
+	item.item_data = data
+	item.quantity = amount
+	item.name = "Dropped_%s" % data.id
+	item._visual = visual
+	context.get_tree().current_scene.add_child(item)
+	var up := -down.normalized()
+	var across := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	var empty: Array[RID] = []
+	item._drop(from, across.rotated(up, randf() * TAU), up, empty, 0.0)
 	return item
 
 
@@ -92,14 +111,15 @@ func _ready() -> void:
 	add_to_group("floating_origin")
 
 
-## Lo suelta desde la mano [hand] (a la altura de la mano sobre los pies), DROP_AHEAD por delante
+## Lo suelta desde la mano [hand] (a la altura de la mano sobre los pies), [ahead] por delante
 ## si no hay pared, y lo deja cayendo hasta el suelo de debajo.
-func _drop(hand: Vector3, forward: Vector3, up: Vector3, exclude: Array[RID]) -> void:
+func _drop(hand: Vector3, forward: Vector3, up: Vector3, exclude: Array[RID], ahead: float = DROP_AHEAD) -> void:
 	var space := get_world_3d().direct_space_state
-	var from := hand + forward * DROP_AHEAD
-	var wall := space.intersect_ray(PhysicsRayQueryParameters3D.create(hand, from, WORLD_MASK, exclude))
-	if not wall.is_empty():
-		from = (wall.position as Vector3) - forward * 0.15
+	var from := hand + forward * ahead
+	if ahead > 0.0:
+		var wall := space.intersect_ray(PhysicsRayQueryParameters3D.create(hand, from, WORLD_MASK, exclude))
+		if not wall.is_empty():
+			from = (wall.position as Vector3) - forward * 0.15
 	var ground := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from - up * GROUND_SEARCH,
 		WORLD_MASK, exclude))
 	# Tumbado sobre el suelo que encuentra (en cuesta, a lo largo de ella), girado al azar.
@@ -137,6 +157,8 @@ func _physics_process(delta: float) -> void:
 ## La malla del arma o escudo (en metros), tumbada sobre su cara más ancha con lo de abajo en el
 ## origen; si no la hay, un saquito.
 func _make_visual() -> Node3D:
+	if _visual != null:
+		return _visual
 	var path := item_data.scene_path
 	if not MESH_SCENES.any(func(prefix: String) -> bool: return path.begins_with(prefix)) \
 			or not ResourceLoader.exists(path):

@@ -100,6 +100,8 @@ const LOCK_SWITCH_THRESHOLD := 0.09
 ## oso y un gorrión en el mismo encuadre, se fija el oso.
 const LOCK_SMALL_FAUNA_BIAS := 0.35
 const HITSTOP_TIME := 0.075
+## Momento del impacto dentro de la ventana del golpe (0..1) en que entra el hachazo en un tronco.
+const CHOP_IMPACT := 0.4
 const DEATH_SCREEN_DELAY := 1.3
 ## El charco bajo el cuerpo: cuándo sale (s, ya asentado el muñeco), su tamaño (m) y lo que tarda
 ## en extenderse (s).
@@ -689,7 +691,8 @@ func handle_input(event: InputEvent) -> bool:
 		return false
 	var is_tool := data.category == ItemData.Category.TOOL
 	if event.is_action_pressed("attack_1"):
-		if is_tool and not _enemy_near():
+		# El hacha tala con su golpe de verdad (_harvest).
+		if is_tool and not _enemy_near() and not TreeFelling.fells(data):
 			return false
 		# Toque: golpe ligero al soltar; mantener: el pesado, que se carga (_update_press).
 		_press_pending = true
@@ -726,8 +729,8 @@ func _ranged_input(event: InputEvent, data: ItemData) -> bool:
 	return false
 
 
-## Hay algo a lo que pegar delante: con una herramienta en la mano, el clic sigue siendo talar
-## o picar salvo que haya un enemigo encima.
+## Hay algo a lo que pegar delante: con una herramienta que no tala en la mano (el pico, una
+## antorcha), el clic sigue siendo suyo salvo que haya un enemigo encima.
 func _enemy_near() -> bool:
 	if lock_target != null:
 		return true
@@ -1218,6 +1221,10 @@ func _update_attack(delta: float) -> void:
 			_whooshed = true
 			CombatFx.play(_swing_sound(data), player.global_position, {"pitch": _swing_pitch(data) * randf_range(0.96, 1.04)})
 		_sweep_blade(data)
+	# Talar entra en el impacto del gesto: lo que hay delante, al alcance.
+	var impact := lerpf(hit.x, hit.y, CHOP_IMPACT)
+	if prev < impact and t >= impact:
+		_harvest(data)
 	if t >= float(_move.commit):
 		_finish_attack()
 		return
@@ -1317,6 +1324,25 @@ func _sweep_blade(data: ItemData) -> void:
 		if not _sweep.has_hit(creature):
 			_sweep.mark_hit(creature)
 			creature.take_damage(damage, player)
+
+
+## El hachazo contra lo que tiene delante: un tronco en pie (talar) o caído (trocear). Va con la
+## fuerza del golpe (el combo y la carga). No sigue la hoja: un tronco fino ni lo rozaba; se mira
+## lo que hay delante del cuerpo. Muerde como en un cuerpo: hitstop y temblor.
+func _harvest(data: ItemData) -> void:
+	var up := -player.gravity_direction.normalized()
+	var space := player.get_world_3d().direct_space_state
+	var tree := TreeFelling.strike(get_tree(), space, player.global_position, _body_forward(), up)
+	if tree.is_empty():
+		return
+	var mult := float(_move.get("damage", 1.0))
+	if _heavy:
+		mult *= lerpf(1.25, data.heavy_multiplier, _charge)
+	if not TreeFelling.chop_any(tree.body, tree.point, TreeFelling.chop_power(data) * mult, player):
+		return
+	var weight := (1.6 if _heavy else 1.0) * (1.3 if data.two_handed else 1.0)
+	_hitstop = HITSTOP_TIME * weight
+	player.camera_controller.add_shake(0.03 * weight)
 
 
 func _on_blade_hit(box: Hurtbox, point: Vector3, info: DamageInfo) -> void:
@@ -1816,6 +1842,11 @@ func try_pickup() -> bool:
 func _place_ranged_visuals(p: CombatPose) -> void:
 	if p.grip_right:
 		_right_grip.global_transform = p.right_grip_xform
+	else:
+		# Las herramientas antiguas cuelgan del hueso con su escala y no usan el marco de agarre,
+		# pero la hoja barre desde él (talar, golpear): sin esto se quedaba donde lo dejó el último
+		# arma de combate y el hachazo no tocaba nada.
+		_right_grip.global_transform = (p.bone_world_xform("mixamorig_RightHandMiddle2") * RIGHT_GRIP).orthonormalized()
 	if p.shield_on and _shield_node != null and is_instance_valid(_shield_node):
 		_shield_node.global_transform = p.shield_xform
 	var data := weapon()
