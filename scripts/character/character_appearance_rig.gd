@@ -101,8 +101,10 @@ var _hair_job := {}
 var _fit_context: ArmorFit
 ## The body the first-person camera sees; made on the first switch.
 var _fp_body: MeshInstance3D
-## The eyes' mesh the eye point was taken from, and that point (head bone space).
+## The eyes' mesh and forward offset the eye point was taken with, and that
+## point (head bone space).
 var _eye_mesh: ArrayMesh
+var _eye_forward := 0.0
 var _eye_point := Vector3.ZERO
 
 static var _reference: BodyMeasurements
@@ -326,20 +328,23 @@ func set_first_person(enabled: bool) -> void:
 		_skeleton.skeleton_updated.disconnect(_sync_first_person_body)
 
 
-## Where the first-person camera goes, between the eyes, in the head bone's
-## space; NAN without eyes.
-func first_person_eye() -> Vector3:
+## Where the first-person camera goes, in the head bone's space: between the
+## eyes, moved `forward` metres along the face (negative goes into the head,
+## where turning it hardly moves the camera); NAN without eyes.
+func first_person_eye(forward := 0.0) -> Vector3:
 	if not _setup():
 		return Vector3(NAN, NAN, NAN)
 	var eyes: Dictionary = _slots[&"eyes"]
 	if eyes.mesh == null or not eyes.instance.visible:
 		return Vector3(NAN, NAN, NAN)
-	if eyes.mesh != _eye_mesh:
+	if eyes.mesh != _eye_mesh or forward != _eye_forward:
 		var bind := _bind_of(_data.skin, _skeleton.find_bone(HEAD_BONE))
 		if bind < 0:
 			return Vector3(NAN, NAN, NAN)
 		_eye_mesh = eyes.mesh
-		_eye_point = _data.skin.get_bind_pose(bind) * _eye_mesh.get_aabb().get_center()
+		_eye_forward = forward
+		# The skin space is the body's: metres, +Z forward.
+		_eye_point = _data.skin.get_bind_pose(bind) * (_eye_mesh.get_aabb().get_center() + Vector3(0, 0, forward))
 	return _eye_point
 
 

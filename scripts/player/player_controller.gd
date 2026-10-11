@@ -142,6 +142,14 @@ var _cinematic_tween: Tween
 ## se gire (ver _turn_in_place), y si se está girando.
 const FP_TURN_START := deg_to_rad(50.0)
 var _fp_turning := false
+## Primera persona: encara el cuerpo a la vista (FirstPersonSquare); se hace al entrar la primera
+## vez. Entra y sale fundiéndose en FP_SQUARE_BLEND segundos.
+var _fp_square: FirstPersonSquare
+const FP_SQUARE_BLEND := 0.15
+## Primera persona: lo más que se aparta la vista del frente del cuerpo. Si el cuerpo puede girar
+## se le arrastra; si no, se para el ratón (ver _keep_view_in_front). Más allá, la cámara en la
+## cabeza vería la espalda.
+const FP_VIEW_GAP := deg_to_rad(90.0)
 
 func _perform_raycast() -> void:
 	_ray_hit = {}
@@ -889,9 +897,35 @@ func _on_first_person_changed(enabled: bool) -> void:
 	_fp_turning = false
 	if appearance_rig != null:
 		appearance_rig.set_first_person(enabled)
-	var look_ik := player_model.get_node_or_null("Armature/Skeleton3D/LookAtIK") as LookAtIK
+	var skeleton: Skeleton3D = player_model.get_node("Armature/Skeleton3D")
+	var look_ik := skeleton.get_node_or_null("LookAtIK") as LookAtIK
 	if look_ik != null:
 		look_ik.first_person = enabled
+	if enabled and _fp_square == null:
+		_fp_square = FirstPersonSquare.new()
+		_fp_square.name = "FirstPersonSquare"
+		_fp_square.frame_node = player_model
+		skeleton.add_child(_fp_square)
+		# Antes de FootIK, que apoya los pies donde queden, y de LookAtIK, que luego tuerce el
+		# tronco hacia la mirada.
+		var foot_ik := skeleton.get_node_or_null("FootIK")
+		if foot_ik != null:
+			skeleton.move_child(_fp_square, foot_ik.get_index())
+	if _fp_square != null:
+		_fp_square.influence = 0.0
+		_fp_square.active = false
+
+
+## Primera persona: el cuerpo se encara a la vista mientras la pose es la de la animación (quieto,
+## andando, golpeando, en guardia). Rodando la línea de los hombros da la vuelta, y apuntando,
+## tambaleándose o muerto manda CombatPose, HitReact o el ragdoll.
+func _update_fp_square(delta: float) -> void:
+	if _fp_square == null:
+		return
+	var on := camera_controller.first_person and combat.state in [PlayerCombat.State.IDLE,
+			PlayerCombat.State.ATTACK, PlayerCombat.State.GUARD]
+	_fp_square.influence = move_toward(_fp_square.influence, 1.0 if on else 0.0, delta / FP_SQUARE_BLEND)
+	_fp_square.active = _fp_square.influence > 0.0
 
 
 func _interpolate_rotation(t: float, from_quat: Quaternion, to_quat: Quaternion) -> void:
@@ -1521,6 +1555,29 @@ func rotate_toward_movement(input_dir: Vector3, delta: float):
 	rotate_toward_direction(target_dir, delta, 8.0 if camera_controller.first_person else 3.0)
 
 
+## Primera persona: que la vista no se aparte más de FP_VIEW_GAP del frente del cuerpo. En pleno
+## golpe, tambaleándose o muerto el cuerpo va a lo suyo y se para el ratón (trepando, también:
+## ver update_normal_movement); si no, el cuerpo se arrastra con la vista (un giro brusco del
+## ratón le saca ventaja a _turn_in_place). Rodando no se toca: la voltereta se gira de golpe
+## hacia donde rueda, también hacia atrás.
+func _keep_view_in_front() -> void:
+	var locked := combat.state in [PlayerCombat.State.ATTACK, PlayerCombat.State.STAGGER,
+			PlayerCombat.State.DEAD]
+	camera_controller.fp_yaw_limit = FP_VIEW_GAP if locked else INF
+	if locked or combat.state == PlayerCombat.State.DODGE or not camera_controller.first_person:
+		return
+	var view := project_on_gravity_plane(-camera.global_transform.basis.z)
+	var forward := project_on_gravity_plane(global_transform.basis.z)
+	if view == Vector3.ZERO or forward == Vector3.ZERO:
+		return
+	var up := -gravity_direction.normalized()
+	var angle := atan2(up.dot(forward.cross(view)), forward.dot(view))
+	var excess := angle - clampf(angle, -FP_VIEW_GAP, FP_VIEW_GAP)
+	if excess != 0.0:
+		global_basis = Basis(up, excess) * global_basis
+		orthonormalize()
+
+
 ## Primera persona, quieto: el cuerpo se queda donde está hasta que la mirada se aparta
 ## FP_TURN_START de su frente, y entonces se gira hasta ponerse de cara (LookAtIK cubre lo de
 ## en medio). Si no, mirando atrás la cámara vería el cuerpo por dentro.
@@ -1644,6 +1701,7 @@ func update_normal_movement(delta: float) -> void:
 	# Trepando, el cuerpo lo lleva la escalada: sin gravedad, input de carrera ni combate.
 	if climb.physics_update(delta):
 		animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
+		camera_controller.fp_yaw_limit = FP_VIEW_GAP
 		camera_controller.update_camera_rotation()
 		return
 	locomotion.pre_update()
@@ -1668,6 +1726,7 @@ func update_normal_movement(delta: float) -> void:
 			current_animation = config.ANIMATION.SPRINT_TORCH
 
 	combat.physics_update(delta, input_dir)
+	_update_fp_square(delta)
 	animation_controller.handle_animations(delta, current_animation, free_flight_enabled)
 	locomotion.update(delta)
 	velocity = combat.apply_motion(movement.velocity)
@@ -1676,8 +1735,9 @@ func update_normal_movement(delta: float) -> void:
 		pass
 	elif movement.is_running || movement.is_sprinting:
 		rotate_toward_movement(input_dir, delta)
-	elif camera_controller.first_person and not movement.is_swimming:
+	elif camera_controller.first_person:
 		_turn_in_place(delta)
+	_keep_view_in_front()
 
 	if movement.is_swimming:
 		apply_swimming_pitch(input_dir, delta)

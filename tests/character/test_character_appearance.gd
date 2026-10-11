@@ -281,6 +281,8 @@ func _check_first_person() -> void:
 	check(not is_nan(eye.x) and absf(from_head.x) < 0.01 and from_head.y > 0.02 and from_head.y < 0.15
 			and from_head.z > 0.04 and from_head.z < 0.15,
 			"the first-person eye sits between the eyes, above and ahead of the head joint (%s)" % from_head)
+	var back := to_model.basis * (skeleton.get_bone_global_rest(head).basis * (rig.first_person_eye(-0.1) - eye))
+	check(back.is_equal_approx(Vector3(0, 0, -0.1)), "the eye moves back along the face, into the head (%s)" % back)
 	rig.set_first_person(false)
 	var on := GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	check(not fp.visible and body.cast_shadow == on and hair.cast_shadow == on and eyes.cast_shadow == on,

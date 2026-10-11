@@ -879,7 +879,9 @@ func update_facing(delta: float, input_dir: Vector3) -> bool:
 			_face(to, delta, 12.0)
 			return true
 	if lock_target != null:
-		var moving := input_dir.length() > 0.2
+		# En primera persona, siempre al fijado (Locomotion pone el paso de lado o atrás): de cara a
+		# donde se mueve, la vista iría por encima del hombro.
+		var moving := input_dir.length() > 0.2 and not player.camera_controller.first_person
 		_face(_flat(input_dir) if moving else _flat(_lock_point(lock_target) - player.global_position),
 			delta, 10.0)
 		return true
@@ -1180,12 +1182,14 @@ func _start_attack(heavy: bool) -> void:
 
 
 ## Hacia dónde sale el golpe: al objetivo fijado; si no, hacia donde se mueve; si no, hacia
-## donde mira la cámara.
+## donde mira la cámara. En primera persona, a donde se mira: el cuerpo se encara a su frente
+## (FirstPersonSquare), y uno girado de lado metería el hombro en la vista.
 func _choose_attack_dir() -> Vector3:
 	if lock_target != null:
 		return _flat(_lock_point(lock_target) - player.global_position)
 	var move := _flat(player.movement.direction)
-	if player.movement.direction.length() > 0.3 and move != Vector3.ZERO:
+	if player.movement.direction.length() > 0.3 and move != Vector3.ZERO \
+			and not player.camera_controller.first_person:
 		return move
 	var cam := _camera_forward_h()
 	return cam if cam != Vector3.ZERO else _body_forward()

@@ -20,11 +20,10 @@ signal first_person_changed(enabled: bool)
 @export var fp_threshold: float = 0.5
 ## Altura del ojo en primera persona mientras no hay pose de la que sacarlo.
 @export var fp_eye_height: float = 1.7
-## Primera persona: rapidez (1/s) con la que el ojo sigue a la cabeza animada. Quita el temblor
-## de un fotograma a otro sin que la cámara se salga de la cabeza en una voltereta.
-@export var fp_follow_sharpness: float = 25.0
-## Lo que se adelanta la cámara del punto entre los ojos (m), hacia donde mira en horizontal.
-@export var fp_eye_forward: float = 0.03
+## Primera persona: lo que se adelanta la cámara del punto entre los ojos a lo largo de la cara
+## (m). En negativo se mete en la cabeza, donde girarla apenas la mueve: los golpes la giran hasta
+## 70° a cada lado de la mirada y el pesado da la vuelta entera.
+@export var fp_eye_forward: float = -0.1
 ## Lo que baja el ojo agachado (Locomotion), en tercera y en primera persona.
 var crouch_drop: float = 0.0
 @onready var camera_pivot: Node3D = $"../CameraPivot"
@@ -57,8 +56,16 @@ var delta_yaw := 0.0
 var delta_pitch := 0.0
 var target_distance: float
 var first_person := false
-## Ojo en primera persona en el espacio del jugador, ya suavizado; NAN hasta la primera pose.
-var _fp_eye := Vector3(NAN, NAN, NAN)
+## La cámara de primera persona ya va pegada a la cabeza (_place_on_head); hasta entonces la
+## coloca update_camera_transform.
+var _on_head := false
+## Al volver a tercera persona, la interpolación de la cámara se reinicia en la primera
+## colocación.
+var _reset_interpolation := false
+## Primera persona: lo más que el ratón puede apartar la vista del frente del cuerpo (radianes),
+## o INF. El jugador lo pone mientras el cuerpo no puede girar con ella (trepando, golpeando...):
+## más allá, la cámara en la cabeza vería la espalda.
+var fp_yaw_limit := INF
 var _current_up_axis: Vector3 = Vector3.UP
 var _prev_platform_basis: Basis = Basis.IDENTITY
 var _tracking_platform: DynamicGridBody = null
@@ -139,6 +146,8 @@ func update_camera_rotation():
 		_track_lock_point()
 		delta_yaw = 0.0
 		delta_pitch = 0.0
+	if first_person and fp_yaw_limit < PI and delta_yaw != 0.0:
+		delta_yaw = _limited_yaw_step(delta_yaw)
 	if delta_yaw != 0.0:
 		yaw += delta_yaw
 		camera_pivot.rotation.y = yaw
@@ -201,15 +210,10 @@ func update_camera_transform():
 	_shake = maxf(0.0, _shake - 0.02)
 
 	if first_person:
-		var fp_forward = pitch_pivot.global_transform.basis * Vector3.BACK
-		if is_nan(_fp_eye.x):
+		if not _on_head:
+			var fp_forward = pitch_pivot.global_transform.basis * Vector3.BACK
 			camera.global_position = player_pos + up_axis * (fp_eye_height - crouch_drop)
-		else:
-			# Agachado ya baja la cabeza la animación: aquí no cuenta crouch_drop.
-			var flat: Vector3 = fp_forward - up_axis * fp_forward.dot(up_axis)
-			var ahead := flat.normalized() * fp_eye_forward if flat.length_squared() > 1e-6 else Vector3.ZERO
-			camera.global_position = player.global_transform * _fp_eye + ahead
-		camera.look_at(camera.global_position + fp_forward, up_axis)
+			camera.look_at(camera.global_position + fp_forward, up_axis)
 	else:
 		var orbit_dir = -pitch_pivot.global_transform.basis.z
 		var target_pos = player_pos + up_axis * (target_height_offset - crouch_drop)
@@ -225,35 +229,66 @@ func update_camera_transform():
 			final_pos += (camera_pivot.global_transform.basis.x * sin(t * 71.0) + up_axis * sin(t * 83.0 + 1.3)) * _shake * 0.12
 		camera.global_position = final_pos
 		camera.look_at(target_pos, up_axis)
+		if _reset_interpolation:
+			_reset_interpolation = false
+			camera.reset_physics_interpolation()
 
+## Lo que queda del giro de ratón [step] para que la vista no se aparte del frente del cuerpo más
+## de fp_yaw_limit. Si ya está más lejos (el cuerpo se giró solo), puede volver pero no alejarse:
+## la vista nunca se mueve sola.
+func _limited_yaw_step(step: float) -> float:
+	var up := _current_up_axis
+	var body: Vector3 = get_parent().global_basis.z
+	body -= up * body.dot(up)
+	# El PitchPivot va girado 180°: la vista es -Z del pivote de yaw.
+	var view := -camera_pivot.global_basis.z
+	view -= up * view.dot(up)
+	if body.length_squared() < 1e-6 or view.length_squared() < 1e-6:
+		return step
+	var gap := atan2(up.dot(body.cross(view)), body.dot(view))
+	var bound := maxf(fp_yaw_limit, absf(gap))
+	return clampf(gap + step, -bound, bound) - gap
+
+
+## En primera persona la cámara va suelta (top_level) y sin interpolación de física: la coloca
+## _place_on_head en cada fotograma, ya interpolada, y la del padre la movería por su cuenta.
 func _set_first_person(enabled: bool) -> void:
 	first_person = enabled
-	_fp_eye = Vector3(NAN, NAN, NAN)
+	_on_head = false
+	camera.top_level = enabled
 	if enabled:
-		_skeleton.skeleton_updated.connect(_track_eye)
-	elif _skeleton.skeleton_updated.is_connected(_track_eye):
-		_skeleton.skeleton_updated.disconnect(_track_eye)
+		camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+		_skeleton.skeleton_updated.connect(_place_on_head)
+	else:
+		camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+		_reset_interpolation = true
+		if _skeleton.skeleton_updated.is_connected(_place_on_head):
+			_skeleton.skeleton_updated.disconnect(_place_on_head)
 	first_person_changed.emit(enabled)
 
 
-## Toma el ojo de la pose final, con las IK y las proporciones del cuerpo puestas: fuera de
-## skeleton_updated el esqueleto ya ha vuelto a la pose de la animación. Se guarda en el espacio
-## del jugador, así que el suavizado solo frena lo que se mueve la cabeza sobre el cuerpo, no lo
-## que anda el cuerpo.
-func _track_eye() -> void:
+## Pega la cámara a la cabeza de la pose final, con las IK y las proporciones del cuerpo puestas:
+## fuera de skeleton_updated el esqueleto ya ha vuelto a la pose de la animación. Va en cada
+## fotograma y con lo que se dibuja (el jugador entre dos ticks de física, la pose de este
+## fotograma), así que no se queda atrás cuando la cabeza va deprisa: en los golpes pasa de 1,8 a
+## 6 m/s. Agachado ya baja la cabeza la animación: aquí no cuenta crouch_drop. El giro sigue
+## siendo el del ratón.
+func _place_on_head() -> void:
 	var player = get_parent()
-	if player.appearance_rig == null:
+	if player.free_flight_enabled or player.appearance_rig == null:
+		_on_head = false
 		return
-	var eye: Vector3 = player.appearance_rig.first_person_eye()
+	var eye: Vector3 = player.appearance_rig.first_person_eye(fp_eye_forward)
 	var head := _skeleton.find_bone(CharacterAppearanceRig.HEAD_BONE)
 	if is_nan(eye.x) or head < 0:
+		_on_head = false
 		return
 	var world := _skeleton.global_transform * (_skeleton.get_bone_global_pose(head) * eye)
-	var target: Vector3 = player.global_transform.affine_inverse() * world
-	if is_nan(_fp_eye.x):
-		_fp_eye = target
-	else:
-		_fp_eye = _fp_eye.lerp(target, 1.0 - exp(-fp_follow_sharpness * get_process_delta_time()))
+	var local: Vector3 = player.global_transform.affine_inverse() * world
+	var position: Vector3 = player.get_global_transform_interpolated() * local
+	var forward := pitch_pivot.get_global_transform_interpolated().basis * Vector3.BACK
+	camera.look_at_from_position(position, position + forward, _current_up_axis)
+	_on_head = true
 
 
 func adjust_for_collisions(target_pos: Vector3, ideal_pos: Vector3) -> Vector3:
