@@ -131,6 +131,8 @@ const PICKUP_LAYER := 1 << 12
 var tree_detail_renderer: TreeDetailRenderer = null
 ## Tala de los árboles: hachazos, caídas y tocones.
 var tree_felling: TreeFelling = null
+## Picar las rocas: se parten en trozos que se pican en piedras.
+var rock_mining: RockMining = null
 var _next_library_id: int = 0
 ## Items de impostores lejanos pendientes: se registran al final (ver _register_far_tree_items).
 var _far_tree_items: Array[Callable] = []
@@ -580,6 +582,7 @@ func _load_vegetation() -> void:
 	for i in vegetation.items.size():
 		await _load_vegetation_item(i, vegetation.items[i], generators, graph_functions)
 	_register_far_tree_items()
+	rock_mining.prepare()
 
 
 func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
@@ -1535,6 +1538,8 @@ func _init(_voxel_terrain: VoxelLodTerrain) -> void:
 	voxel_terrain.add_child(voxel_instancer)
 	tree_felling = TreeFelling.new(self)
 	voxel_terrain.add_child(tree_felling)
+	rock_mining = RockMining.new(self)
+	voxel_terrain.add_child(rock_mining)
 	shader_material = ShaderMaterial.new()
 	shader_material.shader = load("res://shaders/terrain/planet_biomes.gdshader")
 

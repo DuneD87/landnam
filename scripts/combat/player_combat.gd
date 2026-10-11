@@ -100,7 +100,8 @@ const LOCK_SWITCH_THRESHOLD := 0.09
 ## oso y un gorrión en el mismo encuadre, se fija el oso.
 const LOCK_SMALL_FAUNA_BIAS := 0.35
 const HITSTOP_TIME := 0.075
-## Momento del impacto dentro de la ventana del golpe (0..1) en que entra el hachazo en un tronco.
+## Momento del impacto dentro de la ventana del golpe (0..1) en que entra el golpe a un tronco o una
+## roca (talar, picar).
 const CHOP_IMPACT := 0.4
 const DEATH_SCREEN_DELAY := 1.3
 ## El charco bajo el cuerpo: cuándo sale (s, ya asentado el muñeco), su tamaño (m) y lo que tarda
@@ -691,8 +692,8 @@ func handle_input(event: InputEvent) -> bool:
 		return false
 	var is_tool := data.category == ItemData.Category.TOOL
 	if event.is_action_pressed("attack_1"):
-		# El hacha tala con su golpe de verdad (_harvest).
-		if is_tool and not _enemy_near() and not TreeFelling.fells(data):
+		# El hacha y el pico talan y pican con su golpe de verdad (_harvest).
+		if is_tool and not _enemy_near() and not TreeFelling.fells(data) and not RockMining.mines(data):
 			return false
 		# Toque: golpe ligero al soltar; mantener: el pesado, que se carga (_update_press).
 		_press_pending = true
@@ -729,8 +730,8 @@ func _ranged_input(event: InputEvent, data: ItemData) -> bool:
 	return false
 
 
-## Hay algo a lo que pegar delante: con una herramienta que no tala en la mano (el pico, una
-## antorcha), el clic sigue siendo suyo salvo que haya un enemigo encima.
+## Hay algo a lo que pegar delante: con otra herramienta en la mano (una antorcha), el clic sigue
+## siendo suyo salvo que haya un enemigo encima.
 func _enemy_near() -> bool:
 	if lock_target != null:
 		return true
@@ -1221,7 +1222,7 @@ func _update_attack(delta: float) -> void:
 			_whooshed = true
 			CombatFx.play(_swing_sound(data), player.global_position, {"pitch": _swing_pitch(data) * randf_range(0.96, 1.04)})
 		_sweep_blade(data)
-	# Talar entra en el impacto del gesto: lo que hay delante, al alcance.
+	# Talar o picar entra en el impacto del gesto: lo que hay delante, al alcance.
 	var impact := lerpf(hit.x, hit.y, CHOP_IMPACT)
 	if prev < impact and t >= impact:
 		_harvest(data)
@@ -1326,23 +1327,38 @@ func _sweep_blade(data: ItemData) -> void:
 			creature.take_damage(damage, player)
 
 
-## El hachazo contra lo que tiene delante: un tronco en pie (talar) o caído (trocear). Va con la
-## fuerza del golpe (el combo y la carga). No sigue la hoja: un tronco fino ni lo rozaba; se mira
-## lo que hay delante del cuerpo. Muerde como en un cuerpo: hitstop y temblor.
+## El golpe contra lo que tiene delante para cosechar: un tronco en pie (talar) o caído
+## (trocear), una roca o un fragmento suyo (picar). Si hay varios, lo más cercano. Sin nada de eso,
+## el pico excava el terreno que se mira. Va con la fuerza del golpe (el combo y la carga).
+## No sigue la hoja: un tronco fino o una piedra baja ni los rozaba; se mira lo que hay delante
+## del cuerpo. Muerde como en un cuerpo: hitstop y temblor.
 func _harvest(data: ItemData) -> void:
 	var up := -player.gravity_direction.normalized()
 	var space := player.get_world_3d().direct_space_state
-	var tree := TreeFelling.strike(get_tree(), space, player.global_position, _body_forward(), up)
-	if tree.is_empty():
-		return
+	var feet := player.global_position
+	var tree := TreeFelling.strike(get_tree(), space, feet, _body_forward(), up)
+	var rock := RockMining.strike(get_tree(), space, feet, _body_forward(), up)
 	var mult := float(_move.get("damage", 1.0))
 	if _heavy:
 		mult *= lerpf(1.25, data.heavy_multiplier, _charge)
-	if not TreeFelling.chop_any(tree.body, tree.point, TreeFelling.chop_power(data) * mult, player):
+	var done := false
+	if not rock.is_empty() and (tree.is_empty() or rock.distance < _flat_distance(feet, tree.point, up)):
+		done = RockMining.hit_any(rock.body, rock.point, RockMining.mine_power(data) * mult, player)
+	elif not tree.is_empty():
+		done = TreeFelling.chop_any(tree.body, tree.point, TreeFelling.chop_power(data) * mult, player)
+	elif RockMining.mines(data):
+		var origin: Vector3 = player.get_node("PlayerModel").global_position - player.gravity_direction * 2.5
+		player.action_controller.dig_ahead(player.camera, origin, RockMining.mine_power(data) * mult)
+	if not done:
 		return
 	var weight := (1.6 if _heavy else 1.0) * (1.3 if data.two_handed else 1.0)
 	_hitstop = HITSTOP_TIME * weight
 	player.camera_controller.add_shake(0.03 * weight)
+
+
+static func _flat_distance(from: Vector3, to: Vector3, up: Vector3) -> float:
+	var offset := to - from
+	return (offset - up * offset.dot(up)).length()
 
 
 func _on_blade_hit(box: Hurtbox, point: Vector3, info: DamageInfo) -> void:

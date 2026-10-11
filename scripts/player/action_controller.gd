@@ -1,9 +1,9 @@
 extends Node
 class_name ActionController
 
-## Acciones del jugador con el mundo: excavar voxels (con drop de ore), golpear criaturas y
-## recoger items por raycast central o cono. La tala va con el golpe del hacha (PlayerCombat,
-## TreeFelling).
+## Acciones del jugador con el mundo: excavar voxels con el golpe del pico (con drop de ore),
+## golpear criaturas y recoger items por raycast central o cono. Talar y picar rocas va con el
+## golpe de la herramienta (PlayerCombat, TreeFelling, RockMining).
 
 const Config = preload("res://scripts/config.gd")
 
@@ -14,6 +14,13 @@ const MELEE_DAMAGE_MIN := 50.0
 const MELEE_DAMAGE_MAX := 100.0
 ## Segundos entre golpes.
 const MELEE_COOLDOWN := 1.7
+## La mella de un golpe de pico en el terreno: el radio (m) con la fuerza de un pico de piedra
+## (DIG_POWER). Crece con la raíz cúbica de la fuerza: lo arrancado va con ella. Alcance desde el
+## origen del golpe (m).
+const DIG_RADIUS := 0.7
+const DIG_POWER := 16.0
+const DIG_RADIUS_RANGE := Vector2(0.45, 2.0)
+const DIG_REACH := 5.0
 
 signal voxel_mined(item_id: StringName, amount: int)
 
@@ -23,7 +30,6 @@ signal voxel_mined(item_id: StringName, amount: int)
 var rand_num_gen: RandomNumberGenerator = RandomNumberGenerator.new()
 var is_attacking = false
 var attack_raycast: RayCast3D
-var is_voxel: bool
 var current_voxel: VoxelLodTerrain
 var current_origin: Vector3
 var current_direction: Vector3
@@ -38,28 +44,46 @@ func _ready() -> void:
 	# Terreno y objetos, más la capa de NPCs vivos: sin ella el rayo atraviesa a los animales.
 	attack_raycast.collision_mask = 1 | NPCController.NPC_LIVE_LAYER
 
-func dig_hole(radius: float, distance: float):
+## Excava una esfera de [radius] donde el rayo de current_origin hacia current_direction da en el
+## terreno, a menos de [distance]. Devuelve la mena que había (0 sin mena), o -1 si no llegaba.
+func dig_hole(radius: float, distance: float) -> int:
 	var voxel_tool: VoxelTool = current_voxel.get_voxel_tool()
 	var result = voxel_tool.raycast(current_origin, current_direction, distance)
+	if not result:
+		return -1
+	# Entre el último voxel de aire y el primero lleno: la superficie, para que la mella entre
+	# en el terreno lo que dice el radio.
+	var center := (Vector3(result.position) + Vector3(result.previous_position)) * 0.5
+	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
+	voxel_tool.mode = VoxelTool.MODE_REMOVE
+	voxel_tool.value = 0
+	voxel_tool.do_sphere(center, radius)
 
-	if result:
-		var hit_position = result.previous_position
-		var center = Vector3(hit_position.x, hit_position.y, hit_position.z)
-		voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
-		voxel_tool.mode = VoxelTool.MODE_REMOVE
-		voxel_tool.value = 0
-		voxel_tool.do_sphere(center, radius)
+	# Excavar no emite block_removed en ninguna grid, así que hay que avisar a mano de que
+	# puede haber estructura recién descalzada justo encima del agujero.
+	GridManager.mark_collapse_checks_near(current_voxel.global_transform * center, radius)
 
-		# Excavar no emite block_removed en ninguna grid, así que hay que avisar a mano de que
-		# puede haber estructura recién descalzada justo encima del agujero.
-		GridManager.mark_collapse_checks_near(current_voxel.global_transform * center, radius)
+	# Leer el ore tras do_sphere: editar hace residente el bloque con los canales INDICES/WEIGHTS reales.
+	var type_id := _read_best_ore_along_ray(voxel_tool, result.position, current_direction, 2)
+	var drop := _get_ore_drop(type_id)
 
-		# Leer el ore tras do_sphere: editar hace residente el bloque con los canales INDICES/WEIGHTS reales.
-		var type_id := _read_best_ore_along_ray(voxel_tool, result.position, current_direction, 2)
-		var drop := _get_ore_drop(type_id)
+	var amount := rand_num_gen.randi_range(drop.min_count, drop.max_count)
+	voxel_mined.emit(drop.item_id, amount)
+	return type_id
 
-		var amount := rand_num_gen.randi_range(drop.min_count, drop.max_count)
-		voxel_mined.emit(drop.item_id, amount)
+## Pica el terreno que se mira desde [origin], en el impacto del golpe del pico (PlayerCombat),
+## con la fuerza [power] del golpe. Devuelve true si había terreno al alcance.
+func dig_ahead(camera: Camera3D, origin: Vector3, power: float) -> bool:
+	var result := perform_raycast(origin, camera.global_rotation, false)
+	var terrain := result.target_node as VoxelLodTerrain
+	if terrain == null or power <= 0.0:
+		return false
+	current_voxel = terrain
+	current_origin = origin
+	current_direction = -camera.global_transform.basis.z
+	var radius := clampf(DIG_RADIUS * pow(power / DIG_POWER, 1.0 / 3.0), DIG_RADIUS_RANGE.x, DIG_RADIUS_RANGE.y)
+	return dig_hole(radius, DIG_REACH) >= 0
+
 
 ## Lanza una bala de cañón desde 'origin' hacia donde mira la cámara. ItemData.damage son los
 ## julios que descarga POR BLOQUE alcanzado; el tamaño del boquete lo pone el radio de la bala.
@@ -103,10 +127,8 @@ func _get_ore_drop(type_id: int) -> Dictionary:
 	var drops: Dictionary = current_voxel.get_meta("ore_drops", {})
 	return drops.get(type_id, fallback)
 		
-## Fin del golpe: uno por clic (el pico excava al acabar el gesto).
+## Fin del golpe: uno por clic.
 func on_timeout():
-	if is_attacking and is_voxel:
-		dig_hole(5.0, 5.0)
 	is_attacking = false
 	timer.stop()
 
@@ -208,17 +230,11 @@ func handle_attack(camera: Camera3D, origin: Vector3) -> Node3D:
 	var creature := target_node as AmbientAnimal
 	if creature != null and creature.active and hit_distance < MELEE_RANGE:
 		creature.take_damage(rand_num_gen.randf_range(MELEE_DAMAGE_MIN, MELEE_DAMAGE_MAX), get_parent())
-		is_voxel = false
 		is_attacking = true
 		timer.start(MELEE_COOLDOWN)
 		return target_node
 
-	is_voxel = target_node && target_node is VoxelLodTerrain
-	if is_voxel:
-		current_voxel = target_node as VoxelLodTerrain
-		current_origin = origin
-		current_direction = -camera.global_transform.basis.z
-		
+	# El terreno solo lo excava el pico, con su golpe (PlayerCombat._harvest).
 	is_attacking = true
 	timer.start(MELEE_COOLDOWN)
 

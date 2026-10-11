@@ -1160,8 +1160,8 @@ func _input(event):
 		inventory_ui.close()
  
  
-	# Golpes (también talar), esquivas, apuntar y fijar objetivo. Lo que el combate no consume
-	# (el cañón, picar con el pico, las herramientas que no golpean) sigue abajo.
+	# Golpes (también talar y picar), esquivas, apuntar y fijar objetivo. Lo que el combate no
+	# consume (el cañón, las herramientas que no golpean) sigue abajo.
 	if combat.handle_input(event):
 		return
 	# Lo que se come, se bebe o se planta desde la barra.

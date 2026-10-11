@@ -31,7 +31,7 @@ var item_data: ItemData
 var quantity: int = 1
 
 var _down: Vector3 = Vector3.DOWN
-## Malla propia que sustituye a la del item (los leños de un árbol talado).
+## Malla propia que sustituye a la del item (los leños de un árbol talado, las piedras de una roca).
 var _visual: Node3D = null
 var _fall_left: float = 0.0
 var _fall_speed: float = 0.0
