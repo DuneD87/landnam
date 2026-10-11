@@ -307,6 +307,9 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("estado", "estado [<id> [izq|der|zona] [segundos] | quitar [id]]",
 		"Estados duraderos del jugador (pierna rota…): sin argumento, los lista con lo que les queda; con un id, se lo pone (izq/der: pierna; sin zona, al azar); quitar los cura.",
 		_cmd_status, 0, _complete_status))
+	_add(ConsoleCommand.new("necesidades", "necesidades [<nombre> <valor> | llenar | vaciar | pausa [on|off] | ritmo <x>]",
+		"Hambre, sed, descanso, cordura, oxígeno, temperatura y mojado del jugador: sin argumento, los lista con lo que se siente; con un nombre, lo fija (de 0 a 1; la temperatura de -1, helado, a 1, abrasado). pausa congela las necesidades y ritmo las acelera.",
+		_cmd_needs, 0, _complete_needs))
 	_add(ConsoleCommand.new("fps", "fps [n]",
 		"Techo de FPS (0 = sin techo), para fijar el ritmo mientras se mide.", _cmd_fps))
 
@@ -455,6 +458,63 @@ func _cmd_heal(args: PackedStringArray) -> String:
 		combat.body_damage.restore()
 		combat.status.restore()
 	return "[color=%s]Curado +%s (salud: %s/%s).[/color]" % [COLOR_OK, str(amount), str(hc.health), str(hc.max_health)]
+
+
+func _cmd_needs(args: PackedStringArray) -> String:
+	var player := _get_player()
+	var needs: SurvivalNeeds = player.get("needs") if player != null else null
+	if needs == null:
+		return "[color=%s]El jugador no tiene necesidades (¿partida cargada?).[/color]" % COLOR_ERR
+	if args.is_empty():
+		var lines := PackedStringArray()
+		for need in SurvivalNeeds.NAMES:
+			lines.append("  %s: %.2f" % [need, needs.get_value(need)])
+		return "[color=%s]Necesidades%s (ritmo ×%s):[/color]\n%s\n  se siente: %.1f °C (%s) · cabeza bajo el agua: %s\n  agua en odres: %d/%d tragos · agua al alcance: %s" % [
+			COLOR_INFO, " en pausa" if needs.paused else "", str(needs.rate), "\n".join(lines),
+			needs.felt_temperature, needs.temperature_word(), "sí" if needs.submerged else "no",
+			needs.water, needs.water_capacity(), _water_word(player)]
+	var sub := args[0].to_lower()
+	match sub:
+		"llenar":
+			needs.refill()
+			return "[color=%s]Necesidades llenas.[/color]" % COLOR_OK
+		"vaciar":
+			for need in ["hambre", "sed", "descanso", "cordura", "oxigeno"]:
+				needs.set_value(need, 0.0)
+			return "[color=%s]Necesidades a cero (la vida empieza a bajar).[/color]" % COLOR_OK
+		"pausa":
+			needs.paused = args[1].to_lower() in ["on", "1", "true"] if args.size() >= 2 else not needs.paused
+			return "[color=%s]Necesidades %s.[/color]" % [COLOR_OK, "en pausa" if needs.paused else "en marcha"]
+		"ritmo":
+			if args.size() < 2 or not args[1].is_valid_float():
+				return "[color=%s]Uso: necesidades ritmo <x> (1 = normal).[/color]" % COLOR_ERR
+			needs.rate = maxf(args[1].to_float(), 0.0)
+			return "[color=%s]Ritmo de las necesidades: ×%s.[/color]" % [COLOR_OK, str(needs.rate)]
+	var need := sub.replace("í", "i")
+	if not SurvivalNeeds.NAMES.has(need):
+		return "[color=%s]Necesidad desconocida: '%s'. Usa: %s.[/color]" % [COLOR_ERR, args[0], ", ".join(SurvivalNeeds.NAMES.keys())]
+	if args.size() < 2 or not args[1].is_valid_float():
+		return "[color=%s]%s: %.2f[/color]" % [COLOR_INFO, need, needs.get_value(need)]
+	needs.set_value(need, args[1].to_float())
+	return "[color=%s]%s → %.2f.[/color]" % [COLOR_OK, need, needs.get_value(need)]
+
+
+func _water_word(player: Node) -> String:
+	var survival: SurvivalActions = player.get("survival")
+	if survival == null:
+		return "?"
+	match survival.water_here():
+		&"fresh":
+			return "dulce"
+		&"salt":
+			return "salada"
+	return "ninguna"
+
+
+func _complete_needs() -> PackedStringArray:
+	var options := PackedStringArray(SurvivalNeeds.NAMES.keys())
+	options.append_array(["llenar", "vaciar", "pausa", "ritmo"])
+	return options
 
 
 func _cmd_god(args: PackedStringArray) -> String:

@@ -273,12 +273,8 @@ script = ExtResource("8_gu1wa")
 metadata/_custom_type_script = "uid://bnpusaqlm77ve"
 
 [node name="InventoryUI" parent="." unique_id=1922943626 instance=ExtResource("8_gqp14")]
-offset = Vector2(-200, 0)
-transform = Transform2D(1, 0, 0, 1, -200, 0)
 
 [node name="CharacterWindow" parent="." unique_id=1619800033 instance=ExtResource("11_j4ndk")]
-offset = Vector2(200, -280)
-transform = Transform2D(1, 0, 0, 1, 200, -280)
 
 [node name="Hotbar" parent="." unique_id=1651427085 instance=ExtResource("8_3xisv")]
 

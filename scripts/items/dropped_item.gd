@@ -20,9 +20,10 @@ const DROP_AHEAD := 0.7
 ## Hasta dónde busca suelo por debajo de la mano (m): por un barranco abajo, también.
 const GROUND_SEARCH := 60.0
 const GRAVITY := 9.8
-## Escenas con la malla en metros, que se pueden dejar tal cual en el suelo (las de las
-## herramientas antiguas vienen a la escala del hueso de la mano).
-const MESH_SCENES := "res://scenes/items/weapons/combat/"
+## Escenas con la malla en metros, que se pueden dejar tal cual en el suelo: las de combate y las
+## de supervivencia (carne, piel, odre). Las de las herramientas antiguas vienen a la escala del
+## hueso de la mano.
+const MESH_SCENES := ["res://scenes/items/weapons/combat/", "res://scenes/items/survival/"]
 
 static var _leather: StandardMaterial3D
 
@@ -137,7 +138,8 @@ func _physics_process(delta: float) -> void:
 ## origen; si no la hay, un saquito.
 func _make_visual() -> Node3D:
 	var path := item_data.scene_path
-	if not path.begins_with(MESH_SCENES) or not ResourceLoader.exists(path):
+	if not MESH_SCENES.any(func(prefix: String) -> bool: return path.begins_with(prefix)) \
+			or not ResourceLoader.exists(path):
 		return _sack()
 	var visual: Node3D = (load(path) as PackedScene).instantiate()
 	var box := _local_aabb(visual)

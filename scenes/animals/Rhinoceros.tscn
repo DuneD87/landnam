@@ -10,12 +10,14 @@
 [ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_mammal_large"]
 [ext_resource type="Script" path="res://scripts/npc/ai/states/creature_combat_state.gd" id="c_state"]
 [ext_resource type="Resource" path="res://data/fauna/combat/rhino_combat.tres" id="c_profile"]
+[ext_resource type="Resource" path="res://data/fauna/loot/rhinoceros.tres" id="loot_table"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.8
 height = 3.4
 
 [node name="Rhinoceros" instance=ExtResource("1_base")]
+butcher_loot = ExtResource("loot_table")
 npc_type = &"Rhinoceros"
 detect_state = &""
 provoked_state = &"CombatState"

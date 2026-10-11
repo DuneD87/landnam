@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://ctupvguhcn0qf"]
+[gd_resource type="Resource" script_class="ItemData" format=3]
 
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="1_3uv04"]
-[ext_resource type="Texture2D" uid="uid://brxvjdmur0nso" path="res://textures/icons/items/collectable/icon_stone.png" id="1_ul27m"]
-[ext_resource type="Texture2D" uid="uid://qh4jl245swvw" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_albedo.png" id="3_v1yon"]
-[ext_resource type="Texture2D" uid="uid://cp8sbfhajd27t" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_ao.png" id="4_wj03j"]
-[ext_resource type="Texture2D" uid="uid://bbgtl64p1t6fy" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Height.png" id="5_mub33"]
-[ext_resource type="Texture2D" uid="uid://bq110ogh1eqvy" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Metallic.png" id="6_xiw46"]
-[ext_resource type="Texture2D" uid="uid://c1y135yfosihj" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Normal-ogl.png" id="7_365wm"]
-[ext_resource type="Texture2D" uid="uid://b63dkbv4nkefd" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Roughness.png" id="8_0ih25"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_3uv04"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/collectable/icon_stone.png" id="1_ul27m"]
+[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_albedo.png" id="3_v1yon"]
+[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_ao.png" id="4_wj03j"]
+[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Height.png" id="5_mub33"]
+[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Metallic.png" id="6_xiw46"]
+[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Normal-ogl.png" id="7_365wm"]
+[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Roughness.png" id="8_0ih25"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="9_wj03j"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mhgyb"]
 vertex_color_use_as_albedo = true
@@ -25,7 +26,9 @@ heightmap_texture = ExtResource("5_mub33")
 [resource]
 script = ExtResource("1_3uv04")
 id = &"stone_01"
-display_name = "Stone"
+display_name = "Piedra"
+description = "Piedra suelta: para construir, para el corro de una hoguera y de munición del tirachinas."
 icon = ExtResource("1_ul27m")
 surface_material = SubResource("StandardMaterial3D_mhgyb")
+group = &"stone"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

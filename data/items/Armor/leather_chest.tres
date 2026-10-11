@@ -1,17 +1,22 @@
-[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://bvmo8363acdg4"]
+[gd_resource type="Resource" script_class="ItemData" format=3]
 
-[ext_resource type="Texture2D" uid="uid://byc7re14n04sf" path="res://textures/icons/items/armor/icon_leather_armmor.png" id="1_0mjvm"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_81rip"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/icon_leather_armmor.png" id="1_0mjvm"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_81rip"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_102si"]
+[ext_resource type="Script" path="res://scripts/items/traits/insulation_trait.gd" id="4_fy8yg"]
+
+[sub_resource type="Resource" id="Resource_102si"]
+script = ExtResource("4_fy8yg")
 
 [resource]
 script = ExtResource("2_81rip")
 id = &"leather_chest_01"
-display_name = "Leather Chest"
+display_name = "Peto de cuero curtido"
 description = "Leather chest"
 icon = ExtResource("1_0mjvm")
 category = 4
 scene_path = "res://scenes/Armor/leather_armor.tscn"
-tool_type = 2
 armor_slot = 2
 defense = 5
+traits = Array[ExtResource("3_102si")]([SubResource("Resource_102si")])
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

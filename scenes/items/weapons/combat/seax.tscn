@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/seax.res" id="1_khecr"]
+
+[node name="Seax" type="Node3D" unique_id=365304790]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1523679104]
+mesh = ExtResource("1_khecr")

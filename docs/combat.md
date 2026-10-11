@@ -234,9 +234,10 @@ escudo, o las manos en el arma, delante del cuerpo.
 
 Daño por partes al estilo Kenshi (`BodyDamage`, en el jugador): cabeza, pecho, vientre, brazos y
 piernas llevan su propia vida aparte de la general, que sigue siendo la que mata. Un golpe cae en la
-parte cuyo tramo del esqueleto queda más cerca de por donde entra. El HUD dibuja bajo las barras una
-silueta de espaldas con cada parte del color de su estado (solo si hay algo herido); un miembro
-perdido queda en contorno con el muñón rojo y una gota late mientras sangra.
+parte cuyo tramo del esqueleto queda más cerca de por donde entra. El HUD dibuja a la izquierda de
+la consola de la barra rápida una silueta de espaldas con cada parte del color de su estado (solo si
+hay algo herido); un miembro perdido queda en contorno con el muñón rojo y una gota late mientras
+sangra.
 
 - **Sangrado**: toda herida sangra un rato y resta vida general (más un tajo que un golpe
   contundente); un muñón sangra a borbotones, ~1 de vida/s al principio, y se va cortando.

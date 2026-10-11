@@ -1,7 +1,8 @@
 [gd_resource type="Resource" script_class="ItemData" format=3]
 
 [ext_resource type="Texture2D" path="res://textures/icons/items/weapons/spear.png" id="1_icon"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_script"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_script"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_jtoo6"]
 
 [resource]
 script = ExtResource("2_script")
@@ -11,7 +12,7 @@ description = "Asta larga con moharra de hierro. Pica desde lejos o, apuntando c
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/spear.tscn"
-armor_slot = 6
+max_stack = 5
 weapon_type = 2
 damage = 26
 attack_speed = 1.4
@@ -25,5 +26,6 @@ heavy_multiplier = 1.7
 projectile_speed = 30.0
 draw_time = 0.55
 throwable = true
-max_stack = 5
+armor_slot = 6
+group = &"melee"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

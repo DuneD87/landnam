@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/animals/Deer.tscn" id="1_base"]
 [ext_resource type="Texture2D" path="res://scenes/animals/Caribou_Deer.png" id="2_coat"]
+[ext_resource type="Resource" path="res://data/fauna/loot/caribou.tres" id="loot_table"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_caribou"]
 resource_name = "Caribou"
@@ -10,6 +11,7 @@ vertex_color_use_as_albedo = true
 albedo_texture = ExtResource("2_coat")
 
 [node name="Node3D" instance=ExtResource("1_base")]
+butcher_loot = ExtResource("loot_table")
 npc_type = &"Caribou"
 
 [node name="Perception" parent="."]

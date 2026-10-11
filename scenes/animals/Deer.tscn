@@ -21,6 +21,7 @@
 [ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_young"]
 [ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_adult"]
 [ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_large"]
+[ext_resource type="Resource" path="res://data/fauna/loot/deer.tres" id="loot_table"]
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_few7p"]
 margin = 0.004
 radius = 0.5605469
@@ -332,6 +333,7 @@ floor_stop_on_slope = false
 floor_max_angle = 1.2217305
 safe_margin = 0.008
 script = ExtResource("1_ppta3")
+butcher_loot = ExtResource("loot_table")
 detect_state = &"FleeState"
 npc_type = &"Deer"
 entity_id = "npc_2067255076834"

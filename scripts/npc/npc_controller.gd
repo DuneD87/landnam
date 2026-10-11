@@ -37,6 +37,8 @@ var perception: Perception
 ## Segundos que el cadáver permanece antes de desaparecer. 0 = inmediato. Lo asigna NPCSpawner.
 var corpse_duration: float = 0.0
 var is_dead: bool = false
+## Ya despellejado: lo que da (HuntingLoot) está en su inventario, que se saquea como un botín.
+var butchered: bool = false
 var _is_dying: bool = false
 
 ## Segundos que el NPC queda paralizado tras recibir un golpe.
@@ -67,6 +69,11 @@ var _is_dying: bool = false
 @export var alert_radius: float = 0.0
 ## Lo que suena al avisar (un aullido), si acude alguno.
 @export var alert_sound: StringName = &""
+
+@export_group("Caza")
+## Lo que da al despellejarlo (HuntingLoot), para un adulto de tamaño 1: se escala con el suyo. Sin
+## él, carne y piel según el grosor de su cuerpo.
+@export var butcher_loot: LootTable
 
 @export_group("Variedad")
 ## Variantes de la especie (CreatureVariant): al aparecer sortea una y su tamaño dentro de ella.
@@ -157,8 +164,6 @@ func _ready() -> void:
 
 	if initial_ai_state != &"":
 		ai_controller.start(initial_ai_state)
-	inventory.add_item(Config.get_item(&"wood_01"), 37)
-	inventory.add_item(Config.get_item(&"stone_01"), 37)
 
 func _physics_process(delta: float) -> void:
 	var _t0 := Time.get_ticks_usec()
@@ -610,6 +615,8 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	var settings := profile as GroundFaunaProfile
 	corpse_duration = settings.corpse_duration if settings != null else 0.0
 	_life_id += 1
+	butchered = false
+	inventory.clear()
 	BloodStains.clear(self)
 	if _gore != null:
 		_gore.reset()

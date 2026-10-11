@@ -1,7 +1,8 @@
 extends SceneTree
 
 ## Hornea las armas de combate: mallas (data/items/meshes/weapons/), escenas de arma
-## (scenes/items/weapons/combat/) e iconos de inventario (textures/icons/items/weapons/).
+## (scenes/items/weapons/combat/) e iconos de inventario (textures/icons/items/weapons/). También los
+## objetos de supervivencia (SurvivalMeshes: carne, piel, odre, hoguera), en sus carpetas survival/.
 ## Los iconos se renderizan, así que NO va con --headless:
 ##   godot --path . --script res://tools/combat/bake_weapons.gd [-- --only=greatsword,war_hammer]
 ## Después, `godot --headless --path . --import` para importar los PNG nuevos.
@@ -26,7 +27,20 @@ var WEAPONS := {
 	"branch": [WeaponMeshes.branch, "", -45.0],
 	"wooden_shield": [WeaponMeshes.round_shield, "", 0.0],
 	"heater_shield": [WeaponMeshes.heater_shield, "", -8.0],
+	"seax": [SurvivalMeshes.seax, "", -45.0],
 }
+## Objetos de supervivencia: [constructor, giro del icono sobre Z de cámara, giro sobre Y, inclinación
+## hacia la cámara (sobre X), si lleva escena para verse en el suelo]. Grados.
+var SURVIVAL := {
+	"raw_meat": [SurvivalMeshes.meat.bind(false), -35.0, 90.0, 0.0, true],
+	"cooked_meat": [SurvivalMeshes.meat.bind(true), -35.0, 90.0, 0.0, true],
+	"raw_hide": [SurvivalMeshes.hide, 0.0, 0.0, 0.0, true],
+	"waterskin": [SurvivalMeshes.waterskin, -10.0, 0.0, 0.0, true],
+	"campfire": [SurvivalMeshes.campfire, 0.0, 0.0, 32.0, false],
+}
+const SURVIVAL_MESH_DIR := "res://data/items/meshes/survival/"
+const SURVIVAL_SCENE_DIR := "res://scenes/items/survival/"
+const SURVIVAL_ICON_DIR := "res://textures/icons/items/survival/"
 ## Los que se ven de frente en el icono (no de canto): el tirachinas y los escudos.
 const FACE_ON := ["slingshot", "wooden_shield", "heater_shield"]
 
@@ -47,6 +61,11 @@ const ICON_COLORS := {
 	&"cord": Color(0.99, 0.89, 0.76, 1.0),
 	&"stone": Color(0.56, 0.63, 0.69, 1.0),
 	&"bark": Color(0.55, 0.42, 0.33, 1.0),
+	&"raw_meat": Color(0.82, 0.34, 0.33, 1.0),
+	&"cooked_meat": Color(0.58, 0.34, 0.18, 1.0),
+	&"bone": Color(0.93, 0.89, 0.8, 1.0),
+	&"hide": Color(0.72, 0.54, 0.36, 1.0),
+	&"ash": Color(0.32, 0.31, 0.3, 1.0),
 }
 
 
@@ -60,7 +79,8 @@ func _initialize() -> void:
 func _run() -> void:
 	root.size = Vector2i(ICON_SIZE, ICON_SIZE)
 	root.transparent_bg = true
-	for dir in [MESH_DIR, SCENE_DIR, ICON_DIR, LITTER_DIR, LITTER_SCENE_DIR]:
+	for dir in [MESH_DIR, SCENE_DIR, ICON_DIR, LITTER_DIR, LITTER_SCENE_DIR, SURVIVAL_MESH_DIR,
+			SURVIVAL_SCENE_DIR, SURVIVAL_ICON_DIR]:
 		DirAccess.make_dir_recursive_absolute(dir)
 	var only: PackedStringArray = []
 	for arg in OS.get_cmdline_user_args():
@@ -76,7 +96,19 @@ func _run() -> void:
 		mesh = load(mesh_path)
 		if weapon_name != "arrow":
 			_save_scene(weapon_name, mesh, entry[1])
-		await _render_icon(weapon_name, mesh, entry[2])
+		var yaw := 0.0 if weapon_name in FACE_ON else 90.0
+		await _render_icon(weapon_name, mesh, entry[2], yaw, 0.0, ICON_DIR)
+	for item_name in SURVIVAL:
+		if not only.is_empty() and item_name not in only and "survival" not in only:
+			continue
+		var entry: Array = SURVIVAL[item_name]
+		var mesh: ArrayMesh = (entry[0] as Callable).call()
+		var mesh_path: String = SURVIVAL_MESH_DIR + item_name + ".res"
+		_check(ResourceSaver.save(mesh, mesh_path), mesh_path)
+		mesh = load(mesh_path)
+		if entry[4]:
+			_save_scene(item_name, mesh, "", SURVIVAL_SCENE_DIR)
+		await _render_icon(item_name, mesh, entry[1], entry[2], entry[3], SURVIVAL_ICON_DIR)
 	if only.is_empty() or "litter" in only:
 		for variant in LITTER_BRANCHES:
 			var path := LITTER_DIR + "fallen_branch_%d.res" % variant
@@ -102,7 +134,7 @@ func _check(err: int, what: String) -> void:
 		print("saved ", what)
 
 
-func _save_scene(weapon_name: String, mesh: ArrayMesh, script_path: String) -> void:
+func _save_scene(weapon_name: String, mesh: ArrayMesh, script_path: String, dir: String = SCENE_DIR) -> void:
 	var root_node := Node3D.new()
 	root_node.name = weapon_name.to_pascal_case()
 	if script_path != "":
@@ -114,7 +146,7 @@ func _save_scene(weapon_name: String, mesh: ArrayMesh, script_path: String) -> v
 	mi.owner = root_node
 	var packed := PackedScene.new()
 	packed.pack(root_node)
-	var path := SCENE_DIR + weapon_name + ".tscn"
+	var path := dir + weapon_name + ".tscn"
 	_check(ResourceSaver.save(packed, path), path)
 	root_node.free()
 
@@ -135,7 +167,8 @@ func _save_litter_scene(scene_name: String, mesh: ArrayMesh) -> void:
 	root_node.free()
 
 
-func _render_icon(weapon_name: String, mesh: ArrayMesh, roll_deg: float) -> void:
+func _render_icon(weapon_name: String, mesh: ArrayMesh, roll_deg: float, yaw_deg: float, pitch_deg: float,
+		dir: String) -> void:
 	# En un SubViewport de tamaño fijo y fondo transparente: la ventana raíz puede acabar al
 	# tamaño de la pantalla (y opaca) según el escritorio.
 	var viewport := SubViewport.new()
@@ -177,8 +210,8 @@ func _render_icon(weapon_name: String, mesh: ArrayMesh, roll_deg: float) -> void
 	# El arma de lado (plano de la hoja hacia la cámara) y girada en diagonal.
 	# De plano: la anchura de la hoja (Z) pasa a la horizontal de la cámara. El tirachinas ya
 	# tiene las horquillas en X.
-	var yaw := 0.0 if weapon_name in FACE_ON else 90.0
-	holder.basis = Basis(Vector3.BACK, deg_to_rad(roll_deg)) * Basis(Vector3.UP, deg_to_rad(yaw))
+	holder.basis = Basis(Vector3.BACK, deg_to_rad(roll_deg)) * Basis(Vector3.RIGHT, deg_to_rad(pitch_deg)) \
+		* Basis(Vector3.UP, deg_to_rad(yaw_deg))
 	# Encuadre: AABB en espacio de cámara.
 	var aabb: AABB = Transform3D(holder.basis, Vector3.ZERO) * mesh.get_aabb()
 	var extent := maxf(aabb.size.x, aabb.size.y)
@@ -208,7 +241,7 @@ func _render_icon(weapon_name: String, mesh: ArrayMesh, roll_deg: float) -> void
 	await RenderingServer.frame_post_draw
 	var image := viewport.get_texture().get_image()
 	image.convert(Image.FORMAT_RGBA8)
-	var path := ICON_DIR + weapon_name + ".png"
+	var path := dir + weapon_name + ".png"
 	_check(image.save_png(path), path)
 	viewport.queue_free()
 	await process_frame

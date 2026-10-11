@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="LootTable" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/loot_entry.gd" id="1_7uuhl"]
+[ext_resource type="Script" path="res://scripts/items/loot_table.gd" id="2_5233q"]
+
+[sub_resource type="Resource" id="Resource_5f2mt"]
+script = ExtResource("1_7uuhl")
+item = &"raw_meat"
+
+[sub_resource type="Resource" id="Resource_pit52"]
+script = ExtResource("1_7uuhl")
+item = &"raw_hide"
+
+[resource]
+script = ExtResource("2_5233q")
+entries = Array[ExtResource("1_7uuhl")]([SubResource("Resource_5f2mt"), SubResource("Resource_pit52")])

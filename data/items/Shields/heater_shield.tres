@@ -2,6 +2,7 @@
 
 [ext_resource type="Texture2D" path="res://textures/icons/items/weapons/heater_shield.png" id="1_icon"]
 [ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_script"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_w5ykk"]
 
 [resource]
 script = ExtResource("2_script")
@@ -11,12 +12,11 @@ description = "Roble con canto y refuerzo de hierro. Pesa más, pero para del to
 icon = ExtResource("1_icon")
 category = 4
 scene_path = "res://scenes/items/weapons/combat/heater_shield.tscn"
-guard_reduction = 1.0
-guard_stability = 68.0
-guard_arc = 60.0
-parry_window = 0.15
-guard_projectiles = true
-guard_sound = &"block_metal"
-armor_slot = 8
 stackable = false
 max_stack = 1
+guard_reduction = 1.0
+guard_stability = 68.0
+parry_window = 0.15
+guard_projectiles = true
+armor_slot = 8
+group = &"shield"

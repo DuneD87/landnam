@@ -9,12 +9,14 @@
 [ext_resource type="Resource" path="res://data/fauna/variants/mammal_young.tres" id="v_mammal_young"]
 [ext_resource type="Resource" path="res://data/fauna/variants/mammal_adult.tres" id="v_mammal_adult"]
 [ext_resource type="Resource" path="res://data/fauna/variants/mammal_large.tres" id="v_mammal_large"]
+[ext_resource type="Resource" path="res://data/fauna/loot/donkey.tres" id="loot_table"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.5
 height = 1.9
 
 [node name="Donkey" instance=ExtResource("1_base")]
+butcher_loot = ExtResource("loot_table")
 npc_type = &"Donkey"
 hit_stun_duration = 0.3
 sprint_anim_speed = 2.5

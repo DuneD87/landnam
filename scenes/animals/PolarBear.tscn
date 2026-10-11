@@ -1,8 +1,9 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/animals/Bear.tscn" id="1_base"]
 [ext_resource type="Texture2D" path="res://scenes/animals/PolarBear_Bear.png" id="2_fur"]
 [ext_resource type="Texture2D" path="res://scenes/animals/Bear_Bear_N.png" id="3_normal"]
+[ext_resource type="Resource" path="res://data/fauna/loot/polar_bear.tres" id="loot_table"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_polar"]
 resource_name = "PolarBear"
@@ -14,6 +15,7 @@ normal_texture = ExtResource("3_normal")
 uv1_offset = Vector3(0, -1, 0)
 
 [node name="Node3D" instance=ExtResource("1_base")]
+butcher_loot = ExtResource("loot_table")
 npc_type = &"PolarBear"
 run_clip_speed = 9.27
 sprint_clip_speed = 14.15

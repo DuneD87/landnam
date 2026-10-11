@@ -2178,6 +2178,8 @@ func _respawn() -> void:
 	stamina.refill()
 	body_damage.restore()
 	status.restore()
+	if player.needs != null:
+		player.needs.refill()
 	pose.death = 0.0
 	pose.tuck = 0.0
 	hurtbox.set_enabled(true)
@@ -2218,6 +2220,8 @@ func on_restored() -> void:
 	stamina.refill()
 	body_damage.restore()
 	status.restore()
+	if player.needs != null:
+		player.needs.refill()
 	hurtbox.set_enabled(true)
 	ragdoll.stop()
 	pose.death = 0.0
@@ -2407,6 +2411,8 @@ func _update_limits(delta: float, input_dir: Vector3) -> void:
 	var pace := 0.45 if state == State.AIM else (GUARD_SPEED if state == State.GUARD else 1.0)
 	movement.speed_scale = pace * status.speed_mult()
 	stamina.regen_scale = status.stamina_regen_mult() * (GUARD_REGEN if state == State.GUARD else 1.0)
+	if player.needs != null:
+		stamina.regen_scale *= player.needs.stamina_regen_mult()
 	player.current_animation = Config.ANIMATION.DEATH if state == State.DEAD else player.current_animation
 	# Tambaleo y paso atrás procedurales van sobre la animación de estar quieto: los pasos los
 	# dan las piernas por IK (si debajo corriera, las piernas seguirían corriendo).

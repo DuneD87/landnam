@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/survival/cooked_meat.res" id="1_2qh6h"]
+
+[node name="CookedMeat" type="Node3D" unique_id=252190516]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1751504424]
+mesh = ExtResource("1_2qh6h")

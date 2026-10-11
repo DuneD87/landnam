@@ -65,6 +65,10 @@ var debug_stats: DebugStats
 var appearance_rig: CharacterAppearanceRig
 ## Combate cuerpo a cuerpo y a distancia, esquivas, objetivo fijado y muerte (ver PlayerCombat).
 var combat: PlayerCombat
+## Hambre, sed, descanso, cordura, oxígeno y temperatura (los enseña la barra rápida).
+var needs: SurvivalNeeds
+## Comer, beber, despellejar y las hogueras.
+var survival: SurvivalActions
 ## Trepar por paredes que no se pueden andar y coronarlas (ver ClimbController).
 var climb: ClimbController
 ## Andar y correr en todas direcciones, y agacharse (ver Locomotion).
@@ -496,6 +500,14 @@ func _ready():
 	combat = PlayerCombat.new()
 	add_child(combat)
 	combat.setup(self)
+	needs = SurvivalNeeds.new()
+	needs.name = "SurvivalNeeds"
+	add_child(needs)
+	needs.setup(self)
+	survival = SurvivalActions.new()
+	survival.name = "SurvivalActions"
+	add_child(survival)
+	survival.setup(self)
 	climb = ClimbController.new()
 	add_child(climb)
 	climb.setup(self)
@@ -519,6 +531,7 @@ func _ready():
 	inventory.add_item(config.get_item(&"firstage_skin_hood"), 1)
 	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
+	inventory.add_item(config.get_item(&"seax"), 1)
 	# Armas para plantar cara a la fauna hostil: una de cada familia y su munición.
 	for weapon_id in [&"iron_sword", &"battle_axe", &"iron_mace", &"greatsword", &"great_axe", &"war_hammer",
 			&"hunting_bow", &"slingshot"]:
@@ -531,7 +544,13 @@ func _ready():
 	inventory.add_item(config.get_item(&"stone_01"), 100)
 
 	inventory_ui.setup(inventory, character_window, hotbar)
+	inventory_ui.set_vitals(health_component, combat.stamina, needs)
 	inventory_ui.drop_requested.connect(_on_inventory_drop)
+	inventory_ui.use_requested.connect(survival.use_item.bind(true))
+	# Cerrada con el aspa (o con su propio Escape) devuelve el ratón al juego.
+	inventory_ui.closed.connect(func() -> void:
+		if GameManager.current_state == GameManager.State.PLAYING:
+			capture_mouse(true))
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
 	character_window.equipment_changed.connect(on_equipment_changed)
 	# El cuerpo del jugador no pasa por el equipamiento: se registra aquí para que también
@@ -611,6 +630,7 @@ func get_save_data() -> Dictionary:
 		"character": GameManager.character.to_dict() if GameManager.character else {},
 		"severed": combat.body_damage.save_data() if combat != null and combat.body_damage != null else [],
 		"status": combat.status.save_data() if combat != null and combat.status != null else [],
+		"needs": needs.save_data() if needs != null else {},
 	}
 
 	
@@ -676,6 +696,9 @@ func restore_save_data(save: Dictionary) -> void:
 	# Igual con los estados (pierna rota…): siguen con el tiempo que les quedaba al guardar.
 	if save.has("status") and combat.status != null:
 		combat.status.load_data(save.status)
+	# on_restored las ha llenado; las de la partida, si las guardó.
+	if needs != null:
+		needs.load_data(save.get("needs", {}))
 	_activate_player()
 
 func place_block_at_player() -> void:
@@ -1009,10 +1032,6 @@ func _input(event):
 			inventory_ui.close()
 			capture_mouse(true)
 			return
-		if character_window.visible:
-			character_window.toggle()
-			capture_mouse(true)
-			return
 		if ship_spawn_menu and ship_spawn_menu.visible:
 			ship_spawn_menu.toggle()
 			capture_mouse(true)
@@ -1105,15 +1124,14 @@ func _input(event):
 	if blueprint_placer.is_active():
 		return
 
-	if event.is_action_pressed("inventory"):
-		inventory_ui.toggle()
+	# I: el inventario solo, sin tapar el mundo. C: la pantalla de personaje entera.
+	if event.is_action_pressed("inventory") or event.is_action_pressed("character_window"):
+		inventory_ui.toggle(InventoryUI.View.CHARACTER if event.is_action_pressed("character_window")
+			else InventoryUI.View.INVENTORY)
 		if inventory_ui.visible:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		else:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
- 
-	if event.is_action_pressed("character_window"):
-		character_window.toggle()
  
 	if event.is_action_pressed("action") && !free_flight_enabled and not climb.is_active():
 		var corpse := _find_nearby_corpse()
@@ -1124,13 +1142,16 @@ func _input(event):
 		if looked and looked.pick_into(inventory):
 			pass
 		elif corpse:
-			inventory_ui.open_loot(corpse.inventory)
-			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+			survival.open_corpse(corpse)
+		elif survival.open_nearby_campfire():
+			pass
 		elif combat.try_pickup():
 			pass
 		elif GroundPickup.try_pickup(self, inventory):
 			pass
 		elif nearest and nearest.pick_into(inventory):
+			pass
+		elif survival.drink_here():
 			pass
 		else:
 			var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
@@ -1144,6 +1165,10 @@ func _input(event):
 	# Golpes, esquivas, apuntar y fijar objetivo. Lo que el combate no consume (talar o picar
 	# con una herramienta sin enemigos cerca, el cañón) sigue abajo.
 	if combat.handle_input(event):
+		return
+	# Lo que se come, se bebe o se planta desde la barra.
+	if event.is_action_pressed("attack_1") and can_perform_action() and not building_system.build_mode \
+			and survival.use_selected():
 		return
 
 	if Input.is_action_just_pressed("attack_1") && can_perform_action() && !building_system.build_mode && right_hand_equipped:

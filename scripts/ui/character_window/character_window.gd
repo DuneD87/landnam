@@ -1,14 +1,35 @@
 class_name CharacterWindow
-extends CanvasLayer
+extends Node
 
-signal equipment_changed(slot_type: ItemData.ArmorSlot, item: InventoryItem)
+## El equipo del personaje: sus huecos (cabeza, torso, manos, piernas, pies y las dos manos) y el
+## muñeco, el propio personaje en 3D con lo que lleva puesto y esos huecos a los lados. El muñeco
+## no es una ventana aparte: InventoryUI lo pone en el centro de la pantalla de equipo
+## (take_doll()) y llama a refresh() al abrirla, que le pone el aspecto del personaje y le viste
+## la ropa de los huecos. Equipar y quitar pasa por equip_item() / unequip_item(), que avisan
+## con equipment_changed; el jugador viste o desviste su modelo al recibirlo.
+
+signal equipment_changed(slot_type: ItemData.ArmorSlot, item: InventoryItem, equip: bool)
 signal slot_clicked(slot: EquipmentSlot)
+## El ratón entra en un hueco o sale de él (la pantalla enseña la ficha de lo que lleva).
+signal slot_hovered(slot: EquipmentSlot, hovered: bool)
 
-const EquipmentSlotScene = preload("res://scenes/ui/equipment_slot.tscn")
-
-@onready var panel: PanelContainer = $PanelContainer
-@onready var close_button: Button = $PanelContainer/MarginContainer/VBoxContainer/Header/CloseButton
-@onready var slots_container: VBoxContainer = $PanelContainer/MarginContainer/VBoxContainer/SlotsContainer
+## Huecos a la izquierda del muñeco, de la cabeza a los pies, y a su derecha.
+const LEFT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.HEAD, ItemData.ArmorSlot.CHEST,
+	ItemData.ArmorSlot.HANDS, ItemData.ArmorSlot.LEGS, ItemData.ArmorSlot.FEET]
+const RIGHT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.RIGHT_HAND, ItemData.ArmorSlot.OFFHAND]
+const SLOT_NAMES := {
+	ItemData.ArmorSlot.HEAD: "Cabeza",
+	ItemData.ArmorSlot.CHEST: "Torso",
+	ItemData.ArmorSlot.HANDS: "Manos",
+	ItemData.ArmorSlot.LEGS: "Piernas",
+	ItemData.ArmorSlot.FEET: "Pies",
+	ItemData.ArmorSlot.RIGHT_HAND: "Mano derecha",
+	ItemData.ArmorSlot.OFFHAND: "Mano izquierda",
+}
+## Luz que reciben en el muñeco los materiales planetarios de la ropa (opaque_planet_material):
+## la del estudio, con un planeta muy lejos debajo para que sea pleno día.
+const STUDIO_LIGHT := Vector3(-0.45, 0.5, 0.75)
+const STUDIO_PLANET := Vector3(0, -6000000.0, 0)
 
 @export_group("Slot Background Icons")
 @export var icon_head: Texture2D
@@ -18,82 +39,162 @@ const EquipmentSlotScene = preload("res://scenes/ui/equipment_slot.tscn")
 @export var icon_feet: Texture2D
 @export var icon_main_hand: Texture2D
 @export var icon_off_hand: Texture2D
-@export var icon_tool: Texture2D
 
 var equipment_slots: Dictionary = {}
+## El muñeco con sus huecos. Es también la zona que cuenta como ventana al tirar cosas.
+var panel: Control
+var preview: CharacterPreview
+
+var _name_label: Label
+## Hueco -> la pieza que lleva puesta el muñeco (con el id del item en sus metadatos).
+var _dressed := {}
+## El aspecto que tiene el muñeco ahora, serializado.
+var _applied_look := ""
 
 
 func _ready() -> void:
-	_apply_panel_style()
-	close_button.pressed.connect(close)
-	visible = false
-	_create_slots()
+	panel = _build_doll()
 
 
-func _apply_panel_style() -> void:
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.12, 0.12, 0.95)
-	style.set_corner_radius_all(8)
-	style.set_border_width_all(2)
-	style.border_color = Color(0.3, 0.3, 0.3, 1)
-	panel.add_theme_stylebox_override("panel", style)
+func _exit_tree() -> void:
+	# Mientras nadie lo coloca, el muñeco no está en el árbol y se libera aquí.
+	if panel != null and is_instance_valid(panel) and panel.get_parent() == null:
+		panel.free()
 
 
-func _create_slots() -> void:
-	for child in slots_container.get_children():
-		child.queue_free()
-	
-	var row1 = _create_row()
-	_add_spacer(row1)
-	_add_slot(row1, ItemData.ArmorSlot.HEAD, icon_head)
-	_add_spacer(row1)
-	slots_container.add_child(row1)
-	
-	var row2 = _create_row()
-	_add_slot(row2, ItemData.ArmorSlot.OFFHAND, icon_off_hand)
-	_add_slot(row2, ItemData.ArmorSlot.CHEST, icon_chest)
-	_add_slot(row2, ItemData.ArmorSlot.RIGHT_HAND, icon_main_hand)
-	slots_container.add_child(row2)
-	
-	var row3 = _create_row()
-	_add_spacer(row3)
-	_add_slot(row3, ItemData.ArmorSlot.HANDS, icon_hands)
-	_add_spacer(row3)
-	slots_container.add_child(row3)
-	
-	var row4 = _create_row()
-	_add_spacer(row4)
-	_add_slot(row4, ItemData.ArmorSlot.LEGS, icon_legs)
-	_add_spacer(row4)
-	slots_container.add_child(row4)
-	
-	var row5 = _create_row()
-	_add_slot(row5, ItemData.ArmorSlot.LEFT_HAND, icon_tool)
-	_add_slot(row5, ItemData.ArmorSlot.FEET, icon_feet)
-	_add_spacer(row5)
-	slots_container.add_child(row5)
+## Entrega el muñeco a quien lo pone en pantalla.
+func take_doll() -> Control:
+	return panel
 
 
-func _create_row() -> HBoxContainer:
-	var row = HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 8)
-	return row
+## Pone al muñeco el aspecto del personaje y la ropa de los huecos. Barato si nada ha cambiado.
+func refresh() -> void:
+	if preview == null or preview.rig == null:
+		return
+	var character := GameManager.character
+	var appearance := character.appearance if character else CharacterAppearance.new()
+	var look := JSON.stringify(appearance.to_dict())
+	if look != _applied_look:
+		_applied_look = look
+		preview.rig.apply(appearance)
+	_name_label.text = character.display_name.to_upper() if character and character.display_name != "" else "PERSONAJE"
+	_sync_dress()
 
 
-func _add_slot(parent: HBoxContainer, slot_type: ItemData.ArmorSlot, icon: Texture2D) -> void:
-	var slot = EquipmentSlotScene.instantiate() as EquipmentSlot
-	slot.slot_type = slot_type
-	slot.background_icon = icon
-	slot.slot_clicked.connect(_on_slot_clicked)
-	parent.add_child(slot)
-	equipment_slots[slot_type] = slot
+func _build_doll() -> Control:
+	var doll := VBoxContainer.new()
+	doll.name = "Doll"
+	doll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	doll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_name_label = Label.new()
+	_name_label.theme_type_variation = &"HeaderLabel"
+	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	doll.add_child(_name_label)
+
+	var row := HBoxContainer.new()
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	doll.add_child(row)
+	var icons := {
+		ItemData.ArmorSlot.HEAD: icon_head, ItemData.ArmorSlot.CHEST: icon_chest,
+		ItemData.ArmorSlot.HANDS: icon_hands, ItemData.ArmorSlot.LEGS: icon_legs,
+		ItemData.ArmorSlot.FEET: icon_feet, ItemData.ArmorSlot.RIGHT_HAND: icon_main_hand,
+		ItemData.ArmorSlot.OFFHAND: icon_off_hand,
+	}
+	row.add_child(_slot_column(LEFT_SLOTS, icons, true))
+
+	preview = CharacterPreview.new()
+	preview.live = false
+	preview.transparent = true
+	preview.frame_offset = 0.0
+	preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_child(preview)
+	row.add_child(_slot_column(RIGHT_SLOTS, icons, false))
+
+	var hint := Label.new()
+	hint.text = "Arrastra para girar · Rueda: acercar"
+	hint.theme_type_variation = &"HintLabel"
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	doll.add_child(hint)
+	return doll
 
 
-func _add_spacer(parent: HBoxContainer) -> void:
-	var spacer = Control.new()
-	spacer.custom_minimum_size = Vector2(64, 64)
-	parent.add_child(spacer)
+## Columna de huecos, cada uno con su nombre debajo, centrada en el alto del muñeco. Con
+## [spread] los huecos se reparten por todo el alto (de la cabeza a los pies).
+func _slot_column(slot_types: Array[ItemData.ArmorSlot], icons: Dictionary, spread: bool) -> VBoxContainer:
+	var column := VBoxContainer.new()
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_theme_constant_override("separation", 0)
+	for slot_type in slot_types:
+		var cell := VBoxContainer.new()
+		cell.add_theme_constant_override("separation", 2)
+		var slot := EquipmentSlot.new()
+		slot.slot_type = slot_type
+		slot.background_icon = icons[slot_type]
+		slot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		slot.slot_clicked.connect(_on_slot_clicked)
+		slot.hover_changed.connect(func(s: ItemSlotView, on: bool) -> void: slot_hovered.emit(s, on))
+		cell.add_child(slot)
+		var caption := Label.new()
+		caption.text = SLOT_NAMES[slot_type]
+		caption.theme_type_variation = &"SlotCaption"
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		cell.add_child(caption)
+		column.add_child(cell)
+		equipment_slots[slot_type] = slot
+		# Aire entre huecos, que crece con el muñeco si se reparten.
+		if slot_type != slot_types[-1]:
+			var gap := Control.new()
+			gap.custom_minimum_size.y = 24
+			gap.size_flags_vertical = Control.SIZE_EXPAND_FILL if spread else Control.SIZE_FILL
+			column.add_child(gap)
+	return column
+
+
+## Lo que lleva el muñeco sigue a los huecos: las piezas de ropa se visten como en el jugador
+## (ajustadas a su cuerpo por el rig). Escudos y armas no se le ponen.
+func _sync_dress() -> void:
+	var skeleton := preview.get_skeleton()
+	if skeleton == null:
+		return
+	for slot_type in LEFT_SLOTS:
+		var slot: EquipmentSlot = equipment_slots[slot_type]
+		var wanted: ItemData = slot.equipped_item.data if slot.has_item() else null
+		if wanted != null and (wanted.category != ItemData.Category.ARMOR or wanted.is_shield()
+				or wanted.scene_path == ""):
+			wanted = null
+		var worn: Node = _dressed.get(slot_type)
+		if worn != null and wanted != null and worn.get_meta(&"item_id") == wanted.id:
+			continue
+		if worn != null:
+			preview.rig.undress(worn)
+			worn.queue_free()
+			_dressed.erase(slot_type)
+		if wanted == null:
+			continue
+		var piece: Node = load(wanted.scene_path).instantiate()
+		piece.set_meta(&"item_id", wanted.id)
+		skeleton.add_child(piece)
+		_light_for_studio(piece)
+		preview.rig.dress(piece, slot_type == ItemData.ArmorSlot.HEAD)
+		_dressed[slot_type] = piece
+
+
+## Los materiales planetarios se reparten entre todas las copias de la pieza (también la que
+## lleva el jugador, a la que el planeta mueve la luz): el muñeco usa los suyos.
+func _light_for_studio(piece: Node) -> void:
+	for node in piece.find_children("*", "MeshInstance3D", true, false) + [piece]:
+		var mesh := node as MeshInstance3D
+		if mesh == null or mesh.mesh == null:
+			continue
+		for surface in mesh.mesh.get_surface_count():
+			var material := mesh.get_active_material(surface) as ShaderMaterial
+			if material == null or material.get_shader_parameter(&"light_direction") == null:
+				continue
+			material = material.duplicate()
+			material.set_shader_parameter(&"light_direction", STUDIO_LIGHT.normalized())
+			material.set_shader_parameter(&"planet_position", STUDIO_PLANET)
+			mesh.set_surface_override_material(surface, material)
 
 
 func _on_slot_clicked(slot: EquipmentSlot, button_index: int) -> void:
@@ -111,53 +212,36 @@ func equip_item(slot: EquipmentSlot, item: InventoryItem) -> InventoryItem:
 	if slot.has_item():
 		old_item = slot.equipped_item
 		equipment_changed.emit(slot.slot_type, old_item, false)
-	
+
 	var equip_item = InventoryItem.new(item.data, 1)
 	slot.set_item(equip_item)
 	equipment_changed.emit(slot.slot_type, equip_item, true)
-	
+	_refresh_if_shown()
 	return old_item
 
 
 func unequip_item(slot: EquipmentSlot) -> InventoryItem:
 	if not slot or not slot.has_item():
 		return null
-	
+
 	var item = slot.equipped_item
 	slot.clear()
 	equipment_changed.emit(slot.slot_type, item, false)
-	
+	_refresh_if_shown()
 	return item
 
 
-func get_slot(slot_type: String) -> EquipmentSlot:
+func get_slot(slot_type: ItemData.ArmorSlot) -> EquipmentSlot:
 	return equipment_slots.get(slot_type)
 
 
-func get_equipped_item(slot_type: String) -> InventoryItem:
+func get_equipped_item(slot_type: ItemData.ArmorSlot) -> InventoryItem:
 	var slot = get_slot(slot_type)
 	if slot:
 		return slot.equipped_item
 	return null
 
 
-func toggle() -> void:
-	visible = !visible
-	if visible:
-		open()
-	else:
-		close()
-
-
-func open() -> void:
-	visible = true
-
-
-func close() -> void:
-	visible = false
-
-
-func _input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_cancel"):
-		close()
-		get_viewport().set_input_as_handled()
+func _refresh_if_shown() -> void:
+	if panel != null and panel.is_visible_in_tree():
+		_sync_dress()

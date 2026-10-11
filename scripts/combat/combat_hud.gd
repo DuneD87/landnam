@@ -1,23 +1,24 @@
 class_name CombatHUD
 extends CanvasLayer
 
-## Interfaz de combate: vida y aguante arriba a la derecha (con el tramo perdido que se vacía
-## con retraso, como en los souls), marca del objetivo fijado, barras de vida sobre los enemigos
-## tocados, mira al apuntar con la tensión y la munición, destello rojo al recibir, la pantalla
-## de muerte y los fundidos a negro de la reaparición.
+## Interfaz de combate: vida y aguante en las dos orbes de la barra rápida (VitalOrb en la consola de
+## Hotbar, con el tramo perdido que se vacía con retraso, como en los souls), la silueta del
+## cuerpo herido y sus estados a la izquierda de la consola, marca del objetivo fijado, barras de
+## vida sobre los enemigos tocados, mira al apuntar con la tensión y la munición, destello rojo al
+## recibir, la pantalla de muerte y los fundidos a negro de la reaparición.
 ##
 ## La UI del proyecto no se estira: todo se escala por la altura de la ventana (base 1440).
 
 const HP_COLOR := Color(0.62, 0.08, 0.07)
 const HP_TRAIL := Color(0.86, 0.66, 0.30)
-const ST_COLOR := Color(0.28, 0.55, 0.22)
 const FRAME := Color(0.03, 0.03, 0.03, 0.78)
 const BAR_BACK := Color(0.10, 0.09, 0.08, 0.7)
 ## Segundos que se ve la barra de una criatura después de golpearla.
 const ENEMY_BAR_TIME := 6.0
 const BLOOD_LOSS_SHADER := preload("res://shaders/combat/blood_loss.gdshader")
-## Distancia de las barras a la esquina de arriba a la derecha (en la escala base de 1440).
-const HUD_MARGIN := Vector2(48, 44)
+## Separación entre la consola de la barra rápida y la silueta, y entre la silueta y los estados.
+const BODY_GAP := 26.0
+const STATUS_GAP := 14.0
 ## Desangrarse: a cuánta sangre perdida por segundo llega al máximo, y por debajo de qué vida empieza
 ## (y en qué tramo llega al máximo).
 const LOSS_FULL_BLEED := 2.0
@@ -45,6 +46,12 @@ var _death_shown: bool = false
 var _blood_loss: ColorRect
 var _loss: float = 0.0
 var _beat: float = 0.0
+## Latido de este fotograma (0..1), para que la orbe de vida lata con él.
+var _pulse: float = 0.0
+## Rectángulo en pantalla de la orbe de vida y borde izquierdo de la consola: la silueta y los
+## estados se colocan a su lado.
+var _health_rect := Rect2()
+var _plate_left := 0.0
 
 
 func setup(owner_combat: PlayerCombat) -> void:
@@ -58,7 +65,12 @@ func setup(owner_combat: PlayerCombat) -> void:
 	_canvas.draw.connect(_on_draw)
 	add_child(_canvas)
 
-	# Debajo de todo lo demás de la capa: las barras no pierden el color.
+	# En su propia capa, por debajo de la barra rápida (10) y del resto del HUD: las orbes, la barra
+	# y las marcas no pierden el color.
+	var loss_layer := CanvasLayer.new()
+	loss_layer.name = "BloodLossLayer"
+	loss_layer.layer = 9
+	add_child(loss_layer)
 	_blood_loss = ColorRect.new()
 	_blood_loss.name = "BloodLoss"
 	_blood_loss.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -67,8 +79,7 @@ func setup(owner_combat: PlayerCombat) -> void:
 	loss_material.shader = BLOOD_LOSS_SHADER
 	_blood_loss.material = loss_material
 	_blood_loss.visible = false
-	add_child(_blood_loss)
-	move_child(_blood_loss, 0)
+	loss_layer.add_child(_blood_loss)
 
 	_vignette = TextureRect.new()
 	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -92,6 +103,7 @@ func setup(owner_combat: PlayerCombat) -> void:
 
 	_ammo_label = Label.new()
 	_ammo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ammo_label.add_theme_font_override("font", GameTheme.medium_font())
 	_ammo_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
 	_ammo_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	_ammo_label.add_theme_constant_override("outline_size", 6)
@@ -101,6 +113,7 @@ func setup(owner_combat: PlayerCombat) -> void:
 	_status_label = Label.new()
 	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_status_label.add_theme_font_override("font", GameTheme.medium_font())
 	_status_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
 	_status_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	_status_label.add_theme_constant_override("outline_size", 5)
@@ -131,11 +144,7 @@ func setup(owner_combat: PlayerCombat) -> void:
 	_death_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_death_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_death_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Cinzel", "Trajan Pro", "Cormorant Garamond", "Georgia",
-		"DejaVu Serif", "Liberation Serif", "Times New Roman", "serif"])
-	font.font_weight = 500
-	_death_label.add_theme_font_override("font", font)
+	_death_label.add_theme_font_override("font", GameTheme.title_font(1.0, 500))
 	_death_label.add_theme_color_override("font_color", Color(0.58, 0.06, 0.05))
 	_death_label.add_theme_color_override("font_outline_color", Color(0.05, 0.0, 0.0, 0.9))
 	_death_label.add_theme_constant_override("outline_size", 4)
@@ -167,7 +176,7 @@ func _relayout() -> void:
 	_death_label.size = _death_band.size
 	_death_label.add_theme_font_size_override("font_size", int(150 * _scale))
 	_ammo_label.add_theme_font_size_override("font_size", int(26 * _scale))
-	_status_label.add_theme_font_size_override("font_size", int(20 * _scale))
+	_status_label.add_theme_font_size_override("font_size", int(22 * _scale))
 
 
 func _process(delta: float) -> void:
@@ -205,9 +214,35 @@ func _process(delta: float) -> void:
 	_damage_flash = maxf(0.0, _damage_flash - delta * 1.8)
 	_vignette.modulate.a = _damage_flash
 	_update_blood_loss(delta)
+	_update_orbs(delta)
 	_update_ammo()
 	_update_status()
 	_canvas.queue_redraw()
+
+
+## Llena las orbes de la barra rápida. En vuelo libre o sin cuerpo no salen (ni su consola).
+func _update_orbs(delta: float) -> void:
+	var hotbar: Hotbar = combat.player.hotbar
+	if hotbar == null or hotbar.health_orb == null:
+		return
+	var shown := not combat.player.free_flight_enabled and combat.player.visible
+	hotbar.set_vitals_shown(shown)
+	if not shown:
+		return
+	var health_orb := hotbar.health_orb
+	var stamina_orb := hotbar.stamina_orb
+	_health_rect = Rect2(health_orb.position, health_orb.size)
+	_plate_left = hotbar.vitals_left
+
+	var health := combat.player.health_component
+	health_orb.flash = _damage_flash
+	health_orb.set_levels(health.get_health_ratio(), _hp_trail, maxf(_pulse * _loss, _damage_flash * 0.5), 0.0,
+		"%d / %d" % [ceili(health.health), roundi(health.max_health)], delta)
+	var st := combat.stamina
+	stamina_orb.flash = _st_flash
+	stamina_orb.set_levels(st.get_ratio(), 0.0, _st_flash * 0.4, 0.55 if st.exhausted else 0.0,
+		str(floori(st.stamina)), delta)
+	hotbar.show_needs(combat.player.needs, delta)
 
 
 ## Cuánto se está desangrando (sangre perdida por segundo, o poca vida) y el latido: el corazón
@@ -223,6 +258,7 @@ func _update_blood_loss(delta: float) -> void:
 	_loss = move_toward(_loss, target, delta * 0.5)
 	_blood_loss.visible = _loss > 0.01
 	if not _blood_loss.visible:
+		_pulse = 0.0
 		return
 	var bpm := lerpf(70.0, 140.0, _loss)
 	var before := _beat
@@ -234,12 +270,14 @@ func _update_blood_loss(delta: float) -> void:
 	var pulse := exp(-_beat * 14.0)
 	if _beat >= dub:
 		pulse += 0.6 * exp(-(_beat - dub) * 14.0)
+	_pulse = clampf(pulse, 0.0, 1.0)
 	var mat := _blood_loss.material as ShaderMaterial
 	mat.set_shader_parameter("amount", _loss)
 	mat.set_shader_parameter("pulse", clampf(pulse, 0.0, 1.0))
 
 
-## Un renglón por estado, con los minutos y segundos que le quedan, bajo la silueta.
+## Un renglón por estado, con los minutos y segundos que le quedan, a la izquierda de la silueta
+## y apoyados en el borde de abajo de la orbe de vida.
 func _update_status() -> void:
 	var status := combat.status
 	var shown := status != null and not status.effects().is_empty() and not combat.player.free_flight_enabled \
@@ -255,8 +293,8 @@ func _update_status() -> void:
 	var width := 360.0 * _scale
 	var origin := _body_origin()
 	_status_label.size = Vector2(width, 0.0)
-	_status_label.position = Vector2(get_viewport().get_visible_rect().size.x - HUD_MARGIN.x * _scale - width,
-		origin.y + 90.0 * BODY_SCALE * _scale)
+	_status_label.position = Vector2(origin.x - STATUS_GAP * _scale - width,
+		_health_rect.end.y - _status_label.get_combined_minimum_size().y)
 
 
 func _update_ammo() -> void:
@@ -301,7 +339,6 @@ func _on_draw() -> void:
 		return
 	if combat.player.free_flight_enabled or not combat.player.visible:
 		return
-	_draw_player_bars()
 	_draw_body()
 	_draw_enemy_bars()
 	_draw_lock()
@@ -319,26 +356,7 @@ func _bar(pos: Vector2, size: Vector2, fill: float, trail: float, color: Color, 
 	_canvas.draw_rect(Rect2(pos, Vector2(size.x * clampf(fill, 0.0, 1.0), size.y * 0.35)), Color(1, 1, 1, 0.10))
 
 
-## Las barras van pegadas al margen derecho (a la izquierda está el panel de rendimiento): si sube
-## el máximo, crecen hacia dentro.
-func _draw_player_bars() -> void:
-	var health := combat.player.health_component
-	var right := get_viewport().get_visible_rect().size.x - HUD_MARGIN.x * _scale
-	var per_point := 3.4 * _scale
-	var hp_size := Vector2(health.max_health * per_point, 14.0 * _scale)
-	var origin := Vector2(right - hp_size.x, HUD_MARGIN.y * _scale)
-	_bar(origin, hp_size, health.get_health_ratio(), _hp_trail, HP_COLOR, HP_TRAIL)
-	var st := combat.stamina
-	var st_size := Vector2(st.max_stamina * per_point, 10.0 * _scale)
-	origin.x = right - st_size.x
-	var st_color := ST_COLOR
-	if st.exhausted:
-		st_color = ST_COLOR.darkened(0.45)
-	st_color = st_color.lerp(Color(0.85, 0.75, 0.3), _st_flash)
-	_bar(origin + Vector2(0, 26 * _scale), st_size, st.get_ratio(), 0.0, st_color, st_color)
-
-
-## Silueta de espaldas (como se ve al personaje) bajo las barras, con cada parte del cuerpo del color
+## Silueta de espaldas (como se ve al personaje) a la izquierda de la consola de la barra rápida, con cada parte del cuerpo del color
 ## de su estado; solo cuando hay algo herido (o algún estado en curso). Un miembro perdido queda en
 ## contorno con el muñón rojo, uno roto amoratado y con la grieta, y una gota late mientras sangra.
 const BODY_SHAPES := {
@@ -357,11 +375,12 @@ const BRUISE := Color(0.42, 0.24, 0.50, 0.92)
 const CRACK := Color(0.96, 0.92, 0.80)
 
 
-## Esquina de arriba a la izquierda de la silueta: bajo las barras, contra el margen derecho (la
-## silueta y la gota ocupan 52 de ancho).
+## Esquina de arriba a la izquierda de la silueta: a la izquierda de la consola de la barra rápida,
+## con los pies a la altura del borde de abajo de la orbe de vida (la silueta y la gota ocupan 52
+## de ancho y 83 de alto).
 func _body_origin() -> Vector2:
 	var s := BODY_SCALE * _scale
-	return Vector2(get_viewport().get_visible_rect().size.x - HUD_MARGIN.x * _scale - 52.0 * s, 96.0 * _scale)
+	return Vector2(_plate_left - BODY_GAP * _scale - 52.0 * s, _health_rect.end.y - 83.0 * s)
 
 
 func _draw_body() -> void:

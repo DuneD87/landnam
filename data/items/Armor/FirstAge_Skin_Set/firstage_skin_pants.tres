@@ -1,17 +1,22 @@
-[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://cy6qb52ibjdnd"]
+[gd_resource type="Resource" script_class="ItemData" format=3]
 
-[ext_resource type="Texture2D" uid="uid://dfkt5ffim4vjx" path="res://textures/icons/items/armor/firstage_skin_armor_set/firstage_skin_pants.png" id="1_1uyk3"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_buoc1"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/firstage_skin_armor_set/firstage_skin_pants.png" id="1_1uyk3"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_buoc1"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_dlj6w"]
+[ext_resource type="Script" path="res://scripts/items/traits/insulation_trait.gd" id="4_ovjk6"]
+
+[sub_resource type="Resource" id="Resource_dlj6w"]
+script = ExtResource("4_ovjk6")
 
 [resource]
 script = ExtResource("2_buoc1")
 id = &"firstage_skin_pants"
-display_name = "Skin Pants"
+display_name = "Calzas de pieles"
 description = "Skin Pants"
 icon = ExtResource("1_1uyk3")
 category = 4
 scene_path = "res://scenes/items/armor/firstage_skin_set/firstage_skin_pants_equipable.tscn"
-tool_type = 2
 armor_slot = 4
 defense = 2
+traits = Array[ExtResource("3_dlj6w")]([SubResource("Resource_dlj6w")])
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

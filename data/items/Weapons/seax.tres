@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/seax.png" id="1_hwr51"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_v5s1g"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_pxh5k"]
+[ext_resource type="Script" path="res://scripts/items/traits/skinning_trait.gd" id="4_jdpd5"]
+
+[sub_resource type="Resource" id="Resource_hwr51"]
+script = ExtResource("4_jdpd5")
+
+[resource]
+script = ExtResource("2_v5s1g")
+id = &"seax"
+display_name = "Seax"
+description = "El cuchillo de un filo con el lomo quebrado que todos llevan al cinto: corta, despelleja y, en un apuro, pelea."
+icon = ExtResource("1_hwr51")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/seax.tscn"
+stackable = false
+max_stack = 1
+weapon_type = 1
+damage = 14
+attack_speed = 1.35
+reach = 0.29
+blade_start = 0.08
+blade_radius = 0.05
+stamina_cost = 9.0
+poise_damage = 8.0
+heavy_multiplier = 1.6
+armor_slot = 6
+group = &"melee"
+traits = Array[ExtResource("3_pxh5k")]([SubResource("Resource_hwr51")])

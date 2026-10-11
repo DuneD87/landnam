@@ -97,6 +97,14 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export var placeable_on_ceiling: bool = false
 @export var placed_collider_size: Vector3 = Vector3(0.2, 0.5, 0.2)
 
+@export_group("Clasificación")
+## Grupo dentro de su categoría (ItemTaxonomy.GROUPS): con él se ordena el inventario y se nombra el
+## tipo en la ficha. Vacío = el que le toca por cómo es (ItemTaxonomy.group_of).
+@export var group: StringName = &""
+## Lo que se puede hacer con el objeto además de lo de arriba: comerlo, quemarlo, asarlo, llevar
+## agua, abrigar, despellejar... (ItemTrait). Ver docs/items.md.
+@export var traits: Array[ItemTrait] = []
+
 static func clone(source: ItemData) -> ItemData:
 	var copy := ItemData.new()
 	copy.copy_from(source)
@@ -146,6 +154,16 @@ func copy_from(source: ItemData) -> void:
 	placeable_on_wall = source.placeable_on_wall
 	placeable_on_ceiling = source.placeable_on_ceiling
 	placed_collider_size = source.placed_collider_size
+	group = source.group
+	traits = source.traits.duplicate()
+
+
+## El rasgo de tipo [type] (un script de ItemTrait, p. ej. EdibleTrait) o null si no lo tiene.
+func get_trait(type: Script) -> ItemTrait:
+	for item_trait in traits:
+		if item_trait != null and is_instance_of(item_trait, type):
+			return item_trait
+	return null
 
 
 ## Sirve para pegar: lleva hoja que barre golpes (espadas, hachas, mazas, lanzas, y las

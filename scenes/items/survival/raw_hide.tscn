@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/survival/raw_hide.res" id="1_a0r0g"]
+
+[node name="RawHide" type="Node3D" unique_id=1296440274]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1144520527]
+mesh = ExtResource("1_a0r0g")

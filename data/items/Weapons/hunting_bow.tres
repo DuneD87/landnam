@@ -1,7 +1,8 @@
 [gd_resource type="Resource" script_class="ItemData" format=3]
 
 [ext_resource type="Texture2D" path="res://textures/icons/items/weapons/hunting_bow.png" id="1_icon"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_script"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_script"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_xmsll"]
 
 [resource]
 script = ExtResource("2_script")
@@ -11,15 +12,16 @@ description = "Arco recurvo de tejo. Botón derecho apunta, el izquierdo tensa y
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/hunting_bow.tscn"
-armor_slot = 6
+stackable = false
+max_stack = 1
 weapon_type = 3
 damage = 36
-ammo_id = &"arrow"
-projectile_speed = 58.0
-draw_time = 0.9
 damage_kind = 2
 stamina_cost = 8.0
 poise_damage = 12.0
-stackable = false
-max_stack = 1
+ammo_id = &"arrow"
+projectile_speed = 58.0
+draw_time = 0.9
+armor_slot = 6
+group = &"ranged"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

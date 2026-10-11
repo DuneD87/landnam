@@ -1,17 +1,23 @@
-[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://c5rs8xbdb5ja5"]
+[gd_resource type="Resource" script_class="ItemData" format=3]
 
-[ext_resource type="Texture2D" uid="uid://dtqo61mult5n6" path="res://textures/icons/items/armor/leather_armor/leggings.png" id="1_76we8"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_i0mj5"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/leather_armor/leggings.png" id="1_76we8"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_i0mj5"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_efkg5"]
+[ext_resource type="Script" path="res://scripts/items/traits/insulation_trait.gd" id="4_dxrqu"]
+
+[sub_resource type="Resource" id="Resource_efkg5"]
+script = ExtResource("4_dxrqu")
+warmth = 1.5
 
 [resource]
 script = ExtResource("2_i0mj5")
 id = &"leather_leggings"
-display_name = "Skin Pants"
+display_name = "Calzas de cuero"
 description = "Skin Pants"
 icon = ExtResource("1_76we8")
 category = 4
 scene_path = "res://scenes/items/armor/leather_armor/leather_leggings_equipable.tscn"
-tool_type = 2
 armor_slot = 4
 defense = 3
+traits = Array[ExtResource("3_efkg5")]([SubResource("Resource_efkg5")])
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

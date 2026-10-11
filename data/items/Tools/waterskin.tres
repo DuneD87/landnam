@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/waterskin.png" id="1_x6yr3"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_56tni"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_tbb65"]
+[ext_resource type="Script" path="res://scripts/items/traits/water_container_trait.gd" id="4_soww3"]
+
+[sub_resource type="Resource" id="Resource_x6yr3"]
+script = ExtResource("4_soww3")
+
+[resource]
+script = ExtResource("2_56tni")
+id = &"waterskin"
+display_name = "Odre"
+description = "Bolsa de piel cosida para llevar agua. Se llena junto a un río o un lago (E con la sed saciada) y se bebe desde la barra."
+icon = ExtResource("1_x6yr3")
+category = 3
+scene_path = "res://scenes/items/survival/waterskin.tscn"
+stackable = false
+max_stack = 1
+group = &"container"
+traits = Array[ExtResource("3_tbb65")]([SubResource("Resource_x6yr3")])

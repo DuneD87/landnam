@@ -1,13 +1,15 @@
-[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://c1hsrchnwebje"]
+[gd_resource type="Resource" script_class="ItemData" format=3]
 
-[ext_resource type="Texture2D" uid="uid://cuhmq8niiiy1t" path="res://textures/icons/items/collectable/icon_wood.png" id="1_do4pb"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="1_ewo7y"]
-[ext_resource type="Texture2D" uid="uid://d23cq6v4q0nc7" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_albedo.png" id="3_wuxbg"]
-[ext_resource type="Texture2D" uid="uid://c7ng5e8qgjq86" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_ao.png" id="4_ll07s"]
-[ext_resource type="Texture2D" uid="uid://cql65h8yb0xn1" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_height.png" id="5_pwmcf"]
-[ext_resource type="Texture2D" uid="uid://42sci2ypgmf0" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_metallic.png" id="6_8i21y"]
-[ext_resource type="Texture2D" uid="uid://bmf60w3vbqu0e" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_normal-ogl.png" id="7_kdh8h"]
-[ext_resource type="Texture2D" uid="uid://bmg3xla71enib" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_roughness.png" id="8_ecuxc"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/collectable/icon_wood.png" id="1_do4pb"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_ewo7y"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_albedo.png" id="3_wuxbg"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_ao.png" id="4_ll07s"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_height.png" id="5_pwmcf"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_metallic.png" id="6_8i21y"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_normal-ogl.png" id="7_kdh8h"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/bare-wood1-bl/bare-wood1_roughness.png" id="8_ecuxc"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="9_pwmcf"]
+[ext_resource type="Script" path="res://scripts/items/traits/fuel_trait.gd" id="10_8i21y"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ga3h4"]
 vertex_color_use_as_albedo = true
@@ -22,11 +24,17 @@ ao_texture = ExtResource("4_ll07s")
 heightmap_enabled = true
 heightmap_texture = ExtResource("5_pwmcf")
 
+[sub_resource type="Resource" id="Resource_pwmcf"]
+script = ExtResource("10_8i21y")
+burn_time = 150.0
+
 [resource]
 script = ExtResource("1_ewo7y")
 id = &"wood_01"
-display_name = "Wood"
-description = "Wood to build houses and tools"
+display_name = "Madera"
+description = "Madera para construir, fabricar y quemar en la hoguera."
 icon = ExtResource("1_do4pb")
 surface_material = SubResource("StandardMaterial3D_ga3h4")
+group = &"wood"
+traits = Array[ExtResource("9_pwmcf")]([SubResource("Resource_pwmcf")])
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

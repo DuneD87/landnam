@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://bfd4ooxcfnpxx"]
+[gd_resource type="Resource" script_class="ItemData" format=3]
 
-[ext_resource type="Texture2D" uid="uid://y77tw7oe2eq8" path="res://textures/icons/items/tools/torch.png" id="1_obcjx"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_ks4of"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/tools/torch.png" id="1_obcjx"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_ks4of"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_ks4of"]
 
 [resource]
 script = ExtResource("2_ks4of")
 id = &"torch_01"
-display_name = "Torch"
-description = "A torch."
+display_name = "Antorcha"
+description = "Alumbra en la noche y en las cuevas."
 icon = ExtResource("1_obcjx")
 category = 1
 scene_path = "res://scenes/items/torches/torch.tscn"
@@ -17,4 +18,5 @@ running_animation = 14
 is_attack_animation = false
 tool_type = 4
 armor_slot = 6
+group = &"light"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

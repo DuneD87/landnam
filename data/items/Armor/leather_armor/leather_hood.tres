@@ -1,17 +1,23 @@
-[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://d04exkqj4ify8"]
+[gd_resource type="Resource" script_class="ItemData" format=3]
 
-[ext_resource type="Texture2D" uid="uid://6hw2o5t465hm" path="res://textures/icons/items/armor/leather_armor/hood.png" id="1_2nf41"]
-[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="2_0qbmi"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/leather_armor/hood.png" id="1_2nf41"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_0qbmi"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_hhycm"]
+[ext_resource type="Script" path="res://scripts/items/traits/insulation_trait.gd" id="4_4f8x4"]
+
+[sub_resource type="Resource" id="Resource_hhycm"]
+script = ExtResource("4_4f8x4")
+warmth = 1.0
 
 [resource]
 script = ExtResource("2_0qbmi")
 id = &"leather_hood"
-display_name = "Leather Hood"
+display_name = "Capucha de cuero"
 description = "Leather Hood"
 icon = ExtResource("1_2nf41")
 category = 4
 scene_path = "res://scenes/items/armor/leather_armor/leather_hood_equipable.tscn"
-tool_type = 2
 armor_slot = 1
 defense = 2
+traits = Array[ExtResource("3_hhycm")]([SubResource("Resource_hhycm")])
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"
