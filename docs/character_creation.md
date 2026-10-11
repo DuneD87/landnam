@@ -1,6 +1,6 @@
 # Creación de personaje
 
-Al pulsar **Start Game** el menú principal abre `CharacterCreationScreen` en
+Al pulsar **Nueva partida** el menú principal abre `CharacterCreationScreen` en
 lugar de lanzar la cinemática. El jugador elige nombre, sexo y apariencia sobre
 una vista previa 3D (`CharacterPreview`): con el botón izquierdo gira alrededor
 del personaje, con el derecho o el central sube y baja por el cuerpo, y la
@@ -8,7 +8,20 @@ rueda acerca hacia la altura del cursor. Cada categoría tiene su encuadre, y
 los botones **Cuerpo** y **Rostro** devuelven la cámara al suyo. El idle del
 juego es una postura de guardia encorvada; en la vista previa `PreviewPosture`
 endereza columna, cuello y hombros (conserva un 30 % de su giro, así que se
-sigue viendo la respiración) y `PreviewHeadAim` gira la cabeza hacia la cámara. Al pulsar **Comenzar partida**, el `CharacterData`
+sigue viendo la respiración) y `PreviewHeadAim` gira la cabeza hacia la cámara. A la derecha, **Vista**
+cambia de encuadre y **Luz** cambia entre el estudio (la piel con su color) y dos
+luces como las de la partida, de día y de hoguera, con la curva ACES del mundo.
+
+El panel tiene arriba el nombre y el sexo, a la izquierda las categorías y a la
+derecha sus opciones. Las elecciones (peinados, barbas, cejas, rostros y
+pieles) son fichas con un retrato del propio personaje con cada una puesta:
+`ChoiceThumbnails` las hace fuera de pantalla con un segundo modelo y las luces
+del estudio, una por fotograma, y solo vuelve a retratar una opción si cambia
+algo de lo que se ve en ella. Una elección nueva del catálogo sale retratada sola,
+con el encuadre de la cara; si necesita otro, se le da en
+`ChoiceThumbnails.FRAMING`.
+
+Al pulsar **Comenzar partida**, el `CharacterData`
 resultante pasa a `GameManager.character` y arranca la cinemática. **Volver al
 menú** (o Escape) cancela y devuelve el menú. Para ello `GameManager` tiene el
 estado `CHARACTER_CREATION`, añadido al final del enum para no alterar los

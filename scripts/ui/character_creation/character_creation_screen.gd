@@ -15,6 +15,13 @@ const STEPS: Array[GDScript] = [
 	preload("res://scripts/ui/character_creation/appearance_step.gd"),
 ]
 
+## Where the space the side panel leaves free starts, and the width the view
+## bar takes on the right, at the 1440 px scale.
+const FREE_LEFT := 1048.0
+const VIEW_BAR := 270.0
+const VIEW_FRAMINGS := [[&"body", "Cuerpo"], [&"face", "Rostro"]]
+const VIEW_LIGHTS := [[&"studio", "Estudio"], [&"day", "Día"], [&"fire", "Hoguera"]]
+
 var character := CharacterData.new()
 var preview: CharacterPreview
 
@@ -33,11 +40,13 @@ func _ready() -> void:
 	_ui_scale = clampf(get_viewport().get_visible_rect().size.y / 1440.0, 0.5, 2.0)
 	_root = Control.new()
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_root.theme = CreationTheme.build(_ui_scale)
+	_root.theme = GameTheme.build(_ui_scale)
 	add_child(_root)
 
 	preview = CharacterPreview.new()
 	preview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# The model stands in the middle of the space the side panel leaves.
+	preview.frame_offset = _px(FREE_LEFT - VIEW_BAR) / (2.0 * get_viewport().get_visible_rect().size.x)
 	_root.add_child(preview)
 	_root.add_child(_vignette())
 
@@ -148,24 +157,52 @@ func _build_footer() -> void:
 	footer.add_child(buttons)
 	_root.add_child(footer)
 
-	# Camera controls, bottom left of the space the side panel leaves free.
-	var view := HBoxContainer.new()
-	view.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	view.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	view.offset_left = _px(876)
-	view.offset_bottom = -_px(52)
-	var hint := Label.new()
-	hint.text = "Clic izquierdo: girar · Clic derecho: subir y bajar · Rueda: acercar"
-	hint.theme_type_variation = "HintLabel"
-	hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	view.add_child(hint)
-	for framing in [[&"body", "Cuerpo"], [&"face", "Rostro"]]:
+	# Framings, lights and how to move the camera, a column on the right edge.
+	var bar := PanelContainer.new()
+	bar.theme_type_variation = "Inset"
+	bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	bar.grow_vertical = Control.GROW_DIRECTION_BOTH
+	bar.offset_right = -_px(48)
+	_root.add_child(bar)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", roundi(_px(8)))
+	bar.add_child(column)
+	column.add_child(_bar_label("Vista"))
+	for framing in VIEW_FRAMINGS:
 		var button := Button.new()
 		button.text = framing[1]
 		button.focus_mode = Control.FOCUS_NONE
+		button.custom_minimum_size.x = _px(170)
 		button.pressed.connect(preview.focus.bind(framing[0]))
-		view.add_child(button)
-	_root.add_child(view)
+		column.add_child(button)
+	column.add_child(HSeparator.new())
+	column.add_child(_bar_label("Luz"))
+	var lights := ButtonGroup.new()
+	for light in VIEW_LIGHTS:
+		var button := Button.new()
+		button.text = light[1]
+		button.toggle_mode = true
+		button.button_group = lights
+		button.button_pressed = light[0] == &"studio"
+		button.focus_mode = Control.FOCUS_NONE
+		button.tooltip_text = "Como en partida" if light[0] != &"studio" else "La piel con su color"
+		button.pressed.connect(preview.set_lighting.bind(light[0]))
+		column.add_child(button)
+	column.add_child(HSeparator.new())
+	var hint := Label.new()
+	hint.text = "Arrastra: girar\nClic derecho: subir\ny bajar\nRueda: acercar"
+	hint.theme_type_variation = "HintLabel"
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(hint)
+
+
+func _bar_label(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.theme_type_variation = "SectionLabel"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return label
 
 
 ## Darkens the corners so panels and text read over the preview.

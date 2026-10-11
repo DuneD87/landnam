@@ -40,9 +40,18 @@ const CAMERA_FLOOR := 0.08
 ## Horizontal shift of the framing, as a fraction of the view, so the model
 ## sits in the space the side panel leaves free.
 @export var frame_offset := 0.12
+## Body morphs as live blend shapes that follow every edit (the creation
+## screen); false bakes them once on apply, for a character that does not
+## change (the equipment screen).
+@export var live := true
+## No background: what is behind the control shows through (the blurred world
+## behind the equipment screen).
+@export var transparent := false
 
 var rig: CharacterAppearanceRig
 var _viewport: SubViewport
+## build_studio()'s environment and lights.
+var _stage: Dictionary
 var _camera: Camera3D
 var _model: Node3D
 var _skeleton: Skeleton3D
@@ -69,11 +78,12 @@ func _ready() -> void:
 	_viewport.own_world_3d = true
 	_viewport.msaa_3d = Viewport.MSAA_4X
 	_viewport.handle_input_locally = false
+	_viewport.transparent_bg = transparent
 	add_child(_viewport)
 	_build_stage()
 	_model = MODEL_SCENE.instantiate()
 	rig = _model.get_node("AppearanceRig")
-	rig.live = true
+	rig.live = live
 	_viewport.add_child(_model)
 	_skeleton = _model.get_node("Armature/Skeleton3D")
 	var animation: AnimationPlayer = _model.get_node("AnimationPlayer")
@@ -111,6 +121,10 @@ func focus(framing: StringName, animate := true, keep_view := false) -> void:
 	_focus_tween.tween_property(self, "_blend", 1.0, 0.6)
 	_focus_tween.tween_property(self, "_pan", 0.0, 0.6)
 	_focus_tween.tween_property(self, "_tilt", 0.0, 0.6)
+
+
+func get_skeleton() -> Skeleton3D:
+	return _skeleton
 
 
 func reset_turn() -> void:
@@ -206,36 +220,69 @@ func _aspect() -> float:
 	return float(size.x) / maxf(size.y, 1.0)
 
 
-func _build_stage() -> void:
+## Lighting presets: the studio (skin in its own colour) and two looks of the
+## game, under the day sky and by a fire, with the world's ACES curve.
+const LIGHTING := {
+	&"studio": {
+		tonemap = Environment.TONE_MAPPER_LINEAR, ambient = Color("b9c2cf"), ambient_energy = 0.25,
+		key = [Color("fff1e0"), 0.75, Vector3(-28, 32, 0)], fill = [Color("cfdcff"), 0.2, Vector3(-12, -48, 0)],
+		rim = [Color("ffd9a8"), 0.5, Vector3(-20, 160, 0)],
+	},
+	&"day": {
+		tonemap = Environment.TONE_MAPPER_ACES, ambient = Color("9fb6d6"), ambient_energy = 0.55,
+		key = [Color("fff6ea"), 1.6, Vector3(-48, 40, 0)], fill = [Color("b7cdf0"), 0.35, Vector3(-10, -60, 0)],
+		rim = [Color("dfe8ff"), 0.4, Vector3(-25, 170, 0)],
+	},
+	&"fire": {
+		tonemap = Environment.TONE_MAPPER_ACES, ambient = Color("33302f"), ambient_energy = 0.12,
+		key = [Color("ff9a4a"), 1.4, Vector3(-8, 55, 0)], fill = [Color("5a6c9a"), 0.12, Vector3(-15, -70, 0)],
+		rim = [Color("ff7a30"), 0.35, Vector3(-5, 150, 0)],
+	},
+}
+
+
+## Switches the lights to one of LIGHTING.
+func set_lighting(preset: StringName) -> void:
+	apply_lighting(_stage, LIGHTING.get(preset, LIGHTING[&"studio"]))
+
+
+## Environment and the three studio lights under `parent`, returned as
+## {environment, key, fill, rim}. With `transparent` the background is left
+## clear (the viewport must have transparent_bg too).
+static func build_studio(parent: Node, transparent: bool) -> Dictionary:
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
+	environment.background_mode = Environment.BG_CLEAR_COLOR if transparent else Environment.BG_COLOR
 	environment.background_color = Color("15171b")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("b9c2cf")
-	environment.ambient_light_energy = 0.25
-	# Lights add up to about 1 where the key hits, so skin shows its own
-	# colour: filmic and ACES curves would wash it out.
-	environment.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	var world := WorldEnvironment.new()
 	world.environment = environment
-	_viewport.add_child(world)
+	parent.add_child(world)
+	var stage := {environment = environment}
+	for light in [&"key", &"fill", &"rim"]:
+		var directional := DirectionalLight3D.new()
+		directional.shadow_enabled = light == &"key"
+		parent.add_child(directional)
+		stage[light] = directional
+	apply_lighting(stage, LIGHTING[&"studio"])
+	return stage
 
-	var key := DirectionalLight3D.new()
-	key.rotation_degrees = Vector3(-28, 32, 0)
-	key.light_energy = 0.75
-	key.light_color = Color("fff1e0")
-	key.shadow_enabled = true
-	_viewport.add_child(key)
-	var fill := DirectionalLight3D.new()
-	fill.rotation_degrees = Vector3(-12, -48, 0)
-	fill.light_energy = 0.2
-	fill.light_color = Color("cfdcff")
-	_viewport.add_child(fill)
-	var rim := DirectionalLight3D.new()
-	rim.rotation_degrees = Vector3(-20, 160, 0)
-	rim.light_energy = 0.5
-	rim.light_color = Color("ffd9a8")
-	_viewport.add_child(rim)
+
+static func apply_lighting(stage: Dictionary, preset: Dictionary) -> void:
+	var environment: Environment = stage.environment
+	# Lights add up to about 1 where the key hits, so in the studio skin shows
+	# its own colour: filmic and ACES curves would wash it out.
+	environment.tonemap_mode = preset.tonemap
+	environment.ambient_light_color = preset.ambient
+	environment.ambient_light_energy = preset.ambient_energy
+	for light in [&"key", &"fill", &"rim"]:
+		var directional: DirectionalLight3D = stage[light]
+		directional.light_color = preset[light][0]
+		directional.light_energy = preset[light][1]
+		directional.rotation_degrees = preset[light][2]
+
+
+func _build_stage() -> void:
+	_stage = build_studio(_viewport, transparent)
 
 	var floor_mesh := CylinderMesh.new()
 	floor_mesh.top_radius = 0.65

@@ -2,85 +2,63 @@
 
 [ext_resource type="Script" uid="uid://b5q1f2ntv17nr" path="res://scripts/ui/menu/main_menu.gd" id="1_nl8w3"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_70654"]
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
-shadow_size = 5
-shadow_offset = Vector2(0, 3.14)
-
 [node name="MainMenu" type="Control" node_paths=PackedStringArray("start_button", "quit_button")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 2.0
-offset_top = 2.0
-offset_right = 2.0
-offset_bottom = 2.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_nl8w3")
-start_button = NodePath("VBoxContainer/btnStartGame")
-quit_button = NodePath("VBoxContainer/btnQuit")
+start_button = NodePath("Column/Buttons/btnStartGame")
+quit_button = NodePath("Column/Buttons/btnQuit")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="Column" type="VBoxContainer" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
+anchors_preset = 4
 anchor_top = 0.5
-anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -400.0
-offset_top = -200.0
-offset_right = 400.0
-offset_bottom = 400.0
-grow_horizontal = 2
+offset_left = 160.0
+offset_right = 860.0
 grow_vertical = 2
-theme_override_constants/separation = 64
 
-[node name="btnStartGame" type="Button" parent="VBoxContainer"]
+[node name="Title" type="Label" parent="Column"]
 layout_mode = 2
-size_flags_vertical = 3
-theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
-theme_override_font_sizes/font_size = 48
-theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
-text = "Start Game
-"
+theme_type_variation = &"MenuTitle"
+text = "LANDNÁM"
 
-[node name="btnSaveGame" type="Button" parent="VBoxContainer"]
+[node name="Rule" type="HSeparator" parent="Column"]
 layout_mode = 2
-size_flags_vertical = 3
-theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
-theme_override_font_sizes/font_size = 48
-theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
-text = "Save Game
-"
 
-[node name="btnLoadGame" type="Button" parent="VBoxContainer"]
+[node name="Buttons" type="VBoxContainer" parent="Column"]
 layout_mode = 2
-size_flags_vertical = 3
-theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
-theme_override_font_sizes/font_size = 48
-theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
-text = "Continue Game
-"
 
-[node name="btnOptions" type="Button" parent="VBoxContainer"]
+[node name="btnStartGame" type="Button" parent="Column/Buttons"]
 layout_mode = 2
-size_flags_vertical = 3
-theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
-theme_override_font_sizes/font_size = 48
-theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
-text = "Options
-"
+theme_type_variation = &"MenuButton"
+text = "Nueva partida"
+alignment = 0
 
-[node name="btnQuit" type="Button" parent="VBoxContainer"]
+[node name="btnLoadGame" type="Button" parent="Column/Buttons"]
 layout_mode = 2
-size_flags_vertical = 3
-theme_override_colors/font_color = Color(0.080783166, 0.08078342, 0.080783226, 1)
-theme_override_font_sizes/font_size = 48
-theme_override_styles/normal = SubResource("StyleBoxFlat_70654")
-text = "Quit
-"
+theme_type_variation = &"MenuButton"
+text = "Continuar partida"
+alignment = 0
+
+[node name="btnSaveGame" type="Button" parent="Column/Buttons"]
+layout_mode = 2
+theme_type_variation = &"MenuButton"
+text = "Guardar partida"
+alignment = 0
+
+[node name="btnOptions" type="Button" parent="Column/Buttons"]
+layout_mode = 2
+theme_type_variation = &"MenuButton"
+text = "Opciones"
+alignment = 0
+
+[node name="btnQuit" type="Button" parent="Column/Buttons"]
+layout_mode = 2
+theme_type_variation = &"MenuButton"
+text = "Salir"
+alignment = 0

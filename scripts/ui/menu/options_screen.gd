@@ -601,61 +601,8 @@ func _close() -> void:
 
 # --- Aspecto ------------------------------------------------------------------------------------
 
-## El de la creación de personaje, más los desplegables y los interruptores que allí no hay.
 func _build_theme() -> Theme:
-	var theme := CreationTheme.build(_ui_scale)
-	var popup := _box(Color(0.06, 0.065, 0.078, 0.98), 8, _px(10), 1, Color(1, 1, 1, 0.12))
-	theme.set_stylebox("panel", "PopupMenu", popup)
-	theme.set_stylebox("hover", "PopupMenu", _box(CreationTheme.ACCENT_DARK, 6, _px(8), 0, Color.TRANSPARENT))
-	theme.set_color("font_color", "PopupMenu", CreationTheme.TEXT)
-	theme.set_color("font_hover_color", "PopupMenu", Color.WHITE)
-	theme.set_color("font_disabled_color", "PopupMenu", CreationTheme.MUTED)
-	theme.set_font_size("font_size", "PopupMenu", roundi(_px(26)))
-	theme.set_constant("v_separation", "PopupMenu", roundi(_px(14)))
-	theme.set_constant("item_start_padding", "PopupMenu", roundi(_px(14)))
-	theme.set_constant("item_end_padding", "PopupMenu", roundi(_px(14)))
-	var bare := StyleBoxEmpty.new()
-	bare.set_content_margin_all(_px(8))
-	for state in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
-		theme.set_stylebox(state, "CheckButton", bare)
-	# El interruptor por defecto mide lo mismo a cualquier escala y a 1440 px apenas se ve.
-	var on := _switch_icon(true)
-	var off := _switch_icon(false)
-	for icon in ["checked", "checked_mirrored"]:
-		theme.set_icon(icon, "CheckButton", on)
-	for icon in ["unchecked", "unchecked_mirrored"]:
-		theme.set_icon(icon, "CheckButton", off)
-	return theme
-
-
-## Pastilla con el botón a la derecha (encendido, color de acento) o a la izquierda.
-func _switch_icon(on: bool) -> ImageTexture:
-	var height := roundi(_px(34))
-	var width := roundi(_px(64))
-	var image := Image.create(width, height, false, Image.FORMAT_RGBA8)
-	var track := CreationTheme.ACCENT_DARK if on else Color(1, 1, 1, 0.16)
-	var knob := CreationTheme.ACCENT if on else CreationTheme.MUTED
-	var radius := height * 0.5
-	var knob_center := Vector2(width - radius if on else radius, radius)
-	for y in height:
-		for x in width:
-			var p := Vector2(x, y) + Vector2(0.5, 0.5)
-			var nearest := Vector2(clampf(p.x, radius, width - radius), radius)
-			var track_alpha := clampf(radius - p.distance_to(nearest), 0.0, 1.0)
-			var knob_alpha := clampf(radius - _px(5) - p.distance_to(knob_center), 0.0, 1.0)
-			var color := Color(track, track.a * track_alpha).blend(Color(knob, knob_alpha))
-			image.set_pixel(x, y, color)
-	return ImageTexture.create_from_image(image)
-
-
-func _box(color: Color, radius: int, margin: float, border: int, border_color: Color) -> StyleBoxFlat:
-	var box := StyleBoxFlat.new()
-	box.bg_color = color
-	box.set_corner_radius_all(roundi(radius * _ui_scale))
-	box.set_content_margin_all(margin)
-	box.set_border_width_all(border)
-	box.border_color = border_color
-	return box
+	return GameTheme.build(_ui_scale)
 
 
 func _px(value: float) -> float:

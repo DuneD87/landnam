@@ -1,5 +1,12 @@
 extends Control
 
+## Menú principal, y en partida el de pausa (Escape): el nombre del juego y una columna de
+## botones a la izquierda, sobre una sombra que deja ver el mundo a la derecha.
+
+## Posición y ancho de la columna, en la escala base de 1440 px.
+const COLUMN_LEFT := 160.0
+const COLUMN_WIDTH := 760.0
+
 @export var start_button: Button
 @export var quit_button: Button
 @export var fade_duration: float = 0.8
@@ -10,6 +17,11 @@ var _options_button: Button
 
 
 func _ready() -> void:
+	var shade := _build_shade()
+	add_child(shade)
+	move_child(shade, 0)
+	_apply_theme()
+	get_viewport().size_changed.connect(_apply_theme)
 	if start_button:
 		start_button.pressed.connect(_on_start_pressed)
 	if quit_button:
@@ -30,6 +42,37 @@ func _ready() -> void:
 
 	GameManager.state_changed.connect(_on_game_state_changed)
 	visible = true
+
+
+## Saga a la escala de la ventana; la columna, a la izquierda y centrada en alto.
+func _apply_theme() -> void:
+	var ui_scale := GameTheme.scale_for(get_viewport())
+	theme = GameTheme.build(ui_scale)
+	var column: VBoxContainer = $Column
+	column.offset_left = COLUMN_LEFT * ui_scale
+	column.offset_right = (COLUMN_LEFT + COLUMN_WIDTH) * ui_scale
+	column.add_theme_constant_override("separation", roundi(20 * ui_scale))
+	($Column/Buttons as VBoxContainer).add_theme_constant_override("separation", roundi(6 * ui_scale))
+
+
+## Oscurece la mitad izquierda, donde va la columna, y se desvanece hacia el centro.
+func _build_shade() -> TextureRect:
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.012, 0.013, 0.016, 0.88))
+	gradient.set_color(1, Color(0.012, 0.013, 0.016, 0.0))
+	gradient.set_offset(1, 0.62)
+	gradient.add_point(0.3, Color(0.012, 0.013, 0.016, 0.7))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.width = 1024
+	texture.height = 4
+	var rect := TextureRect.new()
+	rect.name = "Shade"
+	rect.texture = texture
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rect
 
 
 func fade_in(duration: float = fade_duration) -> void:
@@ -54,7 +97,7 @@ func fade_out(duration: float = fade_duration) -> void:
 	tween.tween_callback(func(): visible = false)
 
 
-## "Start Game" pasa por la creación de personaje; la partida arranca al confirmarla.
+## "Nueva partida" pasa por la creación de personaje; la partida arranca al confirmarla.
 func _on_start_pressed() -> void:
 	fade_out()
 	await get_tree().create_timer(fade_duration).timeout
@@ -117,12 +160,16 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 				_save_button.visible = false
 			if _load_button:
 				_load_button.visible = GameManager.has_save(GameManager.MAIN_SLOT)
+				_load_button.text = "Continuar partida"
 		GameManager.State.CINEMATIC, GameManager.State.CHARACTER_CREATION:
 			visible = false
 		GameManager.State.PLAYING:
 			visible = false
 			if _save_button:
 				_save_button.visible = true
+			# En partida, cargar vuelve a la última guardada.
+			if _load_button:
+				_load_button.text = "Cargar partida"
 
 
 func _set_buttons_disabled(disabled: bool) -> void:
