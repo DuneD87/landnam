@@ -32,14 +32,17 @@ pega como arma cuando hay una criatura delante o un objetivo fijado.
 
 ## Armas
 
-Todas empiezan en el inventario. `give <id>` en la consola da más.
+Todas empiezan en el inventario, menos las de sílex, que se fabrican en el banco de trabajo
+([items.md](items.md#fabricar)). `give <id>` en la consola da más.
 
 | Id | Arma | Daño | Ritmo | Notas |
 | --- | --- | --- | --- | --- |
 | `iron_sword` | Espada de hierro | 30 | 1,45 | Rápida, alcance 0,93 m |
 | `battle_axe` | Hacha de guerra | 38 | 1,25 | Rompe más la guardia |
 | `iron_mace` | Maza de hierro | 34 | 1,10 | Contundente, la que más tambalea |
-| `spear` | Lanza | 26 (×1,5 lanzada) | 1,40 | Pica a 1,2 m o se arroja; hasta 5 |
+| `spear` | Lanza de hierro | 26 (×1,5 lanzada) | 1,40 | Pica a 1,2 m o se arroja; hasta 5 |
+| `flint_sword` | Espada de sílex | 22 | 0,95 | Pala de madera con lascas en los filos; se fabrica en el banco de trabajo |
+| `flint_spear` | Lanza de sílex | 21 (×1,5 lanzada) | 1,40 | Como la de hierro, a 1,1 m; se fabrica en el banco de trabajo |
 | `hunting_bow` | Arco de caza | 36 a tensión completa | — | Gasta `arrow` |
 | `slingshot` | Tirachinas | 14 | — | Gasta piedras (`stone_01`) |
 | `branch_01` | Rama | 9 | 1,15 | Garrote largo (1,1 m), contundente; se recoge del suelo |

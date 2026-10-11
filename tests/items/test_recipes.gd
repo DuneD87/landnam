@@ -52,6 +52,10 @@ func _check_catalog() -> void:
 			sorted = false
 	check(sorted, "en orden: era, a mano antes que en estaciones, tipo")
 	check(all[0].station == Recipes.HAND, "las primeras, a mano")
+	var weapons := [&"flint_sword", &"flint_spear", &"wooden_shield"].all(func(id: StringName) -> bool:
+		var recipe := _recipe(id)
+		return recipe != null and recipe.station == &"stone_workbench")
+	check(weapons, "espada y lanza de sílex y escudo de madera, en el banco de trabajo")
 	var bench: ItemData = Config.get_item(&"stone_workbench")
 	check(bench != null and bench.get_trait(GroundPlaceableTrait) != null, "el banco de trabajo se planta")
 	check(ItemTaxonomy.category_of(bench) == ItemData.Category.BLOCK, "y sale en Construcción")

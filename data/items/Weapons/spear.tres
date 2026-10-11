@@ -7,7 +7,7 @@
 [resource]
 script = ExtResource("2_script")
 id = &"spear"
-display_name = "Lanza"
+display_name = "Lanza de hierro"
 description = "Asta larga con moharra de hierro. Pica desde lejos o, apuntando con el botón derecho, se arroja. Hay que ir a recogerla."
 icon = ExtResource("1_icon")
 category = 2

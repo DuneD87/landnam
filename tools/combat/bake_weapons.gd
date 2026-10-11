@@ -29,6 +29,8 @@ var WEAPONS := {
 	"wooden_shield": [WeaponMeshes.round_shield, "", 0.0],
 	"heater_shield": [WeaponMeshes.heater_shield, "", -8.0],
 	"seax": [SurvivalMeshes.seax, "", -45.0],
+	"flint_sword": [WeaponMeshes.flint_sword, "", -45.0],
+	"flint_spear": [WeaponMeshes.flint_spear, "", -45.0],
 }
 ## Objetos de supervivencia: [constructor, giro del icono sobre Z de cámara, giro sobre Y, inclinación
 ## hacia la cámara (sobre X), si lleva escena para verse en el suelo]. Grados.

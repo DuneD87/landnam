@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/flint_spear.png" id="1_7hm7n"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_lor2t"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_r7201"]
+
+[resource]
+script = ExtResource("2_lor2t")
+id = &"flint_spear"
+display_name = "Lanza de sílex"
+description = "Asta larga con una punta de sílex atada con tiras de piel. Pica desde lejos o, apuntando con el botón derecho, se arroja. Hay que ir a recogerla."
+icon = ExtResource("1_7hm7n")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/flint_spear.tscn"
+max_stack = 5
+weapon_type = 2
+damage = 21
+attack_speed = 1.4
+reach = 1.1
+blade_start = 0.5
+blade_radius = 0.06
+damage_kind = 2
+stamina_cost = 15.0
+poise_damage = 12.0
+heavy_multiplier = 1.7
+projectile_speed = 28.0
+draw_time = 0.55
+throwable = true
+armor_slot = 6
+group = &"melee"

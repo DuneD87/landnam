@@ -2,8 +2,9 @@ extends SceneTree
 
 ## Pone al día el catálogo de objetos (data/items/) con la clasificación de ItemTaxonomy y los
 ## rasgos de supervivencia: nombres en español, grupos, abrigo de la ropa, leña de la madera y las
-## ramas, y los objetos nuevos (seax, carne, piel, odre, hoguera, banco de trabajo). Cambia solo los
-## campos de aquí y deja el resto como esté, así que se puede volver a pasar. Ver docs/items.md.
+## ramas, y los objetos nuevos (seax, armas de sílex, carne, piel, odre, hoguera, banco de trabajo).
+## Cambia solo los campos de aquí y deja el resto como esté, así que se puede volver a pasar. Ver
+## docs/items.md.
 ##   godot --headless --path . --script res://tools/items/update_item_catalog.gd
 
 const ITEMS := "res://data/items/"
@@ -27,6 +28,7 @@ func _update_existing() -> void:
 	})
 	for path in ["Weapons/hunting_bow", "Weapons/slingshot", "Tools/hand_cannon"]:
 		_edit(path, {"group": &"ranged"})
+	_edit("Weapons/spear", {"display_name": "Lanza de hierro"})
 	_edit("Weapons/arrow", {"group": &"ammo"})
 	for path in ["Shields/wooden_shield", "Shields/heater_shield"]:
 		_edit(path, {"group": &"shield"})
@@ -79,6 +81,27 @@ func _create_new() -> void:
 		"damage": 14, "attack_speed": 1.35, "reach": 0.29, "blade_start": 0.08, "blade_radius": 0.05,
 		"damage_kind": ItemData.DamageKind.SLASH, "stamina_cost": 9.0, "poise_damage": 8.0,
 		"heavy_multiplier": 1.6, "stackable": false, "max_stack": 1, "traits": [skinning],
+	})
+	# Armas de la Edad de piedra (se fabrican en el banco de trabajo): algo menos que las de hierro.
+	_create("Weapons/flint_sword", {
+		"id": &"flint_sword", "display_name": "Espada de sílex", "category": ItemData.Category.WEAPON, "group": &"melee",
+		"description": "Una pala de madera dura con lascas de sílex encajadas en los dos filos. Pesa más y corta menos que una de hierro, pero corta.",
+		"icon": load("res://textures/icons/items/weapons/flint_sword.png"),
+		"scene_path": "res://scenes/items/weapons/combat/flint_sword.tscn",
+		"armor_slot": ItemData.ArmorSlot.RIGHT_HAND, "weapon_type": ItemData.WeaponType.SWORD,
+		"damage": 22, "attack_speed": 0.95, "reach": 0.82, "blade_start": 0.12, "blade_radius": 0.07,
+		"damage_kind": ItemData.DamageKind.SLASH, "stamina_cost": 17.0, "poise_damage": 16.0,
+		"stackable": false, "max_stack": 1,
+	})
+	_create("Weapons/flint_spear", {
+		"id": &"flint_spear", "display_name": "Lanza de sílex", "category": ItemData.Category.WEAPON, "group": &"melee",
+		"description": "Asta larga con una punta de sílex atada con tiras de piel. Pica desde lejos o, apuntando con el botón derecho, se arroja. Hay que ir a recogerla.",
+		"icon": load("res://textures/icons/items/weapons/flint_spear.png"),
+		"scene_path": "res://scenes/items/weapons/combat/flint_spear.tscn",
+		"armor_slot": ItemData.ArmorSlot.RIGHT_HAND, "weapon_type": ItemData.WeaponType.SPEAR,
+		"damage": 21, "attack_speed": 1.4, "reach": 1.1, "blade_start": 0.5, "blade_radius": 0.06,
+		"damage_kind": ItemData.DamageKind.PIERCE, "stamina_cost": 15.0, "poise_damage": 12.0,
+		"heavy_multiplier": 1.7, "projectile_speed": 28.0, "draw_time": 0.55, "throwable": true, "max_stack": 5,
 	})
 	var raw := EdibleTrait.new()
 	raw.hunger = 0.12

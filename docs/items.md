@@ -136,6 +136,8 @@ al inventario y lo que no cabe, al suelo.
 | Arco de caza | 3 ramas y 1 piel | Banco de trabajo |
 | 4 flechas | 1 rama y 1 piedra | Banco de trabajo |
 | Tirachinas | 1 rama y 1 piel | Banco de trabajo |
+| Espada de sílex | 4 maderas, 4 piedras y 1 piel | Banco de trabajo |
+| Lanza de sílex | 3 ramas y 2 piedras | Banco de trabajo |
 | Escudo de madera | 4 maderas y 1 piel | Banco de trabajo |
 | Ropa de pieles | capucha 2, jubón 4, manoplas 1, calzas 3 y botas 2 pieles | Banco de trabajo |
 

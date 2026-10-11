@@ -597,6 +597,79 @@ static func spear() -> ArrayMesh:
 	return b.commit(make_material)
 
 
+
+# ---------------------------------------------------------------------------------------------
+# Edad de piedra: sin metal, madera, sílex y ataduras de piel.
+
+
+## Espada de sílex: una pala de madera dura con lascas de sílex encajadas a lo largo de los dos
+## filos (como el macuahuitl), puño forrado de piel y pomo de madera.
+static func flint_sword() -> ArrayMesh:
+	var b := Builder.new()
+	var wood := b.st(DARK_WOOD)
+	set_flat(wood, true)
+	var y0 := 0.07
+	var length := 0.72
+	var thick := 0.0095
+	var rings := []
+	var steps := 16
+	for i in steps + 1:
+		var t := float(i) / steps
+		var y := y0 + length * t
+		# Se ensancha hacia arriba y acaba redonda.
+		var w := lerpf(0.034, 0.043, t) * (sqrt(maxf(1.0 - pow((t - 0.86) / 0.14, 2.0), 0.0)) if t > 0.86 else 1.0)
+		w = maxf(w, 0.006)
+		rings.append(PackedVector3Array([Vector3(0, y, w), Vector3(thick, y, w * 0.75), Vector3(thick, y, -w * 0.75),
+			Vector3(0, y, -w), Vector3(-thick, y, -w * 0.75), Vector3(-thick, y, w * 0.75)]))
+	loft(wood, rings, true, true)
+	# Lascas: dos hileras, una por filo, de donde acaba el puño a casi la punta.
+	var flint := b.st(FLINT)
+	set_flat(flint, true)
+	var count := 10
+	for side: float in [1.0, -1.0]:
+		for i in count:
+			var t := (float(i) + 0.5) / count * 0.84
+			var y := y0 + 0.05 + (length - 0.08) * t
+			var w := lerpf(0.034, 0.043, (y - y0) / length)
+			var size := 0.85 + 0.3 * absf(sin(float(i) * 2.3 + side))
+			_flint_point(flint, Vector3(0, y, side * (w - 0.004)), Vector3(0, 0, side), Vector3.UP,
+				0.022 * size, 0.0045, 0.022 * size)
+	# Puño y pomo.
+	lathe(b.st(WOOD), [Vector2(0.0, -0.165), Vector2(0.02, -0.16), Vector2(0.027, -0.145), Vector2(0.024, -0.128),
+		Vector2(0.015, -0.12), Vector2(0.014, y0 + 0.01)], 8)
+	wrapped_grip(b.st(LEATHER), -0.118, y0 + 0.005, 0.0165, 9)
+	return b.commit(make_material)
+
+
+## Lanza de sílex: asta de madera con una punta de sílex tallada en hoja de laurel y atada con
+## tiras de piel. Se arroja como la de hierro.
+static func flint_spear() -> ArrayMesh:
+	var b := Builder.new()
+	lathe(b.st(WOOD), [Vector2(0.0, -0.93), Vector2(0.013, -0.925), Vector2(0.016, -0.89),
+		Vector2(0.017, 0.0), Vector2(0.0155, 0.88), Vector2(0.0, 0.90)], 8, Vector3.ZERO, 1.0, 0.8)
+	wrapped_grip(b.st(LEATHER), -0.10, 0.12, 0.0185, 8)
+	wrapped_grip(b.st(CORD), 0.79, 0.90, 0.021, 7)
+	var flint := b.st(FLINT)
+	set_flat(flint, true)
+	blade(flint, 0.86, 0.18, 0.074, 0.02, 0.055, false)
+	return b.commit(make_material)
+
+
+## Lasca de sílex: una pirámide de cuatro caras clavada en [base] que asoma [height] hacia
+## [outward], con [half_length] a lo largo de [along] y [half_thick] de grueso.
+static func _flint_point(st: SurfaceTool, base: Vector3, outward: Vector3, along: Vector3,
+		half_length: float, half_thick: float, height: float) -> void:
+	# Como la punta de la flecha (su anillo va de +X a +Z y la punta, en +Y): X = along, Y = outward.
+	var side := along.cross(outward)
+	var ring := [base + along * half_length, base + side * half_thick, base - along * half_length,
+		base - side * half_thick]
+	var tip := base + outward * height
+	var neck := base - outward * 0.004
+	for j in 4:
+		var k := (j + 1) % 4
+		tri(st, ring[j], ring[k], tip)
+		tri(st, ring[k], ring[j], neck)
+
 ## Curva de las palas del arco: z (hacia el blanco) según y. Las puntas vuelven hacia delante
 ## (recurvo). [draw] 0..1 dobla más las palas al tensar.
 static func bow_limb_z(y: float, half: float, draw: float = 0.0) -> float:

@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/flint_spear.res" id="1_2o6sl"]
+
+[node name="FlintSpear" type="Node3D" unique_id=650077337]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1561923149]
+mesh = ExtResource("1_2o6sl")
