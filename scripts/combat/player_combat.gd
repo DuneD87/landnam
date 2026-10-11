@@ -590,7 +590,8 @@ func weapon() -> ItemData:
 
 
 ## Cuelga la escena del arma de la mano que toca. Las armas de combate van en metros sobre el
-## marco de agarre; las herramientas antiguas traen su propia escala y cuelgan del hueso.
+## marco de agarre, y el hacha y el pico de piedra también, enderezados (ToolGrip): el puño los
+## cierra perpendiculares al antebrazo. Lo demás (la antorcha) trae su escala y cuelga del hueso.
 func attach_weapon(node: Node3D, data: ItemData) -> void:
 	detach_weapon()
 	_weapon_node = node
@@ -603,6 +604,10 @@ func attach_weapon(node: Node3D, data: ItemData) -> void:
 			_quiver.top_level = true
 			add_child(_quiver)
 	elif data.scene_path.begins_with("res://scenes/items/weapons/combat/"):
+		_right_grip.add_child(node)
+		pose.grip_right = true
+	elif data.tool_type == ItemData.ToolType.AXE or data.tool_type == ItemData.ToolType.PICKAXE:
+		node.transform = ToolGrip.align(node)
 		_right_grip.add_child(node)
 		pose.grip_right = true
 	else:
@@ -1866,9 +1871,9 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 	if p.grip_right:
 		_right_grip.global_transform = p.right_grip_xform
 	else:
-		# Las herramientas antiguas cuelgan del hueso con su escala y no usan el marco de agarre,
-		# pero la hoja barre desde él (talar, golpear): sin esto se quedaba donde lo dejó el último
-		# arma de combate y el hachazo no tocaba nada.
+		# Lo que cuelga del hueso con su escala (la antorcha) no usa el marco de agarre, pero la
+		# hoja barre desde él (golpear): sin esto se quedaba donde lo dejó el último arma de
+		# combate y el golpe no tocaba nada.
 		_right_grip.global_transform = (p.bone_world_xform("mixamorig_RightHandMiddle2") * RIGHT_GRIP).orthonormalized()
 	if p.shield_on and _shield_node != null and is_instance_valid(_shield_node):
 		_shield_node.global_transform = p.shield_xform
