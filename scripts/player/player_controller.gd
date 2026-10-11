@@ -537,7 +537,7 @@ func _ready():
 			&"hunting_bow", &"slingshot"]:
 		inventory.add_item(config.get_item(weapon_id), 1)
 	inventory.add_item(config.get_item(&"spear"), 3)
-	for shield_id in [&"wooden_shield", &"heater_shield"]:
+	for shield_id in [&"iron_shield", &"heater_shield"]:
 		inventory.add_item(config.get_item(shield_id), 1)
 	inventory.add_item(config.get_item(&"arrow"), 40)
 	inventory.add_item(config.get_item(&"wood_01"), 100)

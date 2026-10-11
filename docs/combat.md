@@ -108,7 +108,8 @@ clic derecho bloquea y la lanza solo pica.
 
 | Con qué | Para | Estabilidad | Arco | Parada | Flechas |
 | --- | --- | --- | --- | --- | --- |
-| Rodela de madera (`wooden_shield`) | 90 % | 45 | 65° | 0,20 s | sí |
+| Escudo de madera (`wooden_shield`) | 70 % | 28 | 55° | 0,15 s | sí |
+| Escudo de hierro (`iron_shield`) | 90 % | 45 | 65° | 0,20 s | sí |
 | Escudo de roble (`heater_shield`) | 100 % | 68 | 60° | 0,15 s | sí |
 | Espadón | 65 % | 35 | 50° | 0,13 s | no |
 | Hacha grande | 55 % | 30 | 45° | 0,10 s | no |
@@ -116,8 +117,8 @@ clic derecho bloquea y la lanza solo pica.
 
 Las criaturas lo leen (`guarding` en `CombatRead`): el oso embiste más contra la guardia para
 romperla. El escudo va atado al antebrazo izquierdo (`CombatPose.shield_xform`, sus mallas en
-`WeaponMeshes.round_shield`/`heater_shield`): sigue el giro del antebrazo y no el de la mano, como
-con correas, así que doblar la muñeca no lo mueve. Las escenas de escudo llevan el origen en el
+`WeaponMeshes.plank_shield`/`round_shield`/`heater_shield`): sigue el giro del antebrazo y no el
+de la mano, como con correas, así que doblar la muñeca no lo mueve. Las escenas de escudo llevan el origen en el
 centro de la cara interior de la tabla, y `SHIELD_ON_FOREARM` la separa del brazo. La guardia
 es de Mixamo, en el canal de tronco y brazos (`PlayerCombat.GUARD_ANIMS`): con escudo, alzarlo
 (`shield_block`, a ×1,4: arriba a los ~0,25 s, lo que dura la parada), sostenerlo

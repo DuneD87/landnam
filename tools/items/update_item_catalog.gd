@@ -30,8 +30,14 @@ func _update_existing() -> void:
 		_edit(path, {"group": &"ranged"})
 	_edit("Weapons/spear", {"display_name": "Lanza de hierro"})
 	_edit("Weapons/arrow", {"group": &"ammo"})
-	for path in ["Shields/wooden_shield", "Shields/heater_shield"]:
+	for path in ["Shields/wooden_shield", "Shields/iron_shield", "Shields/heater_shield"]:
 		_edit(path, {"group": &"shield"})
+	# El de madera es el de la Edad de piedra: tablas y nada más, para poco. El de umbo de hierro,
+	# para eras futuras.
+	_edit("Shields/wooden_shield", {"display_name": "Escudo de madera",
+		"description": "Cuatro tablas cortadas en redondo y atadas a dos travesaños, sin más. Para algo de lo que llega de frente, también flechas, pero aguanta poco.",
+		"guard_reduction": 0.7, "guard_stability": 28.0, "guard_arc": 55.0, "parry_window": 0.15})
+	_edit("Shields/iron_shield", {"display_name": "Escudo de hierro"})
 	_edit("Tools/stone_axe", {"display_name": "Hacha de piedra", "group": &"tool",
 		"description": "Hoja de piedra atada a un mango: tala árboles y saca madera."})
 	_edit("Tools/stone_pickaxe", {"display_name": "Pico de piedra", "group": &"tool",

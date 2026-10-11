@@ -7,17 +7,17 @@
 [resource]
 script = ExtResource("2_script")
 id = &"wooden_shield"
-display_name = "Rodela de madera"
-description = "Tablas de pino encoladas con umbo de hierro y canto de cuero. Ligera: para casi todo lo que llega de frente, también flechas, y deja hacer paradas rápidas."
+display_name = "Escudo de madera"
+description = "Cuatro tablas cortadas en redondo y atadas a dos travesaños, sin más. Para algo de lo que llega de frente, también flechas, pero aguanta poco."
 icon = ExtResource("1_icon")
 category = 4
 scene_path = "res://scenes/items/weapons/combat/wooden_shield.tscn"
 stackable = false
 max_stack = 1
-guard_reduction = 0.9
-guard_stability = 45.0
-guard_arc = 65.0
-parry_window = 0.2
+guard_reduction = 0.7
+guard_stability = 28.0
+guard_arc = 55.0
+parry_window = 0.15
 guard_projectiles = true
 guard_sound = &"block_wood"
 armor_slot = 8

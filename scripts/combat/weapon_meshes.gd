@@ -524,7 +524,8 @@ static func _circle(radius: float, z: float, segments: int) -> PackedVector3Arra
 	return ring
 
 
-## Rodela de madera: tablas encoladas algo abombadas, umbo de hierro y canto de cuero. Ø 0,62 m.
+## Escudo de hierro: rodela de tablas encoladas algo abombadas, umbo de hierro y canto de cuero.
+## Ø 0,62 m.
 static func round_shield() -> ArrayMesh:
 	var b := Builder.new()
 	var r := 0.31
@@ -541,6 +542,44 @@ static func round_shield() -> ArrayMesh:
 	box(b.st(DARK_WOOD), Vector3(0.0, 0.0, -0.016), Vector3(0.22, 0.03, 0.024), Basis(Vector3.BACK, PI * 0.5))
 	return b.commit(make_material)
 
+
+
+## Escudo de madera: cuatro tablas planas cortadas en redondo y atadas por detrás a dos travesaños,
+## con un asidero de madera. Nada de metal. Ø 0,54 m.
+static func plank_shield() -> ArrayMesh:
+	var b := Builder.new()
+	var r := 0.27
+	var t := 0.018
+	var planks := 4
+	var gap := 0.004
+	var width := 2.0 * r / planks
+	var wood := b.st(WOOD)
+	set_flat(wood, true)
+	for i in planks:
+		var x0 := -r + width * i + gap * 0.5
+		var x1 := x0 + width - gap
+		# Cada tabla de un grueso: se nota que son tablas sueltas.
+		var front := t + 0.003 * float((i * 7) % 3 - 1)
+		loft(wood, [_plank_ring(r, x0, x1, 0.0), _plank_ring(r, x0, x1, front)])
+	var back := b.st(DARK_WOOD)
+	for y: float in [-0.12, 0.12]:
+		var half := sqrt(r * r - y * y) - 0.03
+		box(back, Vector3(0.0, y, -0.008), Vector3(half * 2.0, 0.05, 0.016))
+	box(back, Vector3(0.0, 0.0, -0.016), Vector3(0.2, 0.03, 0.022), Basis(Vector3.BACK, PI * 0.5))
+	return b.commit(make_material)
+
+
+## Contorno de la tabla que va de [x0] a [x1] en un redondo de radio [r], a la altura [z]: el arco de
+## arriba de izquierda a derecha y el de abajo de vuelta, en el sentido de _circle.
+static func _plank_ring(r: float, x0: float, x1: float, z: float, steps: int = 6) -> PackedVector3Array:
+	var ring := PackedVector3Array()
+	for k in steps + 1:
+		var x := lerpf(x0, x1, float(k) / steps)
+		ring.append(Vector3(x, sqrt(maxf(r * r - x * x, 0.0)), z))
+	for k in steps + 1:
+		var x := lerpf(x1, x0, float(k) / steps)
+		ring.append(Vector3(x, -sqrt(maxf(r * r - x * x, 0.0)), z))
+	return ring
 
 ## Contorno de un escudo heráldico (canto de arriba recto, lados que bajan curvos hasta la punta),
 ## combado hacia atrás por los lados para abrazar el cuerpo. [grow] lo agranda (el canto).

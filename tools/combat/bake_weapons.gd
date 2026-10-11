@@ -26,7 +26,8 @@ var WEAPONS := {
 	"slingshot": [WeaponMeshes.slingshot, "res://scripts/combat/ranged_weapon_visual.gd", -25.0],
 	"arrow": [WeaponMeshes.arrow, "", -45.0],
 	"branch": [WeaponMeshes.branch, "", -45.0],
-	"wooden_shield": [WeaponMeshes.round_shield, "", 0.0],
+	"wooden_shield": [WeaponMeshes.plank_shield, "", 0.0],
+	"iron_shield": [WeaponMeshes.round_shield, "", 0.0],
 	"heater_shield": [WeaponMeshes.heater_shield, "", -8.0],
 	"seax": [SurvivalMeshes.seax, "", -45.0],
 	"flint_sword": [WeaponMeshes.flint_sword, "", -45.0],
@@ -46,7 +47,7 @@ const SURVIVAL_MESH_DIR := "res://data/items/meshes/survival/"
 const SURVIVAL_SCENE_DIR := "res://scenes/items/survival/"
 const SURVIVAL_ICON_DIR := "res://textures/icons/items/survival/"
 ## Los que se ven de frente en el icono (no de canto): el tirachinas y los escudos.
-const FACE_ON := ["slingshot", "wooden_shield", "heater_shield"]
+const FACE_ON := ["slingshot", "wooden_shield", "iron_shield", "heater_shield"]
 
 ## Ramas tiradas por el suelo (objetos del planeta, planet_earth.json): malla tumbada y escena.
 const LITTER_DIR := "res://data/items/meshes/litter/"
