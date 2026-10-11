@@ -76,6 +76,11 @@ static func _build() -> Dictionary:
 		&"mace": one_hand,
 		# La lanza pica de arriba abajo: es lo más parecido a una estocada que trae el rig.
 		&"spear": {"light": [v], "heavy": [heavy], "dash": [_with(v, {"lunge": Vector3(0.2, 0.88, 1.6)})]},
+		# El pico entra siempre de arriba abajo, también contra una criatura.
+		&"pickaxe": {"light": [v], "heavy": [heavy], "dash": [_with(v, {"lunge": Vector3(0.2, 0.88, 1.6)})]},
+		# El hacha de talar, siempre de lado, como al tronco; el pesado se carga atrás, antes del tajo.
+		&"hatchet": {"light": [h], "dash": [dash], "heavy": [_with(h, {"speed": 0.85, "charge": 0.58,
+			"lunge": Vector3(0.40, 0.95, 1.05), "armor": Vector3(0.5, 1.08, 20.0)})]},
 		&"greatsword": two_hand,
 		&"heavy2h": two_hand,
 	}
@@ -101,7 +106,13 @@ static func family_for(data: ItemData) -> StringName:
 			return &"heavy2h" if two else &"mace"
 		ItemData.WeaponType.SPEAR:
 			return &"spear"
-	# Herramientas: el hacha de piedra tala y el pico pica; contra una criatura, como un hacha.
+	# Herramientas: el pico pica en vertical y el hacha tala en horizontal; lo demás, contra una
+	# criatura, pega como un hacha.
+	match data.tool_type:
+		ItemData.ToolType.PICKAXE:
+			return &"pickaxe"
+		ItemData.ToolType.AXE:
+			return &"hatchet"
 	return &"axe"
 
 

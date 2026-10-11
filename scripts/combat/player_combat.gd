@@ -1149,12 +1149,19 @@ func _start_attack(heavy: bool) -> void:
 		return
 	var family := MeleeMoveset.family_for(data)
 	var kind := "heavy" if heavy else "light"
-	if not heavy and (player.movement.is_sprinting or state == State.DODGE or _since_dodge < DASH_WINDOW):
+	# Talar y picar es trabajo, no combate: el golpe se da en el sitio, sin paso adelante ni a la
+	# carrera. Con un enemigo encima, la herramienta pega como un arma.
+	var working := data.category == ItemData.Category.TOOL and (TreeFelling.fells(data) or RockMining.mines(data)) \
+		and not _enemy_near()
+	if not heavy and not working and (player.movement.is_sprinting or state == State.DODGE or _since_dodge < DASH_WINDOW):
 		kind = "dash"
 	# Encadena el combo si la animación del anterior aún suena o acaba de terminar.
 	var chained := (_recovering or _combo_window > 0.0) and _move_family == family and not _move.is_empty()
 	var index := _combo + 1 if chained and kind == _move_kind else 0
 	var mv := MeleeMoveset.move(family, kind, index)
+	if working:
+		mv = mv.duplicate()
+		mv.erase("lunge")
 	var cost := data.stamina_cost * float(mv.get("stamina", 1.0)) * (1.6 if heavy else 1.0)
 	if not stamina.spend(cost):
 		hud.flash_stamina()
