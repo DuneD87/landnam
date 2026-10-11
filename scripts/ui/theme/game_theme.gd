@@ -43,8 +43,10 @@ const _ALEGREYA_MEDIUM := preload("res://fonts/AlegreyaSans-Medium.ttf")
 const _ALEGREYA_BOLD := preload("res://fonts/AlegreyaSans-Bold.ttf")
 const _ALEGREYA_ITALIC := preload("res://fonts/AlegreyaSans-Italic.ttf")
 
-## Lado de los huecos de objeto, por uso (constantes del tipo "ItemSlot").
-const SLOT_SIDES := {&"inventory": 112, &"equipment": 112, &"hotbar": 92, &"held": 96}
+## Lado de los huecos de objeto, por uso (constantes del tipo "ItemSlot"): los de la ventana de
+## fabricar son las recetas, lo que piden y el objeto elegido en grande.
+const SLOT_SIDES := {&"inventory": 112, &"equipment": 112, &"hotbar": 92, &"held": 96, &"recipe": 104,
+	&"ingredient": 64, &"preview": 150}
 
 
 ## Factor de la UI para una ventana de este tamaño (1 a 1440 px de alto).
@@ -296,6 +298,29 @@ static func build(ui_scale: float) -> Theme:
 	theme.set_color("caret_color", "LineEdit", BRONZE)
 	theme.set_font_size("font_size", "LineEdit", px.call(30))
 
+	# Cantidades: el campo de LineEdit con dos flechas de bronce a la derecha, una sobre otra.
+	var arrow_side: int = px.call(18)
+	theme.set_icon("up", "SpinBox", chevron_icon(arrow_side, true))
+	theme.set_icon("down", "SpinBox", chevron_icon(arrow_side, false))
+	for state in ["", "_hover", "_pressed", "_disabled"]:
+		theme.set_icon("up" + state, "SpinBox", chevron_icon(arrow_side, true))
+		theme.set_icon("down" + state, "SpinBox", chevron_icon(arrow_side, false))
+	for half in ["up", "down"]:
+		theme.set_stylebox(half + "_background", "SpinBox", box(LEATHER, 4, 0, 1, BRONZE_FAINT, ui_scale))
+		theme.set_stylebox(half + "_background_hovered", "SpinBox", box(LEATHER_LIGHT, 4, 0, 1, BRONZE_LINE, ui_scale))
+		theme.set_stylebox(half + "_background_pressed", "SpinBox", box(BRONZE_DARK, 4, 0, 1, BRONZE, ui_scale))
+		theme.set_stylebox(half + "_background_disabled", "SpinBox", box(Color(IRON_DEEP, 0.6), 4, 0, 1, Color(1, 1, 1, 0.04), ui_scale))
+		theme.set_color(half + "_icon_modulate", "SpinBox", BONE)
+		theme.set_color(half + "_hover_icon_modulate", "SpinBox", Color.WHITE)
+		theme.set_color(half + "_pressed_icon_modulate", "SpinBox", INK)
+		theme.set_color(half + "_disabled_icon_modulate", "SpinBox", Color(MUTED, 0.5))
+	theme.set_stylebox("field_and_buttons_separator", "SpinBox", StyleBoxEmpty.new())
+	theme.set_stylebox("up_down_buttons_separator", "SpinBox", StyleBoxEmpty.new())
+	theme.set_constant("buttons_width", "SpinBox", px.call(40))
+	theme.set_constant("field_and_buttons_separation", "SpinBox", px.call(6))
+	theme.set_constant("buttons_vertical_separation", "SpinBox", px.call(3))
+	theme.set_constant("set_min_buttons_width_from_icons", "SpinBox", 0)
+
 	var track := box(Color(1, 1, 1, 0.1), 2, 0, 0, Color.TRANSPARENT, ui_scale)
 	track.content_margin_top = px.call(3)
 	track.content_margin_bottom = px.call(3)
@@ -416,6 +441,22 @@ static func diamond_icon(size: int, color: Color) -> ImageTexture:
 		for x in size:
 			var d := absf(x + 0.5 - half) + absf(y + 0.5 - half)
 			image.set_pixel(x, y, Color(color, clampf((half - 1.0 - d) * 0.75, 0.0, 1.0)))
+	return ImageTexture.create_from_image(image)
+
+
+## Flecha en ángulo (hacia arriba o hacia abajo), blanca: el tema la tiñe con su modulate.
+static func chevron_icon(size: int, up: bool) -> ImageTexture:
+	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var half := size * 0.5
+	var thick := maxf(1.5, size * 0.14)
+	for y in size:
+		for x in size:
+			var px := x + 0.5 - half
+			var py := (y + 0.5 - half) * (1.0 if up else -1.0)
+			# Dos trazos que se juntan en la punta, algo por encima del centro.
+			var d := absf(py - absf(px) * 0.9 + size * 0.14) / 1.35
+			var inside := absf(px) <= half * 0.62
+			image.set_pixel(x, y, Color(1, 1, 1, clampf(thick * 0.5 - d + 0.5, 0.0, 1.0) if inside else 0.0))
 	return ImageTexture.create_from_image(image)
 
 

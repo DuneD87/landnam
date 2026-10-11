@@ -2,7 +2,8 @@ extends Node
 
 ## Abre la pantalla de personaje (InventoryUI con el muñeco de CharacterWindow y la barra
 ## rápida) sobre una escena mínima, con el inventario lleno y algo de ropa puesta. Sin argumentos
-## se queda abierta para probarla a mano: I y C cambian de vista como en partida. Con
+## se queda abierta para probarla a mano: I, C y Tab (fabricar, con un banco de trabajo al lado)
+## cambian de vista como en partida. Con
 ## `-- --capture` guarda capturas en build/ui/equipment/ (la pantalla, la ficha de un objeto, uno
 ## en el cursor y el botín) y sale. Necesita ventana.
 ##   godot --path . res://tests/ui/equipment_screen_preview.tscn -- --capture
@@ -27,7 +28,7 @@ func _ready() -> void:
 	for entry in [[&"iron_sword", 1], [&"battle_axe", 1], [&"hunting_bow", 1], [&"arrow", 40],
 			[&"stone_axe_01", 1], [&"stone_pickaxe_01", 1], [&"torch_01", 1], [&"heater_shield", 1],
 			[&"leather_hood", 1], [&"leather_boots", 1], [&"firstage_skin_chest", 1], [&"wood_01", 64],
-			[&"stone_01", 99], [&"iron_01", 12]]:
+			[&"stone_01", 99], [&"iron_01", 12], [&"branch_01", 10], [&"raw_hide", 5]]:
 		_inventory.add_item(Config.get_item(entry[0]), entry[1])
 	_ui = load("res://scenes/ui/inventory_ui.tscn").instantiate()
 	_character_window = load("res://scenes/ui/character_window.tscn").instantiate()
@@ -36,6 +37,13 @@ func _ready() -> void:
 	add_child(_character_window)
 	add_child(_hotbar)
 	_ui.setup(_inventory, _character_window, _hotbar)
+	# Quien fabrica, con un banco de trabajo al lado: sus recetas salen «Cerca».
+	var crafter := Node3D.new()
+	add_child(crafter)
+	_ui.crafter = crafter
+	var bench: Node3D = load("res://scenes/world/stone_workbench.tscn").instantiate()
+	add_child(bench)
+	bench.position = Vector3(1.5, 0, 0)
 	var health := HealthComponent.new()
 	add_child(health)
 	health.health = 72.0
@@ -60,6 +68,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_ui.toggle(InventoryUI.View.INVENTORY)
 	elif event.is_action_pressed("character_window"):
 		_ui.toggle(InventoryUI.View.CHARACTER)
+	elif event.is_action_pressed("crafting"):
+		_ui.toggle(InventoryUI.View.CRAFTING)
 
 
 func _capture() -> void:
@@ -91,6 +101,9 @@ func _capture() -> void:
 		loot.add_item(Config.get_item(entry[0]), entry[1])
 	_ui.open_loot(loot)
 	await _shot("05_botin")
+	_ui.close_loot()
+	_ui.open(InventoryUI.View.CRAFTING)
+	await _shot("06_fabricar")
 	get_tree().quit()
 
 

@@ -2,8 +2,8 @@ extends SceneTree
 
 ## Pone al día el catálogo de objetos (data/items/) con la clasificación de ItemTaxonomy y los
 ## rasgos de supervivencia: nombres en español, grupos, abrigo de la ropa, leña de la madera y las
-## ramas, y los objetos nuevos (seax, carne, piel, odre, hoguera). Cambia solo los campos de aquí
-## y deja el resto como esté, así que se puede volver a pasar. Ver docs/items.md.
+## ramas, y los objetos nuevos (seax, carne, piel, odre, hoguera, banco de trabajo). Cambia solo los
+## campos de aquí y deja el resto como esté, así que se puede volver a pasar. Ver docs/items.md.
 ##   godot --headless --path . --script res://tools/items/update_item_catalog.gd
 
 const ITEMS := "res://data/items/"
@@ -128,6 +128,26 @@ func _create_new() -> void:
 		"id": &"campfire", "display_name": "Hoguera", "category": ItemData.Category.MATERIAL, "group": &"placeable",
 		"description": "Un corro de piedras con leña. Plántala en el suelo, échale combustible y enciéndela: asa la carne, calienta y alumbra.",
 		"icon": load("res://textures/icons/items/survival/campfire.png"), "max_stack": 5, "traits": [ground],
+	})
+	# Sobre patas: casi derecho, apoyado en lo más bajo del suelo.
+	var bench_ground := GroundPlaceableTrait.new()
+	bench_ground.scene_path = "res://scenes/world/stone_workbench.tscn"
+	bench_ground.preview_scene = load("res://scenes/world/stone_workbench_visual.tscn")
+	bench_ground.radius = 0.6
+	bench_ground.max_slope = 24.0
+	bench_ground.max_rough = 0.3
+	bench_ground.spacing = 2.0
+	bench_ground.max_tilt = 10.0
+	bench_ground.settle = 0.9
+	bench_ground.max_settle = 0.25
+	var station := CraftingStationTrait.new()
+	station.era = Eras.Era.STONE
+	_create("Placeables/stone_workbench", {
+		"id": &"stone_workbench", "display_name": "Banco de trabajo", "category": ItemData.Category.MATERIAL,
+		"group": &"station",
+		"description": "Un banco de madera tosca con una losa para tallar. Plántalo en el suelo: a su lado se fabrican las herramientas, las armas y la ropa de la Edad de piedra.",
+		"icon": load("res://textures/icons/items/survival/stone_workbench.png"), "stackable": false, "max_stack": 1,
+		"traits": [bench_ground, station],
 	})
 
 

@@ -1,16 +1,18 @@
 class_name GroundFit
 extends RefCounted
 
-## Asienta algo redondo y bajo (una hoguera) sobre el terreno, sin que quede hundido por un lado ni
-## flotando por otro. Sondea el suelo en el centro y en un corro a su alrededor, ajusta un plano a
-## lo que encuentra y lo inclina con la pendiente, hasta [max_tilt] grados. Luego lo baja lo justo
-## para que el lado que queda más bajo no flote.
+## Asienta algo sobre el terreno (una hoguera, un banco de trabajo), sin que quede hundido por un
+## lado ni flotando por otro. Sondea el suelo en el centro y en un corro a su alrededor, ajusta un
+## plano a lo que encuentra y lo inclina con la pendiente, hasta [max_tilt] grados. Luego lo baja
+## para que el lado que queda más bajo no flote: [settle] del desnivel, hasta [max_settle] m (lo
+## bajo y redondo, poco; lo que va sobre patas, hasta apoyarse en lo más bajo).
 
 
 ## [center] es donde apunta el jugador, en el suelo; [up], la vertical del planeta ahí.
 ## Devuelve {ok, transform, tilt (grados de pendiente), rough (m de desnivel que queda)}.
 static func fit(space: PhysicsDirectSpaceState3D, center: Vector3, up: Vector3, facing: Vector3,
-		radius: float, mask: int, exclude: Array[RID], max_tilt: float = 20.0, samples: int = 8) -> Dictionary:
+		radius: float, mask: int, exclude: Array[RID], max_tilt: float = 20.0, settle: float = 0.6,
+		max_settle: float = 0.1, samples: int = 8) -> Dictionary:
 	var right := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
 	var forward := up.cross(right)
 	var ring: Array[Vector3] = []
@@ -39,7 +41,7 @@ static func fit(space: PhysicsDirectSpaceState3D, center: Vector3, up: Vector3, 
 		n = -n
 	var tilt := rad_to_deg(up.angle_to(n))
 	if tilt > max_tilt:
-		n = up.slerp(n, max_tilt / tilt).normalized()
+		n = up.slerp(n, max_tilt / tilt).normalized() if max_tilt > 0.0 else up
 	var low := 0.0
 	var high := 0.0
 	for p in points:
@@ -49,7 +51,7 @@ static func fit(space: PhysicsDirectSpaceState3D, center: Vector3, up: Vector3, 
 	# El centro del objeto, sobre el plano en la vertical de donde se apunta, y algo más bajo para
 	# que lo más hundido del terreno no deje huecos.
 	var to_center: Vector3 = middle - c
-	var origin := c + (to_center - n * to_center.dot(n)) + n * clampf(low * 0.6, -0.1, 0.0)
+	var origin := c + (to_center - n * to_center.dot(n)) + n * clampf(low * settle, -max_settle, 0.0)
 	var z := facing - n * facing.dot(n)
 	z = z.normalized() if z.length_squared() > 1e-6 else n.cross(right).normalized()
 	var basis := Basis(n.cross(z).normalized(), n, z)

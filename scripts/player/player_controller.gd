@@ -544,6 +544,7 @@ func _ready():
 	inventory.add_item(config.get_item(&"stone_01"), 100)
 
 	inventory_ui.setup(inventory, character_window, hotbar)
+	inventory_ui.crafter = self
 	inventory_ui.set_vitals(health_component, combat.stamina, needs)
 	inventory_ui.drop_requested.connect(_on_inventory_drop)
 	inventory_ui.use_requested.connect(survival.use_item.bind(true))
@@ -1124,16 +1125,21 @@ func _input(event):
 	if blueprint_placer.is_active():
 		return
 
-	# I: el inventario solo, sin tapar el mundo. C: la pantalla de personaje entera.
-	if event.is_action_pressed("inventory") or event.is_action_pressed("character_window"):
-		inventory_ui.toggle(InventoryUI.View.CHARACTER if event.is_action_pressed("character_window")
-			else InventoryUI.View.INVENTORY)
+	# I: el inventario solo, sin tapar el mundo. C: la pantalla de personaje entera. Tab: fabricar.
+	if (event.is_action_pressed("inventory") or event.is_action_pressed("character_window")
+			or event.is_action_pressed("crafting")) and not _is_text_field_focused():
+		var which := InventoryUI.View.INVENTORY
+		if event.is_action_pressed("character_window"):
+			which = InventoryUI.View.CHARACTER
+		elif event.is_action_pressed("crafting"):
+			which = InventoryUI.View.CRAFTING
+		inventory_ui.toggle(which)
 		if inventory_ui.visible:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		else:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
  
-	if event.is_action_pressed("action") && !free_flight_enabled and not climb.is_active():
+	if event.is_action_pressed("action") && !free_flight_enabled and not climb.is_active() and not _is_text_field_focused():
 		var corpse := _find_nearby_corpse()
 		# Lo soltado que se está mirando va antes que el cadáver de al lado (tirar lo que sobra
 		# mientras se saquea y volver a cogerlo); sin mirarlo, después de todo lo demás.
@@ -1144,6 +1150,8 @@ func _input(event):
 		elif corpse:
 			survival.open_corpse(corpse)
 		elif survival.open_nearby_campfire():
+			pass
+		elif survival.open_nearby_station():
 			pass
 		elif combat.try_pickup():
 			pass

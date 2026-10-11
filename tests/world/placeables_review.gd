@@ -1,14 +1,18 @@
 extends Node3D
 
-## Tres hogueras encendidas plantadas con GroundFit en un suelo de prueba: llano, en una ladera de
-## unos 15° y en un suelo con baches, al atardecer. Para ver cómo asientan, la ceniza y el fuego.
-##   godot --path . res://tests/world/campfire_review.tscn [-- --capture=<carpeta>]
+## Lo que se planta en el suelo, asentado con GroundFit en un suelo de prueba (llano, una ladera de
+## unos 15° y baches), al atardecer: tres hogueras encendidas y, detrás, tres bancos de trabajo. Para
+## ver cómo asientan, la ceniza y el fuego, y el banco con lo que lleva encima.
+##   godot --path . res://tests/world/placeables_review.tscn [-- --capture=<carpeta>]
 ## Con --capture saca unas fotos de cerca y se cierra.
 
+const Config = preload("res://scripts/config.gd")
 const SIZE := 12.0
 const CELLS := 96
 
 var _spots := [Vector3(-3.0, 0, 0), Vector3(0.0, 0, 0), Vector3(3.0, 0, 0)]
+## Los bancos, detrás de cada hoguera.
+const BENCH_BEHIND := Vector3(0, 0, -2.2)
 
 
 func _ready() -> void:
@@ -48,6 +52,18 @@ func _ready() -> void:
 		fire.global_transform = fit.transform
 		fire.fuel_left = 999.0
 		fire.ignite()
+	var bench_data: ItemData = Config.get_item(&"stone_workbench")
+	var ground := bench_data.get_trait(GroundPlaceableTrait) as GroundPlaceableTrait
+	for spot: Vector3 in _spots:
+		var at: Vector3 = spot + BENCH_BEHIND
+		var query := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 5, at + Vector3.DOWN * 5, 1)
+		var hit := space.intersect_ray(query)
+		var fit := GroundFit.fit(space, hit.position, Vector3.UP, Vector3(0, 0, 1), ground.radius, 1, exclude,
+			ground.max_tilt, ground.settle, ground.max_settle)
+		print("banco en ", spot.x, ": ", "ok" if fit.ok else "NO", " pendiente %.1f° desnivel %.2f m" % [fit.get("tilt", 0.0), fit.get("rough", 0.0)])
+		var bench: Node3D = (load(ground.scene_path) as PackedScene).instantiate()
+		planet.add_child(bench)
+		bench.global_transform = fit.transform
 	var capture := ""
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture="):
@@ -63,12 +79,15 @@ func _ready() -> void:
 		var s: Vector3 = _spots[i]
 		views.append(["near_%d" % i, s + Vector3(0.5, 0.55, 1.6), s + Vector3(0, 0.12, 0)])
 		views.append(["low_%d" % i, s + Vector3(-1.4, 0.18, 0.6), s + Vector3(0, 0.1, 0)])
+		var b: Vector3 = s + BENCH_BEHIND
+		views.append(["bench_%d" % i, b + Vector3(0.9, 1.3, 2.0), b + Vector3(0, 0.6, 0)])
+		views.append(["bench_side_%d" % i, b + Vector3(-2.2, 0.7, 0.4), b + Vector3(0, 0.4, 0)])
 	for view in views:
 		cam.look_at_from_position(view[1], view[2])
 		for k in 8:
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
-		get_viewport().get_texture().get_image().save_png(capture.path_join("campfire_%s.png" % view[0]))
+		get_viewport().get_texture().get_image().save_png(capture.path_join("placed_%s.png" % view[0]))
 	get_tree().quit()
 
 

@@ -5,7 +5,9 @@ class_name InventoryUI
 ## tapar el mundo, para ver dónde cae lo que se tira (y el botín al lado mientras se saquea). Con
 ## la C, la pantalla de personaje: el inventario a la izquierda, el personaje en 3D con sus huecos
 ## en el centro (el muñeco de CharacterWindow) y sus atributos a la derecha, con el mundo detrás
-## oscurecido y desenfocado. La barra rápida sube por encima de todo mientras está abierta.
+## oscurecido y desenfocado. Con el Tabulador (o «Fabricar»), la ventana de fabricar (CraftingPanel)
+## en lugar del personaje, con el inventario a su izquierda. La barra rápida sube por encima de todo
+## mientras está abierta.
 ##
 ## Los objetos se mueven a clics: el izquierdo coge el montón (con Mayús, la mitad) y lo suelta
 ## donde se pinche; el derecho coge la mitad o suelta de uno en uno. Al pasar el ratón por un
@@ -19,8 +21,8 @@ signal closed
 ## Doble clic sobre algo del inventario: usarlo (comerlo, beber del odre; SurvivalActions.use_item).
 signal use_requested(data: ItemData)
 
-## Lo que enseña: el inventario solo o la pantalla de personaje entera.
-enum View {INVENTORY, CHARACTER}
+## Lo que enseña: el inventario solo, la pantalla de personaje entera o la de fabricar.
+enum View {INVENTORY, CHARACTER, CRAFTING}
 
 const Config = preload("res://scripts/config.gd")
 const BACKDROP_SHADER := preload("res://shaders/ui/backdrop.gdshader")
@@ -35,7 +37,7 @@ const DOLL_WIDTH := Vector2(560.0, 900.0)
 const GAP := 36.0
 const MARGIN := Vector2(56.0, 40.0)
 const BOTTOM := 170.0
-const INVENTORY_HINT := "Clic: coger o soltar · Clic derecho: la mitad, o de uno en uno\nClic fuera de las ventanas: tirar al suelo · Sobre la barra rápida: asignar\nDoble clic: comer, beber del odre · Hogueras: selecciónalas en la barra y clic para plantarlas"
+const INVENTORY_HINT := "Clic: coger o soltar · Clic derecho: la mitad, o de uno en uno\nClic fuera de las ventanas: tirar al suelo · Sobre la barra rápida: asignar\nDoble clic: comer, beber del odre · Hogueras y estaciones: selecciónalas en la barra y clic para plantarlas"
 
 var inventory: Inventory
 var character_window: CharacterWindow
@@ -47,11 +49,15 @@ var panel: Control
 var floating_item: InventoryItem = null
 var floating_slot_index: int = -1
 var view := View.INVENTORY
+## Quien fabrica (el jugador): las recetas de una estación de trabajo piden tenerla cerca.
+var crafter: Node3D
 
 var _ui_scale := 1.0
 var _root: Control
 var _backdrop: ColorRect
 var _header: Control
+var _header_title: Label
+var _header_hint: Label
 var _frame: VBoxContainer
 var _inventory_column: PanelContainer
 var _side_column: PanelContainer
@@ -83,7 +89,7 @@ var _needs: SurvivalNeeds
 var _need_values := {}
 var _hand_boxes := {}
 
-## Columna de la derecha: atributos, botín, hoguera o fabricar (la manda _update_side).
+## Columna de la derecha: atributos, botín u hoguera (la manda _update_side).
 var _campfire: Campfire = null
 var _campfire_box: VBoxContainer
 var _campfire_slots: Array[InventorySlot] = []
@@ -92,10 +98,9 @@ var _fuel_bar: ProgressBar
 var _fire_label: Label
 var _fuel_label: Label
 var _ignite_button: Button
-var _crafting := false
-var _craft_box: VBoxContainer
-var _craft_list: VBoxContainer
+## «Fabricar», en la cabecera del inventario: abre y cierra la vista de fabricar.
 var _craft_toggle: Button
+var _crafting_panel: CraftingPanel
 
 var _loot_box: VBoxContainer
 var _loot_inventory: Inventory = null
@@ -139,6 +144,10 @@ func _ready() -> void:
 	body.add_child(_doll_holder)
 	_side_column = _build_side_column()
 	body.add_child(_side_column)
+	_crafting_panel = CraftingPanel.new()
+	_crafting_panel.ui = self
+	_crafting_panel.visible = false
+	body.add_child(_crafting_panel)
 
 	_card = ItemCard.new()
 	_root.add_child(_card)
@@ -189,16 +198,14 @@ func _process(_delta: float) -> void:
 func _build_header() -> Control:
 	var header := HBoxContainer.new()
 	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := Label.new()
-	title.text = "EQUIPO"
-	title.theme_type_variation = &"TitleLabel"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
-	var hint := Label.new()
-	hint.text = "C · Esc: cerrar · I: solo el inventario"
-	hint.theme_type_variation = &"HintLabel"
-	hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	header.add_child(hint)
+	_header_title = Label.new()
+	_header_title.theme_type_variation = &"TitleLabel"
+	_header_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_header_title)
+	_header_hint = Label.new()
+	_header_hint.theme_type_variation = &"HintLabel"
+	_header_hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header.add_child(_header_hint)
 	_close_button = Button.new()
 	_close_button.text = "×"
 	_close_button.theme_type_variation = &"CloseButton"
@@ -237,9 +244,9 @@ func _build_inventory_column() -> PanelContainer:
 	_craft_toggle.theme_type_variation = &"TabButton"
 	_craft_toggle.toggle_mode = true
 	_craft_toggle.focus_mode = Control.FOCUS_NONE
-	_craft_toggle.tooltip_text = "Lo que puedes hacer con lo que llevas"
+	_craft_toggle.tooltip_text = "Lo que puedes fabricar con lo que llevas (Tab)"
 	_craft_toggle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_craft_toggle.toggled.connect(_set_crafting)
+	_craft_toggle.toggled.connect(func(on: bool) -> void: open(View.CRAFTING if on else View.INVENTORY))
 	header.add_child(_craft_toggle)
 	_inventory_close = Button.new()
 	_inventory_close.text = "×"
@@ -298,9 +305,6 @@ func _build_side_column() -> PanelContainer:
 	_campfire_box = _build_campfire()
 	_campfire_box.visible = false
 	box.add_child(_campfire_box)
-	_craft_box = _build_crafting()
-	_craft_box.visible = false
-	box.add_child(_craft_box)
 	return column
 
 
@@ -382,24 +386,6 @@ func _build_campfire() -> VBoxContainer:
 	var hint := _label("Con algo en el cursor, clic en un hueco: dejarlo (una pieza en el asador)\nClic: al inventario", &"HintLabel")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(hint)
-	return box
-
-
-## Lo que se puede fabricar con lo que se lleva (Recipes).
-func _build_crafting() -> VBoxContainer:
-	var box := VBoxContainer.new()
-	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(_label("FABRICAR", &"HeaderLabel"))
-	box.add_child(HSeparator.new())
-	_craft_list = VBoxContainer.new()
-	box.add_child(_craft_list)
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(spacer)
-	var hint := _label("Lo fabricado va al inventario; si no cabe, al suelo", &"HintLabel")
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
 	return box
 
@@ -502,6 +488,7 @@ func _apply_scale() -> void:
 	var s := _ui_scale
 	_inventory_column.custom_minimum_size.x = SIDE_WIDTH * s
 	_side_column.custom_minimum_size.x = SIDE_WIDTH * s
+	_crafting_panel.ui_scale = s
 	panel.add_theme_constant_override("separation", roundi(GAP * s))
 	_frame.add_theme_constant_override("separation", roundi(18 * s))
 
@@ -563,8 +550,8 @@ func _refresh() -> void:
 	_apply_filter()
 	if visible:
 		_refresh_stats()
-		if _crafting:
-			_refresh_crafting()
+		if view == View.CRAFTING:
+			_crafting_panel.refresh()
 
 
 func _set_filter(index: int) -> void:
@@ -695,12 +682,6 @@ func _on_slot_hovered(slot: ItemSlotView, on: bool, context: StringName) -> void
 				var fuel := (slot as InventorySlot).slot_index == Campfire.FUEL_SLOT
 				_card.show_empty("Combustible" if fuel else "Asador",
 					"Suelta aquí algo que arda" if fuel else "Suelta aquí una pieza para asarla")
-		&"craft":
-			var item: InventoryItem = (slot as InventorySlot).item
-			if item:
-				data = item.data
-				quantity = 0
-			hint = ""
 		&"equipment":
 			var equipment := slot as EquipmentSlot
 			if equipment.has_item():
@@ -714,7 +695,7 @@ func _on_slot_hovered(slot: ItemSlotView, on: bool, context: StringName) -> void
 			hint = "Clic: vaciar el hueco · Con algo en el cursor: asignarlo"
 			quantity = 0
 	if data != null:
-		var compare: ItemData = null if context in [&"equipment", &"craft"] else _equipped_counterpart(data)
+		var compare: ItemData = null if context == &"equipment" else _equipped_counterpart(data)
 		if context == &"hotbar" and inventory != null:
 			quantity = inventory.get_item_count(data)
 		_card.show_item(data, quantity, compare, hint)
@@ -739,7 +720,7 @@ func _place_card(slot: ItemSlotView, context: StringName) -> void:
 				rect = Rect2(rect.position.x, top, rect.size.x, rect.end.y - top)
 			_card.place_above(rect)
 			return
-		&"inventory", &"loot", &"campfire", &"craft":
+		&"inventory", &"loot", &"campfire":
 			var column := (_inventory_column if context == &"inventory" else _side_column).get_global_rect()
 			rect = Rect2(column.position.x, rect.position.y, column.size.x, rect.size.y)
 	_card.place_beside(rect)
@@ -777,15 +758,20 @@ func open(which := View.INVENTORY) -> void:
 
 
 ## Lo que sale en cada vista. El inventario solo va a la izquierda, centrado en alto y del alto
-## de lo que tiene; en la de personaje, las columnas llenan la pantalla.
+## de lo que tiene; en la de personaje y en la de fabricar, las columnas llenan la pantalla.
 func _apply_view() -> void:
 	var full := view == View.CHARACTER
-	_backdrop.visible = full
-	_header.visible = full
+	var crafting := view == View.CRAFTING
+	_backdrop.visible = full or crafting
+	_header.visible = full or crafting
+	_header_title.text = "FABRICAR" if crafting else "EQUIPO"
+	_header_hint.text = "Tab · Esc: cerrar · I: solo el inventario" if crafting else "C · Esc: cerrar · I: solo el inventario"
 	_doll_holder.visible = full
-	_side_column.visible = full or _loot_inventory != null or _campfire != null or _crafting
-	_inventory_close.visible = not full
-	var vertical := Control.SIZE_FILL if full else Control.SIZE_SHRINK_CENTER
+	_side_column.visible = not crafting and (full or _loot_inventory != null or _campfire != null)
+	_crafting_panel.visible = crafting
+	_craft_toggle.set_pressed_no_signal(crafting)
+	_inventory_close.visible = not full and not crafting
+	var vertical := Control.SIZE_FILL if full or crafting else Control.SIZE_SHRINK_CENTER
 	_inventory_column.size_flags_vertical = vertical
 	_side_column.size_flags_vertical = vertical
 
@@ -796,9 +782,8 @@ func close() -> void:
 		_cancel_floating_item()
 	close_loot()
 	close_campfire()
-	if _crafting:
-		_craft_toggle.button_pressed = false
 	_hide_card()
+	_release_focus()
 	visible = false
 	if hotbar != null and _hotbar_layer >= 0:
 		hotbar.layer = _hotbar_layer
@@ -815,7 +800,7 @@ func open_loot(loot_inv: Inventory) -> void:
 	_create_loot_slots()
 	_update_side()
 	_refresh_loot()
-	open(view if visible else View.INVENTORY)
+	open(view if visible and view != View.CRAFTING else View.INVENTORY)
 
 
 func close_loot() -> void:
@@ -830,20 +815,17 @@ func close_loot() -> void:
 	_update_side()
 
 
-## Qué va en la columna de la derecha: el botín si se saquea, la hoguera si está abierta, lo que
-## se fabrica si se ha pedido y, si no, los atributos.
+## Qué va en la columna de la derecha: el botín si se saquea, la hoguera si está abierta y, si no,
+## los atributos.
 func _update_side() -> void:
 	var mode := &"stats"
 	if _loot_inventory != null:
 		mode = &"loot"
 	elif _campfire != null:
 		mode = &"campfire"
-	elif _crafting:
-		mode = &"craft"
 	_stats_box.visible = mode == &"stats"
 	_loot_box.visible = mode == &"loot"
 	_campfire_box.visible = mode == &"campfire"
-	_craft_box.visible = mode == &"craft"
 	_apply_view()
 
 
@@ -857,7 +839,7 @@ func open_campfire(fire: Campfire) -> void:
 	fire.tree_exiting.connect(close_campfire)
 	_update_side()
 	_refresh_campfire()
-	open(view if visible else View.INVENTORY)
+	open(view if visible and view != View.CRAFTING else View.INVENTORY)
 
 
 func close_campfire() -> void:
@@ -979,65 +961,17 @@ func _dismantle_campfire() -> void:
 
 # --- Fabricar -----------------------------------------------------------------------------------
 
-func _set_crafting(on: bool) -> void:
-	_crafting = on
-	if on:
-		_refresh_crafting()
-	_update_side()
+## E junto a una estación de trabajo: la ventana de fabricar, en sus recetas.
+func open_station(station: Workstation) -> void:
+	_crafting_panel.focus_station(station.item_id)
+	open(View.CRAFTING)
 
 
-func _refresh_crafting() -> void:
-	if _craft_list == null:
-		return
-	for child in _craft_list.get_children():
-		_craft_list.remove_child(child)
-		child.queue_free()
-	for i in Recipes.LIST.size():
-		var recipe: Dictionary = Recipes.LIST[i]
-		var result: ItemData = Config.get_item(recipe.result)
-		if result == null:
-			continue
-		var row := HBoxContainer.new()
-		var icon := InventorySlot.new()
-		icon.set_item(InventoryItem.new(result, int(recipe.amount)))
-		icon.hover_changed.connect(_on_slot_hovered.bind(&"craft"))
-		row.add_child(icon)
-		var info := VBoxContainer.new()
-		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info.alignment = BoxContainer.ALIGNMENT_CENTER
-		info.add_child(_label(result.display_name, &"StatValue"))
-		var missing := Recipes.missing(recipe, inventory)
-		for id: StringName in recipe.inputs:
-			var data: ItemData = Config.get_item(id)
-			var need := int(recipe.inputs[id])
-			var have := inventory.get_item_count(data)
-			var line := _label("%s  %d / %d" % [data.display_name if data else String(id), mini(have, need), need],
-				&"WorseLabel" if missing.has(id) else &"BetterLabel")
-			info.add_child(line)
-		row.add_child(info)
-		var make := Button.new()
-		make.text = "Fabricar"
-		make.theme_type_variation = &"AccentButton"
-		make.focus_mode = Control.FOCUS_NONE
-		make.disabled = not missing.is_empty()
-		make.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		make.pressed.connect(_craft.bind(i))
-		row.add_child(make)
-		_craft_list.add_child(row)
-		_craft_list.add_child(HSeparator.new())
-
-
-func _craft(index: int) -> void:
-	var recipe: Dictionary = Recipes.LIST[index]
-	var left := Recipes.craft(recipe, inventory)
-	if left < 0:
-		return
-	var result: ItemData = Config.get_item(recipe.result)
-	if left > 0:
-		drop_requested.emit(result, left)
-	if hotbar != null:
-		hotbar.notify("Fabricas: %s" % result.display_name)
-	inventory.inventory_changed.emit()
+## Fuera el foco de los campos (la cantidad): si no, las teclas del juego se quedarían escribiendo.
+func _release_focus() -> void:
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus != null and _root.is_ancestor_of(focus):
+		focus.release_focus()
 
 
 func _create_loot_slots() -> void:
@@ -1313,7 +1247,7 @@ func _drop_to_world(amount: int) -> void:
 ## El ratón está sobre alguna ventana: el inventario, el muñeco, la columna derecha, la cabecera
 ## o la barra rápida con su consola.
 func _over_ui(mp: Vector2) -> bool:
-	var areas: Array[Control] = [_inventory_column, _side_column, _close_button, _inventory_close]
+	var areas: Array[Control] = [_inventory_column, _side_column, _crafting_panel, _close_button, _inventory_close]
 	if character_window != null and character_window.panel != null:
 		areas.append(character_window.panel)
 	if hotbar != null and hotbar.visible:

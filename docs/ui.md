@@ -30,19 +30,24 @@ rápida, equipo) rehacen el tema cuando cambia el tamaño de la ventana.
   miniatura), `CloseButton`; `WindowPanel`, `Card`, `Inset` y `HotbarPanel`;
   `HealthBar` y `StaminaBar`. Ninguna puede llamarse como una clase de Godot
   («Window» no vale).
+- **Campos de cantidad:** el `SpinBox` usa la placa de `LineEdit` y lleva dos
+  flechas de bronce a la derecha, una encima de otra (`GameTheme.chevron_icon`).
 - **Huecos de objeto:** `ItemSlotView` es el hueco común de inventario, equipo,
   barra rápida y botín (`InventorySlot`, `EquipmentSlot` y `HotbarSlot` lo
   extienden). Cada estado es una variación (`SlotEmpty`, `Slot`, `SlotHover`,
   `SlotSelected`, `SlotEquipped`, `SlotHeld`) y el lado sale de las constantes
-  del tipo `ItemSlot` (`GameTheme.SLOT_SIDES`). Vacío enseña en bronce tenue la
+  del tipo `ItemSlot` (`GameTheme.SLOT_SIDES`; la ventana de fabricar tiene los
+  suyos: `recipe`, `ingredient` y `preview`). Vacío enseña en bronce tenue la
   silueta de lo que va en él (`shaders/ui/tint_alpha.gdshader`).
 
 ## Inventario y pantalla de personaje
 
-`InventoryUI` tiene dos vistas. Con la **I** sale el inventario solo, a la
+`InventoryUI` tiene tres vistas. Con la **I** sale el inventario solo, a la
 izquierda, sin fondo, para ver el mundo donde cae lo que se tira (con el botín
 al lado mientras se saquea). Con la **C** sale la pantalla de personaje entera.
-La tecla de la vista abierta la cierra, y la otra cambia a la suya. El
+Con el **Tab** (o «Fabricar», en la cabecera del inventario) sale la de fabricar
+(ver abajo). La tecla de la vista abierta la cierra, y las otras cambian a la
+suya. El
 inventario tiene filtros por categoría que dejan en segundo plano lo que no es
 del filtro, sin moverlo de su hueco.
 
@@ -67,18 +72,47 @@ montarse (`take_doll()`) y llama a `refresh()` al abrir la vista de personaje
 (solo si ha cambiado) y le viste la ropa de los huecos.
 
 `tests/ui/equipment_screen_preview.tscn` abre la pantalla sola, con el
-inventario lleno y ropa puesta, para probarla sin arrancar la partida (I y C
-cambian de vista).
+inventario lleno, ropa puesta y un banco de trabajo al lado, para probarla sin
+arrancar la partida (I, C y Tab cambian de vista).
 
-## Inventario: ordenar, fabricar y hoguera
+## Fabricar
+
+La vista de fabricar (`CraftingPanel`) va a la derecha del inventario, en el
+sitio del muñeco y la columna de atributos, con el mundo oscurecido detrás.
+Tiene tres partes:
+
+- **Pestañas**, a la izquierda: «Todo» y las categorías de `ItemTaxonomy` que
+  tienen alguna receta.
+- **Recetas**, en medio:
+  - Van agrupadas por era (de momento, la Edad de piedra) y, dentro, por dónde se
+    hacen: «A mano» y cada estación de trabajo.
+  - Junto a cada estación pone si hay una **Cerca** o **No está cerca** y, si no
+    lo está, dónde se fabrica la estación misma.
+  - Con una cerca, sale el botón **Desmontar**, que la devuelve al inventario.
+  - Lo que ahora no se puede hacer (falta material o la estación) sale apagado.
+  - **Solo lo que puedo hacer**, en la cabecera, esconde el resto. La cabecera
+    también dice qué estaciones hay cerca.
+- **La receta elegida**, a la derecha:
+  - La ficha: el objeto en grande, su tipo y sus cifras.
+  - **Dónde** se hace.
+  - **Materiales:** lo que pide para las veces elegidas, con lo que tienes de
+    cada cosa, en verde si alcanza y en rojo si no.
+  - **Cantidad:** un campo con flechas arriba y abajo (también vale la rueda o
+    escribir, de 1 a 99) y **Máx**, que pone todas las que alcanzan.
+  - **Fabricar ×N**, y debajo por qué no se puede, si no se puede.
+
+Las estaciones cercanas se vuelven a mirar cada 0,4 s, así que al acercarse o
+alejarse la ventana cambia sola. E junto a una estación abre esta vista en sus
+recetas (`InventoryUI.open_station`). Al abrir el botín o una hoguera, se vuelve
+al inventario solo.
+
+## Inventario: ordenar y hoguera
 
 - **Filtros:** «Todo» y las categorías de `ItemTaxonomy` (Armas, Herramientas,
   Ropa, Comida, Materiales y Construcción). Si no caben en una línea, saltan a
   la siguiente.
 - **Ordenar:** junta lo que se apila y lo ordena por categoría, grupo y nombre
   (`ItemTaxonomy.sort_inventory`).
-- **Fabricar:** enseña las recetas en la columna de la derecha. Al lado de cada
-  ingrediente va lo que tienes de él, en verde si alcanza y en rojo si no.
 - **Hoguera:** E junto a una hoguera la abre en esa misma columna
   (`open_campfire`).
   - **Combustible:** un hueco, con una barra de lo que dura la pieza que quema y
@@ -87,8 +121,8 @@ cambian de vista).
   - **Botones:** encender o apagar, recoger lo asado y desmontar.
   - **Clics:** con algo en el cursor, el clic lo deja en el hueco (el derecho,
     de uno en uno); sin nada, el clic pasa lo del hueco al inventario.
-- **Prioridad de la columna derecha:** el botín, luego la hoguera, luego
-  fabricar y, si no hay nada de eso, los atributos (`_update_side`).
+- **Prioridad de la columna derecha:** el botín, luego la hoguera y, si no hay
+  nada de eso, los atributos (`_update_side`).
 - **La ficha** enseña también lo que dan los rasgos del objeto (hambre, arde,
   abrigo...).
 - **Avisos:** los cortos («Bebes agua dulce», «Necesitas un cuchillo en la

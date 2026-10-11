@@ -39,6 +39,7 @@ const GROUPS := {
 	&"wood": [ItemData.Category.MATERIAL, "Madera"],
 	&"stone": [ItemData.Category.MATERIAL, "Piedra y mineral"],
 	&"misc": [ItemData.Category.MATERIAL, "Otros"],
+	&"station": [ItemData.Category.BLOCK, "Estaciones de trabajo"],
 	&"placeable": [ItemData.Category.BLOCK, "Colocables"],
 	&"block": [ItemData.Category.BLOCK, "Bloques"],
 }

@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/workstation.gd" id="1_station"]
+[ext_resource type="PackedScene" path="res://scenes/world/stone_workbench_visual.tscn" id="2_visual"]
+
+[node name="StoneWorkbench" type="Node3D"]
+script = ExtResource("1_station")
+item_id = &"stone_workbench"
+visual = ExtResource("2_visual")
+collision_size = Vector3(1.24, 0.76, 0.5)

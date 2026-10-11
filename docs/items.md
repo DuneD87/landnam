@@ -13,7 +13,7 @@ hacer con él** va aparte, en sus rasgos (`ItemTrait`).
 | Ropa | Cabeza · Torso · Manos · Piernas · Pies |
 | Comida | Cocinada · Cruda · Bebida |
 | Materiales | De caza · Madera · Piedra y mineral · Otros |
-| Construcción | Colocables · Bloques |
+| Construcción | Estaciones de trabajo · Colocables · Bloques |
 
 - Las categorías son los filtros del inventario.
 - El grupo (`ItemData.group`) da el orden al pulsar «Ordenar» y la línea de tipo
@@ -28,8 +28,8 @@ mandando para equipar:
 - La flecha es `MATERIAL` (no se empuña) y sale como munición.
 - El odre es `CONSUMABLE` (no se empuña: se usa desde la barra) y sale con las
   herramientas.
-- La hoguera es `MATERIAL` (no entra en el modo de construir) y sale en
-  Construcción.
+- La hoguera y el banco de trabajo son `MATERIAL` (no entran en el modo de
+  construir) y salen en Construcción.
 
 ## Rasgos
 
@@ -44,7 +44,8 @@ Van en `ItemData.traits` y se buscan por su tipo con
 | `WaterContainerTrait` | Tragos que caben | odre (5) |
 | `InsulationTrait` | Grados que abriga puesto | ropa de pieles (9 °C el juego entero), de cuero (6 °C) |
 | `SkinningTrait` | En la mano, deja despellejar | seax |
-| `GroundPlaceableTrait` | Se planta en el suelo: escena, malla de la vista previa, pendiente y separación | hoguera |
+| `GroundPlaceableTrait` | Se planta en el suelo: escena, vista previa, pendiente, separación y cuánto se inclina y se hunde | hoguera, banco de trabajo |
+| `CraftingStationTrait` | Es una estación de trabajo: su era y desde qué distancia se usan sus recetas | banco de trabajo |
 
 Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 `scripts/items/traits/`, con su `describe()` para la ficha.
@@ -59,6 +60,7 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Piel | `raw_hide` | Material de caza |
 | Odre | `waterskin` | 5 tragos de agua |
 | Hoguera | `campfire` | Se planta en el suelo |
+| Banco de trabajo | `stone_workbench` | Estación de trabajo de la Edad de piedra: se planta en el suelo |
 
 El jugador empieza con un seax. El resto sale con `give <id> [cantidad]`.
 
@@ -105,14 +107,67 @@ piedra de relleno.
 
 ### Fabricar
 
-La pestaña «Fabricar» del inventario (I o C) enseña las recetas
-(`Recipes.LIST`), lo que tienes de cada cosa y el botón. Lo fabricado va al
-inventario o, si no cabe, al suelo.
+Se fabrica en la ventana de fabricar: **Tab**, o «Fabricar» en la cabecera del
+inventario. Cómo es la ventana está en [ui.md](ui.md#fabricar). Lo fabricado va
+al inventario y lo que no cabe, al suelo.
 
-| Sale | Con |
-|---|---|
-| Hoguera | 6 piedras y 4 ramas |
-| Odre | 2 pieles |
+- **Recetas:** cada una es un `RecipeData` en `data/recipes/<era>/<dónde>/`. Dice
+  qué sale (`result`), cuántos cada vez (`amount`), lo que gasta (`inputs`: id →
+  cantidad), dónde se hace (`station`: vacío, a mano; o el id de una estación) y
+  su era. `Recipes` las carga todas y hace las cuentas para N veces
+  (`missing`, `max_times`, `craft`).
+- **Eras:** `Eras.Era` (de momento solo `STONE`, la Edad de piedra). Cada era trae
+  sus estaciones de trabajo y sus recetas, y la ventana las agrupa por era. Una
+  era nueva es un valor más en `Eras`, con su nombre.
+- **Estaciones de trabajo:** objetos con `CraftingStationTrait` que se plantan en
+  el suelo como la hoguera (`Workstation`). Sus recetas solo se pueden hacer a
+  menos de su alcance (3,5 m desde los pies). E junto a una abre la ventana en
+  sus recetas. Se desmontan desde la ventana, con ella cerca, y se guardan con la
+  partida.
+
+| Sale | Con | Dónde |
+|---|---|---|
+| Hoguera | 6 piedras y 4 ramas | A mano |
+| Odre | 2 pieles | A mano |
+| Banco de trabajo | 6 maderas, 4 piedras y 4 ramas | A mano |
+| Antorcha | 2 ramas | A mano |
+| Hacha de piedra | 3 piedras, 2 ramas y 1 piel | Banco de trabajo |
+| Pico de piedra | 4 piedras, 2 ramas y 1 piel | Banco de trabajo |
+| Arco de caza | 3 ramas y 1 piel | Banco de trabajo |
+| 4 flechas | 1 rama y 1 piedra | Banco de trabajo |
+| Tirachinas | 1 rama y 1 piel | Banco de trabajo |
+| Escudo de madera | 4 maderas y 1 piel | Banco de trabajo |
+| Ropa de pieles | capucha 2, jubón 4, manoplas 1, calzas 3 y botas 2 pieles | Banco de trabajo |
+
+Una receta nueva es un `.tres` más en su carpeta, con el script
+`scripts/items/recipe_data.gd`. Una estación nueva necesita:
+
+- su objeto, con `GroundPlaceableTrait` y `CraftingStationTrait`;
+- su escena, con `Workstation` en la raíz (`item_id`, `visual` y
+  `collision_size`);
+- recetas que la pidan en `station`.
+
+### Banco de trabajo
+
+- **Cómo se ve** (`StoneWorkbenchVisual`):
+  - un banco de madera tosca de 1,22 m de largo y 0,76 de alto, que es el modelo
+    *Wooden Stool 02* agrandado;
+  - encima, lo de tallar: una piedra de yunque con una lasca, un percutor, más
+    lascas, un cuenco tallado y un palo para un mango;
+  - al pie, unas piedras.
+
+  Las piezas son de [Poly Haven](https://polyhaven.com), CC0: *Wooden Stool 02*
+  y *Wooden Bowl 02* (Kuutti Siitonen), *Stone 01* (Dario Barresi y Rico
+  Cilliers) y *Namaqualand Stones 01* (Greg Zaal y Jenelle van Heerden), en
+  `models/props/workbench/`, y una rama de *Dry Branches Medium 01*, la de la
+  hoguera.
+- **Plantarlo:** como la hoguera, con la vista previa, aunque va casi derecho:
+  - se inclina hasta 10° con la pendiente;
+  - se apoya en lo más bajo del suelo (hasta 25 cm), y las patas del lado alto
+    se clavan;
+  - sale rojo con más de 24° de pendiente o más de 0,3 m de desnivel debajo;
+  - pide 2 m hasta lo plantado más cerca.
+- El icono sale de una malla sencilla, `SurvivalMeshes.workbench()`.
 
 ### Hoguera
 
@@ -126,13 +181,13 @@ inventario o, si no cabe, al suelo.
   Los dos modelos son de [Poly Haven](https://polyhaven.com), CC0, y están en
   `models/props/campfire/`. La ceniza la hornea `tools/items/bake_campfire_ash.py`.
 - **Plantarla:** con la hoguera seleccionada en la barra se ve, translúcida,
-  dónde iría.
+  dónde iría. Lo mismo vale para todo lo que se planta (`GroundPlaceableTrait`).
   - **Cómo se asienta** (`GroundFit`): sondea el suelo en el centro y en un corro
     de 0,55 m, ajusta un plano y la inclina con la pendiente, hasta 20°. El
     fuego sigue recto.
   - **Verde o roja:** sale verde si hay menos de 28° de pendiente y menos de
-    0,3 m de desnivel debajo, está a menos de 4,5 m, no hay otra a menos de
-    1,5 m y no estás en el agua; si no, sale roja.
+    0,3 m de desnivel debajo, está a menos de 4,5 m, no hay nada plantado a
+    menos de 1,5 m y no estás en el agua; si no, sale roja.
   - El clic la planta.
 - **Abrirla:** E junto a ella la abre en la columna de la derecha. Se cierra
   sola al alejarse.
@@ -156,16 +211,21 @@ inventario o, si no cabe, al suelo.
 ```sh
 # Mallas, escenas e iconos (renderiza: sin --headless)
 godot --path . --script res://tools/combat/bake_weapons.gd -- --only=seax,survival --background
+# Solo el icono del banco de trabajo
+godot --path . --script res://tools/combat/bake_weapons.gd -- --only=stone_workbench --background
 # Nombres, grupos, rasgos y objetos nuevos del catálogo
 godot --headless --path . --script res://tools/items/update_item_catalog.gd
 godot --headless --editor --quit --path .   # importa
 ```
 
-Las mallas están en `SurvivalMeshes` y la hoguera en `scenes/world/campfire.tscn`
-(`Campfire`). El icono de la hoguera sigue siendo el de la malla de `SurvivalMeshes`.
-`tests/world/campfire_review.tscn` planta tres hogueras encendidas en un suelo de
-prueba (llano, una ladera de 15° y baches), para ver cómo asientan:
+Las mallas están en `SurvivalMeshes`, la hoguera en `scenes/world/campfire.tscn`
+(`Campfire`) y el banco en `scenes/world/stone_workbench.tscn` (`Workstation`). Los
+iconos de la hoguera y del banco salen de las mallas sencillas de `SurvivalMeshes`.
+`tests/world/placeables_review.tscn` planta tres hogueras encendidas y tres bancos
+en un suelo de prueba (llano, una ladera de 15° y baches), para ver cómo asientan.
+`tests/items/test_recipes.tscn` prueba el recetario y la ventana de fabricar:
 
 ```sh
-godot --path . res://tests/world/campfire_review.tscn [-- --capture=<carpeta>]
+godot --path . res://tests/world/placeables_review.tscn [-- --capture=<carpeta>]
+godot --headless --path . res://tests/items/test_recipes.tscn
 ```

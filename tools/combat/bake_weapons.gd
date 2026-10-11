@@ -2,7 +2,8 @@ extends SceneTree
 
 ## Hornea las armas de combate: mallas (data/items/meshes/weapons/), escenas de arma
 ## (scenes/items/weapons/combat/) e iconos de inventario (textures/icons/items/weapons/). También los
-## objetos de supervivencia (SurvivalMeshes: carne, piel, odre, hoguera), en sus carpetas survival/.
+## objetos de supervivencia (SurvivalMeshes: carne, piel, odre, hoguera, banco de trabajo), en sus
+## carpetas survival/.
 ## Los iconos se renderizan, así que NO va con --headless:
 ##   godot --path . --script res://tools/combat/bake_weapons.gd [-- --only=greatsword,war_hammer]
 ## Después, `godot --headless --path . --import` para importar los PNG nuevos.
@@ -37,6 +38,7 @@ var SURVIVAL := {
 	"raw_hide": [SurvivalMeshes.hide, 0.0, 0.0, 0.0, true],
 	"waterskin": [SurvivalMeshes.waterskin, -10.0, 0.0, 0.0, true],
 	"campfire": [SurvivalMeshes.campfire, 0.0, 0.0, 32.0, false],
+	"stone_workbench": [SurvivalMeshes.workbench, 0.0, -28.0, 22.0, false],
 }
 const SURVIVAL_MESH_DIR := "res://data/items/meshes/survival/"
 const SURVIVAL_SCENE_DIR := "res://scenes/items/survival/"

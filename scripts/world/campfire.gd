@@ -58,6 +58,7 @@ func _init() -> void:
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	add_to_group(GroundPlaceableTrait.PLACED_GROUP)
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	if entity_id == "":
 		entity_id = "campfire_%d_%d" % [Time.get_unix_time_from_system(), randi()]

@@ -8,8 +8,10 @@ extends Node
 ##   llena los odres. El agua del mar no quita la sed.
 ## - E sobre un animal muerto lo despelleja si se lleva en la mano algo que despelleje (el seax:
 ##   SkinningTrait) y abre lo que da (HuntingLoot) como un botín.
-## - E junto a una hoguera la abre (InventoryUI.open_campfire).
-## - Con una hoguera seleccionada, se ve dónde iría y el clic la planta en el suelo.
+## - E junto a una hoguera la abre (InventoryUI.open_campfire); junto a una estación de trabajo,
+##   abre la ventana de fabricar en sus recetas (InventoryUI.open_station).
+## - Con algo que se planta seleccionado (una hoguera, un banco de trabajo: GroundPlaceableTrait),
+##   se ve dónde iría y el clic lo planta en el suelo.
 ## Los avisos salen sobre la barra rápida (Hotbar.notify). Ver docs/items.md.
 
 const USE_COOLDOWN := 0.7
@@ -66,7 +68,7 @@ func use_item(data: ItemData, from_inventory: bool = false) -> bool:
 	var ground := data.get_trait(GroundPlaceableTrait) as GroundPlaceableTrait
 	if ground != null:
 		if from_inventory:
-			notify("Selecciónala en la barra y haz clic donde quieras plantarla")
+			notify("Selecciónalo en la barra y haz clic en el suelo para plantarlo")
 		else:
 			_place(data, ground)
 		return true
@@ -134,6 +136,16 @@ func open_nearby_campfire() -> bool:
 	if fire == null:
 		return false
 	_player.inventory_ui.open_campfire(fire)
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	return true
+
+
+## Abre la ventana de fabricar en las recetas de la estación de trabajo de al lado, si la hay.
+func open_nearby_station() -> bool:
+	var station := Workstation.nearest(get_tree(), _player.global_position)
+	if station == null:
+		return false
+	_player.inventory_ui.open_station(station)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	return true
 
@@ -222,18 +234,27 @@ func _update_ghost() -> void:
 	var up := -_player.gravity_direction.normalized()
 	var at: Vector3 = hit.position
 	var exclude: Array[RID] = [_player.get_rid()]
-	var fit := GroundFit.fit(space, at, up, _player.global_position - at, ground.radius, WORLD_MASK, exclude)
+	var fit := GroundFit.fit(space, at, up, _player.global_position - at, ground.radius, WORLD_MASK, exclude,
+		ground.max_tilt, ground.settle, ground.max_settle)
 	if not fit.ok:
 		_ghost.visible = false
 		_place_ok = false
 		return
 	_place_xform = fit.transform
-	var crowded := Campfire.nearest(get_tree(), at, ground.spacing) != null
+	var crowded := _crowded(at, ground.spacing)
 	var wet: bool = _player.movement.is_swimming
 	_place_ok = fit.tilt <= ground.max_slope and fit.rough <= ground.max_rough and not crowded and not wet
 	_ghost.global_transform = _place_xform
 	_ghost_material.albedo_color = GHOST_OK if _place_ok else GHOST_BAD
 	_ghost.visible = true
+
+
+## Si hay algo plantado (una hoguera, una estación) a menos de [spacing] de [at].
+func _crowded(at: Vector3, spacing: float) -> bool:
+	for node in get_tree().get_nodes_in_group(GroundPlaceableTrait.PLACED_GROUP):
+		if node is Node3D and (node as Node3D).global_position.distance_to(at) < spacing:
+			return true
+	return false
 
 
 ## La vista previa: lo que se ve del objeto, todo translúcido.
@@ -273,4 +294,4 @@ func _place(data: ItemData, ground: GroundPlaceableTrait) -> void:
 	parent.add_child(node)
 	node.global_transform = _place_xform
 	_player.inventory.remove_item(data, 1)
-	notify("%s plantada: ábrela con E" % data.display_name)
+	notify("%s en el suelo · E para usarlo" % data.display_name)

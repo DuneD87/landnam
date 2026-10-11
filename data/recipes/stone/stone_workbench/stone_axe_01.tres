@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RecipeData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/recipe_data.gd" id="1_btcgs"]
+
+[resource]
+script = ExtResource("1_btcgs")
+result = &"stone_axe_01"
+inputs = Dictionary[StringName, int]({
+&"branch_01": 2,
+&"raw_hide": 1,
+&"stone_01": 3
+})
+station = &"stone_workbench"

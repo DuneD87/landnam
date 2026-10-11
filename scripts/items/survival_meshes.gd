@@ -2,7 +2,8 @@
 class_name SurvivalMeshes
 extends RefCounted
 
-## Mallas de los objetos de supervivencia (el seax, la carne, la piel, el odre y la hoguera),
+## Mallas de los objetos de supervivencia (el seax, la carne, la piel, el odre, la hoguera y el banco
+## de trabajo; de los dos últimos solo sale el icono: en el mundo se ven con sus modelos),
 ## generadas por código con los ayudantes de WeaponMeshes y horneadas a recursos, con sus iconos,
 ## por tools/combat/bake_weapons.gd. Metros; las de mano, con el origen en el agarre y +Y hacia la
 ## punta, como las armas.
@@ -170,4 +171,28 @@ static func campfire() -> ArrayMesh:
 		var dir := Vector3(cos(a), 0.0, sin(a))
 		WeaponMeshes.tube(bark, PackedVector3Array([dir * -0.22 + Vector3(0, 0.035, 0), dir * 0.22 + Vector3(0, 0.035, 0)]),
 			PackedVector2Array([Vector2(0.032, 0.032), Vector2(0.03, 0.03)]), 7)
+	return b.commit(make_material)
+
+
+## Banco de trabajo de la Edad de piedra, para el icono: tablero tosco sobre cuatro patas abiertas y,
+## encima, la losa de tallar con una lasca, el percutor y un cuenco. El origen es el suelo, en el
+## centro; el largo va en X.
+static func workbench() -> ArrayMesh:
+	var b := WeaponMeshes.Builder.new()
+	var top := 0.76
+	WeaponMeshes.box(b.st(WeaponMeshes.WOOD), Vector3(0.0, top - 0.05, 0.0), Vector3(1.22, 0.1, 0.46))
+	var legs := b.st(WeaponMeshes.DARK_WOOD)
+	for corner in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+		var foot := Vector3(corner.x * 0.46, 0.0, corner.y * 0.34)
+		var head := Vector3(corner.x * 0.38, top - 0.08, corner.y * 0.14)
+		WeaponMeshes.tube(legs, PackedVector3Array([foot, head]), PackedVector2Array([Vector2(0.05, 0.05), Vector2(0.045, 0.045)]), 6)
+	var stone := b.st(WeaponMeshes.STONE)
+	WeaponMeshes.lathe(stone, [Vector2(0.0, top), Vector2(0.16, top), Vector2(0.17, top + 0.04), Vector2(0.14, top + 0.075),
+		Vector2(0.0, top + 0.08)], 8, Vector3(-0.27, 0.0, 0.0))
+	WeaponMeshes.lathe(stone, [Vector2(0.0, top), Vector2(0.06, top + 0.01), Vector2(0.065, top + 0.045),
+		Vector2(0.0, top + 0.08)], 7, Vector3(0.03, 0.0, 0.12))
+	WeaponMeshes.lathe(b.st(WeaponMeshes.FLINT), [Vector2(0.0, top + 0.075), Vector2(0.06, top + 0.08),
+		Vector2(0.0, top + 0.1)], 5, Vector3(-0.3, 0.0, 0.0))
+	WeaponMeshes.lathe(b.st(WeaponMeshes.DARK_WOOD), [Vector2(0.0, top), Vector2(0.06, top), Vector2(0.1, top + 0.06),
+		Vector2(0.105, top + 0.09), Vector2(0.0, top + 0.09)], 10, Vector3(0.38, 0.0, -0.02))
 	return b.commit(make_material)
