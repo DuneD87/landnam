@@ -2,26 +2,28 @@
 
 [ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_3uv04"]
 [ext_resource type="Texture2D" path="res://textures/icons/items/collectable/icon_stone.png" id="1_ul27m"]
-[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_albedo.png" id="3_v1yon"]
-[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_ao.png" id="4_wj03j"]
-[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Height.png" id="5_mub33"]
-[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Metallic.png" id="6_xiw46"]
-[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Normal-ogl.png" id="7_365wm"]
-[ext_resource type="Texture2D" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Roughness.png" id="8_0ih25"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_stone/stacked_stone_albedo.png" id="3_stnalb"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_stone/stacked_stone_normal.png" id="4_stnnrm"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_stone/stacked_stone_orm.png" id="5_stnorm"]
+[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_stone/stacked_stone_height.png" id="6_stnhgt"]
 [ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="9_wj03j"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mhgyb"]
+[sub_resource type="ORMMaterial3D" id="ORMMaterial3D_stone"]
 vertex_color_use_as_albedo = true
-albedo_texture = ExtResource("3_v1yon")
-metallic = 1.0
-metallic_texture = ExtResource("6_xiw46")
-roughness_texture = ExtResource("8_0ih25")
+albedo_texture = ExtResource("3_stnalb")
+orm_texture = ExtResource("5_stnorm")
 normal_enabled = true
-normal_texture = ExtResource("7_365wm")
+normal_texture = ExtResource("4_stnnrm")
 ao_enabled = true
-ao_texture = ExtResource("4_wj03j")
+ao_light_affect = 0.3
 heightmap_enabled = true
-heightmap_texture = ExtResource("5_mub33")
+heightmap_scale = 3.5
+heightmap_deep_parallax = true
+heightmap_min_layers = 8
+heightmap_max_layers = 32
+heightmap_texture = ExtResource("6_stnhgt")
+uv1_scale = Vector3(0.5, 0.5, 0.5)
+texture_filter = 5
 
 [resource]
 script = ExtResource("1_3uv04")
@@ -29,6 +31,6 @@ id = &"stone_01"
 display_name = "Piedra"
 description = "Piedra suelta: para construir, para el corro de una hoguera y de munición del tirachinas."
 icon = ExtResource("1_ul27m")
-surface_material = SubResource("StandardMaterial3D_mhgyb")
+surface_material = SubResource("ORMMaterial3D_stone")
 group = &"stone"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

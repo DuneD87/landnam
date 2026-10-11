@@ -251,11 +251,15 @@ static func generate_inv_corner_collision(size: float = 1.0) -> ConvexPolygonSha
 
 
 ## Añade un quad (2 triángulos) al SurfaceTool; vértices en orden CCW vistos desde fuera.
+## Las UV son las mismas que emite ChunkMeshBuilder, para que el icono enseñe la textura a la escala
+## del bloque colocado. Se proyectan con la normal de la geometría: `normal` no siempre es la de fuera.
 static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, normal: Vector3) -> void:
-	var uv_a := Vector2(0, 0)
-	var uv_b := Vector2(1, 0)
-	var uv_c := Vector2(1, 1)
-	var uv_d := Vector2(0, 1)
+	var n := (b - a).cross(d - a).normalized()
+	var u := ChunkMeshBuilder.uv_tangent(n)
+	var uv_a := ChunkMeshBuilder.planar_uv(a, u, n)
+	var uv_b := ChunkMeshBuilder.planar_uv(b, u, n)
+	var uv_c := ChunkMeshBuilder.planar_uv(c, u, n)
+	var uv_d := ChunkMeshBuilder.planar_uv(d, u, n)
 
 	st.set_uv(uv_a)
 	st.add_vertex(a)
@@ -274,9 +278,11 @@ static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Ve
 
 ## Añade un triángulo al SurfaceTool.
 static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, normal: Vector3) -> void:
-	var uv_a := Vector2(0, 0)
-	var uv_b := Vector2(1, 0)
-	var uv_c := Vector2(0.5, 1)
+	var n := (b - a).cross(c - a).normalized()
+	var u := ChunkMeshBuilder.uv_tangent(n)
+	var uv_a := ChunkMeshBuilder.planar_uv(a, u, n)
+	var uv_b := ChunkMeshBuilder.planar_uv(b, u, n)
+	var uv_c := ChunkMeshBuilder.planar_uv(c, u, n)
 
 	st.set_uv(uv_a)
 	st.add_vertex(a)

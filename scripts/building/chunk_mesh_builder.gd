@@ -305,44 +305,67 @@ static func _emit_cube_no_cull(st: SurfaceTool, offset: Vector3, rot: Basis, siz
 	_add_quad(st, v3, v2, v1, v0, flip)
 
 
+## Eje U con el que se proyecta la textura sobre una cara: siempre horizontal, para que troncos e
+## hiladas de piedra queden tumbados en paredes y rampas. Una cara horizontal no tiene horizontal
+## preferida y usa X. V es U × normal, que en las caras verticales apunta hacia abajo, como la V
+## de la imagen.
+static func uv_tangent(normal: Vector3) -> Vector3:
+	var u := Vector3.UP.cross(normal)
+	if u.length_squared() < 1e-6:
+		return Vector3.RIGHT
+	return u.normalized()
+
+
+## UV de un vértice: su posición en la grid proyectada sobre el plano de su cara, en metros. La
+## textura sigue de un bloque al de al lado sin costura, no se deforma en los triángulos de rampas y
+## esquinas y conserva el tamaño con cualquier tamaño de celda; el material pone cuántos metros
+## cubre una repetición (uv1_scale).
+static func planar_uv(p: Vector3, u: Vector3, normal: Vector3) -> Vector2:
+	return Vector2(p.dot(u), p.dot(u.cross(normal)))
+
+
 static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, flip: bool = false) -> void:
 	if flip:
 		var normal := (d - a).cross(b - a).normalized()
+		var u := uv_tangent(normal)
 		st.set_normal(normal)
-		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
-		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
-		st.set_uv(Vector2(1, 1)); st.add_vertex(c)
+		st.set_uv(planar_uv(a, u, normal)); st.add_vertex(a)
+		st.set_uv(planar_uv(b, u, normal)); st.add_vertex(b)
+		st.set_uv(planar_uv(c, u, normal)); st.add_vertex(c)
 
 		st.set_normal(normal)
-		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
-		st.set_uv(Vector2(1, 1)); st.add_vertex(c)
-		st.set_uv(Vector2(0, 1)); st.add_vertex(d)
+		st.set_uv(planar_uv(a, u, normal)); st.add_vertex(a)
+		st.set_uv(planar_uv(c, u, normal)); st.add_vertex(c)
+		st.set_uv(planar_uv(d, u, normal)); st.add_vertex(d)
 	else:
 		var normal := (b - a).cross(d - a).normalized()
+		var u := uv_tangent(normal)
 		st.set_normal(normal)
-		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
-		st.set_uv(Vector2(1, 1)); st.add_vertex(c)
-		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
+		st.set_uv(planar_uv(a, u, normal)); st.add_vertex(a)
+		st.set_uv(planar_uv(c, u, normal)); st.add_vertex(c)
+		st.set_uv(planar_uv(b, u, normal)); st.add_vertex(b)
 
 		st.set_normal(normal)
-		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
-		st.set_uv(Vector2(0, 1)); st.add_vertex(d)
-		st.set_uv(Vector2(1, 1)); st.add_vertex(c)
+		st.set_uv(planar_uv(a, u, normal)); st.add_vertex(a)
+		st.set_uv(planar_uv(d, u, normal)); st.add_vertex(d)
+		st.set_uv(planar_uv(c, u, normal)); st.add_vertex(c)
 
 
 static func _add_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, flip: bool = false) -> void:
 	if flip:
 		var normal := (c - a).cross(b - a).normalized()
+		var u := uv_tangent(normal)
 		st.set_normal(normal)
-		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
-		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
-		st.set_uv(Vector2(0.5, 1)); st.add_vertex(c)
+		st.set_uv(planar_uv(a, u, normal)); st.add_vertex(a)
+		st.set_uv(planar_uv(b, u, normal)); st.add_vertex(b)
+		st.set_uv(planar_uv(c, u, normal)); st.add_vertex(c)
 	else:
 		var normal := (b - a).cross(c - a).normalized()
+		var u := uv_tangent(normal)
 		st.set_normal(normal)
-		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
-		st.set_uv(Vector2(0.5, 1)); st.add_vertex(c)
-		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
+		st.set_uv(planar_uv(a, u, normal)); st.add_vertex(a)
+		st.set_uv(planar_uv(c, u, normal)); st.add_vertex(c)
+		st.set_uv(planar_uv(b, u, normal)); st.add_vertex(b)
 
 
 ## Materiales que tapan lo que tienen detrás. Un material sin entrada, o que no sea BaseMaterial3D,
