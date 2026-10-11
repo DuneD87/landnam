@@ -82,8 +82,31 @@ func dig_ahead(camera: Camera3D, origin: Vector3, power: float) -> bool:
 	current_origin = origin
 	current_direction = -camera.global_transform.basis.z
 	var radius := clampf(DIG_RADIUS * pow(power / DIG_POWER, 1.0 / 3.0), DIG_RADIUS_RANGE.x, DIG_RADIUS_RANGE.y)
-	return dig_hole(radius, DIG_REACH) >= 0
+	var type_id := dig_hole(radius, DIG_REACH)
+	if type_id < 0:
+		return false
+	_dig_effects(result.hit_pos, result.hit_normal, type_id, radius)
+	return true
 
+
+## Lo que se ve y se oye al picar el terreno en [point], de normal [normal]: el golpe del pico y el
+## suelo que se rompe, con terrones y polvo de su color. El suelo es el de las pisadas
+## (SurfaceAudio); con mena, roca.
+func _dig_effects(point: Vector3, normal: Vector3, type_id: int, radius: float) -> void:
+	var body := get_parent() as PlanetaryBody
+	var up := -body.gravity_direction.normalized() if body != null else Vector3.UP
+	var family := &"rock"
+	if type_id == 0:
+		family = SurfaceAudio.resolve({"position": point, "normal": normal, "collider": current_voxel},
+			body.planet if body != null else null, up)
+	DigDust.burst(self, point + normal * 0.05, normal, up, DigDust.color_of(family), radius / DIG_RADIUS - 0.3)
+	CombatFx.play(&"hit_world", point, {"pitch": randf_range(1.1, 1.3)})
+	var impact := StringName("block_impact_%s" % family)
+	if AudioManager.has_event(impact):
+		AudioManager.play_3d(impact, point, {"volume_offset_db": -4.0, "pitch": randf_range(1.05, 1.25)})
+	else:
+		# Sin golpe propio (la tierra, la arena, la nieve): el de caer sobre ese suelo, más agudo.
+		AudioManager.play_material(&"land", family, point, {"pitch": randf_range(1.1, 1.3)})
 
 ## Lanza una bala de cañón desde 'origin' hacia donde mira la cámara. ItemData.damage son los
 ## julios que descarga POR BLOQUE alcanzado; el tamaño del boquete lo pone el radio de la bala.
@@ -146,6 +169,7 @@ func perform_raycast(origin: Vector3, rotation: Vector3, show_debug: bool) -> Di
 		"has_hit": false,
 		"target_node": null,
 		"hit_pos": Vector3.ZERO,
+		"hit_normal": Vector3.ZERO,
 		"hit_distance": 0.0
 	}
 	
@@ -156,6 +180,7 @@ func perform_raycast(origin: Vector3, rotation: Vector3, show_debug: bool) -> Di
 		out_dictionary["has_hit"] = true
 		out_dictionary["target_node"] = target_node
 		out_dictionary["hit_pos"] = hit_point
+		out_dictionary["hit_normal"] = attack_raycast.get_collision_normal()
 		out_dictionary["hit_distance"] = hit_distance
 		if show_raycast_debug:
 			DebugUtils.draw_debug_line(ray_origin, hit_point, Color.GREEN, 2.0)
