@@ -461,6 +461,8 @@ func _ready():
 	add_to_group("player")
 	GameManager.register_player(self)
 	GameManager.state_changed.connect(_on_game_state_changed)
+	hotbar.visible = GameManager.current_state == GameManager.State.PLAYING
+	hotbar.set_process_unhandled_input(hotbar.visible)
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
 	hotbar.offhand_toggled.connect(_on_hotbar_offhand_toggled)
 	building_system.set_equipped_item_hooks(_get_right_hand_item, _consume_right_hand_item)
@@ -822,6 +824,8 @@ func can_perform_action() -> bool:
 
 func _on_game_state_changed(new_state: GameManager.State) -> void:
 	print("[Player] State changed to: %s" % GameManager.State.keys()[new_state])
+	hotbar.visible = new_state == GameManager.State.PLAYING
+	hotbar.set_process_unhandled_input(hotbar.visible)
 	match new_state:
 		GameManager.State.MENU:
 			input_enabled = false
