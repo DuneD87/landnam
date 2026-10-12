@@ -286,6 +286,35 @@ static func distance_at(rivers: Dictionary, up: Vector3) -> float:
 	return (1.0 - value) * float(rivers.carve_range)
 
 
+## Cauce al alcance, medido contra los segmentos originales. Para interacciones de pocos metros
+## no basta la imagen: su interpolación puede alejar una ribera real más allá del alcance.
+## Devuelve la distancia al borde y una dirección dentro del cauce, o {} si ninguno está cerca.
+static func nearby_channel_at(rivers: Dictionary, up: Vector3, reach: float) -> Dictionary:
+	var seg: PackedFloat32Array = rivers.get("seg", PackedFloat32Array())
+	var size: Vector2i = rivers.get("hydro_size", Vector2i.ZERO)
+	var radius := float(rivers.get("radius", 0.0))
+	if seg.is_empty() or size.x <= 0 or size.y <= 0 or radius <= 0.0:
+		return {}
+	var point := up.normalized() * radius
+	var best := reach
+	var channel := {}
+	for k in seg.size() / 8:
+		var o := k * 8
+		var a := hydro_dir(seg[o], seg[o + 1], size.x, size.y) * radius
+		var b := hydro_dir(seg[o + 2], seg[o + 3], size.x, size.y) * radius
+		var ab := b - a
+		var t := 0.0 if ab.length_squared() < 0.0001 else clampf(
+			(point - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+		var axis := a + ab * t
+		var half := lerpf(seg[o + 6], seg[o + 7], t)
+		var edge := maxf(point.distance_to(axis) - half, 0.0)
+		if edge > best:
+			continue
+		best = edge
+		channel = {"distance": edge, "direction": axis.normalized()}
+	return channel
+
+
 ## [img] (canal rojo) en [uv], bilineal y dando la vuelta en horizontal.
 static func sample(img: Image, uv: Vector2) -> float:
 	var x := uv.x * img.get_width() - 0.5

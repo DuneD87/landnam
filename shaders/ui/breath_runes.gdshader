@@ -11,8 +11,8 @@ uniform float warn = 0.0;
 // Para aparecer y desaparecer (no vale modulate: COLOR ya trae el alfa de la textura).
 uniform float alpha : hint_range(0.0, 1.0) = 1.0;
 // Radios de la banda de runas, en fracción del lado de la textura.
-uniform float band_in = 0.3873;
-uniform float band_out = 0.4632;
+uniform float band_in = 0.3950;
+uniform float band_out = 0.4550;
 
 void fragment() {
 	vec2 p = UV - 0.5;

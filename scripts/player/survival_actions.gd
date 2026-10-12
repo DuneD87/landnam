@@ -15,10 +15,9 @@ extends Node
 ## Los avisos salen sobre la barra rápida (Hotbar.notify). Ver docs/items.md.
 
 const USE_COOLDOWN := 0.7
-## Hasta dónde se planta (m desde los pies) y desde cuánto se bebe de un lago o un río.
+const WaterAccessQuery = preload("res://scripts/player/water_access.gd")
+## Hasta dónde se planta (m desde los pies).
 const PLACE_RANGE := 4.5
-const DRINK_REACH := 2.5
-const RIVER_REACH := 6.0
 ## Terreno, grids y barcos (como DroppedItem.WORLD_MASK).
 const WORLD_MASK := 1
 const GHOST_OK := Color(0.6, 0.9, 0.55, 0.5)
@@ -176,26 +175,12 @@ func drink_here() -> bool:
 func water_here() -> StringName:
 	var body: Node3D = _player.planet
 	var planet: Planet = body.get("planet") as Planet if body != null else null
-	if planet == null:
+	if planet == null or not planet.has_water:
 		return &""
-	var pos := _player.global_position
-	var up := (pos - body.global_position).normalized()
-	if RiverField.distance_at(planet.get_river_network(), up) <= RIVER_REACH:
-		return &"fresh"
 	var map: PlanetWorldMap = body.get("world_map")
-	if map == null or not map.is_ready() or map.get_altitude(pos) > DRINK_REACH:
-		return &""
-	var right := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
-	var forward := up.cross(right)
-	var salt := false
-	for offset: Vector3 in [Vector3.ZERO, right, -right, forward, -forward, (right + forward) * 0.7,
-			(right - forward) * 0.7, (forward - right) * 0.7, -(right + forward) * 0.7]:
-		var type := map.get_water_type_at(pos + offset * DRINK_REACH)
-		if type == WorldMapData.WaterType.LAKE or type == WorldMapData.WaterType.POND:
-			return &"fresh"
-		if type == WorldMapData.WaterType.OCEAN or type == WorldMapData.WaterType.SEA:
-			salt = true
-	return &"salt" if salt else &""
+	return WaterAccessQuery.kind_at(_player.global_position, planet.voxel_terrain,
+		map.map if map != null and map.is_ready() else null,
+		planet.get_river_network(), planet.radius - planet.water_radius)
 
 
 func _skinning_tool() -> SkinningTrait:

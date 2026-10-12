@@ -1,21 +1,19 @@
 class_name VitalsPlate
 extends TextureRect
 
-## La consola de la barra rápida, a lo Diablo: la placa de hierro de Saga que sostiene la barra
-## desde el borde de abajo y se levanta a cada lado en el engaste de una orbe (vida y aguante), con
-## una banda de runas alrededor de cada una, raíces que bajan al borde de la pantalla, una copa de
-## hojas de bronce encima y una rama que se tiende sobre la barra. Lleva tallados el engaste de la
-## media orbe de la cordura y los canales y medallones de los medidores de las necesidades (los
-## llena Hotbar). Es una imagen horneada con tools/ui/bake_hotbar_console.py; aquí solo se coloca a
-## partir del panel de la barra.
+## Consola compacta de hierro forjado: el riel central conecta dos cápsulas circulares para vida
+## y aguante. El riel y los engastes continúan hasta el borde inferior como un zócalo.
+## Las bandas de runas, los medidores, las abrazaderas y la trenza quedan tallados en el metal.
+## La media orbe de cordura asoma por el centro. Imagen horneada con
+## tools/ui/bake_hotbar_console.py; se coloca a partir del panel de la barra.
 
 const TEXTURE := preload("res://textures/ui/hotbar_console.png")
 ## Píxeles de la imagen por píxel de la UI a 1440 px de alto, y dónde empieza en ella el panel de
 ## la barra (los imprime el script al hornear; tienen que coincidir).
 const ART_SCALE := 2.0
-const BAR_ORIGIN := Vector2(600, 224)
+const BAR_ORIGIN := Vector2(480, 164)
 ## Cuánto sale la talla a cada lado del panel, en la escala base (para colocar lo de al lado).
-const REACH := 300.0
+const REACH := 240.0
 
 
 func _init() -> void:

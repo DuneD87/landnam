@@ -1,24 +1,17 @@
 #!/usr/bin/env python3
 """Hornea la consola de la barra rápida: textures/ui/hotbar_console.png.
 
-La placa de hierro de Saga (la de las ventanas: hierro casi negro, filete de bronce por fuera y otro
-más tenue por dentro) en la que encaja la barra rápida, a lo Diablo: sostiene la barra desde el
-borde de abajo de la pantalla y se levanta a cada lado en el engaste de una orbe (vida y aguante).
-Cada engaste lleva una banda de runas, como las de las piedras rúnicas: «líf auk blóð» (vida y
-sangre) en la de la vida y «þrek auk andi» (aguante y aliento) en la del aguante. Por fuera de cada
-uno van dos medidores de las necesidades (hambre y sed en el de la vida, temperatura y descanso en
-el del aguante; los llena NeedGauge): un medallón con su icono del que sale un canal en el sentido
-de las agujas del reloj. De debajo
-salen raíces que se agarran al borde de la pantalla y encima hay una copa de hojas y una rama que
-se tiende sobre la barra hasta acabar en voluta. En el centro se levanta el engaste de la media
-orbe de la cordura, con media banda de runas («hugr auk minni»), una voluta doble y tres hojas. Por
-debajo de la barra corre una trenza de hilo de bronce. Aparte sale hotbar_breath_runes.png: las
-runas del aguante solas, que BreathRing enciende como medidor del oxígeno.
+Consola compacta de hierro forjado: un riel biselado conecta dos cápsulas circulares para
+vida y aguante. Cada engaste lleva una banda de runas, los canales de necesidades y sus
+medallones. En el centro asoma el engaste de la media orbe de cordura. Las abrazaderas y la
+trenza quedan talladas en el metal. Aparte sale hotbar_breath_runes.png: las runas del aguante
+solas, que BreathRing enciende como medidor del oxígeno.
 
-Todo se dibuja como en GameTheme y SagaFrame: rellenos lisos y filetes de un píxel, sin luces ni
-relieve, para que case con el resto de la interfaz. Las formas son campos de distancia con signo,
-así que los bordes salen suavizados sin sobremuestrear. Las medidas son las de la barra a 1440 px
-de alto (las de Hotbar y GameTheme: diez huecos de 92 px, orbes de radio 75...) y la imagen va a
+El hierro y el bronce llevan biseles iluminados desde arriba a la izquierda, pátina tenue y
+sombras en los engastes. Las runas y las ramas quedan por debajo del brillo de los objetos.
+Las formas son campos de distancia con signo, así que los bordes salen suavizados sin
+sobremuestrear. Las medidas son las de la barra a 1440 px
+de alto (las de Hotbar y GameTheme: diez cartuchos de 88 × 108 px, orbes de radio 76...) y la imagen va a
 ART píxeles por cada uno, para que a 4K siga nítida. Si cambian, hay que cambiarlas aquí, en Hotbar
 (ORB_*, SANITY_RADIUS, GAUGE_*, MEDALLION_*, GAUGES), en VitalsPlate (BAR_ORIGIN, REACH) y en
 breath_runes.gdshader (band_in, band_out), que este script imprime al acabar.
@@ -41,36 +34,37 @@ MASK_OUT = os.path.join(os.path.dirname(OUT), "hotbar_breath_runes.png")
 ART = 2.0
 # La barra (el panel con sus huecos), en píxeles base relativos a su esquina de arriba a la
 # izquierda, y el borde de abajo de la pantalla.
-BAR_W, BAR_H = 1048.0, 112.0
-SCREEN_Y = BAR_H + 22.0
+BAR_W, BAR_H = 976.0, 132.0
+SCREEN_Y = BAR_H + 28.0
 CENTRE_X = BAR_W * 0.5
 # Orbes (Hotbar.ORB_*) y sus engastes.
-ORB_R, ORB_GAP, ORB_DROP = 75.0, 38.0, 0.0
-HOUSING = 101.0
+ORB_R, ORB_GAP, ORB_DROP = 76.0, 16.0, 12.0
+HOUSING = 96.0
 LEFT = (-(ORB_GAP + ORB_R), BAR_H - ORB_R + ORB_DROP)
 RIGHT = (BAR_W - LEFT[0], LEFT[1])
 # Banda de runas entre dos filetes, por fuera del aro de la orbe.
-RUNE_IN, RUNE_OUT = 79.0, 94.5
+RUNE_IN, RUNE_OUT = 79.0, 91.0
 # Media orbe de la cordura (Hotbar.SANITY_RADIUS), con el centro en el borde de arriba de la
 # barra, y su engaste con media banda de runas.
-SANITY_R = 48.0
-DOME_CENTRE = (BAR_W * 0.5, 0.0)
-DOME_RUNE_IN, DOME_RUNE_OUT = 51.5, 64.0
-DOME = 70.0
+SANITY_R = 35.0
+DOME_CENTRE = (BAR_W * 0.5, -6.0)
+DOME_RUNE_IN, DOME_RUNE_OUT = 37.5, 45.5
+DOME = 48.5
 # Medidores de las necesidades (Hotbar.GAUGE_*): el canal alrededor de cada engaste, de radio
 # GAUGE_R y medio ancho GAUGE_HALF, y los medallones de sus iconos, a MEDALLION_AT del centro.
-GAUGE_R, GAUGE_HALF = 106.5, 5.5
-MEDALLION_AT, MEDALLION_R = 118.0, 21.0
+GAUGE_R, GAUGE_HALF = 101.0, 4.5
+MEDALLION_AT, MEDALLION_R = 111.0, 16.0
 # Los iconos se dibujan en una caja de unos 18 px y se agrandan esto.
-ICON_SCALE = 1.4
+ICON_SCALE = 1.1
 # La máscara de las runas del aguante, para el oxígeno (BreathRing): medio lado.
-MASK_HALF = 102.0
+MASK_HALF = 100.0
 # La placa asoma un poco por encima de la barra; el filete interior va a INSET del borde.
-BAND_TOP = -14.0
+BAND_TOP = -9.0
 INSET = 7.0
 # Lienzo, en píxeles base.
-X0, X1 = -300.0, BAR_W + 300.0
-Y0, Y1 = -112.0, SCREEN_Y
+X0, X1 = -240.0, BAR_W + 240.0
+# Dos píxeles base de sangrado evitan rendijas por el redondeo de la escala de la ventana.
+Y0, Y1 = -82.0, SCREEN_Y + 2.0
 W = int(round((X1 - X0) * ART))
 H = int(round((Y1 - Y0) * ART))
 
@@ -79,12 +73,12 @@ def rgb(hex_code):
     return np.array([int(hex_code[i:i + 2], 16) / 255.0 for i in (0, 2, 4)], np.float32)
 
 
-# La paleta de GameTheme.
-IRON = np.array([0.043, 0.047, 0.054], np.float32)
+# Cara iluminada del hierro de Saga y bronce envejecido.
+IRON = rgb("2a2e34")
 IRON_ALPHA = 0.93
 IRON_DEEP = np.array([0.02, 0.022, 0.027], np.float32)
 # Lo que va encima de la placa (tallos, raíces): el mismo hierro, apenas más claro.
-IRON_RAISED = np.array([0.072, 0.075, 0.083], np.float32)
+IRON_RAISED = rgb("34383e")
 BRONZE = rgb("c9a46a")
 BRONZE_DARK = rgb("6e5a38")
 INK = rgb("16130f")
@@ -96,6 +90,9 @@ del xx, yy
 
 # Lienzo con alfa premultiplicado.
 CANVAS = np.zeros((H, W, 4), np.float32)
+# Textura determinista y de bajo contraste: cada horneado produce el mismo acabado.
+PATINA = (np.sin(BX * 0.021 + BY * 0.031) * np.sin(BX * 0.009 - BY * 0.037)).astype(np.float32)
+GRAIN = (np.sin(BX * 2.13 + BY * 3.79) * np.sin(BX * 5.17 - BY * 1.63)).astype(np.float32)
 
 
 # --- Campos de distancia --------------------------------------------------------------------------
@@ -120,6 +117,14 @@ def sd_box(a, b):
     dx = np.abs(BX - cx) - hx
     dy = np.abs(BY - cy) - hy
     return np.hypot(np.maximum(dx, 0), np.maximum(dy, 0)) + np.minimum(np.maximum(dx, dy), 0)
+
+
+def sd_chamfer(a, b, cut):
+    box = sd_box(a, b)
+    cx, cy = (a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5
+    hx, hy = (b[0] - a[0]) * 0.5, (b[1] - a[1]) * 0.5
+    corner = (np.abs(BX - cx) + np.abs(BY - cy) - hx - hy + cut) * 0.7071
+    return np.maximum(box, corner)
 
 
 def smin(a, b, k):
@@ -155,6 +160,31 @@ def paint(cov, color, alpha=1.0):
     a = cov * alpha
     CANVAS[..., :3] = CANVAS[..., :3] * (1.0 - a)[..., None] + color * a[..., None]
     CANVAS[..., 3] = CANVAS[..., 3] * (1.0 - a) + a
+
+
+def forge(d, color, alpha=1.0, bevel=2.5, grain=0.002):
+    """Pátina, grano fino y bisel con luz arriba a la izquierda. Limitar el campo evita
+    infinitos en los trazos sin alterar la silueta ni su suavizado."""
+    field = np.clip(d, -16.0, 16.0)
+    gy, gx = np.gradient(field, 1.0 / ART)
+    norm = np.maximum(np.hypot(gx, gy), 1e-4)
+    light = (-gx * 0.45 - gy * 0.89) / norm
+    edge = np.clip(1.0 + d / bevel, 0.0, 1.0)
+    face = color[None, None, :] * (1.0 + PATINA[..., None] * 0.055)
+    face = face + GRAIN[..., None] * grain
+    face = face + (edge * light)[..., None] * (color * 0.3 + 0.045)
+    paint(coverage(d), np.clip(face, 0.0, 1.0), alpha)
+
+
+def metal_line(d, width, offset=0.0, alpha=1.0):
+    """Filete de bronce envejecido con una cara clara y otra oscura."""
+    field = np.clip(d, -16.0, 16.0)
+    gy, gx = np.gradient(field, 1.0 / ART)
+    norm = np.maximum(np.hypot(gx, gy), 1e-4)
+    light = (-gx * 0.45 - gy * 0.89) / norm
+    tint = BRONZE[None, None, :] * (0.72 + 0.28 * light[..., None])
+    tint = tint * (1.0 + PATINA[..., None] * 0.065)
+    paint(band_of(d, width, offset), tint, alpha)
 
 
 # --- Trazados -------------------------------------------------------------------------------------
@@ -227,18 +257,21 @@ def mirror(points):
 
 # Cómo se pinta lo que va encima de la placa: un halo oscuro que lo separa de lo que tapa, el
 # relleno y su filete. Los tallos son de hierro y las hojas de bronce viejo.
-RIBBON = dict(halo=1.5, fill=IRON_RAISED, line=BRONZE, line_alpha=0.8, line_w=1.0)
-LEAF = dict(halo=1.4, fill=BRONZE_DARK * 0.82 + BRONZE * 0.18, line=BRONZE, line_alpha=0.95, line_w=1.0)
-WIRE = dict(halo=1.1, fill=BRONZE, fill_alpha=0.5, line=None)
+RIBBON = dict(halo=1.5, fill=IRON_RAISED, line=BRONZE, line_alpha=0.52, line_w=1.2, bevel=1.8)
+LEAF = dict(halo=1.4, fill=BRONZE_DARK * 0.9 + BRONZE * 0.1, line=BRONZE, line_alpha=0.6, line_w=1.0, bevel=2.0)
+WIRE = dict(halo=1.1, fill=BRONZE_DARK, fill_alpha=0.65, line=None, bevel=0.8)
 
 
 def draw(d, style):
     halo = style.get("halo", 0.0)
     if halo > 0.0:
         paint(coverage(d - halo), IRON * 0.7, IRON_ALPHA)
-    paint(coverage(d), style["fill"], style.get("fill_alpha", 1.0))
+    if "bevel" in style:
+        forge(d, style["fill"], style.get("fill_alpha", 1.0), style["bevel"])
+    else:
+        paint(coverage(d), style["fill"], style.get("fill_alpha", 1.0))
     if style.get("line") is not None:
-        paint(band_of(d, style["line_w"]), style["line"], style["line_alpha"])
+        metal_line(d, style["line_w"], alpha=style["line_alpha"])
 
 
 def stroke(points, keys, style, mirrored=False):
@@ -283,44 +316,82 @@ def rivet(centre, half, mirrored=False):
         centre = (BAR_W - centre[0], centre[1])
     d = (np.abs(BX - centre[0]) + np.abs(BY - centre[1]) - half) * 0.7071
     paint(coverage(d - 1.4), IRON * 0.7, IRON_ALPHA)
-    paint(coverage(d), BRONZE)
-    paint(coverage(d + half * 0.3), INK)
+    forge(d, BRONZE_DARK * 0.45 + BRONZE * 0.55, bevel=1.5)
+    paint(coverage(d + half * 0.45), INK, 0.8)
 
 
 # --- La placa -------------------------------------------------------------------------------------
 
 def housing_sdf(centre):
-    # El engaste: el círculo y, debajo de su centro, recto hasta abajo.
+    # El engaste sigue redondo por arriba y apoya en el borde inferior por debajo del centro.
     circle = sd_circle(centre, HOUSING)
-    below = sd_box((centre[0] - HOUSING, centre[1]), (centre[0] + HOUSING, SCREEN_Y + 40))
-    return np.minimum(circle, below)
+    footing = sd_box((centre[0] - HOUSING, centre[1]),
+                     (centre[0] + HOUSING, SCREEN_Y + 24.0))
+    return np.minimum(circle, footing)
 
 
 def plate():
-    band = sd_box((LEFT[0], BAND_TOP), (RIGHT[0], SCREEN_Y + 40))
-    d = smin(band, housing_sdf(LEFT), 18.0)
-    d = smin(d, housing_sdf(RIGHT), 18.0)
-    d = smin(d, sd_circle(DOME_CENTRE, DOME), 14.0)
-    paint(coverage(d), IRON, IRON_ALPHA)
-    # Filetes de SagaFrame: el de fuera y, más tenue, el de dentro.
-    paint(band_of(d, 1.0), BRONZE, 0.55)
-    paint(band_of(d, 1.0, INSET), BRONZE, 0.16)
+    # Los biseles inferiores y el borde final quedan fuera de pantalla: el metal continúa
+    # hasta el marco, en lugar de cerrar como una placa flotante.
+    band = sd_chamfer((-16.0, BAND_TOP), (BAR_W + 16.0, SCREEN_Y + 24.0), 18.0)
+    d = smin(band, housing_sdf(LEFT), 12.0)
+    d = smin(d, housing_sdf(RIGHT), 12.0)
+    d = smin(d, sd_circle(DOME_CENTRE, DOME), 10.0)
+    paint(coverage(d - 5.0), IRON_DEEP, 0.4)
+    forge(d, IRON, 0.98, bevel=7.0, grain=0.003)
+    metal_line(d, 3.5, alpha=0.9)
+    paint(band_of(d, 2.0, 4.0), INK, 0.8)
+    metal_line(d, 1.0, INSET + 1.0, 0.3)
     for centre in (LEFT, RIGHT):
         r = sd_circle(centre, 0.0)
+        # Banda fina de bronce viejo, dejando más espacio al cristal.
+        annulus = np.maximum(RUNE_IN - r, r - RUNE_OUT)
+        forge(annulus, BRONZE_DARK * 0.72, 0.98, bevel=3.0, grain=0.003)
         # Hueco de la orbe, más oscuro según se acerca a ella.
         paint(coverage(r - RUNE_IN), IRON_DEEP, np.clip(1.0 - (r - ORB_R) / (RUNE_IN - ORB_R), 0.4, 1.0))
-        paint(band_of(r - RUNE_IN - 1.0, 1.0), BRONZE, 0.5)
-        paint(band_of(r - RUNE_OUT, 1.0), BRONZE, 0.5)
+        metal_line(r - RUNE_IN - 1.0, 1.5, alpha=0.95)
+        metal_line(r - RUNE_OUT, 1.5, alpha=0.9)
+        # Remaches de acero y escalones en la cara de cada cápsula.
+        for angle in (-35.0, 35.0, 145.0, 215.0):
+            rivet(on_ring(centre, 93.5, angle), 1.8)
     # El engaste de la cordura: media banda, solo por encima de la barra.
-    above = (BY < -0.5).astype(np.float32)
+    above = (BY < DOME_CENTRE[1] - 0.5).astype(np.float32)
     r = sd_circle(DOME_CENTRE, 0.0)
+    annulus = np.maximum(DOME_RUNE_IN - r, r - DOME_RUNE_OUT)
+    forge(np.maximum(annulus, BY - DOME_CENTRE[1]), BRONZE_DARK * 0.72, 0.98, bevel=3.0)
     paint(coverage(r - DOME_RUNE_IN) * above, IRON_DEEP,
           np.clip(1.0 - (r - SANITY_R) / (DOME_RUNE_IN - SANITY_R), 0.4, 1.0))
-    paint(band_of(r - DOME_RUNE_IN - 1.0, 1.0) * above, BRONZE, 0.5)
-    paint(band_of(r - DOME_RUNE_OUT, 1.0) * above, BRONZE, 0.5)
+    metal_line(np.maximum(r - DOME_RUNE_IN - 1.0, BY - DOME_CENTRE[1]), 1.5, alpha=0.9)
+    metal_line(np.maximum(r - DOME_RUNE_OUT, BY - DOME_CENTRE[1]), 1.5, alpha=0.8)
     # Un filo oscuro alrededor de la barra, como si estuviera hundida.
-    bar = sd_box((0.0, 0.0), (BAR_W, BAR_H))
-    paint(np.clip(coverage(bar - 3.0) - coverage(bar), 0, 1), IRON_DEEP, 0.6)
+    bar = sd_chamfer((0.0, 0.0), (BAR_W, BAR_H), 12.0)
+    paint(np.clip(coverage(bar - 5.0) - coverage(bar), 0, 1), IRON_DEEP, 0.8)
+    lower_lip = sd_box((8.0, BAR_H + 1.0), (BAR_W - 8.0, BAR_H + 3.0))
+    forge(lower_lip, BRONZE_DARK, 0.85, bevel=1.0)
+    # El nombre del objeto va sobre una franja hundida del mismo zócalo.
+    footer = sd_chamfer((12.0, BAR_H + 4.0), (BAR_W - 12.0, SCREEN_Y + 16.0), 5.0)
+    paint(coverage(footer), IRON_DEEP, 0.6)
+
+
+def fittings():
+    """Abrazaderas cortas de hierro en los extremos y un grabado trenzado en el labio superior.
+    El ornamento está en el metal, en lugar de crecer por encima de los iconos."""
+    for mirrored in (False, True):
+        x = BAR_W + 9.0 if mirrored else -9.0
+        collar = sd_chamfer((x - 6.0, 12.0), (x + 6.0, BAR_H - 10.0), 5.0)
+        draw(collar, dict(halo=1.5, fill=IRON_RAISED, bevel=3.0, line=BRONZE, line_w=1.0, line_alpha=0.5))
+        for y in (21.0, BAR_H - 19.0):
+            rivet((x, y), 3.0)
+        # Dos bandas de nudo; dejan espacio al engaste central.
+        xs = np.arange(20.0, CENTRE_X - DOME - 12.0, 1.0)
+        for phase in (0.0, math.pi):
+            ys = -4.5 + 1.8 * np.sin(xs / 34.0 * math.tau + phase)
+            points = np.stack([xs, ys], axis=1)
+            if mirrored:
+                points = mirror(points)
+            draw(sd_stroke(points, np.full(len(points), 0.55), reach=2.0),
+                 dict(fill=BRONZE_DARK, fill_alpha=0.7))
+    rivet((CENTRE_X, DOME_CENTRE[1] - DOME + 3.0), 3.0)
 
 
 # --- Runas ----------------------------------------------------------------------------------------
@@ -347,7 +418,7 @@ RUNE_TEXT = {
     "left": ["l", "i", "f", "|", "a", "u", "k", "|", "b", "l", "u", "th", "|"],
     "right": ["th", "r", "i", "k", "|", "a", "u", "k", "|", "a", "n", "t", "i", "|"],
 }
-RUNE_H = 9.5
+RUNE_H = 8.2
 RUNE_STROKE = 0.8
 # Las de la cordura, en su media banda: «hugr auk minni» (pensamiento y memoria, Huginn y Muninn).
 SANITY_TEXT = ["h", "u", "k", "r", "|", "a", "u", "k", "|", "m", "i", "n", "i"]
@@ -398,7 +469,9 @@ def runes(centre, tokens, r_in, r_out, height, arc=None):
                 pts = resample(pts, 0.75)
                 d = np.minimum(d, sd_stroke(pts, np.full(len(pts), RUNE_STROKE), reach=3.0))
     cov = coverage(d)
-    paint(cov, BRONZE, 0.62)
+    # Las incisiones cálidas quedan en segundo plano. El aliento conserva su máscara original.
+    paint(coverage(d - 0.5), INK, 0.7)
+    paint(cov, BRONZE, 0.52)
     return cov
 
 
@@ -417,9 +490,9 @@ def gauge(centre, medallion, end, icon):
     at = on_ring(centre, MEDALLION_AT, medallion)
     disc = sd_circle(at, MEDALLION_R)
     draw(smin(channel, disc, 6.0), CHANNEL)
-    paint(coverage(disc), IRON)
-    paint(band_of(disc, 1.0), BRONZE, 0.75)
-    paint(band_of(disc, 1.0, 3.5), BRONZE, 0.2)
+    forge(disc, IRON, bevel=3.0)
+    metal_line(disc, 1.5, alpha=0.8)
+    paint(band_of(disc, 1.0, 3.5), BRONZE, 0.15)
     icon(at, ICON_SCALE)
 
 
@@ -476,113 +549,6 @@ GAUGES = (
 )
 
 
-# --- El fresno de cada engaste --------------------------------------------------------------------
-
-def curl(base, heading, length, turn, r0, r1, n=None):
-    """Zarcillo que se va enroscando (una clotoide): sale de [base] hacia [heading] grados y gira
-    [turn] grados en total, cada vez más cerrado. Devuelve los puntos y su radio, de r0 a r1."""
-    n = n or max(16, int(length / 0.75))
-    x, y = base
-    points = [(x, y)]
-    for i in range(1, n + 1):
-        t = i / n
-        a = math.radians(heading + turn * t * t)
-        x += math.cos(a) * length / n
-        y += math.sin(a) * length / n
-        points.append((x, y))
-    points = np.array(points)
-    t = np.linspace(0.0, 1.0, len(points))
-    return points, r0 + (r1 - r0) * t ** 0.7
-
-
-def ring_frame(centre, r, degrees):
-    """Punto del círculo, la tangente hacia donde crecen los grados y la normal hacia fuera."""
-    a = math.radians(degrees)
-    out = np.array([math.sin(a), -math.cos(a)])
-    return np.array(on_ring(centre, r, degrees)), np.array([math.cos(a), math.sin(a)]), out
-
-
-def heading_of(v):
-    return math.degrees(math.atan2(v[1], v[0]))
-
-
-def ash_roots(mirrored):
-    # Raíces que salen de debajo del engaste (se pintan antes que la placa) y se agarran al borde
-    # de la pantalla, cada una afinándose hasta la punta.
-    for root, rk in (
-        ([(-190, 92), (-214, 104), (-236, 116), (-256, 126), (-280, 134), (-299, 141)],
-         [(0, 6.6), (0.3, 5.0), (1, 0.5)]),
-        ([(-196, 108), (-216, 114), (-229, 124), (-235, 133), (-239, 141)], [(0, 5.0), (0.5, 3.0), (1, 0.5)]),
-        ([(-200, 118), (-208, 126), (-210, 141)], [(0, 3.6), (1, 0.5)]),
-        ([(-249, 124), (-257, 132), (-258, 141)], [(0, 2.0), (1, 0.4)]),
-        ([(-262, 129), (-276, 130), (-286, 126), (-291, 121)], [(0, 1.7), (1, 0.4)]),
-    ):
-        stroke(spline(root), rk, RIBBON, mirrored)
-
-
-def ash_crown(mirrored):
-    c = LEFT
-    ring = HOUSING + 3.0
-    # Rama: sale de la copa, pasa por encima del engaste y se tiende sobre la barra hasta acabar
-    # en voluta.
-    ctrl = [on_ring(c, ring, a) for a in (-8, 4, 18, 34)]
-    ctrl += [(-26, -30), (10, -20), (58, -16.5), (104, -17), (134, -22)]
-    ctrl += spiral((148, -35), 14.0, 4.0, 112, -250, 18)[1:]
-    branch = spline(ctrl)
-    keys = [(0.0, 2.0), (0.06, 4.8), (0.3, 4.4), (0.7, 3.0), (1.0, 1.2)]
-    stroke(branch, keys, RIBBON, mirrored)
-    p = mirror(branch) if mirrored else branch
-    seg = slice(int(len(p) * 0.06), int(len(p) * 0.8))
-    paint(coverage(sd_stroke(p[seg], np.full(len(p[seg]), 0.5), reach=3.0)), BRONZE, 0.3)
-    # Copa sobre el engaste.
-    top = on_ring(c, ring, -2)
-    leaf((top[0] - 3, top[1] - 3), -128, 26, 10.5, -14, -40, mirrored)
-    leaf((top[0] + 2, top[1] - 4), -92, 33, 12.0, 10, 28, mirrored)
-    leaf((top[0] + 9, top[1] - 1), -55, 25, 10.0, 18, 36, mirrored)
-    # Hojas de la rama sobre la barra.
-    leaf((-22, -29), -48, 27, 10.0, 18, 30, mirrored)
-    leaf((30, -19), -38, 30, 10.5, 14, 34, mirrored)
-    leaf((84, -17), -30, 25, 9.0, 12, 30, mirrored)
-    leaf((118, -19), 12, 18, 7.0, -10, -30, mirrored)
-    # Un remache donde la rama se posa sobre la placa.
-    rivet((-14, -14), 4.0, mirrored)
-
-
-def crest():
-    # El engaste de la cordura asienta en una voluta doble y lo coronan un remache y tres hojas.
-    x = CENTRE_X
-    for mirrored in (False, True):
-        ctrl = [(x - DOME + 2, -15), (x - DOME - 16, -18), (x - DOME - 32, -24)]
-        ctrl += spiral((x - DOME - 26, -34), 11.0, 3.0, 150, 420, 16)[1:]
-        stroke(spline(ctrl), [(0, 3.2), (0.5, 2.6), (1.0, 1.0)], RIBBON, mirrored)
-        leaf((x - DOME + 6, -19), -128, 20, 8.0, -12, -30, mirrored)
-        leaf((x - 6, -DOME + 1), -124, 18, 7.5, -10, -28, mirrored)
-    leaf((x, -DOME - 2), -90, 26, 11.0, 0, 0)
-    rivet((x, -DOME), 5.0)
-
-
-def braid():
-    # Dos hilos de bronce embutidos que se cruzan por debajo de la barra, de engaste a engaste.
-    y = (BAR_H + SCREEN_Y) * 0.5
-    x0, x1 = -10.0, BAR_W + 10.0
-    xs = np.arange(x0, x1, 1.0)
-    period = 44.0
-    strands = []
-    for phase in (0.0, math.pi):
-        ys = y + 4.2 * np.sin((xs - x0) / period * 2 * math.pi + phase)
-        strands.append(np.stack([xs, ys], axis=1))
-    # En cada cruce pasa por encima uno distinto.
-    half = period * 0.5
-    for over in (False, True):
-        for k, strand in enumerate(strands):
-            seg = ((strand[:, 0] - x0 + half * 0.5) // half).astype(int)
-            mask = ((seg + k) % 2 == 0) == over
-            for run in np.split(np.arange(len(strand)), np.where(np.diff(mask.astype(int)) != 0)[0] + 1):
-                if mask[run[0]] and len(run) > 1:
-                    run = np.arange(max(run[0] - 1, 0), min(run[-1] + 2, len(strand)))
-                    draw(sd_stroke(strand[run], np.full(len(run), 1.0), reach=4.0), WIRE)
-
-
 def breath_mask(cov):
     """Las runas del engaste del aguante solas, en blanco y centradas en él: BreathRing las
     enciende como medidor del oxígeno."""
@@ -599,18 +565,13 @@ def breath_mask(cov):
 
 
 def main():
-    for mirrored in (False, True):
-        ash_roots(mirrored)
     plate()
-    braid()
     runes(LEFT, RUNE_TEXT["left"], RUNE_IN, RUNE_OUT, RUNE_H)
     breath = runes(RIGHT, RUNE_TEXT["right"], RUNE_IN, RUNE_OUT, RUNE_H)
-    runes(DOME_CENTRE, SANITY_TEXT, DOME_RUNE_IN, DOME_RUNE_OUT, 8.0, (-80.0, 80.0))
+    runes(DOME_CENTRE, SANITY_TEXT, DOME_RUNE_IN, DOME_RUNE_OUT, 5.5, (-80.0, 80.0))
     for centre, medallion, end, icon in GAUGES:
         gauge(centre, medallion, end, icon)
-    for mirrored in (False, True):
-        ash_crown(mirrored)
-    crest()
+    fittings()
 
     alpha = CANVAS[..., 3]
     colour = np.where(alpha[..., None] > 1e-5, CANVAS[..., :3] / np.maximum(alpha, 1e-5)[..., None], 0.0)

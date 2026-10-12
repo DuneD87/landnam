@@ -151,6 +151,35 @@ func water_body_at_dir(d: Vector3) -> Dictionary:
 	return bodies[id]
 
 
+## Tipo del agua real junto a una orilla que el mapa grueso puede etiquetar como tierra. Busca
+## solo en la celda y sus vecinas; el llamante debe comprobar antes que hay agua al alcance con
+## el terreno vivo. La proximidad de una etiqueta por sí sola no demuestra que se pueda beber.
+func nearby_water_body_at_dir(d: Vector3) -> Dictionary:
+	var body := water_body_at_dir(d)
+	if not body.is_empty() or not has_water or body_ids.is_empty():
+		return body
+	var cell := texel_of_dir(d)
+	var cy := cell / size.x
+	var cx := cell - cy * size.x
+	var best := -INF
+	var up := d.normalized()
+	for dy in range(-1, 2):
+		var y := cy + dy
+		if y < 0 or y >= size.y:
+			continue
+		for dx in range(-1, 2):
+			var x := wrapi(cx + dx, 0, size.x)
+			var id := body_ids[y * size.x + x]
+			if id < 0 or id >= bodies.size():
+				continue
+			var center := uv_to_dir(Vector2((x + 0.5) / size.x, (y + 0.5) / size.y))
+			var proximity := up.dot(center)
+			if proximity > best:
+				best = proximity
+				body = bodies[id]
+	return body
+
+
 ## Permite la costera salvo cuando el téxel identifica POSITIVAMENTE agua interior. Tierra (-1) es
 ## incierta cerca del litoral: el mapa grueso puede marcarla donde la malla visible aún es agua, y
 ## vetarla produciría exactamente un corte rectangular con la forma del téxel.

@@ -45,7 +45,7 @@ const _ALEGREYA_ITALIC := preload("res://fonts/AlegreyaSans-Italic.ttf")
 
 ## Lado de los huecos de objeto, por uso (constantes del tipo "ItemSlot"): los de la ventana de
 ## fabricar son las recetas, lo que piden y el objeto elegido en grande.
-const SLOT_SIDES := {&"inventory": 112, &"equipment": 112, &"hotbar": 92, &"held": 96, &"recipe": 104,
+const SLOT_SIDES := {&"inventory": 112, &"equipment": 112, &"hotbar": 88, &"held": 96, &"recipe": 104,
 	&"ingredient": 64, &"preview": 150}
 
 
@@ -130,11 +130,14 @@ static func build(ui_scale: float) -> Theme:
 	# La barra rápida va hundida en la consola de hierro (VitalsPlate): un fondo oscuro con su filete.
 	theme.set_type_variation("HotbarPanel", "PanelContainer")
 	var strip := window_frame(ui_scale)
-	strip.fill = Color(IRON_DEEP, 0.9)
-	strip.chamfer = px.call(10)
-	strip.inset = 0.0
+	strip.fill = Color("111316")
+	strip.chamfer = px.call(12)
 	strip.rivet = 0.0
-	strip.set_content_margin_all(px.call(10))
+	strip.border = Color("050607")
+	strip.border_width = px.call(2)
+	strip.inset = px.call(4)
+	strip.inset_color = Color(0.46, 0.4, 0.29, 0.48)
+	strip.set_content_margin_all(px.call(12))
 	theme.set_stylebox("panel", "HotbarPanel", strip)
 	theme.set_type_variation("Inset", "PanelContainer")
 	theme.set_stylebox("panel", "Inset", box(IRON_DEEP, 8, 16, 1, BRONZE_FAINT, ui_scale))
@@ -155,6 +158,27 @@ static func build(ui_scale: float) -> Theme:
 	for variation in slots:
 		theme.set_type_variation(variation, "PanelContainer")
 		theme.set_stylebox("panel", variation, slots[variation])
+	# La hotbar tiene huecos tallados en el hierro, en lugar de las fichas del inventario.
+	for state in [
+			["HotbarEmpty", Color("101216"), BRONZE_DARK, 0.0],
+			["HotbarSlot", Color("1b1c1d"), BRONZE, 0.15],
+			["HotbarHover", Color("30291f"), BRONZE, 0.5],
+			["HotbarSelected", Color("3c3020"), BRONZE, 1.0],
+			["HotbarEquipped", Color("1c2931"), FROST, 0.85]]:
+		var well := HotbarSlotFrame.new()
+		well.ui_scale = ui_scale
+		well.fill = state[1]
+		well.accent = state[2]
+		well.emphasis = state[3]
+		well.empty = state[0] == "HotbarEmpty"
+		well.set_content_margin_all(px.call(6))
+		theme.set_type_variation(state[0], "PanelContainer")
+		theme.set_stylebox("panel", state[0], well)
+	theme.set_type_variation("HotbarKey", "Label")
+	theme.set_font("font", "HotbarKey", _ALEGREYA_BOLD)
+	theme.set_font_size("font_size", "HotbarKey", px.call(19))
+	theme.set_color("font_color", "HotbarKey", BONE.darkened(0.2))
+	theme.set_stylebox("normal", "HotbarKey", StyleBoxEmpty.new())
 
 	# Botones.
 	var margin := 14
@@ -252,7 +276,7 @@ static func build(ui_scale: float) -> Theme:
 	theme.set_color("font_color", "MenuTitle", BRONZE)
 	theme.set_color("font_shadow_color", "MenuTitle", Color(0, 0, 0, 0.6))
 	theme.set_constant("shadow_offset_y", "MenuTitle", px.call(4))
-	theme.set_type_variation("MenuButton", "Button")
+	theme.set_type_variation("SagaMenuButton", "Button")
 	var entry := func(fill: Color, bar: Color) -> StyleBoxFlat:
 		var style := StyleBoxFlat.new()
 		style.bg_color = fill
@@ -263,20 +287,20 @@ static func build(ui_scale: float) -> Theme:
 		style.content_margin_top = px.call(12)
 		style.content_margin_bottom = px.call(12)
 		return style
-	theme.set_stylebox("normal", "MenuButton", entry.call(Color.TRANSPARENT, Color.TRANSPARENT))
-	theme.set_stylebox("hover", "MenuButton", entry.call(Color(BRONZE, 0.1), BRONZE))
-	theme.set_stylebox("pressed", "MenuButton", entry.call(Color(BRONZE, 0.18), BRONZE))
-	theme.set_stylebox("disabled", "MenuButton", entry.call(Color.TRANSPARENT, Color.TRANSPARENT))
-	theme.set_stylebox("focus", "MenuButton", entry.call(Color.TRANSPARENT, BRONZE_LINE))
-	theme.set_font("font", "MenuButton", title)
-	theme.set_font_size("font_size", "MenuButton", px.call(38))
-	theme.set_color("font_color", "MenuButton", BONE)
-	theme.set_color("font_hover_color", "MenuButton", BRONZE)
-	theme.set_color("font_pressed_color", "MenuButton", BRONZE.lightened(0.2))
-	theme.set_color("font_focus_color", "MenuButton", BONE)
-	theme.set_color("font_disabled_color", "MenuButton", Color(MUTED, 0.5))
-	theme.set_color("font_outline_color", "MenuButton", Color(0, 0, 0, 0.5))
-	theme.set_constant("outline_size", "MenuButton", px.call(4))
+	theme.set_stylebox("normal", "SagaMenuButton", entry.call(Color.TRANSPARENT, Color.TRANSPARENT))
+	theme.set_stylebox("hover", "SagaMenuButton", entry.call(Color(BRONZE, 0.1), BRONZE))
+	theme.set_stylebox("pressed", "SagaMenuButton", entry.call(Color(BRONZE, 0.18), BRONZE))
+	theme.set_stylebox("disabled", "SagaMenuButton", entry.call(Color.TRANSPARENT, Color.TRANSPARENT))
+	theme.set_stylebox("focus", "SagaMenuButton", entry.call(Color.TRANSPARENT, BRONZE_LINE))
+	theme.set_font("font", "SagaMenuButton", title)
+	theme.set_font_size("font_size", "SagaMenuButton", px.call(38))
+	theme.set_color("font_color", "SagaMenuButton", BONE)
+	theme.set_color("font_hover_color", "SagaMenuButton", BRONZE)
+	theme.set_color("font_pressed_color", "SagaMenuButton", BRONZE.lightened(0.2))
+	theme.set_color("font_focus_color", "SagaMenuButton", BONE)
+	theme.set_color("font_disabled_color", "SagaMenuButton", Color(MUTED, 0.5))
+	theme.set_color("font_outline_color", "SagaMenuButton", Color(0, 0, 0, 0.5))
+	theme.set_constant("outline_size", "SagaMenuButton", px.call(4))
 
 	# Cerrar: una aspa sin placa.
 	theme.set_type_variation("CloseButton", "Button")

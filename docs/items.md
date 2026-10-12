@@ -99,6 +99,9 @@ piedra de relleno.
 - **Junto al agua dulce, E:**
   - **Dónde vale:** a menos de 6 m de un río, o a pie de un lago o una charca
     (a menos de 2,5 m y no más de 2,5 m por encima del agua).
+    El terreno cargado comprueba que hay agua real; el mapa aporta su tipo
+    también cuando la orilla cae en una celda de tierra. Los ríos se miden
+    contra sus segmentos, para que la imagen de distancias no pierda riberas.
   - **Con sed:** bebes un trago, que quita un 20 % de sed.
   - **Con la sed saciada:** llenas todos los odres.
   - **El mar:** no quita la sed, y el juego lo avisa.
