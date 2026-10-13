@@ -39,13 +39,6 @@ rápida, equipo) rehacen el tema cuando cambia el tamaño de la ventana.
   del tipo `ItemSlot` (`GameTheme.SLOT_SIDES`; la ventana de fabricar tiene los
   suyos: `recipe`, `ingredient` y `preview`). Vacío enseña en bronce tenue la
   silueta de lo que va en él (`shaders/ui/tint_alpha.gdshader`).
-- **Huecos de la barra:** `HotbarSlotFrame` dibuja cartuchos de 88 × 108 px,
-  con un bisel ancho de hierro, el icono arriba y la tecla grabada en la base.
-  Los vacíos tienen menos contraste. Usa las variaciones `HotbarEmpty`,
-  `HotbarSlot`, `HotbarHover`, `HotbarSelected` y `HotbarEquipped`; la tecla
-  usa `HotbarKey`. El borde y las cuñas de selección aparecen y se apagan en
-  0,16 s (el hover, en 0,12 s), y el icono elegido crece un 4 %. La otra mano
-  conserva el acento azul. El nombre del objeto seleccionado sale bajo el riel.
 
 ## Inventario y pantalla de personaje
 
@@ -137,18 +130,24 @@ al inventario solo.
 
 ## Barra rápida, vida, aguante y necesidades
 
-La barra rápida va encajada en una consola compacta de hierro forjado
-(`VitalsPlate`): un riel biselado, con abrazaderas en sus extremos, conecta
-dos cápsulas circulares. Cada engaste lleva una banda de runas del fuþark
-joven: «líf auk blóð» (vida y sangre) en la vida y «þrek auk andi» (aguante y
-aliento) en el aguante. En el centro asoma la media orbe de la cordura, más
-pequeña, con su media banda de runas («hugr auk minni», pensamiento y memoria).
-La trenza queda grabada en el labio superior del riel. El riel y los engastes
-se prolongan por abajo hasta el borde de la pantalla, sin una línea de cierre
-inferior: forman un zócalo integrado en el marco. El nombre del objeto sale
-en una franja hundida de 28 px bajo los cartuchos. Las orbes bajan 12 px para
-asentarse en esa base. La textura lleva 2 px de sangrado para evitar rendijas
-al redondear la escala.
+La barra rápida va encajada en una consola a lo Diablo (`VitalsPlate`): la misma
+placa de hierro de las ventanas, con su filete de bronce por fuera y otro más
+tenue por dentro. La sostiene desde el borde de abajo y se levanta a cada lado
+en el engaste de una orbe. Cada engaste lleva una banda de runas del fuþark
+joven, como las de las piedras rúnicas: «líf auk blóð» (vida y sangre) en la
+vida y «þrek auk andi» (aguante y aliento) en el aguante. De cada engaste salen
+las raíces del fresno, que se atan en un nudo de tres lóbulos (el trébol de las
+piedras rúnicas) y se agarran al borde de la pantalla, y encima lleva una copa
+de hojas de bronce. Una sierpe a lo Urnes, con las fauces abiertas, muerde cada
+engaste donde se junta con la barra y recorre el borde de arriba de esta a
+jorobas, hundiéndose en la placa entre una y otra: su cuerpo es parte de la
+placa, con el mismo hierro y el mismo filete. La cola sale hecha zarcillo con
+hojas y acaba en voluta. En el centro se levanta el engaste de la media orbe
+de la cordura, con media banda de runas («hugr auk minni», pensamiento y
+memoria), asentado en una voluta doble y coronado por un remache y tres hojas.
+En cada voluta está posado un cuervo pequeño, Huginn y Muninn, con el ala
+alzada y una espiral en su arranque, mirando a la cordura. Por debajo de la
+barra corre una trenza de hilo de bronce.
 
 Alrededor de cada engaste, por fuera, van tallados dos medidores: un medallón
 con su icono del que sale un canal en el sentido de las agujas del reloj, que se
@@ -159,10 +158,8 @@ las runas del aguante con una máscara horneada aparte,
 `textures/ui/hotbar_breath_runes.png`. Qué mide cada uno y cómo se mueve está en
 [survival.md](survival.md).
 
-La consola conserva la paleta de Saga, con hierro forjado, biseles iluminados
-desde arriba a la izquierda, pátina tenue y bronce envejecido en los engastes.
-Las runas quedan grabadas en la banda, con menos contraste que los objetos y
-las orbes. El hueco del panel lleva sombra interior. Es una imagen horneada,
+Se dibuja como el resto de Saga: rellenos lisos y filetes finos, sin luces ni
+relieve, con la paleta de `GameTheme`. Es una imagen horneada,
 `textures/ui/hotbar_console.png`, a dos píxeles por cada uno de la UI a 1440 px
 para que a 4K siga nítida (con mipmaps para reducirla). La pinta
 `tools/ui/bake_hotbar_console.py` con campos de distancia, así que los bordes
@@ -173,11 +170,10 @@ build/fauna_tools/bin/python -I tools/ui/bake_hotbar_console.py
 godot --headless --editor --quit --path .   # importa la textura
 ```
 
-Está pintada para las medidas de la barra (diez cartuchos de 88 × 108 px con
-8 px entre ellos y 12 de margen: panel de 976 × 132; orbes de radio 76 a 16 px
-del panel, media orbe de radio 35 y 6 px por encima, canales de radio 101): si
-cambian, hay que cambiarlas en el script y en `Hotbar` (`ORB_*`,
-`SANITY_RADIUS`, `SANITY_LIFT`, `GAUGE_*`, `MEDALLION_*` y `GAUGES`) y volver a hornear. El script imprime dónde empieza el panel en
+Está pintada para las medidas de la barra (diez huecos de 92 px, orbes de radio
+75 a 38 px del panel, media orbe de radio 48, canales de radio 106,5): si
+cambian, hay que cambiarlas en el script y en `Hotbar` (`PANEL_SIZE`, `ORB_*`,
+`SANITY_RADIUS`, `GAUGE_*`, `MEDALLION_*` y `GAUGES`) y volver a hornear. El script imprime dónde empieza el panel en
 la imagen, que tiene que coincidir con `VitalsPlate.BAR_ORIGIN`.
 
 Las orbes (`VitalOrb`) son esferas de cristal con un aro de bronce y un líquido
@@ -190,42 +186,27 @@ izquierda y el aguante a la derecha. La barra las coloca a partir de su panel
   corazón.
 - **Aguante:** agotado, el líquido se apaga; si falta para un golpe, el aro
   destella.
-- Cuando el valor cambia, la cifra sale un momento en el centro de la orbe.
+- Cuando el valor cambia, la cifra se destaca en el centro de la orbe. Si la
+  reserva está incompleta permanece visible, con fuente seminegrita y un
+  mínimo de 14 px; a tope se desvanece.
 - La silueta del cuerpo herido va a la izquierda de la consola y los estados en
   curso (pierna rota...) a la izquierda de la silueta.
 - **Cordura:** la media orbe violeta; con poca, el aro destella.
 - En vuelo libre o sin cuerpo no salen ni las orbes ni la consola
-  (`Hotbar.set_vitals_shown()`); la barra sola apoya directamente en el borde
-  inferior y el nombre del objeto pasa por encima.
+  (`Hotbar.set_vitals_shown()`).
+
+**Tamaño:** la barra entera (consola, orbes, medidores, huecos, nombre y avisos)
+va a la escala de la ventana por un factor que el jugador elige en Opciones >
+Juego, de 50 a 140 %, con un 75 % por defecto (`game/hotbar_scale`,
+`SettingsManager.hotbar_scale()`). `Hotbar.get_ui_scale()` lo aplica y la
+recoloca al cambiarlo; en ventanas estrechas no pasa de lo que cabe a lo ancho.
+En partida la barra se oculta con el menú de pausa, así que el tamaño nuevo se
+ve al volver al juego.
 
 Como son parte de la barra, suben con ella por encima del fondo de la pantalla
 de personaje. El efecto de desangrado va en una capa por debajo de la barra
 (9), para que la vida no pierda el color justo cuando más importa. Clicar en la
 consola con algo en el cursor no lo tira.
-
-`tests/ui/hotbar_preview.tscn` permite revisar la barra real sin cargar el
-planeta: las teclas 1–0 y el clic seleccionan, 7 alterna el escudo y Espacio
-cambia entre exploración, necesidades críticas y bajo el agua. Con
-`-- --capture` guarda capturas en `build/ui/hotbar/` a 720p, 1080p y 1440p,
-incluyendo hover, selección, oxígeno y barra sola.
-
-```sh
-godot --path . res://tests/ui/hotbar_preview.tscn -- --capture
-```
-
-Los iconos de 16 armas y escudos y de las tres herramientas (hacha de piedra,
-pico y antorcha) se renderizan desde sus mallas a 384 × 384, con materiales
-originales, luz de estudio común, fondo transparente y mipmaps. El arco lleva
-su cuerda en el render. `tools/ui/item_icon_renderer.gd` es el renderizador
-compartido: lo usan el horneado de armas y la actualización de iconos, así
-volver a generar una malla conserva el acabado de su icono.
-Los perfiles muy finos se ensanchan en el encuadre del icono para que sigan
-siendo visibles a 720p.
-
-```sh
-godot --path . --script res://tools/ui/bake_item_icons.gd -- --background
-godot --headless --editor --quit --path .
-```
 
 ## Menú principal
 
@@ -250,11 +231,49 @@ menú y «Cargar partida» en la pausa.
 
 ## Pendiente
 
-- **Iconos restantes:** las armas, los escudos y las herramientas principales
-  ya comparten render. Falta extenderlo al resto del catálogo: armaduras con
-  fondo negro, materiales dibujados y siluetas de equipo.
+- **Iconos:** mezclan tres estilos (vectores planos, renders sobre fondo negro y
+  siluetas, con un yelmo de caballero entre ellas). Habría que renderizarlos
+  desde los modelos con la misma luz, como ya se hace con los bloques
+  (`BlockDatabase`).
 - **Nombres y descripciones:** varios objetos siguen en inglés en sus `.tres`.
 - **Menús de construcción y el resto del HUD** (barras de las criaturas, mira):
   aún no usan Saga.
 - La armadura que muestran los atributos es la suma de la de las piezas puestas,
   pero el combate todavía no la usa (`HealthComponent.defense` no se rellena).
+
+## Validar la barra rápida
+
+La consola conserva la talla anterior a la consola compacta (commit
+`0878e3e`). Los huecos usan `HotbarSlotFrame`: cuero con filetes de bronce,
+un pie propio para las teclas y acento dorado para el arma activa, azul para
+el escudo. Los iconos conservan sus dibujos y se encuadran por su zona visible
+con `AtlasTexture`, compartida por textura. La antorcha usa el render con
+transparencia; los iconos se reducen con mipmaps.
+
+El nombre del objeto aparece sobre la cresta durante dos segundos al
+seleccionar y luego se desvanece. Los avisos tienen prioridad. Sin orbes,
+el nombre queda junto a la barra. En ventanas pequeñas, `Hotbar.get_ui_scale()`
+parte de una escala mínima de 0,625 (antes del tamaño elegido en Opciones y
+limitada por la anchura disponible), para que a 720p los objetos sigan siendo
+reconocibles. Las teclas tienen un mínimo de 12 px y un pie con altura
+suficiente para alojarlas.
+
+El panel reajusta su tamaño y sus anclajes después de los cambios de tema y
+toma la medida de la consola horneada (`Hotbar.PANEL_SIZE` por la escala): los
+huecos se redondean uno a uno y a según qué escalas su mínimo se quedaría unos
+píxeles corto, así que van centrados dentro y las orbes casan con sus engastes
+a cualquier tamaño.
+
+`tests/ui/hotbar_preview.tscn` abre la barra real sin cargar el planeta. Con
+`-- --capture` pone la ventana en modo ventana, comprueba el tamaño real de
+cada PNG y guarda exploración, selección, hover, necesidades críticas,
+oxígeno y barra sola en `build/ui/hotbar/`, a 720p, 1080p y 1440p, con vuelta
+a 1080p. También comprueba teclas, clics, escudo independiente, deselección
+y que el panel siga centrado y coincida con las medidas de la consola.
+También verifica el nombre seleccionado y que las teclas no pisen los
+iconos ni salgan de sus huecos.
+Los ajustes de pantalla del usuario no se guardan.
+
+```sh
+godot --path . res://tests/ui/hotbar_preview.tscn -- --capture
+```

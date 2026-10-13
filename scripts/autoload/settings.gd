@@ -62,6 +62,8 @@ const DEFAULTS := {
 	"audio/UI": 1.0,
 	"audio/Voice": 1.0,
 	"game/gore": GORE_FULL,
+	## Tamaño de la barra rápida (con su consola y sus orbes) sobre el que le daría la ventana.
+	"game/hotbar_scale": 0.75,
 	"controls/mouse_sensitivity": 1.0,
 	"controls/invert_y": false,
 	## Acción -> eventos serializados, solo de las acciones que el jugador ha cambiado.
@@ -97,6 +99,8 @@ const GRASS_DENSITY_SCALE := [0.5, 0.75, 1.0]
 ## Última banda del instancer con hierba y sotobosque: 0 hasta ~40 m, 1 hasta ~90 m, 2 todas.
 const GRASS_MAX_BAND := [0, 1, 99]
 
+const MIN_HOTBAR_SCALE := 0.5
+const MAX_HOTBAR_SCALE := 1.4
 const MIN_MOUSE_SENSITIVITY := 0.2
 const MAX_MOUSE_SENSITIVITY := 3.0
 
@@ -174,6 +178,11 @@ static func level(key: String, count: int) -> int:
 ## Cuánto gore se ve (GORE_OFF, GORE_BLOOD o GORE_FULL).
 static func gore_level() -> int:
 	return level("game/gore", 3)
+
+
+## Cuánto se agranda o se achica la barra rápida ("game/hotbar_scale").
+static func hotbar_scale() -> float:
+	return clampf(float(value("game/hotbar_scale")), MIN_HOTBAR_SCALE, MAX_HOTBAR_SCALE)
 
 
 static func grass_density_scale() -> float:

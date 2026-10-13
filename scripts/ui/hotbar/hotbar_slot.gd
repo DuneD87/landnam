@@ -1,136 +1,93 @@
 class_name HotbarSlot
 extends ItemSlotView
 
-## Hueco de la barra rápida: lo que se saca con su tecla (que lleva en la esquina). No guarda
+## Hueco de la barra rápida: lo que se saca con su tecla (en el pie del hueco). No guarda
 ## cantidad: apunta a un ItemData del inventario. Elegido (lo que va en la mano) se ilumina en
 ## bronce; lo que lleva la otra mano (el escudo), en escarcha.
 
 @export var slot_index: int = 0
 
 var assigned_data: ItemData = null
-var _content := Control.new()
-var _accent := Control.new()
-var _selection_light := 0.0
-var _hover_light := 0.0
-var _selection_target := -1.0
-var _hover_target := -1.0
-var _transition: Tween
+var _content: Control
+## El recorte se comparte entre huecos y solo se calcula cuando aparece una textura nueva.
+static var _framed_icons: Dictionary[Texture2D, Texture2D] = {}
 
 
 func _init() -> void:
 	super()
 	size_kind = &"hotbar"
-	# Una zona de icono arriba y la tecla grabada abajo; el Container solo coloca la envoltura.
-	remove_child(_icon)
-	remove_child(_mark)
+	_content = Control.new()
 	_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_content)
-	_content.add_child(_icon)
-	_content.add_child(_mark)
+	for child in [_icon, _mark, _count, _ghost]:
+		child.reparent(_content)
 	_icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	_mark.theme_type_variation = &"HotbarKey"
 	_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_accent.draw.connect(_draw_accent)
-	add_child(_accent)
+	_mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_mark.add_theme_font_override("font", GameTheme.bold_font())
+	_mark.add_theme_constant_override("outline_size", 0)
+	_content.resized.connect(_layout_content)
 
 
 func _ready() -> void:
 	set_mark(str((slot_index + 1) % 10))
-	_refresh_style()
-	_content.resized.connect(_layout_contents)
-	resized.connect(_layout_contents)
-	_layout_contents()
+	_layout_content()
 
 
 func _notification(what: int) -> void:
-	super._notification(what)
-	if what == NOTIFICATION_THEME_CHANGED and is_node_ready():
-		_layout_contents.call_deferred()
+	if what == NOTIFICATION_THEME_CHANGED and is_instance_valid(_content):
+		_layout_content.call_deferred()
 
 
-func _layout_contents() -> void:
-	var s := float(get_theme_constant(&"hotbar", &"ItemSlot")) / 88.0
-	custom_minimum_size = Vector2(88.0, 108.0) * s
-	_icon.position = Vector2(2.0, 1.0) * s
-	_icon.size = Vector2(maxf(_content.size.x - 4.0 * s, 0.0), maxf(_content.size.y - 25.0 * s, 0.0))
-	_icon.pivot_offset = _icon.size * 0.5
-	_mark.position = Vector2(0, _content.size.y - 23.0 * s)
-	_mark.size = Vector2(_content.size.x, 23.0 * s)
-	_accent.queue_redraw()
+func _layout_content() -> void:
+	var s := float(get_theme_constant(&"hotbar", &"ItemSlot")) / 92.0
+	var area := _content.size
+	if area.x <= 0.0:
+		return
+	var key_size := HotbarSlotFrame.key_size(s)
+	var key_top := area.y - 3.0 * s - key_size.y
+	_icon.position = Vector2(8.0, 6.0) * s
+	_icon.size = Vector2(area.x - 16.0 * s, key_top - 10.0 * s)
+	_mark.add_theme_font_size_override("font_size", maxi(12, roundi(19.0 * s)))
+	_mark.position = Vector2(area.x * 0.5 - key_size.x * 0.5, key_top)
+	_mark.size = key_size
 
 
 func _refresh_style() -> void:
-	if selected:
-		theme_type_variation = &"HotbarSelected"
-	elif equipped and _filled:
-		theme_type_variation = &"HotbarEquipped"
-	elif hovered:
-		theme_type_variation = &"HotbarHover"
-	elif _filled:
-		theme_type_variation = &"HotbarSlot"
-	else:
-		theme_type_variation = &"HotbarEmpty"
-	if not is_inside_tree():
-		return
-	_mark.add_theme_color_override("font_color", GameTheme.BRONZE if selected else
-		(GameTheme.FROST if equipped and _filled else GameTheme.BONE.darkened(0.2)))
-	_accent.queue_redraw()
-	var selection_target := 1.0 if selected else 0.0
-	var hover_target := 1.0 if hovered else 0.0
-	if selection_target == _selection_target and hover_target == _hover_target:
-		return
-	_selection_target = selection_target
-	_hover_target = hover_target
-	if _transition != null and _transition.is_valid():
-		_transition.kill()
-	_transition = create_tween().set_parallel(true)
-	_transition.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_transition.tween_method(_set_selection_light, _selection_light, selection_target, 0.16)
-	_transition.tween_method(_set_hover_light, _hover_light, hover_target, 0.12)
+	super()
+	theme_type_variation = StringName("Hotbar" + str(theme_type_variation))
+	var lit := selected or (equipped and _filled) or held
+	_mark.add_theme_color_override("font_color", GameTheme.INK if lit else
+		(GameTheme.BONE if _filled or hovered else GameTheme.MUTED))
 
 
-func _set_selection_light(value: float) -> void:
-	_selection_light = value
-	_icon.scale = Vector2.ONE * (1.0 + value * 0.04)
-	_accent.queue_redraw()
-
-
-func _set_hover_light(value: float) -> void:
-	_hover_light = value
-	_accent.queue_redraw()
-
-
-func _draw_accent() -> void:
-	var s := float(get_theme_constant(&"hotbar", &"ItemSlot")) / 88.0
-	if s <= 0.0:
-		return
-	var rect := Rect2(-_accent.position, size).grow(-2.0 * s)
-	var light := maxf(_selection_light, _hover_light * 0.35)
-	if light > 0.001:
-		# Halo corto dentro del bisel: se apaga al soltar el hueco, sin animaciones permanentes.
-		for i in 4:
-			SagaFrame._stroke(_accent.get_canvas_item(), rect.grow(-float(i) * s), 10.0 * s,
-				Color(GameTheme.BRONZE, light * (0.85 if i == 0 else 0.06)), s)
-		_accent.draw_line(Vector2(rect.position.x + 6.0 * s, rect.position.y),
-			Vector2(rect.end.x - 6.0 * s, rect.position.y),
-			Color(GameTheme.BONE, light * 0.6), s, true)
-	var strength := _selection_light if selected or _selection_light > 0.001 else (0.7 if equipped and _filled else 0.0)
-	if strength > 0.001:
-		var tint := GameTheme.FROST if equipped and not selected else GameTheme.BRONZE
-		var at := Vector2(size.x * 0.5, size.y - 30.0 * s) - _accent.position
-		_accent.draw_line(at - Vector2(18.0 * s, 0), at + Vector2(18.0 * s, 0),
-			Color(tint, strength * 0.85), 1.5 * s, true)
-		# Dos cuñas marcan el elegido junto a la tecla; el azul identifica la otra mano.
-		for side in [-1.0, 1.0]:
-			var centre := at + Vector2(side * 29.0 * s, 15.0 * s)
-			_accent.draw_colored_polygon(SagaFrame.diamond(centre, 2.0 * s), Color(tint, strength))
+## Normalizar el margen transparente hace que una espada fina se lea tan bien como un hacha.
+## AtlasTexture conserva el dibujo original y evita recrear imágenes en cada asignación.
+static func _frame_icon(source: Texture2D) -> Texture2D:
+	if source == null:
+		return null
+	if _framed_icons.has(source):
+		return _framed_icons[source]
+	var image := source.get_image()
+	if image == null or image.is_empty():
+		return source
+	if image.is_compressed():
+		image.decompress()
+	var used := image.get_used_rect()
+	if not used.has_area():
+		return source
+	var framed := AtlasTexture.new()
+	framed.atlas = source
+	framed.region = Rect2(used)
+	framed.filter_clip = true
+	_framed_icons[source] = framed
+	return framed
 
 
 func assign(item_data: ItemData) -> void:
 	assigned_data = item_data
 	if assigned_data:
-		show_item(assigned_data.icon)
+		show_item(_frame_icon(assigned_data.icon))
 	else:
 		clear()
 
@@ -139,7 +96,7 @@ func assign(item_data: ItemData) -> void:
 ## después de que el hueco se haya rellenado (restaurar una partida), y assign() solo copia.
 func refresh_icon() -> void:
 	if assigned_data:
-		show_item(assigned_data.icon)
+		show_item(_frame_icon(assigned_data.icon))
 
 
 func clear() -> void:

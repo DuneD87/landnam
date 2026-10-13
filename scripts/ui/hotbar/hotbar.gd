@@ -15,27 +15,28 @@ signal hotbar_slot_clicked(slot_index: int)
 signal offhand_toggled(data: ItemData)
 
 const HOTBAR_SLOTS := 10
-## Alto del zócalo que une la barra al borde inferior, con el nombre del objeto grabado.
-const BOTTOM_GAP := 28.0
+## Hueco entre la barra y el borde de abajo, en la escala base de 1440 px.
+const BOTTOM_GAP := 22.0
+## El panel para el que está dibujada la consola (diez huecos con sus separaciones y márgenes).
+const PANEL_SIZE := Vector2(1048.0, 112.0)
 ## Orbes (escala base): radio, hueco entre su aro y el panel y cuánto bajan de la línea de abajo
 ## del panel. La consola está dibujada para estas medidas: si cambian, hay que cambiarlas también
 ## en tools/ui/bake_hotbar_console.py y volver a hornearla.
-const ORB_RADIUS := 76.0
-const ORB_GAP := 16.0
-const ORB_DROP := 12.0
+const ORB_RADIUS := 75.0
+const ORB_GAP := 38.0
+const ORB_DROP := 0.0
 ## Altura de los avisos sobre el panel (por encima de la cresta) y lo que duran.
 const NOTICE_LIFT := 112.0
 const NOTICE_HOLD := 2.6
 const NOTICE_FADE := 0.6
 ## Media orbe de la cordura, con el centro en el borde de arriba del panel.
-const SANITY_RADIUS := 35.0
-const SANITY_LIFT := 6.0
+const SANITY_RADIUS := 48.0
 ## Medidores: radio y grosor del arco en su canal, y el medallón del icono del que arranca
 ## (distancia al centro del engaste y radio). También tallados en la consola.
-const GAUGE_RADIUS := 101.0
-const GAUGE_WIDTH := 6.0
-const MEDALLION_DISTANCE := 111.0
-const MEDALLION_RADIUS := 16.0
+const GAUGE_RADIUS := 106.5
+const GAUGE_WIDTH := 7.0
+const MEDALLION_DISTANCE := 118.0
+const MEDALLION_RADIUS := 21.0
 ## Por necesidad (su nombre en SurvivalNeeds): engaste (-1 el de la vida, 1 el del aguante), grados
 ## desde lo alto, en el sentido de las agujas del reloj, de donde asoma la barra del medallón, de
 ## donde acaba y del medallón, y color. Se llenan en ese sentido, desde el icono.
@@ -56,8 +57,12 @@ var gauges := {}
 var breath: BreathRing
 ## Avisos cortos sobre la consola («Bebes agua dulce», «Necesitas un cuchillo...»): notify().
 var _notice: Label
-var _item_name: Label
 var _notice_age := INF
+## Nombre al cambiar de objeto: desaparece tras reconocer la selección y cede a los avisos.
+var _selection_label: Label
+var _selection_age := INF
+const SELECTION_HOLD := 2.0
+const SELECTION_FADE := 0.4
 ## La consola (también cuenta como barra para el inventario: clicar en ella no tira nada).
 var plate: VitalsPlate
 ## Borde izquierdo de la consola en pantalla, para lo que va a su lado (la silueta del cuerpo).
@@ -66,7 +71,7 @@ var selected_index: int = -1
 var is_ctrl_hold: bool = false
 ## Lo que lleva la otra mano (id), para resaltar su hueco. Lo dice el jugador con set_offhand().
 var _offhand_id: StringName = &""
-var _vitals_shown := true
+var _fit_pending := false
 
 var _key_actions: Array[StringName] = [
 	&"hotbar_1", &"hotbar_2", &"hotbar_3", &"hotbar_4", &"hotbar_5",
@@ -101,18 +106,26 @@ func _ready() -> void:
 	_notice.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_notice.modulate.a = 0.0
 	add_child(_notice)
-	_item_name = Label.new()
-	_item_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_item_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_item_name.add_theme_font_override("font", GameTheme.medium_font())
-	_item_name.add_theme_color_override("font_color", GameTheme.BONE.darkened(0.2))
-	_item_name.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	add_child(_item_name)
-	selection_changed.connect(_show_selected_name)
+	_selection_label = Label.new()
+	_selection_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_selection_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_selection_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_selection_label.add_theme_font_override("font", GameTheme.title_font())
+	_selection_label.add_theme_color_override("font_color", GameTheme.BONE)
+	_selection_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
+	_selection_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.65))
+	_selection_label.add_theme_constant_override("shadow_offset_y", 2)
+	_selection_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_selection_label.modulate.a = 0.0
+	add_child(_selection_label)
+	selection_changed.connect(_show_selection_name)
 	get_panel().item_rect_changed.connect(_layout_vitals)
+	get_panel().minimum_size_changed.connect(_queue_fit_panel)
+	slot_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	_create_slots()
 	_apply_theme()
 	get_viewport().size_changed.connect(_apply_theme)
-	_create_slots()
+	Settings.changed.connect(_on_setting_changed)
 	# Los iconos de bloque se renderizan uno a uno al arrancar y la tanda dura segundos. assign()
 	# copia la textura del item en ese instante y no vuelve a mirarla, así que restaurar una
 	# partida a medias dejaba en blanco todo lo que aún no se hubiera renderizado. Repintar solo al
@@ -128,18 +141,56 @@ func get_panel() -> Control:
 	return $BottomAnchor/PanelContainer
 
 
+## En ventanas pequeñas la barra necesita algo más de escala que los menús para leer los
+## objetos. Encima va el tamaño que elige el jugador en Opciones > Juego. El límite por anchura
+## deja espacio a la silueta y evita cortar la talla.
+func get_ui_scale() -> float:
+	var viewport := get_viewport()
+	return minf(maxf(0.625, GameTheme.scale_for(viewport)) * SettingsManager.hotbar_scale(),
+		viewport.get_visible_rect().size.x / 1848.0)
+
+
+func _on_setting_changed(key: String) -> void:
+	if key == "game/hotbar_scale":
+		_apply_theme()
+
+
 ## Saga a la escala de la ventana; los huecos toman su lado del tema.
 func _apply_theme() -> void:
-	var ui_scale := GameTheme.scale_for(get_viewport())
+	var ui_scale := get_ui_scale()
 	var anchor: Control = $BottomAnchor
 	anchor.theme = GameTheme.build(ui_scale)
+	anchor.theme.set_constant(&"hotbar", &"ItemSlot", floori(GameTheme.SLOT_SIDES[&"hotbar"] * ui_scale))
 	var panel := get_panel() as PanelContainer
 	panel.theme_type_variation = &"HotbarPanel"
-	panel.offset_bottom = -roundf(BOTTOM_GAP * ui_scale) if _vitals_shown else 0.0
-	slot_container.add_theme_constant_override("separation", roundi(8.0 * ui_scale))
+	panel.offset_bottom = -roundf(BOTTOM_GAP * ui_scale)
 	var margin: MarginContainer = $BottomAnchor/PanelContainer/MarginContainer
 	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
 		margin.add_theme_constant_override(side, 0)
+	_queue_fit_panel()
+
+
+## El tema y los huecos cambian sus mínimos durante el montaje. Ajustar los anclajes después
+## mantiene el panel centrado y las orbes dentro de sus engastes al cambiar de resolución.
+func _queue_fit_panel() -> void:
+	if _fit_pending:
+		return
+	_fit_pending = true
+	_fit_panel.call_deferred()
+
+
+func _fit_panel() -> void:
+	_fit_pending = false
+	var panel := get_panel()
+	# Huecos, separaciones y márgenes se redondean uno a uno y a según qué escalas el mínimo se
+	# queda unos píxeles corto: el panel toma la medida de la consola horneada, para que las orbes
+	# casen con sus engastes, y los huecos van centrados dentro.
+	var fitted := panel.get_combined_minimum_size().max((PANEL_SIZE * get_ui_scale()).round())
+	var gap := roundf(BOTTOM_GAP * get_ui_scale())
+	panel.offset_left = -fitted.x * 0.5
+	panel.offset_right = fitted.x * 0.5
+	panel.offset_top = -gap - fitted.y
+	panel.offset_bottom = -gap
 	_layout_vitals()
 
 
@@ -147,7 +198,7 @@ func _apply_theme() -> void:
 func _layout_vitals() -> void:
 	if plate == null:
 		return
-	var ui_scale := GameTheme.scale_for(get_viewport())
+	var ui_scale := get_ui_scale()
 	var bar := get_panel().get_global_rect()
 	if bar.size.x <= 0.0:
 		return
@@ -157,8 +208,7 @@ func _layout_vitals() -> void:
 	var right := Vector2(bar.end.x + ORB_GAP * ui_scale + radius, y)
 	health_orb.place(left, radius, ui_scale)
 	stamina_orb.place(right, radius, ui_scale)
-	sanity_orb.place(Vector2(bar.position.x + bar.size.x * 0.5, bar.position.y - SANITY_LIFT * ui_scale),
-		SANITY_RADIUS * ui_scale, ui_scale)
+	sanity_orb.place(Vector2(bar.position.x + bar.size.x * 0.5, bar.position.y), SANITY_RADIUS * ui_scale, ui_scale)
 	for need in gauges:
 		var spec: Array = GAUGES[need]
 		(gauges[need] as NeedGauge).place(left if spec[0] < 0 else right, GAUGE_RADIUS * ui_scale,
@@ -169,31 +219,25 @@ func _layout_vitals() -> void:
 	_notice.add_theme_constant_override("outline_size", roundi(7 * ui_scale))
 	_notice.size = Vector2(bar.size.x, 40.0 * ui_scale)
 	_notice.position = Vector2(bar.position.x, bar.position.y - (NOTICE_LIFT + 40.0) * ui_scale)
-	_item_name.add_theme_font_size_override("font_size", roundi(18 * ui_scale))
-	_item_name.add_theme_constant_override("outline_size", roundi(3 * ui_scale))
-	_item_name.size = Vector2(bar.size.x, 22.0 * ui_scale)
-	_item_name.position = Vector2(bar.position.x,
-		bar.end.y + 4.0 * ui_scale if _vitals_shown else bar.position.y - 26.0 * ui_scale)
+	_selection_label.add_theme_font_size_override("font_size", maxi(14, roundi(23.0 * ui_scale)))
+	_selection_label.add_theme_constant_override("outline_size", maxi(2, roundi(3.0 * ui_scale)))
+	_selection_label.size = Vector2(bar.size.x * 0.7, maxf(24.0, 32.0 * ui_scale))
+	var name_lift := 110.0 if plate.visible else 12.0
+	_selection_label.position = Vector2(bar.get_center().x - _selection_label.size.x * 0.5,
+		bar.position.y - name_lift * ui_scale - _selection_label.size.y)
 	plate.layout(bar, ui_scale)
 	vitals_left = plate.left_edge(bar, ui_scale)
 
 
-func _show_selected_name(_old_data: ItemData, new_data: ItemData) -> void:
-	_item_name.text = new_data.display_name if new_data != null else ""
-
-
 ## Enseña u oculta las orbes y los medidores con su consola (sin ellas queda la barra sola).
 func set_vitals_shown(shown: bool) -> void:
-	if _vitals_shown == shown:
-		return
-	_vitals_shown = shown
+	var changed := plate.visible != shown
 	for item: CanvasItem in [health_orb, stamina_orb, sanity_orb, breath, plate]:
 		item.visible = shown
 	for need in gauges:
 		gauges[need].visible = shown
-	var ui_scale := GameTheme.scale_for(get_viewport())
-	get_panel().offset_bottom = -roundf(BOTTOM_GAP * ui_scale) if shown else 0.0
-	_layout_vitals()
+	if changed:
+		_layout_vitals()
 
 
 ## Llena la media orbe de la cordura, los medidores y el aire (lo llama CombatHUD cada fotograma).
@@ -223,9 +267,22 @@ func notify(text: String) -> void:
 	_notice.text = text
 	_notice_age = 0.0
 	_notice.modulate.a = 1.0
+	_selection_age = INF
+	_selection_label.modulate.a = 0.0
+
+
+func _show_selection_name(_old: ItemData, data: ItemData) -> void:
+	_selection_label.text = data.display_name if data != null else ""
+	_selection_age = 0.0 if data != null else INF
+	_selection_label.modulate.a = 1.0 if data != null else 0.0
 
 
 func _process(delta: float) -> void:
+	if _selection_age < SELECTION_HOLD + SELECTION_FADE:
+		_selection_age += delta
+		_selection_label.modulate.a = clampf(1.0 - (_selection_age - SELECTION_HOLD) / SELECTION_FADE, 0.0, 1.0)
+		if _notice_age < NOTICE_HOLD + NOTICE_FADE:
+			_selection_label.modulate.a = 0.0
 	if _notice_age < NOTICE_HOLD + NOTICE_FADE:
 		_notice_age += delta
 		_notice.modulate.a = clampf(1.0 - (_notice_age - NOTICE_HOLD) / NOTICE_FADE, 0.0, 1.0)

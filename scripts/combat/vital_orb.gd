@@ -4,8 +4,8 @@ extends Control
 ## Orbe de vida o de aguante, a lo Diablo pero en Saga: una esfera de cristal con un líquido que
 ## llega hasta lo que queda (vital_orb.gdshader) y un aro de bronce con cuatro remaches. Las dos
 ## van encajadas en la consola de la barra rápida (Hotbar, VitalsPlate) y CombatHUD les da cada
-## fotograma el nivel, el tramo perdido y los avisos. La cifra sale un momento en el centro cuando
-## cambia. La de la cordura es media orbe (half), con la base plana sobre la barra.
+## fotograma el nivel, el tramo perdido y los avisos. La cifra se destaca cuando cambia y sigue
+## visible si la reserva está incompleta. La cordura es media orbe (half), con la base plana.
 
 const SHADER := preload("res://shaders/ui/vital_orb.gdshader")
 ## Segundos que se ve la cifra tras un cambio, y lo que tarda en irse.
@@ -70,7 +70,7 @@ func _init(liquid: Color, deep: Color, trail: Color) -> void:
 	add_child(_rim)
 	_value.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_value.add_theme_font_override("font", GameTheme.medium_font())
+	_value.add_theme_font_override("font", GameTheme.bold_font())
 	_value.add_theme_color_override("font_color", GameTheme.BONE)
 	_value.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	_value.modulate.a = 0.0
@@ -85,8 +85,8 @@ func place(centre: Vector2, radius: float, ui_scale: float) -> void:
 	_liquid.size = size
 	_rim.position = Vector2.ZERO
 	_rim.size = size
-	_value.add_theme_font_size_override("font_size", roundi((18 if half else 24) * ui_scale))
-	_value.add_theme_constant_override("outline_size", roundi(6 * ui_scale))
+	_value.add_theme_font_size_override("font_size", maxi(14, roundi((24 if half else 27) * ui_scale)))
+	_value.add_theme_constant_override("outline_size", maxi(2, roundi(3 * ui_scale)))
 	_value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_value.size = Vector2(size.x, size.y * (0.75 if half else 1.0))
 	_value.position = Vector2(0.0, size.y * (0.25 if half else 0.0))
@@ -106,7 +106,10 @@ func set_levels(fill: float, trail: float, glow: float, dim: float, value_text: 
 		_value_age = 0.0
 	else:
 		_value_age += delta
-	_value.modulate.a = clampf(1.0 - (_value_age - VALUE_HOLD) / VALUE_FADE, 0.0, 1.0)
+	# Con reservas incompletas la cifra permanece legible; a tope se retira como antes.
+	var resting_alpha := 0.85 if fill < 0.995 else 0.0
+	_value.modulate.a = lerpf(resting_alpha, 1.0,
+		clampf(1.0 - (_value_age - VALUE_HOLD) / VALUE_FADE, 0.0, 1.0))
 	_rim.queue_redraw()
 
 
@@ -121,20 +124,15 @@ func _draw_rim() -> void:
 	# lleva solo por arriba y cierra con un filete recto en la base.
 	var from := PI if half else 0.0
 	var points := 48 if half else 96
-	_rim.draw_arc(centre, radius - 3.0 * s, from, TAU, points, GameTheme.BRONZE_DARK.darkened(0.35), 6.0 * s, true)
-	_rim.draw_arc(centre, radius - 0.6 * s, from, TAU, points, bronze.darkened(0.12), 1.2 * s, true)
-	_rim.draw_arc(centre, radius - 2.25 * s, PI, TAU, 64, bronze.lightened(0.08), 2.0 * s, true)
-	if not half:
-		_rim.draw_arc(centre, radius - 2.25 * s, 0.0, PI, 64, bronze.darkened(0.42), 2.0 * s, true)
-	_rim.draw_arc(centre, radius - 5.5 * s, from, TAU, points, GameTheme.INK, 1.3 * s, true)
-	_rim.draw_arc(centre, radius - 3.0 * s, PI * 1.08, PI * 1.47, 32,
-		Color(GameTheme.BONE, 0.75), 0.8 * s, true)
+	_rim.draw_arc(centre, radius - 3.5 * s, from, TAU, points, GameTheme.BRONZE_DARK.darkened(0.35), 7.0 * s, true)
+	_rim.draw_arc(centre, radius - 0.75 * s, from, TAU, points, bronze, 1.5 * s, true)
+	_rim.draw_arc(centre, radius - 7.0 * s, from, TAU, points, Color(bronze, 0.45), 1.0 * s, true)
 	if half:
-		_rim.draw_line(Vector2(0.0, radius - 0.6 * s), Vector2(radius * 2.0, radius - 0.6 * s), bronze, 1.2 * s, true)
+		_rim.draw_line(Vector2(0.0, radius - 0.75 * s), Vector2(radius * 2.0, radius - 0.75 * s), bronze, 1.5 * s, true)
 	var rivets := [PI, PI * 1.5, TAU] if half else [0.0, PI * 0.5, PI, PI * 1.5]
 	for angle in rivets:
-		var at := centre + Vector2.from_angle(angle) * (radius - 2.5 * s)
+		var at := centre + Vector2.from_angle(angle) * (radius - 3.5 * s)
 		if half:
-			at.y = minf(at.y, radius - 3.5 * s)
-		_rim.draw_colored_polygon(SagaFrame.diamond(at, 2.5 * s), bronze)
-		_rim.draw_colored_polygon(SagaFrame.diamond(at, 1.0 * s), GameTheme.INK)
+			at.y = minf(at.y, radius - 5.0 * s)
+		_rim.draw_colored_polygon(SagaFrame.diamond(at, 5.0 * s), bronze)
+		_rim.draw_colored_polygon(SagaFrame.diamond(at, 2.2 * s), GameTheme.INK)

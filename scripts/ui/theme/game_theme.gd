@@ -45,7 +45,7 @@ const _ALEGREYA_ITALIC := preload("res://fonts/AlegreyaSans-Italic.ttf")
 
 ## Lado de los huecos de objeto, por uso (constantes del tipo "ItemSlot"): los de la ventana de
 ## fabricar son las recetas, lo que piden y el objeto elegido en grande.
-const SLOT_SIDES := {&"inventory": 112, &"equipment": 112, &"hotbar": 88, &"held": 96, &"recipe": 104,
+const SLOT_SIDES := {&"inventory": 112, &"equipment": 112, &"hotbar": 92, &"held": 96, &"recipe": 104,
 	&"ingredient": 64, &"preview": 150}
 
 
@@ -130,14 +130,11 @@ static func build(ui_scale: float) -> Theme:
 	# La barra rápida va hundida en la consola de hierro (VitalsPlate): un fondo oscuro con su filete.
 	theme.set_type_variation("HotbarPanel", "PanelContainer")
 	var strip := window_frame(ui_scale)
-	strip.fill = Color("111316")
-	strip.chamfer = px.call(12)
+	strip.fill = Color(IRON_DEEP, 0.9)
+	strip.chamfer = px.call(10)
+	strip.inset = 0.0
 	strip.rivet = 0.0
-	strip.border = Color("050607")
-	strip.border_width = px.call(2)
-	strip.inset = px.call(4)
-	strip.inset_color = Color(0.46, 0.4, 0.29, 0.48)
-	strip.set_content_margin_all(px.call(12))
+	strip.set_content_margin_all(px.call(10))
 	theme.set_stylebox("panel", "HotbarPanel", strip)
 	theme.set_type_variation("Inset", "PanelContainer")
 	theme.set_stylebox("panel", "Inset", box(IRON_DEEP, 8, 16, 1, BRONZE_FAINT, ui_scale))
@@ -158,27 +155,22 @@ static func build(ui_scale: float) -> Theme:
 	for variation in slots:
 		theme.set_type_variation(variation, "PanelContainer")
 		theme.set_stylebox("panel", variation, slots[variation])
-	# La hotbar tiene huecos tallados en el hierro, en lugar de las fichas del inventario.
-	for state in [
-			["HotbarEmpty", Color("101216"), BRONZE_DARK, 0.0],
-			["HotbarSlot", Color("1b1c1d"), BRONZE, 0.15],
-			["HotbarHover", Color("30291f"), BRONZE, 0.5],
-			["HotbarSelected", Color("3c3020"), BRONZE, 1.0],
-			["HotbarEquipped", Color("1c2931"), FROST, 0.85]]:
-		var well := HotbarSlotFrame.new()
-		well.ui_scale = ui_scale
-		well.fill = state[1]
-		well.accent = state[2]
-		well.emphasis = state[3]
-		well.empty = state[0] == "HotbarEmpty"
-		well.set_content_margin_all(px.call(6))
-		theme.set_type_variation(state[0], "PanelContainer")
-		theme.set_stylebox("panel", state[0], well)
-	theme.set_type_variation("HotbarKey", "Label")
-	theme.set_font("font", "HotbarKey", _ALEGREYA_BOLD)
-	theme.set_font_size("font_size", "HotbarKey", px.call(19))
-	theme.set_color("font_color", "HotbarKey", BONE.darkened(0.2))
-	theme.set_stylebox("normal", "HotbarKey", StyleBoxEmpty.new())
+	# La barra conserva su talla y sus medidas; los huecos reservan un pie para los atajos.
+	for state in ["SlotEmpty", "Slot", "SlotHover", "SlotSelected", "SlotEquipped", "SlotHeld"]:
+		var frame := HotbarSlotFrame.new()
+		frame.ui_scale = ui_scale
+		frame.empty = state == "SlotEmpty"
+		frame.fill = Color("151512") if frame.empty else Color("29231b")
+		frame.accent = FROST if state == "SlotEquipped" else BRONZE
+		if state in ["SlotSelected", "SlotHeld", "SlotEquipped"]:
+			frame.emphasis = 1.0
+			frame.fill = Color("202b30") if state == "SlotEquipped" else Color("3b3021")
+		elif state == "SlotHover":
+			frame.emphasis = 0.35
+			frame.fill = Color("352d22")
+		frame.set_content_margin_all(0)
+		theme.set_type_variation("Hotbar" + state, "PanelContainer")
+		theme.set_stylebox("panel", "Hotbar" + state, frame)
 
 	# Botones.
 	var margin := 14

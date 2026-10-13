@@ -11,8 +11,7 @@ extends SceneTree
 const MESH_DIR := "res://data/items/meshes/weapons/"
 const SCENE_DIR := "res://scenes/items/weapons/combat/"
 const ICON_DIR := "res://textures/icons/items/weapons/"
-const IconRenderer = preload("res://tools/ui/item_icon_renderer.gd")
-const ICON_SIZE := IconRenderer.SIZE
+const ICON_SIZE := 256
 
 ## nombre: [constructor, script de la escena o "", rotación del icono en grados (sobre Z de cámara)]
 var WEAPONS := {
@@ -54,6 +53,26 @@ const FACE_ON := ["slingshot", "wooden_shield", "iron_shield", "heater_shield"]
 const LITTER_DIR := "res://data/items/meshes/litter/"
 const LITTER_SCENE_DIR := "res://scenes/planet/planet_items/litter/"
 const LITTER_BRANCHES := 3
+
+## Colores de icono por material (paleta de los iconos dibujados existentes). Alfa < 1 = brillo.
+const ICON_COLORS := {
+	&"wood": Color(0.73, 0.46, 0.37, 1.0),
+	&"dark_wood": Color(0.55, 0.33, 0.25, 1.0),
+	&"steel": Color(0.66, 0.72, 0.78, 0.9),
+	&"iron": Color(0.47, 0.52, 0.58, 0.9),
+	&"leather": Color(0.42, 0.26, 0.19, 1.0),
+	&"flint": Color(0.46, 0.50, 0.55, 1.0),
+	&"feather": Color(0.88, 0.32, 0.25, 1.0),
+	&"cord": Color(0.99, 0.89, 0.76, 1.0),
+	&"stone": Color(0.56, 0.63, 0.69, 1.0),
+	&"bark": Color(0.55, 0.42, 0.33, 1.0),
+	&"raw_meat": Color(0.82, 0.34, 0.33, 1.0),
+	&"cooked_meat": Color(0.58, 0.34, 0.18, 1.0),
+	&"bone": Color(0.93, 0.89, 0.8, 1.0),
+	&"hide": Color(0.72, 0.54, 0.36, 1.0),
+	&"ash": Color(0.32, 0.31, 0.3, 1.0),
+}
+
 
 func _initialize() -> void:
 	if "--background" in OS.get_cmdline_user_args():
@@ -155,8 +174,79 @@ func _save_litter_scene(scene_name: String, mesh: ArrayMesh) -> void:
 
 func _render_icon(weapon_name: String, mesh: ArrayMesh, roll_deg: float, yaw_deg: float, pitch_deg: float,
 		dir: String) -> void:
-	var model := MeshInstance3D.new()
-	model.mesh = mesh
-	IconRenderer.prepare_model(model, weapon_name)
-	await IconRenderer.render(self, model, [roll_deg, yaw_deg], dir + weapon_name + ".png",
-		weapon_name == "hunting_bow", pitch_deg)
+	# En un SubViewport de tamaño fijo y fondo transparente: la ventana raíz puede acabar al
+	# tamaño de la pantalla (y opaca) según el escritorio.
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(ICON_SIZE, ICON_SIZE)
+	viewport.transparent_bg = true
+	viewport.own_world_3d = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(viewport)
+	var stage := Node3D.new()
+	viewport.add_child(stage)
+	var shader: Shader = load("res://shaders/icon_toon.gdshader")
+	var holder := Node3D.new()
+	stage.add_child(holder)
+	var color_mi := MeshInstance3D.new()
+	color_mi.mesh = mesh
+	for s in mesh.get_surface_count():
+		var kind := StringName(mesh.surface_get_material(s).resource_name)
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		mat.set_shader_parameter("base_color", ICON_COLORS.get(kind, Color(0.6, 0.6, 0.6)))
+		color_mi.set_surface_override_material(s, mat)
+	holder.add_child(color_mi)
+	if weapon_name == "hunting_bow":
+		# La cuerda es dinámica en el juego; en el icono se dibuja recta.
+		var string_mi := MeshInstance3D.new()
+		var cord := CylinderMesh.new()
+		cord.top_radius = 0.006
+		cord.bottom_radius = 0.006
+		var a := WeaponMeshes.bow_tip(true)
+		var b := WeaponMeshes.bow_tip(false)
+		cord.height = a.distance_to(b)
+		var cord_mat := ShaderMaterial.new()
+		cord_mat.shader = shader
+		cord_mat.set_shader_parameter("base_color", ICON_COLORS[&"cord"])
+		cord.material = cord_mat
+		string_mi.mesh = cord
+		string_mi.position = (a + b) * 0.5
+		holder.add_child(string_mi)
+	# El arma de lado (plano de la hoja hacia la cámara) y girada en diagonal.
+	# De plano: la anchura de la hoja (Z) pasa a la horizontal de la cámara. El tirachinas ya
+	# tiene las horquillas en X.
+	holder.basis = Basis(Vector3.BACK, deg_to_rad(roll_deg)) * Basis(Vector3.RIGHT, deg_to_rad(pitch_deg)) \
+		* Basis(Vector3.UP, deg_to_rad(yaw_deg))
+	# Encuadre: AABB en espacio de cámara.
+	var aabb: AABB = Transform3D(holder.basis, Vector3.ZERO) * mesh.get_aabb()
+	var extent := maxf(aabb.size.x, aabb.size.y)
+	var outline := extent * 0.030
+	# Contorno: copias negras desplazadas en círculo detrás de la de color.
+	var black := StandardMaterial3D.new()
+	black.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	black.albedo_color = Color(0.07, 0.06, 0.06)
+	for k in 16:
+		var a := TAU * k / 16.0
+		var copy := MeshInstance3D.new()
+		copy.mesh = mesh
+		copy.material_override = black
+		copy.position = Vector3(cos(a), sin(a), 0) * outline + Vector3(0, 0, -extent)
+		holder.add_child(copy)
+		copy.global_transform = Transform3D(holder.basis, holder.basis * Vector3.ZERO + Vector3(cos(a), sin(a), 0) * outline + Vector3(0, 0, -extent * 2.0))
+	var cam := Camera3D.new()
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = extent * 1.2 + outline * 2.0
+	cam.position = Vector3(aabb.get_center().x, aabb.get_center().y, 10.0)
+	cam.near = 0.1
+	cam.far = 40.0
+	stage.add_child(cam)
+	cam.current = true
+	for i in 4:
+		await process_frame
+	await RenderingServer.frame_post_draw
+	var image := viewport.get_texture().get_image()
+	image.convert(Image.FORMAT_RGBA8)
+	var path := dir + weapon_name + ".png"
+	_check(image.save_png(path), path)
+	viewport.queue_free()
+	await process_frame

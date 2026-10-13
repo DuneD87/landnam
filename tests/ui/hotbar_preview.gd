@@ -13,9 +13,15 @@ var _scenario := 0
 var _health := 0.72
 var _stamina := 0.64
 var _title: Label
+var _capture_resolution := Vector2i.ZERO
 
 
 func _ready() -> void:
+	if "--capture" in OS.get_cmdline_user_args():
+		get_window().mode = Window.MODE_WINDOWED
+		if "--background" in OS.get_cmdline_user_args():
+			get_window().unfocusable = true
+			get_window().position = Vector2i(-4000, -4000)
 	_build_backdrop()
 	_needs.paused = true
 	add_child(_needs)
@@ -95,7 +101,14 @@ func _build_backdrop() -> void:
 
 func _capture() -> void:
 	DirAccess.make_dir_recursive_absolute(OUTPUT)
-	get_window().size = Vector2i(1920, 1080)
+	# Settings puede haber aplicado pantalla completa. La prueba controla solo esta ventana,
+	# sin guardar preferencias, y comprueba el viewport en lugar de fiarse del nombre del PNG.
+	get_window().mode = Window.MODE_WINDOWED
+	if "--background" in OS.get_cmdline_user_args():
+		get_window().unfocusable = true
+		get_window().position = Vector2i(-4000, -4000)
+	if not await _resize(Vector2i(1920, 1080)):
+		return
 	await _shot("01_exploracion_1080")
 	# La nueva envoltura del icono no debe interceptar el ratón ni cambiar los atajos.
 	if not await _verify_input():
@@ -112,12 +125,55 @@ func _capture() -> void:
 	await _shot("05_barra_sola_1080")
 	_hotbar.set_vitals_shown(true)
 	_set_scenario(0)
-	get_window().size = Vector2i(1280, 720)
+	if not await _resize(Vector2i(1280, 720)):
+		return
 	# Deja terminar la persistencia del aliento antes de la siguiente vista de exploración.
 	await _shot("06_exploracion_720", BreathRing.LINGER + BreathRing.FADE + 0.1)
-	get_window().size = Vector2i(2560, 1440)
+	if not await _resize(Vector2i(2560, 1440)):
+		return
 	await _shot("07_exploracion_1440")
+	if not await _resize(Vector2i(1920, 1080)):
+		return
+	await _shot("09_regreso_1080")
 	get_tree().quit()
+
+
+func _resize(resolution: Vector2i) -> bool:
+	_capture_resolution = resolution
+	# Al salir de pantalla completa el gestor de ventanas puede enviar un tamaño restaurado
+	# después de aceptar el pedido. Reintentar una vez asentado evita capturar esa transición.
+	for attempt in 3:
+		get_window().size = resolution
+		await get_tree().create_timer(0.2).timeout
+		if Vector2i(get_viewport().get_visible_rect().size) == resolution:
+			return true
+	push_error("El viewport no llegó a %s; sigue en %s." % [resolution, get_viewport().get_visible_rect().size])
+	get_tree().quit(1)
+	return false
+
+
+func _verify_layout() -> bool:
+	if Vector2i(get_viewport().get_visible_rect().size) != _capture_resolution:
+		push_error("La ventana cambió de tamaño antes de capturar: se esperaba %s." % _capture_resolution)
+		return false
+	var s := _hotbar.get_ui_scale()
+	var panel := _hotbar.get_panel()
+	var bar := panel.get_global_rect()
+	var minimum := panel.get_combined_minimum_size()
+	if bar.size.x < minimum.x or bar.size.y < minimum.y or absf(bar.get_center().x - get_viewport().get_visible_rect().size.x * 0.5) > 1.0:
+		push_error("Panel sin encajar o descentrado: %s; mínimo %s." % [bar, minimum])
+		return false
+	# El panel toma la medida de la consola horneada; tolera un píxel por el redondeo.
+	if bar.size.distance_to(Hotbar.PANEL_SIZE * s) > 2.0:
+		push_error("El panel no coincide con la consola horneada: %s." % bar.size)
+		return false
+	for slot in _hotbar.slots:
+		var icon := slot._icon.get_global_rect()
+		var key := slot._mark.get_global_rect()
+		if icon.intersects(key) or not slot.get_global_rect().encloses(key):
+			push_error("La tecla se sale del hueco o tapa el icono: %s." % slot.slot_index)
+			return false
+	return true
 
 
 func _verify_input() -> bool:
@@ -125,6 +181,9 @@ func _verify_input() -> bool:
 	await get_tree().process_frame
 	if _hotbar.selected_index != 2:
 		push_error("La tecla 3 no seleccionó el tercer hueco.")
+		return false
+	if _hotbar._selection_label.text != Config.get_item(&"hunting_bow").display_name:
+		push_error("El nombre no sigue al objeto seleccionado.")
 		return false
 	await _click(6)
 	if _hotbar.selected_index != 2 or _hotbar._offhand_id != &"":
@@ -136,8 +195,11 @@ func _verify_input() -> bool:
 		return false
 	_key(KEY_3)
 	await get_tree().process_frame
-	if _hotbar.selected_index != -1 or _hotbar._item_name.text != "":
-		push_error("Repetir la tecla no deseleccionó el objeto ni borró su nombre.")
+	if _hotbar.selected_index != -1:
+		push_error("Repetir la tecla no deseleccionó el objeto.")
+		return false
+	if not _hotbar._selection_label.text.is_empty():
+		push_error("El nombre sigue visible tras deseleccionar.")
 		return false
 	await _click(1)
 	if _hotbar.selected_index != 1:
@@ -175,17 +237,27 @@ func _click(index: int) -> void:
 
 func _shot(shot_name: String, wait := 0.65) -> void:
 	await get_tree().create_timer(wait).timeout
+	if Vector2i(get_viewport().get_visible_rect().size) != _capture_resolution:
+		if not await _resize(_capture_resolution):
+			return
 	await RenderingServer.frame_post_draw
+	if not _verify_layout():
+		get_tree().quit(1)
+		return
 	var path := "%s/%s.png" % [OUTPUT, shot_name]
-	var result := get_viewport().get_texture().get_image().save_png(path)
+	var image := get_viewport().get_texture().get_image()
+	if image.get_size() != Vector2i(get_viewport().get_visible_rect().size):
+		push_error("La captura no coincide con el tamaño del viewport.")
+		get_tree().quit(1)
+		return
+	var result := image.save_png(path)
 	if result != OK:
 		push_error("No se pudo guardar la captura: %s" % path)
 		get_tree().quit(1)
-	print("Captura: ", ProjectSettings.globalize_path(path))
+	print("Captura: ", ProjectSettings.globalize_path(path), " · ", image.get_size())
 	if shot_name == "01_exploracion_1080":
 		# Un encuadre de la consola, generado desde el viewport para revisar el detalle.
-		var image := get_viewport().get_texture().get_image()
-		var origin := Vector2i(_hotbar.plate.position) - Vector2i(12, 12)
-		var region := Rect2i(origin, Vector2i(_hotbar.plate.size) + Vector2i(24, 24))
+		var bounds := _hotbar.plate.get_global_rect().merge(_hotbar._selection_label.get_global_rect())
+		var region := Rect2i(bounds.grow(12.0))
 		region = region.intersection(Rect2i(Vector2i.ZERO, image.get_size()))
 		image.get_region(region).save_png(OUTPUT.path_join("08_detalle_1080.png"))

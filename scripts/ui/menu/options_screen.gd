@@ -317,6 +317,9 @@ func _build_audio_page() -> void:
 func _build_game_page() -> void:
 	_row("Sangre y mutilaciones", _choice_control("game/gore", ["Sin sangre", "Solo sangre", "Completo"]),
 		"Completo: un tajo fuerte puede cercenar un brazo o una pierna.")
+	_row("Tamaño de la barra rápida", _slider_control("game/hotbar_scale", SettingsManager.MIN_HOTBAR_SCALE,
+		SettingsManager.MAX_HOTBAR_SCALE, 0.05),
+		"La barra entera, con las orbes y su consola. En ventanas estrechas no crece más de lo que cabe.")
 
 
 func _build_controls_page() -> void:
