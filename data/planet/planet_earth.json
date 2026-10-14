@@ -2129,6 +2129,9 @@
 					0.0,
 					1.0
 				],
+				"pickup": true,
+				"pickup_item": "plant_fiber",
+				"collision_distance_m": 40.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2186,6 +2189,9 @@
 					0.0,
 					1.0
 				],
+				"pickup": true,
+				"pickup_item": "plant_fiber",
+				"collision_distance_m": 40.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2243,6 +2249,9 @@
 					0.0,
 					1.0
 				],
+				"pickup": true,
+				"pickup_item": "plant_fiber",
+				"collision_distance_m": 40.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2725,6 +2734,9 @@
 					"dwarf_juniper_generator"
 				],
 				"wind_speed": 0.18,
+				"pickup": true,
+				"pickup_item": "plant_fiber",
+				"collision_distance_m": 40.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2782,6 +2794,9 @@
 					"dwarf_birch_generator"
 				],
 				"wind_speed": 0.18,
+				"pickup": true,
+				"pickup_item": "plant_fiber",
+				"collision_distance_m": 40.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2839,6 +2854,9 @@
 					"heather_generator"
 				],
 				"wind_speed": 0.18,
+				"pickup": true,
+				"pickup_item": "plant_fiber",
+				"collision_distance_m": 40.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,

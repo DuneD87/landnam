@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/bone.png" id="1_r7fy6"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_ks8ih"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_6tkxp"]
+
+[resource]
+script = ExtResource("2_ks8ih")
+id = &"bone"
+display_name = "Hueso"
+description = "Un hueso largo de una res despiezada. Tallado da puntas, agujas y punzones; cosido en placas, armaduras."
+icon = ExtResource("1_r7fy6")
+scene_path = "res://scenes/items/survival/bone.tscn"
+max_stack = 30
+group = &"hunt"

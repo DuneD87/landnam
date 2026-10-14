@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_dqdut"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_tear/skin_tear_01.ogg" id="2_dqgsh"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_tear/skin_tear_02.ogg" id="3_4t0nv"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_tear/skin_tear_03.ogg" id="4_ut5bq"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_tear/skin_tear_04.ogg" id="5_p5hqe"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_tear/skin_tear_05.ogg" id="6_gicik"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_tear/skin_tear_06.ogg" id="7_88j2a"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_tear/skin_tear_07.ogg" id="8_tqbqf"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_tear/skin_tear_08.ogg" id="9_0jloj"]
+
+[resource]
+script = ExtResource("1_dqdut")
+event_id = &"combat_skin_tear"
+streams = Array[AudioStream]([ExtResource("2_dqgsh"), ExtResource("3_4t0nv"), ExtResource("4_ut5bq"), ExtResource("5_p5hqe"), ExtResource("6_gicik"), ExtResource("7_88j2a"), ExtResource("8_tqbqf"), ExtResource("9_0jloj")])
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.07
+max_distance = 20.0
+unit_size = 2.0
+max_voices = 2
+cooldown = 0.2

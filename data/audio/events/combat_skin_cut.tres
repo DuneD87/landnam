@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_yf2e2"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_cut/skin_cut_01.ogg" id="2_ybywu"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_cut/skin_cut_02.ogg" id="3_lsyh8"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_cut/skin_cut_03.ogg" id="4_l5gqj"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_cut/skin_cut_04.ogg" id="5_17aq8"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_cut/skin_cut_05.ogg" id="6_7n62f"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_cut/skin_cut_06.ogg" id="7_hi7tx"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_cut/skin_cut_07.ogg" id="8_1etga"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_cut/skin_cut_08.ogg" id="9_2g6pn"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_cut/skin_cut_09.ogg" id="10_v6tep"]
+
+[resource]
+script = ExtResource("1_yf2e2")
+event_id = &"combat_skin_cut"
+streams = Array[AudioStream]([ExtResource("2_ybywu"), ExtResource("3_lsyh8"), ExtResource("4_l5gqj"), ExtResource("5_17aq8"), ExtResource("6_7n62f"), ExtResource("7_hi7tx"), ExtResource("8_1etga"), ExtResource("9_2g6pn"), ExtResource("10_v6tep")])
+volume_db = -3.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.08
+max_distance = 18.0
+unit_size = 2.0
+max_voices = 3
+cooldown = 0.08

@@ -7,7 +7,7 @@ extends Node
 ## - Junto al agua dulce (un río, un lago o una charca), E bebe un trago; con la sed saciada,
 ##   llena los odres. El agua del mar no quita la sed.
 ## - E sobre un animal muerto lo despelleja si se lleva en la mano algo que despelleje (el seax:
-##   SkinningTrait) y abre lo que da (HuntingLoot) como un botín.
+##   SkinningTrait), lo que lleva un rato (Butchering), y abre lo que da (HuntingLoot) como un botín.
 ## - E junto a una hoguera la abre (InventoryUI.open_campfire); junto a una estación de trabajo,
 ##   abre la ventana de fabricar en sus recetas (InventoryUI.open_station).
 ## - Con algo que se planta seleccionado (una hoguera, un banco de trabajo: GroundPlaceableTrait),
@@ -24,6 +24,7 @@ const GHOST_OK := Color(0.6, 0.9, 0.55, 0.5)
 const GHOST_BAD := Color(0.95, 0.35, 0.3, 0.5)
 
 var _player: PlayerController
+var _butchering: Butchering
 var _cooldown := 0.0
 var _ghost: Node3D
 var _ghost_scene: PackedScene
@@ -34,6 +35,11 @@ var _place_xform := Transform3D.IDENTITY
 
 func setup(player: PlayerController) -> void:
 	_player = player
+	_butchering = Butchering.new()
+	_butchering.name = "Butchering"
+	add_child(_butchering)
+	_butchering.setup(player)
+	_butchering.finished.connect(_on_butchered)
 
 
 func _process(delta: float) -> void:
@@ -112,16 +118,31 @@ func _drink_from_skin() -> void:
 
 # --- E --------------------------------------------------------------------------------------------
 
-## Despelleja [npc] si hace falta (con un cuchillo en la mano) y abre lo que da.
+## Despelleja [npc] si hace falta (con un cuchillo en la mano; lleva un rato) y, ya despellejado,
+## abre lo que da.
 func open_corpse(npc: NPCController) -> void:
 	if not npc.butchered:
-		var knife := _skinning_tool()
-		if knife == null:
+		if _butchering.is_active():
+			return
+		if _skinning_tool() == null:
 			notify("Necesitas un cuchillo en la mano para despellejarlo")
 			return
-		HuntingLoot.fill(npc, knife.yield_mult)
-		npc.butchered = true
-		notify("Lo despellejas")
+		_butchering.start(npc)
+		notify("Lo despellejas… (moverte lo deja a medias)" if npc.butcher_progress == 0.0
+			else "Sigues despellejándolo…")
+		return
+	_open_loot(npc)
+
+
+func _on_butchered(npc: NPCController) -> void:
+	var knife := _skinning_tool()
+	HuntingLoot.fill(npc, knife.yield_mult if knife != null else 1.0)
+	npc.butchered = true
+	notify("Lo despellejas")
+	_open_loot(npc)
+
+
+func _open_loot(npc: NPCController) -> void:
 	if npc.inventory.get_free_slots() >= npc.inventory.max_slots:
 		notify("Ya no queda nada que aprovechar")
 		return

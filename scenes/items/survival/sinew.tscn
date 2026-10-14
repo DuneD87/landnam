@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/survival/sinew.res" id="1_38et3"]
+
+[node name="Sinew" type="Node3D" unique_id=1078502253]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1143064208]
+mesh = ExtResource("1_38et3")

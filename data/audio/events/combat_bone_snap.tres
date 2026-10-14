@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_t8rdu"]
+[ext_resource type="AudioStream" path="res://audio/combat/bone_snap/bone_snap_01.ogg" id="2_3kw62"]
+[ext_resource type="AudioStream" path="res://audio/combat/bone_snap/bone_snap_02.ogg" id="3_awpk3"]
+[ext_resource type="AudioStream" path="res://audio/combat/bone_snap/bone_snap_03.ogg" id="4_1lro2"]
+
+[resource]
+script = ExtResource("1_t8rdu")
+event_id = &"combat_bone_snap"
+streams = Array[AudioStream]([ExtResource("2_3kw62"), ExtResource("3_awpk3"), ExtResource("4_1lro2")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 25.0
+unit_size = 2.5
+max_voices = 2
+cooldown = 0.15

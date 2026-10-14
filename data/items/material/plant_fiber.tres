@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/plant_fiber.png" id="1_sa6xp"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_6vtlb"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_vrnvb"]
+
+[resource]
+script = ExtResource("2_6vtlb")
+id = &"plant_fiber"
+display_name = "Fibra vegetal"
+description = "Tiras de corteza y tallos arrancados de un arbusto (E mirándolo). Trenzada da cuerda y cordel."
+icon = ExtResource("1_sa6xp")
+scene_path = "res://scenes/items/survival/plant_fiber.tscn"
+max_stack = 50
+group = &"misc"

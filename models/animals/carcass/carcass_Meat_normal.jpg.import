@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://cg4qs7opw3jtt"
+path.s3tc="res://.godot/imported/carcass_Meat_normal.jpg-0b66b5dfb8df5b82e55b4da32914c791.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "d4ac6970ec3c389df51a91a7143b9977"
+}
+
+[deps]
+
+source_file="res://models/animals/carcass/carcass_Meat_normal.jpg"
+dest_files=["res://.godot/imported/carcass_Meat_normal.jpg-0b66b5dfb8df5b82e55b4da32914c791.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=1
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=1
+roughness/src_normal="res://models/animals/carcass/carcass_Meat_normal.jpg"
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

@@ -304,8 +304,12 @@ miembro que caiga. Reaparecer tras morir sigue devolviendo el cuerpo entero.
 
 ### Animales mutilados al morir
 
-`AnimalGore` (`scripts/combat/animal_gore.gd`) se monta en cada `NPCController` cuyo
-esqueleto tenga tabla (oso, ciervo y búfalo, león). El golpe que lo mata, si es un tajo
+`AnimalGore` (`scripts/combat/animal_gore.gd`) se monta en cada `NPCController`. Su tabla de
+cortes es la del esqueleto (oso, ciervo y búfalo, león) o, si no tiene, se saca de sus huesos en
+reposo (`AnimalGore._auto_table`: jabalí, vaca, ternero, burro, cabra, caballo y mamut): el cuello
+justo antes de la cabeza, la cola en su raíz y cada pata (de donde sale del camino de la raíz a la
+cabeza hasta el pie; los dedos de un pie se juntan si se unen por debajo de media altura) al 30 %
+y al 65 % de su largo. El golpe que lo mata, si es un tajo
 o un porrazo de 14 o más (un pinchazo necesita 45) y el gore está entero, corta con
 probabilidad `AnimalGore.sever_chance` (0,5) el tramo más cercano al
 golpe: dos tramos por pata, el cuello o la cola. Un cañonazo letal (`die(point)`) cuenta
@@ -313,6 +317,11 @@ como porrazo. Lo cortado cae de una pieza (`SeveredChunk`: la malla horneada en 
 del corte, en el hilo del corte, dentro de un RigidBody con caja), gotea, deja charco y
 se va a los 2 minutos (10 a la vez). Los cuernos se van con la cabeza. Al volver del
 pool el animal está entero.
+
+Al despiezarlo (`Butchering`, ver [items.md](items.md)) se le cortan, de uno en uno, los miembros
+que le queden (`AnimalGore.butcher_cuts`: cada pata por el corte de arriba, el cuello y la cola;
+una pata que ya perdió algo no se vuelve a cortar). `tests/combat/test_butcher_cuts.tscn` comprueba
+que todas las especies tienen cuatro patas y el cuello que cortar.
 
 ### Muerte de la fauna
 

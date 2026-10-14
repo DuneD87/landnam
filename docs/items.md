@@ -58,6 +58,9 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Carne cruda | `raw_meat` | Hambre +12 %, cordura −6 %; intoxica el 35 % de las veces; se asa |
 | Carne asada | `cooked_meat` | Hambre +35 %, sed −3 %, cordura +3 %, vida +8 |
 | Piel | `raw_hide` | Material de caza |
+| Hueso, tendón | `bone`, `sinew` | Materiales de caza: casi todos los animales |
+| Asta, colmillo de jabalí, marfil, cuerno | `antler`, `boar_tusk`, `ivory`, `horn` | Materiales de caza: los ciervos, el jabalí, el mamut y el elefante, los de cuernos |
+| Fibra vegetal | `plant_fiber` | Se arranca de los arbustos |
 | Odre | `waterskin` | 5 tragos de agua |
 | Hoguera | `campfire` | Se planta en el suelo |
 | Banco de trabajo | `stone_workbench` | Estación de trabajo de la Edad de piedra: se planta en el suelo |
@@ -70,23 +73,124 @@ Un animal muerto se despelleja con E llevando el seax (o lo que tenga
 `SkinningTrait`) en la mano. Sin él, el juego avisa de que hace falta un
 cuchillo.
 
+Despellejar lleva un rato (`Butchering`): 20 s por metro de radio del cuerpo,
+entre 6 y 22 (un lobo, unos 7 s; un ciervo, 11; un mamut, 22). El jugador se agacha de cara
+al cadáver y corta por el lado que le da. Trabaja con el clip `butcher` en bucle
+en el canal de tronco y brazos (`PlayerCombat.play_task`), sobre las piernas
+agachadas. De momento es provisional: un tajo de espada en guardia baja
+(Mixamo, *Sword And Shield Slash*, en `models/player/mixamo/tools/`), a ×0,9.
+
+Va por fases (de toda la tarea), y al final del animal queda la canal:
+
+- **Desmembrar** (hasta el 35 %): a cada tajo se le corta un miembro de los que
+  le queden, del más cercano al jugador al más lejano: cada pata por arriba, el
+  cuello y la cola (`AnimalGore.butcher_cuts`, las mismas mutilaciones del
+  combate). Lo cortado sale con un empujón suave y cae junto al cuerpo de una
+  pieza, gotea y deja charco; el muñón queda tapado, echa un chorro y deja su
+  charco; cruje el hueso (`bone_snap`). Lo que no haya cortado ningún tajo a
+  tiempo se corta al acabar la fase.
+- **Despellejar** (hasta el 55 %): cada tajo, sincronizado con el clip (`CUT`, a
+  0,60 s de cada vuelta, donde la mano va más deprisa), suena a cuchillo en carne
+  (`skin_cut`) y salpica unas gotas. Uno de cada dos salpica de verdad
+  (`CombatFx.blood`) y mancha la mano del cuchillo. El revés de vuelta
+  (`BACKCUT`, 1,07 s) corta más flojo. Tres veces se arranca un buen trozo de
+  piel (`skin_tear`).
+- **Quitar la piel** (al 55 %): con un desgarro, huesos que se parten y sangre,
+  el cuerpo del animal se esconde y en su sitio queda la canal (`Carcass`).
+- **Destripar** (hasta el 72 %): al 62 % las vísceras salen al suelo
+  (`GutPile`) con un chapoteo y su charco, y cada tajo chapotea
+  (`skin_squelch`).
+- **Descarnar** (desde el 72 %): se saca la carne y crujen huesos
+  (`bone_snap`).
+- **Acabar**: el cadáver se llena con lo que da y se abre como un botín.
+- **A medias**: moverse, saltar, atacar, rodar, alzar la guardia, trepar, nadar o
+  alejarse lo deja; E otra vez lo retoma donde se quedó
+  (`NPCController.butcher_progress`).
+- **Gore** (Opciones): sin gore, solo el cuchillo y la piel; con sangre, la
+  sangre y todos los sonidos; con todo, también los miembros cortados, la canal
+  y las vísceras.
+
+#### La canal
+
+Es la misma para todas las especies (`Carcass`): un caballo panza arriba,
+abierto por el vientre y destripado, sin cabeza, sin cola y sin las patas de
+abajo. La pared de carne entre las costillas forma una artesa, con las
+costillas por dentro y sus puntas asomando por el borde; el lomo va a lo largo
+de la columna y hay cuartos, paletillas con el hueso asomando y el muñón del
+cuello. Se lleva a la medida de cada especie por su cápsula de colisión,
+comparada con la del caballo: a lo largo, por el alto de la cápsula; de través,
+por su radio, sin apartarse más de un 25-35 % de escalarla igual en todo
+(`Carcass.CROSS_LIMITS`). Se pone sobre el suelo bajo el centro del cuerpo, con
+su normal y el cuello hacia donde el animal tenía la cabeza. Al volver la
+criatura del pool, se quita y el cuerpo vuelve.
+
+`tools/combat/build_carcass.py` (Blender, `--preview DIR` deja renders) la hace
+y la exporta a `models/animals/carcass/carcass.glb`:
+
+- **Los huesos**: [*Lowpoly Horse Skeleton (Rigged)*](https://sketchfab.com/3d-models/lowpoly-horse-skeleton-rigged-0a35814ed7e34c05875081ed12266d35),
+  de [Azazel750](https://sketchfab.com/BihexmorForgotHisPassword), CC-BY 4.0.
+  Se descarga de Sketchfab (glTF) y se le pasa su `scene.gltf`. Se quitan la
+  cabeza, el cuello (menos una vértebra), la cola y las patas por debajo del codo
+  y del corvejón, se abren las patas y se tumba.
+- **La carne**: un campo de distancias a los huesos (OpenVDB, el de Blender),
+  cada hueso con su grosor (`MEAT`), unidos con un mínimo suave, con bultos de
+  músculo y convertidos en malla. La pared de las costillas se aparta hacia fuera
+  (`RIB_SHIFT`) para que asomen por dentro y llega al 72 % de su alto (`RIM`).
+- **Las texturas**, horneadas con Cycles: músculo granate a manchas, con zonas
+  secas, estrías, fascia, vetas de grasa, hueso donde roza las costillas y
+  coágulos en las hondonadas; los huesos, con su textura y sangre.
+- **Las vísceras** (`GutPile`): tripas enredadas, la panza, el hígado, los
+  pulmones y el corazón, en el suelo junto a la canal.
+
+`build/carcass_probe/preview.tscn` (fuera del repositorio, con ventana) mata
+animales (`-- --animal=Deer,Wolf`), los cambia por la canal y la captura.
+
+Para cambiar el clip por el definitivo: añadirlo a `CLIPS` de
+`tools/combat/retarget_mixamo.gd` como `butcher` y medir en él los instantes del
+corte (`CUT`, `BACKCUT` en `Butchering`). Los sonidos son grabaciones CC0 de
+Freesound (`tools/audio/build_combat_sounds.py`, ver
+[audio_credits.md](audio_credits.md)).
+
 Lo que da lo dice cada animal en su escena: `NPCController.butcher_loot` (grupo
 *Caza* del inspector), un `LootTable` con líneas `LootEntry` (objeto, cantidad
 para un adulto de tamaño 1 y probabilidad). Los de las especies están en
-`data/fauna/loot/<especie>.tres`. `HuntingLoot` solo lo escala por el tamaño del
-animal y por el cuchillo, con un ±20 %. Una especie nueva trae el suyo, y sin él
-da carne y piel según el grosor de su cuerpo. Algunos ejemplos:
+`data/fauna/loot/<especie>.tres`. `HuntingLoot` lo escala por el tamaño del
+animal y por el cuchillo, con un ±20 %. Lo que va por piezas no se escala
+(`LootEntry.scales` apagado): un par de astas es un par en un ciervo pequeño y en
+uno grande. Una especie nueva trae el suyo, y sin él da carne y piel según el
+grosor de su cuerpo. Algunos ejemplos:
 
-| Especie | Carne | Pieles |
-|---|---|---|
-| Ciervo | 3 | 2 |
-| Jabalí | 2 | 1 |
-| Oso | 5 | 3 |
-| Alce | 5 | 3 |
-| Mamut | 12 | 5 |
+| Especie | Carne | Pieles | Huesos | Tendones | Piezas (fijas) |
+|---|---|---|---|---|---|
+| Ciervo, caribú | 3 | 2 | 2 | 1 | 2 astas |
+| Cierva | 2 | 1 | 1 | 1 | — |
+| Alce | 5 | 3 | 3 | 2 | 2 astas |
+| Jabalí | 2 | 1 | 1 | 1 | 2 colmillos |
+| Búfalo | 5 | 3 | 3 | 2 | 2 cuernos |
+| Cabra, cabra montés, muflón, vaca, ñu, berrendo | 2-4 | 1-2 | 1-2 | 0-1 | 2 cuernos |
+| Rinoceronte | 8 | 3 | 4 | 2 | 2 cuernos |
+| Oso | 5 | 3 | 2 | 1 | — |
+| Lobo | 2 | 1 | 1 | — | — |
+| Mamut | 12 | 5 | 6 | 3 | 2 marfiles |
+| Elefante | 10 | 4 | 5 | 3 | 2 marfiles |
+
+Las mallas de los materiales de caza (hueso, tendón, asta, colmillo, marfil y
+cuerno) salen de `SurvivalMeshes`, como la carne y la piel.
 
 Después se saquea como cualquier botín. Los animales ya no traen madera y
 piedra de relleno.
+
+### Fibra vegetal
+
+Los arbustos leñosos (redondo, florido, sauce, abedul enano, enebro enano y
+brezo) se arrancan con E **mirándolos**, y dan de 1 a 4 de fibra según el
+tamaño de la mata. Usan la misma vía que las ramas y las piedras del suelo
+(`GroundPickup`): en `planet_earth.json` sus entradas cercanas (bandas 0 y 1)
+llevan `"pickup": true`, `"pickup_item": "plant_fiber"` y
+`"collision_distance_m": 40`, y cerca del jugador cada mata tiene un cilindro de
+su tamaño en la capa de recogida (`Planet._pickup_shape`). Hay que mirarlos
+porque abundan, sobre todo en las orillas, y si no se llevarían la E de beber o
+de recoger lo soltado. Al arrancarla suena a hojas (`land_leaves`).
 
 ### Comer y beber
 
@@ -216,6 +320,8 @@ Una receta nueva es un `.tres` más en su carpeta, con el script
 ```sh
 # Mallas, escenas e iconos (renderiza: sin --headless)
 godot --path . --script res://tools/combat/bake_weapons.gd -- --only=seax,survival --background
+# Solo los materiales de caza y la fibra
+godot --path . --script res://tools/combat/bake_weapons.gd -- --only=bone,sinew,antler,boar_tusk,ivory,horn,plant_fiber --background
 # Solo el icono del banco de trabajo
 godot --path . --script res://tools/combat/bake_weapons.gd -- --only=stone_workbench --background
 # Nombres, grupos, rasgos y objetos nuevos del catálogo

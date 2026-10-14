@@ -243,6 +243,11 @@ func update(delta: float) -> void:
 	player.camera_controller.crouch_drop = CROUCH_CAMERA_DROP * smoothstep(0.0, 1.0, _crouch)
 
 
+## Lo agacha o lo levanta desde fuera (al despellejar: Butchering). Levantarse, solo si cabe.
+func set_crouching(value: bool) -> void:
+	_set_crouching(value)
+
+
 ## [force] lo levanta aunque no quepa (al nadar, trepar, caer o morir).
 func _set_crouching(value: bool, force: bool = false) -> void:
 	if value == crouching:

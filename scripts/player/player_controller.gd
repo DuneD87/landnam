@@ -1149,7 +1149,7 @@ func _input(event):
 			pass
 		elif combat.try_pickup():
 			pass
-		elif GroundPickup.try_pickup(self, inventory):
+		elif GroundPickup.try_pickup(self, inventory, camera.global_position, -camera.global_basis.z):
 			pass
 		elif nearest and nearest.pick_into(inventory):
 			pass

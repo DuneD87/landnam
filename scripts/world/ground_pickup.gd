@@ -2,10 +2,11 @@ class_name GroundPickup
 extends RefCounted
 
 ## Lo que se recoge del suelo con la tecla de acción: los objetos del planeta marcados "pickup" en
-## su JSON (ramas caídas y piedras pequeñas). Cerca del jugador llevan un cuerpo en
-## Planet.PICKUP_LAYER, que no estorba a nadie; al cogerlo se quita de la multimalla del instancer.
-## Las piedras dan munición según su tamaño, y las más grandes (escala > MAX_ROCK_SCALE) no se
-## levantan.
+## su JSON (ramas caídas, piedras pequeñas y los arbustos, que dan fibra). Cerca del jugador llevan
+## un cuerpo en Planet.PICKUP_LAYER, que no estorba a nadie; al cogerlo se quita de la multimalla del
+## instancer. Las piedras dan munición según su tamaño, y las más grandes (escala > MAX_ROCK_SCALE)
+## no se levantan. Los arbustos solo se arrancan mirándolos: hay tantos, sobre todo en las orillas,
+## que si no se llevarían la tecla de beber o de recoger lo soltado.
 
 const Config = preload("res://scripts/config.gd")
 
@@ -15,6 +16,11 @@ const STONE_ID := &"stone_01"
 ## cada una por unidad de escala.
 const MAX_ROCK_SCALE := 3.0
 const STONES_PER_SCALE := 1.5
+## Arbustos: la fibra que da una mata por unidad de escala (entre 1 y 4), y lo cerca del centro de
+## la vista que tiene que estar para arrancarla (grados).
+const FIBER_ID := &"plant_fiber"
+const FIBER_PER_SCALE := 2.5
+const LOOK_ANGLE := 30.0
 
 ## Todos los planetas con cosas que recoger (la escena tiene más de uno: la Tierra y la Luna). Los
 ## library_id se repiten entre planetas, así que cada cuerpo se mira en el suyo.
@@ -31,13 +37,17 @@ static func setup(world: Planet) -> void:
 
 
 ## Recoge lo más cercano a [picker] (a menos de PICK_RANGE m) y lo mete en [inventory]. Falso si
-## no había nada al alcance o no cabe.
-static func try_pickup(picker: Node3D, inventory: Inventory) -> bool:
+## no había nada al alcance o no cabe. Los arbustos, solo si la vista ([view_from] hacia [view_dir])
+## apunta a ellos.
+static func try_pickup(picker: Node3D, inventory: Inventory, view_from: Vector3 = Vector3.ZERO,
+		view_dir: Vector3 = Vector3.ZERO) -> bool:
 	# Todo lo que toca la esfera vale (una rama larga puede tener el centro más lejos que la punta);
 	# entre ello, lo de centro más cercano.
 	var best: VoxelInstancerRigidBody = null
 	var best_d := INF
 	for body in _nearby(picker, PICK_RANGE):
+		if _item_of(body) == FIBER_ID and not _looked_at(body, view_from, view_dir):
+			continue
 		var d := body.global_position.distance_to(picker.global_position)
 		if d < best_d:
 			best = body
@@ -48,10 +58,15 @@ static func try_pickup(picker: Node3D, inventory: Inventory) -> bool:
 	var count := 1
 	if item_id == STONE_ID:
 		count = clampi(roundi(best.global_basis.get_scale().x * STONES_PER_SCALE), 1, 5)
+	elif item_id == FIBER_ID:
+		count = clampi(roundi(best.global_basis.get_scale().x * FIBER_PER_SCALE), 1, 4)
 	if inventory.add_item(Config.get_item(item_id), count) == count:
 		return false
-	AudioManager.play_material(&"block_impact", &"rock" if item_id == STONE_ID else &"wood",
-		best.global_position, {"volume_offset_db": -14.0})
+	if item_id == FIBER_ID:
+		AudioManager.play_3d(&"land_leaves", best.global_position)
+	else:
+		AudioManager.play_material(&"block_impact", &"rock" if item_id == STONE_ID else &"wood",
+			best.global_position, {"volume_offset_db": -14.0})
 	best.queue_free_and_notify_instancer()
 	return true
 
@@ -85,6 +100,18 @@ static func report(around: Node3D) -> String:
 	if counts.is_empty():
 		return "Nada que recoger a 12 m."
 	return "Recogible a 12 m: %s" % str(counts)
+
+
+## Si la vista apunta a [body] (al centro de su forma, que en una mata está a media altura).
+static func _looked_at(body: VoxelInstancerRigidBody, view_from: Vector3, view_dir: Vector3) -> bool:
+	if view_dir == Vector3.ZERO:
+		return false
+	var aim := body.global_position
+	for child in body.get_children():
+		if child is CollisionShape3D:
+			aim = (child as CollisionShape3D).global_position
+			break
+	return rad_to_deg(view_dir.angle_to(aim - view_from)) <= LOOK_ANGLE
 
 
 ## Lo que da [body] al recogerlo, según el planeta al que pertenece; vacío si no es recogible.

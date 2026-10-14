@@ -936,6 +936,25 @@ func is_busy() -> bool:
 	return state != State.IDLE
 
 
+## Una tarea con las manos (despellejar: Butchering): [anim_name] en el canal de tronco y brazos,
+## sobre la locomoción (agachado), en bucle si el clip lo es.
+func play_task(anim_name: StringName, speed: float = 1.0) -> void:
+	_act_play("upper", anim_name, speed)
+
+
+## Quita la tarea [anim_name] si es lo que suena: no corta la guardia o el arco que la hayan
+## interrumpido.
+func stop_task(anim_name: StringName) -> void:
+	if _act["upper"].active and _act["upper"].anim == anim_name:
+		_act_stop("upper")
+
+
+## Por dónde va la tarea [anim_name] en su clip (s), o -1 si no suena.
+func task_time(anim_name: StringName) -> float:
+	var up: Dictionary = _act["upper"]
+	return up.time if up.active and up.anim == anim_name else -1.0
+
+
 ## Al agarrarse a una pared: sin objetivo fijado ni nada pulsado pendiente, y el arma fuera de la
 ## postura de carrera. Mientras trepa no pasa por physics_update (ClimbController).
 func on_climb_start() -> void:

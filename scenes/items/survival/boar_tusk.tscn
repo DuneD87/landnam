@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/survival/boar_tusk.res" id="1_fpoa0"]
+
+[node name="BoarTusk" type="Node3D" unique_id=426972969]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=11204438]
+mesh = ExtResource("1_fpoa0")

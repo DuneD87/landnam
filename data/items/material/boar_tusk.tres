@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/boar_tusk.png" id="1_wsdli"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_a657a"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_go52g"]
+
+[resource]
+script = ExtResource("2_a657a")
+id = &"boar_tusk"
+display_name = "Colmillo de jabalí"
+description = "Colmillo curvo de un jabalí, afilado de por sí. Cosidos en hileras sobre cuero se hacían cascos."
+icon = ExtResource("1_wsdli")
+scene_path = "res://scenes/items/survival/boar_tusk.tscn"
+max_stack = 20
+group = &"hunt"

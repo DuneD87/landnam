@@ -2,7 +2,8 @@ extends SceneTree
 
 ## Pone al día el catálogo de objetos (data/items/) con la clasificación de ItemTaxonomy y los
 ## rasgos de supervivencia: nombres en español, grupos, abrigo de la ropa, leña de la madera y las
-## ramas, y los objetos nuevos (seax, armas de sílex, carne, piel, odre, hoguera, banco de trabajo).
+## ramas, y los objetos nuevos (seax, armas de sílex, carne, piel, lo demás que dan los animales,
+## fibra vegetal, odre, hoguera, banco de trabajo).
 ## Cambia solo los campos de aquí y deja el resto como esté, así que se puede volver a pasar. Ver
 ## docs/items.md.
 ##   godot --headless --path . --script res://tools/items/update_item_catalog.gd
@@ -139,6 +140,30 @@ func _create_new() -> void:
 		"description": "La piel de un animal despellejado. Con ella se cosen odres y ropa.",
 		"icon": load("res://textures/icons/items/survival/raw_hide.png"),
 		"scene_path": "res://scenes/items/survival/raw_hide.tscn", "max_stack": 20,
+	})
+	# Lo demás que dan los animales al despiezarlos (data/fauna/loot/): nombre, cuántos caben en un
+	# hueco y descripción.
+	var hunt := {
+		"bone": ["Hueso", 30, "Un hueso largo de una res despiezada. Tallado da puntas, agujas y punzones; cosido en placas, armaduras."],
+		"sinew": ["Tendón", 30, "Tendón seco de las patas. Machacado en hebras es hilo de coser, cuerda de arco y atadura para enmangar."],
+		"antler": ["Asta", 10, "La cornamenta de un ciervo, un caribú o un alce: dura y ligera, para picos, mangos y percutores de tallar sílex."],
+		"boar_tusk": ["Colmillo de jabalí", 20, "Colmillo curvo de un jabalí, afilado de por sí. Cosidos en hileras sobre cuero se hacían cascos."],
+		"ivory": ["Marfil", 6, "Colmillo de mamut o de elefante. Se talla como el hueso, pero es más duro y más vistoso."],
+		"horn": ["Cuerno", 10, "Cuerno de un bóvido, una cabra o un rinoceronte. Al fuego se ablanda y se curva: vasos, cucharas y arcos compuestos."],
+	}
+	for id in hunt:
+		_create("material/" + id, {
+			"id": StringName(id), "display_name": hunt[id][0], "category": ItemData.Category.MATERIAL,
+			"group": &"hunt", "description": hunt[id][2],
+			"icon": load("res://textures/icons/items/survival/%s.png" % id),
+			"scene_path": "res://scenes/items/survival/%s.tscn" % id, "max_stack": hunt[id][1],
+		})
+	_create("material/plant_fiber", {
+		"id": &"plant_fiber", "display_name": "Fibra vegetal", "category": ItemData.Category.MATERIAL,
+		"group": &"misc",
+		"description": "Tiras de corteza y tallos arrancados de un arbusto (E mirándolo). Trenzada da cuerda y cordel.",
+		"icon": load("res://textures/icons/items/survival/plant_fiber.png"),
+		"scene_path": "res://scenes/items/survival/plant_fiber.tscn", "max_stack": 50,
 	})
 	var container := WaterContainerTrait.new()
 	container.capacity = 5

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/horn.png" id="1_jwnw4"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_tbkwy"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_eam6b"]
+
+[resource]
+script = ExtResource("2_tbkwy")
+id = &"horn"
+display_name = "Cuerno"
+description = "Cuerno de un bóvido, una cabra o un rinoceronte. Al fuego se ablanda y se curva: vasos, cucharas y arcos compuestos."
+icon = ExtResource("1_jwnw4")
+scene_path = "res://scenes/items/survival/horn.tscn"
+max_stack = 10
+group = &"hunt"

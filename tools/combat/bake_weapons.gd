@@ -39,6 +39,13 @@ var SURVIVAL := {
 	"raw_meat": [SurvivalMeshes.meat.bind(false), -35.0, 90.0, 0.0, true],
 	"cooked_meat": [SurvivalMeshes.meat.bind(true), -35.0, 90.0, 0.0, true],
 	"raw_hide": [SurvivalMeshes.hide, 0.0, 0.0, 0.0, true],
+	"bone": [SurvivalMeshes.bone, -45.0, 0.0, 0.0, true],
+	"sinew": [SurvivalMeshes.sinew, -45.0, 0.0, 0.0, true],
+	"antler": [SurvivalMeshes.antler, -20.0, 90.0, 0.0, true],
+	"boar_tusk": [SurvivalMeshes.boar_tusk, 0.0, 90.0, 0.0, true],
+	"ivory": [SurvivalMeshes.ivory, -30.0, 90.0, 0.0, true],
+	"horn": [SurvivalMeshes.horn, 0.0, 90.0, 0.0, true],
+	"plant_fiber": [SurvivalMeshes.plant_fiber, -45.0, 0.0, 0.0, true],
 	"waterskin": [SurvivalMeshes.waterskin, -10.0, 0.0, 0.0, true],
 	"campfire": [SurvivalMeshes.campfire, 0.0, 0.0, 32.0, false],
 	"stone_workbench": [SurvivalMeshes.workbench, 0.0, -28.0, 22.0, false],
@@ -71,6 +78,11 @@ const ICON_COLORS := {
 	&"bone": Color(0.93, 0.89, 0.8, 1.0),
 	&"hide": Color(0.72, 0.54, 0.36, 1.0),
 	&"ash": Color(0.32, 0.31, 0.3, 1.0),
+	&"sinew": Color(0.93, 0.80, 0.55, 1.0),
+	&"antler": Color(0.74, 0.60, 0.44, 1.0),
+	&"ivory": Color(0.97, 0.93, 0.83, 1.0),
+	&"horn": Color(0.40, 0.33, 0.27, 1.0),
+	&"plant_fiber": Color(0.74, 0.70, 0.44, 1.0),
 }
 
 

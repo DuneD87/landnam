@@ -1,18 +1,22 @@
 [gd_resource type="Resource" script_class="LootTable" format=3]
 
-[ext_resource type="Script" path="res://scripts/items/loot_entry.gd" id="1_q7rq3"]
-[ext_resource type="Script" path="res://scripts/items/loot_table.gd" id="2_m1s3f"]
+[ext_resource type="Script" path="res://scripts/items/loot_entry.gd" id="1_entry"]
+[ext_resource type="Script" path="res://scripts/items/loot_table.gd" id="2_table"]
 
-[sub_resource type="Resource" id="Resource_yvss1"]
-script = ExtResource("1_q7rq3")
+[sub_resource type="Resource" id="Resource_raw_meat"]
+script = ExtResource("1_entry")
 item = &"raw_meat"
 amount = 3
 
-[sub_resource type="Resource" id="Resource_s7mkw"]
-script = ExtResource("1_q7rq3")
+[sub_resource type="Resource" id="Resource_raw_hide"]
+script = ExtResource("1_entry")
 item = &"raw_hide"
 amount = 2
 
+[sub_resource type="Resource" id="Resource_bone"]
+script = ExtResource("1_entry")
+item = &"bone"
+
 [resource]
-script = ExtResource("2_m1s3f")
-entries = Array[ExtResource("1_q7rq3")]([SubResource("Resource_yvss1"), SubResource("Resource_s7mkw")])
+script = ExtResource("2_table")
+entries = Array[ExtResource("1_entry")]([SubResource("Resource_raw_meat"), SubResource("Resource_raw_hide"), SubResource("Resource_bone")])

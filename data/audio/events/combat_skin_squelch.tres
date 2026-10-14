@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_4px1p"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_squelch/skin_squelch_01.ogg" id="2_siw1h"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_squelch/skin_squelch_02.ogg" id="3_onuwn"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_squelch/skin_squelch_03.ogg" id="4_g1kuu"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_squelch/skin_squelch_04.ogg" id="5_76pu6"]
+[ext_resource type="AudioStream" path="res://audio/combat/skin_squelch/skin_squelch_05.ogg" id="6_010qw"]
+
+[resource]
+script = ExtResource("1_4px1p")
+event_id = &"combat_skin_squelch"
+streams = Array[AudioStream]([ExtResource("2_siw1h"), ExtResource("3_onuwn"), ExtResource("4_g1kuu"), ExtResource("5_76pu6"), ExtResource("6_010qw")])
+volume_db = -4.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.1
+max_distance = 15.0
+unit_size = 2.0
+max_voices = 3
+cooldown = 0.1

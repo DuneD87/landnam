@@ -43,6 +43,8 @@ var corpse_duration: float = 0.0
 var is_dead: bool = false
 ## Ya despellejado: lo que da (HuntingLoot) está en su inventario, que se saquea como un botín.
 var butchered: bool = false
+## Cuánto lleva despellejado (0-1): dejarlo a medias y volver lo retoma ahí (Butchering).
+var butcher_progress := 0.0
 var _is_dying: bool = false
 
 ## Segundos que el NPC queda paralizado tras recibir un golpe.
@@ -622,8 +624,10 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	corpse_duration = settings.corpse_duration if settings != null else 0.0
 	_life_id += 1
 	butchered = false
+	butcher_progress = 0.0
 	inventory.clear()
 	BloodStains.clear(self)
+	Carcass.clear(self)
 	if _gore != null:
 		_gore.reset()
 	is_dead = false

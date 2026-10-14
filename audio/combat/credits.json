@@ -1413,6 +1413,139 @@
     "source": 656619,
     "dur": 1.15
    }
+  ],
+  "skin_cut": [
+   {
+    "file": "audio/combat/skin_cut/skin_cut_01.ogg",
+    "source": 360796,
+    "dur": 0.9
+   },
+   {
+    "file": "audio/combat/skin_cut/skin_cut_02.ogg",
+    "source": 360796,
+    "dur": 0.64
+   },
+   {
+    "file": "audio/combat/skin_cut/skin_cut_03.ogg",
+    "source": 360796,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/skin_cut/skin_cut_04.ogg",
+    "source": 593682,
+    "dur": 0.85
+   },
+   {
+    "file": "audio/combat/skin_cut/skin_cut_05.ogg",
+    "source": 593682,
+    "dur": 0.62
+   },
+   {
+    "file": "audio/combat/skin_cut/skin_cut_06.ogg",
+    "source": 593682,
+    "dur": 0.59
+   },
+   {
+    "file": "audio/combat/skin_cut/skin_cut_07.ogg",
+    "source": 637641,
+    "dur": 0.57
+   },
+   {
+    "file": "audio/combat/skin_cut/skin_cut_08.ogg",
+    "source": 637641,
+    "dur": 1.48
+   },
+   {
+    "file": "audio/combat/skin_cut/skin_cut_09.ogg",
+    "source": 637641,
+    "dur": 1.47
+   }
+  ],
+  "skin_tear": [
+   {
+    "file": "audio/combat/skin_tear/skin_tear_01.ogg",
+    "source": 234236,
+    "dur": 1.9
+   },
+   {
+    "file": "audio/combat/skin_tear/skin_tear_02.ogg",
+    "source": 234236,
+    "dur": 0.82
+   },
+   {
+    "file": "audio/combat/skin_tear/skin_tear_03.ogg",
+    "source": 234236,
+    "dur": 0.85
+   },
+   {
+    "file": "audio/combat/skin_tear/skin_tear_04.ogg",
+    "source": 762900,
+    "dur": 0.84
+   },
+   {
+    "file": "audio/combat/skin_tear/skin_tear_05.ogg",
+    "source": 814734,
+    "dur": 1.22
+   },
+   {
+    "file": "audio/combat/skin_tear/skin_tear_06.ogg",
+    "source": 704771,
+    "dur": 0.81
+   },
+   {
+    "file": "audio/combat/skin_tear/skin_tear_07.ogg",
+    "source": 704771,
+    "dur": 0.68
+   },
+   {
+    "file": "audio/combat/skin_tear/skin_tear_08.ogg",
+    "source": 530919,
+    "dur": 2.03
+   }
+  ],
+  "skin_squelch": [
+   {
+    "file": "audio/combat/skin_squelch/skin_squelch_01.ogg",
+    "source": 649982,
+    "dur": 0.51
+   },
+   {
+    "file": "audio/combat/skin_squelch/skin_squelch_02.ogg",
+    "source": 734836,
+    "dur": 0.57
+   },
+   {
+    "file": "audio/combat/skin_squelch/skin_squelch_03.ogg",
+    "source": 211605,
+    "dur": 0.7
+   },
+   {
+    "file": "audio/combat/skin_squelch/skin_squelch_04.ogg",
+    "source": 211605,
+    "dur": 0.56
+   },
+   {
+    "file": "audio/combat/skin_squelch/skin_squelch_05.ogg",
+    "source": 211605,
+    "dur": 0.69
+   }
+  ],
+  "bone_snap": [
+   {
+    "file": "audio/combat/bone_snap/bone_snap_01.ogg",
+    "source": 211606,
+    "dur": 0.56
+   },
+   {
+    "file": "audio/combat/bone_snap/bone_snap_02.ogg",
+    "source": 784768,
+    "dur": 0.28
+   },
+   {
+    "file": "audio/combat/bone_snap/bone_snap_03.ogg",
+    "source": 513315,
+    "dur": 0.7
+   }
   ]
  },
  "sources": {
@@ -2369,6 +2502,90 @@
    "author": "Sadiquecat",
    "license": "http://creativecommons.org/publicdomain/zero/1.0/",
    "url": "https://freesound.org/s/826421/"
+  },
+  "360796": {
+   "title": "vlees_snijden.wav",
+   "author": "dutchlady",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/360796/"
+  },
+  "593682": {
+   "title": "CUTTING MEAT WITH DULL KNIFE",
+   "author": "levypeck",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/593682/"
+  },
+  "637641": {
+   "title": "knife slice cut saw flesh butcher.flac",
+   "author": "kyles",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/637641/"
+  },
+  "234236": {
+   "title": "Ripping Apart Carcass.wav",
+   "author": "ProductionNow",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/234236/"
+  },
+  "762900": {
+   "title": "Gore_Physical tear",
+   "author": "gowoto",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/762900/"
+  },
+  "814734": {
+   "title": "Gore Tear 1",
+   "author": "MalikArsYasakani",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/814734/"
+  },
+  "704771": {
+   "title": "Tear/Skin Gore",
+   "author": "Err0rC0de",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/704771/"
+  },
+  "530919": {
+   "title": "Gut Rip (Unbladed)",
+   "author": "magnuswaker",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/530919/"
+  },
+  "649982": {
+   "title": "Squelching SFX [6]",
+   "author": "SoundDesignForYou",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/649982/"
+  },
+  "734836": {
+   "title": "squelch_3",
+   "author": "QuantumFellow",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/734836/"
+  },
+  "211605": {
+   "title": "Chicken Meat Slime",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/211605/"
+  },
+  "211606": {
+   "title": "Chicken Bone Break",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/211606/"
+  },
+  "784768": {
+   "title": "DeathCrunch Gore SFX Blood and Bone",
+   "author": "AKkingStudio",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/784768/"
+  },
+  "513315": {
+   "title": "gore_gory_blood_smash_flesh_murder_bone_break.wav",
+   "author": "EricsSoundschmiede",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/513315/"
   }
  }
 }

@@ -93,6 +93,10 @@ const CLIPS := {
 		{"height_from": "block/Great Sword Impact"}],
 	"greatsword_block_idle": ["block/Great Sword Blocking", 0.0, -1.0, true, true,
 		{"height_from": "block/Great Sword Impact"}],
+	# Despellejar (Butchering, canal de tronco y brazos, sobre la locomoción agachada), en bucle.
+	# Provisional: un tajo de espada en guardia baja hasta tener uno de trabajar de rodillas.
+	"butcher": ["res://models/player/mixamo/tools/Sword And Shield Slash", 0.0, -1.0, true, true,
+		{"height_from": "block/Great Sword Impact"}],
 }
 
 ## La escala de la cadera de MotusMan (MoCap Online), de un clip de pie: andar agachado no

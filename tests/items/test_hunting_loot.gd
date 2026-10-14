@@ -53,6 +53,8 @@ func _run() -> void:
 	deer.body_size = 2.0
 	HuntingLoot.fill(deer, 1.5)
 	check(deer.inventory.get_item_count(meat) >= 7, "uno grande con buen cuchillo da más (%d)" % deer.inventory.get_item_count(meat))
+	var antlers := deer.inventory.get_item_count(Config.get_item(&"antler"))
+	check(antlers == 2, "las astas van por par, sin crecer con el tamaño (%d)" % antlers)
 	deer.butcher_loot = null
 	HuntingLoot.fill(deer, 1.0)
 	check(deer.inventory.get_item_count(meat) >= 1 and deer.inventory.get_item_count(hide) >= 1,

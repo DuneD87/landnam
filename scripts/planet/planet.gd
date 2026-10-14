@@ -304,6 +304,14 @@ func _build_scene_collision(scene_instantiated: Node) -> Array:
 
 	return []
 
+## Cilindro con el ancho y el alto de [mesh] (una mata), para encontrarla al recogerla.
+static func _pickup_shape(mesh: Mesh) -> Array:
+	var box := mesh.get_aabb()
+	var shape := CylinderShape3D.new()
+	shape.radius = maxf(0.1, maxf(box.size.x, box.size.z) * 0.4)
+	shape.height = maxf(0.1, box.size.y)
+	return [shape, Transform3D(Basis.IDENTITY, Vector3(0.0, box.get_center().y, 0.0))]
+
 func _build_item_shared_data(i: int, item) -> Dictionary:
 	var scene: PackedScene = load(item.scene)
 	var scene_instantiated: Node = scene.instantiate()
@@ -425,7 +433,14 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		multi_mesh_item.set_mesh(lm[3], 3)
 
 		var cs: Array = shared_data.get("collision_shapes", [])
-		if not cs.is_empty():
+		if item.get("pickup", false):
+			# Se recoge (los arbustos dan fibra): solo cerca (collision_distance_m), un cuerpo en
+			# PICKUP_LAYER del tamaño de la mata, para encontrarla y quitarla al cogerla. La
+			# envolvente de sus miles de triángulos no hace falta.
+			multi_mesh_item.collision_shapes = _pickup_shape(lm[0])
+			multi_mesh_item.collision_layer = PICKUP_LAYER
+			multi_mesh_item.collision_mask = 0
+		elif not cs.is_empty():
 			multi_mesh_item.collision_shapes = cs
 
 		# Hierba y sotobosque traen los ratios de su banda ya calculados (ver

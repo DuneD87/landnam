@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://8gjkbo4ko6jr"
+path.s3tc="res://.godot/imported/carcass_Bone_diffuse.jpg-93fc06d8f244dcc44b9ebea34500eaaa.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "cfe22ce06e1764e156d06ef2c83b54da"
+}
+
+[deps]
+
+source_file="res://models/animals/carcass/carcass_Bone_diffuse.jpg"
+dest_files=["res://.godot/imported/carcass_Bone_diffuse.jpg-93fc06d8f244dcc44b9ebea34500eaaa.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

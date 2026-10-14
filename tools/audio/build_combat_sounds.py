@@ -53,6 +53,13 @@ EVENTS = {
     "block_metal": {"mode": "impact", "max_dur": 0.5, "sources": [326868, 326867, 326864, 326861, 326857]},
     "parry": {"mode": "impact", "max_dur": 0.9, "sources": [760636, 760635, 760634, 760633]},
     "guard_break": {"mode": "impact", "max_dur": 0.8, "sources": [529396, 693582]},
+    # Despellejar: cortes de cuchillo en carne cruda, la piel que se arranca, chapoteos de vísceras y
+    # huesos que se parten (carniceros, canales de caza y librerías de gore).
+    "skin_cut": {"mode": "segments", "dur": (0.2, 1.2), "sources": [(360796, 3), (472501, 3), (593682, 3), (637641, 3)]},
+    "skin_tear": {"mode": "segments", "dur": (0.4, 2.0), "sources": [(30931, 2), (234236, 3), (762900, 2), (814734, 1),
+        (704771, 2), (530919, 2)]},
+    "skin_squelch": {"mode": "segments", "dur": (0.2, 1.0), "sources": [(649982, 3), (734836, 2), (211605, 3)]},
+    "bone_snap": {"mode": "impact", "max_dur": 0.7, "sources": [211606, 784768, 513315]},
     # Una sola voz (MrFossy, Voice – Male Grunts and Screams).
     "player_hurt": {"mode": "whole", "max_dur": 0.8, "sources": [547203, 547202, 547201, 547200, 547207, 547206,
         547205, 547204, 547209, 547208, 547194, 547195]},
@@ -150,6 +157,8 @@ NAMES = {
     "hit_world": "Arma contra el suelo", "bow_release": "Suelta del arco", "throw": "Lanzamiento",
     "block_wood": "Golpe parado con madera", "block_metal": "Golpe parado con metal",
     "parry": "Parada en seco", "guard_break": "Guardia rota",
+    "skin_cut": "Cuchillo en carne al despellejar", "skin_tear": "Piel que se arranca",
+    "skin_squelch": "Chapoteo de vísceras", "bone_snap": "Hueso que se parte",
     "player_hurt": "Quejidos del jugador", "player_death": "Muerte del jugador",
     "player_hurt_female": "Quejidos de la jugadora", "player_death_female": "Muerte de la jugadora",
     "bear_growl": "Gruñido de oso", "bear_roar": "Rugido de oso", "bear_huff": "Resoplido de oso",
