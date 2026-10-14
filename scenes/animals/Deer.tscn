@@ -335,6 +335,7 @@ safe_margin = 0.008
 script = ExtResource("1_ppta3")
 butcher_loot = ExtResource("loot_table")
 detect_state = &"FleeState"
+lets_player_approach = true
 npc_type = &"Deer"
 entity_id = "npc_2067255076834"
 variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])
@@ -359,11 +360,12 @@ metadata/_custom_type_script = "uid://yedbuvmlni0y"
 
 [node name="IdleState" type="Node" parent="AIController" unique_id=638521341]
 script = ExtResource("6_4t5nn")
-flee_trigger_radius = 30.0
+flee_trigger_radius = 5.0
 metadata/_custom_type_script = "uid://0eobro8himhn"
 
 [node name="WanderState" type="Node" parent="AIController" unique_id=1893630132]
 script = ExtResource("7_e0gds")
+flee_trigger_radius = 5.0
 wander_radius = 100.0
 max_wander_time = 50.0
 metadata/_custom_type_script = "uid://cyr0kqn4qtln3"
@@ -850,8 +852,8 @@ metadata/_custom_type_script = "uid://dsyulr1uf8n11"
 
 [node name="Perception" type="Node" parent="." unique_id=987654321]
 script = ExtResource("13_percep")
+hearing_range = 10.0
 hostile_npc_types = Array[StringName]([&"Bear"])
-detect_player = false
 
 [node name="DeathState" type="Node" parent="." unique_id=801623107]
 script = ExtResource("15_d11b7")

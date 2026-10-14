@@ -21,6 +21,7 @@ height = 1.6
 butcher_loot = ExtResource("loot_table")
 npc_type = &"Puma"
 detect_state = &"CombatState"
+lets_player_approach = false
 lose_state = &"IdleState"
 hit_stun_duration = 0.0
 sprint_anim_speed = 5.0

@@ -311,6 +311,7 @@ safe_margin = 0.008
 script = ExtResource("1_wc82b")
 butcher_loot = ExtResource("loot_table")
 detect_state = &"FleeState"
+lets_player_approach = true
 entity_id = "npc_121302308467617"
 variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])
 hurt_sound = &"buffalo_hurt"
@@ -334,10 +335,12 @@ metadata/_custom_type_script = "uid://yedbuvmlni0y"
 
 [node name="IdleState" type="Node" parent="AIController" unique_id=638521341]
 script = ExtResource("5_boi48")
+flee_trigger_radius = 4.0
 metadata/_custom_type_script = "uid://0eobro8himhn"
 
 [node name="WanderState" type="Node" parent="AIController" unique_id=1893630132]
 script = ExtResource("6_iekd5")
+flee_trigger_radius = 4.0
 max_wander_time = 5.0
 metadata/_custom_type_script = "uid://cyr0kqn4qtln3"
 
@@ -359,6 +362,7 @@ metadata/_custom_type_script = "uid://dsyulr1uf8n11"
 
 [node name="Perception" type="Node" parent="." unique_id=987654321]
 script = ExtResource("14_0s15x")
+hearing_range = 10.0
 
 [node name="NPCModel" type="Node3D" parent="." unique_id=495335847]
 transform = Transform3D(-4.3711387e-10, 0, -0.01, 0, 0.01, 0, 0.01, 0, -4.3711387e-10, 0, 0, 0)

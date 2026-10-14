@@ -20,6 +20,7 @@ height = 1.4
 butcher_loot = ExtResource("loot_table")
 npc_type = &"Hyena"
 detect_state = &"CombatState"
+lets_player_approach = false
 lose_state = &"IdleState"
 hit_stun_duration = 0.0
 sprint_anim_speed = 4.0

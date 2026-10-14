@@ -16,6 +16,10 @@ const Config = preload("res://scripts/config.gd")
 @export var lose_state: StringName = &""
 ## Estado al que ir cuando alguien le hiere. Vacío = detect_state.
 @export var provoked_state: StringName = &""
+## Deja que el jugador se acerque: percibirlo no lo lleva a detect_state, sino que reacciona cuando
+## entra en el flee_trigger_radius de IdleState y WanderState. A las criaturas hostiles
+## (Perception.hostile_npc_types) y a quien le hiere reacciona en el acto.
+@export var lets_player_approach: bool = false
 ## Tipo de NPC, usado por Perception de otros NPCs para identificar amenazas (ej: &"bear", &"deer").
 @export var npc_type: StringName = &""
 ## Identificador único para guardado; se genera automáticamente si está vacío.
@@ -257,6 +261,8 @@ func _turn_toward(dir: Vector3, max_angle: float) -> void:
 
 
 func _on_target_detected(target: Node3D) -> void:
+	if lets_player_approach and target != null and target.is_in_group(&"player"):
+		return
 	ai_controller.transition_to(detect_state)
 	_alert_pack(target)
 

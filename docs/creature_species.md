@@ -37,11 +37,19 @@ El clima exacto de cada una está en su perfil (`climate_min`/`climate_max` de
 para los asentamientos. Puma, muflón y berrendo son americanos y repetían papel con el lince, la
 cabra montés y el ñu.
 
-Las que huyen lo hacen cuando el jugador entra en su `flee_trigger_radius` (en `IdleState` y
-`WanderState`) y ya lo han percibido: lo oyen según el ruido que hace y lo ven peor agachado (ver
-el sigilo en [combat.md](combat.md)). Las más asustadizas huyen a 25-30 m (ciervo, caribú,
-berrendo, cierva, caballo, muflón, cabra montés, ñu), y la vista de las presas llega a 50 m como
-mucho. El jabalí y el burro huyen a 15 m.
+Las que huyen dejan que el jugador se acerque (`lets_player_approach`, en `creature_base`):
+percibirlo no las hace huir, solo lo tienen fichado. Huyen cuando entra en su `flee_trigger_radius`
+(en `IdleState` y `WanderState`) y ya lo han percibido: lo oyen según el ruido que hace y lo ven
+peor agachado (ver el sigilo en [combat.md](combat.md)). A un depredador que perciben
+(`hostile_npc_types`: el oso para el ciervo y el caribú) y a quien les hiere reaccionan en el acto.
+
+| Huyen a | Especies |
+| --- | --- |
+| 5 m | ciervo, caribú, cierva, berrendo, caballo, muflón, cabra montés, ñu, lince |
+| 4 m | jabalí, alce, búfalo, burro |
+| 3 m | vaca, ternero, cabra, labrador, sabueso |
+
+Mamut, elefante y rinoceronte no huyen: cargan a la distancia de su tabla.
 
 Cada especie suena con grabaciones de su animal o de uno muy parecido (ver
 [audio_credits.md](audio_credits.md)): `hurt_sound` y `death_sound` en la escena y, las que pelean,

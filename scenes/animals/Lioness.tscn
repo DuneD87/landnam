@@ -21,6 +21,7 @@ height = 2.0
 butcher_loot = ExtResource("loot_table")
 npc_type = &"Lioness"
 detect_state = &"CombatState"
+lets_player_approach = false
 lose_state = &"IdleState"
 hit_stun_duration = 0.0
 sprint_anim_speed = 5.0

@@ -26,6 +26,7 @@ floor_max_angle = 1.2217305
 safe_margin = 0.008
 script = ExtResource("1_npc")
 detect_state = &"FleeState"
+lets_player_approach = true
 
 [node name="Movement" type="Node" parent="."]
 script = ExtResource("2_move")
@@ -39,7 +40,7 @@ script = ExtResource("4_ai")
 
 [node name="IdleState" type="Node" parent="AIController"]
 script = ExtResource("5_idle")
-flee_trigger_radius = 30.0
+flee_trigger_radius = 5.0
 
 [node name="WanderState" type="Node" parent="AIController"]
 script = ExtResource("6_wander")
@@ -47,7 +48,7 @@ wander_radius = 25.0
 arrival_threshold = 2.0
 max_wander_time = 12.0
 home_radius = 60.0
-flee_trigger_radius = 30.0
+flee_trigger_radius = 5.0
 
 [node name="FleeState" type="Node" parent="AIController"]
 script = ExtResource("7_flee")
