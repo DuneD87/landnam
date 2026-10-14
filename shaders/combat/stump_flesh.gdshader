@@ -2,14 +2,15 @@ shader_type spatial;
 
 // Tapa de un miembro cercenado (LimbCutter). COLOR.r va de 0 en el eje del hueso a 1 en el borde
 // (la piel) y UV son coordenadas en el plano del corte, en radios. Por anillos: hueso con su
-// médula, músculo en haces, grasa y piel, todo húmedo de sangre.
+// médula, músculo en haces, grasa y piel, todo húmedo de sangre. Granate oscuro, como la sangre y
+// la canal (no un filete de carnicería).
 
-uniform vec3 muscle_color : source_color = vec3(0.42, 0.035, 0.035);
-uniform vec3 muscle_light : source_color = vec3(0.62, 0.10, 0.085);
-uniform vec3 fat_color : source_color = vec3(0.80, 0.66, 0.40);
-uniform vec3 bone_color : source_color = vec3(0.86, 0.80, 0.68);
-uniform vec3 marrow_color : source_color = vec3(0.36, 0.06, 0.04);
-uniform vec3 clot_color : source_color = vec3(0.13, 0.005, 0.01);
+uniform vec3 muscle_color : source_color = vec3(0.16, 0.018, 0.018);
+uniform vec3 muscle_light : source_color = vec3(0.28, 0.042, 0.036);
+uniform vec3 fat_color : source_color = vec3(0.5, 0.38, 0.27);
+uniform vec3 bone_color : source_color = vec3(0.68, 0.58, 0.5);
+uniform vec3 marrow_color : source_color = vec3(0.24, 0.035, 0.03);
+uniform vec3 clot_color : source_color = vec3(0.08, 0.003, 0.006);
 uniform float bone_radius = 0.24;
 
 float hash(vec2 p) {
@@ -66,18 +67,18 @@ void fragment() {
 	// Músculo: haces separados por tabiques claros, más oscuro hacia el hueso.
 	float septa = 1.0 - smoothstep(0.0, 0.09, cells(p * 7.0));
 	vec3 col = mix(muscle_color, muscle_light, n);
-	col = mix(col, muscle_light * 1.25 + vec3(0.06, 0.03, 0.02), septa * 0.35);
+	col = mix(col, muscle_light * 1.15 + vec3(0.04, 0.02, 0.015), septa * 0.3);
 	float rough = 0.22 + 0.12 * n;
 
 	// Grasa bajo la piel, en grumos.
 	float fat_in = 0.84 + wobble;
 	float fat = smoothstep(fat_in - 0.02, fat_in + 0.02, r) * (1.0 - smoothstep(0.95, 0.975, r));
-	col = mix(col, fat_color * (0.85 + 0.3 * fbm(p * 14.0)), fat);
+	col = mix(col, fat_color * (0.85 + 0.3 * fbm(p * 14.0)), fat * 0.75);
 	rough = mix(rough, 0.32, fat);
 
 	// Piel del borde.
 	float skin = smoothstep(0.955, 0.99, r);
-	col = mix(col, vec3(0.42, 0.12, 0.10), skin);
+	col = mix(col, vec3(0.3, 0.09, 0.075), skin);
 
 	// Hueso y médula en el centro.
 	float bone_r = bone_radius + wobble * 0.5;
@@ -90,7 +91,7 @@ void fragment() {
 
 	// Sangre: coágulos oscuros y una película que lo moja todo (menos al hueso limpio del centro).
 	float clot = smoothstep(0.55, 0.75, fbm(p * 3.0 + 4.0));
-	col = mix(col, clot_color, clot * 0.75 * (1.0 - bone * 0.6));
+	col = mix(col, clot_color, clot * 0.85 * (1.0 - bone * 0.5));
 	col *= mix(0.85, 1.0, n);
 
 	ALBEDO = col;

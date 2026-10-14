@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://0dvri0iqk77p"
-path="res://.godot/imported/blood_splat.png-a6587ce54776b1ca97b1b5df3359905e.ctex"
+uid="uid://banh4yqgvdxic"
+path="res://.godot/imported/blood_splat_3_normal.png-39a6142ba65c5bcce3bedf34d9a649bc.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://textures/combat/blood_splat.png"
-dest_files=["res://.godot/imported/blood_splat.png-a6587ce54776b1ca97b1b5df3359905e.ctex"]
+source_file="res://textures/combat/blood_splat_3_normal.png"
+dest_files=["res://.godot/imported/blood_splat_3_normal.png-39a6142ba65c5bcce3bedf34d9a649bc.ctex"]
 
 [params]
 

@@ -261,15 +261,21 @@ sangra.
   cortadas, movida por un `Ragdoll` solo de sus segmentos (el codo y la rodilla doblan). Gotea por el
   corte unos segundos y, quieto, deja un charco que se extiende. Dura dos minutos.
 - **Sangre de los golpes** (`CombatFx.blood`): gotas en forma de lágrima alineadas con su velocidad
-  (`blood_droplet.gdshader`) y una neblina que se funde con lo que toca (`blood_mist.gdshader`).
+  (`blood_droplet.gdshader`; casi negras donde son gruesas, rojas en el borde y la cola, con un
+  brillo pequeño de líquido y la luz roja que las atraviesa a contraluz) y una neblina que se funde
+  con lo que toca (`blood_mist.gdshader`).
   Cada tipo salpica a su manera: un tajo, muchas gotas rápidas en abanico; una estocada, un chorro
   estrecho; un golpe contundente, pocas gotas y más neblina. La cantidad sale del daño.
 - **Sangre en el suelo** (`BloodPool`): decals bajo el punto, siguiendo la gravedad del planeta. Las
   gotas de cada golpe manchan el suelo por delante, un muñón al gotear (reguero si se anda), lo
-  cortado deja su charco y los cadáveres (el jugador y las criaturas) uno a su medida. Brillan
-  mojados, se oscurecen al secarse y se van a los tres minutos.
-- **Sangre en el cuerpo** (`BloodStains`): cada golpe deja una mancha con regueros hacia abajo,
-  pegada al hueso más cercano. Solo pinta las mallas del personaje (llevan la capa de render 20,
+  cortado deja su charco y los cadáveres (el jugador y las criaturas) uno a su medida. No son una
+  capa de pintura: el color sale del grosor, así que donde es fina la sangre empapa el suelo y lo
+  deja ver, y donde se encharca es casi negra y brilla (la rugosidad va en la textura: líquida en lo
+  espeso, mate en lo empapado). Hay tres charcos y cuatro salpicaduras (una mancha con gotas
+  despedidas, el impacto de un goterón, un reguero de gotas y un salpicado), con salpicado fino
+  alrededor; cada vez, uno al azar. Se oscurecen al secarse y se van a los tres minutos.
+- **Sangre en el cuerpo** (`BloodStains`): cada golpe deja una mancha con regueros hacia abajo (una
+  de tres), pegada al hueso más cercano. Solo pinta las mallas del personaje (llevan la capa de render 20,
   la única del `cull_mask` de las manchas). Se limpian al reaparecer o al reciclar la criatura.
 - **Sangre en la vegetación** (`BloodFoliage`): cada mancha o charco en el suelo, cada golpe (a su
   altura) y cada corte apuntan una salpicadura en una lista de 128 (las que caen casi encima se
@@ -281,7 +287,8 @@ sangra.
 - **Desangrarse**: con mucha sangre perdida por segundo o poca vida, el mundo pierde color y los
   bordes se oscurecen a cada latido (`blood_loss.gdshader`), y se oye el corazón cada vez más
   deprisa.
-- Las texturas de la sangre las hornea `tools/combat/bake_blood_decals.gd`.
+- Las texturas de la sangre las hornea `tools/combat/bake_blood_decals.gd`
+  (`textures/combat/blood_<tipo>_<n>.png`, con `_normal` y `_orm`).
 
 *Opciones > Juego > Sangre y mutilaciones*: sin sangre, solo sangre (no se cercena) o completo.
 

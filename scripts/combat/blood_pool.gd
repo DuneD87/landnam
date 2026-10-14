@@ -4,14 +4,48 @@ extends Decal
 ## Sangre en el suelo: un charco que crece despacio (bajo un miembro cortado, bajo un cuerpo) o una
 ## salpicadura (las gotas que caen de un muñón). Un Decal apoyado en el suelo bajo el punto, en la
 ## dirección de la gravedad del planeta, que pinta lo que haya a unos centímetros: el terreno y lo
-## que esté tirado encima (el miembro, el cuerpo, las botas del que lo pisa). Brilla mojado, se va
-## oscureciendo al secarse y desaparece pasado un rato. Las texturas las hornea
+## que esté tirado encima (el miembro, el cuerpo, las botas del que lo pisa). Donde es fina empapa
+## el suelo y lo deja ver; donde se encharca es casi negra y brilla. Se va oscureciendo al secarse y
+## desaparece pasado un rato. Las texturas (varias de cada, una al azar) las hornea
 ## tools/combat/bake_blood_decals.gd.
 
-const POOL_TEXTURE := preload("res://textures/combat/blood_pool.png")
-const POOL_NORMAL := preload("res://textures/combat/blood_pool_normal.png")
-const SPLAT_TEXTURE := preload("res://textures/combat/blood_splat.png")
-const SPLAT_NORMAL := preload("res://textures/combat/blood_splat_normal.png")
+## Las texturas de cada tipo: [color, relieve, oclusión-rugosidad-metal].
+const POOL_TEXTURES := [
+	[preload("res://textures/combat/blood_pool_0.png"),
+		preload("res://textures/combat/blood_pool_0_normal.png"),
+		preload("res://textures/combat/blood_pool_0_orm.png")],
+	[preload("res://textures/combat/blood_pool_1.png"),
+		preload("res://textures/combat/blood_pool_1_normal.png"),
+		preload("res://textures/combat/blood_pool_1_orm.png")],
+	[preload("res://textures/combat/blood_pool_2.png"),
+		preload("res://textures/combat/blood_pool_2_normal.png"),
+		preload("res://textures/combat/blood_pool_2_orm.png")],
+]
+const SPLAT_TEXTURES := [
+	[preload("res://textures/combat/blood_splat_0.png"),
+		preload("res://textures/combat/blood_splat_0_normal.png"),
+		preload("res://textures/combat/blood_splat_0_orm.png")],
+	[preload("res://textures/combat/blood_splat_1.png"),
+		preload("res://textures/combat/blood_splat_1_normal.png"),
+		preload("res://textures/combat/blood_splat_1_orm.png")],
+	[preload("res://textures/combat/blood_splat_2.png"),
+		preload("res://textures/combat/blood_splat_2_normal.png"),
+		preload("res://textures/combat/blood_splat_2_orm.png")],
+	[preload("res://textures/combat/blood_splat_3.png"),
+		preload("res://textures/combat/blood_splat_3_normal.png"),
+		preload("res://textures/combat/blood_splat_3_orm.png")],
+]
+const SMEAR_TEXTURES := [
+	[preload("res://textures/combat/blood_smear_0.png"),
+		preload("res://textures/combat/blood_smear_0_normal.png"),
+		preload("res://textures/combat/blood_smear_0_orm.png")],
+	[preload("res://textures/combat/blood_smear_1.png"),
+		preload("res://textures/combat/blood_smear_1_normal.png"),
+		preload("res://textures/combat/blood_smear_1_orm.png")],
+	[preload("res://textures/combat/blood_smear_2.png"),
+		preload("res://textures/combat/blood_smear_2_normal.png"),
+		preload("res://textures/combat/blood_smear_2_orm.png")],
+]
 
 ## Los que caben a la vez de cada tipo: al pasar, se va el más viejo.
 const MAX_POOLS := 24
@@ -27,7 +61,6 @@ const REACH := 3.0
 
 static var _pools: Array[BloodPool] = []
 static var _splats: Array[BloodPool] = []
-static var _wet_orm: ImageTexture
 
 var _target := Vector2.ONE
 var _grow_time := 1.0
@@ -55,9 +88,10 @@ static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float
 		return null
 	var pool := BloodPool.new()
 	pool.name = "BloodSplat" if splat else "BloodPool"
-	pool.texture_albedo = SPLAT_TEXTURE if splat else POOL_TEXTURE
-	pool.texture_normal = SPLAT_NORMAL if splat else POOL_NORMAL
-	pool.texture_orm = _orm()
+	var textures: Array = (SPLAT_TEXTURES if splat else POOL_TEXTURES).pick_random()
+	pool.texture_albedo = textures[0]
+	pool.texture_normal = textures[1]
+	pool.texture_orm = textures[2]
 	# No pinta paredes: solo lo que mira hacia arriba.
 	pool.normal_fade = 0.35
 	pool.upper_fade = 0.15
@@ -122,12 +156,3 @@ func _process(delta: float) -> void:
 	modulate.a = fade
 	if _age >= LIFETIME:
 		queue_free()
-
-
-## Mojado: sin oclusión, rugosidad baja, nada metálico.
-static func _orm() -> ImageTexture:
-	if _wet_orm == null:
-		var image := Image.create(4, 4, false, Image.FORMAT_RGB8)
-		image.fill(Color(1.0, 0.12, 0.0))
-		_wet_orm = ImageTexture.create_from_image(image)
-	return _wet_orm

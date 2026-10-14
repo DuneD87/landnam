@@ -62,16 +62,16 @@ static func blood(target: Node, point: Vector3, direction: Vector3,
 	# Gotas, goterones (pocos, gordos y lentos: la sangre se ve espesa) y neblina.
 	match kind:
 		ItemData.DamageKind.PIERCE:
-			_droplets(host, point, dir, int(50 * power), 12.0, Vector2(3.5, 8.5), Vector2(0.7, 1.4))
+			_droplets(host, point, dir, int(70 * power), 12.0, Vector2(3.5, 8.5), Vector2(0.6, 1.4))
 			_droplets(host, point, dir, int(4 * power), 18.0, Vector2(1.5, 3.5), Vector2(2.0, 3.2), 1.2)
 			_mist(host, point, dir, int(8 * power))
 		ItemData.DamageKind.BLUNT:
-			_droplets(host, point, dir, int(30 * power), 75.0, Vector2(1.5, 4.0), Vector2(0.8, 1.6))
+			_droplets(host, point, dir, int(42 * power), 75.0, Vector2(1.5, 4.0), Vector2(0.6, 1.6))
 			_droplets(host, point, dir, int(6 * power), 60.0, Vector2(0.8, 2.5), Vector2(2.0, 3.5), 1.2)
 			_mist(host, point, dir, int(20 * power))
 			power *= 0.7
 		_:
-			_droplets(host, point, dir, int(80 * power), 38.0, Vector2(2.5, 7.0), Vector2(0.8, 1.7))
+			_droplets(host, point, dir, int(110 * power), 38.0, Vector2(2.5, 7.0), Vector2(0.6, 1.7))
 			_droplets(host, point, dir, int(8 * power), 30.0, Vector2(1.0, 3.0), Vector2(2.0, 3.5), 1.2)
 			_mist(host, point, dir, int(14 * power))
 	_ground_splats(target, point, dir, power)
@@ -336,7 +336,7 @@ static func _frame(dir: Vector3) -> Basis:
 static func _droplet() -> QuadMesh:
 	if _droplet_mesh == null:
 		_droplet_mesh = QuadMesh.new()
-		_droplet_mesh.size = Vector2(0.022, 0.07)
+		_droplet_mesh.size = Vector2(0.014, 0.046)
 		var mat := ShaderMaterial.new()
 		mat.shader = DROPLET_SHADER
 		_droplet_mesh.material = mat
@@ -378,7 +378,7 @@ static func _mist_fade_ramp() -> GradientTexture1D:
 	if _mist_fade == null:
 		var ramp := Gradient.new()
 		ramp.offsets = PackedFloat32Array([0.0, 0.15, 1.0])
-		ramp.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.75), Color(1, 1, 1, 0.0)])
+		ramp.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.55), Color(1, 1, 1, 0.0)])
 		_mist_fade = GradientTexture1D.new()
 		_mist_fade.gradient = ramp
 	return _mist_fade

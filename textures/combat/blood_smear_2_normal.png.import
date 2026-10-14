@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bj3723vmc771u"
-path="res://.godot/imported/blood_smear_normal.png-4f7bd8107527a9a4512ae461a07cf5a5.ctex"
+uid="uid://00v8fdj74dkn"
+path="res://.godot/imported/blood_smear_2_normal.png-d013f2b55631a76ae59a8fedf9fdd0bc.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://textures/combat/blood_smear_normal.png"
-dest_files=["res://.godot/imported/blood_smear_normal.png-4f7bd8107527a9a4512ae461a07cf5a5.ctex"]
+source_file="res://textures/combat/blood_smear_2_normal.png"
+dest_files=["res://.godot/imported/blood_smear_2_normal.png-d013f2b55631a76ae59a8fedf9fdd0bc.ctex"]
 
 [params]
 

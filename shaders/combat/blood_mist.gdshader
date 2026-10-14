@@ -5,7 +5,7 @@ render_mode blend_mix, depth_draw_never, cull_disabled;
 // desvanecen (la escala y el alfa los lleva la partícula). Se funden donde tocan el suelo o un
 // cuerpo, para que no se vea el corte recto contra la geometría.
 
-uniform vec3 color : source_color = vec3(0.32, 0.015, 0.02);
+uniform vec3 color : source_color = vec3(0.22, 0.01, 0.014);
 uniform sampler2D depth_texture : hint_depth_texture, filter_nearest;
 // Distancia (m) a la geometría en la que se funde.
 uniform float soft_distance = 0.25;
