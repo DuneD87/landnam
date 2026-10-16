@@ -575,7 +575,7 @@ func _sort_inventory() -> void:
 
 
 func _refresh_stats() -> void:
-	_armor_value.text = str(character_window.get_armor())
+	_armor_value.text = str(character_window.get_armor() if character_window != null else 0)
 	for slot_type in _hand_boxes:
 		var box: VBoxContainer = _hand_boxes[slot_type]
 		for child in box.get_children():
