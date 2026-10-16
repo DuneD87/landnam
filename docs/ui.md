@@ -229,6 +229,21 @@ menú y «Cargar partida» en la pausa.
    anclas y márgenes, no con un `size` puesto a mano, que ya no volvería a
    encoger.
 
+## HUD de combate
+
+`CombatHUD` (`scripts/combat/combat_hud.gd`) dibuja con las piezas de Saga (`SagaFrame.chamfered`,
+`SagaFrame.diamond`, `SagaRule`) y su paleta:
+
+- **Barras de las criaturas** (las tocadas en los últimos 6 s y la fijada): placa de hierro con las
+  puntas en pico, filete de bronce y un remache en cada punta. La vida y el tramo perdido llevan los
+  colores de la orbe de vida.
+- **Objetivo fijado:** un rombo de hueso en el punto y, alrededor, otro de bronce con un remache en
+  cada vértice, que late.
+- **Mira** (al apuntar sin objetivo fijado): cuatro marcas color hueso que se cierran al tensar y se
+  vuelven bronce a tope, un rombo en el centro y la tensión en un arco de bronce.
+- **Munición y estados:** Alegreya en hueso con contorno de tinta; sin munición, en rojo.
+- **HAS MUERTO:** en Cinzel, con un filete de Saga encima y otro debajo que se funden con el cartel.
+
 ## Pendiente
 
 - **Iconos:** mezclan tres estilos (vectores planos, renders sobre fondo negro y
@@ -236,8 +251,7 @@ menú y «Cargar partida» en la pausa.
   desde los modelos con la misma luz, como ya se hace con los bloques
   (`BlockDatabase`).
 - **Nombres y descripciones:** varios objetos siguen en inglés en sus `.tres`.
-- **Menús de construcción y el resto del HUD** (barras de las criaturas, mira):
-  aún no usan Saga.
+- **Menús de construcción:** aún no usan Saga.
 
 ## Validar la barra rápida
 

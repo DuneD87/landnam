@@ -7,12 +7,13 @@ extends CanvasLayer
 ## vida sobre los enemigos tocados, mira al apuntar con la tensión y la munición, destello rojo al
 ## recibir, la pantalla de muerte y los fundidos a negro de la reaparición.
 ##
-## La UI del proyecto no se estira: todo se escala por la altura de la ventana (base 1440).
+## Va con Saga (GameTheme): placas de hierro biseladas con filete de bronce, rombos por remaches y
+## texto color hueso. La UI del proyecto no se estira: todo se escala por la altura de la ventana
+## (base 1440).
 
-const HP_COLOR := Color(0.62, 0.08, 0.07)
+## Vida y tramo perdido de las criaturas: los de la orbe de vida (VitalOrb).
+const HP_COLOR := Color(0.71, 0.1, 0.08)
 const HP_TRAIL := Color(0.86, 0.66, 0.30)
-const FRAME := Color(0.03, 0.03, 0.03, 0.78)
-const BAR_BACK := Color(0.10, 0.09, 0.08, 0.7)
 ## Segundos que se ve la barra de una criatura después de golpearla.
 const ENEMY_BAR_TIME := 6.0
 const BLOOD_LOSS_SHADER := preload("res://shaders/combat/blood_loss.gdshader")
@@ -104,8 +105,8 @@ func setup(owner_combat: PlayerCombat) -> void:
 	_ammo_label = Label.new()
 	_ammo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ammo_label.add_theme_font_override("font", GameTheme.medium_font())
-	_ammo_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
-	_ammo_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_ammo_label.add_theme_color_override("font_color", GameTheme.BONE)
+	_ammo_label.add_theme_color_override("font_outline_color", Color(GameTheme.INK, 0.9))
 	_ammo_label.add_theme_constant_override("outline_size", 6)
 	_ammo_label.visible = false
 	add_child(_ammo_label)
@@ -114,8 +115,8 @@ func setup(owner_combat: PlayerCombat) -> void:
 	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_status_label.add_theme_font_override("font", GameTheme.medium_font())
-	_status_label.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
-	_status_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_status_label.add_theme_color_override("font_color", GameTheme.BONE)
+	_status_label.add_theme_color_override("font_outline_color", Color(GameTheme.INK, 0.9))
 	_status_label.add_theme_constant_override("outline_size", 5)
 	_status_label.visible = false
 	add_child(_status_label)
@@ -150,6 +151,8 @@ func setup(owner_combat: PlayerCombat) -> void:
 	_death_label.add_theme_constant_override("outline_size", 4)
 	_death_label.modulate.a = 0.0
 	_death_label.visible = false
+	# Un filete de Saga encima y otro debajo del cartel; se funden con él.
+	_death_label.draw.connect(_draw_death_rules)
 	add_child(_death_label)
 
 	_fade = ColorRect.new()
@@ -166,9 +169,7 @@ func setup(owner_combat: PlayerCombat) -> void:
 func _relayout() -> void:
 	var size := get_viewport().get_visible_rect().size
 	_scale = clampf(size.y / 1440.0, 0.5, 2.0)
-	_vignette.size = size
-	_blood_loss.size = size
-	_fade.size = size
+	# El destello, el desangrarse y el fundido van anclados a toda la pantalla: no hace falta medirlos.
 	var band_h := 260.0 * _scale
 	_death_band.position = Vector2(0, size.y * 0.5 - band_h * 0.5)
 	_death_band.size = Vector2(size.x, band_h)
@@ -310,7 +311,7 @@ func _update_ammo() -> void:
 	var center := get_viewport().get_visible_rect().size * 0.5
 	_ammo_label.position = center + Vector2(46, 30) * _scale
 	_ammo_label.visible = true
-	_ammo_label.modulate = Color(1, 0.55, 0.5) if count == 0 else Color.WHITE
+	_ammo_label.modulate = GameTheme.BLOOD.lightened(0.35) if count == 0 else Color.WHITE
 
 
 func note_enemy_hit(body: Node) -> void:
@@ -345,15 +346,41 @@ func _on_draw() -> void:
 	_draw_crosshair()
 
 
+## Barra de Saga: placa de hierro con las puntas biseladas y filete de bronce, un rombo de bronce
+## en cada punta, el tramo perdido en ámbar y lo que queda en [color], con un brillo arriba.
 func _bar(pos: Vector2, size: Vector2, fill: float, trail: float, color: Color, trail_color: Color) -> void:
-	var border := maxf(2.0, 2.0 * _scale)
-	_canvas.draw_rect(Rect2(pos - Vector2(border, border), size + Vector2(border, border) * 2.0), FRAME)
-	_canvas.draw_rect(Rect2(pos, size), BAR_BACK)
+	var pad := maxf(2.0, 3.0 * _scale)
+	var plate := Rect2(pos - Vector2(pad, pad), size + Vector2(pad, pad) * 2.0)
+	# Casi la mitad del alto: las puntas quedan en pico, como una hoja (la mitad justa repetiría
+	# puntos y el polígono no se triangula).
+	var plate_cut := plate.size.y * 0.45
+	_canvas.draw_colored_polygon(SagaFrame.chamfered(plate, plate_cut), GameTheme.IRON)
+	var cut := size.y * 0.45
+	_canvas.draw_colored_polygon(SagaFrame.chamfered(Rect2(pos, size), cut), GameTheme.IRON_DEEP)
+	fill = clampf(fill, 0.0, 1.0)
 	if trail > fill:
-		_canvas.draw_rect(Rect2(pos, Vector2(size.x * trail, size.y)), trail_color)
-	_canvas.draw_rect(Rect2(pos, Vector2(size.x * clampf(fill, 0.0, 1.0), size.y)), color)
-	# Brillo superior, para que la barra no sea un rectángulo plano.
-	_canvas.draw_rect(Rect2(pos, Vector2(size.x * clampf(fill, 0.0, 1.0), size.y * 0.35)), Color(1, 1, 1, 0.10))
+		_fill_bar(pos, size, trail, cut, trail_color)
+	_fill_bar(pos, size, fill, cut, color)
+	if size.x * fill > cut * 2.0 + 1.0:
+		var shine := maxf(1.0, size.y * 0.2)
+		_canvas.draw_line(pos + Vector2(cut, shine), pos + Vector2(size.x * fill - cut, shine),
+			Color(1, 1, 1, 0.14), shine)
+	var outline := SagaFrame.chamfered(plate, plate_cut)
+	outline.append(outline[0])
+	_canvas.draw_polyline(outline, GameTheme.BRONZE_LINE, maxf(1.0, _scale), true)
+	var mid := plate.position.y + plate.size.y * 0.5
+	var rivet := maxf(2.0, 3.5 * _scale)
+	for x in [plate.position.x - rivet * 1.6, plate.end.x + rivet * 1.6]:
+		_canvas.draw_colored_polygon(SagaFrame.diamond(Vector2(x, mid), rivet + 1.0), Color(GameTheme.INK, 0.8))
+		_canvas.draw_colored_polygon(SagaFrame.diamond(Vector2(x, mid), rivet), GameTheme.BRONZE)
+
+
+## El tramo [amount] (0..1) de la barra, con las mismas puntas biseladas.
+func _fill_bar(pos: Vector2, size: Vector2, amount: float, cut: float, color: Color) -> void:
+	var width := size.x * amount
+	if width < 1.0:
+		return
+	_canvas.draw_colored_polygon(SagaFrame.chamfered(Rect2(pos, Vector2(width, size.y)), minf(cut, width * 0.45)), color)
 
 
 ## Silueta de espaldas (como se ve al personaje) a la izquierda de la consola de la barra rápida, con cada parte del cuerpo del color
@@ -479,11 +506,20 @@ func _draw_lock() -> void:
 	if cam.is_position_behind(point):
 		return
 	var screen := cam.unproject_position(point)
-	var r := 11.0 * _scale
+	var s := _scale
 	var pulse := 1.0 + 0.08 * sin(Time.get_ticks_msec() * 0.006)
-	_canvas.draw_circle(screen, r * 0.42, Color(1, 1, 1, 0.95))
-	_canvas.draw_arc(screen, r * 1.35 * pulse, 0, TAU, 32, Color(0, 0, 0, 0.6), 3.0 * _scale)
-	_canvas.draw_arc(screen, r * 1.35 * pulse, 0, TAU, 32, Color(1, 1, 1, 0.75), 1.5 * _scale)
+	# Un rombo de hueso en el punto y, alrededor, otro de bronce con un remache en cada vértice,
+	# que late (como los biseles de SagaFrame).
+	_canvas.draw_colored_polygon(SagaFrame.diamond(screen, 6.5 * s), Color(GameTheme.INK, 0.85))
+	_canvas.draw_colored_polygon(SagaFrame.diamond(screen, 4.5 * s), GameTheme.BONE)
+	var reach := 17.0 * s * pulse
+	var ring := SagaFrame.diamond(screen, reach)
+	ring.append(ring[0])
+	_canvas.draw_polyline(ring, Color(GameTheme.INK, 0.55), 3.5 * s, true)
+	_canvas.draw_polyline(ring, Color(GameTheme.BRONZE, 0.8), 1.5 * s, true)
+	for corner in ring.slice(0, 4):
+		_canvas.draw_colored_polygon(SagaFrame.diamond(corner, 4.5 * s), Color(GameTheme.INK, 0.85))
+		_canvas.draw_colored_polygon(SagaFrame.diamond(corner, 3.0 * s), GameTheme.BRONZE)
 
 
 func _draw_crosshair() -> void:
@@ -496,19 +532,39 @@ func _draw_crosshair() -> void:
 	var draw := combat._draw
 	var gap := lerpf(26.0, 6.0, draw) * _scale
 	var len := 9.0 * _scale
-	var col := Color(1, 1, 1, 0.85) if draw < 0.99 else Color(1.0, 0.85, 0.55, 0.95)
+	# Hueso; a tensión completa, bronce. El centro es un rombo y la tensión un arco de bronce.
+	var col := Color(GameTheme.BONE, 0.9) if draw < 0.99 else GameTheme.BRONZE
+	var shadow := Color(GameTheme.INK, 0.6)
 	var width := 2.0 * _scale
 	for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
-		_canvas.draw_line(center + d * gap, center + d * (gap + len), Color(0, 0, 0, 0.5), width + 2.0)
+		_canvas.draw_line(center + d * gap, center + d * (gap + len), shadow, width + 2.0)
 		_canvas.draw_line(center + d * gap, center + d * (gap + len), col, width)
-	_canvas.draw_circle(center, 2.0 * _scale, col)
+	_canvas.draw_colored_polygon(SagaFrame.diamond(center, 3.5 * _scale), shadow)
+	_canvas.draw_colored_polygon(SagaFrame.diamond(center, 2.2 * _scale), col)
 	if draw > 0.0:
-		_canvas.draw_arc(center, 34.0 * _scale, -PI * 0.5, -PI * 0.5 + TAU * draw, 40,
-			Color(1, 1, 1, 0.35 + 0.4 * draw), 2.5 * _scale)
+		var to := -PI * 0.5 + TAU * draw
+		_canvas.draw_arc(center, 34.0 * _scale, -PI * 0.5, to, 40, Color(GameTheme.INK, 0.4), 4.5 * _scale)
+		_canvas.draw_arc(center, 34.0 * _scale, -PI * 0.5, to, 40,
+			Color(GameTheme.BRONZE, 0.45 + 0.45 * draw), 2.5 * _scale)
 
 
 # ---------------------------------------------------------------------------------------------
 # Muerte y fundidos
+
+
+## Filetes de Saga (SagaRule) encima y debajo de HAS MUERTO, dibujados en el propio cartel: van por
+## encima de la franja oscura y se funden con él.
+func _draw_death_rules() -> void:
+	var rule := SagaRule.new()
+	rule.color = Color(GameTheme.BRONZE, 0.6)
+	rule.thickness = maxf(1.0, 1.5 * _scale)
+	rule.diamond = 6.0 * _scale
+	rule.gap = 12.0 * _scale
+	var size := _death_label.size
+	var half := minf(520.0 * _scale, size.x * 0.45)
+	for dy in [-105.0, 105.0]:
+		var y: float = size.y * 0.5 + dy * _scale
+		rule.draw(_death_label.get_canvas_item(), Rect2(size.x * 0.5 - half, y - 6.0 * _scale, half * 2.0, 12.0 * _scale))
 
 
 func show_death() -> void:
