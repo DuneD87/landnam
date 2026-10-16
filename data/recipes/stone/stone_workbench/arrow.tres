@@ -8,6 +8,7 @@ result = &"arrow"
 amount = 4
 inputs = Dictionary[StringName, int]({
 &"branch_01": 1,
-&"stone_01": 1
+&"stone_01": 1,
+&"feather": 2
 })
 station = &"stone_workbench"

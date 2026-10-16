@@ -87,7 +87,9 @@ func _check_counts() -> void:
 		and inventory.get_item_count(Config.get_item(&"stone_01")) == 1
 		and inventory.get_item_count(Config.get_item(&"branch_01")) == 1, "quedan 2 hogueras, 1 piedra y 1 rama")
 	var arrows := _recipe(&"arrow")
-	inventory = _inventory([[&"stone_01", 5], [&"branch_01", 5]])
+	inventory = _inventory([[&"stone_01", 5], [&"branch_01", 5], [&"feather", 10]])
+	check(Recipes.max_times(arrows, _inventory([[&"stone_01", 5], [&"branch_01", 5], [&"feather", 3]])) == 1,
+		"sin plumas no hay flechas: con 3, una tirada")
 	Recipes.craft(arrows, inventory, 5)
 	check(inventory.get_item_count(Config.get_item(&"arrow")) == 5 * arrows.amount, "cinco tiradas de flechas: %d" % (5 * arrows.amount))
 
