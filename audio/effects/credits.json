@@ -1,0 +1,28 @@
+{
+ "beds": {
+  "lake_storm": {
+   "file": "audio/effects/lake_storm.wav",
+   "source": 169883,
+   "dur": 30.0
+  },
+  "rain_indoor": {
+   "file": "audio/effects/rain_indoor.wav",
+   "source": 232731,
+   "dur": 15.29
+  }
+ },
+ "sources": {
+  "169883": {
+   "title": "WindDrivenWavesLakeNov2012.wav",
+   "author": "kvgarlic",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/169883/"
+  },
+  "232731": {
+   "title": "Rain Indoor Cabin (loop)",
+   "author": "PhilllChabbb",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/232731/"
+  }
+ }
+}

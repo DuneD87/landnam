@@ -26,3 +26,6 @@ addons/godot-git-plugin/linux/
 # FBX de los packs de animales mientras se sacan de ellos el modelo y los clips que se usan
 # (tools/fauna/import_pack_model.gd): llevan todas sus animaciones y pesan cientos de MB.
 /models/_pack/
+
+# Caché de Python de las herramientas (tools/audio importa entre sus scripts).
+__pycache__/
