@@ -126,6 +126,8 @@ const USE_MIXAMO := {
 	&"throw": false,
 }
 const ROLL_ANIM_SPEED := 1.35
+## Fundido (s) de la corrección de primera persona que mete la hoja en la vista al golpear.
+const FP_REACH_BLEND := 0.12
 const BACKSTEP_ANIM_FROM := 0.2
 const BACKSTEP_ANIM_SPEED := 1.5
 const HIT_ANIM_SPEED := 1.3
@@ -181,6 +183,8 @@ var _attack_t_prev: float = 0.0
 ## Ritmo del golpe (escala de tiempo de su animación) y segundos de animación ya sonados.
 var _move_speed: float = 1.0
 var _heavy: bool = false
+## Talar o picar con una herramienta (trabajo, no combate).
+var _working: bool = false
 var _charge: float = 0.0
 var _charged: bool = false
 var _whooshed: bool = false
@@ -1204,6 +1208,7 @@ func _start_attack(heavy: bool) -> void:
 	_move_family = family
 	_combo = index
 	_heavy = heavy
+	_working = working
 	_charge = 0.0
 	_charged = false
 	_move_speed = maxf(data.attack_speed, 0.3) * float(mv.get("speed", 1.0))
@@ -2090,6 +2095,14 @@ func _update_aim_blend(delta: float) -> void:
 	pose.aim_dir = _aim_dir
 	pose.fp_eye = player.appearance_rig.first_person_eye(player.camera_controller.fp_eye_forward) \
 			if player.camera_controller.first_person and player.appearance_rig != null else Vector3(NAN, NAN, NAN)
+	# Primera persona, golpeando a una criatura: la hoja no se sale de la vista
+	# (CombatPose._apply_fp_reach). Talando o picando, el golpe va donde lo pone la animación.
+	pose.fp_view = player.camera.global_basis
+	var striking := player.camera_controller.first_person and state == State.ATTACK and not _working
+	pose.fp_reach = move_toward(pose.fp_reach, 1.0 if striking else 0.0, delta / FP_REACH_BLEND)
+	if data != null:
+		pose.fp_reach_both = data.two_handed
+		pose.fp_blade_mid = (data.blade_start + data.reach) * 0.5 if data.reach > 0.0 else 0.3
 	pose.draw = _draw
 	pose.release = clampf(_release_t, 0.0, 1.0) if _release_t >= 0.0 else 0.0
 	pose.throw.draw = _draw

@@ -592,9 +592,12 @@ godot --path . --audio-driver Dummy --fixed-fps 30 --script res://tests/combat/a
 `anim_stage` es el escenario de animación: el cuerpo del jugador sobre suelo plano con
 las poses conducidas por una línea de tiempo fija y varias cámaras a la vez (también
 primeros planos que siguen a manos o cabeza). Escenas: `bow`, `bow_walk`, `throw`,
-`bow_anim`, `stagger`, `backstep`, `death`, `melee_h`, `melee_v`, `grip`, `fingers`, `sling`. La vista
-`eye` es la de primera persona (la cámara en el ojo, en 16:9, con la pose de primera persona del
-tirachinas). `--armor` viste un
+`bow_anim`, `stagger`, `backstep`, `death`, `melee_h`, `melee_v`, `grip`, `fingers`, `sling`, `combo`
+y `heavy` (el combo y el pesado de la espada). La vista `eye` es la de primera persona: la cámara en
+el ojo, en 16:9, mirando al frente (`--pitch` grados) o hacia donde apunta, con `FirstPersonSquare`,
+la pose de primera persona del tirachinas y la hoja metida en la vista en los golpes (`--no-reach`
+la quita, `--two-handed` mueve también la izquierda); `--eye-log` imprime dónde quedan el pecho, los
+hombros y el cuello respecto al ojo. `--armor` viste un
 conjunto (los fallos de deformación se ven mucho más con armadura) y `--twist` imprime cuánto se
 retuerce cada hueso de los brazos en el arco.
 `combat_capture` acepta `--showcase` para sacar los fotogramas desde una cámara cercana.

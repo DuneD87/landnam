@@ -121,6 +121,17 @@ const SLING_SIGHT_DROP := 0.16
 ## ...y hasta dónde se tensa: los nudillos de la derecha junto a la mejilla, respecto al ojo de
 ## la cámara (que va dentro de la cabeza), en (derecha, arriba, adelante) y en m.
 const SLING_FP_ANCHOR := Vector3(0.03, -0.08, 0.11)
+## Primera persona, golpeando (0..1): la hoja no se sale de la vista (_apply_fp_reach).
+var fp_reach: float = 0.0
+## La cámara de primera persona, en mundo (mira hacia -Z), y si el arma va a dos manos (la
+## izquierda sigue a la derecha en el mango).
+var fp_view: Basis = Basis.IDENTITY
+var fp_reach_both: bool = false
+## De la empuñadura a la mitad de la hoja (m): lo que tiene que verse.
+var fp_blade_mid: float = 0.4
+## Lo más que la mitad de la hoja se aparta del centro de la vista (grados: a los lados y hacia
+## abajo). La cámara abarca 37,5° hacia abajo y unos 53° a los lados en 16:9.
+const FP_REACH_VIEW := Vector2(30.0, 20.0)
 
 ## Llamado tras posar, con este modificador (para colocar visuales sobre las manos).
 var after_pose: Callable
@@ -176,6 +187,8 @@ func _apply() -> void:
 			_apply_aim(aim_weight)
 	if guard > 0.001:
 		_apply_guard(guard)
+	if fp_reach > 0.001:
+		_apply_fp_reach(fp_reach)
 	if grip_right:
 		if carry > 0.001:
 			_apply_carry(carry)
@@ -944,13 +957,84 @@ func _clear_face(w: float) -> void:
 		two_bone(chain, bone_pos(chain[2]) + offset, bone_pos(chain[1]) - shoulder, 1.0)
 
 
-## El ojo de primera persona (fp_eye) en el espacio del esqueleto, con la pose de ahora; NAN en
+## Primera persona, golpeando: los golpes son de tercera persona y pasan a la altura de la cintura
+## y el pecho, por debajo de lo que ve la cámara en la cabeza (o pegados al borde). Si la mitad de
+## la hoja se sale de FP_REACH_VIEW, el brazo entero gira sobre el hombro lo justo para meterla, sin
+## doblar el codo, y la mano gira al revés: la hoja conserva su giro y su recorrido, y la que
+## hiere sigue siendo la que se ve. Con la mano detrás de la cámara (alzando el arma) no se toca.
+func _apply_fp_reach(w: float) -> void:
+	var eye := _fp_sight()
+	if is_nan(eye.x):
+		return
+	var f := to_skel_dir(-fp_view.z)
+	var u := to_skel_dir(fp_view.y)
+	var r := f.cross(u).normalized()
+	var m := unit()
+	var hand := bone_pos(R_ARM[2])
+	# Lo que tiene que verse es la hoja: su mitad, por donde la deja _apply_grip.
+	var hf := hand_frame("Right")
+	var blade := hf.z.rotated(hf.y, deg_to_rad(-FIST_TILT)).normalized()
+	var point := hand + (hf.x * FIST_HANDLE.x + hf.y * FIST_HANDLE.y + blade * fp_blade_mid) * m
+	var d := point - eye
+	var depth := d.dot(f)
+	if depth < 0.08 * m or (hand - eye).dot(f) < 0.0:
+		return
+	var elev := atan2(d.dot(u), depth)
+	var azim := atan2(d.dot(r), depth)
+	var e2 := maxf(elev, -deg_to_rad(FP_REACH_VIEW.y))
+	var a2 := clampf(azim, -deg_to_rad(FP_REACH_VIEW.x), deg_to_rad(FP_REACH_VIEW.x))
+	if is_equal_approx(e2, elev) and is_equal_approx(a2, azim):
+		return
+	var target := eye + (f + u * tan(e2) + r * tan(a2)).normalized() * d.length() - (point - hand)
+	var l_hand := bone_pos(L_ARM[2])
+	_swing_arm(R_ARM, target, w)
+	if fp_reach_both:
+		_swing_arm(L_ARM, l_hand + bone_pos(R_ARM[2]) - hand, 1.0)
+
+
+## Gira el brazo [chain] entero sobre el hombro hacia [target] (sin doblar el codo) y la mano al
+## revés, que conserva su giro.
+func _swing_arm(chain: Array, target: Vector3, weight: float) -> void:
+	var shoulder := bone_pos(chain[0])
+	var q := Quaternion.IDENTITY.slerp(arc(bone_pos(chain[2]) - shoulder, target - shoulder), weight)
+	rotate_bone(chain[0], q)
+	rotate_bone(chain[2], q.inverse())
+
+
+## Primera persona: en algunos golpes el tronco se echa hacia delante y la cabeza se queda atrás,
+## y la cámara, dentro de la cabeza, acabaría detrás del cuello y los hombros, con el pecho
+## llenando media pantalla. Se adelanta en horizontal lo justo para quedar FP_SHOULDER_CLEAR
+## metros por delante de ellos; de pie no se mueve.
+const FP_CLEAR_BONES := [&"mixamorig_Neck", &"mixamorig_LeftShoulder", &"mixamorig_RightShoulder"]
+const FP_SHOULDER_CLEAR := 0.05
+
+
+## Lo que hay que adelantar la cámara de primera persona [eye] (mundo) por [ahead] (horizontal,
+## hacia donde mira) para que el cuello y los hombros queden FP_SHOULDER_CLEAR por detrás de ella.
+## La usan CameraController y _fp_sight.
+static func shoulder_clearance(skeleton: Skeleton3D, eye: Vector3, ahead: Vector3) -> Vector3:
+	var need := 0.0
+	for bone_name in FP_CLEAR_BONES:
+		var i := skeleton.find_bone(bone_name)
+		if i >= 0:
+			var bone := skeleton.global_transform * skeleton.get_bone_global_pose(i).origin
+			need = maxf(need, (bone - eye).dot(ahead) + FP_SHOULDER_CLEAR)
+	return ahead * need
+
+
+## La cámara de primera persona en el espacio del esqueleto, con la pose de ahora: el ojo (fp_eye)
+## adelantado sobre el cuello y los hombros (shoulder_clearance), como CameraController. NAN en
 ## tercera persona.
 func _fp_sight() -> Vector3:
 	var head := bone_idx(CharacterAppearanceRig.HEAD_BONE)
 	if is_nan(fp_eye.x) or head < 0:
 		return Vector3(NAN, NAN, NAN)
-	return _skel.get_bone_global_pose(head) * fp_eye
+	var eye := _skel.global_transform * (_skel.get_bone_global_pose(head) * fp_eye)
+	var up := frame_node.global_basis.y.normalized()
+	var ahead := -fp_view.z - up * (-fp_view.z).dot(up)
+	if ahead.length_squared() > 1e-6:
+		eye += shoulder_clearance(_skel, eye, ahead.normalized())
+	return to_skel_point(eye)
 
 
 func _apply_aim(w: float) -> void:

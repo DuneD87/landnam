@@ -11,7 +11,10 @@ extends SceneTree
 ## --armor viste un conjunto de scenes/items/armor/ (las deformaciones se ven mucho más con
 ## armadura); --twist imprime cuánto se retuercen los huesos de los brazos en el arco.
 ## La vista eye es la de primera persona: la cámara en el ojo (CharacterAppearanceRig, como
-## CameraController) mirando hacia donde se apunta, con el cuerpo sin cabeza.
+## CameraController) mirando hacia donde se apunta (o al frente, --pitch grados), con el cuerpo
+## sin cabeza y el pecho al frente (FirstPersonSquare). En los golpes (melee_h, melee_v, combo,
+## heavy) mete la hoja en la vista como en el juego (--no-reach no, --two-handed con las dos
+## manos); --eye-log imprime dónde quedan el pecho, los hombros y el cuello respecto al ojo.
 ## --scene=run|sprint --item=<arma> corre con el arma en la mano (CombatPose.carry; --no-carry la
 ## quita) e imprime la holgura mínima entre el arma y cada parte del cuerpo.
 
@@ -189,6 +192,11 @@ func _build_world() -> void:
 		look_ik.body_forward = Vector3.BACK
 		skel.add_child(look_ik)
 		look_ik.target_path = look_ik.get_path_to(target)
+	if _views.has("eye"):
+		# Como en el juego en primera persona: el pecho al frente del modelo (antes de la pose).
+		var square := FirstPersonSquare.new()
+		square.frame_node = model
+		skel.add_child(square)
 	pose = CombatPose.new()
 	pose.frame_node = model
 	pose.after_pose = _after_pose
@@ -311,7 +319,14 @@ func _run() -> void:
 			_add_right_item(item)
 			base_anim = "attack_horizontal" if _scene == "melee_h" else "attack_vertical"
 			duration = anim.get_animation(base_anim).length
-			driver = func(_t: float) -> void: pass
+			driver = _drive_fp_melee
+		"combo", "heavy":
+			# El combo de espada de Mixamo (MeleeMoveset.SWORD) y su pesado, de una tirada.
+			_add_right_item("iron_sword")
+			anim.add_animation_library(&"combat", load("res://models/player/mixamo/combat_anims.tres"))
+			base_anim = "combat/sword_combo" if _scene == "combo" else "combat/sword_heavy"
+			duration = anim.get_animation(base_anim).length
+			driver = _drive_fp_melee
 		"run", "sprint":
 			# Correr con un arma en la mano (--item=): la hoja no debe meterse en el cuerpo.
 			var item := "iron_sword"
@@ -371,7 +386,8 @@ func _run() -> void:
 				var target: Vector3 = _bone_world.get(fv[0], Vector3.ZERO)
 				(_cams[view] as Camera3D).look_at_from_position(target + fv[1], target)
 			if view == "eye":
-				var look := pose.aim_dir if pose.aim_weight > 0.01 else Vector3(0, 0, 1)
+				var look := pose.aim_dir if pose.aim_weight > 0.01 \
+						else Vector3(0, sin(deg_to_rad(_aim_pitch)), cos(deg_to_rad(_aim_pitch)))
 				(_cams[view] as Camera3D).look_at_from_position(_eye_world, _eye_world + look, Vector3.UP)
 		await RenderingServer.frame_post_draw
 		var slot := sheet_frames.find(f)
@@ -545,6 +561,16 @@ func _after_pose(p: CombatPose) -> void:
 		var rig := model.get_node("AppearanceRig") as CharacterAppearanceRig
 		var head := skel.find_bone(CharacterAppearanceRig.HEAD_BONE)
 		_eye_world = skel.global_transform * (skel.get_bone_global_pose(head) * rig.first_person_eye(-0.1))
+		# Adelantada sobre el cuello y los hombros, como en el juego.
+		_eye_world += CombatPose.shoulder_clearance(skel, _eye_world, Vector3(0, 0, 1))
+		if OS.get_cmdline_user_args().has("--eye-log"):
+			# Dónde quedan respecto al ojo el pecho, los hombros, el cuello y la cabeza: grados por
+			# encima de la horizontal, y metros por delante y de alto.
+			var out := "eye %.2f" % (Engine.get_process_frames() / FPS)
+			for bn in ["mixamorig_Spine2", "mixamorig_LeftShoulder", "mixamorig_RightShoulder", "mixamorig_Neck", "mixamorig_Head"]:
+				var v := p.bone_world(bn) - _eye_world
+				out += "  %s %.0f° %.2fm alto %.2f" % [bn.replace("mixamorig_", ""), rad_to_deg(atan2(v.y, maxf(v.z, 0.001))), v.z, v.y]
+			print(out)
 	if _placer.is_valid():
 		_placer.call(p)
 
@@ -738,8 +764,23 @@ func _drive_sling(t: float) -> void:
 	# Con la vista eye, la pose de primera persona: se apunta por la horquilla.
 	if _views.has("eye"):
 		pose.fp_eye = (model.get_node("AppearanceRig") as CharacterAppearanceRig).first_person_eye(-0.1)
+		pose.fp_view = Basis.looking_at(pose.aim_dir, Vector3.UP)
 	_placer = func(p: CombatPose) -> void:
 		var z := p.aim_dir.normalized()
 		var y := (Vector3.UP - z * Vector3.UP.dot(z)).normalized()
 		slingshot.global_transform = Transform3D(Basis(y.cross(z), y, z), p.sling_grip + y * 0.05)
 		slingshot.set_draw_point(p.bone_world("mixamorig_RightHandMiddle1") if p.draw > 0.02 else null)
+
+
+## Golpes: con la vista eye, como en el juego en primera persona, la hoja no se sale de la vista
+## (CombatPose._apply_fp_reach); --no-reach lo quita para comparar.
+func _drive_fp_melee(_t: float) -> void:
+	if not _views.has("eye") or OS.get_cmdline_user_args().has("--no-reach"):
+		return
+	pose.fp_eye = (model.get_node("AppearanceRig") as CharacterAppearanceRig).first_person_eye(-0.1)
+	var look := Vector3(0, sin(deg_to_rad(_aim_pitch)), cos(deg_to_rad(_aim_pitch)))
+	pose.fp_view = Basis.looking_at(look, Vector3.UP)
+	pose.fp_reach = 1.0
+	# La espada de hierro: de blade_start (0,14) a reach (0,93).
+	pose.fp_blade_mid = 0.54
+	pose.fp_reach_both = OS.get_cmdline_user_args().has("--two-handed")

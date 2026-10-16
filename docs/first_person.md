@@ -76,6 +76,25 @@ Mientras rueda (`PlayerCombat.roll_progress`, interpolado entre ticks como el cu
 Acabada la voltereta, el cuerpo se pone de cara a la vista (`PlayerCombat._set_state`) antes de volver
 a enseñarse. El paso atrás (quieto) sigue con la cámara en la cabeza: no gira el cuerpo.
 
+## Golpes
+
+Los golpes son animaciones de tercera persona: los tajos pasan a la altura de la cintura y el pecho,
+por debajo de lo que ve la cámara en la cabeza o pegados al borde, y en algunos el tronco se echa hacia
+delante con la cabeza atrás, de modo que la cámara queda detrás del cuello y el pecho llena media
+pantalla. Dos correcciones, solo en primera persona:
+
+- **La hoja en la vista** (`CombatPose._apply_fp_reach`, mientras golpea a una criatura; talando o
+  picando no): si la mitad de la hoja (`fp_blade_mid`, entre `blade_start` y `reach` del arma) se
+  aparta más de `FP_REACH_VIEW` del centro de la vista (30° a los lados, 20° hacia abajo), el brazo
+  entero gira sobre el hombro lo justo para meterla, sin doblar el codo, y la mano gira al revés: la
+  hoja conserva su giro y su recorrido. Con un arma a dos manos la izquierda la sigue. Entra y sale en
+  `PlayerCombat.FP_REACH_BLEND` (0,12 s). La hoja que hiere es la que se ve, así que los golpes van
+  hacia donde se mira: mirando abajo, a un lobo, también bajan (con `LookAtIK`).
+- **La cámara por delante de los hombros** (`CombatPose.shoulder_clearance`, en `CameraController`):
+  se adelanta en horizontal lo justo para quedar `FP_SHOULDER_CLEAR` (5 cm) por delante del cuello y
+  las clavículas. De pie no se mueve; en el golpe horizontal llega a unos 20 cm. Trepando no se aplica:
+  mirando arriba la cabeza también va atrás y la cámara se metería en la pared.
+
 ## Apuntar
 
 - **Tirachinas** (`CombatPose`, `aim_style` `sling`): se apunta por la horquilla. `PlayerCombat` le pasa
@@ -98,6 +117,9 @@ a enseñarse. El paso atrás (quieto) sigue con la cámara en la cabeza: no gira
 | `FP_ROLL_PITCH`, `FP_ROLL_BANK` | `CameraController` | 10°, 9° |
 | `SLING_SIGHT_DROP` | `CombatPose` | 0,16 m |
 | `SLING_FP_ANCHOR` | `CombatPose` | 0,03, -0,08, 0,11 m |
+| `FP_REACH_VIEW` | `CombatPose` | 30°, 20° |
+| `FP_SHOULDER_CLEAR` | `CombatPose` | 0,05 m |
+| `FP_REACH_BLEND` | `PlayerCombat` | 0,12 s |
 | `first_person_weights` | `LookAtIK` | 0,3, 0,3, 0,15, 0,25 |
 | `FP_TURN_START` | `PlayerController` | 50° |
 | `FP_SQUARE_BLEND` | `PlayerController` | 0,15 s |
@@ -116,10 +138,11 @@ punto del ojo. `test_first_person`, que `FirstPersonSquare` mantiene el pecho al
 el pesado de la espada. `first_person_preview` guarda en `build/character/first_person_<tag>.png` la
 vista desde la cabeza con varias animaciones y golpes, y una desde fuera; `--loose` quita
 `FirstPersonSquare`. Para las poses de combate desde el ojo, `anim_stage` con la vista `eye`
-(`--scene=sling --views=eye,front`, ver [combat.md](combat.md#pruebas)).
+(`--scene=sling --views=eye,front`, `--scene=combo --views=eye --pitch=-10`; ver
+[combat.md](combat.md#pruebas)).
 
 ## Pendiente
 
-- Golpes que apenas se ven desde la cabeza (el segundo del combo de espada, el horizontal).
+- La preparación de algunos golpes (alzar la espada sobre la cabeza) queda fuera de la vista.
 - Tambalearse, morir y escalar: la cámara sigue a la cabeza tal cual.
 - El arma atraviesa las paredes al pegarse a ellas.

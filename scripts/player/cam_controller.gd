@@ -306,6 +306,13 @@ func _place_on_head() -> void:
 		_on_head = false
 		return
 	var world := _skeleton.global_transform * (_skeleton.get_bone_global_pose(head) * eye)
+	# El PitchPivot va girado 180°: la vista es -Z del pivote de yaw.
+	var ahead := -camera_pivot.global_basis.z
+	ahead -= _current_up_axis * ahead.dot(_current_up_axis)
+	# En algunos golpes el tronco se echa hacia delante y la cabeza se queda atrás. Trepando no:
+	# mirando arriba la cabeza también va atrás, y la cámara se metería en la pared.
+	if ahead.length_squared() > 1e-6 and not player.climb.is_active():
+		world += CombatPose.shoulder_clearance(_skeleton, world, ahead.normalized())
 	var local: Vector3 = player.global_transform.affine_inverse() * world
 	var drawn: Transform3D = player.get_global_transform_interpolated()
 	var position: Vector3 = drawn * local
