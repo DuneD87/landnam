@@ -14,15 +14,16 @@ const LUNG := &"lung"
 const HEART := &"heart"
 ## Radio del cuerpo (m) del animal para el que está hecha la malla.
 const REFERENCE_RADIUS := 0.4
-const SCALE_LIMITS := Vector2(0.35, 3.0)
+## Desde las de un pájaro (0,08 m de radio) hasta las de un mamut.
+const SCALE_LIMITS := Vector2(0.15, 3.0)
 ## Terreno, grids y barcos.
 const WORLD_MASK := 1
 
 static var _mesh: ArrayMesh
 
 
-## Pone las vísceras de [npc] en el suelo, desde [point] hacia [side] (horizontal), para un cuerpo
-## de [radius] m. Devuelve el nodo, o null si no hay suelo.
+## Pone las vísceras de [npc] (un animal grande o uno pequeño) en el suelo, desde [point] hacia
+## [side] (horizontal), para un cuerpo de [radius] m. Devuelve el nodo, o null si no hay suelo.
 static func spawn(npc: Node3D, point: Vector3, side: Vector3, up: Vector3, radius: float) -> Node3D:
 	var at := point + side * (radius * 0.6 + 0.1)
 	var query := PhysicsRayQueryParameters3D.create(at + up * 1.5, at - up * 3.0, WORLD_MASK)

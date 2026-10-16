@@ -6,6 +6,7 @@
 [ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_adult.tres" id="v_adult"]
 [ext_resource type="Resource" path="res://data/fauna/variants/small_mammal_large.tres" id="v_large"]
 [ext_resource type="Resource" path="res://data/fauna/models/fox.tres" id="2_model"]
+[ext_resource type="Resource" path="res://data/fauna/loot/fox.tres" id="loot"]
 
 [resource]
 script = ExtResource("1")
@@ -33,3 +34,4 @@ day_activity = 0.4
 twilight_activity = 1.0
 night_activity = 0.9
 variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])
+butcher_loot = ExtResource("loot")

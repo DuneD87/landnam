@@ -118,8 +118,9 @@ es local: no utiliza navegación global ni intenta resolver laberintos.
 
 El cuerpo usa colisión física y gravedad radial; los destinos se guardan en
 coordenadas del terreno para seguir el origen flotante. Las criaturas reciben
-daño e impactos mediante `AmbientAnimal`, sin cadáver persistente. La categoría
-`fauna:small_ground` registra su coste en `DebugStats`.
+daño e impactos mediante `AmbientAnimal`; al morir dejan su cadáver (`FaunaCorpse`), que dura
+90 s y, el de conejos, liebres y zorros, se despieza (ver [items.md](items.md#animales-pequeños)).
+La categoría `fauna:small_ground` registra su coste en `DebugStats`.
 
 ## Verificación y vista previa
 

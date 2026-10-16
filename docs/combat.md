@@ -336,10 +336,13 @@ que todas las especies tienen cuatro patas y el cuello que cortar.
 Al morir, la fauna ambiental (`AmbientAnimal.die`) sangra con los efectos del combate
 (`CombatFx.blood`: chorro, gotas, salpicaduras en el suelo y en la hierba) en vez de la
 nube vieja, que se queda solo para peces y animales marinos (bajo el agua). Conejos,
-zorros, ratones y aves dejan un cadáver (`FaunaCorpse`): copia quieta de las mallas del
-modelo en la pose en que murió, en un RigidBody que cae y se vuelca; al pararse deja un
-charco y se va a los 90 s (16 a la vez). Un pato o una gaviota posados en el agua no dejan
-cadáver (se hundiría). Los animales grandes ya dejaban cuerpo; ahora también sangran así.
+zorros, ratones y aves dejan un cadáver (`FaunaCorpse`), también sin gore: copia quieta de las
+mallas del modelo en la pose en que murió, en un RigidBody que cae y se vuelca; al pararse deja un
+charco (con sangre) y se va a los 90 s (16 a la vez). Un pato o una gaviota posados en el agua no
+dejan cadáver (se hundiría). Las aves sueltan además una nube de plumas (`FeatherPuff`) del color
+de su plumaje. Los animales grandes ya dejaban cuerpo; ahora también sangran así. El cadáver de los
+que dan algo se despieza como el de uno grande (ver [items.md](items.md#animales-pequeños)), y la
+flecha o la lanza que los mata se queda en él (`CombatProjectile._keep_in`, como en los grandes).
 
 ### Lisiado
 

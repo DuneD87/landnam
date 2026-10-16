@@ -2,8 +2,8 @@ extends SceneTree
 
 ## Hornea las armas de combate: mallas (data/items/meshes/weapons/), escenas de arma
 ## (scenes/items/weapons/combat/) e iconos de inventario (textures/icons/items/weapons/). También los
-## objetos de supervivencia (SurvivalMeshes: carne, piel, odre, hoguera, banco de trabajo), en sus
-## carpetas survival/.
+## objetos de supervivencia (SurvivalMeshes: carne, piel, lo que dan los animales, odre, hoguera,
+## banco de trabajo), en sus carpetas survival/.
 ## Los iconos se renderizan, así que NO va con --headless:
 ##   godot --path . --script res://tools/combat/bake_weapons.gd [-- --only=greatsword,war_hammer]
 ## Después, `godot --headless --path . --import` para importar los PNG nuevos.
@@ -46,6 +46,7 @@ var SURVIVAL := {
 	"ivory": [SurvivalMeshes.ivory, -30.0, 90.0, 0.0, true],
 	"horn": [SurvivalMeshes.horn, 0.0, 90.0, 0.0, true],
 	"plant_fiber": [SurvivalMeshes.plant_fiber, -45.0, 0.0, 0.0, true],
+	"feather": [SurvivalMeshes.feather, -40.0, 0.0, 0.0, true],
 	"waterskin": [SurvivalMeshes.waterskin, -10.0, 0.0, 0.0, true],
 	"campfire": [SurvivalMeshes.campfire, 0.0, 0.0, 32.0, false],
 	"stone_workbench": [SurvivalMeshes.workbench, 0.0, -28.0, 22.0, false],
@@ -83,6 +84,7 @@ const ICON_COLORS := {
 	&"ivory": Color(0.97, 0.93, 0.83, 1.0),
 	&"horn": Color(0.40, 0.33, 0.27, 1.0),
 	&"plant_fiber": Color(0.74, 0.70, 0.44, 1.0),
+	&"plume": Color(0.80, 0.76, 0.68, 1.0),
 }
 
 

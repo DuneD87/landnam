@@ -60,6 +60,7 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Piel | `raw_hide` | Material de caza |
 | Hueso, tendón | `bone`, `sinew` | Materiales de caza: casi todos los animales |
 | Asta, colmillo de jabalí, marfil, cuerno | `antler`, `boar_tusk`, `ivory`, `horn` | Materiales de caza: los ciervos, el jabalí, el mamut y el elefante, los de cuernos |
+| Pluma | `feather` | Material de caza: las aves |
 | Fibra vegetal | `plant_fiber` | Se arranca de los arbustos |
 | Odre | `waterskin` | 5 tragos de agua |
 | Hoguera | `campfire` | Se planta en el suelo |
@@ -74,7 +75,8 @@ Un animal muerto se despelleja con E llevando el seax (o lo que tenga
 cuchillo.
 
 Despellejar lleva un rato (`Butchering`): 20 s por metro de radio del cuerpo,
-entre 6 y 22 (un lobo, unos 7 s; un ciervo, 11; un mamut, 22). El jugador se agacha de cara
+entre 6 y 22 (un lobo, unos 7 s; un ciervo, 11; un mamut, 22; los pequeños, desde 3: ver
+[Animales pequeños](#animales-pequeños)). El jugador se agacha de cara
 al cadáver y corta por el lado que le da. Trabaja con el clip `butcher` en bucle
 en el canal de tronco y brazos (`PlayerCombat.play_task`), sobre las piernas
 agachadas. De momento es provisional: un tajo de espada en guardia baja
@@ -174,11 +176,49 @@ grosor de su cuerpo. Algunos ejemplos:
 | Mamut | 12 | 5 | 6 | 3 | 2 marfiles |
 | Elefante | 10 | 4 | 5 | 3 | 2 marfiles |
 
-Las mallas de los materiales de caza (hueso, tendón, asta, colmillo, marfil y
-cuerno) salen de `SurvivalMeshes`, como la carne y la piel.
+Las mallas de los materiales de caza (hueso, tendón, asta, colmillo, marfil,
+cuerno y pluma) salen de `SurvivalMeshes`, como la carne y la piel.
 
 Después se saquea como cualquier botín. Los animales ya no traen madera y
-piedra de relleno.
+piedra de relleno. Lo que se le quedó clavado (la lanza siempre, seis de cada
+diez flechas) sale con lo demás: `HuntingLoot.fill` lo suma a lo que ya llevaba.
+
+#### Animales pequeños
+
+Conejos, liebres árticas, zorros, zorros árticos y aves (los de bosque, las
+gaviotas y los patos) se despiezan igual: E sobre su cadáver (`FaunaCorpse`, a
+menos de 2,5 m: `PlayerController.SMALL_CORPSE_REACH`) con el cuchillo en la mano.
+El cadáver lleva para esto lo mismo que un `NPCController` muerto (`is_dead`,
+`butchered`, `butcher_progress`, `inventory`, `butcher_loot`, `body_size`,
+`get_skeleton`, `get_lock_point`, `butcher_shape`, `butcher_model`), que es lo que
+usan `Butchering`, `Carcass` y `HuntingLoot`. Cambia que:
+
+- Lo que da va en el perfil de la especie (`AmbientFaunaProfile.butcher_loot`,
+  grupo *Caza*), que `AmbientAnimal.die` pasa al cadáver con su tamaño, el grueso
+  de su cuerpo (el radio de su cápsula, o media esfera en las aves) y el color de
+  sus plumas (`FaunaCorpse.set_hunt`). Sin él (ratones, lémmings) no se despieza y
+  E sigue a lo demás.
+- No se desmiembra. Lleva desde 3 s (`Butchering.SMALL_MIN_TIME`: un conejo o un
+  pájaro, 3; un zorro, 3,4) y sangra a su medida (`FX_RADIUS`). La canal y las
+  vísceras salen a su tamaño.
+- A las aves se las despluma: cada tajo, cada tirón y el final sueltan plumas
+  (`FaunaCorpse.pluck`, `FeatherPuff`) que bajan despacio meciéndose, del color de
+  la especie (`AmbientBird.PLUMES`).
+- Mientras se trabaja en él se queda quieto y no se va; despiezado, dura otros
+  90 s, y vacío ya no lo coge la E. Si se va con el botín abierto, se cierra.
+- Su cadáver sale con cualquier nivel de gore (antes, sin gore, desaparecía).
+
+| Especie | Da (un adulto de tamaño 1) |
+|---|---|
+| Conejo | 1 carne y, la mitad de las veces, 1 piel |
+| Liebre ártica | 1 carne y, seis de cada diez, 1 piel |
+| Zorro, zorro ártico | 1 carne, 1 piel y, la mitad de las veces, 1 hueso |
+| Gorrión, petirrojo, herrerillo | 3 plumas y, tres de cada diez, 1 carne |
+| Gaviota, pato | 5 plumas y 1 carne |
+
+`tests/items/test_hunting_loot.tscn` comprueba que los perfiles que se despiezan
+traen lo suyo, que ratones y lémmings no, y que un cadáver se llena, guarda lo que
+se le clavó y deja de cogerse vacío.
 
 ### Fibra vegetal
 

@@ -34,6 +34,8 @@ const NOISE_SPRINT := 1.3
 const STILL_SPEED := 0.3
 ## Lo que se le ve agachado, para la vista de las criaturas (ver get_visibility).
 const VISIBILITY_CROUCH := 0.6
+## Hasta dónde llega E a un animal pequeño muerto (m, de los pies al centro del cadáver).
+const SMALL_CORPSE_REACH := 2.5
 
 const config = preload("res://scripts/config.gd")
 const data = preload("res://scripts/items/item_data.gd")
@@ -786,14 +788,23 @@ func _clear_visual_equipment() -> void:
 			child.queue_free()
 
 			
-func _find_nearby_corpse(max_dist: float = 4.0) -> NPCController:
+## El cadáver más cercano que se puede despiezar o saquear: un animal grande muerto (NPCController,
+## a menos de [max_dist]) o uno pequeño (FaunaCorpse, a menos de SMALL_CORPSE_REACH) cuya especie
+## dé algo.
+func _find_nearby_corpse(max_dist: float = 4.0) -> Node3D:
+	var best: Node3D = FaunaCorpse.nearest(global_position, SMALL_CORPSE_REACH)
+	var best_dist := global_position.distance_to(best.global_position) if best != null else INF
 	for node in get_tree().get_nodes_in_group("npc"):
 		if not is_instance_valid(node):
 			continue
 		var npc := node as NPCController
-		if npc and npc.is_dead and global_position.distance_to(npc.global_position) <= max_dist:
-			return npc
-	return null
+		if npc == null or not npc.is_dead:
+			continue
+		var dist := global_position.distance_to(npc.global_position)
+		if dist <= max_dist and dist < best_dist:
+			best = npc
+			best_dist = dist
+	return best
 
 
 ## Lo que está haciendo en combate, para las criaturas que pelean con él (CombatRead).

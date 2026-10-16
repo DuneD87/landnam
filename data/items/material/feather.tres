@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/feather.png" id="1_feath"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_ejppn"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_m3mek"]
+
+[resource]
+script = ExtResource("2_ejppn")
+id = &"feather"
+display_name = "Pluma"
+description = "Pluma de ala de un ave desplumada. Partida por el cañón y atada a la vara, hace que la flecha vuele derecha."
+icon = ExtResource("1_feath")
+scene_path = "res://scenes/items/survival/feather.tscn"
+max_stack = 50
+group = &"hunt"

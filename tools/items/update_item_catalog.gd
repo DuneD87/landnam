@@ -150,6 +150,7 @@ func _create_new() -> void:
 		"boar_tusk": ["Colmillo de jabalí", 20, "Colmillo curvo de un jabalí, afilado de por sí. Cosidos en hileras sobre cuero se hacían cascos."],
 		"ivory": ["Marfil", 6, "Colmillo de mamut o de elefante. Se talla como el hueso, pero es más duro y más vistoso."],
 		"horn": ["Cuerno", 10, "Cuerno de un bóvido, una cabra o un rinoceronte. Al fuego se ablanda y se curva: vasos, cucharas y arcos compuestos."],
+		"feather": ["Pluma", 50, "Pluma de ala de un ave desplumada. Partida por el cañón y atada a la vara, hace que la flecha vuele derecha."],
 	}
 	for id in hunt:
 		_create("material/" + id, {

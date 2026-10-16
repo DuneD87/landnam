@@ -609,6 +609,20 @@ func get_lock_point() -> Vector3:
 	return collision_shape.global_position if collision_shape != null else global_position
 
 
+## Para despiezarlo (Butchering, Carcass; lo mismo lleva FaunaCorpse): el grueso (radio) y el largo
+## del cuerpo (m), los de su cápsula de colisión a su tamaño.
+func butcher_shape() -> Vector2:
+	var capsule := collision_shape.shape as CapsuleShape3D if collision_shape != null else null
+	if capsule == null:
+		return Vector2(0.4, 1.3)
+	return Vector2(capsule.radius, capsule.height) * collision_shape.global_basis.get_scale().x
+
+
+## Lo que se esconde al quedar la canal (Carcass.strip).
+func butcher_model() -> Node3D:
+	return npc_model
+
+
 func _on_landed(impact_speed: float) -> void:
 	health_component.take_fall_damage(impact_speed)
 

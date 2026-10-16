@@ -38,6 +38,12 @@ class_name AmbientFaunaProfile extends Resource
 ## ecuador, sin estaciones, no cuenta.
 @export var season_activity: PackedFloat32Array = PackedFloat32Array([1.0, 1.0, 1.0, 1.0])
 
+@export_group("Caza")
+## Lo que da el cadáver de uno (FaunaCorpse) al despiezarlo (Butchering, HuntingLoot), para un
+## adulto de tamaño 1: se escala con el suyo. Ninguno = no se despieza (ratones, peces). Las criaturas
+## con escena propia lo llevan en ella (NPCController.butcher_loot).
+@export var butcher_loot: LootTable
+
 
 ## La mayor escala a la que sale uno (la mayor de sus variantes; 1 sin variantes): clearance tiene
 ## que abarcarlo.

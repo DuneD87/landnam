@@ -6,7 +6,15 @@ class_name AmbientBird extends AmbientAnimal
 
 enum State { TAKEOFF, FLYING, APPROACH, PERCHED }
 @export_enum("Aleatorio:-1", "Gorrión:0", "Petirrojo:1", "Herrerillo:2", "Gaviota:3", "Pato:4") var bird_type: int = -1
+## El color de las plumas que suelta al morir y al desplumarla (FeatherPuff), por especie (las de
+## bird_type).
+const PLUMES: Array[Color] = [Color(0.55, 0.42, 0.30), Color(0.52, 0.42, 0.32), Color(0.50, 0.60, 0.70),
+	Color(0.93, 0.93, 0.91), Color(0.55, 0.47, 0.36)]
+## Las plumas que suelta al morir.
+const DEATH_FEATHERS := 10
 var state: State = State.FLYING
+## La especie que le ha tocado (la de bird_type, o una al azar entre las tres de bosque).
+var _species: int = 0
 var _forest: AmbientBirdHabitat
 var _settings: AmbientBirdProfile
 var _perch: Dictionary = {}
@@ -85,7 +93,8 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat, rng: RandomNumbe
 	_audio_rng.seed = _rng.seed ^ 0xB17D
 	_model.rotation = Vector3.ZERO
 	_model.position = Vector3.ZERO
-	_model.set_species(_rng.randi_range(0, 2) if bird_type < 0 else bird_type)
+	_species = _rng.randi_range(0, 2) if bird_type < 0 else bird_type
+	_model.set_species(_species)
 	roll_variant(_rng)
 	# El giro y la posición del modelo cambian al volar y posarse; su escala se queda.
 	_model.scale = Vector3.ONE * body_size
@@ -693,6 +702,18 @@ func _start_hop() -> void:
 
 func _corpse_model() -> Node3D:
 	return _model
+
+
+func _plume_color() -> Color:
+	return PLUMES[clampi(_species, 0, PLUMES.size() - 1)]
+
+
+## La sangre y una nube de plumas.
+func _death_fx(point: Vector3) -> void:
+	super._death_fx(point)
+	var up := _up()
+	if up != Vector3.ZERO:
+		FeatherPuff.spawn(self, point, up, _plume_color(), DEATH_FEATHERS, _corpse_radius())
 
 
 func _up() -> Vector3:

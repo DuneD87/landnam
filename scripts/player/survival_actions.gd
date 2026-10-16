@@ -8,6 +8,7 @@ extends Node
 ##   llena los odres. El agua del mar no quita la sed.
 ## - E sobre un animal muerto lo despelleja si se lleva en la mano algo que despelleje (el seax:
 ##   SkinningTrait), lo que lleva un rato (Butchering), y abre lo que da (HuntingLoot) como un botín.
+##   También los pequeños (FaunaCorpse: conejos, zorros, aves; a las aves, se las despluma).
 ## - E junto a una hoguera la abre (InventoryUI.open_campfire); junto a una estación de trabajo,
 ##   abre la ventana de fabricar en sus recetas (InventoryUI.open_station).
 ## - Con algo que se planta seleccionado (una hoguera, un banco de trabajo: GroundPlaceableTrait),
@@ -118,36 +119,46 @@ func _drink_from_skin() -> void:
 
 # --- E --------------------------------------------------------------------------------------------
 
-## Despelleja [npc] si hace falta (con un cuchillo en la mano; lleva un rato) y, ya despellejado,
-## abre lo que da.
-func open_corpse(npc: NPCController) -> void:
-	if not npc.butchered:
+## Despelleja (o despluma) [body] si hace falta (con un cuchillo en la mano; lleva un rato) y, ya
+## despellejado, abre lo que da. [body] es un NPCController muerto o un FaunaCorpse.
+func open_corpse(body: Node3D) -> void:
+	var bird := _is_bird(body)
+	if not body.butchered:
 		if _butchering.is_active():
 			return
 		if _skinning_tool() == null:
-			notify("Necesitas un cuchillo en la mano para despellejarlo")
+			notify("Necesitas un cuchillo en la mano para %s" % ("desplumarlo" if bird else "despellejarlo"))
 			return
-		_butchering.start(npc)
-		notify("Lo despellejas… (moverte lo deja a medias)" if npc.butcher_progress == 0.0
-			else "Sigues despellejándolo…")
+		_butchering.start(body)
+		if body.butcher_progress == 0.0:
+			notify("Lo %s… (moverte lo deja a medias)" % ("desplumas" if bird else "despellejas"))
+		else:
+			notify("Sigues %s…" % ("desplumándolo" if bird else "despellejándolo"))
 		return
-	_open_loot(npc)
+	_open_loot(body)
 
 
-func _on_butchered(npc: NPCController) -> void:
+func _on_butchered(body: Node3D) -> void:
 	var knife := _skinning_tool()
-	HuntingLoot.fill(npc, knife.yield_mult if knife != null else 1.0)
-	npc.butchered = true
-	notify("Lo despellejas")
-	_open_loot(npc)
+	HuntingLoot.fill(body, knife.yield_mult if knife != null else 1.0)
+	body.butchered = true
+	notify("Lo desplumas" if _is_bird(body) else "Lo despellejas")
+	_open_loot(body)
 
 
-func _open_loot(npc: NPCController) -> void:
-	if npc.inventory.get_free_slots() >= npc.inventory.max_slots:
+func _open_loot(body: Node3D) -> void:
+	var inventory: Inventory = body.inventory
+	if inventory.get_free_slots() >= inventory.max_slots:
 		notify("Ya no queda nada que aprovechar")
 		return
-	_player.inventory_ui.open_loot(npc.inventory)
+	_player.inventory_ui.open_loot(inventory)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+
+
+## Si [body] es un ave (se despluma en vez de despellejarse).
+static func _is_bird(body: Node3D) -> bool:
+	var corpse := body as FaunaCorpse
+	return corpse != null and corpse.plume.a > 0.0
 
 
 ## Abre la hoguera de al lado, si la hay.

@@ -145,9 +145,22 @@ func _loose_creature(from: Vector3, to: Vector3) -> AmbientAnimal:
 	return found[0] if not found.is_empty() else null
 
 
+## Una criatura sin hurtbox (fauna pequeña, aves): si la mata, la flecha o la lanza se queda en su
+## cadáver (FaunaCorpse), para recuperarla al despiezarlo, como en las grandes.
 func _hit_loose(creature: AmbientAnimal) -> void:
 	creature.take_damage(damage, shooter)
+	if not creature.active and is_instance_valid(creature.corpse) and creature.corpse.inventory != null:
+		_keep_in(creature.corpse.inventory)
 	queue_free()
+
+
+## Se queda en el cuerpo en que se ha clavado (en [inventory], lo que se saquea al despiezarlo): la
+## lanza siempre, la flecha seis de cada diez (las demás se parten), la piedra nunca.
+func _keep_in(inventory: Inventory) -> void:
+	if item_data == null or kind == Kind.STONE:
+		return
+	if kind == Kind.SPEAR or randf() < 0.6:
+		inventory.add_item(item_data, 1)
 
 
 func _scaled_damage() -> float:
@@ -175,9 +188,8 @@ func _hit_hurtbox(box: Hurtbox, point: Vector3) -> void:
 	# Se clava: sigue al hurtbox (que sigue al hueso o al cuerpo).
 	_stick(point + velocity.normalized() * (0.10 if kind == Kind.ARROW else 0.18), box)
 	var npc := box.owner_body as NPCController
-	if npc != null and item_data != null and npc.inventory != null:
-		if kind == Kind.SPEAR or randf() < 0.6:
-			npc.inventory.add_item(item_data, 1)
+	if npc != null and npc.inventory != null:
+		_keep_in(npc.inventory)
 	# Sin ocupar el cuerpo para siempre: una flecha en un oso se va con el tiempo.
 	get_tree().create_timer(12.0 if kind == Kind.ARROW else 25.0).timeout.connect(
 		func(): if is_instance_valid(self): queue_free())

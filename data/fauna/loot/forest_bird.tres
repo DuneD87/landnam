@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LootTable" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/loot_entry.gd" id="1_entry"]
+[ext_resource type="Script" path="res://scripts/items/loot_table.gd" id="2_table"]
+
+[sub_resource type="Resource" id="Resource_feather"]
+script = ExtResource("1_entry")
+item = &"feather"
+amount = 3
+
+[sub_resource type="Resource" id="Resource_raw_meat"]
+script = ExtResource("1_entry")
+item = &"raw_meat"
+chance = 0.3
+
+[resource]
+script = ExtResource("2_table")
+entries = Array[ExtResource("1_entry")]([SubResource("Resource_feather"), SubResource("Resource_raw_meat")])

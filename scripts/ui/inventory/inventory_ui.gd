@@ -792,6 +792,8 @@ func open_loot(loot_inv: Inventory) -> void:
 		close_loot()
 	_loot_inventory = loot_inv
 	_loot_inventory.inventory_changed.connect(_refresh_loot)
+	# El cadáver se va (pasado su rato) con el botín abierto: se cierra con él.
+	_loot_inventory.tree_exiting.connect(close_loot)
 	_create_loot_slots()
 	_update_side()
 	_refresh_loot()
@@ -801,6 +803,8 @@ func open_loot(loot_inv: Inventory) -> void:
 func close_loot() -> void:
 	if _loot_inventory and _loot_inventory.inventory_changed.is_connected(_refresh_loot):
 		_loot_inventory.inventory_changed.disconnect(_refresh_loot)
+	if _loot_inventory and _loot_inventory.tree_exiting.is_connected(close_loot):
+		_loot_inventory.tree_exiting.disconnect(close_loot)
 	_loot_inventory = null
 	for slot in _loot_slots:
 		if slot == _card_slot:

@@ -34,6 +34,9 @@ var body_size: float = 1.0
 var damage_scale: float = 1.0
 var speed_scale: float = 1.0
 var voice_pitch: float = 1.0
+## El cadáver que dejó al morir (FaunaCorpse), para que el proyectil que lo mató se quede en él.
+## null mientras vive y si no dejó ninguno.
+var corpse: FaunaCorpse
 
 
 func activate(point: Vector3, environment: AmbientFaunaHabitat,
@@ -43,6 +46,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	velocity = Vector3.ZERO
 	active = true
 	retiring = false
+	corpse = null
 	process_mode = Node.PROCESS_MODE_INHERIT
 	add_to_group(GROUP)
 	if health_component != null:
@@ -173,18 +177,23 @@ func take_damage(amount: float, source: Node = null) -> void:
 
 ## Death at [point]: blood, a corpse when the species leaves one (FaunaCorpse, apart from the
 ## creature) and back to the pool. Creatures that play a death animation override this.
+## El cadáver sale con cualquier nivel de gore (sin él, sin charco), y se despieza si su especie da
+## algo (butcher_loot del perfil).
 func die(point: Vector3) -> void:
 	if not active:
 		return
 	_death_fx(point)
 	AudioManager.play_material(&"fauna_burst", audio_family(), point)
 	var model := _corpse_model()
-	if model != null and model.is_visible_in_tree() and SettingsManager.gore_level() != SettingsManager.GORE_OFF:
+	if model != null and model.is_visible_in_tree():
 		var host := get_tree().current_scene
 		if host != null:
 			var up := _up()
 			if up != Vector3.ZERO:
-				FaunaCorpse.spawn(host, model, velocity, -up * 9.8, 1, _corpse_death())
+				corpse = FaunaCorpse.spawn(host, model, velocity, -up * 9.8, 1, _corpse_death())
+				if corpse != null:
+					corpse.set_hunt(profile.butcher_loot if profile != null else null, body_size,
+						_corpse_radius(), _plume_color())
 	deactivate()
 	startle_near(get_tree(), point, DEATH_STARTLE_RADIUS)
 
@@ -256,6 +265,25 @@ func _corpse_model() -> Node3D:
 ## La animación de muerte que hace el cadáver (pistas desde su esqueleto), o null.
 func _corpse_death() -> Animation:
 	return null
+
+
+## El grueso del cuerpo (m) para despiezar el cadáver: el radio de su cápsula de colisión, o media
+## esfera (la de las aves abarca también las alas y la cola).
+func _corpse_radius() -> float:
+	var node := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	var scale := node.global_basis.get_scale().x if node != null else 1.0
+	var capsule := node.shape as CapsuleShape3D if node != null else null
+	if capsule != null:
+		return capsule.radius * scale
+	var sphere := node.shape as SphereShape3D if node != null else null
+	if sphere != null:
+		return sphere.radius * scale * 0.5
+	return impact_radius * 0.5
+
+
+## El color de sus plumas, si es un ave (las que suelta al morir y al desplumarla); transparente si no.
+func _plume_color() -> Color:
+	return Color.TRANSPARENT
 
 
 ## Arriba donde está, el mismo con el que se mueve (cada especie lo lleva a su manera). ZERO si no

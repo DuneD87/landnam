@@ -3,7 +3,7 @@ class_name SurvivalMeshes
 extends RefCounted
 
 ## Mallas de los objetos de supervivencia (el seax, la carne, la piel, lo que dan los animales al
-## despiezarlos, la fibra de los arbustos, el odre, la hoguera y el banco de trabajo; de los dos últimos solo sale el icono: en
+## despiezarlos (también las plumas de las aves), la fibra de los arbustos, el odre, la hoguera y el banco de trabajo; de los dos últimos solo sale el icono: en
 ## el mundo se ven con sus modelos),
 ## generadas por código con los ayudantes de WeaponMeshes y horneadas a recursos, con sus iconos,
 ## por tools/combat/bake_weapons.gd. Metros; las de mano, con el origen en el agarre y +Y hacia la
@@ -19,6 +19,7 @@ const ANTLER := &"antler"
 const IVORY := &"ivory"
 const HORN := &"horn"
 const PLANT_FIBER := &"plant_fiber"
+const PLUME := &"plume"
 
 
 static func make_material(kind: StringName) -> StandardMaterial3D:
@@ -55,6 +56,9 @@ static func make_material(kind: StringName) -> StandardMaterial3D:
 		PLANT_FIBER:
 			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.36, 0.34, 0.18), Color(0.66, 0.60, 0.38), 3.0, 67)
 			mat.roughness = 0.9
+		PLUME:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.36, 0.30, 0.24), Color(0.74, 0.70, 0.62), 4.0, 71)
+			mat.roughness = 0.85
 		_:
 			return WeaponMeshes.make_material(kind)
 	return mat
@@ -177,6 +181,47 @@ static func plant_fiber() -> ArrayMesh:
 	_strands(st, 9, 10, 0.16, 0.0032, 0.012)
 	for y in [-0.05, 0.05]:
 		WeaponMeshes.lathe(st, [Vector2(0.0095, y - 0.006), Vector2(0.0108, y), Vector2(0.0095, y + 0.006)], 10)
+	return b.commit(make_material)
+
+
+## Pluma de ala: el cañón, pelado abajo, afinándose hasta la punta y algo curvado, y las barbas a los
+## dos lados, la de delante estrecha, inclinadas hacia la punta y algo combadas. Las barbas van por
+## las dos caras (el icono no pinta las de atrás). El cañón en el origen y la punta hacia +Y; de cara
+## a +Z.
+static func feather() -> ArrayMesh:
+	var b := WeaponMeshes.Builder.new()
+	var steps := 16
+	var length := 0.2
+	var spine := PackedVector3Array()
+	var radii := PackedVector2Array()
+	for i in steps + 1:
+		var t := float(i) / steps
+		spine.append(Vector3(0.014 * t * t, t * length, 0.0))
+		var r := lerpf(0.0024, 0.0006, t)
+		radii.append(Vector2(r, r))
+	WeaponMeshes.tube(b.st(BONE), spine, radii, 6)
+	var vane := b.st(PLUME)
+	# Cada lado: su anchura (m) y hacia dónde (X).
+	for side in [[0.024, 1.0], [0.009, -1.0]]:
+		var rows: Array[PackedVector3Array] = []
+		for i in steps + 1:
+			var t := float(i) / steps
+			# Pelada hasta el 14 %; la más ancha pasada la mitad y redonda en la punta.
+			var u := clampf((t - 0.14) / 0.86, 0.0, 1.0)
+			var w: float = side[0] * pow(sin(pow(u, 1.3) * PI), 0.6)
+			var row := PackedVector3Array()
+			for k in 3:
+				var f := k / 2.0
+				row.append(spine[i] + Vector3(side[1] * w * f, w * f * 0.35, -0.004 * f * f * w / side[0]))
+			rows.append(row)
+		for i in steps:
+			for k in 2:
+				var a := rows[i][k]
+				var c := rows[i + 1][k + 1]
+				var p := rows[i][k + 1]
+				var q := rows[i + 1][k]
+				WeaponMeshes.quad(vane, a, p, c, q)
+				WeaponMeshes.quad(vane, a, q, c, p)
 	return b.commit(make_material)
 
 

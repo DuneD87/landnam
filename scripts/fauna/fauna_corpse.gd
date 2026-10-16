@@ -7,6 +7,11 @@ extends RigidBody3D
 ## del esqueleto la hace (desde la pose en que murió) y el cuerpo ya no rueda: lo tumba el clip. La criatura
 ## vuelve al pool en el acto; esto se queda aparte. Al pararse deja un charco debajo y se va pasado
 ## un rato, encogiéndose.
+## Si su especie da algo (set_hunt: el butcher_loot de su perfil), se despieza como un animal grande
+## muerto (Butchering, con un cuchillo en la mano) y lo que da se saquea: lleva lo mismo que un
+## NPCController para eso (is_dead, butchered, butcher_progress, inventory, butcher_loot, body_size,
+## get_skeleton, get_lock_point, butcher_shape, butcher_model). Mientras se trabaja en él no se va, y
+## despiezado dura LIFETIME desde ese momento. Las aves sueltan plumas al desplumarlas (pluck).
 
 const LIFETIME := 90.0
 const SHRINK := 1.5
@@ -20,8 +25,31 @@ const STILL_PARAMS := {
 	"movement": 0.0, "run_blend": 0.0, "airborne": 0.0, "vertical_speed": 0.0, "turn_amount": 0.0,
 	"landing": 0.0,
 }
+## Lo que se despieza del largo del cuerpo (sin la cola ni el pico).
+const BODY_LENGTH := 0.8
 
 static var _alive: Array[FaunaCorpse] = []
+
+## Para despiezarlo (Butchering, como un NPCController muerto; ver set_hunt).
+var is_dead := true
+var butchered := false:
+	set(value):
+		butchered = value
+		_hold()
+var butcher_progress := 0.0:
+	set(value):
+		butcher_progress = value
+		_hold()
+var butcher_loot: LootTable
+var body_size := 1.0
+## Lo que da, ya despiezado (null si su especie no da nada).
+var inventory: Inventory
+## El color de sus plumas, si es un ave (transparente si no).
+var plume := Color.TRANSPARENT
+## El grueso (radio) y el largo del cuerpo (m).
+var _shape := Vector2(0.1, 0.3)
+## Encogiéndose al irse: la escala de partida de cada cosa que se encoge.
+var _shrunk := {}
 
 var _gravity := Vector3.ZERO
 var _world_mask := 1
@@ -98,6 +126,8 @@ static func spawn(host: Node, model: Node3D, velocity: Vector3, gravity: Vector3
 			* (copy as MeshInstance3D).get_aabb()
 		local_box = b if first else local_box.merge(b)
 		first = false
+	# Mira a -Z, como el modelo: el largo del cuerpo es su fondo.
+	corpse._shape = Vector2(minf(local_box.size.x, local_box.size.y) * 0.5, local_box.size.z * BODY_LENGTH)
 	var shape := CollisionShape3D.new()
 	var bshape := BoxShape3D.new()
 	bshape.size = (local_box.size * 0.85).max(Vector3.ONE * 0.04)
@@ -121,9 +151,92 @@ static func spawn(host: Node, model: Node3D, velocity: Vector3, gravity: Vector3
 		if not is_instance_valid(_alive[i]):
 			_alive.remove_at(i)
 	_alive.append(corpse)
+	# Sobran: se va el más viejo, antes uno que nadie haya empezado a despiezar.
 	while _alive.size() > MAX_ALIVE:
-		_alive.pop_front().queue_free()
+		var drop := 0
+		for i in _alive.size() - 1:
+			if _alive[i].butcher_progress == 0.0:
+				drop = i
+				break
+		_alive.pop_at(drop).queue_free()
 	return corpse
+
+
+## Lo que da al despiezarlo ([loot], el de su especie; null = nada, y no se despieza), su tamaño, el
+## grueso de su cuerpo ([radius], m; el de la criatura) y, si es un ave, el color de sus plumas
+## ([feathers]; transparente si no). Lo llama AmbientAnimal.die al dejarlo.
+func set_hunt(loot: LootTable, size: float, radius: float, feathers: Color) -> void:
+	butcher_loot = loot
+	body_size = size
+	plume = feathers
+	if radius > 0.0:
+		_shape.x = radius
+	if loot != null and inventory == null:
+		inventory = Inventory.new()
+		inventory.name = "Inventory"
+		add_child(inventory)
+
+
+## Si se puede despiezar, o ya despiezado le queda algo que saquear.
+func butcherable() -> bool:
+	if butcher_loot == null or inventory == null or is_queued_for_deletion():
+		return false
+	return not butchered or inventory.get_free_slots() < inventory.max_slots
+
+
+## El más cercano a [point], a menos de [reach] m, que se puede despiezar o saquear (butcherable).
+static func nearest(point: Vector3, reach: float) -> FaunaCorpse:
+	var best: FaunaCorpse = null
+	var best_d := reach * reach
+	for corpse in _alive:
+		if not is_instance_valid(corpse) or not corpse.is_inside_tree() or not corpse.butcherable():
+			continue
+		var d := corpse.global_position.distance_squared_to(point)
+		if d <= best_d:
+			best = corpse
+			best_d = d
+	return best
+
+
+## La copia del esqueleto (en la pose en que quedó), o null si el modelo no tiene.
+func get_skeleton() -> Skeleton3D:
+	if _visual == null:
+		return null
+	for child in _visual.get_children():
+		if child is Skeleton3D:
+			return child
+	return null
+
+
+## El centro del cuerpo (el de su caja).
+func get_lock_point() -> Vector3:
+	for child in get_children():
+		if child is CollisionShape3D:
+			return (child as CollisionShape3D).global_position
+	return global_position
+
+
+## El grueso (radio) y el largo del cuerpo (m), para el despiece (Butchering, Carcass).
+func butcher_shape() -> Vector2:
+	return _shape
+
+
+## Lo que se esconde al quedar la canal (Carcass.strip).
+func butcher_model() -> Node3D:
+	return _visual
+
+
+## Al desplumarlo: [amount] plumas (FeatherPuff) que salen de [point] hacia [up]. Nada si no es un ave.
+func pluck(point: Vector3, up: Vector3, amount: int) -> void:
+	if plume.a > 0.0:
+		FeatherPuff.spawn(self, point, up, plume, amount, _shape.x)
+
+
+## Se está trabajando en él: no se va (vuelve a contar LIFETIME) y se queda quieto donde está.
+func _hold() -> void:
+	_time = 0.0
+	if not freeze:
+		set_deferred(&"freeze", true)
 
 
 ## La muerte sobre la copia del esqueleto, fundida desde la pose de ahora: un clip de una sola
@@ -160,18 +273,37 @@ func _physics_process(delta: float) -> void:
 	if _time >= LIFETIME:
 		queue_free()
 		return
-	if _time > LIFETIME - SHRINK and _visual != null:
-		_visual.scale = Vector3.ONE * maxf((LIFETIME - _time) / SHRINK, 0.01)
+	_shrink(clampf((LIFETIME - _time) / SHRINK, 0.01, 1.0))
 	if _pool != null:
 		return
 	# La gravedad que se suma en cada paso (9,8 / 60 ≈ 0,16 m/s) sigue ahí aunque esté en el suelo.
-	if linear_velocity.length() < 0.3:
+	if linear_velocity.length() < 0.3 or freeze:
 		_still += delta
 	else:
 		_still = 0.0
 	if _still >= POOL_AFTER:
 		_pool = BloodPool.spawn(self, global_position, _gravity, _pool_size, POOL_GROW, _world_mask)
 		_still = -INF
+
+
+## Al irse se encoge (a [factor] de su tamaño) con lo que haya dejado el despiece (la canal, las
+## vísceras); si vuelve a 1 (se ha empezado a despiezar), recupera su tamaño.
+func _shrink(factor: float) -> void:
+	if factor >= 1.0 and _shrunk.is_empty():
+		return
+	if _shrunk.is_empty():
+		var remains: Array = [_visual]
+		var carcass: Dictionary = get_meta(Carcass.META, {})
+		remains.append(carcass.get("node"))
+		remains.append(carcass.get("guts"))
+		for node in remains:
+			if is_instance_valid(node) and node is Node3D:
+				_shrunk[node] = (node as Node3D).scale
+	for node in _shrunk:
+		if is_instance_valid(node):
+			(node as Node3D).scale = (_shrunk[node] as Vector3) * factor
+	if factor >= 1.0:
+		_shrunk.clear()
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
