@@ -10,6 +10,8 @@ extends SceneTree
 ## --fixed-fps hace que cada fotograma avance exactamente 1/30 s (muelles deterministas).
 ## --armor viste un conjunto de scenes/items/armor/ (las deformaciones se ven mucho más con
 ## armadura); --twist imprime cuánto se retuercen los huesos de los brazos en el arco.
+## La vista eye es la de primera persona: la cámara en el ojo (CharacterAppearanceRig, como
+## CameraController) mirando hacia donde se apunta, con el cuerpo sin cabeza.
 ## --scene=run|sprint --item=<arma> corre con el arma en la mano (CombatPose.carry; --no-carry la
 ## quita) e imprime la holgura mínima entre el arma y cada parte del cuerpo.
 
@@ -18,6 +20,8 @@ const OUT := "res://build/combat/stage"
 const FPS := 30.0
 const CELL := Vector2i(360, 450)
 const SHEET_COLS := 10
+## La vista eye (primera persona) va en 16:9; en la tira se reduce al ancho de la celda.
+const EYE_SIZE := Vector2i(960, 540)
 
 ## Vistas: posición de la cámara y punto al que mira, en el marco del personaje (+Z adelante,
 ## +X a su izquierda). El blanco está hacia +Z.
@@ -75,6 +79,8 @@ var stance_yaw: float = 0.0
 var _placer: Callable
 ## Posiciones de huesos medidas dentro del modificador (fuera, el esqueleto no las tiene).
 var _bone_world: Dictionary = {}
+## El ojo de primera persona en la pose final (vista eye).
+var _eye_world: Vector3 = Vector3.ZERO
 
 
 func _initialize() -> void:
@@ -169,6 +175,8 @@ func _build_world() -> void:
 		world.add_child(holder)
 	holder.add_child(model)
 	(model.get_node("AppearanceRig") as CharacterAppearanceRig).apply(CharacterAppearance.new())
+	if _views.has("eye"):
+		(model.get_node("AppearanceRig") as CharacterAppearanceRig).set_first_person(true)
 	skel = model.get_node("Armature/Skeleton3D")
 	anim = model.get_node("AnimationPlayer")
 	if _look:
@@ -199,6 +207,11 @@ func _build_world() -> void:
 		if VIEWS.has(view):
 			var v: Array = VIEWS[view]
 			cam.look_at_from_position(v[0], v[1])
+		elif view == "eye":
+			# La del juego (75) menos lo que cierra apuntando, en 16:9 como la pantalla.
+			vp.size = EYE_SIZE
+			cam.fov = 66
+			cam.near = 0.01
 		else:
 			cam.fov = 30
 		_viewports[view] = vp
@@ -321,6 +334,10 @@ func _run() -> void:
 			_add_right_item("spear")
 			duration = 3.0
 			driver = _drive_throw
+		"sling":
+			_add_slingshot()
+			duration = 2.8
+			driver = _drive_sling
 		_:
 			push_error("escena desconocida " + _scene)
 			quit(1)
@@ -353,6 +370,9 @@ func _run() -> void:
 				var fv: Array = FOLLOW_VIEWS[view]
 				var target: Vector3 = _bone_world.get(fv[0], Vector3.ZERO)
 				(_cams[view] as Camera3D).look_at_from_position(target + fv[1], target)
+			if view == "eye":
+				var look := pose.aim_dir if pose.aim_weight > 0.01 else Vector3(0, 0, 1)
+				(_cams[view] as Camera3D).look_at_from_position(_eye_world, _eye_world + look, Vector3.UP)
 		await RenderingServer.frame_post_draw
 		var slot := sheet_frames.find(f)
 		for view in _views:
@@ -360,7 +380,11 @@ func _run() -> void:
 			img.convert(Image.FORMAT_RGBA8)
 			_stamp_time(img, t)
 			if slot >= 0:
-				sheets[view].blit_rect(img, Rect2i(Vector2i.ZERO, CELL),
+				var cell_img := img
+				if view == "eye":
+					cell_img = img.duplicate()
+					cell_img.resize(CELL.x, CELL.x * EYE_SIZE.y / EYE_SIZE.x)
+				sheets[view].blit_rect(cell_img, Rect2i(Vector2i.ZERO, CELL),
 					Vector2i((slot % SHEET_COLS) * CELL.x, (slot / SHEET_COLS) * CELL.y))
 			if _save_frames:
 				img.save_png("%s/frames/%s_%s_%s_%03d.png" % [OUT, _tag, _scene, view, f])
@@ -517,6 +541,10 @@ func _after_pose(p: CombatPose) -> void:
 		_right_grip.global_transform = p.right_grip_xform
 	for fv in FOLLOW_VIEWS.values():
 		_bone_world[fv[0]] = p.bone_world(fv[0])
+	if _views.has("eye"):
+		var rig := model.get_node("AppearanceRig") as CharacterAppearanceRig
+		var head := skel.find_bone(CharacterAppearanceRig.HEAD_BONE)
+		_eye_world = skel.global_transform * (skel.get_bone_global_pose(head) * rig.first_person_eye(-0.1))
 	if _placer.is_valid():
 		_placer.call(p)
 
@@ -687,3 +715,31 @@ func _drive_throw(t: float) -> void:
 		var x := g.basis.x
 		right_item.global_transform = Transform3D(Basis(x, dir, x.cross(dir)), g.origin + dir * 0.40)
 		right_item.visible = pose.throw.throw_t < ThrowPose.RELEASE_AT and p.aim_weight > 0.05
+
+
+var slingshot: RangedWeaponVisual
+
+
+func _add_slingshot() -> void:
+	slingshot = load("res://scenes/items/weapons/combat/slingshot.tscn").instantiate()
+	slingshot.top_level = true
+	model.add_child(slingshot)
+
+
+## Tirachinas: lo alza, tensa, sostiene, suelta a los 1,9 s y lo baja. Lo coloca como
+## PlayerCombat._place_ranged_visuals.
+func _drive_sling(t: float) -> void:
+	pose.aim_style = &"sling"
+	pose.aim_arms_ik = true
+	pose.aim_dir = Vector3(0, sin(deg_to_rad(_aim_pitch)), cos(deg_to_rad(_aim_pitch)))
+	pose.aim_weight = _ramp(t, 0.0, 0.3) * (1.0 - _ramp(t, 2.3, 2.7))
+	pose.draw = clampf((t - 0.5) / 0.6, 0.0, 1.0) if t < 1.9 else 0.0
+	stance_yaw = 0.0
+	# Con la vista eye, la pose de primera persona: se apunta por la horquilla.
+	if _views.has("eye"):
+		pose.fp_eye = (model.get_node("AppearanceRig") as CharacterAppearanceRig).first_person_eye(-0.1)
+	_placer = func(p: CombatPose) -> void:
+		var z := p.aim_dir.normalized()
+		var y := (Vector3.UP - z * Vector3.UP.dot(z)).normalized()
+		slingshot.global_transform = Transform3D(Basis(y.cross(z), y, z), p.sling_grip + y * 0.05)
+		slingshot.set_draw_point(p.bone_world("mixamorig_RightHandMiddle1") if p.draw > 0.02 else null)

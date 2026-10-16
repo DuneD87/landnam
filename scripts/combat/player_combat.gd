@@ -924,6 +924,13 @@ func _set_state(new_state: State) -> void:
 	if state == State.GUARD:
 		guard.lower()
 		_act_stop("upper")
+	# Primera persona: la voltereta deja el cuerpo hacia donde rodó (atrás, de lado). Acabada, se
+	# pone de cara a la vista mientras la cámara aún no lo enseña (CameraController._follow_roll).
+	if state == State.DODGE and _dodge_roll and new_state != State.STAGGER and new_state != State.DEAD \
+			and player.camera_controller.first_person:
+		var view := _flat(-player.camera.global_basis.z)
+		if view != Vector3.ZERO:
+			player.rotate_toward_direction(view, 1.0, 1.0)
 	state = new_state
 	_t = 0.0
 	# Un tambaleo o paso atrás cortado (muerte, otra acción) no sigue posando.
@@ -1500,6 +1507,8 @@ func _start_dodge() -> void:
 		# Se gira de golpe hacia donde rueda, como en los souls.
 		player.rotate_toward_direction(_dodge_dir, 1.0, 1.0)
 	_set_state(State.DODGE)
+	# Encadenada con otra, _set_state no hace nada: la esquiva empieza de cero igual.
+	_t = 0.0
 	if _dodge_roll and _mixamo(&"roll"):
 		_act_play("full", &"roll", ROLL_ANIM_SPEED)
 	elif not _dodge_roll and _mixamo(&"dodge_back"):
@@ -1507,6 +1516,22 @@ func _start_dodge() -> void:
 	elif not _dodge_roll:
 		_start_body_motion(BodyMotion.BACKSTEP, BodyMotion.backstep_travel, _dodge_dir, BACKSTEP_DISTANCE, 1.0)
 	CombatFx.play(&"dodge", player.global_position)
+
+
+## Cuánto lleva de la voltereta (0-1) en lo que se dibuja: entre los dos últimos ticks, como el
+## cuerpo interpolado. -1 si no está rodando (el paso atrás no cuenta). La usa la cámara de
+## primera persona.
+func roll_progress() -> float:
+	if state != State.DODGE or not _dodge_roll:
+		return -1.0
+	var tick := 1.0 / Engine.physics_ticks_per_second
+	var t := _t - tick * (1.0 - Engine.get_physics_interpolation_fraction())
+	return clampf(t / _dodge_time(), 0.0, 1.0)
+
+
+## Hacia dónde rueda (en el plano del suelo).
+func roll_direction() -> Vector3:
+	return _dodge_dir
 
 
 func _update_dodge(delta: float, _input_dir: Vector3) -> void:
@@ -1794,7 +1819,10 @@ func _update_aim_point(data: ItemData) -> void:
 		query.exclude = [player.get_rid(), hurtbox.get_rid()]
 		var hit := player.get_world_3d().direct_space_state.intersect_ray(query)
 		_aim_point = hit.position if not hit.is_empty() else to
-	var origin := player.global_position - player.gravity_direction * 1.45
+	# En primera persona, desde el ojo: así la línea de mira (la horquilla del tirachinas) cae
+	# justo en la mira.
+	var origin := cam.global_position if player.camera_controller.first_person \
+			else player.global_position - player.gravity_direction * 1.45
 	_aim_dir = (_aim_point - origin).normalized()
 
 
@@ -1923,9 +1951,10 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 			var y := (up - z * up.dot(z)).normalized()
 			# Arco algo ladeado, como se sujeta de verdad.
 			y = y.rotated(z, deg_to_rad(-12.0 if data.weapon_type == ItemData.WeaponType.BOW else 0.0))
-			var hand := p.bone_world("mixamorig_LeftHand")
-			var grip_offset := z * 0.03 + y * (0.0 if data.weapon_type == ItemData.WeaponType.BOW else -0.06)
-			_weapon_node.global_transform = Transform3D(Basis(y.cross(z), y, z), hand + grip_offset)
+			# El tirachinas, con el mango en el puño (la cruz de la horquilla, 5 cm por encima).
+			var held := p.sling_grip + y * 0.05 if data.weapon_type == ItemData.WeaponType.SLINGSHOT \
+					else p.bone_world("mixamorig_LeftHand") + z * 0.03
+			_weapon_node.global_transform = Transform3D(Basis(y.cross(z), y, z), held)
 			var nock := p.bone_world("mixamorig_RightHandMiddle1")
 			if visual != null:
 				visual.set_draw_point(nock if _draw > 0.02 or state == State.AIM else null)
@@ -2059,6 +2088,8 @@ func _update_aim_blend(delta: float) -> void:
 	if _look_ik:
 		_look_ik.influence = 1.0 - pose.aim_weight
 	pose.aim_dir = _aim_dir
+	pose.fp_eye = player.appearance_rig.first_person_eye(player.camera_controller.fp_eye_forward) \
+			if player.camera_controller.first_person and player.appearance_rig != null else Vector3(NAN, NAN, NAN)
 	pose.draw = _draw
 	pose.release = clampf(_release_t, 0.0, 1.0) if _release_t >= 0.0 else 0.0
 	pose.throw.draw = _draw

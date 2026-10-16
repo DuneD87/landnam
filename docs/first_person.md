@@ -58,12 +58,46 @@ animación.
   con objetivo fijado), para que el cuerpo no se ponga de lado. Con objetivo fijado el cuerpo mira
   siempre al fijado, también moviéndose (en tercera, se encara a donde va).
 
+## Rodar
+
+La voltereta da una vuelta entera y, rodando hacia atrás o de lado, el cuerpo se gira de golpe hacia
+donde rueda: con la cámara en la cabeza se vería la espalda y el cuerpo dando vueltas alrededor.
+Mientras rueda (`PlayerCombat.roll_progress`, interpolado entre ticks como el cuerpo que se dibuja),
+`CameraController._follow_roll`:
+
+- Separa la cámara de la cabeza: va por el eje del cuerpo, baja hasta `fp_roll_dip` (0,6 m del suelo) a
+  mitad de la voltereta y vuelve a subir. Al empezar sale de donde estaba (también si encadena otra
+  voltereta) y, al acabar, vuelve a la cabeza en `FP_ROLL_RETURN` (0,18 s).
+- Deja la vista en el ratón, algo inclinada hacia donde rueda: hacia delante baja hasta 10°, hacia
+  atrás sube (a 0,6) y de lado se ladea hasta 9° hacia ese lado, más a mitad de la voltereta.
+- Quita de la vista el cuerpo, la ropa y lo que lleva en las manos (`PlayerController.hide_body_in_first_person`):
+  lo que da sombra pasa a solo sombra y lo que no, se esconde. La sombra sigue entera.
+
+Acabada la voltereta, el cuerpo se pone de cara a la vista (`PlayerCombat._set_state`) antes de volver
+a enseñarse. El paso atrás (quieto) sigue con la cámara en la cabeza: no gira el cuerpo.
+
+## Apuntar
+
+- **Tirachinas** (`CombatPose`, `aim_style` `sling`): se apunta por la horquilla. `PlayerCombat` le pasa
+  a la pose el ojo de la cámara (`fp_eye`) y apunta desde él (`_aim_dir`), no desde el pecho. El puño
+  izquierdo va en la línea de mira, por debajo `SLING_SIGHT_DROP` (0,16 m: la mira cae entre las puntas
+  de la horquilla), tan lejos como llega el brazo casi recto; los nudillos de la derecha tensan hasta
+  la mejilla (`SLING_FP_ANCHOR`), así que la goma va del borde de abajo a la horquilla. En tercera
+  persona el puño también cierra el mango (`ArcheryPose.GRIP`) y la derecha pinza la badana.
+- **Arco y lanza**: la pose es la de tercera persona. Con la lanza, el asta entra por la derecha con la
+  punta junto al blanco y el brazo izquierdo lo señala; al cargar baja a la esquina de abajo.
+
 ## Ajustes
 
 | Ajuste | Dónde | Valor |
 | --- | --- | --- |
 | `fp_threshold` | `CameraController` | 0,5 m |
 | `fp_eye_forward` | `CameraController` | -0,1 m |
+| `fp_roll_dip` | `CameraController` | 0,6 m |
+| `FP_ROLL_RETURN` | `CameraController` | 0,18 s |
+| `FP_ROLL_PITCH`, `FP_ROLL_BANK` | `CameraController` | 10°, 9° |
+| `SLING_SIGHT_DROP` | `CombatPose` | 0,16 m |
+| `SLING_FP_ANCHOR` | `CombatPose` | 0,03, -0,08, 0,11 m |
 | `first_person_weights` | `LookAtIK` | 0,3, 0,3, 0,15, 0,25 |
 | `FP_TURN_START` | `PlayerController` | 50° |
 | `FP_SQUARE_BLEND` | `PlayerController` | 0,15 s |
@@ -81,12 +115,11 @@ godot --path . --script res://tests/character/first_person_preview.gd -- --tag=x
 punto del ojo. `test_first_person`, que `FirstPersonSquare` mantiene el pecho al frente en el combo y
 el pesado de la espada. `first_person_preview` guarda en `build/character/first_person_<tag>.png` la
 vista desde la cabeza con varias animaciones y golpes, y una desde fuera; `--loose` quita
-`FirstPersonSquare`.
+`FirstPersonSquare`. Para las poses de combate desde el ojo, `anim_stage` con la vista `eye`
+(`--scene=sling --views=eye,front`, ver [combat.md](combat.md#pruebas)).
 
 ## Pendiente
 
 - Golpes que apenas se ven desde la cabeza (el segundo del combo de espada, el horizontal).
-- Rodar, tambalearse, morir y escalar: la cámara sigue a la cabeza tal cual. Rodando hacia atrás o
-  de lado se ve la espalda.
-- Apuntar con arco, tirachinas y lanza: la pose de apuntar es la de tercera persona.
+- Tambalearse, morir y escalar: la cámara sigue a la cabeza tal cual.
 - El arma atraviesa las paredes al pegarse a ellas.

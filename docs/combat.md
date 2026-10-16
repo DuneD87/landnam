@@ -142,7 +142,9 @@ escudo, o las manos en el arma, delante del cuerpo.
   se mantiene el botón para cargar. Una pulsación temprana se guarda 0,45 s (buffer).
 - **Esquiva**: 18 de aguante. La voltereta dura 0,68 s y recorre 4,4 m; su hurtbox
   se apaga entre 0,04 s y 0,46 s. Quieto hace un paso atrás más corto. Se puede
-  cancelar la recuperación de un golpe rodando.
+  cancelar la recuperación de un golpe rodando, y encadenar otra voltereta desde el 82 % de la
+  anterior (empieza entera, con su invulnerabilidad). En primera persona la cámara no rueda con la
+  cabeza (ver [first_person.md](first_person.md#rodar)).
 - **Animaciones de Mixamo**: la voltereta y el arco vienen de Mixamo
   (`models/player/mixamo/combat/`, descargadas con un personaje de Character Creator; las del
   arco, del Pro Longbow Pack en `Pro_Longbow_Pack/`).
@@ -590,7 +592,9 @@ godot --path . --audio-driver Dummy --fixed-fps 30 --script res://tests/combat/a
 `anim_stage` es el escenario de animación: el cuerpo del jugador sobre suelo plano con
 las poses conducidas por una línea de tiempo fija y varias cámaras a la vez (también
 primeros planos que siguen a manos o cabeza). Escenas: `bow`, `bow_walk`, `throw`,
-`bow_anim`, `stagger`, `backstep`, `death`, `melee_h`, `melee_v`, `grip`, `fingers`. `--armor` viste un
+`bow_anim`, `stagger`, `backstep`, `death`, `melee_h`, `melee_v`, `grip`, `fingers`, `sling`. La vista
+`eye` es la de primera persona (la cámara en el ojo, en 16:9, con la pose de primera persona del
+tirachinas). `--armor` viste un
 conjunto (los fallos de deformación se ven mucho más con armadura) y `--twist` imprime cuánto se
 retuerce cada hueso de los brazos en el arco.
 `combat_capture` acepta `--showcase` para sacar los fotogramas desde una cámara cercana.

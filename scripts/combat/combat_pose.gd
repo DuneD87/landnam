@@ -108,6 +108,20 @@ var crutch_hand: Vector3
 var crutch_xform: Transform3D
 var crutch_grip: Vector3
 
+## Primera persona: el ojo de la cámara en el espacio del hueso de la cabeza
+## (CharacterAppearanceRig.first_person_eye), o NAN en tercera persona. Con él, el tirachinas se
+## apunta por la horquilla. Lo pone PlayerCombat.
+var fp_eye: Vector3 = Vector3(NAN, NAN, NAN)
+## Tirachinas: el centro del puño izquierdo, por donde pasa el mango, en mundo y tras posar.
+var sling_grip: Vector3
+## Tirachinas en primera persona: lo que la línea de mira queda por encima del centro del puño
+## (m). Pasa entre las puntas de la horquilla (WeaponMeshes.SLING_PRONG_TIPS, a 0,125 m de la
+## cruz, que va 0,05 m sobre el puño).
+const SLING_SIGHT_DROP := 0.16
+## ...y hasta dónde se tensa: los nudillos de la derecha junto a la mejilla, respecto al ojo de
+## la cámara (que va dentro de la cabeza), en (derecha, arriba, adelante) y en m.
+const SLING_FP_ANCHOR := Vector3(0.03, -0.08, 0.11)
+
 ## Llamado tras posar, con este modificador (para colocar visuales sobre las manos).
 var after_pose: Callable
 ## Si está activo, tras posar mide los huesos de contacto de la voltereta (RollMotion.sample) y
@@ -930,6 +944,15 @@ func _clear_face(w: float) -> void:
 		two_bone(chain, bone_pos(chain[2]) + offset, bone_pos(chain[1]) - shoulder, 1.0)
 
 
+## El ojo de primera persona (fp_eye) en el espacio del esqueleto, con la pose de ahora; NAN en
+## tercera persona.
+func _fp_sight() -> Vector3:
+	var head := bone_idx(CharacterAppearanceRig.HEAD_BONE)
+	if is_nan(fp_eye.x) or head < 0:
+		return Vector3(NAN, NAN, NAN)
+	return _skel.get_bone_global_pose(head) * fp_eye
+
+
 func _apply_aim(w: float) -> void:
 	var up_m := Vector3.UP
 	# El arquero se pone de perfil: el pecho gira a la derecha y el hombro izquierdo apunta.
@@ -982,18 +1005,40 @@ func _apply_aim(w: float) -> void:
 	var unit := arm_len / 0.56 # metros → unidades del esqueleto
 
 	match aim_style:
-		&"bow", &"sling":
-			var reach := 0.97 if aim_style == &"bow" else 0.93
-			var hold := l_shoulder + aim_s * arm_len * reach
+		&"sling":
+			# Puño izquierdo en el mango: nudillos al blanco y la palma hacia dentro, como el arco.
+			var l_dir := (aim_s - left_s * 0.18).normalized()
+			var l_palm := right_s * 0.9 - up_s * 0.35
+			l_palm = (l_palm - l_dir * l_palm.dot(l_dir)).normalized()
+			var fist := (l_dir * ArcheryPose.GRIP_OFFSET.x + l_palm * ArcheryPose.GRIP_OFFSET.y) * unit
+			var hold := l_shoulder + aim_s * arm_len * 0.93
+			# Mano derecha: de la goma en reposo al ancla bajo el pómulo.
+			var anchor := head + right_s * 0.09 * unit - up_s * 0.06 * unit - aim_s * 0.02 * unit
+			var eye := _fp_sight()
+			if not is_nan(eye.x):
+				# Primera persona: se apunta por la horquilla. El puño va en la línea de mira (por
+				# debajo SLING_SIGHT_DROP), tan lejos como llega el brazo casi recto, y los nudillos
+				# de la derecha tensan hasta la mejilla, bajo el ojo.
+				var c0 := eye - up_s * SLING_SIGHT_DROP * unit - fist - l_shoulder
+				var b := aim_s.dot(c0)
+				var disc := b * b - c0.length_squared() + pow(arm_len * 0.95, 2.0)
+				if disc > 0.0:
+					hold = l_shoulder + c0 + aim_s * (-b + sqrt(disc))
+				var knuckles := bone_pos("mixamorig_RightHandMiddle1").distance_to(bone_pos(R_ARM[2]))
+				anchor = eye + (right_s * SLING_FP_ANCHOR.x + up_s * SLING_FP_ANCHOR.y
+					+ aim_s * SLING_FP_ANCHOR.z) * unit - aim_s * knuckles
 			two_bone(L_ARM, hold, -up_s * 0.6 + left_s, w)
-			# Mano derecha: de la cuerda en reposo al ancla bajo el pómulo.
-			var string_rest := hold - aim_s * 0.16 * unit
-			var anchor := head + right_s * 0.06 * unit - up_s * 0.08 * unit + aim_s * 0.03 * unit
-			if aim_style == &"sling":
-				string_rest = hold - aim_s * 0.10 * unit - up_s * 0.02 * unit
-				anchor = head + right_s * 0.09 * unit - up_s * 0.06 * unit - aim_s * 0.02 * unit
+			orient_hand("Left", l_dir, l_palm, w)
+			pose_fingers("Left", ArcheryPose.GRIP, w)
+			var string_rest := hold - aim_s * 0.10 * unit - up_s * 0.02 * unit
 			var pull := string_rest.lerp(anchor, clampf(draw, 0.0, 1.0))
 			two_bone(R_ARM, pull, right_s * 0.8 + up_s * 0.35 - aim_s * 0.5, w)
+			# La derecha pinza la badana: nudillos hacia la horquilla y la palma hacia la cara.
+			orient_hand("Right", aim_s, left_s * 0.8 - up_s * 0.6, w, 0.7, ArcheryPose.WRIST_MAX_BEND)
+			pose_fingers("Right", ArcheryPose.GRIP, w)
+			var hf := hand_frame("Left")
+			sling_grip = _skel.global_transform * (bone_pos(L_ARM[2])
+				+ (hf.x * ArcheryPose.GRIP_OFFSET.x + hf.y * ArcheryPose.GRIP_OFFSET.y) * unit)
 		&"throw":
 			var back := r_shoulder + up_s * 0.20 * unit + right_s * 0.12 * unit - aim_s * (0.30 + 0.12 * draw) * unit
 			var forward := r_shoulder + aim_s * 0.50 * unit + up_s * 0.02 * unit

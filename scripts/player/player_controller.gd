@@ -154,6 +154,10 @@ const FP_SQUARE_BLEND := 0.15
 ## se le arrastra; si no, se para el ratón (ver _keep_view_in_front). Más allá, la cámara en la
 ## cabeza vería la espalda.
 const FP_VIEW_GAP := deg_to_rad(90.0)
+## Primera persona, rodando: lo que se ha quitado de la vista (ver hide_body_in_first_person), con
+## cómo daba sombra cada pieza (-1: visible y sin sombra).
+var _fp_hidden := {}
+var _fp_body_hidden := false
 
 func _perform_raycast() -> void:
 	_ray_hit = {}
@@ -919,6 +923,8 @@ func _on_player_died() -> void:
 ## más a la mirada (LookAtIK), para que brazos y arma suban y bajen con ella.
 func _on_first_person_changed(enabled: bool) -> void:
 	_fp_turning = false
+	# Antes que el rig, que también cambia cómo da sombra la ropa y esconde el cuerpo sin cabeza.
+	hide_body_in_first_person(false)
 	if appearance_rig != null:
 		appearance_rig.set_first_person(enabled)
 	var skeleton: Skeleton3D = player_model.get_node("Armature/Skeleton3D")
@@ -938,6 +944,38 @@ func _on_first_person_changed(enabled: bool) -> void:
 	if _fp_square != null:
 		_fp_square.influence = 0.0
 		_fp_square.active = false
+
+
+## Primera persona, rodando (CameraController._follow_roll): la cámara no ve el cuerpo, la ropa ni
+## lo que lleva en las manos, que darían vueltas a su alrededor; la sombra sigue. Lo que ya solo da
+## sombra (la cabeza, el cuerpo entero) no se toca, y lo que no da sombra se esconde.
+func hide_body_in_first_person(hidden: bool) -> void:
+	if hidden == _fp_body_hidden:
+		return
+	_fp_body_hidden = hidden
+	if hidden:
+		for root: Node in [player_model, combat]:
+			for node in root.find_children("*", "GeometryInstance3D", true, false):
+				var piece := node as GeometryInstance3D
+				if not piece.is_visible_in_tree() \
+						or piece.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
+					continue
+				if piece.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+					_fp_hidden[piece] = -1
+					piece.visible = false
+				else:
+					_fp_hidden[piece] = piece.cast_shadow
+					piece.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		return
+	for piece in _fp_hidden:
+		if not is_instance_valid(piece):
+			continue
+		var mode: int = _fp_hidden[piece]
+		if mode < 0:
+			piece.visible = true
+		else:
+			piece.cast_shadow = mode
+	_fp_hidden.clear()
 
 
 ## Primera persona: el cuerpo se encara a la vista mientras la pose es la de la animación (quieto,

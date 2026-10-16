@@ -24,6 +24,16 @@ signal first_person_changed(enabled: bool)
 ## (m). En negativo se mete en la cabeza, donde girarla apenas la mueve: los golpes la giran hasta
 ## 70° a cada lado de la mirada y el pesado da la vuelta entera.
 @export var fp_eye_forward: float = -0.1
+## Primera persona, rodando: la cámara no da la vuelta con la cabeza (vería la espalda al rodar
+## hacia atrás o de lado). Va por el eje del cuerpo, baja hasta fp_roll_dip metros del suelo y
+## vuelve a subir, y la vista sigue siendo la del ratón, algo inclinada hacia donde rueda.
+@export var fp_roll_dip: float = 0.6
+## Segundos en volver a la cabeza al acabar la voltereta.
+const FP_ROLL_RETURN := 0.18
+## Lo más que se inclina la vista rodando: hacia delante baja (hacia atrás sube, a 0,6) y de lado
+## se ladea hacia ese lado.
+const FP_ROLL_PITCH := deg_to_rad(10.0)
+const FP_ROLL_BANK := deg_to_rad(9.0)
 ## Lo que baja el ojo agachado (Locomotion), en tercera y en primera persona.
 var crouch_drop: float = 0.0
 @onready var camera_pivot: Node3D = $"../CameraPivot"
@@ -66,6 +76,16 @@ var _reset_interpolation := false
 ## o INF. El jugador lo pone mientras el cuerpo no puede girar con ella (trepando, golpeando...):
 ## más allá, la cámara en la cabeza vería la espalda.
 var fp_yaw_limit := INF
+## Voltereta en primera persona: 1 mientras rueda, y baja a 0 al volver a la cabeza.
+var _roll_weight := 0.0
+## Dónde estaba la cámara respecto a los pies al empezar a rodar, dónde va ahora y dónde estaba
+## en el último fotograma.
+var _roll_start := Vector3.ZERO
+var _roll_offset := Vector3.ZERO
+var _roll_last := Vector3.ZERO
+var _roll_x := 0.0
+## Inclinación de la vista (cabeceo, ladeo), suavizada para que una voltereta encadenada no salte.
+var _roll_tilt := Vector2.ZERO
 var _current_up_axis: Vector3 = Vector3.UP
 var _prev_platform_basis: Basis = Basis.IDENTITY
 var _tracking_platform: DynamicGridBody = null
@@ -255,6 +275,8 @@ func _limited_yaw_step(step: float) -> float:
 func _set_first_person(enabled: bool) -> void:
 	first_person = enabled
 	_on_head = false
+	_roll_weight = 0.0
+	_roll_tilt = Vector2.ZERO
 	camera.top_level = enabled
 	if enabled:
 		camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
@@ -285,10 +307,56 @@ func _place_on_head() -> void:
 		return
 	var world := _skeleton.global_transform * (_skeleton.get_bone_global_pose(head) * eye)
 	var local: Vector3 = player.global_transform.affine_inverse() * world
-	var position: Vector3 = player.get_global_transform_interpolated() * local
+	var drawn: Transform3D = player.get_global_transform_interpolated()
+	var position: Vector3 = drawn * local
 	var forward := pitch_pivot.get_global_transform_interpolated().basis * Vector3.BACK
-	camera.look_at_from_position(position, position + forward, _current_up_axis)
+	var up := _current_up_axis
+	if _follow_roll(player):
+		var w := smoothstep(0.0, 1.0, _roll_weight)
+		position = position.lerp(drawn.origin + _roll_offset, w)
+		var right := forward.cross(up)
+		if right.length_squared() > 1e-6:
+			forward = forward.rotated(right.normalized(), _roll_tilt.x * w)
+			up = up.rotated(forward.normalized(), _roll_tilt.y * w)
+	_roll_last = position - drawn.origin
+	camera.look_at_from_position(position, position + forward, up)
 	_on_head = true
+
+
+## La voltereta en primera persona (ver fp_roll_dip): deja en _roll_offset dónde va la cámara
+## respecto a los pies y en _roll_tilt cuánto se inclina la vista. Mientras rueda, el jugador no
+## enseña el cuerpo a la cámara. Devuelve false si ni rueda ni vuelve aún a la cabeza.
+func _follow_roll(player: PlayerController) -> bool:
+	var delta := get_process_delta_time()
+	var x := player.combat.roll_progress() if player.combat != null else -1.0
+	var tilt := Vector2.ZERO
+	if x >= 0.0:
+		if _roll_weight < 1.0 or x < _roll_x:
+			# Empieza (o encadena otra voltereta) desde donde está la cámara ahora.
+			_roll_start = _roll_last
+			player.hide_body_in_first_person(true)
+		_roll_weight = 1.0
+		_roll_x = x
+		var up := _current_up_axis
+		var stand := _roll_start.dot(up)
+		var down := smoothstep(0.05, 0.4, x) * (1.0 - smoothstep(0.55, 0.92, x))
+		_roll_offset = (_roll_start - up * stand) * (1.0 - smoothstep(0.0, 0.3, x)) \
+				+ up * lerpf(stand, fp_roll_dip, down)
+		# El PitchPivot va girado 180°: la vista es -Z del pivote de yaw.
+		var view := -camera_pivot.global_basis.z
+		view -= up * view.dot(up)
+		if view.length_squared() > 1e-6:
+			view = view.normalized()
+			var dir := player.combat.roll_direction()
+			var ahead := dir.dot(view)
+			tilt = Vector2(-FP_ROLL_PITCH * (ahead if ahead > 0.0 else 0.6 * ahead),
+					FP_ROLL_BANK * dir.dot(view.cross(up).normalized())) * sin(PI * x)
+	elif _roll_weight > 0.0:
+		_roll_weight = maxf(0.0, _roll_weight - delta / FP_ROLL_RETURN)
+		if _roll_weight == 0.0:
+			player.hide_body_in_first_person(false)
+	_roll_tilt = _roll_tilt.lerp(tilt, 1.0 - exp(-20.0 * delta))
+	return _roll_weight > 0.0
 
 
 func adjust_for_collisions(target_pos: Vector3, ideal_pos: Vector3) -> Vector3:
