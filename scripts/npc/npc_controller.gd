@@ -676,7 +676,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 		ai_controller.transition_to(initial_ai_state)
 	current_animation = Config.ANIMATION.IDLE
 	if animation_controller:
-		animation_controller.handle_animations(0.0, Config.ANIMATION.IDLE, false)
+		animation_controller.snap_to(Config.ANIMATION.IDLE)
 	if perception:
 		perception.set_physics_process(true)
 	set_physics_process(true)
@@ -722,14 +722,28 @@ func set_detail(distance: float) -> void:
 	var settings := profile as GroundFaunaProfile
 	if settings == null:
 		return
-	# Un cuerpo que aún cae, o que se está muriendo, se simula esté donde esté.
-	var awake := settings.full_detail_distance <= 0.0 or distance <= settings.full_detail_distance 		or not active or not is_on_floor()
+	var full := settings.full_detail_distance
+	# Un cuerpo que aún cae, o que se está muriendo, se simula esté donde esté. Uno que anda o
+	# corre, hasta que se para o se aleja el doble: dormido a media zancada correría en el sitio.
+	var awake: bool = full <= 0.0 or distance <= full or not active or not is_on_floor() \
+		or (current_animation != Config.ANIMATION.IDLE and distance <= full * 2.0)
+	if not awake and is_physics_processing():
+		_fall_asleep()
 	set_physics_process(awake)
-	if not awake and animation_controller != null:
-		animation_controller.full_rate = false
 	if perception:
 		perception.set_physics_process(awake and active)
 	_ai_update_stride = 1 if distance <= settings.near_detail_distance else AI_STRIDE_FAR
+
+
+## Se queda quieta y de pie mientras duerme: sin física nadie más le cambia la animación. Al
+## despertar, la IA sigue donde iba.
+func _fall_asleep() -> void:
+	velocity = Vector3.ZERO
+	movement.velocity = Vector3.ZERO
+	current_animation = Config.ANIMATION.IDLE
+	if animation_controller != null:
+		animation_controller.full_rate = false
+		animation_controller.snap_to(Config.ANIMATION.IDLE)
 
 
 ## Un impacto letal (casco, bala) lo mata por su HealthComponent, para que corra la animación

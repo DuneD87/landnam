@@ -8,7 +8,8 @@ extends SceneTree
 ##   - Los clips que se piden (--clips, con comodines; sin --clips, todos) en una AnimationLibrary,
 ##     sin el prefijo de la toma ("SK-Wolf|Walk" → "Walk"), en bucle los que casan con --loop, con
 ##     los alias de --alias ("Idle:Idle_Breathing": el mismo clip con el nombre común de las
-##     escenas de criatura) y, con --root, colgando las pistas del nodo del modelo bajo NPCModel.
+##     escenas de criatura, aunque el pack traiga uno con ese nombre) y, con --root, colgando las
+##     pistas del nodo del modelo bajo NPCModel.
 ## --add="Death:res://models/animals/horse/horse_death.res" añade a la librería clips sacados de otro
 ## animal con tools/fauna/retarget_clip.gd (con --track_root al nodo del modelo bajo NPCModel).
 ## El FBX se copia antes a models/_pack/ (fuera de git) para que Godot lo importe.
@@ -103,14 +104,23 @@ func _library(player: AnimationPlayer, args: Dictionary) -> AnimationLibrary:
 			push_error("--add: no se puede cargar %s" % pair)
 			return null
 		library.add_animation(StringName(pair.get_slice(":", 0).strip_edges()), added)
+	# Los orígenes, todos antes de poner ninguno: con "Run:Walk,Sprint:Run", Sprint es el Run del
+	# pack y no el Walk que acaba de pasar a llamarse Run.
+	var sources := {}
 	for alias in aliases:
 		var source := StringName(aliases[alias])
-		if library.has_animation(StringName(alias)):
-			continue
 		if not library.has_animation(source):
 			push_error("--alias %s: no hay clip %s" % [alias, source])
 			return null
-		library.add_animation(StringName(alias), library.get_animation(source))
+		sources[alias] = library.get_animation(source)
+	# El alias pisa el clip del pack que se llame igual (la cierva trae su propio Run, un galope):
+	# saltárselo dejaba ese clip donde se pedía otro, sin avisar.
+	for alias in sources:
+		if library.has_animation(StringName(alias)):
+			if library.get_animation(StringName(alias)) != sources[alias]:
+				print("--alias %s: sustituye al %s del pack" % [alias, alias])
+			library.remove_animation(StringName(alias))
+		library.add_animation(StringName(alias), sources[alias])
 	for pattern in wanted:
 		if not library.get_animation_list().any(func(clip: StringName) -> bool: return String(clip).match(pattern.strip_edges())):
 			push_error("--clips: ninguno casa con %s" % pattern)

@@ -184,6 +184,17 @@ func handle_animations(delta: float, current_animation, free_flight_enabled):
 
 	update_tree()
 
+
+## Pone [current_animation] de golpe, sin fundido: la criatura que se duerme lejos (o vuelve del
+## pool) ya no pasa por handle_animations, y se quedaría con la zancada de antes.
+func snap_to(current_animation) -> void:
+	var target_value = animation_states.get(current_animation, {})
+	for parameter in current_values:
+		if parameter in oneshot_params:
+			continue
+		current_values[parameter] = target_value.get(parameter, 0.0)
+	update_tree()
+
 func trigger_hit() -> void:
 	if not is_instance_valid(animation_tree) or not _has_hit_anim:
 		return
