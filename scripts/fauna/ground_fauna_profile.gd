@@ -23,8 +23,12 @@ class_name GroundFaunaProfile extends AmbientFaunaProfile
 @export var near_water: float = 0.0
 ## Segundos que el cadáver se queda antes de volver al pool. 0 = desaparece al morir.
 @export_range(0.0, 600.0, 1.0, "or_greater", "suffix:s") var corpse_duration: float = 0.0
-## Distancia hasta la que la criatura corre con todo el detalle. Más allá el spawner la adormece
-## sin reciclarla, quieta y de pie, en cuanto se para (si sigue andando, como mucho al doble).
+## Distancia hasta la que la criatura corre con todo el detalle.
 @export_range(0.0, 1000.0, 1.0, "or_greater", "suffix:m") var full_detail_distance: float = 60.0
+## Hasta aquí, más allá de full_detail_distance, sigue moviéndose con la física y la IA a un cuarto de
+## ritmo (NPCController.LIGHT_STRIDE). Más lejos el spawner la adormece sin reciclarla, quieta y de
+## pie, en cuanto se para (si sigue andando, como mucho full_detail_distance más allá). Por debajo de
+## full_detail_distance no hay tramo ligero.
+@export_range(0.0, 1000.0, 1.0, "or_greater", "suffix:m") var light_detail_distance: float = 150.0
 ## Distancia a la que la IA pasa a actualizarse una vez de cada cuatro.
 @export_range(0.0, 200.0, 1.0, "or_greater", "suffix:m") var near_detail_distance: float = 20.0

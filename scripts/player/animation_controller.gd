@@ -8,9 +8,10 @@ const Config = preload("res://scripts/config.gd")
 @export var animation_tree: AnimationTree
 @export var blend_speed: float = 5.0
 
-## Las criaturas lo encienden (NPCController): el árbol se avanza a mano, cada fotograma en cámara y
-## uno de cada AnimationLod.HIDDEN_STRIDE fuera de ella, y oculto (en el pool) no se anima. El
-## jugador lo deja apagado.
+## Las criaturas lo encienden (NPCController): el árbol se avanza a mano, en cámara cada fotograma de
+## cerca y uno de cada pocos de lejos (AnimationLod.CREATURE_STRIDES), uno de cada
+## AnimationLod.HIDDEN_STRIDE fuera de ella, y oculto (en el pool) no se anima. El jugador lo deja
+## apagado.
 var throttled: bool = false: set = set_throttled
 ## Fuerza cada fotograma: un ataque mide sus golpes con los huesos.
 var full_rate: bool = false
@@ -56,8 +57,9 @@ func _process(delta: float) -> void:
 		return
 	_accum += delta
 	_frame += 1
-	# Se mira en cada fotograma: al girar la cámara, el que entra en vista ya anima entero.
-	if full_rate or _frame % AnimationLod.HIDDEN_STRIDE == 0 or AnimationLod.in_view(body, lod_radius):
+	# Se mira en cada fotograma: al girar la cámara, el que entra en vista ya anima a su ritmo.
+	var stride := 1 if full_rate else AnimationLod.stride_for(body, lod_radius, AnimationLod.CREATURE_STRIDES)
+	if _frame % stride == 0:
 		var start := Time.get_ticks_usec()
 		animation_tree.advance(_accum)
 		_accum = 0.0

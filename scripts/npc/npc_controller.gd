@@ -100,6 +100,10 @@ var _hit_timer: float = 0.0
 
 var _frame_offset: int = 0
 var _ai_update_stride: int = 1
+## Una de cada cuántas actualizaciones de física da entera: LIGHT_STRIDE en el tramo ligero.
+var _light_stride: int = 1
+## El tiempo de los fotogramas que el tramo ligero se ha saltado, para el paso entero siguiente.
+var _light_delta: float = 0.0
 ## Cuenta de activaciones: un temporizador de cadáver de una vida anterior no debe tocar a la
 ## criatura que el pool ya ha vuelto a sacar.
 var _life_id: int = 0
@@ -108,6 +112,9 @@ var _life_id: int = 0
 const NPC_LIVE_LAYER := 2
 ## Una de cada cuántas actualizaciones de IA corre cuando la criatura está lejos.
 const AI_STRIDE_FAR := 4
+## A media distancia (GroundFaunaProfile.light_detail_distance), un paso entero de física e IA de
+## cada tantos; entre medias solo avanza (_glide).
+const LIGHT_STRIDE := 4
 ## El charco bajo el cadáver: cuándo sale tras morir (s, ya caído) y lo que tarda en extenderse (s).
 const BLEED_OUT_DELAY := 1.6
 const BLEED_OUT_GROW := 16.0
@@ -173,8 +180,25 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	var _t0 := Time.get_ticks_usec()
+	# Muriéndose va entera ya, sin esperar a que el spawner la mire otra vez.
+	if _light_stride > 1 and active:
+		_light_delta += delta
+		if Engine.get_physics_frames() % _light_stride != _frame_offset % _light_stride:
+			_glide(delta)
+			DebugStats.report_cost(&"npc:control", Time.get_ticks_usec() - _t0)
+			return
+		delta = _light_delta
+	_light_delta = 0.0
 	_physics_step(delta)
 	DebugStats.report_cost(&"npc:control", Time.get_ticks_usec() - _t0)
+
+
+## Entre dos pasos ligeros avanza a su velocidad por el plano del suelo, sin consultar la física: el
+## paso siguiente (move_and_slide, que mueve un fotograma) lo vuelve a pegar al terreno.
+func _glide(delta: float) -> void:
+	if velocity.length_squared() < 1e-4:
+		return
+	global_position += velocity.slide(get_floor_normal() if is_on_floor() else up_direction) * delta
 
 
 func _physics_step(delta: float) -> void:
@@ -656,8 +680,10 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	roll_variant(rng)
 	if health_component != null:
 		health_component.revive()
-	_frame_offset = rng.randi() % AI_STRIDE_FAR
+	_frame_offset = rng.randi() % (AI_STRIDE_FAR * LIGHT_STRIDE)
 	_ai_update_stride = 1
+	_light_stride = 1
+	_light_delta = 0.0
 	super.activate(point, environment, rng)
 	if persistent:
 		add_to_group(GameManager.SAVEABLE_GROUP)
@@ -717,22 +743,30 @@ func lockable() -> bool:
 		and health_component != null and not health_component.is_dead
 
 
-## Detalle por distancia: lejos deja de simularse entero en vez de reciclarse.
+## Detalle por distancia: cerca, entera; a media distancia, ligera (_light_stride); lejos, dormida en
+## vez de reciclarse.
 func set_detail(distance: float) -> void:
 	var settings := profile as GroundFaunaProfile
 	if settings == null:
 		return
 	var full := settings.full_detail_distance
-	# Un cuerpo que aún cae, o que se está muriendo, se simula esté donde esté. Uno que anda o
-	# corre, hasta que se para o se aleja el doble: dormido a media zancada correría en el sitio.
-	var awake: bool = full <= 0.0 or distance <= full or not active or not is_on_floor() \
-		or (current_animation != Config.ANIMATION.IDLE and distance <= full * 2.0)
+	var light := maxf(settings.light_detail_distance, full)
+	# Un cuerpo que aún cae, o que se está muriendo, se simula entero esté donde esté. Uno que anda o
+	# corre no se duerme hasta que se para o se aleja otro tanto: dormido a media zancada correría
+	# en el sitio.
+	var entire: bool = full <= 0.0 or distance <= full or not active or not is_on_floor()
+	var awake: bool = entire or distance <= light \
+		or (current_animation != Config.ANIMATION.IDLE and distance <= light + full)
 	if not awake and is_physics_processing():
 		_fall_asleep()
 	set_physics_process(awake)
+	_light_stride = 1 if entire else LIGHT_STRIDE
+	if not entire and animation_controller != null:
+		animation_controller.full_rate = false
 	if perception:
-		perception.set_physics_process(awake and active)
-	_ai_update_stride = 1 if distance <= settings.near_detail_distance else AI_STRIDE_FAR
+		perception.set_physics_process(entire and active)
+	# En el tramo ligero la IA ya va al ritmo de los pasos enteros.
+	_ai_update_stride = 1 if distance <= settings.near_detail_distance or not entire else AI_STRIDE_FAR
 
 
 ## Se queda quieta y de pie mientras duerme: sin física nadie más le cambia la animación. Al
@@ -740,6 +774,7 @@ func set_detail(distance: float) -> void:
 func _fall_asleep() -> void:
 	velocity = Vector3.ZERO
 	movement.velocity = Vector3.ZERO
+	_light_delta = 0.0
 	current_animation = Config.ANIMATION.IDLE
 	if animation_controller != null:
 		animation_controller.full_rate = false
