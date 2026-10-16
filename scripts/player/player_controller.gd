@@ -337,6 +337,7 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 		equip_item(equip, slot, scene, data, category)
 	if slot == ItemData.ArmorSlot.OFFHAND:
 		_sync_hotbar_offhand()
+	_sync_armor()
 
 func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> void:
 	var old_is_block := old_data != null and old_data.category == ItemData.Category.BLOCK
@@ -423,6 +424,11 @@ func _on_hotbar_offhand_toggled(data: ItemData) -> void:
 func _sync_hotbar_offhand() -> void:
 	var eq_slot: EquipmentSlot = character_window.equipment_slots.get(ItemData.ArmorSlot.OFFHAND)
 	hotbar.set_offhand(eq_slot.equipped_item.data if eq_slot and eq_slot.has_item() else null)
+
+
+## Lo que quita del daño la armadura puesta (la misma suma que enseña la pantalla de equipo).
+func _sync_armor() -> void:
+	health_component.defense = character_window.get_armor()
 
 
 func _unequip_right_hand() -> void:
@@ -544,7 +550,6 @@ func _ready():
 	inventory_ui.closed.connect(func() -> void:
 		if GameManager.current_state == GameManager.State.PLAYING:
 			capture_mouse(true))
-	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
 	character_window.equipment_changed.connect(on_equipment_changed)
 	# El cuerpo del jugador no pasa por el equipamiento: se registra aquí para que también
 	# reciba el sol si su malla usa un material planetario.
@@ -682,6 +687,7 @@ func restore_save_data(save: Dictionary) -> void:
 		hotbar.select_slot(save.hotbar_selected)
 	# El equipo se ha restaurado sin pasar por equipment_changed.
 	_sync_hotbar_offhand()
+	_sync_armor()
 	combat.on_restored()
 	# Después de on_restored, que deja el cuerpo entero: los miembros perdidos siguen perdidos.
 	if save.has("severed") and combat.body_damage != null:
@@ -906,7 +912,7 @@ func _on_landed(impact_speed: float) -> void:
 	FallInjury.roll(combat.status, combat.body_damage, impact_speed, damage)
 
 func _on_player_died() -> void:
-	# TODO: pantalla de muerte, respawn, etc.
+	# La caída, el cartel de HAS MUERTO y la reaparición los lleva PlayerCombat (_on_died).
 	print("[Player] Died — impact or damage")
 
 ## En primera persona la cámara ve el cuerpo sin cabeza (CharacterAppearanceRig) y el tronco sigue

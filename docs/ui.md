@@ -238,8 +238,6 @@ menú y «Cargar partida» en la pausa.
 - **Nombres y descripciones:** varios objetos siguen en inglés en sus `.tres`.
 - **Menús de construcción y el resto del HUD** (barras de las criaturas, mira):
   aún no usan Saga.
-- La armadura que muestran los atributos es la suma de la de las piezas puestas,
-  pero el combate todavía no la usa (`HealthComponent.defense` no se rellena).
 
 ## Validar la barra rápida
 

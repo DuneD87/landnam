@@ -230,6 +230,11 @@ escudo, o las manos en el arma, delante del cuerpo.
 - **Aguante**: golpes, esquivas, correr (2/s, y corriendo no se recupera), esprintar
   (11/s), mantener la cuerda tensa y trepar (ver [climbing.md](climbing.md)). Si se
   agota, hay que recuperar un poco antes de volver a gastar.
+- **Armadura**: la `defense` de las piezas puestas (cabeza, torso, manos, piernas y pies) se
+  suma y es el tanto por ciento que se quita de cada golpe de combate, hasta un 80 %
+  (`HealthComponent.defense`, que pone `PlayerController._sync_armor` al equipar o al cargar
+  partida). Quita de la vida general y de la de la parte golpeada (`BodyDamage`), no de las
+  caídas. El cuero entero suma 13; el de piel, 9. Es la cifra de la pantalla de equipo.
 - **Guardia (poise)**: un golpe con más desgaste que la guardia del jugador (24) le
   hace tambalearse. Los osos aguantan 110 de desgaste acumulado (más la armadura de su
   ataque) y, al romperla, se quedan 1 s vendidos.
@@ -292,7 +297,8 @@ sangra.
 
 *Opciones > Juego > Sangre y mutilaciones*: sin sangre, solo sangre (no se cercena) o completo.
 
-Todo se cura al reaparecer, al cargar partida o con `heal` (los miembros aún no se guardan).
+Todo se cura al reaparecer tras morir o con `heal`. Al cargar partida se cierran las heridas, pero
+los miembros perdidos y los estados (pierna rota…) siguen como se guardaron.
 
 ### Miembros perdidos en la partida guardada
 

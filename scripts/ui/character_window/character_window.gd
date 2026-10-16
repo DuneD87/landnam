@@ -242,6 +242,17 @@ func get_equipped_item(slot_type: ItemData.ArmorSlot) -> InventoryItem:
 	return null
 
 
+## La armadura de lo que se lleva puesto: la suma de la defensa de las piezas, en tanto por ciento
+## del daño que quitan (HealthComponent.defense).
+func get_armor() -> int:
+	var armor := 0
+	for slot_type in LEFT_SLOTS:
+		var item := get_equipped_item(slot_type)
+		if item != null:
+			armor += item.data.defense
+	return armor
+
+
 func _refresh_if_shown() -> void:
 	if panel != null and panel.is_visible_in_tree():
 		_sync_dress()

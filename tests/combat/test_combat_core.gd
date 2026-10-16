@@ -110,9 +110,34 @@ func _run() -> void:
 	check(is_instance_valid(arrow) and arrow.get_parent() == far.box, "la flecha queda clavada en el hurtbox")
 
 	await _check_guard()
+	_check_armor()
 
 	print("COMBAT CORE TESTS: %d failures" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
+
+
+## Armadura: la suma de las piezas puestas (sin el escudo) y su tope.
+func _check_armor() -> void:
+	var window := CharacterWindow.new()
+	add_child(window)
+	var chest: ItemData = load("res://data/items/Armor/leather_armor/leather_chest.tres")
+	var hood: ItemData = load("res://data/items/Armor/leather_armor/leather_hood.tres")
+	var shield: ItemData = load("res://data/items/Shields/wooden_shield.tres")
+	for data in [chest, hood, shield]:
+		window.equip_item(window.get_slot(data.armor_slot), InventoryItem.new(data, 1))
+	var worn := chest.defense + hood.defense
+	check(window.get_armor() == worn, "la armadura suma las piezas puestas y no el escudo (%d)" % window.get_armor())
+	window.unequip_item(window.get_slot(hood.armor_slot))
+	check(window.get_armor() == chest.defense, "al quitarse una pieza deja de contar (%d)" % window.get_armor())
+	window.queue_free()
+
+	var health := HealthComponent.new()
+	add_child(health)
+	health.defense = 300.0
+	var info := DamageInfo.new()
+	info.amount = 40.0
+	check(is_equal_approx(health.receive_hit(info), 8.0), "la armadura no quita más del 80 %")
+	health.queue_free()
 
 
 ## Guardia (Guard): bloqueo de frente, nada por la espalda, parada en seco al alzarla, flechas
