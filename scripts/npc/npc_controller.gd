@@ -325,6 +325,44 @@ func answer_call(target: Node3D) -> bool:
 	return true
 
 
+## El perfil de combate con el que come carne (CreatureCombatProfile.feed_anims), o null si su
+## especie no la come.
+func feed_profile() -> CreatureCombatProfile:
+	for child in ai_controller.get_children():
+		var combat := child as CreatureCombatState
+		if combat != null and combat.profile != null and not combat.profile.feed_anims.is_empty():
+			return combat.profile
+	return null
+
+
+## Va a comerse [food] (los restos del jugador, PlayerRemains): pasa a FeedState, que se monta la
+## primera vez. Deja al objetivo que tuviera. Devuelve false si no come carne o no puede.
+func feed_on(food: Node3D) -> bool:
+	if not active or is_dead or _is_dying or not is_instance_valid(food):
+		return false
+	var state := ai_controller.get_node_or_null(^"FeedState") as FeedState
+	if state == null:
+		var feeding := feed_profile()
+		if feeding == null:
+			return false
+		state = FeedState.new()
+		state.name = "FeedState"
+		state.profile = feeding
+		ai_controller.add_state(state)
+	var already := ai_controller.get_current_state() == &"FeedState"
+	if already:
+		state.exit()
+	state.food = food
+	ai_controller.target = null
+	if perception:
+		perception.forget()
+	if already:
+		state.enter()
+	else:
+		ai_controller.transition_to(&"FeedState")
+	return true
+
+
 func _on_target_lost() -> void:
 	ai_controller.transition_to(lose_state)
 

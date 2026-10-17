@@ -75,6 +75,51 @@ static func build(surfaces: Array, blend_names: PackedStringArray, blend_mode: i
 	return mesh
 
 
+## Vacía de [surface] (una de source() o de un corte anterior) lo que cae en la región de [spec]
+## ({to_body: Transform3D que lleva la malla al espacio del cuerpo (el de la piel del cuerpo: metros,
+## +Y arriba, +Z delante), center, radii (en ese espacio)}): un cilindro elíptico de frente, de
+## radios radii.x y radii.y, por delante de center. Se van los triángulos con al menos dos vértices
+## dentro. No parte triángulos: el borde lo tapa lo que se pone en el hueco (HumanCarcass).
+## Devuelve {touched}; si quita algo, además kept.
+static func carve(surface: Dictionary, spec: Dictionary) -> Dictionary:
+	var arrays: Array = surface.arrays
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	if verts.is_empty() or indices.is_empty() or surface.primitive != Mesh.PRIMITIVE_TRIANGLES:
+		return {touched = false}
+	var to_body: Transform3D = spec.to_body
+	var center: Vector3 = spec.center
+	var radii: Vector3 = spec.radii
+	var inside := PackedByteArray()
+	inside.resize(verts.size())
+	for i in verts.size():
+		var local := to_body * verts[i] - center
+		var qx := local.x / radii.x
+		var qy := local.y / radii.y
+		inside[i] = 1 if qx * qx + qy * qy <= 1.0 and local.z > 0.0 else 0
+	var kept_indices := PackedInt32Array()
+	kept_indices.resize(indices.size())
+	var count := 0
+	for t in range(0, indices.size(), 3):
+		var a := indices[t]
+		var b := indices[t + 1]
+		var c := indices[t + 2]
+		if inside[a] + inside[b] + inside[c] >= 2:
+			continue
+		kept_indices[count] = a
+		kept_indices[count + 1] = b
+		kept_indices[count + 2] = c
+		count += 3
+	if count == indices.size():
+		return {touched = false}
+	kept_indices.resize(count)
+	var kept_arrays := arrays.duplicate()
+	kept_arrays[Mesh.ARRAY_INDEX] = kept_indices
+	var kept := surface.duplicate()
+	kept.arrays = kept_arrays
+	return {touched = true, kept = kept}
+
+
 ## Corta [surface] (una de source() o de un corte anterior) con el corte [spec]:
 ## {marks: PackedByteArray (OTHER/OWN/BELOW por bind), to_bone: Array (por bind del hueso cortado
 ## o de los que cuelgan de él, el Transform3D que lleva la malla al marco del hueso cortado con el

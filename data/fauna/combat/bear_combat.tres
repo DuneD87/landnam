@@ -33,3 +33,5 @@ action_fade_out = 0.35
 attack_sound = &"bear_growl"
 swing_sound = &"claw_swipe"
 stagger_sound = &"bear_hurt"
+feed_anims = Array[StringName]([&"stand eating"])
+feed_ranges = Array[Vector2]([Vector2(0.75, 1.95)])

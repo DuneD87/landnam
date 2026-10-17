@@ -84,6 +84,21 @@ func is_running() -> bool:
 	return _running
 
 
+## Ya ha caído y se ha asentado (ver SETTLE).
+func is_settled() -> bool:
+	return _running and _time >= SETTLE.y
+
+
+## Vuelve a moverse como recién soltado (algo lo levanta o lo suelta): sin el freno de asentarse y
+## sin los cuerpos que ya se habían quedado quietos. Los cinemáticos (los que lleva alguien) siguen.
+func wake() -> void:
+	_time = 0.0
+	for body in _bone_of:
+		var rb := body as RigidBody3D
+		if is_instance_valid(rb) and rb.freeze and rb.freeze_mode == RigidBody3D.FREEZE_MODE_STATIC:
+			rb.freeze = false
+
+
 ## Arranca desde la pose actual. [velocity] la que llevaba el cuerpo; [push] un empujón (mundo,
 ## N·s) al pecho, p. ej. el del golpe que lo mata.
 func start(velocity: Vector3 = Vector3.ZERO, push: Vector3 = Vector3.ZERO) -> void:

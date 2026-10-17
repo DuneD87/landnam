@@ -5,6 +5,7 @@
 [ext_resource type="Resource" path="res://data/fauna/combat/attacks/lioness_swipe_l.tres" id="a0"]
 [ext_resource type="Resource" path="res://data/fauna/combat/attacks/lioness_swipe_r.tres" id="a1"]
 [ext_resource type="Resource" path="res://data/fauna/combat/attacks/lioness_pounce.tres" id="a2"]
+[ext_resource type="AnimationLibrary" path="res://models/animals/lioness/lioness_feed.res" id="feed_lib"]
 
 [resource]
 script = ExtResource("2_profile")
@@ -40,3 +41,6 @@ attack_sound = &"lion_growl"
 swing_sound = &"claw_swipe"
 stagger_sound = &"lion_hurt"
 voice_pitch = 1.15
+feed_anims = Array[StringName]([&"feed/lion_idle_eat_01", &"feed/lion_idle_eat_02"])
+feed_ranges = Array[Vector2]([Vector2(0, 1.3), Vector2(0, 1.75)])
+feed_library = ExtResource("feed_lib")

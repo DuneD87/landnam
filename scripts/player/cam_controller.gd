@@ -56,6 +56,17 @@ var aim_zoom: float = 0.0
 @export var aim_distance: float = 2.1
 @export var aim_fov_drop: float = 16.0
 var _aim: float = 0.0
+## Encuadre de cine (morir devorado: Devouring): mirando a [cinematic] (mundo) desde arriba, a
+## CINEMATIC_DISTANCE, girando despacio a su alrededor; el ratón aún la gira. null = la normal. Entra
+## y sale fundiéndose (CINEMATIC_BLEND), y mientras manda va en tercera persona.
+var cinematic: Variant = null
+const CINEMATIC_DISTANCE := 3.4
+const CINEMATIC_PITCH := -0.62
+const CINEMATIC_SPIN := 0.12
+const CINEMATIC_BLEND := 1.2
+const CINEMATIC_LIFT := 0.35
+var _cine := 0.0
+var _cine_point := Vector3.ZERO
 var _lock_swipe: float = 0.0
 var _shake: float = 0.0
 var _base_fov: float = -1.0
@@ -131,6 +142,12 @@ func consume_lock_swipe() -> float:
 	return value
 
 
+## Deja el encuadre de cine de golpe, sin fundido (a oscuras, al reaparecer lejos).
+func end_cinematic() -> void:
+	cinematic = null
+	_cine = 0.0
+
+
 ## Sacudida de cámara (golpes). Se suma y se apaga sola.
 func add_shake(amount: float) -> void:
 	_shake = minf(_shake + amount, 0.6)
@@ -162,6 +179,14 @@ func _track_lock_point() -> void:
 
 
 func update_camera_rotation():
+	var dt := get_physics_process_delta_time()
+	_cine = move_toward(_cine, 1.0 if cinematic != null else 0.0, dt / CINEMATIC_BLEND)
+	if cinematic != null:
+		_cine_point = cinematic
+		yaw += CINEMATIC_SPIN * dt
+		camera_pivot.rotation.y = yaw
+		pitch = lerpf(pitch, CINEMATIC_PITCH, 1.0 - exp(-dt / 0.8))
+		delta_pitch = 0.0
 	if lock_point != null:
 		_track_lock_point()
 		delta_yaw = 0.0
@@ -229,7 +254,8 @@ func update_camera_transform():
 	camera.fov = _base_fov - aim_fov_drop * aim_ease * (0.55 + 0.45 * aim_zoom)
 	_shake = maxf(0.0, _shake - 0.02)
 
-	if first_person:
+	var cine := smoothstep(0.0, 1.0, _cine)
+	if first_person and cine <= 0.0:
 		if not _on_head:
 			var fp_forward = pitch_pivot.global_transform.basis * Vector3.BACK
 			camera.global_position = player_pos + up_axis * (fp_eye_height - crouch_drop)
@@ -242,6 +268,9 @@ func update_camera_transform():
 			var right: Vector3 = camera.global_transform.basis.x
 			target_pos += right * aim_shoulder * aim_ease + up_axis * 0.1 * aim_ease
 		var distance := lerpf(camera_distance, minf(camera_distance, aim_distance), aim_ease)
+		if cine > 0.0:
+			target_pos = target_pos.lerp(_cine_point + up_axis * CINEMATIC_LIFT, cine)
+			distance = lerpf(distance, CINEMATIC_DISTANCE, cine)
 		var ideal_pos = target_pos + orbit_dir * distance
 		var final_pos = adjust_for_collisions(target_pos, ideal_pos)
 		if _shake > 0.0:

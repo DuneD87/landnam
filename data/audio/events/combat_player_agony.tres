@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_70o2m"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_01.ogg" id="2_604k7"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_02.ogg" id="3_jdgfk"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_03.ogg" id="4_i2xsf"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_04.ogg" id="5_nr6uq"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_05.ogg" id="6_pwqry"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_06.ogg" id="7_uu1vr"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_07.ogg" id="8_7xx7p"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_08.ogg" id="9_eponb"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_09.ogg" id="10_e34pp"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_10.ogg" id="11_u22ja"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony/player_agony_11.ogg" id="12_tcgot"]
+
+[resource]
+script = ExtResource("1_70o2m")
+event_id = &"combat_player_agony"
+streams = Array[AudioStream]([ExtResource("2_604k7"), ExtResource("3_jdgfk"), ExtResource("4_i2xsf"), ExtResource("5_nr6uq"), ExtResource("6_pwqry"), ExtResource("7_uu1vr"), ExtResource("8_7xx7p"), ExtResource("9_eponb"), ExtResource("10_e34pp"), ExtResource("11_u22ja"), ExtResource("12_tcgot")])
+bus = "Voice"
+volume_jitter_db = 1.5
+pitch_jitter = 0.04
+unit_size = 5.0
+max_voices = 2
+cooldown = 0.4

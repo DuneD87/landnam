@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_nyoop"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_bite/devour_bite_01.ogg" id="2_bqpfh"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_bite/devour_bite_02.ogg" id="3_h7m8q"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_bite/devour_bite_03.ogg" id="4_0pny7"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_bite/devour_bite_04.ogg" id="5_l0ad7"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_bite/devour_bite_05.ogg" id="6_je3j8"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_bite/devour_bite_06.ogg" id="7_kfgql"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_bite/devour_bite_07.ogg" id="8_5r03k"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_bite/devour_bite_08.ogg" id="9_tni06"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_bite/devour_bite_09.ogg" id="10_126mt"]
+
+[resource]
+script = ExtResource("1_nyoop")
+event_id = &"combat_devour_bite"
+streams = Array[AudioStream]([ExtResource("2_bqpfh"), ExtResource("3_h7m8q"), ExtResource("4_0pny7"), ExtResource("5_l0ad7"), ExtResource("6_je3j8"), ExtResource("7_kfgql"), ExtResource("8_5r03k"), ExtResource("9_tni06"), ExtResource("10_126mt")])
+volume_db = -1.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.08
+max_distance = 25.0
+unit_size = 3.0
+max_voices = 3
+cooldown = 0.1

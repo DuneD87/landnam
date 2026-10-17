@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_jrwsi"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony_female/player_agony_female_01.ogg" id="2_8amsf"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony_female/player_agony_female_02.ogg" id="3_awckk"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony_female/player_agony_female_03.ogg" id="4_re8o6"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony_female/player_agony_female_04.ogg" id="5_5m2tn"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony_female/player_agony_female_05.ogg" id="6_qxnb7"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony_female/player_agony_female_06.ogg" id="7_yiuhy"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony_female/player_agony_female_07.ogg" id="8_2i3ll"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_agony_female/player_agony_female_08.ogg" id="9_it451"]
+
+[resource]
+script = ExtResource("1_jrwsi")
+event_id = &"combat_player_agony_female"
+streams = Array[AudioStream]([ExtResource("2_8amsf"), ExtResource("3_awckk"), ExtResource("4_re8o6"), ExtResource("5_5m2tn"), ExtResource("6_qxnb7"), ExtResource("7_yiuhy"), ExtResource("8_2i3ll"), ExtResource("9_it451")])
+bus = "Voice"
+volume_jitter_db = 1.5
+pitch_jitter = 0.04
+unit_size = 5.0
+max_voices = 2
+cooldown = 0.4

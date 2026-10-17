@@ -51,6 +51,13 @@ func _ready() -> void:
 			_states[StringName(child.name)] = child
 
 
+## Añade un estado ya en marcha (los que se montan la primera vez que hacen falta: FeedState).
+func add_state(state: AIState) -> void:
+	add_child(state)
+	state.controller = self
+	_states[StringName(state.name)] = state
+
+
 ## Arranca la FSM con el estado inicial (tras asignar npc y movement).
 func start(initial_state: StringName) -> void:
 	if not _states.has(initial_state):

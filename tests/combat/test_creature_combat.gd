@@ -103,12 +103,14 @@ func _check_profile(file: String, animal: NPCController, profile: CreatureCombat
 			for bone in hit.bones:
 				if skeleton == null or skeleton.find_bone(bone) < 0:
 					problems.append("%s: no hay hueso '%s'" % [attack.id, bone])
-	for anim in profile.stagger_anims + [profile.threaten_anim]:
+	# Los clips de comer prestados entran como la librería "feed" (FeedState lo hace al comer).
+	profile.add_feed_library(player)
+	for anim in profile.stagger_anims + [profile.threaten_anim] + profile.feed_anims:
 		if anim != &"" and not player.has_animation(anim):
 			problems.append("no hay clip '%s'" % anim)
 	# Todo nombre de sonido de los datos suena (con clips o sintetizado).
 	var sounds: Array = [profile.threaten_sound, profile.attack_sound, profile.swing_sound,
-		profile.stagger_sound, profile.wait_sound, animal.hurt_sound, animal.death_sound]
+		profile.stagger_sound, profile.wait_sound, profile.feed_sound, animal.hurt_sound, animal.death_sound]
 	for attack in profile.attacks:
 		sounds.append(attack.sound)
 		for hit in attack.hits:
@@ -890,9 +892,9 @@ func _check_player_voice() -> void:
 	var character := CharacterData.new()
 	GameManager.character = character
 	character.appearance.values[AppearanceCatalog.SEX] = &"female"
-	var female := [combat._voice(&"player_hurt"), combat._voice(&"player_death")]
+	var female := [combat.voice(&"player_hurt"), combat.voice(&"player_death")]
 	character.appearance.values[AppearanceCatalog.SEX] = &"male"
-	var male := [combat._voice(&"player_hurt"), combat._voice(&"player_death")]
+	var male := [combat.voice(&"player_hurt"), combat.voice(&"player_death")]
 	GameManager.character = saved
 	combat.free()
 	check(female == [&"player_hurt_female", &"player_death_female"] and male == [&"player_hurt", &"player_death"],

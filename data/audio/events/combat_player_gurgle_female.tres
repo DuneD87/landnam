@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_8qiig"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_gurgle/player_gurgle_01.ogg" id="2_bekyo"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_gurgle/player_gurgle_02.ogg" id="3_3ya4b"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_gurgle/player_gurgle_03.ogg" id="4_rpwrt"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_gurgle/player_gurgle_04.ogg" id="5_vsyub"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_gurgle/player_gurgle_05.ogg" id="6_bt4cs"]
+[ext_resource type="AudioStream" path="res://audio/combat/player_gurgle/player_gurgle_06.ogg" id="7_1x473"]
+
+[resource]
+script = ExtResource("1_8qiig")
+event_id = &"combat_player_gurgle_female"
+streams = Array[AudioStream]([ExtResource("2_bekyo"), ExtResource("3_3ya4b"), ExtResource("4_rpwrt"), ExtResource("5_vsyub"), ExtResource("6_bt4cs"), ExtResource("7_1x473")])
+bus = "Voice"
+volume_db = -2.0
+volume_jitter_db = 1.5
+pitch = 1.2
+pitch_jitter = 0.04
+max_distance = 25.0
+unit_size = 3.0
+max_voices = 1
+cooldown = 0.5

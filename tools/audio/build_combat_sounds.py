@@ -68,6 +68,16 @@ EVENTS = {
     "player_hurt_female": {"mode": "whole", "max_dur": 0.8, "sources": [242623, 242622, 344004, 252231, 252235,
         253776, 252232, 344045, 344013]},
     "player_death_female": {"mode": "whole", "max_dur": 3.0, "sources": [241522, 241573, 343954, 343999, 241545]},
+    # Devorado vivo (Devouring): gritos largos de agonía (otras voces: las de arriba no los tienen),
+    # el estertor ahogado del final y la fiera desgarrando, masticando y royendo.
+    "player_agony": {"mode": "segments", "dur": (0.8, 3.0), "sources": [(325548, 4), (556976, 3), (173944, 3),
+        (764370, 2)]},
+    "player_agony_female": {"mode": "segments", "dur": (0.8, 3.0), "sources": [(671355, 4), (573096, 2), (845164, 1),
+        (320740, 2)]},
+    # El estertor, sin voz de hombre ni de mujer (la jugadora lo usa más agudo: build_combat_events).
+    "player_gurgle": {"mode": "segments", "dur": (0.6, 2.5), "sources": [(826999, 2), (654044, 1), (476437, 2),
+        (830016, 3)]},
+    "devour_bite": {"mode": "segments", "dur": (0.35, 1.4), "sources": [(234237, 4), (260880, 3), (264280, 2)]},
     # Osos de verdad: grizzlis de Yellowstone (NPS), un oso negro en Whistler (celldroid) y la
     # librería antigua de craigsmith.
     "bear_growl": {"mode": "segments", "dur": (0.6, 3.0), "sources": [(763026, 3), (519599, 4), (519596, 1)]},
@@ -161,6 +171,9 @@ NAMES = {
     "skin_squelch": "Chapoteo de vísceras", "bone_snap": "Hueso que se parte",
     "player_hurt": "Quejidos del jugador", "player_death": "Muerte del jugador",
     "player_hurt_female": "Quejidos de la jugadora", "player_death_female": "Muerte de la jugadora",
+    "player_agony": "Agonía del jugador devorado", "player_agony_female": "Agonía de la jugadora devorada",
+    "player_gurgle": "Estertor del jugador o la jugadora devorados",
+    "devour_bite": "Fiera comiendo carne (desgarrar, masticar, roer)",
     "bear_growl": "Gruñido de oso", "bear_roar": "Rugido de oso", "bear_huff": "Resoplido de oso",
     "bear_hurt": "Oso herido", "bear_death": "Muerte del oso", "lion_roar": "Rugido de león",
     "lion_growl": "Gruñido de león", "lion_hurt": "León herido", "lion_death": "Muerte del león",

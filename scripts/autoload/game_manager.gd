@@ -17,7 +17,7 @@ enum State {
 const SAVEABLE_GROUP: String = "saveable"
 const SAVE_DIR: String = "user://saves/"
 const SAVE_EXTENSION: String = ".json"
-const SAVE_CATEGORIES: Array[String] = ["player", "grid", "planet", "npc"]
+const SAVE_CATEGORIES: Array[String] = ["player", "grid", "planet", "npc", "remains"]
 ## Slot que usa el menú principal (y la pre-lectura del SpawnPoint al arrancar).
 const MAIN_SLOT: String = "main_save"
 const PLAYER_ENTITY_ID: String = "player"
@@ -237,6 +237,11 @@ func load_game(slot_name: String = "default") -> bool:
 	var restored_ids: Array[String] = []
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if not entity.get("entity_id"):
+			continue
+		# Lo que nace en partida (los restos del jugador) y no estaba al guardar, fuera.
+		if entity.get("discard_on_load") and not all_entities.has(entity.entity_id):
+			entity.remove_from_group(SAVEABLE_GROUP)
+			entity.queue_free()
 			continue
 		var id: String = entity.entity_id
 		if all_entities.has(id):

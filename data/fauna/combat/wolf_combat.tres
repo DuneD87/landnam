@@ -44,3 +44,5 @@ action_fade_in = 0.15
 action_fade_out = 0.3
 attack_sound = &"wolf_snarl"
 stagger_sound = &"wolf_hurt"
+feed_anims = Array[StringName]([&"Idle_Eating"])
+feed_ranges = Array[Vector2]([Vector2(4.6, 15)])

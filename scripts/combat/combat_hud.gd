@@ -31,6 +31,9 @@ var _vignette: TextureRect
 var _fade: ColorRect
 var _death_band: TextureRect
 var _death_label: Label
+## Bajo el cartel: con qué tecla se salta (devorado por una fiera, Devouring).
+var _skip_label: Label
+var _skip_tween: Tween
 var _ammo_label: Label
 ## Estados en curso (pierna rota…) con lo que les queda, bajo la silueta.
 var _status_label: Label
@@ -155,6 +158,17 @@ func setup(owner_combat: PlayerCombat) -> void:
 	_death_label.draw.connect(_draw_death_rules)
 	add_child(_death_label)
 
+	_skip_label = Label.new()
+	_skip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_skip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_skip_label.add_theme_font_override("font", GameTheme.medium_font())
+	_skip_label.add_theme_color_override("font_color", GameTheme.BONE)
+	_skip_label.add_theme_color_override("font_outline_color", Color(GameTheme.INK, 0.9))
+	_skip_label.add_theme_constant_override("outline_size", 6)
+	_skip_label.modulate.a = 0.0
+	_skip_label.visible = false
+	add_child(_skip_label)
+
 	_fade = ColorRect.new()
 	_fade.color = Color.BLACK
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -176,6 +190,9 @@ func _relayout() -> void:
 	_death_label.position = _death_band.position
 	_death_label.size = _death_band.size
 	_death_label.add_theme_font_size_override("font_size", int(150 * _scale))
+	_skip_label.add_theme_font_size_override("font_size", int(26 * _scale))
+	_skip_label.position = Vector2(0, _death_band.position.y + band_h + 24.0 * _scale)
+	_skip_label.size = Vector2(size.x, 40.0 * _scale)
 	_ammo_label.add_theme_font_size_override("font_size", int(26 * _scale))
 	_status_label.add_theme_font_size_override("font_size", int(22 * _scale))
 
@@ -588,6 +605,26 @@ func hide_death() -> void:
 
 func is_death_shown() -> bool:
 	return _death_shown
+
+
+## Con qué tecla se salta lo que queda de la muerte (la de saltar, jump).
+func show_skip_hint() -> void:
+	var events := InputMap.action_get_events(&"jump")
+	var key := SettingsManager.event_label(events[0]) if not events.is_empty() else ""
+	_skip_label.text = "[%s]  Saltar" % key if key != "" else "Saltar"
+	_skip_label.visible = true
+	if _skip_tween != null:
+		_skip_tween.kill()
+	_skip_tween = create_tween()
+	_skip_tween.tween_property(_skip_label, "modulate:a", 0.85, 0.6).set_delay(1.0)
+
+
+func hide_skip_hint() -> void:
+	if _skip_tween != null:
+		_skip_tween.kill()
+		_skip_tween = null
+	_skip_label.visible = false
+	_skip_label.modulate.a = 0.0
 
 
 func fade_to_black(duration: float) -> void:

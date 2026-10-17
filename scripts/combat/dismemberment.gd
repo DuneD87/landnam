@@ -51,10 +51,16 @@ var capped: Array[MeshInstance3D] = []
 var frame_node: Node3D
 ## La del cuerpo (la pone el dueño). Sin ella lo cortado no cae: se queda sin soltar.
 var gravity := Vector3.ZERO
+## Lo cortado cae (SeveredLimb, SeveredChunk). Sin ello, el muñón queda igual pero lo cortado
+## desaparece (lo que se ha comido una fiera: Devouring).
+var drop_parts := true
 var world_mask := 1
 var exclude_body: PhysicsBody3D
 
 var _cuts: Array[Dictionary] = []
+## Vaciados (carve): {bone (el hueso común con el que se lleva cada malla al espacio del cuerpo),
+## body_bind (el bind de ese hueso en la piel del cuerpo), center, radii (ver LimbCutter.carve)}.
+var _carves: Array[Dictionary] = []
 ## MeshInstance3D → {source (la malla sin cortar), result (la que dejó puesta), pending (cortes en
 ## marcha), stale (hay que volver a cortarla cuando acaben)}.
 var _entries := {}
@@ -135,8 +141,9 @@ func cut(bone_name: StringName, hit: Vector3, blow: Vector3, fling: Vector3, fra
 
 
 ## Rehace un corte guardado ([bone_name], la altura [t] y el plano [origin]/[normal] en el marco del
-## hueso, como los da cut()): vuelve a cortar las mallas y a tapar el muñón, sin soltar nada.
-func add_saved(bone_name: StringName, t: float, origin: Vector3, normal: Vector3) -> Dictionary:
+## hueso, como los da cut()): vuelve a cortar las mallas y a tapar el muñón, sin soltar nada; o, con
+## [drop], soltando lo cortado como al cortarlo (quieto: lo coloca quien lo pide, con limb_dropped).
+func add_saved(bone_name: StringName, t: float, origin: Vector3, normal: Vector3, drop := false) -> Dictionary:
 	if skeleton == null or not cuttable.has(bone_name):
 		return {}
 	var bone := skeleton.find_bone(bone_name)
@@ -150,12 +157,44 @@ func add_saved(bone_name: StringName, t: float, origin: Vector3, normal: Vector3
 	_cuts.append(saved)
 	for entry: Dictionary in _entries.values():
 		entry.stale = true
+	if drop:
+		_queue(_candidates(), saved)
 	set_process(true)
 	return saved
 
 
 func cuts() -> Array[Dictionary]:
 	return _cuts
+
+
+## Vacía de todas las mallas lo que cae en la región [region] (el vientre abierto del jugador
+## devorado: HumanCarcass.wound). Como los cortes, se rehace solo si una malla cambia, y se quita con
+## restore().
+func carve(region: Dictionary) -> void:
+	if skeleton == null or region.is_empty():
+		return
+	_carves.append(region)
+	for entry: Dictionary in _entries.values():
+		entry.stale = true
+	set_process(true)
+
+
+## Aún queda algún corte por aplicar a alguna malla (en el hilo, o por rehacer).
+func is_busy() -> bool:
+	if not _jobs.is_empty():
+		return true
+	for entry: Dictionary in _entries.values():
+		if entry.pending > 0 or entry.stale:
+			return true
+	return false
+
+
+## Usa lo ya leído por [other] de las mallas que lleven los dos (una copia del mismo cuerpo:
+## PlayerRemains), para no volver a traerlas de la GPU.
+func share_sources(other: Dismemberment) -> void:
+	for mesh in other._sources:
+		if not _sources.has(mesh):
+			_sources[mesh] = other._sources[mesh]
 
 
 ## El hueso [bone] se ha ido con algún corte (cuelga de un hueso cortado).
@@ -205,6 +244,7 @@ func restore() -> void:
 	_entries.clear()
 	_caps.clear()
 	_cuts.clear()
+	_carves.clear()
 	for node in _hidden:
 		if is_instance_valid(node):
 			node.visible = true
@@ -219,8 +259,9 @@ func _process(_delta: float) -> void:
 		_jobs.erase(job)
 		_finish(job)
 	if _cuts.is_empty():
-		_prewarm(_delta)
-		return
+		if _carves.is_empty():
+			_prewarm(_delta)
+			return
 	var stale: Array[MeshInstance3D] = []
 	for inst in _candidates():
 		var entry: Dictionary = _entries.get(inst, {})
@@ -307,9 +348,14 @@ func _queue(instances: Array[MeshInstance3D], new_cut: Dictionary) -> void:
 		var specs := []
 		for c in _cuts:
 			specs.append(_spec(inst.skin, c))
+		var carves := []
+		for region in _carves:
+			var carve_spec := _carve_spec(inst.skin, region)
+			if not carve_spec.is_empty():
+				carves.append(carve_spec)
 		items.append({
 			instance = inst, expect = inst.mesh, source = source, data = _sources[source],
-			specs = specs, capped = capped.has(inst),
+			specs = specs, carves = carves, capped = capped.has(inst),
 			new_index = _cuts.find(new_cut) if not new_cut.is_empty() else -1,
 			# Lo que cae de una pieza se hornea en el hilo, en la pose del corte.
 			pose = SeveredChunk.pose_matrices(inst.skin, skeleton) if rigid_parts and not new_cut.is_empty() else [],
@@ -351,6 +397,18 @@ func _spec(skin: Skin, c: Dictionary) -> Dictionary:
 			marks[b] = LimbCutter.BELOW
 			to_bone[b] = _straight(bone, c.bone) * skin.get_bind_pose(b)
 	return {marks = marks, to_bone = to_bone, bind = bind, origin = c.origin, normal = c.normal}
+
+
+## El vaciado [region] visto desde la piel [skin]: cómo llevar su malla al espacio del cuerpo (por el
+## bind del hueso común), o {} si la piel no lleva ese hueso.
+func _carve_spec(skin: Skin, region: Dictionary) -> Dictionary:
+	for b in skin.get_bind_count():
+		var bind_name := skin.get_bind_name(b)
+		var bone := skeleton.find_bone(bind_name) if bind_name != &"" else skin.get_bind_bone(b)
+		if bone == region.bone:
+			return {to_body = (region.body_bind as Transform3D).affine_inverse() * skin.get_bind_pose(b),
+				center = region.center, radii = region.radii}
+	return {}
 
 
 ## Marco de [bone] en el de su antepasado [ancestor] con las articulaciones de en medio en su giro
@@ -395,6 +453,14 @@ func _run(job: Dictionary) -> void:
 					cap = r.cap_kept
 			surfaces = next
 			caps.append(cap)
+		# Lo vaciado, después de los cortes: lo de los miembros ya se ha ido.
+		for carve_spec: Dictionary in item.carves:
+			var carved := []
+			for surface: Dictionary in surfaces:
+				var r := LimbCutter.carve(surface, carve_spec)
+				carved.append(r.kept if r.touched else surface)
+				touched = touched or r.touched
+			surfaces = carved
 		var pose: Array[Transform3D] = []
 		pose.assign(item.pose)
 		if not pose.is_empty():
@@ -449,7 +515,7 @@ func _finish(job: Dictionary) -> void:
 				mesh = LimbCutter.build([res.severed_cap], PackedStringArray(), 0, "StumpCap", false),
 				skin = null if res.baked else inst.skin, transform = relative, material_override = _stump(),
 			})
-	if current and not job.cut.is_empty() and not parts.is_empty():
+	if current and drop_parts and not job.cut.is_empty() and not parts.is_empty():
 		_drop(job.cut, parts)
 
 

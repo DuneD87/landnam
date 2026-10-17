@@ -98,3 +98,35 @@ extends Resource
 ## Tono de su voz (amenaza, gruñidos): otra especie puede usar los mismos sonidos más graves o
 ## más agudos.
 @export var voice_pitch: float = 1.0
+
+@export_group("Feeding")
+## Los clips con los que come, uno tras otro al azar. Con alguno, la especie come carne: se come al
+## jugador que mata (FeedState, Devouring). Ninguno = no come.
+@export var feed_anims: Array[StringName] = []
+## El tramo de cada clip de feed_anims que se repite (s; ZERO o ninguno = el clip entero): el de la
+## cabeza en el suelo.
+@export var feed_ranges: Array[Vector2] = []
+@export var feed_anim_speed: float = 1.0
+## Clips de comer prestados de otra especie con el mismo esqueleto (tools/fauna/borrow_clips.gd): se
+## añaden a su AnimationPlayer como la librería "feed" la primera vez que come, y en feed_anims van
+## como "feed/<clip>".
+@export var feed_library: AnimationLibrary
+## De su origen a la boca (m, a tamaño 1), para acercarse al cuerpo si no se puede sacar de sus clips
+## de comer dónde le queda la boca (FeedState). 0 = la punta de su cápsula.
+@export var feed_reach: float = 0.0
+## Lo que sigue comiendo una vez despiezado el cuerpo (s, al azar entre los dos).
+@export var feed_time := Vector2(20.0, 40.0)
+## Lo que suena mientras come (gruñidos) y cada cuánto (s, al azar entre los dos). Vacío = wait_sound.
+@export var feed_sound: StringName = &""
+@export var feed_growl := Vector2(2.5, 5.0)
+
+
+## Pone feed_library en [player] si aún no la tiene.
+func add_feed_library(player: AnimationPlayer) -> void:
+	if feed_library != null and player != null and not player.has_animation_library(&"feed"):
+		player.add_animation_library(&"feed", feed_library)
+
+
+## El tramo del clip [param index] de feed_anims que se repite (s), o ZERO para el clip entero.
+func feed_range(index: int) -> Vector2:
+	return feed_ranges[index] if index < feed_ranges.size() else Vector2.ZERO

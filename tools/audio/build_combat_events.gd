@@ -3,8 +3,8 @@ extends SceneTree
 ## Un SoundEvent por carpeta de audio/combat/ (los clips que deja build_combat_sounds.py), en
 ## data/audio/events/combat_<evento>.tres, con su mezcla. CombatFx los pide por "combat_<id>" y,
 ## si un evento no está, suena su versión sintetizada.
-##   godot --headless --path . --script res://tools/audio/build_combat_events.gd
-## (tras importar los clips: godot --headless --editor --quit --path .)
+##   godot --headless --path . --script res://tools/audio/build_combat_events.gd [-- --only=a,b]
+## (tras importar los clips: godot --headless --editor --quit --path .). Con --only, solo esos.
 
 const CLIPS := "res://audio/combat"
 const EVENTS := "res://data/audio/events"
@@ -35,6 +35,12 @@ const MIX := {
 	&"player_death": {"bus": "Voice", "volume": 0.0, "pitch_jitter": 0.03, "max": 40.0, "unit": 4.0, "voices": 1, "cooldown": 1.0},
 	&"player_hurt_female": {"bus": "Voice", "volume": -3.0, "pitch_jitter": 0.04, "max": 30.0, "unit": 3.0, "voices": 2, "cooldown": 0.2},
 	&"player_death_female": {"bus": "Voice", "volume": 0.0, "pitch_jitter": 0.03, "max": 40.0, "unit": 4.0, "voices": 1, "cooldown": 1.0},
+	# Devorado vivo (Devouring): los gritos se oyen lejos; el estertor y la fiera comiendo, de cerca.
+	&"player_agony": {"bus": "Voice", "volume": 0.0, "pitch_jitter": 0.04, "max": 60.0, "unit": 5.0, "voices": 2, "cooldown": 0.4},
+	&"player_agony_female": {"bus": "Voice", "volume": 0.0, "pitch_jitter": 0.04, "max": 60.0, "unit": 5.0, "voices": 2, "cooldown": 0.4},
+	&"player_gurgle": {"bus": "Voice", "volume": -2.0, "pitch_jitter": 0.04, "max": 25.0, "unit": 3.0, "voices": 1, "cooldown": 0.5},
+	&"player_gurgle_female": {"clips": &"player_gurgle", "bus": "Voice", "volume": -2.0, "pitch": 1.2, "pitch_jitter": 0.04, "max": 25.0, "unit": 3.0, "voices": 1, "cooldown": 0.5},
+	&"devour_bite": {"volume": -1.0, "pitch_jitter": 0.08, "max": 25.0, "unit": 3.0, "voices": 3, "cooldown": 0.1},
 	&"bear_growl": {"volume": -2.0, "pitch_jitter": 0.06, "max": 60.0, "unit": 6.0, "voices": 3, "cooldown": 0.5},
 	&"bear_roar": {"volume": 2.0, "pitch_jitter": 0.05, "max": 90.0, "unit": 8.0, "voices": 2, "cooldown": 1.0},
 	&"bear_huff": {"volume": -2.0, "pitch_jitter": 0.06, "max": 40.0, "unit": 5.0, "voices": 2, "cooldown": 0.3},
@@ -108,8 +114,14 @@ const MIX := {
 
 
 func _initialize() -> void:
+	var only := PackedStringArray()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--only="):
+			only = arg.trim_prefix("--only=").split(",", false)
 	var made := 0
 	for id in MIX:
+		if not only.is_empty() and not only.has(String(id)):
+			continue
 		var mix: Dictionary = MIX[id]
 		var folder := "%s/%s" % [CLIPS, mix.get("clips", id)]
 		var streams: Array[AudioStream] = []

@@ -564,6 +564,69 @@ del menú). Si no se ha guardado nunca, reaparece donde empezó a jugar. Vuelve 
 la vida y el aguante llenos y conserva el inventario. Las criaturas que iban a por
 él se calman y recuperan la vida.
 
+### Devorado
+
+Si lo mata una fiera que come carne (`Devouring`), se lo come. Cuenta la última criatura que le ha
+herido, hace menos de 30 s y a menos de 40 m, así que desangrarse de sus mordiscos también vale.
+Comen carne las especies cuyo perfil trae `feed_anims`: lobo, oso (y oso polar), león, leona, puma,
+hiena y caimán.
+
+1. El cuerpo cae como siempre. Cuando se asienta, en su sitio quedan unos **restos**
+   (`PlayerRemains`): una copia del cuerpo en la pose en que ha caído, con lo que llevaba puesto,
+   los miembros que ya hubiera perdido y la sangre que llevaba encima. La pose se lee en
+   `skeleton_updated`, porque fuera de esa señal el esqueleto da la pose sin el muñeco.
+2. La fiera, y hasta dos de su manada que peleaban con él, van a comérselos (`FeedState`). La
+   primera trabaja la parte que toca arrancar y las demás muerden otra cada una (`bite_point`).
+3. Mientras comen, entre 6 y 9 s (menos si son varias):
+   - cada bocado (`devour_bite`) desgarra, salpica, mancha el cuerpo y le da un tirón hacia la
+     fiera, y la cabeza de esta entra en la carne y tira;
+   - le arrancan uno a uno los brazos y las piernas que le queden. Quien lo arranca se lo lleva
+     colgando de la boca por el corte, lo sacude y lo suelta, y se queda junto al cuerpo;
+   - a media comida le abren el vientre y el pecho (la canal) y le sacan las vísceras;
+   - grita (`player_agony`, con quejidos entre medias) cada vez más débil, hasta el estertor
+     (`player_gurgle`), hacia el 70 % de la comida.
+4. La cámara lo mira todo de cine: se separa, lo mira desde arriba y gira despacio alrededor
+   (`CameraController.cinematic`). El ratón aún la gira.
+5. Acabado, sale **HAS MUERTO** y, a los 3,5 s, reaparece. Las fieras siguen comiendo un rato
+   (`feed_time`) y se van.
+
+**Espacio** (la tecla de saltar) se lo salta. A oscuras, lo que faltaba se hace de golpe: lo que
+quedaba por arrancar ya se lo han comido (quedan los muñones, pero los miembros no caen), y queda
+abierto en canal.
+
+**La boca, en la carne.** La punta de la mandíbula sale de la malla de cada especie: es el vértice
+de la mandíbula más adelantado (`BiteReach.tip_of`). Dónde queda de media en sus clips de comer se
+calcula de las pistas del clip, sin reproducirlo (`BiteReach.clip_mouth`), y con eso se coloca la
+fiera. Si aun así no cae, se arrima sin dejar de comer. `BiteReach` gira cabeza, cuello y pecho
+(CCD) para llevarla a la carne por donde caiga (`bite_surface`; con la canal abierta, dentro del
+hueco).
+
+Cada clip se repite solo en el tramo en que la cabeza va al suelo (`feed_ranges`):
+- **Lobo, oso y león:** sus propios clips de comer.
+- **Leona y puma:** los del león, prestados con `tools/fauna/borrow_clips.gd`. A la leona le valen
+  tal cual (el mismo esqueleto); al puma se le reajustan al reposo de su esqueleto. Van en
+  `feed_library`.
+- **Hiena:** su mordisco.
+- **Caimán:** su llamada y el final de su ataque.
+
+`test_devouring` mide la boca de las siete en la carne del tronco a 0–2 cm de media.
+
+**La canal** (`HumanCarcass`): un hueco en el vientre y el pecho, a la medida del cuerpo (se mide en
+su malla). Se vacía de la piel y de lo que lleve puesto con `Dismemberment.carve`, que se rehace
+como los cortes si la malla cambia. Dentro, una cavidad de carne con sangre encharcada, la columna y
+las costillas rotas, pegada al hueso del tronco.
+
+Los restos se quedan en el mundo y van con el origen flotante. Una vez sellados ya no cuestan nada
+cada fotograma: sin `Dismemberment`, y con los miembros arrancados quietos y sin muñeco
+(`SeveredLimb.keep` y `settle`). Caben 8; al pasar, se va el más viejo.
+
+**Se guardan en la partida** (categoría `remains`): su aspecto y lo que llevaba puesto, la pose, los
+cortes, la canal, las vísceras y dónde quedó cada miembro. Al cargar se rehacen igual con un cuerpo
+de personaje temporal. Los que salieron después de guardar se van al cargar (`discard_on_load`).
+
+Con menos gore no hay despiece (solo sangre) o no hay sangre ni desgarros. Si no llega ninguna fiera,
+o dejan de comer 6 s, se queda como esté.
+
 ## Consola
 
 - `spawn oso [cantidad] [distancia] [variante]`: suelta osos delante (también `ciervo`, `leon`,
@@ -584,6 +647,7 @@ la vida y el aguante llenos y conserva el inventario. Las criaturas que iban a p
 ```
 godot --headless --path . res://tests/combat/test_combat_core.tscn
 godot --headless --path . res://tests/combat/test_creature_combat.tscn
+godot --headless --path . res://tests/combat/test_devouring.tscn
 godot --path . res://tests/combat/combat_capture.tscn -- --tag=x [--runs=melee,bow,death,bowterrain]
 godot --path . --script res://tests/combat/pose_preview.gd -- --tag=x
 godot --path . --audio-driver Dummy --script res://tests/combat/anim_preview.gd -- --tag=x --background

@@ -110,6 +110,14 @@ const DEATH_POOL_DELAY := 1.6
 const DEATH_POOL_SIZE := Vector2(2.2, 2.8)
 const DEATH_POOL_GROW := 14.0
 const RESPAWN_DELAY := 5.0
+## Devorado (Devouring): lo mata una fiera que come carne si le ha herido hace menos de esto (s; el
+## que se desangra de sus heridas también) y sigue a menos de KILLER_RANGE (m). Acabado, el cartel
+## de HAS MUERTO dura DEVOURED_RESPAWN_DELAY (s) hasta reaparecer.
+const KILLER_MEMORY := 30.0
+const KILLER_RANGE := 40.0
+const DEVOURED_RESPAWN_DELAY := 3.5
+## Desde cuándo (s tras morir) se puede saltar.
+const SKIP_AFTER := 0.5
 
 ## Animaciones de Mixamo reorientadas al jugador (tools/combat/retarget_mixamo.gd). Tiempos en
 ## segundos de cada animación, medidos sobre ella.
@@ -165,6 +173,8 @@ var body_damage: BodyDamage
 var status: StatusEffects
 ## Andar lisiado (cojear, muleta o arrastrarse) cuando tiene una pierna perdida o rota.
 var cripple: Cripple
+## Muerto por una fiera que come carne: se lo come (y queda lo que deja).
+var devouring: Devouring
 ## La rama la coloca Cripple como muleta (o el arma va escondida al arrastrarse).
 var _cripple_visual: bool = false
 var lock_target: Node3D = null
@@ -236,6 +246,9 @@ var _death_time: float = 0.0
 var _death_pool: bool = false
 ## Dirección y fuerza del último golpe encajado (para cómo cae al morir).
 var _last_hit_push: Vector3 = Vector3.ZERO
+## La última criatura que le ha herido y cuándo (s), por si lo mata y se lo come (_devourer).
+var _last_attacker: Node = null
+var _last_attacker_time: float = -INF
 var _respawning: bool = false
 
 var _lock_lost_time: float = 0.0
@@ -364,6 +377,10 @@ func setup(owner_player: PlayerController) -> void:
 	status.health = player.health_component
 	add_child(status)
 	status.applied.connect(_on_status_applied)
+	devouring = Devouring.new()
+	devouring.name = "Devouring"
+	add_child(devouring)
+	devouring.setup(self, _skeleton)
 
 	_arrow_visual = MeshInstance3D.new()
 	_arrow_visual.name = "NockedArrow"
@@ -984,7 +1001,7 @@ func is_dead() -> bool:
 
 
 ## El sonido de voz [id] con la voz del personaje: el "<id>_female" si es mujer y lo hay.
-func _voice(id: StringName) -> StringName:
+func voice(id: StringName) -> StringName:
 	var character: CharacterData = GameManager.character
 	if character != null and character.appearance != null and character.appearance.get_sex() == &"female":
 		var female := StringName(String(id) + "_female")
@@ -2132,20 +2149,23 @@ func _update_aim_blend(delta: float) -> void:
 func _on_hit_received(info: DamageInfo, applied: float) -> void:
 	if state == State.DEAD:
 		return
+	if info.source is NPCController:
+		_last_attacker = info.source
+		_last_attacker_time = Time.get_ticks_msec() / 1000.0
 	var up := -player.gravity_direction.normalized()
 	if info.guarded == Guard.Result.BLOCKED:
 		# Lo que pasa a través de la guardia: duele, pero ni tambalea ni arranca un quejido salvo
 		# que sea mucho.
 		hud.flash_damage(clampf(applied / 40.0, 0.15, 0.6))
 		if applied >= 12.0:
-			CombatFx.play(_voice(&"player_hurt"), player.global_position)
+			CombatFx.play(voice(&"player_hurt"), player.global_position)
 		return
 	var push_dir := _flat(info.direction)
 	_last_hit_push = push_dir * clampf(35.0 + applied * 1.2 + info.poise * 0.8, 35.0, 110.0) + up * 8.0
 	hit_react.flinch(info.direction, up, clampf(applied / 22.0, 0.3, 1.2))
 	player.camera_controller.add_shake(clampf(applied / 60.0, 0.06, 0.35))
 	hud.flash_damage(clampf(applied / 40.0, 0.25, 1.0))
-	CombatFx.play(_voice(&"player_hurt"), player.global_position)
+	CombatFx.play(voice(&"player_hurt"), player.global_position)
 	if player.health_component.health - applied <= 0.0:
 		return
 	# Los golpes pesados y los de dos manos aguantan mientras se descargan (hyperarmor). Con la
@@ -2177,7 +2197,7 @@ func _on_status_applied(effect: StatusEffect) -> void:
 		return
 	player.camera_controller.add_shake(0.35)
 	hud.flash_damage(0.8)
-	CombatFx.play(_voice(&"player_hurt"), player.global_position)
+	CombatFx.play(voice(&"player_hurt"), player.global_position)
 
 
 func _start_stagger(info: DamageInfo) -> void:
@@ -2254,7 +2274,24 @@ func _on_died() -> void:
 		_foot_ik.influence = 0.0
 	if _look_ik:
 		_look_ik.active = false
-	CombatFx.play(_voice(&"player_death"), player.global_position)
+	var killer := _devourer()
+	if killer != null:
+		devouring.start(killer)
+	# Si se lo van a comer aún no muere: grita, y el estertor llega mientras se lo comen.
+	CombatFx.play(voice(&"player_agony" if devouring.is_active() else &"player_death"), player.global_position)
+
+
+## La fiera que lo ha matado, si come carne y sigue ahí para comérselo: la última criatura que le ha
+## herido, hace menos de KILLER_MEMORY, viva y a menos de KILLER_RANGE. Si no, null.
+func _devourer() -> NPCController:
+	if not is_instance_valid(_last_attacker) \
+			or Time.get_ticks_msec() / 1000.0 - _last_attacker_time > KILLER_MEMORY:
+		return null
+	var npc := _last_attacker as NPCController
+	if npc == null or not npc.active or npc.is_dead or npc.feed_profile() == null \
+			or npc.global_position.distance_to(player.global_position) > KILLER_RANGE:
+		return null
+	return npc
 
 
 func _update_dead(delta: float) -> void:
@@ -2272,6 +2309,18 @@ func _update_dead(delta: float) -> void:
 		var to := ragdoll.center() - player.global_position
 		to -= up * to.dot(up)
 		_motion_h = to.limit_length(1.0) * 5.0 if to.length() > 0.3 else Vector3.ZERO
+	if devouring.is_active():
+		# El cartel sale al acabar de comérselo; saltar (jump) lo acaba ya y reaparece.
+		if devouring.is_over() and not hud.is_death_shown():
+			hud.show_death()
+		if _respawning:
+			return
+		# Recién muerto no: el salto que se estaba dando no cuenta.
+		if player.input_enabled and _death_time >= SKIP_AFTER and Input.is_action_just_pressed(&"jump"):
+			_respawn()
+		elif devouring.is_over() and devouring.over_time() >= DEVOURED_RESPAWN_DELAY:
+			_respawn()
+		return
 	if _death_time >= DEATH_SCREEN_DELAY and not hud.is_death_shown():
 		hud.show_death()
 	if _death_time >= RESPAWN_DELAY and not _respawning:
@@ -2283,6 +2332,9 @@ func _update_dead(delta: float) -> void:
 func _respawn() -> void:
 	_respawning = true
 	await hud.fade_to_black(0.9)
+	# Devorado: a oscuras se acaba lo que faltara y los restos se quedan donde están.
+	await devouring.release()
+	_last_attacker = null
 	var xform := _respawn_transform()
 	player.input_enabled = false
 	player.global_transform = xform
@@ -2331,6 +2383,8 @@ func _respawn() -> void:
 
 ## Al cargar una partida: fuera de cualquier golpe, esquiva o muerte, y con todo lleno.
 func on_restored() -> void:
+	devouring.cancel()
+	_last_attacker = null
 	_abort_attack()
 	_move = {}
 	_act_stop("full")

@@ -38,3 +38,7 @@ stagger_anims = Array[StringName]([&"Hit chest back"])
 threaten_sound = &"alligator_hiss"
 attack_sound = &"alligator_growl"
 stagger_sound = &"alligator_hurt"
+feed_anims = Array[StringName]([&"Idle call shared", &"Attack"])
+feed_ranges = Array[Vector2]([Vector2(0, 1.2), Vector2(0.72, 1.03)])
+feed_anim_speed = 0.6
+feed_sound = &"alligator_growl"

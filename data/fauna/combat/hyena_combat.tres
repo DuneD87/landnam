@@ -40,3 +40,6 @@ stagger_anims = Array[StringName]([&"HitInRunHead_F"])
 attack_sound = &"wolf_snarl"
 stagger_sound = &"wolf_hurt"
 voice_pitch = 1.35
+feed_anims = Array[StringName]([&"Bite"])
+feed_ranges = Array[Vector2]([Vector2(0.9, 2)])
+feed_anim_speed = 0.8

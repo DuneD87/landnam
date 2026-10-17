@@ -1546,6 +1546,184 @@
     "source": 513315,
     "dur": 0.7
    }
+  ],
+  "player_agony": [
+   {
+    "file": "audio/combat/player_agony/player_agony_01.ogg",
+    "source": 325548,
+    "dur": 1.95
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_02.ogg",
+    "source": 325548,
+    "dur": 2.12
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_03.ogg",
+    "source": 325548,
+    "dur": 2.81
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_04.ogg",
+    "source": 325548,
+    "dur": 2.48
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_05.ogg",
+    "source": 556976,
+    "dur": 2.59
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_06.ogg",
+    "source": 556976,
+    "dur": 2.52
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_07.ogg",
+    "source": 173944,
+    "dur": 1.68
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_08.ogg",
+    "source": 173944,
+    "dur": 2.65
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_09.ogg",
+    "source": 173944,
+    "dur": 3.28
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_10.ogg",
+    "source": 764370,
+    "dur": 3.28
+   },
+   {
+    "file": "audio/combat/player_agony/player_agony_11.ogg",
+    "source": 764370,
+    "dur": 3.1
+   }
+  ],
+  "player_agony_female": [
+   {
+    "file": "audio/combat/player_agony_female/player_agony_female_01.ogg",
+    "source": 671355,
+    "dur": 2.04
+   },
+   {
+    "file": "audio/combat/player_agony_female/player_agony_female_02.ogg",
+    "source": 671355,
+    "dur": 1.93
+   },
+   {
+    "file": "audio/combat/player_agony_female/player_agony_female_03.ogg",
+    "source": 671355,
+    "dur": 2.19
+   },
+   {
+    "file": "audio/combat/player_agony_female/player_agony_female_04.ogg",
+    "source": 671355,
+    "dur": 1.15
+   },
+   {
+    "file": "audio/combat/player_agony_female/player_agony_female_05.ogg",
+    "source": 573096,
+    "dur": 3.23
+   },
+   {
+    "file": "audio/combat/player_agony_female/player_agony_female_06.ogg",
+    "source": 845164,
+    "dur": 2.98
+   },
+   {
+    "file": "audio/combat/player_agony_female/player_agony_female_07.ogg",
+    "source": 320740,
+    "dur": 3.28
+   },
+   {
+    "file": "audio/combat/player_agony_female/player_agony_female_08.ogg",
+    "source": 320740,
+    "dur": 3.22
+   }
+  ],
+  "player_gurgle": [
+   {
+    "file": "audio/combat/player_gurgle/player_gurgle_01.ogg",
+    "source": 826999,
+    "dur": 0.73
+   },
+   {
+    "file": "audio/combat/player_gurgle/player_gurgle_02.ogg",
+    "source": 654044,
+    "dur": 1.32
+   },
+   {
+    "file": "audio/combat/player_gurgle/player_gurgle_03.ogg",
+    "source": 476437,
+    "dur": 1.67
+   },
+   {
+    "file": "audio/combat/player_gurgle/player_gurgle_04.ogg",
+    "source": 830016,
+    "dur": 2.78
+   },
+   {
+    "file": "audio/combat/player_gurgle/player_gurgle_05.ogg",
+    "source": 830016,
+    "dur": 2.78
+   },
+   {
+    "file": "audio/combat/player_gurgle/player_gurgle_06.ogg",
+    "source": 830016,
+    "dur": 1.71
+   }
+  ],
+  "devour_bite": [
+   {
+    "file": "audio/combat/devour_bite/devour_bite_01.ogg",
+    "source": 234237,
+    "dur": 1.08
+   },
+   {
+    "file": "audio/combat/devour_bite/devour_bite_02.ogg",
+    "source": 234237,
+    "dur": 1.64
+   },
+   {
+    "file": "audio/combat/devour_bite/devour_bite_03.ogg",
+    "source": 234237,
+    "dur": 1.08
+   },
+   {
+    "file": "audio/combat/devour_bite/devour_bite_04.ogg",
+    "source": 234237,
+    "dur": 0.81
+   },
+   {
+    "file": "audio/combat/devour_bite/devour_bite_05.ogg",
+    "source": 260880,
+    "dur": 0.7
+   },
+   {
+    "file": "audio/combat/devour_bite/devour_bite_06.ogg",
+    "source": 260880,
+    "dur": 0.41
+   },
+   {
+    "file": "audio/combat/devour_bite/devour_bite_07.ogg",
+    "source": 260880,
+    "dur": 0.51
+   },
+   {
+    "file": "audio/combat/devour_bite/devour_bite_08.ogg",
+    "source": 264280,
+    "dur": 0.69
+   },
+   {
+    "file": "audio/combat/devour_bite/devour_bite_09.ogg",
+    "source": 264280,
+    "dur": 1.68
+   }
   ]
  },
  "sources": {
@@ -2586,6 +2764,96 @@
    "author": "EricsSoundschmiede",
    "license": "http://creativecommons.org/publicdomain/zero/1.0/",
    "url": "https://freesound.org/s/513315/"
+  },
+  "325548": {
+   "title": "Man screaming.wav",
+   "author": "Archeos",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/325548/"
+  },
+  "556976": {
+   "title": "Male Screams [1]",
+   "author": "marc3122",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/556976/"
+  },
+  "173944": {
+   "title": "human male scream multi",
+   "author": "JohnsonBrandEditing",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/173944/"
+  },
+  "764370": {
+   "title": "Painful screaming",
+   "author": "H_Botha",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/764370/"
+  },
+  "671355": {
+   "title": "Sampli_Agonija.wav",
+   "author": "BrivaMagda",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/671355/"
+  },
+  "573096": {
+   "title": "A female voice in agony",
+   "author": "pseudonymian",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/573096/"
+  },
+  "845164": {
+   "title": "Woman Screaming",
+   "author": "DanJFilms",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/845164/"
+  },
+  "320740": {
+   "title": "Horror shrieks woman",
+   "author": "AderuMoro",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/320740/"
+  },
+  "826999": {
+   "title": "Gurgling-Choking",
+   "author": "JadeW40",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/826999/"
+  },
+  "654044": {
+   "title": "Man making drown noises",
+   "author": "hetsumani",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/654044/"
+  },
+  "234237": {
+   "title": "Eating Juicy Meat.wav",
+   "author": "ProductionNow",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/234237/"
+  },
+  "260880": {
+   "title": "Dog gnawing a bone",
+   "author": "YOH",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/260880/"
+  },
+  "264280": {
+   "title": "Zombie Eat",
+   "author": "sbda",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/264280/"
+  },
+  "476437": {
+   "title": "ThroatCutGurgle.mp3",
+   "author": "shelbyshark",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/476437/"
+  },
+  "830016": {
+   "title": "death rattle - sound samples",
+   "author": "Moss___6",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/830016/"
   }
  }
 }
