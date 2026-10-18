@@ -9,6 +9,9 @@ const CHEST := "res://scenes/items/armor/leather_armor/leather_chest_equipable.t
 const PANTS := "res://scenes/items/armor/firstage_skin_set/firstage_skin_pants_equipable.tscn"
 const HOODS := ["res://scenes/items/armor/leather_armor/leather_hood_equipable.tscn",
 		"res://scenes/items/armor/firstage_skin_set/firstage_skin_hood_equipable.tscn"]
+## Fitted onto the scan by tools/character/blender/fit_meshy_armor.py.
+const STONE_AGE := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins",
+		"hide_tunic", "hide_trousers", "hide_mittens", "hide_boots"]
 
 var failures := 0
 
@@ -120,8 +123,15 @@ func _check_clearance(rig: CharacterAppearanceRig, skeleton: Skeleton3D) -> void
 	for values in [{&"muscle": 1.0, &"chest_depth": 1.0}, {&"sex": &"female", &"breast_size": 1.0}, {&"body_weight": 1.0}]:
 		rig.apply(_body(values))
 		var context := rig._context()
-		for path in [CHEST, PANTS]:
+		var paths := [CHEST, PANTS]
+		for piece in STONE_AGE:
+			paths.append("res://scenes/items/armor/stone_age/%s_equipable.tscn" % piece)
+		for path in paths:
 			var item: MeshInstance3D = load(path).instantiate()
+			# A skirt's bones, as dress() adds them.
+			if SkirtBones.uses(item.skin) and SkirtBones.add_to(skeleton):
+				rig._fit_context = null
+				context = rig._context()
 			var bones := BodyMeasurements.bind_bones(item.skin, skeleton)
 			var surfaces := ArmorFit.source(item.mesh)
 			var unfitted := _inside(context, surfaces[0].arrays, item.skin, skeleton)

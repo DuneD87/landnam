@@ -535,6 +535,10 @@ func _ready():
 	inventory.add_item(config.get_item(&"firstage_skin_pants"), 1)
 	inventory.add_item(config.get_item(&"firstage_skin_chest"), 1)
 	inventory.add_item(config.get_item(&"firstage_skin_hood"), 1)
+	# Los dos atuendos de la Edad de Piedra, para probarlos.
+	for armor_id in [&"fur_mantle", &"fur_loincloth", &"fur_mittens", &"fur_moccasins",
+			&"hide_tunic", &"hide_trousers", &"hide_mittens", &"hide_boots"]:
+		inventory.add_item(config.get_item(armor_id), 1)
 	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
 	inventory.add_item(config.get_item(&"seax"), 1)

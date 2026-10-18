@@ -18,7 +18,9 @@ extends RefCounted
 ##
 ## The result is written back in the armour's own bind space, so its Skin and
 ## weights stay as they were. The skeleton must be the one both bodies were
-## measured on.
+## measured on. A bone added to it after the reference was measured
+## (SkirtBones) is carried as its nearest measured ancestor (`parents`); any
+## other bone that was not measured moves rigidly with itself.
 ##
 ## fit() does the work on plain arrays and may run on any thread: read the
 ## armour with source() and build the mesh with build() on the main thread.
@@ -29,7 +31,7 @@ const SCALE_RANGE := Vector2(0.55, 2.2)
 ## Least distance from the skin, in metres.
 const CLEARANCE := 0.004
 ## How deep inside the body a vertex is still found, in metres.
-const REACH := 0.03
+const REACH := 0.07
 ## How far the clearance push spreads, in metres.
 const SPREAD := 0.03
 ## Size of the cells the points that need a push are gathered in, in metres.
@@ -41,6 +43,8 @@ var reference_globals: Array[Transform3D]
 var body: BodyMeasurements
 var body_globals: Array[Transform3D]
 var surface: Grid
+## Parent of each skeleton bone, for the bones that were not measured.
+var parents: PackedInt32Array
 ## Skeleton units per metre.
 var units := 100.0
 
@@ -175,6 +179,11 @@ static func body_surface(meshes: Array, skeleton: Skeleton3D, globals: Array[Tra
 func fit(surfaces: Array[Dictionary], skin_binds: Array[Transform3D], bind_bones: PackedInt32Array) -> void:
 	var reference_binds: Array[Transform3D] = []
 	var body_binds: Array[Transform3D] = []
+	# A bone the skeleton got after this was set up (it has no rest here) counts as none.
+	bind_bones = bind_bones.duplicate()
+	for b in skin_binds.size():
+		if bind_bones[b] >= reference_globals.size() or bind_bones[b] >= body_globals.size():
+			bind_bones[b] = -1
 	for b in skin_binds.size():
 		var bone := bind_bones[b]
 		reference_binds.append(reference_globals[bone] * skin_binds[b] if bone >= 0 else Transform3D.IDENTITY)
@@ -186,14 +195,24 @@ func fit(surfaces: Array[Dictionary], skin_binds: Array[Transform3D], bind_bones
 	measured.resize(reference_globals.size())
 	for bone in measured.size():
 		measured[bone] = 1 if reference.has_bone(bone) and body.has_bone(bone) else 0
+	# What each bone is carried as: itself, or, if the reference skeleton did
+	# not have it, its nearest measured ancestor.
+	var carried := PackedInt32Array()
+	carried.resize(measured.size())
+	for bone in measured.size():
+		var ancestor := bone
+		while bone >= reference.spans.size() and ancestor >= 0 and ancestor < parents.size() and not measured[ancestor]:
+			ancestor = parents[ancestor]
+		carried[bone] = ancestor if ancestor >= 0 and measured[ancestor] else bone
 	for data in surfaces:
-		data.points = _fit_surface(data.arrays, reference_binds, body_binds, bind_bones, to_bones, measured)
+		data.points = _fit_surface(data.arrays, reference_binds, body_binds, bind_bones, to_bones, measured, carried)
 
 
 ## Fits one surface's arrays in place; returns its points at rest on the
 ## body, in skeleton space.
 func _fit_surface(arrays: Array, reference_binds: Array[Transform3D], body_binds: Array[Transform3D],
-		bind_bones: PackedInt32Array, to_bones: Array[Transform3D], measured: PackedByteArray) -> PackedVector3Array:
+		bind_bones: PackedInt32Array, to_bones: Array[Transform3D], measured: PackedByteArray,
+		carried: PackedInt32Array) -> PackedVector3Array:
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 	var tangents: PackedFloat32Array = arrays[Mesh.ARRAY_TANGENT] if arrays[Mesh.ARRAY_TANGENT] != null else PackedFloat32Array()
@@ -244,6 +263,8 @@ func _fit_surface(arrays: Array, reference_binds: Array[Transform3D], body_binds
 			if w <= 0.0:
 				continue
 			var bone := bind_bones[bones[k]]
+			if bone >= 0:
+				bone = carried[bone]
 			if bone < 0:
 				target += p * w
 				target_normal += n * w

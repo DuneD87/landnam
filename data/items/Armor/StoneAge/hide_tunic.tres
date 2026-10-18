@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/stone_age/hide_tunic.png" id="0_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="2_trait"]
+[ext_resource type="Script" path="res://scripts/items/traits/insulation_trait.gd" id="3_warm"]
+
+[sub_resource type="Resource" id="Resource_warm"]
+script = ExtResource("3_warm")
+warmth = 3.0
+
+[resource]
+script = ExtResource("1_item")
+id = &"hide_tunic"
+display_name = "Túnica de cuero"
+description = "Cuero raspado y cosido con tendón, con una estola de piel sobre los hombros y una faja que la ciñe. Para un tajo, mejor que el pelo; abriga menos."
+icon = ExtResource("0_icon")
+category = 4
+scene_path = "res://scenes/items/armor/stone_age/hide_tunic_equipable.tscn"
+armor_slot = 2
+armor_slash = 6.0
+armor_blunt = 4.0
+armor_pierce = 5.0
+traits = Array[ExtResource("2_trait")]([SubResource("Resource_warm")])

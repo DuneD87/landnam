@@ -1,0 +1,72 @@
+{
+	"_about": "Stone Age garments made with Meshy, for fit_meshy_armor.py. Models under the source dir (the Meshy downloads).",
+	"fur_mantle": {
+		"model": "stone_age_armor/Meshy_AI_Fur_Mantle_of_the_Anc_1017082239_texture_fbx/Meshy_AI_Fur_Mantle_of_the_Anc_1017082239_texture.fbx",
+		"slot": "chest",
+		"scale": 0.5,
+		"top": 0.01,
+		"length": 0.67,
+		"clearance": 0.02,
+		"ease": [0.02, 0.04, 0.04],
+		"over": ["fur_loincloth", "hide_trousers"],
+		"liner": true
+	},
+	"fur_loincloth": {
+		"model": "stone_age_armor/Meshy_AI_Ancestral_Mantle_1017082248_texture_fbx/Meshy_AI_Ancestral_Mantle_1017082248_texture.fbx",
+		"slot": "legs",
+		"turn": 180,
+		"skirt": true,
+		"hang": true,
+		"flare": 0.35,
+		"ease": [null, 0.02],
+		"top": 1.15,
+		"hem": 0.42,
+		"length": 1.6,
+		"floor": 0.3,
+		"clearance": 0.03,
+		"width": 1.25,
+		"liner": true
+	},
+	"fur_mittens": {
+		"model": "stone_age_armor/Meshy_AI_Rustic_Leather_Mitten_1017082334_texture_fbx/Meshy_AI_Rustic_Leather_Mitten_1017082334_texture.fbx",
+		"slot": "hands",
+		"frame": {"up": "+z", "thumb": "+x", "palm": "+y"},
+		"scale": 0.85,
+		"decimate": 0.6
+	},
+	"fur_moccasins": {
+		"model": "stone_age_armor/Meshy_AI_Furbound_Moccasin_1017082258_texture_fbx/Meshy_AI_Furbound_Moccasin_1017082258_texture.fbx",
+		"slot": "feet",
+		"frame": {"up": "+z", "toe": "-x"},
+		"decimate": 0.6
+	},
+	"hide_tunic": {
+		"model": "stone_age_armor_2/Meshy_AI_Furbound_Relic_1017093717_texture_fbx/Meshy_AI_Furbound_Relic_1017093717_texture.fbx",
+		"slot": "chest",
+		"scale": 0.58,
+		"top": 0.005,
+		"clearance": 0.012,
+		"over": ["fur_loincloth", "hide_trousers"],
+		"liner": true
+	},
+	"hide_trousers": {
+		"model": "stone_age_armor_2/Meshy_AI_Patchwork_Leather_Tro_1017093706_texture_fbx/Meshy_AI_Patchwork_Leather_Tro_1017093706_texture.fbx",
+		"slot": "legs",
+		"top": 1.13,
+		"hem": 0.1,
+		"liner": true
+	},
+	"hide_mittens": {
+		"model": "stone_age_armor_2/Meshy_AI_Bound_Hideaways_1017093723_texture_fbx/Meshy_AI_Bound_Hideaways_1017093723_texture.fbx",
+		"slot": "hands",
+		"frame": {"up": "+z", "thumb": "-x", "palm": "-y"},
+		"scale": 0.88,
+		"clearance": 0.012
+	},
+	"hide_boots": {
+		"model": "stone_age_armor_2/Meshy_AI_Fur_Lined_Leather_Moc_1017093711_texture_fbx/Meshy_AI_Fur_Lined_Leather_Moc_1017093711_texture.fbx",
+		"slot": "feet",
+		"frame": {"up": "+z", "toe": "-x"},
+		"clearance": 0.02
+	}
+}

@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/fur_loincloth.res" id="1_ygyww"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skirt_skin.tres" id="2_h5wrk"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_7fl65"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/fur_loincloth.tres" id="4_a5n0k"]
+
+[node name="fur_loincloth" type="MeshInstance3D" unique_id=300191774]
+mesh = ExtResource("1_ygyww")
+skin = ExtResource("2_h5wrk")
+script = ExtResource("3_7fl65")
+item_data = ExtResource("4_a5n0k")

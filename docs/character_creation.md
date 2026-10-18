@@ -187,8 +187,10 @@ personaje en dos pasos (`ArmorFit`):
   personaje: a lo largo del hueso, de una región a la otra, y a lo ancho y a
   lo hondo, escalado dentro del contorno del escaneo y a la misma distancia
   fuera de él, para que la armadura conserve su grosor y su holgura.
-- **Holgura.** Lo que aún queda dentro del cuerpo (o a menos de 4 mm) se
-  empuja hacia fuera por la normal de la piel (cuerpo y genitales). El empuje
+- **Holgura.** Lo que aún queda dentro del cuerpo (o a menos de 4 mm, y
+  hasta 7 cm de hondo: un pecho mucho más ancho que el del escaneo se
+  traga el cuello de una túnica) se empuja hacia fuera por la normal de la
+  piel (cuerpo y genitales). El empuje
   es un campo suave en el espacio, no por la malla: las armaduras son piezas
   sueltas y capas que se tocan, y así se mueven juntas sin abrir rendijas.
 
@@ -229,6 +231,170 @@ godot --headless --path . --script res://tests/character/test_armor_fit.gd
 godot --path . res://tests/character/armor_fit_preview.tscn -- --out res://build/character/armor_fit/after
 ```
 
+### Prendas de Meshy
+
+Las prendas de pieles con pelo y de cuero (`scenes/items/armor/stone_age/`)
+se generaron con [Meshy](https://www.meshy.ai) desde imágenes de referencia:
+cada una es un modelo suelto, sin cuerpo ni esqueleto, con texturas PBR.
+`tools/character/blender/fit_meshy_armor.py` las pone sobre el escaneo y las
+pesa con su piel, así que quedan como las demás: hechas para el escaneo, y
+`ArmorFit` las lleva a cada cuerpo.
+
+- **Colocar**, según el hueco de cada una (`stone_age_armor.json`):
+  - peto: escalado, con el cuello sobre el del escaneo y centrado en el torso.
+    Si se hizo sobre un maniquí ancho (el manto es un poncho), `"ease"` lo
+    recoge por debajo de las axilas: los costados quedan a 2 cm del torso,
+    para que el brazo bajado caiga por fuera en vez de atravesarlo, y delante
+    y detrás cuelga desde lo que más sobresale el pecho o la espalda. Lo que
+    está sobre el torso (la bolsa del manto) no se deforma. Su tercer valor
+    vale por encima de las axilas, después de la holgura: nada queda a más de
+    4 cm de la piel (el manto llevaba en los hombros una piel de 10 cm que
+    parecía una hombrera); desde 2 cm se acerca a la piel en línea recta, así
+    que sus capas no se cruzan. Lo que quedaba dentro del cuello se quita
+    (un modelo hecho sobre maniquí está cerrado por arriba y, empujado fuera
+    del cuello, levantaba un embudo), así que queda un escote;
+  - calzones: cintura y bajo a las alturas que se le dan, y cada pernera
+    llevada rodaja a rodaja sobre la pierna del escaneo (salvo un faldellín);
+  - `"turn"` gira antes un modelo hecho del revés (el faldellín, con la bolsa
+    de conchas por detrás);
+  - `"length"` alarga o acorta solo lo que queda por debajo de las axilas
+    (peto) o de la cintura (calzones), sin ensancharlo: el manto llega a la
+    cadera (0,67) y el faldellín, por delante, a la rodilla (1,6). `"floor"`
+    es lo más bajo a lo que llega algo (sus tiras, a media espinilla): lo que
+    pasaría se alarga menos, sin bajar del 70 % de su alto (aplastado del todo
+    quedaba como una repisa entre las piernas);
+  - manos y pies: un solo modelo, puesto en cada lado y reflejado para el
+    otro. La manopla se centra en la carne de la mano (palma y cuatro dedos),
+    se ensancha hasta su grueso y su pulgar gira hasta el del escaneo, que
+    lo tiene abierto: así toma sus pesos y lo sigue al agarrar. La suela se
+    aplana bajo el pie (una puntera que sube dejaría fuera los dedos) y la
+    caña sigue la espinilla.
+- **Holgura**: lo que queda dentro del cuerpo o a menos de 8 mm (más en el
+  manto y las botas) sale empujado por la normal de la piel; también donde la
+  piel asoma entre vértices de un triángulo grande y, en manos y pies, donde
+  un punto de la mano o del pie no tiene prenda delante. En manos, pies y
+  piernas solo se saca lo que está a menos de 3,5 cm de hondo (más hondo es
+  que ha pasado al otro lado de un dedo); en el peto, hasta 10 cm, porque los
+  hombros de un maniquí quedan muy dentro de los del escaneo (el manto no
+  tiene escote: su parte de arriba quedaba enterrada en los trapecios y se
+  veía la piel). El empuje se reparte como en `ArmorFit`.
+- **Capas**: un peto va por encima de los calzones que lista en `"over"`
+  (que se ajustan antes): lo que queda bajo ellos, o a menos de su holgura,
+  sale hacia fuera, así que la bolsa del faldellín no asoma por el manto.
+- **Pesos**: los de la piel del escaneo en su punto más cercano, solo de los
+  huesos que puede seguir cada hueco (el peto no sigue el antebrazo ni la
+  cabeza: lo de esos pasa al padre permitido). Lo que va pegado a la piel
+  (a menos de 4 cm) los conserva casi sin suavizar, para moverse como la
+  piel de debajo y que no asome el hombro o la cadera; lo suelto (desde 10 cm)
+  los toma de la prenda que tiene alrededor. Por debajo de la entrepierna, el
+  faldón de un peto o un faldellín sigue a los muslos (un 95 % por delante,
+  para montar sobre el que avanza; un 65 % por detrás; el resto, la cadera),
+  repartido entre los dos según lo ladeado que cuelga: el centro sigue a los
+  dos a la vez, así que no se raja cuando se abren las piernas. Un faldellín
+  que cuelga (`"hang"`, el de pieles) cuelga de los huesos de falda (ver
+  *Faldas que se mueven*): desde 5 cm sobre su anillo hasta 5 cm por debajo
+  pasa de los pesos de la piel a los de las dos cadenas que tiene a los lados,
+  repartido entre ellas por el ángulo y, a lo largo, entre las dos
+  articulaciones entre las que queda. Sin esos huesos en `body.json`, sigue a
+  la cadera desde sus articulaciones y a los muslos solo un 15 % por delante
+  y un 5 % por detrás (`HANG_THIGHS`). Su forro se queda en la cadera y las
+  nalgas (en los muslos parecería unas mallas). Antes de apartarla de la piel,
+  lo que tiene dentro de las piernas sale hacia fuera desde la cadera, como
+  la tela que cae sobre las dos: empujado por la normal de la pierna la
+  rodeaba, y como no la sigue, al moverla quedaba un anillo cruzándola. Una falda no sigue a las
+  espinillas ni a los pies: lo que su bajo tomaría de ellos pasa al muslo y,
+  de ahí, a la cadera. `"flare"` la abre hacia los lados hasta el bajo (el
+  faldellín, un 35 % más ancho abajo que en la cintura); por delante se recoge
+  con `"ease"` como un peto, para que cuelgue a plomo desde la tripa y no
+  por delante de las rodillas. Lo que cuelga
+  del brazo (una manga) conserva los pesos de la piel aunque esté lejos:
+  siguiéndolo a medias, al bajar el brazo quedaba fuera como una hombrera.
+- **Forro** (`"liner": true`, petos y calzones): la propia piel del
+  escaneo donde la prenda la tapa, a hasta 1,2 cm de ella en el peto y
+  0,9 cm en los calzones (que no se pisen en las caderas), y siempre menos
+  que la holgura de la prenda; mate y del color medio de la prenda oscurecido. Sus
+  pesos son los de la piel suavizados como se suavizaron al pasarlos al
+  cuerpo de MakeHuman, así que se dobla como la piel del personaje: por los
+  rotos de la prenda, o donde la piel la atraviesa en una postura, se ve
+  cuero y no carne. Cuenta como tapado lo que tiene prenda delante en al
+  menos 4 de 9 rayos; los huecos pequeños se cierran y el borde queda un
+  anillo por dentro, así que el escote o las sisas siguen abiertos.
+- **Juego**: `tools/character/bake_meshy_armor.gd` escribe las texturas
+  (JPEG de 2048 px, la rugosidad de 1024), la malla con su material
+  (`models/equipable/stone_age/<id>.res`, con la piel del escaneo) y la
+  escena equipable, que lleva su `data/items/Armor/StoneAge/<id>.tres`. Una
+  falda que cuelga de los huesos de falda lleva otra Skin,
+  `firstage_human_male_player_skirt_skin.tres`: la del escaneo y la de esos
+  huesos, sacada de su reposo en el esqueleto del personaje.
+
+### Faldas que se mueven
+
+`SkirtBones` son los huesos de una falda: 8 cadenas de 4 alrededor de la
+cadera, colgando a plomo desde un anillo un poco por encima de las
+articulaciones de las caderas hasta la rodilla. Su reposo sale del propio
+esqueleto (la separación entre las caderas da el tamaño), así que el ajuste
+en Blender (`dump_skeleton.gd` los escribe en `body.json`, en el espacio del
+escaneo) y el juego los ponen en el mismo sitio. No están en el esqueleto
+hasta que se viste una pieza cuya Skin los usa: `dress()` los añade (cuelgan
+de la cadera) y rehace el contexto de `ArmorFit`, que lleva un hueso que la
+referencia no tenía como su antepasado medido más cercano, la cadera.
+
+Mientras alguna pieza puesta los use, `SkirtSwing` (un
+`SpringBoneSimulator3D` hijo del esqueleto, detrás de `BodyProportions`) los
+mueve: cada cadena cae por la gravedad, vuelve poco a poco a colgar como en
+reposo desde la cadera, y la empujan unas cápsulas en muslos y espinillas,
+del grosor que miden en ese cuerpo. Simula en el espacio del propio
+esqueleto: con el `Armature` a escala 0,01, en el del mundo las
+articulaciones y las formas de choque no coinciden (sus radios se quedan en
+unidades del esqueleto). Por eso sus longitudes y velocidades van en
+unidades del esqueleto, y el movimiento del cuerpo por el mundo, que ese
+espacio no ve, entra como fuerza externa: la aceleración del cuerpo, suavizada,
+la echa hacia el otro lado al arrancar, frenar o girar. Al quitarse la
+pieza se apaga; los huesos se quedan, sin peso en nada.
+
+Los modelos de Meshy no están en el repositorio: se buscan en la carpeta que
+se le da (las descargas, `stone_age_armor/` y `stone_age_armor_2/`).
+
+```sh
+# 1. Escaneo, sus triángulos y sus pesos -> JSON
+godot --headless --path . --script res://tools/character/dump_skeleton.gd -- $PWD/build/character/meshy/body.json
+# 2. Ajustar (unos 15 s todas; deja vistas previas <id>_preview_*.png)
+blender -b --factory-startup --python tools/character/blender/fit_meshy_armor.py -- \
+    build/character/meshy/body.json tools/character/blender/stone_age_armor.json ~/Descargas build/character/meshy [id...]
+# 3. Texturas; importarlas; mallas y escenas
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- $PWD/build/character/meshy [id...]
+godot --headless --path . --import
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- $PWD/build/character/meshy [id...]
+# 4. Iconos (necesita ventana)
+godot --path . --script res://tools/ui/bake_item_icons.gd -- --background --only=fur_mantle,fur_loincloth,hide_tunic,hide_trousers
+```
+
+Una prenda nueva es una entrada más en el JSON (o uno nuevo para otra edad),
+su `ItemData` y su receta, y una línea en `ARMOR` de `bake_item_icons.gd`.
+
+Para verla puesta sin abrir ventana: `dump_dressed.gd` viste el modelo como el
+juego (con el aspecto de una partida si se le da), lo pone en un momento de
+una animación y vuelca lo que se ve, deformado por el esqueleto;
+`render_dressed.py` lo dibuja en Blender de frente, de lado, de espaldas y a
+tres cuartos (y desde arriba, `above`; desde delante y abajo, `low_front`).
+`--anim=none` lo deja en la pose de reposo, en la que se ajusta. Lo que se
+mueve solo (una falda) necesita fotogramas: `--frames=N` vuelca tras N, con la
+animación quieta en `--time` o, con `--play`, avanzando desde ahí; mejor con
+`--fixed-fps 60` de Godot.
+
+```sh
+godot --headless --path . --script res://tools/character/dump_dressed.gd -- $PWD/build/character/dressed/a.json \
+    --appearance=$HOME/.local/share/godot/app_userdata/VoxelTest/saves/main_save_player.json \
+    --armor=res://scenes/items/armor/stone_age/fur_mantle_equipable.tscn,... [--anim=running --time=0.25] [--play --frames=40]
+blender -b --factory-startup --python tools/character/blender/render_dressed.py -- \
+    build/character/dressed/a.json build/character/dressed/a.png [b.json ...] [--views=front,three] [--zoom=1.7]
+```
+
+Con ventana, `tests/combat/anim_stage.gd` las ve en movimiento:
+`--armor=stone_age:fur_` viste solo esas piezas, `--appearance=` usa el cuerpo
+de una partida y las vistas `hips_side`, `hips_front`, `hips_back`,
+`chest_front` y `chest_back` siguen de cerca caderas y pecho.
+
 `CharacterAppearanceRig` sirve para cualquier modelo con la estructura
 `Armature/Skeleton3D/Mesh_0` (el `PlayerModel` o
 `scenes/character/character_model.tscn`), así que también puede vestir PNJ.
@@ -243,6 +409,11 @@ godot --path . res://tests/character/armor_fit_preview.tscn -- --out res://build
   (o el cuero cabelludo pintado si va rapado).
 - El pelo largo que cae por la espalda aún atraviesa el peto: solo las piezas
   de cabeza lo recogen.
+- Las prendas de Meshy tienen rotos y tiras de diseño (el faldellín en las
+  caderas); el forro tapa la piel bajo los del peto y los calzones. Solo los
+  petos se separan de otras prendas (de los calzones de `"over"`): los bajos
+  de unas calzas pueden asomar por la caña de las botas. Los bordes de las
+  pieles del manto tienen alguna punta suelta que sobresale.
 - El aspecto es el de MakeHuman: limpio y de juego, no fotográfico. Algunos
   peinados son mallas esculpidas más que mechones.
 - El mundo usa ACES, que apaga algo la piel respecto a la vista previa.

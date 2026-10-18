@@ -301,6 +301,18 @@ Los ataques de las fieras: zarpazos de tajo, mordiscos de perforante (el del cai
 penetración; los de lobo, 0,1; el de hiena, 0,2), embestidas y pisotones contundentes, y colmillos y
 cuernos perforantes con 0,3-0,35 de penetración (el jabalí embiste con los colmillos).
 
+Lo que viste el jugador en la Edad de Piedra (`data/items/Armor/`), en tajo/contundente/perforante:
+la ropa de pieles es lo básico; las pieles con pelo abrigan más y paran mejor los golpes
+contundentes; el cuero, los tajos y lo perforante.
+
+| Hueco | Ropa de pieles | Pieles con pelo | Cuero |
+| --- | --- | --- | --- |
+| Cabeza | Capucha 2/2/1 | — | — |
+| Tronco y brazos | Jubón 4/4/3 | Manto 4/6/3 | Túnica 6/4/5 |
+| Piernas | Calzas 3/3/2 | Faldellín 2/2/1 (solo muslos) | Calzas 4/3/3 |
+| Manos | Manoplas 1/1/1 | Manoplas 1/2/1 (sin antebrazos) | Manoplas 2/1/2 |
+| Pies | Botas 2/2/1 | Mocasines 2/3/1 | Botas 3/2/3 (y espinillas) |
+
 ## Heridas y mutilaciones
 
 Daño por partes al estilo Kenshi (`BodyDamage`, en el jugador): cabeza, pecho, vientre, brazos y

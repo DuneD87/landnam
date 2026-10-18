@@ -1,11 +1,14 @@
 extends SceneTree
 
-## Writes the player skeleton for the Blender exporter
-## (tools/character/blender/export_mpfb_human.py): every bone with its parent,
-## its bind index in the player Skin and its joint position in the skin's
-## space (the inverse of its bind pose). Also the player's own mesh in that
-## space, with its skin weights by skeleton bone: the exporter transfers them
-## to the MakeHuman body, since the player animations were made for them.
+## Writes the player skeleton for the Blender tools
+## (tools/character/blender/export_mpfb_human.py, fit_meshy_armor.py): every
+## bone with its parent, its bind index in the player Skin and its joint
+## position in the skin's space (the inverse of its bind pose). Also the
+## player's own mesh (the scan) in that space, with its skin weights by
+## skeleton bone and its triangles: the exporter transfers the weights to the
+## MakeHuman body, since the player animations were made for them, and the
+## armour fit puts garments on it. And the skirt's bones (SkirtBones), which
+## the skeleton gets when a hanging skirt is worn: their joints in that space.
 ##
 ##   godot --headless --path . --script res://tools/character/dump_skeleton.gd -- <output.json>
 
@@ -30,21 +33,41 @@ func _initialize() -> void:
 		bones.append({name = name, parent = skeleton.get_bone_parent(i), bind_index = bind_index,
 				mesh_joint = [joint.x, joint.y, joint.z]})
 	var file := FileAccess.open(output, FileAccess.WRITE)
-	file.store_string(JSON.stringify({bones = bones, mesh = _mesh(skeleton, skin)}))
+	file.store_string(JSON.stringify({bones = bones, mesh = _mesh(skeleton, skin), skirt = _skirt(skeleton, skin)}))
 	file.close()
 	model.free()
 	print("Skeleton with %d bones written to %s" % [bones.size(), output])
 	quit()
 
 
-## Every surface of the player mesh: positions, normals and four influences
-## per vertex (skeleton bone index, weight).
+## The skirt's bones: name, parent name and joint in the skin's space.
+func _skirt(skeleton: Skeleton3D, skin: Skin) -> Array:
+	var hips := skeleton.find_bone(SkirtBones.HIPS)
+	var bind := -1
+	for b in skin.get_bind_count():
+		if skin.get_bind_name(b) == SkirtBones.HIPS:
+			bind = b
+	# Skin space to skeleton space: what every bind does with its bone at rest.
+	var to_skin := (BodyMeasurements.rest_globals(skeleton)[hips] * skin.get_bind_pose(bind)).affine_inverse()
+	var result := []
+	var rests := SkirtBones.rests(skeleton)
+	for name: StringName in rests:
+		var joint: Vector3 = to_skin * (rests[name][1] as Transform3D).origin
+		result.append({name = name, parent = rests[name][0], joint = [joint.x, joint.y, joint.z]})
+	return result
+
+
+## Every surface of the player mesh: positions, normals, four influences
+## per vertex (skeleton bone index, weight) and its triangles.
 func _mesh(skeleton: Skeleton3D, skin: Skin) -> Dictionary:
 	var mesh: ArrayMesh = load(MESH)
-	var result := {positions = [], normals = [], bones = [], weights = []}
+	var result := {positions = [], normals = [], bones = [], weights = [], indices = []}
 	for surface in mesh.get_surface_count():
 		var arrays := mesh.surface_get_arrays(surface)
 		var positions: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var first: int = result.positions.size() / 3
+		for index in arrays[Mesh.ARRAY_INDEX]:
+			result.indices.append(first + index)
 		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 		var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
 		var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]

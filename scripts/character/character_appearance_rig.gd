@@ -21,7 +21,8 @@ extends Node
 ## Armour made for the player scan is fitted to the body with dress(): the
 ## body is measured (BodyMeasurements) and ArmorFit carries each piece from
 ## the scan's measurements to its own. Dressed pieces are fitted again when
-## the body changes.
+## the body changes. A skirt that hangs from the skirt's bones (SkirtBones)
+## adds them to the skeleton, and a SkirtSwing swings them while it is worn.
 ##
 ## In first person (set_first_person()) the camera sits inside the head: it
 ## sees FirstPersonBody, Mesh_0 again with a skin that folds the head into the
@@ -101,6 +102,8 @@ var _hair_job := {}
 var _fit_context: ArmorFit
 ## The body the first-person camera sees; made on the first switch.
 var _fp_body: MeshInstance3D
+## Swings the skirt's bones; made when the first skirt is put on.
+var _skirt_swing: SkirtSwing
 ## The eyes' mesh and forward offset the eye point was taken with, and that
 ## point (head bone space).
 var _eye_mesh: ArrayMesh
@@ -285,6 +288,11 @@ func dress(item: Node, covers_hair := false) -> void:
 		if first_person:
 			for instance in _armour_meshes(item):
 				_shadow_only(instance, true)
+	for instance in _armour_meshes(item):
+		# Its bones must be there before it is fitted, and the fit must know them.
+		if SkirtBones.uses(instance.skin) and SkirtBones.add_to(_skeleton):
+			_fit_context = null
+	_update_skirt_swing()
 	_fit(item)
 
 
@@ -295,6 +303,25 @@ func undress(item: Node) -> void:
 		_hair_changed()
 		for instance in _armour_meshes(item):
 			_shadow_only(instance, false)
+	_update_skirt_swing()
+
+
+## Swings the skirt's bones while some piece worn hangs from them.
+func _update_skirt_swing() -> void:
+	var swinging := false
+	for item in _dressed:
+		if is_instance_valid(item) and _skeleton.is_ancestor_of(item):
+			for instance in _armour_meshes(item):
+				swinging = swinging or SkirtBones.uses(instance.skin)
+	if swinging and _skirt_swing == null:
+		_skirt_swing = SkirtSwing.new()
+		_skirt_swing.name = "SkirtSwing"
+		# After BodyProportions, which moves the hips it hangs from.
+		_skeleton.add_child(_skirt_swing)
+	if _skirt_swing != null:
+		_skirt_swing.active = swinging
+		if swinging:
+			_skirt_swing.fit_legs(measurements().summary)
 
 
 ## Switches the first-person view (see the class notes).
@@ -402,6 +429,7 @@ func is_dressing() -> bool:
 
 func _refit_dressed() -> void:
 	_fit_context = null
+	_update_skirt_swing()
 	# Sin filter: una prenda liberada no entra en un parámetro tipado.
 	for i in range(_dressed.size() - 1, -1, -1):
 		if not is_instance_valid(_dressed[i]) or not _skeleton.is_ancestor_of(_dressed[i]):
@@ -462,6 +490,9 @@ func _process(_delta: float) -> void:
 		WorkerThreadPool.wait_for_task_completion(running.task)
 		_fitting.erase(source)
 		if running.version != _body_version:
+			continue
+		if running.surfaces.any(func(surface: Dictionary) -> bool: return not surface.has("points")):
+			push_warning("CharacterAppearanceRig: the fit of '%s' failed" % source.resource_name)
 			continue
 		var mesh := ArmorFit.build(running.surfaces, source.resource_name)
 		# Its points at rest, for tucking the hair under it.
@@ -585,6 +616,8 @@ func _context() -> ArmorFit:
 	context.body = measurements()
 	context.body_globals = _body_globals()
 	context.units = 1.0 / (_armature.transform * _skeleton.transform).basis.get_scale().x
+	for bone in _skeleton.get_bone_count():
+		context.parents.append(_skeleton.get_bone_parent(bone))
 	# The skin it must clear: the body and the genitals, which sit on it.
 	var mesh: ArrayMesh = _shape.body_baked() if live else _body.mesh
 	var skin_meshes := [[mesh, _data.skin]]

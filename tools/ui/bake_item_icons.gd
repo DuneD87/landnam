@@ -25,6 +25,17 @@ const TOOLS := {
 	"stone_pickaxe_01": ["res://scenes/items/weapons/stone_pickaxe_01.tscn", -35.0, -12.0],
 	"torch": ["res://scenes/items/torches/torch.tscn", -35.0, -12.0],
 }
+## Armadura equipable (en el espacio de la piel del jugador: Y arriba, +Z al frente): giro,
+## guiñada y qué se ve. Los pares (manos, pies) muestran solo la pieza izquierda; la manopla,
+## además, derecha con los dedos arriba y el dorso al frente.
+const ARMOR_SCENES := "res://scenes/items/armor/stone_age/%s_equipable.tscn"
+const ARMOR := {
+	"fur_mantle": [0.0, -20.0, ""], "fur_loincloth": [0.0, -20.0, ""],
+	"fur_mittens": [0.0, -15.0, "hand"], "fur_moccasins": [0.0, -65.0, "foot"],
+	"hide_tunic": [0.0, -20.0, ""], "hide_trousers": [0.0, -20.0, ""],
+	"hide_mittens": [0.0, -15.0, "hand"], "hide_boots": [0.0, -65.0, "foot"],
+}
+const PLAYER_SKIN := "res://models/player/xavivar/firstage_human_male_player_skin.tres"
 
 
 func _initialize() -> void:
@@ -63,5 +74,68 @@ func _run() -> void:
 		source.free()
 		await Renderer.render(self, model, [entry[1], entry[2]],
 			"res://textures/icons/items/tools/%s.png" % tool, false)
-	print("Iconos Saga: %d renders guardados." % (WEAPONS.size() + TOOLS.size()))
+	for armor in ARMOR:
+		if not only.is_empty() and armor not in only:
+			continue
+		var entry: Array = ARMOR[armor]
+		var source := (load(ARMOR_SCENES % armor) as PackedScene).instantiate() as MeshInstance3D
+		var model := MeshInstance3D.new()
+		model.mesh = _left_piece(source.mesh) if entry[2] != "" else source.mesh
+		if entry[2] == "hand":
+			model.basis = _upright_hand()
+		source.free()
+		await Renderer.render(self, model, [entry[0], entry[1]],
+			"res://textures/icons/items/armor/stone_age/%s.png" % armor, false)
+	print("Iconos Saga: %d renders guardados." % (WEAPONS.size() + TOOLS.size() + ARMOR.size()))
 	quit()
+
+
+## La pieza del lado izquierdo (+X) de un par, sin piel: el icono la encuadra sola.
+func _left_piece(mesh: Mesh) -> ArrayMesh:
+	var arrays := mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var remap := PackedInt32Array()
+	remap.resize(vertices.size())
+	var kept := 0
+	for i in vertices.size():
+		remap[i] = kept if vertices[i].x > 0.0 else -1
+		kept += 1 if vertices[i].x > 0.0 else 0
+	var out := []
+	out.resize(Mesh.ARRAY_MAX)
+	for kind in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL, Mesh.ARRAY_TANGENT, Mesh.ARRAY_TEX_UV]:
+		var source = arrays[kind]
+		var per: int = source.size() / vertices.size()
+		var packed = source.duplicate()
+		packed.resize(kept * per)
+		for i in vertices.size():
+			if remap[i] >= 0:
+				for k in per:
+					packed[remap[i] * per + k] = source[i * per + k]
+		out[kind] = packed
+	var indices := PackedInt32Array()
+	var source_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	for t in range(0, source_indices.size(), 3):
+		var a := remap[source_indices[t]]
+		var b := remap[source_indices[t + 1]]
+		var c := remap[source_indices[t + 2]]
+		if a >= 0 and b >= 0 and c >= 0:
+			indices.append_array([a, b, c])
+	out[Mesh.ARRAY_INDEX] = indices
+	var piece := ArrayMesh.new()
+	piece.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out)
+	piece.surface_set_material(0, mesh.surface_get_material(0))
+	return piece
+
+
+## Pone derecha la mano izquierda del cuerpo de referencia: dedos arriba, pulgar a la derecha
+## y el dorso a cámara (sus articulaciones en el espacio de la piel, como las armaduras).
+func _upright_hand() -> Basis:
+	var skin: Skin = load(PLAYER_SKIN)
+	var joints := {}
+	for b in skin.get_bind_count():
+		joints[skin.get_bind_name(b)] = skin.get_bind_pose(b).affine_inverse().origin
+	var fingers: Vector3 = (joints[&"mixamorig_LeftHandMiddle4"] - joints[&"mixamorig_LeftHand"]).normalized()
+	var thumb: Vector3 = joints[&"mixamorig_LeftHandThumb2"] - joints[&"mixamorig_LeftHand"]
+	thumb = (thumb - fingers * fingers.dot(thumb)).normalized()
+	var palm := fingers.cross(thumb)
+	return Basis(Vector3.UP, Vector3.RIGHT, Vector3.FORWARD) * Basis(fingers, thumb, palm).inverse()

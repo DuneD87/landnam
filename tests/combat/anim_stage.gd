@@ -8,8 +8,9 @@ extends SceneTree
 ## Guarda build/combat/stage/<tag>_<scene>_<vista>.png (tira de fotogramas por vista) y, con
 ## --frames, cada fotograma en build/combat/stage/frames/ para montar un GIF.
 ## --fixed-fps hace que cada fotograma avance exactamente 1/30 s (muelles deterministas).
+## --appearance=<main_save_player.json> usa el cuerpo de esa partida.
 ## --armor viste un conjunto de scenes/items/armor/ (las deformaciones se ven mucho más con
-## armadura); --twist imprime cuánto se retuercen los huesos de los brazos en el arco.
+## armadura; carpeta:prefijo viste solo esas piezas, p. ej. stone_age:fur_); --twist imprime cuánto se retuercen los huesos de los brazos en el arco.
 ## La vista eye es la de primera persona: la cámara en el ojo (CharacterAppearanceRig, como
 ## CameraController) mirando hacia donde se apunta (o al frente, --pitch grados), con el cuerpo
 ## sin cabeza y el pecho al frente (FirstPersonSquare). En los golpes (melee_h, melee_v, combo,
@@ -47,6 +48,12 @@ const FOLLOW_VIEWS := {
 	"rh_down": ["mixamorig_RightHandMiddle1", Vector3(-0.1, -0.5, 0.05)],
 	"relbow": ["mixamorig_RightForeArm", Vector3(-0.35, 0.25, -0.45)],
 	"relbow_out": ["mixamorig_RightForeArm", Vector3(0.1, 0.15, -0.6)],
+	# Ropa: caderas y pecho de cerca, de lado, de frente y de espaldas.
+	"hips_side": ["mixamorig_Hips", Vector3(-1.1, 0.0, 0.25)],
+	"hips_front": ["mixamorig_Hips", Vector3(-0.35, 0.05, 1.1)],
+	"hips_back": ["mixamorig_Hips", Vector3(0.3, 0.1, -1.1)],
+	"chest_front": ["mixamorig_Spine2", Vector3(-0.3, 0.05, 0.9)],
+	"chest_back": ["mixamorig_Spine2", Vector3(0.3, 0.05, -0.9)],
 }
 
 var _tag := "preview"
@@ -177,7 +184,13 @@ func _build_world() -> void:
 		holder = CharacterBody3D.new()
 		world.add_child(holder)
 	holder.add_child(model)
-	(model.get_node("AppearanceRig") as CharacterAppearanceRig).apply(CharacterAppearance.new())
+	var look := CharacterAppearance.new()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--appearance="):
+			# El aspecto de una partida (main_save_player.json), para ver la ropa en ese cuerpo.
+			var save: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(arg.substr(13)))
+			look = CharacterAppearance.from_dict(save.player.data.character.appearance)
+	(model.get_node("AppearanceRig") as CharacterAppearanceRig).apply(look)
 	if _views.has("eye"):
 		(model.get_node("AppearanceRig") as CharacterAppearanceRig).set_first_person(true)
 	skel = model.get_node("Armature/Skeleton3D")
@@ -258,9 +271,11 @@ func _dress() -> void:
 	if _armor == "":
 		return
 	var rig := model.get_node("AppearanceRig") as CharacterAppearanceRig
-	var dir := "res://scenes/items/armor/%s" % _armor
+	# carpeta[:prefijo], p. ej. stone_age:fur_ para un solo atuendo de la carpeta.
+	var dir := "res://scenes/items/armor/%s" % _armor.get_slice(":", 0)
+	var prefix := _armor.get_slice(":", 1) if _armor.contains(":") else ""
 	for file in DirAccess.get_files_at(dir):
-		if not file.ends_with("_equipable.tscn"):
+		if not file.ends_with("_equipable.tscn") or not file.begins_with(prefix):
 			continue
 		var item: Node = load(dir + "/" + file).instantiate()
 		skel.add_child(item)

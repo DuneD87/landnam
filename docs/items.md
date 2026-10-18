@@ -330,6 +330,8 @@ al inventario y lo que no cabe, al suelo.
 | Escudo de piel | 4 ramas, 2 pieles y 1 tendón | Banco de trabajo |
 | Escudo de placas de hueso | 3 maderas, 6 huesos, 2 tendones y 1 piel | Banco de trabajo |
 | Ropa de pieles | capucha 2, jubón 4, manoplas 1, calzas 3 y botas 2 pieles | Banco de trabajo |
+| Pieles con pelo | manto: 5 pieles, 4 fibras vegetales y 1 hueso; faldellín: 2 pieles, 3 fibras y 1 hueso; manoplas: 2 pieles y 1 tendón; mocasines: 3 pieles y 1 tendón | Banco de trabajo |
+| Ropa de cuero | túnica: 6 pieles y 2 tendones; calzas: 5 y 2; manoplas: 2 y 1; botas: 4 y 2 | Banco de trabajo |
 | Emplasto de milenrama | 3 milenramas y 1 fibra vegetal | A mano |
 | Tablilla | 2 ramas y 2 fibras vegetales | A mano |
 | Bebedizo de milenrama | 4 milenramas y 2 tragos de agua de los odres | Hoguera encendida |
