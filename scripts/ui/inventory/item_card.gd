@@ -118,6 +118,10 @@ static func stat_rows(data: ItemData, compare: ItemData) -> Array:
 					+ _delta(other, data.damage, other.damage if other else 0.0))
 				rows.append(["Ritmo", "×" + _number(data.attack_speed)]
 					+ _delta(other, data.attack_speed, other.attack_speed if other else 0.0))
+				if data.armor_penetration > 0.0:
+					rows.append(["Penetración", "%d %%" % roundi(data.armor_penetration * 100.0)]
+						+ _delta(other, data.armor_penetration * 100.0,
+							other.armor_penetration * 100.0 if other else 0.0))
 				if data.is_melee():
 					rows.append(["Aguante por golpe", _number(data.stamina_cost)]
 						+ _delta(other, data.stamina_cost, other.stamina_cost if other else 0.0, false))
@@ -130,11 +134,14 @@ static func stat_rows(data: ItemData, compare: ItemData) -> Array:
 				rows.append(["Potencia", str(data.mining_power)]
 					+ _delta(other, data.mining_power, other.mining_power if other else 0.0))
 		ItemData.Category.ARMOR:
-			rows.append(["Armadura", str(data.defense)]
-				+ _delta(other, data.defense, other.defense if other else 0.0))
-			if data.resistance > 0.0:
-				rows.append(["Resistencia", _number(data.resistance)]
-					+ _delta(other, data.resistance, other.resistance if other else 0.0))
+			var mine := Armor.of(data)
+			var theirs := Armor.of(other)
+			for kind in [ItemData.DamageKind.SLASH, ItemData.DamageKind.BLUNT, ItemData.DamageKind.PIERCE]:
+				rows.append([Armor.KIND_NAMES[kind], _number(Armor.against(mine, kind))]
+					+ _delta(other, Armor.against(mine, kind), Armor.against(theirs, kind)))
+			var covers := Armor.describe_coverage(Armor.coverage_of(data))
+			if covers != "":
+				rows.append(["Cubre", covers, 0.0])
 	# Lo que se puede hacer con él: comerlo, quemarlo, abrigarse...
 	for item_trait in data.traits:
 		if item_trait != null:

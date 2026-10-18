@@ -29,6 +29,8 @@ var velocity: Vector3 = Vector3.ZERO
 var damage: float = 10.0
 var poise: float = 10.0
 var damage_kind: ItemData.DamageKind = ItemData.DamageKind.PIERCE
+## Parte de la armadura del blanco que no cuenta (ItemData.armor_penetration).
+var penetration: float = 0.0
 ## Quien dispara: no se hiere a sí mismo y es el origen del golpe.
 var shooter: Node3D
 ## Item que representa (la lanza, para recogerla; la flecha, para el botín).
@@ -171,6 +173,7 @@ func _scaled_damage() -> float:
 func _hit_hurtbox(box: Hurtbox, point: Vector3) -> void:
 	var info := DamageInfo.create(_scaled_damage(), shooter, point, velocity, poise)
 	info.kind = damage_kind
+	info.penetration = penetration
 	info.knockback = 0.3 if kind == Kind.SPEAR else 0.0
 	info.ranged = true
 	var applied := box.receive(info)

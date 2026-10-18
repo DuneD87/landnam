@@ -23,6 +23,7 @@ blade_radius = 0.11
 stamina_cost = 20.0
 poise_damage = 30.0
 heavy_multiplier = 1.9
+armor_penetration = 0.15
 armor_slot = 6
 group = &"melee"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

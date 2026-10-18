@@ -2,8 +2,8 @@ class_name SurvivalActions
 extends Node
 
 ## Lo que hace el jugador para cubrir sus necesidades (SurvivalNeeds):
-## - Con algo de comer o un odre seleccionado en la barra, el clic lo come o bebe un trago; en el
-##   inventario, el doble clic.
+## - Con algo de comer, un remedio (RemedyTrait: emplasto, bebedizo, tablilla) o un odre seleccionado
+##   en la barra, el clic lo come, se lo pone o bebe un trago; en el inventario, el doble clic.
 ## - Junto al agua dulce (un río, un lago o una charca), E bebe un trago; con la sed saciada,
 ##   llena los odres. El agua del mar no quita la sed.
 ## - E sobre un animal muerto lo despelleja si se lleva en la mano algo que despelleje (el seax:
@@ -82,26 +82,69 @@ func use_item(data: ItemData, from_inventory: bool = false) -> bool:
 		_drink_from_skin()
 		return true
 	var edible := data.get_trait(EdibleTrait) as EdibleTrait
-	if edible != null:
-		_eat(data, edible)
+	var remedy := data.get_trait(RemedyTrait) as RemedyTrait
+	if edible != null or remedy != null:
+		_consume(data, edible, remedy)
 		return true
 	return false
 
 
-func _eat(data: ItemData, edible: EdibleTrait) -> void:
+## Come [data] o se pone el remedio: lo que dé a las necesidades ([edible]) y lo que cure
+## ([remedy]). Un remedio que no es comida no se gasta si no hay nada que curar.
+func _consume(data: ItemData, edible: EdibleTrait, remedy: RemedyTrait) -> void:
 	if _cooldown > 0.0:
 		return
 	if _player.inventory.get_item_count(data) <= 0:
 		notify("No te queda %s" % data.display_name.to_lower())
 		return
+	if edible == null and not _needs_remedy(remedy):
+		notify("Ahora no te hace falta")
+		return
 	_cooldown = USE_COOLDOWN
 	_player.inventory.remove_item(data, 1)
-	var poisoned := _player.needs.eat(edible)
+	var poisoned := _player.needs.eat(edible) if edible != null else false
+	if remedy != null:
+		_treat(remedy)
 	if poisoned and _player.combat != null and _player.combat.status != null:
 		_player.combat.status.apply(&"intoxication", &"", edible.intoxication_severity)
 		notify("Te ha sentado mal: intoxicación")
+	elif remedy != null and remedy.use_text != "":
+		notify(remedy.use_text)
 	else:
 		notify("Comes %s" % data.display_name.to_lower())
+
+
+## Lo que hace [remedy]: vida, recuperación, sangrado, heridas y estados.
+func _treat(remedy: RemedyTrait) -> void:
+	var health := _player.health_component
+	if remedy.health > 0.0:
+		health.heal(remedy.health)
+	var combat := _player.combat
+	if combat == null:
+		return
+	if remedy.recovery_time > 0.0 and combat.status != null:
+		combat.status.apply(RemedyTrait.RECOVERING, &"", 0.5, remedy.recovery_time)
+	if combat.body_damage != null:
+		combat.body_damage.treat(remedy.stanch, remedy.mend)
+	if combat.status != null:
+		for tag in remedy.cures:
+			combat.status.cure(tag)
+
+
+## Si [remedy] tiene algo que hacer: vida que falta, heridas que sangran o que cerrar, o un estado
+## que cura.
+func _needs_remedy(remedy: RemedyTrait) -> bool:
+	var combat := _player.combat
+	if combat != null and combat.status != null:
+		for tag in remedy.cures:
+			if combat.status.can_cure(tag):
+				return true
+	if remedy.health <= 0.0 and remedy.recovery_time <= 0.0 and remedy.stanch <= 0.0 and remedy.mend <= 0.0:
+		return false
+	var health := _player.health_component
+	if health.health < health.max_health:
+		return true
+	return combat != null and combat.body_damage != null and combat.body_damage.is_hurt()
 
 
 func _drink_from_skin() -> void:

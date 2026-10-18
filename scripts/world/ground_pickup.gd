@@ -2,11 +2,12 @@ class_name GroundPickup
 extends RefCounted
 
 ## Lo que se recoge del suelo con la tecla de acción: los objetos del planeta marcados "pickup" en
-## su JSON (ramas caídas, piedras pequeñas y los arbustos, que dan fibra). Cerca del jugador llevan
-## un cuerpo en Planet.PICKUP_LAYER, que no estorba a nadie; al cogerlo se quita de la multimalla del
-## instancer. Las piedras dan munición según su tamaño, y las más grandes (escala > MAX_ROCK_SCALE)
-## no se levantan. Los arbustos solo se arrancan mirándolos: hay tantos, sobre todo en las orillas,
-## que si no se llevarían la tecla de beber o de recoger lo soltado.
+## su JSON (ramas caídas, piedras pequeñas, los arbustos, que dan fibra, y las hierbas como la
+## milenrama). Cerca del jugador llevan un cuerpo en Planet.PICKUP_LAYER, que no estorba a nadie; al
+## cogerlo se quita de la multimalla del instancer. Las piedras dan munición según su tamaño, y las
+## más grandes (escala > MAX_ROCK_SCALE) no se levantan. Las plantas (PLANTS) solo se arrancan
+## mirándolas: hay tantas, sobre todo en las orillas, que si no se llevarían la tecla de beber o de
+## recoger lo soltado.
 
 const Config = preload("res://scripts/config.gd")
 
@@ -16,10 +17,10 @@ const STONE_ID := &"stone_01"
 ## cada una por unidad de escala.
 const MAX_ROCK_SCALE := 3.0
 const STONES_PER_SCALE := 1.5
-## Arbustos: la fibra que da una mata por unidad de escala (entre 1 y 4), y lo cerca del centro de
-## la vista que tiene que estar para arrancarla (grados).
+## Plantas: lo que da una mata por unidad de escala (entre 1 y 4), y lo cerca del centro de la vista
+## que tiene que estar para arrancarla (grados).
 const FIBER_ID := &"plant_fiber"
-const FIBER_PER_SCALE := 2.5
+const PLANTS := {FIBER_ID: 2.5, &"yarrow": 1.6}
 const LOOK_ANGLE := 30.0
 
 ## Todos los planetas con cosas que recoger (la escena tiene más de uno: la Tierra y la Luna). Los
@@ -46,7 +47,7 @@ static func try_pickup(picker: Node3D, inventory: Inventory, view_from: Vector3 
 	var best: VoxelInstancerRigidBody = null
 	var best_d := INF
 	for body in _nearby(picker, PICK_RANGE):
-		if _item_of(body) == FIBER_ID and not _looked_at(body, view_from, view_dir):
+		if PLANTS.has(_item_of(body)) and not _looked_at(body, view_from, view_dir):
 			continue
 		var d := body.global_position.distance_to(picker.global_position)
 		if d < best_d:
@@ -58,11 +59,11 @@ static func try_pickup(picker: Node3D, inventory: Inventory, view_from: Vector3 
 	var count := 1
 	if item_id == STONE_ID:
 		count = clampi(roundi(best.global_basis.get_scale().x * STONES_PER_SCALE), 1, 5)
-	elif item_id == FIBER_ID:
-		count = clampi(roundi(best.global_basis.get_scale().x * FIBER_PER_SCALE), 1, 4)
+	elif PLANTS.has(item_id):
+		count = clampi(roundi(best.global_basis.get_scale().x * float(PLANTS[item_id])), 1, 4)
 	if inventory.add_item(Config.get_item(item_id), count) == count:
 		return false
-	if item_id == FIBER_ID:
+	if PLANTS.has(item_id):
 		AudioManager.play_3d(&"land_leaves", best.global_position)
 	else:
 		AudioManager.play_material(&"block_impact", &"rock" if item_id == STONE_ID else &"wood",

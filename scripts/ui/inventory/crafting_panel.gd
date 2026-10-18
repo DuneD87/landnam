@@ -300,7 +300,7 @@ func _rebuild_list() -> void:
 		var result: ItemData = Config.get_item(recipe.result)
 		if result == null or (_tab >= 0 and ItemTaxonomy.category_of(result) != _tab):
 			continue
-		var can := _station_ready(recipe.station) and Recipes.can_craft(recipe, ui.inventory)
+		var can := _station_ready(recipe.station) and Recipes.can_craft(recipe, ui.inventory, 1, _needs())
 		if _only_craftable and not can:
 			continue
 		if int(recipe.era) != era:
@@ -345,14 +345,14 @@ func _station_heading(station: StringName) -> Control:
 	row.add_child(title)
 	if station == Recipes.HAND:
 		return row
-	var near: Workstation = _stations.get(station)
-	var state := _label("Cerca" if near != null else "No está cerca", &"BetterLabel" if near != null else &"WorseLabel")
+	var near: Node3D = _stations.get(station)
+	var state := _label(_near_text(station, near != null), &"BetterLabel" if near != null else &"WorseLabel")
 	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(state)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)
-	if near != null:
+	if near is Workstation:
 		var dismantle := Button.new()
 		dismantle.text = "Desmontar"
 		dismantle.focus_mode = Control.FOCUS_NONE
@@ -422,40 +422,34 @@ func _refresh_detail() -> void:
 	var ready := _station_ready(recipe.station)
 	_where.text = Recipes.station_name(recipe.station)
 	_where_state.visible = recipe.station != Recipes.HAND
-	_where_state.text = "Cerca" if ready else "No está cerca"
+	_where_state.text = _near_text(recipe.station, ready)
 	_where_state.theme_type_variation = &"BetterLabel" if ready else &"WorseLabel"
 
 	for child in _inputs.get_children():
 		_inputs.remove_child(child)
 		child.queue_free()
-	var missing := Recipes.missing(recipe, inventory, times)
+	var missing := Recipes.missing(recipe, inventory, times, _needs())
+	if recipe.water > 0:
+		_inputs.add_child(_input_row(Config.get_item(&"waterskin"), "Agua de los odres",
+			"%d / %d tragos" % [_needs().water if _needs() != null else 0, recipe.water * times],
+			missing.has(Recipes.WATER)))
 	for id: StringName in recipe.inputs:
 		var data: ItemData = Config.get_item(id)
 		var need: int = recipe.inputs[id] * times
-		var row := HBoxContainer.new()
-		var icon := ItemSlotView.new()
-		icon.size_kind = &"ingredient"
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if data != null:
-			icon.show_item(data.icon)
-		row.add_child(icon)
-		var name_label := _label(data.display_name if data != null else String(id), &"StatLabel")
-		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		name_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(name_label)
-		var count := _label("%d / %d" % [inventory.get_item_count(data), need],
-			&"WorseLabel" if missing.has(id) else &"BetterLabel")
-		count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(count)
-		_inputs.add_child(row)
+		_inputs.add_child(_input_row(data, data.display_name if data != null else String(id),
+			"%d / %d" % [inventory.get_item_count(data), need], missing.has(id)))
 
 	var made := recipe.amount * times
 	_total.text = "Salen %d" % made if made > 1 else ""
-	_max_button.disabled = Recipes.max_times(recipe, inventory) < 1
+	_max_button.disabled = Recipes.max_times(recipe, inventory, _needs()) < 1
 	_make_button.text = "Fabricar" if times == 1 else "Fabricar ×%d" % times
 	_make_button.disabled = not ready or not missing.is_empty()
-	if not ready:
+	if not ready and recipe.station == Workstation.CAMPFIRE:
+		_reason.text = "Hace falta una hoguera encendida cerca"
+	elif not ready:
 		_reason.text = "Hay que estar junto a: %s" % Recipes.station_name(recipe.station).to_lower()
+	elif missing.size() == 1 and missing.has(Recipes.WATER):
+		_reason.text = "Te falta agua en los odres: llénalos en un río o un lago"
 	elif not missing.is_empty():
 		_reason.text = "Te falta material" if times == 1 else "Te falta material para %d" % times
 	else:
@@ -465,7 +459,7 @@ func _refresh_detail() -> void:
 
 func _set_max() -> void:
 	if _selected != null:
-		_quantity.value = clampi(Recipes.max_times(_selected, ui.inventory), 1, MAX_TIMES)
+		_quantity.value = clampi(Recipes.max_times(_selected, ui.inventory, _needs()), 1, MAX_TIMES)
 
 
 func _craft() -> void:
@@ -476,7 +470,7 @@ func _craft() -> void:
 		_notify("Acércate a: %s" % Recipes.station_name(recipe.station).to_lower())
 		return
 	var times := int(_quantity.value)
-	var left := Recipes.craft(recipe, ui.inventory, times)
+	var left := Recipes.craft(recipe, ui.inventory, times, _needs())
 	if left < 0:
 		_notify("Te falta material")
 		return
@@ -491,10 +485,43 @@ func _craft() -> void:
 
 # --- Estaciones -----------------------------------------------------------------------------------
 
+## Las necesidades de quien fabrica (el agua de sus odres), o null.
+func _needs() -> SurvivalNeeds:
+	if ui == null or ui.crafter == null or not is_instance_valid(ui.crafter):
+		return null
+	return ui.crafter.get(&"needs") as SurvivalNeeds
+
+
+## Fila de un ingrediente: su icono, su nombre y lo que hay de lo que hace falta.
+func _input_row(data: ItemData, text: String, count_text: String, short: bool) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var icon := ItemSlotView.new()
+	icon.size_kind = &"ingredient"
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if data != null:
+		icon.show_item(data.icon)
+	row.add_child(icon)
+	var name_label := _label(text, &"StatLabel")
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(name_label)
+	var count := _label(count_text, &"WorseLabel" if short else &"BetterLabel")
+	count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(count)
+	return row
+
+
 func _stations_in_reach() -> Dictionary:
 	if ui == null or ui.crafter == null or not is_instance_valid(ui.crafter) or not ui.crafter.is_inside_tree():
 		return {}
 	return Workstation.in_reach(get_tree(), ui.crafter.global_position)
+
+
+## «Cerca» / «No está cerca»; la hoguera tiene que estar encendida.
+func _near_text(station: StringName, near: bool) -> String:
+	if station == Workstation.CAMPFIRE:
+		return "Encendida cerca" if near else "No hay una encendida cerca"
+	return "Cerca" if near else "No está cerca"
 
 
 ## Se puede hacer aquí lo de [station]: a mano siempre; lo de una estación, con una cerca.

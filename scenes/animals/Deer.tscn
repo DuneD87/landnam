@@ -352,6 +352,9 @@ metadata/_custom_type_script = "uid://coeewlktybkhm"
 
 [node name="HealthComponent" type="Node" parent="." unique_id=1332760514]
 script = ExtResource("4_csxub")
+armor_slash = 2.0
+armor_blunt = 2.0
+armor_pierce = 1.0
 metadata/_custom_type_script = "uid://c2gobysiknl4o"
 
 [node name="AIController" type="Node" parent="." unique_id=1830328244]

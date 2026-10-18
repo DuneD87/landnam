@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="RecipeData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/recipe_data.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+result = &"splint"
+inputs = Dictionary[StringName, int]({
+&"branch_01": 2,
+&"plant_fiber": 2
+})

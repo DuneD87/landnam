@@ -11,7 +11,7 @@ hacer con él** va aparte, en sus rasgos (`ItemTrait`).
 | Armas | Cuerpo a cuerpo · A distancia · Munición · Escudos |
 | Herramientas | Hachas y picos · Luz · Recipientes |
 | Ropa | Cabeza · Torso · Manos · Piernas · Pies |
-| Comida | Cocinada · Cruda · Bebida |
+| Consumibles | Cocinada · Cruda · Bebida · Remedios |
 | Materiales | De caza · Madera · Piedra y mineral · Otros |
 | Construcción | Estaciones de trabajo · Colocables · Bloques |
 
@@ -43,9 +43,10 @@ Van en `ItemData.traits` y se buscan por su tipo con
 | `CookableTrait` | En qué se convierte asado y en cuánto | carne cruda → asada (40 s) |
 | `WaterContainerTrait` | Tragos que caben | odre (5) |
 | `InsulationTrait` | Grados que abriga puesto | ropa de pieles (9 °C el juego entero), de cuero (6 °C) |
-| `SkinningTrait` | En la mano, deja despellejar | seax |
+| `SkinningTrait` | En la mano, deja despellejar | seax, cuchillo de sílex |
 | `GroundPlaceableTrait` | Se planta en el suelo: escena, vista previa, pendiente, separación y cuánto se inclina y se hunde | hoguera, banco de trabajo |
 | `CraftingStationTrait` | Es una estación de trabajo: su era y desde qué distancia se usan sus recetas | banco de trabajo |
+| `RemedyTrait` | Cura: vida al momento, «Recuperándose» unos segundos, corta el sangrado, cierra las partes heridas y quita estados | milenrama, emplasto, bebedizo, tablilla |
 
 Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 `scripts/items/traits/`, con su `describe()` para la ficha.
@@ -63,6 +64,11 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Pluma | `feather` | Material de caza: las aves. Empluma las flechas |
 | Fibra vegetal | `plant_fiber` | Se arranca de los arbustos |
 | Odre | `waterskin` | 5 tragos de agua |
+| Milenrama | `yarrow` | Hierba que se arranca en los prados. Masticada: vida +3 y corta el 30 % del sangrado |
+| Emplasto de milenrama | `yarrow_poultice` | Corta todo el sangrado (un muñón, a medias), cierra el 35 % de cada parte herida, vida +5 y 12 s de recuperación |
+| Bebedizo de milenrama | `yarrow_draught` | 40 s de recuperación (+60), cierra el 15 % de las partes, quita la intoxicación y la sed (+15 %) |
+| Tablilla | `splint` | Cura la pierna rota |
+| Menas | `flint`, `obsidian`, `copper_ore`, `tin_ore`, `bog_iron`, `iron_01`, `coal`, `silver_ore`, `gold_01`, `sulfur` | Los diez materiales del mundo: ver [terrain_materials.md](terrain_materials.md#menas). El carbón arde 300 s |
 | Hoguera | `campfire` | Se planta en el suelo |
 | Banco de trabajo | `stone_workbench` | Estación de trabajo de la Edad de piedra: se planta en el suelo |
 
@@ -232,6 +238,32 @@ su tamaño en la capa de recogida (`Planet._pickup_shape`). Hay que mirarlos
 porque abundan, sobre todo en las orillas, y si no se llevarían la E de beber o
 de recoger lo soltado. Al arrancarla suena a hojas (`land_leaves`).
 
+### Curarse
+
+Los remedios (`RemedyTrait`) se usan como la comida: clic con ellos en la barra o doble clic en el
+inventario (`SurvivalActions._consume`). Uno que no es comida no se gasta si no hay nada que curar
+(«Ahora no te hace falta»).
+
+- **Vida** (`health`): al momento.
+- **Recuperación** (`recovery_time`): el estado «Recuperándose» (`data/status/recovering.tres`,
+  1,5 de vida por segundo) durante esos segundos; dos seguidos suman su tiempo.
+- **Sangrado** (`stanch`): la parte del sangrado de cada herida que corta (`BodyDamage.treat`). Un
+  muñón se frena algo más de la mitad de eso: sigue sangrando, menos.
+- **Heridas** (`mend`): la parte de la vida de cada parte del cuerpo herida que le devuelve. Lo
+  perdido no vuelve.
+- **Estados** (`cures`): los que respondan a esas etiquetas (`StatusEffects.cure`): `poison`, la
+  intoxicación; `fracture`, la pierna rota.
+
+#### Milenrama
+
+Matas de 40-60 cm con hojas finas como plumas y umbelas planas de florecillas blancas (alguna
+rosada), que florecen en verano (`UnderstoryGeometry._yarrow`, especie `yarrow`). Salen sueltas en
+los prados templados (`yarrow_generator_green`, como las flores silvestres pero cinco veces menos) y
+en la taiga y la tundra baja (`yarrow_generator_cold`). Se arrancan con E **mirándolas**, como los
+arbustos (`GroundPickup.PLANTS`), y dan 1 o 2 según la mata. Un neandertal de El Sidrón tenía
+compuestos de milenrama y manzanilla en el sarro de los dientes: hierbas amargas que no alimentan
+y que seguramente tomaba para curarse.
+
 ### Comer y beber
 
 - **Comer y beber del odre:** con el objeto seleccionado en la barra, clic; en
@@ -266,6 +298,10 @@ al inventario y lo que no cabe, al suelo.
 - **Eras:** `Eras.Era` (de momento solo `STONE`, la Edad de piedra). Cada era trae
   sus estaciones de trabajo y sus recetas, y la ventana las agrupa por era. Una
   era nueva es un valor más en `Eras`, con su nombre.
+- **Agua:** una receta puede gastar tragos de los odres (`RecipeData.water`); la ventana lo enseña
+  como un ingrediente más («Agua de los odres»).
+- **La hoguera** encendida también es una estación (`Workstation.CAMPFIRE`): sus recetas llevan
+  `station = &"campfire"` y se hacen a su alcance (2,6 m). Apagada no vale.
 - **Estaciones de trabajo:** objetos con `CraftingStationTrait` que se plantan en
   el suelo como la hoguera (`Workstation`). Sus recetas solo se pueden hacer a
   menos de su alcance (3,5 m desde los pies). E junto a una abre la ventana en
@@ -278,15 +314,25 @@ al inventario y lo que no cabe, al suelo.
 | Odre | 2 pieles | A mano |
 | Banco de trabajo | 6 maderas, 4 piedras y 4 ramas | A mano |
 | Antorcha | 2 ramas | A mano |
+| Cuchillo de sílex | 1 sílex, 1 rama y 1 tendón | A mano |
+| Puñal de hueso | 2 huesos y 1 tendón | A mano |
 | Hacha de piedra | 3 piedras, 2 ramas y 1 piel | Banco de trabajo |
 | Pico de piedra | 4 piedras, 2 ramas y 1 piel | Banco de trabajo |
 | Arco de caza | 3 ramas y 1 piel | Banco de trabajo |
 | 4 flechas | 1 rama, 1 piedra y 2 plumas | Banco de trabajo |
 | Tirachinas | 1 rama y 1 piel | Banco de trabajo |
-| Espada de sílex | 4 maderas, 4 piedras y 1 piel | Banco de trabajo |
-| Lanza de sílex | 3 ramas y 2 piedras | Banco de trabajo |
+| Espada de sílex | 4 maderas, 4 sílex y 1 piel | Banco de trabajo |
+| Espada de obsidiana | 4 maderas, 4 obsidianas y 1 piel | Banco de trabajo |
+| Maza de piedra | 2 maderas, 3 piedras y 1 tendón | Banco de trabajo |
+| Mazo de piedra | 4 maderas, 6 piedras, 2 tendones y 1 piel | Banco de trabajo |
+| Lanza de sílex | 3 ramas, 1 sílex y 1 tendón | Banco de trabajo |
 | Escudo de madera | 3 maderas y 1 rama | Banco de trabajo |
+| Escudo de piel | 4 ramas, 2 pieles y 1 tendón | Banco de trabajo |
+| Escudo de placas de hueso | 3 maderas, 6 huesos, 2 tendones y 1 piel | Banco de trabajo |
 | Ropa de pieles | capucha 2, jubón 4, manoplas 1, calzas 3 y botas 2 pieles | Banco de trabajo |
+| Emplasto de milenrama | 3 milenramas y 1 fibra vegetal | A mano |
+| Tablilla | 2 ramas y 2 fibras vegetales | A mano |
+| Bebedizo de milenrama | 4 milenramas y 2 tragos de agua de los odres | Hoguera encendida |
 
 Una receta nueva es un `.tres` más en su carpeta, con el script
 `scripts/items/recipe_data.gd`. Una estación nueva necesita:

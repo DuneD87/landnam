@@ -1416,6 +1416,123 @@
 					"min": 64.0,
 					"soft": 2.0
 				}
+			},
+			{
+				"name": "yarrow_generator_green",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.006,
+				"lod_density_falloff": 1.0,
+				"min_height": -25.0,
+				"max_height": 155.0,
+				"max_slope_degrees": 32.0,
+				"offset_along_normal": -0.025,
+				"min_scale": 0.85,
+				"max_scale": 1.25,
+				"noise_graph": "hemisphere_green_graph_path",
+				"noise": {
+					"frequency": 0.06,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 137.0,
+					"on_scale": 0.25
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
+			},
+			{
+				"name": "yarrow_generator_cold",
+				"emit_mode": "EMIT_FROM_FACES",
+				"density": 0.005,
+				"lod_density_falloff": 1.0,
+				"min_height": -45.0,
+				"max_height": 650.0,
+				"max_slope_degrees": 34.0,
+				"offset_along_normal": -0.025,
+				"min_scale": 0.75,
+				"max_scale": 1.1,
+				"noise_graph": "surface_graph_path",
+				"climate": {
+					"min": 41.0,
+					"max": 58.0,
+					"soft": 1.5
+				},
+				"noise": {
+					"frequency": 0.09,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 139.0,
+					"on_scale": 0.25
+				}
+			},
+			{
+				"name": "flint_outcrop_generator",
+				"emit_mode": "EMIT_FROM_VERTICES",
+				"density": 0.003,
+				"min_height": -30.0,
+				"max_height": 200.0,
+				"max_slope_degrees": 30.0,
+				"min_scale": 1.4,
+				"max_scale": 2.8,
+				"vertical_alignment": 0.3,
+				"noise_graph": "hemisphere_green_graph_path",
+				"noise": {
+					"frequency": 0.0035,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 301.0,
+					"threshold": 0.3,
+					"falloff": 0.12
+				},
+				"climate": {
+					"max": 41.0,
+					"soft": 1.5
+				}
+			},
+			{
+				"name": "copper_outcrop_generator",
+				"emit_mode": "EMIT_FROM_VERTICES",
+				"density": 0.002,
+				"min_height": 60.0,
+				"max_height": 600.0,
+				"max_slope_degrees": 35.0,
+				"min_scale": 1.3,
+				"max_scale": 2.6,
+				"vertical_alignment": 0.3,
+				"noise_graph": "surface_graph_path",
+				"noise": {
+					"frequency": 0.0035,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 307.0,
+					"threshold": 0.3,
+					"falloff": 0.12
+				}
+			},
+			{
+				"name": "obsidian_outcrop_generator",
+				"emit_mode": "EMIT_FROM_VERTICES",
+				"density": 0.0025,
+				"min_height": 150.0,
+				"max_height": 900.0,
+				"max_slope_degrees": 35.0,
+				"min_scale": 1.4,
+				"max_scale": 3.0,
+				"vertical_alignment": 0.3,
+				"noise_graph": "surface_graph_path",
+				"noise": {
+					"frequency": 0.0035,
+					"octaves": 2.0,
+					"dimension": "3D",
+					"seed": 311.0,
+					"threshold": 0.3,
+					"falloff": 0.12
+				},
+				"climate": {
+					"min": 41.0,
+					"soft": 1.5
+				}
 			}
 		],
 		"items": [
@@ -3078,6 +3195,134 @@
 						64.0
 					]
 				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/yarrow.tscn",
+				"generator": [
+					"yarrow_generator_green",
+					"yarrow_generator_cold"
+				],
+				"wind_speed": 0.18,
+				"lod_index": [
+					0.0,
+					1.0
+				],
+				"pickup": true,
+				"pickup_item": "yarrow",
+				"collision_distance_m": 40.0,
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"understory_lods": {
+					"split_m": 40.0,
+					"split_fade_m": 12.0,
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/vegetation/understory/yarrow.tscn",
+				"generator": [
+					"yarrow_generator_green",
+					"yarrow_generator_cold"
+				],
+				"wind_speed": 0.18,
+				"lod_index": [
+					2.0
+				],
+				"instance_as_scene": false,
+				"cast_shadow": false,
+				"lod3_impostor": false,
+				"understory_lods": {
+					"fade_width_m": 24.0,
+					"max_distance_m": 176.0,
+					"lod_morph_start_m": [
+						14.0,
+						30.0,
+						48.0
+					],
+					"lod_morph_end_m": [
+						20.0,
+						42.0,
+						64.0
+					]
+				}
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/outcrop_flint_01.tscn",
+				"generator": [
+					"flint_outcrop_generator"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/outcrop_flint_02.tscn",
+				"generator": [
+					"flint_outcrop_generator"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/outcrop_copper_01.tscn",
+				"generator": [
+					"copper_outcrop_generator"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/outcrop_copper_02.tscn",
+				"generator": [
+					"copper_outcrop_generator"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/outcrop_obsidian_01.tscn",
+				"generator": [
+					"obsidian_outcrop_generator"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
+			},
+			{
+				"scene": "res://scenes/planet/planet_items/rocks/outcrop_obsidian_02.tscn",
+				"generator": [
+					"obsidian_outcrop_generator"
+				],
+				"wind_speed": 0.3,
+				"lod_index": [
+					2.0
+				],
+				"material_type": "STONE"
 			}
 		]
 	},
@@ -3100,11 +3345,15 @@
 		{
 			"name": "gold",
 			"type_id": 2.0,
+			"spot_group": "metal",
 			"noise_seed": 7391.0,
-			"cell_size": 600.0,
-			"spot_radius": 20.0,
+			"cell_size": 420.0,
+			"spot_radius": 24.0,
 			"jitter": 0.9,
-			"surface_depth": 8.0,
+			"surface_depth": 10.0,
+			"min_height": 320.0,
+			"max_height": 420.0,
+			"height_softness": 12.0,
 			"texture": "res://textures/planet/ores/gold-nugget-bl/gold-nugget1_albedo.png",
 			"normal_texture": "res://textures/planet/ores/gold-nugget-bl/gold-nugget1_normal-ogl.png",
 			"roughness_texture": "res://textures/planet/ores/gold-nugget-bl/gold-nugget1_roughness.png",
@@ -3127,6 +3376,76 @@
 			"normal_texture": "res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_normal-ogl.png",
 			"roughness_texture": "res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_roughness.png",
 			"drop_item": "iron_01",
+			"drop_count_min": 1.0,
+			"drop_count_max": 3.0
+		},
+		{
+			"name": "tin",
+			"type_id": 4.0,
+			"spot_group": "metal",
+			"min_height": 110.0,
+			"max_height": 210.0,
+			"height_softness": 12.0,
+			"texture": "res://textures/planet/ores/tin/tin_albedo.png",
+			"normal_texture": "res://textures/planet/ores/tin/tin_normal-ogl.png",
+			"roughness_texture": "res://textures/planet/ores/tin/tin_roughness.png",
+			"drop_item": "tin_ore",
+			"drop_count_min": 1.0,
+			"drop_count_max": 3.0
+		},
+		{
+			"name": "bog_iron",
+			"type_id": 5.0,
+			"spot_group": "metal",
+			"min_height": -60.0,
+			"max_height": 15.0,
+			"height_softness": 12.0,
+			"texture": "res://textures/planet/ores/bog_iron/bog_iron_albedo.png",
+			"normal_texture": "res://textures/planet/ores/bog_iron/bog_iron_normal-ogl.png",
+			"roughness_texture": "res://textures/planet/ores/bog_iron/bog_iron_roughness.png",
+			"drop_item": "bog_iron",
+			"drop_count_min": 2.0,
+			"drop_count_max": 4.0
+		},
+		{
+			"name": "coal",
+			"type_id": 6.0,
+			"spot_group": "metal",
+			"min_height": 15.0,
+			"max_height": 110.0,
+			"height_softness": 12.0,
+			"texture": "res://textures/planet/ores/coal/coal_albedo.png",
+			"normal_texture": "res://textures/planet/ores/coal/coal_normal-ogl.png",
+			"roughness_texture": "res://textures/planet/ores/coal/coal_roughness.png",
+			"drop_item": "coal",
+			"drop_count_min": 2.0,
+			"drop_count_max": 5.0
+		},
+		{
+			"name": "silver",
+			"type_id": 7.0,
+			"spot_group": "metal",
+			"min_height": 210.0,
+			"max_height": 320.0,
+			"height_softness": 12.0,
+			"texture": "res://textures/planet/ores/silver/silver_albedo.png",
+			"normal_texture": "res://textures/planet/ores/silver/silver_normal-ogl.png",
+			"roughness_texture": "res://textures/planet/ores/silver/silver_roughness.png",
+			"drop_item": "silver_ore",
+			"drop_count_min": 1.0,
+			"drop_count_max": 2.0
+		},
+		{
+			"name": "sulfur",
+			"type_id": 8.0,
+			"spot_group": "metal",
+			"min_height": 420.0,
+			"max_height": 4000.0,
+			"height_softness": 12.0,
+			"texture": "res://textures/planet/ores/sulfur/sulfur_albedo.png",
+			"normal_texture": "res://textures/planet/ores/sulfur/sulfur_normal-ogl.png",
+			"roughness_texture": "res://textures/planet/ores/sulfur/sulfur_roughness.png",
+			"drop_item": "sulfur",
 			"drop_count_min": 1.0,
 			"drop_count_max": 3.0
 		}

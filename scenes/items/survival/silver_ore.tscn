@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/survival/silver_ore.res" id="1_omv8v"]
+
+[node name="SilverOre" type="Node3D" unique_id=1152535345]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1005914844]
+mesh = ExtResource("1_omv8v")

@@ -21,6 +21,7 @@ blade_start = 0.4
 damage_kind = 2
 stamina_cost = 18.0
 poise_damage = 22.0
+armor_penetration = 0.4
 armor_slot = 6
 group = &"tool"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

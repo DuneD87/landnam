@@ -25,6 +25,7 @@ damage = 22.0
 poise = 10.0
 knockback = 0.3
 kind = 2
+penetration = 0.1
 parryable = false
 
 [resource]

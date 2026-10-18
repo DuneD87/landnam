@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/survival/copper_ore.res" id="1_3rm25"]
+
+[node name="CopperOre" type="Node3D" unique_id=446750161]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1086130414]
+mesh = ExtResource("1_3rm25")

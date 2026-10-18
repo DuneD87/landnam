@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/sulfur.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+
+[resource]
+script = ExtResource("2_item")
+id = &"sulfur"
+display_name = "Azufre"
+description = "Costras amarillas de las cumbres, donde la montaña humea. Arde con llama azul y apesta. Con salitre y carbón, pólvora."
+icon = ExtResource("1_icon")
+scene_path = "res://scenes/items/survival/sulfur.tscn"
+max_stack = 50
+group = &"stone"

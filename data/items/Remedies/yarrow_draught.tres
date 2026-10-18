@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/yarrow_draught.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_trait"]
+[ext_resource type="Script" path="res://scripts/items/traits/edible_trait.gd" id="4_edible"]
+[ext_resource type="Script" path="res://scripts/items/traits/remedy_trait.gd" id="5_remedy"]
+
+[sub_resource type="Resource" id="Resource_edible"]
+script = ExtResource("4_edible")
+thirst = 0.15
+sanity = 0.04
+
+[sub_resource type="Resource" id="Resource_remedy"]
+script = ExtResource("5_remedy")
+recovery_time = 40.0
+mend = 0.15
+cures = Array[StringName]([&"poison"])
+use_text = "Te bebes el bebedizo: amargo y caliente, asienta el cuerpo"
+
+[resource]
+script = ExtResource("2_item")
+id = &"yarrow_draught"
+display_name = "Bebedizo de milenrama"
+description = "Milenrama cocida en agua junto al fuego y guardada en un cuerno. Va curando poco a poco y asienta el estómago revuelto."
+icon = ExtResource("1_icon")
+category = 3
+scene_path = "res://scenes/items/survival/yarrow_draught.tscn"
+max_stack = 5
+group = &"remedy"
+traits = Array[ExtResource("3_trait")]([SubResource("Resource_edible"), SubResource("Resource_remedy")])

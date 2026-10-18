@@ -25,7 +25,8 @@ const META := &"rock_mining"
 ## Trabajo (daño de pico) para soltar todos los trozos: fijo más por metro de tamaño de la roca.
 const WORK := 30.0
 const WORK_PER_METER := 40.0
-## Piedras por metro de tamaño, entre estos límites.
+## Piedras por metro de tamaño, entre estos límites (por el rendimiento de la roca, Item.mining_yield:
+## un afloramiento de mena da menos).
 const STONES_PER_METER := 3.0
 const STONES := Vector2i(2, 40)
 ## En cuántos trozos se parte una roca: los primeros de estos que dejen cada trozo en
@@ -235,7 +236,8 @@ func _shape_of(rock: Node3D) -> Dictionary:
 	var size := box.size * xf.basis.get_scale()
 	return {"mesh": mesh_node.mesh, "transform": xf, "center": xf * box.get_center(),
 		"radius": maxf(maxf(size.x, size.y), size.z) * 0.5,
-		"size": pow(maxf(size.x * size.y * size.z, 0.001), 1.0 / 3.0), "item": item.item_data}
+		"size": pow(maxf(size.x * size.y * size.z, 0.001), 1.0 / 3.0), "item": item.item_data,
+		"ore_yield": item.mining_yield}
 
 
 ## La malla de la roca de la escena [item] (un Item con material), o null.
@@ -281,8 +283,8 @@ func mine(rock: Node3D, point: Vector3, power: float, miner: Node3D) -> bool:
 	_colliders_of(rock, ignore)
 	var fractured := FracturedRock.new()
 	add_child(fractured)
-	fractured.setup(pieces, shape.transform, shape.item,
-		clampi(roundi(STONES_PER_METER * size), STONES.x, STONES.y), WORK + WORK_PER_METER * size, up, ignore)
+	var stones := clampi(roundi(STONES_PER_METER * size * float(shape.ore_yield)), STONES.x, STONES.y)
+	fractured.setup(pieces, shape.transform, shape.item, stones, WORK + WORK_PER_METER * size, up, ignore)
 	# Fuera del instancer (y de su guardado, si es un cuerpo suyo).
 	if rock is VoxelInstancerRigidBody:
 		(rock as VoxelInstancerRigidBody).queue_free_and_notify_instancer()

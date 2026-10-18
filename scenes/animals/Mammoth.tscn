@@ -40,6 +40,9 @@ speed = 0.8
 
 [node name="HealthComponent" parent="."]
 max_health = 900.0
+armor_slash = 16.0
+armor_blunt = 12.0
+armor_pierce = 10.0
 
 [node name="IdleState" parent="AIController"]
 flee_trigger_radius = 15.0

@@ -14,7 +14,7 @@ const CATEGORIES := [
 	[ItemData.Category.WEAPON, "Armas"],
 	[ItemData.Category.TOOL, "Herramientas"],
 	[ItemData.Category.ARMOR, "Ropa"],
-	[ItemData.Category.CONSUMABLE, "Comida"],
+	[ItemData.Category.CONSUMABLE, "Consumibles"],
 	[ItemData.Category.MATERIAL, "Materiales"],
 	[ItemData.Category.BLOCK, "Construcción"],
 ]
@@ -35,6 +35,7 @@ const GROUPS := {
 	&"cooked": [ItemData.Category.CONSUMABLE, "Cocinada"],
 	&"raw": [ItemData.Category.CONSUMABLE, "Cruda"],
 	&"drink": [ItemData.Category.CONSUMABLE, "Bebida"],
+	&"remedy": [ItemData.Category.CONSUMABLE, "Remedios"],
 	&"hunt": [ItemData.Category.MATERIAL, "De caza"],
 	&"wood": [ItemData.Category.MATERIAL, "Madera"],
 	&"stone": [ItemData.Category.MATERIAL, "Piedra y mineral"],
@@ -94,7 +95,7 @@ static func kind_line(data: ItemData) -> String:
 	var group := group_of(data)
 	var parts: Array[String] = [category_name(GROUPS[group][0]), GROUPS[group][1]]
 	if data.category in [ItemData.Category.WEAPON, ItemData.Category.TOOL] and not data.is_shield():
-		if data.damage > 0 and group == &"melee":
+		if data.damage > 0 and group in [&"melee", &"ranged", &"tool"]:
 			parts.append(DAMAGE_KINDS.get(data.damage_kind, ""))
 		if data.two_handed:
 			parts.append("Dos manos")

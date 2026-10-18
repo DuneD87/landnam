@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/yarrow.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_trait"]
+[ext_resource type="Script" path="res://scripts/items/traits/remedy_trait.gd" id="4_remedy"]
+
+[sub_resource type="Resource" id="Resource_remedy"]
+script = ExtResource("4_remedy")
+health = 3.0
+stanch = 0.3
+use_text = "Masticas milenrama: amarga, pero corta la sangre"
+
+[resource]
+script = ExtResource("2_item")
+id = &"yarrow"
+display_name = "Milenrama"
+description = "Hierba de prado de hojas finas como plumas y umbelas de florecillas blancas. Masticada corta un poco la sangre; machacada en emplasto o cocida en bebedizo, cura de verdad."
+icon = ExtResource("1_icon")
+category = 3
+scene_path = "res://scenes/items/survival/yarrow.tscn"
+max_stack = 30
+group = &"remedy"
+traits = Array[ExtResource("3_trait")]([SubResource("Resource_remedy")])

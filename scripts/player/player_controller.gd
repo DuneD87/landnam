@@ -432,9 +432,10 @@ func _sync_hotbar_offhand() -> void:
 	hotbar.set_offhand(eq_slot.equipped_item.data if eq_slot and eq_slot.has_item() else null)
 
 
-## Lo que quita del daño la armadura puesta (la misma suma que enseña la pantalla de equipo).
+## Lo que protege lo puesto en cada parte del cuerpo (Armor), para los golpes que le den ahí.
 func _sync_armor() -> void:
-	health_component.defense = character_window.get_armor()
+	if combat != null and combat.body_damage != null:
+		combat.body_damage.armor = Armor.table(character_window.get_armor_pieces())
 
 
 func _unequip_right_hand() -> void:
@@ -504,6 +505,7 @@ func _ready():
 	combat = PlayerCombat.new()
 	add_child(combat)
 	combat.setup(self)
+	_sync_armor()
 	needs = SurvivalNeeds.new()
 	needs.name = "SurvivalNeeds"
 	add_child(needs)

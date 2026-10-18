@@ -22,6 +22,7 @@ blade_start = 0.2
 stamina_cost = 26.0
 poise_damage = 38.0
 heavy_multiplier = 1.9
+armor_penetration = 0.1
 two_handed = true
 guard_reduction = 0.65
 guard_stability = 35.0

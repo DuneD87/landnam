@@ -10,9 +10,10 @@ to = 0.98
 bones = Array[StringName]([&"Head"])
 radius = 0.4
 damage = 24.0
+kind = 2
+penetration = 0.3
 poise = 43.2
 knockback = 3.0
-kind = 1
 parryable = false
 
 [resource]

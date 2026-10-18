@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/bone_dagger.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_trait"]
+
+[resource]
+script = ExtResource("2_item")
+id = &"bone_dagger"
+display_name = "Puñal de hueso"
+description = "La caña de un hueso largo afilada en punta, con la cabeza del hueso de pomo. Corta poco, pero pica hondo y entra entre las placas."
+icon = ExtResource("1_icon")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/bone_dagger.tscn"
+stackable = false
+max_stack = 1
+weapon_type = 1
+damage = 13
+attack_speed = 1.45
+reach = 0.27
+blade_start = 0.06
+blade_radius = 0.045
+damage_kind = 2
+stamina_cost = 8.0
+poise_damage = 6.0
+heavy_multiplier = 1.6
+armor_penetration = 0.35
+armor_slot = 6
+group = &"melee"

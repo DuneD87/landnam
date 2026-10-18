@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/survival/tin_ore.res" id="1_h2tfk"]
+
+[node name="TinOre" type="Node3D" unique_id=1723112720]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1722131581]
+mesh = ExtResource("1_h2tfk")

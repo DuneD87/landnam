@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/survival/sulfur.res" id="1_rkn0h"]
+
+[node name="Sulfur" type="Node3D" unique_id=314796529]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=462479490]
+mesh = ExtResource("1_rkn0h")

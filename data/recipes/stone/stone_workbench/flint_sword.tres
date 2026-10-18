@@ -6,8 +6,8 @@
 script = ExtResource("1_recipe")
 result = &"flint_sword"
 inputs = Dictionary[StringName, int]({
+&"flint": 4,
 &"raw_hide": 1,
-&"stone_01": 4,
 &"wood_01": 4
 })
 station = &"stone_workbench"

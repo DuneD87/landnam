@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/splint.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_trait"]
+[ext_resource type="Script" path="res://scripts/items/traits/remedy_trait.gd" id="4_remedy"]
+
+[sub_resource type="Resource" id="Resource_remedy"]
+script = ExtResource("4_remedy")
+cures = Array[StringName]([&"fracture"])
+use_text = "Te entablillas la pierna: ya puedes apoyarla"
+
+[resource]
+script = ExtResource("2_item")
+id = &"splint"
+display_name = "Tablilla"
+description = "Dos palos rectos y fibra para atarlos. Sujeta un hueso roto y deja apoyar la pierna."
+icon = ExtResource("1_icon")
+category = 3
+scene_path = "res://scenes/items/survival/splint.tscn"
+max_stack = 5
+group = &"remedy"
+traits = Array[ExtResource("3_trait")]([SubResource("Resource_remedy")])

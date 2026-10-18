@@ -23,6 +23,7 @@ blade_radius = 0.13
 stamina_cost = 30.0
 poise_damage = 50.0
 heavy_multiplier = 2.0
+armor_penetration = 0.15
 two_handed = true
 guard_reduction = 0.55
 guard_stability = 30.0

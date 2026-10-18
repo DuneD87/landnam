@@ -40,7 +40,7 @@ func _check_catalog() -> void:
 		for id: StringName in recipe.inputs:
 			if Config.get_item(id) == null or recipe.inputs[id] <= 0:
 				bad.append("%s pide %s" % [recipe.result, id])
-		if recipe.station != Recipes.HAND:
+		if recipe.station != Recipes.HAND and recipe.station != Workstation.CAMPFIRE:
 			var station: ItemData = Config.get_item(recipe.station)
 			if station == null or station.get_trait(CraftingStationTrait) == null:
 				bad.append("%s en %s, que no es una estación" % [recipe.result, recipe.station])
@@ -92,6 +92,17 @@ func _check_counts() -> void:
 		"sin plumas no hay flechas: con 3, una tirada")
 	Recipes.craft(arrows, inventory, 5)
 	check(inventory.get_item_count(Config.get_item(&"arrow")) == 5 * arrows.amount, "cinco tiradas de flechas: %d" % (5 * arrows.amount))
+	# El bebedizo se cuece con agua de los odres, junto a la hoguera.
+	var draught := _recipe(&"yarrow_draught")
+	check(draught != null and draught.station == Workstation.CAMPFIRE and draught.water > 0,
+		"el bebedizo se hace junto a la hoguera y gasta agua")
+	inventory = _inventory([[&"yarrow", 12]])
+	var needs := SurvivalNeeds.new()
+	needs.water = draught.water * 2
+	check(Recipes.missing(draught, inventory).has(Recipes.WATER), "sin odres, falta el agua")
+	check(Recipes.max_times(draught, inventory, needs) == 2, "con agua para dos, dos bebedizos aunque haya hierba para tres")
+	check(Recipes.craft(draught, inventory, 2, needs) == 0 and needs.water == 0, "al hacerlos se gasta el agua")
+	needs.free()
 
 
 ## La ventana: el hacha pide el banco; sin él no se fabrica, con él al lado sí, las veces pedidas.

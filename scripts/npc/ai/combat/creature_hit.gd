@@ -18,6 +18,9 @@ extends Resource
 ## Metros que desplaza al que lo recibe si le hace tambalearse.
 @export var knockback: float = 1.0
 @export var kind: ItemData.DamageKind = ItemData.DamageKind.SLASH
+## Parte de la armadura del que lo recibe que no cuenta (Armor.mitigate): un colmillo o un cuerno
+## entran entre las placas.
+@export_range(0.0, 0.8) var penetration: float = 0.0
 ## Se puede parar en seco con la guardia (Guard): un zarpazo sí; una embestida o un salto, que
 ## llevan todo el peso del animal, solo se bloquean.
 @export var parryable: bool = true

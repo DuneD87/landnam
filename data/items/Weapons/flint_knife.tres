@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/flint_knife.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_trait"]
+[ext_resource type="Script" path="res://scripts/items/traits/skinning_trait.gd" id="4_skin"]
+
+[sub_resource type="Resource" id="Resource_skin"]
+script = ExtResource("4_skin")
+
+[resource]
+script = ExtResource("2_item")
+id = &"flint_knife"
+display_name = "Cuchillo de sílex"
+description = "Una lasca de sílex de un filo encajada en un mango de madera y atada con tendón. Despelleja como cualquier cuchillo y, en un apuro, corta."
+icon = ExtResource("1_icon")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/flint_knife.tscn"
+stackable = false
+max_stack = 1
+weapon_type = 1
+damage = 12
+attack_speed = 1.4
+reach = 0.21
+blade_start = 0.06
+blade_radius = 0.05
+stamina_cost = 8.0
+poise_damage = 7.0
+heavy_multiplier = 1.6
+armor_penetration = 0.1
+armor_slot = 6
+group = &"melee"
+traits = Array[ExtResource("3_trait")]([SubResource("Resource_skin")])

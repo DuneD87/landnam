@@ -32,6 +32,13 @@ var WEAPONS := {
 	"seax": [SurvivalMeshes.seax, "", -45.0],
 	"flint_sword": [WeaponMeshes.flint_sword, "", -45.0],
 	"flint_spear": [WeaponMeshes.flint_spear, "", -45.0],
+	"flint_knife": [WeaponMeshes.flint_knife, "", -45.0],
+	"bone_dagger": [WeaponMeshes.bone_dagger, "", -45.0],
+	"obsidian_sword": [WeaponMeshes.flint_sword.bind(WeaponMeshes.OBSIDIAN), "", -45.0],
+	"stone_club": [WeaponMeshes.stone_club, "", -40.0],
+	"stone_maul": [WeaponMeshes.stone_maul, "", -40.0],
+	"hide_shield": [WeaponMeshes.hide_shield, "", 0.0],
+	"bone_shield": [WeaponMeshes.bone_shield, "", -8.0],
 }
 ## Objetos de supervivencia: [constructor, giro del icono sobre Z de cámara, giro sobre Y, inclinación
 ## hacia la cámara (sobre X), si lleva escena para verse en el suelo]. Grados.
@@ -48,6 +55,20 @@ var SURVIVAL := {
 	"plant_fiber": [SurvivalMeshes.plant_fiber, -45.0, 0.0, 0.0, true],
 	"feather": [SurvivalMeshes.feather, -40.0, 0.0, 0.0, true],
 	"waterskin": [SurvivalMeshes.waterskin, -10.0, 0.0, 0.0, true],
+	"yarrow": [SurvivalMeshes.yarrow, -20.0, 0.0, 12.0, true],
+	"yarrow_poultice": [SurvivalMeshes.poultice, -15.0, 0.0, 65.0, true],
+	"yarrow_draught": [SurvivalMeshes.draught, -25.0, 90.0, 0.0, true],
+	"splint": [SurvivalMeshes.splint, -45.0, 0.0, 0.0, true],
+	"flint": [SurvivalMeshes.ore_chunk.bind(&"flint"), 0.0, 30.0, 25.0, true],
+	"obsidian": [SurvivalMeshes.ore_chunk.bind(&"obsidian"), 0.0, 20.0, 20.0, true],
+	"copper_ore": [SurvivalMeshes.ore_chunk.bind(&"copper_ore"), 0.0, 20.0, 30.0, true],
+	"tin_ore": [SurvivalMeshes.ore_chunk.bind(&"tin_ore"), 0.0, 20.0, 25.0, true],
+	"bog_iron": [SurvivalMeshes.ore_chunk.bind(&"bog_iron"), 0.0, 20.0, 25.0, true],
+	"iron_ore": [SurvivalMeshes.ore_chunk.bind(&"iron_ore"), 0.0, 20.0, 25.0, true],
+	"coal": [SurvivalMeshes.ore_chunk.bind(&"coal"), 0.0, 20.0, 25.0, true],
+	"silver_ore": [SurvivalMeshes.ore_chunk.bind(&"silver_ore"), 0.0, 20.0, 30.0, true],
+	"gold": [SurvivalMeshes.ore_chunk.bind(&"gold"), 0.0, 20.0, 25.0, true],
+	"sulfur": [SurvivalMeshes.ore_chunk.bind(&"sulfur"), 0.0, 20.0, 30.0, true],
 	"campfire": [SurvivalMeshes.campfire, 0.0, 0.0, 32.0, false],
 	"stone_workbench": [SurvivalMeshes.workbench, 0.0, -28.0, 22.0, false],
 }
@@ -55,7 +76,7 @@ const SURVIVAL_MESH_DIR := "res://data/items/meshes/survival/"
 const SURVIVAL_SCENE_DIR := "res://scenes/items/survival/"
 const SURVIVAL_ICON_DIR := "res://textures/icons/items/survival/"
 ## Los que se ven de frente en el icono (no de canto): el tirachinas y los escudos.
-const FACE_ON := ["slingshot", "wooden_shield", "iron_shield", "heater_shield"]
+const FACE_ON := ["slingshot", "wooden_shield", "iron_shield", "heater_shield", "hide_shield", "bone_shield"]
 
 ## Ramas tiradas por el suelo (objetos del planeta, planet_earth.json): malla tumbada y escena.
 const LITTER_DIR := "res://data/items/meshes/litter/"
@@ -85,6 +106,21 @@ const ICON_COLORS := {
 	&"horn": Color(0.40, 0.33, 0.27, 1.0),
 	&"plant_fiber": Color(0.74, 0.70, 0.44, 1.0),
 	&"plume": Color(0.80, 0.76, 0.68, 1.0),
+	&"herb": Color(0.45, 0.62, 0.32, 1.0),
+	&"blossom": Color(0.97, 0.96, 0.91, 1.0),
+	&"poultice": Color(0.30, 0.31, 0.14, 1.0),
+	&"cortex": Color(0.88, 0.86, 0.80, 1.0),
+	&"obsidian": Color(0.16, 0.16, 0.2, 0.85),
+	&"malachite": Color(0.26, 0.66, 0.44, 1.0),
+	&"cassiterite": Color(0.34, 0.22, 0.15, 0.9),
+	&"limonite": Color(0.78, 0.46, 0.18, 1.0),
+	&"hematite": Color(0.58, 0.32, 0.29, 0.95),
+	&"coal": Color(0.15, 0.15, 0.16, 1.0),
+	&"galena": Color(0.72, 0.74, 0.8, 0.85),
+	&"gold": Color(0.98, 0.78, 0.3, 0.85),
+	&"sulfur": Color(0.98, 0.88, 0.26, 1.0),
+	&"ore_rock": Color(0.55, 0.52, 0.48, 1.0),
+	&"rawhide": Color(0.78, 0.62, 0.42, 1.0),
 }
 
 

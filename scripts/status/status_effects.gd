@@ -67,6 +67,14 @@ func remove(effect_id: StringName, zone: StringName = &"") -> bool:
 	return found
 
 
+## Si tiene algo que responda a [tag] (StatusEffectData.cure_tags).
+func can_cure(tag: StringName) -> bool:
+	for effect in _effects:
+		if effect.data.cure_tags.has(tag):
+			return true
+	return false
+
+
 ## Cura todo lo que responda a [tag] (StatusEffectData.cure_tags).
 func cure(tag: StringName) -> bool:
 	var found := false

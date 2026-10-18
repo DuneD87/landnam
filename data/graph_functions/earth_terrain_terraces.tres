@@ -9,8 +9,50 @@
 
 [resource]
 graph_data = {
-"connections": [[100, 0, 82, 3], [100, 0, 85, 3], [81, 0, 100, 3], [82, 0, 101, 3], [101, 0, 4, 0], [82, 0, 90, 3], [85, 0, 83, 0], [85, 1, 84, 0], [90, 0, 91, 0], [100, 0, 110, 0], [110, 0, 111, 0], [111, 0, 112, 0], [112, 0, 113, 0], [113, 0, 114, 0]],
+"connections": [[100, 0, 82, 3], [100, 0, 85, 3], [81, 0, 100, 3], [82, 0, 101, 3], [101, 0, 4, 0], [82, 0, 90, 3], [90, 0, 91, 0], [100, 0, 110, 0], [110, 0, 111, 0], [111, 0, 112, 0], [112, 0, 113, 0], [113, 0, 114, 0], [85, 0, 83, 0], [85, 1, 84, 0], [85, 2, 86, 0], [85, 3, 87, 0], [85, 4, 88, 0], [85, 5, 89, 0], [85, 6, 92, 0]],
 "nodes": {
+"83": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 1080),
+"layer": 1,
+"type": "OutputWeight"
+},
+"84": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 990),
+"layer": 2,
+"type": "OutputWeight"
+},
+"86": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 900),
+"layer": 4,
+"type": "OutputWeight"
+},
+"87": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 810),
+"layer": 5,
+"type": "OutputWeight"
+},
+"88": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 720),
+"layer": 6,
+"type": "OutputWeight"
+},
+"89": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 630),
+"layer": 7,
+"type": "OutputWeight"
+},
+"92": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 540),
+"layer": 8,
+"type": "OutputWeight"
+},
 "101": {
 "_function": ExtResource("6_reef"),
 "auto_connect": true,
@@ -69,18 +111,6 @@ graph_data = {
 "x": 0.0,
 "y": 0.0,
 "z": 0.0
-},
-"83": {
-"auto_connect": false,
-"gui_position": Vector2(3530, 1080),
-"layer": 1,
-"type": "OutputWeight"
-},
-"84": {
-"auto_connect": false,
-"gui_position": Vector2(3540, 1170),
-"layer": 2,
-"type": "OutputWeight"
 },
 "85": {
 "_function": ExtResource("3_l0e7e"),

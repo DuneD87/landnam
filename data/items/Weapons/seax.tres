@@ -27,6 +27,7 @@ blade_radius = 0.05
 stamina_cost = 9.0
 poise_damage = 8.0
 heavy_multiplier = 1.6
+armor_penetration = 0.1
 armor_slot = 6
 group = &"melee"
 traits = Array[ExtResource("3_pxh5k")]([SubResource("Resource_hwr51")])

@@ -26,6 +26,14 @@ var parryable: bool = true
 ## Lo que hizo con él la guardia del que lo recibe (Guard.Result): el daño y el desgaste ya vienen
 ## rebajados, y quien reacciona al golpe (sangre, tajos, tambaleo) lo tiene en cuenta.
 var guarded: int = 0
+## Parte de la protección del que lo recibe que no cuenta (ItemData.armor_penetration, Armor).
+var penetration: float = 0.0
+## Dónde ha caído, si quien lo recibe lleva partes (BodyDamage.locate: zona de vida, región de
+## armadura...). Lo rellena la armadura por partes antes de descontar, y la herida lo reutiliza.
+var located: Dictionary = {}
+## El daño que queda tras la parte golpeada y la armadura, antes de tope de vida. Lo rellena
+## HealthComponent.receive_hit, y con él hiere BodyDamage la parte.
+var mitigated: float = 0.0
 
 
 static func create(amount_: float, source_: Node3D, point_: Vector3, direction_: Vector3,

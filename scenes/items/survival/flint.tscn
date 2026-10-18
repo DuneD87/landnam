@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/survival/flint.res" id="1_1j6wx"]
+
+[node name="Flint" type="Node3D" unique_id=42779349]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1167294352]
+mesh = ExtResource("1_1j6wx")

@@ -10,6 +10,9 @@ const Config = preload("res://scripts/config.gd")
 ## la ventana de fabricar y se guarda con la partida. Ver docs/items.md.
 
 const GROUP := &"workstation"
+## La hoguera encendida también es una estación (bebedizos, lo que se cuece): sus recetas llevan
+## este id en RecipeData.station, y se hacen a su alcance (Campfire.REACH).
+const CAMPFIRE := &"campfire"
 ## Desde dónde se abre con E (m, desde los pies).
 const REACH := 2.6
 
@@ -69,8 +72,16 @@ static func nearest(tree: SceneTree, world_pos: Vector3, max_distance: float = R
 
 
 ## Las estaciones a cuyo alcance está [world_pos]: id de su objeto → la más cercana de ese tipo.
+## Una hoguera encendida cuenta como CAMPFIRE.
 static func in_reach(tree: SceneTree, world_pos: Vector3) -> Dictionary:
 	var out := {}
+	for node in tree.get_nodes_in_group(Campfire.GROUP):
+		var fire := node as Campfire
+		if fire == null or not is_instance_valid(fire) or not fire.is_inside_tree() or not fire.lit:
+			continue
+		var d := fire.global_position.distance_to(world_pos)
+		if d <= Campfire.REACH and (not out.has(CAMPFIRE) or d < (out[CAMPFIRE] as Node3D).global_position.distance_to(world_pos)):
+			out[CAMPFIRE] = fire
 	for node in tree.get_nodes_in_group(GROUP):
 		var station := node as Workstation
 		if station == null or not is_instance_valid(station) or not station.is_inside_tree():

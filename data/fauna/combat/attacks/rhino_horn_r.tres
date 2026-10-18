@@ -13,6 +13,7 @@ damage = 55.0
 poise = 88.0
 knockback = 2.0
 kind = 2
+penetration = 0.35
 
 [resource]
 script = ExtResource("2_attack")

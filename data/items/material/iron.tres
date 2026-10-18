@@ -1,14 +1,16 @@
 [gd_resource type="Resource" script_class="ItemData" format=3]
 
 [ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_3uv04"]
-[ext_resource type="Texture2D" path="res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_preview.jpg" id="1_pleas"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/iron_ore.png" id="1_pleas"]
 [ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_7vrac"]
 
 [resource]
 script = ExtResource("1_3uv04")
 id = &"iron_01"
-display_name = "Hierro"
-description = "Hierro para construir."
+display_name = "Hematites"
+description = "Roca rojiza y pesada, rica en hierro, que sale en manchas por todo el mundo. Con carbón y un buen horno, hierro."
+scene_path = "res://scenes/items/survival/iron_ore.tscn"
 icon = ExtResource("1_pleas")
+max_stack = 50
 group = &"stone"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

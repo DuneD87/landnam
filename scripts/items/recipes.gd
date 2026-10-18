@@ -10,6 +10,8 @@ const Config = preload("res://scripts/config.gd")
 const DIR := "res://data/recipes/"
 ## Estación de las que se hacen a mano.
 const HAND := &""
+## Lo que falta de agua de los odres, en missing(): tragos.
+const WATER := &"water"
 
 static var _all: Array[RecipeData] = []
 
@@ -36,23 +38,29 @@ static func sort_key(recipe: RecipeData) -> Array:
 	return [int(recipe.era), 0 if recipe.station == HAND else 1, station_name(recipe.station).to_lower()] + item_key
 
 
-## Lo que falta de cada cosa para hacer [recipe] [times] veces con [inventory] (vacío = se puede).
-static func missing(recipe: RecipeData, inventory: Inventory, times: int = 1) -> Dictionary:
+## Lo que falta de cada cosa para hacer [recipe] [times] veces con [inventory] y el agua de los
+## odres de [needs] (vacío = se puede). El agua que falta va en WATER, en tragos.
+static func missing(recipe: RecipeData, inventory: Inventory, times: int = 1,
+		needs: SurvivalNeeds = null) -> Dictionary:
 	var out := {}
 	for id: StringName in recipe.inputs:
 		var need := recipe.inputs[id] * times
 		var have := inventory.get_item_count(Config.get_item(id))
 		if have < need:
 			out[id] = need - have
+	var water := _water(needs)
+	if recipe.water > 0 and water < recipe.water * times:
+		out[WATER] = recipe.water * times - water
 	return out
 
 
-static func can_craft(recipe: RecipeData, inventory: Inventory, times: int = 1) -> bool:
-	return times > 0 and missing(recipe, inventory, times).is_empty()
+static func can_craft(recipe: RecipeData, inventory: Inventory, times: int = 1,
+		needs: SurvivalNeeds = null) -> bool:
+	return times > 0 and missing(recipe, inventory, times, needs).is_empty()
 
 
 ## Cuántas veces se puede hacer con lo que hay.
-static func max_times(recipe: RecipeData, inventory: Inventory) -> int:
+static func max_times(recipe: RecipeData, inventory: Inventory, needs: SurvivalNeeds = null) -> int:
 	var best := -1
 	for id: StringName in recipe.inputs:
 		var need := recipe.inputs[id]
@@ -60,18 +68,28 @@ static func max_times(recipe: RecipeData, inventory: Inventory) -> int:
 			continue
 		var times := inventory.get_item_count(Config.get_item(id)) / need
 		best = times if best < 0 else mini(best, times)
+	if recipe.water > 0:
+		var times := _water(needs) / recipe.water
+		best = times if best < 0 else mini(best, times)
 	return maxi(best, 0)
 
 
-## Gasta lo que pide [times] veces y añade lo que sale. Devuelve lo que no cupo (para tirarlo al
-## suelo), o -1 si no se podía.
-static func craft(recipe: RecipeData, inventory: Inventory, times: int = 1) -> int:
+## Gasta lo que pide [times] veces (y el agua, de los odres de [needs]) y añade lo que sale.
+## Devuelve lo que no cupo (para tirarlo al suelo), o -1 si no se podía.
+static func craft(recipe: RecipeData, inventory: Inventory, times: int = 1,
+		needs: SurvivalNeeds = null) -> int:
 	var result: ItemData = Config.get_item(recipe.result)
-	if result == null or not can_craft(recipe, inventory, times):
+	if result == null or not can_craft(recipe, inventory, times, needs):
 		return -1
 	for id: StringName in recipe.inputs:
 		inventory.remove_item(Config.get_item(id), recipe.inputs[id] * times)
+	if recipe.water > 0:
+		needs.water -= recipe.water * times
 	return inventory.add_item(result, recipe.amount * times)
+
+
+static func _water(needs: SurvivalNeeds) -> int:
+	return needs.water if needs != null else 0
 
 
 static func _load(path: String) -> void:

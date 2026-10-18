@@ -242,15 +242,20 @@ func get_equipped_item(slot_type: ItemData.ArmorSlot) -> InventoryItem:
 	return null
 
 
-## La armadura de lo que se lleva puesto: la suma de la defensa de las piezas, en tanto por ciento
-## del daño que quitan (HealthComponent.defense).
-func get_armor() -> int:
-	var armor := 0
+## Las piezas de ropa y armadura puestas.
+func get_armor_pieces() -> Array[ItemData]:
+	var pieces: Array[ItemData] = []
 	for slot_type in LEFT_SLOTS:
 		var item := get_equipped_item(slot_type)
 		if item != null:
-			armor += item.data.defense
-	return armor
+			pieces.append(item.data)
+	return pieces
+
+
+## Lo que suman las piezas puestas contra cada tipo de golpe (x tajo, y contundente, z perforante),
+## cubran lo que cubran (Armor.total).
+func get_armor() -> Vector3:
+	return Armor.total(get_armor_pieces())
 
 
 func _refresh_if_shown() -> void:

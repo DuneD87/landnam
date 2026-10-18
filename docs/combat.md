@@ -32,26 +32,39 @@ pega como arma cuando hay una criatura delante o un objetivo fijado.
 
 ## Armas
 
-Todas empiezan en el inventario, menos las de sílex, que se fabrican en el banco de trabajo
-([items.md](items.md#fabricar)). `give <id>` en la consola da más.
+Las de la Edad de piedra se fabrican (a mano o en el banco de trabajo, ver
+[items.md](items.md#fabricar)); las de hierro, de momento, solo empiezan en el inventario para
+probar. `give <id>` en la consola da más. La penetración es la parte de la armadura del blanco que no
+cuenta (ver [Armadura](#armadura)).
 
-| Id | Arma | Daño | Ritmo | Notas |
-| --- | --- | --- | --- | --- |
-| `iron_sword` | Espada de hierro | 30 | 1,45 | Rápida, alcance 0,93 m |
-| `battle_axe` | Hacha de guerra | 38 | 1,25 | Rompe más la guardia |
-| `iron_mace` | Maza de hierro | 34 | 1,10 | Contundente, la que más tambalea |
-| `spear` | Lanza de hierro | 26 (×1,5 lanzada) | 1,40 | Pica a 1,2 m o se arroja; hasta 5 |
-| `flint_sword` | Espada de sílex | 22 | 0,95 | Pala de madera con lascas en los filos; se fabrica en el banco de trabajo |
-| `flint_spear` | Lanza de sílex | 21 (×1,5 lanzada) | 1,40 | Como la de hierro, a 1,1 m; se fabrica en el banco de trabajo |
-| `hunting_bow` | Arco de caza | 36 a tensión completa | — | Gasta `arrow` |
-| `slingshot` | Tirachinas | 14 | — | Gasta piedras (`stone_01`) |
-| `branch_01` | Rama | 9 | 1,15 | Garrote largo (1,1 m), contundente; se recoge del suelo |
-| `stone_axe_01`, `stone_pickaxe_01` | Herramientas | 18 / 16 | — | Solo con enemigo delante |
+| Id | Arma | Daño | Tipo | Penetración | Ritmo | Notas |
+| --- | --- | --- | --- | --- | --- | --- |
+| `branch_01` | Rama | 9 | Contundente | — | 1,15 | Garrote largo (1,1 m); se recoge del suelo |
+| `flint_knife` | Cuchillo de sílex | 12 | Tajo | 10 % | 1,40 | Despelleja; a mano |
+| `bone_dagger` | Puñal de hueso | 13 | Perforante | 35 % | 1,45 | A mano |
+| `flint_sword` | Espada de sílex | 22 | Tajo | 5 % | 0,95 | Pala de madera con lascas de sílex en los filos |
+| `obsidian_sword` | Espada de obsidiana | 27 | Tajo | 10 % | 0,95 | La misma con lascas de obsidiana |
+| `stone_club` | Maza de piedra | 25 | Contundente | — | 1,05 | Canto atado a un mango; tambalea mucho (36) |
+| `stone_maul` | Mazo de piedra | 46 | Contundente | — | 0,95 | A dos manos; para el 55 % en guardia; tambalea 62 |
+| `flint_spear` | Lanza de sílex | 21 (×1,5 lanzada) | Perforante | 25 % | 1,40 | Pica a 1,1 m o se arroja |
+| `hunting_bow` | Arco de caza | 36 a tensión completa | Perforante | 30 % | — | Gasta `arrow` |
+| `slingshot` | Tirachinas | 14 | Contundente | — | — | Gasta piedras (`stone_01`) |
+| `stone_axe_01`, `stone_pickaxe_01` | Herramientas | 18 / 16 | Tajo / Perforante | — / 40 % | — | Solo con enemigo delante |
+| `seax` | Seax | 14 | Tajo | 10 % | 1,35 | Hierro; con el que se empieza |
+| `iron_sword` | Espada de hierro | 30 | Tajo | 10 % | 1,45 | Rápida, alcance 0,93 m |
+| `battle_axe` | Hacha de guerra | 38 | Tajo | 15 % | 1,25 | Rompe más la guardia |
+| `iron_mace` | Maza de hierro | 34 | Contundente | — | 1,10 | La que más tambalea a una mano |
+| `spear` | Lanza de hierro | 26 (×1,5 lanzada) | Perforante | 30 % | 1,40 | Pica a 1,2 m o se arroja; hasta 5 |
+
+Cada tipo vale para algo: el tajo hace mucho contra lo que va sin armadura (lobos, ciervos), el
+perforante entra en las pieles gruesas y en las placas (osos, mamuts, rinocerontes) y el contundente
+tambalea y pasa las corazas rígidas, que paran mal los golpes secos. La munición suma su daño y su
+penetración a los del arco (`PlayerCombat`, la que más de las dos).
 
 Las estadísticas viven en el `.tres` de cada item (grupo *Combat* de `ItemData`):
 `reach` y `blade_start` (qué tramo del arma hiere), `blade_radius`, `attack_speed`
 (escala de la animación), `stamina_cost`, `poise_damage`, `heavy_multiplier`,
-`ammo_id`, `projectile_speed`, `draw_time`, `throwable`.
+`ammo_id`, `projectile_speed`, `draw_time`, `throwable`, `armor_penetration`.
 
 Las mallas se generan en `scripts/combat/weapon_meshes.gd` y se hornean con sus
 escenas e iconos:
@@ -108,12 +121,15 @@ clic derecho bloquea y la lanza solo pica.
 
 | Con qué | Para | Estabilidad | Arco | Parada | Flechas |
 | --- | --- | --- | --- | --- | --- |
+| Escudo de piel (`hide_shield`) | 70 % | 22 | 55° | 0,22 s | sí |
 | Escudo de madera (`wooden_shield`) | 70 % | 28 | 55° | 0,15 s | sí |
+| Escudo de placas de hueso (`bone_shield`) | 85 % | 40 | 58° | 0,15 s | sí |
 | Escudo de hierro (`iron_shield`) | 90 % | 45 | 65° | 0,20 s | sí |
 | Escudo de roble (`heater_shield`) | 100 % | 68 | 60° | 0,15 s | sí |
 | Espadón | 65 % | 35 | 50° | 0,13 s | no |
 | Hacha grande | 55 % | 30 | 45° | 0,10 s | no |
 | Martillo de guerra | 60 % | 35 | 45° | 0,10 s | no |
+| Mazo de piedra | 55 % | 30 | 45° | 0,10 s | no |
 
 Las criaturas lo leen (`guarding` en `CombatRead`): el oso embiste más contra la guardia para
 romperla. El escudo va atado al antebrazo izquierdo (`CombatPose.shield_xform`, sus mallas en
@@ -232,14 +248,58 @@ escudo, o las manos en el arma, delante del cuerpo.
 - **Aguante**: golpes, esquivas, correr (2/s, y corriendo no se recupera), esprintar
   (11/s), mantener la cuerda tensa y trepar (ver [climbing.md](climbing.md)). Si se
   agota, hay que recuperar un poco antes de volver a gastar.
-- **Armadura**: la `defense` de las piezas puestas (cabeza, torso, manos, piernas y pies) se
-  suma y es el tanto por ciento que se quita de cada golpe de combate, hasta un 80 %
-  (`HealthComponent.defense`, que pone `PlayerController._sync_armor` al equipar o al cargar
-  partida). Quita de la vida general y de la de la parte golpeada (`BodyDamage`), no de las
-  caídas. El cuero entero suma 13; el de piel, 9. Es la cifra de la pantalla de equipo.
+- **Armadura**: ver [Armadura](#armadura).
 - **Guardia (poise)**: un golpe con más desgaste que la guardia del jugador (24) le
   hace tambalearse. Los osos aguantan 110 de desgaste acumulado (más la armadura de su
   ataque) y, al romperla, se quedan 1 s vendidos.
+
+## Armadura
+
+Cada golpe de combate tiene un tipo (tajo, contundente o perforante: `ItemData.DamageKind`) y cada
+pieza protege contra cada uno por separado, solo en lo que cubre (`Armor`,
+`scripts/combat/armor.gd`). Las caídas no cuentan.
+
+- **Cuánto quita**: un golpe de D contra A de protección deja D·D/(D + A) (`Armor.mitigate`). Con
+  tanta armadura como daño se queda en la mitad; un golpe del triple de la armadura entra con tres
+  cuartos. La armadura para bien lo flojo (mordiscos, golpes de rama) y poco lo muy fuerte (una
+  embestida de mamut).
+- **Penetración**: `ItemData.armor_penetration` del arma (o de la munición) y
+  `CreatureHit.penetration` de los colmillos y cuernos de las fieras quitan esa parte de A, hasta
+  un 80 %.
+- **Dónde**: `BodyDamage.locate` dice en qué parte cae el golpe y su región de armadura
+  (`Armor.Region`: cabeza, tronco, brazos, antebrazos, manos, muslos, espinillas y pies; columna 7
+  de `BodyDamage.SEGMENTS`). Cada pieza cubre lo de su hueco (`Armor.SLOT_COVERAGE`: el peto, el
+  tronco y los brazos; los guantes, las manos y los antebrazos; los calzones, muslos y espinillas)
+  o lo que marque `ItemData.coverage`. Las capas se suman: una coraza sobre la ropa de pieles
+  protege lo de las dos.
+- **Datos** (`ItemData`, grupo *Armor Stats*): `armor_slash`, `armor_blunt`, `armor_pierce` y
+  `coverage`. `PlayerController._sync_armor` deja la tabla por regiones en `BodyDamage.armor` al
+  equipar y al cargar, y `HealthComponent.armor_at` la consulta en cada golpe.
+- **Animales**: la piel, el pelo y la grasa protegen igual (`HealthComponent`, grupo *Armadura
+  natural*, en la escena de cada especie). Contra un rinoceronte o un mamut un tajo apenas entra;
+  hay que ir con lanza o flechas.
+- **Pantalla de equipo**: la suma de lo puesto contra cada tipo. La ficha de cada pieza dice cuánto
+  protege de cada uno y qué cubre; la de cada arma, su tipo de golpe y su penetración.
+
+| Especie | Tajo | Contundente | Perforante |
+| --- | --- | --- | --- |
+| Rinoceronte | 18 | 10 | 12 |
+| Mamut | 16 | 12 | 10 |
+| Caimán | 16 | 6 | 12 |
+| Elefante | 14 | 10 | 8 |
+| Oso (y oso polar) | 8 | 10 | 5 |
+| Búfalo | 7 | 8 | 5 |
+| Jabalí | 7 | 5 | 6 |
+| Alce | 5 | 6 | 3 |
+| León | 4 | 4 | 2 |
+| Leona, puma | 3 | 3 | 2 |
+| Caballo, vaca, burro, ñu | 3 | 4 | 2 |
+| Lobo, hiena | 2 | 3 | 1 |
+| Ciervos, cabras, berrendo | 1-2 | 2-3 | 1 |
+
+Los ataques de las fieras: zarpazos de tajo, mordiscos de perforante (el del caimán con 0,3 de
+penetración; los de lobo, 0,1; el de hiena, 0,2), embestidas y pisotones contundentes, y colmillos y
+cuernos perforantes con 0,3-0,35 de penetración (el jabalí embiste con los colmillos).
 
 ## Heridas y mutilaciones
 
@@ -299,7 +359,9 @@ sangra.
 
 *Opciones > Juego > Sangre y mutilaciones*: sin sangre, solo sangre (no se cercena) o completo.
 
-Todo se cura al reaparecer tras morir o con `heal`. Al cargar partida se cierran las heridas, pero
+Los remedios (emplasto y bebedizo de milenrama, tablilla) cortan el sangrado, cierran las partes
+heridas y curan la pierna rota: ver [items.md](items.md#curarse). Todo se cura al reaparecer tras
+morir o con `heal`. Al cargar partida se cierran las heridas, pero
 los miembros perdidos y los estados (pierna rota…) siguen como se guardaron.
 
 ### Miembros perdidos en la partida guardada

@@ -5,7 +5,7 @@ period = 20.0001
 
 [resource]
 graph_data = {
-"connections": [[37, 0, 41, 2], [36, 0, 40, 2], [35, 0, 37, 0], [34, 0, 36, 0], [4, 0, 30, 0], [4, 0, 31, 0], [33, 0, 35, 1], [14, 0, 20, 2], [14, 0, 21, 2], [10, 0, 11, 0], [40, 0, 50, 0], [11, 0, 12, 0], [11, 0, 13, 0], [11, 0, 14, 0], [41, 0, 51, 0], [12, 0, 20, 0], [12, 0, 21, 0], [13, 0, 20, 1], [13, 0, 21, 1], [20, 0, 40, 1], [21, 0, 41, 1], [1, 0, 12, 1], [30, 0, 32, 0], [2, 0, 13, 1], [31, 0, 33, 0], [3, 0, 14, 1], [32, 0, 34, 1]],
+"connections": [[10, 0, 11, 0], [11, 0, 12, 0], [1, 0, 12, 1], [11, 0, 13, 0], [2, 0, 13, 1], [11, 0, 14, 0], [3, 0, 14, 1], [4, 0, 15, 0], [1, 0, 16, 0], [1, 0, 16, 1], [2, 0, 17, 0], [2, 0, 17, 1], [3, 0, 18, 0], [3, 0, 18, 1], [16, 0, 19, 0], [17, 0, 19, 1], [19, 0, 20, 0], [18, 0, 20, 1], [20, 0, 21, 0], [12, 0, 100, 0], [13, 0, 100, 1], [14, 0, 100, 2], [15, 0, 101, 0], [101, 0, 102, 1], [102, 0, 103, 0], [100, 0, 104, 0], [103, 0, 104, 1], [21, 0, 105, 0], [21, 0, 106, 0], [21, 0, 107, 0], [21, 0, 108, 0], [21, 0, 109, 0], [21, 0, 110, 0], [21, 0, 111, 0], [105, 0, 112, 0], [106, 0, 112, 1], [104, 0, 113, 0], [112, 0, 113, 1], [106, 0, 114, 0], [107, 0, 114, 1], [104, 0, 115, 0], [114, 0, 115, 1], [107, 0, 116, 0], [108, 0, 116, 1], [104, 0, 117, 0], [116, 0, 117, 1], [108, 0, 118, 0], [109, 0, 118, 1], [104, 0, 119, 0], [118, 0, 119, 1], [109, 0, 120, 0], [110, 0, 120, 1], [104, 0, 121, 0], [120, 0, 121, 1], [110, 0, 122, 0], [111, 0, 122, 1], [104, 0, 123, 0], [122, 0, 123, 1], [12, 0, 240, 0], [13, 0, 240, 1], [14, 0, 240, 2], [15, 0, 241, 0], [241, 0, 242, 1], [242, 0, 243, 0], [240, 0, 244, 0], [243, 0, 244, 1], [244, 0, 1001, 0], [121, 0, 1002, 0], [117, 0, 1004, 0], [113, 0, 1005, 0], [115, 0, 1006, 0], [119, 0, 1007, 0], [123, 0, 1008, 0]],
 "nodes": {
 "1": {
 "auto_connect": false,
@@ -21,16 +21,208 @@ graph_data = {
 "y": 0.0,
 "z": 0.0
 },
+"100": {
+"auto_connect": true,
+"cell_size": 420.0,
+"gui_position": Vector2(880, 0),
+"jitter": 0.9,
+"name": &"ore_spots_metal",
+"seed": 7391,
+"spot_radius": 24.0,
+"type": "Spots3D"
+},
+"1001": {
+"auto_connect": false,
+"gui_position": Vector2(2200, 120),
+"name": &"ore_01_weight",
+"type": "CustomOutput"
+},
+"1002": {
+"auto_connect": false,
+"gui_position": Vector2(2200, 240),
+"name": &"ore_02_weight",
+"type": "CustomOutput"
+},
+"1004": {
+"auto_connect": false,
+"gui_position": Vector2(2200, 480),
+"name": &"ore_04_weight",
+"type": "CustomOutput"
+},
+"1005": {
+"auto_connect": false,
+"gui_position": Vector2(2200, 600),
+"name": &"ore_05_weight",
+"type": "CustomOutput"
+},
+"1006": {
+"auto_connect": false,
+"gui_position": Vector2(2200, 720),
+"name": &"ore_06_weight",
+"type": "CustomOutput"
+},
+"1007": {
+"auto_connect": false,
+"gui_position": Vector2(2200, 840),
+"name": &"ore_07_weight",
+"type": "CustomOutput"
+},
+"1008": {
+"auto_connect": false,
+"gui_position": Vector2(2200, 960),
+"name": &"ore_08_weight",
+"type": "CustomOutput"
+},
+"101": {
+"auto_connect": false,
+"b": 10.0,
+"gui_position": Vector2(1060, 120),
+"name": &"ore_depth_metal",
+"type": "Divide"
+},
+"102": {
+"a": 1.0,
+"auto_connect": false,
+"gui_position": Vector2(1240, 120),
+"type": "Subtract"
+},
+"103": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(1420, 120),
+"type": "Max"
+},
+"104": {
+"auto_connect": false,
+"gui_position": Vector2(1600, 120),
+"type": "Multiply"
+},
+"105": {
+"auto_connect": false,
+"edge0": 29934.0,
+"edge1": 29946.0,
+"gui_position": Vector2(1060, 240),
+"name": &"ore_step_metal_0",
+"type": "Smoothstep"
+},
+"106": {
+"auto_connect": false,
+"edge0": 30009.0,
+"edge1": 30021.0,
+"gui_position": Vector2(1060, 300),
+"name": &"ore_step_metal_1",
+"type": "Smoothstep"
+},
+"107": {
+"auto_connect": false,
+"edge0": 30104.0,
+"edge1": 30116.0,
+"gui_position": Vector2(1060, 360),
+"name": &"ore_step_metal_2",
+"type": "Smoothstep"
+},
+"108": {
+"auto_connect": false,
+"edge0": 30204.0,
+"edge1": 30216.0,
+"gui_position": Vector2(1060, 420),
+"name": &"ore_step_metal_3",
+"type": "Smoothstep"
+},
+"109": {
+"auto_connect": false,
+"edge0": 30314.0,
+"edge1": 30326.0,
+"gui_position": Vector2(1060, 480),
+"name": &"ore_step_metal_4",
+"type": "Smoothstep"
+},
 "11": {
 "auto_connect": false,
 "b": 12.0,
 "gui_position": Vector2(420, -120),
 "type": "Multiply"
 },
+"110": {
+"auto_connect": false,
+"edge0": 30414.0,
+"edge1": 30426.0,
+"gui_position": Vector2(1060, 540),
+"name": &"ore_step_metal_5",
+"type": "Smoothstep"
+},
+"111": {
+"auto_connect": false,
+"edge0": 33994.0,
+"edge1": 34006.0,
+"gui_position": Vector2(1060, 600),
+"name": &"ore_step_metal_6",
+"type": "Smoothstep"
+},
+"112": {
+"auto_connect": false,
+"gui_position": Vector2(1420, 240),
+"type": "Subtract"
+},
+"113": {
+"auto_connect": false,
+"gui_position": Vector2(1780, 240),
+"type": "Multiply"
+},
+"114": {
+"auto_connect": false,
+"gui_position": Vector2(1420, 300),
+"type": "Subtract"
+},
+"115": {
+"auto_connect": false,
+"gui_position": Vector2(1780, 300),
+"type": "Multiply"
+},
+"116": {
+"auto_connect": false,
+"gui_position": Vector2(1420, 360),
+"type": "Subtract"
+},
+"117": {
+"auto_connect": false,
+"gui_position": Vector2(1780, 360),
+"type": "Multiply"
+},
+"118": {
+"auto_connect": false,
+"gui_position": Vector2(1420, 420),
+"type": "Subtract"
+},
+"119": {
+"auto_connect": false,
+"gui_position": Vector2(1780, 420),
+"type": "Multiply"
+},
 "12": {
 "auto_connect": false,
 "gui_position": Vector2(620, 0),
 "type": "Add"
+},
+"120": {
+"auto_connect": false,
+"gui_position": Vector2(1420, 480),
+"type": "Subtract"
+},
+"121": {
+"auto_connect": false,
+"gui_position": Vector2(1780, 480),
+"type": "Multiply"
+},
+"122": {
+"auto_connect": false,
+"gui_position": Vector2(1420, 540),
+"type": "Subtract"
+},
+"123": {
+"auto_connect": false,
+"gui_position": Vector2(1780, 540),
+"type": "Multiply"
 },
 "13": {
 "auto_connect": false,
@@ -42,116 +234,94 @@ graph_data = {
 "gui_position": Vector2(620, 200),
 "type": "Add"
 },
+"15": {
+"auto_connect": false,
+"gui_position": Vector2(620, 480),
+"type": "Abs"
+},
+"16": {
+"auto_connect": false,
+"gui_position": Vector2(200, 700),
+"type": "Multiply"
+},
+"17": {
+"auto_connect": false,
+"gui_position": Vector2(200, 780),
+"type": "Multiply"
+},
+"18": {
+"auto_connect": false,
+"gui_position": Vector2(200, 860),
+"type": "Multiply"
+},
+"19": {
+"auto_connect": false,
+"gui_position": Vector2(400, 720),
+"type": "Add"
+},
 "2": {
 "auto_connect": false,
 "gui_position": Vector2(0, 80),
 "type": "InputY"
 },
 "20": {
+"auto_connect": false,
+"gui_position": Vector2(560, 760),
+"type": "Add"
+},
+"21": {
+"auto_connect": false,
+"gui_position": Vector2(720, 760),
+"name": &"altitude",
+"type": "Sqrt"
+},
+"240": {
 "auto_connect": true,
 "cell_size": 400.0,
-"gui_position": Vector2(880, 40),
+"gui_position": Vector2(880, 1820),
 "jitter": 0.9,
 "name": &"ore_spots_1",
 "seed": 1042,
 "spot_radius": 40.0,
 "type": "Spots3D"
 },
-"21": {
-"auto_connect": true,
-"cell_size": 600.0,
-"gui_position": Vector2(880, 320),
-"jitter": 0.9,
-"name": &"ore_spots_2",
-"seed": 7391,
-"spot_radius": 20.0,
-"type": "Spots3D"
+"241": {
+"auto_connect": false,
+"b": 12.0,
+"gui_position": Vector2(1060, 1940),
+"name": &"ore_depth_1",
+"type": "Divide"
+},
+"242": {
+"a": 1.0,
+"auto_connect": false,
+"gui_position": Vector2(1240, 1940),
+"type": "Subtract"
+},
+"243": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(1420, 1940),
+"type": "Max"
+},
+"244": {
+"auto_connect": false,
+"gui_position": Vector2(1600, 1940),
+"type": "Multiply"
 },
 "3": {
 "auto_connect": false,
 "gui_position": Vector2(0, 160),
 "type": "InputZ"
 },
-"30": {
-"auto_connect": false,
-"gui_position": Vector2(620, 480),
-"type": "Abs"
-},
-"31": {
-"auto_connect": false,
-"gui_position": Vector2(620, 660),
-"type": "Abs"
-},
-"32": {
-"auto_connect": false,
-"b": 12.0,
-"gui_position": Vector2(840, 480),
-"name": &"ore_depth_1",
-"type": "Divide"
-},
-"33": {
-"auto_connect": false,
-"b": 8.0,
-"gui_position": Vector2(840, 660),
-"name": &"ore_depth_2",
-"type": "Divide"
-},
-"34": {
-"a": 1.0,
-"auto_connect": false,
-"gui_position": Vector2(1060, 480),
-"type": "Subtract"
-},
-"35": {
-"a": 1.0,
-"auto_connect": false,
-"gui_position": Vector2(1060, 660),
-"type": "Subtract"
-},
-"36": {
-"auto_connect": false,
-"b": 0.0,
-"gui_position": Vector2(1280, 480),
-"type": "Max"
-},
-"37": {
-"auto_connect": false,
-"b": 0.0,
-"gui_position": Vector2(1280, 660),
-"type": "Max"
-},
 "4": {
 "auto_connect": false,
 "gui_position": Vector2(0, 420),
 "name": &"planet_sdf",
 "type": "CustomInput"
-},
-"40": {
-"a": 0.0,
-"auto_connect": false,
-"gui_position": Vector2(1500, 220),
-"type": "Mix"
-},
-"41": {
-"a": 0.0,
-"auto_connect": false,
-"gui_position": Vector2(1500, 480),
-"type": "Mix"
-},
-"50": {
-"auto_connect": false,
-"gui_position": Vector2(1720, 220),
-"name": &"ore_01_weight",
-"type": "CustomOutput"
-},
-"51": {
-"auto_connect": false,
-"gui_position": Vector2(1720, 480),
-"name": &"ore_02_weight",
-"type": "CustomOutput"
 }
 },
 "version": 2
 }
 input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0], ["planet_sdf", "CustomInput", 0]]
-output_definitions = [["ore_01_weight", "CustomOutput", 0], ["ore_02_weight", "CustomOutput", 0]]
+output_definitions = [["ore_01_weight", "CustomOutput", 0], ["ore_02_weight", "CustomOutput", 0], ["ore_04_weight", "CustomOutput", 0], ["ore_05_weight", "CustomOutput", 0], ["ore_06_weight", "CustomOutput", 0], ["ore_07_weight", "CustomOutput", 0], ["ore_08_weight", "CustomOutput", 0]]

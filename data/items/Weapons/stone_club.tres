@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/stone_club.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_trait"]
+
+[resource]
+script = ExtResource("2_item")
+id = &"stone_club"
+display_name = "Maza de piedra"
+description = "Un canto rodado atado a la punta de un mango. No corta: aplasta, y lo que encaja el golpe se tambalea aunque lleve coraza."
+icon = ExtResource("1_icon")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/stone_club.tscn"
+stackable = false
+max_stack = 1
+weapon_type = 6
+damage = 25
+attack_speed = 1.05
+reach = 0.6
+blade_start = 0.4
+blade_radius = 0.1
+damage_kind = 1
+stamina_cost = 19.0
+poise_damage = 36.0
+heavy_multiplier = 1.9
+armor_slot = 6
+group = &"melee"

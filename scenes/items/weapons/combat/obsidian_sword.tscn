@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/obsidian_sword.res" id="1_4kevc"]
+
+[node name="ObsidianSword" type="Node3D" unique_id=1236911803]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=667509141]
+mesh = ExtResource("1_4kevc")

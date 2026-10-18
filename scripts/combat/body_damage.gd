@@ -7,8 +7,8 @@ extends Node
 ## brazo o una pierna puede cercenarlo (Dismemberment), y toda herida sangra un rato restando vida
 ## general; un muñón sangra mucho más, a borbotones.
 ##
-## Una parte por debajo de cero está inutilizada; las consecuencias (cojear, soltar el arma) y las
-## curas llegarán después: de momento solo se curan con restore() (reaparecer, `heal`).
+## Una parte por debajo de cero está inutilizada. Los remedios (RemedyTrait) cortan el sangrado y
+## cierran las partes con treat(); restore() lo deja todo sano (reaparecer, `heal`).
 
 ## Una parte ha recibido un golpe.
 signal zone_damaged(zone: StringName)
@@ -24,27 +24,40 @@ const ZONE_HEALTH := {
 }
 ## Tramos del esqueleto para saber dónde entra un golpe: [parte, hueso, hasta qué hueso, radio (m),
 ## hueso que se corta si lo cercena ("" si no se corta), altura del corte en ese hueso (-1: por
-## donde entra el golpe)]. Un golpe en la mano o el pie corta la muñeca o el tobillo.
+## donde entra el golpe), región de armadura (Armor.Region)]. Un golpe en la mano o el pie corta la
+## muñeca o el tobillo.
 const SEGMENTS := [
-	[&"head", "mixamorig_Neck", "mixamorig_Head", 0.06, "", -1.0],
-	[&"head", "mixamorig_Head", "mixamorig_HeadTop_End", 0.1, "", -1.0],
-	[&"chest", "mixamorig_Spine2", "mixamorig_Neck", 0.15, "", -1.0],
-	[&"chest", "mixamorig_LeftShoulder", "mixamorig_LeftArm", 0.07, "", -1.0],
-	[&"chest", "mixamorig_RightShoulder", "mixamorig_RightArm", 0.07, "", -1.0],
-	[&"stomach", "mixamorig_Hips", "mixamorig_Spine1", 0.14, "", -1.0],
-	[&"stomach", "mixamorig_Spine1", "mixamorig_Spine2", 0.13, "", -1.0],
-	[&"left_arm", "mixamorig_LeftArm", "mixamorig_LeftForeArm", 0.05, "mixamorig_LeftArm", -1.0],
-	[&"left_arm", "mixamorig_LeftForeArm", "mixamorig_LeftHand", 0.045, "mixamorig_LeftForeArm", -1.0],
-	[&"left_arm", "mixamorig_LeftHand", "mixamorig_LeftHandMiddle2", 0.04, "mixamorig_LeftForeArm", 0.72],
-	[&"right_arm", "mixamorig_RightArm", "mixamorig_RightForeArm", 0.05, "mixamorig_RightArm", -1.0],
-	[&"right_arm", "mixamorig_RightForeArm", "mixamorig_RightHand", 0.045, "mixamorig_RightForeArm", -1.0],
-	[&"right_arm", "mixamorig_RightHand", "mixamorig_RightHandMiddle2", 0.04, "mixamorig_RightForeArm", 0.72],
-	[&"left_leg", "mixamorig_LeftUpLeg", "mixamorig_LeftLeg", 0.08, "mixamorig_LeftUpLeg", -1.0],
-	[&"left_leg", "mixamorig_LeftLeg", "mixamorig_LeftFoot", 0.055, "mixamorig_LeftLeg", -1.0],
-	[&"left_leg", "mixamorig_LeftFoot", "mixamorig_LeftToeBase", 0.045, "mixamorig_LeftLeg", 0.72],
-	[&"right_leg", "mixamorig_RightUpLeg", "mixamorig_RightLeg", 0.08, "mixamorig_RightUpLeg", -1.0],
-	[&"right_leg", "mixamorig_RightLeg", "mixamorig_RightFoot", 0.055, "mixamorig_RightLeg", -1.0],
-	[&"right_leg", "mixamorig_RightFoot", "mixamorig_RightToeBase", 0.045, "mixamorig_RightLeg", 0.72],
+	[&"head", "mixamorig_Neck", "mixamorig_Head", 0.06, "", -1.0, Armor.Region.HEAD],
+	[&"head", "mixamorig_Head", "mixamorig_HeadTop_End", 0.1, "", -1.0, Armor.Region.HEAD],
+	[&"chest", "mixamorig_Spine2", "mixamorig_Neck", 0.15, "", -1.0, Armor.Region.TORSO],
+	[&"chest", "mixamorig_LeftShoulder", "mixamorig_LeftArm", 0.07, "", -1.0, Armor.Region.TORSO],
+	[&"chest", "mixamorig_RightShoulder", "mixamorig_RightArm", 0.07, "", -1.0, Armor.Region.TORSO],
+	[&"stomach", "mixamorig_Hips", "mixamorig_Spine1", 0.14, "", -1.0, Armor.Region.TORSO],
+	[&"stomach", "mixamorig_Spine1", "mixamorig_Spine2", 0.13, "", -1.0, Armor.Region.TORSO],
+	[&"left_arm", "mixamorig_LeftArm", "mixamorig_LeftForeArm", 0.05, "mixamorig_LeftArm", -1.0,
+		Armor.Region.UPPER_ARMS],
+	[&"left_arm", "mixamorig_LeftForeArm", "mixamorig_LeftHand", 0.045, "mixamorig_LeftForeArm", -1.0,
+		Armor.Region.FOREARMS],
+	[&"left_arm", "mixamorig_LeftHand", "mixamorig_LeftHandMiddle2", 0.04, "mixamorig_LeftForeArm", 0.72,
+		Armor.Region.HANDS],
+	[&"right_arm", "mixamorig_RightArm", "mixamorig_RightForeArm", 0.05, "mixamorig_RightArm", -1.0,
+		Armor.Region.UPPER_ARMS],
+	[&"right_arm", "mixamorig_RightForeArm", "mixamorig_RightHand", 0.045, "mixamorig_RightForeArm", -1.0,
+		Armor.Region.FOREARMS],
+	[&"right_arm", "mixamorig_RightHand", "mixamorig_RightHandMiddle2", 0.04, "mixamorig_RightForeArm", 0.72,
+		Armor.Region.HANDS],
+	[&"left_leg", "mixamorig_LeftUpLeg", "mixamorig_LeftLeg", 0.08, "mixamorig_LeftUpLeg", -1.0,
+		Armor.Region.THIGHS],
+	[&"left_leg", "mixamorig_LeftLeg", "mixamorig_LeftFoot", 0.055, "mixamorig_LeftLeg", -1.0,
+		Armor.Region.SHINS],
+	[&"left_leg", "mixamorig_LeftFoot", "mixamorig_LeftToeBase", 0.045, "mixamorig_LeftLeg", 0.72,
+		Armor.Region.FEET],
+	[&"right_leg", "mixamorig_RightUpLeg", "mixamorig_RightLeg", 0.08, "mixamorig_RightUpLeg", -1.0,
+		Armor.Region.THIGHS],
+	[&"right_leg", "mixamorig_RightLeg", "mixamorig_RightFoot", 0.055, "mixamorig_RightLeg", -1.0,
+		Armor.Region.SHINS],
+	[&"right_leg", "mixamorig_RightFoot", "mixamorig_RightToeBase", 0.045, "mixamorig_RightLeg", 0.72,
+		Armor.Region.FEET],
 ]
 
 ## Probabilidad de que un tajo que cae en un brazo o una pierna lo cercene. Negativa: la natural
@@ -72,6 +85,9 @@ const SPLAT_STEP := 0.4
 
 var health: HealthComponent
 var skeleton: Skeleton3D
+## Lo que protege lo que lleva puesto en cada parte (índice Armor.Region; Armor.table). Lo pone
+## quien viste al cuerpo (PlayerController._sync_armor).
+var armor: PackedVector3Array = PackedVector3Array()
 ## El cuerpo que lleva el esqueleto (su velocidad y su gravedad las heredan los miembros que caen).
 var owner_body: Node3D
 var dismemberment: Dismemberment
@@ -96,6 +112,7 @@ func setup(health_: HealthComponent, skeleton_: Skeleton3D, body: Node3D) -> voi
 	dismemberment.skeleton = skeleton
 	add_child(dismemberment)
 	health.hit_received.connect(_on_hit)
+	health.armor_at = _armor_at
 	restore()
 
 
@@ -164,6 +181,25 @@ func is_hurt() -> bool:
 	return not _wounds.is_empty()
 
 
+## Un remedio: corta [stanch] (0-1) del sangrado de cada herida (de un muñón, algo más de la
+## mitad de eso) y devuelve a cada parte herida [mend] (0-1) de su vida. Lo perdido sigue perdido.
+## Devuelve si había algo que curar.
+func treat(stanch: float, mend: float) -> bool:
+	var treated := false
+	if stanch > 0.0:
+		for wound in _wounds:
+			wound.rate *= 1.0 - clampf(stanch * (0.6 if wound.has("cut") else 1.0), 0.0, 1.0)
+			treated = true
+		_wounds = _wounds.filter(func(wound: Dictionary) -> bool: return wound.rate > BLEED_STOP)
+	if mend > 0.0:
+		for zone in ZONES:
+			if is_severed(zone) or _hp[zone] >= zone_max(zone):
+				continue
+			_hp[zone] = minf(_hp[zone] + zone_max(zone) * mend, zone_max(zone))
+			treated = true
+	return treated
+
+
 ## Vida por segundo que se va en sangre.
 func bleed_rate() -> float:
 	var total := 0.0
@@ -173,7 +209,7 @@ func bleed_rate() -> float:
 
 
 ## La parte del cuerpo que recibe un golpe que entra por [point] (mundo): {zone, cut_bone,
-## fraction}, o {} si no hay esqueleto.
+## fraction, region}, o {} si no hay esqueleto.
 func locate(point: Vector3) -> Dictionary:
 	var best := {}
 	var best_d := INF
@@ -192,8 +228,19 @@ func locate(point: Vector3) -> Dictionary:
 		var d := Geometry3D.get_closest_point_to_segment(point, a, b).distance_to(point) - float(seg[3])
 		if d < best_d:
 			best_d = d
-			best = {zone = seg[0], cut_bone = StringName(seg[4]), fraction = seg[5]}
+			best = {zone = seg[0], cut_bone = StringName(seg[4]), fraction = seg[5], region = seg[6]}
 	return best
+
+
+## La protección de lo puesto donde cae [info] (HealthComponent.armor_at). Deja dónde ha caído en
+## el golpe, para no buscarlo otra vez al herir.
+func _armor_at(info: DamageInfo) -> Vector3:
+	if skeleton == null:
+		return Vector3.ZERO
+	info.located = locate(info.point)
+	if info.located.is_empty() or armor.is_empty():
+		return Vector3.ZERO
+	return armor[int(info.located.region)]
 
 
 ## Cercena [zone] a propósito (consola, pruebas): por el brazo o el muslo si [upper], si no por el
@@ -225,11 +272,12 @@ func sever_zone(zone: StringName, upper: bool) -> bool:
 func _on_hit(info: DamageInfo, _applied: float) -> void:
 	if skeleton == null or health.is_dead:
 		return
-	var hit := locate(info.point)
+	var hit := info.located if not info.located.is_empty() else locate(info.point)
 	if hit.is_empty():
 		return
 	var zone: StringName = hit.zone
-	var amount := info.amount * info.part_multiplier * (1.0 - clampf(health.defense, 0.0, 80.0) / 100.0)
+	# Ya con la armadura de donde ha caído (HealthComponent.receive_hit, _armor_at).
+	var amount := info.mitigated
 	_hp[zone] = maxf(_hp[zone] - amount, -zone_max(zone))
 	last_zone = zone
 	var rate := amount * float(BLEED_PER_DAMAGE.get(info.kind, 0.01))

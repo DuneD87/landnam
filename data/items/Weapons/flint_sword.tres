@@ -22,5 +22,6 @@ blade_start = 0.12
 blade_radius = 0.07
 stamina_cost = 17.0
 poise_damage = 16.0
+armor_penetration = 0.05
 armor_slot = 6
 group = &"melee"

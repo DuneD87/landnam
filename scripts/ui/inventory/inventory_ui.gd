@@ -37,7 +37,7 @@ const DOLL_WIDTH := Vector2(560.0, 900.0)
 const GAP := 36.0
 const MARGIN := Vector2(56.0, 40.0)
 const BOTTOM := 170.0
-const INVENTORY_HINT := "Clic: coger o soltar · Clic derecho: la mitad, o de uno en uno\nClic fuera de las ventanas: tirar al suelo · Sobre la barra rápida: asignar\nDoble clic: comer, beber del odre · Hogueras y estaciones: selecciónalas en la barra y clic para plantarlas"
+const INVENTORY_HINT := "Clic: coger o soltar · Clic derecho: la mitad, o de uno en uno\nClic fuera de las ventanas: tirar al suelo · Sobre la barra rápida: asignar\nDoble clic: comer, curarse, beber del odre · Hogueras y estaciones: selecciónalas en la barra y clic para plantarlas"
 
 var inventory: Inventory
 var character_window: CharacterWindow
@@ -83,7 +83,8 @@ var _health_bar: ProgressBar
 var _health_value: Label
 var _stamina_bar: ProgressBar
 var _stamina_value: Label
-var _armor_value: Label
+## Protección contra tajo, contundente y perforante de lo puesto.
+var _armor_values: Array[Label] = []
 var _needs: SurvivalNeeds
 ## Valor de cada necesidad en la ficha, por su nombre de consola (SurvivalNeeds.NAMES).
 var _need_values := {}
@@ -407,9 +408,12 @@ func _build_stats() -> VBoxContainer:
 	_stamina_bar = _bar(&"StaminaBar")
 	box.add_child(stamina_grid)
 	box.add_child(_stamina_bar)
+	box.add_child(_label("Armadura", &"SectionLabel"))
+	_armor_values.clear()
 	var armor := GridContainer.new()
 	armor.columns = 2
-	_armor_value = _stat_row(armor, "Armadura")
+	for kind in [ItemData.DamageKind.SLASH, ItemData.DamageKind.BLUNT, ItemData.DamageKind.PIERCE]:
+		_armor_values.append(_stat_row(armor, Armor.KIND_NAMES[kind]))
 	box.add_child(armor)
 	box.add_child(HSeparator.new())
 	box.add_child(_label("Necesidades", &"SectionLabel"))
@@ -575,7 +579,9 @@ func _sort_inventory() -> void:
 
 
 func _refresh_stats() -> void:
-	_armor_value.text = str(character_window.get_armor() if character_window != null else 0)
+	var armor := character_window.get_armor() if character_window != null else Vector3.ZERO
+	for i in _armor_values.size():
+		_armor_values[i].text = ItemTrait.number(armor[i])
 	for slot_type in _hand_boxes:
 		var box: VBoxContainer = _hand_boxes[slot_type]
 		for child in box.get_children():

@@ -19,6 +19,9 @@ const FEATHER := &"feather"
 const CORD := &"cord"
 const STONE := &"stone"
 const BARK := &"bark"
+const BONE := &"bone"
+const OBSIDIAN := &"obsidian"
+const RAWHIDE := &"rawhide"
 
 
 ## Materiales compartidos, uno por tipo. El grano va en la textura de ruido y las UV lo estiran
@@ -63,6 +66,17 @@ static func make_material(kind: StringName) -> StandardMaterial3D:
 			# Corteza gris parda, con el grano a lo largo como la madera.
 			mat.albedo_texture = _noise_texture(Color(0.10, 0.08, 0.06), Color(0.30, 0.26, 0.21), 1.6, 29)
 			mat.roughness = 0.92
+		BONE:
+			mat.albedo_texture = _noise_texture(Color(0.72, 0.68, 0.56), Color(0.92, 0.89, 0.8), 2.0, 31)
+			mat.roughness = 0.65
+		OBSIDIAN:
+			mat.albedo_color = Color(0.03, 0.03, 0.04)
+			mat.roughness = 0.08
+			mat.metallic_specular = 0.7
+		RAWHIDE:
+			# Piel cruda tensada y seca: parda clara y translúcida a manchas.
+			mat.albedo_texture = _noise_texture(Color(0.42, 0.30, 0.17), Color(0.70, 0.55, 0.36), 2.5, 37)
+			mat.roughness = 0.75
 	return mat
 
 
@@ -276,6 +290,42 @@ static func _emit(st: SurfaceTool, uv: Vector2, p: Vector3) -> void:
 
 # ---------------------------------------------------------------------------------------------
 # Piezas
+
+
+## Un pedrusco: una esfera de facetas planas deformada (cada vértice a su distancia), de
+## [radius] y achatada en Y por [squash].
+static func lump(st: SurfaceTool, center: Vector3, radius: float, seed_value: int, squash: float = 0.8,
+		bumps: float = 0.28, basis: Basis = Basis.IDENTITY) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var mesh := SphereMesh.new()
+	mesh.radius = 1.0
+	mesh.height = 2.0
+	mesh.radial_segments = 9
+	mesh.rings = 5
+	var arrays := mesh.get_mesh_arrays()
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	# Cada punto del mismo sitio se mueve igual (la costura de la esfera no se abre).
+	var offsets := {}
+	var moved := PackedVector3Array()
+	moved.resize(verts.size())
+	for i in verts.size():
+		var key := Vector3i((verts[i] * 1000.0).round())
+		if not offsets.has(key):
+			offsets[key] = 1.0 + rng.randf_range(-bumps, bumps)
+		var v: Vector3 = verts[i] * float(offsets[key]) * radius
+		v.y *= squash
+		moved[i] = center + basis * v
+	set_flat(st, true)
+	for t in range(0, indices.size(), 3):
+		var a := moved[indices[t]]
+		var b := moved[indices[t + 1]]
+		var c := moved[indices[t + 2]]
+		if (b - a).cross(c - a).length_squared() < 1e-12:
+			continue
+		tri(st, a, c, b)
+	set_flat(st, false)
 
 
 ## Empuñadura con vendas: radio que sube y baja en espiral para que se vea el cuero enrollado.
@@ -642,8 +692,9 @@ static func spear() -> ArrayMesh:
 
 
 ## Espada de sílex: una pala de madera dura con lascas de sílex encajadas a lo largo de los dos
-## filos (como el macuahuitl), puño forrado de piel y pomo de madera.
-static func flint_sword() -> ArrayMesh:
+## filos (como el macuahuitl), puño forrado de piel y pomo de madera. Con [flakes] = OBSIDIAN, la
+## de obsidiana.
+static func flint_sword(flakes: StringName = FLINT) -> ArrayMesh:
 	var b := Builder.new()
 	var wood := b.st(DARK_WOOD)
 	set_flat(wood, true)
@@ -662,7 +713,7 @@ static func flint_sword() -> ArrayMesh:
 			Vector3(0, y, -w), Vector3(-thick, y, -w * 0.75), Vector3(-thick, y, w * 0.75)]))
 	loft(wood, rings, true, true)
 	# Lascas: dos hileras, una por filo, de donde acaba el puño a casi la punta.
-	var flint := b.st(FLINT)
+	var flint := b.st(flakes)
 	set_flat(flint, true)
 	var count := 10
 	for side: float in [1.0, -1.0]:
@@ -691,6 +742,150 @@ static func flint_spear() -> ArrayMesh:
 	var flint := b.st(FLINT)
 	set_flat(flint, true)
 	blade(flint, 0.86, 0.18, 0.074, 0.02, 0.055, false)
+	return b.commit(make_material)
+
+
+## Cuchillo de sílex: una hoja de sílex tallada, de un filo, encajada en un mango de madera atado con
+## tendón. Despelleja como el seax.
+static func flint_knife() -> ArrayMesh:
+	var b := Builder.new()
+	lathe(b.st(WOOD), [Vector2(0.0, -0.085), Vector2(0.014, -0.08), Vector2(0.017, -0.06),
+		Vector2(0.015, 0.03), Vector2(0.017, 0.055), Vector2(0.0, 0.06)], 8)
+	wrapped_grip(b.st(CORD), 0.02, 0.06, 0.0175, 6)
+	var flint := b.st(FLINT)
+	set_flat(flint, true)
+	blade(flint, 0.05, 0.13, 0.036, 0.009, 0.03, false)
+	return b.commit(make_material)
+
+
+## Puñal de hueso: la caña de un hueso largo afilada en punta, con la cabeza del hueso de pomo y el
+## puño atado con tendón. Pica entre las placas.
+static func bone_dagger() -> ArrayMesh:
+	var b := Builder.new()
+	var bone := b.st(BONE)
+	var points := PackedVector3Array()
+	var radii := PackedVector2Array()
+	for i in 13:
+		var t := float(i) / 12.0
+		points.append(Vector3(0.0, lerpf(-0.06, 0.26, t), 0.004 * sin(t * PI)))
+		var r := lerpf(0.016, 0.0015, pow(t, 1.4))
+		radii.append(Vector2(r, r * 0.7))
+	tube(bone, points, radii, 7)
+	# La cabeza del hueso: dos cóndilos de pomo.
+	for side in [-1.0, 1.0]:
+		lathe(bone, [Vector2(0.0, -0.016), Vector2(0.014, -0.01), Vector2(0.017, 0.0), Vector2(0.012, 0.012),
+			Vector2(0.0, 0.016)], 8, Vector3(side * 0.01, -0.075, 0.0))
+	wrapped_grip(b.st(CORD), -0.055, 0.05, 0.0165, 8)
+	return b.commit(make_material)
+
+
+## Maza de piedra: un canto rodado atado en la punta de un mango de madera, con tendón cruzado sobre
+## la piedra y vueltas por debajo. Contundente.
+static func stone_club() -> ArrayMesh:
+	var b := Builder.new()
+	lathe(b.st(WOOD), [Vector2(0.0, -0.17), Vector2(0.019, -0.17), Vector2(0.021, -0.15),
+		Vector2(0.018, 0.0), Vector2(0.02, 0.44), Vector2(0.0, 0.46)], 9, Vector3.ZERO, 1.0, 1.5)
+	wrapped_grip(b.st(LEATHER), -0.13, 0.08, 0.0195, 9)
+	lump(b.st(STONE), Vector3(0.0, 0.5, 0.0), 0.072, 307, 0.95, 0.16, Basis.from_scale(Vector3(1.0, 1.0, 1.3)))
+	var cord := b.st(CORD)
+	wrapped_grip(cord, 0.37, 0.45, 0.022, 7)
+	for a in [0.0, PI * 0.5]:
+		var side := Vector3(cos(a), 0.0, sin(a))
+		var strap := PackedVector3Array()
+		var radii := PackedVector2Array()
+		for k in 9:
+			var u := lerpf(-PI * 0.42, PI * 0.42, float(k) / 8.0)
+			strap.append(Vector3(0.0, 0.5, 0.0) + side * sin(u) * 0.08 + Vector3.UP * cos(u) * 0.075)
+			radii.append(Vector2(0.004, 0.004))
+		tube(cord, strap, radii, 5)
+	return b.commit(make_material)
+
+
+## Mazo de piedra a dos manos: una piedra grande, alargada y atada en cruz a la punta de un astil
+## largo. Lento, pero lo que alcanza cae.
+static func stone_maul() -> ArrayMesh:
+	var b := Builder.new()
+	_long_haft(b, -0.40, 0.96, 0.022)
+	lump(b.st(STONE), Vector3(0.0, 0.92, 0.0), 0.1, 311, 0.85, 0.14, Basis.from_scale(Vector3(0.95, 1.0, 1.6)))
+	var cord := b.st(CORD)
+	wrapped_grip(cord, 0.78, 0.87, 0.025, 8)
+	for x in [-0.03, 0.03]:
+		var strap := PackedVector3Array()
+		var radii := PackedVector2Array()
+		for k in 9:
+			var u := lerpf(-PI * 0.45, PI * 0.45, float(k) / 8.0)
+			strap.append(Vector3(x, 0.92 + cos(u) * 0.09, sin(u) * 0.16))
+			radii.append(Vector2(0.0045, 0.0045))
+		tube(cord, strap, radii, 5)
+	return b.commit(make_material)
+
+
+## Escudo de piel: un aro de varas con piel cruda tensada encima, cosida al aro con tendón, algo
+## abombado. Ligero; para poco, pero deja hacer paradas rápidas. Ø 0,56 m.
+static func hide_shield() -> ArrayMesh:
+	var b := Builder.new()
+	var r := 0.28
+	loft(b.st(RAWHIDE), [_circle(r, 0.0, 28), _circle(r * 0.8, 0.025, 28), _circle(r * 0.45, 0.04, 28),
+		_circle(0.02, 0.045, 28)], true, true)
+	var rim := b.st(WOOD)
+	var hoop := PackedVector3Array()
+	var radii := PackedVector2Array()
+	for k in 33:
+		var a := -TAU * k / 32.0
+		hoop.append(Vector3(cos(a) * r, sin(a) * r, 0.0))
+		radii.append(Vector2(0.011, 0.011))
+	tube(rim, hoop, radii, 6, Vector3.BACK, false)
+	# Puntadas de tendón sobre el aro.
+	var cord := b.st(CORD)
+	for k in 16:
+		var a := TAU * (k + 0.5) / 16.0
+		var dir := Vector3(cos(a), sin(a), 0.0)
+		tube(cord, PackedVector3Array([dir * (r - 0.02) + Vector3(0, 0, 0.012), dir * (r + 0.012),
+			dir * (r - 0.02) - Vector3(0, 0, 0.012)]),
+			PackedVector2Array([Vector2(0.003, 0.003), Vector2(0.003, 0.003), Vector2(0.003, 0.003)]), 4)
+	box(b.st(DARK_WOOD), Vector3(0.0, 0.0, -0.016), Vector3(0.2, 0.028, 0.022), Basis(Vector3.BACK, PI * 0.5))
+	return b.commit(make_material)
+
+
+## Escudo de placas de hueso: una tabla forrada de piel con hileras de placas de hueso cosidas que se
+## montan unas sobre otras, como el del guerrero de Yakutia de final de la Edad de piedra. 0,44 ×
+## 0,62 m.
+static func bone_shield() -> ArrayMesh:
+	var b := Builder.new()
+	var w := 0.22
+	var h := 0.31
+	var t := 0.016
+	var board := PackedVector3Array()
+	for k in 24:
+		var a := -TAU * k / 24.0
+		# Un rectángulo de esquinas redondas (superelipse).
+		var c := cos(a)
+		var sn := sin(a)
+		board.append(Vector3(signf(c) * pow(absf(c), 0.45) * w, signf(sn) * pow(absf(sn), 0.45) * h, 0.0))
+	var front := PackedVector3Array()
+	for p in board:
+		front.append(p + Vector3(0, 0, t))
+	loft(b.st(LEATHER), [board, front])
+	var bone := b.st(BONE)
+	set_flat(bone, true)
+	var rows := 8
+	var cols := 6
+	for row in rows:
+		for col in cols:
+			var x := lerpf(-w + 0.035, w - 0.035, (float(col) + 0.5 * (row % 2)) / (cols - 0.5))
+			var y := lerpf(h - 0.04, -h + 0.04, float(row) / (rows - 1))
+			if absf(x) > w - 0.03:
+				continue
+			# Cada fila monta sobre la de debajo: algo más adelantada e inclinada.
+			var tilt := Basis(Vector3.RIGHT, -0.12) * Basis(Vector3.BACK, sin(float(row * 7 + col) * 1.7) * 0.06)
+			box(bone, Vector3(x, y, t + 0.004 + 0.002 * (rows - row) * 0.25), Vector3(0.062, 0.07, 0.006), tilt)
+	set_flat(bone, false)
+	# Las costuras de cada hilera.
+	var cord := b.st(CORD)
+	for row in rows:
+		var y := lerpf(h - 0.04, -h + 0.04, float(row) / (rows - 1)) + 0.03
+		box(cord, Vector3(0.0, y, t + 0.009), Vector3(w * 1.8, 0.004, 0.003))
+	box(b.st(DARK_WOOD), Vector3(0.0, 0.0, -0.016), Vector3(0.22, 0.03, 0.022), Basis(Vector3.BACK, PI * 0.5))
 	return b.commit(make_material)
 
 

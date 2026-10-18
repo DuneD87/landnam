@@ -26,8 +26,16 @@ signal hit_received(info: DamageInfo, applied: float)
 ## Daño por cada m/s por encima del umbral mínimo.
 @export var fall_damage_multiplier: float = 5.0
 
-## Reducción porcentual del daño de combate (armadura), de 0 a 80.
-var defense: float = 0.0
+@export_group("Armadura natural")
+## Lo que protege la piel, el pelo y la grasa de cada tipo de golpe (Armor.mitigate): un mamut o un
+## rinoceronte paran mucho tajo; un lobo, casi nada.
+@export var armor_slash: float = 0.0
+@export var armor_blunt: float = 0.0
+@export var armor_pierce: float = 0.0
+
+## Protección extra según dónde caiga el golpe: (info) -> Vector3 (x tajo, y contundente, z
+## perforante). La pone quien lleva armadura por partes (el jugador: lo que tiene puesto donde le dan).
+var armor_at: Callable
 ## Escudo o arma con la que se para (Guard). null = no se defiende: le llega todo.
 var guard: Guard
 
@@ -51,7 +59,8 @@ func take_damage(amount: float, source: Node = null) -> void:
 		died.emit()
 
 
-## Aplica un golpe de combate: guardia, parte golpeada y armadura. Devuelve el daño descontado.
+## Aplica un golpe de combate: guardia, parte golpeada y armadura (Armor). Devuelve el daño
+## descontado.
 func receive_hit(info: DamageInfo) -> float:
 	if is_dead or invincible:
 		return 0.0
@@ -60,14 +69,23 @@ func receive_hit(info: DamageInfo) -> float:
 		if info.source != null and is_instance_valid(info.source) and info.source.has_method(&"on_parried"):
 			info.source.on_parried(info)
 		return 0.0
-	var reduction := clampf(defense, 0.0, 80.0) / 100.0
-	var amount := info.amount * info.part_multiplier * (1.0 - reduction)
+	var amount := Armor.mitigate(info.amount * info.part_multiplier,
+		Armor.against(armor_for(info), info.kind), info.penetration)
+	info.mitigated = amount
 	if amount <= 0.0:
 		return 0.0
 	var applied := minf(amount, health)
 	hit_received.emit(info, applied)
 	take_damage(amount, info.source)
 	return applied
+
+
+## La protección contra [info] donde cae: la natural más la de armor_at.
+func armor_for(info: DamageInfo) -> Vector3:
+	var values := Vector3(armor_slash, armor_blunt, armor_pierce)
+	if armor_at.is_valid():
+		values += armor_at.call(info)
+	return values
 
 
 ## Vuelve a la vida con la salud llena (reaparición tras morir).

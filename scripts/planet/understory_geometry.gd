@@ -8,7 +8,9 @@ extends RefCounted
 const SPECIES := ["wood_fern", "royal_fern", "round_shrub", "willow_shrub",
 	"flowering_shrub", "wild_asparagus", "broadleaf", "wildflowers",
 	# Bioma nevado: taiga, tundra y alta montaña.
-	"dwarf_juniper", "dwarf_birch", "heather", "cottongrass", "reindeer_lichen", "arctic_poppy"]
+	"dwarf_juniper", "dwarf_birch", "heather", "cottongrass", "reindeer_lichen", "arctic_poppy",
+	# Hierbas que se recogen (GroundPickup).
+	"yarrow"]
 const GRASS_SHADER = preload("res://shaders/grass_wind.gdshader")
 ## Ensanchado de las hojas supervivientes por LOD. grass_wind.gdshader usa el mismo
 ## factor para el morph continuo entre niveles (lod_width_growth).
@@ -45,6 +47,7 @@ const SEASONS := {
 	"cottongrass": {"kind": 1, "bloom": [0.3, 0.3]},
 	"reindeer_lichen": {"kind": 0},
 	"arctic_poppy": {"kind": 1, "bloom": [0.28, 0.26]},
+	"yarrow": {"kind": 1, "bloom": [0.26, 0.36]},
 }
 static var _cache: Dictionary = {}
 
@@ -99,6 +102,8 @@ static func build(species: String) -> Array:
 			builder._lichen()
 		"arctic_poppy":
 			builder._poppy()
+		"yarrow":
+			builder._yarrow()
 	var material: ShaderMaterial = builder._material(species)
 	var result: Array = []
 	for lod in 4:
@@ -607,6 +612,52 @@ func _poppy() -> void:
 		_stem(direction * 0.01, head, 0.009, Color(0.42, 0.48, 0.30))
 		var color := Color(0.98, 0.84, 0.24).lerp(Color(0.98, 0.93, 0.62), _rng.randf_range(0.0, 0.5))
 		_flower(head, 0.06, color, (Vector3.UP + direction * 0.35).normalized(), 3, 4)
+
+
+## Milenrama: una roseta de hojas finas como plumas y tallos derechos con hojuelas, rematados por
+## umbelas planas de florecillas blancas (alguna rosada). Se arranca para curar (GroundPickup).
+func _yarrow() -> void:
+	var green := Color(0.40, 0.55, 0.30)
+	_canopy_center = Vector3(0.0, 0.28, 0.0)
+	_canopy_size = Vector3(0.3, 0.45, 0.3)
+	_volume_strength = 0.2
+	_occlusion = 0.15
+	# Roseta: hojas largas y estrechas con hojuelas a los lados, tumbadas.
+	for basal in 7:
+		var angle: float = basal * 2.399963
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var side := Vector3(-direction.z, 0.0, direction.x)
+		var reach: float = _rng.randf_range(0.12, 0.18)
+		var tip: Vector3 = direction * reach + Vector3.UP * 0.05
+		_stem(direction * 0.01, tip, 0.004, green.darkened(0.15))
+		for f in 5:
+			var t: float = 0.25 + f * 0.15
+			var base: Vector3 = (direction * 0.01).lerp(tip, t)
+			for sign_side in [-1.0, 1.0]:
+				var end: Vector3 = base + (side * sign_side + direction * 0.6).normalized() * 0.03 * (1.1 - t)
+				_leaf(base, base.lerp(end, 0.5) + Vector3.UP * 0.006, end, 0.012,
+					green.lightened(_rng.randf_range(-0.04, 0.06)), f == 4, Vector3.UP, -1, 1)
+	# Tallos con su umbela.
+	var stalks: int = 5
+	for stalk in stalks:
+		var angle: float = stalk * 2.399963 + 0.7
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var root: Vector3 = direction * _rng.randf_range(0.02, 0.07)
+		var head: Vector3 = root + direction * _rng.randf_range(0.03, 0.07) + Vector3.UP * _rng.randf_range(0.36, 0.56)
+		_stem(root, head, 0.006, green.darkened(0.2))
+		for leaf_index in 3:
+			var base: Vector3 = root.lerp(head, 0.25 + leaf_index * 0.18)
+			var out: Vector3 = direction.rotated(Vector3.UP, 1.3 + leaf_index * 2.1)
+			var end: Vector3 = base + out * 0.07 + Vector3.UP * 0.035
+			_leaf(base, base.lerp(end, 0.5) + Vector3.UP * 0.01, end, 0.018, green, false, Vector3.UP, -1, 1)
+		# Umbela: un corro aplastado de florecillas, la del centro algo más alta.
+		var white: Color = Color(0.95, 0.94, 0.9) if stalk % 4 else Color(0.93, 0.80, 0.86)
+		for flower in 9:
+			var around: float = flower * 2.399963
+			var r: float = 0.0 if flower == 0 else sqrt(float(flower) / 9.0) * 0.045
+			var center: Vector3 = head + Vector3(cos(around) * r, -r * 0.35, sin(around) * r)
+			_flower(center, 0.014, white.lightened(_rng.randf_range(-0.03, 0.04)), Vector3.UP,
+				3 if flower < 3 else (2 if flower < 6 else 1), 5)
 
 
 ## Grupo de hojas pequeñas alrededor de un brote, inclinadas hacia fuera y sin

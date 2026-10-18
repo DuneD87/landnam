@@ -72,13 +72,14 @@ func _run() -> void:
 	var both := sweep.sweep(space, Vector3(0, 0.5, 0), Vector3(0, 2.1, 0))
 	check(both.size() == 1 and (both[0].hurtbox as Hurtbox).part == &"head", "cabeza y cuerpo a la vez: manda la cabeza")
 
-	# Daño: armadura y parte.
+	# Daño: armadura y parte. 30 de tajo contra 10: 30·30/40 = 22,5.
 	var health: HealthComponent = t.health
-	health.defense = 10.0
+	health.armor_slash = 10.0
 	var applied := (t.box as Hurtbox).receive(DamageInfo.create(30.0, null, Vector3.ZERO, Vector3.FORWARD))
-	check(is_equal_approx(applied, 27.0), "armadura del 10%% reduce 30 a 27 (%.2f)" % applied)
+	check(is_equal_approx(applied, 22.5), "10 de armadura deja un tajo de 30 en 22,5 (%.2f)" % applied)
 	applied = (t.head as Hurtbox).receive(DamageInfo.create(20.0, null, Vector3.ZERO, Vector3.FORWARD))
-	check(is_equal_approx(applied, 27.0), "cabeza x1,5 con armadura: 20 → 27 (%.2f)" % applied)
+	check(is_equal_approx(applied, 22.5), "cabeza x1,5 con armadura: 20 → 30 → 22,5 (%.2f)" % applied)
+	health.armor_slash = 0.0
 	var died := [false]
 	health.died.connect(func(): died[0] = true)
 	(t.box as Hurtbox).receive(DamageInfo.create(500.0, null, Vector3.ZERO, Vector3.FORWARD))
@@ -116,7 +117,8 @@ func _run() -> void:
 	get_tree().quit(1 if failures > 0 else 0)
 
 
-## Armadura: la suma de las piezas puestas (sin el escudo) y su tope.
+## Armadura (Armor): la suma de las piezas puestas (sin el escudo), lo que cubre cada una, el tipo
+## de golpe y la penetración.
 func _check_armor() -> void:
 	var window := CharacterWindow.new()
 	add_child(window)
@@ -125,18 +127,27 @@ func _check_armor() -> void:
 	var shield: ItemData = load("res://data/items/Shields/wooden_shield.tres")
 	for data in [chest, hood, shield]:
 		window.equip_item(window.get_slot(data.armor_slot), InventoryItem.new(data, 1))
-	var worn := chest.defense + hood.defense
-	check(window.get_armor() == worn, "la armadura suma las piezas puestas y no el escudo (%d)" % window.get_armor())
+	var worn := Armor.of(chest) + Armor.of(hood)
+	check(window.get_armor() == worn, "la armadura suma las piezas puestas y no el escudo (%s)" % window.get_armor())
+	var parts := Armor.table(window.get_armor_pieces())
+	check(parts[Armor.Region.HEAD] == Armor.of(hood) and parts[Armor.Region.TORSO] == Armor.of(chest),
+		"cada pieza protege lo suyo: la capucha la cabeza y el peto el tronco")
+	check(parts[Armor.Region.THIGHS] == Vector3.ZERO, "lo que no cubre nada queda al aire")
 	window.unequip_item(window.get_slot(hood.armor_slot))
-	check(window.get_armor() == chest.defense, "al quitarse una pieza deja de contar (%d)" % window.get_armor())
+	check(window.get_armor() == Armor.of(chest), "al quitarse una pieza deja de contar (%s)" % window.get_armor())
 	window.queue_free()
+
+	check(is_equal_approx(Armor.mitigate(20.0, 20.0), 10.0), "contra tanta armadura como daño, la mitad")
+	check(Armor.mitigate(80.0, 20.0) / 80.0 > Armor.mitigate(10.0, 20.0) / 10.0,
+		"la armadura para mejor lo flojo que lo fuerte")
+	check(is_equal_approx(Armor.mitigate(20.0, 20.0, 0.5), 20.0 * 20.0 / 30.0), "la penetración ignora su parte")
 
 	var health := HealthComponent.new()
 	add_child(health)
-	health.defense = 300.0
-	var info := DamageInfo.new()
-	info.amount = 40.0
-	check(is_equal_approx(health.receive_hit(info), 8.0), "la armadura no quita más del 80 %")
+	health.armor_slash = 40.0
+	var info := DamageInfo.create(40.0, null, Vector3.ZERO, Vector3.FORWARD)
+	info.kind = ItemData.DamageKind.BLUNT
+	check(is_equal_approx(health.receive_hit(info), 40.0), "la protección de tajo no para un golpe contundente")
 	health.queue_free()
 
 

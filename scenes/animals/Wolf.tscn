@@ -107,6 +107,9 @@ speed = 2.5
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("3_health")
 max_health = 85.0
+armor_slash = 2.0
+armor_blunt = 3.0
+armor_pierce = 1.0
 
 [node name="AIController" type="Node" parent="."]
 script = ExtResource("4_ai")

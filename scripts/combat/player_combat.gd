@@ -1374,6 +1374,7 @@ func _sweep_blade(data: ItemData) -> void:
 		var dir := _flat(box.owner_body.global_position - player.global_position)
 		var info := DamageInfo.create(damage, player, hit.point, dir if dir != Vector3.ZERO else hit.direction, poise_damage)
 		info.kind = data.damage_kind
+		info.penetration = data.armor_penetration
 		info.knockback = (0.6 if data.damage_kind == ItemData.DamageKind.BLUNT else 0.3) \
 			* (1.5 if data.two_handed else 1.0) * (1.3 if _heavy else 1.0)
 		var applied := box.receive(info)
@@ -1872,9 +1873,14 @@ func _fire(data: ItemData, draw: float) -> void:
 	projectile.shooter = player
 	projectile.item_data = ammo
 	projectile.planet_node = player.planet
-	projectile.damage = float(data.damage) * (1.5 if data.throwable else 1.0) * lerpf(0.35, 1.0, pow(clampf(draw, 0.0, 1.0), 1.5))
+	# La munición pone lo suyo: una punta de obsidiana corta más que una de sílex, una de hueso
+	# entra mejor entre placas.
+	var ammo_damage := float(ammo.damage) if ammo != null and ammo != data else 0.0
+	projectile.damage = (float(data.damage) + ammo_damage) * (1.5 if data.throwable else 1.0) \
+		* lerpf(0.35, 1.0, pow(clampf(draw, 0.0, 1.0), 1.5))
 	projectile.poise = data.poise_damage * power
 	projectile.damage_kind = data.damage_kind
+	projectile.penetration = maxf(data.armor_penetration, ammo.armor_penetration if ammo != null else 0.0)
 	projectile.set_exclude([player.get_rid(), hurtbox.get_rid()])
 	get_tree().current_scene.add_child(projectile)
 	var dir := (_aim_point - from).normalized()

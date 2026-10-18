@@ -9,6 +9,9 @@ extends Resource
 @export var amount := 1
 ## Lo que gasta cada vez: id del objeto → cantidad.
 @export var inputs: Dictionary[StringName, int] = {}
+## Tragos de agua de los odres que gasta cada vez (SurvivalNeeds.water): un bebedizo se cuece en
+## agua.
+@export var water := 0
 ## Id del objeto de la estación junto a la que se hace (lleva CraftingStationTrait); vacío, a mano.
 @export var station: StringName = &""
 @export var era: Eras.Era = Eras.Era.STONE

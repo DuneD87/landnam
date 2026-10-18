@@ -1956,33 +1956,70 @@ func _river_cache_key(height_range: float) -> String:
 	])
 	return "|".join(parts).sha256_text()
 
-## Empuja los parámetros de ore del JSON a los nodos nombrados del VoxelGraph (autorados en el editor).
+## Empuja los parámetros de ore del JSON a los nodos nombrados del VoxelGraph (earth_ore_field.tres lo
+## genera tools/terrain/build_ore_field.py desde el mismo JSON; ver docs/terrain_materials.md#menas).
+## Las vetas de un "spot_group" comparten manchas y profundidad (las pone la primera del grupo) y se
+## reparten las alturas en franjas seguidas.
 func _apply_ore_params(functions: Array, ores: Array) -> void:
+	var groups := {}
 	for ore in ores:
+		if ore.has("spot_group"):
+			var key := String(ore.spot_group)
+			if not groups.has(key):
+				groups[key] = []
+			groups[key].append(ore)
+			continue
 		var type_id := int(ore.get("type_id", 1))
-		var spots_name := "ore_spots_%d" % type_id
-
-		var spots_fn := _find_owner(functions, spots_name)
-		if spots_fn == null:
-			push_warning("Planet: no se encontró el nodo Spots3D '%s' en ninguna función." % spots_name)
-		else:
-			var spots := spots_fn.find_node_by_name(spots_name)
-			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "seed", int(ore.get("noise_seed", 0)))
-			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "cell_size", float(ore.get("cell_size", 40.0)))
-			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "spot_radius", float(ore.get("spot_radius", 12.0)))
-			_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "jitter", float(ore.get("jitter", 0.9)))
-
+		_push_ore_spots(functions, "ore_spots_%d" % type_id, ore)
 		if ore.has("depth_min"):
 			_apply_cave_ore_band(functions, type_id, ore)
-		else:
-			var depth_name := "ore_depth_%d" % type_id
-			var depth_fn := _find_owner(functions, depth_name)
-			if depth_fn == null:
-				push_warning("Planet: no se encontró el nodo Divide '%s' del gate de profundidad." % depth_name)
-			else:
-				var depth_node := depth_fn.find_node_by_name(depth_name)
-				var depth: float = maxf(float(ore.get("surface_depth", 10.0)), 0.001)
-				_push_param(depth_fn, depth_node, VoxelGraphFunction.NODE_DIVIDE, "b", depth)
+			continue
+		_push_ore_depth(functions, "ore_depth_%d" % type_id, ore)
+		if ore.has("min_height") or ore.has("max_height"):
+			var soft: float = maxf(float(ore.get("height_softness", 20.0)), 0.001)
+			var low: float = radius + float(ore.get("min_height", -1.0e6))
+			var high: float = radius + float(ore.get("max_height", 1.0e6))
+			_set_smoothstep(functions, "ore_alt_lo_%d" % type_id, low - soft, low)
+			_set_smoothstep(functions, "ore_alt_hi_%d" % type_id, high + soft, high)
+	for key: String in groups:
+		var members: Array = groups[key]
+		var first: Dictionary = members[0]
+		_push_ore_spots(functions, "ore_spots_%s" % key, first)
+		_push_ore_depth(functions, "ore_depth_%s" % key, first)
+		var ordered := members.duplicate()
+		ordered.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return float(a.get("min_height", 0.0)) < float(b.get("min_height", 0.0)))
+		var edges: Array[float] = []
+		for ore: Dictionary in ordered:
+			edges.append(float(ore.get("min_height", 0.0)))
+		edges.append(float(ordered.back().get("max_height", 4000.0)))
+		var soft: float = maxf(float(first.get("height_softness", 12.0)), 0.001)
+		for k in edges.size():
+			_set_smoothstep(functions, "ore_step_%s_%d" % [key, k], radius + edges[k] - soft * 0.5,
+				radius + edges[k] + soft * 0.5)
+
+
+func _push_ore_spots(functions: Array, spots_name: String, ore: Dictionary) -> void:
+	var spots_fn := _find_owner(functions, spots_name)
+	if spots_fn == null:
+		push_warning("Planet: no se encontró el nodo Spots3D '%s' en ninguna función." % spots_name)
+		return
+	var spots := spots_fn.find_node_by_name(spots_name)
+	_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "seed", int(ore.get("noise_seed", 0)))
+	_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "cell_size", float(ore.get("cell_size", 40.0)))
+	_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "spot_radius", float(ore.get("spot_radius", 12.0)))
+	_push_param(spots_fn, spots, VoxelGraphFunction.NODE_SPOTS_3D, "jitter", float(ore.get("jitter", 0.9)))
+
+
+## La profundidad bajo la superficie hasta la que llega la veta (el Divide del gate).
+func _push_ore_depth(functions: Array, depth_name: String, ore: Dictionary) -> void:
+	var depth_fn := _find_owner(functions, depth_name)
+	if depth_fn == null:
+		push_warning("Planet: no se encontró el nodo Divide '%s' del gate de profundidad." % depth_name)
+		return
+	var depth_node := depth_fn.find_node_by_name(depth_name)
+	var depth: float = maxf(float(ore.get("surface_depth", 10.0)), 0.001)
+	_push_param(depth_fn, depth_node, VoxelGraphFunction.NODE_DIVIDE, "b", depth)
 
 ## Empuja los params de un ore de cueva: banda de profundidad radial + gate de proximidad a la cueva.
 func _apply_cave_ore_band(functions: Array, type_id: int, ore: Dictionary) -> void:

@@ -6,7 +6,8 @@ enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR, BLOCK}
 enum ToolType {NONE, PICKAXE, AXE, HAMMER, TORCH}
 ## Los valores nuevos van al final: los .tres guardan el número, no el nombre.
 enum WeaponType {NONE, SWORD, SPEAR, BOW, CANNON, AXE, MACE, SLINGSHOT}
-## Cómo muerde el golpe. Solo cambia la sensación (sonido, sangre, empuje), no la cuenta.
+## Cómo muerde el golpe: cada armadura protege distinto de cada uno (Armor), y cambia el sonido,
+## la sangre y el empuje.
 enum DamageKind {SLASH, BLUNT, PIERCE}
 enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND}
 
@@ -63,6 +64,9 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export var draw_time: float = 0.8
 ## Se puede arrojar (lanzas): el arma sale de la mano y hay que recogerla.
 @export var throwable: bool = false
+## Parte de la protección del que recibe el golpe que no cuenta (0-1, Armor.mitigate): una punta
+## fina o un pico entran entre placas y costuras; un filo ancho resbala.
+@export_range(0.0, 0.8) var armor_penetration: float = 0.0
 
 @export_group("Guard")
 ## Lo que para de cada golpe bloqueado (0–1). 0 = con esto no se bloquea. Lo usan los escudos y
@@ -83,8 +87,13 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 
 @export_group("Armor Stats")
 @export var armor_slot: ArmorSlot = ArmorSlot.NONE
-@export var defense: int = 0
-@export var resistance: float = 0.0
+## Protección contra cada tipo de golpe en lo que cubre (Armor.mitigate): un golpe de D contra A
+## deja D·D/(D + A). Las capas puestas se suman.
+@export var armor_slash: float = 0.0
+@export var armor_blunt: float = 0.0
+@export var armor_pierce: float = 0.0
+## Partes que cubre (Armor.Region). Nada marcado = lo de su hueco (Armor.SLOT_COVERAGE).
+@export_flags("Cabeza", "Tronco", "Brazos", "Antebrazos", "Manos", "Muslos", "Espinillas", "Pies") var coverage: int = 0
 
 @export_group("Durability")
 @export var has_durability: bool = false
@@ -137,13 +146,16 @@ func copy_from(source: ItemData) -> void:
 	projectile_speed = source.projectile_speed
 	draw_time = source.draw_time
 	throwable = source.throwable
+	armor_penetration = source.armor_penetration
 	attack_animation = source.attack_animation
 	idle_animation = source.idle_animation
 	running_animation = source.running_animation
 	is_attack_animation = source.is_attack_animation
 	armor_slot = source.armor_slot
-	defense = source.defense
-	resistance = source.resistance
+	armor_slash = source.armor_slash
+	armor_blunt = source.armor_blunt
+	armor_pierce = source.armor_pierce
+	coverage = source.coverage
 	has_durability = source.has_durability
 	max_durability = source.max_durability
 	surface_material = source.surface_material

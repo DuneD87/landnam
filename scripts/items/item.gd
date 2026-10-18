@@ -9,6 +9,9 @@ signal destroyed(position: Vector3, amount: int, item_data: ItemData)
 @export var drop_amount_min: int = 1
 @export var drop_amount_max: int = 3
 @export var item_data: ItemData
+## Lo que da al picarla (RockMining), por la piedra que daría una roca de su tamaño: un afloramiento
+## de una mena da menos trozos de mena que piedras una roca.
+@export var mining_yield := 1.0
 
 ## Dureza frente al embiste de un barco (J por m³ de roca). Los bloques de un casco cuestan 6000
 ## (GridBase.DEFAULT_IMPACT_TOUGHNESS): una roca aguanta varias veces más que la madera, así que

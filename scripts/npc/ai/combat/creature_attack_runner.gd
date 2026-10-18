@@ -202,6 +202,7 @@ func _sweep_hit(hit: CreatureHit, sweeps: Array) -> void:
 			var info := DamageInfo.create(hit.damage * _npc.damage_scale, _npc, result.point, dir,
 				hit.poise * _npc.damage_scale)
 			info.kind = hit.kind
+			info.penetration = hit.penetration
 			info.knockback = hit.knockback
 			info.parryable = hit.parryable
 			# Lo parado con la guardia ni sangra ni suena a carne: suena la guardia (Guard).

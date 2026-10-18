@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RecipeData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/recipe_data.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+result = &"yarrow_draught"
+inputs = Dictionary[StringName, int]({
+&"yarrow": 4
+})
+water = 2
+station = &"campfire"

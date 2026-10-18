@@ -10,6 +10,7 @@ to = 0.8
 bones = Array[StringName]([&"RigHead", &"RigRFLegDigit11", &"RigLFLegDigit11"])
 radius = 0.45
 damage = 42.0
+kind = 1
 poise = 80.0
 knockback = 3.5
 parryable = false

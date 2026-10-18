@@ -20,6 +20,21 @@ const IVORY := &"ivory"
 const HORN := &"horn"
 const PLANT_FIBER := &"plant_fiber"
 const PLUME := &"plume"
+const HERB := &"herb"
+const BLOSSOM := &"blossom"
+const POULTICE := &"poultice"
+# Menas (ore_chunk).
+const CORTEX := &"cortex"
+const OBSIDIAN := &"obsidian"
+const MALACHITE := &"malachite"
+const CASSITERITE := &"cassiterite"
+const LIMONITE := &"limonite"
+const HEMATITE := &"hematite"
+const COAL := &"coal"
+const GALENA := &"galena"
+const GOLD := &"gold"
+const SULFUR := &"sulfur"
+const ORE_ROCK := &"ore_rock"
 
 
 static func make_material(kind: StringName) -> StandardMaterial3D:
@@ -59,6 +74,54 @@ static func make_material(kind: StringName) -> StandardMaterial3D:
 		PLUME:
 			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.36, 0.30, 0.24), Color(0.74, 0.70, 0.62), 4.0, 71)
 			mat.roughness = 0.85
+		HERB:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.20, 0.32, 0.14), Color(0.42, 0.56, 0.28), 4.0, 73)
+			mat.roughness = 0.8
+			mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		BLOSSOM:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.80, 0.78, 0.70), Color(0.97, 0.96, 0.92), 8.0, 79)
+			mat.roughness = 0.75
+		POULTICE:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.14, 0.20, 0.08), Color(0.34, 0.40, 0.18), 7.0, 83)
+			mat.roughness = 0.55
+		CORTEX:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.62, 0.60, 0.54), Color(0.86, 0.84, 0.78), 8.0, 89)
+			mat.roughness = 0.95
+		OBSIDIAN:
+			mat.albedo_color = Color(0.03, 0.03, 0.04)
+			mat.roughness = 0.08
+			mat.metallic_specular = 0.7
+		MALACHITE:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.04, 0.26, 0.15), Color(0.2, 0.55, 0.36), 9.0, 97)
+			mat.roughness = 0.5
+		CASSITERITE:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.08, 0.05, 0.04), Color(0.26, 0.17, 0.11), 6.0, 101)
+			mat.roughness = 0.3
+			mat.metallic = 0.25
+		LIMONITE:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.30, 0.14, 0.05), Color(0.70, 0.42, 0.16), 5.0, 103)
+			mat.roughness = 0.95
+		HEMATITE:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.22, 0.09, 0.08), Color(0.46, 0.28, 0.26), 5.0, 107)
+			mat.roughness = 0.6
+			mat.metallic = 0.3
+		COAL:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.02, 0.02, 0.02), Color(0.10, 0.10, 0.11), 7.0, 109)
+			mat.roughness = 0.45
+		GALENA:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.34, 0.35, 0.38), Color(0.62, 0.64, 0.68), 4.0, 113)
+			mat.roughness = 0.25
+			mat.metallic = 0.85
+		GOLD:
+			mat.albedo_color = Color(0.95, 0.72, 0.28)
+			mat.roughness = 0.3
+			mat.metallic = 1.0
+		SULFUR:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.78, 0.62, 0.08), Color(0.98, 0.9, 0.3), 9.0, 127)
+			mat.roughness = 0.7
+		ORE_ROCK:
+			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.24, 0.22, 0.2), Color(0.46, 0.43, 0.39), 6.0, 131)
+			mat.roughness = 0.9
 		_:
 			return WeaponMeshes.make_material(kind)
 	return mat
@@ -339,6 +402,183 @@ static func _bezier(p0: Vector3, c1: Vector3, c2: Vector3, p1: Vector3, steps: i
 	for i in steps + 1:
 		points.append(p0.bezier_interpolate(c1, c2, p1, float(i) / steps))
 	return points
+
+
+## Milenrama: un manojo de tallos con las hojas finas como plumas y, arriba, las umbelas planas de
+## florecillas blancas. Los tallos se juntan en el origen y suben por +Y.
+static func yarrow() -> ArrayMesh:
+	var b := WeaponMeshes.Builder.new()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 211
+	var stem := b.st(HERB)
+	var flowers := b.st(BLOSSOM)
+	for k in 4:
+		var a := TAU * k / 4.0 + rng.randf_range(-0.3, 0.3)
+		var lean := Vector3(cos(a), 0.0, sin(a)) * rng.randf_range(0.035, 0.06)
+		var top := lean + Vector3.UP * rng.randf_range(0.19, 0.24)
+		var points := PackedVector3Array([Vector3.ZERO, top * 0.5 + lean * 0.2, top])
+		WeaponMeshes.tube(stem, points, PackedVector2Array([Vector2(0.004, 0.004), Vector2(0.0034, 0.0034),
+			Vector2(0.0028, 0.0028)]), 6)
+		# Hojas: un raquis con hojuelas a los dos lados, como una pluma.
+		for leaf in 2:
+			var t := 0.3 + 0.25 * leaf
+			var root := Vector3.ZERO.lerp(top, t)
+			var out := Vector3(cos(a + 1.2 + leaf * 2.4), 0.3, sin(a + 1.2 + leaf * 2.4)).normalized()
+			var side := out.cross(Vector3.UP).normalized()
+			for f in 6:
+				var p := root + out * (0.012 + f * 0.012)
+				var w := 0.018 * (1.0 - f / 7.0)
+				WeaponMeshes.tri(stem, p, p + side * w + out * 0.007, p + out * 0.012)
+				WeaponMeshes.tri(stem, p, p + out * 0.012, p - side * w + out * 0.007)
+		# Umbela: una cúpula aplastada de cabezuelas.
+		for f in 11:
+			var fa := TAU * f / 11.0 + rng.randf()
+			var r := 0.0 if f == 0 else sqrt(f / 11.0) * 0.03
+			WeaponMeshes.lathe(flowers, [Vector2(0.0, -0.004), Vector2(0.008, 0.0), Vector2(0.0, 0.004)], 7,
+				top + Vector3(cos(fa) * r, -r * 0.3, sin(fa) * r))
+	# Atado con fibra.
+	WeaponMeshes.lathe(b.st(WeaponMeshes.CORD), [Vector2(0.01, 0.03), Vector2(0.011, 0.037),
+		Vector2(0.01, 0.044)], 8)
+	return b.commit(make_material)
+
+
+## Emplasto: la milenrama machacada sobre una hoja ancha y atada en cruz con fibra. Tumbado, de
+## cara a +Y.
+static func poultice() -> ArrayMesh:
+	var b := WeaponMeshes.Builder.new()
+	var leaf := b.st(HERB)
+	var w := 0.055
+	var h := 0.075
+	# La hoja: un óvalo algo combado hacia arriba en los bordes.
+	var rim := PackedVector3Array()
+	for i in 14:
+		var a := TAU * i / 14.0
+		rim.append(Vector3(cos(a) * w, 0.006 * (1.0 - absf(sin(a))), sin(a) * h))
+	for i in 14:
+		WeaponMeshes.tri(leaf, Vector3(0, -0.002, 0), rim[(i + 1) % 14], rim[i])
+		WeaponMeshes.tri(leaf, Vector3(0, -0.003, 0), rim[i], rim[(i + 1) % 14])
+	# La pasta, un bulto oscuro en medio.
+	WeaponMeshes.lathe(b.st(POULTICE), [Vector2(0.040, 0.0), Vector2(0.036, 0.008), Vector2(0.026, 0.014),
+		Vector2(0.0, 0.017)], 12)
+	# Las ataduras, en cruz por encima de la pasta.
+	var cord := b.st(WeaponMeshes.CORD)
+	for dir in [Vector3.RIGHT, Vector3.BACK]:
+		var span: float = w if dir == Vector3.RIGHT else h
+		WeaponMeshes.tube(cord, PackedVector3Array([-dir * span * 0.95, -dir * span * 0.5 + Vector3.UP * 0.012,
+			Vector3.UP * 0.019, dir * span * 0.5 + Vector3.UP * 0.012, dir * span * 0.95]),
+			PackedVector2Array([Vector2(0.0022, 0.0022), Vector2(0.0022, 0.0022), Vector2(0.0022, 0.0022),
+			Vector2(0.0022, 0.0022), Vector2(0.0022, 0.0022)]), 5, Vector3.UP)
+	return b.commit(make_material)
+
+
+## Bebedizo: un cuerno hueco tapado con madera y colgado de una tira, con el bebedizo dentro.
+## La punta abajo y la boca hacia +Y.
+static func draught() -> ArrayMesh:
+	var b := WeaponMeshes.Builder.new()
+	var points := PackedVector3Array()
+	var steps := 12
+	for i in steps + 1:
+		var t := float(i) / steps
+		var a := (1.0 - t) * PI * 0.35
+		points.append(Vector3(0.0, 0.16 * t, -sin(a) * 0.05 * (1.0 - t)))
+	points.reverse()
+	_tapered(b.st(HORN), points, 0.026, 0.004, 10, 6.0)
+	points.reverse()
+	WeaponMeshes.lathe(b.st(WeaponMeshes.WOOD), [Vector2(0.0, 0.155), Vector2(0.022, 0.155),
+		Vector2(0.024, 0.17), Vector2(0.016, 0.182), Vector2(0.0, 0.184)], 10)
+	WeaponMeshes.lathe(b.st(WeaponMeshes.LEATHER), [Vector2(0.027, 0.13), Vector2(0.029, 0.136),
+		Vector2(0.027, 0.142)], 10)
+	return b.commit(make_material)
+
+
+## Tablilla: dos palos rectos atados con tres vueltas de fibra, para sujetar un hueso roto.
+static func splint() -> ArrayMesh:
+	var b := WeaponMeshes.Builder.new()
+	var wood := b.st(WeaponMeshes.WOOD)
+	for x in [-0.022, 0.022]:
+		WeaponMeshes.lathe(wood, [Vector2(0.0, -0.17), Vector2(0.008, -0.168), Vector2(0.009, 0.0),
+			Vector2(0.008, 0.168), Vector2(0.0, 0.17)], 7, Vector3(x, 0, 0))
+	var fiber := b.st(PLANT_FIBER)
+	for y in [-0.11, 0.0, 0.11]:
+		# Cada atadura: unas vueltas apretadas alrededor de los dos palos (un lazo aplastado).
+		for turn in 3:
+			var loop := PackedVector3Array()
+			var radii := PackedVector2Array()
+			for i in 17:
+				var a := TAU * i / 16.0
+				loop.append(Vector3(cos(a) * 0.034, y + (turn - 1) * 0.006, sin(a) * 0.012))
+				radii.append(Vector2(0.0028, 0.0028))
+			WeaponMeshes.tube(fiber, loop, radii, 5, Vector3.UP, false)
+	return b.commit(make_material)
+
+
+## Lasca afilada: una pirámide aplanada de punta, como las de la obsidiana.
+static func _shard(st: SurfaceTool, base: Vector3, direction: Vector3, length: float, width: float, seed_value: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var frame := Basis.looking_at(direction.normalized(), Vector3.UP if absf(direction.normalized().y) < 0.9 else Vector3.RIGHT)
+	var ring := PackedVector3Array()
+	for k in 5:
+		var a := TAU * k / 5.0 + rng.randf_range(-0.3, 0.3)
+		ring.append(base + frame * Vector3(cos(a) * width, sin(a) * width * 0.45, 0.0))
+	var tip := base + direction.normalized() * length
+	WeaponMeshes.set_flat(st, true)
+	for k in 5:
+		WeaponMeshes.tri(st, ring[k], ring[(k + 1) % 5], tip)
+	WeaponMeshes._fan(st, ring, true)
+	WeaponMeshes.set_flat(st, false)
+
+
+## Lo que da cada mena al picarla, en trozos que caben en la mano (unos 6-9 cm).
+static func ore_chunk(ore: StringName) -> ArrayMesh:
+	var b := WeaponMeshes.Builder.new()
+	match ore:
+		&"flint":
+			# Nódulo de sílex: corteza blanca de creta y, por donde se partió, el sílex negro.
+			WeaponMeshes.lump(b.st(CORTEX), Vector3.ZERO, 0.045, 3, 0.85, 0.18)
+			WeaponMeshes.lump(b.st(WeaponMeshes.FLINT), Vector3(0.012, 0.004, 0.018), 0.038, 5, 0.75, 0.1,
+				Basis(Vector3.UP, 0.4))
+		&"obsidian":
+			# Un bloque de vidrio de aristas vivas y un par de lascas anchas a punto de saltar.
+			WeaponMeshes.lump(b.st(OBSIDIAN), Vector3.ZERO, 0.042, 19, 0.7, 0.42)
+			for k in 2:
+				var dir := Vector3(cos(k * 2.6 + 0.4), 0.35, sin(k * 2.6 + 0.4))
+				_shard(b.st(OBSIDIAN), dir * 0.02, dir, 0.05, 0.03, 17 + k)
+		&"copper_ore":
+			WeaponMeshes.lump(b.st(ORE_ROCK), Vector3.ZERO, 0.045, 23, 0.8, 0.25)
+			for k in 4:
+				var a := k * 1.9
+				WeaponMeshes.lump(b.st(MALACHITE), Vector3(cos(a), 0.4, sin(a)) * 0.032, 0.016, 29 + k, 0.5, 0.35)
+		&"tin_ore":
+			WeaponMeshes.lump(b.st(ORE_ROCK), Vector3.ZERO, 0.04, 31, 0.75, 0.25)
+			for k in 6:
+				var dir := Vector3(cos(k * 1.1), 0.9, sin(k * 1.1)).normalized()
+				_shard(b.st(CASSITERITE), dir * 0.025, dir + Vector3(0, 0.3, 0), 0.028, 0.012, 37 + k)
+		&"bog_iron":
+			WeaponMeshes.lump(b.st(LIMONITE), Vector3.ZERO, 0.04, 41, 0.7, 0.32)
+			WeaponMeshes.lump(b.st(LIMONITE), Vector3(0.035, -0.008, 0.01), 0.026, 43, 0.75, 0.3)
+			WeaponMeshes.lump(b.st(LIMONITE), Vector3(-0.03, -0.01, -0.02), 0.022, 47, 0.8, 0.3)
+		&"iron_ore":
+			WeaponMeshes.lump(b.st(HEMATITE), Vector3.ZERO, 0.048, 53, 0.78, 0.2)
+		&"coal":
+			WeaponMeshes.lump(b.st(COAL), Vector3.ZERO, 0.045, 59, 0.7, 0.34)
+			WeaponMeshes.lump(b.st(COAL), Vector3(0.04, -0.01, 0.0), 0.025, 61, 0.7, 0.34)
+		&"silver_ore":
+			WeaponMeshes.lump(b.st(ORE_ROCK), Vector3.ZERO, 0.042, 67, 0.75, 0.22)
+			for k in 3:
+				var at := Vector3(cos(k * 2.1) * 0.026, 0.024, sin(k * 2.1) * 0.026)
+				WeaponMeshes.box(b.st(GALENA), at, Vector3.ONE * (0.018 - k * 0.003),
+					Basis(Vector3(0.3, 1, 0.2).normalized(), k * 0.7))
+		&"gold":
+			WeaponMeshes.lump(b.st(GOLD), Vector3.ZERO, 0.03, 71, 0.6, 0.4)
+			WeaponMeshes.lump(b.st(GOLD), Vector3(0.022, 0.004, 0.006), 0.017, 73, 0.7, 0.4)
+		&"sulfur":
+			WeaponMeshes.lump(b.st(ORE_ROCK), Vector3(0, -0.01, 0), 0.04, 79, 0.6, 0.2)
+			for k in 7:
+				var a := k * 0.9
+				WeaponMeshes.lump(b.st(SULFUR), Vector3(cos(a) * 0.022, 0.012 + 0.004 * (k % 3), sin(a) * 0.022), 0.014,
+					83 + k, 0.8, 0.35)
+	return b.commit(make_material)
 
 
 ## Odre: una bolsa de cuero con el cuello atado, un tapón de madera y la correa.

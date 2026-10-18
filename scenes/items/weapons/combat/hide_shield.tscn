@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/hide_shield.res" id="1_up7em"]
+
+[node name="HideShield" type="Node3D" unique_id=885095314]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=876389313]
+mesh = ExtResource("1_up7em")

@@ -26,5 +26,6 @@ heavy_multiplier = 1.7
 projectile_speed = 28.0
 draw_time = 0.55
 throwable = true
+armor_penetration = 0.25
 armor_slot = 6
 group = &"melee"
