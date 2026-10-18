@@ -18,6 +18,7 @@
 		"skirt": true,
 		"hang": true,
 		"flare": 0.35,
+		"forward": 0.07,
 		"ease": [null, 0.02],
 		"top": 1.15,
 		"hem": 0.42,

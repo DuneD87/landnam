@@ -8,13 +8,13 @@ extends SceneTree
 ##
 ##   godot --headless --path . --script res://tools/character/dump_dressed.gd -- <out.json>
 ##       [--appearance=<main_save_player.json>] [--armor=<scene>,<scene>...]
-##       [--anim=running|none] [--time=0.3] [--play] [--frames=3]
+##       [--anim=running|none] [--time=0.3] [--play] [--frames=3] [--still]
 ##
 ## <out.json> lists the meshes (model space: Y up, +Z forward, metres) and
 ## their albedo; the vertex data goes in <out>.bin. It is taken after
 ## --frames frames, the animation held at --time or, with --play, playing on
 ## from it: what swings (SkirtSwing) needs some to hang or to move, best
-## with godot's --fixed-fps 60.
+## with godot's --fixed-fps 60. --still leaves it hanging as it was fitted.
 
 const MODEL := "res://scenes/character/character_model.tscn"
 
@@ -43,6 +43,7 @@ func _run() -> void:
 	var time := 0.0
 	var play := false
 	var frames := 3
+	var still := false
 	for arg in args.slice(1):
 		if arg.begins_with("--appearance="):
 			var save: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(arg.get_slice("=", 1)))
@@ -57,6 +58,8 @@ func _run() -> void:
 			play = true
 		elif arg.begins_with("--frames="):
 			frames = int(arg.get_slice("=", 1))
+		elif arg == "--still":
+			still = true
 	var model: Node3D = load(MODEL).instantiate()
 	root.add_child(model)
 	var rig: CharacterAppearanceRig = model.get_node("AppearanceRig")
@@ -68,6 +71,10 @@ func _run() -> void:
 		rig.dress(item, path.contains("hood") or path.contains("helmet"))
 	while rig.is_dressing():
 		await process_frame
+	if still:
+		for child in skeleton.get_children():
+			if child is SkirtSwing:
+				child.active = false
 	var player: AnimationPlayer = model.get_node("AnimationPlayer")
 	if anim_name == "none":
 		# The skeleton's rest: the pose the armour was fitted in.

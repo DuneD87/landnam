@@ -321,7 +321,7 @@ func _update_skirt_swing() -> void:
 	if _skirt_swing != null:
 		_skirt_swing.active = swinging
 		if swinging:
-			_skirt_swing.fit_legs(measurements().summary)
+			_skirt_swing.fit_legs(measurements())
 
 
 ## Switches the first-person view (see the class notes).

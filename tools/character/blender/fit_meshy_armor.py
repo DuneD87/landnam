@@ -27,9 +27,12 @@ Then the garment is pushed off the skin to its clearance: where its vertices
 are inside the body or too close, where the skin pokes through between them
 and, on hands and feet, where a point of the hand or foot has no garment in
 front of it. The push spreads smoothly to the garment around it so loose
-layers move together. The weights are the scan's at the nearest point of its
-skin, limited to the bones the slot may follow (the rest go to their nearest
-allowed parent) and smoothed over the garment.
+layers move together. Then it is relaxed like cloth back towards the shape
+its triangles had when placed, off the skin (each vertex pushed by its own
+amount stretches the texture between them), and pushed once more. The
+weights are the scan's at the nearest point of its skin, limited to the
+bones the slot may follow (the rest go to their nearest allowed parent) and
+smoothed over the garment.
 
 Entry keys (all optional but "model" and "slot"):
   model      path of the FBX/GLB under <source dir>
@@ -53,8 +56,11 @@ Entry keys (all optional but "model" and "slot"):
   skirt      legs: no per-leg shear; hanging parts follow the hips more.
   flare      legs: how much wider (to the sides) it is at the hem than at the
              waist (0.3: 30 %).
+  forward    legs: metres its front comes forward, from the waist down to the
+             crotch, hanging on from there.
   thighs     chest, legs (skirt): [front, back] share of the thigh weights kept
-             below the crotch (SKIRT_FRONT/BACK, or HANG_THIGHS if it hangs).
+             below the crotch (SKIRT_FRONT/BACK, or HANG_THIGHS if it hangs);
+             with the skirt's bones, the share that rides the thighs (HANG_RIDE).
   hang       legs (skirt): it hangs from the skirt's bones (body.json "skirt"),
              which the game swings, or without them from the hips, the thighs
              going through it (HANG_THIGHS); its lining stays on the hips.
@@ -93,6 +99,15 @@ PUSH_SPREAD = {"chest": 0.05, "legs": 0.05, "hands": 0.015, "feet": 0.03}
 ## have its shoulders well inside a broader body's.
 PUSH_REACH = {"chest": 0.10, "legs": 0.035, "hands": 0.035, "feet": 0.035}
 PUSH_PASSES = 4
+## After the pushes the garment is relaxed (relax()): how many rounds, how
+## much of what its edges want each vertex takes per round, how much it is
+## held where the pushes left it, and how near the skin (m) a vertex must be
+## to be checked against it every round (all are, every RELAX_RECHECK).
+RELAX_STEPS = 300
+RELAX_RATE = 1.5
+RELAX_HOLD = 0.005
+RELAX_NEAR = 0.03
+RELAX_RECHECK = 10
 ## "over": how far past the skin-to-vertex distance an under-garment is
 ## still looked for (a pouch on it standing out).
 UNDER_REACH = 0.10
@@ -136,6 +151,9 @@ HANG_THIGHS = (0.15, 0.05)
 ## far under it, it goes from the skin's weights to theirs.
 SKIRT_PREFIX = "skirt_"
 SKIRT_BLEND = 0.05
+## What of it rides the thighs as well, [front, back] (on_thighs()): from the
+## chains alone, a thigh coming forward goes through it between two of them.
+HANG_RIDE = (0.5, 0.0)
 
 ## The lining ("liner": true): the scan's own skin where the garment covers
 ## it, LINER_OFFSET off it, in the garment's colour darkened. It moves just as
@@ -528,6 +546,12 @@ def place_legs(obj, body, entry):
         # (in front it would stand out from the legs).
         down = np.clip((waist - p[:, 2]) / (waist - p[:, 2].min()), 0.0, 1.0)
         p[:, 0] = hips_centre[0] + (p[:, 0] - hips_centre[0]) * (1.0 + entry["flare"] * down)
+    if "forward" in entry:
+        # The front comes forward from the waist down to the crotch and
+        # hangs on from there (a thigh coming forward goes through it less).
+        crotch = body.joint("LeftUpLeg")[2] - 0.08
+        front = smoothstep(body.joint("Hips")[1] + 0.03, body.joint("Hips")[1] - 0.05, p[:, 1])
+        p[:, 1] -= entry["forward"] * front * smoothstep(waist, crotch, p[:, 2])
     if not entry.get("skirt", False):
         p = shear_legs(p, body)
     set_coords(obj, p + np.array(entry.get("offset", [0.0, 0.0, 0.0])))
@@ -825,6 +849,48 @@ def off_legs(obj, body, clearance, spread):
         set_coords(obj, spread_push(p, np.array(needed), np.array(at), spread))
 
 
+def relax(obj, body, rest, clearance, reach, legs=True):
+    """Lets the garment take back, as cloth would, the shape its triangles
+    had at `rest` (placed, before the pushes): each push moves its vertices
+    by its own amount, which stretches the triangles between them and the
+    texture on them. Every edge eases towards its rest length (RELAX_STEPS
+    rounds, each vertex by the mean of its edges' wants, RELAX_RATE of it)
+    while nothing goes closer to the skin than `clearance` (what is deeper
+    than `reach` is past a thin part, as for the push; with `legs` False the
+    legs' skin does not count, off_legs() takes it out of them) and every
+    vertex is held RELAX_HOLD towards where the pushes left it, so the
+    garment does not drift."""
+    edges = edges_of(obj)
+    length = np.linalg.norm(rest[edges[:, 1]] - rest[edges[:, 0]], axis=1)
+    p = coords(obj)
+    held = p.copy()
+    count = np.maximum(np.bincount(edges.ravel(), minlength=len(p)), 1).astype(float)[:, None]
+    leg_bones = [body.index[BONE_PREFIX + s + b] for s in SIDES for b in ("UpLeg", "Leg", "Foot")]
+    near = np.arange(len(p))
+    for step in range(RELAX_STEPS):
+        d = p[edges[:, 1]] - p[edges[:, 0]]
+        current = np.linalg.norm(d, axis=1)
+        want = ((current - length) / np.maximum(current, 1e-12))[:, None] * d * 0.5
+        shift = np.zeros_like(p)
+        np.add.at(shift, edges[:, 0], want)
+        np.add.at(shift, edges[:, 1], -want)
+        p += RELAX_RATE * shift / count
+        p += RELAX_HOLD * (held - p)
+        # Only what was near the skin a few rounds ago can have reached it.
+        check = np.arange(len(p)) if step % RELAX_RECHECK == 0 else near
+        close = []
+        for i in check:
+            location, normal, face = body.nearest(p[i])
+            if not legs and body.top[body.triangles[face][0]] in leg_bones:
+                continue
+            gap = (p[i] - location) @ normal
+            if gap < clearance + RELAX_NEAR:
+                close.append(i)
+            if -reach < gap < clearance:
+                p[i] += normal * (clearance - gap)
+        if step % RELAX_RECHECK == 0:
+            near = np.array(close, dtype=np.int64)
+    set_coords(obj, p)
 
 
 def past_under(under, skin, q, clearance):
@@ -1002,33 +1068,46 @@ def skin(obj, body, entry, slot):
         np.add.at(neighbours, edges[:, 1], folded[edges[:, 0]])
         mean = neighbours / np.maximum(degree, 1.0)[:, None]
         folded += rate[:, None] * (mean - folded)
+    hips = body.index[BONE_PREFIX + "Hips"]
+    left = body.index[BONE_PREFIX + "LeftUpLeg"]
+    right = body.index[BONE_PREFIX + "RightUpLeg"]
     if entry.get("hang") and body.chains:
         ring = body.joints[body.names[body.chains[0][0]]][2]
         below = smoothstep(ring + SKIRT_BLEND, ring - SKIRT_BLEND, p[:, 2])
-        folded += (chain_weights(p, body) - folded) * below[:, None]
+        hanging = chain_weights(p, body)
+        on_left, on_right = on_thighs(p, body, entry.get("thighs", HANG_RIDE))
+        hanging *= (1.0 - on_left - on_right)[:, None]
+        hanging[:, left] += on_left
+        hanging[:, right] += on_right
+        folded += (hanging - folded) * below[:, None]
     elif slot == "chest" or entry.get("skirt", False):
         # Below the crotch (after smoothing, so the thighs do not seep back).
-        hips = body.index[BONE_PREFIX + "Hips"]
-        left = body.index[BONE_PREFIX + "LeftUpLeg"]
-        right = body.index[BONE_PREFIX + "RightUpLeg"]
         crotch = body.joint("LeftUpLeg")[2] - 0.08
         hang = entry.get("hang", False)
         # A hanging skirt from the hip joints down, or it would hang from the thighs.
         below = smoothstep(body.joint("Hips")[2] if hang else crotch + 0.06, crotch - 0.08, p[:, 2])
-        shares = entry.get("thighs", HANG_THIGHS if hang else (SKIRT_FRONT, SKIRT_BACK))
-        half = abs(body.joint("LeftUpLeg")[0] - body.joint("RightUpLeg")[0]) * 0.5 + 0.06
-        centre = (body.joint("LeftUpLeg")[0] + body.joint("RightUpLeg")[0]) * 0.5
-        side = np.clip((p[:, 0] - centre) / half, -1.0, 1.0)
+        on_left, on_right = on_thighs(p, body, entry.get("thighs", HANG_THIGHS if hang else (SKIRT_FRONT, SKIRT_BACK)))
         thighs = folded[:, left] + folded[:, right]
-        # Blender's front is -Y.
-        front = smoothstep(body.joint("Hips")[1] + 0.03, body.joint("Hips")[1] - 0.05, p[:, 1])
-        kept = thighs * (shares[1] + (shares[0] - shares[1]) * front)
         hanging = folded.copy()
-        hanging[:, left] = kept * (0.5 + 0.5 * side)
-        hanging[:, right] = kept * (0.5 - 0.5 * side)
-        hanging[:, hips] += thighs - kept
+        hanging[:, left] = thighs * on_left
+        hanging[:, right] = thighs * on_right
+        hanging[:, hips] += thighs * (1.0 - on_left - on_right)
         folded += (hanging - folded) * below[:, None]
     return top_four(folded)
+
+
+def on_thighs(p, body, shares):
+    """Per point, how much of it follows each thigh, (left, right): the
+    `shares` [front, back] of it, from the front of the hips to the back,
+    split between the two by how far to each side it hangs (the middle
+    follows both alike, so it does not split when they part)."""
+    half = abs(body.joint("LeftUpLeg")[0] - body.joint("RightUpLeg")[0]) * 0.5 + 0.06
+    centre = (body.joint("LeftUpLeg")[0] + body.joint("RightUpLeg")[0]) * 0.5
+    side = np.clip((p[:, 0] - centre) / half, -1.0, 1.0)
+    # Blender's front is -Y.
+    front = smoothstep(body.joint("Hips")[1] + 0.03, body.joint("Hips")[1] - 0.05, p[:, 1])
+    share = shares[1] + (shares[0] - shares[1]) * front
+    return share * (0.5 + 0.5 * side), share * (0.5 - 0.5 * side)
 
 
 def chain_weights(p, body):
@@ -1211,10 +1290,16 @@ def fit_piece(piece_id, entry, body):
             open_neck(obj, body)
         else:
             place_legs(obj, body, entry)
+        placed = coords(obj)
+        under = under_garments(entry["over"]) if entry.get("over") else None
+        # Pushed, relaxed back towards its placed shape and pushed again for
+        # what the relaxing let near the skin, the legs or the garments under it.
+        for final in (False, True):
             if entry.get("hang"):
                 off_legs(obj, body, clearance, PUSH_SPREAD[slot])
-        under = under_garments(entry["over"]) if entry.get("over") else None
-        push_out(obj, body, clearance, PUSH_SPREAD[slot], PUSH_REACH[slot], under=under)
+            push_out(obj, body, clearance, PUSH_SPREAD[slot], PUSH_REACH[slot], under=under)
+            if not final:
+                relax(obj, body, placed, clearance, PUSH_REACH[slot], legs=not entry.get("hang"))
         if len(entry.get("ease", [])) > 2:
             draw_in(obj, body, entry["ease"][2])
     bones, weights = skin(obj, body, entry, slot)

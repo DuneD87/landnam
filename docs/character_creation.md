@@ -278,15 +278,22 @@ pesa con su piel, así que quedan como las demás: hechas para el escaneo, y
   hombros de un maniquí quedan muy dentro de los del escaneo (el manto no
   tiene escote: su parte de arriba quedaba enterrada en los trapecios y se
   veía la piel). El empuje se reparte como en `ArmorFit`.
+- **Relajado**: cada vértice sale empujado lo suyo, y eso estira los
+  triángulos de entre medias y la textura que llevan (en las mangas del
+  manto, más del cuádruple). Después del empuje la prenda se relaja como una
+  tela (`relax()`): cada arista vuelve hacia el largo que tenía al colocarla,
+  sin acercarse a la piel más que su holgura, y se empuja otra vez. Lo
+  estirado a más del doble pasa del 26 al 13 % del manto, del 21 al 12 % del
+  faldellín, del 10 al 4 % de la túnica y del 8 al 4 % de las calzas.
 - **Capas**: un peto va por encima de los calzones que lista en `"over"`
   (que se ajustan antes): lo que queda bajo ellos, o a menos de su holgura,
   sale hacia fuera, así que la bolsa del faldellín no asoma por el manto.
 - **Pesos**: los de la piel del escaneo en su punto más cercano, solo de los
   huesos que puede seguir cada hueco (el peto no sigue el antebrazo ni la
-  cabeza: lo de esos pasa al padre permitido). Lo que va pegado a la piel
-  (a menos de 4 cm) los conserva casi sin suavizar, para moverse como la
-  piel de debajo y que no asome el hombro o la cadera; lo suelto (desde 10 cm)
-  los toma de la prenda que tiene alrededor. Por debajo de la entrepierna, el
+  cabeza: lo de esos pasa al padre permitido). Lo que va pegado a la piel (a
+  menos de 4 cm) los conserva casi sin suavizar, para moverse como la piel de
+  debajo y que no asome el hombro o la cadera; lo suelto (desde 10 cm) los
+  toma de la prenda que tiene alrededor. Por debajo de la entrepierna, el
   faldón de un peto o un faldellín sigue a los muslos (un 95 % por delante,
   para montar sobre el que avanza; un 65 % por detrás; el resto, la cadera),
   repartido entre los dos según lo ladeado que cuelga: el centro sigue a los
@@ -295,19 +302,24 @@ pesa con su piel, así que quedan como las demás: hechas para el escaneo, y
   *Faldas que se mueven*): desde 5 cm sobre su anillo hasta 5 cm por debajo
   pasa de los pesos de la piel a los de las dos cadenas que tiene a los lados,
   repartido entre ellas por el ángulo y, a lo largo, entre las dos
-  articulaciones entre las que queda. Sin esos huesos en `body.json`, sigue a
-  la cadera desde sus articulaciones y a los muslos solo un 15 % por delante
-  y un 5 % por detrás (`HANG_THIGHS`). Su forro se queda en la cadera y las
-  nalgas (en los muslos parecería unas mallas). Antes de apartarla de la piel,
-  lo que tiene dentro de las piernas sale hacia fuera desde la cadera, como
-  la tela que cae sobre las dos: empujado por la normal de la pierna la
-  rodeaba, y como no la sigue, al moverla quedaba un anillo cruzándola. Una falda no sigue a las
-  espinillas ni a los pies: lo que su bajo tomaría de ellos pasa al muslo y,
-  de ahí, a la cadera. `"flare"` la abre hacia los lados hasta el bajo (el
-  faldellín, un 35 % más ancho abajo que en la cintura); por delante se recoge
-  con `"ease"` como un peto, para que cuelgue a plomo desde la tripa y no
-  por delante de las rodillas. Lo que cuelga
-  del brazo (una manga) conserva los pesos de la piel aunque esté lejos:
+  articulaciones entre las que queda; por delante, la mitad va además a los
+  muslos (`HANG_RIDE`, repartida como el faldón de un peto): solo con las
+  cadenas, un muslo que avanza la atravesaba entre dos. Sin esos huesos en
+  `body.json`, sigue a la cadera desde sus articulaciones y a los muslos solo
+  un 15 % por delante y un 5 % por detrás (`HANG_THIGHS`). Su forro se queda
+  en la cadera y las nalgas (en los muslos parecería unas mallas). Antes de
+  apartarla de la piel, lo que tiene dentro de las piernas sale hacia fuera
+  desde la cadera, como la tela que cae sobre las dos: empujado por la normal
+  de la pierna la rodeaba, y como no la sigue, al moverla quedaba un anillo
+  cruzándola. Una falda no sigue a las espinillas ni a los pies: lo que su
+  bajo tomaría de ellos pasa al muslo y, de ahí, a la cadera. `"flare"` la
+  abre hacia los lados hasta el bajo (el faldellín, un 35 % más ancho abajo
+  que en la cintura); por delante se recoge con `"ease"` como un peto, para
+  que cuelgue a plomo desde la tripa y no por delante de las rodillas, y
+  `"forward"` adelanta el delantero desde la cintura hasta la entrepierna y lo
+  deja colgar de ahí (el faldellín, 7 cm: si no, el muslo de la pierna que va
+  adelantada al estar quieto quedaba por delante de él). Lo que cuelga del
+  brazo (una manga) conserva los pesos de la piel aunque esté lejos:
   siguiéndolo a medias, al bajar el brazo quedaba fuera como una hombrera.
 - **Forro** (`"liner": true`, petos y calzones): la propia piel del
   escaneo donde la prenda la tapa, a hasta 1,2 cm de ella en el peto y
@@ -331,26 +343,30 @@ pesa con su piel, así que quedan como las demás: hechas para el escaneo, y
 
 `SkirtBones` son los huesos de una falda: 8 cadenas de 4 alrededor de la
 cadera, colgando a plomo desde un anillo un poco por encima de las
-articulaciones de las caderas hasta la rodilla. Su reposo sale del propio
-esqueleto (la separación entre las caderas da el tamaño), así que el ajuste
-en Blender (`dump_skeleton.gd` los escribe en `body.json`, en el espacio del
+articulaciones de las caderas hasta la rodilla. El anillo empieza medio paso
+girado desde el frente, así que hay una cadena delante de cada muslo y otra
+detrás de cada nalga, que son quienes la empujan. Su reposo sale del propio
+esqueleto (la separación entre las caderas da el tamaño), así que el ajuste en
+Blender (`dump_skeleton.gd` los escribe en `body.json`, en el espacio del
 escaneo) y el juego los ponen en el mismo sitio. No están en el esqueleto
 hasta que se viste una pieza cuya Skin los usa: `dress()` los añade (cuelgan
 de la cadera) y rehace el contexto de `ArmorFit`, que lleva un hueso que la
 referencia no tenía como su antepasado medido más cercano, la cadera.
 
-Mientras alguna pieza puesta los use, `SkirtSwing` (un
-`SpringBoneSimulator3D` hijo del esqueleto, detrás de `BodyProportions`) los
-mueve: cada cadena cae por la gravedad, vuelve poco a poco a colgar como en
-reposo desde la cadera, y la empujan unas cápsulas en muslos y espinillas,
-del grosor que miden en ese cuerpo. Simula en el espacio del propio
-esqueleto: con el `Armature` a escala 0,01, en el del mundo las
-articulaciones y las formas de choque no coinciden (sus radios se quedan en
-unidades del esqueleto). Por eso sus longitudes y velocidades van en
+Mientras alguna pieza puesta los use, `SkirtSwing` (un `SpringBoneSimulator3D`
+hijo del esqueleto, detrás de `BodyProportions`) los mueve: cada cadena cae
+por la gravedad, vuelve poco a poco a colgar como en reposo desde la cadera, y
+la empujan unas cápsulas en muslos y espinillas, ajustadas a la carne de ese
+cuerpo (`BodyMeasurements`, la mediana de las secciones de cada hueso) y no
+centradas en el hueso: el muslo abulta mucho por delante del fémur, y una
+cápsula centrada se quedaba unos 6 cm por detrás de la piel. Simula en el
+espacio del propio esqueleto: con el `Armature` a escala 0,01, en el del mundo
+las articulaciones y las formas de choque no coinciden (sus radios se quedan
+en unidades del esqueleto). Por eso sus longitudes y velocidades van en
 unidades del esqueleto, y el movimiento del cuerpo por el mundo, que ese
-espacio no ve, entra como fuerza externa: la aceleración del cuerpo, suavizada,
-la echa hacia el otro lado al arrancar, frenar o girar. Al quitarse la
-pieza se apaga; los huesos se quedan, sin peso en nada.
+espacio no ve, entra como fuerza externa: la aceleración del cuerpo,
+suavizada, la echa hacia el otro lado al arrancar, frenar o girar. Al quitarse
+la pieza se apaga; los huesos se quedan, sin peso en nada.
 
 Los modelos de Meshy no están en el repositorio: se buscan en la carpeta que
 se le da (las descargas, `stone_age_armor/` y `stone_age_armor_2/`).
@@ -380,7 +396,8 @@ tres cuartos (y desde arriba, `above`; desde delante y abajo, `low_front`).
 `--anim=none` lo deja en la pose de reposo, en la que se ajusta. Lo que se
 mueve solo (una falda) necesita fotogramas: `--frames=N` vuelca tras N, con la
 animación quieta en `--time` o, con `--play`, avanzando desde ahí; mejor con
-`--fixed-fps 60` de Godot.
+`--fixed-fps 60` de Godot. `--still` la deja como se ajustó, sin física (para
+saber si algo raro es del ajuste o de la simulación).
 
 ```sh
 godot --headless --path . --script res://tools/character/dump_dressed.gd -- $PWD/build/character/dressed/a.json \

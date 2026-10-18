@@ -8,6 +8,10 @@ extends RefCounted
 ## (add_to()); their rest comes from the skeleton's own (the hips, the
 ## thighs), so the armour fit (tools/character/dump_skeleton.gd hands it to
 ## fit_meshy_armor.py) and the game put them in the same place.
+##
+## The ring starts half a step round from the front, so a chain hangs in
+## front of each thigh and one behind each buttock: with one in the middle,
+## a thigh coming forward went between two and through the skirt.
 
 const PREFIX := "skirt_"
 const HIPS := &"mixamorig_Hips"
@@ -63,7 +67,7 @@ static func rests(skeleton: Skeleton3D) -> Dictionary:
 	var basis := Basis(left, -up, -forward).scaled(globals[hips_bone].basis.get_scale())
 	var result := {}
 	for chain in CHAINS:
-		var angle := TAU * chain / CHAINS
+		var angle := TAU * (chain + 0.5) / CHAINS
 		var depth := RING_FRONT if cos(angle) > 0.0 else RING_BACK
 		var top := centre + (forward * cos(angle) * depth + left * sin(angle) * RING_SIDE) * gap
 		for joint in JOINTS:

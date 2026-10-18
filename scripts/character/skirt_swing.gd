@@ -20,17 +20,14 @@ const DRAG := 0.35
 const GRAVITY := 1.2
 ## Thickness of the skirt round each joint, metres.
 const JOINT_RADIUS := 0.025
-## Legs, as capsules: [bone, next bone, girth it takes (BodyMeasurements),
-## radius in metres until the body is measured (fit_legs())].
+## Legs, as capsules: [bone, next bone, radius in metres until the body is
+## measured (fit_legs())].
 const LEGS := [
-	[&"mixamorig_LeftUpLeg", &"mixamorig_LeftLeg", &"thigh", 0.085],
-	[&"mixamorig_RightUpLeg", &"mixamorig_RightLeg", &"thigh", 0.085],
-	[&"mixamorig_LeftLeg", &"mixamorig_LeftFoot", &"calf", 0.06],
-	[&"mixamorig_RightLeg", &"mixamorig_RightFoot", &"calf", 0.06],
+	[&"mixamorig_LeftUpLeg", &"mixamorig_LeftLeg", 0.085],
+	[&"mixamorig_RightUpLeg", &"mixamorig_RightLeg", 0.085],
+	[&"mixamorig_LeftLeg", &"mixamorig_LeftFoot", 0.06],
+	[&"mixamorig_RightLeg", &"mixamorig_RightFoot", 0.06],
 ]
-## The thigh's girth is taken at its top, which narrows down to the knee: its
-## capsule is this much of it.
-const THIGH_SHARE := 0.9
 ## How much of the body's acceleration swings it the other way, and how
 ## quickly that acceleration is followed (per second), so steps do not jolt it.
 const INERTIA := 0.06
@@ -76,25 +73,47 @@ func _ready() -> void:
 		capsule.name = String(leg[0]).trim_prefix("mixamorig_")
 		capsule.bone_name = leg[0]
 		capsule.set_meta(&"length", globals[bone].origin.distance_to(globals[next].origin))
-		capsule.set_meta(&"girth", leg[2])
 		add_child(capsule)
-		_size_leg(capsule, leg[3])
+		_size_leg(capsule, leg[2], Vector2.ZERO)
 
 
-## Sizes the legs' capsules to a body's measurements (BodyMeasurements.summary).
-func fit_legs(summary: Dictionary) -> void:
+## Fits the legs' capsules to a body's measurements: each round the flesh
+## its bone moves rather than round the bone (the thigh stands well out in
+## front of the femur, the calf behind the shin), so a thigh coming forward
+## meets the skirt where its skin does. Its centre and radius are the median
+## of its slices' centres and of the radius that reaches their widest side.
+func fit_legs(body: BodyMeasurements) -> void:
+	var skeleton := get_skeleton()
 	for capsule in get_children():
-		if capsule is SpringBoneCollisionCapsule3D and summary.has(capsule.get_meta(&"girth")):
-			var girth: float = summary[capsule.get_meta(&"girth")]
-			_size_leg(capsule, girth / TAU * (THIGH_SHARE if capsule.get_meta(&"girth") == &"thigh" else 1.0))
+		if not capsule is SpringBoneCollisionCapsule3D:
+			continue
+		var bone := skeleton.find_bone(capsule.bone_name)
+		if not body.has_bone(bone):
+			continue
+		var xs := PackedFloat32Array()
+		var zs := PackedFloat32Array()
+		var radii := PackedFloat32Array()
+		for slice in BodyMeasurements.SLICES:
+			var at := (bone * BodyMeasurements.SLICES + slice) * 4
+			var section := body.sections.slice(at, at + 4)
+			xs.append((section[0] + section[1]) * 0.5)
+			zs.append((section[2] + section[3]) * 0.5)
+			radii.append(maxf(section[1] - section[0], section[3] - section[2]) * 0.5)
+		_size_leg(capsule, _median(radii) / _units, Vector2(_median(xs), _median(zs)) / _units)
 
 
-func _size_leg(capsule: SpringBoneCollisionCapsule3D, radius: float) -> void:
+## `radius` and `centre` (across the bone: X, Z) in metres.
+func _size_leg(capsule: SpringBoneCollisionCapsule3D, radius: float, centre: Vector2) -> void:
 	var length: float = capsule.get_meta(&"length")
 	capsule.radius = radius * _units
 	capsule.height = length + radius * _units * 2.0
-	# Along the bone, which points at the next joint; metres.
-	capsule.position_offset = Vector3(0.0, length * 0.5 / _units, 0.0)
+	# In the bone's axes (Y towards the next joint); metres.
+	capsule.position_offset = Vector3(centre.x, length * 0.5 / _units, centre.y)
+
+
+static func _median(values: PackedFloat32Array) -> float:
+	values.sort()
+	return values[values.size() / 2]
 
 
 func _process(delta: float) -> void:
