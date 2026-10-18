@@ -172,32 +172,32 @@ func _build_header() -> Control:
 	header.add_theme_constant_override("separation", 12)
 
 	_title = Label.new()
-	_title.text = "Mapa mundial"
+	_title.text = "MAP_TITLE"
 	_title.add_theme_font_size_override("font_size", 20)
 	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(_title)
 
 	var hint := Label.new()
-	hint.text = "Rueda: zoom  ·  Arrastrar: desplazar  ·  M / Esc: cerrar"
+	hint.text = "MAP_HINT"
 	hint.add_theme_color_override("font_color", Color(0.65, 0.7, 0.78))
 	header.add_child(hint)
 
 	var center_button := Button.new()
-	center_button.text = "Centrar en mí"
+	center_button.text = "MAP_CENTER"
 	center_button.pressed.connect(func() -> void: _follow = true)
 	header.add_child(center_button)
 
 	# Contraste con el terreno real: sirve para separar "el mapa está mal orientado" de "el mapa
 	# es correcto pero a 92 m por téxel no representa lo que tienes delante".
 	var debug_button := CheckBox.new()
-	debug_button.text = "Contrastar"
+	debug_button.text = "MAP_CONTRAST"
 	debug_button.toggled.connect(func(on: bool) -> void: _debug_check = on)
 	header.add_child(debug_button)
 
 	# Dibuja sobre el mapa hacia dónde viaja el oleaje. Separa "el campo de orilla está mal horneado"
 	# de "el campo está bien y quien lo consume mal es el agua", que a ojo no se distingue.
 	var waves_button := CheckBox.new()
-	waves_button.text = "Olas"
+	waves_button.text = "MAP_WAVES"
 	waves_button.toggled.connect(func(on: bool) -> void:
 		_show_wave_arrows = on
 		if _material != null:
@@ -257,7 +257,7 @@ func _resolve_world_map() -> void:
 	if _world_map != null:
 		_world_map.map_ready.connect(_on_map_ready)
 		_connected_map = _world_map
-	_title.text = "Mapa mundial — %s" % (loader.name if loader != null else "?")
+	_title.text = tr("MAP_TITLE_PLANET") % (loader.name if loader != null else "?")
 
 
 func _on_map_ready(_map: WorldMapData) -> void:
@@ -268,11 +268,11 @@ func _on_map_ready(_map: WorldMapData) -> void:
 ## Deja el TextureRect y el material apuntando al mapa actual, o el mensaje de espera si aún no está.
 func _refresh_map_source() -> void:
 	if _world_map == null:
-		_status.text = "Este cuerpo no tiene mapa."
+		_status.text = "MAP_NO_MAP"
 		_status.visible = true
 		return
 	if not _world_map.is_ready():
-		_status.text = "Generando el mapa del planeta…"
+		_status.text = "MAP_GENERATING"
 		_status.visible = true
 		return
 	_status.visible = false
@@ -284,7 +284,7 @@ func _refresh_map_source() -> void:
 	_material.shader = load(SHADER_PATH)
 	if _material.shader == null:
 		push_error("[world-map] no se pudo cargar %s" % SHADER_PATH)
-		_status.text = "Falta el shader del mapa."
+		_status.text = "MAP_NO_SHADER"
 		_status.visible = true
 		_material = null
 		return
@@ -544,7 +544,7 @@ func _update_info() -> void:
 
 	var pos: Vector3 = player.global_position
 	var latlon := _world_map.get_latlon(pos)
-	_info_left.text = "%s   ·   Altitud %.0f m   ·   %s   ·   1 px ≈ %.0f m" % [
+	_info_left.text = tr("MAP_INFO") % [
 		WorldMapData.format_latlon(latlon),
 		_world_map.get_altitude(pos),
 		_describe_water(_world_map.get_water_body_at(pos), _world_map.get_water_depth_at(pos)),
@@ -589,24 +589,24 @@ func _diagnose(pos: Vector3) -> String:
 	query.exclude = [player.get_rid()]
 	var hit := player.get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty():
-		return "contraste: el rayo no encontró terreno (¿colisión aún sin hornear?)"
+		return tr("MAP_CONTRAST_NO_HIT")
 
 	var real_radius: float = (hit.position as Vector3).distance_to(center)
 	var sea := _world_map.map.sea_level_radius
-	return "contraste: mapa %+.0f m / real %+.0f m (desfase %+.0f m)   ·   mapa dice %s, real %s" % [
+	return tr("MAP_CONTRAST_INFO") % [
 		map_radius - sea, real_radius - sea, map_radius - real_radius,
-		"AGUA" if _world_map.is_water_at(pos) else "TIERRA",
-		"AGUA" if real_radius < sea else "TIERRA"]
+		tr("MAP_WATER_UPPER" if _world_map.is_water_at(pos) else "MAP_LAND_UPPER"),
+		tr("MAP_WATER_UPPER" if real_radius < sea else "MAP_LAND_UPPER")]
 
 
 func _describe_water(body: Dictionary, depth: float) -> String:
 	if body.is_empty():
-		return "En tierra firme"
-	return "%s (%.1f m de fondo)" % [body.name, maxf(depth, 0.0)]
+		return tr("MAP_ON_LAND")
+	return tr("MAP_WATER_DEPTH") % [WorldMapData.body_name(body), maxf(depth, 0.0)]
 
 
 func _describe_hover(body: Dictionary, depth: float, height: float) -> String:
 	if body.is_empty():
-		return "Tierra, %.0f m" % (height - (_world_map.map.sea_level_radius - _world_map.map.radius))
-	return "%s · %.1f km² · fondo %.0f m (máx %.0f m)" % [
-		body.name, body.area / 1_000_000.0, maxf(depth, 0.0), body.max_depth]
+		return tr("MAP_LAND_HEIGHT") % (height - (_world_map.map.sea_level_radius - _world_map.map.radius))
+	return tr("MAP_WATER_HOVER") % [
+		WorldMapData.body_name(body), body.area / 1_000_000.0, maxf(depth, 0.0), body.max_depth]

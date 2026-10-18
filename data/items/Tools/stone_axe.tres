@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_6pb2b")
 id = &"stone_axe_01"
-display_name = "Hacha de piedra"
-description = "Hoja de piedra atada a un mango: tala árboles y saca madera."
+display_name = "ITEM_STONE_AXE_01"
+description = "ITEM_STONE_AXE_01_DESC"
 icon = ExtResource("1_21h4s")
 category = 1
 scene_path = "res://scenes/items/weapons/stone_axe_01.tscn"

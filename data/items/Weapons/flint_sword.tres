@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_bcvpj")
 id = &"flint_sword"
-display_name = "Espada de sílex"
-description = "Una pala de madera dura con lascas de sílex encajadas en los dos filos. Pesa más y corta menos que una de hierro, pero corta."
+display_name = "ITEM_FLINT_SWORD"
+description = "ITEM_FLINT_SWORD_DESC"
 icon = ExtResource("1_mxuka")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/flint_sword.tscn"

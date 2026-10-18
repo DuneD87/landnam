@@ -6,8 +6,8 @@
 [resource]
 script = ExtResource("2_item")
 id = &"tin_ore"
-display_name = "Casiterita"
-description = "Cristales pardos casi negros, pesados y brillantes, de las colinas. Es el estaño que, con el cobre, hace el bronce."
+display_name = "ITEM_TIN_ORE"
+description = "ITEM_TIN_ORE_DESC"
 icon = ExtResource("1_icon")
 scene_path = "res://scenes/items/survival/tin_ore.tscn"
 max_stack = 50

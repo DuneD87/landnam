@@ -52,8 +52,8 @@ shader_parameter/glass_tint = Color(0.78, 0.9, 0.85, 1)
 [resource]
 script = ExtResource("1_glass")
 id = &"glass_01"
-display_name = "Vidrio"
-description = "Vidrio para construir."
+display_name = "ITEM_GLASS_01"
+description = "ITEM_GLASS_01_DESC"
 surface_material = SubResource("ShaderMaterial_glass")
 group = &"misc"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

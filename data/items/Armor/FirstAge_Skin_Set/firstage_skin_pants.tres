@@ -11,8 +11,8 @@ script = ExtResource("4_ovjk6")
 [resource]
 script = ExtResource("2_buoc1")
 id = &"firstage_skin_pants"
-display_name = "Calzas de pieles"
-description = "Skin Pants"
+display_name = "ITEM_FIRSTAGE_SKIN_PANTS"
+description = "ITEM_FIRSTAGE_SKIN_PANTS_DESC"
 icon = ExtResource("1_1uyk3")
 category = 4
 scene_path = "res://scenes/items/armor/firstage_skin_set/firstage_skin_pants_equipable.tscn"

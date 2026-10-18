@@ -55,11 +55,8 @@ const EXPOSURE_START := 0.85
 const WEATHER_CHILL := {"storm": -3.0, "snow": -5.0, "wind": -3.0, "fog": -1.0}
 ## Lo que quita la sed un trago (de un río, un lago o un odre).
 const SIP := 0.2
-## Nombres de consola de cada valor.
-const NAMES := {
-	"hambre": &"hunger", "sed": &"thirst", "descanso": &"rest", "cordura": &"sanity",
-	"oxigeno": &"oxygen", "temperatura": &"warmth", "mojado": &"wetness",
-}
+## Los valores, por el nombre de su propiedad (el de la consola y la barra rápida).
+const NAMES: Array[String] = ["hunger", "thirst", "rest", "sanity", "oxygen", "warmth", "wetness"]
 
 var hunger := 1.0
 var thirst := 1.0
@@ -185,42 +182,42 @@ func refill() -> void:
 	_pending_damage = 0.0
 
 
-## Valor de consola por su nombre en español (ver NAMES).
-func get_value(spanish_name: String) -> float:
-	return get(NAMES[spanish_name])
+## Valor de una necesidad por su nombre (ver NAMES).
+func get_value(need: String) -> float:
+	return get(need)
 
 
-func set_value(spanish_name: String, value: float) -> void:
-	var low := -1.0 if spanish_name == "temperatura" else 0.0
-	set(NAMES[spanish_name], clampf(value, low, 1.0))
+func set_value(need: String, value: float) -> void:
+	var low := -1.0 if need == "warmth" else 0.0
+	set(need, clampf(value, low, 1.0))
 
 
 ## Si la necesidad está tan baja que hay que avisar (el medallón late).
-func is_critical(spanish_name: String) -> bool:
-	match spanish_name:
-		"temperatura":
+func is_critical(need: String) -> bool:
+	match need:
+		"warmth":
 			return absf(warmth) >= 0.65
-		"oxigeno":
+		"oxygen":
 			return oxygen <= 0.25
 		_:
-			return get_value(spanish_name) <= 0.15
+			return get_value(need) <= 0.15
 
 
 ## Lo que se siente, en palabras: para la ficha de atributos.
 func temperature_word() -> String:
 	if warmth <= -0.85:
-		return "Helado"
+		return tr("TEMP_FREEZING")
 	if warmth <= -0.45:
-		return "Frío"
+		return tr("TEMP_COLD")
 	if warmth <= -0.15:
-		return "Fresco"
+		return tr("TEMP_COOL")
 	if warmth < 0.15:
-		return "A gusto"
+		return tr("TEMP_COMFORTABLE")
 	if warmth < 0.45:
-		return "Calor"
+		return tr("TEMP_WARM")
 	if warmth < 0.85:
-		return "Mucho calor"
-	return "Abrasado"
+		return tr("TEMP_HOT")
+	return tr("TEMP_SCORCHING")
 
 
 func save_data() -> Dictionary:

@@ -23,7 +23,7 @@ enum Stacking {
 const DATA_DIR := "res://data/status/"
 
 @export var id: StringName
-## Nombre para el HUD; con zona se le añade el lado ("Pierna rota (izq.)").
+## Clave del nombre para el HUD (STATUS_<ID>); con zona se le añade el lado ("Pierna rota (izq.)").
 @export var display_name: String
 ## Va por parte del cuerpo (BodyDamage.ZONES): uno por pierna o brazo, cada uno con su tiempo.
 @export var per_zone: bool = false

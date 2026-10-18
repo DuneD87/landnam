@@ -7,4 +7,4 @@ extends ItemTrait
 
 
 func describe() -> Array:
-	return [["Abrigo", "+%s °C" % number(warmth)]]
+	return [["TRAIT_WARMTH", "+%s °C" % number(warmth)]]

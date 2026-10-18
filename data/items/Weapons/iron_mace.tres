@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"iron_mace"
-display_name = "Maza de hierro"
-description = "Seis pestañas de hierro que no cortan: aplastan. Lenta y agotadora, derriba a lo que le plante cara."
+display_name = "ITEM_IRON_MACE"
+description = "ITEM_IRON_MACE_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/iron_mace.tscn"

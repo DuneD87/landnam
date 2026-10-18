@@ -12,8 +12,8 @@ warmth = 5.0
 [resource]
 script = ExtResource("1_item")
 id = &"fur_mantle"
-display_name = "Manto de pieles"
-description = "Pieles de zorro y de lobo cosidas sobre una túnica de fibra tejida, con una placa de cuentas de hueso al pecho. Abriga como ninguna otra prenda y amortigua los golpes; un tajo la atraviesa."
+display_name = "ITEM_FUR_MANTLE"
+description = "ITEM_FUR_MANTLE_DESC"
 icon = ExtResource("0_icon")
 category = 4
 scene_path = "res://scenes/items/armor/stone_age/fur_mantle_equipable.tscn"

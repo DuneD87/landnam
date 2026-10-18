@@ -937,7 +937,8 @@ static func _name_bodies(bodies: Array[Dictionary]) -> void:
 	for id in order:
 		var t: int = bodies[id].type
 		counters[t] = int(counters.get(t, 0)) + 1
-		bodies[id].name = "%s %d" % [WorldMapData.TYPE_NAMES[t], counters[t]]
+		# El nombre lo forma la UI en su idioma (WorldMapData.body_name): aquí, solo el número.
+		bodies[id].number = counters[t]
 
 
 ## Avisa si el rango de búsqueda se queda corto: un mapa saturado deja mesetas planas donde el

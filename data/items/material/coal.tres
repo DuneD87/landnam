@@ -12,8 +12,8 @@ burn_time = 300.0
 [resource]
 script = ExtResource("2_item")
 id = &"coal"
-display_name = "Carbón de piedra"
-description = "Capas negras de las llanuras y las colinas. Arde mucho más que la madera y, en la forja, calienta el hierro hasta trabajarlo."
+display_name = "ITEM_COAL"
+description = "ITEM_COAL_DESC"
 icon = ExtResource("1_icon")
 scene_path = "res://scenes/items/survival/coal.tscn"
 max_stack = 50

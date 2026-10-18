@@ -182,7 +182,7 @@ func _verify_input() -> bool:
 	if _hotbar.selected_index != 2:
 		push_error("La tecla 3 no seleccionó el tercer hueco.")
 		return false
-	if _hotbar._selection_label.text != Config.get_item(&"hunting_bow").display_name:
+	if _hotbar._selection_label.text != Config.get_item(&"hunting_bow").get_display_name():
 		push_error("El nombre no sigue al objeto seleccionado.")
 		return false
 	await _click(6)

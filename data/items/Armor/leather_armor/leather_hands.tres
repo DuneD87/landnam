@@ -12,8 +12,8 @@ warmth = 0.5
 [resource]
 script = ExtResource("2_1wmrh")
 id = &"leather_hands"
-display_name = "Guantes de cuero"
-description = "Leather Hands"
+display_name = "ITEM_LEATHER_HANDS"
+description = "ITEM_LEATHER_HANDS_DESC"
 icon = ExtResource("1_mvew1")
 category = 4
 scene_path = "res://scenes/items/armor/leather_armor/leather_hands_equipable.tscn"

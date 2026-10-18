@@ -35,7 +35,7 @@ var _thumbnail_timer: Timer
 
 
 func get_title() -> String:
-	return "Apariencia"
+	return "CREATE_STEP_APPEARANCE"
 
 
 func can_continue() -> bool:
@@ -43,7 +43,7 @@ func can_continue() -> bool:
 
 
 func blocking_reason() -> String:
-	return "" if can_continue() else "Ponle un nombre a tu personaje"
+	return "" if can_continue() else "CREATE_NEED_NAME"
 
 
 func enter() -> void:
@@ -85,9 +85,9 @@ func _build_panel() -> void:
 	identity.add_theme_constant_override("separation", roundi(px(28)))
 	var name_box := VBoxContainer.new()
 	name_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_box.add_child(_label("Nombre", "SectionLabel"))
+	name_box.add_child(_label("CREATE_NAME", "SectionLabel"))
 	_name_edit = LineEdit.new()
-	_name_edit.placeholder_text = "Escribe un nombre"
+	_name_edit.placeholder_text = "CREATE_NAME_PLACEHOLDER"
 	_name_edit.max_length = 24
 	_name_edit.text = character.display_name
 	_name_edit.text_changed.connect(func(text: String) -> void:
@@ -96,7 +96,7 @@ func _build_panel() -> void:
 	name_box.add_child(_name_edit)
 	identity.add_child(name_box)
 	var sex_box := VBoxContainer.new()
-	sex_box.add_child(_label("Sexo", "SectionLabel"))
+	sex_box.add_child(_label("APP_SEX", "SectionLabel"))
 	var sex_option := AppearanceCatalog.find(AppearanceCatalog.SEX)
 	var sex_row := HBoxContainer.new()
 	sex_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -152,23 +152,23 @@ func _build_panel() -> void:
 	column.add_child(HSeparator.new())
 	var actions := HBoxContainer.new()
 	var randomize_button := Button.new()
-	randomize_button.text = "Aleatorio"
-	randomize_button.tooltip_text = "Todo el personaje"
+	randomize_button.text = "CREATE_RANDOMIZE"
+	randomize_button.tooltip_text = "CREATE_RANDOMIZE_TIP"
 	randomize_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	randomize_button.pressed.connect(func() -> void:
 		character.appearance.randomize_values(_rng)
 		_rebuild_options())
 	actions.add_child(randomize_button)
 	var vary_button := Button.new()
-	vary_button.text = "Variar"
-	vary_button.tooltip_text = "Solo esta categoría"
+	vary_button.text = "CREATE_VARY"
+	vary_button.tooltip_text = "CREATE_VARY_TIP"
 	vary_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vary_button.pressed.connect(func() -> void:
 		character.appearance.randomize_values(_rng, _category.options)
 		_rebuild_options())
 	actions.add_child(vary_button)
 	var reset_button := Button.new()
-	reset_button.text = "Restablecer"
+	reset_button.text = "CREATE_RESET"
 	reset_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	reset_button.pressed.connect(func() -> void:
 		character.appearance.reset()
@@ -181,7 +181,7 @@ func _select_category(category: Dictionary) -> void:
 	_category = category
 	for id in _category_buttons:
 		_category_buttons[id].set_pressed_no_signal(id == category.id)
-	_category_title.text = String(category.label).to_upper()
+	_category_title.text = tr(category.label).to_upper()
 	_rebuild_options()
 	if preview and is_visible_in_tree():
 		preview.focus(category.focus, true, true)
@@ -229,7 +229,7 @@ func _slider_row(option: AppearanceOption) -> Control:
 	slider.step = 0.01
 	slider.value = character.appearance.get_value(option.id)
 	slider.custom_minimum_size.y = px(34)
-	slider.tooltip_text = "Clic derecho: valor por defecto"
+	slider.tooltip_text = "CREATE_SLIDER_TIP"
 	value_label.text = _format(option, slider.value)
 	slider.value_changed.connect(func(value: float) -> void:
 		character.appearance.set_value(option.id, value)
@@ -267,7 +267,7 @@ func _color_row(option: AppearanceOption) -> Control:
 	picker.color = current
 	picker.edit_alpha = false
 	picker.text = "+"
-	picker.tooltip_text = "Color personalizado"
+	picker.tooltip_text = "CREATE_CUSTOM_COLOR"
 	picker.custom_minimum_size = Vector2(px(62), px(62))
 	picker.color_changed.connect(func(color: Color) -> void:
 		var pressed := group.get_pressed_button()

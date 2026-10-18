@@ -4,6 +4,11 @@ Cada objeto es un `ItemData` (`data/items/`, uno por `.tres`). Lo que **es** se
 clasifica con una categoría y un grupo (`ItemTaxonomy`). Lo que **se puede
 hacer con él** va aparte, en sus rasgos (`ItemTrait`).
 
+Su nombre y su descripción son claves de `localization/translations.csv`
+(`display_name = "ITEM_<ID>"`, `description = "ITEM_<ID>_DESC"`); el juego los
+lee traducidos con `get_display_name()` y `get_description()`. Un objeto nuevo
+lleva sus dos filas en el CSV. Ver [localization.md](localization.md).
+
 ## Clasificación
 
 | Categoría | Grupos |
@@ -297,7 +302,7 @@ al inventario y lo que no cabe, al suelo.
   (`missing`, `max_times`, `craft`).
 - **Eras:** `Eras.Era` (de momento solo `STONE`, la Edad de piedra). Cada era trae
   sus estaciones de trabajo y sus recetas, y la ventana las agrupa por era. Una
-  era nueva es un valor más en `Eras`, con su nombre.
+  era nueva es un valor más en `Eras`, con la clave de su nombre (`ERA_<ERA>`).
 - **Agua:** una receta puede gastar tragos de los odres (`RecipeData.water`); la ventana lo enseña
   como un ingrediente más («Agua de los odres»).
 - **La hoguera** encendida también es una estación (`Workstation.CAMPFIRE`): sus recetas llevan

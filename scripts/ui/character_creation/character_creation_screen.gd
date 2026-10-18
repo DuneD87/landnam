@@ -19,8 +19,8 @@ const STEPS: Array[GDScript] = [
 ## bar takes on the right, at the 1440 px scale.
 const FREE_LEFT := 1048.0
 const VIEW_BAR := 270.0
-const VIEW_FRAMINGS := [[&"body", "Cuerpo"], [&"face", "Rostro"]]
-const VIEW_LIGHTS := [[&"studio", "Estudio"], [&"day", "Día"], [&"fire", "Hoguera"]]
+const VIEW_FRAMINGS := [[&"body", "CREATE_VIEW_BODY"], [&"face", "CREATE_VIEW_FACE"]]
+const VIEW_LIGHTS := [[&"studio", "CREATE_LIGHT_STUDIO"], [&"day", "CREATE_LIGHT_DAY"], [&"fire", "CREATE_LIGHT_FIRE"]]
 
 var character := CharacterData.new()
 var preview: CharacterPreview
@@ -102,8 +102,8 @@ func _on_next() -> void:
 func _refresh_navigation() -> void:
 	var step := _steps[_current]
 	var last := _current == _steps.size() - 1
-	_back_button.text = "Volver al menú" if _current == 0 else "Atrás"
-	_next_button.text = "Comenzar partida" if last else "Siguiente"
+	_back_button.text = "CREATE_BACK_TO_MENU" if _current == 0 else "CREATE_BACK"
+	_next_button.text = "CREATE_START_GAME" if last else "CREATE_NEXT"
 	_next_button.disabled = not step.can_continue()
 	_reason.text = step.blocking_reason()
 
@@ -116,7 +116,7 @@ func _build_header() -> void:
 	header.offset_top = _px(44)
 	header.add_theme_constant_override("separation", roundi(_px(36)))
 	var title := Label.new()
-	title.text = "CREACIÓN DE PERSONAJE"
+	title.text = "CREATE_TITLE"
 	title.theme_type_variation = "TitleLabel"
 	header.add_child(title)
 	_crumbs = HBoxContainer.new()
@@ -126,7 +126,7 @@ func _build_header() -> void:
 	_crumbs.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	for i in _steps.size():
 		var crumb := Label.new()
-		crumb.text = "%d · %s" % [i + 1, _steps[i].get_title()]
+		crumb.text = "%d · %s" % [i + 1, tr(_steps[i].get_title())]
 		_crumbs.add_child(crumb)
 	header.add_child(_crumbs)
 	_root.add_child(header)
@@ -168,7 +168,7 @@ func _build_footer() -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", roundi(_px(8)))
 	bar.add_child(column)
-	column.add_child(_bar_label("Vista"))
+	column.add_child(_bar_label("CREATE_VIEW"))
 	for framing in VIEW_FRAMINGS:
 		var button := Button.new()
 		button.text = framing[1]
@@ -177,7 +177,7 @@ func _build_footer() -> void:
 		button.pressed.connect(preview.focus.bind(framing[0]))
 		column.add_child(button)
 	column.add_child(HSeparator.new())
-	column.add_child(_bar_label("Luz"))
+	column.add_child(_bar_label("CREATE_LIGHT"))
 	var lights := ButtonGroup.new()
 	for light in VIEW_LIGHTS:
 		var button := Button.new()
@@ -186,12 +186,12 @@ func _build_footer() -> void:
 		button.button_group = lights
 		button.button_pressed = light[0] == &"studio"
 		button.focus_mode = Control.FOCUS_NONE
-		button.tooltip_text = "Como en partida" if light[0] != &"studio" else "La piel con su color"
+		button.tooltip_text = "CREATE_LIGHT_INGAME_TIP" if light[0] != &"studio" else "CREATE_LIGHT_STUDIO_TIP"
 		button.pressed.connect(preview.set_lighting.bind(light[0]))
 		column.add_child(button)
 	column.add_child(HSeparator.new())
 	var hint := Label.new()
-	hint.text = "Arrastra: girar\nClic derecho: subir\ny bajar\nRueda: acercar"
+	hint.text = "CREATE_CAMERA_HINT"
 	hint.theme_type_variation = "HintLabel"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(hint)

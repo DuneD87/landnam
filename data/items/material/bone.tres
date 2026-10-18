@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_ks8ih")
 id = &"bone"
-display_name = "Hueso"
-description = "Un hueso largo de una res despiezada. Tallado da puntas, agujas y punzones; cosido en placas, armaduras."
+display_name = "ITEM_BONE"
+description = "ITEM_BONE_DESC"
 icon = ExtResource("1_r7fy6")
 scene_path = "res://scenes/items/survival/bone.tscn"
 max_stack = 30

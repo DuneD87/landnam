@@ -15,8 +15,8 @@ health = 8.0
 [resource]
 script = ExtResource("2_w0wpp")
 id = &"cooked_meat"
-display_name = "Carne asada"
-description = "Asada al fuego: llena, da fuerzas y sienta bien."
+display_name = "ITEM_COOKED_MEAT"
+description = "ITEM_COOKED_MEAT_DESC"
 icon = ExtResource("1_keirh")
 category = 3
 scene_path = "res://scenes/items/survival/cooked_meat.tscn"

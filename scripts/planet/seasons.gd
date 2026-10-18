@@ -11,8 +11,8 @@ extends RefCounted
 ## los días se alargan y acortan solos y, más allá de 90° − inclinación, hay día y noche polares.
 ## El sur va medio año por detrás y la franja del ecuador no tiene estaciones.
 
-const NAMES := ["primavera", "verano", "otoño", "invierno"]
-## Claves de las estaciones en los JSON (pesos del tiempo por estación).
+## Claves de las estaciones en los JSON (pesos del tiempo por estación) y en la consola; su nombre es
+## la clave SEASON_<KEY> de las traducciones.
 const KEYS := ["spring", "summer", "autumn", "winter"]
 ## Igual que SEASON_TROPIC_START / SEASON_TROPIC_END, SEASON_WINTER_COLD y SEASON_THERMAL_LAG de
 ## shaders/lib/season_calendar.gdshaderinc.
@@ -27,9 +27,10 @@ static var enabled: bool = false
 ## Dirección hacia el sol (mundo), la de sun_controller.gd. Sin sol, siempre es de día.
 static var sun_direction: Vector3 = Vector3.UP
 static var has_sun: bool = false
-## Depuración de coste (consola: estacion perf): partes de la estación que los shaders dejan como en
-## verano (uniform global season_debug_off). Solo cambia lo que se ve; la réplica en CPU sigue igual.
-const DEBUG_OFF := {"hojas": 1, "frio": 2, "pradera": 4}
+## Depuración de coste (consola: season perf): partes de la estación que los shaders dejan como en
+## verano (uniform global season_debug_off): hojas, frío y pradera. Solo cambia lo que se ve; la
+## réplica en CPU sigue igual.
+const DEBUG_OFF := {"leaves": 1, "cold": 2, "meadow": 4}
 static var debug_off: int = 0
 
 

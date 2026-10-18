@@ -11,8 +11,8 @@ script = ExtResource("4_soww3")
 [resource]
 script = ExtResource("2_56tni")
 id = &"waterskin"
-display_name = "Odre"
-description = "Bolsa de piel cosida para llevar agua. Se llena junto a un río o un lago (E con la sed saciada) y se bebe desde la barra."
+display_name = "ITEM_WATERSKIN"
+description = "ITEM_WATERSKIN_DESC"
 icon = ExtResource("1_x6yr3")
 category = 3
 scene_path = "res://scenes/items/survival/waterskin.tscn"

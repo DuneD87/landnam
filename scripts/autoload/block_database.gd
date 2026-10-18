@@ -81,7 +81,7 @@ func _assign_generic_block_icons() -> void:
 func _register_default_materials() -> void:
 	var stone := BuildMaterial.new()
 	stone.material_id = "stone"
-	stone.display_name = "Stone"
+	stone.display_name = "BUILD_MAT_STONE"
 	stone.item = config_ref.get_item(&"stone_01")
 	stone.base_cost = 1
 	stone.sound_material = &"rock"
@@ -90,7 +90,7 @@ func _register_default_materials() -> void:
 
 	var wood := BuildMaterial.new()
 	wood.material_id = "wood"
-	wood.display_name = "Wood"
+	wood.display_name = "BUILD_MAT_WOOD"
 	wood.item = config_ref.get_item(&"wood_01")
 	wood.base_cost = 1
 	wood.sound_material = &"wood"
@@ -99,7 +99,7 @@ func _register_default_materials() -> void:
 
 	var glass := BuildMaterial.new()
 	glass.material_id = "glass"
-	glass.display_name = "Glass"
+	glass.display_name = "BUILD_MAT_GLASS"
 	glass.item = config_ref.get_item(&"glass_01")
 	glass.base_cost = 1
 	glass.sound_material = &"tile"
@@ -158,7 +158,8 @@ func _generate_material_item_icons() -> void:
 			mat.item.icon = icon
 			icon_generated.emit()
 
-## Crea el ItemData de cada combinación bloque+material. Síncrono a propósito: el hotbar restaura
+## Crea el ItemData de cada combinación bloque+material. Su nombre es la clave ITEM_<ID>
+## (ITEM_BLOCK_CUBE_STONE): cada idioma lo forma a su manera («Stone cube», «Cubo de piedra»). Síncrono a propósito: el hotbar restaura
 ## sus huecos por (block_id, material_id) y, si los items todavía no existen, cae al bloque
 ## genérico —que no lleva material— y acaba colocando el que hubiera seleccionado.
 func _create_block_material_items() -> void:
@@ -168,7 +169,7 @@ func _create_block_material_items() -> void:
 			var block := get_block(block_id)
 			var item := ItemData.new()
 			item.id = StringName("block_%s_%s" % [block.block_name, mat.material_id])
-			item.display_name = "%s %s" % [mat.display_name, block.block_name.capitalize()]
+			item.display_name = "ITEM_" + String(item.id).to_upper()
 			item.description = block.block_description
 			item.category = ItemData.Category.BLOCK
 			item.block_id = block.block_id
@@ -222,7 +223,7 @@ func _register_default_blocks() -> void:
 	var cube := BlockData.new()
 	cube.block_id = BLOCK_CUBE_ID
 	cube.block_name = "cube"
-	cube.block_description = "Bloque cúbico estándar 1x1x1"
+	cube.block_description = "BLOCK_CUBE_DESC"
 	cube.mesh = BlockMeshGenerator.generate_cube()
 	cube.collision_shape = BlockMeshGenerator.generate_cube_collision()
 	cube.can_rotate = false
@@ -232,7 +233,7 @@ func _register_default_blocks() -> void:
 	var slope := BlockData.new()
 	slope.block_id = BLOCK_SLOPE_ID
 	slope.block_name = "slope"
-	slope.block_description = "Rampa diagonal"
+	slope.block_description = "BLOCK_SLOPE_DESC"
 	slope.mesh = BlockMeshGenerator.generate_slope()
 	slope.collision_shape = BlockMeshGenerator.generate_slope_collision()
 	slope.can_rotate = true
@@ -242,7 +243,7 @@ func _register_default_blocks() -> void:
 	var corner := BlockData.new()
 	corner.block_id = BLOCK_CORNER_ID
 	corner.block_name = "corner"
-	corner.block_description = "Esquina entre dos rampas"
+	corner.block_description = "BLOCK_CORNER_DESC"
 	corner.mesh = BlockMeshGenerator.generate_corner()
 	corner.collision_shape = BlockMeshGenerator.generate_corner_collision()
 	corner.can_rotate = true
@@ -252,7 +253,7 @@ func _register_default_blocks() -> void:
 	var inv_corner := BlockData.new()
 	inv_corner.block_id = BLOCK_INV_CORNER_ID
 	inv_corner.block_name = "inv_corner"
-	inv_corner.block_description = "Esquina invertida (cóncava)"
+	inv_corner.block_description = "BLOCK_INV_CORNER_DESC"
 	inv_corner.mesh = BlockMeshGenerator.generate_inv_corner()
 	inv_corner.collision_shape = BlockMeshGenerator.generate_inv_corner_collision()
 	inv_corner.can_rotate = true
@@ -262,7 +263,7 @@ func _register_default_blocks() -> void:
 	var pane := BlockData.new()
 	pane.block_id = BLOCK_PANE_ID
 	pane.block_name = "pane"
-	pane.block_description = "Panel plano de una sola lámina, para ventanas"
+	pane.block_description = "BLOCK_PANE_DESC"
 	pane.mesh = BlockMeshGenerator.generate_pane()
 	pane.collision_shape = BlockMeshGenerator.generate_pane_collision()
 	pane.can_rotate = true
@@ -272,7 +273,7 @@ func _register_default_blocks() -> void:
 	var pane_slope := BlockData.new()
 	pane_slope.block_id = BLOCK_PANE_SLOPE_ID
 	pane_slope.block_name = "pane_slope"
-	pane_slope.block_description = "Panel plano inclinado, en el plano de la rampa"
+	pane_slope.block_description = "BLOCK_PANE_SLOPE_DESC"
 	pane_slope.mesh = BlockMeshGenerator.generate_pane_slope()
 	pane_slope.collision_shape = BlockMeshGenerator.generate_pane_slope_collision()
 	pane_slope.can_rotate = true
@@ -282,7 +283,7 @@ func _register_default_blocks() -> void:
 func _create_block_item(block: BlockData) -> ItemData:
 	var item := ItemData.new()
 	item.id = StringName("block_%s" % block.block_name)
-	item.display_name = block.block_name.capitalize()
+	item.display_name = "ITEM_" + String(item.id).to_upper()
 	item.description = block.block_description
 	item.icon = block.preview_icon
 	item.category = ItemData.Category.BLOCK

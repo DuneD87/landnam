@@ -236,6 +236,10 @@ world_map={
 ]
 }
 
+[internationalization]
+
+locale/translations=PackedStringArray("res://localization/translations.en.translation", "res://localization/translations.es.translation")
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

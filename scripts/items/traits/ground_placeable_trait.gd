@@ -28,4 +28,4 @@ const PLACED_GROUP := &"ground_placed"
 
 
 func describe() -> Array:
-	return [["Se planta", "En el suelo"]]
+	return [["TRAIT_PLACED", tr("TRAIT_ON_GROUND")]]

@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"slingshot"
-display_name = "Tirachinas"
-description = "Horquilla de avellano y badana. Dispara piedras: poco daño, pero rápido y aturde."
+display_name = "ITEM_SLINGSHOT"
+description = "ITEM_SLINGSHOT_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/slingshot.tscn"

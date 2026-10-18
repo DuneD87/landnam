@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_ejppn")
 id = &"sinew"
-display_name = "Tendón"
-description = "Tendón seco de las patas. Machacado en hebras es hilo de coser, cuerda de arco y atadura para enmangar."
+display_name = "ITEM_SINEW"
+description = "ITEM_SINEW_DESC"
 icon = ExtResource("1_t3x44")
 scene_path = "res://scenes/items/survival/sinew.tscn"
 max_stack = 30

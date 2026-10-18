@@ -11,8 +11,8 @@ script = ExtResource("4_jdpd5")
 [resource]
 script = ExtResource("2_v5s1g")
 id = &"seax"
-display_name = "Seax"
-description = "El cuchillo de un filo con el lomo quebrado que todos llevan al cinto: corta, despelleja y, en un apuro, pelea."
+display_name = "ITEM_SEAX"
+description = "ITEM_SEAX_DESC"
 icon = ExtResource("1_hwr51")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/seax.tscn"

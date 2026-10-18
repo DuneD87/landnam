@@ -25,8 +25,8 @@ heightmap_texture = ExtResource("5_mub33")
 [resource]
 script = ExtResource("1_3uv04")
 id = &"gold_01"
-display_name = "Oro"
-description = "Pepitas de oro de las montañas altas. Blando para herramientas; para adornos, monedas y lo que se quiera presumir."
+display_name = "ITEM_GOLD_01"
+description = "ITEM_GOLD_01_DESC"
 scene_path = "res://scenes/items/survival/gold.tscn"
 icon = ExtResource("1_ymky2")
 surface_material = SubResource("StandardMaterial3D_mhgyb")

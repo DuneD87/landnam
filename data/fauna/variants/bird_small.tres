@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_variant")
-id = &"pequeña"
+id = &"small"
 weight = 0.3
 size = Vector2(0.86, 0.94)
 voice_pitch = 1.08

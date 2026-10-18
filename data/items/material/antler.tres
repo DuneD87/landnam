@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_ylr2q")
 id = &"antler"
-display_name = "Asta"
-description = "La cornamenta de un ciervo, un caribú o un alce: dura y ligera, para picos, mangos y percutores de tallar sílex."
+display_name = "ITEM_ANTLER"
+description = "ITEM_ANTLER_DESC"
 icon = ExtResource("1_2wmjh")
 scene_path = "res://scenes/items/survival/antler.tscn"
 max_stack = 10

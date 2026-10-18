@@ -8,8 +8,8 @@
 [sub_resource type="Resource" id="Resource_uuwfy"]
 script = ExtResource("3_djqyn")
 id = &"stone_pickaxe"
-display_name = "Stone Pickaxe"
-description = "Stone Pickaxe"
+display_name = "ITEM_STONE_PICKAXE_01"
+description = "ITEM_STONE_PICKAXE_01_DESC"
 icon = ExtResource("2_e0dbf")
 category = 1
 scene_path = "res://scenes/weapons/stone_pickaxe2.tscn"

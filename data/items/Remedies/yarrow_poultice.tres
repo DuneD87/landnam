@@ -11,13 +11,13 @@ health = 5.0
 recovery_time = 12.0
 stanch = 1.0
 mend = 0.35
-use_text = "Te pones un emplasto de milenrama: deja de sangrar"
+use_text = "REMEDY_YARROW_POULTICE_USE"
 
 [resource]
 script = ExtResource("2_item")
 id = &"yarrow_poultice"
-display_name = "Emplasto de milenrama"
-description = "Milenrama machacada sobre una hoja ancha y atada con fibra. Sobre la herida corta la sangre y la cierra; en un muñón la frena, pero no del todo."
+display_name = "ITEM_YARROW_POULTICE"
+description = "ITEM_YARROW_POULTICE_DESC"
 icon = ExtResource("1_icon")
 category = 3
 scene_path = "res://scenes/items/survival/yarrow_poultice.tscn"

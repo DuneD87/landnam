@@ -5,6 +5,7 @@ extends Resource
 
 @export var block_id: int = -1
 @export var block_name: String = ""
+## Clave de localization/translations.csv (BLOCK_<NAME>_DESC).
 @export var block_description: String = ""
 
 ## Geometría y colisión

@@ -3,7 +3,8 @@ extends PanelContainer
 
 ## Ficha del objeto que sale junto al hueco bajo el ratón en la pantalla de equipo: nombre, tipo
 ## (ItemTaxonomy), sus cifras comparadas con lo que se lleva puesto en el mismo hueco (▲ mejor,
-## ▼ peor), lo que dan sus rasgos (ItemTrait), la descripción y qué hacen ahí los clics.
+## ▼ peor), lo que dan sus rasgos (ItemTrait), la descripción y qué hacen ahí los clics. Los nombres
+## de las filas son claves (los traduce su Label); los valores y la pista llegan ya traducidos.
 
 const Config = preload("res://scripts/config.gd")
 
@@ -31,11 +32,11 @@ func _init() -> void:
 ## [compare] es lo que se lleva puesto en el hueco del objeto (null si nada, o si es él mismo).
 func show_item(data: ItemData, quantity: int, compare: ItemData, hint: String) -> void:
 	_clear()
-	_label(data.display_name, &"CardTitle")
+	_label(data.get_display_name(), &"CardTitle")
 	_label(kind_line(data), &"HintLabel")
 	var rows := stat_rows(data, compare)
 	if data.stackable and data.max_stack > 1 and quantity > 0:
-		rows.append(["Cantidad", "%d / %d" % [quantity, data.max_stack], 0.0])
+		rows.append(["CARD_QUANTITY", "%d / %d" % [quantity, data.max_stack], 0.0])
 	if not rows.is_empty():
 		_column.add_child(HSeparator.new())
 		var grid := GridContainer.new()
@@ -55,18 +56,19 @@ func show_item(data: ItemData, quantity: int, compare: ItemData, hint: String) -
 				delta_label.text = ("▲ " if delta > 0.0 else "▼ ") + _number(absf(row[3] if row.size() > 3 else delta))
 			grid.add_child(delta_label)
 		_column.add_child(grid)
-	if data.description.strip_edges() != "":
-		var description := _label(data.description.strip_edges(), &"StatLabel")
+	var text := data.get_description().strip_edges()
+	if text != "":
+		var description := _label(text, &"StatLabel")
 		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_footer(hint)
 	_present()
 
 
-## Ficha de un hueco vacío: su nombre y lo que se puede hacer.
+## Ficha de un hueco vacío: su nombre y lo que se puede hacer (claves o textos ya traducidos).
 func show_empty(title: String, hint: String) -> void:
 	_clear()
 	_label(title, &"CardTitle")
-	_label("Vacío", &"HintLabel")
+	_label("CARD_EMPTY", &"HintLabel")
 	_footer(hint)
 	_present()
 
@@ -104,34 +106,34 @@ static func stat_rows(data: ItemData, compare: ItemData) -> Array:
 	var rows := []
 	var other := compare if compare != null and compare.id != data.id else null
 	if data.is_shield():
-		rows.append(["Bloqueo", "%d %%" % roundi(data.guard_reduction * 100.0)]
+		rows.append(["CARD_BLOCK", "%d %%" % roundi(data.guard_reduction * 100.0)]
 			+ _delta(other, data.guard_reduction * 100.0, other.guard_reduction * 100.0 if other else 0.0))
-		rows.append(["Estabilidad", _number(data.guard_stability)]
+		rows.append(["CARD_STABILITY", _number(data.guard_stability)]
 			+ _delta(other, data.guard_stability, other.guard_stability if other else 0.0))
 		if data.guard_projectiles:
-			rows.append(["Para flechas", "Sí", 0.0])
+			rows.append(["CARD_STOPS_ARROWS", TranslationServer.translate(&"UI_YES"), 0.0])
 		return rows
 	match data.category:
 		ItemData.Category.WEAPON, ItemData.Category.TOOL:
 			if data.damage > 0:
-				rows.append(["Daño", str(data.damage)]
+				rows.append(["CARD_DAMAGE", str(data.damage)]
 					+ _delta(other, data.damage, other.damage if other else 0.0))
-				rows.append(["Ritmo", "×" + _number(data.attack_speed)]
+				rows.append(["CARD_SPEED", "×" + _number(data.attack_speed)]
 					+ _delta(other, data.attack_speed, other.attack_speed if other else 0.0))
 				if data.armor_penetration > 0.0:
-					rows.append(["Penetración", "%d %%" % roundi(data.armor_penetration * 100.0)]
+					rows.append(["CARD_PENETRATION", "%d %%" % roundi(data.armor_penetration * 100.0)]
 						+ _delta(other, data.armor_penetration * 100.0,
 							other.armor_penetration * 100.0 if other else 0.0))
 				if data.is_melee():
-					rows.append(["Aguante por golpe", _number(data.stamina_cost)]
+					rows.append(["CARD_STAMINA_PER_HIT", _number(data.stamina_cost)]
 						+ _delta(other, data.stamina_cost, other.stamina_cost if other else 0.0, false))
-					rows.append(["Alcance", _number(data.reach) + " m"]
+					rows.append(["CARD_REACH", _number(data.reach) + " m"]
 						+ _delta(other, data.reach, other.reach if other else 0.0))
 			if data.ammo_id != &"":
 				var ammo: ItemData = Config.get_item(data.ammo_id)
-				rows.append(["Munición", ammo.display_name if ammo else String(data.ammo_id), 0.0])
+				rows.append(["CARD_AMMO", ammo.get_display_name() if ammo else String(data.ammo_id), 0.0])
 			if data.mining_power > 0:
-				rows.append(["Potencia", str(data.mining_power)]
+				rows.append(["CARD_POWER", str(data.mining_power)]
 					+ _delta(other, data.mining_power, other.mining_power if other else 0.0))
 		ItemData.Category.ARMOR:
 			var mine := Armor.of(data)
@@ -141,7 +143,7 @@ static func stat_rows(data: ItemData, compare: ItemData) -> Array:
 					+ _delta(other, Armor.against(mine, kind), Armor.against(theirs, kind)))
 			var covers := Armor.describe_coverage(Armor.coverage_of(data))
 			if covers != "":
-				rows.append(["Cubre", covers, 0.0])
+				rows.append(["CARD_COVERS", covers, 0.0])
 	# Lo que se puede hacer con él: comerlo, quemarlo, abrigarse...
 	for item_trait in data.traits:
 		if item_trait != null:
@@ -157,12 +159,8 @@ static func _delta(other: ItemData, mine: float, theirs: float, higher_better :=
 	return [d if higher_better else -d, d]
 
 
-## Con coma decimal y sin ceros de más: 1,25 / 1,1 / 16.
 static func _number(value: float) -> String:
-	if is_equal_approx(value, roundf(value)):
-		return str(roundi(value))
-	var text := ("%.2f" % value).rstrip("0").rstrip(".")
-	return text.replace(".", ",")
+	return ItemTrait.number(value)
 
 
 func _footer(hint: String) -> void:

@@ -119,7 +119,7 @@ func _check_panel() -> void:
 	check(panel._tiles.size() == Recipes.all().size(), "salen todas las recetas en «Todo» (%d)" % panel._tiles.size())
 	var axe := _recipe(&"stone_axe_01")
 	panel._select(axe)
-	check(panel._make_button.disabled and panel._where_state.text == "No está cerca", "sin banco cerca, el hacha no se fabrica")
+	check(panel._make_button.disabled and panel._where_state.text == tr("CRAFT_NOT_NEAR"), "sin banco cerca, el hacha no se fabrica")
 	var bench: Workstation = load("res://scenes/world/stone_workbench.tscn").instantiate()
 	add_child(bench)
 	bench.position = Vector3(1.5, 0, 0)
@@ -128,11 +128,11 @@ func _check_panel() -> void:
 	panel._poll = 0.0
 	await get_tree().process_frame
 	await get_tree().process_frame
-	check(not panel._make_button.disabled and panel._where_state.text == "Cerca", "con el banco al lado, sí")
+	check(not panel._make_button.disabled and panel._where_state.text == tr("CRAFT_NEAR"), "con el banco al lado, sí")
 	panel._set_max()
 	check(int(panel._quantity.value) == 4, "Máx: cuatro hachas (las pieles mandan)")
 	panel._quantity.value = 3
-	check(panel._make_button.text == "Fabricar ×3", "el botón dice cuántas")
+	check(panel._make_button.text == tr("CRAFT_MAKE_N") % 3, "el botón dice cuántas")
 	panel._craft()
 	check(ui.inventory.get_item_count(Config.get_item(&"stone_axe_01")) == 3, "fabrica tres hachas")
 	check(ui.inventory.get_item_count(Config.get_item(&"raw_hide")) == 1, "y gasta tres pieles")

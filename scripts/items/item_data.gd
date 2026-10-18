@@ -12,6 +12,8 @@ enum DamageKind {SLASH, BLUNT, PIERCE}
 enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND}
 
 @export var id: StringName  # "stone_pickaxe"
+## Claves de localization/translations.csv (ITEM_<ID> e ITEM_<ID>_DESC); se leen traducidas con
+## get_display_name() y get_description(). Un texto que no sea clave sale tal cual.
 @export var display_name: String
 @export var description: String
 @export var icon: Texture2D
@@ -113,6 +115,15 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 ## Lo que se puede hacer con el objeto además de lo de arriba: comerlo, quemarlo, asarlo, llevar
 ## agua, abrigar, despellejar... (ItemTrait). Ver docs/items.md.
 @export var traits: Array[ItemTrait] = []
+
+## El nombre en el idioma del juego.
+func get_display_name() -> String:
+	return tr(display_name)
+
+
+func get_description() -> String:
+	return tr(description) if description != "" else ""
+
 
 static func clone(source: ItemData) -> ItemData:
 	var copy := ItemData.new()

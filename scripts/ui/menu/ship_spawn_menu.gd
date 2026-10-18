@@ -60,7 +60,7 @@ func _build_ui() -> void:
 	vbox.add_child(header)
 
 	var title := Label.new()
-	title.text = "Generar barco"
+	title.text = "SHIP_TITLE"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", Color(0.9, 0.75, 0.3, 1.0))
@@ -79,16 +79,16 @@ func _build_ui() -> void:
 	grid.add_theme_constant_override("v_separation", 8)
 	vbox.add_child(grid)
 
-	_length_spin = _add_field(grid, "Largo (bloques)", DEFAULT_LENGTH, 6, 400)
-	_width_spin = _add_field(grid, "Ancho (bloques)", DEFAULT_WIDTH, 3, 160)
-	_height_spin = _add_field(grid, "Alto (bloques)", DEFAULT_HEIGHT, 2, 120)
-	_compartments_spin = _add_field(grid, "Camarotes", DEFAULT_COMPARTMENTS, 1, 60)
-	_decks_spin = _add_field(grid, "Plantas por camarote", DEFAULT_DECKS, 1, 20)
+	_length_spin = _add_field(grid, "SHIP_LENGTH", DEFAULT_LENGTH, 6, 400)
+	_width_spin = _add_field(grid, "SHIP_WIDTH", DEFAULT_WIDTH, 3, 160)
+	_height_spin = _add_field(grid, "SHIP_HEIGHT", DEFAULT_HEIGHT, 2, 120)
+	_compartments_spin = _add_field(grid, "SHIP_CABINS", DEFAULT_COMPARTMENTS, 1, 60)
+	_decks_spin = _add_field(grid, "SHIP_DECKS", DEFAULT_DECKS, 1, 20)
 
 	vbox.add_child(HSeparator.new())
 
 	var spawn_btn := Button.new()
-	spawn_btn.text = "Generar"
+	spawn_btn.text = "SHIP_SPAWN"
 	spawn_btn.pressed.connect(_on_spawn_pressed)
 	vbox.add_child(spawn_btn)
 

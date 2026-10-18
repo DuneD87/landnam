@@ -75,7 +75,7 @@ func _init() -> void:
 	_stations_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	header.add_child(_stations_label)
 	var only := CheckButton.new()
-	only.text = "Solo lo que puedo hacer"
+	only.text = "CRAFT_ONLY_CRAFTABLE"
 	only.focus_mode = Control.FOCUS_NONE
 	only.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	only.toggled.connect(_set_only_craftable)
@@ -103,7 +103,7 @@ func _init() -> void:
 	_build_detail()
 
 	box.add_child(HSeparator.new())
-	var hint := _label("Clic en una receta: elegirla · Lo fabricado va al inventario; si no cabe, al suelo · Las estaciones de trabajo se plantan como las hogueras", &"HintLabel")
+	var hint := _label("CRAFT_HINT", &"HintLabel")
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(hint)
 
@@ -146,7 +146,7 @@ func _build_detail() -> void:
 	_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.add_child(_description)
 	detail.add_child(HSeparator.new())
-	detail.add_child(_label("Dónde", &"SectionLabel"))
+	detail.add_child(_label("CRAFT_WHERE", &"SectionLabel"))
 	var where := HBoxContainer.new()
 	_where = _label("", &"StatValue")
 	_where.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -155,14 +155,14 @@ func _build_detail() -> void:
 	where.add_child(_where_state)
 	detail.add_child(where)
 	detail.add_child(HSeparator.new())
-	detail.add_child(_label("Materiales", &"SectionLabel"))
+	detail.add_child(_label("CRAFT_MATERIALS", &"SectionLabel"))
 	_inputs = VBoxContainer.new()
 	_inputs.add_theme_constant_override("separation", 6)
 	detail.add_child(_inputs)
 	column.add_child(HSeparator.new())
 
 	var amount := HBoxContainer.new()
-	var amount_label := _label("Cantidad", &"StatLabel")
+	var amount_label := _label("CARD_QUANTITY", &"StatLabel")
 	amount_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	amount.add_child(amount_label)
 	_quantity = SpinBox.new()
@@ -172,13 +172,13 @@ func _build_detail() -> void:
 	_quantity.rounded = true
 	_quantity.select_all_on_focus = true
 	_quantity.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_quantity.tooltip_text = "Cuántas veces: flechas, rueda del ratón o escribiendo"
+	_quantity.tooltip_text = "CRAFT_QUANTITY_TIP"
 	_quantity.value_changed.connect(func(_value: float) -> void: _refresh_detail())
 	amount.add_child(_quantity)
 	_max_button = Button.new()
-	_max_button.text = "Máx"
+	_max_button.text = "CRAFT_MAX"
 	_max_button.focus_mode = Control.FOCUS_NONE
-	_max_button.tooltip_text = "Todas las que te alcanzan"
+	_max_button.tooltip_text = "CRAFT_MAX_TIP"
 	_max_button.pressed.connect(_set_max)
 	amount.add_child(_max_button)
 	_total = _label("", &"ValueLabel")
@@ -254,7 +254,7 @@ func _build_rail() -> void:
 		var result: ItemData = Config.get_item(recipe.result)
 		if result != null:
 			used[ItemTaxonomy.category_of(result)] = true
-	var tabs: Array = [[-1, "Todo"]]
+	var tabs: Array = [[-1, "INV_FILTER_ALL"]]
 	for entry in ItemTaxonomy.CATEGORIES:
 		if used.has(entry[0]):
 			tabs.append([int(entry[0]), entry[1]])
@@ -320,7 +320,7 @@ func _rebuild_list() -> void:
 		var tile := ItemSlotView.new()
 		tile.size_kind = &"recipe"
 		tile.show_item(result.icon, recipe.amount)
-		tile.tooltip_text = result.display_name
+		tile.tooltip_text = result.get_display_name()
 		tile.selected = recipe == _selected
 		tile.modulate = Color.WHITE if can else DIM
 		tile.slot_clicked.connect(func(_slot: ItemSlotView, button: int) -> void:
@@ -329,7 +329,7 @@ func _rebuild_list() -> void:
 		grid.add_child(tile)
 		_tiles[recipe] = tile
 	if _tiles.is_empty():
-		var empty := _label("No te alcanza para nada de esto: busca más material o acércate a una estación de trabajo." if _only_craftable else "Aquí no hay nada que fabricar.", &"HintLabel")
+		var empty := _label("CRAFT_NOTHING_AFFORDABLE" if _only_craftable else "CRAFT_NOTHING_HERE", &"HintLabel")
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_list.add_child(empty)
 	if focus != null:
@@ -354,15 +354,15 @@ func _station_heading(station: StringName) -> Control:
 	row.add_child(spacer)
 	if near is Workstation:
 		var dismantle := Button.new()
-		dismantle.text = "Desmontar"
+		dismantle.text = "UI_DISMANTLE"
 		dismantle.focus_mode = Control.FOCUS_NONE
-		dismantle.tooltip_text = "Vuelve al inventario"
+		dismantle.tooltip_text = "CRAFT_DISMANTLE_TIP"
 		dismantle.pressed.connect(_dismantle.bind(near))
 		row.add_child(dismantle)
 	else:
 		var made := _made_at(station)
 		if made != "":
-			var hint := _label("Se fabrica: %s" % made.to_lower(), &"HintLabel")
+			var hint := _label(tr("CRAFT_MADE_AT") % made.to_lower(), &"HintLabel")
 			hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(hint)
 	return row
@@ -402,9 +402,9 @@ func _refresh_detail() -> void:
 	var inventory := ui.inventory
 	var times := int(_quantity.value)
 	_preview.show_item(result.icon, recipe.amount)
-	_name.text = result.display_name
+	_name.text = result.get_display_name()
 	_kind.text = ItemTaxonomy.kind_line(result)
-	_yield.text = "Salen %d cada vez" % recipe.amount if recipe.amount > 1 else ""
+	_yield.text = tr("CRAFT_YIELD") % recipe.amount if recipe.amount > 1 else ""
 	_yield.visible = recipe.amount > 1
 	for child in _stats.get_children():
 		_stats.remove_child(child)
@@ -416,7 +416,7 @@ func _refresh_detail() -> void:
 		var value := _label(row[1], &"StatValue")
 		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		_stats.add_child(value)
-	_description.text = result.description.strip_edges()
+	_description.text = result.get_description().strip_edges()
 	_description.visible = _description.text != ""
 
 	var ready := _station_ready(recipe.station)
@@ -430,28 +430,28 @@ func _refresh_detail() -> void:
 		child.queue_free()
 	var missing := Recipes.missing(recipe, inventory, times, _needs())
 	if recipe.water > 0:
-		_inputs.add_child(_input_row(Config.get_item(&"waterskin"), "Agua de los odres",
-			"%d / %d tragos" % [_needs().water if _needs() != null else 0, recipe.water * times],
+		_inputs.add_child(_input_row(Config.get_item(&"waterskin"), tr("CRAFT_WATER"),
+			tr("INV_SIPS_OF") % [_needs().water if _needs() != null else 0, recipe.water * times],
 			missing.has(Recipes.WATER)))
 	for id: StringName in recipe.inputs:
 		var data: ItemData = Config.get_item(id)
 		var need: int = recipe.inputs[id] * times
-		_inputs.add_child(_input_row(data, data.display_name if data != null else String(id),
+		_inputs.add_child(_input_row(data, data.get_display_name() if data != null else String(id),
 			"%d / %d" % [inventory.get_item_count(data), need], missing.has(id)))
 
 	var made := recipe.amount * times
-	_total.text = "Salen %d" % made if made > 1 else ""
+	_total.text = tr("CRAFT_TOTAL") % made if made > 1 else ""
 	_max_button.disabled = Recipes.max_times(recipe, inventory, _needs()) < 1
-	_make_button.text = "Fabricar" if times == 1 else "Fabricar ×%d" % times
+	_make_button.text = tr("INV_CRAFT") if times == 1 else tr("CRAFT_MAKE_N") % times
 	_make_button.disabled = not ready or not missing.is_empty()
 	if not ready and recipe.station == Workstation.CAMPFIRE:
-		_reason.text = "Hace falta una hoguera encendida cerca"
+		_reason.text = tr("CRAFT_NEED_FIRE")
 	elif not ready:
-		_reason.text = "Hay que estar junto a: %s" % Recipes.station_name(recipe.station).to_lower()
+		_reason.text = tr("CRAFT_NEED_STATION") % Recipes.station_name(recipe.station).to_lower()
 	elif missing.size() == 1 and missing.has(Recipes.WATER):
-		_reason.text = "Te falta agua en los odres: llénalos en un río o un lago"
+		_reason.text = tr("CRAFT_NEED_WATER")
 	elif not missing.is_empty():
-		_reason.text = "Te falta material" if times == 1 else "Te falta material para %d" % times
+		_reason.text = tr("CRAFT_MISSING") if times == 1 else tr("CRAFT_MISSING_N") % times
 	else:
 		_reason.text = ""
 	_reason.visible = _reason.text != ""
@@ -467,19 +467,19 @@ func _craft() -> void:
 	if recipe == null or ui == null:
 		return
 	if not _station_ready(recipe.station):
-		_notify("Acércate a: %s" % Recipes.station_name(recipe.station).to_lower())
+		_notify(tr("CRAFT_GO_TO") % Recipes.station_name(recipe.station).to_lower())
 		return
 	var times := int(_quantity.value)
 	var left := Recipes.craft(recipe, ui.inventory, times, _needs())
 	if left < 0:
-		_notify("Te falta material")
+		_notify(tr("CRAFT_MISSING"))
 		return
 	var result: ItemData = Config.get_item(recipe.result)
 	if left > 0:
 		ui.drop_requested.emit(result, left)
 	var made := recipe.amount * times
-	_notify("Fabricas: %s" % result.display_name + (" ×%d" % made if made > 1 else "")
-		+ (" · %d al suelo, no caben" % left if left > 0 else ""))
+	_notify(tr("CRAFT_CRAFTED") % result.get_display_name() + (" ×%d" % made if made > 1 else "")
+		+ (" · " + tr("CRAFT_DROPPED") % left if left > 0 else ""))
 	ui.inventory.inventory_changed.emit()
 
 
@@ -520,8 +520,8 @@ func _stations_in_reach() -> Dictionary:
 ## «Cerca» / «No está cerca»; la hoguera tiene que estar encendida.
 func _near_text(station: StringName, near: bool) -> String:
 	if station == Workstation.CAMPFIRE:
-		return "Encendida cerca" if near else "No hay una encendida cerca"
-	return "Cerca" if near else "No está cerca"
+		return tr("CRAFT_FIRE_NEAR") if near else tr("CRAFT_FIRE_NOT_NEAR")
+	return tr("CRAFT_NEAR") if near else tr("CRAFT_NOT_NEAR")
 
 
 ## Se puede hacer aquí lo de [station]: a mano siempre; lo de una estación, con una cerca.
@@ -542,7 +542,7 @@ func _refresh_stations_label() -> void:
 	for id: StringName in _stations:
 		names.append(Recipes.station_name(id))
 	names.sort()
-	_stations_label.text = "Cerca: " + ", ".join(names) if not names.is_empty() else "Sin estaciones de trabajo cerca"
+	_stations_label.text = tr("CRAFT_STATIONS_NEAR") % ", ".join(names) if not names.is_empty() else tr("CRAFT_NO_STATIONS")
 
 
 func _dismantle(station: Workstation) -> void:
@@ -558,7 +558,7 @@ func _dismantle(station: Workstation) -> void:
 		var left := ui.inventory.add_item(data, 1)
 		if left > 0:
 			ui.drop_requested.emit(data, left)
-		_notify("Desmontas: %s" % data.display_name.to_lower())
+		_notify(tr("CRAFT_DISMANTLED") % data.get_display_name().to_lower())
 	ui.inventory.inventory_changed.emit()
 
 

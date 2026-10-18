@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("1_3uv04")
 id = &"iron_01"
-display_name = "Hematites"
-description = "Roca rojiza y pesada, rica en hierro, que sale en manchas por todo el mundo. Con carbón y un buen horno, hierro."
+display_name = "ITEM_IRON_01"
+description = "ITEM_IRON_01_DESC"
 scene_path = "res://scenes/items/survival/iron_ore.tscn"
 icon = ExtResource("1_pleas")
 max_stack = 50

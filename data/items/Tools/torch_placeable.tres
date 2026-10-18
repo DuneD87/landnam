@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"torch_placeable_01"
-display_name = "Antorcha de pared"
-description = "Una antorcha para colgar en los muros de lo que construyas."
+display_name = "ITEM_TORCH_PLACEABLE_01"
+description = "ITEM_TORCH_PLACEABLE_01_DESC"
 icon = ExtResource("1_icon")
 scene_path = "res://scenes/items/torches/torch_placed.tscn"
 placeable = true

@@ -12,8 +12,8 @@ warmth = 1.0
 [resource]
 script = ExtResource("2_0qbmi")
 id = &"leather_hood"
-display_name = "Capucha de cuero"
-description = "Leather Hood"
+display_name = "ITEM_LEATHER_HOOD"
+description = "ITEM_LEATHER_HOOD_DESC"
 icon = ExtResource("1_2nf41")
 category = 4
 scene_path = "res://scenes/items/armor/leather_armor/leather_hood_equipable.tscn"

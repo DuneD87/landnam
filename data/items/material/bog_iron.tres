@@ -6,8 +6,8 @@
 [resource]
 script = ExtResource("2_item")
 id = &"bog_iron"
-display_name = "Hierro de pantano"
-description = "Terrones herrumbrosos de limonita de las tierras bajas y encharcadas. Pobre en hierro, pero fácil de sacar: el de los primeros herreros del norte."
+display_name = "ITEM_BOG_IRON"
+description = "ITEM_BOG_IRON_DESC"
 icon = ExtResource("1_icon")
 scene_path = "res://scenes/items/survival/bog_iron.tscn"
 max_stack = 50

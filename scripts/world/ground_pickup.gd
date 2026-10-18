@@ -99,8 +99,8 @@ static func report(around: Node3D) -> String:
 		var item_id := _item_of(body)
 		counts[item_id] = counts.get(item_id, 0) + 1
 	if counts.is_empty():
-		return "Nada que recoger a 12 m."
-	return "Recogible a 12 m: %s" % str(counts)
+		return TranslationServer.translate(&"CON_LITTER_NONE")
+	return TranslationServer.translate(&"CON_LITTER_REPORT") % str(counts)
 
 
 ## Si la vista apunta a [body] (al centro de su forma, que en una mata está a media altura).

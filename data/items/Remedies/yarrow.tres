@@ -9,13 +9,13 @@
 script = ExtResource("4_remedy")
 health = 3.0
 stanch = 0.3
-use_text = "Masticas milenrama: amarga, pero corta la sangre"
+use_text = "REMEDY_YARROW_USE"
 
 [resource]
 script = ExtResource("2_item")
 id = &"yarrow"
-display_name = "Milenrama"
-description = "Hierba de prado de hojas finas como plumas y umbelas de florecillas blancas. Masticada corta un poco la sangre; machacada en emplasto o cocida en bebedizo, cura de verdad."
+display_name = "ITEM_YARROW"
+description = "ITEM_YARROW_DESC"
 icon = ExtResource("1_icon")
 category = 3
 scene_path = "res://scenes/items/survival/yarrow.tscn"

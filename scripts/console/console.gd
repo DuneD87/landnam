@@ -3,6 +3,8 @@ extends CanvasLayer
 ## Consola de depuración (autoload): una capa con salida y entrada, abrible con "toggle_console".
 ## Los comandos son ConsoleCommand autodescriptivos en un registro, así /help y el autocompletado se
 ## generan solos. Resuelve sus objetivos de forma perezosa (jugador, clima, sol) sin acoplarse.
+## Los comandos y sus argumentos son en inglés en todos los idiomas; su ayuda (claves CON_HELP_*) y
+## lo que contestan (CON_*) salen de localization/translations.csv.
 
 const config = preload("res://scripts/config.gd")
 
@@ -29,7 +31,8 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
 	_register_commands()
-	_print("[color=%s]Consola lista. Escribe 'help' para ver los comandos.[/color]" % COLOR_MUTED)
+	# Diferido: el autoload Settings, que pone el idioma elegido, arranca después que este.
+	(func() -> void: _print(_paint(COLOR_MUTED, tr("CON_READY")))).call_deferred()
 	_set_visible(false)
 
 
@@ -60,7 +63,7 @@ func _build_ui() -> void:
 	vbox.add_child(_output)
 
 	_input_field = LineEdit.new()
-	_input_field.placeholder_text = "Comando…  (Tab autocompleta · ↑/↓ historial)"
+	_input_field.placeholder_text = "CON_PLACEHOLDER"
 	_input_field.clear_button_enabled = true
 	_input_field.context_menu_enabled = false
 	_input_field.gui_input.connect(_on_input_field_gui_input)
@@ -154,10 +157,10 @@ func _run(line: String) -> void:
 
 	var cmd: ConsoleCommand = _commands.get(cmd_name)
 	if cmd == null:
-		_err("Comando desconocido: '%s'. Escribe 'help'." % cmd_name)
+		_err(tr("CON_UNKNOWN_COMMAND") % cmd_name)
 		return
 	if args.size() < cmd.min_args:
-		_err("Uso: %s" % cmd.usage)
+		_err(tr("CON_USAGE") % cmd.usage)
 		return
 
 	var result: Variant = cmd.callable.call(PackedStringArray(args))
@@ -227,6 +230,11 @@ func _info(msg: String) -> void:
 	_print("[color=%s]%s[/color]" % [COLOR_INFO, msg])
 
 
+## [text] (ya traducido) en [color], para devolverlo como respuesta.
+func _paint(color: String, text: String) -> String:
+	return "[color=%s]%s[/color]" % [color, text]
+
+
 
 func _get_player() -> Node:
 	return GameManager.player
@@ -242,78 +250,50 @@ func _get_sun() -> Node:
 func _add(cmd: ConsoleCommand) -> void:
 	_commands[cmd.name] = cmd
 
+## Cada comando con su sintaxis (en inglés, como el comando) y la clave de su ayuda.
 func _register_commands() -> void:
-	_add(ConsoleCommand.new("help", "help [comando]",
-		"Lista los comandos o muestra la ayuda de uno.", _cmd_help))
-	_add(ConsoleCommand.new("clear", "clear",
-		"Limpia la salida de la consola.", _cmd_clear))
-	_add(ConsoleCommand.new("give", "give <item_id> [cantidad]",
-		"Añade un item al inventario.", _cmd_give, 1, _complete_item_ids))
-	_add(ConsoleCommand.new("items", "items [filtro]",
-		"Lista los ids de item disponibles.", _cmd_items))
-	_add(ConsoleCommand.new("weather", "weather <evento|reset|list>",
-		"Fuerza el clima, lo libera o lista eventos.", _cmd_weather, 1, _complete_weather))
-	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>",
-		"Teletransporta al jugador a una posición global.", _cmd_tp, 3))
-	_add(ConsoleCommand.new("heal", "heal [cantidad]",
-		"Cura al jugador (sin argumento, cura al máximo, cierra las heridas, le devuelve los miembros y le quita los estados).", _cmd_heal))
-	_add(ConsoleCommand.new("suelo", "suelo",
-		"Ramas y piedras que se pueden recoger alrededor.", _cmd_litter))
-	_add(ConsoleCommand.new("god", "god [on|off]",
-		"Invulnerabilidad del jugador (sin argumento, alterna).", _cmd_god))
-	_add(ConsoleCommand.new("noclip", "noclip",
-		"Alterna el vuelo libre / atravesar terreno.", _cmd_noclip))
-	_add(ConsoleCommand.new("sun", "sun <azimuth> [elevación] | sun auto <on|off>",
-		"Coloca el sol o (des)activa su rotación automática.", _cmd_sun, 1))
-	_add(ConsoleCommand.new("estacion", "estacion [primavera|verano|otoño|invierno|<día>] | estacion velocidad <x> | estacion perf [hojas|frio|pradera|nada]",
-		"Fecha y estación donde estás; salta a una estación de tu hemisferio o a un día del año, o acelera el calendario. perf deja una parte como en verano para aislar su coste.",
-		_cmd_season, 0, _complete_season))
-	_add(ConsoleCommand.new("wake", "wake [on|off]",
-		"Apaga la espuma de estela, para aislar su coste por píxel.", _cmd_wake))
-	_add(ConsoleCommand.new("sombras", "sombras [on|off]",
-		"Apaga las sombras del sol, para aislar su coste (cambia con la altura del sol y la estación).", _cmd_shadows))
-	_add(ConsoleCommand.new("drift", "drift [factor]",
-		"Fuerza de la corriente del mar; sin argumento, informe de cómo la ven barco y jugador.", _cmd_drift))
-	_add(ConsoleCommand.new("damage", "damage [julios]",
-		"Daña el bloque apuntado con una energía exacta; sin argumento, informa de su vida.", _cmd_damage))
-	_add(ConsoleCommand.new("anchors", "anchors [distancia]",
-		"De la estructura apuntada: cuántos bloques se apoyan en el suelo y cuántos se caerían.", _cmd_anchors))
-	_add(ConsoleCommand.new("derelicts", "derelicts",
-		"Estado de la retirada de restos: qué condición bloquea a cada cuerpo dinámico.", _cmd_derelicts))
-	_add(ConsoleCommand.new("audio", "audio [evento]",
-		"Estado del pool de voces y descartes; con un evento, lo dispara en el jugador.", _cmd_audio, 1))
-	_add(ConsoleCommand.new("water", "water",
-		"Mezcla del agua: mar/lago/rio, cuanta costa y cuanto temporal.", _cmd_water))
-	_add(ConsoleCommand.new("fauna", "fauna",
-		"Población de cada especie y por qué se descartan sus puntos de spawn.", _cmd_fauna))
-	_add(ConsoleCommand.new("perf", "perf [on|off]",
-		"Perfilado por fases: vuelca cada pico a consola con su desglose (sin argumento, alterna).", _cmd_perf))
-	_add(ConsoleCommand.new("escala", "escala [0.25-2.0]",
-		"Escala de render 3D: bisecciona si el coste de dibujar es de pixel o de envio.", _cmd_escala))
-	_add(ConsoleCommand.new("terreno", "terreno [colision <lods>] [normalmap on|off]",
-		"Ajustes de coste del terreno en caliente, para comparar picos de 'proc'; sin argumentos, informa.", _cmd_terreno))
-	_add(ConsoleCommand.new("spawn", "spawn <animal> [cantidad] [distancia] [variante]",
-		"Suelta animales delante del jugador (ver la lista con el tabulador; el oso es hostil: sirve para probar el combate). Los que salen juntos van en manada; con variante (joven, adulto, grande) salen todos de esa.", _cmd_spawn, 1, _complete_animals))
-	_add(ConsoleCommand.new("ia", "ia [radio]",
-		"Qué está pensando cada criatura cercana: estado, fase, ataque, combo, guardia y lo que lee de su objetivo.", _cmd_ai))
-	_add(ConsoleCommand.new("morir", "morir",
-		"Mata al jugador (prueba la muerte y la vuelta al último punto guardado).", _cmd_die))
-	_add(ConsoleCommand.new("mutilar", "mutilar [0-1|auto]",
-		"Probabilidad de que un tajo en un brazo o una pierna lo cercene (auto: la natural). Sin argumento, informa.", _cmd_mutilate))
-	_add(ConsoleCommand.new("sangre", "sangre",
-		"Cuántos charcos y salpicaduras de sangre hay y a qué distancia está el más cercano.", _cmd_blood))
-	_add(ConsoleCommand.new("cortar", "cortar [brazo|antebrazo|muslo|pierna] [izq|der]",
-		"Cercena un miembro del jugador al momento (sin argumentos, uno al azar).", _cmd_cut, 0, _complete_cuts))
-	_add(ConsoleCommand.new("estado", "estado [<id> [izq|der|zona] [segundos] | quitar [id]]",
-		"Estados duraderos del jugador (pierna rota…): sin argumento, los lista con lo que les queda; con un id, se lo pone (izq/der: pierna; sin zona, al azar); quitar los cura.",
+	_add(ConsoleCommand.new("help", "help [command]", "CON_HELP_HELP", _cmd_help))
+	_add(ConsoleCommand.new("clear", "clear", "CON_HELP_CLEAR", _cmd_clear))
+	_add(ConsoleCommand.new("give", "give <item_id> [amount]", "CON_HELP_GIVE", _cmd_give, 1, _complete_item_ids))
+	_add(ConsoleCommand.new("items", "items [filter]", "CON_HELP_ITEMS", _cmd_items))
+	_add(ConsoleCommand.new("weather", "weather <event|reset|list>", "CON_HELP_WEATHER", _cmd_weather, 1,
+		_complete_weather))
+	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
+	_add(ConsoleCommand.new("heal", "heal [amount]", "CON_HELP_HEAL", _cmd_heal))
+	_add(ConsoleCommand.new("litter", "litter", "CON_HELP_LITTER", _cmd_litter))
+	_add(ConsoleCommand.new("god", "god [on|off]", "CON_HELP_GOD", _cmd_god))
+	_add(ConsoleCommand.new("noclip", "noclip", "CON_HELP_NOCLIP", _cmd_noclip))
+	_add(ConsoleCommand.new("sun", "sun <azimuth> [elevation] | sun auto <on|off>", "CON_HELP_SUN", _cmd_sun, 1))
+	_add(ConsoleCommand.new("season", SEASON_USAGE, "CON_HELP_SEASON", _cmd_season, 0, _complete_season))
+	_add(ConsoleCommand.new("wake", "wake [on|off]", "CON_HELP_WAKE", _cmd_wake))
+	_add(ConsoleCommand.new("shadows", "shadows [on|off]", "CON_HELP_SHADOWS", _cmd_shadows))
+	_add(ConsoleCommand.new("drift", "drift [factor]", "CON_HELP_DRIFT", _cmd_drift))
+	_add(ConsoleCommand.new("damage", "damage [joules]", "CON_HELP_DAMAGE", _cmd_damage))
+	_add(ConsoleCommand.new("anchors", "anchors [distance]", "CON_HELP_ANCHORS", _cmd_anchors))
+	_add(ConsoleCommand.new("derelicts", "derelicts", "CON_HELP_DERELICTS", _cmd_derelicts))
+	_add(ConsoleCommand.new("audio", "audio [event]", "CON_HELP_AUDIO", _cmd_audio))
+	_add(ConsoleCommand.new("water", "water", "CON_HELP_WATER", _cmd_water))
+	_add(ConsoleCommand.new("fauna", "fauna", "CON_HELP_FAUNA", _cmd_fauna))
+	_add(ConsoleCommand.new("perf", "perf [on|off]", "CON_HELP_PERF", _cmd_perf))
+	_add(ConsoleCommand.new("scale", "scale [0.25-2.0]", "CON_HELP_SCALE", _cmd_scale))
+	_add(ConsoleCommand.new("terrain", TERRAIN_USAGE, "CON_HELP_TERRAIN", _cmd_terrain))
+	_add(ConsoleCommand.new("spawn", "spawn <animal> [amount] [distance] [variant]", "CON_HELP_SPAWN", _cmd_spawn, 1,
+		_complete_animals))
+	_add(ConsoleCommand.new("ai", "ai [radius]", "CON_HELP_AI", _cmd_ai))
+	_add(ConsoleCommand.new("die", "die", "CON_HELP_DIE", _cmd_die))
+	_add(ConsoleCommand.new("sever", "sever [0-1|auto]", "CON_HELP_SEVER", _cmd_sever))
+	_add(ConsoleCommand.new("blood", "blood", "CON_HELP_BLOOD", _cmd_blood))
+	_add(ConsoleCommand.new("cut", CUT_USAGE, "CON_HELP_CUT", _cmd_cut, 0, _complete_cuts))
+	_add(ConsoleCommand.new("status", "status [<id> [left|right|zone] [seconds] | remove [id]]", "CON_HELP_STATUS",
 		_cmd_status, 0, _complete_status))
-	_add(ConsoleCommand.new("necesidades", "necesidades [<nombre> <valor> | llenar | vaciar | pausa [on|off] | ritmo <x>]",
-		"Hambre, sed, descanso, cordura, oxígeno, temperatura y mojado del jugador: sin argumento, los lista con lo que se siente; con un nombre, lo fija (de 0 a 1; la temperatura de -1, helado, a 1, abrasado). pausa congela las necesidades y ritmo las acelera.",
-		_cmd_needs, 0, _complete_needs))
-	_add(ConsoleCommand.new("fps", "fps [n]",
-		"Techo de FPS (0 = sin techo), para fijar el ritmo mientras se mide.", _cmd_fps))
+	_add(ConsoleCommand.new("needs", "needs [<name> <value> | fill | empty | pause [on|off] | rate <x>]",
+		"CON_HELP_NEEDS", _cmd_needs, 0, _complete_needs))
+	_add(ConsoleCommand.new("fps", "fps [n]", "CON_HELP_FPS", _cmd_fps))
 
 
+const SEASON_USAGE := "season [spring|summer|autumn|winter|<day>] | season speed <x> | season perf [leaves|cold|meadow|none]"
+const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off]"
+const CUT_USAGE := "cut [arm|forearm|thigh|shin] [left|right]"
 
 
 ## Los dos factores que cruzan los cuatro loops del mar, mas la ganancia global. Si el mar suena
@@ -326,13 +306,13 @@ func _cmd_water(_args: PackedStringArray) -> String:
 	var loader = player.planet if player != null else null
 	var amb: WaterAmbience = loader.water_ambience if loader != null else null
 	if amb == null:
-		return "[color=%s]No hay lecho sonoro de agua montado.[/color]" % COLOR_ERR
-	var kind := "lago" if amb.last_is_lake else "mar"
-	var out := "[color=%s]Agua[/color]\n" % COLOR_INFO
-	out += "  agua quieta: [color=%s]%.2f[/color]  (%s)\n" % [COLOR_OK, amb.last_gain, kind]
-	out += "  costa:       [color=%s]%.2f[/color]  (1 = rompiente, 0 = mar abierto)\n" % [COLOR_OK, amb.last_shore]
-	out += "  temporal:    [color=%s]%.2f[/color]  (0 = tendida, 1 = pleno)\n" % [COLOR_OK, amb.last_storm]
-	out += "  rio:         [color=%s]%.2f[/color]" % [COLOR_OK, amb.last_river]
+		return _paint(COLOR_ERR, tr("CON_WATER_NO_BED"))
+	var kind := tr("CON_WATER_LAKE" if amb.last_is_lake else "CON_WATER_SEA")
+	var out := _paint(COLOR_INFO, tr("CON_WATER_TITLE")) + "\n"
+	out += "  %-13s [color=%s]%.2f[/color]  (%s)\n" % [tr("CON_WATER_STILL"), COLOR_OK, amb.last_gain, kind]
+	out += "  %-13s [color=%s]%.2f[/color]  (%s)\n" % [tr("CON_WATER_SHORE"), COLOR_OK, amb.last_shore, tr("CON_WATER_SHORE_RANGE")]
+	out += "  %-13s [color=%s]%.2f[/color]  (%s)\n" % [tr("CON_WATER_STORM"), COLOR_OK, amb.last_storm, tr("CON_WATER_STORM_RANGE")]
+	out += "  %-13s [color=%s]%.2f[/color]" % [tr("CON_WATER_RIVER"), COLOR_OK, amb.last_river]
 	return out
 
 
@@ -343,15 +323,15 @@ func _cmd_audio(args: PackedStringArray) -> String:
 	if args.size() >= 1:
 		var event_id := StringName(args[0])
 		if not AudioManager.has_event(event_id):
-			return "[color=%s]No existe el evento '%s'.[/color]" % [COLOR_ERR, args[0]]
+			return _paint(COLOR_ERR, tr("CON_AUDIO_NO_EVENT") % args[0])
 		var player := _get_player()
 		if player == null:
-			return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+			return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
 		if AudioManager.play_3d(event_id, player.global_position) == null:
-			return "[color=%s]'%s' descartado (mudo, sin voz o en cooldown).[/color]" % [COLOR_INFO, args[0]]
-		return "[color=%s]Sonando '%s'.[/color]" % [COLOR_OK, args[0]]
+			return _paint(COLOR_INFO, tr("CON_AUDIO_DROPPED") % args[0])
+		return _paint(COLOR_OK, tr("CON_AUDIO_PLAYING") % args[0])
 
-	var out := "[color=%s]Audio[/color]\n" % COLOR_INFO
+	var out := _paint(COLOR_INFO, tr("CON_AUDIO_TITLE")) + "\n"
 	for key in AudioManager.get_debug_stats():
 		out += "  %s: [color=%s]%s[/color]\n" % [key, COLOR_OK,
 			AudioManager.get_debug_stats()[key]]
@@ -359,10 +339,10 @@ func _cmd_audio(args: PackedStringArray) -> String:
 	var weather := _get_weather()
 	var amb: WeatherAmbience = weather.ambience if weather != null else null
 	if amb != null:
-		var roof := "bajo techo" if amb.last_sheltered else "a cielo abierto"
-		out += "[color=%s]Clima[/color]\n" % COLOR_INFO
-		out += "  lluvia: [color=%s]%.2f[/color]  (%s)\n" % [COLOR_OK, amb.last_rain, roof]
-		out += "  viento: [color=%s]%.2f[/color]\n" % [COLOR_OK, amb.last_wind]
+		var roof := tr("CON_AUDIO_SHELTERED" if amb.last_sheltered else "CON_AUDIO_OPEN_SKY")
+		out += _paint(COLOR_INFO, tr("CON_AUDIO_WEATHER")) + "\n"
+		out += "  %s [color=%s]%.2f[/color]  (%s)\n" % [tr("CON_AUDIO_RAIN"), COLOR_OK, amb.last_rain, roof]
+		out += "  %s [color=%s]%.2f[/color]\n" % [tr("CON_AUDIO_WIND"), COLOR_OK, amb.last_wind]
 	return out.strip_edges()
 
 
@@ -370,14 +350,14 @@ func _cmd_help(args: PackedStringArray) -> String:
 	if args.size() >= 1:
 		var cmd: ConsoleCommand = _commands.get(args[0].to_lower())
 		if cmd == null:
-			return "[color=%s]No existe el comando '%s'.[/color]" % [COLOR_ERR, args[0]]
-		return "[color=%s]%s[/color]\n  %s" % [COLOR_INFO, cmd.usage, cmd.description]
+			return _paint(COLOR_ERR, tr("CON_NO_COMMAND") % args[0])
+		return "[color=%s]%s[/color]\n  %s" % [COLOR_INFO, cmd.usage, tr(cmd.description)]
 	var names := _commands.keys()
 	names.sort()
-	var out := "[color=%s]Comandos disponibles:[/color]\n" % COLOR_INFO
+	var out := _paint(COLOR_INFO, tr("CON_COMMANDS")) + "\n"
 	for n in names:
 		var c: ConsoleCommand = _commands[n]
-		out += "  [color=%s]%s[/color] — %s\n" % [COLOR_OK, c.usage, c.description]
+		out += "  [color=%s]%s[/color] — %s\n" % [COLOR_OK, c.usage, tr(c.description)]
 	return out.strip_edges()
 
 
@@ -389,19 +369,19 @@ func _cmd_clear(_args: PackedStringArray) -> String:
 func _cmd_give(args: PackedStringArray) -> String:
 	var player := _get_player()
 	if player == null or player.get("inventory") == null:
-		return "[color=%s]No hay jugador/inventario activo.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_INVENTORY"))
 	var id := StringName(args[0])
 	var item_data: ItemData = config.get_item(id)
 	if item_data == null:
-		return "[color=%s]Item desconocido: '%s'. Usa 'items' para listarlos.[/color]" % [COLOR_ERR, args[0]]
+		return _paint(COLOR_ERR, tr("CON_UNKNOWN_ITEM") % args[0])
 	var amount := 1
 	if args.size() >= 2 and args[1].is_valid_int():
 		amount = maxi(1, args[1].to_int())
 	var excess: int = player.inventory.add_item(item_data, amount)
 	var added := amount - excess
 	if excess > 0:
-		return "[color=%s]Añadido %s x%d (inventario lleno: %d sin caber).[/color]" % [COLOR_OK, args[0], added, excess]
-	return "[color=%s]Añadido %s x%d.[/color]" % [COLOR_OK, args[0], added]
+		return _paint(COLOR_OK, tr("CON_ADDED_FULL") % [args[0], added, excess])
+	return _paint(COLOR_OK, tr("CON_ADDED") % [args[0], added])
 
 
 func _cmd_items(args: PackedStringArray) -> String:
@@ -412,43 +392,43 @@ func _cmd_items(args: PackedStringArray) -> String:
 		ids = ids.filter(func(s): return filter in s.to_lower())
 	ids.sort()
 	if ids.is_empty():
-		return "[color=%s]Sin coincidencias.[/color]" % COLOR_MUTED
-	return "[color=%s]%d items:[/color]\n%s" % [COLOR_INFO, ids.size(), " ".join(ids)]
+		return _paint(COLOR_MUTED, tr("CON_NO_MATCHES"))
+	return _paint(COLOR_INFO, tr("CON_ITEMS_COUNT") % ids.size()) + "\n" + " ".join(ids)
 
 
 func _cmd_weather(args: PackedStringArray) -> String:
 	var wc := _get_weather()
 	if wc == null:
-		return "[color=%s]No hay sistema de clima activo (¿planeta cargado?).[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_WEATHER"))
 	var sub := args[0].to_lower()
 	if sub == "reset":
 		wc.clear_force()
-		return "[color=%s]Clima liberado (vuelve al control automático).[/color]" % COLOR_OK
+		return _paint(COLOR_OK, tr("CON_WEATHER_RELEASED"))
 	if sub == "list":
-		return "[color=%s]Eventos:[/color] %s\n[color=%s]Actual:[/color] %s" % [
-			COLOR_INFO, " ".join(wc.get_event_names()), COLOR_INFO, wc.get_current_weather_name()]
+		return "%s %s\n%s %s" % [_paint(COLOR_INFO, tr("CON_WEATHER_EVENTS")), " ".join(wc.get_event_names()),
+			_paint(COLOR_INFO, tr("CON_WEATHER_CURRENT")), wc.get_current_weather_name()]
 	if sub not in wc.get_event_names():
-		return "[color=%s]Evento desconocido: '%s'. Usa 'weather list'.[/color]" % [COLOR_ERR, args[0]]
+		return _paint(COLOR_ERR, tr("CON_UNKNOWN_WEATHER") % args[0])
 	wc.force_weather(sub)
-	return "[color=%s]Clima forzado a '%s'.[/color]" % [COLOR_OK, sub]
+	return _paint(COLOR_OK, tr("CON_WEATHER_FORCED") % sub)
 
 
 func _cmd_tp(args: PackedStringArray) -> String:
 	var player := _get_player()
 	if player == null:
-		return "[color=%s]No hay jugador activo.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
 	for a in args.slice(0, 3):
 		if not a.is_valid_float():
-			return "[color=%s]Coordenadas inválidas. Uso: tp <x> <y> <z>.[/color]" % COLOR_ERR
+			return _paint(COLOR_ERR, tr("CON_TP_INVALID"))
 	var pos := Vector3(args[0].to_float(), args[1].to_float(), args[2].to_float())
 	player.global_position = pos
-	return "[color=%s]Teletransportado a %s.[/color]" % [COLOR_OK, str(pos)]
+	return _paint(COLOR_OK, tr("CON_TP_DONE") % str(pos))
 
 
 func _cmd_heal(args: PackedStringArray) -> String:
 	var hc := _get_health()
 	if hc == null:
-		return "[color=%s]No hay componente de salud en el jugador.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_HEALTH"))
 	var amount: float = hc.max_health
 	if args.size() >= 1 and args[0].is_valid_float():
 		amount = args[0].to_float()
@@ -457,46 +437,47 @@ func _cmd_heal(args: PackedStringArray) -> String:
 	if args.is_empty() and combat != null and combat.body_damage != null:
 		combat.body_damage.restore()
 		combat.status.restore()
-	return "[color=%s]Curado +%s (salud: %s/%s).[/color]" % [COLOR_OK, str(amount), str(hc.health), str(hc.max_health)]
+	return _paint(COLOR_OK, tr("CON_HEALED") % [str(amount), str(hc.health), str(hc.max_health)])
 
 
 func _cmd_needs(args: PackedStringArray) -> String:
 	var player := _get_player()
 	var needs: SurvivalNeeds = player.get("needs") if player != null else null
 	if needs == null:
-		return "[color=%s]El jugador no tiene necesidades (¿partida cargada?).[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_NEEDS"))
 	if args.is_empty():
 		var lines := PackedStringArray()
 		for need in SurvivalNeeds.NAMES:
 			lines.append("  %s: %.2f" % [need, needs.get_value(need)])
-		return "[color=%s]Necesidades%s (ritmo ×%s):[/color]\n%s\n  se siente: %.1f °C (%s) · cabeza bajo el agua: %s\n  agua en odres: %d/%d tragos · agua al alcance: %s" % [
-			COLOR_INFO, " en pausa" if needs.paused else "", str(needs.rate), "\n".join(lines),
-			needs.felt_temperature, needs.temperature_word(), "sí" if needs.submerged else "no",
-			needs.water, needs.water_capacity(), _water_word(player)]
+		var title := tr("CON_NEEDS_TITLE_PAUSED" if needs.paused else "CON_NEEDS_TITLE") % str(needs.rate)
+		return "%s\n%s\n  %s\n  %s" % [_paint(COLOR_INFO, title), "\n".join(lines),
+			tr("CON_NEEDS_FELT") % [needs.felt_temperature, needs.temperature_word(),
+				tr("UI_YES" if needs.submerged else "UI_NO")],
+			tr("CON_NEEDS_WATER") % [needs.water, needs.water_capacity(), _water_word(player)]]
 	var sub := args[0].to_lower()
 	match sub:
-		"llenar":
+		"fill":
 			needs.refill()
-			return "[color=%s]Necesidades llenas.[/color]" % COLOR_OK
-		"vaciar":
-			for need in ["hambre", "sed", "descanso", "cordura", "oxigeno"]:
+			return _paint(COLOR_OK, tr("CON_NEEDS_FILLED"))
+		"empty":
+			for need in ["hunger", "thirst", "rest", "sanity", "oxygen"]:
 				needs.set_value(need, 0.0)
-			return "[color=%s]Necesidades a cero (la vida empieza a bajar).[/color]" % COLOR_OK
-		"pausa":
+			return _paint(COLOR_OK, tr("CON_NEEDS_EMPTIED"))
+		"pause":
 			needs.paused = args[1].to_lower() in ["on", "1", "true"] if args.size() >= 2 else not needs.paused
-			return "[color=%s]Necesidades %s.[/color]" % [COLOR_OK, "en pausa" if needs.paused else "en marcha"]
-		"ritmo":
+			return _paint(COLOR_OK, tr("CON_NEEDS_PAUSED" if needs.paused else "CON_NEEDS_RUNNING"))
+		"rate":
 			if args.size() < 2 or not args[1].is_valid_float():
-				return "[color=%s]Uso: necesidades ritmo <x> (1 = normal).[/color]" % COLOR_ERR
+				return _paint(COLOR_ERR, tr("CON_NEEDS_RATE_USAGE"))
 			needs.rate = maxf(args[1].to_float(), 0.0)
-			return "[color=%s]Ritmo de las necesidades: ×%s.[/color]" % [COLOR_OK, str(needs.rate)]
-	var need := sub.replace("í", "i")
+			return _paint(COLOR_OK, tr("CON_NEEDS_RATE") % str(needs.rate))
+	var need := sub
 	if not SurvivalNeeds.NAMES.has(need):
-		return "[color=%s]Necesidad desconocida: '%s'. Usa: %s.[/color]" % [COLOR_ERR, args[0], ", ".join(SurvivalNeeds.NAMES.keys())]
+		return _paint(COLOR_ERR, tr("CON_UNKNOWN_NEED") % [args[0], ", ".join(SurvivalNeeds.NAMES)])
 	if args.size() < 2 or not args[1].is_valid_float():
-		return "[color=%s]%s: %.2f[/color]" % [COLOR_INFO, need, needs.get_value(need)]
+		return _paint(COLOR_INFO, "%s: %.2f" % [need, needs.get_value(need)])
 	needs.set_value(need, args[1].to_float())
-	return "[color=%s]%s → %.2f.[/color]" % [COLOR_OK, need, needs.get_value(need)]
+	return _paint(COLOR_OK, "%s → %.2f." % [need, needs.get_value(need)])
 
 
 func _water_word(player: Node) -> String:
@@ -505,64 +486,64 @@ func _water_word(player: Node) -> String:
 		return "?"
 	match survival.water_here():
 		&"fresh":
-			return "dulce"
+			return tr("CON_WATER_FRESH")
 		&"salt":
-			return "salada"
-	return "ninguna"
+			return tr("CON_WATER_SALT")
+	return tr("CON_WATER_NONE")
 
 
 func _complete_needs() -> PackedStringArray:
-	var options := PackedStringArray(SurvivalNeeds.NAMES.keys())
-	options.append_array(["llenar", "vaciar", "pausa", "ritmo"])
+	var options := PackedStringArray(SurvivalNeeds.NAMES)
+	options.append_array(["fill", "empty", "pause", "rate"])
 	return options
 
 
 func _cmd_god(args: PackedStringArray) -> String:
 	var hc := _get_health()
 	if hc == null:
-		return "[color=%s]No hay componente de salud en el jugador.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_HEALTH"))
 	if args.size() >= 1:
 		hc.invincible = args[0].to_lower() in ["on", "1", "true"]
 	else:
 		hc.invincible = not hc.invincible
-	return "[color=%s]Modo dios: %s.[/color]" % [COLOR_OK, "ON" if hc.invincible else "OFF"]
+	return _paint(COLOR_OK, tr("CON_GOD") % ("ON" if hc.invincible else "OFF"))
 
 
 func _cmd_noclip(_args: PackedStringArray) -> String:
 	var player := _get_player()
 	if player == null:
-		return "[color=%s]No hay jugador activo.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
 	player.free_flight_enabled = not player.free_flight_enabled
 	if player.free_flight_enabled and player.get("free_flight_controller") != null and player.camera != null:
 		player.free_flight_controller.orientation = Quaternion(player.camera.global_transform.basis)
-	return "[color=%s]Noclip (vuelo libre): %s.[/color]" % [COLOR_OK, "ON" if player.free_flight_enabled else "OFF"]
+	return _paint(COLOR_OK, tr("CON_NOCLIP") % ("ON" if player.free_flight_enabled else "OFF"))
 
 
 func _cmd_sun(args: PackedStringArray) -> String:
 	var sun := _get_sun()
 	if sun == null:
-		return "[color=%s]No hay controlador de sol activo.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_SUN"))
 	if args[0].to_lower() == "auto":
 		var on := args.size() >= 2 and args[1].to_lower() in ["on", "1", "true"]
 		sun.auto_rotate = on
-		return "[color=%s]Rotación automática del sol: %s.[/color]" % [COLOR_OK, "ON" if on else "OFF"]
+		return _paint(COLOR_OK, tr("CON_SUN_AUTO") % ("ON" if on else "OFF"))
 	if not args[0].is_valid_float():
-		return "[color=%s]Uso: sun <azimuth 0-360> [elevación 0-90] | sun auto on/off.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_USAGE") % "sun <azimuth 0-360> [elevation 0-90] | sun auto on/off")
 	sun.auto_rotate = false
 	sun._set_azimuth(args[0].to_float())
 	if args.size() >= 2 and args[1].is_valid_float():
 		sun._set_elevation(args[1].to_float())
-	return "[color=%s]Sol → azimuth %.1f°, elevación %.1f°.[/color]" % [COLOR_OK, sun.sun_azimuth_deg, sun.sun_elevation_deg]
+	return _paint(COLOR_OK, tr("CON_SUN_PLACED") % [sun.sun_azimuth_deg, sun.sun_elevation_deg])
 
 
 ## Fase local a la que salta cada estación: brotes, pleno verano, pleno color del otoño, pelado.
-const SEASON_JUMPS := {"primavera": 0.07, "verano": 0.38, "otoño": 0.6, "otono": 0.6, "invierno": 0.85}
+const SEASON_JUMPS := {"spring": 0.07, "summer": 0.38, "autumn": 0.6, "winter": 0.85}
 
 
 func _cmd_season(args: PackedStringArray) -> String:
 	var sun := _get_sun()
 	if sun == null:
-		return "[color=%s]No hay controlador de sol activo.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_SUN"))
 	var player := _get_player()
 	var loader = player.planet if player != null else null
 	var local: Vector3 = player.global_position - loader.global_position if loader != null else Vector3.UP
@@ -570,9 +551,9 @@ func _cmd_season(args: PackedStringArray) -> String:
 		return _season_perf(args)
 	if not args.is_empty():
 		var arg := args[0].to_lower()
-		if arg == "velocidad":
+		if arg == "speed":
 			if args.size() < 2 or not args[1].is_valid_float():
-				return "[color=%s]Uso: estacion velocidad <x> (1 = normal).[/color]" % COLOR_ERR
+				return _paint(COLOR_ERR, tr("CON_USAGE") % "season speed <x> (1 = normal)")
 			sun.season_speed = maxf(args[1].to_float(), 0.0)
 		elif SEASON_JUMPS.has(arg):
 			# En el sur la misma estación cae medio año más tarde.
@@ -581,46 +562,47 @@ func _cmd_season(args: PackedStringArray) -> String:
 		elif arg.is_valid_float():
 			sun.set_day_of_year(arg.to_float())
 		else:
-			return "[color=%s]Uso: estacion [primavera|verano|otoño|invierno|<día>] | estacion velocidad <x> | estacion perf [hojas|frio|pradera|nada].[/color]" % COLOR_ERR
+			return _paint(COLOR_ERR, tr("CON_USAGE") % SEASON_USAGE)
 		sun._update_sun()
 		# Tras un salto de fecha el tiempo se sortea con la estación nueva.
 		var weather := _get_weather()
-		if arg != "velocidad" and weather != null and weather.has_method("reroll"):
+		if arg != "speed" and weather != null and weather.has_method("reroll"):
 			weather.reroll()
 	var phase: float = sun.year_phase()
 	var here := Seasons.local_phase(local, phase)
 	var latitude := Seasons.latitude_deg(local)
-	var out := "[color=%s]Día %.1f de %.0f · declinación %+.1f° · calendario ×%.1f[/color]\n" % [
-		COLOR_INFO, sun.day_of_year, sun.year_days(), sun.declination_deg(), sun.season_speed]
-	out += "  aquí (%.1f° %s): [color=%s]%s[/color] · %.1f h de luz · estaciones al %d %%" % [
-		absf(latitude), "N" if latitude >= 0.0 else "S", COLOR_OK, Seasons.NAMES[Seasons.season_index(here)],
-		Seasons.daylight_hours(latitude, sun.declination_deg()), roundi(Seasons.strength(local) * 100.0)]
+	var out := _paint(COLOR_INFO, tr("CON_SEASON_DATE") % [sun.day_of_year, sun.year_days(), sun.declination_deg(),
+		sun.season_speed]) + "\n"
+	var season_name := tr("SEASON_" + String(Seasons.KEYS[Seasons.season_index(here)]).to_upper())
+	out += "  " + tr("CON_SEASON_HERE") % [absf(latitude), tr("COMPASS_N" if latitude >= 0.0 else "COMPASS_S"),
+		_paint(COLOR_OK, season_name), Seasons.daylight_hours(latitude, sun.declination_deg()),
+		roundi(Seasons.strength(local) * 100.0)]
 	return out
 
 
-## estacion perf [hojas|frio|pradera|nada]: alterna esa parte de la estación como en verano (solo en
-## los shaders) para aislar lo que cuesta; nada la vuelve a poner entera. Sin parte, dice cuáles están
+## season perf [leaves|cold|meadow|none]: alterna esa parte de la estación como en verano (solo en
+## los shaders) para aislar lo que cuesta; none la vuelve a poner entera. Sin parte, dice cuáles están
 ## apagadas.
 func _season_perf(args: PackedStringArray) -> String:
 	if args.size() >= 2:
-		var part := args[1].to_lower().replace("í", "i")
-		if part == "nada":
+		var part := args[1].to_lower()
+		if part == "none":
 			Seasons.set_debug_off(0)
 		elif Seasons.DEBUG_OFF.has(part):
 			Seasons.set_debug_off(Seasons.debug_off ^ int(Seasons.DEBUG_OFF[part]))
 		else:
-			return "[color=%s]Uso: estacion perf [hojas|frio|pradera|nada].[/color]" % COLOR_ERR
+			return _paint(COLOR_ERR, tr("CON_USAGE") % "season perf [leaves|cold|meadow|none]")
 	var off := PackedStringArray()
 	for part: String in Seasons.DEBUG_OFF:
 		if Seasons.debug_off & int(Seasons.DEBUG_OFF[part]):
 			off.append(part)
 	if off.is_empty():
-		return "[color=%s]Estación entera en los shaders.[/color]" % COLOR_MUTED
-	return "[color=%s]Como en verano: %s.[/color]" % [COLOR_OK, ", ".join(off)]
+		return _paint(COLOR_MUTED, tr("CON_SEASON_FULL"))
+	return _paint(COLOR_OK, tr("CON_SEASON_AS_SUMMER") % ", ".join(off))
 
 
 func _complete_season() -> PackedStringArray:
-	return PackedStringArray(["primavera", "verano", "otoño", "invierno", "velocidad", "perf"])
+	return PackedStringArray(Seasons.KEYS + ["speed", "perf"])
 
 
 ## Enciende o apaga el perfilado. Apagado, los report_cost repartidos por el juego no hacen nada
@@ -631,49 +613,48 @@ func _cmd_perf(args: PackedStringArray) -> String:
 	else:
 		DebugStats.profiling = args[0].to_lower() in ["on", "1", "true"]
 	if not DebugStats.profiling:
-		return "[color=%s]Perfilado: OFF.[/color]" % COLOR_MUTED
-	return "[color=%s]Perfilado: ON.[/color] Cada pico va a consola con sus fases; F3 enseña el overlay." % COLOR_OK
+		return _paint(COLOR_MUTED, tr("CON_PERF_OFF"))
+	return "%s %s" % [_paint(COLOR_OK, tr("CON_PERF_ON")), tr("CON_PERF_ON_HINT")]
 
 
 ## Escala de render 3D. Es la biseccion de la fase 'dibujo': si un pico se cae al bajar la escala el
 ## cuello es de pixel (fill), y si no se mueve es envio de comandos o driver.
-func _cmd_escala(args: PackedStringArray) -> String:
+func _cmd_scale(args: PackedStringArray) -> String:
 	var vp := get_viewport()
 	if not args.is_empty():
 		if not args[0].is_valid_float():
-			return "[color=%s]Uso: escala <0.25-2.0>.[/color]" % COLOR_ERR
+			return _paint(COLOR_ERR, tr("CON_USAGE") % "scale <0.25-2.0>")
 		vp.scaling_3d_scale = clampf(args[0].to_float(), 0.25, 2.0)
 	var size := vp.get_visible_rect().size
-	return "[color=%s]Escala 3D %.2f → %dx%d de %dx%d.[/color]" % [
-		COLOR_OK, vp.scaling_3d_scale,
+	return _paint(COLOR_OK, tr("CON_SCALE") % [vp.scaling_3d_scale,
 		int(size.x * vp.scaling_3d_scale), int(size.y * vp.scaling_3d_scale),
-		int(size.x), int(size.y)]
+		int(size.x), int(size.y)])
 
 
 ## Colisión y normalmaps de detalle de todos los VoxelLodTerrain. collision_lod_count 0 = colisión en
 ## TODOS los LOD (medido); solo afecta a los bloques que se mallen a partir de ahora.
-func _cmd_terreno(args: PackedStringArray) -> String:
+func _cmd_terrain(args: PackedStringArray) -> String:
 	var terrains := get_tree().root.find_children("*", "VoxelLodTerrain", true, false)
 	if terrains.is_empty():
-		return "[color=%s]No hay terrenos cargados.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_TERRAIN"))
 	var i := 0
 	while i + 1 < args.size():
 		var key := args[i].to_lower()
 		var value := args[i + 1].to_lower()
 		for t: VoxelLodTerrain in terrains:
-			if key == "colision" and value.is_valid_int():
+			if key == "collision" and value.is_valid_int():
 				t.collision_lod_count = maxi(value.to_int(), 0)
 			elif key == "normalmap":
 				t.normalmap_enabled = value in ["on", "1", "true"]
 			else:
-				return "[color=%s]Uso: terreno [colision <lods>] [normalmap on|off].[/color]" % COLOR_ERR
+				return _paint(COLOR_ERR, tr("CON_USAGE") % TERRAIN_USAGE)
 		i += 2
-	var out := "[color=%s]Terrenos[/color]" % COLOR_INFO
+	var out := _paint(COLOR_INFO, tr("CON_TERRAINS"))
 	for t: VoxelLodTerrain in terrains:
 		var owner_name: String = t.owner.name if t.owner != null else t.name
-		out += "\n  %s: colision %s de %d LOD, normalmap %s" % [owner_name,
-			"todos" if t.collision_lod_count == 0 else str(t.collision_lod_count), t.lod_count,
-			"on" if t.normalmap_enabled else "off"]
+		out += "\n  %s: %s" % [owner_name, tr("CON_TERRAIN_LINE") % [
+			tr("CON_TERRAIN_ALL") if t.collision_lod_count == 0 else str(t.collision_lod_count), t.lod_count,
+			"on" if t.normalmap_enabled else "off"]]
 	return out
 
 
@@ -682,32 +663,30 @@ func _cmd_terreno(args: PackedStringArray) -> String:
 func _cmd_fps(args: PackedStringArray) -> String:
 	if not args.is_empty():
 		if not args[0].is_valid_int():
-			return "[color=%s]Uso: fps <n> | fps 0 para quitar el techo.[/color]" % COLOR_ERR
+			return _paint(COLOR_ERR, tr("CON_FPS_USAGE"))
 		Engine.max_fps = maxi(args[0].to_int(), 0)
 	if Engine.max_fps == 0:
-		return "[color=%s]FPS sin techo.[/color]" % COLOR_MUTED
-	return "[color=%s]Techo de FPS: %d.[/color]" % [COLOR_OK, Engine.max_fps]
+		return _paint(COLOR_MUTED, tr("CON_FPS_UNCAPPED"))
+	return _paint(COLOR_OK, tr("CON_FPS_CAP") % Engine.max_fps)
 
 
 func _cmd_wake(args: PackedStringArray) -> String:
 	if not args.is_empty():
 		GridManager.wake_enabled = args[0].to_lower() in ["on", "1", "true"]
-	return "[color=%s]Estela: %s · %d estelas, %d puntos subidos.[/color]" % [
-		COLOR_OK if GridManager.wake_enabled else COLOR_MUTED,
-		"ON" if GridManager.wake_enabled else "OFF",
-		GridManager.wake_stat_wakes, GridManager.wake_stat_points]
+	return _paint(COLOR_OK if GridManager.wake_enabled else COLOR_MUTED, tr("CON_WAKE") % [
+		"ON" if GridManager.wake_enabled else "OFF", GridManager.wake_stat_wakes, GridManager.wake_stat_points])
 
 
 func _cmd_shadows(args: PackedStringArray) -> String:
 	var sun := _get_sun()
 	var light: DirectionalLight3D = sun.get("sun_light") if sun != null else null
 	if light == null:
-		return "[color=%s]No hay sol activo.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_SUN"))
 	if not args.is_empty():
 		light.shadow_enabled = args[0].to_lower() in ["on", "1", "true"]
 	var elevation := rad_to_deg(asin(clampf(light.global_basis.z.normalized().dot(_local_up()), -1.0, 1.0))) if _local_up() != Vector3.ZERO else NAN
-	return "[color=%s]Sombras del sol: %s · sol a %.1f° sobre el horizonte.[/color]" % [
-		COLOR_OK if light.shadow_enabled else COLOR_MUTED, "ON" if light.shadow_enabled else "OFF", elevation]
+	return _paint(COLOR_OK if light.shadow_enabled else COLOR_MUTED, tr("CON_SHADOWS") % [
+		"ON" if light.shadow_enabled else "OFF", elevation])
 
 
 ## Arriba local del jugador (desde el centro de su planeta), o cero sin jugador.
@@ -722,9 +701,9 @@ func _local_up() -> Vector3:
 func _cmd_drift(args: PackedStringArray) -> String:
 	if not args.is_empty():
 		if not args[0].is_valid_float():
-			return "[color=%s]Uso: drift [factor >= 0].[/color]" % COLOR_ERR
+			return _paint(COLOR_ERR, tr("CON_USAGE") % "drift [factor >= 0]")
 		WaterHeightSampler.drift_scale = maxf(args[0].to_float(), 0.0)
-		return "[color=%s]Arrastre de las olas → %.2f.[/color]" % [COLOR_OK, WaterHeightSampler.drift_scale]
+		return _paint(COLOR_OK, tr("CON_DRIFT_SET") % WaterHeightSampler.drift_scale)
 	return _drift_report()
 
 
@@ -734,28 +713,28 @@ func _drift_report() -> String:
 	var out := "[color=%s]drift ×%.2f[/color]\n" % [COLOR_INFO, WaterHeightSampler.drift_scale]
 	var player := _get_player()
 	if player == null:
-		return out + "[color=%s]Sin jugador.[/color]" % COLOR_ERR
+		return out + _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
 
 	var sampler: WaterHeightSampler = player.water_sampler
 	if sampler != null:
-		out += "  mar: amp %.2f m · steep %.2f · vel %.2f · λ %.1f m\n" % [
+		out += "  " + tr("CON_DRIFT_SEA") % [
 			sampler.wave_amplitude, sampler.wave_steepness,
-			sampler.wave_speed, sampler.wave_base_length]
-		out += "  gates: exposición %.2f · peso oceánico %.2f · orilla %.2f → amp efectiva %.2f m\n" % [
+			sampler.wave_speed, sampler.wave_base_length] + "\n"
+		out += "  " + tr("CON_DRIFT_GATES") % [
 			sampler.last_exposure, sampler.last_ocean_weight,
-			sampler.last_shore_presence, sampler.last_amp_effective]
+			sampler.last_shore_presence, sampler.last_amp_effective] + "\n"
 
 	var flow: Vector3 = player._water_flow
 	var up := Vector3.UP
 	if player.planet != null:
 		up = (player.global_position - player.planet.global_position).normalized()
 	var flow_tan := flow - up * flow.dot(up)
-	out += "  jugador: corriente %.3f m/s (tangencial %.3f) · nadando %s\n" % [
-		flow.length(), flow_tan.length(), "sí" if player.movement.is_swimming else "no"]
+	out += "  " + tr("CON_DRIFT_PLAYER") % [
+		flow.length(), flow_tan.length(), tr("UI_YES" if player.movement.is_swimming else "UI_NO")] + "\n"
 
 	var boat = player._platform_body
 	if boat == null or not is_instance_valid(boat):
-		return out + "[color=%s]  (no vas en ningún barco)[/color]" % COLOR_MUTED
+		return out + _paint(COLOR_MUTED, "  " + tr("CON_DRIFT_NO_BOAT"))
 
 	var bw: Vector3 = boat.last_water_flow
 	var bv: Vector3 = boat.linear_velocity
@@ -763,18 +742,15 @@ func _drift_report() -> String:
 	var accel := 0.0
 	if boat.mass > 0.0:
 		accel = rel.length() * boat.linear_drag * boat.last_displaced_mass / boat.mass
-	out += "  barco: agua %.3f m/s · casco %.3f m/s · relativa %.3f m/s\n" % [
-		bw.length(), bv.length(), rel.length()]
-	out += "  masa %.0f kg · desplazada %.0f kg · aceleración de arrastre %.3f m/s²\n" % [
-		boat.mass, boat.last_displaced_mass, accel]
+	out += "  " + tr("CON_DRIFT_BOAT") % [bw.length(), bv.length(), rel.length()] + "\n"
+	out += "  " + tr("CON_DRIFT_MASS") % [boat.mass, boat.last_displaced_mass, accel] + "\n"
 
 	# Velocidad horizontal respecto al agua: la que decide si se emite estela.
 	var bup: Vector3 = (boat.global_position - boat.planet_node.global_pos).normalized() \
 		if boat.planet_node else Vector3.UP
 	var rel_h := (rel - bup * rel.dot(bup)).length()
-	out += "  estela: %d puntos · %.2f m/s respecto al agua (mínimo %.2f)\n" % [
-		boat.get_wake_points().size(), rel_h, DynamicGridBody.WAKE_MIN_SPEED]
-	out += "  flotación: %d muestras de ola independientes" % boat.last_wave_samples
+	out += "  " + tr("CON_DRIFT_WAKE") % [boat.get_wake_points().size(), rel_h, DynamicGridBody.WAKE_MIN_SPEED] + "\n"
+	out += "  " + tr("CON_DRIFT_BUOYANCY") % boat.last_wave_samples
 	return out
 
 
@@ -787,33 +763,33 @@ func _get_health() -> Node:
 
 
 const ANIMAL_SCENES := {
-	"oso": "res://scenes/animals/Bear.tscn",
-	"ciervo": "res://scenes/animals/Deer.tscn",
-	"leon": "res://scenes/animals/Lion.tscn",
-	"bufalo": "res://scenes/animals/Buffalo.tscn",
-	"lobo": "res://scenes/animals/Wolf.tscn",
-	"cierva": "res://scenes/animals/Hind.tscn",
-	"jabali": "res://scenes/animals/Boar.tscn",
-	"alce": "res://scenes/animals/Moose.tscn",
-	"lince": "res://scenes/animals/Lynx.tscn",
-	"cabra_montes": "res://scenes/animals/MountainGoat.tscn",
-	"muflon": "res://scenes/animals/Bighorn.tscn",
+	"bear": "res://scenes/animals/Bear.tscn",
+	"deer": "res://scenes/animals/Deer.tscn",
+	"lion": "res://scenes/animals/Lion.tscn",
+	"buffalo": "res://scenes/animals/Buffalo.tscn",
+	"wolf": "res://scenes/animals/Wolf.tscn",
+	"hind": "res://scenes/animals/Hind.tscn",
+	"boar": "res://scenes/animals/Boar.tscn",
+	"moose": "res://scenes/animals/Moose.tscn",
+	"lynx": "res://scenes/animals/Lynx.tscn",
+	"mountain_goat": "res://scenes/animals/MountainGoat.tscn",
+	"bighorn": "res://scenes/animals/Bighorn.tscn",
 	"puma": "res://scenes/animals/Puma.tscn",
-	"leona": "res://scenes/animals/Lioness.tscn",
-	"nu": "res://scenes/animals/Wildebeest.tscn",
-	"berrendo": "res://scenes/animals/Pronghorn.tscn",
-	"hiena": "res://scenes/animals/Hyena.tscn",
-	"caiman": "res://scenes/animals/Alligator.tscn",
-	"burro": "res://scenes/animals/Donkey.tscn",
-	"caballo": "res://scenes/animals/Horse.tscn",
-	"rinoceronte": "res://scenes/animals/Rhinoceros.tscn",
-	"elefante": "res://scenes/animals/Elephant.tscn",
-	"mamut": "res://scenes/animals/Mammoth.tscn",
-	"vaca": "res://scenes/animals/Cow.tscn",
-	"ternero": "res://scenes/animals/Calf.tscn",
-	"cabra": "res://scenes/animals/Goat.tscn",
+	"lioness": "res://scenes/animals/Lioness.tscn",
+	"wildebeest": "res://scenes/animals/Wildebeest.tscn",
+	"pronghorn": "res://scenes/animals/Pronghorn.tscn",
+	"hyena": "res://scenes/animals/Hyena.tscn",
+	"alligator": "res://scenes/animals/Alligator.tscn",
+	"donkey": "res://scenes/animals/Donkey.tscn",
+	"horse": "res://scenes/animals/Horse.tscn",
+	"rhinoceros": "res://scenes/animals/Rhinoceros.tscn",
+	"elephant": "res://scenes/animals/Elephant.tscn",
+	"mammoth": "res://scenes/animals/Mammoth.tscn",
+	"cow": "res://scenes/animals/Cow.tscn",
+	"calf": "res://scenes/animals/Calf.tscn",
+	"goat": "res://scenes/animals/Goat.tscn",
 	"labrador": "res://scenes/animals/Labrador.tscn",
-	"sabueso": "res://scenes/animals/Bloodhound.tscn",
+	"bloodhound": "res://scenes/animals/Bloodhound.tscn",
 }
 
 
@@ -827,10 +803,10 @@ func _complete_animals() -> PackedStringArray:
 func _cmd_spawn(args: PackedStringArray) -> String:
 	var player := _get_player() as PlayerController
 	if player == null or player.planet == null:
-		return "[color=%s]No hay jugador sobre un planeta.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER_PLANET"))
 	var kind := args[0].to_lower()
 	if not ANIMAL_SCENES.has(kind):
-		return "[color=%s]Animal desconocido: %s (%s).[/color]" % [COLOR_ERR, kind, ", ".join(ANIMAL_SCENES.keys())]
+		return _paint(COLOR_ERR, tr("CON_UNKNOWN_ANIMAL") % [kind, ", ".join(ANIMAL_SCENES.keys())])
 	var numbers: Array[String] = []
 	var variant_id := ""
 	for arg in args.slice(1):
@@ -874,17 +850,17 @@ func _cmd_spawn(args: PackedStringArray) -> String:
 					animal.apply_variant(v, randf_range(v.size.x, v.size.y))
 			if not variant_id in known:
 				animal.queue_free()
-				return "[color=%s]%s no tiene la variante %s (%s).[/color]" % [COLOR_ERR, kind, variant_id,
-					", ".join(known) if not known.is_empty() else "ninguna"]
+				return _paint(COLOR_ERR, tr("CON_NO_VARIANT") % [kind, variant_id,
+					", ".join(known) if not known.is_empty() else tr("CON_NONE")])
 		placed += 1
-	return "[color=%s]%d × %s%s a %.0f m.[/color]" % [COLOR_OK, placed, kind,
-		" " + variant_id if variant_id != "" else "", distance]
+	return _paint(COLOR_OK, tr("CON_SPAWNED") % [placed, kind + (" " + variant_id if variant_id != "" else ""),
+		distance])
 
 
 func _cmd_ai(args: PackedStringArray) -> String:
 	var player := _get_player() as Node3D
 	if player == null:
-		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
 	var radius := clampf(args[0].to_float(), 5.0, 500.0) if args.size() >= 1 and args[0].is_valid_float() else 80.0
 	var found: Array = []
 	for node in get_tree().get_nodes_in_group("npc"):
@@ -895,7 +871,7 @@ func _cmd_ai(args: PackedStringArray) -> String:
 		if dist <= radius:
 			found.append([dist, npc])
 	if found.is_empty():
-		return "[color=%s]Ninguna criatura a menos de %.0f m.[/color]" % [COLOR_MUTED, radius]
+		return _paint(COLOR_MUTED, tr("CON_AI_NONE") % radius)
 	found.sort_custom(func(a, b): return a[0] < b[0])
 	var lines: Array[String] = []
 	for entry in found:
@@ -913,10 +889,10 @@ func _cmd_ai(args: PackedStringArray) -> String:
 func _cmd_die(_args: PackedStringArray) -> String:
 	var hc := _get_health() as HealthComponent
 	if hc == null:
-		return "[color=%s]No hay componente de salud en el jugador.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_HEALTH"))
 	hc.invincible = false
 	hc.take_damage(hc.health + 1.0)
-	return "[color=%s]Has muerto.[/color]" % COLOR_OK
+	return _paint(COLOR_OK, tr("CON_DIED"))
 
 
 func _get_combat() -> PlayerCombat:
@@ -927,33 +903,35 @@ func _get_combat() -> PlayerCombat:
 func _cmd_blood(_args: PackedStringArray) -> String:
 	var player := _get_player() as Node3D
 	if player == null:
-		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
-	return "[color=%s]%s[/color]" % [COLOR_OK, BloodPool.report(player.global_position)]
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
+	return _paint(COLOR_OK, BloodPool.report(player.global_position))
 
 
 func _cmd_litter(_args: PackedStringArray) -> String:
 	var player := _get_player() as Node3D
 	if player == null:
-		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
-	return "[color=%s]%s[/color]" % [COLOR_OK, GroundPickup.report(player)]
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
+	return _paint(COLOR_OK, GroundPickup.report(player))
 
 
-func _cmd_mutilate(args: PackedStringArray) -> String:
+func _cmd_sever(args: PackedStringArray) -> String:
 	if not args.is_empty():
 		if args[0].to_lower() == "auto":
 			BodyDamage.sever_chance = -1.0
 		elif args[0].is_valid_float():
 			BodyDamage.sever_chance = clampf(args[0].to_float(), 0.0, 1.0)
 		else:
-			return "[color=%s]Uso: mutilar [0-1|auto].[/color]" % COLOR_ERR
+			return _paint(COLOR_ERR, tr("CON_USAGE") % "sever [0-1|auto]")
 	var chance := BodyDamage.sever_chance
 	if chance < 0.0:
-		return "[color=%s]Cercenar: natural (solo si el tajo deja el miembro bajo cero).[/color]" % COLOR_OK
-	return "[color=%s]Cercenar: %d %% de los tajos en brazos y piernas.[/color]" % [COLOR_OK, roundi(chance * 100.0)]
+		return _paint(COLOR_OK, tr("CON_SEVER_NATURAL"))
+	return _paint(COLOR_OK, tr("CON_SEVER_CHANCE") % roundi(chance * 100.0))
 
 
-const CUT_PARTS := {"brazo": ["arm", true], "antebrazo": ["arm", false], "muslo": ["leg", true],
-	"pierna": ["leg", false]}
+## Por dónde corta cada parte: el miembro (BodyDamage) y si es por arriba (el brazo entero desde el
+## hombro, la pierna desde el muslo) o por abajo (el antebrazo, la espinilla).
+const CUT_PARTS := {"arm": ["arm", true], "forearm": ["arm", false], "thigh": ["leg", true],
+	"shin": ["leg", false]}
 
 
 func _complete_cuts() -> PackedStringArray:
@@ -963,67 +941,69 @@ func _complete_cuts() -> PackedStringArray:
 func _cmd_cut(args: PackedStringArray) -> String:
 	var combat := _get_combat()
 	if combat == null or combat.body_damage == null:
-		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
 	var part: String = args[0].to_lower() if args.size() >= 1 else CUT_PARTS.keys().pick_random()
 	if not CUT_PARTS.has(part):
-		return "[color=%s]Parte desconocida. Uso: cortar [brazo|antebrazo|muslo|pierna] [izq|der].[/color]" % COLOR_ERR
-	var side: String = args[1].to_lower() if args.size() >= 2 else ["izq", "der"].pick_random()
-	var zone := StringName(("left_" if side.begins_with("i") else "right_") + String(CUT_PARTS[part][0]))
+		return _paint(COLOR_ERR, tr("CON_CUT_UNKNOWN") % CUT_USAGE)
+	var side: String = args[1].to_lower() if args.size() >= 2 else ["left", "right"].pick_random()
+	var left := side != "right"
+	var zone := StringName(("left_" if left else "right_") + String(CUT_PARTS[part][0]))
 	if SettingsManager.gore_level() != SettingsManager.GORE_FULL:
-		return "[color=%s]Las mutilaciones están desactivadas en Opciones > Juego.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_CUT_GORE_OFF"))
 	if not combat.body_damage.sever_zone(zone, CUT_PARTS[part][1]):
-		return "[color=%s]Ese miembro ya está cortado (heal lo devuelve).[/color]" % COLOR_ERR
-	return "[color=%s]Cercenado: %s %s.[/color]" % [COLOR_OK, part, "izquierdo" if side.begins_with("i") else "derecho"]
+		return _paint(COLOR_ERR, tr("CON_CUT_ALREADY"))
+	return _paint(COLOR_OK, tr("CON_CUT_DONE").format({"part": tr("CON_PART_" + part.to_upper()),
+		"side": tr("CON_SIDE_LEFT" if left else "CON_SIDE_RIGHT")}))
 
 
 func _complete_status() -> PackedStringArray:
 	var out := StatusEffectData.ids()
-	out.append("quitar")
+	out.append("remove")
 	return out
 
 
 func _cmd_status(args: PackedStringArray) -> String:
 	var combat := _get_combat()
 	if combat == null or combat.status == null:
-		return "[color=%s]No hay jugador.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
 	var status := combat.status
 	var known := ", ".join(StatusEffectData.ids())
 	if args.is_empty():
 		if status.effects().is_empty():
-			return "[color=%s]Sin estados. Disponibles: %s.[/color]" % [COLOR_OK, known]
+			return _paint(COLOR_OK, tr("CON_STATUS_NONE_AVAILABLE") % known)
 		var lines := PackedStringArray()
 		for effect in status.effects():
-			lines.append("%s: %d s (gravedad %.2f)" % [effect.label(), ceili(effect.remaining), effect.severity])
-		return "[color=%s]%s[/color]" % [COLOR_OK, "\n".join(lines)]
-	if args[0].to_lower() == "quitar":
+			lines.append(tr("CON_STATUS_LINE") % [effect.label(), ceili(effect.remaining), effect.severity])
+		return _paint(COLOR_OK, "\n".join(lines))
+	if args[0].to_lower() == "remove":
 		if args.size() < 2:
 			status.restore()
-			return "[color=%s]Sin estados.[/color]" % COLOR_OK
+			return _paint(COLOR_OK, tr("CON_STATUS_NONE"))
 		if not status.remove(StringName(args[1])):
-			return "[color=%s]No tiene '%s'.[/color]" % [COLOR_ERR, args[1]]
-		return "[color=%s]Curado: %s.[/color]" % [COLOR_OK, args[1]]
+			return _paint(COLOR_ERR, tr("CON_STATUS_NOT_HAD") % args[1])
+		return _paint(COLOR_OK, tr("CON_STATUS_CURED") % args[1])
 	var data := StatusEffectData.find(StringName(args[0]))
 	if data == null:
-		return "[color=%s]Estado desconocido. Disponibles: %s.[/color]" % [COLOR_ERR, known]
+		return _paint(COLOR_ERR, tr("CON_STATUS_UNKNOWN") % known)
 	var zone := &""
 	var seconds := -1.0
 	for arg in args.slice(1):
 		if arg.is_valid_float():
 			seconds = arg.to_float()
-		elif arg.to_lower().begins_with("izq"):
+		elif arg.to_lower() == "left":
 			zone = &"left_leg"
-		elif arg.to_lower().begins_with("der"):
+		elif arg.to_lower() == "right":
 			zone = &"right_leg"
 		elif BodyDamage.ZONES.has(StringName(arg)):
 			zone = StringName(arg)
 		else:
-			return "[color=%s]Zona desconocida: %s (izq, der o %s).[/color]" % [COLOR_ERR, arg, ", ".join(PackedStringArray(BodyDamage.ZONES))]
+			return _paint(COLOR_ERR, tr("CON_STATUS_UNKNOWN_ZONE") % [arg, ", ".join(PackedStringArray(BodyDamage.ZONES))])
 	if data.per_zone and zone == &"":
 		zone = [&"left_leg", &"right_leg"].pick_random()
 	var effect := status.apply(data.id, zone, 0.5, seconds)
 	if effect == null:
-		return "[color=%s]No se ha podido (¿está muerto?).[/color]" % COLOR_ERR
-	return "[color=%s]%s: %d s.[/color]" % [COLOR_OK, effect.label(), ceili(effect.remaining)]
+		return _paint(COLOR_ERR, tr("CON_STATUS_FAILED"))
+	return _paint(COLOR_OK, "%s: %d s." % [effect.label(), ceili(effect.remaining)])
 
 
 func _complete_item_ids() -> PackedStringArray:
@@ -1035,7 +1015,7 @@ func _complete_item_ids() -> PackedStringArray:
 
 func _complete_weather() -> PackedStringArray:
 	var wc := _get_weather()
-	var out := PackedStringArray(["clear", "list"])
+	var out := PackedStringArray(["reset", "list"])
 	if wc != null:
 		for e in wc.get_event_names():
 			out.append(str(e))
@@ -1052,7 +1032,7 @@ const DAMAGE_RAY_LEN := 40.0
 func _cmd_damage(args: PackedStringArray) -> String:
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
-		return "[color=%s]Sin cámara activa.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_CAMERA"))
 
 	var from := camera.global_position
 	var dir := -camera.global_transform.basis.z
@@ -1060,30 +1040,28 @@ func _cmd_damage(args: PackedStringArray) -> String:
 	query.collision_mask = 3
 	var hit := camera.get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty():
-		return "[color=%s]No apuntas a nada a menos de %.0f m.[/color]" % [COLOR_ERR, DAMAGE_RAY_LEN]
+		return _paint(COLOR_ERR, tr("CON_AIM_NOTHING") % DAMAGE_RAY_LEN)
 
 	var collider = hit["collider"]
 	if not (collider is Node) or not (collider as Node).has_meta("grid_id"):
-		return "[color=%s]Eso no es una grid (%s).[/color]" % [COLOR_ERR, collider]
+		return _paint(COLOR_ERR, tr("CON_NOT_A_GRID") % str(collider))
 
 	var grid: GridBase = GridManager.get_grid_for_block(collider as Node3D)
 	if grid == null:
-		return "[color=%s]Grid '%s' no registrada.[/color]" % [
-			COLOR_ERR, (collider as Node).get_meta("grid_id")]
+		return _paint(COLOR_ERR, tr("CON_GRID_UNREGISTERED") % (collider as Node).get_meta("grid_id"))
 
 	# El punto de impacto cae JUSTO en la cara del bloque: hay que entrar un poco o world_to_cell
 	# devuelve la celda vecina, que suele estar vacía.
 	var point: Vector3 = hit["position"] + dir * (grid.cell_size * 0.25)
 	var cell := grid.world_to_cell(point)
 	if not grid.has_block(cell):
-		return "[color=%s]Sin bloque en %s de '%s' (¿otra grid del mismo cuerpo?).[/color]" % [
-			COLOR_ERR, cell, grid.grid_id]
+		return _paint(COLOR_ERR, tr("CON_NO_BLOCK") % [str(cell), grid.grid_id])
 
 	if args.is_empty():
 		return _damage_report(grid, cell)
 
 	if not args[0].is_valid_float():
-		return "[color=%s]Uso: damage [julios].[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_USAGE") % "damage [joules]")
 
 	var energy := maxf(args[0].to_float(), 0.0)
 	grid.begin_batch_edit()
@@ -1091,9 +1069,8 @@ func _cmd_damage(args: PackedStringArray) -> String:
 	grid.end_batch_edit()
 
 	var destroyed: int = (result["destroyed"] as Array).size()
-	var out := "[color=%s]%.0f J sobre '%s' %s → %d rotos, %d mellados (gastados %.0f J).[/color]" % [
-		COLOR_OK, energy, grid.grid_id, cell, destroyed,
-		int(result.get("damaged", 0)), result["spent"]]
+	var out := _paint(COLOR_OK, tr("CON_DAMAGE_DONE") % [energy, grid.grid_id, str(cell), destroyed,
+		int(result.get("damaged", 0)), result["spent"]])
 	if grid.has_block(cell):
 		out += "\n" + _damage_report(grid, cell)
 	return out
@@ -1105,9 +1082,8 @@ func _damage_report(grid: GridBase, cell: Vector3i) -> String:
 	var block_id: int = info["block_id"]
 	var hp: float = info.get("hp", 1.0)
 	var full := grid.impact_cost(block_id)
-	return "[color=%s]'%s' %s · bloque %d · vida %.1f%% (%.0f de %.0f J) · escalón %d/%d[/color]" % [
-		COLOR_INFO, grid.grid_id, cell, block_id, hp * 100.0, hp * full, full,
-		ChunkMeshBuilder.damage_step(hp), ChunkMeshBuilder.DAMAGE_STEPS]
+	return _paint(COLOR_INFO, tr("CON_DAMAGE_REPORT") % [grid.grid_id, str(cell), block_id, hp * 100.0, hp * full, full,
+		ChunkMeshBuilder.damage_step(hp), ChunkMeshBuilder.DAMAGE_STEPS])
 
 
 ## Por qué NO se está retirando cada resto. Las cinco condiciones se evalúan juntas dentro de
@@ -1117,7 +1093,7 @@ func _damage_report(grid: GridBase, cell: Vector3i) -> String:
 func _cmd_fauna(_args: PackedStringArray) -> String:
 	var spawners := get_tree().get_nodes_in_group(AmbientFaunaSpawner.GROUP)
 	if spawners.is_empty():
-		return "[color=%s]No hay ningún spawner de fauna en juego.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_SPAWNERS"))
 	var lines: Array[String] = []
 	for node in spawners:
 		var spawner := node as AmbientFaunaSpawner
@@ -1128,10 +1104,9 @@ func _cmd_fauna(_args: PackedStringArray) -> String:
 			if animal.active:
 				alive += 1
 		var activity := spawner.activity()
-		lines.append("[color=%s]%s[/color]  vivos %d/%d   actividad %d %%   pool %d   radio %.0f m" % [
-			COLOR_INFO, spawner.name, alive, mini(spawner.target_population(),
-			roundi(spawner.target_population() * activity)), roundi(activity * 100.0),
-			spawner._pool.size(), spawner.profile.spawn_radius])
+		lines.append("%s  %s" % [_paint(COLOR_INFO, spawner.name), tr("CON_FAUNA_LINE") % [alive,
+			mini(spawner.target_population(), roundi(spawner.target_population() * activity)),
+			roundi(activity * 100.0), spawner._pool.size(), spawner.profile.spawn_radius]])
 		var ground := spawner.habitat as GroundFaunaHabitat
 		if ground == null:
 			continue
@@ -1143,22 +1118,21 @@ func _cmd_fauna(_args: PackedStringArray) -> String:
 func _cmd_derelicts(_args: PackedStringArray) -> String:
 	var bodies := get_tree().get_nodes_in_group("dynamic_grid_body")
 	if bodies.is_empty():
-		return "[color=%s]No hay cuerpos dinámicos.[/color]" % COLOR_MUTED
+		return _paint(COLOR_MUTED, tr("CON_NO_DYNAMIC"))
 
-	var out := "[color=%s]retirada de restos · tamaño <= %d · quieto < %.1f · lejos > %.0f m · %.0f s[/color]\n" % [
-		COLOR_INFO, DynamicGridBody.DERELICT_MAX_BLOCKS, DynamicGridBody.DERELICT_SPEED,
-		DynamicGridBody.DERELICT_DISTANCE, DynamicGridBody.DERELICT_SETTLE_TIME]
+	var out := _paint(COLOR_INFO, tr("CON_DERELICTS_TITLE") % [DynamicGridBody.DERELICT_MAX_BLOCKS,
+		DynamicGridBody.DERELICT_SPEED, DynamicGridBody.DERELICT_DISTANCE, DynamicGridBody.DERELICT_SETTLE_TIME]) + "\n"
 
 	for node in bodies:
 		var body := node as DynamicGridBody
 		var st: Dictionary = body.get_derelict_state()
 		var gates := [
-			_gate("de rotura", st["from_split"]),
-			_gate("sin piloto", not st["controlled"]),
-			_gate("tamaño %d" % st["blocks"], int(st["blocks"]) <= DynamicGridBody.DERELICT_MAX_BLOCKS),
-			_gate("quieto %.2f/%.2f" % [st["speed"], st["spin"]],
+			_gate(tr("CON_GATE_SPLIT"), st["from_split"]),
+			_gate(tr("CON_GATE_NO_PILOT"), not st["controlled"]),
+			_gate(tr("CON_GATE_SIZE") % st["blocks"], int(st["blocks"]) <= DynamicGridBody.DERELICT_MAX_BLOCKS),
+			_gate(tr("CON_GATE_STILL") % [st["speed"], st["spin"]],
 				st["speed"] < DynamicGridBody.DERELICT_SPEED and st["spin"] < DynamicGridBody.DERELICT_SPEED),
-			_gate("lejos %.0fm" % st["distance"], st["distance"] > DynamicGridBody.DERELICT_DISTANCE),
+			_gate(tr("CON_GATE_FAR") % st["distance"], st["distance"] > DynamicGridBody.DERELICT_DISTANCE),
 		]
 		out += "  %s · %s · t %.1f\n" % [body.name, " ".join(gates), st["timer"]]
 	return out
@@ -1176,7 +1150,7 @@ func _gate(label: String, ok: bool) -> String:
 func _cmd_anchors(args: PackedStringArray) -> String:
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
-		return "[color=%s]Sin cámara activa.[/color]" % COLOR_ERR
+		return _paint(COLOR_ERR, tr("CON_NO_CAMERA"))
 
 	var reach := DAMAGE_RAY_LEN
 	if not args.is_empty() and args[0].is_valid_float():
@@ -1188,8 +1162,7 @@ func _cmd_anchors(args: PackedStringArray) -> String:
 	query.collision_mask = 3
 	var hit := camera.get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty():
-		return "[color=%s]No apuntas a nada a menos de %.0f m. Prueba 'anchors <distancia>'.[/color]" % [
-			COLOR_ERR, reach]
+		return _paint(COLOR_ERR, tr("CON_AIM_NOTHING") % reach + " " + tr("CON_ANCHORS_TRY_DISTANCE"))
 
 	# Decir QUÉ se golpeó, no solo que no servía: apuntando a un casco enterrado lo normal es
 	# llevarse el terreno por delante, y "eso no es una grid" a secas no lo distingue de un árbol.
@@ -1200,16 +1173,13 @@ func _cmd_anchors(args: PackedStringArray) -> String:
 	var dist: float = from.distance_to(hit["position"])
 
 	if not (collider is Node) or not (collider as Node).has_meta("grid_id"):
-		return "[color=%s]A %.1f m has dado con %s, que no pertenece a ninguna grid.[/color]" % [
-			COLOR_ERR, dist, what]
+		return _paint(COLOR_ERR, tr("CON_ANCHORS_HIT_NOT_GRID") % [dist, what])
 
 	var aimed := GridManager.get_grid_for_block(collider as Node3D)
 	if aimed == null:
-		return "[color=%s]%s dice ser de la grid '%s', pero no está registrada.[/color]" % [
-			COLOR_ERR, what, (collider as Node).get_meta("grid_id")]
+		return _paint(COLOR_ERR, tr("CON_ANCHORS_UNREGISTERED") % [what, (collider as Node).get_meta("grid_id")])
 	if not (aimed is PlanetGrid):
-		return "[color=%s]'%s' es dinámica; solo las estáticas se cimentan.[/color]" % [
-			COLOR_ERR, aimed.grid_id]
+		return _paint(COLOR_ERR, tr("CON_ANCHORS_DYNAMIC") % aimed.grid_id)
 
 	var group: Array = []
 	for grid: GridBase in GridManager.get_grid_group(aimed.grid_id):
@@ -1240,13 +1210,14 @@ func _cmd_anchors(args: PackedStringArray) -> String:
 		would_fall += int(piece["count"])
 
 	var color := COLOR_OK if anchored > 0 and would_fall == 0 else COLOR_ERR
-	var out := "[color=%s]'%s' · %d grids · %d bloques\n" % [color, aimed.grid_id, group.size(), blocks]
-	out += "  apoyados en el suelo: %d   (sondeo %.1f ms%s)\n" % [anchored, probe_usec / 1000.0,
-		"" if probe_ok else " · SIN PODER CONSULTAR EL TERRENO"]
-	out += "  se caerían ahora: %d   (alcance = raiz(apoyos) x %.2f, minimo %d · sondeo %.1f m)[/color]" % [
-		would_fall, GridManager.COLLAPSE_SPAN_PER_ANCHOR, GridManager.COLLAPSE_MIN_SPAN,
-		PlanetGrid.ANCHOR_PROBE]
+	var lines := PackedStringArray([
+		tr("CON_ANCHORS_TITLE") % [aimed.grid_id, group.size(), blocks],
+		"  " + tr("CON_ANCHORS_ANCHORED") % [anchored, probe_usec / 1000.0]
+			+ ("" if probe_ok else " · " + tr("CON_ANCHORS_NO_TERRAIN_QUERY")),
+		"  " + tr("CON_ANCHORS_WOULD_FALL") % [would_fall, GridManager.COLLAPSE_SPAN_PER_ANCHOR,
+			GridManager.COLLAPSE_MIN_SPAN, PlanetGrid.ANCHOR_PROBE],
+	])
+	var out := _paint(color, "\n".join(lines))
 	if anchored == 0 and probe_ok and not group.is_empty():
-		out += "\n[color=%s]sin un solo apoyo; muestra en crudo del sondeo:\n%s[/color]" % [
-			COLOR_MUTED, (group[0] as PlanetGrid).debug_anchor_sample()]
+		out += "\n" + _paint(COLOR_MUTED, tr("CON_ANCHORS_SAMPLE") + "\n" + (group[0] as PlanetGrid).debug_anchor_sample())
 	return out

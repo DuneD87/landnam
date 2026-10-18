@@ -17,14 +17,15 @@ signal slot_hovered(slot: EquipmentSlot, hovered: bool)
 const LEFT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.HEAD, ItemData.ArmorSlot.CHEST,
 	ItemData.ArmorSlot.HANDS, ItemData.ArmorSlot.LEGS, ItemData.ArmorSlot.FEET]
 const RIGHT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.RIGHT_HAND, ItemData.ArmorSlot.OFFHAND]
+## Clave del nombre de cada hueco.
 const SLOT_NAMES := {
-	ItemData.ArmorSlot.HEAD: "Cabeza",
-	ItemData.ArmorSlot.CHEST: "Torso",
-	ItemData.ArmorSlot.HANDS: "Manos",
-	ItemData.ArmorSlot.LEGS: "Piernas",
-	ItemData.ArmorSlot.FEET: "Pies",
-	ItemData.ArmorSlot.RIGHT_HAND: "Mano derecha",
-	ItemData.ArmorSlot.OFFHAND: "Mano izquierda",
+	ItemData.ArmorSlot.HEAD: "SLOT_HEAD",
+	ItemData.ArmorSlot.CHEST: "SLOT_CHEST",
+	ItemData.ArmorSlot.HANDS: "SLOT_HANDS",
+	ItemData.ArmorSlot.LEGS: "SLOT_LEGS",
+	ItemData.ArmorSlot.FEET: "SLOT_FEET",
+	ItemData.ArmorSlot.RIGHT_HAND: "SLOT_RIGHT_HAND",
+	ItemData.ArmorSlot.OFFHAND: "SLOT_LEFT_HAND",
 }
 ## Luz que reciben en el muñeco los materiales planetarios de la ropa (opaque_planet_material):
 ## la del estudio, con un planeta muy lejos debajo para que sea pleno día.
@@ -77,7 +78,7 @@ func refresh() -> void:
 	if look != _applied_look:
 		_applied_look = look
 		preview.rig.apply(appearance)
-	_name_label.text = character.display_name.to_upper() if character and character.display_name != "" else "PERSONAJE"
+	_name_label.text = character.display_name.to_upper() if character and character.display_name != "" else tr("CHAR_DEFAULT_NAME")
 	_sync_dress()
 
 
@@ -88,6 +89,8 @@ func _build_doll() -> Control:
 	doll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_name_label = Label.new()
 	_name_label.theme_type_variation = &"HeaderLabel"
+	# Es el nombre que ha puesto el jugador: no se busca en las traducciones.
+	_name_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	doll.add_child(_name_label)
 
@@ -112,7 +115,7 @@ func _build_doll() -> Control:
 	row.add_child(_slot_column(RIGHT_SLOTS, icons, false))
 
 	var hint := Label.new()
-	hint.text = "Arrastra para girar · Rueda: acercar"
+	hint.text = "CHAR_DOLL_HINT"
 	hint.theme_type_variation = &"HintLabel"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	doll.add_child(hint)

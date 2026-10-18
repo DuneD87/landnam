@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"great_axe"
-display_name = "Hacha grande"
-description = "Cabeza de hacha del tamaño de un escudo al final de un astil de fresno. Lenta, pero lo que alcanza se abre en dos."
+display_name = "ITEM_GREAT_AXE"
+description = "ITEM_GREAT_AXE_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/great_axe.tscn"

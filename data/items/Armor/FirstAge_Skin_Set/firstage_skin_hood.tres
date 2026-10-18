@@ -12,8 +12,8 @@ warmth = 1.5
 [resource]
 script = ExtResource("2_nam8f")
 id = &"firstage_skin_hood"
-display_name = "Capucha de pieles"
-description = "Skin Hood"
+display_name = "ITEM_FIRSTAGE_SKIN_HOOD"
+description = "ITEM_FIRSTAGE_SKIN_HOOD_DESC"
 icon = ExtResource("1_2wxus")
 category = 4
 scene_path = "res://scenes/items/armor/firstage_skin_set/firstage_skin_hood_equipable.tscn"

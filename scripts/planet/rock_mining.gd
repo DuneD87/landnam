@@ -138,7 +138,7 @@ static func strike(scene_tree: SceneTree, space: PhysicsDirectSpaceState3D, feet
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = STRIKE_WIDTH
 	var query := PhysicsShapeQueryParameters3D.new()
-	query.collide_with_areas = false
+	query.collide_with_areas = false 
 	query.collide_with_bodies = true
 	query.collision_mask = TreeFelling.WORLD_LAYER
 	query.shape = capsule

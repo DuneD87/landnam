@@ -72,7 +72,7 @@ func _build_ui() -> void:
 	outer_vbox.add_child(header)
 
 	title_label = Label.new()
-	title_label.text = "Build Menu"
+	title_label.text = "BUILD_MENU_TITLE"
 	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title_label)
 
@@ -161,14 +161,14 @@ func _create_block_slot(item_data: ItemData) -> PanelContainer:
 
 	var label := Label.new()
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.text = item_data.display_name
+	label.text = item_data.get_display_name()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 14)
 	vb.add_child(label)
 
 	slot.mouse_filter = Control.MOUSE_FILTER_STOP
 	slot.gui_input.connect(_on_block_slot_input.bind(item_data))
-	slot.tooltip_text = "%s\n%s" % [item_data.display_name, item_data.description]
+	slot.tooltip_text = "%s\n%s" % [item_data.get_display_name(), item_data.get_description()]
 	return slot
 
 
@@ -230,7 +230,7 @@ func _update_floating_display() -> void:
 	if not _floating_data:
 		return
 	_floating_icon.texture = _floating_data.icon
-	_floating_label.text = _floating_data.display_name
+	_floating_label.text = _floating_data.get_display_name()
 	_floating_display.visible = true
 
 

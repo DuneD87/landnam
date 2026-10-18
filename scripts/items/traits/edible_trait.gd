@@ -16,13 +16,13 @@ extends ItemTrait
 func describe() -> Array:
 	var rows := []
 	if hunger != 0.0:
-		rows.append(["Hambre", percent(hunger)])
+		rows.append(["NEED_HUNGER", percent(hunger)])
 	if thirst != 0.0:
-		rows.append(["Sed", percent(thirst)])
+		rows.append(["NEED_THIRST", percent(thirst)])
 	if sanity != 0.0:
-		rows.append(["Cordura", percent(sanity)])
+		rows.append(["NEED_SANITY", percent(sanity)])
 	if health != 0.0:
-		rows.append(["Vida", "%+d" % roundi(health)])
+		rows.append(["STAT_HEALTH", "%+d" % roundi(health)])
 	if intoxication_chance > 0.0:
-		rows.append(["Intoxica", "%d %%" % roundi(intoxication_chance * 100.0)])
+		rows.append(["TRAIT_INTOXICATES", "%d %%" % roundi(intoxication_chance * 100.0)])
 	return rows

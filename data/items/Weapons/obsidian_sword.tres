@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_item")
 id = &"obsidian_sword"
-display_name = "Espada de obsidiana"
-description = "Como la de sílex, pero con lascas de obsidiana: el filo más vivo que da la piedra. Corta más y abre peor las pieles duras."
+display_name = "ITEM_OBSIDIAN_SWORD"
+description = "ITEM_OBSIDIAN_SWORD_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/obsidian_sword.tscn"

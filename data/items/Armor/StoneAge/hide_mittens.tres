@@ -12,8 +12,8 @@ warmth = 1.0
 [resource]
 script = ExtResource("1_item")
 id = &"hide_mittens"
-display_name = "Manoplas de cuero"
-description = "Cuero cosido con un puño largo que sube por el antebrazo, atado a la muñeca con una correa."
+display_name = "ITEM_HIDE_MITTENS"
+description = "ITEM_HIDE_MITTENS_DESC"
 icon = ExtResource("0_icon")
 category = 4
 scene_path = "res://scenes/items/armor/stone_age/hide_mittens_equipable.tscn"

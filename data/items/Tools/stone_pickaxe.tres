@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_7vmkj")
 id = &"stone_pickaxe_01"
-display_name = "Pico de piedra"
-description = "Pica la roca y el terreno para sacar piedra."
+display_name = "ITEM_STONE_PICKAXE_01"
+description = "ITEM_STONE_PICKAXE_01_DESC"
 icon = ExtResource("1_nbbt4")
 category = 1
 scene_path = "res://scenes/items/weapons/stone_pickaxe_01.tscn"

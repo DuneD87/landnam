@@ -27,8 +27,8 @@ enum View {INVENTORY, CHARACTER, CRAFTING}
 const Config = preload("res://scripts/config.gd")
 const BACKDROP_SHADER := preload("res://shaders/ui/backdrop.gdshader")
 const COLUMNS := 5
-## Filtros del inventario: «Todo» y las categorías de ItemTaxonomy (-1 = todas).
-static var FILTERS: Array = [["Todo", -1]] + ItemTaxonomy.CATEGORIES.map(
+## Filtros del inventario: «Todo» y las categorías de ItemTaxonomy (-1 = todas), con sus claves.
+static var FILTERS: Array = [["INV_FILTER_ALL", -1]] + ItemTaxonomy.CATEGORIES.map(
 	func(entry: Array) -> Array: return [entry[1], entry[0]])
 ## Medidas en la escala base de 1440 px: ancho de las columnas de los lados, ancho del muñeco
 ## (mínimo y máximo), hueco entre columnas, márgenes y la franja de abajo, que es de la barra.
@@ -37,7 +37,6 @@ const DOLL_WIDTH := Vector2(560.0, 900.0)
 const GAP := 36.0
 const MARGIN := Vector2(56.0, 40.0)
 const BOTTOM := 170.0
-const INVENTORY_HINT := "Clic: coger o soltar · Clic derecho: la mitad, o de uno en uno\nClic fuera de las ventanas: tirar al suelo · Sobre la barra rápida: asignar\nDoble clic: comer, curarse, beber del odre · Hogueras y estaciones: selecciónalas en la barra y clic para plantarlas"
 
 var inventory: Inventory
 var character_window: CharacterWindow
@@ -86,7 +85,7 @@ var _stamina_value: Label
 ## Protección contra tajo, contundente y perforante de lo puesto.
 var _armor_values: Array[Label] = []
 var _needs: SurvivalNeeds
-## Valor de cada necesidad en la ficha, por su nombre de consola (SurvivalNeeds.NAMES).
+## Valor de cada necesidad en la ficha, por su nombre (SurvivalNeeds.NAMES, más "water").
 var _need_values := {}
 var _hand_boxes := {}
 
@@ -211,7 +210,7 @@ func _build_header() -> Control:
 	_close_button.text = "×"
 	_close_button.theme_type_variation = &"CloseButton"
 	_close_button.focus_mode = Control.FOCUS_NONE
-	_close_button.tooltip_text = "Cerrar"
+	_close_button.tooltip_text = "UI_CLOSE"
 	_close_button.pressed.connect(close)
 	header.add_child(_close_button)
 	return header
@@ -224,7 +223,7 @@ func _build_inventory_column() -> PanelContainer:
 	column.add_child(box)
 	var header := HBoxContainer.new()
 	var title := Label.new()
-	title.text = "INVENTARIO"
+	title.text = "INV_TITLE"
 	title.theme_type_variation = &"HeaderLabel"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
@@ -233,19 +232,19 @@ func _build_inventory_column() -> PanelContainer:
 	_count_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	header.add_child(_count_label)
 	var sort := Button.new()
-	sort.text = "Ordenar"
+	sort.text = "INV_SORT"
 	sort.theme_type_variation = &"TabButton"
 	sort.focus_mode = Control.FOCUS_NONE
-	sort.tooltip_text = "Junta lo que se apila y lo ordena por tipo"
+	sort.tooltip_text = "INV_SORT_TIP"
 	sort.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	sort.pressed.connect(_sort_inventory)
 	header.add_child(sort)
 	_craft_toggle = Button.new()
-	_craft_toggle.text = "Fabricar"
+	_craft_toggle.text = "INV_CRAFT"
 	_craft_toggle.theme_type_variation = &"TabButton"
 	_craft_toggle.toggle_mode = true
 	_craft_toggle.focus_mode = Control.FOCUS_NONE
-	_craft_toggle.tooltip_text = "Lo que puedes fabricar con lo que llevas (Tab)"
+	_craft_toggle.tooltip_text = "INV_CRAFT_TIP"
 	_craft_toggle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_craft_toggle.toggled.connect(func(on: bool) -> void: open(View.CRAFTING if on else View.INVENTORY))
 	header.add_child(_craft_toggle)
@@ -253,7 +252,7 @@ func _build_inventory_column() -> PanelContainer:
 	_inventory_close.text = "×"
 	_inventory_close.theme_type_variation = &"CloseButton"
 	_inventory_close.focus_mode = Control.FOCUS_NONE
-	_inventory_close.tooltip_text = "Cerrar (I, Esc)"
+	_inventory_close.tooltip_text = "INV_CLOSE_TIP"
 	_inventory_close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_inventory_close.pressed.connect(close)
 	header.add_child(_inventory_close)
@@ -285,7 +284,7 @@ func _build_inventory_column() -> PanelContainer:
 	box.add_child(spacer)
 	box.add_child(HSeparator.new())
 	var hint := Label.new()
-	hint.text = INVENTORY_HINT
+	hint.text = "INV_HINT"
 	hint.theme_type_variation = &"HintLabel"
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(hint)
@@ -314,7 +313,7 @@ func _build_campfire() -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var header := HBoxContainer.new()
-	var title := _label("HOGUERA", &"HeaderLabel")
+	var title := _label("INV_CAMPFIRE", &"HeaderLabel")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	_fire_label = _label("", &"ValueLabel")
@@ -322,7 +321,7 @@ func _build_campfire() -> VBoxContainer:
 	header.add_child(_fire_label)
 	box.add_child(header)
 	box.add_child(HSeparator.new())
-	box.add_child(_label("Combustible", &"SectionLabel"))
+	box.add_child(_label("INV_FUEL", &"SectionLabel"))
 	var fuel_row := HBoxContainer.new()
 	var fuel_slot := InventorySlot.new()
 	fuel_slot.slot_index = Campfire.FUEL_SLOT
@@ -337,11 +336,11 @@ func _build_campfire() -> VBoxContainer:
 	fuel_info.add_child(_fuel_label)
 	_fuel_bar = _bar(&"StaminaBar")
 	fuel_info.add_child(_fuel_bar)
-	fuel_info.add_child(_label("Madera, ramas: lo que arda", &"HintLabel"))
+	fuel_info.add_child(_label("INV_FUEL_HINT", &"HintLabel"))
 	fuel_row.add_child(fuel_info)
 	box.add_child(fuel_row)
 	box.add_child(HSeparator.new())
-	box.add_child(_label("Asador", &"SectionLabel"))
+	box.add_child(_label("INV_ROAST", &"SectionLabel"))
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -372,19 +371,19 @@ func _build_campfire() -> VBoxContainer:
 	_ignite_button.pressed.connect(_toggle_fire)
 	buttons.add_child(_ignite_button)
 	var take := Button.new()
-	take.text = "Recoger lo asado"
+	take.text = "INV_TAKE_COOKED"
 	take.focus_mode = Control.FOCUS_NONE
 	take.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	take.pressed.connect(_take_cooked)
 	buttons.add_child(take)
 	box.add_child(buttons)
 	var dismantle := Button.new()
-	dismantle.text = "Desmontar"
+	dismantle.text = "UI_DISMANTLE"
 	dismantle.focus_mode = Control.FOCUS_NONE
-	dismantle.tooltip_text = "Apagada y vacía, vuelve al inventario"
+	dismantle.tooltip_text = "INV_DISMANTLE_FIRE_TIP"
 	dismantle.pressed.connect(_dismantle_campfire)
 	box.add_child(dismantle)
-	var hint := _label("Con algo en el cursor, clic en un hueco: dejarlo (una pieza en el asador)\nClic: al inventario", &"HintLabel")
+	var hint := _label("INV_CAMPFIRE_HINT", &"HintLabel")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(hint)
@@ -394,21 +393,21 @@ func _build_campfire() -> VBoxContainer:
 func _build_stats() -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(_label("ATRIBUTOS", &"HeaderLabel"))
+	box.add_child(_label("INV_ATTRIBUTES", &"HeaderLabel"))
 	box.add_child(HSeparator.new())
 	var vitals := GridContainer.new()
 	vitals.columns = 2
-	_health_value = _stat_row(vitals, "Vida")
+	_health_value = _stat_row(vitals, "STAT_HEALTH")
 	_health_bar = _bar(&"HealthBar")
 	box.add_child(vitals)
 	box.add_child(_health_bar)
 	var stamina_grid := GridContainer.new()
 	stamina_grid.columns = 2
-	_stamina_value = _stat_row(stamina_grid, "Aguante")
+	_stamina_value = _stat_row(stamina_grid, "STAT_STAMINA")
 	_stamina_bar = _bar(&"StaminaBar")
 	box.add_child(stamina_grid)
 	box.add_child(_stamina_bar)
-	box.add_child(_label("Armadura", &"SectionLabel"))
+	box.add_child(_label("INV_ARMOR", &"SectionLabel"))
 	_armor_values.clear()
 	var armor := GridContainer.new()
 	armor.columns = 2
@@ -416,11 +415,11 @@ func _build_stats() -> VBoxContainer:
 		_armor_values.append(_stat_row(armor, Armor.KIND_NAMES[kind]))
 	box.add_child(armor)
 	box.add_child(HSeparator.new())
-	box.add_child(_label("Necesidades", &"SectionLabel"))
+	box.add_child(_label("INV_NEEDS", &"SectionLabel"))
 	var needs := GridContainer.new()
 	needs.columns = 2
-	for need in [["hambre", "Hambre"], ["sed", "Sed"], ["descanso", "Descanso"], ["cordura", "Cordura"],
-			["temperatura", "Temperatura"], ["agua", "Agua en odres"]]:
+	for need in [["hunger", "NEED_HUNGER"], ["thirst", "NEED_THIRST"], ["rest", "NEED_REST"],
+			["sanity", "NEED_SANITY"], ["warmth", "NEED_TEMPERATURE"], ["water", "NEED_WATER"]]:
 		_need_values[need[0]] = _stat_row(needs, need[1])
 	box.add_child(needs)
 	for slot_type in CharacterWindow.RIGHT_SLOTS:
@@ -437,7 +436,7 @@ func _build_loot() -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var header := HBoxContainer.new()
-	var title := _label("BOTÍN", &"HeaderLabel")
+	var title := _label("INV_LOOT", &"HeaderLabel")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	_loot_label = _label("", &"ValueLabel")
@@ -454,12 +453,12 @@ func _build_loot() -> VBoxContainer:
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(spacer)
 	var take_all := Button.new()
-	take_all.text = "Cogerlo todo"
+	take_all.text = "INV_TAKE_ALL"
 	take_all.theme_type_variation = &"AccentButton"
 	take_all.focus_mode = Control.FOCUS_NONE
 	take_all.pressed.connect(_take_all_loot)
 	box.add_child(take_all)
-	var hint := _label("Clic: al inventario", &"HintLabel")
+	var hint := _label("INV_HINT_TO_INVENTORY", &"HintLabel")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
 	return box
@@ -589,9 +588,9 @@ func _refresh_stats() -> void:
 			child.queue_free()
 		var data := _equipped(slot_type)
 		if data == null:
-			box.add_child(_label("Vacía", &"HintLabel"))
+			box.add_child(_label("INV_HAND_EMPTY", &"HintLabel"))
 			continue
-		box.add_child(_label(data.display_name, &"StatValue"))
+		box.add_child(_label(data.get_display_name(), &"StatValue"))
 		box.add_child(_label(ItemCard.kind_line(data), &"HintLabel"))
 		var grid := GridContainer.new()
 		grid.columns = 2
@@ -618,11 +617,11 @@ func _refresh_vitals() -> void:
 		var label: Label = _need_values[need]
 		if not has_needs:
 			label.text = "—"
-		elif need == "temperatura":
+		elif need == "warmth":
 			label.text = "%s · %d °C" % [_needs.temperature_word(), roundi(_needs.felt_temperature)]
-		elif need == "agua":
+		elif need == "water":
 			var room := _needs.water_capacity()
-			label.text = "%d / %d tragos" % [_needs.water, room] if room > 0 else "Sin odre"
+			label.text = tr("INV_SIPS_OF") % [_needs.water, room] if room > 0 else tr("INV_NO_WATERSKIN")
 			label.theme_type_variation = &"StatValue"
 			continue
 		else:
@@ -664,36 +663,36 @@ func _on_slot_hovered(slot: ItemSlotView, on: bool, context: StringName) -> void
 			if item:
 				data = item.data
 				quantity = item.quantity
-			hint = "Clic: coger · Clic derecho: la mitad"
+			hint = tr("INV_HINT_TAKE")
 			if item and (item.data.get_trait(EdibleTrait) != null or item.data.get_trait(WaterContainerTrait) != null):
-				hint += " · Doble clic: " + ("beber" if item.data.get_trait(WaterContainerTrait) != null else "comer")
+				hint += " · " + tr("INV_HINT_DOUBLE_DRINK" if item.data.get_trait(WaterContainerTrait) != null else "INV_HINT_DOUBLE_EAT")
 		&"loot":
 			var item: InventoryItem = (slot as InventorySlot).item
 			if item:
 				data = item.data
 				quantity = item.quantity
-			hint = "Clic: al inventario"
+			hint = tr("INV_HINT_TO_INVENTORY")
 		&"campfire":
 			var item: InventoryItem = (slot as InventorySlot).item
 			if item:
 				data = item.data
 				quantity = item.quantity
-				hint = "Clic: al inventario"
+				hint = tr("INV_HINT_TO_INVENTORY")
 			else:
 				var fuel := (slot as InventorySlot).slot_index == Campfire.FUEL_SLOT
-				_card.show_empty("Combustible" if fuel else "Asador",
-					"Suelta aquí algo que arda" if fuel else "Suelta aquí una pieza para asarla")
+				_card.show_empty("INV_FUEL" if fuel else "INV_ROAST",
+					"INV_FUEL_EMPTY_HINT" if fuel else "INV_ROAST_EMPTY_HINT")
 		&"equipment":
 			var equipment := slot as EquipmentSlot
 			if equipment.has_item():
 				data = equipment.equipped_item.data
-				hint = "Clic: quitárselo"
+				hint = tr("INV_HINT_UNEQUIP")
 			else:
-				_card.show_empty(CharacterWindow.SLOT_NAMES.get(equipment.slot_type, "Hueco"),
-					"Suelta aquí lo que lleves en el cursor para ponértelo")
+				_card.show_empty(CharacterWindow.SLOT_NAMES.get(equipment.slot_type, "SLOT_EMPTY"),
+					"INV_EQUIP_EMPTY_HINT")
 		&"hotbar":
 			data = (slot as HotbarSlot).assigned_data
-			hint = "Clic: vaciar el hueco · Con algo en el cursor: asignarlo"
+			hint = tr("INV_HINT_HOTBAR")
 			quantity = 0
 	if data != null:
 		var compare: ItemData = null if context == &"equipment" else _equipped_counterpart(data)
@@ -765,8 +764,8 @@ func _apply_view() -> void:
 	var crafting := view == View.CRAFTING
 	_backdrop.visible = full or crafting
 	_header.visible = full or crafting
-	_header_title.text = "FABRICAR" if crafting else "EQUIPO"
-	_header_hint.text = "Tab · Esc: cerrar · I: solo el inventario" if crafting else "C · Esc: cerrar · I: solo el inventario"
+	_header_title.text = "INV_HEADER_CRAFT" if crafting else "INV_HEADER_EQUIPMENT"
+	_header_hint.text = "INV_HEADER_HINT_CRAFT" if crafting else "INV_HEADER_HINT_CHARACTER"
 	_doll_holder.visible = full
 	_side_column.visible = not crafting and (full or _loot_inventory != null or _campfire != null)
 	_crafting_panel.visible = crafting
@@ -881,10 +880,10 @@ func _refresh_campfire() -> void:
 		_cook_bars[i].value = _campfire.cook_ratio(i)
 		_cook_bars[i].modulate.a = 1.0 if _campfire.inventory.items[1 + i] != null else 0.25
 	var left := _campfire.burn_seconds_left()
-	_fuel_label.text = "Para %d:%02d" % [floori(left / 60.0), int(left) % 60] if left > 0.0 else "Sin combustible"
+	_fuel_label.text = tr("INV_FIRE_LEFT") % [floori(left / 60.0), int(left) % 60] if left > 0.0 else tr("INV_NO_FUEL")
 	_fuel_bar.value = _campfire.fuel_left / maxf(_campfire.fuel_total, 1.0) if _campfire.fuel_left > 0.0 else 0.0
-	_fire_label.text = "Encendida" if _campfire.lit else "Apagada"
-	_ignite_button.text = "Apagar" if _campfire.lit else "Encender"
+	_fire_label.text = "INV_FIRE_LIT" if _campfire.lit else "INV_FIRE_OUT"
+	_ignite_button.text = "INV_PUT_OUT" if _campfire.lit else "INV_LIGHT"
 	_ignite_button.disabled = not _campfire.lit and not _campfire.has_fuel()
 
 
@@ -896,7 +895,7 @@ func _on_campfire_slot_clicked(slot: InventorySlot, button_index: int) -> void:
 	if floating_item != null:
 		if not _campfire.accepts(index, floating_item.data):
 			if hotbar != null:
-				hotbar.notify("Eso no va ahí" if index != Campfire.FUEL_SLOT else "Eso no arde")
+				hotbar.notify(tr("INV_NOT_HERE" if index != Campfire.FUEL_SLOT else "INV_DOESNT_BURN"))
 			return
 		var room := _campfire.capacity(index, floating_item.data)
 		if stored != null and (stored.data.id != floating_item.data.id or not stored.data.stackable):
@@ -933,7 +932,7 @@ func _toggle_fire() -> void:
 	if _campfire.lit:
 		_campfire.extinguish()
 	elif not _campfire.ignite() and hotbar != null:
-		hotbar.notify("Échale algo que arda")
+		hotbar.notify(tr("INV_ADD_FUEL"))
 
 
 ## Al inventario todo lo que ya está asado (lo que no se asa más).
@@ -954,7 +953,7 @@ func _dismantle_campfire() -> void:
 		return
 	if _campfire.lit or not _campfire.is_empty():
 		if hotbar != null:
-			hotbar.notify("Apágala y vacíala antes de desmontarla")
+			hotbar.notify(tr("INV_PUT_OUT_FIRST"))
 		return
 	var fire := _campfire
 	close_campfire()

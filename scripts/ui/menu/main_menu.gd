@@ -160,7 +160,7 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 				_save_button.visible = false
 			if _load_button:
 				_load_button.visible = GameManager.has_save(GameManager.MAIN_SLOT)
-				_load_button.text = "Continuar partida"
+				_load_button.text = "MENU_CONTINUE"
 		GameManager.State.CINEMATIC, GameManager.State.CHARACTER_CREATION:
 			visible = false
 		GameManager.State.PLAYING:
@@ -169,7 +169,7 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 				_save_button.visible = true
 			# En partida, cargar vuelve a la última guardada.
 			if _load_button:
-				_load_button.text = "Cargar partida"
+				_load_button.text = "MENU_LOAD_GAME"
 
 
 func _set_buttons_disabled(disabled: bool) -> void:

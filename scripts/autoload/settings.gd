@@ -1,8 +1,8 @@
 class_name SettingsManager
 extends Node
 
-## Ajustes del jugador (autoload "Settings"): pantalla, gráficos, audio y controles, guardados en
-## user://settings.cfg. Cada ajuste se aplica en cuanto cambia, salvo los de RESTART_KEYS, que el
+## Ajustes del jugador (autoload "Settings"): pantalla, gráficos, audio, controles e idioma, guardados
+## en user://settings.cfg. Cada ajuste se aplica en cuanto cambia, salvo los de RESTART_KEYS, que el
 ## planeta lee al cargarse (terreno y vegetación) y valen desde el siguiente arranque.
 ## Los valores viven en estáticos para que esos sistemas los lean sin depender del autoload; en el
 ## editor devuelven siempre los valores por defecto, así los @tool no dependen de la partida.
@@ -10,6 +10,8 @@ extends Node
 signal changed(key: String)
 
 const PATH := "user://settings.cfg"
+## Donde Godot deja una traducción por columna de translations.csv al importarlo.
+const TRANSLATIONS_DIR := "res://localization/"
 
 enum WindowMode {WINDOWED, FULLSCREEN, EXCLUSIVE}
 enum Upscaler {BILINEAR, FSR1, FSR2}
@@ -62,6 +64,9 @@ const DEFAULTS := {
 	"audio/UI": 1.0,
 	"audio/Voice": 1.0,
 	"game/gore": GORE_FULL,
+	## Idioma de los textos: una columna de localization/translations.csv ("en", "es"...), o "" para el
+	## del sistema (si no está traducido a ese, el de reserva del proyecto, inglés).
+	"game/language": "",
 	## Tamaño de la barra rápida (con su consola y sus orbes) sobre el que le daría la ventana.
 	"game/hotbar_scale": 0.75,
 	"controls/mouse_sensitivity": 1.0,
@@ -104,26 +109,26 @@ const MAX_HOTBAR_SCALE := 1.4
 const MIN_MOUSE_SENSITIVITY := 0.2
 const MAX_MOUSE_SENSITIVITY := 3.0
 
-## Acciones que se pueden reasignar, por grupo, con su nombre en la pantalla de opciones.
+## Acciones que se pueden reasignar, por grupo, con la clave de su nombre en la pantalla de opciones.
 const REBINDABLE_ACTIONS := [
-	["Movimiento", [
-		[&"move_forward", "Avanzar"], [&"move_back", "Retroceder"], [&"move_left", "Izquierda"],
-		[&"move_right", "Derecha"], [&"jump", "Saltar"], [&"Sprint", "Correr"],
-		[&"walk_toggle", "Andar / correr"], [&"dodge", "Esquivar"],
-		[&"toggle_free_flight", "Vuelo libre"]]],
-	["Combate", [
-		[&"attack_1", "Ataque principal"], [&"attack_2", "Ataque secundario"], [&"lock_on", "Fijar objetivo"]]],
-	["Interfaz", [
-		[&"action", "Usar / interactuar"], [&"inventory", "Inventario"], [&"character_window", "Personaje"],
-		[&"world_map", "Mapa del mundo"], [&"toggle_console", "Consola"]]],
-	["Construcción", [
-		[&"open_build_menu", "Menú de construcción"], [&"switch_build_modes", "Cambiar modo"],
-		[&"toggle_symmetry_mode", "Simetría"], [&"switch_symmetry_plane", "Plano de simetría"],
-		[&"rotate_block_x", "Rotar bloque en X"], [&"rotate_block_y", "Rotar bloque en Y"],
-		[&"rotate_block_z", "Rotar bloque en Z"], [&"convert_dynamic", "Convertir en dinámica"],
-		[&"open_ship_menu", "Menú de naves"], [&"open_grid_menu", "Menú de estructura"]]],
-	["Cámara", [
-		[&"camera_zoom_in", "Acercar cámara"], [&"camera_zoom_out", "Alejar cámara"]]],
+	["OPT_GROUP_MOVEMENT", [
+		[&"move_forward", "ACTION_MOVE_FORWARD"], [&"move_back", "ACTION_MOVE_BACK"], [&"move_left", "ACTION_MOVE_LEFT"],
+		[&"move_right", "ACTION_MOVE_RIGHT"], [&"jump", "ACTION_JUMP"], [&"Sprint", "ACTION_SPRINT"],
+		[&"walk_toggle", "ACTION_WALK_TOGGLE"], [&"dodge", "ACTION_DODGE"],
+		[&"toggle_free_flight", "ACTION_FREE_FLIGHT"]]],
+	["OPT_GROUP_COMBAT", [
+		[&"attack_1", "ACTION_ATTACK_1"], [&"attack_2", "ACTION_ATTACK_2"], [&"lock_on", "ACTION_LOCK_ON"]]],
+	["OPT_GROUP_INTERFACE", [
+		[&"action", "ACTION_USE"], [&"inventory", "ACTION_INVENTORY"], [&"character_window", "ACTION_CHARACTER"],
+		[&"world_map", "ACTION_WORLD_MAP"], [&"toggle_console", "ACTION_CONSOLE"]]],
+	["OPT_GROUP_BUILDING", [
+		[&"open_build_menu", "ACTION_BUILD_MENU"], [&"switch_build_modes", "ACTION_BUILD_MODE"],
+		[&"toggle_symmetry_mode", "ACTION_SYMMETRY"], [&"switch_symmetry_plane", "ACTION_SYMMETRY_PLANE"],
+		[&"rotate_block_x", "ACTION_ROTATE_X"], [&"rotate_block_y", "ACTION_ROTATE_Y"],
+		[&"rotate_block_z", "ACTION_ROTATE_Z"], [&"convert_dynamic", "ACTION_CONVERT_DYNAMIC"],
+		[&"open_ship_menu", "ACTION_SHIP_MENU"], [&"open_grid_menu", "ACTION_GRID_MENU"]]],
+	["OPT_GROUP_CAMERA", [
+		[&"camera_zoom_in", "ACTION_ZOOM_IN"], [&"camera_zoom_out", "ACTION_ZOOM_OUT"]]],
 ]
 
 ## Sensibilidad del ratón (multiplicador) e inversión del eje Y, leídas por las cámaras en cada
@@ -141,6 +146,7 @@ var _default_events: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_load_translations()
 	_ensure_loaded()
 	for group in REBINDABLE_ACTIONS:
 		for entry in group[1]:
@@ -191,6 +197,40 @@ static func grass_density_scale() -> float:
 
 static func grass_max_band() -> int:
 	return GRASS_MAX_BAND[level("graphics/grass_distance", GRASS_MAX_BAND.size())]
+
+
+## Las traducciones de localization/ que el proyecto no carga ya (las suyas están en Ajustes del
+## proyecto > Localización): así un idioma nuevo es solo una columna más del CSV.
+static func _load_translations() -> void:
+	var loaded := TranslationServer.get_loaded_locales()
+	for file_name in DirAccess.get_files_at(TRANSLATIONS_DIR):
+		file_name = file_name.trim_suffix(".remap")
+		if not file_name.ends_with(".translation"):
+			continue
+		var translation := load(TRANSLATIONS_DIR.path_join(file_name)) as Translation
+		if translation != null and not loaded.has(translation.locale):
+			TranslationServer.add_translation(translation)
+			loaded.append(translation.locale)
+
+
+## Locale del ajuste "game/language": el elegido o, con "", el del sistema.
+static func language_locale() -> String:
+	var chosen := String(value("game/language"))
+	return chosen if chosen != "" else OS.get_locale()
+
+
+## Idiomas a elegir: las columnas de localization/translations.csv, por su código.
+static func languages() -> PackedStringArray:
+	var out := TranslationServer.get_loaded_locales()
+	out.sort()
+	return out
+
+
+## El nombre de un idioma en ese mismo idioma ("English", "Español"): su LANGUAGE_NAME.
+static func language_name(locale: String) -> String:
+	var translation := TranslationServer.get_translation_object(locale)
+	var native := String(translation.get_message(&"LANGUAGE_NAME")) if translation != null else ""
+	return native if native != "" else TranslationServer.get_locale_name(locale)
 
 
 ## Bandas de impostores lejanos de un bosque: las que pide el planeta, recortadas por el ajuste.
@@ -392,14 +432,14 @@ static func event_label(event: InputEvent) -> String:
 		return OS.get_keycode_string(layout_key if layout_key != KEY_NONE else code)
 	if event is InputEventMouseButton:
 		match event.button_index:
-			MOUSE_BUTTON_LEFT: return "Clic izquierdo"
-			MOUSE_BUTTON_RIGHT: return "Clic derecho"
-			MOUSE_BUTTON_MIDDLE: return "Clic central"
-			MOUSE_BUTTON_WHEEL_UP: return "Rueda arriba"
-			MOUSE_BUTTON_WHEEL_DOWN: return "Rueda abajo"
-			MOUSE_BUTTON_XBUTTON1: return "Botón lateral 1"
-			MOUSE_BUTTON_XBUTTON2: return "Botón lateral 2"
-		return "Botón %d" % event.button_index
+			MOUSE_BUTTON_LEFT: return TranslationServer.translate(&"KEY_MOUSE_LEFT")
+			MOUSE_BUTTON_RIGHT: return TranslationServer.translate(&"KEY_MOUSE_RIGHT")
+			MOUSE_BUTTON_MIDDLE: return TranslationServer.translate(&"KEY_MOUSE_MIDDLE")
+			MOUSE_BUTTON_WHEEL_UP: return TranslationServer.translate(&"KEY_WHEEL_UP")
+			MOUSE_BUTTON_WHEEL_DOWN: return TranslationServer.translate(&"KEY_WHEEL_DOWN")
+			MOUSE_BUTTON_XBUTTON1: return TranslationServer.translate(&"KEY_MOUSE_SIDE_1")
+			MOUSE_BUTTON_XBUTTON2: return TranslationServer.translate(&"KEY_MOUSE_SIDE_2")
+		return TranslationServer.translate(&"KEY_MOUSE_BUTTON_N") % event.button_index
 	return "—"
 
 
@@ -442,6 +482,8 @@ func _apply(key: String) -> void:
 			invert_y = bool(value(key))
 		"controls/bindings":
 			_apply_bindings()
+		"game/language":
+			TranslationServer.set_locale(language_locale())
 		_:
 			if key.begins_with("audio/"):
 				AudioManager.set_bus_volume(StringName(key.substr(6)), clampf(float(value(key)), 0.0, 1.0))

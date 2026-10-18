@@ -11,8 +11,8 @@ script = ExtResource("4_e6y0o")
 [resource]
 script = ExtResource("2_script")
 id = &"branch_01"
-display_name = "Rama"
-description = "Una rama caída: sirve de garrote, de leña y para levantar una hoguera."
+display_name = "ITEM_BRANCH_01"
+description = "ITEM_BRANCH_01_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/branch.tscn"

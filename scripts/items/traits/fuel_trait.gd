@@ -7,4 +7,4 @@ extends ItemTrait
 
 
 func describe() -> Array:
-	return [["Arde", number(burn_time) + " s"]]
+	return [["TRAIT_BURNS", number(burn_time) + " s"]]

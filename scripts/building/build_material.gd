@@ -3,6 +3,7 @@ class_name BuildMaterial
 extends Resource
 
 @export var material_id: String = ""
+## Clave de localization/translations.csv (BUILD_MAT_<ID>).
 @export var display_name: String = ""
 @export var surface_material: Material = null
 @export var item: ItemData = null

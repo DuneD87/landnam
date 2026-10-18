@@ -33,8 +33,8 @@ burn_time = 150.0
 [resource]
 script = ExtResource("1_ewo7y")
 id = &"wood_01"
-display_name = "Madera"
-description = "Madera para construir, fabricar y quemar en la hoguera."
+display_name = "ITEM_WOOD_01"
+description = "ITEM_WOOD_01_DESC"
 icon = ExtResource("1_do4pb")
 surface_material = SubResource("ORMMaterial3D_logs")
 group = &"wood"

@@ -12,8 +12,8 @@ warmth = 1.5
 [resource]
 script = ExtResource("2_mfl4t")
 id = &"leather_pants_01"
-display_name = "Pantalones de cuero"
-description = "Leather Pants"
+display_name = "ITEM_LEATHER_PANTS_01"
+description = "ITEM_LEATHER_PANTS_01_DESC"
 icon = ExtResource("1_sgwac")
 category = 4
 scene_path = "res://scenes/Armor/leather_pants.tscn"

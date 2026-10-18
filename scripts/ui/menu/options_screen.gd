@@ -5,19 +5,22 @@ extends CanvasLayer
 ## que en partida hace de menú de pausa. Los cambios se aplican al momento para poder verlos;
 ## "Aceptar" (o Escape) los guarda y "Cancelar" deja todo como estaba al abrir. Los cambios de
 ## ventana piden confirmación y se deshacen solos si no llega, por si la dejan inservible.
+## Los textos son claves de localization/translations.csv: los fijos se ponen tal cual en el control,
+## que los traduce y los cambia solo al cambiar de idioma; los que llevan valores pasan por tr() y la
+## página se rehace al cambiar de idioma.
 
 signal closed
 
-const TABS: Array[String] = ["Pantalla", "Gráficos", "Audio", "Controles", "Juego"]
+const TABS: Array[String] = ["OPT_TAB_DISPLAY", "OPT_TAB_GRAPHICS", "OPT_TAB_AUDIO", "OPT_TAB_CONTROLS", "OPT_TAB_GAME"]
 ## Prefijo de las claves de SettingsManager de cada pestaña, para "Restablecer".
 const TAB_PREFIXES: Array[String] = ["display/", "graphics/", "audio/", "controls/", "game/"]
 const CONFIRM_SECONDS := 10.0
 const RESOLUTIONS: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1366, 768), Vector2i(1600, 900),
 	Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(3840, 2160)]
 const MAX_FPS_OPTIONS: Array[int] = [0, 30, 60, 90, 120, 144, 165, 240]
-const AUDIO_LABELS := {&"Master": "General", &"Music": "Música", &"SFX": "Efectos", &"Ambient": "Ambiente",
-	&"UI": "Interfaz", &"Voice": "Voces"}
-const PRESET_NAMES: Array[String] = ["Bajo", "Medio", "Alto", "Ultra"]
+const AUDIO_LABELS := {&"Master": "OPT_AUDIO_MASTER", &"Music": "OPT_AUDIO_MUSIC", &"SFX": "OPT_AUDIO_SFX",
+	&"Ambient": "OPT_AUDIO_AMBIENT", &"UI": "OPT_AUDIO_UI", &"Voice": "OPT_AUDIO_VOICE"}
+const PRESET_NAMES: Array[String] = ["OPT_LOW", "OPT_MEDIUM", "OPT_HIGH", "OPT_ULTRA"]
 
 static var _open_count := 0
 
@@ -102,7 +105,7 @@ func _process(delta: float) -> void:
 	if _confirm_left <= 0.0:
 		_revert_display()
 	else:
-		_confirm_label.text = "¿Mantener esta configuración de pantalla?\nSe deshace en %d s." % ceili(_confirm_left)
+		_confirm_label.text = tr("OPT_CONFIRM_DISPLAY") % ceili(_confirm_left)
 
 
 func _input(event: InputEvent) -> void:
@@ -123,7 +126,7 @@ func _build_header() -> Control:
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", roundi(_px(12)))
 	var title := Label.new()
-	title.text = "OPCIONES"
+	title.text = "OPT_TITLE"
 	title.theme_type_variation = "TitleLabel"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
@@ -146,7 +149,7 @@ func _build_footer() -> Control:
 	var footer := HBoxContainer.new()
 	footer.add_theme_constant_override("separation", roundi(_px(20)))
 	var reset := Button.new()
-	reset.text = "Restablecer pestaña"
+	reset.text = "OPT_RESET_TAB"
 	reset.custom_minimum_size = Vector2(_px(300), _px(68))
 	reset.pressed.connect(_on_reset_tab)
 	footer.add_child(reset)
@@ -154,12 +157,12 @@ func _build_footer() -> Control:
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	footer.add_child(spacer)
 	var cancel := Button.new()
-	cancel.text = "Cancelar"
+	cancel.text = "UI_CANCEL"
 	cancel.custom_minimum_size = Vector2(_px(240), _px(68))
 	cancel.pressed.connect(_on_cancel)
 	footer.add_child(cancel)
 	var accept := Button.new()
-	accept.text = "Aceptar"
+	accept.text = "UI_ACCEPT"
 	accept.theme_type_variation = "AccentButton"
 	accept.custom_minimum_size = Vector2(_px(280), _px(68))
 	accept.pressed.connect(_on_accept)
@@ -188,12 +191,12 @@ func _build_confirm(root: Control) -> void:
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	buttons.add_theme_constant_override("separation", roundi(_px(20)))
 	var revert := Button.new()
-	revert.text = "Deshacer"
+	revert.text = "OPT_REVERT"
 	revert.custom_minimum_size = Vector2(_px(240), _px(64))
 	revert.pressed.connect(_revert_display)
 	buttons.add_child(revert)
 	var keep := Button.new()
-	keep.text = "Mantener"
+	keep.text = "OPT_KEEP"
 	keep.theme_type_variation = "AccentButton"
 	keep.custom_minimum_size = Vector2(_px(240), _px(64))
 	keep.pressed.connect(func() -> void: _confirm.visible = false)
@@ -228,15 +231,15 @@ func _show_tab(index: int) -> void:
 # --- Páginas ------------------------------------------------------------------------------------
 
 func _build_display_page() -> void:
-	var mode := _choice_control("display/window_mode", ["Ventana", "Pantalla completa", "Pantalla completa exclusiva"],
+	var mode := _choice_control("display/window_mode", ["OPT_WINDOWED", "OPT_FULLSCREEN", "OPT_EXCLUSIVE_FULLSCREEN"],
 		func(i: int) -> void: _change_display("display/window_mode", i))
-	_row("Modo de ventana", mode, "La exclusiva puede dar algo más de rendimiento; la otra cambia de ventana más rápido.")
+	_row("OPT_WINDOW_MODE", mode, "OPT_WINDOW_MODE_HINT")
 
 	var resolution := OptionButton.new()
 	var screen_size := DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
 	var current: Vector2i = SettingsManager.value("display/resolution")
 	var sizes: Array[Vector2i] = [Vector2i.ZERO]
-	resolution.add_item("La del proyecto")
+	resolution.add_item("OPT_RESOLUTION_PROJECT")
 	for size in RESOLUTIONS:
 		if size.x <= screen_size.x and size.y <= screen_size.y:
 			sizes.append(size)
@@ -247,65 +250,65 @@ func _build_display_page() -> void:
 	resolution.select(sizes.find(current))
 	resolution.disabled = SettingsManager.level("display/window_mode", 3) != SettingsManager.WindowMode.WINDOWED
 	resolution.item_selected.connect(func(i: int) -> void: _change_display("display/resolution", sizes[i]))
-	_row("Tamaño de la ventana", resolution, "Solo en modo ventana. En pantalla completa la resolución es la del monitor: para ganar rendimiento baja la escala de render en Gráficos.")
+	_row("OPT_WINDOW_SIZE", resolution, "OPT_WINDOW_SIZE_HINT")
 
-	_row("Sincronización vertical", _choice_control("display/vsync", ["Desactivada", "Activada", "Adaptativa"]),
-		"Evita el tearing a cambio de algo de latencia. La adaptativa solo sincroniza cuando el juego va sobrado.")
+	_row("OPT_VSYNC", _choice_control("display/vsync", ["OPT_VSYNC_OFF", "OPT_VSYNC_ON", "OPT_VSYNC_ADAPTIVE"]),
+		"OPT_VSYNC_HINT")
 
 	var fps := OptionButton.new()
 	for limit in MAX_FPS_OPTIONS:
-		fps.add_item("Sin límite" if limit == 0 else "%d FPS" % limit)
+		fps.add_item("OPT_FPS_UNLIMITED" if limit == 0 else "%d FPS" % limit)
 	var fps_index := MAX_FPS_OPTIONS.find(int(SettingsManager.value("display/max_fps")))
 	fps.select(maxi(fps_index, 0))
 	fps.item_selected.connect(func(i: int) -> void: Settings.set_value("display/max_fps", MAX_FPS_OPTIONS[i]))
-	_row("Límite de FPS", fps, "Limitar los FPS reduce el calor y el ruido del equipo y suaviza los tirones.")
+	_row("OPT_MAX_FPS", fps, "OPT_MAX_FPS_HINT")
 
 
 func _build_graphics_page() -> void:
 	_preset_button = OptionButton.new()
 	for preset_name in PRESET_NAMES:
 		_preset_button.add_item(preset_name)
-	_preset_button.add_item("Personalizado")
+	_preset_button.add_item("OPT_CUSTOM")
 	_preset_button.set_item_disabled(PRESET_NAMES.size(), true)
 	_preset_button.item_selected.connect(_on_preset_selected)
 	_sync_preset()
-	_row("Calidad general", _preset_button, "Ajusta todo lo de abajo de una vez. En un equipo antiguo empieza por Bajo.")
+	_row("OPT_PRESET", _preset_button, "OPT_PRESET_HINT")
 
-	_section("Imagen")
+	_section("OPT_SECTION_IMAGE")
 	var scale_slider := _slider_control("graphics/render_scale", 0.5, 1.0, 0.05)
 	_scale_label = scale_slider.get_meta(&"value_label")
-	_row("Escala de render", scale_slider, "Resolución a la que se dibuja el mundo 3D; la interfaz no cambia. Es lo que más rendimiento da.")
-	_row("Reescalado", _choice_control("graphics/upscaler", ["Bilineal", "AMD FSR 1.0", "AMD FSR 2.2"]),
-		"Cómo se amplía la imagen cuando la escala es menor de 100 %. FSR 2.2 se ve mejor pero cuesta más.")
-	_row("Antialiasing", _choice_control("graphics/antialiasing", ["Desactivado", "FXAA", "MSAA 2x", "MSAA 4x", "TAA"]),
-		"FXAA es casi gratis; MSAA es más nítido y más caro.")
+	_row("OPT_RENDER_SCALE", scale_slider, "OPT_RENDER_SCALE_HINT")
+	_row("OPT_UPSCALER", _choice_control("graphics/upscaler", ["OPT_BILINEAR", "AMD FSR 1.0", "AMD FSR 2.2"]),
+		"OPT_UPSCALER_HINT")
+	_row("OPT_ANTIALIASING", _choice_control("graphics/antialiasing", ["OPT_OFF_M", "FXAA", "MSAA 2x", "MSAA 4x", "TAA"]),
+		"OPT_ANTIALIASING_HINT")
 
-	_section("Sombras")
-	_row("Calidad de las sombras", _choice_control("graphics/shadow_quality", ["Desactivadas", "Baja", "Media", "Alta", "Ultra"]))
-	_row("Distancia de las sombras", _choice_control("graphics/shadow_distance", ["Corta", "Media", "Larga"]))
-	_row("Sombras de la vegetación", _choice_control("graphics/vegetation_shadows", ["Desactivadas", "Solo cercanas", "Todas"]),
+	_section("OPT_SECTION_SHADOWS")
+	_row("OPT_SHADOW_QUALITY", _choice_control("graphics/shadow_quality", ["OPT_OFF_F_PL", "OPT_LOW_F", "OPT_MEDIUM_F", "OPT_HIGH_F", "OPT_ULTRA"]))
+	_row("OPT_SHADOW_DISTANCE", _choice_control("graphics/shadow_distance", ["OPT_SHORT_F", "OPT_MEDIUM_F", "OPT_LONG_F"]))
+	_row("OPT_VEGETATION_SHADOWS", _choice_control("graphics/vegetation_shadows", ["OPT_OFF_F_PL", "OPT_NEAR_ONLY", "OPT_ALL_F_PL"]),
 		"", true)
 
-	_section("Cielo y efectos")
-	_row("Calidad de la atmósfera", _choice_control("graphics/atmosphere_quality", ["Baja", "Media", "Alta"]),
-		"Nitidez del cielo y rayos de luz. Las nubes y la niebla conservan su resolución.")
-	_row("Nubes", _choice_control("graphics/clouds", ["Desactivadas", "Bajas", "Medias", "Altas"]))
-	_row("Rayos de luz", _toggle_control("graphics/god_rays"), "Haces de sol entre nubes y árboles.")
-	_row("Resplandor", _toggle_control("graphics/glow"))
-	_row("Oclusión ambiental", _toggle_control("graphics/ssao"), "Oscurece rincones y contactos. Cara en equipos antiguos.")
-	_row("Partículas del clima", _choice_control("graphics/weather_particles", ["Pocas", "Normales", "Muchas"]))
-	_row("Fauna", _choice_control("graphics/fauna", ["Poca", "Normal", "Mucha"]))
+	_section("OPT_SECTION_SKY")
+	_row("OPT_ATMOSPHERE_QUALITY", _choice_control("graphics/atmosphere_quality", ["OPT_LOW_F", "OPT_MEDIUM_F", "OPT_HIGH_F"]),
+		"OPT_ATMOSPHERE_QUALITY_HINT")
+	_row("OPT_CLOUDS", _choice_control("graphics/clouds", ["OPT_OFF_F_PL", "OPT_LOW_F_PL", "OPT_MEDIUM_F_PL", "OPT_HIGH_F_PL"]))
+	_row("OPT_GOD_RAYS", _toggle_control("graphics/god_rays"), "OPT_GOD_RAYS_HINT")
+	_row("OPT_GLOW", _toggle_control("graphics/glow"))
+	_row("OPT_SSAO", _toggle_control("graphics/ssao"), "OPT_SSAO_HINT")
+	_row("OPT_WEATHER_PARTICLES", _choice_control("graphics/weather_particles", ["OPT_FEW_F_PL", "OPT_NORMAL_F_PL", "OPT_MANY_F_PL"]))
+	_row("OPT_FAUNA", _choice_control("graphics/fauna", ["OPT_FEW_F", "OPT_NORMAL_F", "OPT_MANY_F"]))
 
-	_section("Mundo")
-	_row("Detalle del terreno lejano", _choice_control("graphics/terrain_detail", ["Bajo", "Medio", "Alto", "Ultra"]),
-		"Hasta dónde llega el terreno detallado. Pesa en CPU y GPU.", true)
-	_row("Relieve fino del terreno", _toggle_control("graphics/terrain_normalmaps"),
-		"Mapas de normales del terreno lejano. Apagarlo aligera la CPU.", true)
-	_row("Material del terreno", _choice_control("graphics/terrain_material", ["Bajo", "Medio", "Alto"]),
-		"Detalle de las texturas y profundidad del relieve cercano. Pesa en GPU.", true)
-	_row("Densidad de la hierba", _choice_control("graphics/grass_density", ["Baja", "Media", "Alta"]), "", true)
-	_row("Distancia de la hierba", _choice_control("graphics/grass_distance", ["Corta", "Media", "Larga"]), "", true)
-	_row("Bosque lejano", _choice_control("graphics/forest_distance", ["Cercano", "Medio", "Hasta el horizonte"]), "", true)
+	_section("OPT_SECTION_WORLD")
+	_row("OPT_TERRAIN_DETAIL", _choice_control("graphics/terrain_detail", ["OPT_LOW", "OPT_MEDIUM", "OPT_HIGH", "OPT_ULTRA"]),
+		"OPT_TERRAIN_DETAIL_HINT", true)
+	_row("OPT_TERRAIN_NORMALMAPS", _toggle_control("graphics/terrain_normalmaps"),
+		"OPT_TERRAIN_NORMALMAPS_HINT", true)
+	_row("OPT_TERRAIN_MATERIAL", _choice_control("graphics/terrain_material", ["OPT_LOW", "OPT_MEDIUM", "OPT_HIGH"]),
+		"OPT_TERRAIN_MATERIAL_HINT", true)
+	_row("OPT_GRASS_DENSITY", _choice_control("graphics/grass_density", ["OPT_LOW_F", "OPT_MEDIUM_F", "OPT_HIGH_F"]), "", true)
+	_row("OPT_GRASS_DISTANCE", _choice_control("graphics/grass_distance", ["OPT_SHORT_F", "OPT_MEDIUM_F", "OPT_LONG_F"]), "", true)
+	_row("OPT_FOREST_DISTANCE", _choice_control("graphics/forest_distance", ["OPT_NEAR", "OPT_MEDIUM", "OPT_TO_HORIZON"]), "", true)
 	_update_scale_label()
 
 
@@ -315,19 +318,20 @@ func _build_audio_page() -> void:
 
 
 func _build_game_page() -> void:
-	_row("Sangre y mutilaciones", _choice_control("game/gore", ["Sin sangre", "Solo sangre", "Completo"]),
-		"Completo: un tajo fuerte puede cercenar un brazo o una pierna.")
-	_row("Tamaño de la barra rápida", _slider_control("game/hotbar_scale", SettingsManager.MIN_HOTBAR_SCALE,
+	_row("OPT_LANGUAGE", _language_control(), "OPT_LANGUAGE_HINT")
+	_row("OPT_GORE", _choice_control("game/gore", ["OPT_GORE_OFF", "OPT_GORE_BLOOD", "OPT_GORE_FULL"]),
+		"OPT_GORE_HINT")
+	_row("OPT_HOTBAR_SCALE", _slider_control("game/hotbar_scale", SettingsManager.MIN_HOTBAR_SCALE,
 		SettingsManager.MAX_HOTBAR_SCALE, 0.05),
-		"La barra entera, con las orbes y su consola. En ventanas estrechas no crece más de lo que cabe.")
+		"OPT_HOTBAR_SCALE_HINT")
 
 
 func _build_controls_page() -> void:
-	_row("Sensibilidad del ratón", _slider_control("controls/mouse_sensitivity",
+	_row("OPT_MOUSE_SENSITIVITY", _slider_control("controls/mouse_sensitivity",
 		SettingsManager.MIN_MOUSE_SENSITIVITY, SettingsManager.MAX_MOUSE_SENSITIVITY, 0.05))
-	_row("Invertir eje vertical", _toggle_control("controls/invert_y"))
+	_row("OPT_INVERT_Y", _toggle_control("controls/invert_y"))
 	var hint := Label.new()
-	hint.text = "Haz clic en una tecla para cambiarla y pulsa la nueva (Escape cancela). Clic derecho la borra."
+	hint.text = "OPT_BINDINGS_HINT"
 	hint.theme_type_variation = "HintLabel"
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_page.add_child(hint)
@@ -356,7 +360,8 @@ func _section(title: String) -> void:
 	_page.add_child(label)
 
 
-## Fila: nombre (con su explicación debajo) a la izquierda y el control a la derecha.
+## Fila: nombre (con su explicación debajo) a la izquierda y el control a la derecha. [text] y [hint]
+## son claves.
 func _row(text: String, control: Control, hint := "", restart := false) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", roundi(_px(32)))
@@ -371,7 +376,7 @@ func _row(text: String, control: Control, hint := "", restart := false) -> void:
 		var detail := Label.new()
 		detail.theme_type_variation = "HintLabel"
 		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		detail.text = hint if not restart else ("Al reiniciar el juego. " + hint).strip_edges()
+		detail.text = hint if not restart else ("%s %s" % [tr("OPT_ON_RESTART"), tr(hint)]).strip_edges()
 		texts.add_child(detail)
 	row.add_child(texts)
 	control.custom_minimum_size.x = maxf(control.custom_minimum_size.x, _px(560))
@@ -380,7 +385,8 @@ func _row(text: String, control: Control, hint := "", restart := false) -> void:
 	_page.add_child(row)
 
 
-## Desplegable de una opción por niveles. Por defecto guarda el índice elegido en `key`.
+## Desplegable de una opción por niveles (claves o textos sin traducir, como "FXAA"). Por defecto
+## guarda el índice elegido en `key`.
 func _choice_control(key: String, options: Array, on_selected := Callable()) -> OptionButton:
 	var button := OptionButton.new()
 	for option in options:
@@ -397,11 +403,25 @@ func _choice_control(key: String, options: Array, on_selected := Callable()) -> 
 func _toggle_control(key: String) -> CheckButton:
 	var toggle := CheckButton.new()
 	toggle.button_pressed = bool(SettingsManager.value(key))
-	toggle.text = "Activado" if toggle.button_pressed else "Desactivado"
+	toggle.text = "OPT_ON" if toggle.button_pressed else "OPT_OFF"
 	toggle.toggled.connect(func(on: bool) -> void:
-		toggle.text = "Activado" if on else "Desactivado"
+		toggle.text = "OPT_ON" if on else "OPT_OFF"
 		Settings.set_value(key, on))
 	return toggle
+
+
+## Idioma: el del sistema o una de las columnas de la tabla de traducciones, cada una por su nombre.
+func _language_control() -> OptionButton:
+	var button := OptionButton.new()
+	var locales: Array[String] = [""]
+	button.add_item("OPT_LANGUAGE_SYSTEM")
+	for locale in SettingsManager.languages():
+		locales.append(locale)
+		button.add_item(SettingsManager.language_name(locale))
+	button.select(maxi(locales.find(String(SettingsManager.value("game/language"))), 0))
+	button.custom_minimum_size.y = _px(60)
+	button.item_selected.connect(func(i: int) -> void: Settings.set_value("game/language", locales[i]))
+	return button
 
 
 ## Slider con su valor al lado. Porcentaje salvo la sensibilidad, que es un multiplicador.
@@ -440,7 +460,7 @@ func _binding_button(action: StringName, slot: int) -> Button:
 	button.pressed.connect(func() -> void:
 		_cancel_capture()
 		_capture = {"action": action, "slot": slot, "button": button}
-		button.text = "Pulsa una tecla…")
+		button.text = "OPT_PRESS_KEY")
 	button.gui_input.connect(func(event: InputEvent) -> void:
 		if _capture.is_empty() and event is InputEventMouseButton and event.pressed \
 				and event.button_index == MOUSE_BUTTON_RIGHT:
@@ -483,7 +503,7 @@ func _set_binding(action: StringName, slot: int, event: InputEvent) -> void:
 				var kept := others.filter(func(e: InputEvent) -> bool: return not SettingsManager.same_event(e, event))
 				if kept.size() != others.size():
 					Settings.set_action_events(entry[0], kept)
-					stolen.append(entry[1])
+					stolen.append(tr(entry[1]))
 	var events: Array = InputMap.action_get_events(action)
 	if event == null:
 		if slot < events.size():
@@ -497,7 +517,7 @@ func _set_binding(action: StringName, slot: int, event: InputEvent) -> void:
 	Settings.set_action_events(action, events)
 	_show_tab(_current_tab)
 	if not stolen.is_empty():
-		_notice.text = "%s ya no está asignada a: %s." % [SettingsManager.event_label(event), ", ".join(stolen)]
+		_notice.text = tr("OPT_KEY_STOLEN") % [SettingsManager.event_label(event), ", ".join(stolen)]
 
 
 func _cancel_capture() -> void:
@@ -558,6 +578,9 @@ func _update_scale_label() -> void:
 
 
 func _on_setting_changed(key: String) -> void:
+	if key == "game/language":
+		# Lo fijo cambia solo; las filas con valores y las pistas compuestas se rehacen.
+		_show_tab(_current_tab)
 	if key.begins_with("graphics/"):
 		_sync_preset()
 		if key == "graphics/render_scale":
@@ -566,8 +589,7 @@ func _on_setting_changed(key: String) -> void:
 
 
 func _refresh_notice() -> void:
-	_notice.text = "Algunos cambios del mundo (terreno y vegetación) se aplicarán al reiniciar el juego." \
-		if SettingsManager.needs_restart() else ""
+	_notice.text = tr("OPT_RESTART_NOTICE") if SettingsManager.needs_restart() else ""
 
 
 func _on_reset_tab() -> void:

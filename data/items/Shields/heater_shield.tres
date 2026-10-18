@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"heater_shield"
-display_name = "Escudo de roble"
-description = "Roble con canto y refuerzo de hierro. Pesa más, pero para del todo y aguanta golpes que a una rodela le costarían el brazo. La parada exige más precisión."
+display_name = "ITEM_HEATER_SHIELD"
+description = "ITEM_HEATER_SHIELD_DESC"
 icon = ExtResource("1_icon")
 category = 4
 scene_path = "res://scenes/items/weapons/combat/heater_shield.tscn"

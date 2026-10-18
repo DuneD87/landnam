@@ -41,10 +41,10 @@ const MEDALLION_RADIUS := 21.0
 ## desde lo alto, en el sentido de las agujas del reloj, de donde asoma la barra del medallón, de
 ## donde acaba y del medallón, y color. Se llenan en ese sentido, desde el icono.
 const GAUGES := {
-	"sed": [-1, -116.5, -84.0, -126.0, Color(0.36, 0.64, 0.88)],
-	"hambre": [-1, -60.5, -16.0, -70.0, Color(0.86, 0.62, 0.27)],
-	"temperatura": [1, 35.5, 72.0, 26.0, Color.WHITE],
-	"descanso": [1, 93.5, 138.0, 84.0, Color(0.7, 0.72, 0.92)],
+	"thirst": [-1, -116.5, -84.0, -126.0, Color(0.36, 0.64, 0.88)],
+	"hunger": [-1, -60.5, -16.0, -70.0, Color(0.86, 0.62, 0.27)],
+	"warmth": [1, 35.5, 72.0, 26.0, Color.WHITE],
+	"rest": [1, 93.5, 138.0, 84.0, Color(0.7, 0.72, 0.92)],
 }
 
 @onready var slot_container: HBoxContainer = $BottomAnchor/PanelContainer/MarginContainer/HBoxContainer
@@ -88,7 +88,7 @@ func _ready() -> void:
 	breath = BreathRing.new()
 	add_child(breath)
 	for need in GAUGES:
-		var gauge := NeedGauge.new(NeedGauge.Mode.BIPOLAR if need == "temperatura" else NeedGauge.Mode.FILL,
+		var gauge := NeedGauge.new(NeedGauge.Mode.BIPOLAR if need == "warmth" else NeedGauge.Mode.FILL,
 			GAUGES[need][4])
 		add_child(gauge)
 		gauges[need] = gauge
@@ -244,7 +244,7 @@ func set_vitals_shown(shown: bool) -> void:
 func show_needs(needs: SurvivalNeeds, delta: float) -> void:
 	if needs == null:
 		return
-	var low := needs.is_critical("cordura")
+	var low := needs.is_critical("sanity")
 	sanity_orb.flash = (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.006)) if low else 0.0
 	sanity_orb.set_levels(needs.sanity, 0.0, sanity_orb.flash * 0.3, 0.0, "%d %%" % roundi(needs.sanity * 100.0), delta)
 	for need in gauges:
@@ -272,7 +272,7 @@ func notify(text: String) -> void:
 
 
 func _show_selection_name(_old: ItemData, data: ItemData) -> void:
-	_selection_label.text = data.display_name if data != null else ""
+	_selection_label.text = data.get_display_name() if data != null else ""
 	_selection_age = 0.0 if data != null else INF
 	_selection_label.modulate.a = 1.0 if data != null else 0.0
 

@@ -15,10 +15,11 @@ extends RefCounted
 ## antebrazo y mano): un brazal no protege el hombro.
 enum Region {HEAD, TORSO, UPPER_ARMS, FOREARMS, HANDS, THIGHS, SHINS, FEET}
 
+## Claves de sus nombres, en minúscula para ir en medio de una frase.
 const REGION_NAMES := {
-	Region.HEAD: "cabeza", Region.TORSO: "tronco", Region.UPPER_ARMS: "brazos",
-	Region.FOREARMS: "antebrazos", Region.HANDS: "manos", Region.THIGHS: "muslos",
-	Region.SHINS: "espinillas", Region.FEET: "pies",
+	Region.HEAD: "REGION_HEAD", Region.TORSO: "REGION_TORSO", Region.UPPER_ARMS: "REGION_UPPER_ARMS",
+	Region.FOREARMS: "REGION_FOREARMS", Region.HANDS: "REGION_HANDS", Region.THIGHS: "REGION_THIGHS",
+	Region.SHINS: "REGION_SHINS", Region.FEET: "REGION_FEET",
 }
 
 ## Lo que cubre una pieza sin cobertura propia (ItemData.coverage = 0), según su hueco.
@@ -30,9 +31,10 @@ const SLOT_COVERAGE := {
 	ItemData.ArmorSlot.FEET: 1 << Region.FEET,
 }
 
+## Claves del nombre de cada tipo de golpe.
 const KIND_NAMES := {
-	ItemData.DamageKind.SLASH: "Tajo", ItemData.DamageKind.BLUNT: "Contundente",
-	ItemData.DamageKind.PIERCE: "Perforante",
+	ItemData.DamageKind.SLASH: "DMG_SLASH", ItemData.DamageKind.BLUNT: "DMG_BLUNT",
+	ItemData.DamageKind.PIERCE: "DMG_PIERCE",
 }
 
 ## Tope de penetración: ningún arma atraviesa la armadura como si no estuviera.
@@ -109,9 +111,9 @@ static func describe_coverage(mask: int) -> String:
 	var names := PackedStringArray()
 	for region in Region.size():
 		if mask & (1 << region):
-			names.append(REGION_NAMES[region])
+			names.append(TranslationServer.translate(REGION_NAMES[region]))
 	if names.is_empty():
 		return ""
 	if names.size() == 1:
 		return names[0]
-	return ", ".join(names.slice(0, names.size() - 1)) + " y " + names[names.size() - 1]
+	return TranslationServer.translate(&"UI_LIST_AND") % [", ".join(names.slice(0, names.size() - 1)), names[names.size() - 1]]

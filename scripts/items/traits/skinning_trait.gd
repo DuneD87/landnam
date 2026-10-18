@@ -8,4 +8,4 @@ extends ItemTrait
 
 
 func describe() -> Array:
-	return [["Despelleja", "Sí" if is_equal_approx(yield_mult, 1.0) else "×" + number(yield_mult)]]
+	return [["TRAIT_SKINS", tr("UI_YES") if is_equal_approx(yield_mult, 1.0) else "×" + number(yield_mult)]]

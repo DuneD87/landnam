@@ -118,7 +118,7 @@ func apply_variant(v: CreatureVariant, size: float = -1.0) -> void:
 	voice_pitch = v.voice_pitch if v != null else 1.0
 
 
-## La variante y el tamaño, para la consola: "grande ×1,18". Vacío sin variante.
+## La variante y el tamaño, para la consola: "large ×1.18". Vacío sin variante.
 func describe_variant() -> String:
 	if variant == null:
 		return ""

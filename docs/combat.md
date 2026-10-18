@@ -88,7 +88,7 @@ cercano a 2,4 m con la tecla de acción y lo quita del instancer. Una piedra da 
 según su tamaño (1,5 por unidad de escala, hasta 5); las de escala > 3 no se levantan.
 Las ramas salen con los generadores `fallen_branches_generator_*` (bosque verde, taiga
 y abedules), que copian el ruido y el clima de los árboles de su bioma: caen en las
-mismas manchas de bosque. `suelo` en la consola dice qué hay para recoger cerca.
+mismas manchas de bosque. `litter` en la consola dice qué hay para recoger cerca.
 Mallas y escenas: `bake_weapons.gd -- --only=branch,litter`.
 
 ## Guardia y parada
@@ -522,7 +522,7 @@ tono es realista y letal: avisan poco, castigan los errores y no se las deja atr
 Una especie nueva necesita su perfil, sus ataques medidos sobre sus clips y un nodo
 `CombatState` con `CreatureCombatState` y el perfil en su escena. `test_creature_combat` comprueba
 que los ataques de cada escena casen con sus clips y su esqueleto, y que cada uno acierte a un
-blanco quieto en los dos extremos de su distancia. `ia [radio]` en la consola dice qué piensa cada
+blanco quieto en los dos extremos de su distancia. `ai [radius]` en la consola dice qué piensa cada
 criatura cercana.
 
 Para medir los clips (ninguno de los animales trae movimiento de raíz: el avance lo pone el
@@ -703,17 +703,17 @@ o dejan de comer 6 s, se queda como esté.
 
 ## Consola
 
-- `spawn oso [cantidad] [distancia] [variante]`: suelta osos delante (también `ciervo`, `leon`,
-  `bufalo`, `lobo`). Los que salen juntos van en manada; con variante (`spawn lobo 4 grande`,
-  `spawn oso joven`)
+- `spawn bear [amount] [distance] [variant]`: suelta osos delante (también `deer`, `lion`,
+  `buffalo`, `wolf`...; el tabulador da la lista). Los que salen juntos van en manada; con variante
+  (`spawn wolf 4 large`, `spawn bear young`)
   salen todos de esa. Sus cadáveres duran dos minutos.
-- `ia [radio]`: variante, estado, fase, ataque, combo, guardia y fuelle de cada criatura
+- `ai [radius]`: variante, estado, fase, ataque, combo, guardia y fuelle de cada criatura
   cercana, y lo que lee de su objetivo.
-- `morir`: mata al jugador para probar la muerte y la reaparición.
-- `cortar [brazo|antebrazo|muslo|pierna] [izq|der]`: cercena un miembro del jugador al momento.
-- `mutilar [0-1|auto]`: probabilidad de que un tajo en un brazo o una pierna lo cercene.
+- `die`: mata al jugador para probar la muerte y la reaparición.
+- `cut [arm|forearm|thigh|shin] [left|right]`: cercena un miembro del jugador al momento.
+- `sever [0-1|auto]`: probabilidad de que un tajo en un brazo o una pierna lo cercene.
 - `heal` sin argumento también cierra las heridas y devuelve los miembros.
-- `sangre`: cuántos charcos y salpicaduras hay y a qué distancia está el más cercano.
+- `blood`: cuántos charcos y salpicaduras hay y a qué distancia está el más cercano.
 - `god`, `heal`, `give <id> [n]` siguen igual.
 
 ## Pruebas

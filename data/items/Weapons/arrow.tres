@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"arrow"
-display_name = "Flecha"
-description = "Astil de abedul con punta de sílex. Munición del arco."
+display_name = "ITEM_ARROW"
+description = "ITEM_ARROW_DESC"
 icon = ExtResource("1_icon")
 group = &"ammo"
 metadata/_custom_type_script = "uid://ls1dwf6ufrl6"

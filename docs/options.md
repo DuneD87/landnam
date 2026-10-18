@@ -1,8 +1,8 @@
 # Opciones del juego
 
 Pantalla de opciones (`scripts/ui/menu/options_screen.gd`) con cinco pestañas: Pantalla, Gráficos,
-Audio, Controles y Juego (cuánta sangre y si se cercenan miembros, ver [combat.md](combat.md), y el
-tamaño de la barra rápida, ver [ui.md](ui.md)). Se abre con el botón *Options* del menú principal,
+Audio, Controles y Juego (el idioma, ver [localization.md](localization.md); cuánta sangre y si se
+cercenan miembros, ver [combat.md](combat.md); y el tamaño de la barra rápida, ver [ui.md](ui.md)). Se abre con el botón *Options* del menú principal,
 que en partida hace de menú de pausa (Escape). Los cambios se ven al momento; *Aceptar* o Escape los guardan en
 `user://settings.cfg` y *Cancelar* vuelve a como estaba todo al abrir. Un cambio de ventana pide
 confirmación y se deshace solo a los 10 s.
@@ -58,7 +58,8 @@ respectivamente, material Bajo/Medio/Alto/Alto. Se aplica antes del primer malla
 2. Si se aplica en caliente, un caso en `SettingsManager._apply()`; si se lee al cargar, añadir la
    clave a `RESTART_KEYS` y leerla con `SettingsManager.value()` o un accesor.
 3. Una fila en la página correspondiente de `OptionsScreen` (`_choice_control`, `_toggle_control` o
-   `_slider_control`).
+   `_slider_control`). Su nombre, su explicación y sus opciones son claves de
+   `localization/translations.csv` (`OPT_*`, ver [localization.md](localization.md)).
 4. Comprobarlo en `tests/ui/options_screen_preview.tscn -- --capture`.
 
 ## Lo que no se puede tocar

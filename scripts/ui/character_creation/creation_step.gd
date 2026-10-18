@@ -14,7 +14,7 @@ var preview: CharacterPreview
 var ui_scale := 1.0
 
 
-## Name shown in the step list of the header.
+## Key of the name shown in the step list of the header.
 func get_title() -> String:
 	return ""
 
@@ -31,7 +31,7 @@ func can_continue() -> bool:
 	return true
 
 
-## Why the player cannot continue yet, shown next to the Next button.
+## Key of why the player cannot continue yet, shown next to the Next button.
 func blocking_reason() -> String:
 	return ""
 

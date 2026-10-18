@@ -12,8 +12,8 @@ warmth = 1.0
 [resource]
 script = ExtResource("2_nfn76")
 id = &"leather_boots"
-display_name = "Botas de cuero"
-description = "Leather Boots"
+display_name = "ITEM_LEATHER_BOOTS"
+description = "ITEM_LEATHER_BOOTS_DESC"
 icon = ExtResource("1_ngkri")
 category = 4
 scene_path = "res://scenes/items/armor/leather_armor/leather_boots_equipable.tscn"

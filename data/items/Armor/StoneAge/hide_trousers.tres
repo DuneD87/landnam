@@ -12,8 +12,8 @@ warmth = 2.0
 [resource]
 script = ExtResource("1_item")
 id = &"hide_trousers"
-display_name = "Calzas de cuero"
-description = "Retales de cuero cosidos con tendón en unas calzas largas, atadas a los tobillos."
+display_name = "ITEM_HIDE_TROUSERS"
+description = "ITEM_HIDE_TROUSERS_DESC"
 icon = ExtResource("0_icon")
 category = 4
 scene_path = "res://scenes/items/armor/stone_age/hide_trousers_equipable.tscn"

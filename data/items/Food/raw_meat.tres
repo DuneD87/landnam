@@ -19,8 +19,8 @@ result = &"cooked_meat"
 [resource]
 script = ExtResource("2_iwlqq")
 id = &"raw_meat"
-display_name = "Carne cruda"
-description = "Recién despiezada. Cruda alimenta poco, revuelve el estómago y puede intoxicar: mejor asarla en una hoguera."
+display_name = "ITEM_RAW_MEAT"
+description = "ITEM_RAW_MEAT_DESC"
 icon = ExtResource("1_fhb54")
 category = 3
 scene_path = "res://scenes/items/survival/raw_meat.tscn"

@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_a657a")
 id = &"boar_tusk"
-display_name = "Colmillo de jabalí"
-description = "Colmillo curvo de un jabalí, afilado de por sí. Cosidos en hileras sobre cuero se hacían cascos."
+display_name = "ITEM_BOAR_TUSK"
+description = "ITEM_BOAR_TUSK_DESC"
 icon = ExtResource("1_wsdli")
 scene_path = "res://scenes/items/survival/boar_tusk.tscn"
 max_stack = 20

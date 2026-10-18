@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"war_hammer"
-display_name = "Martillo de guerra"
-description = "Mazo de hierro con pico, a dos manos. Cada golpe derriba; hay que plantarse para darlo."
+display_name = "ITEM_WAR_HAMMER"
+description = "ITEM_WAR_HAMMER_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/war_hammer.tscn"

@@ -12,8 +12,8 @@ warmth = 3.0
 [resource]
 script = ExtResource("2_fpvhq")
 id = &"firstage_skin_chest"
-display_name = "Jubón de pieles"
-description = "Skin Chest"
+display_name = "ITEM_FIRSTAGE_SKIN_CHEST"
+description = "ITEM_FIRSTAGE_SKIN_CHEST_DESC"
 icon = ExtResource("1_h0wh5")
 category = 4
 scene_path = "res://scenes/items/armor/firstage_skin_set/firstage_skin_chest_equipable.tscn"

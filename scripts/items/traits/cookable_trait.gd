@@ -8,4 +8,4 @@ extends ItemTrait
 
 
 func describe() -> Array:
-	return [["Se asa en", number(cook_time) + " s"]]
+	return [["TRAIT_ROASTS_IN", number(cook_time) + " s"]]

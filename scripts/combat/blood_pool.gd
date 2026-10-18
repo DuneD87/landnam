@@ -124,7 +124,7 @@ static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float
 	return pool
 
 
-## Cuántos charcos y salpicaduras hay y el más cercano a [from] (consola, `sangre`).
+## Cuántos charcos y salpicaduras hay y el más cercano a [from] (consola, `blood`).
 static func report(from: Vector3) -> String:
 	var nearest := INF
 	var near_size := Vector3.ZERO
@@ -134,8 +134,8 @@ static func report(from: Vector3) -> String:
 				nearest = pool.global_position.distance_to(from)
 				near_size = pool.size
 	if nearest == INF:
-		return "Ni charcos ni salpicaduras."
-	return "%d charcos, %d salpicaduras; el más cercano a %.1f m (%.2f × %.2f m)." % [_pools.size(),
+		return TranslationServer.translate(&"CON_BLOOD_NONE")
+	return TranslationServer.translate(&"CON_BLOOD_REPORT") % [_pools.size(),
 			_splats.size(), nearest, near_size.x, near_size.z]
 
 

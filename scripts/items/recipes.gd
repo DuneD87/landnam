@@ -23,12 +23,12 @@ static func all() -> Array[RecipeData]:
 	return _all
 
 
-## Dónde se hace: «A mano» o el nombre de la estación.
+## Dónde se hace, ya traducido: «A mano» o el nombre de la estación.
 static func station_name(station: StringName) -> String:
 	if station == HAND:
-		return "A mano"
+		return TranslationServer.translate(&"RECIPE_BY_HAND")
 	var data: ItemData = Config.get_item(station)
-	return data.display_name if data != null else String(station)
+	return data.get_display_name() if data != null else String(station)
 
 
 ## Era, a mano antes que en una estación, la estación y el objeto que sale (ItemTaxonomy).

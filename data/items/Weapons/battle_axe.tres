@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"battle_axe"
-display_name = "Hacha de guerra"
-description = "Cabeza barbada de hierro sobre astil de fresno. Más lenta que la espada, pero cada tajo abre la guardia."
+display_name = "ITEM_BATTLE_AXE"
+description = "ITEM_BATTLE_AXE_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/battle_axe.tscn"

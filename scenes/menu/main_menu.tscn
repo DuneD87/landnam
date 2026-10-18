@@ -36,29 +36,29 @@ layout_mode = 2
 [node name="btnStartGame" type="Button" parent="Column/Buttons"]
 layout_mode = 2
 theme_type_variation = &"SagaMenuButton"
-text = "Nueva partida"
+text = "MENU_NEW_GAME"
 alignment = 0
 
 [node name="btnLoadGame" type="Button" parent="Column/Buttons"]
 layout_mode = 2
 theme_type_variation = &"SagaMenuButton"
-text = "Continuar partida"
+text = "MENU_CONTINUE"
 alignment = 0
 
 [node name="btnSaveGame" type="Button" parent="Column/Buttons"]
 layout_mode = 2
 theme_type_variation = &"SagaMenuButton"
-text = "Guardar partida"
+text = "MENU_SAVE_GAME"
 alignment = 0
 
 [node name="btnOptions" type="Button" parent="Column/Buttons"]
 layout_mode = 2
 theme_type_variation = &"SagaMenuButton"
-text = "Opciones"
+text = "MENU_OPTIONS"
 alignment = 0
 
 [node name="btnQuit" type="Button" parent="Column/Buttons"]
 layout_mode = 2
 theme_type_variation = &"SagaMenuButton"
-text = "Salir"
+text = "MENU_QUIT"
 alignment = 0

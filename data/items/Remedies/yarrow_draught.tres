@@ -16,13 +16,13 @@ script = ExtResource("5_remedy")
 recovery_time = 40.0
 mend = 0.15
 cures = Array[StringName]([&"poison"])
-use_text = "Te bebes el bebedizo: amargo y caliente, asienta el cuerpo"
+use_text = "REMEDY_YARROW_DRAUGHT_USE"
 
 [resource]
 script = ExtResource("2_item")
 id = &"yarrow_draught"
-display_name = "Bebedizo de milenrama"
-description = "Milenrama cocida en agua junto al fuego y guardada en un cuerno. Va curando poco a poco y asienta el estómago revuelto."
+display_name = "ITEM_YARROW_DRAUGHT"
+description = "ITEM_YARROW_DRAUGHT_DESC"
 icon = ExtResource("1_icon")
 category = 3
 scene_path = "res://scenes/items/survival/yarrow_draught.tscn"

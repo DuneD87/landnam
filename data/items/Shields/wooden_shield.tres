@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"wooden_shield"
-display_name = "Escudo de madera"
-description = "Cuatro tablas cortadas en redondo y atadas a dos travesaños, sin más. Para algo de lo que llega de frente, también flechas, pero aguanta poco."
+display_name = "ITEM_WOODEN_SHIELD"
+description = "ITEM_WOODEN_SHIELD_DESC"
 icon = ExtResource("1_icon")
 category = 4
 scene_path = "res://scenes/items/weapons/combat/wooden_shield.tscn"

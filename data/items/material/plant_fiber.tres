@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_6vtlb")
 id = &"plant_fiber"
-display_name = "Fibra vegetal"
-description = "Tiras de corteza y tallos arrancados de un arbusto (E mirándolo). Trenzada da cuerda y cordel."
+display_name = "ITEM_PLANT_FIBER"
+description = "ITEM_PLANT_FIBER_DESC"
 icon = ExtResource("1_sa6xp")
 scene_path = "res://scenes/items/survival/plant_fiber.tscn"
 max_stack = 50

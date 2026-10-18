@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_item")
 id = &"bone_shield"
-display_name = "Escudo de placas de hueso"
-description = "Una tabla forrada de piel con hileras de placas de hueso cosidas unas sobre otras, como el del guerrero enterrado en el hielo de Yakutia. Para casi todo y aguanta."
+display_name = "ITEM_BONE_SHIELD"
+description = "ITEM_BONE_SHIELD_DESC"
 icon = ExtResource("1_icon")
 category = 4
 scene_path = "res://scenes/items/weapons/combat/bone_shield.tscn"

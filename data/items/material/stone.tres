@@ -28,8 +28,8 @@ texture_filter = 5
 [resource]
 script = ExtResource("1_3uv04")
 id = &"stone_01"
-display_name = "Piedra"
-description = "Piedra suelta: para construir, para el corro de una hoguera y de munición del tirachinas."
+display_name = "ITEM_STONE_01"
+description = "ITEM_STONE_01_DESC"
 icon = ExtResource("1_ul27m")
 surface_material = SubResource("ORMMaterial3D_stone")
 group = &"stone"

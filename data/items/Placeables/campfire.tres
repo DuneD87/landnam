@@ -14,8 +14,8 @@ preview_scene = ExtResource("4_vei15")
 [resource]
 script = ExtResource("2_vei15")
 id = &"campfire"
-display_name = "Hoguera"
-description = "Un corro de piedras con leña. Plántala en el suelo, échale combustible y enciéndela: asa la carne, calienta y alumbra."
+display_name = "ITEM_CAMPFIRE"
+description = "ITEM_CAMPFIRE_DESC"
 icon = ExtResource("1_52n7e")
 max_stack = 5
 group = &"placeable"

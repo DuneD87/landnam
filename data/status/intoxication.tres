@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = &"intoxication"
-display_name = "Intoxicación"
+display_name = "STATUS_INTOXICATION"
 duration = Vector2(60, 180)
 stacking = 0
 cure_tags = Array[StringName]([&"poison"])

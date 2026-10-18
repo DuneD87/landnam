@@ -12,8 +12,8 @@ warmth = 2.5
 [resource]
 script = ExtResource("1_item")
 id = &"fur_moccasins"
-display_name = "Mocasines de pelo"
-description = "Una suela de cuero cosida a una caña de piel con el pelo hacia fuera, atada al tobillo con tendón."
+display_name = "ITEM_FUR_MOCCASINS"
+description = "ITEM_FUR_MOCCASINS_DESC"
 icon = ExtResource("0_icon")
 category = 4
 scene_path = "res://scenes/items/armor/stone_age/fur_moccasins_equipable.tscn"

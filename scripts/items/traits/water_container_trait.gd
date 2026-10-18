@@ -8,4 +8,4 @@ extends ItemTrait
 
 
 func describe() -> Array:
-	return [["Caben", "%d tragos" % capacity]]
+	return [["TRAIT_HOLDS", tr("TRAIT_SIPS") % capacity]]

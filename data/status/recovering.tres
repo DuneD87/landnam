@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = &"recovering"
-display_name = "Recuperándose"
+display_name = "STATUS_RECOVERING"
 duration = Vector2(20, 20)
 stacking = 1
 health_per_second = 1.5

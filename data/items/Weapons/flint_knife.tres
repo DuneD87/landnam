@@ -11,8 +11,8 @@ script = ExtResource("4_skin")
 [resource]
 script = ExtResource("2_item")
 id = &"flint_knife"
-display_name = "Cuchillo de sílex"
-description = "Una lasca de sílex de un filo encajada en un mango de madera y atada con tendón. Despelleja como cualquier cuchillo y, en un apuro, corta."
+display_name = "ITEM_FLINT_KNIFE"
+description = "ITEM_FLINT_KNIFE_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/flint_knife.tscn"

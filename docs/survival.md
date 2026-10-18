@@ -75,12 +75,12 @@ segundo).
 
 | Comando | Qué hace |
 |---|---|
-| `necesidades` | Lista los valores, lo que se siente en °C, si la cabeza está bajo el agua, el agua de los odres y qué agua hay al alcance |
-| `necesidades <nombre> <valor>` | Fija una: `hambre`, `sed`, `descanso`, `cordura`, `oxigeno`, `temperatura` (de −1 a 1), `mojado` |
-| `necesidades llenar` | Todas llenas y a gusto |
-| `necesidades vaciar` | Hambre, sed, descanso, cordura y oxígeno a cero |
-| `necesidades pausa [on\|off]` | Las congela para mirarlas |
-| `necesidades ritmo <x>` | Las acelera (1 = normal) |
+| `needs` | Lista los valores, lo que se siente en °C, si la cabeza está bajo el agua, el agua de los odres y qué agua hay al alcance |
+| `needs <nombre> <valor>` | Fija una: `hunger`, `thirst`, `rest`, `sanity`, `oxygen`, `warmth` (de −1 a 1), `wetness` |
+| `needs fill` | Todas llenas y a gusto |
+| `needs empty` | Hambre, sed, descanso, cordura y oxígeno a cero |
+| `needs pause [on\|off]` | Las congela para mirarlas |
+| `needs rate <x>` | Las acelera (1 = normal) |
 
 ## Pendiente
 

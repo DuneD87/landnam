@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_lor2t")
 id = &"flint_spear"
-display_name = "Lanza de sílex"
-description = "Asta larga con una punta de sílex atada con tiras de piel. Pica desde lejos o, apuntando con el botón derecho, se arroja. Hay que ir a recogerla."
+display_name = "ITEM_FLINT_SPEAR"
+description = "ITEM_FLINT_SPEAR_DESC"
 icon = ExtResource("1_7hm7n")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/flint_spear.tscn"

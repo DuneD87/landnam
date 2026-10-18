@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_variant")
-id = &"joven"
+id = &"young"
 weight = 0.35
 size = Vector2(0.6, 0.78)
 speed = 0.85

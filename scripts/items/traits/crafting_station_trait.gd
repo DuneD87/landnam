@@ -10,4 +10,4 @@ extends ItemTrait
 
 
 func describe() -> Array:
-	return [["Estación", Eras.name_of(era)]]
+	return [["TRAIT_STATION", Eras.name_of(era)]]

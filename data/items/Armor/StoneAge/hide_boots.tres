@@ -12,8 +12,8 @@ warmth = 2.0
 [resource]
 script = ExtResource("1_item")
 id = &"hide_boots"
-display_name = "Botas de cuero"
-description = "Botas altas de cuero forradas de pelo y vendadas con tiras hasta media pierna."
+display_name = "ITEM_HIDE_BOOTS"
+description = "ITEM_HIDE_BOOTS_DESC"
 icon = ExtResource("0_icon")
 category = 4
 scene_path = "res://scenes/items/armor/stone_age/hide_boots_equipable.tscn"

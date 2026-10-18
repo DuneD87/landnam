@@ -4,6 +4,7 @@ extends RefCounted
 
 var name: String
 var usage: String
+## Clave de su ayuda en localization/translations.csv (CON_HELP_<NOMBRE>).
 var description: String
 var min_args: int
 var callable: Callable

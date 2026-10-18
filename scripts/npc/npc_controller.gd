@@ -85,6 +85,9 @@ var _is_dying: bool = false
 ## Variantes de la especie (CreatureVariant): al aparecer sortea una y su tamaño dentro de ella.
 ## Ninguna = todos como en la escena.
 @export var variants: Array[CreatureVariant] = []
+## Ids de variante de las partidas guardadas antes de pasarlos al inglés.
+const LEGACY_VARIANT_IDS := {"joven": "young", "adulto": "adult", "grande": "large", "mediana": "medium",
+	"pequeña": "small"}
 ## Tintes del pelaje (multiplican la textura), uno al azar por individuo. Ninguno = el de la textura.
 @export var coat_tints: Array[Color] = []
 
@@ -920,8 +923,10 @@ func restore_save_data(save: Dictionary) -> void:
 		Vector3(b.zx, b.zy, b.zz),
 	)
 	var saved_variant: CreatureVariant = null
+	var saved_id: String = save.get("variant", "")
+	saved_id = LEGACY_VARIANT_IDS.get(saved_id, saved_id)
 	for v in variants:
-		if v != null and String(v.id) == save.get("variant", ""):
+		if v != null and String(v.id) == saved_id:
 			saved_variant = v
 	apply_variant(saved_variant, save.get("size", 1.0))
 	health_component.health = save.health

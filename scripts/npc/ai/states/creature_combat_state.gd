@@ -107,27 +107,27 @@ func is_waiting() -> bool:
 	return phase == Phase.FLANK
 
 
-## Una línea para la consola (ia): fase, ataque, combo, guardia, fuelle y lo que lee del objetivo.
+## Una línea para la consola (ai): fase, ataque, combo, guardia, fuelle y lo que lee del objetivo.
 func debug_line() -> String:
 	var text := String(Phase.keys()[phase]).to_lower()
 	var attack := current_attack()
 	if attack != null:
-		text += " %s %s" % [attack.id, "aviso" if runner.in_tell() else "%.2f/%.2f s" % [runner.time, attack.end]]
+		text += " %s %s" % [attack.id, tr("CON_AI_TELL") if runner.in_tell() else "%.2f/%.2f s" % [runner.time, attack.end]]
 	if combo > 1:
 		text += " combo %d" % combo
 	if _joined != null and is_instance_valid(_joined):
 		var engaged := CombatDirector.engaged(_joined).size()
 		if engaged > 1:
-			text += "  %s (%d/%d atacan, %d en total)" % ["con turno" if CombatDirector.has_turn(_joined, controller.npc)
-				else "esperando", CombatDirector.turns(_joined), CombatDirector.MAX_TURNS, engaged]
+			text += "  " + tr("CON_AI_TURNS") % [tr("CON_AI_HAS_TURN") if CombatDirector.has_turn(_joined, controller.npc)
+				else tr("CON_AI_WAITING"), CombatDirector.turns(_joined), CombatDirector.MAX_TURNS, engaged]
 	if not controller.target_seen:
-		text += "  sin verlo %.1f s" % controller.unseen_time
-	text += "  guardia %.0f/%.0f" % [_poise, _max_poise()]
+		text += "  " + tr("CON_AI_UNSEEN") % controller.unseen_time
+	text += "  " + tr("CON_AI_POISE") % [_poise, _max_poise()]
 	if profile.sprint_speed > 0.0:
-		text += "  fuelle %.1f s" % _sprint_left
+		text += "  " + tr("CON_AI_WIND") % _sprint_left
 	var target := controller.target
 	if target != null and is_instance_valid(target):
-		text += "  → %s a %.1f m %s" % [target.name, controller.distance_to_target(),
+		text += "  → " + tr("CON_AI_TARGET") % [target.name, controller.distance_to_target(),
 			CombatRead.situations(controller.npc, target, controller.target_velocity)]
 	return text
 

@@ -11,8 +11,8 @@ script = ExtResource("4_fy8yg")
 [resource]
 script = ExtResource("2_81rip")
 id = &"leather_chest_01"
-display_name = "Peto de cuero curtido"
-description = "Leather chest"
+display_name = "ITEM_LEATHER_CHEST_01"
+description = "ITEM_LEATHER_CHEST_01_DESC"
 icon = ExtResource("1_0mjvm")
 category = 4
 scene_path = "res://scenes/Armor/leather_armor.tscn"

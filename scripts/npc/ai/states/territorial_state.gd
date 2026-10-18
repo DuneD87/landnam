@@ -87,10 +87,10 @@ func _warn() -> void:
 		CombatFx.play(warn_sound, npc.global_position, {"pitch": warn_pitch * randf_range(0.95, 1.05)})
 
 
-## Una línea para la consola (ia).
+## Una línea para la consola (ai).
 func debug_line() -> String:
-	var text := "paciencia %.1f/%.1f s" % [annoyance, patience]
+	var text := tr("CON_AI_PATIENCE") % [annoyance, patience]
 	if controller.target != null and is_instance_valid(controller.target):
-		text += "  → %s a %.1f m (aviso %.0f, ataque %.0f)" % [controller.target.name,
+		text += "  → " + tr("CON_AI_TERRITORY_TARGET") % [controller.target.name,
 			controller.distance_to_target(), warn_distance, attack_distance]
 	return text

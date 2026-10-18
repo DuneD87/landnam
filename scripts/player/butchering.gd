@@ -126,7 +126,7 @@ func cancel() -> void:
 	if _body == null:
 		return
 	_stop()
-	_player.survival.notify("Lo dejas a medias")
+	_player.survival.notify(tr("SURV_BUTCHER_STOPPED"))
 
 
 func _process(delta: float) -> void:

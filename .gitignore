@@ -29,3 +29,6 @@ addons/godot-git-plugin/linux/
 
 # Caché de Python de las herramientas (tools/audio importa entre sus scripts).
 __pycache__/
+
+# Traducciones: Godot las genera al importar localization/translations.csv.
+/localization/*.translation

@@ -12,8 +12,8 @@ warmth = 2.0
 [resource]
 script = ExtResource("1_item")
 id = &"fur_mittens"
-display_name = "Manoplas de pelo"
-description = "Piel vuelta con el pelo por fuera y la palma de cuero liso para no soltar el mango."
+display_name = "ITEM_FUR_MITTENS"
+description = "ITEM_FUR_MITTENS_DESC"
 icon = ExtResource("0_icon")
 category = 4
 scene_path = "res://scenes/items/armor/stone_age/fur_mittens_equipable.tscn"

@@ -205,7 +205,7 @@ func _on_voxel_mined(item_id: StringName, amount: int) -> void:
 	var item_data := config.get_item(item_id)
 	if item_data:
 		var excess := inventory.add_item(item_data, amount)
-		print("+%d %s" % [amount - excess, item_data.display_name])
+		print("+%d %s" % [amount - excess, item_data.get_display_name()])
 
 
 ## Lo que se arrastra fuera del inventario cae al suelo, delante.
@@ -1301,9 +1301,9 @@ func _on_grid_save_requested(blueprint_name: String) -> void:
 
 	var blocks := building_system.save_grid_blueprint(target.grid_id, blueprint_name)
 	if blocks < 0:
-		grid_manipulator_menu.set_status("No se ha podido guardar '%s'." % blueprint_name)
+		grid_manipulator_menu.set_status(tr("GRID_CANT_SAVE") % blueprint_name)
 	else:
-		grid_manipulator_menu.set_status("Guardado '%s' (%d bloques)." % [blueprint_name, blocks])
+		grid_manipulator_menu.set_status(tr("GRID_SAVED") % [blueprint_name, blocks])
 
 
 ## Elimina el grupo de grids apuntado y devuelve el control al jugador.
@@ -1325,24 +1325,24 @@ func _on_grid_convert_requested() -> void:
 
 	var converted := GridManager.convert_to_dynamic(target.grid_id)
 	if converted.is_empty():
-		grid_manipulator_menu.set_status("No se ha podido convertir a dinámica.")
+		grid_manipulator_menu.set_status(tr("GRID_CANT_CONVERT"))
 		return
 
 	# La conversión sustituye las PlanetGrid por DynamicPlanetGrid nuevas: reapunta el menú a
 	# la grid resultante o seguiría mostrando (y borrando) las estáticas ya vaciadas.
 	grid_manipulator_menu.open(converted[0])
-	grid_manipulator_menu.set_status("Convertida a dinámica (%d grids)." % converted.size())
+	grid_manipulator_menu.set_status(tr("GRID_CONVERTED") % converted.size())
 
 
 ## Cierra el menú y pasa a modo colocación: el blueprint sigue al puntero hasta que confirmes.
 func _on_blueprint_load_requested(blueprint_name: String, as_static: bool) -> void:
 	var data := GridBlueprint.load_from_disk(blueprint_name)
 	if data.is_empty():
-		grid_manipulator_menu.set_status("No se ha podido leer '%s'." % blueprint_name)
+		grid_manipulator_menu.set_status(tr("GRID_CANT_READ") % blueprint_name)
 		return
 
 	if not planet:
-		grid_manipulator_menu.set_status("Sin planeta al que anclar la grid.")
+		grid_manipulator_menu.set_status(tr("GRID_NO_PLANET"))
 		return
 
 	grid_manipulator_menu.close()

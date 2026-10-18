@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_item")
 id = &"stone_maul"
-display_name = "Mazo de piedra"
-description = "Una piedra grande atada en cruz a un astil largo, a dos manos. Lento y agotador, pero tumba a lo que alcanza, también a las bestias de piel gruesa."
+display_name = "ITEM_STONE_MAUL"
+description = "ITEM_STONE_MAUL_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/stone_maul.tscn"

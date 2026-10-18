@@ -4,7 +4,8 @@ extends RefCounted
 ## Un estado en curso: su definición (StatusEffectData), en qué parte del cuerpo, lo que le queda y
 ## lo grave que es. Lo lleva StatusEffects, que le cuenta el tiempo.
 
-const SIDE_LABEL := {&"left": "izq.", &"right": "der."}
+## Claves de cómo se nombra el lado.
+const SIDE_LABEL := {&"left": "SIDE_LEFT_SHORT", &"right": "SIDE_RIGHT_SHORT"}
 
 var data: StatusEffectData
 ## Parte del cuerpo (BodyDamage.ZONES), o &"" si es de todo el cuerpo.
@@ -24,12 +25,12 @@ func _init(data_: StatusEffectData, zone_: StringName = &"", severity_: float = 
 	remaining = time if time >= 0.0 else data.duration_for(severity)
 
 
-## Para el HUD: "Pierna rota (izq.)".
+## Para el HUD, ya traducido: "Pierna rota (izq.)".
 func label() -> String:
 	if zone == &"":
-		return data.display_name
+		return tr(data.display_name)
 	var side := StringName(String(zone).get_slice("_", 0))
-	return "%s (%s)" % [data.display_name, SIDE_LABEL.get(side, String(zone))]
+	return "%s (%s)" % [tr(data.display_name), tr(SIDE_LABEL.get(side, String(zone)))]
 
 
 func to_dict() -> Dictionary:

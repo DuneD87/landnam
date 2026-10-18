@@ -8,13 +8,13 @@
 [sub_resource type="Resource" id="Resource_remedy"]
 script = ExtResource("4_remedy")
 cures = Array[StringName]([&"fracture"])
-use_text = "Te entablillas la pierna: ya puedes apoyarla"
+use_text = "REMEDY_SPLINT_USE"
 
 [resource]
 script = ExtResource("2_item")
 id = &"splint"
-display_name = "Tablilla"
-description = "Dos palos rectos y fibra para atarlos. Sujeta un hueso roto y deja apoyar la pierna."
+display_name = "ITEM_SPLINT"
+description = "ITEM_SPLINT_DESC"
 icon = ExtResource("1_icon")
 category = 3
 scene_path = "res://scenes/items/survival/splint.tscn"

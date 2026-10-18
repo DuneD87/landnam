@@ -80,14 +80,14 @@ func _refresh_grid_stats() -> void:
 
 	var stats := GridManager.get_group_stats(target_grid.grid_id)
 	if stats.is_empty():
-		_title.text = "Grid"
-		_grid_stats.text = "La grid ya no existe."
+		_title.text = "GRID_TITLE"
+		_grid_stats.text = "GRID_GONE"
 		return
 
-	_title.text = "Grid %s" % stats["grid_id"]
+	_title.text = tr("GRID_TITLE_ID") % stats["grid_id"]
 	_grid_stats.text = _format_group_stats(stats)
 	_convert_btn.visible = not stats["dynamic"]
-	_delete_btn.text = "Eliminar"
+	_delete_btn.text = "GRID_DELETE"
 	_delete_armed = false
 	_name_edit.text = str(stats["grid_id"])
 
@@ -95,23 +95,23 @@ func _refresh_grid_stats() -> void:
 func _format_group_stats(stats: Dictionary) -> String:
 	var size: Vector3 = stats["size"]
 	var lines: Array[String] = [
-		"Tipo: %s" % ("dinámica" if stats["dynamic"] else "estática"),
-		"Planeta: %s" % stats["planet"],
-		"Grids del grupo: %d" % stats["grids"],
-		"Bloques: %d      Props: %d" % [stats["blocks"], stats["props"]],
-		"Dimensiones: %.1f x %.1f x %.1f m" % [size.x, size.y, size.z],
-		"Volumen: %.1f m³" % stats["volume"],
-		"Tamaños de celda: %s" % _format_cells(stats["cell_sizes"]),
+		tr("GRID_TYPE") % tr("GRID_DYNAMIC" if stats["dynamic"] else "GRID_STATIC"),
+		tr("GRID_PLANET") % stats["planet"],
+		tr("GRID_GROUP_GRIDS") % stats["grids"],
+		tr("GRID_BLOCKS_PROPS") % [stats["blocks"], stats["props"]],
+		tr("GRID_DIMENSIONS") % [size.x, size.y, size.z],
+		tr("GRID_VOLUME") % stats["volume"],
+		tr("GRID_CELL_SIZES") % _format_cells(stats["cell_sizes"]),
 	]
 
 	if stats.has("mass"):
-		lines.append("Masa: %.0f kg" % stats["mass"])
+		lines.append(tr("GRID_MASS") % stats["mass"])
 	if stats.has("flood"):
 		var flood: Dictionary = stats["flood"]
-		lines.append("Compartimentos: %d (%d inundados, %d con vía de agua)" % [
+		lines.append(tr("GRID_COMPARTMENTS") % [
 			flood["compartments"], flood["flooded"], flood["breached"]])
 		if flood.get("heel_assist", 1.0) < 1.0:
-			lines.append("Estabilidad: %.0f%%" % (flood["heel_assist"] * 100.0))
+			lines.append(tr("GRID_STABILITY") % (flood["heel_assist"] * 100.0))
 
 	return "\n".join(lines)
 
@@ -124,13 +124,13 @@ func _format_cells(cells: Array) -> String:
 
 
 func _refresh_blueprint_list() -> void:
-	_title.text = "Cargar blueprint"
+	_title.text = "GRID_LOAD_BLUEPRINT"
 	_blueprint_list.clear()
 	for bp_name: String in GridBlueprint.list_names():
 		_blueprint_list.add_item(bp_name)
 
 	var empty := _blueprint_list.item_count == 0
-	_blueprint_stats.text = "No hay blueprints guardados." if empty else "Selecciona un blueprint."
+	_blueprint_stats.text = "GRID_NO_BLUEPRINTS" if empty else "GRID_SELECT_BLUEPRINT"
 	_load_btn.disabled = true
 	_delete_bp_btn.disabled = true
 	_as_static_check.disabled = true
@@ -143,7 +143,7 @@ func _on_blueprint_selected(index: int) -> void:
 	_delete_bp_btn.disabled = false
 
 	if data.is_empty():
-		_blueprint_stats.text = "No se ha podido leer '%s'." % bp_name
+		_blueprint_stats.text = tr("GRID_CANT_READ") % bp_name
 		return
 
 	var stats := GridBlueprint.get_stats(data)
@@ -151,18 +151,18 @@ func _on_blueprint_selected(index: int) -> void:
 	_as_static_check.disabled = not stats["dynamic"]
 	var size: Vector3 = stats["size"]
 	_blueprint_stats.text = "\n".join([
-		"Tipo: %s" % ("dinámica" if stats["dynamic"] else "estática"),
-		"Grids: %d      Bloques: %d      Props: %d" % [stats["grids"], stats["blocks"], stats["props"]],
-		"Dimensiones: %.1f x %.1f x %.1f m" % [size.x, size.y, size.z],
-		"Tamaños de celda: %s" % _format_cells(stats["cell_sizes"]),
-		"Guardado: %s" % stats["created"],
+		tr("GRID_TYPE") % tr("GRID_DYNAMIC" if stats["dynamic"] else "GRID_STATIC"),
+		tr("GRID_GRIDS_BLOCKS_PROPS") % [stats["grids"], stats["blocks"], stats["props"]],
+		tr("GRID_DIMENSIONS") % [size.x, size.y, size.z],
+		tr("GRID_CELL_SIZES") % _format_cells(stats["cell_sizes"]),
+		tr("GRID_SAVED_ON") % stats["created"],
 	])
 
 
 func _on_save_pressed() -> void:
 	var bp_name := GridBlueprint.sanitize_name(_name_edit.text)
 	if bp_name == "":
-		_status.text = "Pon un nombre al blueprint."
+		_status.text = "GRID_NAME_NEEDED"
 		return
 	save_requested.emit(bp_name)
 
@@ -170,7 +170,7 @@ func _on_save_pressed() -> void:
 func _on_delete_pressed() -> void:
 	if not _delete_armed:
 		_delete_armed = true
-		_delete_btn.text = "¿Seguro? Pulsa otra vez"
+		_delete_btn.text = "GRID_DELETE_CONFIRM"
 		return
 	delete_requested.emit()
 
@@ -189,9 +189,9 @@ func _on_delete_blueprint_pressed() -> void:
 		return
 	var bp_name: String = _blueprint_list.get_item_text(selected[0])
 	if GridBlueprint.delete_from_disk(bp_name):
-		_status.text = "Blueprint '%s' borrado." % bp_name
+		_status.text = tr("GRID_BLUEPRINT_DELETED") % bp_name
 	else:
-		_status.text = "No se ha podido borrar '%s'." % bp_name
+		_status.text = tr("GRID_CANT_DELETE") % bp_name
 	_refresh_blueprint_list()
 
 
@@ -263,22 +263,22 @@ func _build_grid_section(parent: VBoxContainer) -> void:
 	_grid_section.add_child(save_row)
 
 	_name_edit = LineEdit.new()
-	_name_edit.placeholder_text = "Nombre del blueprint"
+	_name_edit.placeholder_text = "GRID_NAME_PLACEHOLDER"
 	_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	save_row.add_child(_name_edit)
 
 	var save_btn := Button.new()
-	save_btn.text = "Guardar"
+	save_btn.text = "GRID_SAVE"
 	save_btn.pressed.connect(_on_save_pressed)
 	save_row.add_child(save_btn)
 
 	_convert_btn = Button.new()
-	_convert_btn.text = "Convertir a dinámica"
+	_convert_btn.text = "GRID_CONVERT"
 	_convert_btn.pressed.connect(func() -> void: convert_requested.emit())
 	_grid_section.add_child(_convert_btn)
 
 	_delete_btn = Button.new()
-	_delete_btn.text = "Eliminar"
+	_delete_btn.text = "GRID_DELETE"
 	_delete_btn.add_theme_color_override("font_color", Color(0.95, 0.45, 0.4, 1.0))
 	_delete_btn.pressed.connect(_on_delete_pressed)
 	_grid_section.add_child(_delete_btn)
@@ -290,6 +290,8 @@ func _build_library_section(parent: VBoxContainer) -> void:
 	parent.add_child(_library_section)
 
 	_blueprint_list = ItemList.new()
+	# Nombres que ha puesto el jugador: no se buscan en las traducciones.
+	_blueprint_list.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_blueprint_list.custom_minimum_size = Vector2(0, 200)
 	_blueprint_list.item_selected.connect(_on_blueprint_selected)
 	_library_section.add_child(_blueprint_list)
@@ -299,8 +301,8 @@ func _build_library_section(parent: VBoxContainer) -> void:
 	_library_section.add_child(_blueprint_stats)
 
 	_as_static_check = CheckBox.new()
-	_as_static_check.text = "Colocar como estática"
-	_as_static_check.tooltip_text = "Ancla el blueprint al planeta en vez de crear un cuerpo dinámico."
+	_as_static_check.text = "GRID_PLACE_STATIC"
+	_as_static_check.tooltip_text = "GRID_PLACE_STATIC_TIP"
 	_as_static_check.disabled = true
 	_library_section.add_child(_as_static_check)
 
@@ -309,18 +311,18 @@ func _build_library_section(parent: VBoxContainer) -> void:
 	_library_section.add_child(buttons)
 
 	_load_btn = Button.new()
-	_load_btn.text = "Colocar"
+	_load_btn.text = "GRID_PLACE"
 	_load_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_load_btn.pressed.connect(_on_load_pressed)
 	buttons.add_child(_load_btn)
 
 	_delete_bp_btn = Button.new()
-	_delete_bp_btn.text = "Borrar blueprint"
+	_delete_bp_btn.text = "GRID_DELETE_BLUEPRINT"
 	_delete_bp_btn.pressed.connect(_on_delete_blueprint_pressed)
 	buttons.add_child(_delete_bp_btn)
 
 	var hint := Label.new()
-	hint.text = "Al colocar: clic izq. confirma · clic der. o Esc cancela · rueda gira 15° · ctrl+rueda aleja/acerca · shift+rueda sube/baja"
+	hint.text = "GRID_PLACE_HINT"
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_color_override("font_color", Color(0.65, 0.65, 0.7, 1.0))
 	_library_section.add_child(hint)

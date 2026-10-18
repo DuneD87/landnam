@@ -144,7 +144,7 @@ func setup(owner_combat: PlayerCombat) -> void:
 	add_child(_death_band)
 
 	_death_label = Label.new()
-	_death_label.text = "HAS MUERTO"
+	_death_label.text = "HUD_YOU_DIED"
 	_death_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_death_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_death_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -322,9 +322,9 @@ func _update_ammo() -> void:
 		_ammo_label.visible = false
 		return
 	var count := combat.ammo_count()
-	var label := "Flechas" if data.weapon_type == ItemData.WeaponType.BOW else \
-		("Piedras" if data.weapon_type == ItemData.WeaponType.SLINGSHOT else "Lanzas")
-	_ammo_label.text = "%s  %d" % [label, count] if count > 0 else "Sin %s" % label.to_lower()
+	var kind := "ARROWS" if data.weapon_type == ItemData.WeaponType.BOW else \
+		("STONES" if data.weapon_type == ItemData.WeaponType.SLINGSHOT else "SPEARS")
+	_ammo_label.text = "%s  %d" % [tr("HUD_AMMO_" + kind), count] if count > 0 else tr("HUD_NO_" + kind)
 	var center := get_viewport().get_visible_rect().size * 0.5
 	_ammo_label.position = center + Vector2(46, 30) * _scale
 	_ammo_label.visible = true
@@ -611,7 +611,7 @@ func is_death_shown() -> bool:
 func show_skip_hint() -> void:
 	var events := InputMap.action_get_events(&"jump")
 	var key := SettingsManager.event_label(events[0]) if not events.is_empty() else ""
-	_skip_label.text = "[%s]  Saltar" % key if key != "" else "Saltar"
+	_skip_label.text = "[%s]  %s" % [key, tr("HUD_SKIP")] if key != "" else tr("HUD_SKIP")
 	_skip_label.visible = true
 	if _skip_tween != null:
 		_skip_tween.kill()

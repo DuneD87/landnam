@@ -12,8 +12,8 @@ warmth = 1.0
 [resource]
 script = ExtResource("2_ow5vv")
 id = &"firstage_skin_hands"
-display_name = "Manoplas de pieles"
-description = "Skin Hands"
+display_name = "ITEM_FIRSTAGE_SKIN_HANDS"
+description = "ITEM_FIRSTAGE_SKIN_HANDS_DESC"
 icon = ExtResource("1_drf80")
 category = 4
 scene_path = "res://scenes/items/armor/firstage_skin_set/firstage_skin_hands_equipable.tscn"

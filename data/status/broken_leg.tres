@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = &"broken_leg"
-display_name = "Pierna rota"
+display_name = "STATUS_BROKEN_LEG"
 per_zone = true
 duration = Vector2(360, 600)
 stacking = 0

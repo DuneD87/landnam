@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"hand_cannon_01"
-display_name = "Cañón de mano"
-description = "Dispara una bala capaz de abrir un boquete en un casco."
+display_name = "ITEM_HAND_CANNON_01"
+description = "ITEM_HAND_CANNON_01_DESC"
 icon = ExtResource("1_icon")
 category = 1
 scene_path = "res://scenes/items/weapons/hand_cannon.tscn"

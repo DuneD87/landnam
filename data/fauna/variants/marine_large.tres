@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_variant")
-id = &"grande"
+id = &"large"
 weight = 0.15
 size = Vector2(1.04, 1.12)
 damage = 1.3

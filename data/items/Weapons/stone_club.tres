@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_item")
 id = &"stone_club"
-display_name = "Maza de piedra"
-description = "Un canto rodado atado a la punta de un mango. No corta: aplasta, y lo que encaja el golpe se tambalea aunque lleve coraza."
+display_name = "ITEM_STONE_CLUB"
+description = "ITEM_STONE_CLUB_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/stone_club.tscn"

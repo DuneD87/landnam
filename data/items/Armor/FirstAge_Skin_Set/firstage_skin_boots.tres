@@ -12,8 +12,8 @@ warmth = 1.5
 [resource]
 script = ExtResource("2_jgvra")
 id = &"firstage_skin_boots"
-display_name = "Botas de pieles"
-description = "Skin Boots"
+display_name = "ITEM_FIRSTAGE_SKIN_BOOTS"
+description = "ITEM_FIRSTAGE_SKIN_BOOTS_DESC"
 icon = ExtResource("1_jrobp")
 category = 4
 scene_path = "res://scenes/items/armor/firstage_skin_set/firstage_skin_boots_equipable.tscn"

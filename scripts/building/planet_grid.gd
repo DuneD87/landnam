@@ -89,10 +89,10 @@ static func _is_solid_terrain(voxel_tool: VoxelTool, point_terrain: Vector3) -> 
 ## del SDF y que las coordenadas caen donde deben, en vez de darlo por supuesto.
 func debug_anchor_sample(count: int = 5) -> String:
 	if _blocks.is_empty() or not planet_node:
-		return "sin bloques"
+		return tr("CON_ANCHORS_NO_BLOCKS")
 	var terrain: VoxelLodTerrain = planet_node.voxel_terrain
 	if not terrain:
-		return "planet_node no tiene voxel_terrain"
+		return tr("CON_ANCHORS_NO_TERRAIN")
 	var voxel_tool: VoxelTool = terrain.get_voxel_tool()
 	voxel_tool.channel = VoxelBuffer.CHANNEL_SDF
 

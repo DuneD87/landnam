@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_script")
 id = &"greatsword"
-display_name = "Espadón"
-description = "Hoja de un metro larga como un brazo extendido, a dos manos. Barre todo lo que tiene delante y aguanta los golpes mientras corta."
+display_name = "ITEM_GREATSWORD"
+description = "ITEM_GREATSWORD_DESC"
 icon = ExtResource("1_icon")
 category = 2
 scene_path = "res://scenes/items/weapons/combat/greatsword.tscn"

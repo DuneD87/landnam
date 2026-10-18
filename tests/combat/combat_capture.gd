@@ -34,7 +34,7 @@ var _clock := 0.0
 var _run_name := ""
 ## La criatura con la que pelea (el oso, salvo en lion) y cómo se la nombra en el registro.
 var _bear: NPCController
-var _foe_name := "oso"
+var _foe_name := "bear"
 var _stats := {}
 ## Con --showcase los fotogramas salen de una cámara que sigue al jugador de cerca, de tres
 ## cuartos por delante a su derecha (la del juego sigue mandando en apuntar y moverse).
@@ -147,7 +147,7 @@ func _equip(item_id: StringName) -> void:
 
 
 func _spawn_bear(distance: float) -> void:
-	await _spawn_creature("oso", &"Bear", distance)
+	await _spawn_creature("bear", &"Bear", distance)
 
 
 ## Suelta delante una criatura de la consola ([kind]: oso, leon…) y la deja en _bear; quita antes
@@ -257,7 +257,7 @@ func _melee() -> void:
 ## estado (vigila, avisa, ataca) con la distancia y la paciencia que le queda; cuando ataca, pelea.
 func _lion() -> void:
 	await _equip(&"iron_sword")
-	await _spawn_creature("leon", &"Lion", 26.0)
+	await _spawn_creature("lion", &"Lion", 26.0)
 	if _bear == null:
 		_note("no se pudo soltar el león")
 		return

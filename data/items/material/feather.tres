@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("2_ejppn")
 id = &"feather"
-display_name = "Pluma"
-description = "Pluma de ala de un ave desplumada. Partida por el cañón y atada a la vara, hace que la flecha vuele derecha."
+display_name = "ITEM_FEATHER"
+description = "ITEM_FEATHER_DESC"
 icon = ExtResource("1_feath")
 scene_path = "res://scenes/items/survival/feather.tscn"
 max_stack = 50

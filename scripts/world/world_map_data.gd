@@ -12,11 +12,12 @@ const FILE_VERSION := 3
 
 enum WaterType { OCEAN, SEA, LAKE, POND }
 
+## Clave del nombre de cada tipo de agua.
 const TYPE_NAMES := {
-	WaterType.OCEAN: "Océano",
-	WaterType.SEA: "Mar",
-	WaterType.LAKE: "Lago",
-	WaterType.POND: "Charca",
+	WaterType.OCEAN: "WATER_OCEAN",
+	WaterType.SEA: "WATER_SEA",
+	WaterType.LAKE: "WATER_LAKE",
+	WaterType.POND: "WATER_POND",
 }
 
 var size: Vector2i = Vector2i.ZERO
@@ -87,9 +88,20 @@ static func latlon_to_dir(lat_deg: float, lon_deg: float) -> Vector3:
 ## Etiqueta legible de una latitud/longitud, en el formato que espera la UI.
 static func format_latlon(latlon: Vector2) -> String:
 	return "%.2f°%s  %.2f°%s" % [
-		absf(latlon.x), "N" if latlon.x >= 0.0 else "S",
-		absf(latlon.y), "E" if latlon.y >= 0.0 else "O",
+		absf(latlon.x), TranslationServer.translate(&"COMPASS_N" if latlon.x >= 0.0 else &"COMPASS_S"),
+		absf(latlon.y), TranslationServer.translate(&"COMPASS_E" if latlon.y >= 0.0 else &"COMPASS_W"),
 	]
+
+
+## El nombre de un cuerpo de agua en el idioma del juego: su tipo y su número por tamaño ("Lago 3").
+static func body_name(body: Dictionary) -> String:
+	var number := int(body.get("number", 0))
+	if number == 0:
+		# Los mapas horneados antes guardaban el nombre ya escrito ("Lago 3"): el número va al final.
+		var old := String(body.get("name", ""))
+		number = int(old.get_slice(" ", old.get_slice_count(" ") - 1))
+	var type_key: String = TYPE_NAMES.get(int(body.get("type", WaterType.LAKE)), "WATER_LAKE")
+	return "%s %d" % [TranslationServer.translate(type_key), number]
 
 
 func is_valid() -> bool:

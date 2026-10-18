@@ -115,7 +115,7 @@ func _test_slope_limit() -> void:
 		if tilt < GroundFaunaHabitat.MAX_SLOPE_DEGREES:
 			_check(accepted > 0, "Pendiente de %.0f° admite spawn (%d/40)" % [tilt, accepted])
 		else:
-			_check(accepted == 0 and int(habitat.rejected.get(&"pendiente", 0)) > 0,
+			_check(accepted == 0 and int(habitat.rejected.get(&"slope", 0)) > 0,
 				"Pendiente de %.0f° se descarta por pendiente" % tilt)
 		ground.queue_free()
 		await get_tree().process_frame
@@ -128,7 +128,7 @@ func _test_height_band() -> void:
 	var habitat := _habitat()
 	var settings := _profile([2], -50.0, 200.0)
 	var accepted := _sample(habitat, settings, 20)
-	_check(accepted == 0 and int(habitat.rejected.get(&"altura", 0)) > 0,
+	_check(accepted == 0 and int(habitat.rejected.get(&"height", 0)) > 0,
 		"Suelo a 500 m queda fuera de la banda de altura y se descarta por altura")
 	var wide := _profile([2], -50.0, 600.0)
 	var open := _habitat()
@@ -141,7 +141,7 @@ func _test_height_band() -> void:
 	await get_tree().physics_frame
 	var blind := _habitat()
 	_check(_sample(blind, _profile([2], -50.0, 2000.0), 10) == 0
-		and int(blind.rejected.get(&"sin_suelo", 0)) > 0,
+		and int(blind.rejected.get(&"no_ground", 0)) > 0,
 		"Suelo por encima de radio+atmósfera queda fuera del alcance del sondeo")
 	too_high.queue_free()
 	await get_tree().process_frame
@@ -153,7 +153,7 @@ func _test_biome_band() -> void:
 	await get_tree().physics_frame
 	var polar := _habitat()
 	var settings := _profile([0], -50.0, 200.0)
-	_check(_sample(polar, settings, 20) == 0 and int(polar.rejected.get(&"bioma", 0)) > 0,
+	_check(_sample(polar, settings, 20) == 0 and int(polar.rejected.get(&"biome", 0)) > 0,
 		"El ecuador se descarta para una especie de banda polar")
 	var equator := _habitat()
 	_check(_sample(equator, _profile([2], -50.0, 200.0), 20) > 0,

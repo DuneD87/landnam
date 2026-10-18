@@ -60,7 +60,7 @@ func sample_spawn(anchor: Vector3, profile: AmbientFaunaProfile,
 	var distance := profile.sample_spawn_distance(rng)
 	var direction := (anchor + (right * cos(angle) + forward * sin(angle)) * distance - origin).normalized()
 	if not _in_biome(direction, settings):
-		_reject(&"bioma")
+		_reject(&"biome")
 		return null
 	return _surface_point(direction, settings, profile.clearance)
 
@@ -84,7 +84,7 @@ func is_spawn_valid(point: Vector3, clearance: float) -> bool:
 		return false
 	for body in nearby_ships():
 		if is_instance_valid(body) and body is DynamicGridBody and body.contains_point(point, clearance + 0.5):
-			_reject(&"barco")
+			_reject(&"boat")
 			return false
 	_clearance_shape.radius = clearance
 	var query := PhysicsShapeQueryParameters3D.new()
@@ -92,7 +92,7 @@ func is_spawn_valid(point: Vector3, clearance: float) -> bool:
 	query.transform = Transform3D(Basis.IDENTITY, point)
 	query.collision_mask = 1
 	if not terrain.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty():
-		_reject(&"sin_hueco")
+		_reject(&"no_room")
 		return false
 	accepted += 1
 	return true
@@ -108,28 +108,28 @@ func _surface_point(direction: Vector3, settings: GroundFaunaProfile,
 	query.collision_mask = 1
 	var hit := terrain.get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty():
-		_reject(&"sin_suelo")
+		_reject(&"no_ground")
 		return null
 	var point: Vector3 = hit["position"]
 	var height := point.distance_to(origin) - planet_radius
 	if height < settings.min_height or height > settings.max_height:
-		_reject(&"altura")
+		_reject(&"height")
 		return null
 	if climate != null and climate.enabled \
 			and (settings.climate_min > -1000.0 or settings.climate_max < 1000.0):
 		var cold := climate.coldness(terrain.global_basis.inverse() * (point - origin))
 		if cold < settings.climate_min or cold > settings.climate_max:
-			_reject(&"clima")
+			_reject(&"climate")
 			return null
 	if (hit["normal"] as Vector3).dot(direction) < cos(deg_to_rad(MAX_SLOPE_DEGREES)):
-		_reject(&"pendiente")
+		_reject(&"slope")
 		return null
 	# Mientras el mapa se hornea manda solo la banda de altura.
 	if world_map != null and world_map.is_ready() and world_map.is_water_at(point):
-		_reject(&"agua")
+		_reject(&"water")
 		return null
 	if settings.near_water > 0.0 and not _near_water(point, direction, settings.near_water):
-		_reject(&"lejos_del_agua")
+		_reject(&"far_from_water")
 		return null
 	return point + direction * (clearance + GROUND_MARGIN)
 
@@ -172,13 +172,14 @@ func _reject(reason: StringName) -> void:
 	rejected[reason] = int(rejected.get(reason, 0)) + 1
 
 
-## Aceptados y descartes por motivo, en una línea, para el comando `fauna` de la consola.
+## Aceptados y descartes por motivo, en una línea, para el comando `fauna` de la consola. Cada motivo
+## se nombra con su clave CON_REJECT_<MOTIVO>.
 func report() -> String:
 	var reasons: Array[String] = []
 	for reason in rejected:
-		reasons.append("%s %d" % [reason, rejected[reason]])
+		reasons.append("%s %d" % [tr("CON_REJECT_" + String(reason).to_upper()), rejected[reason]])
 	reasons.sort()
-	var text := "aceptados %d" % accepted
+	var text := tr("CON_FAUNA_ACCEPTED") % accepted
 	if not reasons.is_empty():
-		text += "   descartes: " + "  ".join(reasons)
+		text += "   %s %s" % [tr("CON_FAUNA_REJECTED"), "  ".join(reasons)]
 	return text

@@ -735,9 +735,9 @@ func _check_variants() -> void:
 	var by_id := {}
 	for v in wolf.variants:
 		by_id[v.id] = v
-	check(by_id.has(&"joven") and by_id.has(&"adulto") and by_id.has(&"grande"), "el lobo tiene joven, adulto y grande (%s)" % [by_id.keys()])
-	var large: CreatureVariant = by_id[&"grande"]
-	var young: CreatureVariant = by_id[&"joven"]
+	check(by_id.has(&"young") and by_id.has(&"adult") and by_id.has(&"large"), "el lobo tiene young, adult y large (%s)" % [by_id.keys()])
+	var large: CreatureVariant = by_id[&"large"]
+	var young: CreatureVariant = by_id[&"young"]
 	var capsule := wolf.collision_shape.shape as CapsuleShape3D
 	var base_radius: float = wolf._base.radius
 	var base_health: float = wolf._base.max_health

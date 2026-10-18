@@ -74,7 +74,7 @@ func use_item(data: ItemData, from_inventory: bool = false) -> bool:
 	var ground := data.get_trait(GroundPlaceableTrait) as GroundPlaceableTrait
 	if ground != null:
 		if from_inventory:
-			notify("Selecciónalo en la barra y haz clic en el suelo para plantarlo")
+			notify(tr("SURV_PLACE_FROM_BAR"))
 		else:
 			_place(data, ground)
 		return true
@@ -95,10 +95,10 @@ func _consume(data: ItemData, edible: EdibleTrait, remedy: RemedyTrait) -> void:
 	if _cooldown > 0.0:
 		return
 	if _player.inventory.get_item_count(data) <= 0:
-		notify("No te queda %s" % data.display_name.to_lower())
+		notify(tr("SURV_NONE_LEFT") % data.get_display_name().to_lower())
 		return
 	if edible == null and not _needs_remedy(remedy):
-		notify("Ahora no te hace falta")
+		notify(tr("SURV_NOT_NEEDED"))
 		return
 	_cooldown = USE_COOLDOWN
 	_player.inventory.remove_item(data, 1)
@@ -107,11 +107,11 @@ func _consume(data: ItemData, edible: EdibleTrait, remedy: RemedyTrait) -> void:
 		_treat(remedy)
 	if poisoned and _player.combat != null and _player.combat.status != null:
 		_player.combat.status.apply(&"intoxication", &"", edible.intoxication_severity)
-		notify("Te ha sentado mal: intoxicación")
+		notify(tr("SURV_POISONED"))
 	elif remedy != null and remedy.use_text != "":
-		notify(remedy.use_text)
+		notify(tr(remedy.use_text))
 	else:
-		notify("Comes %s" % data.display_name.to_lower())
+		notify(tr("SURV_EAT") % data.get_display_name().to_lower())
 
 
 ## Lo que hace [remedy]: vida, recuperación, sangrado, heridas y estados.
@@ -152,12 +152,12 @@ func _drink_from_skin() -> void:
 		return
 	var needs := _player.needs
 	if needs.water <= 0:
-		notify("El odre está vacío: llénalo junto a un río o un lago (E)")
+		notify(tr("SURV_SKIN_EMPTY"))
 		return
 	_cooldown = USE_COOLDOWN
 	needs.water -= 1
 	needs.drink()
-	notify("Bebes del odre · %d/%d tragos" % [needs.water, needs.water_capacity()])
+	notify(tr("SURV_DRINK_SKIN") % [needs.water, needs.water_capacity()])
 
 
 # --- E --------------------------------------------------------------------------------------------
@@ -170,13 +170,13 @@ func open_corpse(body: Node3D) -> void:
 		if _butchering.is_active():
 			return
 		if _skinning_tool() == null:
-			notify("Necesitas un cuchillo en la mano para %s" % ("desplumarlo" if bird else "despellejarlo"))
+			notify(tr("SURV_NEED_KNIFE_PLUCK" if bird else "SURV_NEED_KNIFE_SKIN"))
 			return
 		_butchering.start(body)
 		if body.butcher_progress == 0.0:
-			notify("Lo %s… (moverte lo deja a medias)" % ("desplumas" if bird else "despellejas"))
+			notify(tr("SURV_PLUCK_START" if bird else "SURV_SKIN_START"))
 		else:
-			notify("Sigues %s…" % ("desplumándolo" if bird else "despellejándolo"))
+			notify(tr("SURV_PLUCK_RESUME" if bird else "SURV_SKIN_RESUME"))
 		return
 	_open_loot(body)
 
@@ -185,14 +185,14 @@ func _on_butchered(body: Node3D) -> void:
 	var knife := _skinning_tool()
 	HuntingLoot.fill(body, knife.yield_mult if knife != null else 1.0)
 	body.butchered = true
-	notify("Lo desplumas" if _is_bird(body) else "Lo despellejas")
+	notify(tr("SURV_PLUCKED" if _is_bird(body) else "SURV_SKINNED"))
 	_open_loot(body)
 
 
 func _open_loot(body: Node3D) -> void:
 	var inventory: Inventory = body.inventory
 	if inventory.get_free_slots() >= inventory.max_slots:
-		notify("Ya no queda nada que aprovechar")
+		notify(tr("SURV_NOTHING_LEFT"))
 		return
 	_player.inventory_ui.open_loot(inventory)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
@@ -230,19 +230,19 @@ func drink_here() -> bool:
 	if kind == &"":
 		return false
 	if kind == &"salt":
-		notify("El agua del mar no quita la sed")
+		notify(tr("SURV_SEA_WATER"))
 		return true
 	var needs := _player.needs
 	if needs.thirst < 0.98:
 		needs.drink()
-		notify("Bebes agua dulce")
+		notify(tr("SURV_DRINK_FRESH"))
 	elif needs.water < needs.water_capacity():
 		needs.water = needs.water_capacity()
-		notify("Llenas los odres · %d tragos" % needs.water)
+		notify(tr("SURV_FILL_SKINS") % needs.water)
 	elif needs.water_capacity() > 0:
-		notify("No tienes sed y los odres están llenos")
+		notify(tr("SURV_NOT_THIRSTY_FULL"))
 	else:
-		notify("No tienes sed")
+		notify(tr("SURV_NOT_THIRSTY"))
 	return true
 
 
@@ -340,10 +340,10 @@ func _place(data: ItemData, ground: GroundPlaceableTrait) -> void:
 	if _cooldown > 0.0:
 		return
 	if _player.inventory.get_item_count(data) <= 0:
-		notify("No te queda %s" % data.display_name.to_lower())
+		notify(tr("SURV_NONE_LEFT") % data.get_display_name().to_lower())
 		return
 	if not _place_ok:
-		notify("Ahí no se puede: busca suelo llano y despejado")
+		notify(tr("SURV_CANT_PLACE"))
 		return
 	var scene := load(ground.scene_path) as PackedScene
 	if scene == null:
@@ -354,4 +354,4 @@ func _place(data: ItemData, ground: GroundPlaceableTrait) -> void:
 	parent.add_child(node)
 	node.global_transform = _place_xform
 	_player.inventory.remove_item(data, 1)
-	notify("%s en el suelo · E para usarlo" % data.display_name)
+	notify(tr("SURV_PLACED") % data.get_display_name())

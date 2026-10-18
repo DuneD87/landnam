@@ -168,7 +168,7 @@ nieve y el tiempo atmosférico. `coldness()` sigue sin estación.
   del sitio, repartidos entre las dos estaciones más cercanas (centros a 1/8, 3/8, 5/8 y 7/8 del año
   local). Verano despejado, otoño de temporales, viento y niebla, invierno de niebla y nieve. En el
   ecuador no cambian.
-- Con el calendario acelerado (`estacion velocidad`) los eventos duran proporcionalmente menos y la
+- Con el calendario acelerado (`season speed`) los eventos duran proporcionalmente menos y la
   transición se acorta hasta 2 s: el tiempo sigue a la estación. Al saltar de fecha (`estacion
   otoño`) el evento se sortea de nuevo en el acto (`WeatherController.reroll`), salvo uno forzado.
 
@@ -180,9 +180,9 @@ noche y migran en invierno, los osos hibernan, los zorros y los ciervos salen al
 
 ## Herramientas
 
-- Consola: `estacion` informa de la fecha y de la estación, la latitud y las horas de luz donde
-  estás; `estacion otoño` (o `primavera`, `verano`, `invierno`) salta a esa estación en tu
-  hemisferio; `estacion 19.5` a un día; `estacion velocidad 50` acelera el calendario (no se guarda).
+- Consola: `season` informa de la fecha y de la estación, la latitud y las horas de luz donde
+  estás; `season autumn` (o `spring`, `summer`, `winter`) salta a esa estación en tu
+  hemisferio; `season 19.5` a un día; `season speed 50` acelera el calendario (no se guarda).
 - `tests/vegetation/tree_designer.tscn -- --seasons=0.08,0.38,0.6,0.85 [--only=almond_01]`: una
   hoja por árbol con el LOD0 en cada fase. `--season=0.6` deja la hoja normal en esa fase.
 - `tests/lighting/lighting_capture.tscn -- --day=19.2`: capturas del juego en esa fecha.

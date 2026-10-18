@@ -6,8 +6,8 @@
 [resource]
 script = ExtResource("2_item")
 id = &"sulfur"
-display_name = "Azufre"
-description = "Costras amarillas de las cumbres, donde la montaña humea. Arde con llama azul y apesta. Con salitre y carbón, pólvora."
+display_name = "ITEM_SULFUR"
+description = "ITEM_SULFUR_DESC"
 icon = ExtResource("1_icon")
 scene_path = "res://scenes/items/survival/sulfur.tscn"
 max_stack = 50

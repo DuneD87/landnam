@@ -6,8 +6,8 @@
 [resource]
 script = ExtResource("2_item")
 id = &"obsidian"
-display_name = "Obsidiana"
-description = "Vidrio volcánico negro de las cumbres. Corta más que el sílex, pero se mella y se astilla antes."
+display_name = "ITEM_OBSIDIAN"
+description = "ITEM_OBSIDIAN_DESC"
 icon = ExtResource("1_icon")
 scene_path = "res://scenes/items/survival/obsidian.tscn"
 max_stack = 50

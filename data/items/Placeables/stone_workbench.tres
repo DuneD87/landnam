@@ -24,8 +24,8 @@ script = ExtResource("6_d78m4")
 [resource]
 script = ExtResource("2_j76lq")
 id = &"stone_workbench"
-display_name = "Banco de trabajo"
-description = "Un banco de madera tosca con una losa para tallar. Plántalo en el suelo: a su lado se fabrican las herramientas, las armas y la ropa de la Edad de piedra."
+display_name = "ITEM_STONE_WORKBENCH"
+description = "ITEM_STONE_WORKBENCH_DESC"
 icon = ExtResource("1_xnp0j")
 stackable = false
 max_stack = 1
