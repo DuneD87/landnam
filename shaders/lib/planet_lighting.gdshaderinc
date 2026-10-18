@@ -43,6 +43,8 @@
 #ifndef PLANET_LIGHTING_INC
 #define PLANET_LIGHTING_INC
 
+#include "res://shaders/lib/toon_light.gdshaderinc"
+
 // --- Alimentados por el planeta ---
 uniform vec3  planet_position;
 
@@ -93,7 +95,9 @@ void compute_planet_light(
 	float NdotV = clamp(dot(N, V), 0.0, 1.0);
 
 	// === 1. Difuso Lambert (sin albedo: lo aplica el motor; los metales no tienen difuso) ===
-	vec3 diffuse = vec3(NdotL / PI) * (1.0 - metallic);
+	// Ya lleva la sombra: toon_light escalona el difuso y la penumbra antes de multiplicarlos.
+	float direct = toon_direct(NdotL, attenuation, toon_shadow_floor, is_directional);
+	vec3 diffuse = vec3(direct / PI) * (1.0 - metallic) * light_color;
 
 	// === 2. Especular: TEMPORALMENTE DESACTIVADO ===
 	// El GGX completo aquí disparaba el tiempo de compilación (cuelgue). Lo
@@ -119,7 +123,7 @@ void compute_planet_light(
 	// === 5. Horizonte del planeta, por luz ===
 	float horizon = is_directional ? planet_light_visibility(up_view, L) : 1.0;
 
-	out_diffuse  = (diffuse + translucency + rim) * light_energy * horizon;
+	out_diffuse  = (diffuse + (translucency + rim) * light_energy) * horizon;
 	out_specular = specular * light_energy * horizon;
 }
 

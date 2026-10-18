@@ -350,6 +350,26 @@ blood_splat_bounds={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+toon_amount={
+"type": "float",
+"value": 0.0
+}
+toon_threshold={
+"type": "float",
+"value": 0.12
+}
+toon_softness={
+"type": "float",
+"value": 0.04
+}
+toon_gradient={
+"type": "float",
+"value": 0.25
+}
+toon_shadow_floor={
+"type": "float",
+"value": 0.15
+}
 
 [voxel]
 

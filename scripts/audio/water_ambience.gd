@@ -60,10 +60,7 @@ const RIVER_CULL_MARGIN := 400.0
 ## Por debajo de esta mezcla la voz se para, en vez de quedarse sonando a nada.
 @export var silence_threshold: float = 0.001
 
-var _players: Array[AudioStreamPlayer] = []
-var _events: Array[SoundEvent] = []
-var _mix := PackedFloat32Array()
-var _target := PackedFloat32Array()
+var _mixer: AmbientBedMixer
 var _update_timer: float = 0.0
 
 var _world_map: PlanetWorldMap
@@ -98,20 +95,7 @@ func setup(map: PlanetWorldMap, water_material: ShaderMaterial, planet: Planet) 
 
 
 func _ready() -> void:
-	_mix.resize(EVENTS.size())
-	_target.resize(EVENTS.size())
-	for event_id in EVENTS:
-		var ev := AudioManager.get_event(event_id)
-		_events.append(ev)
-		var player := AudioStreamPlayer.new()
-		player.name = String(event_id)
-		if ev != null and ev.is_valid():
-			player.stream = ev.pick_stream()
-			player.bus = ev.bus
-			_force_loop(player.stream)
-		player.volume_db = -80.0
-		add_child(player)
-		_players.append(player)
+	_mixer = AmbientBedMixer.new(self, EVENTS)
 
 
 func _process(delta: float) -> void:
@@ -120,17 +104,12 @@ func _process(delta: float) -> void:
 		_update_timer = UPDATE_INTERVAL
 		_compute_target()
 
-	var step := blend_speed * delta
-	for i in _players.size():
-		var moved := move_toward(_mix[i], _target[i], step)
-		if not is_equal_approx(moved, _mix[i]):
-			_mix[i] = moved
-			_apply(i)
+	_mixer.update(delta, blend_speed, volume_offset_db, silence_threshold)
 
 
 ## Rellena la mezcla que pide el mundo ahora mismo.
 func _compute_target() -> void:
-	_target.fill(0.0)
+	_mixer.target.fill(0.0)
 	last_gain = 0.0
 	last_river = 0.0
 	if _world_map == null or not _world_map.is_ready():
@@ -141,8 +120,8 @@ func _compute_target() -> void:
 	var ears := listener.global_position
 
 	last_storm = _sampler.get_sea_state() if _sampler != null else 0.0
-	_target[BED_RIVER] = _river_mix(ears)
-	last_river = _target[BED_RIVER]
+	_mixer.target[BED_RIVER] = _river_mix(ears)
+	last_river = _mixer.target[BED_RIVER]
 
 	last_gain = _standing_water_gain(ears)
 	last_shore = _shore_factor(ears)
@@ -151,13 +130,13 @@ func _compute_target() -> void:
 
 	# Lago y mar se reparten la misma ganancia: o estás junto a uno o junto al otro.
 	if last_is_lake:
-		_target[BED_LAKE_CALM] = last_gain * (1.0 - last_storm)
-		_target[BED_LAKE_STORM] = last_gain * last_storm
+		_mixer.target[BED_LAKE_CALM] = last_gain * (1.0 - last_storm)
+		_mixer.target[BED_LAKE_STORM] = last_gain * last_storm
 		return
-	_target[BED_SHORE_CALM] = last_gain * last_shore * (1.0 - last_storm)
-	_target[BED_SHORE_STORM] = last_gain * last_shore * last_storm
-	_target[BED_OPEN_CALM] = last_gain * (1.0 - last_shore) * (1.0 - last_storm)
-	_target[BED_OPEN_STORM] = last_gain * (1.0 - last_shore) * last_storm
+	_mixer.target[BED_SHORE_CALM] = last_gain * last_shore * (1.0 - last_storm)
+	_mixer.target[BED_SHORE_STORM] = last_gain * last_shore * last_storm
+	_mixer.target[BED_OPEN_CALM] = last_gain * (1.0 - last_shore) * (1.0 - last_storm)
+	_mixer.target[BED_OPEN_STORM] = last_gain * (1.0 - last_shore) * last_storm
 
 
 ## Cuánta agua quieta se oye desde [ears], y de paso si la más cercana es un lago o el mar. Pleno
@@ -261,37 +240,9 @@ func _build_river_cache(field: Dictionary) -> void:
 	print("[WaterAmbience] %d tramos de rio en la mezcla." % count)
 
 
-func _apply(index: int) -> void:
-	var player := _players[index]
-	if player.stream == null:
-		return
-	var mix := _mix[index]
-	if mix <= silence_threshold:
-		if player.playing:
-			player.stop()
-		return
-	var ev := _events[index]
-	var base: float = ev.volume_db if ev != null else 0.0
-	player.volume_db = base + volume_offset_db + linear_to_db(mix)
-	if not player.playing:
-		player.play()
-
-
 func _listener() -> Node3D:
 	var viewport := get_viewport()
 	if viewport == null:
 		return null
 	var listener := viewport.get_audio_listener_3d()
 	return listener if listener != null else viewport.get_camera_3d()
-
-
-## Mismo motivo que en EntityAudio: el bucle se declara aquí y no en el .import de cada clip.
-func _force_loop(stream: AudioStream) -> void:
-	var wav := stream as AudioStreamWAV
-	if wav != null:
-		if wav.loop_end <= wav.loop_begin:
-			wav.loop_end = int(wav.get_length() * wav.mix_rate)
-		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		return
-	if "loop" in stream:
-		stream.set(&"loop", true)

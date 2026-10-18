@@ -5,72 +5,15 @@ class_name Planet extends Node3D
 ## (VoxelInstancer) con sus colisiones, y parchea el VoxelGraph (radio, ores) desde datos JSON.
 
 const config = preload("res://scripts/config.gd")
-const GrassPatchMipmaps = preload("res://scripts/planet/grass_patch_mipmaps.gd")
 const GrassGeometryLods = preload("res://scripts/planet/grass_geometry_lods.gd")
 var _grass_lod_cache: Dictionary = {}
 ## Campo de ríos para la vegetación, con la distancia reducida. Ver _vegetation_river_field.
 var _vegetation_field: Dictionary = {}
+@export var definition: PlanetDefinition = PlanetDefinition.new()
+
 @export_group("Terrain Settings")
 @export var radius: float
-@export var terrain_generator_path: String
 
-@export_group("Biome Settings")
-@export var biome_count: int
-@export var textures_per_biome: int
-@export var biome_latitude_ranges: Array[float] = []
-@export var biome_transition_smoothness: float
-@export var max_heights: Array[float] = []
-@export var biome_texture_indices: Array[int] = []
-@export var biome_noise_enabled: Array[int] = []
-@export var biome_noise_source_texture_indices: Array[int] = []
-@export var biome_noise_target_texture_indices: Array[int] = []
-@export var biome_noise_scales: Array[float] = []
-@export var biome_noise_thresholds: Array[float] = []
-@export var biome_noise_smoothness: Array[float] = []
-@export var biome_noise_seeds: Array[float] = []
-@export var biome_noise_invert: Array[int] = []
-@export var biome_noise_abs_latitude_mins: Array[float] = []
-@export var biome_noise_abs_latitude_maxs: Array[float] = []
-@export var biome_noise_latitude_smoothness: Array[float] = []
-@export var textures: Array[Texture2D] = []
-@export var normal_textures: Array[Texture2D] = []
-@export var roughness_textures: Array[Texture2D] = []
-@export var ao_textures: Array[Texture2D] = []
-@export var height_textures: Array[Texture2D] = []
-var packed_materials: bool = false
-
-## Familia de sonido de cada textura de terreno, en el mismo orden que "textures". La usan
-## las pisadas (ver SurfaceAudio): sin ella, todo el planeta suena a la familia por defecto.
-@export var sound_materials: Array[StringName] = []
-## Familia de sonido de la textura de pendiente.
-@export var slope_sound_material: StringName = &"rock"
-@export var slope_texture: Texture2D
-@export var slope_normal_texture: Texture2D
-@export var slope_roughness_texture: Texture2D
-@export var slope_ao_texture: Texture2D
-@export var slope_height_texture: Texture2D
-@export var slope_threshold: float = 0.35
-@export var slope_smoothness: float = 0.18
-@export var slope_height_blend_strength: float = 0.0
-@export var slope_height_blend_sharpness: float = 0.2
-@export var slope_breakup_scale: float = 0.025
-@export var slope_breakup_strength: float = 0.0
-@export var slope_breakup_anisotropy: float = 2.5
-@export var slope_strata_thickness: float = 18.0
-@export var slope_strata_strength: float = 0.0
-@export var slope_strata_warp: float = 0.35
-@export var parallax_enabled: bool = false
-@export var parallax_strength: float = 0.09
-@export var transition_smoothness: float = 10.0
-@export var height_transition_noise_scale: float = 0.015
-@export var height_transition_noise_strength: float = 12.0
-@export var macro_variation_scale: float = 0.006
-@export var macro_variation_strength: float = 0.18
-## Calibración del albedo de cada textura, en el orden de "textures": xyz = multiplicador lineal,
-## w = saturación (PlanetParser.parse_albedo_adjust). Las que falten quedan sin tocar.
-@export var texture_albedo_adjust: PackedVector4Array = PackedVector4Array()
-@export var slope_albedo_adjust: Vector4 = Vector4.ONE
-@export var vegetation: Dictionary
 @export var wind_direction : Vector3
 
 @export var item_transparent_materials : Array[Dictionary]
@@ -95,18 +38,8 @@ var _sun_parameter_shaders: Dictionary = {}
 @export var sun : DirectionalLight3D
 @export var has_water: bool
 @export var water_radius: float
-@export var ore_settings: Array[Dictionary] = []
-## Bloque "river_settings" del JSON. Vacío = planeta sin ríos (el grafo lleva imágenes neutras que
-## no tallan nada, así que no hace falta desconectar nada).
-@export var river_settings: Dictionary = {}
-## Bloque "reef_settings" del JSON: los escollos de la franja costera. Vacío = valores por defecto
-## de coastal_reefs.tres; "enabled": false los apaga sin tocar el grafo.
-@export var reef_settings: Dictionary = {}
 ## Identificador del planeta, para nombrar el caché del campo de ríos.
 @export var entity_id: String = ""
-## Bloque "climate_settings" del JSON. Vacío = sin clima frío: ni nieve por frío, ni hielo marino, ni
-## máscaras de taiga o tundra (ver ClimateField y shaders/lib/climate.gdshaderinc).
-@export var climate_settings: Dictionary = {}
 ## Campo de frío del planeta, la réplica en CPU del de los shaders. Siempre existe; sin
 ## climate_settings está apagado (enabled = false).
 var climate: ClimateField = ClimateField.new()
@@ -141,16 +74,7 @@ var _far_tree_items: Array[Callable] = []
 const _TWIG_SHADER_PATH := "res://shaders/transparent_material_shader.gdshader"
 var _twig_singleside_shader: Shader = null
 
-## Shader del impostor (aspa LOD3): unshaded pero con terminador día/noche.
-const _IMPOSTOR_SHADER_PATH := "res://shaders/tree_impostor.gdshader"
-var _impostor_shader: Shader = null
-
-## Shaders de la tarjeta de parche de hierba: el de horneado (albedo plano dentro
-## del SubViewport) y el de la tarjeta ya instanciada. Ver _bake_grass_patch.
-const _GRASS_PATCH_SHADER_PATH := "res://shaders/grass_patch_impostor.gdshader"
-const _GRASS_PATCH_BAKE_SHADER_PATH := "res://shaders/grass_patch_bake.gdshader"
-var _grass_patch_shader: Shader = null
-var _grass_patch_bake_shader: Shader = null
+var _vegetation_baker: VegetationBaker
 
 ## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
 var weather_wind_multiplier: float = 1.0
@@ -572,8 +496,8 @@ func _register_scene_item(item, shared_data: Dictionary, generator: VoxelInstanc
 	voxel_instancer.library.add_item(library_id, scene_item)
 
 func _load_vegetation() -> void:
-	var generators = vegetation.generators
-	var graph_functions = vegetation.hemisphere_graph_function
+	var generators = definition.vegetation.generators
+	var graph_functions = definition.vegetation.hemisphere_graph_function
 	voxel_instancer.library.clear()
 	planet_item_scenes.clear()
 	planet_item_packed_scenes.clear()
@@ -594,8 +518,8 @@ func _load_vegetation() -> void:
 	# (render-to-texture). _load_vegetation se lanza como corrutina desde planet_loader
 	# (fire-and-forget): la vegetación se registra en los primeros frames sin bloquear la
 	# carga del planeta. Los items sin impostor (rocas, arbustos, grass) no suspenden.
-	for i in vegetation.items.size():
-		await _load_vegetation_item(i, vegetation.items[i], generators, graph_functions)
+	for i in definition.vegetation.items.size():
+		await _load_vegetation_item(i, definition.vegetation.items[i], generators, graph_functions)
 	_register_far_tree_items()
 	rock_mining.prepare()
 
@@ -631,7 +555,7 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 		push_error("El sotobosque necesita cuatro LODs: " + str(item.scene))
 		return
 	if not patch_cfg.is_empty():
-		var card := await _bake_grass_patch(shared_data.effective_mesh, patch_cfg)
+		var card := await _vegetation_baker.bake_grass_patch(shared_data.effective_mesh, patch_cfg)
 		if card == null:
 			return
 		shared_data.lod_meshes = [card, card, card, card]
@@ -645,7 +569,7 @@ func _load_vegetation_item(i: int, item, generators, graph_functions) -> void:
 		var octa_impostor: bool = item.has("tree_lods") \
 			and TreeOctaImpostor.has_atlases(str(item.scene).get_file().get_basename())
 		if lm.size() == 4 and item.get("lod3_impostor", true) and not octa_impostor:
-			var impostor := await _bake_tree_impostor(lm[0])
+			var impostor := await _vegetation_baker.bake_tree_impostor(lm[0])
 			if impostor != null:
 				lm[3] = impostor
 
@@ -1057,463 +981,6 @@ func _get_twig_materials_array(tree3d) -> Array:
 		return arr if arr != null else []
 
 
-## Genera un impostor billboard en aspa (2 quads perpendiculares) como LOD3 de un árbol.
-## Renderiza 'source_mesh' de lado a una textura RGBA (con alfa) usando un SubViewport de
-## mundo propio, y construye el aspa mapeando esa textura. El AABB del aspa coincide con el
-## del árbol para que no haya "pop" de tamaño al cruzar LOD2->LOD3.
-## Async: espera 2 frames a que el render-target se dibuje antes de leer la imagen.
-func _bake_tree_impostor(source_mesh: Mesh, tex_size: int = 256) -> Mesh:
-	if source_mesh == null or voxel_instancer == null or not voxel_instancer.is_inside_tree():
-		return null
-
-	var aabb: AABB = source_mesh.get_aabb()
-	var center: Vector3 = aabb.get_center()
-	# lado del encuadre ortográfico cuadrado (+5% de margen); el árbol queda centrado.
-	var view_size: float = maxf(aabb.size.y, maxf(aabb.size.x, aabb.size.z)) * 1.05
-	if view_size <= 0.0:
-		return null
-
-	# --- SubViewport aislado: renderiza SOLO el árbol + sus luces, no la escena real ---
-	var vp := SubViewport.new()
-	vp.size = Vector2i(tex_size, tex_size)
-	vp.transparent_bg = true                 # imprescindible para capturar el alfa del follaje
-	vp.own_world_3d = true                    # mundo propio -> sin fondo de la escena real
-	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
-
-	var mesh_inst := MeshInstance3D.new()
-	mesh_inst.mesh = source_mesh
-	vp.add_child(mesh_inst)
-
-	var key_light := DirectionalLight3D.new()
-	key_light.rotation_degrees = Vector3(-45, -30, 0)
-	key_light.light_energy = 1.2
-	key_light.shadow_enabled = false
-	vp.add_child(key_light)
-
-	# relleno suave para que la cara en sombra no quede completamente negra en la captura.
-	var fill_light := DirectionalLight3D.new()
-	fill_light.rotation_degrees = Vector3(-20, 150, 0)
-	fill_light.light_energy = 0.4
-	fill_light.shadow_enabled = false
-	vp.add_child(fill_light)
-
-	var cam := Camera3D.new()
-	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = view_size
-	var cam_dist: float = view_size * 2.0
-	cam.near = maxf(cam_dist - view_size, 0.05)
-	cam.far = cam_dist + view_size
-	cam.position = center + Vector3(0.0, 0.0, cam_dist)
-	cam.look_at_from_position(cam.position, center, Vector3.UP)
-	vp.add_child(cam)
-
-	voxel_instancer.add_child(vp)            # el viewport debe estar en el árbol para renderizar
-	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
-
-	var img: Image = vp.get_texture().get_image()
-	vp.queue_free()
-
-	if img == null or img.is_empty():
-		push_warning("Planet: bake de impostor devolvió imagen vacía; se mantiene la geometría LOD3.")
-		return null
-
-	var tex := ImageTexture.create_from_image(img)
-	return _build_impostor_cross_mesh(aabb, tex, view_size)
-
-
-## Construye el aspa (2 quads perpendiculares) que abarca el AABB del árbol y mapea la textura
-## del impostor. Como la textura es cuadrada (lado view_size) y el árbol ocupa solo su parte
-## central, las UV recortan justo esa región (sin deformar y sin cambiar de tamaño aparente).
-func _build_impostor_cross_mesh(aabb: AABB, tex: Texture2D, view_size: float) -> ArrayMesh:
-	var center: Vector3 = aabb.get_center()
-	var h: float = aabb.size.y
-	var w: float = maxf(aabb.size.x, aabb.size.z)      # ancho común de ambos quads
-	var hw: float = w * 0.5
-	var y0: float = aabb.position.y                    # base (y~0)
-	var y1: float = aabb.position.y + h                # copa
-
-	# fracción central de la textura ocupada por el árbol (el resto es margen transparente)
-	var fu: float = (w / view_size) if view_size > 0.0 else 1.0
-	var fv: float = (h / view_size) if view_size > 0.0 else 1.0
-	var u0: float = 0.5 - fu * 0.5
-	var u1: float = 0.5 + fu * 0.5
-	var v0: float = 0.5 - fv * 0.5                      # arriba (Y alto)
-	var v1: float = 0.5 + fv * 0.5                      # abajo (Y bajo)
-
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-
-	# Quad en el plano XY (normal Z), centrado en X
-	_add_impostor_quad(st,
-		[Vector3(center.x - hw, y1, center.z), Vector3(center.x + hw, y1, center.z),
-		 Vector3(center.x + hw, y0, center.z), Vector3(center.x - hw, y0, center.z)],
-		[Vector2(u0, v0), Vector2(u1, v0), Vector2(u1, v1), Vector2(u0, v1)],
-		Vector3.BACK)
-	# Quad en el plano ZY (normal X), centrado en Z (reutiliza la misma vista de lado)
-	_add_impostor_quad(st,
-		[Vector3(center.x, y1, center.z - hw), Vector3(center.x, y1, center.z + hw),
-		 Vector3(center.x, y0, center.z + hw), Vector3(center.x, y0, center.z - hw)],
-		[Vector2(u0, v0), Vector2(u1, v0), Vector2(u1, v1), Vector2(u0, v1)],
-		Vector3.RIGHT)
-
-	# Shader propio: unshaded (barato) pero respeta el terminador día/noche del
-	# planeta. Con StandardMaterial3D unshaded el impostor brillaba a albedo pleno
-	# de noche, ignorando la sombra planetaria del resto de la vegetación.
-	if _impostor_shader == null:
-		_impostor_shader = load(_IMPOSTOR_SHADER_PATH)
-	var mat := ShaderMaterial.new()
-	mat.shader = _impostor_shader
-	mat.set_shader_parameter("albedo_texture", tex)
-	mat.set_shader_parameter("alpha_scissor_threshold", 0.5)
-	# Registrar para recibir el push de sol (light_direction/planet_position) cada
-	# frame; sin viento (wind_speed 0). item_transparent_materials ya está limpio
-	# en este punto de la carga (_load_vegetation lo vació antes de registrar items).
-	item_transparent_materials.append({"shader": mat, "wind_speed": 0.0})
-
-	st.set_material(mat)
-
-	return st.commit()
-
-
-## Añade un quad (2 triángulos) a un SurfaceTool. corners/uvs en orden TL, TR, BR, BL.
-func _add_impostor_quad(st: SurfaceTool, corners: Array, uvs: Array, normal: Vector3) -> void:
-	for idx in [0, 1, 2, 0, 2, 3]:
-		st.set_normal(normal)
-		st.set_uv(uvs[idx])
-		st.add_vertex(corners[idx])
-
-
-## Hornea la tarjeta que sustituye a un parche entero de hierba a distancia: reparte
-## 'clump_count' matas en un cuadrado de 'size_m' y fotografía el clúster dos veces
-## (de lado y en cenital) a las dos capas de un Texture2DArray. Devuelve el aspa +
-## quad horizontal que las mapean, o null si el render falla.
-## Una tarjeta vale por decenas de matas: es lo que compensa que las bandas de LOD
-## altas den 4x menos instancias por m² cada una.
-## La escala se multiplica en dos sitios y hay que cuadrar los dos o el parche sale de
-## otro tamaño que la hierba real: 'clump_scale' ± 'clump_scale_jitter' debe reproducir
-## el min_scale/max_scale del generador de HIERBA al que releva, y el generador de la
-## TARJETA debe ir a min_scale = max_scale = 1.0 (la tarjeta ya trae sus metros).
-## Async: cada vista espera 2 frames a que el render-target se dibuje.
-func _bake_grass_patch(source_mesh: Mesh, cfg: Dictionary) -> Mesh:
-	if source_mesh == null or voxel_instancer == null or not voxel_instancer.is_inside_tree():
-		return null
-
-	# Lo que importa es la resolución por metro: el encuadre cubre el parche entero, así
-	# que a 256 px sobre 5 m las briznas caen por debajo del píxel y los mips las borran.
-	var tex_size: int = int(cfg.get("tex_size", 512))
-	var scatter_size: float = float(cfg.get("size_m", 4.0))
-	var clump_scale: float = float(cfg.get("clump_scale", 1.0))
-	var scale_jitter: float = clampf(float(cfg.get("clump_scale_jitter", 0.35)), 0.0, 1.0)
-	var aabb: AABB = source_mesh.get_aabb()
-	var max_clump: float = clump_scale * (1.0 + scale_jitter)
-	if scatter_size <= 0.0 or aabb.size.y <= 0.0 or max_clump <= 0.0:
-		return null
-
-	# Encuadre: peor caso teórico (las matas del borde sobresalen del cuadrado de reparto)
-	# para no recortar nada. La tarjeta NO usa estas medidas, se ajusta luego a lo que de
-	# verdad se haya dibujado: con reparto aleatorio el contenido se queda bastante corto.
-	var frame_size: float = scatter_size + maxf(aabb.size.x, aabb.size.z) * max_clump
-	var frame_height: float = aabb.size.y * max_clump
-	var view_size: float = maxf(frame_size, frame_height) * 1.05
-	var side_cam_y: float = frame_height * 0.5
-
-	var cluster := _build_grass_patch_cluster(source_mesh, cfg)
-	if cluster == null:
-		return null
-
-	# Lateral: alimenta el aspa. Centrada a media altura para que el parche quede
-	# centrado también en vertical dentro de la textura.
-	var side_img := await _render_ortho_to_image(cluster,
-		Vector3(0.0, side_cam_y, view_size), Vector3(0.0, side_cam_y, 0.0),
-		Vector3.UP, view_size, tex_size)
-	# Cenital pura: es la única proyección que mapea EXACTO sobre el quad horizontal
-	# (ortográfica = afín, el cuadrado del suelo cae en un rectángulo sin deformar).
-	var top_img := await _render_ortho_to_image(cluster,
-		Vector3(0.0, view_size, 0.0), Vector3.ZERO,
-		Vector3.FORWARD, view_size, tex_size)
-
-	cluster.queue_free()
-
-	if side_img == null or top_img == null:
-		push_warning("Planet: bake de parche de hierba devolvió imagen vacía; el item se queda sin tarjeta.")
-		return null
-
-	# Recuadro realmente pintado en cada vista: de ahí salen las medidas y las UV de la
-	# tarjeta, en vez del peor caso, que dejaba ~0.5 m de margen transparente por lado.
-	var side_rect: Rect2i = side_img.get_used_rect()
-	var top_rect: Rect2i = top_img.get_used_rect()
-	if side_rect.size.x <= 0 or side_rect.size.y <= 0 or top_rect.size.x <= 0 or top_rect.size.y <= 0:
-		push_warning("Planet: el parche de hierba se horneó vacío; el item se queda sin tarjeta.")
-		return null
-
-	side_img = _fill_transparent_rgb(side_img)
-	top_img = _fill_transparent_rgb(top_img)
-	var alpha_threshold: float = float(cfg.get("alpha_scissor", 0.25))
-	side_img = GrassPatchMipmaps.generate(side_img, alpha_threshold)
-	top_img = GrassPatchMipmaps.generate(top_img, alpha_threshold)
-	# Texture2DArray y no un atlas en una sola imagen: con atlas los mips mezclan las
-	# dos vistas entre sí y el aspa acaba con manchas de la cenital.
-	var atlas := Texture2DArray.new()
-	if atlas.create_from_images([side_img, top_img]) != OK:
-		push_warning("Planet: no se pudo crear el Texture2DArray del parche de hierba.")
-		return null
-
-	var card := _build_grass_patch_card(side_rect, top_rect, tex_size, view_size, side_cam_y, atlas, cfg)
-	_apply_grass_handoff(card, source_mesh, cfg)
-	return card
-
-
-## Completa la transición a tarjetas antes del límite de distancia de la hierba.
-## Actualiza ambos materiales para que la tarjeta sea visible antes de desvanecer la hierba.
-func _apply_grass_handoff(card: Mesh, source_mesh: Mesh, cfg: Dictionary) -> void:
-	var card_width: float = float(cfg.get("fade_width_m", 20.0))
-	var grass_width: float = float(cfg.get("grass_fade_width_m", 20.0))
-
-	# 'handoff_end_m' pincha el final a mano; si no, se deduce del alcance real de la
-	# banda menos un margen, para cerrar antes de que empiecen a caerse bloques.
-	var grass_end: float = float(cfg.get("handoff_end_m", 0.0))
-	if grass_end <= 0.0:
-		var band: float = _get_lod_view_distance(int(cfg.get("handoff_lod_index", 1)))
-		grass_end = band - float(cfg.get("handoff_margin_m", 8.0))
-	var grass_start: float = maxf(grass_end - grass_width, 1.0)
-
-	var grass_mat := source_mesh.surface_get_material(0) as ShaderMaterial
-	if grass_mat != null:
-		grass_mat.set_shader_parameter("fade_start", grass_start)
-		grass_mat.set_shader_parameter("fade_end", grass_end)
-
-	var card_mat := card.surface_get_material(0) as ShaderMaterial
-	if card_mat != null:
-		card_mat.set_shader_parameter("fade_start", maxf(grass_start - card_width, 1.0))
-		card_mat.set_shader_parameter("fade_width", card_width)
-
-
-## Pinta de color medio el RGB de los píxeles transparentes, conservando el alfa.
-## Cada nivel de mipmap promedia RGB sin mirar el alfa, así que con el fondo negro del
-## render la tarjeta se ensucia hacia negro según se aleja, y peor cuanto más hueco
-## tenga la vista (la cenital, llena de claros, se ennegrecía antes que la lateral).
-## El color se saca de la propia imagen y no de los uniforms del material para no tener
-## que adivinar en qué espacio de color viene el render.
-func _fill_transparent_rgb(img: Image) -> Image:
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
-	var data: PackedByteArray = img.get_data()
-
-	var sum_r: int = 0
-	var sum_g: int = 0
-	var sum_b: int = 0
-	var opaque: int = 0
-	var i: int = 0
-	while i < data.size():
-		if data[i + 3] >= 128:
-			sum_r += data[i]
-			sum_g += data[i + 1]
-			sum_b += data[i + 2]
-			opaque += 1
-		i += 4
-	if opaque == 0:
-		return img
-
-	var avg_r: int = sum_r / opaque
-	var avg_g: int = sum_g / opaque
-	var avg_b: int = sum_b / opaque
-	i = 0
-	while i < data.size():
-		if data[i + 3] < 128:
-			data[i] = avg_r
-			data[i + 1] = avg_g
-			data[i + 2] = avg_b
-		i += 4
-
-	return Image.create_from_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, data)
-
-
-## Nodo temporal con 'clump_count' copias de la mata repartidas en un cuadrado de
-## 'size_m' (rejilla con jitter), con giro y escala deterministas ('seed'). Apoyadas en y=0.
-func _build_grass_patch_cluster(source_mesh: Mesh, cfg: Dictionary) -> Node3D:
-	var bake_mat := _build_grass_patch_bake_material(source_mesh, cfg)
-	if bake_mat == null:
-		return null
-
-	var half: float = float(cfg.get("size_m", 4.0)) * 0.5
-	var count: int = maxi(int(cfg.get("clump_count", 36)), 1)
-	var clump_scale: float = float(cfg.get("clump_scale", 1.0))
-	var scale_jitter: float = clampf(float(cfg.get("clump_scale_jitter", 0.35)), 0.0, 1.0)
-	var base_y: float = source_mesh.get_aabb().position.y
-
-	var rng := RandomNumberGenerator.new()
-	rng.seed = int(cfg.get("seed", 1337))
-
-	# Rejilla con jitter en vez de azar puro: con dos docenas de muestras el azar deja
-	# calvas grandes (la vista cenital horneada salía con un mordisco). Los recuentos que
-	# llenan la rejilla entera (16, 20, 25...) reparten mejor que los que dejan coja la
-	# última fila.
-	var cols: int = int(ceil(sqrt(float(count))))
-	var rows: int = int(ceil(float(count) / float(cols)))
-	var cell_x: float = half * 2.0 / float(cols)
-	var cell_z: float = half * 2.0 / float(rows)
-
-	var root := Node3D.new()
-	for i in count:
-		var inst := MeshInstance3D.new()
-		inst.mesh = source_mesh
-		inst.material_override = bake_mat
-		var s: float = clump_scale * rng.randf_range(1.0 - scale_jitter, 1.0 + scale_jitter)
-		var t := Transform3D.IDENTITY.scaled(Vector3(s, s, s)).rotated(Vector3.UP, rng.randf_range(0.0, TAU))
-		# El AABB del modelo no arranca en y=0: se sube para apoyarlo en el suelo.
-		t.origin = Vector3(
-			-half + (float(i % cols) + rng.randf()) * cell_x,
-			-base_y * s,
-			-half + (float(i / cols) + rng.randf()) * cell_z)
-		inst.transform = t
-		root.add_child(inst)
-	return root
-
-
-## Material de horneado del parche: hereda el degradado del shader de hierba del item
-## para que cada variante (verde / verde-amarillo / amarillo) hornee su propio color.
-func _build_grass_patch_bake_material(source_mesh: Mesh, cfg: Dictionary) -> ShaderMaterial:
-	if _grass_patch_bake_shader == null:
-		_grass_patch_bake_shader = load(_GRASS_PATCH_BAKE_SHADER_PATH)
-	if _grass_patch_bake_shader == null:
-		return null
-
-	var mat := ShaderMaterial.new()
-	mat.shader = _grass_patch_bake_shader
-	var src := source_mesh.surface_get_material(0) as ShaderMaterial
-	if src != null:
-		for param in ["base_color", "tip_color", "grass_height"]:
-			var value = src.get_shader_parameter(param)
-			if value != null:
-				mat.set_shader_parameter(param, value)
-	mat.set_shader_parameter("ao_strength", float(cfg.get("bake_ao", 0.35)))
-	return mat
-
-
-## Fotografía 'content' con una cámara ortográfica que encuadra 'view_size' metros,
-## sobre fondo transparente y en un mundo 3D propio (no se cuela la escena real).
-## 'content' entra y sale del viewport: el llamante conserva su propiedad.
-## No añade luces: el material de horneado es unshaded.
-func _render_ortho_to_image(content: Node3D, eye: Vector3, target: Vector3, up: Vector3,
-		view_size: float, tex_size: int) -> Image:
-	var vp := SubViewport.new()
-	vp.size = Vector2i(tex_size, tex_size)
-	vp.transparent_bg = true                  # imprescindible para capturar el alfa
-	vp.own_world_3d = true                    # mundo propio -> sin fondo de la escena real
-	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	vp.add_child(content)
-
-	var cam := Camera3D.new()
-	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = view_size
-	cam.near = 0.05
-	cam.far = eye.distance_to(target) + view_size * 2.0
-	cam.look_at_from_position(eye, target, up)
-	vp.add_child(cam)
-
-	voxel_instancer.add_child(vp)             # el viewport debe estar en el árbol para renderizar
-	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
-
-	var img: Image = vp.get_texture().get_image()
-	vp.remove_child(content)
-	vp.queue_free()
-
-	if img == null or img.is_empty():
-		return null
-	return img
-
-
-## Aspa vertical + quad horizontal que mapean las dos capas del atlas del parche.
-## COLOR.r marca la capa (0 = lateral en el aspa, 1 = cenital en el horizontal).
-## Cada quad se ajusta al recuadro que la vista correspondiente pintó de verdad, así que
-## no queda margen transparente y la escala es exacta: los píxeles del recuadro se
-## deshacen a metros con la misma proyección ortográfica que los generó.
-func _build_grass_patch_card(side_rect: Rect2i, top_rect: Rect2i, tex_size: int,
-		view_size: float, side_cam_y: float, atlas: Texture2DArray, cfg: Dictionary) -> ArrayMesh:
-	# Lateral: cámara en +Z mirando a -Z, centrada en (0, side_cam_y). u sigue a +X y v
-	# baja en pantalla, así que v crece hacia Y bajo.
-	var su0: float = float(side_rect.position.x) / tex_size
-	var su1: float = float(side_rect.end.x) / tex_size
-	var sv0: float = float(side_rect.position.y) / tex_size
-	var sv1: float = float(side_rect.end.y) / tex_size
-	var x_min: float = (su0 - 0.5) * view_size
-	var x_max: float = (su1 - 0.5) * view_size
-	var y_max: float = side_cam_y + (0.5 - sv0) * view_size
-	var y_min: float = side_cam_y + (0.5 - sv1) * view_size
-
-	# Cenital: cámara encima con up = FORWARD, así que u sigue a +X y v a +Z.
-	var tu0: float = float(top_rect.position.x) / tex_size
-	var tu1: float = float(top_rect.end.x) / tex_size
-	var tv0: float = float(top_rect.position.y) / tex_size
-	var tv1: float = float(top_rect.end.y) / tex_size
-	var gx_min: float = (tu0 - 0.5) * view_size
-	var gx_max: float = (tu1 - 0.5) * view_size
-	var gz_min: float = (tv0 - 0.5) * view_size
-	var gz_max: float = (tv1 - 0.5) * view_size
-
-	# Medio píxel hacia dentro: evita arrastrar la fila transparente del borde al filtrar.
-	var half_px: float = 0.5 / float(tex_size)
-	var uvs_side: Array = [
-		Vector2(su0 + half_px, sv0 + half_px), Vector2(su1 - half_px, sv0 + half_px),
-		Vector2(su1 - half_px, sv1 - half_px), Vector2(su0 + half_px, sv1 - half_px)]
-	var uvs_top: Array = [
-		Vector2(tu0 + half_px, tv0 + half_px), Vector2(tu1 - half_px, tv0 + half_px),
-		Vector2(tu1 - half_px, tv1 - half_px), Vector2(tu0 + half_px, tv1 - half_px)]
-	var layer_side := Color(0.0, 0.0, 0.0, 1.0)
-	var layer_top := Color(1.0, 0.0, 0.0, 1.0)
-
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-
-	# Aspa: quad en el plano XY y quad en el plano ZY, ambos con la vista lateral. El
-	# segundo reutiliza el ancho del primero, girado 90º.
-	_add_patch_quad(st,
-		[Vector3(x_min, y_max, 0.0), Vector3(x_max, y_max, 0.0),
-		 Vector3(x_max, y_min, 0.0), Vector3(x_min, y_min, 0.0)],
-		uvs_side, Vector3.BACK, layer_side)
-	_add_patch_quad(st,
-		[Vector3(0.0, y_max, x_min), Vector3(0.0, y_max, x_max),
-		 Vector3(0.0, y_min, x_max), Vector3(0.0, y_min, x_min)],
-		uvs_side, Vector3.RIGHT, layer_side)
-
-	# Quad horizontal, algo elevado para no pelearse con el terreno en el z-buffer.
-	# Con vertical_alignment radial se apoya en el plano tangente, así que en
-	# pendientes fuertes se hunde por un lado: limitar max_slope_degrees del generador.
-	var gy: float = (y_max - y_min) * float(cfg.get("ground_quad_height", 0.25))
-	_add_patch_quad(st,
-		[Vector3(gx_min, gy, gz_min), Vector3(gx_max, gy, gz_min),
-		 Vector3(gx_max, gy, gz_max), Vector3(gx_min, gy, gz_max)],
-		uvs_top, Vector3.UP, layer_top)
-
-	if _grass_patch_shader == null:
-		_grass_patch_shader = load(_GRASS_PATCH_SHADER_PATH)
-	var mat := ShaderMaterial.new()
-	mat.shader = _grass_patch_shader
-	mat.set_shader_parameter("patch_atlas", atlas)
-	# Bajo a propósito: el alfa se promedia en cada mip, así que un umbral alto se come
-	# las briznas finas de lejos y deja solo la base maciza.
-	mat.set_shader_parameter("alpha_scissor_threshold", float(cfg.get("alpha_scissor", 0.25)))
-	# Registrar para recibir el push de sol (light_direction/planet_position) cada
-	# frame; sin viento (a esta distancia el balanceo es subpíxel).
-	item_transparent_materials.append({"shader": mat, "wind_speed": 0.0})
-
-	st.set_material(mat)
-	return st.commit()
-
-
-## Como _add_impostor_quad pero marcando la capa del atlas en el color del vértice.
-func _add_patch_quad(st: SurfaceTool, corners: Array, uvs: Array, normal: Vector3, layer: Color) -> void:
-	for idx in [0, 1, 2, 0, 2, 3]:
-		st.set_color(layer)
-		st.set_normal(normal)
-		st.set_uv(uvs[idx])
-		st.add_vertex(corners[idx])
-
-
 func _build_rock_packed_scene(scene_instantiated: Node, rock3d) -> Dictionary:
 	var rock: MeshInstance3D = rock3d.get_rock_instance()
 	var new_root := scene_instantiated.duplicate(4) as Node3D
@@ -1546,6 +1013,7 @@ func _set_owner_recursive(node: Node, new_owner: Node) -> void:
 
 
 func _init(_voxel_terrain: VoxelLodTerrain) -> void:
+	_vegetation_baker = VegetationBaker.new(self)
 	voxel_terrain = _voxel_terrain
 	voxel_instancer = VoxelInstancer.new()
 	voxel_instancer.library = VoxelInstanceLibrary.new()
@@ -1561,11 +1029,8 @@ func _init(_voxel_terrain: VoxelLodTerrain) -> void:
 
 func setup_shader_parameters() -> void:
 	voxel_terrain.material = shader_material
+	definition.apply_shader_parameters(shader_material)
 
-	shader_material.set_shader_parameter("transition_smoothness", transition_smoothness)
-	shader_material.set_shader_parameter("height_transition_noise_scale", height_transition_noise_scale)
-	shader_material.set_shader_parameter("height_transition_noise_strength", height_transition_noise_strength)
-	shader_material.set_shader_parameter("biome_transition_smoothness", biome_transition_smoothness)
 	update_world_center()
 
 	shader_material.set_shader_parameter("center", planet_position)
@@ -1575,73 +1040,29 @@ func setup_shader_parameters() -> void:
 	shader_material.set_shader_parameter("underground_lod_distance",
 		minf(voxel_terrain.lod_distance, voxel_terrain.secondary_lod_distance))
 
-	shader_material.set_shader_parameter("max_heights", max_heights)
-	shader_material.set_shader_parameter("biome_count", biome_count)
-	shader_material.set_shader_parameter("textures_per_biome", textures_per_biome)
-	shader_material.set_shader_parameter("biome_latitude_ranges", biome_latitude_ranges)
-
-	shader_material.set_shader_parameter("textures", textures)
-	shader_material.set_shader_parameter("normal_textures", normal_textures)
-	shader_material.set_shader_parameter("roughness_textures", roughness_textures)
-	shader_material.set_shader_parameter("ao_textures", ao_textures)
-	shader_material.set_shader_parameter("height_textures", height_textures)
-	shader_material.set_shader_parameter("packed_materials", packed_materials)
 	var means := PackedFloat32Array()
 	means.resize(8)
-	for i in mini(textures.size(), means.size()):
-		means[i] = TerrainMaterialData.mean_luma(textures[i])
+	for i in mini(definition.textures.size(), means.size()):
+		means[i] = TerrainMaterialData.mean_luma(definition.textures[i])
 	shader_material.set_shader_parameter("texture_mean_luma", means)
-	shader_material.set_shader_parameter("slope_mean_luma", TerrainMaterialData.mean_luma(slope_texture))
+	shader_material.set_shader_parameter("slope_mean_luma", TerrainMaterialData.mean_luma(definition.slope_texture))
 	shader_material.set_shader_parameter("albedo_means_ready", true)
 
-	shader_material.set_shader_parameter("biome_texture_indices", biome_texture_indices)
-	shader_material.set_shader_parameter("biome_noise_enabled", biome_noise_enabled)
-	shader_material.set_shader_parameter("biome_noise_source_texture_indices", biome_noise_source_texture_indices)
-	shader_material.set_shader_parameter("biome_noise_target_texture_indices", biome_noise_target_texture_indices)
-	shader_material.set_shader_parameter("biome_noise_scales", biome_noise_scales)
-	shader_material.set_shader_parameter("biome_noise_thresholds", biome_noise_thresholds)
-	shader_material.set_shader_parameter("biome_noise_smoothness", biome_noise_smoothness)
-	shader_material.set_shader_parameter("biome_noise_seeds", biome_noise_seeds)
-	shader_material.set_shader_parameter("biome_noise_invert", biome_noise_invert)
-	shader_material.set_shader_parameter("biome_noise_abs_latitude_mins", biome_noise_abs_latitude_mins)
-	shader_material.set_shader_parameter("biome_noise_abs_latitude_maxs", biome_noise_abs_latitude_maxs)
-	shader_material.set_shader_parameter("biome_noise_latitude_smoothness", biome_noise_latitude_smoothness)
-
-	shader_material.set_shader_parameter("slope_texture", slope_texture)
-	shader_material.set_shader_parameter("slope_normal_texture", slope_normal_texture)
-	shader_material.set_shader_parameter("slope_roughness_texture", slope_roughness_texture)
-	shader_material.set_shader_parameter("slope_ao_texture", slope_ao_texture)
-	shader_material.set_shader_parameter("slope_height_texture", slope_height_texture)
-	shader_material.set_shader_parameter("slope_threshold", slope_threshold)
-	shader_material.set_shader_parameter("slope_smoothness", slope_smoothness)
-	shader_material.set_shader_parameter("slope_height_blend_strength", slope_height_blend_strength)
-	shader_material.set_shader_parameter("slope_height_blend_sharpness", slope_height_blend_sharpness)
-	shader_material.set_shader_parameter("slope_breakup_scale", slope_breakup_scale)
-	shader_material.set_shader_parameter("slope_breakup_strength", slope_breakup_strength)
-	shader_material.set_shader_parameter("slope_breakup_anisotropy", slope_breakup_anisotropy)
-	shader_material.set_shader_parameter("slope_strata_thickness", slope_strata_thickness)
-	shader_material.set_shader_parameter("slope_strata_strength", slope_strata_strength)
-	shader_material.set_shader_parameter("slope_strata_warp", slope_strata_warp)
-	shader_material.set_shader_parameter("parallax_enabled", parallax_enabled)
-	shader_material.set_shader_parameter("parallax_strength", parallax_strength)
-	shader_material.set_shader_parameter("macro_variation_scale", macro_variation_scale)
-	shader_material.set_shader_parameter("macro_variation_strength", macro_variation_strength)
 	# El uniform es un array fijo de MAX_TEXTURES (8): sin rellenar, las que falten valdrían 0 (negro).
-	var albedo_adjust := texture_albedo_adjust.duplicate()
+	var albedo_adjust := definition.texture_albedo_adjust.duplicate()
 	while albedo_adjust.size() < 8:
 		albedo_adjust.append(Vector4.ONE)
 	shader_material.set_shader_parameter("texture_albedo_adjust", albedo_adjust)
-	shader_material.set_shader_parameter("slope_albedo_adjust", slope_albedo_adjust)
 
 	shader_material.set_shader_parameter("has_water", 1 if has_water else 0)
 	shader_material.set_shader_parameter("water_radius", radius - water_radius)
 
-	climate = ClimateField.new(climate_settings, radius)
+	climate = ClimateField.new(definition.climate_settings, radius)
 	if climate.enabled:
 		climate.push_shader_globals()
 	shader_material.set_shader_parameter("climate_enabled", climate.enabled)
 	# Índices en "textures" de la nieve que pinta el frío y del hielo glaciar de las laderas.
-	var climate_terrain: Dictionary = climate_settings.get("terrain", {})
+	var climate_terrain: Dictionary = definition.climate_settings.get("terrain", {})
 	shader_material.set_shader_parameter("snow_texture_index", int(climate_terrain.get("snow_texture", 2)))
 	# Cuánto sigue cada textura a la pradera con las estaciones (índice en "textures": peso).
 	var meadow := PackedFloat32Array()
@@ -1663,14 +1084,18 @@ func setup_shader_parameters() -> void:
 ## Textura de los escollos y la franja en que manda. Sin las cuatro texturas se queda apagado: la
 ## roca sale con la arena de la orilla, que es lo que había antes, y no con samplers sin enlazar.
 func _setup_reef_shader_parameters() -> void:
-	var albedo := load(reef_settings.get("texture", "")) as Texture2D
-	var nrm := load(reef_settings.get("normal_texture", "")) as Texture2D
-	var packed_path: String = reef_settings.get("packed_material_texture", "")
+	if not has_water:
+		shader_material.set_shader_parameter("reef_enabled", 0)
+		shader_material.set_shader_parameter("reef_packed_material", false)
+		return
+	var albedo := load(definition.reef_settings.get("texture", "")) as Texture2D
+	var nrm := load(definition.reef_settings.get("normal_texture", "")) as Texture2D
+	var packed_path: String = definition.reef_settings.get("packed_material_texture", "")
 	var packed := not packed_path.is_empty()
-	var rough := load(packed_path if packed else reef_settings.get("roughness_texture", "")) as Texture2D
+	var rough := load(packed_path if packed else definition.reef_settings.get("roughness_texture", "")) as Texture2D
 	var ao: Texture2D = null
 	if not packed:
-		ao = load(reef_settings.get("ao_texture", "")) as Texture2D
+		ao = load(definition.reef_settings.get("ao_texture", "")) as Texture2D
 	var ready: bool = has_water and albedo != null and nrm != null and rough != null and (packed or ao != null)
 	shader_material.set_shader_parameter("reef_enabled", 1 if ready else 0)
 	shader_material.set_shader_parameter("reef_packed_material", packed)
@@ -1684,23 +1109,23 @@ func _setup_reef_shader_parameters() -> void:
 		shader_material.set_shader_parameter("reef_ao_texture", ao)
 	# Por defecto la franja cubre el arrecife entero: desde el borde hondo hasta un poco por encima
 	# de la cresta, para que la punta emergida no vuelva a ser arena justo al salir del agua.
-	var depth_max: float = maxf(float(reef_settings.get("depth_max", 45.0)), 1.0)
-	var crest: float = float(reef_settings.get("crest_height", 14.0))
+	var depth_max: float = maxf(float(definition.reef_settings.get("depth_max", 45.0)), 1.0)
+	var crest: float = float(definition.reef_settings.get("crest_height", 14.0))
 	shader_material.set_shader_parameter("reef_band_low",
-		float(reef_settings.get("band_low", -depth_max)))
+		float(definition.reef_settings.get("band_low", -depth_max)))
 	shader_material.set_shader_parameter("reef_band_high",
-		float(reef_settings.get("band_high", crest + 4.0)))
+		float(definition.reef_settings.get("band_high", crest + 4.0)))
 	shader_material.set_shader_parameter("reef_slope_threshold",
-		float(reef_settings.get("texture_slope_threshold", 0.10)))
+		float(definition.reef_settings.get("texture_slope_threshold", 0.10)))
 	shader_material.set_shader_parameter("reef_slope_softness",
-		float(reef_settings.get("texture_slope_softness", 0.14)))
+		float(definition.reef_settings.get("texture_slope_softness", 0.14)))
 
 func _setup_ore_shader_parameters() -> void:
 	var ore_albedo: Array[Texture2D] = []
 	var ore_normal: Array[Texture2D] = []
 	var ore_roughness: Array[Texture2D] = []
 
-	for ore in ore_settings:
+	for ore in definition.ore_settings:
 		var albedo := load(ore.get("texture", "")) as Texture2D
 		var nrm := load(ore.get("normal_texture", "")) as Texture2D
 		var rough := load(ore.get("roughness_texture", "")) as Texture2D
@@ -1729,8 +1154,8 @@ func setup_voxel_generator() -> void:
 	# RiverGenerator.apply, las imágenes horneadas se escriben en el recurso de DISCO: el editor lo
 	# ve sucio, lo guarda, y river_carve.tres acabó pesando 173 MB en el repositorio.
 	var prepared: VoxelGenerator
-	if !terrain_generator_path.is_empty():
-		prepared = load(terrain_generator_path).duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+	if !definition.terrain_generator_path.is_empty():
+		prepared = load(definition.terrain_generator_path).duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
 	else:
 		prepared = voxel_terrain.generator.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
 
@@ -1749,8 +1174,8 @@ func setup_voxel_generator() -> void:
 		if _apply_radius(fn, radius):
 			needs_compile = true
 
-	if not ore_settings.is_empty():
-		_apply_ore_params(all_functions, ore_settings)
+	if not definition.ore_settings.is_empty():
+		_apply_ore_params(all_functions, definition.ore_settings)
 		needs_compile = true
 
 	if _apply_reef_params(all_functions):
@@ -1767,7 +1192,7 @@ func setup_voxel_generator() -> void:
 
 	voxel_terrain.generator = graph_generator
 
-	if not ore_settings.is_empty():
+	if not definition.ore_settings.is_empty():
 		_publish_ore_drop_table()
 
 
@@ -1794,13 +1219,13 @@ func get_underground_depth(world_pos: Vector3) -> float:
 ## que se hornea lleva las imágenes neutras y no talla nada, que es justo el terreno "sin ríos" del
 ## que hay que deducir por dónde corre el agua.
 func _setup_rivers(graph_generator: VoxelGeneratorGraph) -> bool:
-	if river_settings.is_empty() or not bool(river_settings.get("enabled", true)):
+	if definition.river_settings.is_empty() or not bool(definition.river_settings.get("enabled", true)):
 		return false
 	if not has_water:
 		push_warning("Planet: los ríos necesitan mar como nivel base; se quedan sin generar.")
 		return false
 
-	var height_range := float(river_settings.get("height_range", 2000.0))
+	var height_range := float(definition.river_settings.get("height_range", 2000.0))
 	var sea_level_radius := radius - water_radius
 	var key := _river_cache_key(height_range)
 	var path := "user://maps/%s_rivers.bin" % (entity_id if entity_id != "" else "planet")
@@ -1812,7 +1237,7 @@ func _setup_rivers(graph_generator: VoxelGeneratorGraph) -> bool:
 		_disable_reefs(source)
 		source.compile()
 		field = RiverGenerator.build_field(source, radius, sea_level_radius, height_range,
-			river_settings)
+			definition.river_settings)
 		if field.is_empty():
 			push_warning("Planet: no salió ningún cauce; el terreno se queda sin ríos.")
 			return false
@@ -1934,7 +1359,7 @@ func _load_vegetation_graph(path: String) -> VoxelGraphFunction:
 func _vegetation_river_field() -> Dictionary:
 	if _vegetation_field.is_empty():
 		_vegetation_field = _river_field.duplicate()
-		var width := int(river_settings.get("vegetation_dist_width", 4096))
+		var width := int(definition.river_settings.get("vegetation_dist_width", 4096))
 		var dist: Image = _river_field.dist
 		if width > 0 and width < dist.get_width():
 			var small: Image = dist.duplicate()
@@ -1951,8 +1376,8 @@ func _river_cache_key(height_range: float) -> String:
 		"r%.3f" % radius,
 		"w%.3f" % water_radius,
 		"h%.3f" % height_range,
-		JSON.stringify(river_settings),
-		PlanetWorldMap._resource_fingerprint(terrain_generator_path),
+		JSON.stringify(definition.river_settings),
+		PlanetWorldMap._resource_fingerprint(definition.terrain_generator_path),
 	])
 	return "|".join(parts).sha256_text()
 
@@ -2054,22 +1479,22 @@ func _apply_reef_params(functions: Array) -> bool:
 	# escribe como param, y en SdfSphere el radio es un input, así que la escritura no llega nunca.
 	_set_graph_value(functions, "reef_planet_sdf", "radius", radius)
 
-	if not has_water or not bool(reef_settings.get("enabled", true)):
+	if not has_water or not bool(definition.reef_settings.get("enabled", true)):
 		# Ventana radial vacía: el Select se queda siempre con el terreno y el ruido ni se evalúa.
 		_set_graph_value(functions, "reef_shell_lo", "threshold", 1.0e9)
 		_set_graph_value(functions, "reef_shell_hi", "threshold", -1.0e9)
 		return true
 
-	var depth_max: float = maxf(float(reef_settings.get("depth_max", 45.0)), 1.0)
-	var depth_soft: float = clampf(float(reef_settings.get("depth_softness", 17.0)), 0.1, depth_max)
-	var shore_margin: float = float(reef_settings.get("shore_margin", 1.0))
-	var shore_soft: float = maxf(float(reef_settings.get("shore_softness", 4.0)), 0.1)
-	var crest: float = float(reef_settings.get("crest_height", 24.0))
-	var threshold: float = float(reef_settings.get("rock_threshold", 0.0))
+	var depth_max: float = maxf(float(definition.reef_settings.get("depth_max", 45.0)), 1.0)
+	var depth_soft: float = clampf(float(definition.reef_settings.get("depth_softness", 17.0)), 0.1, depth_max)
+	var shore_margin: float = float(definition.reef_settings.get("shore_margin", 1.0))
+	var shore_soft: float = maxf(float(definition.reef_settings.get("shore_softness", 4.0)), 0.1)
+	var crest: float = float(definition.reef_settings.get("crest_height", 24.0))
+	var threshold: float = float(definition.reef_settings.get("rock_threshold", 0.0))
 	# Una cobertura saturada aplana las crestas; rock_softness regula esa saturación.
-	var rock_soft: float = maxf(float(reef_settings.get("rock_softness", 1.0)), 0.01)
+	var rock_soft: float = maxf(float(definition.reef_settings.get("rock_softness", 1.0)), 0.01)
 	# Una potencia mayor estrecha las crestas y reduce su cobertura.
-	var sharpness: int = maxi(int(reef_settings.get("sharpness", 1)), 1)
+	var sharpness: int = maxi(int(definition.reef_settings.get("sharpness", 1)), 1)
 
 	_set_smoothstep(functions, "reef_deep_gate", -depth_max, -(depth_max - depth_soft))
 	_set_smoothstep(functions, "reef_land_gate", shore_margin, shore_margin - shore_soft)
@@ -2079,8 +1504,8 @@ func _apply_reef_params(functions: Array) -> bool:
 	_set_graph_value(functions, "reef_shell_lo", "threshold", -(depth_max + _REEF_SHELL_BELOW))
 	_set_graph_value(functions, "reef_shell_hi", "threshold", crest + _REEF_SHELL_ABOVE)
 
-	if reef_settings.has("head_size"):
-		_set_noise_period(functions, "reef_noise", maxf(float(reef_settings.head_size), 1.0))
+	if definition.reef_settings.has("head_size"):
+		_set_noise_period(functions, "reef_noise", maxf(float(definition.reef_settings.head_size), 1.0))
 	return true
 
 
@@ -2196,7 +1621,7 @@ func _desc_name(desc) -> String:
 
 func _publish_ore_drop_table() -> void:
 	var table := {}
-	for ore in ore_settings:
+	for ore in definition.ore_settings:
 		var tid := int(ore.get("type_id", 0))
 		if tid <= 0:
 			continue

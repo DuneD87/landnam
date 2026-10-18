@@ -56,7 +56,7 @@ static func bake(planet: Planet, size: Vector2i, height_range: float) -> Diction
 		# reconstruye la altura en unidades de mundo, que es lo que compara con max_heights.
 		"height_min": -height_range,
 		"height_range": height_range * 2.0,
-		"biome_colors": _average_colors(planet.textures, planet.texture_albedo_adjust),
+		"biome_colors": _average_colors(planet.definition.textures, planet.definition.texture_albedo_adjust),
 	}
 
 

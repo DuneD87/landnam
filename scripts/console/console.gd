@@ -13,6 +13,11 @@ const COLOR_ERR := "#FF6B6B"
 const COLOR_INFO := "#9AD1FF"
 const COLOR_MUTED := "#9aa0a6"
 const MAX_HISTORY := 50
+## Palabras de `toon` y el global uniform de toon_light.gdshaderinc que ajusta cada una.
+const TOON_KEYS := {"threshold": &"toon_threshold", "softness": &"toon_softness", "gradient": &"toon_gradient"}
+## Alias del prototipo para conservar los comandos ya usados; la ayuda y Tab usan inglés.
+const TOON_ALIASES := {"umbral": "threshold", "suave": "softness", "degradado": "gradient"}
+const TOON_USAGE := "toon [on|off|<0-1>] [threshold <x>] [softness <x>] [gradient <0-1>]"
 
 var _commands: Dictionary = {}          # name:String -> ConsoleCommand
 var _history: Array[String] = []        # comandos introducidos (para ↑/↓)
@@ -24,6 +29,9 @@ var _is_open: bool = false
 
 var _prev_mouse_mode := Input.MOUSE_MODE_CAPTURED
 var _prev_input_enabled: bool = false
+## Valores de la luz por bandas tal como se subieron (global uniform -> float); vacío hasta el
+## primer `toon`, que parte de los de project.godot.
+var _toon: Dictionary = {}
 
 
 func _ready() -> void:
@@ -286,6 +294,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("cut", CUT_USAGE, "CON_HELP_CUT", _cmd_cut, 0, _complete_cuts))
 	_add(ConsoleCommand.new("status", "status [<id> [left|right|zone] [seconds] | remove [id]]", "CON_HELP_STATUS",
 		_cmd_status, 0, _complete_status))
+	_add(ConsoleCommand.new("toon", TOON_USAGE, "CON_HELP_TOON", _cmd_toon, 0, _complete_toon))
 	_add(ConsoleCommand.new("needs", "needs [<name> <value> | fill | empty | pause [on|off] | rate <x>]",
 		"CON_HELP_NEEDS", _cmd_needs, 0, _complete_needs))
 	_add(ConsoleCommand.new("fps", "fps [n]", "CON_HELP_FPS", _cmd_fps))
@@ -668,6 +677,42 @@ func _cmd_fps(args: PackedStringArray) -> String:
 	if Engine.max_fps == 0:
 		return _paint(COLOR_MUTED, tr("CON_FPS_UNCAPPED"))
 	return _paint(COLOR_OK, tr("CON_FPS_CAP") % Engine.max_fps)
+
+
+func _cmd_toon(args: PackedStringArray) -> String:
+	if _toon.is_empty():
+		for key: StringName in [&"toon_amount", &"toon_threshold", &"toon_softness", &"toon_gradient"]:
+			_toon[key] = float(ProjectSettings.get_setting("shader_globals/" + key)["value"])
+	var next := _toon.duplicate()
+	if args.is_empty():
+		next[&"toon_amount"] = 0.0 if next[&"toon_amount"] > 0.0 else 1.0
+	var i := 0
+	while i < args.size():
+		var word := args[i].to_lower()
+		word = TOON_ALIASES.get(word, word)
+		if word in ["on", "off"]:
+			next[&"toon_amount"] = 1.0 if word == "on" else 0.0
+			i += 1
+		elif word.is_valid_float():
+			next[&"toon_amount"] = clampf(word.to_float(), 0.0, 1.0)
+			i += 1
+		elif TOON_KEYS.has(word) and i + 1 < args.size() and args[i + 1].is_valid_float():
+			var key: StringName = TOON_KEYS[word]
+			var value := maxf(args[i + 1].to_float(), 0.0)
+			next[key] = minf(value, 1.0) if key == &"toon_gradient" else value
+			i += 2
+		else:
+			return _paint(COLOR_ERR, tr("CON_USAGE") % TOON_USAGE)
+	_toon = next
+	for key: StringName in _toon:
+		RenderingServer.global_shader_parameter_set(key, _toon[key])
+	var amount: float = _toon[&"toon_amount"]
+	return _paint(COLOR_OK if amount > 0.0 else COLOR_MUTED, tr("CON_TOON_STATUS") % [
+		amount, _toon[&"toon_threshold"], _toon[&"toon_softness"], _toon[&"toon_gradient"]])
+
+
+func _complete_toon() -> PackedStringArray:
+	return PackedStringArray(["on", "off"] + TOON_KEYS.keys())
 
 
 func _cmd_wake(args: PackedStringArray) -> String:

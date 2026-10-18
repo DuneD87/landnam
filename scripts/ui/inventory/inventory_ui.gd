@@ -1089,28 +1089,16 @@ func _on_equipment_slot_clicked(slot: EquipmentSlot) -> void:
 		_pickup_from_equipment(slot)
 
 
-func _pickup_from_inventory(slot: InventorySlot) -> void:
-	if Input.is_key_pressed(KEY_SHIFT) and slot.item.quantity > 1:
-		_pickup_half_from_inventory(slot)
-		return
-
-	floating_item = InventoryItem.new(slot.item.data, slot.item.quantity)
+func _pickup_from_inventory(slot: InventorySlot, half: bool = false) -> void:
+	var amount := ceili(slot.item.quantity / 2.0) if half or Input.is_key_pressed(KEY_SHIFT) else -1
+	floating_item = inventory.take_at(slot.slot_index, amount)
 	floating_slot_index = slot.slot_index
-	inventory.items[floating_slot_index] = null
-
 	_update_floating_display()
 	_refresh()
 
 
 func _pickup_half_from_inventory(slot: InventorySlot) -> void:
-	var half = int(ceil(slot.item.quantity / 2.0))
-
-	floating_item = InventoryItem.new(slot.item.data, half)
-	floating_slot_index = slot.slot_index
-	inventory.items[slot.slot_index].remove(half)
-
-	_update_floating_display()
-	_refresh()
+	_pickup_from_inventory(slot, true)
 
 
 func _pickup_from_equipment(slot: EquipmentSlot) -> void:
@@ -1120,70 +1108,29 @@ func _pickup_from_equipment(slot: EquipmentSlot) -> void:
 
 
 func _drop_to_inventory(target_slot: InventorySlot) -> void:
-	var target_index = target_slot.slot_index
-
-	if target_index == floating_slot_index:
+	if target_slot.slot_index == floating_slot_index:
 		_return_to_origin()
 		return
-
-	if target_slot.item:
-		var target_item = inventory.items[target_index]
-
-		if target_item.data.id == floating_item.data.id and floating_item.data.stackable:
-			var space = target_item.data.max_stack - target_item.quantity
-			var to_add = min(floating_item.quantity, space)
-
-			target_item.add(to_add)
-			floating_item.remove(to_add)
-
-			if floating_item.quantity > 0:
-				_return_to_origin()
-			else:
-				_clear_floating_item()
-		else:
-			var swapped = target_item
-			inventory.items[target_index] = floating_item
-
-			if floating_slot_index >= 0:
-				inventory.items[floating_slot_index] = swapped
-			else:
-				floating_item = swapped
-				_update_floating_display()
-				inventory.inventory_changed.emit()
-				_refresh()
-				return
-
-			_clear_floating_item()
+	var target := inventory.get_item_at_slot(target_slot.slot_index)
+	var stacking := target != null and target.can_stack_with(floating_item)
+	floating_item = inventory.put_at(target_slot.slot_index, floating_item)
+	if floating_item != null and (floating_slot_index >= 0 or stacking):
+		_return_to_origin()
 	else:
-		inventory.items[target_index] = floating_item
-		_clear_floating_item()
-
-	inventory.inventory_changed.emit()
-	_refresh()
+		_finish_inventory_transfer()
 
 
 func _drop_single_to_inventory(target_slot: InventorySlot) -> void:
-	var target_index = target_slot.slot_index
+	floating_item = inventory.put_at(target_slot.slot_index, floating_item, 1, false)
+	_finish_inventory_transfer()
 
-	if target_slot.item:
-		var target_item = inventory.items[target_index]
-		if target_item.data.id == floating_item.data.id and floating_item.data.stackable:
-			var space = target_item.data.max_stack - target_item.quantity
-			if space > 0:
-				target_item.add(1)
-				floating_item.remove(1)
-	else:
-		var new_item = InventoryItem.new(floating_item.data, 1)
-		inventory.items[target_index] = new_item
-		floating_item.remove(1)
 
-	if floating_item.quantity <= 0:
+func _finish_inventory_transfer() -> void:
+	if floating_item == null:
 		_clear_floating_item()
 	else:
 		_update_floating_display()
-
 	inventory.inventory_changed.emit()
-	_refresh()
 
 
 func _drop_to_equipment(slot: EquipmentSlot) -> void:
@@ -1212,16 +1159,11 @@ func _drop_to_equipment(slot: EquipmentSlot) -> void:
 
 func _return_to_origin() -> void:
 	if floating_slot_index >= 0:
-		if inventory.items[floating_slot_index] != null:
-			inventory.items[floating_slot_index].add(floating_item.quantity)
-		else:
-			inventory.items[floating_slot_index] = floating_item
-	else:
-		inventory.add_item(floating_item.data, floating_item.quantity)
-
-	_clear_floating_item()
-	inventory.inventory_changed.emit()
-	_refresh()
+		floating_item = inventory.put_at(floating_slot_index, floating_item, -1, false)
+	if floating_item != null:
+		var remaining := inventory.add_item(floating_item.data, floating_item.quantity)
+		floating_item = InventoryItem.new(floating_item.data, remaining) if remaining > 0 else null
+	_finish_inventory_transfer()
 
 
 func _cancel_floating_item() -> void:

@@ -11,88 +11,68 @@ var items: Array[InventoryItem] = []
 
 func _init():
 	items.resize(max_slots)
-	for i in range(max_slots):
-		items[i] = null
+
+## Operaciones de hueco: devuelven lo retirado o lo que queda en la mano. El llamador emite
+## inventory_changed al terminar la transacción, cuando ya ha colocado todos los restos.
+func take_at(slot: int, quantity: int = -1) -> InventoryItem:
+	var item := get_item_at_slot(slot)
+	if item == null:
+		return null
+	if quantity < 0 or quantity >= item.quantity:
+		items[slot] = null
+		return item
+	if quantity == 0:
+		return null
+	return InventoryItem.new(item.data, item.remove(quantity))
+
+
+func put_at(slot: int, item: InventoryItem, quantity: int = -1,
+		allow_swap: bool = true) -> InventoryItem:
+	if item == null or slot < 0 or slot >= items.size():
+		return item
+	var amount := item.quantity if quantity < 0 else mini(quantity, item.quantity)
+	if amount <= 0 or items[slot] == item:
+		return item
+	var target := items[slot]
+	if target != null and target.can_stack_with(item):
+		item.remove(amount - target.add(amount))
+		return null if item.is_empty() else item
+	if target == null and amount < item.quantity:
+		items[slot] = InventoryItem.new(item.data, item.remove(amount))
+		return item
+	if amount == item.quantity and (target == null or allow_swap):
+		items[slot] = item
+		return target
+	return item
+
 
 func move_item(from_slot: int, to_slot: int, quantity: int = -1) -> bool:
-	if from_slot < 0 or from_slot >= max_slots:
+	var source := get_item_at_slot(from_slot)
+	if source == null or from_slot == to_slot or to_slot < 0 or to_slot >= items.size():
 		return false
-	if to_slot < 0 or to_slot >= max_slots:
+	var target := items[to_slot]
+	var amount := mini(quantity, source.quantity) if quantity > 0 else source.quantity
+	if target != null and not target.can_stack_with(source) and amount < source.quantity:
 		return false
-	if from_slot == to_slot:
-		return false
-	
-	var from_item = items[from_slot]
-	if from_item == null:
-		return false
-	
-	var qty_to_move = quantity if quantity > 0 else from_item.quantity
-	qty_to_move = min(qty_to_move, from_item.quantity)
-	
-	var to_item = items[to_slot]
-	
-	if to_item == null:
-		if qty_to_move == from_item.quantity:
-			items[to_slot] = from_item
-			items[from_slot] = null
-		else:
-			items[to_slot] = InventoryItem.new(from_item.data, qty_to_move)
-			from_item.remove(qty_to_move)
-		
-		inventory_changed.emit()
-		return true
-	
-	if from_item.data.object_type == to_item.data.object_type and from_item.data.stackable:
-		var space_available = to_item.data.max_stack - to_item.quantity
-		var actually_moved = min(qty_to_move, space_available)
-		
-		to_item.add(actually_moved)
-		from_item.remove(actually_moved)
-		
-		if from_item.is_empty():
-			items[from_slot] = null
-		
-		inventory_changed.emit()
-		return true
-	
-	if quantity == -1 or quantity == from_item.quantity:
-		var temp = items[from_slot]
-		items[from_slot] = items[to_slot]
-		items[to_slot] = temp
-		
-		inventory_changed.emit()
-		return true
-	
-	return false
+	var remaining := put_at(to_slot, take_at(from_slot, amount))
+	if remaining != null:
+		put_at(from_slot, remaining)
+	inventory_changed.emit()
+	return true
 
 func split_item(from_slot: int, to_slot: int) -> bool:
-	if from_slot < 0 or from_slot >= max_slots:
-		return false
-	if to_slot < 0 or to_slot >= max_slots:
-		return false
-	if from_slot == to_slot:
-		return false
-	
-	var from_item = items[from_slot]
+	var from_item := get_item_at_slot(from_slot)
 	if from_item == null:
 		return false
-	
-	if from_item.quantity <= 1:
-		return move_item(from_slot, to_slot)
-	
-	var half = int(ceil(from_item.quantity / 2.0))
-	return move_item(from_slot, to_slot, half)
+	return move_item(from_slot, to_slot, ceili(from_item.quantity / 2.0))
 
 func get_item_at_slot(slot: int) -> InventoryItem:
-	if slot >= 0 and slot < max_slots:
+	if slot >= 0 and slot < items.size():
 		return items[slot]
 	return null
 
 func find_empty_slot() -> int:
-	for i in range(max_slots):
-		if items[i] == null:
-			return i
-	return -1
+	return items.find(null)
 
 func add_item(item_data: ItemData, quantity: int = 1) -> int:
 	var remaining = quantity
@@ -158,7 +138,7 @@ func print_contents() -> void:
 	print("=== Inventario (%d/%d slots) ===" % [count, max_slots])
 	for i in range(max_slots):
 		if items[i] != null:
-			print("  [%d] %s x%d" % [i, items[i].data.object_name, items[i].quantity])
+			print("  [%d] %s x%d" % [i, items[i].data.get_display_name(), items[i].quantity])
 	print("===========================")
 
 func get_item_count(item_data: ItemData) -> int:
@@ -174,14 +154,10 @@ func get_all_items() -> Array[InventoryItem]:
 	return items.duplicate()
 
 func is_full() -> bool:
-	for item in items:
-		if item == null:
-			return false
-	return true
+	return not items.has(null)
 
 func clear() -> void:
-	for i in items.size():
-		items[i] = null
+	items.fill(null)
 
 
 func add_item_at(item_data: ItemData, amount: int, slot_index: int) -> void:
@@ -190,8 +166,4 @@ func add_item_at(item_data: ItemData, amount: int, slot_index: int) -> void:
 		items[slot_index] = item
 		
 func get_free_slots() -> int:
-	var free = 0
-	for item in items:
-		if item == null:
-			free += 1
-	return free
+	return items.count(null)

@@ -127,7 +127,7 @@ func _make_loop_player(ev: SoundEvent) -> Node:
 	var stream := ev.pick_stream()
 	if stream == null:
 		return null
-	_force_loop(stream)
+	SoundEvent.force_loop(stream)
 	if _flat:
 		var flat := AudioStreamPlayer.new()
 		flat.name = "LoopVoice"
@@ -158,20 +158,6 @@ func _make_loop_player(ev: SoundEvent) -> Node:
 		return null
 	host.add_child(player)
 	return player
-
-
-## Fuerza el bucle del clip. Cada formato lo expone a su manera —el WAV por loop_mode y por
-## rango en frames, el resto por una propiedad "loop"—, y olvidarlo en el .import deja un
-## sonido continuo que suena una vez y calla.
-func _force_loop(stream: AudioStream) -> void:
-	var wav := stream as AudioStreamWAV
-	if wav != null:
-		if wav.loop_end <= wav.loop_begin:
-			wav.loop_end = int(wav.get_length() * wav.mix_rate)
-		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		return
-	if "loop" in stream:
-		stream.set(&"loop", true)
 
 
 ## Conecta cada señal declarada. La aridad se lee del nodo padre porque connect() exige que el

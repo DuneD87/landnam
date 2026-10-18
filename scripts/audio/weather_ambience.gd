@@ -54,10 +54,7 @@ const UPDATE_INTERVAL := 0.1
 @export_range(-24.0, 12.0) var volume_offset_db: float = 0.0
 @export var silence_threshold: float = 0.001
 
-var _players: Array[AudioStreamPlayer] = []
-var _events: Array[SoundEvent] = []
-var _mix := PackedFloat32Array()
-var _target := PackedFloat32Array()
+var _mixer: AmbientBedMixer
 var _update_timer: float = 0.0
 ## Retardos que quedan para cada trueno pendiente, y el que se le sorteo al caer el rayo.
 var _pending_thunder: PackedFloat32Array = PackedFloat32Array()
@@ -79,20 +76,7 @@ func setup(weather: WeatherController) -> void:
 
 
 func _ready() -> void:
-	_mix.resize(EVENTS.size())
-	_target.resize(EVENTS.size())
-	for event_id in EVENTS:
-		var ev := AudioManager.get_event(event_id)
-		_events.append(ev)
-		var player := AudioStreamPlayer.new()
-		player.name = String(event_id)
-		if ev != null and ev.is_valid():
-			player.stream = ev.pick_stream()
-			player.bus = ev.bus
-			_force_loop(player.stream)
-		player.volume_db = -80.0
-		add_child(player)
-		_players.append(player)
+	_mixer = AmbientBedMixer.new(self, EVENTS)
 
 
 func _process(delta: float) -> void:
@@ -102,16 +86,11 @@ func _process(delta: float) -> void:
 		_update_timer = UPDATE_INTERVAL
 		_compute_target()
 
-	var step := blend_speed * delta
-	for i in _players.size():
-		var moved := move_toward(_mix[i], _target[i], step)
-		if not is_equal_approx(moved, _mix[i]):
-			_mix[i] = moved
-			_apply(i)
+	_mixer.update(delta, blend_speed, volume_offset_db, silence_threshold)
 
 
 func _compute_target() -> void:
-	_target.fill(0.0)
+	_mixer.target.fill(0.0)
 	if _weather == null or not is_instance_valid(_weather):
 		return
 	var st := _weather.get_resolved_state()
@@ -126,14 +105,14 @@ func _compute_target() -> void:
 	# pierde la de fuera lo gana ella; si no la hay, simplemente se oye menos, que es lo honesto.
 	var heavy := smoothstep(0.0, maxf(rain_heavy_at, 0.001), last_rain)
 	var outdoor := last_rain * (sheltered_outdoor_gain if last_sheltered else 1.0)
-	_target[BED_RAIN_LIGHT] = outdoor * (1.0 - heavy)
-	_target[BED_RAIN_HEAVY] = outdoor * heavy
+	_mixer.target[BED_RAIN_LIGHT] = outdoor * (1.0 - heavy)
+	_mixer.target[BED_RAIN_HEAVY] = outdoor * heavy
 	if last_sheltered:
-		_target[BED_RAIN_INDOOR] = last_rain
+		_mixer.target[BED_RAIN_INDOOR] = last_rain
 
 	var strong := last_wind
-	_target[BED_WIND_LIGHT] = last_wind * (1.0 - strong)
-	_target[BED_WIND_STRONG] = last_wind * strong
+	_mixer.target[BED_WIND_LIGHT] = last_wind * (1.0 - strong)
+	_mixer.target[BED_WIND_STRONG] = last_wind * strong
 
 
 ## Fuerza del viento en [0,1]: la del clima, subida por la altitud. En una cima sopla aunque el
@@ -175,31 +154,3 @@ func _tick_thunder(delta: float) -> void:
 			inverse_lerp(thunder_delay_near, thunder_delay_far, delay), 0.0, 1.0)
 		AudioManager.play_ui(event,
 			{"volume_offset_db": volume_offset_db + lerpf(0.0, thunder_far_db, distance)})
-
-
-func _apply(index: int) -> void:
-	var player := _players[index]
-	if player.stream == null:
-		return
-	var mix := _mix[index]
-	if mix <= silence_threshold:
-		if player.playing:
-			player.stop()
-		return
-	var ev := _events[index]
-	var base: float = ev.volume_db if ev != null else 0.0
-	player.volume_db = base + volume_offset_db + linear_to_db(mix)
-	if not player.playing:
-		player.play()
-
-
-## Mismo motivo que en EntityAudio: el bucle se declara aquí y no en el .import de cada clip.
-func _force_loop(stream: AudioStream) -> void:
-	var wav := stream as AudioStreamWAV
-	if wav != null:
-		if wav.loop_end <= wav.loop_begin:
-			wav.loop_end = int(wav.get_length() * wav.mix_rate)
-		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		return
-	if "loop" in stream:
-		stream.set(&"loop", true)

@@ -170,7 +170,8 @@ void light() {
 	// distancia, y saltársela iluminaba las hojas en recuadros de la rejilla de luces (las
 	// setas de cueva, bajo tierra, teñían de amarillo el follaje de encima).
 	float transmitted = LIGHT_IS_DIRECTIONAL ? mix(ATTENUATION, 1.0, transmission_through_shadow) : ATTENUATION;
-	DIFFUSE_LIGHT += vec3(wrapped) * occlusion * ATTENUATION * light_energy
+	float direct = toon_direct(wrapped, ATTENUATION, toon_shadow_floor, LIGHT_IS_DIRECTIONAL);
+	DIFFUSE_LIGHT += vec3(direct) * occlusion * light_energy
 		+ transmission * transmission_color.rgb * v_ao * transmitted * light_energy;
 	vec3 half_sum = LIGHT + VIEW;
 	vec3 half_vector = half_sum / max(length(half_sum), 0.0001);

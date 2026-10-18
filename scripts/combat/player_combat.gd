@@ -92,13 +92,6 @@ const GUARD_HIT_SPEED := 1.3
 const RIPOSTE_WINDOW := 1.2
 const RIPOSTE_DAMAGE := 1.6
 const RIPOSTE_POISE := 2.0
-const LOCK_RANGE := 28.0
-const LOCK_BREAK_RANGE := 34.0
-## Ratón acumulado (radianes de giro de cámara) para cambiar de objetivo fijado.
-const LOCK_SWITCH_THRESHOLD := 0.09
-## Penalización de puntuación de la fauna menuda (aves, conejos, peces) frente a los NPCs: con un
-## oso y un gorrión en el mismo encuadre, se fija el oso.
-const LOCK_SMALL_FAUNA_BIAS := 0.35
 const HITSTOP_TIME := 0.075
 ## Momento del impacto dentro de la ventana del golpe (0..1) en que entra el golpe a un tronco o una
 ## roca (talar, picar).
@@ -177,7 +170,10 @@ var cripple: Cripple
 var devouring: Devouring
 ## La rama la coloca Cripple como muleta (o el arma va escondida al arrastrarse).
 var _cripple_visual: bool = false
-var lock_target: Node3D = null
+var _targeting := CombatTargeting.new()
+var lock_target: Node3D:
+	get: return _targeting.target
+	set(value): _targeting.target = value
 
 var state: State = State.IDLE
 var _t: float = 0.0
@@ -251,9 +247,6 @@ var _last_attacker: Node = null
 var _last_attacker_time: float = -INF
 var _respawning: bool = false
 
-var _lock_lost_time: float = 0.0
-var _lock_switch_cooldown: float = 0.0
-
 var _skeleton: Skeleton3D
 var _right_attachment: BoneAttachment3D
 var _right_grip: Node3D
@@ -303,6 +296,7 @@ var _spawn_basis: Basis = Basis.IDENTITY
 
 func setup(owner_player: PlayerController) -> void:
 	player = owner_player
+	_targeting.player = player
 	name = "PlayerCombat"
 	stamina = StaminaComponent.new()
 	stamina.name = "Stamina"
@@ -841,7 +835,6 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 		_buffered = &""
 	_since_dodge += delta
 	_combo_window = maxf(0.0, _combo_window - delta)
-	_lock_switch_cooldown = maxf(0.0, _lock_switch_cooldown - delta)
 	_fire_cooldown = maxf(0.0, _fire_cooldown - delta)
 	_riposte_left = maxf(0.0, _riposte_left - delta)
 	_motion_h = Vector3.ZERO
@@ -868,7 +861,7 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 			_update_guard(delta)
 	if state != State.DEAD:
 		_try_buffered()
-	_update_lock(delta)
+	_targeting.update(delta)
 	_update_limits(delta, input_dir)
 	cripple.update(delta, input_dir)
 	_update_aim_blend(delta)
@@ -897,7 +890,7 @@ func update_facing(delta: float, input_dir: Vector3) -> bool:
 			# Se puede reorientar mientras prepara; desde el tajo, el golpe va a donde iba.
 			if _act_time(_attack_slot) < float(_move.get("track", 0.5)):
 				if lock_target != null:
-					_attack_dir = _flat(_lock_point(lock_target) - player.global_position)
+					_attack_dir = _flat(_targeting.point_for(lock_target) - player.global_position)
 				_face(_attack_dir, delta, 9.0)
 			return true
 		State.AIM:
@@ -905,14 +898,14 @@ func update_facing(delta: float, input_dir: Vector3) -> bool:
 			return true
 		State.GUARD:
 			# En guardia se mira al peligro: al fijado o hacia donde mira la cámara.
-			var to := _flat(_lock_point(lock_target) - player.global_position) if lock_target != null else _camera_forward_h()
+			var to := _flat(_targeting.point_for(lock_target) - player.global_position) if lock_target != null else _camera_forward_h()
 			_face(to, delta, 12.0)
 			return true
 	if lock_target != null:
 		# En primera persona, siempre al fijado (Locomotion pone el paso de lado o atrás): de cara a
 		# donde se mueve, la vista iría por encima del hombro.
 		var moving := input_dir.length() > 0.2 and not player.camera_controller.first_person
-		_face(_flat(input_dir) if moving else _flat(_lock_point(lock_target) - player.global_position),
+		_face(_flat(input_dir) if moving else _flat(_targeting.point_for(lock_target) - player.global_position),
 			delta, 10.0)
 		return true
 	return false
@@ -1250,7 +1243,7 @@ func _start_attack(heavy: bool) -> void:
 ## (FirstPersonSquare), y uno girado de lado metería el hombro en la vista.
 func _choose_attack_dir() -> Vector3:
 	if lock_target != null:
-		return _flat(_lock_point(lock_target) - player.global_position)
+		return _flat(_targeting.point_for(lock_target) - player.global_position)
 	var move := _flat(player.movement.direction)
 	if player.movement.direction.length() > 0.3 and move != Vector3.ZERO \
 			and not player.camera_controller.first_person:
@@ -1823,11 +1816,11 @@ func _update_throw(delta: float, data: ItemData) -> void:
 func _update_aim_point(data: ItemData) -> void:
 	var cam := player.camera
 	if lock_target != null:
-		var target := _lock_point(lock_target)
+		var target := _targeting.point_for(lock_target)
 		var speed := maxf(data.projectile_speed, 1.0)
 		var flight := player.global_position.distance_to(target) / speed
 		# Adelanto: donde estará el objetivo cuando llegue el proyectil (dos pasadas bastan).
-		var lead := _lock_velocity(lock_target)
+		var lead := _targeting.velocity_of(lock_target)
 		for _pass in 2:
 			flight = player.global_position.distance_to(target + lead * flight) / speed
 		target += lead * flight
@@ -2463,115 +2456,23 @@ func _calm_hostiles() -> void:
 
 
 func lock_on() -> void:
-	var target := _find_lock_target(0.0)
-	if target != null:
-		lock_target = target
-		_lock_lost_time = 0.0
-		CombatFx.play(&"lock", player.global_position)
+	_targeting.lock_on()
 
 
 func release_lock() -> void:
-	lock_target = null
-	player.camera_controller.lock_point = null
+	_targeting.release()
 
 
 func _lock_point(target: Node3D) -> Vector3:
-	var creature := target as AmbientAnimal
-	if creature != null:
-		return creature.lock_point()
-	return target.global_position - player.gravity_direction * 0.8
+	return _targeting.point_for(target)
 
 
-## Cualquier criatura viva (NPCs, aves, fauna menuda) se puede fijar.
-func _lockable(target: Node) -> bool:
-	if target == null or not is_instance_valid(target):
-		return false
-	var creature := target as AmbientAnimal
-	return creature != null and creature.lockable()
-
-
-## Velocidad del objetivo para adelantar el tiro: sin ella, un ave en vuelo es imposible de acertar.
 func _lock_velocity(target: Node3D) -> Vector3:
-	var body := target as CharacterBody3D
-	return body.velocity if body != null else Vector3.ZERO
+	return _targeting.velocity_of(target)
 
 
-## Mejor candidato: el más centrado en pantalla y cerca. [side] != 0 busca solo a ese lado del
-## objetivo actual (−1 izquierda, +1 derecha).
-func _find_lock_target(side: float) -> Node3D:
-	var cam := player.camera
-	var cam_forward := -cam.global_basis.z
-	var cam_right := cam.global_basis.x
-	var best: Node3D = null
-	var best_score := INF
-	var current_x := 0.0
-	if lock_target != null:
-		current_x = (_lock_point(lock_target) - cam.global_position).normalized().dot(cam_right)
-	for node in get_tree().get_nodes_in_group(AmbientAnimal.GROUP):
-		var creature := node as AmbientAnimal
-		if not _lockable(creature) or creature == lock_target:
-			continue
-		var point := _lock_point(creature)
-		var dist := player.global_position.distance_to(point)
-		if dist > LOCK_RANGE:
-			continue
-		var to := (point - cam.global_position).normalized()
-		var facing := to.dot(cam_forward)
-		if facing < 0.35:
-			continue
-		var x := to.dot(cam_right)
-		if side != 0.0 and signf(x - current_x) != signf(side):
-			continue
-		if not _has_line_of_sight(point, creature):
-			continue
-		var score := acos(clampf(facing, -1.0, 1.0)) * 2.0 + dist / LOCK_RANGE
-		if side != 0.0:
-			score = absf(x - current_x) * 3.0 + dist / LOCK_RANGE
-		if not creature is NPCController:
-			score += LOCK_SMALL_FAUNA_BIAS
-		if score < best_score:
-			best_score = score
-			best = creature
-	return best
-
-
-func _has_line_of_sight(point: Vector3, target: Node) -> bool:
-	var from := player.camera.global_position
-	var query := PhysicsRayQueryParameters3D.create(from, point)
-	query.collision_mask = 1
-	query.exclude = [player.get_rid()]
-	var hit := player.get_world_3d().direct_space_state.intersect_ray(query)
-	return hit.is_empty() or hit.collider == target
-
-
-func _update_lock(delta: float) -> void:
-	if not is_instance_valid(lock_target):
-		lock_target = null
-	if lock_target == null:
-		player.camera_controller.lock_point = null
-		return
-	var npc := lock_target as NPCController
-	if not _lockable(lock_target) or player.global_position.distance_to(lock_target.global_position) > LOCK_BREAK_RANGE:
-		release_lock()
-		# Si cae uno, se pasa al siguiente como en los souls.
-		if npc != null and npc.is_dead:
-			lock_on()
-		return
-	var point := _lock_point(lock_target)
-	if _has_line_of_sight(point, lock_target):
-		_lock_lost_time = 0.0
-	else:
-		_lock_lost_time += delta
-		if _lock_lost_time > 2.0:
-			release_lock()
-			return
-	player.camera_controller.lock_point = point
-	var swipe := player.camera_controller.consume_lock_swipe()
-	if absf(swipe) > LOCK_SWITCH_THRESHOLD and _lock_switch_cooldown <= 0.0:
-		var next := _find_lock_target(-signf(swipe))
-		if next != null:
-			lock_target = next
-			_lock_switch_cooldown = 0.35
+func _lockable(target: Node) -> bool:
+	return _targeting.is_lockable(target)
 
 
 # ---------------------------------------------------------------------------------------------

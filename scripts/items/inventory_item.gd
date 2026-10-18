@@ -11,6 +11,9 @@ func _init(item_data: ItemData, initial_quantity: int = 1) -> void:
 func can_add(amount: int) -> bool:
 	return data.stackable and (quantity + amount) <= data.max_stack
 
+func can_stack_with(other: InventoryItem) -> bool:
+	return other != null and data.stackable and data.id == other.data.id
+
 func add(amount: int) -> int:
 	if not data.stackable:
 		return amount

@@ -90,12 +90,12 @@ func _install_surface(planet: Planet) -> void:
 	_mat.set_shader_parameter("height_range", data.height_range)
 	_mat.set_shader_parameter("biome_colors", data.biome_colors)
 
-	_mat.set_shader_parameter("biome_count", planet.biome_count)
-	_mat.set_shader_parameter("textures_per_biome", planet.textures_per_biome)
-	_mat.set_shader_parameter("biome_latitude_ranges", planet.biome_latitude_ranges)
-	_mat.set_shader_parameter("max_heights", planet.max_heights)
-	_mat.set_shader_parameter("biome_texture_indices", planet.biome_texture_indices)
-	_mat.set_shader_parameter("biome_transition_smoothness", planet.biome_transition_smoothness)
+	_mat.set_shader_parameter("biome_count", planet.definition.biome_count)
+	_mat.set_shader_parameter("textures_per_biome", planet.definition.textures_per_biome)
+	_mat.set_shader_parameter("biome_latitude_ranges", planet.definition.biome_latitude_ranges)
+	_mat.set_shader_parameter("max_heights", planet.definition.max_heights)
+	_mat.set_shader_parameter("biome_texture_indices", planet.definition.biome_texture_indices)
+	_mat.set_shader_parameter("biome_transition_smoothness", planet.definition.biome_transition_smoothness)
 
 	# transition_smoothness se lee del material del terreno para que el corte por altura caiga
 	# exactamente donde cae allí.

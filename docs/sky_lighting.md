@@ -1,5 +1,28 @@
 # Iluminación día/noche (SkyLighting)
 
+## Luz por bandas
+
+La consola permite activar la luz por bandas en el terreno, la hierba, los árboles y los materiales
+que usan `planet_lighting.gdshaderinc`:
+
+```text
+toon on threshold 0.12 softness 0.04 gradient 0.25
+toon 0.5
+toon off
+```
+
+Sin argumentos, `toon` alterna entre activada y desactivada. `threshold` mueve el borde entre luz
+y sombra; `softness` suaviza ese borde y la penumbra; `gradient` conserva el degradado de Lambert
+en la cara iluminada (0 = plana, 1 = completo). La ayuda y las respuestas se traducen al idioma
+elegido. Los ajustes son temporales y al arrancar la mezcla vuelve a `toon_amount = 0`.
+
+`shaders/lib/toon_light.gdshaderinc` comparte el cálculo. Con la mezcla a cero conserva la luz
+original. La luz ambiental, la transmisión y el especular mantienen sus cálculos; la atenuación
+por distancia de las luces locales sigue siendo continua. `SkyLighting` comunica el relleno de
+las sombras del sol mediante `toon_shadow_floor`, también al aumentar la opacidad bajo tierra.
+
+## Resolución del cielo y las luces
+
 Los planetas son esferas pequeñas (la Tierra mide 30 km de radio) y el sol gira a su
 alrededor (`sun_controller.gd`), así que la hora no es global: depende de dónde esté
 el observador. `scripts/planet/sky_lighting.gd` (nodo `SkyLighting` de `sun.tscn`)

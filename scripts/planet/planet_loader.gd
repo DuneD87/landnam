@@ -219,65 +219,11 @@ var sea_ice_floes: SeaIceFloes
 var _editor_file_dialog: EditorFileDialog
 
 func _copy_parsed_data(planet_parser: PlanetParser) -> void:
+	planet.definition = planet_parser.definition
 	planet.radius = planet_parser.radius
-	planet.terrain_generator_path = planet_parser.terrain_generator_path
-	planet.biome_count = planet_parser.biome_count
-	planet.textures_per_biome = planet_parser.textures_per_biome
-	planet.biome_latitude_ranges = planet_parser.biome_latitude_ranges
-	planet.biome_transition_smoothness = planet_parser.biome_transition_smoothness
-	planet.max_heights = planet_parser.max_heights
-	planet.biome_texture_indices = planet_parser.biome_texture_indices
-	planet.sound_materials = planet_parser.sound_materials
-	planet.slope_sound_material = planet_parser.slope_sound_material
-	planet.biome_noise_enabled = planet_parser.biome_noise_enabled
-	planet.biome_noise_source_texture_indices = planet_parser.biome_noise_source_texture_indices
-	planet.biome_noise_target_texture_indices = planet_parser.biome_noise_target_texture_indices
-	planet.biome_noise_scales = planet_parser.biome_noise_scales
-	planet.biome_noise_thresholds = planet_parser.biome_noise_thresholds
-	planet.biome_noise_smoothness = planet_parser.biome_noise_smoothness
-	planet.biome_noise_seeds = planet_parser.biome_noise_seeds
-	planet.biome_noise_invert = planet_parser.biome_noise_invert
-	planet.biome_noise_abs_latitude_mins = planet_parser.biome_noise_abs_latitude_mins
-	planet.biome_noise_abs_latitude_maxs = planet_parser.biome_noise_abs_latitude_maxs
-	planet.biome_noise_latitude_smoothness = planet_parser.biome_noise_latitude_smoothness
-	planet.textures = planet_parser.textures
-	planet.normal_textures = planet_parser.normal_textures
-	planet.roughness_textures = planet_parser.roughness_textures
-	planet.ao_textures = planet_parser.ao_textures
-	planet.height_textures = planet_parser.height_textures
-	planet.packed_materials = planet_parser.packed_materials
-	planet.slope_texture = planet_parser.slope_texture
-	planet.slope_normal_texture = planet_parser.slope_normal_texture
-	planet.slope_roughness_texture = planet_parser.slope_roughness_texture
-	planet.slope_ao_texture = planet_parser.slope_ao_texture
-	planet.slope_height_texture = planet_parser.slope_height_texture
-	planet.slope_threshold = planet_parser.slope_threshold
-	planet.slope_smoothness = planet_parser.slope_smoothness
-	planet.slope_height_blend_strength = planet_parser.slope_height_blend_strength
-	planet.slope_height_blend_sharpness = planet_parser.slope_height_blend_sharpness
-	planet.slope_breakup_scale = planet_parser.slope_breakup_scale
-	planet.slope_breakup_strength = planet_parser.slope_breakup_strength
-	planet.slope_breakup_anisotropy = planet_parser.slope_breakup_anisotropy
-	planet.slope_strata_thickness = planet_parser.slope_strata_thickness
-	planet.slope_strata_strength = planet_parser.slope_strata_strength
-	planet.slope_strata_warp = planet_parser.slope_strata_warp
-	planet.parallax_enabled = planet_parser.parallax_enabled
-	planet.parallax_strength = planet_parser.parallax_strength
-	planet.transition_smoothness = planet_parser.transition_smoothness
-	planet.height_transition_noise_scale = planet_parser.height_transition_noise_scale
-	planet.height_transition_noise_strength = planet_parser.height_transition_noise_strength
-	planet.macro_variation_scale = planet_parser.macro_variation_scale
-	planet.macro_variation_strength = planet_parser.macro_variation_strength
-	planet.texture_albedo_adjust = planet_parser.texture_albedo_adjust
-	planet.slope_albedo_adjust = planet_parser.slope_albedo_adjust
 	planet.has_water = planet_parser.has_water
 	planet.water_radius = planet_parser.water_level
-	planet.ore_settings = planet_parser.ore_settings
-	planet.river_settings = planet_parser.river_settings
-	planet.reef_settings = planet_parser.reef_settings
-	planet.climate_settings = planet_parser.climate_settings
 	planet.entity_id = entity_id
-	planet.vegetation = planet_parser.vegetation
 	planet.wind_direction = planet_parser.wind_direction
 	planet.sun = sun_path
 
@@ -546,7 +492,7 @@ func _setup_ground_fauna(planet_parser: PlanetParser) -> void:
 			continue
 		var habitat: GroundFaunaHabitat = SmallGroundFaunaHabitat.new() if settings is SmallGroundFaunaProfile else GroundFaunaHabitat.new()
 		habitat.setup(voxel_terrain, get_parent(), planet_parser.radius,
-			planet_parser.atmosphere_height, planet_parser.biome_latitude_ranges, world_map)
+			planet_parser.atmosphere_height, planet_parser.definition.biome_latitude_ranges, world_map)
 		habitat.climate = planet.climate
 		habitat.rivers = planet.get_river_network()
 		if habitat is SmallGroundFaunaHabitat:

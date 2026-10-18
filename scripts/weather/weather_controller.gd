@@ -151,8 +151,8 @@ func setup(
 	_world_env = world_env
 	_player = player
 	_planet_center = planet_center
-	_biome_count = planet.biome_count
-	_biome_latitude_ranges = planet.biome_latitude_ranges
+	_biome_count = planet.definition.biome_count
+	_biome_latitude_ranges = planet.definition.biome_latitude_ranges
 
 	_apply_config(config)
 	_read_base_values()

@@ -4,6 +4,7 @@ render_mode blend_mix;
 #include "res://shaders/terrain/virtual_texturing.gdshaderinc"
 #include "res://shaders/lib/climate.gdshaderinc"
 #include "res://shaders/lib/season.gdshaderinc"
+#include "res://shaders/lib/toon_light.gdshaderinc"
 
 // Escala en 1/metros: 0.006 => manchas de ~170 m, que es lo que rompe una ladera entera.
 // Estaba en 0.15 (rasgos de ~7 m): a distancia se promediaba a cero y de cerca solo
@@ -956,7 +957,8 @@ void light()
 
     float light_visibility = effective_attenuation * water_light_factor * planet_shadow;
 
-    DIFFUSE_LIGHT += ndotl * light_visibility * direct_ao * LIGHT_COLOR / PI;
+    float direct = toon_direct(ndotl, effective_attenuation, 0.0, LIGHT_IS_DIRECTIONAL);
+    DIFFUSE_LIGHT += direct * water_light_factor * planet_shadow * direct_ao * LIGHT_COLOR / PI;
 
     vec3 h = normalize(l + v);
     float ndoth = clamp(dot(n, h), 0.0, 1.0);

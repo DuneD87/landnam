@@ -181,6 +181,8 @@ var _underground := 0.0
 ## Opacidad de sombra de cada luz tal como viene de la escena; bajo tierra sube hacia 1.
 var _sun_shadow_opacity := 1.0
 var _moon_shadow_opacity := 1.0
+## Último toon_shadow_floor subido (ver _apply_shadow_opacity).
+var _toon_shadow_floor := -1.0
 ## Cuánto se ve el cielo nocturno (estrellas, luz cenicienta): 0 de día, 1 con el cielo oscuro. La
 ## luz cenicienta se actualiza antes que el cielo y usa la del frame anterior.
 var _night_visibility := 1.0
@@ -648,6 +650,10 @@ func _apply_shadow_opacity(light: DirectionalLight3D, scene_opacity: float) -> v
 	var opacity := lerpf(scene_opacity, 1.0, _underground)
 	if absf(light.shadow_opacity - opacity) > 0.002:
 		light.shadow_opacity = opacity
+	# La luz por bandas (toon_light.gdshaderinc) endurece la penumbra sin comerse este relleno.
+	if light == sun_light and absf(_toon_shadow_floor - (1.0 - light.shadow_opacity)) > 0.002:
+		_toon_shadow_floor = 1.0 - light.shadow_opacity
+		RenderingServer.global_shader_parameter_set(&"toon_shadow_floor", _toon_shadow_floor)
 
 
 ## Evalúa el modelo de dispersión en las direcciones de muestreo. Si el cielo cambia poco (casi

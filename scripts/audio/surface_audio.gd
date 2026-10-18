@@ -5,7 +5,7 @@ extends RefCounted
 ## pies ya lanza. Decide por capas: rejilla de construcción, agua, pendiente y bioma del terreno.
 ## El tramo del terreno replica la selección de planet_biomes.gdshader (peso de bioma por latitud
 ## y escalera de max_heights) quedándose con la banda que más pesa, y traduce el índice de textura
-## con Planet.sound_materials: un bioma nuevo suena bien añadiendo su familia al JSON del planeta.
+## con PlanetDefinition.sound_materials: un bioma nuevo suena bien añadiendo su familia al JSON.
 
 ## Familia con la que se responde cuando no hay nada con que decidir. Existe en la biblioteca y
 ## es el suelo más neutro, así que un fallo de configuración suena a tierra, no a silencio.
@@ -40,8 +40,8 @@ static func resolve(hit: Dictionary, planet_root: Node3D, up: Vector3) -> String
 	if _is_wet(planet, planet_root, pos, center):
 		return &"water"
 
-	if 1.0 - normal.dot(up) > planet.slope_threshold:
-		return _family(planet.slope_sound_material)
+	if 1.0 - normal.dot(up) > planet.definition.slope_threshold:
+		return _family(planet.definition.slope_sound_material)
 
 	return _biome_family(planet, pos, center)
 
@@ -144,32 +144,32 @@ static func _biome_family(planet: Planet, pos: Vector3, center: Vector3) -> Stri
 		return DEFAULT_MATERIAL
 	var latitude := rad_to_deg(asin(clampf(d.normalized().y, -1.0, 1.0)))
 	var height := d.length() - planet.radius
-	var smoothness := planet.transition_smoothness
+	var smoothness := planet.definition.transition_smoothness
 
 	var best := -1
 	var best_factor := 0.0
-	for b in planet.biome_count:
-		if b + 1 >= planet.biome_latitude_ranges.size():
+	for b in planet.definition.biome_count:
+		if b + 1 >= planet.definition.biome_latitude_ranges.size():
 			break
-		var lower: float = planet.biome_latitude_ranges[b]
-		var upper: float = planet.biome_latitude_ranges[b + 1]
+		var lower: float = planet.definition.biome_latitude_ranges[b]
+		var upper: float = planet.definition.biome_latitude_ranges[b + 1]
 		var span := upper - lower
 		var w := 1.0 - absf(latitude - (lower + upper) * 0.5) \
-				/ maxf(span * planet.biome_transition_smoothness, 0.0001)
+				/ maxf(span * planet.definition.biome_transition_smoothness, 0.0001)
 		var biome_weight := smoothstep(0.0, 1.0, clampf(w, 0.0, 1.0))
 		if biome_weight < 0.01:
 			continue
 
-		var offset := b * planet.textures_per_biome
-		for j in planet.textures_per_biome:
-			if offset + j >= planet.max_heights.size():
+		var offset := b * planet.definition.textures_per_biome
+		for j in planet.definition.textures_per_biome:
+			if offset + j >= planet.definition.max_heights.size():
 				break
 			var factor: float
 			if j == 0:
-				factor = smoothstep(-smoothness, smoothness, planet.max_heights[offset] - height)
+				factor = smoothstep(-smoothness, smoothness, planet.definition.max_heights[offset] - height)
 			else:
-				var lo: float = planet.max_heights[offset + j - 1]
-				var hi: float = planet.max_heights[offset + j]
+				var lo: float = planet.definition.max_heights[offset + j - 1]
+				var hi: float = planet.definition.max_heights[offset + j]
 				factor = smoothstep(-smoothness, smoothness, hi - height) \
 						* (1.0 - smoothstep(-smoothness, smoothness, lo - height))
 			factor *= biome_weight
@@ -177,15 +177,15 @@ static func _biome_family(planet: Planet, pos: Vector3, center: Vector3) -> Stri
 				best_factor = factor
 				best = offset + j
 
-	if best < 0 or best >= planet.biome_texture_indices.size():
+	if best < 0 or best >= planet.definition.biome_texture_indices.size():
 		return DEFAULT_MATERIAL
-	return _texture_family(planet, planet.biome_texture_indices[best])
+	return _texture_family(planet, planet.definition.biome_texture_indices[best])
 
 
 static func _texture_family(planet: Planet, texture_index: int) -> StringName:
-	if texture_index < 0 or texture_index >= planet.sound_materials.size():
+	if texture_index < 0 or texture_index >= planet.definition.sound_materials.size():
 		return DEFAULT_MATERIAL
-	return _family(planet.sound_materials[texture_index])
+	return _family(planet.definition.sound_materials[texture_index])
 
 
 static func _family(value: StringName) -> StringName:

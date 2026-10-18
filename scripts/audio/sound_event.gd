@@ -77,3 +77,14 @@ func roll_volume_db() -> float:
 
 func roll_pitch() -> float:
 	return maxf(0.01, pitch + randf_range(-pitch_jitter, pitch_jitter))
+
+
+## Los continuos declaran el bucle aquí: WAV usa un rango en frames; los demás, "loop".
+static func force_loop(stream: AudioStream) -> void:
+	var wav := stream as AudioStreamWAV
+	if wav != null:
+		if wav.loop_end <= wav.loop_begin:
+			wav.loop_end = int(wav.get_length() * wav.mix_rate)
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	elif stream != null and "loop" in stream:
+		stream.set(&"loop", true)

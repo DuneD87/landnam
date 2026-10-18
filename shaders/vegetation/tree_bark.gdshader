@@ -114,7 +114,8 @@ void light() {
 		: 1.0;
 	float occlusion = mix(1.0, v_ao, direct_occlusion);
 	vec3 energy = LIGHT_COLOR * ATTENUATION * day * occlusion;
-	DIFFUSE_LIGHT += ndl / PI * energy;
+	float direct = toon_direct(ndl, ATTENUATION, toon_shadow_floor, LIGHT_IS_DIRECTIONAL);
+	DIFFUSE_LIGHT += direct / PI * LIGHT_COLOR * day * occlusion;
 	vec3 half_sum = LIGHT + VIEW;
 	vec3 half_vector = half_sum / max(length(half_sum), 0.0001);
 	float gloss = pow(max(dot(NORMAL, half_vector), 0.0), mix(48.0, 8.0, ROUGHNESS));

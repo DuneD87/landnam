@@ -349,7 +349,7 @@ void light() {
     float ao = mix(1.0 - base_occlusion, 1.0, smoothstep(0.0, base_occlusion_height, height_factor));
     float ndl = dot(NORMAL, LIGHT);
     // Un único difuso normalizado + transmisión, sin sumar el SSS/rim del include.
-    float wrapped = max(ndl + diffuse_wrap, 0.0) / ((1.0 + diffuse_wrap) * (1.0 + diffuse_wrap));
+    float wrapped = max(ndl + diffuse_wrap, 0.0) / (1.0 + diffuse_wrap);
     float toward_sun = max(dot(VIEW, -LIGHT), 0.0);
     float transmission = pow(toward_sun, transmission_sharpness)
         * mix(max(-ndl, 0.0), 1.0, transmission_wrap)
@@ -359,7 +359,10 @@ void light() {
         ? planet_light_visibility(normalize((VIEW_MATRIX * vec4(planet_normal, 0.0)).xyz), LIGHT)
         : 1.0;
     vec3 energy = LIGHT_COLOR * ATTENUATION * day / PI;
-    DIFFUSE_LIGHT += (vec3(wrapped) + transmission * transmission_color.rgb) * energy * ao;
+    float direct = toon_direct(wrapped, ATTENUATION, toon_shadow_floor, LIGHT_IS_DIRECTIONAL)
+        / (1.0 + diffuse_wrap);
+    DIFFUSE_LIGHT += (vec3(direct) * LIGHT_COLOR * day / PI
+        + transmission * transmission_color.rgb * energy) * ao;
     vec3 half_sum = LIGHT + VIEW;
     vec3 half_vector = half_sum / max(length(half_sum), 0.0001);
     float highlight = pow(max(dot(NORMAL, half_vector), 0.0), mix(64.0, 12.0, ROUGHNESS));

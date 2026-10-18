@@ -81,6 +81,9 @@ Los comandos y sus argumentos son en inglés en todos los idiomas (`season autum
 `needs hunger 0.5`, `spawn wolf 3 large`), igual que su sintaxis en la ayuda. Lo que se traduce es la
 ayuda de cada comando (`CON_HELP_<COMANDO>`) y lo que contesta (`CON_*`).
 
+`toon on threshold 0.12 softness 0.04 gradient 0.25` ajusta la luz por bandas. Su ayuda y su
+respuesta se traducen; los nombres de los parámetros y el autocompletado se mantienen en inglés.
+
 ## Lo que no pasa por el CSV
 
 - Los logs (`print`, `push_warning`, `push_error`) y la capa de perfilado (F3, `perf`), que son para
