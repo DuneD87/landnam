@@ -873,12 +873,12 @@
 			{
 				"name": "small_rocks_generator_green",
 				"emit_mode": "EMIT_FROM_VERTICES",
-				"density": 0.05,
+				"density": 0.025,
 				"min_height": -85.0,
 				"max_height": 500.0,
 				"max_slope_degrees": 25.0,
 				"min_scale": 1.0,
-				"max_scale": 6.0,
+				"max_scale": 3.0,
 				"vertical_alignment": 0.4,
 				"noise_graph": "hemisphere_green_graph_path",
 				"climate": {
@@ -889,7 +889,7 @@
 			{
 				"name": "fallen_branches_generator_green",
 				"emit_mode": "EMIT_FROM_FACES",
-				"density": 0.025,
+				"density": 0.01,
 				"max_slope_degrees": 25.0,
 				"min_scale": 1.8,
 				"max_scale": 2.6,
@@ -913,7 +913,7 @@
 			{
 				"name": "fallen_branches_generator_taiga",
 				"emit_mode": "EMIT_FROM_FACES",
-				"density": 0.025,
+				"density": 0.01,
 				"max_slope_degrees": 25.0,
 				"min_scale": 1.8,
 				"max_scale": 2.6,
@@ -938,7 +938,7 @@
 			{
 				"name": "fallen_branches_generator_birch",
 				"emit_mode": "EMIT_FROM_FACES",
-				"density": 0.025,
+				"density": 0.01,
 				"max_slope_degrees": 25.0,
 				"min_scale": 1.8,
 				"max_scale": 2.6,
@@ -1388,12 +1388,12 @@
 			{
 				"name": "small_rocks_generator_cold",
 				"emit_mode": "EMIT_FROM_VERTICES",
-				"density": 0.05,
+				"density": 0.025,
 				"min_height": -45.0,
 				"max_height": 800.0,
 				"max_slope_degrees": 30.0,
 				"min_scale": 1.0,
-				"max_scale": 5.0,
+				"max_scale": 3.0,
 				"vertical_alignment": 0.4,
 				"noise_graph": "surface_graph_path",
 				"climate": {
@@ -1837,13 +1837,13 @@
 				],
 				"wind_speed": 0.3,
 				"lod_index": [
-					0.0,
-					1.0
+					0.0
 				],
+				"cast_shadow": false,
 				"material_type": "STONE",
 				"collision": false,
 				"pickup": true,
-				"collision_distance_m": 40.0,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false
 			},
 			{
@@ -1860,7 +1860,8 @@
 				"collision": false,
 				"pickup": true,
 				"pickup_item": "branch_01",
-				"collision_distance_m": 40.0,
+				"cast_shadow": false,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false
 			},
 			{
@@ -1877,7 +1878,8 @@
 				"collision": false,
 				"pickup": true,
 				"pickup_item": "branch_01",
-				"collision_distance_m": 40.0,
+				"cast_shadow": false,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false
 			},
 			{
@@ -1894,7 +1896,8 @@
 				"collision": false,
 				"pickup": true,
 				"pickup_item": "branch_01",
-				"collision_distance_m": 40.0,
+				"cast_shadow": false,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false
 			},
 			{
@@ -2248,7 +2251,7 @@
 				],
 				"pickup": true,
 				"pickup_item": "plant_fiber",
-				"collision_distance_m": 40.0,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2308,7 +2311,7 @@
 				],
 				"pickup": true,
 				"pickup_item": "plant_fiber",
-				"collision_distance_m": 40.0,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2368,7 +2371,7 @@
 				],
 				"pickup": true,
 				"pickup_item": "plant_fiber",
-				"collision_distance_m": 40.0,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2638,13 +2641,13 @@
 				],
 				"wind_speed": 0.3,
 				"lod_index": [
-					0.0,
-					1.0
+					0.0
 				],
+				"cast_shadow": false,
 				"material_type": "STONE",
 				"collision": false,
 				"pickup": true,
-				"collision_distance_m": 40.0,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false
 			},
 			{
@@ -2853,7 +2856,7 @@
 				"wind_speed": 0.18,
 				"pickup": true,
 				"pickup_item": "plant_fiber",
-				"collision_distance_m": 40.0,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2913,7 +2916,7 @@
 				"wind_speed": 0.18,
 				"pickup": true,
 				"pickup_item": "plant_fiber",
-				"collision_distance_m": 40.0,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2973,7 +2976,7 @@
 				"wind_speed": 0.18,
 				"pickup": true,
 				"pickup_item": "plant_fiber",
-				"collision_distance_m": 40.0,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -3209,7 +3212,7 @@
 				],
 				"pickup": true,
 				"pickup_item": "yarrow",
-				"collision_distance_m": 40.0,
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,

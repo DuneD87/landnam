@@ -692,6 +692,10 @@ func _update_submersion() -> void:
 	if cam == null or not is_instance_valid(cam):
 		return
 	var pos := cam.global_position
+	# Por encima de la ola más alta posible no se resuelve la ola.
+	if pos.distance_to(_planet_center) > _base_water_radius + _water_sampler.max_wave_height():
+		_camera_submerged = false
+		return
 	var wave_time := WaterHeightSampler.get_water_time(_water_mat)
 	var surface_r := _base_water_radius + _water_sampler.get_height_at(pos, wave_time, _planet_center)
 	_camera_submerged = pos.distance_to(_planet_center) < surface_r

@@ -82,7 +82,8 @@ Todas siguen la misma convención: metros, origen en el agarre, +Y hacia la punt
 Las ramas caídas (`scenes/planet/planet_items/litter/fallen_branch_0..2.tscn`) y las
 piedras pequeñas (`small_rock_01`) son objetos del planeta como el resto: van en
 `planet_earth.json` con `"pickup": true`, `"pickup_item"` (lo que dan; por defecto
-`stone_01`) y `"collision_distance_m": 40` (el módulo lo mide hasta el bloque, no hasta cada objeto). Cerca llevan un cuerpo en la capa
+`stone_01`) y `"collision_distance_m": 12` (el módulo lo mide hasta el bloque, no hasta cada objeto;
+basta con que cubra el alcance de 2,4 m y el informe `litter` de 12 m). Cerca llevan un cuerpo en la capa
 física 13 (`PhysicsLayers.PICKUP`), con la que nadie choca, y `GroundPickup` coge lo más
 cercano a 2,4 m con la tecla de acción y lo quita del instancer. Una piedra da munición
 según su tamaño (1,5 por unidad de escala, hasta 5); las de escala > 3 no se levantan.

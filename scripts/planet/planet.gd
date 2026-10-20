@@ -25,6 +25,12 @@ var _last_material_sun := Vector3.ZERO
 var _last_material_position := Vector3.ZERO
 var _last_material_wind := Vector3.ZERO
 var _last_external_material_count := -1
+var _last_material_count := -1
+var _last_wind_multiplier := -1.0
+## Materiales de la vegetación cuyo shader declara light_direction (ver _update_planet).
+var _sun_materials: Array[ShaderMaterial] = []
+var _frames_to_sweep := 0
+const MATERIAL_SWEEP_FRAMES := 60
 var _sun_parameter_shaders: Dictionary = {}
 @export var shader_material: ShaderMaterial
 @export var caustics_material: ShaderMaterial
@@ -1616,23 +1622,41 @@ func _update_planet() -> void:
 	var sun_changed := not _material_uniforms_initialized or sun_dir != _last_material_sun
 	var position_changed := not _material_uniforms_initialized or planet_position != _last_material_position
 	var wind_changed := not _material_uniforms_initialized or wind_direction != _last_material_wind
-	for mat_struct in item_transparent_materials:
-		var mat = mat_struct.shader as ShaderMaterial
-		# Los materiales que se añaden o reemplazan reciben todo en su primer frame.
-		var fresh: bool = mat_struct.get("_updated_material") != mat or mat_struct.get("_updated_shader") != mat.shader
-		if (fresh or sun_changed) and _shader_uses_sun_parameter(mat.shader):
+	# El sol se mueve en cada frame, y solo lo leen los shaders antiguos (_sun_materials). La lista
+	# entera se recorre si cambia algo más o la propia lista, y cada MATERIAL_SWEEP_FRAMES por los
+	# materiales sustituidos dentro de su entrada (desde el inspector).
+	_frames_to_sweep -= 1
+	var sweep := not _material_uniforms_initialized or position_changed or wind_changed \
+		or weather_wind_multiplier != _last_wind_multiplier \
+		or item_transparent_materials.size() != _last_material_count or _frames_to_sweep <= 0
+	if sweep:
+		_frames_to_sweep = MATERIAL_SWEEP_FRAMES
+		_sun_materials.clear()
+		for mat_struct in item_transparent_materials:
+			var mat = mat_struct.shader as ShaderMaterial
+			# Los materiales que se añaden o reemplazan reciben todo en su primer barrido.
+			var fresh: bool = mat_struct.get("_updated_material") != mat or mat_struct.get("_updated_shader") != mat.shader
+			var uses_sun := _shader_uses_sun_parameter(mat.shader)
+			if uses_sun:
+				_sun_materials.append(mat)
+			if (fresh or sun_changed) and uses_sun:
+				mat.set_shader_parameter("light_direction", sun_dir)
+			if fresh or position_changed:
+				mat.set_shader_parameter("planet_position", planet_position)
+			if fresh or wind_changed:
+				mat.set_shader_parameter("wind_direction", wind_direction)
+			var speed: float = mat_struct.wind_speed * weather_wind_multiplier
+			if fresh or speed != mat_struct.get("_updated_wind_speed"):
+				mat.set_shader_parameter("wind_speed", speed)
+				mat_struct["_updated_wind_speed"] = speed
+			if fresh:
+				mat_struct["_updated_material"] = mat
+				mat_struct["_updated_shader"] = mat.shader
+	elif sun_changed:
+		for mat in _sun_materials:
 			mat.set_shader_parameter("light_direction", sun_dir)
-		if fresh or position_changed:
-			mat.set_shader_parameter("planet_position", planet_position)
-		if fresh or wind_changed:
-			mat.set_shader_parameter("wind_direction", wind_direction)
-		var speed: float = mat_struct.wind_speed * weather_wind_multiplier
-		if fresh or speed != mat_struct.get("_updated_wind_speed"):
-			mat.set_shader_parameter("wind_speed", speed)
-			mat_struct["_updated_wind_speed"] = speed
-		if fresh:
-			mat_struct["_updated_material"] = mat
-			mat_struct["_updated_shader"] = mat.shader
+	_last_wind_multiplier = weather_wind_multiplier
+	_last_material_count = item_transparent_materials.size()
 	var external_changed := external_planet_materials.size() != _last_external_material_count
 	if sun_changed or position_changed or external_changed:
 		for mat in external_planet_materials:

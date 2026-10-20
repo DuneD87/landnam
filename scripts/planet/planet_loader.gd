@@ -139,6 +139,8 @@ const _IMPOSTOR_PARAMS: Array[StringName] = [
 ]
 
 var impostor: PlanetImpostor
+# Nombres de los exports impostor_* de _IMPOSTOR_PARAMS, para no componerlos en cada frame.
+var _impostor_sources: Array[StringName] = []
 
 @export_group("Mapa mundial")
 
@@ -387,8 +389,11 @@ func _setup_impostor() -> void:
 func _apply_impostor_settings() -> void:
 	if impostor == null:
 		return
-	for param in _IMPOSTOR_PARAMS:
-		impostor.set(param, get("impostor_" + param))
+	if _impostor_sources.is_empty():
+		for param in _IMPOSTOR_PARAMS:
+			_impostor_sources.append(StringName("impostor_" + param))
+	for i in _IMPOSTOR_PARAMS.size():
+		impostor.set(_IMPOSTOR_PARAMS[i], get(_impostor_sources[i]))
 
 
 ## Configura la atmósfera (el compute) con la sección "atmosphere_settings" del JSON: si la hay,

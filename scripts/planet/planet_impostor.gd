@@ -205,5 +205,8 @@ func _set_visible_state(fade: float) -> void:
 func _push_appearance() -> void:
 	if _mat == null:
 		return
+	# Solo lo que cambia: cada set_shader_parameter hace resubir los uniforms del material.
 	for param in APPEARANCE_PARAMS:
-		_mat.set_shader_parameter(param, get(param))
+		var value: Variant = get(param)
+		if _mat.get_shader_parameter(param) != value:
+			_mat.set_shader_parameter(param, value)

@@ -216,6 +216,22 @@ func _ensure_frame_params() -> void:
 	_rebuild_wave_frame()
 
 
+## Hasta dónde puede subir la ola sobre el radio del agua con el mar de ahora (m), con margen: las
+## octavas del espectro a la amplitud mayor (su perfil no pasa de 1,26 veces la altura de la octava)
+## y la rompiente con su asomeramiento máximo. Más arriba no hace falta resolver la ola: quien solo
+## quiere saber si algo está bajo el agua sale antes de get_height_at, que es caro.
+func max_wave_height() -> float:
+	if _material == null:
+		return 0.0
+	_ensure_frame_params()
+	var octaves := 0.0
+	for h: float in Spectrum.HEIGHTS:
+		octaves += h
+	var open := maxf(wave_amplitude, wave_calm_amplitude) * octaves * 1.5
+	var shore := shore_amplitude * maxf(shore_shoal_max, 1.0) if shore_enabled else 0.0
+	return open + shore + 2.0
+
+
 ## Estado de mar en [0,1]: 0 = mar tendida, 1 = temporal pleno. Es la MISMA medida con la que
 ## se resuelve la corriente; está expuesta para que nadie (el audio del océano, por ejemplo)
 ## invente otra escala y acabe discrepando de la física sobre cuánto sopla.

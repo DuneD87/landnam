@@ -1478,12 +1478,18 @@ func _check_needs_swimming(_delta: float):
 	# hasta la playa, en otra fase que la rompiente dibujada. Reasignarlo aquí cuesta nada y es lo
 	# mismo que hace OceanSystem con su sampler de la línea de flotación por este motivo exacto.
 	water_sampler.world_map = planet.world_map
-	var wave_height := water_sampler.get_height_at(global_position, current_water_time, planet.global_pos)
-		
-	# La corriente sale del mismo muestreo, sin coste extra.
-	_water_flow = water_sampler.last_flow
-
 	var base_water_radius: float = planet.planet.radius - planet.planet.water_radius
+	# Con el cuerpo y la cámara por encima de la ola más alta posible no se resuelve la ola: ni se
+	# nada, ni se mojan los pies ni se oye bajo el agua, y no hay corriente que arrastre.
+	var ears := camera.global_position if camera else global_position
+	var reach := base_water_radius + water_sampler.max_wave_height()
+	var wave_height := 0.0
+	_water_flow = Vector3.ZERO
+	if distance_from_center <= reach or ears.distance_to(planet.global_position) <= reach:
+		wave_height = water_sampler.get_height_at(global_position, current_water_time, planet.global_pos)
+		# La corriente sale del mismo muestreo, sin coste extra.
+		_water_flow = water_sampler.last_flow
+
 	var water_surface_radius := base_water_radius + wave_height
 	_water_surface_radius = water_surface_radius
 	# Banquisa: el hielo del mar apaga el oleaje y SeaIceFloor pone suelo bajo los pies.
@@ -1508,7 +1514,6 @@ func _check_needs_swimming(_delta: float):
 	# El filtro submarino lo decide la cámara, no el cuerpo: en tercera persona se nada con los
 	# oídos fuera del agua, y el sonido tiene que ir con lo que se ve. El radio de superficie es
 	# el muestreado en el jugador; a la distancia de cámara la diferencia es una ola.
-	var ears := camera.global_position if camera else global_position
 	AudioManager.set_underwater(not on_ice and ears.distance_to(_water_surface_center) <= _water_surface_radius)
 
 

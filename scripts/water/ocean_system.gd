@@ -142,12 +142,14 @@ func _process_step(delta):
 		if underwater:
 			underwater.sun_direction = to_sun
 
-	# Cada frame, para poder cambiar de vista en vivo desde el inspector remoto.
+	# Se mira cada frame, para poder cambiar de vista en vivo desde el inspector remoto, pero solo se
+	# envía al cambiar: cada set_shader_parameter hace resubir los uniforms del material.
 	if mesh_manager && mesh_manager.default_material:
-		(mesh_manager.default_material as ShaderMaterial).set_shader_parameter(
-			&"shore_debug_mode", shore_debug_mode)
-		(mesh_manager.default_material as ShaderMaterial).set_shader_parameter(
-			&"water_debug_mode", water_debug_mode)
+		var water_mat := mesh_manager.default_material as ShaderMaterial
+		if water_mat.get_shader_parameter(&"shore_debug_mode") != shore_debug_mode:
+			water_mat.set_shader_parameter(&"shore_debug_mode", shore_debug_mode)
+		if water_mat.get_shader_parameter(&"water_debug_mode") != water_debug_mode:
+			water_mat.set_shader_parameter(&"water_debug_mode", water_debug_mode)
 	_update_waterline()
 	_update_water_marker()
 
@@ -239,6 +241,15 @@ func _update_waterline() -> void:
 	_waterline_sampler.world_map = world_map
 
 	var center: Vector3 = mat.get_shader_parameter(&"planet_center")
+	var to_cam := cam.global_position - center
+	# Por encima de la ola más alta posible la ola no decide nada: basta el nivel del mar bajo la
+	# cámara. El plano tiene que seguirla igualmente, porque uno viejo, por la curvatura, acaba
+	# por encima de ella y la daría por sumergida.
+	if radius > 0.0 and to_cam.length() > radius + _waterline_sampler.max_wave_height():
+		var up := to_cam.normalized()
+		mat.set_shader_parameter(&"waterline_point", center + up * radius)
+		mat.set_shader_parameter(&"waterline_normal", up)
+		return
 	var surface := _waterline_sampler.get_surface_at(
 		cam.global_position, WaterHeightSampler.get_water_time(mat), center)
 	mat.set_shader_parameter(&"waterline_point", surface.point)

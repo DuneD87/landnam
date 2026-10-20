@@ -8,6 +8,13 @@ var observer: Node3D
 var _pool: Array[AmbientAnimal] = []
 var _rng := RandomNumberGenerator.new()
 var _elapsed: float = 0.0
+## Espera añadida (s) mientras la especie no encuentra dónde salir y no tiene a nadie en juego: las
+## de costa y mar, tierra adentro, muestreaban en cada pasada sin colocar nada. Se dobla en cada
+## pasada vacía hasta IDLE_WAIT_MAX y vuelve a cero en cuanto el muestreo da un punto o el
+## observador se aleja de donde empezó a esperar.
+var _idle_wait: float = 0.0
+var _idle_from := Vector3.ZERO
+const IDLE_WAIT_MAX := 4.0
 
 ## Presupuesto COMPARTIDO por todas las especies y por todos los ticks de recuperación de
 ## un frame. Una consulta/alta individual no se puede interrumpir; se deja de iniciar trabajo
@@ -44,7 +51,9 @@ func _physics_process(delta: float) -> void:
 				animal.deactivate()
 		return
 	_elapsed += delta
-	if _elapsed < maxf(profile.update_interval, 0.05):
+	if _idle_wait > 0.0 and observer.global_position.distance_to(_idle_from) > profile.spawn_radius * 0.25:
+		_idle_wait = 0.0
+	if _elapsed < maxf(profile.update_interval, 0.05) + _idle_wait:
 		return
 	var frame := Engine.get_process_frames()
 	if frame != _budget_frame:
@@ -98,6 +107,8 @@ func update_population(deadline_usec: int = 0) -> void:
 			count += 1
 	count = _retire_surplus(count, active_target)
 	var activated := 0
+	var sampled := 0
+	var found := false
 	for _attempt in profile.attempts_per_update:
 		if count >= active_target or activated >= profile.activations_per_update:
 			break
@@ -106,11 +117,13 @@ func update_population(deadline_usec: int = 0) -> void:
 		var sample_start := Time.get_ticks_usec()
 		var candidate: Variant = habitat.sample_spawn(observer.global_position, profile, _rng)
 		var sample_cost := Time.get_ticks_usec() - sample_start
+		sampled += 1
 		DebugStats.report_cost(&"fauna:spawner/muestreo", sample_cost)
 		if DebugStats.profiling:
 			DebugStats.report_cost(StringName("fauna:muestreo/" + name), sample_cost)
 		if not candidate is Vector3:
 			continue
+		found = true
 		var point: Vector3 = candidate
 		# Habitats can project onto terrain or water after sampling. Enforce both
 		# bounds on the final position as well, before expensive collision checks.
@@ -137,6 +150,12 @@ func update_population(deadline_usec: int = 0) -> void:
 		count += 1
 		activated += 1
 		count += _spawn_group(animal, point, active_target - count)
+	if count == 0 and sampled > 0 and not found:
+		if _idle_wait <= 0.0:
+			_idle_from = observer.global_position
+		_idle_wait = clampf(_idle_wait * 2.0, maxf(profile.update_interval, 0.05), IDLE_WAIT_MAX)
+	else:
+		_idle_wait = 0.0
 
 
 ## Con menos actividad (anochece, llega el invierno) sobran ejemplares. Los que no se ven y no
