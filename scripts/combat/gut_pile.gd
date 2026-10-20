@@ -16,8 +16,6 @@ const HEART := &"heart"
 const REFERENCE_RADIUS := 0.4
 ## Desde las de un pájaro (0,08 m de radio) hasta las de un mamut.
 const SCALE_LIMITS := Vector2(0.15, 3.0)
-## Terreno, grids y barcos.
-const WORLD_MASK := 1
 
 static var _mesh: ArrayMesh
 
@@ -26,8 +24,7 @@ static var _mesh: ArrayMesh
 ## [side] (horizontal), para un cuerpo de [radius] m. Devuelve el nodo, o null si no hay suelo.
 static func spawn(npc: Node3D, point: Vector3, side: Vector3, up: Vector3, radius: float) -> Node3D:
 	var at := point + side * (radius * 0.6 + 0.1)
-	var query := PhysicsRayQueryParameters3D.create(at + up * 1.5, at - up * 3.0, WORLD_MASK)
-	var hit := npc.get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := Raycast.ground(npc, at, up, 1.5, 3.0, PhysicsLayers.WORLD)
 	if hit.is_empty():
 		return null
 	var pile := MeshInstance3D.new()
@@ -55,7 +52,7 @@ static func mesh() -> ArrayMesh:
 
 
 static func _build() -> ArrayMesh:
-	var b := WeaponMeshes.Builder.new()
+	var b := ProcMesh.Builder.new()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 23
 	# Las tripas: un tubo largo, enredado al azar sobre sí mismo dentro del montón y cada vez más
@@ -79,7 +76,7 @@ static func _build() -> ArrayMesh:
 		var lift := 0.022 + 0.08 * t * (1.0 - at.length() / 0.3)
 		points.append(Vector3(at.x - 0.04, maxf(lift, 0.022), at.y))
 		radii.append(Vector2(0.021, 0.019) * (0.9 + 0.2 * sin(t * 40.0)))
-	WeaponMeshes.tube(b.st(INTESTINE), points, radii, 7)
+	ProcMesh.tube(b.st(INTESTINE), points, radii, 7)
 	# La panza: un saco grande y algo caído, a un lado.
 	_blob(b.st(STOMACH), Transform3D(Basis(Vector3.UP, 0.4), Vector3(0.2, 0.09, -0.05)), Vector3(0.15, 0.09, 0.12), 0.18, rng)
 	# El hígado: un lóbulo oscuro y aplastado encima.
@@ -98,7 +95,7 @@ static func _blob(st: SurfaceTool, xform: Transform3D, radii: Vector3, bumps: fl
 	var rings := 10
 	var segments := 14
 	var phase := rng.randf() * TAU
-	var base := WeaponMeshes._vertex_count(st)
+	var base := ProcMesh.vertex_count(st)
 	for i in rings + 1:
 		var v := float(i) / rings
 		var lat := PI * (v - 0.5)
@@ -110,7 +107,7 @@ static func _blob(st: SurfaceTool, xform: Transform3D, radii: Vector3, bumps: fl
 			# Aplastado por abajo contra el suelo.
 			var p := dir * radii * dent
 			p.y = maxf(p.y, -radii.y * 0.55)
-			WeaponMeshes._emit(st, Vector2(u * 2.0, v), xform * p)
+			ProcMesh.emit(st, Vector2(u * 2.0, v), xform * p)
 	for i in rings:
 		for j in segments:
 			var a := base + i * (segments + 1) + j
@@ -130,19 +127,19 @@ static func _material(kind: StringName) -> StandardMaterial3D:
 	match kind:
 		INTESTINE:
 			# Gris rosado sucio de sangre, con vetas de grasa.
-			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.28, 0.15, 0.14), Color(0.48, 0.3, 0.27), 7.0, 71)
+			mat.albedo_texture = ProcMesh.noise_texture(Color(0.28, 0.15, 0.14), Color(0.48, 0.3, 0.27), 7.0, 71)
 			mat.roughness = 0.3
 		STOMACH:
-			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.3, 0.24, 0.2), Color(0.46, 0.38, 0.3), 4.0, 73)
+			mat.albedo_texture = ProcMesh.noise_texture(Color(0.3, 0.24, 0.2), Color(0.46, 0.38, 0.3), 4.0, 73)
 			mat.roughness = 0.35
 		LIVER:
-			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.09, 0.015, 0.015), Color(0.19, 0.035, 0.03), 3.0, 79)
+			mat.albedo_texture = ProcMesh.noise_texture(Color(0.09, 0.015, 0.015), Color(0.19, 0.035, 0.03), 3.0, 79)
 			mat.roughness = 0.2
 		LUNG:
-			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.34, 0.13, 0.13), Color(0.52, 0.24, 0.23), 9.0, 83)
+			mat.albedo_texture = ProcMesh.noise_texture(Color(0.34, 0.13, 0.13), Color(0.52, 0.24, 0.23), 9.0, 83)
 			mat.roughness = 0.45
 		HEART:
-			mat.albedo_texture = WeaponMeshes._noise_texture(Color(0.13, 0.02, 0.02), Color(0.25, 0.05, 0.04), 4.0, 89)
+			mat.albedo_texture = ProcMesh.noise_texture(Color(0.13, 0.02, 0.02), Color(0.25, 0.05, 0.04), 4.0, 89)
 			mat.roughness = 0.25
 	mat.clearcoat_enabled = true
 	mat.clearcoat = 0.7

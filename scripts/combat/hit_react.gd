@@ -47,10 +47,6 @@ func _process_modification_with_delta(delta: float) -> void:
 	_apply()
 
 
-func _process_modification() -> void:
-	_apply()
-
-
 ## Curva del respingo: sube en 70 ms y vuelve oscilando un poco en ~0,4 s.
 func _curve(t: float) -> float:
 	if t < 0.07:

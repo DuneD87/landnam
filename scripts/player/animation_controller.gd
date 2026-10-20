@@ -1,7 +1,11 @@
 extends Node
 class_name AnimationController
 
-const Config = preload("res://scripts/config.gd")
+## Estados de locomoción del jugador y las criaturas: cada uno fija los pesos de las mezclas del
+## árbol (animation_states).
+enum Anim {IDLE, RUN, JUMP_START, JUMP_IDLE, JUMP_LAND, ATTACK_1,
+ATTACK_2, SPRINT, FALLING, SWIM, SWIM_IDLE, DEATH, HIT, IDLE_TORCH, RUNNING_TORCH, TORCH_FOCUS,
+WALK, WALK_TORCH, SPRINT_TORCH}
 
 ## Si no se asigna, busca la ruta por defecto del Player; los NPCs lo apuntan a su propio modelo.
 @export var animator: AnimationPlayer
@@ -66,65 +70,65 @@ func _process(delta: float) -> void:
 		DebugStats.report_cost(&"npc:anim", Time.get_ticks_usec() - start)
 
 var animation_states = {
-	Config.ANIMATION.IDLE: {
+	Anim.IDLE: {
 	},
-	Config.ANIMATION.WALK: {
+	Anim.WALK: {
 		"bWalk": 1.0,
 	},
-	Config.ANIMATION.RUN: {
+	Anim.RUN: {
 		"bRun": 1.0,
 	},
-	Config.ANIMATION.SPRINT: {
+	Anim.SPRINT: {
 		"bSprint": 1.0,
 	},
-	Config.ANIMATION.JUMP_START: {
+	Anim.JUMP_START: {
 		"bJumpStart": 1.0,
 	},
-	Config.ANIMATION.JUMP_IDLE: {
+	Anim.JUMP_IDLE: {
 		"bJumpIdle": 1.0,
 	},
-	Config.ANIMATION.JUMP_LAND: {
+	Anim.JUMP_LAND: {
 		"bJumpLand": 1.0
 	},
-	Config.ANIMATION.FALLING: {
+	Anim.FALLING: {
 		"bJumpIdle": 1.0,
 	},
-	Config.ANIMATION.SWIM: {
+	Anim.SWIM: {
 		"bSwim": 1.0
 	},
-	Config.ANIMATION.SWIM_IDLE: {
+	Anim.SWIM_IDLE: {
 		"bSwimIdle": 1.0
 	},
-	Config.ANIMATION.ATTACK_1: {
+	Anim.ATTACK_1: {
 		"attack_horizontal": 1.0
 	},
-	Config.ANIMATION.ATTACK_2: {
+	Anim.ATTACK_2: {
 		"attack_vertical": 1.0
 	},
-	Config.ANIMATION.TORCH_FOCUS:
+	Anim.TORCH_FOCUS:
 	{
 		"bTorchFocus": 1.0
 	},
-	Config.ANIMATION.DEATH: {
+	Anim.DEATH: {
 		"death": 1.0
 	},
-	Config.ANIMATION.HIT: {
+	Anim.HIT: {
 		"bHit": 1.0
 	},
 	# Los de la antorcha solo ponen el brazo derecho (Locomotion.build): el resto del cuerpo, el
 	# de debajo.
-	Config.ANIMATION.IDLE_TORCH: {
+	Anim.IDLE_TORCH: {
 		"bIdleTorch": 1.0
 	},
-	Config.ANIMATION.RUNNING_TORCH: {
+	Anim.RUNNING_TORCH: {
 		"bRun": 1.0,
 		"bRunningTorch": 1.0
 	},
-	Config.ANIMATION.WALK_TORCH: {
+	Anim.WALK_TORCH: {
 		"bWalk": 1.0,
 		"bIdleTorch": 1.0
 	},
-	Config.ANIMATION.SPRINT_TORCH: {
+	Anim.SPRINT_TORCH: {
 		"bSprint": 1.0,
 		"bRunningTorch": 1.0
 	}
@@ -209,11 +213,3 @@ func trigger_hit() -> void:
 func trigger_death() -> void:
 	if is_instance_valid(animation_tree) and _has_death_seek:
 		animation_tree["parameters/death_seek/seek_request"] = 0.0
-
-func add_animation_state(state_name, parameter_values: Dictionary):
-	animation_states[state_name] = parameter_values
-
-func add_animation_parameter(parameter_name, initial_value: float = 0.0):
-	current_values[parameter_name] = initial_value
-	if is_instance_valid(animation_tree):
-		_cache_valid_paths()

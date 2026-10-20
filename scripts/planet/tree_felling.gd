@@ -15,9 +15,6 @@ extends Node3D
 ## (queue_free_and_notify_instancer); el tocón y el tronco caído solo duran la sesión.
 
 const META := &"tree_felling"
-## Capa de render 19, libre en el proyecto: la de los árboles que se pueden mellar
-## (TreeDetailRenderer). La muesca solo pinta esa capa, no al jugador que tiene delante.
-const NOTCH_LAYER := 1 << 18
 ## Trabajo (daño de hacha) por metro de diámetro del tronco.
 const WORK_PER_METER := 270.0
 const MIN_WORK := 20.0
@@ -42,8 +39,6 @@ const MAX_STUMPS := 128
 const MAX_FALLEN := 8
 ## Alcance de las palmeras caídas y sus tocones (sin relevo de LODs).
 const PALM_RANGE := 220.0
-## Capas del mundo para el rayo del suelo y las colisiones de tocones y troncos.
-const WORLD_LAYER := 1
 
 var planet: Planet
 ## library id -> especie (ver _build_species); {} si no se tala.
@@ -123,7 +118,7 @@ static func strike(scene_tree: SceneTree, space: PhysicsDirectSpaceState3D, feet
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.collide_with_areas = false
 	query.collide_with_bodies = true
-	query.collision_mask = WORLD_LAYER
+	query.collision_mask = PhysicsLayers.WORLD
 	query.shape = sphere
 	query.transform = Transform3D(Basis.IDENTITY, chest + flat * (STRIKE_REACH * 0.5))
 	for result in space.intersect_shape(query, 32):
@@ -340,7 +335,7 @@ func _build_stump(info: Dictionary, xf: Transform3D, cut: float, radius: float) 
 	top.visibility_range_end = ranges[ranges.size() - 1].y
 	stump.add_child(top)
 	var body := StaticBody3D.new()
-	body.collision_layer = WORLD_LAYER
+	body.collision_layer = PhysicsLayers.WORLD
 	body.collision_mask = 0
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
@@ -478,13 +473,13 @@ static func cut_material() -> StandardMaterial3D:
 
 
 ## Muesca del corte: una Decal en la cara del tronco que mira a quien tala, que crece con el
-## trabajo hecho. Solo pinta NOTCH_LAYER (los árboles del bosque).
+## trabajo hecho. Solo pinta RenderLayers.NOTCH (los árboles del bosque).
 func _update_notch(state: Dictionary, axis_point: Vector3, up: Vector3, radius: float, progress: float) -> void:
 	var notch := state.notch as Decal
 	if not is_instance_valid(notch):
 		notch = Decal.new()
 		notch.texture_albedo = _notch()
-		notch.cull_mask = NOTCH_LAYER
+		notch.cull_mask = RenderLayers.NOTCH
 		notch.normal_fade = 0.25
 		notch.distance_fade_enabled = true
 		notch.distance_fade_begin = 40.0

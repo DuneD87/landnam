@@ -159,11 +159,8 @@ func _can_detect(target: Node3D) -> bool:
 
 func _has_los(target: Node3D) -> bool:
 	var up := -controller.gravity_direction.normalized()
-	var space := npc.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(npc.global_position + up * eye_height, _chest(target, up))
-	query.exclude = [npc.get_rid()]
-	query.collision_mask = los_mask
-	var result := space.intersect_ray(query)
+	var result := Raycast.cast(npc, npc.global_position + up * eye_height, _chest(target, up), los_mask,
+		[npc.get_rid()])
 	return result.is_empty() or result.get("collider") == target
 
 

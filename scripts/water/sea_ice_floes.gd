@@ -33,8 +33,6 @@ const MAX_JOBS := 3
 ## Témpanos con colisión: los que tienen el borde a menos de esto del jugador.
 const COLLIDER_REACH := 10.0
 const MAX_COLLIDERS := 24
-## Capa del mundo, para los icebergs.
-const WORLD_LAYER := 1
 ## Olas que no mueven un témpano: las más cortas que su radio por esto (sea_ice.gdshader usa el mismo
 ## factor). Más alto, el témpano va más quieto pero el agua le pasa por encima en los cantos.
 const FLOE_WAVE_FILTER := 1.2
@@ -366,7 +364,7 @@ func _apply_bergs(found: Dictionary) -> void:
 		mesh.surface_set_material(0, _berg_material)
 		var body := StaticBody3D.new()
 		body.name = "Iceberg"
-		body.collision_layer = WORLD_LAYER
+		body.collision_layer = PhysicsLayers.WORLD
 		body.collision_mask = 0
 		var up: Vector3 = berg.center.normalized()
 		var basis := SeaIceLayout.frame(up).rotated(up, float(berg.seed % 628) * 0.01)
@@ -490,7 +488,7 @@ func _acquire_collider(floe: Dictionary) -> AnimatableBody3D:
 	if _free_bodies.is_empty():
 		body = AnimatableBody3D.new()
 		body.name = "Floe"
-		body.collision_layer = SeaIceFloor.LAYER
+		body.collision_layer = PhysicsLayers.SEA_ICE_FLOOR
 		body.collision_mask = 0
 		body.sync_to_physics = true
 		shape = CollisionShape3D.new()

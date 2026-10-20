@@ -11,7 +11,6 @@ extends Node3D
 ## instancia la base del árbol en pie, el corte y el viento del tronco (tree_felled.gdshaderinc).
 ## Cuelga de TreeFelling, bajo el terreno: sigue al planeta y al origen flotante.
 
-const Config = preload("res://scripts/config.gd")
 const GROUP := &"felled_tree"
 const GRAVITY := 9.8
 ## Inclinación y giro con que arranca (rad, rad/s): el árbol cruje y empieza a ceder.
@@ -183,7 +182,7 @@ func _landing_angle() -> float:
 
 ## Primer suelo entre [from] y [to] que no es un árbol del bosque, o un vector infinito.
 static func _ground(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3) -> Vector3:
-	var query := PhysicsRayQueryParameters3D.create(from, to, TreeFelling.WORLD_LAYER)
+	var query := PhysicsRayQueryParameters3D.create(from, to, PhysicsLayers.WORLD)
 	var exclude: Array[RID] = []
 	for attempt in 6:
 		query.exclude = exclude
@@ -248,7 +247,7 @@ func _hurt(base: Vector3, tip: Vector3, up: Vector3) -> void:
 		query.transform = Transform3D(Basis(x, y, x.cross(y)), (a + b) * 0.5)
 		query.collide_with_areas = true
 		query.collide_with_bodies = false
-		query.collision_mask = Hurtbox.LAYER
+		query.collision_mask = PhysicsLayers.HURTBOX
 		for result in space.intersect_shape(query, 32):
 			var box := result.get("collider") as Hurtbox
 			if box == null or not box.is_enabled() or box.owner_body == null:
@@ -277,7 +276,7 @@ func _rest() -> void:
 	add_to_group(GROUP)
 	var scale := _start.basis.y.length()
 	var body := StaticBody3D.new()
-	body.collision_layer = TreeFelling.WORLD_LAYER
+	body.collision_layer = PhysicsLayers.WORLD
 	body.collision_mask = 0
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
@@ -353,7 +352,7 @@ func _break_up(axis: PackedVector3Array, up: Vector3, side: Vector3) -> void:
 	WoodChips.crash(self, axis[0].lerp(axis[1], 0.2), axis[1], maxf(_crown * 0.5, 0.8), up, power * 0.7)
 	var crown := axis[0].lerp(axis[1], 0.7)
 	TreeFelling.play_sound(&"tree_fall", &"hit_blunt", crown, {"pitch": 1.3, "volume_offset_db": -6.0})
-	var branch := Config.get_item(BRANCH_ID)
+	var branch := ItemCatalog.get_item(BRANCH_ID)
 	var branches := clampi(roundi(_height / METERS_PER_BRANCH), 1, MAX_BRANCHES)
 	if branch != null:
 		DroppedItem.spawn_at(self, branch, branches, crown + side * (_radius + 0.6) + up * 1.5, -up)

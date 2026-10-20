@@ -105,13 +105,6 @@ func _ready():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	camera_pivot.top_level = true
 	target_distance = camera_distance
-		
-func reset_camera_rotation():
-	camera_pivot.rotation = Vector3.ZERO
-	pitch_pivot.rotation = Vector3.ZERO
-	camera.rotation = Vector3.ZERO
-	camera.position = Vector3.ZERO
-	update_camera_transform()
 
 ## Sensibilidad de la escena por el multiplicador de las opciones.
 func _look_sensitivity() -> float:
@@ -406,9 +399,3 @@ func adjust_for_collisions(target_pos: Vector3, ideal_pos: Vector3) -> Vector3:
 	if result:
 		return result.position + (target_pos - result.position).normalized() * collision_padding
 	return ideal_pos
-
-func toggle_mouse_capture():
-	Input.set_mouse_mode(
-		Input.MOUSE_MODE_VISIBLE if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
-		else Input.MOUSE_MODE_CAPTURED
-	)

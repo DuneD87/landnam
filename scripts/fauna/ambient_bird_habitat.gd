@@ -33,9 +33,7 @@ func observer_speed() -> float:
 ## First solid hit on a vertical ray through [point], from [above] metres over it down to
 ## [below] metres under it. Empty when nothing is there (unstreamed terrain, open air).
 func ground_below(point: Vector3, above: float = 30.0, below: float = 60.0) -> Dictionary:
-	var up := up_at(point)
-	return terrain.get_world_3d().direct_space_state.intersect_ray(
-		PhysicsRayQueryParameters3D.create(point + up * above, point - up * below, 1))
+	return Raycast.ground(terrain, point, up_at(point), above, below, PhysicsLayers.WORLD)
 
 
 func reserve(_owner_id: int, _near: Vector3, _rng: RandomNumberGenerator) -> Dictionary:
@@ -71,5 +69,4 @@ func flight_route(_from: Vector3, _perch: Dictionary) -> Array[Vector3]:
 
 
 func path_clear(from: Vector3, to: Vector3, _check_foliage: bool = false) -> bool:
-	return terrain.get_world_3d().direct_space_state.intersect_ray(
-		PhysicsRayQueryParameters3D.create(from, to, 1)).is_empty()
+	return Raycast.cast(terrain, from, to, PhysicsLayers.WORLD).is_empty()

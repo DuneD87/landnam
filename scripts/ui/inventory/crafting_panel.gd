@@ -10,7 +10,6 @@ extends PanelContainer
 ##   quieran hacer (la cantidad, con sus flechas, y «Máx») y el botón de fabricar.
 ## Lo fabricado va al inventario y lo que no cabe, al suelo. Ver docs/items.md y docs/ui.md.
 
-const Config = preload("res://scripts/config.gd")
 ## Ancho de las pestañas, de la ficha de la receta y del campo de la cantidad, en la escala base.
 const RAIL_WIDTH := 250.0
 const DETAIL_WIDTH := 560.0
@@ -251,7 +250,7 @@ func _apply_scale() -> void:
 func _build_rail() -> void:
 	var used := {}
 	for recipe in Recipes.all():
-		var result: ItemData = Config.get_item(recipe.result)
+		var result: ItemData = ItemCatalog.get_item(recipe.result)
 		if result != null:
 			used[ItemTaxonomy.category_of(result)] = true
 	var tabs: Array = [[-1, "INV_FILTER_ALL"]]
@@ -297,7 +296,7 @@ func _rebuild_list() -> void:
 	var grid: HFlowContainer = null
 	var focus: Control = null
 	for recipe in Recipes.all():
-		var result: ItemData = Config.get_item(recipe.result)
+		var result: ItemData = ItemCatalog.get_item(recipe.result)
 		if result == null or (_tab >= 0 and ItemTaxonomy.category_of(result) != _tab):
 			continue
 		var can := _station_ready(recipe.station) and Recipes.can_craft(recipe, ui.inventory, 1, _needs())
@@ -395,7 +394,7 @@ func _first_recipe(station: StringName) -> RecipeData:
 
 func _refresh_detail() -> void:
 	var recipe := _selected
-	var result: ItemData = Config.get_item(recipe.result) if recipe != null else null
+	var result: ItemData = ItemCatalog.get_item(recipe.result) if recipe != null else null
 	_detail_box.visible = result != null
 	if result == null or ui == null:
 		return
@@ -430,11 +429,11 @@ func _refresh_detail() -> void:
 		child.queue_free()
 	var missing := Recipes.missing(recipe, inventory, times, _needs())
 	if recipe.water > 0:
-		_inputs.add_child(_input_row(Config.get_item(&"waterskin"), tr("CRAFT_WATER"),
+		_inputs.add_child(_input_row(ItemCatalog.get_item(&"waterskin"), tr("CRAFT_WATER"),
 			tr("INV_SIPS_OF") % [_needs().water if _needs() != null else 0, recipe.water * times],
 			missing.has(Recipes.WATER)))
 	for id: StringName in recipe.inputs:
-		var data: ItemData = Config.get_item(id)
+		var data: ItemData = ItemCatalog.get_item(id)
 		var need: int = recipe.inputs[id] * times
 		_inputs.add_child(_input_row(data, data.get_display_name() if data != null else String(id),
 			"%d / %d" % [inventory.get_item_count(data), need], missing.has(id)))
@@ -474,7 +473,7 @@ func _craft() -> void:
 	if left < 0:
 		_notify(tr("CRAFT_MISSING"))
 		return
-	var result: ItemData = Config.get_item(recipe.result)
+	var result: ItemData = ItemCatalog.get_item(recipe.result)
 	if left > 0:
 		ui.drop_requested.emit(result, left)
 	var made := recipe.amount * times
@@ -548,7 +547,7 @@ func _refresh_stations_label() -> void:
 func _dismantle(station: Workstation) -> void:
 	if not is_instance_valid(station):
 		return
-	var data: ItemData = Config.get_item(station.item_id)
+	var data: ItemData = ItemCatalog.get_item(station.item_id)
 	# Fuera de los grupos ya: se libera al acabar el cuadro y antes se volvería a contar.
 	station.remove_from_group(Workstation.GROUP)
 	station.remove_from_group(GroundPlaceableTrait.PLACED_GROUP)

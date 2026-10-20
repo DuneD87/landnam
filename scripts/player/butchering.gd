@@ -356,7 +356,7 @@ func _gore() -> int:
 func _hand_point() -> Vector3:
 	var skeleton := _player.player_model.get_node_or_null("Armature/Skeleton3D") as Skeleton3D
 	if skeleton != null:
-		var bone := skeleton.find_bone("mixamorig_RightHand")
+		var bone := skeleton.find_bone(HumanRig.RIGHT_HAND)
 		if bone >= 0:
 			return skeleton.global_transform * skeleton.get_bone_global_pose(bone).origin
 	return _player.global_position

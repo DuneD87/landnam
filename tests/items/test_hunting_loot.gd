@@ -7,7 +7,6 @@ extends Node
 ## clavó y deje de contar cuando ya no le queda nada.
 ##   godot --headless --path . res://tests/items/test_hunting_loot.tscn
 
-const Config = preload("res://scripts/config.gd")
 const ANIMALS := "res://scenes/animals/"
 const FAUNA := "res://data/fauna/"
 ## Los perfiles de fauna pequeña que se despiezan y los que no.
@@ -42,7 +41,7 @@ func _run() -> void:
 		species += 1
 		var loot := npc.butcher_loot
 		if loot == null or loot.entries.is_empty() or loot.entries.any(func(e: LootEntry) -> bool:
-				return e == null or Config.get_item(e.item) == null or e.amount <= 0):
+				return e == null or ItemCatalog.get_item(e.item) == null or e.amount <= 0):
 			missing.append(file)
 		npc.free()
 	check(species >= 29, "hay especies (%d)" % species)
@@ -50,8 +49,8 @@ func _run() -> void:
 
 	var deer := (load(ANIMALS + "Deer.tscn") as PackedScene).instantiate() as NPCController
 	add_child(deer)
-	var meat := Config.get_item(&"raw_meat")
-	var hide := Config.get_item(&"raw_hide")
+	var meat := ItemCatalog.get_item(&"raw_meat")
+	var hide := ItemCatalog.get_item(&"raw_hide")
 	deer.body_size = 1.0
 	HuntingLoot.fill(deer, 1.0)
 	var adult := deer.inventory.get_item_count(meat)
@@ -61,14 +60,14 @@ func _run() -> void:
 	deer.inventory.clear()
 	HuntingLoot.fill(deer, 1.5)
 	check(deer.inventory.get_item_count(meat) >= 7, "uno grande con buen cuchillo da más (%d)" % deer.inventory.get_item_count(meat))
-	var antlers := deer.inventory.get_item_count(Config.get_item(&"antler"))
+	var antlers := deer.inventory.get_item_count(ItemCatalog.get_item(&"antler"))
 	check(antlers == 2, "las astas van por par, sin crecer con el tamaño (%d)" % antlers)
 	deer.butcher_loot = null
 	deer.inventory.clear()
 	HuntingLoot.fill(deer, 1.0)
 	check(deer.inventory.get_item_count(meat) >= 1 and deer.inventory.get_item_count(hide) >= 1,
 		"sin lo suyo, carne y piel por el grosor del cuerpo")
-	var arrow := Config.get_item(&"arrow")
+	var arrow := ItemCatalog.get_item(&"arrow")
 	deer.inventory.clear()
 	deer.inventory.add_item(arrow, 1)
 	HuntingLoot.fill(deer, 1.0)
@@ -84,7 +83,7 @@ func _check_small() -> void:
 		var profile := load(FAUNA + name + ".tres") as AmbientFaunaProfile
 		var loot := profile.butcher_loot if profile != null else null
 		if loot == null or loot.entries.is_empty() or loot.entries.any(func(e: LootEntry) -> bool:
-				return e == null or Config.get_item(e.item) == null or e.amount <= 0):
+				return e == null or ItemCatalog.get_item(e.item) == null or e.amount <= 0):
 			missing.append(name)
 	check(missing.is_empty(), "la fauna pequeña que se despieza trae lo que da %s" % [missing])
 	var listed: Array[String] = []
@@ -119,14 +118,14 @@ func _check_small() -> void:
 	check(FaunaCorpse.nearest(corpse.global_position + Vector3.RIGHT, 2.5) == corpse
 		and FaunaCorpse.nearest(corpse.global_position + Vector3.RIGHT * 3.0, 2.5) == null,
 		"E lo encuentra cerca y no lejos")
-	var arrow := Config.get_item(&"arrow")
+	var arrow := ItemCatalog.get_item(&"arrow")
 	corpse.inventory.add_item(arrow, 1)
 	corpse.butcher_progress = 0.5
 	await get_tree().process_frame
 	check(corpse.freeze, "despiezándolo se queda quieto")
 	HuntingLoot.fill(corpse, 1.0)
 	corpse.butchered = true
-	var meat := corpse.inventory.get_item_count(Config.get_item(&"raw_meat"))
+	var meat := corpse.inventory.get_item_count(ItemCatalog.get_item(&"raw_meat"))
 	check(meat == 1 and corpse.inventory.get_item_count(arrow) == 1,
 		"un conejo da su carne (%d) y guarda la flecha" % meat)
 	check(corpse.butcherable(), "despiezado, se saquea mientras le quede algo")

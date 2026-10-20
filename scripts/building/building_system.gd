@@ -5,8 +5,6 @@ extends Node3D
 ## de bloques, rotación, tamaño de celda, materiales/coste y simetría de espejo), delegando el
 ## almacenamiento en GridManager y las grids.
 
-const config_ref = preload("res://scripts/config.gd")
-
 const CELL_SIZES: Array[float] = [0.25, 0.5, 1.0, 2.0]
 const PROP_WALL_TILT_DEG := 20.0
 enum MirrorAxis { NONE, X, Y, Z }
@@ -221,9 +219,6 @@ func execute_primary_action(ray_hit: Dictionary) -> void:
 		try_remove_block(ray_hit)
 
 
-func get_player() -> Node3D:
-	return _player
-
 func get_player_basis() -> Basis:
 	if _player:
 		return _player.global_transform.basis.orthonormalized()
@@ -259,22 +254,6 @@ func _consume_block_cost(block_data: BlockData) -> bool:
 
 	_inventory.remove_item(mat.item, cost)
 	return true
-
-
-func get_missing_materials(block_data: BlockData = null) -> Array[Dictionary]:
-	var missing: Array[Dictionary] = []
-	if not _inventory:
-		return missing
-
-	var mat := get_current_material()
-	if not mat or not mat.item:
-		return missing
-
-	var cost := mat.get_cost_for_size(cell_size)
-	var have := _inventory.get_item_count(mat.item)
-	if have < cost:
-		missing.append({ "item": mat.item, "have": have, "need": cost })
-	return missing
 
 
 ## Procesa el raycast del jugador cada frame en modo build: resuelve objetivo y actualiza el preview.
@@ -678,7 +657,7 @@ func _try_remove_prop(prop_node: Node3D) -> bool:
 func _refund_prop_item(item_id: StringName) -> void:
 	if not _inventory:
 		return
-	var item := config_ref.get_item(item_id)
+	var item := ItemCatalog.get_item(item_id)
 	if item:
 		_inventory.add_item(item, 1)
 
@@ -780,49 +759,6 @@ func save_grid_blueprint(grid_id: String, blueprint_name: String) -> int:
 	print("[BuildingSystem] Blueprint '%s' guardado (%d grids, %d bloques)" % [
 		blueprint_name, (data["grids"] as Array).size(), data["block_count"]])
 	return int(data["block_count"])
-
-
-## Caso de prueba extremo: genera una estructura de 8000 bloques (20x20x20) frente al jugador
-## y la convierte a grid dinámica, imprimiendo el tiempo de cada fase.
-func debug_spawn_stress_grid() -> void:
-	var planet := current_planet
-	if not planet or not _player:
-		return
-
-	var block_data := BlockDatabase.get_block(BlockDatabase.BLOCK_CUBE_ID)
-	if not block_data:
-		return
-
-	var basis_world := get_player_basis()
-	var origin_world: Vector3 = _player.global_position - basis_world.z * 30.0 + basis_world.y * 6.0
-	var grid := GridManager.create_grid(planet, origin_world, basis_world, 1.0)
-	current_material_index = 1
-	var mat := get_current_material()
-	var mat_id := mat.material_id if mat else ""
-	if mat and mat.surface_material and not grid.mesh_materials.has(mat_id):
-		grid.mesh_materials[mat_id] = mat.surface_material
-
-	var grid_basis := grid.get_basis_world()
-	var base_cell := grid.world_to_grid(origin_world)
-
-	var t0 := Time.get_ticks_msec()
-	grid.begin_bulk_edit()
-	for x in range(-10, 10):
-		for y in range(10):
-			for z in range(-40, 40):
-				var grid_pos := base_cell + Vector3i(x, y, z)
-				var xform := Transform3D(grid_basis, grid.grid_to_world(grid_pos))
-				grid.place_block(grid_pos, block_data, Basis.IDENTITY, xform, mat_id)
-	var t1 := Time.get_ticks_msec()
-	grid.end_bulk_edit()
-	var t2 := Time.get_ticks_msec()
-
-	var block_count := grid.get_block_count()
-	GridManager.convert_to_dynamic(grid.grid_id)
-	var t3 := Time.get_ticks_msec()
-
-	print("[StressTest] %d bloques | nodos+colocación: %d ms | mesh: %d ms | conversión a dinámica: %d ms" % [
-		block_count, t1 - t0, t2 - t1, t3 - t2])
 
 
 ## Genera un casco con forma de barco frente al jugador y lo convierte a grid dinámica, con
@@ -1062,16 +998,6 @@ func _on_build_mode_off() -> void:
 	_mirror_visual.hide_plane()
 
 
-func clear_mirror() -> void:
-	mirror_axis = MirrorAxis.NONE
-	_mirror_active = false
-	mirror_grid = null
-	mirror_changed.emit()
-
-
-func _get_mirror_center_in_grid(grid: PlanetGrid) -> Vector3i:
-	return grid.world_to_grid(mirror_center_world)
-
 func _get_mirror_axis_index() -> int:
 	match mirror_axis:
 		MirrorAxis.X: return 0
@@ -1095,19 +1021,6 @@ func _get_mirror_pos(grid_pos: Vector3i, grid: GridBase) -> Vector3i:
 	var reflected_center := mirror_center_world + grid_basis * diff
 	var reflected_corner := reflected_center - grid_basis * (Vector3.ONE * s * 0.5)
 	return grid.world_to_grid(reflected_corner)
-
-func _get_mirror_visual_basis(rot_basis: Basis) -> Basis:
-	var scale := Vector3.ONE
-	match mirror_axis:
-		MirrorAxis.X: scale.x = -1.0
-		MirrorAxis.Y: scale.y = -1.0
-		MirrorAxis.Z: scale.z = -1.0
-	var mirror_b := Basis.from_scale(scale)
-	var result := mirror_b * rot_basis
-	for i in 3:
-		for j in 3:
-			result[i][j] = roundf(result[i][j])
-	return result
 
 func _get_mirror_rotation(rot_basis: Basis) -> Basis:
 	var scale := Vector3.ONE
@@ -1146,30 +1059,6 @@ static func _basis_compatible(a: Basis, b: Basis) -> bool:
 		if abs(a[i].normalized().dot(b[i].normalized())) < 0.99:
 			return false
 	return true
-
-
-func _can_afford_double(block_data: BlockData) -> bool:
-	if not _inventory:
-		return true
-
-	var mat := get_current_material()
-	if not mat or not mat.item:
-		return true
-
-	var grid: PlanetGrid = _cached_grid_for_placement
-	if not grid:
-		grid = _target_grid
-	if not grid:
-		grid = mirror_grid
-
-	var count := 1
-	if grid:
-		var mirror_pos := _get_mirror_pos(_target_grid_pos, grid)
-		if mirror_pos != _target_grid_pos:
-			count = 2
-
-	var cost := mat.get_cost_for_size(cell_size) * count
-	return _inventory.get_item_count(mat.item) >= cost
 
 ## Resuelve grid_pos desde un collider: meta si el nodo es por-bloque (rampas/esquinas),
 ## o sondeo geométrico hacia el interior del bloque (cajas de cubos fusionadas).

@@ -4,8 +4,6 @@ extends Node
 ## materiales para varias veces, fabricar ×N y que lo de una estación de trabajo pida tenerla cerca.
 ##   godot --headless --path . res://tests/items/test_recipes.tscn
 
-const Config = preload("res://scripts/config.gd")
-
 var failures := 0
 
 
@@ -35,13 +33,13 @@ func _check_catalog() -> void:
 	check(all.size() >= 15, "hay recetas (%d)" % all.size())
 	var bad: Array[String] = []
 	for recipe in all:
-		if Config.get_item(recipe.result) == null:
+		if ItemCatalog.get_item(recipe.result) == null:
 			bad.append("sale %s" % recipe.result)
 		for id: StringName in recipe.inputs:
-			if Config.get_item(id) == null or recipe.inputs[id] <= 0:
+			if ItemCatalog.get_item(id) == null or recipe.inputs[id] <= 0:
 				bad.append("%s pide %s" % [recipe.result, id])
 		if recipe.station != Recipes.HAND and recipe.station != Workstation.CAMPFIRE:
-			var station: ItemData = Config.get_item(recipe.station)
+			var station: ItemData = ItemCatalog.get_item(recipe.station)
 			if station == null or station.get_trait(CraftingStationTrait) == null:
 				bad.append("%s en %s, que no es una estación" % [recipe.result, recipe.station])
 	check(bad.is_empty(), "recetas bien hechas %s" % [bad])
@@ -56,7 +54,7 @@ func _check_catalog() -> void:
 		var recipe := _recipe(id)
 		return recipe != null and recipe.station == &"stone_workbench")
 	check(weapons, "espada y lanza de sílex y escudo de madera, en el banco de trabajo")
-	var bench: ItemData = Config.get_item(&"stone_workbench")
+	var bench: ItemData = ItemCatalog.get_item(&"stone_workbench")
 	check(bench != null and bench.get_trait(GroundPlaceableTrait) != null, "el banco de trabajo se planta")
 	check(ItemTaxonomy.category_of(bench) == ItemData.Category.BLOCK, "y sale en Construcción")
 
@@ -72,7 +70,7 @@ func _inventory(contents: Array) -> Inventory:
 	var inventory := Inventory.new()
 	add_child(inventory)
 	for entry in contents:
-		inventory.add_item(Config.get_item(entry[0]), entry[1])
+		inventory.add_item(ItemCatalog.get_item(entry[0]), entry[1])
 	return inventory
 
 
@@ -83,15 +81,15 @@ func _check_counts() -> void:
 	check(Recipes.missing(campfire, inventory, 3) == {&"stone_01": 5, &"branch_01": 3}, "para tres faltan 5 piedras y 3 ramas")
 	check(Recipes.craft(campfire, inventory, 3) == -1, "tres no se pueden")
 	check(Recipes.craft(campfire, inventory, 2) == 0, "dos sí, y caben")
-	check(inventory.get_item_count(Config.get_item(&"campfire")) == 2
-		and inventory.get_item_count(Config.get_item(&"stone_01")) == 1
-		and inventory.get_item_count(Config.get_item(&"branch_01")) == 1, "quedan 2 hogueras, 1 piedra y 1 rama")
+	check(inventory.get_item_count(ItemCatalog.get_item(&"campfire")) == 2
+		and inventory.get_item_count(ItemCatalog.get_item(&"stone_01")) == 1
+		and inventory.get_item_count(ItemCatalog.get_item(&"branch_01")) == 1, "quedan 2 hogueras, 1 piedra y 1 rama")
 	var arrows := _recipe(&"arrow")
 	inventory = _inventory([[&"stone_01", 5], [&"branch_01", 5], [&"feather", 10]])
 	check(Recipes.max_times(arrows, _inventory([[&"stone_01", 5], [&"branch_01", 5], [&"feather", 3]])) == 1,
 		"sin plumas no hay flechas: con 3, una tirada")
 	Recipes.craft(arrows, inventory, 5)
-	check(inventory.get_item_count(Config.get_item(&"arrow")) == 5 * arrows.amount, "cinco tiradas de flechas: %d" % (5 * arrows.amount))
+	check(inventory.get_item_count(ItemCatalog.get_item(&"arrow")) == 5 * arrows.amount, "cinco tiradas de flechas: %d" % (5 * arrows.amount))
 	# El bebedizo se cuece con agua de los odres, junto a la hoguera.
 	var draught := _recipe(&"yarrow_draught")
 	check(draught != null and draught.station == Workstation.CAMPFIRE and draught.water > 0,
@@ -134,12 +132,12 @@ func _check_panel() -> void:
 	panel._quantity.value = 3
 	check(panel._make_button.text == tr("CRAFT_MAKE_N") % 3, "el botón dice cuántas")
 	panel._craft()
-	check(ui.inventory.get_item_count(Config.get_item(&"stone_axe_01")) == 3, "fabrica tres hachas")
-	check(ui.inventory.get_item_count(Config.get_item(&"raw_hide")) == 1, "y gasta tres pieles")
+	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"stone_axe_01")) == 3, "fabrica tres hachas")
+	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"raw_hide")) == 1, "y gasta tres pieles")
 	panel._set_tab(int(ItemData.Category.ARMOR))
 	var clothing := true
 	for recipe: RecipeData in panel._tiles:
-		clothing = clothing and ItemTaxonomy.category_of(Config.get_item(recipe.result)) == ItemData.Category.ARMOR
+		clothing = clothing and ItemTaxonomy.category_of(ItemCatalog.get_item(recipe.result)) == ItemData.Category.ARMOR
 	check(clothing and not panel._tiles.is_empty(), "la pestaña Ropa solo enseña ropa (%d)" % panel._tiles.size())
 	bench.position = Vector3(30, 0, 0)
 	panel._poll = 0.0

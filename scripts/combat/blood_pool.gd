@@ -82,8 +82,7 @@ static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float
 	if gravity.length_squared() < 1e-6:
 		return null
 	var down := gravity.normalized()
-	var query := PhysicsRayQueryParameters3D.create(point - down * 0.3, point + down * REACH, mask)
-	var hit := context.get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := Raycast.ground(context, point, -down, 0.3, REACH, mask)
 	if hit.is_empty():
 		return null
 	var pool := BloodPool.new()

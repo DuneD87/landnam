@@ -1,8 +1,6 @@
 class_name HuntingLoot
 extends RefCounted
 
-const Config = preload("res://scripts/config.gd")
-
 ## Lo que da un animal muerto al despellejarlo (con algo que despelleje en la mano: SkinningTrait).
 ## Lo que da lo dice cada animal en su escena (NPCController.butcher_loot, un LootTable) o, la fauna
 ## pequeña, su perfil (AmbientFaunaProfile.butcher_loot, que pasa a su FaunaCorpse); aquí solo se

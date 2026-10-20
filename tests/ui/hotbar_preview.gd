@@ -4,7 +4,6 @@ extends Node
 ## normal / crítico / bajo el agua. --capture guarda los estados y escalas en build/ui/hotbar/.
 ## godot --path . res://tests/ui/hotbar_preview.tscn -- --capture
 
-const Config = preload("res://scripts/config.gd")
 const OUTPUT := "res://build/ui/hotbar"
 
 var _hotbar: Hotbar
@@ -29,9 +28,9 @@ func _ready() -> void:
 	add_child(_hotbar)
 	for entry in [[0, &"iron_sword"], [1, &"battle_axe"], [2, &"hunting_bow"], [3, &"spear"],
 			[4, &"stone_axe_01"], [5, &"stone_pickaxe_01"], [6, &"heater_shield"], [7, &"torch_01"]]:
-		_hotbar.assign_to_slot(entry[0], Config.get_item(entry[1]))
+		_hotbar.assign_to_slot(entry[0], ItemCatalog.get_item(entry[1]))
 	_hotbar.select_slot(0)
-	_hotbar.set_offhand(Config.get_item(&"heater_shield"))
+	_hotbar.set_offhand(ItemCatalog.get_item(&"heater_shield"))
 	_hotbar.offhand_toggled.connect(func(data: ItemData):
 		_hotbar.set_offhand(null if _hotbar._offhand_id == data.id else data))
 	_hotbar.hotbar_slot_clicked.connect(_hotbar.select_slot)
@@ -182,7 +181,7 @@ func _verify_input() -> bool:
 	if _hotbar.selected_index != 2:
 		push_error("La tecla 3 no seleccionó el tercer hueco.")
 		return false
-	if _hotbar._selection_label.text != Config.get_item(&"hunting_bow").get_display_name():
+	if _hotbar._selection_label.text != ItemCatalog.get_item(&"hunting_bow").get_display_name():
 		push_error("El nombre no sigue al objeto seleccionado.")
 		return false
 	await _click(6)

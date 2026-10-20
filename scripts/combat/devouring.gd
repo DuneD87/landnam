@@ -343,7 +343,7 @@ func _spill_guts(state: FeedState) -> void:
 	CombatFx.play(&"skin_tear", point, {"pitch": randf_range(0.75, 0.85), "volume_offset_db": 2.0})
 	CombatFx.blood(remains, point, -_up(), ItemData.DamageKind.BLUNT, 40.0)
 	_soak(3)
-	BloodPool.spawn(remains, point, _gravity(), randf_range(1.4, 1.9), 6.0, GutPile.WORLD_MASK)
+	BloodPool.spawn(remains, point, _gravity(), randf_range(1.4, 1.9), 6.0, PhysicsLayers.WORLD)
 	remains.tug(PlayerRemains.TORSO_BONE, side, 12.0, 0.08)
 
 

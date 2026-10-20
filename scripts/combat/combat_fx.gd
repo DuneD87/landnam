@@ -140,13 +140,7 @@ static func _down() -> Vector3:
 
 static func _spray(host: Node, point: Vector3, direction: Vector3, color: Color, amount: int,
 		size: float, speed := Vector2(1.5, 4.5), spread := 40.0) -> void:
-	var particles := GPUParticles3D.new()
-	particles.amount = amount
-	particles.lifetime = 0.8
-	particles.one_shot = true
-	particles.explosiveness = 0.95
-	particles.local_coords = false
-	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var particles := BurstParticles.create(amount, 0.8, 0.95)
 	var process := ParticleProcessMaterial.new()
 	var dir := direction.normalized() if direction.length_squared() > 1e-6 else -_down()
 	process.direction = dir
@@ -185,13 +179,7 @@ static func sparks(node: Node, point: Vector3, direction: Vector3, power: float 
 	var host := _host(node)
 	if host == null:
 		return
-	var particles := GPUParticles3D.new()
-	particles.amount = int(lerpf(6.0, 22.0, clampf(power, 0.0, 1.0)))
-	particles.lifetime = 0.35
-	particles.one_shot = true
-	particles.explosiveness = 1.0
-	particles.local_coords = false
-	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var particles := BurstParticles.create(int(lerpf(6.0, 22.0, clampf(power, 0.0, 1.0))), 0.35, 1.0)
 	var process := ParticleProcessMaterial.new()
 	process.direction = direction.normalized() if direction.length_squared() > 1e-6 else -_down()
 	process.spread = 60.0
@@ -227,15 +215,9 @@ static func _droplets(host: Node, point: Vector3, dir: Vector3, amount: int, spr
 		speed: Vector2, scale: Vector2, lifetime := 0.9) -> void:
 	if amount <= 0:
 		return
-	var particles := GPUParticles3D.new()
-	particles.amount = amount
-	particles.lifetime = lifetime
-	particles.one_shot = true
-	particles.explosiveness = 0.9
+	var particles := BurstParticles.create(amount, lifetime, 0.9)
 	particles.randomness = 0.3
-	particles.local_coords = false
 	particles.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
-	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var process := ParticleProcessMaterial.new()
 	# En el marco del emisor (ver _frame): +Y es [dir] y +X la franja de la que salen.
 	process.direction = Vector3.UP
@@ -264,14 +246,8 @@ static func _droplets(host: Node, point: Vector3, dir: Vector3, amount: int, spr
 static func _mist(host: Node, point: Vector3, dir: Vector3, amount: int) -> void:
 	if amount <= 0:
 		return
-	var particles := GPUParticles3D.new()
-	particles.amount = amount
-	particles.lifetime = 1.2
-	particles.one_shot = true
-	particles.explosiveness = 0.85
+	var particles := BurstParticles.create(amount, 1.2, 0.85)
 	particles.randomness = 0.4
-	particles.local_coords = false
-	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var process := ParticleProcessMaterial.new()
 	process.direction = Vector3.UP
 	process.spread = 70.0

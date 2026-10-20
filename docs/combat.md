@@ -83,7 +83,7 @@ Las ramas caídas (`scenes/planet/planet_items/litter/fallen_branch_0..2.tscn`) 
 piedras pequeñas (`small_rock_01`) son objetos del planeta como el resto: van en
 `planet_earth.json` con `"pickup": true`, `"pickup_item"` (lo que dan; por defecto
 `stone_01`) y `"collision_distance_m": 40` (el módulo lo mide hasta el bloque, no hasta cada objeto). Cerca llevan un cuerpo en la capa
-física 13 (`Planet.PICKUP_LAYER`), con la que nadie choca, y `GroundPickup` coge lo más
+física 13 (`PhysicsLayers.PICKUP`), con la que nadie choca, y `GroundPickup` coge lo más
 cercano a 2,4 m con la tecla de acción y lo quita del instancer. Una piedra da munición
 según su tamaño (1,5 por unidad de escala, hasta 5); las de escala > 3 no se levantan.
 Las ramas salen con los generadores `fallen_branches_generator_*` (bosque verde, taiga

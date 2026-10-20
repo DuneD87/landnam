@@ -21,7 +21,6 @@ extends "res://tests/lighting/lighting_capture.gd"
 ##          Va antes al suelo más llano de alrededor (--slope: se queda en la ladera); --topdown
 ##          con --showcase mira desde arriba
 
-const ItemConfig = preload("res://scripts/config.gd")
 const OUT := "res://build/combat"
 const SPOT := {"dir": Vector3(0.708411, 0.173648, -0.684105), "yaw": 180.0, "pitch": 0.0}
 const FRAME_EVERY := 0.2
@@ -139,7 +138,7 @@ func _tap(action: StringName) -> void:
 
 
 func _equip(item_id: StringName) -> void:
-	var data := ItemConfig.get_item(item_id)
+	var data := ItemCatalog.get_item(item_id)
 	if _pc.inventory.get_item_count(data) <= 0:
 		_pc.inventory.add_item(data, 1)
 	_pc._equip_from_hotbar(_pc.equiped_weapon if _pc.right_hand_equipped else null, data)
@@ -474,7 +473,7 @@ func _throw() -> void:
 		await _tap(&"lock_on")
 	for shot in 2:
 		var before := _bear.health_component.health
-		var spears := _pc.inventory.get_item_count(ItemConfig.get_item(&"spear"))
+		var spears := _pc.inventory.get_item_count(ItemCatalog.get_item(&"spear"))
 		_press(&"attack_2", true)
 		for i in 15:
 			await _tick()
@@ -488,7 +487,7 @@ func _throw() -> void:
 		for i in 20:
 			await _tick()
 		_note("lanza %d: oso %.0f → %.0f, lanzas en inventario %d → %d, en mano: %s" % [shot, before,
-			_bear.health_component.health, spears, _pc.inventory.get_item_count(ItemConfig.get_item(&"spear")),
+			_bear.health_component.health, spears, _pc.inventory.get_item_count(ItemCatalog.get_item(&"spear")),
 			_pc.equiped_weapon.id if _pc.right_hand_equipped else "nada"])
 	_bear.health_component.invincible = true
 	await _run_for(1.0, Callable())
@@ -602,7 +601,7 @@ func _bow_still() -> void:
 ## meten en el cuerpo junto con el estado del IK de pies.
 func _bow_terrain() -> void:
 	await _equip(&"hunting_bow")
-	_pc.inventory.add_item(ItemConfig.get_item(&"arrow"), 200)
+	_pc.inventory.add_item(ItemCatalog.get_item(&"arrow"), 200)
 	await _run_for(0.5, Callable())
 	var combat := _pc.combat
 	var foot_ik: Node = combat._foot_ik

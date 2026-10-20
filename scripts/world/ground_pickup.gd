@@ -3,13 +3,11 @@ extends RefCounted
 
 ## Lo que se recoge del suelo con la tecla de acción: los objetos del planeta marcados "pickup" en
 ## su JSON (ramas caídas, piedras pequeñas, los arbustos, que dan fibra, y las hierbas como la
-## milenrama). Cerca del jugador llevan un cuerpo en Planet.PICKUP_LAYER, que no estorba a nadie; al
+## milenrama). Cerca del jugador llevan un cuerpo en PhysicsLayers.PICKUP, que no estorba a nadie; al
 ## cogerlo se quita de la multimalla del instancer. Las piedras dan munición según su tamaño, y las
 ## más grandes (escala > MAX_ROCK_SCALE) no se levantan. Las plantas (PLANTS) solo se arrancan
 ## mirándolas: hay tantas, sobre todo en las orillas, que si no se llevarían la tecla de beber o de
 ## recoger lo soltado.
-
-const Config = preload("res://scripts/config.gd")
 
 const PICK_RANGE := 2.4
 const STONE_ID := &"stone_01"
@@ -61,7 +59,7 @@ static func try_pickup(picker: Node3D, inventory: Inventory, view_from: Vector3 
 		count = clampi(roundi(best.global_basis.get_scale().x * STONES_PER_SCALE), 1, 5)
 	elif PLANTS.has(item_id):
 		count = clampi(roundi(best.global_basis.get_scale().x * float(PLANTS[item_id])), 1, 4)
-	if inventory.add_item(Config.get_item(item_id), count) == count:
+	if inventory.add_item(ItemCatalog.get_item(item_id), count) == count:
 		return false
 	if PLANTS.has(item_id):
 		AudioManager.play_3d(&"land_leaves", best.global_position)
@@ -80,7 +78,7 @@ static func _nearby(around: Node3D, reach: float) -> Array[VoxelInstancerRigidBo
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = shape
 	query.transform.origin = around.global_position
-	query.collision_mask = Planet.PICKUP_LAYER
+	query.collision_mask = PhysicsLayers.PICKUP
 	for hit in around.get_world_3d().direct_space_state.intersect_shape(query, 256):
 		var body := hit.collider as VoxelInstancerRigidBody
 		var item_id := _item_of(body)

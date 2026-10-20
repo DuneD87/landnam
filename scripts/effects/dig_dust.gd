@@ -91,9 +91,9 @@ static func _build_clods() -> GPUParticles3D:
 	mat.scale_min = 0.5
 	mat.scale_max = 1.5
 	# Se encogen al final: caen dentro del suelo y no chocan con él.
-	mat.scale_curve = _curve([Vector2(0.0, 1.0), Vector2(0.7, 1.0), Vector2(1.0, 0.0)])
+	mat.scale_curve = BurstParticles.curve([Vector2(0.0, 1.0), Vector2(0.7, 1.0), Vector2(1.0, 0.0)])
 	# Unos del color del suelo y otros más oscuros.
-	mat.color_initial_ramp = _ramp([0.0, 1.0], [Color.WHITE, Color(0.7, 0.7, 0.7)])
+	mat.color_initial_ramp = BurstParticles.ramp([0.0, 1.0], [Color.WHITE, Color(0.7, 0.7, 0.7)])
 	node.process_material = mat
 	node.draw_pass_1 = _clod()
 	return node
@@ -112,43 +112,17 @@ static func _build_puff() -> GPUParticles3D:
 	mat.scale_min = 0.6
 	mat.scale_max = 1.3
 	# Crece y se desvanece.
-	mat.scale_curve = _curve([Vector2(0.0, 0.4), Vector2(1.0, 1.0)])
-	mat.color_ramp = _ramp([0.0, 0.15, 1.0], [Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.5), Color(1, 1, 1, 0.0)])
+	mat.scale_curve = BurstParticles.curve([Vector2(0.0, 0.4), Vector2(1.0, 1.0)])
+	mat.color_ramp = BurstParticles.ramp([0.0, 0.15, 1.0], [Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.5), Color(1, 1, 1, 0.0)])
 	node.process_material = mat
 	node.draw_pass_1 = _puff()
 	return node
 
 
 static func _emitter(node_name: String, amount: int, lifetime: float, explosiveness: float) -> GPUParticles3D:
-	var node := GPUParticles3D.new()
-	node.name = node_name
-	node.amount = amount
-	node.lifetime = lifetime
-	node.one_shot = true
-	node.explosiveness = explosiveness
-	node.emitting = false
-	node.local_coords = false
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var node := BurstParticles.create(amount, lifetime, explosiveness, node_name)
 	node.visibility_aabb = AABB(Vector3.ONE * -4.0, Vector3.ONE * 8.0)
 	return node
-
-
-static func _curve(points: Array) -> CurveTexture:
-	var curve := Curve.new()
-	for point in points:
-		curve.add_point(point)
-	var texture := CurveTexture.new()
-	texture.curve = curve
-	return texture
-
-
-static func _ramp(offsets: Array, colors: Array) -> GradientTexture1D:
-	var gradient := Gradient.new()
-	gradient.offsets = PackedFloat32Array(offsets)
-	gradient.colors = PackedColorArray(colors)
-	var texture := GradientTexture1D.new()
-	texture.gradient = gradient
-	return texture
 
 
 ## Un terrón: una piedrecita irregular, del color que le da el emisor.

@@ -244,49 +244,6 @@ func _remove_quad_surface(quad_id):
 		quad_surface.queue_free()
 		active_quads.erase(quad_id)
 
-func set_compute_mode(mode: ComputeMode):
-	if compute_mode == mode:
-		return
-		
-	compute_mode = mode
-	
-	if mode == ComputeMode.CPU and shared_compute_shader.is_valid():
-		if shared_compute_pipeline.is_valid():
-			shared_rd.free_rid(shared_compute_pipeline)
-			shared_compute_pipeline = RID()
-		shared_rd.free_rid(shared_compute_shader)
-		shared_compute_shader = RID()
-		compute_shader_loaded = false
-	elif mode == ComputeMode.GPU and not compute_shader_loaded and not direct_sphere_projection:
-		_initialize_compute_resources()
-	
-	var quad_data = []
-	for quad_id in active_quads:
-		var quad = active_quads[quad_id]
-		var quad_info = {
-			"id": quad_id,
-			"position": quad.global_position,
-			"size": quad.quad_size,
-			"level": quad.quad_level,
-			"face_normal": quad.face_normal,
-			"face_up": quad.face_up,
-			"face_right": quad.face_right
-		}
-		quad_data.append(quad_info)
-	
-	for quad_id in active_quads.keys():
-		_remove_quad_surface(quad_id)
-
-	# Cambiar de modo es una acción manual de depuración: aquí sí se rehace todo de golpe, y el
-	# trabajo repartido se descarta para que no deshaga lo que se acaba de construir.
-	_building.clear()
-	_staged.clear()
-	_needs_commit = false
-	for quad_info in quad_data:
-		var surface := _create_quad_surface(quad_info)
-		surface.visible = true
-		active_quads[quad_info.id] = surface
-
 func get_statistics() -> Dictionary:
 	var stats = {
 		"active_quads": active_quads.size(),

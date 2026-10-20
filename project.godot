@@ -38,10 +38,6 @@ window/size/viewport_width=2560
 window/size/viewport_height=1440
 window/vsync/vsync_mode=0
 
-[dotnet]
-
-project/assembly_name="VoxelTest"
-
 [editor]
 
 version_control/plugin_name="GitPlugin"
@@ -239,6 +235,17 @@ world_map={
 [internationalization]
 
 locale/translations=PackedStringArray("res://localization/translations.en.translation", "res://localization/translations.es.translation")
+
+[layer_names]
+
+3d_render/layer_19="notch"
+3d_render/layer_20="stainable"
+3d_physics/layer_1="world"
+3d_physics/layer_2="bodies"
+3d_physics/layer_9="hurtbox"
+3d_physics/layer_12="ragdoll"
+3d_physics/layer_13="pickup"
+3d_physics/layer_17="sea_ice_floor"
 
 [physics]
 

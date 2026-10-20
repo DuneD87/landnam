@@ -36,12 +36,6 @@ static func stride_for(node: Node3D, radius: float = 0.0, strides: Array = STRID
 	return FAR_STRIDE
 
 
-## Si [node] asoma en la cámara de su viewport ([radius] como en stride_for). Sin cámara, sí.
-static func in_view(node: Node3D, radius: float = 0.0) -> bool:
-	var camera := node.get_viewport().get_camera_3d() if node.is_inside_tree() else null
-	return camera == null or _in_frustum(camera, node.global_position, radius)
-
-
 static func _in_frustum(camera: Camera3D, point: Vector3, radius: float) -> bool:
 	if radius <= 0.0:
 		return camera.is_position_in_frustum(point)

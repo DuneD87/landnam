@@ -27,36 +27,36 @@ const ZONE_HEALTH := {
 ## donde entra el golpe), región de armadura (Armor.Region)]. Un golpe en la mano o el pie corta la
 ## muñeca o el tobillo.
 const SEGMENTS := [
-	[&"head", "mixamorig_Neck", "mixamorig_Head", 0.06, "", -1.0, Armor.Region.HEAD],
-	[&"head", "mixamorig_Head", "mixamorig_HeadTop_End", 0.1, "", -1.0, Armor.Region.HEAD],
-	[&"chest", "mixamorig_Spine2", "mixamorig_Neck", 0.15, "", -1.0, Armor.Region.TORSO],
-	[&"chest", "mixamorig_LeftShoulder", "mixamorig_LeftArm", 0.07, "", -1.0, Armor.Region.TORSO],
-	[&"chest", "mixamorig_RightShoulder", "mixamorig_RightArm", 0.07, "", -1.0, Armor.Region.TORSO],
-	[&"stomach", "mixamorig_Hips", "mixamorig_Spine1", 0.14, "", -1.0, Armor.Region.TORSO],
-	[&"stomach", "mixamorig_Spine1", "mixamorig_Spine2", 0.13, "", -1.0, Armor.Region.TORSO],
-	[&"left_arm", "mixamorig_LeftArm", "mixamorig_LeftForeArm", 0.05, "mixamorig_LeftArm", -1.0,
+	[&"head", HumanRig.NECK, HumanRig.HEAD, 0.06, "", -1.0, Armor.Region.HEAD],
+	[&"head", HumanRig.HEAD, HumanRig.HEAD_TOP_END, 0.1, "", -1.0, Armor.Region.HEAD],
+	[&"chest", HumanRig.SPINE2, HumanRig.NECK, 0.15, "", -1.0, Armor.Region.TORSO],
+	[&"chest", HumanRig.LEFT_SHOULDER, HumanRig.LEFT_ARM, 0.07, "", -1.0, Armor.Region.TORSO],
+	[&"chest", HumanRig.RIGHT_SHOULDER, HumanRig.RIGHT_ARM, 0.07, "", -1.0, Armor.Region.TORSO],
+	[&"stomach", HumanRig.HIPS, HumanRig.SPINE1, 0.14, "", -1.0, Armor.Region.TORSO],
+	[&"stomach", HumanRig.SPINE1, HumanRig.SPINE2, 0.13, "", -1.0, Armor.Region.TORSO],
+	[&"left_arm", HumanRig.LEFT_ARM, HumanRig.LEFT_FORE_ARM, 0.05, HumanRig.LEFT_ARM, -1.0,
 		Armor.Region.UPPER_ARMS],
-	[&"left_arm", "mixamorig_LeftForeArm", "mixamorig_LeftHand", 0.045, "mixamorig_LeftForeArm", -1.0,
+	[&"left_arm", HumanRig.LEFT_FORE_ARM, HumanRig.LEFT_HAND, 0.045, HumanRig.LEFT_FORE_ARM, -1.0,
 		Armor.Region.FOREARMS],
-	[&"left_arm", "mixamorig_LeftHand", "mixamorig_LeftHandMiddle2", 0.04, "mixamorig_LeftForeArm", 0.72,
+	[&"left_arm", HumanRig.LEFT_HAND, HumanRig.LEFT_HAND_MIDDLE2, 0.04, HumanRig.LEFT_FORE_ARM, 0.72,
 		Armor.Region.HANDS],
-	[&"right_arm", "mixamorig_RightArm", "mixamorig_RightForeArm", 0.05, "mixamorig_RightArm", -1.0,
+	[&"right_arm", HumanRig.RIGHT_ARM, HumanRig.RIGHT_FORE_ARM, 0.05, HumanRig.RIGHT_ARM, -1.0,
 		Armor.Region.UPPER_ARMS],
-	[&"right_arm", "mixamorig_RightForeArm", "mixamorig_RightHand", 0.045, "mixamorig_RightForeArm", -1.0,
+	[&"right_arm", HumanRig.RIGHT_FORE_ARM, HumanRig.RIGHT_HAND, 0.045, HumanRig.RIGHT_FORE_ARM, -1.0,
 		Armor.Region.FOREARMS],
-	[&"right_arm", "mixamorig_RightHand", "mixamorig_RightHandMiddle2", 0.04, "mixamorig_RightForeArm", 0.72,
+	[&"right_arm", HumanRig.RIGHT_HAND, HumanRig.RIGHT_HAND_MIDDLE2, 0.04, HumanRig.RIGHT_FORE_ARM, 0.72,
 		Armor.Region.HANDS],
-	[&"left_leg", "mixamorig_LeftUpLeg", "mixamorig_LeftLeg", 0.08, "mixamorig_LeftUpLeg", -1.0,
+	[&"left_leg", HumanRig.LEFT_UP_LEG, HumanRig.LEFT_LEG, 0.08, HumanRig.LEFT_UP_LEG, -1.0,
 		Armor.Region.THIGHS],
-	[&"left_leg", "mixamorig_LeftLeg", "mixamorig_LeftFoot", 0.055, "mixamorig_LeftLeg", -1.0,
+	[&"left_leg", HumanRig.LEFT_LEG, HumanRig.LEFT_FOOT, 0.055, HumanRig.LEFT_LEG, -1.0,
 		Armor.Region.SHINS],
-	[&"left_leg", "mixamorig_LeftFoot", "mixamorig_LeftToeBase", 0.045, "mixamorig_LeftLeg", 0.72,
+	[&"left_leg", HumanRig.LEFT_FOOT, HumanRig.LEFT_TOE_BASE, 0.045, HumanRig.LEFT_LEG, 0.72,
 		Armor.Region.FEET],
-	[&"right_leg", "mixamorig_RightUpLeg", "mixamorig_RightLeg", 0.08, "mixamorig_RightUpLeg", -1.0,
+	[&"right_leg", HumanRig.RIGHT_UP_LEG, HumanRig.RIGHT_LEG, 0.08, HumanRig.RIGHT_UP_LEG, -1.0,
 		Armor.Region.THIGHS],
-	[&"right_leg", "mixamorig_RightLeg", "mixamorig_RightFoot", 0.055, "mixamorig_RightLeg", -1.0,
+	[&"right_leg", HumanRig.RIGHT_LEG, HumanRig.RIGHT_FOOT, 0.055, HumanRig.RIGHT_LEG, -1.0,
 		Armor.Region.SHINS],
-	[&"right_leg", "mixamorig_RightFoot", "mixamorig_RightToeBase", 0.045, "mixamorig_RightLeg", 0.72,
+	[&"right_leg", HumanRig.RIGHT_FOOT, HumanRig.RIGHT_TOE_BASE, 0.045, HumanRig.RIGHT_LEG, 0.72,
 		Armor.Region.FEET],
 ]
 
@@ -257,7 +257,7 @@ func sever_zone(zone: StringName, upper: bool) -> bool:
 		part = "UpLeg" if upper else "Leg"
 	else:
 		return false
-	var bone_name := StringName("mixamorig_" + side + part)
+	var bone_name := StringName(HumanRig.PREFIX + side + part)
 	var bone := _bone(bone_name)
 	var tip := _bone(String(Dismemberment.CUTTABLE[bone_name][0]))
 	var xf := skeleton.global_transform

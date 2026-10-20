@@ -6,7 +6,7 @@ extends SkeletonModifier3D
 ## The face direction is taken from the rest pose, where the model faces its
 ## own +Z.
 
-const HEAD := "mixamorig_Head"
+const HEAD := HumanRig.HEAD
 
 @export var target: Node3D
 @export_range(0.0, 1.0) var weight := 1.0
@@ -23,10 +23,6 @@ var _face_local := Vector3.ZERO
 
 
 func _process_modification_with_delta(_delta: float) -> void:
-	_apply()
-
-
-func _process_modification() -> void:
 	_apply()
 
 

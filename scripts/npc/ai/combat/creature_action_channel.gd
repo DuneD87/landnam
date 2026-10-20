@@ -23,11 +23,7 @@ static func build(tree: AnimationTree) -> CreatureActionChannel:
 	if tree == null or not (tree.tree_root is AnimationNodeBlendTree):
 		return null
 	var tree_root := (tree.tree_root as AnimationNodeBlendTree).duplicate(true) as AnimationNodeBlendTree
-	var connections: Array = tree_root.get("node_connections")
-	var below := StringName()
-	for i in range(0, connections.size(), 3):
-		if connections[i] == &"output" and int(connections[i + 1]) == 0:
-			below = connections[i + 2]
+	var below := AnimGraph.input_of(tree_root, &"output", 0)
 	if below == StringName():
 		return null
 	var channel := CreatureActionChannel.new()
@@ -36,14 +32,10 @@ static func build(tree: AnimationTree) -> CreatureActionChannel:
 	for slot in SLOTS:
 		var anim := AnimationNodeAnimation.new()
 		var shot := AnimationNodeOneShot.new()
-		tree_root.add_node(StringName("%s_anim" % slot), anim)
-		tree_root.add_node(StringName("%s_seek" % slot), AnimationNodeTimeSeek.new())
-		tree_root.add_node(StringName("%s_speed" % slot), AnimationNodeTimeScale.new())
+		var clip := AnimGraph.add_clip(tree_root, String(slot), anim)
 		tree_root.add_node(slot, shot)
-		tree_root.connect_node(StringName("%s_seek" % slot), 0, StringName("%s_anim" % slot))
-		tree_root.connect_node(StringName("%s_speed" % slot), 0, StringName("%s_seek" % slot))
 		tree_root.connect_node(slot, 0, below)
-		tree_root.connect_node(slot, 1, StringName("%s_speed" % slot))
+		tree_root.connect_node(slot, 1, clip)
 		below = slot
 		channel._anims.append(anim)
 		channel._shots.append(shot)

@@ -24,7 +24,6 @@ signal use_requested(data: ItemData)
 ## Lo que enseña: el inventario solo, la pantalla de personaje entera o la de fabricar.
 enum View {INVENTORY, CHARACTER, CRAFTING}
 
-const Config = preload("res://scripts/config.gd")
 const BACKDROP_SHADER := preload("res://shaders/ui/backdrop.gdshader")
 const COLUMNS := 5
 ## Filtros del inventario: «Todo» y las categorías de ItemTaxonomy (-1 = todas), con sus claves.
@@ -957,9 +956,9 @@ func _dismantle_campfire() -> void:
 		return
 	var fire := _campfire
 	close_campfire()
-	var left := inventory.add_item(Config.get_item(Campfire.ITEM_ID), 1)
+	var left := inventory.add_item(ItemCatalog.get_item(Campfire.ITEM_ID), 1)
 	if left > 0:
-		drop_requested.emit(Config.get_item(Campfire.ITEM_ID), left)
+		drop_requested.emit(ItemCatalog.get_item(Campfire.ITEM_ID), left)
 	fire.queue_free()
 
 

@@ -1,14 +1,12 @@
 class_name Hurtbox
 extends Area3D
 
-## Zona que recibe golpes. Vive en su propia capa de física (LAYER) para que las hojas, zarpas y
+## Zona que recibe golpes. Vive en su propia capa de física (PhysicsLayers.HURTBOX) para que las hojas, zarpas y
 ## flechas la busquen sin tropezar con el terreno ni con los cuerpos, y para que esquivar sea
 ## simplemente apagarla durante los fotogramas de invulnerabilidad.
 ##
 ## No detecta nada por sí misma (monitoring apagado): son los golpes los que la consultan.
 
-## Capa 9 de física: solo hurtboxes. Nada colisiona con ella; solo se consulta.
-const LAYER := 1 << 8
 
 ## A quién pertenece: el cuerpo que se lleva el golpe (jugador o criatura).
 var owner_body: Node3D
@@ -25,7 +23,7 @@ var _enabled: bool = true
 func _init() -> void:
 	monitoring = false
 	monitorable = true
-	collision_layer = LAYER
+	collision_layer = PhysicsLayers.HURTBOX
 	collision_mask = 0
 
 
@@ -51,7 +49,7 @@ func set_enabled(value: bool) -> void:
 	if value == _enabled:
 		return
 	_enabled = value
-	collision_layer = LAYER if value else 0
+	collision_layer = PhysicsLayers.HURTBOX if value else 0
 
 
 func is_enabled() -> bool:

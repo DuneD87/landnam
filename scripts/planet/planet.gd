@@ -4,7 +4,6 @@ class_name Planet extends Node3D
 ## Nodo de un planeta: configura el terreno voxel y su shader de biomas, genera la vegetación
 ## (VoxelInstancer) con sus colisiones, y parchea el VoxelGraph (radio, ores) desde datos JSON.
 
-const config = preload("res://scripts/config.gd")
 const GrassGeometryLods = preload("res://scripts/planet/grass_geometry_lods.gd")
 var _grass_lod_cache: Dictionary = {}
 ## Campo de ríos para la vegetación, con la distancia reducida. Ver _vegetation_river_field.
@@ -55,11 +54,8 @@ var planet_item_packed_scenes: Dictionary
 ## library_id -> baked local branch anchors and wood BVH, shared across instances.
 var tree_perch_catalog: Dictionary = {}
 ## library_id -> id del item que da al recogerlo con la tecla de acción ("pickup" y "pickup_item" en
-## el JSON: ramas caídas y piedras pequeñas). Llevan colisión solo cerca, en PICKUP_LAYER.
+## el JSON: ramas caídas y piedras pequeñas). Llevan colisión solo cerca, en PhysicsLayers.PICKUP.
 var pickup_library_ids: Dictionary = {}
-## Capa física 13: la de lo que se recoge del suelo. Nadie choca con ella; solo la consulta
-## GroundPickup.
-const PICKUP_LAYER := 1 << 12
 ## Geometría cercana de los árboles Branching (ver _register_tree_item).
 var tree_detail_renderer: TreeDetailRenderer = null
 ## Tala de los árboles: hachazos, caídas y tocones.
@@ -209,25 +205,6 @@ func _build_rock_collision(rock_inst: MeshInstance3D) -> CollisionShape3D:
 	return collision_shape
 
 
-func _build_scene_collision(scene_instantiated: Node) -> Array:
-	var result: Array = []
-	for child in scene_instantiated.get_children():
-		if child is StaticBody3D:
-			for sub in child.get_children():
-				if sub is CollisionShape3D and sub.shape:
-					result.append(sub.shape)
-					result.append(sub.transform)
-			if not result.is_empty():
-				return result
-
-	var mesh_child = scene_instantiated.get_child(0)
-	if mesh_child is MeshInstance3D and mesh_child.mesh:
-		var shape: ConvexPolygonShape3D = mesh_child.mesh.create_convex_shape(true, false)
-		if shape:
-			return [shape, Transform3D.IDENTITY]
-
-	return []
-
 ## Cilindro con el ancho y el alto de [mesh] (una mata), para encontrarla al recogerla.
 static func _pickup_shape(mesh: Mesh) -> Array:
 	var box := mesh.get_aabb()
@@ -359,10 +336,10 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		var cs: Array = shared_data.get("collision_shapes", [])
 		if item.get("pickup", false):
 			# Se recoge (los arbustos dan fibra): solo cerca (collision_distance_m), un cuerpo en
-			# PICKUP_LAYER del tamaño de la mata, para encontrarla y quitarla al cogerla. La
+			# PhysicsLayers.PICKUP del tamaño de la mata, para encontrarla y quitarla al cogerla. La
 			# envolvente de sus miles de triángulos no hace falta.
 			multi_mesh_item.collision_shapes = _pickup_shape(lm[0])
-			multi_mesh_item.collision_layer = PICKUP_LAYER
+			multi_mesh_item.collision_layer = PhysicsLayers.PICKUP
 			multi_mesh_item.collision_mask = 0
 		elif not cs.is_empty():
 			multi_mesh_item.collision_shapes = cs
@@ -387,12 +364,12 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 		# items sin LOD (MeshInstance directa, Rock3D): sin collision_shapes, dependen de
 		# 'scene' para que el módulo instancie el nodo físico cerca del jugador.
 		if item.get("pickup", false):
-			# Se recoge: la malla y, solo cerca (collision_distance_m), un cuerpo en PICKUP_LAYER que
+			# Se recoge: la malla y, solo cerca (collision_distance_m), un cuerpo en PhysicsLayers.PICKUP que
 			# no estorba a nadie, para encontrarla y quitarla de la multimalla al cogerla.
 			var mesh: Mesh = shared_data.effective_mesh
 			multi_mesh_item.set_mesh(mesh, 0)
 			multi_mesh_item.collision_shapes = [mesh.create_convex_shape(true, true), Transform3D.IDENTITY]
-			multi_mesh_item.collision_layer = PICKUP_LAYER
+			multi_mesh_item.collision_layer = PhysicsLayers.PICKUP
 			multi_mesh_item.collision_mask = 0
 		elif item.get("collision", true):
 			multi_mesh_item.scene = shared_data.packed_scene

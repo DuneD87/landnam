@@ -169,9 +169,9 @@ func apply(p: CombatPose, w: float, delta: float) -> void:
 		p.rotate_bone(SPINE[i], Quaternion(l, deg_to_rad(-lean * SPINE_SHARE[i] * w)))
 	# 3. Escápulas: el hombro del arco abajo y asentado; el de la cuerda se cierra al tensar.
 	var back := l
-	p.swing_bone("mixamorig_LeftShoulder", L_ARM[0], -up, 7.0 * w)
-	p.swing_bone("mixamorig_RightShoulder", R_ARM[0], back, 12.0 * dd * w)
-	p.swing_bone("mixamorig_RightShoulder", R_ARM[0], up, (4.0 * dd + 10.0 * lower) * w)
+	p.swing_bone(HumanRig.LEFT_SHOULDER, L_ARM[0], -up, 7.0 * w)
+	p.swing_bone(HumanRig.RIGHT_SHOULDER, R_ARM[0], back, 12.0 * dd * w)
+	p.swing_bone(HumanRig.RIGHT_SHOULDER, R_ARM[0], up, (4.0 * dd + 10.0 * lower) * w)
 
 	# 4. Cabeza al blanco, algo ladeada hacia la cuerda.
 	var face := p.face_frame()

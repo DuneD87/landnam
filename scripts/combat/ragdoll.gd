@@ -14,33 +14,31 @@ extends SkeletonModifier3D
 ## Signo del ángulo de flexión de Generic6DOFJoint3D (giro del segundo cuerpo sobre +X del joint).
 const FLEX_SIGN := -1.0
 
-## Capa de física propia (las partes chocan entre sí y con el suelo, no con el jugador).
-const LAYER := 1 << 11
 
 ## [hueso, hueso hasta donde llega, radio (m), masa (kg), segmento padre, articulación]
 ## Articulación (grados): [&"cone", giro lateral máximo, torsión máxima], [&"hinge", dobla hasta]
 ## o [&"flex", hacia atrás, hacia delante, a los lados, torsión] (se dobla hacia delante mucho
 ## más que hacia atrás, como la cadera, la columna y el cuello).
 const PARTS := [
-	["mixamorig_Hips", "mixamorig_Spine1", 0.13, 12.0, "", []],
-	["mixamorig_Spine1", "mixamorig_Spine2", 0.12, 9.0, "mixamorig_Hips", [&"flex", 10.0, 30.0, 14.0, 14.0]],
-	["mixamorig_Spine2", "mixamorig_Neck", 0.14, 13.0, "mixamorig_Spine1", [&"flex", 6.0, 22.0, 10.0, 14.0]],
-	["mixamorig_Head", "mixamorig_HeadTop_End", 0.095, 5.0, "mixamorig_Spine2", [&"flex", 25.0, 40.0, 30.0, 45.0]],
-	["mixamorig_LeftArm", "mixamorig_LeftForeArm", 0.05, 2.5, "mixamorig_Spine2", [&"cone", 75.0, 40.0]],
-	["mixamorig_LeftForeArm", "mixamorig_LeftHand", 0.042, 2.0, "mixamorig_LeftArm", [&"hinge", 140.0]],
-	["mixamorig_RightArm", "mixamorig_RightForeArm", 0.05, 2.5, "mixamorig_Spine2", [&"cone", 75.0, 40.0]],
-	["mixamorig_RightForeArm", "mixamorig_RightHand", 0.042, 2.0, "mixamorig_RightArm", [&"hinge", 140.0]],
-	["mixamorig_LeftUpLeg", "mixamorig_LeftLeg", 0.075, 8.0, "mixamorig_Hips", [&"flex", 15.0, 105.0, 35.0, 25.0]],
-	["mixamorig_LeftLeg", "mixamorig_LeftFoot", 0.055, 4.5, "mixamorig_LeftUpLeg", [&"hinge", 145.0]],
-	["mixamorig_RightUpLeg", "mixamorig_RightLeg", 0.075, 8.0, "mixamorig_Hips", [&"flex", 15.0, 105.0, 35.0, 25.0]],
-	["mixamorig_RightLeg", "mixamorig_RightFoot", 0.055, 4.5, "mixamorig_RightUpLeg", [&"hinge", 145.0]],
+	[HumanRig.HIPS, HumanRig.SPINE1, 0.13, 12.0, "", []],
+	[HumanRig.SPINE1, HumanRig.SPINE2, 0.12, 9.0, HumanRig.HIPS, [&"flex", 10.0, 30.0, 14.0, 14.0]],
+	[HumanRig.SPINE2, HumanRig.NECK, 0.14, 13.0, HumanRig.SPINE1, [&"flex", 6.0, 22.0, 10.0, 14.0]],
+	[HumanRig.HEAD, HumanRig.HEAD_TOP_END, 0.095, 5.0, HumanRig.SPINE2, [&"flex", 25.0, 40.0, 30.0, 45.0]],
+	[HumanRig.LEFT_ARM, HumanRig.LEFT_FORE_ARM, 0.05, 2.5, HumanRig.SPINE2, [&"cone", 75.0, 40.0]],
+	[HumanRig.LEFT_FORE_ARM, HumanRig.LEFT_HAND, 0.042, 2.0, HumanRig.LEFT_ARM, [&"hinge", 140.0]],
+	[HumanRig.RIGHT_ARM, HumanRig.RIGHT_FORE_ARM, 0.05, 2.5, HumanRig.SPINE2, [&"cone", 75.0, 40.0]],
+	[HumanRig.RIGHT_FORE_ARM, HumanRig.RIGHT_HAND, 0.042, 2.0, HumanRig.RIGHT_ARM, [&"hinge", 140.0]],
+	[HumanRig.LEFT_UP_LEG, HumanRig.LEFT_LEG, 0.075, 8.0, HumanRig.HIPS, [&"flex", 15.0, 105.0, 35.0, 25.0]],
+	[HumanRig.LEFT_LEG, HumanRig.LEFT_FOOT, 0.055, 4.5, HumanRig.LEFT_UP_LEG, [&"hinge", 145.0]],
+	[HumanRig.RIGHT_UP_LEG, HumanRig.RIGHT_LEG, 0.075, 8.0, HumanRig.HIPS, [&"flex", 15.0, 105.0, 35.0, 25.0]],
+	[HumanRig.RIGHT_LEG, HumanRig.RIGHT_FOOT, 0.055, 4.5, HumanRig.RIGHT_UP_LEG, [&"hinge", 145.0]],
 ]
 ## Piezas que van pegadas a un segmento sin articulación propia: [segmento, desde, hasta, radio].
 const EXTRA_SHAPES := [
-	["mixamorig_LeftForeArm", "mixamorig_LeftHand", "mixamorig_LeftHandMiddle2", 0.035],
-	["mixamorig_RightForeArm", "mixamorig_RightHand", "mixamorig_RightHandMiddle2", 0.035],
-	["mixamorig_LeftLeg", "mixamorig_LeftFoot", "mixamorig_LeftToeBase", 0.045],
-	["mixamorig_RightLeg", "mixamorig_RightFoot", "mixamorig_RightToeBase", 0.045],
+	[HumanRig.LEFT_FORE_ARM, HumanRig.LEFT_HAND, HumanRig.LEFT_HAND_MIDDLE2, 0.035],
+	[HumanRig.RIGHT_FORE_ARM, HumanRig.RIGHT_HAND, HumanRig.RIGHT_HAND_MIDDLE2, 0.035],
+	[HumanRig.LEFT_LEG, HumanRig.LEFT_FOOT, HumanRig.LEFT_TOE_BASE, 0.045],
+	[HumanRig.RIGHT_LEG, HumanRig.RIGHT_FOOT, HumanRig.RIGHT_TOE_BASE, 0.045],
 ]
 
 ## Nodo cuyo marco manda (+Z adelante, +Y arriba), para saber hacia dónde doblan codos y rodillas.
@@ -127,13 +125,13 @@ func start(velocity: Vector3 = Vector3.ZERO, push: Vector3 = Vector3.ZERO) -> vo
 			mass *= clampf(start_at.distance_to(p1) / maxf(p0.distance_to(p1), 1e-4), 0.3, 1.0)
 			p0 = start_at
 		var body := RigidBody3D.new()
-		body.name = String(part[0]).trim_prefix("mixamorig_")
+		body.name = String(part[0]).trim_prefix(HumanRig.PREFIX)
 		body.mass = mass
 		body.gravity_scale = 0.0
 		body.linear_damp = 0.15
 		body.angular_damp = 2.5
-		body.collision_layer = LAYER
-		body.collision_mask = world_mask | LAYER
+		body.collision_layer = PhysicsLayers.RAGDOLL
+		body.collision_mask = world_mask | PhysicsLayers.RAGDOLL
 		body.continuous_cd = true
 		var pm := PhysicsMaterial.new()
 		pm.friction = 1.0
@@ -167,7 +165,7 @@ func start(velocity: Vector3 = Vector3.ZERO, push: Vector3 = Vector3.ZERO) -> vo
 		var parent := _skel.find_bone(part[4])
 		if _bodies.has(bone) and _bodies.has(parent):
 			_join(_bodies[parent], _bodies[bone], bone, part[5], skel_xf)
-	var chest := _skel.find_bone("mixamorig_Spine2")
+	var chest := _skel.find_bone(HumanRig.SPINE2)
 	if push != Vector3.ZERO and _bodies.has(chest):
 		(_bodies[chest] as RigidBody3D).apply_central_impulse(push)
 	_running = true
@@ -189,7 +187,7 @@ func body_for(bone_name: StringName) -> RigidBody3D:
 ## Dónde está el muñeco (la pelvis), en mundo.
 func center() -> Vector3:
 	for body in _bone_of:
-		if _bone_of[body] == _skel.find_bone("mixamorig_Hips") and is_instance_valid(body):
+		if _bone_of[body] == _skel.find_bone(HumanRig.HIPS) and is_instance_valid(body):
 			return (body as Node3D).global_position
 	return _skel.global_position
 

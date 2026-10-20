@@ -290,8 +290,7 @@ func point_free(point: Vector3) -> bool:
 
 
 func path_clear(from: Vector3, to: Vector3, check_foliage: bool = false) -> bool:
-	var query := PhysicsRayQueryParameters3D.create(from, to, 1)
-	if not terrain.get_world_3d().direct_space_state.intersect_ray(query).is_empty():
+	if not Raycast.cast(terrain, from, to, PhysicsLayers.WORLD).is_empty():
 		return false
 	for entry in _trees.values():
 		var body: Node3D = entry.body.get_ref()

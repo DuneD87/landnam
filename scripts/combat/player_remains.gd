@@ -475,7 +475,7 @@ static func limb_bone(zone: StringName, upper: bool) -> StringName:
 	var side := "Left" if String(zone).begins_with("left") else "Right"
 	var part := ("Arm" if upper else "ForeArm") if String(zone).ends_with("arm") \
 		else ("UpLeg" if upper else "Leg")
-	return StringName("mixamorig_" + side + part)
+	return StringName(HumanRig.PREFIX + side + part)
 
 
 func torso_point() -> Vector3:

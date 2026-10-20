@@ -1,7 +1,5 @@
 extends Node
 
-const config_ref = preload("res://scripts/config.gd")
-
 const BLOCK_CUBE_ID := 0
 const BLOCK_SLOPE_ID := 1
 const BLOCK_CORNER_ID := 2
@@ -15,7 +13,6 @@ signal materials_ready
 signal icon_generated
 
 var _blocks: Dictionary = {}
-var _blocks_by_name: Dictionary = {}
 var _block_items: Dictionary = {}
 
 var build_materials: Array[BuildMaterial] = []
@@ -82,7 +79,7 @@ func _register_default_materials() -> void:
 	var stone := BuildMaterial.new()
 	stone.material_id = "stone"
 	stone.display_name = "BUILD_MAT_STONE"
-	stone.item = config_ref.get_item(&"stone_01")
+	stone.item = ItemCatalog.get_item(&"stone_01")
 	stone.base_cost = 1
 	stone.sound_material = &"rock"
 	stone.surface_material = stone.item.surface_material
@@ -91,7 +88,7 @@ func _register_default_materials() -> void:
 	var wood := BuildMaterial.new()
 	wood.material_id = "wood"
 	wood.display_name = "BUILD_MAT_WOOD"
-	wood.item = config_ref.get_item(&"wood_01")
+	wood.item = ItemCatalog.get_item(&"wood_01")
 	wood.base_cost = 1
 	wood.sound_material = &"wood"
 	wood.surface_material = wood.item.surface_material
@@ -100,7 +97,7 @@ func _register_default_materials() -> void:
 	var glass := BuildMaterial.new()
 	glass.material_id = "glass"
 	glass.display_name = "BUILD_MAT_GLASS"
-	glass.item = config_ref.get_item(&"glass_01")
+	glass.item = ItemCatalog.get_item(&"glass_01")
 	glass.base_cost = 1
 	glass.sound_material = &"tile"
 	glass.surface_material = glass.item.surface_material
@@ -216,9 +213,6 @@ func get_material_at(index: int) -> BuildMaterial:
 		return build_materials[index]
 	return null
 
-func get_material_count() -> int:
-	return build_materials.size()
-
 func _register_default_blocks() -> void:
 	var cube := BlockData.new()
 	cube.block_id = BLOCK_CUBE_ID
@@ -295,32 +289,18 @@ func _create_block_item(block: BlockData) -> ItemData:
 func get_block_item(block_id: int) -> ItemData:
 	return _block_items.get(block_id, null)
 
-func get_all_block_items() -> Array[ItemData]:
-	var result: Array[ItemData] = []
-	for id in get_all_ids():
-		if _block_items.has(id):
-			result.append(_block_items[id])
-	return result
-
 func register_block(block: BlockData) -> void:
 	_blocks[block.block_id] = block
-	_blocks_by_name[block.block_name] = block
 	_block_items[block.block_id] = _create_block_item(block)
 
 func get_block(id: int) -> BlockData:
 	return _blocks.get(id, null)
-
-func get_block_by_name(block_name: String) -> BlockData:
-	return _blocks_by_name.get(block_name, null)
 
 func get_all_blocks() -> Array[BlockData]:
 	var result: Array[BlockData] = []
 	for block in _blocks.values():
 		result.append(block)
 	return result
-
-func get_block_count() -> int:
-	return _blocks.size()
 
 func get_all_ids() -> Array[int]:
 	var ids: Array[int] = []

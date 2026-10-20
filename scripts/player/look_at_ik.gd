@@ -6,13 +6,11 @@ extends SkeletonModifier3D
 ## frente del propio cuerpo, no sobre ejes de hueso, asi que no depende de la convencion del rig
 ## ni del "arriba" gravitacional. La direccion suavizada se guarda en espacio local del cuerpo.
 
-const Config = preload("res://scripts/config.gd")
-
 const _EPS := 0.0001
 
 @export_group("Huesos")
 ## Cadena de huesos y cuanto giro se lleva cada uno. Los pesos deben sumar 1.
-@export var chain: Array[String] = ["mixamorig_Spine1", "mixamorig_Spine2", "mixamorig_Neck", "mixamorig_Head"]
+@export var chain: Array[String] = [HumanRig.SPINE1, HumanRig.SPINE2, HumanRig.NECK, HumanRig.HEAD]
 @export var weights: Array[float] = [0.15, 0.15, 0.25, 0.45]
 ## Los de primera persona: la cabeza no se ve y el tronco se lleva más giro, para que brazos y
 ## arma suban y bajen con la mirada.
@@ -142,7 +140,7 @@ func _slerp(from: Vector3, to: Vector3, weight: float) -> Vector3:
 func _desired_world() -> Vector3:
 	if "current_animation" in _body:
 		var anim = _body.current_animation
-		if anim == Config.ANIMATION.DEATH or anim == Config.ANIMATION.HIT:
+		if anim == AnimationController.Anim.DEATH or anim == AnimationController.Anim.HIT:
 			return Vector3.ZERO
 
 	if not target_path.is_empty():
@@ -164,10 +162,6 @@ func _desired_world() -> Vector3:
 
 
 func _process_modification_with_delta(_delta: float) -> void:
-	_apply()
-
-
-func _process_modification() -> void:
 	_apply()
 
 

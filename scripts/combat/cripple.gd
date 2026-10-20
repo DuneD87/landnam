@@ -89,10 +89,11 @@ static func build(tree_root: AnimationNodeBlendTree, below: StringName) -> Strin
 	for clip in ["idle", "walk", "back", "crawl"]:
 		var anim := AnimationNodeAnimation.new()
 		anim.animation = StringName("combat/" + ("crawl" if clip == "crawl" else "injured_idle"))
-		tree_root.add_node(StringName("cr_%s_anim" % clip), anim)
-	for clip in ["walk", "back", "crawl"]:
-		tree_root.add_node(StringName("cr_%s_speed" % clip), AnimationNodeTimeScale.new())
-		tree_root.connect_node(StringName("cr_%s_speed" % clip), 0, StringName("cr_%s_anim" % clip))
+		# Quieto suena tal cual; andando, adelante y atrás y a rastras, al ritmo del paso.
+		if clip == "idle":
+			tree_root.add_node(&"cr_idle_anim", anim)
+		else:
+			AnimGraph.add_clip(tree_root, "cr_%s" % clip, anim, false)
 	tree_root.add_node(&"cr_limp", AnimationNodeBlend3.new())
 	tree_root.connect_node(&"cr_limp", 0, &"cr_back_speed")
 	tree_root.connect_node(&"cr_limp", 1, &"cr_idle_anim")
@@ -112,8 +113,8 @@ func _decide() -> Mode:
 		return Mode.NONE
 	var dm := bd.dismemberment
 	var skel := dm.skeleton
-	var lost_l := dm.is_lost(skel.find_bone("mixamorig_LeftFoot"))
-	var lost_r := dm.is_lost(skel.find_bone("mixamorig_RightFoot"))
+	var lost_l := dm.is_lost(skel.find_bone(HumanRig.LEFT_FOOT))
+	var lost_r := dm.is_lost(skel.find_bone(HumanRig.RIGHT_FOOT))
 	var status := combat.status
 	var bad_l := lost_l or (status != null and status.is_zone_impaired(&"left_leg"))
 	var bad_r := lost_r or (status != null and status.is_zone_impaired(&"right_leg"))
@@ -281,9 +282,7 @@ static func _in_window(phase: float, window: Vector2) -> bool:
 ## El suelo bajo [p] (mundo); sin suelo, a la altura de los pies.
 func _ground(p: Vector3, base: Vector3, up: Vector3) -> Vector3:
 	var player := combat.player
-	var query := PhysicsRayQueryParameters3D.create(p + up * 0.6, p - up * 1.0, player.collision_mask)
-	query.exclude = [player.get_rid()]
-	var hit := player.get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := Raycast.ground(player, p, up, 0.6, 1.0, player.collision_mask, [player.get_rid()])
 	if not hit.is_empty():
 		return hit.position
 	return p - up * (p - base).dot(up)

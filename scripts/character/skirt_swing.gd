@@ -70,7 +70,7 @@ func _ready() -> void:
 		if bone < 0 or next < 0:
 			continue
 		var capsule := SpringBoneCollisionCapsule3D.new()
-		capsule.name = String(leg[0]).trim_prefix("mixamorig_")
+		capsule.name = String(leg[0]).trim_prefix(HumanRig.PREFIX)
 		capsule.bone_name = leg[0]
 		capsule.set_meta(&"length", globals[bone].origin.distance_to(globals[next].origin))
 		add_child(capsule)

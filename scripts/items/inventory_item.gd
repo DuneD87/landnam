@@ -8,9 +8,6 @@ func _init(item_data: ItemData, initial_quantity: int = 1) -> void:
 	data = item_data
 	quantity = clampi(initial_quantity, 1, item_data.max_stack)
 
-func can_add(amount: int) -> bool:
-	return data.stackable and (quantity + amount) <= data.max_stack
-
 func can_stack_with(other: InventoryItem) -> bool:
 	return other != null and data.stackable and data.id == other.data.id
 

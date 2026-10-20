@@ -127,13 +127,6 @@ func get_surface_radius(world_pos: Vector3) -> float:
 	return map.surface_radius_at_dir(direction_of(world_pos)) if is_ready() else 0.0
 
 
-## Altura del terreno sobre el nivel del mar bajo esa posición (negativa si es fondo sumergido).
-func get_ground_altitude(world_pos: Vector3) -> float:
-	if not is_ready():
-		return 0.0
-	return map.surface_radius_at_dir(direction_of(world_pos)) - map.sea_level_radius
-
-
 ## Altura de la propia posición sobre el nivel del mar.
 func get_altitude(world_pos: Vector3) -> float:
 	if not is_ready():
@@ -162,12 +155,6 @@ func get_water_depth_at(world_pos: Vector3) -> float:
 	return map.depth_at_dir(direction_of(world_pos)) if is_ready() else 0.0
 
 
-func get_water_bodies() -> Array[Dictionary]:
-	if not is_ready():
-		return []
-	return map.bodies
-
-
 ## Ids de los cuerpos que reciben temporal: océanos y mares, los mayores primero. Un lago o una
 ## charca no levantan oleaje de mar abierto por mucho que truene.
 func storm_body_ids() -> PackedInt32Array:
@@ -181,13 +168,9 @@ func storm_body_ids() -> PackedInt32Array:
 	return eligible.slice(0, MAX_STORM_BODIES)
 
 
-## 0 donde la tormenta no debe levantar oleaje (lagos, charcas y orilla), 1 en mar abierto. Es la
-## réplica exacta de storm_exposure() en gerstner_waves.gdshaderinc: tocar una obliga a tocar la otra.
-func storm_exposure_at(world_pos: Vector3) -> float:
-	return storm_exposure_local(world_pos - get_planet_center())
-
-
-## Igual pero en coordenadas ya relativas al centro del planeta, que es lo que maneja el oleaje.
+## 0 donde la tormenta no debe levantar oleaje (lagos, charcas y orilla), 1 en mar abierto, en
+## coordenadas relativas al centro del planeta, que es lo que maneja el oleaje. Es la réplica
+## exacta de storm_exposure() en gerstner_waves.gdshaderinc: tocar una obliga a tocar la otra.
 func storm_exposure_local(local: Vector3) -> float:
 	if not is_ready() or not map.has_water:
 		return 1.0

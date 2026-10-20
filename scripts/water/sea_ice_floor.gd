@@ -8,8 +8,6 @@ class_name SeaIceFloor extends StaticBody3D
 ## el hielo no choca con él (su casco va por debajo del nivel del mar y saltaría por los aires), y
 ## los rayos de la fauna y del mapa (capa 1) no lo ven.
 
-## Capa 17. Nada más en el proyecto la usa.
-const LAYER := 1 << 16
 ## Hielo a partir del cual hay suelo. Por debajo el oleaje (que el hielo apaga en proporción) ya
 ## movería el agua visible por encima de un suelo quieto.
 const MIN_ICE := 0.75
@@ -27,7 +25,7 @@ var _shape: CollisionShape3D
 
 func _init() -> void:
 	name = "SeaIceFloor"
-	collision_layer = LAYER
+	collision_layer = PhysicsLayers.SEA_ICE_FLOOR
 	collision_mask = 0
 	_shape = CollisionShape3D.new()
 	var box := BoxShape3D.new()

@@ -125,22 +125,6 @@ func remove_item(item_data: ItemData, quantity: int = 1) -> int:
 func has_item(item_data: ItemData, quantity: int = 1) -> bool:
 	return get_item_count(item_data) >= quantity
 
-func print_contents() -> void:
-	var count = 0
-	for item in items:
-		if item != null:
-			count += 1
-	
-	if count == 0:
-		print("=== Inventario vacío ===")
-		return
-		
-	print("=== Inventario (%d/%d slots) ===" % [count, max_slots])
-	for i in range(max_slots):
-		if items[i] != null:
-			print("  [%d] %s x%d" % [i, items[i].data.get_display_name(), items[i].quantity])
-	print("===========================")
-
 func get_item_count(item_data: ItemData) -> int:
 	if item_data == null:
 		return 0

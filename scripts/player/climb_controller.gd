@@ -20,8 +20,6 @@ extends Node
 
 enum Mode {NONE, CLIMB, TOP}
 
-const Config = preload("res://scripts/config.gd")
-
 ## Lo que avanza a ritmo 1 (m/s) la mano que agarra en climb_up, climb_down y climb_left/right, y a
 ## qué distancia por delante de los pies tocan la pared. Como RUN_CLIP_SPEED al correr: medido
 ## sobre el esqueleto del jugador.
@@ -111,16 +109,8 @@ static func build(tree_root: AnimationNodeBlendTree, below: StringName) -> Strin
 	for clip in ["up", "down", "left", "right", "top"]:
 		var anim := AnimationNodeAnimation.new()
 		anim.animation = StringName("combat/climb_" + clip)
-		tree_root.add_node(StringName("cl_%s_anim" % clip), anim)
-		tree_root.add_node(StringName("cl_%s_speed" % clip), AnimationNodeTimeScale.new())
-	# Coronar empieza siempre desde el principio (el clip se queda en su último fotograma).
-	tree_root.add_node(&"cl_top_seek", AnimationNodeTimeSeek.new())
-	tree_root.connect_node(&"cl_top_seek", 0, &"cl_top_anim")
-	tree_root.connect_node(&"cl_top_speed", 0, &"cl_top_seek")
-	tree_root.connect_node(&"cl_up_speed", 0, &"cl_up_anim")
-	tree_root.connect_node(&"cl_down_speed", 0, &"cl_down_anim")
-	tree_root.connect_node(&"cl_left_speed", 0, &"cl_left_anim")
-	tree_root.connect_node(&"cl_right_speed", 0, &"cl_right_anim")
+		# Coronar empieza siempre desde el principio (el clip se queda en su último fotograma).
+		AnimGraph.add_clip(tree_root, "cl_%s" % clip, anim, clip == "top")
 	tree_root.add_node(&"cl_dir", AnimationNodeBlend2.new())
 	tree_root.connect_node(&"cl_dir", 0, &"cl_up_speed")
 	tree_root.connect_node(&"cl_dir", 1, &"cl_down_speed")
@@ -154,7 +144,7 @@ func physics_update(delta: float) -> bool:
 		Mode.TOP:
 			_update_top(delta)
 	_apply_tree()
-	player.current_animation = Config.ANIMATION.IDLE
+	player.current_animation = AnimationController.Anim.IDLE
 	return true
 
 
@@ -488,7 +478,7 @@ func _hips_at(t: float) -> Vector3:
 ## Donde está ahora la cadera del personaje (la de la pose que se ve).
 func _hips_world() -> Vector3:
 	var skeleton := _skeleton()
-	return skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone("mixamorig_Hips")).origin
+	return skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone(HumanRig.HIPS)).origin
 
 
 # ---------------------------------------------------------------------------------------------

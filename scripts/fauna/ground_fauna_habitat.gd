@@ -104,9 +104,7 @@ func _surface_point(direction: Vector3, settings: GroundFaunaProfile,
 		clearance: float) -> Variant:
 	var origin := center()
 	var from := origin + direction * (planet_radius + atmosphere_height)
-	var query := PhysicsRayQueryParameters3D.create(from, origin)
-	query.collision_mask = 1
-	var hit := terrain.get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := Raycast.cast(terrain, from, origin, PhysicsLayers.WORLD)
 	if hit.is_empty():
 		_reject(&"no_ground")
 		return null

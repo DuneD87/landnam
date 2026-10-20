@@ -213,7 +213,7 @@ func _set_cell(library_id: int, slot: Vector4i, buffer: PackedFloat32Array) -> v
 		mmi = MultiMeshInstance3D.new()
 		mmi.multimesh = multimesh
 		# La muesca de la tala (TreeFelling) solo pinta esta capa.
-		mmi.layers |= TreeFelling.NOTCH_LAYER
+		mmi.layers |= RenderLayers.NOTCH
 		if slot.w >= _shadow_lods:
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)

@@ -20,8 +20,8 @@ const MAX_CHARGED_RADIUS := 4.0
 ## Empujón (kg·m/s) que transmite al cuerpo golpeado. Sin esto, un impacto que abre un boquete
 ## enorme no mueve el barco ni un centímetro y se ve falso.
 const IMPULSE := 15000.0
-## Terreno y grids, estáticas y dinámicas (los cuerpos dinámicos están en las capas 1 y 2).
-const HIT_MASK := 3
+## Terreno y grids, estáticas y dinámicas.
+const HIT_MASK := PhysicsLayers.WORLD | PhysicsLayers.BODIES
 ## Julios POR BLOQUE alcanzado, si el item no define su propio 'damage'. La energía total del
 ## disparo sale de esto por los bloques que se estima que caben en el boquete (ver blast_cells), así
 ## que un radio mayor trae su propia energía en vez de repartir el mismo presupuesto en una esfera

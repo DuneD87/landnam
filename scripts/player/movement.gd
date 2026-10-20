@@ -5,7 +5,6 @@ class_name Movement
 ## Movimiento compartido por jugador y NPCs: correr, saltar, nadar y gravedad, con animación y daño
 ## por caída. La dirección viene del input o, en modo IA (use_ai_input), de ai_direction.
 
-const Config = preload("res://scripts/config.gd")
 const SWIM_TRANSITION_DELAY = 0.3
 
 @export var speed: float = 5.0
@@ -19,7 +18,7 @@ const SWIM_TRANSITION_DELAY = 0.3
 @export var jump_height: float = 1.0
 @export var mass: float = 70.0
 
-var current_animation = Config.ANIMATION.IDLE
+var current_animation = AnimationController.Anim.IDLE
 var on_platform: bool = false
 
 var is_jumping = false
@@ -68,7 +67,7 @@ func handle_jump_movement(delta: float, gravity_strength: float, gravity_directi
 	if Input.is_action_just_pressed("jump") and !is_jumping && !is_falling and not jump_blocked:
 		is_jumping = true
 		jump_velocity = sqrt(2 * jump_height * gravity_strength)
-		current_animation = Config.ANIMATION.JUMP_START
+		current_animation = AnimationController.Anim.JUMP_START
 		jumped.emit()
 		
 	if is_jumping:
@@ -76,14 +75,14 @@ func handle_jump_movement(delta: float, gravity_strength: float, gravity_directi
 		jump_velocity = max(0, jump_velocity - gravity_strength * delta)
 
 		if jump_velocity > 0.0:
-			current_animation = Config.ANIMATION.JUMP_IDLE
+			current_animation = AnimationController.Anim.JUMP_IDLE
 		elif !is_on_floor:
-			current_animation = Config.ANIMATION.FALLING
+			current_animation = AnimationController.Anim.FALLING
 		else:
 			is_jumping = false
-			current_animation = Config.ANIMATION.JUMP_LAND
+			current_animation = AnimationController.Anim.JUMP_LAND
 
-func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Vector3, camera: Camera3D, idle_animation: Config.ANIMATION, run_animation: Config.ANIMATION) -> Vector3:
+func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Vector3, camera: Camera3D, idle_animation: AnimationController.Anim, run_animation: AnimationController.Anim) -> Vector3:
 	var input_dir = get_input_direction(camera, gravity_direction)
 	var wants_sprint: bool = Input.is_action_pressed("Sprint") and input_dir.length() > 0.1 \
 		and not sprint_blocked and not use_ai_input
@@ -108,7 +107,7 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 		if !is_jumping && !is_falling && !use_swim_animations:
 			is_sprinting = true
 			velocity = direction * sprint_speed * speed_scale
-			current_animation = Config.ANIMATION.SPRINT
+			current_animation = AnimationController.Anim.SPRINT
 	else:
 		is_sprinting = false
 		
@@ -116,11 +115,11 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 		is_running = input_dir.length() > 0.1
 		
 		if !is_running:
-			current_animation = Config.ANIMATION.SWIM_IDLE if use_swim_animations else idle_animation
+			current_animation = AnimationController.Anim.SWIM_IDLE if use_swim_animations else idle_animation
 		elif use_swim_animations:
-			current_animation = Config.ANIMATION.SWIM
+			current_animation = AnimationController.Anim.SWIM
 		else:
-			current_animation = Config.ANIMATION.WALK if walking else run_animation
+			current_animation = AnimationController.Anim.WALK if walking else run_animation
 			
 	return input_dir
 
@@ -129,7 +128,7 @@ func handle_idle_movement(delta: float, gravity_direction: Vector3, is_on_floor:
 	is_falling = !is_on_floor && !is_jumping && downward_velocity > fall_speed_threshold && !is_swimming
 
 	if is_falling:
-		current_animation = Config.ANIMATION.FALLING
+		current_animation = AnimationController.Anim.FALLING
 
 	if not is_on_floor and not is_swimming:
 		_peak_airborne_speed = max(_peak_airborne_speed, downward_velocity)

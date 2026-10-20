@@ -61,49 +61,6 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 	block_placed.connect(_body.on_block_placed.bind(self))
 	block_removed.connect(_body.on_block_removed.bind(self))
 
-## Crea la grid dinámica a partir de una PlanetGrid existente (conversión).
-func setup_from_static(id: String, planet: Node3D, static_grid: PlanetGrid) -> void:
-	grid_id = id
-	planet_node = planet
-	cell_size = static_grid.cell_size
-	mesh_materials = static_grid.mesh_materials
-
-	var grid_world_xform := static_grid.get_grid_world_transform()
-	_create_body(grid_world_xform)
-
-	var all_blocks := static_grid.get_all_blocks()
-	for grid_pos: Vector3i in all_blocks:
-		var info: Dictionary = all_blocks[grid_pos]
-		var old_node: Node3D = info["node"]
-
-		var local_xform := Transform3D.IDENTITY
-		if old_node and is_instance_valid(old_node):
-			local_xform = _body.global_transform.affine_inverse() * old_node.global_transform
-
-		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
-		if not block_data:
-			continue
-
-		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
-		var wrapper: Node3D = null
-		if not ChunkMeshBuilder._is_solid(block_data.block_id):
-			wrapper = _make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
-			_body.add_child(wrapper)
-
-		_blocks[grid_pos] = {
-			"block_id": info["block_id"],
-			"rotation_basis": rotation_basis,
-			"node": wrapper,
-			"material_id": info.get("material_id", ""),
-			"mirrored": info.get("mirrored", false),
-			"mirror_axis": info.get("mirror_axis", -1),
-		}
-
-	_update_mass()
-	_migrate_props_from(static_grid)
-	static_grid.clear()
-	rebuild_mesh()
-
 
 func _create_body(world_transform: Transform3D) -> void:
 	_body = DynamicGridBody.new()

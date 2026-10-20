@@ -6,8 +6,6 @@ extends CanvasLayer
 ## Los comandos y sus argumentos son en inglés en todos los idiomas; su ayuda (claves CON_HELP_*) y
 ## lo que contestan (CON_*) salen de localization/translations.csv.
 
-const config = preload("res://scripts/config.gd")
-
 const COLOR_OK := "#7CFC9A"
 const COLOR_ERR := "#FF6B6B"
 const COLOR_INFO := "#9AD1FF"
@@ -228,9 +226,6 @@ func _apply_completion(prefix: String, matches: Array, head: String) -> void:
 func _print(msg: String) -> void:
 	_output.append_text(msg + "\n")
 
-func _ok(msg: String) -> void:
-	_print("[color=%s]%s[/color]" % [COLOR_OK, msg])
-
 func _err(msg: String) -> void:
 	_print("[color=%s]%s[/color]" % [COLOR_ERR, msg])
 
@@ -380,7 +375,7 @@ func _cmd_give(args: PackedStringArray) -> String:
 	if player == null or player.get("inventory") == null:
 		return _paint(COLOR_ERR, tr("CON_NO_INVENTORY"))
 	var id := StringName(args[0])
-	var item_data: ItemData = config.get_item(id)
+	var item_data: ItemData = ItemCatalog.get_item(id)
 	if item_data == null:
 		return _paint(COLOR_ERR, tr("CON_UNKNOWN_ITEM") % args[0])
 	var amount := 1
@@ -394,9 +389,9 @@ func _cmd_give(args: PackedStringArray) -> String:
 
 
 func _cmd_items(args: PackedStringArray) -> String:
-	config.get_item(&"")
+	ItemCatalog.get_item(&"")
 	var filter := args[0].to_lower() if args.size() >= 1 else ""
-	var ids := config.items.keys().map(func(k): return str(k))
+	var ids := ItemCatalog.items.keys().map(func(k): return str(k))
 	if filter != "":
 		ids = ids.filter(func(s): return filter in s.to_lower())
 	ids.sort()
@@ -1052,9 +1047,9 @@ func _cmd_status(args: PackedStringArray) -> String:
 
 
 func _complete_item_ids() -> PackedStringArray:
-	config.get_item(&"")
+	ItemCatalog.get_item(&"")
 	var ids := PackedStringArray()
-	for k in config.items.keys():
+	for k in ItemCatalog.items.keys():
 		ids.append(str(k))
 	return ids
 

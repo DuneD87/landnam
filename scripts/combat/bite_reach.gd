@@ -207,10 +207,6 @@ func _process_modification_with_delta(delta: float) -> void:
 	_apply()
 
 
-func _process_modification() -> void:
-	_apply()
-
-
 func _apply() -> void:
 	var skel := get_skeleton()
 	if skel == null or _jaw < 0:

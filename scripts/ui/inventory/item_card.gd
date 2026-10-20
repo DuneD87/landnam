@@ -6,8 +6,6 @@ extends PanelContainer
 ## ▼ peor), lo que dan sus rasgos (ItemTrait), la descripción y qué hacen ahí los clics. Los nombres
 ## de las filas son claves (los traduce su Label); los valores y la pista llegan ya traducidos.
 
-const Config = preload("res://scripts/config.gd")
-
 ## Ancho de la ficha y separación del hueco, en la escala base.
 const WIDTH := 470.0
 const GAP := 16.0
@@ -130,7 +128,7 @@ static func stat_rows(data: ItemData, compare: ItemData) -> Array:
 					rows.append(["CARD_REACH", _number(data.reach) + " m"]
 						+ _delta(other, data.reach, other.reach if other else 0.0))
 			if data.ammo_id != &"":
-				var ammo: ItemData = Config.get_item(data.ammo_id)
+				var ammo: ItemData = ItemCatalog.get_item(data.ammo_id)
 				rows.append(["CARD_AMMO", ammo.get_display_name() if ammo else String(data.ammo_id), 0.0])
 			if data.mining_power > 0:
 				rows.append(["CARD_POWER", str(data.mining_power)]

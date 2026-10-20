@@ -5,8 +5,6 @@ class_name ActionController
 ## golpear criaturas y recoger items por raycast central o cono. Talar y picar rocas va con el
 ## golpe de la herramienta (PlayerCombat, TreeFelling, RockMining).
 
-const Config = preload("res://scripts/config.gd")
-
 ## Alcance del cuerpo a cuerpo contra criaturas, en metros: un oso es ancho y el rayo golpea su
 ## colisionador, no su centro.
 const MELEE_RANGE := 3.5
@@ -25,7 +23,6 @@ const DIG_REACH := 5.0
 signal voxel_mined(item_id: StringName, amount: int)
 
 @export var timer : Timer
-@export var show_raycast_debug: bool = false
 
 var rand_num_gen: RandomNumberGenerator = RandomNumberGenerator.new()
 var is_attacking = false
@@ -42,7 +39,7 @@ func _ready() -> void:
 	add_child(attack_raycast)
 	attack_raycast.enabled = false
 	# Terreno y objetos, más la capa de NPCs vivos: sin ella el rayo atraviesa a los animales.
-	attack_raycast.collision_mask = 1 | NPCController.NPC_LIVE_LAYER
+	attack_raycast.collision_mask = PhysicsLayers.WORLD | PhysicsLayers.BODIES
 
 ## Excava una esfera de [radius] donde el rayo de current_origin hacia current_direction da en el
 ## terreno, a menos de [distance]. Devuelve la mena que había (0 sin mena), o -1 si no llegaba.
@@ -74,7 +71,7 @@ func dig_hole(radius: float, distance: float) -> int:
 ## Pica el terreno que se mira desde [origin], en el impacto del golpe del pico (PlayerCombat),
 ## con la fuerza [power] del golpe. Devuelve true si había terreno al alcance.
 func dig_ahead(camera: Camera3D, origin: Vector3, power: float) -> bool:
-	var result := perform_raycast(origin, camera.global_rotation, false)
+	var result := perform_raycast(origin, camera.global_rotation)
 	var terrain := result.target_node as VoxelLodTerrain
 	if terrain == null or power <= 0.0:
 		return false
@@ -156,7 +153,7 @@ func on_timeout():
 	timer.stop()
 
 
-func perform_raycast(origin: Vector3, rotation: Vector3, show_debug: bool) -> Dictionary:
+func perform_raycast(origin: Vector3, rotation: Vector3) -> Dictionary:
 	var ray_origin = origin
 	
 	attack_raycast.global_position = ray_origin
@@ -182,10 +179,7 @@ func perform_raycast(origin: Vector3, rotation: Vector3, show_debug: bool) -> Di
 		out_dictionary["hit_pos"] = hit_point
 		out_dictionary["hit_normal"] = attack_raycast.get_collision_normal()
 		out_dictionary["hit_distance"] = hit_distance
-		if show_raycast_debug:
-			DebugUtils.draw_debug_line(ray_origin, hit_point, Color.GREEN, 2.0)
-			DebugUtils.draw_debug_point(hit_point, Color.YELLOW, 0.2, 2.0)
-		
+
 	return out_dictionary
 	
 
@@ -194,7 +188,7 @@ func handle_pickup(camera: Camera3D, origin: Vector3) -> ItemData:
 	var up = camera.global_transform.basis.y
 	var right = camera.global_transform.basis.x
 	
-	var raycast_result = perform_raycast(origin, camera.global_rotation, true)
+	var raycast_result = perform_raycast(origin, camera.global_rotation)
 	var target_node = raycast_result["target_node"]
 	var hit_distance = raycast_result["hit_distance"]
 
@@ -246,7 +240,7 @@ func cone_raycast(origin: Vector3, forward: Vector3, up: Vector3, right: Vector3
 func handle_attack(camera: Camera3D, origin: Vector3) -> Node3D:
 	if is_attacking:
 		return
-	var raycast_result = perform_raycast(origin, camera.global_rotation, true)
+	var raycast_result = perform_raycast(origin, camera.global_rotation)
 	var target_node = raycast_result["target_node"]
 	if target_node == null:
 		return

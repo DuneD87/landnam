@@ -1,8 +1,6 @@
 class_name Workstation
 extends Node3D
 
-const Config = preload("res://scripts/config.gd")
-
 ## Estación de trabajo plantada en el suelo (el banco de trabajo de la Edad de piedra...). Quien
 ## esté cerca puede fabricar sus recetas (RecipeData.station = [item_id]), y E junto a ella abre la
 ## ventana de fabricar en ellas (InventoryUI.open_station). La planta SurvivalActions desde su
@@ -51,7 +49,7 @@ func display_name() -> String:
 
 ## Hasta dónde se pueden usar sus recetas (CraftingStationTrait.reach).
 func reach() -> float:
-	var data: ItemData = Config.get_item(item_id)
+	var data: ItemData = ItemCatalog.get_item(item_id)
 	var station := data.get_trait(CraftingStationTrait) as CraftingStationTrait if data != null else null
 	return station.reach if station != null else REACH
 

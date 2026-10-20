@@ -67,7 +67,7 @@ func setup(mesh: Mesh, xf: Transform3D, stone: ItemData, stones: int, volume: fl
 	var landing := start + out * (throw + radius * 0.5)
 	var space := get_world_3d().direct_space_state
 	var ground := space.intersect_ray(PhysicsRayQueryParameters3D.create(landing + up * 2.0,
-		landing - up * 60.0, TreeFelling.WORLD_LAYER, exclude))
+		landing - up * 60.0, PhysicsLayers.WORLD, exclude))
 	var rest := landing if ground.is_empty() else (ground.position as Vector3) + up * radius * (1.0 - SINK)
 	var to_parent := (get_parent() as Node3D).global_transform.affine_inverse()
 	_from = to_parent * xf

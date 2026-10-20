@@ -15,8 +15,9 @@ Abre `project.godot` y ejecuta la escena principal configurada en él.
 | Combate | `PlayerCombat` lleva las acciones del jugador; `CombatTargeting` selecciona el blanco y actualiza el punto de la cámara. Las criaturas usan `scripts/npc/ai/`. |
 | Inventario | `Inventory` decide cómo se retiran, apilan e intercambian los montones. `InventoryUI` lleva los clics, el cursor y la presentación. `ItemSlotView` es la vista común de los huecos. |
 | Audio | `AudioManager` mantiene el catálogo y las voces. Agua y clima calculan ganancias; `AmbientBedMixer` crea sus pistas y las funde. |
-| Objetos | `ItemData` y sus rasgos describen los objetos; `data/items/` y `data/recipes/` contienen sus recursos. |
+| Objetos | `ItemData` y sus rasgos describen los objetos; `data/items/` y `data/recipes/` contienen sus recursos. `ItemCatalog.get_item(id)` los busca por id. |
 | Guardado y ajustes | Los autoloads `GameManager` y `Settings` mantienen partidas y preferencias. |
+| Utilidades | En `scripts/core/`: `PhysicsLayers` y `RenderLayers` (todas las capas del proyecto), `Raycast` (rayos y sondeo de suelo), `ProcMesh` (mallas por código) y `AnimGraph` (montaje del AnimationTree). `HumanRig` nombra los huesos del esqueleto humano y `BurstParticles` crea los emisores de una ráfaga. |
 
 La configuración JSON conserva su formato. Los datos compartidos de terreno se consultan como
 `planet.definition`; radio, nivel del agua, viento y referencias a nodos siguen en el planeta.

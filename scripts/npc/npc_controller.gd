@@ -2,8 +2,6 @@
 extends AmbientAnimal
 class_name NPCController
 
-const Config = preload("res://scripts/config.gd")
-
 ## Controlador de los NPCs con esqueleto (animales, humanos…): es una AmbientAnimal que además
 ## orquesta sus componentes hijo (Movement, AIController + estados, Inventory, y opcionalmente
 ## AnimationController y Perception), gestionando gravedad, animación, daño, muerte y guardado.
@@ -111,8 +109,6 @@ var _light_delta: float = 0.0
 ## criatura que el pool ya ha vuelto a sacar.
 var _life_id: int = 0
 
-# Layer de NPCs vivos; los muertos pasan a layer 0.
-const NPC_LIVE_LAYER := 2
 ## Una de cada cuántas actualizaciones de IA corre cuando la criatura está lejos.
 const AI_STRIDE_FAR := 4
 ## A media distancia (GroundFaunaProfile.light_detail_distance), un paso entero de física e IA de
@@ -126,8 +122,8 @@ func _ready() -> void:
 	safe_margin = 0.008
 	floor_max_angle = deg_to_rad(70.0)
 	floor_snap_length = 0.1
-	collision_layer = NPC_LIVE_LAYER
-	collision_mask  = 1 | NPC_LIVE_LAYER
+	collision_layer = PhysicsLayers.BODIES
+	collision_mask  = PhysicsLayers.WORLD | PhysicsLayers.BODIES
 
 	if entity_id.is_empty():
 		entity_id = "npc_%d" % get_instance_id()
@@ -218,7 +214,7 @@ func _physics_step(delta: float) -> void:
 
 	if is_dead:
 		if animation_controller:
-			animation_controller.handle_animations(delta, Config.ANIMATION.DEATH, false)
+			animation_controller.handle_animations(delta, AnimationController.Anim.DEATH, false)
 		if is_on_floor():
 			velocity = Vector3.ZERO
 		else:
@@ -244,15 +240,15 @@ func _physics_step(delta: float) -> void:
 			is_hit = false
 		movement.ai_direction = Vector3.ZERO
 
-	movement.handle_run_movement(delta, ai_controller.is_attacking, gravity_direction, null, Config.ANIMATION.IDLE, Config.ANIMATION.RUN)
+	movement.handle_run_movement(delta, ai_controller.is_attacking, gravity_direction, null, AnimationController.Anim.IDLE, AnimationController.Anim.RUN)
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 
 	current_animation = movement.current_animation
-	if current_animation == Config.ANIMATION.RUN and sprint_anim_speed > 0.0 \
+	if current_animation == AnimationController.Anim.RUN and sprint_anim_speed > 0.0 \
 			and movement.speed >= sprint_anim_speed * body_size:
-		current_animation = Config.ANIMATION.SPRINT
+		current_animation = AnimationController.Anim.SPRINT
 	if ai_controller.is_attacking:
-		current_animation = Config.ANIMATION.ATTACK_1
+		current_animation = AnimationController.Anim.ATTACK_1
 	if animation_controller:
 		animation_controller.handle_animations(delta, current_animation, false)
 		# Un ataque (o un tambaleo del canal de acciones) mide sus golpes con los huesos.
@@ -484,14 +480,10 @@ func _setup_gait() -> void:
 	if tree == null or not (tree.tree_root is AnimationNodeBlendTree):
 		return
 	var tree_root := (tree.tree_root as AnimationNodeBlendTree).duplicate(true) as AnimationNodeBlendTree
-	var connections: Array = tree_root.get("node_connections")
 	for gait in [[&"bRun", &"gait_run", run_clip_speed], [&"bSprint", &"gait_sprint", sprint_clip_speed]]:
 		if gait[2] <= 0.0:
 			continue
-		var source := StringName()
-		for i in range(0, connections.size(), 3):
-			if connections[i] == gait[0] and int(connections[i + 1]) == 1:
-				source = connections[i + 2]
+		var source := AnimGraph.input_of(tree_root, gait[0], 1)
 		if source == StringName():
 			continue
 		tree_root.add_node(gait[1], AnimationNodeTimeScale.new())
@@ -713,8 +705,8 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	_is_dying = false
 	is_hit = false
 	_hit_timer = 0.0
-	collision_layer = NPC_LIVE_LAYER
-	collision_mask = 1 | NPC_LIVE_LAYER
+	collision_layer = PhysicsLayers.BODIES
+	collision_mask = PhysicsLayers.WORLD | PhysicsLayers.BODIES
 	_set_hurtboxes_enabled(true)
 	_pack_leader = null
 	_pack.clear()
@@ -741,9 +733,9 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	ai_controller.desired_facing = Vector3.ZERO
 	if initial_ai_state != &"":
 		ai_controller.transition_to(initial_ai_state)
-	current_animation = Config.ANIMATION.IDLE
+	current_animation = AnimationController.Anim.IDLE
 	if animation_controller:
-		animation_controller.snap_to(Config.ANIMATION.IDLE)
+		animation_controller.snap_to(AnimationController.Anim.IDLE)
 	if perception:
 		perception.set_physics_process(true)
 	set_physics_process(true)
@@ -797,7 +789,7 @@ func set_detail(distance: float) -> void:
 	# en el sitio.
 	var entire: bool = full <= 0.0 or distance <= full or not active or not is_on_floor()
 	var awake: bool = entire or distance <= light \
-		or (current_animation != Config.ANIMATION.IDLE and distance <= light + full)
+		or (current_animation != AnimationController.Anim.IDLE and distance <= light + full)
 	if not awake and is_physics_processing():
 		_fall_asleep()
 	set_physics_process(awake)
@@ -816,10 +808,10 @@ func _fall_asleep() -> void:
 	velocity = Vector3.ZERO
 	movement.velocity = Vector3.ZERO
 	_light_delta = 0.0
-	current_animation = Config.ANIMATION.IDLE
+	current_animation = AnimationController.Anim.IDLE
 	if animation_controller != null:
 		animation_controller.full_rate = false
-		animation_controller.snap_to(Config.ANIMATION.IDLE)
+		animation_controller.snap_to(AnimationController.Anim.IDLE)
 
 
 ## Un impacto letal (casco, bala) lo mata por su HealthComponent, para que corra la animación

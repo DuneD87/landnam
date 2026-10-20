@@ -273,13 +273,6 @@ func load_game(slot_name: String = "default") -> bool:
 	return true
 
 
-## Asigna el stream de voxel a todos los planetas con terreno.
-func _setup_terrain_streams(_slot_name: String) -> void:
-	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
-		if entity.has_method("setup_voxel_stream"):
-			entity.setup_voxel_stream()
-
-
 func has_save(slot_name: String = "default") -> bool:
 	return FileAccess.file_exists(_save_file_path(slot_name, "meta"))
 
@@ -294,26 +287,3 @@ func delete_save(slot_name: String = "default") -> bool:
 		if FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)
 	return true
-
-
-func get_save_slots() -> Array[String]:
-	var slots: Array[String] = []
-	var dir := DirAccess.open(SAVE_DIR)
-	if not dir:
-		return slots
-	var suffix := "_meta" + SAVE_EXTENSION
-	dir.list_dir_begin()
-	var file_name := dir.get_next()
-	while file_name != "":
-		if file_name.ends_with(suffix):
-			slots.append(file_name.trim_suffix(suffix))
-		file_name = dir.get_next()
-	return slots
-
-
-## Busca una entidad registrada por su entity_id.
-func get_entity(entity_id: String) -> Node:
-	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
-		if entity.get("entity_id") == entity_id:
-			return entity
-	return null

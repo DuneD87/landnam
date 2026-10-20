@@ -12,7 +12,7 @@ extends RefCounted
 ## Grosor de la hoja (radio de la cápsula), en metros.
 var radius: float = 0.08
 ## Capas contra las que barre: los hurtboxes.
-var mask: int = Hurtbox.LAYER
+var mask: int = PhysicsLayers.HURTBOX
 ## Áreas propias a ignorar (los hurtboxes de quien golpea).
 var exclude: Array[RID] = []
 ## Máximo de poses intermedias por tick.

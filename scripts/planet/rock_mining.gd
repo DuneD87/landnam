@@ -140,7 +140,7 @@ static func strike(scene_tree: SceneTree, space: PhysicsDirectSpaceState3D, feet
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.collide_with_areas = false 
 	query.collide_with_bodies = true
-	query.collision_mask = TreeFelling.WORLD_LAYER
+	query.collision_mask = PhysicsLayers.WORLD
 	query.shape = capsule
 	for segment in segments:
 		var a: Vector3 = segment[0]

@@ -911,9 +911,6 @@ func check_overlap(planet: Node3D, grid_pos: Vector3i, cell_size: float, source_
 
 	return false
 
-static func _same_origin_basis(a: GridBase, b: GridBase) -> bool:
-	return a.is_same_origin_basis(b)
-
 
 ## Obtiene una grid por ID.
 func get_grid(grid_id: String) -> GridBase:
@@ -985,13 +982,6 @@ func find_aligned_grid(planet: Node3D, target_cell: float, ref_grid: GridBase) -
 	return null
 
 
-func _basis_equal(a: Basis, b: Basis) -> bool:
-	for i in 3:
-		if not a[i].is_equal_approx(b[i]):
-			return false
-	return true
-
-
 ## Obtiene la grid a la que pertenece un bloque, por su metadata grid_id.
 func get_grid_for_block(block_node: Node3D) -> GridBase:
 	if block_node.has_meta("grid_id"):
@@ -999,36 +989,6 @@ func get_grid_for_block(block_node: Node3D) -> GridBase:
 	if block_node is DynamicGridBody and block_node.has_meta("grid_id"):
 		return get_grid(block_node.get_meta("grid_id"))
 	return null
-
-
-## Reutiliza una grid cercana compatible o crea una nueva.
-func get_or_create_grid(planet: Node3D, world_pos: Vector3, basis_world: Basis, cell_size: float = 1.0) -> GridBase:
-	var existing := find_nearest_grid(planet, world_pos, cell_size)
-	if existing:
-		return existing
-	return create_grid(planet, world_pos, basis_world, cell_size)
-
-
-func get_grid_count() -> int:
-	return _grids.size()
-
-
-func get_total_block_count() -> int:
-	var total := 0
-	for grid in _grids.values():
-		total += grid.get_block_count()
-	return total
-
-
-func get_all_grids() -> Array:
-	return _grids.values()
-
-
-## Elimina todas las grids de un planeta.
-func clear_planet(planet: Node3D) -> void:
-	var grids: Array = get_grids_for_planet(planet).duplicate()
-	for grid in grids:
-		remove_grid(grid.grid_id)
 
 
 ## Elimina todas las grids.

@@ -4,12 +4,10 @@ extends RefCounted
 ## Sangre sobre el cuerpo: cada golpe deja en el sitio por donde entra una mancha con regueros que
 ## bajan según la gravedad (BloodPool.SMEAR_TEXTURES, una al azar), pegada al hueso más cercano para
 ## que siga al cuerpo al moverse. Son Decals que solo pintan las mallas del personaje: estas llevan
-## además la capa de render LAYER, y las manchas solo esa capa en su cull_mask, así que el suelo de
+## además la capa de render RenderLayers.STAINABLE, y las manchas solo esa capa en su cull_mask, así que el suelo de
 ## debajo no se mancha. Se secan oscureciéndose y se limpian con clear() (al reaparecer, al reciclar
 ## una criatura).
 
-## Capa de render 20, libre en el proyecto: la de las mallas que se pueden manchar.
-const LAYER := 1 << 19
 const MAX_PER_BODY := 12
 const DRY_TIME := 60.0
 const META_SKELETON := &"blood_stain_skeleton"
@@ -39,7 +37,7 @@ static func stain(target: Node, point: Vector3, direction: Vector3, power: float
 	decal.texture_albedo = textures[0]
 	decal.texture_normal = textures[1]
 	decal.texture_orm = textures[2]
-	decal.cull_mask = LAYER
+	decal.cull_mask = RenderLayers.STAINABLE
 	# Solo las caras que miran hacia el golpe, no las del otro lado del brazo.
 	decal.normal_fade = 0.45
 	decal.upper_fade = 0.3
@@ -115,7 +113,7 @@ static func _nearest_bone(skel: Skeleton3D, point: Vector3) -> int:
 ## llegan limpias hasta el siguiente golpe).
 static func _tag_meshes(skel: Skeleton3D) -> void:
 	for node in skel.find_children("*", "MeshInstance3D", true, false):
-		(node as MeshInstance3D).layers |= LAYER
+		(node as MeshInstance3D).layers |= RenderLayers.STAINABLE
 
 
 static func _holder(skel: Skeleton3D, bone: int) -> BoneAttachment3D:

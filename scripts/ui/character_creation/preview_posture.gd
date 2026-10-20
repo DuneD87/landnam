@@ -11,23 +11,19 @@ extends SkeletonModifier3D
 
 ## Bone -> share of the animation's rotation it keeps (0 rest, 1 animation).
 const KEEP := {
-	"mixamorig_Spine": 0.5,
-	"mixamorig_Spine1": 0.3,
-	"mixamorig_Spine2": 0.3,
-	"mixamorig_Neck": 0.3,
-	"mixamorig_Head": 0.3,
-	"mixamorig_LeftShoulder": 0.3,
-	"mixamorig_RightShoulder": 0.3,
+	HumanRig.SPINE: 0.5,
+	HumanRig.SPINE1: 0.3,
+	HumanRig.SPINE2: 0.3,
+	HumanRig.NECK: 0.3,
+	HumanRig.HEAD: 0.3,
+	HumanRig.LEFT_SHOULDER: 0.3,
+	HumanRig.RIGHT_SHOULDER: 0.3,
 }
 
 var _bones := {}
 
 
 func _process_modification_with_delta(_delta: float) -> void:
-	_apply()
-
-
-func _process_modification() -> void:
 	_apply()
 
 

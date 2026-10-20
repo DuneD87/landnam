@@ -1,5 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://svsx1kqhi7jl"]
-
-[ext_resource type="PackedScene" uid="uid://b77m4g3xnsam6" path="res://models/equipable/stonepickaxe/scene.gltf" id="1_37kl0"]
-
-[node name="Sketchfab_Scene" instance=ExtResource("1_37kl0")]

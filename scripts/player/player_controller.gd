@@ -37,7 +37,6 @@ const VISIBILITY_CROUCH := 0.6
 ## Hasta dónde llega E a un animal pequeño muerto (m, de los pies al centro del cadáver).
 const SMALL_CORPSE_REACH := 2.5
 
-const config = preload("res://scripts/config.gd")
 const data = preload("res://scripts/items/item_data.gd")
 @onready var movement: Movement = $Movement
 @onready var health_component: HealthComponent = $HealthComponent
@@ -122,7 +121,7 @@ var free_flight_enabled = false
 var _cannon_charging: bool = false
 var _cannon_charge: float = 0.0
 var current_swimming_pitch: float = 0.0
-var current_animation = config.ANIMATION.IDLE
+var current_animation = AnimationController.Anim.IDLE
 
 var _water_surface_radius: float = 0.0
 var _water_surface_center: Vector3 = Vector3.ZERO
@@ -202,7 +201,7 @@ func _perform_raycast() -> void:
 	
 
 func _on_voxel_mined(item_id: StringName, amount: int) -> void:
-	var item_data := config.get_item(item_id)
+	var item_data := ItemCatalog.get_item(item_id)
 	if item_data:
 		var excess := inventory.add_item(item_data, amount)
 		print("+%d %s" % [amount - excess, item_data.get_display_name()])
@@ -446,7 +445,7 @@ func _unequip_right_hand() -> void:
 			var target = inventory.find_empty_slot()
 			if target >= 0:
 				inventory.items[target] = InventoryItem.new(unequipped.data, 1)
-				current_animation = config.ANIMATION.IDLE
+				current_animation = AnimationController.Anim.IDLE
 
 
 func _get_right_hand_item() -> ItemData:
@@ -464,7 +463,7 @@ func _consume_right_hand_item() -> bool:
 		return false
 	var unequipped = character_window.unequip_item(eq_slot)
 	if unequipped:
-		current_animation = config.ANIMATION.IDLE
+		current_animation = AnimationController.Anim.IDLE
 		return true
 	return false
 	
@@ -530,28 +529,28 @@ func _ready():
 	water_sampler = WaterHeightSampler.new()
 	add_child(water_sampler)
 	inventory.clear()
-	inventory.add_item(config.get_item(&"firstage_skin_boots"), 1)
-	inventory.add_item(config.get_item(&"firstage_skin_hands"), 1)
-	inventory.add_item(config.get_item(&"firstage_skin_pants"), 1)
-	inventory.add_item(config.get_item(&"firstage_skin_chest"), 1)
-	inventory.add_item(config.get_item(&"firstage_skin_hood"), 1)
+	inventory.add_item(ItemCatalog.get_item(&"firstage_skin_boots"), 1)
+	inventory.add_item(ItemCatalog.get_item(&"firstage_skin_hands"), 1)
+	inventory.add_item(ItemCatalog.get_item(&"firstage_skin_pants"), 1)
+	inventory.add_item(ItemCatalog.get_item(&"firstage_skin_chest"), 1)
+	inventory.add_item(ItemCatalog.get_item(&"firstage_skin_hood"), 1)
 	# Los dos atuendos de la Edad de Piedra, para probarlos.
 	for armor_id in [&"fur_mantle", &"fur_loincloth", &"fur_mittens", &"fur_moccasins",
 			&"hide_tunic", &"hide_trousers", &"hide_mittens", &"hide_boots"]:
-		inventory.add_item(config.get_item(armor_id), 1)
-	inventory.add_item(config.get_item(&"stone_axe_01"), 1)
-	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
-	inventory.add_item(config.get_item(&"seax"), 1)
+		inventory.add_item(ItemCatalog.get_item(armor_id), 1)
+	inventory.add_item(ItemCatalog.get_item(&"stone_axe_01"), 1)
+	inventory.add_item(ItemCatalog.get_item(&"stone_pickaxe_01"), 1)
+	inventory.add_item(ItemCatalog.get_item(&"seax"), 1)
 	# Armas para plantar cara a la fauna hostil: una de cada familia y su munición.
 	for weapon_id in [&"iron_sword", &"battle_axe", &"iron_mace", &"greatsword", &"great_axe", &"war_hammer",
 			&"hunting_bow", &"slingshot"]:
-		inventory.add_item(config.get_item(weapon_id), 1)
-	inventory.add_item(config.get_item(&"spear"), 3)
+		inventory.add_item(ItemCatalog.get_item(weapon_id), 1)
+	inventory.add_item(ItemCatalog.get_item(&"spear"), 3)
 	for shield_id in [&"iron_shield", &"heater_shield"]:
-		inventory.add_item(config.get_item(shield_id), 1)
-	inventory.add_item(config.get_item(&"arrow"), 40)
-	inventory.add_item(config.get_item(&"wood_01"), 100)
-	inventory.add_item(config.get_item(&"stone_01"), 100)
+		inventory.add_item(ItemCatalog.get_item(shield_id), 1)
+	inventory.add_item(ItemCatalog.get_item(&"arrow"), 40)
+	inventory.add_item(ItemCatalog.get_item(&"wood_01"), 100)
+	inventory.add_item(ItemCatalog.get_item(&"stone_01"), 100)
 
 	inventory_ui.setup(inventory, character_window, hotbar)
 	inventory_ui.crafter = self
@@ -673,7 +672,7 @@ func restore_save_data(save: Dictionary) -> void:
 
 	inventory.clear()
 	for entry in save.inventory:
-		var item_data: ItemData = config.get_item(StringName(entry.item_id))
+		var item_data: ItemData = ItemCatalog.get_item(StringName(entry.item_id))
 		if item_data:
 			inventory.add_item_at(item_data, int(entry.quantity), int(entry.slot_index))
 		else:
@@ -687,14 +686,14 @@ func restore_save_data(save: Dictionary) -> void:
 	for slot_key_str in save.equipment:
 		var slot_type: ItemData.ArmorSlot = int(slot_key_str) as ItemData.ArmorSlot
 		var item_id: String = save.equipment[slot_key_str]
-		var item_data: ItemData = config.get_item(StringName(item_id))
+		var item_data: ItemData = ItemCatalog.get_item(StringName(item_id))
 		if item_data and character_window.equipment_slots.has(slot_type):
 			var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
 			var inv_item := InventoryItem.new(item_data, 1)
 			eq_slot.set_item(inv_item)
 			equip_item(true, item_data.armor_slot, load(item_data.scene_path), item_data, item_data.category)
 	if save.has("hotbar"):
-		hotbar.restore_save_data(save.hotbar, config)
+		hotbar.restore_save_data(save.hotbar)
 	if save.has("hotbar_selected") and save.hotbar_selected >= 0:
 		hotbar.select_slot(save.hotbar_selected)
 	# El equipo se ha restaurado sin pasar por equipment_changed.
@@ -712,26 +711,6 @@ func restore_save_data(save: Dictionary) -> void:
 		needs.load_data(save.get("needs", {}))
 	_activate_player()
 
-func place_block_at_player() -> void:
-	var block_data: BlockData = BlockDatabase.get_block(BlockDatabase.BLOCK_SLOPE_ID)
-
-	var block := StaticBody3D.new()
-	block.name = "Block_%s" % block_data.block_name
-
-	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.mesh = block_data.mesh
-	block.add_child(mesh_instance)
-
-	var collider := CollisionShape3D.new()
-	collider.shape = block_data.collision_shape
-	if block_data.collision_shape is BoxShape3D:
-		collider.position.y = block_data.cell_size * 0.5
-	block.add_child(collider)
-
-	block.global_position = global_position
-
-	get_tree().current_scene.add_child(block)
-	block.add_to_group("floating_origin")
 ## Reposiciona a mano el CameraPivot (top_level) tras un rebase de FloatingOrigin.
 func shift_origin(offset: Vector3) -> void:
 	var pivot: Node3D = camera_controller.camera_pivot
@@ -1042,7 +1021,7 @@ func _activate_player() -> void:
 	mouse_captured = true
 	input_enabled = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	inventory.add_item(config.get_item(&"stone_pickaxe_01"), 1)
+	inventory.add_item(ItemCatalog.get_item(&"stone_pickaxe_01"), 1)
 	
 ## Andar: la animación (walk_relaxed, de ActorCore) avanza WALK_CLIP_SPEED m/s a ritmo 1 (lo
 ## que retrocede el pie apoyado, medido sobre este cuerpo). Se reproduce a walk_anim_rate y el
@@ -1540,7 +1519,7 @@ func _follow_sea_ice(sea_radius: float) -> bool:
 	var floes: SeaIceFloes = planet.sea_ice_floes
 	var on_floe := false
 	if floes != null:
-		collision_mask |= SeaIceFloor.LAYER
+		collision_mask |= PhysicsLayers.SEA_ICE_FLOOR
 		on_floe = not floes.floe_under(global_position).is_empty()
 	var min_ice := SeaIceFloor.PACK_ICE if floes != null else SeaIceFloor.MIN_ICE
 	if water_sampler.last_ice < min_ice and _sea_ice_floor == null:
@@ -1548,7 +1527,7 @@ func _follow_sea_ice(sea_radius: float) -> bool:
 	if _sea_ice_floor == null:
 		_sea_ice_floor = SeaIceFloor.new()
 		get_parent().add_child(_sea_ice_floor)
-		collision_mask |= SeaIceFloor.LAYER
+		collision_mask |= PhysicsLayers.SEA_ICE_FLOOR
 	var on_pack := _sea_ice_floor.follow(global_position, planet.global_position, sea_radius,
 		water_sampler.last_ice, min_ice)
 	return on_pack or on_floe
@@ -1696,12 +1675,6 @@ func apply_swimming_pitch(input_dir: Vector3, delta: float):
 	current_swimming_pitch = lerp(current_swimming_pitch, target_pitch, delta * swimming_rotation_speed)
 	player_model.rotation = Vector3(current_swimming_pitch, 0, 0)
 
-func _get_platform_point_velocity() -> Vector3:
-	if not _platform_body or not is_instance_valid(_platform_body):
-		return Vector3.ZERO
-	var r := global_position - _platform_body.global_position
-	return _platform_body.linear_velocity + _platform_body.angular_velocity.cross(r)
-	
 func _apply_platform_movement() -> void:
 	if not _platform_body or not is_instance_valid(_platform_body):
 		return
@@ -1793,8 +1766,8 @@ func update_normal_movement(delta: float) -> void:
 		camera_controller.update_camera_rotation()
 		return
 	locomotion.pre_update()
-	var idle_animation = config.ANIMATION.IDLE if !right_hand_equipped else equiped_weapon.idle_animation
-	var run_animation = config.ANIMATION.RUN if !right_hand_equipped else equiped_weapon.running_animation
+	var idle_animation = AnimationController.Anim.IDLE if !right_hand_equipped else equiped_weapon.idle_animation
+	var run_animation = AnimationController.Anim.RUN if !right_hand_equipped else equiped_weapon.running_animation
 	var input_dir = movement.handle_run_movement(delta, action_controller.is_attacking, gravity_direction, camera, idle_animation, run_animation)
 	movement.handle_jump_movement(delta, planet.gravity_strength, gravity_direction, is_on_floor())
 
@@ -1806,12 +1779,12 @@ func update_normal_movement(delta: float) -> void:
 		current_animation = equiped_weapon.attack_animation
 	# Con la antorcha, el brazo en alto también andando, esprintando y agachado. Agachado, el de
 	# quieto: el de correr bota al paso de la carrera.
-	if run_animation == config.ANIMATION.RUNNING_TORCH:
-		if current_animation == config.ANIMATION.WALK \
-				or (locomotion.crouching and current_animation == config.ANIMATION.RUNNING_TORCH):
-			current_animation = config.ANIMATION.WALK_TORCH
-		elif current_animation == config.ANIMATION.SPRINT:
-			current_animation = config.ANIMATION.SPRINT_TORCH
+	if run_animation == AnimationController.Anim.RUNNING_TORCH:
+		if current_animation == AnimationController.Anim.WALK \
+				or (locomotion.crouching and current_animation == AnimationController.Anim.RUNNING_TORCH):
+			current_animation = AnimationController.Anim.WALK_TORCH
+		elif current_animation == AnimationController.Anim.SPRINT:
+			current_animation = AnimationController.Anim.SPRINT_TORCH
 
 	combat.physics_update(delta, input_dir)
 	_update_fp_square(delta)

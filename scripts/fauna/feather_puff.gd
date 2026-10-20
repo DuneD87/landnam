@@ -26,15 +26,8 @@ static func spawn(target: Node, point: Vector3, up: Vector3, color: Color, amoun
 	if host == null:
 		return
 	var size := clampf(radius / REFERENCE_RADIUS, SIZE_LIMITS.x, SIZE_LIMITS.y)
-	var particles := GPUParticles3D.new()
-	particles.name = "FeatherPuff"
-	particles.amount = amount
-	particles.lifetime = LIFETIME
-	particles.one_shot = true
-	particles.explosiveness = 0.85
+	var particles := BurstParticles.create(amount, LIFETIME, 0.85, "FeatherPuff")
 	particles.randomness = 0.5
-	particles.local_coords = false
-	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var process := ParticleProcessMaterial.new()
 	process.direction = Vector3.UP
 	process.spread = 75.0

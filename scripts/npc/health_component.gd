@@ -120,7 +120,3 @@ func get_health_ratio() -> float:
 	if max_health <= 0.0:
 		return 0.0
 	return health / max_health
-
-
-func is_alive() -> bool:
-	return not is_dead

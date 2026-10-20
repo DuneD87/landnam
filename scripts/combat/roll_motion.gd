@@ -22,21 +22,21 @@ extends RefCounted
 
 ## Huesos que pueden tocar el suelo y cuánto sobresale la carne de cada uno (m).
 const CONTACT_BONES := {
-	"mixamorig_Hips": 0.12, "mixamorig_Spine": 0.12, "mixamorig_Spine1": 0.13,
-	"mixamorig_Spine2": 0.13, "mixamorig_Neck": 0.06, "mixamorig_Head": 0.10,
-	"mixamorig_HeadTop_End": 0.03,
-	"mixamorig_LeftArm": 0.06, "mixamorig_RightArm": 0.06,
-	"mixamorig_LeftForeArm": 0.05, "mixamorig_RightForeArm": 0.05,
-	"mixamorig_LeftHand": 0.04, "mixamorig_RightHand": 0.04,
-	"mixamorig_LeftUpLeg": 0.09, "mixamorig_RightUpLeg": 0.09,
-	"mixamorig_LeftLeg": 0.06, "mixamorig_RightLeg": 0.06,
-	"mixamorig_LeftFoot": 0.06, "mixamorig_RightFoot": 0.06,
-	"mixamorig_LeftToeBase": 0.03, "mixamorig_RightToeBase": 0.03,
-	"mixamorig_LeftToe_End": 0.02, "mixamorig_RightToe_End": 0.02,
+	HumanRig.HIPS: 0.12, HumanRig.SPINE: 0.12, HumanRig.SPINE1: 0.13,
+	HumanRig.SPINE2: 0.13, HumanRig.NECK: 0.06, HumanRig.HEAD: 0.10,
+	HumanRig.HEAD_TOP_END: 0.03,
+	HumanRig.LEFT_ARM: 0.06, HumanRig.RIGHT_ARM: 0.06,
+	HumanRig.LEFT_FORE_ARM: 0.05, HumanRig.RIGHT_FORE_ARM: 0.05,
+	HumanRig.LEFT_HAND: 0.04, HumanRig.RIGHT_HAND: 0.04,
+	HumanRig.LEFT_UP_LEG: 0.09, HumanRig.RIGHT_UP_LEG: 0.09,
+	HumanRig.LEFT_LEG: 0.06, HumanRig.RIGHT_LEG: 0.06,
+	HumanRig.LEFT_FOOT: 0.06, HumanRig.RIGHT_FOOT: 0.06,
+	HumanRig.LEFT_TOE_BASE: 0.03, HumanRig.RIGHT_TOE_BASE: 0.03,
+	HumanRig.LEFT_TOE_END: 0.02, HumanRig.RIGHT_TOE_END: 0.02,
 }
 ## Huesos cuyo centro marca el eje del ovillo.
-const PIVOT_BONES := ["mixamorig_Hips", "mixamorig_Spine1", "mixamorig_LeftLeg",
-	"mixamorig_RightLeg", "mixamorig_Spine2"]
+const PIVOT_BONES := [HumanRig.HIPS, HumanRig.SPINE1, HumanRig.LEFT_LEG,
+	HumanRig.RIGHT_LEG, HumanRig.SPINE2]
 ## Cuánto se desvía el eje de la vuelta respecto al lateral: rueda en diagonal sobre el hombro
 ## derecho, no de cabeza.
 const SHOULDER_TILT_DEG := 22.0
@@ -67,22 +67,22 @@ static func axis(mirror: bool = false) -> Vector3:
 ## Segmentos que anima la voltereta: [hueso, hijo, clave]. Cada clave es la dirección del
 ## segmento en el marco del modelo sin girar (+Z adelante, +Y arriba, +X izquierda).
 const SEGMENTS := [
-	["mixamorig_Hips", "mixamorig_Spine", "s0"],
-	["mixamorig_Spine", "mixamorig_Spine1", "s1"],
-	["mixamorig_Spine1", "mixamorig_Spine2", "s2"],
-	["mixamorig_Spine2", "mixamorig_Neck", "s3"],
-	["mixamorig_Neck", "mixamorig_Head", "s4"],
-	["mixamorig_Head", "mixamorig_HeadTop_End", "s5"],
-	["mixamorig_LeftUpLeg", "mixamorig_LeftLeg", "lthigh"],
-	["mixamorig_LeftLeg", "mixamorig_LeftFoot", "lshin"],
-	["mixamorig_LeftFoot", "mixamorig_LeftToeBase", "lfoot"],
-	["mixamorig_RightUpLeg", "mixamorig_RightLeg", "rthigh"],
-	["mixamorig_RightLeg", "mixamorig_RightFoot", "rshin"],
-	["mixamorig_RightFoot", "mixamorig_RightToeBase", "rfoot"],
-	["mixamorig_LeftArm", "mixamorig_LeftForeArm", "larm"],
-	["mixamorig_LeftForeArm", "mixamorig_LeftHand", "lfore"],
-	["mixamorig_RightArm", "mixamorig_RightForeArm", "rarm"],
-	["mixamorig_RightForeArm", "mixamorig_RightHand", "rfore"],
+	[HumanRig.HIPS, HumanRig.SPINE, "s0"],
+	[HumanRig.SPINE, HumanRig.SPINE1, "s1"],
+	[HumanRig.SPINE1, HumanRig.SPINE2, "s2"],
+	[HumanRig.SPINE2, HumanRig.NECK, "s3"],
+	[HumanRig.NECK, HumanRig.HEAD, "s4"],
+	[HumanRig.HEAD, HumanRig.HEAD_TOP_END, "s5"],
+	[HumanRig.LEFT_UP_LEG, HumanRig.LEFT_LEG, "lthigh"],
+	[HumanRig.LEFT_LEG, HumanRig.LEFT_FOOT, "lshin"],
+	[HumanRig.LEFT_FOOT, HumanRig.LEFT_TOE_BASE, "lfoot"],
+	[HumanRig.RIGHT_UP_LEG, HumanRig.RIGHT_LEG, "rthigh"],
+	[HumanRig.RIGHT_LEG, HumanRig.RIGHT_FOOT, "rshin"],
+	[HumanRig.RIGHT_FOOT, HumanRig.RIGHT_TOE_BASE, "rfoot"],
+	[HumanRig.LEFT_ARM, HumanRig.LEFT_FORE_ARM, "larm"],
+	[HumanRig.LEFT_FORE_ARM, HumanRig.LEFT_HAND, "lfore"],
+	[HumanRig.RIGHT_ARM, HumanRig.RIGHT_FORE_ARM, "rarm"],
+	[HumanRig.RIGHT_FORE_ARM, HumanRig.RIGHT_HAND, "rfore"],
 ]
 
 ## Retraso (en x) de cada segmento respecto al tronco: lo que cuelga más lejos llega después.

@@ -8,8 +8,6 @@ extends Node
 ## en el cursor y el botín) y sale. Necesita ventana.
 ##   godot --path . res://tests/ui/equipment_screen_preview.tscn -- --capture
 
-const Config = preload("res://scripts/config.gd")
-
 var _ui: InventoryUI
 var _character_window: CharacterWindow
 var _hotbar: Hotbar
@@ -29,7 +27,7 @@ func _ready() -> void:
 			[&"stone_axe_01", 1], [&"stone_pickaxe_01", 1], [&"torch_01", 1], [&"heater_shield", 1],
 			[&"leather_hood", 1], [&"leather_boots", 1], [&"firstage_skin_chest", 1], [&"wood_01", 64],
 			[&"stone_01", 99], [&"iron_01", 12], [&"branch_01", 10], [&"raw_hide", 5]]:
-		_inventory.add_item(Config.get_item(entry[0]), entry[1])
+		_inventory.add_item(ItemCatalog.get_item(entry[0]), entry[1])
 	_ui = load("res://scenes/ui/inventory_ui.tscn").instantiate()
 	_character_window = load("res://scenes/ui/character_window.tscn").instantiate()
 	_hotbar = load("res://scenes/ui/hotbar.tscn").instantiate()
@@ -54,7 +52,7 @@ func _ready() -> void:
 			[ItemData.ArmorSlot.HANDS, &"leather_hands"], [ItemData.ArmorSlot.RIGHT_HAND, &"spear"],
 			[ItemData.ArmorSlot.OFFHAND, &"wooden_shield"]]:
 		_character_window.equip_item(_character_window.equipment_slots[entry[0]],
-			InventoryItem.new(Config.get_item(entry[1]), 1))
+			InventoryItem.new(ItemCatalog.get_item(entry[1]), 1))
 	for i in 4:
 		_hotbar.assign_to_slot(i, _inventory.items[i].data)
 	_ui.open(InventoryUI.View.CHARACTER)
@@ -98,7 +96,7 @@ func _capture() -> void:
 	var loot := Inventory.new()
 	add_child(loot)
 	for entry in [[&"great_axe", 1], [&"firstage_skin_hood", 1], [&"arrow", 12], [&"gold_01", 3]]:
-		loot.add_item(Config.get_item(entry[0]), entry[1])
+		loot.add_item(ItemCatalog.get_item(entry[0]), entry[1])
 	_ui.open_loot(loot)
 	await _shot("05_botin")
 	_ui.close_loot()

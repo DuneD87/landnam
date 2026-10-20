@@ -529,7 +529,7 @@ func _set_caps(inst: MeshInstance3D, caps: Array) -> void:
 		if cap == null:
 			continue
 		var mi := MeshInstance3D.new()
-		mi.name = "StumpCap_" + String(_cuts[i].name).trim_prefix("mixamorig_") if i < _cuts.size() else "StumpCap"
+		mi.name = "StumpCap_" + String(_cuts[i].name).trim_prefix(HumanRig.PREFIX) if i < _cuts.size() else "StumpCap"
 		mi.set_meta(CAP_META, true)
 		mi.mesh = LimbCutter.build([cap], PackedStringArray(), 0, "StumpCap", false)
 		mi.material_override = _stump()

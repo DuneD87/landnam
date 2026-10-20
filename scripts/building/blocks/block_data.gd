@@ -40,10 +40,3 @@ func get_rotation_angle_deg() -> float:
 	if rotation_steps <= 1:
 		return 0.0
 	return 360.0 / rotation_steps
-
-func get_rotation_angle_rad() -> float:
-	return deg_to_rad(get_rotation_angle_deg())
-
-## Devuelve true si build_cost está vacío (bloque gratuito / creative)
-func is_free() -> bool:
-	return build_cost.is_empty()

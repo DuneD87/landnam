@@ -8,8 +8,6 @@ extends RefCounted
 signal block_placed(grid_pos: Vector3i, block_id: int)
 signal block_removed(grid_pos: Vector3i)
 
-const config_ref = preload("res://scripts/config.gd")
-
 const CHUNK_SHIFT := 4
 
 ## Energía (J) que absorbe un bloque de 1 m³ antes de romperse, si su BlockData no la define.
@@ -257,7 +255,7 @@ func place_prop(cell: Vector3i, face: Vector3i, item_id: StringName, local_trans
 	if _props.has(key):
 		return false
 
-	var item: ItemData = config_ref.get_item(item_id)
+	var item: ItemData = ItemCatalog.get_item(item_id)
 	if not item or item.scene_path == "":
 		return false
 
@@ -512,27 +510,6 @@ func get_neighbors_of(grid_pos: Vector3i) -> Array[Vector3i]:
 		grid_pos + Vector3i(0, 0, 1),
 		grid_pos + Vector3i(0, 0, -1),
 	]
-
-func get_connected_blocks(start_pos: Vector3i) -> Array[Vector3i]:
-	if not _blocks.has(start_pos):
-		return []
-
-	var visited: Dictionary = {}
-	var queue: Array[Vector3i] = [start_pos]
-	var result: Array[Vector3i] = []
-
-	while not queue.is_empty():
-		var current: Vector3i = queue.pop_front()
-		if visited.has(current):
-			continue
-		visited[current] = true
-		result.append(current)
-
-		for neighbor in get_neighbors_of(current):
-			if _blocks.has(neighbor) and not visited.has(neighbor):
-				queue.append(neighbor)
-
-	return result
 
 
 ## Energía que cuesta romper un bloque intacto: su dureza (o la nominal) por el volumen que

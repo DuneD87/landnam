@@ -6,7 +6,6 @@ extends Node3D
 ##   godot --path . res://tests/world/placeables_review.tscn [-- --capture=<carpeta>]
 ## Con --capture saca unas fotos de cerca y se cierra.
 
-const Config = preload("res://scripts/config.gd")
 const SIZE := 12.0
 const CELLS := 96
 
@@ -52,7 +51,7 @@ func _ready() -> void:
 		fire.global_transform = fit.transform
 		fire.fuel_left = 999.0
 		fire.ignite()
-	var bench_data: ItemData = Config.get_item(&"stone_workbench")
+	var bench_data: ItemData = ItemCatalog.get_item(&"stone_workbench")
 	var ground := bench_data.get_trait(GroundPlaceableTrait) as GroundPlaceableTrait
 	for spot: Vector3 in _spots:
 		var at: Vector3 = spot + BENCH_BEHIND

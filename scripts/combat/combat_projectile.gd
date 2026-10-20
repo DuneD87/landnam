@@ -13,8 +13,6 @@ enum Kind {ARROW, STONE, SPEAR}
 
 ## Grupo de las lanzas recogibles del suelo.
 const PICKUP_GROUP := &"weapon_pickup"
-## Terreno, grids y barcos.
-const WORLD_MASK := 1
 const MAX_LIFETIME := 8.0
 ## Un impacto espanta a las aves posadas a esta distancia.
 const STARTLE_RADIUS := 7.0
@@ -104,7 +102,7 @@ func _physics_process(delta: float) -> void:
 	var to := from + velocity * delta
 	var space := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = WORLD_MASK | Hurtbox.LAYER
+	query.collision_mask = PhysicsLayers.WORLD | PhysicsLayers.HURTBOX
 	query.collide_with_areas = true
 	query.exclude = _exclude
 	# Hasta tres intentos por si el rayo toca hurtboxes apagados o propios.

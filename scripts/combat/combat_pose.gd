@@ -21,13 +21,13 @@ const RIGHT_GRIP := Transform3D(Basis(Vector3(0, 0, 100), Vector3(100, 0, 0), Ve
 ## Lo mismo en la izquierda: el rig refleja el eje X de los huesos del lado izquierdo.
 const LEFT_GRIP := Transform3D(Basis(Vector3(0, 0, -100), Vector3(-100, 0, 0), Vector3(0, 100, 0)), Vector3(1.5, -2.0, 1.0))
 
-const B_HIPS := "mixamorig_Hips"
-const SPINE := ["mixamorig_Spine", "mixamorig_Spine1", "mixamorig_Spine2"]
-const NECK := ["mixamorig_Neck", "mixamorig_Head"]
-const L_ARM := ["mixamorig_LeftArm", "mixamorig_LeftForeArm", "mixamorig_LeftHand"]
-const R_ARM := ["mixamorig_RightArm", "mixamorig_RightForeArm", "mixamorig_RightHand"]
-const L_LEG := ["mixamorig_LeftUpLeg", "mixamorig_LeftLeg", "mixamorig_LeftFoot"]
-const R_LEG := ["mixamorig_RightUpLeg", "mixamorig_RightLeg", "mixamorig_RightFoot"]
+const B_HIPS := HumanRig.HIPS
+const SPINE := [HumanRig.SPINE, HumanRig.SPINE1, HumanRig.SPINE2]
+const NECK := [HumanRig.NECK, HumanRig.HEAD]
+const L_ARM := [HumanRig.LEFT_ARM, HumanRig.LEFT_FORE_ARM, HumanRig.LEFT_HAND]
+const R_ARM := [HumanRig.RIGHT_ARM, HumanRig.RIGHT_FORE_ARM, HumanRig.RIGHT_HAND]
+const L_LEG := [HumanRig.LEFT_UP_LEG, HumanRig.LEFT_LEG, HumanRig.LEFT_FOOT]
+const R_LEG := [HumanRig.RIGHT_UP_LEG, HumanRig.RIGHT_LEG, HumanRig.RIGHT_FOOT]
 
 ## Nodo cuyo marco manda (PlayerModel): +Z adelante, +Y arriba.
 var frame_node: Node3D
@@ -153,17 +153,13 @@ func _ready() -> void:
 		active = false
 		return
 	for group in [[B_HIPS], SPINE, NECK, L_ARM, R_ARM, L_LEG, R_LEG,
-			["mixamorig_LeftShoulder", "mixamorig_RightShoulder"]]:
+			[HumanRig.LEFT_SHOULDER, HumanRig.RIGHT_SHOULDER]]:
 		for bone_name in group:
 			_idx[bone_name] = _skel.find_bone(bone_name)
 
 
 func _process_modification_with_delta(delta: float) -> void:
 	_delta = delta
-	_apply()
-
-
-func _process_modification() -> void:
 	_apply()
 
 
@@ -562,12 +558,12 @@ static func _tuck_segments() -> Array:
 	var arc_dir := func(deg: float) -> Vector3:
 		return Vector3(0.0, cos(deg_to_rad(deg)), sin(deg_to_rad(deg)))
 	var segs: Array = [
-		["mixamorig_Hips", "mixamorig_Spine", arc_dir.call(8.0)],
-		["mixamorig_Spine", "mixamorig_Spine1", arc_dir.call(24.0)],
-		["mixamorig_Spine1", "mixamorig_Spine2", arc_dir.call(42.0)],
-		["mixamorig_Spine2", "mixamorig_Neck", arc_dir.call(62.0)],
-		["mixamorig_Neck", "mixamorig_Head", arc_dir.call(88.0)],
-		["mixamorig_Head", "mixamorig_HeadTop_End", arc_dir.call(112.0)],
+		[HumanRig.HIPS, HumanRig.SPINE, arc_dir.call(8.0)],
+		[HumanRig.SPINE, HumanRig.SPINE1, arc_dir.call(24.0)],
+		[HumanRig.SPINE1, HumanRig.SPINE2, arc_dir.call(42.0)],
+		[HumanRig.SPINE2, HumanRig.NECK, arc_dir.call(62.0)],
+		[HumanRig.NECK, HumanRig.HEAD, arc_dir.call(88.0)],
+		[HumanRig.HEAD, HumanRig.HEAD_TOP_END, arc_dir.call(112.0)],
 	]
 	for side in [["Left", 1.0], ["Right", -1.0]]:
 		var n: String = side[0]
@@ -704,7 +700,7 @@ func _apply_grip() -> void:
 	var z := hand.x
 	var x := y.cross(z).normalized()
 	z = x.cross(y)
-	var origin := bone_pos("mixamorig_RightHand") + (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * m
+	var origin := bone_pos(HumanRig.RIGHT_HAND) + (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * m
 	var to_world := _skel.global_transform
 	right_grip_xform = Transform3D((to_world.basis.orthonormalized() * Basis(x, y, z)).orthonormalized(), to_world * origin)
 
@@ -746,7 +742,7 @@ func _apply_guard(w: float) -> void:
 ## Centro del escudo (espacio del esqueleto): sobre el dorso del antebrazo izquierdo.
 func _shield_center() -> Vector3:
 	var frame := _shield_frame()
-	var elbow := (bone_pos("mixamorig_LeftForeArm") - frame.origin).normalized()
+	var elbow := (bone_pos(HumanRig.LEFT_FORE_ARM) - frame.origin).normalized()
 	return frame.origin + (elbow * SHIELD_ON_FOREARM.x + frame.basis.z * SHIELD_ON_FOREARM.y) * unit()
 
 
@@ -756,16 +752,16 @@ func _shield_center() -> Vector3:
 ## (en el idle la mano cuelga con el dorso hacia arriba, y con el marco de la mano el escudo
 ## quedaba plano, como una bandeja, atravesando el brazo).
 func _shield_frame() -> Transform3D:
-	var fi := bone_idx("mixamorig_LeftForeArm")
+	var fi := bone_idx(HumanRig.LEFT_FORE_ARM)
 	if _forearm_out == Vector3.ZERO:
 		var rest := _skel.get_bone_global_rest(fi).basis.inverse()
 		var hand := hand_frame("Left", true)
-		var thumb := _skel.get_bone_global_rest(bone_idx("mixamorig_LeftHandIndex1")).origin \
-			- _skel.get_bone_global_rest(bone_idx("mixamorig_LeftHandPinky1")).origin
+		var thumb := _skel.get_bone_global_rest(bone_idx(HumanRig.LEFT_HAND_INDEX1)).origin \
+			- _skel.get_bone_global_rest(bone_idx(HumanRig.LEFT_HAND_PINKY1)).origin
 		_forearm_out = rest * -hand.y
 		_forearm_top = rest * thumb
-	var wrist := bone_pos("mixamorig_LeftHand")
-	var along := (wrist - bone_pos("mixamorig_LeftForeArm")).normalized()
+	var wrist := bone_pos(HumanRig.LEFT_HAND)
+	var along := (wrist - bone_pos(HumanRig.LEFT_FORE_ARM)).normalized()
 	var pose := _skel.get_bone_global_pose(fi).basis
 	var out := pose * _forearm_out
 	out = (out - along * out.dot(along)).normalized()
@@ -942,7 +938,7 @@ const BOW_FACE_CLEARANCE := 0.04
 func _clear_face(w: float) -> void:
 	if w <= 0.001:
 		return
-	var fingers := (bone_pos("mixamorig_RightHandIndex2") + bone_pos("mixamorig_RightHandMiddle2")) * 0.5
+	var fingers := (bone_pos(HumanRig.RIGHT_HAND_INDEX2) + bone_pos(HumanRig.RIGHT_HAND_MIDDLE2)) * 0.5
 	var arrow := (bone_pos(L_ARM[2]) - fingers).normalized()
 	var up := model_dir(Vector3.UP)
 	var away := fingers - bone_pos(NECK[1])
@@ -1108,7 +1104,7 @@ func _apply_aim(w: float) -> void:
 				var disc := b * b - c0.length_squared() + pow(arm_len * 0.95, 2.0)
 				if disc > 0.0:
 					hold = l_shoulder + c0 + aim_s * (-b + sqrt(disc))
-				var knuckles := bone_pos("mixamorig_RightHandMiddle1").distance_to(bone_pos(R_ARM[2]))
+				var knuckles := bone_pos(HumanRig.RIGHT_HAND_MIDDLE1).distance_to(bone_pos(R_ARM[2]))
 				anchor = eye + (right_s * SLING_FP_ANCHOR.x + up_s * SLING_FP_ANCHOR.y
 					+ aim_s * SLING_FP_ANCHOR.z) * unit - aim_s * knuckles
 			two_bone(L_ARM, hold, -up_s * 0.6 + left_s, w)

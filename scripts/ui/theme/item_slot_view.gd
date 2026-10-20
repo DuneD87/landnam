@@ -103,10 +103,6 @@ func show_empty() -> void:
 	_refresh_style()
 
 
-func is_filled() -> bool:
-	return _filled
-
-
 ## Silueta de lo que va en el hueco, para cuando está vacío.
 func set_ghost(texture: Texture2D) -> void:
 	_ghost.texture = texture

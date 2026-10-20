@@ -1,6 +1,5 @@
 class_name ItemData
 extends Resource
-const config = preload("res://scripts/config.gd")
 
 enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR, BLOCK}
 enum ToolType {NONE, PICKAXE, AXE, HAMMER, TORCH}
@@ -19,9 +18,9 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export var icon: Texture2D
 @export var category: Category
 @export var scene_path: String
-@export var attack_animation: config.ANIMATION = config.ANIMATION.ATTACK_1
-@export var idle_animation: config.ANIMATION = config.ANIMATION.IDLE
-@export var running_animation: config.ANIMATION = config.ANIMATION.RUN
+@export var attack_animation: AnimationController.Anim = AnimationController.Anim.ATTACK_1
+@export var idle_animation: AnimationController.Anim = AnimationController.Anim.IDLE
+@export var running_animation: AnimationController.Anim = AnimationController.Anim.RUN
 @export var surface_material: Material
 @export var block_id: int = -1
 @export var build_material_id: String = ""
@@ -210,26 +209,3 @@ func is_shield() -> bool:
 ## derecha tensa).
 func is_left_handed() -> bool:
 	return weapon_type == WeaponType.BOW or weapon_type == WeaponType.SLINGSHOT
-
-
-	
-func can_equip_in_slot(slot_type: String) -> bool:
-	match slot_type:
-		"head":
-			return category == Category.ARMOR and armor_slot == ArmorSlot.HEAD
-		"chest":
-			return category == Category.ARMOR and armor_slot == ArmorSlot.CHEST
-		"hands":
-			return category == Category.ARMOR and armor_slot == ArmorSlot.HANDS
-		"legs":
-			return category == Category.ARMOR and armor_slot == ArmorSlot.LEGS
-		"feet":
-			return category == Category.ARMOR and armor_slot == ArmorSlot.FEET
-		"main_hand":
-			return category == Category.WEAPON
-		"off_hand":
-			return category == Category.WEAPON or category == Category.TOOL
-		"tool":
-			return category == Category.TOOL
-		_:
-			return false

@@ -93,10 +93,7 @@ func _find_lock_target(side: float) -> Node3D:
 
 func _has_line_of_sight(point: Vector3, target: Node) -> bool:
 	var from := player.camera.global_position
-	var query := PhysicsRayQueryParameters3D.create(from, point)
-	query.collision_mask = 1
-	query.exclude = [player.get_rid()]
-	var hit := player.get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := Raycast.cast(player, from, point, PhysicsLayers.WORLD, [player.get_rid()])
 	return hit.is_empty() or hit.collider == target
 
 

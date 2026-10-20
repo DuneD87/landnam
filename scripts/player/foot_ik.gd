@@ -6,8 +6,6 @@ extends SkeletonModifier3D
 ## guarda entre frames son desplazamientos escalares sobre el eje "arriba" gravitacional, no
 ## posiciones de mundo, asi que los rebases de FloatingOrigin no le afectan.
 
-const Config = preload("res://scripts/config.gd")
-
 const _SIDES := 2
 const _EPS := 0.0001
 ## Margen antes de dar el IK por interrumpido DE VERDAD, a efectos de pisadas. Sobre una cubierta
@@ -22,9 +20,9 @@ const STEP_REARM_GRACE := 0.2
 signal foot_planted(side: int, hit: Dictionary)
 
 @export_group("Huesos")
-@export var hips_bone: String = "mixamorig_Hips"
-@export var left_chain: Array[String] = ["mixamorig_LeftUpLeg", "mixamorig_LeftLeg", "mixamorig_LeftFoot"]
-@export var right_chain: Array[String] = ["mixamorig_RightUpLeg", "mixamorig_RightLeg", "mixamorig_RightFoot"]
+@export var hips_bone: String = HumanRig.HIPS
+@export var left_chain: Array[String] = [HumanRig.LEFT_UP_LEG, HumanRig.LEFT_LEG, HumanRig.LEFT_FOOT]
+@export var right_chain: Array[String] = [HumanRig.RIGHT_UP_LEG, HumanRig.RIGHT_LEG, HumanRig.RIGHT_FOOT]
 
 @export_group("Sondeo")
 ## Altura sobre el pie animado desde la que sale el rayo, y cuanto baja por debajo de el.
@@ -226,8 +224,8 @@ func _is_enabled() -> bool:
 		return false
 	if "current_animation" in _body:
 		var anim = _body.current_animation
-		if anim == Config.ANIMATION.SWIM or anim == Config.ANIMATION.SWIM_IDLE \
-				or anim == Config.ANIMATION.DEATH:
+		if anim == AnimationController.Anim.SWIM or anim == AnimationController.Anim.SWIM_IDLE \
+				or anim == AnimationController.Anim.DEATH:
 			return false
 	var cam := get_viewport().get_camera_3d()
 	if cam and cam.global_position.distance_squared_to(_body.global_position) > max_distance * max_distance:
@@ -246,10 +244,6 @@ func _probe(foot_world: Vector3, up: Vector3) -> Dictionary:
 
 
 func _process_modification_with_delta(_delta: float) -> void:
-	_apply()
-
-
-func _process_modification() -> void:
 	_apply()
 
 

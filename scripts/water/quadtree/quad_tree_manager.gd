@@ -156,27 +156,3 @@ func _update_quadtree(camera_position: Vector3):
 		root_quad.update_lod(camera_position, global_position)
 
 	_emit_quadtree_changed(camera_position)
-
-func get_face_quad(face_name: String) -> QuadNode:
-	for i in range(cube_faces.size()):
-		if cube_faces[i].name == face_name:
-			return root_quads[i]
-	return null
-
-func get_all_active_quads_count() -> int:
-	var count = 0
-	for root_quad in root_quads:
-		count += _count_active_quads(root_quad)
-	return count
-
-func _count_active_quads(node: QuadNode) -> int:
-	if not node:
-		return 0
-	
-	if not node.is_subdivided:
-		return 1
-	else:
-		var count = 0
-		for child in node.children:
-			count += _count_active_quads(child)
-		return count

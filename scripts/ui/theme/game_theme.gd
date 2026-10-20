@@ -76,10 +76,6 @@ static func bold_font() -> Font:
 	return _ALEGREYA_BOLD
 
 
-static func italic_font() -> Font:
-	return _ALEGREYA_ITALIC
-
-
 static func build(ui_scale: float) -> Theme:
 	var theme := Theme.new()
 	var px := func(value: float) -> int: return maxi(1, roundi(value * ui_scale))

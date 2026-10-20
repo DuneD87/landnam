@@ -87,22 +87,14 @@ static func build(tree_root: AnimationNodeBlendTree, animator: AnimationPlayer, 
 	tree_root.connect_node(&"crouch_move", 0, &"crouch_idle")
 	tree_root.connect_node(&"crouch_move", 1, &"crouch_walk_scale")
 	# Debajo del salto: lo que entraba en él pasa por el agachado.
-	var below := _input_of(tree_root, &"bJumpStart", 0)
+	var below := AnimGraph.input_of(tree_root, &"bJumpStart", 0)
 	tree_root.disconnect_node(&"bJumpStart", 0)
 	tree_root.add_node(&"crouch", AnimationNodeBlend2.new())
 	tree_root.connect_node(&"crouch", 0, below)
 	tree_root.connect_node(&"crouch", 1, &"crouch_move")
 	tree_root.connect_node(&"bJumpStart", 0, &"crouch")
-	var arm := skeleton.find_bone("mixamorig_RightShoulder")
 	for node in [&"bIdleTorch", &"bRunningTorch", &"bTorchFocus"]:
-		var blend := tree_root.get_node(node) as AnimationNodeBlend2
-		blend.filter_enabled = true
-		for bone in skeleton.get_bone_count():
-			var parent := bone
-			while parent >= 0 and parent != arm:
-				parent = skeleton.get_bone_parent(parent)
-			if parent == arm:
-				blend.set_filter_path(NodePath("Armature/Skeleton3D:" + skeleton.get_bone_name(bone)), true)
+		AnimGraph.filter_branch(tree_root.get_node(node), skeleton, HumanRig.RIGHT_SHOULDER)
 
 
 static func _space(clips: Array, animator: AnimationPlayer) -> AnimationNodeBlendSpace2D:
@@ -131,14 +123,6 @@ static func _replace(tree_root: AnimationNodeBlendTree, old: StringName, into: S
 	tree_root.remove_node(old)
 	tree_root.add_node(node_name, node)
 	tree_root.connect_node(into, 0, node_name)
-
-
-static func _input_of(tree_root: AnimationNodeBlendTree, node: StringName, port: int) -> StringName:
-	var connections: Array = tree_root.get("node_connections")
-	for i in range(0, connections.size(), 3):
-		if connections[i] == node and int(connections[i + 1]) == port:
-			return connections[i + 2]
-	return StringName()
 
 
 func setup(owner_player: PlayerController) -> void:

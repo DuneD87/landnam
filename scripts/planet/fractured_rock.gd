@@ -42,7 +42,7 @@ func setup(pieces: Array, mesh_xf: Transform3D, item: ItemData, stones: int, wor
 	var bodies: Array[StaticBody3D] = []
 	for piece in pieces:
 		var body := StaticBody3D.new()
-		body.collision_layer = TreeFelling.WORLD_LAYER
+		body.collision_layer = PhysicsLayers.WORLD
 		body.collision_mask = 0
 		body.position = piece.offset
 		var visual := MeshInstance3D.new()
@@ -73,7 +73,7 @@ func setup(pieces: Array, mesh_xf: Transform3D, item: ItemData, stones: int, wor
 		var center := bodies[i].global_position
 		var height := (center - global_position).dot(up)
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(center + up * (top - height + 1.0),
-			center + up * (lows[i] - height - GROUND_GAP), TreeFelling.WORLD_LAYER, exclude))
+			center + up * (lows[i] - height - GROUND_GAP), PhysicsLayers.WORLD, exclude))
 		if not hit.is_empty() and ((hit.position as Vector3) - center).dot(up) > 0.0:
 			_buried[i] = {"body": bodies[i], "piece": pieces[i]}
 		else:

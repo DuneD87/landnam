@@ -31,10 +31,6 @@ func _process_modification_with_delta(_delta: float) -> void:
 	_apply()
 
 
-func _process_modification() -> void:
-	_apply()
-
-
 func _apply() -> void:
 	var skel := get_skeleton()
 	if skel == null or frame_node == null or _hips < 0 or _left < 0 or _right < 0:

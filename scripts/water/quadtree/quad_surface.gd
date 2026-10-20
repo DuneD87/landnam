@@ -171,36 +171,6 @@ func _create_array_mesh():
 	array_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mesh = array_mesh
 
-func _calculate_normals():
-	normals.resize(vertices.size())
-	for i in range(normals.size()):
-		normals[i] = Vector3.ZERO
-	
-	for i in range(0, indices.size(), 3):
-		var i1 = indices[i]
-		var i2 = indices[i + 1]
-		var i3 = indices[i + 2]
-		
-		var v1 = vertices[i1]
-		var v2 = vertices[i2]
-		var v3 = vertices[i3]
-		
-		var edge1 = v2 - v1
-		var edge2 = v3 - v1
-		var triangle_normal = edge2.cross(edge1).normalized()
-		
-		if triangle_normal.dot(face_normal) < 0:
-			triangle_normal = -triangle_normal
-		
-		normals[i1] += triangle_normal
-		normals[i2] += triangle_normal
-		normals[i3] += triangle_normal
-	
-	for i in range(normals.size()):
-		normals[i] = normals[i].normalized()
-		if normals[i].dot(face_normal) < 0:
-			normals[i] = -normals[i]
-
 func _calculate_normal_with_neighbors(world_pos: Vector3, epsilon: float) -> Vector3:
 	var pos_right = world_pos + Vector3(epsilon, 0, 0)
 	var pos_left = world_pos + Vector3(-epsilon, 0, 0)
@@ -315,12 +285,3 @@ func generate_mesh():
 	_create_array_mesh()
 	
 	needs_update = false
-
-func get_animation_info() -> Dictionary:
-	return {
-		"is_animating": should_animate,
-		"distance_to_camera": global_position.distance_to(camera_position),
-		"animation_threshold": animation_distance_threshold,
-		"current_time": current_time,
-		"level": quad_level
-	}

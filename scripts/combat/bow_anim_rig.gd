@@ -65,11 +65,11 @@ func apply(p: CombatPose) -> void:
 	var up := p.model_dir(Vector3.UP)
 	# Arco: la empuñadura en el puño cerrado, como un mango (CombatPose.FIST_HANDLE).
 	var hand := p.hand_frame("Left")
-	var grip := p.bone_pos("mixamorig_LeftHand") \
+	var grip := p.bone_pos(HumanRig.LEFT_HAND) \
 		+ (hand.x * CombatPose.FIST_HANDLE.x + hand.y * CombatPose.FIST_HANDLE.y) * m
 	var bow_skel := Transform3D((hand * BOW_IN_HAND * Basis(Vector3.BACK, deg_to_rad(-CANT))).orthonormalized(), grip)
 	# Cuerda entre el índice y el corazón de la derecha.
-	var fingers := (p.bone_pos("mixamorig_RightHandIndex2") + p.bone_pos("mixamorig_RightHandMiddle2")) * 0.5
+	var fingers := (p.bone_pos(HumanRig.RIGHT_HAND_INDEX2) + p.bone_pos(HumanRig.RIGHT_HAND_MIDDLE2)) * 0.5
 	var brace := -WeaponMeshes.bow_tip(true).z
 	var rest := bow_skel * (Vector3(0, ArcheryPose.ARROW_REST, -brace) * m)
 	var arrow_rest := bow_skel * (Vector3(0, ArcheryPose.ARROW_REST, 0) * m)

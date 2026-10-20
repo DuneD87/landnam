@@ -15,10 +15,6 @@ func _process_modification_with_delta(_delta: float) -> void:
 	_apply()
 
 
-func _process_modification() -> void:
-	_apply()
-
-
 func _apply() -> void:
 	var skeleton := get_skeleton()
 	if skeleton == null:

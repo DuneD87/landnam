@@ -128,5 +128,4 @@ static func _descendants(skeleton: Skeleton3D, bone: int) -> int:
 
 ## El suelo bajo [point] (terreno, grids, barcos), por la gravedad: {position, normal}, o vacío.
 static func _ground(body: Node3D, point: Vector3, up: Vector3) -> Dictionary:
-	var query := PhysicsRayQueryParameters3D.create(point + up * 2.0, point - up * 4.0, GutPile.WORLD_MASK)
-	return body.get_world_3d().direct_space_state.intersect_ray(query)
+	return Raycast.ground(body, point, up, 2.0, 4.0, PhysicsLayers.WORLD)

@@ -19,8 +19,6 @@ const USE_COOLDOWN := 0.7
 const WaterAccessQuery = preload("res://scripts/player/water_access.gd")
 ## Hasta dónde se planta (m desde los pies).
 const PLACE_RANGE := 4.5
-## Terreno, grids y barcos (como DroppedItem.WORLD_MASK).
-const WORLD_MASK := 1
 const GHOST_OK := Color(0.6, 0.9, 0.55, 0.5)
 const GHOST_BAD := Color(0.95, 0.35, 0.3, 0.5)
 
@@ -283,7 +281,7 @@ func _update_ghost() -> void:
 		_make_ghost(ground.preview_scene)
 	var cam := _player.camera
 	var from := cam.global_position
-	var query := PhysicsRayQueryParameters3D.create(from, from - cam.global_basis.z * (PLACE_RANGE + 8.0), WORLD_MASK)
+	var query := PhysicsRayQueryParameters3D.create(from, from - cam.global_basis.z * (PLACE_RANGE + 8.0), PhysicsLayers.WORLD)
 	query.exclude = [_player.get_rid()]
 	var space := _player.get_world_3d().direct_space_state
 	var hit := space.intersect_ray(query)
@@ -294,7 +292,7 @@ func _update_ghost() -> void:
 	var up := -_player.gravity_direction.normalized()
 	var at: Vector3 = hit.position
 	var exclude: Array[RID] = [_player.get_rid()]
-	var fit := GroundFit.fit(space, at, up, _player.global_position - at, ground.radius, WORLD_MASK, exclude,
+	var fit := GroundFit.fit(space, at, up, _player.global_position - at, ground.radius, PhysicsLayers.WORLD, exclude,
 		ground.max_tilt, ground.settle, ground.max_settle)
 	if not fit.ok:
 		_ghost.visible = false

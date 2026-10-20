@@ -348,14 +348,6 @@ func reroll() -> void:
 	_transition_to(_choose_from(_active_profile(), ""))
 
 
-## Fuerza un evento por nombre (para testeo o eventos de juego).
-func set_weather(event_name: String) -> void:
-	if not _events.has(event_name):
-		push_warning("WeatherController: evento desconocido '%s'" % event_name)
-		return
-	_transition_to(event_name)
-
-
 ## Fuerza un evento y bloquea la máquina de estados (no auto-transiciona) hasta clear_force().
 func force_weather(event_name: String) -> void:
 	if not _events.has(event_name):
@@ -374,10 +366,6 @@ func clear_force() -> void:
 		return
 	_forced = false
 	_elapsed = _duration
-
-
-func is_forced() -> bool:
-	return _forced
 
 
 ## Altitud del jugador sobre el radio del planeta. La usa el audio para que en una cima sople
@@ -402,10 +390,6 @@ func is_sheltered() -> bool:
 
 func get_current_weather_name() -> String:
 	return _current
-
-
-func get_current_biome() -> int:
-	return _current_biome
 
 
 func get_event_names() -> Array:

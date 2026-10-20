@@ -127,11 +127,6 @@ func get_skeleton() -> Skeleton3D:
 	return _skeleton
 
 
-func reset_turn() -> void:
-	create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).tween_property(
-			_model, "rotation:y", 0.0, 0.5)
-
-
 func _process(delta: float) -> void:
 	if _head_aim.head_position != Vector3.ZERO:
 		_head_height = lerpf(_head_height, _head_aim.head_position.y, 1.0 - exp(-delta * 3.0))

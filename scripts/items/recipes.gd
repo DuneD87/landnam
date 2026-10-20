@@ -1,8 +1,6 @@
 class_name Recipes
 extends RefCounted
 
-const Config = preload("res://scripts/config.gd")
-
 ## El recetario: todas las recetas (RecipeData) de data/recipes/, en orden de era, dónde se hacen
 ## (a mano y luego cada estación) y tipo de objeto. Dice lo que falta para hacer una receta las
 ## veces que se pida y la hace. Lo usa la ventana de fabricar (CraftingPanel). Ver docs/items.md.
@@ -27,13 +25,13 @@ static func all() -> Array[RecipeData]:
 static func station_name(station: StringName) -> String:
 	if station == HAND:
 		return TranslationServer.translate(&"RECIPE_BY_HAND")
-	var data: ItemData = Config.get_item(station)
+	var data: ItemData = ItemCatalog.get_item(station)
 	return data.get_display_name() if data != null else String(station)
 
 
 ## Era, a mano antes que en una estación, la estación y el objeto que sale (ItemTaxonomy).
 static func sort_key(recipe: RecipeData) -> Array:
-	var result: ItemData = Config.get_item(recipe.result)
+	var result: ItemData = ItemCatalog.get_item(recipe.result)
 	var item_key: Array = ItemTaxonomy.sort_key(result) if result != null else [99, 99, String(recipe.result)]
 	return [int(recipe.era), 0 if recipe.station == HAND else 1, station_name(recipe.station).to_lower()] + item_key
 
@@ -45,7 +43,7 @@ static func missing(recipe: RecipeData, inventory: Inventory, times: int = 1,
 	var out := {}
 	for id: StringName in recipe.inputs:
 		var need := recipe.inputs[id] * times
-		var have := inventory.get_item_count(Config.get_item(id))
+		var have := inventory.get_item_count(ItemCatalog.get_item(id))
 		if have < need:
 			out[id] = need - have
 	var water := _water(needs)
@@ -66,7 +64,7 @@ static func max_times(recipe: RecipeData, inventory: Inventory, needs: SurvivalN
 		var need := recipe.inputs[id]
 		if need <= 0:
 			continue
-		var times := inventory.get_item_count(Config.get_item(id)) / need
+		var times := inventory.get_item_count(ItemCatalog.get_item(id)) / need
 		best = times if best < 0 else mini(best, times)
 	if recipe.water > 0:
 		var times := _water(needs) / recipe.water
@@ -78,11 +76,11 @@ static func max_times(recipe: RecipeData, inventory: Inventory, needs: SurvivalN
 ## Devuelve lo que no cupo (para tirarlo al suelo), o -1 si no se podía.
 static func craft(recipe: RecipeData, inventory: Inventory, times: int = 1,
 		needs: SurvivalNeeds = null) -> int:
-	var result: ItemData = Config.get_item(recipe.result)
+	var result: ItemData = ItemCatalog.get_item(recipe.result)
 	if result == null or not can_craft(recipe, inventory, times, needs):
 		return -1
 	for id: StringName in recipe.inputs:
-		inventory.remove_item(Config.get_item(id), recipe.inputs[id] * times)
+		inventory.remove_item(ItemCatalog.get_item(id), recipe.inputs[id] * times)
 	if recipe.water > 0:
 		needs.water -= recipe.water * times
 	return inventory.add_item(result, recipe.amount * times)

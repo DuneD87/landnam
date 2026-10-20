@@ -1,8 +1,6 @@
 class_name Campfire
 extends Node3D
 
-const Config = preload("res://scripts/config.gd")
-
 ## Hoguera plantada en el suelo (la planta SurvivalActions desde el objeto «Hoguera», asentada con
 ## GroundFit). Se ve con CampfireVisual: el corro de piedras, la leña y la ceniza. Tiene un
 ## hueco de combustible, que acepta cualquier cosa que arda (FuelTrait), y ocho de cocina, de una
@@ -124,7 +122,7 @@ func _process(delta: float) -> void:
 			continue
 		progress[i] += delta
 		if progress[i] >= cookable.cook_time:
-			var result: ItemData = Config.get_item(cookable.result)
+			var result: ItemData = ItemCatalog.get_item(cookable.result)
 			if result != null:
 				inventory.items[1 + i] = InventoryItem.new(result, item.quantity)
 			progress[i] = 0.0
@@ -290,7 +288,7 @@ func restore_save_data(data: Dictionary) -> void:
 	var items: Array = data.get("items", [])
 	for i in mini(items.size(), inventory.items.size()):
 		var entry = items[i]
-		var item_data: ItemData = Config.get_item(StringName(entry[0])) if entry is Array else null
+		var item_data: ItemData = ItemCatalog.get_item(StringName(entry[0])) if entry is Array else null
 		inventory.items[i] = InventoryItem.new(item_data, int(entry[1])) if item_data != null else null
 	var saved: Array = data.get("progress", [])
 	for i in mini(saved.size(), COOK_SLOTS):

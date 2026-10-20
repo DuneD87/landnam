@@ -8,8 +8,6 @@ extends Node3D
 ## origen flotante (o al barco sobre el que cae).
 
 const GROUP := &"dropped_item"
-## Terreno, grids y barcos.
-const WORLD_MASK := 1
 ## Distancia a la que se recoge (m, desde los pies de quien recoge).
 const PICKUP_RANGE := 2.6
 ## Mirándolo (ángulo entre la vista y el objeto, grados) se recoge antes que otras cosas cercanas.
@@ -117,11 +115,11 @@ func _drop(hand: Vector3, forward: Vector3, up: Vector3, exclude: Array[RID], ah
 	var space := get_world_3d().direct_space_state
 	var from := hand + forward * ahead
 	if ahead > 0.0:
-		var wall := space.intersect_ray(PhysicsRayQueryParameters3D.create(hand, from, WORLD_MASK, exclude))
+		var wall := space.intersect_ray(PhysicsRayQueryParameters3D.create(hand, from, PhysicsLayers.WORLD, exclude))
 		if not wall.is_empty():
 			from = (wall.position as Vector3) - forward * 0.15
 	var ground := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from - up * GROUND_SEARCH,
-		WORLD_MASK, exclude))
+		PhysicsLayers.WORLD, exclude))
 	# Tumbado sobre el suelo que encuentra (en cuesta, a lo largo de ella), girado al azar.
 	var ground_up := up
 	if not ground.is_empty() and (ground.normal as Vector3).dot(up) > 0.5:

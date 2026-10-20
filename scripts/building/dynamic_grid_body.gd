@@ -411,11 +411,6 @@ func _apply_interior_analysis(result: Array) -> void:
 			comp["flooded"] = _is_comp_flooded(comp, planet_pos, base_r)
 
 
-## Compartimentos interiores del último análisis (ver ShipInteriorAnalyzer.analyze).
-func get_compartments() -> Array:
-	return _compartments
-
-
 ## Lanza el análisis de componentes conexas si hubo bajas de bloques y ya pasó el debounce.
 func _process_split_analysis(delta: float) -> void:
 	if _split_running or not _split_dirty:
@@ -598,14 +593,6 @@ func _spawn_piece(piece: Dictionary, whole_centroid: Vector3, old_lin: Vector3, 
 	body.linear_velocity = old_lin + old_ang.cross(arm)
 	body.angular_velocity = old_ang
 	body._impact_cooldown = IMPACT_COOLDOWN_FRAMES
-
-func _is_ground_ready() -> bool:
-	var query = PhysicsRayQueryParameters3D.create(
-		global_position + Vector3.UP * 5,
-		planet_node.global_pos
-	)
-	var result = get_world_3d().direct_space_state.intersect_ray(query)
-	return not result.is_empty()
 
 func _ready() -> void:
 	collision_layer = 3
@@ -1342,12 +1329,6 @@ func contains_point(world_point: Vector3, margin: float = 0.0) -> bool:
 	var half: Vector3 = _aggregate_box["half"]
 	return d.x <= half.x + margin and d.y <= half.y + margin and d.z <= half.z + margin
 
-
-func get_current_speed_level() -> int:
-	return _boat_speed_index
-
-func get_current_speed() -> float:
-	return _boat_current_speed
 
 func stop() -> void:
 	_boat_speed_index = 0

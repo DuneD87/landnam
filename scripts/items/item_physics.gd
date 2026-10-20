@@ -1,8 +1,6 @@
 extends RigidBody3D
 class_name ItemPhysics
 
-const config = preload("res://scripts/config.gd")
-
 signal destroyed(position: Vector3, amount: int, item_data: ItemData)
 
 @export var health: int = 300

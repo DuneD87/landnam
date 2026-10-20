@@ -3,8 +3,6 @@ extends Node
 ## Tirar cosas del inventario al suelo arrastrándolas fuera de las ventanas, y recogerlas.
 ##   godot --headless --path . res://tests/ui/test_drop_items.tscn
 
-const Config = preload("res://scripts/config.gd")
-
 var failures := 0
 
 
@@ -55,7 +53,7 @@ func _run() -> void:
 	var down := Vector3.DOWN
 
 	# Cae delante (mira por +Z) hasta el suelo, tumbada: la espada, con su malla y de plano.
-	var sword := DroppedItem.spawn(dropper, Config.get_item(&"iron_sword"), 1, down)
+	var sword := DroppedItem.spawn(dropper, ItemCatalog.get_item(&"iron_sword"), 1, down)
 	check(sword.global_position.y > 1.0, "sale de la altura de la mano (%.2f m)" % sword.global_position.y)
 	await _settle(1.0)
 	check(absf(sword.global_position.y) < 0.01, "cae hasta el suelo (%.3f m)" % sword.global_position.y)
@@ -66,7 +64,7 @@ func _run() -> void:
 	check(absf(box.position.y) < 0.01, "apoyada sobre el suelo, ni hundida ni flotando (%.3f)" % box.position.y)
 
 	# Lo que no tiene malla propia va en un saquito.
-	var stones := DroppedItem.spawn(dropper, Config.get_item(&"stone_01"), 30, down)
+	var stones := DroppedItem.spawn(dropper, ItemCatalog.get_item(&"stone_01"), 30, down)
 	await _settle(1.0)
 	var sack := _world_aabb(stones)
 	check(absf(sack.position.y) < 0.01 and sack.size.y > 0.2, "la piedra va en un saquito en el suelo (%.2f m)" % sack.size.y)
@@ -77,7 +75,7 @@ func _run() -> void:
 	add_child(walled)
 	walled.global_position = Vector3(5, 0, 0)
 	await get_tree().physics_frame
-	var shield := DroppedItem.spawn(walled, Config.get_item(&"wooden_shield"), 1, down)
+	var shield := DroppedItem.spawn(walled, ItemCatalog.get_item(&"wooden_shield"), 1, down)
 	await _settle(1.0)
 	check(shield.global_position.z < 0.4 and absf(shield.global_position.y) < 0.01,
 		"con una pared delante cae a este lado (z %.2f)" % shield.global_position.z)
@@ -98,18 +96,18 @@ func _run() -> void:
 
 	var inv := Inventory.new()
 	add_child(inv)
-	check(sword.pick_into(inv) and inv.get_item_count(Config.get_item(&"iron_sword")) == 1, "la espada vuelve al inventario")
+	check(sword.pick_into(inv) and inv.get_item_count(ItemCatalog.get_item(&"iron_sword")) == 1, "la espada vuelve al inventario")
 	await get_tree().process_frame
 	check(not is_instance_valid(sword), "y desaparece del suelo")
 
 	# Con el inventario lleno se queda en el suelo; con un hueco, entra lo que cabe.
 	var full := Inventory.new()
 	add_child(full)
-	var wood := Config.get_item(&"wood_01")
+	var wood := ItemCatalog.get_item(&"wood_01")
 	for i in full.max_slots:
 		full.items[i] = InventoryItem.new(wood, wood.max_stack)
 	check(not stones.pick_into(full) and stones.quantity == 30, "con el inventario lleno se queda en el suelo")
-	var stone := Config.get_item(&"stone_01")
+	var stone := ItemCatalog.get_item(&"stone_01")
 	full.items[0] = InventoryItem.new(stone, stone.max_stack - 9)
 	check(stones.pick_into(full) and stones.quantity == 21, "con hueco para 9, entran 9 y quedan %d" % stones.quantity)
 

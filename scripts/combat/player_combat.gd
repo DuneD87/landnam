@@ -29,8 +29,6 @@ signal state_changed(new_state: State)
 
 enum State {IDLE, ATTACK, DODGE, AIM, STAGGER, DEAD, GUARD}
 
-const Config = preload("res://scripts/config.gd")
-
 const RIGHT_GRIP := CombatPose.RIGHT_GRIP
 const LEFT_GRIP := CombatPose.LEFT_GRIP
 
@@ -143,7 +141,7 @@ const THROW_COCKED := 1.15
 const THROW_RELEASE := 1.33
 const THROW_SPEED := 1.3
 ## Huesos que mueve el canal de tronco y brazos (y sus descendientes).
-const UPPER_ROOT := "mixamorig_Spine"
+const UPPER_ROOT := HumanRig.SPINE
 ## Arco procedural: tras soltar, cuánto se sostiene el gesto antes de ir a por otra flecha, y
 ## desde qué punto de la recarga se empieza al subir el arco sin flecha (la mano ya va subiendo).
 const BOW_FOLLOW_THROUGH := 0.26
@@ -330,7 +328,7 @@ func setup(owner_player: PlayerController) -> void:
 	_right_attachment.add_child(_right_grip)
 	var left_attachment := BoneAttachment3D.new()
 	left_attachment.name = "LeftHandAttachment"
-	left_attachment.bone_name = "mixamorig_LeftHandMiddle2"
+	left_attachment.bone_name = HumanRig.LEFT_HAND_MIDDLE2
 	_skeleton.add_child(left_attachment)
 	_left_grip = Node3D.new()
 	_left_grip.name = "CombatGrip"
@@ -344,7 +342,7 @@ func setup(owner_player: PlayerController) -> void:
 	_skeleton.add_child(pose)
 	hit_react = HitReact.new()
 	hit_react.name = "HitReact"
-	hit_react.chain = ["mixamorig_Spine1", "mixamorig_Spine2", "mixamorig_Neck", "mixamorig_Head"]
+	hit_react.chain = [HumanRig.SPINE1, HumanRig.SPINE2, HumanRig.NECK, HumanRig.HEAD]
 	hit_react.weights = [0.3, 0.3, 0.2, 0.2]
 	_skeleton.add_child(hit_react)
 	# El último modificador: mientras cae, manda sobre todo lo anterior.
@@ -425,11 +423,7 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 		animator.add_animation_library(&"combat", load(COMBAT_LIBRARY))
 	# Andar y correr en todas direcciones y agachado, dentro de la locomoción de debajo.
 	Locomotion.build(tree_root, animator, _skeleton)
-	var connections: Array = tree_root.get("node_connections")
-	var top := StringName()
-	for i in range(0, connections.size(), 3):
-		if connections[i] == &"output" and int(connections[i + 1]) == 0:
-			top = connections[i + 2]
+	var top := AnimGraph.input_of(tree_root, &"output", 0)
 	if top == StringName():
 		return
 	tree_root.disconnect_node(&"output", 0)
@@ -446,22 +440,11 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 			oneshot.fadeout_time = 0.25 if channel == "full" else ATTACK_FADE_OUT
 			shot = oneshot
 		if channel == "upper":
-			shot.filter_enabled = true
-			var root_bone := _skeleton.find_bone(UPPER_ROOT)
-			for b in _skeleton.get_bone_count():
-				var p := b
-				while p >= 0 and p != root_bone:
-					p = _skeleton.get_bone_parent(p)
-				if p == root_bone:
-					shot.set_filter_path(NodePath("Armature/Skeleton3D:" + _skeleton.get_bone_name(b)), true)
-		tree_root.add_node(StringName("act_%s_anim" % channel), anim)
-		tree_root.add_node(StringName("act_%s_seek" % channel), AnimationNodeTimeSeek.new())
-		tree_root.add_node(StringName("act_%s_speed" % channel), AnimationNodeTimeScale.new())
+			AnimGraph.filter_branch(shot, _skeleton, UPPER_ROOT)
+		var clip := AnimGraph.add_clip(tree_root, "act_%s" % channel, anim)
 		tree_root.add_node(StringName("act_%s" % channel), shot)
-		tree_root.connect_node(StringName("act_%s_seek" % channel), 0, StringName("act_%s_anim" % channel))
-		tree_root.connect_node(StringName("act_%s_speed" % channel), 0, StringName("act_%s_seek" % channel))
 		tree_root.connect_node(StringName("act_%s" % channel), 0, below)
-		tree_root.connect_node(StringName("act_%s" % channel), 1, StringName("act_%s_speed" % channel))
+		tree_root.connect_node(StringName("act_%s" % channel), 1, clip)
 		below = StringName("act_%s" % channel)
 	# La escalada, encima de todo: en la pared no se golpea ni se apunta.
 	below = ClimbController.build(tree_root, below)
@@ -661,7 +644,7 @@ func _ammo_item() -> ItemData:
 	var data := weapon()
 	if data == null or data.ammo_id == &"":
 		return null
-	return Config.get_item(data.ammo_id)
+	return ItemCatalog.get_item(data.ammo_id)
 
 
 func ammo_count() -> int:
@@ -1470,11 +1453,6 @@ func _abort_attack() -> void:
 	_act_stop("attack_b")
 
 
-func _tree_set(path: String, value: Variant) -> void:
-	if _tree != null:
-		_tree.set(path, value)
-
-
 # ---------------------------------------------------------------------------------------------
 # Esquiva
 
@@ -1830,7 +1808,7 @@ func _update_aim_point(data: ItemData) -> void:
 		var from := cam.global_position
 		var to := from - cam.global_basis.z * 300.0
 		var query := PhysicsRayQueryParameters3D.create(from, to)
-		query.collision_mask = 1 | Hurtbox.LAYER
+		query.collision_mask = PhysicsLayers.WORLD | PhysicsLayers.HURTBOX
 		query.collide_with_areas = true
 		query.exclude = [player.get_rid(), hurtbox.get_rid()]
 		var hit := player.get_world_3d().direct_space_state.intersect_ray(query)
@@ -1852,14 +1830,14 @@ func _fire(data: ItemData, draw: float) -> void:
 	var from: Vector3
 	if data.weapon_type == ItemData.WeaponType.SLINGSHOT:
 		kind = CombatProjectile.Kind.STONE
-		from = pose.bone_world("mixamorig_RightHandMiddle1")
+		from = pose.bone_world(HumanRig.RIGHT_HAND_MIDDLE1)
 	elif data.throwable:
 		kind = CombatProjectile.Kind.SPEAR
-		from = pose.bone_world("mixamorig_RightHand") - player.gravity_direction * 0.05
+		from = pose.bone_world(HumanRig.RIGHT_HAND) - player.gravity_direction * 0.05
 		ammo = data
 		visual = load(data.scene_path).instantiate()
 	else:
-		from = _arrow_visual.global_position if _arrow_visual.visible else pose.bone_world("mixamorig_RightHand")
+		from = _arrow_visual.global_position if _arrow_visual.visible else pose.bone_world(HumanRig.RIGHT_HAND)
 	var power := lerpf(0.45, 1.0, clampf(draw, 0.0, 1.0))
 	var projectile := CombatProjectile.new()
 	projectile.kind = kind
@@ -1942,7 +1920,7 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 		# Lo que cuelga del hueso con su escala (la antorcha) no usa el marco de agarre, pero la
 		# hoja barre desde él (golpear): sin esto se quedaba donde lo dejó el último arma de
 		# combate y el golpe no tocaba nada.
-		_right_grip.global_transform = (p.bone_world_xform("mixamorig_RightHandMiddle2") * RIGHT_GRIP).orthonormalized()
+		_right_grip.global_transform = (p.bone_world_xform(HumanRig.RIGHT_HAND_MIDDLE2) * RIGHT_GRIP).orthonormalized()
 	if p.shield_on and _shield_node != null and is_instance_valid(_shield_node):
 		_shield_node.global_transform = p.shield_xform
 	var data := weapon()
@@ -1974,9 +1952,9 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 			y = y.rotated(z, deg_to_rad(-12.0 if data.weapon_type == ItemData.WeaponType.BOW else 0.0))
 			# El tirachinas, con el mango en el puño (la cruz de la horquilla, 5 cm por encima).
 			var held := p.sling_grip + y * 0.05 if data.weapon_type == ItemData.WeaponType.SLINGSHOT \
-					else p.bone_world("mixamorig_LeftHand") + z * 0.03
+					else p.bone_world(HumanRig.LEFT_HAND) + z * 0.03
 			_weapon_node.global_transform = Transform3D(Basis(y.cross(z), y, z), held)
-			var nock := p.bone_world("mixamorig_RightHandMiddle1")
+			var nock := p.bone_world(HumanRig.RIGHT_HAND_MIDDLE1)
 			if visual != null:
 				visual.set_draw_point(nock if _draw > 0.02 or state == State.AIM else null)
 			var show_arrow := data.weapon_type == ItemData.WeaponType.BOW and ammo_count() > 0 \
@@ -2003,14 +1981,14 @@ func _place_ranged_visuals(p: CombatPose) -> void:
 				# La lanza, apuntada al blanco sobre la mano alzada.
 				var y := p.aim_dir.normalized()
 				var x := y.cross(up).normalized()
-				var hand := p.bone_world("mixamorig_RightHand")
+				var hand := p.bone_world(HumanRig.RIGHT_HAND)
 				# Agarrada por el tercio trasero, como una jabalina: casi todo el asta por delante.
 				_weapon_node.global_transform = Transform3D(Basis(x, y, x.cross(y)), hand + y * 0.40)
 			else:
 				# Cruzando la palma, como la deja ThrowPose; agarrada por el tercio trasero.
 				var g := p.throw.grip_xform
 				var dir := -g.basis.z
-				var hanging := p.bone_world_xform("mixamorig_RightHandMiddle2") * RIGHT_GRIP
+				var hanging := p.bone_world_xform(HumanRig.RIGHT_HAND_MIDDLE2) * RIGHT_GRIP
 				var held := Transform3D(Basis(g.basis.x, dir, g.basis.x.cross(dir)), g.origin + dir * 0.40)
 				_weapon_node.global_transform = hanging.orthonormalized().interpolate_with(held, smoothstep(0.0, 0.7, p.aim_weight))
 		else:
@@ -2069,7 +2047,7 @@ func _place_bow(p: CombatPose, _data: ItemData) -> void:
 			visual.set_draw_point(null)
 		return
 	_weapon_node.top_level = true
-	var hanging := p.bone_world_xform("mixamorig_LeftHandMiddle2") * LEFT_GRIP
+	var hanging := p.bone_world_xform(HumanRig.LEFT_HAND_MIDDLE2) * LEFT_GRIP
 	var k := smoothstep(0.0, 0.7, p.aim_weight)
 	_weapon_node.global_transform = hanging.orthonormalized().interpolate_with(a.bow_xform, k)
 	if visual != null:
@@ -2496,12 +2474,12 @@ func _update_limits(delta: float, input_dir: Vector3) -> void:
 	stamina.regen_scale = status.stamina_regen_mult() * (GUARD_REGEN if state == State.GUARD else 1.0)
 	if player.needs != null:
 		stamina.regen_scale *= player.needs.stamina_regen_mult()
-	player.current_animation = Config.ANIMATION.DEATH if state == State.DEAD else player.current_animation
+	player.current_animation = AnimationController.Anim.DEATH if state == State.DEAD else player.current_animation
 	# Tambaleo y paso atrás procedurales van sobre la animación de estar quieto: los pasos los
 	# dan las piernas por IK (si debajo corriera, las piernas seguirían corriendo).
 	if pose.motion_x >= 0.0 or state == State.ATTACK:
 		player.current_animation = player.equiped_weapon.idle_animation if player.right_hand_equipped \
-			else Config.ANIMATION.IDLE
+			else AnimationController.Anim.IDLE
 	_update_body_visual()
 
 

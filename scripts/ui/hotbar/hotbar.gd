@@ -445,7 +445,7 @@ func get_save_data() -> Array:
 ## Vuelca en la barra los huecos guardados. Cargar puede pasar sobre una partida en curso, así que
 ## primero se vacía entera: los huecos que el save dejó vacíos tienen que quedar vacíos, y la
 ## selección se reinicia para que select_slot() no lea el hueco ya elegido como un clic y lo apague.
-func restore_save_data(data: Array, config: Object) -> void:
+func restore_save_data(data: Array) -> void:
 	var previous: ItemData = get_selected_data()
 	for i in HOTBAR_SLOTS:
 		slots[i].set_selected(false)
@@ -472,7 +472,7 @@ func restore_save_data(data: Array, config: Object) -> void:
 				push_warning("[Hotbar] Sin item para bloque %s de material '%s'; se restaura el bloque genérico." % [value["block_id"], mat_id])
 				item_data = BlockDatabase.get_block_item(value["block_id"])
 		else:
-			item_data = config.get_item(StringName(value["id"]))
+			item_data = ItemCatalog.get_item(StringName(value["id"]))
 		if item_data:
 			slots[i].assign(item_data)
 	_refresh_offhand_marks()

@@ -114,7 +114,7 @@ static func _adopt(scene_root: Node, node: GPUParticles3D) -> void:
 
 
 static func _build_chips() -> GPUParticles3D:
-	var node := _emitter("WoodChips", MAX_CHIPS, CHIP_LIFETIME, 0.95)
+	var node := BurstParticles.create(MAX_CHIPS, CHIP_LIFETIME, 0.95, "WoodChips")
 	var mat := ParticleProcessMaterial.new()
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	mat.emission_sphere_radius = 0.06
@@ -128,7 +128,7 @@ static func _build_chips() -> GPUParticles3D:
 	mat.scale_min = 0.5
 	mat.scale_max = 1.5
 	# Una de cada cinco, más oscura: un trozo de corteza.
-	mat.color_initial_ramp = _ramp([0.0, 0.8, 0.81, 1.0], [CHIP_COLOR, CHIP_COLOR, BARK_COLOR, BARK_COLOR])
+	mat.color_initial_ramp = BurstParticles.ramp([0.0, 0.8, 0.81, 1.0], [CHIP_COLOR, CHIP_COLOR, BARK_COLOR, BARK_COLOR])
 	node.process_material = mat
 	node.draw_pass_1 = _chip()
 	node.visibility_aabb = AABB(Vector3.ONE * -4.0, Vector3.ONE * 8.0)
@@ -136,7 +136,7 @@ static func _build_chips() -> GPUParticles3D:
 
 
 static func _build_dust() -> GPUParticles3D:
-	var node := _emitter("TreeCrashDust", 48, 2.6, 0.9)
+	var node := BurstParticles.create(48, 2.6, 0.9, "TreeCrashDust")
 	var mat := ParticleProcessMaterial.new()
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	mat.spread = 70.0
@@ -147,13 +147,8 @@ static func _build_dust() -> GPUParticles3D:
 	mat.scale_min = 0.6
 	mat.scale_max = 1.6
 	# Crece y se desvanece.
-	var grow := Curve.new()
-	grow.add_point(Vector2(0.0, 0.4))
-	grow.add_point(Vector2(1.0, 1.0))
-	var grow_texture := CurveTexture.new()
-	grow_texture.curve = grow
-	mat.scale_curve = grow_texture
-	mat.color_ramp = _ramp([0.0, 0.15, 1.0], [Color(DUST_COLOR, 0.0), Color(DUST_COLOR, 0.45), Color(DUST_COLOR, 0.0)])
+	mat.scale_curve = BurstParticles.curve([Vector2(0.0, 0.4), Vector2(1.0, 1.0)])
+	mat.color_ramp = BurstParticles.ramp([0.0, 0.15, 1.0], [Color(DUST_COLOR, 0.0), Color(DUST_COLOR, 0.45), Color(DUST_COLOR, 0.0)])
 	node.process_material = mat
 	node.draw_pass_1 = _dust()
 	node.visibility_aabb = AABB(Vector3.ONE * -20.0, Vector3.ONE * 40.0)
@@ -161,7 +156,7 @@ static func _build_dust() -> GPUParticles3D:
 
 
 static func _build_leaves() -> GPUParticles3D:
-	var node := _emitter("TreeCrashLeaves", 64, 3.2, 0.85)
+	var node := BurstParticles.create(64, 3.2, 0.85, "TreeCrashLeaves")
 	var mat := ParticleProcessMaterial.new()
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	mat.spread = 80.0
@@ -174,33 +169,11 @@ static func _build_leaves() -> GPUParticles3D:
 	mat.angular_velocity_max = 360.0
 	mat.scale_min = 0.6
 	mat.scale_max = 1.3
-	mat.color_initial_ramp = _ramp([0.0, 0.5, 1.0], LEAF_COLORS)
+	mat.color_initial_ramp = BurstParticles.ramp([0.0, 0.5, 1.0], LEAF_COLORS)
 	node.process_material = mat
 	node.draw_pass_1 = _leaf()
 	node.visibility_aabb = AABB(Vector3.ONE * -20.0, Vector3.ONE * 40.0)
 	return node
-
-
-static func _emitter(node_name: String, amount: int, lifetime: float, explosiveness: float) -> GPUParticles3D:
-	var node := GPUParticles3D.new()
-	node.name = node_name
-	node.amount = amount
-	node.lifetime = lifetime
-	node.one_shot = true
-	node.explosiveness = explosiveness
-	node.emitting = false
-	node.local_coords = false
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	return node
-
-
-static func _ramp(offsets: Array, colors: Array) -> GradientTexture1D:
-	var gradient := Gradient.new()
-	gradient.offsets = PackedFloat32Array(offsets)
-	gradient.colors = PackedColorArray(colors)
-	var texture := GradientTexture1D.new()
-	texture.gradient = gradient
-	return texture
 
 
 ## Una astilla: una lámina fina y alargada que gira al volar.
