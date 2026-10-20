@@ -15,6 +15,12 @@ extends SceneTree
 ##
 ## A skirt that hangs from the skirt's bones (SkirtBones) gets SKIRT_SKIN: the
 ## scan's Skin with their binds, from their rest on the character's skeleton.
+##
+## To regenerate weights without the original Meshy downloads:
+##   ... -- --export-weights <dir> [piece ...]
+##   (fit_meshy_armor.py --reweight; see docs/character_creation.md)
+##   ... -- --weights <dir> [piece ...]
+## Only the garment's weights change; geometry, UVs and lining are preserved.
 
 const SKIN := "res://models/player/xavivar/firstage_human_male_player_skin.tres"
 const SKIRT_SKIN := "res://models/player/xavivar/firstage_human_male_player_skirt_skin.tres"
@@ -35,6 +41,13 @@ const NORMAL_SCALE := 0.7
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
+	if args.is_empty() or (args[0].begins_with("--") and args.size() < 2):
+		push_error("Expected <fit directory>, --export-weights <directory>, or --weights <directory>, followed by optional piece ids")
+		quit(1)
+		return
+	if args[0] == "--export-weights" or args[0] == "--weights":
+		quit(_reweight(args[1], args.slice(2), args[0] == "--export-weights"))
+		return
 	var source: String = args[0]
 	var only := args.slice(1)
 	var skins := {false: load(SKIN) as Skin, true: _skirt_skin(load(SKIN))}
@@ -137,16 +150,94 @@ func _mesh(id: String, data: Dictionary, binds: Dictionary) -> ArrayMesh:
 	# The garment first, then its lining (a plain colour), if it has one.
 	for surface: Dictionary in data.get("surfaces", [data]):
 		var arrays := _arrays(surface, data.bones, binds)
+		var flags := _weight_flags(arrays)
 		if arrays[Mesh.ARRAY_TEX_UV] != null:
 			var tool := SurfaceTool.new()
 			tool.create_from_arrays(arrays)
+			# create_from_arrays clears SurfaceTool's weight-count setting.
+			if flags:
+				tool.set_skin_weight_count(SurfaceTool.SKIN_8_WEIGHTS)
 			tool.generate_tangents()
 			arrays = tool.commit_to_arrays()
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
 		var index := mesh.get_surface_count() - 1
 		mesh.surface_set_material(index, _lining(id, surface.color) if surface.has("color") else _material(id))
 	mesh.resource_name = id
 	return mesh
+
+
+static func _weight_flags(arrays: Array) -> int:
+	return Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS if arrays[Mesh.ARRAY_BONES].size() == arrays[Mesh.ARRAY_VERTEX].size() * 8 else 0
+
+
+## Export the garment for Blender, or apply its regenerated weights. Use
+## the existing Skin's named binds: Blender's skeleton order differs.
+func _reweight(directory: String, only: PackedStringArray, exporting: bool) -> int:
+	DirAccess.make_dir_recursive_absolute(directory)
+	var processed := 0
+	for file in DirAccess.get_files_at(MODELS):
+		if file.get_extension() != "res":
+			continue
+		var id := file.get_basename()
+		if not only.is_empty() and id not in only:
+			continue
+		var scene: MeshInstance3D = load(SCENES + id + "_equipable.tscn").instantiate()
+		var surfaces := ArmorFit.source(scene.mesh)
+		var arrays: Array = surfaces[0].arrays
+		var path := directory.path_join(id + ".json")
+		if exporting:
+			var positions := PackedFloat32Array()
+			for p: Vector3 in arrays[Mesh.ARRAY_VERTEX]:
+				positions.append_array([p.x, p.y, p.z])
+			var out := FileAccess.open(path, FileAccess.WRITE)
+			if out == null:
+				scene.free()
+				return 1
+			out.store_string(JSON.stringify({positions = Array(positions), indices = Array(arrays[Mesh.ARRAY_INDEX])}))
+		else:
+			var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+			if not data is Dictionary or not data.has_all(["bones", "influences", "weights"]):
+				push_error("Invalid weights: " + path)
+				scene.free()
+				return 1
+			var binds := {}
+			for b in scene.skin.get_bind_count():
+				binds[String(scene.skin.get_bind_name(b))] = b
+			var bones := PackedInt32Array()
+			var weights := PackedFloat32Array(data.weights)
+			if weights.size() != arrays[Mesh.ARRAY_VERTEX].size() * 8 or weights.size() != data.influences.size():
+				push_error("Expected eight weights per vertex: " + path)
+				scene.free()
+				return 1
+			for k in weights.size():
+				var name: String = data.bones[int(data.influences[k])]
+				if weights[k] > 0.0 and not binds.has(name):
+					push_error("Missing bind %s in %s" % [name, id])
+					scene.free()
+					return 1
+				bones.append(binds.get(name, 0))
+			arrays[Mesh.ARRAY_BONES] = bones
+			arrays[Mesh.ARRAY_WEIGHTS] = weights
+			surfaces[0].flags |= _weight_flags(arrays)
+			var mesh := ArmorFit.build(surfaces, scene.mesh.resource_name)
+			# Keep the original packed vertex attributes and every other
+			# surface verbatim. Repacking normals/tangents on each reweight
+			# otherwise accumulates quantisation error.
+			var packed: Array = scene.mesh.get("_surfaces")
+			var updated: Array = mesh.get("_surfaces")
+			packed[0].skin_data = updated[0].skin_data
+			packed[0].bone_aabbs = updated[0].bone_aabbs
+			packed[0].format = int(packed[0].format) | Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+			mesh = ArrayMesh.new()
+			mesh.set("_surfaces", packed)
+			mesh.resource_name = scene.mesh.resource_name
+			if ResourceSaver.save(mesh, MODELS + file) != OK:
+				scene.free()
+				return 1
+		scene.free()
+		processed += 1
+		print("%s: %s weights" % [id, "exported for" if exporting else "updated"])
+	return 0 if processed > 0 else 1
 
 
 func _arrays(surface: Dictionary, names: Array, binds: Dictionary) -> Array:

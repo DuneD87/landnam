@@ -321,6 +321,18 @@ pesa con su piel, así que quedan como las demás: hechas para el escaneo, y
   adelantada al estar quieto quedaba por delante de él). Lo que cuelga del
   brazo (una manga) conserva los pesos de la piel aunque esté lejos:
   siguiéndolo a medias, al bajar el brazo quedaba fuera como una hombrera.
+  Después se suaviza el campo de pesos por distancia en metros (8 cm en
+  petos —12 en la túnica, mediante `"weight_radius"`—, 5 en calzones, 1,8 en
+  manoplas y 2 en calzado), incluyendo las capas
+  de pelo sueltas y unificando los vértices de las costuras UV: suavizar solo
+  por aristas dejaba saltos entre triángulos diminutos o mechones separados.
+  En una manopla (`"mitten": true`), los cuatro dedos de su bolsa siguen las
+  falanges del dedo medio; el pulgar conserva sus propios huesos. El reparto
+  entre el delantero del faldellín, que monta sobre los muslos, y la espalda
+  que cuelga se hace a través de todo el costado (24 cm), para que no se
+  estiren uno contra otro al correr. Se conservan ocho influencias por
+  vértice, sin cortar los pesos pequeños al 1 %: cuatro descartaban de golpe
+  una cadena de falda o un muslo al cambiar su puesto entre los pesos mayores.
 - **Forro** (`"liner": true`, petos y calzones): la propia piel del
   escaneo donde la prenda la tapa, a hasta 1,2 cm de ella en el peto y
   0,9 cm en los calzones (que no se pisen en las caderas), y siempre menos
@@ -387,6 +399,27 @@ godot --path . --script res://tools/ui/bake_item_icons.gd -- --background --only
 
 Una prenda nueva es una entrada más en el JSON (o uno nuevo para otra edad),
 su `ItemData` y su receta, y una línea en `ARMOR` de `bake_item_icons.gd`.
+
+Para regenerar solo los pesos de las ocho prendas ya horneadas, sin las
+descargas de Meshy, se exporta su geometría y se aplica el nuevo reparto.
+Se conservan posiciones, normales, UV, materiales, forros y escenas:
+
+```sh
+mkdir -p build/character/armor_weights/source build/character/armor_weights/fitted
+godot --headless --path . --script res://tools/character/dump_skeleton.gd -- $PWD/build/character/armor_weights/body.json
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- --export-weights $PWD/build/character/armor_weights/source
+blender -b --factory-startup --python tools/character/blender/fit_meshy_armor.py -- \
+    build/character/armor_weights/body.json tools/character/blender/stone_age_armor.json \
+    build/character/armor_weights/source build/character/armor_weights/fitted --reweight
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- --weights $PWD/build/character/armor_weights/fitted
+godot --headless --path . --script res://tests/character/test_armor_deformation.gd
+```
+
+La prueba mide las aristas de las prendas ajustadas al cuerpo en quieto y
+en dos momentos de carrera, con la física de la falda desactivada para aislar
+el rigging: al menos el 99 % debe estirarse menos del doble y ninguna arista
+de al menos 2 mm puede llegar a 4,5 veces su largo de reposo. Comprueba
+también que el ajuste conserva las ocho influencias y sus pesos normalizados.
 
 Para verla puesta sin abrir ventana: `dump_dressed.gd` viste el modelo como el
 juego (con el aspecto de una partida si se le da), lo pone en un momento de

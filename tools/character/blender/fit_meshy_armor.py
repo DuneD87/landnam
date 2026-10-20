@@ -13,6 +13,11 @@ textures and <id>_preview.png; tools/character/bake_meshy_armor.gd turns them
 into equipable scenes, which ArmorFit then carries from the scan onto each
 character, as it does with every armour.
 
+With --reweight after the four positional arguments, <source dir> contains the
+positions and triangles exported by bake_meshy_armor.gd --export-weights.
+Only weights are written; bake_meshy_armor.gd --weights applies them to the
+existing meshes, preserving their geometry, UVs, materials and lining.
+
 A piece is fitted by its slot:
  - chest: scaled, its collar on the neck, centred on the torso.
  - legs: waist and hem at the given heights; each trouser leg is sheared
@@ -66,6 +71,10 @@ Entry keys (all optional but "model" and "slot"):
              going through it (HANG_THIGHS); its lining stays on the hips.
   frame      hands: {"up", "thumb", "palm"}; feet: {"up", "toe"}; axes like "-x".
   tip        hands: how far the mitten reaches past the fingertips (m).
+  mitten     hands: the four enclosed fingers bend together with the middle
+             finger; the thumb stays independent.
+  weight_radius  metres over which nearby garment weights are averaged;
+             defaults to WEIGHT_RADIUS for the slot.
   sole       feet: height of the underside (m, ground 0).
   liner      chest, legs: line it (see LINER_OFFSET).
   decimate   ratio of faces kept.
@@ -85,7 +94,8 @@ from mathutils.kdtree import KDTree
 
 ARGS = sys.argv[sys.argv.index("--") + 1:]
 BODY_JSON, PIECES_JSON, SOURCE_DIR, OUT_DIR = ARGS[:4]
-ONLY = set(ARGS[4:])
+REWEIGHT = "--reweight" in ARGS[4:]
+ONLY = set(ARGS[4:]) - {"--reweight"}
 
 ## Height of the soles in skin space.
 SOLE_HEIGHT = -0.9506
@@ -126,6 +136,10 @@ TAKE_IN_FADE = 0.12
 TAKE_IN_KNEE = 0.04
 WEIGHT_SMOOTHING_STEPS = 24
 WEIGHT_SMOOTHING = 0.5
+## Average over a distance, rather than only over mesh edges: Meshy's fur
+## has tiny triangles and detached tufts, so a fixed number of edge passes
+## leaves neighbouring points following very different bones. Metres.
+WEIGHT_RADIUS = {"chest": 0.08, "legs": 0.05, "hands": 0.018, "feet": 0.02}
 ## Up to this far from the skin a vertex keeps the skin's weights, smoothed
 ## only by NEAR_SMOOTHING of the rate (it must move as the skin under it, or
 ## the skin pokes through); from LOOSE out it takes them from the garment
@@ -1016,7 +1030,7 @@ def skin_liner(obj, body, slot, offset):
         np.add.at(neighbours, edges[:, 1], folded[edges[:, 0]])
         mean = neighbours / np.maximum(degree, 1.0)[:, None]
         folded += BODY_SMOOTHING * (degree[:, None] > 0) * (mean - folded)
-    return top_four(folded)
+    return strongest_weights(folded)
 
 
 # --- Skinning ------------------------------------------------------------------
@@ -1050,6 +1064,15 @@ def skin(obj, body, entry, slot):
     for i, q in enumerate(p):
         dense[i], distance[i] = body.weights_at(q)
     remap = allowed_map(body, slot, entry.get("skirt", False))
+    if entry.get("mitten"):
+        # One pouch encloses these four fingers. Different finger weights
+        # across that pouch pull neighbouring tufts in different directions
+        # when the hand closes; keep one bend for each phalanx instead.
+        for side in SIDES:
+            for finger in ("Index", "Ring", "Pinky"):
+                for joint in (1, 2, 3):
+                    remap[body.index[BONE_PREFIX + side + "Hand" + finger + str(joint)]] = \
+                        body.index[BONE_PREFIX + side + "HandMiddle" + str(joint)]
     folded = np.zeros_like(dense)
     for b in range(dense.shape[1]):
         folded[:, remap[b]] += dense[:, b]
@@ -1093,7 +1116,33 @@ def skin(obj, body, entry, slot):
         hanging[:, right] = thighs * on_right
         hanging[:, hips] += thighs * (1.0 - on_left - on_right)
         folded += (hanging - folded) * below[:, None]
-    return top_four(folded)
+    folded = smooth_weights(p, folded, entry.get("weight_radius", WEIGHT_RADIUS[slot]))
+    return strongest_weights(folded)
+
+
+def smooth_weights(points, dense, radius):
+    """A compact, smooth field shared by seams and nearby loose fur layers.
+
+    Average coincident vertices first, so a UV seam or a dense patch does
+    not count several times. The kernel and its slope vanish at its edge.
+    This is an offline operation; the game still uses ordinary skinning.
+    """
+    unique, inverse = np.unique(points.round(6), axis=0, return_inverse=True)
+    values = np.zeros((len(unique), dense.shape[1]), dtype=np.float32)
+    np.add.at(values, inverse, dense)
+    values /= np.bincount(inverse)[:, None]
+    tree = KDTree(len(unique))
+    for i, point in enumerate(unique):
+        tree.insert(Vector(point), i)
+    tree.balance()
+    result = np.zeros_like(values)
+    for i, point in enumerate(unique):
+        neighbours = tree.find_range(Vector(point), radius)
+        indices = np.array([n[1] for n in neighbours], dtype=np.int64)
+        distances = np.array([n[2] for n in neighbours])
+        kernel = np.maximum(1.0 - (distances / radius) ** 2, 0.0) ** 2
+        result[i] = (values[indices] * kernel[:, None]).sum(axis=0) / kernel.sum()
+    return result[inverse]
 
 
 def on_thighs(p, body, shares):
@@ -1105,7 +1154,9 @@ def on_thighs(p, body, shares):
     centre = (body.joint("LeftUpLeg")[0] + body.joint("RightUpLeg")[0]) * 0.5
     side = np.clip((p[:, 0] - centre) / half, -1.0, 1.0)
     # Blender's front is -Y.
-    front = smoothstep(body.joint("Hips")[1] + 0.03, body.joint("Hips")[1] - 0.05, p[:, 1])
+    # Blend across the whole side of the skirt. An 8 cm band makes the
+    # thigh-driven front and the hanging back shear apart when running.
+    front = smoothstep(body.joint("Hips")[1] + 0.10, body.joint("Hips")[1] - 0.14, p[:, 1])
     share = shares[1] + (shares[0] - shares[1]) * front
     return share * (0.5 + 0.5 * side), share * (0.5 - 0.5 * side)
 
@@ -1143,12 +1194,16 @@ def chain_weights(p, body):
     return dense
 
 
-def top_four(dense):
-    """The four largest weights per vertex, normalised: (bones, weights)."""
+def strongest_weights(dense):
+    """Eight influences, preserving the skirt's chains AND its thigh blend.
+
+    Four cut the fifth influence abruptly as it changes rank, making a
+    crease even though the original field is smooth. Do not threshold small
+    influences either: they should fade continuously to zero.
+    """
     dense = dense / np.maximum(dense.sum(axis=1, keepdims=True), 1e-12)
-    bones = np.argsort(-dense, axis=1)[:, :4]
+    bones = np.argsort(-dense, axis=1, kind="stable")[:, :8]
     weights = np.take_along_axis(dense, bones, axis=1)
-    weights[weights < 0.01] = 0.0
     weights /= np.maximum(weights.sum(axis=1, keepdims=True), 1e-12)
     return bones, weights
 
@@ -1322,6 +1377,29 @@ def fit_piece(piece_id, entry, body):
     preview(obj, os.path.join(OUT_DIR, piece_id + "_preview.png"))
 
 
+def reweight_piece(piece_id, entry, body):
+    """Rebuild weights on an existing garment, without the Meshy downloads."""
+    with open(os.path.join(SOURCE_DIR, piece_id + ".json")) as f:
+        data = json.load(f)
+    points = np.array(data["positions"]).reshape(-1, 3)
+    triangles = np.array(data["indices"], dtype=np.int64).reshape(-1, 3)
+    # Reconnect UV seams for the edge smoothing. Map back to the original
+    # vertex order afterwards; the baked geometry and UVs are left intact.
+    unique, inverse = np.unique(points.round(6), axis=0, return_inverse=True)
+    mesh = bpy.data.meshes.new(piece_id)
+    mesh.from_pydata(to_blender(unique).tolist(), [], inverse[triangles[:, [0, 2, 1]]].tolist())
+    obj = bpy.data.objects.new(piece_id, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    bones, weights = skin(obj, body, entry, entry["slot"])
+    os.makedirs(OUT_DIR, exist_ok=True)
+    with open(os.path.join(OUT_DIR, piece_id + ".json"), "w") as f:
+        json.dump({"bones": body.names, "influences": bones[inverse].ravel().tolist(),
+                   "weights": weights[inverse].round(7).ravel().tolist()}, f)
+    bpy.data.objects.remove(obj)
+    bpy.data.meshes.remove(mesh)
+    print("%s: reweighted %d vertices" % (piece_id, len(points)))
+
+
 def main():
     body = Body(BODY_JSON)
     with open(PIECES_JSON) as f:
@@ -1330,7 +1408,11 @@ def main():
     for piece_id, entry in sorted(pieces.items(), key=lambda item: "over" in item[1]):
         if piece_id.startswith("_") or (ONLY and piece_id not in ONLY):
             continue
-        fit_piece(piece_id, entry, body)
+        if REWEIGHT:
+            reweight_piece(piece_id, entry, body)
+        else:
+            fit_piece(piece_id, entry, body)
 
 
-main()
+if __name__ == "__main__":
+    main()

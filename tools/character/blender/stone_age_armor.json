@@ -31,6 +31,7 @@
 	"fur_mittens": {
 		"model": "stone_age_armor/Meshy_AI_Rustic_Leather_Mitten_1017082334_texture_fbx/Meshy_AI_Rustic_Leather_Mitten_1017082334_texture.fbx",
 		"slot": "hands",
+		"mitten": true,
 		"frame": {"up": "+z", "thumb": "+x", "palm": "+y"},
 		"scale": 0.85,
 		"decimate": 0.6
@@ -44,6 +45,7 @@
 	"hide_tunic": {
 		"model": "stone_age_armor_2/Meshy_AI_Furbound_Relic_1017093717_texture_fbx/Meshy_AI_Furbound_Relic_1017093717_texture.fbx",
 		"slot": "chest",
+		"weight_radius": 0.12,
 		"scale": 0.58,
 		"top": 0.005,
 		"clearance": 0.012,
@@ -60,6 +62,7 @@
 	"hide_mittens": {
 		"model": "stone_age_armor_2/Meshy_AI_Bound_Hideaways_1017093723_texture_fbx/Meshy_AI_Bound_Hideaways_1017093723_texture.fbx",
 		"slot": "hands",
+		"mitten": true,
 		"frame": {"up": "+z", "thumb": "-x", "palm": "-y"},
 		"scale": 0.88,
 		"clearance": 0.012
