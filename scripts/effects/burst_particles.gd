@@ -4,6 +4,18 @@ extends RefCounted
 ## Emisores de una sola ráfaga (golpes, sangre, polvo, astillas, plumas) y las curvas y rampas de
 ## sus materiales de proceso.
 
+## Un material de cada efecto, vivo hasta el final (ver keep).
+static var _kept := {}
+
+
+## Mantiene vivo el primer [material] de cada efecto [key]. Los ParticleProcessMaterial y los
+## StandardMaterial3D comparten el shader de su combinación de opciones, y Godot lo libera con el
+## último material que lo usa: el efecto siguiente, segundos después y ya apagados los anteriores,
+## lo volvía a generar (unos 5 ms de CPU por golpe y, con render, su compilación en la GPU).
+static func keep(key: StringName, material: Material) -> void:
+	if not _kept.has(key):
+		_kept[key] = material
+
 
 ## Emisor de [amount] partículas que viven [lifetime] s y salen de golpe según [explosiveness], en
 ## coordenadas de mundo y sin sombra. Sale apagado: quien lo usa lo coloca y pone emitting = true

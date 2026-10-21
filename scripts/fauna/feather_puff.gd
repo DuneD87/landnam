@@ -59,6 +59,7 @@ static func spawn(target: Node, point: Vector3, up: Vector3, color: Color, amoun
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	process.emission_sphere_radius = maxf(radius * 0.6, 0.02)
 	particles.process_material = process
+	BurstParticles.keep(&"feathers", process)
 	particles.draw_pass_1 = _feather()
 	particles.visibility_aabb = AABB(Vector3.ONE * -3.0, Vector3.ONE * 6.0)
 	host.add_child(particles)

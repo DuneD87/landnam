@@ -42,6 +42,15 @@ func _ready() -> void:
 
 	GameManager.state_changed.connect(_on_game_state_changed)
 	visible = true
+	_prewarm_effects()
+
+
+## Con el menú delante, la sangre y las chispas compilan sus shaders una vez (CombatFx.prewarm):
+## sin esto se compilaban con el primer golpe de la partida y el juego se paraba ~0,1 s.
+func _prewarm_effects() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	CombatFx.prewarm(get_viewport().get_camera_3d())
 
 
 ## Saga a la escala de la ventana; la columna, a la izquierda y centrada en alto.

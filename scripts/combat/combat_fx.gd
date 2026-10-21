@@ -58,8 +58,17 @@ static func blood(target: Node, point: Vector3, direction: Vector3,
 	if host == null:
 		return
 	var dir := direction.normalized() if direction.length_squared() > 1e-6 else -_down()
-	var power := clampf(amount / 25.0, 0.6, 2.0)
-	# Gotas, goterones (pocos, gordos y lentos: la sangre se ve espesa) y neblina.
+	var power := _blood_burst(host, point, dir, kind, clampf(amount / 25.0, 0.6, 2.0))
+	_ground_splats(target, point, dir, power)
+	BloodStains.stain(target, point, dir, power)
+	# Salpica las matas de alrededor, a la altura del golpe.
+	BloodFoliage.add(point + dir * 0.3, 0.5 * power)
+
+
+## Gotas, goterones (pocos, gordos y lentos: la sangre se ve espesa) y neblina de un golpe de tipo
+## [kind]. Devuelve [power] tal como lo usan las manchas: un golpe contundente salpica menos.
+static func _blood_burst(host: Node, point: Vector3, dir: Vector3, kind: ItemData.DamageKind,
+		power: float) -> float:
 	match kind:
 		ItemData.DamageKind.PIERCE:
 			_droplets(host, point, dir, int(70 * power), 12.0, Vector2(3.5, 8.5), Vector2(0.6, 1.4))
@@ -74,10 +83,43 @@ static func blood(target: Node, point: Vector3, direction: Vector3,
 			_droplets(host, point, dir, int(110 * power), 38.0, Vector2(2.5, 7.0), Vector2(0.6, 1.7))
 			_droplets(host, point, dir, int(8 * power), 30.0, Vector2(1.0, 3.0), Vector2(2.0, 3.5), 1.2)
 			_mist(host, point, dir, int(14 * power))
-	_ground_splats(target, point, dir, power)
-	BloodStains.stain(target, point, dir, power)
-	# Salpica las matas de alrededor, a la altura del golpe.
-	BloodFoliage.add(point + dir * 0.3, 0.5 * power)
+	return power
+
+
+## Distancia (m) delante de la cámara a la que prewarm lanza los efectos: sus gotas y chispas no
+## llegan a un píxel, pero se dibujan.
+const PREWARM_DISTANCE := 600.0
+
+
+## Lanza una vez cada efecto lejos delante de [camera], para que sus shaders y pipelines se
+## compilen antes de jugar: la primera sangre o las primeras chispas de la partida congelaban el
+## juego ~0,1 s. Sus materiales quedan vivos (BurstParticles.keep) y no se vuelven a compilar. Deja
+## además un decal oculto por cada textura de sangre: el atlas de decales se rehacía cada vez que
+## una aparecía por primera vez o se iba la última que la usaba.
+static func prewarm(camera: Camera3D) -> void:
+	if camera == null or not camera.is_inside_tree():
+		return
+	var host := camera.get_tree().current_scene
+	if host == null:
+		return
+	var point := camera.global_position - camera.global_basis.z * PREWARM_DISTANCE
+	var up := camera.global_basis.y
+	sparks(camera, point, up)
+	_spray(host, point, up, Color(0.45, 0.40, 0.34), 10, 0.06)
+	FeatherPuff.spawn(camera, point, up, Color.WHITE, 4, 0.1)
+	if SettingsManager.gore_level() == SettingsManager.GORE_OFF:
+		return
+	_blood_burst(host, point, up, ItemData.DamageKind.SLASH, 0.6)
+	var holder := Node3D.new()
+	holder.name = "BloodDecalTextures"
+	host.add_child(holder)
+	for textures: Array in BloodPool.POOL_TEXTURES + BloodPool.SPLAT_TEXTURES + BloodPool.SMEAR_TEXTURES:
+		var decal := Decal.new()
+		decal.texture_albedo = textures[0]
+		decal.texture_normal = textures[1]
+		decal.texture_orm = textures[2]
+		decal.visible = false
+		holder.add_child(decal)
 
 
 ## Al cercenar un miembro: un chorro grande y abierto desde el muñón ([direction], hacia fuera).
@@ -155,6 +197,7 @@ static func _spray(host: Node, point: Vector3, direction: Vector3, color: Color,
 	process.damping_min = 0.5
 	process.damping_max = 1.5
 	particles.process_material = process
+	BurstParticles.keep(&"impact_spray", process)
 	var mesh := SphereMesh.new()
 	mesh.radius = size
 	mesh.height = size * 2.0
@@ -164,6 +207,7 @@ static func _spray(host: Node, point: Vector3, direction: Vector3, color: Color,
 	mat.albedo_color = color
 	mat.roughness = 0.35 if color.r > color.g * 2.0 else 0.95
 	mesh.material = mat
+	BurstParticles.keep(&"impact_spray_mesh", mat)
 	particles.draw_pass_1 = mesh
 	particles.visibility_aabb = AABB(Vector3.ONE * -3.0, Vector3.ONE * 6.0)
 	host.add_child(particles)
@@ -189,6 +233,7 @@ static func sparks(node: Node, point: Vector3, direction: Vector3, power: float 
 	process.scale_min = 0.5
 	process.scale_max = 1.0
 	particles.process_material = process
+	BurstParticles.keep(&"sparks", process)
 	var mesh := QuadMesh.new()
 	mesh.size = Vector2(0.012, 0.05)
 	var mat := StandardMaterial3D.new()
@@ -199,6 +244,7 @@ static func sparks(node: Node, point: Vector3, direction: Vector3, power: float 
 	mat.emission = Color(1.0, 0.6, 0.2)
 	mat.emission_energy_multiplier = 4.0
 	mesh.material = mat
+	BurstParticles.keep(&"sparks_mesh", mat)
 	particles.draw_pass_1 = mesh
 	particles.visibility_aabb = AABB(Vector3.ONE * -3.0, Vector3.ONE * 6.0)
 	host.add_child(particles)
@@ -233,6 +279,7 @@ static func _droplets(host: Node, point: Vector3, dir: Vector3, amount: int, spr
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	process.emission_box_extents = Vector3(0.06, 0.01, 0.03)
 	particles.process_material = process
+	BurstParticles.keep(&"blood_droplets", process)
 	particles.draw_pass_1 = _droplet()
 	particles.visibility_aabb = AABB(Vector3.ONE * -4.0, Vector3.ONE * 8.0)
 	host.add_child(particles)
@@ -263,6 +310,7 @@ static func _mist(host: Node, point: Vector3, dir: Vector3, amount: int) -> void
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	process.emission_sphere_radius = 0.05
 	particles.process_material = process
+	BurstParticles.keep(&"blood_mist", process)
 	particles.draw_pass_1 = _mist_quad()
 	particles.visibility_aabb = AABB(Vector3.ONE * -2.0, Vector3.ONE * 4.0)
 	host.add_child(particles)
