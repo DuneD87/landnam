@@ -117,6 +117,16 @@ const LIGHT_STRIDE := 4
 ## El charco bajo el cadáver: cuándo sale tras morir (s, ya caído) y lo que tarda en extenderse (s).
 const BLEED_OUT_DELAY := 1.6
 const BLEED_OUT_GROW := 16.0
+## Caídas (ver _track_fall): sin daño hasta esta altura (m), mortal desde esta otra, y segundos sin
+## daño al salir del pool.
+const FALL_SAFE_DROP := 6.0
+const FALL_LETHAL_DROP := 30.0
+const FALL_GRACE := 3.0
+## Altura más alta desde que dejó el suelo, a lo largo de la vertical que tenía al despegar
+## (_fall_up, en el marco del planeta); -INF en el suelo.
+var _fall_top := -INF
+var _fall_up := Vector3.UP
+var _fall_grace_until := 0
 
 func _ready() -> void:
 	safe_margin = 0.008
@@ -166,7 +176,6 @@ func _ready() -> void:
 	if not Engine.is_editor_hint():
 		roll_variant(null)
 
-	movement.landed.connect(_on_landed)
 	health_component.damaged.connect(_on_damaged)
 	health_component.hit_received.connect(_on_hit_received)
 	if not health_component.died.is_connected(_on_health_depleted):
@@ -270,6 +279,36 @@ func _physics_step(delta: float) -> void:
 	align_to_gravity(gravity_direction, delta)
 
 	move_and_slide()
+	_track_fall()
+
+
+## Daño por caída según lo que ha caído de verdad: la altura más alta desde que dejó el suelo
+## (saltos incluidos) menos la del aterrizaje. La velocidad con que aterriza no vale: el tramo
+## ligero integra la gravedad de Movement con el tiempo de varios ticks, y un escalón de nada
+## llegaba a 12-18 m/s y le quitaba vida, o lo mataba. Hasta FALL_SAFE_DROP no hace daño; desde
+## FALL_LETHAL_DROP mata (un barranco); entre medias, en proporción a su vida. Recién salido del
+## pool tiene FALL_GRACE s sin daño, mientras se asienta donde lo ha puesto el spawner.
+func _track_fall() -> void:
+	if movement.is_swimming:
+		_fall_top = -INF
+		return
+	# En el marco del planeta, que sobrevive a los rebases del origen flotante, y a lo largo de su
+	# vertical al despegar: en unas decenas de metros de caída la del planeta apenas gira.
+	var local := planet.to_local(global_position)
+	if not is_on_floor():
+		if _fall_top == -INF:
+			_fall_up = (planet.global_basis.inverse() * up_direction).normalized()
+		_fall_top = maxf(_fall_top, local.dot(_fall_up))
+		return
+	if _fall_top == -INF:
+		return
+	var drop := _fall_top - local.dot(_fall_up)
+	_fall_top = -INF
+	if drop <= FALL_SAFE_DROP or Time.get_ticks_msec() < _fall_grace_until \
+			or not health_component.fall_damage_enabled:
+		return
+	var share := clampf((drop - FALL_SAFE_DROP) / (FALL_LETHAL_DROP - FALL_SAFE_DROP), 0.0, 1.0)
+	health_component.take_damage(health_component.max_health * share)
 
 
 ## Gira sobre la vertical hacia [dir] como mucho [max_angle] radianes.
@@ -680,10 +719,6 @@ func butcher_model() -> Node3D:
 	return npc_model
 
 
-func _on_landed(impact_speed: float) -> void:
-	health_component.take_fall_damage(impact_speed)
-
-
 ## Sale del pool: repone salud, estado, IA y animación, para quedar indistinguible de uno
 ## recién instanciado.
 func activate(point: Vector3, environment: AmbientFaunaHabitat,
@@ -717,6 +752,8 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	_ai_update_stride = 1
 	_light_stride = 1
 	_light_delta = 0.0
+	_fall_top = -INF
+	_fall_grace_until = Time.get_ticks_msec() + int(FALL_GRACE * 1000.0)
 	super.activate(point, environment, rng)
 	if persistent:
 		add_to_group(GameManager.SAVEABLE_GROUP)
