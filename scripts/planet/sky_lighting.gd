@@ -18,6 +18,13 @@ extends Node
 
 const GROUP := &"sky_lighting"
 
+## Frames entre dos resoluciones de la luz: a 120 fps, una de cada tres son 40 por segundo, y el
+## cielo entero (dos muestras por vez) se renueva en 75 ms.
+const UPDATE_EVERY := 3
+## Un desplazamiento del observador mayor (m) entre dos frames es un salto (teletransporte,
+## reaparición, rebase del origen): se resuelve en el mismo frame.
+const JUMP_DISTANCE := 20.0
+
 const SKY_STEPS := 10
 ## Anisotropía de Mie para las muestras de ambiente: seis direcciones representan cada una un trozo
 ## grande de cielo, y con el lóbulo estrecho del halo del sol la muestra del horizonte del lado del
@@ -176,6 +183,9 @@ var _p_g := 0.8
 var _p_ms := 0.0
 var _p_ms_tint := Vector3.ONE
 var _exposure := 1.0
+var _pending_delta := 0.0
+var _frames_since_update := 0
+var _last_observer := Vector3.INF
 ## Cuánto está la cámara bajo tierra: 0 = cielo abierto, 1 = el cielo no llega. Suavizado.
 var _underground := 0.0
 ## Opacidad de sombra de cada luz tal como viene de la escena; bajo tierra sube hacia 1.
@@ -273,7 +283,18 @@ func _process(delta: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null or _bodies.is_empty() or sun_light == null:
 		return
-	_update(cam.global_position, delta)
+	# La luz del cielo cambia despacio (la hora, el clima, la altura): se resuelve uno de cada
+	# UPDATE_EVERY frames con el tiempo acumulado, y en el mismo frame si el observador salta.
+	_pending_delta += delta
+	_frames_since_update += 1
+	var observer := cam.global_position
+	if _sky_primed and _frames_since_update < UPDATE_EVERY \
+			and observer.distance_to(_last_observer) < JUMP_DISTANCE:
+		return
+	_update(observer, _pending_delta)
+	_pending_delta = 0.0
+	_frames_since_update = 0
+	_last_observer = observer
 	var cost := Time.get_ticks_usec() - t0
 	if collect_debug_state:
 		debug_state["cost_usec"] = cost
