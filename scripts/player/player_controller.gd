@@ -497,12 +497,11 @@ func _ready():
 	ship_spawn_menu.spawn_requested.connect(_on_ship_spawn_requested)
 	add_child(ship_spawn_menu)
 	grid_manipulator_menu = GridManipulatorMenu.new()
-	grid_manipulator_menu.save_requested.connect(_on_grid_save_requested)
-	grid_manipulator_menu.delete_requested.connect(_on_grid_delete_requested)
-	grid_manipulator_menu.convert_requested.connect(_on_grid_convert_requested)
 	grid_manipulator_menu.load_requested.connect(_on_blueprint_load_requested)
+	grid_manipulator_menu.notice.connect(hotbar.notify)
 	grid_manipulator_menu.closed.connect(capture_mouse.bind(true))
 	add_child(grid_manipulator_menu)
+	grid_manipulator_menu.setup(building_system, inventory)
 	blueprint_placer = BlueprintPlacer.new()
 	blueprint_placer.aim_collision_mask = ray_collision_mask
 	blueprint_placer.finished.connect(_set_scroll_consumers_enabled.bind(true))
@@ -1298,61 +1297,20 @@ func _on_ship_spawn_requested(length: int, width: int, height: int, compartments
 	building_system.debug_spawn_ship(true, compartments, length, width, height, decks)
 
 
-## Guarda como blueprint el grupo de grids apuntado; el menú sigue abierto para seguir operando.
-func _on_grid_save_requested(blueprint_name: String) -> void:
-	var target: GridBase = grid_manipulator_menu.target_grid
-	if not target:
-		return
-
-	var blocks := building_system.save_grid_blueprint(target.grid_id, blueprint_name)
-	if blocks < 0:
-		grid_manipulator_menu.set_status(tr("GRID_CANT_SAVE") % blueprint_name)
-	else:
-		grid_manipulator_menu.set_status(tr("GRID_SAVED") % [blueprint_name, blocks])
-
-
-## Elimina el grupo de grids apuntado y devuelve el control al jugador.
-func _on_grid_delete_requested() -> void:
-	var target: GridBase = grid_manipulator_menu.target_grid
-	if not target:
-		return
-
-	var removed := GridManager.remove_grid_group(target.grid_id)
-	grid_manipulator_menu.close()
-	capture_mouse(true)
-	print("[Player] Grupo de grids eliminado (%d grids)" % removed)
-
-
-func _on_grid_convert_requested() -> void:
-	var target: GridBase = grid_manipulator_menu.target_grid
-	if not target:
-		return
-
-	var converted := GridManager.convert_to_dynamic(target.grid_id)
-	if converted.is_empty():
-		grid_manipulator_menu.set_status(tr("GRID_CANT_CONVERT"))
-		return
-
-	# La conversión sustituye las PlanetGrid por DynamicPlanetGrid nuevas: reapunta el menú a
-	# la grid resultante o seguiría mostrando (y borrando) las estáticas ya vaciadas.
-	grid_manipulator_menu.open(converted[0])
-	grid_manipulator_menu.set_status(tr("GRID_CONVERTED") % converted.size())
-
-
 ## Cierra el menú y pasa a modo colocación: el blueprint sigue al puntero hasta que confirmes.
 func _on_blueprint_load_requested(blueprint_name: String, as_static: bool) -> void:
 	var data := GridBlueprint.load_from_disk(blueprint_name)
 	if data.is_empty():
-		grid_manipulator_menu.set_status(tr("GRID_CANT_READ") % blueprint_name)
+		grid_manipulator_menu.set_status(tr("GRID_CANT_READ") % blueprint_name, false)
 		return
 
 	if not planet:
-		grid_manipulator_menu.set_status(tr("GRID_NO_PLANET"))
+		grid_manipulator_menu.set_status(tr("GRID_NO_PLANET"), false)
 		return
 
 	grid_manipulator_menu.close()
 	capture_mouse(true)
-	blueprint_placer.begin(data, planet, self, camera, as_static)
+	blueprint_placer.begin(data, planet, self, camera, as_static, blueprint_name, inventory)
 	# La rueda solo se le cede al placer si de verdad ha arrancado; si no, el zoom se quedaría
 	# apagado para siempre.
 	if blueprint_placer.is_active():
@@ -1366,7 +1324,10 @@ func _handle_blueprint_placement(event: InputEvent) -> bool:
 	if event is InputEventMouseButton and event.pressed:
 		match event.button_index:
 			MOUSE_BUTTON_LEFT:
-				blueprint_placer.confirm()
+				# Si no se puede (falta material, choca, está lejos) sigue colocando y dice por qué.
+				var problem := blueprint_placer.confirm()
+				if problem != "":
+					hotbar.notify(problem)
 				get_viewport().set_input_as_handled()
 				return true
 			MOUSE_BUTTON_RIGHT:

@@ -229,6 +229,23 @@ menú y «Cargar partida» en la pausa.
    anclas y márgenes, no con un `size` puesto a mano, que ya no volvería a
    encoger.
 
+## Construcción
+
+El menú de bloques (`BuildMenu`), el de blueprints (`GridManipulatorMenu`), la
+rueda del martillo (`BuildRadialMenu`) y el panel de colocar un blueprint
+(`BlueprintPlacer`) usan Saga. Ver [building.md](building.md).
+
+Los iconos de los bloques y las miniaturas de los blueprints se renderizan en
+partida con la luz de estudio de los iconos horneados (`IconStudio`, en
+`scripts/ui/theme/`), con menos exposición y menos relleno
+(`IconStudio.BLOCK_EXPOSURE`, `BLOCK_FILL`): la piedra se quemaba y las tres
+caras de un bloque salían iguales. `IconStudio.light()` apaga la interpolación
+de física de su escenario; con ella, un modelo que se gira de golpe entre dos
+iconos sale capturado a medio girar.
+
+`tests/ui/build_ui_preview.tscn -- --capture` captura todo eso sin partida en
+`build/building/preview/`.
+
 ## HUD de combate
 
 `CombatHUD` (`scripts/combat/combat_hud.gd`) dibuja con las piezas de Saga (`SagaFrame.chamfered`,
@@ -248,10 +265,9 @@ menú y «Cargar partida» en la pausa.
 
 - **Iconos:** mezclan tres estilos (vectores planos, renders sobre fondo negro y
   siluetas, con un yelmo de caballero entre ellas). Habría que renderizarlos
-  desde los modelos con la misma luz, como ya se hace con los bloques
-  (`BlockDatabase`).
+  desde los modelos con la luz de `IconStudio`, como ya se hace con las armas,
+  las herramientas y los bloques.
 - **Nombres y descripciones:** varios objetos siguen en inglés en sus `.tres`.
-- **Menús de construcción:** aún no usan Saga.
 
 ## Validar la barra rápida
 

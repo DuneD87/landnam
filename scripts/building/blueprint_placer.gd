@@ -5,9 +5,18 @@ extends Node3D
 ## al que miras, orientado al "arriba" gravitatorio y girable alrededor de él, y lo instancia al
 ## confirmar. Los blueprints grandes muestran solo su caja envolvente: mallar un barco entero
 ## para elegir sitio cuesta más de lo que aporta.
+##
+## Colocarlo cuesta lo mismo que poner cada bloque y cada colocable a mano (BuildCost), y se paga
+## al confirmar. No se puede si falta material, si choca con otra construcción o si queda
+## demasiado lejos; el ghost se pone rojo y un panel (Saga) dice lo que cuesta, lo que se lleva y
+## por qué no se puede. Construyendo gratis (BuildingSystem.free_build) no cuesta ni tiene
+## límite de distancia.
 
 ## Se emite al salir del modo colocación, por confirmación o por cancelación.
 signal finished()
+
+## Por qué no se puede colocar donde apunta.
+enum Problem { NONE, MISSING, OVERLAP, TOO_FAR }
 
 ## Por encima de este nº de bloques el ghost es una caja en vez de la geometría real.
 const GHOST_BLOCK_LIMIT := 4000
@@ -20,8 +29,16 @@ const YAW_STEP := deg_to_rad(15.0)
 const MOVE_STEP_FACTOR := 0.05
 const MOVE_STEP_MIN := 0.5
 const MOVE_STEP_MAX := 5.0
+## Hasta dónde se puede colocar: el centro del blueprint a esto del jugador, más la mitad de su
+## diagonal (un barco se coloca desde su borde).
+const PLACE_REACH := 24.0
+## Cada cuánto se mira si choca con otra construcción (s), y con cuántos bloques del blueprint como
+## mucho; al confirmar se miran todos.
+const CHECK_INTERVAL := 0.15
+const CHECK_SAMPLES := 600
 
 @export var ghost_color: Color = Color(0.3, 0.8, 1.0, 0.35)
+@export var blocked_color: Color = Color(1.0, 0.3, 0.25, 0.4)
 @export_flags_3d_physics var aim_collision_mask: int = 3
 
 var _data: Dictionary = {}
@@ -38,6 +55,23 @@ var _move_step: float = 1.0
 var _placement: Transform3D = Transform3D.IDENTITY
 var _as_static: bool = false
 var _active: bool = false
+var _name: String = ""
+var _inventory: Inventory = null
+var _cost: Dictionary = {}
+var _blocked_material: StandardMaterial3D = null
+## Centro (en metros del blueprint) de cada bloque, para mirar si choca con otra construcción.
+var _block_centers := PackedVector3Array()
+var _problem := Problem.NONE
+var _check_left := 0.0
+var _hud: CanvasLayer = null
+var _hud_root: Control = null
+var _hud_costs: VBoxContainer = null
+var _hud_state: Label = null
+var _hud_title: Label = null
+var _hud_hint: Label = null
+var _hud_signature := ""
+## Caja de cada grid (id → [edit_version, AABB]): un barco entero no se recorre cada vez.
+var _bounds_cache := {}
 
 
 func _ready() -> void:
@@ -47,6 +81,8 @@ func _ready() -> void:
 	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_blocked_material = _material.duplicate()
+	_blocked_material.albedo_color = blocked_color
 
 	_ghost = Node3D.new()
 	_ghost.name = "BlueprintGhost"
@@ -63,15 +99,22 @@ func is_active() -> bool:
 
 
 ## Entra en modo colocación con el blueprint ya leído de disco. Con as_static, un blueprint
-## dinámico se ancla al planeta en vez de reconstruirse como cuerpo dinámico.
+## dinámico se ancla al planeta en vez de reconstruirse como cuerpo dinámico. Lo que cuesta sale
+## de [inventory] al confirmar.
 func begin(data: Dictionary, planet: Node3D, player: Node3D, camera: Camera3D,
-	as_static: bool = false) -> void:
+	as_static: bool = false, bp_name: String = "", inventory: Inventory = null) -> void:
 
 	if data.is_empty() or not planet or not player or not camera:
 		return
 
 	_data = data
 	_as_static = as_static
+	_name = bp_name
+	_inventory = inventory
+	_cost = BuildCost.of_blueprint(data)
+	_block_centers = _collect_block_centers(data)
+	_problem = Problem.NONE
+	_check_left = 0.0
 	_planet = planet
 	_player = player
 	_camera = camera
@@ -85,6 +128,7 @@ func begin(data: Dictionary, planet: Node3D, player: Node3D, camera: Camera3D,
 
 	_build_ghost()
 	_ghost.visible = true
+	_show_hud()
 	update_aim()
 
 
@@ -95,6 +139,10 @@ func update_aim() -> void:
 
 	_placement = _compute_placement(_aim_point())
 	_ghost.global_transform = _placement
+	_check_left -= get_process_delta_time()
+	if _check_left <= 0.0:
+		_check_left = CHECK_INTERVAL
+		_set_problem(_find_problem(CHECK_SAMPLES))
 
 
 func add_yaw(steps: int) -> void:
@@ -120,10 +168,24 @@ func move_height(steps: int) -> void:
 	update_aim()
 
 
-## Instancia el blueprint en la pose del ghost y sale del modo colocación.
-func confirm() -> void:
+## Lo que cuesta colocarlo (id de objeto → cantidad).
+func get_cost() -> Dictionary:
+	return _cost
+
+
+## Paga e instancia el blueprint en la pose del ghost, y sale del modo colocación. Si no se puede,
+## sigue colocando y devuelve por qué (traducido); "" si se ha colocado.
+func confirm() -> String:
 	if not _active:
-		return
+		return ""
+
+	var problem := _find_problem(-1)
+	_set_problem(problem)
+	if problem != Problem.NONE:
+		return _problem_text(problem)
+	if not BuildingSystem.free_build and not _cost.is_empty() and not BuildCost.pay(_cost, _inventory):
+		_set_problem(Problem.MISSING)
+		return _problem_text(Problem.MISSING)
 
 	var t0 := Time.get_ticks_msec()
 	var grids := GridBlueprint.instantiate(_data, _planet, _placement.origin, _placement.basis,
@@ -136,6 +198,7 @@ func confirm() -> void:
 		grids.size(), blocks, Time.get_ticks_msec() - t0])
 
 	_end()
+	return ""
 
 
 func cancel() -> void:
@@ -149,7 +212,192 @@ func _end() -> void:
 	_ghost.visible = false
 	_clear_ghost_meshes()
 	_data = {}
+	_cost = {}
+	_block_centers = PackedVector3Array()
+	_bounds_cache.clear()
+	if _hud:
+		_hud.visible = false
 	finished.emit()
+
+
+# --- Si se puede colocar ---------------------------------------------------------------------------
+
+## El primer problema de colocarlo donde está el ghost. [samples] limita los bloques que se miran
+## contra otras construcciones (-1, todos).
+func _find_problem(samples: int) -> Problem:
+	if not BuildingSystem.free_build:
+		if not BuildCost.missing(_cost, _inventory).is_empty():
+			return Problem.MISSING
+		var center := _placement * (_size * 0.5)
+		if _player.global_position.distance_to(center) > PLACE_REACH + _size.length() * 0.5:
+			return Problem.TOO_FAR
+	if _overlaps(samples):
+		return Problem.OVERLAP
+	return Problem.NONE
+
+
+func _set_problem(problem: Problem) -> void:
+	if problem == _problem:
+		_refresh_hud()
+		return
+	_problem = problem
+	var material := _material if problem == Problem.NONE else _blocked_material
+	for child in _ghost.get_children():
+		(child as MeshInstance3D).material_override = material
+	_refresh_hud()
+
+
+func _problem_text(problem: Problem) -> String:
+	match problem:
+		Problem.MISSING:
+			return tr("BP_PLACE_MISSING")
+		Problem.OVERLAP:
+			return tr("BP_PLACE_OVERLAP")
+		Problem.TOO_FAR:
+			return tr("BP_PLACE_TOO_FAR")
+	return ""
+
+
+## Centro de cada bloque en metros del blueprint (la esquina de su grid en el origen).
+static func _collect_block_centers(data: Dictionary) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for grid_data: Dictionary in data.get("grids", []):
+		var cell := float(grid_data.get("cell_size", 1.0))
+		for key: String in (grid_data.get("blocks", {}) as Dictionary):
+			var parts := key.split(",")
+			if parts.size() >= 3:
+				out.append((Vector3(int(parts[0]), int(parts[1]), int(parts[2])) + Vector3.ONE * 0.5) * cell)
+	return out
+
+
+## true si algún bloque del blueprint, puesto donde está el ghost, cae en una celda ocupada de otra
+## construcción del planeta. Se mira primero si la caja del blueprint toca la de cada grid.
+func _overlaps(samples: int) -> bool:
+	if _block_centers.is_empty() or not _planet:
+		return false
+	var stride := 1 if samples < 0 or _block_centers.size() <= samples else ceili(float(_block_centers.size()) / samples)
+	var box := AABB(Vector3.ZERO, _size)
+	for grid: GridBase in GridManager.get_grids_for_planet(_planet):
+		if grid.get_block_count() == 0:
+			continue
+		var to_grid := grid.get_grid_world_transform().affine_inverse() * _placement
+		if not (to_grid * box).intersects(_grid_bounds_cached(grid)):
+			continue
+		for i in range(0, _block_centers.size(), stride):
+			if grid.has_block(grid.world_to_cell(_placement * _block_centers[i])):
+				return true
+	return false
+
+
+func _grid_bounds_cached(grid: GridBase) -> AABB:
+	var cached: Array = _bounds_cache.get(grid.grid_id, [])
+	if cached.is_empty() or cached[0] != grid.edit_version:
+		cached = [grid.edit_version, _grid_bounds(grid)]
+		_bounds_cache[grid.grid_id] = cached
+	return cached[1]
+
+
+## Caja de los bloques de una grid en su espacio (metros), con un margen de media celda.
+static func _grid_bounds(grid: GridBase) -> AABB:
+	var lo := Vector3i.MAX
+	var hi := Vector3i.MIN
+	for grid_pos: Vector3i in grid.get_all_blocks():
+		lo = lo.min(grid_pos)
+		hi = hi.max(grid_pos)
+	return AABB(Vector3(lo) * grid.cell_size, Vector3(hi - lo + Vector3i.ONE) * grid.cell_size).grow(grid.cell_size * 0.5)
+
+
+# --- Panel ------------------------------------------------------------------------------------------
+
+func _show_hud() -> void:
+	if _hud == null:
+		_build_hud()
+	var ui_scale := GameTheme.scale_for(get_viewport())
+	_hud_root.theme = GameTheme.build(ui_scale)
+	_hud_hint.custom_minimum_size.x = 640.0 * ui_scale
+	_hud_title.text = _name if _name != "" else tr("BP_PLACE_TITLE")
+	_hud_signature = ""
+	_hud.visible = true
+	_refresh_hud()
+
+
+func _build_hud() -> void:
+	_hud = CanvasLayer.new()
+	_hud.layer = 9
+	add_child(_hud)
+	_hud_root = Control.new()
+	_hud_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.add_child(_hud_root)
+	var panel := PanelContainer.new()
+	panel.theme_type_variation = &"Card"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.anchor_left = 0.5
+	panel.anchor_right = 0.5
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.offset_top = 24.0
+	_hud_root.add_child(panel)
+	var column := VBoxContainer.new()
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(column)
+	_hud_title = Label.new()
+	_hud_title.theme_type_variation = &"HeaderLabel"
+	_hud_title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_hud_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(_hud_title)
+	_hud_costs = VBoxContainer.new()
+	_hud_costs.add_theme_constant_override("separation", 4)
+	column.add_child(_hud_costs)
+	_hud_state = Label.new()
+	_hud_state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(_hud_state)
+	_hud_hint = Label.new()
+	_hud_hint.theme_type_variation = &"HintLabel"
+	_hud_hint.text = "GRID_PLACE_HINT"
+	_hud_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hud_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(_hud_hint)
+
+
+func _refresh_hud() -> void:
+	if _hud == null or not _hud.visible:
+		return
+	# Solo se rehace si ha cambiado algo: lo que se lleva o el problema.
+	var rows := BuildCost.rows(_cost, _inventory)
+	var signature := "%d|%s|%s" % [_problem, BuildingSystem.free_build, str(rows.map(func(row: Array) -> int: return row[2]))]
+	if signature == _hud_signature:
+		return
+	_hud_signature = signature
+	for child in _hud_costs.get_children():
+		_hud_costs.remove_child(child)
+		child.queue_free()
+	if BuildingSystem.free_build or _cost.is_empty():
+		var free := Label.new()
+		free.theme_type_variation = &"StatLabel"
+		free.text = "BP_PLACE_FREE"
+		free.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_hud_costs.add_child(free)
+	else:
+		for row: Array in rows:
+			var line := HBoxContainer.new()
+			line.alignment = BoxContainer.ALIGNMENT_CENTER
+			var icon := TextureRect.new()
+			icon.texture = (row[0] as ItemData).icon
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			icon.custom_minimum_size = Vector2(36, 36)
+			line.add_child(icon)
+			var item_name := Label.new()
+			item_name.theme_type_variation = &"StatLabel"
+			item_name.text = (row[0] as ItemData).get_display_name()
+			line.add_child(item_name)
+			var count := Label.new()
+			count.theme_type_variation = &"BetterLabel" if row[2] >= row[1] else &"WorseLabel"
+			count.text = "%d / %d" % [row[2], row[1]]
+			line.add_child(count)
+			_hud_costs.add_child(line)
+	_hud_state.text = _problem_text(_problem) if _problem != Problem.NONE else tr("BP_PLACE_READY")
+	_hud_state.theme_type_variation = &"WorseLabel" if _problem != Problem.NONE else &"BetterLabel"
 
 
 ## Punto del mundo al que apunta la cámara; si el rayo no golpea nada, un punto a media distancia
