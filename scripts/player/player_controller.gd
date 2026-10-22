@@ -61,6 +61,8 @@ var ship_spawn_menu: ShipSpawnMenu
 var grid_manipulator_menu: GridManipulatorMenu
 var world_map_ui: WorldMapUI
 var blueprint_placer: BlueprintPlacer
+## Rueda del martillo (clic derecho con el martillo en la mano).
+var build_radial: BuildRadialMenu
 var debug_stats: DebugStats
 ## Aplica la apariencia de GameManager.character al PlayerModel (ver CharacterAppearanceRig).
 var appearance_rig: CharacterAppearanceRig
@@ -343,37 +345,42 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 	if slot == ItemData.ArmorSlot.OFFHAND:
 		_sync_hotbar_offhand()
 	_sync_armor()
+	_sync_build_mode()
 
 func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> void:
-	var old_is_block := old_data != null and old_data.category == ItemData.Category.BLOCK
-	var new_is_block := new_data != null and new_data.category == ItemData.Category.BLOCK
 	var old_is_equippable := old_data != null and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON)
 	var new_is_equippable := new_data != null and (new_data.category == ItemData.Category.TOOL or new_data.category == ItemData.Category.WEAPON)
 
 	var new_is_placeable := new_data != null and new_data.placeable
 
-	if new_is_block:
-		building_system.select_block(new_data.block_id)
-		building_system.set_material_by_id(new_data.build_material_id)
-		building_system.set_build_mode(true)
-		if old_is_equippable:
-			_unequip_right_hand()
-	elif new_is_placeable:
+	if new_is_placeable:
 		building_system.select_placeable(new_data)
-		building_system.set_build_mode(true)
 		if old_is_equippable:
 			_unequip_right_hand()
 	elif new_is_equippable:
 		building_system.select_placeable(null)
-		building_system.set_build_mode(false)
 		_equip_from_hotbar(old_data, new_data)
 	else:
 		building_system.select_placeable(null)
-		building_system.set_build_mode(false)
 		if old_is_equippable:
 			_unequip_right_hand()
 
+	_sync_build_mode()
 	inventory.inventory_changed.emit()
+
+
+## Se construye con el martillo en la mano (bloques) o con un colocable elegido en la barra. Se
+## mira al cambiar la barra y al cambiar lo equipado, que también se puede hacer desde el muñeco.
+func _sync_build_mode() -> void:
+	var hammer := _holds_hammer()
+	if hammer and building_system.is_prop_mode():
+		building_system.select_placeable(null)
+	building_system.set_build_mode(hammer or building_system.is_prop_mode())
+
+
+func _holds_hammer() -> bool:
+	var held := _get_right_hand_item()
+	return held != null and held.tool_type == ItemData.ToolType.HAMMER
 
 
 func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
@@ -484,7 +491,8 @@ func _ready():
 	free_flight_enabled = true
 	visible = false
 	collision_model.disabled = true
-	build_menu.setup(hotbar, building_system)
+	build_menu.setup(building_system, inventory)
+	build_menu.closed.connect(capture_mouse.bind(true))
 	ship_spawn_menu = ShipSpawnMenu.new()
 	ship_spawn_menu.spawn_requested.connect(_on_ship_spawn_requested)
 	add_child(ship_spawn_menu)
@@ -499,6 +507,13 @@ func _ready():
 	blueprint_placer.aim_collision_mask = ray_collision_mask
 	blueprint_placer.finished.connect(_set_scroll_consumers_enabled.bind(true))
 	add_child(blueprint_placer)
+	# Después de la cámara en el árbol: recibe la entrada antes que ella y se queda el ratón.
+	build_radial = BuildRadialMenu.new()
+	build_radial.option_chosen.connect(_on_build_radial_chosen)
+	add_child(build_radial)
+	building_system.build_mode_changed.connect(func(active: bool) -> void:
+		if not active:
+			build_radial.close())
 	debug_stats = DebugStats.new()
 	add_child(debug_stats)
 	combat = PlayerCombat.new()
@@ -540,6 +555,7 @@ func _ready():
 		inventory.add_item(ItemCatalog.get_item(armor_id), 1)
 	inventory.add_item(ItemCatalog.get_item(&"stone_axe_01"), 1)
 	inventory.add_item(ItemCatalog.get_item(&"stone_pickaxe_01"), 1)
+	inventory.add_item(ItemCatalog.get_item(&"stone_hammer_01"), 1)
 	inventory.add_item(ItemCatalog.get_item(&"seax"), 1)
 	# Armas para plantar cara a la fauna hostil: una de cada familia y su munición.
 	for weapon_id in [&"iron_sword", &"battle_axe", &"iron_mace", &"greatsword", &"great_axe", &"war_hammer",
@@ -699,6 +715,7 @@ func restore_save_data(save: Dictionary) -> void:
 	# El equipo se ha restaurado sin pasar por equipment_changed.
 	_sync_hotbar_offhand()
 	_sync_armor()
+	_sync_build_mode()
 	combat.on_restored()
 	# Después de on_restored, que deja el cuerpo entero: los miembros perdidos siguen perdidos.
 	if save.has("severed") and combat.body_damage != null:
@@ -1063,6 +1080,12 @@ func _input(event):
 		if blueprint_placer and blueprint_placer.is_active():
 			blueprint_placer.cancel()
 			return
+		if build_radial and build_radial.is_open():
+			build_radial.close()
+			return
+		if build_menu.visible:
+			build_menu.close()
+			return
 		if inventory_ui.visible:
 			inventory_ui.close()
 			capture_mouse(true)
@@ -1095,12 +1118,15 @@ func _input(event):
 		return
  
 	if event is InputEventKey and event.pressed and not blueprint_placer.is_active():
-		if event.is_action_pressed("open_build_menu"):
-			build_menu.toggle()
+		if event.is_action_pressed("open_build_menu") and not _is_text_field_focused():
 			if build_menu.visible:
+				build_menu.close()
+			elif _holds_hammer():
+				build_radial.close()
+				build_menu.open()
 				capture_mouse(false)
 			else:
-				capture_mouse(true)
+				hotbar.notify(tr("BUILD_NEED_HAMMER"))
 		elif event.is_action_pressed("open_ship_menu") and not _is_text_field_focused():
 			ship_spawn_menu.toggle()
 			capture_mouse(not ship_spawn_menu.visible)
@@ -1111,9 +1137,9 @@ func _input(event):
 			world_map_ui.toggle()
 			capture_mouse(not world_map_ui.visible)
 
-	# Con el menú de grids o el mapa abiertos el ratón es de la UI: los clics que van a sus
-	# botones (o que arrastran el mapa) no deben además colocar bloques ni girar la cámara.
-	if grid_manipulator_menu.visible or world_map_ui.visible:
+	# Con el menú de grids, el de bloques o el mapa abiertos el ratón es de la UI: los clics que
+	# van a sus botones (o que arrastran el mapa) no deben además colocar bloques ni girar la cámara.
+	if grid_manipulator_menu.visible or build_menu.visible or world_map_ui.visible:
 		return
 
 	if blueprint_placer.is_active() and _handle_blueprint_placement(event):
@@ -1377,7 +1403,42 @@ func _set_scroll_consumers_enabled(enabled: bool) -> void:
 	free_flight_controller.set_process_input(enabled)
 
 
+## Lo elegido en la rueda del martillo: poner o quitar se quedan como modo del clic izquierdo; los
+## menús sueltan el ratón y lo vuelven a capturar al cerrarse.
+func _on_build_radial_chosen(option: BuildRadialMenu.Option) -> void:
+	match option:
+		BuildRadialMenu.Option.ADD:
+			building_system.set_action_mode(BuildingSystem.ActionMode.BUILD)
+			hotbar.notify(tr("BUILD_RADIAL_ADD"))
+		BuildRadialMenu.Option.REMOVE:
+			building_system.set_action_mode(BuildingSystem.ActionMode.DESTROY)
+			hotbar.notify(tr("BUILD_RADIAL_REMOVE"))
+		BuildRadialMenu.Option.SELECT_BLOCK:
+			build_menu.open()
+			capture_mouse(false)
+		BuildRadialMenu.Option.BLUEPRINTS:
+			grid_manipulator_menu.open(building_system.get_aimed_grid(_ray_hit))
+			capture_mouse(false)
+		BuildRadialMenu.Option.SYMMETRY:
+			if not building_system.cycle_symmetry(_ray_hit):
+				hotbar.notify(tr("BUILD_SYMMETRY_AIM"))
+			elif building_system.is_symmetry_active():
+				hotbar.notify(tr("BUILD_SYMMETRY_ON") % _symmetry_axis_name())
+			else:
+				hotbar.notify(tr("BUILD_SYMMETRY_OFF"))
+
+
+## Eje de la simetría puesta («X», «Y», «Z») o "" sin ella.
+func _symmetry_axis_name() -> String:
+	if not building_system.is_symmetry_active():
+		return ""
+	return BuildingSystem.MirrorAxis.keys()[building_system.mirror_axis]
+
+
 func _handle_build_input(event: InputEvent) -> void:
+	# Con el ratón suelto (inventario, consola) los clics son de la interfaz.
+	if not is_mouse_captured():
+		return
 	var shift_held := Input.is_action_pressed("left_shift")
 
 	if event is InputEventMouseButton and event.pressed:
@@ -1386,7 +1447,13 @@ func _handle_build_input(event: InputEvent) -> void:
 				building_system.execute_primary_action(_ray_hit)
 				get_viewport().set_input_as_handled()
 			MOUSE_BUTTON_RIGHT:
-				building_system.toggle_build_mode()
+				if building_system.is_prop_mode():
+					building_system.toggle_build_mode()
+				else:
+					var mode := BuildRadialMenu.Option.ADD
+					if building_system.current_action_mode == BuildingSystem.ActionMode.DESTROY:
+						mode = BuildRadialMenu.Option.REMOVE
+					build_radial.open(mode, building_system.get_selected_block_item(), _symmetry_axis_name())
 				get_viewport().set_input_as_handled()
 			MOUSE_BUTTON_WHEEL_UP:
 				if shift_held:

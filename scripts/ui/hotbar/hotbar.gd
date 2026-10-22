@@ -427,13 +427,6 @@ func get_save_data() -> Array:
 	for slot in slots:
 		if not slot.assigned_data:
 			result.append(null)
-		elif slot.assigned_data.category == ItemData.Category.BLOCK:
-			result.append({
-				"type": "block",
-				"id": str(slot.assigned_data.id),
-				"block_id": slot.assigned_data.block_id,
-				"build_material_id": slot.assigned_data.build_material_id,
-			})
 		else:
 			result.append({
 				"type": "item",
@@ -458,21 +451,11 @@ func restore_save_data(data: Array) -> void:
 		var value = data[i]
 		if value == null:
 			continue
-		var item_data: ItemData
+		# Las partidas de antes del martillo guardaban bloques en la barra: ya no van ahí, se eligen
+		# en el menú de bloques del martillo.
 		if value["type"] == "block":
-			var mat_id: String = value.get("build_material_id", "")
-			if mat_id != "":
-				var items_by_mat := BlockDatabase.get_block_items_by_material()
-				if items_by_mat.has(mat_id):
-					for item in items_by_mat[mat_id]["items"]:
-						if item.block_id == value["block_id"]:
-							item_data = item
-							break
-			if not item_data:
-				push_warning("[Hotbar] Sin item para bloque %s de material '%s'; se restaura el bloque genérico." % [value["block_id"], mat_id])
-				item_data = BlockDatabase.get_block_item(value["block_id"])
-		else:
-			item_data = ItemCatalog.get_item(StringName(value["id"]))
+			continue
+		var item_data := ItemCatalog.get_item(StringName(value["id"]))
 		if item_data:
 			slots[i].assign(item_data)
 	_refresh_offhand_marks()
