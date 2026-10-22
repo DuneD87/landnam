@@ -27,9 +27,10 @@ menú** (o Escape) cancela y devuelve el menú. Para ello `GameManager` tiene el
 estado `CHARACTER_CREATION`, añadido al final del enum para no alterar los
 estados de las partidas ya guardadas.
 
-La cinemática calcula un aterrizaje nuevo en cada partida, entre el ecuador y
-55° norte. `NewGameLanding` usa el mapa para descartar agua y consulta el SDF
-del terreno actual para comprobar la altura, la pendiente y el suelo alrededor.
+La cinemática calcula un aterrizaje nuevo en cada partida, entre 35° y 45° norte,
+fuera de la banda desértica del planeta. `NewGameLanding` usa el mapa para descartar
+agua y consulta el SDF del terreno actual para comprobar la altura, la pendiente
+y el suelo alrededor. Se exige el sol al menos 10° sobre el horizonte local.
 El marcador precarga las colisiones del destino mientras la cámara baja desde
 una altura proporcional al radio del planeta. Al terminar se activa la vista
 inicial del jugador y se devuelven los controles cuando el suelo está listo.

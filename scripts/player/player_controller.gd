@@ -893,9 +893,13 @@ func _play_cinematic() -> void:
 	var map: WorldMapData = planet.world_map.map if planet.world_map != null else null
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
-	var landing: Variant = NewGameLanding.new().find_landing(core, map, rng)
+	var sunlight := Vector3.ZERO
+	if is_instance_valid(core.sun):
+		sunlight = core.voxel_terrain.global_basis.inverse() * core.sun.global_basis.z
+	var landing: Variant = NewGameLanding.new().find_landing(core, map, rng, sunlight)
 	if landing == null:
-		push_error("Player: no se ha encontrado tierra segura entre el ecuador y 55° N")
+		push_error("Player: no se ha encontrado tierra segura de día entre %.0f° y %.0f° N" % [
+			NewGameLanding.MIN_LATITUDE_DEGREES, NewGameLanding.MAX_LATITUDE_DEGREES])
 		GameManager._change_state.call_deferred(GameManager.State.MENU)
 		return
 	_cinematic_landing = landing

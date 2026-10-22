@@ -349,13 +349,13 @@ func _apply_planet_params(map: WorldMapData) -> void:
 			if value != null:
 				_material.set_shader_parameter(pair[1], value)
 
-	var planet = loader.get("planet") if loader != null else null
+	var planet: Planet = loader.get("planet") if loader != null else null
 	if planet == null:
 		return
 	# biome_latitude_ranges va de -90 a 90, un corte por frontera de bioma. El primero es el borde
 	# del casquete polar; el del bioma central marca hasta dónde llega la banda árida.
-	var ranges: Array = planet.get("biome_latitude_ranges")
-	if ranges == null or ranges.size() < 2:
+	var ranges := planet.definition.biome_latitude_ranges
+	if ranges.size() < 2:
 		return
 	_material.set_shader_parameter("snow_latitude", absf(float(ranges[1])))
 	var middle := ranges.size() / 2 - 1

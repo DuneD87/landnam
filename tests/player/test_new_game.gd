@@ -49,16 +49,24 @@ func _run() -> void:
 	var distinct := {}
 	for i in 32:
 		rng.seed = i + 1
+		# Distintas horas y estaciones: ningún destino puede caer en la cara nocturna.
+		var declination := deg_to_rad([-23.44, 0.0, 23.44][i % 3])
+		var azimuth := TAU * (i % 4) / 4.0
+		var sunlight := Vector3(cos(declination) * cos(azimuth), sin(declination),
+			cos(declination) * sin(azimuth))
 		# También debe funcionar mientras el mapa todavía está clasificándose.
-		var result: Variant = finder.find_landing(core, map if i % 2 == 0 else null, rng)
+		var result: Variant = finder.find_landing(core, map if i % 2 == 0 else null, rng, sunlight)
 		check(result != null, "Tierra segura para la semilla %d" % rng.seed)
 		if result == null:
 			continue
 		var point: Vector3 = result.origin
 		var up := point.normalized()
 		var latitude := WorldMapData.dir_to_latlon(up).x
-		check(latitude >= -0.001 and latitude <= Landing.MAX_LATITUDE_DEGREES + 0.001,
-			"Aterrizaje entre el ecuador y el norte")
+		check(latitude >= Landing.MIN_LATITUDE_DEGREES - 0.001 \
+				and latitude <= Landing.MAX_LATITUDE_DEGREES + 0.001,
+			"Aterrizaje dentro de la franja de latitud, fuera del desierto")
+		check(up.dot(sunlight) >= sin(deg_to_rad(Landing.MIN_SUN_ELEVATION_DEGREES)) - 0.0001,
+			"El sol está alto sobre el horizonte del destino")
 		check(point.length() > core.radius - core.water_radius + Landing.WATER_MARGIN,
 			"Los pies quedan en tierra por encima del agua")
 		check(finder._sdf(point) > 0.0 and finder._sdf(point - up * 1.2) < 0.0,
@@ -68,9 +76,14 @@ func _run() -> void:
 			check(not map.is_water_at_dir(up), "El mapa tampoco etiqueta el aterrizaje como océano")
 		distinct[Vector2i(WorldMapData.dir_to_latlon(up))] = true
 	check(distinct.size() >= 24, "La nueva partida no reutiliza un punto fijo")
+	check(finder.find_landing(core, map, rng, Vector3.DOWN) == null,
+		"Con toda la franja a oscuras no hay fallback nocturno")
+	check(finder.find_landing(core, map, rng, Vector3.ZERO) == null,
+		"Sin dirección solar no se acepta un destino sin comprobar la luz")
 	# Un planeta inundado no debe devolver como fallback un punto bajo el océano.
 	core.water_radius = -10000.0
-	check(finder.find_landing(core, null, rng) == null, "Sin tierra segura no hay fallback submarino")
+	check(finder.find_landing(core, null, rng, Vector3.UP) == null,
+		"Sin tierra segura no hay fallback submarino")
 	map_owner.free()
 	parser.free()
 	core.free()
@@ -103,6 +116,11 @@ func _test_cinematic() -> void:
 	check(player.planet == scene.get_node("Planets/Earth"), "Nueva partida elige la Tierra aunque el save estuviera en la Luna")
 	var start := player.global_position
 	var target := marker.global_position
+	var terrain: VoxelLodTerrain = player.planet.voxel_terrain
+	var sun: DirectionalLight3D = player.planet.planet.sun
+	var target_up := (target - terrain.global_position).normalized()
+	check(target_up.dot(sun.global_basis.z) >= sin(deg_to_rad(Landing.MIN_SUN_ELEVATION_DEGREES)) - 0.0001,
+		"La nueva partida busca un destino iluminado por el sol real de la escena")
 	var camera := player.camera
 	var initial_camera := camera.global_position
 	if capture:
@@ -125,10 +143,11 @@ func _test_cinematic() -> void:
 	check(GameManager.current_state == GameManager.State.PLAYING, "La cinemática termina en PLAYING")
 	check(player.camera_controller.first_person == player.start_first_person, "Se respeta la vista inicial al aterrizar")
 	# La primera física de PLAYING rebasa el origen. Compara con el centro vivo del planeta.
-	var terrain: VoxelLodTerrain = player.planet.voxel_terrain
 	var local := terrain.to_local(player.global_position)
 	var latitude := WorldMapData.dir_to_latlon(local).x
-	check(latitude >= 0.0 and latitude <= Landing.MAX_LATITUDE_DEGREES, "El origen flotante conserva la latitud del aterrizaje")
+	check(latitude >= Landing.MIN_LATITUDE_DEGREES and latitude <= Landing.MAX_LATITUDE_DEGREES,
+		"El origen flotante conserva la latitud del aterrizaje")
+	check(player.up_direction.dot(sun.global_basis.z) > 0.0, "Sigue siendo de día al aterrizar")
 	check(marker.global_position.distance_to(player.global_position) < 2.0,
 		"El marcador y su viewer acompañan el rebase del origen flotante")
 	var waited := 0.0

@@ -2,8 +2,10 @@ extends RefCounted
 
 ## El aterrizaje se calcula en el marco del terreno, sin depender de chunks cargados ni del
 ## SpawnPoint de una versión anterior del planeta. El mapa filtra océanos; el SDF vivo decide
-## la altura final, incluyendo terrazas, cuevas y ríos.
-const MAX_LATITUDE_DEGREES := 55.0
+## la altura final, incluyendo terrazas, cuevas y ríos. La latitud evita la banda desértica.
+const MIN_LATITUDE_DEGREES := 35.0
+const MAX_LATITUDE_DEGREES := 45.0
+const MIN_SUN_ELEVATION_DEGREES := 10.0
 const MAX_ATTEMPTS := 512
 const WATER_MARGIN := 8.0
 const FOOT_CLEARANCE := 1.0
@@ -19,12 +21,15 @@ func _init() -> void:
 	_buffer.create(2, 2, 2)
 
 
-## Transform local al VoxelLodTerrain, o null si no hay tierra segura en la banda pedida.
+## Transform local al VoxelLodTerrain, o null si no hay tierra segura de día en la banda pedida.
+## sun_direction apunta hacia el sol en el mismo marco local que el terreno.
 func find_landing(planet: Planet, map: WorldMapData,
-		rng: RandomNumberGenerator) -> Variant:
+		rng: RandomNumberGenerator, sun_direction: Vector3) -> Variant:
 	_generator = planet.voxel_terrain.generator
-	if _generator == null:
+	if _generator == null or sun_direction.is_zero_approx():
 		return null
+	var sunlight := sun_direction.normalized()
+	var min_sun_dot := sin(deg_to_rad(MIN_SUN_ELEVATION_DEGREES))
 	var sea_radius := planet.radius - planet.water_radius
 	var lower := sea_radius + WATER_MARGIN if planet.has_water else planet.radius - 4096.0
 	var upper := planet.radius + 256.0
@@ -34,10 +39,13 @@ func find_landing(planet: Planet, map: WorldMapData,
 		upper = maxf(upper, planet.radius + map.height_min + map.height_span + 256.0)
 	for _attempt in MAX_ATTEMPTS:
 		# Uniforme por área esférica, en lugar de acumular puntos hacia el norte.
-		var y := rng.randf_range(0.0, sin(deg_to_rad(MAX_LATITUDE_DEGREES)))
+		var y := rng.randf_range(sin(deg_to_rad(MIN_LATITUDE_DEGREES)),
+			sin(deg_to_rad(MAX_LATITUDE_DEGREES)))
 		var longitude := rng.randf_range(-PI, PI)
 		var horizontal := sqrt(1.0 - y * y)
 		var up := Vector3(horizontal * cos(longitude), y, horizontal * sin(longitude))
+		if up.dot(sunlight) < min_sun_dot:
+			continue
 		if map != null and map.is_valid() and planet.has_water:
 			if map.is_water_at_dir(up) or map.surface_radius_at_dir(up) < lower:
 				continue
