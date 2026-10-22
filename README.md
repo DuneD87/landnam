@@ -37,6 +37,7 @@ godot --headless --path . res://tests/ui/test_build_hammer.tscn
 godot --headless --path . res://tests/ui/test_blueprints.tscn
 godot --headless --path . res://tests/combat/test_combat_core.tscn
 godot --headless --path . res://tests/combat/test_targeting.tscn
+godot --headless --path . res://tests/survival/test_cold_exposure.tscn
 godot --headless --path . res://tests/console/test_toon_command.tscn
 ```
 

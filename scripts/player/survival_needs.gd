@@ -11,7 +11,7 @@ extends Node
 ## clima del planeta (latitud, altura y estación), la hora, el tiempo, si se está mojado y, en el
 ## agua, la del agua, que enfría mucho más deprisa. La cordura baja a oscuras, sin dormir y con
 ## hambre o sed, y se rehace de día si se ha descansado. El oxígeno solo baja con la cabeza bajo el
-## agua. Vacías, hambre, sed y oxígeno quitan vida, igual que el frío o el calor extremos; el
+## agua. Vacías, hambre, sed y oxígeno quitan vida, igual que el frío y el calor extremo; el
 ## cansancio y el frío hacen que el aguante se recupere más despacio.
 ##
 ## Lo compensan comer y beber (eat, drink: desde la barra, junto al agua dulce o de los odres; ver
@@ -49,10 +49,9 @@ const DROWN_DPS := 8.0
 const EXPOSURE_DPS := 0.35
 ## La vida se quita a golpes de este tamaño, no a pellizcos cada tick.
 const DAMAGE_STEP := 2.0
-## Temperatura (de -1 a 1) a partir de la que el frío o el calor hacen daño.
-const EXPOSURE_START := 0.85
-## Lo que el tiempo resta a la temperatura sentida, al aire libre.
-const WEATHER_CHILL := {"storm": -3.0, "snow": -5.0, "wind": -3.0, "fog": -1.0}
+## Magnitud de la temperatura a partir de la que se pierde vida: desde «Frío» o «Abrasado».
+const COLD_EXPOSURE_START := 0.45
+const HEAT_EXPOSURE_START := 0.85
 ## Lo que quita la sed un trago (de un río, un lago o un odre).
 const SIP := 0.2
 ## Los valores, por el nombre de su propiedad (el de la consola y la barra rápida).
@@ -88,6 +87,10 @@ var _head_bone := -1
 var _insulation := 0.0
 var _fire_heat := 0.0
 var _fire_light := 0.0
+## Tiempo local, muestreado con el clima: precipitación que alcanza al jugador y aporte en °C.
+var _precipitation := Vector2.ZERO
+var _weather_chill := 0.0
+var _sun_heat := 0.0
 
 
 func setup(player: PlayerController) -> void:
@@ -111,6 +114,7 @@ func _physics_process(delta: float) -> void:
 		_daylight = _local_daylight()
 		_insulation = _worn_insulation()
 		_update_fires()
+		_update_weather()
 		water = mini(water, water_capacity())
 	submerged = _head_under_water()
 	_update_exertion(delta)
@@ -196,7 +200,7 @@ func set_value(need: String, value: float) -> void:
 func is_critical(need: String) -> bool:
 	match need:
 		"warmth":
-			return absf(warmth) >= 0.65
+			return warmth <= -COLD_EXPOSURE_START or warmth >= 0.65
 		"oxygen":
 			return oxygen <= 0.25
 		_:
@@ -207,7 +211,7 @@ func is_critical(need: String) -> bool:
 func temperature_word() -> String:
 	if warmth <= -0.85:
 		return tr("TEMP_FREEZING")
-	if warmth <= -0.45:
+	if warmth <= -COLD_EXPOSURE_START:
 		return tr("TEMP_COLD")
 	if warmth <= -0.15:
 		return tr("TEMP_COOL")
@@ -249,16 +253,14 @@ func _update_wetness(dt: float, swimming: bool) -> void:
 	if swimming:
 		wetness = 1.0
 		return
-	var weather := _weather()
-	var outside: bool = weather != null and not weather.is_sheltered()
-	var event: String = weather.get_current_weather_name() if weather != null else "clear"
-	if outside and event == "storm":
-		wetness += dt / SOAK_TIME
-	elif outside and event == "snow":
-		wetness += dt / (SOAK_TIME * 4.0)
+	var soaking := _precipitation.x + _precipitation.y * 0.25
+	if soaking > 0.0:
+		wetness += dt / SOAK_TIME * soaking
 	else:
 		var drying := (0.5 + 0.5 * _daylight) * (2.0 if felt_temperature > 20.0 else 1.0) * (1.0 + _fire_heat / 6.0)
 		wetness -= dt / DRY_TIME * drying
+	# La temperatura de este mismo tick ya debe ver la humedad acotada.
+	wetness = clampf(wetness, 0.0, 1.0)
 
 
 func _update_warmth(dt: float, swimming: bool) -> void:
@@ -270,13 +272,7 @@ func _update_warmth(dt: float, swimming: bool) -> void:
 		time = WARMTH_WATER_TIME
 	else:
 		felt += lerpf(-6.0, 3.0, _daylight)
-		var weather := _weather()
-		if weather != null:
-			var event: String = weather.get_current_weather_name()
-			var shelter := 0.3 if weather.is_sheltered() else 1.0
-			felt += float(WEATHER_CHILL.get(event, 0.0)) * shelter
-			if event == "clear" and not weather.is_sheltered():
-				felt += 2.0 * _daylight
+		felt += _weather_chill + _sun_heat * _daylight
 		felt -= 8.0 * wetness
 		# La ropa mojada abriga mucho menos.
 		felt += _insulation * (1.0 - 0.6 * wetness) + _fire_heat
@@ -308,8 +304,9 @@ func _hurt(dt: float, health: HealthComponent) -> void:
 		dps += DEHYDRATE_DPS
 	if oxygen <= 0.0:
 		dps += DROWN_DPS
-	var exposure := (absf(warmth) - EXPOSURE_START) / (1.0 - EXPOSURE_START)
-	if exposure > 0.0:
+	var start := COLD_EXPOSURE_START if warmth < 0.0 else HEAT_EXPOSURE_START
+	var exposure := (absf(warmth) - start) / (1.0 - start)
+	if exposure >= 0.0:
 		dps += EXPOSURE_DPS * (0.5 + 0.5 * exposure)
 	if dps <= 0.0:
 		_pending_damage = 0.0
@@ -331,6 +328,29 @@ func _clamp_all() -> void:
 
 
 # --- Lo que se mira del mundo ---------------------------------------------------------------------
+
+## Usa el estado ya interpolado, no el nombre del evento de destino. Solo moja lo que cae aquí;
+## bajo techo se conserva un 30 % del enfriamiento por viento y niebla.
+func _update_weather() -> void:
+	_precipitation = Vector2.ZERO
+	_weather_chill = 0.0
+	_sun_heat = 0.0
+	var weather := _weather()
+	if weather == null or not weather.enabled:
+		return
+	var st := weather.get_resolved_state()
+	if st == null:
+		return
+	var sheltered := weather.is_sheltered()
+	var local := weather.get_local_precipitation()
+	if not sheltered:
+		_precipitation = local
+		_sun_heat = 2.0 * clampf(st.sun_energy, 0.0, 1.0) * maxf(1.0 - local.x - local.y, 0.0)
+	var wind := clampf(inverse_lerp(0.6, 3.2, st.wind_multiplier), 0.0, 1.0)
+	var fog := clampf(st.fog_density / 1.3, 0.0, 1.0)
+	_weather_chill = (-3.0 * wind - fog) * (0.3 if sheltered else 1.0)
+	_weather_chill -= 3.0 * _precipitation.x + 5.0 * _precipitation.y
+
 
 ## Temperatura del sitio (°C) sin la hora ni el tiempo: sale del frío del clima del planeta, el
 ## mismo que pone la nieve (latitud, altura y estación). La cota de nieve cae en torno a 0 °C.
@@ -392,5 +412,5 @@ func _head_under_water() -> bool:
 	return head.distance_to(_player._water_surface_center) < _player._water_surface_radius - 0.05
 
 
-func _weather() -> Node:
-	return get_tree().get_first_node_in_group("weather")
+func _weather() -> WeatherController:
+	return get_tree().get_first_node_in_group("weather") as WeatherController

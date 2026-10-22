@@ -29,8 +29,9 @@ En la consola de la barra rápida (ver [ui.md](ui.md)):
 Cada barra sale del medallón de su icono y se llena desde él en el sentido de
 las agujas del reloj.
 
-Cuando una necesidad está baja, su medallón late en rojo. En la ficha de
-atributos (C) salen los valores exactos y los grados que se sienten.
+Cuando una necesidad está baja, su medallón late en rojo. El de temperatura
+avisa desde **Frío**, cuando empieza a quitar vida. En la ficha de atributos
+(C) salen los valores exactos y los grados que se sienten.
 
 ## Reglas
 
@@ -57,10 +58,17 @@ aire y unos 20 s en el agua. Lo que se siente sale de:
   (latitud, altura y estación). La cota de nieve cae en torno a 0 °C y el
   ecuador, a nivel del mar, a 30 °C.
 - **La hora**: 6 °C menos de noche y 3 más a pleno día.
-- **El tiempo**, al aire libre: temporal −3, nieve −5, viento −3, niebla −1; a
-  cubierto pesa un 30 %. Con el cielo despejado, el sol da 2 °C más.
+- **El tiempo que está haciendo**, con la transición entre eventos ya resuelta:
+  lluvia hasta −3 °C, nieve hasta −5, viento hasta −3 y niebla hasta −1. Se
+  suman según su intensidad. A cubierto no llega precipitación y el viento y
+  la niebla pesan un 30 %. El sol aporta hasta 2 °C más, según la luz del
+  evento y lo que esté precipitando.
 - **Mojado**: hasta 8 °C menos. Nadar empapa, la lluvia también (en un minuto
-  al raso), y se seca en unos 4 minutos, antes de día, con calor y junto al fuego.
+  al raso a plena intensidad), y la nieve moja cuatro veces más despacio.
+  Cuenta lo que cae sobre el jugador: en un claro entre nubes, por encima de
+  ellas o bajo techo no se sigue mojando. En zonas frías, la lluvia que cae
+  como nieve moja al ritmo de la nieve. Se seca en unos 4 minutos, antes de
+  día, con calor y junto al fuego; ponerse a cubierto no seca de golpe.
 - **La ropa puesta**: lo que abriga cada prenda (`InsulationTrait`): el juego de
   pieles entero, 9 °C, y el de cuero, 6 °C. Mojada, abriga un 60 % menos.
 - **Una hoguera encendida**: hasta 18 °C a pie de fuego, que se apagan del todo a
@@ -68,8 +76,18 @@ aire y unos 20 s en el agua. Lo que se siente sale de:
 - **En el agua**: la del agua, que no pasa mucho de cero en los mares fríos.
 
 Entre 10 y 24 °C se está a gusto (0). Se llega al extremo a −12 °C (−1) y a
-40 °C (1). Pasado ±0,85, el frío o el calor quitan vida (de 0,17 a 0,35 por
-segundo).
+40 °C (1). Desde **Frío** (temperatura corporal ≤ −0,45) se pierde vida, cada
+vez más al enfriarse: de 0,175 a 0,35 por segundo. **Fresco** todavía no
+daña. El calor empieza a dañar a partir de +0,85, al mismo ritmo.
+
+La alta montaña y las zonas con nieve o hielo enfrían por el clima del sitio,
+aunque no esté lloviendo ni nevando. La ropa y las hogueras elevan la
+temperatura sentida y permiten recuperar calor; al salir del estado de frío,
+deja de bajar la vida por exposición.
+
+La escena `tests/survival/test_cold_exposure.tscn` comprueba lluvia, nieve,
+transiciones meteorológicas, refugio, montaña, hielo, abrigo, fuego, guardado
+y daño usando el clima de la Tierra, sin cargar una partida completa.
 
 ## Comandos de consola
 

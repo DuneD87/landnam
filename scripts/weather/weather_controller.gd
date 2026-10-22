@@ -379,6 +379,16 @@ func get_resolved_state() -> WeatherState:
 	return _resolved if _resolved != null else _to
 
 
+## Lluvia (x) y nieve (y) que caen aquí, antes de recortarlas contra los techos. Comparte con
+## las partículas la transición, las nubes locales, la altitud y la conversión a nieve por frío.
+## No depende de si la cámara está sumergida: sirve también para las necesidades del jugador.
+func get_local_precipitation() -> Vector2:
+	var st := get_resolved_state()
+	if not enabled or st == null:
+		return Vector2.ZERO
+	return _precipitation_rates(st)
+
+
 ## True con techo encima (cueva, voladizo, interior). Sale del mismo barrido de oclusion que
 ## decide si te caen gotas encima.
 func is_sheltered() -> bool:
@@ -706,6 +716,12 @@ func _apply_precipitation(st: WeatherState) -> void:
 	if _fx == null:
 		return
 	_fx.set_submerged(_camera_submerged)
+	var precipitation := _precipitation_rates(st)
+	_fx.set_intensity("rain", precipitation.x)
+	_fx.set_intensity("snow", precipitation.y)
+
+
+func _precipitation_rates(st: WeatherState) -> Vector2:
 	var below := _below_clouds_factor(st)
 	# Cobertura LOCAL: en una celda despejada de la agrupación no llueve aunque el evento
 	# global sea una tormenta; el umbral precip_cloud_start/full ya hace el resto.
@@ -713,8 +729,7 @@ func _apply_precipitation(st: WeatherState) -> void:
 	var gate := below * cloud_factor
 	# En tierra fría la lluvia del temporal cae como nieve.
 	var cold := _cold_precipitation()
-	_fx.set_intensity("rain", st.rain_rate * gate * (1.0 - cold))
-	_fx.set_intensity("snow", maxf(st.snow_rate, st.rain_rate * cold) * gate)
+	return Vector2(st.rain_rate * (1.0 - cold), maxf(st.snow_rate, st.rain_rate * cold)) * gate
 
 
 ## Avanza el generador de rayos y aplica el destello del frame; emite lightning_struck al iniciar la descarga.
