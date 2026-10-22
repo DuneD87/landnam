@@ -251,7 +251,7 @@ func _build_item_shared_data(i: int, item) -> Dictionary:
 		result.perch_data = tree_data.get("perch_data", {})
 		result.registered_scene = tree_data.scene.instantiate()
 
-	elif source_node is Rock3D:
+	elif source_node is ProceduralRock:
 		var rock_data := _build_rock_packed_scene(scene_instantiated, source_node)
 		result.packed_scene = rock_data.scene
 		result.effective_mesh = rock_data.mesh
@@ -367,7 +367,7 @@ func _register_multi_mesh_item(i: int, item, shared_data: Dictionary, generator:
 			var dists: Array = item.get("mesh_lod_distances_m", [270, 460, 768])
 			_apply_mesh_lod_distances(multi_mesh_item, lod_index, dists)
 	else:
-		# items sin LOD (MeshInstance directa, Rock3D): sin collision_shapes, dependen de
+		# items sin LOD (MeshInstance directa, ProceduralRock): sin collision_shapes, dependen de
 		# 'scene' para que el módulo instancie el nodo físico cerca del jugador.
 		if item.get("pickup", false):
 			# Se recoge: la malla y, solo cerca (collision_distance_m), un cuerpo en PhysicsLayers.PICKUP que
@@ -964,13 +964,13 @@ func _get_twig_materials_array(tree3d) -> Array:
 		return arr if arr != null else []
 
 
-func _build_rock_packed_scene(scene_instantiated: Node, rock3d) -> Dictionary:
-	var rock: MeshInstance3D = rock3d.get_rock_instance()
+func _build_rock_packed_scene(scene_instantiated: Node, rock_source: ProceduralRock) -> Dictionary:
+	var rock: MeshInstance3D = rock_source.get_rock_instance()
 	var new_root := scene_instantiated.duplicate(4) as Node3D
 	var rock_child := rock.duplicate() as MeshInstance3D
 	if rock_child.mesh:
 		rock_child.mesh = rock_child.mesh.duplicate()
-		rock_child.mesh.surface_set_material(0, rock3d.material_rock)
+		rock_child.mesh.surface_set_material(0, rock_source.material_rock)
 	new_root.add_child(rock_child)
 	rock_child.owner = new_root
 

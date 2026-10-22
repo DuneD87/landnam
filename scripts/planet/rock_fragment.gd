@@ -55,9 +55,7 @@ func setup(mesh: Mesh, xf: Transform3D, stone: ItemData, stones: int, volume: fl
 	_stones = stones
 	_up = up
 	_volume = volume * absf(xf.basis.determinant())
-	var visual := MeshInstance3D.new()
-	visual.mesh = mesh
-	add_child(visual)
+	add_child(RockFracture.mesh_instance(mesh))
 	var size := mesh.get_aabb().size * xf.basis.get_scale()
 	radius = maxf(maxf(size.x, size.y), size.z) * 0.5
 	_work = WORK + WORK_PER_METER * radius * 2.0
@@ -175,8 +173,7 @@ func _pile(count: int) -> Node3D:
 	var scale := 0.18 / maxf(maxf(box.size.x, box.size.y), box.size.z)
 	var spots := [Vector3(-0.08, 0.0, 0.0), Vector3(0.08, 0.0, 0.04), Vector3(0.0, 0.07, -0.02)]
 	for i in count:
-		var stone := MeshInstance3D.new()
-		stone.mesh = _mesh
+		var stone := RockFracture.mesh_instance(_mesh)
 		var basis := Basis.from_euler(Vector3(randf() * TAU, randf() * TAU, randf() * TAU)) * Basis.from_scale(Vector3.ONE * scale)
 		stone.transform = Transform3D(basis, spots[i] + Vector3.UP * 0.07 - basis * box.get_center())
 		pile.add_child(stone)

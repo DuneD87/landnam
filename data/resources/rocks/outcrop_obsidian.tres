@@ -1,0 +1,28 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/planet_rock.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" uid="uid://0nxeekswl5fn" path="res://textures/planet/outcrops/obsidian_albedo.png" id="2_albedo"]
+[ext_resource type="Texture2D" uid="uid://b4n5as54bgvdk" path="res://textures/planet/ores/ravine-rock1-bl/ravine-rock1_normal-ogl.png" id="3_normal"]
+[ext_resource type="Texture2D" uid="uid://cqij6ntjdutxw" path="res://textures/planet/outcrops/obsidian_roughness.png" id="4_rough"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/texture_albedo = ExtResource("2_albedo")
+shader_parameter/texture_normal = ExtResource("3_normal")
+shader_parameter/texture_roughness = ExtResource("4_rough")
+shader_parameter/texture_scale = 0.8
+shader_parameter/albedo_gain = 6.0
+shader_parameter/albedo_tint = Vector3(1, 1, 1)
+shader_parameter/albedo_saturation = 1.0
+shader_parameter/normal_strength = 1.0
+shader_parameter/roughness_scale = 1.0
+shader_parameter/variation = 0.08
+shader_parameter/cavity_strength = 1.0
+shader_parameter/texture_ao_strength = 0.8
+shader_parameter/direct_ao = 0.35
+shader_parameter/base_color = Color(0.3, 0.26, 0.21, 1)
+shader_parameter/base_height = 0.25
+shader_parameter/base_strength = 0.5
+shader_parameter/moss_amount = 0.0
+shader_parameter/climate_snow_amount = 1.0

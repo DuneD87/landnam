@@ -86,7 +86,7 @@ abedul enano, brezo, algodoncillo, liquen de los renos y amapola ártica. **Hier
 `low_poly_grass_tundra.tscn`, juncia pajiza con las bandas cercana y lejana de siempre.
 
 **Rocas**: las verdes vuelven a salir en frío (`large_rock_generator_cold`,
-`small_rocks_generator_cold`) y `ice_block_01` (Rock3D con material de hielo) en el casquete.
+`small_rocks_generator_cold`) y `ice_block_01` (`ProceduralRock` con material de hielo) en el casquete.
 
 **Nieve sobre todo lo anterior**, por shader y según el frío del sitio: corteza (caras al cielo y
 ventisca al pie), copas (nieve en la parte alta y sobre las ramas horizontales, que además deja de

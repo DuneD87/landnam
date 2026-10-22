@@ -1,0 +1,35 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/planet_rock.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" uid="uid://bof3io0b6tmqx" path="res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_albedo.png" id="2_albedo"]
+[ext_resource type="Texture2D" uid="uid://dhijdayb5nt0r" path="res://textures/terrain/bumpy-worn-ground-bl/bumpy_worn_ground_normal-ogl.png" id="3_normal"]
+[ext_resource type="Texture2D" uid="uid://c2s2xk2mpcsyo" path="res://textures/terrain/bumpy-worn-ground-bl/material_rah.png" id="4_rah"]
+[ext_resource type="Texture2D" uid="uid://r48txvwwt3ew" path="res://textures/terrain/whispy-grass-meadow-bl/wispy-grass-meadow_albedo.png" id="5_moss"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/texture_albedo = ExtResource("2_albedo")
+shader_parameter/texture_normal = ExtResource("3_normal")
+shader_parameter/texture_rah = ExtResource("4_rah")
+shader_parameter/texture_scale = 0.4
+shader_parameter/albedo_gain = 0.55
+shader_parameter/albedo_tint = Vector3(1.05, 1, 0.92)
+shader_parameter/albedo_saturation = 1.0
+shader_parameter/normal_strength = 1.0
+shader_parameter/roughness_scale = 1.0
+shader_parameter/variation = 0.12
+shader_parameter/cavity_strength = 1.0
+shader_parameter/texture_ao_strength = 0.8
+shader_parameter/direct_ao = 0.35
+shader_parameter/base_color = Color(0.3, 0.26, 0.21, 1)
+shader_parameter/base_height = 0.35
+shader_parameter/base_strength = 0.6
+shader_parameter/moss_amount = 0.6
+shader_parameter/moss_texture = ExtResource("5_moss")
+shader_parameter/moss_gain = 1.4
+shader_parameter/moss_tint = Vector3(1, 1, 1)
+shader_parameter/moss_threshold = 0.5
+shader_parameter/moss_softness = 0.25
+shader_parameter/moss_scale = 0.7
+shader_parameter/climate_snow_amount = 1.0

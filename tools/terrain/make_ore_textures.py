@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Texturas de las menas, hechas sobre las rocas que ya hay: las vetas del terreno (albedo, normal y
 rugosidad, que repiten sin costura) y los afloramientos que se pican (albedo y rugosidad de las rocas
-Rock3D). Cada mena es su roca de base, recoloreada, con su mineral encima donde le toca: en las
+ProceduralRock). Cada mena es su roca de base, recoloreada, con su mineral encima donde le toca: en las
 grietas (lo bajo del mapa de altura), en las crestas o en manchas, vetas y vetas de ruido periódico.
 
-    python3 tools/terrain/make_ore_textures.py [--only=tin,flint] [--size=1024]
+    python3 tools/terrain/make_ore_textures.py [--only=tin,copper] [--size=1024]
 
 Salen en textures/planet/ores/<mena>/ (vetas) y textures/planet/outcrops/ (afloramientos). Después,
 abrir el proyecto (o --headless --editor --quit) para importarlas. Python 3, numpy y Pillow.
@@ -20,7 +20,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 RAVINE = "textures/planet/ores/ravine-rock1-bl/ravine-rock1"
 CAVERN = "textures/planet/ores/cavern-deposits-bl/cavern-deposits"
 JAGGED = "textures/terrain/jagged-rocky-ground1-bl/jagged-rocky-ground"
-SANDY = "textures/terrain/sandy_rocks1_bl/sandy_rocks1"
 
 SIZE = 1024
 
@@ -197,22 +196,6 @@ def sulfur():
 
 # --- Afloramientos (rocas que se pican) -----------------------------------------------------------
 
-def flint():
-    """Sílex en la creta: roca blanca de tiza con nódulos negros redondeados y su corteza clara."""
-    albedo, height, normal, rough = base(SANDY, "_Height.png", "_Normal-ogl.png", "_Roughness.png")
-    rgb = tint(albedo, (0.8, 0.78, 0.71), 0.9)
-    rgb = rgb * 0.8 + 0.12
-    blobs = band(61, 150.0) * 0.85 + noise(63, 10.0) * 0.15
-    nodule = smooth(0.74, 0.76, blobs)
-    cortex = smooth(0.69, 0.74, blobs) * (1.0 - nodule)
-    rgb = paint(rgb, (0.55, 0.52, 0.47), cortex * 0.8, 0.2)
-    sheen = noise(62, 6.0)
-    rgb = paint(rgb, (0.11, 0.11, 0.13), nodule, 0.35)
-    rgb = rgb + (nodule * smooth(0.6, 0.8, sheen) * 0.06)[..., None]
-    rough = np.clip(0.85 - nodule * 0.5, 0.0, 1.0)
-    save_outcrop("flint", rgb, rough)
-
-
 def obsidian():
     """Obsidiana: vidrio volcánico negro, con ondas de fractura y alguna veta parda."""
     albedo, height, normal, rough = base(RAVINE)
@@ -246,7 +229,7 @@ def copper():
 
 
 ALL = {"tin": tin, "bog_iron": bog_iron, "coal": coal, "silver": silver, "sulfur": sulfur,
-       "flint": flint, "obsidian": obsidian, "copper": copper}
+       "obsidian": obsidian, "copper": copper}
 
 
 def main():

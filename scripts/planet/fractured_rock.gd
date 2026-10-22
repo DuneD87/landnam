@@ -45,9 +45,7 @@ func setup(pieces: Array, mesh_xf: Transform3D, item: ItemData, stones: int, wor
 		body.collision_layer = PhysicsLayers.WORLD
 		body.collision_mask = 0
 		body.position = piece.offset
-		var visual := MeshInstance3D.new()
-		visual.mesh = piece.mesh
-		body.add_child(visual)
+		body.add_child(RockFracture.mesh_instance(piece.mesh))
 		var shape := CollisionShape3D.new()
 		var convex := ConvexPolygonShape3D.new()
 		convex.points = piece.points

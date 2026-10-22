@@ -63,7 +63,8 @@ el oro y el azufre escasean.
 
 ### Afloramientos
 
-Rocas del instancer (`scenes/planet/planet_items/rocks/outcrop_*.tscn`, `Rock3D` con su textura) que
+Rocas del instancer (`scenes/planet/planet_items/rocks/outcrop_*.tscn`, `ProceduralRock` con su
+material de `data/resources/rocks/`, ver [rocks.md](rocks.md)) que
 se pican con el pico como las demás (`RockMining`). Dan su mena en vez de piedra, en menos trozos
 (`Item.mining_yield`: 0,6 el sílex, 0,5 la obsidiana y el cobre). Salen en campos: sus generadores
 (`*_outcrop_generator`) llevan un ruido con umbral, así que donde hay una suele haber más.

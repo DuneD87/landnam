@@ -13,11 +13,28 @@ extends RefCounted
 ## escalan por instancia). Recortar es lo caro (decenas de ms con muchos trozos): prepare lo lanza
 ## en hilos al cargar la vegetación y collect monta las mallas en el hilo principal. Lo que no se
 ## ha preparado se calcula al pedirlo.
+##
+## Los trozos conservan el COLOR de la roca (ProceduralRock: oclusión de las cavidades y cara
+## curtida) y las caras de los cortes salen con CUT_COLOR, limpias. Cada malla de trozo guarda en el
+## meta "rock_offset" dónde queda dentro de la roca entera (su centroide, en las coordenadas de la
+## roca): mesh_instance lo pasa al shader de roca, que texturiza en los ejes de la roca, y así el
+## trozo no cambia de dibujo al soltarse.
 
 ## clave (malla y trozos) -> [{mesh, offset, points, volume, neighbors}]
 static var _cache: Dictionary = {}
-## clave -> [tarea, resultado (lo llena el hilo), material]
+## clave -> [tarea, resultado (lo llena el hilo), material, rock_offset]
 static var _pending: Dictionary = {}
+
+## Cara del corte: sin oclusión (r) y sin curtir (g), sin la tierra ni el musgo de fuera.
+const CUT_COLOR := Color(1.0, 0.0, 0.0, 1.0)
+
+
+## Un MeshInstance3D con [mesh] (la roca o uno de sus trozos) y su sitio dentro de la roca entera.
+static func mesh_instance(mesh: Mesh) -> MeshInstance3D:
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.set_instance_shader_parameter(&"rock_offset", mesh.get_meta(&"rock_offset", Vector3.ZERO))
+	return visual
 
 
 ## Los [count] trozos de [mesh] (su primera superficie).
@@ -28,7 +45,7 @@ static func pieces_of(mesh: Mesh, count: int) -> Array:
 			_finish(key)
 		else:
 			_cache[key] = _assemble(compute(mesh.surface_get_arrays(0), count, hash(key)),
-				mesh.surface_get_material(0))
+				mesh.surface_get_material(0), mesh.get_meta(&"rock_offset", Vector3.ZERO))
 	return _cache[key]
 
 
@@ -41,7 +58,7 @@ static func prepare(mesh: Mesh, count: int) -> void:
 	# La malla se lee aquí: pedirle los arrays desde un hilo espera al servidor de render.
 	var task := WorkerThreadPool.add_task(Callable(RockFracture, &"_compute_into").bind(result,
 		mesh.surface_get_arrays(0), count, hash(key)), false, "RockFracture")
-	_pending[key] = [task, result, mesh.surface_get_material(0)]
+	_pending[key] = [task, result, mesh.surface_get_material(0), mesh.get_meta(&"rock_offset", Vector3.ZERO)]
 
 
 ## Monta las mallas de una roca que ya han acabado los hilos (una por llamada). Devuelve true si
@@ -63,7 +80,7 @@ static func _finish(key: String) -> void:
 	_pending.erase(key)
 	WorkerThreadPool.wait_for_task_completion(job[0])
 	var result: Array = job[1]
-	_cache[key] = _assemble(result[0] if not result.is_empty() else [], job[2])
+	_cache[key] = _assemble(result[0] if not result.is_empty() else [], job[2], job[3])
 
 
 static func _compute_into(result: Array, arrays: Array, count: int, seed: int) -> void:
@@ -76,6 +93,7 @@ static func compute(arrays: Array, count: int, seed: int) -> Array:
 	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL] if arrays[Mesh.ARRAY_NORMAL] != null else PackedVector3Array()
 	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV] if arrays[Mesh.ARRAY_TEX_UV] != null else PackedVector2Array()
+	var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR] if arrays[Mesh.ARRAY_COLOR] != null else PackedColorArray()
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
 	if verts.is_empty():
 		return []
@@ -88,7 +106,7 @@ static func compute(arrays: Array, count: int, seed: int) -> Array:
 		for k in 3:
 			var i := indices[t + k]
 			polygon.append([verts[i], normals[i] if i < normals.size() else Vector3.UP,
-				uvs[i] if i < uvs.size() else Vector2.ZERO])
+				uvs[i] if i < uvs.size() else Vector2.ZERO, colors[i] if i < colors.size() else Color.WHITE])
 		triangles.append(polygon)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
@@ -203,7 +221,7 @@ static func _clip(polygons: Array, normal: Vector3, distance: float) -> Array:
 			if (da <= 0.0) != (db <= 0.0):
 				var t := da / (da - db)
 				var v := [(a[0] as Vector3).lerp(b[0], t), (a[1] as Vector3).lerp(b[1], t).normalized(),
-					(a[2] as Vector2).lerp(b[2], t)]
+					(a[2] as Vector2).lerp(b[2], t), (a[3] as Color).lerp(b[3], t)]
 				kept.append(v)
 				cut.append(v[0])
 		if kept.size() >= 3:
@@ -231,7 +249,7 @@ static func _cap(points: PackedVector3Array, normal: Vector3, distance: float) -
 	# en sentido horario: al revés.
 	for i in range(hull.size() - 1, -1, -1):
 		var q := hull[i]
-		polygon.append([u * q.x + v * q.y + normal * distance, normal, q * 0.5])
+		polygon.append([u * q.x + v * q.y + normal * distance, normal, q * 0.5, CUT_COLOR])
 	return polygon
 
 
@@ -258,6 +276,7 @@ static func _build(polygons: Array) -> Dictionary:
 			for vertex in [polygon[0], polygon[k], polygon[k + 1]]:
 				st.set_normal(vertex[1])
 				st.set_uv(vertex[2])
+				st.set_color(vertex[3])
 				st.add_vertex((vertex[0] as Vector3) - centroid)
 		for vertex in polygon:
 			points.append((vertex[0] as Vector3) - centroid)
@@ -266,13 +285,15 @@ static func _build(polygons: Array) -> Dictionary:
 		"volume": absf(volume) / 6.0}
 
 
-static func _assemble(data: Array, material: Material) -> Array:
+## [offset]: el de la malla que se parte dentro de la roca entera.
+static func _assemble(data: Array, material: Material, offset: Vector3) -> Array:
 	var pieces: Array = []
 	for piece in data:
 		var mesh := ArrayMesh.new()
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, piece.arrays)
 		if material != null:
 			mesh.surface_set_material(0, material)
+		mesh.set_meta(&"rock_offset", offset + (piece.offset as Vector3))
 		pieces.append({"mesh": mesh, "offset": piece.offset, "points": piece.points,
 			"volume": piece.volume, "neighbors": piece.neighbors})
 	return pieces

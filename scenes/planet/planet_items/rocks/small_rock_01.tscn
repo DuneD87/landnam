@@ -1,51 +1,9 @@
 [gd_scene format=3 uid="uid://bnykqunp0fe2a"]
 
 [ext_resource type="Script" uid="uid://5d0srbhbxm76" path="res://scripts/items/item.gd" id="1_hi1wi"]
-[ext_resource type="Resource" uid="uid://ctupvguhcn0qf" path="res://data/items/material/stone.tres" id="2_1x75k"]
-[ext_resource type="Shader" uid="uid://csa5tbyrlrn5i" path="res://shaders/opaque_planet_material.gdshader" id="3_koufc"]
-[ext_resource type="Texture2D" uid="uid://qh4jl245swvw" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_albedo.png" id="4_16012"]
-[ext_resource type="Texture2D" uid="uid://cp8sbfhajd27t" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_ao.png" id="5_bn0o8"]
-[ext_resource type="Texture2D" uid="uid://bq110ogh1eqvy" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Metallic.png" id="6_hi1wi"]
-[ext_resource type="Texture2D" uid="uid://b63dkbv4nkefd" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Roughness.png" id="7_1x75k"]
-[ext_resource type="Texture2D" uid="uid://c1y135yfosihj" path="res://textures/terrain/sandy_rocks1_bl/sandy_rocks1_Normal-ogl.png" id="7_hi1wi"]
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_hi1wi"]
-noise_type = 0
-seed = 1
-frequency = 0.0004
-fractal_octaves = 4
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_sovrn"]
-render_priority = 0
-shader = ExtResource("3_koufc")
-shader_parameter/light_direction = Vector3(1, 0, 0)
-shader_parameter/planet_position = Vector3(0, 0, 0)
-shader_parameter/transition_width = 0.2
-shader_parameter/ambient_intensity = 0.15
-shader_parameter/ambient_color_top = Color(0.6, 0.7, 1, 1)
-shader_parameter/ambient_color_bottom = Color(0.2, 0.15, 0.1, 1)
-shader_parameter/translucency_strength = 0.45
-shader_parameter/translucency_color = Color(0.8, 1, 0.4, 1)
-shader_parameter/translucency_power = 2.0
-shader_parameter/rim_strength = 0.3
-shader_parameter/albedo = Color(1, 1, 1, 1)
-shader_parameter/texture_albedo = ExtResource("4_16012")
-shader_parameter/metallic = 0.0
-shader_parameter/specular = 0.0
-shader_parameter/texture_metallic = ExtResource("6_hi1wi")
-shader_parameter/metallic_texture_channel = Vector4(1, 0, 0, 0)
-shader_parameter/roughness = 0.999999977648
-shader_parameter/texture_roughness = ExtResource("7_1x75k")
-shader_parameter/roughness_texture_channel = Vector4(1, 0, 0, 0)
-shader_parameter/texture_normal = ExtResource("7_hi1wi")
-shader_parameter/normal_scale = 1.0
-shader_parameter/texture_ambient_occlusion = ExtResource("5_bn0o8")
-shader_parameter/ao_texture_channel = Vector4(1, 0, 0, 0)
-shader_parameter/emission = Color(0, 0, 0, 0)
-shader_parameter/emission_energy = 0.0
-shader_parameter/uv1_scale = Vector3(1, 1, 1)
-shader_parameter/uv1_offset = Vector3(0, 0, 0)
-shader_parameter/climate_snow_amount = 1.0
+[ext_resource type="Resource" path="res://data/items/material/stone.tres" id="2_1x75k"]
+[ext_resource type="Script" uid="uid://cvc3hx2a3dbio" path="res://scripts/planet/procedural_rock.gd" id="10_rock"]
+[ext_resource type="Material" path="res://data/resources/rocks/rock_pebble.tres" id="11_material"]
 
 [node name="Node3D" type="StaticBody3D" unique_id=1075421542]
 script = ExtResource("1_hi1wi")
@@ -54,15 +12,16 @@ drop_amount_min = 4
 drop_amount_max = 6
 item_data = ExtResource("2_1x75k")
 
-[node name="Rock3D" type="Rock3D" parent="." unique_id=3688680]
+[node name="Rock" type="Node3D" parent="." unique_id=1884613375]
+script = ExtResource("10_rock")
+rock_seed = 11
 subdivisions = 2
-radius = 0.2
-shape_scale_x = 0.29
-shape_scale_y = 0.23
-shape_scale_z = 0.33
-shape_scale_variance = 0.47
-facet_cut_depth = 0.295
-noise = SubResource("FastNoiseLite_hi1wi")
-noise_amplitude = 0.795
-uv_scale = 2.0
-material_rock = SubResource("ShaderMaterial_sovrn")
+radius = 0.075
+size = Vector3(1, 0.75, 1.25)
+lump_amount = 0.12
+lump_frequency = 1.3
+facet_count = 8
+facet_depth = 0.34
+facet_upward = 0.3
+sink = 0.2
+material_rock = ExtResource("11_material")
