@@ -18,10 +18,9 @@ const DROP_AHEAD := 0.7
 ## Hasta dónde busca suelo por debajo de la mano (m): por un barranco abajo, también.
 const GROUND_SEARCH := 60.0
 const GRAVITY := 9.8
-## Escenas con la malla en metros, que se pueden dejar tal cual en el suelo: las de combate y las
-## de supervivencia (carne, piel, odre). Las de las herramientas antiguas vienen a la escala del
-## hueso de la mano.
-const MESH_SCENES := ["res://scenes/items/weapons/combat/", "res://scenes/items/survival/"]
+## Escenas con la malla en metros, que se pueden dejar tal cual en el suelo: armas, herramientas
+## de piedra y objetos de supervivencia (carne, piel, odre).
+const MESH_SCENES := ["res://scenes/items/weapons/", "res://scenes/items/survival/"]
 
 static var _leather: StandardMaterial3D
 

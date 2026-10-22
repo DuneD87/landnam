@@ -77,6 +77,19 @@ godot --headless --path . --import
 Todas siguen la misma convención: metros, origen en el agarre, +Y hacia la punta y
 +Z hacia el filo. `CombatPose.RIGHT_GRIP` / `LEFT_GRIP` las colocan en las manos.
 
+El hacha y el pico de piedra también usan estas mallas y materiales (madera, cuero, piedra y
+ataduras), con sus escenas en `scenes/items/weapons/combat/`. Para regenerar solo ambos modelos
+e iconos de herramientas con la iluminación común de la interfaz:
+
+```
+godot --path . --script res://tools/combat/bake_weapons.gd -- --background --only=stone_axe_01,stone_pickaxe_01
+godot --headless --path . --import
+```
+
+`tools/ui/bake_item_icons.gd -- --only=stone_axe_01,stone_pickaxe_01` actualiza solo los iconos.
+La galería `tests/combat/weapon_preview.gd -- --stone-tools --background` los compara con la
+maza de piedra y el cuchillo de sílex; las escenas antiguas conservan sus UID como alias.
+
 ### Ramas y piedras del suelo
 
 Las ramas caídas (`scenes/planet/planet_items/litter/fallen_branch_0..2.tscn`) y las

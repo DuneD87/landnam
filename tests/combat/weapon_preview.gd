@@ -3,14 +3,21 @@ extends SceneTree
 ## Galería de las armas de combate (mallas de WeaponMeshes) con luz de estudio.
 ##   godot --path . --script res://tests/combat/weapon_preview.gd -- --tag=x
 ## Guarda build/combat/weapons_<tag>.png y cierra.
+## --stone-tools compara hacha y pico con las armas primitivas; --background oculta la ventana.
 
 var _tag := "preview"
+var _stone_tools := false
 
 
 func _initialize() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--tag="):
 			_tag = arg.substr(6)
+		elif arg == "--stone-tools":
+			_stone_tools = true
+		elif arg == "--background":
+			root.unfocusable = true
+			root.position = Vector2i(-4000, -4000)
 	_run.call_deferred()
 
 
@@ -46,7 +53,14 @@ func _run() -> void:
 		["arrow", WeaponMeshes.arrow()],
 		["pebble", WeaponMeshes.pebble()],
 	]
-	var x := -2.1
+	if _stone_tools:
+		items = [
+			["Maza de piedra", load("res://data/items/meshes/weapons/stone_club.res")],
+			["Hacha de piedra", load("res://data/items/meshes/weapons/stone_axe_01.res")],
+			["Pico de piedra", load("res://data/items/meshes/weapons/stone_pickaxe_01.res")],
+			["Cuchillo de sílex", load("res://data/items/meshes/weapons/flint_knife.res")],
+		]
+	var x := -0.3 * (items.size() - 1)
 	for entry in items:
 		var mi := MeshInstance3D.new()
 		mi.mesh = entry[1]
@@ -62,9 +76,16 @@ func _run() -> void:
 			scale = 1.2
 		# Filo hacia la cámara ladeado para ver volumen.
 		mi.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(-65)).scaled(Vector3.ONE * scale), Vector3(x, -0.1, 0))
+		if _stone_tools:
+			var label := Label3D.new()
+			label.text = entry[0]
+			label.font_size = 40
+			label.pixel_size = 0.0015
+			label.position = Vector3(x, -0.37, 0.0)
+			scene.add_child(label)
 		x += 0.6
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 0.1, 3.4)
+	cam.position = Vector3(0, 0.1, 2.2 if _stone_tools else 3.4)
 	cam.fov = 45
 	scene.add_child(cam)
 	cam.current = true
@@ -75,7 +96,7 @@ func _run() -> void:
 	root.get_texture().get_image().save_png(path)
 	print("saved ", path)
 	# Primer plano de la espada y el hacha.
-	cam.position = Vector3(-1.8, 0.25, 1.1)
+	cam.position = Vector3(0, 0.37, 0.9) if _stone_tools else Vector3(-1.8, 0.25, 1.1)
 	for i in 5:
 		await process_frame
 	await RenderingServer.frame_post_draw

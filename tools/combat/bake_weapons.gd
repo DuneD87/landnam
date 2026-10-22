@@ -12,6 +12,8 @@ const MESH_DIR := "res://data/items/meshes/weapons/"
 const SCENE_DIR := "res://scenes/items/weapons/combat/"
 const ICON_DIR := "res://textures/icons/items/weapons/"
 const ICON_SIZE := 256
+const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01"]
+const ItemIconRenderer = preload("res://tools/ui/item_icon_renderer.gd")
 
 ## nombre: [constructor, script de la escena o "", rotación del icono en grados (sobre Z de cámara)]
 var WEAPONS := {
@@ -37,6 +39,8 @@ var WEAPONS := {
 	"obsidian_sword": [WeaponMeshes.flint_sword.bind(WeaponMeshes.OBSIDIAN), "", -45.0],
 	"stone_club": [WeaponMeshes.stone_club, "", -40.0],
 	"stone_maul": [WeaponMeshes.stone_maul, "", -40.0],
+	"stone_axe_01": [WeaponMeshes.stone_axe, "", -35.0],
+	"stone_pickaxe_01": [WeaponMeshes.stone_pickaxe, "", -35.0],
 	"hide_shield": [WeaponMeshes.hide_shield, "", 0.0],
 	"bone_shield": [WeaponMeshes.bone_shield, "", -8.0],
 }
@@ -152,7 +156,13 @@ func _run() -> void:
 		if weapon_name != "arrow":
 			_save_scene(weapon_name, mesh, entry[1])
 		var yaw := 0.0 if weapon_name in FACE_ON else 90.0
-		await _render_icon(weapon_name, mesh, entry[2], yaw, 0.0, ICON_DIR)
+		if weapon_name in TOOL_ICONS:
+			var model := MeshInstance3D.new()
+			model.mesh = mesh
+			await ItemIconRenderer.render(self, model, [entry[2], 82.0],
+				"res://textures/icons/items/tools/%s.png" % weapon_name, false)
+		else:
+			await _render_icon(weapon_name, mesh, entry[2], yaw, 0.0, ICON_DIR)
 	for item_name in SURVIVAL:
 		if not only.is_empty() and item_name not in only and "survival" not in only:
 			continue
@@ -192,6 +202,8 @@ func _check(err: int, what: String) -> void:
 func _save_scene(weapon_name: String, mesh: ArrayMesh, script_path: String, dir: String = SCENE_DIR) -> void:
 	var root_node := Node3D.new()
 	root_node.name = weapon_name.to_pascal_case()
+	if weapon_name in TOOL_ICONS:
+		root_node.set_meta(&"grip_aligned", true)
 	if script_path != "":
 		root_node.set_script(load(script_path))
 	var mi := MeshInstance3D.new()

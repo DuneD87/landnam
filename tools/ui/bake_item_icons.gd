@@ -19,10 +19,10 @@ const WEAPONS := {
 	"obsidian_sword": [-40.0, 82.0], "stone_club": [-35.0, 75.0],
 	"stone_maul": [-35.0, 75.0], "hide_shield": [-8.0, -12.0],
 	"bone_shield": [-8.0, -12.0],
+	"stone_axe_01": [-35.0, 82.0], "stone_pickaxe_01": [-35.0, 82.0],
 }
+const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01"]
 const TOOLS := {
-	"stone_axe_01": ["res://scenes/items/weapons/stone_axe_01.tscn", -35.0, -12.0],
-	"stone_pickaxe_01": ["res://scenes/items/weapons/stone_pickaxe_01.tscn", -35.0, -12.0],
 	"torch": ["res://scenes/items/torches/torch.tscn", -35.0, -12.0],
 }
 ## Armadura equipable (en el espacio de la piel del jugador: Y arriba, +Z al frente): giro,
@@ -58,8 +58,9 @@ func _run() -> void:
 		var model := MeshInstance3D.new()
 		model.mesh = mesh
 		Renderer.prepare_model(model, weapon)
+		var folder := "tools" if weapon in TOOL_ICONS else "weapons"
 		await Renderer.render(self, model, WEAPONS[weapon],
-			"res://textures/icons/items/weapons/%s.png" % weapon, weapon == "hunting_bow")
+			"res://textures/icons/items/%s/%s.png" % [folder, weapon], weapon == "hunting_bow")
 	for tool in TOOLS:
 		if not only.is_empty() and tool not in only:
 			continue
@@ -69,8 +70,6 @@ func _run() -> void:
 		var source := scene.instantiate() as MeshInstance3D
 		var model := MeshInstance3D.new()
 		model.mesh = source.mesh
-		# Los modelos importados de herramientas tienen su eje largo en Z; la antorcha, en Y.
-		model.basis = Basis.IDENTITY if tool == "torch" else Basis(Vector3.RIGHT, -PI * 0.5)
 		source.free()
 		await Renderer.render(self, model, [entry[1], entry[2]],
 			"res://textures/icons/items/tools/%s.png" % tool, false)

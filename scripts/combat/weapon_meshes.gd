@@ -571,6 +571,83 @@ static func bone_dagger() -> ArrayMesh:
 	return b.commit(make_material)
 
 
+## Herramientas de piedra: mismo agarre, materiales y escala que las armas primitivas. La
+## cabeza queda entre 0,40 y 0,62 m sobre el puño, dentro de su tramo de golpe en ItemData.
+static func stone_axe() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	_stone_tool_haft(b)
+	# Cuña tallada: gruesa en el enmangue y abierta hacia un filo ancho, casi sin espesor.
+	_stone_tool_head(b.st(STONE), [
+		Vector4(-0.080, 0.520, 0.040, 0.012), Vector4(-0.055, 0.525, 0.060, 0.030),
+		Vector4(0.005, 0.530, 0.066, 0.039), Vector4(0.070, 0.520, 0.086, 0.030),
+		Vector4(0.145, 0.505, 0.105, 0.016), Vector4(0.205, 0.500, 0.098, 0.0015),
+	])
+	_stone_tool_binding(b)
+	return b.commit(make_material, true)
+
+
+## Pico lítico: piedra alargada de dos puntas, curvada hacia el golpe y atada al astil.
+static func stone_pickaxe() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	_stone_tool_haft(b)
+	_stone_tool_head(b.st(STONE), [
+		Vector4(-0.200, 0.465, 0.0015, 0.0015), Vector4(-0.150, 0.505, 0.018, 0.012),
+		Vector4(-0.080, 0.535, 0.031, 0.024), Vector4(0.000, 0.545, 0.045, 0.037),
+		Vector4(0.065, 0.540, 0.036, 0.030), Vector4(0.140, 0.510, 0.021, 0.016),
+		Vector4(0.240, 0.455, 0.0015, 0.0015),
+	])
+	_stone_tool_binding(b, 0.586, 0.542)
+	return b.commit(make_material, true)
+
+
+static func _stone_tool_haft(b: ProcMesh.Builder) -> void:
+	ProcMesh.lathe(b.st(WOOD), [Vector2(0.0, -0.17), Vector2(0.019, -0.165),
+		Vector2(0.022, -0.14), Vector2(0.0175, 0.0), Vector2(0.019, 0.30),
+		Vector2(0.023, 0.48), Vector2(0.021, 0.585), Vector2(0.0, 0.595)],
+		9, Vector3.ZERO, 1.0, 1.5)
+	wrapped_grip(b.st(LEATHER), -0.12, 0.08, 0.019, 9)
+
+
+## Secciones XY a lo largo de Z: (z, altura central, semialtura, semigrosor). Los hombros
+## forman las facetas de talla y el perfil irregular rompe el aspecto de una hoja de metal.
+static func _stone_tool_head(st: SurfaceTool, sections: Array) -> void:
+	ProcMesh.set_flat(st, true)
+	var rings := []
+	for i in sections.size():
+		var p: Vector4 = sections[i]
+		var h := p.z
+		var w := p.w
+		var ridge := 0.08 * h * sin(float(i) * 2.3)
+		rings.append(PackedVector3Array([
+			Vector3(-w * 0.35, p.y - h, p.x), Vector3(w * 0.35, p.y - h, p.x),
+			Vector3(w, p.y - h * 0.45 + ridge, p.x), Vector3(w * 0.92, p.y + h * 0.50 + ridge, p.x),
+			Vector3(w * 0.30, p.y + h, p.x), Vector3(-w * 0.30, p.y + h, p.x),
+			Vector3(-w * 0.95, p.y + h * 0.42 - ridge, p.x), Vector3(-w, p.y - h * 0.52 - ridge, p.x),
+		]))
+	ProcMesh.loft(st, rings)
+
+
+static func _stone_tool_binding(b: ProcMesh.Builder, top: float = 0.600, middle: float = 0.530) -> void:
+	var cord := b.st(CORD)
+	wrapped_grip(cord, 0.405, 0.475, 0.024, 8)
+	# Dos lazadas diagonales abrazan la piedra y vuelven bajo el enmangue.
+	for side in [-1.0, 1.0]:
+		var points := PackedVector3Array([
+			Vector3(-0.022, 0.465, -side * 0.016),
+			Vector3(-0.039, middle - 0.030, -side * 0.012),
+			Vector3(-0.037, middle + 0.025, side * 0.012),
+			Vector3(-0.012, top, side * 0.025), Vector3(0.012, top, side * 0.025),
+			Vector3(0.037, middle + 0.025, side * 0.012),
+			Vector3(0.039, middle - 0.030, -side * 0.012),
+			Vector3(0.022, 0.465, -side * 0.016),
+		])
+		points.append(points[0])
+		var radii := PackedVector2Array()
+		for k in points.size():
+			radii.append(Vector2(0.0035, 0.0035))
+		ProcMesh.tube(cord, points, radii, 5, Vector3.BACK, false)
+
+
 ## Maza de piedra: un canto rodado atado en la punta de un mango de madera, con tendón cruzado sobre
 ## la piedra y vueltas por debajo. Contundente.
 static func stone_club() -> ArrayMesh:

@@ -63,6 +63,17 @@ func _run() -> void:
 		"la espada queda tumbada (alto %.2f, largo %.2f)" % [box.size.y, maxf(box.size.x, box.size.z)])
 	check(absf(box.position.y) < 0.01, "apoyada sobre el suelo, ni hundida ni flotando (%.3f)" % box.position.y)
 
+	# Las herramientas de piedra usan su malla en metros, igual que las armas.
+	for tool_id in [&"stone_axe_01", &"stone_pickaxe_01"]:
+		var tool := DroppedItem.spawn(dropper, ItemCatalog.get_item(tool_id), 1, down)
+		await _settle(1.0)
+		var tool_box := _world_aabb(tool)
+		check(tool_box.size.y < 0.12 and maxf(tool_box.size.x, tool_box.size.z) > 0.65,
+			"%s conserva su modelo a escala, tumbado (%.2f, %.2f)" % [tool_id,
+				tool_box.size.y, maxf(tool_box.size.x, tool_box.size.z)])
+		check(absf(tool_box.position.y) < 0.01, "%s apoya en el suelo" % tool_id)
+		tool.queue_free()
+
 	# Lo que no tiene malla propia va en un saquito.
 	var stones := DroppedItem.spawn(dropper, ItemCatalog.get_item(&"stone_01"), 30, down)
 	await _settle(1.0)

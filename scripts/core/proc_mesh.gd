@@ -39,14 +39,28 @@ class Builder:
 			tools[kind] = tool
 		return tools[kind]
 
-	func commit(material_for: Callable) -> ArrayMesh:
+	## [flip_faces] invierte los triángulos y genera sus normales y tangentes hacia el exterior
+	## cuando las piezas se han construido con el orden contrario al frontal horario de Godot.
+	func commit(material_for: Callable, flip_faces: bool = false) -> ArrayMesh:
 		var mesh := ArrayMesh.new()
 		for kind in tools:
 			var tool: SurfaceTool = tools[kind]
-			tool.generate_normals()
+			tool.generate_normals(flip_faces)
 			tool.generate_tangents()
-			tool.set_material(material_for.call(kind))
-			tool.commit(mesh)
+			var material: Material = material_for.call(kind)
+			if flip_faces:
+				var arrays := tool.commit_to_arrays()
+				var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+				for i in range(0, indices.size(), 3):
+					var second := indices[i + 1]
+					indices[i + 1] = indices[i + 2]
+					indices[i + 2] = second
+				arrays[Mesh.ARRAY_INDEX] = indices
+				mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+				mesh.surface_set_material(mesh.get_surface_count() - 1, material)
+			else:
+				tool.set_material(material)
+				tool.commit(mesh)
 		return mesh
 
 

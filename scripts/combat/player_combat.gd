@@ -588,8 +588,8 @@ func weapon() -> ItemData:
 
 
 ## Cuelga la escena del arma de la mano que toca. Las armas de combate van en metros sobre el
-## marco de agarre, y el hacha y el pico de piedra también, enderezados (ToolGrip): el puño los
-## cierra perpendiculares al antebrazo. Lo demás (la antorcha) trae su escala y cuelga del hueso.
+## marco de agarre, incluidas el hacha y el pico de piedra: el puño los cierra perpendiculares
+## al antebrazo. Las herramientas importadas se enderezan con ToolGrip; la antorcha cuelga del hueso.
 func attach_weapon(node: Node3D, data: ItemData) -> void:
 	detach_weapon()
 	_weapon_node = node
@@ -601,7 +601,8 @@ func attach_weapon(node: Node3D, data: ItemData) -> void:
 			_quiver.name = "Quiver"
 			_quiver.top_level = true
 			add_child(_quiver)
-	elif data.scene_path.begins_with("res://scenes/items/weapons/combat/"):
+	elif data.scene_path.begins_with("res://scenes/items/weapons/combat/") \
+			or node.get_meta(&"grip_aligned", false):
 		_right_grip.add_child(node)
 		pose.grip_right = true
 	elif data.tool_type == ItemData.ToolType.AXE or data.tool_type == ItemData.ToolType.PICKAXE:
