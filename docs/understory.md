@@ -9,10 +9,10 @@ Son decoración: no crean nodos, colisiones ni objetos recolectables por instanc
 |---|---|---:|---:|---:|---:|---:|
 | Helecho de bosque | wood_fern | 0,035 | 2886 | 1103 | 557 | 167 |
 | Helecho alto | royal_fern | 0,015 | 2028 | 848 | 475 | 138 |
-| Arbusto redondo | round_shrub | 0,016 | 4473 | 1041 | 507 | 135 |
-| Arbusto de hoja larga | willow_shrub | 0,008 | 2530 | 1480 | 309 | 87 |
-| Arbusto florido | flowering_shrub | 0,020 | 4323 | 967 | 504 | 160 |
-| Esparraguera | wild_asparagus | 0,020 | 3018 | 1012 | 309 | 187 |
+| Arbusto redondo | round_shrub | 0,016 | 5152 | 1042 | 386 | 116 |
+| Arbusto de hoja larga | willow_shrub | 0,008 | 2080 | 864 | 390 | 90 |
+| Arbusto florido | flowering_shrub | 0,020 | 5280 | 1182 | 475 | 140 |
+| Esparraguera | wild_asparagus | 0,020 | 3000 | 1039 | 384 | 207 |
 | Planta de hojas anchas | broadleaf | 0,023 | 554 | 264 | 156 | 32 |
 | Flores silvestres | wildflowers | 0,030 | 792 | 486 | 270 | 90 |
 
@@ -27,20 +27,41 @@ tallos y pétalos opacos, sin texturas ni recortes alfa. Los helechos tienen
 frondes con pares de hojuelas algo arqueadas; las esparragueras tienen tallos,
 ramillos y hojas finas.
 
-- **Arbusto redondo y florido**: seis tallos leñosos abiertos desde la base, con dos
-  ramas cada uno, y 62 grupos de seis hojas pequeñas repartidos en espiral sobre un
-  domo, en una capa exterior y otra interior. Las ramillas asoman desde dentro de la
-  copa. El florido lleva racimos de cinco flores de cuatro pétalos en los brotes altos.
-- **Sauce arbustivo**: varas largas con hojas estrechas que salen hacia arriba y
-  cuelgan en la punta.
+- **Arbusto redondo, florido y abedul enano** (`_branching_shrub`): la copa es la
+  unión de un lóbulo central y cinco o seis alrededor, a distintas alturas, y no una
+  cúpula: la silueta tiene bultos y los lóbulos de fuera bajan casi hasta el suelo.
+  Unos 56-62 sitios de follaje se reparten por ella, tres de cada cuatro algo por
+  dentro de la superficie y separados entre sí, y el resto más adentro. Un esqueleto
+  llega a cada sitio: un tallo con codo desde la cepa por sector, ramas hacia grupos
+  de sitios (k-medias) y una ramilla por sitio. La ramilla pasa por su sitio y asoma
+  hacia fuera y arriba con un ramillete de hojas pequeñas (11 cm en el redondo) que
+  giran a su alrededor, cada una con su inclinación: la silueta queda deshilachada,
+  con brotes que asoman. Antes eran hojas grandes en estrella sobre una cáscara hueca,
+  una bola alicatada vista de cerca, y el abedul era un paraguas de varas rectas. Los
+  racimos de flores tienen cuatro flores de cuatro pétalos.
+- **Sauce arbustivo**: doce varas curvas abiertas en abanico, cada una con su
+  inclinación, y alguna rama lateral; hojas estrechas alternas en espiral que apuntan
+  hacia la punta y cuelgan un poco (antes, pares a los lados como un helecho y una
+  estrella regular vista desde arriba).
+- **Esparraguera**: diez tallos finos que se arquean hacia fuera y caen, quebrados en
+  zigzag en cada nudo, con ramillas cortas y penachos de tres cladodios (antes, seis
+  cañas rectas que parecían bambú).
+- **Enebro rastrero**: siete brazos que serpentean a ras de suelo, cada uno con un
+  brazo secundario, cubiertos de ramillas en cepillo con acículas en verticilos de
+  tres (antes, una estrella de diez brazos con rosetas de acículas).
+- **Brezo**: las puntas de 26 brotes cubren una cúpula baja, más ancha que alta;
+  cada brote sale de la horquilla de un tallo de la cepa, tumbado hacia el borde y
+  derecho en el centro (antes, una empalizada de varillas rectas).
 - **Hojas anchas**: roseta de trece hojas, las exteriores más viejas, grandes,
   oscuras y caídas; las del centro, tiernas y erguidas. Cuatro tramos de curva en
   LOD0.
 
-Cada especie define su copa como un elipsoide. Las hojas se orientan hacia fuera de
-la copa y sus normales se mezclan con la normal del elipsoide (0,2 en flores, 0,75
-en los arbustos redondos): la mata se ilumina como un volumen y no como facetas
-sueltas. Esa normal nunca apunta hacia abajo y se inclina hacia el cielo: las hojas
+Cada especie define su copa como un elipsoide, o como la unión de lóbulos en las
+matas de `_branching_shrub`. Las hojas se orientan hacia fuera de la copa y sus
+normales se mezclan con la normal de la copa (0,2 en flores, 0,75 en los arbustos
+redondos): la mata se ilumina como un volumen y no como facetas sueltas. Con lóbulos,
+la normal es una mezcla suave de las de cada lóbulo, así que cada bulto tiene su luz
+y la junta entre dos no hace escalón. Esa normal nunca apunta hacia abajo y se inclina hacia el cielo: las hojas
 bajas y tumbadas quedaban de espaldas a la luz y salían negras. El material activa `volume_normal_both_faces`, para que el envés use la
 misma normal; con el volteo normal de Godot, una hoja vista por detrás recibía una
 normal hacia el interior y salía casi negra. El interior y la base de la copa se
@@ -69,9 +90,12 @@ posición del planeta y viento/clima por la misma ruta que la hierba.
 ## LODs
 
 Cada hoja tiene un nivel: el último LOD en el que sigue. En los arbustos redondos,
-las dos primeras hojas de cada grupo heredan el nivel del grupo y las exteriores
-duran más, porque son las que dibujan la silueta. Las demás caen en los LODs
-cercanos. Los tallos finos solo llegan a LOD1 y las ramillas de la copa, a LOD0.
+la hoja terminal, una del medio y una de la base de cada ramillete heredan el nivel
+del grupo, repartidas por el brote (y otras dos llegan a LOD1-2, porque las hojas son
+pequeñas), y los grupos exteriores duran más, porque son
+los que dibujan la silueta. Las demás caen en los LODs cercanos. Los tallos finos
+solo llegan a LOD1, las ramas de los arbustos también y las ramillas, a LOD0; de lejos
+quedan los tallos de la cepa.
 Una hoja de un solo tramo es un triángulo con la base en su parte ancha.
 
 Las supervivientes se ensanchan ×1,23 por nivel (`WIDTH_GROWTH`), el mismo factor

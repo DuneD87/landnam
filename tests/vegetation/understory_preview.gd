@@ -6,7 +6,8 @@ const GrassLods = preload("res://scripts/planet/grass_geometry_lods.gd")
 const FieldPreview = preload("res://tests/vegetation/grass_lod_preview.gd")
 const NAMES := ["Helecho de bosque", "Helecho alto", "Arbusto redondo", "Arbusto de hoja larga",
 	"Arbusto florido", "Esparraguera", "Hojas anchas", "Flores silvestres",
-	"Enebro rastrero", "Abedul enano", "Brezo", "Algodoncillo", "Liquen de los renos", "Amapola ártica"]
+	"Enebro rastrero", "Abedul enano", "Brezo", "Algodoncillo", "Liquen de los renos", "Amapola ártica",
+	"Milenrama"]
 var _camera: Camera3D
 var _sun: DirectionalLight3D
 var _materials: Array[ShaderMaterial] = []

@@ -58,6 +58,9 @@ var _height: float = 1.0
 # Copa como elipsoide: normales de volumen y oscurecimiento del interior.
 var _canopy_center := Vector3(0.0, 0.5, 0.0)
 var _canopy_size := Vector3(0.5, 0.5, 0.5)
+# Copa en lóbulos (centros y semiejes), para las matas leñosas; vacía, la copa es el elipsoide.
+var _lobe_centers := PackedVector3Array()
+var _lobe_sizes := PackedVector3Array()
 var _volume_strength: float = 0.0
 var _occlusion: float = 0.0
 var _v := PackedVector3Array()
@@ -247,62 +250,240 @@ func _fern(tall: bool) -> void:
 			0.045, frond_color.lightened(0.10), true)
 
 
-## Mata redonda: tallos leñosos abiertos desde la base y grupos de hojas pequeñas
-## repartidos sobre un domo en dos capas. Las exteriores sobreviven más LODs
-## porque son las que dibujan la silueta; las interiores solo rellenan de cerca.
+## Mata redonda: una copa de varios bultos (lóbulos) y no una cúpula perfecta, con tallos leñosos
+## desde la cepa que se ramifican hasta ramilletes de hojas (_branching_shrub).
 func _round_shrub(flowers: bool) -> void:
 	var leaf_color := Color(0.40, 0.56, 0.34) if flowers else Color(0.34, 0.52, 0.30)
-	var wood := Color(0.34, 0.28, 0.20)
-	var radius: float = 0.56
-	var height: float = 0.92 if flowers else 0.98
-	_canopy_center = Vector3(0.0, height * 0.55, 0.0)
-	_canopy_size = Vector3(radius, height * 0.47, radius)
 	_volume_strength = 0.75
 	_occlusion = 0.40
-	var forks: Array = []
-	for trunk in 6:
-		var angle: float = trunk * TAU / 6.0 + _rng.randf_range(-0.3, 0.3)
-		var direction := Vector3(cos(angle), 0.0, sin(angle))
-		var fork: Vector3 = direction * radius * _rng.randf_range(0.26, 0.38) \
-			+ Vector3.UP * height * _rng.randf_range(0.28, 0.40)
-		_stem(direction * 0.035, fork, 0.026, wood)
-		for branch in 2:
-			var spread: Vector3 = direction.rotated(Vector3.UP, (branch - 0.5) * 0.9)
-			var tip: Vector3 = fork + spread * radius * _rng.randf_range(0.30, 0.45) \
-				+ Vector3.UP * height * _rng.randf_range(0.22, 0.42)
-			_stem(fork, tip, 0.015, wood.lightened(0.08))
-			forks.append(tip)
-	var clusters: int = 62
+	_set_lobes(0.56 if flowers else 0.62, 0.92 if flowers else 0.95, 5 if flowers else 6)
+	# El florido, algo menor y con el doble de racimos: menos sitios.
+	var sites: Array = _branching_shrub({"sites": 56 if flowers else 62, "spacing": 0.17, "stems": 7, "crown": 0.08,
+		"leaves": 10, "leaf_length": 0.11, "width_ratio": 0.6, "palette": [leaf_color],
+		"wood": Color(0.34, 0.28, 0.20), "min_y": 0.12})
 	var blossom_sites: Array = []
-	for k in clusters:
-		# Espiral de Fibonacci sobre el domo, desde la copa hasta algo bajo el ecuador.
-		var y: float = lerpf(0.97, -0.38, (k + 0.5) / clusters)
-		var ring: float = sqrt(maxf(1.0 - y * y, 0.0))
-		var phi: float = k * 2.399963 + _rng.randf_range(-0.2, 0.2)
-		var outward := Vector3(cos(phi) * ring, y, sin(phi) * ring)
-		var outer: bool = k % 4 != 0
-		var shell: float = (1.0 if outer else 0.64) * _rng.randf_range(0.9, 1.06)
-		var anchor: Vector3 = _canopy_center + outward * _canopy_size * shell
-		anchor.y = maxf(anchor.y, 0.10)
-		# Ramilla que asoma desde dentro de la copa: sin ella las hojas flotan, y
-		# llevada hasta la horquilla dibujaba una jaula. De lejos no se ve.
-		_stem(anchor.lerp(_closest(forks, anchor), 0.5), anchor, 0.006, wood.darkened(0.1), 0)
-		var cluster_tier: int = _cluster_tier(outer)
-		# Brotes altos más claros y cálidos; los bajos, más viejos y oscuros.
-		var color: Color = _shade(leaf_color, _rng.randf_range(-0.05, 0.06), 0.10)
-		color = color.lerp(Color(0.54, 0.66, 0.38), clampf(y, 0.0, 1.0) * 0.25)
-		_leaf_cluster(anchor, outward, 6, 0.16 if outer else 0.18, 0.60, color, cluster_tier)
-		if flowers and outer and y > 0.12 and k % 3 == 0:
-			_flower_cluster(anchor + outward * 0.035, outward, cluster_tier)
-		elif outer and y > -0.05 and (k % 3 == 1 if flowers else k % 2 == 1):
-			blossom_sites.append([anchor, outward, cluster_tier])
+	for k in sites.size():
+		var site: Dictionary = sites[k]
+		if not site.outer or site.rise < -0.3:
+			continue
+		if flowers and site.rise > 0.0 and k % 3 == 0:
+			_flower_cluster(site.tip + site.normal * 0.03, site.normal, site.tier)
+		elif k % 3 == 1:
+			blossom_sites.append(site)
 	# Flor de primavera: el florido, más racimos rosas; el redondo, flor amarilla de retama. Al
 	# final y no en el bucle: el generador es uno solo y la copa y sus hojas quedan como estaban.
 	for site in blossom_sites:
-		_flower_cluster(site[0] + site[1] * 0.035, site[1], site[2], FLOWER_PINK if flowers else FLOWER_YELLOW)
+		_flower_cluster(site.tip + site.normal * 0.03, site.normal, site.tier,
+			FLOWER_PINK if flowers else FLOWER_YELLOW)
 
 
-## Sauce arbustivo: varas largas con hojas estrechas que cuelgan hacia fuera.
+## Copa de un lóbulo central y [satellites] alrededor, a distintas alturas y tamaños: una mata
+## real es un montón de bultos, y los de fuera bajan casi hasta el suelo. El elipsoide de
+## _canopy_* pasa a ser el que envuelve a todos.
+func _set_lobes(radius: float, height: float, satellites: int) -> void:
+	_lobe_centers = PackedVector3Array([Vector3(_rng.randf_range(-0.06, 0.06) * radius, height * 0.56,
+		_rng.randf_range(-0.06, 0.06) * radius)])
+	_lobe_sizes = PackedVector3Array([Vector3(radius * 0.7, height * 0.4, radius * 0.7)])
+	var start: float = _rng.randf() * TAU
+	for i in satellites:
+		var angle: float = start + (i + _rng.randf_range(-0.3, 0.3)) * TAU / satellites
+		var spread: float = radius * _rng.randf_range(0.42, 0.56)
+		var across: float = radius * _rng.randf_range(0.38, 0.52)
+		_lobe_centers.append(Vector3(cos(angle) * spread, height * _rng.randf_range(0.28, 0.56), sin(angle) * spread))
+		_lobe_sizes.append(Vector3(across, height * _rng.randf_range(0.26, 0.36), across * _rng.randf_range(0.8, 1.2)))
+	var low := Vector3.INF
+	var high := -Vector3.INF
+	for i in _lobe_centers.size():
+		low = low.min(_lobe_centers[i] - _lobe_sizes[i])
+		high = high.max(_lobe_centers[i] + _lobe_sizes[i])
+	low.y = maxf(low.y, 0.0)
+	_canopy_center = (low + high) * 0.5
+	_canopy_size = (high - low) * 0.5
+
+
+## Mata leñosa sobre la copa de lóbulos: sitios de follaje repartidos por ella, un esqueleto que
+## llega a cada uno y en cada sitio un ramillete de hojas. Ni hojas flotando ni una jaula de
+## varillas rectas hasta una cáscara. Devuelve los sitios, para las flores.
+func _branching_shrub(shape: Dictionary) -> Array:
+	var sites: Array = _canopy_sites(shape.sites, shape.spacing, shape.min_y)
+	_shrub_skeleton(sites, shape.stems, shape.crown, shape.wood)
+	for site in sites:
+		site["rise"] = (site.position.y - _canopy_center.y) / _canopy_size.y
+		site["tier"] = _cluster_tier(site.outer)
+		# Brotes altos más claros y cálidos; los bajos, más viejos y oscuros.
+		var color: Color = _shade(shape.palette[_rng.randi() % shape.palette.size()], _rng.randf_range(-0.05, 0.06), 0.10)
+		color = color.lerp(Color(0.54, 0.66, 0.38), clampf(site.rise, 0.0, 1.0) * 0.25)
+		_spray(site, shape.leaves, shape.leaf_length * (1.0 if site.outer else 1.12), shape.width_ratio,
+			color, shape.wood.lightened(0.1))
+	return sites
+
+
+## Sitios de follaje dentro de la copa de lóbulos. Tres de cada cuatro van cerca de la superficie
+## de la unión y separados entre sí, para que la silueta no tenga calvas ni grumos; el resto
+## rellena el interior, que se ve entre los huecos de cerca.
+func _canopy_sites(count: int, spacing: float, min_y: float) -> Array:
+	var weights: Array = []
+	var total: float = 0.0
+	for s in _lobe_sizes:
+		total += s.x * s.y + s.y * s.z + s.x * s.z
+		weights.append(total)
+	var sites: Array = []
+	var attempts: int = 0
+	var budget: int = count * 80
+	while sites.size() < count and attempts < budget:
+		attempts += 1
+		var outer: bool = sites.size() % 4 != 0
+		var pick: float = _rng.randf() * total
+		var lobe: int = 0
+		while pick > weights[lobe]:
+			lobe += 1
+		# Reparto uniforme por área sobre la esfera, sin el fondo. Algún brote asoma de la silueta.
+		var y: float = _rng.randf_range(-0.7, 1.0)
+		var ring: float = sqrt(1.0 - y * y)
+		var phi: float = _rng.randf() * TAU
+		# Los ramilletes asoman hacia fuera de su sitio: los sitios van algo por dentro de la copa.
+		var shell: float = _rng.randf_range(0.25, 0.6)
+		if outer:
+			shell = _rng.randf_range(0.95, 1.08) if _rng.randf() < 0.15 else _rng.randf_range(0.72, 0.92)
+		var position: Vector3 = _lobe_centers[lobe] + Vector3(cos(phi) * ring, y, sin(phi) * ring) * _lobe_sizes[lobe] * shell
+		# Fuera: tapado por otro lóbulo no dibuja la silueta.
+		if position.y < min_y or (outer and _lobe_distance(position) < 0.7):
+			continue
+		# La separación se relaja poco a poco para no quedarse sin sitios.
+		var gap: float = spacing * (1.0 - 0.5 * attempts / budget) * (1.0 if outer else 1.5)
+		var crowded: bool = false
+		for other in sites:
+			if other.outer == outer and other.position.distance_to(position) < gap:
+				crowded = true
+				break
+		if not crowded:
+			sites.append({"position": position, "outer": outer, "normal": _lobe_normal(position)})
+	return sites
+
+
+## Esqueleto hasta cada sitio: un tallo desde la cepa por sector de la copa, que se ahorquilla en
+## ramas hacia los grupos de sitios del sector, y de cada rama una ramilla por sitio. Guarda en el
+## sitio el arranque de su ramilla.
+func _shrub_skeleton(sites: Array, stems: int, crown: float, wood: Color) -> void:
+	var start: float = _rng.randf() * TAU
+	var azimuths: Array = []
+	var groups: Array = []
+	for s in stems:
+		azimuths.append(start + (s + _rng.randf_range(-0.3, 0.3)) * TAU / stems)
+		groups.append([])
+	for site in sites:
+		var angle: float = atan2(site.position.z, site.position.x)
+		var best: int = 0
+		for s in stems:
+			if absf(angle_difference(angle, azimuths[s])) < absf(angle_difference(angle, azimuths[best])):
+				best = s
+		groups[best].append(site)
+	for s in stems:
+		if groups[s].is_empty():
+			continue
+		var root := Vector3(cos(azimuths[s]), 0.0, sin(azimuths[s])) * crown * _rng.randf_range(0.3, 1.0)
+		var fork: Vector3 = root.lerp(_centroid(groups[s]), _rng.randf_range(0.36, 0.48))
+		_bent_stem(root, fork, 0.028, wood, 3)
+		for part in _split(groups[s], 2 if groups[s].size() < 7 else 3):
+			var branch: Vector3 = fork.lerp(_centroid(part), _rng.randf_range(0.42, 0.58))
+			_stem(fork, branch, 0.016, wood.lightened(0.06), 1)
+			for site in part:
+				site["branch"] = branch
+
+
+## Tallo en dos tramos con el codo desplazado: las ramas leñosas no son rectas. El segundo tramo
+## empieza con el grosor en el que acaba el primero.
+func _bent_stem(a: Vector3, b: Vector3, width: float, color: Color, survival: int) -> void:
+	var axis: Vector3 = b - a
+	var bow := Vector3(_rng.randf_range(-1.0, 1.0), _rng.randf_range(-0.3, 0.6), _rng.randf_range(-1.0, 1.0))
+	bow = (bow - axis.normalized() * bow.dot(axis.normalized())) * axis.length() * 0.09
+	var elbow: Vector3 = a.lerp(b, 0.5) + bow
+	_stem(a, elbow, width, color, survival)
+	_stem(elbow, b, width * 0.6, color.lightened(0.04), survival)
+
+
+func _centroid(sites: Array) -> Vector3:
+	var sum := Vector3.ZERO
+	for site in sites:
+		sum += site.position
+	return sum / sites.size()
+
+
+## Reparte los sitios en k grupos por cercanía (k-medias con semillas alejadas entre sí).
+func _split(sites: Array, k: int) -> Array:
+	k = mini(k, sites.size())
+	var centers: Array = [sites[0].position]
+	while centers.size() < k:
+		var farthest: Vector3 = centers[0]
+		var farthest_distance: float = -1.0
+		for site in sites:
+			var distance: float = INF
+			for center in centers:
+				distance = minf(distance, site.position.distance_squared_to(center))
+			if distance > farthest_distance:
+				farthest_distance = distance
+				farthest = site.position
+		centers.append(farthest)
+	var parts: Array = []
+	for iteration in 4:
+		parts = []
+		for c in k:
+			parts.append([])
+		for site in sites:
+			var best: int = 0
+			for c in k:
+				if site.position.distance_squared_to(centers[c]) < site.position.distance_squared_to(centers[best]):
+					best = c
+			parts[best].append(site)
+		for c in k:
+			if not parts[c].is_empty():
+				centers[c] = _centroid(parts[c])
+	return parts.filter(func(part: Array) -> bool: return not part.is_empty())
+
+
+## Ramillete de un sitio: la ramilla sale de su rama, pasa por el sitio y asoma hacia fuera y
+## arriba, con hojas pequeñas alternas que giran alrededor de ella, cada una con su inclinación.
+## Así la silueta queda deshilachada, con brotes que asoman, y no una bola alicatada de hojas
+## tumbadas. La terminal, una del medio y una de la base heredan el nivel del grupo (silueta
+## lejana); las demás caen antes.
+func _spray(site: Dictionary, count: int, length: float, width_ratio: float, color: Color,
+		wood: Color) -> void:
+	var normal: Vector3 = site.normal
+	var axis: Vector3 = ((site.position - site.branch).normalized() + normal * 0.6 + Vector3.UP * 0.35
+		+ Vector3(_rng.randf_range(-0.35, 0.35), _rng.randf_range(-0.2, 0.3), _rng.randf_range(-0.35, 0.35))).normalized()
+	var reach: float = length * 1.9
+	var tip: Vector3 = site.position + axis * reach * 0.6
+	site["tip"] = tip
+	_stem(site.branch, tip, 0.006, wood, 0)
+	var twig: Vector3 = tip - site.branch
+	var leafy: float = clampf(reach / twig.length(), 0.35, 0.85)
+	var frame: Array = _frame(twig.normalized())
+	var azimuth: float = _rng.randf() * TAU
+	for j in count:
+		var base: Vector3 = site.branch.lerp(tip, 1.0 - float(j) / count * leafy)
+		azimuth += PI * 0.85 + _rng.randf_range(-0.3, 0.3)
+		var side: Vector3 = frame[0] * cos(azimuth) + frame[1] * sin(azimuth)
+		var open: float = _rng.randf_range(0.2, 0.4) if j == 0 else _rng.randf_range(0.7, 1.15)
+		var direction: Vector3 = (twig.normalized() * cos(open) + side * sin(open)).normalized()
+		# La tierna de la punta, menor.
+		var size: float = length * _rng.randf_range(0.75, 1.2) * (0.7 if j == 0 else 1.0)
+		var end: Vector3 = base + direction * size - Vector3.UP * size * 0.12
+		# Cada hoja busca la luz a su manera: cara hacia arriba y hacia fuera, con desorden.
+		var facing: Vector3 = Vector3.UP + normal * 0.4 + Vector3(_rng.randf_range(-0.35, 0.35), 0.0, _rng.randf_range(-0.35, 0.35))
+		facing -= direction * facing.dot(direction)
+		if facing.length_squared() < 0.05:
+			facing = side.cross(direction)
+		facing = facing.normalized()
+		var mid: Vector3 = base.lerp(end, 0.5) + facing * size * 0.12
+		var tier: int = [site.tier, mini(site.tier, 2), mini(site.tier, 1), site.tier, 0, site.tier, 0,
+			mini(site.tier, 1)][j] if j < 8 else 0
+		_leaf(base, mid, end, size * width_ratio, color.lightened(_rng.randf_range(-0.04, 0.06)),
+			false, facing, tier, 2)
+
+
+## Sauce arbustivo: varas que salen de la cepa abiertas en abanico, cada una con su inclinación, y se
+## arquean hacia fuera; algunas echan una rama lateral. Las hojas, estrechas y alternas en espiral
+## sobre la vara (sin pares como un helecho), apuntan hacia la punta y cuelgan un poco.
 func _willow_shrub() -> void:
 	var color := Color(0.53, 0.65, 0.45)
 	var wood := Color(0.36, 0.31, 0.21)
@@ -311,72 +492,120 @@ func _willow_shrub() -> void:
 	_volume_strength = 0.5
 	_occlusion = 0.30
 	var catkin_sites: Array = []
-	for branch in 11:
-		var angle: float = branch * 2.399963 + _rng.randf_range(-0.25, 0.25)
+	var rods: int = 12
+	var start: float = _rng.randf() * TAU
+	for rod in rods:
+		var angle: float = start + (rod + _rng.randf_range(-0.4, 0.4)) * TAU / rods
 		var direction := Vector3(cos(angle), 0, sin(angle))
-		var height: float = _rng.randf_range(0.68, 1.12) * 1.3
-		var reach: float = _rng.randf_range(0.32, 0.68)
-		var root: Vector3 = direction * 0.055
-		var knee: Vector3 = direction * reach * 0.28 + Vector3.UP * height * 0.42
-		var end: Vector3 = direction * reach + Vector3.UP * height
-		var branch_color: Color = _shade(color, _rng.randf_range(-0.06, 0.05), 0.08)
-		_stem(root, knee, 0.028, wood)
-		_stem(knee, end, 0.019, wood.lightened(0.08))
-		for node in 6:
-			var t: float = 0.05 + node * 0.18
-			var origin: Vector3 = knee.lerp(end, t)
-			for sign_side in [-1.0, 1.0]:
-				var lateral: Vector3 = direction.rotated(Vector3.UP, sign_side * 0.95)
-				var shoot: Vector3 = origin + lateral * 0.17 + Vector3.UP * 0.06
-				_stem(origin, shoot, 0.006, wood.lightened(0.16))
-				var length_leaf: float = _rng.randf_range(0.20, 0.28) * 1.45
-				# Hoja de sauce: sale hacia arriba y la punta cuelga.
-				var tip: Vector3 = shoot + lateral * length_leaf - Vector3.UP * length_leaf * 0.22
-				_leaf(shoot, shoot.lerp(tip, 0.45) + Vector3.UP * length_leaf * 0.30, tip,
-					length_leaf * 0.24, branch_color.lightened(_rng.randf_range(-0.03, 0.07) + t * 0.04),
-					node == 5, (lateral * 0.35 + Vector3.UP).normalized())
-		_leaf(end - Vector3.UP * 0.04, end + Vector3.UP * 0.14,
-			end + direction * 0.10 + Vector3.UP * 0.18, 0.10, branch_color.lightened(0.12), true)
-		catkin_sites.append([knee, end, direction])
+		# Las más abiertas, más cortas.
+		var lean: float = _rng.randf_range(0.12, 0.6)
+		var height: float = _rng.randf_range(1.0, 1.5) * (1.0 - lean * 0.35)
+		# Cepa ancha: las varas no salen todas del mismo punto, como una escoba.
+		var root: Vector3 = direction * _rng.randf_range(0.03, 0.13)
+		var control: Vector3 = root + direction * height * lean * 0.3 + Vector3.UP * height * 0.78
+		var end: Vector3 = root + direction * height * (lean + 0.14) + Vector3.UP * height * 0.92
+		var rod_color: Color = _shade(color, _rng.randf_range(-0.06, 0.05), 0.08)
+		_rod(root, control, end, 0.026, wood, rod_color, 11, 0.3, 3)
+		catkin_sites.append([root, control, end, direction])
+		if rod % 3 == 1:
+			var origin: Vector3 = _curve(root, control, end, 0.42)
+			var out: Vector3 = direction.rotated(Vector3.UP, _rng.randf_range(0.5, 0.9) * (1.0 if rod % 2 else -1.0))
+			_rod(origin, origin + out * height * 0.1 + Vector3.UP * height * 0.3,
+				origin + out * height * 0.34 + Vector3.UP * height * 0.4, 0.014, wood.lightened(0.06), rod_color, 6, 0.0, 1)
 	# Amentos de principios de primavera, colgando de la mitad alta de cada vara. Al final, como
 	# las flores del arbusto redondo, para no mover el resto de la mata.
 	for site in catkin_sites:
 		for c in 4:
-			var origin: Vector3 = site[0].lerp(site[1], 0.45 + c * 0.14)
-			var side: Vector3 = site[2].rotated(Vector3.UP, (c % 2 - 0.5) * 2.2)
+			var origin: Vector3 = _curve(site[0], site[1], site[2], 0.5 + c * 0.13)
+			var side: Vector3 = site[3].rotated(Vector3.UP, (c % 2 - 0.5) * 2.2)
 			var tip: Vector3 = origin + side * 0.03 - Vector3.UP * 0.07
 			_leaf(origin, origin.lerp(tip, 0.5) + side * 0.01, tip, 0.022,
 				Color(0.88, 0.85, 0.45).lightened(_rng.randf_range(-0.04, 0.06)), true, side, 1 if c < 2 else 0, 0, PART_FLOWER)
 
 
+## Vara curva en tres tramos, con [leaves] hojas de sauce alternas en espiral desde [leaf_start]
+## (fracción de la vara) hasta la punta. Las de la punta, más cortas y tiernas, duran más LODs.
+## survival: último LOD de la vara; la punta, fina, cae uno antes.
+func _rod(root: Vector3, control: Vector3, end: Vector3, width: float, wood: Color, leaf_color: Color,
+		leaves: int, leaf_start: float, survival: int) -> void:
+	var previous: Vector3 = root
+	for step in range(1, 4):
+		var point: Vector3 = _curve(root, control, end, step / 3.0)
+		_stem(previous, point, width * (1.0 - (step - 1) * 0.28), wood.lightened(step * 0.04),
+			survival if step < 3 else maxi(survival - 1, 0))
+		previous = point
+	var azimuth: float = _rng.randf() * TAU
+	for i in leaves:
+		var t: float = lerpf(leaf_start, 0.98, float(i) / (leaves - 1))
+		var base: Vector3 = _curve(root, control, end, t)
+		var tangent: Vector3 = ((control - root) * (1.0 - t) + (end - control) * t).normalized()
+		azimuth += 2.4
+		var frame: Array = _frame(tangent)
+		var side: Vector3 = frame[0] * cos(azimuth) + frame[1] * sin(azimuth)
+		var length_leaf: float = _rng.randf_range(0.28, 0.4) * lerpf(1.0, 0.75, t)
+		var open: float = _rng.randf_range(0.55, 0.95)
+		var direction: Vector3 = (tangent * cos(open) + side * sin(open)).normalized()
+		# Sale hacia arriba y la punta cuelga.
+		var tip: Vector3 = base + direction * length_leaf - Vector3.UP * length_leaf * 0.24
+		var facing: Vector3 = Vector3.UP if absf(direction.y) < 0.9 else side
+		_leaf(base, base.lerp(tip, 0.45) + Vector3.UP * length_leaf * 0.16, tip, length_leaf * 0.22,
+			leaf_color.lightened(_rng.randf_range(-0.03, 0.07) + t * 0.05), i >= leaves - 2, facing)
+
+
+## Esparraguera: una maraña de tallos finos que salen de la cepa, se arquean hacia fuera y caen,
+## quebrados en zigzag en cada nudo, con ramillas cortas y penachos de cladodios finos como
+## agujas. Una mata enredada y no un manojo de cañas derechas.
 func _asparagus() -> void:
 	var color := Color(0.51, 0.64, 0.39)
-	_canopy_center = Vector3(0.0, 0.62, 0.0)
-	_canopy_size = Vector3(0.5, 0.75, 0.5)
+	_canopy_center = Vector3(0.0, 0.42, 0.0)
+	_canopy_size = Vector3(0.6, 0.5, 0.6)
 	_volume_strength = 0.3
 	_occlusion = 0.25
-	for cane in 6:
-		var angle: float = cane * 2.399963
+	var canes: int = 10
+	var start: float = _rng.randf() * TAU
+	for cane in canes:
+		var angle: float = start + (cane + _rng.randf_range(-0.4, 0.4)) * TAU / canes
 		var radial := Vector3(cos(angle), 0, sin(angle))
-		var height: float = _rng.randf_range(0.95, 1.48)
-		var root: Vector3 = radial * 0.075
-		var top: Vector3 = radial * 0.30 + Vector3.UP * height
+		var side := Vector3(-radial.z, 0, radial.x)
+		var height: float = _rng.randf_range(0.55, 1.05)
+		var reach: float = _rng.randf_range(0.25, 0.6)
+		var root: Vector3 = radial * _rng.randf_range(0.02, 0.06)
+		# Sube y se arquea hacia fuera; la punta cae.
+		var control: Vector3 = root + radial * reach * 0.35 + Vector3.UP * height * 1.25
+		var end: Vector3 = root + radial * reach + Vector3.UP * height * _rng.randf_range(0.55, 0.8)
 		var cane_color: Color = _shade(color, _rng.randf_range(-0.05, 0.05), 0.08)
-		_stem(root, top, 0.014, cane_color.darkened(0.2))
-		for level in 5:
-			var t: float = 0.28 + level * 0.14
-			var center: Vector3 = root.lerp(top, t)
-			for side in 3:
-				var arm: Vector3 = radial.rotated(Vector3.UP, side * TAU / 3.0 + level * 0.7)
-				var branch_tip: Vector3 = center + arm * (1.0 - t) * 0.52 + Vector3.UP * 0.12
-				_stem(center, branch_tip, 0.004, cane_color)
-				for tuft in 3:
-					var bud: Vector3 = center.lerp(branch_tip, 0.35 + tuft * 0.30)
-					for needle in 3:
-						var needle_dir: Vector3 = arm.rotated(Vector3.UP, (needle - 1.0) * 0.60)
-						var tip: Vector3 = bud + needle_dir * 0.14 + Vector3.UP * (0.05 + needle * 0.014)
-						_leaf(bud, bud.lerp(tip, 0.55) + Vector3.UP * 0.045, tip,
-							0.014, cane_color.lightened(_rng.randf_range(0, 0.10)), tuft == 2 and needle == 1)
+		var previous: Vector3 = root
+		var nodes: int = 5
+		for node in range(1, nodes + 1):
+			var t: float = float(node) / nodes
+			var zig: float = 1.0 if node % 2 else -1.0
+			# Zigzag: cada nudo se aparta un poco a un lado y al otro.
+			var point: Vector3 = _curve(root, control, end, t) + side * zig * 0.035 * t
+			_stem(previous, point, lerpf(0.012, 0.006, t), cane_color.darkened(0.2), 3 if node < 3 else 1)
+			var forward: Vector3 = (point - previous).normalized()
+			# Ramilla en el nudo, hacia el lado del quiebro, con penachos a lo largo.
+			var out: Vector3 = (forward * 0.5 + side * zig * 0.8 + Vector3.UP * 0.3).normalized()
+			var twig_tip: Vector3 = point + out * _rng.randf_range(0.1, 0.18) * (1.2 - t * 0.5)
+			_stem(point, twig_tip, 0.004, cane_color)
+			for tuft in 4:
+				_needle_tuft(point.lerp(twig_tip, 0.25 + tuft * 0.25), out, cane_color, tuft == 3)
+			_needle_tuft(previous.lerp(point, 0.5), (forward + Vector3.UP * 0.3).normalized(), cane_color, false)
+			previous = point
+		_needle_tuft(previous, (end - control).normalized(), cane_color, true)
+
+
+## Penacho de tres cladodios (las "hojas" de la esparraguera, finas como agujas) abiertos desde un
+## punto hacia [direction].
+func _needle_tuft(origin: Vector3, direction: Vector3, color: Color, terminal: bool) -> void:
+	var frame: Array = _frame(direction)
+	var start: float = _rng.randf() * TAU
+	for needle in 3:
+		var angle: float = start + needle * TAU / 3.0 + _rng.randf_range(-0.4, 0.4)
+		var spread: Vector3 = frame[0] * cos(angle) + frame[1] * sin(angle)
+		var size: float = _rng.randf_range(0.08, 0.12)
+		var tip: Vector3 = origin + (direction + spread * 0.7).normalized() * size
+		_leaf(origin, origin.lerp(tip, 0.55) + Vector3.UP * size * 0.15, tip, 0.014,
+			color.lightened(_rng.randf_range(0, 0.10)), terminal and needle == 0)
 
 
 ## Roseta de hojas anchas: las exteriores son más viejas, grandes, oscuras y caídas;
@@ -437,8 +666,9 @@ func _wildflowers() -> void:
 		_flower(head, 0.070, Color(0.90, 0.85, 0.68) if stalk % 3 else Color(0.68, 0.62, 0.79))
 
 
-## Enebro rastrero: brazos leñosos tumbados en abanico, cubiertos de acículas cortas azuladas,
-## con alguna gálbula azul. Una alfombra baja y ancha, que asoma de la nieve.
+## Enebro rastrero: brazos leñosos tumbados que serpentean a ras de suelo, cubiertos de ramillas en
+## cepillo (acículas en verticilos de tres que apuntan hacia delante y arriba). Una alfombra baja e
+## irregular, más alta cerca de la cepa, que asoma de la nieve, con alguna gálbula azul.
 func _juniper() -> void:
 	var needle := Color(0.21, 0.34, 0.29)
 	var wood := Color(0.37, 0.27, 0.21)
@@ -446,87 +676,143 @@ func _juniper() -> void:
 	_canopy_size = Vector3(0.78, 0.26, 0.78)
 	_volume_strength = 0.55
 	_occlusion = 0.40
-	for arm in 10:
-		var angle: float = arm * TAU / 10.0 + _rng.randf_range(-0.25, 0.25)
-		var direction := Vector3(cos(angle), 0.0, sin(angle))
-		var reach: float = _rng.randf_range(0.40, 0.66)
-		var root: Vector3 = direction * 0.04
-		var knee: Vector3 = direction * reach * 0.45 + Vector3.UP * _rng.randf_range(0.14, 0.26)
-		var end: Vector3 = direction * reach + Vector3.UP * _rng.randf_range(0.10, 0.22)
-		_stem(root, knee, 0.032, wood)
-		_stem(knee, end, 0.02, wood.lightened(0.05))
+	var arms: int = 7
+	var start: float = _rng.randf() * TAU
+	for arm in arms:
+		var heading: float = start + (arm + _rng.randf_range(-0.35, 0.35)) * TAU / arms
+		var reach: float = _rng.randf_range(0.45, 0.78)
 		var arm_color: Color = _shade(needle, _rng.randf_range(-0.05, 0.05), 0.06)
-		for node in 10:
-			var t: float = 0.04 + node * 0.1
-			var origin: Vector3 = knee.lerp(end, t) if t > 0.2 else root.lerp(knee, 0.6 + t * 2.0)
-			for spray in 2:
-				var outward: Vector3 = (direction + Vector3.UP * (0.4 + spray * 0.5) + Vector3(_rng.randf_range(-0.5, 0.5), 0.0,
-					_rng.randf_range(-0.5, 0.5))).normalized()
-				_leaf_cluster(origin + outward * 0.03, outward, 7, 0.13, 0.18,
-					arm_color.lightened(_rng.randf_range(0.0, 0.09)), _cluster_tier(node > 1 and spray == 1))
-				if spray == 1 and _rng.randf() < 0.18:
-					_flower(origin + outward * 0.07, 0.016, Color(0.40, 0.47, 0.62), outward, 2, 3)
+		var root := Vector3(cos(heading), 0.0, sin(heading)) * 0.03
+		var lift: float = _rng.randf_range(0.8, 1.2)
+		var fork: Vector3 = _creeping_arm(root, heading, reach, [0.17, 0.16, 0.12, 0.07], lift, 0.032, arm_color, wood)
+		# Brazo secundario desde el primer codo, hacia el hueco entre este brazo y el siguiente.
+		var turn: float = _rng.randf_range(0.5, 0.85) * (1.0 if arm % 2 == 0 else -1.0)
+		_creeping_arm(fork, heading + turn, reach * 0.6, [0.15, 0.09], lift, 0.02, arm_color.lightened(0.03), wood)
 
 
-## Abedul enano de la tundra: mata baja de tallos rojizos y hojitas redondas, verdes en verano. El
-## rojo y el naranja del otoño los pone el shader (SEASONS).
+## Brazo tumbado de enebro: tramos que serpentean siguiendo [heights] (sube desde la cepa y baja
+## hasta apoyar la punta), con ramillas en cepillo a los lados y una hacia arriba que da espesor a
+## la alfombra. Devuelve el primer codo, de donde sale el brazo secundario. Hasta cuatro tramos.
+func _creeping_arm(point: Vector3, heading: float, reach: float, heights: Array, lift: float,
+		width: float, color: Color, wood: Color) -> Vector3:
+	var first_elbow: Vector3 = point
+	var segments: int = heights.size()
+	for segment in segments:
+		heading += _rng.randf_range(-0.45, 0.45)
+		var next: Vector3 = Vector3(point.x, 0.0, point.z) + Vector3(cos(heading), 0.0, sin(heading)) * reach / segments
+		next.y = heights[segment] * lift
+		var t: float = float(segment) / maxf(segments - 1, 1)
+		# De lejos solo se ve la base de los brazos; lo demás queda bajo las acículas.
+		_stem(point, next, lerpf(width, 0.016, t), wood.lightened(segment * 0.02), [3, 2, 1, 0][segment])
+		var flat := Vector3(next.x - point.x, 0.0, next.z - point.z).normalized()
+		# Junto a la cepa y en el brazo secundario, sin el cepillo hacia arriba.
+		for brush in 3 if segments > 2 and segment > 0 else 2:
+			var origin: Vector3 = point.lerp(next, [0.35, 0.8, 0.6][brush])
+			var side_turn: float = _rng.randf_range(0.5, 1.0) * (1.0 if (brush + segment) % 2 == 0 else -1.0)
+			var direction: Vector3 = flat.rotated(Vector3.UP, side_turn) + Vector3.UP * 0.45
+			if brush == 2:
+				direction = flat * 0.6 + Vector3.UP * 0.9
+			var length: float = lerpf(0.21, 0.13, t) * _rng.randf_range(0.85, 1.15)
+			_brush(origin, direction.normalized(), length, color, wood, _cluster_tier(brush != 2 or segment > 0))
+		if segment == 0:
+			first_elbow = next
+		point = next
+	_brush(point, (Vector3(cos(heading), 0.0, sin(heading)) + Vector3.UP * 0.35).normalized(), 0.14,
+		color, wood, _cluster_tier(true))
+	return first_elbow
+
+
+## Ramilla en cepillo: un tallito con verticilos de tres acículas que se abren hacia delante. Las de
+## la punta son las que más duran en los LODs.
+func _brush(start: Vector3, direction: Vector3, length: float, color: Color, wood: Color, cluster_tier: int) -> void:
+	var end: Vector3 = start + direction * length
+	_stem(start, end, 0.007, wood.lightened(0.05), 0)
+	var frame: Array = _frame(direction)
+	var count: int = 0
+	for whorl in 4:
+		var base: Vector3 = start.lerp(end, 1.0 - whorl * 0.25)
+		for k in 3:
+			var angle: float = k * TAU / 3.0 + whorl * PI / 3.0 + _rng.randf_range(-0.3, 0.3)
+			var side: Vector3 = frame[0] * cos(angle) + frame[1] * sin(angle)
+			var needle_dir: Vector3 = (direction * 0.75 + side * 0.65 + Vector3.UP * 0.2).normalized()
+			var size: float = _rng.randf_range(0.07, 0.1)
+			var tip: Vector3 = base + needle_dir * size
+			var tier: int = [cluster_tier, cluster_tier, mini(cluster_tier, 1), mini(cluster_tier, 1), mini(cluster_tier, 1),
+				0, mini(cluster_tier, 1)][count] if count < 7 else 0
+			_leaf(base, base.lerp(tip, 0.5) + Vector3.UP * size * 0.12, tip, 0.022,
+				color.lightened(_rng.randf_range(0.0, 0.09)), false, side, tier, 2)
+			count += 1
+	if _rng.randf() < 0.2:
+		_flower(end + Vector3.UP * 0.02, 0.016, Color(0.40, 0.47, 0.62), (direction + Vector3.UP).normalized(), 2, 3)
+
+
+## Abedul enano de la tundra: mata baja y extendida de tallos rojizos muy ramificados y hojitas
+## redondas, verdes en verano. El rojo y el naranja del otoño los pone el shader (SEASONS).
 func _dwarf_birch() -> void:
 	var palette := [Color(0.36, 0.52, 0.22), Color(0.43, 0.57, 0.25), Color(0.31, 0.47, 0.2),
 		Color(0.5, 0.58, 0.26)]
-	var wood := Color(0.36, 0.19, 0.15)
-	var radius: float = 0.46
-	var height: float = 0.58
-	_canopy_center = Vector3(0.0, height * 0.55, 0.0)
-	_canopy_size = Vector3(radius, height * 0.47, radius)
 	_volume_strength = 0.7
 	_occlusion = 0.35
-	var forks: Array = []
-	for trunk in 8:
-		var angle: float = trunk * TAU / 8.0 + _rng.randf_range(-0.3, 0.3)
-		var direction := Vector3(cos(angle), 0.0, sin(angle))
-		var fork: Vector3 = direction * radius * _rng.randf_range(0.3, 0.5) + Vector3.UP * height * _rng.randf_range(0.3, 0.5)
-		_stem(direction * 0.03, fork, 0.02, wood)
-		var tip: Vector3 = fork + direction * radius * 0.35 + Vector3.UP * height * _rng.randf_range(0.2, 0.4)
-		_stem(fork, tip, 0.012, wood.lightened(0.1))
-		forks.append(tip)
-	for k in 54:
-		var y: float = lerpf(0.97, -0.3, (k + 0.5) / 54.0)
-		var ring: float = sqrt(maxf(1.0 - y * y, 0.0))
-		var phi: float = k * 2.399963 + _rng.randf_range(-0.2, 0.2)
-		var outward := Vector3(cos(phi) * ring, y, sin(phi) * ring)
-		var outer: bool = k % 4 != 0
-		var anchor: Vector3 = _canopy_center + outward * _canopy_size * (1.0 if outer else 0.66)
-		anchor.y = maxf(anchor.y, 0.08)
-		_stem(anchor.lerp(_closest(forks, anchor), 0.5), anchor, 0.006, wood, 0)
-		var color: Color = palette[_rng.randi() % palette.size()]
-		_leaf_cluster(anchor, outward, 5, 0.065, 0.85, color.lightened(_rng.randf_range(-0.05, 0.08)),
-			_cluster_tier(outer))
+	_set_lobes(0.5, 0.56, 6)
+	_branching_shrub({"sites": 62, "spacing": 0.15, "stems": 9, "crown": 0.1,
+		"leaves": 6, "leaf_length": 0.075, "width_ratio": 0.85, "palette": palette,
+		"wood": Color(0.36, 0.19, 0.15), "min_y": 0.06})
 
 
-## Brezo: matorral bajo de tallos rectos con hojitas en escama y espigas de flores malva.
+## Brezo: un cojín bajo y redondeado. Las puntas de los brotes cubren una cúpula, las del centro
+## más altas; cada brote sale de la horquilla de un tallo leñoso de la cepa, tumbado y luego
+## erguido si va hacia el borde, derecho si va al centro. Hojitas en escama a lo largo del brote y
+## espigas malva en la punta.
 func _heather() -> void:
 	var leaf := Color(0.24, 0.33, 0.19)
 	var flowers := [Color(0.74, 0.44, 0.68), Color(0.83, 0.57, 0.77), Color(0.66, 0.36, 0.62)]
+	var wood := Color(0.36, 0.25, 0.20)
 	_canopy_center = Vector3(0.0, 0.2, 0.0)
 	_canopy_size = Vector3(0.36, 0.26, 0.36)
 	_volume_strength = 0.45
 	_occlusion = 0.3
-	for stalk in 26:
-		var angle: float = stalk * 2.399963
+	var radius: float = 0.4
+	var height: float = 0.36
+	var stems: int = 6
+	var start: float = _rng.randf() * TAU
+	var forks: Array = []
+	for stem in stems:
+		var angle: float = start + (stem + _rng.randf_range(-0.3, 0.3)) * TAU / stems
 		var direction := Vector3(cos(angle), 0.0, sin(angle))
-		var root: Vector3 = direction * _rng.randf_range(0.02, 0.26)
-		var top: Vector3 = root + direction * 0.12 + Vector3.UP * _rng.randf_range(0.24, 0.40)
-		_stem(root, top, 0.009, Color(0.36, 0.25, 0.20))
+		var fork: Vector3 = direction * _rng.randf_range(0.05, 0.1) + Vector3.UP * _rng.randf_range(0.03, 0.05)
+		_stem(direction * _rng.randf_range(0.0, 0.02), fork, 0.016, wood.darkened(0.1), 2)
+		forks.append(fork)
+	var shoots: int = 26
+	for shoot in shoots:
+		# Girasol: puntas repartidas por igual sobre el disco, con algo de desorden.
+		var phi: float = shoot * 2.399963 + _rng.randf_range(-0.3, 0.3)
+		var reach: float = radius * sqrt((shoot + _rng.randf_range(0.2, 0.8)) / shoots)
+		var top := Vector3(cos(phi), 0.0, sin(phi)) * reach
+		top.y = maxf(height * sqrt(maxf(1.0 - pow(reach / radius, 2.0), 0.0)) * _rng.randf_range(0.85, 1.05), 0.1)
+		var fork: Vector3 = forks[0]
+		for candidate in forks:
+			if Vector2(candidate.x - top.x, candidate.z - top.z).length() < Vector2(fork.x - top.x, fork.z - top.z).length():
+				fork = candidate
+		var control: Vector3 = Vector3(fork.x, 0.0, fork.z).lerp(Vector3(top.x, 0.0, top.z), 0.6) \
+			+ Vector3.UP * lerpf(fork.y, top.y, 0.3)
+		# De lejos el cojín son sus hojas y flores: los brotes solo se dibujan de cerca.
+		var previous: Vector3 = fork
+		for step in range(1, 3):
+			var point: Vector3 = _curve(fork, control, top, step / 2.0)
+			_stem(previous, point, 0.009, wood, 1 if step == 1 else 0)
+			previous = point
+		var spread: Vector3 = Vector3(top.x - fork.x, 0.0, top.z - fork.z).normalized()
+		var up: Vector3 = (top - control).normalized()
 		for level in 4:
-			var point: Vector3 = root.lerp(top, 0.14 + level * 0.13)
-			_leaf_cluster(point, (direction + Vector3.UP).normalized(), 5, 0.05, 0.3,
+			var point: Vector3 = _curve(fork, control, top, 0.2 + level * 0.12)
+			_leaf_cluster(point, (spread + Vector3.UP).normalized(), 5, 0.05, 0.3,
 				leaf.lightened(_rng.randf_range(0.0, 0.08)), 1 if level % 2 else 0)
 		var color: Color = flowers[_rng.randi() % flowers.size()]
 		for bud in 7:
-			var point: Vector3 = root.lerp(top, 0.6 + bud * 0.06)
-			var side: Vector3 = direction.rotated(Vector3.UP, bud * 2.2)
+			var point: Vector3 = _curve(fork, control, top, 0.66 + bud * 0.055)
+			var side: Vector3 = spread.rotated(Vector3.UP, bud * 2.2)
 			_flower(point + side * 0.016, 0.02, color.lightened(_rng.randf_range(-0.04, 0.08)),
-				(side + Vector3.UP * 0.5).normalized(), 3 if bud % 2 == 0 else 1, 4)
+				(side + up * 0.5).normalized(), 3 if bud % 2 == 0 else 1, 4)
 
 
 ## Algodoncillo: macolla de hojas de junco arqueadas y tallos finos con el penacho blanco.
@@ -686,8 +972,8 @@ func _flower_cluster(center: Vector3, outward: Vector3, cluster_tier: int,
 		palette: Array = FLOWER_PINK) -> void:
 	var color: Color = palette[_rng.randi() % palette.size()]
 	var frame: Array = _frame(outward)
-	for f in 5:
-		var angle: float = f * TAU / 4.0 + _rng.randf_range(-0.3, 0.3)
+	for f in 4:
+		var angle: float = f * TAU / 3.0 + _rng.randf_range(-0.3, 0.3)
 		var offset: Vector3 = Vector3.ZERO if f == 0 else (frame[0] * cos(angle) + frame[1] * sin(angle)) * 0.045
 		var tier: int = mini(cluster_tier, 3 if f == 0 else (2 if f < 3 else 1))
 		_flower(center + offset + outward * _rng.randf_range(0.0, 0.015), 0.032,
@@ -715,12 +1001,26 @@ func _cluster_tier(outer: bool) -> int:
 	return 3 if roll < 0.45 else (2 if roll < 0.80 else (1 if roll < 0.95 else 0))
 
 
-func _closest(points: Array, target: Vector3) -> Vector3:
-	var best: Vector3 = points[0]
-	for point in points:
-		if point.distance_squared_to(target) < best.distance_squared_to(target):
-			best = point
+## Distancia normalizada a la copa de lóbulos: menor que 1 dentro de alguno, 1 en su superficie.
+func _lobe_distance(position: Vector3) -> float:
+	var best: float = INF
+	for i in _lobe_centers.size():
+		best = minf(best, ((position - _lobe_centers[i]) / _lobe_sizes[i]).length())
 	return best
+
+
+## Normal de la copa de lóbulos: mezcla suave de los gradientes de cada lóbulo, con más peso el que
+## tiene el punto más dentro o más cerca de su superficie. Cada bulto se ilumina como un volumen
+## y la junta entre dos no hace escalón.
+func _lobe_normal(position: Vector3) -> Vector3:
+	var nearest: float = _lobe_distance(position)
+	var sum := Vector3.ZERO
+	for i in _lobe_centers.size():
+		var q: Vector3 = (position - _lobe_centers[i]) / _lobe_sizes[i]
+		var gradient: Vector3 = q / _lobe_sizes[i]
+		if gradient.length_squared() > 1e-8:
+			sum += gradient.normalized() * exp(-8.0 * (q.length() - nearest))
+	return sum.normalized() if sum.length_squared() > 1e-8 else Vector3.UP
 
 
 ## Dos ejes perpendiculares a una dirección.
@@ -863,7 +1163,8 @@ func _volume_normals(first_vertex: int, first_index: int) -> void:
 ## Por debajo del centro no apunta hacia abajo: una hoja baja y tumbada quedaba de
 ## espaldas al cielo y salía negra. La luz de una planta llega sobre todo de arriba.
 func _radial(position: Vector3) -> Vector3:
-	var q: Vector3 = (position - _canopy_center) / (_canopy_size * _canopy_size)
+	var q: Vector3 = _lobe_normal(position) if not _lobe_centers.is_empty() \
+		else (position - _canopy_center) / (_canopy_size * _canopy_size)
 	q.y = maxf(q.y, 0.0)
 	if q.length_squared() < 0.000001:
 		return Vector3.UP
@@ -924,7 +1225,9 @@ func _vertex(position: Vector3, normal: Vector3, uv: Vector2, color: Color,
 func _occlusion_at(position: Vector3) -> float:
 	if _occlusion <= 0.0:
 		return 1.0
-	var depth: float = clampf(1.0 - ((position - _canopy_center) / _canopy_size).length(), 0.0, 1.0)
+	var distance: float = _lobe_distance(position) if not _lobe_centers.is_empty() \
+		else ((position - _canopy_center) / _canopy_size).length()
+	var depth: float = clampf(1.0 - distance, 0.0, 1.0)
 	var low: float = clampf(1.0 - position.y / maxf(_canopy_center.y + _canopy_size.y, 0.01), 0.0, 1.0)
 	return 1.0 - _occlusion * clampf(depth * 0.85 + low * 0.35, 0.0, 1.0)
 
