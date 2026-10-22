@@ -112,6 +112,8 @@ func _look_sensitivity() -> float:
 
 
 func _input(event: InputEvent):
+	if GameManager.current_state != GameManager.State.PLAYING:
+		return
 	if event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED \
 			and lock_point != null:
 		_lock_swipe += -event.relative.x * _look_sensitivity()
@@ -127,6 +129,17 @@ func _input(event: InputEvent):
 			target_distance = max(target_distance - zoom_speed, min_distance)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			target_distance = min(target_distance + zoom_speed, max_distance)
+
+
+## Encuadre inicial en un punto cualquiera del planeta: alinea el horizonte de golpe y expresa
+## la dirección de vista en el yaw de la cámara normal. Así no arrastra el "arriba" del menú.
+func set_view_frame(up: Vector3, forward: Vector3) -> void:
+	_current_up_axis = up.normalized()
+	var frame := Basis(Quaternion(Vector3.UP, _current_up_axis))
+	var tangent := forward.slide(_current_up_axis).normalized()
+	yaw = (-frame.z).signed_angle_to(tangent, _current_up_axis)
+	delta_yaw = 0.0
+	delta_pitch = 0.0
 
 ## Ratón horizontal acumulado con un objetivo fijado (radianes); se vacía al leerlo.
 func consume_lock_swipe() -> float:

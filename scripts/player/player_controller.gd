@@ -8,6 +8,7 @@ const PLATFORM_ATTACH_DIST := 1.5
 const PLATFORM_DETACH_DIST := 2.5
 const PLATFORM_MAX_TILT_DEG := 75.0
 const PLATFORM_DETACH_GRACE := 0.2
+const NewGameLanding := preload("res://scripts/player/new_game_landing.gd")
 
 ## Comprobaciones seguidas de suelo listo antes de activar al jugador, y cada cuánto sondear.
 ## Varias confirmaciones evitan activar sobre una malla visual cuya colisión aún se hornea.
@@ -145,6 +146,9 @@ var _worn_materials_planet: Node = null
 
 var input_enabled: bool = false
 var _cinematic_tween: Tween
+var _new_game_planet: Node3D
+var _cinematic_landing: Transform3D
+var _cinematic_start_radius: float
 ## Primera persona: lo que se aparta la mirada del frente del cuerpo, quieto, antes de que este
 ## se gire (ver _turn_in_place), y si se está girando.
 const FP_TURN_START := deg_to_rad(50.0)
@@ -593,6 +597,16 @@ func _ready():
 	# Si hay partida guardada, el SpawnPoint se adelanta a la posición guardada del jugador antes de
 	# usarlo, para que el terreno empiece a streamearse ahí y el planeta elegido sea el correcto.
 	if spawn_point:
+		spawn_point.add_to_group("floating_origin")
+		# Conserva el planeta de nueva partida ANTES de que Continuar mueva el marcador a un save
+		# que puede estar en otro planeta. El punto concreto se sortea al comenzar la cinemática.
+		if planets:
+			var nearest := INF
+			for candidate in planets.get_children():
+				var distance := spawn_point.global_position.distance_squared_to(candidate.global_position)
+				if distance < nearest:
+					nearest = distance
+					_new_game_planet = candidate
 		GameManager.apply_saved_spawn_point(GameManager.MAIN_SLOT, spawn_point)
 	if spawn_point and planets and planets.get_child_count() > 0:
 		var closest: Node3D = null
@@ -868,57 +882,78 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 			_activate_player()
 
 func _play_cinematic() -> void:
-	
-	if not spawn_point:
-		push_error("Player: No spawn_point assigned!")
-		GameManager.cinematic_completed()
+	if not spawn_point or not is_instance_valid(_new_game_planet):
+		push_error("Player: falta el marcador o el planeta de nueva partida")
+		GameManager._change_state.call_deferred(GameManager.State.MENU)
 		return
-		
-	var pitch_pivot := camera_controller.camera_pivot.get_node("PitchPivot")
-	var saved_yaw: float = camera_controller.camera_pivot.rotation.y
-	var saved_pitch: float = pitch_pivot.rotation.x
-	
-	var start_pos := global_position
-	var start_quat := Quaternion(global_basis)
-	var end_pos := spawn_point.global_position
-	var end_quat := Quaternion(spawn_point.global_basis.orthonormalized())
-
-
 	if _cinematic_tween and _cinematic_tween.is_valid():
 		_cinematic_tween.kill()
-
+	planet = _new_game_planet
+	var core: Planet = planet.planet
+	var map: WorldMapData = planet.world_map.map if planet.world_map != null else null
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var landing: Variant = NewGameLanding.new().find_landing(core, map, rng)
+	if landing == null:
+		push_error("Player: no se ha encontrado tierra segura entre el ecuador y 55° N")
+		GameManager._change_state.call_deferred(GameManager.State.MENU)
+		return
+	_cinematic_landing = landing
+	building_system.current_planet = planet
+	if core.has_water:
+		water_sampler.setup(planet.water_sphere.quadtree_material, planet.world_map)
+	# El viewer del marcador carga el destino mientras la cámara desciende desde el espacio.
+	spawn_point.global_transform = core.voxel_terrain.global_transform * _cinematic_landing
+	_cinematic_start_radius = maxf(core.radius * 1.6, _cinematic_landing.origin.length() + 6000.0)
+	input_enabled = false
+	free_flight_enabled = false
+	free_flight_controller.enabled = false
+	collision_model.disabled = true
+	# Camera3D deja de actualizar su transform de render si hereda un Node3D oculto.
+	# La cámara debe seguir visible; durante el vuelo se oculta solo el modelo del personaje.
+	visible = true
+	player_model.visible = false
+	velocity = Vector3.ZERO
+	movement.velocity = Vector3.ZERO
+	if camera_controller.first_person:
+		camera_controller._set_first_person(false)
+	camera_controller.camera_distance = 8.0
+	camera_controller.target_distance = 8.0
+	camera.make_current()
+	_update_cinematic(0.0)
+	reset_physics_interpolation()
+	camera_controller.camera_pivot.reset_physics_interpolation()
+	camera.reset_physics_interpolation()
+	print("[Player] Aterrizaje de nueva partida: %s" % WorldMapData.format_latlon(
+		WorldMapData.dir_to_latlon(_cinematic_landing.origin)))
 	_cinematic_tween = create_tween()
-	_cinematic_tween.set_parallel(true)
-
-	_cinematic_tween.tween_property(
-		self, "global_position",
-		end_pos, cinematic_duration
-	).from(start_pos).set_ease(cinematic_ease).set_trans(cinematic_trans)
-
+	# El cuerpo y la cámara avanzan en física para que el render interpole el mismo recorrido.
+	_cinematic_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	_cinematic_tween.tween_method(
-		_interpolate_rotation.bind(start_quat, end_quat),
+		_update_cinematic,
 		0.0, 1.0, cinematic_duration
 	).set_ease(cinematic_ease).set_trans(cinematic_trans)
-
-	_cinematic_tween.tween_property(
-		camera_controller.camera_pivot, "rotation:y",
-		spawn_point.rotation.y, cinematic_duration
-	).from(saved_yaw).set_ease(cinematic_ease).set_trans(cinematic_trans)
-
-	_cinematic_tween.tween_property(
-		pitch_pivot, "rotation:x",
-		spawn_point.rotation.x, cinematic_duration
-	).from(saved_pitch).set_ease(cinematic_ease).set_trans(cinematic_trans)
-	
-	_cinematic_tween.tween_property(
-		camera_controller.camera_pivot, "rotation:z",
-		spawn_point.rotation.z, cinematic_duration
-	).from(camera_controller.camera_pivot.rotation.z).set_ease(cinematic_ease).set_trans(cinematic_trans)
-	
-	_cinematic_tween.set_parallel(false)
 	_cinematic_tween.tween_callback(_on_cinematic_tween_finished)
 
+
+func _update_cinematic(progress: float) -> void:
+	var terrain: VoxelLodTerrain = planet.voxel_terrain
+	var up := _cinematic_landing.origin.normalized()
+	var radius := lerpf(_cinematic_start_radius, _cinematic_landing.origin.length(), progress)
+	global_transform = terrain.global_transform * Transform3D(_cinematic_landing.basis, up * radius)
+	gravity_direction = planet.get_gravity_direction(global_position)
+	up_direction = -gravity_direction
+	camera_controller.pitch = lerpf(-1.1, -0.15, progress)
+	camera_controller.set_view_frame(up_direction, -global_basis.z)
+	camera_controller.update_camera_transform()
+
+
 func _on_cinematic_tween_finished() -> void:
+	_update_cinematic(1.0)
+	if start_first_person:
+		camera_controller.camera_distance = camera_controller.min_distance
+		camera_controller.target_distance = camera_controller.min_distance
+		camera_controller._set_first_person(true)
 	GameManager.cinematic_completed()
 
 
@@ -1002,14 +1037,8 @@ func _update_fp_square(delta: float) -> void:
 	_fp_square.active = _fp_square.influence > 0.0
 
 
-func _interpolate_rotation(t: float, from_quat: Quaternion, to_quat: Quaternion) -> void:
-	global_basis = Basis(from_quat.slerp(to_quat, t))
-
-## Keep camera following player during cinematic
 func _process(_delta: float) -> void:
 	_advance_water_time(_delta)
-	if GameManager.current_state == GameManager.State.CINEMATIC:
-		camera_controller.camera_pivot.global_position = global_position
 	_perform_raycast()
 	if blueprint_placer and blueprint_placer.is_active():
 		blueprint_placer.update_aim()
@@ -1019,6 +1048,7 @@ func _activate_player() -> void:
 	free_flight_enabled = false
 	collision_model.disabled = false
 	visible = true
+	player_model.visible = true
 	player_model.rotation = Vector3.ZERO
 	current_swimming_pitch = 0.0
 	locomotion.reset()
@@ -1069,8 +1099,9 @@ func is_mouse_captured() -> bool:
 	return Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
 	
 func _input(event):
-	# La pantalla de creación de personaje gestiona su propio Escape.
-	if GameManager.current_state == GameManager.State.CHARACTER_CREATION:
+	# La creación gestiona su Escape; durante el descenso no se puede activar el movimiento
+	# abriendo/cerrando el menú de pausa antes de llegar al suelo.
+	if GameManager.current_state in [GameManager.State.CHARACTER_CREATION, GameManager.State.CINEMATIC]:
 		return
 	# La pantalla de opciones se cierra con su propio Escape.
 	if OptionsScreen.is_open():
