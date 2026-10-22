@@ -2135,6 +2135,9 @@
 					0.0,
 					1.0
 				],
+				"pickup": true,
+				"pickup_item": "plant_fiber",
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2192,6 +2195,9 @@
 					0.0,
 					1.0
 				],
+				"pickup": true,
+				"pickup_item": "plant_fiber",
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,
@@ -2486,6 +2492,9 @@
 					0.0,
 					1.0
 				],
+				"pickup": true,
+				"pickup_item": "plant_fiber",
+				"collision_distance_m": 12.0,
 				"instance_as_scene": false,
 				"cast_shadow": false,
 				"lod3_impostor": false,

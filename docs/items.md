@@ -234,7 +234,8 @@ se le clavó y deja de cogerse vacío.
 ### Fibra vegetal
 
 Los arbustos leñosos (redondo, florido, sauce, abedul enano, enebro enano y
-brezo) se arrancan con E **mirándolos**, y dan de 1 a 4 de fibra según el
+brezo), los helechos (de bosque y alto) y la planta de hojas anchas se arrancan
+con E **mirándolos**, y dan de 1 a 4 de fibra según el
 tamaño de la mata. Usan la misma vía que las ramas y las piedras del suelo
 (`GroundPickup`): en `planet_earth.json` sus entradas cercanas (bandas 0 y 1)
 llevan `"pickup": true`, `"pickup_item": "plant_fiber"` y
