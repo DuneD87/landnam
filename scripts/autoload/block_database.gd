@@ -211,6 +211,13 @@ func get_block_items_by_material() -> Dictionary:
 			result[item.build_material_id]["items"].append(item)
 	return result
 
+## El item de una combinación bloque+material, o null si no existe.
+func get_block_material_item(block_id: int, mat_id: String) -> ItemData:
+	for item in _block_material_items:
+		if item.block_id == block_id and item.build_material_id == mat_id:
+			return item
+	return null
+
 func get_material_by_id(mat_id: String) -> BuildMaterial:
 	for mat in build_materials:
 		if mat.material_id == mat_id:

@@ -266,6 +266,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("litter", "litter", "CON_HELP_LITTER", _cmd_litter))
 	_add(ConsoleCommand.new("god", "god [on|off]", "CON_HELP_GOD", _cmd_god))
 	_add(ConsoleCommand.new("noclip", "noclip", "CON_HELP_NOCLIP", _cmd_noclip))
+	_add(ConsoleCommand.new("freebuild", "freebuild [on|off]", "CON_HELP_FREEBUILD", _cmd_freebuild))
 	_add(ConsoleCommand.new("sun", "sun <azimuth> [elevation] | sun auto <on|off>", "CON_HELP_SUN", _cmd_sun, 1))
 	_add(ConsoleCommand.new("season", SEASON_USAGE, "CON_HELP_SEASON", _cmd_season, 0, _complete_season))
 	_add(ConsoleCommand.new("wake", "wake [on|off]", "CON_HELP_WAKE", _cmd_wake))
@@ -511,6 +512,15 @@ func _cmd_god(args: PackedStringArray) -> String:
 	else:
 		hc.invincible = not hc.invincible
 	return _paint(COLOR_OK, tr("CON_GOD") % ("ON" if hc.invincible else "OFF"))
+
+
+## Construir gratis: bloques, colocables y blueprints no gastan nada (ni devuelven al quitarlos).
+func _cmd_freebuild(args: PackedStringArray) -> String:
+	if args.size() >= 1:
+		BuildingSystem.free_build = args[0].to_lower() in ["on", "1", "true"]
+	else:
+		BuildingSystem.free_build = not BuildingSystem.free_build
+	return _paint(COLOR_OK, tr("CON_FREEBUILD") % ("ON" if BuildingSystem.free_build else "OFF"))
 
 
 func _cmd_noclip(_args: PackedStringArray) -> String:

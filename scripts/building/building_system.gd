@@ -3,7 +3,8 @@ extends Node3D
 
 ## Sistema de construcción: gestiona el modo build (targeting por raycast, colocación y borrado
 ## de bloques, rotación, tamaño de celda, materiales/coste y simetría de espejo), delegando el
-## almacenamiento en GridManager y las grids.
+## almacenamiento en GridManager y las grids. Los bloques se ponen y se quitan con el martillo en
+## la mano; un colocable elegido en la barra (antorcha) solo se pone.
 
 const CELL_SIZES: Array[float] = [0.25, 0.5, 1.0, 2.0]
 const PROP_WALL_TILT_DEG := 20.0
@@ -18,6 +19,14 @@ signal cell_size_changed(new_size: float)
 signal material_changed(material: BuildMaterial)
 signal mirror_changed()
 signal action_mode_changed(mode: ActionMode)
+signal recent_blocks_changed()
+
+## Bloques recientes que recuerda el menú de bloques.
+const RECENT_LIMIT := 8
+
+## Construir gratis (consola: freebuild): ni bloques, ni colocables, ni blueprints gastan nada, y
+## quitarlos tampoco devuelve nada (si no, sería una fuente de material infinita).
+static var free_build := false
 
 @export var current_planet: Node3D = null
 @export var cell_size: float = 1.0
@@ -62,6 +71,8 @@ var _target_prop_world: Transform3D = Transform3D.IDENTITY
 var _cached_grid_for_placement: GridBase = null
 var _hit_grid_for_alignment: GridBase = null
 var current_action_mode: ActionMode = ActionMode.BUILD
+## Últimos bloque+material elegidos en el menú, el más reciente primero.
+var recent_blocks: Array[ItemData] = []
 
 ## Cambia el material de construcción activo. Un id que no case (bloque genérico, sin material)
 ## solía dejar puesto el anterior, y el bloque salía del material elegido la vez anterior aunque
@@ -106,6 +117,25 @@ func get_current_material() -> BuildMaterial:
 func get_selected_block() -> BlockData:
 	return BlockDatabase.get_block(selected_block_id)
 
+
+## El item del bloque elegido con el material activo (su icono y su nombre, para la UI).
+func get_selected_block_item() -> ItemData:
+	var mat := get_current_material()
+	var item := BlockDatabase.get_block_material_item(selected_block_id, mat.material_id if mat else "")
+	return item if item else BlockDatabase.get_block_item(selected_block_id)
+
+## Elige un bloque+material del menú: el martillo lo pone desde ahora y vuelve al modo poner.
+func pick_block(item: ItemData) -> void:
+	select_block(item.block_id)
+	set_material_by_id(item.build_material_id)
+	set_action_mode(ActionMode.BUILD)
+	recent_blocks.erase(item)
+	recent_blocks.push_front(item)
+	if recent_blocks.size() > RECENT_LIMIT:
+		recent_blocks.resize(RECENT_LIMIT)
+	recent_blocks_changed.emit()
+
+
 func select_block(block_id: int) -> void:
 	if BlockDatabase.get_block(block_id):
 		selected_block_id = block_id
@@ -123,6 +153,8 @@ func is_prop_mode() -> bool:
 func select_placeable(item: ItemData) -> void:
 	selected_placeable = item
 	_has_prop_target = false
+	if item:
+		set_action_mode(ActionMode.BUILD)
 	placeable_changed.emit(item)
 
 
@@ -188,6 +220,14 @@ func decrease_cell_size() -> void:
 		cell_size_changed.emit(cell_size)
 
 
+func set_cell_size_index(index: int) -> void:
+	index = clampi(index, 0, CELL_SIZES.size() - 1)
+	if index != cell_size_index:
+		cell_size_index = index
+		cell_size = CELL_SIZES[cell_size_index]
+		cell_size_changed.emit(cell_size)
+
+
 func toggle_build_mode() -> void:
 	build_mode = !build_mode
 	build_mode_changed.emit(build_mode)
@@ -204,11 +244,16 @@ func set_build_mode(active: bool) -> void:
 			_on_build_mode_off()
 
 func toggle_action_mode() -> void:
-	if current_action_mode == ActionMode.BUILD:
-		current_action_mode = ActionMode.DESTROY
-	else:
-		current_action_mode = ActionMode.BUILD
+	set_action_mode(ActionMode.DESTROY if current_action_mode == ActionMode.BUILD else ActionMode.BUILD)
 
+
+## Poner o quitar. Con un colocable en la mano siempre es poner: quitar es cosa del martillo.
+func set_action_mode(mode: ActionMode) -> void:
+	if is_prop_mode():
+		mode = ActionMode.BUILD
+	if mode == current_action_mode:
+		return
+	current_action_mode = mode
 	clear_target()
 	action_mode_changed.emit(current_action_mode)
 
@@ -226,7 +271,7 @@ func get_player_basis() -> Basis:
 
 
 func can_afford_block(block_data: BlockData = null) -> bool:
-	if not _inventory:
+	if not _inventory or free_build:
 		return true
 
 	if is_prop_mode():
@@ -241,7 +286,7 @@ func can_afford_block(block_data: BlockData = null) -> bool:
 
 
 func _consume_block_cost(block_data: BlockData) -> bool:
-	if not _inventory:
+	if not _inventory or free_build:
 		return true
 
 	var mat := get_current_material()
@@ -628,14 +673,14 @@ func try_place_prop() -> bool:
 	if not _can_afford or not _target_prop_grid:
 		return false
 
-	if _inventory and _inventory.remove_item(selected_placeable, 1) < 1:
+	if _inventory and not free_build and _inventory.remove_item(selected_placeable, 1) < 1:
 		var consumed_equipped: bool = _equipped_matches_placeable() \
 			and _equipped_item_consumer.is_valid() and _equipped_item_consumer.call()
 		if not consumed_equipped:
 			return false
 
 	var placed := _target_prop_grid.place_prop(_target_prop_cell, _target_prop_face, selected_placeable.id, _target_prop_local)
-	if not placed and _inventory:
+	if not placed and _inventory and not free_build:
 		_inventory.add_item(selected_placeable, 1)
 	return placed
 
@@ -655,14 +700,14 @@ func _try_remove_prop(prop_node: Node3D) -> bool:
 
 
 func _refund_prop_item(item_id: StringName) -> void:
-	if not _inventory:
+	if not _inventory or free_build:
 		return
 	var item := ItemCatalog.get_item(item_id)
 	if item:
-		_inventory.add_item(item, 1)
+		_give(item, 1)
 
 func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
-	if not _inventory:
+	if not _inventory or free_build:
 		return
 
 	for prop_item_id in block_data.get("detached_props", []):
@@ -683,7 +728,32 @@ func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
 	var hp: float = block_data.get("hp", 1.0)
 	var refund := mini(cost, ceili(cost * clampf(hp, 0.0, 1.0)))
 	if refund > 0:
-		_inventory.add_item(build_mat.item, refund)
+		_give(build_mat.item, refund)
+
+
+## Al inventario; lo que no quepa cae al suelo delante del jugador, en vez de perderse.
+func _give(item: ItemData, amount: int) -> void:
+	BuildCost.give({item.id: amount}, _inventory, _player, _player_down())
+
+
+func _player_down() -> Vector3:
+	var down: Variant = _player.get("gravity_direction") if _player else null
+	return down if down is Vector3 and (down as Vector3).length_squared() > 0.0 else Vector3.DOWN
+
+
+## Desmonta la construcción entera de [grid_id] (su grupo de grids) como si se quitara bloque a
+## bloque: devuelve a cada uno lo que le queda de vida y los colocables enteros (con
+## construir gratis, nada). Devuelve lo devuelto.
+func dismantle_group(grid_id: String) -> Dictionary:
+	var group := GridManager.get_grid_group(grid_id)
+	if group.is_empty():
+		return {}
+	var refund := {} if free_build else BuildCost.of_grids(group, true)
+	if _mirror_active and mirror_grid and mirror_grid in group:
+		toggle_symmetry({})
+	GridManager.remove_grid_group(grid_id)
+	BuildCost.give(refund, _inventory, _player, _player_down())
+	return refund
 
 
 ## Familia de sonido de un bloque: manda la del propio BlockData (props, bloques fijos) y,
@@ -923,6 +993,23 @@ func _ship_fill_side_steps(grid: GridBase, slope: BlockData, base_cell: Vector3i
 		for y in range(floor_y, deck_y + 1):
 			_ship_place(grid, slope, base_cell + Vector3i(wide, y, narrow_z), starboard_rot, grid_basis, mat_id)
 			_ship_place(grid, slope, base_cell + Vector3i(-wide, y, narrow_z), port_rot, grid_basis, mat_id)
+
+
+func is_symmetry_active() -> bool:
+	return _mirror_active and mirror_axis != MirrorAxis.NONE
+
+
+## La simetría de la rueda del martillo: sin ella la pone en el bloque apuntado (eje X) y, puesta,
+## pasa al siguiente eje; después del Z se quita. false si para ponerla no se apunta a un bloque.
+func cycle_symmetry(ray_hit: Dictionary) -> bool:
+	if not is_symmetry_active():
+		toggle_symmetry(ray_hit)
+		return is_symmetry_active()
+	if mirror_axis == MirrorAxis.Z:
+		toggle_symmetry(ray_hit)
+	else:
+		switch_symmetry_plane()
+	return true
 
 
 ## Activa/desactiva la simetría; al activarla fija el centro en el bloque apuntado.
