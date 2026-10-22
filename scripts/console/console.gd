@@ -922,6 +922,10 @@ func _cmd_ai(args: PackedStringArray) -> String:
 		var state := ai.get_node_or_null(NodePath(ai.get_current_state()))
 		if state != null and state.has_method(&"debug_line"):
 			line += "  " + state.debug_line()
+		if npc.wounds != null and npc.is_wounded():
+			var health := npc.health_component
+			line += "  " + tr("CON_AI_WOUNDS") % [health.health, health.max_health, npc.wounds.bleed_rate(),
+				npc.wounds.pace(), npc.wounds.drops]
 		lines.append(line)
 	return "\n".join(lines)
 

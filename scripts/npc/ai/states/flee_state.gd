@@ -10,6 +10,9 @@ class_name FleeState
 @export var max_flee_time: float = 8.0
 ## Multiplicador de velocidad durante la huida. Se restaura en exit().
 @export var speed_multiplier: float = 1.6
+## Herido se cansa antes: cada huida dura como mucho esto (s) y luego se para (si sangra, deja un
+## charco ahí). Si lo siguen de cerca vuelve a huir. 0 = como sano.
+@export var wounded_flee_time: float = 25.0
 
 var _timer: float = 0.0
 var _original_speed: float = 0.0
@@ -17,6 +20,9 @@ var _original_speed: float = 0.0
 
 func enter() -> void:
 	_timer = max_flee_time
+	var npc := controller.npc as NPCController
+	if wounded_flee_time > 0.0 and npc != null and npc.is_wounded():
+		_timer = minf(_timer, wounded_flee_time)
 	_original_speed = controller.movement.speed
 	controller.movement.speed = _original_speed * speed_multiplier
 

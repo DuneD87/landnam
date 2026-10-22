@@ -877,6 +877,7 @@ CON_AI_WIND,wind %.1f s,fuelle %.1f s,
 CON_AI_TARGET,%s at %.1f m %s,%s a %.1f m %s,
 CON_AI_PATIENCE,patience %.1f/%.1f s,paciencia %.1f/%.1f s,
 CON_AI_TERRITORY_TARGET,"%s at %.1f m (warning %.0f, attack %.0f)","%s a %.1f m (aviso %.0f, ataque %.0f)",
+CON_AI_WOUNDS,"wounded: %.0f/%.0f health, bleeding %.2f/s, pace ×%.2f, %d blood drops","herida: vida %.0f/%.0f, sangra %.2f/s, paso ×%.2f, %d gotas de sangre",
 CON_ANCHORS_NO_BLOCKS,no blocks,sin bloques,
 CON_ANCHORS_NO_TERRAIN,planet_node has no voxel_terrain,planet_node no tiene voxel_terrain,
 ,,,## Console: seasons

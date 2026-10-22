@@ -366,7 +366,8 @@ sangra.
   deja ver, y donde se encharca es casi negra y brilla (la rugosidad va en la textura: líquida en lo
   espeso, mate en lo empapado). Hay tres charcos y cuatro salpicaduras (una mancha con gotas
   despedidas, el impacto de un goterón, un reguero de gotas y un salpicado), con salpicado fino
-  alrededor; cada vez, uno al azar. Se oscurecen al secarse y se van a los tres minutos.
+  alrededor; cada vez, uno al azar. Se oscurecen al secarse y se van a los tres minutos (el rastro
+  de una presa herida, a los siete).
 - **Sangre en el cuerpo** (`BloodStains`): cada golpe deja una mancha con regueros hacia abajo (una
   de tres), pegada al hueso más cercano. Solo pinta las mallas del personaje (llevan la capa de render 20,
   la única del `cull_mask` de las manchas). Se limpian al reaparecer o al reciclar la criatura.
@@ -377,6 +378,19 @@ sangra.
   recorre los grupos en cuya esfera cae, así que el coste no crece con el total. Tiñe a gotas las
   hojas que caen dentro, sobre su posición en reposo: la sangre va pegada a la hoja con el viento.
   Se secan y se van con los charcos.
+- **Presas heridas** (`CreatureWounds`, en las criaturas): cada golpe abre una herida que sangra
+  según el daño y el tipo (`BodyDamage.BLEED_PER_DAMAGE`, con vida media de 45 s) y le va quitando
+  vida sin respingo ni quejido (`HealthComponent.drain`). Mientras sangra deja gotas por donde pasa
+  (cada 5 m sangrando poco, cada 1,2 m sangrando mucho) y un charco donde se para más de 2,5 s.
+  Ese rastro va en su propia lista de `BloodPool` (160, para que la sangre de una pelea no se lo
+  lleve) y dura siete minutos, también en la hierba. Herida va más despacio
+  (`NPCController.wound_slowdown`: a media vida, al 70 %; la embestida de un ataque no se frena).
+  Una presa (la que huye cuando la hieren) huye como mucho `FleeState.wounded_flee_time` (25 s) de
+  cada vez y huye en cuanto tiene a su objetivo a menos de `wounded_wary_radius` (20 m). Mientras su
+  rastro siga fresco, el spawner no la recicla hasta `AmbientFaunaSpawner.TRACKED_RANGE` (600 m) ni la
+  retira, y su cadáver espera lo que dura el rastro. Un ciervo con una flecha en el costado pierde una
+  veintena de vida desangrándose, huye unos 25 s más despacio y deja rastro un par de minutos: se le
+  sigue hasta donde se para. `ai` en la consola dice cuánto sangra cada criatura herida y a qué paso va.
 - **Desangrarse**: con mucha sangre perdida por segundo o poca vida, el mundo pierde color y los
   bordes se oscurecen a cada latido (`blood_loss.gdshader`), y se oye el corazón cada vez más
   deprisa.

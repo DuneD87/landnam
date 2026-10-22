@@ -47,8 +47,9 @@ static func register_globals() -> void:
 			RenderingServer.global_shader_parameter_add(entry[0], entry[1], entry[2])
 
 
-## Sangre sobre la vegetación en una esfera de [radius] m alrededor de [point] (mundo).
-static func add(point: Vector3, radius: float) -> void:
+## Sangre sobre la vegetación en una esfera de [radius] m alrededor de [point] (mundo), que dura
+## [lifetime] s (el rastro de una presa herida, más que la de un golpe).
+static func add(point: Vector3, radius: float, lifetime := LIFETIME) -> void:
 	if SettingsManager.gore_level() == SettingsManager.GORE_OFF or not _ensure_node():
 		return
 	var center := point + _offset()
@@ -58,9 +59,10 @@ static func add(point: Vector3, radius: float) -> void:
 		if d < maxf(splat.radius, radius) * MERGE:
 			splat.radius = minf(maxf(splat.radius, d + radius), MAX_RADIUS)
 			splat.born = now
+			splat.life = maxf(splat.life, lifetime)
 			_upload()
 			return
-	_splats.append({center = center, radius = radius, born = now})
+	_splats.append({center = center, radius = radius, born = now, life = lifetime})
 	while _splats.size() > MAX:
 		_splats.pop_front()
 	_upload()
@@ -112,7 +114,7 @@ static func _upload() -> void:
 			var age: float = now - splat.born
 			# Al final se encoge hasta desaparecer; el radio va en milímetros (parte entera, al menos
 			# 1: 0 es hueco y cortaría el grupo) y lo seca que está en la parte decimal.
-			var radius: float = splat.radius * clampf((LIFETIME - age) / FADE, 0.0, 1.0)
+			var radius: float = splat.radius * clampf((splat.life - age) / FADE, 0.0, 1.0)
 			var dry := clampf(age / DRY_TIME, 0.0, 0.99)
 			_image.set_pixel(g * GROUP_SIZE + k, 0, Color(center.x, center.y, center.z, maxf(floorf(radius * 1000.0), 1.0) + dry))
 			group_low = group_low.min(center - Vector3.ONE * radius)
@@ -163,7 +165,7 @@ func _process(delta: float) -> void:
 	# Secarse y apagarse es lento: basta con revisarlas cada segundo.
 	_tick = 1.0
 	var now := Time.get_ticks_msec() / 1000.0
-	_splats = _splats.filter(func(splat: Dictionary) -> bool: return now - splat.born < LIFETIME)
+	_splats = _splats.filter(func(splat: Dictionary) -> bool: return now - splat.born < splat.life)
 	_upload()
 
 

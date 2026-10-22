@@ -59,6 +59,18 @@ func take_damage(amount: float, source: Node = null) -> void:
 		died.emit()
 
 
+## Pierde [amount] de vida sin que sea un golpe (desangrarse): avisa del cambio y de la muerte,
+## pero no con damaged, así que quien la lleva no reacciona como a un golpe (respingo, quejido).
+func drain(amount: float) -> void:
+	if is_dead or invincible or amount <= 0.0:
+		return
+	health = max(0.0, health - amount)
+	health_changed.emit(health, max_health)
+	if health <= 0.0:
+		is_dead = true
+		died.emit()
+
+
 ## Aplica un golpe de combate: guardia, parte golpeada y armadura (Armor). Devuelve el daño
 ## descontado.
 func receive_hit(info: DamageInfo) -> float:

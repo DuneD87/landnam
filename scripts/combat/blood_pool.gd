@@ -2,11 +2,11 @@ class_name BloodPool
 extends Decal
 
 ## Sangre en el suelo: un charco que crece despacio (bajo un miembro cortado, bajo un cuerpo) o una
-## salpicadura (las gotas que caen de un muñón). Un Decal apoyado en el suelo bajo el punto, en la
-## dirección de la gravedad del planeta, que pinta lo que haya a unos centímetros: el terreno y lo
-## que esté tirado encima (el miembro, el cuerpo, las botas del que lo pisa). Donde es fina empapa
-## el suelo y lo deja ver; donde se encharca es casi negra y brilla. Se va oscureciendo al secarse y
-## desaparece pasado un rato. Las texturas (varias de cada, una al azar) las hornea
+## salpicadura (las gotas que caen de un muñón, el rastro de una presa herida). Un Decal apoyado en
+## el suelo bajo el punto, en la dirección de la gravedad del planeta, que pinta lo que haya a unos
+## centímetros: el terreno y lo que esté tirado encima (el miembro, el cuerpo, las botas del que lo
+## pisa). Donde es fina empapa el suelo y lo deja ver; donde se encharca es casi negra y brilla. Se
+## va oscureciendo al secarse y desaparece pasado un rato. Las texturas (varias de cada, una al azar) las hornea
 ## tools/combat/bake_blood_decals.gd.
 
 ## Las texturas de cada tipo: [color, relieve, oclusión-rugosidad-metal].
@@ -52,26 +52,35 @@ const MAX_POOLS := 24
 const MAX_SPLATS := 96
 const LIFETIME := 180.0
 const FADE := 15.0
+## El rastro de una criatura herida (CreatureWounds) va aparte, para que la sangre de una pelea no
+## se lleve las gotas que hay que seguir, y dura más: da tiempo a ir tras él.
+const MAX_TRAIL := 160
+const TRAIL_LIFETIME := 420.0
 ## Lo que tarda en secarse (se oscurece).
 const DRY_TIME := 90.0
 ## Alto de la caja que proyecta: el suelo y lo que esté tirado en él, no las rodillas del que pasa.
 const DEPTH := 0.24
 ## Hasta dónde busca el suelo bajo el punto (m).
 const REACH := 3.0
+## Ya extendida, secarse es lento: basta con repasarla cada tanto (s).
+const SETTLED_STEP := 0.5
 
 static var _pools: Array[BloodPool] = []
 static var _splats: Array[BloodPool] = []
+static var _trail: Array[BloodPool] = []
 
 var _target := Vector2.ONE
 var _grow_time := 1.0
+var _lifetime := LIFETIME
 var _age := 0.0
+var _since := 0.0
 
 
 ## Deja sangre en el suelo bajo [point], buscándolo hacia [gravity] contra [mask]: un charco de
-## [size] m que tarda [grow_time] s en extenderse, o una salpicadura si [splat]. null si no hay
-## suelo cerca.
+## [size] m que tarda [grow_time] s en extenderse, o una salpicadura si [splat]. Si es del rastro
+## de una criatura herida, [trail]. null si no hay suelo cerca.
 static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float, grow_time: float,
-		mask: int, splat := false) -> BloodPool:
+		mask: int, splat := false, trail := false) -> BloodPool:
 	if context == null or not context.is_inside_tree() \
 			or SettingsManager.gore_level() == SettingsManager.GORE_OFF:
 		return null
@@ -99,6 +108,7 @@ static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float
 	pool.distance_fade_begin = 45.0
 	pool.distance_fade_length = 15.0
 	pool._grow_time = maxf(grow_time, 0.05)
+	pool._lifetime = TRAIL_LIFETIME if trail else LIFETIME
 	var aspect := randf_range(0.8, 1.25)
 	pool._target = Vector2(size * aspect, size / aspect)
 	pool.size = Vector3(size * 0.08, DEPTH, size * 0.08)
@@ -113,21 +123,22 @@ static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float
 	pool.global_transform = Transform3D(Basis(side, up, side.cross(up)), hit.position)
 	pool.add_to_group(&"floating_origin")
 	# Las hojas de la hierba y los arbustos de encima también se manchan.
-	BloodFoliage.add(hit.position, size * (0.8 if splat else 0.55))
-	var list := _splats if splat else _pools
+	BloodFoliage.add(hit.position, size * (0.8 if splat else 0.55), pool._lifetime)
+	var list := _trail if trail else (_splats if splat else _pools)
 	list.append(pool)
-	while list.size() > (MAX_SPLATS if splat else MAX_POOLS):
+	while list.size() > (MAX_TRAIL if trail else (MAX_SPLATS if splat else MAX_POOLS)):
 		var old: BloodPool = list.pop_front()
 		if is_instance_valid(old):
 			old.queue_free()
 	return pool
 
 
-## Cuántos charcos y salpicaduras hay y el más cercano a [from] (consola, `blood`).
+## Cuántos charcos y salpicaduras hay (las del rastro, con las salpicaduras) y el más cercano a
+## [from] (consola, `blood`).
 static func report(from: Vector3) -> String:
 	var nearest := INF
 	var near_size := Vector3.ZERO
-	for list in [_pools, _splats]:
+	for list in [_pools, _splats, _trail]:
 		for pool: BloodPool in list:
 			if is_instance_valid(pool) and pool.global_position.distance_to(from) < nearest:
 				nearest = pool.global_position.distance_to(from)
@@ -135,23 +146,30 @@ static func report(from: Vector3) -> String:
 	if nearest == INF:
 		return TranslationServer.translate(&"CON_BLOOD_NONE")
 	return TranslationServer.translate(&"CON_BLOOD_REPORT") % [_pools.size(),
-			_splats.size(), nearest, near_size.x, near_size.z]
+			_splats.size() + _trail.size(), nearest, near_size.x, near_size.z]
 
 
 func _exit_tree() -> void:
 	_pools.erase(self)
 	_splats.erase(self)
+	_trail.erase(self)
 
 
 func _process(delta: float) -> void:
 	_age += delta
+	if _age >= _lifetime:
+		queue_free()
+		return
+	if _age > _grow_time and _age < _lifetime - FADE:
+		_since += delta
+		if _since < SETTLED_STEP:
+			return
+		_since = 0.0
 	# Se extiende deprisa al principio y cada vez más despacio.
 	var grow := 1.0 - pow(1.0 - clampf(_age / _grow_time, 0.0, 1.0), 2.5)
 	var extent := _target * lerpf(0.08, 1.0, grow)
 	size = Vector3(extent.x, DEPTH, extent.y)
 	var dry := clampf(_age / DRY_TIME, 0.0, 1.0)
-	var fade := clampf((LIFETIME - _age) / FADE, 0.0, 1.0)
+	var fade := clampf((_lifetime - _age) / FADE, 0.0, 1.0)
 	modulate = Color(1.0, 1.0, 1.0).lerp(Color(0.55, 0.42, 0.42), dry)
 	modulate.a = fade
-	if _age >= LIFETIME:
-		queue_free()

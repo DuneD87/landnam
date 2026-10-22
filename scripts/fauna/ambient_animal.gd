@@ -79,6 +79,13 @@ func in_play() -> bool:
 	return active
 
 
+## Hay un rastro fresco hasta ella (una presa herida que sangra, o su cadáver al final del
+## rastro): el spawner no la recicla por lejos que esté (hasta AmbientFaunaSpawner.TRACKED_RANGE) ni
+## la retira porque sobre.
+func tracked() -> bool:
+	return false
+
+
 ## Detail level for the current distance to the observer, called by the spawner while the
 ## creature stays in play. Fish and birds are cheap and ignore it; heavy skeletal creatures
 ## use it to drop their physics and AI rate instead of being recycled.

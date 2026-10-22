@@ -15,6 +15,9 @@ var _elapsed: float = 0.0
 var _idle_wait: float = 0.0
 var _idle_from := Vector3.ZERO
 const IDLE_WAIT_MAX := 4.0
+## Hasta dónde (m) sigue en juego una criatura con rastro fresco (AmbientAnimal.tracked) aunque
+## pase de recycle_distance: lo que da tiempo a seguir a una presa herida.
+const TRACKED_RANGE := 600.0
 
 ## Presupuesto COMPARTIDO por todas las especies y por todos los ticks de recuperación de
 ## un frame. Una consulta/alta individual no se puede interrumpir; se deja de iniciar trabajo
@@ -100,7 +103,8 @@ func update_population(deadline_usec: int = 0) -> void:
 		if not animal.in_play():
 			continue
 		var distance := observer.global_position.distance_to(animal.global_position)
-		if distance > recycle and (distance > recycle * 1.5 or not _in_view(animal.global_position)):
+		if distance > recycle and (distance > recycle * 1.5 or not _in_view(animal.global_position)) \
+				and not (distance < TRACKED_RANGE and animal.tracked()):
 			animal.deactivate()
 		else:
 			animal.set_detail(distance)
@@ -171,7 +175,7 @@ func _retire_surplus(count: int, active_target: int) -> int:
 	for animal in _pool:
 		if count - leaving <= active_target:
 			break
-		if not animal.active or not animal.in_play():
+		if not animal.active or not animal.in_play() or animal.tracked():
 			continue
 		var where := animal.global_position
 		if not _in_view(where) and where.distance_to(observer.global_position) > near:
@@ -182,7 +186,8 @@ func _retire_surplus(count: int, active_target: int) -> int:
 	for animal in _pool:
 		if count - leaving <= active_target:
 			break
-		if animal.active and animal.in_play() and not animal.retiring and _in_view(animal.global_position):
+		if animal.active and animal.in_play() and not animal.retiring and not animal.tracked() \
+				and _in_view(animal.global_position):
 			animal.retire()
 			leaving += 1
 	return count

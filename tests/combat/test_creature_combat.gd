@@ -47,6 +47,7 @@ func _run() -> void:
 	await _check_pack_no_bites()
 	await _check_variants()
 	await _check_pack_spawn()
+	await _check_blood_trail()
 	print("CREATURE COMBAT TESTS: %d failures" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
 
@@ -872,6 +873,112 @@ func _check_pack_spawn() -> void:
 	spawner.queue_free()
 	observer.queue_free()
 	planet.queue_free()
+
+
+## Un ciervo con una flecha en el costado: sangra (pierde vida sin el respingo de un golpe), va más
+## despacio, huye menos rato y recela de más lejos; deja gotas por donde pasa y un charco donde se
+## para; el spawner no lo recicla mientras su rastro siga fresco; al salir del pool vuelve sano; y
+## con heridas de sobra se desangra.
+func _check_blood_trail() -> void:
+	var ground := _wall(Vector3(0, -0.5, 0), Vector3(800, 1, 800))
+	var deer := (load("%s/Deer.tscn" % ANIMALS_DIR) as PackedScene).instantiate() as NPCController
+	add_child(deer)
+	deer.apply_variant(null)
+	deer.perception.set_physics_process(false)
+	deer.global_transform = Transform3D.IDENTITY
+	var hunter := Node3D.new()
+	add_child(hunter)
+	hunter.global_position = Vector3(0, 0, -40)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var wounds := deer.wounds
+	var health := deer.health_component
+	check(wounds != null and not wounds.is_processing() and wounds.pace() == 1.0 and not deer.tracked(),
+		"un ciervo sano no sangra, va a su paso y no deja rastro")
+
+	var info := DamageInfo.create(36.0, hunter, Vector3(0.3, 1.0, 0.2), Vector3(0, 0, 1), 12.0)
+	info.kind = ItemData.DamageKind.PIERCE
+	deer.hurtboxes[0].receive(info)
+	var rate := wounds.bleed_rate()
+	check(rate > 0.2 and rate < 0.5 and wounds.is_processing(),
+		"la flecha (%.0f de daño) abre una herida que sangra %.2f vida/s" % [info.mitigated, rate])
+	var flee := deer.ai_controller.get_node("FleeState") as FleeState
+	check(deer.ai_controller.get_current_state() == &"FleeState" and flee._timer <= flee.wounded_flee_time,
+		"huye, pero herido solo %.0f s (sano, %.0f)" % [flee._timer, flee.max_flee_time])
+	var pace := wounds.pace()
+	check(is_equal_approx(pace, 1.0 - (1.0 - health.get_health_ratio()) * deer.wound_slowdown) and pace < 0.85,
+		"herido va más despacio: al %.0f %% con %.0f de vida" % [pace * 100.0, health.health])
+
+	# Huye 120 m a 6 m/s: gotas en el suelo bajo la herida cada pocos metros.
+	deer.is_hit = false
+	var before := health.health
+	var trail_before := BloodPool._trail.size()
+	for i in 200:
+		deer.global_position += Vector3(0, 0, 0.6)
+		wounds._process(CreatureWounds.TICK)
+	var dropped := wounds.drops
+	var new_drops := BloodPool._trail.slice(trail_before)
+	var on_path := new_drops.all(func(pool: BloodPool) -> bool:
+		return absf(pool.global_position.y) < 0.05 and absf(pool.global_position.x - 0.3) < 0.3)
+	check(dropped >= 25 and dropped <= 70 and new_drops.size() == dropped and on_path,
+		"en 120 m deja %d gotas, en el suelo bajo la herida" % dropped)
+	check(health.health < before and not deer.is_hit,
+		"se desangra sin respingo: de %.0f a %.0f de vida en 20 s" % [before, health.health])
+
+	# Parado, un charco (uno, no uno por tick).
+	for i in 60:
+		wounds._process(CreatureWounds.TICK)
+	check(wounds.drops == dropped + 1, "parado 6 s deja un charco (%d manchas nuevas)" % (wounds.drops - dropped))
+
+	var idle := deer.ai_controller.get_node("IdleState") as IdleState
+	deer.ai_controller.target = hunter
+	hunter.global_position = deer.global_position + Vector3(0, 0, 15)
+	idle.enter()
+	check(idle.update(0.1) == &"FleeState",
+		"herido, huye de quien tiene a 15 m (sano, a %.0f)" % idle.flee_trigger_radius)
+
+	# Con el rastro fresco el spawner no lo recicla por lejos (hasta TRACKED_RANGE).
+	var profile := GroundFaunaProfile.new()
+	profile.animal_scene = load("%s/Deer.tscn" % ANIMALS_DIR)
+	profile.population = 4
+	profile.recycle_distance = 180.0
+	var habitat := AmbientFaunaHabitat.new()
+	var observer := Node3D.new()
+	add_child(observer)
+	var spawner := AmbientFaunaSpawner.new()
+	add_child(spawner)
+	spawner.set_physics_process(false)
+	spawner.setup(profile, habitat, observer)
+	spawner._pool.append(deer)
+	observer.global_position = deer.global_position + Vector3(400, 0, 0)
+	spawner.update_population()
+	check(deer.tracked() and deer.in_play(), "a 400 m, con el rastro fresco, el spawner no lo recicla")
+	observer.global_position = deer.global_position + Vector3(AmbientFaunaSpawner.TRACKED_RANGE + 50.0, 0, 0)
+	spawner.update_population()
+	check(not deer.in_play(), "a %.0f m, sí" % (AmbientFaunaSpawner.TRACKED_RANGE + 50.0))
+	spawner._pool.clear()
+	spawner.queue_free()
+	observer.queue_free()
+
+	# Al salir del pool, sano y sin rastro.
+	deer.activate(Vector3.ZERO, habitat, RandomNumberGenerator.new())
+	check(wounds.bleed_rate() == 0.0 and not wounds.is_processing() and not deer.tracked() and wounds.pace() == 1.0,
+		"al volver a salir del pool está sano y sin rastro")
+
+	# Con heridas de sobra se desangra: muere sin que nadie le pegue.
+	deer.perception.set_physics_process(false)
+	await get_tree().physics_frame
+	info = DamageInfo.create(health.max_health * 0.8, hunter, Vector3(0, 0.8, 0), Vector3(1, 0, 0), 12.0)
+	info.kind = ItemData.DamageKind.SLASH
+	deer.hurtboxes[0].receive(info)
+	var seconds := 0.0
+	while not health.is_dead and seconds < 120.0:
+		wounds._process(1.0)
+		seconds += 1.0
+	check(health.is_dead and deer._is_dying and deer.tracked(),
+		"con un tajo de %.0f se desangra en %.0f s, y su rastro sigue fresco" % [info.mitigated, seconds])
+	hunter.queue_free()
+	ground.queue_free()
 
 
 func _wall(center: Vector3, size: Vector3) -> StaticBody3D:

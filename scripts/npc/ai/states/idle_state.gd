@@ -23,7 +23,11 @@ func enter() -> void:
 
 
 func update(delta: float) -> StringName:
-	if flee_trigger_radius > 0.0 and controller.is_target_within(flee_trigger_radius):
+	var radius := flee_trigger_radius
+	var npc := controller.npc as NPCController
+	if npc != null:
+		radius = npc.threat_radius(radius)
+	if radius > 0.0 and controller.is_target_within(radius):
 		return threat_state
 
 	_timer -= delta

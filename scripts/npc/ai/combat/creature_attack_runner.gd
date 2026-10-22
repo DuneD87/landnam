@@ -145,7 +145,9 @@ func update(delta: float) -> bool:
 		if attack.lunge_min_distance > 0.0:
 			room = maxf(0.0, _controller.distance_to_target() - attack.lunge_min_distance * _npc.body_size)
 		var left := maxf((lunge.y - time) / maxf(attack.speed, 0.01), delta)
-		movement.speed = maxf(minf(full, room / left), AIController.TURN_ONLY_SPEED)
+		# Herida no avanza menos: lo que frena (Movement.speed_scale, NPCController.wound_slowdown)
+		# es para andar y correr, y el alcance del golpe lo mide la animación.
+		movement.speed = maxf(minf(full, room / left), AIController.TURN_ONLY_SPEED) / maxf(movement.speed_scale, 0.1)
 		_controller.desired_direction = _forward()
 	for i in attack.hits.size():
 		var hit := attack.hits[i]

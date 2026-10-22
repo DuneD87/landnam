@@ -78,6 +78,12 @@ var _is_dying: bool = false
 ## Lo que da al despellejarlo (HuntingLoot), para un adulto de tamaño 1: se escala con el suyo. Sin
 ## él, carne y piel según el grosor de su cuerpo.
 @export var butcher_loot: LootTable
+## Lo que frena estar herido: a vida v (0-1) va a 1 - (1 - v) × esto de su velocidad (con 0,6, a
+## media vida al 70 %). 0 = herido corre igual.
+@export_range(0.0, 1.0) var wound_slowdown: float = 0.6
+## Una presa (la que huye cuando la hieren), herida ya no se fía: huye en cuanto tiene a su objetivo
+## a menos de esto (m), si llega a percibirlo. 0 = como sana.
+@export var wounded_wary_radius: float = 20.0
 
 @export_group("Variedad")
 ## Variantes de la especie (CreatureVariant): al aparecer sortea una y su tamaño dentro de ella.
@@ -166,11 +172,15 @@ func _ready() -> void:
 
 	ai_controller.npc = self
 	ai_controller.movement = movement
+	var provoked := provoked_state if provoked_state != &"" else detect_state
+	_prey = provoked != &"" and ai_controller.get_node_or_null(NodePath(provoked)) is FleeState
 
 	if not Engine.is_editor_hint():
 		_capture_base()
 	_build_hurtboxes()
 	_gore = AnimalGore.attach(self, npc_model, health_component)
+	if not Engine.is_editor_hint():
+		wounds = CreatureWounds.attach(self, health_component)
 	_setup_gait()
 	# Uno suelto (consola, escena) sortea aquí; los del pool, otra vez al salir (activate).
 	if not Engine.is_editor_hint():
@@ -249,12 +259,13 @@ func _physics_step(delta: float) -> void:
 			is_hit = false
 		movement.ai_direction = Vector3.ZERO
 
+	movement.speed_scale = wounds.pace() if wounds != null else 1.0
 	movement.handle_run_movement(delta, ai_controller.is_attacking, gravity_direction, null, AnimationController.Anim.IDLE, AnimationController.Anim.RUN)
 	movement.handle_idle_movement(delta, gravity_direction, is_on_floor(), planet.gravity_strength, velocity)
 
 	current_animation = movement.current_animation
 	if current_animation == AnimationController.Anim.RUN and sprint_anim_speed > 0.0 \
-			and movement.speed >= sprint_anim_speed * body_size:
+			and movement.speed * movement.speed_scale >= sprint_anim_speed * body_size:
 		current_animation = AnimationController.Anim.SPRINT
 	if ai_controller.is_attacking:
 		current_animation = AnimationController.Anim.ATTACK_1
@@ -475,6 +486,10 @@ var _pack: Array[NPCController] = []
 var _variant_rng: RandomNumberGenerator
 ## Mutilaciones al morir (solo los esqueletos con tabla en AnimalGore).
 var _gore: AnimalGore
+## Lo que sangra, el rastro que deja y lo que la frena (fuera del editor).
+var wounds: CreatureWounds
+## Huye cuando la hieren (su provoked_state es un FleeState).
+var _prey := false
 var _skeleton: Skeleton3D
 var _action_channel: CreatureActionChannel
 ## Dónde vive (donde apareció), en el marco del planeta: así sobrevive a los rebases del origen
@@ -630,6 +645,24 @@ func apply_variant(v: CreatureVariant, size: float = -1.0) -> void:
 		_head_sphere.radius = head_radius * body_size
 
 
+## Si le falta vida (un golpe, una caída).
+func is_wounded() -> bool:
+	return health_component.health < health_component.max_health
+
+
+## Radio (m) en el que reacciona a su objetivo un estado que lo vigila con [base] (IdleState,
+## WanderState): una presa herida ya no se fía (wounded_wary_radius).
+func threat_radius(base: float) -> float:
+	if base > 0.0 and _prey and is_wounded():
+		return maxf(base, wounded_wary_radius)
+	return base
+
+
+## Hay un rastro de sangre fresco hasta ella (CreatureWounds.tracked).
+func tracked() -> bool:
+	return wounds != null and wounds.tracked()
+
+
 ## Si su variante sabe hacer el ataque [id] del perfil.
 func can_use_attack(id: StringName) -> bool:
 	return variant == null or not id in variant.excluded_attacks
@@ -734,6 +767,8 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	inventory.clear()
 	BloodStains.clear(self)
 	Carcass.clear(self)
+	if wounds != null:
+		wounds.restore()
 	if _gore != null:
 		_gore.reset()
 	is_dead = false
@@ -896,7 +931,9 @@ func _on_died() -> void:
 	ai_controller.transition_to(&"DeathState")
 	var life := _life_id
 	_bleed_out(life)
-	get_tree().create_timer(corpse_duration).timeout.connect(
+	# Si ha sangrado por el camino, el cadáver espera al final del rastro lo que dura el rastro.
+	var duration := maxf(corpse_duration, BloodPool.TRAIL_LIFETIME) if tracked() else corpse_duration
+	get_tree().create_timer(duration).timeout.connect(
 		func(): if is_instance_valid(self) and _life_id == life: _retire()
 	)
 
