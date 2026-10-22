@@ -306,7 +306,7 @@ func _process(delta: float) -> void:
 
 	# Con el calendario acelerado los eventos duran proporcionalmente menos: el tiempo sigue a la
 	# estación. La transición se acorta igual, sin bajar de MIN_TRANSITION_TIME.
-	var speed := _calendar_speed()
+	var speed := _calendar_speed() * WorldTime.speed
 	_elapsed += delta * speed
 	# Antes de aplicar nada: el estado sumergido apaga precipitación y niebla de este frame.
 	_update_submersion()

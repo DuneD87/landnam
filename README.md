@@ -17,6 +17,7 @@ Abre `project.godot` y ejecuta la escena principal configurada en él.
 | Audio | `AudioManager` mantiene el catálogo y las voces. Agua y clima calculan ganancias; `AmbientBedMixer` crea sus pistas y las funde. |
 | Objetos | `ItemData` y sus rasgos describen los objetos; `data/items/` y `data/recipes/` contienen sus recursos. `ItemCatalog.get_item(id)` los busca por id. |
 | Guardado y ajustes | Los autoloads `GameManager` y `Settings` mantienen partidas y preferencias. |
+| Tiempo y descanso | `WorldTime` comparte la aceleración del reloj; `RestController` permite dormir en un lecho y recuperar descanso durante la noche. |
 | Utilidades | En `scripts/core/`: `PhysicsLayers` y `RenderLayers` (todas las capas del proyecto), `Raycast` (rayos y sondeo de suelo), `ProcMesh` (mallas por código) y `AnimGraph` (montaje del AnimationTree). `HumanRig` nombra los huesos del esqueleto humano y `BurstParticles` crea los emisores de una ráfaga. |
 
 La configuración JSON conserva su formato. Los datos compartidos de terreno se consultan como
@@ -38,6 +39,7 @@ godot --headless --path . res://tests/ui/test_blueprints.tscn
 godot --headless --path . res://tests/combat/test_combat_core.tscn
 godot --headless --path . res://tests/combat/test_targeting.tscn
 godot --headless --path . res://tests/survival/test_cold_exposure.tscn
+godot --headless --path . res://tests/survival/test_rest.tscn
 godot --headless --path . res://tests/console/test_toon_command.tscn
 ```
 

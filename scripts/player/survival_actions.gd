@@ -202,6 +202,22 @@ static func _is_bird(body: Node3D) -> bool:
 	return corpse != null and corpse.plume.a > 0.0
 
 
+## Abre el descanso en el lecho de al lado, si lo hay.
+func open_nearby_bedroll() -> bool:
+	var bed := Bedroll.nearest(get_tree(), _player.global_position)
+	if bed == null:
+		return false
+	# El lecho suele estar junto al fuego: deja usar la hoguera o el banco si están más cerca.
+	var distance := bed.global_position.distance_to(_player.global_position)
+	for other in [Campfire.nearest(get_tree(), _player.global_position),
+			Workstation.nearest(get_tree(), _player.global_position)]:
+		if other != null and other.global_position.distance_to(_player.global_position) < distance:
+			return false
+	_player.inventory_ui.close()
+	_player.resting.open(bed)
+	return true
+
+
 ## Abre la hoguera de al lado, si la hay.
 func open_nearby_campfire() -> bool:
 	var fire := Campfire.nearest(get_tree(), _player.global_position)

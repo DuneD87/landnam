@@ -50,7 +50,7 @@ llevan `auto_translate_mode = AUTO_TRANSLATE_MODE_DISABLED`.
 | `INV_`, `CRAFT_`, `CARD_`, `SLOT_`, `CHAR_` | Inventario, fabricar, ficha del objeto, huecos de equipo, muñeco |
 | `ITEM_<ID>`, `ITEM_<ID>_DESC` | Nombre y descripción de cada objeto, por su id (`ITEM_BLOCK_CUBE_STONE` para los bloques) |
 | `CAT_`, `GROUP_`, `DMG_`, `REGION_`, `TRAIT_`, `CURE_`, `STAT_`, `NEED_`, `TEMP_` | Clasificación de objetos, tipos de golpe, partes que cubre la ropa, rasgos, vida y necesidades |
-| `SURV_`, `REMEDY_`, `STATUS_`, `HUD_` | Avisos de supervivencia, remedios, estados, HUD de combate |
+| `SURV_`, `SLEEP_`, `REMEDY_`, `STATUS_`, `HUD_` | Avisos de supervivencia, descanso, remedios, estados, HUD de combate |
 | `MAP_`, `WATER_`, `COMPASS_` | Mapa del mundo |
 | `BUILD_`, `BLOCK_`, `SHIP_`, `GRID_` | Construcción |
 | `CON_`, `CON_HELP_<COMANDO>`, `SEASON_` | Consola: respuestas y ayuda de cada comando |

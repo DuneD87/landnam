@@ -39,7 +39,7 @@ avisa desde **Frío**, cuando empieza a quitar vida. En la ficha de atributos
 |---|---|---|---|
 | Hambre | de lleno a vacío en 45 min; más deprisa con esfuerzo (lo que gasta aguante, nadar) y con frío | — | 0,25 de vida por segundo |
 | Sed | en 30 min; más deprisa con esfuerzo y con calor | — | 0,4 de vida por segundo |
-| Descanso | en 60 min despierto; algo más con esfuerzo | — | el aguante se recupera al 40 % |
+| Descanso | en una jornada de 16 h del mundo despierto; algo más con esfuerzo | una noche de 8 h durmiendo en un lecho | el aguante se recupera al 40 % |
 | Cordura | a oscuras (en 40 min de noche cerrada; a la luz de una hoguera, no), muy cansado y con hambre o sed; la carne cruda, un 6 % | de día, si se ha descansado; la carne asada, un 3 % | (sin efectos todavía) |
 | Oxígeno | 40 s con la cabeza bajo el agua | en 4 s al sacarla | 8 de vida por segundo |
 
@@ -48,6 +48,39 @@ para las necesidades, pero sí el daño.
 
 El aguante también se recupera más despacio con mucho frío (hasta un 40 %
 menos) y con hambre o sed (un 30 % menos).
+
+### Descansar y pasar el tiempo
+
+El descanso alcanza para una jornada: **16 horas despierto y 8 horas de sueño**
+forman un día completo. Las horas salen de la duración real de una vuelta del
+sol, no de un temporizador independiente; si se cambia la velocidad de
+rotación del sol, el cansancio sigue el nuevo día. Con el reloj solar detenido
+para depurar, el descanso no baja y no se puede empezar a dormir.
+
+Se fabrica un **lecho de pieles** a mano con 4 ramas, 8 fibras vegetales y
+2 pieles. Se planta desde la barra rápida en suelo llano, como una hoguera.
+**E** junto a él abre el panel: **Dormir 8 horas** o **Recoger lecho**.
+
+Durmiendo, el cuerpo recupera descanso y hasta un 35 % de cordura en una
+noche completa. El consumo de comida y agua baja al 60 % del reposo despierto.
+El mundo corre a **×60**: con el día actual de una hora real, ocho horas de
+juego pasan en unos **20 segundos**. Se puede pulsar **Despertarse**, **E** o
+**Escape** para terminar antes. El tiempo vuelve al ritmo anterior al terminar.
+
+La temperatura y las demás necesidades siguen corriendo. Recibir daño
+(incluido el frío), morir, entrar en agua, perder el lecho o salir de la
+partida interrumpe el sueño. La reserva de descanso y el lecho se guardan;
+al cargar se está despierto y el reloj vuelve a ×1.
+
+`WorldTime` comparte el ritmo del mundo entre el sol y el calendario, las
+necesidades, la sucesión del clima, las hogueras (combustible y cocina) y los
+estados duraderos. La física, el movimiento, las animaciones y la interfaz
+mantienen su ritmo normal. La consola permite reutilizarlo con
+`time speed <1-120>`; `time speed 1` vuelve al ritmo normal. La aceleración
+de estaciones de `season speed` sigue siendo una herramienta aparte.
+
+`tests/survival/test_rest.tscn` comprueba la jornada, el sueño completo,
+interrupciones, vuelta al ritmo anterior, cocina, estados y guardado del lecho.
 
 ### Temperatura
 
@@ -99,8 +132,8 @@ y daño usando el clima de la Tierra, sin cargar una partida completa.
 | `needs empty` | Hambre, sed, descanso, cordura y oxígeno a cero |
 | `needs pause [on\|off]` | Las congela para mirarlas |
 | `needs rate <x>` | Las acelera (1 = normal) |
+| `time [speed <1-120>]` | Consulta o cambia la velocidad compartida del mundo |
 
 ## Pendiente
 
-- Dormir: el descanso solo baja.
 - Los efectos de la cordura baja.

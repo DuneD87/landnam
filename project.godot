@@ -25,6 +25,7 @@ buses/default_bus_layout="uid://wun7716afl1f"
 
 [autoload]
 
+WorldTime="*res://scripts/autoload/world_time.gd"
 GameManager="*uid://bn26i2o3uyxxf"
 BlockDatabase="*uid://c3g5h784f1gjq"
 GridManager="*uid://d2t2hkl7mbh3b"

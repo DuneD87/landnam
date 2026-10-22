@@ -269,6 +269,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("freebuild", "freebuild [on|off]", "CON_HELP_FREEBUILD", _cmd_freebuild))
 	_add(ConsoleCommand.new("sun", "sun <azimuth> [elevation] | sun auto <on|off>", "CON_HELP_SUN", _cmd_sun, 1))
 	_add(ConsoleCommand.new("season", SEASON_USAGE, "CON_HELP_SEASON", _cmd_season, 0, _complete_season))
+	_add(ConsoleCommand.new("time", "time [speed <1-120>]", "CON_HELP_TIME", _cmd_time))
 	_add(ConsoleCommand.new("wake", "wake [on|off]", "CON_HELP_WAKE", _cmd_wake))
 	_add(ConsoleCommand.new("shadows", "shadows [on|off]", "CON_HELP_SHADOWS", _cmd_shadows))
 	_add(ConsoleCommand.new("drift", "drift [factor]", "CON_HELP_DRIFT", _cmd_drift))
@@ -299,6 +300,17 @@ func _register_commands() -> void:
 const SEASON_USAGE := "season [spring|summer|autumn|winter|<day>] | season speed <x> | season perf [leaves|cold|meadow|none]"
 const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off]"
 const CUT_USAGE := "cut [arm|forearm|thigh|shin] [left|right]"
+
+
+func _cmd_time(args: PackedStringArray) -> String:
+	if not args.is_empty():
+		if args.size() != 2 or args[0] != "speed" or not args[1].is_valid_float():
+			return _paint(COLOR_ERR, tr("CON_USAGE") % "time [speed <1-120>]")
+		var value := args[1].to_float()
+		if not is_finite(value) or value < 1.0 or value > WorldTime.MAX_SPEED:
+			return _paint(COLOR_ERR, tr("CON_USAGE") % "time speed <1-120>")
+		WorldTime.set_speed(value)
+	return _paint(COLOR_INFO, tr("CON_TIME_SPEED") % WorldTime.speed)
 
 
 ## Los dos factores que cruzan los cuatro loops del mar, mas la ganancia global. Si el mar suena

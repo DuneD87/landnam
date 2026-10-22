@@ -50,7 +50,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if auto_rotate:
-		var step := rotation_speed_deg * delta
+		var step := rotation_speed_deg * WorldTime.scaled_delta(delta)
 		sun_azimuth_deg = wrapf(sun_azimuth_deg + step, -180.0, 180.0)
 		set_day_of_year(day_of_year + step / 360.0 * season_speed)
 	_update_sun()

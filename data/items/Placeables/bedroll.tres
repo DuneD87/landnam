@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/items/traits/ground_placeable_trait.gd" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/world/bedroll_visual.tscn" id="4"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/bedroll.png" id="5"]
+
+[sub_resource type="Resource" id="Ground"]
+script = ExtResource("3")
+scene_path = "res://scenes/world/bedroll.tscn"
+preview_scene = ExtResource("4")
+radius = 1.05
+max_slope = 12.0
+max_rough = 0.16
+spacing = 1.6
+max_tilt = 12.0
+settle = 0.3
+max_settle = 0.04
+
+[resource]
+script = ExtResource("1")
+id = &"bedroll"
+display_name = "ITEM_BEDROLL"
+description = "ITEM_BEDROLL_DESC"
+icon = ExtResource("5")
+stackable = false
+max_stack = 1
+group = &"placeable"
+traits = Array[ExtResource("2")]([SubResource("Ground")])

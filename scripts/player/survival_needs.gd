@@ -16,13 +16,15 @@ extends Node
 ##
 ## Lo compensan comer y beber (eat, drink: desde la barra, junto al agua dulce o de los odres; ver
 ## SurvivalActions), la ropa puesta, que abriga (InsulationTrait), y las hogueras encendidas
-## (Campfire), que calientan, secan y alumbran: a su luz la oscuridad no quita cordura. Todavía no
-## hay forma de dormir.
+## (Campfire), que calientan, secan y alumbran: a su luz la oscuridad no quita cordura.
+## El lecho permite dormir y recuperar el descanso (RestController).
 
 ## Segundos de lleno a vacío en reposo (a ritmo 1).
 const HUNGER_TIME := 2700.0
 const THIRST_TIME := 1800.0
-const REST_TIME := 3600.0
+## Una jornada despierto y una noche para recuperarse, medidas en horas del mundo.
+const AWAKE_HOURS := 16.0
+const SLEEP_HOURS := 8.0
 ## Aire que dura una zambullida y lo que tarda en volver al sacar la cabeza.
 const OXYGEN_TIME := 40.0
 const OXYGEN_REFILL := 4.0
@@ -73,6 +75,8 @@ var submerged := false
 ## Pausa las necesidades (consola) y su ritmo (consola: acelerarlas para verlas cambiar).
 var paused := false
 var rate := 1.0
+## Estado transitorio: al cargar o reaparecer se está despierto.
+var sleeping := false
 
 var _player: PlayerController
 var _pending_damage := 0.0
@@ -106,8 +110,8 @@ func _physics_process(delta: float) -> void:
 	var health := _player.health_component
 	if health == null or health.is_dead:
 		return
-	var dt := delta * rate
-	_climate_timer -= delta
+	var dt := WorldTime.scaled_delta(delta) * rate
+	_climate_timer -= WorldTime.scaled_delta(delta)
 	if _climate_timer <= 0.0:
 		_climate_timer = 0.5
 		_base_temperature = _climate_temperature()
@@ -121,9 +125,15 @@ func _physics_process(delta: float) -> void:
 
 	var swimming: bool = _player.movement.is_swimming
 	var effort := 1.0 + 0.8 * maxf(_exertion, 0.5 if swimming else 0.0)
+	if sleeping:
+		effort = 0.6
 	hunger -= dt / HUNGER_TIME * effort * (1.0 + 0.5 * maxf(-warmth, 0.0))
 	thirst -= dt / THIRST_TIME * effort * (1.0 + maxf(warmth, 0.0))
-	rest -= dt / REST_TIME * (1.0 + 0.3 * _exertion)
+	var hours := WorldTime.hours_elapsed(delta) * rate
+	if sleeping:
+		rest += hours / SLEEP_HOURS
+	else:
+		rest -= hours / AWAKE_HOURS * (1.0 + 0.3 * _exertion)
 	if submerged:
 		oxygen -= dt / OXYGEN_TIME
 	else:
@@ -176,6 +186,7 @@ func water_capacity() -> int:
 
 ## Todo lleno y a gusto (al reaparecer o con la consola).
 func refill() -> void:
+	sleeping = false
 	hunger = 1.0
 	thirst = 1.0
 	rest = 1.0
@@ -232,6 +243,7 @@ func save_data() -> Dictionary:
 
 
 func load_data(data: Dictionary) -> void:
+	sleeping = false
 	for key in ["hunger", "thirst", "rest", "sanity", "oxygen", "warmth", "wetness"]:
 		if data.has(key):
 			set(key, float(data[key]))
@@ -283,10 +295,13 @@ func _update_warmth(dt: float, swimming: bool) -> void:
 	elif felt > COMFORT_HIGH:
 		target = (felt - COMFORT_HIGH) / HEAT_SPAN
 	target = clampf(target, -1.0, 1.0)
-	warmth += (target - warmth) * minf(dt / time, 1.0)
+	warmth = lerpf(warmth, target, 1.0 - exp(-dt / time))
 
 
 func _update_sanity(dt: float) -> void:
+	if sleeping:
+		sanity += dt / (WorldTime.day_seconds() * SLEEP_HOURS / 24.0) * 0.35
+		return
 	var drain := (1.0 - _daylight) * (1.0 - _fire_light) / SANITY_DARK_TIME
 	if rest < 0.25:
 		drain += 1.0 / SANITY_TIRED_TIME

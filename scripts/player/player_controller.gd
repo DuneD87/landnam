@@ -71,6 +71,8 @@ var appearance_rig: CharacterAppearanceRig
 var combat: PlayerCombat
 ## Hambre, sed, descanso, cordura, oxígeno y temperatura (los enseña la barra rápida).
 var needs: SurvivalNeeds
+## Descanso en lechos y aceleración temporal mientras se duerme.
+var resting: RestController
 ## Comer, beber, despellejar y las hogueras.
 var survival: SurvivalActions
 ## Trepar por paredes que no se pueden andar y coronarlas (ver ClimbController).
@@ -538,6 +540,10 @@ func _ready():
 	locomotion.name = "Locomotion"
 	add_child(locomotion)
 	locomotion.setup(self)
+	resting = RestController.new()
+	resting.name = "RestController"
+	add_child(resting)
+	resting.setup(self)
 	_setup_gaits()
 	world_map_ui = WorldMapUI.new()
 	world_map_ui.setup(self)
@@ -547,6 +553,7 @@ func _ready():
 	water_sampler = WaterHeightSampler.new()
 	add_child(water_sampler)
 	inventory.clear()
+	'
 	inventory.add_item(ItemCatalog.get_item(&"firstage_skin_boots"), 1)
 	inventory.add_item(ItemCatalog.get_item(&"firstage_skin_hands"), 1)
 	inventory.add_item(ItemCatalog.get_item(&"firstage_skin_pants"), 1)
@@ -569,7 +576,7 @@ func _ready():
 		inventory.add_item(ItemCatalog.get_item(shield_id), 1)
 	inventory.add_item(ItemCatalog.get_item(&"arrow"), 40)
 	inventory.add_item(ItemCatalog.get_item(&"wood_01"), 100)
-	inventory.add_item(ItemCatalog.get_item(&"stone_01"), 100)
+	inventory.add_item(ItemCatalog.get_item(&"stone_01"), 100)'
 
 	inventory_ui.setup(inventory, character_window, hotbar)
 	inventory_ui.crafter = self
@@ -673,6 +680,8 @@ func get_save_data() -> Dictionary:
 
 	
 func restore_save_data(save: Dictionary) -> void:
+	if resting != null:
+		resting.close(false)
 	input_enabled = false
 	global_position = Vector3(save.position.x, save.position.y, save.position.z)
 	var b = save.basis
@@ -846,6 +855,7 @@ func get_visibility() -> float:
 
 func can_perform_action() -> bool:
 	return not (
+		(resting != null and resting.is_open()) or
 		combat.is_busy() or
 		climb.is_active() or
 		action_controller.is_attacking or
@@ -1110,6 +1120,11 @@ func _input(event):
 	# La pantalla de opciones se cierra con su propio Escape.
 	if OptionsScreen.is_open():
 		return
+	if resting != null and resting.is_open():
+		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("action"):
+			resting.close()
+			get_viewport().set_input_as_handled()
+		return
 	if Input.is_action_just_pressed("ui_cancel"):
 		if blueprint_placer and blueprint_placer.is_active():
 			blueprint_placer.cancel()
@@ -1243,6 +1258,8 @@ func _input(event):
 			pass
 		elif corpse:
 			survival.open_corpse(corpse)
+		elif survival.open_nearby_bedroll():
+			pass
 		elif survival.open_nearby_campfire():
 			pass
 		elif survival.open_nearby_station():
@@ -1626,6 +1643,9 @@ func _physics_process(delta: float):
 
 func _physics_step(delta: float):
 	_update_cannon_charge(delta)
+	if resting != null and resting.is_sleeping():
+		camera_controller.update_camera_transform()
+		return
 	if not input_enabled:
 		if GameManager.current_state == GameManager.State.PLAYING:
 			camera_controller.update_camera_transform()

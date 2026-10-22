@@ -1,0 +1,46 @@
+class_name Bedroll
+extends Node3D
+
+## Lecho de fibras y pieles: E abre el descanso. Su transformación se guarda como la del banco.
+const GROUP := &"bedroll"
+const ITEM_ID := &"bedroll"
+const REACH := 2.6
+
+var entity_id := ""
+var save_category := "planet"
+var discard_on_load := true
+
+
+func _ready() -> void:
+	add_to_group(GROUP)
+	add_to_group(GroundPlaceableTrait.PLACED_GROUP)
+	add_to_group(GameManager.SAVEABLE_GROUP)
+	if entity_id == "":
+		entity_id = "bedroll_%d_%d" % [Time.get_unix_time_from_system(), randi()]
+
+
+static func nearest(tree: SceneTree, position: Vector3) -> Bedroll:
+	var best: Bedroll
+	var distance := REACH
+	for node in tree.get_nodes_in_group(GROUP):
+		var bed := node as Bedroll
+		if bed != null and bed.is_inside_tree() and not bed.is_queued_for_deletion():
+			var d := bed.global_position.distance_to(position)
+			if d <= distance:
+				best = bed
+				distance = d
+	return best
+
+
+func get_save_data() -> Dictionary:
+	var t := transform
+	return {"basis": [t.basis.x.x, t.basis.x.y, t.basis.x.z, t.basis.y.x, t.basis.y.y,
+		t.basis.y.z, t.basis.z.x, t.basis.z.y, t.basis.z.z], "origin": [t.origin.x, t.origin.y, t.origin.z]}
+
+
+func restore_save_data(data: Dictionary) -> void:
+	var b: Array = data.get("basis", [])
+	var p: Array = data.get("origin", [])
+	if b.size() == 9 and p.size() == 3:
+		transform = Transform3D(Basis(Vector3(b[0], b[1], b[2]), Vector3(b[3], b[4], b[5]),
+			Vector3(b[6], b[7], b[8])), Vector3(p[0], p[1], p[2]))

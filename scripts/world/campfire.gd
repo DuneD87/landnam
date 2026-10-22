@@ -106,32 +106,48 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not lit:
 		return
-	var burn := delta
+	var burn_rate := 1.0
 	var weather := get_tree().get_first_node_in_group("weather")
 	if weather != null and weather.get_current_weather_name() == "storm" and not weather.is_sheltered():
-		burn *= STORM_BURN
-	fuel_left -= burn
-	if fuel_left <= 0.0 and not _take_fuel():
-		fuel_left = 0.0
-		extinguish()
+		burn_rate = STORM_BURN
+	advance(WorldTime.scaled_delta(delta), burn_rate)
+	_ui_tick -= delta
+	if _ui_tick <= 0.0:
+		_ui_tick = 0.2
+		_point_flame()
+		changed.emit()
+
+
+## Consume todo el tiempo, incluso si atraviesa varias piezas de combustible. Solo se cocina
+## durante el tiempo que ha habido fuego, también en la última fracción antes de apagarse.
+func advance(seconds: float, burn_rate := 1.0) -> void:
+	if not lit or seconds <= 0.0 or burn_rate <= 0.0:
 		return
+	var cooking := 0.0
+	var remaining := seconds
+	while remaining > 0.0:
+		if fuel_left <= 0.0 and not _take_fuel():
+			fuel_left = 0.0
+			extinguish()
+			break
+		var step := minf(remaining, fuel_left / burn_rate)
+		fuel_left = maxf(fuel_left - step * burn_rate, 0.0)
+		remaining -= step
+		cooking += step
+	if fuel_left <= 0.0 and not has_fuel():
+		extinguish()
 	for i in COOK_SLOTS:
 		var item := inventory.items[1 + i]
 		var cookable := item.data.get_trait(CookableTrait) as CookableTrait if item != null else null
 		if cookable == null:
 			continue
-		progress[i] += delta
+		progress[i] += cooking
 		if progress[i] >= cookable.cook_time:
 			var result: ItemData = ItemCatalog.get_item(cookable.result)
 			if result != null:
 				inventory.items[1 + i] = InventoryItem.new(result, item.quantity)
 			progress[i] = 0.0
 			inventory.inventory_changed.emit()
-	_ui_tick -= delta
-	if _ui_tick <= 0.0:
-		_ui_tick = 0.2
-		_point_flame()
-		changed.emit()
 
 
 ## Si [data] va en el hueco [slot] (0 = combustible; 1-8, cocina).

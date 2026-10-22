@@ -232,6 +232,7 @@ func load_game(slot_name: String = "default") -> bool:
 				all_entities[id] = cat_data[id]
 
 	var saved_state: int = meta.get("game_state", State.PLAYING)
+	WorldTime.reset()
 	_change_state(saved_state as State)
 
 	var restored_ids: Array[String] = []

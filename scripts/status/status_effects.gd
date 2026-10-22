@@ -22,7 +22,7 @@ var _health_debt := 0.0
 
 func _physics_process(delta: float) -> void:
 	if not _effects.is_empty():
-		advance(delta)
+		advance(WorldTime.scaled_delta(delta))
 
 
 ## Le pasa [effect_id] en [zone] (se ignora si el estado no va por zonas), con la duración de su

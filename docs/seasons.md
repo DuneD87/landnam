@@ -26,6 +26,9 @@ solsticio de verano del norte.
 - Con la rotación automática apagada (`sun <azimut>`, capturas) la elevación es la que se fije a
   mano; la fecha sigue mandando sobre los árboles.
 - El guardado añade `day_of_year`. Las partidas anteriores empiezan en `start_day`.
+- `WorldTime` acelera el avance del sol y de la fecha al dormir o con `time speed`.
+  El descanso usa horas de esta misma vuelta: una jornada despierto son 16 h y
+  una noche de sueño, 8 h. Ver [survival.md](survival.md#descansar-y-pasar-el-tiempo).
 - `Seasons.push_globals()` escribe el uniform global `season_state` en cada `_update_sun()`:
   x = fase del año, y = declinación, z = inclinación, w = 1. Sin calendario (herramientas,
   horneado) w = 0 y todo se queda en verano.

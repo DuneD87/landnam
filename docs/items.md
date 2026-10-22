@@ -76,6 +76,7 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Menas | `flint`, `obsidian`, `copper_ore`, `tin_ore`, `bog_iron`, `iron_01`, `coal`, `silver_ore`, `gold_01`, `sulfur` | Los diez materiales del mundo: ver [terrain_materials.md](terrain_materials.md#menas). El carbón arde 300 s |
 | Hoguera | `campfire` | Se planta en el suelo |
 | Banco de trabajo | `stone_workbench` | Estación de trabajo de la Edad de piedra: se planta en el suelo |
+| Lecho de pieles | `bedroll` | Se planta en el suelo: E para dormir ocho horas o recogerlo |
 
 El jugador empieza con un seax. El resto sale con `give <id> [cantidad]`.
 
@@ -319,6 +320,7 @@ al inventario y lo que no cabe, al suelo.
 | Hoguera | 6 piedras y 4 ramas | A mano |
 | Odre | 2 pieles | A mano |
 | Banco de trabajo | 6 maderas, 4 piedras y 4 ramas | A mano |
+| Lecho de pieles | 4 ramas, 8 fibras vegetales y 2 pieles | A mano |
 | Antorcha | 2 ramas | A mano |
 | Cuchillo de sílex | 1 sílex, 1 rama y 1 tendón | A mano |
 | Puñal de hueso | 2 huesos y 1 tendón | A mano |
@@ -352,6 +354,18 @@ Una receta nueva es un `.tres` más en su carpeta, con el script
 - su escena, con `Workstation` en la raíz (`item_id`, `visual` y
   `collision_size`);
 - recetas que la pidan en `station`.
+
+### Lecho de pieles
+
+Se planta desde la barra rápida como la hoguera, sobre suelo llano (hasta 12°
+de pendiente y 16 cm de desnivel). Su malla es una cama de fibras sobre ramas,
+cubierta por una piel irregular y con una cabecera enrollada. La escena de
+vista previa y el icono usan la misma malla (`bedroll_visual.gd`);
+`tools/items/bake_bedroll.gd` hornea el icono con el estudio de luz común.
+
+E a menos de 2,6 m abre el panel para dormir o recogerlo. El sueño recupera el
+descanso y acelera el mundo; sus reglas están en [survival.md](survival.md).
+El lecho conserva su posición e identidad al guardar y cargar.
 
 ### Banco de trabajo
 
