@@ -322,7 +322,7 @@ al inventario y lo que no cabe, al suelo.
 | Antorcha | 2 ramas | A mano |
 | Cuchillo de sílex | 1 sílex, 1 rama y 1 tendón | A mano |
 | Puñal de hueso | 2 huesos y 1 tendón | A mano |
-| Hacha de piedra | 3 piedras, 2 ramas y 1 piel | Banco de trabajo |
+| Hacha de piedra | 3 piedras, 2 ramas y 1 piel | A mano |
 | Pico de piedra | 4 piedras, 2 ramas y 1 piel | Banco de trabajo |
 | Arco de caza | 3 ramas y 1 piel | Banco de trabajo |
 | 4 flechas | 1 rama, 1 piedra y 2 plumas | Banco de trabajo |
@@ -341,6 +341,9 @@ al inventario y lo que no cabe, al suelo.
 | Emplasto de milenrama | 3 milenramas y 1 fibra vegetal | A mano |
 | Tablilla | 2 ramas y 2 fibras vegetales | A mano |
 | Bebedizo de milenrama | 4 milenramas y 2 tragos de agua de los odres | Hoguera encendida |
+
+El hacha de piedra se fabrica a mano para poder talar árboles y conseguir la
+madera del primer banco de trabajo.
 
 Una receta nueva es un `.tres` más en su carpeta, con el script
 `scripts/items/recipe_data.gd`. Una estación nueva necesita:

@@ -103,7 +103,7 @@ func _check_counts() -> void:
 	needs.free()
 
 
-## La ventana: el hacha pide el banco; sin él no se fabrica, con él al lado sí, las veces pedidas.
+## La ventana: el hacha se fabrica a mano, también ×N; el pico sigue pidiendo un banco cercano.
 func _check_panel() -> void:
 	var ui: InventoryUI = load("res://scenes/ui/inventory_ui.tscn").instantiate()
 	add_child(ui)
@@ -117,7 +117,18 @@ func _check_panel() -> void:
 	check(panel._tiles.size() == Recipes.all().size(), "salen todas las recetas en «Todo» (%d)" % panel._tiles.size())
 	var axe := _recipe(&"stone_axe_01")
 	panel._select(axe)
-	check(panel._make_button.disabled and panel._where_state.text == tr("CRAFT_NOT_NEAR"), "sin banco cerca, el hacha no se fabrica")
+	check(axe.station == Recipes.HAND and not panel._make_button.disabled and not panel._where_state.visible,
+		"el hacha se fabrica a mano sin banco de trabajo")
+	panel._set_max()
+	check(int(panel._quantity.value) == 4, "Máx: cuatro hachas (las pieles mandan)")
+	panel._quantity.value = 3
+	check(panel._make_button.text == tr("CRAFT_MAKE_N") % 3, "el botón dice cuántas")
+	panel._craft()
+	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"stone_axe_01")) == 3, "fabrica tres hachas sin banco")
+	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"raw_hide")) == 1, "y gasta tres pieles")
+	var pickaxe := _recipe(&"stone_pickaxe_01")
+	panel._select(pickaxe)
+	check(panel._make_button.disabled and panel._where_state.text == tr("CRAFT_NOT_NEAR"), "sin banco cerca, el pico no se fabrica")
 	var bench: Workstation = load("res://scenes/world/stone_workbench.tscn").instantiate()
 	add_child(bench)
 	bench.position = Vector3(1.5, 0, 0)
@@ -127,13 +138,6 @@ func _check_panel() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	check(not panel._make_button.disabled and panel._where_state.text == tr("CRAFT_NEAR"), "con el banco al lado, sí")
-	panel._set_max()
-	check(int(panel._quantity.value) == 4, "Máx: cuatro hachas (las pieles mandan)")
-	panel._quantity.value = 3
-	check(panel._make_button.text == tr("CRAFT_MAKE_N") % 3, "el botón dice cuántas")
-	panel._craft()
-	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"stone_axe_01")) == 3, "fabrica tres hachas")
-	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"raw_hide")) == 1, "y gasta tres pieles")
 	panel._set_tab(int(ItemData.Category.ARMOR))
 	var clothing := true
 	for recipe: RecipeData in panel._tiles:
@@ -143,7 +147,9 @@ func _check_panel() -> void:
 	panel._poll = 0.0
 	await get_tree().process_frame
 	await get_tree().process_frame
-	panel._select(axe)
+	panel._select(pickaxe)
 	check(panel._make_button.disabled, "al alejarse del banco se apaga")
+	panel._select(axe)
+	check(not panel._make_button.disabled, "el hacha sigue disponible lejos del banco")
 	ui.toggle(InventoryUI.View.CRAFTING)
 	check(not ui.visible, "Tab otra vez la cierra")
