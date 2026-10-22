@@ -14,6 +14,9 @@ extends Resource
 
 ## UI / Inventario
 @export var preview_icon: Texture2D = null
+## Giro (grados alrededor de Y) con que sale en su icono: el que pone de cara la parte que lo
+## distingue (la pendiente de la rampa, el corte de la esquina invertida...).
+@export var icon_yaw: float = 45.0
 
 ## Rotación
 @export var can_rotate: bool = false

@@ -141,6 +141,15 @@ func _icon_material_of(mat: BuildMaterial) -> Material:
 	return mat.icon_material if mat.icon_material else mat.surface_material
 
 
+## El sucedáneo de icono de un material de superficie de construcción (el cristal), o el mismo si
+## no tiene. Para las miniaturas, que copian mallas ya hechas con el material de verdad.
+func icon_material_for_surface(surface: Material) -> Material:
+	for mat in build_materials:
+		if mat.surface_material == surface and mat.icon_material:
+			return mat.icon_material
+	return surface
+
+
 ## Rellena el icono de los items de material que no traen uno pintado, renderizando un cubo con su
 ## material. Los que ya tienen icono (piedra, madera) se dejan como están.
 func _generate_material_item_icons() -> void:
@@ -184,7 +193,7 @@ func _generate_block_material_icons() -> void:
 		var mat := get_material_by_id(item.build_material_id)
 		if not block or not mat:
 			continue
-		var icon := await _icon_generator.generate_icon(block.mesh, _icon_material_of(mat))
+		var icon := await _icon_generator.generate_icon(block.mesh, _icon_material_of(mat), block.icon_yaw)
 		if icon:
 			item.icon = icon
 			icon_generated.emit()
@@ -232,6 +241,7 @@ func _register_default_blocks() -> void:
 	slope.collision_shape = BlockMeshGenerator.generate_slope_collision()
 	slope.can_rotate = true
 	slope.rotation_steps = 4
+	slope.icon_yaw = 135.0
 	register_block(slope)
 
 	var corner := BlockData.new()
@@ -242,6 +252,7 @@ func _register_default_blocks() -> void:
 	corner.collision_shape = BlockMeshGenerator.generate_corner_collision()
 	corner.can_rotate = true
 	corner.rotation_steps = 4
+	corner.icon_yaw = 225.0
 	register_block(corner)
 
 	var inv_corner := BlockData.new()
@@ -252,6 +263,7 @@ func _register_default_blocks() -> void:
 	inv_corner.collision_shape = BlockMeshGenerator.generate_inv_corner_collision()
 	inv_corner.can_rotate = true
 	inv_corner.rotation_steps = 4
+	inv_corner.icon_yaw = 315.0
 	register_block(inv_corner)
 
 	var pane := BlockData.new()
@@ -262,6 +274,7 @@ func _register_default_blocks() -> void:
 	pane.collision_shape = BlockMeshGenerator.generate_pane_collision()
 	pane.can_rotate = true
 	pane.rotation_steps = 4
+	pane.icon_yaw = 160.0
 	register_block(pane)
 
 	var pane_slope := BlockData.new()
@@ -272,6 +285,7 @@ func _register_default_blocks() -> void:
 	pane_slope.collision_shape = BlockMeshGenerator.generate_pane_slope_collision()
 	pane_slope.can_rotate = true
 	pane_slope.rotation_steps = 4
+	pane_slope.icon_yaw = 135.0
 	register_block(pane_slope)
 
 func _create_block_item(block: BlockData) -> ItemData:

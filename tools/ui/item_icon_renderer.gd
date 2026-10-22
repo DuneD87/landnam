@@ -1,7 +1,7 @@
 extends RefCounted
 
-## Render común de iconos con materiales del juego, luz de estudio y fondo transparente.
-## Lo comparten el horneado de armas y la actualización de iconos de la interfaz.
+## Render común de iconos con materiales del juego, luz de estudio (IconStudio) y fondo
+## transparente. Lo comparten el horneado de armas y la actualización de iconos de la interfaz.
 
 const SIZE := 384
 
@@ -52,31 +52,7 @@ static func render(tree: SceneTree, model: MeshInstance3D, angles: Array, output
 	holder.position = -bounds.get_center()
 	holder.scale = Vector3.ONE / extent
 	holder.position /= extent
-	var environment := WorldEnvironment.new()
-	environment.environment = Environment.new()
-	var env := environment.environment
-	env.background_mode = Environment.BG_CLEAR_COLOR
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("c5cfda")
-	env.ambient_light_energy = 0.5
-	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-	env.sky = Sky.new()
-	var sky := ProceduralSkyMaterial.new()
-	sky.sky_top_color = Color("667c95")
-	sky.sky_horizon_color = Color("d6d0c0")
-	sky.ground_bottom_color = Color("272c35")
-	sky.ground_horizon_color = Color("a7a095")
-	env.sky.sky_material = sky
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	stage.add_child(environment)
-	for entry in [[Vector3(-3, 4, 5), Color("ffebce"), 1.8],
-			[Vector3(4, 1, 3), Color("b8d3f3"), 0.9], [Vector3(1, 3, -4), Color("eed9b7"), 1.2]]:
-		var light := DirectionalLight3D.new()
-		stage.add_child(light)
-		light.position = entry[0]
-		light.look_at(Vector3.ZERO)
-		light.light_color = entry[1]
-		light.light_energy = entry[2]
+	IconStudio.light(stage)
 	var camera := Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.size = 1.14
