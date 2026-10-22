@@ -4,11 +4,18 @@ extends RefCounted
 ## Captura un grupo de grids (todas las que forman una misma estructura o barco) en un
 ## diccionario independiente del lugar donde estaban: los bloques se guardan en coordenadas de
 ## celda relativas a la esquina del grupo, así que el blueprint se puede reconstruir en cualquier
-## punto de cualquier planeta. También gestiona su fichero JSON en user://blueprints.
+## punto de cualquier planeta. También gestiona sus ficheros en user://blueprints: el blueprint
+## (<nombre>.json), su ficha (<nombre>.info: lo que la biblioteca enseña y el recuento de lo que
+## cuesta, para no leer el blueprint entero, que en un barco son megas) y su miniatura
+## (<nombre>.png, BlueprintThumbnail).
 
 const DIR := "user://blueprints/"
 const EXTENSION := ".json"
+const INFO_EXTENSION := ".info"
+const THUMBNAIL_EXTENSION := ".png"
 const FORMAT_VERSION := 1
+## Versión de la ficha: una distinta se vuelve a sacar del blueprint.
+const INFO_VERSION := 1
 
 ## Tolerancia al convertir el desplazamiento de normalización a celdas de cada grid.
 const CELL_EPSILON := 0.001
@@ -145,7 +152,7 @@ static func instantiate(data: Dictionary, planet: Node3D, origin_world: Vector3,
 		else:
 			grid = GridManager.create_grid_aligned(planet, reference, cell)
 
-		_restore_materials(grid, grid_data.get("materials", {}))
+		_restore_materials(grid, grid_data)
 		_restore_blocks(grid, blocks_dict(grid_data))
 		_restore_props(grid, grid_data.get("props", []))
 		created.append(grid)
@@ -158,13 +165,24 @@ static func instantiate(data: Dictionary, planet: Node3D, origin_world: Vector3,
 	return created
 
 
-static func _restore_materials(grid: GridBase, materials_data: Dictionary) -> void:
-	for mat_id: String in materials_data:
-		var path: String = materials_data[mat_id]
-		if ResourceLoader.exists(path):
-			grid.mesh_materials[mat_id] = load(path)
+## Materiales de los bloques de la grid. Manda el BuildMaterial de ahora con ese id: los de piedra
+## y madera son subrecursos (su ruta lleva «::») y no se pueden cargar sueltos, y así un blueprint
+## viejo se ve con el material actual. La ruta guardada solo sirve para ids que ya no existen.
+static func _restore_materials(grid: GridBase, grid_data: Dictionary) -> void:
+	var paths: Dictionary = grid_data.get("materials", {})
+	var used := {}
+	for info: Dictionary in (grid_data.get("blocks", {}) as Dictionary).values():
+		used[str(info.get("material_id", ""))] = true
+	for mat_id: String in used:
+		if mat_id == "":
+			continue
+		var mat := BlockDatabase.get_material_by_id(mat_id)
+		if mat and mat.surface_material:
+			grid.mesh_materials[mat_id] = mat.surface_material
+		elif paths.has(mat_id) and ResourceLoader.exists(paths[mat_id]):
+			grid.mesh_materials[mat_id] = load(paths[mat_id])
 		else:
-			push_warning("[GridBlueprint] Material no encontrado: %s" % path)
+			push_warning("[GridBlueprint] Material desconocido: %s" % mat_id)
 
 
 ## Bloques de una grid del blueprint en el formato que usan las grids y ChunkMeshBuilder
@@ -247,6 +265,69 @@ static func get_stats(data: Dictionary) -> Dictionary:
 	}
 
 
+## Ficha del blueprint (lo que se guarda en <nombre>.info): sus datos, el recuento de lo que cuesta
+## (BuildCost) y cuántos bloques no se van a poder reconstruir (de un id que ya no existe).
+static func summarize(data: Dictionary) -> Dictionary:
+	var stats := get_stats(data)
+	var size: Vector3 = stats["size"]
+	var unknown := 0
+	for grid_data: Dictionary in data.get("grids", []):
+		for info: Dictionary in (grid_data.get("blocks", {}) as Dictionary).values():
+			if BlockDatabase.get_block(int(info.get("block_id", -1))) == null:
+				unknown += 1
+	return {
+		"info_version": INFO_VERSION,
+		"created": stats["created"],
+		"dynamic": stats["dynamic"],
+		"blocks": stats["blocks"],
+		"props": stats["props"],
+		"grids": stats["grids"],
+		"size": [size.x, size.y, size.z],
+		"cell_sizes": stats["cell_sizes"],
+		"counts": BuildCost.count_blueprint(data),
+		"unknown_blocks": unknown,
+	}
+
+
+## Ficha de un blueprint guardado, con su nombre en "name" y el tamaño como Vector3. Si falta o es
+## de otra versión se saca del blueprint y se guarda. {} si el blueprint no se puede leer.
+static func load_info(bp_name: String) -> Dictionary:
+	var info: Dictionary = {}
+	var path := info_path_for(bp_name)
+	if FileAccess.file_exists(path):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if parsed is Dictionary and int(parsed.get("info_version", 0)) == INFO_VERSION:
+			info = parsed
+	if info.is_empty():
+		var data := load_from_disk(bp_name)
+		if data.is_empty():
+			return {}
+		info = summarize(data)
+		_store_info(bp_name, info)
+	info["name"] = bp_name
+	var size: Array = info.get("size", [0, 0, 0])
+	info["size"] = Vector3(float(size[0]), float(size[1]), float(size[2])) if size.size() >= 3 else Vector3.ZERO
+	return info
+
+
+## Fichas de todos los blueprints guardados, por nombre.
+static func list_infos() -> Array:
+	var out: Array = []
+	for bp_name: String in list_names():
+		var info := load_info(bp_name)
+		if not info.is_empty():
+			out.append(info)
+	return out
+
+
+static func _store_info(bp_name: String, info: Dictionary) -> void:
+	_ensure_dir()
+	var file := FileAccess.open(info_path_for(bp_name), FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(info, "\t"))
+		file.close()
+
+
 static func _ensure_dir() -> void:
 	if not DirAccess.dir_exists_absolute(DIR):
 		DirAccess.make_dir_recursive_absolute(DIR)
@@ -261,6 +342,26 @@ static func path_for(bp_name: String) -> String:
 	return DIR + bp_name + EXTENSION
 
 
+static func info_path_for(bp_name: String) -> String:
+	return DIR + bp_name + INFO_EXTENSION
+
+
+static func thumbnail_path_for(bp_name: String) -> String:
+	return DIR + bp_name + THUMBNAIL_EXTENSION
+
+
+## La miniatura guardada, o null si aún no tiene.
+static func load_thumbnail(bp_name: String) -> Texture2D:
+	var path := thumbnail_path_for(bp_name)
+	if not FileAccess.file_exists(path):
+		return null
+	var image := Image.load_from_file(path)
+	if image == null or image.is_empty():
+		return null
+	image.generate_mipmaps()
+	return ImageTexture.create_from_image(image)
+
+
 static func exists(bp_name: String) -> bool:
 	return FileAccess.file_exists(path_for(bp_name))
 
@@ -273,6 +374,7 @@ static func save_to_disk(bp_name: String, data: Dictionary) -> bool:
 		return false
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
+	_store_info(bp_name, summarize(data))
 	return true
 
 
@@ -307,4 +409,20 @@ static func delete_from_disk(bp_name: String) -> bool:
 	var path := path_for(bp_name)
 	if not FileAccess.file_exists(path):
 		return false
+	for extra in [info_path_for(bp_name), thumbnail_path_for(bp_name)]:
+		if FileAccess.file_exists(extra):
+			DirAccess.remove_absolute(extra)
 	return DirAccess.remove_absolute(path) == OK
+
+
+## Cambia el nombre de un blueprint (con su ficha y su miniatura). No pisa otro que ya exista.
+static func rename_on_disk(old_name: String, new_name: String) -> bool:
+	if new_name == "" or new_name == old_name or exists(new_name) or not exists(old_name):
+		return false
+	if DirAccess.rename_absolute(path_for(old_name), path_for(new_name)) != OK:
+		return false
+	for pair in [[info_path_for(old_name), info_path_for(new_name)],
+			[thumbnail_path_for(old_name), thumbnail_path_for(new_name)]]:
+		if FileAccess.file_exists(pair[0]):
+			DirAccess.rename_absolute(pair[0], pair[1])
+	return true

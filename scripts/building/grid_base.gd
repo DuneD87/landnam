@@ -501,6 +501,15 @@ func get_block_count() -> int:
 func get_all_blocks() -> Dictionary:
 	return _blocks
 
+
+## Los MeshInstance3D de sus chunks (las miniaturas de los blueprints los copian tal cual).
+func get_chunk_mesh_instances() -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for instance: MeshInstance3D in _chunk_meshes.values():
+		if is_instance_valid(instance) and instance.mesh:
+			out.append(instance)
+	return out
+
 func get_neighbors_of(grid_pos: Vector3i) -> Array[Vector3i]:
 	return [
 		grid_pos + Vector3i(1, 0, 0),
