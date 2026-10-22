@@ -14,7 +14,7 @@ lleva sus dos filas en el CSV. Ver [localization.md](localization.md).
 | Categoría | Grupos |
 |---|---|
 | Armas | Cuerpo a cuerpo · A distancia · Munición · Escudos |
-| Herramientas | Hachas y picos · Luz · Recipientes |
+| Herramientas | Hachas, picos y martillos · Luz · Recipientes |
 | Ropa | Cabeza · Torso · Manos · Piernas · Pies |
 | Consumibles | Cocinada · Cruda · Bebida · Remedios |
 | Materiales | De caza · Madera · Piedra y mineral · Otros |

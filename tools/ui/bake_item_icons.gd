@@ -20,8 +20,9 @@ const WEAPONS := {
 	"stone_maul": [-35.0, 75.0], "hide_shield": [-8.0, -12.0],
 	"bone_shield": [-8.0, -12.0],
 	"stone_axe_01": [-35.0, 82.0], "stone_pickaxe_01": [-35.0, 82.0],
+	"stone_hammer_01": [-35.0, 82.0],
 }
-const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01"]
+const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01", "stone_hammer_01"]
 const TOOLS := {
 	"torch": ["res://scenes/items/torches/torch.tscn", -35.0, -12.0],
 }

@@ -12,7 +12,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	for entry in [["stone_axe_01", WeaponMeshes.stone_axe],
-			["stone_pickaxe_01", WeaponMeshes.stone_pickaxe]]:
+			["stone_pickaxe_01", WeaponMeshes.stone_pickaxe],
+			["stone_hammer_01", WeaponMeshes.stone_hammer]]:
 		_check_mesh((entry[1] as Callable).call(), entry[0] + " generado")
 		_check_mesh(load("res://data/items/meshes/weapons/%s.res" % entry[0]), entry[0] + " horneado")
 	print("STONE TOOL MESH TESTS: %d failures" % failures)

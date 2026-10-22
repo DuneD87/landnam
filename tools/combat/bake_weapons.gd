@@ -7,12 +7,13 @@ extends SceneTree
 ## Los iconos se renderizan, así que NO va con --headless:
 ##   godot --path . --script res://tools/combat/bake_weapons.gd [-- --only=greatsword,war_hammer]
 ## Después, `godot --headless --path . --import` para importar los PNG nuevos.
+## Con `--meshes-only` solo guarda mallas y escenas, sin iconos, y entonces sí va con --headless.
 
 const MESH_DIR := "res://data/items/meshes/weapons/"
 const SCENE_DIR := "res://scenes/items/weapons/combat/"
 const ICON_DIR := "res://textures/icons/items/weapons/"
 const ICON_SIZE := 256
-const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01"]
+const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01", "stone_hammer_01"]
 const ItemIconRenderer = preload("res://tools/ui/item_icon_renderer.gd")
 
 ## nombre: [constructor, script de la escena o "", rotación del icono en grados (sobre Z de cámara)]
@@ -41,6 +42,7 @@ var WEAPONS := {
 	"stone_maul": [WeaponMeshes.stone_maul, "", -40.0],
 	"stone_axe_01": [WeaponMeshes.stone_axe, "", -35.0],
 	"stone_pickaxe_01": [WeaponMeshes.stone_pickaxe, "", -35.0],
+	"stone_hammer_01": [WeaponMeshes.stone_hammer, "", -35.0],
 	"hide_shield": [WeaponMeshes.hide_shield, "", 0.0],
 	"bone_shield": [WeaponMeshes.bone_shield, "", -8.0],
 }
@@ -145,6 +147,7 @@ func _run() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			only = arg.substr(7).split(",")
+	var meshes_only := "--meshes-only" in OS.get_cmdline_user_args()
 	for weapon_name in WEAPONS:
 		if not only.is_empty() and weapon_name not in only:
 			continue
@@ -155,6 +158,8 @@ func _run() -> void:
 		mesh = load(mesh_path)
 		if weapon_name != "arrow":
 			_save_scene(weapon_name, mesh, entry[1])
+		if meshes_only:
+			continue
 		var yaw := 0.0 if weapon_name in FACE_ON else 90.0
 		if weapon_name in TOOL_ICONS:
 			var model := MeshInstance3D.new()
@@ -173,6 +178,8 @@ func _run() -> void:
 		mesh = load(mesh_path)
 		if entry[4]:
 			_save_scene(item_name, mesh, "", SURVIVAL_SCENE_DIR)
+		if meshes_only:
+			continue
 		await _render_icon(item_name, mesh, entry[1], entry[2], entry[3], SURVIVAL_ICON_DIR)
 	if only.is_empty() or "litter" in only:
 		for variant in LITTER_BRANCHES:

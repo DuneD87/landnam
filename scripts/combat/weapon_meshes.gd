@@ -600,6 +600,21 @@ static func stone_pickaxe() -> ArrayMesh:
 	return b.commit(make_material, true)
 
 
+## Martillo de construir: un canto escuadrado y romo, cruzado al astil con la cara de golpe hacia
+## delante (+Z) y una cola más corta detrás, atado como el hacha y el pico.
+static func stone_hammer() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	_stone_tool_haft(b)
+	_stone_tool_head(b.st(STONE), [
+		Vector4(-0.078, 0.524, 0.030, 0.026), Vector4(-0.070, 0.525, 0.040, 0.034),
+		Vector4(-0.030, 0.528, 0.046, 0.039), Vector4(0.020, 0.530, 0.048, 0.041),
+		Vector4(0.070, 0.528, 0.046, 0.040), Vector4(0.104, 0.526, 0.042, 0.037),
+		Vector4(0.114, 0.525, 0.034, 0.030),
+	])
+	_stone_tool_binding(b)
+	return b.commit(make_material, true)
+
+
 static func _stone_tool_haft(b: ProcMesh.Builder) -> void:
 	ProcMesh.lathe(b.st(WOOD), [Vector2(0.0, -0.17), Vector2(0.019, -0.165),
 		Vector2(0.022, -0.14), Vector2(0.0175, 0.0), Vector2(0.019, 0.30),
