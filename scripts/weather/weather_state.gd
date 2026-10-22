@@ -6,6 +6,8 @@ extends RefCounted
 ## clima es un WeatherState y una transición es un lerp entre el estado de salida y el de destino.
 
 var cloud_coverage: float = 0.4
+# Multiplica la agrupación del planeta: el temporal extiende el manto entre las celdas.
+var cloud_group: float = 1.0
 var cloud_density: float = 0.5
 var cloud_absorption: float = 0.15
 var cloud_shadow: float = 0.7
@@ -61,7 +63,7 @@ var lightning_frequency: float = 0.0
 
 # Campos numéricos recorridos por blend() y apply_overrides().
 const FIELDS: Array[StringName] = [
-	&"cloud_coverage", &"cloud_density", &"cloud_absorption", &"cloud_shadow", &"cloud_albedo",
+	&"cloud_coverage", &"cloud_group", &"cloud_density", &"cloud_absorption", &"cloud_shadow", &"cloud_albedo",
 	&"cloud_min_height", &"cloud_max_height", &"cloud_wind_speed",
 	&"fog_density", &"fog_coverage", &"fog_group", &"fog_wind_speed",
 	&"fog_floor_height", &"fog_top_height",

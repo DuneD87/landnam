@@ -352,6 +352,9 @@ var group_sampler: RID
 ## sin readback de GPU. Es EXACTAMENTE lo que muestrea el shader (misma Image que se sube).
 var _group_image: Image = null
 var _group_dirty := false
+var _wind_last_usec: int = Time.get_ticks_usec()
+var _cloud_wind_offset: float = 0.0
+var _fog_wind_offset: float = 0.0
 
 var _params_mutex := Mutex.new()
 
@@ -1010,9 +1013,31 @@ func get_cloud_group_envelope(world_pos: Vector3) -> float:
 	var dir := offset.normalized()
 	var u := atan2(dir.z, dir.x) / TAU + 0.5
 	var v := acos(clampf(dir.y, -1.0, 1.0)) / PI
-	var x := clampi(int(u * GROUP_TEX_W), 0, GROUP_TEX_W - 1)
-	var y := clampi(int(v * GROUP_TEX_H), 0, GROUP_TEX_H - 1)
-	return lerpf(1.0, _group_image.get_pixel(x, y).r, clampf(cloud_group_strength, 0.0, 1.0))
+	# Mismo filtrado LINEAR del sampler GPU: texels centrados en (i + 0.5), longitud
+	# periódica y latitud acotada. El nearest anterior adelantaba/atrasaba la lluvia en bordes.
+	var width := _group_image.get_width()
+	var height := _group_image.get_height()
+	var px := u * width - 0.5
+	var py := v * height - 0.5
+	var x0 := floori(px)
+	var y0 := floori(py)
+	var x1 := posmod(x0 + 1, width)
+	var y1 := clampi(y0 + 1, 0, height - 1)
+	x0 = posmod(x0, width)
+	y0 = clampi(y0, 0, height - 1)
+	var a := lerpf(_group_image.get_pixel(x0, y0).r, _group_image.get_pixel(x1, y0).r, px - floorf(px))
+	var b := lerpf(_group_image.get_pixel(x0, y1).r, _group_image.get_pixel(x1, y1).r, px - floorf(px))
+	var envelope := lerpf(a, b, py - floorf(py))
+	return lerpf(1.0, envelope, clampf(cloud_group_strength, 0.0, 1.0))
+
+
+## Integra la velocidad: tiempo_total * velocidad hacía saltar las nubes y la niebla
+## cuando el clima cambiaba la velocidad, especialmente tras partidas largas.
+func _advance_wind(now_usec: int) -> void:
+	var delta := maxf(float(now_usec - _wind_last_usec) / 1000000.0, 0.0)
+	_wind_last_usec = now_usec
+	_cloud_wind_offset += delta * cloud_wind_speed
+	_fog_wind_offset += delta * fog_wind_speed
 
 
 func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data: RenderData) -> void:
@@ -1048,6 +1073,7 @@ func _render_callback(p_effect_callback_type: EffectCallbackType, p_render_data:
 	if size.x <= 0 or size.y <= 0:
 		return
 
+	_advance_wind(Time.get_ticks_usec())
 	var view_count: int = render_scene_buffers.get_view_count()
 	_ensure_params_buffers(view_count)
 	_params_mutex.lock()
@@ -1323,7 +1349,7 @@ func _build_params_bytes(
 	var local_cloud_filter    := clampf(cloud_filter_margin, 0.0, 3.0)
 	var local_size_variation  := cloud_size_variation
 	var local_wind_direction  := cloud_wind_direction
-	var local_wind_speed      := cloud_wind_speed
+	var local_wind_offset     := _cloud_wind_offset
 	var local_cloud_shadow    := cloud_shadow_strength
 	var local_cloud_albedo    := cloud_albedo
 	var local_cloud_edge      := cloud_edge_softness
@@ -1345,7 +1371,7 @@ func _build_params_bytes(
 	var local_fog_top_h       := maxf(fog_top_height, fog_floor_height + 1.0)
 	var local_fog_color       := fog_color
 	var local_fog_night_amb   := fog_night_ambient
-	var local_fog_wind_speed  := fog_wind_speed
+	var local_fog_wind_offset := _fog_wind_offset
 	var local_fog_nscale      := fog_noise_scale
 	# Sin nubes la niebla sigue: sus pasos no bajan de la mitad.
 	var local_fog_steps       := maxi(1, roundi(fog_steps * maxf(quality_step_scale, 0.5)))
@@ -1428,8 +1454,7 @@ func _build_params_bytes(
 
 	# 14: viento — dirección (xyz normalizada) + offset acumulado (tiempo × velocidad).
 	var wind_dir_n := local_wind_direction.normalized() if local_wind_direction.length_squared() > 0.0001 else Vector3.ZERO
-	var wind_offset := (Time.get_ticks_msec() / 1000.0) * local_wind_speed
-	_append_vec4(floats, Vector4(wind_dir_n.x, wind_dir_n.y, wind_dir_n.z, wind_offset))
+	_append_vec4(floats, Vector4(wind_dir_n.x, wind_dir_n.y, wind_dir_n.z, local_wind_offset))
 
 	# 15: pasos de marcha de nubes — view (x), light (y), shadow (z) + fuerza de agrupación (w).
 	_append_vec4(floats, Vector4(local_cloud_steps, local_light_steps, local_shadow_steps, local_group_strength))
@@ -1448,8 +1473,7 @@ func _build_params_bytes(
 	# 18: niebla — escala de ruido (x), offset de viento acumulado (y), pasos de marcha (z),
 	# distancia de visibilidad (w; 0 = sin límite). Reutiliza la dirección de viento de las nubes
 	# P(14).xyz para que el banco viaje con él.
-	var fog_wind_offset := (Time.get_ticks_msec() / 1000.0) * local_fog_wind_speed
-	_append_vec4(floats, Vector4(local_fog_nscale, fog_wind_offset, local_fog_steps, local_fog_view_dist))
+	_append_vec4(floats, Vector4(local_fog_nscale, local_fog_wind_offset, local_fog_steps, local_fog_view_dist))
 
 	# 19-23: oclusión de niebla en cuevas (rejilla del WeatherOcclusionField). El centro va
 	# relativo a la cámara (como el del planeta); los ejes son direcciones (sin trasladar).

@@ -87,6 +87,7 @@ var _calendar: Node
 
 var _base_sun_energy: float = 1.0
 var _base_ambient_energy: float = 1.0
+var _base_cloud_group_strength: float = 0.0
 var _base_wave_amplitude: float = 4.0
 var _base_wave_speed: float = 1.2
 var _base_wave_length: float = 50.0
@@ -209,6 +210,8 @@ func _apply_config(config: Dictionary) -> void:
 
 
 func _read_base_values() -> void:
+	if _atmosphere:
+		_base_cloud_group_strength = clampf(_atmosphere.cloud_group_strength, 0.0, 1.0)
 	if _sun:
 		_base_sun_energy = _sun.light_energy
 	if _world_env and _world_env.environment:
@@ -435,7 +438,8 @@ func restore_save_data(data: Dictionary) -> void:
 
 
 func _transition_to(event_name: String) -> void:
-	_from = _to
+	# Un nuevo comando puede llegar a mitad de transición: partir del cielo que se ve ahora.
+	_from = get_resolved_state()
 	_to = _events.get(event_name, _fallback_state())
 	print("[WEATHER]: Transitioning to [", event_name, "]")
 	_current = event_name
@@ -611,9 +615,11 @@ func _fallback_state() -> WeatherState:
 
 ## Difunde un WeatherState a atmósfera, sol/ambiente, vegetación, terreno y agua.
 func _apply_state(st: WeatherState) -> void:
+	_resolved = st
 	if _atmosphere:
 		_atmosphere.clouds_enabled = true
 		_atmosphere.cloud_coverage = st.cloud_coverage
+		_atmosphere.cloud_group_strength = _base_cloud_group_strength * clampf(st.cloud_group, 0.0, 1.0)
 		_atmosphere.cloud_density = st.cloud_density
 		_atmosphere.cloud_absorption = clampf(st.cloud_absorption, 0.01, 1.0)
 		_atmosphere.cloud_shadow_strength = st.cloud_shadow
@@ -671,7 +677,7 @@ func _apply_state(st: WeatherState) -> void:
 ## los claros de la agrupación. Mismo gate que lluvia y rayos, suavizado para que no salte al
 ## cruzar el borde de la celda. La sombra que de verdad proyecta cada nube la pone el compute.
 func _update_sky_light(delta: float, st: WeatherState) -> void:
-	var target := smoothstep(precip_cloud_start, precip_cloud_full, _local_cloud_coverage(st))
+	var target := smoothstep(precip_cloud_start, precip_cloud_full, _local_cloud_coverage(st)) * _below_clouds_factor(st)
 	if _shade < 0.0:
 		_shade = target
 	else:
@@ -902,6 +908,7 @@ func _builtin_events() -> Dictionary:
 		}),
 		"storm": _state({
 			"cloud_coverage": 0.9, "cloud_density": 1.6, "cloud_absorption": 0.4,
+			"cloud_group": 0.5,
 			"cloud_albedo": 0.35,
 			"cloud_shadow": 1.0, "cloud_min_height": 300.0, "cloud_max_height": 800.0,
 			"cloud_wind_speed": 0.06, "sun_energy": 0.3, "ambient_energy": 0.5,

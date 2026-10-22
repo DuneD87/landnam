@@ -91,13 +91,17 @@ func _process(delta: float) -> void:
 
 func _compute_target() -> void:
 	_mixer.target.fill(0.0)
-	if _weather == null or not is_instance_valid(_weather):
+	last_rain = 0.0
+	last_wind = 0.0
+	last_sheltered = false
+	if _weather == null or not is_instance_valid(_weather) or not _weather.enabled:
 		return
 	var st := _weather.get_resolved_state()
 	if st == null:
 		return
 
-	last_rain = clampf(st.rain_rate, 0.0, 1.0)
+	# Misma lluvia que las partículas: claros, altura y conversión a nieve incluidos.
+	last_rain = clampf(_weather.get_local_precipitation().x, 0.0, 1.0)
 	last_wind = _wind_factor(st)
 	last_sheltered = _weather.is_sheltered()
 

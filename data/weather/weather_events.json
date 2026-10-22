@@ -30,6 +30,7 @@
 	},
 	"storm": {
 	  "cloud_coverage": 1.0, "cloud_density": 0.95, "cloud_absorption": 1.0,
+	  "cloud_group": 0.5,
 	  "cloud_albedo": 0.15,
 	  "cloud_shadow": 0.8, "cloud_min_height": 600.0, "cloud_max_height": 900.0,
 	  "cloud_wind_speed": 0.06,
