@@ -4,13 +4,17 @@ extends RefCounted
 ## Lo que se recoge del suelo con la tecla de acción: los objetos del planeta marcados "pickup" en
 ## su JSON (ramas caídas, piedras pequeñas, los arbustos, que dan fibra, y las hierbas como la
 ## milenrama). Cerca del jugador llevan un cuerpo en PhysicsLayers.PICKUP, que no estorba a nadie; al
-## cogerlo se quita de la multimalla del instancer. Las piedras dan munición según su tamaño, y las
-## más grandes (escala > MAX_ROCK_SCALE) no se levantan. Las plantas (PLANTS) solo se arrancan
-## mirándolas: hay tantas, sobre todo en las orillas, que si no se llevarían la tecla de beber o de
-## recoger lo soltado.
+## cogerlo se quita de la multimalla del instancer. Una rama caída da un puñado de ramas (BRANCHES),
+## las piedras dan munición según su tamaño, y las más grandes (escala > MAX_ROCK_SCALE) no se
+## levantan. Las plantas (PLANTS) solo se arrancan mirándolas: hay tantas, sobre todo en las
+## orillas, que si no se llevarían la tecla de beber o de recoger lo soltado. Todo suena igual al
+## recogerlo (item_pickup), como lo soltado.
 
 const PICK_RANGE := 2.4
 const STONE_ID := &"stone_01"
+const BRANCH_ID := &"branch_01"
+## Ramas que da cada rama caída (al azar entre los dos).
+const BRANCHES := Vector2i(5, 10)
 ## Piedras: hasta qué escala de instancia se levantan (a escala 1 miden unos 18 cm) y cuántas da
 ## cada una por unidad de escala.
 const MAX_ROCK_SCALE := 3.0
@@ -35,9 +39,9 @@ static func setup(world: Planet) -> void:
 		_planets.append(world)
 
 
-## Recoge lo más cercano a [picker] (a menos de PICK_RANGE m) y lo mete en [inventory]. Falso si
-## no había nada al alcance o no cabe. Los arbustos, solo si la vista ([view_from] hacia [view_dir])
-## apunta a ellos.
+## Recoge lo más cercano a [picker] (a menos de PICK_RANGE m) y lo mete en [inventory]; lo que no
+## cabe se queda en el suelo (DroppedItem). Falso si no había nada al alcance o no cabe nada. Los
+## arbustos, solo si la vista ([view_from] hacia [view_dir]) apunta a ellos.
 static func try_pickup(picker: Node3D, inventory: Inventory, view_from: Vector3 = Vector3.ZERO,
 		view_dir: Vector3 = Vector3.ZERO) -> bool:
 	# Todo lo que toca la esfera vale (una rama larga puede tener el centro más lejos que la punta);
@@ -54,18 +58,21 @@ static func try_pickup(picker: Node3D, inventory: Inventory, view_from: Vector3 
 	if best == null:
 		return false
 	var item_id := _item_of(best)
+	var data := ItemCatalog.get_item(item_id)
 	var count := 1
 	if item_id == STONE_ID:
 		count = clampi(roundi(best.global_basis.get_scale().x * STONES_PER_SCALE), 1, 5)
+	elif item_id == BRANCH_ID:
+		count = randi_range(BRANCHES.x, BRANCHES.y)
 	elif PLANTS.has(item_id):
 		count = clampi(roundi(best.global_basis.get_scale().x * float(PLANTS[item_id])), 1, 4)
-	if inventory.add_item(ItemCatalog.get_item(item_id), count) == count:
+	var left := inventory.add_item(data, count)
+	if left == count:
 		return false
-	if PLANTS.has(item_id):
-		AudioManager.play_3d(&"land_leaves", best.global_position)
-	else:
-		AudioManager.play_material(&"block_impact", &"rock" if item_id == STONE_ID else &"wood",
-			best.global_position, {"volume_offset_db": -14.0})
+	if left > 0:
+		var up := (picker as CharacterBody3D).up_direction if picker is CharacterBody3D else picker.global_basis.y
+		DroppedItem.spawn_at(picker, data, left, best.global_position + up * 0.3, -up)
+	AudioManager.play_ui(&"item_pickup")
 	best.queue_free_and_notify_instancer()
 	return true
 

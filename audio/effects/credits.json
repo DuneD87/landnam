@@ -23,6 +23,36 @@
    "author": "PhilllChabbb",
    "license": "http://creativecommons.org/publicdomain/zero/1.0/",
    "url": "https://freesound.org/s/232731/"
+  },
+  "719963": {
+   "title": "Foley, Grab Leather, Soft",
+   "author": "Kinoton",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/719963/"
   }
+ },
+ "clips": {
+  "pickup": [
+   {
+    "file": "audio/effects/pickup/pickup_01.ogg",
+    "source": 719963,
+    "dur": 0.29
+   },
+   {
+    "file": "audio/effects/pickup/pickup_02.ogg",
+    "source": 719963,
+    "dur": 0.36
+   },
+   {
+    "file": "audio/effects/pickup/pickup_03.ogg",
+    "source": 719963,
+    "dur": 0.3
+   },
+   {
+    "file": "audio/effects/pickup/pickup_04.ogg",
+    "source": 719963,
+    "dur": 0.43
+   }
+  ]
  }
 }

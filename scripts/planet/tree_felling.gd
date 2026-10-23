@@ -3,8 +3,8 @@ extends Node3D
 
 ## Tala de los árboles del instancer (los Branching y las palmeras): cada hachazo en un tronco
 ## (PlayerCombat) suma trabajo hasta que el árbol cede y cae (FallingTree), dejando un
-## tocón a la altura del primer hachazo. Tumbado, se trocea a hachazos en leños y ramas que quedan
-## en el suelo para recogerlos.
+## tocón a la altura del primer hachazo. Tumbado, se parte a hachazos en trozos (TreeLog) y la copa
+## en ramas; cada trozo se parte a su vez en leña que queda en el suelo para recogerla.
 ##
 ## El trabajo va con el diámetro del tronco, no con la altura: con el hacha de piedra, un abedul
 ## cae en tres hachazos y un pino grande en quince. La madera va con el diámetro por la altura.
@@ -31,15 +31,17 @@ const REACH_HEIGHT := 2.4
 const BURIED_DEPTH := 6.0
 ## Altura del corte sobre el suelo junto al tronco (m): la del primer hachazo, entre estos límites.
 const CUT_HEIGHT := Vector2(0.1, 0.8)
-## Madera: por metro de diámetro y metro de altura, más una.
-const WOOD_PER_M2 := 1.2
-const MAX_WOOD := 30
+## Madera: por metro de diámetro y metro de altura, más MIN_WOOD.
+const WOOD_PER_M2 := 3.6
+const MIN_WOOD := 3
+const MAX_WOOD := 90
 ## Lo que mella lo que no es un hacha, por tipo de golpe.
 const SLASH_FACTOR := 0.3
 const BLUNT_FACTOR := 0.15
 const PIERCE_FACTOR := 0.1
 const MAX_STUMPS := 128
 const MAX_FALLEN := 8
+const MAX_LOGS := 32
 ## Alcance de las palmeras caídas y sus tocones (sin relevo de LODs).
 const PALM_RANGE := 220.0
 
@@ -50,6 +52,7 @@ var _species: Dictionary = {}
 var _trees: Dictionary = {}
 var _stumps: Array[Node3D] = []
 var _fallen: Array[Node3D] = []
+var _logs: Array[Node3D] = []
 
 static var _cut_material: StandardMaterial3D
 static var _notch_texture: Texture2D
@@ -91,11 +94,11 @@ static func chop_power(data: ItemData) -> float:
 
 
 ## El tronco que recibe un golpe dado desde [feet] (los pies) hacia [forward], con [up] el del
-## planeta: {body, point} con un árbol en pie talable o uno caído por trocear, o {}. El tajo es un
-## tramo a la altura del pecho, hacia delante hasta STRIKE_REACH, y para los caídos además uno que
-## baja delante hasta el suelo. Cuenta el tronco cuyo eje pasa más cerca, dentro de su radio más la
-## holgura. Los árboles se buscan también por debajo de los pies (hasta BURIED_DEPTH): uno hundido
-## tiene la colisión enterrada y el tronco que se ve, por encima.
+## planeta: {body, point} con un árbol en pie talable, uno caído por partir o uno de sus trozos
+## (TreeLog), o {}. El tajo es un tramo a la altura del pecho, hacia delante hasta STRIKE_REACH, y
+## para los caídos además uno que baja delante hasta el suelo. Cuenta el tronco cuyo eje pasa más
+## cerca, dentro de su radio más la holgura. Los árboles se buscan también por debajo de los pies
+## (hasta BURIED_DEPTH): uno hundido tiene la colisión enterrada y el tronco que se ve, por encima.
 static func strike(scene_tree: SceneTree, space: PhysicsDirectSpaceState3D, feet: Vector3,
 		forward: Vector3, up: Vector3) -> Dictionary:
 	if space == null:
@@ -109,14 +112,17 @@ static func strike(scene_tree: SceneTree, space: PhysicsDirectSpaceState3D, feet
 	var far := chest + flat * STRIKE_REACH
 	var best := {}
 	var best_gap := INF
-	for node in scene_tree.get_nodes_in_group(FallingTree.GROUP):
-		var fallen := node as FallingTree
-		if fallen == null:
-			continue
-		var reach := fallen.strike_reach(near, far, chest + flat * 0.9, feet + flat * 0.9 - up * 0.3)
+	var low_near := chest + flat * 0.9
+	var low_far := feet + flat * 0.9 - up * 0.3
+	for node in scene_tree.get_nodes_in_group(FallingTree.GROUP) + scene_tree.get_nodes_in_group(TreeLog.GROUP):
+		var reach: Array = []
+		if node is FallingTree:
+			reach = (node as FallingTree).strike_reach(near, far, low_near, low_far)
+		elif node is TreeLog:
+			reach = (node as TreeLog).strike_reach(near, far, low_near, low_far)
 		if not reach.is_empty() and reach[0] <= FALLEN_WIDTH and reach[0] < best_gap:
 			best_gap = reach[0]
-			best = {"body": fallen, "point": reach[1]}
+			best = {"body": node, "point": reach[1]}
 	for result in space.intersect_shape(strike_query(feet, flat, up), 32):
 		var body := result.get("collider") as VoxelInstancerRigidBody
 		if body == null:
@@ -173,10 +179,12 @@ func clear_species() -> void:
 
 
 ## Mete un hachazo de [power] en el tronco de [body] por [point] (mundo), dado desde [chopper]:
-## mella un árbol en pie o trocea uno caído. Devuelve true si ha hecho algo.
+## mella un árbol en pie, parte uno caído o uno de sus trozos. Devuelve true si ha hecho algo.
 static func chop_any(body: Node, point: Vector3, power: float, chopper: Node3D) -> bool:
 	if body is FallingTree:
 		return (body as FallingTree).hack(point, power, chopper)
+	if body is TreeLog:
+		return (body as TreeLog).hack(point, power, chopper)
 	var felling := for_body(body)
 	return felling != null and felling.chop(body, power, chopper)
 
@@ -237,7 +245,7 @@ func _fell(tree: VoxelInstancerRigidBody, info: Dictionary, state: Dictionary, o
 	var height: float = info.height * scale
 	# Cae hacia el otro lado de quien lo tala, con algo de azar.
 	var fall_dir := (-out).rotated(up, randf_range(-0.15, 0.15)).normalized()
-	var wood := clampi(roundi(WOOD_PER_M2 * radius * 2.0 * height) + 1, 1, MAX_WOOD)
+	var wood := clampi(roundi(WOOD_PER_M2 * radius * 2.0 * height) + MIN_WOOD, MIN_WOOD, MAX_WOOD)
 	var relative_base := xf.origin - (planet.voxel_terrain.get_parent() as Node3D).global_position
 
 	_stumps.append(_build_stump(info, xf, state.cut, radius))
@@ -269,6 +277,20 @@ func _fell(tree: VoxelInstancerRigidBody, info: Dictionary, state: Dictionary, o
 	# Lo saca del bosque (y de su guardado) para siempre. El detalle se va en el siguiente reparto,
 	# con el árbol que cae ya dibujado encima en la misma pose.
 	tree.queue_free_and_notify_instancer()
+
+
+## Cuelga [chunk], un trozo de tronco recién partido (FallingTree): pasado MAX_LOGS, los más viejos
+## se van.
+func add_log(chunk: TreeLog) -> void:
+	add_child(chunk)
+	for i in range(_logs.size() - 1, -1, -1):
+		if not is_instance_valid(_logs[i]) or _logs[i].is_queued_for_deletion():
+			_logs.remove_at(i)
+	_logs.append(chunk)
+	while _logs.size() > MAX_LOGS:
+		var old: Node3D = _logs.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
 
 
 ## Suena [id] si hay clips grabados; si no, [fallback] (que sí los tiene) más grave.

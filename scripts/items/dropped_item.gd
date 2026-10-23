@@ -53,8 +53,9 @@ static func spawn(dropper: Node3D, data: ItemData, amount: int, down: Vector3) -
 
 ## Suelta [amount] de [data] desde [from] (mundo), que cae con la gravedad [down] hasta el suelo de
 ## debajo, girado al azar. [visual]: su malla en vez de la del item, con lo de abajo en el origen.
+## [exclude]: lo que no cuenta como suelo (lo que se deshace al soltarlo).
 static func spawn_at(context: Node, data: ItemData, amount: int, from: Vector3, down: Vector3,
-		visual: Node3D = null) -> DroppedItem:
+		visual: Node3D = null, exclude: Array[RID] = []) -> DroppedItem:
 	var item := DroppedItem.new()
 	item.item_data = data
 	item.quantity = amount
@@ -63,8 +64,7 @@ static func spawn_at(context: Node, data: ItemData, amount: int, from: Vector3, 
 	context.get_tree().current_scene.add_child(item)
 	var up := -down.normalized()
 	var across := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
-	var empty: Array[RID] = []
-	item._drop(from, across.rotated(up, randf() * TAU), up, empty, 0.0)
+	item._drop(from, across.rotated(up, randf() * TAU), up, exclude, 0.0)
 	return item
 
 
@@ -97,6 +97,7 @@ func pick_into(inventory: Inventory) -> bool:
 	var left := inventory.add_item(item_data, quantity)
 	if left >= quantity:
 		return false
+	AudioManager.play_ui(&"item_pickup")
 	quantity = left
 	if quantity <= 0:
 		queue_free()

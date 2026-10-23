@@ -243,7 +243,22 @@ llevan `"pickup": true`, `"pickup_item": "plant_fiber"` y
 `"collision_distance_m": 40`, y cerca del jugador cada mata tiene un cilindro de
 su tamaño en la capa de recogida (`Planet._pickup_shape`). Hay que mirarlos
 porque abundan, sobre todo en las orillas, y si no se llevarían la E de beber o
-de recoger lo soltado. Al arrancarla suena a hojas (`land_leaves`).
+de recoger lo soltado. Al arrancarla suena como todo lo que se recoge (ver abajo).
+
+### Madera y ramas
+
+Cada rama caída del suelo da de 5 a 10 ramas (`GroundPickup.BRANCHES`; se apilan
+de 50 en 50). La madera sale de talar con hacha (`TreeFelling`): el árbol cae
+(`FallingTree`), y los hachazos en el tronco tumbado lo parten en trozos de unos
+2,5 m (`TreeLog`, de 2 a 6 según el largo) que se apartan del golpe y caen al
+suelo, mientras la copa se deshace en hojarasca y suelta un puñado de ramas por
+cada 6 m de altura. Cada trozo se parte a su vez en un montón de leña que se
+recoge con E. La madera va con el diámetro por la altura del árbol (3,6 por m²,
+más 3, hasta 90) y se reparte entre los trozos según su grosor.
+
+Todo lo que se recoge (lo del suelo, lo soltado, la leña, las lanzas clavadas)
+suena igual y bajito: `item_pickup`, un toque blando de cuero
+(`tools/audio/build_pickup_sound.py`, créditos en `docs/pickup_audio_credits.md`).
 
 ### Curarse
 

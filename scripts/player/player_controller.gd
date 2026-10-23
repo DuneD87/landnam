@@ -1318,6 +1318,7 @@ func _input(event):
 			var item_data = action_controller.handle_pickup(camera, ray_origin)
 			if item_data != null:
 				inventory.add_item(item_data, 1)
+				AudioManager.play_ui(&"item_pickup")
 	elif event.is_action_pressed("ui_cancel") and visible:
 		inventory_ui.close()
  

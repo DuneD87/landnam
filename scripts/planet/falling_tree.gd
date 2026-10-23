@@ -4,8 +4,9 @@ extends Node3D
 ## Árbol talado: gira sobre la bisagra del corte (el borde del tronco del lado hacia el que cae)
 ## como una vara que vuelca, despacio al principio y cada vez más deprisa, hasta dar con el suelo.
 ## Al caer levanta polvo y hojarasca, hace temblar la cámara y hiere a lo que pille debajo. Queda
-## tumbado (con colisión) y se trocea a hachazos: cada trozo suelta leños en el suelo junto al
-## golpe y el último deshace la copa en ramas. Si la cámara se aleja antes, se va.
+## tumbado (con colisión) y a hachazos se parte en trozos (TreeLog), que se apartan del golpe y caen
+## al suelo con la madera repartida; la copa se deshace en hojarasca y ramas. Si la cámara se aleja
+## antes, se va.
 ##
 ## Se dibuja con las mismas mallas (y LODs) que el bosque. La corteza y el follaje leen por
 ## instancia la base del árbol en pie, el corte y el viento del tronco (tree_felled.gdshaderinc).
@@ -28,11 +29,18 @@ const DAMAGE_PER_METER := 220.0
 const DAMAGE_RANGE := Vector2(25.0, 260.0)
 ## Se va cuando la cámara se aleja más que esto (para entonces ya no se ve).
 const DESPAWN_DISTANCE := 170.0
-## Troceo: madera por trozo y trabajo de cada trozo (fijo más por metro de diámetro).
-const WOOD_PER_PIECE := 3
-const PIECE_WORK := 10.0
-const PIECE_WORK_PER_METER := 25.0
-## Ramas que suelta la copa al deshacerse: una por cada tantos metros de altura.
+## Trabajo para partir el tronco tumbado: fijo más por metro de diámetro.
+const SPLIT_WORK := 12.0
+const SPLIT_WORK_PER_METER := 50.0
+## Los trozos: lo que ocupan del largo del árbol (lo de arriba es copa), su largo (m) y cuántos,
+## el hueco entre ellos y lo que se apartan del hachazo al partirse (m).
+const TRUNK_SHARE := 0.7
+const LOG_LENGTH := 2.5
+const LOG_COUNT := Vector2i(2, 6)
+const LOG_GAP := 0.08
+const LOG_PUSH := 0.25
+## Ramas que suelta la copa al deshacerse: un puñado como el de una rama caída
+## (GroundPickup.BRANCHES) por cada tantos metros de altura.
 const METERS_PER_BRANCH := 6.0
 const MAX_BRANCHES := 5
 const BRANCH_ID := &"branch_01"
@@ -42,10 +50,13 @@ var _chopper: Node3D
 var _wood: ItemData
 var _wood_amount := 0
 var _bark: Material
-## Troceo: trozos que quedan, trabajo de cada uno y el acumulado hacia el siguiente.
-var _pieces := 0
-var _piece_work := 0.0
+## Trabajo para partir el tronco tumbado y el acumulado; ya partido.
+var _split_work := 0.0
 var _work := 0.0
+var _split := false
+var _body: StaticBody3D
+## Altura del corte sobre la base del árbol (m).
+var _cut := 0.0
 var _radius := 0.3
 var _height := 10.0
 var _length := 9.0
@@ -87,6 +98,7 @@ func setup(params: Dictionary) -> void:
 	_dir = (to_local.basis * (params.fall_dir as Vector3)).normalized()
 	_dir = (_dir - _up * _dir.dot(_up)).normalized()
 	var cut: float = params.cut
+	_cut = cut
 	_hinge = _start.origin + _up * cut + _dir * _radius
 	_axis = _up.cross(_dir).normalized()
 
@@ -162,7 +174,7 @@ func _landing_angle() -> float:
 	while x <= reach:
 		var from := hinge + dir * x + up * (_length * 0.5 + 4.0)
 		var to := hinge + dir * x - up * (_length + 4.0)
-		var hit := _ground(space, from, to)
+		var hit := ground(space, from, to)
 		heights.append((hit - hinge).dot(up) if hit.is_finite() else -INF)
 		x += PROFILE_STEP
 	var theta := START_ANGLE
@@ -180,10 +192,10 @@ func _landing_angle() -> float:
 	return MAX_ANGLE
 
 
-## Primer suelo entre [from] y [to] que no es un árbol del bosque, o un vector infinito.
-static func _ground(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3) -> Vector3:
+## Primer suelo entre [from] y [to] que no es un árbol del bosque ni [skip], o un vector infinito.
+static func ground(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3, skip: Array[RID] = []) -> Vector3:
 	var query := PhysicsRayQueryParameters3D.create(from, to, PhysicsLayers.WORLD)
-	var exclude: Array[RID] = []
+	var exclude: Array[RID] = skip.duplicate()
 	for attempt in 6:
 		query.exclude = exclude
 		var hit := space.intersect_ray(query)
@@ -210,8 +222,7 @@ func _on_impact() -> void:
 	AudioManager.play_material(&"block_impact", &"wood", base.lerp(tip, 0.4), {"volume_offset_db": -2.0})
 	_shake(base.lerp(tip, 0.5), power)
 	_hurt(base, tip, up)
-	_pieces = ceili(float(_wood_amount) / float(WOOD_PER_PIECE))
-	_piece_work = PIECE_WORK + PIECE_WORK_PER_METER * _radius * 2.0
+	_split_work = SPLIT_WORK + SPLIT_WORK_PER_METER * _radius * 2.0
 
 
 ## Tiembla la cámara de quien está cerca, más cuanto más grande el árbol y más cerca.
@@ -270,12 +281,13 @@ func _hurt(base: Vector3, tip: Vector3, up: Vector3) -> void:
 				creature.take_damage(amount, _chopper if is_instance_valid(_chopper) else null)
 
 
-## Tumbado: colisión a lo largo del tronco, para pisarlo o saltarlo, y ya se puede trocear.
+## Tumbado: colisión a lo largo del tronco, para pisarlo o saltarlo, y ya se puede partir.
 func _rest() -> void:
 	_resting = true
 	add_to_group(GROUP)
 	var scale := _start.basis.y.length()
 	var body := StaticBody3D.new()
+	_body = body
 	body.collision_layer = PhysicsLayers.WORLD
 	body.collision_mask = 0
 	var shape := CollisionShape3D.new()
@@ -298,9 +310,9 @@ func _axis_world() -> PackedVector3Array:
 
 
 ## [hueco, punto]: lo que separa la superficie del tronco tumbado del tajo (los tramos [a]–[b] y
-## [c]–[d]) y el punto de su eje más cercano; [] si aún cae o ya está troceado.
+## [c]–[d]) y el punto de su eje más cercano; [] si aún cae o ya está partido.
 func strike_reach(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Array:
-	if not _resting or _pieces <= 0:
+	if not _resting or _split:
 		return []
 	var axis := _axis_world()
 	var best := []
@@ -312,9 +324,10 @@ func strike_reach(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Array:
 	return best
 
 
-## Hachazo de [power] al tronco tumbado por [point] (en su eje), dado desde [chopper]: trocea.
+## Hachazo de [power] al tronco tumbado por [point] (en su eje), dado desde [chopper]: al completar
+## el trabajo, se parte en trozos y la copa se deshace.
 func hack(point: Vector3, power: float, chopper: Node3D) -> bool:
-	if not _resting or _pieces <= 0 or power <= 0.0:
+	if not _resting or _split or power <= 0.0:
 		return false
 	var axis := _axis_world()
 	var up := (_felling.global_transform.basis * _up).normalized()
@@ -324,16 +337,13 @@ func hack(point: Vector3, power: float, chopper: Node3D) -> bool:
 	TreeFelling.play_sound(&"tree_chop", &"block_wood", surface,
 		{"pitch": clampf(0.3 / maxf(_radius, 0.05), 0.8, 1.2) * randf_range(1.0, 1.1)})
 	_work += power
-	while _work >= _piece_work and _pieces > 0:
-		_work -= _piece_work
-		_pieces -= 1
-		var amount := mini(WOOD_PER_PIECE, _wood_amount) if _pieces > 0 else _wood_amount
-		_wood_amount -= amount
-		if amount > 0 and _wood != null:
-			var from := point + side * (_radius + 0.45) + up * (_radius + 0.6)
-			DroppedItem.spawn_at(self, _wood, amount, from, -up, _log_pile(amount))
-	if _pieces <= 0:
-		_break_up(axis, up, side)
+	if _work < _split_work:
+		return true
+	_split = true
+	TreeFelling.play_sound(&"tree_crack", &"guard_break", surface,
+		{"pitch": clampf(0.5 / maxf(_radius, 0.05), 0.9, 1.4), "volume_offset_db": -4.0})
+	_cut_logs(point, up)
+	_break_up(axis, up, side)
 	return true
 
 
@@ -346,6 +356,37 @@ func _side(point: Vector3, axis: PackedVector3Array, up: Vector3, chopper: Node3
 	return side
 
 
+## Parte el tronco en trozos (TreeLog) que se apartan de [point], el hachazo, y caen al suelo, con
+## la madera repartida según su grosor (uno como poco cada uno).
+func _cut_logs(point: Vector3, up: Vector3) -> void:
+	var scale := _start.basis.y.length()
+	var along := global_basis.y.normalized()
+	var lift := (up - along * along.dot(up)).normalized()
+	var across := along.cross(lift)
+	var base := global_transform * (Vector3.UP * (_cut / scale))
+	var hit := (point - base).dot(along)
+	var trunk := _length * TRUNK_SHARE
+	var count := mini(clampi(roundi(trunk / LOG_LENGTH), LOG_COUNT.x, LOG_COUNT.y), maxi(_wood_amount, 1))
+	var piece_length := trunk / float(count)
+	var radii: Array = []
+	for i in count:
+		# El tronco se afila hacia la copa, como en _landing_angle.
+		radii.append(_radius * (1.0 - 0.7 * (float(i) + 0.5) * piece_length / _length))
+	var sections := radii.map(func(r: float) -> float: return r * r)
+	var shares := RockMining.share(maxi(_wood_amount - count, 0), sections)
+	var exclude: Array[RID] = []
+	if _body != null:
+		exclude.append(_body.get_rid())
+	for i in count:
+		var s := (float(i) + 0.5) * piece_length
+		var push := along * (LOG_PUSH * (1.0 if s > hit else -1.0)) + across * randf_range(-0.1, 0.1)
+		var chunk := TreeLog.new()
+		_felling.add_log(chunk)
+		chunk.setup(Transform3D(Basis(along, lift, across), base + along * s), radii[i], piece_length - LOG_GAP, _bark,
+			_wood, shares[i] + 1 if _wood_amount > 0 else 0, up, push, exclude)
+	_wood_amount = 0
+
+
 ## Lo que queda de la copa se deshace en hojarasca y suelta las ramas.
 func _break_up(axis: PackedVector3Array, up: Vector3, side: Vector3) -> void:
 	var power := clampf(_radius / 0.4, 0.2, 1.0)
@@ -353,24 +394,8 @@ func _break_up(axis: PackedVector3Array, up: Vector3, side: Vector3) -> void:
 	var crown := axis[0].lerp(axis[1], 0.7)
 	TreeFelling.play_sound(&"tree_fall", &"hit_blunt", crown, {"pitch": 1.3, "volume_offset_db": -6.0})
 	var branch := ItemCatalog.get_item(BRANCH_ID)
-	var branches := clampi(roundi(_height / METERS_PER_BRANCH), 1, MAX_BRANCHES)
+	var branches := clampi(roundi(_height / METERS_PER_BRANCH), 1, MAX_BRANCHES) \
+		* randi_range(GroundPickup.BRANCHES.x, GroundPickup.BRANCHES.y)
 	if branch != null:
 		DroppedItem.spawn_at(self, branch, branches, crown + side * (_radius + 0.6) + up * 1.5, -up)
 	queue_free()
-
-
-## Montón de [amount] leños (uno, dos juntos, o dos y uno encima), con la corteza de la especie.
-func _log_pile(amount: int) -> Node3D:
-	var pile := Node3D.new()
-	var radius := clampf(_radius * 0.45, 0.06, 0.15)
-	var mesh := TreeFelling.log_mesh(radius, 0.75, _bark)
-	var spots := [Vector3(0.0, 0.0, -radius), Vector3(0.0, 0.0, radius), Vector3(0.0, radius * 1.7, 0.0)]
-	if amount == 1:
-		spots = [Vector3.ZERO]
-	for i in mini(amount, spots.size()):
-		var piece := MeshInstance3D.new()
-		piece.mesh = mesh
-		piece.position = spots[i]
-		piece.rotation.y = randf_range(-0.12, 0.12)
-		pile.add_child(piece)
-	return pile

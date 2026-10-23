@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_script"]
+[ext_resource type="AudioStream" path="res://audio/effects/pickup/pickup_01.ogg" id="2_pick1"]
+[ext_resource type="AudioStream" path="res://audio/effects/pickup/pickup_02.ogg" id="3_pick2"]
+[ext_resource type="AudioStream" path="res://audio/effects/pickup/pickup_03.ogg" id="4_pick3"]
+[ext_resource type="AudioStream" path="res://audio/effects/pickup/pickup_04.ogg" id="5_pick4"]
+
+[resource]
+script = ExtResource("1_script")
+event_id = &"item_pickup"
+streams = Array[AudioStream]([ExtResource("2_pick1"), ExtResource("3_pick2"), ExtResource("4_pick3"), ExtResource("5_pick4")])
+volume_db = -16.0
+volume_jitter_db = 1.0
+pitch_jitter = 0.07
+max_distance = 18.0
+unit_size = 2.0
+max_voices = 2
+cooldown = 0.06

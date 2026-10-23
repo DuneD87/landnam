@@ -1951,6 +1951,7 @@ func try_pickup() -> bool:
 		return false
 	var data := best.item_data
 	best.queue_free()
+	AudioManager.play_ui(&"item_pickup")
 	if weapon() == null and player.hotbar.get_selected_data() != null \
 			and player.hotbar.get_selected_data().id == data.id:
 		player.inventory.add_item(data, 1)
