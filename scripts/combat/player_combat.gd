@@ -36,6 +36,10 @@ const LEFT_GRIP := CombatPose.LEFT_GRIP
 const CHARGE_TIME := 0.9
 ## Un golpe ligero hasta estos segundos después de rodar sale como golpe a la carrera.
 const DASH_WINDOW := 0.3
+## Golpe en marcha: el que sale moviéndose suena solo en el tronco y los brazos (canales
+## "run_a"/"run_b") y se sigue andando, corriendo o esprintando, a este ritmo de la marcha. Así se
+## alcanza lo que huye (un conejo va a 5 m/s; esprintando, a 6).
+const RUN_ATTACK_PACE := 0.85
 ## Fundido (s) de las animaciones de golpe al entrar, y al salir de vuelta a la guardia: al
 ## encadenar, el siguiente golpe se funde sobre el anterior.
 const ATTACK_FADE_IN := 0.15
@@ -189,6 +193,10 @@ var _move_speed: float = 1.0
 var _heavy: bool = false
 ## Talar o picar con una herramienta (trabajo, no combate).
 var _working: bool = false
+## El golpe salió en marcha (RUN_ATTACK_PACE): suena en "run_a"/"run_b" y no para las piernas.
+var _on_the_run: bool = false
+## Peso del giro de cadera del golpe en marcha que se pasa al tronco (CombatPose.swing_twist).
+var _run_twist: float = 0.0
 var _charge: float = 0.0
 var _charged: bool = false
 var _whooshed: bool = false
@@ -257,14 +265,19 @@ var _foot_ik: SkeletonModifier3D
 var _look_ik: SkeletonModifier3D
 var _tree: AnimationTree
 var _anims_ready: bool = false
-## Estado de los canales de acción: "full" (cuerpo entero), "attack_a"/"attack_b" (golpes) y
-## "upper" (tronco y brazos). "loop": la animación es un ciclo y suena hasta que se pare.
+## Estado de los canales de acción: "full" (cuerpo entero), "attack_a"/"attack_b" (golpes),
+## "run_a"/"run_b" (golpes en marcha, tronco y brazos) y "upper" (tronco y brazos). "loop": la
+## animación es un ciclo y suena hasta que se pare.
 var _act := {
 	"full": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
 		"loop": false},
 	"attack_a": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
 		"loop": false},
 	"attack_b": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
+		"loop": false},
+	"run_a": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
+		"loop": false},
+	"run_b": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
 		"loop": false},
 	"upper": {"anim": &"", "time": 0.0, "speed": 1.0, "length": 0.0, "active": false, "hold_end": false,
 		"loop": false, "weight": 0.0},
@@ -414,7 +427,8 @@ func _setup_animation() -> void:
 ## Canales de acción encima de todo el árbol (solo la escalada va encima de ellos): "upper",
 ## filtrado al tronco y los brazos (arco, lanzamiento: las piernas siguen con la locomoción);
 ## "attack_a" y "attack_b", los golpes cuerpo a cuerpo, que se turnan para que el siguiente se
-## funda sobre el anterior al encadenar; la antorcha de la izquierda; y "full" (voltereta, paso
+## funda sobre el anterior al encadenar; "run_a" y "run_b", lo mismo para los golpes en marcha,
+## filtrados al tronco y los brazos; la antorcha de la izquierda; y "full" (voltereta, paso
 ## atrás, tambaleo, muerte), encima de los otros. Cada uno: animación → TimeSeek → TimeScale →
 ## mezcla, para poder reproducirla, acelerarla o arrastrarla a un instante concreto. "full" mezcla
 ## con un OneShot; "upper" con un Blend2 cuyo peso lleva _act_advance: un OneShot cuenta su propio
@@ -433,7 +447,7 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 		return
 	tree_root.disconnect_node(&"output", 0)
 	var below := Cripple.build(tree_root, top)
-	for channel in ["upper", "attack_a", "attack_b", "full"]:
+	for channel in ["upper", "attack_a", "attack_b", "run_a", "run_b", "full"]:
 		if channel == "full":
 			# La antorcha de la mano izquierda, encima de los golpes: se sigue sosteniendo en alto al
 			# pegar con la derecha (PlayerController._hold_left_torch la suelta en las tareas).
@@ -448,7 +462,7 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 			oneshot.fadein_time = 0.12 if channel == "full" else ATTACK_FADE_IN
 			oneshot.fadeout_time = 0.25 if channel == "full" else ATTACK_FADE_OUT
 			shot = oneshot
-		if channel == "upper":
+		if channel == "upper" or channel.begins_with("run"):
 			AnimGraph.filter_branch(shot, _skeleton, UPPER_ROOT)
 		var clip := AnimGraph.add_clip(tree_root, "act_%s" % channel, anim)
 		tree_root.add_node(StringName("act_%s" % channel), shot)
@@ -546,8 +560,8 @@ func _act_stop(channel: String) -> void:
 ## Giro de la cadera (grados, marco del modelo) en [anim_name] a [time], leído de la pista.
 func _anim_hips_yaw(anim_name: StringName, time: float) -> float:
 	var animator: AnimationPlayer = player.animation_controller.animator
-	var path := StringName("combat/" + String(anim_name))
-	if not animator.has_animation(path):
+	var path := _anim_path(anim_name)
+	if animator == null or not animator.has_animation(path):
 		return NAN
 	var anim := animator.get_animation(path)
 	var track := anim.find_track(NodePath("Armature/Skeleton3D:mixamorig_Hips"), Animation.TYPE_ROTATION_3D)
@@ -864,13 +878,18 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 
 
 ## Velocidad final del cuerpo: en golpe, esquiva, tambaleo y muerte el combate manda en el plano
-## del suelo; la componente vertical (gravedad, salto) sigue siendo la del movimiento.
+## del suelo (salvo en el golpe en marcha, que sigue la marcha); la componente vertical (gravedad,
+## salto) sigue siendo la del movimiento.
 func apply_motion(velocity: Vector3) -> Vector3:
 	if state == State.IDLE or state == State.AIM:
 		return velocity
 	if state == State.GUARD:
 		return velocity + _guard_push
 	var up := -player.gravity_direction.normalized()
+	if state == State.ATTACK and _on_the_run:
+		# En marcha se sigue a donde se va, algo más despacio.
+		var flat := velocity - up * velocity.dot(up)
+		return up * velocity.dot(up) + flat * RUN_ATTACK_PACE + _motion_h
 	return up * velocity.dot(up) + _motion_h
 
 
@@ -884,6 +903,10 @@ func update_facing(delta: float, input_dir: Vector3) -> bool:
 			if _act_time(_attack_slot) < float(_move.get("track", 0.5)):
 				if lock_target != null:
 					_attack_dir = _flat(_targeting.point_for(lock_target) - player.global_position)
+				elif _on_the_run and player.movement.direction.length() > 0.3 \
+						and not player.camera_controller.first_person:
+					# En marcha se tuerce con la carrera, tras lo que se persigue.
+					_attack_dir = _flat(player.movement.direction)
 				_face(_attack_dir, delta, 9.0)
 			return true
 		State.AIM:
@@ -1227,17 +1250,23 @@ func _start_attack(heavy: bool) -> void:
 		return
 	var family := MeleeMoveset.family_for(data)
 	var kind := "heavy" if heavy else "light"
-	# Talar y picar es trabajo, no combate: el golpe se da en el sitio, sin paso adelante ni a la
-	# carrera. Con un enemigo encima, la herramienta pega como un arma.
+	var after_dodge := state == State.DODGE or _since_dodge < DASH_WINDOW
+	# En marcha (andando, corriendo o esprintando) no se para: el golpe va en el tronco y los
+	# brazos y las piernas siguen, también con el hacha o el pico (tala o pica igual si hay algo
+	# delante). Saliendo de una voltereta, el golpe a la carrera de cuerpo entero.
+	var on_the_run := not after_dodge and _anims_ready and player.movement.direction.length() > 0.3
+	# Talar y picar parado es trabajo, no combate: el golpe se da en el sitio, sin paso adelante ni
+	# a la carrera. Con un enemigo encima, la herramienta pega como un arma.
 	var working := data.category == ItemData.Category.TOOL and (TreeFelling.fells(data) or RockMining.mines(data)) \
-		and not _enemy_near()
-	if not heavy and not working and (player.movement.is_sprinting or state == State.DODGE or _since_dodge < DASH_WINDOW):
+		and not _enemy_near() and not on_the_run
+	if not heavy and not working and (after_dodge or (player.movement.is_sprinting and not on_the_run)):
 		kind = "dash"
 	# Encadena el combo si la animación del anterior aún suena o acaba de terminar.
 	var chained := (_recovering or _combo_window > 0.0) and _move_family == family and not _move.is_empty()
 	var index := _combo + 1 if chained and kind == _move_kind else 0
 	var mv := MeleeMoveset.move(family, kind, index)
-	if working:
+	# Sin paso adelante: trabajando, el golpe se da en el sitio; en marcha, ya avanza la carrera.
+	if working or on_the_run:
 		mv = mv.duplicate()
 		mv.erase("lunge")
 	var cost := data.stamina_cost * float(mv.get("stamina", 1.0)) * (1.6 if heavy else 1.0)
@@ -1252,6 +1281,7 @@ func _start_attack(heavy: bool) -> void:
 	_combo = index
 	_heavy = heavy
 	_working = working
+	_on_the_run = on_the_run
 	_charge = 0.0
 	_charged = false
 	_move_speed = maxf(data.attack_speed, 0.3) * float(mv.get("speed", 1.0))
@@ -1264,7 +1294,10 @@ func _start_attack(heavy: bool) -> void:
 	_combo_window = 0.0
 	# Cada golpe en el canal que no suena: se funde sobre el anterior.
 	var previous := _attack_slot
-	_attack_slot = "attack_b" if _attack_slot == "attack_a" else "attack_a"
+	if on_the_run:
+		_attack_slot = "run_b" if _attack_slot == "run_a" else "run_a"
+	else:
+		_attack_slot = "attack_b" if _attack_slot == "attack_a" else "attack_a"
 	_act_stop(previous)
 	_attack_t_prev = float(mv.get("from", 0.0))
 	_act_play(_attack_slot, mv.anim, _move_speed, _attack_t_prev)
@@ -1501,6 +1534,8 @@ func _abort_attack() -> void:
 	_hitstop = 0.0
 	_act_stop("attack_a")
 	_act_stop("attack_b")
+	_act_stop("run_a")
+	_act_stop("run_b")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -2138,6 +2173,14 @@ func _update_aim_blend(delta: float) -> void:
 	if _look_ik:
 		_look_ik.influence = 1.0 - pose.aim_weight
 	pose.aim_dir = _aim_dir
+	# Golpe en marcha: el giro de cadera de su animación va al tronco, con el fundido de su canal.
+	var run_ch: Dictionary = _act[_attack_slot]
+	var swinging: bool = _on_the_run and _attack_slot.begins_with("run") and run_ch.active
+	_run_twist = move_toward(_run_twist, 1.0 if swinging else 0.0,
+		delta / (ATTACK_FADE_IN if swinging else ATTACK_FADE_OUT))
+	pose.swing_twist = smoothstep(0.0, 1.0, _run_twist)
+	if swinging:
+		pose.swing_hips_yaw = _anim_hips_yaw(run_ch.anim, run_ch.time)
 	pose.fp_eye = player.appearance_rig.first_person_eye(player.camera_controller.fp_eye_forward) \
 			if player.camera_controller.first_person and player.appearance_rig != null else Vector3(NAN, NAN, NAN)
 	# Primera persona, golpeando a una criatura: la hoja no se sale de la vista
@@ -2510,7 +2553,9 @@ func _lockable(target: Node) -> bool:
 
 func _update_limits(delta: float, input_dir: Vector3) -> void:
 	var movement: Movement = player.movement
-	var moving := input_dir.length() > 0.1 and state == State.IDLE
+	# Libre para moverse a su aire: sin hacer nada, o golpeando en marcha.
+	var free := state == State.IDLE or (state == State.ATTACK and _on_the_run)
+	var moving := input_dir.length() > 0.1 and free
 	var sprinting := Input.is_action_pressed("Sprint") and moving
 	if sprinting and not stamina.drain(SPRINT_DRAIN, delta):
 		sprinting = false
@@ -2518,7 +2563,7 @@ func _update_limits(delta: float, input_dir: Vector3) -> void:
 	if moving and not sprinting and not movement.walking and not movement.is_swimming and not cripple.active():
 		stamina.drain(RUN_DRAIN, delta)
 		stamina.hold_regen()
-	movement.sprint_blocked = state != State.IDLE or stamina.exhausted or status.blocks(&"sprint")
+	movement.sprint_blocked = not free or stamina.exhausted or status.blocks(&"sprint")
 	movement.jump_blocked = state != State.IDLE or status.blocks(&"jump")
 	var pace := 0.45 if state == State.AIM else (GUARD_SPEED if state == State.GUARD else 1.0)
 	movement.speed_scale = pace * status.speed_mult()
@@ -2527,8 +2572,9 @@ func _update_limits(delta: float, input_dir: Vector3) -> void:
 		stamina.regen_scale *= player.needs.stamina_regen_mult()
 	player.current_animation = AnimationController.Anim.DEATH if state == State.DEAD else player.current_animation
 	# Tambaleo y paso atrás procedurales van sobre la animación de estar quieto: los pasos los
-	# dan las piernas por IK (si debajo corriera, las piernas seguirían corriendo).
-	if pose.motion_x >= 0.0 or state == State.ATTACK:
+	# dan las piernas por IK (si debajo corriera, las piernas seguirían corriendo). El golpe en
+	# marcha deja debajo la carrera: solo pone el tronco y los brazos.
+	if pose.motion_x >= 0.0 or (state == State.ATTACK and not _on_the_run):
 		player.current_animation = player.equiped_weapon.idle_animation if player.right_hand_equipped \
 			else AnimationController.Anim.IDLE
 	_update_body_visual()

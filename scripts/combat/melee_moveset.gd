@@ -2,8 +2,9 @@ class_name MeleeMoveset
 extends RefCounted
 
 ## Golpes cuerpo a cuerpo de cada familia de armas: qué animación suena y sus tiempos. Los
-## ligeros encadenan un combo; el pesado se carga manteniendo el botón; corriendo o saliendo de
-## una voltereta sale el golpe a la carrera. Cada golpe es atómico (ver PlayerCombat).
+## ligeros encadenan un combo; el pesado se carga manteniendo el botón; saliendo de una voltereta
+## sale el golpe a la carrera. En marcha, cualquiera se da sin pararse y sin su paso adelante
+## (PlayerCombat.RUN_ATTACK_PACE). Cada golpe es atómico (ver PlayerCombat).
 ##
 ## Tiempos en segundos de la animación a ritmo 1, medidos sobre ella (por la velocidad de la
 ## mano):

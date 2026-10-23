@@ -170,6 +170,14 @@ escudo, o las manos en el arma, delante del cuerpo.
   y `attack_vertical` con un `TimeScale` insertado en el árbol, de forma que cada arma
   golpea a su ritmo. El combo alterna los dos. El pesado se congela arriba mientras
   se mantiene el botón para cargar. Una pulsación temprana se guarda 0,45 s (buffer).
+- **Golpe en marcha**: el que sale andando, corriendo o esprintando no para al jugador: suena
+  solo en el tronco y los brazos (canales `run_a`/`run_b`, que se turnan como los de cuerpo
+  entero), las piernas siguen con la locomoción y se avanza al 85 % de la marcha
+  (`RUN_ATTACK_PACE`), sin el paso adelante del golpe. El giro de cadera de la animación pasa al
+  tronco (`CombatPose.swing_twist`) para que el tajo salga hacia donde va. Así se alcanza lo que
+  huye: conejos y zorros a 5 m/s, el jugador esprintando a 6. Con hacha o pico, en marcha, también
+  tala o pica lo que tenga delante. Saliendo de una voltereta sigue el golpe a la carrera de
+  cuerpo entero.
 - **Esquiva**: 18 de aguante. La voltereta dura 0,68 s y recorre 4,4 m; su hurtbox
   se apaga entre 0,04 s y 0,46 s. Quieto hace un paso atrás más corto. Se puede
   cancelar la recuperación de un golpe rodando, y encadenar otra voltereta desde el 82 % de la

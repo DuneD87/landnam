@@ -56,6 +56,11 @@ var aim_arms_ik: bool = true
 ## lleva a donde lo tendría sobre la cadera de la animación: el arquero y el lanzador se ponen
 ## de perfil como en el original.
 var upper_hips_yaw: float = NAN
+## Golpe en marcha (PlayerCombat, canales "run_a"/"run_b"): el giro de cadera de su animación
+## (grados, marco del modelo, o NAN) y cuánto pesa (0..1). Las piernas y la cadera son las de la
+## carrera, así que el giro pasa al arranque del tronco y el tajo sale hacia donde salía.
+var swing_hips_yaw: float = NAN
+var swing_twist: float = 0.0
 ## 0..1 pose de muerto.
 var death: float = 0.0
 ## Movimiento de cuerpo entero en curso (BodyMotion.STAGGER o BACKSTEP), su fase 0..1 (o
@@ -181,6 +186,8 @@ func _apply() -> void:
 			_apply_death(death)
 		if aim_weight > 0.001:
 			_apply_aim(aim_weight)
+	if swing_twist > 0.001 and not is_nan(swing_hips_yaw):
+		rotate_about(SPINE[0], Vector3.UP, wrapf(swing_hips_yaw - hips_yaw(), -180.0, 180.0) * swing_twist)
 	if guard > 0.001:
 		_apply_guard(guard)
 	if fp_reach > 0.001:
