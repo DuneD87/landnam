@@ -27,7 +27,7 @@ const SHORE_RANGE := 300.0
 ## Sube esto SIEMPRE que cambie el formato o el criterio de horneado. La clave del caché mira el
 ## contenido del generador, no el de este código: sin subirlo, un mapa horneado con reglas viejas se
 ## sigue leyendo tal cual y el cambio no se ve por ningún lado.
-const BAKE_VERSION := 15
+const BAKE_VERSION := 16
 
 var map: WorldMapData
 
@@ -36,6 +36,8 @@ var _cache_path: String
 var _cache_key: String
 var _thread: Thread
 var _pending: WorldMapData
+## Red de ríos del planeta para el etiquetado del hilo (ver WorldMapBaker.classify_water).
+var _pending_rivers: Dictionary = {}
 var _storm_flags: PackedByteArray = PackedByteArray()
 
 
@@ -66,6 +68,7 @@ func setup(planet: Planet, entity_id: String, size: Vector2i, height_range: floa
 		return
 
 	_pending = baked
+	_pending_rivers = planet.get_river_network()
 	_thread = Thread.new()
 	if _thread.start(_classify_task) != OK:
 		# Sin hilo se hace aquí mismo: mejor un tirón en la carga que quedarse sin mapa.
@@ -74,7 +77,7 @@ func setup(planet: Planet, entity_id: String, size: Vector2i, height_range: floa
 
 
 func _classify_task() -> void:
-	WorldMapBaker.classify_water(_pending)
+	WorldMapBaker.classify_water(_pending, _pending_rivers)
 	# El campo de orilla necesita el etiquetado hecho: se siembra solo desde el litoral de mares y
 	# océanos, así que va detrás y en el mismo hilo.
 	WorldMapBaker.bake_shore_field(
@@ -88,6 +91,7 @@ func _on_classified() -> void:
 		_thread = null
 	map = _pending
 	_pending = null
+	_pending_rivers = {}
 	_build_storm_flags()
 	map.save_to(_cache_path, _cache_key)
 	map_ready.emit(map)
@@ -190,10 +194,15 @@ func shore_sample_local(local: Vector3) -> Vector4:
 	return map.shore_sample_at_dir(local.normalized())
 
 
-## Bloquea la costera sólo en agua interior confirmada. Un téxel de tierra junto al litoral no es
-## autoridad suficiente porque el mapa es mucho más grueso que la geometría visible.
+## Bloquea la costera sólo en agua interior quieta confirmada. Un téxel de tierra junto al litoral no
+## es autoridad suficiente porque el mapa es mucho más grueso que la geometría visible.
 func shore_waves_allowed_local(local: Vector3) -> bool:
 	return is_ready() and map.shore_waves_allowed_at_dir(local.normalized(), _storm_flags)
+
+
+## True sobre un cauce de río, en coordenadas relativas al centro del planeta.
+func is_river_local(local: Vector3) -> bool:
+	return is_ready() and map.is_river_at_dir(local.normalized())
 
 
 ## Profundidad del agua sobre el terreno en esa dirección, ya relativa al centro del planeta.

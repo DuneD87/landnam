@@ -33,6 +33,9 @@ uniform float storm_height_range = 1.0;
 uniform float storm_sea_height = 0.0;
 uniform int storm_body_ids[8];
 uniform int storm_body_count = 0;
+// Primer id de los cauces de río: WorldMapBaker.classify_water los numera detrás de todos los demás
+// cuerpos (WorldMapData.river_first_id). El máximo de int = ningún río.
+uniform int storm_river_first_id = 2147483647;
 uniform float storm_depth_start = 30.0;
 uniform float storm_depth_full = 150.0;
 // Oleaje al que vuelve el agua sin exposición. Lo escribe el WeatherController con los valores
@@ -85,7 +88,10 @@ float world_map_ground(vec2 uv) {
 // Recibe la uv equirect y la altura del terreno ya resueltas: las olas de orilla necesitan las dos
 // también, y calcularlas aquí otra vez costaba un atan+acos y una lectura de textura de más en cada
 // evaluación. La niebla submarina llama a esto ~70 veces por píxel, así que se nota.
-float storm_exposure(vec2 uv, float ground, out bool shore_allowed) {
+// 'river' sale aparte de 'shore_allowed' porque el hielo los trata distinto: para las olas un río es
+// como tierra incierta (decide el campo de orilla, que lo hornea así), para el hielo es costa.
+float storm_exposure(vec2 uv, float ground, out bool shore_allowed, out bool river) {
+    river = false;
     if (!storm_mask_enabled) {
         shore_allowed = true;
         return 1.0;
@@ -109,6 +115,7 @@ float storm_exposure(vec2 uv, float ground, out bool shore_allowed) {
     // Solo un id positivo conocido como lago/charca constituye una exclusión fiable.
     bool coarse_land = c.r > 0.998 && c.g > 0.998 && c.b > 0.998 && c.a > 0.998;
     shore_allowed = coarse_land || exposed;
+    river = id >= storm_river_first_id;
     if (!exposed) {
         return 0.0;
     }
@@ -224,11 +231,14 @@ WaveContext wave_context(vec3 local) {
     vec2 uv = world_map_uv(normalize(local));
     float ground = world_map_ground(uv);
     bool shore_allowed;
-    ctx.exposure = storm_exposure(uv, ground, shore_allowed);
+    bool river;
+    ctx.exposure = storm_exposure(uv, ground, shore_allowed, river);
 
-    // Un id interior confirmado bloquea esta familia. "Tierra" no: en el borde grueso del mapa
-    // también puede significar agua visible y convertirlo en veto dibuja rectángulos de un téxel.
-    if (shore_waves_enabled && shore_allowed) {
+    // Un lago o una charca confirmados bloquean esta familia. "Tierra" no: en el borde grueso del mapa
+    // también puede significar agua visible y convertirlo en veto dibuja rectángulos de un téxel. Un
+    // río tampoco, por lo mismo: en el estuario linda con el mar, y el campo de orilla, que lo hornea
+    // como tierra, ya apaga la ola que remonta la boca.
+    if (shore_waves_enabled && (shore_allowed || river)) {
         ctx.shore_field = textureLod(shore_offset_map, uv, 0.0);
         ctx.shore_dist = abs(ctx.shore_field.w);
         ctx.shore_quality = clamp(length(ctx.shore_field.xyz), 0.0, 1.0);
@@ -239,8 +249,9 @@ WaveContext wave_context(vec3 local) {
                 - smoothstep(reach * (1.0 - shore_fade), reach, ctx.shore_dist);
         }
     }
-    // Lagos y charcas (id interior confirmado, sin familia costera) cuentan como costa: se hielan
-    // antes que el mar abierto, igual que los ríos y las bahías estrechas.
+    // Lagos, charcas y ríos (id interior confirmado) cuentan como costa: se hielan antes que el mar
+    // abierto, igual que las bahías estrechas. El río también aunque reciba la costera: su distancia
+    // horneada es al mar, no a sus riberas.
     float ice_shore = !shore_waves_enabled ? -1.0 : (shore_allowed ? ctx.shore_dist : 0.0);
     ctx.ice = sea_ice_fraction(local, ice_shore);
     return ctx;

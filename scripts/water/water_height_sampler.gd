@@ -378,7 +378,8 @@ func _context(local_q: Vector3) -> Array:
 		var field := world_map.shore_sample_local(local_q)
 		var raw_dir := Vector3(field.x, field.y, field.z)
 		shore_quality = clampf(raw_dir.length(), 0.0, 1.0)
-		ice_shore = absf(field.w)
+		# Un río recibe la costera pero se hiela como costa: igual que en wave_context.
+		ice_shore = 0.0 if world_map.is_river_local(local_q) else absf(field.w)
 		# Fuera del if a propósito: el shader resuelve shore_depth en cuanto la costera está permitida,
 		# sin mirar la distancia. Daba igual mientras solo lo usara el shoaling (que vive dentro de la
 		# rama de distancia), pero el tope de agua somera del chop lo consulta SIEMPRE, y dejarlo aquí

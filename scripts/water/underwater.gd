@@ -82,7 +82,7 @@ const _SYNCED_WATER_PARAMS: Array[StringName] = [
 	# máscara su corte se separa del de la superficie justo en lagos y orilla.
 	&"storm_mask_enabled", &"storm_height_map", &"storm_body_map",
 	&"storm_height_min", &"storm_height_range", &"storm_sea_height",
-	&"storm_body_ids", &"storm_body_count",
+	&"storm_body_ids", &"storm_body_count", &"storm_river_first_id",
 	&"storm_depth_start", &"storm_depth_full",
 	&"wave_calm_amplitude", &"wave_calm_steepness",
 	# Olas de orilla: idem, forman parte de la misma superficie.

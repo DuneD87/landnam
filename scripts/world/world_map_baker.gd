@@ -205,7 +205,19 @@ static func _input_source(fn: Object, node_id: int, port: int) -> Dictionary:
 
 ## Etiqueta los cuerpos de agua conectados y mide cada uno. Solo toca arrays, así que es seguro
 ## llamarla desde un hilo.
-static func classify_water(map: WorldMapData) -> void:
+##
+## 'rivers' es la red de Planet.get_river_network(). Los ríos no tienen lámina propia: el lecho se
+## talla por debajo del nivel del mar y los llena la esfera del océano, así que en el mapa grueso son
+## agua unida al mar por la desembocadura. Inundando a secas salían como océano: olas de orilla contra
+## cada ribera, temporal en los tramos hondos, rumor de mar y fauna marina. Medido sobre planet_earth,
+## el 56 % de los puntos del eje de los ríos caía en el océano. Por eso se inunda en tres pasadas:
+##
+##  1. Los cuerpos naturales, sin entrar en el alcance del tallado (_river_footprint).
+##  2. Cada cuerpo natural recupera el agua de ese alcance que le queda cerca: el mar que rodea la
+##     prolongación de cada desembocadura y el estuario (_grow_into_footprint).
+##  3. Lo que sobra es cauce: cuerpos RIVER, numerados detrás de todos los demás
+##     (WorldMapData.river_first_id).
+static func classify_water(map: WorldMapData, rivers: Dictionary = {}) -> void:
 	var w := map.size.x
 	var h := map.size.y
 	var n := w * h
@@ -220,43 +232,220 @@ static func classify_water(map: WorldMapData) -> void:
 	# El umbral se lleva al mismo espacio normalizado que 'heights' para no convertir por téxel.
 	var sea_norm := (map.sea_level_radius - map.radius - map.height_min) / map.height_span
 	var heights := map.heights
+	var footprint := _river_footprint(map, rivers)
+	var carved: PackedByteArray = footprint.mask
 
-	# Inundación iterativa. Cada téxel se marca al apilarlo, así entra en la pila una sola vez y
-	# 'stack' nunca necesita más de n huecos.
 	var stack := PackedInt32Array()
 	stack.resize(n)
-	var neighbors := PackedInt32Array([0, 0, 0, 0])
 	var next_id := 0
-
 	for start in n:
+		if heights[start] >= sea_norm or ids[start] != -1 or carved[start] == 1:
+			continue
+		_flood(start, next_id, ids, heights, sea_norm, carved, 0, stack, w, h)
+		next_id += 1
+
+	var river_first := next_id
+	_grow_into_footprint(map, ids, footprint, sea_norm)
+	for start in footprint.texels:
 		if heights[start] >= sea_norm or ids[start] != -1:
 			continue
-		var body := next_id
+		_flood(start, next_id, ids, heights, sea_norm, carved, 1, stack, w, h)
 		next_id += 1
-		ids[start] = body
-		stack[0] = start
-		var sp := 1
-		while sp > 0:
-			sp -= 1
-			var i := stack[sp]
-			var y := i / w
-			var x := i - y * w
-			# La envoltura en longitud también cose los polos: en la fila 0 (y en la última) todos
-			# los téxeles son el mismo punto geométrico, y el anillo horizontal ya los conecta.
-			neighbors[0] = i - 1 if x > 0 else i + w - 1
-			neighbors[1] = i + 1 if x < w - 1 else i - w + 1
-			neighbors[2] = i - w if y > 0 else -1
-			neighbors[3] = i + w if y < h - 1 else -1
-			for k in 4:
-				var c := neighbors[k]
-				if c < 0 or ids[c] != -1 or heights[c] >= sea_norm:
-					continue
-				ids[c] = body
-				stack[sp] = c
-				sp += 1
 
 	map.body_ids = ids
-	map.bodies = _measure_bodies(map, ids, next_id)
+	map.bodies = _measure_bodies(map, ids, next_id, river_first)
+
+
+## Inundación iterativa desde 'start' por el agua sin etiquetar cuyo 'carved' vale 'want'. Cada téxel
+## se marca al apilarlo, así entra en la pila una sola vez y 'stack' nunca necesita más de n huecos.
+static func _flood(start: int, body: int, ids: PackedInt32Array, heights: PackedFloat32Array,
+		sea_norm: float, carved: PackedByteArray, want: int, stack: PackedInt32Array,
+		w: int, h: int) -> void:
+	var neighbors := PackedInt32Array([0, 0, 0, 0])
+	ids[start] = body
+	stack[0] = start
+	var sp := 1
+	while sp > 0:
+		sp -= 1
+		var i := stack[sp]
+		_neighbors(i, w, h, neighbors)
+		for k in 4:
+			var c := neighbors[k]
+			if c < 0 or ids[c] != -1 or heights[c] >= sea_norm or carved[c] != want:
+				continue
+			ids[c] = body
+			stack[sp] = c
+			sp += 1
+
+
+## Vecinos en cruz de un téxel, o -1 fuera del mapa. La envoltura en longitud también cose los polos:
+## en la fila 0 (y en la última) todos los téxeles son el mismo punto geométrico, y el anillo
+## horizontal ya los conecta.
+static func _neighbors(i: int, w: int, h: int, out: PackedInt32Array) -> void:
+	var y := i / w
+	var x := i - y * w
+	out[0] = i - 1 if x > 0 else i + w - 1
+	out[1] = i + 1 if x < w - 1 else i - w + 1
+	out[2] = i - w if y > 0 else -1
+	out[3] = i + w if y < h - 1 else -1
+
+
+## Téxeles cuyo centro cae al alcance del tallado de algún cauce: semianchura + carve_range desde el
+## eje. Fuera de ahí el grafo no toca el terreno, así que el agua que haya es natural. Medido sobre
+## planet_earth, el agua de cauce del mapa se acaba justo en ese alcance y más allá solo queda la de
+## fondo. Devuelve {mask (1 por téxel marcado), texels (sus índices), reach}: 'reach' es lo que
+## _grow_into_footprint necesita para cruzar la franja entera desde su borde.
+static func _river_footprint(map: WorldMapData, rivers: Dictionary) -> Dictionary:
+	var w := map.size.x
+	var h := map.size.y
+	var mask := PackedByteArray()
+	mask.resize(w * h)
+	var texels := PackedInt32Array()
+	var seg: PackedFloat32Array = rivers.get("seg", PackedFloat32Array())
+	var hydro: Vector2i = rivers.get("hydro_size", Vector2i.ZERO)
+	if seg.is_empty() or hydro.x <= 0 or hydro.y <= 0:
+		return {"mask": mask, "texels": texels, "reach": 0.0}
+
+	var carve := float(rivers.get("carve_range", 0.0))
+	var r := map.sea_level_radius
+	var dirs := _texel_dirs(w, h)
+	var sin_t: PackedFloat32Array = dirs[0]
+	var cos_t: PackedFloat32Array = dirs[1]
+	var cos_l: PackedFloat32Array = dirs[2]
+	var sin_l: PackedFloat32Array = dirs[3]
+	# La red va en téxeles del mapa de hidrología, con la misma convención equirect que este mapa:
+	# pasar de uno a otro es solo escalar.
+	var sx := float(w) / hydro.x
+	var sy := float(h) / hydro.y
+	var max_half := 0.0
+
+	for k in seg.size() / 8:
+		var o := k * 8
+		var half0 := seg[o + 6]
+		var half1 := seg[o + 7]
+		max_half = maxf(max_half, maxf(half0, half1))
+		var reach := maxf(half0, half1) + carve
+		var a := RiverField.hydro_dir(seg[o], seg[o + 1], hydro.x, hydro.y) * r
+		var ab := RiverField.hydro_dir(seg[o + 2], seg[o + 3], hydro.x, hydro.y) * r - a
+		var ab2 := ab.length_squared()
+		# Caja de búsqueda. Un tramo que cruza la costura ya trae la x desenvuelta (fuera de [0, w)),
+		# así que basta envolver al indexar.
+		var x0 := minf(seg[o], seg[o + 2]) * sx
+		var x1 := maxf(seg[o], seg[o + 2]) * sx
+		var dy := reach / (r * PI) * h
+		var y_lo := clampi(int(floor(minf(seg[o + 1], seg[o + 3]) * sy - dy)) - 1, 0, h - 1)
+		var y_hi := clampi(int(ceil(maxf(seg[o + 1], seg[o + 3]) * sy + dy)), 0, h - 1)
+		for y in range(y_lo, y_hi + 1):
+			var st: float = sin_t[y]
+			var ct: float = cos_t[y]
+			# Columnas que caben en el alcance a esta latitud. Cerca del polo la caja se come la fila.
+			var span := reach / maxf(r * st * TAU, 1.0e-3) * w
+			var x_lo := 0
+			var x_hi := w - 1
+			if span < w * 0.5:
+				x_lo = int(floor(x0 - span)) - 1
+				x_hi = int(ceil(x1 + span))
+			var row := y * w
+			for xr in range(x_lo, x_hi + 1):
+				var xi := posmod(xr, w)
+				if mask[row + xi] == 1:
+					continue
+				var p := Vector3(st * cos_l[xi], ct, -st * sin_l[xi]) * r - a
+				var t := clampf(p.dot(ab) / ab2, 0.0, 1.0) if ab2 > 1.0e-9 else 0.0
+				if (p - ab * t).length() <= lerpf(half0, half1, t) + carve:
+					mask[row + xi] = 1
+					texels.append(row + xi)
+
+	# Desde el borde de la franja hasta el eje hay como mucho semianchura + carve_range, más un téxel
+	# porque el borde se mide entre centros.
+	return {"mask": mask, "texels": texels, "reach": max_half + carve + r * PI / h}
+
+
+## Devuelve a cada cuerpo natural el agua del alcance del tallado que tiene a menos de 'reach' de su
+## orilla. Es sobre todo el mar que rodea la prolongación de cada desembocadura, que la red talla mar
+## adentro, y de paso el estuario: los primeros cientos de metros del cauce siguen siendo del mar, y
+## es ahí donde termina la costera. En anchura desde todos los cuerpos a la vez, arrastrando la semilla
+## (el téxel natural del que parte cada frente) y midiendo contra ella en metros: un paso de téxel no
+## mide lo mismo en el ecuador que junto al polo.
+static func _grow_into_footprint(map: WorldMapData, ids: PackedInt32Array,
+		footprint: Dictionary, sea_norm: float) -> void:
+	var carved: PackedByteArray = footprint.mask
+	var texels: PackedInt32Array = footprint.texels
+	var reach: float = footprint.reach
+	if texels.is_empty() or reach <= 0.0:
+		return
+	var w := map.size.x
+	var h := map.size.y
+	var heights := map.heights
+	var dirs := _texel_dirs(w, h)
+	var sin_t: PackedFloat32Array = dirs[0]
+	var cos_t: PackedFloat32Array = dirs[1]
+	var cos_l: PackedFloat32Array = dirs[2]
+	var sin_l: PackedFloat32Array = dirs[3]
+	var reach2 := pow(reach / map.sea_level_radius, 2.0)
+	var neighbors := PackedInt32Array([0, 0, 0, 0])
+	var seeds := {}
+	var queue := PackedInt32Array()
+
+	# Primer frente: el agua de la franja pegada a un cuerpo natural. La semilla tiene que ser un téxel
+	# natural, no uno de la franja que este mismo bucle acabe de etiquetar.
+	for i in texels:
+		if heights[i] >= sea_norm:
+			continue
+		_neighbors(i, w, h, neighbors)
+		for k in 4:
+			var c := neighbors[k]
+			if c >= 0 and ids[c] >= 0 and carved[c] == 0:
+				ids[i] = ids[c]
+				seeds[i] = c
+				queue.append(i)
+				break
+
+	var head := 0
+	while head < queue.size():
+		var i := queue[head]
+		head += 1
+		var s: int = seeds[i]
+		var seed_y := s / w
+		var seed_x := s - seed_y * w
+		var seed := Vector3(sin_t[seed_y] * cos_l[seed_x], cos_t[seed_y],
+			-sin_t[seed_y] * sin_l[seed_x])
+		_neighbors(i, w, h, neighbors)
+		for k in 4:
+			var c := neighbors[k]
+			# Fuera de la franja no queda agua sin etiquetar: la primera pasada ya se la llevó.
+			if c < 0 or ids[c] != -1 or heights[c] >= sea_norm:
+				continue
+			var cy := c / w
+			var cx := c - cy * w
+			var d := Vector3(sin_t[cy] * cos_l[cx], cos_t[cy], -sin_t[cy] * sin_l[cx])
+			if d.distance_squared_to(seed) > reach2:
+				continue
+			ids[c] = ids[i]
+			seeds[c] = s
+			queue.append(c)
+
+
+## Tablas de la dirección del centro de cada téxel: [sin(theta), cos(theta)] por fila y
+## [cos(lon), sin(lon)] por columna, con dirección = (st * cl, ct, -st * sl) como uv_to_dir.
+static func _texel_dirs(w: int, h: int) -> Array:
+	var sin_t := PackedFloat32Array()
+	var cos_t := PackedFloat32Array()
+	var cos_l := PackedFloat32Array()
+	var sin_l := PackedFloat32Array()
+	sin_t.resize(h)
+	cos_t.resize(h)
+	cos_l.resize(w)
+	sin_l.resize(w)
+	for y in h:
+		var theta := (y + 0.5) / float(h) * PI
+		sin_t[y] = sin(theta)
+		cos_t[y] = cos(theta)
+	for x in w:
+		var lon := ((x + 0.5) / float(w) - 0.5) * TAU
+		cos_l[x] = cos(lon)
+		sin_l[x] = sin(lon)
+	return [sin_t, cos_t, cos_l, sin_l]
 
 
 ## Ids de los cuerpos de agua abiertos (océanos y mares), los mayores primero. Son los únicos que
@@ -302,6 +491,7 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 
 	var started := Time.get_ticks_msec()
 	var ids := map.body_ids
+	var river_first := map.river_first_id()
 	var elig := PackedByteArray()
 	elig.resize(map.bodies.size())
 	for id in eligible:
@@ -422,9 +612,11 @@ static func bake_shore_field(map: WorldMapData, eligible: PackedInt32Array,
 				offsets[o + 1] = proj.y
 				offsets[o + 2] = proj.z
 				# El agua interior se apaga con el peso, conservando el vector: anularlo metería en
-				# la orilla del lago el mismo salto de fase que en el borde del campo.
+				# la orilla del lago el mismo salto de fase que en el borde del campo. Los ríos no:
+				# tocan al mar en el estuario, y ahí el salto caería en mitad del agua. Se hornean
+				# como tierra, así la ola que remonta la boca se desvanece con la distancia.
 				var id := ids[i2]
-				if id < 0 or elig[id] == 1:
+				if id < 0 or elig[id] == 1 or id >= river_first:
 					# Forma creciente para no depender del smoothstep con bordes invertidos. El campo
 					# se hornea ancho y shore_reach decide después la franja visible en el shader.
 					offsets[o + 3] = 1.0 - smoothstep(fade_start, max_range, proj.length())
@@ -819,8 +1011,9 @@ static func _shore_sweep(dx: PackedFloat32Array, dy: PackedFloat32Array, w: int,
 
 
 ## Recorre el mapa una vez acumulando área, profundidad y centroide de cada cuerpo, y los tipa.
+## Los ids desde 'river_first' son cauces (ver classify_water): su tipo es RIVER, mida lo que mida.
 static func _measure_bodies(map: WorldMapData, ids: PackedInt32Array,
-		count: int) -> Array[Dictionary]:
+		count: int, river_first: int) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if count <= 0:
 		return out
@@ -899,7 +1092,7 @@ static func _measure_bodies(map: WorldMapData, ids: PackedInt32Array,
 		center = center.normalized() if center.length_squared() > 0.0 else Vector3.UP
 		out.append({
 			"id": id,
-			"type": _classify(fraction),
+			"type": WorldMapData.WaterType.RIVER if id >= river_first else _classify(fraction),
 			"name": "",
 			"texels": texels[id],
 			"area": areas[id],

@@ -70,12 +70,12 @@ static func frame(up: Vector3) -> Basis:
 
 
 ## Hielo marino en `local` (sobre el radio del mar). Réplica de ice en wave_context: sin mapa, solo
-## latitud; con el campo de orilla, los lagos y la costa se adelantan.
+## latitud; con el campo de orilla, los lagos, los ríos y la costa se adelantan.
 static func ice_at(local: Vector3, map: PlanetWorldMap, shore_on: bool, params: Vector4) -> float:
 	var shore := -1.0
 	if shore_on and map != null:
 		shore = 0.0
-		if map.shore_waves_allowed_local(local):
+		if map.shore_waves_allowed_local(local) and not map.is_river_local(local):
 			shore = absf(map.shore_sample_local(local).w)
 	return ClimateField.sea_ice_with(local, shore, params)
 

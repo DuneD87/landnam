@@ -328,6 +328,7 @@ func _push_world_map_to_water(map: WorldMapData) -> void:
 	var ids := world_map.storm_body_ids()
 	mat.set_shader_parameter("storm_body_ids", ids)
 	mat.set_shader_parameter("storm_body_count", ids.size())
+	mat.set_shader_parameter("storm_river_first_id", map.river_first_id())
 
 	# Semilla de la calma con lo que hay ahora en el material. Si este planeta tiene clima, el
 	# WeatherController la reescribe cada frame con los valores base de verdad.

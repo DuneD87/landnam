@@ -143,6 +143,9 @@ func _compute_target() -> void:
 ## sobre el agua, apagándose tierra adentro y con la altura.
 func _standing_water_gain(ears: Vector3) -> float:
 	var body := _world_map.get_water_body_at(ears)
+	# Un cauce no es agua quieta: lo pone la capa del río. Se oye el mar si queda cerca, como en tierra.
+	if not body.is_empty() and int(body.type) == WorldMapData.WaterType.RIVER:
+		body = {}
 	var gain := 1.0
 	if body.is_empty():
 		# Tierra adentro: el cuerpo que se oye es el que hay al otro lado de la línea de costa, y

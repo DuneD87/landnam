@@ -10,7 +10,8 @@ class_name WorldMapData extends RefCounted
 const FILE_MAGIC := "GVWM"
 const FILE_VERSION := 3
 
-enum WaterType { OCEAN, SEA, LAKE, POND }
+## RIVER va el último a propósito: las consultas de "agua interior" comparan con >= LAKE.
+enum WaterType { OCEAN, SEA, LAKE, POND, RIVER }
 
 ## Clave del nombre de cada tipo de agua.
 const TYPE_NAMES := {
@@ -18,6 +19,7 @@ const TYPE_NAMES := {
 	WaterType.SEA: "WATER_SEA",
 	WaterType.LAKE: "WATER_LAKE",
 	WaterType.POND: "WATER_POND",
+	WaterType.RIVER: "WATER_RIVER",
 }
 
 var size: Vector2i = Vector2i.ZERO
@@ -100,7 +102,12 @@ static func body_name(body: Dictionary) -> String:
 		# Los mapas horneados antes guardaban el nombre ya escrito ("Lago 3"): el número va al final.
 		var old := String(body.get("name", ""))
 		number = int(old.get_slice(" ", old.get_slice_count(" ") - 1))
-	var type_key: String = TYPE_NAMES.get(int(body.get("type", WaterType.LAKE)), "WATER_LAKE")
+	var type := int(body.get("type", WaterType.LAKE))
+	var type_key: String = TYPE_NAMES.get(type, "WATER_LAKE")
+	# Un río sale troceado en el mapa grueso (allí donde el cauce es más estrecho que un téxel), así
+	# que el mismo río tendría números distintos según el tramo: mejor sin número.
+	if type == WaterType.RIVER:
+		return TranslationServer.translate(type_key)
 	return "%s %d" % [TranslationServer.translate(type_key), number]
 
 
@@ -192,14 +199,35 @@ func nearby_water_body_at_dir(d: Vector3) -> Dictionary:
 	return body
 
 
-## Permite la costera salvo cuando el téxel identifica POSITIVAMENTE agua interior. Tierra (-1) es
-## incierta cerca del litoral: el mapa grueso puede marcarla donde la malla visible aún es agua, y
-## vetarla produciría exactamente un corte rectangular con la forma del téxel.
+## Permite la costera salvo cuando el téxel identifica POSITIVAMENTE agua interior quieta (lago o
+## charca). Tierra (-1) es incierta cerca del litoral: el mapa grueso puede marcarla donde la malla
+## visible aún es agua, y vetarla produciría exactamente un corte rectangular con la forma del téxel.
+## Un río tampoco la veta, por lo mismo: toca al mar en la desembocadura, y el campo de orilla lo
+## hornea como tierra para que la ola que entra por ella se apague sola. Réplica de storm_exposure().
 func shore_waves_allowed_at_dir(d: Vector3, flags: PackedByteArray) -> bool:
 	if not has_water or body_ids.is_empty():
 		return false
 	var id := body_ids[texel_of_dir(d)]
-	return id < 0 or (id < flags.size() and flags[id] != 0)
+	return id < 0 or (id < flags.size() and flags[id] != 0) or _is_river_id(id)
+
+
+## True si el téxel de esa dirección es cauce de río (ver WorldMapBaker.classify_water).
+func is_river_at_dir(d: Vector3) -> bool:
+	return has_water and not body_ids.is_empty() and _is_river_id(body_ids[texel_of_dir(d)])
+
+
+## Primer id de río. classify_water numera los cauces detrás de todos los demás cuerpos, así que un id
+## es de río si y solo si llega a este; es lo que permite al shader del agua distinguirlos con un solo
+## entero. Sin ríos vale bodies.size().
+func river_first_id() -> int:
+	for body in bodies:
+		if int(body.type) == WaterType.RIVER:
+			return int(body.id)
+	return bodies.size()
+
+
+func _is_river_id(id: int) -> bool:
+	return id >= 0 and id < bodies.size() and int(bodies[id].type) == WaterType.RIVER
 
 
 ## Textura RF con las alturas normalizadas, para el shader del mapa. Se construye una sola vez y
@@ -280,7 +308,8 @@ func storm_exposure_at_dir(dir: Vector3, storm_flags: PackedByteArray,
 
 ## Textura con el id de cuerpo de agua de cada téxel: el int32 reinterpretado como RGBA8, sin
 ## recorrer el array. Quien la muestree DEBE hacerlo con filter_nearest y recomponer los cuatro
-## bytes; con filtrado lineal se mezclan y el id sale inventado. Tierra = -1 = todo 255.
+## bytes; con filtrado lineal se mezclan y el id sale inventado. Tierra = -1 = todo 255. Los ríos se
+## reconocen por id (ver river_first_id).
 func body_texture() -> ImageTexture:
 	if _body_texture != null:
 		return _body_texture
