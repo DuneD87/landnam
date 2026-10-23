@@ -20,14 +20,17 @@ const WORK_PER_METER := 270.0
 const MIN_WORK := 20.0
 ## El tajo (strike): a qué altura sobre los pies va, hasta dónde llega por delante y la holgura
 ## sobre el radio del tronco, de lado (en pie) o hasta el suelo (caído). Del tronco cuenta hasta
-## REACH_HEIGHT: por encima ya es la copa.
+## REACH_HEIGHT sobre el suelo junto a él: por encima ya es la copa.
 const STRIKE_HEIGHT := 1.1
 const STRIKE_REACH := 1.7
 const STRIKE_WIDTH := 0.35
 const FALLEN_WIDTH := 0.5
 const REACH_HEIGHT := 2.4
-## Altura del corte sobre la base (m): la del primer hachazo, entre estos límites.
-const CUT_HEIGHT := Vector2(0.3, 1.1)
+## Lo hundido que puede estar un árbol (m): el instancer los entierra un poco, y en las laderas a
+## veces bastante más, con la colisión entera bajo los pies de quien tala.
+const BURIED_DEPTH := 6.0
+## Altura del corte sobre el suelo junto al tronco (m): la del primer hachazo, entre estos límites.
+const CUT_HEIGHT := Vector2(0.1, 0.8)
 ## Madera: por metro de diámetro y metro de altura, más una.
 const WOOD_PER_M2 := 1.2
 const MAX_WOOD := 30
@@ -91,7 +94,8 @@ static func chop_power(data: ItemData) -> float:
 ## planeta: {body, point} con un árbol en pie talable o uno caído por trocear, o {}. El tajo es un
 ## tramo a la altura del pecho, hacia delante hasta STRIKE_REACH, y para los caídos además uno que
 ## baja delante hasta el suelo. Cuenta el tronco cuyo eje pasa más cerca, dentro de su radio más la
-## holgura.
+## holgura. Los árboles se buscan también por debajo de los pies (hasta BURIED_DEPTH): uno hundido
+## tiene la colisión enterrada y el tronco que se ve, por encima.
 static func strike(scene_tree: SceneTree, space: PhysicsDirectSpaceState3D, feet: Vector3,
 		forward: Vector3, up: Vector3) -> Dictionary:
 	if space == null:
@@ -113,15 +117,7 @@ static func strike(scene_tree: SceneTree, space: PhysicsDirectSpaceState3D, feet
 		if not reach.is_empty() and reach[0] <= FALLEN_WIDTH and reach[0] < best_gap:
 			best_gap = reach[0]
 			best = {"body": fallen, "point": reach[1]}
-	var sphere := SphereShape3D.new()
-	sphere.radius = STRIKE_REACH
-	var query := PhysicsShapeQueryParameters3D.new()
-	query.collide_with_areas = false
-	query.collide_with_bodies = true
-	query.collision_mask = PhysicsLayers.WORLD
-	query.shape = sphere
-	query.transform = Transform3D(Basis.IDENTITY, chest + flat * (STRIKE_REACH * 0.5))
-	for result in space.intersect_shape(query, 32):
+	for result in space.intersect_shape(strike_query(feet, flat, up), 32):
 		var body := result.get("collider") as VoxelInstancerRigidBody
 		if body == null:
 			continue
@@ -130,13 +126,40 @@ static func strike(scene_tree: SceneTree, space: PhysicsDirectSpaceState3D, feet
 			continue
 		var xf := body.global_transform
 		var info := felling._species_of(body)
+		var base := trunk_base(space, xf, info.height * xf.basis.y.length(), body.get_rid())
 		var closest := Geometry3D.get_closest_points_between_segments(near, far, xf.origin,
-			xf.origin + xf.basis.y.normalized() * REACH_HEIGHT)
+			xf.origin + xf.basis.y.normalized() * (base + REACH_HEIGHT))
 		var gap: float = closest[0].distance_to(closest[1]) - float(info.radius) * xf.basis.y.length()
 		if gap <= STRIKE_WIDTH and gap < best_gap:
 			best_gap = gap
 			best = {"body": body, "point": closest[1]}
 	return best
+
+
+## Dónde buscar los troncos de un golpe dado desde [feet] hacia [flat] (en el plano de [up]): una
+## cápsula de pie que llega STRIKE_REACH alrededor del tajo y baja del pecho a BURIED_DEPTH bajo los
+## pies.
+static func strike_query(feet: Vector3, flat: Vector3, up: Vector3) -> PhysicsShapeQueryParameters3D:
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = STRIKE_REACH
+	capsule.height = STRIKE_HEIGHT + BURIED_DEPTH + STRIKE_REACH * 2.0
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	query.collision_mask = PhysicsLayers.WORLD
+	query.shape = capsule
+	var middle := feet + up * ((STRIKE_HEIGHT - BURIED_DEPTH) * 0.5) + flat * (STRIKE_REACH * 0.5)
+	query.transform = Transform3D(Basis(flat, up, flat.cross(up)), middle)
+	return query
+
+
+## Altura sobre el origen del árbol de [xf] y [height] m (cuerpo [tree]), por su eje, a la que el
+## tronco sale del suelo: 0 si no se ve el suelo o si el árbol queda por encima.
+static func trunk_base(space: PhysicsDirectSpaceState3D, xf: Transform3D, height: float, tree: RID) -> float:
+	var up := xf.basis.y.normalized()
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(xf.origin + up * height, xf.origin,
+		PhysicsLayers.WORLD, [tree]))
+	return maxf(0.0, (hit.position - xf.origin).dot(up)) if not hit.is_empty() else 0.0
 
 
 func is_choppable(body: Node) -> bool:
@@ -177,10 +200,13 @@ func chop(body: Node, power: float, chopper: Node3D) -> bool:
 	var key := tree.get_instance_id()
 	var state: Dictionary = _trees.get(key, {})
 	if state.is_empty():
-		# El corte, a la altura del primer hachazo: la de la cintura de quien tala.
+		# El corte, a la altura del primer hachazo: la de la cintura de quien tala, sobre el suelo
+		# (en un árbol hundido, el tocón asoma igual).
 		var hand := chopper.global_position + up * 0.75 if chopper != null else xf.origin
+		var base := trunk_base(tree.get_world_3d().direct_space_state, xf, info.height * scale, tree.get_rid())
 		state = {"work": maxf(MIN_WORK, WORK_PER_METER * radius * 2.0), "done": 0.0,
-			"cut": clampf((hand - xf.origin).dot(up), CUT_HEIGHT.x, CUT_HEIGHT.y), "out": out, "notch": null}
+			"cut": clampf((hand - xf.origin).dot(up), base + CUT_HEIGHT.x, base + CUT_HEIGHT.y),
+			"out": out, "notch": null}
 		_trees[key] = state
 	state.done += power
 	var progress := clampf(state.done / state.work, 0.0, 1.0)
