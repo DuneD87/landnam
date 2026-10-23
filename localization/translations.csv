@@ -870,7 +870,7 @@ ITEM_COAL_DESC,"Black seams of the plains and hills. It burns much longer than w
 ITEM_COPPER_ORE,Copper ore,Mena de cobre,
 ITEM_COPPER_ORE_DESC,"Rock with green crusts of malachite and some blue azurite. Smelted in a furnace it gives copper, the first metal.","Roca con costras verdes de malaquita y alguna azul de azurita. Fundida en un horno da cobre, el primer metal.",
 ITEM_FEATHER,Feather,Pluma,
-ITEM_FEATHER_DESC,"A wing feather from a plucked bird. Split along the quill and tied to the shaft, it makes the arrow fly straight.","Pluma de ala de un ave desplumada. Partida por el cañón y atada a la vara, hace que la flecha vuele derecha.",
+ITEM_FEATHER_DESC,A wing feather from a plucked bird.,Pluma de ala de un ave desplumada.,
 ITEM_FLINT,Flint,Sílex,
 ITEM_FLINT_DESC,"Flint nodules dug out of chalk, with their white cortex. Struck, it breaks into flakes with an edge that cuts hide: points, knives and blades of the Stone Age.","Nódulos de sílex sacados de la creta, con su corteza blanca. Partido a golpes da lascas con un filo que corta la piel: puntas, cuchillos y hojas de la Edad de piedra.",
 ITEM_GLASS_01,Glass,Vidrio,

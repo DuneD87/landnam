@@ -66,7 +66,7 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Piel | `raw_hide` | Material de caza |
 | Hueso, tendón | `bone`, `sinew` | Materiales de caza: casi todos los animales |
 | Asta, colmillo de jabalí, marfil, cuerno | `antler`, `boar_tusk`, `ivory`, `horn` | Materiales de caza: los ciervos, el jabalí, el mamut y el elefante, los de cuernos |
-| Pluma | `feather` | Material de caza: las aves. Empluma las flechas |
+| Pluma | `feather` | Material de caza: las aves |
 | Fibra vegetal | `plant_fiber` | Se arranca de los arbustos |
 | Odre | `waterskin` | 5 tragos de agua |
 | Milenrama | `yarrow` | Hierba que se arranca en los prados. Masticada: vida +3 y corta el 30 % del sangrado |
@@ -344,7 +344,7 @@ al inventario y lo que no cabe, al suelo.
 | Martillo de piedra | 2 piedras, 1 rama y 1 fibra vegetal | A mano |
 | Pico de piedra | 4 piedras, 2 ramas y 1 piel | Banco de trabajo |
 | Arco de caza | 3 ramas y 1 piel | Banco de trabajo |
-| 4 flechas | 1 rama, 1 piedra y 2 plumas | Banco de trabajo |
+| 4 flechas | 1 rama y 1 piedra | Banco de trabajo |
 | Tirachinas | 1 rama y 1 piel | Banco de trabajo |
 | Espada de sílex | 4 maderas, 4 sílex y 1 piel | Banco de trabajo |
 | Espada de obsidiana | 4 maderas, 4 obsidianas y 1 piel | Banco de trabajo |

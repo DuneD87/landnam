@@ -94,9 +94,10 @@ func _check_counts() -> void:
 		and inventory.get_item_count(ItemCatalog.get_item(&"stone_01")) == 1
 		and inventory.get_item_count(ItemCatalog.get_item(&"branch_01")) == 1, "quedan 2 hogueras, 1 piedra y 1 rama")
 	var arrows := _recipe(&"arrow")
-	inventory = _inventory([[&"stone_01", 5], [&"branch_01", 5], [&"feather", 10]])
-	check(Recipes.max_times(arrows, _inventory([[&"stone_01", 5], [&"branch_01", 5], [&"feather", 3]])) == 1,
-		"sin plumas no hay flechas: con 3, una tirada")
+	inventory = _inventory([[&"stone_01", 5], [&"branch_01", 5]])
+	check(not arrows.inputs.has(&"feather"), "las flechas no piden plumas: sin arco no se caza un ave")
+	check(Recipes.max_times(arrows, _inventory([[&"stone_01", 5], [&"branch_01", 3]])) == 3,
+		"5 piedras y 3 ramas: tres tiradas")
 	Recipes.craft(arrows, inventory, 5)
 	check(inventory.get_item_count(ItemCatalog.get_item(&"arrow")) == 5 * arrows.amount, "cinco tiradas de flechas: %d" % (5 * arrows.amount))
 	# El bebedizo se cuece con agua de los odres, junto a la hoguera.
