@@ -45,7 +45,7 @@ Los diez materiales del mundo, de la Edad de piedra a la del Hierro:
 
 | Material | Objeto | Dónde | Cómo sale |
 |---|---|---|---|
-| Sílex | `flint` | Bioma templado, de la orilla a 200 m, en campos de rocas de creta | Afloramiento |
+| Sílex | `flint` | Templado y taiga (frío < 53°), cualquier bioma, de la orilla a 200 m, en campos de rocas de creta | Afloramiento |
 | Obsidiana | `obsidian` | Norte frío (latitud > 41°), de 150 a 900 m | Afloramiento |
 | Cobre (malaquita) | `copper_ore` | Cualquier bioma, de 60 a 600 m | Afloramiento |
 | Hierro de pantano (limonita) | `bog_iron` | Tierras bajas, hasta 15 m sobre el radio | Veta |

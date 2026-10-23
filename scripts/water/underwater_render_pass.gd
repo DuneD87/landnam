@@ -107,7 +107,14 @@ static func _uniform(type: int, binding: int, ids: Array[RID]) -> RDUniform:
 
 
 func _shader(path: String) -> RID:
-	var imported := load(path) as RDShaderFile
+	# El importador de RDShaderFile no sigue los #include: tras editar underwater_shared.glslinc
+	# o la capa de parámetros, el .glsl importado se queda con el SPIR-V viejo y lee el buffer
+	# con los slots de antes (techo liso con bandas y óvalos oscuros, desde el mar helado del
+	# 28/09). Desde el editor se compila siempre del texto, como PlanetAtmosphere; en un export
+	# no hay glslang y manda el importado: reimportar el .glsl al tocar sus includes.
+	var imported: RDShaderFile = null
+	if not OS.has_feature("editor"):
+		imported = load(path) as RDShaderFile
 	if imported != null:
 		var compiled := imported.get_spirv()
 		if compiled.compile_error_compute.is_empty() and not compiled.bytecode_compute.is_empty():

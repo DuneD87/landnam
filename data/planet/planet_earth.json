@@ -1470,13 +1470,13 @@
 				"name": "flint_outcrop_generator",
 				"emit_mode": "EMIT_FROM_VERTICES",
 				"density": 0.003,
-				"min_height": -30.0,
+				"min_height": -45.0,
 				"max_height": 200.0,
 				"max_slope_degrees": 30.0,
 				"min_scale": 1.4,
 				"max_scale": 2.8,
 				"vertical_alignment": 0.3,
-				"noise_graph": "hemisphere_green_graph_path",
+				"noise_graph": "surface_graph_path",
 				"noise": {
 					"frequency": 0.0035,
 					"octaves": 2.0,
@@ -1486,7 +1486,7 @@
 					"falloff": 0.12
 				},
 				"climate": {
-					"max": 41.0,
+					"max": 53.0,
 					"soft": 1.5
 				}
 			},
