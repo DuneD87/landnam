@@ -214,6 +214,8 @@ var _riposte_left: float = 0.0
 var _guard_push: Vector3 = Vector3.ZERO
 var _shield_node: Node3D = null
 var _shield_data: ItemData = null
+## Antorcha en la mano izquierda (attach_offhand_torch).
+var _offhand_torch: Node3D = null
 var _buffer_age: float = 0.0
 
 # Esquiva
@@ -247,6 +249,7 @@ var _respawning: bool = false
 
 var _skeleton: Skeleton3D
 var _right_attachment: BoneAttachment3D
+var _left_attachment: BoneAttachment3D
 var _right_grip: Node3D
 var _left_grip: Node3D
 var _weapon_node: Node3D = null
@@ -326,14 +329,14 @@ func setup(owner_player: PlayerController) -> void:
 	_right_grip.name = "CombatGrip"
 	_right_grip.top_level = true
 	_right_attachment.add_child(_right_grip)
-	var left_attachment := BoneAttachment3D.new()
-	left_attachment.name = "LeftHandAttachment"
-	left_attachment.bone_name = HumanRig.LEFT_HAND_MIDDLE2
-	_skeleton.add_child(left_attachment)
+	_left_attachment = BoneAttachment3D.new()
+	_left_attachment.name = "LeftHandAttachment"
+	_left_attachment.bone_name = HumanRig.LEFT_HAND_MIDDLE2
+	_skeleton.add_child(_left_attachment)
 	_left_grip = Node3D.new()
 	_left_grip.name = "CombatGrip"
 	_left_grip.transform = LEFT_GRIP
-	left_attachment.add_child(_left_grip)
+	_left_attachment.add_child(_left_grip)
 
 	pose = CombatPose.new()
 	pose.name = "CombatPose"
@@ -404,17 +407,19 @@ func _setup_animation() -> void:
 	var tree_root := (_tree.tree_root as AnimationNodeBlendTree).duplicate(true) as AnimationNodeBlendTree
 	_setup_action_channels(tree_root)
 	_tree.tree_root = tree_root
+	# Las mezclas nuevas (la antorcha en la izquierda) las mueve el AnimationController.
+	player.animation_controller.cache_blend_paths()
 
 
 ## Canales de acción encima de todo el árbol (solo la escalada va encima de ellos): "upper",
 ## filtrado al tronco y los brazos (arco, lanzamiento: las piernas siguen con la locomoción);
 ## "attack_a" y "attack_b", los golpes cuerpo a cuerpo, que se turnan para que el siguiente se
-## funda sobre el anterior al encadenar; y "full" (voltereta, paso atrás, tambaleo, muerte),
-## encima de los otros. Cada uno: animación → TimeSeek → TimeScale → mezcla, para poder
-## reproducirla, acelerarla o arrastrarla a un instante concreto. "full" mezcla con un OneShot;
-## "upper" con un Blend2 cuyo peso lleva _act_advance: un OneShot cuenta su propio tiempo desde
-## que se dispara y se apaga al pasar la duración del clip aunque este vaya arrastrado (tensar y
-## sostener el arco), y al cambiar de clip dentro de él se daría por acabado.
+## funda sobre el anterior al encadenar; la antorcha de la izquierda; y "full" (voltereta, paso
+## atrás, tambaleo, muerte), encima de los otros. Cada uno: animación → TimeSeek → TimeScale →
+## mezcla, para poder reproducirla, acelerarla o arrastrarla a un instante concreto. "full" mezcla
+## con un OneShot; "upper" con un Blend2 cuyo peso lleva _act_advance: un OneShot cuenta su propio
+## tiempo desde que se dispara y se apaga al pasar la duración del clip aunque este vaya arrastrado
+## (tensar y sostener el arco), y al cambiar de clip dentro de él se daría por acabado.
 func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 	var animator: AnimationPlayer = player.animation_controller.animator
 	if animator == null or not ResourceLoader.exists(COMBAT_LIBRARY):
@@ -429,6 +434,10 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 	tree_root.disconnect_node(&"output", 0)
 	var below := Cripple.build(tree_root, top)
 	for channel in ["upper", "attack_a", "attack_b", "full"]:
+		if channel == "full":
+			# La antorcha de la mano izquierda, encima de los golpes: se sigue sosteniendo en alto al
+			# pegar con la derecha (PlayerController._hold_left_torch la suelta en las tareas).
+			below = Locomotion.add_left_torch(tree_root, animator, _skeleton, below)
 		var anim := AnimationNodeAnimation.new()
 		anim.animation = &"combat/roll"
 		var shot: AnimationNode
@@ -960,6 +969,11 @@ func task_time(anim_name: StringName) -> float:
 	return up.time if up.active and up.anim == anim_name else -1.0
 
 
+## Suena algo en el canal de tronco y brazos (una tarea, apuntar, lanzar): los brazos son suyos.
+func upper_busy() -> bool:
+	return _act["upper"].active
+
+
 ## Al agarrarse a una pared: sin objetivo fijado ni nada pulsado pendiente, y el arma fuera de la
 ## postura de carrera. Mientras trepa no pasa por physics_update (ClimbController).
 func on_climb_start() -> void:
@@ -1143,13 +1157,48 @@ func detach_shield() -> Node3D:
 	return node
 
 
+## Antorcha en la mano izquierda (ranura OFFHAND), con un arma o el martillo en la derecha. Cuelga
+## del hueso como en la derecha, con su colocación reflejada: el rig refleja el eje X de los huesos
+## del lado izquierdo (como LEFT_GRIP). Se ve cuando se vería el escudo.
+func attach_offhand_torch(node: Node3D) -> void:
+	detach_offhand_torch()
+	_offhand_torch = node
+	node.transform = Transform3D.FLIP_X * node.transform * Transform3D.FLIP_X
+	_left_attachment.add_child(node)
+	_update_shield_visibility()
+
+
+func detach_offhand_torch() -> Node3D:
+	var node := _offhand_torch
+	_offhand_torch = null
+	if node != null and is_instance_valid(node) and node.get_parent() != null:
+		node.get_parent().remove_child(node)
+	return node
+
+
+## Lleva la antorcha en la izquierda y a la vista (el brazo la sostiene en alto).
+func holds_offhand_torch() -> bool:
+	return _offhand_torch != null and is_instance_valid(_offhand_torch) and _offhand_torch.visible
+
+
+## Lo de la mano izquierda, escudo o antorcha, se ve salvo cuando esa mano tiene otra cosa (arco,
+## tirachinas, muleta), el arma es a dos manos o falta el brazo. El escudo tampoco de muerto: va con
+## la pose, y el muñeco de trapo no la sigue (la antorcha cuelga del hueso y cae con él).
 func _update_shield_visibility() -> void:
-	if _shield_node == null or not is_instance_valid(_shield_node) or pose == null:
+	if pose == null:
 		return
 	var data := weapon()
 	var free_hand := data == null or not (data.is_left_handed() or data.two_handed)
-	_shield_node.visible = free_hand and _shield_arm() and state != State.DEAD \
-		and (cripple == null or not cripple.active())
+	var shown := free_hand and _shield_arm() and (cripple == null or not cripple.active())
+	if _offhand_torch != null and is_instance_valid(_offhand_torch) and _offhand_torch.visible != shown:
+		_offhand_torch.visible = shown
+		# Escondida, su fuego tampoco suena.
+		for node in _offhand_torch.find_children("*", "", true, false):
+			if node is EntityAudio:
+				node.set_loop_active(shown)
+	if _shield_node == null or not is_instance_valid(_shield_node):
+		return
+	_shield_node.visible = shown and state != State.DEAD
 	pose.shield_on = _shield_node.visible
 
 

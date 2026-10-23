@@ -208,7 +208,7 @@ func _on_slot_clicked(slot: EquipmentSlot, button_index: int) -> void:
 func equip_item(slot: EquipmentSlot, item: InventoryItem) -> InventoryItem:
 	if not slot or not item:
 		return null
-	if slot.slot_type != item.data.armor_slot:
+	if not item.data.fits_slot(slot.slot_type):
 		return item
 	var old_item: InventoryItem = null
 

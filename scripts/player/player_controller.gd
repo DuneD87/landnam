@@ -293,14 +293,21 @@ func _rebind_worn_materials() -> void:
 func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data: ItemData, category: ItemData.Category) -> void:
 	if equip:
 		match category:
+			ItemData.Category.TOOL when slot == ItemData.ArmorSlot.OFFHAND:
+				# La antorcha en la izquierda: la derecha sigue con lo que lleve.
+				var torch := scene.instantiate() as Node3D
+				combat.attach_offhand_torch(torch)
+				_register_worn_node(torch)
 			ItemData.Category.TOOL, ItemData.Category.WEAPON:
 				equiped_weapon = data
+				# Antes de colgarla: el combate mira lo que lleva para esconder lo de la izquierda
+				# (el arco la ocupa).
+				right_hand_equipped = true
 				var item = scene.instantiate()
 				# El combate decide la mano y el marco de agarre (armas en metros, arco en la
 				# izquierda, herramientas antiguas con su propia escala).
 				combat.attach_weapon(item, data)
 				_register_worn_node(item)
-				right_hand_equipped = true
 			ItemData.Category.ARMOR when data.is_shield():
 				# El escudo no se viste: va en el antebrazo izquierdo (PlayerCombat).
 				var shield := scene.instantiate() as Node3D
@@ -315,12 +322,18 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 				_register_worn_node(item)
 	else:
 		match category:
+			ItemData.Category.TOOL when slot == ItemData.ArmorSlot.OFFHAND:
+				var torch := combat.detach_offhand_torch()
+				if torch != null:
+					_unregister_worn_node(torch)
+					torch.queue_free()
 			ItemData.Category.TOOL, ItemData.Category.WEAPON:
+				# Antes de soltarla, como al ponerla: soltar el arco deja ver lo de la izquierda.
+				right_hand_equipped = false
 				var equipped_child := combat.detach_weapon()
 				if equipped_child != null:
 					_unregister_worn_node(equipped_child)
 					equipped_child.queue_free()
-				right_hand_equipped = false
 			ItemData.Category.ARMOR when data.is_shield():
 				var shield := combat.detach_shield()
 				if shield != null:
@@ -389,6 +402,27 @@ func _holds_hammer() -> bool:
 	return held != null and held.tool_type == ItemData.ToolType.HAMMER
 
 
+## Estados en los que el brazo izquierdo no sostiene en alto la antorcha: va con el cuerpo, como
+## el de la derecha con la suya.
+const LEFT_TORCH_LOOSE := [AnimationController.Anim.JUMP_START, AnimationController.Anim.JUMP_IDLE,
+	AnimationController.Anim.JUMP_LAND, AnimationController.Anim.FALLING, AnimationController.Anim.SWIM,
+	AnimationController.Anim.SWIM_IDLE, AnimationController.Anim.DEATH]
+const LEFT_TORCH_RUNNING := [AnimationController.Anim.RUN, AnimationController.Anim.SPRINT,
+	AnimationController.Anim.RUNNING_TORCH, AnimationController.Anim.SPRINT_TORCH]
+
+
+## Con la antorcha en la izquierda, ese brazo en alto (los clips de la antorcha reflejados,
+## Locomotion), con el de correr corriendo y esprintando; agachado, el de quieto, como en la derecha.
+## Lo de la mano derecha sigue con su estado, y al golpear con ella la antorcha sigue en alto; en
+## una tarea con las manos (despellejar), apuntando o lanzando, el brazo va con la animación.
+func _hold_left_torch() -> void:
+	var held := combat.holds_offhand_torch() and not combat.upper_busy() \
+		and current_animation not in LEFT_TORCH_LOOSE
+	var running: bool = current_animation in LEFT_TORCH_RUNNING and not locomotion.crouching
+	animation_controller.overlay["bLeftTorch"] = 1.0 if held else 0.0
+	animation_controller.overlay["bLeftTorchRun"] = 1.0 if running else 0.0
+
+
 func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
 	# Consume una sola unidad del item a equipar, conservando el resto del stack.
 	for i in inventory.items.size():
@@ -415,22 +449,25 @@ func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
 	inventory.inventory_changed.emit()
 
 
-## Tecla de un escudo en la barra: si es el que lleva, se lo quita; si no, se lo pone (y el que
-## llevara vuelve al inventario). La mano derecha no se toca.
+## Tecla de un escudo o una antorcha en la barra: si es lo que lleva en la izquierda, se lo quita;
+## si no, se lo pone (y lo que llevara vuelve al inventario). La mano derecha no se toca, salvo si
+## lleva esa antorcha: entonces la tecla la cambia de mano.
 func _on_hotbar_offhand_toggled(data: ItemData) -> void:
 	var eq_slot: EquipmentSlot = character_window.equipment_slots.get(ItemData.ArmorSlot.OFFHAND)
 	if eq_slot == null:
 		return
 	if eq_slot.has_item() and eq_slot.equipped_item.data.id == data.id:
-		# Sin hueco en el inventario se queda puesto: quitárselo lo perdería.
-		if inventory.find_empty_slot() < 0:
-			return
-		var unequipped = character_window.unequip_item(eq_slot)
-		if unequipped:
-			inventory.add_item(unequipped.data, 1)
+		# Sin sitio en el inventario (ni hueco ni montón de antorchas sin llenar) se queda puesto:
+		# quitárselo lo perdería.
+		if inventory.add_item(data, 1) == 0:
+			character_window.unequip_item(eq_slot)
 		return
-	# Se pone el del inventario: si ya no está (tirado, en un cofre), la tecla no hace nada.
-	if inventory.remove_item(data, 1) == 0:
+	var right_slot: EquipmentSlot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
+	if right_slot != null and right_slot.has_item() and right_slot.equipped_item.data.id == data.id:
+		character_window.unequip_item(right_slot)
+		current_animation = AnimationController.Anim.IDLE
+	# Si no, se pone el del inventario: si ya no está (tirado, en un cofre), la tecla no hace nada.
+	elif inventory.remove_item(data, 1) == 0:
 		return
 	var returned = character_window.equip_item(eq_slot, InventoryItem.new(data, 1))
 	if returned:
@@ -729,11 +766,11 @@ func restore_save_data(save: Dictionary) -> void:
 			var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
 			var inv_item := InventoryItem.new(item_data, 1)
 			eq_slot.set_item(inv_item)
-			equip_item(true, item_data.armor_slot, load(item_data.scene_path), item_data, item_data.category)
+			equip_item(true, slot_type, load(item_data.scene_path), item_data, item_data.category)
 	if save.has("hotbar"):
 		hotbar.restore_save_data(save.hotbar)
-	if save.has("hotbar_selected") and save.hotbar_selected >= 0:
-		hotbar.select_slot(save.hotbar_selected)
+	if save.has("hotbar_selected"):
+		hotbar.restore_selection(int(save.hotbar_selected))
 	# El equipo se ha restaurado sin pasar por equipment_changed.
 	_sync_hotbar_offhand()
 	_sync_armor()
@@ -803,6 +840,10 @@ func _clear_visual_equipment() -> void:
 	if shield_node != null:
 		_unregister_worn_node(shield_node)
 		shield_node.queue_free()
+	var torch_node := combat.detach_offhand_torch()
+	if torch_node != null:
+		_unregister_worn_node(torch_node)
+		torch_node.queue_free()
 
 	var skeleton = player_model.get_node("Armature/Skeleton3D")
 	for child in skeleton.get_children():
@@ -1873,6 +1914,7 @@ func update_normal_movement(delta: float) -> void:
 			current_animation = AnimationController.Anim.WALK_TORCH
 		elif current_animation == AnimationController.Anim.SPRINT:
 			current_animation = AnimationController.Anim.SPRINT_TORCH
+	_hold_left_torch()
 
 	combat.physics_update(delta, input_dir)
 	_update_fp_square(delta)

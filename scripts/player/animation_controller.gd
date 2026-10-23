@@ -38,7 +38,7 @@ func _ready() -> void:
 	if not animator or not animation_tree:
 		push_warning("AnimationController '%s': animator o animation_tree no encontrado." % name)
 		return
-	_cache_valid_paths()
+	cache_blend_paths()
 
 
 func set_throttled(value: bool) -> void:
@@ -134,7 +134,13 @@ var animation_states = {
 	}
 }
 
+## Mezclas que el dueño fija aparte del estado y que se funden igual que las suyas: la antorcha en
+## la mano izquierda (bLeftTorch, y bLeftTorchRun para la de correr), que va con cualquier estado.
+var overlay := {}
+
 var current_values = {
+	"bLeftTorch": 0.0,
+	"bLeftTorchRun": 0.0,
 	"bWalk": 0.0,
 	"bRun": 0.0,
 	"bSprint": 0.0,
@@ -150,7 +156,9 @@ var current_values = {
 }
 var oneshot_params = ["attack_vertical", "attack_horizontal", "bHit"]
 
-func _cache_valid_paths() -> void:
+## Las mezclas del árbol que existen. Quien le cambie el árbol (PlayerCombat le monta sus capas) la
+## vuelve a llamar.
+func cache_blend_paths() -> void:
 	var prop_names := {}
 	for prop in animation_tree.get_property_list():
 		prop_names[prop["name"]] = true
@@ -183,10 +191,8 @@ func handle_animations(delta: float, current_animation, free_flight_enabled):
 	for parameter in current_values:
 		if parameter in oneshot_params:
 			continue
-		if target_value.has(parameter):
-			current_values[parameter] = lerpf(current_values[parameter], target_value[parameter], blend_speed * delta)
-		else:
-			current_values[parameter] = lerpf(current_values[parameter], 0, blend_speed * delta)
+		var target: float = target_value.get(parameter, overlay.get(parameter, 0.0))
+		current_values[parameter] = lerpf(current_values[parameter], target, blend_speed * delta)
 
 	update_tree()
 
@@ -198,7 +204,7 @@ func snap_to(current_animation) -> void:
 	for parameter in current_values:
 		if parameter in oneshot_params:
 			continue
-		current_values[parameter] = target_value.get(parameter, 0.0)
+		current_values[parameter] = target_value.get(parameter, overlay.get(parameter, 0.0))
 	update_tree()
 
 func trigger_hit() -> void:

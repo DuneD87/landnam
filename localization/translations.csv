@@ -814,7 +814,7 @@ ITEM_STONE_PICKAXE_01_DESC,Picks at rock and ground to get stone.,Pica la roca y
 ITEM_STONE_HAMMER_01,Stone hammer,Martillo de piedra,
 ITEM_STONE_HAMMER_01_DESC,"In your hand, it builds: left click adds or removes blocks and right click opens the building wheel.","En la mano, construye: el clic izquierdo pone o quita bloques y el derecho abre la rueda de construcción.",
 ITEM_TORCH_01,Torch,Antorcha,
-ITEM_TORCH_01_DESC,Lights up the night and caves.,Alumbra en la noche y en las cuevas.,
+ITEM_TORCH_01_DESC,"Lights up the night and caves. Its hotbar key puts it in your left hand, leaving the right free for a weapon or the hammer.","Alumbra en la noche y en las cuevas. Con su tecla de la barra va en la mano izquierda, y la derecha queda libre para un arma o el martillo.",
 ITEM_TORCH_PLACEABLE_01,Wall torch,Antorcha de pared,
 ITEM_TORCH_PLACEABLE_01_DESC,A torch to hang on the walls of what you build.,Una antorcha para colgar en los muros de lo que construyas.,
 ITEM_WATERSKIN,Waterskin,Odre,

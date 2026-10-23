@@ -10,8 +10,8 @@ extends CanvasLayer
 
 signal selection_changed(old_data: ItemData, new_data: ItemData)
 signal hotbar_slot_clicked(slot_index: int)
-## La tecla de un escudo no lo selecciona: lo pone en la otra mano o lo quita, y el arma de la
-## derecha sigue donde estaba.
+## La tecla de un escudo o una antorcha no lo selecciona: lo pone en la otra mano o lo quita, y el
+## arma de la derecha sigue donde estaba.
 signal offhand_toggled(data: ItemData)
 
 const HOTBAR_SLOTS := 10
@@ -316,8 +316,8 @@ func assign_to_slot(index: int, item_data: ItemData) -> void:
 	
 	if index == selected_index:
 		var new_data := item_data
-		# Un escudo no queda seleccionado: se suelta lo que había en la mano.
-		if item_data != null and item_data.is_shield():
+		# Un escudo o una antorcha no queda seleccionado: se suelta lo que había en la mano.
+		if item_data != null and item_data.is_offhand():
 			slots[index].set_selected(false)
 			selected_index = -1
 			new_data = null
@@ -358,7 +358,7 @@ func select_slot(index: int) -> void:
 		return
 	if not slots[index].assigned_data:
 		return
-	if slots[index].assigned_data.is_shield():
+	if slots[index].assigned_data.is_offhand():
 		offhand_toggled.emit(slots[index].assigned_data)
 		return
 
@@ -375,6 +375,14 @@ func select_slot(index: int) -> void:
 	selected_index = index
 	slots[selected_index].set_selected(true)
 	selection_changed.emit(old_data, slots[selected_index].assigned_data)
+
+
+## Vuelve a elegir el hueco guardado. Lo de la otra mano nunca queda elegido: una antorcha elegida
+## en una partida de antes ya está en la derecha, con el equipo, y su tecla la cambiaría de mano.
+func restore_selection(index: int) -> void:
+	if index >= 0 and index < HOTBAR_SLOTS and slots[index].assigned_data != null \
+			and not slots[index].assigned_data.is_offhand():
+		select_slot(index)
 
 
 func _on_slot_clicked(slot: HotbarSlot, _button_index: int) -> void:
@@ -399,14 +407,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
-## Ctrl+rueda: el hueco de al lado, saltando los escudos (pasar por encima no los pone ni los
-## quita).
+## Ctrl+rueda: el hueco de al lado, saltando escudos y antorchas (pasar por encima no los pone ni
+## los quita).
 func _select_step(step: int) -> void:
 	var index := selected_index
 	for i in HOTBAR_SLOTS:
 		index = posmod(index + step, HOTBAR_SLOTS)
 		var data := slots[index].assigned_data
-		if data == null or not data.is_shield():
+		if data == null or not data.is_offhand():
 			select_slot(index)
 			return
 

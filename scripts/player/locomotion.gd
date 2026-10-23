@@ -18,9 +18,13 @@ extends Node
 ##
 ## La antorcha (bIdleTorch, bRunningTorch, bTorchFocus) solo pone el brazo derecho, que es en lo
 ## único que sus clips se apartan de quieto y correr: lo demás sale de aquí, en todas direcciones
-## y agachado.
+## y agachado. En la mano izquierda (con un arma o el martillo en la derecha) suenan esos mismos
+## clips reflejados, solo en el brazo izquierdo y encima de lo que haga la derecha (add_left_torch):
+## bLeftTorch la saca y bLeftTorchRun pasa al de correr.
 
 const LIBRARY := "res://models/player/locomotion_anims.tres"
+## Librería del AnimationPlayer con los clips de la antorcha reflejados a la mano izquierda.
+const LEFT_TORCH_LIBRARY := "torch_left"
 
 ## Por dirección (x a la derecha, y adelante): [clip, lo que avanza a ritmo 1 (m/s, el pie apoyado
 ## sobre el cuerpo del jugador, como RUN_CLIP_SPEED), pasos dobles que trae, cuándo lleva el pie
@@ -95,6 +99,88 @@ static func build(tree_root: AnimationNodeBlendTree, animator: AnimationPlayer, 
 	tree_root.connect_node(&"bJumpStart", 0, &"crouch")
 	for node in [&"bIdleTorch", &"bRunningTorch", &"bTorchFocus"]:
 		AnimGraph.filter_branch(tree_root.get_node(node), skeleton, HumanRig.RIGHT_SHOULDER)
+
+
+## Pone la antorcha de la izquierda encima de [below] y devuelve el nodo que la mezcla, para
+## conectar lo de encima.
+static func add_left_torch(tree_root: AnimationNodeBlendTree, animator: AnimationPlayer, skeleton: Skeleton3D,
+		below: StringName) -> StringName:
+	if not animator.has_animation_library(LEFT_TORCH_LIBRARY):
+		var library := AnimationLibrary.new()
+		library.add_animation(&"idle", mirror_arm(animator.get_animation(&"idle_torch"), skeleton))
+		library.add_animation(&"run", mirror_arm(animator.get_animation(&"running-torch"), skeleton))
+		animator.add_animation_library(LEFT_TORCH_LIBRARY, library)
+	var idle := AnimationNodeAnimation.new()
+	idle.animation = StringName(LEFT_TORCH_LIBRARY + "/idle")
+	var run := AnimationNodeAnimation.new()
+	run.animation = StringName(LEFT_TORCH_LIBRARY + "/run")
+	tree_root.add_node(&"left_torch_idle", idle)
+	tree_root.add_node(&"left_torch_run", run)
+	tree_root.add_node(&"bLeftTorchRun", AnimationNodeBlend2.new())
+	tree_root.connect_node(&"bLeftTorchRun", 0, &"left_torch_idle")
+	tree_root.connect_node(&"bLeftTorchRun", 1, &"left_torch_run")
+	var layer := AnimationNodeBlend2.new()
+	AnimGraph.filter_branch(layer, skeleton, HumanRig.LEFT_SHOULDER)
+	tree_root.add_node(&"bLeftTorch", layer)
+	tree_root.connect_node(&"bLeftTorch", 0, below)
+	tree_root.connect_node(&"bLeftTorch", 1, &"bLeftTorchRun")
+	return &"bLeftTorch"
+
+
+## [anim] con el brazo derecho pasado al izquierdo, reflejado por el plano medio (el X del
+## esqueleto va de lado a lado): solo trae las pistas del brazo izquierdo, para una mezcla filtrada
+## a él. El rig refleja el eje X de los huesos de ese lado, así que cada giro es el de su pareja con
+## ese eje dado la vuelta, corregido por lo poco que los reposos de los dos lados no son simétricos
+## (el suyo y el de su padre; en los dedos, unos grados): el reposo sigue siendo el reposo y la mano
+## va al reflejo de donde iba la otra.
+static func mirror_arm(anim: Animation, skeleton: Skeleton3D) -> Animation:
+	var mirrored := Animation.new()
+	mirrored.length = anim.length
+	mirrored.loop_mode = anim.loop_mode
+	var right_root := skeleton.find_bone(HumanRig.RIGHT_SHOULDER)
+	for track in anim.get_track_count():
+		var path := anim.track_get_path(track)
+		var right := skeleton.find_bone(path.get_concatenated_subnames())
+		var parent := right
+		while parent >= 0 and parent != right_root:
+			parent = skeleton.get_bone_parent(parent)
+		if right < 0 or parent != right_root:
+			continue
+		var bone_name := skeleton.get_bone_name(right).replace("Right", "Left")
+		var left := skeleton.find_bone(bone_name)
+		var type := anim.track_get_type(track)
+		if left < 0 or type not in [Animation.TYPE_ROTATION_3D, Animation.TYPE_POSITION_3D, Animation.TYPE_SCALE_3D]:
+			continue
+		var fix := _mirror_fix(skeleton, right, left)
+		var parent_fix := _mirror_fix(skeleton, skeleton.get_bone_parent(right), skeleton.get_bone_parent(left)).inverse()
+		var shift := skeleton.get_bone_rest(left).origin - parent_fix * (Basis.FLIP_X * skeleton.get_bone_rest(right).origin)
+		var out := mirrored.add_track(type)
+		mirrored.track_set_path(out, NodePath(String(path).get_slice(":", 0) + ":" + bone_name))
+		mirrored.track_set_interpolation_type(out, anim.track_get_interpolation_type(track))
+		mirrored.track_set_interpolation_loop_wrap(out, anim.track_get_interpolation_loop_wrap(track))
+		for key in anim.track_get_key_count(track):
+			var time := anim.track_get_key_time(track, key)
+			var value: Variant = anim.track_get_key_value(track, key)
+			match type:
+				Animation.TYPE_ROTATION_3D:
+					mirrored.rotation_track_insert_key(out, time, (parent_fix * _flip(value) * fix).normalized())
+				Animation.TYPE_POSITION_3D:
+					mirrored.position_track_insert_key(out, time, parent_fix * (Basis.FLIP_X * value) + shift)
+				Animation.TYPE_SCALE_3D:
+					mirrored.scale_track_insert_key(out, time, value)
+	return mirrored
+
+
+## Lo que el reposo de [left] (en el esqueleto) se aparta del reflejo del de su pareja [right].
+static func _mirror_fix(skeleton: Skeleton3D, right: int, left: int) -> Quaternion:
+	var right_rest := skeleton.get_bone_global_rest(right).basis.get_rotation_quaternion()
+	var left_rest := skeleton.get_bone_global_rest(left).basis.get_rotation_quaternion()
+	return _flip(right_rest).inverse() * left_rest
+
+
+## El giro [q] visto en el espejo del eje X: el mismo con ese eje dado la vuelta (FLIP_X·q·FLIP_X).
+static func _flip(q: Quaternion) -> Quaternion:
+	return Quaternion(q.x, -q.y, -q.z, q.w)
 
 
 static func _space(clips: Array, animator: AnimationPlayer) -> AnimationNodeBlendSpace2D:

@@ -205,6 +205,24 @@ func is_shield() -> bool:
 	return armor_slot == ArmorSlot.OFFHAND and guard_reduction > 0.0
 
 
+## Va en cualquier mano: la antorcha, que en la izquierda deja la derecha para un arma o el martillo.
+func fits_either_hand() -> bool:
+	return tool_type == ToolType.TORCH
+
+
+## Cabe en el hueco [slot] del equipo: el suyo, o cualquiera de las dos manos si va en las dos.
+func fits_slot(slot: ArmorSlot) -> bool:
+	if slot == armor_slot:
+		return true
+	return fits_either_hand() and (slot == ArmorSlot.RIGHT_HAND or slot == ArmorSlot.OFFHAND)
+
+
+## Su tecla de la barra lo pone o lo quita de la mano izquierda sin tocar la derecha: escudos y
+## antorchas.
+func is_offhand() -> bool:
+	return is_shield() or fits_either_hand()
+
+
 ## Se lleva en la mano izquierda (el arco y el tirachinas se sujetan con la izquierda y la
 ## derecha tensa).
 func is_left_handed() -> bool:
