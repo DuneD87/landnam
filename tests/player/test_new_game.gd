@@ -156,6 +156,8 @@ func _test_cinematic() -> void:
 		waited += 0.2
 	check(player.input_enabled, "Se devuelven los controles al aterrizar")
 	check(player.is_ground_ready(), "Las colisiones del terreno están cargadas al devolver el control")
+	check(player.inventory.get_item_count(ItemCatalog.get_item(&"stone_pickaxe_01")) == 1,
+		"Una partida nueva entrega un solo pico inicial")
 	print("CINEMATIC: lat=%.2f, ground=%s, control wait=%.1fs" % [latitude, player.is_ground_ready(), waited])
 	if capture:
 		await _capture("landed")

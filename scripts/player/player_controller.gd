@@ -424,13 +424,12 @@ func _hold_left_torch() -> void:
 
 
 func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
-	# Consume una sola unidad del item a equipar, conservando el resto del stack.
-	for i in inventory.items.size():
-		if inventory.items[i] and inventory.items[i].data.id == new_data.id:
-			inventory.items[i].remove(1)
-			if inventory.items[i].is_empty():
-				inventory.items[i] = null
-			break
+	var held := _get_right_hand_item()
+	if held != null and held.id == new_data.id:
+		return
+	# La barra guarda accesos: solo se equipa una unidad que exista en el inventario.
+	if inventory.remove_item(new_data, 1) == 0:
+		return
 
 	var old_is_equippable := old_data != null and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON)
 	if old_is_equippable:
@@ -771,6 +770,9 @@ func restore_save_data(save: Dictionary) -> void:
 		hotbar.restore_save_data(save.hotbar)
 	if save.has("hotbar_selected"):
 		hotbar.restore_selection(int(save.hotbar_selected))
+	# Restaurar la barra no mueve objetos: solo hay que recuperar el modo del colocable elegido.
+	var selected := hotbar.get_selected_data()
+	building_system.select_placeable(selected if selected != null and selected.placeable else null)
 	# El equipo se ha restaurado sin pasar por equipment_changed.
 	_sync_hotbar_offhand()
 	_sync_armor()
@@ -785,6 +787,7 @@ func restore_save_data(save: Dictionary) -> void:
 	# on_restored las ha llenado; las de la partida, si las guardó.
 	if needs != null:
 		needs.load_data(save.get("needs", {}))
+	inventory.inventory_changed.emit()
 	_activate_player()
 
 ## Reposiciona a mano el CameraPivot (top_level) tras un rebase de FloatingOrigin.
@@ -1009,6 +1012,8 @@ func _on_cinematic_tween_finished() -> void:
 		camera_controller.camera_distance = camera_controller.min_distance
 		camera_controller.target_distance = camera_controller.min_distance
 		camera_controller._set_first_person(true)
+	# Equipo inicial de una partida nueva; activar al jugador también ocurre al cargar.
+	inventory.add_item(ItemCatalog.get_item(&"stone_pickaxe_01"), 1)
 	GameManager.cinematic_completed()
 
 
@@ -1122,7 +1127,6 @@ func _activate_player() -> void:
 	mouse_captured = true
 	input_enabled = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	inventory.add_item(ItemCatalog.get_item(&"stone_pickaxe_01"), 1)
 	
 ## Andar: la animación (walk_relaxed, de ActorCore) avanza WALK_CLIP_SPEED m/s a ritmo 1 (lo
 ## que retrocede el pie apoyado, medido sobre este cuerpo). Se reproduce a walk_anim_rate y el

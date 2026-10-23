@@ -377,12 +377,18 @@ func select_slot(index: int) -> void:
 	selection_changed.emit(old_data, slots[selected_index].assigned_data)
 
 
-## Vuelve a elegir el hueco guardado. Lo de la otra mano nunca queda elegido: una antorcha elegida
-## en una partida de antes ya está en la derecha, con el equipo, y su tecla la cambiaría de mano.
+## Restaura solo la selección visual: el equipo ya viene de la partida y no se debe volver a
+## equipar a través de selection_changed. Lo de la otra mano nunca queda elegido: una antorcha
+## elegida en una partida de antes ya está en la derecha, con el equipo.
 func restore_selection(index: int) -> void:
+	if selected_index >= 0:
+		slots[selected_index].set_selected(false)
+	selected_index = -1
 	if index >= 0 and index < HOTBAR_SLOTS and slots[index].assigned_data != null \
 			and not slots[index].assigned_data.is_offhand():
-		select_slot(index)
+		selected_index = index
+		slots[index].set_selected(true)
+	_show_selection_name(null, get_selected_data())
 
 
 func _on_slot_clicked(slot: HotbarSlot, _button_index: int) -> void:
@@ -445,15 +451,13 @@ func get_save_data() -> Array:
 
 ## Vuelca en la barra los huecos guardados. Cargar puede pasar sobre una partida en curso, así que
 ## primero se vacía entera: los huecos que el save dejó vacíos tienen que quedar vacíos, y la
-## selección se reinicia para que select_slot() no lea el hueco ya elegido como un clic y lo apague.
+## selección se reinicia sin emitir señales que muevan el equipo recién restaurado al inventario.
 func restore_save_data(data: Array) -> void:
-	var previous: ItemData = get_selected_data()
 	for i in HOTBAR_SLOTS:
 		slots[i].set_selected(false)
 		slots[i].clear()
 	selected_index = -1
-	if previous:
-		selection_changed.emit(previous, null)
+	_show_selection_name(null, null)
 
 	for i in mini(data.size(), HOTBAR_SLOTS):
 		var value = data[i]

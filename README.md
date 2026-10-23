@@ -32,6 +32,7 @@ Sustituye `godot` por la ruta a tu build. Las escenas de prueba cargan los autol
 ```sh
 godot --headless --path . res://tests/audio/test_ambient_mixer.tscn
 godot --headless --path . res://tests/items/test_inventory_transfers.tscn
+godot --headless --path . res://tests/player/test_item_save_load.tscn
 godot --headless --path . res://tests/planet/test_planet_definition.tscn
 godot --headless --path . res://tests/ui/test_drop_items.tscn
 godot --headless --path . res://tests/ui/test_build_hammer.tscn
