@@ -828,7 +828,7 @@ ITEM_BONE_DAGGER_DESC,"The shaft of a long bone ground to a point, with the bone
 ITEM_BRANCH_01,Branch,Rama,
 ITEM_BRANCH_01_DESC,"A fallen branch: it serves as a club, as firewood and to build a campfire.","Una rama caída: sirve de garrote, de leña y para levantar una hoguera.",
 ITEM_FLINT_KNIFE,Flint knife,Cuchillo de sílex,
-ITEM_FLINT_KNIFE_DESC,"A single-edged flint flake set in a wooden handle and tied with sinew. It skins like any knife and, in a pinch, cuts.","Una lasca de sílex de un filo encajada en un mango de madera y atada con tendón. Despelleja como cualquier cuchillo y, en un apuro, corta.",
+ITEM_FLINT_KNIFE_DESC,"A single-edged flint flake set in a wooden handle and lashed with plant fiber. It skins like any knife and, in a pinch, cuts.","Una lasca de sílex de un filo encajada en un mango de madera y atada con fibra vegetal. Despelleja como cualquier cuchillo y, en un apuro, corta.",
 ITEM_FLINT_SPEAR,Flint spear,Lanza de sílex,
 ITEM_FLINT_SPEAR_DESC,"A long shaft with a flint point tied with strips of hide. It stabs from afar or, aiming with the right button, it is thrown. You have to go and pick it up.","Asta larga con una punta de sílex atada con tiras de piel. Pica desde lejos o, apuntando con el botón derecho, se arroja. Hay que ir a recogerla.",
 ITEM_FLINT_SWORD,Flint sword,Espada de sílex,

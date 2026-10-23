@@ -57,6 +57,15 @@ func _check_catalog() -> void:
 	var bench: ItemData = ItemCatalog.get_item(&"stone_workbench")
 	check(bench != null and bench.get_trait(GroundPlaceableTrait) != null, "el banco de trabajo se planta")
 	check(ItemTaxonomy.category_of(bench) == ItemData.Category.BLOCK, "y sale en Construcción")
+	# Lo primero (cortar, despellejar, alumbrarse) se hace a mano con lo que se coge del suelo o se
+	# pica sin pico.
+	var first := [&"stone_axe_01", &"stone_hammer_01", &"flint_knife", &"torch_01", &"torch_placeable_01"]
+	var ground := [&"branch_01", &"stone_01", &"plant_fiber", &"flint"]
+	check(first.all(func(id: StringName) -> bool:
+		var recipe := _recipe(id)
+		return recipe != null and recipe.station == Recipes.HAND \
+			and recipe.inputs.keys().all(func(input: StringName) -> bool: return input in ground)),
+		"hacha, martillo, cuchillo y antorchas, a mano con lo del suelo")
 
 
 func _recipe(result: StringName) -> RecipeData:
@@ -107,7 +116,7 @@ func _check_counts() -> void:
 func _check_panel() -> void:
 	var ui: InventoryUI = load("res://scenes/ui/inventory_ui.tscn").instantiate()
 	add_child(ui)
-	ui.inventory = _inventory([[&"stone_01", 20], [&"branch_01", 20], [&"raw_hide", 4]])
+	ui.inventory = _inventory([[&"stone_01", 25], [&"branch_01", 20], [&"plant_fiber", 12], [&"raw_hide", 1]])
 	var crafter := Node3D.new()
 	add_child(crafter)
 	ui.crafter = crafter
@@ -120,12 +129,12 @@ func _check_panel() -> void:
 	check(axe.station == Recipes.HAND and not panel._make_button.disabled and not panel._where_state.visible,
 		"el hacha se fabrica a mano sin banco de trabajo")
 	panel._set_max()
-	check(int(panel._quantity.value) == 4, "Máx: cuatro hachas (las pieles mandan)")
+	check(int(panel._quantity.value) == 4, "Máx: cuatro hachas (la fibra manda)")
 	panel._quantity.value = 3
 	check(panel._make_button.text == tr("CRAFT_MAKE_N") % 3, "el botón dice cuántas")
 	panel._craft()
 	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"stone_axe_01")) == 3, "fabrica tres hachas sin banco")
-	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"raw_hide")) == 1, "y gasta tres pieles")
+	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"plant_fiber")) == 3, "y gasta nueve fibras")
 	var pickaxe := _recipe(&"stone_pickaxe_01")
 	panel._select(pickaxe)
 	check(panel._make_button.disabled and panel._where_state.text == tr("CRAFT_NOT_NEAR"), "sin banco cerca, el pico no se fabrica")

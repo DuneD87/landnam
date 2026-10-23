@@ -538,7 +538,7 @@ static func flint_spear() -> ArrayMesh:
 
 
 ## Cuchillo de sílex: una hoja de sílex tallada, de un filo, encajada en un mango de madera atado con
-## tendón. Despelleja como el seax.
+## fibra vegetal. Despelleja como el seax.
 static func flint_knife() -> ArrayMesh:
 	var b := ProcMesh.Builder.new()
 	ProcMesh.lathe(b.st(WOOD), [Vector2(0.0, -0.085), Vector2(0.014, -0.08), Vector2(0.017, -0.06),

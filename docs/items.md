@@ -321,10 +321,12 @@ al inventario y lo que no cabe, al suelo.
 | Odre | 2 pieles | A mano |
 | Banco de trabajo | 6 maderas, 4 piedras y 4 ramas | A mano |
 | Lecho de pieles | 4 ramas, 8 fibras vegetales y 2 pieles | A mano |
-| Antorcha | 2 ramas | A mano |
-| Cuchillo de sílex | 1 sílex, 1 rama y 1 tendón | A mano |
+| Antorcha | 1 rama y 1 fibra vegetal | A mano |
+| Antorcha de pared | 1 rama y 1 fibra vegetal | A mano |
+| Cuchillo de sílex | 1 sílex, 1 rama y 2 fibras vegetales | A mano |
 | Puñal de hueso | 2 huesos y 1 tendón | A mano |
-| Hacha de piedra | 3 piedras, 2 ramas y 1 piel | A mano |
+| Hacha de piedra | 5 piedras, 2 ramas y 3 fibras vegetales | A mano |
+| Martillo de piedra | 2 piedras, 1 rama y 1 fibra vegetal | A mano |
 | Pico de piedra | 4 piedras, 2 ramas y 1 piel | Banco de trabajo |
 | Arco de caza | 3 ramas y 1 piel | Banco de trabajo |
 | 4 flechas | 1 rama, 1 piedra y 2 plumas | Banco de trabajo |
