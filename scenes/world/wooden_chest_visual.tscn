@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/wooden_chest_visual.gd" id="1"]
+
+[node name="WoodenChestVisual" type="Node3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+script = ExtResource("1")

@@ -13,7 +13,7 @@ Abre `project.godot` y ejecuta la escena principal configurada en él.
 | Vegetación | `Planet` registra los generadores, las bandas de LOD y las colisiones. `VegetationBaker` hornea las tarjetas de hierba y los impostores de árboles. |
 | Jugador | `PlayerController` coordina movimiento, interacción, equipo y construcción; `scripts/player/` contiene sus componentes. |
 | Combate | `PlayerCombat` lleva las acciones del jugador; `CombatTargeting` selecciona el blanco y actualiza el punto de la cámara. Las criaturas usan `scripts/npc/ai/`. |
-| Inventario | `Inventory` decide cómo se retiran, apilan e intercambian los montones. `InventoryUI` lleva los clics, el cursor y la presentación. `ItemSlotView` es la vista común de los huecos. |
+| Inventario | `Inventory` (`scripts/items/`) lleva capacidad, reglas y transferencias. `Storage` incorpora ese componente en los contenedores del mundo, configurados con `StorageTrait`. `InventoryPanel` presenta cualquier inventario y `InventoryUI` coordina el cursor. Ver `docs/storage.md`. |
 | Audio | `AudioManager` mantiene el catálogo y las voces. Agua y clima calculan ganancias; `AmbientBedMixer` crea sus pistas y las funde. |
 | Objetos | `ItemData` y sus rasgos describen los objetos; `data/items/` y `data/recipes/` contienen sus recursos. `ItemCatalog.get_item(id)` los busca por id. |
 | Guardado y ajustes | Los autoloads `GameManager` y `Settings` mantienen partidas y preferencias. |
@@ -32,6 +32,7 @@ Sustituye `godot` por la ruta a tu build. Las escenas de prueba cargan los autol
 ```sh
 godot --headless --path . res://tests/audio/test_ambient_mixer.tscn
 godot --headless --path . res://tests/items/test_inventory_transfers.tscn
+godot --headless --path . res://tests/items/test_storage.tscn
 godot --headless --path . res://tests/player/test_item_save_load.tscn
 godot --headless --path . res://tests/planet/test_planet_definition.tscn
 godot --headless --path . res://tests/ui/test_drop_items.tscn

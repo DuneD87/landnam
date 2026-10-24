@@ -51,6 +51,7 @@ Van en `ItemData.traits` y se buscan por su tipo con
 | `SkinningTrait` | En la mano, deja despellejar | seax, cuchillo de sílex |
 | `GroundPlaceableTrait` | Se planta en el suelo: escena, vista previa, pendiente, separación y cuánto se inclina y se hunde | hoguera, banco de trabajo |
 | `CraftingStationTrait` | Es una estación de trabajo: su era y desde qué distancia se usan sus recetas | banco de trabajo |
+| `StorageTrait` | Capacidad en huecos y reglas opcionales de lo que se guarda; cada instancia tiene su propio inventario | cofre de madera |
 | `RemedyTrait` | Cura: vida al momento, «Recuperándose» unos segundos, corta el sangrado, cierra las partes heridas y quita estados | milenrama, emplasto, bebedizo, tablilla |
 
 Un rasgo nuevo es una clase que hereda de `ItemTrait` en
@@ -77,6 +78,7 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Hoguera | `campfire` | Se planta en el suelo |
 | Banco de trabajo | `stone_workbench` | Estación de trabajo de la Edad de piedra: se planta en el suelo |
 | Lecho de pieles | `bedroll` | Se planta en el suelo: E para dormir ocho horas o recogerlo |
+| Cofre de madera | `wooden_chest` | Se planta en el suelo: E para guardar y sacar objetos en sus 24 huecos |
 
 El jugador empieza con un seax. El resto sale con `give <id> [cantidad]`.
 
@@ -405,6 +407,22 @@ El lecho conserva su posición e identidad al guardar y cargar.
   - sale rojo con más de 24° de pendiente o más de 0,3 m de desnivel debajo;
   - pide 2 m hasta lo plantado más cerca.
 - El icono sale de una malla sencilla, `SurvivalMeshes.workbench()`.
+
+### Almacenamientos
+
+El cofre de madera (`wooden_chest`) se fabrica a mano con 12 de madera y 2 pieles.
+Seleccionado en la barra, se planta como el banco de trabajo; E junto a él lo abre
+al lado del inventario del jugador. Tiene 24 huecos, configurados en su
+`StorageTrait`, y guarda su contenido con la partida.
+
+- Clic izquierdo: coger o colocar un montón; derecho: coger la mitad o colocar una unidad.
+- Mayús + clic: transferir al otro inventario lo que quepa; el sobrante sigue en origen.
+- «Cogerlo todo» deja el cofre abierto aunque quede vacío.
+- «Desmontar», cuando está vacío, lo devuelve al inventario. Si no cabe, se suelta al suelo.
+- Al cerrar o alejarse se devuelve al origen lo que se tenía en el cursor.
+
+`Storage` e `InventoryPanel` son comunes a futuros cofres, cestas o estanterías;
+su capacidad y restricciones cambian mediante recursos. Ver [storage.md](storage.md).
 
 ### Hoguera
 

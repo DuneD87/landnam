@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/items/traits/ground_placeable_trait.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/items/traits/storage_trait.gd" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/world/wooden_chest_visual.tscn" id="5"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/wooden_chest.png" id="6"]
+
+[sub_resource type="Resource" id="Placement"]
+script = ExtResource("3")
+scene_path = "res://scenes/world/wooden_chest.tscn"
+preview_scene = ExtResource("5")
+radius = 0.55
+max_slope = 20.0
+spacing = 1.2
+max_tilt = 8.0
+settle = 0.7
+max_settle = 0.1
+
+[sub_resource type="Resource" id="Storage"]
+script = ExtResource("4")
+slots = 24
+
+[resource]
+script = ExtResource("1")
+id = &"wooden_chest"
+display_name = "ITEM_WOODEN_CHEST"
+description = "ITEM_WOODEN_CHEST_DESC"
+icon = ExtResource("6")
+scene_path = "res://scenes/world/wooden_chest_visual.tscn"
+stackable = false
+max_stack = 1
+group = &"placeable"
+traits = Array[ExtResource("2")]([SubResource("Placement"), SubResource("Storage")])

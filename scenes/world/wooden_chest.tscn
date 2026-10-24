@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/storage.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/world/wooden_chest_visual.tscn" id="2"]
+
+[sub_resource type="BoxShape3D" id="Shape"]
+size = Vector3(1.13, 0.55, 0.66)
+
+[node name="WoodenChest" type="Node3D"]
+script = ExtResource("1")
+item_id = &"wooden_chest"
+
+[node name="Visual" parent="." instance=ExtResource("2")]
+
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+position = Vector3(0, 0.275, 0)
+shape = SubResource("Shape")

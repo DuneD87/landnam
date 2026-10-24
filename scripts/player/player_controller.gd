@@ -664,16 +664,19 @@ func _ready():
 			water_sampler.setup(planet.water_sphere.quadtree_material, planet.world_map)
 			
 			
+## Se termina el movimiento del cursor antes de que cualquier entidad capture su contenido.
+func prepare_save() -> void:
+	if inventory_ui != null:
+		inventory_ui._cancel_floating_item()
+
+
+func prepare_restore() -> void:
+	if inventory_ui != null:
+		inventory_ui.close()
+
+
 func get_save_data() -> Dictionary:
-	var inventory_data: Array[Dictionary] = []
-	for i in inventory.items.size():
-		var item: InventoryItem = inventory.items[i]
-		if item != null and item.data != null:
-			inventory_data.append({
-				"item_id": str(item.data.id),
-				"quantity": item.quantity,
-				"slot_index": i
-			})
+	var inventory_data := inventory.get_save_data()
 
 	var equipment_data: Dictionary = {}
 	for slot_type in character_window.equipment_slots:
@@ -744,13 +747,8 @@ func restore_save_data(save: Dictionary) -> void:
 
 	_clear_visual_equipment()
 
-	inventory.clear()
-	for entry in save.inventory:
-		var item_data: ItemData = ItemCatalog.get_item(StringName(entry.item_id))
-		if item_data:
-			inventory.add_item_at(item_data, int(entry.quantity), int(entry.slot_index))
-		else:
-			push_warning("SaveSystem: item desconocido '%s'" % entry.item_id)
+	if not inventory.restore_save_data(save.inventory):
+		push_error("SaveSystem: no se pudo restaurar el inventario del jugador")
 
 	for slot_type in character_window.equipment_slots:
 		var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
@@ -1304,6 +1302,8 @@ func _input(event):
 		elif corpse:
 			survival.open_corpse(corpse)
 		elif survival.open_nearby_bedroll():
+			pass
+		elif survival.open_nearby_storage():
 			pass
 		elif survival.open_nearby_campfire():
 			pass

@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://c2gobysiknl4o" path="res://scripts/npc/health_component.gd" id="4_csxub"]
 [ext_resource type="Script" uid="uid://yedbuvmlni0y" path="res://scripts/npc/ai/ai_controller.gd" id="5_ysr64"]
 [ext_resource type="Script" uid="uid://0eobro8himhn" path="res://scripts/npc/ai/states/idle_state.gd" id="6_4t5nn"]
-[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/ui/inventory/inventory.gd" id="6_4wect"]
+[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/items/inventory.gd" id="6_4wect"]
 [ext_resource type="Script" uid="uid://cyr0kqn4qtln3" path="res://scripts/npc/ai/states/wander_state.gd" id="7_e0gds"]
 [ext_resource type="Script" uid="uid://crltg4k2yqqpp" path="res://scripts/npc/ai/states/flee_state.gd" id="8_qcmlp"]
 [ext_resource type="Texture2D" uid="uid://bw3ymmljubtgf" path="res://scenes/animals/Deer_Antler.png" id="9_e0gds"]

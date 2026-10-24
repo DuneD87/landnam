@@ -37,6 +37,7 @@ const ARMOR := {
 	"hide_mittens": [0.0, -15.0, "hand"], "hide_boots": [0.0, -65.0, "foot"],
 }
 const PLAYER_SKIN := "res://models/player/xavivar/firstage_human_male_player_skin.tres"
+const CHEST = preload("res://scripts/world/wooden_chest_visual.gd")
 
 
 func _initialize() -> void:
@@ -86,7 +87,12 @@ func _run() -> void:
 		source.free()
 		await Renderer.render(self, model, [entry[0], entry[1]],
 			"res://textures/icons/items/armor/stone_age/%s.png" % armor, false)
-	print("Iconos Saga: %d renders guardados." % (WEAPONS.size() + TOOLS.size() + ARMOR.size()))
+	if only.is_empty() or "wooden_chest" in only:
+		var model := MeshInstance3D.new()
+		model.mesh = CHEST.make_mesh()
+		await Renderer.render(self, model, [0.0, -30.0],
+			"res://textures/icons/items/survival/wooden_chest.png", false, 20.0)
+	print("Iconos Saga: horneado terminado.")
 	quit()
 
 

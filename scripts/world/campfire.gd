@@ -49,7 +49,7 @@ var _ui_tick := 0.0
 
 func _init() -> void:
 	inventory.max_slots = 1 + COOK_SLOTS
-	inventory.items.resize(inventory.max_slots)
+	inventory.rules = CampfireInventoryRules.new()
 	progress.resize(COOK_SLOTS)
 	progress.fill(0.0)
 
@@ -152,17 +152,12 @@ func advance(seconds: float, burn_rate := 1.0) -> void:
 
 ## Si [data] va en el hueco [slot] (0 = combustible; 1-8, cocina).
 func accepts(slot: int, data: ItemData) -> bool:
-	if data == null:
-		return false
-	if slot == FUEL_SLOT:
-		return data.get_trait(FuelTrait) != null
-	return data.get_trait(CookableTrait) != null or data.category == ItemData.Category.CONSUMABLE \
-		and data.get_trait(EdibleTrait) != null
+	return inventory.accepts(slot, data)
 
 
 ## Lo que cabe en el hueco: el de combustible, un montón; los de cocina, una pieza.
 func capacity(slot: int, data: ItemData) -> int:
-	return data.max_stack if slot == FUEL_SLOT else 1
+	return inventory.capacity(slot, data)
 
 
 ## Enciende si tiene con qué arder.

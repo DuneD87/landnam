@@ -10,7 +10,7 @@
 [ext_resource type="Script" path="res://scripts/npc/ai/states/creature_combat_state.gd" id="8_wptcs"]
 [ext_resource type="Resource" path="res://data/fauna/combat/lion_combat.tres" id="8_lcomb"]
 [ext_resource type="Script" path="res://scripts/npc/ai/states/territorial_state.gd" id="8_terri"]
-[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/ui/inventory/inventory.gd" id="9_0bmxr"]
+[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/items/inventory.gd" id="9_0bmxr"]
 [ext_resource type="Script" uid="uid://dsyulr1uf8n11" path="res://scripts/player/animation_controller.gd" id="10_0qfj2"]
 [ext_resource type="Script" uid="uid://v8nkfaw2cl4h" path="res://scripts/npc/perception.gd" id="11_rdpah"]
 [ext_resource type="Texture2D" uid="uid://dj1oy0724o00b" path="res://scenes/animals/Lion_lion_male_common_dif.ddsc.DECA.png" id="12_d4ptx"]

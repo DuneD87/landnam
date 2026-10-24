@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://yedbuvmlni0y" path="res://scripts/npc/ai/ai_controller.gd" id="4_i8uhd"]
 [ext_resource type="Script" uid="uid://0eobro8himhn" path="res://scripts/npc/ai/states/idle_state.gd" id="5_dtiw3"]
 [ext_resource type="Script" uid="uid://cyr0kqn4qtln3" path="res://scripts/npc/ai/states/wander_state.gd" id="6_rp2fm"]
-[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/ui/inventory/inventory.gd" id="8_cp55a"]
+[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/items/inventory.gd" id="8_cp55a"]
 [ext_resource type="Script" path="res://scripts/npc/ai/states/creature_combat_state.gd" id="8_hodw2"]
 [ext_resource type="Resource" path="res://data/fauna/combat/bear_combat.tres" id="8_bcomb"]
 [ext_resource type="Script" uid="uid://crifabnl3t42p" path="res://scripts/npc/ai/states/death_state.gd" id="9_r2nls"]

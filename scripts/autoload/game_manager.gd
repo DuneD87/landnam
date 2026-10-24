@@ -182,6 +182,11 @@ func save_game(slot_name: String = "default") -> bool:
 				await get_tree().process_frame
 			print("SaveSystem: voxel save complete for %s" % entity.entity_id)
 
+	# Después de las esperas del terreno: desde aquí hasta capturar todas las entidades no se
+	# cede otro fotograma en el que el jugador pueda volver a coger un montón con el cursor.
+	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
+		if entity.has_method("prepare_save"):
+			entity.prepare_save()
 	var by_category: Dictionary = {}
 	for cat in SAVE_CATEGORIES:
 		by_category[cat] = {}
@@ -231,6 +236,11 @@ func load_game(slot_name: String = "default") -> bool:
 			for id in cat_data:
 				all_entities[id] = cat_data[id]
 
+	# Devuelve los objetos del cursor antes de restaurar cualquier contenedor, sin depender del
+	# orden de las entidades. Así no se reinsertan objetos antiguos sobre contenido ya restaurado.
+	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
+		if entity.has_method("prepare_restore"):
+			entity.prepare_restore()
 	var saved_state: int = meta.get("game_state", State.PLAYING)
 	WorldTime.reset()
 	_change_state(saved_state as State)

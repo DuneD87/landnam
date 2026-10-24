@@ -1143,3 +1143,10 @@ CON_ANCHORS_ANCHORED,resting on the ground: %d   (probe %.1f ms),apoyados en el 
 CON_ANCHORS_NO_TERRAIN_QUERY,UNABLE TO QUERY THE TERRAIN,SIN PODER CONSULTAR EL TERRENO,
 CON_ANCHORS_WOULD_FALL,"would fall now: %d   (reach = sqrt(anchors) x %.2f, minimum %d · probe %.1f m)","se caerían ahora: %d   (alcance = raíz(apoyos) x %.2f, mínimo %d · sondeo %.1f m)",
 CON_ANCHORS_SAMPLE,not a single anchor; raw probe sample:,sin un solo apoyo; muestra en crudo del sondeo:,
+
+,,,## Storage
+ITEM_WOODEN_CHEST,Wooden chest,Cofre de madera,
+ITEM_WOODEN_CHEST_DESC,A chest of planks and hide straps for keeping your belongings.,Un cofre de tablas y correas de piel para guardar tus pertenencias.,
+TRAIT_SLOTS,%d slots,%d huecos,
+INV_STORAGE_HINT,Left: take or place · Right: half or one · Shift+click: transfer,Izquierdo: coger o colocar · Derecho: mitad o uno · Mayús+clic: transferir,
+INV_STORAGE_DISMANTLE_TIP,Empty it to return it to the inventory.,Vacío vuelve al inventario.,

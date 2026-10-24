@@ -25,7 +25,6 @@ signal use_requested(data: ItemData)
 enum View {INVENTORY, CHARACTER, CRAFTING}
 
 const BACKDROP_SHADER := preload("res://shaders/ui/backdrop.gdshader")
-const COLUMNS := 5
 ## Filtros del inventario: «Todo» y las categorías de ItemTaxonomy (-1 = todas), con sus claves.
 static var FILTERS: Array = [["INV_FILTER_ALL", -1]] + ItemTaxonomy.CATEGORIES.map(
 	func(entry: Array) -> Array: return [entry[1], entry[0]])
@@ -46,6 +45,7 @@ var panel: Control
 
 var floating_item: InventoryItem = null
 var floating_slot_index: int = -1
+var floating_inventory: Inventory = null
 var view := View.INVENTORY
 ## Quien fabrica (el jugador): las recetas de una estación de trabajo piden tenerla cerca.
 var crafter: Node3D
@@ -60,7 +60,7 @@ var _frame: VBoxContainer
 var _inventory_column: PanelContainer
 var _side_column: PanelContainer
 var _doll_holder: Control
-var _slot_grid: GridContainer
+var _inventory_panel: InventoryPanel
 var _count_label: Label
 var _filter := 0
 var _filter_buttons: Array[Button] = []
@@ -104,7 +104,12 @@ var _crafting_panel: CraftingPanel
 var _loot_box: VBoxContainer
 var _loot_inventory: Inventory = null
 var _loot_slots: Array[InventorySlot] = []
-var _loot_grid: GridContainer
+var _loot_panel: InventoryPanel
+var _loot_title: Label
+var _loot_hint: Label
+var _storage: Storage
+var _dismantle_storage_button: Button
+var _closing_container := false
 var _loot_label: Label
 
 
@@ -273,10 +278,11 @@ func _build_inventory_column() -> PanelContainer:
 		_filter_buttons.append(button)
 	box.add_child(filters)
 
-	_slot_grid = GridContainer.new()
-	_slot_grid.columns = COLUMNS
-	_slot_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	box.add_child(_slot_grid)
+	_inventory_panel = InventoryPanel.new()
+	_inventory_panel.slot_clicked.connect(_on_slot_clicked)
+	_inventory_panel.slot_double_clicked.connect(_on_slot_double_clicked)
+	_inventory_panel.slot_hovered.connect(_on_slot_hovered.bind(&"inventory"))
+	box.add_child(_inventory_panel)
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -435,18 +441,18 @@ func _build_loot() -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var header := HBoxContainer.new()
-	var title := _label("INV_LOOT", &"HeaderLabel")
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
+	_loot_title = _label("INV_LOOT", &"HeaderLabel")
+	_loot_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_loot_title)
 	_loot_label = _label("", &"ValueLabel")
 	_loot_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	header.add_child(_loot_label)
 	box.add_child(header)
 	box.add_child(HSeparator.new())
-	_loot_grid = GridContainer.new()
-	_loot_grid.columns = COLUMNS
-	_loot_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	box.add_child(_loot_grid)
+	_loot_panel = InventoryPanel.new()
+	_loot_panel.slot_clicked.connect(_on_loot_slot_clicked)
+	_loot_panel.slot_hovered.connect(_on_slot_hovered.bind(&"loot"))
+	box.add_child(_loot_panel)
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -457,9 +463,17 @@ func _build_loot() -> VBoxContainer:
 	take_all.focus_mode = Control.FOCUS_NONE
 	take_all.pressed.connect(_take_all_loot)
 	box.add_child(take_all)
-	var hint := _label("INV_HINT_TO_INVENTORY", &"HintLabel")
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(hint)
+	_dismantle_storage_button = Button.new()
+	_dismantle_storage_button.text = "UI_DISMANTLE"
+	_dismantle_storage_button.focus_mode = Control.FOCUS_NONE
+	_dismantle_storage_button.tooltip_text = "INV_STORAGE_DISMANTLE_TIP"
+	_dismantle_storage_button.visible = false
+	_dismantle_storage_button.pressed.connect(_dismantle_storage)
+	box.add_child(_dismantle_storage_button)
+	_loot_hint = _label("INV_HINT_TO_INVENTORY", &"HintLabel")
+	_loot_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_loot_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_loot_hint)
 	return box
 
 
@@ -499,6 +513,8 @@ func _apply_scale() -> void:
 	var doll := clampf(available - sides, DOLL_WIDTH.x * s, DOLL_WIDTH.y * s)
 	var width := sides + doll
 	var height := viewport_size.y - MARGIN.y * s - BOTTOM * s
+	_inventory_panel.max_height = maxf(100.0 * s, height - 220.0 * s)
+	_loot_panel.max_height = maxf(100.0 * s, height - 220.0 * s)
 	var fit := minf(1.0, available / width) if available > 0.0 else 1.0
 	# Anclado y no con size: las etiquetas que parten líneas piden mucho alto mientras aún no
 	# tienen ancho, y un tamaño puesto a mano ya no volvería a encoger.
@@ -515,40 +531,17 @@ func _apply_scale() -> void:
 # --- Contenido ----------------------------------------------------------------------------------
 
 func _create_slots() -> void:
-	for slot in slots:
-		slot.queue_free()
-	slots.clear()
-
-	for i in range(inventory.max_slots):
-		var slot := InventorySlot.new()
-		slot.slot_index = i
-		slot.slot_clicked.connect(_on_slot_clicked)
-		slot.slot_double_clicked.connect(_on_slot_double_clicked)
-		slot.hover_changed.connect(_on_slot_hovered.bind(&"inventory"))
-		_slot_grid.add_child(slot)
-		slots.append(slot)
+	_inventory_panel.bind_inventory(inventory)
+	slots = _inventory_panel.slots
 
 
 func _refresh() -> void:
 	if not inventory:
 		return
 
-	var items = inventory.get_all_items()
-	var count = 0
-	for item in items:
-		if item != null:
-			count += 1
-
+	_inventory_panel.refresh()
+	var count := inventory.max_slots - inventory.get_free_slots()
 	_count_label.text = "%d / %d" % [count, inventory.max_slots]
-
-	for i in range(slots.size()):
-		if i < items.size():
-			slots[i].set_item(items[i])
-		else:
-			slots[i].clear()
-
-	if floating_item and floating_slot_index >= 0 and floating_slot_index < slots.size():
-		slots[floating_slot_index].clear()
 	_apply_filter()
 	if visible:
 		_refresh_stats()
@@ -670,7 +663,7 @@ func _on_slot_hovered(slot: ItemSlotView, on: bool, context: StringName) -> void
 			if item:
 				data = item.data
 				quantity = item.quantity
-			hint = tr("INV_HINT_TO_INVENTORY")
+			hint = tr("INV_STORAGE_HINT" if _storage != null else "INV_HINT_TO_INVENTORY")
 		&"campfire":
 			var item: InventoryItem = (slot as InventorySlot).item
 			if item:
@@ -792,30 +785,77 @@ func close() -> void:
 
 
 func open_loot(loot_inv: Inventory) -> void:
-	if _loot_inventory:
-		close_loot()
-	_loot_inventory = loot_inv
-	_loot_inventory.inventory_changed.connect(_refresh_loot)
-	# El cadáver se va (pasado su rato) con el botín abierto: se cierra con él.
-	_loot_inventory.tree_exiting.connect(close_loot)
+	close_loot()
+	close_campfire()
+	_loot_title.text = "INV_LOOT"
+	_loot_hint.text = "INV_HINT_TO_INVENTORY"
+	_open_container(loot_inv)
+
+
+func open_storage(storage: Storage) -> void:
+	close_loot()
+	close_campfire()
+	_storage = storage
+	_loot_title.text = ItemCatalog.get_item(storage.item_id).display_name
+	_loot_hint.text = "INV_STORAGE_HINT"
+	_open_container(storage.inventory)
+
+
+func open_storage_node() -> Storage:
+	return _storage
+
+
+func _open_container(content: Inventory) -> void:
+	_loot_inventory = content
+	content.inventory_changed.connect(_refresh_loot)
+	content.tree_exiting.connect(_on_container_exiting)
 	_create_loot_slots()
+	_dismantle_storage_button.visible = _storage != null
 	_update_side()
 	_refresh_loot()
 	open(view if visible and view != View.CRAFTING else View.INVENTORY)
 
 
 func close_loot() -> void:
-	if _loot_inventory and _loot_inventory.inventory_changed.is_connected(_refresh_loot):
-		_loot_inventory.inventory_changed.disconnect(_refresh_loot)
-	if _loot_inventory and _loot_inventory.tree_exiting.is_connected(close_loot):
-		_loot_inventory.tree_exiting.disconnect(close_loot)
+	if _closing_container:
+		return
+	_closing_container = true
+	if floating_item != null and floating_inventory == _loot_inventory:
+		_return_to_origin()
+	if is_instance_valid(_loot_inventory):
+		if _loot_inventory.inventory_changed.is_connected(_refresh_loot):
+			_loot_inventory.inventory_changed.disconnect(_refresh_loot)
+		if _loot_inventory.tree_exiting.is_connected(_on_container_exiting):
+			_loot_inventory.tree_exiting.disconnect(_on_container_exiting)
 	_loot_inventory = null
-	for slot in _loot_slots:
-		if slot == _card_slot:
-			_hide_card()
-		slot.queue_free()
-	_loot_slots.clear()
+	_storage = null
+	if _card_slot in _loot_slots:
+		_hide_card()
+	_loot_panel.bind_inventory(null)
+	_dismantle_storage_button.visible = false
+	_closing_container = false
 	_update_side()
+
+
+func _on_container_exiting() -> void:
+	if floating_item != null and floating_inventory == _loot_inventory:
+		_return_to_origin(true)
+	close_loot()
+
+
+func _dismantle_storage() -> void:
+	if not is_instance_valid(_storage):
+		return
+	_cancel_floating_item()
+	if _storage.inventory.get_free_slots() != _storage.inventory.max_slots:
+		return
+	var storage := _storage
+	var data := ItemCatalog.get_item(storage.item_id)
+	close_loot()
+	var left := inventory.add_item(data, 1)
+	if left > 0:
+		drop_requested.emit(data, left)
+	storage.queue_free()
 
 
 ## Qué va en la columna de la derecha: el botín si se saquea, la hoguera si está abierta y, si no,
@@ -835,6 +875,7 @@ func _update_side() -> void:
 # --- Hoguera ------------------------------------------------------------------------------------
 
 func open_campfire(fire: Campfire) -> void:
+	close_loot()
 	close_campfire()
 	_campfire = fire
 	fire.changed.connect(_refresh_campfire)
@@ -896,33 +937,15 @@ func _on_campfire_slot_clicked(slot: InventorySlot, button_index: int) -> void:
 			if hotbar != null:
 				hotbar.notify(tr("INV_NOT_HERE" if index != Campfire.FUEL_SLOT else "INV_DOESNT_BURN"))
 			return
-		var room := _campfire.capacity(index, floating_item.data)
-		if stored != null and (stored.data.id != floating_item.data.id or not stored.data.stackable):
-			return
-		var have := stored.quantity if stored != null else 0
-		var amount := mini(room - have, 1 if button_index == MOUSE_BUTTON_RIGHT else floating_item.quantity)
-		if amount <= 0:
-			return
-		if stored != null:
-			stored.add(amount)
-		else:
-			_campfire.inventory.items[index] = InventoryItem.new(floating_item.data, amount)
-			if index != Campfire.FUEL_SLOT:
-				_campfire.progress[index - 1] = 0.0
-		floating_item.remove(amount)
-		if floating_item.quantity <= 0:
-			_clear_floating_item()
-		else:
-			_update_floating_display()
-	elif stored != null and button_index == MOUSE_BUTTON_LEFT:
-		var remaining := inventory.add_item(stored.data, stored.quantity)
-		_campfire.inventory.items[index] = InventoryItem.new(stored.data, remaining) if remaining > 0 else null
-		if index != Campfire.FUEL_SLOT and remaining <= 0:
+		floating_item = _campfire.inventory.put_at(index, floating_item,
+			1 if button_index == MOUSE_BUTTON_RIGHT else -1, false)
+		if stored == null and _campfire.inventory.items[index] != null and index != Campfire.FUEL_SLOT:
 			_campfire.progress[index - 1] = 0.0
-	else:
-		return
-	_campfire.inventory.inventory_changed.emit()
-	inventory.inventory_changed.emit()
+		_finish_inventory_transfer(_campfire.inventory)
+	elif stored != null and button_index == MOUSE_BUTTON_LEFT:
+		_campfire.inventory.transfer_to(inventory, index)
+		if index != Campfire.FUEL_SLOT and _campfire.inventory.items[index] == null:
+			_campfire.progress[index - 1] = 0.0
 
 
 func _toggle_fire() -> void:
@@ -941,10 +964,7 @@ func _take_cooked() -> void:
 	for i in Campfire.COOK_SLOTS:
 		var item := _campfire.inventory.items[1 + i]
 		if item != null and item.data.get_trait(CookableTrait) == null:
-			var remaining := inventory.add_item(item.data, item.quantity)
-			_campfire.inventory.items[1 + i] = InventoryItem.new(item.data, remaining) if remaining > 0 else null
-	_campfire.inventory.inventory_changed.emit()
-	inventory.inventory_changed.emit()
+			_campfire.inventory.transfer_to(inventory, 1 + i)
 
 
 func _dismantle_campfire() -> void:
@@ -978,62 +998,51 @@ func _release_focus() -> void:
 
 
 func _create_loot_slots() -> void:
-	for slot in _loot_slots:
-		slot.queue_free()
-	_loot_slots.clear()
-	for i in range(_loot_inventory.max_slots):
-		var slot := InventorySlot.new()
-		slot.slot_index = i
-		slot.slot_clicked.connect(_on_loot_slot_clicked)
-		slot.hover_changed.connect(_on_slot_hovered.bind(&"loot"))
-		_loot_grid.add_child(slot)
-		_loot_slots.append(slot)
+	_loot_panel.bind_inventory(_loot_inventory)
+	_loot_slots = _loot_panel.slots
 
 
 func _refresh_loot() -> void:
-	if not _loot_inventory:
+	if not is_instance_valid(_loot_inventory):
 		return
-	var items = _loot_inventory.get_all_items()
-	var count := 0
-	for item in items:
-		if item != null:
-			count += 1
-	_loot_label.text = str(count)
-	for i in range(_loot_slots.size()):
-		if i < items.size():
-			_loot_slots[i].set_item(items[i])
-		else:
-			_loot_slots[i].clear()
-	if count == 0:
+	_loot_panel.refresh()
+	var count := _loot_inventory.max_slots - _loot_inventory.get_free_slots()
+	_loot_label.text = "%d / %d" % [count, _loot_inventory.max_slots]
+	_dismantle_storage_button.disabled = count > 0 or floating_item != null
+	if count == 0 and _storage == null and not _closing_container:
 		close_loot()
 
 
 func _on_loot_slot_clicked(slot: InventorySlot, button_index: int) -> void:
-	if button_index != MOUSE_BUTTON_LEFT or not slot.item:
+	if not is_instance_valid(_loot_inventory):
 		return
-	_take_loot(slot.slot_index)
-	_loot_inventory.inventory_changed.emit()
-	inventory.inventory_changed.emit()
+	if _storage == null:
+		if button_index == MOUSE_BUTTON_LEFT and slot.item != null and floating_item == null:
+			_take_loot(slot.slot_index)
+		return
+	if button_index not in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+		return
+	if floating_item != null:
+		_drop_to_slot(_loot_inventory, slot.slot_index, button_index == MOUSE_BUTTON_RIGHT)
+	elif slot.item != null:
+		if button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_SHIFT):
+			_loot_inventory.transfer_to(inventory, slot.slot_index)
+		else:
+			_pickup_from(_loot_inventory, slot.slot_index, button_index == MOUSE_BUTTON_RIGHT)
 
 
 func _take_all_loot() -> void:
-	if not _loot_inventory:
+	if not is_instance_valid(_loot_inventory):
 		return
+	_cancel_floating_item()
 	var loot := _loot_inventory
-	for i in loot.items.size():
-		if loot.items[i] != null:
-			_take_loot(i)
-	inventory.inventory_changed.emit()
-	loot.inventory_changed.emit()
+	for i in loot.max_slots:
+		loot.transfer_to(inventory, i)
 
 
 ## Pasa al inventario lo que quepa del hueco [index] del botín.
 func _take_loot(index: int) -> void:
-	var item := _loot_inventory.items[index]
-	var remaining := inventory.add_item(item.data, item.quantity)
-	_loot_inventory.items[index] = null
-	if remaining > 0:
-		_loot_inventory.items[index] = InventoryItem.new(item.data, remaining)
+	_loot_inventory.transfer_to(inventory, index)
 
 
 # --- Mover objetos ------------------------------------------------------------------------------
@@ -1050,6 +1059,10 @@ func _on_hotbar_slot_clicked(slot_index: int) -> void:
 
 
 func _on_slot_clicked(slot: InventorySlot, button_index: int) -> void:
+	if _storage != null and floating_item == null and button_index == MOUSE_BUTTON_LEFT \
+			and Input.is_key_pressed(KEY_SHIFT):
+		inventory.transfer_to(_loot_inventory, slot.slot_index)
+		return
 	if button_index == MOUSE_BUTTON_LEFT:
 		_handle_inventory_left_click(slot)
 	elif button_index == MOUSE_BUTTON_RIGHT:
@@ -1075,7 +1088,7 @@ func _handle_inventory_left_click(slot: InventorySlot) -> void:
 
 func _handle_inventory_right_click(slot: InventorySlot) -> void:
 	if not floating_item:
-		if slot.item and slot.item.quantity > 1:
+		if slot.item:
 			_pickup_half_from_inventory(slot)
 	else:
 		_drop_single_to_inventory(slot)
@@ -1089,11 +1102,21 @@ func _on_equipment_slot_clicked(slot: EquipmentSlot) -> void:
 
 
 func _pickup_from_inventory(slot: InventorySlot, half: bool = false) -> void:
-	var amount := ceili(slot.item.quantity / 2.0) if half or Input.is_key_pressed(KEY_SHIFT) else -1
-	floating_item = inventory.take_at(slot.slot_index, amount)
-	floating_slot_index = slot.slot_index
+	_pickup_from(inventory, slot.slot_index, half or Input.is_key_pressed(KEY_SHIFT))
+
+
+func _pickup_from(source: Inventory, index: int, half: bool = false) -> void:
+	var item := source.get_item_at_slot(index)
+	if item == null:
+		return
+	floating_item = source.take_at(index, ceili(item.quantity / 2.0) if half else -1)
+	floating_inventory = source
+	floating_slot_index = index
 	_update_floating_display()
 	_refresh()
+	# El cursor es una transacción en curso; aquí solo se actualiza la presentación.
+	_loot_panel.refresh()
+	_dismantle_storage_button.disabled = true
 
 
 func _pickup_half_from_inventory(slot: InventorySlot) -> void:
@@ -1102,76 +1125,90 @@ func _pickup_half_from_inventory(slot: InventorySlot) -> void:
 
 func _pickup_from_equipment(slot: EquipmentSlot) -> void:
 	floating_item = character_window.unequip_item(slot)
+	floating_inventory = null
 	floating_slot_index = -1
 	_update_floating_display()
 
 
 func _drop_to_inventory(target_slot: InventorySlot) -> void:
-	if target_slot.slot_index == floating_slot_index:
-		_return_to_origin()
-		return
-	var target := inventory.get_item_at_slot(target_slot.slot_index)
-	var stacking := target != null and target.can_stack_with(floating_item)
-	floating_item = inventory.put_at(target_slot.slot_index, floating_item)
-	if floating_item != null and (floating_slot_index >= 0 or stacking):
-		_return_to_origin()
-	else:
-		_finish_inventory_transfer()
+	_drop_to_slot(inventory, target_slot.slot_index)
 
 
 func _drop_single_to_inventory(target_slot: InventorySlot) -> void:
-	floating_item = inventory.put_at(target_slot.slot_index, floating_item, 1, false)
-	_finish_inventory_transfer()
+	_drop_to_slot(inventory, target_slot.slot_index, true)
 
 
-func _finish_inventory_transfer() -> void:
+func _drop_to_slot(target: Inventory, index: int, single: bool = false) -> void:
+	if target == floating_inventory and index == floating_slot_index and not single:
+		_return_to_origin()
+		return
+	var stored := target.get_item_at_slot(index)
+	var stacking := stored != null and stored.can_stack_with(floating_item)
+	floating_item = target.put_at(index, floating_item, 1 if single else -1, not single)
+	if not single and floating_item != null and (floating_inventory != null or stacking):
+		_return_to_origin()
+		# El destino también ha cambiado si se ha intercambiado o apilado parte del montón.
+		if target != inventory and is_instance_valid(target):
+			target.inventory_changed.emit()
+	else:
+		_finish_inventory_transfer(target)
+
+
+func _finish_inventory_transfer(target: Inventory = null) -> void:
+	var origin := floating_inventory
 	if floating_item == null:
 		_clear_floating_item()
 	else:
 		_update_floating_display()
+	if is_instance_valid(origin) and origin != inventory and origin != target:
+		origin.inventory_changed.emit()
+	if is_instance_valid(target) and target != inventory:
+		target.inventory_changed.emit()
 	inventory.inventory_changed.emit()
 
 
 func _drop_to_equipment(slot: EquipmentSlot) -> void:
-	var old_item = character_window.equip_item(slot, floating_item)
-	# No va en ese hueco: sigue en el cursor.
+	var old_item := character_window.equip_item(slot, floating_item)
 	if old_item == floating_item:
 		return
 	floating_item.remove(1)
-
-	if floating_item.quantity > 0:
-		if floating_slot_index >= 0:
-			inventory.items[floating_slot_index] = floating_item
-		else:
-			inventory.add_item(floating_item.data, floating_item.quantity)
-
-	if old_item:
+	if floating_item.is_empty():
+		floating_item = null
+		_finish_inventory_transfer()
+	else:
+		_return_to_origin()
+	if old_item != null:
 		floating_item = old_item
+		floating_inventory = null
 		floating_slot_index = -1
 		_update_floating_display()
-	else:
-		_clear_floating_item()
-
-	inventory.inventory_changed.emit()
-	_refresh()
 
 
-func _return_to_origin() -> void:
-	if floating_slot_index >= 0:
-		floating_item = inventory.put_at(floating_slot_index, floating_item, -1, false)
+func _return_to_origin(origin_unavailable: bool = false) -> void:
+	if floating_item == null:
+		return
+	var origin := floating_inventory
+	if not origin_unavailable and is_instance_valid(origin):
+		floating_item = origin.put_at(floating_slot_index, floating_item, -1, false)
+		if floating_item != null:
+			floating_item = origin.insert(floating_item)
 	if floating_item != null:
-		var remaining := inventory.add_item(floating_item.data, floating_item.quantity)
-		floating_item = InventoryItem.new(floating_item.data, remaining) if remaining > 0 else null
+		floating_item = inventory.insert(floating_item)
+	if floating_item != null:
+		# Puede ocurrir si se llenó el hueco mientras había algo en el cursor.
+		drop_requested.emit(floating_item.data, floating_item.quantity)
+		floating_item = null
 	_finish_inventory_transfer()
 
 
 func _cancel_floating_item() -> void:
-	if floating_item:
+	if floating_item != null:
 		_return_to_origin()
 
 
 func _clear_floating_item() -> void:
 	floating_item = null
+	floating_inventory = null
 	floating_slot_index = -1
 	_held.visible = false
 
@@ -1181,12 +1218,9 @@ func _drop_to_world(amount: int) -> void:
 	var n := mini(amount, floating_item.quantity)
 	drop_requested.emit(floating_item.data, n)
 	floating_item.remove(n)
-	if floating_item.quantity <= 0:
-		_clear_floating_item()
-	else:
-		_update_floating_display()
-	inventory.inventory_changed.emit()
-	_refresh()
+	if floating_item.is_empty():
+		floating_item = null
+	_finish_inventory_transfer()
 
 
 ## El ratón está sobre alguna ventana: el inventario, el muñeco, la columna derecha, la cabecera

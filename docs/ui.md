@@ -108,6 +108,16 @@ al inventario solo.
 
 ## Inventario: ordenar y hoguera
 
+Las cuadrículas del jugador y del contenedor lateral usan `InventoryPanel`, enlazado
+a un `Inventory`. El panel se adapta al número de huecos y permite desplazarlos
+cuando no caben en pantalla. Los filtros y el equipo siguen en `InventoryUI`.
+
+E junto a un almacenamiento abre su contenido a la derecha. Clic izquierdo coge o
+coloca el montón, derecho coge la mitad o coloca uno y Mayús + clic transfiere al
+otro inventario. El cursor recuerda el inventario y el hueco de origen. Un cofre
+vacío permanece abierto; el botón «Desmontar» se habilita cuando no contiene nada
+y no se está sosteniendo ningún objeto. Ver [storage.md](storage.md).
+
 - **Filtros:** «Todo» y las categorías de `ItemTaxonomy` (Armas, Herramientas,
   Ropa, Comida, Materiales y Construcción). Si no caben en una línea, saltan a
   la siguiente.

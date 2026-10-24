@@ -48,6 +48,9 @@ func _process(delta: float) -> void:
 	var fire := _player.inventory_ui.open_campfire_node()
 	if fire != null and fire.global_position.distance_to(_player.global_position) > Campfire.REACH + 1.5:
 		_player.inventory_ui.close_campfire()
+	var storage := _player.inventory_ui.open_storage_node()
+	if storage != null and storage.global_position.distance_to(_player.global_position) > Storage.REACH + 1.5:
+		_player.inventory_ui.close_loot()
 
 
 func notify(text: String) -> void:
@@ -210,7 +213,8 @@ func open_nearby_bedroll() -> bool:
 	# El lecho suele estar junto al fuego: deja usar la hoguera o el banco si están más cerca.
 	var distance := bed.global_position.distance_to(_player.global_position)
 	for other in [Campfire.nearest(get_tree(), _player.global_position),
-			Workstation.nearest(get_tree(), _player.global_position)]:
+			Workstation.nearest(get_tree(), _player.global_position),
+			Storage.nearest(get_tree(), _player.global_position)]:
 		if other != null and other.global_position.distance_to(_player.global_position) < distance:
 			return false
 	_player.inventory_ui.close()
@@ -224,6 +228,21 @@ func open_nearby_campfire() -> bool:
 	if fire == null:
 		return false
 	_player.inventory_ui.open_campfire(fire)
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	return true
+
+
+## Resuelve los colocados por cercanía, para poder usar un cofre junto a una hoguera o un banco.
+func open_nearby_storage() -> bool:
+	var storage := Storage.nearest(get_tree(), _player.global_position)
+	if storage == null:
+		return false
+	var distance := storage.global_position.distance_to(_player.global_position)
+	for other in [Campfire.nearest(get_tree(), _player.global_position),
+			Workstation.nearest(get_tree(), _player.global_position)]:
+		if other != null and other.global_position.distance_to(_player.global_position) < distance:
+			return false
+	_player.inventory_ui.open_storage(storage)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	return true
 

@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://cn32aycdueqh7" path="res://scripts/player/player_controller.gd" id="1_smlm8"]
 [ext_resource type="Script" uid="uid://coeewlktybkhm" path="res://scripts/player/movement.gd" id="2_l8r5w"]
 [ext_resource type="Script" uid="uid://cw1dc0n2atqjh" path="res://scripts/player/cam_controller.gd" id="4_5at7g"]
-[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/ui/inventory/inventory.gd" id="4_05eln"]
+[ext_resource type="Script" uid="uid://helyjc1d7ns1" path="res://scripts/items/inventory.gd" id="4_05eln"]
 [ext_resource type="Script" uid="uid://dsyulr1uf8n11" path="res://scripts/player/animation_controller.gd" id="6_bgx5p"]
 [ext_resource type="Script" uid="uid://drujj6x4uwkju" path="res://scripts/player/free_flight_controller.gd" id="7_w5t68"]
 [ext_resource type="Script" uid="uid://c2gobysiknl4o" path="res://scripts/npc/health_component.gd" id="8_3a8jt"]
