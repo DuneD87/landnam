@@ -2,8 +2,9 @@
 extends MeshInstance3D
 
 ## Saco de cuero con una piel de pelo sobre la boca y los costados, retales superpuestos y
-## amarres de tendón. Usa los atlas PBR del manto de pelo y la túnica de pieles, con las UV
-## limitadas a sus zonas de pelo/cuero. Metros; Y arriba, +Z hacia la espalda del portador.
+## amarres de tendón. El cuero usa el atlas PBR de la túnica de pieles, con las UV limitadas a
+## sus zonas de cuero; la piel, el pelo repetible de las prendas de pieles con pelo
+## (tools/character/blender/render_fur_maps.py, en color por make_fur_textures.py). Metros; Y arriba, +Z hacia la espalda del portador.
 const HIDE := &"pack_hide"
 const FLAP := &"pack_flap"
 const PATCH := &"pack_patch"
@@ -12,9 +13,12 @@ const CORD := &"pack_cord"
 const WOOD := &"pack_wood"
 const SEGMENTS := 32
 const ARMOR_MAPS := "res://models/equipable/stone_age/%s_%s.jpg"
+const FUR_MAPS := "res://models/equipable/stone_age/fur/fur_pelt_%s.png"
+## Veces que el pelo se repite a lo ancho y a lo largo de la solapa, y su color (un lobo pardo).
+const FUR_REPEAT := Vector2(6.0, 3.0)
+const FUR_TINT := Color("a38e78")
 ## Rectángulos interiores de islas del atlas, en píxeles del albedo de 2048 × 2048.
 ## Albedo, normales y rugosidad comparten UV; se evitan los huecos y bordes de las islas.
-const FUR_REGION := Rect2(1645, 625, 100, 95)
 const HIDE_REGION := Rect2(1180, 1130, 150, 150)
 const PATCH_REGION := Rect2(1140, 1430, 110, 110)
 const FLAP_PROFILE := [Vector2(0.211, 0.035), Vector2(0.224, -0.050),
@@ -292,7 +296,13 @@ static func _material(kind: StringName) -> StandardMaterial3D:
 		HIDE:
 			_armor_material(material, "hide_tunic", HIDE_REGION)
 		FLAP:
-			_armor_material(material, "fur_mantle", FUR_REGION)
+			material.albedo_texture = load(FUR_MAPS % "albedo")
+			material.albedo_color = FUR_TINT
+			material.normal_enabled = true
+			material.normal_texture = load(FUR_MAPS % "normal")
+			material.cull_mode = BaseMaterial3D.CULL_DISABLED
+			material.vertex_color_use_as_albedo = true
+			material.uv1_scale = Vector3(FUR_REPEAT.x, FUR_REPEAT.y, 1)
 		PATCH:
 			_armor_material(material, "hide_tunic", PATCH_REGION)
 		STRAP:

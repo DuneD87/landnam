@@ -5,7 +5,7 @@
 [ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_closs"]
 [ext_resource type="Resource" path="res://data/items/Armor/StoneAge/fur_mantle.tres" id="4_04ai7"]
 
-[node name="fur_mantle" type="MeshInstance3D" unique_id=79229063]
+[node name="fur_mantle" type="MeshInstance3D" unique_id=451534104]
 mesh = ExtResource("1_exr0x")
 skin = ExtResource("2_133d1")
 script = ExtResource("3_closs")

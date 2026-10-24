@@ -5,7 +5,7 @@
 [ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_te1vs"]
 [ext_resource type="Resource" path="res://data/items/Armor/StoneAge/fur_mittens.tres" id="4_obl28"]
 
-[node name="fur_mittens" type="MeshInstance3D" unique_id=861366611]
+[node name="fur_mittens" type="MeshInstance3D" unique_id=1255895041]
 mesh = ExtResource("1_bxstl")
 skin = ExtResource("2_gh0pt")
 script = ExtResource("3_te1vs")

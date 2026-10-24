@@ -1,0 +1,15 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://models/equipable/stone_age/fur/leather_albedo.png" id="1_8q4mc"]
+[ext_resource type="Texture2D" path="res://models/equipable/stone_age/fur/leather_normal.png" id="2_jbeuk"]
+[ext_resource type="Texture2D" path="res://models/equipable/stone_age/fur/leather_roughness.png" id="3_8s0yp"]
+
+[resource]
+resource_name = "leather"
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("1_8q4mc")
+metallic_specular = 0.25
+roughness_texture = ExtResource("3_8s0yp")
+normal_enabled = true
+normal_texture = ExtResource("2_jbeuk")
+uv1_scale = Vector3(2.857143, 2.857143, 1)

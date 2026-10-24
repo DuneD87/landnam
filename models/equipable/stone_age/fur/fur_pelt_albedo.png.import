@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c1npvnotwxcxw"
-path.s3tc="res://.godot/imported/fur_loincloth_normal.jpg-1803f16ef837a00a17a4570f047feb4c.s3tc.ctex"
+uid="uid://vn60h03kgc11"
+path.s3tc="res://.godot/imported/fur_pelt_albedo.png-4b41935a70ebceb4060a327abd897797.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://models/equipable/stone_age/fur_loincloth_normal.jpg"
-dest_files=["res://.godot/imported/fur_loincloth_normal.jpg-1803f16ef837a00a17a4570f047feb4c.s3tc.ctex"]
+source_file="res://models/equipable/stone_age/fur/fur_pelt_albedo.png"
+dest_files=["res://.godot/imported/fur_pelt_albedo.png-4b41935a70ebceb4060a327abd897797.s3tc.ctex"]
 
 [params]
 
@@ -22,7 +22,7 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=1
+compress/normal_map=0
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
@@ -38,4 +38,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

@@ -1,0 +1,11 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://models/equipable/stone_age/fur/bone_albedo.png" id="1_85e5w"]
+
+[resource]
+resource_name = "bone"
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("1_85e5w")
+metallic_specular = 0.25
+roughness = 0.6
+uv1_scale = Vector3(20, 20, 1)

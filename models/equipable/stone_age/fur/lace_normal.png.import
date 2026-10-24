@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bgiayi1qplcwj"
-path.s3tc="res://.godot/imported/fur_mantle_roughness.jpg-c582173df4b7427ce1035a81289e2f37.s3tc.ctex"
+uid="uid://ca82n20nsv8a"
+path.s3tc="res://.godot/imported/lace_normal.png-3a015e7a32c76a4d92ea1762045b3539.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://models/equipable/stone_age/fur_mantle_roughness.jpg"
-dest_files=["res://.godot/imported/fur_mantle_roughness.jpg-c582173df4b7427ce1035a81289e2f37.s3tc.ctex"]
+source_file="res://models/equipable/stone_age/fur/lace_normal.png"
+dest_files=["res://.godot/imported/lace_normal.png-3a015e7a32c76a4d92ea1762045b3539.s3tc.ctex"]
 
 [params]
 
@@ -22,12 +22,12 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
-roughness/mode=0
-roughness/src_normal=""
+roughness/mode=1
+roughness/src_normal="res://models/equipable/stone_age/fur/lace_normal.png"
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2

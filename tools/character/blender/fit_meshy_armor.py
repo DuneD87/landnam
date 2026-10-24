@@ -92,10 +92,12 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
-ARGS = sys.argv[sys.argv.index("--") + 1:]
-BODY_JSON, PIECES_JSON, SOURCE_DIR, OUT_DIR = ARGS[:4]
-REWEIGHT = "--reweight" in ARGS[4:]
-ONLY = set(ARGS[4:]) - {"--reweight"}
+# Only when run as the script: build_fur_armor.py imports the rest.
+if __name__ == "__main__":
+    ARGS = sys.argv[sys.argv.index("--") + 1:]
+    BODY_JSON, PIECES_JSON, SOURCE_DIR, OUT_DIR = ARGS[:4]
+    REWEIGHT = "--reweight" in ARGS[4:]
+    ONLY = set(ARGS[4:]) - {"--reweight"}
 
 ## Height of the soles in skin space.
 SOLE_HEIGHT = -0.9506

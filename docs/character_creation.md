@@ -244,12 +244,15 @@ godot --path . res://tests/character/armor_fit_preview.tscn -- --out res://build
 
 ### Prendas de Meshy
 
-Las prendas de pieles con pelo y de cuero (`scenes/items/armor/stone_age/`)
-se generaron con [Meshy](https://www.meshy.ai) desde imágenes de referencia:
-cada una es un modelo suelto, sin cuerpo ni esqueleto, con texturas PBR.
-`tools/character/blender/fit_meshy_armor.py` las pone sobre el escaneo y las
-pesa con su piel, así que quedan como las demás: hechas para el escaneo, y
-`ArmorFit` las lleva a cada cuerpo.
+Las prendas de cuero (túnica, calzas, manoplas y botas: `hide_*` en
+`scenes/items/armor/stone_age/`) se generaron con [Meshy](https://www.meshy.ai)
+desde imágenes de referencia: cada una es un modelo suelto, sin cuerpo ni
+esqueleto, con texturas PBR. `tools/character/blender/fit_meshy_armor.py` las
+pone sobre el escaneo y las pesa con su piel, así que quedan como las demás:
+hechas para el escaneo, y `ArmorFit` las lleva a cada cuerpo. Las de pieles con
+pelo se hicieron así al principio (de entonces son los ejemplos del manto y el
+faldellín de abajo); ahora las construye `build_fur_armor.py` (ver *Prendas de
+pieles con pelo*), que usa el mismo reparto de pesos.
 
 - **Colocar**, según el hueco de cada una (`stone_age_armor.json`):
   - peto: escalado, con el cuello sobre el del escaneo y centrado en el torso.
@@ -362,6 +365,105 @@ pesa con su piel, así que quedan como las demás: hechas para el escaneo, y
   `firstage_human_male_player_skirt_skin.tres`: la del escaneo y la de esos
   huesos, sacada de su reposo en el esqueleto del personaje.
 
+### Prendas de pieles con pelo
+
+El manto, el faldellín, las manoplas y los mocasines de pieles con pelo no
+vienen de ningún modelo: `tools/character/blender/build_fur_armor.py` los
+construye como ropa por capas sobre el propio escaneo, y se doblan con él. Las
+versiones de Meshy eran una masa uniforme de esquirlas con una textura de algo
+parecido a piel, y el rigging peleaba con esa geometría.
+
+- **El manto**: una piel de lobo echada sobre los hombros (oscura por el lomo,
+  gris y leonada por los flancos, más clara en la garganta), con las patas
+  delanteras cayendo sobre el pecho, atadas con una tira, y la cola por la
+  espalda. Debajo, un jubón de cuero sin mangas ceñido por un cinto con su
+  nudo: se ahueca sobre el cinto y cae en pliegues por debajo, y por la cadera
+  queda por fuera de lo que lleve debajo (el cinturón y el pelo del
+  faldellín). Una bolsa de cuero cuelga del cinto a la espalda.
+- **El faldellín**: un cinturón a la cadera con dos faldones largos de cuero
+  (delante y detrás) y, por encima, una falda corta de piel parda envuelta
+  alrededor con el cruce en el costado izquierdo; debajo, un taparrabos de
+  cuero. Faldones y falda cuelgan de los huesos de falda (*Faldas que se
+  mueven*).
+- **Las manoplas**: de cuero, la envolvente convexa de la palma y los cuatro
+  dedos (una bolsa) unida al pulgar y al puño, con palma y dorso cosidos
+  alrededor, un puño de piel con pelo y una correa en la muñeca.
+- **Los mocasines**: de cuero, con la suela subiendo por los lados y el empeine
+  fruncido en una costura; encima, una piel envuelta en cada espinilla, atada
+  con dos tiras que se cruzan subiendo y anudada bajo la rodilla.
+
+Cómo se hacen:
+
+- **El cuerpo** es el escaneo remallado en celdas iguales (`ENVELOPE_VOXEL`),
+  que además funde los dedos de los pies, con los pesos de su piel por vértice.
+  Una piel o un cuero es una región de él cortada por un campo (un escalar sobre
+  la piel: lo positivo se va), con los lóbulos y puntas del borde de un
+  pellejo, partida en paneles por otros campos e inflada fuera de la piel por
+  turnos (suavizar y empujar): salva los huecos del cuerpo como lo haría el
+  cuero. Lo que cuelga cae a plomo desde lo que más sobresale encima (un
+  muslo, una nalga), con pliegues; las manoplas se remallan desde envolventes
+  convexas.
+- **El pelo son tarjetas** (*hair cards*), como en los juegos: mechones
+  peinados pendiente abajo sobre cada piel, una capa corta entre ellos y
+  mechones que cuelgan de sus bordes y rompen la silueta. Sus mechones se
+  renderizan de pelo de verdad (`render_fur_maps.py`, en Cycles y sin
+  ventana): miles de curvas agrupadas en mechones que acaban en punta, sobre
+  una borra rizada. Bajo las tarjetas, la piel lleva una tesela de ese mismo
+  pelo peinado.
+- **Sombras entre capas**: una oclusión ambiental por vértice, del cuerpo y de
+  todas las piezas, oscurece los colores (bajo la piel de lobo, en los
+  pliegues, junto a cinturones y bolsa); las tarjetas toman la de la piel en
+  la que nacen.
+- **Forros**: bajo manoplas y mocasines, la propia piel de la mano o del pie a
+  2 mm y pesada como ella: lo que asoma al cerrar el puño o doblar los dedos
+  es cuero y no carne. Sobre los dedos el mocasín va más holgado.
+- **Pesos**: `fit_meshy_armor.skin()`, como las de Meshy. El cinturón y el
+  taparrabos del faldellín siguen a la cadera y los muslos.
+- **UV en metros**: cada panel se despliega aparte (un tubo, como una polaina,
+  se corta antes por el camino más corto entre sus dos bordes) y se gira para
+  que +V baje por su pendiente.
+
+Los materiales son compartidos (`models/equipable/stone_age/fur/*.tres`, que
+escribe `bake_meshy_armor.gd`):
+
+- **fur_card** (`shaders/character/fur_card.gdshader` y su segunda pasada,
+  `fur_card_fringe.gdshader`): como el pelo del personaje, el núcleo del
+  mechón recortado (alpha to coverage con MSAA) y lo fino mezclado encima.
+  Cada tarjeta se ilumina con la normal de la piel en la que nace, por las dos
+  caras, así que el pelo se sombrea como un abrigo y no como tiras.
+- **pelt** (`fur_pelt.gdshader`): la piel bajo las tarjetas.
+- Los dos colorean el pelo igual (`fur_common.gdshaderinc`): sus mapas guardan
+  datos, no color (lo lejos que queda cada texel de la raíz de su hebra, un
+  valor por hebra y la oclusión entre ellas); la raíz es más oscura y la punta
+  algo más, como en el pelo de lobo, y el color de vértice es el del pellejo.
+- **leather**, **lace** (tendón) y **bone**: `StandardMaterial3D` teñidos por el
+  color de vértice (claro en el mapa: Godot guarda el color de vértice en 8
+  bits, solo puede oscurecer). El cuero tiene grano en celdas finas, arrugas y
+  un moteado suave (`make_fur_textures.py`).
+
+La mochila de pieles usa la tesela de pelo, en color, en su solapa.
+
+```sh
+# 1. Mapas (si cambian): el pelo, renderizado (unos 2 min), y el resto
+blender -b --factory-startup --python tools/character/blender/render_fur_maps.py -- [--only=cards,pelt]
+python3 tools/character/make_fur_textures.py [--only=leather,lace,bone,pelt_albedo]
+# 2. Escaneo -> JSON (como para Meshy)
+godot --headless --path . --script res://tools/character/dump_skeleton.gd -- $PWD/build/character/meshy/body.json
+# 3. Prendas (menos de un minuto; deja vistas previas <id>_preview_*.png)
+blender -b --factory-startup --python tools/character/blender/build_fur_armor.py -- \
+    build/character/meshy/body.json build/character/meshy [fur_mantle fur_loincloth fur_mittens fur_moccasins]
+# 4. Materiales, mallas y escenas (la primera vez escribe cómo importar los mapas)
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- $PWD/build/character/meshy fur_mantle fur_loincloth fur_mittens fur_moccasins
+godot --headless --path . --import
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- $PWD/build/character/meshy fur_mantle fur_loincloth fur_mittens fur_moccasins
+# 5. Iconos (necesita ventana)
+godot --path . --script res://tools/ui/bake_item_icons.gd -- --background --only=fur_mantle,fur_loincloth,fur_mittens,fur_moccasins,hide_backpack
+```
+
+Las cuatro cuestan unos 106 000 vértices y 120 000 triángulos (el manto, 42 000),
+de los que 39 000 son tarjetas de pelo. Las mallas ocupan unos 7 MB y los mapas,
+compartidos, 17 MB en PNG (en VRAM van comprimidos).
+
 ### Faldas que se mueven
 
 `SkirtBones` son los huesos de una falda: 8 cadenas de 4 alrededor de la
@@ -405,24 +507,30 @@ godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- 
 godot --headless --path . --import
 godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- $PWD/build/character/meshy [id...]
 # 4. Iconos (necesita ventana)
-godot --path . --script res://tools/ui/bake_item_icons.gd -- --background --only=fur_mantle,fur_loincloth,hide_tunic,hide_trousers
+godot --path . --script res://tools/ui/bake_item_icons.gd -- --background --only=hide_tunic,hide_trousers,hide_mittens,hide_boots
 ```
+
+La túnica va por encima del faldellín de pieles (`"over"`): su JSON tiene que
+estar en la misma carpeta de salida (`build_fur_armor.py` a
+`build/character/meshy`, o copiado de la suya).
 
 Una prenda nueva es una entrada más en el JSON (o uno nuevo para otra edad),
 su `ItemData` y su receta, y una línea en `ARMOR` de `bake_item_icons.gd`.
 
-Para regenerar solo los pesos de las ocho prendas ya horneadas, sin las
-descargas de Meshy, se exporta su geometría y se aplica el nuevo reparto.
-Se conservan posiciones, normales, UV, materiales, forros y escenas:
+Para regenerar solo los pesos de las cuatro prendas de cuero ya horneadas,
+sin las descargas de Meshy, se exporta su geometría y se aplica el nuevo
+reparto. Se conservan posiciones, normales, UV, materiales, forros y escenas
+(las de pieles con pelo se rehacen enteras en segundos):
 
 ```sh
+HIDE="hide_tunic hide_trousers hide_mittens hide_boots"
 mkdir -p build/character/armor_weights/source build/character/armor_weights/fitted
 godot --headless --path . --script res://tools/character/dump_skeleton.gd -- $PWD/build/character/armor_weights/body.json
-godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- --export-weights $PWD/build/character/armor_weights/source
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- --export-weights $PWD/build/character/armor_weights/source $HIDE
 blender -b --factory-startup --python tools/character/blender/fit_meshy_armor.py -- \
     build/character/armor_weights/body.json tools/character/blender/stone_age_armor.json \
     build/character/armor_weights/source build/character/armor_weights/fitted --reweight
-godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- --weights $PWD/build/character/armor_weights/fitted
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- --weights $PWD/build/character/armor_weights/fitted $HIDE
 godot --headless --path . --script res://tests/character/test_armor_deformation.gd
 ```
 
@@ -470,11 +578,14 @@ de una partida y las vistas `hips_side`, `hips_front`, `hips_back`,
   (o el cuero cabelludo pintado si va rapado).
 - El pelo largo que cae por la espalda aún atraviesa el peto: solo las piezas
   de cabeza lo recogen.
-- Las prendas de Meshy tienen rotos y tiras de diseño (el faldellín en las
-  caderas); el forro tapa la piel bajo los del peto y los calzones. Solo los
-  petos se separan de otras prendas (de los calzones de `"over"`): los bajos
-  de unas calzas pueden asomar por la caña de las botas. Los bordes de las
-  pieles del manto tienen alguna punta suelta que sobresale.
+- Las prendas de Meshy tienen rotos y tiras de diseño; el forro tapa la piel
+  bajo los del peto y los calzones. Solo los petos se separan de otras prendas
+  (de los calzones de `"over"`): los bajos de unas calzas pueden asomar por la
+  caña de las botas.
+- El pelo de las pieles no choca con nada: los brazos pegados al cuerpo cruzan
+  algún mechón de los hombros del manto, y al abrir mucho las piernas la falda
+  de piel se abre por delante. Las tarjetas son planas: de canto, alguna se ve
+  como una tira.
 - El aspecto es el de MakeHuman: limpio y de juego, no fotográfico. Algunos
   peinados son mallas esculpidas más que mechones.
 - El mundo usa ACES, que apaga algo la piel respecto a la vista previa.

@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://8reenelpsyus"
-path.s3tc="res://.godot/imported/fur_loincloth_albedo.jpg-3b8a0c29d635a3691d47ffa47ba85dd2.s3tc.ctex"
+uid="uid://b3i8424mrbk3f"
+path.s3tc="res://.godot/imported/bone_albedo.png-e21f65997cbbe5bc2503be08017c7388.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://models/equipable/stone_age/fur_loincloth_albedo.jpg"
-dest_files=["res://.godot/imported/fur_loincloth_albedo.jpg-3b8a0c29d635a3691d47ffa47ba85dd2.s3tc.ctex"]
+source_file="res://models/equipable/stone_age/fur/bone_albedo.png"
+dest_files=["res://.godot/imported/bone_albedo.png-e21f65997cbbe5bc2503be08017c7388.s3tc.ctex"]
 
 [params]
 

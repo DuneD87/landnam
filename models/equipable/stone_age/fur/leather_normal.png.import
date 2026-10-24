@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://orl0k4btunv"
-path.s3tc="res://.godot/imported/fur_mittens_albedo.jpg-0a87b325ece298547e11fbc406a9ab1d.s3tc.ctex"
+uid="uid://citbmiixjy2uh"
+path.s3tc="res://.godot/imported/leather_normal.png-6edbcd8d8c63ff3883ca7f52ee703757.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://models/equipable/stone_age/fur_mittens_albedo.jpg"
-dest_files=["res://.godot/imported/fur_mittens_albedo.jpg-0a87b325ece298547e11fbc406a9ab1d.s3tc.ctex"]
+source_file="res://models/equipable/stone_age/fur/leather_normal.png"
+dest_files=["res://.godot/imported/leather_normal.png-6edbcd8d8c63ff3883ca7f52ee703757.s3tc.ctex"]
 
 [params]
 
@@ -22,12 +22,12 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
-roughness/mode=0
-roughness/src_normal=""
+roughness/mode=1
+roughness/src_normal="res://models/equipable/stone_age/fur/leather_normal.png"
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2

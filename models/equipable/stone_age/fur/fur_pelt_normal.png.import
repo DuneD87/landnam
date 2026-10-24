@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bcesd4cx4orlk"
-path.s3tc="res://.godot/imported/fur_mantle_normal.jpg-458edadd7be4452186882695101fb128.s3tc.ctex"
+uid="uid://d0sa3doxhw7h8"
+path.s3tc="res://.godot/imported/fur_pelt_normal.png-e8200893c830bee8919bcfc1bae9fb8c.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://models/equipable/stone_age/fur_mantle_normal.jpg"
-dest_files=["res://.godot/imported/fur_mantle_normal.jpg-458edadd7be4452186882695101fb128.s3tc.ctex"]
+source_file="res://models/equipable/stone_age/fur/fur_pelt_normal.png"
+dest_files=["res://.godot/imported/fur_pelt_normal.png-e8200893c830bee8919bcfc1bae9fb8c.s3tc.ctex"]
 
 [params]
 

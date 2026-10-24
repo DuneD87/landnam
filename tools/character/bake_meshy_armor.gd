@@ -1,6 +1,7 @@
 extends SceneTree
 
-## Builds the equipable armour fitted by tools/character/blender/fit_meshy_armor.py:
+## Builds the equipable armour fitted by tools/character/blender/fit_meshy_armor.py
+## or made by tools/character/blender/build_fur_armor.py:
 ## per piece its textures, its skinned mesh (the garment and, if it has one,
 ## its lining, each with its material) and an
 ## equipable scene, a MeshItem with the piece's ItemData (ITEMS/<id>.tres,
@@ -16,6 +17,15 @@ extends SceneTree
 ## A skirt that hangs from the skirt's bones (SkirtBones) gets SKIRT_SKIN: the
 ## scan's Skin with their binds, from their rest on the character's skeleton.
 ##
+## The fur garments (build_fur_armor.py) name a shared material on each
+## surface instead of bringing maps: fur_card (hair cards, fur_card.gdshader
+## and its fringe pass), pelt (the coat under them, fur_pelt.gdshader),
+## leather, lace or bone, written to FUR with the maps of
+## tools/character/blender/render_fur_maps.py and make_fur_textures.py, which
+## must be imported first (the first run writes their import settings, as
+## with Meshy's maps). Their surfaces carry vertex colours: each pelt's and
+## hide's own, darkened where the garment's layers shade it.
+##
 ## To regenerate weights without the original Meshy downloads:
 ##   ... -- --export-weights <dir> [piece ...]
 ##   (fit_meshy_armor.py --reweight; see docs/character_creation.md)
@@ -29,6 +39,17 @@ const MODELS := "res://models/equipable/stone_age/"
 const SCENES := "res://scenes/items/armor/stone_age/"
 const ITEMS := "res://data/items/Armor/StoneAge/"
 const MESH_ITEM := "res://scripts/items/mesh_item.gd"
+const FUR := "res://models/equipable/stone_age/fur/"
+const FUR_SHADERS := "res://shaders/character/fur_%s.gdshader"
+## Metres one repeat of each tileable map covers (make_fur_textures.py,
+## render_fur_maps.py; build_fur_armor.py lays UVs in metres, but the hair
+## cards' pick a lock of the atlas).
+const FUR_TILES := {pelt = 0.08, leather = 0.35, lace = 0.03, bone = 0.05}
+## The maps, and which are normal maps.
+const FUR_MAPS := {fur_cards = false, fur_pelt = false, fur_pelt_normal = true, fur_pelt_albedo = false,
+		leather_albedo = false,
+		leather_normal = true, leather_roughness = false, lace_albedo = false, lace_normal = true,
+		bone_albedo = false}
 ## Side of each map, and its JPEG quality.
 const MAPS := {albedo = [2048, 0.9], normal = [2048, 0.95], roughness = [1024, 0.9]}
 ## Meshy's roughness (0.6-0.7) shines like latex on fur and rawhide: it is
@@ -37,6 +58,8 @@ const ROUGHNESS_RANGE := Vector2(0.8, 1.0)
 ## Less shine and a softer relief than Meshy's maps, which glint on every tuft.
 const SPECULAR := 0.25
 const NORMAL_SCALE := 0.7
+
+var _fur_materials := {}
 
 
 func _initialize() -> void:
@@ -62,9 +85,9 @@ func _initialize() -> void:
 			continue
 		var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(source.path_join(file)))
 		# The scan dump (body.json) can share the folder.
-		if not data.has("textures"):
+		if not data.has("textures") and not data.has("surfaces"):
 			continue
-		if not _textures(id, data.textures):
+		if not (_textures(id, data.textures) if data.has("textures") else _fur_maps()):
 			waiting.append(id)
 			continue
 		var skin: Skin = skins[_hangs(data)]
@@ -161,7 +184,12 @@ func _mesh(id: String, data: Dictionary, binds: Dictionary) -> ArrayMesh:
 			arrays = tool.commit_to_arrays()
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
 		var index := mesh.get_surface_count() - 1
-		mesh.surface_set_material(index, _lining(id, surface.color) if surface.has("color") else _material(id))
+		if surface.has("material"):
+			mesh.surface_set_material(index, _fur_material(surface.material))
+		elif surface.has("color"):
+			mesh.surface_set_material(index, _lining(id, surface.color))
+		else:
+			mesh.surface_set_material(index, _material(id))
 	mesh.resource_name = id
 	return mesh
 
@@ -265,6 +293,12 @@ func _arrays(surface: Dictionary, names: Array, binds: Dictionary) -> Array:
 		for i in t.size() / 2:
 			uvs.append(Vector2(t[i * 2], t[i * 2 + 1]))
 		arrays[Mesh.ARRAY_TEX_UV] = uvs
+	if surface.has("colors"):
+		var colors := PackedColorArray()
+		var c: Array = surface.colors
+		for i in c.size() / 4:
+			colors.append(Color(c[i * 4], c[i * 4 + 1], c[i * 4 + 2], c[i * 4 + 3]))
+		arrays[Mesh.ARRAY_COLOR] = colors
 	arrays[Mesh.ARRAY_BONES] = bones
 	arrays[Mesh.ARRAY_WEIGHTS] = PackedFloat32Array(surface.weights)
 	arrays[Mesh.ARRAY_INDEX] = PackedInt32Array(surface.indices)
@@ -295,6 +329,80 @@ func _material(id: String) -> StandardMaterial3D:
 	material.roughness_texture = load(MODELS + id + "_roughness.jpg")
 	material.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 	return material
+
+
+## Whether the fur garments' maps are imported; writes their import
+## settings if they have none.
+func _fur_maps() -> bool:
+	var ready := true
+	for map: String in FUR_MAPS:
+		var path := FUR + map + ".png"
+		if ResourceLoader.exists(path):
+			continue
+		ready = false
+		if FileAccess.file_exists(path + ".import"):
+			continue
+		var options := ConfigFile.new()
+		options.set_value("remap", "importer", "texture")
+		options.set_value("remap", "type", "CompressedTexture2D")
+		options.set_value("params", "compress/mode", 2)
+		options.set_value("params", "compress/normal_map", 1 if FUR_MAPS[map] else 0)
+		options.set_value("params", "mipmaps/generate", true)
+		options.save(path + ".import")
+	return ready
+
+
+## A fur garment's shared material, written to FUR the first time a run
+## asks for it.
+func _fur_material(name: String) -> Material:
+	if _fur_materials.has(name):
+		return _fur_materials[name]
+	var material: Material
+	match name:
+		"fur_card":
+			# The cards' solid cores, then their ends blended over (as the hair).
+			var cards := ShaderMaterial.new()
+			cards.shader = load(FUR_SHADERS % "card")
+			cards.set_shader_parameter(&"lock_map", load(FUR + "fur_cards.png"))
+			var fringe := ShaderMaterial.new()
+			fringe.shader = load(FUR_SHADERS % "card_fringe")
+			fringe.set_shader_parameter(&"lock_map", load(FUR + "fur_cards.png"))
+			fringe.render_priority = 1
+			cards.next_pass = fringe
+			material = cards
+		"pelt":
+			var pelt := ShaderMaterial.new()
+			pelt.shader = load(FUR_SHADERS % "pelt")
+			pelt.set_shader_parameter(&"pelt_map", load(FUR + "fur_pelt.png"))
+			pelt.set_shader_parameter(&"pelt_normal", load(FUR + "fur_pelt_normal.png"))
+			pelt.set_shader_parameter(&"map_scale", 1.0 / FUR_TILES.pelt)
+			material = pelt
+		"leather", "lace", "bone":
+			var plain := StandardMaterial3D.new()
+			plain.albedo_texture = load(FUR + name + "_albedo.png")
+			plain.vertex_color_use_as_albedo = true
+			plain.metallic_specular = SPECULAR
+			plain.roughness = 0.6 if name == "bone" else 0.8
+			if name != "bone":
+				plain.normal_enabled = true
+				plain.normal_texture = load(FUR + name + "_normal.png")
+			if name == "leather":
+				plain.roughness = 1.0
+				plain.roughness_texture = load(FUR + "leather_roughness.png")
+				plain.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+			var tile: float = FUR_TILES[name]
+			# A cord's V goes once round it.
+			plain.uv1_scale = Vector3(1.0 / tile, 1.0 if name == "lace" else 1.0 / tile, 1.0)
+			material = plain
+		_:
+			push_error("Unknown material " + name)
+			return null
+	material.resource_name = name
+	var path := FUR + name + ".tres"
+	if ResourceSaver.save(material, path) != OK:
+		push_error("Could not save " + path)
+	_fur_materials[name] = load(path)
+	return _fur_materials[name]
 
 
 func _scene(id: String, mesh: ArrayMesh, skin: Skin) -> void:

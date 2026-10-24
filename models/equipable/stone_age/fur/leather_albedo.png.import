@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://da863fsrrctsq"
-path.s3tc="res://.godot/imported/fur_mantle_albedo.jpg-90fc9c8ea6dd068b86ddff049efd964b.s3tc.ctex"
+uid="uid://j666do1ityim"
+path.s3tc="res://.godot/imported/leather_albedo.png-460a0ee093c83b302a2ca77426bb6047.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://models/equipable/stone_age/fur_mantle_albedo.jpg"
-dest_files=["res://.godot/imported/fur_mantle_albedo.jpg-90fc9c8ea6dd068b86ddff049efd964b.s3tc.ctex"]
+source_file="res://models/equipable/stone_age/fur/leather_albedo.png"
+dest_files=["res://.godot/imported/leather_albedo.png-460a0ee093c83b302a2ca77426bb6047.s3tc.ctex"]
 
 [params]
 

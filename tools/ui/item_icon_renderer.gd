@@ -14,7 +14,9 @@ static func prepare_model(model: MeshInstance3D, item_name: String) -> void:
 		model.scale = Vector3(1.65, 1.0, 1.65)
 
 
-static func render(tree: SceneTree, model: MeshInstance3D, angles: Array, output: String, bow: bool, pitch := 0.0) -> void:
+## [exposure] escala la luz del estudio (IconStudio.light): menos para lo claro y mate, que se quema.
+static func render(tree: SceneTree, model: MeshInstance3D, angles: Array, output: String, bow: bool, pitch := 0.0,
+		exposure := 1.0) -> void:
 	var viewport := SubViewport.new()
 	viewport.size = Vector2i(SIZE, SIZE)
 	viewport.transparent_bg = true
@@ -52,7 +54,7 @@ static func render(tree: SceneTree, model: MeshInstance3D, angles: Array, output
 	holder.position = -bounds.get_center()
 	holder.scale = Vector3.ONE / extent
 	holder.position /= extent
-	IconStudio.light(stage)
+	IconStudio.light(stage, exposure)
 	var camera := Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.size = 1.14

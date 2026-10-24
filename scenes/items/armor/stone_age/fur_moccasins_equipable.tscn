@@ -5,7 +5,7 @@
 [ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_rggx0"]
 [ext_resource type="Resource" path="res://data/items/Armor/StoneAge/fur_moccasins.tres" id="4_trfec"]
 
-[node name="fur_moccasins" type="MeshInstance3D" unique_id=1639693235]
+[node name="fur_moccasins" type="MeshInstance3D" unique_id=516344716]
 mesh = ExtResource("1_mihvg")
 skin = ExtResource("2_i17lu")
 script = ExtResource("3_rggx0")

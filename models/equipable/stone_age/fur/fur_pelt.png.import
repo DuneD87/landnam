@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://1bdyw2yru0y5"
-path.s3tc="res://.godot/imported/fur_loincloth_roughness.jpg-d9829319d4d3b1b9ee702deedf6cac13.s3tc.ctex"
+uid="uid://cjju501bo5cd4"
+path.s3tc="res://.godot/imported/fur_pelt.png-aaef86bce1087658e1e3709b997e91dc.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://models/equipable/stone_age/fur_loincloth_roughness.jpg"
-dest_files=["res://.godot/imported/fur_loincloth_roughness.jpg-d9829319d4d3b1b9ee702deedf6cac13.s3tc.ctex"]
+source_file="res://models/equipable/stone_age/fur/fur_pelt.png"
+dest_files=["res://.godot/imported/fur_pelt.png-aaef86bce1087658e1e3709b997e91dc.s3tc.ctex"]
 
 [params]
 

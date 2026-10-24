@@ -29,12 +29,13 @@ const TOOLS := {
 	"torch": ["res://scenes/items/torches/torch.tscn", -35.0, -12.0],
 }
 ## Armadura equipable (en el espacio de la piel del jugador: Y arriba, +Z al frente): giro,
-## guiñada y qué se ve. Los pares (manos, pies) muestran solo la pieza izquierda; la manopla,
-## además, derecha con los dedos arriba y el dorso al frente.
+## guiñada, qué se ve y, si va, la exposición. Los pares (manos, pies) muestran solo la pieza
+## izquierda; la manopla, además, derecha con los dedos arriba y el dorso al frente. Las pieles
+## con pelo, claras y mates, se queman con la luz de los demás objetos.
 const ARMOR_SCENES := "res://scenes/items/armor/stone_age/%s_equipable.tscn"
 const ARMOR := {
-	"fur_mantle": [0.0, -20.0, ""], "fur_loincloth": [0.0, -20.0, ""],
-	"fur_mittens": [0.0, -15.0, "hand"], "fur_moccasins": [0.0, -65.0, "foot"],
+	"fur_mantle": [0.0, -20.0, "", 0.55], "fur_loincloth": [0.0, -20.0, "", 0.55],
+	"fur_mittens": [0.0, -15.0, "hand", 0.55], "fur_moccasins": [0.0, -65.0, "foot", 0.55],
 	"hide_tunic": [0.0, -20.0, ""], "hide_trousers": [0.0, -20.0, ""],
 	"hide_mittens": [0.0, -15.0, "hand"], "hide_boots": [0.0, -65.0, "foot"],
 }
@@ -91,7 +92,8 @@ func _run() -> void:
 			model.basis = _upright_hand()
 		source.free()
 		await Renderer.render(self, model, [entry[0], entry[1]],
-			"res://textures/icons/items/armor/stone_age/%s.png" % armor, false)
+			"res://textures/icons/items/armor/stone_age/%s.png" % armor, false, 0.0,
+			entry[3] if entry.size() > 3 else 1.0)
 	if only.is_empty() or "wooden_chest" in only:
 		var model := MeshInstance3D.new()
 		model.mesh = CHEST.make_mesh()
@@ -106,40 +108,46 @@ func _run() -> void:
 	quit()
 
 
-## La pieza del lado izquierdo (+X) de un par, sin piel: el icono la encuadra sola.
+## La pieza del lado izquierdo (+X) de un par, sin piel: el icono la encuadra sola. Conserva
+## todas sus superficies y sus colores de vértice (las prendas de pieles con pelo se tiñen así).
 func _left_piece(mesh: Mesh) -> ArrayMesh:
-	var arrays := mesh.surface_get_arrays(0)
-	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var remap := PackedInt32Array()
-	remap.resize(vertices.size())
-	var kept := 0
-	for i in vertices.size():
-		remap[i] = kept if vertices[i].x > 0.0 else -1
-		kept += 1 if vertices[i].x > 0.0 else 0
-	var out := []
-	out.resize(Mesh.ARRAY_MAX)
-	for kind in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL, Mesh.ARRAY_TANGENT, Mesh.ARRAY_TEX_UV]:
-		var source = arrays[kind]
-		var per: int = source.size() / vertices.size()
-		var packed = source.duplicate()
-		packed.resize(kept * per)
-		for i in vertices.size():
-			if remap[i] >= 0:
-				for k in per:
-					packed[remap[i] * per + k] = source[i * per + k]
-		out[kind] = packed
-	var indices := PackedInt32Array()
-	var source_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-	for t in range(0, source_indices.size(), 3):
-		var a := remap[source_indices[t]]
-		var b := remap[source_indices[t + 1]]
-		var c := remap[source_indices[t + 2]]
-		if a >= 0 and b >= 0 and c >= 0:
-			indices.append_array([a, b, c])
-	out[Mesh.ARRAY_INDEX] = indices
 	var piece := ArrayMesh.new()
-	piece.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out)
-	piece.surface_set_material(0, mesh.surface_get_material(0))
+	for s in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(s)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var remap := PackedInt32Array()
+		remap.resize(vertices.size())
+		var kept := 0
+		for i in vertices.size():
+			remap[i] = kept if vertices[i].x > 0.0 else -1
+			kept += 1 if vertices[i].x > 0.0 else 0
+		var out := []
+		out.resize(Mesh.ARRAY_MAX)
+		for kind in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL, Mesh.ARRAY_TANGENT, Mesh.ARRAY_TEX_UV, Mesh.ARRAY_COLOR]:
+			var source = arrays[kind]
+			if source == null:
+				continue
+			var per: int = source.size() / vertices.size()
+			var packed = source.duplicate()
+			packed.resize(kept * per)
+			for i in vertices.size():
+				if remap[i] >= 0:
+					for k in per:
+						packed[remap[i] * per + k] = source[i * per + k]
+			out[kind] = packed
+		var indices := PackedInt32Array()
+		var source_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		for t in range(0, source_indices.size(), 3):
+			var a := remap[source_indices[t]]
+			var b := remap[source_indices[t + 1]]
+			var c := remap[source_indices[t + 2]]
+			if a >= 0 and b >= 0 and c >= 0:
+				indices.append_array([a, b, c])
+		if indices.is_empty():
+			continue
+		out[Mesh.ARRAY_INDEX] = indices
+		piece.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out)
+		piece.surface_set_material(piece.get_surface_count() - 1, mesh.surface_get_material(s))
 	return piece
 
 

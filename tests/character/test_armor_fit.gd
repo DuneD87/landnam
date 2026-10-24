@@ -9,7 +9,8 @@ const CHEST := "res://scenes/items/armor/leather_armor/leather_chest_equipable.t
 const PANTS := "res://scenes/items/armor/firstage_skin_set/firstage_skin_pants_equipable.tscn"
 const HOODS := ["res://scenes/items/armor/leather_armor/leather_hood_equipable.tscn",
 		"res://scenes/items/armor/firstage_skin_set/firstage_skin_hood_equipable.tscn"]
-## Fitted onto the scan by tools/character/blender/fit_meshy_armor.py.
+## Made on the scan by tools/character/blender/build_fur_armor.py (fur_) and fitted onto it
+## by fit_meshy_armor.py (hide_).
 const STONE_AGE := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins",
 		"hide_tunic", "hide_trousers", "hide_mittens", "hide_boots"]
 

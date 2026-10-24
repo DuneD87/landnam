@@ -1,47 +1,5 @@
 {
-	"_about": "Stone Age garments made with Meshy, for fit_meshy_armor.py. Models under the source dir (the Meshy downloads).",
-	"fur_mantle": {
-		"model": "stone_age_armor/Meshy_AI_Fur_Mantle_of_the_Anc_1017082239_texture_fbx/Meshy_AI_Fur_Mantle_of_the_Anc_1017082239_texture.fbx",
-		"slot": "chest",
-		"scale": 0.5,
-		"top": 0.01,
-		"length": 0.67,
-		"clearance": 0.02,
-		"ease": [0.02, 0.04, 0.04],
-		"over": ["fur_loincloth", "hide_trousers"],
-		"liner": true
-	},
-	"fur_loincloth": {
-		"model": "stone_age_armor/Meshy_AI_Ancestral_Mantle_1017082248_texture_fbx/Meshy_AI_Ancestral_Mantle_1017082248_texture.fbx",
-		"slot": "legs",
-		"turn": 180,
-		"skirt": true,
-		"hang": true,
-		"flare": 0.35,
-		"forward": 0.07,
-		"ease": [null, 0.02],
-		"top": 1.15,
-		"hem": 0.42,
-		"length": 1.6,
-		"floor": 0.3,
-		"clearance": 0.03,
-		"width": 1.25,
-		"liner": true
-	},
-	"fur_mittens": {
-		"model": "stone_age_armor/Meshy_AI_Rustic_Leather_Mitten_1017082334_texture_fbx/Meshy_AI_Rustic_Leather_Mitten_1017082334_texture.fbx",
-		"slot": "hands",
-		"mitten": true,
-		"frame": {"up": "+z", "thumb": "+x", "palm": "+y"},
-		"scale": 0.85,
-		"decimate": 0.6
-	},
-	"fur_moccasins": {
-		"model": "stone_age_armor/Meshy_AI_Furbound_Moccasin_1017082258_texture_fbx/Meshy_AI_Furbound_Moccasin_1017082258_texture.fbx",
-		"slot": "feet",
-		"frame": {"up": "+z", "toe": "-x"},
-		"decimate": 0.6
-	},
+	"_about": "Stone Age garments made with Meshy, for fit_meshy_armor.py. Models under the source dir (the Meshy downloads). The fur garments are made by build_fur_armor.py; the pieces worn over fur_loincloth read its JSON from the output dir.",
 	"hide_tunic": {
 		"model": "stone_age_armor_2/Meshy_AI_Furbound_Relic_1017093717_texture_fbx/Meshy_AI_Furbound_Relic_1017093717_texture.fbx",
 		"slot": "chest",

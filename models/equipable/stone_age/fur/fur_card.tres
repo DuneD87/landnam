@@ -1,0 +1,25 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/character/fur_card_fringe.gdshader" id="1_vn1qj"]
+[ext_resource type="Texture2D" path="res://models/equipable/stone_age/fur/fur_cards.png" id="2_sbx3v"]
+[ext_resource type="Shader" path="res://shaders/character/fur_card.gdshader" id="3_k7v7n"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ttm4j"]
+render_priority = 1
+shader = ExtResource("1_vn1qj")
+shader_parameter/root_shade = null
+shader_parameter/tip_shade = null
+shader_parameter/strand_contrast = null
+shader_parameter/strand_occlusion = null
+shader_parameter/lock_map = ExtResource("2_sbx3v")
+
+[resource]
+resource_name = "fur_card"
+render_priority = 0
+next_pass = SubResource("ShaderMaterial_ttm4j")
+shader = ExtResource("3_k7v7n")
+shader_parameter/root_shade = null
+shader_parameter/tip_shade = null
+shader_parameter/strand_contrast = null
+shader_parameter/strand_occlusion = null
+shader_parameter/lock_map = ExtResource("2_sbx3v")
