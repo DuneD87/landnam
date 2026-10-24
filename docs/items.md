@@ -14,7 +14,7 @@ lleva sus dos filas en el CSV. Ver [localization.md](localization.md).
 | Categoría | Grupos |
 |---|---|
 | Armas | Cuerpo a cuerpo · A distancia · Munición · Escudos |
-| Herramientas | Hachas, picos y martillos · Luz · Recipientes · Mochilas |
+| Herramientas | Hachas, picos, azadas y martillos · Luz · Recipientes · Mochilas |
 | Ropa | Cabeza · Torso · Manos · Piernas · Pies |
 | Consumibles | Cocinada · Cruda · Bebida · Remedios |
 | Materiales | De caza · Madera · Piedra y mineral · Otros |
@@ -354,6 +354,7 @@ al inventario y lo que no cabe, al suelo.
 | Hacha de piedra | 5 piedras, 2 ramas y 3 fibras vegetales | A mano |
 | Martillo de piedra | 2 piedras, 1 rama y 1 fibra vegetal | A mano |
 | Pico de piedra | 4 piedras, 2 ramas y 1 piel | Banco de trabajo |
+| Azada de piedra | 3 piedras, 2 ramas y 2 fibras vegetales | Banco de trabajo |
 | Arco de caza | 3 ramas y 1 piel | Banco de trabajo |
 | 4 flechas | 1 rama y 1 piedra | Banco de trabajo |
 | Tirachinas | 1 rama y 1 piel | Banco de trabajo |
@@ -382,6 +383,44 @@ Una receta nueva es un `.tres` más en su carpeta, con el script
 - su escena, con `Workstation` en la raíz (`item_id`, `visual` y
   `collision_size`);
 - recetas que la pidan en `station`.
+
+### Azada
+
+La azada de piedra (`stone_hoe_01`) allana el terreno (`TerrainLeveling`). Se
+lleva en la mano y golpea como el pico: parada, en el sitio.
+
+- **Dónde:** un círculo donde se mira, a menos de 4,5 m de los pies. Allana del
+  todo hasta 1,1 m del centro y desde ahí se funde con lo de fuera hasta 1,9 m.
+- **A qué altura:** a un plano perpendicular a la vertical del planeta. Con el
+  golpe ligero, el de alrededor: la mediana de la altura del suelo en 17 puntos
+  del círculo (el centro, seis a 0,9 m y diez en el borde), así que un bulto o un
+  hoyo solos no tiran de él. Con el pesado (manteniendo el clic), el de los pies:
+  para hacer una explanada a la altura a la que se está.
+- **Cuánto:** cada golpe corta lo que sobresale y rellena lo hundido un 70 % de
+  lo que falta, como mucho medio metro. Con dos o tres golpes queda llano, y al
+  seguir al lado el plano sale de lo ya allanado. No gasta ni da nada.
+- **Roca:** en el suelo rocoso y el hielo (lo que suena a roca, `SurfaceAudio`),
+  en una mena o en una cueva, rebota y avisa de que hace falta el pico.
+- **El círculo** (`HoePreview`): con la azada en la mano marca dónde va a
+  golpear, en el plano al que quedará el suelo. Lo que asoma por encima se
+  corta y lo que queda debajo se rellena; a través del terreno se ve más tenue.
+  Un aro tenue marca dónde acaba el borde. Ocre con el golpe ligero, azul con el
+  pesado y rojo sobre la roca.
+- **Lo de alrededor:** lo construido que se quede sin apoyo se viene abajo,
+  como al excavar con el pico, y quien pise lo rellenado sube con el suelo. Lo
+  allanado se guarda con el terreno.
+
+El pincel es un grafo de vóxeles que pasa `VoxelToolLodTerrain.do_graph` sobre la
+SDF que hay. `do_graph` multiplica lo que sale del grafo por la longitud del
+vector de escala del marco (√3) y divide por lo mismo la SDF que entra; el grafo
+lo compensa. Las expresiones del módulo no admiten el menos unario ni paréntesis
+tras un operador. `tests/planet/test_terrain_leveling.tscn` lo prueba sobre un
+terreno llano: el plano de alrededor, lo que recorre cada golpe, el montículo y
+el hoyo, el borde y la subida de quien está encima.
+
+```sh
+godot --headless --path . res://tests/planet/test_terrain_leveling.tscn
+```
 
 ### Lecho de pieles
 

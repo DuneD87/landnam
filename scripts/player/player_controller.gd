@@ -75,6 +75,8 @@ var needs: SurvivalNeeds
 var resting: RestController
 ## Comer, beber, despellejar y las hogueras.
 var survival: SurvivalActions
+## El círculo de lo que va a allanar la azada (ver TerrainLeveling).
+var hoe_preview: HoePreview
 ## Trepar por paredes que no se pueden andar y coronarlas (ver ClimbController).
 var climb: ClimbController
 ## Andar y correr en todas direcciones, y agacharse (ver Locomotion).
@@ -582,6 +584,9 @@ func _ready():
 	survival.name = "SurvivalActions"
 	add_child(survival)
 	survival.setup(self)
+	hoe_preview = HoePreview.new()
+	hoe_preview.setup(self)
+	add_child(hoe_preview)
 	climb = ClimbController.new()
 	add_child(climb)
 	climb.setup(self)

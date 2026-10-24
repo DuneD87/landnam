@@ -13,7 +13,9 @@ const MESH_DIR := "res://data/items/meshes/weapons/"
 const SCENE_DIR := "res://scenes/items/weapons/combat/"
 const ICON_DIR := "res://textures/icons/items/weapons/"
 const ICON_SIZE := 256
-const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01", "stone_hammer_01"]
+const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01", "stone_hammer_01", "stone_hoe_01"]
+## Inclinación hacia la cámara del icono (grados): la azada, para que se vea la cara de la hoja.
+const TOOL_ICON_PITCH := {"stone_hoe_01": -40.0}
 const ItemIconRenderer = preload("res://tools/ui/item_icon_renderer.gd")
 
 ## nombre: [constructor, script de la escena o "", rotación del icono en grados (sobre Z de cámara)]
@@ -43,6 +45,7 @@ var WEAPONS := {
 	"stone_axe_01": [WeaponMeshes.stone_axe, "", -35.0],
 	"stone_pickaxe_01": [WeaponMeshes.stone_pickaxe, "", -35.0],
 	"stone_hammer_01": [WeaponMeshes.stone_hammer, "", -35.0],
+	"stone_hoe_01": [WeaponMeshes.stone_hoe, "", -35.0],
 	"hide_shield": [WeaponMeshes.hide_shield, "", 0.0],
 	"bone_shield": [WeaponMeshes.bone_shield, "", -8.0],
 }
@@ -165,7 +168,7 @@ func _run() -> void:
 			var model := MeshInstance3D.new()
 			model.mesh = mesh
 			await ItemIconRenderer.render(self, model, [entry[2], 82.0],
-				"res://textures/icons/items/tools/%s.png" % weapon_name, false)
+				"res://textures/icons/items/tools/%s.png" % weapon_name, false, TOOL_ICON_PITCH.get(weapon_name, 0.0))
 		else:
 			await _render_icon(weapon_name, mesh, entry[2], yaw, 0.0, ICON_DIR)
 	for item_name in SURVIVAL:

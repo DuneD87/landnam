@@ -27,8 +27,9 @@ sin fijar, van a lo que hay bajo la mira.
 El clic izquierdo decide al soltar: soltado antes de 0,18 s (`HOLD_TO_HEAVY`) es el golpe
 ligero; mantenido hasta ahí, sale el pesado, que se sigue cargando mientras no se suelte.
 
-Con una herramienta (hacha o pico de piedra) el clic sigue talando y picando; solo
-pega como arma cuando hay una criatura delante o un objetivo fijado.
+Con una herramienta (hacha, pico o azada de piedra) el clic sigue talando, picando y allanando;
+solo pega como arma cuando hay una criatura delante o un objetivo fijado. La azada allana con el
+golpe del pico ([items.md](items.md#azada)).
 
 ## Armas
 

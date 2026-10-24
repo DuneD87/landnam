@@ -6,6 +6,8 @@ extends SceneTree
 
 const Renderer = preload("res://tools/ui/item_icon_renderer.gd")
 const SIZE := Renderer.SIZE
+## [giro sobre Z de cámara, guiñada] y, si hace falta, la inclinación hacia la cámara (grados): la
+## azada se inclina para que se vea la cara de la hoja y no su canto.
 const WEAPONS := {
 	"iron_sword": [-40.0, 82.0], "battle_axe": [-35.0, 82.0],
 	"iron_mace": [-35.0, 75.0], "spear": [-40.0, 82.0],
@@ -20,9 +22,9 @@ const WEAPONS := {
 	"stone_maul": [-35.0, 75.0], "hide_shield": [-8.0, -12.0],
 	"bone_shield": [-8.0, -12.0],
 	"stone_axe_01": [-35.0, 82.0], "stone_pickaxe_01": [-35.0, 82.0],
-	"stone_hammer_01": [-35.0, 82.0],
+	"stone_hammer_01": [-35.0, 82.0], "stone_hoe_01": [-35.0, 82.0, -40.0],
 }
-const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01", "stone_hammer_01"]
+const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01", "stone_hammer_01", "stone_hoe_01"]
 const TOOLS := {
 	"torch": ["res://scenes/items/torches/torch.tscn", -35.0, -12.0],
 }
@@ -62,8 +64,10 @@ func _run() -> void:
 		model.mesh = mesh
 		Renderer.prepare_model(model, weapon)
 		var folder := "tools" if weapon in TOOL_ICONS else "weapons"
-		await Renderer.render(self, model, WEAPONS[weapon],
-			"res://textures/icons/items/%s/%s.png" % [folder, weapon], weapon == "hunting_bow")
+		var angles: Array = WEAPONS[weapon]
+		await Renderer.render(self, model, angles,
+			"res://textures/icons/items/%s/%s.png" % [folder, weapon], weapon == "hunting_bow",
+			angles[2] if angles.size() > 2 else 0.0)
 	for tool in TOOLS:
 		if not only.is_empty() and tool not in only:
 			continue

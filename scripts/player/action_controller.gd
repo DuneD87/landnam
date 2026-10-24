@@ -2,8 +2,9 @@ extends Node
 class_name ActionController
 
 ## Acciones del jugador con el mundo: excavar voxels con el golpe del pico (con drop de ore),
-## golpear criaturas y recoger items por raycast central o cono. Talar y picar rocas va con el
-## golpe de la herramienta (PlayerCombat, TreeFelling, RockMining).
+## allanar con el de la azada (TerrainLeveling), golpear criaturas y recoger items por raycast
+## central o cono. Talar y picar rocas va con el golpe de la herramienta (PlayerCombat,
+## TreeFelling, RockMining).
 
 ## Alcance del cuerpo a cuerpo contra criaturas, en metros: un oso es ancho y el rayo golpea su
 ## colisionador, no su centro.
@@ -84,6 +85,27 @@ func dig_ahead(camera: Camera3D, origin: Vector3, power: float) -> bool:
 		return false
 	_dig_effects(result.hit_pos, result.hit_normal, type_id, radius)
 	return true
+
+
+## Allana con la azada el suelo que se mira (TerrainLeveling.aim), en el impacto del golpe
+## (PlayerCombat): a la altura de lo de alrededor o, con [to_feet], a la de los pies. Devuelve
+## &"leveled", &"rock" (rebota en la roca: hace falta el pico) o &"" si no había suelo al alcance.
+func level_ahead(camera: Camera3D, to_feet: bool) -> StringName:
+	var body := get_parent() as PlanetaryBody
+	if body == null:
+		return &""
+	var aim := TerrainLeveling.aim(body, camera, to_feet)
+	if aim.is_empty():
+		return &""
+	current_voxel = aim.terrain
+	if aim.rock:
+		_dig_effects(aim.point, aim.normal, 1, DIG_RADIUS_RANGE.x)
+		return &"rock"
+	if not TerrainLeveling.apply(aim.terrain, aim.center, aim.up):
+		return &""
+	TerrainLeveling.lift_onto_ground(aim.terrain, body, aim.center, aim.up)
+	_dig_effects(aim.point, aim.normal, 0, DIG_RADIUS)
+	return &"leveled"
 
 
 ## Lo que se ve y se oye al picar el terreno en [point], de normal [normal]: el golpe del pico y el

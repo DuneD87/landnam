@@ -615,6 +615,21 @@ static func stone_hammer() -> ArrayMesh:
 	return b.commit(make_material, true)
 
 
+## Azada de piedra: una laja ancha y fina atravesada al astil como una azuela, con el filo hacia
+## delante (+Z) y caída hacia el puño (unos 60° con el astil), atada como el hacha y el pico.
+static func stone_hoe() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	_stone_tool_haft(b)
+	_stone_tool_head(b.st(STONE), [
+		Vector4(-0.050, 0.530, 0.024, 0.024), Vector4(-0.005, 0.530, 0.032, 0.034),
+		Vector4(0.045, 0.522, 0.026, 0.044), Vector4(0.100, 0.500, 0.018, 0.058),
+		Vector4(0.160, 0.470, 0.011, 0.068), Vector4(0.215, 0.436, 0.005, 0.070),
+		Vector4(0.240, 0.420, 0.0015, 0.062),
+	])
+	_stone_tool_binding(b)
+	return b.commit(make_material, true)
+
+
 static func _stone_tool_haft(b: ProcMesh.Builder) -> void:
 	ProcMesh.lathe(b.st(WOOD), [Vector2(0.0, -0.17), Vector2(0.019, -0.165),
 		Vector2(0.022, -0.14), Vector2(0.0175, 0.0), Vector2(0.019, 0.30),

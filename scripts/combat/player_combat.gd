@@ -719,8 +719,9 @@ func handle_input(event: InputEvent) -> bool:
 		return false
 	var is_tool := data.category == ItemData.Category.TOOL
 	if event.is_action_pressed("attack_1"):
-		# El hacha y el pico talan y pican con su golpe de verdad (_harvest).
-		if is_tool and not _enemy_near() and not TreeFelling.fells(data) and not RockMining.mines(data):
+		# El hacha, el pico y la azada talan, pican y allanan con su golpe de verdad (_harvest).
+		if is_tool and not _enemy_near() and not TreeFelling.fells(data) and not RockMining.mines(data) \
+				and not TerrainLeveling.levels(data):
 			return false
 		# Toque: golpe ligero al soltar; mantener: el pesado, que se carga (_update_press).
 		_press_pending = true
@@ -971,6 +972,11 @@ func _set_state(new_state: State) -> void:
 
 func is_busy() -> bool:
 	return state != State.IDLE
+
+
+## Va un golpe pesado (cargándose o ya descargando): con la azada, allana a la altura de los pies.
+func is_heavy_swing() -> bool:
+	return state == State.ATTACK and _heavy
 
 
 ## Una tarea con las manos (despellejar: Butchering): [anim_name] en el canal de tronco y brazos,
@@ -1257,8 +1263,8 @@ func _start_attack(heavy: bool) -> void:
 	var on_the_run := not after_dodge and _anims_ready and player.movement.direction.length() > 0.3
 	# Talar y picar parado es trabajo, no combate: el golpe se da en el sitio, sin paso adelante ni
 	# a la carrera. Con un enemigo encima, la herramienta pega como un arma.
-	var working := data.category == ItemData.Category.TOOL and (TreeFelling.fells(data) or RockMining.mines(data)) \
-		and not _enemy_near() and not on_the_run
+	var working := data.category == ItemData.Category.TOOL and (TreeFelling.fells(data) or RockMining.mines(data)
+		or TerrainLeveling.levels(data)) and not _enemy_near() and not on_the_run
 	if not heavy and not working and (after_dodge or (player.movement.is_sprinting and not on_the_run)):
 		kind = "dash"
 	# Encadena el combo si la animación del anterior aún suena o acaba de terminar.
@@ -1451,8 +1457,13 @@ func _sweep_blade(data: ItemData) -> void:
 ## (trocear), una roca o un fragmento suyo (picar). Si hay varios, lo más cercano. Sin nada de eso,
 ## el pico excava el terreno que se mira. Va con la fuerza del golpe (el combo y la carga).
 ## No sigue la hoja: un tronco fino o una piedra baja ni los rozaba; se mira lo que hay delante
-## del cuerpo. Muerde como en un cuerpo: hitstop y temblor.
+## del cuerpo. Muerde como en un cuerpo: hitstop y temblor. La azada solo trabaja el suelo: allana
+## lo que se mira (el pesado, a la altura de los pies) y en la roca rebota.
 func _harvest(data: ItemData) -> void:
+	if TerrainLeveling.levels(data):
+		if player.action_controller.level_ahead(player.camera, _heavy) == &"rock":
+			player.survival.notify(tr("HOE_TOO_HARD"))
+		return
 	var up := -player.gravity_direction.normalized()
 	var space := player.get_world_3d().direct_space_state
 	var feet := player.global_position

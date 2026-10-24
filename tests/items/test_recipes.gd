@@ -54,6 +54,9 @@ func _check_catalog() -> void:
 		var recipe := _recipe(id)
 		return recipe != null and recipe.station == &"stone_workbench")
 	check(weapons, "espada y lanza de sílex y escudo de madera, en el banco de trabajo")
+	var hoe := _recipe(&"stone_hoe_01")
+	check(hoe != null and hoe.station == &"stone_workbench" and TerrainLeveling.levels(ItemCatalog.get_item(&"stone_hoe_01")),
+		"la azada, que allana, en el banco de trabajo")
 	var bench: ItemData = ItemCatalog.get_item(&"stone_workbench")
 	check(bench != null and bench.get_trait(GroundPlaceableTrait) != null, "el banco de trabajo se planta")
 	check(ItemTaxonomy.category_of(bench) == ItemData.Category.BLOCK, "y sale en Construcción")
