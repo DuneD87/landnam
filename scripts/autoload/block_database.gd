@@ -6,6 +6,10 @@ const BLOCK_CORNER_ID := 2
 const BLOCK_INV_CORNER_ID := 3
 const BLOCK_PANE_ID := 4
 const BLOCK_PANE_SLOPE_ID := 5
+const BLOCK_THATCH_SLOPE_ID := 6
+const BLOCK_THATCH_RIDGE_ID := 7
+const BLOCK_PANE_TRIANGLE_ID := 8
+const BASIC_BLOCK_IDS: Array[int] = [0, 1, 2, 3, 4, 5]
 
 signal materials_ready
 ## Salta cada vez que un item estrena icono, para que la UI ya pintada se refresque sobre la
@@ -57,15 +61,13 @@ func _generate_all_icons() -> void:
 	print("[BlockDatabase] Generated icons for %d block+material items." % _block_material_items.size())
 
 
-## El icono del bloque genérico es el del mismo bloque en el primer material, que ya está
-## renderizado: se reutiliza en vez de volver a pasar por el viewport. Cada render cuesta dos
-## frames y en el arranque, con el terreno streameando, esos frames son décimas de segundo.
+## El icono genérico reutiliza el primer material compatible que ya esté renderizado.
+## Cada render cuesta dos frames; en el arranque, con el terreno streameando, son décimas de segundo.
 func _assign_generic_block_icons() -> void:
 	if build_materials.is_empty():
 		return
-	var first_id := build_materials[0].material_id
 	for item in _block_material_items:
-		if item.build_material_id != first_id or not item.icon:
+		if not item.icon:
 			continue
 		var block := get_block(item.block_id)
 		if block and not block.preview_icon:
@@ -81,6 +83,7 @@ func _register_default_materials() -> void:
 	stone.display_name = "BUILD_MAT_STONE"
 	stone.item = ItemCatalog.get_item(&"stone_01")
 	stone.base_cost = 1
+	stone.allowed_block_ids = BASIC_BLOCK_IDS
 	stone.sound_material = &"rock"
 	stone.surface_material = stone.item.surface_material
 	build_materials.append(stone)
@@ -90,6 +93,8 @@ func _register_default_materials() -> void:
 	wood.display_name = "BUILD_MAT_WOOD"
 	wood.item = ItemCatalog.get_item(&"wood_01")
 	wood.base_cost = 1
+	wood.allowed_block_ids = BASIC_BLOCK_IDS.duplicate()
+	wood.allowed_block_ids.append(BLOCK_PANE_TRIANGLE_ID)
 	wood.sound_material = &"wood"
 	wood.surface_material = wood.item.surface_material
 	build_materials.append(wood)
@@ -99,6 +104,7 @@ func _register_default_materials() -> void:
 	glass.display_name = "BUILD_MAT_GLASS"
 	glass.item = ItemCatalog.get_item(&"glass_01")
 	glass.base_cost = 1
+	glass.allowed_block_ids = BASIC_BLOCK_IDS
 	glass.sound_material = &"tile"
 	glass.surface_material = glass.item.surface_material
 	glass.preview_color = Color(0.60, 0.85, 0.95)
@@ -111,6 +117,17 @@ func _register_default_materials() -> void:
 	glass_icon.roughness = 0.25
 	glass.icon_material = glass_icon
 	build_materials.append(glass)
+
+	var thatch := BuildMaterial.new()
+	thatch.material_id = "thatch"
+	thatch.display_name = "BUILD_MAT_THATCH"
+	thatch.item = ItemCatalog.get_item(&"plant_fiber")
+	thatch.base_cost = 2
+	thatch.allowed_block_ids = [BLOCK_THATCH_SLOPE_ID, BLOCK_THATCH_RIDGE_ID]
+	thatch.surface_material = preload("res://data/building/thatch.tres")
+	thatch.preview_color = Color("b99a57")
+	thatch.sound_material = &"wood"
+	build_materials.append(thatch)
 
 	_publish_translucent_materials()
 	print("[BlockDatabase] Registered %d materials." % build_materials.size())
@@ -172,6 +189,8 @@ func _create_block_material_items() -> void:
 	_block_material_items.clear()
 	for mat in build_materials:
 		for block_id in get_all_ids():
+			if not mat.allowed_block_ids.is_empty() and block_id not in mat.allowed_block_ids:
+				continue
 			var block := get_block(block_id)
 			var item := ItemData.new()
 			item.id = StringName("block_%s_%s" % [block.block_name, mat.material_id])
@@ -193,7 +212,7 @@ func _generate_block_material_icons() -> void:
 		var mat := get_material_by_id(item.build_material_id)
 		if not block or not mat:
 			continue
-		var icon := await _icon_generator.generate_icon(block.mesh, _icon_material_of(mat), block.icon_yaw)
+		var icon := await _icon_generator.generate_icon(block.for_material(mat.material_id).mesh, _icon_material_of(mat), block.icon_yaw)
 		if icon:
 			item.icon = icon
 			icon_generated.emit()
@@ -282,6 +301,12 @@ func _register_default_blocks() -> void:
 	pane.can_rotate = true
 	pane.rotation_steps = 4
 	pane.icon_yaw = 160.0
+	# Los frontones de madera deben continuar exactamente el plano de los muros. El cristal
+	# conserva el retranqueo de las ventanas para evitar caras coplanares contra un cubo.
+	var wood_pane := pane.duplicate() as BlockData
+	wood_pane.mesh = BlockMeshGenerator.generate_pane(1.0, 0.0)
+	wood_pane.collision_shape = BlockMeshGenerator.generate_pane_collision(1.0, 0.1, 0.0)
+	pane.material_variants["wood"] = wood_pane
 	register_block(pane)
 
 	var pane_slope := BlockData.new()
@@ -294,6 +319,38 @@ func _register_default_blocks() -> void:
 	pane_slope.rotation_steps = 4
 	pane_slope.icon_yaw = 135.0
 	register_block(pane_slope)
+
+	var thatch_slope := BlockData.new()
+	thatch_slope.block_id = BLOCK_THATCH_SLOPE_ID
+	thatch_slope.block_name = "thatch_slope"
+	thatch_slope.block_description = "BLOCK_THATCH_SLOPE_DESC"
+	thatch_slope.mesh = ThatchRoofMesh.generate_mesh()
+	thatch_slope.collision_shape = ThatchRoofMesh.generate_collision()
+	thatch_slope.can_rotate = true
+	thatch_slope.rotation_steps = 4
+	thatch_slope.icon_yaw = 135.0
+	register_block(thatch_slope)
+
+	var thatch_ridge := BlockData.new()
+	thatch_ridge.block_id = BLOCK_THATCH_RIDGE_ID
+	thatch_ridge.block_name = "thatch_ridge"
+	thatch_ridge.block_description = "BLOCK_THATCH_RIDGE_DESC"
+	thatch_ridge.mesh = ThatchRoofMesh.generate_mesh(true)
+	thatch_ridge.collision_shape = ThatchRoofMesh.generate_collision(true)
+	thatch_ridge.can_rotate = true
+	thatch_ridge.rotation_steps = 4
+	register_block(thatch_ridge)
+
+	var pane_triangle := BlockData.new()
+	pane_triangle.block_id = BLOCK_PANE_TRIANGLE_ID
+	pane_triangle.block_name = "pane_triangle"
+	pane_triangle.block_description = "BLOCK_PANE_TRIANGLE_DESC"
+	pane_triangle.mesh = BlockMeshGenerator.generate_pane_triangle()
+	pane_triangle.collision_shape = BlockMeshGenerator.generate_pane_triangle_collision()
+	pane_triangle.can_rotate = true
+	pane_triangle.rotation_steps = 4
+	pane_triangle.icon_yaw = 160.0
+	register_block(pane_triangle)
 
 func _create_block_item(block: BlockData) -> ItemData:
 	var item := ItemData.new()

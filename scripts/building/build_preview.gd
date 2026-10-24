@@ -281,12 +281,12 @@ func _refresh_ghost_mesh() -> void:
 	if not _building_system:
 		return
 	var block_data := _building_system.get_selected_block()
+	var mat := _building_system.get_current_material()
 	if block_data:
-		_ghost_mesh_instance.mesh = block_data.mesh
+		_ghost_mesh_instance.mesh = block_data.for_material(mat.material_id if mat else "").mesh
 		var s := _building_system.cell_size
 		_ghost_mesh_instance.scale = Vector3(s, s, s)
 
-	var mat := _building_system.get_current_material()
 	if mat and mat.preview_color != Color.WHITE:
 		_ghost_material.albedo_color.r = mat.preview_color.r
 		_ghost_material.albedo_color.g = mat.preview_color.g

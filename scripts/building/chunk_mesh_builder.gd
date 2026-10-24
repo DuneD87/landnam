@@ -2,7 +2,7 @@ class_name ChunkMeshBuilder
 extends RefCounted
 
 ## Construye la mesh combinada de una grid de bloques con SurfaceTool, agrupando por material y
-## emitiendo la geometría de cada tipo de bloque (cubo, rampa, esquina, esquina invertida).
+## emitiendo la geometría de cada tipo de bloque, incluidos paneles y tejados de paja.
 
 enum Face { FRONT, BACK, RIGHT, LEFT, TOP, BOTTOM }
 
@@ -90,7 +90,7 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 					actual_rot = rot * Basis.from_scale(ms)
 					actual_flip = true
 				var hidden := _hidden_local_faces(blocks, grid_pos, actual_rot, mat_id, opaque)
-				emitted = _emit_from_block_type(st, block_id, offset, actual_rot, cell_size, actual_flip, hidden) or emitted
+				emitted = _emit_from_block_type(st, block_id, offset, actual_rot, cell_size, actual_flip, hidden, mat_id) or emitted
 
 		# Un grupo puede quedarse sin una sola cara: bloques enterrados del todo, o una ventana
 		# empotrada en un muro macizo. generate_tangents() sobre una superficie vacía es un error.
@@ -120,13 +120,22 @@ static func _hidden_local_faces(blocks: Dictionary, grid_pos: Vector3i, rot: Bas
 
 
 ## Devuelve si el bloque ha llegado a emitir alguna cara.
-static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector3, rot: Basis, size: float, flip: bool, hidden: Dictionary) -> bool:
+static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector3, rot: Basis, size: float, flip: bool, hidden: Dictionary, mat_id: String = "") -> bool:
 	match block_id:
 		1:  _emit_slope(st, offset, rot, size, flip, hidden)
 		2:  _emit_corner(st, offset, rot, size, flip, hidden)
 		3:  _emit_inv_corner(st, offset, rot, size, flip, hidden)
-		4:  return _emit_pane(st, offset, rot, size, flip, hidden)
+		4:
+			var inset := BlockMeshGenerator.PANE_INSET
+			if mat_id == "wood" and not hidden.get(Vector3i(0, 0, -1), false):
+				inset = 0.0
+			return _emit_pane(st, offset, rot, size, flip, hidden, inset)
 		5:  _emit_pane_slope(st, offset, rot, size, flip)
+		6:  ThatchRoofMesh.emit(st, false, offset, rot, size, flip)
+		7:  ThatchRoofMesh.emit(st, true, offset, rot, size, flip)
+		8:
+			var inset := BlockMeshGenerator.PANE_INSET if hidden.get(Vector3i(0, 0, -1), false) else 0.0
+			_emit_pane_triangle(st, offset, rot, size, flip, inset)
 		_:
 			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
 			_emit_cube_no_cull(st, offset, rot, size, flip)
@@ -209,10 +218,10 @@ static func _emit_cube(
 ## coincidan con las del panel inclinado, que por ser un plano a 45° solo puede ir de esquina a
 ## esquina. Las dos caras se emiten con giro opuesto en vez de quitar el culling en el material,
 ## que la forma la comparten materiales opacos. Cada lado se quita si su vecino lo tapa.
-static func _emit_pane(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool, hidden: Dictionary = {}) -> bool:
+static func _emit_pane(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool, hidden: Dictionary = {}, inset: float = BlockMeshGenerator.PANE_INSET) -> bool:
 	var h := size
 	var c := Vector3(h * 0.5, h * 0.5, h * 0.5)
-	var z := size * BlockMeshGenerator.PANE_INSET
+	var z := size * inset
 
 	var p0 := rot * (Vector3(0, 0, z) - c) + c + offset
 	var p1 := rot * (Vector3(h, 0, z) - c) + c + offset
@@ -242,6 +251,22 @@ static func _emit_pane_slope(st: SurfaceTool, offset: Vector3, rot: Basis, size:
 
 	_add_quad(st, q0, q1, q2, q3, flip)
 	_add_quad(st, q3, q2, q1, q0, flip)
+
+
+## Panel con grosor en vez de una cuña que ocupe todo el fondo de la celda. Las UV de cada
+## cara se proyectan en metros como en los muros, de modo que los troncos siguen horizontales.
+static func _emit_pane_triangle(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool, inset: float = 0.0) -> void:
+	var points := BlockMeshGenerator.pane_triangle_vertices(size)
+	var center := Vector3.ONE * size * 0.5
+	for i in points.size():
+		# Contra un macizo se separa la cara, como el panel de ventana. En un frontón abierto
+		# no hay vecino detrás: permanece al ras de la pared y de los paneles de al lado.
+		points[i] = rot * (points[i] - Vector3.UP * size * 0.5 + Vector3.BACK * size * inset) + center + offset
+	_add_triangle(st, points[0], points[2], points[1], flip)
+	_add_triangle(st, points[3], points[4], points[5], flip)
+	_add_quad(st, points[0], points[1], points[4], points[3], flip)
+	_add_quad(st, points[1], points[2], points[5], points[4], flip)
+	_add_quad(st, points[2], points[0], points[3], points[5], flip)
 
 
 static func _emit_slope(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool, hidden: Dictionary = {}) -> void:

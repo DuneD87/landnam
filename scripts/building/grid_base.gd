@@ -116,9 +116,10 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 
 	var node: Node3D = null
 	if not ChunkMeshBuilder._is_solid(block_data.block_id):
-		node = _create_block_node(grid_pos, block_data, rotation_basis, world_transform)
+		node = _create_block_node(grid_pos, block_data.for_material(material_id), rotation_basis, world_transform)
 		if not node:
 			return false
+		_apply_collision_mirror(node, mirror_data)
 
 	_blocks[grid_pos] = {
 		"block_id": block_data.block_id,
@@ -145,6 +146,27 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 	block_placed.emit(grid_pos, block_data.block_id)
 
 	return true
+
+
+## La malla refleja el eje local antes de girar. La física necesita la misma reflexión en
+## los puntos convexos: una escala negativa del CollisionShape3D no sirve en Jolt.
+static func _apply_collision_mirror(node: Node3D, mirror_data: Dictionary) -> void:
+	if not mirror_data.get("mirrored", false):
+		return
+	var axis: int = mirror_data.get("mirror_axis", -1)
+	if axis < 0 or axis > 2:
+		return
+	var collider := node as CollisionShape3D
+	if collider == null:
+		collider = node.get_child(0) as CollisionShape3D if node.get_child_count() > 0 else null
+	if collider == null or not collider.shape is ConvexPolygonShape3D:
+		return
+	var shape := collider.shape.duplicate() as ConvexPolygonShape3D
+	var points := shape.points
+	for i in points.size():
+		points[i][axis] = -points[i][axis]
+	shape.points = points
+	collider.shape = shape
 
 
 func remove_block(grid_pos: Vector3i) -> Dictionary:
@@ -355,6 +377,10 @@ func _cell_volume() -> float:
 
 ## Fracción de la celda que ocupa el bloque (cubo entero; rampas/esquinas aproximadas a la mitad).
 static func _block_volume_factor(block_id: int) -> float:
+	if block_id == 6 or block_id == 7:
+		return ThatchRoofMesh.volume_factor(block_id == 7)
+	if block_id == 8:
+		return BlockMeshGenerator.PANE_TRIANGLE_THICKNESS * 0.5
 	return 1.0 if ChunkMeshBuilder._is_solid(block_id) else 0.5
 
 ## Volumen total (m³) de los bloques de la grid, para masa y flotación.

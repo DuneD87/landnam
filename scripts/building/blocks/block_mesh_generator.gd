@@ -96,17 +96,50 @@ static func generate_corner(size: float = 1.0) -> ArrayMesh:
 ## el panel inclinado, pero no exactamente EN el borde: ahí sería coplanar con la cara del vecino
 ## macizo, que nunca se cullea contra algo no sólido, y las dos pelearían por la profundidad.
 const PANE_INSET := 0.02
+## Grosor relativo a la celda del cerramiento triangular de los frontones.
+const PANE_TRIANGLE_THICKNESS := 0.10
+
+
+## Triángulo rectángulo en la cara -Z, con el ángulo recto abajo a la izquierda.
+## Se comparten vértices con el mallador y la física para conservar la silueta exacta.
+static func pane_triangle_vertices(size: float = 1.0) -> PackedVector3Array:
+	var s := size * 0.5
+	var t := size * PANE_TRIANGLE_THICKNESS * 0.5
+	# La cara exterior coincide con la cara de la pared. Todo el grosor queda hacia dentro.
+	var z := -s - t
+	return PackedVector3Array([
+		Vector3(-s, 0, z - t), Vector3(s, 0, z - t), Vector3(-s, size, z - t),
+		Vector3(-s, 0, z + t), Vector3(s, 0, z + t), Vector3(-s, size, z + t),
+	])
+
+
+static func generate_pane_triangle(size: float = 1.0) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_color(Color.WHITE)
+	ChunkMeshBuilder._emit_pane_triangle(st, Vector3(-0.5, 0, -0.5) * size, Basis.IDENTITY, size, false)
+	st.generate_tangents()
+	return st.commit()
+
+
+static func generate_pane_triangle_collision(size: float = 1.0) -> ConvexPolygonShape3D:
+	var points := pane_triangle_vertices(size)
+	for i in points.size():
+		points[i] -= Vector3.UP * size * 0.5
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = points
+	return shape
 
 ## Panel plano perpendicular a Z, pegado a la cara -Z de la celda; origen en el centro de la base.
 ## Es la pieza de ventana: una lámina en vez de un bloque macizo, para que el cristal no apile dos
 ## caras por bloque. Se emite por las dos caras porque los materiales opacos culean la trasera.
-static func generate_pane(size: float = 1.0) -> ArrayMesh:
+static func generate_pane(size: float = 1.0, inset: float = PANE_INSET) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
 	var h := size
 	var s := size * 0.5
-	var z := -s + size * PANE_INSET
+	var z := -s + size * inset
 
 	var v0 := Vector3(-s, 0, z)
 	var v1 := Vector3(+s, 0, z)
@@ -164,9 +197,9 @@ static func generate_pane_slope_collision(size: float = 1.0, thickness: float = 
 ## Losa fina en el plano del panel: no tiene grosor visible, pero la colisión sí. Convexa y no caja
 ## porque la forma se coloca centrada en la celda y una BoxShape3D no se puede desplazar dentro de
 ## ella: la colisión se quedaría en el centro y chocarías media celda antes del cristal.
-static func generate_pane_collision(size: float = 1.0, thickness: float = 0.1) -> ConvexPolygonShape3D:
+static func generate_pane_collision(size: float = 1.0, thickness: float = 0.1, inset: float = PANE_INSET) -> ConvexPolygonShape3D:
 	var s := size * 0.5
-	var z := -s + size * PANE_INSET
+	var z := -s + size * inset
 	var t := thickness * 0.5
 	var shape := ConvexPolygonShape3D.new()
 	shape.points = PackedVector3Array([

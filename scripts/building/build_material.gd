@@ -8,6 +8,8 @@ extends Resource
 @export var surface_material: Material = null
 @export var item: ItemData = null
 @export var base_cost: int = 1
+## Vacío permite todas las formas. Un material especializado puede ofrecer solo sus piezas.
+@export var allowed_block_ids: Array[int] = []
 @export var preview_color: Color = Color.WHITE
 ## Si el material deja ver lo que hay detrás. No se puede deducir de surface_material cuando es un
 ## ShaderMaterial, y de ello depende el culling de caras (ChunkMeshBuilder).

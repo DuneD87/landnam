@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Genera las texturas de los bloques de construcción: troncos apilados y muro de piedra.
+"""Genera texturas de construcción: troncos apilados, muro de piedra y paja.
 
 Cada material sale en textures/build_materials/<nombre>/ con cuatro mapas que tilean en los dos
 ejes y cubren TILE_METERS de lado:
@@ -26,7 +26,6 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "textures" / "build_materials"
@@ -111,6 +110,8 @@ def noise(rng: np.random.Generator, shape: tuple[int, int], sx: float, sy: float
 
 def sample(field: np.ndarray, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
     """Lee un campo periódico en coordenadas fraccionarias, envolviendo los bordes."""
+    from scipy import ndimage
+
     return ndimage.map_coordinates(field, [rows, cols], order=1, mode="grid-wrap")
 
 
@@ -328,6 +329,8 @@ class StoneCanvas:
 
 
 def make_stone(size: int, seed: int) -> Maps:
+    from scipy import ndimage
+
     rng = np.random.default_rng(seed)
     k = size / 2048.0
     W = H = size
@@ -428,6 +431,38 @@ def make_stone(size: int, seed: int) -> Maps:
             normal_from_height(height * relief_m, px_m), relief_m)
 
 
+# --- Paja ---------------------------------------------------------------------------------------
+
+def make_thatch(size: int, seed: int) -> Maps:
+    """Haces secos con tallos a lo largo de V. Solo necesita numpy y Pillow."""
+    rng = np.random.default_rng(seed)
+    k = size / 1024.0
+    y, x = np.mgrid[:size, :size] / size
+    shape = (size, size)
+    warp = noise(rng, shape, 28 * k, 85 * k)
+    stems = x * 300 + 0.55 * noise(rng, shape, 3 * k, 65 * k) + 0.20 * warp
+    stem_id = np.floor(stems).astype(int) % 300
+    strand = (0.5 - 0.5 * np.cos(stems * np.pi * 2)) ** 0.7
+    bundles = (0.5 + 0.5 * np.cos((x * 14 + 0.08 * warp) * np.pi * 2)) ** 0.7
+    tint = noise(rng, shape, 1.6 * k, 55 * k)
+    weather = noise(rng, shape, 38 * k, 45 * k)
+    stem_tint = rng.uniform(0.72, 1.16, 300)[stem_id]
+    phase = rng.uniform(0, 2 * np.pi, 300)[stem_id]
+    ends = smoothstep(0.78, 0.97, np.cos(y * 12 * np.pi + phase + 0.18 * warp))
+    grit = noise(rng, shape, 0.55 * k, 1.8 * k)
+    height = np.clip(0.22 + 0.42 * strand + 0.20 * bundles + 0.04 * tint - 0.07 * ends, 0, 1)
+    dark = np.array([0.38, 0.29, 0.15])
+    light = np.array([0.74, 0.64, 0.41])
+    value = np.clip(0.28 + 0.44 * strand + 0.12 * bundles + 0.10 * tint, 0, 1)
+    albedo = lerp(dark, light, value[..., None])
+    albedo *= (stem_tint + 0.055 * weather - 0.16 * ends + 0.035 * grit)[..., None]
+    ao = cavity_ao(height, [(4 * k, 1.3), (1.2 * k, 0.8)], 0.60)
+    rough = np.clip(0.92 + 0.025 * grit, 0.82, 1)
+    relief_m = 0.012
+    return Maps(np.clip(albedo, 0, 1), height, rough, ao,
+                normal_from_height(height * relief_m, TILE_METERS / size), relief_m)
+
+
 # --- Salida -------------------------------------------------------------------------------------
 
 def to_u8(x: np.ndarray) -> np.ndarray:
@@ -481,13 +516,14 @@ def write_preview(name: str, maps: Maps, folder: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--size", type=int, default=2048)
-    parser.add_argument("--only", choices=["logs", "stone"])
+    parser.add_argument("--only", choices=["logs", "stone", "thatch"])
     parser.add_argument("--preview", type=Path, help="carpeta donde dejar renders de revisión")
     args = parser.parse_args()
 
     jobs = {
         "stacked_logs": lambda: make_logs(args.size, 7),
         "stacked_stone": lambda: make_stone(args.size, 11),
+        "thatch": lambda: make_thatch(args.size, 23),
     }
     for name, job in jobs.items():
         if args.only and not name.endswith(args.only):

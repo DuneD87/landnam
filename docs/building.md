@@ -163,6 +163,47 @@ Al reconstruir, los materiales de los bloques salen del `BuildMaterial` de ahora
 (`GridBlueprint._restore_materials`). Los de piedra y madera son subrecursos de su `.tres`, y su ruta
 guardada no se podía cargar suelta.
 
+## Tejados de paja
+
+Con el martillo equipado, **B → Paja** ofrece **Faldón de paja** y **Cumbrera de paja**.
+Se colocan, giran y desmontan como los demás bloques, en celdas de 0,25 · 0,5 · 1 · 2 m.
+Cada módulo consume fibra vegetal: 1 · 1 · 2 · 4 unidades respectivamente. Desmontarlo devuelve
+el coste según la vida que le quede; los blueprints cuentan y restauran el material de paja.
+
+El faldón sube 45° de -Z a +Z. Para continuar hacia arriba, la siguiente pieza va una celda más
+alta y una más hacia +Z. La cumbrera ocupa una fila central propia: su cara inferior está en la base
+de la celda y el vértice medio metro más el grosor por encima. Encaja entre el extremo alto de
+un faldón a cada lado; el del otro lado se gira 180° alrededor de Y. Las hiladas tienen relieve geométrico y el grosor
+se prolonga hacia arriba de la pendiente: la cara inferior coincide con el remate de los muros
+y triángulos de madera. Las piezas de tejado se ofrecen solo en paja.
+
+**B → Madera → Panel triangular de madera** cierra los extremos bajo las pendientes. Es un
+triángulo rectángulo de 45° con grosor, en la cara de la celda como los paneles cuadrados; gira
+y admite simetría. Consume la misma madera que los otros bloques del tamaño elegido. Se combina
+con paneles cuadrados para rellenar el centro del frontón hasta la cumbrera. Ambos se colocan
+en las celdas de la cara exterior del tejado, junto a sus extremos.
+
+La cara exterior de los triángulos y paneles de madera queda en el mismo plano que el muro,
+con las UV proyectadas en metros de la grid. El grosor del triángulo entra hacia la casa;
+el de la paja queda sobre su canto inclinado. Así la fachada continúa sin escalones ni
+saltos de textura y la madera no atraviesa la cubierta. Los paneles de cristal conservan
+su retranqueo de ventana. Contra un bloque macizo, los paneles de madera conservan también
+la separación que evita caras coplanares. Se aplica a las construcciones guardadas sin cambiar sus ids.
+
+`ThatchRoofMesh` comparte la geometría entre chunks, iconos y fantasma. Su perfil también define
+la colisión convexa y el volumen para masa e impactos. Las fibras conservan la orientación de
+la pendiente al girar las piezas. La simetría refleja también los puntos de colisión, incluida
+la conversión de una construcción estática en dinámica.
+
+Vista aislada de una cabaña, con órbita al arrastrar y zoom con la rueda:
+
+```sh
+godot --path . res://tests/building/thatch_roof_preview.tscn
+# Capturas en build/building/thatch/:
+godot --path . res://tests/building/thatch_roof_preview.tscn -- --capture --background
+godot --headless --path . res://tests/building/test_thatch_roof.tscn
+```
+
 ## Colocables
 
 Un colocable de la barra (la antorcha de pared) se sigue poniendo sin martillo. Con él elegido, el clic

@@ -41,7 +41,8 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
 		var col: Node3D = null
 		if not ChunkMeshBuilder._is_solid(block_data.block_id):
-			col = _make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
+			col = _make_block_wrapper(grid_pos, block_data.for_material(info.get("material_id", "")), rotation_basis, local_xform)
+			_apply_collision_mirror(col, info)
 			_body.add_child(col)
 
 		_blocks[grid_pos] = {
@@ -129,8 +130,6 @@ func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_bas
 
 	if shape is BoxShape3D:
 		shape.size = shape.size * cell_size
-	else:
-		collider.scale = Vector3.ONE * cell_size
 
 	collider.shape = shape
 
@@ -138,6 +137,10 @@ func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_bas
 	var col_offset := rotation_basis.inverse() * c
 	var col_local := Transform3D(Basis.IDENTITY, col_offset)
 	collider.transform = local_xform * col_local
+	# Asignar transform sobrescribe la escala. Se aplica después para conservar los tamaños
+	# de las piezas convexas al convertirlas, migrarlas por derrumbe o cargar una grid dinámica.
+	if not shape is BoxShape3D:
+		collider.scale *= Vector3.ONE * cell_size
 
 	collider.set_meta("grid_id", grid_id)
 	collider.set_meta("grid_pos", grid_pos)
@@ -192,7 +195,10 @@ func serialize() -> Dictionary:
 			var t := node.transform
 			var c := Vector3.ONE * cell_size * 0.5
 			var col_offset := rot_basis.inverse() * c
-			block_local = Transform3D(t.basis, t.origin - t.basis * col_offset)
+			# La escala de la forma convexa es física, no una escala del bloque guardado.
+			# Al cargar se aplica otra vez cell_size: conservarla aquí lo encogería o agrandaría.
+			var block_basis := t.basis.orthonormalized()
+			block_local = Transform3D(block_basis, t.origin - block_basis * col_offset)
 		else:
 			block_local = Transform3D(rot_basis, Vector3(grid_pos) * cell_size)
 

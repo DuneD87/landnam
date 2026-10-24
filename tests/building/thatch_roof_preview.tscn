@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/building/thatch_roof_preview.gd" id="1"]
+
+[node name="ThatchRoofPreview" type="Node3D"]
+script = ExtResource("1")

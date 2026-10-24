@@ -4,6 +4,12 @@ La madera son troncos apilados y la piedra un muro de cantos rodados. Las dos te
 `tools/building/gen_block_textures.py`, que dibuja la geometría (cilindros, piedras) y de ella saca
 todos los mapas, de modo que altura, normal y oclusión casan y el parallax no flota.
 
+La paja usa el mismo generador (`--only thatch --size 1024`), con tallos secos a lo largo de V,
+tonos por tallo y extremos escalonados. Sus cuatro mapas están en `textures/build_materials/thatch/`
+y el material independiente en `data/building/thatch.tres`. Cubre también 2×2 m; el relieve de
+textura es de 12 mm (`heightmap_scale = 0.6`), además de las hiladas de la propia malla. Para
+generar solo paja bastan numpy y Pillow; los troncos y la piedra también requieren scipy.
+
 | Mapa | Contenido | Espacio |
 |------|-----------|---------|
 | `_albedo` | Color | sRGB |
@@ -27,6 +33,17 @@ quedan tumbados en paredes y rampas; en suelos y techos U sigue el eje X de la g
 
 `BlockMeshGenerator` usa la misma proyección para que los iconos enseñen la escala real. Un material
 de bloque nuevo tiene que poner en `uv1_scale` la inversa de los metros que cubre su textura.
+
+Los tejados usan `ThatchRoofMesh`: proyecta con los ejes de la pieza girada para que los tallos
+sigan la pendiente incluso al rotar o reflejar el bloque. `BuildMaterial.allowed_block_ids` limita
+las formas ofrecidas por material: paja ofrece faldón y cumbrera; piedra y vidrio conservan
+sus seis formas, y madera añade el panel triangular para frontones. Una lista vacía permite todas.
+
+Los paneles cuadrados de madera usan una variante de `BlockData` con la cara exterior al ras
+del muro; los triángulos tienen la misma cara y todo su grosor hacia dentro. Los iconos,
+el fantasma y las colisiones usan también la variante. Se mantiene la misma proyección de UV
+del muro para que el parallax no marque juntas entre superficies a distinta profundidad. Si hay
+un cubo macizo detrás, el mallador conserva la separación de las caras para evitar parpadeos.
 
 ## Parallax
 

@@ -388,7 +388,8 @@ func _migrate_cell_to_dynamic(static_grid: PlanetGrid, dyn: DynamicPlanetGrid,
 	if not ChunkMeshBuilder._is_solid(info["block_id"]):
 		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
 		if block_data:
-			new_node = dyn._make_block_wrapper(cell, block_data, info["rotation_basis"], local_xform)
+			new_node = dyn._make_block_wrapper(cell, block_data.for_material(info.get("material_id", "")), info["rotation_basis"], local_xform)
+			dyn._apply_collision_mirror(new_node, info)
 			body.add_child(new_node)
 
 	info["node"] = new_node
@@ -688,7 +689,8 @@ func _migrate_blocks_to_dynamic(dyn: DynamicPlanetGrid, static_grid: PlanetGrid,
 		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
 		var col: Node3D = null
 		if not ChunkMeshBuilder._is_solid(block_data.block_id):
-			col = dyn._make_block_wrapper(grid_pos, block_data, rotation_basis, local_xform)
+			col = dyn._make_block_wrapper(grid_pos, block_data.for_material(info.get("material_id", "")), rotation_basis, local_xform)
+			dyn._apply_collision_mirror(col, info)
 			body.add_child(col)
 
 		dyn._blocks[grid_pos] = {

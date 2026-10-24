@@ -11,6 +11,8 @@ extends Resource
 ## Geometría y colisión
 @export var mesh: ArrayMesh = null
 @export var collision_shape: Shape3D = null
+## Variantes que conservan id y guardado, pero ajustan el encaje de un material concreto.
+var material_variants: Dictionary[String, BlockData] = {}
 
 ## UI / Inventario
 @export var preview_icon: Texture2D = null
@@ -37,6 +39,10 @@ extends Resource
 ## Destrucción — energía (J) que absorbe un metro cúbico de este bloque antes de romperse por
 ## impacto. 0 = usa GridBase.DEFAULT_IMPACT_TOUGHNESS.
 @export var impact_toughness: float = 0.0
+
+
+func for_material(material_id: String) -> BlockData:
+	return material_variants.get(material_id, self)
 
 
 func get_rotation_angle_deg() -> float:
