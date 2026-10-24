@@ -3,6 +3,7 @@ extends Node3D
 ## Mochilas: cambios atómicos de capacidad, cursor entre contenedores y persistencia real.
 ## godot --headless --path . res://tests/items/test_backpacks.tscn
 ## Con render: -- --background --capture=/tmp/backpack.png
+## Para compararla con otros conjuntos: añadir --armor=firstage o --armor=fur.
 
 class GroundedPlayer extends PlayerController:
 	func is_ground_ready() -> bool:
@@ -267,7 +268,13 @@ func _capture(player: PlayerController, path: String) -> void:
 	TranslationServer.set_locale("es")
 	player.debug_stats.visible = false
 	player.character_window.preview.process_mode = Node.PROCESS_MODE_ALWAYS
-	for id in [&"hide_tunic", &"hide_trousers"]:
+	var outfit := [&"hide_tunic", &"hide_trousers"]
+	if "--armor=firstage" in OS.get_cmdline_user_args():
+		outfit = [&"firstage_skin_chest", &"firstage_skin_pants", &"firstage_skin_boots",
+			&"firstage_skin_hands", &"firstage_skin_hood"]
+	elif "--armor=fur" in OS.get_cmdline_user_args():
+		outfit = [&"fur_mantle", &"fur_loincloth", &"fur_mittens", &"fur_moccasins"]
+	for id in outfit:
 		var data := ItemCatalog.get_item(id)
 		player.character_window.equip_item(player.character_window.get_slot(data.armor_slot), InventoryItem.new(data))
 	player.inventory_ui.open(InventoryUI.View.CHARACTER)
