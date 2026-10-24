@@ -50,6 +50,7 @@ var _despawn_check := 1.0
 func setup(mesh: Mesh, xf: Transform3D, stone: ItemData, stones: int, volume: float, up: Vector3,
 		out: Vector3, exclude: Array[RID], throw := THROW) -> void:
 	name = "RockFragment"
+	add_to_group(GameManager.RESET_ON_LOAD_GROUP)
 	_mesh = mesh
 	_stone = stone
 	_stones = stones

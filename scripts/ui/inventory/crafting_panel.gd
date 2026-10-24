@@ -545,7 +545,7 @@ func _refresh_stations_label() -> void:
 
 
 func _dismantle(station: Workstation) -> void:
-	if not is_instance_valid(station):
+	if not is_instance_valid(station) or station.is_queued_for_deletion():
 		return
 	var data: ItemData = ItemCatalog.get_item(station.item_id)
 	# Fuera de los grupos ya: se libera al acabar el cuadro y antes se volvería a contar.

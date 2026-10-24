@@ -8,6 +8,7 @@ extends Node3D
 ## origen flotante (o al barco sobre el que cae).
 
 const GROUP := &"dropped_item"
+const VisualState = preload("res://scripts/items/dropped_visual_state.gd")
 ## Distancia a la que se recoge (m, desde los pies de quien recoge).
 const PICKUP_RANGE := 2.6
 ## Mirándolo (ángulo entre la vista y el objeto, grados) se recoge antes que otras cosas cercanas.
@@ -94,11 +95,16 @@ static func find(picker: Node3D, look_from: Vector3 = Vector3.ZERO, look_dir: Ve
 
 ## Lo mete en [inventory]; lo que no cabe se queda en el suelo. Devuelve true si ha entrado algo.
 func pick_into(inventory: Inventory) -> bool:
-	var left := inventory.add_item(item_data, quantity)
-	if left >= quantity:
+	if quantity <= 0 or is_queued_for_deletion():
+		return false
+	# add_item emite señales síncronas: el montón ya no debe ofrecerse mientras se inserta.
+	var amount := quantity
+	quantity = 0
+	var left := inventory.add_item(item_data, amount)
+	quantity = left
+	if left >= amount:
 		return false
 	AudioManager.play_ui(&"item_pickup")
-	quantity = left
 	if quantity <= 0:
 		queue_free()
 	return true
@@ -107,6 +113,78 @@ func pick_into(inventory: Inventory) -> bool:
 func _ready() -> void:
 	add_to_group(GROUP)
 	add_to_group("floating_origin")
+
+
+## El suelo participa en la misma instantánea que mochilas y contenedores. Las lanzas clavadas
+## también son un objeto del mundo: al cargar se reconstruyen con su malla como DroppedItem.
+static func capture_all(tree: SceneTree) -> Dictionary:
+	var saved := {}
+	for node in tree.get_nodes_in_group(GROUP):
+		var item := node as DroppedItem
+		if item != null and item.item_data != null and not item.is_queued_for_deletion() and item.quantity > 0:
+			var entry := _capture(item, item.item_data, item.quantity, item._visual)
+			entry["down"] = VisualState.encode(item._down)
+			entry["fall_left"] = item._fall_left
+			entry["fall_speed"] = item._fall_speed
+			saved[str(item.get_instance_id())] = entry
+	for node in tree.get_nodes_in_group(CombatProjectile.PICKUP_GROUP):
+		var projectile := node as CombatProjectile
+		if projectile != null and projectile.is_pickable() and projectile.item_data != null:
+			saved[str(projectile.get_instance_id())] = _capture(projectile, projectile.item_data, 1, projectile._visual)
+	return saved
+
+
+static func _capture(node: Node3D, data: ItemData, amount: int, visual: Node3D) -> Dictionary:
+	var fo := node.get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin
+	var xform := node.global_transform
+	if fo != null:
+		xform.origin = fo.to_canonical(xform.origin)
+	var holder := node.get_parent() as DynamicGridBody
+	return {"item_id": String(data.id), "quantity": amount, "transform": VisualState.encode(xform),
+		"grid_id": String(holder.get_meta("grid_id", "")) if holder != null else "",
+		"local_transform": VisualState.encode(node.transform), "visual": VisualState.capture(visual)}
+
+
+static func clear_all(tree: SceneTree) -> void:
+	for node in tree.get_nodes_in_group(GROUP):
+		node.free()
+
+
+## Después de restaurar las grids, porque los barcos se recrean al cargar.
+static func restore_all(tree: SceneTree, saved: Dictionary) -> void:
+	var fo := tree.get_first_node_in_group("floating_origin_manager") as FloatingOrigin
+	for entry: Dictionary in saved.values():
+		var data := ItemCatalog.get_item(StringName(entry.get("item_id", "")))
+		var xform: Variant = VisualState.decode(entry.get("transform", ""))
+		var amount := int(entry.get("quantity", 0))
+		if data == null or amount <= 0 or not xform is Transform3D:
+			continue
+		var item := DroppedItem.new()
+		item.item_data = data
+		item.quantity = amount
+		item.name = "Dropped_%s" % data.id
+		var grid := GridManager.get_grid(entry.get("grid_id", "")) as DynamicPlanetGrid
+		var holder := grid._body if grid != null else null
+		var attached := is_instance_valid(holder) and holder.is_inside_tree() and not holder.is_queued_for_deletion()
+		var parent: Node = holder if attached else tree.current_scene
+		parent.add_child(item)
+		if attached:
+			item.remove_from_group("floating_origin")
+			item.transform = VisualState.decode(entry.local_transform)
+		else:
+			if fo != null:
+				xform.origin = fo.from_canonical(xform.origin)
+			item.global_transform = xform
+		var meshes: Array = entry.get("visual", [])
+		if not meshes.is_empty():
+			item._visual = VisualState.restore(meshes)
+		item.add_child(item._make_visual())
+		var down: Variant = VisualState.decode(entry.get("down", VisualState.encode(Vector3.DOWN)))
+		item._down = down if down is Vector3 else Vector3.DOWN
+		item._fall_left = float(entry.get("fall_left", 0.0))
+		item._fall_speed = float(entry.get("fall_speed", 0.0))
+		item.set_physics_process(item._fall_left > 0.0)
+		item.reset_physics_interpolation()
 
 
 ## Lo suelta desde la mano [hand] (a la altura de la mano sobre los pies), [ahead] por delante

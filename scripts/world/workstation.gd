@@ -23,6 +23,7 @@ const REACH := 2.6
 
 var entity_id := ""
 var save_category := "planet"
+var discard_on_load := true
 
 
 func _ready() -> void:

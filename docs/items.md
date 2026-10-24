@@ -262,6 +262,13 @@ Todo lo que se recoge (lo del suelo, lo soltado, la leña, las lanzas clavadas)
 suena igual y bajito: `item_pickup`, un toque blando de cuero
 (`tools/audio/build_pickup_sound.py`, créditos en `docs/pickup_audio_credits.md`).
 
+Los objetos soltados, los montones de leña y piedras y las lanzas clavadas se guardan en
+`<slot>_world_items.json`, con cantidad, posición, caída y mallas propias. Al cargar se sustituye
+el contenido del suelo por esa instantánea, después de reconstruir los barcos a los que pueda
+estar sujeto. También se retiran los colocables posteriores al guardado y los restos de sesión
+sin persistencia (proyectiles, troncos y fragmentos por trabajar). Las partidas antiguas sin ese
+archivo se siguen leyendo; no contienen objetos del suelo que se puedan recuperar.
+
 ### Curarse
 
 Los remedios (`RemedyTrait`) se usan como la comida: clic con ellos en la barra o doble clic en el

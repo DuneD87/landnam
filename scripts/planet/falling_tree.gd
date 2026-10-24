@@ -80,6 +80,7 @@ var _despawn_check := 0.0
 ## (mundo), chopper, wood, wood_amount, relative_base (base respecto al centro del planeta) y
 ## cut_material.
 func setup(params: Dictionary) -> void:
+	add_to_group(GameManager.RESET_ON_LOAD_GROUP)
 	_felling = get_parent() as TreeFelling
 	name = "FallingTree"
 	var info: Dictionary = params.species
@@ -327,7 +328,7 @@ func strike_reach(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Array:
 ## Hachazo de [power] al tronco tumbado por [point] (en su eje), dado desde [chopper]: al completar
 ## el trabajo, se parte en trozos y la copa se deshace.
 func hack(point: Vector3, power: float, chopper: Node3D) -> bool:
-	if not _resting or _split or power <= 0.0:
+	if not _resting or _split or power <= 0.0 or is_queued_for_deletion():
 		return false
 	var axis := _axis_world()
 	var up := (_felling.global_transform.basis * _up).normalized()

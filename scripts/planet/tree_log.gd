@@ -42,6 +42,7 @@ var _despawn_check := 1.0
 func setup(xf: Transform3D, p_radius: float, p_length: float, bark: Material, wood: ItemData, amount: int,
 		up: Vector3, push: Vector3, exclude: Array[RID]) -> void:
 	name = "TreeLog"
+	add_to_group(GameManager.RESET_ON_LOAD_GROUP)
 	radius = p_radius
 	length = p_length
 	_bark = bark

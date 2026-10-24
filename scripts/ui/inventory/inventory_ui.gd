@@ -844,7 +844,7 @@ func _on_container_exiting() -> void:
 
 
 func _dismantle_storage() -> void:
-	if not is_instance_valid(_storage):
+	if not is_instance_valid(_storage) or _storage.is_queued_for_deletion():
 		return
 	_cancel_floating_item()
 	if _storage.inventory.get_free_slots() != _storage.inventory.max_slots:
@@ -852,10 +852,14 @@ func _dismantle_storage() -> void:
 	var storage := _storage
 	var data := ItemCatalog.get_item(storage.item_id)
 	close_loot()
+	# Retirarlo antes de notificar al inventario: una señal puede guardar o intentar recogerlo.
+	storage.remove_from_group(Storage.GROUP)
+	storage.remove_from_group(GroundPlaceableTrait.PLACED_GROUP)
+	storage.remove_from_group(GameManager.SAVEABLE_GROUP)
+	storage.queue_free()
 	var left := inventory.add_item(data, 1)
 	if left > 0:
 		drop_requested.emit(data, left)
-	storage.queue_free()
 
 
 ## Qué va en la columna de la derecha: el botín si se saquea, la hoguera si está abierta y, si no,
@@ -968,7 +972,7 @@ func _take_cooked() -> void:
 
 
 func _dismantle_campfire() -> void:
-	if _campfire == null:
+	if _campfire == null or _campfire.is_queued_for_deletion():
 		return
 	if _campfire.lit or not _campfire.is_empty():
 		if hotbar != null:
@@ -976,10 +980,13 @@ func _dismantle_campfire() -> void:
 		return
 	var fire := _campfire
 	close_campfire()
+	fire.remove_from_group(Campfire.GROUP)
+	fire.remove_from_group(GroundPlaceableTrait.PLACED_GROUP)
+	fire.remove_from_group(GameManager.SAVEABLE_GROUP)
+	fire.queue_free()
 	var left := inventory.add_item(ItemCatalog.get_item(Campfire.ITEM_ID), 1)
 	if left > 0:
 		drop_requested.emit(ItemCatalog.get_item(Campfire.ITEM_ID), left)
-	fire.queue_free()
 
 
 # --- Fabricar -----------------------------------------------------------------------------------

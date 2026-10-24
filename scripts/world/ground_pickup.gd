@@ -13,6 +13,7 @@ extends RefCounted
 const PICK_RANGE := 2.4
 const STONE_ID := &"stone_01"
 const BRANCH_ID := &"branch_01"
+const PICKING := &"ground_pickup_claimed"
 ## Ramas que da cada rama caída (al azar entre los dos).
 const BRANCHES := Vector2i(5, 10)
 ## Piedras: hasta qué escala de instancia se levantan (a escala 1 miden unos 18 cm) y cuántas da
@@ -66,8 +67,11 @@ static func try_pickup(picker: Node3D, inventory: Inventory, view_from: Vector3 
 		count = randi_range(BRANCHES.x, BRANCHES.y)
 	elif PLANTS.has(item_id):
 		count = clampi(roundi(best.global_basis.get_scale().x * float(PLANTS[item_id])), 1, 4)
+	# Reserva el cuerpo antes de emitir las señales de add_item.
+	best.set_meta(PICKING, true)
 	var left := inventory.add_item(data, count)
 	if left == count:
+		best.remove_meta(PICKING)
 		return false
 	if left > 0:
 		var up := (picker as CharacterBody3D).up_direction if picker is CharacterBody3D else picker.global_basis.y
@@ -88,6 +92,8 @@ static func _nearby(around: Node3D, reach: float) -> Array[VoxelInstancerRigidBo
 	query.collision_mask = PhysicsLayers.PICKUP
 	for hit in around.get_world_3d().direct_space_state.intersect_shape(query, 256):
 		var body := hit.collider as VoxelInstancerRigidBody
+		if body == null or body.is_queued_for_deletion() or body.has_meta(PICKING):
+			continue
 		var item_id := _item_of(body)
 		if item_id == &"":
 			continue

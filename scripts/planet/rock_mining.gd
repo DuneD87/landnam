@@ -266,7 +266,7 @@ static func _colliders_of(node: Node, out: Array[RID]) -> void:
 ## el golpe ya cuenta.
 func mine(rock: Node3D, point: Vector3, power: float, miner: Node3D) -> bool:
 	var shape := _shape_of(rock)
-	if shape.is_empty() or power <= 0.0 or not rock.is_inside_tree():
+	if shape.is_empty() or power <= 0.0 or not rock.is_inside_tree() or rock.is_queued_for_deletion():
 		return false
 	var size: float = shape.size
 	var count: int = PIECES.back()

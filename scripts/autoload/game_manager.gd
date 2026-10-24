@@ -17,7 +17,9 @@ enum State {
 const SAVEABLE_GROUP: String = "saveable"
 const SAVE_DIR: String = "user://saves/"
 const SAVE_EXTENSION: String = ".json"
-const SAVE_CATEGORIES: Array[String] = ["player", "grid", "planet", "npc", "remains"]
+const SAVE_CATEGORIES: Array[String] = ["player", "grid", "planet", "npc", "remains", "world_items"]
+## Objetos de sesión que no tienen estado persistente (proyectiles, trozos de tala y minería).
+const RESET_ON_LOAD_GROUP := &"reset_on_load"
 ## Slot que usa el menú principal (y la pre-lectura del SpawnPoint al arrancar).
 const MAIN_SLOT: String = "main_save"
 const PLAYER_ENTITY_ID: String = "player"
@@ -173,7 +175,7 @@ func save_game(slot_name: String = "default") -> bool:
 	_move_spawn_point_to_player()
 
 	var voxel_entities := get_tree().get_nodes_in_group(SAVEABLE_GROUP).filter(
-		func(e): return e.has_method("save_voxel_data")
+		func(e): return not e.is_queued_for_deletion() and e.has_method("save_voxel_data")
 	)
 	for entity in voxel_entities:
 		var tracker: VoxelSaveCompletionTracker = entity.save_voxel_data()
@@ -185,13 +187,15 @@ func save_game(slot_name: String = "default") -> bool:
 	# Después de las esperas del terreno: desde aquí hasta capturar todas las entidades no se
 	# cede otro fotograma en el que el jugador pueda volver a coger un montón con el cursor.
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
-		if entity.has_method("prepare_save"):
+		if not entity.is_queued_for_deletion() and entity.has_method("prepare_save"):
 			entity.prepare_save()
 	var by_category: Dictionary = {}
 	for cat in SAVE_CATEGORIES:
 		by_category[cat] = {}
 
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
+		if entity.is_queued_for_deletion():
+			continue
 		if not entity.has_method("get_save_data") or not entity.get("entity_id"):
 			push_warning("SaveSystem: entity missing get_save_data() or entity_id: %s" % entity.name)
 			continue
@@ -204,6 +208,7 @@ func save_game(slot_name: String = "default") -> bool:
 			"parent_path": str(entity.get_parent().get_path()),
 			"data": entity.get_save_data()
 		}
+	by_category["world_items"] = DroppedItem.capture_all(get_tree())
 
 	_write_json(_save_file_path(slot_name, "meta"), {
 		"timestamp": Time.get_datetime_string_from_system(),
@@ -231,6 +236,8 @@ func load_game(slot_name: String = "default") -> bool:
 
 	var all_entities: Dictionary = {}
 	for cat in SAVE_CATEGORIES:
+		if cat == "world_items":
+			continue
 		var cat_data: Variant = _read_json(_save_file_path(slot_name, cat))
 		if cat_data is Dictionary:
 			for id in cat_data:
@@ -239,19 +246,25 @@ func load_game(slot_name: String = "default") -> bool:
 	# Devuelve los objetos del cursor antes de restaurar cualquier contenedor, sin depender del
 	# orden de las entidades. Así no se reinsertan objetos antiguos sobre contenido ya restaurado.
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
-		if entity.has_method("prepare_restore"):
+		if not entity.is_queued_for_deletion() and entity.has_method("prepare_restore"):
 			entity.prepare_restore()
+	DroppedItem.clear_all(get_tree())
+	for node in get_tree().get_nodes_in_group(RESET_ON_LOAD_GROUP):
+		if is_instance_valid(node) and node.is_inside_tree():
+			node.get_parent().remove_child(node)
+			node.queue_free()
 	var saved_state: int = meta.get("game_state", State.PLAYING)
 	WorldTime.reset()
 	_change_state(saved_state as State)
 
 	var restored_ids: Array[String] = []
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
-		if not entity.get("entity_id"):
+		if entity.is_queued_for_deletion() or not entity.get("entity_id"):
 			continue
 		# Lo que nace en partida (los restos del jugador) y no estaba al guardar, fuera.
 		if entity.get("discard_on_load") and not all_entities.has(entity.entity_id):
 			entity.remove_from_group(SAVEABLE_GROUP)
+			entity.get_parent().remove_child(entity)
 			entity.queue_free()
 			continue
 		var id: String = entity.entity_id
@@ -279,6 +292,8 @@ func load_game(slot_name: String = "default") -> bool:
 	for entity in get_tree().get_nodes_in_group(SAVEABLE_GROUP):
 		if entity.has_method("post_restore"):
 			entity.post_restore()
+	var world_items: Variant = _read_json(_save_file_path(slot_name, "world_items"))
+	DroppedItem.restore_all(get_tree(), world_items if world_items is Dictionary else {})
 
 	print("SaveSystem: game loaded from slot '%s' (%d entities)" % [slot_name, all_entities.size()])
 	return true

@@ -94,11 +94,12 @@ func setup(pieces: Array, mesh_xf: Transform3D, item: ItemData, stones: int, wor
 		_pieces[keys[k]].stones = shares[k]
 	_work_per_piece = work / float(maxi(_pieces.size(), 1))
 	add_to_group(GROUP)
+	add_to_group(GameManager.RESET_ON_LOAD_GROUP)
 
 
 ## Golpe de [power] por [point] (mundo), dado desde [miner].
 func hit(point: Vector3, power: float, miner: Node3D) -> bool:
-	if _pieces.is_empty() or power <= 0.0:
+	if _pieces.is_empty() or power <= 0.0 or is_queued_for_deletion():
 		return false
 	var toward := (miner.global_position - point) if miner != null else _up
 	toward = toward - _up * toward.dot(_up)

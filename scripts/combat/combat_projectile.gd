@@ -71,6 +71,7 @@ func set_exclude(rids: Array[RID]) -> void:
 
 func _ready() -> void:
 	add_to_group("floating_origin")
+	add_to_group(GameManager.RESET_ON_LOAD_GROUP)
 
 
 static func _mesh_for(k: Kind) -> Mesh:
@@ -224,4 +225,16 @@ func _stick(point: Vector3, holder: Node) -> void:
 
 
 func is_pickable() -> bool:
-	return _stuck and kind == Kind.SPEAR and is_in_group(PICKUP_GROUP)
+	return not is_queued_for_deletion() and _stuck and kind == Kind.SPEAR and is_in_group(PICKUP_GROUP)
+
+
+## Reserva la lanza antes de notificar al inventario; dos acciones en un fotograma no la duplican.
+func pick_into(inventory: Inventory) -> bool:
+	if not is_pickable() or item_data == null:
+		return false
+	remove_from_group(PICKUP_GROUP)
+	if inventory.add_item(item_data, 1) > 0:
+		add_to_group(PICKUP_GROUP)
+		return false
+	queue_free()
+	return true

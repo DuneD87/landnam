@@ -170,7 +170,8 @@ static func trunk_base(space: PhysicsDirectSpaceState3D, xf: Transform3D, height
 
 func is_choppable(body: Node) -> bool:
 	var tree := body as VoxelInstancerRigidBody
-	return tree != null and tree.is_inside_tree() and not _species_of(tree).is_empty()
+	return tree != null and tree.is_inside_tree() and not tree.is_queued_for_deletion() \
+		and not _species_of(tree).is_empty()
 
 
 ## Las especies se recalculan con la vegetación (cambian los ids de la librería).
@@ -193,7 +194,7 @@ static func chop_any(body: Node, point: Vector3, power: float, chopper: Node3D) 
 ## mellado (era un árbol talable).
 func chop(body: Node, power: float, chopper: Node3D) -> bool:
 	var tree := body as VoxelInstancerRigidBody
-	if tree == null or power <= 0.0 or not tree.is_inside_tree():
+	if tree == null or power <= 0.0 or not tree.is_inside_tree() or tree.is_queued_for_deletion():
 		return false
 	var info := _species_of(tree)
 	if info.is_empty():

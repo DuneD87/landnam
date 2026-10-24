@@ -32,6 +32,7 @@ const AUDIO_SCRIPT := preload("res://scripts/audio/entity_audio.gd")
 
 var entity_id := ""
 var save_category := "planet"
+var discard_on_load := true
 var inventory := Inventory.new()
 var lit := false
 ## Segundos que le quedan al combustible que arde ahora, y los que daba entero (para la barra).

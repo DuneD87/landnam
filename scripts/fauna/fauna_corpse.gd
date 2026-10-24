@@ -92,6 +92,7 @@ static func spawn(host: Node, model: Node3D, velocity: Vector3, gravity: Vector3
 	corpse.continuous_cd = true
 	host.add_child(corpse, true)
 	corpse.add_to_group(&"floating_origin")
+	corpse.add_to_group(GameManager.RESET_ON_LOAD_GROUP)
 	corpse.global_transform = Transform3D(model.global_basis.orthonormalized(), box.get_center())
 	corpse._visual = Node3D.new()
 	corpse.add_child(corpse._visual)
