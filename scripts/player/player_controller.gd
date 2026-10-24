@@ -540,7 +540,7 @@ func _ready():
 	hotbar.selection_changed.connect(_on_hotbar_selection_changed)
 	hotbar.offhand_toggled.connect(_on_hotbar_offhand_toggled)
 	building_system.set_equipped_item_hooks(_get_right_hand_item, _consume_right_hand_item)
-	movement.landed.connect(_on_landed)
+	movement.landed.connect(take_fall_hit)
 	health_component.died.connect(_on_player_died)
 	action_controller.voxel_mined.connect(_on_voxel_mined)
 	free_flight_enabled = true
@@ -1034,7 +1034,9 @@ func _on_cinematic_tween_finished() -> void:
 
 
 
-func _on_landed(impact_speed: float) -> void:
+## El golpe de parar una caída a [impact_speed] (m/s): al aterrizar, o al agarrarse a una pared en
+## el aire (ClimbController).
+func take_fall_hit(impact_speed: float) -> void:
 	var damage := health_component.take_fall_damage(impact_speed)
 	FallInjury.roll(combat.status, combat.body_damage, impact_speed, damage)
 
@@ -1309,7 +1311,12 @@ func _input(event):
 		else:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
  
-	if event.is_action_pressed("action") && !free_flight_enabled and not climb.is_active() and not _is_text_field_focused():
+	var use: bool = event.is_action_pressed("action") && !free_flight_enabled and not climb.is_active() \
+		and not _is_text_field_focused()
+	# Empujando contra una pared, USAR es agarrarse a ella: antes que lo que haya por el suelo.
+	if use and climb.request_grab():
+		pass
+	elif use:
 		var corpse := _find_nearby_corpse()
 		# Lo soltado que se está mirando va antes que el cadáver de al lado (tirar lo que sobra
 		# mientras se saquea y volver a cogerlo); sin mirarlo, después de todo lo demás.

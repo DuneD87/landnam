@@ -60,6 +60,9 @@ signal jumped()
 signal water_crossed(speed: float, entering: bool)
 var _was_on_floor: bool = true
 var _peak_airborne_speed: float = 0.0
+## Lo que se lleva cayendo (m) desde lo más alto del vuelo.
+var _fall_drop: float = 0.0
+var _swam_last_tick: bool = false
 
 func handle_jump_movement(delta: float, gravity_strength: float, gravity_direction: Vector3 , is_on_floor: bool):
 	if is_swimming:
@@ -130,13 +133,23 @@ func handle_idle_movement(delta: float, gravity_direction: Vector3, is_on_floor:
 	if is_falling:
 		current_animation = AnimationController.Anim.FALLING
 
-	if not is_on_floor and not is_swimming:
+	# El agua para la caída (al zambullirse el nado se queda con la velocidad): lo que se traía
+	# cayendo no se cobra al salir, sea andando, trepando o coronando. El primer tick fuera aún lee
+	# la velocidad del nado, con los tirones de la flotación, que tampoco es caer.
+	if is_swimming or _swam_last_tick:
+		_peak_airborne_speed = 0.0
+		_fall_drop = 0.0
+	elif not is_on_floor:
 		_peak_airborne_speed = max(_peak_airborne_speed, downward_velocity)
+		# Subiendo se queda en cero: cuenta desde lo más alto.
+		_fall_drop = maxf(0.0, _fall_drop + downward_velocity * delta)
+	_swam_last_tick = is_swimming
 
 	if not _was_on_floor and is_on_floor and not is_swimming:
 		if _peak_airborne_speed > 0.0:
 			landed.emit(_peak_airborne_speed)
 		_peak_airborne_speed = 0.0
+		_fall_drop = 0.0
 	_was_on_floor = is_on_floor
 
 	if on_platform:
@@ -150,7 +163,17 @@ func handle_idle_movement(delta: float, gravity_direction: Vector3, is_on_floor:
 		velocity += gravity_dir * gravity_velocity * delta
 	else:
 		gravity_velocity = 0.0
-	
+
+
+## Agarrarse en el aire (ClimbController) acaba la caída sin tocar suelo. Devuelve lo que se llevaba
+## cayendo (x, en m desde lo más alto) y la velocidad de bajada máxima (y, m/s), y la cuenta vuelve
+## a cero: el aterrizaje de después solo cobra lo que se caiga desde ahí.
+func end_fall() -> Vector2:
+	var fall := Vector2(_fall_drop, _peak_airborne_speed)
+	_fall_drop = 0.0
+	_peak_airborne_speed = 0.0
+	return fall
+
 ## [even_falling] lee el input también cayendo (agarrarse a una pared en el aire).
 func get_input_direction(camera: Camera3D, gravity_dir: Vector3, even_falling: bool = false) -> Vector3:
 	if is_falling and not even_falling:

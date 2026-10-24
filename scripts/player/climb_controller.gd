@@ -7,10 +7,11 @@ extends Node
 ## acaba por encima de la cabeza corona con climb_top, que empieza donde está el personaje y acaba de
 ## pie arriba: donde termina el clip, o encima del muro si es más fino. Una pared más baja que la
 ## cabeza (pero más alta que un escalón) se sube igual, con climb_top empezado a esa altura. Gasta
-## aguante; si se acaba, se suelta y cae.
+## aguante; si se acaba, se suelta y cae. Agarrarse cayendo para la caída con su golpe, salvo los
+## primeros GRAB_MARGIN metros.
 ##
-##   Empujar contra la pared   agarrarse o subirse encima (andando, tras un instante; saltando, al
-##                             momento)
+##   Empujar contra la pared   agarrarse o subirse encima (también en el aire)
+##   y USAR (E)
 ##   Adelante / atrás          subir / bajar
 ##   Izquierda / derecha       de lado (según la cámara), si la pared sigue por ese lado
 ##   Saltar                    soltarse
@@ -35,10 +36,12 @@ const CLIMB_DRAIN := 5.0
 const HANG_DRAIN := 2.5
 ## Más tumbada que esto (grados desde arriba) ya no es pared sino techo.
 const MAX_WALL_ANGLE := 110.0
-## Andando hay que empujar este tiempo contra la pared para agarrarse (rozarla no basta), y de
-## frente: el input contra la pared (coseno) al menos PUSH_DOT.
-const GRAB_DELAY := 0.2
+## Para agarrarse hay que empujar de frente contra la pared: el input contra ella (coseno) al menos
+## PUSH_DOT.
 const PUSH_DOT := 0.6
+## Agarrarse cayendo cobra el golpe de aterrizar, pero los primeros GRAB_MARGIN metros (m) de caída
+## se perdonan: soltarse y volver a agarrarse un poco más abajo sale gratis.
+const GRAB_MARGIN := 3.5
 ## Tras soltarse, segundos sin volver a agarrarse.
 const REGRAB_COOLDOWN := 0.5
 ## Velocidad (m/s) con la que la cápsula se aprieta contra la pared para no despegarse.
@@ -81,11 +84,9 @@ var _local := Transform3D.IDENTITY
 var _normal := Vector3.UP
 var _contact := Vector3.ZERO
 var _lost := 0
-var _push_time := 0.0
 var _cooldown := 0.0
-## Tras soltarse, no se vuelve a agarrar hasta dejar de empujar (o tocar suelo): seguir pulsando
-## adelante al saltar de la pared no debe devolverlo a ella.
-var _await_release := false
+## USAR ha pedido agarrarse (request_grab): se agarra en el próximo tick.
+var _grab_requested := false
 
 ## Coronando: instante del clip, cuándo acaba, dónde acaba de pie (marco del clip, en mundo) y la
 ## diferencia entre el cuerpo y su recorrido al empezar (se funde a cero).
@@ -148,7 +149,7 @@ static func build(tree_root: AnimationNodeBlendTree, below: StringName) -> Strin
 ## cuerpo en este tick (el movimiento normal no debe tocarlo).
 func physics_update(delta: float) -> bool:
 	_cooldown = maxf(0.0, _cooldown - delta)
-	if mode == Mode.NONE and not _try_start(delta):
+	if mode == Mode.NONE and not _try_start():
 		_fade_out(delta)
 		return false
 	_blend = minf(1.0, _blend + delta / BLEND_IN)
@@ -167,6 +168,7 @@ func physics_update(delta: float) -> bool:
 func cancel() -> void:
 	if mode != Mode.NONE:
 		_end()
+	_grab_requested = false
 	_w = 0.0
 	_cooldown = 0.0
 	player.player_model.transform = Transform3D.IDENTITY
@@ -184,30 +186,38 @@ func shift_origin(offset: Vector3) -> void:
 # Agarrarse y soltarse
 
 
-## Empujando contra una pared a la que se puede agarrar, que sigue por encima de la cabeza, empieza
-## a trepar. Si es más baja, se sube encima (si arriba hay dónde ponerse de pie).
-func _try_start(delta: float) -> bool:
+## USAR (E) empujando contra una pared a la que se puede agarrar: se agarra en el próximo tick y
+## devuelve true (USAR no hace nada más). El tick vuelve a mirarlo todo.
+func request_grab() -> bool:
+	_grab_requested = mode == Mode.NONE and not _grab_wall(_up()).is_empty()
+	return _grab_requested
+
+
+## La pared contra la que se empuja, si ahora se puede agarrar a ella; {} si no. Sale de lo que tocó
+## el último move_and_slide, así que vale también fuera del tick (al pulsar USAR).
+func _grab_wall(up: Vector3) -> Dictionary:
 	var movement := player.movement
 	var combat := player.combat
 	if _cooldown > 0.0 or combat.is_busy() or combat.cripple.active() or movement.is_swimming \
 			or player.locomotion.crouching or combat.stamina.exhausted or combat.stamina.stamina <= 0.0 or combat.status.blocks(&"climb"):
-		_push_time = 0.0
-		return false
-	var up := _up()
+		return {}
 	var input := movement.get_input_direction(player.camera, player.gravity_direction, true)
-	if _await_release:
-		if input.length() >= 0.5 and not player.is_on_floor():
-			return false
-		_await_release = false
 	var wall := _wall_contact(up)
 	if wall.is_empty() or input.dot(-_flat(wall.normal, up)) < PUSH_DOT:
-		_push_time = 0.0
+		return {}
+	return wall
+
+
+## Si USAR lo ha pedido: a una pared que sigue por encima de la cabeza se agarra y empieza a
+## trepar. Si es más baja, se sube encima (si arriba hay dónde ponerse de pie).
+func _try_start() -> bool:
+	if not _grab_requested:
 		return false
-	if player.is_on_floor():
-		_push_time += delta
-		if _push_time < GRAB_DELAY:
-			return false
-	_push_time = 0.0
+	_grab_requested = false
+	var up := _up()
+	var wall := _grab_wall(up)
+	if wall.is_empty():
+		return false
 	_normal = wall.normal
 	_contact = wall.point
 	if not _wall_at(wall.normal, wall.point, _along_up(wall.normal, up) * _head_height()):
@@ -224,8 +234,11 @@ func _try_start(delta: float) -> bool:
 
 
 ## Lo común al agarrarse y al pasar a coronar: lo que se ve sale de donde está, el movimiento
-## normal queda en reposo y fuera el IK, el objetivo fijado y el arma en la mano.
+## normal queda en reposo y fuera el IK, el objetivo fijado y el arma en la mano. Agarrarse para
+## la caída (_catch_fall).
 func _begin() -> void:
+	if mode == Mode.NONE:
+		_catch_fall()
 	_from = player.player_model.global_transform
 	_blend = 0.0
 	var movement := player.movement
@@ -269,7 +282,17 @@ func _end() -> void:
 ## Se suelta (saltar, sin aguante, sin pared, al agua o por un golpe) y cae.
 func _let_go() -> void:
 	_end()
-	_await_release = true
+
+
+## Agarrarse cayendo para la caída, y su golpe llega aquí: el de un aterrizaje que llega al umbral
+## de daño y sigue cayendo lo que pase de GRAB_MARGIN. La aceleración sale de la propia caída
+## (v² = 2·a·h). Con una pierna rota sigue agarrado: lisiado ya no se agarra otra vez.
+func _catch_fall() -> void:
+	var fall := player.movement.end_fall()
+	if fall.x <= GRAB_MARGIN:
+		return
+	var safe := player.health_component.fall_damage_min_speed
+	player.take_fall_hit(sqrt(safe * safe + fall.y * fall.y * (1.0 - GRAB_MARGIN / fall.x)))
 
 
 ## IK de pies y mirada: fuera en la pared (los pies buscarían el suelo y la cabeza, la cámara).

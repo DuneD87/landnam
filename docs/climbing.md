@@ -9,11 +9,13 @@ sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
 
 | Acción | Tecla |
 | --- | --- |
-| Agarrarse o subirse encima | Empujar contra la pared (andando, 0,2 s; en el aire, al momento) |
+| Agarrarse o subirse encima | Empujar contra la pared y E (USAR), también en el aire |
 | Subir / bajar | W / S |
 | De lado | A / D (según la cámara) |
 | Soltarse | Espacio |
 
+- Empujando contra una pared a la que se puede agarrar, la E agarra antes que recoger o usar lo que
+  haya cerca (`ClimbController.request_grab`). Quieto, o sin pared delante, es USAR de siempre.
 - Se agarra a lo que sea más empinado que `floor_max_angle` (50°) y menos que un techo (110°): terreno,
   rocas, árboles, construcciones fijas. No a criaturas ni a barcos (cuerpos que se mueven).
 - Si la pared sigue a la altura de la cabeza, se agarra. Si es más baja pero más alta que un escalón
@@ -27,7 +29,7 @@ sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
   ella. En diagonal se mezclan las animaciones.
 - Al llegar abajo bajando, se pone de pie. Si la pared se tumba hasta poder andarla, también.
 - Se suelta si se queda sin pared, sin aguante, cae al agua o recibe un golpe que le hace tambalearse.
-  Tras soltarse no se vuelve a agarrar hasta dejar de empujar o tocar suelo.
+  Tras soltarse puede volver a agarrarse (E otra vez) pasado `REGRAB_COOLDOWN` (0,5 s).
 - En la pared no se golpea, ni se apunta, ni se recoge nada, y el arma va escondida.
 
 ## Velocidades
@@ -55,6 +57,18 @@ corre no se recupera, ni siquiera agotado: para descansar hay que andar o parars
 Trepar gasta 5/s, colgado quieto 2,5/s (`CLIMB_DRAIN`, `HANG_DRAIN`). Con los 100 de aguante da para
 unos 20 s trepando (12 m). Coronar no gasta. Sin aguante no se puede agarrar hasta recuperar un poco
 (como el resto del combate).
+
+## Caídas
+
+Agarrarse cayendo para la caída, y su golpe (daño y pierna rota, como al aterrizar:
+`PlayerController.take_fall_hit`) llega al agarrarse. Los primeros `GRAB_MARGIN` (3,5 m) se perdonan:
+soltarse y volver a agarrarse un poco más abajo sale gratis. Pasado el margen, el golpe es el de un
+aterrizaje que llega al umbral de daño (`fall_damage_min_speed`, unos 6 m) y sigue cayendo lo que
+pase del margen: agarrarse a los 7 m duele como aterrizar desde casi 10. Con la pierna rota sigue
+agarrado y puede acabar de subir, pero ya no vuelve a agarrarse. Lo que se cae después de agarrarse
+cuenta desde ahí (`Movement.end_fall`).
+
+El agua también para la caída: lo que se traía cayendo al zambullirse no se cobra al salir.
 
 ## Animaciones
 
@@ -107,7 +121,7 @@ vuelve a la locomoción en 0,3 s.
 ## Ajustes
 
 De la animación: `UP_CLIP_SPEED`, `DOWN_CLIP_SPEED`, `SIDE_CLIP_SPEED`, `CLIMB_WALL`, `TOP_SETTLE`.
-De juego: `CLIMB_DRAIN`, `HANG_DRAIN`, `GRAB_DELAY`, `MAX_WALL_ANGLE`, `STICK_SPEED`,
+De juego: `CLIMB_DRAIN`, `HANG_DRAIN`, `GRAB_MARGIN`, `MAX_WALL_ANGLE`, `STICK_SPEED`,
 `REGRAB_COOLDOWN`. De coronar: `TOP_EDGE`, `TOP_STEP`. La altura de la cabeza y el alcance de lado
 salen de la cápsula; el escalón, de `StepUpSystem`.
 
