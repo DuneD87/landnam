@@ -39,6 +39,68 @@ func resize_slots(count: int) -> bool:
 	return true
 
 
+## Comprueba la capacidad compactando montones en una copia del plan, sin modificar nada.
+## Los objetos adicionales solo reservan espacio (p. ej. la mochila que se va a quitar).
+func can_repack(count: int, additional: Array[InventoryItem] = []) -> bool:
+	return not _packing_plan(count, additional).is_empty()
+
+
+func repack_slots(count: int) -> bool:
+	var plan := _packing_plan(count)
+	if plan.is_empty():
+		return false
+	for item: InventoryItem in plan.quantities:
+		item.quantity = plan.quantities[item]
+	items = plan.items
+	_max_slots = count
+	inventory_changed.emit()
+	return true
+
+
+func _packing_plan(count: int, additional: Array[InventoryItem] = []) -> Dictionary:
+	if count < 1:
+		return {}
+	var packed: Array[InventoryItem] = []
+	packed.resize(count)
+	var quantities := {}
+	for item: InventoryItem in items + additional:
+		if item == null:
+			continue
+		var left := item.quantity
+		for i in count:
+			var target := packed[i]
+			if target != null and target.can_stack_with(item):
+				var moved := mini(left, maxi(0, _packing_capacity(i, target.data) - int(quantities[target])))
+				quantities[target] += moved
+				left -= moved
+				if left == 0:
+					break
+		for i in count:
+			if left == 0:
+				break
+			if packed[i] != null:
+				continue
+			var amount := mini(left, _packing_capacity(i, item.data))
+			if amount <= 0:
+				continue
+			var stack := item if amount == left else InventoryItem.new(item.data, amount)
+			packed[i] = stack
+			quantities[stack] = amount
+			left -= amount
+		if left > 0:
+			return {}
+		if not packed.has(item):
+			quantities[item] = 0
+	return {"items": packed, "quantities": quantities}
+
+
+func _packing_capacity(slot: int, data: ItemData) -> int:
+	var limit := maxi(1, data.max_stack) if data.stackable else 1
+	if rules == null:
+		return limit
+	return mini(limit, maxi(0, rules.capacity(slot, data))) if rules.accepts(slot, data) else 0
+
+
 func accepts(slot: int, data: ItemData) -> bool:
 	return slot >= 0 and slot < items.size() and data != null \
 		and (rules == null or rules.accepts(slot, data))

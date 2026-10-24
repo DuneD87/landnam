@@ -118,6 +118,12 @@ otro inventario. El cursor recuerda el inventario y el hueco de origen. Un cofre
 vacío permanece abierto; el botón «Desmontar» se habilita cuando no contiene nada
 y no se está sosteniendo ningún objeto. Ver [storage.md](storage.md).
 
+La pantalla de personaje tiene una ranura **Espalda**, debajo de las dos manos.
+Equipar la mochila de pieles añade ocho huecos al inventario; el contador y la
+cuadrícula se adaptan al momento. Quitarla o sustituirla comprueba primero que caben
+los objetos y la mochila saliente. Si falta sitio, se mantiene el equipo y sale el
+aviso sobre la barra. El muñeco muestra la misma mochila ajustada que el jugador.
+
 - **Filtros:** «Todo» y las categorías de `ItemTaxonomy` (Armas, Herramientas,
   Ropa, Comida, Materiales y Construcción). Si no caben en una línea, saltan a
   la siguiente.

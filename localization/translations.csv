@@ -1150,3 +1150,12 @@ ITEM_WOODEN_CHEST_DESC,A chest of planks and hide straps for keeping your belong
 TRAIT_SLOTS,%d slots,%d huecos,
 INV_STORAGE_HINT,Left: take or place · Right: half or one · Shift+click: transfer,Izquierdo: coger o colocar · Derecho: mitad o uno · Mayús+clic: transferir,
 INV_STORAGE_DISMANTLE_TIP,Empty it to return it to the inventory.,Vacío vuelve al inventario.,
+
+,,,## Backpacks
+ITEM_HIDE_BACKPACK,Hide backpack,Mochila de pieles,
+ITEM_HIDE_BACKPACK_DESC,A hide pack with shoulder straps. Adds eight inventory slots while equipped.,Un saco de piel con correas para los hombros. Añade ocho huecos al inventario mientras lo llevas equipado.,
+SLOT_BACK,Back,Espalda,
+GROUP_BACKPACK,Backpacks,Mochilas,
+TRAIT_INVENTORY,Inventory,Inventario,
+TRAIT_EXTRA_SLOTS,+%d slots while equipped,+%d huecos al equipar,
+INV_BACKPACK_FULL,Make room before removing or replacing the backpack.,Haz espacio antes de quitar o sustituir la mochila.,

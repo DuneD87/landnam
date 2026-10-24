@@ -136,9 +136,10 @@ static func stat_rows(data: ItemData, compare: ItemData) -> Array:
 		ItemData.Category.ARMOR:
 			var mine := Armor.of(data)
 			var theirs := Armor.of(other)
-			for kind in [ItemData.DamageKind.SLASH, ItemData.DamageKind.BLUNT, ItemData.DamageKind.PIERCE]:
-				rows.append([Armor.KIND_NAMES[kind], _number(Armor.against(mine, kind))]
-					+ _delta(other, Armor.against(mine, kind), Armor.against(theirs, kind)))
+			if mine != Vector3.ZERO or theirs != Vector3.ZERO:
+				for kind in [ItemData.DamageKind.SLASH, ItemData.DamageKind.BLUNT, ItemData.DamageKind.PIERCE]:
+					rows.append([Armor.KIND_NAMES[kind], _number(Armor.against(mine, kind))]
+						+ _delta(other, Armor.against(mine, kind), Armor.against(theirs, kind)))
 			var covers := Armor.describe_coverage(Armor.coverage_of(data))
 			if covers != "":
 				rows.append(["CARD_COVERS", covers, 0.0])

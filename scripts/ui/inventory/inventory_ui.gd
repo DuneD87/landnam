@@ -164,6 +164,8 @@ func setup(inv: Inventory, char_window: CharacterWindow, hbar: Hotbar) -> void:
 	inventory = inv
 	character_window = char_window
 	hotbar = hbar
+	character_window.bind_inventory(inv)
+	character_window.equipment_rejected.connect(_on_equipment_rejected)
 
 	inventory.inventory_changed.connect(_refresh)
 	character_window.slot_clicked.connect(_on_equipment_slot_clicked)
@@ -1106,6 +1108,11 @@ func _on_equipment_slot_clicked(slot: EquipmentSlot) -> void:
 		_drop_to_equipment(slot)
 	elif slot.has_item():
 		_pickup_from_equipment(slot)
+
+
+func _on_equipment_rejected(_slot: ItemData.ArmorSlot) -> void:
+	if hotbar != null:
+		hotbar.notify(tr("INV_BACKPACK_FULL"))
 
 
 func _pickup_from_inventory(slot: InventorySlot, half: bool = false) -> void:

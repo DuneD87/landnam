@@ -8,7 +8,8 @@ enum WeaponType {NONE, SWORD, SPEAR, BOW, CANNON, AXE, MACE, SLINGSHOT}
 ## Cómo muerde el golpe: cada armadura protege distinto de cada uno (Armor), y cambia el sonido,
 ## la sangre y el empuje.
 enum DamageKind {SLASH, BLUNT, PIERCE}
-enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND}
+## Se añaden al final para conservar los valores de recursos y partidas existentes.
+enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND, BACK}
 
 @export var id: StringName  # "stone_pickaxe"
 ## Claves de localization/translations.csv (ITEM_<ID> e ITEM_<ID>_DESC); se leen traducidas con

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RecipeData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/recipe_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+result = &"hide_backpack"
+inputs = Dictionary[StringName, int]({
+&"raw_hide": 6,
+&"sinew": 2,
+&"plant_fiber": 4
+})
+station = &"stone_workbench"

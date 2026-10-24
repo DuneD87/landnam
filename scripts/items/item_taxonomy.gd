@@ -27,6 +27,7 @@ const GROUPS := {
 	&"tool": [ItemData.Category.TOOL, "GROUP_TOOL"],
 	&"light": [ItemData.Category.TOOL, "GROUP_LIGHT"],
 	&"container": [ItemData.Category.TOOL, "GROUP_CONTAINER"],
+	&"backpack": [ItemData.Category.TOOL, "GROUP_BACKPACK"],
 	&"head": [ItemData.Category.ARMOR, "GROUP_HEAD"],
 	&"chest": [ItemData.Category.ARMOR, "GROUP_CHEST"],
 	&"hands": [ItemData.Category.ARMOR, "GROUP_HANDS"],
@@ -50,6 +51,7 @@ const ARMOR_GROUPS := {
 	ItemData.ArmorSlot.HANDS: &"hands",
 	ItemData.ArmorSlot.LEGS: &"legs",
 	ItemData.ArmorSlot.FEET: &"feet",
+	ItemData.ArmorSlot.BACK: &"backpack",
 }
 const DAMAGE_KINDS := Armor.KIND_NAMES
 

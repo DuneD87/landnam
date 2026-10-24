@@ -291,6 +291,19 @@ func _rebind_worn_materials() -> void:
 
 
 func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data: ItemData, category: ItemData.Category) -> void:
+	if slot == ItemData.ArmorSlot.BACK:
+		var skeleton := player_model.get_node("Armature/Skeleton3D") as Skeleton3D
+		if equip:
+			var attachment := BackEquipment.attach(skeleton, scene, data, appearance_rig)
+			if attachment != null:
+				_register_worn_node(attachment)
+		else:
+			for child in skeleton.get_children():
+				if child is BackEquipment and child.item_data.id == data.id:
+					_unregister_worn_node(child)
+					skeleton.remove_child(child)
+					child.queue_free()
+		return
 	if equip:
 		match category:
 			ItemData.Category.TOOL when slot == ItemData.ArmorSlot.OFFHAND:
@@ -703,6 +716,7 @@ func get_save_data() -> Dictionary:
 			"distance": camera_controller.camera_distance,
 		},
 		"inventory": inventory_data,
+		"inventory_base_slots": character_window.inventory_capacity.base_slots,
 		"equipment": equipment_data,
 		"game_state": {
 			"free_flight": free_flight_enabled,
@@ -764,6 +778,10 @@ func restore_save_data(save: Dictionary) -> void:
 			var inv_item := InventoryItem.new(item_data, 1)
 			eq_slot.set_item(inv_item)
 			equip_item(true, slot_type, load(item_data.scene_path), item_data, item_data.category)
+	var capacity := character_window.inventory_capacity
+	capacity.base_slots = maxi(1, int(save.get("inventory_base_slots", capacity.configured_base_slots)))
+	if not capacity.sync():
+		push_error("SaveSystem: el contenido no cabe en la capacidad del equipo restaurado")
 	if save.has("hotbar"):
 		hotbar.restore_save_data(save.hotbar)
 	if save.has("hotbar_selected"):

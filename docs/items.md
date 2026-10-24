@@ -14,7 +14,7 @@ lleva sus dos filas en el CSV. Ver [localization.md](localization.md).
 | Categoría | Grupos |
 |---|---|
 | Armas | Cuerpo a cuerpo · A distancia · Munición · Escudos |
-| Herramientas | Hachas, picos y martillos · Luz · Recipientes |
+| Herramientas | Hachas, picos y martillos · Luz · Recipientes · Mochilas |
 | Ropa | Cabeza · Torso · Manos · Piernas · Pies |
 | Consumibles | Cocinada · Cruda · Bebida · Remedios |
 | Materiales | De caza · Madera · Piedra y mineral · Otros |
@@ -52,6 +52,7 @@ Van en `ItemData.traits` y se buscan por su tipo con
 | `GroundPlaceableTrait` | Se planta en el suelo: escena, vista previa, pendiente, separación y cuánto se inclina y se hunde | hoguera, banco de trabajo |
 | `CraftingStationTrait` | Es una estación de trabajo: su era y desde qué distancia se usan sus recetas | banco de trabajo |
 | `StorageTrait` | Capacidad en huecos y reglas opcionales de lo que se guarda; cada instancia tiene su propio inventario | cofre de madera |
+| `InventoryExpansionTrait` | Huecos adicionales del inventario mientras está equipado | mochila de pieles (+8) |
 | `RemedyTrait` | Cura: vida al momento, «Recuperándose» unos segundos, corta el sangrado, cierra las partes heridas y quita estados | milenrama, emplasto, bebedizo, tablilla |
 
 Un rasgo nuevo es una clase que hereda de `ItemTrait` en
@@ -79,6 +80,7 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Banco de trabajo | `stone_workbench` | Estación de trabajo de la Edad de piedra: se planta en el suelo |
 | Lecho de pieles | `bedroll` | Se planta en el suelo: E para dormir ocho horas o recogerlo |
 | Cofre de madera | `wooden_chest` | Se planta en el suelo: E para guardar y sacar objetos en sus 24 huecos |
+| Mochila de pieles | `hide_backpack` | Se equipa en Espalda y amplía el inventario de 20 a 28 huecos |
 
 El jugador empieza con un seax. El resto sale con `give <id> [cantidad]`.
 
@@ -430,6 +432,22 @@ al lado del inventario del jugador. Tiene 24 huecos, configurados en su
 
 `Storage` e `InventoryPanel` son comunes a futuros cofres, cestas o estanterías;
 su capacidad y restricciones cambian mediante recursos. Ver [storage.md](storage.md).
+
+### Mochilas
+
+La mochila de pieles (`hide_backpack`) se fabrica en el banco de trabajo con 6 pieles,
+2 tendones y 4 fibras vegetales. Se coloca desde el inventario en la ranura **Espalda**
+de la pantalla de personaje (C) y se ve en el personaje y en su muñeco.
+
+Su `InventoryExpansionTrait.extra_slots` aporta 8 huecos sobre los 20 de base. Otros
+modelos pueden cambiar ese valor sin otra lógica. El espacio forma parte del
+inventario del jugador; al quitar la mochila no se lleva objetos dentro.
+
+Antes de quitarla o cambiarla se valida la capacidad final, contando también el
+espacio para devolver la mochila saliente al cerrar el cursor. Se compactan los
+montones compatibles cuando hace falta; si todo no cabe, se conserva el equipo y
+se avisa. Guardar y cargar conservan por separado la base y el equipo, de modo que
+el bono no se acumula al cargar varias veces. Ver [storage.md](storage.md).
 
 ### Hoguera
 

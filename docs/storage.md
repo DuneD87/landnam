@@ -16,6 +16,31 @@ Se consulta al insertar, mover y transferir, también desde código. La hoguera 
 `CampfireInventoryRules`: combustible en el hueco 0 y una pieza de comida en cada
 uno de los siguientes.
 
+## Mochilas equipables
+
+`InventoryExpansionTrait.extra_slots` amplía el inventario mientras el objeto está
+equipado. `EquipmentCapacity` calcula base + bonificaciones del equipo completo;
+`CharacterWindow` valida el cambio antes de modificar cualquier hueco o emitir señales.
+
+Al reducir capacidad, `Inventory.can_repack` prepara la compactación sin modificar
+cantidades ni identidades. Reserva además espacio para la mochila retirada. Una
+operación viable se aplica con `repack_slots`; una rechazada deja intactos el
+inventario y el equipo. Cambiar por otra mayor se valida contra la capacidad final.
+Al sustituir por igual capacidad también se compacta para alojar la saliente.
+
+La mochila de pieles ocupa `ArmorSlot.BACK` (añadido al final del enum), aporta ocho
+huecos y se fabrica en el banco de trabajo. Su malla rígida se cuelga de Spine2 con
+`BackEquipment`, que compensa los ejes y la escala del esqueleto importado y ajusta
+la separación a la profundidad del torso, tanto en el jugador como en el muñeco.
+
+La partida guarda `inventory_base_slots` junto con inventario y equipo. Al restaurar,
+se deriva de nuevo la capacidad final; las partidas antiguas usan la base configurada
+en la escena. Una mochila sin equipar es un objeto normal, sin contenido propio.
+
+`tests/items/test_backpacks.tscn` comprueba compactación, equipar y quitar, cambios
+de tamaño, cursor desde un cofre, ajuste visual, cargas repetidas y partidas antiguas.
+Con render admite `-- --background --capture=/tmp/backpack.png`.
+
 ## Operaciones
 
 - `add_item(data, cantidad)` devuelve cuántas unidades no caben.

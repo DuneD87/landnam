@@ -12,11 +12,13 @@ signal equipment_changed(slot_type: ItemData.ArmorSlot, item: InventoryItem, equ
 signal slot_clicked(slot: EquipmentSlot)
 ## El ratón entra en un hueco o sale de él (la pantalla enseña la ficha de lo que lleva).
 signal slot_hovered(slot: EquipmentSlot, hovered: bool)
+signal equipment_rejected(slot_type: ItemData.ArmorSlot)
 
 ## Huecos a la izquierda del muñeco, de la cabeza a los pies, y a su derecha.
 const LEFT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.HEAD, ItemData.ArmorSlot.CHEST,
 	ItemData.ArmorSlot.HANDS, ItemData.ArmorSlot.LEGS, ItemData.ArmorSlot.FEET]
-const RIGHT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.RIGHT_HAND, ItemData.ArmorSlot.OFFHAND]
+const RIGHT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.RIGHT_HAND,
+	ItemData.ArmorSlot.OFFHAND, ItemData.ArmorSlot.BACK]
 ## Clave del nombre de cada hueco.
 const SLOT_NAMES := {
 	ItemData.ArmorSlot.HEAD: "SLOT_HEAD",
@@ -26,6 +28,7 @@ const SLOT_NAMES := {
 	ItemData.ArmorSlot.FEET: "SLOT_FEET",
 	ItemData.ArmorSlot.RIGHT_HAND: "SLOT_RIGHT_HAND",
 	ItemData.ArmorSlot.OFFHAND: "SLOT_LEFT_HAND",
+	ItemData.ArmorSlot.BACK: "SLOT_BACK",
 }
 ## Luz que reciben en el muñeco los materiales planetarios de la ropa (opaque_planet_material):
 ## la del estudio, con un planeta muy lejos debajo para que sea pleno día.
@@ -40,8 +43,10 @@ const STUDIO_PLANET := Vector3(0, -6000000.0, 0)
 @export var icon_feet: Texture2D
 @export var icon_main_hand: Texture2D
 @export var icon_off_hand: Texture2D
+@export var icon_back: Texture2D
 
 var equipment_slots: Dictionary = {}
+var inventory_capacity: EquipmentCapacity
 ## El muñeco con sus huecos. Es también la zona que cuenta como ventana al tirar cosas.
 var panel: Control
 var preview: CharacterPreview
@@ -102,6 +107,7 @@ func _build_doll() -> Control:
 		ItemData.ArmorSlot.HANDS: icon_hands, ItemData.ArmorSlot.LEGS: icon_legs,
 		ItemData.ArmorSlot.FEET: icon_feet, ItemData.ArmorSlot.RIGHT_HAND: icon_main_hand,
 		ItemData.ArmorSlot.OFFHAND: icon_off_hand,
+		ItemData.ArmorSlot.BACK: icon_back,
 	}
 	row.add_child(_slot_column(LEFT_SLOTS, icons, true))
 
@@ -160,7 +166,7 @@ func _sync_dress() -> void:
 	var skeleton := preview.get_skeleton()
 	if skeleton == null:
 		return
-	for slot_type in LEFT_SLOTS:
+	for slot_type in LEFT_SLOTS + [ItemData.ArmorSlot.BACK]:
 		var slot: EquipmentSlot = equipment_slots[slot_type]
 		var wanted: ItemData = slot.equipped_item.data if slot.has_item() else null
 		if wanted != null and (wanted.category != ItemData.Category.ARMOR or wanted.is_shield()
@@ -168,12 +174,21 @@ func _sync_dress() -> void:
 			wanted = null
 		var worn: Node = _dressed.get(slot_type)
 		if worn != null and wanted != null and worn.get_meta(&"item_id") == wanted.id:
+			if worn is BackEquipment:
+				worn.fit_to_body(preview.rig)
 			continue
 		if worn != null:
 			preview.rig.undress(worn)
 			worn.queue_free()
 			_dressed.erase(slot_type)
 		if wanted == null:
+			continue
+		if slot_type == ItemData.ArmorSlot.BACK:
+			var attachment := BackEquipment.attach(skeleton, load(wanted.scene_path), wanted, preview.rig)
+			if attachment != null:
+				attachment.set_meta(&"item_id", wanted.id)
+				_light_for_studio(attachment)
+				_dressed[slot_type] = attachment
 			continue
 		var piece: Node = load(wanted.scene_path).instantiate()
 		piece.set_meta(&"item_id", wanted.id)
@@ -210,14 +225,21 @@ func equip_item(slot: EquipmentSlot, item: InventoryItem) -> InventoryItem:
 		return null
 	if not item.data.fits_slot(slot.slot_type):
 		return item
+	if inventory_capacity != null and not inventory_capacity.can_change(slot.slot_type, item.data):
+		equipment_rejected.emit(slot.slot_type)
+		return item
 	var old_item: InventoryItem = null
 
 	if slot.has_item():
 		old_item = slot.equipped_item
-		equipment_changed.emit(slot.slot_type, old_item, false)
 
 	var equip_item = InventoryItem.new(item.data, 1)
 	slot.set_item(equip_item)
+	if inventory_capacity != null:
+		inventory_capacity.sync(item.data.get_trait(InventoryExpansionTrait) != null \
+			or old_item != null and old_item.data.get_trait(InventoryExpansionTrait) != null)
+	if old_item != null:
+		equipment_changed.emit(slot.slot_type, old_item, false)
 	equipment_changed.emit(slot.slot_type, equip_item, true)
 	_refresh_if_shown()
 	return old_item
@@ -226,12 +248,22 @@ func equip_item(slot: EquipmentSlot, item: InventoryItem) -> InventoryItem:
 func unequip_item(slot: EquipmentSlot) -> InventoryItem:
 	if not slot or not slot.has_item():
 		return null
+	if inventory_capacity != null and not inventory_capacity.can_change(slot.slot_type, null):
+		equipment_rejected.emit(slot.slot_type)
+		return null
 
 	var item = slot.equipped_item
 	slot.clear()
+	if inventory_capacity != null:
+		inventory_capacity.sync()
 	equipment_changed.emit(slot.slot_type, item, false)
 	_refresh_if_shown()
 	return item
+
+
+func bind_inventory(inventory: Inventory) -> void:
+	if inventory_capacity == null or inventory_capacity.inventory != inventory:
+		inventory_capacity = EquipmentCapacity.new(inventory, equipment_slots, inventory.max_slots)
 
 
 func get_slot(slot_type: ItemData.ArmorSlot) -> EquipmentSlot:

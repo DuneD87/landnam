@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/items/traits/inventory_expansion_trait.gd" id="3"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/hide_backpack.png" id="4"]
+
+[sub_resource type="Resource" id="Expansion"]
+script = ExtResource("3")
+extra_slots = 8
+
+[resource]
+script = ExtResource("1")
+id = &"hide_backpack"
+display_name = "ITEM_HIDE_BACKPACK"
+description = "ITEM_HIDE_BACKPACK_DESC"
+icon = ExtResource("4")
+category = 4
+scene_path = "res://scenes/items/equipment/hide_backpack.tscn"
+stackable = false
+max_stack = 1
+armor_slot = 9
+group = &"backpack"
+traits = Array[ExtResource("2")]([SubResource("Expansion")])
