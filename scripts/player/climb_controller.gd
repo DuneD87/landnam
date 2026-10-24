@@ -5,10 +5,12 @@ extends Node
 ## floor_max_angle del cuerpo) se agarra y trepa: sin gravedad, con la cápsula pegada a la pared por
 ## la física normal (move_and_slide en modo flotante) y la animación de trepar. Cuando la pared se
 ## acaba por encima de la cabeza corona con climb_top, que empieza donde está el personaje y acaba de
-## pie en el suelo que haya donde termina el clip (no se casa con el borde). Gasta aguante; si se
-## acaba, se suelta y cae.
+## pie arriba: donde termina el clip, o encima del muro si es más fino. Una pared más baja que la
+## cabeza (pero más alta que un escalón) se sube igual, con climb_top empezado a esa altura. Gasta
+## aguante; si se acaba, se suelta y cae.
 ##
-##   Empujar contra la pared   agarrarse (andando, tras un instante; saltando, al momento)
+##   Empujar contra la pared   agarrarse o subirse encima (andando, tras un instante; saltando, al
+##                             momento)
 ##   Adelante / atrás          subir / bajar
 ##   Izquierda / derecha       de lado (según la cámara), si la pared sigue por ese lado
 ##   Saltar                    soltarse
@@ -16,7 +18,8 @@ extends Node
 ## Como al correr, la animación tiene que casar con el cuerpo: se reproduce al ritmo que hace
 ## coincidir sus apoyos con la velocidad, y PlayerModel se pone, inclinado con la pared, a la
 ## distancia a la que la animación la tiene delante. climb_top lleva su propio recorrido (1,7 m
-## arriba y 1,4 m adelante): el cuerpo, y con él la cámara, sigue a su cadera.
+## arriba y 1,4 m adelante): el cuerpo, y con él la cámara, sigue a su cadera, y su marco se corre
+## poco a poco lo que el borde no casa con él.
 
 enum Mode {NONE, CLIMB, TOP}
 
@@ -50,6 +53,13 @@ const BLEND_IN := 0.25
 const BLEND_OUT := 0.3
 ## Muestras por segundo del recorrido de la cadera al coronar.
 const PATH_FPS := 30.0
+## Dónde ponerse de pie al coronar se busca con rayos cada TOP_STEP, del borde (TOP_EDGE por dentro
+## de la cara de la pared) a donde acaba el clip.
+const TOP_EDGE := 0.1
+const TOP_STEP := 0.1
+## Coronar acaba cuando la cadera del clip ya no se aleja más que esto de donde termina: lo que
+## queda del clip es estar de pie.
+const TOP_SETTLE := 0.05
 
 var player: PlayerController
 var mode: Mode = Mode.NONE
@@ -77,12 +87,17 @@ var _cooldown := 0.0
 ## adelante al saltar de la pared no debe devolverlo a ella.
 var _await_release := false
 
-## Coronando: instante del clip, su duración, dónde acaba de pie (marco del clip, en mundo) y la
+## Coronando: instante del clip, cuándo acaba, dónde acaba de pie (marco del clip, en mundo) y la
 ## diferencia entre el cuerpo y su recorrido al empezar (se funde a cero).
 var _top_t := 0.0
-var _top_length := 0.0
+var _top_end := 0.0
 var _top_frame := Transform3D.IDENTITY
 var _top_offset := Vector3.ZERO
+## Lo que el marco del clip está corrido al empezar (de frente y de alto) respecto a _top_frame,
+## para que su cadera salga de la del personaje, y dónde está esa cadera en el clip.
+var _top_ahead := Vector3.ZERO
+var _top_rise := Vector3.ZERO
+var _top_from := Vector3.ZERO
 ## Cadera de climb_top en el marco de PlayerModel, muestreada del clip.
 var _hips_path := PackedVector3Array()
 
@@ -169,8 +184,8 @@ func shift_origin(offset: Vector3) -> void:
 # Agarrarse y soltarse
 
 
-## Empujando contra una pared a la que se puede agarrar, que sigue por encima de la cabeza (una
-## más baja se salta), empieza a trepar.
+## Empujando contra una pared a la que se puede agarrar, que sigue por encima de la cabeza, empieza
+## a trepar. Si es más baja, se sube encima (si arriba hay dónde ponerse de pie).
 func _try_start(delta: float) -> bool:
 	var movement := player.movement
 	var combat := player.combat
@@ -193,12 +208,12 @@ func _try_start(delta: float) -> bool:
 		if _push_time < GRAB_DELAY:
 			return false
 	_push_time = 0.0
-	if not _wall_at(wall.normal, wall.point, _along_up(wall.normal, up) * _head_height()):
-		return false
-	_begin()
-	mode = Mode.CLIMB
 	_normal = wall.normal
 	_contact = wall.point
+	if not _wall_at(wall.normal, wall.point, _along_up(wall.normal, up) * _head_height()):
+		return _start_top(up)
+	_begin()
+	mode = Mode.CLIMB
 	_lost = 0
 	_top_w = 0.0
 	_axis_w = 0.0
@@ -298,9 +313,10 @@ func _update_climb(delta: float) -> void:
 			_update_top(0.0)
 			return
 		move.y = 0.0
-	# De lado, solo si la pared sigue por ese lado (a un cuerpo de distancia, a media altura).
+	# De lado, solo si la pared sigue por ese lado (donde llega el costado, a media altura): en una
+	# esquina se para con el costado en ella.
 	if move.x != 0.0 and not _wall_at(_normal, _contact,
-			t_right * move.x * _radius() * 2.0 + t_up * _head_height() * 0.5):
+			t_right * move.x * _radius() + t_up * _head_height() * 0.5):
 		move.x = 0.0
 	if not combat.stamina.drain(CLIMB_DRAIN if move != Vector2.ZERO else HANG_DRAIN, delta):
 		_let_go()
@@ -400,38 +416,113 @@ func _wall_at(normal: Vector3, point: Vector3, along: Vector3) -> bool:
 # Coronar
 
 
-## Corona: el clip empieza con su cadera donde está ahora la del personaje y acaba de pie en el
-## suelo que haya donde termina. Si ahí no hay suelo que se pueda andar o sitio para ponerse de
-## pie, no corona (devuelve false).
+## Corona: acaba de pie arriba (_find_stand) y el clip empieza con su cadera donde está la del
+## personaje. Colgado de la pared empieza por el principio; desde el suelo o en el aire, por donde su
+## cadera va tan por debajo del borde como la del personaje, así que una pared baja se sube sin
+## colgarse. Lo que el borde no casa con el clip (más cerca en un muro fino, más alto o más bajo) lo
+## corre su marco poco a poco (_frame_at). Si arriba no hay dónde ponerse de pie, no corona
+## (devuelve false).
 func _start_top(up: Vector3) -> bool:
 	_sample_hips_path()
 	if _hips_path.is_empty():
 		return false
 	var f := -_flat(_normal, up)
-	var basis := Basis(up.cross(f).normalized(), up, f)
-	var anchor := _hips_world() - basis * _hips_path[0]
-	var h := _head_height()
-	var ground := _ray(anchor + up * h, anchor - up * h)
-	if ground.is_empty() or (ground.normal as Vector3).dot(up) < cos(player.floor_max_angle):
+	if f == Vector3.ZERO:
 		return false
-	var stand: Vector3 = ground.position
-	if not _ray(stand + up * 0.05, stand + up * h).is_empty():
+	var basis := Basis(up.cross(f).normalized(), up, f)
+	var hips := _hips_world()
+	var from_ground := mode == Mode.NONE
+	var start := 0
+	if from_ground:
+		start = _ledge_start(hips, f, up)
+		if start < 0:
+			return false
+	var anchor := hips - basis * _hips_path[start]
+	var stand: Variant = _find_stand(anchor, f, up)
+	if stand == null:
 		return false
 	_begin()
 	mode = Mode.TOP
+	# Desde el suelo no hay ciclo de trepar del que fundirse: el canal entra ya en coronar.
+	if from_ground:
+		_top_w = 1.0
 	_top_frame = Transform3D(basis, stand)
-	_top_t = 0.0
-	_top_offset = player.global_position - _top_body(0.0)
+	_top_t = start / PATH_FPS
+	_top_from = _hips_path[start]
+	var warp: Vector3 = anchor - stand
+	_top_rise = up * warp.dot(up)
+	_top_ahead = warp - _top_rise
+	_top_offset = player.global_position - _top_body(_top_t)
 	var tree := player.animation_controller.animation_tree
 	if tree != null and player.combat._anims_ready:
-		tree.set(&"parameters/cl_top_seek/seek_request", 0.0)
+		tree.set(&"parameters/cl_top_seek/seek_request", _top_t)
 		tree.set(&"parameters/cl_top_speed/scale", 1.0)
 		for clip in ["up", "down", "left", "right"]:
 			tree.set("parameters/cl_%s_speed/scale" % clip, 0.0)
 	return true
 
 
-## Coronando el cuerpo no choca: sigue a la cadera del clip, que no se casa con el borde.
+## Desde el suelo o en el aire, el índice del recorrido de climb_top en que su cadera está tan por
+## debajo del borde como la del personaje. -1 si no hay borde o no pasa de un escalón (eso lo sube
+## StepUpSystem).
+func _ledge_start(hips: Vector3, f: Vector3, up: Vector3) -> int:
+	var feet := player.global_position
+	var head := feet + up * _head_height()
+	var from := head + f * (_to_wall(head, f) + TOP_EDGE)
+	var ledge := _ray(from, from - up * _head_height())
+	if ledge.is_empty() or ((ledge.position as Vector3) - feet).dot(up) < _step_height():
+		return -1
+	var below := (hips - (ledge.position as Vector3)).dot(up)
+	for i in _hips_path.size():
+		if _hips_path[i].y >= below:
+			return i
+	return -1
+
+
+## Dónde ponerse de pie al coronar. Se mira con rayos del borde hacia dentro hasta [end], donde lo
+## deja el clip: el primer tramo seguido de suelo que se pueda andar, con sitio para ponerse de pie,
+## más alto que un escalón sobre los pies y sin saltos de más de uno entre rayo y rayo (el suelo del
+## otro lado de un muro no cuenta). Si llega a [end] (una cima ancha), ahí; si se acaba antes (un
+## muro fino), en su mitad. null si no hay.
+func _find_stand(end: Vector3, f: Vector3, up: Vector3) -> Variant:
+	var h := _head_height()
+	var step := _step_height()
+	var low := player.global_position.dot(up) + step
+	var depth := -_to_wall(end, f)
+	var reach := maxf(depth, TOP_EDGE)
+	var run: Array[Vector3] = []
+	for i in int(ceil((reach - TOP_EDGE) / TOP_STEP)) + 1:
+		var x := end + f * (minf(TOP_EDGE + i * TOP_STEP, reach) - depth)
+		var ground := _ground_under(x, up, h, low)
+		var ok := not ground.is_empty() and (ground.normal as Vector3).dot(up) >= cos(player.floor_max_angle)
+		if ok:
+			var at: Vector3 = ground.position
+			ok = (run.is_empty() or absf((at - run.back()).dot(up)) <= step) \
+				and _ray(at + up * 0.05, at + up * h).is_empty()
+			if ok:
+				run.append(at)
+		if not ok and not run.is_empty():
+			return run[floori(run.size() / 2.0)]
+	return run.back() if not run.is_empty() else null
+
+
+## El suelo más bajo bajo [x] (de [h] por encima a [h] por debajo) que no baje de [low]. Si hay
+## varios, los de arriba son un techo o el muro sobre una ventana: desde el borde se llega al de
+## abajo.
+func _ground_under(x: Vector3, up: Vector3, h: float, low: float) -> Dictionary:
+	var ground := {}
+	var from := x + up * h
+	for i in 4:
+		var hit := _ray(from, x - up * h)
+		if hit.is_empty() or (hit.position as Vector3).dot(up) < low:
+			break
+		ground = hit
+		# Sigue desde dentro de lo que ha tocado: el rayo no ve sus caras de dentro.
+		from = (hit.position as Vector3) - up * 0.02
+	return ground
+
+
+## Coronando el cuerpo no choca: sigue a la cadera del clip.
 func _update_top(delta: float) -> void:
 	if player.combat.is_busy():
 		_let_go()
@@ -440,14 +531,32 @@ func _update_top(delta: float) -> void:
 	_top_w = move_toward(_top_w, 1.0, delta / BLEND_IN)
 	player.global_position = _top_body(_top_t) + _top_offset * (1.0 - smoothstep(0.0, 1.0, _blend))
 	_face(_top_frame.basis.z, _top_frame.basis.y, delta)
-	_set_frame(_top_frame)
-	if _top_t >= _top_length:
+	_set_frame(_frame_at(_top_t))
+	if _top_t >= _top_end:
 		_end()
 
 
 ## El cuerpo sigue a la cadera: donde estarían los pies bajo ella si estuviera de pie.
 func _top_body(t: float) -> Vector3:
-	return _top_frame * (_hips_at(t) - _hips_path[_hips_path.size() - 1])
+	return _frame_at(t) * (_hips_at(t) - _hips_path[_hips_path.size() - 1])
+
+
+## Marco del clip en [t]: empieza donde su cadera sale de la del personaje y acaba en _top_frame.
+## Se corre a la par que avanza la cadera: lo de frente mientras pasa por encima del borde (colgada
+## no se mueve, así que las manos no resbalan), lo de alto mientras sube.
+func _frame_at(t: float) -> Transform3D:
+	var hips := _hips_at(t)
+	var end := _hips_path[_hips_path.size() - 1]
+	var origin := _top_frame.origin + _top_ahead * (1.0 - _progress(hips.z, _top_from.z, end.z)) \
+		+ _top_rise * (1.0 - _progress(hips.y, _top_from.y, end.y))
+	return Transform3D(_top_frame.basis, origin)
+
+
+## Lo que va [value] de [from] a [to], de 0 a 1.
+static func _progress(value: float, from: float, to: float) -> float:
+	if absf(to - from) < 0.01:
+		return 1.0
+	return clampf((value - from) / (to - from), 0.0, 1.0)
 
 
 ## Recorrido de la cadera en climb_top, en el marco de PlayerModel (se muestrea una vez).
@@ -466,7 +575,11 @@ func _sample_hips_path() -> void:
 	_hips_path.clear()
 	for i in int(ceil(anim.length * PATH_FPS)) + 1:
 		_hips_path.append(to_model * anim.position_track_interpolate(track, minf(i / PATH_FPS, anim.length)))
-	_top_length = anim.length
+	var end := _hips_path[_hips_path.size() - 1]
+	var last := _hips_path.size() - 1
+	while last > 0 and _hips_path[last - 1].distance_to(end) <= TOP_SETTLE:
+		last -= 1
+	_top_end = last / PATH_FPS
 
 
 func _hips_at(t: float) -> Vector3:
@@ -540,6 +653,16 @@ static func _along_up(normal: Vector3, up: Vector3) -> Vector3:
 func _radius() -> float:
 	var capsule := player.collision_shape.shape as CapsuleShape3D
 	return capsule.radius if capsule != null else 0.45
+
+
+## Lo más alto que el cuerpo sube solo, sin trepar.
+func _step_height() -> float:
+	return player.step_up.max_step_height if player.step_up != null else 0.55
+
+
+## Lo que hay de [point] a la cara de la pared yendo por [f] (negativo si ya está detrás de ella).
+func _to_wall(point: Vector3, f: Vector3) -> float:
+	return (point - _contact).dot(_normal) / -_normal.dot(f)
 
 
 ## Altura de la cabeza: lo alto de la cápsula.

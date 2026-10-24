@@ -1,24 +1,30 @@
 # Escalada y velocidades del jugador
 
-El jugador trepa por cualquier pared que no se pueda andar y la corona si arriba hay sitio para
-ponerse de pie. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
+El jugador trepa por cualquier pared que no se pueda andar (montaña, roca, árbol o construcción de
+bloques) y la corona si arriba hay sitio para ponerse de pie. Una pared más baja que la cabeza se sube
+sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
 `scripts/player/climb_controller.gd` (`ClimbController`, hijo del jugador como `PlayerCombat`).
 
 ## Controles
 
 | Acción | Tecla |
 | --- | --- |
-| Agarrarse | Empujar contra la pared (andando, 0,2 s; en el aire, al momento) |
+| Agarrarse o subirse encima | Empujar contra la pared (andando, 0,2 s; en el aire, al momento) |
 | Subir / bajar | W / S |
 | De lado | A / D (según la cámara) |
 | Soltarse | Espacio |
 
 - Se agarra a lo que sea más empinado que `floor_max_angle` (50°) y menos que un techo (110°): terreno,
   rocas, árboles, construcciones fijas. No a criaturas ni a barcos (cuerpos que se mueven).
-- Solo se agarra si la pared sigue a la altura de la cabeza; una más baja se salta.
-- Cuando la pared se acaba por encima de la cabeza, corona con `climb_top` si donde acaba el clip hay
-  suelo que se pueda andar y sitio para ponerse de pie; si no, no sube más.
-- De lado solo se mueve si la pared sigue por ese lado. En diagonal se mezclan las animaciones.
+- Si la pared sigue a la altura de la cabeza, se agarra. Si es más baja pero más alta que un escalón
+  (`StepUpSystem.max_step_height`, 0,55 m), se sube encima con `climb_top` empezado a esa altura, sin
+  colgarse; también saltando contra ella. Más baja que un escalón, la sube el cuerpo solo.
+- Cuando la pared se acaba por encima de la cabeza, corona con `climb_top`. Acaba de pie donde lleva
+  el clip (1,1 m por dentro del borde) o, si el suelo de arriba se acaba antes (un muro fino), en
+  medio de lo que hay. Si arriba no hay suelo que se pueda andar con sitio para ponerse de pie, no
+  sube más (sigue colgado).
+- De lado solo se mueve si la pared sigue por ese lado: en una esquina se para con el costado en
+  ella. En diagonal se mezclan las animaciones.
 - Al llegar abajo bajando, se pone de pie. Si la pared se tumba hasta poder andarla, también.
 - Se suelta si se queda sin pared, sin aguante, cae al agua o recibe un golpe que le hace tambalearse.
   Tras soltarse no se vuelve a agarrar hasta dejar de empujar o tocar suelo.
@@ -74,22 +80,53 @@ velocidad de los apoyos (`UP_CLIP_SPEED`, `DOWN_CLIP_SPEED`, `SIDE_CLIP_SPEED`) 
 por delante de los pies toca la pared (`CLIMB_WALL`, 0,36 m). `PlayerModel` se pone a esa distancia
 de la pared e inclinado con ella; la cápsula se queda a su radio.
 
-Coronar no se casa con el borde: el clip empieza con su cadera donde está la del personaje y acaba de
-pie en el suelo que haya donde termina (un rayo). La diferencia se funde en el primer cuarto de
-segundo, así que las manos no siempre dan en el borde. El cuerpo no choca mientras corona.
+Al coronar, el clip empieza con su cadera donde está la del personaje y acaba de pie arriba
+(`_find_stand`). Colgado, empieza por el principio; desde el suelo o en el aire, por el instante en
+que su cadera está tan por debajo del borde como la del personaje (`_ledge_start`): a una cornisa de
+1,3 m entra a los 0,8 s, ya tirando de los brazos.
+
+Dónde ponerse de pie se busca con rayos hacia abajo cada `TOP_STEP` (0,1 m), del borde hacia dentro
+hasta donde lleva el clip. Vale el primer tramo seguido de suelo que se pueda andar, con sitio para
+ponerse de pie y sin saltos de más de un escalón entre rayo y rayo. Si llega hasta el final del clip
+(una cima ancha), ahí; si se acaba antes (un muro fino), en su mitad. No cuenta:
+
+- el suelo del otro lado de un muro (está por debajo de un escalón sobre los pies, o lejos del borde);
+- lo que queda encima de un techo bajo o del muro sobre una ventana: bajo cada rayo vale el suelo más
+  bajo (`_ground_under`), que es al que se llega desde el borde, y ahí no hay sitio para ponerse de
+  pie.
+
+Lo que el borde no casa con el clip (más cerca en un muro fino, más alto o más bajo) lo corre el marco
+de PlayerModel a la par que avanza la cadera (`_frame_at`): lo de frente mientras pasa por encima del
+borde (colgada no avanza, así que las manos no resbalan) y lo de alto mientras sube. El cuerpo, y
+con él la cámara, sigue a esa cadera y no choca mientras corona. Acaba cuando la cadera del clip se
+queda de pie (`TOP_SETTLE`, a los 3,2 s de los 4 que dura) y lo que queda se funde a la locomoción.
 
 Al agarrarse o pasar a coronar, lo que se ve se funde desde la pose anterior en 0,25 s; al soltarse,
 vuelve a la locomoción en 0,3 s.
 
 ## Ajustes
 
-De la animación: `UP_CLIP_SPEED`, `DOWN_CLIP_SPEED`, `SIDE_CLIP_SPEED`, `CLIMB_WALL`. De juego:
-`CLIMB_DRAIN`, `HANG_DRAIN`, `GRAB_DELAY`, `MAX_WALL_ANGLE`, `STICK_SPEED`, `REGRAB_COOLDOWN`. La
-altura de la cabeza y el alcance de lado salen de la cápsula.
+De la animación: `UP_CLIP_SPEED`, `DOWN_CLIP_SPEED`, `SIDE_CLIP_SPEED`, `CLIMB_WALL`, `TOP_SETTLE`.
+De juego: `CLIMB_DRAIN`, `HANG_DRAIN`, `GRAB_DELAY`, `MAX_WALL_ANGLE`, `STICK_SPEED`,
+`REGRAB_COOLDOWN`. De coronar: `TOP_EDGE`, `TOP_STEP`. La altura de la cabeza y el alcance de lado
+salen de la cápsula; el escalón, de `StepUpSystem`.
 
 ## Límites
 
 - De lado se usa un desplazamiento colgado de un borde (shimmy): en pared lisa las manos van a la
   misma altura, algo despegadas de presas que no existen.
-- No se trepa desde el agua ni por barcos en movimiento.
-- Coronar no se casa con el borde (manos que no dan en él, o un pequeño salto al empezar).
+- No se trepa desde el agua ni por barcos en movimiento (ni construcciones dinámicas).
+- De lado no se doblan esquinas: se para en ellas y hay que soltarse.
+- Coronar no busca el borde con las manos: en un muro fino o en una cornisa baja las manos se apoyan
+  donde dice el clip, algo más allá o más acá del borde.
+
+## Comprobaciones
+
+```sh
+godot --headless --path . res://tests/player/test_climb.tscn
+```
+
+Contra cajas estáticas como las de una construcción: corona un muro fino y acaba encima; en una cima
+ancha, donde lleva el clip; se sube a una cornisa de 1,3 m con el clip empezado a su altura y a un
+muro bajo y fino sin pasar al otro lado; no trepa un escalón ni una cornisa con un techo encima; y el
+marco del clip sale de la cadera del personaje y acaba donde se pone de pie.
