@@ -366,15 +366,20 @@ al inventario y lo que no cabe, al suelo.
 | Escudo de madera | 3 maderas y 1 rama | Banco de trabajo |
 | Escudo de piel | 4 ramas, 2 pieles y 1 tendón | Banco de trabajo |
 | Escudo de placas de hueso | 3 maderas, 6 huesos, 2 tendones y 1 piel | Banco de trabajo |
-| Ropa de pieles | capucha 2, jubón 4, manoplas 1, calzas 3 y botas 2 pieles | Banco de trabajo |
-| Pieles con pelo | manto: 5 pieles, 4 fibras vegetales y 1 hueso; faldellín: 2 pieles, 3 fibras y 1 hueso; manoplas: 2 pieles y 1 tendón; mocasines: 3 pieles y 1 tendón | Banco de trabajo |
-| Ropa de cuero | túnica: 6 pieles y 2 tendones; calzas: 5 y 2; manoplas: 2 y 1; botas: 4 y 2 | Banco de trabajo |
+| Pieles con pelo | manto: 5 pieles, 4 fibras vegetales y 1 hueso; faldellín: 2 pieles, 3 fibras y 1 hueso; manoplas: 2 pieles y 1 tendón; mocasines: 3 pieles y 1 tendón. De jabalí, además 3, 3, 2 y 2 colmillos; de ciervo, 4, 2, 2 y 2 huesos; de zorro, 2, 2, 1 y 1 marfiles | Banco de trabajo |
+| Pieles de invierno | zamarra: 9 pieles, 3 tendones y 1 hueso; calzones: 5 pieles y 2 tendones; manoplas: 3 pieles y 1 tendón; botas: 5 pieles y 2 tendones. De bisonte, además 3, 2, 1 y 1 pieles; laminadas, 5, 2, 1 y 2 astas; de zorro ártico, 2 marfiles la zamarra y 1 las manoplas y las botas | Banco de trabajo |
 | Emplasto de milenrama | 3 milenramas y 1 fibra vegetal | A mano |
 | Tablilla | 2 ramas y 2 fibras vegetales | A mano |
 | Bebedizo de milenrama | 4 milenramas y 2 tragos de agua de los odres | Hoguera encendida |
 
 El hacha de piedra se fabrica a mano para poder talar árboles y conseguir la
 madera del primer banco de trabajo.
+
+De ropa solo se fabrican las pieles con pelo (sus dos conjuntos y sus
+variantes: [character_creation.md](character_creation.md#prendas-de-pieles-con-pelo)).
+La ropa de pieles (`firstage_skin_*`), la de cuero de Meshy (`hide_*`) y la de
+cuero curtido (`leather_*`) siguen en el juego, pero sin receta: solo con
+`give`.
 
 Una receta nueva es un `.tres` más en su carpeta, con el script
 `scripts/items/recipe_data.gd`. Una estación nueva necesita:
