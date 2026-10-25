@@ -97,6 +97,7 @@ func _run() -> void:
 			break
 	check(loaded, "terreno de las orillas cargado a LOD 0")
 	if loaded:
+		await _check_terrain_clearance()
 		var item := ItemCatalog.get_item(&"fishing_rod")
 		player.inventory.add_item(item, 1)
 		player._equip_from_hotbar(null, item)
@@ -119,6 +120,35 @@ func _run() -> void:
 	await get_tree().process_frame
 	print("SHORE FISH: %d checks, %d failures" % [checks, failures])
 	get_tree().quit(1 if failures else 0)
+
+
+func _check_terrain_clearance() -> void:
+	voxels.mode = VoxelTool.MODE_REMOVE
+	voxels.do_box(Vector3i(-38, 990, -38), Vector3i(38, 1008, 38))
+	await get_tree().create_timer(0.3).timeout
+	var habitat := FishHabitat.new()
+	habitat.setup(terrain, host.water_sphere, host.world_map)
+	var general := WaterFaunaHabitat.new()
+	general.setup(terrain, host.water_sphere, host.world_map)
+	var point := Vector3(0, 999, 0)
+	check(habitat.terrain_is_clear(point, AmbientFish.CLEARANCE) and general.terrain_is_clear(point, 0.35),
+		"el agua libre admite el volumen del pez")
+	voxels.mode = VoxelTool.MODE_ADD
+	voxels.do_box(Vector3i(-1, 995, -12), Vector3i(1, 1005, 12))
+	check(not habitat.terrain_is_clear(point, AmbientFish.CLEARANCE) and not general.terrain_is_clear(point, 0.35),
+		"una pared editada invalida inmediatamente el agua antes libre")
+	voxels.mode = VoxelTool.MODE_REMOVE
+	voxels.do_box(Vector3i(-2, 994, -13), Vector3i(2, 1006, 13))
+	check(habitat.terrain_is_clear(point, AmbientFish.CLEARANCE) and general.terrain_is_clear(point, 0.35),
+		"quitar la pared vuelve a permitir el paso sin datos de terreno antiguos")
+	var shift := Vector3(4000, -2000, 3000)
+	terrain.position += shift
+	check(habitat.terrain_is_clear(point + shift, AmbientFish.CLEARANCE) and general.terrain_is_clear(point + shift, 0.35),
+		"el descarte de terreno sigue al planeta tras un rebase")
+	terrain.position -= shift
+	check(not habitat.terrain_is_clear(Vector3(400, 999, 0), AmbientFish.CLEARANCE)
+		and not general.terrain_is_clear(Vector3(400, 999, 0), 0.35),
+		"el descarte rápido no confunde terreno sin cargar con agua libre")
 
 
 func _map() -> WorldMapData:

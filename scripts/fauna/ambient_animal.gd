@@ -242,6 +242,10 @@ func _check_moving_ships(delta: float) -> bool:
 		if not is_instance_valid(node) or not node is DynamicGridBody:
 			continue
 		var body := node as DynamicGridBody
+		# El movimiento propio ya lo barre move_and_slide. Esta pasada extra sólo
+		# necesita cascos que se mueven hacia la criatura, no todos los restos varados.
+		if body.linear_velocity.is_zero_approx() and body.angular_velocity.is_zero_approx():
+			continue
 		var hull_velocity := _ship_velocity_at(body, global_position)
 		var relative_motion := (velocity - hull_velocity) * delta
 		if not body.contains_point(global_position, impact_radius + relative_motion.length()):

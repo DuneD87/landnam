@@ -130,6 +130,9 @@ var _agg_half := PackedVector3Array()
 var _agg_vol := PackedFloat32Array()
 var _agg_buoyant := PackedByteArray()
 var _aggregate_box: Dictionary = {}
+## Muchos animales consultan el mismo casco en un paso; sólo invertir al cambiar su pose.
+var _hull_query_transform := Transform3D.IDENTITY
+var _hull_query_inverse := Transform3D.IDENTITY
 var _drag_length_sq: float = 1.0
 ## Longitud de onda (m) por debajo de la cual el oleaje no cuenta para la flotación. Un casco real
 ## integra la presión en toda su eslora y la mar más corta que él se le anula a lo largo; las cuatro
@@ -965,9 +968,14 @@ func _physics_step(delta: float) -> void:
 	_handle_input(delta)
 	_process_interior_analysis(delta)
 	_process_split_analysis(delta)
+	last_displaced_mass = 0.0
+	last_water_flow = Vector3.ZERO
+	last_wave_samples = 0
 
 	var planet_pos: Vector3 = planet_node.global_pos
 	var dir: Vector3 = (planet_pos - global_position).normalized()
+	if dir.is_zero_approx():
+		return
 	var up: Vector3 = -dir
 	var gravity: float = planet_node.gravity_strength
 	var forward := global_basis.z.slide(up).normalized()
@@ -977,8 +985,6 @@ func _physics_step(delta: float) -> void:
 		var air: Vector3 = planet_node.get_wind_velocity(global_position) if planet_node.has_method("get_wind_velocity") else Vector3.ZERO
 		sail_force = sailing.step(delta, air, linear_velocity, forward, up)
 	sailing.rowing = false
-	last_displaced_mass = 0.0
-	last_water_flow = Vector3.ZERO
 
 	apply_central_force(dir * gravity * mass)
 
@@ -991,9 +997,17 @@ func _physics_step(delta: float) -> void:
 	if _box_vol.is_empty():
 		return
 
+	var base_water_radius: float = planet_node.planet.radius - planet_node.planet.water_radius
+	var xf := global_transform
+	if _above_wave_reach(xf, planet_pos, base_water_radius + _water_sampler.max_wave_height()):
+		# La gravedad y los contactos siguen activos. También se vacía el agua embarcada
+		# y caduca la estela al sacar el casco del mar, sin resolver ninguna ola.
+		_update_flooding(up, planet_pos, base_water_radius, gravity)
+		_update_wake(0.0, up, planet_pos, base_water_radius, Vector3.ZERO)
+		return
+
 	var mat: ShaderMaterial = planet_node.water_sphere.mesh_manager.default_material as ShaderMaterial
 	var water_time: float = WaterHeightSampler.get_water_time(mat)
-	var base_water_radius: float = planet_node.planet.radius - planet_node.planet.water_radius
 
 	var pos_arr := _box_pos
 	var half_arr := _box_half
@@ -1005,8 +1019,6 @@ func _physics_step(delta: float) -> void:
 		half_arr = _agg_half
 		vol_arr = _agg_vol
 		buoyant_arr = _agg_buoyant
-
-	var xf := global_transform
 
 	# La superficie bajo el casco es el plano que ajusta cuatro sondas, una por cuadrante. Muestrear
 	# cada caja en su centro dejaba una caja fusionada larga sobre agua horizontal, y entonces la ola no
@@ -1126,6 +1138,23 @@ func _physics_step(delta: float) -> void:
 
 	_update_flooding(up, planet_pos, base_water_radius, gravity)
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius, water_vel)
+
+
+## Cota inferior del radio de TODO el casco: su proyección sobre la radial del centro
+## de la caja nunca supera la distancia real al planeta. Tiene en cuenta posición local
+## de los bloques, escora y escala; mirar solo el origen descartaría barcos grandes.
+## La visibilidad no interviene: un casco en el agua sigue flotando fuera de cámara.
+func _above_wave_reach(xf: Transform3D, planet_pos: Vector3, max_water_radius: float) -> bool:
+	var center: Vector3 = xf * (_aggregate_box["pos"] as Vector3) - planet_pos
+	var radius := center.length()
+	if radius <= max_water_radius:
+		return false
+	var radial := center / radius
+	var half: Vector3 = _aggregate_box["half"]
+	var extent := absf(xf.basis.x.dot(radial)) * half.x \
+		+ absf(xf.basis.y.dot(radial)) * half.y \
+		+ absf(xf.basis.z.dot(radial)) * half.z
+	return radius - extent > max_water_radius
 
 
 ## Rumbo controlado y amortiguado aparte del balance: conserva respuesta al maniobrar
@@ -1487,7 +1516,11 @@ func contains_point(world_point: Vector3, margin: float = 0.0) -> bool:
 		_recalculate_buoyancy_boxes()
 	if not _aggregate_box.has("pos"):
 		return false
-	var local := global_transform.affine_inverse() * world_point
+	var xf := global_transform
+	if xf != _hull_query_transform:
+		_hull_query_transform = xf
+		_hull_query_inverse = xf.affine_inverse()
+	var local := _hull_query_inverse * world_point
 	var d := (local - (_aggregate_box["pos"] as Vector3)).abs()
 	var half: Vector3 = _aggregate_box["half"]
 	return d.x <= half.x + margin and d.y <= half.y + margin and d.z <= half.z + margin

@@ -80,6 +80,16 @@ func terrain_is_clear(point: Vector3, clearance: float) -> bool:
 	var reach := clearance + 1.5
 	if not tool.is_area_editable(AABB(local - Vector3.ONE * reach, Vector3.ONE * reach * 2.0)):
 		return false
+	# En agua libre basta una copia nativa del SDF. Si todos los vóxeles son aire,
+	# sus interpolaciones también lo son: evita 27 consultas al terreno por pez.
+	# Cerca del fondo o de una pared se conserva el muestreo preciso del cilindro.
+	var low := Vector3i((local - Vector3.ONE * reach).floor())
+	var high := Vector3i((local + Vector3.ONE * reach).ceil())
+	var size := high - low + Vector3i.ONE
+	_clearance_buffer.create(size.x, size.y, size.z)
+	tool.copy(Vector3(low), _clearance_buffer, 1 << VoxelBuffer.CHANNEL_SDF, false)
+	if _buffer_is_clear(_clearance_buffer):
+		return true
 	# Un pez alargado no necesita un metro de agua por encima y por debajo de su cuerpo.
 	# Sondear el cilindro que lo envuelve permite nadar en fondos someros sin aceptar sólidos.
 	for level: float in [-HALF_HEIGHT, 0.0, HALF_HEIGHT]:
@@ -111,11 +121,12 @@ func is_spawn_valid(point: Vector3, clearance: float) -> bool:
 func swim_target(point: Vector3, rng: RandomNumberGenerator) -> Vector3:
 	var up := (point - center()).normalized()
 	var right := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
-	var depth := clampf(surface_radius(point) - point.distance_to(center()), min_depth, max_depth)
+	var surface := surface_radius(point)
+	var depth := clampf(surface - point.distance_to(center()), min_depth, max_depth)
 	for attempt in 5:
 		var tangent := right.rotated(up, rng.randf_range(0.0, TAU))
 		var direction := (point - center() + tangent * rng.randf_range(2.0, 6.0)).normalized()
-		var target := center() + direction * (surface_radius(point) - maxf(min_depth, depth + rng.randf_range(-0.25, 0.25)))
+		var target := center() + direction * (surface - maxf(min_depth, depth + rng.randf_range(-0.25, 0.25)))
 		if is_swimmable(target, AmbientFish.CLEARANCE):
 			return target
 	return point

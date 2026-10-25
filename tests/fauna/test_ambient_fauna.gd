@@ -376,6 +376,21 @@ func _test_water_and_collisions() -> void:
 	_world.add_child(moving_wall)
 	moving_wall._aggregate_box = {"pos": Vector3.ZERO, "half": moving_box.size * 0.5}
 	moving_wall._recalc_boxes = false
+	# Un casco quieto conserva la colisión normal aunque no necesite el barrido relativo extra.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	fish.activate(Vector3(0, 990, 0), water, rng)
+	fish.set_physics_process(false)
+	var stationary_hit := fish.move_and_collide(Vector3(-10, 0, 0))
+	_check(stationary_hit != null and stationary_hit.get_collider() == moving_wall
+		and fish.global_position.x > moving_wall.global_position.x,
+		"A stationary dynamic hull still blocks the fish's own movement")
+	var old_origin := moving_wall.global_position
+	_check(moving_wall.contains_point(old_origin), "Hull query includes its current centre")
+	moving_wall.global_position += Vector3(100, 0, 0)
+	_check(not moving_wall.contains_point(old_origin) and moving_wall.contains_point(moving_wall.global_position),
+		"Moving or rebasing the hull immediately updates repeated proximity queries")
+	moving_wall.global_position = old_origin
 	fish.activate(Vector3(0, 990, 0), water, rng)
 	fish.set_physics_process(false)
 	moving_wall.linear_velocity = Vector3(20, 0, 0)

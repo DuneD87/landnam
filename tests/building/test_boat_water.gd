@@ -16,8 +16,14 @@ class TestPlanet extends Node3D:
 		return Vector3.ZERO
 
 class FlatWater extends WaterHeightSampler:
+	var samples := 0
+	var max_height := 0.0
+	var flow := Vector3.ZERO
+	func max_wave_height() -> float:
+		return max_height
 	func get_height_at(_point: Vector3, _time: float, _center: Vector3, _filter: float = 0.0) -> float:
-		last_flow = Vector3.ZERO
+		samples += 1
+		last_flow = flow
 		return 0.0
 
 var _planet: TestPlanet
@@ -49,6 +55,7 @@ func _run() -> void:
 	material.shader = shader
 	_planet.water_sphere.mesh_manager.default_material = material
 	await _check_materials()
+	await _check_wave_reach()
 	await _check_steering()
 	GridManager.clear_all()
 	_planet.water_sphere.mesh_manager.free()
@@ -68,7 +75,11 @@ func _body(origin: Vector3, blocks: Array) -> DynamicPlanetGrid:
 		grid.place_block(cell, BlockDatabase.get_block(block_id).for_material(spec[1]), Basis.IDENTITY,
 			Transform3D(Basis.IDENTITY, grid.grid_to_world(cell)), spec[1])
 	grid.end_bulk_edit()
+	# Se inyecta FlatWater: no inicializar el sampler real con el material mínimo del test.
+	var has_water := _planet.planet.has_water
+	_planet.planet.has_water = false
 	var dynamic: DynamicPlanetGrid = GridManager.convert_to_dynamic(grid.grid_id)[0]
+	_planet.planet.has_water = has_water
 	var body := dynamic._body
 	body.set_physics_process(false)
 	body._interior_dirty = false
@@ -139,6 +150,77 @@ func _advance(body: DynamicGridBody, frames: int, delta: float) -> void:
 	for frame in frames:
 		body._physics_step(delta)
 		await get_tree().physics_frame
+
+
+func _check_wave_reach() -> void:
+	var grid := _body(Vector3(0, 1030, 0), [[Vector3i.ZERO, "wood"]])
+	var body := grid._body
+	var sampler := body._water_sampler as FlatWater
+	sampler.max_height = 2.0
+	_planet.planet.has_water = true
+	await _advance(body, 6, 1.0 / 60.0)
+	check(sampler.samples == 0 and body.last_wave_samples == 0,
+		"un bloque seco por encima de las olas no consulta el oleaje")
+	check(body.linear_velocity.y < -0.05, "descartar el agua conserva la gravedad del bloque seco")
+	body.freeze = true
+
+	sampler.max_height = 35.0
+	body._physics_step(1.0 / 60.0)
+	check(sampler.samples == 4, "una subida del oleaje reactiva las sondas sin mover el cuerpo")
+	sampler.max_height = 2.0
+	sampler.samples = 0
+	body.global_position = Vector3(0, 999, 0)
+	sampler.flow = Vector3.RIGHT * 2.0
+	var camera := Camera3D.new()
+	add_child(camera)
+	camera.global_position = Vector3(0, 1000, -10)
+	camera.current = true
+	body._physics_step(1.0 / 60.0)
+	check(not camera.is_position_in_frustum(body.get_hull_center_world())
+		and sampler.samples == 4 and body.last_displaced_mass > 0.0,
+		"al entrar en el agua sigue flotando aunque quede fuera de cámara")
+	check(body.last_water_flow.is_equal_approx(sampler.flow), "el casco mojado conserva la corriente del agua")
+	camera.queue_free()
+
+	body.global_position = Vector3(0, 1030, 0)
+	body._flood_volume = 1.0
+	body._flood_dirty = true
+	body._wake_active = true
+	body._wake_points.clear()
+	body._wake_points.append({"birth": Time.get_ticks_msec() / 1000.0 - body.WAKE_LIFETIME - 1.0})
+	sampler.samples = 0
+	body._physics_step(1.0 / 60.0)
+	check(sampler.samples == 0 and body.last_displaced_mass == 0.0
+		and body.last_water_flow == Vector3.ZERO and body.last_wave_samples == 0,
+		"al salir del agua deja de muestrear y borra las lecturas de inmersión anteriores")
+	check(body._flood_volume == 0.0 and not body._wake_active and body._wake_points.is_empty(),
+		"el descarte conserva el vaciado y la caducidad de la estela")
+	var shift := Vector3(18000, -9000, 21000)
+	check(body._above_wave_reach(body.global_transform.translated(shift), shift, 1002.0),
+		"el descarte seco respeta el rebase del planeta")
+	body.global_position = Vector3.ZERO
+	body._physics_step(1.0 / 60.0)
+	check(body.last_wave_samples == 0, "el centro del planeta no genera sondas ni una normal inválida")
+
+	# El origen puede estar seco mientras una pieza del casco llega al agua.
+	var low := _body(Vector3(0, 1030, 0), [[Vector3i(0, -31, 0), "wood"]])
+	low._body.freeze = true
+	low._body._physics_step(1.0 / 60.0)
+	check(low._body.last_wave_samples == 4 and low._body.last_displaced_mass > 0.0,
+		"se comprueba el volumen completo, incluso con bloques lejos del origen del cuerpo")
+	check(not low._body._above_wave_reach(low._body.global_transform.translated(shift), shift, 1000.0),
+		"el rebase tampoco descarta un casco que toca el agua")
+	var tall := _body(Vector3(0, 1030, 0), [[Vector3i(0, 30, 0), "wood"]])
+	tall._body.freeze = true
+	tall._body._physics_step(1.0 / 60.0)
+	check(tall._body.last_wave_samples == 0, "una pieza alta permanece fuera del alcance del agua")
+	tall._body.global_basis = Basis(Vector3.FORWARD, PI)
+	tall._body._physics_step(1.0 / 60.0)
+	check(tall._body.last_wave_samples == 4 and tall._body.last_displaced_mass > 0.0,
+		"al volcar el casco se reactivan las sondas para su extremo sumergido")
+	_planet.planet.has_water = false
+	GridManager.clear_all()
+	await get_tree().process_frame
 
 
 func _check_steering() -> void:

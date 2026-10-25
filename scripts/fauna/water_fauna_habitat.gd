@@ -106,19 +106,12 @@ func terrain_is_clear(point: Vector3, clearance: float) -> bool:
 	# Cover the surrounding voxel lattice, not just the centre of the fish.
 	var low := Vector3i((local - Vector3.ONE * clearance).floor())
 	var high := Vector3i((local + Vector3.ONE * clearance).ceil())
-	# Small fish need only a few samples. Large bodies used to acquire the terrain
-	# data lock once per voxel (about 100,000 times for a whale's spawn envelope).
-	if clearance > 2.0:
-		var size := high - low + Vector3i.ONE
-		_clearance_buffer.create(size.x, size.y, size.z)
-		_voxels.copy(Vector3(low), _clearance_buffer, 1 << VoxelBuffer.CHANNEL_SDF, false)
-		return _buffer_is_clear(_clearance_buffer)
-	for x in range(low.x, high.x + 1):
-		for y in range(low.y, high.y + 1):
-			for z in range(low.z, high.z + 1):
-				if _voxels.get_voxel_f(Vector3i(x, y, z)) <= 0.0:
-					return false
-	return true
+	# También las aves posadas consultan estas cajas cada paso. Copiar la región
+	# una sola vez evita resolver el terreno por separado para cada vóxel.
+	var size := high - low + Vector3i.ONE
+	_clearance_buffer.create(size.x, size.y, size.z)
+	_voxels.copy(Vector3(low), _clearance_buffer, 1 << VoxelBuffer.CHANNEL_SDF, false)
+	return _buffer_is_clear(_clearance_buffer)
 
 
 func terrain_cylinder_is_clear(point: Vector3, up: Vector3, radius: float, half_height: float) -> bool:
