@@ -46,7 +46,7 @@ Van en `ItemData.traits` y se buscan por su tipo con
 | `EdibleTrait` | Lo que da a cada necesidad, la vida que cura y la probabilidad de intoxicar | carne cruda y asada |
 | `FuelTrait` | Segundos de fuego por unidad en una hoguera | rama (60 s), madera (150 s) |
 | `CookableTrait` | En qué se convierte asado y en cuánto | carne cruda → asada (40 s) |
-| `WaterContainerTrait` | Tragos que caben | odre (5) |
+| `WaterContainerTrait` | Tragos que caben | odre (20) |
 | `InsulationTrait` | Grados que abriga puesto | ropa de pieles (9 °C el juego entero), de cuero (6 °C) |
 | `SkinningTrait` | En la mano, deja despellejar | seax, cuchillo de sílex |
 | `GroundPlaceableTrait` | Se planta en el suelo: escena, vista previa, pendiente, separación y cuánto se inclina y se hunde | hoguera, banco de trabajo |
@@ -70,7 +70,7 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Asta, colmillo de jabalí, marfil, cuerno | `antler`, `boar_tusk`, `ivory`, `horn` | Materiales de caza: los ciervos, el jabalí, el mamut y el elefante, los de cuernos |
 | Pluma | `feather` | Material de caza: las aves |
 | Fibra vegetal | `plant_fiber` | Se arranca de los arbustos |
-| Odre | `waterskin` | 5 tragos de agua |
+| Odre | `waterskin` | 20 tragos de agua |
 | Milenrama | `yarrow` | Hierba que se arranca en los prados. Masticada: vida +3 y corta el 30 % del sangrado |
 | Emplasto de milenrama | `yarrow_poultice` | Corta todo el sangrado (un muñón, a medias), cierra el 35 % de cada parte herida, vida +5 y 12 s de recuperación |
 | Bebedizo de milenrama | `yarrow_draught` | 40 s de recuperación (+60), cierra el 15 % de las partes, quita la intoxicación y la sed (+15 %) |
@@ -311,11 +311,12 @@ y que seguramente tomaba para curarse.
     El terreno cargado comprueba que hay agua real; el mapa aporta su tipo
     también cuando la orilla cae en una celda de tierra. Los ríos se miden
     contra sus segmentos, para que la imagen de distancias no pierda riberas.
-  - **Con sed:** bebes un trago, que quita un 20 % de sed.
-  - **Con la sed saciada:** llenas todos los odres.
+  - **Con sed:** bebes un trago, que quita un 20 % de sed, y llenas todos los odres en la misma interacción.
+  - **Con la sed saciada:** también llenas todos los odres.
   - **El mar:** no quita la sed, y el juego lo avisa.
 - **Los odres:** el agua es del jugador (`SurvivalNeeds.water`), repartida entre
-  todos los que lleva. Si tiras un odre, cabe menos.
+  todos los que lleva. Cada odre admite 20 tragos: dos llevan 40, tres llevan 60.
+  Si tiras un odre, cabe menos.
 
 ### Fabricar
 

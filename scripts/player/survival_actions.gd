@@ -4,8 +4,8 @@ extends Node
 ## Lo que hace el jugador para cubrir sus necesidades (SurvivalNeeds):
 ## - Con algo de comer, un remedio (RemedyTrait: emplasto, bebedizo, tablilla) o un odre seleccionado
 ##   en la barra, el clic lo come, se lo pone o bebe un trago; en el inventario, el doble clic.
-## - Junto al agua dulce (un río, un lago o una charca), E bebe un trago; con la sed saciada,
-##   llena los odres. El agua del mar no quita la sed.
+## - Junto al agua dulce (un río, un lago o una charca), E bebe un trago si hay sed y llena todos
+##   los odres. El agua del mar no quita la sed.
 ## - E sobre un animal muerto lo despelleja si se lleva en la mano algo que despelleje (el seax:
 ##   SkinningTrait), lo que lleva un rato (Butchering), y abre lo que da (HuntingLoot) como un botín.
 ##   También los pequeños (FaunaCorpse: conejos, zorros, aves; a las aves, se las despluma).
@@ -272,7 +272,7 @@ func open_nearby_station() -> bool:
 	return true
 
 
-## Bebe (o llena los odres) si hay agua al alcance. true si había agua, dulce o salada.
+## Bebe y llena todos los odres si hay agua dulce al alcance. true si había agua, dulce o salada.
 func drink_here() -> bool:
 	var kind := water_here()
 	if kind == &"":
@@ -281,13 +281,19 @@ func drink_here() -> bool:
 		notify(tr("SURV_SEA_WATER"))
 		return true
 	var needs := _player.needs
-	if needs.thirst < 0.98:
+	var drank := needs.thirst < 0.98
+	if drank:
 		needs.drink()
+	var capacity := needs.water_capacity()
+	if needs.water < capacity:
+		needs.water = capacity
+		var message := tr("SURV_FILL_SKINS") % needs.water
+		if drank:
+			message = tr("SURV_DRINK_FRESH") + " · " + message
+		notify(message)
+	elif drank:
 		notify(tr("SURV_DRINK_FRESH"))
-	elif needs.water < needs.water_capacity():
-		needs.water = needs.water_capacity()
-		notify(tr("SURV_FILL_SKINS") % needs.water)
-	elif needs.water_capacity() > 0:
+	elif capacity > 0:
 		notify(tr("SURV_NOT_THIRSTY_FULL"))
 	else:
 		notify(tr("SURV_NOT_THIRSTY"))

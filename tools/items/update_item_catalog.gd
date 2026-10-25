@@ -167,10 +167,10 @@ func _create_new() -> void:
 		"scene_path": "res://scenes/items/survival/plant_fiber.tscn", "max_stack": 50,
 	})
 	var container := WaterContainerTrait.new()
-	container.capacity = 5
+	container.capacity = 20
 	_create("Tools/waterskin", {
 		"id": &"waterskin", "display_name": "Odre", "category": ItemData.Category.CONSUMABLE, "group": &"container",
-		"description": "Bolsa de piel cosida para llevar agua. Se llena junto a un río o un lago (E con la sed saciada) y se bebe desde la barra.",
+		"description": "Bolsa de piel cosida para llevar 20 tragos de agua. E junto a un río o un lago llena todos los odres que llevas. Se bebe desde la barra.",
 		"icon": load("res://textures/icons/items/survival/waterskin.png"),
 		"scene_path": "res://scenes/items/survival/waterskin.tscn", "stackable": false, "max_stack": 1,
 		"traits": [container],

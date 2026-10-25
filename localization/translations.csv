@@ -903,7 +903,7 @@ ITEM_TORCH_01_DESC,"Lights up the night and caves. Its hotbar key puts it in you
 ITEM_TORCH_PLACEABLE_01,Wall torch,Antorcha de pared,
 ITEM_TORCH_PLACEABLE_01_DESC,A torch to hang on the walls of what you build.,Una antorcha para colgar en los muros de lo que construyas.,
 ITEM_WATERSKIN,Waterskin,Odre,
-ITEM_WATERSKIN_DESC,A sewn hide bag for carrying water. Fill it by a river or a lake (E with your thirst quenched) and drink from it on the bar.,Bolsa de piel cosida para llevar agua. Se llena junto a un río o un lago (E con la sed saciada) y se bebe desde la barra.,
+ITEM_WATERSKIN_DESC,A sewn hide bag for carrying 20 sips of water. Press E by a river or a lake to fill all the waterskins you carry. Drink from it on the bar.,Bolsa de piel cosida para llevar 20 tragos de agua. E junto a un río o un lago llena todos los odres que llevas. Se bebe desde la barra.,
 ITEM_ARROW,Arrow,Flecha,
 ITEM_ARROW_DESC,A birch shaft with a flint head. Ammunition for the bow.,Astil de abedul con punta de sílex. Munición del arco.,
 ITEM_BATTLE_AXE,Battle axe,Hacha de guerra,
