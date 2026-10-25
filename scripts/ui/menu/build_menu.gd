@@ -83,7 +83,7 @@ func open() -> void:
 	if not building_system:
 		return
 	var mat := building_system.get_current_material()
-	_material_id = NAVAL_CATEGORY if building_system.is_naval_mode() else (mat.material_id if mat else "")
+	_material_id = NAVAL_CATEGORY if building_system.is_naval_mode() or building_system.is_sail_mode() else (mat.material_id if mat else "")
 	if _material_id == NAVAL_CATEGORY:
 		_naval_panel.configure(building_system, inventory)
 	_apply_scale()

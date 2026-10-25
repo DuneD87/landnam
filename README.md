@@ -19,6 +19,7 @@ Abre `project.godot` y ejecuta la escena principal configurada en él.
 | Objetos | `ItemData` y sus rasgos describen los objetos; `data/items/` y `data/recipes/` contienen sus recursos. `ItemCatalog.get_item(id)` los busca por id. |
 | Guardado y ajustes | Los autoloads `GameManager` y `Settings` mantienen partidas y preferencias. |
 | Tiempo y descanso | `WorldTime` comparte la aceleración del reloj; `RestController` permite dormir en un lecho y recuperar descanso durante la noche. |
+| Navegación | `BoatSailing` calcula el empuje de los aparejos con el viento del planeta; `PlayerSailing` lleva controles, remo e indicador. Ver `docs/sailing.md`. |
 | Utilidades | En `scripts/core/`: `PhysicsLayers` y `RenderLayers` (todas las capas del proyecto), `Raycast` (rayos y sondeo de suelo), `ProcMesh` (mallas por código) y `AnimGraph` (montaje del AnimationTree). `HumanRig` nombra los huesos del esqueleto humano y `BurstParticles` crea los emisores de una ráfaga. |
 
 La configuración JSON conserva su formato. Los datos compartidos de terreno se consultan como
@@ -46,6 +47,10 @@ godot --headless --path . res://tests/planet/test_planet_definition.tscn
 godot --headless --path . res://tests/ui/test_drop_items.tscn
 godot --headless --path . res://tests/ui/test_build_hammer.tscn
 godot --headless --path . res://tests/ui/test_blueprints.tscn
+godot --headless --path . res://tests/building/test_sailing.tscn
+godot --headless --path . res://tests/building/test_building_mass.tscn
+godot --headless --path . res://tests/building/test_boat_water.tscn
+godot --headless --path . res://tests/building/test_boat_body_links.tscn
 godot --headless --path . res://tests/combat/test_combat_core.tscn
 godot --headless --path . res://tests/combat/test_targeting.tscn
 godot --headless --path . res://tests/survival/test_cold_exposure.tscn

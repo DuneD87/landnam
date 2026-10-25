@@ -639,6 +639,7 @@ func _apply_state(st: WeatherState) -> void:
 
 	if _planet:
 		_planet.weather_wind_multiplier = st.wind_multiplier
+		_planet.weather_wind_speed_multiplier = st.wind_speed_multiplier
 		# Nieve reciente: la nevada, y en tierra fría también la precipitación del temporal, que
 		# allí cae como nieve. Baja la cota de nieve del suelo, los árboles y las rocas.
 		_planet.climate.set_fresh_snow(maxf(st.snow_coverage, _cold_precipitation() * clampf(st.rain_rate, 0.0, 1.0)))
@@ -816,6 +817,9 @@ func _merge_event_dict(events: Dictionary) -> void:
 		if not (events[ev_name] is Dictionary):
 			continue
 		var s: WeatherState = _events.get(ev_name, WeatherState.new())
+		# Los presets anteriores definían un solo viento para todos los consumidores.
+		if events[ev_name].has("wind_multiplier") and not events[ev_name].has("wind_speed_multiplier"):
+			s.wind_speed_multiplier = -1.0
 		s.apply_overrides(events[ev_name])
 		_events[ev_name] = s
 
@@ -902,7 +906,7 @@ func _builtin_events() -> Dictionary:
 			"cloud_coverage": 0.25, "cloud_density": 0.35, "cloud_absorption": 0.12,
 			"cloud_shadow": 0.5, "cloud_min_height": 600.0, "cloud_max_height": 900.0,
 			"cloud_wind_speed": 0.025, "sun_energy": 1.0, "ambient_energy": 1.0,
-			"wind_multiplier": 0.6, "water_wave_multiplier": 0.4,
+			"wind_multiplier": 0.6, "wind_speed_multiplier": 1.6, "water_wave_multiplier": 0.4,
 			"water_speed_multiplier": 0.8, "water_foam_multiplier": 0.4,
 			"water_steepness": 0.25, "water_wave_length_mult": 1.0,
 		}),

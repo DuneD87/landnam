@@ -52,7 +52,7 @@ var _cells_by_grid: Array[Dictionary] = []
 var _grid_of := PackedInt32Array()
 var _keys: Array = []
 var _cells: Array[Vector3i] = []
-var _items: Array[StringName] = []
+var _costs: Array[Dictionary] = []
 var _amounts := PackedInt32Array()
 var _state := PackedByteArray()
 var _cursor := 0
@@ -120,7 +120,7 @@ func _build_entries() -> void:
 	var grid_of := PackedInt32Array()
 	var keys: Array = []
 	var cells: Array[Vector3i] = []
-	var items: Array[StringName] = []
+	var costs: Array[Dictionary] = []
 	var amounts := PackedInt32Array()
 	var order := PackedInt64Array()
 	var grids_data: Array = _data.get("grids", [])
@@ -147,32 +147,31 @@ func _build_entries() -> void:
 			grid_of.append(gi)
 			keys.append(key)
 			cells.append(cell)
-			items.append(item)
+			costs.append({item: amount} if item != &"" else {})
 			amounts.append(amount)
 		_cells_by_grid.append({})
 		var props: Array = grid_data.get("props", [])
 		for pi in props.size():
-			var id := StringName(str((props[pi] as Dictionary).get("item_id", "")))
-			var known := ItemCatalog.get_item(id) != null
+			var cost := BuildCost.prop_cost(props[pi])
 			order.append(_order_key(65535, gi, 0, 0, keys.size()))
 			grid_of.append(gi)
 			keys.append(pi)
 			cells.append(GridBase._array_to_vec3i((props[pi] as Dictionary).get("cell", [])))
-			items.append(id if known else &"")
-			amounts.append(1 if known else 0)
+			costs.append(cost)
+			amounts.append(BuildCost.total(cost))
 	if keys.size() < (1 << 20):
 		order.sort()
 	_grid_of = PackedInt32Array()
 	_keys = []
 	_cells = []
-	_items = []
+	_costs = []
 	_amounts = PackedInt32Array()
 	for key in order:
 		var i := int(key & ((1 << 20) - 1)) if keys.size() < (1 << 20) else _grid_of.size()
 		_grid_of.append(grid_of[i])
 		_keys.append(keys[i])
 		_cells.append(cells[i])
-		_items.append(items[i])
+		_costs.append(costs[i])
 		_amounts.append(amounts[i])
 		if keys[i] is String:
 			_cells_by_grid[grid_of[i]][cells[i]] = _keys.size() - 1
@@ -202,12 +201,12 @@ func _recount() -> void:
 			continue
 		var work := maxi(1, _amounts[i])
 		_effective_work += work
-		if _items[i] != &"":
-			BuildCost.add(_needed, _items[i], _amounts[i])
+		for id: StringName in _costs[i]:
+			BuildCost.add(_needed, id, _costs[i][id])
 		if _state[i] == State.DONE:
 			_done_work += work
-			if _items[i] != &"":
-				BuildCost.add(_used, _items[i], _amounts[i])
+			for id: StringName in _costs[i]:
+				BuildCost.add(_used, id, _costs[i][id])
 		else:
 			_left += 1
 			if _keys[i] is String:
@@ -359,7 +358,12 @@ func work(bodies: Array = []) -> Dictionary:
 
 
 func _can_pay(i: int) -> bool:
-	return BuildingSystem.free_build or _amounts[i] <= 0 or int(deposited.get(_items[i], 0)) >= _amounts[i]
+	if BuildingSystem.free_build:
+		return true
+	for id: StringName in _costs[i]:
+		if int(deposited.get(id, 0)) < int(_costs[i][id]):
+			return false
+	return true
 
 
 ## Pone la entrada [i] en [grid]. Si su celda ya está ocupada, o no se puede, se salta sin cobrar.
@@ -377,17 +381,18 @@ func _place(i: int, grid: GridBase, others: Array) -> bool:
 	if not placed:
 		_state[i] = State.SKIPPED
 		_effective_work -= work
-		if _items[i] != &"":
-			BuildCost.add(_needed, _items[i], -_amounts[i])
+		for id: StringName in _costs[i]:
+			BuildCost.add(_needed, id, -int(_costs[i][id]))
 		return false
 	_state[i] = State.DONE
 	_done_work += work
-	if _items[i] != &"":
-		BuildCost.add(_used, _items[i], _amounts[i])
+	for id: StringName in _costs[i]:
+		var amount: int = _costs[i][id]
+		BuildCost.add(_used, id, amount)
 		if not BuildingSystem.free_build:
-			BuildCost.add(deposited, _items[i], -_amounts[i])
-			if int(deposited.get(_items[i], 0)) <= 0:
-				deposited.erase(_items[i])
+			BuildCost.add(deposited, id, -amount)
+			if int(deposited.get(id, 0)) <= 0:
+				deposited.erase(id)
 	return true
 
 

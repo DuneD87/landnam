@@ -67,6 +67,8 @@ func restore_save_data(data: Dictionary) -> void:
 				_planet_grids[planet] = []
 			_planet_grids[planet].append(grid)
 
+	_repair_legacy_body_groups(dynamic_grids)
+
 	for bid in dynamic_grids:
 		var group: Array = dynamic_grids[bid]
 		var shared_body: DynamicGridBody = null
@@ -102,6 +104,92 @@ func restore_save_data(data: Dictionary) -> void:
 
 	BlueprintSite.restore_all(get_tree(), data.get("sites", []))
 	print("[GridManager] Restauradas %d grids" % _grids.size())
+
+
+## El conversor antiguo daba al propietario el id de su grid y a las demás el id de la
+## grid apuntada: un mismo barco se guardaba como varios cuerpos y se bloqueaba al cargar.
+## Solo se reparan partidas antiguas, con pose y planeta idénticos y celdas que se tocan;
+## los fragmentos separados y los cuerpos guardados con el formato corregido se conservan.
+static func _repair_legacy_body_groups(groups: Dictionary) -> void:
+	var poses := {}
+	for body_id: String in groups:
+		var entries: Array = groups[body_id]
+		if entries.is_empty():
+			continue
+		var first: Dictionary = entries[0]["data"]
+		var transform: Array = first.get("body_transform", [])
+		if transform.size() != 12 or entries.any(func(entry: Dictionary) -> bool:
+			return int(entry["data"].get("body_link_version", 0)) >= 1):
+			continue
+		var key := str(first.get("planet_path", "")) + "|" + JSON.stringify(transform)
+		if not poses.has(key):
+			poses[key] = []
+		poses[key].append(body_id)
+	var parents := {}
+	for body_id: String in groups:
+		parents[body_id] = body_id
+	for ids: Array in poses.values():
+		if ids.size() < 2:
+			continue
+		# Tablas por tamaño original: evita expandir bloques grandes en miles de subceldas.
+		var cells_by_size := {}
+		for body_id: String in ids:
+			for entry: Dictionary in groups[body_id]:
+				var data: Dictionary = entry["data"]
+				var size := float(data.get("cell_size", 1.0))
+				if size <= 0.0:
+					continue
+				if not cells_by_size.has(size):
+					cells_by_size[size] = {}
+				var table: Dictionary = cells_by_size[size]
+				for key: String in data.get("blocks", {}):
+					var parsed: Variant = GridBlueprint.parse_cell(key)
+					if parsed == null:
+						continue
+					if not table.has(parsed):
+						table[parsed] = []
+					if not table[parsed].has(body_id):
+						table[parsed].append(body_id)
+		for fine_size: float in cells_by_size:
+			var fine: Dictionary = cells_by_size[fine_size]
+			for coarse_size: float in cells_by_size:
+				var ratio := coarse_size / fine_size
+				if ratio < 1.0 or not is_equal_approx(ratio, roundf(ratio)):
+					continue
+				var coarse: Dictionary = cells_by_size[coarse_size]
+				for cell: Vector3i in fine:
+					for offset: Vector3i in [Vector3i.ZERO, Vector3i.LEFT, Vector3i.RIGHT,
+							Vector3i.UP, Vector3i.DOWN, Vector3i.FORWARD, Vector3i.BACK]:
+						var point := Vector3(cell + offset) / ratio
+						var target := Vector3i(floori(point.x), floori(point.y), floori(point.z))
+						for other: String in coarse.get(target, []):
+							for owner: String in fine[cell]:
+								var a := _body_group_root(parents, owner)
+								var b := _body_group_root(parents, other)
+								if a != b:
+									parents[b] = a
+	var repaired := {}
+	for body_id: String in groups:
+		var root := _body_group_root(parents, body_id)
+		if not repaired.has(root):
+			repaired[root] = []
+		for entry: Dictionary in groups[body_id]:
+			var normalized := entry.duplicate()
+			normalized["data"] = (entry["data"] as Dictionary).duplicate()
+			normalized["data"]["body_id"] = root
+			repaired[root].append(normalized)
+	if repaired.size() != groups.size():
+		print("[GridManager] Recuperada la unión de %d cuerpos de partidas anteriores." % (groups.size() - repaired.size()))
+	groups.clear()
+	groups.merge(repaired)
+
+
+static func _body_group_root(parents: Dictionary, id: String) -> String:
+	var root := id
+	while parents[root] != root:
+		root = parents[root]
+	return root
+
 
 func _ready() -> void:
 	add_to_group(GameManager.SAVEABLE_GROUP)
@@ -646,7 +734,7 @@ func convert_to_dynamic(grid_id: String) -> Array:
 			dyn._body = shared_body
 			dyn._owns_body = true
 			dyn.grid_id = sid
-			dyn.body_id = sid
+			dyn.body_id = shared_body.get_meta("grid_id")
 			dyn.planet_node = planet
 			dyn.cell_size = static_grid.cell_size
 			dyn.mesh_materials = static_grid.mesh_materials
@@ -693,7 +781,7 @@ func _migrate_blocks_to_dynamic(dyn: DynamicPlanetGrid, static_grid: PlanetGrid,
 		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
 		var col: Node3D = null
 		if not ChunkMeshBuilder._is_solid(block_data.block_id):
-			col = dyn._make_block_wrapper(grid_pos, block_data.for_material(info.get("material_id", "")), rotation_basis, local_xform)
+			col = dyn._make_block_wrapper(grid_pos, block_data.for_material(info.get("material_id", "")), rotation_basis, local_xform, info.get("material_id", ""))
 			dyn._apply_collision_mirror(col, info)
 			body.add_child(col)
 

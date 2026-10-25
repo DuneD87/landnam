@@ -15,7 +15,7 @@ const INFO_EXTENSION := ".info"
 const THUMBNAIL_EXTENSION := ".png"
 const FORMAT_VERSION := 1
 ## Versión de la ficha: una distinta se vuelve a sacar del blueprint.
-const INFO_VERSION := 1
+const INFO_VERSION := 2
 
 ## Tolerancia al convertir el desplazamiento de normalización a celdas de cada grid.
 const CELL_EPSILON := 0.001
@@ -116,6 +116,7 @@ static func _capture_grid(grid: GridBase, cell_offset: Vector3i, offset_m: Vecto
 			"cell": GridBase._vec3i_to_array(info["cell"] - cell_offset),
 			"face": GridBase._vec3i_to_array(info["face"]),
 			"local_transform": GridBase._transform_to_array(local_xform),
+			"state": info.get("state", {}).duplicate(true),
 		})
 
 	var materials_data: Dictionary = {}
@@ -271,7 +272,8 @@ static func place_prop(grid: GridBase, info: Dictionary) -> bool:
 		GridBase._array_to_vec3i(info.get("cell", [])),
 		GridBase._array_to_vec3i(info.get("face", [])),
 		StringName(info.get("item_id", "")),
-		GridBase._array_to_transform(info.get("local_transform", []))
+		GridBase._array_to_transform(info.get("local_transform", [])),
+		info.get("state", {})
 	)
 
 

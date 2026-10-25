@@ -74,7 +74,8 @@ cargar (`Hotbar.restore_save_data`).
 ## Lo que cuesta
 
 Un bloque gasta su material según el tamaño de celda: `BuildMaterial.get_cost_for_size`, como mínimo 1.
-Un colocable gasta una unidad de su objeto. Quitar un bloque devuelve la parte de su coste que le queda
+Un colocable gasta una unidad de su objeto; las velas navales consumen materiales según sus medidas.
+Quitar un bloque devuelve la parte de su coste que le queda
 de vida, redondeando hacia arriba. Lo que no cabe en el inventario cae al suelo delante del jugador;
 antes se perdía.
 
@@ -85,7 +86,7 @@ antes se perdía.
 - **Frente al inventario:** lo que falta, pagar y devolver.
 
 El precio sale siempre de los costes de ahora. Una ficha de blueprint solo guarda el recuento de
-bloques por material y tamaño de celda, y de colocables por objeto.
+bloques por material y tamaño de celda, de colocables por objeto y los diseños de las velas.
 
 **Construir gratis** (consola: `freebuild [on|off]`, `BuildingSystem.free_build`): bloques, colocables
 y blueprints no gastan nada. Quitar o desmontar tampoco devuelve nada, para que no sea una fuente de
@@ -243,6 +244,12 @@ godot --headless --path . res://tests/building/test_thatch_roof.tscn
 ```
 
 ## Piezas navales
+
+**B → Naval → Vela** ofrece un aparejo a medida: ancho y alto del paño y altura del
+mástil, con vista 3D y coste según el tamaño. Se construye con pieles, tendones, fibra
+y ramas directamente sobre cubierta. Los barcos dinámicos se propulsan con esas velas
+y el viento ligado al clima. Las flechas gobiernan el rumbo y el despliegue;
+R permite remar gastando aguante. Ver [Velas y navegación](sailing.md).
 
 Con el martillo equipado, **B → Naval** abre el editor de **Proa**, **Tramo de casco** y
 **Popa plana**, con vista 3D que se gira al arrastrar y zoom con la rueda. Se ajustan por separado

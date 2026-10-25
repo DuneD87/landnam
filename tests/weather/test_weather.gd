@@ -78,6 +78,7 @@ func _run() -> void:
 	_test_transitions()
 	_test_group_sampling()
 	_test_wind()
+	_test_sailing_wind()
 
 	weather.free()
 	ambience.free()
@@ -212,3 +213,53 @@ func _test_wind() -> void:
 		"Cambiar el viento desplaza las nubes solo el segundo transcurrido, sin saltar")
 	check(is_equal_approx(atmosphere._fog_wind_offset - fog_phase, 0.05),
 		"Cambiar el viento de niebla conserva su posición acumulada")
+
+
+func _test_sailing_wind() -> void:
+	var legacy := WeatherState.new()
+	legacy.apply_overrides({"wind_multiplier": 0.6})
+	check(is_equal_approx(legacy.wind_speed_multiplier, 0.6),
+		"Los catálogos anteriores conservan su velocidad física de viento")
+	legacy.wind_multiplier = 1.3
+	check(is_equal_approx(legacy.wind_speed_multiplier, 1.3),
+		"Sin ajuste físico explícito, el viento sigue al evento antiguo")
+	legacy.apply_overrides({"wind_speed_multiplier": 0.0})
+	check(is_zero_approx(legacy.wind_speed_multiplier), "Un ajuste explícito de calma elimina el viento físico")
+	var clear: WeatherState = weather._events.clear
+	var wind: WeatherState = weather._events.wind
+	var middle := WeatherState.blend(clear, wind, 0.5)
+	check(is_equal_approx(middle.wind_speed_multiplier, 2.4) and is_equal_approx(middle.wind_multiplier, 1.9),
+		"La transición interpola por separado navegación y animación, sin saltos de velocidad")
+	check(is_equal_approx((weather._builtin_events().clear as WeatherState).wind_speed_multiplier, 1.6),
+		"El clima interno conserva la brisa navegable si falta el catálogo")
+	var legacy_controller := LocalWeather.new()
+	legacy_controller._build_events({"presets": {"clear": {"wind_multiplier": 0.8}}})
+	check(is_equal_approx((legacy_controller._events.clear as WeatherState).wind_speed_multiplier, 0.8),
+		"Un override antiguo del planeta no hereda por accidente el ajuste físico del catálogo")
+	legacy_controller.free()
+	var terrain := VoxelLodTerrain.new()
+	var planet := Planet.new(terrain)
+	planet.wind_direction = Vector3.RIGHT
+	planet.wind_speed_mps = 8.0
+	var loader = load("res://scripts/planet/planet_loader.gd").new()
+	loader.planet = planet
+	loader.global_pos = Vector3.ZERO
+	weather._planet = planet
+	weather.restore_save_data({"current": "clear", "forced": true})
+	var local_up := Vector3(0.626, 0.490, -0.607).normalized()
+	var air: Vector3 = loader.get_wind_velocity(local_up * 30000.0)
+	check(air.length() > 9.5 and air.length() < 10.5 and absf(air.dot(local_up)) < 0.0001,
+		"Al cargar clear el planeta entrega unos 10 m/s tangentes para las velas")
+	check(is_equal_approx(planet.weather_wind_multiplier, 0.6) and clear.water_wave_multiplier == 0.4,
+		"Clear conserva la animación de la vegetación y el oleaje tranquilo")
+	weather._apply_state(wind)
+	check(is_equal_approx(planet.weather_wind_speed_multiplier, 3.2)
+		and (loader.get_wind_velocity(local_up * 30000.0) as Vector3).length() > 19.0,
+		"Weather wind conserva su velocidad física anterior")
+	weather._apply_state(legacy)
+	check((loader.get_wind_velocity(local_up * 30000.0) as Vector3).is_zero_approx(),
+		"La calma explícita llega al consumidor físico del planeta")
+	weather._planet = null
+	loader.free()
+	planet.free()
+	terrain.free()

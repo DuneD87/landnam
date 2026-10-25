@@ -61,6 +61,7 @@ var _is_aiming_at_block: bool = false
 var _has_target: bool = false
 
 var selected_placeable: ItemData = null
+var sail_design: Dictionary = SailDesign.DEFAULT.duplicate()
 var _equipped_item_getter: Callable = Callable()
 var _equipped_item_consumer: Callable = Callable()
 var _has_prop_target: bool = false
@@ -134,6 +135,8 @@ func get_selected_block() -> BlockData:
 
 ## El item del bloque elegido con el material activo (su icono y su nombre, para la UI).
 func get_selected_block_item() -> ItemData:
+	if is_sail_mode():
+		return selected_placeable
 	if is_naval_mode():
 		return _naval_item
 	var mat := get_current_material()
@@ -164,6 +167,22 @@ func select_block(block_id: int) -> void:
 
 func is_prop_mode() -> bool:
 	return selected_placeable != null
+
+
+func is_sail_mode() -> bool:
+	return selected_placeable != null and selected_placeable.get_trait(SailTrait) != null
+
+
+func pick_sail(config: Dictionary) -> void:
+	sail_design = SailDesign.normalize(config)
+	current_rotation_basis = Basis.IDENTITY
+	select_placeable(ItemCatalog.get_item(SailDesign.ITEM))
+	set_action_mode(ActionMode.BUILD)
+	clear_target()
+
+
+func get_prop_state() -> Dictionary:
+	return {"design": sail_design.duplicate(true), "level": 0, "deployment": 0.0} if is_sail_mode() else {}
 
 
 func is_naval_mode() -> bool:
@@ -253,7 +272,7 @@ func _equipped_matches_placeable() -> bool:
 
 
 func rotate_block_x() -> void:
-	if _can_rotate():
+	if _can_rotate() and not is_sail_mode():
 		current_rotation_basis *= Basis(Vector3.RIGHT, deg_to_rad(90.0))
 		_snap_rotation()
 		rotation_changed.emit()
@@ -265,7 +284,7 @@ func rotate_block_y() -> void:
 		rotation_changed.emit()
 
 func rotate_block_z() -> void:
-	if _can_rotate():
+	if _can_rotate() and not is_sail_mode():
 		current_rotation_basis *= Basis(Vector3.BACK, deg_to_rad(90.0))
 		_snap_rotation()
 		rotation_changed.emit()
@@ -279,7 +298,7 @@ func _can_rotate() -> bool:
 	if is_naval_mode():
 		return true
 	if is_prop_mode():
-		return false
+		return is_sail_mode()
 	var bd := get_selected_block()
 	return bd != null and bd.can_rotate
 
@@ -331,7 +350,7 @@ func toggle_action_mode() -> void:
 
 ## Poner o quitar. Con un colocable en la mano siempre es poner: quitar es cosa del martillo.
 func set_action_mode(mode: ActionMode) -> void:
-	if is_prop_mode():
+	if is_prop_mode() and not is_sail_mode():
 		mode = ActionMode.BUILD
 	if mode == current_action_mode:
 		return
@@ -357,6 +376,8 @@ func can_afford_block(block_data: BlockData = null) -> bool:
 		return true
 
 	if is_prop_mode():
+		if is_sail_mode():
+			return BuildCost.missing(SailDesign.cost(sail_design), _inventory).is_empty()
 		return _inventory.get_item_count(selected_placeable) >= 1 or _equipped_matches_placeable()
 
 	var mat := get_current_material()
@@ -599,6 +620,8 @@ func _process_aim_prop(hit_collider: Node3D, hit_normal: Vector3, hit_pos: Vecto
 	var face_allowed := false
 	if face.y == 1:
 		face_allowed = selected_placeable.placeable_on_floor
+		if is_sail_mode():
+			prop_basis = current_rotation_basis
 	elif face.y == -1:
 		face_allowed = selected_placeable.placeable_on_ceiling
 		prop_basis = Basis(Vector3.RIGHT, PI)
@@ -970,6 +993,16 @@ func try_place_prop() -> bool:
 		return false
 	if not _can_afford or not _target_prop_grid:
 		return false
+	if is_sail_mode():
+		var state := get_prop_state()
+		var cost := SailDesign.cost(sail_design)
+		if not free_build and not BuildCost.pay(cost, _inventory):
+			return false
+		var installed := _target_prop_grid.place_prop(_target_prop_cell, _target_prop_face,
+			SailDesign.ITEM, _target_prop_local, state)
+		if not installed and not free_build:
+			BuildCost.give(cost, _inventory, _player, _player_down())
+		return installed
 
 	if _inventory and not free_build and _inventory.remove_item(selected_placeable, 1) < 1:
 		var consumed_equipped: bool = _equipped_matches_placeable() \
@@ -993,7 +1026,8 @@ func _try_remove_prop(prop_node: Node3D) -> bool:
 	if info.is_empty():
 		return false
 
-	_refund_prop_item(info["item_id"])
+	if not free_build:
+		BuildCost.give(BuildCost.prop_cost(info), _inventory, _player, _player_down())
 	return true
 
 
@@ -1002,14 +1036,18 @@ func _refund_prop_item(item_id: StringName) -> void:
 		return
 	var item := ItemCatalog.get_item(item_id)
 	if item:
-		_give(item, 1)
+		BuildCost.give(BuildCost.prop_cost({"item_id": item_id}), _inventory, _player, _player_down())
 
 func _refund_block(block_data: Dictionary, block_cell_size: float) -> void:
 	if not _inventory or free_build:
 		return
 
-	for prop_item_id in block_data.get("detached_props", []):
-		_refund_prop_item(prop_item_id)
+	if block_data.has("detached_prop_data"):
+		for info: Dictionary in block_data["detached_prop_data"]:
+			BuildCost.give(BuildCost.prop_cost(info), _inventory, _player, _player_down())
+	else:
+		for prop_item_id in block_data.get("detached_props", []):
+			_refund_prop_item(prop_item_id)
 
 	var mat_id: String = block_data["material_id"]
 	if mat_id == "":

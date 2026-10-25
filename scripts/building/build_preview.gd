@@ -192,13 +192,15 @@ func _on_placeable_changed(item: ItemData) -> void:
 		return
 
 	_prop_ghost = (load(item.scene_path) as PackedScene).instantiate() as Node3D
+	if _prop_ghost is HideSailVisual:
+		_prop_ghost.configure(_building_system.sail_design)
 	_prop_ghost_material = StandardMaterial3D.new()
 	_prop_ghost_material.render_priority = 5
 	_prop_ghost_material.albedo_color = ghost_color_valid
 	_prop_ghost_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_prop_ghost_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_apply_prop_ghost_material(_prop_ghost)
 	add_child(_prop_ghost)
+	_apply_prop_ghost_material(_prop_ghost)
 	_prop_ghost.visible = false
 
 
@@ -217,11 +219,21 @@ func update_prop_preview(world_transform: Transform3D, valid: bool) -> void:
 	_prop_ghost.visible = true
 	_prop_ghost.global_transform = world_transform
 	_prop_ghost_material.albedo_color = ghost_color_valid if valid else ghost_color_invalid
+	if _building_system.is_sail_mode():
+		var design := _building_system.sail_design
+		var cost := SailDesign.cost(design)
+		_naval_hint.text = "%s · %s × %s m · %s m²\n%s · %s m\n%s" % [
+			tr("ITEM_HIDE_SAIL"), ItemTrait.number(design["width"]), ItemTrait.number(design["height"]),
+			ItemTrait.number(SailDesign.area(design)), tr("SAIL_MAST_HEIGHT"), ItemTrait.number(design["mast_height"]),
+			tr("BUILD_MENU_FREE") if BuildingSystem.free_build else BuildCost.describe(cost)]
+		_naval_hint.visible = true
 
 
 func hide_prop_preview() -> void:
 	if _prop_ghost:
 		_prop_ghost.visible = false
+	if _naval_hint:
+		_naval_hint.visible = false
 
 func _setup_highlight() -> void:
 	_highlight_node = Node3D.new()

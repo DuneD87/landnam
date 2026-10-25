@@ -41,7 +41,7 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 		var rotation_basis: Basis = info.get("rotation_basis", Basis.IDENTITY)
 		var col: Node3D = null
 		if not ChunkMeshBuilder._is_solid(block_data.block_id):
-			col = _make_block_wrapper(grid_pos, block_data.for_material(info.get("material_id", "")), rotation_basis, local_xform)
+			col = _make_block_wrapper(grid_pos, block_data.for_material(info.get("material_id", "")), rotation_basis, local_xform, info.get("material_id", ""))
 			_apply_collision_mirror(col, info)
 			_body.add_child(col)
 
@@ -51,9 +51,9 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 
 	_migrate_props_from(static_grid)
 	static_grid.clear()
-	_update_mass()
 	rebuild_mesh()
 	_body.register_grid(self)
+	_update_mass()
 	block_placed.connect(_body.on_block_placed.bind(self))
 	block_removed.connect(_body.on_block_removed.bind(self))
 
@@ -118,7 +118,8 @@ func _on_block_removed_hook(_info: Dictionary) -> void:
 
 
 ## Crea un CollisionShape3D wrapper para un bloque (sin visual).
-func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, local_xform: Transform3D) -> CollisionShape3D:
+func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basis, local_xform: Transform3D,
+		material_id: String = "") -> CollisionShape3D:
 	var shape: Shape3D = block_data.collision_shape.duplicate()
 	var collider := CollisionShape3D.new()
 	collider.name = "Block_%s_%s" % [grid_id, grid_pos]
@@ -141,6 +142,7 @@ func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_bas
 	collider.set_meta("grid_pos", grid_pos)
 	collider.set_meta("block_id", block_data.block_id)
 	collider.set_meta("rotation_basis", rotation_basis)
+	collider.set_meta("buoyant", material_is_buoyant(material_id))
 
 	return collider
 
@@ -164,7 +166,7 @@ func _migrate_props_from(static_grid: PlanetGrid) -> void:
 	var props := static_grid.get_all_props()
 	for key: String in props:
 		var info: Dictionary = props[key]
-		place_prop(info["cell"], info["face"], info["item_id"], info["local_transform"])
+		place_prop(info["cell"], info["face"], info["item_id"], info["local_transform"], info.get("state", {}))
 
 
 func clear() -> void:
@@ -218,13 +220,16 @@ func serialize() -> Dictionary:
 			materials_data[mat_id] = mat.resource_path
 
 	var body_local := Transform3D.IDENTITY
+	var saved_body_id := body_id
 	if _body and is_instance_valid(_body):
 		body_local = planet_node.global_transform.affine_inverse() * _body.global_transform
+		saved_body_id = str(_body.get_meta("grid_id", body_id))
 
 	return {
 		"type": "dynamic",
 		"planet_path": str(planet_node.get_path()),
-		"body_id": body_id,
+		"body_id": saved_body_id,
+		"body_link_version": 1,
 		"body_transform": _transform_to_array(body_local),
 		"cell_size": cell_size,
 		"blocks": blocks_data,
@@ -246,6 +251,8 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 		var body_local := _array_to_transform(data.get("body_transform", []))
 		_create_body(planet.global_transform * body_local)
 		body_id = data.get("body_id", grid_id)
+		_body.set_meta("grid_id", body_id)
+		_body.name = "DynGrid_%s" % body_id
 
 	var materials_data: Dictionary = data.get("materials", {})
 	for mat_id in materials_data:

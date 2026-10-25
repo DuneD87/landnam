@@ -45,6 +45,42 @@ el fantasma y las colisiones usan también la variante. Se mantiene la misma pro
 del muro para que el parallax no marque juntas entre superficies a distinta profundidad. Si hay
 un cubo macizo detrás, el mallador conserva la separación de las caras para evitar parpadeos.
 
+## Masa de construcción
+
+`BuildMaterial` separa la densidad del material (`density_kg_m3`) de la proporción de
+material sólido en la construcción (`solid_fraction`). Son valores de balance del juego.
+La masa es el volumen geométrico del bloque × densidad × proporción sólida.
+
+| Material | Densidad configurada | Proporción sólida | Masa por m³ de bloque |
+|---|---|---|---|
+| Madera de construcción | 500 kg/m³ | 0,10 | 50 kg |
+| Piedra | 2400 kg/m³ | 1 | 2400 kg |
+| Vidrio | 2500 kg/m³ | 1 | 2500 kg |
+| Paja | 80 kg/m³ | 1 | 80 kg |
+
+La madera representa tablas y entramados dentro del volumen que ocupa la pieza. Un cubo
+de 1 m pesa 50 kg; uno de 0,5 m pesa 6,25 kg y uno de 2 m, 400 kg. Rampas, paneles y
+celdas navales usan la fracción de volumen de su geometría. Un bloque sin material
+conocido conserva el respaldo de 500 kg/m³ para partidas antiguas.
+
+El volumen estanco de colisión se conserva para la flotación; aligerar una estructura
+no multiplica el volumen de agua que puede desplazar. Con menos peso, un barco necesita
+sumergirse menos para equilibrarse. La masa agregada se actualiza con las ediciones,
+conversiones y separaciones de las grids, y se vuelve a calcular al cargar una partida.
+La masa mínima de un cuerpo dinámico sigue siendo 10 kg.
+
+La flotación se habilita por separado con `BuildMaterial.buoyant`. **Solo la madera**
+la tiene activada. Piedra, vidrio, paja y materiales desconocidos aportan peso y
+resistencia al agua, pero no empuje ascendente. Un casco de madera puede sostener
+estos materiales como carga; si se supera su capacidad, se hunde todo el conjunto.
+Las cajas fusionadas separan materiales flotantes y lastre, también en el LOD lejano,
+para que añadir piedra no aumente la capacidad de flotación.
+
+```sh
+godot --headless --path . res://tests/building/test_building_mass.tscn
+godot --headless --path . res://tests/building/test_boat_water.tscn
+```
+
 ## Parallax
 
 `heightmap_scale` es el relieve en metros dividido entre `0,01 × 2 m`: 6 en la madera (12,5 cm, el

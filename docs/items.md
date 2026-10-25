@@ -53,6 +53,7 @@ Van en `ItemData.traits` y se buscan por su tipo con
 | `CraftingStationTrait` | Es una estación de trabajo: su era y desde qué distancia se usan sus recetas | banco de trabajo |
 | `StorageTrait` | Capacidad en huecos y reglas opcionales de lo que se guarda; cada instancia tiene su propio inventario | cofre de madera |
 | `InventoryExpansionTrait` | Huecos adicionales del inventario mientras está equipado | mochila de pieles (+8) |
+| `SailTrait` | Eficiencia del paño; la superficie se calcula desde el diseño de cada instancia | vela de pieles a medida |
 | `RemedyTrait` | Cura: vida al momento, «Recuperándose» unos segundos, corta el sangrado, cierra las partes heridas y quita estados | milenrama, emplasto, bebedizo, tablilla |
 
 Un rasgo nuevo es una clase que hereda de `ItemTrait` en
@@ -81,6 +82,7 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Lecho de pieles | `bedroll` | Se planta en el suelo: E para dormir ocho horas o recogerlo |
 | Cofre de madera | `wooden_chest` | Se planta en el suelo: E para guardar y sacar objetos en sus 24 huecos |
 | Mochila de pieles | `hide_backpack` | Se equipa en Espalda y amplía el inventario de 20 a 28 huecos |
+| Vela de pieles | `hide_sail` | Se construye con el martillo en B → Naval → Vela: ancho y alto del paño y altura del mástil ajustables. Ver [sailing.md](sailing.md) |
 
 El jugador empieza con un seax. El resto sale con `give <id> [cantidad]`.
 

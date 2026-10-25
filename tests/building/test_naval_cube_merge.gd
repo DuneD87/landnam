@@ -319,6 +319,6 @@ func _check_dynamic_and_mirror() -> void:
 	for part: float in body._box_vol:
 		displaced += part
 	var expected: float = old_volume + plan["info"]["naval_shape"]["volume"]
-	check(absf(body.mass - expected * DynamicGridBody.BLOCK_DENSITY) < 0.01 and absf(displaced - expected) < 0.00001,
+	check(absf(body.mass - BlockDatabase.get_material_by_id("wood").get_mass_for_volume(expected)) < 0.01 and absf(displaced - expected) < 0.00001,
 		"masa y flotación del barco dinámico cuentan una sola vez el solapamiento")
 	body.queue_free()

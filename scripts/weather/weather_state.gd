@@ -36,6 +36,14 @@ var god_ray_strength: float = 1.0
 var god_ray_reach: float = 1.0
 
 var wind_multiplier: float = 1.0
+## Velocidad física del aire, separada de la animación y del audio del viento.
+## Sin ajuste explícito conserva el multiplicador de los catálogos anteriores.
+var _wind_speed_multiplier := -1.0
+var wind_speed_multiplier: float:
+	get:
+		return wind_multiplier if _wind_speed_multiplier < 0.0 else _wind_speed_multiplier
+	set(value):
+		_wind_speed_multiplier = value
 
 var water_wave_multiplier: float = 1.0
 var water_speed_multiplier: float = 1.0
@@ -67,7 +75,7 @@ const FIELDS: Array[StringName] = [
 	&"cloud_min_height", &"cloud_max_height", &"cloud_wind_speed",
 	&"fog_density", &"fog_coverage", &"fog_group", &"fog_wind_speed",
 	&"fog_floor_height", &"fog_top_height",
-	&"sun_energy", &"ambient_energy", &"atmosphere_scatter", &"wind_multiplier",
+	&"sun_energy", &"ambient_energy", &"atmosphere_scatter", &"wind_multiplier", &"wind_speed_multiplier",
 	&"god_ray_strength", &"god_ray_reach",
 	&"water_wave_multiplier", &"water_speed_multiplier", &"water_foam_multiplier", &"water_steepness",
 	&"water_wave_length_mult",

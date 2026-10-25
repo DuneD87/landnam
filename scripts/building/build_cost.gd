@@ -2,14 +2,15 @@ class_name BuildCost
 extends RefCounted
 
 ## Lo que cuesta construir. Un bloque gasta su material según el tamaño de celda de su grid
-## (BuildMaterial.get_cost_for_size) y un colocable, una unidad de su objeto, igual que al ponerlos
+## (BuildMaterial.get_cost_for_size) y un colocable, una unidad de su objeto; los aparejos navales
+## cuestan los materiales de su diseño. Igual que al ponerlos
 ## a mano con el martillo. Sirve para los blueprints (lo que gastan al colocarlos), para el valor de
 ## una construcción en pie (lo que devuelve al desmontarla, según la vida de cada bloque, como al
 ## quitarlos uno a uno) y para compararlo con el inventario.
 ##
 ## Un coste es un Dictionary id de objeto (StringName) → cantidad. Un recuento es lo que hay que
 ## pagar antes de ponerle precio: {"blocks": {material_id: {celda: n}}, "props": {item_id: n}}, con
-## la celda como texto («1.000»); así se guarda en la ficha del blueprint y el precio sale siempre
+## la celda como texto («1.000») y "sails" con los diseños; así se guarda en la ficha del blueprint y el precio sale siempre
 ## del coste de los materiales de ahora.
 
 
@@ -18,6 +19,7 @@ extends RefCounted
 static func count_blueprint(data: Dictionary) -> Dictionary:
 	var blocks := {}
 	var props := {}
+	var sails: Array = []
 	for grid_data: Dictionary in data.get("grids", []):
 		var cell := cell_key(float(grid_data.get("cell_size", 1.0)))
 		for info: Dictionary in (grid_data.get("blocks", {}) as Dictionary).values():
@@ -26,8 +28,11 @@ static func count_blueprint(data: Dictionary) -> Dictionary:
 			_add_count(blocks, str(info.get("material_id", "")), cell, 1)
 		for prop: Dictionary in grid_data.get("props", []):
 			var id := str(prop.get("item_id", ""))
+			if id == SailDesign.ITEM:
+				sails.append(SailDesign.from_state(prop.get("state", {})))
+				continue
 			props[id] = int(props.get(id, 0)) + 1
-	return {"blocks": blocks, "props": props}
+	return {"blocks": blocks, "props": props, "sails": sails}
 
 
 ## Precio de un recuento con los costes de ahora. Los bloques sin material (el genérico) o de un
@@ -45,8 +50,25 @@ static func of_counts(counts: Dictionary) -> Dictionary:
 	var props: Dictionary = counts.get("props", {})
 	for item_id: String in props:
 		if ItemCatalog.get_item(StringName(item_id)) != null:
-			add(cost, StringName(item_id), int(props[item_id]))
+			var price := prop_cost({"item_id": item_id})
+			for id: StringName in price:
+				add(cost, id, int(price[id]) * int(props[item_id]))
+	for design: Dictionary in counts.get("sails", []):
+		var price := SailDesign.cost(design)
+		for id: StringName in price:
+			add(cost, id, int(price[id]))
 	return cost
+
+
+## Los aparejos a medida cuestan materiales; los otros colocables cuestan una unidad del objeto.
+static func prop_cost(info: Dictionary) -> Dictionary:
+	var item_id := StringName(str(info.get("item_id", "")))
+	var item := ItemCatalog.get_item(item_id)
+	if item == null:
+		return {}
+	if item.get_trait(SailTrait) != null:
+		return SailDesign.cost(SailDesign.from_state(info.get("state", {})))
+	return {item_id: 1}
 
 
 static func of_blueprint(data: Dictionary) -> Dictionary:
@@ -71,9 +93,9 @@ static func of_grids(grids: Array, by_health: bool = false) -> Dictionary:
 			add(cost, mat.item.id, amount)
 		var props := grid.get_all_props()
 		for key: String in props:
-			var item_id: StringName = props[key]["item_id"]
-			if ItemCatalog.get_item(item_id) != null:
-				add(cost, item_id, 1)
+			var price := prop_cost(props[key])
+			for id: StringName in price:
+				add(cost, id, int(price[id]))
 	return cost
 
 

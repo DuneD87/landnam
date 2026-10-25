@@ -364,7 +364,7 @@ func _check_join_and_physics() -> void:
 	var dyn := DynamicPlanetGrid.new()
 	dyn.setup_from_static_shared("naval_dynamic", self, grid, body)
 	body.update_mass_from_grids()
-	check(is_equal_approx(body.mass, dyn.get_total_volume() * DynamicGridBody.BLOCK_DENSITY),
+	check(is_equal_approx(body.mass, BlockDatabase.get_material_by_id("wood").get_mass_for_volume(dyn.get_total_volume())),
 		"el casco dinámico conserva la masa real de los bloques")
 	body._recalculate_buoyancy_boxes()
 	var displaced := 0.0

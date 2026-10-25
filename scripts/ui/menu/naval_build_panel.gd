@@ -3,6 +3,7 @@ extends HBoxContainer
 
 ## Editor del catálogo naval del martillo. La vista usa el mismo mallador que la partida.
 signal piece_picked()
+const SAIL_KIND := 3
 
 var building_system: BuildingSystem
 var inventory: Inventory
@@ -12,6 +13,12 @@ var _profile := NavalPiece.Profile.ROUND
 var _syncing := false
 var _blocks: Dictionary = {}
 var _dimensions: Array[SpinBox] = []
+var _dimension_labels: Array[Label] = []
+var _sail_design: Dictionary = SailDesign.DEFAULT.duplicate()
+var _sail: HideSailVisual
+var _description: Label
+var _preview_title: Label
+var _join_hint: Label
 var _types: Array[Button] = []
 var _profile_option: OptionButton
 var _profile_label: Label
@@ -43,9 +50,10 @@ func _ready() -> void:
 func configure(bsys: BuildingSystem, inv: Inventory) -> void:
 	building_system = bsys
 	inventory = inv
-	_kind = bsys.naval_kind if bsys.is_naval_mode() else NavalPiece.Kind.BOW
+	_kind = SAIL_KIND if bsys.is_sail_mode() else bsys.naval_kind if bsys.is_naval_mode() else NavalPiece.Kind.BOW
 	_size = bsys.naval_size
 	_profile = bsys.naval_profile
+	_sail_design = bsys.sail_design.duplicate(true)
 	_refresh()
 
 
@@ -65,8 +73,8 @@ func _build_ui() -> void:
 	var visual := VBoxContainer.new()
 	visual.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	add_child(visual)
-	var title := _label("NAVAL_PREVIEW", &"SectionLabel")
-	visual.add_child(title)
+	_preview_title = _label("NAVAL_PREVIEW", &"SectionLabel")
+	visual.add_child(_preview_title)
 	_view = SubViewportContainer.new()
 	_view.stretch = true
 	_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -85,11 +93,15 @@ func _build_ui() -> void:
 	_controls = VBoxContainer.new()
 	panel.add_child(_controls)
 	_controls.add_child(_label("NAVAL_TITLE", &"CardTitle"))
-	var types := HBoxContainer.new()
+	var types := GridContainer.new()
+	types.columns = 2
 	var group := ButtonGroup.new()
-	for kind in NavalPiece.NAME_KEYS.size():
+	var names: Array = NavalPiece.NAME_KEYS.duplicate()
+	names.append("SAIL_BUILD_TAB")
+	for kind in names.size():
 		var button := Button.new()
-		button.text = NavalPiece.NAME_KEYS[kind]
+		button.text = names[kind]
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.theme_type_variation = &"TabButton"
 		button.toggle_mode = true
 		button.button_group = group
@@ -100,7 +112,8 @@ func _build_ui() -> void:
 		types.add_child(button)
 		_types.append(button)
 	_controls.add_child(types)
-	_controls.add_child(_label("NAVAL_DESCRIPTION", &"StatLabel"))
+	_description = _label("NAVAL_DESCRIPTION", &"StatLabel")
+	_controls.add_child(_description)
 	_controls.add_child(HSeparator.new())
 	var fields := GridContainer.new()
 	fields.columns = 2
@@ -108,11 +121,15 @@ func _build_ui() -> void:
 		var label := _label(["NAVAL_WIDTH", "NAVAL_HEIGHT", "NAVAL_LENGTH"][axis], &"StatLabel")
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		fields.add_child(label)
+		_dimension_labels.append(label)
 		var field := SpinBox.new()
 		field.suffix = "m"
 		field.value_changed.connect(func(value: float) -> void:
 			if not _syncing:
-				_size[axis] = roundi(value / building_system.cell_size)
+				if _kind == SAIL_KIND:
+					_sail_design[SailDesign.KEYS[axis]] = value
+				else:
+					_size[axis] = roundi(value / building_system.cell_size)
 				_refresh())
 		fields.add_child(field)
 		_dimensions.append(field)
@@ -133,8 +150,8 @@ func _build_ui() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_controls.add_child(spacer)
-	var hint := _label("NAVAL_JOIN_HINT", &"HintLabel")
-	_controls.add_child(hint)
+	_join_hint = _label("NAVAL_JOIN_HINT", &"HintLabel")
+	_controls.add_child(_join_hint)
 	_reason = _label("", &"WorseLabel")
 	_controls.add_child(_reason)
 	_use = Button.new()
@@ -158,6 +175,9 @@ func _build_stage() -> void:
 	stage.add_child(_holder)
 	_mesh = MeshInstance3D.new()
 	_holder.add_child(_mesh)
+	_sail = HideSailVisual.new()
+	_holder.add_child(_sail)
+	_sail.hide()
 	_camera = IconStudio.make_camera(10.0)
 	stage.add_child(_camera)
 	_camera.current = true
@@ -166,17 +186,32 @@ func _build_stage() -> void:
 func _refresh() -> void:
 	_syncing = true
 	var cell := building_system.cell_size
+	var sail_mode := _kind == SAIL_KIND
+	_sail_design = SailDesign.normalize(_sail_design)
 	for axis in 3:
-		_dimensions[axis].min_value = NavalPiece.MIN_SIZE[axis] * cell
-		_dimensions[axis].max_value = NavalPiece.MAX_SIZE[axis] * cell
-		_dimensions[axis].step = cell
-		_dimensions[axis].value = _size[axis] * cell
+		_dimension_labels[axis].text = ["SAIL_WIDTH", "SAIL_HEIGHT", "SAIL_MAST_HEIGHT"][axis] if sail_mode else ["NAVAL_WIDTH", "NAVAL_HEIGHT", "NAVAL_LENGTH"][axis]
+		_dimensions[axis].min_value = SailDesign.MIN_SIZE[axis] if sail_mode else NavalPiece.MIN_SIZE[axis] * cell
+		_dimensions[axis].max_value = SailDesign.MAX_SIZE[axis] if sail_mode else NavalPiece.MAX_SIZE[axis] * cell
+		# Una precisión de centésimas muestra 0,25/0,75 enteros; las flechas conservan el paso naval.
+		_dimensions[axis].step = 0.01
+		_dimensions[axis].custom_arrow_step = SailDesign.STEP if sail_mode else cell
+		_dimensions[axis].value = _sail_design[SailDesign.KEYS[axis]] if sail_mode else _size[axis] * cell
 	for kind in _types.size():
 		_types[kind].set_pressed_no_signal(kind == _kind)
 	_profile_option.select(_profile)
 	_profile_label.visible = _kind == NavalPiece.Kind.BOW
 	_profile_option.visible = _kind == NavalPiece.Kind.BOW
+	_description.text = "SAIL_BUILD_DESCRIPTION" if sail_mode else "NAVAL_DESCRIPTION"
+	_preview_title.text = "SAIL_PREVIEW_TITLE" if sail_mode else "NAVAL_PREVIEW"
+	_join_hint.text = "SAIL_BUILD_HINT" if sail_mode else "NAVAL_JOIN_HINT"
+	_use.text = "SAIL_BUILD_USE" if sail_mode else "NAVAL_USE"
+	_mesh.visible = not sail_mode
+	_sail.visible = sail_mode
 	_syncing = false
+	if sail_mode:
+		_refresh_sail()
+		_update_camera()
+		return
 	_blocks = NavalPiece.generate(_kind, _size, _profile)
 	var mat := BlockDatabase.get_material_by_id("wood")
 	var mesh := ChunkMeshBuilder.build_mesh(_blocks, cell, Transform3D.IDENTITY, {"wood": mat.surface_material})
@@ -189,6 +224,20 @@ func _refresh() -> void:
 	_reason.text = tr("BUILD_MENU_MISSING") % mat.item.get_display_name().to_lower()
 	_reason.visible = inventory != null and not BuildingSystem.free_build and have < cost
 	_update_camera()
+
+
+func _refresh_sail() -> void:
+	_sail.configure(_sail_design)
+	_sail.position = -SailDesign.bounds(_sail_design).get_center()
+	_summary.text = tr("SAIL_DESIGN_SUMMARY") % ItemTrait.number(SailDesign.area(_sail_design))
+	var cost := SailDesign.cost(_sail_design)
+	var lines: Array[String] = []
+	for row: Array in BuildCost.rows(cost, inventory):
+		lines.append(tr("SAIL_MATERIAL_LINE") % [row[0].get_display_name(), row[1], row[2]])
+	_cost.text = tr("BUILD_MENU_FREE") if BuildingSystem.free_build else "\n".join(lines)
+	var missing := BuildCost.missing(cost, inventory)
+	_reason.text = tr("BUILD_MENU_MISSING") % BuildCost.describe(missing)
+	_reason.visible = inventory != null and not BuildingSystem.free_build and not missing.is_empty()
 
 
 func _view_input(event: InputEvent) -> void:
@@ -206,7 +255,8 @@ func _view_input(event: InputEvent) -> void:
 
 func _update_camera() -> void:
 	_holder.basis = Basis(Vector3.RIGHT, _pitch) * Basis(Vector3.UP, _yaw)
-	var bounds: AABB = Transform3D(_holder.basis, Vector3.ZERO) * AABB(-Vector3(_size) * building_system.cell_size * 0.5, Vector3(_size) * building_system.cell_size)
+	var dimensions := SailDesign.bounds(_sail_design).size if _kind == SAIL_KIND else Vector3(_size) * building_system.cell_size
+	var bounds: AABB = Transform3D(_holder.basis, Vector3.ZERO) * AABB(-dimensions * 0.5, dimensions)
 	var aspect := maxf(0.1, _view.size.x / maxf(1.0, _view.size.y))
 	_camera.size = maxf(bounds.size.y, bounds.size.x / aspect) * 1.25 * _zoom
 	_camera.position.z = maxf(4.0, bounds.size.length() * 1.5)
@@ -220,6 +270,10 @@ func _render() -> void:
 
 
 func _pick() -> void:
+	if _kind == SAIL_KIND:
+		building_system.pick_sail(_sail_design)
+		piece_picked.emit()
+		return
 	var icon: Texture2D
 	if DisplayServer.get_name() != "headless":
 		var image := _viewport.get_texture().get_image()

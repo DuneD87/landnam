@@ -2,7 +2,7 @@ class_name DynamicGridBody
 extends RigidBody3D
 
 ## RigidBody3D de una grid dinámica: gravedad planetaria + flotación de Arquímedes (empuje
-## por volumen sumergido de las cajas de colisión fusionadas; masa por densidad de bloque),
+## por volumen sumergido de las cajas de colisión fusionadas; masa de construcción por material),
 ## inundación por compartimentos interiores (analizados en worker thread) y movimiento
 ## según movement_type (barco; vehículo y nave pendientes).
 
@@ -30,8 +30,11 @@ static func bodies_in_play(tree: SceneTree) -> Array[Node]:
 @export var movement_type: MovementType = MovementType.BOAT
 @export var damage_enabled: bool = true
 @export var turn_speed: float = 2.0
+@export_range(0.0, 90.0, 1.0) var boat_turn_rate_degrees := 25.0
 @export var buoyancy_lod_distance: float = 150.0
 @export var linear_drag: float = 0.3
+## El casco corta el agua de proa y resiste la deriva de costado. También actúa sin velas.
+@export_range(0.01, 1.0, 0.01) var boat_forward_drag: float = 0.08
 @export var heave_drag: float = 1.0
 @export var angular_drag: float = 0.15
 ## Tasa (1/s) a la que se frena el balance y el cabeceo en el agua. Ver _apply_tilt_drag.
@@ -40,7 +43,6 @@ static func bodies_in_play(tree: SceneTree) -> Array[Node]:
 @export var wave_filter: float = 1.0
 @export var flood_capacity_factor: float = 0.9
 
-const BLOCK_DENSITY := 500.0
 const WATER_DENSITY := 1000.0
 const MIN_MASS := 10.0
 ## Sondas de ola, una por cuadrante del casco: el mínimo para ajustar el plano de la superficie bajo él.
@@ -122,9 +124,11 @@ var _grids: Array = []
 var _box_pos := PackedVector3Array()
 var _box_half := PackedVector3Array()
 var _box_vol := PackedFloat32Array()
+var _box_buoyant := PackedByteArray()
 var _agg_pos := PackedVector3Array()
 var _agg_half := PackedVector3Array()
 var _agg_vol := PackedFloat32Array()
+var _agg_buoyant := PackedByteArray()
 var _aggregate_box: Dictionary = {}
 var _drag_length_sq: float = 1.0
 ## Longitud de onda (m) por debajo de la cual el oleaje no cuenta para la flotación. Un casco real
@@ -155,12 +159,11 @@ var _analysis_task_id: int = -1
 ## grande solo recalcula las celdas nuevas. Solo la toca el worker, de uno en uno.
 var _shape_cache: Dictionary = {}
 
-var _boat_speed_levels: Array[float] = [0.0, 5.0, 10.0, 20.0]
-var _boat_speed_index: int = 0
-var _boat_target_speed: float = 0.0
-var _boat_current_speed: float = 0.0
-@export var boat_acceleration: float = 3.0
-@export var boat_deceleration: float = 5.0
+var sailing := BoatSailing.new()
+var _sails_dirty := true
+## Los pone PlayerSailing y los borra al dejar el barco o abrir una interfaz.
+var steering_input := 0.0
+var rowing_input := false
 
 ## Velocidad del paso de física anterior, para medir la aproximación de un contacto antes de que
 ## el solver la absorba. Ver _detect_impact.
@@ -186,7 +189,6 @@ var _split_versions := PackedInt32Array()
 var spawned_from_split: bool = false
 var _derelict_timer: float = 0.0
 
-signal speed_changed(level: int, speed: float)
 ## [material] es la familia de sonido dominante entre lo que se llevo por delante: un impacto
 ## es un solo golpe, asi que no puede sonar a madera y a piedra a la vez.
 signal blocks_destroyed(world_pos: Vector3, count: int, material: StringName)
@@ -225,12 +227,14 @@ func mark_points_dirty() -> void:
 
 ## Reconstruye las cajas de volumen del casco desde los colliders del body: cajas fusionadas
 ## de cubos tal cual, rampas/esquinas como caja de su celda a medio volumen. En arrays
-## empaquetados paralelos: el bucle de flotación los recorre entero cada frame de física.
+## empaquetados paralelos con la flotabilidad del material: solo madera aporta empuje,
+## pero todas las colisiones sumergidas ofrecen resistencia al agua.
 func _recalculate_buoyancy_boxes() -> void:
 	_recalc_boxes = false
 	_box_pos.clear()
 	_box_half.clear()
 	_box_vol.clear()
+	_box_buoyant.clear()
 	_aggregate_box = {}
 	_flood_capacity = 0.0
 
@@ -257,6 +261,7 @@ func _recalculate_buoyancy_boxes() -> void:
 		_box_pos.append(pos)
 		_box_half.append(half)
 		_box_vol.append(volume)
+		_box_buoyant.append(1 if col.get_meta("buoyant", false) else 0)
 		total_volume += volume
 
 		if first:
@@ -283,12 +288,18 @@ func _recalculate_buoyancy_boxes() -> void:
 ## lejano. Con una sola caja el empuje caía siempre en la misma vertical del cuerpo: ni par
 ## adrizante al escorar, ni coincidencia con el centro de masas —que la gravedad sí usa—, y el
 ## barco se quedaba tumbado de un lado. Cada cuadrante guarda su volumen real y su centroide
-## ponderado, así que el reparto del empuje sigue al de la masa.
+## ponderado, así que el reparto del empuje sigue al del volumen de madera.
 func _build_lod_boxes(center: Vector3) -> void:
-	var vols := [0.0, 0.0, 0.0, 0.0]
-	var weighted := [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
-	var mins := [Vector3.INF, Vector3.INF, Vector3.INF, Vector3.INF]
-	var maxs := [-Vector3.INF, -Vector3.INF, -Vector3.INF, -Vector3.INF]
+	# Cuatro cuadrantes de madera y cuatro de lastre: el LOD no mezcla sus centros de empuje.
+	var vols: Array[float] = []
+	var weighted: Array[Vector3] = []
+	var mins: Array[Vector3] = []
+	var maxs: Array[Vector3] = []
+	for q in LOD_QUADRANTS * 2:
+		vols.append(0.0)
+		weighted.append(Vector3.ZERO)
+		mins.append(Vector3.INF)
+		maxs.append(-Vector3.INF)
 
 	# Las cajas vienen fusionadas y muchas cruzan el corte de lado a lado: cada una se reparte
 	# por solape con los cuadrantes, no por dónde caiga su centro, o una sola caja que abarque
@@ -308,7 +319,7 @@ func _build_lod_boxes(center: Vector3) -> void:
 				if weight <= 0.0:
 					continue
 
-				var q: int = ix + iz * 2
+				var q: int = ix + iz * 2 + (0 if _box_buoyant[i] else LOD_QUADRANTS)
 				var part_vol: float = vol * weight
 				vols[q] += part_vol
 				weighted[q] += Vector3(
@@ -321,8 +332,9 @@ func _build_lod_boxes(center: Vector3) -> void:
 	_agg_pos.clear()
 	_agg_half.clear()
 	_agg_vol.clear()
+	_agg_buoyant.clear()
 
-	for q in LOD_QUADRANTS:
+	for q in LOD_QUADRANTS * 2:
 		var vol: float = vols[q]
 		if vol <= 0.0:
 			continue
@@ -336,6 +348,7 @@ func _build_lod_boxes(center: Vector3) -> void:
 		_agg_pos.append(centroid)
 		_agg_half.append(half)
 		_agg_vol.append(vol)
+		_agg_buoyant.append(1 if q < LOD_QUADRANTS else 0)
 
 
 ## Parte el intervalo [lo, hi] por el corte c y devuelve, para el trozo bajo y el alto, qué
@@ -622,6 +635,13 @@ func _spawn_piece(piece: Dictionary, whole_centroid: Vector3, old_lin: Vector3, 
 func _ready() -> void:
 	collision_layer = 3
 	collision_mask = 1
+	if movement_type == MovementType.BOAT:
+		# La resistencia ya se calcula contra el agua, por ejes. El damping global del
+		# motor frenaría además contra el mundo y dominaría el avance de los veleros.
+		linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+		linear_damp = 0.0
+		angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+		angular_damp = 0.0
 	# Dormido ignoraría las fuerzas custom (flotación, gravedad planetaria, inundación).
 	can_sleep = false
 	# Sin esto get_contact_count() devuelve siempre 0 y no hay detección de impactos.
@@ -647,12 +667,27 @@ func _setup_water_sampler() -> void:
 func register_grid(grid) -> void:
 	if not _grids.has(grid):
 		_grids.append(grid)
+		grid.props_changed.connect(_mark_sails_dirty)
+	_mark_sails_dirty()
 	mark_points_dirty()
 
 func unregister_grid(grid) -> void:
 	_grids.erase(grid)
+	if grid.props_changed.is_connected(_mark_sails_dirty):
+		grid.props_changed.disconnect(_mark_sails_dirty)
+	_mark_sails_dirty()
 	update_mass_from_grids()
 	mark_points_dirty()
+
+
+func _mark_sails_dirty() -> void:
+	_sails_dirty = true
+
+
+func refresh_sails() -> void:
+	if _sails_dirty:
+		sailing.rebuild(_grids)
+		_sails_dirty = false
 
 ## Bloques de todas las grids del body.
 func get_block_count() -> int:
@@ -720,12 +755,12 @@ func _despawn_as_derelict() -> void:
 		queue_free()
 
 
-## Masa total del body: volumen de bloques de TODAS las grids (multi-size) por densidad de bloque.
+## Masa de TODAS las grids (multi-size), con el material y volumen de cada bloque.
 func update_mass_from_grids() -> void:
-	var total_volume := 0.0
+	var total_mass := 0.0
 	for grid in _grids:
-		total_volume += grid.get_total_volume()
-	mass = maxf(MIN_MASS, total_volume * BLOCK_DENSITY)
+		total_mass += grid.get_total_mass()
+	mass = maxf(MIN_MASS, total_mass)
 
 
 func _handle_input(delta: float) -> void:
@@ -734,40 +769,11 @@ func _handle_input(delta: float) -> void:
 
 	match movement_type:
 		MovementType.BOAT:
-			_handle_boat_input(delta)
+			pass # PlayerSailing gobierna; las fuerzas se calculan incluso sin tripulante.
 		MovementType.LAND_VEHICLE:
 			_handle_land_input(delta)
 		MovementType.SPACESHIP:
 			_handle_spaceship_input(delta)
-
-func _handle_boat_input(delta: float) -> void:
-	if Input.is_action_just_pressed("ui_up"):
-		_boat_speed_index = mini(_boat_speed_index + 1, _boat_speed_levels.size() - 1)
-		_boat_target_speed = _boat_speed_levels[_boat_speed_index]
-		speed_changed.emit(_boat_speed_index, _boat_target_speed)
-
-	if Input.is_action_just_pressed("ui_down"):
-		_boat_speed_index = maxi(_boat_speed_index - 1, 0)
-		_boat_target_speed = _boat_speed_levels[_boat_speed_index]
-		speed_changed.emit(_boat_speed_index, _boat_target_speed)
-
-	if _boat_current_speed < _boat_target_speed:
-		_boat_current_speed = minf(_boat_current_speed + boat_acceleration * delta, _boat_target_speed)
-	elif _boat_current_speed > _boat_target_speed:
-		_boat_current_speed = maxf(_boat_current_speed - boat_deceleration * delta, _boat_target_speed)
-
-	if _boat_current_speed > 0.01:
-		var forward := global_transform.basis.z
-		var current_forward_speed := linear_velocity.dot(forward)
-		if current_forward_speed < _boat_current_speed:
-			var speed_deficit := _boat_current_speed - current_forward_speed
-			var force_factor := clampf(speed_deficit / _boat_current_speed, 0.0, 1.0)
-			apply_central_force(forward * _boat_current_speed * mass * force_factor)
-
-	if Input.is_action_pressed("ui_left"):
-		angular_velocity += global_transform.basis.y * turn_speed * delta
-	if Input.is_action_pressed("ui_right"):
-		angular_velocity -= global_transform.basis.y * turn_speed * delta
 
 ## Sin implementar: movimiento de vehículo terrestre.
 func _handle_land_input(_delta: float) -> void:
@@ -964,6 +970,15 @@ func _physics_step(delta: float) -> void:
 	var dir: Vector3 = (planet_pos - global_position).normalized()
 	var up: Vector3 = -dir
 	var gravity: float = planet_node.gravity_strength
+	var forward := global_basis.z.slide(up).normalized()
+	refresh_sails()
+	var sail_force := Vector3.ZERO
+	if movement_type == MovementType.BOAT:
+		var air: Vector3 = planet_node.get_wind_velocity(global_position) if planet_node.has_method("get_wind_velocity") else Vector3.ZERO
+		sail_force = sailing.step(delta, air, linear_velocity, forward, up)
+	sailing.rowing = false
+	last_displaced_mass = 0.0
+	last_water_flow = Vector3.ZERO
 
 	apply_central_force(dir * gravity * mass)
 
@@ -983,11 +998,13 @@ func _physics_step(delta: float) -> void:
 	var pos_arr := _box_pos
 	var half_arr := _box_half
 	var vol_arr := _box_vol
+	var buoyant_arr := _box_buoyant
 	var camera := get_viewport().get_camera_3d()
 	if camera and camera.global_position.distance_squared_to(global_position) > buoyancy_lod_distance * buoyancy_lod_distance:
 		pos_arr = _agg_pos
 		half_arr = _agg_half
 		vol_arr = _agg_vol
+		buoyant_arr = _agg_buoyant
 
 	var xf := global_transform
 
@@ -1027,6 +1044,7 @@ func _physics_step(delta: float) -> void:
 	var n_y := basis_w.y.dot(surf_grad)
 	var n_z := basis_w.z.dot(surf_grad)
 	var submerged_volume := 0.0
+	var buoyant_volume := 0.0
 	var weighted_buoyancy_pos := Vector3.ZERO
 	# Corriente media que ve el casco, ponderada por volumen desplazado: la parte sumergida es la
 	# que el agua empuja, y así la ola que baña solo la proa no arrastra como si bañara el barco entero.
@@ -1064,15 +1082,18 @@ func _physics_step(delta: float) -> void:
 		var q := (1 if local_c.x > probe_center.x else 0) \
 			+ (2 if local_c.z > probe_center.z else 0)
 		submerged_volume += displaced
-		weighted_buoyancy_pos += buoy_pos * displaced
+		if buoyant_arr[i]:
+			buoyant_volume += displaced
+			weighted_buoyancy_pos += buoy_pos * displaced
 		weighted_flow += probe_flow[q] * displaced
 
 	var water_vel := Vector3.ZERO
 	if submerged_volume > 0.0:
 		# Todos los empujes son paralelos a up: una única fuerza en el centro de carena es
 		# exactamente equivalente a una por caja, y ahorra N llamadas al servidor de física.
-		var buoyancy_center: Vector3 = weighted_buoyancy_pos / submerged_volume
-		apply_force(up * WATER_DENSITY * gravity * submerged_volume, buoyancy_center - origin)
+		if buoyant_volume > 0.0:
+			var buoyancy_center: Vector3 = weighted_buoyancy_pos / buoyant_volume
+			apply_force(up * WATER_DENSITY * gravity * buoyant_volume, buoyancy_center - origin)
 
 		var displaced_mass: float = submerged_volume * WATER_DENSITY
 		# El rozamiento se mide contra el agua, no contra el suelo: un casco quieto en un mar que se
@@ -1082,14 +1103,43 @@ func _physics_step(delta: float) -> void:
 		last_water_flow = water_vel
 		last_displaced_mass = displaced_mass
 		var rel_vel: Vector3 = linear_velocity - water_vel
-		apply_central_force(-rel_vel * linear_drag * displaced_mass)
+		var drag_velocity := rel_vel
+		if movement_type == MovementType.BOAT:
+			drag_velocity += forward * rel_vel.dot(forward) * (boat_forward_drag - 1.0)
+			apply_central_force(sail_force.limit_length(mass * BoatSailing.MAX_SAIL_ACCELERATION))
+			_apply_boat_steering(up, forward, rel_vel, displaced_mass, delta)
+			if _is_being_controlled:
+				if rowing_input:
+					# Un casco de masa mínima no debe sobrepasar el límite en un solo paso.
+					var remaining_speed := maxf(BoatSailing.ROW_SPEED - rel_vel.dot(forward), 0.0)
+					var rowing_limit := mass * remaining_speed / maxf(delta, 0.0001)
+					apply_central_force(BoatSailing.rowing_force(forward, rel_vel).limit_length(rowing_limit))
+					sailing.rowing = true
+		apply_central_force(-drag_velocity * linear_drag * displaced_mass)
 		var radial_vel: float = rel_vel.dot(up)
 		apply_central_force(-up * radial_vel * heave_drag * displaced_mass)
-		apply_torque(-angular_velocity * angular_drag * displaced_mass * minf(_drag_length_sq, 10.0))
+		var drag_rotation := angular_velocity
+		if movement_type == MovementType.BOAT:
+			drag_rotation -= up * angular_velocity.dot(up)
+		apply_torque(-drag_rotation * angular_drag * displaced_mass * minf(_drag_length_sq, 10.0))
 		_apply_tilt_drag(up, displaced_mass, delta)
 
 	_update_flooding(up, planet_pos, base_water_radius, gravity)
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius, water_vel)
+
+
+## Rumbo controlado y amortiguado aparte del balance: conserva respuesta al maniobrar
+## despacio y deja que el oleaje incline el casco. La velocidad máxima de giro queda acotada.
+func _apply_boat_steering(up: Vector3, forward: Vector3, relative_velocity: Vector3,
+		displaced_mass: float, delta: float) -> void:
+	var target := 0.0
+	if _is_being_controlled:
+		var speed := absf(relative_velocity.dot(forward))
+		var authority := lerpf(0.35, 1.0, smoothstep(0.0, 2.0, speed))
+		target = clampf(steering_input, -1.0, 1.0) * deg_to_rad(boat_turn_rate_degrees) * authority
+	var immersion := clampf(displaced_mass / maxf(mass, MIN_MASS), 0.0, 1.0)
+	var blend := 1.0 - exp(-maxf(turn_speed, 0.0) * immersion * delta)
+	angular_velocity += up * (target - angular_velocity.dot(up)) * blend
 
 
 ## Pendiente de la superficie del agua (gradiente tangente a up, m/m) por mínimos cuadrados sobre las
@@ -1172,7 +1222,7 @@ static func _clip_box(depth: float, ux: float, uy: float, uz: float) -> Vector4:
 
 
 ## Freno de balance y cabeceo: la parte de la velocidad angular que inclina el casco decae a tasa
-## tilt_drag (1/s), sea cual sea su tamaño. angular_drag es isótropo, va por masa desplazada y se topa
+## tilt_drag (1/s), sea cual sea su tamaño. angular_drag va por masa desplazada y se topa
 ## en 10 m², así que en un casco largo casi no toca el cabeceo (en uno de 24 m, ζ ≈ 0.006: cualquier
 ## golpe de mar lo dejaba oscilando un minuto). La guiñada queda fuera, que es el timón.
 func _apply_tilt_drag(up: Vector3, displaced_mass: float, delta: float) -> void:
@@ -1444,5 +1494,7 @@ func contains_point(world_point: Vector3, margin: float = 0.0) -> bool:
 
 
 func stop() -> void:
-	_boat_speed_index = 0
-	_boat_target_speed = 0.0
+	refresh_sails()
+	sailing.set_level(0)
+	steering_input = 0.0
+	rowing_input = false

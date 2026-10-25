@@ -76,6 +76,7 @@ var resting: RestController
 ## Comer, beber, despellejar y las hogueras.
 var survival: SurvivalActions
 var fishing: PlayerFishing
+var sailing: PlayerSailing
 ## El círculo de lo que va a allanar la azada (ver TerrainLeveling).
 var hoe_preview: HoePreview
 ## Las obras (blueprints colocados por construir): apuntarlas, aportarles material y martillearlas.
@@ -199,7 +200,8 @@ func _perform_raycast() -> void:
 	# sueltos: su clic es para la obra (SiteBuilder).
 	if site_builder:
 		site_builder.update_aim(cam_origin, cam_dir, ray_distance + extra, cam_hit, reference_pos, ray_distance)
-	var on_site := site_builder != null and site_builder.is_aiming() and not building_system.is_prop_mode()
+	var on_site := site_builder != null and site_builder.is_aiming() \
+		and (not building_system.is_prop_mode() or building_system.is_sail_mode())
 	if cam_hit.is_empty() or on_site:
 		if building_system.build_mode:
 			building_system.clear_target()
@@ -452,7 +454,9 @@ func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> voi
 ## mira al cambiar la barra y al cambiar lo equipado, que también se puede hacer desde el muñeco.
 func _sync_build_mode() -> void:
 	var hammer := _holds_hammer()
-	if hammer and building_system.is_prop_mode():
+	if building_system.is_sail_mode() and not hammer:
+		building_system.select_placeable(null)
+	elif hammer and building_system.is_prop_mode() and not building_system.is_sail_mode():
 		building_system.select_placeable(null)
 	building_system.set_build_mode(hammer or building_system.is_prop_mode())
 
@@ -632,6 +636,9 @@ func _ready():
 	fishing = PlayerFishing.new()
 	add_child(fishing)
 	fishing.setup(self)
+	sailing = PlayerSailing.new()
+	add_child(sailing)
+	sailing.setup(self)
 	hoe_preview = HoePreview.new()
 	hoe_preview.setup(self)
 	add_child(hoe_preview)
@@ -1615,11 +1622,11 @@ func _handle_build_input(event: InputEvent) -> void:
 		match event.button_index:
 			MOUSE_BUTTON_LEFT:
 				# Apuntando a una obra, el martillo la levanta (o, en modo quitar, la desmonta).
-				if building_system.is_prop_mode() or not site_builder.primary_pressed():
+				if (building_system.is_prop_mode() and not building_system.is_sail_mode()) or not site_builder.primary_pressed():
 					building_system.execute_primary_action(_ray_hit)
 				get_viewport().set_input_as_handled()
 			MOUSE_BUTTON_RIGHT:
-				if building_system.is_prop_mode():
+				if building_system.is_prop_mode() and not building_system.is_sail_mode():
 					building_system.toggle_build_mode()
 				else:
 					var mode := BuildRadialMenu.Option.ADD

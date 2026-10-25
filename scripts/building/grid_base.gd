@@ -7,6 +7,7 @@ extends RefCounted
 
 signal block_placed(grid_pos: Vector3i, block_id: int)
 signal block_removed(grid_pos: Vector3i)
+signal props_changed()
 
 const CHUNK_SHIFT := 4
 
@@ -29,6 +30,7 @@ var _chunk_meshes: Dictionary = {}
 var _chunk_blocks: Dictionary = {}
 var _chunk_colliders: Dictionary = {}
 var _total_volume: float = 0.0
+var _total_mass: float = 0.0
 var mesh_materials: Dictionary = {}
 var _suppress_rebuild: bool = false
 var _batch_depth: int = 0
@@ -122,6 +124,7 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 		node = _create_block_node(grid_pos, block_data.for_material(material_id), rotation_basis, world_transform)
 		if not node:
 			return false
+		node.set_meta("buoyant", material_is_buoyant(material_id))
 		_apply_collision_mirror(node, mirror_data)
 
 	_blocks[grid_pos] = {
@@ -140,6 +143,7 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 		_chunk_blocks[chunk] = {}
 	_chunk_blocks[chunk][grid_pos] = true
 	_total_volume += _cell_volume() * _info_volume_factor(_blocks[grid_pos])
+	_total_mass += _block_mass(_blocks[grid_pos])
 	edit_version += 1
 
 	if material_id != "" and not mesh_materials.has(material_id):
@@ -184,17 +188,21 @@ func remove_block(grid_pos: Vector3i) -> Dictionary:
 		node.queue_free()
 
 	var detached: Array = []
+	var detached_data: Array = []
 	for key: String in _props.keys():
 		if _props[key]["cell"] == grid_pos:
 			var prop_info := remove_prop(key)
 			detached.append(prop_info["item_id"])
+			detached_data.append({"item_id": prop_info["item_id"], "state": prop_info.get("state", {}).duplicate(true)})
 	info["detached_props"] = detached
+	info["detached_prop_data"] = detached_data
 
 	_blocks.erase(grid_pos)
 	var chunk := _chunk_of(grid_pos)
 	if _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk].erase(grid_pos)
 	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _info_volume_factor(info))
+	_total_mass = maxf(0.0, _total_mass - _block_mass(info))
 	edit_version += 1
 
 	_on_block_removed_hook(info)
@@ -216,6 +224,7 @@ func detach_block(grid_pos: Vector3i) -> Dictionary:
 	if _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk].erase(grid_pos)
 	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _info_volume_factor(info))
+	_total_mass = maxf(0.0, _total_mass - _block_mass(info))
 	edit_version += 1
 
 	_on_block_removed_hook(info)
@@ -235,6 +244,7 @@ func attach_block(grid_pos: Vector3i, info: Dictionary) -> void:
 		_chunk_blocks[chunk] = {}
 	_chunk_blocks[chunk][grid_pos] = true
 	_total_volume += _cell_volume() * _info_volume_factor(info)
+	_total_mass += _block_mass(info)
 	edit_version += 1
 
 	_on_block_placed_hook(grid_pos)
@@ -258,6 +268,7 @@ func detach_prop(key: String) -> Dictionary:
 		return {}
 	var info: Dictionary = _props[key]
 	_props.erase(key)
+	props_changed.emit()
 	return info
 
 
@@ -265,6 +276,7 @@ func detach_prop(key: String) -> Dictionary:
 func attach_prop(key: String, info: Dictionary) -> void:
 	if not info.is_empty():
 		_props[key] = info
+		props_changed.emit()
 
 
 static func prop_key(cell: Vector3i, face: Vector3i) -> String:
@@ -277,7 +289,8 @@ func has_prop(cell: Vector3i, face: Vector3i) -> bool:
 
 ## Coloca un prop (escena de item) anclado a la cara de un bloque. local_transform está en
 ## espacio de grid, con el origen en el punto de apoyo y +Y a lo largo del prop.
-func place_prop(cell: Vector3i, face: Vector3i, item_id: StringName, local_transform: Transform3D) -> bool:
+func place_prop(cell: Vector3i, face: Vector3i, item_id: StringName, local_transform: Transform3D,
+		state: Dictionary = {}) -> bool:
 	var key := prop_key(cell, face)
 	if _props.has(key):
 		return false
@@ -285,16 +298,27 @@ func place_prop(cell: Vector3i, face: Vector3i, item_id: StringName, local_trans
 	var item: ItemData = ItemCatalog.get_item(item_id)
 	if not item or item.scene_path == "":
 		return false
+	if item.get_trait(SailTrait) != null and (face != Vector3i.UP or not _blocks.has(cell)):
+		return false
 
-	var center_offset := Vector3(0, item.placed_collider_size.y * 0.5, 0)
+	state = state.duplicate(true)
+	var collider_size := item.placed_collider_size
+	if item.get_trait(SailTrait) != null:
+		state["design"] = SailDesign.from_state(state)
+		collider_size = SailDesign.collider_size(state["design"])
+	var center_offset := Vector3(0, collider_size.y * 0.5, 0)
 	var anchor_local := local_transform * Transform3D(Basis.IDENTITY, center_offset)
-	var anchor := _create_prop_anchor(key, anchor_local, item.placed_collider_size)
+	var anchor := _create_prop_anchor(key, anchor_local, collider_size)
 	if not anchor:
 		return false
 
 	var visual := (load(item.scene_path) as PackedScene).instantiate() as Node3D
+	if visual is HideSailVisual:
+		visual.configure(state["design"])
 	visual.position = -center_offset
 	anchor.add_child(visual)
+	if visual.has_method("restore_prop_state"):
+		visual.restore_prop_state(state)
 
 	_props[key] = {
 		"item_id": item_id,
@@ -302,7 +326,9 @@ func place_prop(cell: Vector3i, face: Vector3i, item_id: StringName, local_trans
 		"face": face,
 		"local_transform": local_transform,
 		"node": anchor,
+		"state": state.duplicate(true),
 	}
+	props_changed.emit()
 	return true
 
 
@@ -315,6 +341,7 @@ func remove_prop(key: String) -> Dictionary:
 	if node and is_instance_valid(node):
 		node.queue_free()
 	_props.erase(key)
+	props_changed.emit()
 	return info
 
 
@@ -332,6 +359,8 @@ func _serialize_props() -> Dictionary:
 			"face": _vec3i_to_array(info["face"]),
 			"local_transform": _transform_to_array(info["local_transform"]),
 		}
+		if not info.get("state", {}).is_empty():
+			out[key]["state"] = info["state"].duplicate(true)
 	return out
 
 
@@ -342,7 +371,8 @@ func _deserialize_props(props_data: Dictionary) -> void:
 			_array_to_vec3i(pd.get("cell", [])),
 			_array_to_vec3i(pd.get("face", [])),
 			StringName(pd.get("item_id", "")),
-			_array_to_transform(pd.get("local_transform", []))
+			_array_to_transform(pd.get("local_transform", [])),
+			pd.get("state", {})
 		)
 
 
@@ -401,9 +431,25 @@ static func block_data_for_info(info: Dictionary) -> BlockData:
 		return NavalHullMesh.block_data(block, info["naval_shape"])
 	return block
 
-## Volumen total (m³) de los bloques de la grid, para masa y flotación.
+## Volumen estanco de los bloques (m³), para flotación. No incluye los huecos del casco.
 func get_total_volume() -> float:
 	return _total_volume
+
+
+## Masa de construcción (kg), agregada al editar para que no se recorran los bloques cada tick.
+func get_total_mass() -> float:
+	return _total_mass
+
+
+func _block_mass(info: Dictionary) -> float:
+	var volume := _cell_volume() * _info_volume_factor(info)
+	var material := BlockDatabase.get_material_by_id(str(info.get("material_id", "")))
+	return material.get_mass_for_volume(volume) if material else volume * BuildMaterial.DEFAULT_DENSITY
+
+
+static func material_is_buoyant(material_id: String) -> bool:
+	var material := BlockDatabase.get_material_by_id(material_id)
+	return material != null and material.buoyant
 
 
 ## Reconstruye solo los chunks afectados por la edición de una celda (el suyo y los
@@ -426,17 +472,19 @@ func _request_rebuild(grid_pos: Vector3i) -> void:
 		_rebuild_chunk(chunk)
 
 
-## Rebuild completo: resincroniza el índice de chunks y el volumen desde _blocks y reconstruye todos.
+## Rebuild completo: resincroniza chunks, volumen y masa desde _blocks y reconstruye todos.
 func rebuild_mesh() -> void:
 	_dirty_chunks.clear()
 	_chunk_blocks.clear()
 	_total_volume = 0.0
+	_total_mass = 0.0
 	for grid_pos: Vector3i in _blocks:
 		var chunk := _chunk_of(grid_pos)
 		if not _chunk_blocks.has(chunk):
 			_chunk_blocks[chunk] = {}
 		_chunk_blocks[chunk][grid_pos] = true
 		_total_volume += _cell_volume() * _info_volume_factor(_blocks[grid_pos])
+		_total_mass += _block_mass(_blocks[grid_pos])
 
 	for chunk: Vector3i in _chunk_meshes.keys():
 		if not _chunk_blocks.has(chunk):
@@ -466,20 +514,28 @@ func _rebuild_chunk(chunk: Vector3i) -> void:
 ## obliga al servidor de física a dar de baja y de alta cada forma del cuerpo, y eso era la mayor
 ## parte del coste de colisión de un impacto.
 func _rebuild_chunk_colliders(chunk: Vector3i, positions: Dictionary) -> void:
-	var cubes: Dictionary = {}
+	# Separar las cajas flotantes impide que una caja fusionada de madera y piedra dé
+	# empuje a todo su volumen. La colisión sigue usando cajas y conserva la geometría.
+	var groups: Array[Dictionary] = [{}, {}]
 	for grid_pos: Vector3i in positions:
 		if ChunkMeshBuilder._is_solid(_blocks[grid_pos]["block_id"]):
-			cubes[grid_pos] = true
+			var group := 0 if material_is_buoyant(str(_blocks[grid_pos].get("material_id", ""))) else 1
+			groups[group][grid_pos] = true
 
 	var parent := _get_collision_parent()
-	if cubes.is_empty() or not parent:
+	if (groups[0].is_empty() and groups[1].is_empty()) or not parent:
 		_free_chunk_colliders(chunk)
 		return
 
 	var existing: Array = _chunk_colliders.get(chunk, [])
 	var shapes: Array = []
 
-	for box: Dictionary in GridColliderBuilder.merge_boxes(cubes):
+	var boxes: Array[Dictionary] = []
+	for group in groups.size():
+		for box: Dictionary in GridColliderBuilder.merge_boxes(groups[group]):
+			box["buoyant"] = group == 0
+			boxes.append(box)
+	for box: Dictionary in boxes:
 		var collider: CollisionShape3D = null
 		if shapes.size() < existing.size() and is_instance_valid(existing[shapes.size()]):
 			collider = existing[shapes.size()]
@@ -490,6 +546,7 @@ func _rebuild_chunk_colliders(chunk: Vector3i, positions: Dictionary) -> void:
 			parent.add_child(collider)
 
 		(collider.shape as BoxShape3D).size = Vector3(box["size"]) * cell_size
+		collider.set_meta("buoyant", box["buoyant"])
 		collider.position = (Vector3(box["pos"]) + Vector3(box["size"]) * 0.5) * cell_size
 		shapes.append(collider)
 
@@ -685,6 +742,7 @@ func clear() -> void:
 		if prop_node and is_instance_valid(prop_node):
 			prop_node.queue_free()
 	_props.clear()
+	props_changed.emit()
 
 	for chunk: Vector3i in _chunk_meshes.keys():
 		_free_chunk_mesh(chunk)
@@ -692,6 +750,7 @@ func clear() -> void:
 	_dirty_chunks.clear()
 	_batch_depth = 0
 	_total_volume = 0.0
+	_total_mass = 0.0
 
 func is_same_origin_basis(other: GridBase) -> bool:
 	return false

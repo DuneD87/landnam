@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/items/traits/sail_trait.gd" id="3"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/hide_sail.svg" id="4"]
+
+[sub_resource type="Resource" id="Sail"]
+script = ExtResource("3")
+efficiency = 1.2
+
+[resource]
+script = ExtResource("1")
+id = &"hide_sail"
+display_name = "ITEM_HIDE_SAIL"
+description = "ITEM_HIDE_SAIL_DESC"
+icon = ExtResource("4")
+scene_path = "res://scenes/items/survival/hide_sail.tscn"
+stackable = false
+max_stack = 1
+placeable_on_wall = false
+placed_collider_size = Vector3(0.24, 5.1, 0.24)
+group = &"placeable"
+traits = Array[ExtResource("2")]([SubResource("Sail")])

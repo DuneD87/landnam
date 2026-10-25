@@ -14,6 +14,8 @@ var _vegetation_field: Dictionary = {}
 @export var radius: float
 
 @export var wind_direction : Vector3
+## Velocidad física de referencia; los valores visuales de los shaders no son m/s.
+@export var wind_speed_mps: float = 8.0
 
 @export var item_transparent_materials : Array[Dictionary]
 ## Materiales planetarios ajenos a la vegetación (ver register_planet_material). Van en una
@@ -80,6 +82,8 @@ var _vegetation_baker: VegetationBaker
 
 ## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
 var weather_wind_multiplier: float = 1.0
+## Multiplicador físico del aire: permite navegar con buen tiempo y mar tranquila.
+var weather_wind_speed_multiplier: float = 1.0
 
 ## VoxelTool propio de get_underground_depth: cambia de canal en cada lectura y no debe pisar el de
 ## nadie.

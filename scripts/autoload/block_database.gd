@@ -85,6 +85,7 @@ func _register_default_materials() -> void:
 	stone.display_name = "BUILD_MAT_STONE"
 	stone.item = ItemCatalog.get_item(&"stone_01")
 	stone.base_cost = 1
+	stone.density_kg_m3 = 2400.0
 	stone.allowed_block_ids = BASIC_BLOCK_IDS
 	stone.sound_material = &"rock"
 	stone.surface_material = stone.item.surface_material
@@ -95,6 +96,10 @@ func _register_default_materials() -> void:
 	wood.display_name = "BUILD_MAT_WOOD"
 	wood.item = ItemCatalog.get_item(&"wood_01")
 	wood.base_cost = 1
+	wood.density_kg_m3 = 500.0
+	# Madera de construcción: tablas y entramado ocupan el 10 % del volumen estanco del bloque.
+	wood.solid_fraction = 0.10
+	wood.buoyant = true
 	wood.allowed_block_ids = BASIC_BLOCK_IDS.duplicate()
 	wood.allowed_block_ids.append(BLOCK_PANE_TRIANGLE_ID)
 	wood.sound_material = &"wood"
@@ -106,6 +111,7 @@ func _register_default_materials() -> void:
 	glass.display_name = "BUILD_MAT_GLASS"
 	glass.item = ItemCatalog.get_item(&"glass_01")
 	glass.base_cost = 1
+	glass.density_kg_m3 = 2500.0
 	glass.allowed_block_ids = BASIC_BLOCK_IDS
 	glass.sound_material = &"tile"
 	glass.surface_material = glass.item.surface_material
@@ -125,6 +131,7 @@ func _register_default_materials() -> void:
 	thatch.display_name = "BUILD_MAT_THATCH"
 	thatch.item = ItemCatalog.get_item(&"plant_fiber")
 	thatch.base_cost = 2
+	thatch.density_kg_m3 = 80.0
 	thatch.allowed_block_ids = [BLOCK_THATCH_SLOPE_ID, BLOCK_THATCH_RIDGE_ID]
 	thatch.surface_material = preload("res://data/building/thatch.tres")
 	thatch.preview_color = Color("b99a57")

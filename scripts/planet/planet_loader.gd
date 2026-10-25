@@ -78,6 +78,13 @@ var _pending_weather_data: Dictionary = {}
 func get_gravity_direction(_global_position: Vector3) -> Vector3:
 	var gravity_center = voxel_terrain.global_position
 	return (gravity_center - _global_position).normalized()
+
+
+func get_wind_velocity(world_position: Vector3) -> Vector3:
+	if planet == null:
+		return Vector3.ZERO
+	var up := (world_position - global_pos).normalized()
+	return WindField.velocity(planet.wind_direction, planet.wind_speed_mps, planet.weather_wind_speed_multiplier, up)
 	
 
 @export var config_action: Action:
@@ -227,6 +234,7 @@ func _copy_parsed_data(planet_parser: PlanetParser) -> void:
 	planet.water_radius = planet_parser.water_level
 	planet.entity_id = entity_id
 	planet.wind_direction = planet_parser.wind_direction
+	planet.wind_speed_mps = maxf(float(planet_parser.weather_settings.get("wind_speed_mps", 8.0)), 0.0)
 	planet.sun = sun_path
 
 
