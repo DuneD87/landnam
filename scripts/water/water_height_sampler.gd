@@ -304,7 +304,10 @@ func _rebuild_wave_frame() -> void:
 
 ## Altura en world_pos. Invierte con Newton el arrastre
 ## horizontal de Gerstner: sin esto, con oleaje marcado la física y el visual se separan varios metros.
-func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> float:
+## min_length apaga las octavas más cortas que él (ver rest_displacement): un casco largo no siente
+## la mar picada que le pasa por debajo.
+func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3,
+		min_length: float = 0.0) -> float:
 	if _material == null:
 		return 0.0
 	_ensure_frame_params()
@@ -334,7 +337,7 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 		var radial := guess.normalized()
 		var disp := _gerstner_disp(
 			guess, radial, time, exposure,
-			shore_dir, shore_signed_dist, shore_quality, shore_depth, ice)
+			shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length)
 		var residual := guess+disp-local_q
 		var error := Vector2(residual.dot(target_u),residual.dot(target_v))
 		if error.length_squared()<0.000025:
@@ -355,7 +358,7 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3) -> f
 	var final_radial := guess.normalized()
 	var final_disp := _gerstner_disp(
 		guess, final_radial, time, exposure,
-		shore_dir, shore_signed_dist, shore_quality, shore_depth, ice)
+		shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length)
 	return (guess+final_disp).length()-radius
 
 

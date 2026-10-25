@@ -364,8 +364,6 @@ func _refresh_construction() -> void:
 		var flood: Dictionary = stats["flood"]
 		_stat(_grid_stats, "GRID_STAT_COMPARTMENTS", tr("GRID_COMPARTMENTS_VALUE") % [
 			flood["compartments"], flood["flooded"], flood["breached"]])
-		if flood.get("heel_assist", 1.0) < 1.0:
-			_stat(_grid_stats, "GRID_STAT_STABILITY", "%d %%" % roundi(flood["heel_assist"] * 100.0))
 
 	var group := GridManager.get_grid_group(target_grid.grid_id)
 	_fill_costs(_grid_value, BuildCost.of_grids(group, true), false)

@@ -22,7 +22,8 @@ const _DIRS_EXTERIOR: Array[Vector3i] = [
 ## grids_data: [{cells: Array de Vector3i, full: Array de bool (opcional, todo lleno si
 ## falta), cell_size: float}], en espacio del body.
 ## Devuelve compartimentos: [{cell_count, volume, aabb, boxes: [{pos, half}] (body-local),
-## cells, cell_size (rejilla fina), open, sill_cell (celda de la apertura más baja)}].
+## cells, cell_size (rejilla fina), open, openings (centros body-local de las celdas que dan al
+## exterior: por la más baja según la escora del momento entra el mar)}].
 static func analyze(grids_data: Array) -> Array:
 	var finest := INF
 	for gd: Dictionary in grids_data:
@@ -125,19 +126,16 @@ static func analyze(grids_data: Array) -> Array:
 						cmax = Vector3i(maxi(cmax.x, n2.x), maxi(cmax.y, n2.y), maxi(cmax.z, n2.z))
 						q.append(n2)
 
-				# Apertura al exterior: la celda adyacente a aire exterior de menor Y es la
-				# cota por la que entra el mar (el BFS no baja: lo de debajo sigue interior).
-				var open := false
-				var sill_cell: Vector3i = start
-				var sill_y: int = 2147483647
+				# Aperturas al exterior: las celdas adyacentes a aire exterior (el BFS no baja: lo de
+				# debajo sigue interior). Se guardan todas porque cuál es la más baja depende de la
+				# escora: en una bodega abierta por arriba, la borda de la banda que se hunde.
+				var openings := PackedVector3Array()
 				for cell: Vector3i in comp_cells:
 					for d3: Vector3i in _DIRS_ALL:
 						if outside.has(cell + d3):
-							open = true
-							if cell.y < sill_y:
-								sill_y = cell.y
-								sill_cell = cell
+							openings.append((Vector3(cell) + Vector3.ONE * 0.5) * finest)
 							break
+				var open := not openings.is_empty()
 
 				# El rasterizado dio por macizas las celdas de bloque parcial interiores, y su
 				# medio hueco es aire de este compartimento: se absorben como hojas (entran en
@@ -176,6 +174,6 @@ static func analyze(grids_data: Array) -> Array:
 					"cells": comp_cells,
 					"cell_size": finest,
 					"open": open,
-					"sill_cell": sill_cell,
+					"openings": openings,
 				})
 	return out

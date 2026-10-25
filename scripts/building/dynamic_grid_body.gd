@@ -34,15 +34,21 @@ static func bodies_in_play(tree: SceneTree) -> Array[Node]:
 @export var linear_drag: float = 0.3
 @export var heave_drag: float = 1.0
 @export var angular_drag: float = 0.15
+## Tasa (1/s) a la que se frena el balance y el cabeceo en el agua. Ver _apply_tilt_drag.
+@export var tilt_drag: float = 1.5
+## Olas más cortas que esta fracción de la eslora no mueven el casco. Ver _wave_filter_length.
+@export var wave_filter: float = 1.0
 @export var flood_capacity_factor: float = 0.9
 
 const BLOCK_DENSITY := 500.0
 const WATER_DENSITY := 1000.0
 const MIN_MASS := 10.0
-const MAX_WAVE_SAMPLES := 16
-## Sondas de ola cuando el casco tiene más cajas que MAX_WAVE_SAMPLES: una por cuadrante, que es el
-## mínimo para que haya par de cabeceo y de balance.
+## Sondas de ola, una por cuadrante del casco: el mínimo para ajustar el plano de la superficie bajo él.
 const WAVE_PROBES := 4
+## Un eje de caja que sube menos que esta fracción de la altura de la caja se trata como paralelo a la
+## superficie en _clip_box. Por encima, el error de redondeo del reparto es despreciable en doble
+## precisión; por debajo, lo que se ignora es menos de un milímetro de inclinación.
+const CLIP_EPS := 0.001
 ## Cajas en que se agrega el casco para la flotación lejana (cuadrantes manga × eslora).
 const LOD_QUADRANTS := 4
 
@@ -77,9 +83,6 @@ const IMPACT_COOLDOWN_FRAMES := 8
 ## mando independiente para decidir cuánto aguanta un muelle frente a un barco.
 const IMPACT_VICTIM_SHARE := 0.6
 
-## Fracción de la capacidad de inundación a la que un casco perforado se queda SIN la grúa de
-## escora (ver _heel_assist). Más bajo = se tumba antes.
-const HEEL_ASSIST_FLOOD_LIMIT := 0.4
 const MAX_CONTACTS_REPORTED := 8
 
 ## Segundos sin ediciones antes de comprobar si el casco se ha partido. Solo quitar bloques puede
@@ -124,6 +127,12 @@ var _agg_half := PackedVector3Array()
 var _agg_vol := PackedFloat32Array()
 var _aggregate_box: Dictionary = {}
 var _drag_length_sq: float = 1.0
+## Longitud de onda (m) por debajo de la cual el oleaje no cuenta para la flotación. Un casco real
+## integra la presión en toda su eslora y la mar más corta que él se le anula a lo largo; las cuatro
+## sondas puntuales a ±¼ de eslora la dejaban pasar entera. En un casco de 24 m el picado de 7–9 m
+## caía justo en su periodo de cabeceo (~2 s) y lo tenía meciéndose sin parar. El rampeo
+## smoothstep(L/2, 3L/2) del espectro reproduce bien el par de cabeceo de la eslora integrada.
+var _wave_filter_length: float = 0.0
 var _recalc_boxes: bool = true
 var _is_being_controlled: bool = false
 
@@ -260,6 +269,7 @@ func _recalculate_buoyancy_boxes() -> void:
 	_aggregate_box = {"pos": aabb.get_center(), "half": aabb.size * 0.5, "volume": total_volume}
 	_build_lod_boxes(aabb.get_center())
 	_drag_length_sq = maxf(1.0, (aabb.size * 0.5).length_squared())
+	_wave_filter_length = maxf(aabb.size.x, aabb.size.z) * wave_filter
 
 	# Capacidad provisional (AABB − bloques); el análisis la sustituye por el volumen real.
 	var box_volume := aabb.size.x * aabb.size.y * aabb.size.z
@@ -967,29 +977,41 @@ func _physics_step(delta: float) -> void:
 
 	var xf := global_transform
 
-	# Con más cajas que presupuesto de muestras el oleaje se resolvía en UN punto para todo el casco,
-	# y un barco sobre un plano horizontal ni cabecea ni balancea: el mar solo se notaba al alejarse,
-	# porque el LOD de cuadrantes sí muestrea en cuatro sitios. Aquí se hace lo mismo siempre, con
-	# sondas en los cuatro cuadrantes del casco y cada caja tomando la del suyo.
-	var probed := vol_arr.size() > MAX_WAVE_SAMPLES
+	# La superficie bajo el casco es el plano que ajusta cuatro sondas, una por cuadrante. Muestrear
+	# cada caja en su centro dejaba una caja fusionada larga sobre agua horizontal, y entonces la ola no
+	# la cabeceaba ni la escoraba. El plano inclinado sí lo hace, y es lo que permite que la mar vuelque
+	# un barco.
+	var probe_center: Vector3 = _aggregate_box["pos"]
+	var quarter: Vector3 = (_aggregate_box["half"] as Vector3) * 0.5
+	var probe_pos := PackedVector3Array()
 	var probe_h := PackedFloat32Array()
 	var probe_flow := PackedVector3Array()
-	var probe_center := Vector3.ZERO
-	last_wave_samples = WAVE_PROBES if probed else vol_arr.size()
-	if probed:
-		probe_center = _aggregate_box["pos"]
-		var quarter: Vector3 = (_aggregate_box["half"] as Vector3) * 0.5
-		probe_h.resize(WAVE_PROBES)
-		probe_flow.resize(WAVE_PROBES)
-		for q in WAVE_PROBES:
-			var probe_local := probe_center + Vector3(
-				quarter.x if (q & 1) != 0 else -quarter.x, 0.0,
-				quarter.z if (q & 2) != 0 else -quarter.z)
-			probe_h[q] = _water_sampler.get_height_at(xf * probe_local, water_time, planet_pos)
-			probe_flow[q] = _water_sampler.last_flow
+	probe_pos.resize(WAVE_PROBES)
+	probe_h.resize(WAVE_PROBES)
+	probe_flow.resize(WAVE_PROBES)
+	last_wave_samples = WAVE_PROBES
+	var plane_center := Vector3.ZERO
+	var plane_h := 0.0
+	for q in WAVE_PROBES:
+		var probe_local := probe_center + Vector3(
+			quarter.x if (q & 1) != 0 else -quarter.x, 0.0,
+			quarter.z if (q & 2) != 0 else -quarter.z)
+		probe_pos[q] = xf * probe_local
+		probe_h[q] = _water_sampler.get_height_at(probe_pos[q], water_time, planet_pos,
+			_wave_filter_length)
+		probe_flow[q] = _water_sampler.last_flow
+		plane_center += probe_pos[q] / WAVE_PROBES
+		plane_h += probe_h[q] / WAVE_PROBES
+	var slope := _fit_wave_slope(probe_pos, probe_h, plane_center, plane_h, up)
 
 	var basis_w := xf.basis
 	var origin := xf.origin
+	# Cuánto sube la altura sobre el agua por metro recorrido en cada eje del casco. Las cajas de
+	# colisión van alineadas con el body, así que vale para todas.
+	var surf_grad := up - slope
+	var n_x := basis_w.x.dot(surf_grad)
+	var n_y := basis_w.y.dot(surf_grad)
+	var n_z := basis_w.z.dot(surf_grad)
 	var submerged_volume := 0.0
 	var weighted_buoyancy_pos := Vector3.ZERO
 	# Corriente media que ve el casco, ponderada por volumen desplazado: la parte sumergida es la
@@ -999,34 +1021,37 @@ func _physics_step(delta: float) -> void:
 	for i in vol_arr.size():
 		var half: Vector3 = half_arr[i]
 		var world_center: Vector3 = xf * pos_arr[i]
+		var ux := absf(n_x) * half.x * 2.0
+		var uy := absf(n_y) * half.y * 2.0
+		var uz := absf(n_z) * half.z * 2.0
+		var extent := ux + uy + uz
 
-		var h_half: float = absf((basis_w.x * half.x).dot(up)) \
-			+ absf((basis_w.y * half.y).dot(up)) \
-			+ absf((basis_w.z * half.z).dot(up))
-		h_half = maxf(h_half, 0.05)
-
-		var wave_h: float
-		var flow: Vector3
-		if probed:
-			var local_c: Vector3 = pos_arr[i]
-			var q := (1 if local_c.x > probe_center.x else 0) \
-				+ (2 if local_c.z > probe_center.z else 0)
-			wave_h = probe_h[q]
-			flow = probe_flow[q]
-		else:
-			wave_h = _water_sampler.get_height_at(world_center, water_time, planet_pos)
-			flow = _water_sampler.last_flow
-		var water_r: float = base_water_radius + wave_h
-		var dist: float = (world_center - planet_pos).length()
-
-		var frac: float = clampf((water_r - (dist - h_half)) / (2.0 * h_half), 0.0, 1.0)
-		if frac <= 0.0:
+		var water_r: float = base_water_radius + plane_h + slope.dot(world_center - plane_center)
+		var depth: float = water_r - (world_center - planet_pos).length() + extent * 0.5
+		if depth <= 0.0:
 			continue
 
-		var displaced: float = vol_arr[i] * frac
+		# El empuje de cada caja va en el centroide de su parte mojada, no en la vertical de su
+		# centro: al escorar, ese centroide se va hacia la banda que se hunde y da el par adrizante.
+		# Con el centro fijo una caja fusionada no adrizaba nada (una balsa de una sola caja, cero), y
+		# hacía falta una grúa que sostuviera los barcos a plomo y les impedía volcar nunca.
+		var displaced: float = vol_arr[i]
+		var buoy_pos := world_center
+		if depth < extent:
+			var clip := _clip_box(depth, ux, uy, uz)
+			displaced *= clip.w
+			buoy_pos += basis_w.x * (signf(n_x) * (clip.x - 0.5) * half.x * 2.0) \
+				+ basis_w.y * (signf(n_y) * (clip.y - 0.5) * half.y * 2.0) \
+				+ basis_w.z * (signf(n_z) * (clip.z - 0.5) * half.z * 2.0)
+		if displaced <= 0.0:
+			continue
+
+		var local_c: Vector3 = pos_arr[i]
+		var q := (1 if local_c.x > probe_center.x else 0) \
+			+ (2 if local_c.z > probe_center.z else 0)
 		submerged_volume += displaced
-		weighted_buoyancy_pos += (world_center + up * h_half * (frac - 1.0)) * displaced
-		weighted_flow += flow * displaced
+		weighted_buoyancy_pos += buoy_pos * displaced
+		weighted_flow += probe_flow[q] * displaced
 
 	var water_vel := Vector3.ZERO
 	if submerged_volume > 0.0:
@@ -1047,37 +1072,99 @@ func _physics_step(delta: float) -> void:
 		var radial_vel: float = rel_vel.dot(up)
 		apply_central_force(-up * radial_vel * heave_drag * displaced_mass)
 		apply_torque(-angular_velocity * angular_drag * displaced_mass * minf(_drag_length_sq, 10.0))
-
-		# Corrección de inclinación. OJO: el eje Y va negado a propósito. El eje resultante es el
-		# correcto (negar el vector niega también el producto vectorial), pero el ángulo sale
-		# 'π − escora', así que el par es máximo con el barco a plomo y decrece al inclinarse:
-		# de facto una grúa permanente que lo mantiene derecho. Escrito "bien" (proporcional a la
-		# escora real) el par se anula cerca del equilibrio, los barcos escoran, embarcan agua
-		# por la banda baja y se hunden. Es feo, pero sostiene la flota: no lo toques sin
-		# sustituirlo por estabilidad de verdad (metacentro).
-		#
-		# Lo que sí se hace es RETIRARLA cuando el casco está herido, en vez de arreglarla: con el
-		# casco sano el par es idéntico al de siempre, y la flota se comporta igual que siempre.
-		var assist := _heel_assist()
-		var body_up := -global_transform.basis.y
-		var angle_to_vertical := acos(clampf(body_up.dot(up), -1.0, 1.0))
-		if assist > 0.0 and angle_to_vertical > deg_to_rad(5.0):
-			var corrective_axis := up.cross(body_up).normalized()
-			var correction_strength := (angle_to_vertical - deg_to_rad(5.0)) * displaced_mass * gravity * 0.1
-			apply_torque(corrective_axis * correction_strength * assist)
+		_apply_tilt_drag(up, displaced_mass, delta)
 
 	_update_flooding(up, planet_pos, base_water_radius, gravity)
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius, water_vel)
 
 
-## Cuánta grúa de escora queda. La condición de entrada es binaria y sin ambigüedad —un casco sin
-## compartimentos perforados devuelve 1.0 exacto— para que un barco sano no note absolutamente
-## nada. Ya perforado, se va perdiendo con el agua embarcada hasta cero: entonces escora, se
-## tumba y se hunde de costado en vez de irse a plomo.
-func _heel_assist() -> float:
-	if _breached_comps.is_empty() or _flood_capacity <= 0.0:
-		return 1.0
-	return clampf(1.0 - _flood_volume / (_flood_capacity * HEEL_ASSIST_FLOOD_LIMIT), 0.0, 1.0)
+## Pendiente de la superficie del agua (gradiente tangente a up, m/m) por mínimos cuadrados sobre las
+## sondas. Regularizado: con el casco de costado las sondas caen casi en vertical, su proyección
+## degenera y sin esto la pendiente en esa dirección saldría de dividir entre cero.
+static func _fit_wave_slope(pos: PackedVector3Array, h: PackedFloat32Array, center: Vector3,
+		mean_h: float, up: Vector3) -> Vector3:
+	var e1 := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.UP).normalized()
+	var e2 := up.cross(e1)
+	var saa := 0.0
+	var sab := 0.0
+	var sbb := 0.0
+	var sah := 0.0
+	var sbh := 0.0
+	for q in pos.size():
+		var d := pos[q] - center
+		var a := d.dot(e1)
+		var b := d.dot(e2)
+		var dh := h[q] - mean_h
+		saa += a * a
+		sab += a * b
+		sbb += b * b
+		sah += a * dh
+		sbh += b * dh
+	var reg := (saa + sbb) * 0.001 + 0.0001
+	saa += reg
+	sbb += reg
+	var det := saa * sbb - sab * sab
+	return e1 * ((sah * sbb - sbh * sab) / det) + e2 * ((sbh * saa - sah * sab) / det)
+
+
+## Parte sumergida exacta de una caja cortada por la superficie del agua, por inclusión-exclusión de
+## los símplices que el plano corta desde cada vértice. ux, uy, uz: cuánto sube la altura sobre el
+## agua al cruzar la caja de cara a cara por cada eje; depth: lo hundida que está su esquina más honda.
+## Devuelve en xyz el centroide de lo mojado en coordenadas de caja 0..1 (0 = la cara más honda de cada
+## eje) y en w la fracción de volumen. Un eje casi paralelo a la superficie no corta nada: se integra
+## entero (centroide 0.5) en vez de repartir entre casi cero.
+static func _clip_box(depth: float, ux: float, uy: float, uz: float) -> Vector4:
+	var extent := ux + uy + uz
+	var eps := extent * CLIP_EPS
+	var ax := ux > eps
+	var ay := uy > eps
+	var az := uz > eps
+	var k := int(ax) + int(ay) + int(az)
+	if k == 0:
+		return Vector4(0.5, 0.5, 0.5, clampf(depth / maxf(extent, 0.000001), 0.0, 1.0))
+
+	var vol := 0.0
+	var mx := 0.0
+	var my := 0.0
+	var mz := 0.0
+	for v in 8:
+		var bx := v & 1
+		var by := (v >> 1) & 1
+		var bz := (v >> 2) & 1
+		if (bx == 1 and not ax) or (by == 1 and not ay) or (bz == 1 and not az):
+			continue
+		var t := depth - bx * ux - by * uy - bz * uz
+		if t <= 0.0:
+			continue
+		var w := t if k == 1 else (t * t if k == 2 else t * t * t)
+		if ((bx + by + bz) & 1) == 1:
+			w = -w
+		vol += w
+		# Centroide del símplice de este vértice: a 1/(k+1) de su altura sobre cada eje que corta.
+		var r := t / float(k + 1)
+		if ax:
+			mx += w * (bx + r / ux)
+		if ay:
+			my += w * (by + r / uy)
+		if az:
+			mz += w * (bz + r / uz)
+
+	if vol <= 0.0:
+		return Vector4(0.5, 0.5, 0.5, 0.0)
+	var norm := (1.0 if k == 1 else (2.0 if k == 2 else 6.0)) \
+		* (ux if ax else 1.0) * (uy if ay else 1.0) * (uz if az else 1.0)
+	return Vector4(mx / vol if ax else 0.5, my / vol if ay else 0.5, mz / vol if az else 0.5,
+		clampf(vol / norm, 0.0, 1.0))
+
+
+## Freno de balance y cabeceo: la parte de la velocidad angular que inclina el casco decae a tasa
+## tilt_drag (1/s), sea cual sea su tamaño. angular_drag es isótropo, va por masa desplazada y se topa
+## en 10 m², así que en un casco largo casi no toca el cabeceo (en uno de 24 m, ζ ≈ 0.006: cualquier
+## golpe de mar lo dejaba oscilando un minuto). La guiñada queda fuera, que es el timón.
+func _apply_tilt_drag(up: Vector3, displaced_mass: float, delta: float) -> void:
+	var tilt_vel := angular_velocity - up * angular_velocity.dot(up)
+	var immersion := minf(displaced_mass / mass, 1.0)
+	angular_velocity -= tilt_vel * (1.0 - exp(-tilt_drag * immersion * delta))
 
 
 ## Aplica el peso del agua embarcada como una única fuerza en el centroide cacheado. El estado
@@ -1159,13 +1246,25 @@ func _find_overlapping_comp(old: Dictionary, comps: Array) -> Dictionary:
 	return {}
 
 
-## true si el compartimento tiene su apertura más baja bajo el nivel del mar (sin ola).
+## true si la apertura más baja del compartimento CON LA ESCORA ACTUAL está bajo el nivel del mar (sin
+## ola). Con una sola cota fija, la del análisis a plomo, escorar hacia la otra banda metía la borda en
+## el agua sin que la bodega se llenase.
 func _is_comp_flooded(comp: Dictionary, planet_pos: Vector3, base_water_radius: float) -> bool:
 	if not comp.get("open", false):
 		return false
-	var sill_world: Vector3 = global_transform \
-		* ((Vector3(comp["sill_cell"] as Vector3i) + Vector3.ONE * 0.5) * (comp["cell_size"] as float))
-	return (sill_world - planet_pos).length() <= base_water_radius
+	var openings: PackedVector3Array = comp.get("openings", PackedVector3Array())
+	if openings.is_empty():
+		return false
+	var xf := global_transform
+	var up_local := xf.basis.inverse() * (xf.origin - planet_pos).normalized()
+	var lowest: Vector3 = openings[0]
+	var lowest_h := lowest.dot(up_local)
+	for p: Vector3 in openings:
+		var h := p.dot(up_local)
+		if h < lowest_h:
+			lowest_h = h
+			lowest = p
+	return (xf * lowest - planet_pos).length() <= base_water_radius
 
 
 ## Cajas de compartimentos no inundados (body-local): la máscara del océano. Ordenadas por
@@ -1201,7 +1300,6 @@ func get_flood_state() -> Dictionary:
 		"compartments": _compartments.size(),
 		"flooded": flooded,
 		"breached": _breached_comps.size(),
-		"heel_assist": _heel_assist(),
 	}
 
 
