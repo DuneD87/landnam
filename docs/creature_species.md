@@ -11,16 +11,16 @@ clips, sus materiales y sus números. Los tamaños (joven, adulto, grande) son l
 
 | Especie | `spawn` | Escena | Dónde sale (población) | Conducta | Vida |
 | --- | --- | --- | --- | --- | ---: |
-| Cierva | `cierva` | `Hind` | templado (12) | huye | 55 |
-| Jabalí | `jabali` | `Boar` | templado (10) | huye; herido, carga | 80 |
+| Cierva | `cierva` | `Hind` | templado (8) | huye | 55 |
+| Jabalí | `jabali` | `Boar` | templado (8) | huye; herido, carga | 80 |
 | Alce | `alce` | `Moose` | templado frío y frío (4) | huye; herido, carga | 180 |
 | Lince | `lince` | `Lynx` | templado y frío (2) | huye | 45 |
 | Cabra montés | `cabra_montes` | `MountainGoat` | templado frío y frío (8) | huye | 60 |
 | Mamut | `mamut` | `Mammoth` | frío (6) | carga si te acercas a menos de 15 m | 900 |
 | Leona | `leona` | `Lioness` | sabana (6) | ataca al verte: zarpazos y salto | 120 |
-| Ñu | `nu` | `Wildebeest` | sabana (16) | huye | 80 |
+| Ñu | `nu` | `Wildebeest` | sabana (12) | huye | 80 |
 | Hiena | `hiena` | `Hyena` | sabana (8), en grupos de 2 a 4 | ataca al verte y avisa al grupo: mordisco | 70 |
-| Caimán | `caiman` | `Alligator` | sabana, a menos de 25 m del agua (4) | ataca al verte: mordisco | 150 |
+| Caimán | `caiman` | `Alligator` | sabana, a menos de 25 m del agua (2) | ataca al verte: mordisco | 150 |
 | Rinoceronte | `rinoceronte` | `Rhinoceros` | sabana (4) | carga a menos de 18 m | 400 |
 | Elefante | `elefante` | `Elephant` | sabana (8) | carga a menos de 20 m | 800 |
 | Puma | `puma` | `Puma` | solo consola | ataca al verte: zarpazos y salto | 90 |
@@ -71,22 +71,26 @@ con su tono en su `SoundEvent` (`tools/audio/build_combat_events.gd`):
 
 ## Población
 
-Cada perfil tiene su propia población, así que cada especie que se añade a una zona suma
-criaturas. Con todas las especies nuevas, en la partida guardada había 50 en juego en vez de 28. Y
-una criatura grande cuesta aunque esté lejos: su cuerpo físico, sus zonas de golpe pegadas a los
-huesos y su esqueleto. Por eso las poblaciones se bajaron a la mitad o menos, y se recuperaron
-(las de antes del pack a su valor, las nuevas al doble) al abaratar la percepción y los esqueletos:
+Cada perfil mantiene su propio cupo alrededor del jugador. La suma de las especies de una zona
+determina su densidad: los cupos terrestres se ajustan juntos, incluyendo los animales pequeños,
+con menos depredadores solitarios y manadas pequeñas. Las optimizaciones de percepción y
+esqueletos reducen su coste, pero los cupos responden también a la frecuencia de los encuentros.
 
-| Zona | Especies (población) | Total |
-| --- | --- | ---: |
-| Templado (biomas 1 y 3) | ciervo 20, cierva 12, oso 10, lobos 8, jabalí 10, lince 2; en lo frío, alce 4 y cabra montés 8 | ~60–75 |
-| Frío (por clima) | caribú 16, oso polar 3, mamut 6, y los lobos, alces, linces y cabras que comparte | ~45 |
-| Sabana (bioma 2) | ñu 16, búfalo 10, elefante 8, hiena 8, leona 6, león 3, rinoceronte 4, caimán 4 | 59 |
+| Zona | Criaturas grandes (cupo por especie) | Total grandes | Pequeños | Suma |
+| --- | --- | ---: | ---: | ---: |
+| Templado (biomas 1 y 3) | ciervo 12, cierva 8, oso 4, lobos 10, jabalí 8, lince 2; en lo frío, alce 4 y cabra montés 8 | 44–56 | conejo 10, zorro 2, ratón 12 | 68–80 |
+| Frío (por clima) | caribú 12, oso polar 2, mamut 6, lobos 10, alce 4, lince 2, cabra montés 8 | 44 | liebre 8, zorro ártico 2, lémming 12 | 66 |
+| Sabana (bioma 2) | ñu 12, búfalo 12, elefante 8, hiena 8, leona 6, león 2, rinoceronte 4, caimán 2 | 54 | — | 54 |
 
-Son poblaciones con la fauna de las opciones al máximo: el nivel bajo deja el 40 % y el medio el
-70 % (`FAUNA_SCALE`). Los animales pequeños siguen la misma vuelta (ver
-[small_ground_fauna.md](small_ground_fauna.md)). Al añadir una especie a una zona, la población
-se quita a las otras de esa zona, no se suma.
+Las sumas son orientativas, con la opción de fauna al máximo y antes de aplicar actividad por
+hora y estación. Cada especie tiene su propio radio; altura, clima y terreno pueden reducir su
+presencia, y las bandas templada y fría se solapan en la transición. No son un límite global
+compartido. El nivel bajo de las opciones aplica el 40 % y el medio el 70 % (`FAUNA_SCALE`), con
+redondeo por especie y un mínimo de uno antes de la actividad. Los compañeros de una manada
+cuentan dentro del cupo del perfil.
+
+Los pequeños se detallan en [small_ground_fauna.md](small_ground_fauna.md). Al añadir una especie
+a una zona, hay que redistribuir los cupos de esa zona para mantener su densidad.
 
 ## Coste de la animación
 
