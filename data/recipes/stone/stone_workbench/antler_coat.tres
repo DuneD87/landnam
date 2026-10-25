@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="RecipeData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/recipe_data.gd" id="1_nvapo"]
+
+[resource]
+script = ExtResource("1_nvapo")
+result = &"antler_coat"
+inputs = Dictionary[StringName, int]({
+&"raw_hide": 9,
+&"sinew": 3,
+&"bone": 1,
+&"antler": 5
+})
+station = &"stone_workbench"

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/stone_age/fur_coat.png" id="0_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="2_trait"]
+[ext_resource type="Script" path="res://scripts/items/traits/insulation_trait.gd" id="3_warm"]
+
+[sub_resource type="Resource" id="Resource_warm"]
+script = ExtResource("3_warm")
+warmth = 9.0
+
+[resource]
+script = ExtResource("1_item")
+id = &"fur_coat"
+display_name = "ITEM_FUR_COAT"
+description = "ITEM_FUR_COAT_DESC"
+icon = ExtResource("0_icon")
+category = 4
+scene_path = "res://scenes/items/armor/stone_age/fur_coat_equipable.tscn"
+armor_slot = 2
+armor_slash = 6.0
+armor_blunt = 9.0
+armor_pierce = 4.0
+coverage = 46
+traits = Array[ExtResource("2_trait")]([SubResource("Resource_warm")])

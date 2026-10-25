@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/boar_moccasins.res" id="1_8e4nm"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_pjg77"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_jv8xe"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/boar_moccasins.tres" id="4_ldw46"]
+
+[node name="boar_moccasins" type="MeshInstance3D" unique_id=212252046]
+mesh = ExtResource("1_8e4nm")
+skin = ExtResource("2_pjg77")
+script = ExtResource("3_jv8xe")
+item_data = ExtResource("4_ldw46")

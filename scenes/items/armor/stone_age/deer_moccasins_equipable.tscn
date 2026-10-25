@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/deer_moccasins.res" id="1_lh2b6"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_mxemf"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_hklo3"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/deer_moccasins.tres" id="4_415w6"]
+
+[node name="deer_moccasins" type="MeshInstance3D" unique_id=1045823398]
+mesh = ExtResource("1_lh2b6")
+skin = ExtResource("2_mxemf")
+script = ExtResource("3_hklo3")
+item_data = ExtResource("4_415w6")

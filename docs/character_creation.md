@@ -367,11 +367,13 @@ pieles con pelo*), que usa el mismo reparto de pesos.
 
 ### Prendas de pieles con pelo
 
-El manto, el faldellín, las manoplas y los mocasines de pieles con pelo no
-vienen de ningún modelo: `tools/character/blender/build_fur_armor.py` los
-construye como ropa por capas sobre el propio escaneo, y se doblan con él. Las
-versiones de Meshy eran una masa uniforme de esquirlas con una textura de algo
-parecido a piel, y el rigging peleaba con esa geometría.
+Las prendas de pieles con pelo, dos conjuntos (el ligero: manto, faldellín,
+manoplas y mocasines; el pesado, de invierno: zamarra, calzones, manoplas de
+invierno y botas), no vienen de ningún modelo:
+`tools/character/blender/build_fur_armor.py` las construye como ropa por capas
+sobre el propio escaneo, y se doblan con él. Las versiones de Meshy eran una
+masa uniforme de esquirlas con una textura de algo parecido a piel, y el
+rigging peleaba con esa geometría.
 
 - **El manto**: una piel de lobo echada sobre los hombros (oscura por el lomo,
   gris y leonada por los flancos, más clara en la garganta), con las patas
@@ -391,6 +393,54 @@ parecido a piel, y el rigging peleaba con esa geometría.
 - **Los mocasines**: de cuero, con la suela subiendo por los lados y el empeine
   fruncido en una costura; encima, una piel envuelta en cada espinilla, atada
   con dos tiras que se cruzan subiendo y anudada bajo la rodilla.
+
+El conjunto pesado abriga casi el doble (+19,5 °C frente a +11: cómodo de unos
+−10 a +4 °C, y da calor en un día templado) y para más los golpes:
+
+- **La zamarra** (`fur_coat`): cerrada, de pieles de caribú con el pelo por
+  fuera, hasta medio muslo y con mangas largas; a retales (oscura por la
+  espalda, clara por los costados) con franjas de color crema en el bajo y los
+  puños. Sobre los hombros, una gorguera de pelo largo de glotón, oscura con
+  una franja clara en el borde, que tapa la unión de las mangas. Cinto de dos
+  vueltas con un pasador de hueso y una bolsa. Su falda cuelga de los huesos
+  de falda y, por delante, cada lado va con su muslo: al dar una zancada se
+  abre, en vez de atravesarla el muslo.
+- **Los calzones** (`fur_breeches`): de piel de oso con el pelo por fuera
+  hasta debajo de la rodilla, con la cara interior de las piernas y la
+  entrepierna de cuero, rodilleras de cuero cosidas, un cordón en la cintura y
+  una tira bajo cada rodilla. Su bajo, holgado, cae por encima de la caña de
+  las botas.
+- **Las manoplas de invierno** (`fur_gauntlets`): las manoplas ligeras más
+  holgadas, con el dorso de caribú con pelo corto y un puño largo de glotón
+  que se abre hacia el codo; bajo la manga de la zamarra.
+- **Las botas** (`fur_boots`): un mocasín y, cosida sobre él, una caña de piel
+  de caribú con pelo hasta debajo de la rodilla, con una franja clara por cada
+  lado y un puño de glotón arriba; una tira de dos vueltas en el tobillo y
+  otra bajo el puño.
+
+Cada conjunto tiene tres variantes (`<animal>_<prenda>`), con su aspecto y su
+reparto de abrigo y protección (abrigo; tajo/golpe/punta, sumando las cuatro
+piezas):
+
+| Conjunto | Aspecto | Abrigo | Tajo/golpe/punta | Además |
+|---|---|---|---|---|
+| `fur_` ligero | lobo gris | +11 | 9/13/6 | |
+| `boar_` | jabalí hirsuto, cresta de cerdas, colmillos colgando | +8,5 | 18/12/6 | colmillos |
+| `deer_` | ciervo de pelo corto, peto y faldar de placas de hueso | +8,5 | 11/12/15 | hueso |
+| `fox_` | zorro rojo de pelo largo, patas negras, cuentas de marfil | +16 | 6/8/4,5 | marfil |
+| `fur_` pesado | caribú y glotón | +19,5 | 15/21/10 | |
+| `bison_` | lana de bisonte oscura y larga, gorguera enorme | +22 | 15/30/11 | más cuero |
+| `antler_` | reno con láminas de asta en filas (laminada), gorguera de lobo | +16 | 27/21/21 | asta |
+| `arctic_` | zorro ártico blanco, franjas oscuras, cuentas de marfil | +26 | 10/13/6 | marfil |
+
+Son las mismas prendas con otro estilo (`MANTLE`, `COAT`... en
+`build_fur_armor.py`, y los de las variantes en `*_SET`): colores, largo y
+grosor del pelo, y lo que llevan cosido o colgado (`plates`, `beads`,
+`tusks`, `lamellae`: su color o nada). Las placas se cosen en filas con una
+tira por arriba; donde el cuero hace pliegues (el faldar de la zamarra, los
+faldones) cuelgan planas por fuera de ellos. Lo del faldellín va en los
+extremos de los faldones, bajo la piel: su cinturón queda bajo lo que se
+lleve encima.
 
 Cómo se hacen:
 
@@ -418,7 +468,10 @@ Cómo se hacen:
   2 mm y pesada como ella: lo que asoma al cerrar el puño o doblar los dedos
   es cuero y no carne. Sobre los dedos el mocasín va más holgado.
 - **Pesos**: `fit_meshy_armor.skin()`, como las de Meshy. El cinturón y el
-  taparrabos del faldellín siguen a la cadera y los muslos.
+  taparrabos del faldellín siguen a la cadera y los muslos. Las mangas de la
+  zamarra son piezas aparte (con `"sleeves"`, se doblan por el codo), y su
+  cuerpo y su falda cuelgan de los huesos de falda (`"hang"`, con `"split"`
+  estrecho, para que cada lado de la falda vaya con su muslo).
 - **UV en metros**: cada panel se despliega aparte (un tubo, como una polaina,
   se corta antes por el camino más corto entre sus dos bordes) y se gira para
   que +V baje por su pendiente.
@@ -451,18 +504,25 @@ python3 tools/character/make_fur_textures.py [--only=leather,lace,bone,pelt_albe
 godot --headless --path . --script res://tools/character/dump_skeleton.gd -- $PWD/build/character/meshy/body.json
 # 3. Prendas (menos de un minuto; deja vistas previas <id>_preview_*.png)
 blender -b --factory-startup --python tools/character/blender/build_fur_armor.py -- \
-    build/character/meshy/body.json build/character/meshy [fur_mantle fur_loincloth fur_mittens fur_moccasins]
+    build/character/meshy/body.json build/character/meshy [$FUR]
 # 4. Materiales, mallas y escenas (la primera vez escribe cómo importar los mapas)
-godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- $PWD/build/character/meshy fur_mantle fur_loincloth fur_mittens fur_moccasins
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- $PWD/build/character/meshy $FUR
 godot --headless --path . --import
-godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- $PWD/build/character/meshy fur_mantle fur_loincloth fur_mittens fur_moccasins
+godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- $PWD/build/character/meshy $FUR
 # 5. Iconos (necesita ventana)
-godot --path . --script res://tools/ui/bake_item_icons.gd -- --background --only=fur_mantle,fur_loincloth,fur_mittens,fur_moccasins,hide_backpack
+godot --path . --script res://tools/ui/bake_item_icons.gd -- --background --only=$(echo $FUR | tr ' ' ,),hide_backpack
 ```
 
-Las cuatro cuestan unos 106 000 vértices y 120 000 triángulos (el manto, 42 000),
-de los que 39 000 son tarjetas de pelo. Las mallas ocupan unos 7 MB y los mapas,
-compartidos, 17 MB en PNG (en VRAM van comprimidos).
+con `FUR` las que cambien (sin ids, `build_fur_armor.py` las hace todas; las
+del baker y los iconos, por ejemplo
+`FUR=$(ls build/character/meshy | sed -n 's/^\(fur\|boar\|deer\|fox\|bison\|antler\|arctic\)_\(.*\)\.json$/\1_\2/p')`).
+
+El conjunto ligero cuesta unos 106 000 vértices y 120 000 triángulos (el manto,
+42 000), de los que 39 000 son tarjetas de pelo; el pesado, unos 147 000 y
+162 000 (la zamarra, 59 000), 55 000 de tarjetas. Las variantes, de 122 000
+(jabalí, ciervo) a 179 000 triángulos (zorro ártico). Las mallas de los ocho
+conjuntos ocupan 72 MB, y los mapas, compartidos, 17 MB en PNG (en VRAM van
+comprimidos).
 
 ### Faldas que se mueven
 
@@ -583,9 +643,11 @@ de una partida y las vistas `hips_side`, `hips_front`, `hips_back`,
   (de los calzones de `"over"`): los bajos de unas calzas pueden asomar por la
   caña de las botas.
 - El pelo de las pieles no choca con nada: los brazos pegados al cuerpo cruzan
-  algún mechón de los hombros del manto, y al abrir mucho las piernas la falda
-  de piel se abre por delante. Las tarjetas son planas: de canto, alguna se ve
-  como una tira.
+  algún mechón de los hombros del manto o de la gorguera, el del puño de unas
+  manoplas puede asomar por la manga de la zamarra, y al abrir mucho las
+  piernas la falda de piel del faldellín se abre por delante (la de la zamarra
+  se abre al dar una zancada, a propósito). Las tarjetas son planas: de canto,
+  alguna se ve como una tira.
 - El aspecto es el de MakeHuman: limpio y de juego, no fotográfico. Algunos
   peinados son mallas esculpidas más que mechones.
 - El mundo usa ACES, que apaga algo la piel respecto a la vista previa.

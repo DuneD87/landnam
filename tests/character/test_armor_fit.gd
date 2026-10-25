@@ -12,6 +12,13 @@ const HOODS := ["res://scenes/items/armor/leather_armor/leather_hood_equipable.t
 ## Made on the scan by tools/character/blender/build_fur_armor.py (fur_) and fitted onto it
 ## by fit_meshy_armor.py (hide_).
 const STONE_AGE := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins",
+		"fur_coat", "fur_breeches", "fur_gauntlets", "fur_boots",
+		"boar_mantle", "boar_loincloth", "boar_mittens", "boar_moccasins",
+		"deer_mantle", "deer_loincloth", "deer_mittens", "deer_moccasins",
+		"fox_mantle", "fox_loincloth", "fox_mittens", "fox_moccasins",
+		"bison_coat", "bison_breeches", "bison_gauntlets", "bison_boots",
+		"antler_coat", "antler_breeches", "antler_gauntlets", "antler_boots",
+		"arctic_coat", "arctic_breeches", "arctic_gauntlets", "arctic_boots",
 		"hide_tunic", "hide_trousers", "hide_mittens", "hide_boots"]
 
 var failures := 0

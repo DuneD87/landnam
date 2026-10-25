@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/antler_gauntlets.res" id="1_mypry"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_7w164"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_8b1hi"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/antler_gauntlets.tres" id="4_7gisf"]
+
+[node name="antler_gauntlets" type="MeshInstance3D" unique_id=270501678]
+mesh = ExtResource("1_mypry")
+skin = ExtResource("2_7w164")
+script = ExtResource("3_8b1hi")
+item_data = ExtResource("4_7gisf")

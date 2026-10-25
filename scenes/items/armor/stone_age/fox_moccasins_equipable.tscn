@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/fox_moccasins.res" id="1_rrjmq"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_xght7"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_bg0hq"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/fox_moccasins.tres" id="4_vu0te"]
+
+[node name="fox_moccasins" type="MeshInstance3D" unique_id=159636116]
+mesh = ExtResource("1_rrjmq")
+skin = ExtResource("2_xght7")
+script = ExtResource("3_bg0hq")
+item_data = ExtResource("4_vu0te")

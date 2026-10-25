@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/fur_gauntlets.res" id="1_6p35d"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_bv3xv"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_rmyh7"]
+
+[node name="fur_gauntlets" type="MeshInstance3D" unique_id=1474432546]
+mesh = ExtResource("1_6p35d")
+skin = ExtResource("2_bv3xv")
+script = ExtResource("3_rmyh7")

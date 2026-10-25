@@ -66,6 +66,9 @@ Entry keys (all optional but "model" and "slot"):
   thighs     chest, legs (skirt): [front, back] share of the thigh weights kept
              below the crotch (SKIRT_FRONT/BACK, or HANG_THIGHS if it hangs);
              with the skirt's bones, the share that rides the thighs (HANG_RIDE).
+  split      (hang) metres either side of the middle over which its front goes
+             from following one thigh to the other: narrower, each side rides
+             its own thigh and the middle stretches between them.
   hang       legs (skirt): it hangs from the skirt's bones (body.json "skirt"),
              which the game swings, or without them from the hips, the thighs
              going through it (HANG_THIGHS); its lining stays on the hips.
@@ -77,6 +80,8 @@ Entry keys (all optional but "model" and "slot"):
              defaults to WEIGHT_RADIUS for the slot.
   sole       feet: height of the underside (m, ground 0).
   liner      chest, legs: line it (see LINER_OFFSET).
+  sleeves    chest: it has long sleeves, which bend at the elbow (the
+             forearms' bones too).
   decimate   ratio of faces kept.
   clearance  metres off the skin (default CLEARANCE).
 """
@@ -1037,11 +1042,13 @@ def skin_liner(obj, body, slot, offset):
 
 # --- Skinning ------------------------------------------------------------------
 
-def allowed_map(body, slot, skirt=False):
+def allowed_map(body, slot, skirt=False, sleeves=False):
     """For every bone, the allowed bone that takes its weight. A skirt does
     not follow the shins or the feet (its hem hangs from the thighs, and they
-    hand it to the hips)."""
+    hand it to the hips); long sleeves follow the forearms."""
     names = ALLOWED[slot]
+    if sleeves:
+        names = names + [s + "ForeArm" for s in SIDES]
     if skirt:
         names = [b for b in names if b.endswith("UpLeg") or not b.endswith(("Leg", "Foot"))]
     allowed = {body.index[BONE_PREFIX + s] for s in names}
@@ -1065,7 +1072,7 @@ def skin(obj, body, entry, slot):
     distance = np.zeros(n)
     for i, q in enumerate(p):
         dense[i], distance[i] = body.weights_at(q)
-    remap = allowed_map(body, slot, entry.get("skirt", False))
+    remap = allowed_map(body, slot, entry.get("skirt", False), entry.get("sleeves", False))
     if entry.get("mitten"):
         # One pouch encloses these four fingers. Different finger weights
         # across that pouch pull neighbouring tufts in different directions
@@ -1100,7 +1107,7 @@ def skin(obj, body, entry, slot):
         ring = body.joints[body.names[body.chains[0][0]]][2]
         below = smoothstep(ring + SKIRT_BLEND, ring - SKIRT_BLEND, p[:, 2])
         hanging = chain_weights(p, body)
-        on_left, on_right = on_thighs(p, body, entry.get("thighs", HANG_RIDE))
+        on_left, on_right = on_thighs(p, body, entry.get("thighs", HANG_RIDE), entry.get("split"))
         hanging *= (1.0 - on_left - on_right)[:, None]
         hanging[:, left] += on_left
         hanging[:, right] += on_right
@@ -1147,12 +1154,13 @@ def smooth_weights(points, dense, radius):
     return result[inverse]
 
 
-def on_thighs(p, body, shares):
+def on_thighs(p, body, shares, half=None):
     """Per point, how much of it follows each thigh, (left, right): the
     `shares` [front, back] of it, from the front of the hips to the back,
     split between the two by how far to each side it hangs (the middle
-    follows both alike, so it does not split when they part)."""
-    half = abs(body.joint("LeftUpLeg")[0] - body.joint("RightUpLeg")[0]) * 0.5 + 0.06
+    follows both alike, so it does not split when they part), over `half`
+    metres either side of the middle (by default, past the hip joints)."""
+    half = half or abs(body.joint("LeftUpLeg")[0] - body.joint("RightUpLeg")[0]) * 0.5 + 0.06
     centre = (body.joint("LeftUpLeg")[0] + body.joint("RightUpLeg")[0]) * 0.5
     side = np.clip((p[:, 0] - centre) / half, -1.0, 1.0)
     # Blender's front is -Y.

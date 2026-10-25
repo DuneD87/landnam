@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/antler_boots.res" id="1_3e8gp"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_rbl5u"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_x42x4"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/antler_boots.tres" id="4_bkwvt"]
+
+[node name="antler_boots" type="MeshInstance3D" unique_id=1010301315]
+mesh = ExtResource("1_3e8gp")
+skin = ExtResource("2_rbl5u")
+script = ExtResource("3_x42x4")
+item_data = ExtResource("4_bkwvt")

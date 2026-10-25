@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/deer_mittens.res" id="1_yrvpt"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_mhgvl"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_o7ymf"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/deer_mittens.tres" id="4_51tvg"]
+
+[node name="deer_mittens" type="MeshInstance3D" unique_id=123213544]
+mesh = ExtResource("1_yrvpt")
+skin = ExtResource("2_mhgvl")
+script = ExtResource("3_o7ymf")
+item_data = ExtResource("4_51tvg")

@@ -3,8 +3,14 @@ clothing: the mantle (a wolf's pelt over the shoulders, on a hide jerkin
 gathered by a belt, with a pouch), the loincloth (a fur skirt wrapped round
 the hips over two long hide flaps and a leather loincloth), the mittens
 (leather with a fur cuff) and the moccasins (leather, with a pelt wrapped
-round each shin and bound with crossed thongs). See docs/character_creation.md,
-"Prendas de pieles con pelo". Nothing is imported: every piece is made here
+round each shin and bound with crossed thongs); and the heavy set for the
+winter: the coat (caribou hides with the hair out, long sleeves, a ruff of
+wolverine over the shoulders), the breeches (bearskin to under the knee),
+the gauntlets (fur mittens with a long cuff) and the boots (a moccasin with
+a fur leg to under the knee). Each set has three variants (*_SET: other
+animals, with bone plates, antler lamellae, ivory beads or boar's tusks).
+See docs/character_creation.md, "Prendas de pieles con pelo". Nothing is
+imported: every piece is made here
 on the scan's own skin. The output is what fit_meshy_armor.py writes
 (tools/character/bake_meshy_armor.gd bakes it), with a material named on
 every surface instead of a model's own maps.
@@ -63,9 +69,10 @@ if __name__ == "__main__":
     BODY_JSON, OUT_DIR = ARGS[:2]
     ONLY = set(ARGS[2:])
 
-## Size of the cells the scan is remeshed into for each piece (m): coarse
-## for the torso, finer for the feet; the mittens are made without it.
-ENVELOPE_VOXEL = {"fur_mantle": 0.014, "fur_loincloth": 0.016, "fur_mittens": None, "fur_moccasins": 0.013}
+## Size of the cells the scan is remeshed into for each garment (m):
+## coarse for the torso, finer for the feet; mittens are made without it.
+ENVELOPE_VOXEL = {"mantle": 0.014, "loincloth": 0.016, "mittens": None, "moccasins": 0.013,
+                  "coat": 0.017, "breeches": 0.013, "gauntlets": None, "boots": 0.013}
 ## Rounds of inflate(): smoothing, then pushing off the skin.
 INFLATE_ROUNDS = 24
 INFLATE_RATE = 0.5
@@ -1081,22 +1088,129 @@ def bvh_of(mesh):
     return BVHTree.FromPolygons([Vector(p) for p in mesh.points], mesh.triangles.tolist())
 
 
-def knot_and_tails(at, n, color, tails):
-    """A knot on a belt: a lump of leather and two ends hanging from it."""
+def knot_and_tails(at, n, color, tails, size=1.0):
+    """A knot on a belt: a lump of leather and two ends hanging from it
+    (`size` scales the lump and the ends' width, for a thong)."""
     side = normalized(np.cross(n, [0.0, 0.0, 1.0]))
-    parts = [ellipsoid(at + n * 0.012, [side * 0.022, np.array([0.0, 0.0, 0.016]), n * 0.014], color,
-                       material="leather")]
+    parts = [ellipsoid(at + n * 0.012 * size, [side * 0.022 * size, np.array([0.0, 0.0, 0.016 * size]),
+                                               n * 0.014 * size], color, material="leather")]
     for k, (length, spread) in enumerate(tails):
         curve = []
         for t in np.linspace(0.0, 1.0, 10):
             # Out from the body as they fall, clear of a bigger one's belly.
-            q = at + n * (0.016 + 0.03 * t) + side * spread * t + np.array([0.0, 0.0, -length * t])
-            q += n * 0.01 * math.sin(math.pi * t)
+            q = at + n * (0.016 + 0.03 * t) * size + side * spread * t + np.array([0.0, 0.0, -length * t])
+            q += n * 0.01 * size * math.sin(math.pi * t)
             curve.append(q)
         curve = np.array(curve)
         normals = np.tile(n, (len(curve), 1))
-        parts.append(strap(curve, normals, 0.02 - 0.004 * k, 0.004, color))
+        parts.append(strap(curve, normals, (0.02 - 0.004 * k) * size, 0.004, color))
     return parts
+
+
+# --- Trimmings ----------------------------------------------------------------
+
+## Ivory (a mammoth's), antler and a boar's tusk: tints of the bone map.
+IVORY = (0.95, 0.9, 0.8)
+ANTLER = (0.78, 0.68, 0.54)
+TUSK = (0.92, 0.87, 0.76)
+## Bone worked into plates, yellowed.
+BONE_PLATE = (0.85, 0.79, 0.68)
+
+
+def merged_part(parts):
+    """Parts of one material as one (beads, plates): fewer to shade and export."""
+    offsets = np.cumsum([0] + [len(p.points) for p in parts])[:-1]
+    normals = None if any(p.normals is None for p in parts) else np.concatenate([p.normals for p in parts])
+    return Part(parts[0].material, np.concatenate([p.points for p in parts]),
+                np.concatenate([p.triangles + o for p, o in zip(parts, offsets)]), normals,
+                np.concatenate([p.uvs for p in parts]), np.concatenate([p.colors for p in parts]))
+
+
+def beads(curve, spacing, radius, color, closed=False, keep=None):
+    """Beads strung along `curve`, `spacing` apart (but where `keep` of
+    their centres does not hold)."""
+    points = resample(curve, spacing, closed=closed)
+    along = normalized(np.roll(points, -1, axis=0) - np.roll(points, 1, axis=0)) if closed else \
+        normalized(np.gradient(points, axis=0))
+    if keep is not None:
+        mask = keep(points)
+        points, along = points[mask], along[mask]
+    out = []
+    for q, t in zip(points, along):
+        helper = np.array([1.0, 0.0, 0.0]) if abs(t[2]) > 0.9 else np.array([0.0, 0.0, 1.0])
+        u = normalized(np.cross(t, helper))
+        out.append(ellipsoid(q, [u * radius, np.cross(t, u) * radius, t * radius * 0.8], color, rings=3,
+                             segments=5))
+    return [merged_part(out)] if out else []
+
+
+def plates(rows, size, thickness, color, bvh=None, normals=None, lift=0.003, up=None, laced=True):
+    """Plates (bone, antler) sewn in rows: each row an array of the points
+    where one is centred, `size` (wide, high) metres, upright (along `up`,
+    or +z, on the surface), curved to the surface `bvh` (or flat, facing
+    `normals`, rows of them) `lift` off it, and laced along their tops; odd
+    rows stand a little further out, over the next. Returns the parts and
+    the centres."""
+    out, laces, centres = [], [], []
+    for k, row in enumerate(rows):
+        tops = []
+        for i, centre in enumerate(row):
+            at, n = surface_frame(bvh, centre) if bvh is not None else (centre, normals[k][i])
+            direction = np.array([0.0, 0.0, 1.0]) if up is None else up
+            v = normalized(direction - n * (direction @ n))
+            curve, curve_n = [], []
+            for t in np.linspace(-0.5, 0.5, 4):
+                q, qn = surface_frame(bvh, at + v * size[1] * t) if bvh is not None else (at + v * size[1] * t, n)
+                curve.append(q + qn * (lift + 0.0018 * (k % 2)))
+                curve_n.append(qn)
+            out.append(strap(np.array(curve), np.array(curve_n), size[0], thickness, color, material="bone"))
+            tops.append(curve[-1] - v * size[1] * 0.16 + n * (thickness + 0.001))
+            centres.append(at)
+        if laced and len(tops) > 1:
+            laces.append(tube_part("lace", np.array(tops), 0.0013, SINEW, sides=4))
+    return ([merged_part(out)] if out else []) + laces, np.array(centres).reshape(-1, 3)
+
+
+def plate_rows(bvh, axis, heights, keep, spacing):
+    """Where plates go round a surface (`bvh`) about a vertical axis through
+    `axis`: at each height every `spacing` metres where `keep(angle)` holds
+    (0 in front), each run of them a row; odd rows shifted half a plate."""
+    rows = []
+    for k, z in enumerate(heights):
+        ring, _ = ring_on(bvh, axis, lambda x, z=z: z, count=720)
+        closed = np.vstack([ring, ring[:1]])
+        s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(closed, axis=0), axis=1))])
+        at = np.arange(spacing * 0.5 * (k % 2), s[-1] - spacing * 0.5, spacing)
+        points = np.stack([np.interp(at, s, closed[:, c]) for c in range(3)], axis=1)
+        mask = keep(np.arctan2(points[:, 0] - axis[0], -(points[:, 1] - axis[1])))
+        # Runs of kept points, the last joined to the first round the back.
+        runs, run = [], []
+        for i, m in enumerate(mask):
+            if m:
+                run.append(i)
+            elif run:
+                runs.append(run)
+                run = []
+        if run:
+            if runs and runs[0][0] == 0:
+                runs[0] = run + runs[0]
+            else:
+                runs.append(run)
+        rows += [points[r] for r in runs]
+    return rows
+
+
+def tusk(at, down, out, length, color):
+    """A boar's tusk hanging from `at` on a short cord: a tapering crescent
+    curling out (`out`) as it goes down."""
+    down, out = normalized(np.asarray(down, dtype=np.float64)), normalized(np.asarray(out, dtype=np.float64))
+    top = at + down * 0.012
+    radius = length * 0.55
+    angles = np.linspace(0.0, 2.0, 9)
+    curve = np.array([top + down * radius * math.sin(t) + out * radius * (1.0 - math.cos(t)) for t in angles])
+    thick = np.linspace(length * 0.1, length * 0.02, len(curve))
+    return [tube_part("lace", np.array([at, top]), 0.0014, SINEW, sides=4),
+            tube_part("bone", curve, thick, color, sides=6)]
 
 
 # --- Garments ------------------------------------------------------------------
@@ -1331,25 +1445,38 @@ def wolf_pelt(env, body, low, cap, clearance):
     return m
 
 
-def wolf_colors(q, labels):
-    """A grey wolf: a dark saddle down the spine, tawny grey flanks, cream
-    under the neck and on the forelegs."""
+## A grey wolf's pelt (wolf_colors): its back, flanks, belly, the saddle
+## down its spine and, if they differ, its forelegs.
+WOLF_PELT = {"back": WOLF, "flank": TAWNY, "belly": CREAM, "saddle": WOLF_STRIPE, "legs": None}
+
+
+def wolf_colors(q, labels, pelt=WOLF_PELT, legs_at=0.3, chest=1.36):
+    """A pelt over the shoulders coloured as a grey wolf's (or as `pelt`
+    says): a dark saddle down the spine, tawny grey flanks, cream under the
+    neck and on the forelegs, which hang over the chest `legs_at` radians
+    either side of the front, below `chest`."""
     behind = smoothstep(-0.02, 0.06, q[:, 1])
     saddle = np.exp(-(q[:, 0] / 0.09) ** 2) * behind
     belly = 0.6 * smoothstep(0.0, -0.08, q[:, 1]) * smoothstep(1.4, 1.25, q[:, 2])
     flank = smoothstep(0.1, 0.22, np.abs(q[:, 0]))
-    base = np.array(WOLF)[None, :] * np.ones((len(q), 1))
-    base = base * (1 - 0.45 * flank[:, None]) + np.array(TAWNY) * 0.45 * flank[:, None]
-    base = base * (1 - 0.6 * belly[:, None]) + np.array(CREAM) * 0.6 * belly[:, None]
-    base = base * (1 - 0.75 * saddle[:, None]) + np.array(WOLF_STRIPE) * 0.75 * saddle[:, None]
+    base = np.array(pelt["back"])[None, :] * np.ones((len(q), 1))
+    base = base * (1 - 0.45 * flank[:, None]) + np.array(pelt["flank"]) * 0.45 * flank[:, None]
+    base = base * (1 - 0.6 * belly[:, None]) + np.array(pelt["belly"]) * 0.6 * belly[:, None]
+    base = base * (1 - 0.75 * saddle[:, None]) + np.array(pelt["saddle"]) * 0.75 * saddle[:, None]
+    if pelt["legs"] is not None:
+        a = torso_angle(q)
+        legs = np.exp(-((np.abs(a) - legs_at) / 0.09) ** 2) * smoothstep(chest - 0.07, chest - 0.13, q[:, 2]) \
+            * smoothstep(0.3, 0.6, np.cos(a))
+        base = base * (1 - legs[:, None]) + np.array(pelt["legs"]) * legs[:, None]
     return base * (1.0 + wobble(q, SEED + 40, 6.0, 0.12))[:, None]
 
 
 def fur_coat(m, normals, colors, rng, density, length, edge_length, row_long=0, centre=None, skip_edge=None,
-             avoid=None):
+             avoid=None, width=1.0):
     """Hair cards over a pelt `m`: long locks combed down it, a short coat
     between them, and locks hanging over its edges (but where `skip_edge`
-    of an edge point holds). `length(points)` is how long the locks are."""
+    of an edge point holds). `length(points)` is how long the locks are,
+    `width` how wide for their length (narrow: bristles)."""
     parts = []
 
     def spread(share):
@@ -1364,14 +1491,14 @@ def fur_coat(m, normals, colors, rng, density, length, edge_length, row_long=0, 
     dirs = normalized(dirs - rn * np.sum(dirs * rn, axis=1)[:, None])
     long = length(roots) * rng.uniform(0.6, 1.3, len(roots))
     tint = rng.uniform(0.8, 1.2, (len(roots), 1))
-    parts.append(card_part(roots - rn * 0.002, rn, dirs, long, long * rng.uniform(0.4, 0.55, len(roots)),
+    parts.append(card_part(roots - rn * 0.002, rn, dirs, long, long * rng.uniform(0.4, 0.55, len(roots)) * width,
                            rng.uniform(0.05, 0.25, len(roots)),
                            rng.uniform(0.1, 0.6, len(roots)) * rng.choice([-1, 1], len(roots)),
                            colors(roots, labels) * tint, row_long, rng))
     roots, rn, labels = spread(0.45)
     dirs = comb_down(roots, rn, centre)
     short = length(roots) * 0.6 * rng.uniform(0.8, 1.2, len(roots))
-    parts.append(card_part(roots - rn * 0.002, rn, dirs, short, short * 0.75, rng.uniform(0.1, 0.3, len(roots)),
+    parts.append(card_part(roots - rn * 0.002, rn, dirs, short, short * 0.75 * width, rng.uniform(0.1, 0.3, len(roots)),
                            rng.uniform(-0.3, 0.3, len(roots)), colors(roots, labels) * 0.9, 1, rng, segments=2))
     for loop in m.loops():
         er, en, eo, el = edge_roots(m, normals, loop, 0.014)
@@ -1382,33 +1509,47 @@ def fur_coat(m, normals, colors, rng, density, length, edge_length, row_long=0, 
         d = normalized(eo * 0.7 + np.array([0.0, 0.0, -0.5]))
         d = normalized(d - en * np.sum(d * en, axis=1)[:, None] * 0.5)
         reach = edge_length * rng.uniform(0.7, 1.2, len(er))
-        parts.append(card_part(er - eo * 0.012, en, d, reach, reach * 0.5, rng.uniform(0.1, 0.4, len(er)),
+        parts.append(card_part(er - eo * 0.012, en, d, reach, reach * 0.5 * width, rng.uniform(0.1, 0.4, len(er)),
                                rng.uniform(-0.9, 0.9, len(er)), colors(er, el), row_long, rng, droop=0.35))
     return parts
 
 
-def mantle(env, body):
+## How a light set looks (each piece takes the keys it uses; these are
+## the grey wolf's, the others are in the variants' sets): the colours of
+## its pelts and hides, how long and how wide the hair is (a boar's crest
+## of bristles down the spine), where the forelegs hang, and what is sewn
+## or hung on it: bone plates, ivory beads or boar's tusks (their colour,
+## or None).
+MANTLE = {"pelt": WOLF_PELT, "hide": HIDE, "hair": (0.05, 0.02), "crest": 0.0, "bristle": 1.0, "legs_at": 0.3,
+          "chest": 1.36, "drop": 0.14, "plates": None, "beads": None, "tusks": None}
+
+
+def mantle(env, body, style=None):
     """A hide tunic to the hips, belted, with a wolf's pelt over the
     shoulders, its forelegs hanging over the chest and tied across it; a
-    pouch on the belt."""
+    pouch on the belt. `style` (MANTLE's keys) changes the animal and adds
+    a breastplate and rows of plates on the jerkin, beads or tusks."""
+    st = {**MANTLE, **(style or {})}
     rng = np.random.default_rng(SEED)
     belt_z = 1.15
     hem = lambda a: 0.955 + 0.012 * math.cos(2 * a) + 0.006 * math.sin(5 * a + 1)
     shirt = tunic(env, body, belt_z, hem, lambda phi: 0.012 + 0.0 * phi, 0.045)
     shirt.labels[:] = 0
-    parts = pelt_parts(shirt, lambda q, l: np.tile(HIDE, (len(q), 1)), bare=[0], flesh=0.025)
+    parts = pelt_parts(shirt, lambda q, l: np.tile(st["hide"], (len(q), 1)), bare=[0], flesh=0.025)
+    legs_at, chest = st["legs_at"], st["chest"]
 
     def low(p, a):
-        chest = np.where(np.cos(a) > 0, 1.36 - 0.14 * (1 - np.cos(a)) ** 1.5, 1.22 - 0.1 * (-np.cos(a)))
-        chest -= lobes(a, [(0.3, 0.085, 0.17), (-0.3, 0.085, 0.17), (math.pi, 0.07, 0.17), (2.2, 0.12, 0.05),
-                           (-2.2, 0.12, 0.05)])
-        return chest + wobble(p, SEED + 11, 5.0, 0.012)
+        edge = np.where(np.cos(a) > 0, chest - st["drop"] * (1 - np.cos(a)) ** 1.5, 1.22 - 0.1 * (-np.cos(a)))
+        edge -= lobes(a, [(legs_at, 0.085, 0.17), (-legs_at, 0.085, 0.17), (math.pi, 0.07, 0.17),
+                          (2.2, 0.12, 0.05), (-2.2, 0.12, 0.05)])
+        return edge + wobble(p, SEED + 11, 5.0, 0.012)
 
     def cap(phi):
         return 0.08 + 0.06 * (0.5 + 0.5 * np.cos(phi)) + lobes(phi, [(0.5, 0.25, 0.03), (-1.2, 0.2, 0.02)])
     pelt = wolf_pelt(env, body, low, cap, 0.034)
     pelt_normals = pelt.normals()
-    parts += pelt_parts(pelt, wolf_colors)
+    pelt_colors = lambda q, l: wolf_colors(q, l, st["pelt"], legs_at, chest)
+    parts += pelt_parts(pelt, pelt_colors)
     # The belt, wound twice, its knot in front to the left, and a pouch on the right hip.
     bvh = bvh_of(shirt)
     belt_parts = []
@@ -1426,7 +1567,7 @@ def mantle(env, body):
     # The forelegs tied across the chest with a thong.
     tips = []
     for sign in (1.0, -1.0):
-        legs = pelt.points[np.abs(torso_angle(pelt.points) - 0.3 * sign) < 0.12]
+        legs = pelt.points[np.abs(torso_angle(pelt.points) - legs_at * sign) < 0.12]
         tips.append(legs[np.argmin(legs[:, 2])] + np.array([0.0, 0.0, 0.03]))
     tie = np.array([tips[0] + (tips[1] - tips[0]) * t + np.array([0.0, -0.012, 0.0]) * math.sin(math.pi * t)
                     for t in np.linspace(0.0, 1.0, 9)])
@@ -1434,6 +1575,32 @@ def mantle(env, body):
     parts.append(ellipsoid((tips[0] + tips[1]) * 0.5 + np.array([0.0, -0.016, 0.0]),
                            [np.array([0.014, 0.0, 0.0]), np.array([0.0, 0.008, 0.0]), np.array([0.0, 0.0, 0.01])],
                            BELT, material="leather"))
+    # What is sewn on the jerkin or hung on it, clear of the knot and the pouch.
+    knot_a, pouch_a = torso_angle(ring[[k, side]])
+    clear = lambda a: (np.abs(np.angle(np.exp(1j * (a - knot_a)))) > 0.16) & \
+        (np.abs(np.angle(np.exp(1j * (a - pouch_a)))) > 0.42)
+    if st["plates"] is not None:
+        # A breastplate between the forelegs, and rows of plates down the skirt.
+        rows = plate_rows(bvh, TORSO_AXIS, [1.2, 1.245, 1.29, 1.335], lambda a: np.abs(a) < legs_at - 0.17, 0.034)
+        rows += plate_rows(bvh, TORSO_AXIS, [1.105, 1.06, 1.015], lambda a: clear(a) & (np.abs(a) < 2.3), 0.035)
+        parts += plates(rows, (0.03, 0.044), 0.004, st["plates"], bvh=bvh)[0]
+    if st["beads"] is not None:
+        # Rows of beads round the skirt, and strung on the forelegs' tie.
+        for z in (1.105, 1.08, 1.055):
+            row, row_n = ring_on(bvh, TORSO_AXIS, lambda x, z=z: z - 0.01 * math.cos(x), count=192)
+            parts += beads(row + row_n * 0.004, 0.011, 0.0038, st["beads"], closed=True,
+                           keep=lambda q: clear(torso_angle(q)))
+        parts += beads(tie, 0.009, 0.0035, st["beads"])
+    if st["tusks"] is not None:
+        # A tusk either side of the tie's knot; three hanging from the belt by its knot.
+        knot = (tips[0] + tips[1]) * 0.5 + np.array([0.0, -0.016, 0.0])
+        for sign in (1.0, -1.0):
+            parts += tusk(knot + np.array([0.012 * sign, -0.006, -0.004]), [0.0, -0.3, -1.0], [sign, -0.3, 0.0],
+                          0.05, st["tusks"])
+        for f in (0.1, 0.135, 0.17):
+            j = int(len(ring) * f)
+            parts += tusk(ring[j] + ring_n[j] * 0.008 - np.array([0.0, 0.0, 0.012]), [0.0, 0.0, -1.0], ring_n[j],
+                          0.06, st["tusks"])
     # Shadows between the layers, then the hair over the pelt.
     ao = occlusion(parts, body)
     for part, shade in zip(parts, ao):
@@ -1441,10 +1608,15 @@ def mantle(env, body):
             darken(part, shade)
     neck_axis = body.joint("Neck")
     shade_at = occlusion_field(parts, body, pelt, pelt_normals)
-    colors = lambda q, l: wolf_colors(q, l) * shade_at(q)[:, None]
-    parts += fur_coat(pelt, pelt_normals, colors, rng, 3000,
-                      lambda q: 0.05 + 0.02 * (q[:, 1] > 0.0), 0.06, centre=neck_axis,
-                      skip_edge=lambda q: np.hypot(q[:, 0] - neck_axis[0], q[:, 1] - neck_axis[1]) < 0.13)
+    colors = lambda q, l: pelt_colors(q, l) * shade_at(q)[:, None]
+    hair, crest = st["hair"], st["crest"]
+    length = lambda q: hair[0] + hair[1] * (q[:, 1] > 0.0)
+    if crest:
+        length = lambda q: hair[0] + hair[1] * (q[:, 1] > 0.0) \
+            + crest * np.exp(-(q[:, 0] / 0.045) ** 2) * (q[:, 1] > 0.02)
+    parts += fur_coat(pelt, pelt_normals, colors, rng, 3000, length, 0.06, centre=neck_axis,
+                      skip_edge=lambda q: np.hypot(q[:, 0] - neck_axis[0], q[:, 1] - neck_axis[1]) < 0.13,
+                      width=st["bristle"])
     return parts, [(parts, {"weight_radius": 0.06}, "chest")]
 
 
@@ -1536,10 +1708,19 @@ BROWN_DARK = (0.148, 0.106, 0.0704)
 SKIRT_HIDE = (0.414, 0.343, 0.282)
 
 
-def loincloth(env, body):
+## The loincloth's look (as MANTLE): its skirt's fur (and darker to the
+## hem), its flaps' hide, the leather under it; on the ends of the flaps,
+## below the fur (the belt is under whatever is worn over it): rows of bone
+## plates or of beads with strands hanging from them, or tusks.
+LOINCLOTH = {"skirt": (BROWN, BROWN_DARK), "flaps": SKIRT_HIDE, "hide": HIDE, "hair": (0.035, 0.015), "bristle": 1.0,
+             "plates": None, "beads": None, "tusks": None}
+
+
+def loincloth(env, body, style=None):
     """A belt at the hips holding two long hide flaps, in front and behind,
     and over them a short skirt of fur wrapped round the hips, all over a
-    leather loincloth."""
+    leather loincloth. `style`: LOINCLOTH's keys."""
+    st = {**LOINCLOTH, **(style or {})}
     rng = np.random.default_rng(SEED + 1)
     centre = body.joint("Hips")[:2]
     bvh = body_bvh(env)
@@ -1560,10 +1741,11 @@ def loincloth(env, body):
     # Its flesh side, under it, keeps clear of a bigger body too.
     clearance = np.full(len(m.points), 0.012)
     inflate(m, body, clearance, rounds=10, start=clearance)
-    under = pelt_parts(m, lambda q, l: np.tile(HIDE, (len(q), 1)), bare=[10], flesh=0.03)
+    under = pelt_parts(m, lambda q, l: np.tile(st["hide"], (len(q), 1)), bare=[10], flesh=0.03)
 
     # The flaps: (centre angle, half width, how far below the belt, label).
     hung = []
+    flaps = []
     for k, (ac, half, depth, label) in enumerate([(0.0, 0.34, 0.43, 11), (math.pi, 0.42, 0.4, 12)]):
         angles = np.linspace(ac - half, ac + half, 12)
         flap = hanging(bvh, centre, angles, lambda x: belt_z(x) + 0.012, depth + 0.04,
@@ -1576,7 +1758,8 @@ def loincloth(env, body):
         flap.cut(bottom - p[:, 2])
         flutes(flap, centre, belt_z, 22, 0.008, SEED + k)
         flap.labels[:] = label
-        hung += pelt_parts(flap, lambda q, l: np.tile(SKIRT_HIDE, (len(q), 1)), bare=[label], double=True)
+        flaps.append((flap, ac, half, depth))
+        hung += pelt_parts(flap, lambda q, l: np.tile(st["flaps"], (len(q), 1)), bare=[label], double=True)
     # The fur skirt, wrapped once round and a little over itself on the left.
     start = math.pi / 2 - 0.25
     angles = np.linspace(start, start + 2 * math.pi + 0.5, 66)
@@ -1599,7 +1782,8 @@ def loincloth(env, body):
 
     def brown(q, labels):
         low = smoothstep(0.85, 0.72, q[:, 2])
-        base = np.array(BROWN)[None, :] * (1 - 0.5 * low[:, None]) + np.array(BROWN_DARK) * 0.5 * low[:, None]
+        base = np.array(st["skirt"][0])[None, :] * (1 - 0.5 * low[:, None]) \
+            + np.array(st["skirt"][1]) * 0.5 * low[:, None]
         return base * (1.0 + wobble(q, SEED + 61, 6.0, 0.14))[:, None]
     hung += pelt_parts(skirt, brown, double=True)
     # The belt over the skirt's top, knotted in front to the right.
@@ -1609,6 +1793,30 @@ def loincloth(env, body):
     fixed = under + [strap(ring, ring_n, 0.03, 0.005, BELT, closed=True)]
     k = int(len(ring) * 0.92)
     fixed += knot_and_tails(ring[k] + ring_n[k] * 0.006, ring_n[k], BELT, [(0.2, -0.015), (0.16, 0.02)])
+    # On the ends of the flaps, below the fur skirt.
+    axis = (np.array([centre[0], centre[1], 0.0]), np.array([centre[0], centre[1], 1.0]))
+    for flap, ac, half, depth in flaps:
+        fbvh = bvh_of(flap)
+        across = lambda count, z, lift, span=0.62: [
+            q for q in (around_leg(fbvh, *axis, a, z, lift) for a in np.linspace(ac - half * span, ac + half * span, count))
+            if q is not None]
+        bottom = belt_z(ac) - depth
+        if st["plates"] is not None:
+            # Flat, over the flutes.
+            rows = [np.array(across(3 - k % 2, bottom + dz, 0.007, 0.5 - 0.25 * (k % 2)))
+                    for k, dz in enumerate((0.11, 0.072, 0.034))]
+            out = [normalized(r * np.array([1.0, 1.0, 0.0]) - np.array([centre[0], centre[1], 0.0])) for r in rows]
+            hung += plates(rows, (0.021, 0.036), 0.003, st["plates"], normals=out, lift=0.0)[0]
+        if st["beads"] is not None:
+            for dz in (0.1, 0.085, 0.07, 0.04):
+                hung += beads(np.array(across(40, bottom + dz, 0.004)), 0.0085, 0.0032, st["beads"])
+            for q in across(9, bottom + 0.04, 0.004):
+                strand = np.array([q + np.array([0.0, 0.0, -0.07 * t]) for t in np.linspace(0.0, 1.0, 6)])
+                hung += beads(strand, 0.0085, 0.0032, st["beads"])
+        if st["tusks"] is not None:
+            for q in across(3, bottom + 0.03, 0.004):
+                out = np.array([q[0] - centre[0], q[1] - centre[1], 0.0])
+                hung += tusk(q, [0.0, 0.0, -1.0], out, 0.065, st["tusks"])
     parts = hung + fixed
     ao = occlusion(parts, body)
     for part, shade in zip(parts, ao):
@@ -1617,8 +1825,10 @@ def loincloth(env, body):
     shade_at = occlusion_field(parts, body, skirt, skirt_normals)
     top_band = lambda q: q[:, 2] > np.array([belt_z(x) for x in np.arctan2(q[:, 0] - centre[0],
                                                                           -(q[:, 1] - centre[1]))]) - 0.03
+    hair = st["hair"]
     cards = fur_coat(skirt, skirt_normals, lambda q, l: brown(q, l) * shade_at(q)[:, None], rng, 3000,
-                     lambda q: 0.035 + 0.015 * smoothstep(0.95, 0.8, q[:, 2]), 0.05, skip_edge=top_band)
+                     lambda q: hair[0] + hair[1] * smoothstep(0.95, 0.8, q[:, 2]), 0.05, skip_edge=top_band,
+                     width=st["bristle"])
     hung += cards
     return hung + fixed, [(hung, {"skirt": True, "hang": True, "weight_radius": 0.05}, "legs"),
                           (fixed, {"weight_radius": 0.05}, "legs")]
@@ -1702,75 +1912,114 @@ def lining(parts, body, bones, slot, offset, color, keep=0.4):
     return [part]
 
 
-def mittens(env, body):
+def mitten(body, side, clearance=0.007, cuff=(0.12, 0.034, 0.042), opening=0.085):
+    """One mitten, the palm and the back sewn together round the edge: the
+    convex hull of the palm and the four fingers (a pouch) joined to the
+    thumb and to the cuff, a capsule `cuff[0]` metres up the forearm
+    (radius `cuff[1]` at the wrist, `cuff[2]` at its end), `clearance` off
+    the skin and open `opening` metres up the forearm. Labels: 0 the back,
+    21 the palm, 22 the cuff. Returns it and the hand's frame (wrist,
+    forearm, palm, centre)."""
+    j = lambda name: body.joint(side + name)
+    wrist = j("Hand")
+    knuckles = np.mean([j("Hand" + f + "1") for f in ("Index", "Middle", "Ring", "Pinky")], axis=0)
+    tips = {f: j("Hand" + f + "4") for f in ("Index", "Middle", "Ring", "Pinky", "Thumb")}
+    along = normalized(knuckles - wrist)
+    # The palm faces the side the thumb stands out on.
+    hand = body.points[np.isin(body.top, limb_bones(body, side, "Hand"))]
+    centre = hand.mean(axis=0)
+    _, _, axes = np.linalg.svd(hand - centre)
+    palm = axes[2] if axes[2] @ (j("HandThumb3") - centre) > 0 else -axes[2]
+    forearm = normalized(j("ForeArm") - wrist)
+    # Pouch: palm and the four fingers, as one; the thumb; the cuff.
+    cloud = [sphere_points(j("Hand" + f + str(k)), 0.0135, 30)
+             for f in ("Index", "Middle", "Ring", "Pinky") for k in (1, 2, 3, 4)]
+    cloud.append(sphere_points(tips["Middle"] + along * 0.008, 0.012, 30))
+    cloud.append(sphere_points(wrist + along * 0.025 + palm * 0.006, 0.036, 60))
+    pouch = np.concatenate(cloud)
+    thumb = capsule_points(j("HandThumb1"), tips["Thumb"] + normalized(tips["Thumb"] - j("HandThumb3")) * 0.006,
+                           0.02, 0.0145)
+    sleeve = capsule_points(wrist + along * 0.015, wrist + forearm * cuff[0], cuff[1], cuff[2])
+    m = solid([pouch, thumb, sleeve], 0.0075, 6)
+    m.attrs["weights"] = np.zeros((len(m.points), 1))
+    clear = np.full(len(m.points), clearance)
+    for _ in range(3):
+        push_off(m, body, clear)
+        m.smooth(0.3, 2)
+    push_off(m, body, clear)
+    # The opening up the forearm, a little lower on the inside of the wrist.
+    s = (m.points - wrist) @ forearm
+    m.cut(s - opening - 0.012 * ((m.points - wrist) @ palm > 0))
+    # Leather palm (and the inside of the thumb), the back and the cuff.
+    across = (m.points - centre) @ palm
+    m.cut(across - 0.002 + 0.004 * wobble(m.points, SEED + 20, 8.0, 1.0), 21)
+    s = (m.points - wrist) @ forearm
+    m.cut(s - 0.03, 22)
+    m.keep(np.ones(len(m.triangles), bool))
+    return m, wrist, forearm, palm
+
+
+def wrist_strap(bvh, wrist, forearm, palm, bead_color=None, tusk_color=None):
+    """A strap round the wrist of a mitten (`bvh`), knotted on the back;
+    with beads strung on it, a tusk hanging from its knot."""
+    ring = []
+    for k in range(48):
+        a = 2 * math.pi * k / 48
+        u = normalized(np.cross(forearm, palm))
+        d = palm * math.cos(a) + u * math.sin(a)
+        origin = wrist + forearm * 0.018 + d * 0.15
+        location, normal, _, _ = bvh.ray_cast(Vector(origin), Vector(-d), 0.2)
+        if location is not None:
+            ring.append((np.array(location), np.array(normal)))
+    if len(ring) <= 8:
+        return []
+    rp = smooth_polyline(np.array([r[0] + r[1] * 0.004 for r in ring]), 3, closed=True)
+    rn = normalized(np.array([r[1] for r in ring]))
+    k = int(np.argmax(rp @ -palm))
+    out = [strap(rp, rn, 0.014, 0.003, BELT, closed=True)] + knot_and_tails(rp[k], rn[k], BELT, [(0.05, 0.006)])
+    if bead_color is not None:
+        out += beads(rp + rn * 0.0045, 0.0075, 0.0028, bead_color, closed=True)
+    if tusk_color is not None:
+        out += tusk(rp[k] + rn[k] * 0.012, -forearm, rn[k], 0.035, tusk_color)
+    return out
+
+
+## The mittens' look (as MANTLE): the cuff's fur, the back's and the
+## palm's leather; a bone plate on the back, beads on the strap, a tusk.
+MITTENS = {"cuff": BROWN, "back": SKIRT_HIDE, "palm": HIDE, "hair": 0.03, "plates": None, "beads": None,
+           "tusks": None}
+
+
+def mittens(env, body, style=None):
     """Leather mittens, the palm and the back sewn together round the edge,
-    with a cuff of fur up the forearm and a strap round the wrist."""
+    with a cuff of fur up the forearm and a strap round the wrist.
+    `style`: MITTENS's keys."""
+    st = {**MITTENS, **(style or {})}
     parts = []
     glove = []
     cuffs = []
     for side in fit.SIDES:
         first = len(parts)
-        j = lambda name: body.joint(side + name)
-        wrist = j("Hand")
-        knuckles = np.mean([j("Hand" + f + "1") for f in ("Index", "Middle", "Ring", "Pinky")], axis=0)
-        tips = {f: j("Hand" + f + "4") for f in ("Index", "Middle", "Ring", "Pinky", "Thumb")}
-        along = normalized(knuckles - wrist)
-        # The palm faces the side the thumb stands out on.
-        hand = body.points[np.isin(body.top, limb_bones(body, side, "Hand"))]
-        centre = hand.mean(axis=0)
-        _, _, axes = np.linalg.svd(hand - centre)
-        palm = axes[2] if axes[2] @ (j("HandThumb3") - centre) > 0 else -axes[2]
-        forearm = normalized(j("ForeArm") - wrist)
-        # Pouch: palm and the four fingers, as one; the thumb; the cuff.
-        cloud = [sphere_points(j("Hand" + f + str(k)), 0.0135, 30)
-                 for f in ("Index", "Middle", "Ring", "Pinky") for k in (1, 2, 3, 4)]
-        cloud.append(sphere_points(tips["Middle"] + along * 0.008, 0.012, 30))
-        cloud.append(sphere_points(wrist + along * 0.025 + palm * 0.006, 0.036, 60))
-        pouch = np.concatenate(cloud)
-        thumb = capsule_points(j("HandThumb1"), tips["Thumb"] + normalized(tips["Thumb"] - j("HandThumb3")) * 0.006,
-                               0.02, 0.0145)
-        cuff = capsule_points(wrist + along * 0.015, wrist + forearm * 0.12, 0.034, 0.042)
-        m = solid([pouch, thumb, cuff], 0.0075, 6)
-        m.attrs["weights"] = np.zeros((len(m.points), 1))
-        clearance = np.full(len(m.points), 0.007)
-        for _ in range(3):
-            push_off(m, body, clearance)
-            m.smooth(0.3, 2)
-        push_off(m, body, clearance)
-        # The opening up the forearm, a little lower on the inside of the wrist.
-        s = (m.points - wrist) @ forearm
-        m.cut(s - 0.085 - 0.012 * ((m.points - wrist) @ palm > 0))
-        # Leather palm (and the inside of the thumb), fur back and cuff.
-        across = (m.points - centre) @ palm
-        m.cut(across - 0.002 + 0.004 * wobble(m.points, SEED + 20, 8.0, 1.0), 21)
-        s = (m.points - wrist) @ forearm
-        m.cut(s - 0.03, 22)
-        m.keep(np.ones(len(m.triangles), bool))
+        m, wrist, forearm, palm = mitten(body, side)
         bvh = bvh_of(m)
 
         def colors(q, labels):
-            out = np.where((labels == 21)[:, None], np.array(HIDE), np.array(SKIRT_HIDE))
-            out = np.where((labels == 22)[:, None], np.array(BROWN), out)
+            out = np.where((labels == 21)[:, None], np.array(st["palm"]), np.array(st["back"]))
+            out = np.where((labels == 22)[:, None], np.array(st["cuff"]), out)
             return out * (1.0 + wobble(q, SEED + 21, 10.0, 0.1))[:, None]
         parts += pelt_parts(m, colors, flesh=0.02, bare=[0, 21])
         parts += stitches(seam_lines(m, [(0, 21), (22, 21)]), bvh, 0.01, 0.008, 0.0011, 0.0005, SINEW)
         cuffs.append((m, wrist, forearm, colors))
-        # The strap round the wrist.
-        ring = []
-        for k in range(48):
-            a = 2 * math.pi * k / 48
+        parts += wrist_strap(bvh, wrist, forearm, palm, st["beads"], st["tusks"])
+        if st["plates"] is not None:
+            # Two plates side by side on the back of the hand.
             u = normalized(np.cross(forearm, palm))
-            d = palm * math.cos(a) + u * math.sin(a)
-            origin = wrist + forearm * 0.018 + d * 0.15
-            location, normal, _, _ = bvh.ray_cast(Vector(origin), Vector(-d), 0.2)
-            if location is not None:
-                ring.append((np.array(location), np.array(normal)))
-        if len(ring) > 8:
-            rp = smooth_polyline(np.array([r[0] + r[1] * 0.004 for r in ring]), 3, closed=True)
-            rn = normalized(np.array([r[1] for r in ring]))
-            parts.append(strap(rp, rn, 0.014, 0.003, BELT, closed=True))
-            k = int(np.argmax(rp @ -palm))
-            parts += knot_and_tails(rp[k], rn[k], BELT, [(0.05, 0.006)])
+            row = []
+            for off in (-0.019, 0.019):
+                location = bvh.ray_cast(Vector(wrist - forearm * 0.06 + u * off - palm * 0.12), Vector(palm), 0.25)[0]
+                if location is not None:
+                    row.append(np.array(location))
+            parts += plates([np.array(row)], (0.034, 0.05), 0.0035, st["plates"], bvh=bvh, up=-forearm)[0]
         hand = [side + "Hand"] + [f for f in fit.FINGERS if f.startswith(side)]
         glove += lining(parts[first:], body, hand, "hands", 0.002, BELT)
     ao = occlusion(parts, body)
@@ -1782,8 +2031,8 @@ def mittens(env, body):
     for m, wrist, forearm, colors in cuffs:
         cuff = Mesh(m.points, m.triangles[m.labels == 22], labels=m.labels[m.labels == 22]).compact()
         normals = cuff.normals()
-        brown = lambda q, l: np.array(BROWN)[None, :] * (1.0 + wobble(q, SEED + 22, 8.0, 0.12))[:, None]
-        parts += fur_coat(cuff, normals, brown, rng, 9000, lambda q: np.full(len(q), 0.03), 0.03, row_long=1,
+        brown = lambda q, l: np.array(st["cuff"])[None, :] * (1.0 + wobble(q, SEED + 22, 8.0, 0.12))[:, None]
+        parts += fur_coat(cuff, normals, brown, rng, 9000, lambda q: np.full(len(q), st["hair"]), 0.03, row_long=1,
                           skip_edge=lambda q, w=wrist, f=forearm: (q - w) @ f < 0.05)
     return parts + glove, [(parts, {"mitten": True, "weight_radius": 0.018}, "hands")]
 
@@ -1801,54 +2050,71 @@ def around_leg(bvh, ankle, knee, angle, z, lift):
     return np.array(location) + np.array(normal) * lift
 
 
-def moccasins(env, body):
+def moccasin(env, body, side, top):
+    """A leather moccasin on the foot of `side`, up to `top` (m, higher at
+    the front): the sole wraps up to a welt (higher at the heel), the vamp
+    over the instep gathered into it with a puckered seam. Lined with the
+    foot's skin. Returns its parts and the lining's."""
+    m = env.mesh()
+    mine = on_limb(m, body, side, "Leg", "Foot", "Toe")
+    ankle = body.joint(side + "Foot")
+    a = np.arctan2(m.points[:, 0] - ankle[0], -(m.points[:, 1] - ankle[1]))
+    field = np.maximum(m.points[:, 2] - (top + 0.015 * np.cos(a)), 0.5 - mine)
+    m.cut(field)
+    m.keep(np.ones(len(m.triangles), bool))
+    best = max(islands(m.triangles, len(m.points)), key=lambda mask: mask.sum())
+    m.keep(best)
+    # Roomy over the toes and the instep: they bend up into it as the foot rolls.
+    toes = smoothstep(ankle[1] - 0.03, ankle[1] - 0.12, m.points[:, 1])
+    clearance = 0.007 + 0.01 * toes
+    inflate(m, body, clearance, rounds=14, start=clearance)
+    # A flat sole on the ground.
+    z = m.points[:, 2]
+    n = m.normals()
+    low = smoothstep(0.03, 0.0, z) * smoothstep(-0.2, -0.6, n[:, 2])
+    m.points[:, 2] = z * (1.0 - low) + (-0.003) * low
+    # The sole wraps up to the welt (higher at the heel); the vamp over
+    # the instep is gathered into it.
+    toe = body.joint(side + "ToeBase")
+    heel_up = smoothstep(ankle[1] - 0.02, ankle[1] + 0.06, m.points[:, 1])
+    welt = 0.032 + 0.022 * heel_up + 0.003 * np.sin(m.points[:, 0] * 220.0)
+    m.cut(m.points[:, 2] - welt, 31)
+    instep = np.hypot(m.points[:, 0] - toe[0], (m.points[:, 1] - toe[1]) * 0.7)
+    m.cut(0.065 - instep - 0.5 * np.maximum(m.points[:, 2] - 0.09, 0.0), 32, inside=[31])
+    bvh = bvh_of(m)
+
+    def hide(q, labels):
+        out = np.array([{0: SOLE, 31: SKIRT_HIDE, 32: HIDE}.get(int(l), HIDE) for l in labels])
+        return out * (1.0 + wobble(q, SEED + 31, 8.0, 0.1))[:, None]
+    shell = pelt_parts(m, hide, flesh=0.02, bare=[0, 31, 32])
+    parts = shell + stitches(seam_lines(m, [(31, 32)]), bvh, 0.009, 0.01, 0.0013, 0.001, SINEW)
+    parts += stitches(seam_lines(m, [(0, 31), (0, 32)]), bvh, 0.012, 0.008, 0.0012, 0.0008, SINEW)
+    # What of the foot bulges through as the toes bend shows leather.
+    foot = [side + b for b in ("Foot", "ToeBase", "Toe_End") if fit.BONE_PREFIX + side + b in body.index]
+    return parts, lining(shell, body, foot, "feet", 0.002, SKIRT_HIDE, keep=0.5)
+
+
+
+## The moccasins' look (as MANTLE): the wrap's fur; plates down the front
+## of the shin, beads on the tie under the knee, a tusk from its knot.
+MOCCASINS = {"wrap": BROWN, "hair": 0.032, "plates": None, "beads": None, "tusks": None}
+
+
+def moccasins(env, body, style=None):
     """Leather moccasins gathered over the instep with a puckered seam, and a
     pelt wrapped round each shin over their tops, bound with two thongs
-    that cross up it and tied below the knee."""
+    that cross up it and tied below the knee. `style`: MOCCASINS's keys."""
+    st = {**MOCCASINS, **(style or {})}
     rng = np.random.default_rng(SEED + 3)
     parts = []
     wraps = []
     linings = []
     for side in fit.SIDES:
-        m = env.mesh()
-        mine = on_limb(m, body, side, "Leg", "Foot", "Toe")
         ankle = body.joint(side + "Foot")
         knee = body.joint(side + "Leg")
-        a = np.arctan2(m.points[:, 0] - ankle[0], -(m.points[:, 1] - ankle[1]))
-        field = np.maximum(m.points[:, 2] - (0.14 + 0.015 * np.cos(a)), 0.5 - mine)
-        m.cut(field)
-        m.keep(np.ones(len(m.triangles), bool))
-        best = max(islands(m.triangles, len(m.points)), key=lambda mask: mask.sum())
-        m.keep(best)
-        # Roomy over the toes and the instep: they bend up into it as the foot rolls.
-        toes = smoothstep(ankle[1] - 0.03, ankle[1] - 0.12, m.points[:, 1])
-        clearance = 0.007 + 0.01 * toes
-        inflate(m, body, clearance, rounds=14, start=clearance)
-        # A flat sole on the ground.
-        z = m.points[:, 2]
-        n = m.normals()
-        low = smoothstep(0.03, 0.0, z) * smoothstep(-0.2, -0.6, n[:, 2])
-        m.points[:, 2] = z * (1.0 - low) + (-0.003) * low
-        # The sole wraps up to the welt (higher at the heel); the vamp over
-        # the instep is gathered into it.
-        toe = body.joint(side + "ToeBase")
-        heel_up = smoothstep(ankle[1] - 0.02, ankle[1] + 0.06, m.points[:, 1])
-        welt = 0.032 + 0.022 * heel_up + 0.003 * np.sin(m.points[:, 0] * 220.0)
-        m.cut(m.points[:, 2] - welt, 31)
-        instep = np.hypot(m.points[:, 0] - toe[0], (m.points[:, 1] - toe[1]) * 0.7)
-        m.cut(0.065 - instep - 0.5 * np.maximum(m.points[:, 2] - 0.09, 0.0), 32, inside=[31])
-        bvh = bvh_of(m)
-
-        def hide(q, labels):
-            out = np.array([{0: SOLE, 31: SKIRT_HIDE, 32: HIDE}.get(int(l), HIDE) for l in labels])
-            return out * (1.0 + wobble(q, SEED + 31, 8.0, 0.1))[:, None]
-        shell = pelt_parts(m, hide, flesh=0.02, bare=[0, 31, 32])
+        shell, lined = moccasin(env, body, side, 0.14)
         parts += shell
-        parts += stitches(seam_lines(m, [(31, 32)]), bvh, 0.009, 0.01, 0.0013, 0.001, SINEW)
-        parts += stitches(seam_lines(m, [(0, 31), (0, 32)]), bvh, 0.012, 0.008, 0.0012, 0.0008, SINEW)
-        # What of the foot bulges through as the toes bend shows leather.
-        foot = [side + b for b in ("Foot", "ToeBase", "Toe_End") if fit.BONE_PREFIX + side + b in body.index]
-        linings += lining(shell, body, foot, "feet", 0.002, SKIRT_HIDE, keep=0.5)
+        linings += lined
         # The pelt round the shin, from over the moccasin to below the knee.
         w = env.mesh()
         mine = on_limb(w, body, side, "Leg", "Foot", "Toe")
@@ -1862,7 +2128,7 @@ def moccasins(env, body):
         clearance = np.full(len(w.points), 0.018)
         inflate(w, body, clearance, rounds=16, start=clearance)
         w.labels[:] = 33
-        wolf = lambda q, l: np.array(BROWN)[None, :] * (1.0 + wobble(q, SEED + 34, 8.0, 0.12))[:, None]
+        wolf = lambda q, l: np.array(st["wrap"])[None, :] * (1.0 + wobble(q, SEED + 34, 8.0, 0.12))[:, None]
         parts += pelt_parts(w, wolf, flesh=0.03)
         # Two thongs crossing up it, tied round its top.
         wbvh = bvh_of(w)
@@ -1882,35 +2148,580 @@ def moccasins(env, body):
         parts.append(tube_part("lace", np.vstack([ring, ring[:1]]), 0.003, BELT, caps=False))
         front = around_leg(wbvh, ankle, knee, 0.0, 0.335, 0.008)
         parts += knot_and_tails(front, normalized(front - np.array([*knee[:2], 0.335])), BELT, [(0.07, 0.008)])
-        wraps.append((w, np.concatenate(lines) if lines else np.zeros((0, 3))))
+        plated = np.zeros((0, 3))
+        if st["plates"] is not None:
+            # Two columns of plates down the front of the shin, under the thongs.
+            rows = [np.array([q for q in (around_leg(wbvh, ankle, knee, a, z, 0.0) for a in (-0.21, 0.21))
+                              if q is not None]) for z in (0.165, 0.215, 0.265)]
+            made, plated = plates(rows, (0.03, 0.046), 0.0035, st["plates"], bvh=wbvh)
+            parts += made
+        if st["beads"] is not None:
+            parts += beads(np.vstack([ring, ring[:1]]), 0.0085, 0.0034, st["beads"])
+        if st["tusks"] is not None:
+            out = normalized(front - np.array([*knee[:2], 0.335]))
+            parts += tusk(front + out * 0.008 - np.array([0.0, 0.0, 0.01]), [0.0, 0.0, -1.0], out, 0.05, st["tusks"])
+        wraps.append((w, np.concatenate(lines) if lines else np.zeros((0, 3)), plated))
     ao = occlusion(parts, body)
     for part, shade in zip(parts, ao):
         if shade is not None:
             darken(part, shade)
-    for w, thongs in wraps:
+    for w, thongs, plated in wraps:
         normals = w.normals()
-        colors = lambda q, l: np.array(BROWN)[None, :] * (1.0 + wobble(q, SEED + 34, 8.0, 0.12))[:, None]
-        parts += fur_coat(w, normals, colors, rng, 7000, lambda q: np.full(len(q), 0.032), 0.04, row_long=1,
-                          avoid=lambda q, t=thongs: distance_to(q, t) < 0.012)
+        colors = lambda q, l: np.array(st["wrap"])[None, :] * (1.0 + wobble(q, SEED + 34, 8.0, 0.12))[:, None]
+        parts += fur_coat(w, normals, colors, rng, 7000, lambda q: np.full(len(q), st["hair"]), 0.04, row_long=1,
+                          avoid=lambda q, t=thongs, c=plated: (distance_to(q, t) < 0.012) | (distance_to(q, c) < 0.03))
     return parts + linings, [(parts, {"weight_radius": 0.014}, "feet")]
+
+
+# --- The heavy set -------------------------------------------------------------
+
+## Caribou hides for the coat, pieced: mid on the front, pale at the sides,
+## dark on the back; a wolverine's for the ruff, dark with a pale band.
+CARIBOU = (0.3, 0.228, 0.16)
+CARIBOU_PALE = (0.43, 0.36, 0.27)
+CARIBOU_DARK = (0.165, 0.122, 0.088)
+WOLVERINE = (0.11, 0.08, 0.055)
+WOLVERINE_BAND = (0.3, 0.22, 0.14)
+
+
+def sleeve(env, body, side, top, clearance):
+    """A long sleeve of the arm on `side`: the arm from `top` metres down it
+    to the wrist, `clearance(t)` off the skin (t: 0 at the top, 1 at the
+    wrist). Labelled 0; the band round the cuff, 2."""
+    m = env.mesh()
+    wrist = body.joint(side + "Hand")
+    elbow = body.joint(side + "ForeArm")
+    shoulder = body.joint(side + "Arm")
+    down = normalized(wrist - elbow)
+    beyond = (m.points - wrist) @ down - 0.006
+    m.cut(np.maximum(-arm_field(m, env, side, lambda phi: top + 0.0 * phi), beyond))
+    best = max(islands(m.triangles, len(m.points)), key=lambda k: k.sum())
+    m.keep(best)
+    reach = np.linalg.norm(wrist - shoulder)
+    t = np.clip(np.linalg.norm(m.points - shoulder, axis=1) / reach, 0.0, 1.0)
+    clear = clearance(t)
+    inflate(m, body, clear, rounds=16, start=clear)
+    m.labels[:] = 0
+    cuff = (m.points - wrist) @ down + 0.05 + wobble(m.points, SEED + 70, 9.0, 0.006)
+    m.cut(cuff, 2)
+    return m
+
+
+## How a heavy set looks (each piece takes the keys it uses; these are the
+## caribou's and the wolverine's, the others are in the variants' sets):
+## the tones of the coat's panels (front 0, back 1, the bands 2, sides 4),
+## the ruff's fur and its band, how long and thick the hair is, how much
+## lower the ruff comes, the toggle's colour, and what is sewn on: antler
+## lamellae, ivory beads (their colour, or None).
+COAT = {"tones": {0: CARIBOU, 1: CARIBOU_DARK, 2: CREAM, 4: CARIBOU_PALE}, "ruff": (WOLVERINE, WOLVERINE_BAND),
+        "hair": (0.03, 0.008), "density": 1000, "ruff_hair": 0.07, "ruff_edge": 0.085, "ruff_density": 3200,
+        "ruff_drop": 0.0, "toggle": BONE, "lamellae": None, "beads": None}
+
+
+def coat(env, body, style=None):
+    """A pullover coat of caribou hides with the hair out, to mid-thigh,
+    with long sleeves: pieced dark on the back and pale at the sides, cream
+    bands round the hem and the cuffs. A ruff of long dark fur over the
+    shoulders, a wide belt wound twice with a bone toggle, a pouch.
+    `style`: COAT's keys (lamellae over the chest, the back and the skirt;
+    beads along the bands)."""
+    st = {**COAT, **(style or {})}
+    rng = np.random.default_rng(SEED + 4)
+    belt_z = 1.11
+    hem = lambda a: 0.68 + 0.018 * math.cos(a) + 0.006 * math.sin(3 * a + 1)
+    shirt = tunic(env, body, belt_z, hem, lambda phi: 0.07 + 0.0 * phi, 0.055)
+    shirt.labels[:] = 0
+    p = shirt.points
+    a = torso_angle(p)
+    # Panels: the back, the sides, the band round the hem.
+    shirt.cut(math.cos(2.15) - np.cos(a) + wobble(p, SEED + 71, 6.0, 0.04), 1)
+    p = shirt.points
+    a = torso_angle(p)
+    shirt.cut(np.abs(np.sin(a)) - 0.82 + wobble(p, SEED + 72, 6.0, 0.05), 4, inside=[0])
+    p = shirt.points
+    a = torso_angle(p)
+    shirt.cut(np.array([hem(x) for x in a]) + 0.075 + wobble(p, SEED + 73, 7.0, 0.008) - p[:, 2], 2)
+
+    tones = st["tones"]
+
+    def caribou(q, labels):
+        tone = np.array([{1: tones[1], 2: tones[2], 4: tones[4]}.get(int(l), tones[0]) for l in labels])
+        return tone * (1.0 + wobble(q, SEED + 74, 7.0, 0.12))[:, None]
+    hung = pelt_parts(shirt, caribou, flesh=0.03)
+    sleeves = [sleeve(env, body, side, 0.03, lambda t: 0.02 + 0.01 * t) for side in fit.SIDES]
+    fixed = []
+    for m in sleeves:
+        fixed += pelt_parts(m, caribou, flesh=0.03)
+
+    # The ruff, over the shoulders and down the upper arms, its edge uneven.
+    def low(p, a):
+        edge = 1.33 - st["ruff_drop"] - 0.05 * (1.0 - np.cos(a)) * 0.5 \
+            - lobes(a, [(0.0, 0.2, 0.03), (1.2, 0.2, 0.025), (-1.3, 0.2, 0.025), (math.pi, 0.25, 0.035)])
+        return edge + wobble(p, SEED + 75, 5.0, 0.012)
+
+    def cap(phi):
+        return 0.15 + st["ruff_drop"] * 1.5 + 0.03 * np.cos(phi) + lobes(phi, [(0.8, 0.3, 0.025), (-1.5, 0.3, 0.02)])
+    ruff = wolf_pelt(env, body, low, cap, 0.042)
+    ruff.labels[:] = 5
+    ruff_normals = ruff.normals()
+    neck_axis = body.joint("Neck")
+    neckline = lambda q: np.hypot(q[:, 0] - neck_axis[0], q[:, 1] - neck_axis[1]) < 0.13
+    rim = [l for l in ruff.loops() if not neckline(ruff.points[l]).all()]
+    rim = ruff.points[np.concatenate(rim)] if rim else np.zeros((0, 3))
+
+    def wolverine(q, labels):
+        band = smoothstep(0.07, 0.03, distance_to(q, rim))
+        base = np.array(st["ruff"][0])[None, :] * (1 - band[:, None]) + np.array(st["ruff"][1]) * band[:, None]
+        return base * (1.0 + wobble(q, SEED + 76, 6.0, 0.12))[:, None]
+    fixed += pelt_parts(ruff, wolverine)
+
+    # The belt, wound twice, a bone toggle in front and a pouch on the right hip.
+    bvh = bvh_of(shirt)
+    belt = []
+    for turn, dz in enumerate((0.0, -0.036)):
+        ring, ring_n = ring_on(bvh, TORSO_AXIS, lambda x, dz=dz: belt_z + dz - 0.01 * math.cos(x))
+        ring = smooth_polyline(ring + ring_n * (0.004 + 0.003 * turn), 3, closed=True)
+        ring_n = normalized(smooth_polyline(ring_n, 3, closed=True))
+        belt.append(strap(ring, ring_n, 0.032, 0.005, tuple(c * (1.0 - 0.1 * turn) for c in BELT), closed=True))
+    ring, ring_n = ring_on(bvh, TORSO_AXIS, lambda x: belt_z - 0.018 - 0.01 * math.cos(x))
+    k = int(len(ring) * 0.97)
+    at, n = ring[k] + ring_n[k] * 0.012, ring_n[k]
+    side = normalized(np.cross(n, [0.0, 0.0, 1.0]))
+    belt.append(ellipsoid(at + n * 0.006, [side * 0.026, np.array([0.0, 0.0, 0.007]), n * 0.007], st["toggle"]))
+    loop = np.array([at + side * (0.012 * math.cos(t)) + np.array([0.0, 0.0, 0.012 * math.sin(t)]) + n * 0.004
+                     for t in np.linspace(0.0, 2 * math.pi, 13)])
+    belt.append(tube_part("lace", loop, 0.0025, SINEW, closed=True, caps=False))
+    side_k = int(len(ring) * 0.7)
+    belt += pouch(ring[side_k] + ring_n[side_k] * 0.012, ring_n[side_k], np.array([0.0, 0.0, -1.0]), HIDE)
+    fixed += belt
+    sewn = np.zeros((0, 3))
+    if st["lamellae"] is not None:
+        # Rows of lamellae laced over the chest and the back (not under the
+        # arms) and round the skirt, clear of the pouch.
+        pouch_a = torso_angle(ring[[side_k]])[0]
+        clear = lambda a: np.abs(np.angle(np.exp(1j * (a - pouch_a)))) > 0.45
+        rows = plate_rows(bvh, TORSO_AXIS, [1.255, 1.21, 1.165], lambda a: clear(a) & (np.abs(np.sin(a)) < 0.75),
+                          0.034)
+        made, sewn = plates(rows, (0.031, 0.046), 0.004, st["lamellae"], bvh=bvh, lift=0.006)
+        hung += made
+        # Round the skirt they hang flat over its flutes, each row clear of
+        # the outermost of them near it.
+        rows = plate_rows(bvh, TORSO_AXIS, [1.035, 0.99, 0.945, 0.9], clear, 0.034)
+        axis = np.array([TORSO_AXIS[0], TORSO_AXIS[1], 0.0])
+        out = [normalized((r - axis) * np.array([1.0, 1.0, 0.0])) for r in rows]
+        for i, (r, o) in enumerate(zip(rows, out)):
+            radius = np.hypot(r[:, 0] - axis[0], r[:, 1] - axis[1])
+            reach = np.array([radius[max(j - 1, 0):j + 2].max() for j in range(len(r))])
+            rows[i] = axis + o * (reach + 0.007)[:, None] + np.array([0.0, 0.0, 1.0]) * r[:, 2:3]
+        made, hanging = plates(rows, (0.031, 0.046), 0.004, st["lamellae"], normals=out, lift=0.0)
+        hung += made
+        sewn = np.vstack([sewn, hanging])
+    if st["beads"] is not None:
+        # Beads along the top of the bands round the hem and the cuffs.
+        for mesh, labels, group in ((shirt, [(0, 2), (1, 2), (4, 2)], hung), (sleeves[0], [(0, 2)], fixed),
+                                    (sleeves[1], [(0, 2)], fixed)):
+            mesh_bvh = bvh_of(mesh)
+            for line in seam_lines(mesh, labels):
+                on = []
+                for q in line:
+                    location, normal = surface_frame(mesh_bvh, q)
+                    on.append(location + normal * 0.005)
+                on = np.array(on)
+                group += beads(on, 0.01, 0.0036, st["beads"])
+                sewn = np.vstack([sewn, on])
+
+    # Shadows between the layers, then the hair.
+    parts = hung + fixed
+    ao = occlusion(parts, body)
+    for part, shade in zip(parts, ao):
+        if shade is not None:
+            darken(part, shade)
+    under_ruff = lambda q: distance_to(q, ruff.points) < 0.04
+    on_belt = lambda q: np.abs(q[:, 2] - (belt_z - 0.018)) < 0.045
+    shade_at = occlusion_field(parts, body, shirt, shirt.normals())
+    on_sewn = lambda q: distance_to(q, sewn) < 0.03
+    hair = st["hair"]
+    hung += fur_coat(shirt, shirt.normals(), lambda q, l: caribou(q, l) * shade_at(q)[:, None], rng, st["density"],
+                     lambda q: hair[0] + hair[1] * (q[:, 1] > 0.0), 0.035,
+                     skip_edge=lambda q: q[:, 2] > 1.2, avoid=lambda q: under_ruff(q) | on_belt(q) | on_sewn(q))
+    for m, wrist in zip(sleeves, [body.joint(s + "Hand") for s in fit.SIDES]):
+        normals = m.normals()
+        shade_at = occlusion_field(parts, body, m, normals)
+        fixed += fur_coat(m, normals, lambda q, l: caribou(q, l) * shade_at(q)[:, None], rng, st["density"],
+                          lambda q: np.full(len(q), hair[0]), 0.028,
+                          skip_edge=lambda q, w=wrist: np.linalg.norm(q - w, axis=1) > 0.15,
+                          avoid=lambda q: under_ruff(q) | on_sewn(q))
+    shade_at = occlusion_field(parts, body, ruff, ruff_normals)
+    fixed += fur_coat(ruff, ruff_normals, lambda q, l: wolverine(q, l) * shade_at(q)[:, None], rng,
+                      st["ruff_density"], lambda q: np.full(len(q), st["ruff_hair"]), st["ruff_edge"],
+                      centre=neck_axis, skip_edge=neckline)
+    # Long enough for a thigh coming forward to go through it: its front
+    # rides on them, each side on its own.
+    return hung + fixed, [(hung, {"hang": True, "thighs": [0.95, 0.3], "split": 0.05, "weight_radius": 0.04},
+                           "chest"),
+                          (fixed, {"sleeves": True, "weight_radius": 0.05}, "chest")]
+
+
+## The breeches' look (as COAT): the fur (and darker down the leg), the
+## leather inside the legs and on the knees; lamellae down the thighs.
+BREECHES = {"fur": (BROWN, BROWN_DARK), "inner": SKIRT_HIDE, "patch": HIDE, "hair": (0.032, 0.01), "density": 2200,
+            "lamellae": None}
+
+
+def breeches(env, body, style=None):
+    """Breeches of a bear's hide with the hair out, from the hips to under
+    the knees: the inside of the legs and the crotch leather, as are patches
+    sewn on the knees; gathered at the waist by a drawstring and tied under
+    the knees. `style`: BREECHES's keys."""
+    st = {**BREECHES, **(style or {})}
+    rng = np.random.default_rng(SEED + 5)
+    centre = body.joint("Hips")[:2]
+    waist = lambda a: 1.03 + 0.03 * (1.0 - math.cos(a)) * 0.5
+    m = env.mesh()
+    p = m.points
+    a = np.arctan2(p[:, 0] - centre[0], -(p[:, 1] - centre[1]))
+    knees = {side: body.joint(side + "Leg") for side in fit.SIDES}
+    hem = 0.45 + 0.02 * np.cos(np.arctan2(p[:, 0] - np.where(p[:, 0] > 0, knees["Left"][0], knees["Right"][0]),
+                                          -(p[:, 1] - knees["Left"][1]))) + wobble(p, SEED + 80, 6.0, 0.006)
+    away = on_limb(m, body, "Left", "Arm", "Hand") + on_limb(m, body, "Right", "Arm", "Hand")
+    field = np.maximum(np.maximum(p[:, 2] - np.array([waist(x) for x in a]), hem - p[:, 2]), away - 0.5)
+    m.cut(field)
+    best = max(islands(m.triangles, len(m.points)), key=lambda k: k.sum())
+    m.keep(best)
+    # Close at the waist, eased down the thighs, roomy at the hem (over a
+    # boot's top or a wrap).
+    z = m.points[:, 2]
+    clearance = 0.012 + 0.008 * smoothstep(0.98, 0.85, z) + 0.012 * smoothstep(0.6, 0.46, z)
+    inflate(m, body, clearance, start=clearance)
+    m.labels[:] = 0
+    # The leather inside each leg, up into the crotch (where the legs part).
+    p = m.points
+    between = body.points[(np.abs(body.points[:, 0] - centre[0]) < 0.015) & (body.points[:, 2] > 0.6)]
+    crotch = between[:, 2].min()
+    inner = np.zeros(len(p))
+    for side, sign in (("Left", 1.0), ("Right", -1.0)):
+        hip, knee = body.joint(side + "UpLeg"), knees[side]
+        t = np.clip((p[:, 2] - knee[2]) / (hip[2] - knee[2]), 0.0, 1.0)
+        axis = knee + (hip - knee) * t[:, None]
+        mine = np.sign(p[:, 0]) == sign
+        inner = np.where(mine, sign * (axis[:, 0] - p[:, 0]) / np.maximum(np.hypot(p[:, 0] - axis[:, 0],
+                                                                                    p[:, 1] - axis[:, 1]), 1e-6),
+                         inner)
+    inner = np.maximum(inner - 0.62 + wobble(p, SEED + 81, 6.0, 0.05),
+                       np.minimum(0.06 - np.abs(p[:, 0] - centre[0]), crotch + 0.03 - p[:, 2]))
+    m.cut(inner, 11)
+    # Leather patches on the knees.
+    for side in fit.SIDES:
+        knee = knees[side]
+        p = m.points
+        front = np.array([knee[0], knee[1] - 0.06, knee[2] + 0.01])
+        d = (p - front) * np.array([1.0, 0.6, 0.85])
+        m.cut(0.05 - np.linalg.norm(d, axis=1) + wobble(p, SEED + 82, 14.0, 0.004), 12, inside=[0])
+    bvh = bvh_of(m)
+
+    def bear(q, labels):
+        low = smoothstep(0.75, 0.5, q[:, 2])
+        base = np.array(st["fur"][0])[None, :] * (1 - 0.35 * low[:, None]) + np.array(st["fur"][1]) * 0.35 * low[:, None]
+        base = np.where((labels == 11)[:, None], np.array(st["inner"]), base)
+        base = np.where((labels == 12)[:, None], np.array(st["patch"]), base)
+        return base * (1.0 + wobble(q, SEED + 83, 7.0, 0.12))[:, None]
+    parts = pelt_parts(m, bear, flesh=0.03, bare=[11, 12])
+    parts += stitches(seam_lines(m, [(0, 11)]), bvh, 0.013, 0.009, 0.0012, 0.0008, SINEW)
+    parts += stitches(seam_lines(m, [(0, 12), (11, 12)]), bvh, 0.009, 0.008, 0.0012, 0.0008, SINEW)
+    # The drawstring round the waist, its ends hanging in front; a thong
+    # round each leg under the knee.
+    ring, ring_n = ring_on(bvh, centre, lambda x: waist(x) - 0.022)
+    ring = smooth_polyline(ring + ring_n * 0.004, 3, closed=True)
+    parts.append(tube_part("lace", np.vstack([ring, ring[:1]]), 0.0032, BELT, caps=False))
+    k = int(np.argmin(np.abs(torso_angle(ring))))
+    parts += knot_and_tails(ring[k], normalized(smooth_polyline(ring_n, 3, closed=True)[k]), BELT,
+                            [(0.09, 0.012), (0.07, -0.01)], size=0.5)
+    for side, sign in (("Left", 1.0), ("Right", -1.0)):
+        ankle, knee = body.joint(side + "Foot"), knees[side]
+        leg = (np.sign(m.points[m.triangles, 0]) == sign).all(axis=1) & (m.points[m.triangles, 2] < 0.7).all(axis=1)
+        leg_bvh = BVHTree.FromPolygons([Vector(q) for q in m.points], m.triangles[leg].tolist())
+        tie = [around_leg(leg_bvh, ankle, knee, 2 * math.pi * k / 48, 0.5, 0.004) for k in range(48)]
+        tie = smooth_polyline(np.array([q for q in tie if q is not None]), 2, closed=True)
+        parts.append(tube_part("lace", np.vstack([tie, tie[:1]]), 0.003, BELT, caps=False))
+        outside = around_leg(leg_bvh, ankle, knee, (math.pi / 2) * sign, 0.5, 0.004)
+        parts += knot_and_tails(outside, normalized(outside - np.array([*knee[:2], 0.5])), BELT, [(0.06, 0.006)],
+                                size=0.45)
+    sewn = np.zeros((0, 3))
+    if st["lamellae"] is not None:
+        # Rows of lamellae laced down the front of each thigh.
+        rows = []
+        for side, sign in (("Left", 1.0), ("Right", -1.0)):
+            hip, knee = body.joint(side + "UpLeg"), knees[side]
+            leg = (np.sign(m.points[m.triangles, 0]) == sign).all(axis=1)
+            leg_bvh = BVHTree.FromPolygons([Vector(q) for q in m.points], m.triangles[leg].tolist())
+            for k, z in enumerate((0.84, 0.795, 0.75, 0.705, 0.66)):
+                row = [around_leg(leg_bvh, knee, hip, a + 0.11 * (k % 2), z, 0.0) for a in np.linspace(-0.55, 0.44, 5)]
+                rows.append(np.array([q for q in row if q is not None]))
+        made, sewn = plates(rows, (0.03, 0.044), 0.004, st["lamellae"], bvh=bvh, lift=0.006)
+        parts += made
+    ao = occlusion(parts, body)
+    for part, shade in zip(parts, ao):
+        if shade is not None:
+            darken(part, shade)
+    fur = Mesh(m.points, m.triangles[m.labels == 0], labels=m.labels[m.labels == 0]).compact()
+    normals = fur.normals()
+    shade_at = occlusion_field(parts, body, fur, normals)
+    waist_band = lambda q: q[:, 2] > np.array([waist(x) for x in np.arctan2(q[:, 0] - centre[0],
+                                                                            -(q[:, 1] - centre[1]))]) - 0.06
+    hair = st["hair"]
+    parts += fur_coat(fur, normals, lambda q, l: bear(q, l) * shade_at(q)[:, None], rng, st["density"],
+                      lambda q: hair[0] + hair[1] * smoothstep(0.7, 0.5, q[:, 2]), 0.04,
+                      skip_edge=lambda q: (q[:, 2] > 0.6),
+                      avoid=lambda q: waist_band(q) | (np.abs(q[:, 2] - 0.5) < 0.012) | (distance_to(q, sewn) < 0.03))
+    return parts, [(parts, {"weight_radius": 0.04}, "legs")]
+
+
+## The gauntlets' look (as COAT): the back's and the cuff's fur, the palm,
+## how long the hair is on each and from the cuff's edge; lamellae on the
+## back of the cuff, beads on the strap.
+GAUNTLETS = {"back": CARIBOU, "cuff": WOLVERINE, "palm": HIDE, "hair": (0.016, 0.036), "edge": 0.034,
+             "lamellae": None, "beads": None}
+
+
+def gauntlets(env, body, style=None):
+    """Mittens with the hair out on the back (caribou) and a long cuff of
+    wolverine fur flaring up the forearm, the palm leather sewn round the
+    edge, a strap round the wrist. `style`: GAUNTLETS's keys."""
+    st = {**GAUNTLETS, **(style or {})}
+    parts = []
+    glove = []
+    furred = []
+    for side in fit.SIDES:
+        first = len(parts)
+        m, wrist, forearm, palm = mitten(body, side, clearance=0.009, cuff=(0.17, 0.036, 0.05), opening=0.15)
+        bvh = bvh_of(m)
+
+        def colors(q, labels):
+            out = np.where((labels == 21)[:, None], np.array(st["palm"]), np.array(st["back"]))
+            out = np.where((labels == 22)[:, None], np.array(st["cuff"]), out)
+            return out * (1.0 + wobble(q, SEED + 90, 10.0, 0.1))[:, None]
+        parts += pelt_parts(m, colors, flesh=0.02, bare=[21])
+        parts += stitches(seam_lines(m, [(0, 21), (22, 21)]), bvh, 0.01, 0.008, 0.0011, 0.0005, SINEW)
+        parts += wrist_strap(bvh, wrist, forearm, palm, st["beads"])
+        sewn = np.zeros((0, 3))
+        if st["lamellae"] is not None:
+            # Rows of lamellae laced across the back of the cuff, up the forearm.
+            u = normalized(np.cross(forearm, palm))
+            rows = []
+            for k, s in enumerate((0.06, 0.102, 0.144)):
+                row = []
+                for t in np.array([-0.5, 0.0, 0.5]) + 0.25 * (k % 2):
+                    d = -palm * math.cos(t) + u * math.sin(t)
+                    location = bvh.ray_cast(Vector(wrist + forearm * s + d * 0.15), Vector(-d), 0.2)[0]
+                    if location is not None:
+                        row.append(np.array(location))
+                rows.append(np.array(row))
+            made, sewn = plates(rows, (0.028, 0.042), 0.0035, st["lamellae"], bvh=bvh, lift=0.005, up=forearm)
+            parts += made
+        furred.append((m, wrist, forearm, colors, sewn))
+        hand = [side + "Hand"] + [f for f in fit.FINGERS if f.startswith(side)]
+        glove += lining(parts[first:], body, hand, "hands", 0.002, BELT)
+    ao = occlusion(parts, body)
+    for part, shade in zip(parts, ao):
+        if shade is not None:
+            darken(part, shade)
+    # Short hair on the back, long on the cuff and hanging from its edge.
+    rng = np.random.default_rng(SEED + 6)
+    for m, wrist, forearm, colors, sewn in furred:
+        for label, density, length, edge in ((0, 7000, st["hair"][0], None), (22, 7000, st["hair"][1], st["edge"])):
+            fur = Mesh(m.points, m.triangles[m.labels == label], labels=m.labels[m.labels == label]).compact()
+            normals = fur.normals()
+            shade_at = occlusion_field(parts, body, fur, normals)
+            near_strap = lambda q, w=wrist, f=forearm, c=sewn: (np.abs((q - w) @ f - 0.018) < 0.012) | \
+                (distance_to(q, c) < 0.025)
+            parts += fur_coat(fur, normals, lambda q, l, c=colors: c(q, l) * shade_at(q)[:, None], rng, density,
+                              lambda q, n=length: np.full(len(q), n), edge or 0.0, row_long=1,
+                              skip_edge=(lambda q: np.ones(len(q), bool)) if edge is None else
+                              (lambda q, w=wrist, f=forearm: (q - w) @ f < 0.1), avoid=near_strap)
+    return parts + glove, [(parts, {"mitten": True, "weight_radius": 0.018}, "hands")]
+
+
+## The boots' look (as COAT): the tones of the leg (40), its stripes (41)
+## and its cuff (42), how long the hair is on the leg and the cuff and
+## from its edge; lamellae down the shin, beads on the top thong.
+BOOTS = {"tones": {40: CARIBOU, 41: CARIBOU_PALE, 42: WOLVERINE}, "hair": (0.024, 0.05), "edge": 0.055,
+         "lamellae": None, "beads": None}
+
+
+def boots(env, body, style=None):
+    """Tall boots: a leather moccasin and, sewn over its top, a leg of
+    caribou hide with the hair out up to under the knee, dark down the
+    front and the back and pale down the sides, with a cuff of wolverine
+    fur round its top; a thong wound round the ankle and one tied under the
+    cuff. `style`: BOOTS's keys."""
+    st = {**BOOTS, **(style or {})}
+    tones = st["tones"]
+    rng = np.random.default_rng(SEED + 7)
+    parts = []
+    legs = []
+    linings = []
+    for side, sign in (("Left", 1.0), ("Right", -1.0)):
+        ankle = body.joint(side + "Foot")
+        knee = body.joint(side + "Leg")
+        shell, lined = moccasin(env, body, side, 0.11)
+        parts += shell
+        linings += lined
+        w = env.mesh()
+        mine = on_limb(w, body, side, "Leg", "Foot", "Toe")
+        a = np.arctan2(w.points[:, 0] - ankle[0], -(w.points[:, 1] - ankle[1]))
+        top = 0.48 + 0.015 * np.cos(a) - lobes(a, [(0.9, 0.3, 0.012), (-2.0, 0.3, 0.012)]) \
+            + wobble(w.points, SEED + 91, 5.0, 0.006)
+        bottom = 0.075 + 0.02 * np.cos(a) + wobble(w.points, SEED + 92, 6.0, 0.004)
+        w.cut(np.maximum(np.maximum(w.points[:, 2] - top, bottom - w.points[:, 2]), 0.5 - mine))
+        best = max(islands(w.triangles, len(w.points)), key=lambda mask: mask.sum())
+        w.keep(best)
+        z = w.points[:, 2]
+        clearance = 0.016 + 0.006 * smoothstep(0.15, 0.35, z)
+        inflate(w, body, clearance, rounds=16, start=clearance)
+        w.labels[:] = 40
+        p = w.points
+        a = np.arctan2(p[:, 0] - ankle[0], -(p[:, 1] - ankle[1]))
+        w.cut(np.abs(np.sin(a)) - 0.88 + wobble(p, SEED + 93, 8.0, 0.03), 41)
+        p = w.points
+        a = np.arctan2(p[:, 0] - ankle[0], -(p[:, 1] - ankle[1]))
+        w.cut(p[:, 2] - (0.405 + 0.015 * np.cos(a)) + wobble(p, SEED + 94, 9.0, 0.004), 42)
+
+        def caribou_leg(q, labels):
+            tone = np.array([{41: tones[41], 42: tones[42]}.get(int(l), tones[40]) for l in labels])
+            return tone * (1.0 + wobble(q, SEED + 95, 8.0, 0.12))[:, None]
+        parts += pelt_parts(w, caribou_leg, flesh=0.03)
+        wbvh = bvh_of(w)
+        parts += stitches(seam_lines(w, [(40, 41)]), wbvh, 0.012, 0.008, 0.0012, 0.0008, SINEW)
+        # A thong wound twice round the ankle; one under the cuff, knotted outside.
+        thongs = []
+        for z0, turns in ((0.11, 2), (0.39, 1)):
+            curve = []
+            for t in np.linspace(0.0, 1.0, 44 * turns):
+                q = around_leg(wbvh, ankle, knee, 2 * math.pi * turns * t, z0 + 0.014 * t * (turns - 1), 0.004)
+                if q is not None:
+                    curve.append(q)
+            curve = smooth_polyline(np.array(curve), 2)
+            parts.append(tube_part("lace", curve, 0.0028, BELT))
+            thongs.append(curve)
+            outside = around_leg(wbvh, ankle, knee, (math.pi / 2) * sign, z0, 0.004)
+            parts += knot_and_tails(outside, normalized(outside - np.array([*ankle[:2], z0])), BELT,
+                                    [(0.05, 0.006), (0.04, -0.006)], size=0.45)
+            if st["beads"] is not None and turns == 1:
+                parts += beads(curve, 0.0085, 0.0033, st["beads"])
+        sewn = np.zeros((0, 3))
+        if st["lamellae"] is not None:
+            # Rows of lamellae laced down the front of the shin.
+            rows = [np.array([q for q in (around_leg(wbvh, ankle, knee, a + 0.16 * (k % 2), z, 0.0)
+                                          for a in (-0.32, 0.0, 0.32)) if q is not None])
+                    for k, z in enumerate((0.16, 0.205, 0.25, 0.295, 0.34))]
+            made, sewn = plates(rows, (0.03, 0.044), 0.0035, st["lamellae"], bvh=wbvh, lift=0.006)
+            parts += made
+        legs.append((w, np.vstack([np.concatenate(thongs), sewn])))
+    ao = occlusion(parts, body)
+    for part, shade in zip(parts, ao):
+        if shade is not None:
+            darken(part, shade)
+    for w, thongs in legs:
+        for labels, density, length, edge in (([40, 41], 3200, st["hair"][0], None),
+                                              ([42], 9000, st["hair"][1], st["edge"])):
+            rows = np.isin(w.labels, labels)
+            fur = Mesh(w.points, w.triangles[rows], labels=w.labels[rows]).compact()
+            normals = fur.normals()
+            shade_at = occlusion_field(parts, body, fur, normals)
+            parts += fur_coat(fur, normals, lambda q, l: caribou_leg(q, l) * shade_at(q)[:, None], rng, density,
+                              lambda q, n=length: np.full(len(q), n), edge or 0.025, row_long=1,
+                              skip_edge=(lambda q: q[:, 2] > 0.3) if edge is None else (lambda q: q[:, 2] < 0.43),
+                              avoid=lambda q, t=thongs: distance_to(q, t) < (0.01 if st["lamellae"] is None else 0.028))
+    return parts + linings, [(parts, {"weight_radius": 0.014}, "feet")]
+
+
+# --- Variants ------------------------------------------------------------------
+
+## The other sets, a style per garment over its defaults (MANTLE, COAT...).
+## Light: a boar's bristly pelts with tusks; a red deer's, short-haired,
+## with bone plates sewn on; a red fox's, long-haired, with ivory beads.
+BOAR_SET = {
+    "mantle": {"pelt": {"back": (0.17, 0.15, 0.13), "flank": (0.21, 0.185, 0.16), "belly": (0.27, 0.24, 0.205),
+                        "saddle": (0.06, 0.055, 0.05), "legs": (0.08, 0.07, 0.062)},
+               "hide": (0.38, 0.31, 0.25), "hair": (0.045, 0.015), "crest": 0.05, "bristle": 0.6, "tusks": TUSK},
+    "loincloth": {"skirt": ((0.18, 0.16, 0.14), (0.09, 0.08, 0.07)), "flaps": (0.36, 0.3, 0.25),
+                  "hide": (0.38, 0.31, 0.25), "bristle": 0.6, "tusks": TUSK},
+    "mittens": {"cuff": (0.17, 0.15, 0.13), "back": (0.36, 0.3, 0.25), "tusks": TUSK},
+    "moccasins": {"wrap": (0.17, 0.15, 0.13), "tusks": TUSK},
+}
+DEER_SET = {
+    "mantle": {"pelt": {"back": (0.33, 0.2, 0.115), "flank": (0.37, 0.235, 0.135), "belly": (0.5, 0.44, 0.35),
+                        "saddle": (0.2, 0.12, 0.07), "legs": None},
+               "hide": (0.58, 0.5, 0.4), "hair": (0.035, 0.01), "legs_at": 0.55, "chest": 1.4, "drop": 0.18,
+               "plates": BONE_PLATE},
+    "loincloth": {"skirt": ((0.34, 0.21, 0.12), (0.22, 0.14, 0.08)), "flaps": (0.5, 0.42, 0.33),
+                  "hide": (0.58, 0.5, 0.4), "hair": (0.028, 0.01), "plates": BONE_PLATE},
+    "mittens": {"cuff": (0.33, 0.2, 0.115), "back": (0.5, 0.42, 0.33), "palm": (0.58, 0.5, 0.4),
+                "plates": BONE_PLATE},
+    "moccasins": {"wrap": (0.33, 0.2, 0.115), "hair": 0.026, "plates": BONE_PLATE},
+}
+FOX_SET = {
+    "mantle": {"pelt": {"back": (0.52, 0.19, 0.05), "flank": (0.55, 0.24, 0.07), "belly": (0.62, 0.58, 0.52),
+                        "saddle": (0.36, 0.12, 0.035), "legs": (0.06, 0.05, 0.045)},
+               "hair": (0.06, 0.02), "beads": IVORY},
+    "loincloth": {"skirt": ((0.52, 0.2, 0.055), (0.34, 0.12, 0.035)), "hair": (0.042, 0.015), "beads": IVORY},
+    "mittens": {"cuff": (0.52, 0.19, 0.05), "hair": 0.036, "beads": IVORY},
+    "moccasins": {"wrap": (0.52, 0.19, 0.05), "hair": 0.038, "beads": IVORY},
+}
+## Heavy: a steppe bison's dark wool, long and thick, with a great ruff;
+## reindeer with lamellae of antler laced on; an arctic fox's white fur,
+## the longest, with ivory beads and toggle.
+BISON_SET = {
+    "coat": {"tones": {0: (0.15, 0.1, 0.065), 1: (0.09, 0.065, 0.045), 2: (0.26, 0.18, 0.11), 4: (0.2, 0.14, 0.09)},
+             "ruff": ((0.07, 0.05, 0.035), (0.19, 0.13, 0.085)), "hair": (0.042, 0.01), "density": 1500,
+             "ruff_hair": 0.1, "ruff_edge": 0.11, "ruff_drop": 0.05},
+    "breeches": {"fur": ((0.13, 0.09, 0.06), (0.08, 0.058, 0.04)), "hair": (0.042, 0.012), "density": 2600},
+    "gauntlets": {"back": (0.15, 0.1, 0.065), "cuff": (0.07, 0.05, 0.035), "hair": (0.02, 0.045), "edge": 0.045},
+    "boots": {"tones": {40: (0.15, 0.1, 0.065), 41: (0.21, 0.15, 0.095), 42: (0.07, 0.05, 0.035)},
+              "hair": (0.03, 0.06), "edge": 0.065},
+}
+ANTLER_SET = {
+    "coat": {"tones": {0: (0.25, 0.21, 0.165), 1: (0.15, 0.12, 0.09), 2: CREAM, 4: (0.36, 0.31, 0.25)},
+             "ruff": ((0.26, 0.235, 0.2), (0.42, 0.38, 0.32)), "lamellae": ANTLER},
+    "breeches": {"fur": ((0.22, 0.18, 0.14), (0.14, 0.11, 0.085)), "lamellae": ANTLER},
+    "gauntlets": {"back": (0.25, 0.21, 0.165), "cuff": (0.26, 0.235, 0.2), "lamellae": ANTLER},
+    "boots": {"tones": {40: (0.25, 0.21, 0.165), 41: (0.36, 0.31, 0.25), 42: (0.26, 0.235, 0.2)},
+              "lamellae": ANTLER},
+}
+ARCTIC_SET = {
+    "coat": {"tones": {0: (0.66, 0.64, 0.6), 1: (0.57, 0.55, 0.52), 2: (0.2, 0.16, 0.12), 4: (0.72, 0.7, 0.66)},
+             "ruff": ((0.74, 0.72, 0.68), (0.55, 0.53, 0.5)), "hair": (0.04, 0.008), "density": 1400,
+             "ruff_hair": 0.08, "toggle": IVORY, "beads": IVORY},
+    "breeches": {"fur": ((0.64, 0.62, 0.58), (0.52, 0.5, 0.47)), "inner": (0.36, 0.3, 0.25),
+                 "patch": (0.3, 0.24, 0.19), "hair": (0.038, 0.01)},
+    "gauntlets": {"back": (0.66, 0.64, 0.6), "cuff": (0.74, 0.72, 0.68), "beads": IVORY},
+    "boots": {"tones": {40: (0.64, 0.62, 0.58), 41: (0.2, 0.16, 0.12), 42: (0.74, 0.72, 0.68)}, "beads": IVORY},
+}
 
 
 # --- Main ----------------------------------------------------------------------
 
-PIECES = {"fur_mantle": mantle, "fur_loincloth": loincloth, "fur_mittens": mittens, "fur_moccasins": moccasins}
+LIGHT = {"mantle": mantle, "loincloth": loincloth, "mittens": mittens, "moccasins": moccasins}
+HEAVY = {"coat": coat, "breeches": breeches, "gauntlets": gauntlets, "boots": boots}
+## Every piece, <set>_<garment>: what makes it and its style.
+SETS = [("fur", LIGHT, {}), ("fur", HEAVY, {}), ("boar", LIGHT, BOAR_SET), ("deer", LIGHT, DEER_SET),
+        ("fox", LIGHT, FOX_SET), ("bison", HEAVY, BISON_SET), ("antler", HEAVY, ANTLER_SET),
+        ("arctic", HEAVY, ARCTIC_SET)]
+PIECES = {"%s_%s" % (prefix, name): (make, styles.get(name, {}))
+          for prefix, garments, styles in SETS for name, make in garments.items()}
 
 
 def main():
     body = fit.Body(BODY_JSON)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     envelopes = {}
-    for piece_id, make in PIECES.items():
+    for piece_id, (make, style) in PIECES.items():
         if ONLY and piece_id not in ONLY:
             continue
-        voxel = ENVELOPE_VOXEL[piece_id]
+        voxel = ENVELOPE_VOXEL[make.__name__]
         if voxel is not None and voxel not in envelopes:
             envelopes[voxel] = Envelope(body, voxel)
-        parts, groups = make(envelopes.get(voxel), body)
+        parts, groups = make(envelopes.get(voxel), body, style)
         for group, entry, slot in groups:
             skin_parts(group, body, entry, slot)
         preview(piece_id, parts, body)

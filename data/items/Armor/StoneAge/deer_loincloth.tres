@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/stone_age/deer_loincloth.png" id="0_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="2_trait"]
+[ext_resource type="Script" path="res://scripts/items/traits/insulation_trait.gd" id="3_warm"]
+
+[sub_resource type="Resource" id="Resource_warm"]
+script = ExtResource("3_warm")
+warmth = 1.0
+
+[resource]
+script = ExtResource("1_item")
+id = &"deer_loincloth"
+display_name = "ITEM_DEER_LOINCLOTH"
+description = "ITEM_DEER_LOINCLOTH_DESC"
+icon = ExtResource("0_icon")
+category = 4
+scene_path = "res://scenes/items/armor/stone_age/deer_loincloth_equipable.tscn"
+armor_slot = 4
+armor_slash = 2.0
+armor_blunt = 2.0
+armor_pierce = 3.0
+coverage = 32
+traits = Array[ExtResource("2_trait")]([SubResource("Resource_warm")])

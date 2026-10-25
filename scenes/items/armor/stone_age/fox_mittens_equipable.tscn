@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/fox_mittens.res" id="1_ve1cd"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_cluew"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_igw6i"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/fox_mittens.tres" id="4_5k7wg"]
+
+[node name="fox_mittens" type="MeshInstance3D" unique_id=2015267957]
+mesh = ExtResource("1_ve1cd")
+skin = ExtResource("2_cluew")
+script = ExtResource("3_igw6i")
+item_data = ExtResource("4_5k7wg")

@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/stone_age/deer_mantle.png" id="0_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="2_trait"]
+[ext_resource type="Script" path="res://scripts/items/traits/insulation_trait.gd" id="3_warm"]
+
+[sub_resource type="Resource" id="Resource_warm"]
+script = ExtResource("3_warm")
+warmth = 4.0
+
+[resource]
+script = ExtResource("1_item")
+id = &"deer_mantle"
+display_name = "ITEM_DEER_MANTLE"
+description = "ITEM_DEER_MANTLE_DESC"
+icon = ExtResource("0_icon")
+category = 4
+scene_path = "res://scenes/items/armor/stone_age/deer_mantle_equipable.tscn"
+armor_slot = 2
+armor_slash = 5.0
+armor_blunt = 5.0
+armor_pierce = 7.0
+traits = Array[ExtResource("2_trait")]([SubResource("Resource_warm")])

@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/boar_mantle.res" id="1_lfp45"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_wi80l"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_eowny"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/boar_mantle.tres" id="4_vqf30"]
+
+[node name="boar_mantle" type="MeshInstance3D" unique_id=463512528]
+mesh = ExtResource("1_lfp45")
+skin = ExtResource("2_wi80l")
+script = ExtResource("3_eowny")
+item_data = ExtResource("4_vqf30")

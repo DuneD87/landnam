@@ -6,6 +6,13 @@ extends SceneTree
 ##   godot --headless --path . --script res://tests/character/test_armor_deformation.gd
 
 const PIECES := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins",
+		"fur_coat", "fur_breeches", "fur_gauntlets", "fur_boots",
+		"boar_mantle", "boar_loincloth", "boar_mittens", "boar_moccasins",
+		"deer_mantle", "deer_loincloth", "deer_mittens", "deer_moccasins",
+		"fox_mantle", "fox_loincloth", "fox_mittens", "fox_moccasins",
+		"bison_coat", "bison_breeches", "bison_gauntlets", "bison_boots",
+		"antler_coat", "antler_breeches", "antler_gauntlets", "antler_boots",
+		"arctic_coat", "arctic_breeches", "arctic_gauntlets", "arctic_boots",
 		"hide_tunic", "hide_trousers", "hide_mittens", "hide_boots"]
 var failures := 0
 
