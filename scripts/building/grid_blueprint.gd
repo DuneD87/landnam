@@ -138,6 +138,18 @@ static func _capture_grid(grid: GridBase, cell_offset: Vector3i, offset_m: Vecto
 static func instantiate(data: Dictionary, planet: Node3D, origin_world: Vector3, basis_world: Basis,
 	force_static: bool = false) -> Array:
 
+	var created := create_grids(data, planet, origin_world, basis_world)
+	var grids_data: Array = data.get("grids", [])
+	for i in created.size():
+		_restore_blocks(created[i], blocks_dict(grids_data[i]))
+		_restore_props(created[i], grids_data[i].get("props", []))
+	return finish(data, created, force_static)
+
+
+## Las grids del blueprint, vacías y con sus materiales, una por cada una suya y en su orden: la
+## primera con la esquina en origin_world y orientada según basis_world, y las demás alineadas a
+## ella. [] sin grids o sin planeta.
+static func create_grids(data: Dictionary, planet: Node3D, origin_world: Vector3, basis_world: Basis) -> Array:
 	var grids_data: Array = data.get("grids", [])
 	if grids_data.is_empty() or not planet:
 		return []
@@ -153,17 +165,18 @@ static func instantiate(data: Dictionary, planet: Node3D, origin_world: Vector3,
 			reference = grid
 		else:
 			grid = GridManager.create_grid_aligned(planet, reference, cell)
-
 		_restore_materials(grid, grid_data)
-		_restore_blocks(grid, blocks_dict(grid_data))
-		_restore_props(grid, grid_data.get("props", []))
 		created.append(grid)
+	return created
 
-	if data.get("dynamic", false) and not force_static and reference:
-		var dynamic_grids := GridManager.convert_to_dynamic(reference.grid_id)
+
+## Con todo puesto: si el blueprint era dinámico y no se fuerza force_static, lo convierte. Devuelve
+## las grids resultantes.
+static func finish(data: Dictionary, created: Array, force_static: bool = false) -> Array:
+	if data.get("dynamic", false) and not force_static and not created.is_empty():
+		var dynamic_grids := GridManager.convert_to_dynamic((created[0] as GridBase).grid_id)
 		if not dynamic_grids.is_empty():
 			return dynamic_grids
-
 	return created
 
 
@@ -194,56 +207,72 @@ static func blocks_dict(grid_data: Dictionary) -> Dictionary:
 	var blocks_data: Dictionary = grid_data.get("blocks", {})
 
 	for key: String in blocks_data:
-		var parts := key.split(",")
-		if parts.size() < 3:
-			continue
-		var info: Dictionary = blocks_data[key]
-		out[Vector3i(int(parts[0]), int(parts[1]), int(parts[2]))] = {
-			"block_id": int(info.get("block_id", 0)),
-			"rotation_basis": GridBase._array_to_basis(info.get("rotation_basis", [1,0,0, 0,1,0, 0,0,1])),
-			"material_id": info.get("material_id", ""),
-			"mirrored": info.get("mirrored", false),
-			"mirror_axis": info.get("mirror_axis", -1),
-		}
+		var cell: Variant = parse_cell(key)
+		if cell != null:
+			out[cell] = block_info(blocks_data[key])
+	return out
 
-		if info.has("naval_shape"):
-			out[Vector3i(int(parts[0]), int(parts[1]), int(parts[2]))]["naval_shape"] = info["naval_shape"]
 
+## La celda de una clave «x,y,z» del blueprint, o null si no lo es.
+static func parse_cell(key: String) -> Variant:
+	var parts := key.split(",")
+	if parts.size() < 3:
+		return null
+	return Vector3i(int(parts[0]), int(parts[1]), int(parts[2]))
+
+
+## Un bloque del blueprint (lo leído del JSON) en el formato de las grids.
+static func block_info(info: Dictionary) -> Dictionary:
+	var out := {
+		"block_id": int(info.get("block_id", 0)),
+		"rotation_basis": GridBase._array_to_basis(info.get("rotation_basis", [1,0,0, 0,1,0, 0,0,1])),
+		"material_id": info.get("material_id", ""),
+		"mirrored": info.get("mirrored", false),
+		"mirror_axis": info.get("mirror_axis", -1),
+	}
+	if info.has("naval_shape"):
+		out["naval_shape"] = info["naval_shape"]
 	return out
 
 
 static func _restore_blocks(grid: GridBase, blocks_data: Dictionary) -> void:
-	var grid_basis := grid.get_basis_world()
 	grid.begin_bulk_edit()
-
 	for grid_pos: Vector3i in blocks_data:
-		var info: Dictionary = blocks_data[grid_pos]
-
-		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
-		if not block_data:
-			push_warning("[GridBlueprint] Block ID %d desconocido" % info["block_id"])
-			continue
-
-		var rotation_basis: Basis = info["rotation_basis"]
-		var world_transform := Transform3D(grid_basis * rotation_basis, grid.grid_to_world(grid_pos))
-		grid.place_block(grid_pos, block_data, rotation_basis, world_transform,
-			info["material_id"], {
-				"mirrored": info["mirrored"],
-				"mirror_axis": info["mirror_axis"],
-				"naval_shape": info.get("naval_shape", {}),
-			})
-
+		place_block(grid, grid_pos, blocks_data[grid_pos])
 	grid.end_bulk_edit()
+
+
+## Pone en [grid] un bloque del blueprint ([info] como lo da block_info). false si su id ya no
+## existe o la celda está ocupada.
+static func place_block(grid: GridBase, grid_pos: Vector3i, info: Dictionary) -> bool:
+	var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
+	if not block_data:
+		push_warning("[GridBlueprint] Block ID %d desconocido" % info["block_id"])
+		return false
+
+	var rotation_basis: Basis = info["rotation_basis"]
+	var world_transform := Transform3D(grid.get_basis_world() * rotation_basis, grid.grid_to_world(grid_pos))
+	return grid.place_block(grid_pos, block_data, rotation_basis, world_transform,
+		info["material_id"], {
+			"mirrored": info["mirrored"],
+			"mirror_axis": info["mirror_axis"],
+			"naval_shape": info.get("naval_shape", {}),
+		})
 
 
 static func _restore_props(grid: GridBase, props_data: Array) -> void:
 	for info: Dictionary in props_data:
-		grid.place_prop(
-			GridBase._array_to_vec3i(info.get("cell", [])),
-			GridBase._array_to_vec3i(info.get("face", [])),
-			StringName(info.get("item_id", "")),
-			GridBase._array_to_transform(info.get("local_transform", []))
-		)
+		place_prop(grid, info)
+
+
+## Pone en [grid] un colocable del blueprint (lo leído del JSON).
+static func place_prop(grid: GridBase, info: Dictionary) -> bool:
+	return grid.place_prop(
+		GridBase._array_to_vec3i(info.get("cell", [])),
+		GridBase._array_to_vec3i(info.get("face", [])),
+		StringName(info.get("item_id", "")),
+		GridBase._array_to_transform(info.get("local_transform", []))
+	)
 
 
 ## Tamaño del blueprint en metros, en su propio espacio de grid (ancho, alto, largo).

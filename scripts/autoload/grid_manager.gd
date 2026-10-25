@@ -29,10 +29,13 @@ func get_save_data() -> Dictionary:
 	return {
 		"next_id": _next_id,
 		"grids": grids_data,
+		# Las obras a medio levantar (BlueprintSite) van con las grids en las que construyen.
+		"sites": BlueprintSite.capture_all(get_tree()),
 	}
 
 
 func restore_save_data(data: Dictionary) -> void:
+	BlueprintSite.clear_all(get_tree())
 	clear_all()
 
 	_next_id = data.get("next_id", 0)
@@ -97,6 +100,7 @@ func restore_save_data(data: Dictionary) -> void:
 		if grid is DynamicPlanetGrid and (grid as DynamicPlanetGrid)._body:
 			(grid as DynamicPlanetGrid)._body.update_mass_from_grids()
 
+	BlueprintSite.restore_all(get_tree(), data.get("sites", []))
 	print("[GridManager] Restauradas %d grids" % _grids.size())
 
 func _ready() -> void:

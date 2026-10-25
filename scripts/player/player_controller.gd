@@ -77,6 +77,8 @@ var resting: RestController
 var survival: SurvivalActions
 ## El círculo de lo que va a allanar la azada (ver TerrainLeveling).
 var hoe_preview: HoePreview
+## Las obras (blueprints colocados por construir): apuntarlas, aportarles material y martillearlas.
+var site_builder: SiteBuilder
 ## Trepar por paredes que no se pueden andar y coronarlas (ver ClimbController).
 var climb: ClimbController
 ## Andar y correr en todas direcciones, y agacharse (ver Locomotion).
@@ -191,13 +193,20 @@ func _perform_raycast() -> void:
 		cam_query.exclude = [player_rid]
  
 	var cam_hit := space_state.intersect_ray(cam_query)
-	if cam_hit.is_empty():
+	var reference_pos := camera.global_position if free_flight_enabled else global_position
+	# Una obra se apunta aunque detrás no haya nada; apuntándola, el martillo no pone ni quita bloques
+	# sueltos: su clic es para la obra (SiteBuilder).
+	if site_builder:
+		site_builder.update_aim(cam_origin, cam_dir, ray_distance + extra, cam_hit, reference_pos, ray_distance)
+	var on_site := site_builder != null and site_builder.is_aiming() and not building_system.is_prop_mode()
+	if cam_hit.is_empty() or on_site:
 		if building_system.build_mode:
 			building_system.clear_target()
+		if on_site and not cam_hit.is_empty() and reference_pos.distance_to(cam_hit["position"]) <= ray_distance:
+			_ray_hit = cam_hit
 		return
  
 	var hit_pos: Vector3 = cam_hit["position"]
-	var reference_pos := camera.global_position if free_flight_enabled else global_position
 	if reference_pos.distance_to(hit_pos) > ray_distance:
 		if building_system.build_mode:
 			building_system.clear_target()
@@ -587,6 +596,9 @@ func _ready():
 	hoe_preview = HoePreview.new()
 	hoe_preview.setup(self)
 	add_child(hoe_preview)
+	site_builder = SiteBuilder.new()
+	site_builder.setup(self)
+	add_child(site_builder)
 	climb = ClimbController.new()
 	add_child(climb)
 	climb.setup(self)
@@ -1329,6 +1341,8 @@ func _input(event):
 		var nearest := DroppedItem.find(self)
 		if looked and looked.pick_into(inventory):
 			pass
+		elif site_builder.deposit():
+			pass
 		elif corpse:
 			survival.open_corpse(corpse)
 		elif survival.open_nearby_bedroll():
@@ -1456,6 +1470,8 @@ func _handle_blueprint_placement(event: InputEvent) -> bool:
 				var problem := blueprint_placer.confirm()
 				if problem != "":
 					hotbar.notify(problem)
+				elif not BuildingSystem.free_build:
+					hotbar.notify(tr("SITE_PLACED"))
 				get_viewport().set_input_as_handled()
 				return true
 			MOUSE_BUTTON_RIGHT:
@@ -1533,7 +1549,9 @@ func _handle_build_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		match event.button_index:
 			MOUSE_BUTTON_LEFT:
-				building_system.execute_primary_action(_ray_hit)
+				# Apuntando a una obra, el martillo la levanta (o, en modo quitar, la desmonta).
+				if building_system.is_prop_mode() or not site_builder.primary_pressed():
+					building_system.execute_primary_action(_ray_hit)
 				get_viewport().set_input_as_handled()
 			MOUSE_BUTTON_RIGHT:
 				if building_system.is_prop_mode():

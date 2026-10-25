@@ -7,8 +7,8 @@ extends CanvasLayer
 ##   materiales (lo que devuelve al desmontarla), guardarla como blueprint (avisa antes de sustituir
 ##   uno), convertirla en dinámica y desmontarla (como quitar bloque a bloque con el martillo).
 ## - Biblioteca: los blueprints guardados, con miniatura, búsqueda y orden. La ficha del elegido:
-##   medidas, bloques, lo que cuesta frente a lo que se lleva, colocarlo (solo si alcanza, salvo
-##   construyendo gratis), renombrarlo y borrarlo.
+##   medidas, bloques, lo que cuesta frente a lo que se lleva, colocarlo (queda una obra, BlueprintSite,
+##   que se levanta con el martillo; construyendo gratis, entero), renombrarlo y borrarlo.
 ## Sin construcción apuntada abre en la biblioteca. Los blueprints de antes sin miniatura se pintan
 ## la primera vez que se ven (BlueprintThumbnail).
 
@@ -704,14 +704,14 @@ func _show_detail(info: Dictionary) -> void:
 	var cost := BuildCost.of_counts(info.get("counts", {}))
 	_fill_costs(_detail_costs, cost, true)
 	_as_static_check.visible = info.get("dynamic", false)
-	var affordable := _affordable(info)
-	_place_btn.disabled = not affordable
+	# Se coloca siempre: queda una obra, y los materiales se le aportan después.
+	_place_btn.disabled = false
 	if BuildingSystem.free_build:
 		_reason.text = tr("GRID_FREE_BUILD")
 		_reason.theme_type_variation = &"BetterLabel"
 	else:
-		_reason.text = "" if affordable else tr("GRID_NEED_MATERIALS")
-		_reason.theme_type_variation = &"WorseLabel"
+		_reason.text = tr("GRID_PLACE_AS_SITE")
+		_reason.theme_type_variation = &"HintLabel"
 	_reason.visible = _reason.text != ""
 	_delete_btn.text = "GRID_DELETE_CONFIRM" if _delete_armed else "GRID_DELETE_BLUEPRINT"
 

@@ -193,6 +193,8 @@ var _move_speed: float = 1.0
 var _heavy: bool = false
 ## Talar o picar con una herramienta (trabajo, no combate).
 var _working: bool = false
+## Lo que hace el golpe de trabajo en curso al llegar al impacto (work_strike), en vez de cosechar.
+var _work_impact := Callable()
 ## El golpe salió en marcha (RUN_ATTACK_PACE): suena en "run_a"/"run_b" y no para las piernas.
 var _on_the_run: bool = false
 ## Peso del giro de cadera del golpe en marcha que se pasa al tronco (CombatPose.swing_twist).
@@ -979,6 +981,16 @@ func is_heavy_swing() -> bool:
 	return state == State.ATTACK and _heavy
 
 
+## Un golpe de trabajo con lo que se lleva en la mano (el martillo en una obra: SiteBuilder), parado
+## y en el sitio como talar o picar. En el impacto llama a [on_impact], que devuelve si ha mordido
+## (entonces, hitstop y temblor). false si ahora no se puede golpear (ocupado, sin aguante).
+func work_strike(on_impact: Callable) -> bool:
+	if not _can_attack_now():
+		return false
+	_start_attack(false, on_impact)
+	return state == State.ATTACK and _work_impact == on_impact
+
+
 ## Una tarea con las manos (despellejar: Butchering): [anim_name] en el canal de tronco y brazos,
 ## sobre la locomoción (agachado), en bucle si el clip lo es.
 func play_task(anim_name: StringName, speed: float = 1.0) -> void:
@@ -1250,7 +1262,7 @@ func _update_press(delta: float) -> void:
 		_request(&"heavy")
 
 
-func _start_attack(heavy: bool) -> void:
+func _start_attack(heavy: bool, work := Callable()) -> void:
 	var data := weapon()
 	if data == null:
 		return
@@ -1259,12 +1271,14 @@ func _start_attack(heavy: bool) -> void:
 	var after_dodge := state == State.DODGE or _since_dodge < DASH_WINDOW
 	# En marcha (andando, corriendo o esprintando) no se para: el golpe va en el tronco y los
 	# brazos y las piernas siguen, también con el hacha o el pico (tala o pica igual si hay algo
-	# delante). Saliendo de una voltereta, el golpe a la carrera de cuerpo entero.
-	var on_the_run := not after_dodge and _anims_ready and player.movement.direction.length() > 0.3
+	# delante). Saliendo de una voltereta, el golpe a la carrera de cuerpo entero. Un golpe de trabajo
+	# (work_strike) siempre para.
+	var on_the_run := not after_dodge and _anims_ready and player.movement.direction.length() > 0.3 \
+		and not work.is_valid()
 	# Talar y picar parado es trabajo, no combate: el golpe se da en el sitio, sin paso adelante ni
 	# a la carrera. Con un enemigo encima, la herramienta pega como un arma.
-	var working := data.category == ItemData.Category.TOOL and (TreeFelling.fells(data) or RockMining.mines(data)
-		or TerrainLeveling.levels(data)) and not _enemy_near() and not on_the_run
+	var working := work.is_valid() or data.category == ItemData.Category.TOOL and (TreeFelling.fells(data)
+		or RockMining.mines(data) or TerrainLeveling.levels(data)) and not _enemy_near() and not on_the_run
 	if not heavy and not working and (after_dodge or (player.movement.is_sprinting and not on_the_run)):
 		kind = "dash"
 	# Encadena el combo si la animación del anterior aún suena o acaba de terminar.
@@ -1287,6 +1301,7 @@ func _start_attack(heavy: bool) -> void:
 	_combo = index
 	_heavy = heavy
 	_working = working
+	_work_impact = work
 	_on_the_run = on_the_run
 	_charge = 0.0
 	_charged = false
@@ -1347,10 +1362,18 @@ func _update_attack(delta: float) -> void:
 			_whooshed = true
 			CombatFx.play(_swing_sound(data), player.global_position, {"pitch": _swing_pitch(data) * randf_range(0.96, 1.04)})
 		_sweep_blade(data)
-	# Talar o picar entra en el impacto del gesto: lo que hay delante, al alcance.
+	# Talar o picar entra en el impacto del gesto: lo que hay delante, al alcance. Un golpe de
+	# trabajo hace lo suyo.
 	var impact := lerpf(hit.x, hit.y, CHOP_IMPACT)
 	if prev < impact and t >= impact:
-		_harvest(data)
+		if _work_impact.is_valid():
+			var work := _work_impact
+			_work_impact = Callable()
+			if work.call():
+				_hitstop = HITSTOP_TIME
+				player.camera_controller.add_shake(0.02)
+		else:
+			_harvest(data)
 	if t >= float(_move.commit):
 		_finish_attack()
 		return

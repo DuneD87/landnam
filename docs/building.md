@@ -80,7 +80,7 @@ antes se perdía.
 
 `BuildCost` (`scripts/building/build_cost.gd`) hace las cuentas para todo lo que no es un bloque suelto:
 
-- **Un blueprint:** lo que gasta al colocarlo.
+- **Un blueprint:** lo que pide su obra para construirse.
 - **Una construcción en pie:** lo que vale y lo que devuelve al desmontarla.
 - **Frente al inventario:** lo que falta, pagar y devolver.
 
@@ -89,7 +89,8 @@ bloques por material y tamaño de celda, y de colocables por objeto.
 
 **Construir gratis** (consola: `freebuild [on|off]`, `BuildingSystem.free_build`): bloques, colocables
 y blueprints no gastan nada. Quitar o desmontar tampoco devuelve nada, para que no sea una fuente de
-material infinita. Colocar un blueprint deja de tener límite de distancia.
+material infinita. Un blueprint se construye entero al colocarlo, sin obra y sin límite de distancia, y
+los martillazos en una obra que ya estaba puesta no piden material.
 
 ## Blueprints
 
@@ -114,8 +115,7 @@ materiales. Se pueden buscar por nombre y ordenar por nombre o por fecha. La fic
 - miniatura y datos;
 - los bloques de un tipo que ya no existe, que no se pondrán;
 - los materiales, cada uno con «lo que llevas / lo que pide» en verde o en rojo;
-- **Colocar**, solo si alcanza (salvo construyendo gratis), y «Colocar como estática» en los
-  dinámicos;
+- **Colocar**, siempre: queda una obra (ver abajo). «Colocar como estática» en los dinámicos;
 - **Renombrar**, que no pisa otro;
 - **Borrar**, que pide pulsar dos veces.
 
@@ -148,20 +148,58 @@ Renombrar y borrar se llevan los tres ficheros.
 ### Colocar
 
 `BlueprintPlacer`. El fantasma sigue al puntero. Un panel arriba enseña el nombre, cada material con lo
-que llevas y lo que pide, si se puede y los controles.
+que llevas y lo que pedirá, si se puede y los controles. No hace falta llevar nada.
 
 No se puede colocar, y el fantasma se pone rojo, si:
 
-- **faltan materiales;**
 - **choca con otra construcción:** algún bloque cae en una celda ocupada. Se mira cada 0,15 s con 600
   bloques como mucho, y al confirmar con todos;
 - **está demasiado lejos:** el centro a más de 24 m del jugador, más media diagonal del blueprint.
 
-Al confirmar se paga y se construye. Si no se puede, sigue colocando y la barra dice por qué.
+Al confirmar queda una **obra** sin pagar nada. Si no se puede, sigue colocando y la barra dice por qué.
 
 Al reconstruir, los materiales de los bloques salen del `BuildMaterial` de ahora por su id
 (`GridBlueprint._restore_materials`). Los de piedra y madera son subrecursos de su `.tres`, y su ruta
 guardada no se podía cargar suelta.
+
+### Obras
+
+`BlueprintSite` (`scripts/building/blueprint_site.gd`): el blueprint colocado y por construir. Lo que
+falta se ve como un fantasma azul translúcido, que se aviva al apuntarlo; lo construido ya son bloques
+de verdad en las grids de la obra, que se crean vacías al colocarla. `SiteBuilder`
+(`scripts/player/site_builder.gd`) la maneja desde el jugador. Se apunta con el rayo de construcción
+(8 m), antes que lo que haya detrás, recorriendo sus celdas; no hace falta física para el fantasma.
+
+| Apuntando a la obra | |
+|---|---|
+| E | Le aporta lo que le falta y se lleva encima, con cualquier cosa en la mano |
+| Clic izquierdo con el martillo en modo poner | Un martillazo; mantenido, se sigue martilleando |
+| Clic izquierdo con el martillo en modo quitar | Dos clics en 4 s la desmontan |
+
+- **El martillazo** es el golpe vertical del pico, en el sitio (`PlayerCombat.work_strike`), y gasta
+  aguante. En el impacto pone los siguientes bloques y suena como poner un bloque de su material.
+  Sin material para nada de lo que queda no golpea y avisa.
+- **El orden:** de abajo arriba por la base del bloque, y en cada altura por grid y por filas (x, z).
+  Si al que toca le falta su material, sigue con los siguientes que lo tienen. Los colocables van al
+  final, con todos los bloques puestos.
+- **Cuánto pone cada golpe:** el trabajo de un bloque es lo que cuesta (como mínimo 1) y el de un
+  colocable, 1. Un golpe hace unas 8 unidades, sin bajar de 3 golpes para acabarla ni pasar de 40
+  (`WORK_PER_HIT`, `MIN_HITS`, `MAX_HITS`).
+- **Lo que estorba:** no pone nada donde está de pie quien martillea (una caja de 0,8 × 1,8 m); si es
+  lo único que queda, avisa de que se aparte. Una celda que al llegarle ya está ocupada (otra
+  construcción, o un bloque puesto ahí a mano) se salta y no se cobra.
+- **El panel** (`BlueprintSitePanel`), arriba mientras se apunta: el nombre, cuánto lleva hecho, cada
+  material con «tiene / pide» y lo que se lleva de lo que falta, qué hacer ahora y los controles.
+- **Acabada**, se quitan las grids que se quedaron vacías, se convierte en dinámica si el blueprint lo
+  era (salvo «Colocar como estática») y devuelve lo que sobre de lo aportado.
+- **Desmontarla** devuelve lo aportado entero y lo construido según la vida de cada bloque
+  (`BuildingSystem.dismantle_group`).
+- **Grandes:** pasados 4000 bloques el fantasma es la caja de lo que falta, que baja según sube la obra.
+- **Guardado:** con las grids (`GridManager`, clave `sites`): el blueprint, la pose, sus grids, el
+  estado de cada bloque y lo aportado.
+
+Si se desmonta o se convierte desde el menú una grid de la obra a medio hacer, lo que queda se pone en
+una grid nueva en el mismo sitio.
 
 ## Tejados de paja
 
@@ -333,6 +371,6 @@ godot --path . res://tests/ui/build_ui_preview.tscn -- --capture --background
 - la ficha y los ficheros: guardar, recuperar la ficha, renombrar y borrar;
 - desmontar y construir gratis;
 - el choque con otra construcción;
-- el menú de blueprints: búsqueda, coste, colocar, sustituir y desmontar.
+- el menú de blueprints: búsqueda, coste, colocar (también sin materiales), sustituir y desmontar.
 
 La vista previa deja sus capturas en `build/building/preview/`.

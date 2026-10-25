@@ -107,10 +107,10 @@ static func family_for(data: ItemData) -> StringName:
 			return &"heavy2h" if two else &"mace"
 		ItemData.WeaponType.SPEAR:
 			return &"spear"
-	# Herramientas: el pico pica y la azada cava en vertical, y el hacha tala en horizontal; lo
-	# demás, contra una criatura, pega como un hacha.
+	# Herramientas: el pico pica, la azada cava y el martillo clava en vertical, y el hacha tala en
+	# horizontal; lo demás, contra una criatura, pega como un hacha.
 	match data.tool_type:
-		ItemData.ToolType.PICKAXE, ItemData.ToolType.HOE:
+		ItemData.ToolType.PICKAXE, ItemData.ToolType.HOE, ItemData.ToolType.HAMMER:
 			return &"pickaxe"
 		ItemData.ToolType.AXE:
 			return &"hatchet"

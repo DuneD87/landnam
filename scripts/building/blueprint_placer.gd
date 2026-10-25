@@ -6,17 +6,18 @@ extends Node3D
 ## confirmar. Los blueprints grandes muestran solo su caja envolvente: mallar un barco entero
 ## para elegir sitio cuesta más de lo que aporta.
 ##
-## Colocarlo cuesta lo mismo que poner cada bloque y cada colocable a mano (BuildCost), y se paga
-## al confirmar. No se puede si falta material, si choca con otra construcción o si queda
-## demasiado lejos; el ghost se pone rojo y un panel (Saga) dice lo que cuesta, lo que se lleva y
-## por qué no se puede. Construyendo gratis (BuildingSystem.free_build) no cuesta ni tiene
+## Al confirmar queda una obra (BlueprintSite) en la pose del ghost, sin pagar nada: se le aportan los
+## materiales después y se levanta con el martillo. Cuesta lo mismo que poner cada bloque y cada
+## colocable a mano (BuildCost). No se puede si choca con otra construcción o si queda demasiado
+## lejos; el ghost se pone rojo y un panel (Saga) dice lo que costará, lo que se lleva y por qué no se
+## puede. Construyendo gratis (BuildingSystem.free_build) se construye entera al confirmar, sin
 ## límite de distancia.
 
 ## Se emite al salir del modo colocación, por confirmación o por cancelación.
 signal finished()
 
 ## Por qué no se puede colocar donde apunta.
-enum Problem { NONE, MISSING, OVERLAP, TOO_FAR }
+enum Problem { NONE, OVERLAP, TOO_FAR }
 
 ## Por encima de este nº de bloques el ghost es una caja en vez de la geometría real.
 const GHOST_BLOCK_LIMIT := 4000
@@ -99,8 +100,8 @@ func is_active() -> bool:
 
 
 ## Entra en modo colocación con el blueprint ya leído de disco. Con as_static, un blueprint
-## dinámico se ancla al planeta en vez de reconstruirse como cuerpo dinámico. Lo que cuesta sale
-## de [inventory] al confirmar.
+## dinámico se ancla al planeta en vez de reconstruirse como cuerpo dinámico. El panel compara lo
+## que costará con lo que hay en [inventory].
 func begin(data: Dictionary, planet: Node3D, player: Node3D, camera: Camera3D,
 	as_static: bool = false, bp_name: String = "", inventory: Inventory = null) -> void:
 
@@ -168,13 +169,13 @@ func move_height(steps: int) -> void:
 	update_aim()
 
 
-## Lo que cuesta colocarlo (id de objeto → cantidad).
+## Lo que cuesta construirlo (id de objeto → cantidad).
 func get_cost() -> Dictionary:
 	return _cost
 
 
-## Paga e instancia el blueprint en la pose del ghost, y sale del modo colocación. Si no se puede,
-## sigue colocando y devuelve por qué (traducido); "" si se ha colocado.
+## Pone la obra en la pose del ghost (construyendo gratis, el blueprint entero) y sale del modo
+## colocación. Si no se puede, sigue colocando y devuelve por qué (traducido); "" si se ha colocado.
 func confirm() -> String:
 	if not _active:
 		return ""
@@ -183,19 +184,19 @@ func confirm() -> String:
 	_set_problem(problem)
 	if problem != Problem.NONE:
 		return _problem_text(problem)
-	if not BuildingSystem.free_build and not _cost.is_empty() and not BuildCost.pay(_cost, _inventory):
-		_set_problem(Problem.MISSING)
-		return _problem_text(Problem.MISSING)
 
 	var t0 := Time.get_ticks_msec()
-	var grids := GridBlueprint.instantiate(_data, _planet, _placement.origin, _placement.basis,
-		_as_static)
-	var blocks := 0
-	for grid: GridBase in grids:
-		blocks += grid.get_block_count()
-
-	print("[BlueprintPlacer] Colocado: %d grids, %d bloques en %d ms" % [
-		grids.size(), blocks, Time.get_ticks_msec() - t0])
+	if BuildingSystem.free_build:
+		var grids := GridBlueprint.instantiate(_data, _planet, _placement.origin, _placement.basis,
+			_as_static)
+		var blocks := 0
+		for grid: GridBase in grids:
+			blocks += grid.get_block_count()
+		print("[BlueprintPlacer] Colocado: %d grids, %d bloques en %d ms" % [
+			grids.size(), blocks, Time.get_ticks_msec() - t0])
+	else:
+		BlueprintSite.create(_data, _planet, _placement, _name, _as_static)
+		print("[BlueprintPlacer] Obra '%s' puesta en %d ms" % [_name, Time.get_ticks_msec() - t0])
 
 	_end()
 	return ""
@@ -226,8 +227,6 @@ func _end() -> void:
 ## contra otras construcciones (-1, todos).
 func _find_problem(samples: int) -> Problem:
 	if not BuildingSystem.free_build:
-		if not BuildCost.missing(_cost, _inventory).is_empty():
-			return Problem.MISSING
 		var center := _placement * (_size * 0.5)
 		if _player.global_position.distance_to(center) > PLACE_REACH + _size.length() * 0.5:
 			return Problem.TOO_FAR
@@ -249,8 +248,6 @@ func _set_problem(problem: Problem) -> void:
 
 func _problem_text(problem: Problem) -> String:
 	match problem:
-		Problem.MISSING:
-			return tr("BP_PLACE_MISSING")
 		Problem.OVERLAP:
 			return tr("BP_PLACE_OVERLAP")
 		Problem.TOO_FAR:
