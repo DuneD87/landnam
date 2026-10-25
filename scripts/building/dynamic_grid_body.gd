@@ -238,7 +238,8 @@ func _recalculate_buoyancy_boxes() -> void:
 			volume = half.x * half.y * half.z * 8.0
 		else:
 			half = Vector3.ONE * 0.5 * col.scale.x
-			volume = col.scale.x * col.scale.x * col.scale.x * 0.5
+			var factor := float(col.shape.get_meta("naval_volume", 0.5))
+			volume = col.scale.x * col.scale.x * col.scale.x * factor
 
 		var pos: Vector3 = col.transform.origin
 		_box_pos.append(pos)

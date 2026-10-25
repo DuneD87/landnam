@@ -23,6 +23,7 @@ var _highlight_mesh: MeshInstance3D = null
 
 var _mirror_highlight_node: Node3D = null
 var _mirror_highlight_mesh: MeshInstance3D = null
+var _naval_hint: Label
 
 func setup(building_system: BuildingSystem) -> void:
 	_building_system = building_system
@@ -37,6 +38,21 @@ func setup(building_system: BuildingSystem) -> void:
 	_building_system.cell_size_changed.connect(_on_cell_size_changed)
 	_building_system.material_changed.connect(_on_material_changed)
 	_building_system.mirror_changed.connect(_on_mirror_changed)
+	_building_system.naval_piece_changed.connect(_refresh_ghost_mesh)
+	var hud := CanvasLayer.new()
+	add_child(hud)
+	_naval_hint = Label.new()
+	_naval_hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_naval_hint.offset_left = -650
+	_naval_hint.offset_right = 650
+	_naval_hint.offset_top = -200
+	_naval_hint.offset_bottom = -120
+	_naval_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_naval_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_naval_hint.add_theme_color_override("font_shadow_color", Color.BLACK)
+	_naval_hint.add_theme_constant_override("shadow_outline_size", 4)
+	_naval_hint.visible = false
+	hud.add_child(_naval_hint)
 
 	_ghost_node.visible = false
 
@@ -67,6 +83,12 @@ func update_preview(world_pos: Vector3, basis: Basis, can_place: bool, _ray_hit:
 
 	_ghost_node.visible = true
 	_ghost_node.global_transform = Transform3D(basis, world_pos)
+	if _building_system.is_naval_mode():
+		_ghost_mesh_instance.transform = Transform3D(Basis.from_scale(Vector3.ONE * _building_system.cell_size), Vector3.ZERO)
+		_ghost_material.albedo_color = ghost_color_valid if can_place else ghost_color_invalid
+		_update_naval_hint()
+		_update_mirror_preview()
+		return
 
 	var rot_basis := _building_system.get_rotation_basis()
 	var s := _building_system.cell_size
@@ -94,14 +116,33 @@ func _update_mirror_preview() -> void:
 	if not grid:
 		_mirror_ghost_node.visible = false
 		return
+	if _building_system.is_naval_mode() and not is_equal_approx(grid.cell_size, _building_system.cell_size):
+		_mirror_ghost_node.visible = false
+		return
 
 	var mirror_pos := _building_system._get_mirror_pos(_building_system._target_grid_pos, grid)
+	var cube_merge := not _building_system._cube_merge_plan.is_empty()
+	if cube_merge:
+		mirror_pos = _building_system.mirror_position_for_size(_building_system._target_grid_pos, grid)
 
-	if mirror_pos == _building_system._target_grid_pos:
+	if mirror_pos == _building_system._target_grid_pos and not _building_system.is_naval_mode():
 		_mirror_ghost_node.visible = false
 		return
 
 	var mirror_world := grid.grid_to_world(mirror_pos)
+	if cube_merge:
+		mirror_world = grid.get_grid_world_transform() * (Vector3(mirror_pos) * _building_system.cell_size)
+	if _building_system.is_naval_mode():
+		var scale_vec := Vector3.ONE * _building_system.cell_size
+		var offset := Vector3.ZERO
+		var axis := _building_system._get_mirror_axis_index()
+		scale_vec[axis] *= -1.0
+		offset[axis] = _building_system.cell_size
+		_mirror_ghost_node.global_transform = Transform3D(grid.get_basis_world(), mirror_world)
+		_mirror_ghost_mesh.transform = Transform3D(Basis.from_scale(scale_vec), offset)
+		_mirror_ghost_mesh.mesh = _ghost_mesh_instance.mesh
+		_mirror_ghost_node.visible = true
+		return
 	var mirror_rot := _building_system._get_mirror_rotation(_building_system.current_rotation_basis)
 
 	var s := _building_system.cell_size
@@ -122,6 +163,10 @@ func _update_mirror_preview() -> void:
 	_mirror_ghost_mesh.mesh = _ghost_mesh_instance.mesh
 
 	var can_mirror := not grid.has_block(mirror_pos)
+	if cube_merge:
+		var plan := _building_system._cube_merger.resolve(grid, mirror_pos, _building_system.cell_size,
+			_building_system.get_current_material().material_id, false, true)
+		can_mirror = plan.get("allowed", false)
 	var mat := _mirror_ghost_mesh.material_override as StandardMaterial3D
 	mat.albedo_color = Color(0.6, 0.8, 1.0, 0.3) if can_mirror \
 					   else Color(1.0, 0.2, 0.2, 0.3)
@@ -129,6 +174,8 @@ func _update_mirror_preview() -> void:
 	_mirror_ghost_node.visible = true
 
 func hide_preview() -> void:
+	if _naval_hint:
+		_naval_hint.visible = false
 	if _ghost_node:
 		_ghost_node.visible = false
 	if _mirror_ghost_node:
@@ -280,6 +327,11 @@ func _setup_ghost() -> void:
 func _refresh_ghost_mesh() -> void:
 	if not _building_system:
 		return
+	if _naval_hint:
+		_naval_hint.visible = false
+	if _building_system.is_naval_mode():
+		_ghost_mesh_instance.mesh = ChunkMeshBuilder.build_mesh(_building_system.get_naval_blocks(), 1.0, Transform3D.IDENTITY)
+		return
 	var block_data := _building_system.get_selected_block()
 	var mat := _building_system.get_current_material()
 	if block_data:
@@ -291,3 +343,16 @@ func _refresh_ghost_mesh() -> void:
 		_ghost_material.albedo_color.r = mat.preview_color.r
 		_ghost_material.albedo_color.g = mat.preview_color.g
 		_ghost_material.albedo_color.b = mat.preview_color.b
+
+
+func _update_naval_hint() -> void:
+	var size := Vector3(_building_system.naval_size) * _building_system.cell_size
+	var mat := _building_system.get_current_material()
+	var count := _building_system.get_naval_plan().size()
+	var cost := count * mat.get_cost_for_size(_building_system.cell_size)
+	var price := tr("BUILD_MENU_FREE") if BuildingSystem.free_build else "%d %s" % [cost, mat.item.get_display_name().to_lower()]
+	_naval_hint.text = "%s · %s × %s × %s m\n%s · %s\n%s" % [
+		tr(NavalPiece.NAME_KEYS[_building_system.naval_kind]), ItemTrait.number(size.x),
+		ItemTrait.number(size.y), ItemTrait.number(size.z),
+		tr("NAVAL_THICKNESS_VALUE") % ItemTrait.number(_building_system.cell_size), price, tr("NAVAL_PLACE_HINT")]
+	_naval_hint.visible = true

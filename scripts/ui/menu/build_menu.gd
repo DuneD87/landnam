@@ -23,6 +23,7 @@ const DETAIL_WIDTH := 540.0
 const TILE := Vector2(176.0, 214.0)
 const MATERIAL_ICON := 40.0
 const DIM := Color(1, 1, 1, 0.45)
+const NAVAL_CATEGORY := "naval"
 
 var building_system: BuildingSystem
 var inventory: Inventory
@@ -53,6 +54,8 @@ var _use_button: Button
 ## Material de la pestaña y bloque de la ficha.
 var _material_id := ""
 var _shown: ItemData = null
+var _center: VBoxContainer
+var _naval_panel: NavalBuildPanel
 
 
 func _ready() -> void:
@@ -80,7 +83,9 @@ func open() -> void:
 	if not building_system:
 		return
 	var mat := building_system.get_current_material()
-	_material_id = mat.material_id if mat else ""
+	_material_id = NAVAL_CATEGORY if building_system.is_naval_mode() else (mat.material_id if mat else "")
+	if _material_id == NAVAL_CATEGORY:
+		_naval_panel.configure(building_system, inventory)
 	_apply_scale()
 	visible = true
 	_refresh()
@@ -112,6 +117,15 @@ func _refresh() -> void:
 	_rebuild_recent()
 	_rebuild_tiles()
 	_refresh_cell_buttons()
+	var naval := _material_id == NAVAL_CATEGORY
+	_center.visible = not naval
+	_detail_box.visible = not naval
+	_naval_panel.visible = naval
+	if naval:
+		if _naval_panel.building_system == null:
+			_naval_panel.configure(building_system, inventory)
+		else:
+			_naval_panel.refresh()
 
 
 # --- Montaje --------------------------------------------------------------------------------------
@@ -190,6 +204,7 @@ func _build_ui() -> void:
 	_rail.add_child(_recent_box)
 
 	var center := VBoxContainer.new()
+	_center = center
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(center)
 	_grid_title = _label("", &"SectionLabel")
@@ -206,6 +221,10 @@ func _build_ui() -> void:
 	_detail_box.theme_type_variation = &"Inset"
 	body.add_child(_detail_box)
 	_build_detail()
+	_naval_panel = NavalBuildPanel.new()
+	body.add_child(_naval_panel)
+	_naval_panel.visible = false
+	_naval_panel.piece_picked.connect(close)
 
 	column.add_child(HSeparator.new())
 	var hint := _label("BUILD_MENU_HINT", &"HintLabel")
@@ -270,6 +289,7 @@ func _apply_scale() -> void:
 	_window.offset_bottom = size.y * 0.5 - 60.0 * s
 	_rail.custom_minimum_size.x = RAIL_WIDTH * s
 	_detail_box.custom_minimum_size.x = DETAIL_WIDTH * s
+	_naval_panel.apply_scale(s)
 	for button: Button in _tile_buttons.values():
 		button.custom_minimum_size = TILE * s
 
@@ -295,6 +315,17 @@ func _rebuild_rail() -> void:
 		button.pressed.connect(_set_material.bind(mat.material_id))
 		_rail_detail.add_child(button)
 		_material_buttons[mat.material_id] = button
+	var naval := Button.new()
+	naval.theme_type_variation = &"RailButton"
+	naval.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	naval.toggle_mode = true
+	naval.button_group = _rail_group
+	naval.focus_mode = Control.FOCUS_NONE
+	naval.text = "NAVAL_TITLE"
+	naval.set_pressed_no_signal(_material_id == NAVAL_CATEGORY)
+	naval.pressed.connect(_set_material.bind(NAVAL_CATEGORY))
+	_rail_detail.add_child(naval)
+	_material_buttons[NAVAL_CATEGORY] = naval
 
 
 func _rebuild_recent() -> void:
@@ -317,6 +348,9 @@ func _rebuild_recent() -> void:
 
 func _set_material(mat_id: String) -> void:
 	_material_id = mat_id
+	if mat_id == NAVAL_CATEGORY:
+		_naval_panel.configure(building_system, inventory)
+	_refresh()
 	for id: String in _material_buttons:
 		(_material_buttons[id] as Button).set_pressed_no_signal(id == mat_id)
 	_rebuild_tiles()
@@ -381,6 +415,9 @@ func _pick(item: ItemData) -> void:
 # --- Ficha ----------------------------------------------------------------------------------------
 
 func _show(item: ItemData) -> void:
+	if _material_id == NAVAL_CATEGORY:
+		_detail_box.visible = false
+		return
 	_shown = item
 	_detail_box.visible = item != null
 	if item == null:

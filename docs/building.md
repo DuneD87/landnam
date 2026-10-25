@@ -204,6 +204,74 @@ godot --path . res://tests/building/thatch_roof_preview.tscn -- --capture --back
 godot --headless --path . res://tests/building/test_thatch_roof.tscn
 ```
 
+## Piezas navales
+
+Con el martillo equipado, **B → Naval** abre el editor de **Proa**, **Tramo de casco** y
+**Popa plana**, con vista 3D que se gira al arrastrar y zoom con la rueda. Se ajustan por separado
+ancho (X), alto (Y) y largo (Z), en metros y en pasos del tamaño de celda elegido arriba.
+La proa ofrece afinado recto o curvo. Las medidas son exteriores; fondo y costados tienen
+**una capa de bloques de grosor**: 0,25 · 0,5 · 1 · 2 m según la celda.
+
+Las piezas generan una cáscara de madera con proa elíptica y unión redondeada entre fondo y
+costados. La superficie se recorta en celdas editables conservando sus caras curvas: la rejilla
+no produce escalones en el contorno. Cada celda parcial guarda su geometría, volumen y colisión;
+las celdas completamente llenas se fusionan como los cubos de la construcción habitual.
+Los tramos abren ambos extremos, la proa cierra +Z y la popa cierra -Z. Todas dejan el techo
+abierto. El tamaño inicial es 12 × 6 × 12 bloques; con celda de 0,25 m son 3 × 1,5 × 3 m.
+Los límites por pieza son 3–64 bloques de ancho, 2–32 de alto y 3–64 de largo.
+
+**Construir con esta pieza** la deja en el martillo y cierra el menú. El fantasma muestra la
+geometría completa; B vuelve a las medidas. Los giros del teclado numérico funcionan en XYZ.
+Al apuntar a la cara de un extremo abierto del mismo ancho, se alinean el suelo y los dos costados
+(también al girar el casco alrededor de Y). Para probar: colocar un tramo, añadir una proa por
+su extremo +Z y una popa por -Z, y convertir la construcción en dinámica con J.
+
+El coste es la suma de los bloques de madera que se colocan, no el volumen de la caja exterior.
+Se valida y paga el módulo entero al confirmar: sin material suficiente o con una celda ocupada,
+no se coloca una parte. Se comprueban también las otras grids y los otros tamaños de celda.
+La simetría refleja la pieza completa y cuenta solo una vez las celdas compartidas.
+Las piezas ya colocadas admiten edición, daño, reparación, desmontaje y blueprints como cualquier
+construcción de bloques. Un casco de proa + tramo + popa forma una bodega continua bajo la borda;
+romper un costado abre una vía de agua para el análisis de inundación existente.
+
+**Completar el casco con cubos normales.** Los cubos del martillo pueden coincidir parcialmente
+con el casco naval para rellenar un suelo o continuar una cubierta. Se apunta al hueco real junto
+a la superficie curva: si aún queda volumen libre y alcanza el material, el fantasma es verde.
+Funciona también entre tamaños de celda distintos, con simetría y con barcos dinámicos.
+Se sigue rechazando una celda completamente maciza o el solapamiento con otro bloque normal.
+
+La unión conserva el casco y recorta de la pieza añadida el sólido ya ocupado (`BlockBoolean`),
+para contar una sola vez la masa y el empuje. `NavalCubeMerge` guarda el relleno en una grid alineada
+del mismo grupo y, en un barco dinámico, del mismo cuerpo físico. El cubo gasta su material normal
+y se desmonta por separado: devuelve ese material sin quitar la pieza curva original. El recorte,
+su material y su volumen se conservan en partidas y blueprints. El fantasma muestra el cubo
+completo, cuya unión con el casco es el volumen resultante de la construcción.
+Los cubos macizos se dibujan dentro de su celda, independientemente del giro guardado: sus
+caras coinciden con la colisión y con los vecinos que las ocultan. Esto evita agujeros entre
+cubos normales y rellenos al construir un suelo con el bloque girado.
+
+`NavalPiece` y `NavalHullMesh` generan el diccionario de bloques y las caras curvas que comparten
+el editor, el fantasma y la colocación. La madera naval utiliza su propio acabado de madera lisa.
+`NavalBuildPanel` aporta la ficha del menú; `BuildingSystem` coloca todo dentro de una edición masiva
+de la grid para reconstruir sus chunks una sola vez.
+
+Vista de prueba sin cargar el planeta (B edita las medidas y reconstruye la muestra):
+
+```sh
+godot --path . res://tests/building/naval_pieces_preview.tscn
+# Capturas de casco, interior y menú en build/building/naval/:
+godot --path . res://tests/building/naval_pieces_preview.tscn -- --capture --background
+godot --headless --path . res://tests/building/test_naval_pieces.tscn
+godot --headless --path . res://tests/building/test_naval_cube_merge.tscn
+# Detalle del cubo verde solapando el suelo curvo (fusion.png y fusion_interior.png):
+godot --path . res://tests/building/naval_pieces_preview.tscn -- --capture --background --merge-preview
+# Suelo completo con cubos girados y rellenos curvos (suelo.png y suelo_interior.png):
+godot --path . res://tests/building/naval_pieces_preview.tscn -- --capture --background --floor-preview
+```
+
+La prueba cubre dimensiones, grosor, giros, menú, coste completo, obstáculos de otros tamaños,
+simetría, encaje, colisión del fondo, masa dinámica, apertura de la bodega y blueprints vía JSON.
+
 ## Colocables
 
 Un colocable de la barra (la antorcha de pared) se sigue poniendo sin martillo. Con él elegido, el clic

@@ -102,6 +102,8 @@ static func _capture_grid(grid: GridBase, cell_offset: Vector3i, offset_m: Vecto
 			"mirrored": info.get("mirrored", false),
 			"mirror_axis": info.get("mirror_axis", -1),
 		}
+		if info.has("naval_shape"):
+			blocks_data["%d,%d,%d" % [local.x, local.y, local.z]]["naval_shape"] = info["naval_shape"]
 
 	var props_data: Array = []
 	var all_props := grid.get_all_props()
@@ -204,6 +206,9 @@ static func blocks_dict(grid_data: Dictionary) -> Dictionary:
 			"mirror_axis": info.get("mirror_axis", -1),
 		}
 
+		if info.has("naval_shape"):
+			out[Vector3i(int(parts[0]), int(parts[1]), int(parts[2]))]["naval_shape"] = info["naval_shape"]
+
 	return out
 
 
@@ -225,6 +230,7 @@ static func _restore_blocks(grid: GridBase, blocks_data: Dictionary) -> void:
 			info["material_id"], {
 				"mirrored": info["mirrored"],
 				"mirror_axis": info["mirror_axis"],
+				"naval_shape": info.get("naval_shape", {}),
 			})
 
 	grid.end_bulk_edit()

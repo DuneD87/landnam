@@ -9,6 +9,8 @@ const BLOCK_PANE_SLOPE_ID := 5
 const BLOCK_THATCH_SLOPE_ID := 6
 const BLOCK_THATCH_RIDGE_ID := 7
 const BLOCK_PANE_TRIANGLE_ID := 8
+const BLOCK_NAVAL_CURVE_ID := 9
+const BLOCK_NAVAL_FULL_ID := 10
 const BASIC_BLOCK_IDS: Array[int] = [0, 1, 2, 3, 4, 5]
 
 signal materials_ready
@@ -351,6 +353,16 @@ func _register_default_blocks() -> void:
 	pane_triangle.rotation_steps = 4
 	pane_triangle.icon_yaw = 160.0
 	register_block(pane_triangle)
+	# Geometría naval por instancia; no se ofrece como bloque suelto en los materiales.
+	for id in [BLOCK_NAVAL_CURVE_ID, BLOCK_NAVAL_FULL_ID]:
+		var naval := BlockData.new()
+		naval.block_id = id
+		naval.block_name = "naval"
+		naval.block_description = "NAVAL_DESCRIPTION"
+		naval.mesh = cube.mesh
+		naval.collision_shape = cube.collision_shape
+		naval.material_override = NavalHullMesh.WOOD
+		register_block(naval)
 
 func _create_block_item(block: BlockData) -> ItemData:
 	var item := ItemData.new()

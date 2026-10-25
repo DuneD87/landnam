@@ -293,6 +293,8 @@ func serialize() -> Dictionary:
 			"mirrored": info.get("mirrored", false),
 			"mirror_axis": info.get("mirror_axis", -1),
 		}
+		if info.has("naval_shape"):
+			blocks_data[key]["naval_shape"] = info["naval_shape"]
 		# La vida solo se escribe si el bloque está tocado: así una partida vieja, sin la clave,
 		# se lee como bloques intactos y el formato queda compatible hacia atrás.
 		if info.get("hp", 1.0) < 1.0:
@@ -352,6 +354,7 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 		var mirror_data := {
 			"mirrored": block_info.get("mirrored", false),
 			"mirror_axis": block_info.get("mirror_axis", -1),
+			"naval_shape": block_info.get("naval_shape", {}),
 		}
 
 		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id, mirror_data)

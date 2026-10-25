@@ -113,6 +113,9 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 
 	if _blocks.has(grid_pos):
 		return false
+	var naval_shape: Dictionary = mirror_data.get("naval_shape", {})
+	if not naval_shape.is_empty():
+		block_data = NavalHullMesh.block_data(block_data, naval_shape)
 
 	var node: Node3D = null
 	if not ChunkMeshBuilder._is_solid(block_data.block_id):
@@ -129,12 +132,14 @@ func place_block(grid_pos: Vector3i, block_data: BlockData, rotation_basis: Basi
 		"mirrored": mirror_data.get("mirrored", false),
 		"mirror_axis": mirror_data.get("mirror_axis", -1),
 	}
+	if not naval_shape.is_empty():
+		_blocks[grid_pos]["naval_shape"] = naval_shape
 
 	var chunk := _chunk_of(grid_pos)
 	if not _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk] = {}
 	_chunk_blocks[chunk][grid_pos] = true
-	_total_volume += _cell_volume() * _block_volume_factor(block_data.block_id)
+	_total_volume += _cell_volume() * _info_volume_factor(_blocks[grid_pos])
 	edit_version += 1
 
 	if material_id != "" and not mesh_materials.has(material_id):
@@ -189,7 +194,7 @@ func remove_block(grid_pos: Vector3i) -> Dictionary:
 	var chunk := _chunk_of(grid_pos)
 	if _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk].erase(grid_pos)
-	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _block_volume_factor(info["block_id"]))
+	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _info_volume_factor(info))
 	edit_version += 1
 
 	_on_block_removed_hook(info)
@@ -210,7 +215,7 @@ func detach_block(grid_pos: Vector3i) -> Dictionary:
 	var chunk := _chunk_of(grid_pos)
 	if _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk].erase(grid_pos)
-	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _block_volume_factor(info["block_id"]))
+	_total_volume = maxf(0.0, _total_volume - _cell_volume() * _info_volume_factor(info))
 	edit_version += 1
 
 	_on_block_removed_hook(info)
@@ -229,7 +234,7 @@ func attach_block(grid_pos: Vector3i, info: Dictionary) -> void:
 	if not _chunk_blocks.has(chunk):
 		_chunk_blocks[chunk] = {}
 	_chunk_blocks[chunk][grid_pos] = true
-	_total_volume += _cell_volume() * _block_volume_factor(info["block_id"])
+	_total_volume += _cell_volume() * _info_volume_factor(info)
 	edit_version += 1
 
 	_on_block_placed_hook(grid_pos)
@@ -383,6 +388,19 @@ static func _block_volume_factor(block_id: int) -> float:
 		return BlockMeshGenerator.PANE_TRIANGLE_THICKNESS * 0.5
 	return 1.0 if ChunkMeshBuilder._is_solid(block_id) else 0.5
 
+
+static func _info_volume_factor(info: Dictionary) -> float:
+	if info.has("naval_shape"):
+		return float(info["naval_shape"]["volume"])
+	return _block_volume_factor(info["block_id"])
+
+
+static func block_data_for_info(info: Dictionary) -> BlockData:
+	var block := BlockDatabase.get_block(int(info["block_id"]))
+	if block and info.has("naval_shape"):
+		return NavalHullMesh.block_data(block, info["naval_shape"])
+	return block
+
 ## Volumen total (m³) de los bloques de la grid, para masa y flotación.
 func get_total_volume() -> float:
 	return _total_volume
@@ -418,7 +436,7 @@ func rebuild_mesh() -> void:
 		if not _chunk_blocks.has(chunk):
 			_chunk_blocks[chunk] = {}
 		_chunk_blocks[chunk][grid_pos] = true
-		_total_volume += _cell_volume() * _block_volume_factor(_blocks[grid_pos]["block_id"])
+		_total_volume += _cell_volume() * _info_volume_factor(_blocks[grid_pos])
 
 	for chunk: Vector3i in _chunk_meshes.keys():
 		if not _chunk_blocks.has(chunk):
@@ -549,12 +567,13 @@ func get_neighbors_of(grid_pos: Vector3i) -> Array[Vector3i]:
 
 ## Energía que cuesta romper un bloque intacto: su dureza (o la nominal) por el volumen que
 ## ocupa. Es también la vida completa de la que parte, ya que hp va normalizada a 0..1.
-func impact_cost(block_id: int) -> float:
+func impact_cost(block_id: int, info: Dictionary = {}) -> float:
 	var toughness := DEFAULT_IMPACT_TOUGHNESS
 	var block_data: BlockData = BlockDatabase.get_block(block_id)
 	if block_data and block_data.impact_toughness > 0.0:
 		toughness = block_data.impact_toughness
-	return toughness * _cell_volume() * _block_volume_factor(block_id)
+	var volume := _info_volume_factor(info) if not info.is_empty() else _block_volume_factor(block_id)
+	return toughness * _cell_volume() * volume
 
 
 ## Destruye bloques alrededor de un punto del mundo gastando hasta 'energy' julios, de dentro
@@ -619,7 +638,7 @@ func damage_sphere(world_center: Vector3, energy: float, radius_meters: float = 
 		var cell := Vector3i(int(entry.y), int(entry.z), int(entry.w))
 		var info: Dictionary = _blocks[cell]
 		var block_id: int = info["block_id"]
-		var full := impact_cost(block_id)
+		var full := impact_cost(block_id, info)
 		var hp: float = info.get("hp", 1.0)
 
 		# El presupuesto se gasta mellando: lo que no llega a romper el bloque se queda dentro de

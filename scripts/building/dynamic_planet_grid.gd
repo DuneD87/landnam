@@ -34,7 +34,7 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 		if old_node and is_instance_valid(old_node):
 			local_xform = _body.global_transform.affine_inverse() * old_node.global_transform
 
-		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
+		var block_data: BlockData = GridBase.block_data_for_info(info)
 		if not block_data:
 			continue
 
@@ -45,14 +45,9 @@ func setup_from_static_shared(id: String, planet: Node3D, static_grid: PlanetGri
 			_apply_collision_mirror(col, info)
 			_body.add_child(col)
 
-		_blocks[grid_pos] = {
-			"block_id": info["block_id"],
-			"rotation_basis": rotation_basis,
-			"node": col,
-			"material_id": info.get("material_id", ""),
-			"mirrored": info.get("mirrored", false),
-			"mirror_axis": info.get("mirror_axis", -1),
-		}
+		var preserved := info.duplicate()
+		preserved["node"] = col
+		_blocks[grid_pos] = preserved
 
 	_migrate_props_from(static_grid)
 	static_grid.clear()
@@ -210,6 +205,8 @@ func serialize() -> Dictionary:
 			"mirrored": info.get("mirrored", false),
 			"mirror_axis": info.get("mirror_axis", -1),
 		}
+		if info.has("naval_shape"):
+			blocks_data[key]["naval_shape"] = info["naval_shape"]
 		# Ver PlanetGrid.serialize: solo se escribe la vida de los bloques tocados.
 		if info.get("hp", 1.0) < 1.0:
 			blocks_data[key]["hp"] = info["hp"]
@@ -276,6 +273,7 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 		var mirror_data := {
 			"mirrored": block_info.get("mirrored", false),
 			"mirror_axis": block_info.get("mirror_axis", -1),
+			"naval_shape": block_info.get("naval_shape", {}),
 		}
 
 		place_block(grid_pos, block_data, rotation_basis, world_transform, material_id, mirror_data)

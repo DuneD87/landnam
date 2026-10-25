@@ -14,7 +14,7 @@ const FACE_DIRS: Array[Vector3i] = [
 	Vector3i( 0,  1,  0),
 	Vector3i( 0, -1,  0),
 ]
-const SOLID_BLOCK_IDS: Array[int] = [0]
+const SOLID_BLOCK_IDS: Array[int] = [0, 10]
 
 ## Escalones de daño visibles. La malla solo se reconstruye cuando un bloque cambia de escalón, así
 ## que el tinte tiene que ser función del ESCALÓN y no de la vida continua: si no, el color que se
@@ -54,6 +54,9 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 	var groups: Dictionary = {}
 	for grid_pos: Vector3i in source:
 		var mat_id: String = blocks[grid_pos].get("material_id", "")
+		var infill: bool = blocks[grid_pos].get("naval_shape", {}).get("infill", false)
+		if mat_id == "wood" and not infill and int(blocks[grid_pos]["block_id"]) in [NavalHullMesh.PARTIAL_ID, NavalHullMesh.FULL_ID]:
+			mat_id += "|naval"
 		if not groups.has(mat_id):
 			groups[mat_id] = []
 		groups[mat_id].append(grid_pos)
@@ -62,12 +65,13 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 	var grid_inv := grid_transform.affine_inverse()
 	var opaque := _opaque_materials(materials)
 
-	for mat_id: String in groups:
+	for group_id: String in groups:
+		var mat_id := group_id.trim_suffix("|naval")
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		var emitted := false
 
-		for grid_pos: Vector3i in groups[mat_id]:
+		for grid_pos: Vector3i in groups[group_id]:
 			var info: Dictionary = blocks[grid_pos]
 			var block_id: int = info["block_id"]
 
@@ -79,7 +83,10 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 			st.set_color(damage_tint(info.get("hp", 1.0)))
 
 			if _is_solid(block_id):
-				emitted = _emit_cube(st, grid_pos, offset, rot, cell_size, blocks, false, mat_id, opaque) or emitted
+				# Un cubo macizo ocupa siempre su celda. Girar sus esquinas alrededor
+				# del origen desplazaba la malla, pero no sus colisiones ni los vecinos
+				# que ocultan caras: aparecían agujeros junto a los rellenos navales.
+				emitted = _emit_cube(st, grid_pos, offset, cell_size, blocks, false, mat_id, opaque) or emitted
 			else:
 				var actual_rot := rot
 				var actual_flip := false
@@ -90,7 +97,11 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 					actual_rot = rot * Basis.from_scale(ms)
 					actual_flip = true
 				var hidden := _hidden_local_faces(blocks, grid_pos, actual_rot, mat_id, opaque)
-				emitted = _emit_from_block_type(st, block_id, offset, actual_rot, cell_size, actual_flip, hidden, mat_id) or emitted
+				if block_id == NavalHullMesh.PARTIAL_ID:
+					NavalHullMesh.emit(st, info.get("naval_shape", {}), offset, actual_rot, cell_size, actual_flip)
+					emitted = true
+				else:
+					emitted = _emit_from_block_type(st, block_id, offset, actual_rot, cell_size, actual_flip, hidden, mat_id) or emitted
 
 		# Un grupo puede quedarse sin una sola cara: bloques enterrados del todo, o una ventana
 		# empotrada en un muro macizo. generate_tangents() sobre una superficie vacía es un error.
@@ -101,7 +112,9 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 		var surface_idx := mesh.get_surface_count()
 		st.commit(mesh)
 
-		if materials.has(mat_id) and materials[mat_id] != null:
+		if group_id.ends_with("|naval"):
+			mesh.surface_set_material(surface_idx, NavalHullMesh.WOOD)
+		elif materials.has(mat_id) and materials[mat_id] != null:
 			mesh.surface_set_material(surface_idx, materials[mat_id])
 
 	return mesh
@@ -174,7 +187,6 @@ static func _emit_cube(
 	st: SurfaceTool,
 	grid_pos: Vector3i,
 	offset: Vector3,
-	rot: Basis,
 	size: float,
 	blocks: Dictionary,
 	flip: bool,
@@ -183,14 +195,14 @@ static func _emit_cube(
 ) -> bool:
 	var h := size
 
-	var v0 := rot * Vector3(0, 0, h) + offset
-	var v1 := rot * Vector3(h, 0, h) + offset
-	var v2 := rot * Vector3(h, 0, 0) + offset
-	var v3 := rot * Vector3(0, 0, 0) + offset
-	var v4 := rot * Vector3(0, h, h) + offset
-	var v5 := rot * Vector3(h, h, h) + offset
-	var v6 := rot * Vector3(h, h, 0) + offset
-	var v7 := rot * Vector3(0, h, 0) + offset
+	var v0 := Vector3(0, 0, h) + offset
+	var v1 := Vector3(h, 0, h) + offset
+	var v2 := Vector3(h, 0, 0) + offset
+	var v3 := offset
+	var v4 := Vector3(0, h, h) + offset
+	var v5 := Vector3(h, h, h) + offset
+	var v6 := Vector3(h, h, 0) + offset
+	var v7 := Vector3(0, h, 0) + offset
 
 	var emitted := false
 	if not _is_face_occluded(blocks, grid_pos, Face.FRONT, mat_id, opaque):

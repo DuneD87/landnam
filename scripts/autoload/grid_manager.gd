@@ -386,7 +386,7 @@ func _migrate_cell_to_dynamic(static_grid: PlanetGrid, dyn: DynamicPlanetGrid,
 
 	var new_node: Node3D = null
 	if not ChunkMeshBuilder._is_solid(info["block_id"]):
-		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
+		var block_data: BlockData = GridBase.block_data_for_info(info)
 		if block_data:
 			new_node = dyn._make_block_wrapper(cell, block_data.for_material(info.get("material_id", "")), info["rotation_basis"], local_xform)
 			dyn._apply_collision_mirror(new_node, info)
@@ -682,7 +682,7 @@ func _migrate_blocks_to_dynamic(dyn: DynamicPlanetGrid, static_grid: PlanetGrid,
 		if old_node and is_instance_valid(old_node):
 			local_xform = body.global_transform.affine_inverse() * old_node.global_transform
 
-		var block_data: BlockData = BlockDatabase.get_block(info["block_id"])
+		var block_data: BlockData = GridBase.block_data_for_info(info)
 		if not block_data:
 			continue
 
@@ -693,14 +693,9 @@ func _migrate_blocks_to_dynamic(dyn: DynamicPlanetGrid, static_grid: PlanetGrid,
 			dyn._apply_collision_mirror(col, info)
 			body.add_child(col)
 
-		dyn._blocks[grid_pos] = {
-			"block_id": info["block_id"],
-			"rotation_basis": rotation_basis,
-			"node": col,
-			"material_id": info.get("material_id", ""),
-			"mirrored": info.get("mirrored", false),
-			"mirror_axis": info.get("mirror_axis", -1),
-		}
+		var preserved := info.duplicate()
+		preserved["node"] = col
+		dyn._blocks[grid_pos] = preserved
 
 	dyn._migrate_props_from(static_grid)
 	static_grid.clear()

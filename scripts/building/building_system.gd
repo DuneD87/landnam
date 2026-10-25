@@ -20,6 +20,7 @@ signal material_changed(material: BuildMaterial)
 signal mirror_changed()
 signal action_mode_changed(mode: ActionMode)
 signal recent_blocks_changed()
+signal naval_piece_changed()
 
 ## Bloques recientes que recuerda el menú de bloques.
 const RECENT_LIMIT := 8
@@ -74,6 +75,19 @@ var current_action_mode: ActionMode = ActionMode.BUILD
 ## Últimos bloque+material elegidos en el menú, el más reciente primero.
 var recent_blocks: Array[ItemData] = []
 
+var naval_kind: int = -1
+var naval_size := NavalPiece.DEFAULT_SIZE
+var naval_profile := NavalPiece.Profile.ROUND
+var _naval_source: Dictionary = {}
+var _naval_rotated: Dictionary = {}
+var _naval_rotation := Basis.IDENTITY
+var _naval_item: ItemData
+var _naval_check_left := 0.0
+var _naval_space := false
+var _naval_grid_bounds := {}
+var _cube_merger := NavalCubeMerge.new()
+var _cube_merge_plan := {}
+
 ## Cambia el material de construcción activo. Un id que no case (bloque genérico, sin material)
 ## solía dejar puesto el anterior, y el bloque salía del material elegido la vez anterior aunque
 ## el icono del hotbar dijera otra cosa; ahora cae al primero, con el que se pinta ese icono.
@@ -120,6 +134,8 @@ func get_selected_block() -> BlockData:
 
 ## El item del bloque elegido con el material activo (su icono y su nombre, para la UI).
 func get_selected_block_item() -> ItemData:
+	if is_naval_mode():
+		return _naval_item
 	var mat := get_current_material()
 	var item := BlockDatabase.get_block_material_item(selected_block_id, mat.material_id if mat else "")
 	return item if item else BlockDatabase.get_block_item(selected_block_id)
@@ -138,6 +154,7 @@ func pick_block(item: ItemData) -> void:
 
 func select_block(block_id: int) -> void:
 	if BlockDatabase.get_block(block_id):
+		naval_kind = -1
 		selected_block_id = block_id
 		current_rotation_basis = Basis.IDENTITY
 		if selected_placeable:
@@ -149,8 +166,71 @@ func is_prop_mode() -> bool:
 	return selected_placeable != null
 
 
+func is_naval_mode() -> bool:
+	return naval_kind >= 0
+
+
+func pick_naval_piece(kind: int, size: Vector3i, profile: int = NavalPiece.Profile.ROUND,
+	icon: Texture2D = null) -> void:
+	if kind < NavalPiece.Kind.BOW or kind > NavalPiece.Kind.STERN:
+		return
+	select_block(BlockDatabase.BLOCK_CUBE_ID)
+	set_material_by_id("wood")
+	naval_kind = kind
+	naval_size = NavalPiece.clamp_size(size)
+	naval_profile = profile
+	_naval_source = NavalPiece.generate(kind, naval_size, profile)
+	_naval_rotated = {}
+	_naval_item = ItemData.new()
+	_naval_item.display_name = NavalPiece.NAME_KEYS[kind]
+	_naval_item.category = ItemData.Category.BLOCK
+	_naval_item.block_id = BlockDatabase.BLOCK_CUBE_ID
+	_naval_item.build_material_id = "wood"
+	_naval_item.icon = icon
+	set_action_mode(ActionMode.BUILD)
+	clear_target()
+	naval_piece_changed.emit()
+
+
+func get_naval_blocks() -> Dictionary:
+	if _naval_rotated.is_empty() or _naval_rotation != current_rotation_basis:
+		_naval_rotation = current_rotation_basis
+		_naval_rotated = NavalPiece.rotated(_naval_source, naval_size, current_rotation_basis)
+	return _naval_rotated
+
+
+## Plan completo, incluida la simetría. Las celdas repetidas sobre el plano solo se pagan una vez.
+func get_naval_plan() -> Dictionary:
+	var plan := {}
+	for cell: Vector3i in get_naval_blocks():
+		plan[_target_grid_pos + cell] = _naval_rotated[cell]
+	var reference := _target_grid if _target_grid else _hit_grid_for_alignment
+	if reference and is_equal_approx(reference.cell_size, cell_size) and _should_mirror():
+		var mirror_origin := _get_mirror_pos(_target_grid_pos, reference)
+		var axis := _get_mirror_axis_index()
+		for cell: Vector3i in get_naval_blocks():
+			var reflected := cell
+			reflected[axis] = -reflected[axis]
+			var info: Dictionary = _naval_rotated[cell].duplicate()
+			info["mirrored"] = true
+			info["mirror_axis"] = axis
+			info["rotation_basis"] = _get_mirror_rotation(info["rotation_basis"])
+			var mirrored_cell := mirror_origin + reflected
+			if plan.has(mirrored_cell):
+				# Dos recortes distintos dentro de una celda exigirían una unión booleana.
+				# Se rechaza ese solapamiento en vez de perder una mitad de la geometría.
+				if not NavalHullMesh.same_shape(plan[mirrored_cell], info):
+					return {}
+			else:
+				plan[mirrored_cell] = info
+	return plan
+
+
 ## Selecciona el item placeable activo (null para volver al modo bloques).
 func select_placeable(item: ItemData) -> void:
+	if item and is_naval_mode():
+		naval_kind = -1
+		naval_piece_changed.emit()
 	selected_placeable = item
 	_has_prop_target = false
 	if item:
@@ -196,6 +276,8 @@ func get_rotation_basis() -> Basis:
 	return current_rotation_basis
 
 func _can_rotate() -> bool:
+	if is_naval_mode():
+		return true
 	if is_prop_mode():
 		return false
 	var bd := get_selected_block()
@@ -282,6 +364,8 @@ func can_afford_block(block_data: BlockData = null) -> bool:
 		return true
 
 	var cost := mat.get_cost_for_size(cell_size)
+	if is_naval_mode():
+		cost *= get_naval_plan().size()
 	return _inventory.get_item_count(mat.item) >= cost
 
 
@@ -304,6 +388,7 @@ func _consume_block_cost(block_data: BlockData) -> bool:
 ## Procesa el raycast del jugador cada frame en modo build: resuelve objetivo y actualiza el preview.
 func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3, ray_hit: Dictionary) -> void:
 	_has_target = true
+	_cube_merge_plan = {}
 
 	var resolved_node := _get_hit_shape_node(ray_hit)
 	if not resolved_node:
@@ -351,11 +436,23 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 		if _build_preview:
 			_build_preview.hide_highlight()
 
+	if _is_normal_cube() and current_action_mode == ActionMode.BUILD:
+		var reference := _target_grid if _target_grid else _hit_grid_for_alignment
+		if reference:
+			_cube_merge_plan = _cube_merger.resolve(reference, _target_grid_pos, cell_size, get_current_material().material_id)
+			if not _cube_merge_plan.is_empty():
+				_can_place = _cube_merge_plan["allowed"]
 	if _player and _player.global_position.distance_to(_target_world_pos) > max_build_distance:
 		_can_place = false
 
-	_can_afford = can_afford_block()
 	_cached_grid_for_placement = _target_grid
+	if is_naval_mode() and current_action_mode == ActionMode.BUILD and _can_place:
+		_naval_check_left -= get_process_delta_time()
+		if _naval_check_left <= 0.0:
+			_naval_check_left = 0.15
+			_naval_space = naval_has_space(get_naval_plan(), _target_grid)
+		_can_place = _naval_space
+	_can_afford = can_afford_block()
 
 	if _build_preview:
 		if current_action_mode == ActionMode.BUILD:
@@ -374,6 +471,7 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 
 func clear_target() -> void:
 	_has_target = false
+	_cube_merge_plan = {}
 	_can_place = false
 	_can_afford = false
 	_has_prop_target = false
@@ -399,6 +497,18 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 	var hit_cell := hit_grid.cell_size
 	var target_cell := cell_size
 	var grid_face := _compute_grid_face(hit_collider as Node3D, hit_grid, hit_normal)
+	if _is_normal_cube() and NavalCubeMerge.is_hull(hit_grid.get_block(hit_grid_pos)) \
+		and current_action_mode == ActionMode.BUILD:
+		# Una cara curva puede quedar dentro de su celda: apuntar al hueco real permite
+		# rellenar esa misma celda en vez de saltarse un bloque entero.
+		var local := hit_grid.get_grid_world_transform().affine_inverse() * (hit_pos + hit_normal * 0.001)
+		_target_grid_pos = Vector3i((local / cell_size).floor())
+		_target_basis = hit_grid.get_basis_world()
+		_target_world_pos = hit_grid.get_grid_world_transform() * (Vector3(_target_grid_pos) * cell_size)
+		_target_grid = GridManager.find_aligned_grid(planet, cell_size, hit_grid)
+		_hit_grid_for_alignment = hit_grid
+		_can_place = true
+		return
 
 	if is_equal_approx(target_cell, hit_cell):
 		_target_grid_pos = hit_grid_pos + grid_face
@@ -408,6 +518,35 @@ func _process_aim_at_block(hit_collider: Object, hit_normal: Vector3, hit_pos: V
 		_can_place = not _target_grid.has_block(_target_grid_pos)
 	else:
 		_process_cross_size_placement(hit_grid, hit_grid_pos, hit_cell, target_cell, grid_face, hit_pos, planet)
+	if is_naval_mode() and current_action_mode == ActionMode.BUILD:
+		_align_naval_target(hit_grid, hit_grid_pos, grid_face)
+
+
+## La esquina del módulo queda fuera de la cara apuntada también al construir hacia -X/-Y/-Z.
+## En un extremo de casco del mismo ancho se reconoce el suelo y se alinean fondo y costados.
+func _align_naval_target(hit_grid: GridBase, hit_cell: Vector3i, face: Vector3i) -> void:
+	var size := NavalPiece.rotated_size(naval_size, current_rotation_basis)
+	var offset := Vector3i.ZERO
+	for axis in 3:
+		if face[axis] < 0:
+			offset[axis] = 1 - size[axis]
+	var length_axis := current_rotation_basis.z.abs().max_axis_index()
+	var width_axis := current_rotation_basis.x.abs().max_axis_index()
+	if face[length_axis] != 0 and is_equal_approx(hit_grid.cell_size, cell_size) \
+		and current_rotation_basis.y.is_equal_approx(Vector3.UP):
+		var low := Vector3i(2147483647, 2147483647, 2147483647)
+		var high := -low
+		for cell: Vector3i in hit_grid.get_all_blocks():
+			if cell[length_axis] != hit_cell[length_axis]:
+				continue
+			low = low.min(cell)
+			high = high.max(cell)
+		if high[width_axis] - low[width_axis] + 1 == size[width_axis]:
+			offset[width_axis] = low[width_axis] - _target_grid_pos[width_axis]
+			offset.y = low.y - _target_grid_pos.y
+	_target_grid_pos += offset
+	_target_world_pos += _target_basis * (Vector3(offset) * cell_size)
+	_can_place = true
 
 ## Cara del bloque impactado, en coordenadas de grid, a partir de la normal del hit.
 func _compute_grid_face(hit_collider: Node3D, hit_grid: GridBase, hit_normal: Vector3) -> Vector3i:
@@ -545,6 +684,7 @@ func _process_aim_at_terrain(hit_normal: Vector3, hit_pos: Vector3) -> void:
 		_can_place = not _target_grid.has_block(_target_grid_pos)
 	else:
 		_target_basis = player_basis
+		_target_grid_pos = Vector3i.ZERO
 		var relative := adjusted_pos - (planet.global_position if planet else Vector3.ZERO)
 		var local_pos := _target_basis.inverse() * relative
 		local_pos.x = snapped(local_pos.x, cell_size)
@@ -557,11 +697,19 @@ func _process_aim_at_terrain(hit_normal: Vector3, hit_pos: Vector3) -> void:
 func try_place_block() -> bool:
 	if is_prop_mode():
 		return try_place_prop()
+	if is_naval_mode():
+		return _try_place_naval()
 
 	if not _can_place or not _has_target:
 		return false
 	if not _can_afford:
 		return false
+	if _is_normal_cube():
+		var reference := _target_grid if _target_grid else _hit_grid_for_alignment
+		if reference:
+			var plan := _cube_merger.resolve(reference, _target_grid_pos, cell_size, get_current_material().material_id, true)
+			if not plan.is_empty():
+				return _try_place_merged_cube(reference, plan)
 
 	var planet := current_planet
 	if not planet:
@@ -626,6 +774,152 @@ func try_place_block() -> bool:
 
 				grid.place_block(mirror_pos, block_data, mirror_rot, mirror_transform, mat_id, mirror_info)
 
+	return true
+
+
+func _is_normal_cube() -> bool:
+	return not is_naval_mode() and not is_prop_mode() and selected_block_id == BlockDatabase.BLOCK_CUBE_ID
+
+
+func mirror_position_for_size(position: Vector3i, reference: GridBase) -> Vector3i:
+	var center := reference.get_grid_world_transform().affine_inverse() * mirror_center_world
+	var axis := _get_mirror_axis_index()
+	var reflected := position
+	reflected[axis] = roundi(2.0 * center[axis] / cell_size - 1.0 - position[axis])
+	return reflected
+
+
+func _try_place_merged_cube(reference: GridBase, plan: Dictionary) -> bool:
+	if not plan["allowed"]:
+		return false
+	var position := _target_grid_pos
+	var will_mirror := _should_mirror()
+	var reflected := mirror_position_for_size(position, reference) if will_mirror else position
+	if not _place_cube_part(reference, position, plan):
+		return false
+	if will_mirror and reflected != position:
+		var mirror_plan := _cube_merger.resolve(reference, reflected, cell_size, get_current_material().material_id, true, true)
+		if mirror_plan.get("allowed", false):
+			_place_cube_part(reference, reflected, mirror_plan)
+	AudioManager.play_material_flat(&"block_place", get_current_material().sound_material)
+	clear_target()
+	return true
+
+
+func _place_cube_part(reference: GridBase, position: Vector3i, plan: Dictionary) -> bool:
+	var mat := get_current_material()
+	if not _consume_block_cost(get_selected_block()):
+		return false
+	var destination: GridBase = plan.get("grid")
+	var created := destination == null
+	if created:
+		destination = GridManager.create_grid_aligned(current_planet, reference, cell_size)
+	destination.mesh_materials[mat.material_id] = mat.surface_material
+	var info: Dictionary = plan["info"]
+	var block := BlockDatabase.get_block(int(info["block_id"]))
+	var world := Transform3D(destination.get_basis_world(), destination.grid_to_world(position))
+	if not destination.place_block(position, block, Basis.IDENTITY, world, mat.material_id, info):
+		if _inventory and not free_build:
+			_give(mat.item, mat.get_cost_for_size(cell_size))
+		if created:
+			GridManager.remove_grid(destination.grid_id)
+		return false
+	return true
+
+
+## Comprueba todo el volumen construido, incluidas otras grids y tamaños de celda. Solo la
+## madera ocupa espacio: el interior del módulo admite cubiertas, cofres y construcciones.
+func naval_has_space(plan: Dictionary, grid: GridBase) -> bool:
+	if plan.is_empty():
+		return false
+	var reference := grid if grid else _hit_grid_for_alignment
+	var transform_world := reference.get_grid_world_transform() if reference else Transform3D(_target_basis, _target_world_pos)
+	var minimum := Vector3.INF
+	var maximum := -Vector3.INF
+	for cell: Vector3i in plan:
+		minimum = minimum.min(Vector3(cell) * cell_size)
+		maximum = maximum.max(Vector3(cell + Vector3i.ONE) * cell_size)
+	var plan_bounds := AABB(minimum, maximum - minimum)
+	for other: GridBase in GridManager.get_grids_for_planet(current_planet):
+		if other.get_block_count() == 0:
+			continue
+		if other == grid:
+			for cell: Vector3i in plan:
+				if grid.has_block(cell):
+					return false
+			continue
+		var to_other := other.get_grid_world_transform().affine_inverse() * transform_world
+		if not (to_other * plan_bounds).intersects(_naval_bounds(other)):
+			continue
+		for cell: Vector3i in plan:
+			var box: AABB = to_other * AABB(Vector3(cell) * cell_size, Vector3.ONE * cell_size)
+			var low := Vector3i(((box.position + Vector3.ONE * 0.001) / other.cell_size).floor())
+			var high := Vector3i(((box.end - Vector3.ONE * 0.001) / other.cell_size).floor())
+			for x in range(low.x, high.x + 1):
+				for y in range(low.y, high.y + 1):
+					for z in range(low.z, high.z + 1):
+						if other.has_block(Vector3i(x, y, z)):
+							return false
+	return true
+
+
+func _naval_bounds(grid: GridBase) -> AABB:
+	var cached: Array = _naval_grid_bounds.get(grid.grid_id, [])
+	if cached.is_empty() or cached[0] != grid.edit_version:
+		var minimum := Vector3.INF
+		var maximum := -Vector3.INF
+		for cell: Vector3i in grid.get_all_blocks():
+			minimum = minimum.min(Vector3(cell) * grid.cell_size)
+			maximum = maximum.max(Vector3(cell + Vector3i.ONE) * grid.cell_size)
+		cached = [grid.edit_version, AABB(minimum, maximum - minimum)]
+		_naval_grid_bounds[grid.grid_id] = cached
+	return cached[1]
+
+
+func _try_place_naval() -> bool:
+	if not _has_target or not _can_place or not current_planet:
+		return false
+	# Revalidación completa al confirmar: ni el fantasma ni la cuenta del frame anterior pagan.
+	var grid := _target_grid
+	var plan := get_naval_plan()
+	if not naval_has_space(plan, grid):
+		return false
+	var mat := get_current_material()
+	var cost := mat.get_cost_for_size(cell_size) * plan.size()
+	if _inventory and not free_build and _inventory.get_item_count(mat.item) < cost:
+		return false
+	var created := grid == null
+	if not grid:
+		if _hit_grid_for_alignment:
+			grid = GridManager.create_grid_aligned(current_planet, _hit_grid_for_alignment, cell_size)
+		else:
+			grid = GridManager.create_grid_exact(current_planet, _target_world_pos, _target_basis, cell_size)
+			# Sin grid previa el plan está en coordenadas locales al fantasma.
+			_target_grid_pos = Vector3i.ZERO
+	if _inventory and not free_build:
+		_inventory.remove_item(mat.item, cost)
+	grid.mesh_materials[mat.material_id] = mat.surface_material
+	grid.begin_bulk_edit()
+	var placed: Array[Vector3i] = []
+	for cell: Vector3i in plan:
+		var info: Dictionary = plan[cell]
+		var block := BlockDatabase.get_block(int(info["block_id"]))
+		var rotation: Basis = info["rotation_basis"]
+		var world := Transform3D(grid.get_basis_world() * rotation, grid.grid_to_world(cell))
+		if not grid.place_block(cell, block, rotation, world, mat.material_id, info):
+			for previous in placed:
+				grid.remove_block(previous)
+			grid.end_bulk_edit()
+			if _inventory and not free_build:
+				_inventory.add_item(mat.item, cost)
+			if created:
+				GridManager.remove_grid(grid.grid_id)
+			return false
+		placed.append(cell)
+	grid.end_bulk_edit()
+	_naval_check_left = 0.0
+	AudioManager.play_material_flat(&"block_place", mat.sound_material)
+	clear_target()
 	return true
 
 
