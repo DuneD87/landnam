@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/fishing/cooked_fish.svg" id="2"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/items/traits/edible_trait.gd" id="4"]
+
+[sub_resource type="Resource" id="Edible"]
+script = ExtResource("4")
+hunger = 0.32
+sanity = 0.03
+health = 5.0
+
+[resource]
+script = ExtResource("1")
+id = &"cooked_fish"
+display_name = "ITEM_COOKED_FISH"
+description = "ITEM_COOKED_FISH_DESC"
+icon = ExtResource("2")
+scene_path = "res://scenes/items/survival/fishing/cooked_fish.tscn"
+category = 3
+max_stack = 20
+group = &"cooked"
+traits = Array[ExtResource("3")]([SubResource("Edible")])

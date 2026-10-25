@@ -134,7 +134,7 @@ func update_population(deadline_usec: int = 0) -> void:
 		var spawn_distance := point.distance_to(observer.global_position)
 		if spawn_distance < maxf(0.0, profile.spawn_min_distance) or spawn_distance > profile.spawn_radius:
 			continue
-		if _in_view(point) or _crowded(point):
+		if (not profile.spawn_in_view and _in_view(point)) or _crowded(point):
 			continue
 		var check_start := Time.get_ticks_usec()
 		var valid := habitat.is_spawn_valid(point, profile.clearance)
@@ -202,7 +202,8 @@ func _spawn_group(leader: AmbientAnimal, point: Vector3, room: int) -> int:
 	for i in extra:
 		for _try in 4:
 			var near: Variant = habitat.sample_near(point, profile.group_spread, profile, _rng)
-			if not near is Vector3 or _in_view(near) or not habitat.is_spawn_valid(near, profile.clearance):
+			if not near is Vector3 or (not profile.spawn_in_view and _in_view(near)) \
+					or not habitat.is_spawn_valid(near, profile.clearance):
 				continue
 			var member := _get_available_animal()
 			if member == null:

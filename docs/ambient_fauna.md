@@ -73,10 +73,12 @@ grande (`largest_size()`); `test_ambient_fauna` lo comprueba.
 
 ## Ajustes iniciales
 
-`data/fauna/coastal_fish.tres` configura 28 peces, búsqueda entre 18 y 65 metros
-del jugador, reciclaje a partir de 100 metros y un máximo de dos activaciones
-cada 0,25 segundos. Las apariciones se buscan fuera de cámara. Los peces muy
-lejanos se retiran incluso si siguen dentro del encuadre para acotar el coste.
+`data/fauna/coastal_fish.tres` configura 28 peces, búsqueda entre 6 y 32 metros
+del jugador, reciclaje a partir de 50 metros y un máximo de dos activaciones
+cada 0,25 segundos. Los peces sumergidos también aparecen en el agua que ya se
+está mirando, con un fundido opaco de 1,2 segundos. Las otras poblaciones siguen
+apareciendo fuera de cámara. Los peces muy lejanos se retiran incluso si siguen
+dentro del encuadre para acotar el coste.
 
 ### Distribución de las apariciones
 
@@ -92,7 +94,7 @@ antes de consultar colisiones. Los máximos de población se mantienen.
 | Aves del bosque | 18–60 m | 7 m | 100 m |
 | Gaviotas | 25–100 m | 22 m | 150 m |
 | Patos | 20–80 m | 18 m | 120 m |
-| Peces | 18–65 m | 3 m | 100 m |
+| Peces | 6–32 m | 1,8 m | 50 m |
 | Conejos | 20–70 m | 10 m | 110 m |
 | Ratones | 18–60 m | 7 m | 95 m |
 | Zorros | 30–100 m | 25 m | 150 m |
@@ -109,15 +111,27 @@ Se conservan los filtros de terreno cargado y hábitat, el límite de intentos y
 el presupuesto compartido de 2 ms: un área sin espacio puede quedar por debajo
 del máximo de población.
 
+`tests/fauna/test_shore_fish.tscn` comprueba la aparición y la captura con la caña
+en costa, lago, charca sin etiqueta y río estrecho, con terreno voxel real y el
+spawner de producción. No inserta un pez a mano junto al anzuelo.
+
 `tests/fauna/test_fauna_distribution.tscn` comprueba el reparto por superficie,
 la separación y cobertura con tres semillas, el origen flotante y el rechazo
 de posiciones proyectadas fuera del intervalo permitido.
 
-El hábitat acuático busca entre 4 y 16 metros bajo la superficie; al bucear,
-acompaña la profundidad del jugador. Consulta las olas y el SDF del terreno,
-rechaza zonas sin datos cargados, sólidos y colisiones de construcciones. Si
-el mapa de cuerpos de agua está disponible, limita esta población a océanos y
-mares. Sin mapa, usa las comprobaciones locales de agua y terreno.
+`FishHabitat` busca entre 1 y 2,6 metros bajo la superficie junto a la orilla;
+al bucear, acompaña la profundidad del jugador. En los ríos concentra el 70 %
+de los intentos a lo largo del cauce cercano. Consulta las olas, el SDF vivo y
+las colisiones; rechaza sólidos, cascos y vóxeles sin cargar. Usa un cilindro
+bajo que envuelve al pez, en vez de exigir agua libre en un cubo de casi dos
+metros de alto. Los destinos de nado permanecen en agua válida y no empujan
+a los peces hacia cinco metros de profundidad en un cauce somero.
+
+El mapa grueso solo elige la especie: mar y océano dan atunes; lago, charca y
+río dan truchas y peces sol. Una celda marcada como tierra no veta el agua
+que demuestra el terreno vivo. Los cauces originales permiten reconocer ríos
+estrechos incluso donde el mapa los conecta con el mar. El hábitat de tiburones
+y ballenas conserva sus filtros de mar abierto y sus profundidades propias.
 
 Hay seis tipos estilizados: sardina, dorada, pez payaso, pez mariposa, cirujano
 azul y lábrido. Cada uno tiene una malla propia compartida entre sus instancias:
@@ -153,8 +167,8 @@ los procedurales de arriba no se usan:
 | Especie (`data/fauna/fish/`) | Aguas | Largo adulto (de joven a grande) | Velocidad |
 | --- | --- | --- | --- |
 | Atún (`tuna.tres`) | océano y mar | 0,70–0,90 m (0,49–1,15 m) | 1,5 m/s |
-| Trucha (`trout.tres`) | lago y charca | 0,41–0,53 m (0,29–0,67 m) | 1,0 m/s |
-| Pez sol (`bluegill.tres`) | lago y charca | 0,20–0,26 m (0,14–0,33 m) | 0,7 m/s |
+| Trucha (`trout.tres`) | lago, charca y río | 0,41–0,53 m (0,29–0,67 m) | 1,0 m/s |
+| Pez sol (`bluegill.tres`) | lago, charca y río | 0,20–0,26 m (0,14–0,33 m) | 0,7 m/s |
 
 `scale` es la escala de la malla para un adulto medio; sus `variants` (las de `fish_*`) la reparten.
 

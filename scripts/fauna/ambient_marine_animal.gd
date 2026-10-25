@@ -1,5 +1,9 @@
 class_name AmbientMarineAnimal extends AmbientFish
 
+
+func can_be_fished() -> bool:
+	return false
+
 const FADE_IN := 2.5
 const FADE_OUT := 1.5
 ## Tightest turning circle, in body lengths. Heading changes at speed / radius, so

@@ -550,8 +550,9 @@ func _setup_ambient_fauna() -> void:
 		voxel_terrain.add_child(animals)
 	if fish_profile == null:
 		return
-	var habitat := WaterFaunaHabitat.new()
+	var habitat := FishHabitat.new()
 	habitat.setup(voxel_terrain, water_sphere, world_map)
+	habitat.rivers = planet.get_river_network()
 	var spawner := AmbientFaunaSpawner.new()
 	spawner.name = "CoastalFish"
 	spawner.setup(fish_profile, habitat, players[0])

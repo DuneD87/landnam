@@ -38,6 +38,10 @@ func surface_radius(point: Vector3) -> float:
 	return ocean.radius + sampler.get_height_at(point, time, center())
 
 
+func water_type_at(point: Vector3) -> int:
+	return world_map.get_water_type_at(point) if world_map != null and world_map.is_ready() else -1
+
+
 func sample_spawn(anchor: Vector3, profile: AmbientFaunaProfile,
 		rng: RandomNumberGenerator) -> Variant:
 	if not is_instance_valid(terrain) or not is_instance_valid(ocean):

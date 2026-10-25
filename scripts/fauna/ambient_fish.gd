@@ -15,6 +15,8 @@ var _speed: float = 1.0
 var _turn_timer: float = 0.0
 var _check_timer: float = 0.0
 var _surface_radius: float = 0.0
+var _fishing_lure: Node3D
+var _spawn_fade := 1.0
 @onready var _visual: MeshInstance3D = $Visual
 @onready var _collision: CollisionShape3D = $CollisionShape3D
 
@@ -35,6 +37,9 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 		return
 	_rng.seed = rng.randi()
 	_configure_visual()
+	_spawn_fade = 0.0 if profile != null and profile.spawn_fade_time > 0.0 else 1.0
+	if can_be_fished():
+		_visual.set_instance_shader_parameter("spawn_fade", _spawn_fade)
 	_surface_radius = _water.surface_radius(point)
 	_check_timer = _rng.randf_range(0.0, 0.25)
 	_pick_target()
@@ -101,8 +106,8 @@ func get_variants() -> Array[CreatureVariant]:
 ## ninguna vive ahí, entre todas).
 func _pick_species() -> FishSpecies:
 	var water := -1
-	if _water != null and _water.world_map != null and _water.world_map.is_ready():
-		water = _water.world_map.get_water_type_at(global_position)
+	if _water != null:
+		water = _water.water_type_at(global_position)
 	var options := pack_species.filter(func(entry: FishSpecies) -> bool:
 		return entry != null and (entry.water_types.is_empty() or water in entry.water_types))
 	if options.is_empty():
@@ -119,9 +124,32 @@ func _pick_species() -> FishSpecies:
 
 
 func deactivate() -> void:
+	release_lure()
 	super.deactivate()
 	if is_instance_valid(_collision):
 		_collision.disabled = true
+
+
+func can_be_fished() -> bool:
+	return active and not retiring and habitat != null
+
+
+func can_follow_lure(lure: Node3D) -> bool:
+	return can_be_fished() and (not is_instance_valid(_fishing_lure) or _fishing_lure == lure)
+
+
+func follow_lure(lure: Node3D) -> void:
+	if can_follow_lure(lure):
+		_fishing_lure = lure
+
+
+func follows_lure(lure: Node3D) -> bool:
+	return is_instance_valid(_fishing_lure) and _fishing_lure == lure
+
+
+func release_lure() -> void:
+	_fishing_lure = null
+	_turn_timer = 0.0
 
 
 func audio_family() -> StringName:
@@ -134,6 +162,9 @@ func _physics_process(delta: float) -> void:
 	if GameManager.current_state != GameManager.State.PLAYING:
 		return
 	var start := Time.get_ticks_usec()
+	if _spawn_fade < 1.0 and profile != null:
+		_spawn_fade = minf(1.0, _spawn_fade + delta / maxf(profile.spawn_fade_time, 0.01))
+		_visual.set_instance_shader_parameter("spawn_fade", _spawn_fade)
 	_swim(delta)
 	DebugStats.report_cost(&"fauna:fish", Time.get_ticks_usec() - start)
 
@@ -154,8 +185,9 @@ func _swim(delta: float) -> void:
 			_leave_habitat()
 			return
 		_surface_radius = _water.surface_radius(global_position)
-	var target := _water.terrain.to_global(_target_local)
-	if _turn_timer <= 0.0 or global_position.distance_squared_to(target) < 2.0:
+	var lured := is_instance_valid(_fishing_lure)
+	var target := _fishing_lure.global_position if lured else _water.terrain.to_global(_target_local)
+	if not lured and (_turn_timer <= 0.0 or global_position.distance_squared_to(target) < 2.0):
 		_pick_target()
 		target = _water.terrain.to_global(_target_local)
 	var up := (global_position - _water.center()).normalized()
@@ -178,7 +210,8 @@ func _swim(delta: float) -> void:
 		velocity = (normal + up.cross(normal) * 0.7).normalized() * _speed
 		_target_local = _water.terrain.to_local(global_position + velocity * 5.0)
 		_turn_timer = 1.5
-	if _surface_radius - global_position.distance_to(_water.center()) < _surface_clearance() + 0.6:
+	var margin := 0.15 if _water is FishHabitat else 0.6
+	if _surface_radius - global_position.distance_to(_water.center()) < _surface_clearance() + margin:
 		_leave_habitat()
 		return
 	if velocity.length_squared() > 0.01:
@@ -193,15 +226,27 @@ func _in_habitat() -> bool:
 
 ## Depth below which the swimmer is steered back down, away from the surface.
 func _cruise_depth() -> float:
+	if is_instance_valid(_fishing_lure):
+		return _surface_clearance() + (0.35 if _water is FishHabitat else 1.2)
+	if _water is FishHabitat:
+		return 0.8
 	return maxf(5.0, _surface_clearance() + 2.0)
 
 
 ## New velocity towards `direction`. Small fish may dart; large bodies override this.
 func _steer(direction: Vector3, _up: Vector3, delta: float) -> Vector3:
-	return velocity.lerp(direction * _speed, 1.0 - exp(-delta * 1.8))
+	var pace := _speed
+	if is_instance_valid(_fishing_lure):
+		pace *= clampf(global_position.distance_to(_fishing_lure.global_position), 0.0, 1.5)
+	return velocity.lerp(direction * pace, 1.0 - exp(-delta * 1.8))
 
 
 func _surface_clearance() -> float:
+	if _water is FishHabitat:
+		var half := (_collision.shape as BoxShape3D).size * 0.5
+		var up := (global_position - _water.center()).normalized()
+		var axes := _collision.global_basis.orthonormalized()
+		return absf(axes.x.dot(up)) * half.x + absf(axes.y.dot(up)) * half.y + absf(axes.z.dot(up)) * half.z
 	return impact_radius
 
 
@@ -211,10 +256,16 @@ func _leave_habitat() -> void:
 
 
 func _swim_basis(forward: Vector3, up: Vector3) -> Basis:
+	if forward.length_squared() < 0.0001:
+		forward = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
 	return Basis.looking_at(forward, up)
 
 
 func _pick_target() -> void:
+	if _water is FishHabitat:
+		_target_local = _water.terrain.to_local((_water as FishHabitat).swim_target(global_position, _rng))
+		_turn_timer = _rng.randf_range(3.0, 7.0)
+		return
 	var up := (global_position - _water.center()).normalized()
 	var tangent := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
 	tangent = tangent.rotated(up, _rng.randf_range(0.0, TAU))

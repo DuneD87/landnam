@@ -311,7 +311,9 @@ static func nearby_channel_at(rivers: Dictionary, up: Vector3, reach: float) -> 
 		if edge > best:
 			continue
 		best = edge
-		channel = {"distance": edge, "direction": axis.normalized()}
+		channel = {"distance": edge, "direction": axis.normalized(),
+			"tangent": ab.slide(axis.normalized()).normalized(), "half_width": half,
+			"start": a, "end": b}
 	return channel
 
 

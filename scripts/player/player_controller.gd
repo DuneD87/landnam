@@ -75,6 +75,7 @@ var needs: SurvivalNeeds
 var resting: RestController
 ## Comer, beber, despellejar y las hogueras.
 var survival: SurvivalActions
+var fishing: PlayerFishing
 ## El círculo de lo que va a allanar la azada (ver TerrainLeveling).
 var hoe_preview: HoePreview
 ## Las obras (blueprints colocados por construir): apuntarlas, aportarles material y martillearlas.
@@ -234,6 +235,8 @@ func _on_inventory_drop(data: ItemData, quantity: int) -> void:
 ## La muerte vacía mochila y equipo en un único botín persistente. Primero se resuelve el cursor:
 ## lo prestado de otro contenedor vuelve allí y lo propio vuelve al inventario.
 func leave_death_loot() -> DeathLoot:
+	if fishing != null:
+		fishing.cancel()
 	inventory_ui.close()
 	# Lo que siguiera en la tumba anterior se pierde, aunque esta muerte sea con las manos vacías.
 	DeathLoot.discard_previous(get_tree())
@@ -626,6 +629,9 @@ func _ready():
 	survival.name = "SurvivalActions"
 	add_child(survival)
 	survival.setup(self)
+	fishing = PlayerFishing.new()
+	add_child(fishing)
+	fishing.setup(self)
 	hoe_preview = HoePreview.new()
 	hoe_preview.setup(self)
 	add_child(hoe_preview)
@@ -730,16 +736,22 @@ func _ready():
 			
 ## Se termina el movimiento del cursor antes de que cualquier entidad capture su contenido.
 func prepare_save() -> void:
+	if fishing != null:
+		fishing.cancel()
 	if inventory_ui != null:
 		inventory_ui._cancel_floating_item()
 
 
 func prepare_restore() -> void:
+	if fishing != null:
+		fishing.cancel()
 	if inventory_ui != null:
 		inventory_ui.close()
 
 
 func get_save_data() -> Dictionary:
+	if fishing != null:
+		fishing.cancel()
 	var inventory_data := inventory.get_save_data()
 
 	var equipment_data: Dictionary = {}
@@ -1420,6 +1432,10 @@ func _input(event):
 		inventory_ui.close()
  
  
+	if fishing.handle_input(event):
+		get_viewport().set_input_as_handled()
+		return
+
 	# Golpes (también talar y picar), esquivas, apuntar y fijar objetivo. Lo que el combate no
 	# consume (el cañón, las herramientas que no golpean) sigue abajo.
 	if combat.handle_input(event):
@@ -2024,7 +2040,9 @@ func update_normal_movement(delta: float) -> void:
 	locomotion.update(delta)
 	velocity = combat.apply_motion(movement.velocity)
 
-	if combat.update_facing(delta, input_dir):
+	if fishing.is_active():
+		rotate_toward_direction(fishing.facing_direction(), delta, 8.0)
+	elif combat.update_facing(delta, input_dir):
 		pass
 	elif movement.is_running || movement.is_sprinting:
 		rotate_toward_movement(input_dir, delta)

@@ -18,6 +18,10 @@ class_name AmbientFaunaProfile extends Resource
 ## Margin outside the camera frustum for new spawns. Negative uses clearance. Animals
 ## that fade in on activation can use a smaller margin than their full length.
 @export var view_margin: float = -1.0
+## Peces sumergidos: se incorporan con fundido aunque el jugador mire al agua.
+## Las especies terrestres y aéreas siguen apareciendo fuera de cámara.
+@export var spawn_in_view := false
+@export var spawn_fade_time := 0.0
 ## Ejemplares que salen juntos (una manada), al azar entre los dos, a menos de group_spread metros
 ## del primero y con su misma casa (NPCController.get_home()). (1, 1) = de uno en uno.
 @export var group_size := Vector2i(1, 1)

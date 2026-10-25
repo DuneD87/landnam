@@ -3,7 +3,7 @@ extends Resource
 
 enum Category {MATERIAL, TOOL, WEAPON, CONSUMABLE, ARMOR, BLOCK}
 ## HOE, la azada, allana el terreno (TerrainLeveling). Los nuevos, al final, como en WeaponType.
-enum ToolType {NONE, PICKAXE, AXE, HAMMER, TORCH, HOE}
+enum ToolType {NONE, PICKAXE, AXE, HAMMER, TORCH, HOE, FISHING_ROD}
 ## Los valores nuevos van al final: los .tres guardan el número, no el nombre.
 enum WeaponType {NONE, SWORD, SPEAR, BOW, CANNON, AXE, MACE, SLINGSHOT}
 ## Cómo muerde el golpe: cada armadura protege distinto de cada uno (Armor), y cambia el sonido,

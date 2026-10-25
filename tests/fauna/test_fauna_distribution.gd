@@ -101,7 +101,8 @@ func _run() -> void:
 	check(spawner._pool.size() == 1 and projected.validations == 1, "A valid position spawns once; repeated crowded candidates are cheap to reject")
 	for id in ["forest_birds", "coastal_gulls", "river_ducks", "coastal_fish", "rabbits", "mice", "foxes", "deer", "bear", "lion", "buffalo", "shark", "whale", "orca", "turtle"]:
 		var profile := load("res://data/fauna/%s.tres" % id) as AmbientFaunaProfile
-		check(profile.min_spacing > 0 and profile.spawn_min_distance >= 18 and profile.spawn_radius > profile.spawn_min_distance and profile.recycle_distance >= profile.spawn_radius + 5,
+		var minimum := 6.0 if id == "coastal_fish" else 18.0
+		check(profile.min_spacing > 0 and profile.spawn_min_distance >= minimum and profile.spawn_radius > profile.spawn_min_distance and profile.recycle_distance >= profile.spawn_radius + 5,
 			id + ": configured for separated spawns and a wider retention radius")
 	world.free()
 	print("FAUNA DISTRIBUTION TESTS: %d failures" % failures)

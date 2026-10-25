@@ -17,6 +17,6 @@ materials = Array[Material]([ExtResource("3_eye"), ExtResource("4_body")])
 scale = 0.68
 speed = 0.7
 sway = 0.08
-water_types = Array[int]([2, 3])
+water_types = Array[int]([2, 3, 4])
 weight = 1.5
 variants = Array[ExtResource("v_script")]([ExtResource("v_young"), ExtResource("v_adult"), ExtResource("v_large")])

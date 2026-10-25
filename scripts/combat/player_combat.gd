@@ -649,6 +649,8 @@ func attach_weapon(node: Node3D, data: ItemData) -> void:
 
 ## Suelta el arma de la mano y la devuelve (el que llama la libera).
 func detach_weapon() -> Node3D:
+	if player.fishing != null:
+		player.fishing.cancel()
 	var node := _weapon_node
 	_weapon_node = null
 	_ranged_visual = null

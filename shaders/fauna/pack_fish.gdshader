@@ -21,6 +21,11 @@ instance uniform vec4 tint : source_color = vec4(1.0);
 // Cuántas veces cabe la onda en el cuerpo (rad de cabeza a cola).
 const float WAVE = 4.0;
 
+// Fundido opaco al poblar el agua que ya está mirando el jugador.
+instance uniform float spawn_fade = 1.0;
+const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
+    3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+
 void vertex() {
     float body = max(tail_z - head_z, 0.001);
     float t = clamp((VERTEX.z - head_z) / body, 0.0, 1.0);
@@ -34,6 +39,12 @@ void vertex() {
 }
 
 void fragment() {
+    if (spawn_fade < 1.0) {
+        ivec2 cell = ivec2(FRAGCOORD.xy) % 4;
+        if ((BAYER[cell.x + cell.y * 4] + 0.5) / 16.0 > spawn_fade) {
+            discard;
+        }
+    }
     ALBEDO = texture(albedo_texture, UV).rgb * tint.rgb;
     ROUGHNESS = roughness;
     SPECULAR = specular;

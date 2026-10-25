@@ -78,6 +78,7 @@ var motion_travel: Callable = BodyMotion.stagger_travel
 var archery := ArcheryPose.new()
 ## Lanzamiento de lanza por IK.
 var throw := ThrowPose.new()
+var fishing := FishingPose.new()
 ## Arco con las animaciones de Mixamo (con aim_arms_ik apagado): coloca arco, cuerda y flecha.
 var bow_rig := BowAnimRig.new()
 
@@ -195,6 +196,7 @@ func _apply() -> void:
 	if grip_right:
 		if carry > 0.001:
 			_apply_carry(carry)
+		fishing.apply(self)
 		_apply_grip()
 	if crutch > 0.001:
 		_apply_crutch(crutch)

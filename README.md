@@ -12,6 +12,7 @@ Abre `project.godot` y ejecuta la escena principal configurada en él.
 | Configuración del terreno | `PlanetParser` carga una `PlanetDefinition`: biomas, materiales, vegetación, minerales, ríos y clima. El planeta y sus consumidores comparten este recurso; cada planeta tiene el suyo. |
 | Vegetación | `Planet` registra los generadores, las bandas de LOD y las colisiones. `VegetationBaker` hornea las tarjetas de hierba y los impostores de árboles. |
 | Jugador | `PlayerController` coordina movimiento, interacción, equipo y construcción; `scripts/player/` contiene sus componentes. |
+| Pesca | `PlayerFishing` lleva carga, lanzamiento, picada y recogida con los peces del hábitat; caña y aparejos crafteables. Ver `docs/fishing.md`. |
 | Combate | `PlayerCombat` lleva las acciones del jugador; `CombatTargeting` selecciona el blanco y actualiza el punto de la cámara. Las criaturas usan `scripts/npc/ai/`. |
 | Inventario | `Inventory` (`scripts/items/`) lleva capacidad, reglas y transferencias. `Storage` incorpora ese componente en los contenedores del mundo, configurados con `StorageTrait`. `InventoryPanel` presenta cualquier inventario y `InventoryUI` coordina el cursor. Ver `docs/storage.md`. |
 | Audio | `AudioManager` mantiene el catálogo y las voces. Agua y clima calculan ganancias; `AmbientBedMixer` crea sus pistas y las funde. |
@@ -38,6 +39,8 @@ godot --headless --path . res://tests/items/test_item_conservation.tscn
 godot --headless --path . res://tests/items/test_world_item_save.tscn
 godot --headless --path . res://tests/player/test_item_save_load.tscn
 godot --headless --path . res://tests/player/test_respawn.tscn
+godot --headless --path . res://tests/player/test_fishing.tscn
+godot --headless --path . res://tests/fauna/test_shore_fish.tscn
 godot --headless --path . res://tests/ui/test_map_markers.tscn
 godot --headless --path . res://tests/planet/test_planet_definition.tscn
 godot --headless --path . res://tests/ui/test_drop_items.tscn

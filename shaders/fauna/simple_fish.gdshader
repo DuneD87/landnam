@@ -6,6 +6,11 @@ instance uniform int fish_type = 0;
 instance uniform float swim_phase = 0.0;
 instance uniform float swim_frequency = 6.0;
 
+// Fundido opaco al poblar el agua que ya está mirando el jugador.
+instance uniform float spawn_fade = 1.0;
+const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
+    3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+
 void vertex() {
     float phase = TIME * swim_frequency + swim_phase;
     float tail = UV2.y;
@@ -20,6 +25,12 @@ float band(float position, float center, float width) {
 }
 
 void fragment() {
+    if (spawn_fade < 1.0) {
+        ivec2 cell = ivec2(FRAGCOORD.xy) % 4;
+        if ((BAYER[cell.x + cell.y * 4] + 0.5) / 16.0 > spawn_fade) {
+            discard;
+        }
+    }
     if (UV2.x > 0.5 && UV2.x < 1.5 && dot(NORMAL, VIEW) < 0.0) {
         NORMAL = -NORMAL;
     }
