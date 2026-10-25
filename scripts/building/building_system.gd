@@ -442,7 +442,11 @@ func process_raycast(hit_collider: Object, hit_normal: Vector3, hit_pos: Vector3
 			_cube_merge_plan = _cube_merger.resolve(reference, _target_grid_pos, cell_size, get_current_material().material_id)
 			if not _cube_merge_plan.is_empty():
 				_can_place = _cube_merge_plan["allowed"]
-	if _player and _player.global_position.distance_to(_target_world_pos) > max_build_distance:
+	# El alcance llega hasta lo que se apunta. Una pieza naval se coloca por su esquina, que tras
+	# alinearla con fondo y costado o construir hacia -Z queda a una manga o una eslora de la cara
+	# apuntada: en un casco grande, mucho más lejos que el alcance aunque se esté al lado.
+	var reach_point := hit_pos if is_naval_mode() else _target_world_pos
+	if _player and _player.global_position.distance_to(reach_point) > max_build_distance:
 		_can_place = false
 
 	_cached_grid_for_placement = _target_grid

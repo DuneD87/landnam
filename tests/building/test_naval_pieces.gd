@@ -40,6 +40,7 @@ func _run() -> void:
 	_check_symmetry()
 	await _check_join_and_physics()
 	_check_save()
+	await _check_large_reach()
 	GridManager.clear_all()
 	_player.queue_free()
 	await get_tree().process_frame
@@ -293,6 +294,33 @@ func _check_placement() -> void:
 	_target(grid, Vector3i(0, 0, 6))
 	check(not _building.naval_has_space(_building.get_naval_plan(), grid), "se detectan obstáculos en otras grids de menor celda")
 	GridManager.remove_grid_group(finer.grid_id)
+
+
+## En un casco grande la esquina de la pieza alineada queda a una manga de la cara apuntada: el
+## alcance se mide hasta lo que se apunta, no hasta esa esquina.
+func _check_large_reach() -> void:
+	var grid := GridManager.create_grid_exact(self, Vector3(0, 80, 0), Basis.IDENTITY, 0.5)
+	BuildingSystem.free_build = true
+	_building.set_cell_size_index(1)
+	_building.pick_naval_piece(NavalPiece.Kind.HULL, Vector3i(40, 16, 8))
+	_target(grid, Vector3i.ZERO)
+	check(_building.try_place_block(), "se coloca un tramo de 20 × 8 × 4 m")
+	_building.pick_naval_piece(NavalPiece.Kind.HULL, Vector3i(40, 16, 8))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	# Junto al costado de estribor, a media altura, mirando la cara del extremo abierto (+Z).
+	var aim := grid.get_origin_world() + Vector3(19.75, 6.0, 4.0)
+	_player.global_position = aim + Vector3(0, 0, 3)
+	var query := PhysicsRayQueryParameters3D.create(aim + Vector3(0, 0, 3), aim - Vector3(0, 0, 1))
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	_building._naval_check_left = 0.0
+	if not hit.is_empty():
+		_building.process_raycast(hit["collider"], hit["normal"], hit["position"], hit)
+	check(not hit.is_empty() and _building._target_grid_pos == Vector3i(0, 0, 8) and _building._can_place,
+		"en un casco grande la pieza se engancha al extremo desde el costado, a 3 m de la cara")
+	BuildingSystem.free_build = false
+	_building.set_cell_size_index(0)
+	GridManager.remove_grid_group(grid.grid_id)
 
 
 func _check_join_and_physics() -> void:
