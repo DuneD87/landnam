@@ -60,6 +60,9 @@ para depurar, el descanso no baja y no se puede empezar a dormir.
 Se fabrica un **lecho de pieles** a mano con 4 ramas, 8 fibras vegetales y
 2 pieles. Se planta desde la barra rápida en suelo llano, como una hoguera.
 **E** junto a él abre el panel: **Dormir 8 horas** o **Recoger lecho**.
+Empezar a dormir establece ese lecho como punto de reaparición, incluso si se
+interrumpe el sueño. Se conserva al guardar y cargar. Recogerlo devuelve la
+reaparición al punto inicial de la partida hasta dormir en otro lecho.
 
 Durmiendo, el cuerpo recupera descanso y hasta un 35 % de cordura en una
 noche completa. El consumo de comida y agua baja al 60 % del reposo despierto.

@@ -786,12 +786,16 @@ func close() -> void:
 		closed.emit()
 
 
-func open_loot(loot_inv: Inventory) -> void:
+func open_loot(loot_inv: Inventory, title: String = "INV_LOOT") -> void:
 	close_loot()
 	close_campfire()
-	_loot_title.text = "INV_LOOT"
+	_loot_title.text = title
 	_loot_hint.text = "INV_HINT_TO_INVENTORY"
 	_open_container(loot_inv)
+
+
+func open_loot_inventory() -> Inventory:
+	return _loot_inventory
 
 
 func open_storage(storage: Storage) -> void:

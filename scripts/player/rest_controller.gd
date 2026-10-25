@@ -66,6 +66,8 @@ func start_sleep() -> bool:
 		_detail.text = tr(reason)
 		return false
 	_sleeping = true
+	if _player.combat != null:
+		_player.combat.respawn_bed_id = _bed.entity_id
 	_hours = 0.0
 	_player.needs.sleeping = true
 	_player.velocity = Vector3.ZERO

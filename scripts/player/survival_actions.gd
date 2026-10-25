@@ -51,6 +51,11 @@ func _process(delta: float) -> void:
 	var storage := _player.inventory_ui.open_storage_node()
 	if storage != null and storage.global_position.distance_to(_player.global_position) > Storage.REACH + 1.5:
 		_player.inventory_ui.close_loot()
+	var loot := _player.inventory_ui.open_loot_inventory()
+	if loot != null and loot.get_parent() is DeathLoot:
+		var bag := loot.get_parent() as DeathLoot
+		if bag.global_position.distance_to(_player.global_position) > DeathLoot.REACH + 1.5:
+			_player.inventory_ui.close_loot()
 
 
 func notify(text: String) -> void:
@@ -203,6 +208,16 @@ func _open_loot(body: Node3D) -> void:
 static func _is_bird(body: Node3D) -> bool:
 	var corpse := body as FaunaCorpse
 	return corpse != null and corpse.plume.a > 0.0
+
+
+## Recupera los objetos de una muerte cercana, sin necesidad de herramientas.
+func open_nearby_death_loot() -> bool:
+	var loot := DeathLoot.nearest(get_tree(), _player.global_position)
+	if loot == null:
+		return false
+	_player.inventory_ui.open_loot(loot.inventory, "DEATH_LOOT_TITLE")
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	return true
 
 
 ## Abre el descanso en el lecho de al lado, si lo hay.

@@ -670,10 +670,20 @@ suena un evento junto al jugador.
 ## Muerte
 
 Al llegar a cero, el personaje cae, aparece **HAS MUERTO** y, a los 5 s, funde a
-negro y reaparece en la posición de la última partida guardada (el botón Guardar
-del menú). Si no se ha guardado nunca, reaparece donde empezó a jugar. Vuelve con
-la vida y el aguante llenos y conserva el inventario. Las criaturas que iban a por
-él se calman y recuperan la vida.
+negro y reaparece en el último lecho en el que empezó a dormir. Si ese lecho se ha
+recogido o no se ha usado ninguno, reaparece donde empezó la partida. Vuelve con
+la vida y el aguante llenos. Las criaturas que iban a por él se calman y recuperan la vida.
+
+El inventario y todo el equipo, incluida la mochila, quedan en una bolsa (`DeathLoot`)
+en el lugar de la muerte. **E** junto a ella abre el botín común: se recupera lo que
+quepa y el resto sigue allí. **Morir de nuevo destruye lo que quedaba en la bolsa anterior**,
+incluso si esta vez no se llevaba nada encima. La bolsa nueva solo contiene lo que se llevaba
+en esta muerte; los objetos recuperados parcialmente y que se llevaban encima vuelven a caer
+en ella. No caducan por tiempo y se retiran al vaciarse. Se guardan con la partida, igual que la identidad
+del último lecho y el punto inicial (con coordenadas canónicas para el origen flotante).
+Los accesos de la barra rápida se conservan, sin entregar objetos nuevos al reaparecer.
+El mapa señala la **Última muerte** con un icono de tumba. La siguiente muerte actualiza
+ese marcador; se guarda con la partida y no desaparece al recuperar el botín.
 
 ### Devorado
 

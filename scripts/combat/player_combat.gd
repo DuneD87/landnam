@@ -256,6 +256,10 @@ var _last_hit_push: Vector3 = Vector3.ZERO
 var _last_attacker: Node = null
 var _last_attacker_time: float = -INF
 var _respawning: bool = false
+## Invalida las esperas de una reaparición al cargar otra partida o iniciar la siguiente.
+var _respawn_version := 0
+## Último lecho en el que se ha empezado a dormir. Se resuelve por identidad al reaparecer.
+var respawn_bed_id := ""
 
 var _skeleton: Skeleton3D
 var _right_attachment: BoneAttachment3D
@@ -305,7 +309,7 @@ var _stance_yaw: float = 0.0
 var _carry: float = 0.0
 const CARRY_BLEND_SPEED := 5.0
 
-## Punto de reaparición cuando no hay partida guardada: donde empezó a jugar (canónico).
+## Punto de reaparición cuando no queda un lecho válido: donde empezó la partida (canónico).
 var _spawn_canonical: Variant = null
 var _spawn_basis: Basis = Basis.IDENTITY
 
@@ -2381,6 +2385,7 @@ func _on_died() -> void:
 		devouring.start(killer)
 	# Si se lo van a comer aún no muere: grita, y el estertor llega mientras se lo comen.
 	CombatFx.play(voice(&"player_agony" if devouring.is_active() else &"player_death"), player.global_position)
+	player.leave_death_loot()
 
 
 ## La fiera que lo ha matado, si come carne y sigue ahí para comérselo: la última criatura que le ha
@@ -2429,13 +2434,22 @@ func _update_dead(delta: float) -> void:
 		_respawn()
 
 
-## Vuelve al último punto guardado (o al inicio de la partida si no hay nada guardado) con la
+## Vuelve al último lecho usado (o al inicio de la partida si ya no está) con la
 ## vida y el aguante llenos, y calma a las criaturas que venían a por él.
 func _respawn() -> void:
+	if _respawning:
+		return
+	_respawn_version += 1
+	var version := _respawn_version
 	_respawning = true
 	await hud.fade_to_black(0.9)
+	if version != _respawn_version:
+		return
 	# Devorado: a oscuras se acaba lo que faltara y los restos se quedan donde están.
 	await devouring.release()
+	if version != _respawn_version:
+		return
+	player._clear_visual_equipment()
 	_last_attacker = null
 	var xform := _respawn_transform()
 	player.input_enabled = false
@@ -2474,6 +2488,8 @@ func _respawn() -> void:
 	var waited := 0.0
 	while confirmations < 3 and waited < 15.0:
 		await get_tree().create_timer(0.1).timeout
+		if version != _respawn_version:
+			return
 		waited += 0.1
 		confirmations = confirmations + 1 if player.is_ground_ready() else 0
 	_set_state(State.IDLE)
@@ -2485,6 +2501,8 @@ func _respawn() -> void:
 
 ## Al cargar una partida: fuera de cualquier golpe, esquiva o muerte, y con todo lleno.
 func on_restored() -> void:
+	_respawn_version += 1
+	hud.cancel_fade()
 	devouring.cancel()
 	_last_attacker = null
 	_abort_attack()
@@ -2515,22 +2533,33 @@ func on_restored() -> void:
 
 
 func _respawn_transform() -> Transform3D:
+	var bed := Bedroll.find_by_id(get_tree(), respawn_bed_id)
+	if bed != null:
+		return bed.respawn_transform()
 	var fo := get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin
-	var saved := GameManager.peek_player_data(GameManager.MAIN_SLOT)
-	if not saved.is_empty() and saved.has("position"):
-		var p: Dictionary = saved.position
-		var canonical := Vector3(float(p.x), float(p.y), float(p.z))
-		var basis := player.global_basis
-		if saved.has("basis"):
-			var b: Dictionary = saved.basis
-			basis = Basis(Vector3(b.xx, b.xy, b.xz), Vector3(b.yx, b.yy, b.yz), Vector3(b.zx, b.zy, b.zz))
-		return Transform3D(basis.orthonormalized(), fo.from_canonical(canonical) if fo != null else canonical)
 	if _spawn_canonical != null:
 		return Transform3D(_spawn_basis, fo.from_canonical(_spawn_canonical) if fo != null else _spawn_canonical)
 	return player.global_transform
 
 
-## Guarda dónde empezó a jugar, para reaparecer ahí si nunca se ha guardado.
+func get_respawn_data() -> Dictionary:
+	var data := {"bed_id": respawn_bed_id}
+	if _spawn_canonical != null:
+		data["start"] = DroppedItem.VisualState.encode(Transform3D(_spawn_basis, _spawn_canonical))
+	return data
+
+
+func restore_respawn_data(data: Dictionary) -> void:
+	respawn_bed_id = str(data.get("bed_id", ""))
+	var start: Variant = DroppedItem.VisualState.decode(data.start) if data.has("start") else null
+	var fo := get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin
+	# Partidas antiguas: la posición cargada es el único punto de inicio conocido.
+	_spawn_canonical = start.origin if start is Transform3D else (
+		fo.to_canonical(player.global_position) if fo != null else player.global_position)
+	_spawn_basis = start.basis if start is Transform3D else player.global_basis.orthonormalized()
+
+
+## Guarda dónde empezó a jugar, para reaparecer ahí cuando no quede un lecho válido.
 func _record_spawn() -> void:
 	if _spawn_canonical != null or not player.input_enabled or not player.is_on_floor():
 		return

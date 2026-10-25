@@ -1,5 +1,7 @@
 class_name WorldMapUI extends CanvasLayer
 
+signal closed()
+
 ## Mapa mundial que se abre con M. Dibuja el equirect precomputado del planeta más cercano al
 ## jugador (ver PlanetWorldMap) con world_map.gdshader, más la posición y el rumbo del jugador.
 ##
@@ -11,6 +13,8 @@ const SHADER_PATH := "res://shaders/ui/world_map.gdshader"
 const MIN_ZOOM := 1.0
 const MAX_ZOOM := 64.0
 const ZOOM_STEP := 1.25
+const MARKER_RADIUS := 26.0
+const PAN_THRESHOLD := 5.0
 
 ## Anchura de terreno (en metros) que se ve al abrir el mapa. A zoom 1 cabe el planeta entero, y en
 ## un planeta de radio 30000 eso son ~157 m por píxel: el marcador del jugador no se movería de
@@ -23,6 +27,7 @@ const LABEL_AREA_AT_MIN_ZOOM := 0.004
 const LABEL_AREA_AT_MAX_ZOOM := 0.000004
 
 var player: Node3D
+var markers := MapMarkers.new()
 
 var _panel: PanelContainer
 var _title: Label
@@ -32,6 +37,13 @@ var _overlay: _Overlay
 var _status: Label
 var _info_left: Label
 var _info_right: Label
+var _mark_here_button: Button
+var _marker_editor: MapMarkerEditor
+var _planet_id := ""
+var _editing_marker := 0
+var _pending_marker_uv := Vector2(-1.0, -1.0)
+var _press_position := Vector2.ZERO
+var _panning := false
 
 var _material: ShaderMaterial
 var _world_map: PlanetWorldMap
@@ -86,8 +98,10 @@ func open() -> void:
 
 
 func close() -> void:
+	cancel_marker_edit()
 	visible = false
 	_dragging = false
+	closed.emit()
 
 
 func _process(_delta: float) -> void:
@@ -164,6 +178,16 @@ func _build_ui() -> void:
 	_status.add_theme_color_override("font_color", Color(0.85, 0.88, 0.92))
 	_frame.add_child(_status)
 
+	_marker_editor = MapMarkerEditor.new()
+	_frame.add_child(_marker_editor)
+	_marker_editor.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_marker_editor.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_marker_editor.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_marker_editor.position = -_marker_editor.size - Vector2(16.0, 16.0)
+	_marker_editor.submitted.connect(_save_marker)
+	_marker_editor.deleted.connect(_delete_marker)
+	_marker_editor.cancelled.connect(cancel_marker_edit)
+
 	column.add_child(_build_footer())
 
 
@@ -177,15 +201,15 @@ func _build_header() -> Control:
 	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(_title)
 
-	var hint := Label.new()
-	hint.text = "MAP_HINT"
-	hint.add_theme_color_override("font_color", Color(0.65, 0.7, 0.78))
-	header.add_child(hint)
-
 	var center_button := Button.new()
 	center_button.text = "MAP_CENTER"
 	center_button.pressed.connect(func() -> void: _follow = true)
 	header.add_child(center_button)
+
+	_mark_here_button = Button.new()
+	_mark_here_button.text = "MAP_MARKER_HERE"
+	_mark_here_button.pressed.connect(func() -> void: _edit_marker_at(_player_uv()))
+	header.add_child(_mark_here_button)
 
 	# Contraste con el terreno real: sirve para separar "el mapa está mal orientado" de "el mapa
 	# es correcto pero a 92 m por téxel no representa lo que tienes delante".
@@ -212,8 +236,14 @@ func _build_header() -> Control:
 
 
 func _build_footer() -> Control:
+	var column := VBoxContainer.new()
+	var hint := Label.new()
+	hint.text = "MAP_HINT"
+	hint.add_theme_color_override("font_color", Color(0.65, 0.7, 0.78))
+	column.add_child(hint)
 	var footer := HBoxContainer.new()
 	footer.add_theme_constant_override("separation", 24)
+	column.add_child(footer)
 
 	_info_left = Label.new()
 	_info_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -223,7 +253,7 @@ func _build_footer() -> Control:
 	_info_right.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_info_right.add_theme_color_override("font_color", Color(0.72, 0.82, 0.92))
 	footer.add_child(_info_right)
-	return footer
+	return column
 
 
 func _panel_style() -> StyleBoxFlat:
@@ -245,6 +275,10 @@ func _resolve_world_map() -> void:
 		player.update_nearest_planet()
 	var loader = player.get("planet")
 	var found: PlanetWorldMap = loader.get("world_map") if loader != null else null
+	var planet_id: String = loader.entity_id if loader != null else ""
+	if planet_id != _planet_id:
+		cancel_marker_edit()
+	_planet_id = planet_id
 	if found == _world_map:
 		return
 
@@ -267,6 +301,7 @@ func _on_map_ready(_map: WorldMapData) -> void:
 
 ## Deja el TextureRect y el material apuntando al mapa actual, o el mensaje de espera si aún no está.
 func _refresh_map_source() -> void:
+	_mark_here_button.disabled = not _can_mark()
 	if _world_map == null:
 		_status.text = "MAP_NO_MAP"
 		_status.visible = true
@@ -378,6 +413,8 @@ func _layout_map() -> void:
 	_clamp_offset()
 	_map_rect.position = _offset
 	_map_rect.size = _map_size()
+	_marker_editor.position = _frame.size - _marker_editor.size \
+		- Vector2.ONE * 16.0 * MapMarkerEditor.ui_scale_for(get_viewport())
 	# El paso de las flechas se mide en píxeles de pantalla: sin esto crecerían con el zoom en vez
 	# de aparecer más.
 	if _material != null:
@@ -403,6 +440,11 @@ func _center_on_player() -> void:
 
 
 func _on_frame_input(event: InputEvent) -> void:
+	# Los eventos de los controles de la ficha pueden propagarse al marco; solo el mapa
+	# responde a los clics, arrastres y rueda que comienzan fuera de ella.
+	if event is InputEventMouse and not _dragging and _marker_editor.visible \
+			and _marker_editor.get_rect().has_point(event.position):
+		return
 	if event is InputEventMouseButton:
 		match event.button_index:
 			MOUSE_BUTTON_WHEEL_UP:
@@ -412,10 +454,29 @@ func _on_frame_input(event: InputEvent) -> void:
 				if event.pressed:
 					_apply_zoom(1.0 / ZOOM_STEP, event.position)
 			MOUSE_BUTTON_LEFT:
-				_dragging = event.pressed
+				if event.pressed:
+					_dragging = true
+					_panning = false
+					_press_position = event.position
+				else:
+					if _dragging and not _panning:
+						var id := _marker_at(event.position)
+						if id != 0:
+							_edit_marker_at(markers.get_marker(id).uv, id)
+						else:
+							cancel_marker_edit()
+					_dragging = false
+			MOUSE_BUTTON_RIGHT:
+				if event.pressed:
+					var id := _marker_at(event.position)
+					var uv: Vector2 = markers.get_marker(id).uv if id != 0 else _uv_at(event.position)
+					_edit_marker_at(uv, id)
 	elif event is InputEventMouseMotion:
 		_hover_uv = _uv_at(event.position)
 		if _dragging:
+			if not _panning and event.position.distance_to(_press_position) < PAN_THRESHOLD:
+				return
+			_panning = true
 			# Arrastrar es tomar el control de la vista: deja de seguir al jugador hasta que se
 			# pulse "Centrar en mí", o el desplazamiento se desharía al frame siguiente.
 			_follow = false
@@ -463,7 +524,114 @@ func _paint_overlay(canvas: Control) -> void:
 	if _world_map == null or not _world_map.is_ready():
 		return
 	_draw_body_labels(canvas)
+	_draw_saved_markers(canvas)
 	_draw_player_marker(canvas)
+
+
+func _can_mark() -> bool:
+	return _world_map != null and _world_map.is_ready() and not _planet_id.is_empty()
+
+
+## El radio de selección se mide en pantalla, igual que los iconos: el zoom solo cambia su sitio.
+func _marker_at(point: Vector2) -> int:
+	if not _can_mark() or not Rect2(Vector2.ZERO, _frame.size).has_point(point):
+		return 0
+	var nearest := 0
+	var distance := (MARKER_RADIUS + 4.0) * MapMarkerEditor.ui_scale_for(get_viewport())
+	for marker in markers.for_planet(_planet_id):
+		var separation := point.distance_to(_point_of_uv(marker.uv))
+		if separation <= distance:
+			distance = separation
+			nearest = marker.id
+	return nearest
+
+
+func _edit_marker_at(uv: Vector2, id: int = 0) -> void:
+	if not _can_mark() or not MapMarkers.is_valid_uv(uv):
+		return
+	_dragging = false
+	_editing_marker = id
+	_pending_marker_uv = uv
+	_marker_editor.edit(markers.get_marker(id), uv)
+	_overlay.queue_redraw()
+
+
+func cancel_marker_edit() -> bool:
+	if _marker_editor == null or not _marker_editor.visible:
+		return false
+	_marker_editor.close()
+	_editing_marker = 0
+	_pending_marker_uv = Vector2(-1.0, -1.0)
+	return true
+
+
+func _save_marker(icon: String, marker_name: String) -> void:
+	if not _can_mark() or not _marker_editor.visible:
+		return
+	if _editing_marker == 0:
+		markers.add(_planet_id, _pending_marker_uv, icon, marker_name)
+	else:
+		markers.update(_editing_marker, icon, marker_name)
+	cancel_marker_edit()
+
+
+func _delete_marker() -> void:
+	if _marker_editor.visible and _editing_marker != 0:
+		markers.remove(_editing_marker)
+	cancel_marker_edit()
+
+
+func restore_markers(data: Variant) -> void:
+	cancel_marker_edit()
+	markers.load_data(data)
+
+
+## La muerte usa el planeta vivo, sin depender del mapa abierto ni del horneado del terreno.
+func mark_last_death() -> void:
+	if not is_instance_valid(player):
+		return
+	var loader = player.get("planet")
+	var map_source: PlanetWorldMap = loader.get("world_map") if loader != null else null
+	if map_source == null:
+		return
+	var id := markers.record_death(str(loader.entity_id), map_source.get_uv(player.global_position))
+	if id != 0:
+		if _editing_marker == id:
+			cancel_marker_edit()
+		_overlay.queue_redraw()
+
+
+func _draw_saved_markers(canvas: Control) -> void:
+	var font := canvas.get_theme_default_font()
+	var hovered := _marker_at(_frame.get_local_mouse_position())
+	var ui_scale := MapMarkerEditor.ui_scale_for(get_viewport())
+	var radius := MARKER_RADIUS * ui_scale
+	var icon_size := Vector2.ONE * 42.0 * ui_scale
+	var font_size := roundi(18.0 * ui_scale)
+	for marker in markers.for_planet(_planet_id):
+		var point := _point_of_uv(marker.uv)
+		if not Rect2(Vector2.ZERO, canvas.size).grow(radius).has_point(point):
+			continue
+		var selected: bool = marker.id == _editing_marker or marker.id == hovered
+		canvas.draw_circle(point, radius, Color(0.025, 0.035, 0.045, 0.92))
+		canvas.draw_arc(point, radius, 0.0, TAU, 48,
+			Color(1.0, 0.85, 0.45) if selected else Color(0.65, 0.7, 0.75, 0.6), 2.0 * ui_scale, true)
+		canvas.draw_texture_rect(MapMarkerEditor.ICON_TEXTURES[marker.icon],
+			Rect2(point - icon_size * 0.5, icon_size), false)
+		if font != null and (selected or not marker.name.is_empty() \
+				or marker.get("kind", "") == MapMarkers.LAST_DEATH):
+			var text := MapMarkers.display_name(marker)
+			var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+			var label_pos := point + Vector2(-width * 0.5, radius + 24.0 * ui_scale)
+			canvas.draw_string_outline(font, label_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+				font_size, roundi(5.0 * ui_scale), Color(0.02, 0.03, 0.04, 0.95))
+			canvas.draw_string(font, label_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+				font_size, Color(0.95, 0.97, 1.0))
+	# El alta aún no aceptada se señala sin insertarla en los datos de la partida.
+	if _marker_editor.visible and _editing_marker == 0:
+		var point := _point_of_uv(_pending_marker_uv)
+		canvas.draw_arc(point, radius + 5.0 * ui_scale, 0.0, TAU, 48,
+			Color(1.0, 0.85, 0.45), 2.0 * ui_scale, true)
 
 
 ## Rotula los cuerpos de agua grandes; el umbral baja con el zoom para no amontonar nombres.

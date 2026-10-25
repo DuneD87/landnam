@@ -29,6 +29,7 @@ var combat: PlayerCombat
 var _canvas: Control
 var _vignette: TextureRect
 var _fade: ColorRect
+var _fade_tween: Tween
 var _death_band: TextureRect
 var _death_label: Label
 ## Bajo el cartel: con qué tecla se salta (devorado por una fiera, Devouring).
@@ -629,13 +630,32 @@ func hide_skip_hint() -> void:
 
 func fade_to_black(duration: float) -> void:
 	_fade.visible = true
-	var tween := create_tween()
-	tween.tween_property(_fade, "modulate:a", 1.0, duration)
-	await tween.finished
+	await _fade_to(1.0, duration)
 
 
 func fade_from_black(duration: float) -> void:
-	var tween := create_tween()
-	tween.tween_property(_fade, "modulate:a", 0.0, duration)
-	await tween.finished
+	if await _fade_to(0.0, duration):
+		_fade.visible = false
+
+
+func cancel_fade() -> void:
+	if _fade_tween != null:
+		_fade_tween.kill()
+		_fade_tween = null
+	_fade.modulate.a = 0.0
 	_fade.visible = false
+
+
+## Un tween cancelado no emite finished: se sondea para que el llamador también termine su espera.
+func _fade_to(alpha: float, duration: float) -> bool:
+	if _fade_tween != null:
+		_fade_tween.kill()
+	var tween := create_tween()
+	_fade_tween = tween
+	tween.tween_property(_fade, "modulate:a", alpha, duration)
+	while tween.is_valid() and tween.is_running():
+		await get_tree().process_frame
+	var completed := _fade_tween == tween
+	if completed:
+		_fade_tween = null
+	return completed

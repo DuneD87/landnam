@@ -32,6 +32,21 @@ static func nearest(tree: SceneTree, position: Vector3) -> Bedroll:
 	return best
 
 
+static func find_by_id(tree: SceneTree, id: String) -> Bedroll:
+	for node in tree.get_nodes_in_group(GROUP):
+		var bed := node as Bedroll
+		if bed != null and bed.entity_id == id and not bed.is_queued_for_deletion():
+			return bed
+	return null
+
+
+func respawn_transform() -> Transform3D:
+	var frame := global_transform.orthonormalized()
+	# Los pies por encima de la colisión del lecho, también en superficies planetarias inclinadas.
+	frame.origin += frame.basis.y * 0.25
+	return frame
+
+
 func get_save_data() -> Dictionary:
 	var t := transform
 	return {"basis": [t.basis.x.x, t.basis.x.y, t.basis.x.z, t.basis.y.x, t.basis.y.y,

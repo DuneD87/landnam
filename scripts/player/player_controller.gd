@@ -229,6 +229,39 @@ func _on_voxel_mined(item_id: StringName, amount: int) -> void:
 ## Lo que se arrastra fuera del inventario cae al suelo, delante.
 func _on_inventory_drop(data: ItemData, quantity: int) -> void:
 	DroppedItem.spawn(self, data, quantity, gravity_direction)
+
+
+## La muerte vacía mochila y equipo en un único botín persistente. Primero se resuelve el cursor:
+## lo prestado de otro contenedor vuelve allí y lo propio vuelve al inventario.
+func leave_death_loot() -> DeathLoot:
+	inventory_ui.close()
+	# Lo que siguiera en la tumba anterior se pierde, aunque esta muerte sea con las manos vacías.
+	DeathLoot.discard_previous(get_tree())
+	var content: Array[InventoryItem] = []
+	for i in inventory.max_slots:
+		var item := inventory.take_at(i)
+		if item != null:
+			content.append(item)
+	# Las mallas siguen en el cadáver durante la caída y el devorado; se retiran al reaparecer.
+	for slot: EquipmentSlot in character_window.equipment_slots.values():
+		if slot.has_item():
+			# Primero la mochila, para poder recuperarla y equiparla antes del resto del botín.
+			if slot.equipped_item.data.get_trait(InventoryExpansionTrait) != null:
+				content.push_front(slot.equipped_item)
+			else:
+				content.append(slot.equipped_item)
+			slot.clear()
+	# El destino ya existe antes de que reducir la capacidad emita inventory_changed.
+	var loot := DeathLoot.spawn(self, content)
+	character_window.inventory_capacity.sync()
+	# Los accesos siguen asignados; no se simula una selección que pudiera reequipar objetos.
+	hotbar.restore_selection(-1)
+	building_system.select_placeable(null)
+	_sync_hotbar_offhand()
+	_sync_armor()
+	_sync_build_mode()
+	inventory.inventory_changed.emit()
+	return loot
 	
 func capture_mouse(capture: bool):
 	mouse_captured = capture
@@ -613,6 +646,7 @@ func _ready():
 	_setup_gaits()
 	world_map_ui = WorldMapUI.new()
 	world_map_ui.setup(self)
+	world_map_ui.closed.connect(capture_mouse.bind(true))
 	add_child(world_map_ui)
 
 	capture_mouse(false)
@@ -746,14 +780,19 @@ func get_save_data() -> Dictionary:
 		"severed": combat.body_damage.save_data() if combat != null and combat.body_damage != null else [],
 		"status": combat.status.save_data() if combat != null and combat.status != null else [],
 		"needs": needs.save_data() if needs != null else {},
+		"respawn": combat.get_respawn_data() if combat != null else {},
+		"map_markers": world_map_ui.markers.save_data(),
 	}
 
 	
 func restore_save_data(save: Dictionary) -> void:
+	world_map_ui.restore_markers(save.get("map_markers", []))
 	if resting != null:
 		resting.close(false)
 	input_enabled = false
-	global_position = Vector3(save.position.x, save.position.y, save.position.z)
+	var canonical := Vector3(save.position.x, save.position.y, save.position.z)
+	var fo := get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin
+	global_position = fo.from_canonical(canonical) if fo != null else canonical
 	var b = save.basis
 	global_basis = Basis(
 		Vector3(b.xx, b.xy, b.xz),
@@ -811,6 +850,7 @@ func restore_save_data(save: Dictionary) -> void:
 	_sync_armor()
 	_sync_build_mode()
 	combat.on_restored()
+	combat.restore_respawn_data(save.get("respawn", {}))
 	# Después de on_restored, que deja el cuerpo entero: los miembros perdidos siguen perdidos.
 	if save.has("severed") and combat.body_damage != null:
 		combat.body_damage.load_data(save.severed)
@@ -1041,6 +1081,9 @@ func _update_cinematic(progress: float) -> void:
 
 func _on_cinematic_tween_finished() -> void:
 	_update_cinematic(1.0)
+	world_map_ui.restore_markers([])
+	# Una partida nueva tiene su propio punto inicial, aunque hubiera otra cargada antes.
+	combat.restore_respawn_data({})
 	if start_first_person:
 		camera_controller.camera_distance = camera_controller.min_distance
 		camera_controller.target_distance = camera_controller.min_distance
@@ -1059,6 +1102,8 @@ func take_fall_hit(impact_speed: float) -> void:
 
 func _on_player_died() -> void:
 	# La caída, el cartel de HAS MUERTO y la reaparición los lleva PlayerCombat (_on_died).
+	if world_map_ui != null:
+		world_map_ui.mark_last_death()
 	print("[Player] Died — impact or damage")
 
 ## En primera persona la cámara ve el cuerpo sin cabeza (CharacterAppearanceRig) y el tronco sigue
@@ -1228,6 +1273,8 @@ func _input(event):
 			capture_mouse(true)
 			return
 		if world_map_ui and world_map_ui.visible:
+			if world_map_ui.cancel_marker_edit():
+				return
 			world_map_ui.close()
 			capture_mouse(true)
 			return
@@ -1342,6 +1389,8 @@ func _input(event):
 		if looked and looked.pick_into(inventory):
 			pass
 		elif site_builder.deposit():
+			pass
+		elif survival.open_nearby_death_loot():
 			pass
 		elif corpse:
 			survival.open_corpse(corpse)
