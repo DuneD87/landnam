@@ -33,6 +33,7 @@ func _run() -> void:
 	_check_shells()
 	_check_rotations()
 	_check_interior()
+	_check_water_mask()
 	_setup_player()
 	_check_menu()
 	_check_placement()
@@ -131,6 +132,71 @@ func _check_interior() -> void:
 		var flooded := ShipInteriorAnalyzer.analyze([{"cells": ship.keys(), "cell_size": 0.25}])
 		var damaged_volume: float = flooded[0]["volume"] if not flooded.is_empty() else 0.0
 		check(damaged_volume < intact_volume, "una vía de agua por debajo de la borda abre la bodega")
+
+
+## La máscara del agua llega hasta la cara interior del casco curvo y no se mete en el mar del costado.
+## En un casco estrecho el pantoque ocupa dos o tres celdas parciales: antes solo se tapaba la primera.
+func _check_water_mask() -> void:
+	var ship := {}
+	for part in [[NavalPiece.Kind.STERN, Vector3i(6, 4, 3), 0], [NavalPiece.Kind.HULL, Vector3i(6, 4, 10), 3], [NavalPiece.Kind.BOW, Vector3i(6, 4, 12), 13]]:
+		var blocks := NavalPiece.generate(part[0], part[1])
+		for cell: Vector3i in blocks:
+			ship[cell + Vector3i(0, 0, part[2])] = blocks[cell]
+	var cells: Array = ship.keys()
+	var full: Array[bool] = []
+	var shapes: Array = []
+	for cell: Vector3i in cells:
+		var info: Dictionary = ship[cell]
+		full.append(ChunkMeshBuilder._is_solid(info["block_id"]))
+		shapes.append(info if info.has("naval_shape") else null)
+	var boxes := []
+	for comp: Dictionary in ShipInteriorAnalyzer.analyze([{"cells": cells, "full": full, "shapes": shapes, "cell_size": 1.0}]):
+		boxes.append_array(comp["boxes"])
+	# Sección por la mitad del tramo: cruces de cada fila con las caras reales del casco.
+	var z := 8.5
+	var hold := 0
+	var dry := 0
+	var sea := 0
+	var masked_sea := 0
+	for row in 30:
+		var y := 1.03 + row * 0.1
+		var crossings: Array[float] = []
+		for cell: Vector3i in ship:
+			if cell.y != floori(y) or cell.z != floori(z):
+				continue
+			var info: Dictionary = ship[cell]
+			for face: BlockBoolean.Face in BlockBoolean.from_block(info, 1.0, Vector3(cell)):
+				var polygon := PackedVector2Array()
+				for point in face.points:
+					polygon.append(Vector2(point.y, point.z))
+				if absf(face.normal.x) > 0.000001 and Geometry2D.is_point_in_polygon(Vector2(y, z), polygon):
+					crossings.append((face.distance - face.normal.y * y - face.normal.z * z) / face.normal.x)
+		crossings.sort()
+		if crossings.size() < 2:
+			continue
+		for i in 160:
+			var point := Vector3(-1.0 + i * 0.05 + 0.0013, y, z)
+			var before := 0
+			for cross in crossings:
+				if cross < point.x:
+					before += 1
+			if point.x < crossings[0] or point.x > crossings[-1]:
+				sea += 1
+				masked_sea += int(_in_mask(point, boxes))
+			elif before % 2 == 0:
+				hold += 1
+				dry += int(_in_mask(point, boxes))
+	check(hold > 0 and dry == hold, "la máscara del agua tapa la bodega hasta el casco curvo (%d de %d)" % [dry, hold])
+	check(sea > 0 and masked_sea == 0, "la máscara del agua no recorta el mar junto al costado")
+
+
+func _in_mask(point: Vector3, boxes: Array) -> bool:
+	for box: Dictionary in boxes:
+		var d: Vector3 = (point - (box["pos"] as Vector3)).abs()
+		var half: Vector3 = box["half"]
+		if d.x < half.x and d.y < half.y and d.z < half.z:
+			return true
+	return false
 
 
 func _setup_player() -> void:

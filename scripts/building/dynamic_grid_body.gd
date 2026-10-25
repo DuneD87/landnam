@@ -151,6 +151,9 @@ var _interior_dirty: bool = false
 var _interior_debounce: float = 0.0
 var _analysis_running: bool = false
 var _analysis_task_id: int = -1
+## Ocupación de las celdas navales entre análisis (ShipInteriorAnalyzer.analyze): editar un barco
+## grande solo recalcula las celdas nuevas. Solo la toca el worker, de uno en uno.
+var _shape_cache: Dictionary = {}
 
 var _boat_speed_levels: Array[float] = [0.0, 5.0, 10.0, 20.0]
 var _boat_speed_index: int = 0
@@ -360,15 +363,24 @@ func _process_interior_analysis(delta: float) -> void:
 	for grid in _grids:
 		# El analizador necesita saber qué celdas son de bloque parcial (slope, corner): su
 		# medio hueco es aire del camarote y la máscara del agua tiene que taparlo.
+		# Las celdas navales llevan además su geometría, copiada: el worker no debe leer la info viva.
 		var blocks: Dictionary = grid.get_all_blocks()
 		var cells: Array = blocks.keys()
 		var full: Array[bool] = []
+		var shapes: Array = []
 		full.resize(cells.size())
+		shapes.resize(cells.size())
 		for i in cells.size():
-			full[i] = ChunkMeshBuilder._is_solid((blocks[cells[i]] as Dictionary)["block_id"])
+			var info: Dictionary = blocks[cells[i]]
+			full[i] = ChunkMeshBuilder._is_solid(info["block_id"])
+			if not full[i] and info.has("naval_shape"):
+				shapes[i] = {"block_id": info["block_id"], "naval_shape": info["naval_shape"],
+					"rotation_basis": info.get("rotation_basis", Basis.IDENTITY),
+					"mirrored": info.get("mirrored", false), "mirror_axis": info.get("mirror_axis", -1)}
 		grids_data.append({
 			"cells": cells,
 			"full": full,
+			"shapes": shapes,
 			"cell_size": grid.cell_size,
 		})
 	_analysis_task_id = WorkerThreadPool.add_task(
@@ -377,7 +389,9 @@ func _process_interior_analysis(delta: float) -> void:
 
 ## Cuerpo de la tarea en el worker thread; el resultado se aplica en el main thread.
 func _run_interior_analysis(grids_data: Array) -> void:
-	var result := ShipInteriorAnalyzer.analyze(grids_data)
+	if _shape_cache.size() > 20000:
+		_shape_cache.clear()
+	var result := ShipInteriorAnalyzer.analyze(grids_data, _shape_cache)
 	call_deferred("_apply_interior_analysis", result)
 
 

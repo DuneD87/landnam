@@ -233,6 +233,9 @@ La simetría refleja la pieza completa y cuenta solo una vez las celdas comparti
 Las piezas ya colocadas admiten edición, daño, reparación, desmontaje y blueprints como cualquier
 construcción de bloques. Un casco de proa + tramo + popa forma una bodega continua bajo la borda;
 romper un costado abre una vía de agua para el análisis de inundación existente.
+La máscara que oculta el mar dentro de la bodega usa la geometría de cada celda curva
+(`ShipInteriorAnalyzer`, en sub-vóxeles de ¼ de celda): llega hasta la cara interior del casco aunque
+el pantoque cruce varias celdas parciales, y no tapa las que tienen mar dentro.
 
 **Completar el casco con cubos normales.** Los cubos del martillo pueden coincidir parcialmente
 con el casco naval para rellenar un suelo o continuar una cubierta. Se apunta al hueco real junto
