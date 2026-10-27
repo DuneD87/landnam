@@ -27,6 +27,13 @@ menú** (o Escape) cancela y devuelve el menú. Para ello `GameManager` tiene el
 estado `CHARACTER_CREATION`, añadido al final del enum para no alterar los
 estados de las partidas ya guardadas.
 
+En una partida cargada, el comando de consola `character` abre el mismo editor
+con una copia del personaje actual y pausa el mundo. **Aplicar cambios**
+actualiza el personaje y su modelo; **Cancelar** o Escape descarta la edición.
+No inicia la cinemática ni cambia de partida. Los cambios se conservan al
+guardar la partida normalmente. También permite editar partidas antiguas que
+todavía no tienen datos de personaje.
+
 La cinemática calcula un aterrizaje nuevo en cada partida, entre 35° y 45° norte,
 fuera de la banda desértica del planeta. `NewGameLanding` usa el mapa para descartar
 agua y consulta el SDF del terreno actual para comprobar la altura, la pendiente

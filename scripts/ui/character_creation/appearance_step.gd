@@ -39,7 +39,7 @@ func get_title() -> String:
 
 
 func can_continue() -> bool:
-	return not character.display_name.strip_edges().is_empty()
+	return editing or not character.display_name.strip_edges().is_empty()
 
 
 func blocking_reason() -> String:

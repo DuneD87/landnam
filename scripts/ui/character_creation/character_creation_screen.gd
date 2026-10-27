@@ -23,6 +23,8 @@ const VIEW_FRAMINGS := [[&"body", "CREATE_VIEW_BODY"], [&"face", "CREATE_VIEW_FA
 const VIEW_LIGHTS := [[&"studio", "CREATE_LIGHT_STUDIO"], [&"day", "CREATE_LIGHT_DAY"], [&"fire", "CREATE_LIGHT_FIRE"]]
 
 var character := CharacterData.new()
+## Reuse the creator for an existing game; the caller applies or discards its copy.
+var editing := false
 var preview: CharacterPreview
 
 var _ui_scale := 1.0
@@ -54,6 +56,7 @@ func _ready() -> void:
 		var step: CreationStep = script.new()
 		step.character = character
 		step.preview = preview
+		step.editing = editing
 		step.ui_scale = _ui_scale
 		step.visible = false
 		step.validity_changed.connect(_refresh_navigation)
@@ -102,8 +105,8 @@ func _on_next() -> void:
 func _refresh_navigation() -> void:
 	var step := _steps[_current]
 	var last := _current == _steps.size() - 1
-	_back_button.text = "CREATE_BACK_TO_MENU" if _current == 0 else "CREATE_BACK"
-	_next_button.text = "CREATE_START_GAME" if last else "CREATE_NEXT"
+	_back_button.text = ("UI_CANCEL" if editing else "CREATE_BACK_TO_MENU") if _current == 0 else "CREATE_BACK"
+	_next_button.text = ("CREATE_APPLY_CHANGES" if editing else "CREATE_START_GAME") if last else "CREATE_NEXT"
 	_next_button.disabled = not step.can_continue()
 	_reason.text = step.blocking_reason()
 
@@ -116,7 +119,7 @@ func _build_header() -> void:
 	header.offset_top = _px(44)
 	header.add_theme_constant_override("separation", roundi(_px(36)))
 	var title := Label.new()
-	title.text = "CREATE_TITLE"
+	title.text = "CREATE_EDIT_TITLE" if editing else "CREATE_TITLE"
 	title.theme_type_variation = "TitleLabel"
 	header.add_child(title)
 	_crumbs = HBoxContainer.new()

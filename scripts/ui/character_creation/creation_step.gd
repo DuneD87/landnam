@@ -10,6 +10,8 @@ signal validity_changed
 
 var character: CharacterData
 var preview: CharacterPreview
+## Editing the current character, including legacy saves without a name.
+var editing := false
 ## Size factor of the UI (1 at 1440 px of height).
 var ui_scale := 1.0
 

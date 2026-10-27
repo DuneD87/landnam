@@ -32,6 +32,7 @@ func _run() -> void:
 	_check_appearance()
 	_check_shape(body)
 	_check_hair_styles(body)
+	_check_thumbnail_requests()
 	_check_rig()
 	_check_first_person()
 	print("CHARACTER APPEARANCE TESTS: %d failures" % failures)
@@ -254,6 +255,28 @@ func _check_hair_styles(body: HumanBodyData) -> void:
 			if not ok:
 				broken.append(part)
 	check(broken.is_empty(), "all hair styles save, load textures and fit small and large heads %s" % [broken])
+
+
+func _check_thumbnail_requests() -> void:
+	var thumbnails := ChoiceThumbnails.new()
+	# Keep rendering suspended while the creator repeats or replaces requests.
+	thumbnails._busy = true
+	var appearance := CharacterAppearance.new()
+	var hair := AppearanceCatalog.find(AppearanceCatalog.HAIR_STYLE)
+	var expected := hair.choices_for(appearance.get_sex()).size()
+	thumbnails.request([hair], appearance)
+	thumbnails.request([hair], appearance)
+	check(thumbnails._queue.size() == expected, "repeated thumbnail requests preserve pending hair portraits")
+	thumbnails.request([AppearanceCatalog.find(AppearanceCatalog.EYEBROWS)], appearance)
+	thumbnails.request([hair], appearance)
+	check(thumbnails._queue.size() == expected, "returning to hair regenerates portraits cancelled by another category")
+	appearance.set_sex(&"female")
+	thumbnails.request([hair], appearance)
+	var current := thumbnails._queue.size() == hair.choices_for(&"female").size()
+	for job in thumbnails._queue:
+		current = current and job[2].get_sex() == &"female"
+	check(current, "switching sex replaces pending portraits with the new body's hair")
+	thumbnails.free()
 
 
 func _check_rig() -> void:

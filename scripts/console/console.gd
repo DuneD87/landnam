@@ -27,6 +27,10 @@ var _is_open: bool = false
 
 var _prev_mouse_mode := Input.MOUSE_MODE_CAPTURED
 var _prev_input_enabled: bool = false
+var _character_editor: CharacterCreationScreen
+var _editor_player: Node
+var _editor_input_enabled := false
+var _editor_mouse_mode := Input.MOUSE_MODE_CAPTURED
 ## Valores de la luz por bandas tal como se subieron (global uniform -> float); vacío hasta el
 ## primer `toon`, que parte de los de project.godot.
 var _toon: Dictionary = {}
@@ -80,6 +84,9 @@ func _build_ui() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_console"):
+		if is_instance_valid(_character_editor):
+			get_viewport().set_input_as_handled()
+			return
 		toggle()
 		get_viewport().set_input_as_handled()
 
@@ -257,6 +264,7 @@ func _add(cmd: ConsoleCommand) -> void:
 func _register_commands() -> void:
 	_add(ConsoleCommand.new("help", "help [command]", "CON_HELP_HELP", _cmd_help))
 	_add(ConsoleCommand.new("clear", "clear", "CON_HELP_CLEAR", _cmd_clear))
+	_add(ConsoleCommand.new("character", "character", "CON_HELP_CHARACTER", _cmd_character))
 	_add(ConsoleCommand.new("give", "give <item_id> [amount]", "CON_HELP_GIVE", _cmd_give, 1, _complete_item_ids))
 	_add(ConsoleCommand.new("items", "items [filter]", "CON_HELP_ITEMS", _cmd_items))
 	_add(ConsoleCommand.new("weather", "weather <event|reset|list>", "CON_HELP_WEATHER", _cmd_weather, 1,
@@ -381,6 +389,55 @@ func _cmd_help(args: PackedStringArray) -> String:
 func _cmd_clear(_args: PackedStringArray) -> String:
 	_output.clear()
 	return ""
+
+
+## Edits an isolated copy; the normal player save persists it after applying.
+func _cmd_character(args: PackedStringArray) -> String:
+	if not args.is_empty():
+		return _paint(COLOR_ERR, tr("CON_USAGE") % "character")
+	var player := _get_player()
+	if GameManager.current_state != GameManager.State.PLAYING or get_tree().paused \
+			or not is_instance_valid(player) or player.get("appearance_rig") == null:
+		return _paint(COLOR_ERR, tr("CON_CHARACTER_NEEDS_GAME"))
+	if _is_open:
+		_set_visible(false)
+	_editor_player = player
+	_editor_input_enabled = player.input_enabled
+	_editor_mouse_mode = Input.get_mouse_mode()
+	_character_editor = CharacterCreationScreen.new()
+	_character_editor.editing = true
+	_character_editor.process_mode = Node.PROCESS_MODE_ALWAYS
+	if GameManager.character != null:
+		_character_editor.character = CharacterData.from_dict(GameManager.character.to_dict())
+	_character_editor.finished.connect(_apply_character_edit)
+	_character_editor.cancelled.connect(_character_editor.queue_free)
+	_character_editor.tree_exiting.connect(_resume_after_character_edit)
+	player.input_enabled = false
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	get_tree().paused = true
+	get_tree().root.add_child(_character_editor)
+	return ""
+
+
+func _apply_character_edit(character: CharacterData) -> void:
+	if is_instance_valid(_editor_player) and _editor_player == _get_player():
+		GameManager.character = character
+		var rig: CharacterAppearanceRig = _editor_player.appearance_rig
+		rig.apply(character.appearance)
+		var equipment: CharacterWindow = _editor_player.get("character_window")
+		if equipment != null:
+			equipment.refresh()
+		_info(tr("CON_CHARACTER_APPLIED"))
+	_character_editor.queue_free()
+
+
+func _resume_after_character_edit() -> void:
+	if is_instance_valid(_editor_player):
+		_editor_player.input_enabled = _editor_input_enabled
+	_editor_player = null
+	_character_editor = null
+	Input.set_mouse_mode(_editor_mouse_mode)
+	get_tree().paused = false
 
 
 func _cmd_give(args: PackedStringArray) -> String:

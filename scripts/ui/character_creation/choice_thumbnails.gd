@@ -29,11 +29,13 @@ var _camera: Camera3D
 var _model: Node3D
 var _rig: CharacterAppearanceRig
 var _head_aim: PreviewHeadAim
-## [option_id, choice_id, CharacterAppearance] por retratar.
+## [option_id, choice_id, CharacterAppearance, firma] por retratar.
 var _queue: Array = []
 var _busy := false
-## Lo que se vio la última vez en cada opción (ver _signature()).
+## Firma del último conjunto completo de retratos de cada opción.
 var _signatures := {}
+## Opciones y firmas de la petición actual, aunque aún se estén retratando.
+var _requested := {}
 
 
 static func supports(option: AppearanceOption) -> bool:
@@ -67,24 +69,32 @@ func _ready() -> void:
 
 
 ## Retrata de nuevo las opciones de [options] (las que lo admiten) cuyo aspecto haya cambiado en
-## [base]. Lo que quedaba pendiente se descarta.
+## [base]. Una petición idéntica conserva la cola; otra descarta lo pendiente.
 func request(options: Array, base: CharacterAppearance) -> void:
-	_queue.clear()
 	var sex := base.get_sex()
+	var wanted := {}
 	for option: AppearanceOption in options:
 		if not supports(option) or not option.is_available(sex):
 			continue
-		var signature := _signature(option, base)
+		wanted[option.id] = _signature(option, base)
+	if wanted == _requested:
+		return
+	_requested = wanted
+	_queue.clear()
+	for option: AppearanceOption in options:
+		if not wanted.has(option.id):
+			continue
+		var signature: String = wanted[option.id]
 		if _signatures.get(option.id) == signature:
 			continue
-		_signatures[option.id] = signature
+		_signatures.erase(option.id)
 		for choice in option.choices_for(sex):
 			var look := CharacterAppearance.from_dict(base.to_dict())
 			if option.kind == AppearanceOption.Kind.PRESET:
 				look.apply_preset(option, choice.id)
 			else:
 				look.set_value(option.id, choice.id)
-			_queue.append([option.id, choice.id, look])
+			_queue.append([option.id, choice.id, look, signature])
 	if not _busy and not _queue.is_empty():
 		_pump()
 
@@ -92,6 +102,7 @@ func request(options: Array, base: CharacterAppearance) -> void:
 ## Olvida lo retratado: lo próximo que se pida se retrata aunque no haya cambiado.
 func forget() -> void:
 	_signatures.clear()
+	_requested.clear()
 
 
 ## Todo lo que se ve en la opción menos lo que ella misma elige (y, en los rostros, los rasgos
@@ -122,7 +133,11 @@ func _pump() -> void:
 		await RenderingServer.frame_post_draw
 		if not is_inside_tree():
 			return
+		if _requested.get(job[0]) != job[3]:
+			continue
 		var image := _viewport.get_texture().get_image()
+		if _queue.is_empty() or _queue[0][0] != job[0]:
+			_signatures[job[0]] = job[3]
 		thumbnail_ready.emit(job[0], job[1], ImageTexture.create_from_image(image))
 	_busy = false
 
