@@ -210,10 +210,12 @@ func proxy_mesh(proxy: HumanProxyData, reuse: ArrayMesh = null) -> ArrayMesh:
 
 
 ## Proxy vertices (output order) with the eyelids shut (blink_mix()), or
-## nothing when the blink does not reach the proxy. Eyeballs never follow it.
+## nothing when the blink does not reach the proxy. Eyeballs never follow it,
+## nor hair and beards: a lock over the face may be anchored by the eyelids.
 func proxy_blink(proxy: HumanProxyData) -> PackedVector3Array:
 	var m: int = _anchor_morphs.get(blink_morph(), -1)
-	if m < 0 or not proxy.lid_rings.is_empty() or not _reaches(proxy, m):
+	if m < 0 or not proxy.lid_rings.is_empty() or proxy.kind in [HumanProxyData.Kind.HAIR, HumanProxyData.Kind.BEARD] \
+			or not _reaches(proxy, m):
 		return PackedVector3Array()
 	var open := anchors
 	anchors = anchors.duplicate()

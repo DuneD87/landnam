@@ -32,47 +32,54 @@ const SEXES := {
 
 const _MALE: Array[StringName] = [&"male"]
 const _FEMALE: Array[StringName] = [&"female"]
+const _BOTH: Array[StringName] = [&"male", &"female"]
 
 ## `part` is the baked hair; empty is none. `scalp` paints a buzz cut on the
-## scalp (0 none, 1 full).
+## scalp (0 none, 1 full); without it, a haircut paints
+## CharacterAppearanceRig.UNDER_HAIR_SCALP (a bald crown sets 0). The parts are the Hair Tool styles of
+## tools/character/hair_tool_styles.json (hair_ht_<style>).
 const HAIR_STYLES := {
-	&"textured": {label = "APP_HAIR_TEXTURED", part = &"hair_short01", sexes = _MALE},
-	&"fringe": {label = "APP_HAIR_FRINGE", part = &"hair_short03", sexes = _MALE},
-	&"classic": {label = "APP_HAIR_CLASSIC", part = &"hair_culturalibre_hair_02", sexes = _MALE},
-	&"pompadour": {label = "APP_HAIR_POMPADOUR", part = &"hair_elvs_maxwell_hair", sexes = _MALE},
-	&"slicked": {label = "APP_HAIR_SLICKED", part = &"hair_culturalibre_hair_14", sexes = _MALE},
-	&"side_part": {label = "APP_HAIR_SIDE_PART", part = &"hair_elvs_short_side_do", sexes = _MALE},
-	&"wavy_m": {label = "APP_HAIR_WAVY_M", part = &"hair_elvs_grump_hair", sexes = _MALE},
-	&"half_up": {label = "APP_HAIR_HALF_UP", part = &"hair_faydaen_hair_1", sexes = _MALE},
-	&"topknot": {label = "APP_HAIR_TOPKNOT", part = &"hair_rehmanpolanski_hair_bun_brown", sexes = _MALE},
-	&"long_m": {label = "APP_HAIR_LONG_M", part = &"hair_punkduck_alpha7_long", sexes = _MALE},
-	&"long_straight": {label = "APP_HAIR_LONG_STRAIGHT", part = &"hair_long01", sexes = _FEMALE},
-	&"side_swept": {label = "APP_HAIR_SIDE_SWEPT", part = &"hair_elvs_adrienne_hair", sexes = _FEMALE},
-	&"wavy_f": {label = "APP_HAIR_WAVY_F", part = &"hair_elvs_that_80s_babe_hair", sexes = _FEMALE},
-	&"layered": {label = "APP_HAIR_LAYERED", part = &"hair_elvs_katherine_hair", sexes = _FEMALE},
-	&"curly": {label = "APP_HAIR_CURLY", part = &"hair_punkduck_alpha7_curly", sexes = _FEMALE},
-	&"braid": {label = "APP_HAIR_BRAID", part = &"hair_braid01", sexes = _FEMALE},
-	&"french_braid": {label = "APP_HAIR_FRENCH_BRAID", part = &"hair_elvs_unkempt_french_braid", sexes = _FEMALE},
-	&"two_braids": {label = "APP_HAIR_TWO_BRAIDS", part = &"hair_elvs_double_mh_braid", sexes = _FEMALE},
-	&"ponytail": {label = "APP_HAIR_PONYTAIL", part = &"hair_elvs_keylth_hair", sexes = _FEMALE},
-	&"updo": {label = "APP_HAIR_UPDO", part = &"hair_elvs_50s_updo", sexes = _FEMALE},
-	&"bob": {label = "APP_HAIR_BOB", part = &"hair_toigo_blunt_bob_with_bangs", sexes = _FEMALE},
-	&"wavy_bob": {label = "APP_HAIR_WAVY_BOB", part = &"hair_elvs_wavy_bob", sexes = _FEMALE},
-	&"cornrows": {label = "APP_HAIR_CORNROWS", part = &"hair_elvs_braided_rows", sexes = _FEMALE},
-	&"afro_puffs": {label = "APP_HAIR_AFRO_PUFFS", part = &"hair_elvs_micky_afro", sexes = _FEMALE},
-	&"braided_bun": {label = "APP_HAIR_BRAIDED_BUN", part = &"hair_grinsegold_wig_bun_blonde_braids", sexes = _FEMALE},
+	&"crew_cut": {label = "APP_HAIR_CREW_CUT", part = &"hair_ht_crew_cut", sexes = _MALE, scalp = 1.0},
+	&"very_short": {label = "APP_HAIR_VERY_SHORT", part = &"hair_ht_very_short", sexes = _MALE, scalp = 1.0},
+	&"regular": {label = "APP_HAIR_REGULAR", part = &"hair_ht_regular", sexes = _MALE},
+	&"side_part": {label = "APP_HAIR_SIDE_PART", part = &"hair_ht_parting", sexes = _MALE},
+	&"quiff": {label = "APP_HAIR_QUIFF", part = &"hair_ht_quiff", sexes = _MALE},
+	&"spiky": {label = "APP_HAIR_SPIKY", part = &"hair_ht_spiky", sexes = _MALE},
+	&"bowl": {label = "APP_HAIR_BOWL", part = &"hair_ht_bowl", sexes = _MALE},
+	&"tonsure": {label = "APP_HAIR_TONSURE", part = &"hair_ht_monk", sexes = _MALE, scalp = 0.0},
+	&"balding": {label = "APP_HAIR_BALDING", part = &"hair_ht_balding", sexes = _MALE, scalp = 0.0},
+	&"tousled": {label = "APP_HAIR_TOUSLED", part = &"hair_ht_split_center", sexes = _MALE},
+	&"side_swept": {label = "APP_HAIR_SIDE_SWEPT", part = &"hair_ht_side_flat", sexes = _BOTH},
+	&"curtains": {label = "APP_HAIR_CURTAINS", part = &"hair_ht_curtained", sexes = _BOTH},
+	&"afro": {label = "APP_HAIR_AFRO", part = &"hair_ht_afro", sexes = _BOTH},
+	&"cornrows": {label = "APP_HAIR_CORNROWS", part = &"hair_ht_cornrows", sexes = _BOTH, scalp = 1.0},
+	&"topknot": {label = "APP_HAIR_TOPKNOT", part = &"hair_ht_top_knot", sexes = _BOTH},
+	&"long_parted": {label = "APP_HAIR_LONG_PARTED", part = &"hair_ht_long_slick", sexes = _BOTH},
+	&"long_straight": {label = "APP_HAIR_LONG_STRAIGHT", part = &"hair_ht_long_straight", sexes = _BOTH},
+	&"curly": {label = "APP_HAIR_CURLY", part = &"hair_ht_curly", sexes = _BOTH, scalp = 1.0},
+	&"ponytail": {label = "APP_HAIR_PONYTAIL", part = &"hair_ht_ponytail", sexes = _BOTH},
+	&"braid": {label = "APP_HAIR_BRAID", part = &"hair_ht_braid_back", sexes = _BOTH},
+	&"bob": {label = "APP_HAIR_BOB", part = &"hair_ht_bob", sexes = _FEMALE},
+	&"braided_bun": {label = "APP_HAIR_BRAIDED_BUN", part = &"hair_ht_braided_bun", sexes = _FEMALE},
+	&"two_braids": {label = "APP_HAIR_TWO_BRAIDS", part = &"hair_ht_double_braids", sexes = _FEMALE},
+	&"long_layered": {label = "APP_HAIR_LONG_LAYERED", part = &"hair_ht_long_back", sexes = _FEMALE},
+	&"french_twist": {label = "APP_HAIR_FRENCH_TWIST", part = &"hair_ht_french_twist", sexes = _FEMALE},
+	&"side_ponytail": {label = "APP_HAIR_SIDE_PONYTAIL", part = &"hair_ht_ponytail_side", sexes = _FEMALE},
+	&"pigtails": {label = "APP_HAIR_PIGTAILS", part = &"hair_ht_pigtails_back", sexes = _FEMALE},
+	&"bun_fringe": {label = "APP_HAIR_BUN_FRINGE", part = &"hair_ht_simple_bun", sexes = _FEMALE},
+	&"wavy": {label = "APP_HAIR_WAVY", part = &"hair_ht_wavy", sexes = _FEMALE},
+	&"round_bun": {label = "APP_HAIR_ROUND_BUN", part = &"hair_ht_donut_bun", sexes = _FEMALE},
 	&"buzz": {label = "APP_HAIR_BUZZ", part = &"", scalp = 1.0},
 	&"bald": {label = "APP_HAIR_BALD", part = &""},
 }
 
 const BEARDS := {
 	&"none": {label = "APP_BEARD_NONE", part = &""},
-	&"full": {label = "APP_BEARD_FULL", part = &"beard_grinsegold_full_beard"},
-	&"long": {label = "APP_BEARD_LONG", part = &"beard_elvs_scruffy_beard1"},
-	&"viking": {label = "APP_BEARD_VIKING", part = &"beard_rehmanpolanski_beard_viking"},
-	&"goatee": {label = "APP_BEARD_GOATEE", part = &"beard_culturalibre_faun_beard"},
-	&"moustache": {label = "APP_BEARD_MOUSTACHE", part = &"beard_grinsegold_moustache"},
-	&"long_moustache": {label = "APP_BEARD_LONG_MOUSTACHE", part = &"beard_rehmanpolanski_moustache_viking"},
+	&"short": {label = "APP_BEARD_SHORT", part = &"beard_ht_short"},
+	&"goatee": {label = "APP_BEARD_GOATEE", part = &"beard_ht_goatee"},
+	&"long": {label = "APP_BEARD_LONG", part = &"beard_ht_long_thin"},
+	&"viking": {label = "APP_BEARD_VIKING", part = &"beard_ht_long_soft"},
+	&"sideburns": {label = "APP_BEARD_SIDEBURNS", part = &"beard_ht_side_whiskers"},
 }
 
 const EYEBROW_STYLES := {
@@ -356,7 +363,7 @@ static func _build() -> void:
 		_shader_slider(&"lip_tint", "APP_LIP_TINT", Vector2(0.0, 1.0), 0.0, 1.0, 0.0),
 	])
 	_category(&"hair", "APP_CAT_HAIR", &"head", [
-		_choice(HAIR_STYLE, "APP_HAIR_STYLE", &"textured", HAIR_STYLES, {&"female": &"long_straight"}),
+		_choice(HAIR_STYLE, "APP_HAIR_STYLE", &"regular", HAIR_STYLES, {&"female": &"long_straight"}),
 		_color(&"hair_color", "APP_HAIR_COLOR", HAIR_COLORS, "2a1c13", &"hair"),
 		_shader_slider(&"gray", "APP_GRAY", Vector2(0.0, 1.0), 0.0, 1.0, 0.0, &"hair"),
 		_for_sexes(_choice(BEARD, "APP_BEARD", &"none", BEARDS), _MALE),

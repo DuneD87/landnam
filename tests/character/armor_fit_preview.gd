@@ -23,16 +23,16 @@ const SCAN_MESH := "res://models/player/xavivar/firstage_human_male_player_mesh.
 const SCAN_SKIN := "res://models/player/xavivar/firstage_human_male_player_skin.tres"
 const SPACING := 0.9
 ## Option values for each body in the row, with hair that meets the hoods:
-## long, a fringe, a quiff, a bun, afro puffs.
+## long, side swept, a quiff, a topknot, an afro, a bowl cut.
 const BODIES := [
-	{&"sex": &"male", &"hair_style": &"long_m"},
-	{&"sex": &"female", &"hair_style": &"layered"},
-	{&"sex": &"male", &"body_weight": 1.0, &"abdomen": 0.8, &"hair_style": &"pompadour", &"beard": &"full"},
+	{&"sex": &"male", &"hair_style": &"long_parted"},
+	{&"sex": &"female", &"hair_style": &"side_swept"},
+	{&"sex": &"male", &"body_weight": 1.0, &"abdomen": 0.8, &"hair_style": &"quiff", &"beard": &"viking"},
 	{&"sex": &"male", &"muscle": 1.0, &"shoulder_width": 0.0, &"chest_depth": 1.0, &"lats": 1.0,
 			&"hair_style": &"topknot"},
 	{&"sex": &"female", &"height": 0.35, &"body_weight": -0.8, &"breast_size": 1.0, &"hips": 0.8,
-			&"hair_style": &"afro_puffs"},
-	{&"sex": &"male", &"height": -0.6, &"body_weight": -0.8, &"muscle": -0.6, &"hair_style": &"fringe"},
+			&"hair_style": &"afro"},
+	{&"sex": &"male", &"height": -0.6, &"body_weight": -0.8, &"muscle": -0.6, &"hair_style": &"bowl"},
 ]
 
 var _camera: Camera3D

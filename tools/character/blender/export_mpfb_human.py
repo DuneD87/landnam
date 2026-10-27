@@ -269,23 +269,14 @@ for _i in range(1, 13):
     PROXIES["eyebrows_%03d" % _i] = ("eyebrows", "eyebrow%03d" % _i)
 for _i in range(1, 3):
     PROXIES["eyelashes_%02d" % _i] = ("eyelashes", "eyelashes%02d" % _i)
-HAIRS = [
-    # Male cuts.
-    "short01", "short03", "culturalibre_hair_02", "elvs_maxwell_hair", "culturalibre_hair_14",
-    "elvs_short_side_do", "elvs_grump_hair", "faydaen_hair_1", "rehmanpolanski_hair_bun_brown",
-    "punkduck_alpha7_long",
-    # Female cuts.
-    "long01", "elvs_adrienne_hair", "elvs_that_80s_babe_hair", "elvs_katherine_hair", "punkduck_alpha7_curly",
-    "braid01", "elvs_unkempt_french_braid", "elvs_double_mh_braid", "elvs_keylth_hair", "elvs_50s_updo",
-    "toigo_blunt_bob_with_bangs", "elvs_wavy_bob", "elvs_braided_rows", "elvs_micky_afro",
-    "grinsegold_wig_bun_blonde_braids",
-]
-for _name in HAIRS:
-    PROXIES["hair_" + _name] = ("hair", _name)
-BEARDS = ["grinsegold_full_beard", "elvs_scruffy_beard1", "rehmanpolanski_beard_viking", "culturalibre_faun_beard",
-          "grinsegold_moustache", "rehmanpolanski_moustache_viking"]
-for _name in BEARDS:
-    PROXIES["beard_" + _name] = ("clothes", _name)
+## Hair styles and beards: the Hair Tool library styles, made into MakeHuman
+## assets (ht_<name>) by tools/character/blender/hair_tool_build.py.
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "hair_tool_styles.json")) as _f:
+    _HAIR_TOOL = json.load(_f)
+for _name in _HAIR_TOOL["styles"]:
+    PROXIES["hair_ht_" + _name] = ("hair", "ht_" + _name)
+for _name in _HAIR_TOOL["beards"]:
+    PROXIES["beard_ht_" + _name.removeprefix("beard_")] = ("clothes", "ht_" + _name)
 ## Parts that are MakeHuman helper geometry (hidden in MPFB) rather than
 ## assets: part name -> vertex group. They ride on the body like proxies whose
 ## every vertex is its own anchor, and MakeHuman's targets shape them.

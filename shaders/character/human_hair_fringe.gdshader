@@ -1,9 +1,11 @@
 shader_type spatial;
-render_mode cull_disabled, depth_draw_never, blend_mix;
+render_mode cull_disabled, depth_draw_always, blend_mix;
 
 // Hair, second pass: blends the thin fringe of the cards (alpha under the
 // first pass's cut) over what is behind, hidden by the solid core in front of
-// it. Only faint texels are sorted by draw order, which barely shows.
+// it. Only faint texels are sorted by draw order, which barely shows. It
+// writes depth: the atmosphere (PlanetAtmosphere, after the transparents)
+// hazes each pixel by its depth, and without it the fringe took the sky's.
 
 #include "res://shaders/character/human_hair_common.gdshaderinc"
 

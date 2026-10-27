@@ -1,0 +1,43 @@
+{
+ "_doc": "Hair styles and beards made from the Hair Tool library (docs/hair_tool.md). preset and extra are relative to the library; extra presets are groomed on the same head and join the first one. sexes: who the catalog offers it to. budget: triangles per style (hair, beard), kept by halving cards and then dropping some; keep: fraction of cards kept by hand; unsubdivide: 0 for styles whose cards are too short to halve.",
+ "budget": {"hair": 26000, "beard": 20000},
+ "styles": {
+  "crew_cut": {"preset": "ShortHair", "sexes": ["male"]},
+  "very_short": {"preset": "SubComponents/VeryShortHair", "sexes": ["male"]},
+  "regular": {"preset": "RegularHaircut", "sexes": ["male"]},
+  "parting": {"preset": "MaleWithParting", "sexes": ["male"]},
+  "quiff": {"preset": "QuiffHair", "sexes": ["male"]},
+  "spiky": {"preset": "Pointy", "sexes": ["male"]},
+  "side_flat": {"preset": "SideFlat", "sexes": ["male", "female"]},
+  "curtained": {"preset": "CurtainedHair", "sexes": ["male", "female"]},
+  "bowl": {"preset": "BowlCut", "sexes": ["male"]},
+  "monk": {"preset": "Monk", "sexes": ["male"]},
+  "balding": {"preset": "Beards/Balding", "sexes": ["male"]},
+  "afro": {"preset": "Afro", "sexes": ["male", "female"], "unsubdivide": 0},
+  "cornrows": {"preset": "BraidsCornrows_Cards", "sexes": ["male", "female"]},
+  "top_knot": {"preset": "UpwardBun", "sexes": ["male", "female"]},
+  "long_slick": {"preset": "LongSlick", "sexes": ["male", "female"]},
+  "long_straight": {"preset": "LongWithMeshTrack", "sexes": ["male", "female"]},
+  "split_center": {"preset": "SplitCenter", "sexes": ["male"]},
+  "curly": {"preset": "Curly", "sexes": ["male", "female"]},
+  "ponytail": {"preset": "SubComponents/BackTailBase", "extra": ["SubComponents/SingleCurveTail"], "sexes": ["male", "female"]},
+  "bob": {"preset": "BobHair", "sexes": ["female"]},
+  "braided_bun": {"preset": "BraidedBun", "sexes": ["female"]},
+  "double_braids": {"preset": "Braids_Double", "sexes": ["female"]},
+  "long_back": {"preset": "FemaleLongBack", "sexes": ["female"]},
+  "french_twist": {"preset": "FrenchTwist", "sexes": ["female"]},
+  "ponytail_side": {"preset": "PonytailSide", "sexes": ["female"]},
+  "pigtails_back": {"preset": "PonytailsBack", "sexes": ["female"]},
+  "simple_bun": {"preset": "SimpleBun", "sexes": ["female"]},
+  "wavy": {"preset": "Weavy", "sexes": ["female"]},
+  "braid_back": {"preset": "SubComponents/BackTailBase", "extra": ["SubComponents/BraidSingleCurve"], "sexes": ["male", "female"]},
+  "donut_bun": {"preset": "SubComponents/BackTailBase", "extra": ["SubComponents/DonutBun"], "sexes": ["female"]}
+ },
+ "beards": {
+  "beard_short": {"preset": "Beards/BeardShort"},
+  "beard_long_soft": {"preset": "Beards/BeardLongSoft"},
+  "beard_long_thin": {"preset": "Beards/BeardLongThin"},
+  "beard_goatee": {"preset": "Beards/Beard_goatee"},
+  "beard_side_whiskers": {"preset": "Beards/SideWhiskers"}
+ }
+}

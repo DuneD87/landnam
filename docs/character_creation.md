@@ -118,10 +118,13 @@ Las texturas copiadas están en `textures/character/human/`. Sobre esa base:
   sobre sí mismo.
 - **Pelo:** `human_hair.gdshader` dibuja el núcleo opaco de las tarjetas con
   alpha to coverage y su `next_pass`, `human_hair_fringe.gdshader`, mezcla el
-  borde fino, así que el pelo largo no tiene franjas de ordenación. Al hornear,
-  las texturas de pelo pierden la luz pintada (manchas) y se quedan con los
+  borde fino, así que el pelo largo no tiene franjas de ordenación. El borde
+  escribe profundidad: la atmósfera, que va después, lo trataría como cielo.
+  Al hornear, las texturas de pelo pierden la luz pintada (manchas) y se quedan con los
   mechones en gris; el color sale del ajuste y es el mismo en todos los
-  peinados. Hay peinados propios de cada sexo; rapado y calvo, para ambos.
+  peinados. Los peinados y las barbas son los de la biblioteca de Hair Tool,
+  convertidos en assets de MakeHuman (`docs/hair_tool.md`): 20 peinados para
+  cada sexo (diez compartidos) y cinco barbas; rapado y calvo, para ambos.
   Bajo cualquier peinado la piel pinta raíces en el cuero cabelludo
   (`scalp_hair`, `scalp_spread`), así que la línea del pelo no queda desnuda.
 
@@ -133,10 +136,12 @@ luces de estudio y tonemapping lineal para que la piel se vea con su color.
 ## Regenerar
 
 Necesita Blender 4.5 con MPFB y los packs de MakeHuman instalados en MPFB: el
-de sistema, `hair01`, `hair02`, `hair03`, `bodyparts05`, `bodyparts06`,
-`skins01` y `skins02` (de files.makehumancommunity.org).
+de sistema, `skins01` y `skins02` (de files.makehumancommunity.org); y los
+peinados de Hair Tool ya convertidos en MPFB (paso 0, `docs/hair_tool.md`).
 
 ```sh
+# 0. Peinados y barbas de Hair Tool -> assets ht_* de MPFB (~35 min, una vez)
+python3 tools/character/blender/hair_tool_build.py
 # 1. Esqueleto y malla (con sus pesos) del jugador -> JSON
 godot --headless --path . --script res://tools/character/dump_skeleton.gd -- $PWD/build/character/mpfb/skeleton.json
 # 2. Humano de MPFB -> build/character/mpfb/human.{json,bin} (~1 min)
@@ -169,10 +174,13 @@ ventana).
   `MACRO_MORPHS`) del exportador con los targets de cada lado, volver a
   ejecutar el proceso y añadir una opción `_morph` con ese id.
 - **Un rostro**: una entrada en `FACE_PRESETS` con los sliders que cambia.
-- **Un peinado, una barba o unas cejas**: el asset en `HAIRS`, `BEARDS` o
-  `PROXIES` del exportador y una entrada en `HAIR_STYLES` (con sus `sexes`),
-  `BEARDS` o `EYEBROW_STYLES` del catálogo. Si el asset es CC-BY, hay que
-  añadirlo a los créditos.
+- **Un peinado o una barba**: el preset en `tools/character/hair_tool_styles.json`
+  (`docs/hair_tool.md`), el paso 0 con `--only` y el resto del proceso, y una
+  entrada en `HAIR_STYLES` (con sus `sexes`) o `BEARDS` del catálogo, con su
+  nombre en `localization/translations.csv`.
+- **Unas cejas**: el asset en `PROXIES` del exportador y una entrada en
+  `EYEBROW_STYLES` del catálogo. Si el asset es CC-BY, hay que añadirlo a los
+  créditos.
 - **Una categoría**: una llamada más a `_category()`, con su encuadre de cámara
   (`body`, `head` o `face`).
 - **Una pantalla nueva** (habilidades, atributos...): una subclase de

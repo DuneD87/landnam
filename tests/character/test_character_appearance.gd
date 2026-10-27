@@ -6,8 +6,10 @@ extends SceneTree
 
 const BODY := "res://data/character/human/body.res"
 const PROXIES := "res://data/character/human/proxies/%s.res"
-## Styles every sex is offered; the rest are cut for one sex.
+## Styles without `sexes` (every sex is offered them); the rest name theirs.
 const SHARED_STYLES: Array[StringName] = [&"buzz", &"bald"]
+## Least choices per sex.
+const STYLES_PER_SEX := 20
 
 var failures := 0
 
@@ -29,6 +31,7 @@ func _run() -> void:
 	_check_catalog(body)
 	_check_appearance()
 	_check_shape(body)
+	_check_hair_styles(body)
 	_check_rig()
 	_check_first_person()
 	print("CHARACTER APPEARANCE TESTS: %d failures" % failures)
@@ -69,6 +72,11 @@ func _check_catalog(body: HumanBodyData) -> void:
 		if not load(PROXIES % part) is HumanProxyData:
 			broken.append(part)
 	check(broken.is_empty(), "every proxy the catalog names is baked %s" % [broken])
+	var unused_hair := []
+	for file in DirAccess.get_files_at("res://data/character/human/proxies"):
+		if file.begins_with("hair_") and file.ends_with(".res") and not StringName(file.get_basename()) in parts:
+			unused_hair.append(file)
+	check(unused_hair.is_empty(), "every baked hair style is offered in the creator %s" % [unused_hair])
 
 	var skins_ok := true
 	for id in AppearanceCatalog.SKINS:
@@ -77,12 +85,17 @@ func _check_catalog(body: HumanBodyData) -> void:
 		skins_ok = skins_ok and skin.get("sex") in AppearanceCatalog.SKINS[id].sexes
 	check(skins_ok, "every skin the catalog offers is baked for its sex")
 
-	var shared := []
+	var unoffered := []
+	var cuts := {}
 	for id in AppearanceCatalog.HAIR_STYLES:
 		var sexes: Array = AppearanceCatalog.HAIR_STYLES[id].get("sexes", [])
-		if sexes.size() != 1 and not id in SHARED_STYLES:
-			shared.append(id)
-	check(shared.is_empty(), "hair styles are cut for one sex, besides buzz and bald %s" % [shared])
+		if sexes.is_empty() and not id in SHARED_STYLES:
+			unoffered.append(id)
+		for sex in sexes:
+			cuts[sex] = cuts.get(sex, 0) + 1
+	check(unoffered.is_empty(), "every cut names its sexes, besides buzz and bald %s" % [unoffered])
+	check(cuts.get(&"male", 0) >= STYLES_PER_SEX and cuts.get(&"female", 0) >= STYLES_PER_SEX,
+		"each sex has at least %d cuts %s" % [STYLES_PER_SEX, cuts])
 
 	var scope := AppearanceCatalog.preset_scope(AppearanceCatalog.FACE_PRESET)
 	var stray := []
@@ -153,7 +166,7 @@ func _check_appearance() -> void:
 	check(appearance.get_sex() == &"female" and is_equal_approx(appearance.get_value(&"nose_size"), female_face[&"nose_size"]),
 			"reset keeps the sex and returns to the default face")
 	var legacy := CharacterAppearance.from_dict({"nose_size": 9.0, "unknown_trait": 1.0, "hair_style": "mohawk"})
-	check(is_equal_approx(legacy.get_value(&"nose_size"), 1.0) and legacy.get_value(AppearanceCatalog.HAIR_STYLE) == &"textured",
+	check(is_equal_approx(legacy.get_value(&"nose_size"), 1.0) and legacy.get_value(AppearanceCatalog.HAIR_STYLE) == &"regular",
 			"loading clamps sliders and falls back from unknown choices")
 
 
@@ -164,7 +177,7 @@ func _check_shape(body: HumanBodyData) -> void:
 	check(live.get_blend_shape_count() == body.names.size(), "the live body has one blend shape per morph")
 	check(live.surface_get_array_len(0) == morphable.surface_get_array_len(0), "the live body keeps the base vertices")
 
-	var hair: HumanProxyData = load(PROXIES % "hair_long01")
+	var hair: HumanProxyData = load(PROXIES % "hair_ht_long_straight")
 	shape.set_weights({}, &"female")
 	var rest_hair := shape.proxy_positions(hair)
 	shape.set_weights({&"sex_female": 1.0, &"muscle@female": 1.0, &"head_size": 1.0}, &"female")
@@ -192,6 +205,55 @@ func _check_shape(body: HumanBodyData) -> void:
 	check(hair_ok and grown > fitted.size() / 2, "the hair refits to a bigger head (%d of %d moved)" % [grown, fitted.size()])
 	var joints := shape.joint_positions()
 	check(joints.size() == body.bone_names.size(), "the joints follow the morphs")
+
+
+## Every hair needs valid textures and anchors after a fresh export, and must
+## survive a save and refit to both ends of its offered body's head-size slider.
+func _check_hair_styles(body: HumanBodyData) -> void:
+	var shape := HumanShape.new(body)
+	var option := AppearanceCatalog.find(AppearanceCatalog.HAIR_STYLE)
+	var broken := []
+	var untranslated := []
+	for locale in ["en", "es"]:
+		var translation: Translation = load("res://localization/translations.%s.translation" % locale)
+		if translation == null:
+			untranslated.append(locale)
+			continue
+		for entry in AppearanceCatalog.HAIR_STYLES.values():
+			if translation.get_message(entry.label).is_empty():
+				untranslated.append("%s/%s" % [locale, entry.label])
+	check(untranslated.is_empty(), "every hair style has an English and Spanish name %s" % [untranslated])
+	for sex in AppearanceCatalog.SEXES:
+		for choice in option.choices_for(sex):
+			var appearance := CharacterAppearance.new()
+			appearance.set_sex(sex)
+			appearance.set_value(AppearanceCatalog.HAIR_STYLE, choice.id)
+			var restored := CharacterAppearance.from_dict(appearance.to_dict())
+			var ok: bool = restored.get_value(AppearanceCatalog.HAIR_STYLE) == choice.id
+			var part: StringName = AppearanceCatalog.HAIR_STYLES[choice.id].part
+			if part == &"":
+				if not ok:
+					broken.append(choice.id)
+				continue
+			var hair: HumanProxyData = load(PROXIES % part)
+			if hair == null:
+				broken.append(part)
+				continue
+			ok = ok and hair.kind == HumanProxyData.Kind.HAIR and hair.textures.has("albedo")
+			for texture in hair.textures.values():
+				ok = ok and ResourceLoader.exists(texture)
+			for head_morph in [&"head_size", &"head_size-"]:
+				var weights := {head_morph: 1.0}
+				if sex == &"female":
+					weights[&"sex_female"] = 1.0
+				shape.set_weights(weights, sex)
+				var points := shape.proxy_positions(hair)
+				ok = ok and points.size() == hair.mesh.surface_get_array_len(0) and not points.is_empty()
+				for point in points:
+					ok = ok and point.is_finite()
+			if not ok:
+				broken.append(part)
+	check(broken.is_empty(), "all hair styles save, load textures and fit small and large heads %s" % [broken])
 
 
 func _check_rig() -> void:

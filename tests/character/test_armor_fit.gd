@@ -191,7 +191,7 @@ func _check_dress(rig: CharacterAppearanceRig, skeleton: Skeleton3D) -> void:
 func _check_hair(rig: CharacterAppearanceRig, skeleton: Skeleton3D) -> void:
 	var hair: MeshInstance3D = rig._slots[&"hair"].instance
 	for hood_path in HOODS:
-		for style in [&"afro_puffs", &"layered", &"long_straight"]:
+		for style in [&"afro", &"curly", &"long_straight", &"two_braids", &"bun_fringe"]:
 			rig.apply(_body({&"sex": &"female", &"hair_style": style}))
 			var loose: ArrayMesh = rig._slots[&"hair"].mesh
 			var hood: MeshInstance3D = load(hood_path).instantiate()

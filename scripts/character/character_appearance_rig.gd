@@ -42,7 +42,8 @@ const MATERIALS := {
 }
 const SKIN_MATERIAL := "res://data/character/materials/human_skin.tres"
 const EYELASH_COLOR := Color("1c1612")
-## Buzz cut density painted on the scalp under any haircut.
+## Buzz cut density painted on the scalp under any haircut (more paints a
+## hard line on the forehead). A style with `scalp` in the catalog sets its own.
 const UNDER_HAIR_SCALP := 0.6
 ## Slots tucked under hoods and helmets.
 const HAIR_SLOTS: Array[StringName] = [&"hair", &"beard"]
