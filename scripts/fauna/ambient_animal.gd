@@ -18,6 +18,9 @@ var retiring: bool = false
 var habitat: AmbientFaunaHabitat
 ## A death scares the birds resting around it.
 const DEATH_STARTLE_RADIUS := 12.0
+## Cota (m/s) de la velocidad de un casco en el punto de la criatura, para acotar a qué cascos
+## puede llegar el barrido relativo de un tick. Ningún barco se acerca a ella.
+const MAX_HULL_SPEED := 200.0
 
 ## Closing speed, in m/s, above which a hull or a projectile kills the creature.
 @export var lethal_impact_speed: float = 5.0
@@ -238,7 +241,8 @@ func _resolve_ship_hit(hit: KinematicCollision3D, incoming: Vector3) -> bool:
 
 
 func _check_moving_ships(delta: float) -> bool:
-	for node in DynamicGridBody.bodies_in_play(get_tree()):
+	var reach := impact_radius + (velocity.length() + MAX_HULL_SPEED) * delta
+	for node in DynamicGridBody.bodies_near(get_tree(), global_position, reach):
 		if not is_instance_valid(node) or not node is DynamicGridBody:
 			continue
 		var body := node as DynamicGridBody

@@ -27,6 +27,68 @@ static func bodies_in_play(tree: SceneTree) -> Array[Node]:
 	return _in_play
 
 
+## Celdas (m) de bodies_near y alcance máximo que cubren sus listas.
+const NEAR_CELL := 64.0
+const NEAR_MAX_REACH := 96.0
+static var _near_frame: int = -1
+static var _near_cells: Dictionary = {}
+static var _near_bodies: Array[Node] = []
+static var _near_centers := PackedVector3Array()
+static var _near_radii := PackedFloat32Array()
+## Un cuerpo y su posición al calcular las esferas. Dentro de un frame de física solo la mueve un
+## rebase del origen flotante (corre con prioridad 100, a mitad de la fauna): si cambia, se recalcula.
+static var _near_anchor: Node3D
+static var _near_anchor_position := Vector3.ZERO
+
+
+## Cuerpos en juego que pueden cumplir contains_point(point, reach) en este frame de física. Es un
+## superconjunto y quien llama sigue con la prueba exacta, pero deja fuera los restos a kilómetros:
+## cada pez comprobaba todos los cascos del mundo dos veces por tick. Las criaturas de una misma
+## celda comparten la lista.
+static func bodies_near(tree: SceneTree, point: Vector3, reach: float) -> Array[Node]:
+	# contains_point suma el margen por eje: la esquina de la caja ampliada queda a reach·√3.
+	if tree == null or reach * sqrt(3.0) > NEAR_MAX_REACH:
+		return bodies_in_play(tree)
+	var frame := Engine.get_physics_frames()
+	if frame != _near_frame or (is_instance_valid(_near_anchor)
+			and _near_anchor.global_position != _near_anchor_position):
+		_rebuild_near(tree, frame)
+	var cell := Vector3i((point / NEAR_CELL).floor())
+	var cached: Variant = _near_cells.get(cell)
+	if cached != null:
+		return cached
+	var center := (Vector3(cell) + Vector3.ONE * 0.5) * NEAR_CELL
+	var limit := NEAR_CELL * sqrt(3.0) * 0.5 + NEAR_MAX_REACH
+	var near: Array[Node] = []
+	for i in _near_bodies.size():
+		if center.distance_to(_near_centers[i]) - _near_radii[i] <= limit:
+			near.append(_near_bodies[i])
+	_near_cells[cell] = near
+	return near
+
+
+static func _rebuild_near(tree: SceneTree, frame: int) -> void:
+	_near_frame = frame
+	_near_cells.clear()
+	_near_bodies.clear()
+	_near_centers.clear()
+	_near_radii.clear()
+	_near_anchor = null
+	for node in bodies_in_play(tree):
+		if not is_instance_valid(node) or not node is DynamicGridBody:
+			continue
+		var body := node as DynamicGridBody
+		var sphere := body._hull_sphere()
+		if sphere.w < 0.0:
+			continue # Sin casco: contains_point nunca da true.
+		if _near_anchor == null:
+			_near_anchor = body
+			_near_anchor_position = body.global_position
+		_near_bodies.append(body)
+		_near_centers.append(Vector3(sphere.x, sphere.y, sphere.z))
+		_near_radii.append(sphere.w)
+
+
 @export var movement_type: MovementType = MovementType.BOAT
 @export var damage_enabled: bool = true
 @export var turn_speed: float = 2.0
@@ -1524,6 +1586,19 @@ func contains_point(world_point: Vector3, margin: float = 0.0) -> bool:
 	var d := (local - (_aggregate_box["pos"] as Vector3)).abs()
 	var half: Vector3 = _aggregate_box["half"]
 	return d.x <= half.x + margin and d.y <= half.y + margin and d.z <= half.z + margin
+
+
+## Esfera global que envuelve la caja de contains_point (w = radio), o w < 0 sin casco.
+func _hull_sphere() -> Vector4:
+	if _recalc_boxes:
+		_recalculate_buoyancy_boxes()
+	if not _aggregate_box.has("pos"):
+		return Vector4(0.0, 0.0, 0.0, -1.0)
+	var xf := global_transform
+	var scale := xf.basis.get_scale()
+	var center := xf * (_aggregate_box["pos"] as Vector3)
+	var radius := (_aggregate_box["half"] as Vector3).length() * maxf(scale.x, maxf(scale.y, scale.z))
+	return Vector4(center.x, center.y, center.z, radius)
 
 
 func stop() -> void:

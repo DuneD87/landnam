@@ -44,13 +44,13 @@ func is_underwater() -> bool:
 	return false
 
 
-## Dynamic hulls near the population, for spawn checks. Shares the per-frame lookup with
-## the creatures' own impact sweeps.
-func nearby_ships() -> Array[Node]:
+## Dynamic hulls that may hold `point` within `reach` (DynamicGridBody.contains_point), for spawn
+## and interior checks. Shares the per-frame lookup with the creatures' own impact sweeps.
+func nearby_ships(point: Vector3, reach: float) -> Array[Node]:
 	var node := host()
 	if node == null or not node.is_inside_tree():
 		return []
-	return DynamicGridBody.bodies_in_play(node.get_tree())
+	return DynamicGridBody.bodies_near(node.get_tree(), point, reach)
 
 
 ## Pooled blood puff at a lethal impact. Bounded: a crowded moment reuses the oldest cloud.

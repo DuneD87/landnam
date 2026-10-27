@@ -81,7 +81,7 @@ func is_spawn_valid(point: Vector3, clearance: float) -> bool:
 
 
 func intersects_ship(point: Vector3, clearance: float) -> bool:
-	for body in nearby_ships():
+	for body in nearby_ships(point, maxf(clearance + 0.5, 0.0)):
 		if is_instance_valid(body) and body is DynamicGridBody and body.contains_point(point, clearance + 0.5):
 			return true
 	return false
@@ -161,6 +161,8 @@ static func _cylinder_buffer_is_clear(buffer: VoxelBuffer, low: Vector3i, origin
 	buffer.compress_uniform_channels()
 	if buffer.is_uniform(VoxelBuffer.CHANNEL_SDF) and buffer.get_voxel_f(0, 0, 0, VoxelBuffer.CHANNEL_SDF) > 0.0:
 		return true
+	if _has_no_solid(buffer):
+		return true
 	if size.x * size.y * size.z > 512:
 		var axis := Vector3(size).max_axis_index()
 		var split := size[axis] / 2
@@ -189,6 +191,16 @@ static func _cylinder_buffer_is_clear(buffer: VoxelBuffer, low: Vector3i, origin
 	return true
 
 
+## Atajo nativo: true si ningún vóxel del buffer llega a sólido (SDF <= 0). A unas decenas de metros
+## del fondo el SDF de 16 bits aún no satura y la copia no es uniforme aunque todo sea agua; marcar
+## los sólidos en el canal TYPE de la copia deja ese canal uniforme a cero sin recorrer vóxeles en
+## script. Con false decide la ruta exacta.
+static func _has_no_solid(buffer: VoxelBuffer) -> bool:
+	buffer.op_select_less_src_f_dst_i_values(buffer, VoxelBuffer.CHANNEL_SDF, 0.0001, 1, 0, VoxelBuffer.CHANNEL_TYPE)
+	buffer.compress_uniform_channels()
+	return buffer.is_uniform(VoxelBuffer.CHANNEL_TYPE) and buffer.get_voxel(0, 0, 0, VoxelBuffer.CHANNEL_TYPE) == 0
+
+
 static func _buffer_is_clear(buffer: VoxelBuffer) -> bool:
 	const CHANNEL := VoxelBuffer.CHANNEL_SDF
 	# Native scan of contiguous memory. Far from the bottom, SDF values saturate
@@ -196,6 +208,8 @@ static func _buffer_is_clear(buffer: VoxelBuffer) -> bool:
 	buffer.compress_uniform_channels()
 	if buffer.is_uniform(CHANNEL):
 		return buffer.get_voxel_f(0, 0, 0, CHANNEL) > 0.0
+	if _has_no_solid(buffer):
+		return true
 	var size := buffer.get_size()
 	if size.x * size.y * size.z > 4096:
 		# A giant animal can cover millions of voxels. Split nonuniform volumes

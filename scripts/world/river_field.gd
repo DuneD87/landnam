@@ -295,6 +295,12 @@ static func nearby_channel_at(rivers: Dictionary, up: Vector3, reach: float) -> 
 	var radius := float(rivers.get("radius", 0.0))
 	if seg.is_empty() or size.x <= 0 or size.y <= 0 or radius <= 0.0:
 		return {}
+	# Recorrer todos los tramos cuesta ~2 ms. La imagen sobrestima la distancia como mucho un téxel
+	# (11 m medidos contra los tramos): con tres de margen, si dice que no hay cauce, no lo hay.
+	if rivers.has("dist"):
+		var margin := 3.0 * TAU * radius / float((rivers.dist as Image).get_width())
+		if reach + margin < float(rivers.get("carve_range", 0.0)) and distance_at(rivers, up) > reach + margin:
+			return {}
 	var point := up.normalized() * radius
 	var best := reach
 	var channel := {}

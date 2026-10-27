@@ -82,7 +82,7 @@ func sample_near(point: Vector3, spread: float, profile: AmbientFaunaProfile,
 func is_spawn_valid(point: Vector3, clearance: float) -> bool:
 	if not is_instance_valid(terrain) or not terrain.is_inside_tree():
 		return false
-	for body in nearby_ships():
+	for body in nearby_ships(point, clearance + 0.5):
 		if is_instance_valid(body) and body is DynamicGridBody and body.contains_point(point, clearance + 0.5):
 			_reject(&"boat")
 			return false
