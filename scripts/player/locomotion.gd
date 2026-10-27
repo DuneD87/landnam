@@ -253,7 +253,9 @@ func pre_update() -> void:
 		_set_crouching(false, not can_crouch)
 	elif toggle:
 		_set_crouching(not crouching)
-	elif crouching and (Input.is_action_just_pressed("jump") or Input.is_action_just_pressed("Sprint")):
+	# Con un menú o la consola abiertos (PlayerController._hands_off_step) las teclas no son suyas.
+	elif crouching and not movement.use_ai_input \
+			and (Input.is_action_just_pressed("jump") or Input.is_action_just_pressed("Sprint")):
 		_set_crouching(false)
 	# Agachado no se salta ni se esprinta: saltar o esprintar solo lo levantan.
 	if crouching or (Input.is_action_just_pressed("jump") and _crouch > 0.0):

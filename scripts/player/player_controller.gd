@@ -153,6 +153,9 @@ var _worn_planet_materials: Array[ShaderMaterial] = []
 var _worn_materials_planet: Node = null
 
 var input_enabled: bool = false
+## Entrando en partida o cargando, hasta que el suelo tiene colisión (_activate_player): el cuerpo
+## se queda quieto aunque haya un menú abierto, o caería a través del terreno.
+var _awaiting_ground := false
 var _cinematic_tween: Tween
 var _new_game_planet: Node3D
 var _cinematic_landing: Transform3D
@@ -1219,10 +1222,12 @@ func _activate_player() -> void:
 
 	var confirmations := 0
 	var waited := 0.0
+	_awaiting_ground = true
 	while confirmations < GROUND_READY_CONFIRMATIONS and waited < GROUND_READY_TIMEOUT:
 		await get_tree().create_timer(GROUND_READY_POLL_INTERVAL).timeout
 		waited += GROUND_READY_POLL_INTERVAL
 		confirmations = confirmations + 1 if is_ground_ready() else 0
+	_awaiting_ground = false
 	mouse_captured = true
 	input_enabled = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
@@ -1812,13 +1817,14 @@ func _physics_step(delta: float):
 	if resting != null and resting.is_sleeping():
 		camera_controller.update_camera_transform()
 		return
-	if not input_enabled:
-		if GameManager.current_state == GameManager.State.PLAYING:
+	if not input_enabled or not mouse_captured:
+		if _body_runs_hands_off():
+			_hands_off_step(delta)
+		elif not input_enabled and GameManager.current_state == GameManager.State.PLAYING:
 			camera_controller.update_camera_transform()
-
 		return
 
-	if !mouse_captured || planets == null || planets.get_child_count() == 0:
+	if planets == null || planets.get_child_count() == 0:
 		return
 		
 	var closest_distance = global_position.distance_to(planets.get_child(0).position)
@@ -1856,6 +1862,28 @@ func _physics_step(delta: float):
 			
 		update_normal_movement(delta)
 
+
+## Con el menú de pausa, la consola o una ventana abiertos el jugador no manda, pero el cuerpo
+## sigue en el mundo: cae, nada y va con el barco. No al entrar en partida ni al reaparecer (el
+## suelo aún no tiene colisión), muerto, trepando (se queda agarrado) ni en vuelo libre.
+func _body_runs_hands_off() -> bool:
+	return GameManager.current_state == GameManager.State.PLAYING and visible and planet != null \
+		and not _awaiting_ground and not combat.is_dead() and not climb.is_active() \
+		and not free_flight_enabled
+
+
+## El paso normal con el input en reposo: sin dirección (use_ai_input sin ai_direction, que también
+## para el esprint y salir del agua), sin salto y con la animación de quieto.
+func _hands_off_step(delta: float) -> void:
+	var ai_input := movement.use_ai_input
+	var ai_direction := movement.ai_direction
+	movement.use_ai_input = true
+	movement.ai_direction = Vector3.ZERO
+	movement.jump_blocked = true
+	collision_model.disabled = false
+	update_normal_movement(delta)
+	movement.use_ai_input = ai_input
+	movement.ai_direction = ai_direction
 
 
 func update_free_flight(delta: float) -> void:
