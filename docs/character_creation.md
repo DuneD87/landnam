@@ -132,8 +132,9 @@ Las texturas copiadas están en `textures/character/human/`. Sobre esa base:
   peinados. Los peinados y las barbas son los de la biblioteca de Hair Tool,
   convertidos en assets de MakeHuman (`docs/hair_tool.md`): 20 peinados para
   cada sexo (diez compartidos) y cinco barbas; rapado y calvo, para ambos.
-  Bajo cualquier peinado la piel pinta raíces en el cuero cabelludo
-  (`scalp_hair`, `scalp_spread`), así que la línea del pelo no queda desnuda.
+  Bajo cada peinado la piel pinta raíces del color del pelo con una máscara
+  propia del peinado, que sigue su línea del pelo (`docs/hair_tool.md`); sin
+  ella, las del cuero cabelludo (`scalp_hair`, `scalp_spread`).
 
 En la pantalla de creación el cuerpo lleva un blend shape por morph y los
 proxies se reajustan en cada cambio. En partida `CharacterAppearanceRig`

@@ -12,6 +12,9 @@ directory (numpy is only at hand in Blender's Python):
    shader sets how far the hair goes. The men's also climbs to the navel;
  - stubble.png (512, tiling): R short straight strokes for stubble and buzz
    cuts, G curls for pubic hair;
+ - hair_cover/<hair proxy>.png (512, R): the scalp each hair style covers,
+   from the hair the exporter found on the skin (hair_cover): solid where the
+   hair is thick, fading out at its hairline, never past the scalp's edge;
  - skin_normal_female.png: the skin relief map with the breasts flattened, as
    it was sculpted on a male chest.
 """
@@ -25,6 +28,15 @@ import numpy as np
 
 OUT = sys.argv[sys.argv.index("--") + 1]
 MASK_SIZE = 1024
+COVER_SIZE = 512
+## Hair on a body vertex (sum of closeness of its hair vertices) that makes
+## its cover about 63 %.
+COVER_DENSITY = 3.0
+## Blur of the cover, in COVER_SIZE texels: how far the roots fade past the
+## hairline.
+COVER_BLUR = 4
+## How far past the scalp mask the cover may reach (blur, in texels).
+COVER_MARGIN = 10
 
 
 def load():
@@ -267,8 +279,28 @@ def female_normal(header, array):
     return pixels * (1.0 - big) + flat * big
 
 
+def hair_cover_masks(header, array):
+    body = header["body"]
+    uvs = array(body["uvs"], width=2)
+    triangles = array(body["indices"], np.int32, 3)
+    scalp = smoothstep(0.1, 0.6, array(body["group_scalp"]))[:, None].astype(np.float32)
+    region = rasterize(uvs, triangles, scalp, COVER_SIZE)
+    region = np.maximum(region, np.clip(blur(region, COVER_MARGIN) * 2.5, 0.0, 1.0))
+    folder = os.path.join(OUT, "hair_cover")
+    os.makedirs(folder, exist_ok=True)
+    for name, entry in header["proxies"].items():
+        if "hair_cover" not in entry:
+            continue
+        cover = 1.0 - np.exp(-array(entry["hair_cover"]) / COVER_DENSITY)
+        image = rasterize(uvs, triangles, cover[:, None].astype(np.float32), COVER_SIZE)
+        image = smoothstep(0.1, 0.7, blur(image, COVER_BLUR)) * region
+        save(image, os.path.join(folder, name + ".png"))
+    print("Hair cover masks in", folder)
+
+
 def main():
     header, array = load()
+    hair_cover_masks(header, array)
     save(head_masks(header, array), os.path.join(OUT, "masks.png"))
     save(pubic_masks(header, array), os.path.join(OUT, "body_masks.png"))
     save(np.concatenate([stubble(), curls()[..., None]], axis=2), os.path.join(OUT, "stubble.png"))

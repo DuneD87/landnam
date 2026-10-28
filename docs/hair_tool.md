@@ -85,10 +85,29 @@ blender -b --factory-startup --python tools/character/blender/hair_tool_coverage
     textures/character/human/proxies build/character/hair_tool/coverage <estilo>...
 ```
 
-Los cortos con el cuero a la vista por diseño (Corte militar, Muy corto,
-Trenzas pegadas, Rizado) llevan `scalp = 1.0` en el catálogo: la piel pinta
-las raíces enteras debajo. En los largos eso marca una línea dura en la
-frente, así que el resto se queda con `UNDER_HAIR_SCALP` (0,6).
+Con `--look` (antes de los nombres) pinta la piel como el juego bajo cada
+estilo, con su máscara de raíces, y la renderiza de frente, de tres cuartos y
+desde arriba (`<estilo>_look_<vista>.png`), para revisar la línea del pelo.
+
+## Raíces bajo el pelo
+
+Las tarjetas dejan huecos, así que la piel pinta debajo raíces del color del
+pelo, con una máscara propia de cada estilo que sigue su línea del pelo:
+
+1. El exportador suma, en cada vértice de la cabeza, el pelo que tiene a
+   menos de 2 cm (`hair_cover`; del todo a menos de 4 mm).
+2. `make_skin_masks.py` lo rasteriza en las UV de la piel, lo difumina
+   (`COVER_BLUR`: lo que tarda en fundirse con la piel pasada la línea del
+   pelo) y no lo deja salir del cuero cabelludo más un margen
+   (`COVER_MARGIN`), para no manchar la frente:
+   `build/character/mpfb/hair_cover/<proxy>.png`.
+3. El horneado lo guarda como textura `cover` del peinado y
+   `human_skin.gdshader` la pinta (`use_hair_cover`), gris si el pelo lo es.
+
+Así la coronilla queda del color del pelo y el borde se difumina donde acaba
+cada peinado: la frente despejada de una coleta, el lado rapado de De lado,
+la coronilla de la tonsura. La máscara genérica del cuero cabelludo
+(`scalp_hair`) queda para el rapado pintado y los peinados sin máscara.
 
 ## Añadir o cambiar un estilo
 

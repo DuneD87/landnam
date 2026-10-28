@@ -34,29 +34,29 @@ const _MALE: Array[StringName] = [&"male"]
 const _FEMALE: Array[StringName] = [&"female"]
 const _BOTH: Array[StringName] = [&"male", &"female"]
 
-## `part` is the baked hair; empty is none. `scalp` paints a buzz cut on the
-## scalp (0 none, 1 full); without it, a haircut paints
-## CharacterAppearanceRig.UNDER_HAIR_SCALP (a bald crown sets 0). The parts are the Hair Tool styles of
+## `part` is the baked hair; empty is none. Under it the skin paints the roots
+## of the scalp it covers (its "cover" texture). `scalp` paints a buzz cut on
+## the scalp (0 none, 1 full). The parts are the Hair Tool styles of
 ## tools/character/hair_tool_styles.json (hair_ht_<style>).
 const HAIR_STYLES := {
-	&"crew_cut": {label = "APP_HAIR_CREW_CUT", part = &"hair_ht_crew_cut", sexes = _MALE, scalp = 1.0},
-	&"very_short": {label = "APP_HAIR_VERY_SHORT", part = &"hair_ht_very_short", sexes = _MALE, scalp = 1.0},
+	&"crew_cut": {label = "APP_HAIR_CREW_CUT", part = &"hair_ht_crew_cut", sexes = _MALE},
+	&"very_short": {label = "APP_HAIR_VERY_SHORT", part = &"hair_ht_very_short", sexes = _MALE},
 	&"regular": {label = "APP_HAIR_REGULAR", part = &"hair_ht_regular", sexes = _MALE},
 	&"side_part": {label = "APP_HAIR_SIDE_PART", part = &"hair_ht_parting", sexes = _MALE},
 	&"quiff": {label = "APP_HAIR_QUIFF", part = &"hair_ht_quiff", sexes = _MALE},
 	&"spiky": {label = "APP_HAIR_SPIKY", part = &"hair_ht_spiky", sexes = _MALE},
 	&"bowl": {label = "APP_HAIR_BOWL", part = &"hair_ht_bowl", sexes = _MALE},
-	&"tonsure": {label = "APP_HAIR_TONSURE", part = &"hair_ht_monk", sexes = _MALE, scalp = 0.0},
-	&"balding": {label = "APP_HAIR_BALDING", part = &"hair_ht_balding", sexes = _MALE, scalp = 0.0},
+	&"tonsure": {label = "APP_HAIR_TONSURE", part = &"hair_ht_monk", sexes = _MALE},
+	&"balding": {label = "APP_HAIR_BALDING", part = &"hair_ht_balding", sexes = _MALE},
 	&"tousled": {label = "APP_HAIR_TOUSLED", part = &"hair_ht_split_center", sexes = _MALE},
 	&"side_swept": {label = "APP_HAIR_SIDE_SWEPT", part = &"hair_ht_side_flat", sexes = _BOTH},
 	&"curtains": {label = "APP_HAIR_CURTAINS", part = &"hair_ht_curtained", sexes = _BOTH},
 	&"afro": {label = "APP_HAIR_AFRO", part = &"hair_ht_afro", sexes = _BOTH},
-	&"cornrows": {label = "APP_HAIR_CORNROWS", part = &"hair_ht_cornrows", sexes = _BOTH, scalp = 1.0},
+	&"cornrows": {label = "APP_HAIR_CORNROWS", part = &"hair_ht_cornrows", sexes = _BOTH},
 	&"topknot": {label = "APP_HAIR_TOPKNOT", part = &"hair_ht_top_knot", sexes = _BOTH},
 	&"long_parted": {label = "APP_HAIR_LONG_PARTED", part = &"hair_ht_long_slick", sexes = _BOTH},
 	&"long_straight": {label = "APP_HAIR_LONG_STRAIGHT", part = &"hair_ht_long_straight", sexes = _BOTH},
-	&"curly": {label = "APP_HAIR_CURLY", part = &"hair_ht_curly", sexes = _BOTH, scalp = 1.0},
+	&"curly": {label = "APP_HAIR_CURLY", part = &"hair_ht_curly", sexes = _BOTH},
 	&"ponytail": {label = "APP_HAIR_PONYTAIL", part = &"hair_ht_ponytail", sexes = _BOTH},
 	&"braid": {label = "APP_HAIR_BRAID", part = &"hair_ht_braid_back", sexes = _BOTH},
 	&"bob": {label = "APP_HAIR_BOB", part = &"hair_ht_bob", sexes = _FEMALE},

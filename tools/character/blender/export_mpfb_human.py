@@ -711,6 +711,26 @@ def surface_layout(obj, vertex_filter=None):
     return source, uvs, triangles, loop_vertex[tri_loops]
 
 
+## hair_cover(): hair this close to the skin (metres) counts fully, and fades
+## out by HAIR_COVER_FAR.
+HAIR_COVER_NEAR = 0.004
+HAIR_COVER_FAR = 0.02
+
+
+def hair_cover(points, kd, body_source):
+    """How much of a hair style lies on each body vertex (output order): the
+    sum, over its vertices near the skin, of their closeness, given to the
+    nearest body vertex. make_skin_masks.py paints the scalp under the hair
+    from it, so the roots follow each style's hairline."""
+    cover = np.zeros(int(body_source.max()) + 1, dtype=np.float64)
+    for p in points:
+        _, index, gap = kd.find(p)
+        if gap < HAIR_COVER_FAR:
+            t = min(max((gap - HAIR_COVER_NEAR) / (HAIR_COVER_FAR - HAIR_COVER_NEAR), 0.0), 1.0)
+            cover[index] += 1.0 - t * t * (3.0 - 2.0 * t)
+    return cover[body_source].astype(np.float32)
+
+
 def smooth_normals(points, tri_vertices):
     a = points[tri_vertices[:, 0]]
     face = np.cross(points[tri_vertices[:, 1]] - a, points[tri_vertices[:, 2]] - a)
@@ -991,6 +1011,7 @@ def main():
     for i, v in zip(body_indices, base["points"]["body"][body_indices]):
         kd.insert(v, int(i))
     kd.balance()
+    body_source = parts["body"]["layout"][0]
     for name, part in parts.items():
         source, uvs, triangles, tri_vertices = part["layout"]
         points = base["points"][name]
@@ -1024,6 +1045,8 @@ def main():
         # UV2.x: distance to the body, for hair ambient occlusion near the scalp.
         distance = np.array([kd.find(p)[2] for p in points[source]], dtype=np.float32)
         entry["uv2"] = blob.add(np.stack([distance, np.zeros_like(distance)], axis=1), np.float32)
+        if part["folder"] == "hair":
+            entry["hair_cover"] = blob.add(hair_cover(points, kd, body_source), np.float32)
         if name == "eyes":
             side = np.zeros(len(points), dtype=np.int32)
             rings = []

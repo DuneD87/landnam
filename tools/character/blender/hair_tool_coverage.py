@@ -1,7 +1,7 @@
 """Measures how much scalp shows through each Hair Tool style, as the game draws it.
 
     blender -b --factory-startup --python tools/character/blender/hair_tool_coverage.py -- \
-        <mh_base.blend> <cards dir> <albedo dir|-> <out dir> <name> [<name>...]
+        <mh_base.blend> <cards dir> <albedo dir|-> <out dir> [--look] <name> [<name>...]
 
 human_hair.gdshader only hides what is behind with the texels at or over
 half alpha (the rest is a blended fringe), so each style's cards
@@ -11,6 +11,11 @@ its scalp painted red. The albedo is the baked one from <albedo dir>
 report is the share of the scalp still red from above and from behind,
 against the bare head; the renders are kept to look at (Cycles, CPU, no
 window).
+
+With --look the skin is painted instead as the game paints it under a style:
+skin colour with the style's cover (hair_ht_<name>_cover.png, in <albedo
+dir>) as roots of the hair colour, rendered from the front, three-quarter and
+above (<name>_look_<view>.png), to judge the hairline.
 """
 
 import json
@@ -117,8 +122,54 @@ def render_views(out, tag):
     return reds
 
 
+HAIR = (0.12, 0.07, 0.035, 1.0)
+SKIN = (0.8, 0.55, 0.42, 1.0)
+LOOK_VIEWS = {"front": Vector((0.0, -1.0, 0.05)), "three": Vector((0.7, -0.7, 0.15)), "top": Vector((0.0, -0.3, 1.0))}
+
+
+def look(base, cards_dir, albedo_dir, out, names):
+    """Skin with each style's cover as roots, its cards over it."""
+    material, tree, emit, _ = emission("Look", SKIN)
+    cover = tree.nodes.new("ShaderNodeTexImage")
+    mix = tree.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    mix.inputs["A"].default_value = SKIN
+    mix.inputs["B"].default_value = HAIR
+    tree.links.new(cover.outputs["Color"], mix.inputs["Factor"])
+    tree.links.new(mix.outputs["Result"], emit.inputs["Color"])
+    base.data.materials.clear()
+    base.data.materials.append(material)
+    scene = bpy.context.scene
+    scene.camera.data.ortho_scale = 0.36
+    for name in names:
+        path = Path(albedo_dir) / ("hair_ht_%s_cover.png" % name)
+        cover.image = bpy.data.images.load(str(path)) if path.exists() else None
+        if cover.image:
+            cover.image.colorspace_settings.name = "Non-Color"
+        bpy.ops.wm.obj_import(filepath=str(cards_dir / (name + ".obj")), forward_axis="NEGATIVE_Z", up_axis="Y")
+        cards = bpy.context.selected_objects[0]
+        hair = hair_material(Path(albedo_dir) / ("hair_ht_%s_albedo.png" % name))
+        hair.node_tree.nodes["Emission"].inputs["Color"].default_value = (0.07, 0.04, 0.02, 1.0)
+        cards.data.materials.append(hair)
+        for view, direction in LOOK_VIEWS.items():
+            direction = direction.normalized()
+            scene.camera.location = Vector((0.0, -0.06, 1.6)) + direction * 1.0
+            scene.camera.rotation_euler = (-direction).to_track_quat("-Z", "Y").to_euler()
+            scene.render.filepath = str(out / ("%s_look_%s.png" % (name, view)))
+            bpy.ops.render.render(write_still=True)
+        bpy.data.objects.remove(cards)
+        print("LOOK", name, "cover" if cover.image else "no cover", flush=True)
+
+
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
+    if "--look" in args:
+        args.remove("--look")
+        out = Path(args[3])
+        out.mkdir(parents=True, exist_ok=True)
+        base = setup(Path(args[0]))
+        look(base, Path(args[1]), args[2], out, args[4:])
+        return
     base_path, cards_dir, albedo_dir, out = Path(args[0]), Path(args[1]), args[2], Path(args[3])
     out.mkdir(parents=True, exist_ok=True)
     setup(base_path)

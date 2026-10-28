@@ -11,6 +11,8 @@ shader_type spatial;
 // fullest reach: pubic_hair sets how far the curls (stubble_texture G) go.
 // Lips and eyelids come from MPFB's UV masks.
 
+const vec3 GRAY_HAIR = vec3(0.78, 0.77, 0.74);
+
 uniform sampler2D albedo_texture : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D normal_texture : hint_normal, filter_linear_mipmap_anisotropic;
 uniform sampler2D masks_texture : hint_default_black, filter_linear_mipmap;
@@ -31,6 +33,13 @@ uniform float scalp_hair : hint_range(0.0, 1.0) = 0.0;
 // Under a haircut the roots reach a little past the scalp mask (0-1), so the
 // skin at the hair's edge is not bare.
 uniform float scalp_spread : hint_range(0.0, 1.0) = 0.0;
+// The scalp the hair style covers (its proxy's "cover" texture, R): roots of
+// hair_color, solid where the hair is thick and fading out at its hairline.
+// Under such a style the rig turns scalp_hair off.
+uniform sampler2D hair_cover_texture : hint_default_black, filter_linear_mipmap;
+uniform bool use_hair_cover = false;
+// The hair's grey (human_hair.gdshader's `gray`), for the roots.
+uniform float hair_gray : hint_range(0.0, 1.0) = 0.0;
 // Stubble texture repeats per UV unit (the face spans about 0.25).
 uniform float stubble_scale = 2.0;
 uniform float pubic_hair : hint_range(0.0, 1.0) = 0.0;
@@ -76,6 +85,11 @@ void fragment() {
 	vec3 hair = hair_color * (0.55 + 0.45 * strokes);
 	col = mix(col, mix(col * 0.8, hair, mix(0.35, 0.6, scalp)), shade);
 	col = mix(col, hair, clamp(max(beard * 0.9 * strokes, scalp * dense), 0.0, 1.0));
+	if (use_hair_cover) {
+		float cover = texture(hair_cover_texture, UV).r;
+		vec3 roots = mix(hair_color, GRAY_HAIR, hair_gray) * mix(0.6, 1.0, dense);
+		col = mix(col, roots, cover);
+	}
 
 	// Pubic hair: a shadow of the hair colour and dense curls, thinning out
 	// towards the edge.

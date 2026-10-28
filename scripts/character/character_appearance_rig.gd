@@ -42,8 +42,9 @@ const MATERIALS := {
 }
 const SKIN_MATERIAL := "res://data/character/materials/human_skin.tres"
 const EYELASH_COLOR := Color("1c1612")
-## Buzz cut density painted on the scalp under any haircut (more paints a
-## hard line on the forehead). A style with `scalp` in the catalog sets its own.
+## Buzz cut density painted on the scalp under a haircut without its own
+## cover (HumanProxyData.textures.cover; more paints a hard line on the
+## forehead). A style with `scalp` in the catalog sets its own.
 const UNDER_HAIR_SCALP := 0.6
 ## Slots tucked under hoods and helmets.
 const HAIR_SLOTS: Array[StringName] = [&"hair", &"beard"]
@@ -643,10 +644,20 @@ func _apply_skin_material(appearance: CharacterAppearance, sex: StringName, hair
 	m.set_shader_parameter(&"texture_tone", skin.tone)
 	m.set_shader_parameter(&"normal_texture", load(_data.normal_maps.get(sex, _data.normal_maps.values()[0])))
 	m.set_shader_parameter(&"hair_color", appearance.get_value(&"hair_color"))
-	# Under a haircut the scalp shows roots, so gaps and the hairline blend.
+	# Under a haircut the scalp shows roots, so gaps and the hairline blend:
+	# the ones the style covers (its "cover" texture), or else the scalp mask.
 	var haircut: bool = hair_style.get("part", &"") != &""
-	m.set_shader_parameter(&"scalp_hair", hair_style.get("scalp", UNDER_HAIR_SCALP if haircut else 0.0))
-	m.set_shader_parameter(&"scalp_spread", 1.0 if haircut else 0.0)
+	var cover: Texture2D = null
+	if haircut:
+		var proxy: HumanProxyData = load(PROXY_PATH % hair_style.part)
+		if proxy != null and proxy.textures.has("cover"):
+			cover = load(proxy.textures.cover)
+	m.set_shader_parameter(&"use_hair_cover", cover != null)
+	m.set_shader_parameter(&"hair_cover_texture", cover)
+	m.set_shader_parameter(&"hair_gray", shader.get(&"gray", 0.0))
+	var scalp: float = hair_style.get("scalp", UNDER_HAIR_SCALP if haircut else 0.0)
+	m.set_shader_parameter(&"scalp_hair", 0.0 if cover != null else scalp)
+	m.set_shader_parameter(&"scalp_spread", 1.0 if haircut and cover == null else 0.0)
 	if sex != &"male":
 		m.set_shader_parameter(&"stubble", 0.0)
 	m.set_shader_parameter(&"male_pattern", 1.0 if sex == &"male" else 0.0)
