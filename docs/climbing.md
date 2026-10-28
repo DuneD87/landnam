@@ -10,6 +10,7 @@ sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
 | Acción | Tecla |
 | --- | --- |
 | Agarrarse o subirse encima | Empujar contra la pared y E (USAR), también en el aire |
+| Subirse a una pared baja | Empujar contra ella (sin E) |
 | Subir / bajar | W / S |
 | De lado | A / D (según la cámara) |
 | Soltarse | Espacio |
@@ -17,10 +18,13 @@ sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
 - Empujando contra una pared a la que se puede agarrar, la E agarra antes que recoger o usar lo que
   haya cerca (`ClimbController.request_grab`). Quieto, o sin pared delante, es USAR de siempre.
 - Se agarra a lo que sea más empinado que `floor_max_angle` (50°) y menos que un techo (110°): terreno,
-  rocas, árboles, construcciones fijas. No a criaturas ni a barcos (cuerpos que se mueven).
+  rocas, árboles, construcciones fijas y barcos (lo que se trepa va con el casco mientras se mueve).
+  No a criaturas ni a otros cuerpos sueltos.
 - Si la pared sigue a la altura de la cabeza, se agarra. Si es más baja pero más alta que un escalón
   (`StepUpSystem.max_step_height`, 0,55 m), se sube encima con `climb_top` empezado a esa altura, sin
-  colgarse; también saltando contra ella. Más baja que un escalón, la sube el cuerpo solo.
+  colgarse; también saltando contra ella. A esa no hace falta la E: basta con empujar de frente
+  contra ella `GRAB_DELAY` (0,2 s) andando, o saltar contra ella (cayendo no, para no agarrarse a
+  cada cornisa al pasar). Más baja que un escalón, la sube el cuerpo solo.
 - Cuando la pared se acaba por encima de la cabeza, corona con `climb_top`. Acaba de pie donde lleva
   el clip (1,1 m por dentro del borde) o, si el suelo de arriba se acaba antes (un muro fino), en
   medio de lo que hay. Si arriba no hay suelo que se pueda andar con sitio para ponerse de pie, no
@@ -129,7 +133,7 @@ salen de la cápsula; el escalón, de `StepUpSystem`.
 
 - De lado se usa un desplazamiento colgado de un borde (shimmy): en pared lisa las manos van a la
   misma altura, algo despegadas de presas que no existen.
-- No se trepa desde el agua ni por barcos en movimiento (ni construcciones dinámicas).
+- No se trepa desde el agua (para subir a un barco nadando está salir del agua con Espacio).
 - De lado no se doblan esquinas: se para en ellas y hay que soltarse.
 - Coronar no busca el borde con las manos: en un muro fino o en una cornisa baja las manos se apoyan
   donde dice el clip, algo más allá o más acá del borde.

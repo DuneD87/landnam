@@ -3,7 +3,7 @@ extends Node3D
 ## Coronar y subirse a paredes bajas, contra cajas como las de una construcción de bloques: dónde
 ## acaba de pie (encima de un muro fino, no al otro lado; donde lleva el clip en una cima ancha), por
 ## dónde empieza el clip en una pared baja, lo que no se sube y que el marco del clip sale de la
-## cadera del personaje y acaba en el suelo.
+## cadera del personaje y acaba en el suelo. Y que un barco se trepa.
 ##   godot --headless --path . res://tests/player/test_climb.tscn
 
 ## La cara de las paredes, mirando a -Z; el jugador delante, a su radio.
@@ -85,6 +85,14 @@ func _run() -> void:
 	await _build([[Vector3(0.0, 0.65, FACE_Z + 1.5), Vector3(4.0, 1.3, 3.0)],
 		[Vector3(0.0, 2.3, FACE_Z + 1.5), Vector3(4.0, 0.4, 3.0)]])
 	check(_crown(player, 0.0, false) == null, "sin sitio encima no se sube")
+
+	# Un barco se trepa (se lleva la escalada con él); otro cuerpo suelto no.
+	var boat := DynamicGridBody.new()
+	var loose := RigidBody3D.new()
+	check(climb._grabbable(boat, Vector3.BACK, Vector3.UP), "se trepa por un barco")
+	check(not climb._grabbable(loose, Vector3.BACK, Vector3.UP), "no por un cuerpo suelto")
+	boat.free()
+	loose.free()
 	_finish()
 
 

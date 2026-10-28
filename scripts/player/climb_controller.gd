@@ -6,12 +6,16 @@ extends Node
 ## la física normal (move_and_slide en modo flotante) y la animación de trepar. Cuando la pared se
 ## acaba por encima de la cabeza corona con climb_top, que empieza donde está el personaje y acaba de
 ## pie arriba: donde termina el clip, o encima del muro si es más fino. Una pared más baja que la
-## cabeza (pero más alta que un escalón) se sube igual, con climb_top empezado a esa altura. Gasta
+## cabeza (pero más alta que un escalón) se sube igual, con climb_top empezado a esa altura, y sin la
+## E: basta con empujar contra ella (andando, tras GRAB_DELAY; saltando, al momento). Gasta
 ## aguante; si se acaba, se suelta y cae. Agarrarse cayendo para la caída con su golpe, salvo los
-## primeros GRAB_MARGIN metros.
+## primeros GRAB_MARGIN metros. Los barcos (DynamicGridBody) también se trepan: lo de la escalada
+## va con el casco mientras se mueve (_carry).
 ##
 ##   Empujar contra la pared   agarrarse o subirse encima (también en el aire)
 ##   y USAR (E)
+##   Empujar contra una pared  subirse encima
+##   baja
 ##   Adelante / atrás          subir / bajar
 ##   Izquierda / derecha       de lado (según la cámara), si la pared sigue por ese lado
 ##   Saltar                    soltarse
@@ -39,6 +43,9 @@ const MAX_WALL_ANGLE := 110.0
 ## Para agarrarse hay que empujar de frente contra la pared: el input contra ella (coseno) al menos
 ## PUSH_DOT.
 const PUSH_DOT := 0.6
+## Una pared baja se sube sola empujando de frente contra ella este tiempo (s) andando: rozarla no
+## basta. Saltando contra ella, al momento.
+const GRAB_DELAY := 0.2
 ## Agarrarse cayendo cobra el golpe de aterrizar, pero los primeros GRAB_MARGIN metros (m) de caída
 ## se perdonan: soltarse y volver a agarrarse un poco más abajo sale gratis.
 const GRAB_MARGIN := 3.5
@@ -87,6 +94,12 @@ var _lost := 0
 var _cooldown := 0.0
 ## USAR ha pedido agarrarse (request_grab): se agarra en el próximo tick.
 var _grab_requested := false
+## Lo que lleva empujando contra una pared baja (GRAB_DELAY).
+var _push_time := 0.0
+## El barco al que se trepa (null en una pared fija) y dónde estaba en el último tick: lo que la
+## escalada guarda en mundo se mueve con él.
+var _carrier: DynamicGridBody = null
+var _carrier_xform := Transform3D.IDENTITY
 
 ## Coronando: instante del clip, cuándo acaba, dónde acaba de pie (marco del clip, en mundo) y la
 ## diferencia entre el cuerpo y su recorrido al empezar (se funde a cero).
@@ -149,9 +162,10 @@ static func build(tree_root: AnimationNodeBlendTree, below: StringName) -> Strin
 ## cuerpo en este tick (el movimiento normal no debe tocarlo).
 func physics_update(delta: float) -> bool:
 	_cooldown = maxf(0.0, _cooldown - delta)
-	if mode == Mode.NONE and not _try_start():
+	if mode == Mode.NONE and not _try_start(delta):
 		_fade_out(delta)
 		return false
+	_carry()
 	_blend = minf(1.0, _blend + delta / BLEND_IN)
 	_w = move_toward(_w, 1.0, delta / BLEND_IN)
 	match mode:
@@ -166,9 +180,12 @@ func physics_update(delta: float) -> bool:
 
 ## Fuera de la escalada al instante (cargar partida, vuelo libre).
 func cancel() -> void:
+	# Lo pone en otro sitio: no vuelve al barco.
+	_carrier = null
 	if mode != Mode.NONE:
 		_end()
 	_grab_requested = false
+	_push_time = 0.0
 	_w = 0.0
 	_cooldown = 0.0
 	player.player_model.transform = Transform3D.IDENTITY
@@ -179,6 +196,7 @@ func cancel() -> void:
 func shift_origin(offset: Vector3) -> void:
 	_from.origin -= offset
 	_contact -= offset
+	_carrier_xform.origin -= offset
 	_top_frame.origin -= offset
 
 
@@ -209,19 +227,37 @@ func _grab_wall(up: Vector3) -> Dictionary:
 
 
 ## Si USAR lo ha pedido: a una pared que sigue por encima de la cabeza se agarra y empieza a
-## trepar. Si es más baja, se sube encima (si arriba hay dónde ponerse de pie).
-func _try_start() -> bool:
-	if not _grab_requested:
-		return false
+## trepar. Si es más baja, se sube encima (si arriba hay dónde ponerse de pie), y eso también sin
+## USAR, empujando contra ella: en el suelo tras GRAB_DELAY, saltando al momento (cayendo no, que
+## no se agarre a cada cornisa al pasar).
+func _try_start(delta: float) -> bool:
+	var requested := _grab_requested
 	_grab_requested = false
 	var up := _up()
 	var wall := _grab_wall(up)
-	if wall.is_empty():
+	if wall.is_empty() or (not requested and player.movement.is_falling):
+		_push_time = 0.0
 		return false
+	var tall := _wall_at(wall.normal, wall.point, _along_up(wall.normal, up) * _head_height())
+	if not requested:
+		if tall:
+			_push_time = 0.0
+			return false
+		if player.is_on_floor():
+			_push_time += delta
+			if _push_time < GRAB_DELAY:
+				return false
+	_push_time = 0.0
 	_normal = wall.normal
 	_contact = wall.point
-	if not _wall_at(wall.normal, wall.point, _along_up(wall.normal, up) * _head_height()):
-		return _start_top(up)
+	_carrier = _carrier_of(wall.collider)
+	if _carrier != null:
+		_carrier_xform = _carrier.global_transform
+	if not tall:
+		if _start_top(up):
+			return true
+		_carrier = null
+		return false
 	_begin()
 	mode = Mode.CLIMB
 	_lost = 0
@@ -277,6 +313,13 @@ func _end() -> void:
 	if is_instance_valid(_weapon):
 		_weapon.visible = true
 	_weapon = null
+	# En un barco, el movimiento normal vuelve a llevarlo con él (si no está encima, lo suelta solo).
+	if is_instance_valid(_carrier):
+		player._platform_body = _carrier
+		player._platform_prev_xform = _carrier.global_transform
+		player._platform_miss_time = 0.0
+		_carrier._is_being_controlled = true
+	_carrier = null
 
 
 ## Se suelta (saltar, sin aguante, sin pared, al agua o por un golpe) y cae.
@@ -388,11 +431,12 @@ func _update_climb(delta: float) -> void:
 		tree.set(&"parameters/cl_right_speed/scale", speed / SIDE_CLIP_SPEED if move.x > 0.0 else 0.0)
 
 
-## La pared que ha tocado el último move_and_slide: {normal (media) y point (un punto de ella)}, o
-## vacío si no ha tocado ninguna a la que agarrarse.
+## La pared que ha tocado el último move_and_slide: {normal (media), point (un punto de ella) y
+## collider (uno de los que ha tocado)}, o vacío si no ha tocado ninguna a la que agarrarse.
 func _wall_contact(up: Vector3) -> Dictionary:
 	var normal := Vector3.ZERO
 	var point := Vector3.ZERO
+	var collider: Object = null
 	var count := 0
 	for i in player.get_slide_collision_count():
 		var collision := player.get_slide_collision(i)
@@ -401,10 +445,11 @@ func _wall_contact(up: Vector3) -> Dictionary:
 			if _grabbable(collision.get_collider(j), n, up):
 				normal += n
 				point += collision.get_position(j)
+				collider = collision.get_collider(j)
 				count += 1
 	if count == 0:
 		return {}
-	return {"normal": normal.normalized(), "point": point / count}
+	return {"normal": normal.normalized(), "point": point / count, "collider": collider}
 
 
 ## El último move_and_slide ha tocado algo que se puede andar.
@@ -417,13 +462,44 @@ func _touches_floor(up: Vector3) -> bool:
 	return false
 
 
-## Una pared a la que agarrarse: ni un cuerpo que se mueve (criaturas, barcos) ni algo que se pueda
-## andar o que ya sea techo.
+## Una pared a la que agarrarse: ni un cuerpo que se mueve (criaturas, cosas sueltas) salvo un barco,
+## ni algo que se pueda andar o que ya sea techo.
 func _grabbable(collider: Object, normal: Vector3, up: Vector3) -> bool:
-	if collider is CharacterBody3D or collider is RigidBody3D:
+	if collider is CharacterBody3D or (collider is RigidBody3D and _carrier_of(collider) == null):
 		return false
 	var angle := rad_to_deg(normal.angle_to(up))
 	return angle > rad_to_deg(player.floor_max_angle) and angle < MAX_WALL_ANGLE
+
+
+## El barco del que es [collider] (él o su padre), o null.
+static func _carrier_of(collider: Object) -> DynamicGridBody:
+	if collider is DynamicGridBody:
+		return collider
+	var node := collider as Node
+	if node != null and node.get_parent() is DynamicGridBody:
+		return node.get_parent()
+	return null
+
+
+## Lo que el barco se ha movido desde el último tick se lo lleva todo lo que la escalada guarda en
+## mundo: el cuerpo, la pared, el marco de coronar y de dónde se funde lo que se ve.
+func _carry() -> void:
+	if _carrier == null:
+		return
+	if not is_instance_valid(_carrier):
+		_carrier = null
+		return
+	var now := _carrier.global_transform
+	var moved := now * _carrier_xform.affine_inverse()
+	_carrier_xform = now
+	player.global_transform = moved * player.global_transform
+	_contact = moved * _contact
+	_normal = (moved.basis * _normal).normalized()
+	_from = moved * _from
+	_top_frame = moved * _top_frame
+	_top_ahead = moved.basis * _top_ahead
+	_top_rise = moved.basis * _top_rise
+	_top_offset = moved.basis * _top_offset
 
 
 ## La pared (de normal [normal], que pasa por [point]) sigue en [along] desde los pies, medido a lo
