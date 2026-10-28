@@ -73,13 +73,25 @@ const HAIR_STYLES := {
 	&"bald": {label = "APP_HAIR_BALD", part = &""},
 }
 
+## Beards and moustaches: the Hair Tool beards and the styles cut from them by
+## region of the face (tools/character/hair_tool_styles.json, beard_ht_<style>).
 const BEARDS := {
 	&"none": {label = "APP_BEARD_NONE", part = &""},
 	&"short": {label = "APP_BEARD_SHORT", part = &"beard_ht_short"},
-	&"goatee": {label = "APP_BEARD_GOATEE", part = &"beard_ht_goatee"},
+	&"circle": {label = "APP_BEARD_CIRCLE", part = &"beard_ht_goatee"},
+	&"goatee": {label = "APP_BEARD_GOATEE", part = &"beard_ht_chin"},
+	&"van_dyke": {label = "APP_BEARD_VAN_DYKE", part = &"beard_ht_van_dyke"},
+	&"soul_patch": {label = "APP_BEARD_SOUL_PATCH", part = &"beard_ht_soul_patch"},
+	&"moustache": {label = "APP_BEARD_MOUSTACHE", part = &"beard_ht_moustache"},
+	&"toothbrush": {label = "APP_BEARD_TOOTHBRUSH", part = &"beard_ht_toothbrush"},
+	&"walrus": {label = "APP_BEARD_WALRUS", part = &"beard_ht_walrus"},
+	&"horseshoe": {label = "APP_BEARD_HORSESHOE", part = &"beard_ht_horseshoe"},
+	&"chin_strap": {label = "APP_BEARD_CHIN_STRAP", part = &"beard_ht_chin_strap"},
+	&"mutton_chops": {label = "APP_BEARD_MUTTON_CHOPS", part = &"beard_ht_mutton_chops"},
+	&"sideburns": {label = "APP_BEARD_SIDEBURNS", part = &"beard_ht_side_whiskers"},
 	&"long": {label = "APP_BEARD_LONG", part = &"beard_ht_long_thin"},
 	&"viking": {label = "APP_BEARD_VIKING", part = &"beard_ht_long_soft"},
-	&"sideburns": {label = "APP_BEARD_SIDEBURNS", part = &"beard_ht_side_whiskers"},
+	&"no_moustache": {label = "APP_BEARD_NO_MOUSTACHE", part = &"beard_ht_no_moustache"},
 }
 
 const EYEBROW_STYLES := {

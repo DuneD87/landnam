@@ -5,8 +5,9 @@ shader_type spatial;
 // skin_color == texture_tone shows the texture as painted. The relief is a
 // sculpted normal map whose depth is `definition` (muscle and fat drive it).
 // Masks painted from the head's geometry (make_skin_masks.py): R scalp,
-// G full beard, B moustache, A goatee; stubble and buzz cuts draw short
-// strokes of hair_color there (stubble_texture R). The body masks hold the
+// G full beard, B moustache, A goatee; stubble darkens the beard evenly with
+// a fine grain of hair_color and buzz cuts draw short strokes on the scalp
+// (stubble_texture R, at two scales). The body masks hold the
 // pubic hair fields, R women and G men, from 1 at the core to 0 at the
 // fullest reach: pubic_hair sets how far the curls (stubble_texture G) go.
 // Lips and eyelids come from MPFB's UV masks.
@@ -38,10 +39,18 @@ uniform float scalp_spread : hint_range(0.0, 1.0) = 0.0;
 // Under such a style the rig turns scalp_hair off.
 uniform sampler2D hair_cover_texture : hint_default_black, filter_linear_mipmap;
 uniform bool use_hair_cover = false;
+// Under the beard (its proxy's "cover") the skin only darkens, as the
+// stubble's shadow at this strength: solid roots read as paint under dark
+// beards and strokes as dirt.
+uniform sampler2D beard_cover_texture : hint_default_black, filter_linear_mipmap;
+uniform bool use_beard_cover = false;
+uniform float beard_cover_shade : hint_range(0.0, 1.0) = 0.6;
 // The hair's grey (human_hair.gdshader's `gray`), for the roots.
 uniform float hair_gray : hint_range(0.0, 1.0) = 0.0;
-// Stubble texture repeats per UV unit (the face spans about 0.25).
+// Stubble texture repeats per UV unit (the face spans about 0.25): the buzz
+// cut's strokes, and the beard's finer grain.
 uniform float stubble_scale = 2.0;
+uniform float stubble_grain_scale = 6.0;
 uniform float pubic_hair : hint_range(0.0, 1.0) = 0.0;
 // 0 the women's pubic field, 1 the men's.
 uniform float male_pattern : hint_range(0.0, 1.0) = 0.0;
@@ -81,15 +90,21 @@ void fragment() {
 	float beard = masks.g * stubble;
 	float spread = clamp(max(textureLod(masks_texture, UV, 3.5).r * 1.8, textureLod(masks_texture, UV, 5.0).r * 2.2 - 0.25), 0.0, 1.0) * scalp_spread;
 	float scalp = max(masks.r, spread) * scalp_hair;
-	float shade = max(beard * 0.55, scalp * 0.9);
+	// Stubble: hairs under the skin darken it evenly, the cut tips are a
+	// fine grain; under a beard, only the shadow.
+	float under = use_beard_cover ? texture(beard_cover_texture, UV).r * beard_cover_shade : 0.0;
+	float stubble_shade = max(beard, under);
+	vec3 shadow = mix(col * 0.82, hair_color, 0.3);
+	col = mix(col, shadow, stubble_shade * 0.75);
+	float grain = texture(stubble_texture, UV * stubble_grain_scale).r;
+	col = mix(col, mix(col, hair_color, 0.7), beard * smoothstep(0.25, 0.9, grain) * 0.6);
+	float shade = max(stubble_shade * 0.55, scalp * 0.9);
 	vec3 hair = hair_color * (0.55 + 0.45 * strokes);
-	col = mix(col, mix(col * 0.8, hair, mix(0.35, 0.6, scalp)), shade);
-	col = mix(col, hair, clamp(max(beard * 0.9 * strokes, scalp * dense), 0.0, 1.0));
-	if (use_hair_cover) {
-		float cover = texture(hair_cover_texture, UV).r;
-		vec3 roots = mix(hair_color, GRAY_HAIR, hair_gray) * mix(0.6, 1.0, dense);
-		col = mix(col, roots, cover);
-	}
+	col = mix(col, mix(col * 0.8, hair, mix(0.35, 0.6, scalp)), scalp * 0.9);
+	col = mix(col, hair, clamp(scalp * dense, 0.0, 1.0));
+	float rooted = use_hair_cover ? texture(hair_cover_texture, UV).r : 0.0;
+	vec3 roots = mix(hair_color, GRAY_HAIR, hair_gray) * mix(0.6, 1.0, dense);
+	col = mix(col, roots, rooted);
 
 	// Pubic hair: a shadow of the hair colour and dense curls, thinning out
 	// towards the edge.

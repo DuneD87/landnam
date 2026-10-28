@@ -131,7 +131,7 @@ Las texturas copiadas están en `textures/character/human/`. Sobre esa base:
   mechones en gris; el color sale del ajuste y es el mismo en todos los
   peinados. Los peinados y las barbas son los de la biblioteca de Hair Tool,
   convertidos en assets de MakeHuman (`docs/hair_tool.md`): 20 peinados para
-  cada sexo (diez compartidos) y cinco barbas; rapado y calvo, para ambos.
+  cada sexo (diez compartidos) y 15 barbas y bigotes; rapado y calvo, para ambos.
   Bajo cada peinado la piel pinta raíces del color del pelo con una máscara
   propia del peinado, que sigue su línea del pelo (`docs/hair_tool.md`); sin
   ella, las del cuero cabelludo (`scalp_hair`, `scalp_spread`).

@@ -11,8 +11,8 @@ extends Resource
 enum Kind { EYES, TEETH, TONGUE, EYEBROWS, EYELASHES, HAIR, BEARD, GENITALS }
 
 @export var kind: Kind
-## Texture role ("albedo", "normal"; hair: "cover", the scalp it covers on the
-## skin's UVs) -> res:// path.
+## Texture role ("albedo", "normal"; hair and beards: "cover", the skin they
+## cover, on its UVs) -> res:// path.
 @export var textures := {}
 ## Mean colour of the albedo texture (weighted by alpha): materials tint
 ## relative to it, so one hair colour looks alike on every style.

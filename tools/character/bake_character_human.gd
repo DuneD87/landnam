@@ -249,10 +249,10 @@ func _proxy_textures(name: String, kind: HumanProxyData.Kind) -> Dictionary:
 			image = _strand_detail(image)
 		image.save_png(ProjectSettings.globalize_path(path))
 		result[role[1]] = path
-	# The scalp the style covers (make_skin_masks.py), which the skin paints
-	# with roots of the hair colour.
+	# The skin the style or beard covers (make_skin_masks.py): the skin paints
+	# roots of the hair colour under a style and a shadow under a beard.
 	var cover := source_dir.path_join("hair_cover/%s.png" % name)
-	if kind == HumanProxyData.Kind.HAIR and FileAccess.file_exists(cover):
+	if kind in [HumanProxyData.Kind.HAIR, HumanProxyData.Kind.BEARD] and FileAccess.file_exists(cover):
 		var image := Image.load_from_file(cover)
 		image.convert(Image.FORMAT_L8)
 		var path := "%s/proxies/%s_cover.png" % [TEXTURES, name]

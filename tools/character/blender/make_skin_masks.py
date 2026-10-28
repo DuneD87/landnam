@@ -12,9 +12,10 @@ directory (numpy is only at hand in Blender's Python):
    shader sets how far the hair goes. The men's also climbs to the navel;
  - stubble.png (512, tiling): R short straight strokes for stubble and buzz
    cuts, G curls for pubic hair;
- - hair_cover/<hair proxy>.png (512, R): the scalp each hair style covers,
-   from the hair the exporter found on the skin (hair_cover): solid where the
-   hair is thick, fading out at its hairline, never past the scalp's edge;
+ - hair_cover/<hair or beard proxy>.png (512, R): the skin each hair style
+   or beard covers, from the hair the exporter found on it (hair_cover):
+   solid where the hair is thick, fading out at its edge, never far past the
+   scalp (hair) or the beard regions of masks.png (beards);
  - skin_normal_female.png: the skin relief map with the breasts flattened, as
    it was sculpted on a male chest.
 """
@@ -121,6 +122,11 @@ def save(image, path):
 
 
 def head_masks(header, array):
+    return blur(rasterize(*head_mask_values(header, array), MASK_SIZE), 2)
+
+
+def head_mask_values(header, array):
+    """Body UVs, triangles and per-vertex scalp, beard, moustache and goatee."""
     body = header["body"]
     p = array(body["positions"], width=3)
     uvs = array(body["uvs"], width=2)
@@ -166,8 +172,7 @@ def head_masks(header, array):
     scalp_mask = smoothstep(0.1, 0.6, scalp)
 
     values = np.stack([scalp_mask, beard, moustache, goatee], axis=1).astype(np.float32)
-    image = rasterize(uvs, triangles, values, MASK_SIZE)
-    return blur(image, 2)
+    return uvs, triangles, values
 
 
 def pubic_masks(header, array):
@@ -280,17 +285,19 @@ def female_normal(header, array):
 
 
 def hair_cover_masks(header, array):
-    body = header["body"]
-    uvs = array(body["uvs"], width=2)
-    triangles = array(body["indices"], np.int32, 3)
-    scalp = smoothstep(0.1, 0.6, array(body["group_scalp"]))[:, None].astype(np.float32)
-    region = rasterize(uvs, triangles, scalp, COVER_SIZE)
-    region = np.maximum(region, np.clip(blur(region, COVER_MARGIN) * 2.5, 0.0, 1.0))
+    uvs, triangles, values = head_mask_values(header, array)
+    regions = {}
+    # Hair stays on the scalp, beards on the beard regions (and the scalp, for
+    # sideburns), plus a margin.
+    for kind, region in (("hair", values[:, :1]), ("beard", values.max(axis=1, keepdims=True))):
+        region = rasterize(uvs, triangles, np.ascontiguousarray(region), COVER_SIZE)
+        regions[kind] = np.maximum(region, np.clip(blur(region, COVER_MARGIN) * 2.5, 0.0, 1.0))
     folder = os.path.join(OUT, "hair_cover")
     os.makedirs(folder, exist_ok=True)
     for name, entry in header["proxies"].items():
         if "hair_cover" not in entry:
             continue
+        region = regions["beard" if name.startswith("beard_") else "hair"]
         cover = 1.0 - np.exp(-array(entry["hair_cover"]) / COVER_DENSITY)
         image = rasterize(uvs, triangles, cover[:, None].astype(np.float32), COVER_SIZE)
         image = smoothstep(0.1, 0.7, blur(image, COVER_BLUR)) * region

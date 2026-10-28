@@ -72,6 +72,38 @@ vistas de frente, tres cuartos y espalda en Cycles (CPU, sin ventana) en
    siga los párpados; MakeClothes aún ancla alguno en ellos, así que además
    `HumanShape.proxy_blink` no da parpadeo al pelo ni a las barbas.
 
+## Barbas y bigotes por regiones
+
+La biblioteca solo trae cinco barbas (corta, larga suave, larga fina, candado
+y patillas). El resto sale de ellas con `region` en el JSON: se generan
+enteras y solo se quedan las tarjetas cuya raíz (su vértice más cercano a la
+piel) cae en esa parte de la cara. `FaceRegions` (en `hair_tool_convert.py`)
+las define con puntos de referencia de la cabeza de MakeHuman (boca, nariz,
+barbilla, orejas), como las máscaras de `make_skin_masks.py`: `moustache`,
+`toothbrush`, `goatee`, `soul_patch`, `horseshoe`, `van_dyke`, `chin_strap`,
+`mutton_chops`, `no_moustache` y `full`. El borde se aclara al azar para que
+no parezca recortado, salvo en las regiones nítidas (`CRISP`: el bigote
+cepillo, un bloque limpio). La densidad depende de la barba de origen: la
+corta es de pelusa fina; para bigotes, perillas y la Van Dyke rinde más el
+candado.
+
+## Cómo se ven las barbas
+
+Una barba va pegada a la cara, así que se dibuja distinta del pelo:
+
+- **Normales de la piel**: sus tarjetas, tumbadas sobre la cara, daban la
+  espalda a la luz al azar y la barba salía a rayas negras y brillos. El
+  exportador inclina la normal de cada vértice hacia la de la piel más
+  cercana (`skin_normals()`, `BEARD_SKIN_NORMAL`) y el shader del pelo la
+  mantiene en las dos caras (`skin_normals`, que el rig activa en las barbas,
+  sin brillo anisótropo).
+- **Oclusión**: el pelo se oscurece a menos de 2 cm del cuero cabelludo y la
+  barba entera cabe en eso; en las barbas solo las raíces
+  (`BEARD_OCCLUSION_DEPTH`, 5 mm).
+- **Mechones finos**: el atlas de las barbas se ensancha menos que el del pelo
+  (`spread` en el JSON; 3 frente a 10) y muestra más claros y oscuros de la
+  textura (`BEARD_TEXTURE_CONTRAST`).
+
 ## Revisar la densidad
 
 `hair_tool_coverage.py` mide qué parte del cuero cabelludo se ve a través de
@@ -86,8 +118,9 @@ blender -b --factory-startup --python tools/character/blender/hair_tool_coverage
 ```
 
 Con `--look` (antes de los nombres) pinta la piel como el juego bajo cada
-estilo, con su máscara de raíces, y la renderiza de frente, de tres cuartos y
-desde arriba (`<estilo>_look_<vista>.png`), para revisar la línea del pelo.
+estilo o barba (`beard_<barba>`), con su máscara de raíces, y la renderiza de
+frente, de tres cuartos y desde arriba (`<estilo>_look_<vista>.png`), para
+revisar la línea del pelo.
 
 ## Raíces bajo el pelo
 
@@ -103,6 +136,12 @@ pelo, con una máscara propia de cada estilo que sigue su línea del pelo:
    `build/character/mpfb/hair_cover/<proxy>.png`.
 3. El horneado lo guarda como textura `cover` del peinado y
    `human_skin.gdshader` la pinta (`use_hair_cover`), gris si el pelo lo es.
+
+Las barbas llevan su máscara igual (`use_beard_cover`), limitada a las
+regiones de barba, bigote y perilla de `masks.png` y al cuero cabelludo
+(patillas), pero debajo la piel solo se oscurece, como la sombra de la barba
+de tres días, con la fuerza `beard_cover_shade`: el color liso parecía
+pintura con barbas oscuras y los trazos, suciedad.
 
 Así la coronilla queda del color del pelo y el borde se difumina donde acaba
 cada peinado: la frente despejada de una coleta, el lado rapado de De lado,

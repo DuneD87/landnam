@@ -42,7 +42,8 @@ exactly as here, in raw MakeHuman space, from the anchors they reference
 (three weighted vertices, possibly extrapolated, plus an offset scaled by
 the body), then posed with their sex's bone transforms. Anchors are exported
 as raw points with raw sparse displacements per morph; eyeballs follow their
-eyelid rings instead. Proxies keep their base normals.
+eyelid rings instead. Proxies keep their base normals (beards lean to the
+skin's, skin_normals()).
 
 Morph kinds:
  - sex_female: the female base against the male one.
@@ -718,10 +719,10 @@ HAIR_COVER_FAR = 0.02
 
 
 def hair_cover(points, kd, body_source):
-    """How much of a hair style lies on each body vertex (output order): the
-    sum, over its vertices near the skin, of their closeness, given to the
-    nearest body vertex. make_skin_masks.py paints the scalp under the hair
-    from it, so the roots follow each style's hairline."""
+    """How much of a hair style (or beard) lies on each body vertex (output
+    order): the sum, over its vertices near the skin, of their closeness,
+    given to the nearest body vertex. make_skin_masks.py paints the skin under
+    the hair from it, so the roots follow each style's outline."""
     cover = np.zeros(int(body_source.max()) + 1, dtype=np.float64)
     for p in points:
         _, index, gap = kd.find(p)
@@ -729,6 +730,25 @@ def hair_cover(points, kd, body_source):
             t = min(max((gap - HAIR_COVER_NEAR) / (HAIR_COVER_FAR - HAIR_COVER_NEAR), 0.0), 1.0)
             cover[index] += 1.0 - t * t * (3.0 - 2.0 * t)
     return cover[body_source].astype(np.float32)
+
+
+## skin_normals(): share of the skin's normal in a beard card's.
+BEARD_SKIN_NORMAL = 0.8
+
+
+def skin_normals(points, normals, kd, body_normals):
+    """Beard cards lit as the skin they grow from: each vertex's normal leans
+    to the nearest body vertex's (BEARD_SKIN_NORMAL). On their own, cards
+    lying along the face turn their back to the light at random and the beard
+    shades in black and bright streaks; human_hair.gdshader's skin_normals
+    keeps these normals on both faces."""
+    out = np.empty_like(normals)
+    for i, p in enumerate(points):
+        skin = body_normals[kd.find(p)[1]]
+        card = normals[i] if normals[i] @ skin >= 0.0 else -normals[i]
+        n = skin * BEARD_SKIN_NORMAL + card * (1.0 - BEARD_SKIN_NORMAL)
+        out[i] = n / max(np.linalg.norm(n), 1e-12)
+    return out
 
 
 def smooth_normals(points, tri_vertices):
@@ -1016,7 +1036,10 @@ def main():
         source, uvs, triangles, tri_vertices = part["layout"]
         points = base["points"][name]
         positions = to_skin_space(points[source])
-        normals = to_skin_dir(normals_of(base)[name][source])
+        normals = normals_of(base)[name][source]
+        if name.startswith("beard_"):
+            normals = skin_normals(points[source], normals, kd, normals_of(base)["body"])
+        normals = to_skin_dir(normals)
         entry = {
             "vertex_count": int(len(source)),
             "positions": blob.add(positions, np.float32),
@@ -1045,7 +1068,7 @@ def main():
         # UV2.x: distance to the body, for hair ambient occlusion near the scalp.
         distance = np.array([kd.find(p)[2] for p in points[source]], dtype=np.float32)
         entry["uv2"] = blob.add(np.stack([distance, np.zeros_like(distance)], axis=1), np.float32)
-        if part["folder"] == "hair":
+        if part["folder"] in ("hair", "clothes"):  # hair styles and beards
             entry["hair_cover"] = blob.add(hair_cover(points, kd, body_source), np.float32)
         if name == "eyes":
             side = np.zeros(len(points), dtype=np.int32)

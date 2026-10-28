@@ -41,6 +41,12 @@ const MATERIALS := {
 	HumanProxyData.Kind.BEARD: "res://data/character/materials/human_hair.tres",
 }
 const SKIN_MATERIAL := "res://data/character/materials/human_skin.tres"
+## human_hair.gdshader's occlusion_depth (metres) for hair styles and beards.
+const HAIR_OCCLUSION_DEPTH := 0.02
+const BEARD_OCCLUSION_DEPTH := 0.005
+## Beards show more of their strands' own light and dark than hair, which
+## would read as a flat block of colour on the face (texture_contrast).
+const BEARD_TEXTURE_CONTRAST := 1.8
 const EYELASH_COLOR := Color("1c1612")
 ## Buzz cut density painted on the scalp under a haircut without its own
 ## cover (HumanProxyData.textures.cover; more paints a hard line on the
@@ -157,7 +163,7 @@ func apply(appearance: CharacterAppearance) -> void:
 	_update_blink()
 
 	var shader := _shader_values(appearance)
-	_apply_skin_material(appearance, sex, hair_style, shader)
+	_apply_skin_material(appearance, sex, hair_style, parts[&"beard"], shader)
 	var hair_color: Color = appearance.get_value(&"hair_color")
 	for slot in [&"hair", &"beard", &"eyebrows"]:
 		_set_param(slot, &"hair_color", hair_color)
@@ -631,12 +637,21 @@ func _context() -> ArmorFit:
 	return context
 
 
+## The skin a hair or beard proxy covers (its "cover" texture), or null.
+func _cover(part: StringName) -> Texture2D:
+	if part == &"":
+		return null
+	var proxy: HumanProxyData = load(PROXY_PATH % part)
+	return load(proxy.textures.cover) if proxy != null and proxy.textures.has("cover") else null
+
+
 ## Every bone at rest in skeleton space, with the body's joints.
 func _body_globals() -> Array[Transform3D]:
 	return BodyMeasurements.rest_globals(_skeleton, _proportions.bone_offsets)
 
 
-func _apply_skin_material(appearance: CharacterAppearance, sex: StringName, hair_style: Dictionary, shader: Dictionary) -> void:
+func _apply_skin_material(appearance: CharacterAppearance, sex: StringName, hair_style: Dictionary,
+		beard_part: StringName, shader: Dictionary) -> void:
 	var skin_id: StringName = appearance.get_value(AppearanceCatalog.SKIN)
 	var skin: Dictionary = _data.skins.get(skin_id, _data.skins.values()[0])
 	var m := _skin_material
@@ -647,13 +662,12 @@ func _apply_skin_material(appearance: CharacterAppearance, sex: StringName, hair
 	# Under a haircut the scalp shows roots, so gaps and the hairline blend:
 	# the ones the style covers (its "cover" texture), or else the scalp mask.
 	var haircut: bool = hair_style.get("part", &"") != &""
-	var cover: Texture2D = null
-	if haircut:
-		var proxy: HumanProxyData = load(PROXY_PATH % hair_style.part)
-		if proxy != null and proxy.textures.has("cover"):
-			cover = load(proxy.textures.cover)
+	var cover := _cover(hair_style.get("part", &""))
+	var beard_cover := _cover(beard_part)
 	m.set_shader_parameter(&"use_hair_cover", cover != null)
 	m.set_shader_parameter(&"hair_cover_texture", cover)
+	m.set_shader_parameter(&"use_beard_cover", beard_cover != null)
+	m.set_shader_parameter(&"beard_cover_texture", beard_cover)
 	m.set_shader_parameter(&"hair_gray", shader.get(&"gray", 0.0))
 	var scalp: float = hair_style.get("scalp", UNDER_HAIR_SCALP if haircut else 0.0)
 	m.set_shader_parameter(&"scalp_hair", 0.0 if cover != null else scalp)
@@ -708,7 +722,11 @@ func _material_for(proxy: HumanProxyData) -> Material:
 		if proxy.textures.has("albedo"):
 			material.albedo_texture = load(proxy.textures.albedo)
 		return material
-	var params := {&"texture_tone": proxy.tone, &"strand_axis": proxy.strand_axis}
+	var beard := proxy.kind == HumanProxyData.Kind.BEARD
+	# A beard lies within the scalp hair's occlusion depth: only its roots darken.
+	var params := {&"texture_tone": proxy.tone, &"strand_axis": proxy.strand_axis,
+			&"skin_normals": beard, &"occlusion_depth": BEARD_OCCLUSION_DEPTH if beard else HAIR_OCCLUSION_DEPTH,
+			&"texture_contrast": BEARD_TEXTURE_CONTRAST if beard else 1.0}
 	if proxy.textures.has("albedo"):
 		params[&"albedo_texture"] = load(proxy.textures.albedo)
 	if proxy.textures.has("normal"):

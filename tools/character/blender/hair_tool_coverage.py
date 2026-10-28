@@ -13,8 +13,8 @@ against the bare head; the renders are kept to look at (Cycles, CPU, no
 window).
 
 With --look the skin is painted instead as the game paints it under a style:
-skin colour with the style's cover (hair_ht_<name>_cover.png, in <albedo
-dir>) as roots of the hair colour, rendered from the front, three-quarter and
+skin colour with the style's cover (hair_ht_<name>_cover.png, or
+beard_ht_<beard>_cover.png for beard_<beard>, in <albedo dir>) as roots of the hair colour, rendered from the front, three-quarter and
 above (<name>_look_<view>.png), to judge the hairline.
 """
 
@@ -142,13 +142,14 @@ def look(base, cards_dir, albedo_dir, out, names):
     scene = bpy.context.scene
     scene.camera.data.ortho_scale = 0.36
     for name in names:
-        path = Path(albedo_dir) / ("hair_ht_%s_cover.png" % name)
+        proxy = "beard_ht_" + name[6:] if name.startswith("beard_") else "hair_ht_" + name
+        path = Path(albedo_dir) / ("%s_cover.png" % proxy)
         cover.image = bpy.data.images.load(str(path)) if path.exists() else None
         if cover.image:
             cover.image.colorspace_settings.name = "Non-Color"
         bpy.ops.wm.obj_import(filepath=str(cards_dir / (name + ".obj")), forward_axis="NEGATIVE_Z", up_axis="Y")
         cards = bpy.context.selected_objects[0]
-        hair = hair_material(Path(albedo_dir) / ("hair_ht_%s_albedo.png" % name))
+        hair = hair_material(Path(albedo_dir) / ("%s_albedo.png" % proxy))
         hair.node_tree.nodes["Emission"].inputs["Color"].default_value = (0.07, 0.04, 0.02, 1.0)
         cards.data.materials.append(hair)
         for view, direction in LOOK_VIEWS.items():

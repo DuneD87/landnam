@@ -30,10 +30,10 @@ OUT = ROOT / "build/character/hair_tool/lib"
 
 def styles():
     data = json.loads((ROOT / "tools/character/hair_tool_styles.json").read_text())
-    for style in data["styles"].values():
-        style.setdefault("budget", data["budget"]["hair"])
-    for style in data["beards"].values():
-        style.setdefault("budget", data["budget"]["beard"])
+    for kind, group in (("hair", "styles"), ("beard", "beards")):
+        for style in data[group].values():
+            style.setdefault("budget", data["budget"][kind])
+            style.setdefault("spread", data["spread"][kind])
     return {**data["styles"], **data["beards"]}
 
 
@@ -65,9 +65,11 @@ def main():
         command = [BLENDER_52, "-b", "--factory-startup", LIBRARY / (style["preset"] + ".blend"),
                    "--python", TOOLS / "hair_tool_convert.py", "--", base, OUT, name,
                    "--keep", style.get("keep", 1.0), "--budget", style["budget"],
-                   "--unsubdivide", style.get("unsubdivide", 1)]
+                   "--unsubdivide", style.get("unsubdivide", 1), "--spread", style["spread"]]
         if style.get("extra"):
             command += ["--extra"] + [e + ".blend" for e in style["extra"]]
+        if style.get("region"):
+            command += ["--region", style["region"]]
         if style.get("objects"):
             command += ["--objects", ",".join(style["objects"])]
         if args.render:

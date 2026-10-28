@@ -5,7 +5,7 @@ presets carry their own geometry nodes):
 
     blender -b --factory-startup <preset.blend> --python \
         tools/character/blender/hair_tool_convert.py -- <mh_base.blend> <out dir> <name> \
-        [--extra other.blend ...] [--objects A,B] [--keep 0.6] [--render]
+        [--extra other.blend ...] [--objects A,B] [--keep 0.6] [--region moustache] [--spread 10] [--render]
 
 <mh_base.blend> is written by hair_tool_base.py. Every preset was groomed on
 the same mannequin head, which the library does not ship; its full scalp cap
@@ -18,10 +18,12 @@ The cards the generators make are written to <out dir>/<name>.obj (in the
 space of the base mesh, with the generator's UVs) and the atlas next to it.
 Cards are halved along their length (--unsubdivide, one pass by default:
 a second one saves nothing); then, over --budget triangles, cards are dropped
-at random (whole cards) to fit it, as --keep does by hand; --objects limits which hair objects are exported (default: every
-generated one); --extra appends the objects of other presets (subcomponents:
+at random (whole cards) to fit it, as --keep does by hand; --objects limits
+which hair objects are exported (default: every generated one); --extra appends the objects of other presets (subcomponents:
 a tail or a bun on a pulled-back base). --render saves a Cycles preview
-(front, three-quarter, back).
+(front, three-quarter, back). --region keeps only the cards rooted in a
+part of the face (FaceRegions: moustache, toothbrush, goatee...), to make
+beard styles the library lacks out of its full beards.
 
 The atlas is the image most of the cards use. A preset that keeps colour and
 opacity in two images (Afro) gets them joined: grey from the colour image,
@@ -51,8 +53,8 @@ LIBRARY = Path("/home/drive/tools/hair_tool_library/HairLibrary_52")
 CAP_PRESET = LIBRARY / "ShortHair.blend"
 CAP_OBJECT = "ShortHair_Scalp"
 ICP_STEPS = 40
-## densify(): texels the strands are spread across (each side, at 1024 px)
-## and the gain on that spread alpha.
+## densify(): texels the strands are spread across (each side, at 1024 px;
+## --spread) and the gain on that spread alpha.
 SPREAD = 10
 SPREAD_GAIN = 6.0
 ## Bounds of the per-axis scale of the fit.
@@ -69,6 +71,8 @@ def parse_args():
     parser.add_argument("--keep", type=float, default=1.0)
     parser.add_argument("--unsubdivide", type=int, default=1)
     parser.add_argument("--budget", type=int, default=0)
+    parser.add_argument("--region", default="")
+    parser.add_argument("--spread", type=float, default=SPREAD)
     parser.add_argument("--render", action="store_true")
     return parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
 
@@ -136,6 +140,119 @@ def mannequin_transform(base, tree):
         "scale": scale.tolist(), "offset": offset.tolist(), "mean_gap": mean_gap, "gap95": gap95}
 
 
+def _smooth(a, b, x):
+    t = min(max((x - a) / (b - a), 0.0), 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
+class FaceRegions:
+    """Parts of MakeHuman's face, 0-1 at a point on it, from landmarks of the
+    base head (the rules of make_skin_masks.py, in Blender axes: X across, Z
+    up, -Y forward). Feathered regions thin out at their edge; crisp ones
+    (CRISP) are cut clean."""
+
+    CRISP = {"toothbrush"}
+
+    def __init__(self, base):
+        points = world_points(base)
+        def group(name):
+            index = base.vertex_groups[name].index
+            return np.array([any(g.group == index and g.weight > 0.5 for g in v.groups) for v in base.data.vertices])
+        lips = points[group("lips")]
+        ears = points[group("ears")]
+        self.mouth = lips.mean(axis=0)
+        self.mouth_half = np.abs(lips[:, 0]).max()
+        up, fwd = points[:, 2], -points[:, 1]
+        m_up, m_fwd = self.mouth[2], -self.mouth[1]
+        front = (np.abs(points[:, 0]) < 0.006) & (up > m_up + 0.01) & (up < m_up + 0.07)
+        self.nose = points[front][np.argmax(fwd[front])]
+        below = (np.abs(points[:, 0]) < 0.01) & (up < m_up) & (up > m_up - 0.09) & (fwd > m_fwd - 0.06)
+        self.chin = points[below][np.argmin(up[below])]
+        self.ear = ears[ears[:, 0] > 0].mean(axis=0)
+        print("FACE mouth", self.mouth.round(3), "nose", self.nose.round(3), "chin", self.chin.round(3),
+              "ear", self.ear.round(3))
+
+    def _axes(self, p):
+        return abs(p[0]), p[2], -p[1]
+
+    def full(self, p):
+        ax, up, fwd = self._axes(p)
+        nose_up, ear_up, chin_up = self.nose[2], self.ear[2], self.chin[2]
+        side = min(ax / abs(self.ear[0]), 1.0)
+        top = nose_up - 0.012 + (ear_up - 0.028 - (nose_up - 0.012)) * side ** 1.4
+        value = 1.0 - _smooth(top - 0.008, top + 0.004, up)
+        value *= _smooth(chin_up - 0.03, chin_up - 0.01, up)
+        value *= _smooth(-self.ear[1] - 0.012, -self.ear[1] + 0.004, fwd)
+        return value
+
+    def moustache(self, p):
+        ax, up, fwd = self._axes(p)
+        m_up = self.mouth[2]
+        value = _smooth(m_up + 0.001, m_up + 0.006, up) * (1.0 - _smooth(self.nose[2] - 0.016, self.nose[2] - 0.006, up))
+        value *= 1.0 - _smooth(self.mouth_half + 0.004, self.mouth_half + 0.016, ax)
+        return value * _smooth(-self.mouth[1] - 0.035, -self.mouth[1] - 0.015, fwd)
+
+    def toothbrush(self, p):
+        ax, up, _ = self._axes(p)
+        return float(self.moustache(p) > 0.5 and ax < 0.014 and up > self.mouth[2] + 0.004)
+
+    def goatee(self, p, width=0.03):
+        ax, up, fwd = self._axes(p)
+        value = (1.0 - _smooth(width - 0.012, width, ax)) * (1.0 - _smooth(self.mouth[2] - 0.012, self.mouth[2] - 0.005, up))
+        return value * _smooth(self.chin[2] - 0.02, self.chin[2] - 0.004, up) * _smooth(-self.chin[1] - 0.04, -self.chin[1] - 0.015, fwd)
+
+    def soul_patch(self, p):
+        ax, up, fwd = self._axes(p)
+        m_up = self.mouth[2]
+        return (1.0 - _smooth(0.006, 0.011, ax)) * _smooth(m_up - 0.032, m_up - 0.026, up) \
+            * (1.0 - _smooth(m_up - 0.012, m_up - 0.006, up)) * _smooth(-self.mouth[1] - 0.03, -self.mouth[1] - 0.012, fwd)
+
+    def horseshoe(self, p):
+        ax, up, fwd = self._axes(p)
+        bars = _smooth(self.mouth_half - 0.006, self.mouth_half - 0.001, ax) \
+            * (1.0 - _smooth(self.mouth_half + 0.01, self.mouth_half + 0.016, ax))
+        bars *= _smooth(self.chin[2] - 0.012, self.chin[2] - 0.002, up) * (1.0 - _smooth(self.mouth[2], self.mouth[2] + 0.006, up))
+        bars *= _smooth(-self.mouth[1] - 0.04, -self.mouth[1] - 0.02, fwd)
+        return max(self.moustache(p), bars)
+
+    def van_dyke(self, p):
+        return max(self.moustache(p), self.goatee(p, width=0.02))
+
+    def chin_strap(self, p):
+        ax, up, _ = self._axes(p)
+        side = min(ax / abs(self.ear[0]), 1.0)
+        jaw = self.chin[2] + (self.ear[2] - 0.035 - self.chin[2]) * side ** 1.6
+        return self.full(p) * (1.0 - _smooth(jaw + 0.016, jaw + 0.028, up)) * (1.0 - self.moustache(p))
+
+    def mutton_chops(self, p):
+        ax, _, _ = self._axes(p)
+        return self.full(p) * _smooth(self.mouth_half + 0.012, self.mouth_half + 0.026, ax)
+
+    def no_moustache(self, p):
+        return self.full(p) * (1.0 - _smooth(0.2, 0.6, self.moustache(p)))
+
+
+def island_faces(bm):
+    """Faces of each card (connected island)."""
+    bm.faces.index_update()
+    islands, seen = [], set()
+    for face in bm.faces:
+        if face.index in seen:
+            continue
+        stack, island = [face], []
+        seen.add(face.index)
+        while stack:
+            f = stack.pop()
+            island.append(f)
+            for edge in f.edges:
+                for other in edge.link_faces:
+                    if other.index not in seen:
+                        seen.add(other.index)
+                        stack.append(other)
+        islands.append(island)
+    return islands
+
+
 def roots(objects):
     return [o for o in objects if o.parent is None and o.type in ("MESH", "CURVES")]
 
@@ -189,7 +306,7 @@ def face_images(mesh):
     return [keys[i] if materials else () for i in indices]
 
 
-def export_cards(objects, path, keep, unsubdivide=0, seed=1):
+def export_cards(objects, path, keep, unsubdivide=0, region=None, tree=None, seed=1):
     depsgraph = bpy.context.evaluated_depsgraph_get()
     # The atlas: the image set most faces use.
     counts = {}
@@ -215,24 +332,19 @@ def export_cards(objects, path, keep, unsubdivide=0, seed=1):
         if other:
             bmesh.ops.delete(bm, geom=other, context="FACES")
         uv = bm.loops.layers.uv.get("UVMapGN")
-        if keep < 1.0:
-            # Cards are islands; drop whole ones.
-            islands, seen = [], set()
-            for face in bm.faces:
-                if face.index in seen:
-                    continue
-                stack, island = [face], []
-                seen.add(face.index)
-                while stack:
-                    f = stack.pop()
-                    island.append(f)
-                    for edge in f.edges:
-                        for other in edge.link_faces:
-                            if other.index not in seen:
-                                seen.add(other.index)
-                                stack.append(other)
-                islands.append(island)
-            drop = [f for island in islands if rng.random() > keep for f in island]
+        if keep < 1.0 or region:
+            # Cards are islands; drop whole ones: by chance, and by where
+            # they grow (their vertex nearest the skin).
+            drop = []
+            for island in island_faces(bm):
+                chance = keep
+                if region:
+                    root = min({v for f in island for v in f.verts}, key=lambda v: tree.find_nearest(v.co)[3])
+                    value = region(root.co)
+                    crisp = value if region.__name__ in FaceRegions.CRISP else value * value * (3.0 - 2.0 * value)
+                    chance *= crisp
+                if rng.random() >= chance:
+                    drop.extend(island)
             bmesh.ops.delete(bm, geom=drop, context="FACES_ONLY")
             bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
         remap = {v: joined.verts.new(v.co) for v in bm.verts}
@@ -278,16 +390,16 @@ def _box(a, radius, axis):
             - np.take(total, range(0, n), axis=axis)) / (2 * radius + 1)
 
 
-def densify(alpha):
+def densify(alpha, spread=SPREAD):
     """Strands spread across (the atlas strands run along V, its rows) into a
     solid core where they are dense; lone strands and tips stay thin."""
-    radius = max(1, round(SPREAD * alpha.shape[1] / 1024))
+    radius = max(1, round(spread * alpha.shape[1] / 1024))
     across = _box(alpha, radius, 1)
     along = _box(alpha, 1, 0)
     return np.clip(np.maximum(alpha, np.minimum(across, along * 2.0) * SPREAD_GAIN), 0.0, 1.0)
 
 
-def save_atlas(images, out, name):
+def save_atlas(images, out, name, spread=SPREAD):
     path = out / (name + "_atlas.png")
     if not images:
         return None
@@ -307,7 +419,7 @@ def save_atlas(images, out, name):
         image.pixels.foreach_set(np.stack([grey, grey, grey, alpha], axis=2).ravel())
     w, h = image.size
     pixels = np.array(image.pixels[:], dtype=np.float32).reshape(h, w, 4)
-    pixels[..., 3] = densify(pixels[..., 3])
+    pixels[..., 3] = densify(pixels[..., 3], spread)
     dense = bpy.data.images.new(name + "_dense", w, h, alpha=True)
     dense.pixels.foreach_set(pixels.ravel())
     dense.filepath_raw = str(path)
@@ -398,16 +510,17 @@ def main():
         objects = [o for o in objects if o.name in wanted]
     path = args.out / (args.name + ".obj")
     keep = args.keep
-    cards, triangles, images, dropped = export_cards(objects, path, keep, args.unsubdivide)
+    region = getattr(FaceRegions(base), args.region) if args.region else None
+    cards, triangles, images, dropped = export_cards(objects, path, keep, args.unsubdivide, region, tree)
     if args.budget and triangles > args.budget:
         # Over budget once the cards are halved: drop just enough of them.
         keep *= args.budget / triangles * 0.97
         bpy.data.objects.remove(cards)
-        cards, triangles, images, dropped = export_cards(objects, path, keep, args.unsubdivide)
-    atlas = save_atlas([IMAGES[i] for i in images], args.out, args.name)
+        cards, triangles, images, dropped = export_cards(objects, path, keep, args.unsubdivide, region, tree)
+    atlas = save_atlas([IMAGES[i] for i in images], args.out, args.name, args.spread)
     report = {"name": args.name, "preset": bpy.data.filepath, "extra": [str(e) for e in args.extra],
               "objects": [o.name for o in objects], "triangles": triangles,
-              "keep": keep, "atlas": list(images), "dropped_faces": dropped, "fit": fit}
+              "keep": keep, "region": args.region, "atlas": list(images), "dropped_faces": dropped, "fit": fit}
     (args.out / (args.name + ".json")).write_text(json.dumps(report, indent=1))
     print("HAIR_TOOL_REPORT " + json.dumps(report))
     if args.render:

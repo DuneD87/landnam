@@ -25,9 +25,12 @@ void fragment() {
 	if (use_normal) {
 		NORMAL_MAP = texture(normal_texture, UV).rgb;
 	}
+	if (skin_normals && !FRONT_FACING) {
+		NORMAL = -NORMAL;
+	}
 	ROUGHNESS = roughness;
 	SPECULAR = 0.18;
-	ANISOTROPY = 0.45;
+	ANISOTROPY = skin_normals ? 0.0 : 0.45;
 	ANISOTROPY_FLOW = strand_axis == 1 ? vec2(0.0, 1.0) : vec2(1.0, 0.0);
 	BACKLIGHT = col * 0.25;
 }

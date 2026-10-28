@@ -24,6 +24,10 @@ uniform float skin_lift = 0.0025;
 
 varying float depth_from_body;
 
+// Beards: their normals are the skin's (export_mpfb_human.skin_normals), the
+// same on both faces of a card, and the strands carry no highlight along them.
+uniform bool skin_normals = false;
+
 vec3 lifted(vec3 vertex, vec3 normal, float distance_to_body) {
 	return vertex + normal * skin_lift * (1.0 - smoothstep(0.0, 0.012, distance_to_body));
 }
