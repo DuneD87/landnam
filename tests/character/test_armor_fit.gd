@@ -207,8 +207,8 @@ func _check_hair(rig: CharacterAppearanceRig, skeleton: Skeleton3D) -> void:
 					(span.x + span.y) * 0.5, (middle[2] + middle[3]) * 0.5)
 			var tuck := HairTuck.new(fitted.points, centre, context.body_globals[head].basis,
 					context.body_globals, context.units)
-			var before := _rest_points(rig, skeleton, loose, context)
-			var after := _rest_points(rig, skeleton, hair.mesh, context)
+			var before := _rest_points(rig, skeleton, loose, hair.skin)
+			var after := _rest_points(rig, skeleton, hair.mesh, hair.skin)
 			var poking_before := 0
 			var poking_after := 0
 			var covered := 0
@@ -233,8 +233,10 @@ func _check_hair(rig: CharacterAppearanceRig, skeleton: Skeleton3D) -> void:
 			check(hair.mesh == loose, "%s: without the hood the hair is loose again" % name)
 
 
-func _rest_points(rig: CharacterAppearanceRig, skeleton: Skeleton3D, mesh: ArrayMesh, context: ArmorFit) -> PackedVector3Array:
-	var binds := BodyMeasurements.bind_transforms(rig._data.skin, skeleton, context.body_globals)
+## The mesh's points at rest with `skin` (the hair's: the body's binds and
+## the hair bones' after them), the joints where the rig has them now.
+func _rest_points(rig: CharacterAppearanceRig, skeleton: Skeleton3D, mesh: ArrayMesh, skin: Skin) -> PackedVector3Array:
+	var binds := BodyMeasurements.bind_transforms(skin, skeleton, rig._body_globals())
 	var arrays := mesh.surface_get_arrays(0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]

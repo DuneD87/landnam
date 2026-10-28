@@ -279,6 +279,39 @@ func _check_thumbnail_requests() -> void:
 	thumbnails.free()
 
 
+## Long hair hangs from the hair's bones and swings; a crew cut does not.
+func _check_hair_swing(model: Node3D, rig: CharacterAppearanceRig, appearance: CharacterAppearance) -> void:
+	var skeleton: Skeleton3D = model.get_node("Armature/Skeleton3D")
+	var hair: MeshInstance3D = skeleton.get_node("HumanHair")
+	var swing := skeleton.get_node_or_null("HairSwing") as HairSwing
+	var first := skeleton.find_bone(HairBones.bone_name(0, 0))
+	var body_binds: int = (model.get_node("Armature/Skeleton3D/Mesh_0") as MeshInstance3D).skin.get_bind_count()
+	var arrays := hair.mesh.surface_get_arrays(0)
+	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+	var hanging := 0
+	for i in bones.size():
+		if weights[i] > 0.5 and bones[i] >= body_binds:
+			hanging += 1
+	check(first >= 0 and swing != null and swing.active and hanging > 500,
+			"long hair hangs from the hair's bones and swings (%d vertices)" % hanging)
+	# The chains sit in the hair: under the head, behind or beside it, not inside it.
+	var ring := HairBones.frame(skeleton)
+	var globals := BodyMeasurements.rest_globals(skeleton)
+	var to_head := globals[skeleton.find_bone(HairBones.HEAD)].affine_inverse()
+	var outside := true
+	for chain in HairBones.CHAINS:
+		var tip := to_head * globals[skeleton.find_bone(HairBones.bone_name(chain, HairBones.JOINTS - 1))].origin
+		outside = outside and (tip - ring.centre).length() > HairSwing.HEAD_RADIUS * ring.size
+	check(outside, "the hair's chains hang outside the head")
+	var short := CharacterAppearance.from_dict(appearance.to_dict())
+	short.set_sex(&"male")
+	short.set_value(AppearanceCatalog.HAIR_STYLE, &"crew_cut")
+	rig.apply(short)
+	check(not swing.active, "a crew cut does not swing")
+	rig.apply(appearance)
+
+
 func _check_rig() -> void:
 	var model: Node3D = load("res://scenes/character/character_model.tscn").instantiate()
 	root.add_child(model)
@@ -292,7 +325,12 @@ func _check_rig() -> void:
 	var eyes: MeshInstance3D = model.get_node("Armature/Skeleton3D/HumanEyes")
 	check(body.mesh.get_blend_shape_count() == 1 and body.mesh.get_blend_shape_name(0) == HumanShape.BLINK
 			and body.material_override is ShaderMaterial, "gameplay rig bakes the body but for the blink")
-	check(eyes.skin == body.skin and hair.skin == body.skin, "every part shares the body's skin")
+	var same_binds := hair.skin.get_bind_count() > body.skin.get_bind_count()
+	for b in body.skin.get_bind_count():
+		same_binds = same_binds and hair.skin.get_bind_name(b) == body.skin.get_bind_name(b) \
+				and hair.skin.get_bind_pose(b).is_equal_approx(body.skin.get_bind_pose(b))
+	check(eyes.skin == body.skin and same_binds, "every part shares the body's skin; loose hair adds its bones' binds")
+	_check_hair_swing(model, rig, appearance)
 	var lashes: MeshInstance3D = model.get_node("Armature/Skeleton3D/HumanEyelashes")
 	check(lashes.find_blend_shape_by_name(HumanShape.BLINK) >= 0 and eyes.find_blend_shape_by_name(HumanShape.BLINK) < 0
 			and hair.find_blend_shape_by_name(HumanShape.BLINK) < 0, "the eyelashes blink with the lids, the eyeballs do not")

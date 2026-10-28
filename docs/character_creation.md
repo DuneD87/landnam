@@ -123,6 +123,22 @@ Las texturas copiadas están en `textures/character/human/`. Sobre esa base:
   forma a la abertura (`HumanShape.BLINK_RELAXES`: apertura y párpado): si no,
   un ojo muy abierto no llegaría a cerrar y un párpado caído se plegaría
   sobre sí mismo.
+- **Pelo que se mueve:** el pelo suelto cuelga de diez cadenas de cinco
+  huesos alrededor de la cabeza (`HairBones`, hijos del hueso de la cabeza
+  que el rig añade al esqueleto) y un `HairSwing` (`SpringBoneSimulator3D`,
+  como las faldas) las mueve: cae con la gravedad cuando la cabeza se inclina,
+  se queda atrás al girar, arrancar o frenar, y la cabeza, el cuello, la
+  espalda, los hombros y los brazos lo apartan. Cada peinado da forma a sus
+  cadenas: cada articulación se coloca en el centro de su pelo en ese sector
+  y esa altura. Lo que queda por encima de un aro a la altura de las orejas
+  sigue rígido con la cabeza; por debajo, cada vértice se pesa a las dos
+  cadenas de su sector según su altura (antes el pelo largo iba pegado a la
+  espalda y los hombros, con los pesos del cuerpo, y se movía con ellos en
+  bloque). Los pesos y la forma se guardan por peinado y sexo, así que mover
+  sliders del cuerpo no los recalcula. Los peinados cortos no se mueven, y
+  bajo una capucha o un casco tampoco: el pelo se queda como se metió debajo.
+  Ajustes en `hair_swing.gd`: rigidez en raíz y punta, gravedad, arrastre e
+  inercia.
 - **Pelo:** `human_hair.gdshader` dibuja el núcleo opaco de las tarjetas con
   alpha to coverage y su `next_pass`, `human_hair_fringe.gdshader`, mezcla el
   borde fino, así que el pelo largo no tiene franjas de ordenación. El borde

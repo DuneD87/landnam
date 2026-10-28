@@ -23,6 +23,8 @@ extends Node
 ## the scan's measurements to its own. Dressed pieces are fitted again when
 ## the body changes. A skirt that hangs from the skirt's bones (SkirtBones)
 ## adds them to the skeleton, and a SkirtSwing swings them while it is worn.
+## Loose hair hangs from the hair's bones (HairBones), shaped to each style,
+## and a HairSwing swings them unless something covers the hair.
 ##
 ## In first person (set_first_person()) the camera sits inside the head: it
 ## sees FirstPersonBody, Mesh_0 again with a skin that folds the head into the
@@ -112,6 +114,12 @@ var _fit_context: ArmorFit
 var _fp_body: MeshInstance3D
 ## Swings the skirt's bones; made when the first skirt is put on.
 var _skirt_swing: SkirtSwing
+## Swings the hair's bones; made for the first style with loose hair.
+var _hair_swing: HairSwing
+## Whether the hair's swing was fitted to a body yet.
+var _hair_swing_fitted := false
+## [part, sex] -> the hair's rig for that style (_hair_rig()).
+var _hair_rigs := {}
 ## The eyes' mesh and forward offset the eye point was taken with, and that
 ## point (head bone space).
 var _eye_mesh: ArrayMesh
@@ -160,6 +168,8 @@ func apply(appearance: CharacterAppearance) -> void:
 		_refit_dressed()
 	if hair_changed and not _covering.is_empty():
 		_hair_changed()
+	if hair_changed:
+		_update_hair_swing(true)
 	_update_blink()
 
 	var shader := _shader_values(appearance)
@@ -301,6 +311,7 @@ func dress(item: Node, covers_hair := false) -> void:
 		if SkirtBones.uses(instance.skin) and SkirtBones.add_to(_skeleton):
 			_fit_context = null
 	_update_skirt_swing()
+	_update_hair_swing(false)
 	_fit(item)
 
 
@@ -312,6 +323,7 @@ func undress(item: Node) -> void:
 		for instance in _armour_meshes(item):
 			_shadow_only(instance, false)
 	_update_skirt_swing()
+	_update_hair_swing(false)
 
 
 ## Swings the skirt's bones while some piece worn hangs from them.
@@ -330,6 +342,86 @@ func _update_skirt_swing() -> void:
 		_skirt_swing.active = swinging
 		if swinging:
 			_skirt_swing.fit_legs(measurements())
+
+
+## Swings the hair's bones while the style has loose hair and nothing
+## covers it (tucked under a hood it stays as fitted); `restart` after the
+## style or the body changed, which moved its bones. Its body is measured
+## once in the creation screen (`live`), where measuring on every slider
+## change cost 20 ms, and on every change otherwise.
+func _update_hair_swing(restart: bool) -> void:
+	var state: Dictionary = _slots[&"hair"]
+	var swinging: bool = state.instance.visible and state.get("swings", false) and _covering.is_empty()
+	if swinging and _hair_swing == null:
+		_hair_swing = HairSwing.new()
+		_hair_swing.name = "HairSwing"
+		# After BodyProportions, which moves the head it hangs from.
+		_skeleton.add_child(_hair_swing)
+		restart = true
+	if _hair_swing == null:
+		return
+	_hair_swing.active = swinging
+	if swinging and restart:
+		if not live or not _hair_swing_fitted:
+			_hair_swing.fit_body(measurements())
+			_hair_swing_fitted = true
+		_hair_swing.restart()
+
+
+## Skins the style's loose hair to the hair's bones (HairBones), shaped to
+## it, in the slot's mesh; the slot's skin is the one with their binds. The
+## shape and the weights are kept per style and sex (_hair_rigs): the body's
+## sliders barely move the hair against the head, and working them out again
+## on every change took 50 ms.
+func _rig_hair(state: Dictionary) -> void:
+	state.swings = false
+	state.skin = _data.skin
+	var ring := HairBones.frame(_skeleton)
+	if ring.is_empty():
+		return
+	var key := [state.part, _applied_sex]
+	if not _hair_rigs.has(key):
+		_hair_rigs[key] = _hair_rig(state.mesh, ring)
+	var rig: Dictionary = _hair_rigs[key]
+	if HairBones.add_to(_skeleton):
+		_fit_context = null
+	HairBones.set_joints(_skeleton, rig.joints, ring)
+	if not rig.swings:
+		return
+	var arrays: Array = state.mesh.surface_get_arrays(0)
+	arrays[Mesh.ARRAY_BONES] = rig.bones
+	arrays[Mesh.ARRAY_WEIGHTS] = rig.weights
+	state.mesh.clear_surfaces()
+	state.mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	state.skin = rig.skin
+	state.swings = true
+
+
+## {joints, skin, bones, weights, swings} of a style's hair `mesh`.
+func _hair_rig(mesh: ArrayMesh, ring: Dictionary) -> Dictionary:
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+	var globals := _body_globals()
+	var to_head := globals[_skeleton.find_bone(HEAD_BONE)].affine_inverse()
+	var transforms := BodyMeasurements.bind_transforms(_data.skin, _skeleton, globals)
+	var points := PackedVector3Array()
+	points.resize(vertices.size())
+	for v in vertices.size():
+		var p := Vector3.ZERO
+		for k in 4:
+			var w := weights[v * 4 + k]
+			if w > 0.0:
+				p += transforms[bones[v * 4 + k]] * vertices[v] * w
+		points[v] = to_head * p
+	if HairBones.add_to(_skeleton):
+		_fit_context = null
+	var joints := HairBones.shaped(points, ring)
+	HairBones.set_joints(_skeleton, joints, ring)
+	var skin := HairBones.skin_for(_data.skin, _skeleton)
+	var swings := HairBones.weigh(points, bones, weights, skin, ring)
+	return {joints = joints, skin = skin, bones = bones, weights = weights, swings = swings}
 
 
 ## Switches the first-person view (see the class notes).
@@ -562,12 +654,14 @@ func _tuck_hair() -> void:
 	var middle := context.body.section_at(head, 0.5)
 	var centre := context.body_globals[head] * Vector3((middle[0] + middle[1]) * 0.5, (span.x + span.y) * 0.5,
 			(middle[2] + middle[3]) * 0.5)
+	# The hair's skin holds the body's binds and the hair bones' after them.
+	var skin: Skin = _slots[&"hair"].get("skin", _data.skin)
 	var binds: Array[Transform3D] = []
-	for b in _data.skin.get_bind_count():
-		binds.append(_data.skin.get_bind_pose(b))
+	for b in skin.get_bind_count():
+		binds.append(skin.get_bind_pose(b))
 	_hair_job = {version = _hair_version, slots = slots}
 	_hair_task = WorkerThreadPool.add_task(_tuck.bind(slots, cover, centre, context.body_globals[head].basis,
-			context.body_globals, context.units, binds, BodyMeasurements.bind_bones(_data.skin, _skeleton)),
+			_body_globals(), context.units, binds, BodyMeasurements.bind_bones(skin, _skeleton)),
 			false, "Hair tuck")
 
 
@@ -707,8 +801,10 @@ func _show(slot: StringName, part: StringName, geometry_changed: bool) -> void:
 		instance.material_override = state.material
 	if changed_part or geometry_changed or not instance.visible:
 		state.mesh = _shape.proxy_mesh(state.proxy, state.mesh)
+		if slot == &"hair":
+			_rig_hair(state)
 		instance.mesh = state.mesh
-	instance.skin = _data.skin
+	instance.skin = state.get("skin", _data.skin)
 	instance.visible = true
 
 
