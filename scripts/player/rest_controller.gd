@@ -4,12 +4,16 @@ extends CanvasLayer
 ## Descanso en un lecho: ocho horas del mundo a ritmo acelerado, interrumpibles por el jugador,
 ## daño, muerte, agua, alejarse, abrir otro modo o retirar el lecho. El sueño no se guarda.
 const SLEEP_SPEED := 60.0
+## El cuerpo tumbado, respecto al lecho.
+const SLEEP_POSE := Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(0.0, 0.2, -0.85))
 
 var _player: PlayerController
 var _bed: Bedroll
 var _sleeping := false
 var _hours := 0.0
 var _model_transform := Transform3D.IDENTITY
+## Dónde estaba el jugador respecto al lecho al dormirse: el lecho de un barco se mueve con él.
+var _bed_local := Transform3D.IDENTITY
 var _animation_active := false
 var _previous_mouse_mode := Input.MOUSE_MODE_CAPTURED
 var _root: Control
@@ -26,6 +30,8 @@ var _close_button: Button
 
 func _ready() -> void:
 	layer = 14
+	# Antes que el jugador, que con el cuerpo ya en el lecho pone ahí la cámara.
+	process_physics_priority = -1
 	_build_ui()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -72,10 +78,10 @@ func start_sleep() -> bool:
 	_player.needs.sleeping = true
 	_player.velocity = Vector3.ZERO
 	_player.movement.velocity = Vector3.ZERO
+	_bed_local = _bed.global_transform.affine_inverse() * _player.global_transform
 	if _player.player_model != null:
 		_model_transform = _player.player_model.transform
-		_player.player_model.global_transform = _bed.global_transform * Transform3D(
-			Basis(Vector3.RIGHT, PI * 0.5), Vector3(0.0, 0.2, -0.85))
+	_follow_bed()
 	if _player.animator_tree != null:
 		_animation_active = _player.animator_tree.active
 		_player.animator_tree.active = false
@@ -109,6 +115,8 @@ func _exit_tree() -> void:
 func _physics_process(delta: float) -> void:
 	if not visible or _player == null:
 		return
+	if _sleeping and is_instance_valid(_bed) and not _bed.is_queued_for_deletion():
+		_follow_bed()
 	if not is_instance_valid(_bed) or _bed.is_queued_for_deletion() \
 			or _player.global_position.distance_to(_bed.global_position) > Bedroll.REACH \
 			or _player.health_component.is_dead or _player.free_flight_enabled or not _player.visible:
@@ -124,6 +132,15 @@ func _physics_process(delta: float) -> void:
 			close()
 			return
 	_refresh()
+
+
+## Dormido el jugador no se mueve (PlayerController._physics_step): lo lleva el lecho, que en un
+## barco avanza y se balancea con el casco.
+func _follow_bed() -> void:
+	var frame := _bed.global_transform
+	_player.global_transform = frame * _bed_local
+	if _player.player_model != null:
+		_player.player_model.global_transform = frame * SLEEP_POSE
 
 
 func _cannot_sleep() -> String:

@@ -9,6 +9,8 @@ const REACH := 2.6
 var entity_id := ""
 var save_category := "planet"
 var discard_on_load := true
+## El barco del que colgaba al guardar (GroundPlaceableTrait.restore_ship).
+var _ship_id := ""
 
 
 func _ready() -> void:
@@ -50,12 +52,18 @@ func respawn_transform() -> Transform3D:
 func get_save_data() -> Dictionary:
 	var t := transform
 	return {"basis": [t.basis.x.x, t.basis.x.y, t.basis.x.z, t.basis.y.x, t.basis.y.y,
-		t.basis.y.z, t.basis.z.x, t.basis.z.y, t.basis.z.z], "origin": [t.origin.x, t.origin.y, t.origin.z]}
+		t.basis.y.z, t.basis.z.x, t.basis.z.y, t.basis.z.z], "origin": [t.origin.x, t.origin.y, t.origin.z],
+		"ship": GroundPlaceableTrait.ship_id(self)}
 
 
 func restore_save_data(data: Dictionary) -> void:
+	_ship_id = String(data.get("ship", ""))
 	var b: Array = data.get("basis", [])
 	var p: Array = data.get("origin", [])
 	if b.size() == 9 and p.size() == 3:
 		transform = Transform3D(Basis(Vector3(b[0], b[1], b[2]), Vector3(b[3], b[4], b[5]),
 			Vector3(b[6], b[7], b[8])), Vector3(p[0], p[1], p[2]))
+
+
+func post_restore() -> void:
+	GroundPlaceableTrait.restore_ship(self, _ship_id)

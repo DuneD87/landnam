@@ -33,6 +33,8 @@ const AUDIO_SCRIPT := preload("res://scripts/audio/entity_audio.gd")
 var entity_id := ""
 var save_category := "planet"
 var discard_on_load := true
+## El barco del que colgaba al guardar (GroundPlaceableTrait.restore_ship).
+var _ship_id := ""
 var inventory := Inventory.new()
 var lit := false
 ## Segundos que le quedan al combustible que arde ahora, y los que daba entero (para la barra).
@@ -288,10 +290,12 @@ func get_save_data() -> Dictionary:
 		"origin": [t.origin.x, t.origin.y, t.origin.z],
 		"lit": lit, "fuel_left": fuel_left, "fuel_total": fuel_total,
 		"items": items, "progress": Array(progress),
+		"ship": GroundPlaceableTrait.ship_id(self),
 	}
 
 
 func restore_save_data(data: Dictionary) -> void:
+	_ship_id = String(data.get("ship", ""))
 	var b: Array = data.get("basis", [])
 	var o: Array = data.get("origin", [])
 	if b.size() == 9 and o.size() == 3:
@@ -310,3 +314,7 @@ func restore_save_data(data: Dictionary) -> void:
 	lit = bool(data.get("lit", false))
 	_apply_lit()
 	inventory.inventory_changed.emit()
+
+
+func post_restore() -> void:
+	GroundPlaceableTrait.restore_ship(self, _ship_id)

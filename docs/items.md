@@ -440,7 +440,8 @@ vista previa y el icono usan la misma malla (`bedroll_visual.gd`);
 
 E a menos de 2,6 m abre el panel para dormir o recogerlo. El sueño recupera el
 descanso y acelera el mundo; sus reglas están en [survival.md](survival.md).
-El lecho conserva su posición e identidad al guardar y cargar.
+El lecho conserva su posición e identidad al guardar y cargar. En un barco, quien
+duerme va con el lecho, y pisarlo cuenta como estar en cubierta.
 
 ### Banco de trabajo
 
@@ -516,6 +517,9 @@ el bono no se acumula al cargar varias veces. Ver [storage.md](storage.md).
     0,3 m de desnivel debajo, está a menos de 4,5 m, no hay nada plantado a
     menos de 1,5 m y no estás en el agua; si no, sale roja.
   - El clic la planta.
+  - **Sobre la cubierta de un barco** cuelga del barco y se mueve con él; su
+    colisión no choca con el casco. Al guardar se apunta el id del barco y, al
+    cargar, vuelve a colgarse del barco recreado.
 - **Abrirla:** E junto a ella la abre en la columna de la derecha. Se cierra
   sola al alejarse.
   - **Combustible:** el hueco de combustible acepta lo que arde. Hay una barra

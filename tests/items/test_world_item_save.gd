@@ -71,6 +71,7 @@ func _run() -> void:
 	await _test_future_drop()
 	await _test_saved_drop()
 	_test_coordinates_and_ship()
+	await _test_placeables_on_ship()
 	await _test_spears_and_transients()
 	await _test_future_placeables()
 	await _test_dismantle_save()
@@ -173,6 +174,78 @@ func _test_coordinates_and_ship() -> void:
 	grid._body = null
 	grid = null
 	ship.free()
+
+
+## Lo plantado en cubierta cuelga del barco, no choca con su casco y, al cargar, vuelve al barco
+## recreado aunque el viejo siga en el árbol hasta liberarse.
+func _test_placeables_on_ship() -> void:
+	var ship := _test_ship()
+	var grid := DynamicPlanetGrid.new()
+	grid._body = ship
+	GridManager._grids["placeable_test_ship"] = grid
+	var scenes := ["res://scenes/world/stone_workbench.tscn", "res://scenes/world/bedroll.tscn",
+		"res://scenes/world/wooden_chest.tscn", "res://scenes/world/campfire.tscn"]
+	var placed: Array[Node3D] = []
+	var saved: Array[Dictionary] = []
+	for i in scenes.size():
+		var node := load(scenes[i]).instantiate() as Node3D
+		ship.add_child(node)
+		node.transform = Transform3D(Basis(Vector3.UP, 0.3 * i), Vector3(i * 2.0, 1.0, -1.5))
+		GroundPlaceableTrait.attach_to_ship(node, ship)
+		placed.append(node)
+		saved.append(JSON.parse_string(JSON.stringify(node.get_save_data())))
+	check(placed.all(func(node: Node3D) -> bool: return _ignores(node, ship)),
+		"la colisión de lo plantado no choca con el casco del que cuelga")
+	check(DynamicGridBody.holding(placed[1].get_node("Body")) == ship,
+		"pisar lo plantado en cubierta cuenta como estar en el barco")
+	check(saved.all(func(data: Dictionary) -> bool: return data.get("ship") == "placeable_test_ship"),
+		"se guarda el barco del que cuelga")
+
+	# Como al cargar: el barco viejo espera a liberarse con lo que ya tenía encima, el nuevo se crea
+	# con otro nombre, y lo que se instancia cae en la ruta guardada (la del viejo).
+	ship.queue_free()
+	var reborn := _test_ship()
+	grid._body = reborn
+	var fresh := load(scenes[0]).instantiate() as Workstation
+	ship.add_child(fresh)
+	fresh.restore_save_data(saved[0])
+	placed[0].free()
+	placed[0] = fresh
+	for i in placed.size():
+		if i > 0:
+			placed[i].restore_save_data(saved[i])
+		placed[i].post_restore()
+	await get_tree().process_frame
+	var ok := true
+	for i in placed.size():
+		var node := placed[i]
+		ok = ok and is_instance_valid(node) and node.get_parent() == reborn and _ignores(node, reborn) \
+			and node.transform.is_equal_approx(Transform3D(Basis(Vector3.UP, 0.3 * i), Vector3(i * 2.0, 1.0, -1.5)))
+	check(ok, "al cargar vuelve al barco recreado, en su sitio y sin chocar con él")
+
+	var ashore := load(scenes[0]).instantiate() as Workstation
+	add_child(ashore)
+	check(ashore.get_save_data().get("ship") == "", "en tierra no se guarda barco")
+	ashore.free()
+	GridManager._grids.erase("placeable_test_ship")
+	grid._body = null
+	reborn.free()
+
+
+func _test_ship() -> DynamicGridBody:
+	var ship := DynamicGridBody.new()
+	ship.process_mode = Node.PROCESS_MODE_DISABLED
+	ship.set_meta("grid_id", "placeable_test_ship")
+	ship.name = "PlaceableShip"
+	add_child(ship)
+	ship.transform = Transform3D(Basis(Vector3.UP, 0.4), Vector3(7, 2, 3))
+	return ship
+
+
+func _ignores(node: Node, ship: DynamicGridBody) -> bool:
+	var bodies := node.find_children("*", "PhysicsBody3D", true, false)
+	return not bodies.is_empty() and bodies.all(
+		func(body: PhysicsBody3D) -> bool: return ship in body.get_collision_exceptions())
 
 
 func _test_spears_and_transients() -> void:

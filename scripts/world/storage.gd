@@ -12,6 +12,8 @@ var inventory := Inventory.new()
 var entity_id := ""
 var save_category := "planet"
 var discard_on_load := true
+## El barco del que colgaba al guardar (GroundPlaceableTrait.restore_ship).
+var _ship_id := ""
 
 
 func _ready() -> void:
@@ -47,10 +49,12 @@ func get_save_data() -> Dictionary:
 	var t := transform
 	return {"basis": [t.basis.x.x, t.basis.x.y, t.basis.x.z, t.basis.y.x, t.basis.y.y,
 		t.basis.y.z, t.basis.z.x, t.basis.z.y, t.basis.z.z],
-		"origin": [t.origin.x, t.origin.y, t.origin.z], "inventory": inventory.get_save_data()}
+		"origin": [t.origin.x, t.origin.y, t.origin.z], "inventory": inventory.get_save_data(),
+		"ship": GroundPlaceableTrait.ship_id(self)}
 
 
 func restore_save_data(data: Dictionary) -> void:
+	_ship_id = String(data.get("ship", ""))
 	var b: Array = data.get("basis", [])
 	var p: Array = data.get("origin", [])
 	if b.size() == 9 and p.size() == 3:
@@ -58,3 +62,7 @@ func restore_save_data(data: Dictionary) -> void:
 			Vector3(b[6], b[7], b[8])), Vector3(p[0], p[1], p[2]))
 	if not inventory.restore_save_data(data.get("inventory", {})):
 		push_error("Storage: no se pudo restaurar el contenido de '%s'" % entity_id)
+
+
+func post_restore() -> void:
+	GroundPlaceableTrait.restore_ship(self, _ship_id)

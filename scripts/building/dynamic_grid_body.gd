@@ -27,6 +27,15 @@ static func bodies_in_play(tree: SceneTree) -> Array[Node]:
 	return _in_play
 
 
+## El cuerpo del que cuelga [node] (él mismo, o lo plantado en cubierta: una cama, un banco), o null.
+static func holding(node: Node) -> DynamicGridBody:
+	while node != null:
+		if node is DynamicGridBody:
+			return node
+		node = node.get_parent()
+	return null
+
+
 ## Celdas (m) de bodies_near y alcance máximo que cubren sus listas.
 const NEAR_CELL := 64.0
 const NEAR_MAX_REACH := 96.0

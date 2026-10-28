@@ -30,6 +30,9 @@ var _ghost_scene: PackedScene
 var _ghost_material: StandardMaterial3D
 var _place_ok := false
 var _place_xform := Transform3D.IDENTITY
+## El barco sobre cuya cubierta iría, o null; con él, _place_xform es local a su casco (se mueve
+## entre el cuadro que lo calcula y el clic).
+var _place_ship: DynamicGridBody
 
 
 func setup(player: PlayerController) -> void:
@@ -354,11 +357,13 @@ func _update_ghost() -> void:
 		_ghost.visible = false
 		_place_ok = false
 		return
-	_place_xform = fit.transform
+	_place_ship = DynamicGridBody.holding(hit.collider)
+	_place_xform = _place_ship.global_transform.affine_inverse() * fit.transform if _place_ship != null \
+		else fit.transform
 	var crowded := _crowded(at, ground.spacing)
 	var wet: bool = _player.movement.is_swimming
 	_place_ok = fit.tilt <= ground.max_slope and fit.rough <= ground.max_rough and not crowded and not wet
-	_ghost.global_transform = _place_xform
+	_ghost.global_transform = fit.transform
 	_ghost_material.albedo_color = GHOST_OK if _place_ok else GHOST_BAD
 	_ghost.visible = true
 
@@ -404,8 +409,13 @@ func _place(data: ItemData, ground: GroundPlaceableTrait) -> void:
 		return
 	_cooldown = USE_COOLDOWN
 	var node := scene.instantiate() as Node3D
-	var parent: Node = _player.planet if _player.planet != null else get_tree().current_scene
-	parent.add_child(node)
-	node.global_transform = _place_xform
+	if is_instance_valid(_place_ship):
+		_place_ship.add_child(node)
+		node.transform = _place_xform
+		GroundPlaceableTrait.attach_to_ship(node, _place_ship)
+	else:
+		var parent: Node = _player.planet if _player.planet != null else get_tree().current_scene
+		parent.add_child(node)
+		node.global_transform = _place_xform
 	_player.inventory.remove_item(data, 1)
 	notify(tr("SURV_PLACED") % data.get_display_name())

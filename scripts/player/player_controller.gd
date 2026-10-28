@@ -1815,6 +1815,10 @@ func _physics_process(delta: float):
 func _physics_step(delta: float):
 	_update_cannon_charge(delta)
 	if resting != null and resting.is_sleeping():
+		# El lecho lleva el cuerpo (RestController). Al despertar, que el barco no aplique de golpe
+		# lo que se ha movido durante el sueño.
+		if is_instance_valid(_platform_body):
+			_platform_prev_xform = _platform_body.global_transform
 		camera_controller.update_camera_transform()
 		return
 	if not input_enabled or not mouse_captured:
@@ -1981,13 +1985,8 @@ func _detect_platform_raycast() -> DynamicGridBody:
 	if result.is_empty():
 		return null
 
-	var collider = result["collider"]
-	if collider is DynamicGridBody:
-		return collider
-	var parent = collider.get_parent() if collider else null
-	if parent is DynamicGridBody:
-		return parent
-	return null
+	# También lo plantado en cubierta (un lecho, un cofre), que cuelga del barco más abajo.
+	return DynamicGridBody.holding(result["collider"])
 
 func _update_platform_tracking(delta: float) -> void:
 	var detected := _detect_platform_raycast()
