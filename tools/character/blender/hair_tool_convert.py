@@ -5,7 +5,7 @@ presets carry their own geometry nodes):
 
     blender -b --factory-startup <preset.blend> --python \
         tools/character/blender/hair_tool_convert.py -- <mh_base.blend> <out dir> <name> \
-        [--extra other.blend ...] [--objects A,B] [--keep 0.6] [--region moustache] [--spread 10] [--render]
+        [--extra other.blend ...] [--objects A,B] [--keep 0.6] [--region moustache] [--spread 10] [--noise 3] [--render]
 
 <mh_base.blend> is written by hair_tool_base.py. Every preset was groomed on
 the same mannequin head, which the library does not ship; its full scalp cap
@@ -23,7 +23,8 @@ which hair objects are exported (default: every generated one); --extra appends 
 a tail or a bun on a pulled-back base). --render saves a Cycles preview
 (front, three-quarter, back). --region keeps only the cards rooted in a
 part of the face (FaceRegions: moustache, toothbrush, goatee...), to make
-beard styles the library lacks out of its full beards.
+beard styles the library lacks out of its full beards. --noise scales the
+generators' noise (roughen()): unkempt versions of a style.
 
 The atlas is the image most of the cards use. A preset that keeps colour and
 opacity in two images (Afro) gets them joined: grey from the colour image,
@@ -73,6 +74,7 @@ def parse_args():
     parser.add_argument("--budget", type=int, default=0)
     parser.add_argument("--region", default="")
     parser.add_argument("--spread", type=float, default=SPREAD)
+    parser.add_argument("--noise", type=float, default=1.0)
     parser.add_argument("--render", action="store_true")
     return parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
 
@@ -257,12 +259,36 @@ def roots(objects):
     return [o for o in objects if o.parent is None and o.type in ("MESH", "CURVES")]
 
 
+def roughen(factor):
+    """Scales the generators' noise (HD_Noise_Deform's Global Scale) by
+    factor: unkempt versions of a style. Returns how many it changed."""
+    changed = 0
+    for group in bpy.data.node_groups:
+        if not group.name.startswith("Hair_System_Main"):
+            continue
+        for node in group.nodes:
+            if node.type == "GROUP" and node.node_tree and node.node_tree.name.startswith("HD_Noise_Deform"):
+                socket = node.inputs.get("Global Scale")
+                if socket is not None and not socket.is_linked:
+                    socket.default_value *= factor
+                    changed += 1
+    return changed
+
+
 def hair_objects():
-    """Objects whose evaluated geometry is a card mesh."""
+    """Objects whose evaluated geometry is a card mesh: hair curves, or meshes
+    the generator builds on (Dreadlocks' tubes), but not the helper mesh the
+    addon takes smooth normals from (SmoothNorm_SRC_mesh), left at the feet,
+    nor the profiles it previews (curves with only HT_Curves_Profile_Preview)."""
     depsgraph = bpy.context.evaluated_depsgraph_get()
     found = []
     for obj in bpy.data.objects:
-        if obj.type != "CURVES" or obj.hide_render:
+        groups = [m.node_group.name for m in obj.modifiers if m.type == "NODES" and m.node_group]
+        if groups and all(g.startswith("HT_Curves_Profile") for g in groups):
+            continue
+        generated = obj.type == "MESH" and not obj.name.startswith("SmoothNorm") and any(
+            g.startswith("Hair_System_Main") for g in groups)
+        if (obj.type != "CURVES" and not generated) or obj.hide_render:
             continue
         geometry = obj.evaluated_get(depsgraph).evaluated_geometry()
         if geometry.mesh and len(geometry.mesh.polygons):
@@ -503,6 +529,7 @@ def main():
         for modifier in obj.modifiers:
             if modifier.type == "SHRINKWRAP":
                 modifier.target = base
+    noised = roughen(args.noise) if args.noise != 1.0 else 0
     bpy.context.view_layer.update()
     objects = hair_objects()
     if args.objects:
@@ -520,7 +547,7 @@ def main():
     atlas = save_atlas([IMAGES[i] for i in images], args.out, args.name, args.spread)
     report = {"name": args.name, "preset": bpy.data.filepath, "extra": [str(e) for e in args.extra],
               "objects": [o.name for o in objects], "triangles": triangles,
-              "keep": keep, "region": args.region, "atlas": list(images), "dropped_faces": dropped, "fit": fit}
+              "keep": keep, "region": args.region, "noise": [args.noise, noised], "atlas": list(images), "dropped_faces": dropped, "fit": fit}
     (args.out / (args.name + ".json")).write_text(json.dumps(report, indent=1))
     print("HAIR_TOOL_REPORT " + json.dumps(report))
     if args.render:

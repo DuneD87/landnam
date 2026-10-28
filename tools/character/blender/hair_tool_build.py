@@ -68,6 +68,8 @@ def main():
                    "--unsubdivide", style.get("unsubdivide", 1), "--spread", style["spread"]]
         if style.get("extra"):
             command += ["--extra"] + [e + ".blend" for e in style["extra"]]
+        if style.get("noise"):
+            command += ["--noise", style["noise"]]
         if style.get("region"):
             command += ["--region", style["region"]]
         if style.get("objects"):

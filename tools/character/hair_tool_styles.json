@@ -1,5 +1,5 @@
 {
- "_doc": "Hair styles and beards made from the Hair Tool library (docs/hair_tool.md). preset and extra are relative to the library; extra presets are groomed on the same head and join the first one. sexes: who the catalog offers it to. budget: triangles per style (hair, beard), kept by halving cards and then dropping some; keep: fraction of cards kept by hand; unsubdivide: 0 for styles whose cards are too short to halve; spread: how much the atlas strands are thickened (hair, beard; texels each side at 1024 px), so hair hides the scalp while beards keep fine strands; region: only the cards rooted in that part of the face (hair_tool_convert.FaceRegions), for beards the library lacks.",
+ "_doc": "Hair styles and beards made from the Hair Tool library (docs/hair_tool.md). preset and extra are relative to the library; extra presets are groomed on the same head and join the first one. sexes: who the catalog offers it to. budget: triangles per style (hair, beard), kept by halving cards and then dropping some; keep: fraction of cards kept by hand; noise: scales the generators' noise for unkempt versions of a style; unsubdivide: 0 for styles whose cards are too short to halve; spread: how much the atlas strands are thickened (hair, beard; texels each side at 1024 px), so hair hides the scalp while beards keep fine strands; region: only the cards rooted in that part of the face (hair_tool_convert.FaceRegions), for beards the library lacks.",
  "budget": {"hair": 26000, "beard": 20000},
  "spread": {"hair": 10, "beard": 3},
  "styles": {
@@ -32,7 +32,19 @@
   "simple_bun": {"preset": "SimpleBun", "sexes": ["female"]},
   "wavy": {"preset": "Weavy", "sexes": ["female"]},
   "braid_back": {"preset": "SubComponents/BackTailBase", "extra": ["SubComponents/BraidSingleCurve"], "sexes": ["male", "female"]},
-  "donut_bun": {"preset": "SubComponents/BackTailBase", "extra": ["SubComponents/DonutBun"], "sexes": ["female"]}
+  "donut_bun": {"preset": "SubComponents/BackTailBase", "extra": ["SubComponents/DonutBun"], "sexes": ["female"]},
+  "dreadlocks": {"preset": "Dreadlocks", "sexes": ["male", "female"]},
+  "wild_mane": {"preset": "Fantasy", "sexes": ["male", "female"]},
+  "long_flowing": {"preset": "Longtrackcurve", "sexes": ["male", "female"]},
+  "long_unkempt": {"preset": "Longtrackcurve", "noise": 3, "sexes": ["male", "female"]},
+  "long_tangled": {"preset": "LongWithMeshTrack", "noise": 7, "sexes": ["male", "female"]},
+  "long_wild": {"preset": "FemaleLongBack", "noise": 5, "sexes": ["male", "female"]},
+  "long_side": {"preset": "SideRound", "sexes": ["male", "female"]},
+  "long_layered": {"preset": "Toonhair", "sexes": ["male", "female"]},
+  "long_guides": {"preset": "LongHairWithGuides", "sexes": ["male", "female"]},
+  "low_pigtails": {"preset": "PonytailsLow", "sexes": ["female"]},
+  "mohawk": {"preset": "Punk", "sexes": ["male"]},
+  "spiky_tail": {"preset": "SubComponents/BackTailBase", "extra": ["SubComponents/Tail_Up_Spikes"], "sexes": ["male", "female"]}
  },
  "beards": {
   "beard_short": {"preset": "Beards/BeardShort"},

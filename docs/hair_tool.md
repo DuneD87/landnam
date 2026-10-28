@@ -9,9 +9,11 @@ los morphs, el esqueleto y el ajuste bajo capuchas y cascos (`HairTuck`).
 
 La lista está en `tools/character/hair_tool_styles.json`: por estilo, el preset
 de la biblioteca, los subcomponentes que se le añaden (`extra`: coleta, trenza
-o moño sobre una base recogida) y los sexos a los que se ofrece. El catálogo
-(`AppearanceCatalog.HAIR_STYLES` y `BEARDS`) apunta a `hair_ht_<estilo>` y a
-`beard_ht_<barba>`.
+o moño sobre una base recogida), el ruido (`noise`) y los sexos a los que se
+ofrece. Son 42 peinados, 31 por sexo; como la primera edad es la de piedra,
+abundan los largos, sueltos y desgreñados, pensados también para los NPC. El
+catálogo (`AppearanceCatalog.HAIR_STYLES` y `BEARDS`) apunta a
+`hair_ht_<estilo>` y a `beard_ht_<barba>`.
 
 ## En este equipo
 
@@ -71,6 +73,16 @@ vistas de frente, tres cuartos y espalda en Cycles (CPU, sin ventana) en
    los anclajes (grupo `hair_anchor`), para que un mechón sobre la cara no
    siga los párpados; MakeClothes aún ancla alguno en ellos, así que además
    `HumanShape.proxy_blink` no da parpadeo al pelo ni a las barbas.
+
+## Versiones desgreñadas
+
+`noise` multiplica el ruido de los generadores del preset (la escala global
+de sus nodos `HD_Noise_Deform`, `roughen()` en `hair_tool_convert.py`): el
+mismo corte, despeinado. Cada preset responde a su manera, así que el valor
+se elige mirando el render: Largo descuidado es `Longtrackcurve` ×3, Largo
+enmarañado `LongWithMeshTrack` ×7 y Largo salvaje `FemaleLongBack` ×5. En
+`LongSlick` y `Toonhair` saca mechones sueltos en bucle, y en
+`LongHairWithGuides` separa las tarjetas hasta dejar calvas.
 
 ## Barbas y bigotes por regiones
 
@@ -154,6 +166,10 @@ Una entrada en el JSON (los presets se ven en
 `HairLibrary_52/*.png`), el paso anterior con `--only <estilo> --render` para
 revisarlo, el proceso de `docs/character_creation.md` y su línea en el
 catálogo con el nombre en `localization/translations.csv`. Lo que no sirve
-de la biblioteca: `Dreadlocks`, `LongHairWithGuides` y `QuiffHair_Strands` no
-generan tarjetas; `BraidFromScalp` es solo la trenza; `CurlsDense` y
-`Gramma_Curls` son tan densos que con el presupuesto quedan calvas.
+de la biblioteca: `QuiffHair_Strands` no genera tarjetas; `BraidFromScalp`
+es solo la trenza; `CurlsDense`, `Gramma_Curls` y la coleta rizada
+(`BackTailBase` + `Tail_Curls`) son tan densos que con el presupuesto pierden
+más de dos tercios de las tarjetas; `CurlsWithTrackMesh` sale en forma de seta
+y `PigtailsBase` + `Pigtails` deja la cabeza sin base. `Dreadlocks` genera sus
+rastas sobre una malla, no sobre curvas: `hair_objects()` toma también las
+mallas con generador de Hair Tool.

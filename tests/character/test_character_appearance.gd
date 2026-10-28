@@ -166,7 +166,7 @@ func _check_appearance() -> void:
 	appearance.reset()
 	check(appearance.get_sex() == &"female" and is_equal_approx(appearance.get_value(&"nose_size"), female_face[&"nose_size"]),
 			"reset keeps the sex and returns to the default face")
-	var legacy := CharacterAppearance.from_dict({"nose_size": 9.0, "unknown_trait": 1.0, "hair_style": "mohawk"})
+	var legacy := CharacterAppearance.from_dict({"nose_size": 9.0, "unknown_trait": 1.0, "hair_style": "beehive"})
 	check(is_equal_approx(legacy.get_value(&"nose_size"), 1.0) and legacy.get_value(AppearanceCatalog.HAIR_STYLE) == &"regular",
 			"loading clamps sliders and falls back from unknown choices")
 
