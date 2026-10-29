@@ -97,8 +97,10 @@ func _register_default_materials() -> void:
 	wood.item = ItemCatalog.get_item(&"wood_01")
 	wood.base_cost = 1
 	wood.density_kg_m3 = 500.0
-	# Madera de construcción: tablas y entramado ocupan el 10 % del volumen estanco del bloque.
-	wood.solid_fraction = 0.10
+	# Peso por volumen estanco: tablas y entramado, más cuadernas, cubierta, aparejo, lastre y la carga
+	# de a bordo, que no se construyen bloque a bloque. Con el 10 % (solo tablas) un casco de 24 m
+	# calaba 20 cm y flotaba como un corcho; con la mitad cala ~1,2 m, un cuarto de su volumen.
+	wood.solid_fraction = 0.50
 	wood.buoyant = true
 	wood.allowed_block_ids = BASIC_BLOCK_IDS.duplicate()
 	wood.allowed_block_ids.append(BLOCK_PANE_TRIANGLE_ID)

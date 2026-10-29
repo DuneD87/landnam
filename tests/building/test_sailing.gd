@@ -565,8 +565,8 @@ func _check_weather_ship_launch(event: String) -> void:
 	_planet.gravity_strength = 9.8
 	_planet.planet.has_water = true
 	var expected_wind := 10.0 if event == "clear" else 20.0
-	check(is_equal_approx(body.mass, 18000.0) and absf(wind_speed - expected_wind) < 1.0,
-		"weather %s proporciona unos %.0f m/s en la prueba del casco de 18 toneladas" % [event, expected_wind])
+	check(is_equal_approx(body.mass, 90000.0) and absf(wind_speed - expected_wind) < 1.0,
+		"weather %s proporciona unos %.0f m/s en la prueba del casco de 90 toneladas" % [event, expected_wind])
 	var previous_time_scale := Engine.time_scale
 	Engine.time_scale = 3.0
 	for frame in 100:
@@ -592,7 +592,7 @@ func _check_weather_ship_launch(event: String) -> void:
 
 
 func _check_heavy_ship_launch() -> void:
-	# Casco de 120 m³: 6 toneladas de entramado y 5 % sumergido. El área y el viento
+	# Casco de 120 m³: 30 toneladas de casco y carga y 25 % sumergido. El área y el viento
 	# reproducen el caso de una vela de 38,5 m² con brisa suave, sin depender de un save local.
 	var static_grid := GridManager.create_grid_exact(_planet, Vector3(-3, 999.9, -5), Basis.IDENTITY, 1.0)
 	static_grid.begin_bulk_edit()
@@ -621,8 +621,8 @@ func _check_heavy_ship_launch() -> void:
 		await get_tree().physics_frame
 	Engine.time_scale = previous_time_scale
 	var speed := body.linear_velocity.dot(body.global_basis.z)
-	check(is_equal_approx(body.mass, 6000.0) and is_equal_approx(body.sailing.area, 38.5),
-		"la prueba de arrancada usa un casco de 6 toneladas y una vela de 38,5 m²")
+	check(is_equal_approx(body.mass, 30000.0) and is_equal_approx(body.sailing.area, 38.5),
+		"la prueba de arrancada usa un casco de 30 toneladas y una vela de 38,5 m²")
 	check(speed > 2.0 and speed < 3.75,
 		"con brisa de 3,75 m/s el casco pesado supera 2 m/s tras diez segundos (%.2f m/s)" % speed)
 	_planet.planet.has_water = false

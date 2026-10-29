@@ -102,7 +102,7 @@ func _check_shared_ship() -> void:
 	check(body == restored_deck._body and body._grids.size() == 2,
 		"la carga repara el barco antiguo que tenía dos ids para la misma estructura")
 	check(restored_hull.get_block_count() == 2 and restored_deck.get_block_count() == 1
-		and body.sailing.sails.size() == 1 and is_equal_approx(body.mass, 150.0),
+		and body.sailing.sails.size() == 1 and is_equal_approx(body.mass, 750.0),
 		"la recuperación conserva bloques, masa y aparejo")
 	check(JSON.stringify(legacy) == original_json, "recuperar la unión no modifica el snapshot de entrada")
 	var repaired: Dictionary = JSON.parse_string(JSON.stringify(GridManager.get_save_data()))

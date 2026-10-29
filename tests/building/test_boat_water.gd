@@ -225,7 +225,10 @@ func _check_wave_reach() -> void:
 
 func _check_steering() -> void:
 	_planet.gravity_strength = 0.0
-	var grid := _body(Vector3(0, 999.95, 0), [[Vector3i.ZERO, "wood"]])
+	# Sin gravedad el bloque se queda donde se ponga: a su calado de equilibrio, para que el timón
+	# y el freno de balance vean el casco entero a flote (masa desplazada = masa).
+	var draft := BlockDatabase.get_material_by_id("wood").get_mass_for_volume(1.0) / DynamicGridBody.WATER_DENSITY
+	var grid := _body(Vector3(0, 1000.0 - draft, 0), [[Vector3i.ZERO, "wood"]])
 	var body := grid._body
 	_planet.planet.has_water = true
 	body._is_being_controlled = true
@@ -277,8 +280,8 @@ func _check_steering() -> void:
 	large._body.steering_input = 1.0
 	await _advance(large._body, 18, 10.0 / 60.0)
 	var large_turn := Vector3.BACK.signed_angle_to(large._body.global_basis.z, Vector3.UP)
-	check(is_equal_approx(large._body.mass, 6000.0) and large_turn > deg_to_rad(8),
-		"el casco de seis toneladas también puede maniobrar desde parado (%.1f°)" % rad_to_deg(large_turn))
+	check(is_equal_approx(large._body.mass, 30000.0) and large_turn > deg_to_rad(8),
+		"el casco de treinta toneladas también puede maniobrar desde parado (%.1f°)" % rad_to_deg(large_turn))
 	Engine.time_scale = previous_time_scale
 	_planet.planet.has_water = false
 	GridManager.clear_all()

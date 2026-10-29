@@ -4,8 +4,10 @@ extends RefCounted
 ## La física no depende de quién gobierne. El despliegue vive en cada prop para que viaje
 ## con su bloque al guardar, convertir la grid o separarse una pieza del casco.
 const AIR_DENSITY := 1.225
-## Potencia de juego para dar arrancada a los cascos grandes incluso con brisa suave.
-const SAIL_POWER := 90.0
+## Potencia de juego para dar arrancada a los cascos grandes incluso con brisa suave. Va a la par
+## con el peso de la madera (BlockDatabase, solid_fraction): el rozamiento del agua escala con la
+## masa desplazada, y un casco más pesado necesita la misma proporción de vela para ir igual.
+const SAIL_POWER := 450.0
 ## Evita que una vela grande lance un casco pequeño al recibir una racha (m/s²).
 const MAX_SAIL_ACCELERATION := 4.0
 const HOIST_TIME := 2.0
