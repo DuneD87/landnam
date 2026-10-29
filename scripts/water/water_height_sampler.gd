@@ -290,8 +290,17 @@ func max_wave_height() -> float:
 	for h: float in Spectrum.HEIGHTS:
 		octaves += h
 	var open := maxf(wave_amplitude, wave_calm_amplitude) * octaves * 1.5
+	return open + max_shore_height()
+
+
+## Lo mismo solo para la rompiente de la orilla (m), con el mismo margen: lo que puede subir el agua
+## sobre tierra firme, adonde no llega el oleaje de mar abierto.
+func max_shore_height() -> float:
+	if _material == null:
+		return 0.0
+	_ensure_frame_params()
 	var shore := shore_amplitude * maxf(shore_shoal_max, 1.0) if shore_enabled else 0.0
-	return open + shore + 2.0
+	return shore + 2.0
 
 
 ## Estado de mar en [0,1]: 0 = mar tendida, 1 = temporal pleno. Es la MISMA medida con la que

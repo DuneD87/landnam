@@ -261,6 +261,26 @@ var _split_versions := PackedInt32Array()
 ## construido el jugador y ya no se retiran nunca. Es deliberado —cargar no debe borrar nada—,
 ## pero significa que la limpieza solo actúa dentro de la sesión en la que se rompió el casco.
 var spawned_from_split: bool = false
+## Lejos de todos los jugadores (más de FAR_FREEZE_DISTANCE) el cuerpo se congela: estático en Jolt y
+## sin tick, quieto donde estaba, sin que el terreno de baja resolución de lejos lo zarandee. Vuelve a
+## menos de FAR_WAKE_DISTANCE con la velocidad que tenía. Lo decide GridManager (set_far_frozen):
+## congelado no tiene tick propio. Uno pilotado no se congela nunca.
+const FAR_FREEZE_DISTANCE := 550.0
+const FAR_WAKE_DISTANCE := 450.0
+var far_frozen: bool = false
+var _frozen_linear := Vector3.ZERO
+var _frozen_angular := Vector3.ZERO
+## Lo que cuesta el cuerpo (µs) desde la última lectura del visor de grids (take_cost_sample): su
+## tick de física (suma, máximo y cuántos), su _integrate_forces y los contactos del último paso.
+## Con profile_sections, además, el reparto del tick por partes (_section).
+static var profile_sections := false
+var _cost_sum: int = 0
+var _cost_max: int = 0
+var _cost_ticks: int = 0
+var _forces_sum: int = 0
+var _contacts: int = 0
+var _sections: Dictionary = {}
+var _section_at: int = 0
 var _derelict_timer: float = 0.0
 
 ## [material] es la familia de sonido dominante entre lo que se llevo por delante: un impacto
@@ -862,12 +882,56 @@ func _handle_spaceship_input(_delta: float) -> void:
 ## velocidad ANTERIOR: cuando _integrate_forces corre, el solver ya ha absorbido el choque y la
 ## velocidad actual de un golpe seco es casi cero.
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	var t0 := Time.get_ticks_usec()
 	if _impact_cooldown > 0:
 		_impact_cooldown -= 1
 	elif damage_enabled:
 		_detect_impact(state)
 	_prev_lin_vel = state.linear_velocity
 	_prev_ang_vel = state.angular_velocity
+	_contacts = state.get_contact_count()
+	_forces_sum += Time.get_ticks_usec() - t0
+
+
+func set_far_frozen(value: bool) -> void:
+	if value == far_frozen or (value and _is_being_controlled):
+		return
+	far_frozen = value
+	if value:
+		_frozen_linear = linear_velocity
+		_frozen_angular = angular_velocity
+		freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+		freeze = true
+		set_physics_process(false)
+		return
+	freeze = false
+	set_physics_process(true)
+	linear_velocity = _frozen_linear
+	angular_velocity = _frozen_angular
+	# El salto de velocidad al soltarlo no es un choque.
+	_prev_lin_vel = _frozen_linear
+	_prev_ang_vel = _frozen_angular
+	_impact_cooldown = IMPACT_COOLDOWN_FRAMES
+
+
+## Lo medido desde la lectura anterior, y vuelta a empezar: {sum, max, ticks, forces, contacts,
+## sections}, en µs.
+func take_cost_sample() -> Dictionary:
+	var sample := {"sum": _cost_sum, "max": _cost_max, "ticks": _cost_ticks, "forces": _forces_sum,
+		"contacts": _contacts, "sections": _sections}
+	_cost_sum = 0
+	_cost_max = 0
+	_cost_ticks = 0
+	_forces_sum = 0
+	_sections = {}
+	return sample
+
+
+## Cierra la parte del tick que acaba de terminar: lo que ha pasado desde la anterior va a [label].
+func _section(label: StringName) -> void:
+	var now := Time.get_ticks_usec()
+	_sections[label] = int(_sections.get(label, 0)) + now - _section_at
+	_section_at = now
 
 
 ## Busca el contacto más violento del paso y, si supera el umbral, encola la destrucción.
@@ -1023,22 +1087,32 @@ func _damage_static_victim(world_pos: Vector3, energy: float, victim_grid_id: St
 
 func _physics_process(delta: float) -> void:
 	var _t0 := Time.get_ticks_usec()
+	_section_at = _t0
 	_physics_step(delta)
+	var cost := Time.get_ticks_usec() - _t0
+	_cost_sum += cost
+	_cost_max = maxi(_cost_max, cost)
+	_cost_ticks += 1
 	# El coste se suma entre todos los cuerpos vivos: la partida 'grids:fisica' del volcado de
 	# picos es el total de la flota, no el de este casco.
-	DebugStats.report_cost(&"grids:fisica", Time.get_ticks_usec() - _t0)
+	DebugStats.report_cost(&"grids:fisica", cost)
 
 
 func _physics_step(delta: float) -> void:
 	if not planet_node or not is_inside_tree():
 		return
 
-	if _update_derelict(delta):
+	var gone := _update_derelict(delta)
+	if profile_sections: _section(&"derelicto")
+	if gone:
 		return
 
 	_handle_input(delta)
+	if profile_sections: _section(&"controles")
 	_process_interior_analysis(delta)
+	if profile_sections: _section(&"interior")
 	_process_split_analysis(delta)
+	if profile_sections: _section(&"rotura")
 	last_displaced_mass = 0.0
 	last_water_flow = Vector3.ZERO
 	last_wave_samples = 0
@@ -1058,23 +1132,27 @@ func _physics_step(delta: float) -> void:
 	sailing.rowing = false
 
 	apply_central_force(dir * gravity * mass)
+	if profile_sections: _section(&"velas")
 
 	if not planet_node.planet.has_water or not _water_sampler:
 		return
 
 	if _recalc_boxes:
 		_recalculate_buoyancy_boxes()
+	if profile_sections: _section(&"cajas")
 
 	if _box_vol.is_empty():
 		return
 
 	var base_water_radius: float = planet_node.planet.radius - planet_node.planet.water_radius
 	var xf := global_transform
-	if _above_wave_reach(xf, planet_pos, base_water_radius + _water_sampler.max_wave_height()):
+	if _above_wave_reach(xf, planet_pos, base_water_radius + _water_sampler.max_wave_height()) \
+			or _inland_above_shore(xf, planet_pos, base_water_radius):
 		# La gravedad y los contactos siguen activos. También se vacía el agua embarcada
 		# y caduca la estela al sacar el casco del mar, sin resolver ninguna ola.
 		_update_flooding(up, planet_pos, base_water_radius, gravity)
 		_update_wake(0.0, up, planet_pos, base_water_radius, Vector3.ZERO)
+		if profile_sections: _section(&"fuera del agua")
 		return
 
 	var mat: ShaderMaterial = planet_node.water_sphere.mesh_manager.default_material as ShaderMaterial
@@ -1117,6 +1195,7 @@ func _physics_step(delta: float) -> void:
 		plane_center += probe_pos[q] / WAVE_PROBES
 		plane_h += probe_h[q] / WAVE_PROBES
 	var slope := _fit_wave_slope(probe_pos, probe_h, plane_center, plane_h, up)
+	if profile_sections: _section(&"olas")
 
 	var basis_w := xf.basis
 	var origin := xf.origin
@@ -1206,9 +1285,12 @@ func _physics_step(delta: float) -> void:
 			drag_rotation -= up * angular_velocity.dot(up)
 		apply_torque(-drag_rotation * angular_drag * displaced_mass * minf(_drag_length_sq, 10.0))
 		_apply_tilt_drag(up, displaced_mass, delta)
+	if profile_sections: _section(&"empuje")
 
 	_update_flooding(up, planet_pos, base_water_radius, gravity)
+	if profile_sections: _section(&"inundacion")
 	_update_wake(submerged_volume, up, planet_pos, base_water_radius, water_vel)
+	if profile_sections: _section(&"estela")
 
 
 ## Cota inferior del radio de TODO el casco: su proyección sobre la radial del centro
@@ -1226,6 +1308,24 @@ func _above_wave_reach(xf: Transform3D, planet_pos: Vector3, max_water_radius: f
 		+ absf(xf.basis.y.dot(radial)) * half.y \
 		+ absf(xf.basis.z.dot(radial)) * half.z
 	return radius - extent > max_water_radius
+
+
+## Sobre tierra firme más alta que la rompiente (según el mapa del mundo), al casco solo puede llegar
+## esa rompiente, no el oleaje de mar abierto: con temporal la cota de max_wave_height pasa de 30 m y
+## hacía resolver la ola a cada resto varado tierra adentro. El mapa es grueso (unos 100 m por texel)
+## y en la costa la altura interpolada queda baja, así que allí no recorta nada.
+const INLAND_MARGIN := 4.0
+
+func _inland_above_shore(xf: Transform3D, planet_pos: Vector3, base_water_radius: float) -> bool:
+	var world_map: PlanetWorldMap = planet_node.get("world_map")
+	if world_map == null or world_map.map == null or not world_map.map.is_valid():
+		return false
+	var map := world_map.map
+	var dir := (xf.origin - planet_pos).normalized()
+	var reach := _water_sampler.max_shore_height() + INLAND_MARGIN
+	if map.surface_radius_at_dir(dir) - map.sea_level_radius <= reach:
+		return false
+	return _above_wave_reach(xf, planet_pos, base_water_radius + reach)
 
 
 ## Rumbo controlado y amortiguado aparte del balance: conserva respuesta al maniobrar

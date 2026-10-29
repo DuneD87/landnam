@@ -24,6 +24,7 @@ var _history_index: int = -1
 var _output: RichTextLabel
 var _input_field: LineEdit
 var _is_open: bool = false
+var _grid_inspector: GridInspector
 
 var _prev_mouse_mode := Input.MOUSE_MODE_CAPTURED
 var _prev_input_enabled: bool = false
@@ -289,6 +290,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("fauna", "fauna [on|off] [aves|tierra|agua]", "CON_HELP_FAUNA", _cmd_fauna, 0,
 		func() -> PackedStringArray: return PackedStringArray(["on", "off", "aves", "tierra", "agua"])))
 	_add(ConsoleCommand.new("perf", "perf [on|off]", "CON_HELP_PERF", _cmd_perf))
+	_add(ConsoleCommand.new("grids", "grids", "CON_HELP_GRIDS", _cmd_grids))
 	_add(ConsoleCommand.new("scale", "scale [0.25-2.0]", "CON_HELP_SCALE", _cmd_scale))
 	_add(ConsoleCommand.new("terrain", TERRAIN_USAGE, "CON_HELP_TERRAIN", _cmd_terrain))
 	_add(ConsoleCommand.new("spawn", "spawn <animal> [amount] [distance] [variant]", "CON_HELP_SPAWN", _cmd_spawn, 1,
@@ -1265,6 +1267,20 @@ func _toggle_fauna(spawners: Array, on: bool, group: String) -> String:
 		touched += 1
 	var what := group if group != "" else tr("CON_FAUNA_ALL")
 	return _paint(COLOR_OK if on else COLOR_MUTED, tr("CON_FAUNA_ON" if on else "CON_FAUNA_OFF") % [what, touched])
+
+
+## Abre (o cierra) el visor de grids. Cierra la consola: el visor suelta el ratón y bloquea al
+## jugador por su cuenta, y lo devuelve como estaba al cerrarse.
+func _cmd_grids(_args: PackedStringArray) -> String:
+	if is_instance_valid(_grid_inspector):
+		_grid_inspector.close()
+		return ""
+	if GameManager.current_state != GameManager.State.PLAYING:
+		return _paint(COLOR_ERR, tr("CON_GRIDS_NEEDS_GAME"))
+	_set_visible(false)
+	_grid_inspector = GridInspector.new()
+	get_tree().root.add_child(_grid_inspector)
+	return ""
 
 
 func _cmd_derelicts(_args: PackedStringArray) -> String:

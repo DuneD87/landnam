@@ -308,13 +308,43 @@ func mark_collapse_checks_near(world_pos: Vector3, radius: float) -> void:
 						break
 
 
+## Cada cuánto (s) se mira qué cuerpos dinámicos están lejos de todos los jugadores.
+const FAR_FREEZE_INTERVAL := 0.5
+var _far_freeze_timer: float = 0.0
+
+
 func _physics_process(delta: float) -> void:
 	_process_collapse_checks(delta)
 
 	var bodies := get_tree().get_nodes_in_group("dynamic_grid_body")
+	_far_freeze_timer -= delta
+	if _far_freeze_timer <= 0.0:
+		_far_freeze_timer = FAR_FREEZE_INTERVAL
+		_update_far_freeze(bodies)
 	if bodies.is_empty() and _interior_materials_active.is_empty():
 		return
 	_update_interior_uniforms(bodies)
+
+
+## Congela los cuerpos a más de FAR_FREEZE_DISTANCE del jugador más cercano y despierta los que
+## vuelven a menos de FAR_WAKE_DISTANCE (DynamicGridBody.set_far_frozen). Sin jugadores, nada.
+func _update_far_freeze(bodies: Array) -> void:
+	var players := get_tree().get_nodes_in_group("player")
+	if players.is_empty():
+		return
+	var freeze_sq := DynamicGridBody.FAR_FREEZE_DISTANCE * DynamicGridBody.FAR_FREEZE_DISTANCE
+	var wake_sq := DynamicGridBody.FAR_WAKE_DISTANCE * DynamicGridBody.FAR_WAKE_DISTANCE
+	for node in bodies:
+		var body := node as DynamicGridBody
+		if body == null or not body.is_inside_tree() or body.is_queued_for_deletion():
+			continue
+		var nearest := INF
+		for player: Node3D in players:
+			nearest = minf(nearest, player.global_position.distance_squared_to(body.global_position))
+		if body.far_frozen and nearest < wake_sq:
+			body.set_far_frozen(false)
+		elif not body.far_frozen and nearest > freeze_sq:
+			body.set_far_frozen(true)
 
 
 func _process_collapse_checks(delta: float) -> void:
