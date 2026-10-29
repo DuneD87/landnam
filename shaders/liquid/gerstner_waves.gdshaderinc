@@ -49,6 +49,15 @@ uniform float storm_depth_full = 150.0;
 // base del material, los de antes de aplicarle el evento de clima.
 uniform float wave_calm_amplitude = 4.0;
 uniform float wave_calm_steepness = 0.5;
+// Tierra adentro (lagos, charcas y ríos) el swell largo no llega, pero el viento sigue levantando ola
+// corta. Entre inland_calm_fade.x e .y metros más allá del litoral del mar, las octavas más largas que
+// inland_swell_length.y bajan a inland_calm_scale; las más cortas que .x quedan enteras. Sin esto un
+// río llevaba el mismo swell de ±0,9 m que una bahía, y era lo que balanceaba los barcos: la ola más
+// corta que el casco apenas los mueve. La distancia sale del campo de orilla, que hornea esa agua como
+// tierra: es continua, así que la boca de un río no abre un escalón en la malla.
+uniform float inland_calm_scale = 0.3;
+uniform vec2 inland_calm_fade = vec2(60.0, 200.0);
+uniform vec2 inland_swell_length = vec2(15.0, 45.0);
 
 // Los mapas storm_* son en realidad el mapa mundial horneado (PlanetWorldMap) enchufado al agua:
 // los comparten la máscara de temporal y las olas de orilla de más abajo.
@@ -221,6 +230,8 @@ struct WaveContext {
     float shore_gate;
     // Hielo marino 0..1: apaga el oleaje (ver sea_ice_fraction).
     float ice;
+    // Cuánto se está tierra adentro, 0..1 (ver inland_calm_scale).
+    float inland;
 };
 
 WaveContext wave_context(vec3 local) {
@@ -232,6 +243,7 @@ WaveContext wave_context(vec3 local) {
     ctx.shore_depth = 0.0;
     ctx.shore_gate = 0.0;
     ctx.ice = 0.0;
+    ctx.inland = 0.0;
     if (!storm_mask_enabled && !shore_waves_enabled) {
         ctx.ice = sea_ice_fraction(local, -1.0);
         return ctx;
@@ -245,12 +257,17 @@ WaveContext wave_context(vec3 local) {
     bool river;
     ctx.exposure = storm_exposure(uv, ground, shore_allowed, river);
 
+    // El campo se lee también sobre un lago, que no recibe la costera: hace falta su distancia al mar
+    // para el swell de tierra adentro.
+    vec4 shore_field = shore_waves_enabled ? textureLod(shore_offset_map, uv, 0.0) : vec4(0.0);
+    ctx.inland = smoothstep(inland_calm_fade.x, inland_calm_fade.y, -shore_field.w);
+
     // Un lago o una charca confirmados bloquean esta familia. "Tierra" no: en el borde grueso del mapa
     // también puede significar agua visible y convertirlo en veto dibuja rectángulos de un téxel. Un
     // río tampoco, por lo mismo: en el estuario linda con el mar, y el campo de orilla, que lo hornea
     // como tierra, ya apaga la ola que remonta la boca.
     if (shore_waves_enabled && (shore_allowed || river)) {
-        ctx.shore_field = textureLod(shore_offset_map, uv, 0.0);
+        ctx.shore_field = shore_field;
         ctx.shore_dist = abs(ctx.shore_field.w);
         ctx.shore_quality = clamp(length(ctx.shore_field.xyz), 0.0, 1.0);
         ctx.shore_depth = storm_sea_height - ground;
@@ -282,7 +299,7 @@ vec3 gerstner_surface_differential(vec3 local, vec3 radial, float t, float min_l
     float ocean_weight = 1.0-smoothstep(0.0,shore_handover,shore_presence);
     float amp = max(mix(wave_calm_amplitude,wave_amplitude,ctx.exposure),0.0) * (1.0-ctx.ice);
     float steepness = mix(wave_calm_steepness,wave_steepness,ctx.exposure);
-    OceanField field = ocean_field(local+wave_shift,wind,t+wave_time_offset,amp,steepness,min_length,ocean_weight,ctx.shore_depth);
+    OceanField field = ocean_field(local+wave_shift,wind,t+wave_time_offset,amp,steepness,min_length,ocean_weight,ctx.shore_depth,ctx.inland);
     vec3 horiz = vec3(0.0);
     float vert = 0.0;
     vec3 grad = vec3(0.0);

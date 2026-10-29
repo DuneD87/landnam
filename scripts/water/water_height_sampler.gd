@@ -16,6 +16,10 @@ var wave_direction: Vector2
 var wave_pole: Vector3
 var wave_calm_amplitude: float
 var wave_calm_steepness: float
+## Swell de tierra adentro: lagos, charcas y ríos. Ver inland_calm_scale en gerstner_waves.gdshaderinc.
+var inland_calm_scale: float = 1.0
+var inland_calm_fade := Vector2(60.0, 200.0)
+var inland_swell_length := Vector2(15.0, 45.0)
 ## Rebase de fase (ver set_wave_motion y wave_shift en gerstner_waves.gdshaderinc).
 var wave_shift := Vector3.ZERO
 var wave_time_offset := 0.0
@@ -196,6 +200,9 @@ static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
 			# mezcla de más abajo se vuelve una identidad.
 			"calm_amplitude": _param(mat,"wave_calm_amplitude"),
 			"calm_steepness": _param(mat,"wave_calm_steepness"),
+			"inland_calm_scale": _param(mat, "inland_calm_scale"),
+			"inland_calm_fade": _param(mat, "inland_calm_fade"),
+			"inland_swell_length": _param(mat, "inland_swell_length"),
 			"wave_shift": _param(mat, "wave_shift"),
 			"wave_time_offset": _param(mat, "wave_time_offset"),
 			"shore_shift": _param(mat, "shore_shift"),
@@ -347,6 +354,15 @@ func _refresh_dynamic_params() -> void:
 	var calm_steep: Variant = params["calm_steepness"]
 	wave_calm_amplitude = calm_amp if calm_amp != null else wave_amplitude
 	wave_calm_steepness = calm_steep if calm_steep != null else wave_steepness
+	# Un shader anterior al swell de tierra adentro no los declara: el oleaje de siempre.
+	var inland_scale: Variant = params["inland_calm_scale"]
+	var inland_fade: Variant = params["inland_calm_fade"]
+	var swell_length: Variant = params["inland_swell_length"]
+	inland_calm_scale = inland_scale if inland_scale != null else 1.0
+	if inland_fade != null:
+		inland_calm_fade = inland_fade
+	if swell_length != null:
+		inland_swell_length = swell_length
 	# Un shader anterior al rebase no los declara: sin rebase, la fase de siempre.
 	wave_shift = params["wave_shift"] if params["wave_shift"] != null else Vector3.ZERO
 	wave_time_offset = params["wave_time_offset"] if params["wave_time_offset"] != null else 0.0
@@ -416,6 +432,7 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3,
 	var shore_depth: float = ctx[4]
 	var ice: float = ctx[5]
 	var current_scale: float = ctx[6]
+	var inland: float = ctx[7]
 	last_ice = ice
 
 	# Busca la posición "en reposo" cuya ola desplazada horizontalmente cae bajo world_pos.
@@ -427,7 +444,8 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3,
 		var radial := guess.normalized()
 		var disp := _gerstner_disp(
 			guess, radial, time, exposure,
-			shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length, current_scale)
+			shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length, current_scale,
+			inland)
 		var residual := guess+disp-local_q
 		var error := Vector2(residual.dot(target_u),residual.dot(target_v))
 		if error.length_squared()<0.000025:
@@ -448,13 +466,14 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3,
 	var final_radial := guess.normalized()
 	var final_disp := _gerstner_disp(
 		guess, final_radial, time, exposure,
-		shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length, current_scale)
+		shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length, current_scale,
+		inland)
 	return (guess+final_disp).length()-radius
 
 
 ## Lo que la superficie necesita del mapa del planeta en un punto (réplica de wave_context, salvo la
 ## corriente, que el shader no dibuja): [exposición, dirección a tierra, distancia firmada, calidad,
-## profundidad, hielo, fracción de corriente]. Se resuelve una
+## profundidad, hielo, fracción de corriente, tierra adentro]. Se resuelve una
 ## vez por muestra, no dentro de la inversión: el punto fijo mueve la posición unos metros y la
 ## máscara varía en decenas, así que la diferencia no se aprecia y ahorra 3/4 del coste.
 func _context(local_q: Vector3) -> Array:
@@ -468,10 +487,15 @@ func _context(local_q: Vector3) -> Array:
 	var ice_shore := -1.0
 	# Distancia firmada al litoral para la corriente, si este muestreo la lee; NAN si no.
 	var coast_dist := NAN
+	var inland := 0.0
+	var field := Vector4.ZERO
 	if shore_enabled:
 		ice_shore = 0.0
+		# Como en wave_context, el campo se lee también sobre un lago: el swell de tierra adentro
+		# necesita su distancia al mar.
+		field = world_map.shore_sample_local(local_q)
+		inland = smoothstep(inland_calm_fade.x, inland_calm_fade.y, -field.w)
 	if shore_enabled and world_map.shore_waves_allowed_local(local_q):
-		var field := world_map.shore_sample_local(local_q)
 		coast_dist = field.w
 		var raw_dir := Vector3(field.x, field.y, field.z)
 		shore_quality = clampf(raw_dir.length(), 0.0, 1.0)
@@ -487,7 +511,7 @@ func _context(local_q: Vector3) -> Array:
 			shore_signed_dist = field.w
 	var ice := ClimateField.sea_ice_with(local_q, ice_shore, sea_ice_params) if sea_ice_enabled else 0.0
 	return [exposure, shore_dir, shore_signed_dist, shore_quality, shore_depth, ice,
-		_current_scale(local_q, coast_dist)]
+		_current_scale(local_q, coast_dist), inland]
 
 
 ## Fracción de la corriente de mar abierto que llega a local_q: ninguna en lagos y charcas, poca en
@@ -518,7 +542,7 @@ func rest_displacement(local_rest: Vector3, time: float, min_length: float) -> V
 	var ctx := _context(local_rest)
 	last_ice = ctx[5]
 	return _gerstner_disp(local_rest, local_rest.normalized(), time, ctx[0],
-		ctx[1], ctx[2], ctx[3], ctx[4], ctx[5], min_length, ctx[6])
+		ctx[1], ctx[2], ctx[3], ctx[4], ctx[5], min_length, ctx[6], ctx[7])
 
 
 ## Normal analítica de la última evaluación.
@@ -556,7 +580,7 @@ func get_surface_at(world_pos: Vector3, time: float, planet_center: Vector3) -> 
 func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: float,
 		shore_dir: Vector3, shore_signed_dist: float,
 		shore_quality: float, shore_depth: float, ice: float = 0.0,
-		min_length: float = 0.0, current_scale: float = 1.0) -> Vector3:
+		min_length: float = 0.0, current_scale: float = 1.0, inland: float = 0.0) -> Vector3:
 	var shore_dist := absf(shore_signed_dist)
 	# Relevo entre familias: donde manda la orilla, el oleaje de mar abierto se apaga. Suma de las
 	# dos a la vez y en una costa a sotavento el swell global viaja mar adentro sobre la rompiente.
@@ -596,7 +620,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 	swell_dir = -(wind-radial*wind.dot(radial)).normalized()
 	var surface_field := Spectrum.evaluate(local,wind,time+wave_time_offset,amp,steepness,wave_base_length,
 		wave_speed,spectrum_spread,ocean_weight,shore_depth,maxf(shore_length,1.0),chop_floor,flow_depth,
-		min_length,wave_shift)
+		min_length,wave_shift,inland,inland_calm_scale,inland_swell_length)
 	flow = surface_field.velocity
 	last_amp_effective = amp*ocean_weight
 	var shore_axis := Vector3.ZERO

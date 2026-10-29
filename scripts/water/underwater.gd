@@ -84,7 +84,8 @@ const _SYNCED_WATER_PARAMS: Array[StringName] = [
 	&"storm_height_min", &"storm_height_range", &"storm_sea_height",
 	&"storm_body_ids", &"storm_body_count", &"storm_river_first_id",
 	&"storm_depth_start", &"storm_depth_full",
-	&"wave_calm_amplitude", &"wave_calm_steepness",
+	&"wave_calm_amplitude", &"wave_calm_steepness", &"inland_calm_scale", &"inland_calm_fade",
+	&"inland_swell_length",
 	# Olas de orilla: idem, forman parte de la misma superficie.
 	&"shore_waves_enabled", &"shore_offset_map",
 	&"shore_amplitude", &"shore_length", &"shore_speed", &"shore_steepness",

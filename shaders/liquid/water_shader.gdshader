@@ -70,6 +70,7 @@ varying float wave_height;
 varying float geometric_compression;
 varying float minimum_wavelength;
 varying vec4 sea_context;
+varying float sea_inland;
 varying float coast_depth;
 // Hielo marino del vértice (0..1).
 varying float sea_ice;
@@ -136,6 +137,7 @@ void vertex() {
         mix(wave_calm_steepness,wave_steepness,ctx.exposure),
         1.0-smoothstep(0.0,shore_handover,presence),presence);
     coast_depth=ctx.shore_depth;
+    sea_inland=ctx.inland;
     sea_ice=ctx.ice;
     vec3 sampled_normal;
     float sampled_compression;
@@ -160,7 +162,7 @@ void fragment() {
     float view_distance=length(surface_view);
     vec3 wind=ocean_wind();
     OceanBreakers history=ocean_breaker_history(material_position+wave_shift,radial,wind,water_time+wave_time_offset,
-        sea_context.x,sea_context.y,minimum_wavelength,sea_context.z,coast_depth);
+        sea_context.x,sea_context.y,minimum_wavelength,sea_context.z,coast_depth,sea_inland);
     // Coastal family supplies its own geometric contraction through the same surface.
     history.recent.x=max(history.recent.x,geometric_compression*sea_context.w*2.0);
     history.activity=max(history.activity,smoothstep(0.01,0.1,geometric_compression*sea_context.w));

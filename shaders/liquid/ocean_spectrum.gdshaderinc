@@ -18,12 +18,15 @@ vec3 ocean_mode_direction(vec3 wind, int i) {
 float ocean_phase(vec3 p, vec3 dir, float k, float t, int i) {
     return k*dot(p,dir)+t*wave_speed*sqrt(9.81*k)+float(i)*2.39996323;
 }
+// inland: cuánto se está tierra adentro (WaveContext.inland); apaga el swell largo y deja la ola corta.
 float ocean_mode_gate(float wavelength, float amplitude, float min_length,
-                      float ocean_weight, float depth) {
+                      float ocean_weight, float depth, float inland) {
     float lod = min_length>0.0 ? smoothstep(min_length*0.5,min_length*1.5,wavelength) : 1.0;
     float chop = (1.0-smoothstep(shore_length*0.25,shore_length*0.75,wavelength))
         *clamp(depth*0.4/max(amplitude,0.01),0.0,1.0)*shore_chop;
-    return max(ocean_weight,chop)*lod;
+    float swell = mix(1.0,inland_calm_scale,
+        inland*smoothstep(inland_swell_length.x,inland_swell_length.y,wavelength));
+    return max(ocean_weight,chop)*lod*swell;
 }
 float ocean_horizontal(float a, float k, float steepness, float gate, int i) {
     // Total horizontal contraction is bounded below one, even if every phase aligns.
@@ -36,7 +39,7 @@ struct OceanField {
     vec3 slope;
 };
 OceanField ocean_field(vec3 p, vec3 wind, float t, float amplitude, float steepness,
-                       float min_length, float ocean_weight, float depth) {
+                       float min_length, float ocean_weight, float depth, float inland) {
     OceanField field;
     field.lateral=vec3(0.0); field.height=0.0;
     field.derivative=mat3(0.0); field.slope=vec3(0.0);
@@ -45,7 +48,7 @@ OceanField ocean_field(vec3 p, vec3 wind, float t, float amplitude, float steepn
     for(int i=0;i<OCEAN_MODES;i++) {
         float wavelength=max(wave_base_length*OCEAN_LENGTHS[i],1.0);
         float k=6.28318530718/wavelength;
-        float gate=ocean_mode_gate(wavelength,amplitude,min_length,ocean_weight,depth);
+        float gate=ocean_mode_gate(wavelength,amplitude,min_length,ocean_weight,depth,inland);
         vec3 dir=ocean_mode_direction(wind,i);
         float phase=ocean_phase(p,dir,k,t,i);
         float s=sin(phase), c=cos(phase);

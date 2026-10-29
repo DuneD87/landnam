@@ -10,7 +10,8 @@ static var _modes: Array[Dictionary] = []
 static func evaluate(p: Vector3, wind: Vector3, time: float, amplitude: float, steepness: float,
 		base_length: float, speed: float, spread: float, ocean_weight: float, depth: float,
 		shore_length: float, shore_chop: float, flow_depth: float, min_length: float = 0.0,
-		phase_shift := Vector3.ZERO) -> Dictionary:
+		phase_shift := Vector3.ZERO, inland: float = 0.0, inland_scale: float = 1.0,
+		swell_length := Vector2.ZERO) -> Dictionary:
 	var key := [wind,base_length,speed,spread]
 	if key != _key:
 		_key=key
@@ -44,6 +45,9 @@ static func evaluate(p: Vector3, wind: Vector3, time: float, amplitude: float, s
 		# siente olas más pequeñas que él).
 		if min_length > 0.0:
 			gate *= smoothstep(min_length*0.5,min_length*1.5,mode.length)
+		# Swell de tierra adentro, como en ocean_mode_gate: las octavas largas bajan, la ola corta no.
+		if inland > 0.0:
+			gate *= lerpf(1.0,inland_scale,inland*smoothstep(swell_length.x,swell_length.y,mode.length))
 		var a: float=amplitude*HEIGHTS[i]
 		var horizontal := minf(a*4.0,CHOP[i]/(1.1*k))*clampf(steepness,0.0,0.95)*gate
 		var phase: float=k*(p+phase_shift).dot(dir)+time*omega+float(i)*2.39996323

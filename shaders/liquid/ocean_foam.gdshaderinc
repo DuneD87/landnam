@@ -28,7 +28,8 @@ struct OceanBreakers {
     float crest;
 };
 OceanBreakers ocean_breaker_history(vec3 p, vec3 radial, vec3 wind, float t,
-        float amplitude, float steepness, float min_length, float ocean_weight, float depth) {
+        float amplitude, float steepness, float min_length, float ocean_weight, float depth,
+        float inland) {
     OceanBreakers b;
     b.recent=vec3(0.0); b.older=vec3(0.0);
     float variance=0.0, slope_variance=0.0;
@@ -38,7 +39,7 @@ OceanBreakers ocean_breaker_history(vec3 p, vec3 radial, vec3 wind, float t,
     for(int i=0;i<OCEAN_MODES;i++) {
         float wavelength=max(wave_base_length*OCEAN_LENGTHS[i],1.0);
         float k=6.28318530718/wavelength;
-        float gate=ocean_mode_gate(wavelength,amplitude,min_length,ocean_weight,depth);
+        float gate=ocean_mode_gate(wavelength,amplitude,min_length,ocean_weight,depth,inland);
         vec3 dir=ocean_mode_direction(wind,i);
         float tangent_weight=max(1.0-pow(dot(dir,radial),2.0),0.0);
         float a=amplitude*OCEAN_HEIGHTS[i];
