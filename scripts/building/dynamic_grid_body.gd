@@ -1287,11 +1287,19 @@ func _physics_step(delta: float) -> void:
 
 	var water_vel := Vector3.ZERO
 	if submerged_volume > 0.0:
-		# Todos los empujes son paralelos a up: una única fuerza en el centro de carena es
-		# exactamente equivalente a una por caja, y ahorra N llamadas al servidor de física.
+		# Todos los empujes son paralelos: una única fuerza en el centro de carena es exactamente
+		# equivalente a una por caja, y ahorra N llamadas al servidor de física. Su par va según la
+		# normal de la ola y no según up: bajo una ola larga la presión crece en perpendicular a la
+		# superficie, y un casco se queda alineado con su pendiente. Con el empuje vertical solo se
+		# equilibraba escorando la pendiente × BM/GM (2,5 veces en un casco de 24 m, y sin tope en uno
+		# de poca estabilidad). La fuerza neta sigue vertical: el vaivén lateral de la ola ya lo da el
+		# arrastre hacia el agua.
 		if buoyant_volume > 0.0:
 			var buoyancy_center: Vector3 = weighted_buoyancy_pos / buoyant_volume
-			apply_force(up * WATER_DENSITY * gravity * buoyant_volume, buoyancy_center - origin)
+			var lift := WATER_DENSITY * gravity * buoyant_volume
+			var normal := surf_grad.normalized()
+			apply_force(normal * lift, buoyancy_center - origin)
+			apply_central_force((up - normal) * lift)
 
 		var displaced_mass: float = submerged_volume * WATER_DENSITY
 		# El rozamiento se mide contra el agua, no contra el suelo: un casco quieto en un mar que se
