@@ -41,6 +41,7 @@ varying float foliage_detail;
 // Viento
 uniform vec3 wind_direction = vec3(1.0, 0.0, 0.0);
 uniform float wind_speed : hint_range(0.0, 10.0, 0.01) = 1.0;
+#include "res://shaders/lib/wind_globals.gdshaderinc"
 uniform float wind_base_height : hint_range(-5.0, 5.0, 0.01) = 0.0;
 uniform float wind_falloff : hint_range(0.1, 10.0, 0.01) = 1.0;
 uniform float wind_amplitude : hint_range(0.0, 2.0, 0.001) = 0.1;
@@ -71,7 +72,7 @@ void vertex() {
     float oscillation = (wave1 + wave2) * wind_amplitude;
 
     // Aplicar desplazamiento modulado por altura
-    vec3 wind_offset = wind_direction * oscillation * wind_speed * height_factor;
+    vec3 wind_offset = wind_direction * oscillation * wind_speed * wind_gain * height_factor;
     VERTEX += wind_offset;
 
     // Actualizar posición global DESPUÉS del desplazamiento

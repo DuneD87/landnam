@@ -109,7 +109,6 @@ water_sphere = NodePath("WaterSphere")
 global_pos = Vector3(0, 0, 15000)
 planet = NodePath("@Node3D@47884")
 entity_id = "planet_earth"
-force_weather = true
 forced_weather = "clear"
 impostor_enabled = false
 antitiling_enabled = true

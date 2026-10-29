@@ -33,6 +33,9 @@ const DEFAULT_SEASON_WEIGHTS := {
 const MIN_TRANSITION_TIME := 2.0
 # Velocidad del suavizado del oscurecimiento local (1/s): ~4 s para entrar o salir de la celda.
 const SHADE_SMOOTH_RATE := 0.7
+# Giro mínimo de la dirección del viento (rad) para empujarla al planeta: cada cambio recorre todos
+# los materiales de la vegetación, así que no se hace en cada frame.
+const WIND_VEER_STEP := deg_to_rad(1.0)
 
 @export var enabled: bool = true
 @export var min_duration: float = 60.0
@@ -125,6 +128,12 @@ var _current_biome: int = 0
 var _ready_to_run: bool = false
 var _forced: bool = false
 
+## Rachas, oleaje y giro del viento dentro de cada evento.
+var _gusts := WindGusts.new(randi())
+## Dirección del viento del JSON del planeta: el giro se aplica sobre ella, no acumulado.
+var _wind_base_direction := Vector3.ZERO
+var _wind_pushed_veer := INF
+
 var _active_fog_density: float = 0.0
 
 # Oscurecimiento local del sol/ambiente, suavizado en el tiempo. -1 = sin inicializar (se engancha al valor exacto).
@@ -154,6 +163,7 @@ func setup(
 	_planet_center = planet_center
 	_biome_count = planet.definition.biome_count
 	_biome_latitude_ranges = planet.definition.biome_latitude_ranges
+	_wind_base_direction = planet.wind_direction
 
 	_apply_config(config)
 	_read_base_values()
@@ -207,6 +217,8 @@ func _apply_config(config: Dictionary) -> void:
 		push_warning("WeatherController: falta 'cold_boost' en weather_settings; uso el fallback %s. Defínelo en el JSON del planeta." % str(DEFAULT_COLD_BOOST))
 	if config.get("season_weights") is Dictionary:
 		_season_weights = config["season_weights"]
+	if config.get("wind_variation") is Dictionary:
+		_gusts.configure(config["wind_variation"])
 
 
 func _read_base_values() -> void:
@@ -321,6 +333,7 @@ func _process(delta: float) -> void:
 	else:
 		_apply_precipitation(_to)
 
+	_update_wind(delta, st)
 	_update_sky_light(delta, st)
 	_update_lightning(delta, st)
 	_update_fog_occlusion()
@@ -371,6 +384,11 @@ func clear_force() -> void:
 	_elapsed = _duration
 
 
+## Multiplicador de rachas sobre la intensidad del evento (1 = el viento del evento tal cual).
+func get_wind_gust() -> float:
+	return _gusts.gain
+
+
 ## Altitud del jugador sobre el radio del planeta. La usa el audio para que en una cima sople
 ## viento aunque el parte este tendido.
 func get_player_altitude() -> float:
@@ -409,13 +427,13 @@ func get_event_names() -> Array:
 	return _events.keys()
 
 
-## Serializa el estado climático actual para el guardado de partida.
+## Serializa el estado climático actual para el guardado de partida. El forzado no se guarda: es
+## de depuración, y las partidas antiguas lo traen puesto por el override que tenía la escena.
 func get_save_data() -> Dictionary:
 	return {
 		"current": _current,
 		"elapsed": _elapsed,
 		"duration": _duration,
-		"forced": _forced,
 	}
 
 
@@ -428,7 +446,6 @@ func restore_save_data(data: Dictionary) -> void:
 		push_warning("WeatherController: evento guardado desconocido '%s'; conservo el actual." % event_name)
 		return
 	_current = event_name
-	_forced = bool(data.get("forced", false))
 	_to = _events[event_name]
 	_from = _to
 	_blend = 1.0
@@ -671,6 +688,27 @@ func _apply_state(st: WeatherState) -> void:
 			clampf(_base_shore_steepness * st.water_shore_steepness_mult, 0.0, 0.95))
 
 	_apply_precipitation(st)
+
+
+## Rachas y giro del viento sobre el evento resuelto. Lo físico (velas, partículas) y la vegetación
+## reciben la misma racha; el multiplicador base lo pone _apply_state y aquí solo se escala.
+func _update_wind(delta: float, st: WeatherState) -> void:
+	_gusts.step(delta, st.wind_multiplier)
+	if _planet == null:
+		return
+	_planet.weather_wind_multiplier = st.wind_multiplier * _gusts.gain
+	_planet.weather_wind_speed_multiplier = st.wind_speed_multiplier * _gusts.gain
+	if _wind_base_direction.is_zero_approx() or absf(_gusts.veer - _wind_pushed_veer) < WIND_VEER_STEP:
+		return
+	# Gira alrededor de la vertical del jugador: es donde se nota, y lejos de él el viento solo es
+	# el campo del planeta algo rotado.
+	var up := Vector3.UP
+	if _player != null and is_instance_valid(_player):
+		var rel := _player.global_position - _planet_center
+		if not rel.is_zero_approx():
+			up = rel.normalized()
+	_planet.wind_direction = _wind_base_direction.rotated(up, _gusts.veer)
+	_wind_pushed_veer = _gusts.veer
 
 
 ## Oscurece sol y ambiente SOLO bajo la celda de nubes: el sol es una luz global, así que aplicar

@@ -79,6 +79,8 @@ func _run() -> void:
 	_test_group_sampling()
 	_test_wind()
 	_test_sailing_wind()
+	_test_gusts()
+	_test_save_ignores_force()
 
 	weather.free()
 	ambience.free()
@@ -263,3 +265,63 @@ func _test_sailing_wind() -> void:
 	loader.free()
 	planet.free()
 	terrain.free()
+
+
+func _test_gusts() -> void:
+	var gusts := WindGusts.new(1234)
+	var low := INF
+	var high := 0.0
+	var veer_low := INF
+	var veer_high := -INF
+	var max_step := 0.0
+	var last := gusts.gain
+	# Diez minutos a 30 fps con viento de temporal.
+	for i in 18000:
+		gusts.step(1.0 / 30.0, 2.4)
+		low = minf(low, gusts.gain)
+		high = maxf(high, gusts.gain)
+		veer_low = minf(veer_low, gusts.veer)
+		veer_high = maxf(veer_high, gusts.veer)
+		if i > 0:
+			max_step = maxf(max_step, absf(gusts.gain - last))
+		last = gusts.gain
+	check(high > 1.5 and low < 0.95 and low >= 0.2,
+		"Las rachas suben y bajan el viento del evento (%.2f..%.2f)" % [low, high])
+	check(max_step < 0.05, "Las rachas suben y bajan sin saltos entre frames (%.3f)" % max_step)
+	check(veer_high - veer_low > deg_to_rad(40.0) and absf(veer_high) <= deg_to_rad(110.0) + 0.001
+		and absf(veer_low) <= deg_to_rad(110.0) + 0.001,
+		"La dirección gira con el tiempo dentro de su margen (%.0f..%.0f grados)" % [rad_to_deg(veer_low), rad_to_deg(veer_high)])
+	gusts.configure({"veer_degrees": 0.0, "_comment": "x"})
+	gusts.step(1.0, 1.0)
+	check(is_zero_approx(gusts.veer), "La variación del viento se ajusta desde el JSON del planeta")
+
+	var terrain := VoxelLodTerrain.new()
+	var planet := Planet.new(terrain)
+	planet.wind_direction = Vector3(2.0, 0.0, 0.0)
+	weather._planet = planet
+	weather._planet_center = Vector3.ZERO
+	weather._wind_base_direction = planet.wind_direction
+	weather._wind_pushed_veer = INF
+	player.position = Vector3.UP * 30000.0
+	weather._gusts = WindGusts.new(99)
+	weather._update_wind(1.0 / 30.0, weather._events.storm)
+	var storm: WeatherState = weather._events.storm
+	check(is_equal_approx(planet.weather_wind_speed_multiplier, storm.wind_speed_multiplier * weather.get_wind_gust())
+		and is_equal_approx(planet.weather_wind_multiplier, storm.wind_multiplier * weather.get_wind_gust()),
+		"La racha escala el viento físico y el de la vegetación sobre el evento, sin acumularse")
+	var expected := Vector3(2.0, 0.0, 0.0).rotated(Vector3.UP, weather._gusts.veer)
+	check(planet.wind_direction.is_equal_approx(expected) and is_equal_approx(planet.wind_direction.length(), 2.0),
+		"La dirección gira alrededor de la vertical del jugador y conserva su módulo")
+	weather._planet = null
+	player.position = Vector3.RIGHT * 30000.0
+	planet.free()
+	terrain.free()
+
+
+func _test_save_ignores_force() -> void:
+	weather._forced = false
+	weather.restore_save_data({"current": "fog", "forced": true})
+	check(not weather._forced and weather.get_current_weather_name() == "fog",
+		"Una partida guardada con el clima forzado vuelve a cambiar sola")
+	check(not weather.get_save_data().has("forced"), "El forzado de depuración no se guarda")
+

@@ -403,6 +403,14 @@ toon_shadow_floor={
 "type": "float",
 "value": 0.15
 }
+wind_gain={
+"type": "float",
+"value": 1.0
+}
+wind_clock={
+"type": "float",
+"value": 0.0
+}
 
 [voxel]
 

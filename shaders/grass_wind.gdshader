@@ -58,6 +58,7 @@ uniform float grass_height : hint_range(0.05, 5.0) = 1.0;
 uniform float bend_curve : hint_range(1.0, 6.0) = 2.0;
 uniform vec3 wind_direction = vec3(1.0, 0.0, 0.0);
 uniform float wind_speed : hint_range(0.0, 10.0) = 1.0;
+#include "res://shaders/lib/wind_globals.gdshaderinc"
 uniform float wind_amplitude : hint_range(0.0, 1.0) = 0.15;
 uniform float gust_scale : hint_range(0.0, 2.0) = 0.15;
 uniform float gust_speed : hint_range(0.0, 5.0) = 1.0;
@@ -261,13 +262,14 @@ void vertex() {
 
     vec3 wt = wind_direction - up * dot(wind_direction, up);
     wt /= max(length(wt), 0.0001);
-    float phase = dot(relative_base, wt) * gust_scale - TIME * wind_speed * gust_speed;
+    float phase = dot(relative_base, wt) * gust_scale - wind_time() * wind_speed * gust_speed;
     float gust = sin(phase) * 0.75 + sin(phase * 0.43 + 1.7) * 0.25;
     float flutter = sin(TIME * flutter_speed + instance_seed * TAU + UV.y * 3.0) * flutter_amount;
     float mask = pow(height_factor, bend_curve) * visibility;
     float instance_height = length(MODEL_MATRIX[1].xyz) * grass_height;
-    float sway = (gust + flutter * height_factor) * wind_amplitude * wind_speed * mask * instance_height;
-    wind_shade = gust * mask * clamp(wind_speed * wind_amplitude * 3.0, 0.0, 1.0);
+    float strength = wind_speed * wind_gain;
+    float sway = (gust + flutter * height_factor) * wind_amplitude * strength * mask * instance_height;
+    wind_shade = gust * mask * clamp(strength * wind_amplitude * 3.0, 0.0, 1.0);
     vec3 world_offset = wt * sway - up * (sway * sway * 0.5 / max(instance_height, 0.001));
     // Solo transformar el vector: reconstruir posiciones de 45 km pierde precisión.
     // La base de la instancia es ortogonal con escala, así que su inversa es la

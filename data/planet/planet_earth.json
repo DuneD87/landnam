@@ -3604,9 +3604,19 @@
 	},
 	"weather_settings": {
 		"enabled": true,
-		"min_duration": 300.0,
-		"max_duration": 600.0,
-		"transition_time": 10.0,
+		"min_duration": 120.0,
+		"max_duration": 300.0,
+		"transition_time": 30.0,
+		"wind_variation": {
+			"_comment": "Rachas y giro del viento dentro de cada evento (scripts/weather/wind_gusts.gd). swell_amount: oleaje lento de la intensidad (fracción); gust_strength: subida media de una racha; gust_interval_*: segundos entre rachas con viento de evento 1.0 (más viento, más seguidas); veer_degrees/veer_period: giro máximo de la dirección y su periodo aproximado.",
+			"swell_amount": 0.25,
+			"swell_period": 45.0,
+			"gust_strength": 0.6,
+			"gust_interval_min": 10.0,
+			"gust_interval_max": 28.0,
+			"veer_degrees": 110.0,
+			"veer_period": 300.0
+		},
 		"cold_altitude": 1500.0,
 		"snow_altitude": 3500.0,
 		"cold_boost": {

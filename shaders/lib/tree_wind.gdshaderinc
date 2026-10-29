@@ -11,13 +11,15 @@
 //  tarjetas aletean a lo largo de su normal. Madera y hojas usan la misma función: la
 //  rama y sus ramilletes se mueven juntos también en el pase de sombras.
 //
-//  planet.gd empuja wind_direction y wind_speed cada frame. NO renombrar.
+//  planet.gd empuja wind_direction y wind_speed, y el clima y sus rachas llegan por el global
+//  wind_gain (wind_globals.gdshaderinc). NO renombrar.
 // =============================================================================
 #ifndef TREE_WIND_INC
 #define TREE_WIND_INC
 
 uniform vec3 wind_direction = vec3(1.0, 0.0, 0.0);
 uniform float wind_speed : hint_range(0.0, 10.0, 0.01) = 0.3;
+#include "res://shaders/lib/wind_globals.gdshaderinc"
 // Inclinación de la copa (fracción de la altura) por unidad de viento.
 uniform float trunk_sway : hint_range(0.0, 0.2, 0.001) = 0.03;
 // Desplazamiento de las puntas de rama (m) por unidad de viento.
@@ -59,7 +61,7 @@ vec3 tree_wind_offset_scaled(vec3 vertex, vec3 normal, vec4 color, vec2 uv2, mat
 	vec3 wt = wind_direction - up * dot(wind_direction, up);
 	wt /= max(length(wt), 0.0001);
 	float t = time * wind_frequency;
-	float strength = wind_speed;
+	float strength = wind_speed * wind_gain;
 	float scale = length(model[1].xyz);
 
 	// Tronco: se inclina a favor del viento y oscila despacio alrededor de esa inclinación.

@@ -119,11 +119,11 @@ func _compute_target() -> void:
 	_mixer.target[BED_WIND_STRONG] = last_wind * strong
 
 
-## Fuerza del viento en [0,1]: la del clima, subida por la altitud. En una cima sopla aunque el
-## parte esté tendido.
+## Fuerza del viento en [0,1]: la del clima con sus rachas, subida por la altitud. En una cima
+## sopla aunque el parte esté tendido.
 func _wind_factor(st: WeatherState) -> float:
-	var from_weather := clampf(
-		inverse_lerp(wind_calm, maxf(wind_full, wind_calm + 0.001), st.wind_multiplier), 0.0, 1.0)
+	var from_weather := clampf(inverse_lerp(wind_calm, maxf(wind_full, wind_calm + 0.001),
+		st.wind_multiplier * _weather.get_wind_gust()), 0.0, 1.0)
 	var altitude := _weather.get_player_altitude()
 	var from_altitude := clampf(altitude / maxf(wind_altitude_full, 1.0), 0.0, 1.0)
 	return clampf(maxf(from_weather, wind_floor) + from_altitude * wind_altitude_boost,

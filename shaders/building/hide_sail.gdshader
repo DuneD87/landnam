@@ -5,6 +5,8 @@ uniform float deployment : hint_range(0.0, 1.0) = 1.0;
 uniform float fill : hint_range(0.0, 1.0) = 0.7;
 uniform float belly_sign = 1.0;
 uniform float wind_speed = 4.0;
+// Fase del aleteo, acumulada en hide_sail_visual.gd: con TIME * wind_speed cada racha saltaba.
+uniform float flutter_phase = 0.0;
 uniform float yard_height = 4.5;
 uniform float cloth_height = 3.0;
 uniform float cloth_width = 4.0;
@@ -13,7 +15,7 @@ void vertex() {
 	VERTEX.y = yard_height - (yard_height - VERTEX.y) * mix(0.045, 1.0, deployment);
 	float edge = sin(UV.x * 3.14159265);
 	float belly = edge * sin(UV.y * 3.14159265);
-	float flutter = sin(UV.y * 24.0 + UV.x * 12.0 - TIME * (3.0 + wind_speed * 0.3));
+	float flutter = sin(UV.y * 24.0 + UV.x * 12.0 - flutter_phase);
 	VERTEX.z += belly_sign * belly * fill * min(cloth_width, cloth_height) * 0.215 * deployment;
 	VERTEX.z += flutter * edge * UV.y * (0.015 + (1.0 - fill) * 0.09) * min(wind_speed * 0.2, 1.0) * deployment;
 }

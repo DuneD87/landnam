@@ -28,7 +28,12 @@ var _last_material_position := Vector3.ZERO
 var _last_material_wind := Vector3.ZERO
 var _last_external_material_count := -1
 var _last_material_count := -1
-var _last_wind_multiplier := -1.0
+var _last_wind_gain := -1.0
+## Reloj del viento de la hierba (ver _advance_wind_clock) y el instante de su último avance.
+var _wind_clock := 0.0
+var _wind_clock_usec := 0
+## Vuelta del reloj, como el rollover de TIME: el salto de fase es el mismo una vez por hora.
+const WIND_CLOCK_WRAP := 3600.0
 ## Materiales de la vegetación cuyo shader declara light_direction (ver _update_planet).
 var _sun_materials: Array[ShaderMaterial] = []
 var _frames_to_sweep := 0
@@ -80,7 +85,8 @@ var _twig_singleside_shader: Shader = null
 
 var _vegetation_baker: VegetationBaker
 
-## Multiplicador global de viento sobre la vegetación, controlado por el WeatherController.
+## Multiplicador global de viento sobre la vegetación, con rachas, controlado por el WeatherController.
+## Llega a los shaders como el global wind_gain, no dentro del wind_speed de cada material.
 var weather_wind_multiplier: float = 1.0
 ## Multiplicador físico del aire: permite navegar con buen tiempo y mar tranquila.
 var weather_wind_speed_multiplier: float = 1.0
@@ -1631,7 +1637,6 @@ func _update_planet() -> void:
 	# materiales sustituidos dentro de su entrada (desde el inspector).
 	_frames_to_sweep -= 1
 	var sweep := not _material_uniforms_initialized or position_changed or wind_changed \
-		or weather_wind_multiplier != _last_wind_multiplier \
 		or item_transparent_materials.size() != _last_material_count or _frames_to_sweep <= 0
 	if sweep:
 		_frames_to_sweep = MATERIAL_SWEEP_FRAMES
@@ -1649,7 +1654,7 @@ func _update_planet() -> void:
 				mat.set_shader_parameter("planet_position", planet_position)
 			if fresh or wind_changed:
 				mat.set_shader_parameter("wind_direction", wind_direction)
-			var speed: float = mat_struct.wind_speed * weather_wind_multiplier
+			var speed: float = mat_struct.wind_speed
 			if fresh or speed != mat_struct.get("_updated_wind_speed"):
 				mat.set_shader_parameter("wind_speed", speed)
 				mat_struct["_updated_wind_speed"] = speed
@@ -1659,7 +1664,7 @@ func _update_planet() -> void:
 	elif sun_changed:
 		for mat in _sun_materials:
 			mat.set_shader_parameter("light_direction", sun_dir)
-	_last_wind_multiplier = weather_wind_multiplier
+	_advance_wind_clock()
 	_last_material_count = item_transparent_materials.size()
 	var external_changed := external_planet_materials.size() != _last_external_material_count
 	if sun_changed or position_changed or external_changed:
@@ -1673,6 +1678,21 @@ func _update_planet() -> void:
 	_last_material_wind = wind_direction
 	_last_external_material_count = external_planet_materials.size()
 	_material_uniforms_initialized = true
+
+
+## Las rachas cambian el viento cada frame: van como globales y no por material, que obligaría a
+## recorrer toda la vegetación. La hierba avanza sus olas con wind_clock, la integral de wind_gain,
+## porque con TIME * wind_speed cualquier cambio de intensidad salta de fase (TIME vale miles).
+func _advance_wind_clock() -> void:
+	var now := Time.get_ticks_usec()
+	if _wind_clock_usec > 0:
+		var dt := minf(float(now - _wind_clock_usec) / 1000000.0, 0.25)
+		_wind_clock = fmod(_wind_clock + dt * weather_wind_multiplier, WIND_CLOCK_WRAP)
+	_wind_clock_usec = now
+	RenderingServer.global_shader_parameter_set(&"wind_clock", _wind_clock)
+	if weather_wind_multiplier != _last_wind_gain:
+		RenderingServer.global_shader_parameter_set(&"wind_gain", weather_wind_multiplier)
+		_last_wind_gain = weather_wind_multiplier
 
 
 ## Los shaders modernos usan LIGHT; los antiguos que declaran el uniform conservan

@@ -8,6 +8,8 @@ var _rig: Node3D
 var _lower_yard: MeshInstance3D
 var _cloth: ShaderMaterial
 var _design: Dictionary = SailDesign.LEGACY.duplicate()
+var _flutter_phase := 0.0
+var _flutter_usec := 0
 
 
 func _ready() -> void:
@@ -76,6 +78,13 @@ func set_sailing_state(amount: float, apparent: Vector3, fill: float) -> void:
 	_cloth.set_shader_parameter("fill", fill if apparent.length_squared() > 0.1 else 0.0)
 	_cloth.set_shader_parameter("belly_sign", -1.0 if rig_wind.z < 0.0 else 1.0)
 	_cloth.set_shader_parameter("wind_speed", apparent.length())
+	# El aleteo acelera con el viento aparente: se integra aquí para que una racha no salte de fase.
+	var now := Time.get_ticks_usec()
+	if _flutter_usec > 0:
+		var dt := minf(float(now - _flutter_usec) / 1000000.0, 0.25)
+		_flutter_phase = fmod(_flutter_phase + dt * (3.0 + apparent.length() * 0.3), TAU * 1000.0)
+	_flutter_usec = now
+	_cloth.set_shader_parameter("flutter_phase", _flutter_phase)
 	_lower_yard.position.y = float(_design["mast_height"]) - 0.6 - float(_design["height"]) * lerpf(0.045, 1.0, amount)
 
 
