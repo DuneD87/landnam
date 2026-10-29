@@ -845,6 +845,8 @@ func _drift_report() -> String:
 		out += "  " + tr("CON_DRIFT_GATES") % [
 			sampler.last_exposure, sampler.last_ocean_weight,
 			sampler.last_shore_presence, sampler.last_amp_effective] + "\n"
+		out += "  " + tr("CON_DRIFT_CURRENT") % [sampler.last_current_scale,
+			WaterHeightSampler.CURRENT_RIVER_FRAC, WaterHeightSampler.CURRENT_COAST_FRAC] + "\n"
 
 	var flow: Vector3 = player._water_flow
 	var up := Vector3.UP

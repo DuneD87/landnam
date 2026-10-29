@@ -211,6 +211,45 @@ func shore_waves_allowed_at_dir(d: Vector3, flags: PackedByteArray) -> bool:
 	return id < 0 or (id < flags.size() and flags[id] != 0) or _is_river_id(id)
 
 
+## Reparto bilineal del agua de esa dirección entre mar (x) y río (y) para la corriente; lo que falta
+## hasta 1 es agua quieta (lago o charca). 'kinds' lleva por id de cuerpo 1 = mar u océano, 2 = río
+## y 0 = agua quieta. Bilineal para que la corriente no cambie a escalón en la boca de un río.
+##
+## Los téxeles de tierra no votan: el mapa grueso marca tierra donde la orilla visible aún es agua, y
+## contarlos como quietos apagaría la corriente del mar en el último téxel con su forma cuadrada.
+## Tampoco se normaliza del todo: con poco peso de agua el reparto se apaga hacia cero en vez de
+## saltar a 1 en mitad de un téxel de tierra. Sin agua en los cuatro vecinos es un hilo de agua más
+## fino que un téxel, no mar abierto.
+func current_mix_at_dir(d: Vector3, kinds: PackedByteArray) -> Vector2:
+	if not has_water or body_ids.size() != size.x * size.y:
+		return Vector2.ZERO
+	var uv := dir_to_uv(d)
+	var fx := uv.x * size.x - 0.5
+	var fy := uv.y * size.y - 0.5
+	var x0 := floori(fx)
+	var y0 := floori(fy)
+	var tx := fx - x0
+	var ty := fy - y0
+	var sea := 0.0
+	var river := 0.0
+	var water := 0.0
+	for corner in 4:
+		var cx := corner & 1
+		var cy := corner >> 1
+		var id := body_ids[clampi(y0 + cy, 0, size.y - 1) * size.x + wrapi(x0 + cx, 0, size.x)]
+		if id < 0 or id >= kinds.size():
+			continue
+		var weight := (tx if cx == 1 else 1.0 - tx) * (ty if cy == 1 else 1.0 - ty)
+		water += weight
+		if kinds[id] == 1:
+			sea += weight
+		elif kinds[id] == 2:
+			river += weight
+	# Un cuarto de peso es un cuarto de téxel tierra adentro desde el borde del agua: hasta ahí la
+	# corriente entra entera, y de ahí al centro del téxel de tierra se apaga en línea recta.
+	return Vector2(sea, river) / maxf(water, 0.25)
+
+
 ## True si el téxel de esa dirección es cauce de río (ver WorldMapBaker.classify_water).
 func is_river_at_dir(d: Vector3) -> bool:
 	return has_water and not body_ids.is_empty() and _is_river_id(body_ids[texel_of_dir(d)])

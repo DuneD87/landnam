@@ -39,6 +39,10 @@ var _pending: WorldMapData
 ## Red de ríos del planeta para el etiquetado del hilo (ver WorldMapBaker.classify_water).
 var _pending_rivers: Dictionary = {}
 var _storm_flags: PackedByteArray = PackedByteArray()
+## Tabla de 1 byte por id de cuerpo para la corriente: 1 = mar u océano, 2 = río, 0 = agua quieta.
+## Va aparte de _storm_flags porque esa se queda en los ocho mares que admite el shader, y un mar
+## pequeño sin temporal sigue siendo mar.
+var _current_kinds: PackedByteArray = PackedByteArray()
 
 
 func _ready() -> void:
@@ -210,16 +214,34 @@ func water_depth_local(local: Vector3) -> float:
 	return map.depth_at_dir(local.normalized()) if is_ready() else 0.0
 
 
+## Reparto del agua entre mar (x) y río (y) para la corriente, en coordenadas relativas al centro
+## del planeta; lo que falta hasta 1 es agua quieta. Sin mapa todo es mar, que es lo de siempre.
+## Ver WorldMapData.current_mix_at_dir.
+func current_mix_local(local: Vector3) -> Vector2:
+	if not is_ready() or not map.has_water:
+		return Vector2(1.0, 0.0)
+	return map.current_mix_at_dir(local.normalized(), _current_kinds)
+
+
 ## Tabla de 1 byte por id de cuerpo: 1 = recibe temporal. Evita resolver el tipo por diccionario en
-## cada consulta, que en la flotabilidad de un barco son decenas por frame de física.
+## cada consulta, que en la flotabilidad de un barco son decenas por frame de física. De paso arma
+## la de la corriente, por lo mismo.
 func _build_storm_flags() -> void:
 	_storm_flags = PackedByteArray()
+	_current_kinds = PackedByteArray()
 	if not is_ready():
 		return
 	_storm_flags.resize(map.bodies.size())
 	for id in storm_body_ids():
 		if id >= 0 and id < _storm_flags.size():
 			_storm_flags[id] = 1
+	_current_kinds.resize(map.bodies.size())
+	for id in map.bodies.size():
+		var type := int(map.bodies[id].get("type", WorldMapData.WaterType.LAKE))
+		if type <= WorldMapData.WaterType.SEA:
+			_current_kinds[id] = 1
+		elif type == WorldMapData.WaterType.RIVER:
+			_current_kinds[id] = 2
 
 
 ## Clave que identifica la configuración con la que se horneó el mapa. Incluye la huella del

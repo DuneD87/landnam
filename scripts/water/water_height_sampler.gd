@@ -57,6 +57,8 @@ var last_exposure: float = 1.0
 var last_ocean_weight: float = 1.0
 var last_shore_presence: float = 0.0
 var last_amp_effective: float = 0.0
+## Fracción de la corriente de mar abierto que llegó al punto (ver _current_scale).
+var last_current_scale: float = 1.0
 ## Hielo marino (0..1) de la última evaluación: 1 = banquisa, sin oleaje. Lo lee el jugador para
 ## caminar sobre el hielo en vez de nadar.
 var last_ice: float = 0.0
@@ -96,6 +98,17 @@ const CURRENT_SEA_STATE_SPAN := 6.0
 const CURRENT_SHELTERED_FRAC := 0.4
 ## La rompiente empuja hacia tierra pero la resaca devuelve parte: el empujón neto es una fracción.
 const CURRENT_SHORE_FRAC := 0.7
+## Fracción de la corriente que queda a pie de costa; crece hasta la entera a CURRENT_COAST_RANGE
+## metros mar adentro. Va encima del abrigo por profundidad, que solo distingue una rada: con él solo,
+## en la playa seguía arrastrando 1,2 m/s con mar tendida y 6 con temporal, el doble de lo que se nada.
+const CURRENT_COAST_FRAC := 0.15
+## Por debajo del alcance del campo de orilla (PlanetWorldMap.SHORE_RANGE): más allá el campo guarda
+## esa distancia tope y la rampa no llegaría a cerrarse.
+const CURRENT_COAST_RANGE := 250.0
+## Fracción que conserva un río. Sigue el swell como la de mar abierto y no el cauce, porque el mapa
+## no sabe hacia dónde baja el agua: se queda en un empujón que no deje remontar el río a la deriva.
+## Los lagos y charcas no tienen ninguna.
+const CURRENT_RIVER_FRAC := 0.15
 
 
 ## Réplica CPU de shore_breakup() en shore_breakup.gdshaderinc: rotura de la ola de orilla.
@@ -402,6 +415,7 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3,
 	var shore_quality: float = ctx[3]
 	var shore_depth: float = ctx[4]
 	var ice: float = ctx[5]
+	var current_scale: float = ctx[6]
 	last_ice = ice
 
 	# Busca la posición "en reposo" cuya ola desplazada horizontalmente cae bajo world_pos.
@@ -413,7 +427,7 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3,
 		var radial := guess.normalized()
 		var disp := _gerstner_disp(
 			guess, radial, time, exposure,
-			shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length)
+			shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length, current_scale)
 		var residual := guess+disp-local_q
 		var error := Vector2(residual.dot(target_u),residual.dot(target_v))
 		if error.length_squared()<0.000025:
@@ -434,12 +448,13 @@ func get_height_at(world_pos: Vector3, time: float, planet_center: Vector3,
 	var final_radial := guess.normalized()
 	var final_disp := _gerstner_disp(
 		guess, final_radial, time, exposure,
-		shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length)
+		shore_dir, shore_signed_dist, shore_quality, shore_depth, ice, min_length, current_scale)
 	return (guess+final_disp).length()-radius
 
 
-## Lo que la superficie necesita del mapa del planeta en un punto (réplica de wave_context):
-## [exposición, dirección a tierra, distancia firmada, calidad, profundidad, hielo]. Se resuelve una
+## Lo que la superficie necesita del mapa del planeta en un punto (réplica de wave_context, salvo la
+## corriente, que el shader no dibuja): [exposición, dirección a tierra, distancia firmada, calidad,
+## profundidad, hielo, fracción de corriente]. Se resuelve una
 ## vez por muestra, no dentro de la inversión: el punto fijo mueve la posición unos metros y la
 ## máscara varía en decenas, así que la diferencia no se aprecia y ahorra 3/4 del coste.
 func _context(local_q: Vector3) -> Array:
@@ -451,10 +466,13 @@ func _context(local_q: Vector3) -> Array:
 	var shore_depth := 0.0
 	# Distancia a la costa para el hielo: igual que ice_shore en wave_context (gerstner_waves).
 	var ice_shore := -1.0
+	# Distancia firmada al litoral para la corriente, si este muestreo la lee; NAN si no.
+	var coast_dist := NAN
 	if shore_enabled:
 		ice_shore = 0.0
 	if shore_enabled and world_map.shore_waves_allowed_local(local_q):
 		var field := world_map.shore_sample_local(local_q)
+		coast_dist = field.w
 		var raw_dir := Vector3(field.x, field.y, field.z)
 		shore_quality = clampf(raw_dir.length(), 0.0, 1.0)
 		# Un río recibe la costera pero se hiela como costa: igual que en wave_context.
@@ -468,7 +486,25 @@ func _context(local_q: Vector3) -> Array:
 			shore_dir = raw_dir / shore_quality if shore_quality > 1e-4 else Vector3.ZERO
 			shore_signed_dist = field.w
 	var ice := ClimateField.sea_ice_with(local_q, ice_shore, sea_ice_params) if sea_ice_enabled else 0.0
-	return [exposure, shore_dir, shore_signed_dist, shore_quality, shore_depth, ice]
+	return [exposure, shore_dir, shore_signed_dist, shore_quality, shore_depth, ice,
+		_current_scale(local_q, coast_dist)]
+
+
+## Fracción de la corriente de mar abierto que llega a local_q: ninguna en lagos y charcas, poca en
+## los ríos y menguante al acercarse a la costa. 'coast_dist' es la distancia firmada del campo de
+## orilla si _context ya la ha leído, o NAN.
+func _current_scale(local_q: Vector3, coast_dist: float) -> float:
+	if world_map == null:
+		return 1.0
+	var mix := world_map.current_mix_local(local_q)
+	var coast := 1.0
+	if mix.x > 0.0:
+		# Un mar pequeño sin temporal no lee el campo para las olas, pero lo tiene horneado igual.
+		if is_nan(coast_dist) and world_map.has_shore_field():
+			coast_dist = world_map.shore_sample_local(local_q).w
+		if not is_nan(coast_dist):
+			coast = lerpf(CURRENT_COAST_FRAC, 1.0, smoothstep(0.0, CURRENT_COAST_RANGE, coast_dist))
+	return mix.x * coast + mix.y * CURRENT_RIVER_FRAC
 
 
 ## Desplazamiento de la partícula de agua que en reposo está en `local_rest` (relativa al centro,
@@ -482,7 +518,7 @@ func rest_displacement(local_rest: Vector3, time: float, min_length: float) -> V
 	var ctx := _context(local_rest)
 	last_ice = ctx[5]
 	return _gerstner_disp(local_rest, local_rest.normalized(), time, ctx[0],
-		ctx[1], ctx[2], ctx[3], ctx[4], ctx[5], min_length)
+		ctx[1], ctx[2], ctx[3], ctx[4], ctx[5], min_length, ctx[6])
 
 
 ## Normal analítica de la última evaluación.
@@ -520,7 +556,7 @@ func get_surface_at(world_pos: Vector3, time: float, planet_center: Vector3) -> 
 func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: float,
 		shore_dir: Vector3, shore_signed_dist: float,
 		shore_quality: float, shore_depth: float, ice: float = 0.0,
-		min_length: float = 0.0) -> Vector3:
+		min_length: float = 0.0, current_scale: float = 1.0) -> Vector3:
 	var shore_dist := absf(shore_signed_dist)
 	# Relevo entre familias: donde manda la orilla, el oleaje de mar abierto se apaga. Suma de las
 	# dos a la vez y en una costa a sotavento el swell global viaja mar adentro sobre la rompiente.
@@ -567,9 +603,10 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 
 	# Corriente de mar abierto, en el sentido de avance del swell principal. La exposición entra como
 	# atenuador con suelo, no mezclada en la amplitud: distingue una rada sin dejar la costa a cero.
+	# La fracción del cuerpo de agua y de la costa recorta también la rompiente, que sale de aquí.
 	var storm_state := _sea_state()
 	var current_mag := lerpf(CURRENT_CALM, CURRENT_STORM, storm_state) * drift_scale \
-		* lerpf(CURRENT_SHELTERED_FRAC, 1.0, exposure)
+		* lerpf(CURRENT_SHELTERED_FRAC, 1.0, exposure) * current_scale
 	if current_mag > 0.0:
 		# El reparto con la costera va por shore_presence y no por ocean_weight: ese relevo es
 		# asimétrico a propósito y copiarlo deja una franja sin corriente al acercarse a tierra.
@@ -579,6 +616,7 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		flow += ocean_current
 
 	last_exposure = exposure
+	last_current_scale = current_scale
 	last_ocean_weight = ocean_weight
 	last_shore_presence = shore_presence
 

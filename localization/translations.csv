@@ -1216,6 +1216,7 @@ CON_SHADOWS,Sun shadows: %s · sun at %.1f° above the horizon.,Sombras del sol:
 CON_DRIFT_SET,Wave drag → %.2f.,Arrastre de las olas → %.2f.,
 CON_DRIFT_SEA,sea: amp %.2f m · steep %.2f · speed %.2f · λ %.1f m,mar: amp %.2f m · steep %.2f · vel %.2f · λ %.1f m,
 CON_DRIFT_GATES,gates: exposure %.2f · ocean weight %.2f · shore %.2f → effective amp %.2f m,gates: exposición %.2f · peso oceánico %.2f · orilla %.2f → amp efectiva %.2f m,
+CON_DRIFT_CURRENT,current here: ×%.2f of the open sea's (lake 0 · river %.2f · shoreline %.2f),corriente aquí: ×%.2f de la de mar abierto (lago 0 · río %.2f · orilla %.2f),
 CON_DRIFT_PLAYER,player: current %.3f m/s (tangential %.3f) · swimming %s,jugador: corriente %.3f m/s (tangencial %.3f) · nadando %s,
 CON_DRIFT_NO_BOAT,(you are not on any boat),(no vas en ningún barco),
 CON_DRIFT_BOAT,boat: water %.3f m/s · hull %.3f m/s · relative %.3f m/s,barco: agua %.3f m/s · casco %.3f m/s · relativa %.3f m/s,
