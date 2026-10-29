@@ -122,8 +122,12 @@ const WAVE_PROBES := 4
 ## superficie en _clip_box. Por encima, el error de redondeo del reparto es despreciable en doble
 ## precisión; por debajo, lo que se ignora es menos de un milímetro de inclinación.
 const CLIP_EPS := 0.001
-## Cajas en que se agrega el casco para la flotación lejana (cuadrantes manga × eslora).
-const LOD_QUADRANTS := 4
+## Celdas en que se agrega el casco para la flotación lejana: franjas de manga × franjas de eslora ×
+## capas de LOD_LAYER metros (como mucho LOD_MAX_LAYERS). Ver _build_lod_boxes.
+const LOD_BEAM_BINS := 4
+const LOD_LENGTH_BINS := 2
+const LOD_LAYER := 1.0
+const LOD_MAX_LAYERS := 16
 
 const WAKE_SPACING := 3.0
 const WAKE_LIFETIME := 12.0
@@ -386,7 +390,7 @@ func _recalculate_buoyancy_boxes() -> void:
 		return
 
 	_aggregate_box = {"pos": aabb.get_center(), "half": aabb.size * 0.5, "volume": total_volume}
-	_build_lod_boxes(aabb.get_center())
+	_build_lod_boxes(aabb)
 	_drag_length_sq = maxf(1.0, (aabb.size * 0.5).length_squared())
 	_wave_filter_length = maxf(aabb.size.x, aabb.size.z) * wave_filter
 
@@ -395,82 +399,93 @@ func _recalculate_buoyancy_boxes() -> void:
 	_flood_capacity = maxf((box_volume - total_volume) * flood_capacity_factor, 0.0)
 
 
-## Agrega el casco en los cuatro cuadrantes del AABB (mitades de manga y de eslora) para el LOD
-## lejano. Con una sola caja el empuje caía siempre en la misma vertical del cuerpo: ni par
-## adrizante al escorar, ni coincidencia con el centro de masas —que la gravedad sí usa—, y el
-## barco se quedaba tumbado de un lado. Cada cuadrante guarda su volumen real y su centroide
-## ponderado, así que el reparto del empuje sigue al del volumen de madera.
-func _build_lod_boxes(center: Vector3) -> void:
-	# Cuatro cuadrantes de madera y cuatro de lastre: el LOD no mezcla sus centros de empuje.
-	var vols: Array[float] = []
-	var weighted: Array[Vector3] = []
-	var mins: Array[Vector3] = []
-	var maxs: Array[Vector3] = []
-	for q in LOD_QUADRANTS * 2:
-		vols.append(0.0)
-		weighted.append(Vector3.ZERO)
-		mins.append(Vector3.INF)
-		maxs.append(-Vector3.INF)
+## Agrega el casco en celdas del AABB (franjas de manga y de eslora por capas de altura) para el LOD
+## lejano. Cada celda guarda su volumen real y su centroide ponderado, así que el reparto del empuje
+## sigue al del volumen de madera. Las capas hacen falta: con solo cuadrantes, cada caja iba de la
+## quilla a lo más alto de la obra muerta y, centrada en el centroide, bajaba metros por debajo de la
+## quilla. El casco flotaba un metro más alto, con el centro de carena hundido bajo el de masas, y
+## era inestable adrizado: de lejos se tumbaba solo y, al volver, la flotación completa lo acababa de
+## volcar. Las cuatro franjas de manga separan las bandas del centro, que es lo que da el par
+## adrizante de un casco hueco; con dos, la curva de estabilidad salía el doble de dura.
+func _build_lod_boxes(aabb: AABB) -> void:
+	var counts := Vector3i(LOD_BEAM_BINS,
+		clampi(ceili(aabb.size.y / LOD_LAYER - 0.001), 1, LOD_MAX_LAYERS), LOD_LENGTH_BINS)
+	var step := (aabb.size / Vector3(counts)).max(Vector3.ONE * 0.0001)
+	# Por celda, madera y lastre aparte (el LOD no mezcla sus centros de empuje):
+	# [volumen, centroide ponderado, mínimo, máximo].
+	var cells := {}
 
-	# Las cajas vienen fusionadas y muchas cruzan el corte de lado a lado: cada una se reparte
-	# por solape con los cuadrantes, no por dónde caiga su centro, o una sola caja que abarque
-	# toda la manga volvería a descentrar el empuje.
+	# Las cajas vienen fusionadas y muchas cruzan varias celdas: cada una se reparte por solape, no
+	# por dónde caiga su centro, o una sola caja que abarque toda la manga descentraría el empuje.
 	for i in _box_vol.size():
-		var pos: Vector3 = _box_pos[i]
-		var half: Vector3 = _box_half[i]
-		var vol: float = _box_vol[i]
-		var split_x := _split_axis(pos.x - half.x, pos.x + half.x, center.x)
-		var split_z := _split_axis(pos.z - half.z, pos.z + half.z, center.z)
-
-		for ix in 2:
-			for iz in 2:
-				var part_x: Dictionary = split_x[ix]
-				var part_z: Dictionary = split_z[iz]
-				var weight: float = part_x["frac"] * part_z["frac"]
-				if weight <= 0.0:
-					continue
-
-				var q: int = ix + iz * 2 + (0 if _box_buoyant[i] else LOD_QUADRANTS)
-				var part_vol: float = vol * weight
-				vols[q] += part_vol
-				weighted[q] += Vector3(
-					(part_x["lo"] + part_x["hi"]) * 0.5,
-					pos.y,
-					(part_z["lo"] + part_z["hi"]) * 0.5) * part_vol
-				mins[q] = (mins[q] as Vector3).min(Vector3(part_x["lo"], pos.y - half.y, part_z["lo"]))
-				maxs[q] = (maxs[q] as Vector3).max(Vector3(part_x["hi"], pos.y + half.y, part_z["hi"]))
+		var lo: Vector3 = _box_pos[i] - _box_half[i]
+		var hi: Vector3 = _box_pos[i] + _box_half[i]
+		var spans_x := _bin_spans(lo.x, hi.x, aabb.position.x, step.x, counts.x)
+		var spans_y := _bin_spans(lo.y, hi.y, aabb.position.y, step.y, counts.y)
+		var spans_z := _bin_spans(lo.z, hi.z, aabb.position.z, step.z, counts.z)
+		for sx: Vector3 in spans_x:
+			for sy: Vector3 in spans_y:
+				for sz: Vector3 in spans_z:
+					var frac := Vector3(sx.z, sy.z, sz.z)
+					var part_vol: float = _box_vol[i] * frac.x * frac.y * frac.z
+					if part_vol <= 0.0:
+						continue
+					var key := ((int(sz.x) * counts.y + int(sy.x)) * counts.x + int(sx.x)) * 2 \
+						+ _box_buoyant[i]
+					var part_lo := Vector3(sx.y, sy.y, sz.y)
+					var part_hi := part_lo + frac * (hi - lo)
+					var cell: Array = cells.get(key, [])
+					if cell.is_empty():
+						cell = [0.0, Vector3.ZERO, part_lo, part_hi]
+						cells[key] = cell
+					cell[0] += part_vol
+					cell[1] += (part_lo + part_hi) * 0.5 * part_vol
+					cell[2] = (cell[2] as Vector3).min(part_lo)
+					cell[3] = (cell[3] as Vector3).max(part_hi)
 
 	_agg_pos.clear()
 	_agg_half.clear()
 	_agg_vol.clear()
 	_agg_buoyant.clear()
 
-	for q in LOD_QUADRANTS * 2:
-		var vol: float = vols[q]
-		if vol <= 0.0:
-			continue
-		var centroid: Vector3 = (weighted[q] as Vector3) / vol
+	for key: int in cells:
+		var cell: Array = cells[key]
+		var vol: float = cell[0]
+		var centroid: Vector3 = (cell[1] as Vector3) / vol
 		# Semiejes medidos desde el centroide y no desde el centro geométrico: la caja debe
 		# quedar centrada donde está el volumen, que es lo que moja el agua primero.
-		var lo: Vector3 = mins[q]
-		var hi: Vector3 = maxs[q]
+		var lo: Vector3 = cell[2]
+		var hi: Vector3 = cell[3]
 		var half := (hi - centroid).max(centroid - lo).max(Vector3.ONE * 0.05)
 
 		_agg_pos.append(centroid)
 		_agg_half.append(half)
 		_agg_vol.append(vol)
-		_agg_buoyant.append(1 if q < LOD_QUADRANTS else 0)
+		_agg_buoyant.append(key & 1)
+
+	# Un casco de pocas cajas tiene más celdas que cajas: de lejos flota igual que de cerca.
+	if _agg_vol.size() >= _box_vol.size():
+		_agg_pos = _box_pos.duplicate()
+		_agg_half = _box_half.duplicate()
+		_agg_vol = _box_vol.duplicate()
+		_agg_buoyant = _box_buoyant.duplicate()
 
 
-## Parte el intervalo [lo, hi] por el corte c y devuelve, para el trozo bajo y el alto, qué
-## fracción de la longitud se lleva y dónde empieza y acaba.
-static func _split_axis(lo: float, hi: float, c: float) -> Array:
+## Trozos de [lo, hi] en las celdas de un eje que empieza en origin con celdas de step: por trozo,
+## (índice de celda, inicio, fracción de la longitud que se lleva).
+static func _bin_spans(lo: float, hi: float, origin: float, step: float, count: int) -> Array[Vector3]:
 	var length := maxf(hi - lo, 0.0001)
-	var cut := clampf(c, lo, hi)
-	return [
-		{"frac": (cut - lo) / length, "lo": lo, "hi": cut},
-		{"frac": (hi - cut) / length, "lo": cut, "hi": hi},
-	]
+	var spans: Array[Vector3] = []
+	var first := clampi(floori((lo - origin) / step), 0, count - 1)
+	var last := clampi(ceili((hi - origin) / step) - 1, 0, count - 1)
+	for k in range(first, last + 1):
+		# La primera y la última celda se abren hasta los extremos del AABB: el redondeo no deja
+		# fuera ni un trozo de caja.
+		var a := lo if k == first else maxf(lo, origin + k * step)
+		var b := hi if k == last else minf(hi, origin + (k + 1) * step)
+		if b > a:
+			spans.append(Vector3(k, a, (b - a) / length))
+	return spans
 
 
 ## Lanza el análisis de compartimentos en un worker thread con debounce de ediciones.
