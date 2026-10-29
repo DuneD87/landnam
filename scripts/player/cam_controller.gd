@@ -111,15 +111,17 @@ func _look_sensitivity() -> float:
 	return mouse_sensitivity * SettingsManager.mouse_scale
 
 
+## Con screen_relative: a pantalla completa por debajo de la resolución del monitor, relative viene
+## en píxeles de la vista y la cámara giraría más despacio.
 func _input(event: InputEvent):
 	if GameManager.current_state != GameManager.State.PLAYING:
 		return
 	if event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED \
 			and lock_point != null:
-		_lock_swipe += -event.relative.x * _look_sensitivity()
+		_lock_swipe += -event.screen_relative.x * _look_sensitivity()
 	elif event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
-		delta_yaw += -event.relative.x * _look_sensitivity()
-		delta_pitch += -event.relative.y * _look_sensitivity() * (-1 if invert_y != SettingsManager.invert_y else 1)
+		delta_yaw += -event.screen_relative.x * _look_sensitivity()
+		delta_pitch += -event.screen_relative.y * _look_sensitivity() * (-1 if invert_y != SettingsManager.invert_y else 1)
 	elif event is InputEventMouseButton and event.pressed:
 		if not zoom_enabled:
 			return

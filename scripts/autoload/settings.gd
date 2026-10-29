@@ -53,6 +53,9 @@ const DEFAULTS := {
 	"display/window_mode": WindowMode.WINDOWED,
 	## Solo en ventana. Vector2i.ZERO = el tamaño con que arranca el proyecto.
 	"display/resolution": Vector2i.ZERO,
+	## Solo a pantalla completa: a la que se dibuja el juego antes de estirarlo al monitor.
+	## Vector2i.ZERO = la del monitor.
+	"display/fullscreen_resolution": Vector2i.ZERO,
 	## Con V-Sync y tope de 120 fps. (El cuelgue del juego incrustado en el editor con Wayland y
 	## NVIDIA no es esto: ver docs/options.md.)
 	"display/vsync": DisplayServer.VSYNC_ENABLED,
@@ -456,7 +459,7 @@ func apply_all() -> void:
 
 func _apply(key: String) -> void:
 	match key:
-		"display/window_mode", "display/resolution":
+		"display/window_mode", "display/resolution", "display/fullscreen_resolution":
 			_apply_window()
 		"display/vsync":
 			DisplayServer.window_set_vsync_mode(int(value(key)))
@@ -501,9 +504,12 @@ func _apply_window() -> void:
 	match mode:
 		WindowMode.FULLSCREEN:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+			_apply_render_size(value("display/fullscreen_resolution"))
 		WindowMode.EXCLUSIVE:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+			_apply_render_size(value("display/fullscreen_resolution"))
 		_:
+			_apply_render_size(Vector2i.ZERO)
 			var current := DisplayServer.window_get_mode()
 			if current == DisplayServer.WINDOW_MODE_FULLSCREEN or current == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN:
 				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
@@ -513,6 +519,21 @@ func _apply_window() -> void:
 				var origin := DisplayServer.screen_get_position(screen)
 				var free := DisplayServer.screen_get_size(screen) - resolution
 				DisplayServer.window_set_position(origin + Vector2i(maxi(free.x, 0), maxi(free.y, 0)) / 2)
+
+
+## Godot no cambia el modo de vídeo del monitor: para jugar a pantalla completa a menos resolución
+## que la suya, todo (también la interfaz) se dibuja a `size` y se estira a la ventana, como lo
+## estiraría el propio monitor. EXPAND lo alarga por un lado si el monitor tiene otra proporción.
+## Vector2i.ZERO, o un tamaño que no cabe en el monitor, dibuja a la resolución de la ventana.
+func _apply_render_size(size: Vector2i) -> void:
+	var root := get_tree().root
+	var screen := DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
+	if size.x <= 0 or size.y <= 0 or size.x >= screen.x or size.y >= screen.y:
+		root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+		return
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT
+	root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	root.content_scale_size = size
 
 
 func _apply_scaling() -> void:

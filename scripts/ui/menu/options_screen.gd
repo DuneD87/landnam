@@ -17,6 +17,9 @@ const TAB_PREFIXES: Array[String] = ["display/", "graphics/", "audio/", "control
 const CONFIRM_SECONDS := 10.0
 const RESOLUTIONS: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1366, 768), Vector2i(1600, 900),
 	Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(3840, 2160)]
+## Alturas de las resoluciones a pantalla completa por debajo de la del monitor; el ancho sale de
+## la proporción del monitor.
+const FULLSCREEN_HEIGHTS: Array[int] = [720, 900, 1080, 1440, 1800]
 const MAX_FPS_OPTIONS: Array[int] = [0, 30, 60, 90, 120, 144, 165, 240]
 const AUDIO_LABELS := {&"Master": "OPT_AUDIO_MASTER", &"Music": "OPT_AUDIO_MUSIC", &"SFX": "OPT_AUDIO_SFX",
 	&"Ambient": "OPT_AUDIO_AMBIENT", &"UI": "OPT_AUDIO_UI", &"Voice": "OPT_AUDIO_VOICE"}
@@ -25,6 +28,9 @@ const PRESET_NAMES: Array[String] = ["OPT_LOW", "OPT_MEDIUM", "OPT_HIGH", "OPT_U
 static var _open_count := 0
 
 var _ui_scale := 1.0
+var _built_size := Vector2.ZERO
+var _rebuild_queued := false
+var _root: Control
 var _snapshot: Dictionary
 var _tab_buttons: Array[Button] = []
 var _current_tab := 0
@@ -56,9 +62,25 @@ func _exit_tree() -> void:
 func _ready() -> void:
 	layer = 30
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_ui_scale = clampf(get_viewport().get_visible_rect().size.y / 1440.0, 0.5, 2.0)
 	_snapshot = Settings.snapshot()
+	_build()
+	Settings.changed.connect(_on_setting_changed)
+	get_viewport().size_changed.connect(_on_viewport_resized)
+
+
+## Construye la pantalla a la escala de la vista. Se rehace entera si la vista cambia de tamaño
+## (tamaño de ventana o resolución), conservando la pestaña y la confirmación pendiente.
+func _build() -> void:
+	_built_size = get_viewport().get_visible_rect().size
+	_ui_scale = clampf(_built_size.y / 1440.0, 0.5, 2.0)
+	var confirming := _confirm != null and _confirm.visible
+	if _root != null:
+		_cancel_capture()
+		_root.queue_free()
+	_tab_buttons.clear()
+	_page = null
 	var root := Control.new()
+	_root = root
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.theme = _build_theme()
 	add_child(root)
@@ -68,10 +90,9 @@ func _ready() -> void:
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(dim)
 
-	var viewport_size := get_viewport().get_visible_rect().size
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(minf(_px(1500), viewport_size.x - _px(64)),
-		minf(_px(1200), viewport_size.y - _px(64)))
+	panel.custom_minimum_size = Vector2(minf(_px(1500), _built_size.x - _px(64)),
+		minf(_px(1200), _built_size.y - _px(64)))
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
@@ -92,10 +113,24 @@ func _ready() -> void:
 	column.add_child(_notice)
 	column.add_child(_build_footer())
 	_build_confirm(root)
+	_confirm.visible = confirming
 
-	Settings.changed.connect(_on_setting_changed)
-	_show_tab(0)
+	_show_tab(_current_tab)
 	_refresh_notice()
+
+
+## El cambio de modo de ventana redimensiona varias veces seguidas: se rehace una vez, al final
+## del frame, y solo si el tamaño ha cambiado de verdad.
+func _on_viewport_resized() -> void:
+	if not _rebuild_queued:
+		_rebuild_queued = true
+		_rebuild_if_resized.call_deferred()
+
+
+func _rebuild_if_resized() -> void:
+	_rebuild_queued = false
+	if get_viewport().get_visible_rect().size != _built_size:
+		_build()
 
 
 func _process(delta: float) -> void:
@@ -235,22 +270,20 @@ func _build_display_page() -> void:
 		func(i: int) -> void: _change_display("display/window_mode", i))
 	_row("OPT_WINDOW_MODE", mode, "OPT_WINDOW_MODE_HINT")
 
-	var resolution := OptionButton.new()
 	var screen_size := DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
-	var current: Vector2i = SettingsManager.value("display/resolution")
-	var sizes: Array[Vector2i] = [Vector2i.ZERO]
-	resolution.add_item("OPT_RESOLUTION_PROJECT")
-	for size in RESOLUTIONS:
-		if size.x <= screen_size.x and size.y <= screen_size.y:
-			sizes.append(size)
-			resolution.add_item("%d × %d" % [size.x, size.y])
-	if not sizes.has(current):
-		sizes.append(current)
-		resolution.add_item("%d × %d" % [current.x, current.y])
-	resolution.select(sizes.find(current))
-	resolution.disabled = SettingsManager.level("display/window_mode", 3) != SettingsManager.WindowMode.WINDOWED
-	resolution.item_selected.connect(func(i: int) -> void: _change_display("display/resolution", sizes[i]))
-	_row("OPT_WINDOW_SIZE", resolution, "OPT_WINDOW_SIZE_HINT")
+	var sizes: Array[Vector2i] = []
+	if SettingsManager.level("display/window_mode", 3) == SettingsManager.WindowMode.WINDOWED:
+		for size in RESOLUTIONS:
+			if size.x <= screen_size.x and size.y <= screen_size.y:
+				sizes.append(size)
+		_row("OPT_WINDOW_SIZE", _size_control("display/resolution", "OPT_RESOLUTION_PROJECT", sizes),
+			"OPT_WINDOW_SIZE_HINT")
+	else:
+		for height in FULLSCREEN_HEIGHTS:
+			if height < screen_size.y:
+				sizes.append(Vector2i(roundi(height * float(screen_size.x) / screen_size.y), height))
+		_row("OPT_RESOLUTION", _size_control("display/fullscreen_resolution",
+			tr("OPT_RESOLUTION_NATIVE") % [screen_size.x, screen_size.y], sizes), "OPT_RESOLUTION_HINT")
 
 	_row("OPT_VSYNC", _choice_control("display/vsync", ["OPT_VSYNC_OFF", "OPT_VSYNC_ON", "OPT_VSYNC_ADAPTIVE"]),
 		"OPT_VSYNC_HINT")
@@ -410,6 +443,24 @@ func _toggle_control(key: String) -> CheckButton:
 	return toggle
 
 
+## Tamaños para `key`: Vector2i.ZERO (con el texto `zero_label`), `sizes` y, si no está entre
+## ellos, el que hay guardado.
+func _size_control(key: String, zero_label: String, sizes: Array[Vector2i]) -> OptionButton:
+	var button := OptionButton.new()
+	var current: Vector2i = SettingsManager.value(key)
+	var options: Array[Vector2i] = [Vector2i.ZERO]
+	options.append_array(sizes)
+	if not options.has(current):
+		options.append(current)
+	button.add_item(zero_label)
+	for size in options.slice(1):
+		button.add_item("%d × %d" % [size.x, size.y])
+	button.select(options.find(current))
+	button.custom_minimum_size.y = _px(60)
+	button.item_selected.connect(func(i: int) -> void: _change_display(key, options[i]))
+	return button
+
+
 ## Idioma: el del sistema o una de las columnas de la tabla de traducciones, cada una por su nombre.
 func _language_control() -> OptionButton:
 	var button := OptionButton.new()
@@ -539,6 +590,7 @@ func _change_display(key: String, new_value: Variant) -> void:
 		_display_before = {
 			"display/window_mode": SettingsManager.value("display/window_mode"),
 			"display/resolution": SettingsManager.value("display/resolution"),
+			"display/fullscreen_resolution": SettingsManager.value("display/fullscreen_resolution"),
 		}
 	Settings.set_value(key, new_value)
 	_confirm_left = CONFIRM_SECONDS
@@ -597,6 +649,7 @@ func _on_reset_tab() -> void:
 	if prefix == "display/":
 		_change_display("display/window_mode", SettingsManager.default_value("display/window_mode"))
 		_change_display("display/resolution", SettingsManager.default_value("display/resolution"))
+		_change_display("display/fullscreen_resolution", SettingsManager.default_value("display/fullscreen_resolution"))
 		Settings.set_value("display/vsync", SettingsManager.default_value("display/vsync"))
 		Settings.set_value("display/max_fps", SettingsManager.default_value("display/max_fps"))
 	else:

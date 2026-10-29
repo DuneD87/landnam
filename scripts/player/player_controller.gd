@@ -1349,8 +1349,8 @@ func _input(event):
 		player_model.visible = false
 		if event is InputEventMouseMotion and mouse_captured:
 			var sensitivity := mouse_sensitivity * SettingsManager.mouse_scale
-			free_flight_controller.delta_yaw += -event.relative.x * sensitivity
-			free_flight_controller.delta_pitch += -event.relative.y * sensitivity * (-1 if invert_y != SettingsManager.invert_y else 1)
+			free_flight_controller.delta_yaw += -event.screen_relative.x * sensitivity
+			free_flight_controller.delta_pitch += -event.screen_relative.y * sensitivity * (-1 if invert_y != SettingsManager.invert_y else 1)
 	else:
 		player_model.visible = true
 		camera_controller._input(event)

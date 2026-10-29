@@ -5,7 +5,7 @@ Audio, Controles y Juego (el idioma, ver [localization.md](localization.md); cu�
 cercenan miembros, ver [combat.md](combat.md); y el tamaño de la barra rápida, ver [ui.md](ui.md)). Se abre con el botón *Options* del menú principal,
 que en partida hace de menú de pausa (Escape). Los cambios se ven al momento; *Aceptar* o Escape los guardan en
 `user://settings.cfg` y *Cancelar* vuelve a como estaba todo al abrir. Un cambio de ventana pide
-confirmación y se deshace solo a los 10 s.
+confirmación y se deshace solo a los 10 s. Si cambia el tamaño de la vista, la pantalla se rehace a su nueva escala.
 
 ## Dónde vive cada cosa
 
@@ -18,6 +18,26 @@ confirmación y se deshace solo a los 10 s.
 - Lo que solo vale al cargar el planeta está en `RESTART_KEYS` y la pantalla avisa de que hace falta
   reiniciar: detalle del terreno (`secondary_lod_distance`), normalmaps y material del terreno, densidad y
   distancia de la hierba, bandas de bosque lejano y sombras de vegetación.
+
+## Resolución
+
+En ventana se elige el tamaño de la ventana (`display/resolution`). A pantalla completa, la
+resolución (`display/fullscreen_resolution`): la nativa o una de las alturas de
+`OptionsScreen.FULLSCREEN_HEIGHTS` que caben por debajo de la del monitor, con el ancho de la
+proporción del monitor (en uno 4K: 1280×720, 1600×900, 1920×1080, 2560×1440 y 3200×1800). Cada modo
+recuerda la suya.
+
+Godot 4 no cambia el modo de vídeo del monitor, ni con la pantalla completa exclusiva. Por debajo de
+la nativa, `SettingsManager._apply_render_size` pone la ventana raíz en `CONTENT_SCALE_MODE_VIEWPORT`
+con ese `content_scale_size`: todo, también la interfaz, se dibuja a esa resolución y se estira a la
+pantalla, como lo estiraría el monitor. Con `CONTENT_SCALE_ASPECT_EXPAND`, si la proporción no coincide
+(una resolución guardada con otro monitor) se alarga por un lado en vez de deformarse. La escala de
+render de Gráficos se aplica encima y solo al 3D.
+
+Así, la vista (`get_visible_rect()`) mide lo que la resolución y no lo que la ventana. La interfaz ya
+se escala por la altura de la vista. El giro de cámara usa `screen_relative`: `relative` viene en
+píxeles de la vista y a menos resolución la cámara giraría más despacio. Lo que arrastra la interfaz
+(mapa, menú radial) sigue con `relative`, que va en sus mismas unidades.
 
 ## V-Sync y tope de fotogramas
 
