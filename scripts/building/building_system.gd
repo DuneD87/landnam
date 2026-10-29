@@ -62,6 +62,8 @@ var _has_target: bool = false
 
 var selected_placeable: ItemData = null
 var sail_design: Dictionary = SailDesign.DEFAULT.duplicate()
+## Lo que colgará la escala de cuerda apuntada (RopeLadder.measure_length).
+var _ladder_length := RopeLadder.MIN_LENGTH
 var _equipped_item_getter: Callable = Callable()
 var _equipped_item_consumer: Callable = Callable()
 var _has_prop_target: bool = false
@@ -181,8 +183,16 @@ func pick_sail(config: Dictionary) -> void:
 	clear_target()
 
 
+func is_ladder_mode() -> bool:
+	return selected_placeable != null and selected_placeable.id == RopeLadder.ITEM
+
+
 func get_prop_state() -> Dictionary:
-	return {"design": sail_design.duplicate(true), "level": 0, "deployment": 0.0} if is_sail_mode() else {}
+	if is_sail_mode():
+		return {"design": sail_design.duplicate(true), "level": 0, "deployment": 0.0}
+	if is_ladder_mode():
+		return {"length": _ladder_length}
+	return {}
 
 
 func is_naval_mode() -> bool:
@@ -602,7 +612,8 @@ func _compute_grid_face(hit_collider: Node3D, hit_grid: GridBase, hit_normal: Ve
 
 
 ## Targeting del modo prop: ancla el prop al centro de la cara apuntada, vertical en suelo
-## e inclinado PROP_WALL_TILT_DEG grados hacia fuera en paredes.
+## e inclinado PROP_WALL_TILT_DEG grados hacia fuera en paredes. La escala de cuerda cuelga derecha
+## del canto de arriba de la cara, hasta el suelo.
 func _process_aim_prop(hit_collider: Node3D, hit_normal: Vector3, hit_pos: Vector3) -> void:
 	_hit_grid_for_alignment = null
 	_can_place = false
@@ -625,6 +636,10 @@ func _process_aim_prop(hit_collider: Node3D, hit_normal: Vector3, hit_pos: Vecto
 	elif face.y == -1:
 		face_allowed = selected_placeable.placeable_on_ceiling
 		prop_basis = Basis(Vector3.RIGHT, PI)
+	elif is_ladder_mode():
+		face_allowed = selected_placeable.placeable_on_wall
+		attach += Vector3.UP * hit_grid.cell_size * 0.5
+		prop_basis = RopeLadder.hanging_basis(Vector3(face))
 	else:
 		face_allowed = selected_placeable.placeable_on_wall
 		var out := Vector3(face)
@@ -638,6 +653,8 @@ func _process_aim_prop(hit_collider: Node3D, hit_normal: Vector3, hit_pos: Vecto
 	_target_prop_world = hit_grid.get_grid_world_transform() * _target_prop_local
 	_target_world_pos = _target_prop_world.origin
 	_has_prop_target = true
+	if is_ladder_mode() and face_allowed:
+		_ladder_length = _measure_ladder(_target_prop_world)
 
 	_can_place = face_allowed and not hit_grid.has_prop(cell, face)
 
@@ -1010,10 +1027,23 @@ func try_place_prop() -> bool:
 		if not consumed_equipped:
 			return false
 
-	var placed := _target_prop_grid.place_prop(_target_prop_cell, _target_prop_face, selected_placeable.id, _target_prop_local)
+	var placed := _target_prop_grid.place_prop(_target_prop_cell, _target_prop_face, selected_placeable.id,
+		_target_prop_local, get_prop_state())
 	if not placed and _inventory and not free_build:
 		_inventory.add_item(selected_placeable, 1)
 	return placed
+
+
+## Lo que colgará una escala con el marco [xform] (el del colocable, en mundo): hasta el suelo o
+## un poco por debajo del mar.
+func _measure_ladder(xform: Transform3D) -> float:
+	var sea_center := Vector3.ZERO
+	var sea_radius := 0.0
+	if current_planet != null and current_planet.planet.has_water:
+		sea_center = current_planet.global_position
+		sea_radius = current_planet.planet.radius - current_planet.planet.water_radius
+	return RopeLadder.measure_length(get_world_3d().direct_space_state, xform.origin,
+		xform.basis.y.normalized(), xform.basis.z.normalized(), sea_center, sea_radius)
 
 
 ## Retira el prop apuntado y devuelve su item al inventario.

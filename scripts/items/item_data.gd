@@ -108,6 +108,9 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 @export var placeable_on_wall: bool = true
 @export var placeable_on_ceiling: bool = false
 @export var placed_collider_size: Vector3 = Vector3(0.2, 0.5, 0.2)
+## Puesto, choca con lo que pasa. Si no (una escala de cuerda), su cuerpo va en
+## PhysicsLayers.CLIMBABLE: solo lo ven los rayos del jugador, para apuntarlo y quitarlo.
+@export var placed_solid: bool = true
 
 @export_group("Clasificación")
 ## Grupo dentro de su categoría (ItemTaxonomy.GROUPS): con él se ordena el inventario y se nombra el
@@ -178,6 +181,7 @@ func copy_from(source: ItemData) -> void:
 	placeable_on_wall = source.placeable_on_wall
 	placeable_on_ceiling = source.placeable_on_ceiling
 	placed_collider_size = source.placed_collider_size
+	placed_solid = source.placed_solid
 	group = source.group
 	traits = source.traits.duplicate()
 

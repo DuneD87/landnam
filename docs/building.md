@@ -405,6 +405,11 @@ izquierdo lo pone en la cara apuntada y el derecho apaga y enciende el modo cons
 siempre se pone (`BuildingSystem.set_action_mode`); para quitar uno puesto hace falta el martillo en
 modo quitar.
 
+La **escala de cuerda** (`rope_ladder_01`) solo va en las caras de los lados. No se inclina como la
+antorcha: cuelga derecha del canto de arriba de la cara hasta lo primero que toca debajo, o hasta un
+poco por debajo del mar (`BuildingSystem._measure_ladder`, `RopeLadder.measure_length`), y el fantasma
+enseña ese largo. No choca con nada. Ver [Escalada](climbing.md#escalas-de-cuerda).
+
 ## Iconos de los bloques
 
 `BlockIconGenerator` los renderiza en partida, uno por bloque y material, con la luz de estudio de

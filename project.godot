@@ -276,6 +276,7 @@ locale/translations=PackedStringArray("res://localization/translations.en.transl
 3d_physics/layer_9="hurtbox"
 3d_physics/layer_12="ragdoll"
 3d_physics/layer_13="pickup"
+3d_physics/layer_14="climbable"
 3d_physics/layer_17="sea_ice_floor"
 
 [physics]

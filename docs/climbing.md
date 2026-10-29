@@ -2,14 +2,16 @@
 
 El jugador trepa por cualquier pared que no se pueda andar (montaña, roca, árbol o construcción de
 bloques) y la corona si arriba hay sitio para ponerse de pie. Una pared más baja que la cabeza se sube
-sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
-`scripts/player/climb_controller.gd` (`ClimbController`, hijo del jugador como `PlayerCombat`).
+sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Donde no hay pared, se cuelga una
+escala de cuerda (ver abajo). Lo lleva `scripts/player/climb_controller.gd` (`ClimbController`, hijo
+del jugador como `PlayerCombat`).
 
 ## Controles
 
 | Acción | Tecla |
 | --- | --- |
 | Agarrarse o subirse encima | Empujar contra la pared y E (USAR), también en el aire |
+| Agarrarse a una escala de cuerda | Mirarla de cerca y E (también nadando, o de pie arriba para bajar) |
 | Subirse a una pared baja del terreno | Empujar contra ella (sin E) |
 | Subir / bajar | W / S |
 | De lado | A / D (según la cámara) |
@@ -37,6 +39,35 @@ sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
 - Se suelta si se queda sin pared, sin aguante, cae al agua o recibe un golpe que le hace tambalearse.
   Tras soltarse puede volver a agarrarse (E otra vez) pasado `REGRAB_COOLDOWN` (0,5 s).
 - En la pared no se golpea, ni se apunta, ni se recoge nada, y el arma va escondida.
+
+## Escalas de cuerda
+
+`RopeLadder` (`scripts/building/rope_ladder.gd`): dos cabos de fibra con travesaños de rama, que se
+fabrica a mano (4 ramas y 6 de fibra vegetal) y se pone como la antorcha de pared, desde la barra (ver
+[Construcción](building.md#colocables)). Cuelga del canto de arriba de la cara apuntada, atada a dos
+estacas encima del bloque, hasta lo primero que toca debajo (de 1 a 12 m). Sobre el mar se mete
+`WATER_DEPTH` (1,2 m) bajo el nivel del agua, así que colgada de la borda de un barco se sube a él
+nadando. El fantasma del martillo ya enseña lo que colgará.
+
+- **Agarrarse:** E mirándola a menos de `LADDER_REACH` (1,1 m) de su línea, con la cabeza por encima
+  de su pie y los pies no más de `LADDER_MARGIN` (0,5 m) por encima de su cima. Va antes que una
+  pared. Vale en el suelo, en el aire (para la caída como una pared) y nadando.
+- **Por ella:** W / S suben y bajan a la velocidad de trepar, con las mismas animaciones que la
+  pared, y sin gastar aguante. El cuerpo no choca con ella: va por su línea, a su radio por fuera de
+  los travesaños, y la sigue si se mueve (en un barco, con el casco).
+- **Arriba:** con su cima a la altura de la cabeza corona como en una pared y acaba de pie encima. Si
+  arriba no hay dónde ponerse de pie, no sube más.
+- **Bajar a ella desde arriba:** de pie junto al canto del que cuelga, mirándola, la E hace coronar al
+  revés: el clip va hacia atrás fotograma a fotograma, del último (de pie donde se está) al primero
+  (colgado en lo alto de la escala), y el marco se corre como al coronar.
+- **Abajo:** al tocar suelo bajando se pone de pie; bajando del último travesaño (en el agua, o si no
+  llega al suelo) se suelta. Espacio la suelta en cualquier momento.
+- **No choca:** su cuerpo va en la capa `PhysicsLayers.CLIMBABLE` (la 14), que solo ven los rayos con
+  los que apunta el jugador: se quita con el martillo en modo quitar apuntándola en cualquier punto,
+  pero no estorba al pasar ni frena a un barco que la lleve hasta el fondo (en un barco va en un
+  `StaticBody3D` propio colgado del casco, no como forma de él). Lo marca `ItemData.placed_solid`.
+- Se guarda con la construcción, en los blueprints y al convertirla en dinámica, con su largo
+  (`state.length`).
 
 ## Velocidades
 
@@ -128,14 +159,19 @@ vuelve a la locomoción en 0,3 s.
 
 De la animación: `UP_CLIP_SPEED`, `DOWN_CLIP_SPEED`, `SIDE_CLIP_SPEED`, `CLIMB_WALL`, `TOP_SETTLE`.
 De juego: `CLIMB_DRAIN`, `HANG_DRAIN`, `GRAB_MARGIN`, `MAX_WALL_ANGLE`, `STICK_SPEED`,
-`REGRAB_COOLDOWN`. De coronar: `TOP_EDGE`, `TOP_STEP`. La altura de la cabeza y el alcance de lado
-salen de la cápsula; el escalón, de `StepUpSystem`.
+`REGRAB_COOLDOWN`. De coronar: `TOP_EDGE`, `TOP_STEP`. De la escala: `LADDER_REACH`,
+`LADDER_LOOK_DOT`, `LADDER_MARGIN`, `LADDER_PULL`, y en `RopeLadder` sus medidas, `MIN_LENGTH`,
+`MAX_LENGTH` y `WATER_DEPTH`. La altura de la cabeza y el alcance de lado salen de la cápsula; el
+escalón, de `StepUpSystem`.
 
 ## Límites
 
 - De lado se usa un desplazamiento colgado de un borde (shimmy): en pared lisa las manos van a la
   misma altura, algo despegadas de presas que no existen.
-- No se trepa desde el agua (para subir a un barco nadando está salir del agua con Espacio).
+- No se trepa una pared desde el agua (para subir a un barco nadando: una escala de cuerda colgada de
+  la borda, o salir del agua con Espacio).
+- La escala no se mece ni cuelga con la gravedad: va rígida con el bloque, también cuando el barco
+  escora. Se trepa con las animaciones de pared.
 - De lado no se doblan esquinas: se para en ellas y hay que soltarse.
 - Coronar no busca el borde con las manos: en un muro fino o en una cornisa baja las manos se apoyan
   donde dice el clip, algo más allá o más acá del borde.
@@ -144,9 +180,18 @@ salen de la cápsula; el escalón, de `StepUpSystem`.
 
 ```sh
 godot --headless --path . res://tests/player/test_climb.tscn
+godot --headless --path . res://tests/player/test_rope_ladder.tscn
+# Icono de la escala (abre una ventana; --background la deja fuera de la pantalla):
+godot --path . --script res://tools/items/bake_rope_ladder.gd -- --background
 ```
 
 Contra cajas estáticas como las de una construcción: corona un muro fino y acaba encima; en una cima
 ancha, donde lleva el clip; se sube a una cornisa de 1,3 m con el clip empezado a su altura y a un
 muro bajo y fino sin pasar al otro lado; no trepa un escalón ni una cornisa con un techo encima; y el
 marco del clip sale de la cadera del personaje y acaba donde se pone de pie.
+
+`test_rope_ladder`, con una plataforma en el aire: lo que cuelga la escala (hasta el suelo, hasta
+meterse en el mar o el máximo); cuándo se agarra (mirándola, no de espaldas ni de lejos); que corona
+arriba y que de pie arriba baja a ella; con ticks, que sube hasta quedar de pie encima, baja a ella y
+baja hasta el suelo; y en una construcción, que no choca con nada (también en un barco, colgada del
+casco) y que convertirla en dinámica y guardar y cargar conservan su largo.

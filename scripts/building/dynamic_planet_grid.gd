@@ -147,18 +147,29 @@ func _make_block_wrapper(grid_pos: Vector3i, block_data: BlockData, rotation_bas
 	return collider
 
 
-func _create_prop_anchor(key: String, anchor_local: Transform3D, collider_size: Vector3) -> Node3D:
+func _create_prop_anchor(key: String, anchor_local: Transform3D, collider_size: Vector3,
+		solid: bool = true) -> Node3D:
 	var collider := CollisionShape3D.new()
 	collider.name = "Prop_%s_%s" % [grid_id, key]
 	var shape := BoxShape3D.new()
 	shape.size = collider_size
 	collider.shape = shape
-	collider.transform = anchor_local
+	var anchor: Node3D = collider
+	# Una forma del barco chocaría con lo que choca él (una escala hasta el fondo rozaría el lecho del
+	# mar): lo que no choca va en un cuerpo propio que el barco lleva colgado.
+	if not solid:
+		var body := StaticBody3D.new()
+		body.name = collider.name
+		body.collision_layer = PhysicsLayers.CLIMBABLE
+		body.collision_mask = 0
+		body.add_child(collider)
+		anchor = body
+	anchor.transform = anchor_local
 
-	collider.set_meta("grid_id", grid_id)
-	collider.set_meta("prop_key", key)
-	_body.add_child(collider)
-	return collider
+	anchor.set_meta("grid_id", grid_id)
+	anchor.set_meta("prop_key", key)
+	_body.add_child(anchor)
+	return anchor
 
 
 ## Recrea en esta grid los props de una estática que comparte el mismo espacio de grid.

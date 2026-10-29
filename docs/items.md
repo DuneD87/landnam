@@ -352,6 +352,7 @@ al inventario y lo que no cabe, al suelo.
 | Lecho de pieles | 4 ramas, 8 fibras vegetales y 2 pieles | A mano |
 | Antorcha | 1 rama y 1 fibra vegetal | A mano |
 | Antorcha de pared | 1 rama y 1 fibra vegetal | A mano |
+| Escala de cuerda | 4 ramas y 6 fibras vegetales | A mano |
 | Cuchillo de sílex | 1 sílex, 1 rama y 2 fibras vegetales | A mano |
 | Puñal de hueso | 2 huesos y 1 tendón | A mano |
 | Hacha de piedra | 5 piedras, 2 ramas y 3 fibras vegetales | A mano |

@@ -13,8 +13,14 @@ extends Node
 ## primeros GRAB_MARGIN metros. Los barcos (DynamicGridBody) también se trepan: lo de la escalada
 ## va con el casco mientras se mueve (_carry).
 ##
+## Las escalas de cuerda (RopeLadder) cuelgan donde no hay pared: se agarra a ellas con USAR
+## mirándolas a su alcance (también nadando, para subir a un barco), sube y baja por ellas sin
+## gastar aguante y arriba corona como en una pared. De pie arriba, junto al canto del que cuelga,
+## baja a ella con coronar al revés.
+##
 ##   Empujar contra la pared   agarrarse o subirse encima (también en el aire)
 ##   y USAR (E)
+##   Mirar una escala y USAR   agarrarse a ella (o bajar a ella desde arriba)
 ##   Empujar contra una pared  subirse encima
 ##   baja (no construcciones
 ##   ni barcos)
@@ -28,7 +34,7 @@ extends Node
 ## arriba y 1,4 m adelante): el cuerpo, y con él la cámara, sigue a su cadera, y su marco se corre
 ## poco a poco lo que el borde no casa con él.
 
-enum Mode {NONE, CLIMB, TOP}
+enum Mode {NONE, CLIMB, TOP, LADDER}
 
 ## Lo que avanza a ritmo 1 (m/s) la mano que agarra en climb_up, climb_down y climb_left/right, y a
 ## qué distancia por delante de los pies tocan la pared. Como RUN_CLIP_SPEED al correr: medido
@@ -63,6 +69,14 @@ const TURN_SPEED := 12.0
 ## Fundidos (s): al agarrarse o pasar a coronar (y entre direcciones), y al volver a la locomoción.
 const BLEND_IN := 0.25
 const BLEND_OUT := 0.3
+## Escala de cuerda: lo lejos (m) de su línea a que llega USAR, mirándola al menos con este coseno
+## (la cámara, en plano), y lo que los pies pueden estar por encima de su cima (de pie arriba) o
+## la cabeza por debajo de su pie.
+const LADDER_REACH := 1.1
+const LADDER_LOOK_DOT := 0.3
+const LADDER_MARGIN := 0.5
+## Rapidez (1/s) con la que el cuerpo se pone en la escala (y se queda en ella si se mueve).
+const LADDER_PULL := 12.0
 ## Muestras por segundo del recorrido de la cadera al coronar.
 const PATH_FPS := 30.0
 ## Dónde ponerse de pie al coronar se busca con rayos cada TOP_STEP, del borde (TOP_EDGE por dentro
@@ -98,13 +112,18 @@ var _cooldown := 0.0
 var _grab_requested := false
 ## Lo que lleva empujando contra una pared baja (GRAB_DELAY).
 var _push_time := 0.0
+## La escala a la que se está agarrado y la que USAR ha pedido (request_grab).
+var _ladder: RopeLadder = null
+var _ladder_requested: RopeLadder = null
 ## El barco al que se trepa (null en una pared fija) y dónde estaba en el último tick: lo que la
 ## escalada guarda en mundo se mueve con él.
 var _carrier: DynamicGridBody = null
 var _carrier_xform := Transform3D.IDENTITY
 
 ## Coronando: instante del clip, cuándo acaba, dónde acaba de pie (marco del clip, en mundo) y la
-## diferencia entre el cuerpo y su recorrido al empezar (se funde a cero).
+## diferencia entre el cuerpo y su recorrido al empezar (se funde a cero). Bajando a una escala
+## desde arriba (_top_down), el clip va al revés: de donde está de pie a colgado de ella.
+var _top_down := false
 var _top_t := 0.0
 var _top_end := 0.0
 var _top_frame := Transform3D.IDENTITY
@@ -175,6 +194,8 @@ func physics_update(delta: float) -> bool:
 			_update_climb(delta)
 		Mode.TOP:
 			_update_top(delta)
+		Mode.LADDER:
+			_update_ladder(delta)
 	_apply_tree()
 	player.current_animation = AnimationController.Anim.IDLE
 	return true
@@ -187,6 +208,7 @@ func cancel() -> void:
 	if mode != Mode.NONE:
 		_end()
 	_grab_requested = false
+	_ladder_requested = null
 	_push_time = 0.0
 	_w = 0.0
 	_cooldown = 0.0
@@ -206,10 +228,12 @@ func shift_origin(offset: Vector3) -> void:
 # Agarrarse y soltarse
 
 
-## USAR (E) empujando contra una pared a la que se puede agarrar: se agarra en el próximo tick y
-## devuelve true (USAR no hace nada más). El tick vuelve a mirarlo todo.
+## USAR (E) mirando una escala a su alcance o empujando contra una pared a la que se puede agarrar:
+## se agarra en el próximo tick y devuelve true (USAR no hace nada más). El tick vuelve a mirarlo
+## todo. La escala va antes que la pared.
 func request_grab() -> bool:
-	_grab_requested = mode == Mode.NONE and not _grab_wall(_up()).is_empty()
+	_ladder_requested = _ladder_in_reach() if mode == Mode.NONE else null
+	_grab_requested = mode == Mode.NONE and (_ladder_requested != null or not _grab_wall(_up()).is_empty())
 	return _grab_requested
 
 
@@ -236,6 +260,11 @@ func _grab_wall(up: Vector3) -> Dictionary:
 func _try_start(delta: float) -> bool:
 	var requested := _grab_requested
 	_grab_requested = false
+	var ladder := _ladder_requested
+	_ladder_requested = null
+	if requested and is_instance_valid(ladder) and ladder.is_inside_tree():
+		_start_ladder(ladder)
+		return true
 	var up := _up()
 	var wall := _grab_wall(up)
 	if wall.is_empty() or (not requested and player.movement.is_falling):
@@ -304,6 +333,8 @@ func _begin() -> void:
 ## Vuelve al movimiento normal.
 func _end() -> void:
 	mode = Mode.NONE
+	_ladder = null
+	_top_down = false
 	_cooldown = REGRAB_COOLDOWN
 	_local = player.player_model.transform
 	player.motion_mode = CharacterBody3D.MOTION_MODE_GROUNDED
@@ -520,6 +551,172 @@ func _wall_at(normal: Vector3, point: Vector3, along: Vector3) -> bool:
 
 
 # ---------------------------------------------------------------------------------------------
+# Escala de cuerda
+
+
+## La escala a la que se agarraría ahora con USAR: la más cercana a su línea dentro de LADDER_REACH,
+## mirándola, con los pies como mucho LADDER_MARGIN por encima de su cima (de pie arriba) y la
+## cabeza al menos eso por encima de su pie. null si no hay.
+func _ladder_in_reach() -> RopeLadder:
+	var combat := player.combat
+	if _cooldown > 0.0 or combat.is_busy() or combat.cripple.active() or combat.status.blocks(&"climb"):
+		return null
+	var up := _up()
+	var feet := player.global_position
+	var look := _flat(-player.camera.global_basis.z, up)
+	var best: RopeLadder = null
+	var best_d := LADDER_REACH
+	for node in player.get_tree().get_nodes_in_group(RopeLadder.GROUP):
+		var ladder := node as RopeLadder
+		var down := ladder.down()
+		var rel := feet - ladder.rung_top()
+		var depth := rel.dot(down)
+		if depth < -LADDER_MARGIN or depth > ladder.length + _head_height() - LADDER_MARGIN:
+			continue
+		var side := rel - down * depth
+		var d := side.length()
+		if d > best_d:
+			continue
+		var to := _flat(-side, up)
+		if to != Vector3.ZERO and look.dot(to) < LADDER_LOOK_DOT:
+			continue
+		best = ladder
+		best_d = d
+	return best
+
+
+## Se agarra a [ladder] a la altura a la que está. De pie arriba, por dentro del canto, baja a ella
+## con coronar al revés (_start_descent).
+func _start_ladder(ladder: RopeLadder) -> void:
+	_ladder = ladder
+	_normal = ladder.out()
+	_contact = ladder.top()
+	_carrier = _carrier_of(ladder.get_parent())
+	if _carrier != null:
+		_carrier_xform = _carrier.global_transform
+	var rel := player.global_position - ladder.top()
+	if absf(rel.dot(ladder.down())) < LADDER_MARGIN and rel.dot(_normal) < 0.0 and _start_descent():
+		return
+	_begin()
+	_hang_ladder()
+
+
+## Coronar al revés: de donde está de pie, con el clip en su último fotograma, hasta colgado en lo
+## alto de la escala, en su primero (donde empezaría a coronar subiendo). El marco se corre como al
+## coronar (_frame_at), así que vale estar de pie más cerca o más lejos del canto de lo que acaba el
+## clip.
+func _start_descent() -> bool:
+	_sample_hips_path()
+	var up := _up()
+	var f := -_flat(_normal, up)
+	if _hips_path.is_empty() or f == Vector3.ZERO:
+		return false
+	var basis := Basis(up.cross(f).normalized(), up, f)
+	var stand := player.global_position
+	# El marco con el que el cuerpo acaba (_top_body(0)) colgado de la escala.
+	var anchor := _ladder_body(_ladder_low()) - basis * (_hips_path[0] - _hips_path[_hips_path.size() - 1])
+	_begin()
+	mode = Mode.TOP
+	_top_down = true
+	_top_w = 1.0
+	_top_frame = Transform3D(basis, stand)
+	_top_t = _top_end
+	_top_from = _hips_path[0]
+	var warp := anchor - stand
+	_top_rise = up * warp.dot(up)
+	_top_ahead = warp - _top_rise
+	_top_offset = stand - _top_body(_top_t)
+	var tree := player.animation_controller.animation_tree
+	if tree != null and player.combat._anims_ready:
+		tree.set(&"parameters/cl_top_seek/seek_request", _top_t)
+		tree.set(&"parameters/cl_top_speed/scale", 0.0)
+		for clip in ["up", "down", "left", "right"]:
+			tree.set("parameters/cl_%s_speed/scale" % clip, 0.0)
+	return true
+
+
+## Ya en la escala: lo que se ve se funde de donde estaba al ciclo de trepar.
+func _hang_ladder() -> void:
+	mode = Mode.LADDER
+	_top_down = false
+	_from = player.player_model.global_transform
+	_blend = 0.0
+	_axis_w = 0.0
+	_dir_w = 0.0
+	player.motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
+
+
+## Por la escala el cuerpo no se apoya en nada: va derecho por su línea, a un radio por fuera de ella,
+## y la sigue si se mueve (en un barco). Sube hasta tener su cima a la altura de la cabeza y de ahí
+## corona; abajo, al tocar suelo bajando se pone de pie, y bajando del último travesaño se suelta (al
+## agua, si cuelga en el mar).
+func _update_ladder(delta: float) -> void:
+	var combat := player.combat
+	if not is_instance_valid(_ladder) or not _ladder.is_inside_tree() or combat.is_busy() \
+			or combat.cripple.active() or Input.is_action_just_pressed(&"jump"):
+		_let_go()
+		return
+	var up := _up()
+	var down := _ladder.down()
+	_normal = _ladder.out()
+	_contact = _ladder.top()
+	var vertical := Input.get_axis(&"move_back", &"move_forward")
+	var move := signf(vertical) if absf(vertical) > 0.2 else 0.0
+	var depth := (player.global_position - _ladder.rung_top()).dot(down)
+	if move > 0.0 and depth <= _head_height():
+		if _start_top(up):
+			_update_top(0.0)
+			return
+		move = 0.0
+	if move < 0.0 and depth >= _ladder.length - 0.01:
+		_let_go()
+		return
+
+	var low := _ladder_low()
+	var speed := player.movement.walk_speed
+	var climb := 0.0
+	if (move > 0.0 and depth > low) or move < 0.0:
+		climb = move * speed
+	var target := _ladder_body(clampf(depth, low, _ladder.length))
+	player.velocity = -down * climb \
+		+ (target - player.global_position) * minf(1.0, LADDER_PULL * delta) / maxf(delta, 0.001)
+	player.move_and_slide()
+	if climb < 0.0 and _blend >= 1.0 and _touches_floor(up):
+		_end()
+		return
+
+	_face(-_flat(_normal, up), up, delta)
+	# PlayerModel a lo largo de la escala y a CLIMB_WALL de sus travesaños, como en una pared.
+	var gap := (player.global_position - _ladder.rung_top()).dot(_normal)
+	_set_frame(Transform3D(Basis((-down).cross(-_normal).normalized(), -down, -_normal),
+		player.global_position + _normal * (CLIMB_WALL - gap)))
+
+	var to := delta / BLEND_IN
+	_top_w = move_toward(_top_w, 0.0, to)
+	_axis_w = move_toward(_axis_w, 0.0, to)
+	if climb != 0.0:
+		_dir_w = move_toward(_dir_w, 1.0 if climb < 0.0 else 0.0, to)
+	var tree := player.animation_controller.animation_tree
+	if tree != null and combat._anims_ready:
+		tree.set(&"parameters/cl_up_speed/scale", speed / UP_CLIP_SPEED if climb > 0.0 else 0.0)
+		tree.set(&"parameters/cl_down_speed/scale", speed / DOWN_CLIP_SPEED if climb < 0.0 else 0.0)
+		tree.set(&"parameters/cl_left_speed/scale", 0.0)
+		tree.set(&"parameters/cl_right_speed/scale", 0.0)
+		tree.set(&"parameters/cl_top_speed/scale", 0.0)
+
+
+## Lo más arriba que llegan los pies por la escala (de su cima hacia abajo): con ella a la altura de
+## la cabeza, de donde se corona.
+func _ladder_low() -> float:
+	return minf(_head_height(), _ladder.length)
+
+
+## Dónde va el cuerpo con los pies [depth] por debajo de la cima de la escala.
+func _ladder_body(depth: float) -> Vector3:
+	return _ladder.rung_top() + _ladder.down() * depth + _ladder.out() * _radius()
+
+
+# ---------------------------------------------------------------------------------------------
 # Coronar
 
 
@@ -550,6 +747,7 @@ func _start_top(up: Vector3) -> bool:
 		return false
 	_begin()
 	mode = Mode.TOP
+	_top_down = false
 	# Desde el suelo no hay ciclo de trepar del que fundirse: el canal entra ya en coronar.
 	if from_ground:
 		_top_w = 1.0
@@ -629,17 +827,24 @@ func _ground_under(x: Vector3, up: Vector3, h: float, low: float) -> Dictionary:
 	return ground
 
 
-## Coronando el cuerpo no choca: sigue a la cadera del clip.
+## Coronando el cuerpo no choca: sigue a la cadera del clip. Al revés (_top_down), el clip va
+## fotograma a fotograma hacia atrás y acaba colgado de la escala.
 func _update_top(delta: float) -> void:
-	if player.combat.is_busy():
+	if player.combat.is_busy() or (_top_down and not is_instance_valid(_ladder)):
 		_let_go()
 		return
-	_top_t += delta
+	_top_t = maxf(0.0, _top_t - delta) if _top_down else _top_t + delta
 	_top_w = move_toward(_top_w, 1.0, delta / BLEND_IN)
 	player.global_position = _top_body(_top_t) + _top_offset * (1.0 - smoothstep(0.0, 1.0, _blend))
 	_face(_top_frame.basis.z, _top_frame.basis.y, delta)
 	_set_frame(_frame_at(_top_t))
-	if _top_t >= _top_end:
+	if _top_down:
+		var tree := player.animation_controller.animation_tree
+		if tree != null and player.combat._anims_ready:
+			tree.set(&"parameters/cl_top_seek/seek_request", _top_t)
+		if _top_t <= 0.0:
+			_hang_ladder()
+	elif _top_t >= _top_end:
 		_end()
 
 

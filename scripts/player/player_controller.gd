@@ -100,7 +100,10 @@ var locomotion: Locomotion
 ## cintura, en calma y sin que llegara ninguna ola: se leía como que el nado se adelantaba al oleaje.
 @export var swimming_offset: float = 1.45
 @export var ray_distance: float = 8.0
-@export_flags_3d_physics var ray_collision_mask: int = 3
+## Lo que apunta el jugador: el mundo, los cuerpos y lo que se trepa sin chocar (para quitar una
+## escala con el martillo).
+@export_flags_3d_physics var ray_collision_mask: int = PhysicsLayers.WORLD | PhysicsLayers.BODIES \
+	| PhysicsLayers.CLIMBABLE
 
 @export var float_depth := 1.0
 @export var surface_stiffness := 10.0
@@ -612,7 +615,7 @@ func _ready():
 	add_child(grid_manipulator_menu)
 	grid_manipulator_menu.setup(building_system, inventory)
 	blueprint_placer = BlueprintPlacer.new()
-	blueprint_placer.aim_collision_mask = ray_collision_mask
+	blueprint_placer.aim_collision_mask = ray_collision_mask & ~PhysicsLayers.CLIMBABLE
 	blueprint_placer.finished.connect(_set_scroll_consumers_enabled.bind(true))
 	add_child(blueprint_placer)
 	# Después de la cámara en el árbol: recibe la entrada antes que ella y se queda el ratón.
@@ -1995,7 +1998,7 @@ func _detect_platform_raycast() -> DynamicGridBody:
 	var origin := global_position
 	var end := origin + gravity_direction.normalized() * PLATFORM_DETACH_DIST
 	var query := PhysicsRayQueryParameters3D.create(origin, end)
-	query.collision_mask = ray_collision_mask
+	query.collision_mask = ray_collision_mask & ~PhysicsLayers.CLIMBABLE
 	query.exclude = [get_rid()]
 
 	var result := space.intersect_ray(query)

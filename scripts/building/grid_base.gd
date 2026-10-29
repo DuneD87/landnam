@@ -74,8 +74,10 @@ func _get_collision_parent() -> Node3D:
 	return null
 
 ## Ancla física de un prop, con collider y metas grid_id/prop_key; anchor_local está en espacio
-## de grid centrado en el collider (subclases deben implementarlo).
-func _create_prop_anchor(_key: String, _anchor_local: Transform3D, _collider_size: Vector3) -> Node3D:
+## de grid centrado en el collider. Sin [_solid], en PhysicsLayers.CLIMBABLE y sin chocar con nada
+## (subclases deben implementarlo).
+func _create_prop_anchor(_key: String, _anchor_local: Transform3D, _collider_size: Vector3,
+		_solid: bool = true) -> Node3D:
 	push_warning("[GridBase] _create_prop_anchor() no implementado")
 	return null
 
@@ -312,9 +314,12 @@ func place_prop(cell: Vector3i, face: Vector3i, item_id: StringName, local_trans
 	if item.get_trait(SailTrait) != null:
 		state["design"] = SailDesign.from_state(state)
 		collider_size = SailDesign.collider_size(state["design"])
+	elif item_id == RopeLadder.ITEM:
+		state["length"] = RopeLadder.clamp_length(float(state.get("length", RopeLadder.MIN_LENGTH)))
+		collider_size = RopeLadder.collider_size(state["length"])
 	var center_offset := Vector3(0, collider_size.y * 0.5, 0)
 	var anchor_local := local_transform * Transform3D(Basis.IDENTITY, center_offset)
-	var anchor := _create_prop_anchor(key, anchor_local, collider_size)
+	var anchor := _create_prop_anchor(key, anchor_local, collider_size, item.placed_solid)
 	if not anchor:
 		return false
 

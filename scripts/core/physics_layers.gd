@@ -14,5 +14,8 @@ const HURTBOX := 1 << 8
 const RAGDOLL := 1 << 11
 ## Capa 13: lo que se recoge del suelo. Nadie choca con ella; solo la consulta GroundPickup.
 const PICKUP := 1 << 12
+## Capa 14: lo que se trepa sin chocar con ello (las escalas de cuerda). Nadie choca con ella; la
+## consultan los rayos del jugador para apuntarlo y quitarlo con el martillo.
+const CLIMBABLE := 1 << 13
 ## Capa 17: el suelo bajo la banquisa, que solo pisa quien está sobre el hielo.
 const SEA_ICE_FLOOR := 1 << 16

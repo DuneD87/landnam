@@ -219,6 +219,9 @@ func update_prop_preview(world_transform: Transform3D, valid: bool) -> void:
 	_prop_ghost.visible = true
 	_prop_ghost.global_transform = world_transform
 	_prop_ghost_material.albedo_color = ghost_color_valid if valid else ghost_color_invalid
+	# La escala, hasta donde llegará colgada.
+	if _prop_ghost is RopeLadder:
+		_prop_ghost.restore_prop_state(_building_system.get_prop_state())
 	if _building_system.is_sail_mode():
 		var design := _building_system.sail_design
 		var cost := SailDesign.cost(design)

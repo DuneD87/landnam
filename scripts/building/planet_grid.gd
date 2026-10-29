@@ -253,10 +253,14 @@ func _create_block_node(grid_pos: Vector3i, block_data: BlockData, rotation_basi
 	return body
 
 
-func _create_prop_anchor(key: String, anchor_local: Transform3D, collider_size: Vector3) -> Node3D:
+func _create_prop_anchor(key: String, anchor_local: Transform3D, collider_size: Vector3,
+		solid: bool = true) -> Node3D:
 	var body := StaticBody3D.new()
 	body.name = "Prop_%s_%s" % [grid_id, key]
 	body.transform = Transform3D(basis_local, origin_local) * anchor_local
+	if not solid:
+		body.collision_layer = PhysicsLayers.CLIMBABLE
+		body.collision_mask = 0
 
 	var collider := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
