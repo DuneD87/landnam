@@ -92,44 +92,71 @@ func _check_controls() -> void:
 	Input.action_press("boat_sail_raise")
 	controls._physics_process(1.0 / 60.0)
 	Input.action_release("boat_sail_raise")
-	check(body.sailing.level == 1 and controls.hud.visible, "flecha arriba iza un tercio y muestra el indicador")
+	check(body.sailing.row == 1 and body.sailing.level == 0 and controls.hud.visible,
+		"flecha arriba desde parado saca los remos y muestra el indicador")
 	await get_tree().process_frame
 	await get_tree().process_frame
-	Input.action_press("boat_sail_lower")
+	Input.action_press("boat_sail_raise")
 	controls._physics_process(1.0 / 60.0)
-	Input.action_release("boat_sail_lower")
-	check(body.sailing.level == 0, "flecha abajo recoge la vela")
+	Input.action_release("boat_sail_raise")
+	check(body.sailing.level == 1 and body.sailing.row == 0, "otra vez arriba iza un tercio y mete los remos")
 	await get_tree().process_frame
 	await get_tree().process_frame
+	for shift in 2:
+		Input.action_press("boat_sail_lower")
+		controls._physics_process(1.0 / 60.0)
+		Input.action_release("boat_sail_lower")
+		await get_tree().process_frame
+		await get_tree().process_frame
+	check(body.sailing.level == 0 and body.sailing.row == 0, "flecha abajo recoge la vela y para")
 	Input.action_press("boat_steer_left")
 	controls._physics_process(1.0 / 60.0)
 	check(body.steering_input > 0, "flecha izquierda gobierna a babor")
 	Input.action_release("boat_steer_left")
-	Input.action_press("boat_row")
-	body.last_displaced_mass = 500.0
+	Input.action_press("boat_sail_lower")
+	controls._physics_process(1.0 / 60.0)
+	Input.action_release("boat_sail_lower")
+	check(body.sailing.row == -1 and body.sailing.level == 0, "bajo las velas recogidas está ciar")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	for shift in 2:
+		Input.action_press("boat_sail_raise")
+		controls._physics_process(1.0 / 60.0)
+		Input.action_release("boat_sail_raise")
+		await get_tree().process_frame
+		await get_tree().process_frame
+	check(body.sailing.row == 1 and body.sailing.level == 0, "entre parado y la vela está la marcha de remo")
+	Input.action_press("boat_sail_raise")
+	controls._physics_process(1.0 / 60.0)
+	Input.action_release("boat_sail_raise")
+	check(body.sailing.row == 0 and body.sailing.level == 1, "izar desde el remo mete los remos")
+	await get_tree().process_frame
+	await get_tree().process_frame
 	var stamina := player.combat.stamina.stamina
+	Input.action_press("boat_row")
 	controls._physics_process(1.0 / 60.0)
-	check(body.rowing_input and player.combat.stamina.stamina < stamina, "remar requiere agua y consume aguante real")
-	player.inventory_ui.visible = true
-	stamina = player.combat.stamina.stamina
-	controls._physics_process(1.0 / 60.0)
-	check(not body.rowing_input and body.steering_input == 0 and player.combat.stamina.stamina == stamina,
-		"abrir inventario suelta los controles y detiene el gasto")
-	player.inventory_ui.visible = false
-	player.combat.stamina.exhausted = true
-	controls._physics_process(1.0 / 60.0)
-	check(not body.rowing_input, "agotado no se puede remar")
-	player.combat.stamina.refill()
-	body.linear_velocity = Vector3.BACK * 2.0
-	controls._physics_process(1.0 / 60.0)
-	check(not body.rowing_input, "el remo no añade velocidad por encima de su límite")
 	Input.action_release("boat_row")
+	check(body.sailing.row == 1 and body.sailing.level == 0 and player.combat.stamina.stamina == stamina,
+		"R pasa a remo sin gastar aguante")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	player.inventory_ui.visible = true
+	controls._physics_process(1.0 / 60.0)
+	check(body.sailing.row == 1 and body.steering_input == 0, "abrir inventario suelta el timón pero sigue remando")
+	player.inventory_ui.visible = false
+	Input.action_press("boat_row")
+	controls._physics_process(1.0 / 60.0)
+	Input.action_release("boat_row")
+	check(body.sailing.row == 0, "R otra vez para los remos")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	body.sailing.set_gear(1)
 	Input.action_press("boat_steer_right")
 	controls._physics_process(1.0 / 60.0)
 	player._platform_body = null
 	controls._physics_process(1.0 / 60.0)
-	check(body.steering_input == 0 and not body.rowing_input and not controls.hud.visible,
-		"abandonar el barco libera los mandos y oculta el indicador")
+	check(body.steering_input == 0 and body.sailing.row == 0 and not controls.hud.visible,
+		"abandonar el barco libera los mandos, deja de remar y oculta el indicador")
 	Input.action_release("boat_steer_right")
 	var hammer := ItemCatalog.get_item(&"stone_hammer_01")
 	player.inventory.add_item(hammer, 1)
@@ -307,8 +334,27 @@ func _check_wind_and_force() -> void:
 		"empuje proporcional al área y al cuadrado del viento")
 	check(BoatSailing.drive_force(-forward * 4, forward, 12).is_zero_approx(),
 		"la velocidad propia en calma no genera autopropulsión")
-	check(BoatSailing.rowing_force(forward, forward * 1.6).is_zero_approx()
-		and BoatSailing.rowing_force(forward, Vector3.ZERO).z > 0, "remo manual limitado a velocidad de maniobra")
+	check(BoatSailing.rowing_acceleration(1, BoatSailing.ROW_SPEED) == 0.0
+		and BoatSailing.rowing_acceleration(1, 0.0) > 0.0 and BoatSailing.rowing_acceleration(1, 5.0) == 0.0,
+		"el remo empuja hasta su velocidad y no frena a un barco más rápido")
+	check(BoatSailing.rowing_acceleration(-1, 0.0) < 0.0 and BoatSailing.rowing_acceleration(-1, 2.0) < 0.0
+		and BoatSailing.rowing_acceleration(-1, -BoatSailing.BACK_SPEED) == 0.0
+		and BoatSailing.rowing_acceleration(0, 0.0) == 0.0, "ciar frena y retrocede hasta su límite")
+	var stations := BoatOars.stations(PackedVector3Array([Vector3(0, 0, 0), Vector3(0, 0.75, 0)]),
+		PackedVector3Array([Vector3(1.5, 0.5, 4.5), Vector3(0.2, 0.25, 0.2)]))
+	var pivots_ok := stations.size() == 6
+	for station: Dictionary in stations:
+		var pivot: Vector3 = station["pivot"]
+		pivots_ok = pivots_ok and is_equal_approx(absf(pivot.x), 1.52) and is_equal_approx(pivot.y, 0.55) \
+			and signf(pivot.x) == station["side"]
+		for phase in [0.0, 0.25, 0.5, 0.75]:
+			var oar := BoatOars.oar_basis(station["side"], station["pitch"], phase)
+			pivots_ok = pivots_ok and oar.y.y < 0.0 and oar.y.x * station["side"] > 0.0 \
+				and is_equal_approx(oar.determinant(), 1.0)
+	check(pivots_ok, "remos en tres bancadas apoyados en la borda de cada costado, apuntando al agua")
+	var stroke := BoatOars.oar_basis(1.0, 0.5, 0.0).y.z - BoatOars.oar_basis(1.0, 0.5, 0.49).y.z
+	check(stroke > 0.5 and BoatOars.oar_basis(1.0, 0.5, 0.75).y.y > BoatOars.oar_basis(1.0, 0.5, 0.25).y.y,
+		"la palada barre de proa a popa y la pala vuelve por encima")
 
 
 func _new_grid(offset := Vector3.ZERO) -> PlanetGrid:
@@ -451,14 +497,37 @@ func _check_physics() -> void:
 	body.mass = DynamicGridBody.MIN_MASS
 	body.linear_velocity = Vector3.ZERO
 	body._is_being_controlled = true
-	body.rowing_input = true
+	body.sailing.set_gear(1)
 	var rowing_peak := 0.0
 	for frame in 6:
 		body._physics_step(1.0 / 60.0)
 		await get_tree().physics_frame
 		rowing_peak = maxf(rowing_peak, body.linear_velocity.dot(body.global_basis.z))
-	check(rowing_peak > 0.1 and rowing_peak <= BoatSailing.ROW_SPEED + 0.01,
+	check(rowing_peak > 0.05 and rowing_peak <= BoatSailing.ROW_SPEED + 0.01,
 		"el remo no rebasa su límite ni en un cuerpo de masa mínima (%.2f m/s)" % rowing_peak)
+	check(body.sailing.rowing and body._oars != null and body._oars.visible and body._oars.get_child_count() >= 2,
+		"remando asoman los remos")
+	body.mass = 4000.0
+	body.linear_velocity = Vector3.ZERO
+	for frame in 240:
+		body._physics_step(1.0 / 60.0)
+		await get_tree().physics_frame
+	var cruise := body.linear_velocity.dot(body.global_basis.z)
+	check(cruise > BoatSailing.ROW_SPEED * 0.8 and cruise <= BoatSailing.ROW_SPEED + 0.01,
+		"un casco pesado llega a la marcha de remo sin viento a favor (%.2f m/s)" % cruise)
+	# Sin gravedad el bloque de prueba acaba saliendo del agua: se devuelve a flote antes de ciar.
+	body.global_position.y = 999.7
+	body.linear_velocity = Vector3.BACK
+	body.sailing.set_gear(-1)
+	for frame in 150:
+		body._physics_step(1.0 / 60.0)
+		await get_tree().physics_frame
+	var astern := body.linear_velocity.dot(body.global_basis.z)
+	check(astern < -BoatSailing.BACK_SPEED * 0.6 and astern >= -BoatSailing.BACK_SPEED - 0.01,
+		"ciar frena y lleva el barco marcha atrás (%.2f m/s)" % astern)
+	body._is_being_controlled = false
+	body._physics_step(1.0 / 60.0)
+	check(not body._oars.visible, "sin nadie a bordo los remos se recogen")
 	_planet.planet.has_water = false
 	GridManager.clear_all()
 	await get_tree().process_frame

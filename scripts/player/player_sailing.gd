@@ -1,8 +1,9 @@
 class_name PlayerSailing
 extends Node
 
-## El jugador gobierna desde cubierta con las flechas; R permite remar gastando aguante.
-## Al abrir menús se sueltan los controles, pero el aparejo sigue trabajando con el viento.
+## El jugador gobierna desde cubierta con las flechas: ↑/↓ cambian la marcha (ciar, parado, remar
+## y los tercios de vela) y R alterna remar y parar. Al abrir menús se suelta el timón, pero la
+## marcha sigue: el aparejo trabaja con el viento y los remos siguen bogando.
 var _player: PlayerController
 var _boat: DynamicGridBody
 var hud: SailingHUD
@@ -33,21 +34,27 @@ func can_control() -> bool:
 func release_controls() -> void:
 	if is_instance_valid(_boat):
 		_boat.steering_input = 0.0
-		_boat.rowing_input = false
+
+
+## Al bajarse nadie rema: al volver a subir el barco no debe arrancar solo.
+func _leave_boat() -> void:
+	release_controls()
+	if is_instance_valid(_boat):
+		_boat.sailing.row = 0
 
 
 func _exit_tree() -> void:
-	release_controls()
+	_leave_boat()
 
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	if _player == null:
 		return
 	var body = _player._platform_body
 	if not is_instance_valid(body):
 		body = null
 	if body != _boat:
-		release_controls()
+		_leave_boat()
 		_boat = body
 	if not is_instance_valid(_boat) or _boat.movement_type != DynamicGridBody.MovementType.BOAT:
 		hud.hide()
@@ -59,15 +66,12 @@ func _physics_process(delta: float) -> void:
 	_boat.refresh_sails()
 	var sailing: BoatSailing = _boat.sailing
 	if Input.is_action_just_pressed("boat_sail_raise"):
-		sailing.set_level(sailing.level + 1)
+		sailing.shift(1)
 	if Input.is_action_just_pressed("boat_sail_lower"):
-		sailing.set_level(sailing.level - 1)
+		sailing.shift(-1)
+	if Input.is_action_just_pressed("boat_row"):
+		sailing.set_gear(0 if sailing.row != 0 else 1)
 	_boat.steering_input = Input.get_axis("boat_steer_right", "boat_steer_left")
-	if Input.is_action_pressed("boat_row") and _boat.last_displaced_mass > 0.0:
-		var forward := _boat.global_basis.z
-		var speed := (_boat.linear_velocity - _boat.last_water_flow).dot(forward)
-		if speed < BoatSailing.ROW_SPEED:
-			_boat.rowing_input = _player.combat.stamina.drain(BoatSailing.ROW_STAMINA, delta)
 	hud.show()
 	hud.navigation = sailing
 	hud.speed = (_boat.linear_velocity - _boat.last_water_flow).length()

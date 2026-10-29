@@ -127,9 +127,9 @@ func _check_shared_ship() -> void:
 	player.sailing._physics_process(1.0 / 60.0)
 	Input.action_release("boat_sail_raise")
 	Input.action_release("boat_steer_left")
-	check(body.sailing.level == 1 and body.steering_input > 0,
-		"los mandos desde el casco actúan sobre vela y timón (nivel %d, giro %.1f, control %s)"
-		% [body.sailing.level, body.steering_input, player.sailing.can_control()])
+	check(body.sailing.gear() == 1 and body.steering_input > 0,
+		"los mandos desde el casco actúan sobre la marcha y el timón (marcha %d, giro %.1f, control %s)"
+		% [body.sailing.gear(), body.steering_input, player.sailing.can_control()])
 	player.free()
 	GameManager.player = null
 	GridManager.clear_all()

@@ -212,6 +212,8 @@ var _drag_length_sq: float = 1.0
 ## smoothstep(L/2, 3L/2) del espectro reproduce bien el par de cabeceo de la eslora integrada.
 var _wave_filter_length: float = 0.0
 var _recalc_boxes: bool = true
+## Sube cada vez que se rehacen las cajas del casco: los remos recolocan sus bancadas.
+var _hull_version := 0
 var _is_being_controlled: bool = false
 
 var _flood_volume: float = 0.0
@@ -237,7 +239,7 @@ var sailing := BoatSailing.new()
 var _sails_dirty := true
 ## Los pone PlayerSailing y los borra al dejar el barco o abrir una interfaz.
 var steering_input := 0.0
-var rowing_input := false
+var _oars: BoatOars
 
 ## Velocidad del paso de física anterior, para medir la aproximación de un contacto antes de que
 ## el solver la absorba. Ver _detect_impact.
@@ -325,6 +327,7 @@ func mark_points_dirty() -> void:
 ## pero todas las colisiones sumergidas ofrecen resistencia al agua.
 func _recalculate_buoyancy_boxes() -> void:
 	_recalc_boxes = false
+	_hull_version += 1
 	_box_pos.clear()
 	_box_half.clear()
 	_box_vol.clear()
@@ -1140,6 +1143,7 @@ func _physics_step(delta: float) -> void:
 	if _recalc_boxes:
 		_recalculate_buoyancy_boxes()
 	if profile_sections: _section(&"cajas")
+	_update_oars()
 
 	if _box_vol.is_empty():
 		return
@@ -1270,13 +1274,14 @@ func _physics_step(delta: float) -> void:
 			drag_velocity += forward * rel_vel.dot(forward) * (boat_forward_drag - 1.0)
 			apply_central_force(sail_force.limit_length(mass * BoatSailing.MAX_SAIL_ACCELERATION))
 			_apply_boat_steering(up, forward, rel_vel, displaced_mass, delta)
-			if _is_being_controlled:
-				if rowing_input:
-					# Un casco de masa mínima no debe sobrepasar el límite en un solo paso.
-					var remaining_speed := maxf(BoatSailing.ROW_SPEED - rel_vel.dot(forward), 0.0)
-					var rowing_limit := mass * remaining_speed / maxf(delta, 0.0001)
-					apply_central_force(BoatSailing.rowing_force(forward, rel_vel).limit_length(rowing_limit))
-					sailing.rowing = true
+			if _is_being_controlled and sailing.row != 0:
+				var forward_speed := rel_vel.dot(forward)
+				var row_accel := BoatSailing.rowing_acceleration(sailing.row, forward_speed)
+				# Un casco de masa mínima no debe pasarse del tope en un solo paso.
+				var target := BoatSailing.ROW_SPEED if sailing.row > 0 else -BoatSailing.BACK_SPEED
+				var step_limit := absf(target - forward_speed) / maxf(delta, 0.0001)
+				apply_central_force(forward * clampf(row_accel, -step_limit, step_limit) * mass)
+				sailing.rowing = true
 		apply_central_force(-drag_velocity * linear_drag * displaced_mass)
 		var radial_vel: float = rel_vel.dot(up)
 		apply_central_force(-up * radial_vel * heave_drag * displaced_mass)
@@ -1340,6 +1345,17 @@ func _apply_boat_steering(up: Vector3, forward: Vector3, relative_velocity: Vect
 	var immersion := clampf(displaced_mass / maxf(mass, MIN_MASS), 0.0, 1.0)
 	var blend := 1.0 - exp(-maxf(turn_speed, 0.0) * immersion * delta)
 	angular_velocity += up * (target - angular_velocity.dot(up)) * blend
+
+
+## Los remos asoman solo con alguien a bordo y la marcha de remo puesta; se crean la primera vez.
+func _update_oars() -> void:
+	var row := sailing.row if _is_being_controlled and movement_type == MovementType.BOAT else 0
+	if row == 0 and _oars == null:
+		return
+	if _oars == null:
+		_oars = BoatOars.new()
+		add_child(_oars)
+	_oars.update(row, _box_pos, _box_half, _hull_version)
 
 
 ## Pendiente de la superficie del agua (gradiente tangente a up, m/m) por mínimos cuadrados sobre las
@@ -1712,6 +1728,5 @@ func _hull_sphere() -> Vector4:
 
 func stop() -> void:
 	refresh_sails()
-	sailing.set_level(0)
+	sailing.set_gear(0)
 	steering_input = 0.0
-	rowing_input = false

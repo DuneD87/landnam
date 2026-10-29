@@ -10,9 +10,14 @@ const SAIL_POWER := 90.0
 const MAX_SAIL_ACCELERATION := 4.0
 const HOIST_TIME := 2.0
 const NO_GO_ANGLE := PI / 4.0
-const ROW_SPEED := 1.5
-const ROW_FORCE := 1800.0
-const ROW_STAMINA := 9.0
+## Remo: marcha lenta que no depende del viento, para salir de puerto y costear. Es una marcha
+## más del aparejo (ciar, parado, remar y los tres tercios de vela), no gasta aguante.
+const ROW_SPEED := 3.5
+const BACK_SPEED := 1.6
+## Aceleración del remo (m/s²), igual para cualquier casco: la tripulación crece con el barco.
+const ROW_ACCELERATION := 1.1
+## Margen de velocidad (m/s) en el que el empuje se suaviza antes de llegar al tope.
+const ROW_EASE := 0.5
 
 var sails: Array[Dictionary] = []
 var level := 0
@@ -23,6 +28,8 @@ var apparent_wind := Vector3.ZERO
 var efficiency := 0.0
 var force := Vector3.ZERO
 var wind_angle := 0.0
+## -1 ciar, 0 remos dentro, 1 remar. Solo empuja con alguien a bordo; con vela izada vale 0.
+var row := 0
 var rowing := false
 
 
@@ -63,6 +70,21 @@ func set_level(value: int) -> void:
 		sail["info"]["state"]["level"] = level
 
 
+## Marcha única de ↑/↓: -1 ciar, 0 parado, 1 remar y 2..4 los tercios de vela.
+func gear() -> int:
+	return level + 1 if level > 0 else row
+
+
+func shift(step: int) -> void:
+	set_gear(gear() + step)
+
+
+func set_gear(value: int) -> void:
+	value = clampi(value, -1, 1 if sails.is_empty() else 4)
+	row = value if value <= 1 else 0
+	set_level(maxi(value - 1, 0))
+
+
 ## Curva de juego simétrica en ambas amuras: zona muerta de 45°, buen través y empopada.
 static func polar(apparent: Vector3, forward: Vector3) -> float:
 	if apparent.length_squared() < 0.0001 or forward.is_zero_approx():
@@ -78,8 +100,14 @@ static func drive_force(apparent: Vector3, forward: Vector3, effective_area: flo
 	return forward * power + side.normalized() * power * 0.12
 
 
-static func rowing_force(forward: Vector3, water_relative_velocity: Vector3) -> Vector3:
-	return forward * ROW_FORCE * clampf(1.0 - water_relative_velocity.dot(forward) / ROW_SPEED, 0.0, 1.0)
+## Aceleración del remo sobre la proa (m/s², con signo). Solo empuja hacia la velocidad de la
+## marcha: ciar frena un barco lanzado, pero remar no frena al que ya va más rápido.
+static func rowing_acceleration(direction: int, forward_speed: float) -> float:
+	if direction == 0:
+		return 0.0
+	var target := ROW_SPEED if direction > 0 else -BACK_SPEED
+	var push := clampf((target - forward_speed) / ROW_EASE, -1.0, 1.0)
+	return ROW_ACCELERATION * push if push * direction > 0.0 else 0.0
 
 
 func step(delta: float, air: Vector3, velocity: Vector3, forward: Vector3, up: Vector3) -> Vector3:
