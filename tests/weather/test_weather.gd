@@ -7,6 +7,7 @@ class LocalWeather extends WeatherController:
 	var altitude := 0.0
 	var cold := 0.0
 	var sheltered := false
+	var anchor_ready := true
 
 	func _current_altitude() -> float:
 		return altitude
@@ -16,6 +17,9 @@ class LocalWeather extends WeatherController:
 
 	func is_sheltered() -> bool:
 		return sheltered
+
+	func _can_anchor_cell() -> bool:
+		return anchor_ready and not _player_direction().is_zero_approx()
 
 
 class CPUAtmosphere extends PlanetAtmosphere:
@@ -53,6 +57,7 @@ func check(ok: bool, message: String) -> void:
 func _run() -> void:
 	atmosphere = CPUAtmosphere.new()
 	atmosphere.cloud_group_strength = 1.0
+	atmosphere.planet_radius = 30000.0
 	atmosphere._group_image = Image.create_empty(4, 2, false, Image.FORMAT_RG8)
 	atmosphere._group_image.fill(Color.WHITE)
 	player = Node3D.new()
@@ -81,6 +86,7 @@ func _run() -> void:
 	_test_sailing_wind()
 	_test_gusts()
 	_test_save_ignores_force()
+	_test_local_cell()
 	_test_wave_rebase()
 
 	weather.free()
@@ -325,6 +331,64 @@ func _test_save_ignores_force() -> void:
 	check(not weather._forced and weather.get_current_weather_name() == "fog",
 		"Una partida guardada con el clima forzado vuelve a cambiar sola")
 	check(not weather.get_save_data().has("forced"), "El forzado de depuración no se guarda")
+
+
+func _test_local_cell() -> void:
+	# Todo el planeta es un claro del mapa de agrupación: solo la celda del evento puede dar lluvia.
+	atmosphere.cloud_group_strength = 1.0
+	atmosphere._group_image.fill(Color(0.0, 0.5, 0.0))
+	weather.altitude = 0.0
+	weather.cold = 0.0
+	weather.sheltered = false
+	weather._cell_direction = Vector3.ZERO
+	weather._apply_state(weather._events.clear)
+	weather._transition_to("storm")
+	weather._update_cell()
+	check(weather._cell_direction.is_equal_approx(Vector3.RIGHT) and is_zero_approx(weather._from.cloud_local_cell)
+		and is_zero_approx(weather._blend),
+		"El temporal abre su celda sobre el jugador y la hace crecer desde cero")
+	weather._apply_state(weather._from)
+	check(weather.get_local_precipitation().is_zero_approx(), "La celda no llueve antes de formarse")
+	weather._blend = 1.0
+	weather._apply_state(weather._to)
+	check(weather.get_local_precipitation().x > 0.99,
+		"Bajo su celda llueve aunque el sitio del jugador sea un claro del mapa")
+	# El temporal rebaja la agrupación: fuera de la celda la envolvente es la del claro escalada.
+	check(is_equal_approx(atmosphere.get_cloud_group_envelope(Vector3.RIGHT * 30000.0), 1.0)
+		and is_equal_approx(atmosphere.get_cloud_group_envelope(Vector3.UP * 30000.0), 1.0 - atmosphere.cloud_group_strength),
+		"La consulta CPU suma la celda al mapa solo en su sitio")
+
+	# A 90 grados la celda queda a ~47 km: el temporal no persigue al jugador.
+	player.position = Vector3.BACK * 30000.0
+	weather._apply_state(weather._to)
+	check(weather.get_local_precipitation().is_zero_approx(), "Fuera de la celda no llueve")
+	weather._transition_to("clear")
+	check(weather._cell_direction.is_equal_approx(Vector3.RIGHT),
+		"Al acabar, la celda se desvanece donde estaba aunque el jugador se haya ido")
+	weather._apply_state(weather._events.storm)
+	weather._transition_to("storm")
+	weather._update_cell()
+	check(weather._cell_direction.is_equal_approx(Vector3.BACK),
+		"El siguiente temporal abre su celda donde está ahora el jugador")
+	var saved := weather.get_save_data()
+
+	weather.anchor_ready = false
+	weather._cell_direction = Vector3.ZERO
+	weather._update_cell()
+	check(weather._cell_direction.is_zero_approx(), "En el menú o la cinemática no se ancla la celda")
+	weather.anchor_ready = true
+
+	weather.restore_save_data(saved)
+	check(weather._cell_direction.is_equal_approx(Vector3.BACK)
+		and is_equal_approx(atmosphere.cloud_cell_amount, 1.0),
+		"Cargar partida recupera la celda del temporal en su sitio")
+	weather.restore_save_data({"current": "storm"})
+	check(weather._cell_direction.is_zero_approx() and is_zero_approx(atmosphere.cloud_cell_amount),
+		"Una partida sin celda guardada no pinta una celda sin centro")
+
+	player.position = Vector3.RIGHT * 30000.0
+	weather._cell_direction = Vector3.ZERO
+	weather._apply_state(weather._events.clear)
 
 
 ## Altura del espectro CPU tal como la evalúa el sampler con los parámetros del material.

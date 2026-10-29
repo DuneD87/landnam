@@ -265,7 +265,9 @@
 			"cloud_group_scale": 4.5,
 			"cloud_group_contrast": 0.6,
 			"cloud_group_front_strength": 0.5,
-			"cloud_group_density_variation": 0.45
+			"cloud_group_density_variation": 0.45,
+			"cloud_cell_radius": 6000.0,
+			"cloud_cell_edge": 0.5
 		},
 		"cloud_quality": {
 			"cloud_steps": 24.0,

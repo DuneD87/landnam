@@ -13,10 +13,10 @@ layout(rgba16f, set = 0, binding = 0) uniform restrict image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D depth_texture;
 
 // UBO en vez de SSBO: todos los hilos leen los mismos parámetros, así que van por la
-// constant cache. El tamaño (43) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd
+// constant cache. El tamaño (45) debe coincidir con PARAM_VEC4_COUNT en planet_atmosphere.gd
 // y con la declaración de god_rays.glsl, que comparte este mismo buffer.
 layout(set = 0, binding = 2, std140) uniform ParamsBuffer {
-	vec4 data[43];
+	vec4 data[45];
 } params_buffer;
 
 // Rejilla de oclusión radial del WeatherOcclusionField (R = altura del techo de cueva). La niebla
@@ -348,6 +348,18 @@ vec2 latlong_uv(vec3 dir) {
 	return vec2(u, v);
 }
 
+// Mapa de agrupación en una dirección unitaria con la celda del evento encima (gana el mayor):
+// P(43) = centro (.xyz) + presencia (.w), P(44).xy = cosenos de sus bordes exterior e interior.
+// Es el cúmulo que el WeatherController abre sobre el jugador al llegar un temporal. Lo leen
+// nubes, niebla e in-scatter, y get_cloud_group_envelope() del .gd hace la misma cuenta.
+vec2 group_sample(vec3 dir) {
+	vec2 grp = texture(cloud_group_tex, latlong_uv(dir)).rg;
+	if (P(43).w > 0.0) {
+		grp.r = max(grp.r, P(43).w * smoothstep(P(44).x, P(44).y, dot(dir, P(43).xyz)));
+	}
+	return grp;
+}
+
 // Tap al ruido 3D con filtrado quintic (IQ): reajusta la coordenada para que el trilinear
 // del hardware siga una curva suave en vez de rampas lineales entre texels — sin esto la
 // magnificación fuerte de la textura deja los blobs facetados, con bordes "cortados".
@@ -465,7 +477,7 @@ vec3 local_coverage(
 	float strength = clamp(P(15).w, 0.0, 1.0);
 	float density_mul = 1.0;
 	if (strength > 0.001) {
-		vec2 grp = texture(cloud_group_tex, latlong_uv(normalize(p - planet_center))).rg;
+		vec2 grp = group_sample(normalize(p - planet_center));
 		coverage *= mix(1.0, grp.r, strength);
 		// El canal G es ruido independiente centrado en 0.5, así que el multiplicador queda
 		// centrado en 1: subir la variación reparte grosores sin cambiar el aspecto MEDIO del
@@ -961,7 +973,7 @@ float sample_fog_density(
 	// El tap de textura se paga aquí, tras los early-out baratos y antes de los dos FBM.
 	float fog_group = clamp(P(25).y, 0.0, 1.0) * clamp(P(15).w, 0.0, 1.0);
 	if (fog_group > 0.001) {
-		coverage *= mix(1.0, texture(cloud_group_tex, latlong_uv(normalize(local))).r, fog_group);
+		coverage *= mix(1.0, group_sample(normalize(local)).r, fog_group);
 		if (coverage <= 0.02) {
 			return 0.0;
 		}
@@ -1751,7 +1763,7 @@ void main() {
 		// la superficie) y solo los píxeles de cielo usan el cruce con la capa de nubes.
 		t_env = min(t_env, dst_to_atmo + dst_through_atmo);
 		vec3 env_dir = normalize(camera_position + ray_dir * t_env - planet_center);
-		float presence = mix(1.0, texture(cloud_group_tex, latlong_uv(env_dir)).r, scatter_group);
+		float presence = mix(1.0, group_sample(env_dir).r, scatter_group);
 		in_scatter_mult = mix(1.0, in_scatter_mult, presence);
 	}
 #endif

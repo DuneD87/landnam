@@ -11,7 +11,7 @@ const GOD_RAYS_SHADER_PATH := "res://shaders/atmosphere/god_rays.glsl"
 const GOD_RAYS_CACHE_SHADER_PATH := "res://shaders/atmosphere/god_rays_cache.glsl"
 const GOD_RAYS_COMPOSITE_SHADER_PATH := "res://shaders/atmosphere/god_rays_composite.glsl"
 const LOCAL_SIZE := 8
-const PARAM_VEC4_COUNT := 43
+const PARAM_VEC4_COUNT := 45
 ## Lado de la textura 3D de ruido de nubes (RGBA8 → size³ × 4 bytes; 128 ≈ 8.4 MB de VRAM).
 const NOISE_TEX_SIZE := 128
 ## local_size del generador de ruido (4×4×4, ver cloud_noise_gen.glsl).
@@ -134,6 +134,13 @@ const GROUP_TEX_H := 128
 ## al doble de densos. Es un ruido independiente de la cobertura, así que una zona muy nublada no
 ## es automáticamente una zona de nubes densas. Se escala por cloud_group_strength.
 @export_range(0.0, 1.0, 0.01) var cloud_group_density_variation: float = 0.45
+## Celda del evento: el cúmulo que el WeatherController abre sobre el jugador cuando llega un
+## temporal, sumado al mapa de agrupación (gana el mayor de los dos). Sin ella la lluvia dependía
+## de que el sitio del jugador cayese dentro de una celda fija del mapa, y en los claros no llovía
+## nunca. Radio en metros sobre la superficie.
+@export_range(500.0, 30000.0, 100.0) var cloud_cell_radius: float = 6000.0
+## Fracción del radio que es borde degradado; de ahí hacia dentro la celda está plena.
+@export_range(0.05, 1.0, 0.01) var cloud_cell_edge: float = 0.5
 
 @export_group("Atmosphere")
 ## Multiplicador del in-scatter de Rayleigh (velo azul de perspectiva aérea). 1 = dispersión plena;
@@ -289,6 +296,10 @@ var sun_tint: Color = Color(1.0, 1.0, 1.0)
 var aurora_pole: Vector3 = Vector3.UP
 var aurora_intensity: float = 0.0
 var aurora_heights: Vector2 = Vector2(1800.0, 2700.0)
+## Centro de la celda del evento (dirección unitaria desde el centro del planeta) y su presencia
+## 0..1. Las empuja el WeatherController con set_cloud_cell.
+var cloud_cell_direction: Vector3 = Vector3.ZERO
+var cloud_cell_amount: float = 0.0
 
 ## Propiedades que no se configuran desde el JSON del planeta: las pisa el WeatherController en cada
 ## evento (se ajustan en weather_events.json) o el PlanetAtmosphereController cada frame.
@@ -297,7 +308,7 @@ const WEATHER_DRIVEN_PROPERTIES: Array[StringName] = [
 	&"cloud_shadow_strength", &"cloud_albedo", &"atmosphere_scatter", &"cloud_min_height",
 	&"cloud_max_height", &"cloud_wind_speed", &"fog_density", &"fog_coverage",
 	&"fog_group_strength", &"fog_wind_speed", &"fog_floor_height", &"fog_top_height",
-	&"lightning_flash",
+	&"lightning_flash", &"cloud_cell_direction", &"cloud_cell_amount",
 ]
 const CONTROLLER_DRIVEN_PROPERTIES: Array[StringName] = [
 	&"planet_center", &"planet_radius", &"atmosphere_radius", &"sun_direction",
@@ -510,6 +521,15 @@ func set_god_ray_weather(strength: float, reach: float) -> void:
 	_params_mutex.lock()
 	god_rays_weather_strength = maxf(strength, 0.0)
 	god_rays_weather_reach = maxf(reach, 0.01)
+	_params_mutex.unlock()
+
+
+## La empuja el WeatherController: dónde está la celda del evento y cuánto se ve (0 = no hay).
+func set_cloud_cell(direction: Vector3, amount: float) -> void:
+	_params_mutex.lock()
+	var has_center := direction.length_squared() > 0.000001
+	cloud_cell_direction = direction.normalized() if has_center else Vector3.ZERO
+	cloud_cell_amount = clampf(amount, 0.0, 1.0) if has_center else 0.0
 	_params_mutex.unlock()
 
 
@@ -1002,7 +1022,8 @@ func _create_group_texture() -> void:
 
 
 ## Envolvente de agrupación (0..1) en una posición del mundo — el MISMO valor que ve el shader
-## (misma Image, mismo mapeo lat-long), ya escalado por cloud_group_strength. Pensada para que
+## (misma Image, mismo mapeo lat-long, con la celda del evento encima), ya escalado por
+## cloud_group_strength. Pensada para que
 ## el WeatherController decida dónde llueve, sin readback de GPU. 1 = zona de nubes plena.
 func get_cloud_group_envelope(world_pos: Vector3) -> float:
 	if _group_image == null:
@@ -1027,8 +1048,24 @@ func get_cloud_group_envelope(world_pos: Vector3) -> float:
 	y0 = clampi(y0, 0, height - 1)
 	var a := lerpf(_group_image.get_pixel(x0, y0).r, _group_image.get_pixel(x1, y0).r, px - floorf(px))
 	var b := lerpf(_group_image.get_pixel(x0, y1).r, _group_image.get_pixel(x1, y1).r, px - floorf(px))
-	var envelope := lerpf(a, b, py - floorf(py))
+	var envelope := maxf(lerpf(a, b, py - floorf(py)), _cloud_cell_envelope(dir))
 	return lerpf(1.0, envelope, clampf(cloud_group_strength, 0.0, 1.0))
+
+
+## Presencia de la celda del evento en una dirección unitaria. Misma fórmula que group_sample()
+## del shader, con los cosenos de _cloud_cell_cos_range.
+func _cloud_cell_envelope(dir: Vector3) -> float:
+	if cloud_cell_amount <= 0.0:
+		return 0.0
+	var cos_range := _cloud_cell_cos_range(planet_radius)
+	return cloud_cell_amount * smoothstep(cos_range.x, cos_range.y, dir.dot(cloud_cell_direction))
+
+
+## Cosenos del ángulo de la celda vistos desde el centro del planeta: borde exterior (x) e interior (y).
+func _cloud_cell_cos_range(radius: float) -> Vector2:
+	var outer := clampf(cloud_cell_radius / maxf(radius, 1.0), 0.001, PI)
+	var inner := outer * (1.0 - clampf(cloud_cell_edge, 0.05, 1.0))
+	return Vector2(cos(outer), cos(inner))
 
 
 ## Integra la velocidad: tiempo_total * velocidad hacía saltar las nubes y la niebla
@@ -1356,6 +1393,9 @@ func _build_params_bytes(
 	var local_field_sigma     := cloud_field_sigma
 	var local_group_strength  := cloud_group_strength
 	var local_group_dens_var  := cloud_group_density_variation
+	var local_cell_dir        := cloud_cell_direction
+	var local_cell_amount     := cloud_cell_amount
+	var local_cell_cos        := _cloud_cell_cos_range(local_planet_radius)
 	var local_atmo_scatter    := atmosphere_scatter
 	var local_lightning_flash := lightning_flash
 	var local_purkinje        := purkinje_strength
@@ -1575,6 +1615,12 @@ func _build_params_bytes(
 	# 42: resolución del transporte (1 = completo; 2/4 = reconstrucción bilateral), capa de nubes
 	# (1 = el pase completo filtra la capa en vez de marchar las nubes) y margen de su filtro.
 	_append_vec4(floats, Vector4(divisor, 1.0 if cloud_layer else 0.0, local_cloud_filter, 0.0))
+
+	# 43-44: celda del evento sobre el mapa de agrupación (ver group_sample en el shader).
+	# P(43): centro (.xyz, dirección desde el centro del planeta) + presencia (.w).
+	# P(44): coseno del borde exterior (.x) e interior (.y). .zw libres.
+	_append_vec4(floats, Vector4(local_cell_dir.x, local_cell_dir.y, local_cell_dir.z, local_cell_amount))
+	_append_vec4(floats, Vector4(local_cell_cos.x, local_cell_cos.y, 0.0, 0.0))
 	return floats.to_byte_array()
 
 

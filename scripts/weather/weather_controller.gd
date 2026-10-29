@@ -36,6 +36,9 @@ const SHADE_SMOOTH_RATE := 0.7
 # Giro mínimo de la dirección del viento (rad) para empujarla al planeta: cada cambio recorre todos
 # los materiales de la vegetación, así que no se hace en cada frame.
 const WIND_VEER_STEP := deg_to_rad(1.0)
+# Presencia por debajo de la cual la celda del evento ya no se ve: el siguiente evento que la pida
+# abre la suya sobre el jugador en vez de heredar esta.
+const CELL_RELEASE := 0.01
 
 @export var enabled: bool = true
 @export var min_duration: float = 60.0
@@ -135,6 +138,11 @@ var _wind_base_direction := Vector3.ZERO
 var _wind_pushed_veer := INF
 
 var _active_fog_density: float = 0.0
+
+## Centro de la celda del evento (dirección unitaria desde el centro del planeta). ZERO = sin anclar:
+## se ancla sobre el jugador en cuanto un evento la pide (ver _update_cell). No sigue al jugador,
+## así que de un temporal se puede salir.
+var _cell_direction := Vector3.ZERO
 
 # Oscurecimiento local del sol/ambiente, suavizado en el tiempo. -1 = sin inicializar (se engancha al valor exacto).
 var _shade: float = -1.0
@@ -322,6 +330,7 @@ func _process(delta: float) -> void:
 	_elapsed += delta * speed
 	# Antes de aplicar nada: el estado sumergido apaga precipitación y niebla de este frame.
 	_update_submersion()
+	_update_cell()
 	var st: WeatherState = _to
 	_resolved = st
 	if _blend < 1.0:
@@ -434,6 +443,7 @@ func get_save_data() -> Dictionary:
 		"current": _current,
 		"elapsed": _elapsed,
 		"duration": _duration,
+		"cell": {"x": _cell_direction.x, "y": _cell_direction.y, "z": _cell_direction.z},
 	}
 
 
@@ -451,6 +461,11 @@ func restore_save_data(data: Dictionary) -> void:
 	_blend = 1.0
 	_elapsed = float(data.get("elapsed", _elapsed))
 	_duration = float(data.get("duration", _duration))
+	# Sin celda guardada (partidas anteriores) se abre una nueva sobre el jugador.
+	var cell: Variant = data.get("cell")
+	_cell_direction = Vector3.ZERO
+	if cell is Dictionary:
+		_cell_direction = Vector3(float(cell.get("x", 0.0)), float(cell.get("y", 0.0)), float(cell.get("z", 0.0))).normalized()
 	_apply_state(_to)
 
 
@@ -458,6 +473,11 @@ func _transition_to(event_name: String) -> void:
 	# Un nuevo comando puede llegar a mitad de transición: partir del cielo que se ve ahora.
 	_from = get_resolved_state()
 	_to = _events.get(event_name, _fallback_state())
+	# La celda que aún se ve se queda donde está: se desvanece ahí o la hereda el nuevo evento si
+	# también quiere una y el jugador sigue debajo. Si no, se suelta y _update_cell abre otra
+	# sobre él.
+	if _from.cloud_local_cell < CELL_RELEASE or (_to.cloud_local_cell > 0.0 and not _player_under_cell()):
+		_cell_direction = Vector3.ZERO
 	print("[WEATHER]: Transitioning to [", event_name, "]")
 	_current = event_name
 	_blend = 0.0
@@ -495,6 +515,41 @@ func _local_cloud_coverage(st: WeatherState) -> float:
 func _below_clouds_factor(st: WeatherState) -> float:
 	var top := maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
 	return 1.0 - smoothstep(st.cloud_min_height, top, _current_altitude())
+
+
+## Dirección del jugador desde el centro del planeta; ZERO si no hay jugador.
+func _player_direction() -> Vector3:
+	if _player == null or not is_instance_valid(_player):
+		return Vector3.ZERO
+	var up := _player.global_position - _planet_center
+	return up.normalized() if up.length_squared() > 0.0001 else Vector3.ZERO
+
+
+## True si el jugador está dentro del radio de la celda anclada (con el radio de planeta que usa la
+## atmósfera para dibujarla).
+func _player_under_cell() -> bool:
+	var dir := _player_direction()
+	if _cell_direction.is_zero_approx() or dir.is_zero_approx() or _atmosphere == null:
+		return false
+	return _cell_direction.angle_to(dir) * _atmosphere.planet_radius < _atmosphere.cloud_cell_radius
+
+
+## La celda solo se ancla jugando: en el menú y en la cinemática de nueva partida el jugador aún
+## no está donde va a aparecer, y la celda se quedaría lejos de él.
+func _can_anchor_cell() -> bool:
+	return GameManager.current_state == GameManager.State.PLAYING and not _player_direction().is_zero_approx()
+
+
+## Abre la celda del evento sobre el jugador si el evento la pide y no hay ninguna anclada. La
+## presencia arranca de cero y crece con una transición desde el cielo visible: el cúmulo se forma
+## encima en vez de aparecer de golpe.
+func _update_cell() -> void:
+	if _to.cloud_local_cell <= 0.0 or not _cell_direction.is_zero_approx() or not _can_anchor_cell():
+		return
+	_cell_direction = _player_direction()
+	_from = get_resolved_state().copy()
+	_from.cloud_local_cell = 0.0
+	_blend = 0.0
 
 
 ## Mapea la latitud al índice de bioma usando biome_latitude_ranges.
@@ -646,6 +701,7 @@ func _apply_state(st: WeatherState) -> void:
 		_atmosphere.cloud_min_height = st.cloud_min_height
 		_atmosphere.cloud_max_height = maxf(st.cloud_max_height, st.cloud_min_height + 1.0)
 		_atmosphere.cloud_wind_speed = st.cloud_wind_speed
+		_atmosphere.set_cloud_cell(_cell_direction, st.cloud_local_cell)
 		_active_fog_density = st.fog_density
 		_atmosphere.fog_density = st.fog_density
 		_atmosphere.fog_coverage = st.fog_coverage
@@ -957,7 +1013,7 @@ func _builtin_events() -> Dictionary:
 		}),
 		"storm": _state({
 			"cloud_coverage": 0.9, "cloud_density": 1.6, "cloud_absorption": 0.4,
-			"cloud_group": 0.5,
+			"cloud_group": 0.5, "cloud_local_cell": 1.0,
 			"cloud_albedo": 0.35,
 			"cloud_shadow": 1.0, "cloud_min_height": 300.0, "cloud_max_height": 800.0,
 			"cloud_wind_speed": 0.06, "sun_energy": 0.3, "ambient_energy": 0.5,
@@ -972,7 +1028,7 @@ func _builtin_events() -> Dictionary:
 		}),
 		"snow": _state({
 			"cloud_coverage": 0.75, "cloud_density": 0.9, "cloud_absorption": 0.28,
-			"cloud_albedo": 0.7,
+			"cloud_local_cell": 1.0, "cloud_albedo": 0.7,
 			"cloud_shadow": 0.8, "cloud_min_height": 350.0, "cloud_max_height": 700.0,
 			"cloud_wind_speed": 0.04, "sun_energy": 0.7, "ambient_energy": 0.8,
 			"atmosphere_scatter": 0.5,

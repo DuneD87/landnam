@@ -8,6 +8,9 @@ extends RefCounted
 var cloud_coverage: float = 0.4
 # Multiplica la agrupación del planeta: el temporal extiende el manto entre las celdas.
 var cloud_group: float = 1.0
+# Presencia 0..1 de la celda propia del evento: un cúmulo que se abre sobre el jugador al llegar
+# el evento, para que la lluvia no dependa de que su sitio caiga dentro de una celda del mapa.
+var cloud_local_cell: float = 0.0
 var cloud_density: float = 0.5
 var cloud_absorption: float = 0.15
 var cloud_shadow: float = 0.7
@@ -71,7 +74,7 @@ var lightning_frequency: float = 0.0
 
 # Campos numéricos recorridos por blend() y apply_overrides().
 const FIELDS: Array[StringName] = [
-	&"cloud_coverage", &"cloud_group", &"cloud_density", &"cloud_absorption", &"cloud_shadow", &"cloud_albedo",
+	&"cloud_coverage", &"cloud_group", &"cloud_local_cell", &"cloud_density", &"cloud_absorption", &"cloud_shadow", &"cloud_albedo",
 	&"cloud_min_height", &"cloud_max_height", &"cloud_wind_speed",
 	&"fog_density", &"fog_coverage", &"fog_group", &"fog_wind_speed",
 	&"fog_floor_height", &"fog_top_height",
@@ -92,6 +95,12 @@ static func blend(a: WeatherState, b: WeatherState, t: float) -> WeatherState:
 	for field in FIELDS:
 		s.set(field, lerp(float(a.get(field)), float(b.get(field)), t))
 	return s
+
+
+## Copia independiente: los estados del catálogo se comparten y el estado resuelto puede ser uno
+## de ellos, así que hay que copiarlo antes de retocar un campo.
+func copy() -> WeatherState:
+	return blend(self, self, 0.0)
 
 
 ## Sobrescribe solo los campos presentes en el diccionario de overrides del JSON.

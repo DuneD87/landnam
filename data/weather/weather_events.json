@@ -1,5 +1,5 @@
 {
-  "_comment": "Catálogo de eventos climáticos. Cada evento define QUÉ es ese clima (los campos de WeatherState). Es compartido por todos los planetas; cada planeta decide DÓNDE ocurre cada evento en su weather_settings.biome_profiles. Puedes añadir eventos nuevos (p.ej. 'blizzard') sin tocar código: defínelos aquí y referéncialos por nombre en los biome_profiles del planeta. Los campos omitidos usan el valor por defecto de WeatherState. NOTA: cloud_wind_speed NO es m/s, es la tasa de scroll del ruido de nubes (offset = tiempo * velocidad); 0.05 ya es una deriva visible, así que mantén valores bajos (~0.02-0.1).",
+  "_comment": "Catálogo de eventos climáticos. Cada evento define QUÉ es ese clima (los campos de WeatherState). Es compartido por todos los planetas; cada planeta decide DÓNDE ocurre cada evento en su weather_settings.biome_profiles. Puedes añadir eventos nuevos (p.ej. 'blizzard') sin tocar código: defínelos aquí y referéncialos por nombre en los biome_profiles del planeta. Los campos omitidos usan el valor por defecto de WeatherState. cloud_local_cell (0..1) abre al llegar el evento un cúmulo propio sobre el jugador (radio y borde en atmosphere_settings.clouds.cloud_cell_radius/cloud_cell_edge del planeta), para que llueva o nieve donde está aunque su sitio caiga en un claro del mapa de agrupación. NOTA: cloud_wind_speed NO es m/s, es la tasa de scroll del ruido de nubes (offset = tiempo * velocidad); 0.05 ya es una deriva visible, así que mantén valores bajos (~0.02-0.1).",
 
   "events": {
 	"clear": {
@@ -32,7 +32,7 @@
 	},
 	"storm": {
 	  "cloud_coverage": 1.0, "cloud_density": 0.95, "cloud_absorption": 1.0,
-	  "cloud_group": 0.5,
+	  "cloud_group": 0.5, "cloud_local_cell": 1.0,
 	  "cloud_albedo": 0.15,
 	  "cloud_shadow": 0.8, "cloud_min_height": 600.0, "cloud_max_height": 900.0,
 	  "cloud_wind_speed": 0.06,
@@ -50,7 +50,7 @@
 
 	"snow": {
 	  "cloud_coverage": 0.95, "cloud_density": 0.9, "cloud_absorption": 0.28,
-	  "cloud_albedo": 0.95,
+	  "cloud_local_cell": 1.0, "cloud_albedo": 0.95,
 	  "cloud_shadow": 0.7, "cloud_min_height": 350.0, "cloud_max_height": 600.0,
 	  "cloud_wind_speed": 0.04,
 	  "sun_energy": 0.7, "ambient_energy": 0.8, "atmosphere_scatter": 0.5, "wind_multiplier": 1.3,
