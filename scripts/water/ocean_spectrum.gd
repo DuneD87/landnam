@@ -9,7 +9,8 @@ static var _modes: Array[Dictionary] = []
 
 static func evaluate(p: Vector3, wind: Vector3, time: float, amplitude: float, steepness: float,
 		base_length: float, speed: float, spread: float, ocean_weight: float, depth: float,
-		shore_length: float, shore_chop: float, flow_depth: float, min_length: float = 0.0) -> Dictionary:
+		shore_length: float, shore_chop: float, flow_depth: float, min_length: float = 0.0,
+		phase_shift := Vector3.ZERO) -> Dictionary:
 	var key := [wind,base_length,speed,spread]
 	if key != _key:
 		_key=key
@@ -45,7 +46,7 @@ static func evaluate(p: Vector3, wind: Vector3, time: float, amplitude: float, s
 			gate *= smoothstep(min_length*0.5,min_length*1.5,mode.length)
 		var a: float=amplitude*HEIGHTS[i]
 		var horizontal := minf(a*4.0,CHOP[i]/(1.1*k))*clampf(steepness,0.0,0.95)*gate
-		var phase: float=k*p.dot(dir)+time*omega+float(i)*2.39996323
+		var phase: float=k*(p+phase_shift).dot(dir)+time*omega+float(i)*2.39996323
 		var s := sin(phase)
 		var c := cos(phase)
 		var profile := s+h2*(2.0*s*s-1.0)+h3*(4.0*s*s*s-3.0*s)

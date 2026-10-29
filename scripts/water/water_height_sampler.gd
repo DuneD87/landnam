@@ -16,6 +16,11 @@ var wave_direction: Vector2
 var wave_pole: Vector3
 var wave_calm_amplitude: float
 var wave_calm_steepness: float
+## Rebase de fase (ver set_wave_motion y wave_shift en gerstner_waves.gdshaderinc).
+var wave_shift := Vector3.ZERO
+var wave_time_offset := 0.0
+var shore_shift := Vector3.ZERO
+var shore_time_offset := 0.0
 
 ## Olas de orilla. Se releen con los demás params dinámicos y no en setup(): el mapa del planeta
 ## enciende shore_waves_enabled cuando termina de hornearse, mucho después de montar el sampler.
@@ -95,7 +100,8 @@ const CURRENT_SHORE_FRAC := 0.7
 
 ## Réplica CPU de shore_breakup() en shore_breakup.gdshaderinc: rotura de la ola de orilla.
 ## x = desplazamiento de fase en radianes; y = factor de amplitud en [0,1].
-static func _shore_breakup(local: Vector3, time: float, wavelength: float) -> Vector2:
+static func _shore_breakup(local: Vector3, time: float, wavelength: float,
+		shift := Vector3.ZERO) -> Vector2:
 	var wl := maxf(wavelength, 1.0)
 
 	var p := local / 55.0
@@ -103,18 +109,19 @@ static func _shore_breakup(local: Vector3, time: float, wavelength: float) -> Ve
 	var b := sin(p.dot(Vector3(-0.31, 0.88, 0.36)) * 1.37 + 1.7 - time * 0.026)
 	var env := clampf(0.5 + a * 0.325 + b * 0.175, 0.0, 1.0)
 
-	var m1 := local * (_TAU / (wl * 3.0))
-	var m2 := local * (_TAU / (wl * 1.5))
+	var scaled := local + shift
+	var m1 := scaled * (_TAU / (wl * 3.0))
+	var m2 := scaled * (_TAU / (wl * 1.5))
 	var w1 := sin(m1.dot(Vector3(0.83, -0.28, 0.48)) + time * 0.19)
 	var w2 := sin(m2.dot(Vector3(-0.37, 0.62, 0.69)) + 1.3 - time * 0.31)
 
-	var c1 := local * (_TAU / (wl * 4.0))
+	var c1 := scaled * (_TAU / (wl * 4.0))
 	var e1 := sin(c1.dot(Vector3(0.29, 0.75, -0.60)) + time * 0.13)
 	var e2 := sin(c1.dot(Vector3(-0.71, 0.41, 0.57)) * 1.63 - time * 0.11)
 	var cells := clampf(0.5 + e1 * 0.34 + e2 * 0.22, 0.0, 1.0)
 
 	var packet := env * 0.5 + cells * 0.5
-	return Vector2((env - 0.5) * 0.9 + w1 * 0.85 + w2 * 0.25,
+	return Vector2((env - 0.5) * 0.9 + w1 * 0.55 + w2 * 0.25,
 		lerpf(0.25, 1.0, smoothstep(0.2, 0.8, packet)))
 
 
@@ -176,6 +183,10 @@ static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
 			# mezcla de más abajo se vuelve una identidad.
 			"calm_amplitude": _param(mat,"wave_calm_amplitude"),
 			"calm_steepness": _param(mat,"wave_calm_steepness"),
+			"wave_shift": _param(mat, "wave_shift"),
+			"wave_time_offset": _param(mat, "wave_time_offset"),
+			"shore_shift": _param(mat, "shore_shift"),
+			"shore_time_offset": _param(mat, "shore_time_offset"),
 			"time": time if time != null else 0.0,
 			# Olas de orilla. shore_on se enciende cuando el mapa del planeta termina de hornearse,
 			# así que no se puede resolver una vez en setup().
@@ -197,6 +208,57 @@ static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
 		}
 		_frame_cache[key] = cached
 	return cached
+
+## Cambia velocidad y longitud del oleaje y de la rompiente sin que la fase salte. La fase de cada
+## octava es k·(p + wave_shift) + ω·(t + wave_time_offset), con k ∝ 1/longitud y ω ∝ velocidad/√longitud.
+## Se rebasa para que en 'anchor' (local al centro del planeta: donde mira el jugador) la fase siga
+## igual en el instante del cambio; lejos de él el patrón se estira en proporción a la distancia,
+## que con el ancla en el jugador queda donde no se ve. Llamarlo en cada frame de una transición.
+static func set_wave_motion(mat: ShaderMaterial, anchor: Vector3, speed: float, length: float,
+		shore_spd: float, shore_len: float) -> void:
+	var time_value: Variant = mat.get_shader_parameter("water_time")
+	var t: float = time_value if time_value != null else 0.0
+	var old_speed: Variant = _param(mat, "wave_speed")
+	var old_length: Variant = _param(mat, "wave_base_length")
+	var shift: Variant = _param(mat, "wave_shift")
+	var offset: Variant = _param(mat, "wave_time_offset")
+	if old_speed != null and old_length != null and shift != null and offset != null:
+		var rebased := _rebase(anchor, shift, offset, t, old_speed, maxf(old_length, 0.1),
+			speed, maxf(length, 0.1))
+		mat.set_shader_parameter("wave_shift", rebased[0])
+		mat.set_shader_parameter("wave_time_offset", rebased[1])
+	mat.set_shader_parameter("wave_speed", speed)
+	mat.set_shader_parameter("wave_base_length", length)
+
+	old_speed = _param(mat, "shore_speed")
+	old_length = _param(mat, "shore_length")
+	shift = _param(mat, "shore_shift")
+	offset = _param(mat, "shore_time_offset")
+	if old_speed != null and old_length != null and shift != null and offset != null:
+		# La rotura escala con max(longitud, 1) y la fase con √(2π/max(longitud, 0.1)): con las
+		# longitudes de orilla del juego (≥ 4 m) los dos márgenes coinciden.
+		var rebased := _rebase(anchor, shift, offset, t, old_speed, maxf(old_length, 1.0),
+			shore_spd, maxf(shore_len, 1.0))
+		mat.set_shader_parameter("shore_shift", rebased[0])
+		mat.set_shader_parameter("shore_time_offset", rebased[1])
+	mat.set_shader_parameter("shore_speed", shore_spd)
+	mat.set_shader_parameter("shore_length", shore_len)
+
+
+## [shift, offset] nuevos para pasar de (speed0, length0) a (speed1, length1) sin salto en anchor.
+static func _rebase(anchor: Vector3, shift: Vector3, offset: float, t: float,
+		speed0: float, length0: float, speed1: float, length1: float) -> Array:
+	# Espacio: (anchor + shift) / longitud no cambia, así que la fase en el ancla tampoco.
+	var new_shift := (anchor + shift) * (length1 / length0) - anchor
+	# Tiempo: (t + offset) · velocidad/√longitud no cambia. Con velocidad 0 la ola está quieta y
+	# cualquier desfase vale: se conserva el que había.
+	var rate0 := speed0 / sqrt(length0)
+	var rate1 := speed1 / sqrt(length1)
+	var new_offset := offset
+	if rate1 > 1e-6:
+		new_offset = (t + offset) * rate0 / rate1 - t
+	return [new_shift, new_offset]
+
 
 ## Tiempo de agua del material, con la misma caché por frame.
 static func get_water_time(mat: ShaderMaterial) -> float:
@@ -263,6 +325,11 @@ func _refresh_dynamic_params() -> void:
 	var calm_steep: Variant = params["calm_steepness"]
 	wave_calm_amplitude = calm_amp if calm_amp != null else wave_amplitude
 	wave_calm_steepness = calm_steep if calm_steep != null else wave_steepness
+	# Un shader anterior al rebase no los declara: sin rebase, la fase de siempre.
+	wave_shift = params["wave_shift"] if params["wave_shift"] != null else Vector3.ZERO
+	wave_time_offset = params["wave_time_offset"] if params["wave_time_offset"] != null else 0.0
+	shore_shift = params["shore_shift"] if params["shore_shift"] != null else Vector3.ZERO
+	shore_time_offset = params["shore_time_offset"] if params["shore_time_offset"] != null else 0.0
 	var ice_on: Variant = params["sea_ice_enabled"]
 	sea_ice_enabled = ice_on != null and bool(ice_on)
 	var ice_params: Variant = params["sea_ice_params"]
@@ -482,8 +549,9 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 	var chop_floor := shore_chop if shore_enabled else 0.0
 	var wind := _wind
 	swell_dir = -(wind-radial*wind.dot(radial)).normalized()
-	var surface_field := Spectrum.evaluate(local,wind,time,amp,steepness,wave_base_length,wave_speed,
-		spectrum_spread,ocean_weight,shore_depth,maxf(shore_length,1.0),chop_floor,flow_depth,min_length)
+	var surface_field := Spectrum.evaluate(local,wind,time+wave_time_offset,amp,steepness,wave_base_length,
+		wave_speed,spectrum_spread,ocean_weight,shore_depth,maxf(shore_length,1.0),chop_floor,flow_depth,
+		min_length,wave_shift)
 	flow = surface_field.velocity
 	last_amp_effective = amp*ocean_weight
 	var shore_axis := Vector3.ZERO
@@ -520,9 +588,9 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		var k := _TAU / maxf(shore_length, 0.1)
 		var amp_ref := minf(shore_amplitude * shoal, shore_length * 0.08)
 		var q := shore_steepness / maxf(k * amp_ref, 1e-4)
-		var breakup := _shore_breakup(local, time, shore_length)
+		var breakup := _shore_breakup(local, time, shore_length, shore_shift)
 		var omega := shore_speed * sqrt(k)
-		var phase := k * shore_signed_dist + time * omega + breakup.x
+		var phase := k * shore_signed_dist + (time + shore_time_offset) * omega + breakup.x
 		w *= breakup.y
 		# Solo el arrastre horizontal se reduce cuando dos riberas dan direcciones opuestas. La
 		# amplitud vertical y la cresta permanecen continuas, evitando tanto picos como cortes.

@@ -663,8 +663,11 @@ func _apply_state(st: WeatherState) -> void:
 
 	if _water_mat:
 		_water_mat.set_shader_parameter("wave_amplitude", _base_wave_amplitude * st.water_wave_multiplier)
-		_water_mat.set_shader_parameter("wave_speed", _base_wave_speed * st.water_speed_multiplier)
-		_water_mat.set_shader_parameter("wave_base_length", _base_wave_length * st.water_wave_length_mult)
+		# Velocidad y longitud de onda (de mar abierto y de orilla) van rebasadas: cambiarlas a pelo
+		# hacía correr el mar durante toda la transición. Ver WaterHeightSampler.set_wave_motion.
+		WaterHeightSampler.set_wave_motion(_water_mat, _wave_anchor(),
+			_base_wave_speed * st.water_speed_multiplier, _base_wave_length * st.water_wave_length_mult,
+			_base_shore_speed * st.water_shore_speed_mult, _base_shore_length * st.water_shore_length_mult)
 		_water_mat.set_shader_parameter("foam_crest_amount", _base_foam_crest * st.water_foam_multiplier)
 		_water_mat.set_shader_parameter("wave_steepness", st.water_steepness)
 		# Estado de calma al que vuelve el agua fuera de mar abierto. La máscara de temporal
@@ -679,15 +682,19 @@ func _apply_state(st: WeatherState) -> void:
 		# temporal sube también la longitud de onda, que es lo que sube ese techo.
 		_water_mat.set_shader_parameter("shore_amplitude",
 			_base_shore_amplitude * st.water_shore_multiplier)
-		_water_mat.set_shader_parameter("shore_length",
-			_base_shore_length * st.water_shore_length_mult)
-		_water_mat.set_shader_parameter("shore_speed",
-			_base_shore_speed * st.water_shore_speed_mult)
 		# Por encima de 1 la ola de Gerstner se auto-interseca (Q·k·A > 1) y la cresta se pliega.
 		_water_mat.set_shader_parameter("shore_steepness",
 			clampf(_base_shore_steepness * st.water_shore_steepness_mult, 0.0, 0.95))
 
 	_apply_precipitation(st)
+
+
+## Punto del agua donde un cambio de oleaje no debe notarse: bajo el jugador, en el espacio local al
+## centro del planeta que usan el shader y el sampler.
+func _wave_anchor() -> Vector3:
+	if _player == null or not is_instance_valid(_player):
+		return Vector3.ZERO
+	return _player.global_position - _planet_center
 
 
 ## Rachas y giro del viento sobre el evento resuelto. Lo físico (velas, partículas) y la vegetación

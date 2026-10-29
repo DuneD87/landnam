@@ -81,6 +81,7 @@ func _run() -> void:
 	_test_sailing_wind()
 	_test_gusts()
 	_test_save_ignores_force()
+	_test_wave_rebase()
 
 	weather.free()
 	ambience.free()
@@ -325,3 +326,74 @@ func _test_save_ignores_force() -> void:
 		"Una partida guardada con el clima forzado vuelve a cambiar sola")
 	check(not weather.get_save_data().has("forced"), "El forzado de depuración no se guarda")
 
+
+## Altura del espectro CPU tal como la evalúa el sampler con los parámetros del material.
+func _ocean_height(mat: ShaderMaterial, p: Vector3, t: float) -> float:
+	var spectrum := preload("res://scripts/water/ocean_spectrum.gd")
+	var field: Dictionary = spectrum.evaluate(p, Vector3.RIGHT, t + float(mat.get_shader_parameter("wave_time_offset")),
+		2.0, 0.5, mat.get_shader_parameter("wave_base_length"), mat.get_shader_parameter("wave_speed"),
+		0.8, 1.0, 100.0, 60.0, 0.0, 0.0, 0.0, mat.get_shader_parameter("wave_shift"))
+	return field.height
+
+
+func _wave_material(t: float) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.set_shader_parameter("water_time", t)
+	mat.set_shader_parameter("wave_speed", 0.96)
+	mat.set_shader_parameter("wave_base_length", 25.0)
+	mat.set_shader_parameter("wave_shift", Vector3.ZERO)
+	mat.set_shader_parameter("wave_time_offset", 0.0)
+	mat.set_shader_parameter("shore_speed", 1.2)
+	mat.set_shader_parameter("shore_length", 60.0)
+	mat.set_shader_parameter("shore_shift", Vector3.ZERO)
+	mat.set_shader_parameter("shore_time_offset", 0.0)
+	return mat
+
+
+func _test_wave_rebase() -> void:
+	# Partida de once horas: water_time grande es lo que disparaba el mar en las transiciones.
+	var t := 40000.0
+	var anchor := Vector3(0.626, 0.490, -0.607).normalized() * 15000.0
+	var mat := _wave_material(t)
+	var before := _ocean_height(mat, anchor, t)
+	var shore_before := WaterHeightSampler._shore_breakup(anchor, t, 60.0, Vector3.ZERO)
+	WaterHeightSampler.set_wave_motion(mat, anchor, 1.5, 105.0, 1.5, 72.0)
+	# Margen de 1 cm: la posición va en Vector3 de 32 bits, como en la GPU (~0.3 mm de diferencia).
+	check(absf(_ocean_height(mat, anchor, t) - before) < 0.01,
+		"Cambiar velocidad y longitud de onda no mueve el agua bajo el jugador en ese instante")
+	var shore_after := WaterHeightSampler._shore_breakup(anchor, t, 72.0, mat.get_shader_parameter("shore_shift"))
+	check(shore_after.is_equal_approx(shore_before), "La rotura de la rompiente tampoco salta")
+	var shore_phase := func(m: ShaderMaterial) -> float:
+		var len: float = m.get_shader_parameter("shore_length")
+		return (t + float(m.get_shader_parameter("shore_time_offset"))) * float(m.get_shader_parameter("shore_speed")) * sqrt(TAU / len)
+	var shore_mat := _wave_material(t)
+	var phase_before: float = shore_phase.call(shore_mat)
+	WaterHeightSampler.set_wave_motion(shore_mat, anchor, 0.96, 25.0, 1.5, 72.0)
+	check(is_equal_approx(shore_phase.call(shore_mat), phase_before), "La fase de la ola de orilla sigue continua")
+
+	# Transición de 30 s a 60 fps de despejado a temporal: cuánto sube o baja el agua por frame a
+	# 20 m del jugador, con rebase y escribiendo los parámetros a pelo como antes.
+	var near := anchor + Vector3(0.0, 0.0, 20.0)
+	var rebased := _wave_material(t)
+	var naive := _wave_material(t)
+	var worst_rebased := 0.0
+	var worst_naive := 0.0
+	var last_rebased := _ocean_height(rebased, near, t)
+	var last_naive := _ocean_height(naive, near, t)
+	for frame in 1800:
+		t += 1.0 / 60.0
+		var blend := smoothstep(0.0, 1.0, float(frame + 1) / 1800.0)
+		var speed := lerpf(0.96, 1.5, blend)
+		var length := lerpf(25.0, 105.0, blend)
+		rebased.set_shader_parameter("water_time", t)
+		WaterHeightSampler.set_wave_motion(rebased, anchor, speed, length, 1.2, 60.0)
+		naive.set_shader_parameter("wave_speed", speed)
+		naive.set_shader_parameter("wave_base_length", length)
+		var h_rebased := _ocean_height(rebased, near, t)
+		var h_naive := _ocean_height(naive, near, t)
+		worst_rebased = maxf(worst_rebased, absf(h_rebased - last_rebased))
+		worst_naive = maxf(worst_naive, absf(h_naive - last_naive))
+		last_rebased = h_rebased
+		last_naive = h_naive
+	check(worst_rebased < 0.15 and worst_naive > worst_rebased * 4.0,
+		"Durante la transición el mar no se acelera (%.3f m/frame con rebase, %.3f sin él)" % [worst_rebased, worst_naive])

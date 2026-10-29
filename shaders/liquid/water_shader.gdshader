@@ -159,7 +159,7 @@ void fragment() {
     vec3 surface_view=(VIEW_MATRIX*vec4(surface_world,1.0)).xyz;
     float view_distance=length(surface_view);
     vec3 wind=ocean_wind();
-    OceanBreakers history=ocean_breaker_history(material_position,radial,wind,water_time,
+    OceanBreakers history=ocean_breaker_history(material_position+wave_shift,radial,wind,water_time+wave_time_offset,
         sea_context.x,sea_context.y,minimum_wavelength,sea_context.z,coast_depth);
     // Coastal family supplies its own geometric contraction through the same surface.
     history.recent.x=max(history.recent.x,geometric_compression*sea_context.w*2.0);

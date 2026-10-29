@@ -13,6 +13,13 @@ uniform float water_radius = 0.0;
 uniform float wave_base_length : hint_range(2.0, 500.0, 0.5) = 60.0; // longitud de onda de la ola principal (m)
 uniform float wave_steepness : hint_range(0.0, 1.0, 0.01) = 0.5;     // Q: 0 = senoidal suave, 1 = cresta pinchada
 uniform vec3 wave_pole = vec3(0.0, 1.0, 0.0); // eje de referencia del marco de olas (las olas viajan en su plano ecuatorial)
+// Rebase de la fase del oleaje: el espectro se evalúa en local + wave_shift y en water_time +
+// wave_time_offset. Los mueve WaterHeightSampler.set_wave_motion cuando el clima cambia wave_speed o
+// wave_base_length; sin ellos la fase, water_time (crece con la partida) por la velocidad y la
+// posición desde el centro del planeta por 1/longitud, corría cientos de radianes por segundo en
+// cada transición y el mar parecía acelerado.
+uniform vec3 wave_shift = vec3(0.0);
+uniform float wave_time_offset = 0.0;
 
 // --- Máscara de temporal ---------------------------------------------------------------------
 // El clima sube el oleaje sobre un ÚNICO material para todo el planeta, así que sin esto una
@@ -144,6 +151,10 @@ uniform sampler2D shore_offset_map : filter_linear, repeat_enable;
 uniform float shore_amplitude : hint_range(0.0, 20.0, 0.05) = 2.0;
 uniform float shore_length : hint_range(4.0, 300.0, 0.5) = 20.0;
 uniform float shore_speed : hint_range(0.0, 10.0, 0.05) = 1.2;
+// Igual que wave_shift/wave_time_offset para la rompiente: shore_shift entra en los términos de la
+// rotura que escalan con shore_length, y shore_time_offset en la fase de la ola de orilla.
+uniform vec3 shore_shift = vec3(0.0);
+uniform float shore_time_offset = 0.0;
 uniform float shore_steepness : hint_range(0.0, 1.0, 0.01) = 0.45;
 // El ancho de la franja costera lo decide la DISTANCIA al litoral (acotada por SHORE_RANGE),
 // no la profundidad. Atarlo a la batimetría se probó y no vale aquí: este terreno cae al 15% contra
@@ -271,7 +282,7 @@ vec3 gerstner_surface_differential(vec3 local, vec3 radial, float t, float min_l
     float ocean_weight = 1.0-smoothstep(0.0,shore_handover,shore_presence);
     float amp = max(mix(wave_calm_amplitude,wave_amplitude,ctx.exposure),0.0) * (1.0-ctx.ice);
     float steepness = mix(wave_calm_steepness,wave_steepness,ctx.exposure);
-    OceanField field = ocean_field(local,wind,t,amp,steepness,min_length,ocean_weight,ctx.shore_depth);
+    OceanField field = ocean_field(local+wave_shift,wind,t+wave_time_offset,amp,steepness,min_length,ocean_weight,ctx.shore_depth);
     vec3 horiz = vec3(0.0);
     float vert = 0.0;
     vec3 grad = vec3(0.0);
@@ -316,8 +327,8 @@ vec3 gerstner_surface_differential(vec3 local, vec3 radial, float t, float min_l
         float q = shore_steepness / max(k * amp_ref, 1e-4);
         // W es firmada: incluso si el litoral grueso coloca este vértice visible en su lado tierra,
         // su gradiente sigue apuntando mar adentro y la fase avanza siempre hacia tierra.
-        vec2 breakup = shore_breakup(local, t, shore_length);
-        float phase = k * ctx.shore_field.w + t * shore_speed * sqrt(k) + breakup.x;
+        vec2 breakup = shore_breakup(local, shore_shift, t, shore_length);
+        float phase = k * ctx.shore_field.w + (t + shore_time_offset) * shore_speed * sqrt(k) + breakup.x;
         // La superficie nunca queda inmóvil, pero el tramo débil cae por debajo del umbral de
         // espuma y corta visualmente la cinta continua.
         w *= breakup.y;
@@ -396,8 +407,8 @@ vec3 shore_debug_color(vec3 local, float t) {
 
     if (shore_debug_mode == 2) {
         float k = 6.28318530718 / max(shore_length, 0.1);
-        vec2 breakup = shore_breakup(local, t, shore_length);
-        float band = fract((k * field.w + t * shore_speed * sqrt(k)
+        vec2 breakup = shore_breakup(local, shore_shift, t, shore_length);
+        float band = fract((k * field.w + (t + shore_time_offset) * shore_speed * sqrt(k)
             + breakup.x) / 6.28318530718);
         return mix(vec3(0.05, 0.1, 0.25), vec3(1.0), step(0.5, band));
     }
@@ -414,7 +425,7 @@ vec3 shore_debug_color(vec3 local, float t) {
     }
     float lee = mix(1.0, mix(0.35, 1.0, smoothstep(-0.9, 0.6, dot(swell_direction(d), -seaward))),
                     shore_incidence);
-    float packet = shore_breakup(local, t, shore_length).y;
+    float packet = shore_breakup(local, shore_shift, t, shore_length).y;
     return vec3(gate * shoreline_fade * lee * packet);
 }
 

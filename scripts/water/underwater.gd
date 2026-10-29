@@ -73,7 +73,7 @@ var _atmosphere: PlanetAtmosphere
 # Uniforms del material del agua que definen la superficie y se replican cada frame.
 const _SYNCED_WATER_PARAMS: Array[StringName] = [
 	&"wave_direction", &"wave_speed", &"wave_amplitude", &"wave_base_length",
-	&"wave_steepness", &"wave_pole",
+	&"wave_steepness", &"wave_pole", &"wave_shift", &"wave_time_offset",
 	&"spectrum_spread",
 	&"water_time", &"planet_center", &"water_radius",
 	&"texture_normal", &"texture_normal2", &"normal_scale1", &"normal_scale2",
@@ -88,6 +88,7 @@ const _SYNCED_WATER_PARAMS: Array[StringName] = [
 	# Olas de orilla: idem, forman parte de la misma superficie.
 	&"shore_waves_enabled", &"shore_offset_map",
 	&"shore_amplitude", &"shore_length", &"shore_speed", &"shore_steepness",
+	&"shore_shift", &"shore_time_offset",
 	&"shore_depth_fade", &"shore_shoal_max", &"shore_incidence",
 	&"shore_reach", &"shore_range", &"shore_fade", &"shore_handover", &"shore_chop",
 	# Plano de la línea de flotación: los dos shaders TIENEN que recibir el mismo, es lo que hace

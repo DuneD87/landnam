@@ -17,8 +17,8 @@
 //   - celdas (4λ y 2.4λ): apagan la amplitud a trozos, que es lo que parte la cinta de espuma.
 //
 // Presupuesto de gradiente: un desplazamiento de fase añade a la fase total un gradiente de
-// amplitud·(2π/periodo), o sea amplitud·λ/periodo veces k. Con 0.85 rad a 3λ y 0.25 rad a 1.5λ el
-// peor caso suma ~0.45k: la longitud de onda local se comprime o estira hasta un ±45%, que es
+// amplitud·(2π/periodo), o sea amplitud·λ/periodo veces k. Con 0.55 rad a 3λ y 0.25 rad a 1.5λ el
+// peor caso suma ~0.35k: la longitud de onda local se comprime o estira hasta un ±35%, que es
 // justo lo que se lee como vida, y queda lejos del 100% en el que la cresta se plegaría sobre sí
 // misma. Subir esas amplitudes sin bajar el periodo rompe esa garantía.
 //
@@ -30,7 +30,7 @@
 const float SHORE_BREAKUP_TAU = 6.28318530718;
 
 // x = desplazamiento de fase en radianes; y = factor de amplitud en [0,1].
-vec2 shore_breakup(vec3 local, float t, float wavelength) {
+vec2 shore_breakup(vec3 local, vec3 shift, float t, float wavelength) {
     float wl = max(wavelength, 1.0);
 
     vec3 p = local / 55.0;
@@ -38,12 +38,14 @@ vec2 shore_breakup(vec3 local, float t, float wavelength) {
     float b = sin(dot(p, vec3(-0.31, 0.88, 0.36)) * 1.37 + 1.7 - t * 0.026);
     float env = clamp(0.5 + a * 0.325 + b * 0.175, 0.0, 1.0);
 
-    vec3 m1 = local * (SHORE_BREAKUP_TAU / (wl * 3.0));
-    vec3 m2 = local * (SHORE_BREAKUP_TAU / (wl * 1.5));
+    // Solo los términos que escalan con la longitud de onda llevan el rebase (ver shore_shift).
+    vec3 scaled = local + shift;
+    vec3 m1 = scaled * (SHORE_BREAKUP_TAU / (wl * 3.0));
+    vec3 m2 = scaled * (SHORE_BREAKUP_TAU / (wl * 1.5));
     float w1 = sin(dot(m1, vec3(0.83, -0.28, 0.48)) + t * 0.19);
     float w2 = sin(dot(m2, vec3(-0.37, 0.62, 0.69)) + 1.3 - t * 0.31);
 
-    vec3 c1 = local * (SHORE_BREAKUP_TAU / (wl * 4.0));
+    vec3 c1 = scaled * (SHORE_BREAKUP_TAU / (wl * 4.0));
     float e1 = sin(dot(c1, vec3(0.29, 0.75, -0.60)) + t * 0.13);
     float e2 = sin(dot(c1, vec3(-0.71, 0.41, 0.57)) * 1.63 - t * 0.11);
     float cells = clamp(0.5 + e1 * 0.34 + e2 * 0.22, 0.0, 1.0);
