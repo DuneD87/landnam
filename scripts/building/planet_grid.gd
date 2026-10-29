@@ -306,7 +306,7 @@ func serialize() -> Dictionary:
 		if mat and mat.resource_path != "":
 			materials_data[mat_id] = mat.resource_path
 
-	return {
+	var data := {
 		"type": "static",
 		"planet_path": str(planet_node.get_path()),
 		"origin_local": _vec3_to_array(origin_local),
@@ -316,6 +316,9 @@ func serialize() -> Dictionary:
 		"materials": materials_data,
 		"props": _serialize_props(),
 	}
+	if not source_blueprint.is_empty():
+		data["blueprint"] = source_blueprint
+	return data
 
 
 func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
@@ -324,6 +327,7 @@ func deserialize(id: String, planet: Node3D, data: Dictionary) -> void:
 	cell_size = data.get("cell_size", 1.0)
 	origin_local = _array_to_vec3(data.get("origin_local", [0, 0, 0]))
 	basis_local = _array_to_basis(data.get("basis_local", [1,0,0, 0,1,0, 0,0,1]))
+	source_blueprint = (data.get("blueprint", {}) as Dictionary).duplicate()
 
 	var materials_data: Dictionary = data.get("materials", {})
 	for mat_id in materials_data:

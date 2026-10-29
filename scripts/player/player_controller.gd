@@ -1601,6 +1601,8 @@ func _on_build_radial_chosen(option: BuildRadialMenu.Option) -> void:
 		BuildRadialMenu.Option.BLUEPRINTS:
 			grid_manipulator_menu.open(building_system.get_aimed_grid(_ray_hit))
 			capture_mouse(false)
+		BuildRadialMenu.Option.REPAIR:
+			_start_repair()
 		BuildRadialMenu.Option.SYMMETRY:
 			if not building_system.cycle_symmetry(_ray_hit):
 				hotbar.notify(tr("BUILD_SYMMETRY_AIM"))
@@ -1608,6 +1610,21 @@ func _on_build_radial_chosen(option: BuildRadialMenu.Option) -> void:
 				hotbar.notify(tr("BUILD_SYMMETRY_ON") % _symmetry_axis_name())
 			else:
 				hotbar.notify(tr("BUILD_SYMMETRY_OFF"))
+
+
+## «Reparar» de la rueda: la construcción apuntada vuelve a ser la de su blueprint (RepairSite). Si
+## no se sabe cuál es, se elige en la biblioteca.
+func _start_repair() -> void:
+	var grid := building_system.get_aimed_grid(_ray_hit)
+	if grid == null:
+		hotbar.notify(tr("REPAIR_AIM"))
+		return
+	var result := RepairSite.start(grid.grid_id)
+	if result.get("error", "") == "GRID_REPAIR_NO_MATCH":
+		grid_manipulator_menu.open(grid, true)
+		capture_mouse(false)
+		return
+	hotbar.notify(RepairSite.result_text(result))
 
 
 ## Eje de la simetría puesta («X», «Y», «Z») o "" sin ella.

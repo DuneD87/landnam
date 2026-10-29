@@ -42,6 +42,12 @@ var _dirty_chunks: Dictionary = {}
 ## Dañar un bloque NO lo sube: la vida no cambia la conectividad, que es lo que se analiza.
 var edit_version: int = 0
 
+## El blueprint del que salió: {"name", "index": cuál de sus grids es, "offset": lo que hay que sumar
+## (m, [x, y, z]) a una posición del blueprint para llevarla a su espacio de grid}, o {} si se hizo a
+## mano. Lo apuntan colocarlo, guardarla como blueprint y acabar de repararla; pasa a la grid dinámica
+## en que se convierte y a los trozos en que se parte. Con él RepairSite no tiene que buscarlo.
+var source_blueprint: Dictionary = {}
+
 ## Transform mundo de la grid (subclases deben implementarlo).
 func get_grid_world_transform() -> Transform3D:
 	push_warning("[GridBase] get_grid_world_transform() no implementado")
@@ -723,6 +729,25 @@ func damage_sphere(world_center: Vector3, energy: float, radius_meters: float = 
 			"material_id": removed.get("material_id", "")})
 
 	return {"spent": energy - budget, "destroyed": destroyed, "damaged": damaged}
+
+
+## Devuelve a un bloque dañado toda su vida. false si no hay bloque o ya estaba entero.
+func repair_block(grid_pos: Vector3i) -> bool:
+	if not _blocks.has(grid_pos):
+		return false
+	var info: Dictionary = _blocks[grid_pos]
+	var hp: float = info.get("hp", 1.0)
+	if hp >= 1.0:
+		return false
+	info.erase("hp")
+	if ChunkMeshBuilder.damage_step(hp) != ChunkMeshBuilder.damage_step(1.0):
+		_request_rebuild(grid_pos)
+	return true
+
+
+## Apunta que es la grid [index] del blueprint [bp_name], con sus celdas desplazadas [offset] (m).
+func set_source_blueprint(bp_name: String, index: int, offset: Vector3) -> void:
+	source_blueprint = {"name": bp_name, "index": index, "offset": _vec3_to_array(offset)}
 
 
 func distance_to(world_pos: Vector3) -> float:

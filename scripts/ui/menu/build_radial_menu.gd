@@ -9,18 +9,19 @@ extends CanvasLayer
 
 signal option_chosen(option: Option)
 
-enum Option { ADD, REMOVE, SELECT_BLOCK, BLUEPRINTS, SYMMETRY }
+enum Option { ADD, REMOVE, SELECT_BLOCK, BLUEPRINTS, SYMMETRY, REPAIR }
 
 ## En el sentido de las agujas del reloj, empezando arriba: lo de cada golpe (poner, quitar,
-## simetría) a la derecha y los menús a la izquierda.
-const OPTIONS: Array[Option] = [Option.ADD, Option.REMOVE, Option.SYMMETRY, Option.BLUEPRINTS,
-	Option.SELECT_BLOCK]
+## simetría) a la derecha, reparar lo apuntado con su blueprint abajo y los menús a la izquierda.
+const OPTIONS: Array[Option] = [Option.ADD, Option.REMOVE, Option.SYMMETRY, Option.REPAIR,
+	Option.BLUEPRINTS, Option.SELECT_BLOCK]
 const LABELS := {
 	Option.ADD: "BUILD_RADIAL_ADD",
 	Option.REMOVE: "BUILD_RADIAL_REMOVE",
 	Option.SELECT_BLOCK: "BUILD_RADIAL_SELECT_BLOCK",
 	Option.BLUEPRINTS: "BUILD_RADIAL_BLUEPRINTS",
 	Option.SYMMETRY: "BUILD_RADIAL_SYMMETRY",
+	Option.REPAIR: "BUILD_RADIAL_REPAIR",
 }
 ## Medidas en la escala base de 1440 px de alto.
 const OUTER_RADIUS := 220.0
@@ -175,6 +176,8 @@ func _draw_wheel() -> void:
 		lines.append(_label(OPTIONS[_hovered]))
 		if OPTIONS[_hovered] == Option.SYMMETRY:
 			lines.append(tr(_symmetry_next()))
+		elif OPTIONS[_hovered] == Option.REPAIR:
+			lines.append(tr("BUILD_RADIAL_REPAIR_HINT"))
 	else:
 		lines.append(_label(_active))
 		if _block_name != "":
@@ -248,6 +251,16 @@ func _draw_glyph(option: Option, at: Vector2, size: float, color: Color) -> void
 			while y < r * 1.15:
 				_canvas.draw_line(at + Vector2(0, y), at + Vector2(0, minf(y + dash, r * 1.15)), color, w * 0.45, true)
 				y += dash * 1.8
+		Option.REPAIR:
+			# Un bloque al que le falta una esquina, y la cruz de ponerla.
+			var r := h * 1.1
+			var notch := r * 0.9
+			_canvas.draw_polyline(PackedVector2Array([at + Vector2(r - notch, -r), at + Vector2(-r, -r),
+				at + Vector2(-r, r), at + Vector2(r, r), at + Vector2(r, notch - r)]), color, w * 0.7, true)
+			var mid := at + Vector2(r - notch * 0.5, notch * 0.5 - r)
+			var arm := notch * 0.32
+			_canvas.draw_line(mid - Vector2(arm, 0), mid + Vector2(arm, 0), color, w * 0.6, true)
+			_canvas.draw_line(mid - Vector2(0, arm), mid + Vector2(0, arm), color, w * 0.6, true)
 		Option.BLUEPRINTS:
 			# Un plano: hoja cuadrada con su cuadrícula.
 			var r := h * 1.15

@@ -236,6 +236,8 @@ func serialize() -> Dictionary:
 		"materials": materials_data,
 		"props": _serialize_props(),
 	}
+	if not source_blueprint.is_empty():
+		data["blueprint"] = source_blueprint
 	# Lo escriben todas las grids del cuerpo: al cargar, la que lo cree puede ser cualquiera.
 	if _body and is_instance_valid(_body) and _body.anchored:
 		data["anchor"] = _vec3_to_array(_body.get_anchor_point())
@@ -247,6 +249,7 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 	planet_node = planet
 	cell_size = data.get("cell_size", 1.0)
 	body_id = data.get("body_id", id)
+	source_blueprint = (data.get("blueprint", {}) as Dictionary).duplicate()
 
 	if shared_body:
 		_body = shared_body

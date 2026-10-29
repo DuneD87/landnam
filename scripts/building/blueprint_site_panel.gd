@@ -1,8 +1,8 @@
 class_name BlueprintSitePanel
 extends CanvasLayer
 
-## Lo que se ve al apuntar a una obra (BlueprintSite), en Saga, arriba como el panel de colocar: el
-## nombre, cuánto lleva hecho, cada material con lo que tiene frente a lo que pide (y lo que se lleva
+## Lo que se ve al apuntar a una obra (BlueprintSite) o a una reparación (RepairSite), en Saga, arriba
+## como el panel de colocar: el nombre, cuánto lleva hecho, cada material con lo que tiene frente a lo que pide (y lo que se lleva
 ## encima), qué hacer ahora y los controles.
 
 var _root: Control
@@ -84,7 +84,8 @@ func show_site(site: BlueprintSite, inventory: Inventory, state: String, ok: boo
 	if signature == _signature:
 		return
 	_signature = signature
-	_title.text = site.blueprint_name if site.blueprint_name != "" else tr("SITE_TITLE")
+	_title.text = site.get_title()
+	_hint.text = site.get_hint()
 	_bar.value = site.progress()
 	_percent.text = "%d %%" % floori(site.progress() * 100.0)
 	for child in _costs.get_children():

@@ -458,6 +458,7 @@ func _collapse_piece(group: Array, piece: Dictionary, world_xform: Transform3D) 
 		dyn.planet_node = static_grid.planet_node
 		dyn.cell_size = static_grid.cell_size
 		dyn.mesh_materials = static_grid.mesh_materials.duplicate()
+		dyn.source_blueprint = static_grid.source_blueprint.duplicate()
 		dyn._body = body
 		dyn._owns_body = owns_body
 		owns_body = false
@@ -773,6 +774,7 @@ func convert_to_dynamic(grid_id: String) -> Array:
 			dyn.block_removed.connect(shared_body.on_block_removed.bind(dyn))
 		else:
 			dyn.setup_from_static_shared(sid, planet, static_grid, shared_body)
+		dyn.source_blueprint = static_grid.source_blueprint
 
 		_grids[sid] = dyn
 		if _planet_grids.has(planet):
@@ -1034,6 +1036,11 @@ func check_overlap(planet: Node3D, grid_pos: Vector3i, cell_size: float, source_
 ## Obtiene una grid por ID.
 func get_grid(grid_id: String) -> GridBase:
 	return _grids.get(grid_id, null)
+
+
+## Todas las grids, de todos los planetas.
+func get_all_grids() -> Array:
+	return _grids.values()
 
 
 ## Obtiene todas las grids de un planeta.

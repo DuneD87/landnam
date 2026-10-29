@@ -8,9 +8,12 @@ extends CanvasLayer
 ##   uno), convertirla en dinámica y desmontarla (como quitar bloque a bloque con el martillo).
 ## - Biblioteca: los blueprints guardados, con miniatura, búsqueda y orden. La ficha del elegido:
 ##   medidas, bloques, lo que cuesta frente a lo que se lleva, colocarlo (queda una obra, BlueprintSite,
-##   que se levanta con el martillo; construyendo gratis, entero), renombrarlo y borrarlo.
-## Sin construcción apuntada abre en la biblioteca. Los blueprints de antes sin miniatura se pintan
-## la primera vez que se ven (BlueprintThumbnail).
+##   que se levanta con el martillo; construyendo gratis, entero), reparar con él la construcción
+##   apuntada (RepairSite), renombrarlo y borrarlo.
+## Sin construcción apuntada abre en la biblioteca. «Reparar» en la rueda la abre para elegir con qué
+## blueprint reparar (open con repair_pick) cuando la construcción no sabe el suyo ni casa con
+## ninguno. Los blueprints de antes sin miniatura se pintan la primera vez que se ven
+## (BlueprintThumbnail).
 
 ## Colocar el blueprint (el jugador cierra el menú y entra en modo colocación).
 signal load_requested(blueprint_name: String, as_static: bool)
@@ -80,11 +83,14 @@ var _detail_costs: VBoxContainer
 var _as_static_check: CheckButton
 var _reason: Label
 var _place_btn: Button
+var _repair_with_btn: Button
 var _rename_btn: Button
 var _delete_btn: Button
 var _rename_row: HBoxContainer
 var _rename_edit: LineEdit
 var _delete_armed := false
+## Abierto para elegir con qué blueprint reparar la construcción: reparar es lo principal de la ficha.
+var _repair_pick := false
 ## Miniaturas ya leídas o pintadas, por nombre (null = no tiene, o se está pintando).
 var _thumb_cache := {}
 var _thumb_queue: Array[String] = []
@@ -109,16 +115,18 @@ func setup(bsys: BuildingSystem, inv: Inventory) -> void:
 				_refresh_tab())
 
 
-## Abre el menú sobre una grid (pestaña de construcción) o sin ella (biblioteca).
-func open(grid: GridBase) -> void:
+## Abre el menú sobre una grid (pestaña de construcción) o sin ella (biblioteca). Con [repair_pick],
+## en la biblioteca, para elegir con qué blueprint reparar [grid].
+func open(grid: GridBase, repair_pick: bool = false) -> void:
 	target_grid = grid
 	_overwrite_armed = ""
 	_dismantle_armed = false
 	_delete_armed = false
-	set_status("")
+	_repair_pick = repair_pick and grid != null
+	set_status(tr("GRID_REPAIR_NO_MATCH") if _repair_pick else "", false)
 	_apply_scale()
 	visible = true
-	_set_tab(Tab.CONSTRUCTION if grid != null else Tab.LIBRARY)
+	_set_tab(Tab.CONSTRUCTION if grid != null and not _repair_pick else Tab.LIBRARY)
 
 
 func close() -> void:
@@ -126,6 +134,7 @@ func close() -> void:
 		return
 	visible = false
 	target_grid = null
+	_repair_pick = false
 	# Lo que quedaba por pintar se vuelve a pedir la próxima vez.
 	for bp_name in _thumb_queue:
 		_thumb_cache.erase(bp_name)
@@ -565,6 +574,12 @@ func _build_library() -> Control:
 	_place_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_place_btn.pressed.connect(_on_place_pressed)
 	buttons.add_child(_place_btn)
+	_repair_with_btn = Button.new()
+	_repair_with_btn.text = "GRID_REPAIR_WITH"
+	_repair_with_btn.tooltip_text = "GRID_REPAIR_WITH_TIP"
+	_repair_with_btn.focus_mode = Control.FOCUS_NONE
+	_repair_with_btn.pressed.connect(_on_repair_pressed)
+	buttons.add_child(_repair_with_btn)
 	_rename_btn = Button.new()
 	_rename_btn.text = "GRID_RENAME"
 	_rename_btn.focus_mode = Control.FOCUS_NONE
@@ -703,16 +718,25 @@ func _show_detail(info: Dictionary) -> void:
 
 	var cost := BuildCost.of_counts(info.get("counts", {}))
 	_fill_costs(_detail_costs, cost, true)
-	_as_static_check.visible = info.get("dynamic", false)
+	_as_static_check.visible = info.get("dynamic", false) and not _repair_pick
 	# Se coloca siempre: queda una obra, y los materiales se le aportan después.
 	_place_btn.disabled = false
-	if BuildingSystem.free_build:
+	_place_btn.visible = not _repair_pick
+	if _repair_pick:
+		_reason.text = tr("GRID_REPAIR_WITH_TIP")
+		_reason.theme_type_variation = &"HintLabel"
+	elif BuildingSystem.free_build:
 		_reason.text = tr("GRID_FREE_BUILD")
 		_reason.theme_type_variation = &"BetterLabel"
 	else:
 		_reason.text = tr("GRID_PLACE_AS_SITE")
 		_reason.theme_type_variation = &"HintLabel"
 	_reason.visible = _reason.text != ""
+	# Reparar con este solo si se abrió apuntando a una construcción; eligiendo con cuál, en lugar de
+	# colocar.
+	_repair_with_btn.visible = _target_alive()
+	_repair_with_btn.theme_type_variation = &"AccentButton" if _repair_pick else &""
+	_repair_with_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL if _repair_pick else Control.SIZE_FILL
 	_delete_btn.text = "GRID_DELETE_CONFIRM" if _delete_armed else "GRID_DELETE_BLUEPRINT"
 
 
@@ -727,6 +751,19 @@ func _on_place_pressed() -> void:
 		return
 	var as_static := _as_static_check.visible and _as_static_check.button_pressed
 	load_requested.emit(_selected, as_static)
+
+
+## Repara la construcción apuntada con el blueprint elegido. Si empieza, cierra el menú y avisa de lo
+## que hay que hacer; si no, dice por qué al pie.
+func _on_repair_pressed() -> void:
+	if not _target_alive() or _selected == "":
+		return
+	var result := RepairSite.start(target_grid.grid_id, _selected)
+	if result.has("error"):
+		set_status(RepairSite.result_text(result), false)
+		return
+	close()
+	notice.emit(RepairSite.result_text(result))
 
 
 func _on_rename_pressed() -> void:

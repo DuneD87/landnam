@@ -188,7 +188,7 @@ func confirm() -> String:
 	var t0 := Time.get_ticks_msec()
 	if BuildingSystem.free_build:
 		var grids := GridBlueprint.instantiate(_data, _planet, _placement.origin, _placement.basis,
-			_as_static)
+			_as_static, _name)
 		var blocks := 0
 		for grid: GridBase in grids:
 			blocks += grid.get_block_count()

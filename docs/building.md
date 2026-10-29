@@ -24,16 +24,19 @@ la mano al cambiar la barra, al cambiar el equipo (también desde el muñeco) y 
 
 ## La rueda
 
-`BuildRadialMenu` (`scripts/ui/menu/build_radial_menu.gd`) tiene cinco huecos. En el sentido de las
-agujas del reloj desde arriba: a la derecha lo de cada golpe y a la izquierda los menús.
+`BuildRadialMenu` (`scripts/ui/menu/build_radial_menu.gd`) tiene seis huecos. En el sentido de las
+agujas del reloj desde arriba: a la derecha lo de cada golpe, abajo reparar y a la izquierda los
+menús.
 
 1. **Añadir bloque**: el clic izquierdo pone.
 2. **Quitar bloque**: el clic izquierdo quita bloques y colocables.
 3. **Simetría**: sin ella, la pone en el bloque apuntado, en el eje X. Puesta, pasa al eje
    siguiente, y después del Z la quita. Su hueco dice el eje («Simetría Y») y, bajo el ratón, el
    centro dice qué hará. Si no se apunta a un bloque, avisa.
-4. **Blueprints**: abre el menú de blueprints (ver abajo).
-5. **Elegir bloque**: abre el menú de bloques. Su hueco enseña el icono del bloque elegido.
+4. **Reparar**: deja una reparación en la construcción apuntada, con su blueprint (ver «Reparar»,
+   abajo). Si no se sabe cuál es, abre la biblioteca para elegirlo.
+5. **Blueprints**: abre el menú de blueprints (ver abajo).
+6. **Elegir bloque**: abre el menú de bloques. Su hueco enseña el icono del bloque elegido.
 
 Se usa así:
 
@@ -104,7 +107,8 @@ los martillazos en una obra que ya estaba puesta no piden material.
 - la miniatura;
 - los datos: medidas, bloques, colocables, volumen, celdas y, si es dinámica, masa y compartimentos;
 - lo que vale en materiales, que es lo que devolvería al desmontarla;
-- **Guardar como blueprint.** Si el nombre ya existe avisa, y hay que pulsar «Sustituir» otra vez;
+- **Guardar como blueprint.** Si el nombre ya existe avisa, y hay que pulsar «Sustituir» otra vez.
+  Desde entonces la construcción sabe que es ese blueprint (para repararla);
 - **Convertir en dinámica**;
 - **Desmontar.** Pide pulsar dos veces. Quita todo como el martillo bloque a bloque, devuelve los
   materiales (`BuildingSystem.dismantle_group`), cierra el menú y avisa de lo recuperado. Antes,
@@ -117,6 +121,8 @@ materiales. Se pueden buscar por nombre y ordenar por nombre o por fecha. La fic
 - los bloques de un tipo que ya no existe, que no se pondrán;
 - los materiales, cada uno con «lo que llevas / lo que pide» en verde o en rojo;
 - **Colocar**, siempre: queda una obra (ver abajo). «Colocar como estática» en los dinámicos;
+- **Reparar**, si el menú se abrió apuntando a una construcción: la repara con este blueprint. Si se
+  abrió desde «Reparar» en la rueda para elegirlo, es el botón principal y «Colocar» no sale;
 - **Renombrar**, que no pisa otro;
 - **Borrar**, que pide pulsar dos veces.
 
@@ -201,6 +207,64 @@ de verdad en las grids de la obra, que se crean vacías al colocarla. `SiteBuild
 
 Si se desmonta o se convierte desde el menú una grid de la obra a medio hacer, lo que queda se pone en
 una grid nueva en el mismo sitio.
+
+### Reparar
+
+`RepairSite` (`scripts/building/repair_site.gd`): una obra sobre una construcción que ya está en pie,
+con lo que le falta para volver a ser la de un blueprint. Pensada para un barco que ha perdido unos
+bloques contra las rocas, pero vale para cualquier construcción.
+
+Se empieza con **Reparar** en la rueda del martillo, apuntando a la construcción, o con **Reparar** en
+la ficha de un blueprint de la biblioteca (el menú abierto apuntándola). Avisa de cuántas piezas hay
+que reponer y cuántos bloques están dañados.
+
+- **Qué blueprint:**
+  1. el que apuntan sus grids (`GridBase.source_blueprint`, ver abajo). Casa por poco que quede de
+     ella, siempre que algún bloque siga donde dice el blueprint;
+  2. si no lo apuntan, o ya no está en la biblioteca, el de la biblioteca que más bloques de la
+     construcción explica; a igualdad, el más pequeño. Tiene que salir de él al menos el 60 % de lo
+     que hay en pie (lo demás son añadidos) y tiene que quedar al menos el 20 % del blueprint
+     (`MIN_MATCH`, `MIN_KEPT`);
+  3. si tampoco, la rueda abre la biblioteca para elegirlo a mano. Elegido a mano basta con que
+     coincida un bloque: el fantasma enseña lo que haría, y si no es eso se cancela.
+
+  Un blueprint girado respecto a la construcción no casa.
+- **Cómo casa sin saberlo:** unos cuantos bloques suyos votan el desplazamiento entre sus celdas y las
+  del blueprint, se prueban también los que juntan las esquinas de las dos cajas, y gana el que hace
+  coincidir más bloques (`match_blueprint`).
+- **De qué blueprint es cada grid** (`source_blueprint`: nombre, cuál de sus grids es y el
+  desplazamiento de sus celdas): lo apuntan colocar un blueprint (obra o gratis), guardar la
+  construcción como blueprint y acabar de repararla. Va en cada grid y no en el cuerpo del barco, así
+  que vale también para las estáticas. Pasa a la grid dinámica al convertirla y a los trozos al
+  partirse, se guarda con la partida (clave `blueprint` de la grid) y se renombra con el blueprint.
+  Borrar el blueprint no lo quita: se busca otro como si no lo supiera.
+- **Qué hace:**
+  - pone los bloques que faltan si su celda está libre. Lo que el jugador haya puesto en su sitio, de
+    otro material o de otro tamaño de celda, se respeta;
+  - devuelve la vida a los bloques dañados que siguen siendo los del blueprint. Cuestan lo que les
+    falta para valer lo que costaron: el coste menos lo que devolverían al desmontarlos. Un bloque
+    que cuesta 1 se arregla sin material, solo con el martillo;
+  - pone los colocables que faltan (la vela, la antorcha), al final, como en una obra.
+- **Se ve:** lo que falta, en el fantasma azul de las obras, y lo dañado, en un velo ámbar sobre el
+  propio bloque.
+- **Con el martillo**, igual que una obra: E aporta, el clic izquierdo martillea y en modo quitar dos
+  clics la **cancelan**. Cancelar devuelve lo aportado y deja la construcción como esté. Arreglar un
+  bloque se puede estando encima de él; poner uno que falta, no.
+- **Solo se apunta con el martillo en la mano.** Mientras tanto la construcción entera es la
+  reparación (como una obra), así que con el martillo no se ponen ni se quitan bloques sueltos en
+  ella hasta acabarla o cancelarla. Navegando sin martillo, el barco no enseña el panel.
+- **Sigue al barco:** va colgada de su cuerpo, en el espacio de sus grids. Si la construcción estática
+  se convierte en dinámica, se pasa al cuerpo nuevo.
+- **Desmontar la construcción** desde el menú quita la reparación y devuelve lo aportado. Si la
+  construcción desaparece de otra forma, lo aportado cae al suelo.
+- **Construyendo gratis** se repara al momento.
+- **Guardado:** con las obras, con `kind = "repair"`. Su blueprint es solo lo que hay que hacer, ya en
+  las celdas de las grids de la construcción: por cada grid del blueprint, una con lo que falta y otra
+  con lo dañado (`"repair"`, y `"repair_cost"` en cada bloque). Lleva también con qué casó
+  (`"offset"`, `"owners"` y `"source"` en cada grid), para apuntarlo en las grids al acabar.
+
+Lo dañado se mira al empezar: si el barco recibe más golpes mientras se repara, se cancela y se
+vuelve a empezar para incluirlos.
 
 ## Tejados de paja
 
@@ -367,7 +431,7 @@ godot --path . res://tests/ui/build_ui_preview.tscn -- --capture --background
 **`test_build_hammer`** prueba:
 
 - el objeto y su receta;
-- los cinco huecos de la rueda y cómo se elige;
+- los seis huecos de la rueda y cómo se elige;
 - que con un colocable no se puede pasar a quitar;
 - el menú de bloques: elegir, recientes y tamaño de celda.
 

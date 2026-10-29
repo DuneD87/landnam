@@ -64,12 +64,13 @@ func _check_sectors() -> void:
 	var dz := 10.0
 	var options := BuildRadialMenu.OPTIONS
 	check(options == [BuildRadialMenu.Option.ADD, BuildRadialMenu.Option.REMOVE, BuildRadialMenu.Option.SYMMETRY,
-		BuildRadialMenu.Option.BLUEPRINTS, BuildRadialMenu.Option.SELECT_BLOCK],
-		"cinco huecos: añadir, quitar, simetría, blueprints y elegir bloque")
+		BuildRadialMenu.Option.REPAIR, BuildRadialMenu.Option.BLUEPRINTS, BuildRadialMenu.Option.SELECT_BLOCK],
+		"seis huecos: añadir, quitar, simetría, reparar, blueprints y elegir bloque")
 	for i in options.size():
 		check(BuildRadialMenu.sector_at(_toward(i, 50.0), dz) == i, "hacia el centro del hueco %d, ese" % i)
 	check(BuildRadialMenu.sector_at(Vector2(0, -50), dz) == 0, "arriba: añadir")
-	check(BuildRadialMenu.sector_at(Vector2(50, 0), dz) == 1, "derecha: quitar")
+	check(BuildRadialMenu.sector_at(Vector2(50, -30), dz) == 1, "arriba a la derecha: quitar")
+	check(BuildRadialMenu.sector_at(Vector2(0, 50), dz) == 3, "abajo: reparar")
 	check(BuildRadialMenu.sector_at(Vector2(3, 4), dz) == -1, "en la zona muerta, nada")
 
 
@@ -92,9 +93,9 @@ func _check_radial_input() -> void:
 	var chosen: Array = []
 	radial.option_chosen.connect(func(option: BuildRadialMenu.Option) -> void: chosen.append(option))
 
-	# Mantener, apuntar a la derecha y soltar: quitar.
+	# Mantener, apuntar arriba a la derecha y soltar: quitar.
 	radial.open(BuildRadialMenu.Option.ADD, null)
-	radial._input(_motion(Vector2(400, 0)))
+	radial._input(_motion(Vector2(400, -240)))
 	radial._input(_button(MOUSE_BUTTON_RIGHT, false))
 	check(not radial.is_open() and chosen == [BuildRadialMenu.Option.REMOVE], "soltar sobre quitar lo elige")
 

@@ -1079,12 +1079,19 @@ func _player_down() -> Vector3:
 
 ## Desmonta la construcción entera de [grid_id] (su grupo de grids) como si se quitara bloque a
 ## bloque: devuelve a cada uno lo que le queda de vida y los colocables enteros (con
-## construir gratis, nada). Devuelve lo devuelto.
+## construir gratis, nada). Una reparación suya en marcha se va con ella y devuelve lo aportado.
+## Devuelve lo devuelto.
 func dismantle_group(grid_id: String) -> Dictionary:
 	var group := GridManager.get_grid_group(grid_id)
 	if group.is_empty():
 		return {}
 	var refund := {} if free_build else BuildCost.of_grids(group, true)
+	for site: BlueprintSite in RepairSite.sites_on(get_tree(), group):
+		if site is RepairSite:
+			var deposited := site.take_deposited()
+			for id: StringName in deposited:
+				BuildCost.add(refund, id, int(deposited[id]))
+			site.remove()
 	if _mirror_active and mirror_grid and mirror_grid in group:
 		toggle_symmetry({})
 	GridManager.remove_grid_group(grid_id)
@@ -1148,8 +1155,9 @@ func get_aimed_grid(ray_hit: Dictionary) -> GridBase:
 	return null
 
 
-## Guarda en disco el grupo de grids al que pertenece grid_id. Devuelve el nº de bloques
-## guardados, o -1 si el grupo estaba vacío o falló la escritura.
+## Guarda en disco el grupo de grids al que pertenece grid_id, que desde ahora sabe que es ese
+## blueprint (para repararlo). Devuelve el nº de bloques guardados, o -1 si el grupo estaba vacío o
+## falló la escritura.
 func save_grid_blueprint(grid_id: String, blueprint_name: String) -> int:
 	var group := GridManager.get_grid_group(grid_id)
 	if group.is_empty():
@@ -1161,6 +1169,7 @@ func save_grid_blueprint(grid_id: String, blueprint_name: String) -> int:
 
 	if not GridBlueprint.save_to_disk(blueprint_name, data):
 		return -1
+	GridBlueprint.mark_source(group, blueprint_name)
 
 	print("[BuildingSystem] Blueprint '%s' guardado (%d grids, %d bloques)" % [
 		blueprint_name, (data["grids"] as Array).size(), data["block_count"]])

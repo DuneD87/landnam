@@ -9,6 +9,9 @@ extends Node
 ##   golpea y avisa;
 ## - con el martillo en modo quitar, dos clics seguidos la desmontan: devuelve lo aportado y lo
 ##   construido.
+## Una reparación (RepairSite) se maneja igual, pero solo se apunta con el martillo en la mano (es
+## la construcción entera: navegando no tiene que salir su panel) y los dos clics la cancelan sin
+## tocar la construcción.
 ## Mientras se apunta, un panel (BlueprintSitePanel) dice cómo va y qué le falta.
 
 ## Margen (m) con el que lo que golpea el rayo de física cuenta como la obra: el rayo la toca en el
@@ -47,10 +50,11 @@ func update_aim(origin: Vector3, direction: Vector3, length: float, hit: Diction
 	var best_t := INF
 	var hit_t := origin.distance_to(hit["position"]) if not hit.is_empty() else INF
 	var hit_grid: GridBase = _player.building_system.get_aimed_grid(hit) if not hit.is_empty() else null
+	var hammer := _player._holds_hammer()
 	if _can_aim():
 		for node in get_tree().get_nodes_in_group(BlueprintSite.GROUP):
 			var candidate := node as BlueprintSite
-			if candidate == null or candidate.is_queued_for_deletion():
+			if candidate == null or candidate.is_queued_for_deletion() or (candidate is RepairSite and not hammer):
 				continue
 			if candidate.get_center().distance_to(from) > candidate.get_radius() + reach + length:
 				continue
@@ -162,15 +166,19 @@ func _on_impact(target: BlueprintSite) -> bool:
 		_holding = false
 		var leftover := target.take_deposited()
 		BuildCost.give(leftover, _player.inventory, _player, _player.gravity_direction)
-		_notify(tr("SITE_FINISHED") % (name_shown if name_shown != "" else tr("SITE_TITLE")))
+		if target is RepairSite:
+			_notify(tr("REPAIR_FINISHED") % name_shown)
+		else:
+			_notify(tr("SITE_FINISHED") % (name_shown if name_shown != "" else tr("SITE_TITLE")))
 	return true
 
 
 func _press_dismantle() -> void:
+	var repair := site is RepairSite
 	if _armed != site or _armed_left <= 0.0:
 		_armed = site
 		_armed_left = DISMANTLE_WINDOW
-		_notify(tr("SITE_DISMANTLE_CONFIRM"))
+		_notify(tr("REPAIR_CANCEL_CONFIRM" if repair else "SITE_DISMANTLE_CONFIRM"))
 		return
 	_armed = null
 	_holding = false
@@ -180,6 +188,12 @@ func _press_dismantle() -> void:
 	target.remove()
 	site = null
 	_panel.hide_site()
+	# Cancelar una reparación solo devuelve lo aportado: la construcción se queda como está.
+	if repair:
+		BuildCost.give(deposited, _player.inventory, _player, _player.gravity_direction)
+		AudioManager.play_ui(&"item_pickup")
+		_notify(tr("REPAIR_CANCELLED") % (BuildCost.describe(deposited) if not deposited.is_empty() else tr("GRID_VALUE_NONE").to_lower()))
+		return
 	# Lo construido vuelve como al desmontar una construcción (según la vida de cada bloque) y lo
 	# aportado, entero.
 	var back := deposited.duplicate()
@@ -203,7 +217,7 @@ func _refresh_panel() -> void:
 	var state := ""
 	var ok := _problem == &""
 	if ok:
-		state = tr("SITE_READY") if hammer else tr("SITE_NEED_HAMMER")
+		state = tr("REPAIR_READY" if site is RepairSite else "SITE_READY") if hammer else tr("SITE_NEED_HAMMER")
 		ok = hammer
 	else:
 		state = _problem_text(_problem)

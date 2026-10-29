@@ -18,6 +18,8 @@ extends Node3D
 ##
 ## Construyendo gratis (BuildingSystem.free_build) los golpes no piden material.
 ##
+## Una reparación (RepairSite) es una obra sobre una construcción que ya está en pie.
+##
 ## Se guardan con las grids (GridManager): capture_all y restore_all.
 
 const GROUP := &"blueprint_site"
@@ -81,7 +83,7 @@ static func create(data: Dictionary, planet: Node3D, placement: Transform3D, bp_
 	planet.add_child(site)
 	site.global_transform = placement
 	site._setup(data, bp_name, force_static)
-	site._grids = GridBlueprint.create_grids(data, planet, placement.origin, placement.basis)
+	site._grids = GridBlueprint.create_grids(data, planet, placement.origin, placement.basis, bp_name)
 	site._grid_ids = site._grids.map(func(grid: GridBase) -> String: return grid.grid_id)
 	site._refresh_ghost()
 	if site.is_complete():
@@ -137,18 +139,13 @@ func _build_entries() -> void:
 			if parsed == null or BlockDatabase.get_block(int(info.get("block_id", -1))) == null:
 				continue
 			var cell: Vector3i = parsed
-			var item := &""
-			var amount := 0
-			var mat := BlockDatabase.get_material_by_id(str(info.get("material_id", "")))
-			if mat != null and mat.item != null:
-				item = mat.item.id
-				amount = mat.get_cost_for_size(cell_size)
+			var cost := _block_cost(info, cell_size)
 			order.append(_order_key(roundi(cell.y * cell_size * 8.0) + 32768, gi, cell.x, cell.z, keys.size()))
 			grid_of.append(gi)
 			keys.append(key)
 			cells.append(cell)
-			costs.append({item: amount} if item != &"" else {})
-			amounts.append(amount)
+			costs.append(cost)
+			amounts.append(BuildCost.total(cost))
 		_cells_by_grid.append({})
 		var props: Array = grid_data.get("props", [])
 		for pi in props.size():
@@ -178,6 +175,14 @@ func _build_entries() -> void:
 	_total_work = 0.0
 	for amount in _amounts:
 		_total_work += maxi(1, amount)
+
+
+## Lo que cuesta poner el bloque [info] del blueprint en una grid de [cell_size] (id → cantidad).
+func _block_cost(info: Dictionary, cell_size: float) -> Dictionary:
+	var mat := BlockDatabase.get_material_by_id(str(info.get("material_id", "")))
+	if mat == null or mat.item == null:
+		return {}
+	return {mat.item.id: mat.get_cost_for_size(cell_size)}
 
 
 ## Clave de orden: 16 bits de capa, 3 de grid, 12 de x, 12 de z y 20 del índice. Lo que se sale se
@@ -274,7 +279,7 @@ func work_problem(bodies: Array = []) -> StringName:
 			break
 		if not _can_pay(i):
 			continue
-		if _keys[i] is String and _under_body(i, boxes):
+		if _needs_room(i) and _under_body(i, boxes):
 			blocked = true
 			continue
 		return &""
@@ -328,7 +333,7 @@ func work(bodies: Array = []) -> Dictionary:
 			break
 		if not _can_pay(i):
 			continue
-		if not is_prop and _under_body(i, boxes):
+		if _needs_room(i) and _under_body(i, boxes):
 			blocked = true
 			continue
 		var grid := _grid(_grid_of[i])
@@ -366,14 +371,14 @@ func _can_pay(i: int) -> bool:
 	return true
 
 
+## Si la entrada [i] ocupa sitio: no se pone donde está de pie quien martillea.
+func _needs_room(i: int) -> bool:
+	return _keys[i] is String
+
+
 ## Pone la entrada [i] en [grid]. Si su celda ya está ocupada, o no se puede, se salta sin cobrar.
 func _place(i: int, grid: GridBase, others: Array) -> bool:
-	var grid_data: Dictionary = _data["grids"][_grid_of[i]]
-	var placed := false
-	if _keys[i] is int:
-		placed = GridBlueprint.place_prop(grid, grid_data["props"][_keys[i]])
-	elif not grid.has_block(_cells[i]) and not _overlaps_other(grid, _cells[i], others):
-		placed = GridBlueprint.place_block(grid, _cells[i], GridBlueprint.block_info(grid_data["blocks"][_keys[i]]))
+	var placed := _put(i, grid, others)
 	_left -= 1
 	if _keys[i] is String:
 		_blocks_left -= 1
@@ -394,6 +399,16 @@ func _place(i: int, grid: GridBase, others: Array) -> bool:
 			if int(deposited.get(id, 0)) <= 0:
 				deposited.erase(id)
 	return true
+
+
+## Pone en [grid] lo de la entrada [i]; false si su celda ya está ocupada o no se puede.
+func _put(i: int, grid: GridBase, others: Array) -> bool:
+	var grid_data: Dictionary = _data["grids"][_grid_of[i]]
+	if _keys[i] is int:
+		return GridBlueprint.place_prop(grid, grid_data["props"][_keys[i]])
+	if grid.has_block(_cells[i]) or _overlaps_other(grid, _cells[i], others):
+		return false
+	return GridBlueprint.place_block(grid, _cells[i], GridBlueprint.block_info(grid_data["blocks"][_keys[i]]))
 
 
 func _sound_of(i: int) -> StringName:
@@ -514,6 +529,16 @@ func owns_grid(grid: GridBase) -> bool:
 	return grid != null and _is_own(grid)
 
 
+## Lo que pone el panel arriba.
+func get_title() -> String:
+	return blueprint_name if blueprint_name != "" else tr("SITE_TITLE")
+
+
+## Los controles, para el panel (clave de traducción).
+func get_hint() -> String:
+	return "SITE_HINT"
+
+
 # --- Fantasma y puntería ----------------------------------------------------------------------------
 
 func set_aimed(aimed: bool) -> void:
@@ -556,14 +581,19 @@ func _refresh_ghost() -> void:
 			continue
 		var mesh := ChunkMeshBuilder.build_mesh(_ghost_blocks[gi], _cell_sizes[gi], Transform3D.IDENTITY, {}, pending)
 		if mesh:
-			_add_ghost(mesh, Vector3.ZERO)
+			_add_ghost(mesh, Vector3.ZERO, _ghost_material_for(gi))
 
 
-func _add_ghost(mesh: Mesh, at: Vector3) -> void:
+## Material del fantasma de lo que falta en la grid [gi] del blueprint.
+func _ghost_material_for(_gi: int) -> Material:
+	return _ghost_material
+
+
+func _add_ghost(mesh: Mesh, at: Vector3, material: Material = null) -> void:
 	var instance := MeshInstance3D.new()
 	instance.mesh = mesh
 	instance.position = at
-	instance.material_override = _ghost_material
+	instance.material_override = material if material != null else _ghost_material
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(instance)
 
@@ -675,6 +705,9 @@ static func capture_all(tree: SceneTree) -> Array:
 ## Vuelve a poner las obras guardadas, con las grids ya restauradas.
 static func restore_all(tree: SceneTree, entries: Array) -> void:
 	for entry: Dictionary in entries:
+		if entry.get("kind", "") == RepairSite.KIND:
+			RepairSite.restore(tree, entry)
+			continue
 		var planet := tree.root.get_node_or_null(str(entry.get("planet_path", ""))) as Node3D
 		if planet == null:
 			push_warning("[BlueprintSite] No se encontró el planeta de la obra '%s'" % entry.get("name", ""))

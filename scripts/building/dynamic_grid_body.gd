@@ -697,6 +697,7 @@ func _spawn_piece(piece: Dictionary, whole_centroid: Vector3, old_lin: Vector3, 
 		piece_grid.planet_node = planet_node
 		piece_grid.cell_size = source.cell_size
 		piece_grid.mesh_materials = source.mesh_materials.duplicate()
+		piece_grid.source_blueprint = source.source_blueprint.duplicate()
 		piece_grid._body = body
 		piece_grid._owns_body = owns_body
 		owns_body = false

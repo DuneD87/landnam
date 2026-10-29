@@ -23,25 +23,13 @@ const CELL_EPSILON := 0.001
 
 ## Captura el grupo de grids en un blueprint. Devuelve {} si el grupo no tiene bloques.
 static func capture(grids: Array) -> Dictionary:
-	var filled: Array = []
-	for grid: GridBase in grids:
-		if grid.get_block_count() > 0:
-			filled.append(grid)
-	if filled.is_empty():
+	var layout := _layout(grids)
+	if layout.is_empty():
 		return {}
-
-	filled.sort_custom(func(a: GridBase, b: GridBase) -> bool:
-		return a.get_block_count() > b.get_block_count())
-
-	var min_m := Vector3.INF
-	var max_m := -Vector3.INF
-	for grid: GridBase in filled:
-		for grid_pos: Vector3i in grid.get_all_blocks():
-			var corner := Vector3(grid_pos) * grid.cell_size
-			min_m = min_m.min(corner)
-			max_m = max_m.max(corner + Vector3.ONE * grid.cell_size)
-
-	var offset_m := _quantized_offset(filled, min_m)
+	var filled: Array = layout["filled"]
+	var min_m: Vector3 = layout["min"]
+	var max_m: Vector3 = layout["max"]
+	var offset_m: Vector3 = layout["offset"]
 
 	var grids_data: Array = []
 	var block_count := 0
@@ -67,6 +55,43 @@ static func capture(grids: Array) -> Dictionary:
 		"prop_count": prop_count,
 		"grids": grids_data,
 	}
+
+
+## Cómo queda el grupo [grids] en su blueprint: {"filled": las grids con bloques, de la que más tiene a
+## la que menos (el orden de las del blueprint), "min"/"max": su caja (m) y "offset": lo que se le
+## resta para llevar su esquina al origen}; {} si no tiene bloques.
+static func _layout(grids: Array) -> Dictionary:
+	var filled: Array = []
+	for grid: GridBase in grids:
+		if grid.get_block_count() > 0:
+			filled.append(grid)
+	if filled.is_empty():
+		return {}
+
+	filled.sort_custom(func(a: GridBase, b: GridBase) -> bool:
+		return a.get_block_count() > b.get_block_count())
+
+	var min_m := Vector3.INF
+	var max_m := -Vector3.INF
+	for grid: GridBase in filled:
+		for grid_pos: Vector3i in grid.get_all_blocks():
+			var corner := Vector3(grid_pos) * grid.cell_size
+			min_m = min_m.min(corner)
+			max_m = max_m.max(corner + Vector3.ONE * grid.cell_size)
+	return {"filled": filled, "min": min_m, "max": max_m, "offset": _quantized_offset(filled, min_m)}
+
+
+## Apunta en las grids de [grids], que se acaban de guardar como [bp_name], que son ese blueprint y
+## cuál de sus grids es cada una (GridBase.source_blueprint). Las vacías dejan de ser de ninguno.
+static func mark_source(grids: Array, bp_name: String) -> void:
+	var layout := _layout(grids)
+	var filled: Array = layout.get("filled", [])
+	for grid: GridBase in grids:
+		var i := filled.find(grid)
+		if i >= 0:
+			grid.set_source_blueprint(bp_name, i, layout["offset"])
+		else:
+			grid.source_blueprint = {}
 
 
 ## Desplazamiento que lleva la esquina del grupo al origen. Se cuantiza al mayor cell_size para
@@ -135,11 +160,12 @@ static func _capture_grid(grid: GridBase, cell_offset: Vector3i, offset_m: Vecto
 
 ## Reconstruye el blueprint en el planeta, con su esquina en origin_world y orientado según
 ## basis_world. Devuelve las grids creadas (ya dinámicas si el blueprint lo era y no se fuerza
-## force_static, que las deja ancladas al planeta).
+## force_static, que las deja ancladas al planeta). Con [bp_name], las grids saben de qué blueprint
+## salieron.
 static func instantiate(data: Dictionary, planet: Node3D, origin_world: Vector3, basis_world: Basis,
-	force_static: bool = false) -> Array:
+	force_static: bool = false, bp_name: String = "") -> Array:
 
-	var created := create_grids(data, planet, origin_world, basis_world)
+	var created := create_grids(data, planet, origin_world, basis_world, bp_name)
 	var grids_data: Array = data.get("grids", [])
 	for i in created.size():
 		_restore_blocks(created[i], blocks_dict(grids_data[i]))
@@ -149,8 +175,10 @@ static func instantiate(data: Dictionary, planet: Node3D, origin_world: Vector3,
 
 ## Las grids del blueprint, vacías y con sus materiales, una por cada una suya y en su orden: la
 ## primera con la esquina en origin_world y orientada según basis_world, y las demás alineadas a
-## ella. [] sin grids o sin planeta.
-static func create_grids(data: Dictionary, planet: Node3D, origin_world: Vector3, basis_world: Basis) -> Array:
+## ella (las celdas del blueprint son las suyas). Con [bp_name] apuntan que salen de él
+## (GridBase.source_blueprint). [] sin grids o sin planeta.
+static func create_grids(data: Dictionary, planet: Node3D, origin_world: Vector3, basis_world: Basis,
+	bp_name: String = "") -> Array:
 	var grids_data: Array = data.get("grids", [])
 	if grids_data.is_empty() or not planet:
 		return []
@@ -167,6 +195,8 @@ static func create_grids(data: Dictionary, planet: Node3D, origin_world: Vector3
 		else:
 			grid = GridManager.create_grid_aligned(planet, reference, cell)
 		_restore_materials(grid, grid_data)
+		if bp_name != "":
+			grid.set_source_blueprint(bp_name, created.size(), Vector3.ZERO)
 		created.append(grid)
 	return created
 
@@ -452,7 +482,8 @@ static func delete_from_disk(bp_name: String) -> bool:
 	return DirAccess.remove_absolute(path) == OK
 
 
-## Cambia el nombre de un blueprint (con su ficha y su miniatura). No pisa otro que ya exista.
+## Cambia el nombre de un blueprint (con su ficha y su miniatura, y en las grids que salieron de él).
+## No pisa otro que ya exista.
 static func rename_on_disk(old_name: String, new_name: String) -> bool:
 	if new_name == "" or new_name == old_name or exists(new_name) or not exists(old_name):
 		return false
@@ -462,4 +493,7 @@ static func rename_on_disk(old_name: String, new_name: String) -> bool:
 			[thumbnail_path_for(old_name), thumbnail_path_for(new_name)]]:
 		if FileAccess.file_exists(pair[0]):
 			DirAccess.rename_absolute(pair[0], pair[1])
+	for grid: GridBase in GridManager.get_all_grids():
+		if grid.source_blueprint.get("name", "") == old_name:
+			grid.source_blueprint["name"] = new_name
 	return true
