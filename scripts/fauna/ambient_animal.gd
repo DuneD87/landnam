@@ -26,6 +26,19 @@ const MAX_HULL_SPEED := 200.0
 @export var lethal_impact_speed: float = 5.0
 ## Half-size used for impacts: hull proximity sweeps and projectile paths.
 var impact_radius: float = 0.4
+## Fuera de cámara da un tick de física entero de cada OFFSCREEN_STRIDE, con el tiempo de los que
+## se salta (_offscreen_step). Margen (m) sobre su radio para que no asome a saltos por el borde.
+const OFFSCREEN_STRIDE := 4
+const OFFSCREEN_VIEW_MARGIN := 2.0
+var _offscreen_delta: float = 0.0
+## Dormida: lejos y fuera de cámara deja de existir para el motor. Oculta y parada (sin física,
+## esqueleto, animación ni sonido), con su estado tal cual. El spawner la duerme en su pasada
+## (update_dormancy) y la despierta en cuanto asoma en cámara o el observador se acerca.
+var dormant: bool = false
+## Distancia (m) desde la que la fauna pequeña (pájaros, conejos...) se duerme fuera de cámara.
+const FAUNA_DORMANT_DISTANCE := 30.0
+## Hasta cuándo (ms) no se duerme: la persigue alguien despierto (keep_awake).
+var _awake_until: int = 0
 ## Optional child: a creature without one is fragile and any hit that reaches it is lethal.
 @onready var health_component: HealthComponent = get_node_or_null("HealthComponent")
 
@@ -50,6 +63,9 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	active = true
 	retiring = false
 	corpse = null
+	_offscreen_delta = 0.0
+	dormant = false
+	_awake_until = 0
 	process_mode = Node.PROCESS_MODE_INHERIT
 	add_to_group(GROUP)
 	if health_component != null:
@@ -63,6 +79,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 
 func deactivate() -> void:
 	active = false
+	dormant = false
 	velocity = Vector3.ZERO
 	if is_in_group(GROUP):
 		remove_from_group(GROUP)
@@ -87,6 +104,78 @@ func in_play() -> bool:
 ## la retira porque sobre.
 func tracked() -> bool:
 	return false
+
+
+## El delta que simula este tick: el suyo en cámara, y fuera de ella el acumulado de los ticks que
+## se ha saltado, uno de cada OFFSCREEN_STRIDE (0.0 = este se lo salta). En cuanto asoma vuelve a ir
+## entera ese mismo tick. [allowed] false lo deja entero (un paso que no admite tiempos largos).
+func _offscreen_step(delta: float, allowed: bool = true) -> float:
+	_offscreen_delta += delta
+	if allowed and (Engine.get_physics_frames() + get_instance_id()) % OFFSCREEN_STRIDE != 0 \
+			and not AnimationLod.in_view(self, _view_radius()):
+		return 0.0
+	delta = _offscreen_delta
+	_offscreen_delta = 0.0
+	return delta
+
+
+## move_and_slide con un paso de [delta] s en vez del tick: escala la velocidad lo que dura el paso y
+## la devuelve después. Devuelve la escala, para leer get_real_velocity() en m/s.
+func _move_and_slide_for(delta: float) -> float:
+	var stretch := maxf(delta / get_physics_process_delta_time(), 1.0)
+	if stretch == 1.0:
+		move_and_slide()
+		return 1.0
+	velocity *= stretch
+	move_and_slide()
+	velocity /= stretch
+	return stretch
+
+
+## Desde qué distancia (m) al observador se duerme fuera de cámara. INF = nunca (la base: la fauna
+## marina no se duerme).
+func dormant_distance() -> float:
+	return INF
+
+
+## Si puede dormirse ahora. Cada especie añade lo suyo (no mientras huye, cae o se posa).
+func _may_go_dormant() -> bool:
+	return Time.get_ticks_msec() >= _awake_until
+
+
+## Radio (m) con que asoma en cámara: el de su cuerpo más un margen.
+func _view_radius() -> float:
+	return impact_radius + OFFSCREEN_VIEW_MARGIN
+
+
+## La duerme o la despierta a [distance] m del observador, según la cámara. Devuelve si queda
+## dormida.
+func update_dormancy(distance: float) -> bool:
+	var asleep := active and distance > dormant_distance() and _may_go_dormant() \
+		and not AnimationLod.in_view(self, _view_radius())
+	if asleep != dormant:
+		set_dormant(asleep)
+	return dormant
+
+
+func set_dormant(value: bool) -> void:
+	if value == dormant or (value and not active):
+		return
+	dormant = value
+	if value:
+		hide()
+		process_mode = Node.PROCESS_MODE_DISABLED
+	else:
+		process_mode = Node.PROCESS_MODE_INHERIT
+		show()
+		reset_physics_interpolation()
+
+
+## Alguien despierto va a por ella (o huye de ella): se despierta y no se duerme en un rato.
+func keep_awake(seconds: float = 2.0) -> void:
+	_awake_until = Time.get_ticks_msec() + int(seconds * 1000.0)
+	if dormant:
+		set_dormant(false)
 
 
 ## Detail level for the current distance to the observer, called by the spawner while the

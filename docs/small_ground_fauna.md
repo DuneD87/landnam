@@ -7,11 +7,11 @@ desactiva. No requieren modelos externos ni añaden datos a las partidas.
 
 | Perfil en `data/fauna/` | Población máxima | Paseo / huida | Distancia de alarma |
 | --- | ---: | ---: | ---: |
-| `rabbits.tres` | 10 | 0,55 / 5 m/s | 6 m |
-| `foxes.tres` | 2 | 1,4 / 5 m/s | 8 m |
-| `mice.tres` | 12 | 0,65 / 2,4 m/s | 3,5 m |
+| `rabbits.tres` | 5 | 0,55 / 5 m/s | 6 m |
+| `foxes.tres` | 1 | 1,4 / 5 m/s | 8 m |
+| `mice.tres` | 6 | 0,65 / 2,4 m/s | 3,5 m |
 
-En el frío, `arctic_hares.tres` (8), `arctic_foxes.tres` (2) y `lemmings.tres` (12, 0,6 / 2,4 m/s).
+En el frío, `arctic_hares.tres` (4), `arctic_foxes.tres` (1) y `lemmings.tres` (6, 0,6 / 2,4 m/s).
 Son cupos con la opción de fauna al máximo, antes de aplicar actividad por hora y estación.
 Se ajustan junto con las criaturas grandes para limitar la densidad total de cada zona
 (ver [creature_species.md](creature_species.md#población)).

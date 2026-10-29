@@ -162,11 +162,25 @@ func _physics_process(delta: float) -> void:
 	if GameManager.current_state != GameManager.State.PLAYING:
 		return
 	var start := Time.get_ticks_usec()
-	if _spawn_fade < 1.0 and profile != null:
-		_spawn_fade = minf(1.0, _spawn_fade + delta / maxf(profile.spawn_fade_time, 0.01))
-		_visual.set_instance_shader_parameter("spawn_fade", _spawn_fade)
-	_swim(delta)
+	# El que sigue el cebo va entero: el jugador lo está mirando picar.
+	var step := _offscreen_step(delta, not is_instance_valid(_fishing_lure))
+	if step > 0.0:
+		if _spawn_fade < 1.0 and profile != null:
+			_spawn_fade = minf(1.0, _spawn_fade + step / maxf(profile.spawn_fade_time, 0.01))
+			_visual.set_instance_shader_parameter("spawn_fade", _spawn_fade)
+		_swim(step)
 	DebugStats.report_cost(&"fauna:fish", Time.get_ticks_usec() - start)
+
+
+## Su radio de salida es corto (32 m): a 30 m como el resto apenas se dormiría ninguno.
+const FISH_DORMANT_DISTANCE := 15.0
+
+func dormant_distance() -> float:
+	return FISH_DORMANT_DISTANCE
+
+
+func _may_go_dormant() -> bool:
+	return super._may_go_dormant() and not is_instance_valid(_fishing_lure)
 
 
 func _swim(delta: float) -> void:
@@ -201,7 +215,7 @@ func _swim(delta: float) -> void:
 	# Box sweep and penetration recovery handle normal contact with terrain and hulls.
 	# Never teleport a swimming fish to its destination or force it through the surface.
 	var incoming_velocity := velocity
-	move_and_slide()
+	_move_and_slide_for(delta)
 	for index in get_slide_collision_count():
 		if _resolve_ship_hit(get_slide_collision(index), incoming_velocity):
 			return

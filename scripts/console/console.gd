@@ -286,7 +286,8 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("derelicts", "derelicts", "CON_HELP_DERELICTS", _cmd_derelicts))
 	_add(ConsoleCommand.new("audio", "audio [event]", "CON_HELP_AUDIO", _cmd_audio))
 	_add(ConsoleCommand.new("water", "water", "CON_HELP_WATER", _cmd_water))
-	_add(ConsoleCommand.new("fauna", "fauna", "CON_HELP_FAUNA", _cmd_fauna))
+	_add(ConsoleCommand.new("fauna", "fauna [on|off] [aves|tierra|agua]", "CON_HELP_FAUNA", _cmd_fauna, 0,
+		func() -> PackedStringArray: return PackedStringArray(["on", "off", "aves", "tierra", "agua"])))
 	_add(ConsoleCommand.new("perf", "perf [on|off]", "CON_HELP_PERF", _cmd_perf))
 	_add(ConsoleCommand.new("scale", "scale [0.25-2.0]", "CON_HELP_SCALE", _cmd_scale))
 	_add(ConsoleCommand.new("terrain", TERRAIN_USAGE, "CON_HELP_TERRAIN", _cmd_terrain))
@@ -1213,10 +1214,12 @@ func _damage_report(grid: GridBase, cell: Vector3i) -> String:
 ## _update_derelict y desde fuera son indistinguibles entre sí: aquí van una a una.
 ## Por qué una especie no aparece: cuántos hay vivos, cuántos caben y en qué filtro se cae cada
 ## candidato. Sin esto, un spawn que no cuaja solo se puede diagnosticar dando vueltas por el mapa.
-func _cmd_fauna(_args: PackedStringArray) -> String:
+func _cmd_fauna(args: PackedStringArray) -> String:
 	var spawners := get_tree().get_nodes_in_group(AmbientFaunaSpawner.GROUP)
 	if spawners.is_empty():
 		return _paint(COLOR_ERR, tr("CON_NO_SPAWNERS"))
+	if not args.is_empty() and args[0].to_lower() in ["on", "off"]:
+		return _toggle_fauna(spawners, args[0].to_lower() == "on", args[1].to_lower() if args.size() > 1 else "")
 	var lines: Array[String] = []
 	for node in spawners:
 		var spawner := node as AmbientFaunaSpawner
@@ -1236,6 +1239,32 @@ func _cmd_fauna(_args: PackedStringArray) -> String:
 		lines.append("[color=%s]   %s[/color]" % [COLOR_MUTED, ground.report()])
 	return "
 ".join(lines)
+
+
+## Apaga (o enciende) en caliente los spawners de un grupo, para ver lo que cuesta: apagado, cada
+## criatura sale del juego (oculta, sin física ni proceso) y el spawner deja de reponerlas. Grupos:
+## aves (pájaros, gaviotas, patos), tierra (NPC y fauna pequeña), agua (peces y fauna marina);
+## sin grupo, todos.
+func _toggle_fauna(spawners: Array, on: bool, group: String) -> String:
+	if not (group in ["", "aves", "tierra", "agua"]):
+		return _paint(COLOR_ERR, tr("CON_FAUNA_BAD_GROUP") % group)
+	var touched := 0
+	for node in spawners:
+		var spawner := node as AmbientFaunaSpawner
+		if spawner == null or spawner.profile == null:
+			continue
+		var kind := "tierra" if spawner.profile is GroundFaunaProfile \
+			else ("aves" if spawner.profile is AmbientBirdProfile else "agua")
+		if group != "" and kind != group:
+			continue
+		if not on:
+			for animal in spawner._pool:
+				if animal.in_play():
+					animal.deactivate()
+		spawner.process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+		touched += 1
+	var what := group if group != "" else tr("CON_FAUNA_ALL")
+	return _paint(COLOR_OK if on else COLOR_MUTED, tr("CON_FAUNA_ON" if on else "CON_FAUNA_OFF") % [what, touched])
 
 
 func _cmd_derelicts(_args: PackedStringArray) -> String:

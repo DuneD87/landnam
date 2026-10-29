@@ -36,11 +36,25 @@ static func stride_for(node: Node3D, radius: float = 0.0, strides: Array = STRID
 	return FAR_STRIDE
 
 
+## Si [node] (una esfera de [radius] m en su origen) asoma en la cámara de su viewport. Sin cámara,
+## en cámara. Los planos se piden una vez por fotograma para todas las criaturas.
+static func in_view(node: Node3D, radius: float = 0.0) -> bool:
+	var camera := node.get_viewport().get_camera_3d() if node.is_inside_tree() else null
+	return camera == null or _in_frustum(camera, node.global_position, radius)
+
+
+static var _planes: Array[Plane] = []
+static var _planes_frame: int = -1
+static var _planes_camera: int = 0
+
 static func _in_frustum(camera: Camera3D, point: Vector3, radius: float) -> bool:
-	if radius <= 0.0:
-		return camera.is_position_in_frustum(point)
+	var frame := Engine.get_process_frames()
+	if frame != _planes_frame or camera.get_instance_id() != _planes_camera:
+		_planes_frame = frame
+		_planes_camera = camera.get_instance_id()
+		_planes = camera.get_frustum()
 	# Los planos del frustum miran hacia fuera.
-	for plane in camera.get_frustum():
+	for plane in _planes:
 		if plane.distance_to(point) > radius:
 			return false
 	return true

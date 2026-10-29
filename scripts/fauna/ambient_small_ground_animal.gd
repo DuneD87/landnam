@@ -74,6 +74,14 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat, rng: RandomNumbe
 	reset_physics_interpolation()
 
 
+func dormant_distance() -> float:
+	return FAUNA_DORMANT_DISTANCE
+
+
+func _may_go_dormant() -> bool:
+	return super._may_go_dormant() and state != State.FLEE and is_on_floor()
+
+
 func deactivate() -> void:
 	super.deactivate()
 	if is_instance_valid(_collision):
@@ -84,7 +92,10 @@ func _physics_process(delta: float) -> void:
 	if not active or GameManager.current_state != GameManager.State.PLAYING:
 		return
 	var start := Time.get_ticks_usec()
-	_step(delta)
+	# Huyendo va entera: huye del jugador, que la tiene cerca.
+	var step := _offscreen_step(delta, state != State.FLEE)
+	if step > 0.0:
+		_step(step)
 	DebugStats.report_cost(&"fauna:small_ground", Time.get_ticks_usec() - start)
 
 
@@ -122,7 +133,7 @@ func _step(delta: float) -> void:
 	vertical -= 12.0 * delta
 	velocity = horizontal + up_direction * vertical
 	var incoming := velocity
-	move_and_slide()
+	var stretch := _move_and_slide_for(delta)
 	for index in get_slide_collision_count():
 		if _resolve_ship_hit(get_slide_collision(index), incoming):
 			return
@@ -134,7 +145,7 @@ func _step(delta: float) -> void:
 	if not facing.is_zero_approx():
 		global_basis = Basis.looking_at(facing, up_direction)
 	_tilt_model(delta)
-	var actual_speed := get_real_velocity().slide(up_direction).length()
+	var actual_speed := get_real_velocity().slide(up_direction).length() / stretch
 	_time += delta
 	_model.advance(delta, actual_speed / body_size, is_on_floor(), velocity.dot(up_direction), turn)
 

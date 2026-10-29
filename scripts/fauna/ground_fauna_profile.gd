@@ -30,5 +30,8 @@ class_name GroundFaunaProfile extends AmbientFaunaProfile
 ## pie, en cuanto se para (si sigue andando, como mucho full_detail_distance más allá). Por debajo de
 ## full_detail_distance no hay tramo ligero.
 @export_range(0.0, 1000.0, 1.0, "or_greater", "suffix:m") var light_detail_distance: float = 150.0
+## Fuera de cámara, más allá de esta distancia deja de existir para el motor: oculta y parada
+## hasta que asoma o el jugador se acerca (AmbientAnimal.dormant). 0 = nunca.
+@export_range(0.0, 1000.0, 1.0, "or_greater", "suffix:m") var dormant_distance: float = 100.0
 ## Distancia a la que la IA pasa a actualizarse una vez de cada cuatro.
 @export_range(0.0, 200.0, 1.0, "or_greater", "suffix:m") var near_detail_distance: float = 20.0

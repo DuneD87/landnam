@@ -388,13 +388,34 @@ func _land(perch: Dictionary) -> void:
 		_timer = AmbientBirdProfile.span(_settings.perch_time_min, _settings.perch_time_max, _rng)
 
 
+## Los pájaros, más que el resto: solo cuentan los que están cerca.
+const BIRD_DORMANT_DISTANCE := 20.0
+
+func dormant_distance() -> float:
+	return BIRD_DORMANT_DISTANCE
+
+
+## Posado o volando sin más; ni despegando ni posándose.
+func _may_go_dormant() -> bool:
+	return super._may_go_dormant() and (state == State.PERCHED or state == State.FLYING)
+
+
+func set_dormant(value: bool) -> void:
+	super.set_dormant(value)
+	if dormant:
+		_stop_ambient_audio()
+
+
 func _physics_process(delta: float) -> void:
 	if not active or GameManager.current_state != GameManager.State.PLAYING:
 		_stop_ambient_audio()
 		return
 	var start := Time.get_ticks_usec()
-	_step(delta)
-	_update_ambient_audio(delta)
+	# Posándose va entero: con un paso largo se pasaría de la rama.
+	var step := _offscreen_step(delta, state != State.APPROACH)
+	if step > 0.0:
+		_step(step)
+		_update_ambient_audio(step)
 	DebugStats.report_cost(&"fauna:birds", Time.get_ticks_usec() - start)
 
 
@@ -524,7 +545,7 @@ func _step(delta: float) -> void:
 	else:
 		_steer(direction, target_speed, up, delta)
 	var incoming_velocity := velocity
-	move_and_slide()
+	_move_and_slide_for(delta)
 	for index in get_slide_collision_count():
 		if _resolve_ship_hit(get_slide_collision(index), incoming_velocity):
 			return

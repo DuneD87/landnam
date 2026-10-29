@@ -78,9 +78,9 @@ esqueletos reducen su coste, pero los cupos responden también a la frecuencia d
 
 | Zona | Criaturas grandes (cupo por especie) | Total grandes | Pequeños | Suma |
 | --- | --- | ---: | ---: | ---: |
-| Templado (biomas 1 y 3) | ciervo 12, cierva 8, oso 4, lobos 10, jabalí 8, lince 2; en lo frío, alce 4 y cabra montés 8 | 44–56 | conejo 10, zorro 2, ratón 12 | 68–80 |
-| Frío (por clima) | caribú 12, oso polar 2, mamut 6, lobos 10, alce 4, lince 2, cabra montés 8 | 44 | liebre 8, zorro ártico 2, lémming 12 | 66 |
-| Sabana (bioma 2) | ñu 12, búfalo 12, elefante 8, hiena 8, leona 6, león 2, rinoceronte 4, caimán 2 | 54 | — | 54 |
+| Templado (biomas 1 y 3) | ciervo 6, cierva 4, oso 2, lobos 5, jabalí 4, lince 1; en lo frío, alce 2 y cabra montés 4 | 22–28 | conejo 5, zorro 1, ratón 6 | 34–40 |
+| Frío (por clima) | caribú 6, oso polar 1, mamut 3, lobos 5, alce 2, lince 1, cabra montés 4 | 22 | liebre 4, zorro ártico 1, lémming 6 | 33 |
+| Sabana (bioma 2) | ñu 6, búfalo 6, elefante 4, hiena 4, leona 3, león 1, rinoceronte 2, caimán 1 | 27 | — | 27 |
 
 Las sumas son orientativas, con la opción de fauna al máximo y antes de aplicar actividad por
 hora y estación. Cada especie tiene su propio radio; altura, clima y terreno pueden reducir su
@@ -88,6 +88,11 @@ presencia, y las bandas templada y fría se solapan en la transición. No son un
 compartido. El nivel bajo de las opciones aplica el 40 % y el medio el 70 % (`FAUNA_SCALE`), con
 redondeo por especie y un mínimo de uno antes de la actividad. Los compañeros de una manada
 cuentan dentro del cupo del perfil.
+
+Fuera de cámara, una criatura grande a más de `dormant_distance` (100 m) deja de existir para el
+motor: oculta y parada hasta que asoma o el jugador se acerca. Los pequeños se duermen a 30 m, los
+pájaros a 20 m y los peces a 15 m (`AmbientAnimal.dormant`). Los cupos se partieron por la mitad el 28 de octubre
+de 2026 por rendimiento: cada criatura cuesta CPU aunque no se vea.
 
 Los pequeños se detallan en [small_ground_fauna.md](small_ground_fauna.md). Al añadir una especie
 a una zona, hay que redistribuir los cupos de esa zona para mantener su densidad.

@@ -171,6 +171,8 @@ var sea_ice_floes: SeaIceFloes
 
 @export_group("Ambient Fauna")
 @export var ambient_fauna_enabled: bool = true
+## Criaturas de superficie (NPCController), aparte del resto de la fauna: para medir lo que cuestan.
+@export var ground_fauna_enabled: bool = true
 @export var fish_profile: AmbientFaunaProfile = preload("res://data/fauna/coastal_fish.tres")
 @export var bird_profile: AmbientFaunaProfile = preload("res://data/fauna/forest_birds.tres")
 @export var bird_perches_debug: bool = false
@@ -492,7 +494,7 @@ func _apply_weather_override() -> void:
 ## Un spawner por especie de superficie, con la misma maquinaria de pool que peces y pájaros.
 ## Cada especie es un GroundFaunaProfile en disco; el JSON del planeta solo dice cuáles viven aquí.
 func _setup_ground_fauna(planet_parser: PlanetParser) -> void:
-	if not ambient_fauna_enabled or players.is_empty():
+	if not ambient_fauna_enabled or not ground_fauna_enabled or players.is_empty():
 		return
 	for profile_path in planet_parser.ground_fauna:
 		var source := load(profile_path) as GroundFaunaProfile

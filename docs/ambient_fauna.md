@@ -73,7 +73,7 @@ grande (`largest_size()`); `test_ambient_fauna` lo comprueba.
 
 ## Ajustes iniciales
 
-`data/fauna/coastal_fish.tres` configura 28 peces, búsqueda entre 6 y 32 metros
+`data/fauna/coastal_fish.tres` configura 14 peces, búsqueda entre 6 y 32 metros
 del jugador, reciclaje a partir de 50 metros y un máximo de dos activaciones
 cada 0,25 segundos. Los peces sumergidos también aparecen en el agua que ya se
 está mirando, con un fundido opaco de 1,2 segundos. Las otras poblaciones siguen

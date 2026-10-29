@@ -6,6 +6,9 @@ var profile: AmbientFaunaProfile
 var habitat: AmbientFaunaHabitat
 var observer: Node3D
 var _pool: Array[AmbientAnimal] = []
+## Las del pool que están dormidas (AmbientAnimal.dormant): se miran en cada tick para despertarlas
+## en cuanto asoman en cámara o se acerca el observador.
+var _dormant: Array[AmbientAnimal] = []
 var _rng := RandomNumberGenerator.new()
 var _elapsed: float = 0.0
 ## Espera añadida (s) mientras la especie no encuentra dónde salir y no tiene a nadie en juego: las
@@ -53,6 +56,7 @@ func _physics_process(delta: float) -> void:
 			if animal.active:
 				animal.deactivate()
 		return
+	_wake_dormant()
 	_elapsed += delta
 	if _idle_wait > 0.0 and observer.global_position.distance_to(_idle_from) > profile.spawn_radius * 0.25:
 		_idle_wait = 0.0
@@ -94,7 +98,9 @@ func update_population(deadline_usec: int = 0) -> void:
 	# Reducing the configured population also releases the surplus pool nodes.
 	var population := target_population()
 	while _pool.size() > population:
-		_pool.pop_back().queue_free()
+		var surplus: AmbientAnimal = _pool.pop_back()
+		_dormant.erase(surplus)
+		surplus.queue_free()
 	# Los que están en juego con la actividad de ahora; el pool se queda entero para cuando vuelva.
 	var active_target := mini(population, roundi(population * activity()))
 	var count := 0
@@ -107,7 +113,11 @@ func update_population(deadline_usec: int = 0) -> void:
 				and not (distance < TRACKED_RANGE and animal.tracked()):
 			animal.deactivate()
 		else:
-			animal.set_detail(distance)
+			if animal.update_dormancy(distance):
+				if not _dormant.has(animal):
+					_dormant.append(animal)
+			else:
+				animal.set_detail(distance)
 			count += 1
 	count = _retire_surplus(count, active_target)
 	var activated := 0
@@ -239,6 +249,18 @@ func _get_available_animal() -> AmbientAnimal:
 	animal.deactivate()
 	_pool.append(animal)
 	return animal
+
+
+func _wake_dormant() -> void:
+	for i in range(_dormant.size() - 1, -1, -1):
+		var animal := _dormant[i]
+		if not animal.dormant:
+			_dormant.remove_at(i)
+			continue
+		var distance := observer.global_position.distance_to(animal.global_position)
+		if not animal.update_dormancy(distance):
+			_dormant.remove_at(i)
+			animal.set_detail(distance)
 
 
 func _in_view(point: Vector3) -> bool:

@@ -163,7 +163,7 @@ func _cruise_step(water: WaterBirdHabitat, delta: float) -> void:
 	_steer(heading, _speed, up, delta)
 	var before := global_position
 	var incoming_velocity := velocity
-	move_and_slide()
+	_move_and_slide_for(delta)
 	for index in get_slide_collision_count():
 		if _resolve_ship_hit(get_slide_collision(index), incoming_velocity):
 			return

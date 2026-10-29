@@ -111,6 +111,10 @@ var _ai_update_stride: int = 1
 var _light_stride: int = 1
 ## El tiempo de los fotogramas que el tramo ligero se ha saltado, para el paso entero siguiente.
 var _light_delta: float = 0.0
+## El último detalle se rebajó por estar fuera de cámara (set_detail), a esta distancia: en cuanto
+## asoma o fija un objetivo, _physics_process lo recalcula sin esperar al spawner.
+var _detail_hidden: bool = false
+var _detail_distance: float = 0.0
 ## Cuenta de activaciones: un temporizador de cadáver de una vida anterior no debe tocar a la
 ## criatura que el pool ya ha vuelto a sacar.
 var _life_id: int = 0
@@ -120,6 +124,8 @@ const AI_STRIDE_FAR := 4
 ## A media distancia (GroundFaunaProfile.light_detail_distance), un paso entero de física e IA de
 ## cada tantos; entre medias solo avanza (_glide).
 const LIGHT_STRIDE := 4
+## Lo mismo fuera de cámara, donde nadie ve los pasos.
+const HIDDEN_LIGHT_STRIDE := 8
 ## El charco bajo el cadáver: cuándo sale tras morir (s, ya caído) y lo que tarda en extenderse (s).
 const BLEED_OUT_DELAY := 1.6
 const BLEED_OUT_GROW := 16.0
@@ -201,7 +207,9 @@ func _physics_process(delta: float) -> void:
 	# Muriéndose va entera ya, sin esperar a que el spawner la mire otra vez.
 	if _light_stride > 1 and active:
 		_light_delta += delta
-		if Engine.get_physics_frames() % _light_stride != _frame_offset % _light_stride:
+		if _detail_hidden and (ai_controller.target != null or AnimationLod.in_view(self, _view_radius())):
+			set_detail(_detail_distance)
+		if _light_stride > 1 and Engine.get_physics_frames() % _light_stride != _frame_offset % _light_stride:
 			_glide(delta)
 			DebugStats.report_cost(&"npc:control", Time.get_ticks_usec() - _t0)
 			return
@@ -249,6 +257,10 @@ func _physics_step(delta: float) -> void:
 	if not _is_dying and Engine.get_physics_frames() % _ai_update_stride == _frame_offset % _ai_update_stride:
 		ai_controller.gravity_direction = gravity_direction
 		ai_controller.update(delta * _ai_update_stride)
+		# Su presa (o de quien huye) no se duerme mientras dure: una dormida no se movería.
+		var chased := ai_controller.target as AmbientAnimal
+		if chased != null:
+			chased.keep_awake()
 
 	var raw_dir := ai_controller.desired_direction
 	movement.ai_direction = project_on_gravity_plane(raw_dir)
@@ -787,6 +799,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	_ai_update_stride = 1
 	_light_stride = 1
 	_light_delta = 0.0
+	_detail_hidden = false
 	_fall_top = -INF
 	_fall_grace_until = Time.get_ticks_msec() + int(FALL_GRACE * 1000.0)
 	super.activate(point, environment, rng)
@@ -856,6 +869,13 @@ func set_detail(distance: float) -> void:
 		return
 	var full := settings.full_detail_distance
 	var light := maxf(settings.light_detail_distance, full)
+	# Fuera de cámara, y sin nadie a quien perseguir o de quien huir, solo va entera de cerca.
+	var hidden := active and full > 0.0 and ai_controller.target == null \
+		and not AnimationLod.in_view(self, _view_radius())
+	if hidden:
+		full = minf(full, settings.near_detail_distance)
+	_detail_hidden = hidden
+	_detail_distance = distance
 	# Un cuerpo que aún cae, o que se está muriendo, se simula entero esté donde esté. Uno que anda o
 	# corre no se duerme hasta que se para o se aleja otro tanto: dormido a media zancada correría
 	# en el sitio.
@@ -865,13 +885,32 @@ func set_detail(distance: float) -> void:
 	if not awake and is_physics_processing():
 		_fall_asleep()
 	set_physics_process(awake)
-	_light_stride = 1 if entire else LIGHT_STRIDE
+	_light_stride = 1 if entire else (HIDDEN_LIGHT_STRIDE if hidden else LIGHT_STRIDE)
 	if not entire and animation_controller != null:
 		animation_controller.full_rate = false
 	if perception:
 		perception.set_physics_process(entire and active)
 	# En el tramo ligero la IA ya va al ritmo de los pasos enteros.
 	_ai_update_stride = 1 if distance <= settings.near_detail_distance or not entire else AI_STRIDE_FAR
+
+
+## Fuera de cámara se duerme pasada la dormant_distance de su perfil (0 = nunca).
+func dormant_distance() -> float:
+	var settings := profile as GroundFaunaProfile
+	return settings.dormant_distance if settings != null and settings.dormant_distance > 0.0 else INF
+
+
+## No se duerme con alguien a quien perseguir o de quien huir, herida (deja rastro), muriéndose o
+## en el aire.
+func _may_go_dormant() -> bool:
+	return super._may_go_dormant() and not is_dead and not _is_dying and ai_controller.target == null \
+		and not tracked() and is_on_floor()
+
+
+## Radio (m) con que asoma en cámara: el de su cuerpo más un margen.
+func _view_radius() -> float:
+	var radius := animation_controller.lod_radius if animation_controller != null else impact_radius
+	return radius + OFFSCREEN_VIEW_MARGIN
 
 
 ## Se queda quieta y de pie mientras duerme: sin física nadie más le cambia la animación. Al
