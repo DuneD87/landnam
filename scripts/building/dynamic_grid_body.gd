@@ -158,6 +158,15 @@ const IMPACT_VICTIM_SHARE := 0.6
 
 const MAX_CONTACTS_REPORTED := 8
 
+## Ancla: solo se echa con el barco casi parado respecto al agua (m/s, la velocidad del indicador).
+## Sujeta el centro del casco con un muelle de amortiguación crítica (pulsación en rad/s) sobre el
+## plano horizontal y frena la guiñada (1/s); el oleaje lo sigue levantando y escorando. A más de
+## ANCHOR_DRAG metros del punto el ancla garrea: se arrastra por el fondo detrás del casco.
+const ANCHOR_MAX_SPEED := 1.2
+const ANCHOR_STIFFNESS := 0.8
+const ANCHOR_YAW_DRAG := 2.0
+const ANCHOR_DRAG := 15.0
+
 ## Segundos sin ediciones antes de comprobar si el casco se ha partido. Solo quitar bloques puede
 ## desconectar algo, así que el análisis se marca desde on_block_removed y no desde mark_points_dirty.
 const SPLIT_DEBOUNCE := 0.35
@@ -240,6 +249,11 @@ var _sails_dirty := true
 ## Los pone PlayerSailing y los borra al dejar el barco o abrir una interfaz.
 var steering_input := 0.0
 var _oars: BoatOars
+## Ancla echada y su punto en el fondo, en espacio local del planeta (inmune al rebase del origen
+## flotante). Se guarda con la partida; se queda echada aunque el jugador baje a tierra.
+var anchored := false
+var _anchor_local := Vector3.ZERO
+var _anchor: BoatAnchor
 
 ## Velocidad del paso de física anterior, para medir la aproximación de un contacto antes de que
 ## el solver la absorba. Ver _detect_impact.
@@ -1135,6 +1149,7 @@ func _physics_step(delta: float) -> void:
 	sailing.rowing = false
 
 	apply_central_force(dir * gravity * mass)
+	_apply_anchor(up, delta)
 	if profile_sections: _section(&"velas")
 
 	if not planet_node.planet.has_water or not _water_sampler:
@@ -1144,6 +1159,7 @@ func _physics_step(delta: float) -> void:
 		_recalculate_buoyancy_boxes()
 	if profile_sections: _section(&"cajas")
 	_update_oars()
+	_update_anchor()
 
 	if _box_vol.is_empty():
 		return
@@ -1356,6 +1372,61 @@ func _update_oars() -> void:
 		_oars = BoatOars.new()
 		add_child(_oars)
 	_oars.update(row, _box_pos, _box_half, _hull_version)
+
+
+## Echa el ancla bajo el centro del casco y para la marcha. Falso si no es un barco a flote o si
+## va demasiado rápido.
+func drop_anchor() -> bool:
+	if anchored:
+		return true
+	if not planet_node or movement_type != MovementType.BOAT or last_displaced_mass <= 0.0 \
+			or (linear_velocity - last_water_flow).length() > ANCHOR_MAX_SPEED:
+		return false
+	set_anchor_point(planet_node.global_transform.affine_inverse() * get_hull_center_world())
+	sailing.set_gear(0)
+	return true
+
+
+func weigh_anchor() -> void:
+	anchored = false
+
+
+## Fondea en [planet_local] (espacio local del planeta); al cargar la partida.
+func set_anchor_point(planet_local: Vector3) -> void:
+	_anchor_local = planet_local
+	anchored = true
+
+
+func get_anchor_point() -> Vector3:
+	return _anchor_local
+
+
+## Sujeción del ancla: muelle crítico horizontal hacia el punto de fondeo y freno de guiñada. Por
+## aceleración, igual para cualquier casco. Contra corriente, viento u oleaje el casco se aparta
+## un poco y vuelve; si algo lo saca más de ANCHOR_DRAG, el ancla garrea tras él.
+func _apply_anchor(up: Vector3, delta: float) -> void:
+	if not anchored or movement_type != MovementType.BOAT:
+		return
+	var point: Vector3 = planet_node.global_transform * _anchor_local
+	var offset := (get_hull_center_world() - point).slide(up)
+	if offset.length() > ANCHOR_DRAG:
+		var slack := offset - offset.normalized() * ANCHOR_DRAG
+		_anchor_local = planet_node.global_transform.affine_inverse() * (point + slack)
+		offset -= slack
+	var omega := ANCHOR_STIFFNESS
+	var accel := -offset * omega * omega - linear_velocity.slide(up) * 2.0 * omega
+	apply_central_force(accel * mass)
+	angular_velocity -= up * angular_velocity.dot(up) * (1.0 - exp(-ANCHOR_YAW_DRAG * delta))
+
+
+## El ancla se crea la primera vez que se echa.
+func _update_anchor() -> void:
+	if not anchored and _anchor == null:
+		return
+	if _anchor == null:
+		_anchor = BoatAnchor.new()
+		add_child(_anchor)
+	_anchor.update(anchored, _box_pos, _box_half, _hull_version)
 
 
 ## Pendiente de la superficie del agua (gradiente tangente a up, m/m) por mínimos cuadrados sobre las

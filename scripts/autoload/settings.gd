@@ -132,7 +132,7 @@ const REBINDABLE_ACTIONS := [
 	["OPT_GROUP_SAILING", [
 		[&"boat_sail_raise", "ACTION_SAIL_RAISE"], [&"boat_sail_lower", "ACTION_SAIL_LOWER"],
 		[&"boat_steer_left", "ACTION_BOAT_LEFT"], [&"boat_steer_right", "ACTION_BOAT_RIGHT"],
-		[&"boat_row", "ACTION_BOAT_ROW"]]],
+		[&"boat_row", "ACTION_BOAT_ROW"], [&"boat_anchor", "ACTION_BOAT_ANCHOR"]]],
 ]
 
 ## Sensibilidad del ratón (multiplicador) e inversión del eje Y, leídas por las cámaras en cada

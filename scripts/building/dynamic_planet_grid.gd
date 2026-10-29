@@ -225,7 +225,7 @@ func serialize() -> Dictionary:
 		body_local = planet_node.global_transform.affine_inverse() * _body.global_transform
 		saved_body_id = str(_body.get_meta("grid_id", body_id))
 
-	return {
+	var data := {
 		"type": "dynamic",
 		"planet_path": str(planet_node.get_path()),
 		"body_id": saved_body_id,
@@ -236,6 +236,10 @@ func serialize() -> Dictionary:
 		"materials": materials_data,
 		"props": _serialize_props(),
 	}
+	# Lo escriben todas las grids del cuerpo: al cargar, la que lo cree puede ser cualquiera.
+	if _body and is_instance_valid(_body) and _body.anchored:
+		data["anchor"] = _vec3_to_array(_body.get_anchor_point())
+	return data
 
 
 func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: DynamicGridBody = null) -> void:
@@ -290,6 +294,8 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 	_suppress_rebuild = false
 
 	_deserialize_props(data.get("props", {}))
+	if data.has("anchor"):
+		_body.set_anchor_point(_array_to_vec3(data["anchor"]))
 	_body.register_grid(self)
 	if not block_placed.is_connected(_body.on_block_placed.bind(self)):
 		block_placed.connect(_body.on_block_placed.bind(self))

@@ -22,6 +22,12 @@ class FlatWater extends WaterHeightSampler:
 		last_flow = Vector3.ZERO
 		return 0.0
 
+class CurrentWater extends WaterHeightSampler:
+	var flow := Vector3.ZERO
+	func get_height_at(_point: Vector3, _time: float, _center: Vector3, _filter: float = 0.0) -> float:
+		last_flow = flow
+		return 0.0
+
 var failures := 0
 var checks := 0
 var _planet: TestPlanet
@@ -53,6 +59,7 @@ func _run() -> void:
 	await _check_heavy_ship_launch()
 	await _check_weather_ship_launch("clear")
 	await _check_weather_ship_launch("wind")
+	await _check_anchor()
 	await _check_controls()
 	GridManager.clear_all()
 	if _planet.water_sphere:
@@ -148,6 +155,34 @@ func _check_controls() -> void:
 	controls._physics_process(1.0 / 60.0)
 	Input.action_release("boat_row")
 	check(body.sailing.row == 0, "R otra vez para los remos")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_press("boat_anchor")
+	controls._physics_process(1.0 / 60.0)
+	Input.action_release("boat_anchor")
+	check(not body.anchored and controls.hud.anchor_refused, "fuera del agua no se fondea y el indicador lo avisa")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	body.last_displaced_mass = body.mass
+	body.sailing.set_gear(1)
+	Input.action_press("boat_anchor")
+	controls._physics_process(1.0 / 60.0)
+	Input.action_release("boat_anchor")
+	check(body.anchored and body.sailing.gear() == 0 and controls.hud.anchored, "T echa el ancla y para los remos")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_press("boat_sail_raise")
+	Input.action_press("boat_steer_left")
+	controls._physics_process(1.0 / 60.0)
+	Input.action_release("boat_sail_raise")
+	Input.action_release("boat_steer_left")
+	check(body.sailing.gear() == 0 and body.steering_input == 0, "fondeado no hay marcha ni timón")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_press("boat_anchor")
+	controls._physics_process(1.0 / 60.0)
+	Input.action_release("boat_anchor")
+	check(not body.anchored, "T otra vez leva el ancla")
 	await get_tree().process_frame
 	await get_tree().process_frame
 	body.sailing.set_gear(1)
@@ -585,6 +620,73 @@ func _check_weather_ship_launch(event: String) -> void:
 		"weather %s mantiene velocidad de navegación sin superar su viento de empopada (%.2f m/s)" % [event, cruising_speed])
 	Engine.time_scale = previous_time_scale
 	_planet.planet.has_water = false
+	_planet.gravity_strength = 0.0
+	_planet.air = Vector3.BACK * 8.0
+	GridManager.clear_all()
+	await get_tree().process_frame
+
+
+func _check_anchor() -> void:
+	# Casco de 6×2×10 a su calado de equilibrio, con una corriente de costado que sin ancla lo arrastra.
+	var static_grid := GridManager.create_grid_exact(_planet, Vector3(-3, 999.5, -5), Basis.IDENTITY, 1.0)
+	static_grid.begin_bulk_edit()
+	for x in 6:
+		for y in 2:
+			for z in 10:
+				var cell := Vector3i(x, y, z)
+				static_grid.place_block(cell, BlockDatabase.get_block(0).for_material("wood"), Basis.IDENTITY,
+					Transform3D(Basis.IDENTITY, static_grid.grid_to_world(cell)), "wood")
+	static_grid.end_bulk_edit()
+	var grid: DynamicPlanetGrid = GridManager.convert_to_dynamic(static_grid.grid_id)[0]
+	var body := grid._body
+	body.set_physics_process(false)
+	body._interior_dirty = false
+	var sampler := CurrentWater.new()
+	body.add_child(sampler)
+	body._water_sampler = sampler
+	_planet.planet.has_water = true
+	_planet.gravity_strength = 9.8
+	_planet.air = Vector3.ZERO
+	body.linear_velocity = Vector3.BACK * 3.0
+	body._physics_step(1.0 / 60.0)
+	await get_tree().physics_frame
+	check(not body.drop_anchor() and not body.anchored, "con el barco en marcha no se puede fondear")
+	body.linear_velocity = Vector3.ZERO
+	body._physics_step(1.0 / 60.0)
+	await get_tree().physics_frame
+	body.sailing.set_gear(1)
+	check(body.drop_anchor() and body.anchored and body.sailing.gear() == 0,
+		"parado se echa el ancla y la marcha vuelve a parado")
+	var start := body.get_hull_center_world()
+	var heading := body.global_basis.z
+	sampler.flow = Vector3.RIGHT * 1.5
+	body.angular_velocity = Vector3.UP * 0.3
+	var previous_time_scale := Engine.time_scale
+	Engine.time_scale = 5.0
+	for frame in 120:
+		body._physics_step(5.0 / 60.0)
+		await get_tree().physics_frame
+	var held := (body.get_hull_center_world() - start).slide(Vector3.UP).length()
+	check(held < 1.5 and body.linear_velocity.slide(Vector3.UP).length() < 0.1,
+		"fondeado aguanta diez segundos de corriente sin irse (%.2f m)" % held)
+	check(absf(body.angular_velocity.y) < 0.01 and body.global_basis.z.angle_to(heading) < deg_to_rad(15),
+		"el ancla frena el giro del casco")
+	check(body._anchor != null and body._anchor.visible, "se ve el ancla colgando de la proa")
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(GridManager.get_save_data()))
+	var point := body.get_anchor_point()
+	body.weigh_anchor()
+	for frame in 120:
+		body._physics_step(5.0 / 60.0)
+		await get_tree().physics_frame
+	var drift := (body.get_hull_center_world() - start).slide(Vector3.UP).length()
+	check(drift > 5.0, "levar el ancla devuelve el casco a la corriente (%.1f m)" % drift)
+	Engine.time_scale = previous_time_scale
+	_planet.planet.has_water = false
+	GridManager.restore_save_data(saved)
+	var restored := (GridManager.get_grid(grid.grid_id) as DynamicPlanetGrid)._body
+	restored.set_physics_process(false)
+	check(restored.anchored and restored.get_anchor_point().is_equal_approx(point),
+		"la partida guarda el barco fondeado y su punto de fondeo")
 	_planet.gravity_strength = 0.0
 	_planet.air = Vector3.BACK * 8.0
 	GridManager.clear_all()

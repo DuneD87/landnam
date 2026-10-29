@@ -4,6 +4,9 @@ extends Control
 ## Rosa del viento relativa a la proa (arriba). La flecha azul señala hacia dónde sopla.
 var navigation: BoatSailing
 var speed := 0.0
+var anchored := false
+## Se pidió fondear con el barco en marcha.
+var anchor_refused := false
 
 
 func _ready() -> void:
@@ -54,10 +57,18 @@ func _draw() -> void:
 		status = "SAIL_HEADWIND"
 	if sail.row != 0:
 		status = "SAIL_ROWING" if sail.row > 0 else "SAIL_BACKING"
-	_text(Vector2(0, 260), tr(status), GameTheme.MOSS if status in ["SAIL_WORKING", "SAIL_ROWING", "SAIL_BACKING"] else GameTheme.MUTED, 21, true)
+	if anchored:
+		status = "SAIL_ANCHORED"
+	if anchor_refused:
+		status = "SAIL_ANCHOR_TOO_FAST"
+	var color := GameTheme.MOSS if status in ["SAIL_WORKING", "SAIL_ROWING", "SAIL_BACKING", "SAIL_ANCHORED"] else GameTheme.MUTED
+	_text(Vector2(0, 260), tr(status), color, 21, true)
 	_text(Vector2(0, 302), tr("SAIL_CONTROLS") % [_key(&"boat_sail_raise"), _key(&"boat_sail_lower"),
 		_key(&"boat_steer_left"), _key(&"boat_steer_right")], GameTheme.MUTED, 19, true)
-	_text(Vector2(0, 333), tr("SAIL_ROW_HINT") % _key(&"boat_row"), GameTheme.MUTED, 19, true)
+	if anchored:
+		_text(Vector2(0, 333), tr("SAIL_WEIGH_HINT") % _key(&"boat_anchor"), GameTheme.MUTED, 19, true)
+	else:
+		_text(Vector2(0, 333), tr("SAIL_ROW_HINT") % [_key(&"boat_row"), _key(&"boat_anchor")], GameTheme.MUTED, 19, true)
 
 
 func _text(at: Vector2, text: String, color: Color, font_size: int, centered := false) -> void:
