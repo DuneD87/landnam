@@ -6,8 +6,9 @@ extends Node
 ## la física normal (move_and_slide en modo flotante) y la animación de trepar. Cuando la pared se
 ## acaba por encima de la cabeza corona con climb_top, que empieza donde está el personaje y acaba de
 ## pie arriba: donde termina el clip, o encima del muro si es más fino. Una pared más baja que la
-## cabeza (pero más alta que un escalón) se sube igual, con climb_top empezado a esa altura, y sin la
-## E: basta con empujar contra ella (andando, tras GRAB_DELAY; saltando, al momento). Gasta
+## cabeza (pero más alta que un escalón) se sube igual, con climb_top empezado a esa altura, y si es
+## del terreno, sin la E: basta con empujar contra ella (andando, tras GRAB_DELAY; saltando, al
+## momento). Las construcciones y los barcos piden siempre la E. Gasta
 ## aguante; si se acaba, se suelta y cae. Agarrarse cayendo para la caída con su golpe, salvo los
 ## primeros GRAB_MARGIN metros. Los barcos (DynamicGridBody) también se trepan: lo de la escalada
 ## va con el casco mientras se mueve (_carry).
@@ -15,7 +16,8 @@ extends Node
 ##   Empujar contra la pared   agarrarse o subirse encima (también en el aire)
 ##   y USAR (E)
 ##   Empujar contra una pared  subirse encima
-##   baja
+##   baja (no construcciones
+##   ni barcos)
 ##   Adelante / atrás          subir / bajar
 ##   Izquierda / derecha       de lado (según la cámara), si la pared sigue por ese lado
 ##   Saltar                    soltarse
@@ -43,8 +45,8 @@ const MAX_WALL_ANGLE := 110.0
 ## Para agarrarse hay que empujar de frente contra la pared: el input contra ella (coseno) al menos
 ## PUSH_DOT.
 const PUSH_DOT := 0.6
-## Una pared baja se sube sola empujando de frente contra ella este tiempo (s) andando: rozarla no
-## basta. Saltando contra ella, al momento.
+## Una pared baja (no una construcción ni un barco) se sube sola empujando de frente contra ella
+## este tiempo (s) andando: rozarla no basta. Saltando contra ella, al momento.
 const GRAB_DELAY := 0.2
 ## Agarrarse cayendo cobra el golpe de aterrizar, pero los primeros GRAB_MARGIN metros (m) de caída
 ## se perdonan: soltarse y volver a agarrarse un poco más abajo sale gratis.
@@ -229,7 +231,8 @@ func _grab_wall(up: Vector3) -> Dictionary:
 ## Si USAR lo ha pedido: a una pared que sigue por encima de la cabeza se agarra y empieza a
 ## trepar. Si es más baja, se sube encima (si arriba hay dónde ponerse de pie), y eso también sin
 ## USAR, empujando contra ella: en el suelo tras GRAB_DELAY, saltando al momento (cayendo no, que
-## no se agarre a cada cornisa al pasar).
+## no se agarre a cada cornisa al pasar). Sin USAR solo el terreno: en un barco o una construcción
+## empujar contra la borda o un muro no lo sube encima.
 func _try_start(delta: float) -> bool:
 	var requested := _grab_requested
 	_grab_requested = false
@@ -240,7 +243,7 @@ func _try_start(delta: float) -> bool:
 		return false
 	var tall := _wall_at(wall.normal, wall.point, _along_up(wall.normal, up) * _head_height())
 	if not requested:
-		if tall:
+		if tall or _is_structure(wall.collider):
 			_push_time = 0.0
 			return false
 		if player.is_on_floor():
@@ -479,6 +482,11 @@ static func _carrier_of(collider: Object) -> DynamicGridBody:
 	if node != null and node.get_parent() is DynamicGridBody:
 		return node.get_parent()
 	return null
+
+
+## [collider] es de una construcción (sus cuerpos llevan grid_id) o de un barco.
+static func _is_structure(collider: Object) -> bool:
+	return _carrier_of(collider) != null or (collider != null and collider.has_meta(&"grid_id"))
 
 
 ## Lo que el barco se ha movido desde el último tick se lo lleva todo lo que la escalada guarda en

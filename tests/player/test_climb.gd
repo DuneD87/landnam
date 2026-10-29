@@ -91,8 +91,17 @@ func _run() -> void:
 	var loose := RigidBody3D.new()
 	check(climb._grabbable(boat, Vector3.BACK, Vector3.UP), "se trepa por un barco")
 	check(not climb._grabbable(loose, Vector3.BACK, Vector3.UP), "no por un cuerpo suelto")
+	# Construcciones y barcos piden la E; el terreno se sube solo.
+	var built := StaticBody3D.new()
+	built.set_meta(&"grid_id", 1)
+	var ground := StaticBody3D.new()
+	check(ClimbController._is_structure(boat) and ClimbController._is_structure(built),
+		"barcos y construcciones piden la E")
+	check(not ClimbController._is_structure(ground), "el terreno no")
 	boat.free()
 	loose.free()
+	built.free()
+	ground.free()
 	_finish()
 
 

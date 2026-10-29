@@ -10,7 +10,7 @@ sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
 | Acción | Tecla |
 | --- | --- |
 | Agarrarse o subirse encima | Empujar contra la pared y E (USAR), también en el aire |
-| Subirse a una pared baja | Empujar contra ella (sin E) |
+| Subirse a una pared baja del terreno | Empujar contra ella (sin E) |
 | Subir / bajar | W / S |
 | De lado | A / D (según la cámara) |
 | Soltarse | Espacio |
@@ -22,9 +22,11 @@ sin colgarse. Trepar gasta aguante; si se acaba, se suelta y cae. Lo lleva
   No a criaturas ni a otros cuerpos sueltos.
 - Si la pared sigue a la altura de la cabeza, se agarra. Si es más baja pero más alta que un escalón
   (`StepUpSystem.max_step_height`, 0,55 m), se sube encima con `climb_top` empezado a esa altura, sin
-  colgarse; también saltando contra ella. A esa no hace falta la E: basta con empujar de frente
-  contra ella `GRAB_DELAY` (0,2 s) andando, o saltar contra ella (cayendo no, para no agarrarse a
-  cada cornisa al pasar). Más baja que un escalón, la sube el cuerpo solo.
+  colgarse; también saltando contra ella. Si es del terreno no hace falta la E: basta con empujar de
+  frente contra ella `GRAB_DELAY` (0,2 s) andando, o saltar contra ella (cayendo no, para no
+  agarrarse a cada cornisa al pasar). Las construcciones (cuerpos con `grid_id`) y los barcos piden
+  siempre la E, para no subirse a una borda o un muro al andar pegado a ellos. Más baja que un
+  escalón, la sube el cuerpo solo.
 - Cuando la pared se acaba por encima de la cabeza, corona con `climb_top`. Acaba de pie donde lleva
   el clip (1,1 m por dentro del borde) o, si el suelo de arriba se acaba antes (un muro fino), en
   medio de lo que hay. Si arriba no hay suelo que se pueda andar con sitio para ponerse de pie, no
