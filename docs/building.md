@@ -363,9 +363,23 @@ caras coinciden con la colisión y con los vecinos que las ocultan. Esto evita a
 cubos normales y rellenos al construir un suelo con el bloque girado.
 
 `NavalPiece` y `NavalHullMesh` generan el diccionario de bloques y las caras curvas que comparten
-el editor, el fantasma y la colocación. La madera naval utiliza su propio acabado de madera lisa.
-`NavalBuildPanel` aporta la ficha del menú; `BuildingSystem` coloca todo dentro de una edición masiva
-de la grid para reconstruir sus chunks una sola vez.
+el editor, el fantasma y la colocación. `NavalBuildPanel` aporta la ficha del menú; `BuildingSystem`
+coloca todo dentro de una edición masiva de la grid para reconstruir sus chunks una sola vez.
+
+La madera naval es una tablazón (`naval_planks.gdshader`) sobre el escaneo *Wood Floor Deck* de
+[Poly Haven](https://polyhaven.com) (CC0, en `textures/build_materials/ship_planks/`): color, normales,
+rugosidad y altura. Cada tabla coge una fila de la foto al azar con su propio desplazamiento, y las
+testas se escalonan entre tracas. Las juntas tienen hondura por parallax sobre el mapa de altura.
+Las tracas van horizontales en los costados y a lo largo de la eslora en fondo y borda. Salen de la
+posición en la grid, así que siguen de una faceta curva a otra y de una pieza a la siguiente, aunque
+una esté girada 180°: el eje de eslora llega al shader por UV2 sin sentido.
+
+Hay tres tonos de la misma madera: por fuera, curtida y mate; en la bodega, más clara y limpia; en la
+barandilla, un solo madero untado y apenas satinado, con empalmes, que cubre la regala y una franja de
+30 cm bajo ella por dentro y por fuera. `NavalHullMesh.surface_custom` lo decide por celda al
+construir el chunk y lo pasa en CUSTOM0. Una cara da a la bodega si, bajando desde el aire de
+delante, aparece el fondo del casco. La regala es la cima de una pared con el aire de fuera a un lado
+y el de la bodega al otro.
 
 Vista de prueba sin cargar el planeta (B edita las medidas y reconstruye la muestra):
 

@@ -67,9 +67,13 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 
 	for group_id: String in groups:
 		var mat_id := group_id.trim_suffix("|naval")
+		var naval := group_id.ends_with("|naval")
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		var emitted := false
+		var inside_memo := {}
+		if naval:
+			st.set_custom_format(0, SurfaceTool.CUSTOM_RGBA_FLOAT)
 
 		for grid_pos: Vector3i in groups[group_id]:
 			var info: Dictionary = blocks[grid_pos]
@@ -81,6 +85,16 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 			# SurfaceTool arrastra el último atributo puesto a todos los vértices siguientes, así
 			# que basta fijar el tinte una vez por bloque, antes de emitir su geometría.
 			st.set_color(damage_tint(info.get("hp", 1.0)))
+			# La tablazón naval corre a lo largo de la eslora de su pieza (+Z a proa antes de girarla),
+			# también en los cubos macizos, que no giran su geometría pero guardan el giro de la pieza.
+			# El sentido no cuenta: una proa girada 180° tiene que seguir las tablas del tramo de al lado.
+			# CUSTOM0 dice qué caras dan a la bodega y dónde está la regala, que llevan otro acabado.
+			if naval:
+				var keel := rot * Vector3.BACK
+				if keel.x < -0.01 or (absf(keel.x) <= 0.01 and keel.z < 0.0):
+					keel = -keel
+				st.set_uv2(Vector2(keel.x, keel.z))
+				st.set_custom(0, NavalHullMesh.surface_custom(blocks, grid_pos, cell_size, inside_memo))
 
 			if _is_solid(block_id):
 				# Un cubo macizo ocupa siempre su celda. Girar sus esquinas alrededor
@@ -112,7 +126,7 @@ static func build_mesh(blocks: Dictionary, cell_size: float, grid_transform: Tra
 		var surface_idx := mesh.get_surface_count()
 		st.commit(mesh)
 
-		if group_id.ends_with("|naval"):
+		if naval:
 			mesh.surface_set_material(surface_idx, NavalHullMesh.WOOD)
 		elif materials.has(mat_id) and materials[mat_id] != null:
 			mesh.surface_set_material(surface_idx, materials[mat_id])

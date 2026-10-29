@@ -8,6 +8,15 @@ const FULL_ID := 10
 const WOOD := preload("res://data/building/naval_wood.tres")
 const EPS := 0.00001
 const ARC_STEPS := 12
+## Bits de surface_custom: el bit i marca que la cara hacia _HORIZONTAL[i] (+X, -X, +Z, -Z) da a la
+## bodega; RAIL_CAP, que la cara de arriba es la regala.
+const _HORIZONTAL: Array[Vector3i] = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
+const RAIL_CAP := 16
+## Metros bajo la regala en los que se busca su altura: la franja de barandilla del shader
+## (rail_band en naval_planks.gdshader) no puede ser más alta.
+const RAIL_REACH := 0.6
+## Celdas que se baja desde el aire de delante de una cara buscando el fondo: el alto máximo de una pieza.
+const INSIDE_REACH := 64
 
 
 static func generate(kind: int, size: Vector3i, rounded: bool) -> Dictionary:
@@ -285,3 +294,120 @@ static func emit(st: SurfaceTool, shape: Dictionary, offset: Vector3, rotation: 
 				st.set_normal(normal)
 				st.set_uv(ChunkMeshBuilder.planar_uv(position, tangent, normal))
 				st.add_vertex(position)
+
+
+## Datos de superficie de una celda del casco para naval_planks.gdshader (CUSTOM0): r = bits de las
+## caras que dan a la bodega y de la regala, g = altura de la regala que corona su pared (metros de la
+## grid) o un valor enorme si queda lejos, b = tamaño de celda.
+## Una cara da a la bodega si bajo el aire de delante está el fondo del casco: bajo el aire de fuera no
+## hay nada, porque el pantoque se mete hacia dentro. `memo` se comparte entre las celdas de una
+## misma malla para no bajar dos veces por la misma columna.
+static func surface_custom(blocks: Dictionary, cell: Vector3i, cell_size: float, memo: Dictionary) -> Color:
+	var bits := 0
+	for i in _HORIZONTAL.size():
+		if _faces_inside(blocks, cell, _HORIZONTAL[i], memo):
+			bits |= 1 << i
+	var rail_top := 1.0e6
+	var top := cell
+	for k in ceili(RAIL_REACH / cell_size) + 1:
+		if _is_rail(blocks, top, memo):
+			rail_top = float(top.y + 1) * cell_size
+			if k == 0:
+				bits |= RAIL_CAP
+			break
+		top += Vector3i.UP
+		if not _hull_at(blocks, top):
+			break
+	return Color(float(bits), rail_top, cell_size, 0.0)
+
+
+static func _hull_at(blocks: Dictionary, cell: Vector3i) -> bool:
+	var info = blocks.get(cell)
+	return info != null and NavalCubeMerge.is_hull(info)
+
+
+static func _faces_inside(blocks: Dictionary, cell: Vector3i, dir: Vector3i, memo: Dictionary) -> bool:
+	# En una curva la cáscara cruza más de una celda: el aire empieza tras ellas.
+	var air := cell + dir
+	for i in 3:
+		if not _hull_at(blocks, air):
+			break
+		air += dir
+	if _hull_at(blocks, air):
+		return false
+	return _floor_below(blocks, air, memo)
+
+
+## Si bajo una celda de aire está el fondo del casco: es aire de la bodega.
+static func _floor_below(blocks: Dictionary, air: Vector3i, memo: Dictionary) -> bool:
+	var path: Array[Vector3i] = []
+	var below := false
+	var probe := air
+	for i in INSIDE_REACH:
+		if memo.has(probe):
+			below = memo[probe]
+			break
+		path.append(probe)
+		probe += Vector3i.DOWN
+		if _hull_at(blocks, probe):
+			below = true
+			break
+	for visited in path:
+		memo[visited] = below
+	return below
+
+
+## Celda de arriba de una pared: nada encima, pared debajo, el aire de fuera a un lado y el de la
+## bodega al contrario. El fondo no tiene pared debajo y un escalón del pantoque tiene la pared encima
+## por fuera. A lo largo de la eslora solo cuenta una pared que corre de costado a costado (el espejo):
+## en el extremo abierto de un tramo, el escalón da al aire de fuera y la cáscara no es igual en cada
+## estación, así que detrás puede asomar la bodega.
+static func _is_rail(blocks: Dictionary, cell: Vector3i, memo: Dictionary) -> bool:
+	if not _is_wall_top(blocks, cell):
+		return false
+	if _rail_across(blocks, cell, memo):
+		return true
+	# Canto de fuera de una cima ancha (la punta de la proa, donde se juntan los costados): la bodega
+	# queda en diagonal, pero la celda de al lado sí es regala.
+	var outside := false
+	for dir in _HORIZONTAL:
+		if not _hull_at(blocks, cell + dir) and not _floor_below(blocks, cell + dir, memo):
+			outside = true
+	if outside:
+		for dir in _HORIZONTAL:
+			if _is_wall_top(blocks, cell + dir) and _rail_across(blocks, cell + dir, memo):
+				return true
+	return false
+
+
+static func _is_wall_top(blocks: Dictionary, cell: Vector3i) -> bool:
+	return _hull_at(blocks, cell) and not _hull_at(blocks, cell + Vector3i.UP) and _hull_at(blocks, cell + Vector3i.DOWN)
+
+
+static func _rail_across(blocks: Dictionary, cell: Vector3i, memo: Dictionary) -> bool:
+	var keel := (blocks[cell].get("rotation_basis", Basis.IDENTITY) as Basis) * Vector3.BACK
+	var beam := Vector3i(Vector3.UP.cross(keel).round())
+	var across_wall := _hull_at(blocks, cell + beam) and _hull_at(blocks, cell - beam)
+	for dir in _HORIZONTAL:
+		if dir != beam and dir != -beam and not across_wall:
+			continue
+		var outside = _air_across_top(blocks, cell, dir)
+		var inside = _air_across_top(blocks, cell, -dir)
+		if outside != null and inside != null and not _floor_below(blocks, outside, memo) \
+				and _floor_below(blocks, inside, memo):
+			return true
+	return false
+
+
+## Aire al que se sale de lado cruzando celdas de la cima, que en una pared curva ocupa dos y en la
+## punta de la proa, donde se juntan los costados, unas cuantas; null si alguna tiene pared encima o
+## no se sale de la cáscara.
+static func _air_across_top(blocks: Dictionary, cell: Vector3i, dir: Vector3i) -> Variant:
+	var air := cell + dir
+	for i in 6:
+		if not _hull_at(blocks, air):
+			return air
+		if _hull_at(blocks, air + Vector3i.UP):
+			return null
+		air += dir
+	return null
