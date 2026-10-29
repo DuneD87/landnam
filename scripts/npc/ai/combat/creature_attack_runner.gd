@@ -9,6 +9,8 @@ extends RefCounted
 ##     a donde estará (lead); comprometida, solo a track_active, así que apartarse a tiempo
 ##     funciona y hacerlo pronto no;
 ##   - avance: la embestida del lunge, que se frena para no pasarse del objetivo;
+##   - a la carrera: si el objetivo huye, hasta la última ventana de golpe corre tras él a lo que
+##     se aleja (sin pasar de su carrera), y el lunge cierra la distancia sobre eso;
 ##   - golpes: en cada ventana, los huesos hieren por colisión (esferas barridas entre fotogramas
 ##     contra los Hurtbox), cada cuerpo una vez por ventana;
 ##   - armadura: en su tramo, los golpes que encaja gastan primero la guardia extra del ataque.
@@ -123,7 +125,10 @@ func update(delta: float) -> bool:
 	if attack == null:
 		return false
 	var movement := _controller.movement
-	movement.speed = AIController.TURN_ONLY_SPEED
+	var carry := _carry()
+	movement.speed = maxf(carry, AIController.TURN_ONLY_SPEED)
+	if carry > 0.0:
+		_controller.desired_direction = _forward()
 	if _tell > 0.0:
 		_tell -= delta
 		_face(attack.track_windup)
@@ -147,7 +152,7 @@ func update(delta: float) -> bool:
 		var left := maxf((lunge.y - time) / maxf(attack.speed, 0.01), delta)
 		# Herida no avanza menos: lo que frena (Movement.speed_scale, NPCController.wound_slowdown)
 		# es para andar y correr, y el alcance del golpe lo mide la animación.
-		movement.speed = maxf(minf(full, room / left), AIController.TURN_ONLY_SPEED) / maxf(movement.speed_scale, 0.1)
+		movement.speed = maxf(minf(full, room / left), AIController.TURN_ONLY_SPEED) / maxf(movement.speed_scale, 0.1) + carry
 		_controller.desired_direction = _forward()
 	for i in attack.hits.size():
 		var hit := attack.hits[i]
@@ -164,6 +169,16 @@ func update(delta: float) -> bool:
 		cancel()
 		return false
 	return true
+
+
+## Lo que corre tras un objetivo que huye mientras ataca (m/s, antes de heridas): lo que se aleja
+## por donde mira la criatura, como mucho su carrera, y solo hasta la última ventana de golpe.
+## Plantada en el aviso y la preparación, quien huye ganaba a cada intento la distancia del golpe.
+func _carry() -> float:
+	if time > attack.last_hit():
+		return 0.0
+	var top := maxf(_profile.chase_speed, _profile.sprint_speed) * _npc.speed_scale
+	return clampf(_controller.target_velocity.dot(_forward()), 0.0, top)
 
 
 func _play_anim() -> void:

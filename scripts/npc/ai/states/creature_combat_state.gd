@@ -8,7 +8,7 @@ class_name CreatureCombatState
 ##   - en cuanto alguno de sus ataques llega lo lanza, elegido por lo que esté haciendo el
 ##     objetivo (CombatRead): castiga al que falla, embiste al que huye o apunta;
 ##   - puede encadenar ataques (follow_ups) y, si no, se queda un momento vendido y a veces rodea
-##     al objetivo;
+##     al objetivo; si el objetivo huye, ataca a la carrera y tras fallar sigue corriendo;
 ##   - si le rompen la guardia (poise) se tambalea y deja de atacar un rato;
 ##   - si ya le atacan otros (CombatDirector reparte los turnos), espera el suyo en corro,
 ##     repartido con los demás o a la espalda del objetivo (flank_bias); tras atacar, si hay otros
@@ -17,6 +17,9 @@ class_name CreatureCombatState
 ## Vuelve a IdleState si pierde al objetivo o se aleja demasiado de él.
 
 enum Phase {THREATEN, CHASE, ATTACK, RECOVER, CIRCLE, STAGGER, FLANK, SEARCH}
+
+## Recuperación (s) tras atacar a quien huye: lo justo para volverse hacia él.
+const FLEEING_RECOVER := 0.2
 
 @export var profile: CreatureCombatProfile
 
@@ -212,7 +215,11 @@ func update(delta: float) -> StringName:
 			if _phase_time > 0.25:
 				controller.desired_facing = _to_target_flat()
 				controller.turn_rate = profile.recover_turn_rate
-			if _phase_time > _phase_length:
+			# Si huye no hay castigo que esperar: en cuanto se ha vuelto hacia él, sigue la carrera.
+			if _phase_time > FLEEING_RECOVER and _phase_time <= _phase_length and _target_fleeing():
+				_release_turn()
+				_set_phase(Phase.CHASE)
+			elif _phase_time > _phase_length:
 				_release_turn()
 				if _others_waiting():
 					_enter_flank(profile.wait_time)
@@ -387,6 +394,10 @@ func _max_poise() -> float:
 ## Tono de su voz: el de la especie y el de su variante.
 func _voice() -> float:
 	return profile.voice_pitch * _npc().voice_pitch
+
+
+func _target_fleeing() -> bool:
+	return &"fleeing" in CombatRead.situations(controller.npc, controller.target, controller.target_velocity)
 
 
 func _to_target_flat() -> Vector3:

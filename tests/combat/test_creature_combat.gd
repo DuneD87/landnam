@@ -34,6 +34,7 @@ func _run() -> void:
 	await _check_runner_steering()
 	await _check_swipe_hits()
 	await _check_attacks_land()
+	await _check_fleeing_target()
 	await _check_territory()
 	await _check_home_and_gait()
 	_check_sound_events()
@@ -340,6 +341,38 @@ func _check_attacks_land() -> void:
 						continue
 					check(landed, "%s%s: %s acierta a un blanco quieto a %.1f m (por su tamaño)" % [file,
 						["", " (el más grande)", " (el más chico)"][extreme], attack.id, dist])
+
+
+## Huir en línea recta a la velocidad del sprint del jugador no basta: el oso ataca a la carrera,
+## sin plantarse en la preparación, y tras fallar sigue corriendo en vez de quedarse vendido.
+func _check_fleeing_target() -> void:
+	var bear := _spawn_bear()
+	bear.perception.set_physics_process(false)
+	var target := _target(Vector3(0, 0, 8))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var state := _engage(bear, target.body)
+	var ctl := bear.ai_controller
+	var movement := ctl.movement
+	var dt := 1.0 / Engine.physics_ticks_per_second
+	var health := target.health as HealthComponent
+	var time := 0.0
+	while time < 10.0 and health.health >= 500.0:
+		target.body.global_position += Vector3(0, 0, 6.0) * dt
+		ctl.target_seen = true
+		ctl._track_target(dt)
+		state.update(dt)
+		movement.update_movement(dt, ctl.project_on_gravity_plane(ctl.desired_direction))
+		bear.global_position += movement.velocity * dt
+		var facing := ctl.desired_facing if ctl.desired_facing != Vector3.ZERO else movement.direction
+		if ctl.project_on_gravity_plane(facing) != Vector3.ZERO:
+			bear._turn_toward(ctl.project_on_gravity_plane(facing), deg_to_rad(ctl.turn_rate if ctl.turn_rate > 0.0 else 720.0) * dt)
+		await get_tree().physics_frame
+		time += dt
+	check(health.health < 500.0, "alcanza y hiere a quien huye a 6 m/s (en %.1f s)" % time)
+	state.exit()
+	bear.queue_free()
+	target.body.queue_free()
 
 
 ## Lanza [id] contra un blanco quieto a [dist] m (por el tamaño del cuerpo). [extreme]: 0 = el

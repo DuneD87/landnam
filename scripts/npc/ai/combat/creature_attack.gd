@@ -77,6 +77,14 @@ func first_hit() -> float:
 	return hits[0].from if not hits.is_empty() else end
 
 
+## Cuándo se cierra la última ventana de golpe (o el final, si no hiere).
+func last_hit() -> float:
+	var last := 0.0
+	for hit in hits:
+		last = maxf(last, hit.to)
+	return last if not hits.is_empty() else end
+
+
 ## Desde cuándo ya no gira más que track_active.
 func commit_time() -> float:
 	return commit if commit >= 0.0 else first_hit() - COMMIT_LEAD

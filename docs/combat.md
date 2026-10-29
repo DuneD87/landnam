@@ -476,7 +476,8 @@ tono es realista y letal: avisan poco, castigan los errores y no se las deja atr
   empezar contra el jugador; persigue hacia donde va a estar el objetivo (`chase_lead`), a fondo
   si está lejos y le queda fuelle (`sprint_*`); lanza un ataque en cuanto alguno llega; encadena
   otros (`follow_ups`) o se queda vendido después y a veces rodea al objetivo; y se tambalea si
-  le rompen la guardia.
+  le rompen la guardia. Si el objetivo huye, ataca a la carrera y, si falla, a los 0,2 s
+  (`FLEEING_RECOVER`) sigue persiguiéndolo en vez de quedarse vendido.
 - **`CreatureCombatProfile`** (`data/fauna/combat/<especie>_combat.tres`): el temperamento de la
   especie (velocidades, fuelle, distancias, guardia, recuperación, combo máximo, penalización por
   repetir, sonidos, clip de tambaleo) y la lista de sus ataques.
@@ -489,6 +490,9 @@ tono es realista y letal: avisan poco, castigan los errores y no se las deja atr
     defecto justo antes del primer golpe) y a `track_active` °/s después, apuntando a donde
     estará (`lead`). Apartarse en el momento justo funciona; hacerlo pronto, no.
   - Avance (`lunge`), que se frena para quedarse a `lunge_min_distance` del objetivo.
+  - A la carrera: si el objetivo huye, hasta la última ventana de golpe la criatura corre tras él
+    a lo que se aleja (como mucho su `chase_speed`/`sprint_speed`), y el `lunge` se suma encima.
+    Plantada, quien huía recuperaba en cada intento la distancia del golpe y no la pillaba nunca.
   - Armadura (`armor`): guardia extra en un tramo, que los golpes gastan antes que la suya.
   - Combo: `follow_ups` (ids del mismo perfil), su probabilidad y desde cuándo pueden salir.
   - Ventanas de golpe (**`CreatureHit`**): tramo del clip, huesos que hieren, radio, daño,
