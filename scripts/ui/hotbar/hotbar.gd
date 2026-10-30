@@ -55,6 +55,8 @@ var stamina_orb: VitalOrb
 var sanity_orb: VitalOrb
 var gauges := {}
 var breath: BreathRing
+## La XP del nivel en curso, bajo la barra (track_progression).
+var xp_strip: XpStrip
 ## Avisos cortos sobre la consola («Bebes agua dulce», «Necesitas un cuchillo...»): notify().
 var _notice: Label
 var _notice_age := INF
@@ -98,6 +100,8 @@ func _ready() -> void:
 	add_child(stamina_orb)
 	sanity_orb = VitalOrb.sanity()
 	add_child(sanity_orb)
+	xp_strip = XpStrip.new()
+	add_child(xp_strip)
 	_notice = Label.new()
 	_notice.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -215,6 +219,7 @@ func _layout_vitals() -> void:
 			GAUGE_WIDTH * ui_scale, spec[1], spec[2], spec[3], MEDALLION_DISTANCE * ui_scale,
 			MEDALLION_RADIUS * ui_scale, ui_scale)
 	breath.place(right, ui_scale)
+	xp_strip.place(bar, BOTTOM_GAP * ui_scale, ui_scale)
 	_notice.add_theme_font_size_override("font_size", roundi(26 * ui_scale))
 	_notice.add_theme_constant_override("outline_size", roundi(7 * ui_scale))
 	_notice.size = Vector2(bar.size.x, 40.0 * ui_scale)
@@ -232,12 +237,21 @@ func _layout_vitals() -> void:
 ## Enseña u oculta las orbes y los medidores con su consola (sin ellas queda la barra sola).
 func set_vitals_shown(shown: bool) -> void:
 	var changed := plate.visible != shown
-	for item: CanvasItem in [health_orb, stamina_orb, sanity_orb, breath, plate]:
+	for item: CanvasItem in [health_orb, stamina_orb, sanity_orb, breath, plate, xp_strip]:
 		item.visible = shown
 	for need in gauges:
 		gauges[need].visible = shown
 	if changed:
 		_layout_vitals()
+
+
+## La barra de XP sigue a [progression]: se aviva al ganar y destella al subir de nivel.
+func track_progression(progression: Progression) -> void:
+	xp_strip.set_ratio(progression.xp_ratio())
+	progression.changed.connect(func() -> void: xp_strip.set_ratio(progression.xp_ratio()))
+	progression.xp_gained.connect(func(_amount: float, _reason: StringName) -> void:
+		xp_strip.set_ratio(progression.xp_ratio(), true))
+	progression.leveled_up.connect(func(_level: int) -> void: xp_strip.flash_level())
 
 
 ## Llena la media orbe de la cordura, los medidores y el aire (lo llama CombatHUD cada fotograma).

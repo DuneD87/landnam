@@ -90,6 +90,10 @@ var submerged := false
 ## Pausa las necesidades (consola) y su ritmo (consola: acelerarlas para verlas cambiar).
 var paused := false
 var rate := 1.0
+## Del temple (Progression): lo que se multiplica lo que bajan hambre y sed, y lo que se ensancha
+## por cada lado la franja en que se está a gusto (°C).
+var upkeep_scale := 1.0
+var hardiness := 0.0
 ## Estado transitorio: al cargar o reaparecer se está despierto.
 var sleeping := false
 
@@ -143,8 +147,8 @@ func _physics_process(delta: float) -> void:
 	var effort := 1.0 + 0.8 * maxf(_exertion, 0.5 if swimming else 0.0)
 	if sleeping:
 		effort = 0.6
-	hunger -= dt / HUNGER_TIME * effort * (1.0 + 0.5 * maxf(-warmth, 0.0))
-	thirst -= dt / THIRST_TIME * effort * (1.0 + maxf(warmth, 0.0))
+	hunger -= dt / HUNGER_TIME * effort * (1.0 + 0.5 * maxf(-warmth, 0.0)) * upkeep_scale
+	thirst -= dt / THIRST_TIME * effort * (1.0 + maxf(warmth, 0.0)) * upkeep_scale
 	var hours := WorldTime.hours_elapsed(delta) * rate
 	if sleeping:
 		rest += hours / SLEEP_HOURS
@@ -308,10 +312,12 @@ func _update_warmth(dt: float, swimming: bool) -> void:
 		felt += _insulation * (1.0 - 0.6 * wetness) + _fire_heat
 	felt_temperature = felt
 	var target := 0.0
-	if felt < COMFORT_LOW:
-		target = (felt - COMFORT_LOW) / COLD_SPAN
-	elif felt > COMFORT_HIGH:
-		target = (felt - COMFORT_HIGH) / HEAT_SPAN
+	var low := COMFORT_LOW - hardiness
+	var high := COMFORT_HIGH + hardiness
+	if felt < low:
+		target = (felt - low) / COLD_SPAN
+	elif felt > high:
+		target = (felt - high) / HEAT_SPAN
 	target = clampf(target, -1.0, 1.0)
 	warmth = lerpf(warmth, target, 1.0 - exp(-dt / time))
 

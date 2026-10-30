@@ -474,6 +474,9 @@ func _craft() -> void:
 		_notify(tr("CRAFT_MISSING"))
 		return
 	var result: ItemData = ItemCatalog.get_item(recipe.result)
+	var progression := Progression.of(ui.crafter)
+	if progression != null:
+		progression.reward_craft(recipe, times)
 	if left > 0:
 		ui.drop_requested.emit(result, left)
 	var made := recipe.amount * times

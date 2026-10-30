@@ -93,6 +93,8 @@ var owner_body: Node3D
 var dismemberment: Dismemberment
 ## La última parte golpeada, para el HUD.
 var last_zone: StringName = &""
+## Lo que se multiplica el sangrado de cada herida nueva (la dureza del jugador: Progression).
+var bleed_scale := 1.0
 
 var _hp := {}
 ## Miembros perdidos: parte → corte.
@@ -159,6 +161,16 @@ func load_data(data: Array) -> void:
 			continue
 		_severed[zone] = c
 		_hp[zone] = -zone_max(zone)
+
+
+## La vida general ha pasado de [previous_max] a la de ahora (los atributos: Progression): cada
+## parte conserva la proporción de la suya.
+func rescale(previous_max: float) -> void:
+	if health == null or previous_max <= 0.0 or is_equal_approx(previous_max, health.max_health):
+		return
+	var ratio := health.max_health / previous_max
+	for zone in ZONES:
+		_hp[zone] = float(_hp[zone]) * ratio
 
 
 func zone_max(zone: StringName) -> float:
@@ -280,7 +292,7 @@ func _on_hit(info: DamageInfo, _applied: float) -> void:
 	var amount := info.mitigated
 	_hp[zone] = maxf(_hp[zone] - amount, -zone_max(zone))
 	last_zone = zone
-	var rate := amount * float(BLEED_PER_DAMAGE.get(info.kind, 0.01))
+	var rate := amount * float(BLEED_PER_DAMAGE.get(info.kind, 0.01)) * bleed_scale
 	if rate > BLEED_STOP:
 		_wounds.append({rate = rate, half_life = WOUND_HALF_LIFE})
 	# Lo que pasa a través de la guardia hiere, pero no cercena.

@@ -6,7 +6,8 @@ Todas van de 0 a 1, con 1 = bien (saciado, bebido, descansado, cuerdo, con
 aire). La temperatura va de -1 (helado) a 1 (abrasado), con 0 = a gusto.
 
 Se guardan con la partida y se llenan al reaparecer tras morir. En vuelo libre
-no corren.
+no corren. El temple del personaje hace que hambre y sed bajen más despacio y
+que se aguante más frío y calor (ver [progression.md](progression.md)).
 
 Las compensan comer y beber, la ropa, que abriga, y las hogueras, que calientan,
 secan y alumbran. Cómo se consigue cada cosa está en [items.md](items.md).

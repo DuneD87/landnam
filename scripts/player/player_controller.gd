@@ -71,6 +71,8 @@ var appearance_rig: CharacterAppearanceRig
 var combat: PlayerCombat
 ## Hambre, sed, descanso, cordura, oxígeno y temperatura (los enseña la barra rápida).
 var needs: SurvivalNeeds
+## Nivel, experiencia y atributos (ver Progression).
+var progression: Progression
 ## Descanso en lechos y aceleración temporal mientras se duerme.
 var resting: RestController
 ## Comer, beber, despellejar y las hogueras.
@@ -229,6 +231,7 @@ func _perform_raycast() -> void:
 	
 
 func _on_voxel_mined(item_id: StringName, amount: int) -> void:
+	Progression.reward(self, &"dig")
 	var item_data := ItemCatalog.get_item(item_id)
 	if item_data:
 		var excess := inventory.add_item(item_data, amount)
@@ -240,8 +243,9 @@ func _on_inventory_drop(data: ItemData, quantity: int) -> void:
 	DroppedItem.spawn(self, data, quantity, gravity_direction)
 
 
-## La muerte vacía mochila y equipo en un único botín persistente. Primero se resuelve el cursor:
-## lo prestado de otro contenedor vuelve allí y lo propio vuelve al inventario.
+## La muerte vacía mochila y equipo en un único botín persistente, con la XP del nivel en curso
+## (Progression.forfeit). Primero se resuelve el cursor: lo prestado de otro contenedor vuelve allí y
+## lo propio vuelve al inventario.
 func leave_death_loot() -> DeathLoot:
 	if fishing != null:
 		fishing.cancel()
@@ -263,7 +267,7 @@ func leave_death_loot() -> DeathLoot:
 				content.append(slot.equipped_item)
 			slot.clear()
 	# El destino ya existe antes de que reducir la capacidad emita inventory_changed.
-	var loot := DeathLoot.spawn(self, content)
+	var loot := DeathLoot.spawn(self, content, progression.forfeit() if progression != null else 0.0)
 	character_window.inventory_capacity.sync()
 	# Los accesos siguen asignados; no se simula una selección que pudiera reequipar objetos.
 	hotbar.restore_selection(-1)
@@ -635,6 +639,12 @@ func _ready():
 	needs.name = "SurvivalNeeds"
 	add_child(needs)
 	needs.setup(self)
+	progression = Progression.new()
+	progression.name = "Progression"
+	add_child(progression)
+	progression.setup(self)
+	progression.leveled_up.connect(_on_leveled_up)
+	hotbar.track_progression(progression)
 	survival = SurvivalActions.new()
 	survival.name = "SurvivalActions"
 	add_child(survival)
@@ -700,6 +710,7 @@ func _ready():
 	inventory_ui.setup(inventory, character_window, hotbar)
 	inventory_ui.crafter = self
 	inventory_ui.set_vitals(health_component, combat.stamina, needs)
+	inventory_ui.set_progression(progression)
 	inventory_ui.drop_requested.connect(_on_inventory_drop)
 	inventory_ui.use_requested.connect(survival.use_item.bind(true))
 	# Cerrada con el aspa (o con su propio Escape) devuelve el ratón al juego.
@@ -805,6 +816,7 @@ func get_save_data() -> Dictionary:
 		"severed": combat.body_damage.save_data() if combat != null and combat.body_damage != null else [],
 		"status": combat.status.save_data() if combat != null and combat.status != null else [],
 		"needs": needs.save_data() if needs != null else {},
+		"progression": progression.save_data() if progression != null else {},
 		"respawn": combat.get_respawn_data() if combat != null else {},
 		"map_markers": world_map_ui.markers.save_data(),
 	}
@@ -874,6 +886,9 @@ func restore_save_data(save: Dictionary) -> void:
 	_sync_hotbar_offhand()
 	_sync_armor()
 	_sync_build_mode()
+	# Antes de on_restored: la vida y el aguante máximos son los de los atributos.
+	if progression != null:
+		progression.load_data(save.get("progression", {}))
 	combat.on_restored()
 	combat.restore_respawn_data(save.get("respawn", {}))
 	# Después de on_restored, que deja el cuerpo entero: los miembros perdidos siguen perdidos.
@@ -1124,6 +1139,10 @@ func _on_cinematic_tween_finished() -> void:
 func take_fall_hit(impact_speed: float) -> void:
 	var damage := health_component.take_fall_damage(impact_speed)
 	FallInjury.roll(combat.status, combat.body_damage, impact_speed, damage)
+
+func _on_leveled_up(level: int) -> void:
+	hotbar.notify(tr("LEVEL_UP") % level)
+
 
 func _on_player_died() -> void:
 	# La caída, el cartel de HAS MUERTO y la reaparición los lleva PlayerCombat (_on_died).

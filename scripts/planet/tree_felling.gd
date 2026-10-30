@@ -247,6 +247,8 @@ func _fell(tree: VoxelInstancerRigidBody, info: Dictionary, state: Dictionary, o
 	# Cae hacia el otro lado de quien lo tala, con algo de azar.
 	var fall_dir := (-out).rotated(up, randf_range(-0.15, 0.15)).normalized()
 	var wood := clampi(roundi(WOOD_PER_M2 * radius * 2.0 * height) + MIN_WOOD, MIN_WOOD, MAX_WOOD)
+	# Un árbol de tamaño corriente da unos 12 de madera: los grandes dan más XP y los chicos, menos.
+	Progression.reward(chopper, &"fell_tree", clampf(float(wood) / 12.0, 0.5, 2.0))
 	var relative_base := xf.origin - (planet.voxel_terrain.get_parent() as Node3D).global_position
 
 	_stumps.append(_build_stump(info, xf, state.cut, radius))

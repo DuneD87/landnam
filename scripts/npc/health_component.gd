@@ -14,9 +14,14 @@ signal health_changed(current: float, maximum: float)
 ## dirección del golpe.
 signal hit_received(info: DamageInfo, applied: float)
 
+## Segundos que se le cuenta una muerte a quien la hirió por última vez.
+const KILL_CREDIT_TIME := 90.0
+
 @export var max_health: float = 100.0
 ## Si true, la entidad no puede recibir daño (útil para depuración o cutscenes).
 @export var invincible: bool = false
+## XP que da matarla (Progression.kill_xp). Negativa: la que sale de su vida y su armadura natural.
+@export var xp_reward: float = -1.0
 
 @export_group("Fall Damage")
 ## Si false, esta entidad ignora el daño por caída (útil para NPCs voladores, etc.).
@@ -41,6 +46,10 @@ var guard: Guard
 
 var health: float
 var is_dead: bool = false
+## Quién la hirió por última vez: si muere en KILL_CREDIT_TIME (desangrada, de una caída), la ha
+## matado él (Progression.reward_kill).
+var last_attacker: Node
+var _last_attack_msec := 0
 
 
 func _ready() -> void:
@@ -51,11 +60,16 @@ func _ready() -> void:
 func take_damage(amount: float, source: Node = null) -> void:
 	if is_dead or invincible or amount <= 0.0:
 		return
+	# Lo que se hace a sí misma (NPCController.die) no cuenta como atacante.
+	if source != null and source != get_parent():
+		last_attacker = source
+		_last_attack_msec = Time.get_ticks_msec()
 	health = max(0.0, health - amount)
 	health_changed.emit(health, max_health)
 	damaged.emit(amount, source)
 	if health <= 0.0:
 		is_dead = true
+		_credit_kill()
 		died.emit()
 
 
@@ -68,6 +82,7 @@ func drain(amount: float) -> void:
 	health_changed.emit(health, max_health)
 	if health <= 0.0:
 		is_dead = true
+		_credit_kill()
 		died.emit()
 
 
@@ -103,6 +118,7 @@ func armor_for(info: DamageInfo) -> Vector3:
 ## Vuelve a la vida con la salud llena (reaparición tras morir).
 func revive() -> void:
 	is_dead = false
+	last_attacker = null
 	health = max_health
 	health_changed.emit(health, max_health)
 
@@ -126,6 +142,14 @@ func take_fall_damage(impact_speed: float) -> float:
 	var damage := excess * fall_damage_multiplier
 	take_damage(damage)
 	return damage
+
+
+## La muerte se le cuenta a quien la hirió por última vez, si fue hace poco.
+func _credit_kill() -> void:
+	if last_attacker == null or not is_instance_valid(last_attacker) \
+			or Time.get_ticks_msec() - _last_attack_msec > KILL_CREDIT_TIME * 1000.0:
+		return
+	Progression.reward_kill(last_attacker, self)
 
 
 func get_health_ratio() -> float:

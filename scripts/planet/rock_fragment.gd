@@ -140,6 +140,7 @@ func hit(power: float, miner: Node3D) -> bool:
 		if _stone != null:
 			DroppedItem.spawn_at(self, _stone, _stones, global_position + toward * radius * 0.5 + _up * 0.4,
 				-_up, _pile(mini(_stones, 3)))
+			Progression.reward(miner, &"quarry", float(_stones))
 	_stones = 0
 	queue_free()
 	return true

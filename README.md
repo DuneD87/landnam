@@ -12,6 +12,7 @@ Abre `project.godot` y ejecuta la escena principal configurada en él.
 | Configuración del terreno | `PlanetParser` carga una `PlanetDefinition`: biomas, materiales, vegetación, minerales, ríos y clima. El planeta y sus consumidores comparten este recurso; cada planeta tiene el suyo. |
 | Vegetación | `Planet` registra los generadores, las bandas de LOD y las colisiones. `VegetationBaker` hornea las tarjetas de hierba y los impostores de árboles. |
 | Jugador | `PlayerController` coordina movimiento, interacción, equipo y construcción; `scripts/player/` contiene sus componentes. |
+| Nivel y atributos | `Progression` da XP por lo que se hace en el mundo y reparte un punto por nivel entre seis atributos; los números, en `data/progression/balance.tres`. Ver `docs/progression.md`. |
 | Pesca | `PlayerFishing` lleva carga, lanzamiento, picada y recogida con los peces del hábitat; caña y aparejos crafteables. Ver `docs/fishing.md`. |
 | Combate | `PlayerCombat` lleva las acciones del jugador; `CombatTargeting` selecciona el blanco y actualiza el punto de la cámara. Las criaturas usan `scripts/npc/ai/`. |
 | Inventario | `Inventory` (`scripts/items/`) lleva capacidad, reglas y transferencias. `Storage` incorpora ese componente en los contenedores del mundo, configurados con `StorageTrait`. `InventoryPanel` presenta cualquier inventario y `InventoryUI` coordina el cursor. Ver `docs/storage.md`. |

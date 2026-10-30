@@ -14,7 +14,8 @@ muerde cada engaste donde se junta con la barra y recorre su borde de arriba a j
 en la placa (su cuerpo es parte de ella), hasta que la cola sale hecha zarcillo de hojas. En el
 centro se levanta el engaste de la media orbe de la cordura, con media banda de runas («hugr auk
 minni»), una voluta doble a cada lado con un cuervo posado (Huginn y Muninn, el pensamiento y la
-memoria) y tres hojas. Por debajo de la barra corre una trenza de hilo de bronce. Aparte sale
+memoria) y tres hojas. Por debajo de la barra, de engaste a engaste, queda el hueco liso donde va
+la barra de la experiencia (XpStrip, que no se hornea: XP_X0, XP_X1). Aparte sale
 hotbar_breath_runes.png: las runas del aguante solas, que BreathRing enciende como medidor del
 oxígeno.
 
@@ -68,6 +69,9 @@ MEDALLION_AT, MEDALLION_R = 118.0, 21.0
 ICON_SCALE = 1.4
 # La máscara de las runas del aguante, para el oxígeno (BreathRing): medio lado.
 MASK_HALF = 102.0
+# La barra de la experiencia (XpStrip) va por debajo de la barra, de engaste a engaste, en medio del
+# hueco hasta el borde de la pantalla; la placa la deja lisa.
+XP_X0, XP_X1 = -10.0, BAR_W + 10.0
 # La placa asoma un poco por encima de la barra; el filete interior va a INSET del borde.
 BAND_TOP = -14.0
 INSET = 7.0
@@ -232,7 +236,6 @@ def mirror(points):
 # relleno y su filete. Los tallos son de hierro y las hojas de bronce viejo.
 RIBBON = dict(halo=1.5, fill=IRON_RAISED, line=BRONZE, line_alpha=0.8, line_w=1.0)
 LEAF = dict(halo=1.4, fill=BRONZE_DARK * 0.82 + BRONZE * 0.18, line=BRONZE, line_alpha=0.95, line_w=1.0)
-WIRE = dict(halo=1.1, fill=BRONZE, fill_alpha=0.5, line=None)
 
 
 def draw(d, style, mask=1.0):
@@ -579,28 +582,6 @@ def crest():
     rivet((x, -DOME), 5.0)
 
 
-def braid():
-    # Dos hilos de bronce embutidos que se cruzan por debajo de la barra, de engaste a engaste.
-    y = (BAR_H + SCREEN_Y) * 0.5
-    x0, x1 = -10.0, BAR_W + 10.0
-    xs = np.arange(x0, x1, 1.0)
-    period = 44.0
-    strands = []
-    for phase in (0.0, math.pi):
-        ys = y + 4.2 * np.sin((xs - x0) / period * 2 * math.pi + phase)
-        strands.append(np.stack([xs, ys], axis=1))
-    # En cada cruce pasa por encima uno distinto.
-    half = period * 0.5
-    for over in (False, True):
-        for k, strand in enumerate(strands):
-            seg = ((strand[:, 0] - x0 + half * 0.5) // half).astype(int)
-            mask = ((seg + k) % 2 == 0) == over
-            for run in np.split(np.arange(len(strand)), np.where(np.diff(mask.astype(int)) != 0)[0] + 1):
-                if mask[run[0]] and len(run) > 1:
-                    run = np.arange(max(run[0] - 1, 0), min(run[-1] + 2, len(strand)))
-                    draw(sd_stroke(strand[run], np.full(len(run), 1.0), reach=4.0), WIRE)
-
-
 # --- Huginn y Muninn ------------------------------------------------------------------------------
 
 # Los cuervos son de hierro, como los tallos, con el filete de bronce y las plumas grabadas.
@@ -787,7 +768,6 @@ def main():
     for mirrored in (False, True):
         ash_roots(mirrored)
     plate()
-    braid()
     runes(LEFT, RUNE_TEXT["left"], RUNE_IN, RUNE_OUT, RUNE_H)
     breath = runes(RIGHT, RUNE_TEXT["right"], RUNE_IN, RUNE_OUT, RUNE_H)
     runes(DOME_CENTRE, SANITY_TEXT, DOME_RUNE_IN, DOME_RUNE_OUT, 8.0, (-80.0, 80.0))

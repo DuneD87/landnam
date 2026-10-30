@@ -365,6 +365,7 @@ func _land_catch() -> void:
 	_fish.deactivate()
 	_fish = null
 	_give_back(item)
+	Progression.reward(_player, &"fish")
 	_notify("FISH_CAUGHT")
 	cancel()
 

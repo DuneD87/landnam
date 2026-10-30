@@ -194,6 +194,7 @@ func _on_butchered(body: Node3D) -> void:
 	var knife := _skinning_tool()
 	HuntingLoot.fill(body, knife.yield_mult if knife != null else 1.0)
 	body.butchered = true
+	Progression.reward(_player, &"butcher", 0.4 if _is_bird(body) else 1.0)
 	notify(tr("SURV_PLUCKED" if _is_bird(body) else "SURV_SKINNED"))
 	_open_loot(body)
 
@@ -213,11 +214,17 @@ static func _is_bird(body: Node3D) -> bool:
 	return corpse != null and corpse.plume.a > 0.0
 
 
-## Recupera los objetos de una muerte cercana, sin necesidad de herramientas.
+## Recupera los objetos y la XP de una muerte cercana, sin necesidad de herramientas.
 func open_nearby_death_loot() -> bool:
 	var loot := DeathLoot.nearest(get_tree(), _player.global_position)
 	if loot == null:
 		return false
+	if loot.xp > 0.0 and _player.progression != null:
+		var xp := loot.take_xp()
+		_player.progression.recover(xp)
+		notify(tr("XP_RECOVERED") % roundi(xp))
+	if loot.inventory.get_free_slots() == loot.inventory.max_slots:
+		return true
 	_player.inventory_ui.open_loot(loot.inventory, "DEATH_LOOT_TITLE")
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	return true

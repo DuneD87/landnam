@@ -1170,6 +1170,7 @@ func _on_guard_parried(info: DamageInfo) -> void:
 	CombatFx.sparks(player, info.point, -info.direction, 1.0)
 	player.camera_controller.add_shake(0.14)
 	_riposte_left = RIPOSTE_WINDOW
+	Progression.reward(player, &"parry")
 
 
 ## Sin aguante para pararlo: la guardia cede y tambalea (lo que pasa del golpe llega después).
@@ -1450,8 +1451,8 @@ func _sweep_blade(data: ItemData) -> void:
 	var base := frame * Vector3(0, data.blade_start, 0)
 	var tip := frame * Vector3(0, data.reach, 0)
 	var space := player.get_world_3d().direct_space_state
-	var damage := float(data.damage) * float(_move.get("damage", 1.0))
-	var poise_damage := data.poise_damage * float(_move.get("poise", 1.0))
+	var damage := float(data.damage) * float(_move.get("damage", 1.0)) * _strength()
+	var poise_damage := data.poise_damage * float(_move.get("poise", 1.0)) * _strength()
 	if _heavy:
 		var mult := lerpf(1.25, data.heavy_multiplier, _charge)
 		damage *= mult
@@ -1498,7 +1499,7 @@ func _harvest(data: ItemData) -> void:
 	var feet := player.global_position
 	var tree := TreeFelling.strike(get_tree(), space, feet, _body_forward(), up)
 	var rock := RockMining.strike(get_tree(), space, feet, _body_forward(), up)
-	var mult := float(_move.get("damage", 1.0))
+	var mult := float(_move.get("damage", 1.0)) * _strength()
 	if _heavy:
 		mult *= lerpf(1.25, data.heavy_multiplier, _charge)
 	var done := false
@@ -1514,6 +1515,12 @@ func _harvest(data: ItemData) -> void:
 	var weight := (1.6 if _heavy else 1.0) * (1.3 if data.two_handed else 1.0)
 	_hitstop = HITSTOP_TIME * weight
 	player.camera_controller.add_shake(0.03 * weight)
+
+
+## Lo que la fuerza del personaje (Progression) multiplica el daño cuerpo a cuerpo y lanzado, el
+## desgaste de guardia y la potencia al talar y picar.
+func _strength() -> float:
+	return player.progression.strength_mult() if player.progression != null else 1.0
 
 
 static func _flat_distance(from: Vector3, to: Vector3, up: Vector3) -> float:
@@ -1735,9 +1742,12 @@ func _update_aim(delta: float) -> void:
 	var has_ammo := ammo_count() > 0
 	var can_draw := _bow_phase == &"ready" or not is_bow
 	if _draw_held and has_ammo and _fire_cooldown <= 0.0 and not stamina.exhausted and can_draw:
-		_draw = minf(1.0, _draw + delta / maxf(data.draw_time, 0.1))
+		# La destreza (Progression) tensa antes y cansa menos con la cuerda tensa; la lanza va aparte.
+		var dexterity: Progression = player.progression if not data.throwable else null
+		var speed := dexterity.draw_speed_mult() if dexterity != null else 1.0
+		_draw = minf(1.0, _draw + delta * speed / maxf(data.draw_time, 0.1))
 		if _draw >= 1.0:
-			stamina.drain(HOLD_DRAW_DRAIN, delta)
+			stamina.drain(HOLD_DRAW_DRAIN * (dexterity.hold_drain_mult() if dexterity != null else 1.0), delta)
 	elif _draw > 0.0 and not _draw_held:
 		if _draw >= 0.3:
 			if data.throwable:
@@ -1972,9 +1982,13 @@ func _fire(data: ItemData, draw: float) -> void:
 	# La munición pone lo suyo: una punta de obsidiana corta más que una de sílex, una de hueso
 	# entra mejor entre placas.
 	var ammo_damage := float(ammo.damage) if ammo != null and ammo != data else 0.0
+	# La lanza la arroja la fuerza; el arco y el tirachinas los afina la destreza (Progression).
+	var skill := 1.0
+	if player.progression != null:
+		skill = player.progression.strength_mult() if data.throwable else player.progression.ranged_mult()
 	projectile.damage = (float(data.damage) + ammo_damage) * (1.5 if data.throwable else 1.0) \
-		* lerpf(0.35, 1.0, pow(clampf(draw, 0.0, 1.0), 1.5))
-	projectile.poise = data.poise_damage * power
+		* lerpf(0.35, 1.0, pow(clampf(draw, 0.0, 1.0), 1.5)) * skill
+	projectile.poise = data.poise_damage * power * skill
 	projectile.damage_kind = data.damage_kind
 	projectile.penetration = maxf(data.armor_penetration, ammo.armor_penetration if ammo != null else 0.0)
 	projectile.set_exclude([player.get_rid(), hurtbox.get_rid()])
@@ -2278,7 +2292,8 @@ func _on_hit_received(info: DamageInfo, applied: float) -> void:
 		return
 	# Los golpes pesados y los de dos manos aguantan mientras se descargan (hyperarmor). Con la
 	# guardia rota ya se tambalea (_on_guard_broken).
-	if info.poise >= PLAYER_POISE + _attack_armor() and state != State.DODGE \
+	var poise := PLAYER_POISE + (player.progression.poise_bonus() if player.progression != null else 0.0)
+	if info.poise >= poise + _attack_armor() and state != State.DODGE \
 			and info.guarded != Guard.Result.BROKEN:
 		_start_stagger(info)
 

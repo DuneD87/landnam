@@ -54,8 +54,9 @@ del filtro, sin moverlo de su hueco.
 En la pantalla de personaje, en el centro, está el muñeco de `CharacterWindow`: el propio personaje en 3D
 (`CharacterPreview` horneado y con fondo transparente), con la ropa de sus
 huecos ajustada a su cuerpo como en el jugador y los huecos a los lados. A la
-derecha van los atributos (vida, aguante, armadura y las dos manos) o, mientras
-se saquea, el botín, con **Cogerlo todo**. Detrás queda el mundo desenfocado y
+derecha van los atributos (nivel y atributos para repartir, ver
+[progression.md](progression.md); vida, aguante, armadura y las dos manos) o,
+mientras se saquea, el botín, con **Cogerlo todo**. Detrás queda el mundo desenfocado y
 oscurecido (`shaders/ui/backdrop.gdshader`), y la barra rápida sube por encima
 del fondo mientras la pantalla está abierta, para asignarle cosas.
 
@@ -163,7 +164,8 @@ de la cordura, con media banda de runas («hugr auk minni», pensamiento y
 memoria), asentado en una voluta doble y coronado por un remache y tres hojas.
 En cada voluta está posado un cuervo pequeño, Huginn y Muninn, con el ala
 alzada y una espiral en su arranque, mirando a la cordura. Por debajo de la
-barra corre una trenza de hilo de bronce.
+barra, de engaste a engaste, va la barra de la experiencia (`XpStrip`, ver
+[progression.md](progression.md)); no se hornea, y la placa queda lisa debajo.
 
 Alrededor de cada engaste, por fuera, van tallados dos medidores: un medallón
 con su icono del que sale un canal en el sentido de las agujas del reloj, que se

@@ -305,9 +305,11 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("toon", TOON_USAGE, "CON_HELP_TOON", _cmd_toon, 0, _complete_toon))
 	_add(ConsoleCommand.new("needs", "needs [<name> <value> | fill | empty | pause [on|off] | rate <x>]",
 		"CON_HELP_NEEDS", _cmd_needs, 0, _complete_needs))
+	_add(ConsoleCommand.new("xp", XP_USAGE, "CON_HELP_XP", _cmd_xp, 0, _complete_xp))
 	_add(ConsoleCommand.new("fps", "fps [n]", "CON_HELP_FPS", _cmd_fps))
 
 
+const XP_USAGE := "xp [add <n> | level <n> | attr <name> <n> | respec]"
 const SEASON_USAGE := "season [spring|summer|autumn|winter|<day>] | season speed <x> | season perf [leaves|cold|meadow|none]"
 const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off]"
 const CUT_USAGE := "cut [arm|forearm|thigh|shin] [left|right]"
@@ -555,6 +557,47 @@ func _cmd_needs(args: PackedStringArray) -> String:
 		return _paint(COLOR_INFO, "%s: %.2f" % [need, needs.get_value(need)])
 	needs.set_value(need, args[1].to_float())
 	return _paint(COLOR_OK, "%s → %.2f." % [need, needs.get_value(need)])
+
+
+func _cmd_xp(args: PackedStringArray) -> String:
+	var progression := Progression.of(_get_player())
+	if progression == null:
+		return _paint(COLOR_ERR, tr("CON_NO_PROGRESSION"))
+	if args.is_empty():
+		var lines := PackedStringArray()
+		for attribute in Progression.ATTRIBUTES:
+			lines.append("  %s: %d" % [attribute, progression.get_attribute(attribute)])
+		return "%s\n%s" % [_paint(COLOR_INFO, tr("CON_XP_TITLE") % [progression.level, progression.xp,
+			progression.xp_to_next(), progression.points]), "\n".join(lines)]
+	match args[0].to_lower():
+		"add":
+			if args.size() < 2 or not args[1].is_valid_float():
+				return _paint(COLOR_ERR, XP_USAGE)
+			progression.recover(args[1].to_float())
+		"level":
+			if args.size() < 2 or not args[1].is_valid_int():
+				return _paint(COLOR_ERR, XP_USAGE)
+			progression.set_level(args[1].to_int())
+		"attr":
+			if args.size() < 3 or not args[2].is_valid_int():
+				return _paint(COLOR_ERR, XP_USAGE)
+			if not Progression.ATTRIBUTES.has(StringName(args[1].to_lower())):
+				return _paint(COLOR_ERR, tr("CON_UNKNOWN_ATTRIBUTE") % [args[1],
+					", ".join(PackedStringArray(Progression.ATTRIBUTES))])
+			progression.set_attribute(StringName(args[1].to_lower()), args[2].to_int())
+		"respec":
+			progression.respec()
+		_:
+			return _paint(COLOR_ERR, XP_USAGE)
+	return _paint(COLOR_OK, tr("CON_XP_TITLE") % [progression.level, progression.xp, progression.xp_to_next(),
+		progression.points])
+
+
+func _complete_xp() -> PackedStringArray:
+	var options := PackedStringArray(["add", "level", "attr", "respec"])
+	for attribute in Progression.ATTRIBUTES:
+		options.append(String(attribute))
+	return options
 
 
 func _water_word(player: Node) -> String:

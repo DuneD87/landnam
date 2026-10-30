@@ -74,7 +74,8 @@ var _held: ItemSlotView
 var _held_root: Control
 var _hotbar_layer := -1
 
-var _stats_box: VBoxContainer
+## La ficha de atributos, que se desplaza si no cabe.
+var _stats_box: ScrollContainer
 var _health: HealthComponent
 var _stamina: StaminaComponent
 var _health_bar: ProgressBar
@@ -87,6 +88,16 @@ var _needs: SurvivalNeeds
 ## Valor de cada necesidad en la ficha, por su nombre (SurvivalNeeds.NAMES, más "water").
 var _need_values := {}
 var _hand_boxes := {}
+## Nivel y atributos (Progression): lo que se ve y los puntos que se van a poner al confirmar.
+var _progression: Progression
+var _level_label: Label
+var _xp_value: Label
+var _xp_bar: ProgressBar
+var _points_label: Label
+var _attribute_values := {}
+var _attribute_buttons := {}
+var _attribute_actions: HBoxContainer
+var _pending := {}
 
 ## Columna de la derecha: atributos, botín u hoguera (la manda _update_side).
 var _campfire: Campfire = null
@@ -189,6 +200,13 @@ func set_vitals(health: HealthComponent, stamina: StaminaComponent, needs: Survi
 	_health = health
 	_stamina = stamina
 	_needs = needs
+
+
+func set_progression(progression: Progression) -> void:
+	_progression = progression
+	_pending.clear()
+	progression.changed.connect(_refresh_progression)
+	_refresh_progression()
 
 
 func _process(_delta: float) -> void:
@@ -397,10 +415,16 @@ func _build_campfire() -> VBoxContainer:
 	return box
 
 
-func _build_stats() -> VBoxContainer:
+func _build_stats() -> ScrollContainer:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var box := VBoxContainer.new()
-	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(box)
 	box.add_child(_label("INV_ATTRIBUTES", &"HeaderLabel"))
+	box.add_child(HSeparator.new())
+	_build_level(box)
 	box.add_child(HSeparator.new())
 	var vitals := GridContainer.new()
 	vitals.columns = 2
@@ -436,7 +460,120 @@ func _build_stats() -> VBoxContainer:
 		hand.add_theme_constant_override("separation", 2)
 		box.add_child(hand)
 		_hand_boxes[slot_type] = hand
-	return box
+	return scroll
+
+
+## El nivel con su XP y los seis atributos, cada uno con su «+» mientras haya puntos que poner. Lo
+## que se pone queda pendiente (se ve en verde) hasta confirmarlo.
+func _build_level(box: VBoxContainer) -> void:
+	var header := HBoxContainer.new()
+	_level_label = _label("", &"SectionLabel")
+	_level_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_level_label)
+	_xp_value = _label("", &"ValueLabel")
+	_xp_value.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header.add_child(_xp_value)
+	box.add_child(header)
+	_xp_bar = _bar(&"")
+	box.add_child(_xp_bar)
+	_points_label = _label("", &"BetterLabel")
+	box.add_child(_points_label)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	_attribute_values.clear()
+	_attribute_buttons.clear()
+	for attribute in Progression.ATTRIBUTES:
+		var name_label := _label(Progression.NAMES[attribute], &"StatLabel")
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_label.tooltip_text = Progression.TIPS[attribute]
+		name_label.mouse_filter = Control.MOUSE_FILTER_STOP
+		grid.add_child(name_label)
+		var value := _label("", &"StatValue")
+		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		grid.add_child(value)
+		_attribute_values[attribute] = value
+		var plus := Button.new()
+		plus.text = "+"
+		plus.focus_mode = Control.FOCUS_NONE
+		plus.tooltip_text = Progression.TIPS[attribute]
+		plus.pressed.connect(_add_pending.bind(attribute))
+		grid.add_child(plus)
+		_attribute_buttons[attribute] = plus
+	box.add_child(grid)
+	_attribute_actions = HBoxContainer.new()
+	_attribute_actions.alignment = BoxContainer.ALIGNMENT_END
+	var undo := Button.new()
+	undo.text = "ATTR_UNDO"
+	undo.focus_mode = Control.FOCUS_NONE
+	undo.pressed.connect(_undo_pending)
+	_attribute_actions.add_child(undo)
+	var confirm := Button.new()
+	confirm.text = "ATTR_CONFIRM"
+	confirm.theme_type_variation = &"AccentButton"
+	confirm.focus_mode = Control.FOCUS_NONE
+	confirm.pressed.connect(_confirm_pending)
+	_attribute_actions.add_child(confirm)
+	box.add_child(_attribute_actions)
+
+
+func _pending_total() -> int:
+	var total := 0
+	for attribute in _pending:
+		total += _pending[attribute]
+	return total
+
+
+func _add_pending(attribute: StringName) -> void:
+	if _progression == null or _pending_total() >= _progression.points:
+		return
+	_pending[attribute] = _pending.get(attribute, 0) + 1
+	_refresh_progression()
+
+
+func _undo_pending() -> void:
+	_pending.clear()
+	_refresh_progression()
+
+
+func _confirm_pending() -> void:
+	if _progression == null:
+		return
+	var chosen := _pending.duplicate()
+	_pending.clear()
+	for attribute in chosen:
+		for i in chosen[attribute]:
+			_progression.spend(attribute)
+	_refresh_stats()
+
+
+func _refresh_progression() -> void:
+	if _level_label == null:
+		return
+	if _progression == null:
+		_level_label.text = ""
+		return
+	# Lo pendiente no puede pasar de los puntos que hay (la consola puede quitarlos).
+	if _pending_total() > _progression.points:
+		_pending.clear()
+	_level_label.text = tr("ATTR_LEVEL") % _progression.level
+	_xp_value.text = tr("ATTR_XP") % [floori(_progression.xp), roundi(_progression.xp_to_next())]
+	_xp_bar.value = _progression.xp_ratio()
+	var left := _progression.points - _pending_total()
+	_points_label.visible = _progression.points > 0
+	_points_label.text = tr("ATTR_POINTS") % left
+	for attribute in Progression.ATTRIBUTES:
+		var value: Label = _attribute_values[attribute]
+		var current := _progression.get_attribute(attribute)
+		var extra: int = _pending.get(attribute, 0)
+		value.text = "%d → %d" % [current, current + extra] if extra > 0 else str(current)
+		value.theme_type_variation = &"BetterLabel" if extra > 0 else &"StatValue"
+		# Sin puntos el «+» no se ve pero ocupa su celda: oculto, la rejilla se descolocaría.
+		var plus: Button = _attribute_buttons[attribute]
+		var shown := _progression.points > 0
+		plus.modulate.a = 1.0 if shown else 0.0
+		plus.mouse_filter = Control.MOUSE_FILTER_STOP if shown else Control.MOUSE_FILTER_IGNORE
+		plus.disabled = left <= 0
+	_attribute_actions.visible = _pending_total() > 0
 
 
 func _build_loot() -> VBoxContainer:
@@ -573,6 +710,9 @@ func _sort_inventory() -> void:
 
 func _refresh_stats() -> void:
 	var armor := character_window.get_armor() if character_window != null else Vector3.ZERO
+	# Con la armadura natural del cuerpo (la dureza: Progression).
+	if _health != null and is_instance_valid(_health):
+		armor += Vector3(_health.armor_slash, _health.armor_blunt, _health.armor_pierce)
 	for i in _armor_values.size():
 		_armor_values[i].text = ItemTrait.number(armor[i])
 	for slot_type in _hand_boxes:
@@ -593,6 +733,7 @@ func _refresh_stats() -> void:
 			value.text = row[1]
 		box.add_child(grid)
 	_refresh_vitals()
+	_refresh_progression()
 
 
 func _refresh_vitals() -> void:
@@ -772,6 +913,8 @@ func _apply_view() -> void:
 
 func close() -> void:
 	var was_open := visible
+	# Lo que se iba a poner y no se ha confirmado no se queda a medias.
+	_pending.clear()
 	if floating_item:
 		_cancel_floating_item()
 	close_loot()

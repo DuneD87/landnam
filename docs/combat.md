@@ -272,7 +272,9 @@ escudo, o las manos en el arma, delante del cuerpo.
   (11/s), mantener la cuerda tensa y trepar (ver [climbing.md](climbing.md)). Si se
   agota, hay que recuperar un poco antes de volver a gastar.
 - **Armadura**: ver [Armadura](#armadura).
-- **Guardia (poise)**: un golpe con más desgaste que la guardia del jugador (24) le
+- **Atributos**: la fuerza, la destreza y la dureza del personaje multiplican el daño, el tensado y la
+  guardia, y le dan armadura natural (ver [progression.md](progression.md)).
+- **Guardia (poise)**: un golpe con más desgaste que la guardia del jugador (24, más su dureza) le
   hace tambalearse. Los osos aguantan 110 de desgaste acumulado (más la armadura de su
   ataque) y, al romperla, se quedan 1 s vendidos.
 

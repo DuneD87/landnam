@@ -162,6 +162,7 @@ func _on_impact(target: BlueprintSite) -> bool:
 		_notify(_problem_text(result["problem"]))
 		return false
 	AudioManager.play_material_flat(&"block_place", result["sound"])
+	Progression.reward(_player, &"build", float(result["placed"]))
 	if result["finished"]:
 		_holding = false
 		var leftover := target.take_deposited()

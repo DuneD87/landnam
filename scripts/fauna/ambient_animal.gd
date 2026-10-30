@@ -71,6 +71,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	if health_component != null:
 		health_component.health = health_component.max_health
 		health_component.is_dead = false
+		health_component.last_attacker = null
 		if not health_component.died.is_connected(_on_health_depleted):
 			health_component.died.connect(_on_health_depleted)
 	show()
@@ -269,6 +270,7 @@ func take_damage(amount: float, source: Node = null) -> void:
 	if not active or amount <= 0.0:
 		return
 	if health_component == null:
+		Progression.reward_kill(source, self)
 		die(global_position)
 		return
 	health_component.take_damage(amount, source)

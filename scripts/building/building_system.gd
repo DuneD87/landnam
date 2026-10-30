@@ -413,6 +413,7 @@ func _consume_block_cost(block_data: BlockData) -> bool:
 		return false
 
 	_inventory.remove_item(mat.item, cost)
+	Progression.reward(_player, &"build", float(cost))
 	return true
 
 
@@ -942,6 +943,7 @@ func _try_place_naval() -> bool:
 			_target_grid_pos = Vector3i.ZERO
 	if _inventory and not free_build:
 		_inventory.remove_item(mat.item, cost)
+		Progression.reward(_player, &"build", float(cost))
 	grid.mesh_materials[mat.material_id] = mat.surface_material
 	grid.begin_bulk_edit()
 	var placed: Array[Vector3i] = []
