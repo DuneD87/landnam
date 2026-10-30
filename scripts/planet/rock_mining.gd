@@ -27,8 +27,8 @@ const WORK := 30.0
 const WORK_PER_METER := 40.0
 ## Piedras por metro de tamaño, entre estos límites (por el rendimiento de la roca, Item.mining_yield:
 ## un afloramiento de mena da menos).
-const STONES_PER_METER := 3.0
-const STONES := Vector2i(2, 40)
+const STONES_PER_METER := 30.0
+const STONES := Vector2i(20, 400)
 ## En cuántos trozos se parte una roca: los primeros de estos que dejen cada trozo en
 ## PIECE_VOLUME m³ o menos (las rocas llenan la mitad de su caja, más o menos).
 const PIECES := [6, 10, 16, 24]
