@@ -72,6 +72,16 @@ baja desactiva detalle cercano, parallax y antitiling; media conserva antitiling
 y parallax; alta conserva los valores del planeta. Los presets Bajo/Medio/Alto/Ultra usan,
 respectivamente, material Bajo/Medio/Alto/Alto. Se aplica antes del primer mallado y requiere reiniciar.
 
+La **Calidad de las sombras** fija el filtro del sol y, un escalón del motor por debajo, el de las
+luces locales (`POSITIONAL_SHADOW_FILTER`): en Alto, el sol va en *Soft High* y las antorchas en
+*Soft Medium*. Lo que cuesta de una luz local no es dibujar su mapa de sombra sino leerlo en cada
+píxel que alcanza, y en una base con varias antorchas cada píxel lo paga por cada una. Con cuatro
+antorchas de pared en PCSS (`light_size` 1) y 12 m de alcance, el pase opaco subía a 7,7 ms de los
+16 ms de GPU de la partida (4K al 65 %, MSAA 2x). Por eso la antorcha de pared
+(`torch_placed.tscn`) no usa PCSS (`light_size` 0, `shadow_blur` 1,5), alcanza 8 m y su sombra se
+apaga entre 8 y 12 m de la cámara (`distance_fade_shadow` + `distance_fade_length`). La de mano
+conserva la suya: es una sola luz.
+
 ## Añadir un ajuste
 
 1. Clave en `PRESETS` (si depende de la calidad, con sus cuatro valores) o en `DEFAULTS`.

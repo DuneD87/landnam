@@ -91,6 +91,11 @@ const SHADOW_ATLAS_SIZE := [0, 2048, 4096, 4096, 8192]
 const SHADOW_FILTER := [RenderingServer.SHADOW_QUALITY_HARD, RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW,
 	RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_HIGH,
 	RenderingServer.SHADOW_QUALITY_SOFT_ULTRA]
+## Luces locales (antorchas, hogueras), un escalón del motor por debajo del sol: cada píxel paga
+## una lectura filtrada por luz que le alcanza, y en una base con varias antorchas se solapan.
+const POSITIONAL_SHADOW_FILTER := [RenderingServer.SHADOW_QUALITY_HARD, RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW,
+	RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM,
+	RenderingServer.SHADOW_QUALITY_SOFT_HIGH]
 ## Fracción de la distancia de sombra de cada luz tal como viene en la escena.
 const SHADOW_DISTANCE_SCALE := [0.35, 0.6, 1.0]
 ## Primer corte de cascada con dos cascadas (calidad baja): con las cuatro de la escena el
@@ -563,7 +568,7 @@ func _apply_shadow_atlas() -> void:
 		return
 	RenderingServer.directional_shadow_atlas_set_size(SHADOW_ATLAS_SIZE[quality], true)
 	RenderingServer.directional_soft_shadow_filter_set_quality(SHADOW_FILTER[quality])
-	RenderingServer.positional_soft_shadow_filter_set_quality(SHADOW_FILTER[quality])
+	RenderingServer.positional_soft_shadow_filter_set_quality(POSITIONAL_SHADOW_FILTER[quality])
 
 
 func _apply_to_lights() -> void:

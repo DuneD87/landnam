@@ -6,3 +6,12 @@
 
 [node name="Torch" parent="." unique_id=1837248659 instance=ExtResource("1_torch")]
 transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 0, 0.1)
+
+[node name="OmniLight3D" parent="Torch"]
+light_size = 0.0
+shadow_blur = 1.5
+distance_fade_shadow = 8.0
+distance_fade_length = 4.0
+omni_range = 8.0
+
+[editable path="Torch"]
