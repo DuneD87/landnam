@@ -529,7 +529,7 @@ func _cmd_needs(args: PackedStringArray) -> String:
 		var title := tr("CON_NEEDS_TITLE_PAUSED" if needs.paused else "CON_NEEDS_TITLE") % str(needs.rate)
 		return "%s\n%s\n  %s\n  %s" % [_paint(COLOR_INFO, title), "\n".join(lines),
 			tr("CON_NEEDS_FELT") % [needs.felt_temperature, needs.temperature_word(),
-				tr("UI_YES" if needs.submerged else "UI_NO")],
+				roundi(needs.shelter * 100.0), tr("UI_YES" if needs.submerged else "UI_NO")],
 			tr("CON_NEEDS_WATER") % [needs.water, needs.water_capacity(), _water_word(player)]]
 	var sub := args[0].to_lower()
 	match sub:

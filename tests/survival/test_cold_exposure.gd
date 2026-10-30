@@ -1,7 +1,7 @@
 extends Node
 
 ## Frío con el clima real de la Tierra, sin cargar terreno ni personajes: lluvia, nieve,
-## transiciones, refugio, altitud, hielo, ropa, fuego y daño a la vida.
+## transiciones, techo, cueva, altitud, hielo, ropa, fuego y daño a la vida.
 ##   godot --headless --path . res://tests/survival/test_cold_exposure.tscn
 
 class PlanetBody extends Node3D:
@@ -75,6 +75,7 @@ func _run() -> void:
 	_test_precipitation()
 	_test_exposure()
 	_test_protection()
+	await _test_shelter()
 	_test_damage_rules()
 	_player.free()
 	_weather.free()
@@ -243,6 +244,83 @@ func _test_protection() -> void:
 	_step(30)
 	check(is_equal_approx(_health.health, health), "recuperado el calor, deja de bajar la vida")
 	fire.free()
+
+
+## Una cueva (una caja de roca cerrada alrededor del jugador) en la alta montaña, con pieles y una
+## hoguera a 2 m: al raso no basta, sin techo no es refugio y, cerrada, se está a gusto.
+func _test_shelter() -> void:
+	_reset(25.0, 700.0)
+	var window := CharacterWindow.new()
+	var slot := EquipmentSlot.new()
+	var furs := ItemData.new()
+	var insulation := InsulationTrait.new()
+	insulation.warmth = 21.5
+	furs.traits.append(insulation)
+	slot.equipped_item = InventoryItem.new(furs)
+	window.equipment_slots[ItemData.ArmorSlot.CHEST] = slot
+	_player.character_window = window
+	_needs._climate_timer = 0.0
+	_step(1)
+	var open_felt := _needs.felt_temperature
+	var node := Node3D.new()
+	add_child(node)
+	node.set_script(Campfire)
+	var fire := node as Campfire
+	fire.process_mode = Node.PROCESS_MODE_DISABLED
+	fire.add_child(fire.inventory)
+	fire.add_to_group(Campfire.GROUP)
+	fire.position = _player.position + Vector3(2.0, 0.0, 0.0)
+	fire.lit = true
+	_needs._climate_timer = 0.0
+	_step(300)
+	var open_heat := _needs._fire_heat
+	check(_needs.warmth <= -SurvivalNeeds.COLD_EXPOSURE_START and _health.health < _health.max_health,
+		"en la alta montaña, al raso, ni con pieles ni junto a la hoguera se aguanta el frío")
+
+	var cave := StaticBody3D.new()
+	add_child(cave)
+	cave.position = _player.position + Vector3.UP * 1.5
+	var roof: CollisionShape3D
+	for axis in 3:
+		for side in [-1.0, 1.0]:
+			var box := BoxShape3D.new()
+			box.size = Vector3.ONE * 8.0
+			box.size[axis] = 0.5
+			var shape := CollisionShape3D.new()
+			shape.shape = box
+			shape.position[axis] = 4.0 * side
+			if axis == 1 and side > 0.0:
+				roof = shape
+			else:
+				cave.add_child(shape)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_needs._climate_timer = 0.0
+	_step(1)
+	check(is_zero_approx(_needs.shelter), "entre paredes pero sin techo no hay refugio")
+	cave.add_child(roof)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	fire.lit = false
+	_needs._climate_timer = 0.0
+	_step(1)
+	check(_needs.shelter > 0.99 and _needs.felt_temperature > open_felt + 15.0,
+		"una cueva cerrada deja fuera buena parte del frío")
+	fire.lit = true
+	_needs.warmth = -1.0
+	_health.revive()
+	_needs._climate_timer = 0.0
+	_step(300)
+	check(_needs._fire_heat > open_heat + 5.0 and _needs.warmth > -0.15,
+		"en la cueva la hoguera caldea el aire y, con pieles, se está a gusto")
+	var health := _health.health
+	_step(30)
+	check(is_equal_approx(_health.health, health), "a cubierto junto al fuego no se pierde vida")
+	_player.character_window = null
+	slot.free()
+	window.free()
+	fire.free()
+	cave.free()
 
 
 func _test_damage_rules() -> void:

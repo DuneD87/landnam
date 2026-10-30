@@ -15,8 +15,9 @@ extends Node
 ## cansancio y el frío hacen que el aguante se recupere más despacio.
 ##
 ## Lo compensan comer y beber (eat, drink: desde la barra, junto al agua dulce o de los odres; ver
-## SurvivalActions), la ropa puesta, que abriga (InsulationTrait), y las hogueras encendidas
-## (Campfire), que calientan, secan y alumbran: a su luz la oscuridad no quita cordura.
+## SurvivalActions), la ropa puesta, que abriga (InsulationTrait), los refugios (una cueva, una casa
+## cerrada), que dejan fuera parte del frío, y las hogueras encendidas (Campfire), que calientan,
+## y más a cubierto, secan y alumbran: a su luz la oscuridad no quita cordura.
 ## El lecho permite dormir y recuperar el descanso (RestController).
 
 ## Segundos de lleno a vacío en reposo (a ritmo 1).
@@ -41,6 +42,18 @@ const COMFORT_LOW := 10.0
 const COMFORT_HIGH := 24.0
 const COLD_SPAN := 22.0
 const HEAT_SPAN := 16.0
+## Refugio (de 0 al raso a 1 en el fondo de una cueva o de una casa cerrada): lleva el aire en esta
+## parte hacia el de la roca (°C), y una hoguera, cuyo calor no se va por el aire, lo caldea con
+## esta parte de lo que da a pie de fuego, hasta FIRE_ROOM_RADIUS (m).
+const SHELTER_TEMPERATURE := 10.0
+const SHELTER_PULL := 0.4
+const FIRE_ROOM_SHARE := 0.5
+const FIRE_ROOM_RADIUS := 12.0
+## Cómo se mide el refugio: un rayo de techo hasta SHELTER_ROOF (m) y, si lo hay, SHELTER_RAYS por
+## vuelta, en horizontal y a 45° hacia arriba, que buscan pared hasta SHELTER_REACH (m).
+const SHELTER_ROOF := 40.0
+const SHELTER_REACH := 16.0
+const SHELTER_RAYS := 8
 ## Lluvia que empapa del todo y lo que se tarda en secarse.
 const SOAK_TIME := 60.0
 const DRY_TIME := 240.0
@@ -69,8 +82,10 @@ var wetness := 0.0
 ## Tragos de agua en los odres (de todos juntos; caben water_capacity()).
 var water := 0
 
-## Lo que se siente ahora (°C) y si la cabeza está bajo el agua: los calcula cada tick.
+## Lo que se siente ahora (°C), lo cerrado que está el sitio (0 al raso, 1 en el fondo de una cueva)
+## y si la cabeza está bajo el agua: se calculan solos.
 var felt_temperature := 18.0
+var shelter := 0.0
 var submerged := false
 ## Pausa las necesidades (consola) y su ritmo (consola: acelerarlas para verlas cambiar).
 var paused := false
@@ -117,6 +132,7 @@ func _physics_process(delta: float) -> void:
 		_base_temperature = _climate_temperature()
 		_daylight = _local_daylight()
 		_insulation = _worn_insulation()
+		shelter = _measure_shelter()
 		_update_fires()
 		_update_weather()
 		water = mini(water, water_capacity())
@@ -285,6 +301,8 @@ func _update_warmth(dt: float, swimming: bool) -> void:
 	else:
 		felt += lerpf(-6.0, 3.0, _daylight)
 		felt += _weather_chill + _sun_heat * _daylight
+		# Dentro de una cueva o de una casa cerrada, el frío y el calor de fuera llegan a menos.
+		felt = lerpf(felt, SHELTER_TEMPERATURE, SHELTER_PULL * shelter)
 		felt -= 8.0 * wetness
 		# La ropa mojada abriga mucho menos.
 		felt += _insulation * (1.0 - 0.6 * wetness) + _fire_heat
@@ -408,16 +426,44 @@ func _worn_insulation() -> float:
 	return total
 
 
-## Calor y luz de las hogueras encendidas cercanas (las de más cerca mandan; no se suman).
+## Calor y luz de las hogueras encendidas cercanas (las de más cerca mandan; no se suman). En un
+## refugio, además, el fuego caldea el aire de alrededor (FIRE_ROOM_SHARE).
 func _update_fires() -> void:
 	_fire_heat = 0.0
 	_fire_light = 0.0
+	var pos := _player.global_position
 	for node in get_tree().get_nodes_in_group(Campfire.GROUP):
 		var fire := node as Campfire
 		if fire == null or not fire.lit:
 			continue
-		_fire_heat = maxf(_fire_heat, fire.heat_at(_player.global_position))
-		_fire_light = maxf(_fire_light, fire.light_at(_player.global_position))
+		var room := fire.heat_at(fire.global_position) * FIRE_ROOM_SHARE * shelter
+		room *= clampf(1.0 - fire.global_position.distance_to(pos) / FIRE_ROOM_RADIUS, 0.0, 1.0)
+		_fire_heat = maxf(_fire_heat, fire.heat_at(pos) + room)
+		_fire_light = maxf(_fire_light, fire.light_at(pos))
+
+
+## Lo cerrado que está el sitio: 0 sin techo encima y, con techo, la parte de los rayos que salen
+## del pecho (alrededor, en horizontal y hacia arriba) que dan con roca o con pared antes de
+## SHELTER_REACH. Bajo un voladizo sale poco; en el fondo de una cueva o en una casa cerrada, 1.
+func _measure_shelter() -> float:
+	var space := _player.get_world_3d().direct_space_state
+	var up := -_player.gravity_direction.normalized()
+	var chest := _player.global_position + up * 1.2
+	if not _ray_hits(space, chest, chest + up * SHELTER_ROOF):
+		return 0.0
+	var side := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	var hits := 0
+	for i in SHELTER_RAYS:
+		var out := side.rotated(up, TAU * i / SHELTER_RAYS)
+		for dir: Vector3 in [out, (out + up).normalized()]:
+			if _ray_hits(space, chest, chest + dir * SHELTER_REACH):
+				hits += 1
+	return hits / (2.0 * SHELTER_RAYS)
+
+
+func _ray_hits(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3) -> bool:
+	var query := PhysicsRayQueryParameters3D.create(from, to, PhysicsLayers.WORLD, [_player.get_rid()])
+	return not space.intersect_ray(query).is_empty()
 
 
 func _head_under_water() -> bool:

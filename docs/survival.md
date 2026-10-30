@@ -107,8 +107,17 @@ aire y unos 20 s en el agua. Lo que se siente sale de:
   día, con calor y junto al fuego; ponerse a cubierto no seca de golpe.
 - **La ropa puesta**: lo que abriga cada prenda (`InsulationTrait`): el juego de
   pieles entero, 9 °C, y el de cuero, 6 °C. Mojada, abriga un 60 % menos.
+- **El refugio**: lo cerrado que está el sitio, de 0 % al raso a 100 % en el
+  fondo de una cueva o en una casa cerrada. Sin techo encima es 0; con techo, la
+  parte de 16 rayos desde el pecho (8 en horizontal y 8 a 45° hacia arriba) que
+  dan con roca o pared antes de 16 m. Bajo un voladizo sale poco y en la boca de
+  una cueva, a medias. Lleva lo que se siente fuera (sitio, hora y tiempo) hacia
+  10 °C, el aire de la roca, hasta un 40 % con el refugio entero: en una cueva
+  cerrada, −35 °C fuera se quedan en −17, y en un sitio caluroso refresca.
 - **Una hoguera encendida**: hasta 18 °C a pie de fuego, que se apagan del todo a
-  6 m.
+  6 m. En un refugio, además caldea el aire: suma la mitad de lo que da a pie de
+  fuego por el refugio, y se apaga a 12 m (en una cueva cerrada y a 2 m, da unos
+  17 °C en vez de 10).
 - **En el agua**: la del agua, que no pasa mucho de cero en los mares fríos.
 
 Entre 10 y 24 °C se está a gusto (0). Se llega al extremo a −12 °C (−1) y a
@@ -119,7 +128,9 @@ daña. El calor empieza a dañar a partir de +0,85, al mismo ritmo.
 La alta montaña y las zonas con nieve o hielo enfrían por el clima del sitio,
 aunque no esté lloviendo ni nevando. La ropa y las hogueras elevan la
 temperatura sentida y permiten recuperar calor; al salir del estado de frío,
-deja de bajar la vida por exposición.
+deja de bajar la vida por exposición. Al raso, ni con pieles ni junto a una
+hoguera se aguanta la noche de la alta montaña: hace falta meterse en una
+cueva o una casa, y encender allí el fuego.
 
 La escena `tests/survival/test_cold_exposure.tscn` comprueba lluvia, nieve,
 transiciones meteorológicas, refugio, montaña, hielo, abrigo, fuego, guardado
@@ -129,7 +140,7 @@ y daño usando el clima de la Tierra, sin cargar una partida completa.
 
 | Comando | Qué hace |
 |---|---|
-| `needs` | Lista los valores, lo que se siente en °C, si la cabeza está bajo el agua, el agua de los odres y qué agua hay al alcance |
+| `needs` | Lista los valores, lo que se siente en °C, el refugio, si la cabeza está bajo el agua, el agua de los odres y qué agua hay al alcance |
 | `needs <nombre> <valor>` | Fija una: `hunger`, `thirst`, `rest`, `sanity`, `oxygen`, `warmth` (de −1 a 1), `wetness` |
 | `needs fill` | Todas llenas y a gusto |
 | `needs empty` | Hambre, sed, descanso, cordura y oxígeno a cero |
