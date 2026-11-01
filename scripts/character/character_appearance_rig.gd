@@ -22,7 +22,8 @@ extends Node
 ## body is measured (BodyMeasurements) and ArmorFit carries each piece from
 ## the scan's measurements to its own. Dressed pieces are fitted again when
 ## the body changes. A skirt that hangs from the skirt's bones (SkirtBones)
-## adds them to the skeleton, and a SkirtSwing swings them while it is worn.
+## adds them to the skeleton, and a SkirtSwing swings them while it is worn;
+## so do a pelt's forelegs with theirs (PeltBones, PeltSwing).
 ## Loose hair hangs from the hair's bones (HairBones), shaped to each style,
 ## and a HairSwing swings them unless something covers the hair.
 ##
@@ -114,6 +115,8 @@ var _fit_context: ArmorFit
 var _fp_body: MeshInstance3D
 ## Swings the skirt's bones; made when the first skirt is put on.
 var _skirt_swing: SkirtSwing
+## Swings a pelt's forelegs; made when the first pelt is put on.
+var _pelt_swing: PeltSwing
 ## Swings the hair's bones; made for the first style with loose hair.
 var _hair_swing: HairSwing
 ## Whether the hair's swing was fitted to a body yet.
@@ -310,7 +313,10 @@ func dress(item: Node, covers_hair := false) -> void:
 		# Its bones must be there before it is fitted, and the fit must know them.
 		if SkirtBones.uses(instance.skin) and SkirtBones.add_to(_skeleton):
 			_fit_context = null
+		if PeltBones.uses(instance.skin) and PeltBones.add_to(_skeleton):
+			_fit_context = null
 	_update_skirt_swing()
+	_update_pelt_swing()
 	_update_hair_swing(false)
 	_fit(item)
 
@@ -323,16 +329,24 @@ func undress(item: Node) -> void:
 		for instance in _armour_meshes(item):
 			_shadow_only(instance, false)
 	_update_skirt_swing()
+	_update_pelt_swing()
 	_update_hair_swing(false)
+
+
+## Whether some piece worn has binds for added bones (`uses`:
+## SkirtBones.uses, PeltBones.uses).
+func _wearing(uses: Callable) -> bool:
+	for item in _dressed:
+		if is_instance_valid(item) and _skeleton.is_ancestor_of(item):
+			for instance in _armour_meshes(item):
+				if uses.call(instance.skin):
+					return true
+	return false
 
 
 ## Swings the skirt's bones while some piece worn hangs from them.
 func _update_skirt_swing() -> void:
-	var swinging := false
-	for item in _dressed:
-		if is_instance_valid(item) and _skeleton.is_ancestor_of(item):
-			for instance in _armour_meshes(item):
-				swinging = swinging or SkirtBones.uses(instance.skin)
+	var swinging := _wearing(SkirtBones.uses)
 	if swinging and _skirt_swing == null:
 		_skirt_swing = SkirtSwing.new()
 		_skirt_swing.name = "SkirtSwing"
@@ -342,6 +356,18 @@ func _update_skirt_swing() -> void:
 		_skirt_swing.active = swinging
 		if swinging:
 			_skirt_swing.fit_legs(measurements())
+
+
+## Swings a pelt's forelegs while some piece worn hangs them from their bones.
+func _update_pelt_swing() -> void:
+	var swinging := _wearing(PeltBones.uses)
+	if swinging and _pelt_swing == null:
+		_pelt_swing = PeltSwing.new()
+		_pelt_swing.name = "PeltSwing"
+		# After BodyProportions, which moves the spine they hang from.
+		_skeleton.add_child(_pelt_swing)
+	if _pelt_swing != null:
+		_pelt_swing.active = swinging
 
 
 ## Swings the hair's bones while the style has loose hair and nothing
@@ -530,6 +556,7 @@ func is_dressing() -> bool:
 func _refit_dressed() -> void:
 	_fit_context = null
 	_update_skirt_swing()
+	_update_pelt_swing()
 	# Sin filter: una prenda liberada no entra en un parámetro tipado.
 	for i in range(_dressed.size() - 1, -1, -1):
 		if not is_instance_valid(_dressed[i]) or not _skeleton.is_ancestor_of(_dressed[i]):

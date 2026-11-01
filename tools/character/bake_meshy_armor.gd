@@ -15,7 +15,8 @@ extends SceneTree
 ## settings): import them (godot --headless --import) and run it again.
 ##
 ## A skirt that hangs from the skirt's bones (SkirtBones) gets SKIRT_SKIN: the
-## scan's Skin with their binds, from their rest on the character's skeleton.
+## scan's Skin with their binds, from their rest on the character's skeleton;
+## a pelt whose forelegs swing from theirs (PeltBones), PELT_SKIN.
 ##
 ## The fur garments (build_fur_armor.py) name a shared material on each
 ## surface instead of bringing maps: fur_card (hair cards, fur_card.gdshader
@@ -34,6 +35,7 @@ extends SceneTree
 
 const SKIN := "res://models/player/xavivar/firstage_human_male_player_skin.tres"
 const SKIRT_SKIN := "res://models/player/xavivar/firstage_human_male_player_skirt_skin.tres"
+const PELT_SKIN := "res://models/player/xavivar/firstage_human_male_player_pelt_skin.tres"
 const MODEL := "res://scenes/character/character_model.tscn"
 const MODELS := "res://models/equipable/stone_age/"
 const SCENES := "res://scenes/items/armor/stone_age/"
@@ -73,7 +75,8 @@ func _initialize() -> void:
 		return
 	var source: String = args[0]
 	var only := args.slice(1)
-	var skins := {false: load(SKIN) as Skin, true: _skirt_skin(load(SKIN))}
+	var skins := {"": load(SKIN) as Skin, SkirtBones.PREFIX: _added_skin(load(SKIN), SkirtBones.rests, SKIRT_SKIN),
+			PeltBones.PREFIX: _added_skin(load(SKIN), PeltBones.rests, PELT_SKIN)}
 	DirAccess.make_dir_recursive_absolute(MODELS)
 	DirAccess.make_dir_recursive_absolute(SCENES)
 	var waiting := []
@@ -90,7 +93,7 @@ func _initialize() -> void:
 		if not (_textures(id, data.textures) if data.has("textures") else _fur_maps()):
 			waiting.append(id)
 			continue
-		var skin: Skin = skins[_hangs(data)]
+		var skin: Skin = skins[_added_bones(data)]
 		var binds := {}
 		for b in skin.get_bind_count():
 			binds[skin.get_bind_name(b)] = b
@@ -105,10 +108,11 @@ func _initialize() -> void:
 	quit()
 
 
-## The scan's Skin with the skirt's bones, saved as SKIRT_SKIN. A bind takes
-## a vertex from the skin's space to its bone's; the scan's all do it with
-## their bone at rest, so the skin's space is where the hips' bind puts it.
-func _skirt_skin(skin: Skin) -> Skin:
+## The scan's Skin with bones added to the skeleton (`rests`: SkirtBones's,
+## PeltBones's), saved as `path`. A bind takes a vertex from the skin's space
+## to its bone's; the scan's all do it with their bone at rest, so the skin's
+## space is where the hips' bind puts it.
+func _added_skin(skin: Skin, rests_of: Callable, path: String) -> Skin:
 	var model: Node3D = load(MODEL).instantiate()
 	var skeleton: Skeleton3D = model.get_node("Armature/Skeleton3D")
 	var hips := skeleton.find_bone(SkirtBones.HIPS)
@@ -117,24 +121,28 @@ func _skirt_skin(skin: Skin) -> Skin:
 		if skin.get_bind_name(b) == SkirtBones.HIPS:
 			to_skeleton = BodyMeasurements.rest_globals(skeleton)[hips] * skin.get_bind_pose(b)
 	var result: Skin = skin.duplicate()
-	var rests := SkirtBones.rests(skeleton)
+	var rests: Dictionary = rests_of.call(skeleton)
 	for name: StringName in rests:
 		result.add_named_bind(name, (rests[name][1] as Transform3D).affine_inverse() * to_skeleton)
 	model.free()
-	if ResourceSaver.save(result, SKIRT_SKIN) != OK:
-		push_error("Could not save " + SKIRT_SKIN)
-	return load(SKIRT_SKIN)
+	if ResourceSaver.save(result, path) != OK:
+		push_error("Could not save " + path)
+	return load(path)
 
 
-## Whether the piece hangs from the skirt's bones.
-static func _hangs(data: Dictionary) -> bool:
+## The prefix of the added bones the piece hangs from (SkirtBones.PREFIX,
+## PeltBones.PREFIX), or "".
+static func _added_bones(data: Dictionary) -> String:
 	for surface: Dictionary in data.get("surfaces", [data]):
 		var weights: Array = surface.weights
 		var influences: Array = surface.influences
 		for k in influences.size():
-			if weights[k] > 0.0 and String(data.bones[int(influences[k])]).begins_with(SkirtBones.PREFIX):
-				return true
-	return false
+			var bone := String(data.bones[int(influences[k])])
+			if weights[k] > 0.0:
+				for prefix: String in [SkirtBones.PREFIX, PeltBones.PREFIX]:
+					if bone.begins_with(prefix):
+						return prefix
+	return ""
 
 
 ## Writes the piece's maps if they are not there; whether they are imported.
@@ -185,7 +193,9 @@ func _mesh(id: String, data: Dictionary, binds: Dictionary) -> ArrayMesh:
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
 		var index := mesh.get_surface_count() - 1
 		if surface.has("material"):
-			mesh.surface_set_material(index, _fur_material(surface.material))
+			# A head cut from an animal (build_fur_armor.py) keeps that animal's material.
+			var material: String = surface.material
+			mesh.surface_set_material(index, load(material) if material.begins_with("res://") else _fur_material(material))
 		elif surface.has("color"):
 			mesh.surface_set_material(index, _lining(id, surface.color))
 		else:

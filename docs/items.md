@@ -387,8 +387,8 @@ en la ventana: funde con el tiempo en su panel (ver [Horno de fundición](#horno
 | Escudo de madera | 3 maderas y 1 rama | Banco de trabajo |
 | Escudo de piel | 4 ramas, 2 pieles y 1 tendón | Banco de trabajo |
 | Escudo de placas de hueso | 3 maderas, 6 huesos, 2 tendones y 1 piel | Banco de trabajo |
-| Pieles con pelo | manto: 5 pieles, 4 fibras vegetales y 1 hueso; faldellín: 2 pieles, 3 fibras y 1 hueso; manoplas: 2 pieles y 1 tendón; mocasines: 3 pieles y 1 tendón. De jabalí, además 3, 3, 2 y 2 colmillos; de ciervo, 4, 2, 2 y 2 huesos; de zorro, 2, 2, 1 y 1 marfiles | Banco de trabajo |
-| Pieles de invierno | zamarra: 9 pieles, 3 tendones y 1 hueso; calzones: 5 pieles y 2 tendones; manoplas: 3 pieles y 1 tendón; botas: 5 pieles y 2 tendones. De bisonte, además 3, 2, 1 y 1 pieles; laminadas, 5, 2, 1 y 2 astas; de zorro ártico, 2 marfiles la zamarra y 1 las manoplas y las botas | Banco de trabajo |
+| Pieles con pelo | manto: 5 pieles, 4 fibras vegetales y 1 hueso; faldellín: 2 pieles, 3 fibras y 1 hueso; manoplas: 2 pieles y 1 tendón; mocasines: 3 pieles y 1 tendón. De jabalí, además 3, 3, 2 y 2 colmillos; de ciervo, 4, 2, 2 y 2 huesos; de zorro, 2, 2, 1 y 1 marfiles. Cabeza de lobo: 2 pieles, 1 tendón y 1 hueso; de jabalí, 2 pieles, 1 tendón y 2 colmillos; de ciervo, 2 pieles, 1 tendón y 2 astas | Banco de trabajo |
+| Pieles de invierno | zamarra: 9 pieles, 3 tendones y 1 hueso; calzones: 5 pieles y 2 tendones; manoplas: 3 pieles y 1 tendón; botas: 5 pieles y 2 tendones. Capucha de oso: 4 pieles, 2 tendones y 1 hueso. De bisonte, además 3, 2, 1 y 1 pieles; laminadas, 5, 2, 1 y 2 astas; de zorro ártico, 2 marfiles la zamarra y 1 las manoplas y las botas | Banco de trabajo |
 | Emplasto de milenrama | 3 milenramas y 1 fibra vegetal | A mano |
 | Tablilla | 2 ramas y 2 fibras vegetales | A mano |
 | Bebedizo de milenrama | 4 milenramas y 2 tragos de agua de los odres | Hoguera encendida |

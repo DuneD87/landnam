@@ -5,7 +5,8 @@ extends SceneTree
 ## applied. Physics is disabled to isolate the skinning from skirt swing.
 ##   godot --headless --path . --script res://tests/character/test_armor_deformation.gd
 
-const PIECES := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins",
+const PIECES := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins", "fur_headdress", "fur_hood",
+		"boar_headdress", "deer_headdress",
 		"fur_coat", "fur_breeches", "fur_gauntlets", "fur_boots",
 		"boar_mantle", "boar_loincloth", "boar_mittens", "boar_moccasins",
 		"deer_mantle", "deer_loincloth", "deer_mittens", "deer_moccasins",

@@ -8,7 +8,8 @@ extends SceneTree
 ## skeleton bone and its triangles: the exporter transfers the weights to the
 ## MakeHuman body, since the player animations were made for them, and the
 ## armour fit puts garments on it. And the skirt's bones (SkirtBones), which
-## the skeleton gets when a hanging skirt is worn: their joints in that space.
+## the skeleton gets when a hanging skirt is worn, and a pelt's forelegs'
+## (PeltBones): their joints in that space.
 ##
 ##   godot --headless --path . --script res://tools/character/dump_skeleton.gd -- <output.json>
 
@@ -33,15 +34,18 @@ func _initialize() -> void:
 		bones.append({name = name, parent = skeleton.get_bone_parent(i), bind_index = bind_index,
 				mesh_joint = [joint.x, joint.y, joint.z]})
 	var file := FileAccess.open(output, FileAccess.WRITE)
-	file.store_string(JSON.stringify({bones = bones, mesh = _mesh(skeleton, skin), skirt = _skirt(skeleton, skin)}))
+	file.store_string(JSON.stringify({bones = bones, mesh = _mesh(skeleton, skin),
+			skirt = _added(skeleton, skin, SkirtBones.rests(skeleton)),
+			pelt = _added(skeleton, skin, PeltBones.rests(skeleton))}))
 	file.close()
 	model.free()
 	print("Skeleton with %d bones written to %s" % [bones.size(), output])
 	quit()
 
 
-## The skirt's bones: name, parent name and joint in the skin's space.
-func _skirt(skeleton: Skeleton3D, skin: Skin) -> Array:
+## Bones added to the skeleton (SkirtBones, PeltBones: their `rests`): name,
+## parent name and joint in the skin's space.
+func _added(skeleton: Skeleton3D, skin: Skin, rests: Dictionary) -> Array:
 	var hips := skeleton.find_bone(SkirtBones.HIPS)
 	var bind := -1
 	for b in skin.get_bind_count():
@@ -50,7 +54,6 @@ func _skirt(skeleton: Skeleton3D, skin: Skin) -> Array:
 	# Skin space to skeleton space: what every bind does with its bone at rest.
 	var to_skin := (BodyMeasurements.rest_globals(skeleton)[hips] * skin.get_bind_pose(bind)).affine_inverse()
 	var result := []
-	var rests := SkirtBones.rests(skeleton)
 	for name: StringName in rests:
 		var joint: Vector3 = to_skin * (rests[name][1] as Transform3D).origin
 		result.append({name = name, parent = rests[name][0], joint = [joint.x, joint.y, joint.z]})

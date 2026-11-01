@@ -332,7 +332,7 @@ contundentes; el cuero, los tajos y lo perforante.
 
 | Hueco | Ropa de pieles | Pieles con pelo | Cuero |
 | --- | --- | --- | --- |
-| Cabeza | Capucha 2/2/1 | — | — |
+| Cabeza | Capucha 2/2/1 | Cabeza de lobo 2/3/1 (de jabalí 3/2/1, de ciervo 2/2/3; capucha de oso 3/5/2) | — |
 | Tronco y brazos | Jubón 4/4/3 | Manto 4/6/3 | Túnica 6/4/5 |
 | Piernas | Calzas 3/3/2 | Faldellín 2/2/1 (solo muslos) | Calzas 4/3/3 |
 | Manos | Manoplas 1/1/1 | Manoplas 1/2/1 (sin antebrazos) | Manoplas 2/1/2 |

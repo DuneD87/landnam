@@ -146,7 +146,7 @@ WEIGHT_SMOOTHING = 0.5
 ## Average over a distance, rather than only over mesh edges: Meshy's fur
 ## has tiny triangles and detached tufts, so a fixed number of edge passes
 ## leaves neighbouring points following very different bones. Metres.
-WEIGHT_RADIUS = {"chest": 0.08, "legs": 0.05, "hands": 0.018, "feet": 0.02}
+WEIGHT_RADIUS = {"chest": 0.08, "legs": 0.05, "hands": 0.018, "feet": 0.02, "cloak": 0.05}
 ## Up to this far from the skin a vertex keeps the skin's weights, smoothed
 ## only by NEAR_SMOOTHING of the rate (it must move as the skin under it, or
 ## the skin pokes through); from LOOSE out it takes them from the garment
@@ -171,6 +171,8 @@ HANG_THIGHS = (0.15, 0.05)
 ## instead, which the game swings: from SKIRT_BLEND over their ring down to as
 ## far under it, it goes from the skin's weights to theirs.
 SKIRT_PREFIX = "skirt_"
+## A pelt's forelegs' bones (body.json "pelt"), which the game swings too.
+PELT_PREFIX = "pelt_"
 SKIRT_BLEND = 0.05
 ## What of it rides the thighs as well, [front, back] (on_thighs()): from the
 ## chains alone, a thigh coming forward goes through it between two of them.
@@ -213,6 +215,7 @@ ALLOWED = {
     "legs": ["Hips", "Spine"] + [s + b for s in SIDES for b in ("UpLeg", "Leg", "Foot")],
     "hands": [s + b for s in SIDES for b in ("ForeArm", "Hand")] + FINGERS,
     "feet": [s + b for s in SIDES for b in ("Leg", "Foot", "ToeBase")],
+    "cloak": ["Hips", "Spine", "Spine1", "Spine2", "Neck", "Head"] + [s + b for s in SIDES for b in ("Shoulder", "Arm")],
 }
 AXES = {"x": 0, "y": 1, "z": 2}
 
@@ -276,17 +279,25 @@ class Body:
         self.bvh = BVHTree.FromPolygons([Vector(p) for p in self.points], self.triangles.tolist())
         # The skirt's bones (SkirtBones), after the skeleton's: chains of
         # joints from the ring round the hips down, which the skin does not use.
-        self.chains = []
-        for bone in data.get("skirt", []):
+        # And a pelt's forelegs' (PeltBones): a chain down each side of the chest.
+        self.chains = self.added(data.get("skirt", []), SKIRT_PREFIX)
+        self.pelt = self.added(data.get("pelt", []), PELT_PREFIX)
+        if len(self.names) > self.dense.shape[1]:
+            self.dense = np.pad(self.dense, ((0, 0), (0, len(self.names) - self.dense.shape[1])))
+
+    def added(self, bones, prefix):
+        """Takes in bones added to the skeleton (their joints, after the
+        skeleton's own); returns their chains, as lists of bone indices."""
+        chains = []
+        for bone in bones:
             self.index[bone["name"]] = len(self.names)
             self.names.append(bone["name"])
             self.parents.append(self.index[bone["parent"]])
             self.joints[bone["name"]] = to_blender(np.array(bone["joint"]))
-            if not bone["parent"].startswith(SKIRT_PREFIX):
-                self.chains.append([])
-            self.chains[-1].append(self.index[bone["name"]])
-        if self.chains:
-            self.dense = np.pad(self.dense, ((0, 0), (0, len(self.names) - self.dense.shape[1])))
+            if not bone["parent"].startswith(prefix):
+                chains.append([])
+            chains[-1].append(self.index[bone["name"]])
+        return chains
 
     def joint(self, short):
         return self.joints[BONE_PREFIX + short]

@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/boar_headdress.res" id="1_5cd8a"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_pelt_skin.tres" id="2_6uxyl"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_olt1o"]
+[ext_resource type="Resource" path="res://data/items/Armor/StoneAge/boar_headdress.tres" id="4_bm8m3"]
+
+[node name="boar_headdress" type="MeshInstance3D" unique_id=1627057182]
+mesh = ExtResource("1_5cd8a")
+skin = ExtResource("2_6uxyl")
+script = ExtResource("3_olt1o")
+item_data = ExtResource("4_bm8m3")

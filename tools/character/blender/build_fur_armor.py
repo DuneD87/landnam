@@ -2,18 +2,22 @@
 clothing: the mantle (a wolf's pelt over the shoulders, on a hide jerkin
 gathered by a belt, with a pouch), the loincloth (a fur skirt wrapped round
 the hips over two long hide flaps and a leather loincloth), the mittens
-(leather with a fur cuff) and the moccasins (leather, with a pelt wrapped
-round each shin and bound with crossed thongs); and the heavy set for the
-winter: the coat (caribou hides with the hair out, long sleeves, a ruff of
+(leather with a fur cuff), the moccasins (leather, with a pelt wrapped
+round each shin and bound with crossed thongs) and a wolf's pelt with its
+head worn over the head (the game's own wolf, opened down the belly and
+wrapped round: its muzzle over the brows, its forelegs down the chest; a
+boar's and a deer's too, and a bear's for the heavy set); and the heavy set
+for the winter: the coat (caribou hides with the hair out, long sleeves, a ruff of
 wolverine over the shoulders), the breeches (bearskin to under the knee),
 the gauntlets (fur mittens with a long cuff) and the boots (a moccasin with
 a fur leg to under the knee). Each set has three variants (*_SET: other
 animals, with bone plates, antler lamellae, ivory beads or boar's tusks).
-See docs/character_creation.md, "Prendas de pieles con pelo". Nothing is
-imported: every piece is made here
-on the scan's own skin. The output is what fit_meshy_armor.py writes
-(tools/character/bake_meshy_armor.gd bakes it), with a material named on
-every surface instead of a model's own maps.
+See docs/character_creation.md, "Prendas de pieles con pelo". Nothing but
+the heads is imported (they are cut from the game's animals): every piece
+is made here on the scan's own skin. The output is what fit_meshy_armor.py
+writes (tools/character/bake_meshy_armor.gd bakes it), with a material named
+on every surface instead of a model's own maps (a head's: its animal's
+material, by its path).
 
     blender -b --factory-startup --python tools/character/blender/build_fur_armor.py -- \\
         <body.json> <output dir> [piece id ...]
@@ -52,12 +56,13 @@ How a piece is made:
 import json
 import math
 import os
+import re
 import sys
 
 import bmesh
 import bpy
 import numpy as np
-from mathutils import Vector
+from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
@@ -71,7 +76,7 @@ if __name__ == "__main__":
 
 ## Size of the cells the scan is remeshed into for each garment (m):
 ## coarse for the torso, finer for the feet; mittens are made without it.
-ENVELOPE_VOXEL = {"mantle": 0.014, "loincloth": 0.016, "mittens": None, "moccasins": 0.013,
+ENVELOPE_VOXEL = {"mantle": 0.014, "loincloth": 0.016, "mittens": None, "moccasins": 0.013, "headdress": 0.014,
                   "coat": 0.017, "breeches": 0.013, "gauntlets": None, "boots": 0.013}
 ## Rounds of inflate(): smoothing, then pushing off the skin.
 INFLATE_ROUNDS = 24
@@ -887,7 +892,11 @@ def unwrap(part, seed):
 # --- Weights and output --------------------------------------------------------
 
 def skin_parts(parts, body, entry, slot):
-    """fit_meshy_armor.skin() over the parts together: (bones, weights) per part."""
+    """fit_meshy_armor.skin() over the parts together: (bones, weights) per
+    part; with "steady" (a share per point), that share of what is on the
+    shoulders and the upper arms on the upper spine instead (where a pelt's
+    forelegs' chains hang from); with "dangle", that share on those
+    chains."""
     points = np.concatenate([p.points for p in parts])
     offsets = np.cumsum([0] + [len(p.points) for p in parts])
     tris = np.concatenate([p.triangles + o for p, o in zip(parts, offsets[:-1])])
@@ -898,9 +907,39 @@ def skin_parts(parts, body, entry, slot):
     bones, weights = fit.skin(obj, body, entry, slot)
     bpy.data.objects.remove(obj)
     bpy.data.meshes.remove(mesh)
+    if "dangle" in entry or "steady" in entry:
+        dense = np.zeros((len(points), len(body.names)), dtype=np.float32)
+        np.add.at(dense, (np.repeat(np.arange(len(points)), bones.shape[1]), bones.ravel()), weights.ravel())
+        if "steady" in entry:
+            arms = [body.index[fit.BONE_PREFIX + side + b] for side in fit.SIDES for b in ("Shoulder", "Arm")]
+            moved = dense[:, arms] * entry["steady"][:, None]
+            dense[:, arms] -= moved
+            dense[:, body.index[fit.BONE_PREFIX + "Spine2"]] += moved.sum(axis=1)
+        if "dangle" in entry:
+            # What hangs from a pelt's forelegs' chains (that share of it) swings with them.
+            share = entry["dangle"][:, None]
+            dense = dense * (1.0 - share) + pelt_weights(points, body) * share
+        bones, weights = fit.strongest_weights(dense)
     for part, a, b in zip(parts, offsets[:-1], offsets[1:]):
         part.bones = bones[a:b]
         part.weights = weights[a:b]
+
+
+def pelt_weights(points, body):
+    """Weights of `points` on a pelt's forelegs' chains (body.pelt): the
+    chain on their side and, as on the skirt's (fit_meshy_armor's
+    chain_weights()), the two joints they are between along it."""
+    dense = np.zeros((len(points), len(body.names)), dtype=np.float32)
+    for chain in body.pelt:
+        mine = np.flatnonzero(np.sign(points[:, 0]) == np.sign(body.joints[body.names[chain[0]]][0]))
+        heights = np.array([body.joints[body.names[j]][2] for j in chain])
+        along = np.clip((heights[0] - points[mine, 2]) / (heights[0] - heights[1]) - 0.5, 0.0, len(chain) - 1.0)
+        first = np.floor(along).astype(int)
+        second = np.minimum(first + 1, len(chain) - 1)
+        bones = np.array(chain)
+        np.add.at(dense, (mine, bones[first]), 1.0 - (along - first))
+        np.add.at(dense, (mine, bones[second]), along - first)
+    return dense
 
 
 def surfaces(parts, seed):
@@ -996,7 +1035,7 @@ def preview(piece_id, parts, body, views=None):
         attr = mesh.color_attributes.new("Col", "FLOAT_COLOR", "CORNER")
         mesh.attributes.active_color_name = "Col"
         mesh.attributes.default_color_name = "Col"
-        rgb = np.clip(part.colors[..., :3] * np.array(PREVIEW_SHADE[part.material]), 0.0, 1.0)
+        rgb = np.clip(part.colors[..., :3] * np.array(PREVIEW_SHADE.get(part.material, (0.3, 0.3, 0.3))), 0.0, 1.0)
         attr.data.foreach_set("color", np.concatenate([rgb, np.ones(rgb.shape[:-1] + (1,))], axis=-1)
                               .astype(np.float32).ravel())
         for poly in mesh.polygons:
@@ -2173,6 +2212,600 @@ def moccasins(env, body, style=None):
     return parts + linings, [(parts, {"weight_radius": 0.014}, "feet")]
 
 
+# --- The head ------------------------------------------------------------------
+
+## The repository, where the animals' models are.
+ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+
+## A grey wolf's pelt with its head, from the game's own wolf (each animal
+## takes these keys): its model (an FBX, with its material and the material
+## index of its locks of hair over the skin; or what
+## tools/character/export_animal.gd wrote of one of the fauna's scenes, which
+## names its own materials), its bones: the head's (worn whole), what is cut
+## away (the lower jaw, the hind legs, the tail) and each foreleg's, from the
+## shoulder to the toes; its spine, from the head back; where its eyes are
+## in the model; how it is worn: `scale` times its size, its eyes `at`
+## (y, z) on the scan. Its meshes not worn (`skip`), or worn with the head
+## (`rigid`: a boar's tusks), or cut short (`trim`: antlers, to so far from
+## where they leave the head). A model without locks of hair of its own gets
+## them (`fur`: how long on the pelt and over its edges, how wide, how many
+## a square metre if not PELT_FUR_DENSITY), the colour of its albedo.
+WOLF_HEAD = {"model": "models/animals/wolf/wolf.fbx", "material": "res://models/animals/wolf/wolf_body.tres",
+             "locks": 0,
+             "head": ["RigHead", "RigLEar1", "RigREar1", "RigLEyelid", "RigREyelid"],
+             "cut": ["RigJaw", "RigTongue1", "RigTongue2", "RigTongue3", "RigPelvis", "RigTail1", "RigTail2",
+                     "RigTail3", "RigTail4"] + ["Rig%sBLeg%s" % (side, b) for side in "LR"
+                                                for b in ("1", "2", "Ankle", "Digit11", "Digit12")],
+             "legs": [["Rig%sFLeg%s" % (side, b) for b in ("1", "2", "Ankle", "Digit11", "Digit12")]
+                      for side in "LR"],
+             "spine": ["RigHead", "RigNeck2", "RigNeck1", "RigChest", "RigSpine2", "RigSpine1", "RigPelvis"],
+             "eyes": (0.0, -0.632, 0.932), "scale": 0.92, "at": (-0.15, 1.9), "skip": (), "rigid": (), "trim": {},
+             "fur": None}
+## A brown bear's (standing up in its model), a red deer stag's with its
+## antlers cut short, a boar's with its tusks.
+BEAR_HEAD = {"model": "build/character/animals/bear.json",
+             "head": ["RigHead", "RigRigLEar1", "RigRigREar1", "RigLEyelid", "RigREyelid"],
+             "cut": ["RigJaw", "RigTongue_1", "RigTongue_2", "RigTongue_3", "RigPelvis", "RigTail1", "RigTail2"]
+             + ["Rig%sBLeg%s" % (side, b) for side in "LR" for b in ("1", "2", "Ankle", "Digit11")],
+             "legs": [["Rig%sFLeg%s" % (side, b) for b in ("1", "2", "Ankle", "Digit11")] for side in "LR"],
+             "spine": ["RigHead", "RigNeck2", "RigNeck1", "RigChest", "RigSpine2", "RigSpine1", "RigPelvis"],
+             "eyes": (-0.032, 0.229, 2.34), "scale": 0.58, "fur": {"hair": 0.045, "edge": 0.06, "width": 1.0}}
+DEER_HEAD = {"model": "build/character/animals/deer.json",
+             "head": ["Head", "Nose", "NoseL", "NoseR"] + ["Ear%s%d" % (side, k) for side in "LR" for k in (1, 2, 3)]
+             + ["Eye%s" % side for side in "LR"] + ["Eyelid%s%s" % (side, h) for side in "LR" for h in "UD"],
+             "cut": ["Jaw", "Tongue1", "Tongue2", "Tongue3", "Tongue4", "Pelvis", "Tail1", "Tail2", "Tail3", "Tail4"]
+             + ["LegB%s%s" % (side, b) for side in "LR" for b in ("1", "2", "3", "Ankle", "Digit11")],
+             "legs": [["LegF%s%s" % (side, b) for b in ("1", "2", "3", "Ankle", "Digit11")] for side in "LR"],
+             "spine": ["Head", "Neck3", "Neck2", "Neck1", "Chest", "Spine2", "Spine1", "Pelvis"],
+             "eyes": (0.0, -1.057, 0.958), "scale": 0.95, "skip": ("Deer_Antler_001",), "trim": {"Deer_Antler": 0.3},
+             "fur": {"hair": 0.02, "edge": 0.032, "width": 1.0, "density": 1200}}
+BOAR_HEAD = {"model": "build/character/animals/boar.json",
+             "head": ["Head", "Nose", "NoseL", "NoseR", "MouthL1", "MouthR1"]
+             + ["Ear%s%d" % (side, k) for side in "LR" for k in (1, 2, 3)]
+             + ["Eye%s" % side for side in "LR"] + ["Eyelid%s%s" % (side, h) for side in "LR" for h in "UD"],
+             "cut": ["Jaw", "Tongue1", "Tongue2", "Tongue3", "Tongue4", "MouthL2", "MouthR2", "Pelvis", "Tail1",
+                     "Tail2", "Tail3", "Tail4"]
+             + ["LegB%s%s" % (side, b) for side in "LR" for b in ("1", "2", "3", "Ankle", "Digit11")],
+             "legs": [["LegF%s%s" % (side, b) for b in ("1", "2", "3", "Ankle", "Digit11")] for side in "LR"],
+             "spine": ["Head", "Neck2", "Neck1", "Chest", "Spine2", "Spine1", "Pelvis"],
+             "eyes": (0.0, -0.782, 0.7), "scale": 0.7, "fur": {"hair": 0.04, "edge": 0.05, "width": 0.6},
+             "rigid": ("Boar_Lower", "Boar_Lower_001", "Boar_Upper", "Boar_Upper_001")}
+## How the pelt is worn: opened down the belly and wrapped round from the
+## back, its belly's edges PELT_WRAP radians from the middle of the back
+## (the face shows between them), hanging plumb from the head and the
+## shoulders; below PELT_ARMPITS (z) it is open where the arms come out
+## (PELT_ARMS: radians from the front). Its skin PELT_OFF off the body, its
+## hair standing out PELT_HAIR of what it stood off the wolf's skin. The
+## forelegs lie along their bones' chains (body.json "pelt", PeltBones:
+## from the wolf's shoulder, where the pelt puts it over the character's,
+## down the pelt to the chest, then plumb), facing out from the body, the
+## paw bent PAW_BEND radians down at the wrist; from the top of the chains
+## down they swing with them, from LEG_SWING over it to as far under it, and
+## so does the pelt in front of them (up to LEG_FRONT radians round the axis
+## behind them): none of it follows the arms.
+## They are skins, not legs: LEG_LENGTH long (m) and LEG_SIZE as wide and
+## thick as the animal's. The pelt goes PELT_LENGTH (m) down the animal's
+## spine from its head (stretched to, if the animal is shorter), which is
+## worn with the tip of its nose HEAD_DIP metres under its eyes (a long
+## muzzle more level, not over the face). A triangle PELT_TORN times longer
+## than it was is not kept: it is where two of the ways it is worn part.
+PELT_WRAP = math.radians(148.0)
+PELT_ARMPITS = (1.42, 1.34)
+PELT_ARMS = (math.radians(76.0), math.radians(110.0))
+LEG_SWING = 0.025
+LEG_FRONT = math.radians(15.0)
+LEG_LENGTH = 0.455
+LEG_SIZE = (0.75, 0.45)
+PELT_LENGTH = 0.72
+## It falls from the head's joint, or from PELT_TOP (z) if that is higher
+## (a big head worn high).
+PELT_TOP = 1.885
+## Bits of it cut off from the rest (where the arms come out) smaller than
+## this share of it go.
+PELT_SCRAPS = 0.03
+HEAD_DIP = 0.11
+## Height (m) of the underside of the muzzle, over the brows.
+MUZZLE_UNDER = 1.768
+## Mean length (m) of the edges of a model without locks of hair, worn: finer
+## ones are split (subdivided()).
+ANIMAL_EDGE = 0.02
+PAW_BEND = math.radians(70.0)
+PELT_TORN = 2.5
+PELT_OFF = 0.034
+PELT_HAIR = 0.6
+## The vertical axis it is wrapped round (x, y), and the heights the body
+## is measured at for it.
+PELT_AXIS = (0.0, 0.01)
+PELT_STEP = 0.005
+## Down to this height (m) the pelt is a hood, close round the head, up to
+## the first of these angles from the front (radians); from the second on it
+## hangs from the back of the head as the rest.
+HOOD_JAW = 1.62
+HOOD_SIDES = (math.radians(100.0), math.radians(140.0))
+## Least the head stands off the skin, room for the hair under it, and the
+## pelt (as fur_mantle's: on the shoulders, it is room for them to bulge
+## into as the arms move), in metres.
+HEAD_CLEARANCE = 0.016
+PELT_CLEARANCE = 0.032
+
+
+def animal_model(st):
+    """An animal's model at rest (m, Blender axes; `st`: WOLF_HEAD's keys):
+    its points, triangles, the UVs of their corners (v down, as surfaces()
+    writes it), the weights of each point on each bone (and the bones'
+    names), whether a triangle is its skin (not a lock of hair over it), its
+    material, whether a point is worn with the head (`rigid`) and its
+    bones' joints (head, tail)."""
+    path = os.path.join(ROOT, st["model"])
+    if path.endswith(".json"):
+        return exported_animal(path, st)
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=path)
+    imported = [o for o in bpy.data.objects if o not in before]
+    obj = next(o for o in imported if o.type == "MESH")
+    rig = next(o for o in imported if o.type == "ARMATURE")
+    mesh = obj.data
+    points = np.array([obj.matrix_world @ v.co for v in mesh.vertices])
+    names = [g.name for g in obj.vertex_groups]
+    weights = np.zeros((len(points), len(names)))
+    for v in mesh.vertices:
+        for g in v.groups:
+            weights[v.index, g.group] = g.weight
+    weights /= np.maximum(weights.sum(axis=1, keepdims=True), 1e-9)
+    mesh.calc_loop_triangles()
+    tris = np.array([t.vertices[:] for t in mesh.loop_triangles], dtype=np.int64)
+    loops = np.array([t.loops[:] for t in mesh.loop_triangles], dtype=np.int64)
+    skin = np.array([mesh.polygons[t.polygon_index].material_index != st["locks"] for t in mesh.loop_triangles])
+    uv = np.zeros(len(mesh.loops) * 2)
+    mesh.uv_layers[0].data.foreach_get("uv", uv)
+    # surfaces() writes v as -v (its UVs run down in metres); the model's
+    # run up from 0 to 1, so 1 - v is -(v - 1).
+    uvs = uv.reshape(-1, 2)[loops] - np.array([0.0, 1.0])
+    joints = {b.name: (np.array(rig.matrix_world @ b.head_local), np.array(rig.matrix_world @ b.tail_local))
+              for b in rig.data.bones}
+    for o in imported:
+        data = o.data
+        bpy.data.objects.remove(o)
+        if isinstance(data, bpy.types.Mesh):
+            bpy.data.meshes.remove(data)
+        elif isinstance(data, bpy.types.Armature):
+            bpy.data.armatures.remove(data)
+    materials = np.array([st["material"]] * len(tris))
+    return points, tris, uvs, weights, names, skin, materials, np.zeros(len(points), bool), joints
+
+
+def exported_animal(path, st):
+    """animal_model() of what tools/character/export_animal.gd wrote (Godot's
+    axes, Y up; its UVs as Godot has them; its materials by surface)."""
+    with open(path) as f:
+        data = json.load(f)
+    blender = lambda q: np.stack([q[:, 0], -q[:, 2], q[:, 1]], axis=1)
+    names = [b["name"] for b in data["bones"]]
+    heads = blender(np.array([b["joint"] for b in data["bones"]]))
+    children = {}
+    for i, b in enumerate(data["bones"]):
+        children.setdefault(b["parent"], []).append(i)
+    # A bone without children goes on as its parent did, a third as long.
+    parents = [b["parent"] for b in data["bones"]]
+    joints = {n: (heads[i], heads[children[i]].mean(axis=0) if i in children
+                  else heads[i] + (heads[i] - heads[parents[i]]) / 3.0)
+              for i, n in enumerate(names)}
+    points, tris, uvs, weights, materials, rigid = [], [], [], [], [], []
+    count = 0
+    for mesh in data["meshes"]:
+        if mesh["name"] in st["skip"]:
+            continue
+        p = blender(np.array(mesh["positions"]).reshape(-1, 3))
+        w = np.zeros((len(p), len(names)))
+        for i, (bones, ws) in enumerate(zip(mesh["influences"], mesh["weights"])):
+            np.add.at(w[i], bones, ws)
+        w /= np.maximum(w.sum(axis=1, keepdims=True), 1e-9)
+        # Godot winds front faces clockwise.
+        t = np.array(mesh["indices"], dtype=np.int64).reshape(-1, 3)[:, [0, 2, 1]]
+        surface = np.array(mesh["surfaces"])
+        if mesh["name"] in st["trim"]:
+            # Cut short: what is further than that from where it leaves the
+            # head, on either side, goes.
+            head = joints[st["head"][0]][0]
+            base = [p[(np.sign(p[:, 0]) == side)][np.argmin(np.linalg.norm(p[np.sign(p[:, 0]) == side] - head, axis=1))]
+                    for side in (1.0, -1.0)]
+            near = np.where(p[:, 0] > 0.0, np.linalg.norm(p - base[0], axis=1), np.linalg.norm(p - base[1], axis=1))
+            short = (near[t] < st["trim"][mesh["name"]]).all(axis=1)
+            t, surface = t[short], surface[short]
+        uv = np.array(mesh["uvs"]).reshape(-1, 2) * np.array([1.0, -1.0])
+        points.append(p)
+        weights.append(w)
+        tris.append(t + count)
+        uvs.append(uv[t])
+        materials += [mesh["materials"][k] for k in surface]
+        rigid.append(np.full(len(p), mesh["name"] in st["rigid"]))
+        count += len(p)
+    tris = np.concatenate(tris)
+    model = [np.concatenate(points), tris, np.concatenate(uvs), np.concatenate(weights), np.array(materials),
+             np.concatenate(rigid)]
+    # Without locks of hair over its edges, a coarse mesh would cut them
+    # into big teeth: as fine as ANIMAL_EDGE, worn.
+    while True:
+        p, t = model[0], model[1]
+        if np.linalg.norm(p[t] - p[np.roll(t, 1, axis=1)], axis=2).mean() * st["scale"] <= ANIMAL_EDGE:
+            break
+        model = subdivided(*model)
+    points, tris, uvs, weights, materials, rigid = model
+    return points, tris, uvs, weights, names, np.ones(len(tris), bool), materials, rigid, joints
+
+
+def subdivided(points, tris, uvs, weights, materials, rigid):
+    """Each triangle split in four at the middle of its edges (their points
+    in between, as their UVs, weights and whether they are rigid)."""
+    edges = np.sort(np.concatenate([tris[:, [0, 1]], tris[:, [1, 2]], tris[:, [2, 0]]]), axis=1)
+    unique, inverse = np.unique(edges, axis=0, return_inverse=True)
+    middle = len(points) + inverse.ravel().reshape(3, -1).T
+    points = np.concatenate([points, points[unique].mean(axis=1)])
+    weights = np.concatenate([weights, weights[unique].mean(axis=1)])
+    rigid = np.concatenate([rigid, rigid[unique].any(axis=1)])
+    a, b, c = tris.T
+    ab, bc, ca = middle.T
+    out = np.concatenate([np.stack([a, ab, ca], 1), np.stack([ab, b, bc], 1), np.stack([ca, bc, c], 1),
+                          np.stack([ab, bc, ca], 1)])
+    ua, ub, uc = uvs[:, 0], uvs[:, 1], uvs[:, 2]
+    uab, ubc, uca = (ua + ub) / 2, (ub + uc) / 2, (uc + ua) / 2
+    out_uvs = np.concatenate([np.stack([ua, uab, uca], 1), np.stack([uab, ub, ubc], 1),
+                              np.stack([uca, ubc, uc], 1), np.stack([uab, ubc, uca], 1)])
+    return points, out, out_uvs, weights, np.tile(materials, 4), rigid
+
+
+def along(polyline, points):
+    """Each point's nearest point on a polyline (the last segment going on
+    past its end): how far along it (m), that point and the polyline's
+    direction there."""
+    a, b = polyline[:-1], polyline[1:]
+    seg = b - a
+    length = np.linalg.norm(seg, axis=1)
+    start = np.concatenate([[0.0], np.cumsum(length)])[:-1]
+    rel = points[:, None, :] - a[None, :, :]
+    t = np.clip(np.sum(rel * seg[None], axis=2) / length[None] ** 2, 0.0, 1.0)
+    # The last segment goes on past its end.
+    t[:, -1] = np.maximum(np.sum(rel[:, -1] * seg[-1], axis=1) / length[-1] ** 2, 0.0)
+    gap = np.linalg.norm(rel - t[..., None] * seg[None], axis=2)
+    k = gap.argmin(axis=1)
+    rows = np.arange(len(points))
+    tangent = seg[k] / length[k][:, None]
+    return start[k] + t[rows, k] * length[k], a[k] + t[rows, k][:, None] * seg[k], tangent
+
+
+## A triangle of the head is inside the mouth when HIDDEN_SHARE of the rays
+## off it meet the animal itself within HIDDEN_REACH (m).
+HIDDEN_SHARE = 0.6
+HIDDEN_REACH = 0.15
+
+
+def hidden(points, tris, which, count, index, rays=24, seed=3):
+    """Which of `count` triangles are shut inside the model's skin `tris`
+    (triangle `index` of them each; of those where `which`): from their
+    middle, out of their face, most rays meet it."""
+    bvh = BVHTree.FromPolygons([Vector(q) for q in points], tris.tolist())
+    rng = np.random.default_rng(seed)
+    r1, r2 = rng.random(rays), rng.random(rays)
+    local = np.stack([np.sqrt(r1) * np.cos(2 * np.pi * r2), np.sqrt(r1) * np.sin(2 * np.pi * r2), np.sqrt(1 - r1)], 1)
+    corners = points[tris]
+    centres = corners.mean(axis=1)
+    normals = normalized(np.cross(corners[:, 1] - corners[:, 0], corners[:, 2] - corners[:, 0]))
+    out = np.zeros(count, bool)
+    for k in np.flatnonzero(which):
+        n = normals[k]
+        helper = np.array([0.0, 0.0, 1.0]) if abs(n[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+        tx = normalized(np.cross(helper, n))
+        ty = np.cross(n, tx)
+        origin = Vector(centres[k] + n * 0.002)
+        hits = sum(bvh.ray_cast(origin, Vector(tx * d[0] + ty * d[1] + n * d[2]), HIDDEN_REACH)[0] is not None
+                   for d in local)
+        out[index[k]] = hits >= HIDDEN_SHARE * rays
+    return out
+
+
+## The gums, the palate and the tongue: an albedo this much redder than it
+## is green and blue.
+FLESH_RED = 1.35
+
+
+def flesh(uvs, materials):
+    """Which triangles show flesh in their material's albedo map (by the
+    middle of their UVs, as surfaces() writes them)."""
+    out = np.zeros(len(uvs), bool)
+    for material in np.unique(materials):
+        mine = np.flatnonzero(materials == material)
+        r, g, b = albedo_at(material, uvs[mine].mean(axis=1)).T
+        out[mine] = (r > FLESH_RED * g) & (r > FLESH_RED * b) & (r > 0.15)
+    return out
+
+
+_ALBEDO = {}
+
+
+def albedo_map(material):
+    """The albedo map of a material (by its res:// path), as rows of pixels
+    from the bottom (sRGB), or None."""
+    if material not in _ALBEDO:
+        with open(os.path.join(ROOT, material[len("res://"):])) as f:
+            text = f.read()
+        paths = dict((key, value) for value, key in re.findall(r'path="res://([^"]+)" id="(\w+)"', text))
+        found = re.search(r'albedo_texture = ExtResource\("(\w+)"\)', text)
+        pixels = None
+        if found is not None and found.group(1) in paths:
+            image = bpy.data.images.load(os.path.join(ROOT, paths[found.group(1)]))
+            width, height = image.size
+            pixels = np.array(image.pixels[:]).reshape(height, width, -1)
+            bpy.data.images.remove(image)
+        _ALBEDO[material] = pixels
+    return _ALBEDO[material]
+
+
+def albedo_at(material, uv):
+    """The albedo (sRGB) of `material` at UVs as surfaces() writes them."""
+    pixels = albedo_map(material)
+    if pixels is None:
+        return np.full((len(uv), 3), 0.5)
+    height, width = pixels.shape[:2]
+    # Godot's v runs down from the top; the image's rows up from the bottom.
+    v = -uv[:, 1]
+    x = np.clip((uv[:, 0] % 1.0) * width, 0, width - 1).astype(int)
+    y = np.clip((1.0 - v % 1.0) * height, 0, height - 1).astype(int)
+    return pixels[y, x, :3]
+
+
+## Locks over a pelt that has none: how many a square metre, how much darker
+## than the albedo under them (the cards' map is light).
+PELT_FUR_DENSITY = 2200
+PELT_FUR_SHADE = 0.8
+
+
+def pelt_fur(p, tris, rows, uvs, materials, eyes, body, fur):
+    """Hair cards (fur_coat()) over the triangles `rows` of a pelt worn (at
+    `p`), the colour of its albedo: on the pelt, not on the muzzle in front
+    of its `eyes`, and over its edges (round the face too)."""
+    kept = np.flatnonzero(rows)
+    # Welded (its UV seams are no edges), its largest piece: not the eyes,
+    # the antlers or the tusks.
+    _, same = np.unique(np.round(p / 1e-5).astype(np.int64), axis=0, return_inverse=True)
+    same = same.ravel()
+    count = same.max() + 1
+    points = np.zeros((count, 3))
+    np.add.at(points, same, p)
+    points /= np.bincount(same, minlength=count)[:, None]
+    welded_tris = same[tris[kept]]
+    good = (welded_tris[:, 0] != welded_tris[:, 1]) & (welded_tris[:, 1] != welded_tris[:, 2]) \
+        & (welded_tris[:, 2] != welded_tris[:, 0])
+    kept, welded_tris = kept[good], welded_tris[good]
+    largest = max(islands(welded_tris, count), key=lambda island: island.sum())
+    kept, welded_tris = kept[largest], welded_tris[largest]
+    # Colour per point, from the albedo under its corners (linear).
+    color = np.zeros((count, 3))
+    seen = np.zeros(count)
+    for material in np.unique(materials[kept]):
+        mine = kept[materials[kept] == material]
+        corners = albedo_at(material, uvs[mine].reshape(-1, 2)) ** 2.2
+        np.add.at(color, same[tris[mine]].ravel(), corners)
+        np.add.at(seen, same[tris[mine]].ravel(), 1.0)
+    color /= np.maximum(seen, 1.0)[:, None]
+    m = Mesh(points, welded_tris).compact()
+    color = color[np.unique(welded_tris)]
+    tree = KDTree(len(m.points))
+    for i, q in enumerate(m.points):
+        tree.insert(Vector(q), i)
+    tree.balance()
+    colors = lambda q, l: np.array([color[tree.find(Vector(x))[1]] for x in q]) * PELT_FUR_SHADE
+    muzzle = lambda q: (q[:, 1] < eyes[1] + 0.01) & (q[:, 2] > eyes[2] - 0.3)
+    rng = np.random.default_rng(SEED + 9)
+    return fur_coat(m, m.normals(), colors, rng, fur.get("density", PELT_FUR_DENSITY),
+                    lambda q: np.full(len(q), fur["hair"]), fur["edge"], centre=body.joint("Neck"), skip_edge=muzzle,
+                    avoid=muzzle, width=fur["width"])
+
+
+def drape(bvh, angles, top, bottom):
+    """How far from PELT_AXIS (m) a pelt lies, from `top` down, at each
+    angle (0 in front) and height (every PELT_STEP): taut between where it
+    rests on the body (from the head to the shoulders, over the neck), and
+    plumb under the furthest of them; but round the face, as a hood, close
+    round the head down to HOOD_JAW and taut from there (HOOD_SIDES)."""
+    heights = np.arange(top, bottom, -PELT_STEP)
+    out = np.zeros((len(heights), len(angles)))
+    jaw = int(np.searchsorted(-heights, -HOOD_JAW))
+
+    def taut(body, first):
+        # The least concave profile over the body's (its hull, from `first`
+        # down), then nothing comes back in under it.
+        hull = [first]
+        for i in range(first + 1, len(heights)):
+            while len(hull) > 1:
+                k0, k1 = hull[-2], hull[-1]
+                # Drop the middle point if it is not over the line from k0 to i.
+                if (body[k1] - body[k0]) * (i - k0) <= (body[i] - body[k0]) * (k1 - k0):
+                    hull.pop()
+                else:
+                    break
+            hull.append(i)
+        return np.maximum.accumulate(np.interp(np.arange(first, len(heights)), hull, body[hull]))
+    for j, a in enumerate(angles):
+        body = np.array([radial(bvh, PELT_AXIS, a, z) for z in heights])
+        hood = np.concatenate([body[:jaw], taut(body, jaw)])
+        share = smoothstep(HOOD_SIDES[1], HOOD_SIDES[0], abs(a))
+        out[:, j] = taut(body, 0) * (1.0 - share) + hood * share
+    return heights, out
+
+
+def headdress(env, body, style=None):
+    """An animal's pelt worn with its head over the head, as the game's model
+    of it has it: the head whole but for its lower jaw, its eyes over the
+    brows; the pelt opened down the belly, hanging from the head round the
+    face and over the shoulders and down the back; the forelegs down the
+    chest. `style`: WOLF_HEAD's keys."""
+    st = {**WOLF_HEAD, **(style or {})}
+    points, tris, uvs, weights, names, skin, materials, rigid, joints = animal_model(st)
+    share = lambda bones: weights[:, [names.index(b) for b in bones if b in names]].sum(axis=1)
+    scale = st["scale"]
+    # The head, worn whole, the tip of its nose HEAD_DIP under its eyes.
+    eyes = np.array(st["eyes"])
+    on_head = np.maximum(share(st["head"]), rigid)
+    # Along the middle of the head (not an antler's tip).
+    middle = points[(on_head > 0.5) & (np.abs(points[:, 0] - eyes[0]) < 0.02)]
+    tip = middle[np.argmin(middle[:, 1])]
+    muzzle = math.hypot(eyes[1] - tip[1], eyes[2] - tip[2]) * scale
+    pitch = math.asin(min(HEAD_DIP / muzzle, 1.0)) - math.atan2(eyes[2] - tip[2], eyes[1] - tip[1])
+    turn = np.array(Matrix.Rotation(pitch, 3, "X"))
+    worn = lambda q: (q - eyes) @ turn.T * scale + np.array([0.0, *st["at"]])
+    # As high as the wolf's: the underside of its muzzle MUZZLE_UNDER high.
+    head = worn(points)
+    snout = head[(on_head > 0.5) & (head[:, 1] < st["at"][0] + 0.05) & (np.abs(head[:, 0]) < 0.05)]
+    lift = np.array([0.0, 0.0, MUZZLE_UNDER - snout[:, 2].min()])
+    worn = lambda q, w=worn: w(q) + lift
+    head = head + lift
+    # The pelt: round its spine, at each point how far along it, which way
+    # round (0 along the back, +-pi down the belly) and how far its hair
+    # stands off its skin.
+    spine = np.array([joints[b][0] * np.array([0.0, 1.0, 1.0]) for b in st["spine"]])
+    s, foot, tangent = along(spine, points)
+    up = np.stack([np.zeros(len(s)), -tangent[:, 2], tangent[:, 1]], axis=1)
+    rel = points - foot
+    round_ = np.arctan2(rel[:, 0], np.sum(rel * up, axis=1))
+    hide = BVHTree.FromPolygons([Vector(q) for q in points], tris[skin].tolist())
+    hair = np.array([hide.find_nearest(Vector(q))[3] for q in points])
+    # Opened down the belly and wrapped round from the back.
+    bvh = body_bvh(env, exclude=("ForeArm", "Hand"))
+    angles = np.linspace(-math.pi, math.pi, 145)
+    top = min(worn(spine[:1])[0, 2], PELT_TOP)
+    # A short animal is stretched to PELT_LENGTH.
+    s = s * max(PELT_LENGTH / (np.linalg.norm(np.diff(spine, axis=0), axis=1).sum() * scale), 1.0)
+    heights, reach = drape(bvh, angles, top, 0.9)
+    # Down each meridian by the length of the body's profile, not its height.
+    run = np.vstack([np.zeros(len(angles)), np.cumsum(np.hypot(PELT_STEP, np.diff(reach, axis=0)), axis=0)])
+    turned = np.sign(round_) * (math.pi - np.abs(round_) * PELT_WRAP / math.pi)
+    column = np.clip(np.searchsorted(angles, turned), 1, len(angles) - 1)
+    pelt = np.zeros_like(points)
+    for i in range(len(points)):
+        j = column[i]
+        f = (turned[i] - angles[j - 1]) / (angles[j] - angles[j - 1])
+        meridian = run[:, j - 1] * (1 - f) + run[:, j] * f
+        out = reach[:, j - 1] * (1 - f) + reach[:, j] * f
+        k = np.interp(s[i] * scale, meridian, np.arange(len(heights)))
+        z = np.interp(k, np.arange(len(heights)), heights)
+        r = np.interp(k, np.arange(len(heights)), out) + PELT_OFF + hair[i] * PELT_HAIR
+        pelt[i] = (PELT_AXIS[0] + r * math.sin(turned[i]), PELT_AXIS[1] - r * math.cos(turned[i]), z)
+    # The forelegs lie along their chains, facing out from the body: the paw
+    # bent down at the wrist first, then each point as far along its chain
+    # as it was along the leg from the shoulder, as far round it.
+    if len(body.pelt) != len(st["legs"]):
+        raise RuntimeError("body.json has no pelt bones: dump it again (tools/character/dump_skeleton.gd)")
+    legs = np.zeros_like(points)
+    on_legs = np.zeros(len(points))
+    bend = np.array(Matrix.Rotation(PAW_BEND, 3, "X"))
+    chains = sorted(body.pelt, key=lambda chain: -body.joints[body.names[chain[0]]][0])
+    tops = [body.joints[body.names[chain[0]]] for chain in chains]
+    for bones, chain in zip(st["legs"], chains):
+        shoulder, elbow, ankle, wrist = (joints[b][0] for b in bones[:4])
+        mine = share(bones)
+        on_paw = (share(bones[3:]) / np.maximum(mine, 1e-9))[:, None]
+        bent = points + on_paw * (((points - wrist) @ bend.T + wrist) - points)
+        leg = np.array([shoulder, elbow, ankle, wrist, wrist + bend @ (joints[bones[-1]][1] - wrist)])
+        ls, lfoot, ltangent = along(leg, bent)
+        front = np.array([0.0, -1.0, 0.0])
+        n = normalized(front - ltangent * (ltangent @ front)[:, None])
+        lrel = bent - lfoot
+        # The chain, its end bone as long as the one before it, smoothed.
+        path = np.array([body.joints[body.names[j]] for j in chain])
+        path = smooth_polyline(resample(np.vstack([path, 2 * path[-1] - path[-2]]), 0.01), 6)
+        length = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(path, axis=0), axis=1))])
+        at = (ls + np.sum(lrel * ltangent, axis=1)) * LEG_LENGTH / np.linalg.norm(np.diff(leg, axis=0), axis=1).sum()
+        on = np.stack([np.interp(at, length, path[:, k]) for k in range(3)], axis=1)
+        # Before its top and past its end, straight on.
+        first, last = normalized(path[1] - path[0]), normalized(path[-1] - path[-2])
+        on += np.minimum(at, 0.0)[:, None] * first + np.maximum(at - length[-1], 0.0)[:, None] * last
+        k = np.clip(np.searchsorted(length, at), 1, len(path) - 1)
+        tangent = normalized(path[k] - path[k - 1])
+        out = on - np.array([PELT_AXIS[0], PELT_AXIS[1], 0.0])
+        out[:, 2] = 0.0
+        out = normalized(out - tangent * np.sum(out * tangent, axis=1)[:, None])
+        side = np.cross(tangent, out)
+        mapped = on + (out * np.sum(lrel * n, axis=1)[:, None] * LEG_SIZE[1]
+                       + side * np.sum(lrel * np.cross(ltangent, n), axis=1)[:, None] * LEG_SIZE[0]) * scale
+        legs += mine[:, None] * mapped
+        on_legs += mine
+    on_legs *= 1.0 - rigid
+    rest = np.clip(1.0 - on_head - on_legs, 0.0, 1.0)
+    p = on_head[:, None] * head + legs + rest[:, None] * pelt
+    # What is not worn: the lower jaw, the hind legs and the tail, the body
+    # past PELT_LENGTH, the belly's seam, and where the arms come out.
+    keep = (share(st["cut"]) < 0.5) | rigid
+    keep &= ~((s * scale > PELT_LENGTH) & (on_head + on_legs < 0.5))
+    arms = (np.abs(turned) > PELT_ARMS[0]) & (np.abs(turned) < PELT_ARMS[1]) \
+        & (pelt[:, 2] < np.interp(np.abs(turned), PELT_ARMS, PELT_ARMPITS[::-1]))
+    keep &= ~arms | (on_head + on_legs > 0.5)
+    rows = keep[tris].all(axis=1)
+    # Nor the inside of the mouth, which the lower jaw hid: what of the head
+    # before the eyes could not be seen on the whole animal, or is flesh.
+    mouth = (on_head[tris].min(axis=1) > 0.5) & (points[tris][:, :, 1].max(axis=1) < eyes[1])
+    rows &= ~hidden(points, tris[skin], mouth[skin], len(tris), np.flatnonzero(skin))
+    rows &= ~(flesh(uvs, materials) & mouth)
+    # A triangle across the seam would span the front.
+    seam = (np.abs(round_[tris]) > math.pi / 2).all(axis=1) & (np.ptp(np.sign(round_[tris]), axis=1) > 0)
+    rows &= ~(seam & (on_head[tris].max(axis=1) < 0.5))
+    edge = lambda q: np.max(np.linalg.norm(q[tris] - q[np.roll(tris, 1, axis=1)], axis=2), axis=1)
+    # But behind the head (the upper half of its neck) the pelt falls from
+    # it: from the back of a head bigger than the wolf's, worn higher, its
+    # nape spans down to the pelt stretched (under the hair), not open.
+    nape = (on_head[tris].max(axis=1) > 0.05) & (np.abs(round_[tris]).max(axis=1) < math.pi / 2)
+    rows &= (edge(p) < edge(points) * scale * PELT_TORN + 0.002) | nape
+    # Scraps of skin cut off from the rest (not its locks of hair, nor what
+    # goes with the head: its eyes, teeth or tusks).
+    _, same = np.unique(np.round(points / 1e-5).astype(np.int64), axis=0, return_inverse=True)
+    kept = np.flatnonzero(rows & skin)
+    for island in islands(same.ravel()[tris[kept]], len(points)):
+        if island.sum() < PELT_SCRAPS * len(kept):
+            scrap = kept[island]
+            rows[scrap[on_head[tris[scrap]].max(axis=1) < 0.5]] = False
+    # Off the skin.
+    clearance = HEAD_CLEARANCE + (PELT_CLEARANCE - HEAD_CLEARANCE) * (1.0 - on_head)
+    for i in np.flatnonzero(keep):
+        location, normal, _ = body.nearest(p[i])
+        depth = (p[i] - location) @ normal
+        if depth < clearance[i]:
+            p[i] += normal * (clearance[i] - depth)
+    # Only what is the leg (not the pelt over the shoulder next to it, which
+    # its bones also weigh on in the model) and the pelt in front of it, on
+    # its side, swing: neither follows the arms.
+    around = lambda q: np.abs(np.arctan2(q[:, 0] - PELT_AXIS[0], PELT_AXIS[1] - q[:, 1]))
+    chain = around(np.array(tops[:1]))[0]
+    ahead = smoothstep(chain + LEG_FRONT, chain, around(p))
+    steady = np.maximum(smoothstep(0.5, 0.9, on_legs), ahead)
+    swing = steady * smoothstep(tops[0][2] + LEG_SWING, tops[0][2] - LEG_SWING, p[:, 2])
+    # A part per material, all skinned together.
+    parts = []
+    dangle = []
+    still = []
+    if st["fur"]:
+        cards = pelt_fur(p, tris, rows & skin, uvs, materials, worn(eyes[None])[0], body, st["fur"])
+        on_pelt = np.unique(tris[rows])
+        tree = KDTree(len(on_pelt))
+        for i, q in enumerate(p[on_pelt]):
+            tree.insert(Vector(q), i)
+        tree.balance()
+    for material in np.unique(materials[rows]):
+        mine = rows & (materials == material)
+        used, part_tris = np.unique(tris[mine], return_inverse=True)
+        part_tris = part_tris.reshape(-1, 3)
+        parts.append(Part(material, p[used], part_tris, None, uvs[mine], np.ones((len(part_tris), 3, 4))))
+        dangle.append(swing[used])
+        still.append(steady[used])
+    if st["fur"]:
+        # The locks swing with the legs they grow on.
+        for card in cards:
+            parts.append(card)
+            nearest = on_pelt[[tree.find(Vector(q))[1] for q in card.points]]
+            dangle.append(swing[nearest])
+            still.append(steady[nearest])
+    return parts, [(parts, {"weight_radius": 0.05, "dangle": np.concatenate(dangle), "steady": np.concatenate(still)},
+                    "cloak")]
+
+
 # --- The heavy set -------------------------------------------------------------
 
 ## Caribou hides for the coat, pieced: mid on the front, pale at the sides,
@@ -2703,8 +3336,14 @@ ARCTIC_SET = {
 
 LIGHT = {"mantle": mantle, "loincloth": loincloth, "mittens": mittens, "moccasins": moccasins}
 HEAVY = {"coat": coat, "breeches": breeches, "gauntlets": gauntlets, "boots": boots}
+## The pelts worn with their heads: the light sets' (the wolf's, the boar's,
+## the deer's) and a bear's hood for the heavy one.
+HEADS = {"headdress": headdress}
+HOOD = {"hood": headdress}
 ## Every piece, <set>_<garment>: what makes it and its style.
-SETS = [("fur", LIGHT, {}), ("fur", HEAVY, {}), ("boar", LIGHT, BOAR_SET), ("deer", LIGHT, DEER_SET),
+SETS = [("fur", LIGHT, {}), ("fur", HEAVY, {}), ("fur", HEADS, {}), ("fur", HOOD, {"hood": BEAR_HEAD}),
+        ("boar", HEADS, {"headdress": BOAR_HEAD}), ("deer", HEADS, {"headdress": DEER_HEAD}),
+        ("boar", LIGHT, BOAR_SET), ("deer", LIGHT, DEER_SET),
         ("fox", LIGHT, FOX_SET), ("bison", HEAVY, BISON_SET), ("antler", HEAVY, ANTLER_SET),
         ("arctic", HEAVY, ARCTIC_SET)]
 PIECES = {"%s_%s" % (prefix, name): (make, styles.get(name, {}))

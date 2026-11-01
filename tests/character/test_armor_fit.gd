@@ -7,11 +7,14 @@ extends SceneTree
 const MODEL := "res://scenes/character/character_model.tscn"
 const CHEST := "res://scenes/items/armor/leather_armor/leather_chest_equipable.tscn"
 const PANTS := "res://scenes/items/armor/firstage_skin_set/firstage_skin_pants_equipable.tscn"
+const PELT := "res://scenes/items/armor/stone_age/fur_headdress_equipable.tscn"
 const HOODS := ["res://scenes/items/armor/leather_armor/leather_hood_equipable.tscn",
-		"res://scenes/items/armor/firstage_skin_set/firstage_skin_hood_equipable.tscn"]
+		"res://scenes/items/armor/firstage_skin_set/firstage_skin_hood_equipable.tscn",
+		"res://scenes/items/armor/stone_age/fur_headdress_equipable.tscn"]
 ## Made on the scan by tools/character/blender/build_fur_armor.py (fur_) and fitted onto it
 ## by fit_meshy_armor.py (hide_).
-const STONE_AGE := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins",
+const STONE_AGE := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins", "fur_headdress", "fur_hood",
+		"boar_headdress", "deer_headdress",
 		"fur_coat", "fur_breeches", "fur_gauntlets", "fur_boots",
 		"boar_mantle", "boar_loincloth", "boar_mittens", "boar_moccasins",
 		"deer_mantle", "deer_loincloth", "deer_mittens", "deer_moccasins",
@@ -47,6 +50,7 @@ func _run() -> void:
 	_check_clearance(rig, skeleton)
 	await _check_dress(rig, skeleton)
 	await _check_hair(rig, skeleton)
+	await _check_pelt(model, rig, skeleton)
 	model.free()
 	print("ARMOR FIT TESTS: %d failures" % failures)
 	quit(1 if failures else 0)
@@ -136,8 +140,9 @@ func _check_clearance(rig: CharacterAppearanceRig, skeleton: Skeleton3D) -> void
 			paths.append("res://scenes/items/armor/stone_age/%s_equipable.tscn" % piece)
 		for path in paths:
 			var item: MeshInstance3D = load(path).instantiate()
-			# A skirt's bones, as dress() adds them.
-			if SkirtBones.uses(item.skin) and SkirtBones.add_to(skeleton):
+			# A skirt's bones (or a pelt's forelegs'), as dress() adds them.
+			if SkirtBones.uses(item.skin) and SkirtBones.add_to(skeleton) \
+					or PeltBones.uses(item.skin) and PeltBones.add_to(skeleton):
 				rig._fit_context = null
 				context = rig._context()
 			var bones := BodyMeasurements.bind_bones(item.skin, skeleton)
@@ -249,6 +254,46 @@ func _rest_points(rig: CharacterAppearanceRig, skeleton: Skeleton3D, mesh: Array
 			p += binds[bones[k]] * vertices[i] * weights[k]
 		points.append(p)
 	return points
+
+
+## A pelt's forelegs hang from their own bones (PeltBones), which a
+## PeltSwing swings: running, they leave where they hang at rest; taken off,
+## it stops.
+func _check_pelt(model: Node3D, rig: CharacterAppearanceRig, skeleton: Skeleton3D) -> void:
+	rig.apply(_body({}))
+	var pelt: MeshInstance3D = load(PELT).instantiate()
+	skeleton.add_child(pelt)
+	rig.dress(pelt, true)
+	await _dressed(rig)
+	var swing := skeleton.get_node_or_null(^"PeltSwing") as PeltSwing
+	var end := skeleton.find_bone(PeltBones.bone_name(0, PeltBones.JOINTS - 1))
+	var spine := skeleton.find_bone(PeltBones.SPINE)
+	check(swing != null and swing.active and end >= 0, "a pelt adds its forelegs' bones and swings them")
+	if swing == null or end < 0:
+		return
+	# Where the foreleg's end is from the chest, as the skin sees it.
+	var hanging := []
+	var track := func() -> void:
+		hanging.append(skeleton.get_bone_global_pose(spine).affine_inverse() * skeleton.get_bone_global_pose(end).origin)
+	skeleton.skeleton_updated.connect(track)
+	var player: AnimationPlayer = model.get_node("AnimationPlayer")
+	player.stop()
+	for frame in 30:
+		await process_frame
+	var rest: Vector3 = hanging[-1]
+	player.play("running")
+	for frame in 60:
+		await process_frame
+	skeleton.skeleton_updated.disconnect(track)
+	player.stop()
+	var swung := 0.0
+	for at: Vector3 in hanging.slice(30):
+		swung = maxf(swung, at.distance_to(rest))
+	swung *= skeleton.global_basis.get_scale().x
+	check(swung > 0.01, "running swings the forelegs (%.1f cm)" % (swung * 100.0))
+	rig.undress(pelt)
+	pelt.free()
+	check(not swing.active, "taken off, they stop")
 
 
 func _dressed(rig: CharacterAppearanceRig) -> void:

@@ -11,10 +11,12 @@ extends SceneTree
 ##       [--anim=running|none] [--time=0.3] [--play] [--frames=3] [--still]
 ##
 ## <out.json> lists the meshes (model space: Y up, +Z forward, metres) and
-## their albedo; the vertex data goes in <out>.bin. It is taken after
-## --frames frames, the animation held at --time or, with --play, playing on
-## from it: what swings (SkirtSwing) needs some to hang or to move, best
-## with godot's --fixed-fps 60. --still leaves it hanging as it was fitted.
+## their albedo (and a hair card's map of locks); the vertex data goes in
+## <out>.bin: positions, UVs, colours (where a mesh has them) and indices.
+## It is taken after --frames frames, the animation held at --time or, with
+## --play, playing on from it: what swings (SkirtSwing, PeltSwing) needs some
+## to hang or to move, best with godot's --fixed-fps 60. --still leaves it
+## hanging as it was fitted.
 
 const MODEL := "res://scenes/character/character_model.tscn"
 
@@ -68,7 +70,7 @@ func _run() -> void:
 	for path in armor:
 		var item: Node = load(path).instantiate()
 		skeleton.add_child(item)
-		rig.dress(item, path.contains("hood") or path.contains("helmet"))
+		rig.dress(item, path.contains("hood") or path.contains("helmet") or path.contains("headdress"))
 	while rig.is_dressing():
 		await process_frame
 	if still:
@@ -120,11 +122,17 @@ func _run() -> void:
 				var coords: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 				for uv in coords:
 					uvs.append_array([uv.x, uv.y])
+			var colors := PackedFloat32Array()
+			if arrays[Mesh.ARRAY_COLOR] != null:
+				for c: Color in arrays[Mesh.ARRAY_COLOR]:
+					colors.append_array([c.r, c.g, c.b, c.a])
 			var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
 			var entry := {name = "%s_%d" % [instance.name, s], vertices = positions.size() / 3,
-					indices = indices.size(), offset = data.size(), uv = not uvs.is_empty()}
+					indices = indices.size(), offset = data.size(), uv = not uvs.is_empty(),
+					colors = not colors.is_empty()}
 			data.append_array(positions.to_byte_array())
 			data.append_array(uvs.to_byte_array())
+			data.append_array(colors.to_byte_array())
 			data.append_array(indices.to_byte_array())
 			_albedo(instance.get_active_material(s), entry)
 			meshes.append(entry)
@@ -182,6 +190,11 @@ static func _albedo(material: Material, entry: Dictionary) -> void:
 				texture = value
 			elif value is Color:
 				color = value
+		# Hair cards: their locks' map (its alpha cuts them), coloured by
+		# the vertices.
+		var locks = material.get_shader_parameter(&"lock_map")
+		if locks is Texture2D and (locks as Texture2D).resource_path.begins_with("res://"):
+			entry.locks = ProjectSettings.globalize_path((locks as Texture2D).resource_path)
 	if texture != null and texture.resource_path.begins_with("res://"):
 		entry.texture = ProjectSettings.globalize_path(texture.resource_path)
 	entry.color = [color.r, color.g, color.b]

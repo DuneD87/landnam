@@ -426,6 +426,17 @@ rigging peleaba con esa geometría.
 - **Los mocasines**: de cuero, con la suela subiendo por los lados y el empeine
   fruncido en una costura; encima, una piel envuelta en cada espinilla, atada
   con dos tiras que se cruzan subiendo y anudada bajo la rodilla.
+- **La cabeza de lobo** (`fur_headdress`): la piel entera del lobo del
+  juego, con su malla y su material, con la cabeza puesta sobre la propia
+  (sin la mandíbula de abajo, el hocico sobre las cejas). La piel, abierta
+  por la barriga, cae de la cabeza enmarcando la cara, cubre los hombros y
+  baja por la espalda hasta los riñones; las patas delanteras cuelgan por el
+  pecho con las zarpas dobladas hacia abajo y se balancean al moverse
+  (*Patas que cuelgan*). Las traseras y la cola no van.
+- **Las cabezas de jabalí y de ciervo** (`boar_headdress`, `deer_headdress`)
+  son lo mismo con esos animales (el ciervo con las astas recortadas, el
+  jabalí con sus colmillos), y la **capucha de oso** (`fur_hood`), la del
+  conjunto de invierno.
 
 El conjunto pesado abriga casi el doble (+19,5 °C frente a +11: cómodo de unos
 −10 a +4 °C, y da calor en un día templado) y para más los golpes:
@@ -466,6 +477,21 @@ piezas):
 | `antler_` | reno con láminas de asta en filas (laminada), gorguera de lobo | +16 | 27/21/21 | asta |
 | `arctic_` | zorro ártico blanco, franjas oscuras, cuentas de marfil | +26 | 10/13/6 | marfil |
 
+Las pieles con cabeza añaden al conjunto, en la cabeza, que ninguna de las
+otras piezas protege: la de lobo +2 de abrigo y 2/3/1, la de jabalí +1,5 y
+3/2/1, la de ciervo +1,5 y 2/2/3, y la capucha de oso, al de invierno, +4 y
+3/5/2. Las del zorro y las de los otros conjuntos pesados aún no están
+hechas.
+
+Antes de construirlas (las del oso, el ciervo y el jabalí):
+
+```sh
+for a in "Bear bear" "Deer deer" "Boar boar"; do set -- $a
+  godot --headless --path . --script res://tools/character/export_animal.gd -- \
+      res://scenes/animals/$1.tscn $PWD/build/character/animals/$2.json
+done
+```
+
 Son las mismas prendas con otro estilo (`MANTLE`, `COAT`... en
 `build_fur_armor.py`, y los de las variantes en `*_SET`): colores, largo y
 grosor del pelo, y lo que llevan cosido o colgado (`plates`, `beads`,
@@ -486,6 +512,60 @@ Cómo se hacen:
   cuero. Lo que cuelga cae a plomo desde lo que más sobresale encima (un
   muslo, una nalga), con pliegues; las manoplas se remallan desde envolventes
   convexas.
+- **La piel con cabeza** no se hace: es el modelo del animal puesto, el
+  del lobo (`models/animals/wolf/wolf.fbx`, `WOLF_HEAD`) o el de la fauna
+  del oso, el ciervo y el jabalí (`BEAR_HEAD`, `DEER_HEAD`, `BOAR_HEAD`), que
+  `tools/character/export_animal.gd` vuelca de sus escenas a JSON (con sus
+  materiales; los que solo viven en la escena los guarda en
+  `models/equipable/stone_age/pelts/`). Cada animal dice sus huesos (cabeza,
+  lo que se corta, patas delanteras, columna), dónde tiene los ojos, su
+  escala y a qué altura se lleva; el ciervo, además, la cornamenta grande
+  recortada (`trim`), y el jabalí, los colmillos con la cabeza (`rigid`). La
+  cabeza se inclina hasta que la punta del hocico queda `HEAD_DIP` bajo los
+  ojos y se pone con la parte de abajo del hocico a la altura de la del lobo
+  (`MUZZLE_UNDER`), ceñida a la cabeza como la suya; la piel baja
+  `PELT_LENGTH` por la columna (estirada si el animal es más corto) desde la
+  altura de la cabeza, como mucho `PELT_TOP`; las patas miden `LEG_LENGTH`.
+  El lobo trae sus mechones de pelo; los demás, lisos, llevan los de las
+  prendas de pieles (`pelt_fur()`, `fur_coat()`, con el color de su textura
+  y el largo de cada animal: `fur`), también por los bordes y alrededor de la
+  cara, que si no parecerían de goma. Una malla tosca se subdivide
+  (`ANIMAL_EDGE`), los recortes sueltos se quitan (`PELT_SCRAPS`) y
+  de la boca, sin la mandíbula, se quita lo que no se veía con ella cerrada
+  (`hidden()`) y lo que es carne en la textura (`flesh()`). Sus vértices se reparten según
+  sus pesos en el esqueleto del animal: la cabeza va entera y rígida, con los
+  ojos sobre la frente y el hocico algo levantado; las patas delanteras,
+  enteras, a lo largo de su cadena de huesos (*Patas que cuelgan*): el
+  hombro del lobo apoyado sobre el del personaje y la pata cayendo por
+  delante del pecho, mirando fuera del cuerpo y con la zarpa doblada en la
+  muñeca (`PAW_BEND`); como son piel vacía, más cortas, estrechas y planas
+  que las del lobo (`LEG_SIZE`); el resto es la piel, que se abre por la barriga y se
+  envuelve alrededor del cuerpo desde la espalda: cada punto, por lo lejos que
+  queda a lo largo de la columna del animal y por su vuelta alrededor de ella
+  (el lomo en medio de la espalda, los bordes de la barriga a `PELT_WRAP` de
+  él: por delante, bajo las patas, así que entre pata y piel no queda hueco
+  en el cuello), va a esa vuelta alrededor del cuerpo, bajando por él lo
+  mismo que medía, por el perfil por el que cae la piel (`drape()`): tensa
+  entre donde se apoya (de la cabeza a los hombros, salvando el cuello, sin
+  hueco entre ellos) y a plomo por debajo de lo que más sobresale; alrededor
+  de la cara, como una capucha, ceñida a la cabeza hasta la mandíbula
+  (`HOOD_JAW`) y tensa desde ahí, y por detrás colgando del cogote
+  (`HOOD_SIDES`). Su pelo queda a `PELT_HAIR` de lo que sobresalía de la
+  piel del animal. Bajo las axilas se abre donde salen los brazos
+  (`PELT_ARMS`); la mandíbula de abajo, las patas traseras, la cola, lo que
+  pasa de `PELT_LENGTH` por la columna, lo que cruza la costura de la barriga y
+  lo que la colocación estira más de `PELT_TORN` veces se quitan; menos por
+  detrás de la cabeza (la mitad de arriba del cuello), donde una cabeza más
+  grande que la del lobo, y puesta más alta (la del jabalí, la del oso), cae
+  hasta la piel estirada y bajo el pelo, en vez de abrir un agujero en la
+  coronilla. La cabeza
+  queda a 1,6 cm de la piel, para que quepa el pelo, y la piel a 3,2 cm
+  (`PELT_CLEARANCE`, como la del manto): con menos, el hombro la atraviesa
+  al bajar el brazo, porque el cuerpo del juego no se dobla en el hombro
+  igual que el escaneo. Su superficie lleva la ruta del
+  material del animal, que el baker carga tal cual. En el juego recoge el
+  pelo y la barba bajo ella (`HairTuck`), como las capuchas, y en primera
+  persona solo da sombra (la piel y las patas también).
 - **El pelo son tarjetas** (*hair cards*), como en los juegos: mechones
   peinados pendiente abajo sobre cada piel, una capa corta entre ellos y
   mechones que cuelgan de sus bordes y rompen la silueta. Sus mechones se
@@ -504,7 +584,9 @@ Cómo se hacen:
   taparrabos del faldellín siguen a la cadera y los muslos. Las mangas de la
   zamarra son piezas aparte (con `"sleeves"`, se doblan por el codo), y su
   cuerpo y su falda cuelgan de los huesos de falda (`"hang"`, con `"split"`
-  estrecho, para que cada lado de la falda vaya con su muslo).
+  estrecho, para que cada lado de la falda vaya con su muslo). La piel con
+  cabeza sigue a la cabeza, el cuello, la espalda, los hombros y los brazos
+  (`"cloak"`).
 - **UV en metros**: cada panel se despliega aparte (un tubo, como una polaina,
   se corta antes por el camino más corto entre sus dos bordes) y se gira para
   que +V baje por su pendiente.
@@ -551,7 +633,9 @@ del baker y los iconos, por ejemplo
 `FUR=$(ls build/character/meshy | sed -n 's/^\(fur\|boar\|deer\|fox\|bison\|antler\|arctic\)_\(.*\)\.json$/\1_\2/p')`).
 
 El conjunto ligero cuesta unos 106 000 vértices y 120 000 triángulos (el manto,
-42 000), de los que 39 000 son tarjetas de pelo; el pesado, unos 147 000 y
+42 000), de los que 39 000 son tarjetas de pelo, y la cabeza de lobo otros
+11 000 (las de jabalí y ciervo, con sus tarjetas, 26 000 y 41 000; la
+capucha de oso, 31 000); el pesado, unos 147 000 y
 162 000 (la zamarra, 59 000), 55 000 de tarjetas. Las variantes, de 122 000
 (jabalí, ciervo) a 179 000 triángulos (zorro ártico). Las mallas de los ocho
 conjuntos ocupan 72 MB, y los mapas, compartidos, 17 MB en PNG (en VRAM van
@@ -585,6 +669,31 @@ unidades del esqueleto, y el movimiento del cuerpo por el mundo, que ese
 espacio no ve, entra como fuerza externa: la aceleración del cuerpo,
 suavizada, la echa hacia el otro lado al arrancar, frenar o girar. Al quitarse
 la pieza se apaga; los huesos se quedan, sin peso en nada.
+
+### Patas que cuelgan
+
+Las patas delanteras de las pieles con cabeza (`fur_headdress` y las demás)
+cuelgan de sus propios huesos, `PeltBones`: una cadena de 5 por cada lado, hijas de
+`Spine2`, desde el hombro del lobo, que va sobre la piel encima del hombro
+del personaje (donde la deja `drape()`, a un grueso de pata de ella), por la
+piel hasta el pecho y desde ahí a plomo: así la pata nace de la piel del
+hombro y no queda rendija entre las dos al moverse. Como los de la falda, su
+reposo sale del esqueleto (`AT`, en proporción a la distancia entre los
+hombros, medido en el escaneo), `dump_skeleton.gd` los
+escribe en `body.json` (`"pelt"`), `build_fur_armor.py` tiende cada pata a lo
+largo de su cadena (cada punto tan abajo por ella como estaba por la pata
+desde el hombro, y a la misma vuelta) y pesa a ella lo que es pata, por
+alturas (`pelt_weights()`): solo lo que es pata, no la piel
+del hombro de al lado, que en el modelo también pesa algo en sus huesos y,
+balanceándose con ella, dejaba ver el hombro; y la piel de delante de ellas,
+hacia la cara (hasta `LEG_FRONT` por detrás de la cadena), para que no se
+separe de la pata. Ni las patas ni esa piel siguen a los brazos (lo que el
+escaneo les daba del hombro y el brazo pasa a `Spine2`, de donde cuelgan las
+cadenas): con el brazo bajado, en idle, arrastraba arriba la pata del ciervo,
+que nace sobre el hombro, y la torcía en zigzag. El baker le da `PELT_SKIN`,
+la `Skin` del escaneo con sus binds. `dress()` los añade al esqueleto y `PeltSwing` (un `SkirtSwing`:
+la misma inercia del cuerpo) los balancea con la gravedad, con una cápsula
+detrás de cada pata, contra el pecho, para que no lo atraviese.
 
 Los modelos de Meshy no están en el repositorio: se buscan en la carpeta que
 se le da (las descargas, `stone_age_armor/` y `stone_age_armor_2/`).
@@ -642,7 +751,11 @@ tres cuartos (y desde arriba, `above`; desde delante y abajo, `low_front`).
 mueve solo (una falda) necesita fotogramas: `--frames=N` vuelca tras N, con la
 animación quieta en `--time` o, con `--play`, avanzando desde ahí; mejor con
 `--fixed-fps 60` de Godot. `--still` la deja como se ajustó, sin física (para
-saber si algo raro es del ajuste o de la simulación).
+saber si algo raro es del ajuste o de la simulación). Cómo queda se juzga en
+idle (`--anim=idle --play`), como se ve en el juego, no en la pose de
+reposo: con los brazos bajados el hombro arrastra lo que pesa en él. El
+volcado lleva también los colores de vértice y, de las tarjetas de pelo, su
+mapa de mechones, para dibujarlas recortadas por su alfa.
 
 ```sh
 godot --headless --path . --script res://tools/character/dump_dressed.gd -- $PWD/build/character/dressed/a.json \

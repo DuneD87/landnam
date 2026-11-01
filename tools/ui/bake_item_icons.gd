@@ -36,6 +36,8 @@ const ARMOR_SCENES := "res://scenes/items/armor/stone_age/%s_equipable.tscn"
 const ARMOR := {
 	"fur_mantle": [0.0, -20.0, "", 0.55], "fur_loincloth": [0.0, -20.0, "", 0.55],
 	"fur_mittens": [0.0, -15.0, "hand", 0.55], "fur_moccasins": [0.0, -65.0, "foot", 0.55],
+	"fur_headdress": [0.0, -40.0, ""], "boar_headdress": [0.0, -40.0, ""],
+	"deer_headdress": [0.0, -40.0, ""], "fur_hood": [0.0, -40.0, ""],
 	"fur_coat": [0.0, -20.0, "", 0.55], "fur_breeches": [0.0, -20.0, "", 0.55],
 	"fur_gauntlets": [0.0, -15.0, "hand", 0.55], "fur_boots": [0.0, -65.0, "foot", 0.55],
 	"boar_mantle": [0.0, -20.0, "", 0.55], "boar_loincloth": [0.0, -20.0, "", 0.55],

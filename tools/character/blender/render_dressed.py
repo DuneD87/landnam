@@ -45,6 +45,8 @@ def load_dump(path):
         if entry["uv"]:
             uv = np.frombuffer(blob[at:at + n * 8].tobytes(), dtype=np.float32).reshape(-1, 2)
             at += n * 8
+        if entry.get("colors"):
+            at += n * 16
         idx = np.frombuffer(blob[at:at + entry["indices"] * 4].tobytes(), dtype=np.int32).reshape(-1, 3)
         # Godot model space (Y up, +Z forward) -> Blender (Z up, facing -Y);
         # Godot winds front faces clockwise.
