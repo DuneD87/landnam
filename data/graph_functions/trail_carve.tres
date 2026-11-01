@@ -1,0 +1,471 @@
+[gd_resource type="VoxelGraphFunction" format=3]
+
+[sub_resource type="Image" id="Image_c3ci2"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0),
+"format": "Red8",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="Image" id="Image_srbyt"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0),
+"format": "Red8",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="Image" id="Image_law1g"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0),
+"format": "Red8",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="Image" id="Image_0ovax"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0),
+"format": "Red8",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="Image" id="Image_oquj0"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0),
+"format": "Red8",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="Image" id="Image_30144"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0),
+"format": "Red8",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="FastNoise2" id="FastNoise2_h2lth"]
+noise_type = 1
+period = 30.0
+fractal_type = 1
+
+[resource]
+graph_data = {
+"connections": [[60, 0, 61, 0], [29, 0, 30, 0], [28, 0, 29, 0], [27, 0, 28, 0], [26, 0, 48, 0], [25, 0, 26, 0], [24, 0, 25, 1], [23, 0, 24, 0], [22, 0, 23, 1], [21, 0, 22, 0], [21, 0, 26, 2], [20, 0, 21, 1], [19, 0, 20, 0], [18, 0, 19, 0], [17, 0, 16, 0], [16, 0, 25, 0], [15, 0, 17, 1], [14, 0, 15, 0], [14, 0, 15, 1], [1, 0, 5, 0], [1, 0, 6, 0], [1, 0, 11, 0], [1, 0, 18, 0], [1, 0, 27, 0], [1, 0, 32, 0], [1, 0, 39, 0], [1, 0, 49, 0], [2, 0, 5, 1], [2, 0, 6, 1], [2, 0, 11, 1], [2, 0, 18, 1], [2, 0, 27, 1], [2, 0, 32, 1], [2, 0, 39, 1], [2, 0, 49, 1], [3, 0, 5, 2], [3, 0, 6, 2], [3, 0, 11, 2], [3, 0, 18, 2], [3, 0, 27, 2], [3, 0, 32, 2], [3, 0, 39, 2], [3, 0, 49, 2], [4, 0, 55, 0], [4, 0, 60, 0], [5, 0, 7, 1], [5, 0, 12, 1], [5, 0, 19, 1], [5, 0, 28, 1], [5, 0, 33, 1], [5, 0, 40, 1], [6, 0, 7, 0], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 10, 0], [9, 0, 10, 1], [10, 0, 17, 0], [11, 0, 12, 0], [12, 0, 13, 0], [13, 0, 14, 0], [30, 0, 31, 0], [30, 0, 31, 1], [31, 0, 38, 0], [32, 0, 33, 0], [33, 0, 34, 0], [34, 0, 35, 0], [35, 0, 36, 0], [35, 0, 36, 1], [36, 0, 38, 1], [37, 0, 46, 0], [38, 0, 37, 0], [39, 0, 40, 0], [40, 0, 41, 0], [41, 0, 42, 1], [42, 0, 43, 0], [42, 0, 47, 2], [43, 0, 44, 1], [44, 0, 45, 0], [45, 0, 46, 1], [46, 0, 47, 0], [47, 0, 48, 1], [48, 0, 51, 0], [48, 0, 52, 1], [48, 0, 52, 2], [49, 0, 50, 0], [50, 0, 51, 1], [51, 0, 52, 0], [52, 0, 53, 0], [52, 0, 54, 0], [53, 0, 57, 0], [54, 0, 58, 0], [55, 0, 56, 0], [56, 0, 57, 1], [56, 0, 58, 1], [57, 0, 59, 0], [57, 0, 62, 0], [58, 0, 63, 0], [59, 0, 60, 1]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(-1200, 0),
+"type": "InputX"
+},
+"10": {
+"auto_connect": false,
+"gui_position": Vector2(-350, 0),
+"type": "Multiply"
+},
+"11": {
+"auto_connect": true,
+"factor": 1000.0,
+"gui_position": Vector2(-800, 0),
+"image": SubResource("Image_0ovax"),
+"name": &"trail_v_0",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"12": {
+"auto_connect": false,
+"gui_position": Vector2(-700, 0),
+"type": "Subtract"
+},
+"13": {
+"auto_connect": false,
+"b": -0.144,
+"gui_position": Vector2(-600, 0),
+"name": &"trail_scale_v_0",
+"type": "Multiply"
+},
+"14": {
+"auto_connect": false,
+"b": -72.0,
+"gui_position": Vector2(-500, 0),
+"name": &"trail_v_bias_0",
+"type": "Add"
+},
+"15": {
+"auto_connect": false,
+"gui_position": Vector2(-350, 0),
+"type": "Multiply"
+},
+"16": {
+"auto_connect": false,
+"gui_position": Vector2(-100, 0),
+"type": "Sqrt"
+},
+"17": {
+"auto_connect": false,
+"gui_position": Vector2(-200, 0),
+"type": "Add"
+},
+"18": {
+"auto_connect": true,
+"factor": 1000.0,
+"gui_position": Vector2(-800, 200),
+"image": SubResource("Image_srbyt"),
+"name": &"trail_d_0",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"19": {
+"auto_connect": false,
+"gui_position": Vector2(-700, 200),
+"type": "Subtract"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(-1200, 80),
+"type": "InputY"
+},
+"20": {
+"auto_connect": false,
+"b": -0.072,
+"gui_position": Vector2(-600, 200),
+"name": &"trail_scale_d_0",
+"type": "Multiply"
+},
+"21": {
+"a": 72.0,
+"auto_connect": false,
+"gui_position": Vector2(-500, 200),
+"name": &"trail_d_range_0",
+"type": "Subtract"
+},
+"22": {
+"auto_connect": false,
+"edge0": 26.7,
+"edge1": 21.1,
+"gui_position": Vector2(-300, 200),
+"name": &"trail_gate_0",
+"type": "Smoothstep"
+},
+"23": {
+"a": 1.0,
+"auto_connect": false,
+"gui_position": Vector2(-150, 200),
+"type": "Subtract"
+},
+"24": {
+"auto_connect": false,
+"b": 1000.0,
+"gui_position": Vector2(0, 200),
+"type": "Multiply"
+},
+"25": {
+"auto_connect": false,
+"gui_position": Vector2(100, 100),
+"type": "Add"
+},
+"26": {
+"auto_connect": false,
+"b": 1000.0,
+"gui_position": Vector2(200, 100),
+"name": &"trail_select_0",
+"threshold": 26.7,
+"type": "Select"
+},
+"27": {
+"auto_connect": true,
+"factor": 1000.0,
+"gui_position": Vector2(-800, 400),
+"image": SubResource("Image_c3ci2"),
+"name": &"trail_u_1",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"28": {
+"auto_connect": false,
+"gui_position": Vector2(-700, 400),
+"type": "Subtract"
+},
+"29": {
+"auto_connect": false,
+"b": -0.144,
+"gui_position": Vector2(-600, 400),
+"name": &"trail_scale_u_1",
+"type": "Multiply"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(-1200, 160),
+"type": "InputZ"
+},
+"30": {
+"auto_connect": false,
+"b": -72.0,
+"gui_position": Vector2(-500, 400),
+"name": &"trail_u_bias_1",
+"type": "Add"
+},
+"31": {
+"auto_connect": false,
+"gui_position": Vector2(-350, 400),
+"type": "Multiply"
+},
+"32": {
+"auto_connect": true,
+"factor": 1000.0,
+"gui_position": Vector2(-800, 400),
+"image": SubResource("Image_oquj0"),
+"name": &"trail_v_1",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"33": {
+"auto_connect": false,
+"gui_position": Vector2(-700, 400),
+"type": "Subtract"
+},
+"34": {
+"auto_connect": false,
+"b": -0.144,
+"gui_position": Vector2(-600, 400),
+"name": &"trail_scale_v_1",
+"type": "Multiply"
+},
+"35": {
+"auto_connect": false,
+"b": -72.0,
+"gui_position": Vector2(-500, 400),
+"name": &"trail_v_bias_1",
+"type": "Add"
+},
+"36": {
+"auto_connect": false,
+"gui_position": Vector2(-350, 400),
+"type": "Multiply"
+},
+"37": {
+"auto_connect": false,
+"gui_position": Vector2(-100, 400),
+"type": "Sqrt"
+},
+"38": {
+"auto_connect": false,
+"gui_position": Vector2(-200, 400),
+"type": "Add"
+},
+"39": {
+"auto_connect": true,
+"factor": 1000.0,
+"gui_position": Vector2(-800, 600),
+"image": SubResource("Image_30144"),
+"name": &"trail_d_1",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"4": {
+"auto_connect": false,
+"gui_position": Vector2(-1200, 600),
+"name": &"earth_field",
+"type": "CustomInput"
+},
+"40": {
+"auto_connect": false,
+"gui_position": Vector2(-700, 600),
+"type": "Subtract"
+},
+"41": {
+"auto_connect": false,
+"b": -0.072,
+"gui_position": Vector2(-600, 600),
+"name": &"trail_scale_d_1",
+"type": "Multiply"
+},
+"42": {
+"a": 72.0,
+"auto_connect": false,
+"gui_position": Vector2(-500, 600),
+"name": &"trail_d_range_1",
+"type": "Subtract"
+},
+"43": {
+"auto_connect": false,
+"edge0": 26.7,
+"edge1": 21.1,
+"gui_position": Vector2(-300, 600),
+"name": &"trail_gate_1",
+"type": "Smoothstep"
+},
+"44": {
+"a": 1.0,
+"auto_connect": false,
+"gui_position": Vector2(-150, 600),
+"type": "Subtract"
+},
+"45": {
+"auto_connect": false,
+"b": 1000.0,
+"gui_position": Vector2(0, 600),
+"type": "Multiply"
+},
+"46": {
+"auto_connect": false,
+"gui_position": Vector2(100, 500),
+"type": "Add"
+},
+"47": {
+"auto_connect": false,
+"b": 1000.0,
+"gui_position": Vector2(200, 500),
+"name": &"trail_select_1",
+"threshold": 26.7,
+"type": "Select"
+},
+"48": {
+"auto_connect": false,
+"gui_position": Vector2(100, 300),
+"type": "Min"
+},
+"49": {
+"auto_connect": true,
+"gui_position": Vector2(-200, 900),
+"name": &"trail_edge_noise",
+"noise": SubResource("FastNoise2_h2lth"),
+"type": "FastNoise2_3D"
+},
+"5": {
+"auto_connect": true,
+"gui_position": Vector2(-1000, -200),
+"name": &"trail_planet_sdf",
+"radius": 30000.0,
+"type": "SdfSphere"
+},
+"50": {
+"auto_connect": false,
+"b": 0.36,
+"gui_position": Vector2(0, 900),
+"name": &"trail_width_noise",
+"type": "Multiply"
+},
+"51": {
+"auto_connect": false,
+"gui_position": Vector2(200, 600),
+"type": "Subtract"
+},
+"52": {
+"auto_connect": false,
+"gui_position": Vector2(300, 600),
+"threshold": 10.0,
+"type": "Select"
+},
+"53": {
+"auto_connect": false,
+"edge0": 1.5499999999999998,
+"edge1": 0.85,
+"gui_position": Vector2(400, 0),
+"name": &"trail_core",
+"type": "Smoothstep"
+},
+"54": {
+"auto_connect": false,
+"edge0": 1.05,
+"edge1": 1.45,
+"gui_position": Vector2(400, 200),
+"name": &"trail_open",
+"type": "Smoothstep"
+},
+"55": {
+"auto_connect": false,
+"gui_position": Vector2(-900, 600),
+"type": "Abs"
+},
+"56": {
+"auto_connect": false,
+"edge0": 24.0,
+"edge1": 16.0,
+"gui_position": Vector2(400, 400),
+"name": &"trail_surface_gate",
+"type": "Smoothstep"
+},
+"57": {
+"auto_connect": false,
+"gui_position": Vector2(600, 0),
+"type": "Multiply"
+},
+"58": {
+"auto_connect": false,
+"gui_position": Vector2(600, 200),
+"type": "Multiply"
+},
+"59": {
+"auto_connect": false,
+"b": 0.12,
+"gui_position": Vector2(800, 400),
+"name": &"trail_dip",
+"type": "Multiply"
+},
+"6": {
+"auto_connect": true,
+"factor": 1000.0,
+"gui_position": Vector2(-800, 0),
+"image": SubResource("Image_law1g"),
+"name": &"trail_u_0",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"60": {
+"auto_connect": false,
+"gui_position": Vector2(1000, 500),
+"type": "Add"
+},
+"61": {
+"auto_connect": false,
+"gui_position": Vector2(1200, 0),
+"name": &"trail_field",
+"type": "CustomOutput"
+},
+"62": {
+"auto_connect": false,
+"gui_position": Vector2(1200, 200),
+"name": &"trail_weight",
+"type": "CustomOutput"
+},
+"63": {
+"auto_connect": false,
+"gui_position": Vector2(1200, 400),
+"name": &"open_weight",
+"type": "CustomOutput"
+},
+"7": {
+"auto_connect": false,
+"gui_position": Vector2(-700, 0),
+"type": "Subtract"
+},
+"8": {
+"auto_connect": false,
+"b": -0.144,
+"gui_position": Vector2(-600, 0),
+"name": &"trail_scale_u_0",
+"type": "Multiply"
+},
+"9": {
+"auto_connect": false,
+"b": -72.0,
+"gui_position": Vector2(-500, 0),
+"name": &"trail_u_bias_0",
+"type": "Add"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0], ["earth_field", "CustomInput", 0]]
+output_definitions = [["trail_field", "CustomOutput", 0], ["trail_weight", "CustomOutput", 0], ["open_weight", "CustomOutput", 0]]

@@ -169,8 +169,10 @@ static func _is_rock(terrain: VoxelLodTerrain, tool: VoxelTool, hit: Dictionary,
 	var indices := VoxelTool.u16_indices_to_vec4i(indices_u16)
 	var weights := VoxelTool.u16_weights_to_color(weights_u16)
 	for slot in 4:
-		# La profundidad bajo tierra viaja en otro hueco de los pesos y no es una mena.
-		if indices[slot] > 0 and indices[slot] != UndergroundDepth.LAYER and weights[slot] > ORE_WEIGHT:
+		# La profundidad bajo tierra y las sendas viajan en otros huecos de los pesos y no son menas.
+		var layer: int = indices[slot]
+		if layer > 0 and layer != UndergroundDepth.LAYER and not TrailGenerator.is_trail_layer(layer) \
+				and weights[slot] > ORE_WEIGHT:
 			return true
 	return UndergroundDepth.decode(indices_u16, weights_u16) > CAVE_DEPTH
 

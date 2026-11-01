@@ -339,7 +339,9 @@ El mapa es el mismo dato horneado que el de la M y el mismo shader (`WorldMapUI.
 no hay costura en el antimeridiano ni estiramiento cerca de los polos. Cubre 3 km de lado a lado
 (`Minimap.SPAN`); el mapa tiene ~92 m por téxel, y más cerca solo se vería borroso. Sin la retícula de
 15°. La flecha es el rumbo del jugador (`WorldMapUI.player_forward`) y encima van los marcadores del
-mapa que caen dentro del aro. Mientras el mapa se hornea sale el disco vacío con «Cartografiando…».
+mapa que caen dentro del aro, y debajo de ellos las sendas del mundo, recortadas en el aro
+(`TrailMap`, ver [trails.md](trails.md#en-el-mapa)). Mientras el mapa se hornea sale el disco vacío
+con «Cartografiando…».
 
 La talla es una imagen horneada, `textures/ui/minimap_frame.png`, como la consola: la pinta
 `tools/ui/bake_minimap_frame.py` con las piezas de `bake_hotbar_console.py` (campos de distancia,

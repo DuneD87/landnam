@@ -207,6 +207,7 @@ func _draw_overlay() -> void:
 			_centered_text(centre + Vector2(0.0, 6.0 * s), tr("MINIMAP_GENERATING"),
 				GameTheme.body_font(), maxi(12, roundi(18.0 * s)), GameTheme.MUTED)
 	else:
+		_draw_trails(centre, radius)
 		_draw_markers(centre, radius)
 		_draw_player(centre)
 	_draw_ring(centre, radius)
@@ -246,6 +247,65 @@ func _draw_player(centre: Vector2) -> void:
 	outline.append(shape[0])
 	_overlay.draw_polyline(outline, GameTheme.INK, 3.0 * s, true)
 	_overlay.draw_colored_polygon(shape, GameTheme.BONE)
+
+
+## Las sendas del mundo (TrailMap) que cruzan el aro, recortadas en su borde.
+func _draw_trails(centre: Vector2, radius: float) -> void:
+	var core := _planet()
+	var lines := TrailMap.lines(core.get_trail_network()) if core != null else {}
+	if lines.is_empty():
+		return
+	var s := _ui_scale
+	var limit := radius - 7.0 * s
+	var pixels_per_meter := radius * 2.0 / SPAN
+	var planet_radius := _material_map.radius
+	# Lo que abarca el aro, en la esfera unidad.
+	var view := limit / pixels_per_meter / planet_radius
+	var runs: Array[PackedVector2Array] = []
+	for piece: Dictionary in lines.fine:
+		if (piece.center as Vector3).distance_to(_center) > float(piece.reach) + view:
+			continue
+		var run := PackedVector2Array()
+		var last: Variant = null
+		for dir: Vector3 in piece.points:
+			var at: Variant = _project(dir, planet_radius, pixels_per_meter)
+			if at != null and last != null:
+				var span := _inside(last, at, limit)
+				if span.x < 0.0:
+					if run.size() > 1:
+						runs.append(run)
+					run = PackedVector2Array()
+				else:
+					if span.x > 0.0 or run.is_empty():
+						if run.size() > 1:
+							runs.append(run)
+						run = PackedVector2Array([centre + (last as Vector2).lerp(at, span.x)])
+					run.append(centre + (last as Vector2).lerp(at, span.y))
+					if span.y < 1.0:
+						runs.append(run)
+						run = PackedVector2Array()
+			last = at
+		if run.size() > 1:
+			runs.append(run)
+	for run in runs:
+		_overlay.draw_polyline(run, TrailMap.COLOR, 2.0 * s, true)
+
+
+## La parte del tramo de [a] a [b] que cae a menos de [r] del centro, como (t0, t1) a lo largo de él,
+## o (-1, -1) si queda fuera entero.
+static func _inside(a: Vector2, b: Vector2, r: float) -> Vector2:
+	var d := b - a
+	var qa := d.dot(d)
+	if qa < 1.0e-9:
+		return Vector2(0.0, 1.0) if a.length() <= r else Vector2(-1.0, -1.0)
+	var qb := 2.0 * a.dot(d)
+	var disc := qb * qb - 4.0 * qa * (a.dot(a) - r * r)
+	if disc <= 0.0:
+		return Vector2(-1.0, -1.0)
+	var root := sqrt(disc)
+	var t0 := maxf((-qb - root) / (2.0 * qa), 0.0)
+	var t1 := minf((-qb + root) / (2.0 * qa), 1.0)
+	return Vector2(t0, t1) if t0 < t1 else Vector2(-1.0, -1.0)
 
 
 ## Los marcadores del mapa que caen dentro del aro, como en el mapa grande pero más pequeños.

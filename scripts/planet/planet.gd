@@ -59,6 +59,8 @@ var climate: ClimateField = ClimateField.new()
 ## Campo de ríos horneado. Lo consume el terreno y también los grafos de densidad de vegetación,
 ## que sin él confunden un cauce hondo con una cueva.
 var _river_field: Dictionary = {}
+## Campo de sendas horneado (TrailField), o {} sin sendas.
+var _trail_field: Dictionary = {}
 
 var planet_item_scenes: Dictionary
 ## library_id -> PackedScene plantilla de los items interactivos (los que se talan) sin instanciar
@@ -184,6 +186,19 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 		var band: Dictionary = generator_config.climate
 		noise_graph = ClimateGraph.gate(noise_graph, climate, float(band.get("min", -100.0)),
 			float(band.get("max", 200.0)), float(band.get("soft", 1.5)))
+	# Sendas (TrailGenerator): lo que brota en una malla fina deja libre la senda con el filtro por
+	# textura, que no cuesta nada al cargar; lo de LOD grueso (los árboles) lleva "trail_clearance"
+	# (m al eje) y se aparta en su grafo, que lee las imágenes de las sendas y cuesta compilarlo. Las
+	# bandas lejanas de impostores no se apartan. "trail_filter": false para lo que no es de superficie.
+	if noise_graph != null and not _trail_field.is_empty():
+		if generator_config.has("trail_clearance"):
+			if lod_index <= int(definition.trail_settings.get("clearance_max_lod", 4)):
+				noise_graph = TrailGenerator.clear_vegetation(noise_graph, _trail_field,
+					float(generator_config.trail_clearance), definition.trail_settings)
+		elif bool(generator_config.get("trail_filter", true)):
+			generator.voxel_texture_filter_enabled = true
+			generator.voxel_texture_filter_array = PackedInt32Array([TrailGenerator.OPEN_LAYER])
+			generator.voxel_texture_filter_threshold = 0.5
 	# Se asigna ya terminado: el módulo compila el grafo al asignarlo y no ve cambios posteriores.
 	generator.noise_graph = noise_graph
 
@@ -1072,6 +1087,7 @@ func setup_shader_parameters() -> void:
 
 	_setup_reef_shader_parameters()
 	_setup_ore_shader_parameters()
+	_setup_trail_shader_parameters()
 
 
 ## Textura de los escollos y la franja en que manda. Sin las cuatro texturas se queda apagado: la
@@ -1112,6 +1128,32 @@ func _setup_reef_shader_parameters() -> void:
 		float(definition.reef_settings.get("texture_slope_threshold", 0.10)))
 	shader_material.set_shader_parameter("reef_slope_softness",
 		float(definition.reef_settings.get("texture_slope_softness", 0.14)))
+
+
+## El material de las sendas en planet_biomes.gdshader: un índice de las texturas del terreno con su
+## calibración ("albedo", como texture_albedo), el borde contra el suelo, hasta dónde las resuelve la
+## malla y se dibujan de lejos, y cómo quedan en la nieve. Sin sendas, -1.
+func _setup_trail_shader_parameters() -> void:
+	var cfg := definition.trail_settings
+	var index := int(cfg.get("texture_index", -1))
+	if cfg.is_empty() or not bool(cfg.get("enabled", true)) or index < 0 or index >= definition.textures.size():
+		shader_material.set_shader_parameter("trail_texture_index", -1)
+		return
+	shader_material.set_shader_parameter("trail_texture_index", index)
+	shader_material.set_shader_parameter("trail_albedo_adjust", PlanetParser.parse_albedo_adjust(cfg.get("albedo", {})))
+	shader_material.set_shader_parameter("trail_fade_start", float(cfg.get("fade_start", 70.0)))
+	shader_material.set_shader_parameter("trail_fade_end", float(cfg.get("fade_end", 130.0)))
+	shader_material.set_shader_parameter("trail_edge_blend", float(cfg.get("edge_blend", 0.7)))
+	shader_material.set_shader_parameter("trail_edge_sharpness", float(cfg.get("edge_sharpness", 0.25)))
+	shader_material.set_shader_parameter("trail_far_max_distance", float(cfg.get("far_distance", 1500.0)))
+	shader_material.set_shader_parameter("trail_half_width", float(cfg.get("half_width", 1.2)))
+	shader_material.set_shader_parameter("trail_edge_softness", float(cfg.get("edge_softness", 0.35)))
+	shader_material.set_shader_parameter("trail_width_variation", float(cfg.get("width_variation", 0.3)))
+	shader_material.set_shader_parameter("trail_edge_noise_period", float(cfg.get("edge_noise_period", 30.0)))
+	shader_material.set_shader_parameter("trail_snow_clear", float(cfg.get("snow_clear", 0.5)))
+	var tint: Array = cfg.get("snow_tint", [0.86, 0.84, 0.81])
+	shader_material.set_shader_parameter("trail_snow_tint", Color(float(tint[0]), float(tint[1]), float(tint[2])))
+
 
 func _setup_ore_shader_parameters() -> void:
 	var ore_albedo: Array[Texture2D] = []
@@ -1177,6 +1219,10 @@ func setup_voxel_generator() -> void:
 	if _setup_rivers(graph_generator):
 		needs_compile = true
 
+	# Después de los ríos: las sendas se trazan sobre el relieve con los valles ya tallados.
+	if _setup_trails(graph_generator):
+		needs_compile = true
+
 	if needs_compile:
 		var compile_result = graph_generator.compile()
 		if compile_result is Dictionary and not compile_result.get("success", true):
@@ -1196,6 +1242,11 @@ func setup_voxel_generator() -> void:
 ## coordenadas del mapa de hidrologia y su semianchura, que es lo que consume el audio del agua.
 func get_river_network() -> Dictionary:
 	return _river_field
+
+
+## Sendas horneadas (TrailField: sus trazos e imágenes), o {} si este planeta no tiene.
+func get_trail_network() -> Dictionary:
+	return _trail_field
 
 
 ## Metros de roca sobre `world_pos` contra la superficie sin cuevas (ver UndergroundDepth): 0 al aire
@@ -1240,6 +1291,76 @@ func _setup_rivers(graph_generator: VoxelGeneratorGraph) -> bool:
 
 	_river_field = field
 	return RiverGenerator.apply(graph_generator, field)
+
+
+## Hornea (o recupera del caché) el campo de sendas y lo enchufa al grafo. Devuelve true si el grafo
+## cambió y hay que recompilar. Se hornea sobre una copia con los ríos ya tallados (las sendas los
+## cruzan por vados) y sin escollos, como los ríos.
+func _setup_trails(graph_generator: VoxelGeneratorGraph) -> bool:
+	var cfg := definition.trail_settings
+	if cfg.is_empty() or not bool(cfg.get("enabled", true)):
+		return false
+	var height_range := float(cfg.get("height_range", definition.river_settings.get("height_range", 2000.0)))
+	var sea_height := -water_radius if has_water else -height_range
+	var key := _trail_cache_key(height_range)
+	var path := "user://maps/%s_trails.bin" % (entity_id if entity_id != "" else "planet")
+	var field := TrailField.load_from(path, key)
+	if field.is_empty():
+		var started := Time.get_ticks_msec()
+		var source: VoxelGeneratorGraph = graph_generator.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+		_disable_reefs(source)
+		source.compile()
+		field = TrailGenerator.build_field(source, radius, sea_height, height_range, _river_field, cfg)
+		if field.is_empty():
+			push_warning("Planet: no salió ninguna senda.")
+			return false
+		TrailField.save_to(field, path, key)
+		var stats: Dictionary = field.get("stats", {})
+		print("[trails] %d sendas (%d ramales, %d cruces), %.0f km, %d trozos en %d capas (%d sin capa libre) en %.1f s" % [
+			int(stats.get("strokes", 0)), int(stats.get("spurs", 0)), int(stats.get("junctions", 0)),
+			float(stats.get("km", 0.0)), int(field.pieces),
+			int(field.layers), int(field.unresolved), (Time.get_ticks_msec() - started) / 1000.0])
+	_trail_field = field
+	_setup_trail_far_images(field)
+	return TrailGenerator.apply(graph_generator, field, "terrain", cfg)
+
+
+## Las sendas de lejos de planet_biomes.gdshader (trail_far.gdshaderinc): el juego de imágenes de los
+## árboles del campo, subido como un Texture2DArray (U, V y D de cada capa seguidas; ~48 MB de
+## vídeo), con lo que hace falta para leerlo. Antes de mallar: el material se copia por bloque.
+func _setup_trail_far_images(field: Dictionary) -> void:
+	if shader_material == null or int(shader_material.get_shader_parameter("trail_texture_index")) < 0:
+		return
+	var group: Dictionary = field.trees
+	var images: Array[Image] = []
+	for layer: Dictionary in group.images:
+		for c in ["u", "v", "d"]:
+			images.append(layer[c])
+	var array := Texture2DArray.new()
+	if images.is_empty() or array.create_from_images(images) != OK:
+		push_warning("[trails] no se pudieron subir las imágenes: sin sendas de lejos.")
+		shader_material.set_shader_parameter("trail_far_layers", 0)
+		return
+	shader_material.set_shader_parameter("trail_far_images", array)
+	shader_material.set_shader_parameter("trail_far_layers", (group.images as Array).size())
+	shader_material.set_shader_parameter("trail_far_size", Vector2(images[0].get_size()))
+	shader_material.set_shader_parameter("trail_far_params",
+		Vector4(float(group.rb), float(group.dmax), float(group.g0), float(group.g1)))
+
+
+## Como _river_cache_key: la huella del generador y la configuración de los ríos y de las sendas
+## (sin lo que solo toca el grafo o el shader).
+func _trail_cache_key(height_range: float) -> String:
+	var parts := PackedStringArray([
+		"v%d" % TrailField.FILE_VERSION,
+		"r%.3f" % radius,
+		"w%.3f" % water_radius,
+		"h%.3f" % height_range,
+		JSON.stringify(TrailGenerator.field_settings(definition.trail_settings)),
+		JSON.stringify(definition.river_settings),
+		PlanetWorldMap._resource_fingerprint(definition.terrain_generator_path),
+	])
+	return "|".join(parts).sha256_text()
 
 
 ## Copia del grafo de densidad con las manchas de "noise" multiplicadas a su salida, para los

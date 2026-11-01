@@ -271,6 +271,8 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("weather", "weather <event|reset|list>", "CON_HELP_WEATHER", _cmd_weather, 1,
 		_complete_weather))
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
+	_add(ConsoleCommand.new("trail", "trail [tp]", "CON_HELP_TRAIL", _cmd_trail, 0,
+		func() -> PackedStringArray: return PackedStringArray(["tp"])))
 	_add(ConsoleCommand.new("heal", "heal [amount]", "CON_HELP_HEAL", _cmd_heal))
 	_add(ConsoleCommand.new("litter", "litter", "CON_HELP_LITTER", _cmd_litter))
 	_add(ConsoleCommand.new("god", "god [on|off]", "CON_HELP_GOD", _cmd_god))
@@ -502,6 +504,41 @@ func _cmd_tp(args: PackedStringArray) -> String:
 	var pos := Vector3(args[0].to_float(), args[1].to_float(), args[2].to_float())
 	player.global_position = pos
 	return _paint(COLOR_OK, tr("CON_TP_DONE") % str(pos))
+
+
+## La senda del mundo más cercana (Planet.get_trail_network): a cuántos metros y en qué rumbo, o con
+## "tp" el jugador de pie sobre ella.
+func _cmd_trail(args: PackedStringArray) -> String:
+	var player := _get_player()
+	var loader = player.planet if player != null else null
+	var core: Planet = loader.planet if loader != null else null
+	if core == null:
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
+	var trails := core.get_trail_network()
+	if trails.is_empty():
+		return _paint(COLOR_ERR, tr("CON_TRAIL_NONE"))
+	var frame := core.voxel_terrain.global_transform
+	var up := (frame.affine_inverse() * (player as Node3D).global_position).normalized()
+	var best := up
+	var best_d := INF
+	for line: PackedVector3Array in trails.strokes:
+		for p in line:
+			var d := p.distance_squared_to(up)
+			if d < best_d:
+				best_d = d
+				best = p
+	if args.size() > 0 and args[0] == "tp":
+		var radius := preload("res://scripts/player/new_game_landing.gd").new().surface_radius_at(core, best)
+		if not is_finite(radius):
+			return _paint(COLOR_ERR, tr("CON_TRAIL_TP_FAIL"))
+		player.global_position = frame * (best * (radius + 1.0))
+		player.velocity = Vector3.ZERO
+		player.movement.velocity = Vector3.ZERO
+		return _paint(COLOR_OK, tr("CON_TRAIL_TP_DONE"))
+	var north := (Vector3.UP - up * up.y).normalized()
+	var to := (best - up).slide(up)
+	var heading := fposmod(rad_to_deg(atan2(to.dot(north.cross(up)), to.dot(north))), 360.0)
+	return _paint(COLOR_INFO, tr("CON_TRAIL_NEAREST") % [sqrt(best_d) * core.radius, heading])
 
 
 func _cmd_heal(args: PackedStringArray) -> String:

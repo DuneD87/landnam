@@ -20,6 +20,7 @@ Abre `project.godot` y ejecuta la escena principal configurada en él.
 | Objetos | `ItemData` y sus rasgos describen los objetos; `data/items/` y `data/recipes/` contienen sus recursos. `ItemCatalog.get_item(id)` los busca por id. |
 | Guardado y ajustes | Los autoloads `GameManager` y `Settings` mantienen partidas y preferencias. |
 | Tiempo y descanso | `WorldTime` comparte la aceleración del reloj; `RestController` permite dormir en un lecho y recuperar descanso durante la noche. |
+| Sendas | `TrailNetwork` traza las del mundo sobre el relieve al crear el planeta y `TrailField` las guarda en las imágenes que lee el grafo del terreno (`TrailGenerator`): se pintan, se hunden un poco y apartan la vegetación. Ver `docs/trails.md`. |
 | Navegación | `BoatSailing` calcula el empuje de los aparejos con el viento del planeta; `PlayerSailing` lleva controles, remo e indicador. Ver `docs/sailing.md`. |
 | Utilidades | En `scripts/core/`: `PhysicsLayers` y `RenderLayers` (todas las capas del proyecto), `Raycast` (rayos y sondeo de suelo), `ProcMesh` (mallas por código) y `AnimGraph` (montaje del AnimationTree). `HumanRig` nombra los huesos del esqueleto humano y `BurstParticles` crea los emisores de una ráfaga. |
 
@@ -58,6 +59,7 @@ godot --headless --path . res://tests/survival/test_cold_exposure.tscn
 godot --headless --path . res://tests/survival/test_rest.tscn
 godot --headless --path . res://tests/survival/test_waterskins.tscn
 godot --headless --path . res://tests/console/test_toon_command.tscn
+godot --headless --path . res://tests/world/test_trails.tscn
 ```
 
 El horneado necesita render real; la ventana puede abrirse fuera de pantalla:

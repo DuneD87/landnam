@@ -12,8 +12,9 @@ extends RefCounted
 ## cerca de la superficie (0,3 · 1,1 · 2,6 · 4,6 m), donde se ve la boca de la cueva, y gruesos
 ## abajo; satura en RANGE. Tiene que coincidir con el grafo y con UNDERGROUND_DEPTH_* del shader.
 ##
-## Los 4 huecos de pesos del vóxel los comparten las menas (capas 1-3) y esta capa: con una cuarta
-## mena empezarían a competir y el vóxel se quedaría con las 4 de más peso.
+## Los 4 huecos de pesos del vóxel los comparten las menas, esta capa y las dos de las sendas
+## (TrailGenerator: solo cerca de la superficie, donde esta vale ~0): si coinciden más de cuatro, el
+## vóxel se queda con las 4 de más peso.
 
 const LAYER := 15
 const RANGE := 64.0

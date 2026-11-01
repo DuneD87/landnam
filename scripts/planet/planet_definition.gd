@@ -88,8 +88,9 @@ const MATERIAL_PARAMETERS: Array[StringName] = [
 @export var texture_albedo_adjust: PackedVector4Array = PackedVector4Array()
 @export var slope_albedo_adjust: Vector4 = Vector4.ONE
 
-@export_group("Ríos, arrecifes y clima")
+@export_group("Ríos, sendas, arrecifes y clima")
 @export var river_settings: Dictionary = {}
+@export var trail_settings: Dictionary = {}
 @export var reef_settings: Dictionary = {}
 @export var climate_settings: Dictionary = {}
 

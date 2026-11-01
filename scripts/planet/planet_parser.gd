@@ -198,6 +198,8 @@ func load_config(config_path: String):
 	print("DEBUG: Loaded weather settings: ", weather_settings)
 
 	definition.river_settings = _parse_river_settings(config.get("river_settings", {}))
+	definition.trail_settings = _parse_sizes(config.get("trail_settings", {}),
+		["routing_size", "field_size", "tree_field_size"])
 	definition.reef_settings = config.get("reef_settings", {})
 	definition.climate_settings = config.get("climate_settings", {})
 
@@ -250,6 +252,15 @@ func _parse_river_settings(cfg: Dictionary) -> Dictionary:
 		return {}
 	var out := cfg.duplicate(true)
 	for key in ["hydrology_size", "dist_size", "bed_size"]:
+		if out.has(key) and out[key] is Array and out[key].size() == 2:
+			out[key] = Vector2i(int(out[key][0]), int(out[key][1]))
+	return out
+
+
+## Copia de [cfg] con los pares [ancho, alto] de [keys] como Vector2i.
+func _parse_sizes(cfg: Dictionary, keys: Array) -> Dictionary:
+	var out := cfg.duplicate(true)
+	for key in keys:
 		if out.has(key) and out[key] is Array and out[key].size() == 2:
 			out[key] = Vector2i(int(out[key][0]), int(out[key][1]))
 	return out

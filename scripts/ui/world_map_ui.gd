@@ -528,6 +528,7 @@ func _player_uv() -> Vector2:
 func _paint_overlay(canvas: Control) -> void:
 	if _world_map == null or not _world_map.is_ready():
 		return
+	_draw_trails(canvas)
 	_draw_body_labels(canvas)
 	_draw_saved_markers(canvas)
 	_draw_player_marker(canvas)
@@ -637,6 +638,32 @@ func _draw_saved_markers(canvas: Control) -> void:
 		var point := _point_of_uv(_pending_marker_uv)
 		canvas.draw_arc(point, radius + 5.0 * ui_scale, 0.0, TAU, 48,
 			Color(1.0, 0.85, 0.45), 2.0 * ui_scale, true)
+
+
+## Las sendas del mundo (TrailMap), por debajo de rótulos y marcadores: de lejos con los trazos
+## gruesos y más finas, y solo los tramos cuya caja cae en el marco.
+func _draw_trails(canvas: Control) -> void:
+	var loader = player.get("planet")
+	var core: Planet = loader.get("planet") if loader != null else null
+	var lines := TrailMap.lines(core.get_trail_network()) if core != null else {}
+	if lines.is_empty():
+		return
+	var ms := _map_size()
+	var meters_per_px := TAU * _world_map.map.radius / maxf(ms.x, 1.0)
+	var runs: Array = lines.coarse_uv if meters_per_px > TrailMap.COARSE_FROM else lines.fine_uv
+	var width := clampf(1.0 + log(_zoom) / log(2.0) * 0.3, 1.0, 2.5) \
+		* MapMarkerEditor.ui_scale_for(get_viewport())
+	var view := Rect2(Vector2.ZERO, canvas.size).grow(width)
+	for run: Dictionary in runs:
+		var box: Rect2 = run.box
+		if not view.intersects(Rect2(_offset + box.position * ms, box.size * ms)):
+			continue
+		var uvs: PackedVector2Array = run.points
+		var points := PackedVector2Array()
+		points.resize(uvs.size())
+		for i in uvs.size():
+			points[i] = _offset + uvs[i] * ms
+		canvas.draw_polyline(points, TrailMap.COLOR, width, true)
 
 
 ## Rotula los cuerpos de agua grandes; el umbral baja con el zoom para no amontonar nombres.

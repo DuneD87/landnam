@@ -253,6 +253,33 @@ uniform sampler2D ore_albedo_textures[MAX_ORE_TYPES] : source_color;
 uniform sampler2D ore_normal_textures[MAX_ORE_TYPES];
 uniform sampler2D ore_roughness_textures[MAX_ORE_TYPES];
 
+// Sendas (TrailGenerator.TRAIL_LAYER): la capa de peso del vóxel que dice cuánto es senda, y el
+// material de la tierra pisada (un índice de textures[], con su calibración). -1 = sin sendas.
+#define TRAIL_LAYER 14
+uniform int trail_texture_index = -1;
+uniform vec4 trail_albedo_adjust = vec4(1.0);
+// A partir de aquí la malla ya no resuelve una senda de 4 m (LOD 2: un vóxel cada 4 m): la de la malla
+// se apaga y entra la de lejos, por píxel (trail_far.gdshaderinc), hasta trail_far_max_distance.
+uniform float trail_fade_start = 70.0;
+uniform float trail_fade_end = 130.0;
+uniform float trail_far_max_distance = 1500.0;
+// La senda de lejos con el ancho y el borde del grafo (trail_settings: half_width, edge_softness,
+// width_variation, edge_noise_period); el ruido del borde no es el mismo, pero de lejos no se nota.
+uniform float trail_half_width = 1.2;
+uniform float trail_edge_softness = 0.35;
+uniform float trail_width_variation = 0.3;
+uniform float trail_edge_noise_period = 30.0;
+// Contacto de la senda con el suelo de alrededor por la altura de los materiales, como la nieve: en el
+// borde la tierra entra primero por los huecos del suelo y lo alto del suelo asoma en la senda.
+// Cuánto pesa ese contacto frente al peso liso, y lo nítido que es.
+uniform float trail_edge_blend : hint_range(0.0, 1.0) = 0.7;
+uniform float trail_edge_sharpness : hint_range(0.02, 1.0) = 0.25;
+// Con nieve la senda sigue ahí, nevada y pisada: le quita esta parte de la nieve (la tierra asoma
+// primero por las rodadas, con el contacto por altura de 8.5) y lo que queda va de este tinte.
+uniform float trail_snow_clear : hint_range(0.0, 1.0) = 0.5;
+uniform vec3 trail_snow_tint : source_color = vec3(0.86, 0.84, 0.81);
+#include "res://shaders/terrain/trail_far.gdshaderinc"
+
 vec4 decode_8bit_vec4(float v) {
 	uint i = floatBitsToUint(v);
 	return vec4(
@@ -735,6 +762,70 @@ void fragment() {
         }
     }
 
+    // 6c) Sendas: el peso TRAIL_LAYER del vóxel (CUSTOM1, como las menas) pinta la tierra pisada
+    // encima del reparto ya normalizado. Llega por vértice, con un metro de resolución a LOD 0: el
+    // contacto por altura con el suelo de alrededor lo vuelve un borde irregular. Más lejos la malla
+    // gruesa muestrea la senda a trozos, así que se apaga con la distancia y entra la de lejos.
+    // trail_t y trail_h (la altura de su material) los usa también la nieve de 8.5.
+    float trail_t = 0.0;
+    float trail_h = 0.5;
+    if (trail_texture_index >= 0) {
+        float trail_w = 0.0;
+        for (int slot = 0; slot < 4; slot++) {
+            if (int(v_ore_indices[slot] + 0.5) == TRAIL_LAYER) {
+                trail_w = max(trail_w, v_ore_weights[slot]);
+            }
+        }
+        // El nivel de 4 bits llega ×16: el 15 es 240/255.
+        trail_w = clamp(trail_w * (255.0 / 240.0), 0.0, 1.0)
+            * (1.0 - smoothstep(trail_fade_start, trail_fade_end, view_dist));
+        // De lejos, por píxel con el campo, solo en la superficie (no en el suelo de una cueva). El
+        // borde se suaviza al menos lo que mide el píxel: la senda que ya no llena uno se aclara en
+        // vez de parpadear.
+        float far_in = smoothstep(trail_fade_start, trail_fade_end, view_dist)
+            * (1.0 - smoothstep(trail_far_max_distance * 0.75, trail_far_max_distance, view_dist))
+            * (1.0 - smoothstep(1.0, 3.0, v_underground_depth));
+        if (trail_far_layers > 0 && far_in > 0.002) {
+            float soft = max(trail_edge_softness, pixel_footprint);
+            float reach = trail_half_width * (1.0 + trail_width_variation) + soft;
+            float axis = trail_far_axis(planet_up);
+            if (axis < reach) {
+                float widen = signed_fbm(planet_pos / trail_edge_noise_period)
+                    * trail_half_width * trail_width_variation;
+                trail_w = max(trail_w, far_in
+                    * smoothstep(trail_half_width + soft, trail_half_width - soft, axis - widen));
+            }
+        }
+        if (trail_w > 0.002) {
+            int ti = trail_texture_index;
+            vec3 trail_maps = material_maps(height_textures[ti], roughness_textures[ti], ao_textures[ti],
+                base_uvs, planet_up, true);
+            // Con el peso por (1 + nitidez) la senda gana entera en el eje y pierde entera fuera,
+            // sean cuales sean las alturas; en medio decide la altura de cada material.
+            float ground_h = (total_factor > 0.0001) ? final_material_height / total_factor : 0.5;
+            float k = 1.0 + trail_edge_sharpness;
+            float ha = trail_maps.b + trail_w * k;
+            float hb = ground_h + (1.0 - trail_w) * k;
+            float hm = max(ha, hb) - trail_edge_sharpness;
+            float wa = max(ha - hm, 0.0);
+            float wb = max(hb - hm, 0.0);
+            trail_t = mix(trail_w, wa / max(wa + wb, 0.0001), trail_edge_blend);
+            trail_h = trail_maps.b;
+            if (trail_t > 0.001) {
+                float trail_detail;
+                vec3 trail_c = material_albedo(textures[ti], texture_mean_luma[ti], trail_albedo_adjust,
+                    base_uvs, planet_up, nt, detail_uvs, detail_w, far_uvs, far_w, trail_detail);
+                vec4 trail_n = triplanar_normal_sample_nt_v(normal_textures[ti], base_uvs, normal_world, nt);
+                vec3 trail_normal = apply_normal_strength(normal_world,
+                    safe_normalize(trail_n.xyz, normal_world), normal_strength);
+                final_color     = mix(final_color, trail_c, trail_t);
+                final_normal    = safe_normalize(mix(final_normal, trail_normal, trail_t), normal_world);
+                final_roughness = mix(final_roughness, trail_maps.r, trail_t);
+                final_ao        = mix(final_ao, trail_maps.g, trail_t);
+            }
+        }
+    }
+
     // 7) Ore overlay leído del voxel (sistema de texturing 4-blend, canal CUSTOM1).
     // El VoxelGraph (OutputWeight layer=type_id) guardó el type_id del ore en un slot de
     // INDICES y su peso en WEIGHTS. Aquí solo lo leemos: lo que se ve es exactamente lo que hay en el
@@ -788,15 +879,17 @@ void fragment() {
 		float glacier = climate_glacier(cold);
 		float limit = mix(snow_slope_limit, snow_slope_limit_glacier, glacier);
 		float hold = 1.0 - smoothstep(limit - snow_slope_softness, limit + snow_slope_softness, slope);
-		// Peso de mena: solo los slots con un tipo de mena (índice > 0); el 0 es el suelo sin mena
-		// y lleva casi siempre todo el peso. La profundidad bajo tierra viaja en otro slot y no es mena.
+		// Peso de mena: solo los slots con un tipo de mena (1..ore_count); el 0 es el suelo sin mena
+		// y lleva casi siempre todo el peso. La profundidad bajo tierra y las sendas viajan en otros
+		// slots y no son mena.
 		float ore_w = 0.0;
 		for (int slot = 0; slot < 4; slot++) {
 			int slot_id = int(v_ore_indices[slot] + 0.5);
-			ore_w = max(ore_w, slot_id > 0 && slot_id != UNDERGROUND_DEPTH_LAYER ? v_ore_weights[slot] : 0.0);
+			ore_w = max(ore_w, slot_id > 0 && slot_id <= ore_count ? v_ore_weights[slot] : 0.0);
 		}
 		float bare = 1.0 - smoothstep(0.1, 0.5, ore_w * float(ore_count > 0));
-		float snow = cover * hold * bare;
+		// Sobre la senda la nieve está pisada: queda menos.
+		float snow = cover * hold * bare * (1.0 - trail_t * trail_snow_clear);
 		// Hielo glaciar donde el casquete no sostiene la nieve: seracs azules en vez de roca.
 		float ice = (glacier_texture_index >= 0) ? glacier * (1.0 - hold) * cover * bare : 0.0;
 		if (debug_snow_view == 1) {
@@ -811,6 +904,7 @@ void fragment() {
 			if (snow_height_blend > 0.0001 && snow < 0.999) {
 				// Height-lerp: la nieve (altura + cobertura) contra el suelo (altura + resto).
 				float ground_h = (total_factor > 0.0001) ? final_material_height / total_factor : 0.5;
+				ground_h = mix(ground_h, trail_h, trail_t);
 				float d = snow_height_sharpness;
 				float ha = snow_h + snow;
 				float hb = ground_h + (1.0 - snow);
@@ -823,7 +917,8 @@ void fragment() {
 			// sobre el blanco de la nieve real, que a la sombra el cielo ya tiñe de azul.
 			vec3 snow_tex = triplanar_sample_nt(textures[snow_texture_index], snow_uvs, planet_up, nt);
 			float snow_detail = dot(snow_tex, vec3(0.2126, 0.7152, 0.0722)) / max(snow_texture_mean_luma, 0.01);
-			vec3 snow_c = snow_tint * mix(1.0, snow_detail, snow_detail_strength);
+			vec3 snow_c = snow_tint * mix(1.0, snow_detail, snow_detail_strength)
+				* mix(vec3(1.0), trail_snow_tint, trail_t);
 			vec4 snow_n = triplanar_normal_sample_nt_v(normal_textures[snow_texture_index], snow_uvs, normal_world, nt);
 			vec3 snow_normal = apply_normal_strength(normal_world, safe_normalize(snow_n.xyz, normal_world), normal_strength);
 			if (ice > 0.002) {
@@ -852,7 +947,7 @@ void fragment() {
 			// cuando refleja el sol hacia la cámara. Al moverse la vista se encienden y apagan
 			// otras. light() les pone la sombra y el color del sol. Solo de cerca.
 			float view_d = view_dist;
-			if (snow_sparkle_density > 0.0 && view_d < snow_sparkle_distance && snow > 0.5) {
+			if (snow_sparkle_density > 0.0 && view_d < snow_sparkle_distance && snow > 0.5 && trail_t < 0.5) {
 				vec3 cell = floor(planet_pos * 6.5);
 				if (hash(cell) > 1.0 - snow_sparkle_density) {
 					vec3 jitter = vec3(hash(cell + vec3(3.1)), hash(cell + vec3(5.7)), hash(cell + vec3(9.3))) - 0.5;

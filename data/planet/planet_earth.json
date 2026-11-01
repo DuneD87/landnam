@@ -563,6 +563,7 @@
 			},
 			{
 				"name": "tree_generator_sand",
+				"trail_clearance": 4.0,
 				"emit_mode": "EMIT_FROM_VERTICES",
 				"density": 0.065,
 				"min_height": -35.0,
@@ -582,6 +583,7 @@
 			},
 			{
 				"name": "tree_generator_green_sand",
+				"trail_clearance": 4.0,
 				"emit_mode": "EMIT_FROM_FACES",
 				"density": 0.002,
 				"lod_density_falloff": 1.0,
@@ -602,6 +604,7 @@
 			},
 			{
 				"name": "tree_generator_green",
+				"trail_clearance": 4.0,
 				"emit_mode": "EMIT_FROM_FACES",
 				"density": 0.003,
 				"lod_density_falloff": 1.0,
@@ -632,6 +635,7 @@
 			},
 			{
 				"name": "tree_generator_almond_grove",
+				"trail_clearance": 4.0,
 				"emit_mode": "EMIT_FROM_FACES",
 				"density": 0.009,
 				"lod_density_falloff": 1.0,
@@ -662,6 +666,7 @@
 			},
 			{
 				"name": "tree_generator_apple_grove",
+				"trail_clearance": 4.0,
 				"emit_mode": "EMIT_FROM_FACES",
 				"density": 0.009,
 				"lod_density_falloff": 1.0,
@@ -1056,6 +1061,7 @@
 			},
 			{
 				"name": "cave_moss_generator",
+				"trail_filter": false,
 				"emit_mode": "EMIT_FROM_VERTICES",
 				"density": 1.0,
 				"min_height": -400.0,
@@ -1067,6 +1073,7 @@
 			},
 			{
 				"name": "cave_mushroom_generator",
+				"trail_filter": false,
 				"emit_mode": "EMIT_FROM_VERTICES",
 				"density": 0.006,
 				"min_height": -400.0,
@@ -1078,6 +1085,7 @@
 			},
 			{
 				"name": "tree_generator_taiga",
+				"trail_clearance": 4.0,
 				"emit_mode": "EMIT_FROM_FACES",
 				"density": 0.005,
 				"lod_density_falloff": 1.0,
@@ -1109,6 +1117,7 @@
 			},
 			{
 				"name": "tree_generator_birch",
+				"trail_clearance": 4.0,
 				"emit_mode": "EMIT_FROM_FACES",
 				"density": 0.004,
 				"lod_density_falloff": 1.0,
@@ -1140,6 +1149,7 @@
 			},
 			{
 				"name": "tree_generator_treeline",
+				"trail_clearance": 4.0,
 				"emit_mode": "EMIT_FROM_FACES",
 				"density": 0.0025,
 				"lod_density_falloff": 1.0,
@@ -3553,6 +3563,68 @@
 				-90.0,
 				0.15
 			]
+		]
+	},
+	"trail_settings": {
+		"enabled": true,
+		"seed": 7.0,
+		"routing_size": [
+			2048.0,
+			1024.0
+		],
+		"field_size": [
+			8192.0,
+			4096.0
+		],
+		"tree_field_size": [
+			4096.0,
+			2048.0
+		],
+		"layers": 2.0,
+		"piece_length": 400.0,
+		"anchor_spacing": 3000.0,
+		"anchor_min_height": 2.0,
+		"anchor_max_height": 450.0,
+		"link_radius": 1.9,
+		"loop_fraction": 0.2,
+		"spur_spacing": 2000.0,
+		"spur_min_distance": 700.0,
+		"max_latitude": 66.0,
+		"max_slope": 0.6,
+		"slope_cost": 30.0,
+		"ford_cost": 10.0,
+		"shore_margin": 1.5,
+		"reuse_factor": 0.5,
+		"max_detour": 2.2,
+		"smooth_sigma": 110.0,
+		"meander_amplitude": 4.0,
+		"meander_wavelength": 180.0,
+		"half_width": 2.1,
+		"edge_softness": 0.7,
+		"width_variation": 0.3,
+		"edge_noise_period": 30.0,
+		"dip": 0.12,
+		"clearance_max_lod": 4.0,
+		"texture_index": 3.0,
+		"albedo": {
+			"gain": 0.85,
+			"tint": [
+				1.0,
+				0.92,
+				0.82
+			],
+			"saturation": 0.8
+		},
+		"edge_blend": 0.7,
+		"edge_sharpness": 0.25,
+		"fade_start": 70.0,
+		"fade_end": 130.0,
+		"far_distance": 1500.0,
+		"snow_clear": 0.5,
+		"snow_tint": [
+			0.86,
+			0.84,
+			0.81
 		]
 	},
 	"reef_settings": {

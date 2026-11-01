@@ -75,6 +75,19 @@ func find_landing(planet: Planet, map: WorldMapData,
 	return null
 
 
+## Radio del suelo de [planet] en la dirección [up] (marco del terreno), o NAN si ahí hay agua o
+## no se encuentra: para dejar a alguien de pie en un sitio sin esperar a que cargue.
+func surface_radius_at(planet: Planet, up: Vector3) -> float:
+	_generator = planet.voxel_terrain.generator
+	if _generator == null:
+		return NAN
+	var lower := planet.radius - planet.water_radius if planet.has_water else planet.radius - 4096.0
+	var upper := planet.radius + 256.0
+	for height in planet.definition.max_heights:
+		upper = maxf(upper, planet.radius + height + 256.0)
+	return _surface_radius(up.normalized(), upper, lower)
+
+
 ## Primer cruce aire -> suelo al bajar radialmente. Los pasos cortos cerca del cero no saltan
 ## una terraza; la bisección da precisión subvoxel antes de añadir el margen de los pies.
 func _surface_radius(up: Vector3, upper: float, lower: float) -> float:
