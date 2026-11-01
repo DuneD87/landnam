@@ -90,5 +90,7 @@ func _physics_process(delta: float) -> void:
 	hud.anchor_refused = _anchor_refused > 0.0
 	hud.speed = (_boat.linear_velocity - _boat.last_water_flow).length()
 	hud.scale = Vector2.ONE * GameTheme.scale_for(get_viewport())
-	hud.position = Vector2(get_viewport().get_visible_rect().size.x - 364.0 * hud.scale.x, 280.0 * hud.scale.y)
+	# Debajo del minimapa, que ocupa la misma esquina.
+	var top := maxf(280.0 * hud.scale.y, _player.minimap.bottom() + 16.0 * hud.scale.y)
+	hud.position = Vector2(get_viewport().get_visible_rect().size.x - 364.0 * hud.scale.x, top)
 	hud.queue_redraw()

@@ -307,6 +307,58 @@ iconos sale capturado a medio girar.
 - **Munición y estados:** Alegreya en hueso con contorno de tinta; sin munición, en rojo.
 - **HAS MUERTO:** en Cinzel, con un filete de Saga encima y otro debajo que se funden con el cartel.
 
+## Minimapa
+
+`Minimap` (`scripts/ui/minimap.gd`) va arriba a la derecha: el mapa del planeta alrededor del
+jugador, con él en el centro y el norte arriba, en un aro de bronce como el de las orbes (remaches
+al este, sur y oeste). Va en una talla como la de la consola de la barra rápida: un engaste de
+hierro con una banda de runas del fuþark joven, «land auk haf» (tierra y mar), coronado por una
+copa de hojas. La banda se abre arriba para el medallón de la N y abajo para la cartela de la
+estación. A la izquierda, a media altura, va la cajita de la hora y la altura, fundida con el engaste
+sin cuello: su silueta sigue la del círculo con el mismo filete y su hueco llega hasta la banda de
+runas:
+
+- **La estación**, en la cartela: una placa pequeña con las puntas en pico y un remache en cada
+  una, como las barras de las criaturas, que cruza la parte de abajo del aro. Lleva la estación del
+  sitio y el día dentro de ella («Verano · 3/8»), en Cinzel de 18 px sin el espaciado de los
+  títulos, para que «Primavera · 8/8» quepa entero. El sur va medio año por detrás
+  (`Seasons.local_phase`). Si en otro idioma no cabe, la letra se achica.
+- **La hora solar** del sitio, arriba en la cajita, con un sol o una luna según el sol esté sobre el
+  horizonte. Son las 12 cuando el sol cruza su meridiano (`Seasons.solar_hour`): cambia con la
+  longitud, como la luz.
+- **La altura** sobre el nivel del mar del jugador, abajo en la cajita, tras un filete con un rombo.
+  Es la misma que el pie del mapa grande.
+
+En la cajita, en Alegreya de 26 px, las cifras van arrimadas al aro y los iconos, en columna,
+pegados a la más ancha de las dos. La cajita es la justa para «00:00» o «888 m»: con una altura de
+cuatro cifras la letra se achica un poco.
+
+El mapa es el mismo dato horneado que el de la M y el mismo shader (`WorldMapUI.make_material`), en
+**vista local** (`local_view` en `world_map.gdshader`): un trozo del plano tangente bajo el jugador
+(proyección gnomónica) en vez del equirect recortado, así que la escala es la misma en toda la vista y
+no hay costura en el antimeridiano ni estiramiento cerca de los polos. Cubre 3 km de lado a lado
+(`Minimap.SPAN`); el mapa tiene ~92 m por téxel, y más cerca solo se vería borroso. Sin la retícula de
+15°. La flecha es el rumbo del jugador (`WorldMapUI.player_forward`) y encima van los marcadores del
+mapa que caen dentro del aro. Mientras el mapa se hornea sale el disco vacío con «Cartografiando…».
+
+La talla es una imagen horneada, `textures/ui/minimap_frame.png`, como la consola: la pinta
+`tools/ui/bake_minimap_frame.py` con las piezas de `bake_hotbar_console.py` (campos de distancia,
+runas, hojas y remaches), a dos píxeles por cada uno de la UI a 1440 px y con mipmaps. El
+minimapa pone encima lo que cambia: el mapa con su aro y los textos. Si cambian las medidas, hay que
+copiar en `Minimap` lo que imprime el script (`MAP_RADIUS`, `ART_RECT`, `BOUNDS`, `NORTH_AT`,
+`SEASON_RECT`, `STATS_PANEL`, `TIME_BASELINE`, `ALTITUDE_BASELINE`, `TEXT_RIGHT`).
+
+```sh
+build/fauna_tools/bin/python -I tools/ui/bake_minimap_frame.py
+godot --headless --editor --quit --path .   # importa la textura
+```
+
+El mapa mide 216 px de diámetro y la talla entera 366 × 303 px a 1440 px de alto
+(`GameTheme.scale_for`, con el mínimo de 0,625 de la barra rápida para que a 720p se lea), a 22 px de
+los bordes de arriba y de la derecha. No sale fuera de partida, con el menú de pausa, con el mapa
+grande abierto ni en las vistas de personaje y fabricar; con el inventario solo (I) se queda. La rosa
+de navegación del barco va debajo (`Minimap.bottom()`).
+
 ## Pendiente
 
 - **Iconos:** mezclan tres estilos (vectores planos, renders sobre fondo negro y

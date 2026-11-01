@@ -1067,6 +1067,9 @@ MAP_ON_LAND,On dry land,En tierra firme,
 MAP_WATER_DEPTH,%s (%.1f m deep),%s (%.1f m de fondo),
 MAP_LAND_HEIGHT,"Land, %.0f m","Tierra, %.0f m",
 MAP_WATER_HOVER,%s · %.1f km² · depth %.0f m (max %.0f m),%s · %.1f km² · fondo %.0f m (máx %.0f m),
+MINIMAP_GENERATING,Mapping…,Cartografiando…,Minimap while the planet's map is being generated
+MINIMAP_SEASON,%s · %d/%d,%s · %d/%d,"Minimap: season, then day of the season / days per season (e.g. Summer · 3/8)"
+MINIMAP_ALTITUDE,%d m,%d m,Minimap: height above sea level
 WATER_OCEAN,Ocean,Océano,
 WATER_SEA,Sea,Mar,
 WATER_LAKE,Lake,Lago,

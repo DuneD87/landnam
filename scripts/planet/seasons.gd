@@ -92,6 +92,16 @@ static func sun_elevation(local: Vector3) -> float:
 	return rad_to_deg(asin(clampf(local.normalized().dot(sun_direction), -1.0, 1.0)))
 
 
+## Hora solar (0..24) en `local` (relativa al centro del planeta): las 12 con el sol en su meridiano.
+## El sol da la vuelta hacia +azimut (sun_controller.gd), así que el ángulo horario es su azimut menos
+## el del meridiano del sitio. Sin sol, o justo en un polo (sin meridiano), NAN.
+static func solar_hour(local: Vector3) -> float:
+	if not has_sun or Vector2(local.x, local.z).length_squared() < 0.000001:
+		return NAN
+	var hour_angle := atan2(sun_direction.x, sun_direction.z) - atan2(local.x, local.z)
+	return fposmod(12.0 + rad_to_deg(hour_angle) / 15.0, 24.0)
+
+
 ## Luz en `local` repartida en día, crepúsculo y noche (suman 1): día con el sol por encima de unos
 ## pocos grados, noche por debajo del crepúsculo náutico, y el crepúsculo entre medias.
 static func light_weights(local: Vector3) -> Vector3:

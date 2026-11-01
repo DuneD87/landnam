@@ -5,6 +5,9 @@ marcador nuevo. **Marcar mi posición** usa la posición del jugador. En la fich
 casa, recursos, cueva, campamento, peligro, punto de interés y tumba, con un nombre opcional.
 **Aplicar** o **Enter** acepta; **Cancelar** o **Esc** descarta la edición.
 
+Los marcadores que caen a menos de 1,2 km salen también en el minimapa (ver
+[ui.md](ui.md#minimapa)).
+
 Un clic sobre un marcador existente permite cambiarle el nombre o el icono, o borrarlo.
 Arrastrar desde un marcador sigue desplazando el mapa. Los iconos mantienen su tamaño al hacer
 zoom; los nombres personalizados aparecen debajo y el resto se muestra al señalar o editar.

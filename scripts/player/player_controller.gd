@@ -61,6 +61,8 @@ const data = preload("res://scripts/items/item_data.gd")
 var ship_spawn_menu: ShipSpawnMenu
 var grid_manipulator_menu: GridManipulatorMenu
 var world_map_ui: WorldMapUI
+## Arriba a la derecha: el mapa alrededor, la estación, la hora y la altura (ver Minimap).
+var minimap: Minimap
 var blueprint_placer: BlueprintPlacer
 ## Rueda del martillo (clic derecho con el martillo en la mano).
 var build_radial: BuildRadialMenu
@@ -677,6 +679,9 @@ func _ready():
 	world_map_ui.setup(self)
 	world_map_ui.closed.connect(capture_mouse.bind(true))
 	add_child(world_map_ui)
+	minimap = Minimap.new()
+	minimap.setup(self)
+	add_child(minimap)
 
 	capture_mouse(false)
 	water_sampler = WaterHeightSampler.new()

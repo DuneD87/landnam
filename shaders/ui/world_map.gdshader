@@ -16,9 +16,25 @@
 //  'body_map' es el etiquetado de cuerpos de agua: un int32 por téxel
 //  reinterpretado como RGBA8, así que hay que muestrearlo SIEMPRE con
 //  filter_nearest o los bytes se mezclan y el id sale inventado.
+//
+//  El minimapa (minimap.gd) usa el mismo shader en vista local: ver local_view.
 // =============================================================================
 shader_type canvas_item;
 render_mode unshaded;
+
+// --- Vista local (minimapa) ---
+// El rectángulo deja de ser el equirect entero y pasa a ser un trozo del plano tangente en
+// view_center, con el norte arriba (proyección gnomónica). La escala es la misma en toda la vista y
+// no hay costura en el antimeridiano ni estiramiento con la latitud, cosa que recortar el equirect
+// no da. view_east y view_north son la base de ese plano, unitarias.
+uniform bool local_view = false;
+uniform vec3 view_center = vec3(1.0, 0.0, 0.0);
+uniform vec3 view_east = vec3(0.0, 0.0, -1.0);
+uniform vec3 view_north = vec3(0.0, 1.0, 0.0);
+// Metros de terreno de lado a lado (x) y de arriba abajo (y) del rectángulo.
+uniform vec2 view_span = vec2(3000.0, 3000.0);
+// Recorta la vista al círculo inscrito, con el borde suavizado.
+uniform bool round_mask = false;
 
 // --- Mapa de alturas ---
 // Va como uniform propio y NO como el TEXTURE del CanvasItem: los built-ins (TEXTURE,
@@ -136,6 +152,11 @@ vec3 uv_to_dir(vec2 uv) {
 	float lon = (uv.x - 0.5) * TAU_;
 	float st = sin(theta);
 	return vec3(st * cos(lon), cos(theta), -st * sin(lon));
+}
+
+// WorldMapData.dir_to_uv.
+vec2 dir_to_uv(vec3 d) {
+	return vec2(fract(0.5 - atan(d.z, d.x) / TAU_), acos(clamp(d.y, -1.0, 1.0)) / PI_);
 }
 
 float height_at(vec2 uv) {
@@ -312,7 +333,14 @@ vec3 shore_band(vec3 col, vec2 uv, float depth) {
 
 void fragment() {
 	vec2 uv = UV;
-	vec3 dir = uv_to_dir(uv);
+	vec3 dir;
+	if (local_view) {
+		vec2 p = (UV - 0.5) * view_span;   // metros al este y al sur del centro
+		dir = normalize(view_center * body_radius + view_east * p.x - view_north * p.y);
+		uv = dir_to_uv(dir);
+	} else {
+		dir = uv_to_dir(uv);
+	}
 	float sin_theta = max(length(dir.xz), 0.001);
 	float latitude = degrees(asin(clamp(dir.y, -1.0, 1.0)));
 
@@ -368,5 +396,10 @@ void fragment() {
 		col = wave_arrow(col, uv);
 	}
 
-	COLOR = vec4(col, 1.0);
+	float alpha = 1.0;
+	if (round_mask) {
+		float r = length(UV - 0.5) * 2.0;
+		alpha = 1.0 - smoothstep(1.0 - fwidth(r), 1.0, r);
+	}
+	COLOR = vec4(col, alpha);
 }

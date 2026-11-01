@@ -315,56 +315,61 @@ func _refresh_map_source() -> void:
 		return
 
 	var map := _world_map.map
-	_material = ShaderMaterial.new()
-	_material.shader = load(SHADER_PATH)
-	if _material.shader == null:
-		push_error("[world-map] no se pudo cargar %s" % SHADER_PATH)
+	_material = make_material(map, player.get("planet"))
+	if _material == null:
 		_status.text = "MAP_NO_SHADER"
 		_status.visible = true
-		_material = null
 		return
 	_map_rect.material = _material
-	_apply_map_params(map)
-	_apply_planet_params(map)
+	_material.set_shader_parameter("show_wave_arrows", _show_wave_arrows)
 	# Encuadre inicial a escala humana, no el planeta entero: ver DEFAULT_VIEW_SPAN.
 	_zoom = clampf(TAU * map.radius / DEFAULT_VIEW_SPAN, MIN_ZOOM, MAX_ZOOM)
 	_follow = true
 	_needs_center = true
 
 
-func _apply_map_params(map: WorldMapData) -> void:
-	_material.set_shader_parameter("height_map", map.height_texture())
-	_material.set_shader_parameter("height_texel", Vector2(1.0 / map.size.x, 1.0 / map.size.y))
-	_material.set_shader_parameter("body_radius", map.radius)
-	_material.set_shader_parameter("height_min", map.height_min)
-	_material.set_shader_parameter("height_range", map.height_span)
-	_material.set_shader_parameter("sea_height", map.sea_level_radius - map.radius)
-	_material.set_shader_parameter("has_water", map.has_water)
+## Material del mapa de `map`, el planeta de `loader`. El minimapa usa el mismo: los dos pintan el
+## mismo dato con el mismo shader. Null si el shader no carga.
+static func make_material(map: WorldMapData, loader: Node) -> ShaderMaterial:
+	var shader := load(SHADER_PATH) as Shader
+	if shader == null:
+		push_error("[world-map] no se pudo cargar %s" % SHADER_PATH)
+		return null
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	_apply_map_params(material, map)
+	_apply_planet_params(material, map, loader)
+	return material
+
+
+static func _apply_map_params(material: ShaderMaterial, map: WorldMapData) -> void:
+	material.set_shader_parameter("height_map", map.height_texture())
+	material.set_shader_parameter("height_texel", Vector2(1.0 / map.size.x, 1.0 / map.size.y))
+	material.set_shader_parameter("body_radius", map.radius)
+	material.set_shader_parameter("height_min", map.height_min)
+	material.set_shader_parameter("height_range", map.height_span)
+	material.set_shader_parameter("sea_height", map.sea_level_radius - map.radius)
+	material.set_shader_parameter("has_water", map.has_water)
 
 	if map.has_water and not map.body_ids.is_empty():
 		# El int32 de cada téxel se reinterpreta como RGBA8 sin recorrer el array; el shader lo
 		# vuelve a montar byte a byte (por eso se muestrea con filter_nearest).
-		var img := Image.create_from_data(
-			map.size.x, map.size.y, false, Image.FORMAT_RGBA8, map.body_ids.to_byte_array())
-		_material.set_shader_parameter("body_map", ImageTexture.create_from_image(img))
-		_material.set_shader_parameter("has_body_map", true)
+		material.set_shader_parameter("body_map", map.body_texture())
+		material.set_shader_parameter("has_body_map", true)
 
 	if map.has_shore_field():
-		_material.set_shader_parameter("shore_map", map.shore_texture())
-		_material.set_shader_parameter("has_shore_map", true)
-	_material.set_shader_parameter("show_wave_arrows", _show_wave_arrows)
+		material.set_shader_parameter("shore_map", map.shore_texture())
+		material.set_shader_parameter("has_shore_map", true)
 
 
 ## Escala la rampa hipsométrica al relieve real de este planeta y hereda del bioma polar la latitud
 ## a la que empieza el casquete de hielo. Es lo único que el mapa toma del planeta: la paleta es
 ## cartográfica a propósito, no la del terreno (ver la cabecera del shader).
-func _apply_planet_params(map: WorldMapData) -> void:
+static func _apply_planet_params(material: ShaderMaterial, map: WorldMapData, loader: Node) -> void:
 	# Escalas sacadas del relieve REAL, no del rango del horneado: si no, toda la tierra cae en el
 	# mismo tramo de la rampa y el mapa sale de un solo color.
-	_material.set_shader_parameter("land_stops", map.land_height_stops())
-	_material.set_shader_parameter("deep_depth", map.water_depth_percentile())
-
-	var loader = player.get("planet")
+	material.set_shader_parameter("land_stops", map.land_height_stops())
+	material.set_shader_parameter("deep_depth", map.water_depth_percentile())
 
 	# Marco del oleaje y umbral de profundidad copiados del material del agua: si el mapa los
 	# supusiera por su cuenta, las flechas apuntarían a un sitio y el agua se movería hacia otro.
@@ -382,7 +387,7 @@ func _apply_planet_params(map: WorldMapData) -> void:
 				value = RenderingServer.shader_get_parameter_default(
 					water_mat.shader.get_rid(), pair[0])
 			if value != null:
-				_material.set_shader_parameter(pair[1], value)
+				material.set_shader_parameter(pair[1], value)
 
 	var planet: Planet = loader.get("planet") if loader != null else null
 	if planet == null:
@@ -392,10 +397,10 @@ func _apply_planet_params(map: WorldMapData) -> void:
 	var ranges := planet.definition.biome_latitude_ranges
 	if ranges.size() < 2:
 		return
-	_material.set_shader_parameter("snow_latitude", absf(float(ranges[1])))
+	material.set_shader_parameter("snow_latitude", absf(float(ranges[1])))
 	var middle := ranges.size() / 2 - 1
 	if middle >= 1:
-		_material.set_shader_parameter("arid_latitude", absf(float(ranges[middle])))
+		material.set_shader_parameter("arid_latitude", absf(float(ranges[middle])))
 
 
 # --------------------------------------------------------------------------------------------
@@ -685,7 +690,7 @@ func _heading_on_map(uv: Vector2) -> float:
 	var lon := (uv.x - 0.5) * TAU
 	var right := Vector3(-sin(lon), 0.0, -cos(lon))
 	var down := Vector3(cos(theta) * cos(lon), -sin(theta), -cos(theta) * sin(lon))
-	var forward := _player_forward()
+	var forward := player_forward(player)
 	var flat := Vector2(forward.dot(right), forward.dot(down))
 	# Mirando a plomo (arriba o abajo) no hay rumbo en el plano del mapa: la flecha giraría al
 	# azar con el ruido de la proyección, así que mejor no dibujarla.
@@ -697,11 +702,11 @@ func _heading_on_map(uv: Vector2) -> float:
 ## Hacia dónde mira el jugador. En vuelo libre el FreeFlightController rota LA CÁMARA y deja el
 ## cuerpo quieto, así que leer la base del cuerpo daba un rumbo congelado; a pie manda el cuerpo,
 ## que es el que gira hacia donde se anda (ver PlanetaryBody.rotate_toward_direction, +Z al frente).
-func _player_forward() -> Vector3:
-	var camera = player.get("camera")
-	if player.get("free_flight_enabled") == true and camera is Camera3D:
+static func player_forward(body: Node3D) -> Vector3:
+	var camera = body.get("camera")
+	if body.get("free_flight_enabled") == true and camera is Camera3D:
 		return -(camera as Camera3D).global_basis.z
-	return player.global_basis.z
+	return body.global_basis.z
 
 
 func _update_info() -> void:

@@ -26,6 +26,8 @@ solsticio de verano del norte.
 - Con la rotación automática apagada (`sun <azimut>`, capturas) la elevación es la que se fije a
   mano; la fecha sigue mandando sobre los árboles.
 - El guardado añade `day_of_year`. Las partidas anteriores empiezan en `start_day`.
+- La hora del día es solar y de cada sitio: `Seasons.solar_hour` da las 12 con el sol en el
+  meridiano del jugador (la enseña el minimapa).
 - `WorldTime` acelera el avance del sol y de la fecha al dormir o con `time speed`.
   El descanso usa horas de esta misma vuelta: una jornada despierto son 16 h y
   una noche de sueño, 8 h. Ver [survival.md](survival.md#descansar-y-pasar-el-tiempo).
