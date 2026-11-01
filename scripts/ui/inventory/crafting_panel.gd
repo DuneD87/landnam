@@ -1,11 +1,12 @@
 class_name CraftingPanel
 extends PanelContainer
 
-## La ventana de fabricar (la vista CRAFTING de InventoryUI, a la derecha del inventario):
-## - a la izquierda, las pestañas: «Todo» y las categorías de ItemTaxonomy que tienen recetas;
-## - en medio, las recetas de la pestaña por era y, dentro de cada era, por dónde se hacen: a mano
-##   y en cada estación de trabajo, con si hay una cerca (Workstation.in_reach) y, si la hay, su
-##   botón de desmontarla. Lo que ahora no se puede hacer sale apagado;
+## La ventana de fabricar (la vista CRAFTING de InventoryUI, a la derecha del inventario). Enseña las
+## recetas de un sitio: las que se hacen a mano (con el Tabulador) o las de una estación (E junto a
+## ella, o «Recetas» en la hoguera: show_station), cada una con su menú:
+## - arriba, de qué sitio es, si está cerca y, si es una estación de trabajo, el botón de desmontarla;
+## - a la izquierda, las pestañas: «Todo» y las categorías de ItemTaxonomy que tienen recetas ahí;
+## - en medio, sus recetas por era. Lo que ahora no se puede hacer sale apagado;
 ## - a la derecha, la receta elegida: su ficha, dónde se hace, lo que pide para las veces que se
 ##   quieran hacer (la cantidad, con sus flechas, y «Máx») y el botón de fabricar.
 ## Lo fabricado va al inventario y lo que no cabe, al suelo. Ver docs/items.md y docs/ui.md.
@@ -16,7 +17,7 @@ const DETAIL_WIDTH := 560.0
 const QUANTITY_WIDTH := 150.0
 ## Veces como mucho de una tirada.
 const MAX_TIMES := 99
-## Cada cuánto se mira qué estaciones hay cerca (s).
+## Cada cuánto se mira si la estación sigue cerca (s).
 const STATION_POLL := 0.4
 const DIM := Color(1, 1, 1, 0.42)
 
@@ -32,17 +33,21 @@ var _tab_buttons := {}
 var _only_craftable := false
 var _selected: RecipeData
 var _tiles := {}
-## Estaciones al alcance: id de su objeto → la más cercana (Workstation.in_reach).
-var _stations := {}
+## De qué sitio son las recetas: Recipes.HAND o el id de la estación (Workstation.CAMPFIRE, la
+## hoguera), y la que se ha abierto (null a mano).
+var _station: StringName = Recipes.HAND
+var _station_node: Node3D
+## Si la estación sigue al alcance (y la hoguera, encendida), mirado cada STATION_POLL.
+var _near := false
 var _poll := 0.0
-## Al abrirla en una estación (E junto a ella): se va a sus recetas en cuanto se ven.
-var _focus_station: StringName = &""
 
 var _rail: VBoxContainer
 var _rail_group := ButtonGroup.new()
 var _scroll: ScrollContainer
 var _list: VBoxContainer
-var _stations_label: Label
+var _title: Label
+var _station_state: Label
+var _dismantle_button: Button
 var _detail_box: PanelContainer
 var _preview: ItemSlotView
 var _name: Label
@@ -67,12 +72,19 @@ func _init() -> void:
 	add_child(box)
 
 	var header := HBoxContainer.new()
-	var title := _label("FABRICAR", &"HeaderLabel")
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
-	_stations_label = _label("", &"ValueLabel")
-	_stations_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	header.add_child(_stations_label)
+	_title = _label("", &"HeaderLabel")
+	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_title)
+	_station_state = _label("", &"BetterLabel")
+	_station_state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header.add_child(_station_state)
+	_dismantle_button = Button.new()
+	_dismantle_button.text = "UI_DISMANTLE"
+	_dismantle_button.focus_mode = Control.FOCUS_NONE
+	_dismantle_button.tooltip_text = "CRAFT_DISMANTLE_TIP"
+	_dismantle_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_dismantle_button.pressed.connect(func() -> void: _dismantle(_station_node as Workstation))
+	header.add_child(_dismantle_button)
 	var only := CheckButton.new()
 	only.text = "CRAFT_ONLY_CRAFTABLE"
 	only.focus_mode = Control.FOCUS_NONE
@@ -209,31 +221,42 @@ func _process(delta: float) -> void:
 	if _poll > 0.0:
 		return
 	_poll = STATION_POLL
-	if _signature(_stations_in_reach()) != _signature(_stations):
+	if _station_near() != _near:
 		refresh()
 
 
 # --- Abrir ----------------------------------------------------------------------------------------
 
-## Lo vuelve a montar todo con lo que se lleva y las estaciones de al lado.
+## Lo vuelve a montar todo con lo que se lleva y la estación de al lado.
 func refresh() -> void:
 	if ui == null or ui.inventory == null:
 		return
-	_stations = _stations_in_reach()
-	_refresh_stations_label()
-	if _selected == null:
-		_selected = _first_recipe(_focus_station)
+	if _station != Recipes.HAND and not is_instance_valid(_station_node):
+		show_station(null)
+		return
+	_near = _station_near()
+	_refresh_header()
+	if _selected == null or _selected.station != _station:
+		_selected = _first_recipe()
 	_rebuild_list()
 	_refresh_detail()
 
 
-## Al abrirla con E junto a una estación: todas las pestañas y sus recetas a la vista.
-func focus_station(station: StringName) -> void:
-	_focus_station = station
+## Las recetas de [station] (una estación de trabajo o una hoguera) o, con null, las de a mano. Vuelve
+## a la pestaña «Todo» y a su primera receta.
+func show_station(station: Node3D) -> void:
+	_station_node = station
+	if station is Workstation:
+		_station = (station as Workstation).item_id
+	elif station is Campfire:
+		_station = Workstation.CAMPFIRE
+	else:
+		_station_node = null
+		_station = Recipes.HAND
+	_selected = null
+	_quantity.set_value_no_signal(1)
+	_build_rail()
 	_set_tab(-1)
-	var first := _first_recipe(station)
-	if first != null:
-		_select(first)
 
 
 func _apply_scale() -> void:
@@ -246,10 +269,14 @@ func _apply_scale() -> void:
 
 # --- Pestañas -------------------------------------------------------------------------------------
 
-## «Todo» y las categorías que tienen alguna receta, en el orden de ItemTaxonomy.
+## «Todo» y las categorías que tienen alguna receta en este sitio, en el orden de ItemTaxonomy.
 func _build_rail() -> void:
+	for child in _rail.get_children():
+		_rail.remove_child(child)
+		child.queue_free()
+	_tab_buttons.clear()
 	var used := {}
-	for recipe in Recipes.all():
+	for recipe in Recipes.of_station(_station):
 		var result: ItemData = ItemCatalog.get_item(recipe.result)
 		if result != null:
 			used[ItemTaxonomy.category_of(result)] = true
@@ -292,10 +319,8 @@ func _rebuild_list() -> void:
 		child.queue_free()
 	_tiles.clear()
 	var era := -1
-	var station: StringName = &"-"
 	var grid: HFlowContainer = null
-	var focus: Control = null
-	for recipe in Recipes.all():
+	for recipe in Recipes.of_station(_station):
 		var result: ItemData = ItemCatalog.get_item(recipe.result)
 		if result == null or (_tab >= 0 and ItemTaxonomy.category_of(result) != _tab):
 			continue
@@ -304,16 +329,9 @@ func _rebuild_list() -> void:
 			continue
 		if int(recipe.era) != era:
 			era = int(recipe.era)
-			station = &"-"
 			if _list.get_child_count() > 0:
 				_list.add_child(HSeparator.new())
 			_list.add_child(_label(Eras.name_of(recipe.era).to_upper(), &"SectionLabel"))
-		if recipe.station != station:
-			station = recipe.station
-			var heading := _station_heading(station)
-			_list.add_child(heading)
-			if station == _focus_station and station != Recipes.HAND:
-				focus = heading
 			grid = HFlowContainer.new()
 			_list.add_child(grid)
 		var tile := ItemSlotView.new()
@@ -331,45 +349,15 @@ func _rebuild_list() -> void:
 		var empty := _label("CRAFT_NOTHING_AFFORDABLE" if _only_craftable else "CRAFT_NOTHING_HERE", &"HintLabel")
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_list.add_child(empty)
-	if focus != null:
-		_focus_station = &""
-		_scroll_to.call_deferred(focus)
 
 
-## «A mano» o el nombre de la estación, si hay una cerca y, si la hay, el botón de desmontarla.
-func _station_heading(station: StringName) -> Control:
-	var row := HBoxContainer.new()
-	var title := _label(Recipes.station_name(station), &"StatValue")
-	title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(title)
-	if station == Recipes.HAND:
-		return row
-	var near: Node3D = _stations.get(station)
-	var state := _label(_near_text(station, near != null), &"BetterLabel" if near != null else &"WorseLabel")
-	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(state)
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
-	if near is Workstation:
-		var dismantle := Button.new()
-		dismantle.text = "UI_DISMANTLE"
-		dismantle.focus_mode = Control.FOCUS_NONE
-		dismantle.tooltip_text = "CRAFT_DISMANTLE_TIP"
-		dismantle.pressed.connect(_dismantle.bind(near))
-		row.add_child(dismantle)
-	else:
-		var made := _made_at(station)
-		if made != "":
-			var hint := _label(tr("CRAFT_MADE_AT") % made.to_lower(), &"HintLabel")
-			hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			row.add_child(hint)
-	return row
-
-
-func _scroll_to(control: Control) -> void:
-	if is_instance_valid(control):
-		_scroll.ensure_control_visible(control)
+## Arriba: de qué sitio son las recetas, si está cerca y, en una estación de trabajo, desmontarla.
+func _refresh_header() -> void:
+	_title.text = tr("CRAFT_BY_HAND_TITLE") if _station == Recipes.HAND else Recipes.station_name(_station).to_upper()
+	_station_state.visible = _station != Recipes.HAND
+	_station_state.text = _near_text(_station, _near)
+	_station_state.theme_type_variation = &"BetterLabel" if _near else &"WorseLabel"
+	_dismantle_button.visible = _station_node is Workstation and _near
 
 
 func _select(recipe: RecipeData) -> void:
@@ -381,13 +369,10 @@ func _select(recipe: RecipeData) -> void:
 	_refresh_detail()
 
 
-## La primera receta de [station] o, si no hay, la primera de todas.
-func _first_recipe(station: StringName) -> RecipeData:
-	var all := Recipes.all()
-	for recipe in all:
-		if recipe.station == station:
-			return recipe
-	return all[0] if not all.is_empty() else null
+## La primera receta de este sitio, o null.
+func _first_recipe() -> RecipeData:
+	var here := Recipes.of_station(_station)
+	return here[0] if not here.is_empty() else null
 
 
 # --- La receta elegida ----------------------------------------------------------------------------
@@ -513,10 +498,18 @@ func _input_row(data: ItemData, text: String, count_text: String, short: bool) -
 	return row
 
 
-func _stations_in_reach() -> Dictionary:
-	if ui == null or ui.crafter == null or not is_instance_valid(ui.crafter) or not ui.crafter.is_inside_tree():
-		return {}
-	return Workstation.in_reach(get_tree(), ui.crafter.global_position)
+## Si quien fabrica está al alcance de la estación abierta (Workstation.reach, Campfire.REACH) y,
+## si es una hoguera, encendida. A mano, siempre.
+func _station_near() -> bool:
+	if _station == Recipes.HAND:
+		return true
+	if ui == null or ui.crafter == null or not is_instance_valid(ui.crafter) or not ui.crafter.is_inside_tree() \
+			or not is_instance_valid(_station_node) or not _station_node.is_inside_tree():
+		return false
+	var d := _station_node.global_position.distance_to(ui.crafter.global_position)
+	if _station_node is Campfire:
+		return (_station_node as Campfire).lit and d <= Campfire.REACH
+	return d <= (_station_node as Workstation).reach()
 
 
 ## «Cerca» / «No está cerca»; la hoguera tiene que estar encendida.
@@ -526,25 +519,9 @@ func _near_text(station: StringName, near: bool) -> String:
 	return tr("CRAFT_NEAR") if near else tr("CRAFT_NOT_NEAR")
 
 
-## Se puede hacer aquí lo de [station]: a mano siempre; lo de una estación, con una cerca.
+## Se puede hacer aquí lo de [station]: a mano siempre; lo de la estación abierta, con ella cerca.
 func _station_ready(station: StringName) -> bool:
-	return station == Recipes.HAND or _stations.has(station)
-
-
-## Dónde se fabrica la estación [station] («A mano», otra estación) o "" si no hay receta.
-func _made_at(station: StringName) -> String:
-	for recipe in Recipes.all():
-		if recipe.result == station:
-			return Recipes.station_name(recipe.station)
-	return ""
-
-
-func _refresh_stations_label() -> void:
-	var names: Array[String] = []
-	for id: StringName in _stations:
-		names.append(Recipes.station_name(id))
-	names.sort()
-	_stations_label.text = tr("CRAFT_STATIONS_NEAR") % ", ".join(names) if not names.is_empty() else tr("CRAFT_NO_STATIONS")
+	return station == Recipes.HAND or (station == _station and _near)
 
 
 func _dismantle(station: Workstation) -> void:
@@ -561,16 +538,9 @@ func _dismantle(station: Workstation) -> void:
 		if left > 0:
 			ui.drop_requested.emit(data, left)
 		_notify(tr("CRAFT_DISMANTLED") % data.get_display_name().to_lower())
+	# Sin la estación, sus recetas ya no se pueden hacer: a las de a mano.
+	show_station(null)
 	ui.inventory.inventory_changed.emit()
-
-
-## Las estaciones que hay, para ver si han cambiado.
-func _signature(stations: Dictionary) -> String:
-	var parts: Array[String] = []
-	for id: StringName in stations:
-		parts.append("%s:%d" % [id, (stations[id] as Object).get_instance_id()])
-	parts.sort()
-	return ",".join(parts)
 
 
 func _notify(text: String) -> void:

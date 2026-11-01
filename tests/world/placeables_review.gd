@@ -1,8 +1,9 @@
 extends Node3D
 
 ## Lo que se planta en el suelo, asentado con GroundFit en un suelo de prueba (llano, una ladera de
-## unos 15° y baches), al atardecer: tres hogueras encendidas y, detrás, tres bancos de trabajo. Para
-## ver cómo asientan, la ceniza y el fuego, y el banco con lo que lleva encima.
+## unos 15° y baches), al atardecer: tres hogueras encendidas y, detrás, tres bancos de trabajo; delante,
+## dos hornos de fundición (el del llano, encendido) y una forja en la ladera. Para ver cómo asientan,
+## la ceniza y el fuego, y lo que llevan encima.
 ##   godot --path . res://tests/world/placeables_review.tscn [-- --capture=<carpeta>]
 ## Con --capture saca unas fotos de cerca y se cierra.
 
@@ -12,6 +13,9 @@ const CELLS := 96
 var _spots := [Vector3(-3.0, 0, 0), Vector3(0.0, 0, 0), Vector3(3.0, 0, 0)]
 ## Los bancos, detrás de cada hoguera.
 const BENCH_BEHIND := Vector3(0, 0, -2.2)
+## Lo de la Edad del bronce, delante: [objeto, dónde, encendido].
+const BRONZE := [[&"smelting_furnace", Vector3(-3.0, 0, 2.6), true], [&"bronze_forge", Vector3(0.0, 0, 2.6), false],
+	[&"smelting_furnace", Vector3(3.0, 0, 2.6), false]]
 
 
 func _ready() -> void:
@@ -63,6 +67,21 @@ func _ready() -> void:
 		var bench: Node3D = (load(ground.scene_path) as PackedScene).instantiate()
 		planet.add_child(bench)
 		bench.global_transform = fit.transform
+	for entry in BRONZE:
+		var data: ItemData = ItemCatalog.get_item(entry[0])
+		var placeable := data.get_trait(GroundPlaceableTrait) as GroundPlaceableTrait
+		var at: Vector3 = entry[1]
+		var query := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 5, at + Vector3.DOWN * 5, 1)
+		var hit := space.intersect_ray(query)
+		var fit := GroundFit.fit(space, hit.position, Vector3.UP, Vector3(0, 0, 1), placeable.radius, 1, exclude,
+			placeable.max_tilt, placeable.settle, placeable.max_settle)
+		print("%s en %s: %s" % [entry[0], at.x, "ok" if fit.ok else "NO"], " pendiente %.1f° desnivel %.2f m" % [fit.get("tilt", 0.0), fit.get("rough", 0.0)])
+		var node: Node3D = (load(placeable.scene_path) as PackedScene).instantiate()
+		planet.add_child(node)
+		node.global_transform = fit.transform
+		if entry[2] and node is Furnace:
+			(node as Furnace).fuel_left = 999.0
+			(node as Furnace).ignite()
 	var capture := ""
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture="):
@@ -70,10 +89,13 @@ func _ready() -> void:
 	var cam := Camera3D.new()
 	add_child(cam)
 	cam.current = true
-	cam.look_at_from_position(Vector3(0, 2.4, 6.5), Vector3(0, 0, 0))
+	cam.look_at_from_position(Vector3(0, 2.6, 8.5), Vector3(0, 0.3, 0.6))
 	if capture == "":
 		return
-	var views := [["all", Vector3(0, 2.4, 6.5), Vector3(0, 0.1, 0)]]
+	var views := [["all", Vector3(0, 2.6, 8.5), Vector3(0, 0.3, 0.6)]]
+	for i in BRONZE.size():
+		var at: Vector3 = BRONZE[i][1]
+		views.append(["bronze_%d" % i, at + Vector3(1.0, 1.4, 2.4), at + Vector3(0, 0.6, 0)])
 	for i in _spots.size():
 		var s: Vector3 = _spots[i]
 		views.append(["near_%d" % i, s + Vector3(0.5, 0.55, 1.6), s + Vector3(0, 0.12, 0)])

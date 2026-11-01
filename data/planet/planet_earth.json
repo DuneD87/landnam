@@ -3343,6 +3343,7 @@
 	"ore_settings": [
 		{
 			"name": "iron",
+			"pick_tier": 2,
 			"type_id": 1.0,
 			"noise_seed": 1042.0,
 			"cell_size": 400.0,
@@ -3358,6 +3359,7 @@
 		},
 		{
 			"name": "gold",
+			"pick_tier": 2,
 			"type_id": 2.0,
 			"spot_group": "metal",
 			"noise_seed": 7391.0,
@@ -3377,6 +3379,7 @@
 		},
 		{
 			"name": "cave_ore_01",
+			"pick_tier": 2,
 			"type_id": 3.0,
 			"noise_seed": 5123.0,
 			"cell_size": 200.0,
@@ -3409,6 +3412,7 @@
 		},
 		{
 			"name": "bog_iron",
+			"pick_tier": 2,
 			"type_id": 5.0,
 			"spot_group": "metal",
 			"min_height": -60.0,
@@ -3437,6 +3441,7 @@
 		},
 		{
 			"name": "silver",
+			"pick_tier": 2,
 			"type_id": 7.0,
 			"spot_group": "metal",
 			"min_height": 210.0,
@@ -3451,6 +3456,7 @@
 		},
 		{
 			"name": "sulfur",
+			"pick_tier": 2,
 			"type_id": 8.0,
 			"spot_group": "metal",
 			"min_height": 420.0,

@@ -8,6 +8,7 @@
 [sub_resource type="Resource" id="Resource_fuel"]
 script = ExtResource("4_fuel")
 burn_time = 300.0
+smelt_heat = 1.0
 
 [resource]
 script = ExtResource("2_item")

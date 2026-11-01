@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/bronze_axe.res" id="1_17ijj"]
+
+[node name="BronzeAxe" type="Node3D" unique_id=1226898368]
+metadata/grip_aligned = true
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1189534192]
+mesh = ExtResource("1_17ijj")

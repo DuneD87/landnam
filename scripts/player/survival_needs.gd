@@ -43,8 +43,8 @@ const COMFORT_HIGH := 24.0
 const COLD_SPAN := 22.0
 const HEAT_SPAN := 16.0
 ## Refugio (de 0 al raso a 1 en el fondo de una cueva o de una casa cerrada): lleva el aire en esta
-## parte hacia el de la roca (°C), y una hoguera, cuyo calor no se va por el aire, lo caldea con
-## esta parte de lo que da a pie de fuego, hasta FIRE_ROOM_RADIUS (m).
+## parte hacia el de la roca (°C), y una hoguera o un horno, cuyo calor no se va por el aire, lo
+## caldean con esta parte de lo que dan a pie de fuego, hasta FIRE_ROOM_RADIUS (m).
 const SHELTER_TEMPERATURE := 10.0
 const SHELTER_PULL := 0.4
 const FIRE_ROOM_SHARE := 0.5
@@ -432,20 +432,20 @@ func _worn_insulation() -> float:
 	return total
 
 
-## Calor y luz de las hogueras encendidas cercanas (las de más cerca mandan; no se suman). En un
-## refugio, además, el fuego caldea el aire de alrededor (FIRE_ROOM_SHARE).
+## Calor y luz de las hogueras y los hornos encendidos cercanos (los de más cerca mandan; no se
+## suman). En un refugio, además, el fuego caldea el aire de alrededor (FIRE_ROOM_SHARE).
 func _update_fires() -> void:
 	_fire_heat = 0.0
 	_fire_light = 0.0
 	var pos := _player.global_position
-	for node in get_tree().get_nodes_in_group(Campfire.GROUP):
-		var fire := node as Campfire
-		if fire == null or not fire.lit:
+	for node in get_tree().get_nodes_in_group(Campfire.GROUP) + get_tree().get_nodes_in_group(Furnace.GROUP):
+		if not node.get(&"lit"):
 			continue
-		var room := fire.heat_at(fire.global_position) * FIRE_ROOM_SHARE * shelter
+		var fire := node as Node3D
+		var room: float = fire.call(&"heat_at", fire.global_position) * FIRE_ROOM_SHARE * shelter
 		room *= clampf(1.0 - fire.global_position.distance_to(pos) / FIRE_ROOM_RADIUS, 0.0, 1.0)
-		_fire_heat = maxf(_fire_heat, fire.heat_at(pos) + room)
-		_fire_light = maxf(_fire_light, fire.light_at(pos))
+		_fire_heat = maxf(_fire_heat, fire.call(&"heat_at", pos) + room)
+		_fire_light = maxf(_fire_light, fire.call(&"light_at", pos))
 
 
 ## Lo cerrado que está el sitio: 0 sin techo encima y, con techo, la parte de los rayos que salen

@@ -130,6 +130,10 @@ static func stat_rows(data: ItemData, compare: ItemData) -> Array:
 			if data.ammo_id != &"":
 				var ammo: ItemData = ItemCatalog.get_item(data.ammo_id)
 				rows.append(["CARD_AMMO", ammo.get_display_name() if ammo else String(data.ammo_id), 0.0])
+			# Lo que cunde al talar, picar o allanar, y el nivel del pico (las vetas que pide).
+			if data.tool_type in [ItemData.ToolType.AXE, ItemData.ToolType.PICKAXE, ItemData.ToolType.HOE]:
+				rows.append(["CARD_HARVEST", "×" + _number(data.harvest_multiplier)]
+					+ _delta(other, data.harvest_multiplier, other.harvest_multiplier if other else 0.0))
 			if data.mining_power > 0:
 				rows.append(["CARD_POWER", str(data.mining_power)]
 					+ _delta(other, data.mining_power, other.mining_power if other else 0.0))

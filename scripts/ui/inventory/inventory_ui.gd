@@ -108,6 +108,16 @@ var _fuel_bar: ProgressBar
 var _fire_label: Label
 var _fuel_label: Label
 var _ignite_button: Button
+## El horno abierto (Furnace), en la misma columna: combustible, crisol, salida y lo que funde.
+var _furnace: Furnace = null
+var _furnace_box: VBoxContainer
+var _furnace_slots: Array[InventorySlot] = []
+var _furnace_state: Label
+var _furnace_fuel_label: Label
+var _furnace_fuel_bar: ProgressBar
+var _smelt_label: Label
+var _smelt_bar: ProgressBar
+var _furnace_ignite: Button
 ## «Fabricar», en la cabecera del inventario: abre y cierra la vista de fabricar.
 var _craft_toggle: Button
 var _crafting_panel: CraftingPanel
@@ -270,7 +280,11 @@ func _build_inventory_column() -> PanelContainer:
 	_craft_toggle.focus_mode = Control.FOCUS_NONE
 	_craft_toggle.tooltip_text = "INV_CRAFT_TIP"
 	_craft_toggle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_craft_toggle.toggled.connect(func(on: bool) -> void: open(View.CRAFTING if on else View.INVENTORY))
+	_craft_toggle.toggled.connect(func(on: bool) -> void:
+		if on:
+			open_crafting()
+		else:
+			open(View.INVENTORY))
 	header.add_child(_craft_toggle)
 	_inventory_close = Button.new()
 	_inventory_close.text = "×"
@@ -330,6 +344,9 @@ func _build_side_column() -> PanelContainer:
 	_campfire_box = _build_campfire()
 	_campfire_box.visible = false
 	box.add_child(_campfire_box)
+	_furnace_box = _build_furnace()
+	_furnace_box.visible = false
+	box.add_child(_furnace_box)
 	return column
 
 
@@ -402,6 +419,14 @@ func _build_campfire() -> VBoxContainer:
 	take.pressed.connect(_take_cooked)
 	buttons.add_child(take)
 	box.add_child(buttons)
+	var recipes := Button.new()
+	recipes.text = "INV_FIRE_RECIPES"
+	recipes.focus_mode = Control.FOCUS_NONE
+	recipes.tooltip_text = "INV_FIRE_RECIPES_TIP"
+	recipes.pressed.connect(func() -> void:
+		if _campfire != null:
+			open_crafting(_campfire))
+	box.add_child(recipes)
 	var dismantle := Button.new()
 	dismantle.text = "UI_DISMANTLE"
 	dismantle.focus_mode = Control.FOCUS_NONE
@@ -413,6 +438,134 @@ func _build_campfire() -> VBoxContainer:
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(hint)
 	return box
+
+
+## El horno abierto: su fuego, el hueco del combustible, los cuatro del crisol, lo que está fundiendo,
+## los dos de la salida y lo que funde (sus recetas).
+func _build_furnace() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var header := HBoxContainer.new()
+	var title := _label("INV_FURNACE", &"HeaderLabel")
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	_furnace_state = _label("", &"ValueLabel")
+	_furnace_state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header.add_child(_furnace_state)
+	box.add_child(header)
+	box.add_child(HSeparator.new())
+	box.add_child(_label("INV_FUEL", &"SectionLabel"))
+	var fuel_row := HBoxContainer.new()
+	fuel_row.add_child(_furnace_slot(Furnace.FUEL_SLOT))
+	var fuel_info := VBoxContainer.new()
+	fuel_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fuel_info.alignment = BoxContainer.ALIGNMENT_CENTER
+	_furnace_fuel_label = _label("", &"StatValue")
+	fuel_info.add_child(_furnace_fuel_label)
+	_furnace_fuel_bar = _bar(&"StaminaBar")
+	fuel_info.add_child(_furnace_fuel_bar)
+	var fuel_hint := _label("INV_FURNACE_FUEL_HINT", &"HintLabel")
+	fuel_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	fuel_info.add_child(fuel_hint)
+	fuel_row.add_child(fuel_info)
+	box.add_child(fuel_row)
+	box.add_child(HSeparator.new())
+	box.add_child(_label("INV_CRUCIBLE", &"SectionLabel"))
+	var work := HBoxContainer.new()
+	work.alignment = BoxContainer.ALIGNMENT_CENTER
+	for i in Furnace.ORE_SLOTS:
+		work.add_child(_furnace_slot(1 + i))
+	var arrow := _label("→", &"HeaderLabel")
+	arrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	work.add_child(arrow)
+	for i in Furnace.OUT_SLOTS:
+		work.add_child(_furnace_slot(Furnace.FIRST_OUT + i))
+	box.add_child(work)
+	_smelt_label = _label("", &"StatValue")
+	_smelt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_smelt_label)
+	_smelt_bar = _bar(&"HealthBar")
+	box.add_child(_smelt_bar)
+	box.add_child(HSeparator.new())
+	box.add_child(_label("INV_FURNACE_RECIPES", &"SectionLabel"))
+	for recipe in Recipes.of_station(Furnace.ITEM_ID):
+		box.add_child(_smelt_recipe_row(recipe))
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(spacer)
+	var buttons := HBoxContainer.new()
+	_furnace_ignite = Button.new()
+	_furnace_ignite.theme_type_variation = &"AccentButton"
+	_furnace_ignite.focus_mode = Control.FOCUS_NONE
+	_furnace_ignite.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_furnace_ignite.pressed.connect(_toggle_furnace)
+	buttons.add_child(_furnace_ignite)
+	var take := Button.new()
+	take.text = "INV_TAKE_SMELTED"
+	take.focus_mode = Control.FOCUS_NONE
+	take.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	take.pressed.connect(_take_smelted)
+	buttons.add_child(take)
+	box.add_child(buttons)
+	var dismantle := Button.new()
+	dismantle.text = "UI_DISMANTLE"
+	dismantle.focus_mode = Control.FOCUS_NONE
+	dismantle.tooltip_text = "INV_DISMANTLE_FURNACE_TIP"
+	dismantle.pressed.connect(_dismantle_furnace)
+	box.add_child(dismantle)
+	var hint := _label("INV_FURNACE_HINT", &"HintLabel")
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(hint)
+	return box
+
+
+func _furnace_slot(index: int) -> InventorySlot:
+	var slot := InventorySlot.new()
+	slot.slot_index = index
+	slot.slot_clicked.connect(_on_furnace_slot_clicked)
+	slot.hover_changed.connect(_on_slot_hovered.bind(&"furnace"))
+	_furnace_slots.append(slot)
+	return slot
+
+
+## Una receta del horno en una línea: lo que pide → lo que sale, y lo que tarda a pleno calor.
+func _smelt_recipe_row(recipe: RecipeData) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var parts: Array = []
+	for id: StringName in recipe.inputs:
+		parts.append([ItemCatalog.get_item(id), recipe.inputs[id]])
+	parts.append(null)
+	parts.append([ItemCatalog.get_item(recipe.result), recipe.amount])
+	for part in parts:
+		if part == null:
+			var arrow := _label("→", &"StatValue")
+			arrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			row.add_child(arrow)
+			continue
+		var data: ItemData = part[0]
+		var icon := ItemSlotView.new()
+		icon.size_kind = &"ingredient"
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if data != null:
+			icon.show_item(data.icon)
+			icon.tooltip_text = data.get_display_name()
+		row.add_child(icon)
+		var count := _label("×%d" % part[1], &"StatValue")
+		count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(count)
+	var time := _label(tr("INV_SMELT_TIME") % _clock(recipe.time), &"HintLabel")
+	time.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	time.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(time)
+	return row
+
+
+## «3:00»: minutos y segundos.
+static func _clock(seconds: float) -> String:
+	return "%d:%02d" % [floori(seconds / 60.0), int(seconds) % 60]
 
 
 func _build_stats() -> ScrollContainer:
@@ -817,6 +970,19 @@ func _on_slot_hovered(slot: ItemSlotView, on: bool, context: StringName) -> void
 				var fuel := (slot as InventorySlot).slot_index == Campfire.FUEL_SLOT
 				_card.show_empty("INV_FUEL" if fuel else "INV_ROAST",
 					"INV_FUEL_EMPTY_HINT" if fuel else "INV_ROAST_EMPTY_HINT")
+		&"furnace":
+			var item: InventoryItem = (slot as InventorySlot).item
+			var index := (slot as InventorySlot).slot_index
+			if item:
+				data = item.data
+				quantity = item.quantity
+				hint = tr("INV_HINT_TO_INVENTORY")
+			elif index == Furnace.FUEL_SLOT:
+				_card.show_empty("INV_FUEL", "INV_FURNACE_FUEL_EMPTY_HINT")
+			elif index < Furnace.FIRST_OUT:
+				_card.show_empty("INV_CRUCIBLE", "INV_CRUCIBLE_EMPTY_HINT")
+			else:
+				_card.show_empty("INV_FURNACE_OUTPUT", "INV_FURNACE_OUTPUT_EMPTY_HINT")
 		&"equipment":
 			var equipment := slot as EquipmentSlot
 			if equipment.has_item():
@@ -834,7 +1000,7 @@ func _on_slot_hovered(slot: ItemSlotView, on: bool, context: StringName) -> void
 		if context == &"hotbar" and inventory != null:
 			quantity = inventory.get_item_count(data)
 		_card.show_item(data, quantity, compare, hint)
-	elif context != &"equipment" and context != &"campfire":
+	elif context not in [&"equipment", &"campfire", &"furnace"]:
 		return
 	_card_slot = slot
 	_place_card.call_deferred(slot, context)
@@ -855,7 +1021,7 @@ func _place_card(slot: ItemSlotView, context: StringName) -> void:
 				rect = Rect2(rect.position.x, top, rect.size.x, rect.end.y - top)
 			_card.place_above(rect)
 			return
-		&"inventory", &"loot", &"campfire":
+		&"inventory", &"loot", &"campfire", &"furnace":
 			var column := (_inventory_column if context == &"inventory" else _side_column).get_global_rect()
 			rect = Rect2(column.position.x, rect.position.y, column.size.x, rect.size.y)
 	_card.place_beside(rect)
@@ -873,6 +1039,8 @@ func _hide_card() -> void:
 func toggle(which := View.INVENTORY) -> void:
 	if visible and view == which:
 		close()
+	elif which == View.CRAFTING:
+		open_crafting()
 	else:
 		open(which)
 
@@ -902,7 +1070,7 @@ func _apply_view() -> void:
 	_header_title.text = "INV_HEADER_CRAFT" if crafting else "INV_HEADER_EQUIPMENT"
 	_header_hint.text = "INV_HEADER_HINT_CRAFT" if crafting else "INV_HEADER_HINT_CHARACTER"
 	_doll_holder.visible = full
-	_side_column.visible = not crafting and (full or _loot_inventory != null or _campfire != null)
+	_side_column.visible = not crafting and (full or _loot_inventory != null or _campfire != null or _furnace != null)
 	_crafting_panel.visible = crafting
 	_craft_toggle.set_pressed_no_signal(crafting)
 	_inventory_close.visible = not full and not crafting
@@ -919,6 +1087,7 @@ func close() -> void:
 		_cancel_floating_item()
 	close_loot()
 	close_campfire()
+	close_furnace()
 	_hide_card()
 	_release_focus()
 	visible = false
@@ -932,6 +1101,7 @@ func close() -> void:
 func open_loot(loot_inv: Inventory, title: String = "INV_LOOT") -> void:
 	close_loot()
 	close_campfire()
+	close_furnace()
 	_loot_title.text = title
 	_loot_hint.text = "INV_HINT_TO_INVENTORY"
 	_open_container(loot_inv)
@@ -944,6 +1114,7 @@ func open_loot_inventory() -> Inventory:
 func open_storage(storage: Storage) -> void:
 	close_loot()
 	close_campfire()
+	close_furnace()
 	_storage = storage
 	_loot_title.text = ItemCatalog.get_item(storage.item_id).display_name
 	_loot_hint.text = "INV_STORAGE_HINT"
@@ -1019,9 +1190,12 @@ func _update_side() -> void:
 		mode = &"loot"
 	elif _campfire != null:
 		mode = &"campfire"
+	elif _furnace != null:
+		mode = &"furnace"
 	_stats_box.visible = mode == &"stats"
 	_loot_box.visible = mode == &"loot"
 	_campfire_box.visible = mode == &"campfire"
+	_furnace_box.visible = mode == &"furnace"
 	_apply_view()
 
 
@@ -1030,6 +1204,7 @@ func _update_side() -> void:
 func open_campfire(fire: Campfire) -> void:
 	close_loot()
 	close_campfire()
+	close_furnace()
 	_campfire = fire
 	fire.changed.connect(_refresh_campfire)
 	fire.inventory.inventory_changed.connect(_refresh_campfire)
@@ -1138,11 +1313,137 @@ func _dismantle_campfire() -> void:
 		drop_requested.emit(ItemCatalog.get_item(Campfire.ITEM_ID), left)
 
 
+# --- Horno --------------------------------------------------------------------------------------
+
+func open_furnace(furnace: Furnace) -> void:
+	close_loot()
+	close_campfire()
+	close_furnace()
+	_furnace = furnace
+	furnace.changed.connect(_refresh_furnace)
+	furnace.inventory.inventory_changed.connect(_refresh_furnace)
+	furnace.tree_exiting.connect(close_furnace)
+	_update_side()
+	_refresh_furnace()
+	open(view if visible and view != View.CRAFTING else View.INVENTORY)
+
+
+func close_furnace() -> void:
+	if _furnace != null and is_instance_valid(_furnace):
+		if _furnace.changed.is_connected(_refresh_furnace):
+			_furnace.changed.disconnect(_refresh_furnace)
+		if _furnace.inventory.inventory_changed.is_connected(_refresh_furnace):
+			_furnace.inventory.inventory_changed.disconnect(_refresh_furnace)
+		if _furnace.tree_exiting.is_connected(close_furnace):
+			_furnace.tree_exiting.disconnect(close_furnace)
+	if _furnace == null:
+		return
+	_furnace = null
+	if _card_slot in _furnace_slots:
+		_hide_card()
+	_update_side()
+
+
+## El horno que está abierto (SurvivalActions lo cierra si uno se aleja).
+func open_furnace_node() -> Furnace:
+	return _furnace
+
+
+func _refresh_furnace() -> void:
+	if _furnace == null or not is_instance_valid(_furnace):
+		return
+	for slot in _furnace_slots:
+		var item := _furnace.inventory.items[slot.slot_index]
+		if item != null:
+			slot.set_item(item)
+		else:
+			slot.clear()
+	var left := _furnace.burn_seconds_left()
+	_furnace_fuel_label.text = tr("INV_FIRE_LEFT") % [floori(left / 60.0), int(left) % 60] if left > 0.0 else tr("INV_NO_FUEL")
+	_furnace_fuel_bar.value = _furnace.fuel_left / maxf(_furnace.fuel_total, 1.0) if _furnace.fuel_left > 0.0 else 0.0
+	_furnace_state.text = "INV_FURNACE_LIT" if _furnace.lit else "INV_FURNACE_OUT"
+	var recipe := _furnace.current_recipe()
+	var result: ItemData = ItemCatalog.get_item(recipe.result) if recipe != null else null
+	if result == null:
+		_smelt_label.text = tr("INV_NOTHING_TO_SMELT")
+	elif _furnace.lit:
+		_smelt_label.text = tr("INV_SMELTING") % ("%s ×%d" % [result.get_display_name(), recipe.amount])
+	else:
+		_smelt_label.text = tr("INV_READY_TO_SMELT") % ("%s ×%d" % [result.get_display_name(), recipe.amount])
+	_smelt_bar.value = _furnace.smelt_ratio()
+	_furnace_ignite.text = "INV_PUT_OUT" if _furnace.lit else "INV_LIGHT"
+	_furnace_ignite.disabled = not _furnace.lit and not _furnace.has_fuel()
+
+
+func _on_furnace_slot_clicked(slot: InventorySlot, button_index: int) -> void:
+	if _furnace == null:
+		return
+	var index := slot.slot_index
+	var stored := _furnace.inventory.items[index]
+	if floating_item != null:
+		if not _furnace.accepts(index, floating_item.data):
+			if hotbar != null:
+				var why := "INV_NOT_SMELTABLE"
+				if index == Furnace.FUEL_SLOT:
+					why = "INV_DOESNT_BURN" if floating_item.data.get_trait(FuelTrait) == null else "INV_TOO_COOL"
+				elif index >= Furnace.FIRST_OUT:
+					why = "INV_FURNACE_OUTPUT_ONLY"
+				hotbar.notify(tr(why))
+			return
+		floating_item = _furnace.inventory.put_at(index, floating_item,
+			1 if button_index == MOUSE_BUTTON_RIGHT else -1, false)
+		_finish_inventory_transfer(_furnace.inventory)
+	elif stored != null and button_index == MOUSE_BUTTON_LEFT:
+		_furnace.inventory.transfer_to(inventory, index)
+
+
+func _toggle_furnace() -> void:
+	if _furnace == null:
+		return
+	if _furnace.lit:
+		_furnace.extinguish()
+	elif not _furnace.ignite() and hotbar != null:
+		hotbar.notify(tr("INV_ADD_FURNACE_FUEL"))
+
+
+## Al inventario lo que ha salido del horno.
+func _take_smelted() -> void:
+	if _furnace == null:
+		return
+	for i in Furnace.OUT_SLOTS:
+		_furnace.inventory.transfer_to(inventory, Furnace.FIRST_OUT + i)
+
+
+func _dismantle_furnace() -> void:
+	if _furnace == null or _furnace.is_queued_for_deletion():
+		return
+	if _furnace.lit or not _furnace.is_empty():
+		if hotbar != null:
+			hotbar.notify(tr("INV_PUT_OUT_FURNACE_FIRST"))
+		return
+	var furnace := _furnace
+	close_furnace()
+	furnace.remove_from_group(Furnace.GROUP)
+	furnace.remove_from_group(GroundPlaceableTrait.PLACED_GROUP)
+	furnace.remove_from_group(GameManager.SAVEABLE_GROUP)
+	furnace.queue_free()
+	var data := ItemCatalog.get_item(Furnace.ITEM_ID)
+	var left := inventory.add_item(data, 1)
+	if left > 0:
+		drop_requested.emit(data, left)
+
+
 # --- Fabricar -----------------------------------------------------------------------------------
 
-## E junto a una estación de trabajo: la ventana de fabricar, en sus recetas.
+## E junto a una estación de trabajo: la ventana de fabricar, con sus recetas y nada más.
 func open_station(station: Workstation) -> void:
-	_crafting_panel.focus_station(station.item_id)
+	open_crafting(station)
+
+
+## La ventana de fabricar con las recetas de [station] (una estación de trabajo o una hoguera) o, sin
+## ella, con las que se hacen a mano.
+func open_crafting(station: Node3D = null) -> void:
+	_crafting_panel.show_station(station)
 	open(View.CRAFTING)
 
 

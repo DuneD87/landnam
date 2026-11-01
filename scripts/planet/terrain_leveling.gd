@@ -15,7 +15,9 @@ extends RefCounted
 ## Radio que se allana del todo y radio donde se acaba el borde (m).
 const RADIUS := 1.1
 const EDGE := 1.9
-## Parte de lo que le falta al suelo hasta el plano que recorre un golpe, con un tope (m).
+## Parte de lo que le falta al suelo hasta el plano que recorre un golpe, con un tope (m), con una
+## azada de piedra. Una mejor (ItemData.harvest_multiplier, la fuerza: strength) deja por recorrer
+## (1 - RATE) elevado a ella y llega a STEP por ella: la de bronce (1,5), un 84 % y 0,75 m.
 const RATE := 0.7
 const STEP := 0.5
 ## Alto del pincel sobre y bajo el plano (m): entero hasta DEPTH y a cero en DEPTH_EDGE. Es también
@@ -33,7 +35,8 @@ const CAVE_DEPTH := 1.0
 ## Pasos de la búsqueda binaria del rayo de vóxeles: la altura del suelo a 1/64 de vóxel.
 const RAY_REFINE := 6
 
-static var _brush: VoxelGeneratorGraph
+## Los pinceles ya hechos, por su fuerza.
+static var _brushes := {}
 
 
 ## Herramientas que allanan.
@@ -107,9 +110,18 @@ static func ground_height(tool: VoxelTool, at: Vector3, up: Vector3) -> float:
 	return DEPTH_EDGE - hit.distance
 
 
-## Allana un golpe hacia el plano de centro [center] (en el mundo) y vertical [up]. false si ese
-## trozo de terreno no está cargado.
-static func apply(terrain: VoxelLodTerrain, center: Vector3, up: Vector3) -> bool:
+## Lo que recorre un golpe de fuerza [strength] (rate()) y su tope en m (step()).
+static func rate(strength: float = 1.0) -> float:
+	return 1.0 - pow(1.0 - RATE, maxf(strength, 0.1))
+
+
+static func step(strength: float = 1.0) -> float:
+	return STEP * maxf(strength, 0.1)
+
+
+## Allana un golpe de fuerza [strength] hacia el plano de centro [center] (en el mundo) y vertical
+## [up]. false si ese trozo de terreno no está cargado.
+static func apply(terrain: VoxelLodTerrain, center: Vector3, up: Vector3, strength: float = 1.0) -> bool:
 	var to_local := terrain.global_transform.affine_inverse()
 	var local_center := to_local * center
 	var side := 2.0 * maxf(EDGE, DEPTH_EDGE) + 2.0
@@ -117,7 +129,7 @@ static func apply(terrain: VoxelLodTerrain, center: Vector3, up: Vector3) -> boo
 	if tool == null or not tool.is_area_editable(AABB(local_center - Vector3.ONE * side * 0.5, Vector3.ONE * side)):
 		return false
 	tool.channel = VoxelBuffer.CHANNEL_SDF
-	tool.do_graph(_graph(), Transform3D(frame(to_local.basis * up), local_center), Vector3.ONE * side)
+	tool.do_graph(_graph(strength), Transform3D(frame(to_local.basis * up), local_center), Vector3.ONE * side)
 	# Allanar no pasa por ninguna rejilla: lo construido que se quede sin apoyo hay que mirarlo a mano.
 	GridManager.mark_collapse_checks_near(center, EDGE)
 	return true
@@ -170,16 +182,17 @@ static func _tool(terrain: VoxelLodTerrain) -> VoxelTool:
 	return tool
 
 
-## El pincel: sdf + clamp(RATE · (y - sdf), -STEP, STEP) · peso, con el peso entero dentro de
-## RADIUS y DEPTH, a cero en EDGE y DEPTH_EDGE, y suavizado.
+## El pincel de fuerza [strength]: sdf + clamp(rate · (y - sdf), -step, step) · peso, con el peso
+## entero dentro de RADIUS y DEPTH, a cero en EDGE y DEPTH_EDGE, y suavizado.
 ##
 ## do_graph multiplica lo que sale del grafo por la longitud del vector de escala del marco y divide
 ## por lo mismo la SDF que entra (√3 con un marco ortonormal), así que el grafo trabaja con la SDF
 ## entre √3 y saca el resultado entre √3; lo comprueba tests/planet/test_terrain_leveling. Las
 ## expresiones del módulo no tienen menos unario ni paréntesis tras un operador: van sin agrupar.
-static func _graph() -> VoxelGeneratorGraph:
-	if _brush != null:
-		return _brush
+static func _graph(strength: float) -> VoxelGeneratorGraph:
+	var key := snappedf(strength, 0.01)
+	if _brushes.has(key):
+		return _brushes[key]
 	var k := sqrt(3.0)
 	var graph := VoxelGeneratorGraph.new()
 	var fn := graph.get_main_function()
@@ -191,14 +204,14 @@ static func _graph() -> VoxelGeneratorGraph:
 			EDGE / (EDGE - RADIUS), 1.0 / (EDGE - RADIUS), DEPTH_EDGE / (DEPTH_EDGE - DEPTH), 1.0 / (DEPTH_EDGE - DEPTH)],
 		{"x": x, "y": y, "z": z})
 	var weight := _expression(fn, "w * w * 3.0 - w * w * w * 2.0", {"w": reach})
-	var level := _expression(fn, "sdf + clamp(y * %f - sdf * %f, 0.0 - %f, %f) * w" % [RATE / k, RATE, STEP / k, STEP / k],
-		{"sdf": sdf, "y": y, "w": weight})
+	var level := _expression(fn, "sdf + clamp(y * %f - sdf * %f, 0.0 - %f, %f) * w" % [rate(key) / k, rate(key),
+		step(key) / k, step(key) / k], {"sdf": sdf, "y": y, "w": weight})
 	fn.add_connection(level, 0, fn.create_node(VoxelGraphFunction.NODE_OUTPUT_SDF, Vector2.ZERO), 0)
 	var result: Dictionary = graph.compile()
 	if not result.get("success", false):
 		push_error("TerrainLeveling: el pincel no compila: %s" % result)
-	_brush = graph
-	return _brush
+	_brushes[key] = graph
+	return graph
 
 
 ## Nodo de expresión de [fn] con sus entradas {nombre: nodo}, en ese orden.

@@ -22,6 +22,7 @@ const BARK := &"bark"
 const BONE := &"bone"
 const OBSIDIAN := &"obsidian"
 const RAWHIDE := &"rawhide"
+const BRONZE := &"bronze"
 
 
 ## Materiales compartidos, uno por tipo. El grano va en la textura de ruido y las UV lo estiran
@@ -77,6 +78,12 @@ static func make_material(kind: StringName) -> StandardMaterial3D:
 			# Piel cruda tensada y seca: parda clara y translúcida a manchas.
 			mat.albedo_texture = ProcMesh.noise_texture(Color(0.42, 0.30, 0.17), Color(0.70, 0.55, 0.36), 2.5, 37)
 			mat.roughness = 0.75
+		BRONZE:
+			# Recién colado y repasado a la piedra: dorado, con el pulido a manchas.
+			mat.albedo_texture = ProcMesh.noise_texture(Color(0.50, 0.32, 0.14), Color(0.80, 0.58, 0.30), 3.0, 41)
+			mat.metallic = 0.9
+			mat.roughness = 0.36
+			mat.roughness_texture = ProcMesh.noise_texture(Color(0.5, 0.5, 0.5), Color(0.9, 0.9, 0.9), 5.0, 43)
 	return mat
 
 
@@ -132,16 +139,17 @@ static func wrapped_grip(st: SurfaceTool, y0: float, y1: float, radius: float, t
 
 
 ## Hoja de sección romboidal (aristas en ±Z, lomo en ±X) de [y0] a la punta. [width] es la
-## anchura total en Z en el arranque; el perfil hace una ligera hoja de laurel.
+## anchura total en Z en el arranque; el perfil hace una hoja de laurel: [swell] es cuánto se
+## ensancha hacia la mitad y [taper], cuánto se estrecha hacia la punta.
 static func blade(st: SurfaceTool, y0: float, length: float, width: float, thickness: float,
-		tip: float, fuller: bool = true) -> void:
+		tip: float, fuller: bool = true, swell: float = 0.10, taper: float = 0.25) -> void:
 	var rings := []
 	var steps := 14
 	for i in steps + 1:
 		var t := float(i) / steps
 		var y := y0 + length * t
 		# Anchura: se ensancha un poco al 60 % (laurel) y se estrecha hacia la punta.
-		var w := width * 0.5 * (1.0 + 0.10 * sin(t * PI * 0.95)) * (1.0 - 0.25 * t)
+		var w := width * 0.5 * (1.0 + swell * sin(t * PI * 0.95)) * (1.0 - taper * t)
 		var th := thickness * 0.5 * (1.0 - 0.45 * t)
 		var ring := PackedVector3Array()
 		ring.append(Vector3(0, y, w))
@@ -786,6 +794,123 @@ static func bone_shield() -> ArrayMesh:
 		ProcMesh.box(cord, Vector3(0.0, y, t + 0.009), Vector3(w * 1.8, 0.004, 0.003))
 	ProcMesh.box(b.st(DARK_WOOD), Vector3(0.0, 0.0, -0.016), Vector3(0.22, 0.03, 0.022), Basis(Vector3.BACK, PI * 0.5))
 	return b.commit(make_material)
+
+
+# ---------------------------------------------------------------------------------------------
+# Edad del bronce: el metal colado, con el mismo mango que las herramientas de piedra.
+
+
+## Hacha de bronce: una cabeza colada de enmangue de cubo, estrecha en el tubo y abierta en un filo
+## de media luna, atravesada por el mismo astil que el hacha de piedra.
+static func bronze_axe() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	_stone_tool_haft(b)
+	_bronze_head(b.st(BRONZE), [
+		Vector4(-0.045, 0.528, 0.018, 0.010), Vector4(-0.030, 0.528, 0.030, 0.026),
+		Vector4(0.030, 0.528, 0.030, 0.026), Vector4(0.060, 0.526, 0.026, 0.012),
+		Vector4(0.120, 0.522, 0.044, 0.007), Vector4(0.170, 0.518, 0.068, 0.004),
+		Vector4(0.192, 0.518, 0.074, 0.0012),
+	])
+	_bronze_socket(b)
+	return b.commit(make_material, true)
+
+
+## Pico de bronce: dos puntas largas y delgadas, curvadas hacia el golpe, de un cubo en el astil.
+static func bronze_pickaxe() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	_stone_tool_haft(b)
+	_bronze_head(b.st(BRONZE), [
+		Vector4(-0.215, 0.470, 0.0012, 0.0012), Vector4(-0.160, 0.505, 0.012, 0.009),
+		Vector4(-0.070, 0.530, 0.020, 0.016), Vector4(-0.030, 0.536, 0.030, 0.027),
+		Vector4(0.030, 0.536, 0.030, 0.027), Vector4(0.075, 0.530, 0.020, 0.016),
+		Vector4(0.170, 0.500, 0.012, 0.009), Vector4(0.255, 0.452, 0.0012, 0.0012),
+	])
+	_bronze_socket(b)
+	return b.commit(make_material, true)
+
+
+## Azada de bronce: una hoja ancha y delgada, caída hacia el puño como la de piedra, colada con su
+## cubo.
+static func bronze_hoe() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	_stone_tool_haft(b)
+	_bronze_head(b.st(BRONZE), [
+		Vector4(-0.030, 0.530, 0.030, 0.026), Vector4(0.030, 0.530, 0.030, 0.026),
+		Vector4(0.060, 0.520, 0.020, 0.040), Vector4(0.110, 0.496, 0.010, 0.062),
+		Vector4(0.170, 0.464, 0.006, 0.074), Vector4(0.225, 0.434, 0.003, 0.076),
+		Vector4(0.245, 0.424, 0.0012, 0.068),
+	])
+	_bronze_socket(b)
+	return b.commit(make_material, true)
+
+
+## Secciones a lo largo de Z, como las de piedra (_stone_tool_head: z, altura central, semialtura,
+## semigrosor), pero lisas y simétricas: una lente, con el filo vivo.
+static func _bronze_head(st: SurfaceTool, sections: Array) -> void:
+	ProcMesh.set_flat(st, true)
+	var rings := []
+	for p: Vector4 in sections:
+		var h := p.z
+		var w := p.w
+		rings.append(PackedVector3Array([
+			Vector3(-w * 0.3, p.y - h, p.x), Vector3(w * 0.3, p.y - h, p.x),
+			Vector3(w, p.y - h * 0.4, p.x), Vector3(w, p.y + h * 0.4, p.x),
+			Vector3(w * 0.3, p.y + h, p.x), Vector3(-w * 0.3, p.y + h, p.x),
+			Vector3(-w, p.y + h * 0.4, p.x), Vector3(-w, p.y - h * 0.4, p.x),
+		]))
+	ProcMesh.loft(st, rings)
+
+
+## El cubo de la cabeza abraza el astil, con un cordón de refuerzo arriba y abajo.
+static func _bronze_socket(b: ProcMesh.Builder) -> void:
+	ProcMesh.lathe(b.st(BRONZE), [Vector2(0.024, 0.485), Vector2(0.03, 0.49), Vector2(0.03, 0.5),
+		Vector2(0.027, 0.505), Vector2(0.027, 0.555), Vector2(0.03, 0.56), Vector2(0.03, 0.57),
+		Vector2(0.024, 0.575)], 10)
+
+
+## Espada de bronce: hoja en hoja de laurel, más ancha a dos tercios, con la nervadura en medio; la
+## empuñadura colada con la hoja, de lengüeta con cachas de madera remachadas y pomo en media luna.
+static func bronze_sword() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	var bronze := b.st(BRONZE)
+	ProcMesh.set_flat(bronze, true)
+	blade(bronze, 0.1, 0.56, 0.046, 0.011, 0.08, true, 0.32, 0.4)
+	# Los hombros: de la lengüeta al arranque de la hoja, abiertos en campana.
+	var shoulders := []
+	for k in 4:
+		var t := float(k) / 3.0
+		var y := lerpf(0.055, 0.1, t)
+		var w := lerpf(0.017, 0.024, t * t)
+		var th := lerpf(0.009, 0.0055, t)
+		shoulders.append(PackedVector3Array([Vector3(0, y, w), Vector3(th, y, 0), Vector3(0, y, -w), Vector3(-th, y, 0)]))
+	ProcMesh.loft(bronze, shoulders)
+	# La lengüeta con sus rebordes y el pomo.
+	slab(bronze, Vector3(0.0, -0.025, 0.0), Vector3(0.012, 0.165, 0.034))
+	ProcMesh.set_flat(bronze, false)
+	ProcMesh.lathe(bronze, [Vector2(0.0, -0.135), Vector2(0.012, -0.132), Vector2(0.03, -0.122),
+		Vector2(0.034, -0.112), Vector2(0.02, -0.106), Vector2(0.01, -0.1)], 10, Vector3.ZERO, 1.0, 4.0)
+	# Cachas de madera a los lados y sus remaches.
+	var wood := b.st(DARK_WOOD)
+	ProcMesh.set_flat(wood, true)
+	for side in [-1.0, 1.0]:
+		slab(wood, Vector3(side * 0.0095, -0.025, 0.0), Vector3(0.008, 0.145, 0.026))
+		for y in [-0.075, -0.025, 0.025]:
+			ProcMesh.lathe(bronze, [Vector2(0.0035, 0.0), Vector2(0.003, 0.004), Vector2(0.0, 0.005)], 6,
+				Vector3(side * 0.0135, y, 0.0))
+	return b.commit(make_material, true)
+
+
+## Caja con las caras en el mismo sentido que el torno, los tubos y las hojas (ProcMesh.box va al
+## revés), para las mallas que se cierran con commit(..., true).
+static func slab(st: SurfaceTool, center: Vector3, size: Vector3, basis: Basis = Basis.IDENTITY) -> void:
+	var h := size * 0.5
+	var rings := []
+	for y in [-h.y, h.y]:
+		var ring := PackedVector3Array()
+		for c in [Vector2(-1, 1), Vector2(1, 1), Vector2(1, -1), Vector2(-1, -1)]:
+			ring.append(center + basis * Vector3(c.x * h.x, y, c.y * h.z))
+		rings.append(ring)
+	ProcMesh.loft(st, rings)
 
 
 ## Lasca de sílex: una pirámide de cuatro caras clavada en [base] que asoma [height] hacia

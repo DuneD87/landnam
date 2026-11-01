@@ -75,6 +75,14 @@ Parches en el terreno (pesos de vóxel, una capa por `type_id`) que el pico exca
 (`ActionController.dig_hole`, la tabla `ore_drops` de cada `type_id`). Se ven con la textura de su mena
 (`planet_biomes.gdshader`, hasta 8 tipos: `MAX_ORE_TYPES`).
 
+- **Nivel de pico** (`pick_tier`, 1 si no lo lleva): el que pide la veta (`ItemData.mining_power`: el
+  pico de piedra es 1 y el de bronce, 2). El estaño y el carbón, los del bronce, se pican con el de
+  piedra; el hierro (también el de pantano y el de las cuevas), la plata, el oro y el azufre piden el de
+  bronce. Con menos, la veta se desmenuza en piedra y sale el aviso. Los afloramientos (sílex, obsidiana
+  y malaquita) se pican con cualquiera. Cambiarlo no toca el grafo ni la huella del generador.
+- **Cuánto da:** lo de su tabla (`drop_count_min`, `drop_count_max`) por golpe, por lo que cunde el pico
+  (`harvest_multiplier`: el de bronce, ×1,5).
+
 - **`ore_settings`** en `planet_earth.json`: una por `type_id`, en orden (el shader coge la textura de
   cada una por su posición). Las de cueva llevan `depth_min`.
 - **Grupos** (`spot_group`): el hierro de pantano, el carbón, el estaño, la plata, el oro y el azufre

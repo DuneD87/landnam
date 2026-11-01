@@ -9,8 +9,8 @@ extends Node
 ## - E sobre un animal muerto lo despelleja si se lleva en la mano algo que despelleje (el seax:
 ##   SkinningTrait), lo que lleva un rato (Butchering), y abre lo que da (HuntingLoot) como un botín.
 ##   También los pequeños (FaunaCorpse: conejos, zorros, aves; a las aves, se las despluma).
-## - E junto a una hoguera la abre (InventoryUI.open_campfire); junto a una estación de trabajo,
-##   abre la ventana de fabricar en sus recetas (InventoryUI.open_station).
+## - E junto a una hoguera o un horno los abre (InventoryUI.open_campfire, open_furnace); junto a una
+##   estación de trabajo, abre la ventana de fabricar con sus recetas (InventoryUI.open_station).
 ## - Con algo que se planta seleccionado (una hoguera, un banco de trabajo: GroundPlaceableTrait),
 ##   se ve dónde iría y el clic lo planta en el suelo.
 ## Los avisos salen sobre la barra rápida (Hotbar.notify). Ver docs/items.md.
@@ -51,6 +51,9 @@ func _process(delta: float) -> void:
 	var fire := _player.inventory_ui.open_campfire_node()
 	if fire != null and fire.global_position.distance_to(_player.global_position) > Campfire.REACH + 1.5:
 		_player.inventory_ui.close_campfire()
+	var furnace := _player.inventory_ui.open_furnace_node()
+	if furnace != null and furnace.global_position.distance_to(_player.global_position) > Furnace.REACH + 1.5:
+		_player.inventory_ui.close_furnace()
 	var storage := _player.inventory_ui.open_storage_node()
 	if storage != null and storage.global_position.distance_to(_player.global_position) > Storage.REACH + 1.5:
 		_player.inventory_ui.close_loot()
@@ -238,6 +241,7 @@ func open_nearby_bedroll() -> bool:
 	# El lecho suele estar junto al fuego: deja usar la hoguera o el banco si están más cerca.
 	var distance := bed.global_position.distance_to(_player.global_position)
 	for other in [Campfire.nearest(get_tree(), _player.global_position),
+			Furnace.nearest(get_tree(), _player.global_position),
 			Workstation.nearest(get_tree(), _player.global_position),
 			Storage.nearest(get_tree(), _player.global_position)]:
 		if other != null and other.global_position.distance_to(_player.global_position) < distance:
@@ -247,23 +251,15 @@ func open_nearby_bedroll() -> bool:
 	return true
 
 
-## Abre la hoguera de al lado, si la hay.
-func open_nearby_campfire() -> bool:
-	var fire := Campfire.nearest(get_tree(), _player.global_position)
-	if fire == null:
-		return false
-	_player.inventory_ui.open_campfire(fire)
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	return true
-
-
-## Resuelve los colocados por cercanía, para poder usar un cofre junto a una hoguera o un banco.
+## Resuelve los colocados por cercanía, para poder usar un cofre junto a una hoguera, un horno o un
+## banco.
 func open_nearby_storage() -> bool:
 	var storage := Storage.nearest(get_tree(), _player.global_position)
 	if storage == null:
 		return false
 	var distance := storage.global_position.distance_to(_player.global_position)
 	for other in [Campfire.nearest(get_tree(), _player.global_position),
+			Furnace.nearest(get_tree(), _player.global_position),
 			Workstation.nearest(get_tree(), _player.global_position)]:
 		if other != null and other.global_position.distance_to(_player.global_position) < distance:
 			return false
@@ -272,12 +268,24 @@ func open_nearby_storage() -> bool:
 	return true
 
 
-## Abre la ventana de fabricar en las recetas de la estación de trabajo de al lado, si la hay.
-func open_nearby_station() -> bool:
-	var station := Workstation.nearest(get_tree(), _player.global_position)
-	if station == null:
+## Abre la hoguera, el horno o la estación de trabajo de al lado; si hay varias, la más cercana.
+## La hoguera y el horno, en la columna de la derecha del inventario; la estación, en la ventana de
+## fabricar con sus recetas.
+func open_nearby_workplace() -> bool:
+	var feet := _player.global_position
+	var best: Node3D = null
+	for node: Node3D in [Campfire.nearest(get_tree(), feet), Furnace.nearest(get_tree(), feet),
+			Workstation.nearest(get_tree(), feet)]:
+		if node != null and (best == null or node.global_position.distance_to(feet) < best.global_position.distance_to(feet)):
+			best = node
+	if best is Campfire:
+		_player.inventory_ui.open_campfire(best)
+	elif best is Furnace:
+		_player.inventory_ui.open_furnace(best)
+	elif best is Workstation:
+		_player.inventory_ui.open_station(best)
+	else:
 		return false
-	_player.inventory_ui.open_station(station)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	return true
 

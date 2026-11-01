@@ -80,19 +80,26 @@ arrancar la partida (I, C y Tab cambian de vista).
 
 La vista de fabricar (`CraftingPanel`) va a la derecha del inventario, en el
 sitio del muñeco y la columna de atributos, con el mundo oscurecido detrás.
-Tiene tres partes:
+Enseña las recetas de un solo sitio:
 
+- **A mano:** con **Tab** o «Fabricar» en la cabecera del inventario. Solo lo
+  que el personaje hace por sí mismo.
+- **Una estación de trabajo** (el banco, la forja): E junto a ella. Solo sus
+  recetas.
+- **La hoguera:** «Recetas» en su panel.
+
+Tiene cuatro partes:
+
+- **Cabecera:** de qué sitio son las recetas («Fabricar a mano» o el nombre de la
+  estación), si está **Cerca** o **No está cerca** (la hoguera, si está
+  encendida), **Desmontar** (en una estación de trabajo, con ella cerca: la
+  devuelve al inventario y la ventana vuelve a lo de a mano) y **Solo lo que puedo
+  hacer**, que esconde el resto.
 - **Pestañas**, a la izquierda: «Todo» y las categorías de `ItemTaxonomy` que
-  tienen alguna receta.
-- **Recetas**, en medio:
-  - Van agrupadas por era (de momento, la Edad de piedra) y, dentro, por dónde se
-    hacen: «A mano» y cada estación de trabajo.
-  - Junto a cada estación pone si hay una **Cerca** o **No está cerca** y, si no
-    lo está, dónde se fabrica la estación misma.
-  - Con una cerca, sale el botón **Desmontar**, que la devuelve al inventario.
-  - Lo que ahora no se puede hacer (falta material o la estación) sale apagado.
-  - **Solo lo que puedo hacer**, en la cabecera, esconde el resto. La cabecera
-    también dice qué estaciones hay cerca.
+  tienen alguna receta en ese sitio.
+- **Recetas**, en medio: agrupadas por era (la Edad de piedra, la del bronce). Lo
+  que ahora no se puede hacer (falta material o la estación está lejos) sale
+  apagado.
 - **La receta elegida**, a la derecha:
   - La ficha: el objeto en grande, su tipo y sus cifras.
   - **Dónde** se hace.
@@ -102,10 +109,29 @@ Tiene tres partes:
     escribir, de 1 a 99) y **Máx**, que pone todas las que alcanzan.
   - **Fabricar ×N**, y debajo por qué no se puede, si no se puede.
 
-Las estaciones cercanas se vuelven a mirar cada 0,4 s, así que al acercarse o
-alejarse la ventana cambia sola. E junto a una estación abre esta vista en sus
-recetas (`InventoryUI.open_station`). Al abrir el botín o una hoguera, se vuelve
-al inventario solo.
+Si la estación se queda lejos con su menú abierto, se mira cada 0,4 s y sus
+recetas se apagan; si desaparece, la ventana vuelve a lo de a mano. Al abrir el
+botín, una hoguera o el horno, se vuelve al inventario solo.
+
+## Horno
+
+El horno de fundición (ver [items.md](items.md#horno-de-fundición)) se abre con E en
+la columna de la derecha, como la hoguera:
+
+- **Cabecera:** «Horno» y si está encendido o apagado.
+- **Combustible:** su hueco, lo que queda de fuego con todo lo que tiene y una
+  barra con lo que le queda a la pieza que arde.
+- **Crisol → salida:** los cuatro huecos del crisol, una flecha y los dos de la
+  salida; debajo, lo que está fundiendo («Fundiendo: Lingote de bronce ×2», o lo
+  que fundiría si se enciende, o «Nada que fundir») y una barra con lo que lleva.
+- **Qué funde:** cada receta en una línea, lo que pide → lo que sale, y lo que
+  tarda con carbón.
+- **Encender / Apagar**, **Recoger lo fundido** y **Desmontar** (apagado y vacío).
+
+Con algo en el cursor, clic en un hueco lo deja si vale ahí; si no, avisa de por
+qué (no arde, no calienta lo bastante, no se funde aquí, o la salida es solo para
+lo fundido). Clic en un hueco con algo lo pasa al inventario. Se cierra solo al
+alejarse.
 
 ## Inventario: ordenar y hoguera
 
@@ -135,11 +161,13 @@ aviso sobre la barra. El muñeco muestra la misma mochila ajustada que el jugado
   - **Combustible:** un hueco, con una barra de lo que dura la pieza que quema y
     el tiempo que queda con todo.
   - **Asador:** ocho huecos con una barrita de lo que llevan asado.
-  - **Botones:** encender o apagar, recoger lo asado y desmontar.
+  - **Botones:** encender o apagar, recoger lo asado, **Recetas** (lo que se
+    cuece junto a ella, en la ventana de fabricar) y desmontar.
   - **Clics:** con algo en el cursor, el clic lo deja en el hueco (el derecho,
     de uno en uno); sin nada, el clic pasa lo del hueco al inventario.
-- **Prioridad de la columna derecha:** el botín, luego la hoguera y, si no hay
-  nada de eso, los atributos (`_update_side`).
+- **Horno:** igual, en la misma columna (`open_furnace`; ver [Horno](#horno)).
+- **Prioridad de la columna derecha:** el botín, luego la hoguera, luego el horno
+  y, si no hay nada de eso, los atributos (`_update_side`).
 - **La ficha** enseña también lo que dan los rasgos del objeto (hambre, arde,
   abrigo...).
 - **Avisos:** los cortos («Bebes agua dulce», «Necesitas un cuchillo en la

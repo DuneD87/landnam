@@ -116,9 +116,10 @@ aire y unos 20 s en el agua. Lo que se siente sale de:
   10 °C, el aire de la roca, hasta un 40 % con el refugio entero: en una cueva
   cerrada, −35 °C fuera se quedan en −17, y en un sitio caluroso refresca.
 - **Una hoguera encendida**: hasta 18 °C a pie de fuego, que se apagan del todo a
-  6 m. En un refugio, además caldea el aire: suma la mitad de lo que da a pie de
-  fuego por el refugio, y se apaga a 12 m (en una cueva cerrada y a 2 m, da unos
-  17 °C en vez de 10).
+  6 m. Un horno de fundición encendido, hasta 10 °C, que se apagan a 4 m. En un
+  refugio, el fuego además caldea el aire: suma la mitad de lo que da a pie de
+  fuego por el refugio, y se apaga a 12 m (una hoguera, en una cueva cerrada y a
+  2 m, da unos 17 °C en vez de 10). Manda el que más dé; no se suman.
 - **En el agua**: la del agua, que no pasa mucho de cero en los mares fríos.
 
 Entre 10 y 24 °C se está a gusto (0). Se llega al extremo a −12 °C (−1) y a

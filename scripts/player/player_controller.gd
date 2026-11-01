@@ -1444,9 +1444,7 @@ func _input(event):
 			pass
 		elif survival.open_nearby_storage():
 			pass
-		elif survival.open_nearby_campfire():
-			pass
-		elif survival.open_nearby_station():
+		elif survival.open_nearby_workplace():
 			pass
 		elif combat.try_pickup():
 			pass

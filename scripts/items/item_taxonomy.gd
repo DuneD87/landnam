@@ -40,6 +40,7 @@ const GROUPS := {
 	&"hunt": [ItemData.Category.MATERIAL, "GROUP_HUNT"],
 	&"wood": [ItemData.Category.MATERIAL, "GROUP_WOOD"],
 	&"stone": [ItemData.Category.MATERIAL, "GROUP_STONE"],
+	&"metal": [ItemData.Category.MATERIAL, "GROUP_METAL"],
 	&"misc": [ItemData.Category.MATERIAL, "GROUP_MISC"],
 	&"station": [ItemData.Category.BLOCK, "GROUP_STATION"],
 	&"placeable": [ItemData.Category.BLOCK, "GROUP_PLACEABLE"],

@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/smelting_furnace.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_trait"]
+[ext_resource type="PackedScene" path="res://scenes/world/smelting_furnace_visual.tscn" id="4_visual"]
+[ext_resource type="Script" path="res://scripts/items/traits/ground_placeable_trait.gd" id="5_ground"]
+[ext_resource type="Script" path="res://scripts/items/traits/crafting_station_trait.gd" id="6_station"]
+
+[sub_resource type="Resource" id="Resource_ground"]
+script = ExtResource("5_ground")
+scene_path = "res://scenes/world/smelting_furnace.tscn"
+preview_scene = ExtResource("4_visual")
+radius = 0.55
+max_slope = 22.0
+spacing = 2.0
+max_tilt = 6.0
+settle = 0.9
+max_settle = 0.25
+
+[sub_resource type="Resource" id="Resource_station"]
+script = ExtResource("6_station")
+era = 1
+reach = 2.6
+
+[resource]
+script = ExtResource("2_item")
+id = &"smelting_furnace"
+display_name = "ITEM_SMELTING_FURNACE"
+description = "ITEM_SMELTING_FURNACE_DESC"
+icon = ExtResource("1_icon")
+stackable = false
+max_stack = 1
+group = &"station"
+traits = Array[ExtResource("3_trait")]([SubResource("Resource_ground"), SubResource("Resource_station")])

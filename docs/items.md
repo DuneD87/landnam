@@ -17,7 +17,7 @@ lleva sus dos filas en el CSV. Ver [localization.md](localization.md).
 | Herramientas | Hachas, picos, azadas y martillos · Luz · Recipientes · Mochilas |
 | Ropa | Cabeza · Torso · Manos · Piernas · Pies |
 | Consumibles | Cocinada · Cruda · Bebida · Remedios |
-| Materiales | De caza · Madera · Piedra y mineral · Otros |
+| Materiales | De caza · Madera · Piedra y mineral · Metales · Otros |
 | Construcción | Estaciones de trabajo · Colocables · Bloques |
 
 - Las categorías son los filtros del inventario.
@@ -33,8 +33,8 @@ mandando para equipar:
 - La flecha es `MATERIAL` (no se empuña) y sale como munición.
 - El odre es `CONSUMABLE` (no se empuña: se usa desde la barra) y sale con las
   herramientas.
-- La hoguera y el banco de trabajo son `MATERIAL` (no entran en el modo de
-  construir) y salen en Construcción.
+- La hoguera, el banco de trabajo, el horno y la forja son `MATERIAL` (no entran
+  en el modo de construir) y salen en Construcción.
 
 ## Rasgos
 
@@ -44,13 +44,13 @@ Van en `ItemData.traits` y se buscan por su tipo con
 | Rasgo | Qué hace | Lo llevan |
 |---|---|---|
 | `EdibleTrait` | Lo que da a cada necesidad, la vida que cura y la probabilidad de intoxicar | carne cruda y asada |
-| `FuelTrait` | Segundos de fuego por unidad en una hoguera | rama (60 s), madera (150 s) |
+| `FuelTrait` | Segundos de fuego por unidad en una hoguera o en el horno, y lo que funde en el horno cada segundo (`smelt_heat`, de 0 a 1; 0 = no vale para el horno) | rama (60 s, no funde), madera (150 s, 30 %), carbón (300 s, 100 %) |
 | `CookableTrait` | En qué se convierte asado y en cuánto | carne cruda → asada (40 s) |
 | `WaterContainerTrait` | Tragos que caben | odre (20) |
 | `InsulationTrait` | Grados que abriga puesto | ropa de pieles (9 °C el juego entero), de cuero (6 °C) |
 | `SkinningTrait` | En la mano, deja despellejar | seax, cuchillo de sílex |
-| `GroundPlaceableTrait` | Se planta en el suelo: escena, vista previa, pendiente, separación y cuánto se inclina y se hunde | hoguera, banco de trabajo |
-| `CraftingStationTrait` | Es una estación de trabajo: su era y desde qué distancia se usan sus recetas | banco de trabajo |
+| `GroundPlaceableTrait` | Se planta en el suelo: escena, vista previa, pendiente, separación y cuánto se inclina y se hunde | hoguera, banco de trabajo, horno, forja |
+| `CraftingStationTrait` | Es una estación de trabajo: su era y desde qué distancia se usan sus recetas | banco de trabajo, horno, forja |
 | `StorageTrait` | Capacidad en huecos y reglas opcionales de lo que se guarda; cada instancia tiene su propio inventario | cofre de madera |
 | `InventoryExpansionTrait` | Huecos adicionales del inventario mientras está equipado | mochila de pieles (+8) |
 | `SailTrait` | Eficiencia del paño; la superficie se calcula desde el diseño de cada instancia | vela de pieles a medida |
@@ -76,9 +76,14 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Emplasto de milenrama | `yarrow_poultice` | Corta todo el sangrado (un muñón, a medias), cierra el 35 % de cada parte herida, vida +5 y 12 s de recuperación |
 | Bebedizo de milenrama | `yarrow_draught` | 40 s de recuperación (+60), cierra el 15 % de las partes, quita la intoxicación y la sed (+15 %) |
 | Tablilla | `splint` | Cura la pierna rota |
-| Menas | `flint`, `obsidian`, `copper_ore`, `tin_ore`, `bog_iron`, `iron_01`, `coal`, `silver_ore`, `gold_01`, `sulfur` | Los diez materiales del mundo: ver [terrain_materials.md](terrain_materials.md#menas). El carbón arde 300 s |
+| Menas | `flint`, `obsidian`, `copper_ore`, `tin_ore`, `bog_iron`, `iron_01`, `coal`, `silver_ore`, `gold_01`, `sulfur` | Los diez materiales del mundo: ver [terrain_materials.md](terrain_materials.md#menas). El carbón arde 300 s y es el mejor combustible del horno |
+| Lingote de bronce | `bronze_ingot` | Material (Metales): sale del horno con malaquita y casiterita |
 | Hoguera | `campfire` | Se planta en el suelo |
 | Banco de trabajo | `stone_workbench` | Estación de trabajo de la Edad de piedra: se planta en el suelo |
+| Horno de fundición | `smelting_furnace` | De la Edad del bronce: se planta en el suelo y funde la mena con el tiempo |
+| Forja del broncista | `bronze_forge` | Estación de trabajo de la Edad del bronce, de armas y armaduras: se planta en el suelo |
+| Hacha, pico y azada de bronce | `bronze_axe`, `bronze_pickaxe`, `bronze_hoe` | Talan, pican y allanan más deprisa que las de piedra; el pico, además, muerde todas las vetas |
+| Espada de bronce | `bronze_sword` | Arma de la forja: 30 de daño, más ligera que las de sílex y obsidiana |
 | Lecho de pieles | `bedroll` | Se planta en el suelo: E para dormir ocho horas o recogerlo |
 | Cofre de madera | `wooden_chest` | Se planta en el suelo: E para guardar y sacar objetos en sus 24 huecos |
 | Mochila de pieles | `hide_backpack` | Se equipa en Espalda y amplía el inventario de 20 a 28 huecos |
@@ -322,27 +327,39 @@ y que seguramente tomaba para curarse.
 
 ### Fabricar
 
-Se fabrica en la ventana de fabricar: **Tab**, o «Fabricar» en la cabecera del
-inventario. Cómo es la ventana está en [ui.md](ui.md#fabricar). Lo fabricado va
-al inventario y lo que no cabe, al suelo.
+Cada sitio tiene su menú de recetas, en la ventana de fabricar (cómo es, en
+[ui.md](ui.md#fabricar)):
+
+- **A mano:** **Tab**, o «Fabricar» en la cabecera del inventario. Solo lo que el
+  personaje hace por sí mismo.
+- **Una estación de trabajo:** E junto a ella. Solo sus recetas, con el botón de
+  desmontarla.
+- **La hoguera encendida:** «Recetas» en su panel.
+
+Lo fabricado va al inventario y lo que no cabe, al suelo. El horno no tiene recetas
+en la ventana: funde con el tiempo en su panel (ver [Horno de fundición](#horno-de-fundición)).
 
 - **Recetas:** cada una es un `RecipeData` en `data/recipes/<era>/<dónde>/`. Dice
   qué sale (`result`), cuántos cada vez (`amount`), lo que gasta (`inputs`: id →
   cantidad), dónde se hace (`station`: vacío, a mano; o el id de una estación) y
-  su era. `Recipes` las carga todas y hace las cuentas para N veces
-  (`missing`, `max_times`, `craft`).
-- **Eras:** `Eras.Era` (de momento solo `STONE`, la Edad de piedra). Cada era trae
-  sus estaciones de trabajo y sus recetas, y la ventana las agrupa por era. Una
-  era nueva es un valor más en `Eras`, con la clave de su nombre (`ERA_<ERA>`).
+  su era. Las del horno llevan además lo que tardan (`time`, segundos de fuego a
+  pleno calor). `Recipes` las carga todas, da las de cada sitio (`of_station`) y
+  hace las cuentas para N veces (`missing`, `max_times`, `craft`).
+- **Eras:** `Eras.Era`: la Edad de piedra (`STONE`) y la del bronce (`BRONZE`).
+  Cada era trae sus estaciones de trabajo y sus recetas, y la ventana las agrupa
+  por era. Una era nueva es un valor más al final de `Eras`, con la clave de su
+  nombre (`ERA_<ERA>`).
 - **Agua:** una receta puede gastar tragos de los odres (`RecipeData.water`); la ventana lo enseña
   como un ingrediente más («Agua de los odres»).
 - **La hoguera** encendida también es una estación (`Workstation.CAMPFIRE`): sus recetas llevan
   `station = &"campfire"` y se hacen a su alcance (2,6 m). Apagada no vale.
 - **Estaciones de trabajo:** objetos con `CraftingStationTrait` que se plantan en
   el suelo como la hoguera (`Workstation`). Sus recetas solo se pueden hacer a
-  menos de su alcance (3,5 m desde los pies). E junto a una abre la ventana en
-  sus recetas. Se desmontan desde la ventana, con ella cerca, y se guardan con la
+  menos de su alcance (3,5 m desde los pies): si uno se aleja con su menú abierto,
+  se apagan. Se desmontan desde su menú, con ella cerca, y se guardan con la
   partida.
+- **Qué abre la E:** de la hoguera, el horno y las estaciones que haya cerca, la
+  más cercana (`SurvivalActions.open_nearby_workplace`).
 
 | Sale | Con | Dónde |
 |---|---|---|
@@ -376,6 +393,22 @@ al inventario y lo que no cabe, al suelo.
 | Tablilla | 2 ramas y 2 fibras vegetales | A mano |
 | Bebedizo de milenrama | 4 milenramas y 2 tragos de agua de los odres | Hoguera encendida |
 
+De la Edad del bronce:
+
+| Sale | Con | Dónde |
+|---|---|---|
+| Horno de fundición | 24 piedras, 6 maderas y 2 pieles (los fuelles) | Banco de trabajo |
+| 2 lingotes de bronce | 3 malaquitas y 1 casiterita, en 3 min de fuego a pleno calor | Horno |
+| Forja del broncista | 6 lingotes de bronce, 12 maderas, 16 piedras y 2 pieles | Banco de trabajo |
+| Hacha de bronce | 3 lingotes de bronce, 2 ramas y 1 piel | Banco de trabajo |
+| Pico de bronce | 3 lingotes de bronce, 2 ramas y 1 piel | Banco de trabajo |
+| Azada de bronce | 2 lingotes de bronce, 2 ramas y 1 piel | Banco de trabajo |
+| Espada de bronce | 4 lingotes de bronce, 1 madera y 1 piel | Forja |
+
+Las armas, los escudos y la ropa de la Edad de piedra siguen en el banco de
+trabajo: la forja es solo para lo de metal. Las armaduras de bronce están por
+hacer.
+
 El hacha de piedra se fabrica a mano para poder talar árboles y conseguir la
 madera del primer banco de trabajo.
 
@@ -386,7 +419,8 @@ cuero curtido (`leather_*`) siguen en el juego, pero sin receta: solo con
 `give`.
 
 Una receta nueva es un `.tres` más en su carpeta, con el script
-`scripts/items/recipe_data.gd`. Una estación nueva necesita:
+`scripts/items/recipe_data.gd`; si es del horno, con su `time`. Una estación nueva
+necesita:
 
 - su objeto, con `GroundPlaceableTrait` y `CraftingStationTrait`;
 - su escena, con `Workstation` en la raíz (`item_id`, `visual` y
@@ -407,7 +441,9 @@ lleva en la mano y golpea como el pico: parada, en el sitio.
   para hacer una explanada a la altura a la que se está.
 - **Cuánto:** cada golpe corta lo que sobresale y rellena lo hundido un 70 % de
   lo que falta, como mucho medio metro. Con dos o tres golpes queda llano, y al
-  seguir al lado el plano sale de lo ya allanado. No gasta ni da nada.
+  seguir al lado el plano sale de lo ya allanado. No gasta ni da nada. La azada
+  de bronce (`bronze_hoe`, fuerza 1,5: su `harvest_multiplier`) recorre un 84 % y
+  hasta 0,75 m (`TerrainLeveling.rate`, `step`).
 - **Roca:** en el suelo rocoso y el hielo (lo que suena a roca, `SurfaceAudio`),
   en una mena o en una cueva, rebota y avisa de que hace falta el pico.
 - **El círculo** (`HoePreview`): con la azada en la mano marca dónde va a
@@ -465,6 +501,74 @@ duerme va con el lecho, y pisarlo cuenta como estar en cubierta.
   - sale rojo con más de 24° de pendiente o más de 0,3 m de desnivel debajo;
   - pide 2 m hasta lo plantado más cerca.
 - El icono sale de una malla sencilla, `SurvivalMeshes.workbench()`.
+
+### Horno de fundición
+
+El horno (`smelting_furnace`, `Furnace`) es lo primero de la Edad del bronce: se
+hace en el banco de trabajo con piedra, madera y las pieles de los fuelles, y se
+planta como la hoguera, casi derecho (hasta 6° de inclinación y 22° de pendiente).
+E junto a él abre su panel en la columna de la derecha (ver [ui.md](ui.md#horno)).
+
+- **Huecos:** uno de combustible, cuatro de crisol (lo que pide alguna de sus
+  recetas: la malaquita y la casiterita) y dos de salida (no admiten nada de fuera).
+- **Combustible:** solo lo que calienta para fundir (`FuelTrait.smelt_heat`). El
+  carbón funde a pleno calor; la madera, al 30 %; las ramas no valen. Una tanda
+  de 2 lingotes pide 3 minutos de fuego de carbón: unos 0,3 carbones por lingote,
+  o 2 maderas.
+- **Fundir:** encendido, quema como la hoguera, una pieza tras otra, y cada
+  segundo suma al crisol el calor de la que arde. Al llegar al tiempo de la receta
+  gasta lo que pide y pone lo que sale en la salida; si queda calor, sigue con la
+  siguiente tanda. Con la salida llena, espera. Si cambia lo del crisol y sale otra
+  receta, empieza de cero.
+- **Qué funde:** de sus recetas (las de `station = &"smelting_furnace"`), la que
+  se puede hacer con lo del crisol y cabe en la salida; si hay varias, la que junta
+  más cosas distintas (la aleación antes que un metal solo). De momento solo el
+  bronce: 3 malaquitas y 1 casiterita dan 2 lingotes.
+- **Encendido:** da hasta 10 °C a pie de horno, que se apagan a 4 m, y alumbra
+  hasta 6 m, como una hoguera más pequeña (`SurvivalNeeds`). Corre con el tiempo
+  del mundo: al dormir funde 60 veces más deprisa.
+- **Desmontar:** apagado y vacío, vuelve al inventario.
+- **Partida:** se guarda con lo que tiene dentro, el combustible que arde y lo que
+  lleva fundido.
+- **Cómo se ve** (`FurnaceVisual`): una cuba de barro de 1,2 m, tiznada arriba,
+  con la boca en arco delante (+Z), por la que se ven las brasas, y la llama
+  asomando por la chimenea; una tobera de barro en el costado y dos fuelles de
+  piel en el suelo, con sus cañas y sus palos; al pie, un corro de piedras (las
+  del banco de trabajo) y unos tizones de carbón. Las piezas propias se ven por las
+  dos caras.
+
+### Forja del broncista
+
+La forja (`bronze_forge`) es la estación de las armas y las armaduras de metal.
+Es cara: pide 6 lingotes de bronce, además de madera, piedra y pieles, y se hace
+en el banco de trabajo. Se planta y se usa como él (`Workstation`, 3,5 m de
+alcance). De momento hace la espada de bronce.
+
+- **Cómo se ve** (`ForgeVisual`): el banco de Wooden Stool 02, más largo que el de
+  trabajo (1,43 m); encima, dos moldes de piedra, uno abierto con una espada recién
+  colada, tres lingotes, un crisol con un poso de bronce y el martillo de piedra; al
+  lado, un tocón con una piedra de yunque, otro lingote y unas tenazas de madera
+  verde apoyadas. La espada, los lingotes y el martillo son sus mallas horneadas.
+
+### Herramientas de bronce
+
+Se hacen en el banco de trabajo con lingotes de bronce. Su cabeza colada es la
+misma idea que la de piedra, de cubo, en el mismo astil (`WeaponMeshes.bronze_*`).
+Cunden más por su `harvest_multiplier` (1,5), que multiplica la fuerza de cada
+golpe:
+
+| Herramienta | Piedra | Bronce |
+|---|---|---|
+| Hacha (tala y troceo: `TreeFelling.chop_power`) | 18 | 33: los árboles caen en algo más de la mitad de hachazos |
+| Pico (rocas: `RockMining.mine_power`) | 16 | 30, y un hoyo un 23 % más ancho en el terreno |
+| Pico (vetas) | lo que dé la veta | ×1,5 de mena por golpe |
+| Azada | 70 %, 0,5 m | 84 %, 0,75 m |
+
+El pico tiene además un nivel (`ItemData.mining_power`: piedra 1, bronce 2). Cada
+veta pide uno (`pick_tier` en las `ore_settings` de `planet_earth.json`, ver
+[terrain_materials.md](terrain_materials.md#vetas)); con menos, la veta se desmenuza
+en piedra y el juego avisa. La ficha enseña los dos: **Recolección** y **Nivel de
+pico**.
 
 ### Almacenamientos
 
@@ -547,6 +651,8 @@ godot --path . --script res://tools/combat/bake_weapons.gd -- --only=seax,surviv
 godot --path . --script res://tools/combat/bake_weapons.gd -- --only=bone,sinew,antler,boar_tusk,ivory,horn,plant_fiber --background
 # Solo el icono del banco de trabajo
 godot --path . --script res://tools/combat/bake_weapons.gd -- --only=stone_workbench --background
+# Lo de la Edad del bronce: herramientas, espada, lingote e iconos del horno y la forja
+godot --path . --script res://tools/combat/bake_weapons.gd -- --only=bronze_axe,bronze_pickaxe,bronze_hoe,bronze_sword,bronze_ingot,smelting_furnace,bronze_forge --background
 # Nombres, grupos, rasgos y objetos nuevos del catálogo
 godot --headless --path . --script res://tools/items/update_item_catalog.gd
 godot --headless --editor --quit --path .   # importa
@@ -555,11 +661,20 @@ godot --headless --editor --quit --path .   # importa
 Las mallas están en `SurvivalMeshes`, la hoguera en `scenes/world/campfire.tscn`
 (`Campfire`) y el banco en `scenes/world/stone_workbench.tscn` (`Workstation`). Los
 iconos de la hoguera y del banco salen de las mallas sencillas de `SurvivalMeshes`.
-`tests/world/placeables_review.tscn` planta tres hogueras encendidas y tres bancos
-en un suelo de prueba (llano, una ladera de 15° y baches), para ver cómo asientan.
-`tests/items/test_recipes.tscn` prueba el recetario y la ventana de fabricar:
+`tests/world/placeables_review.tscn` planta tres hogueras encendidas, tres bancos,
+dos hornos (uno encendido) y una forja en un suelo de prueba (llano, una ladera de
+15° y baches), para ver cómo asientan. El horno está en
+`scenes/world/smelting_furnace.tscn` (`Furnace`) y la forja en
+`scenes/world/bronze_forge.tscn` (`Workstation` con `ForgeVisual`); sus iconos salen de
+`SurvivalMeshes.smelting_furnace` y `bronze_forge`. `tests/items/test_furnace.tscn`
+prueba el horno: lo que admite, fundir con carbón y con madera, varias tandas, esperar
+con la salida llena, guardar y cargar, y su panel.
+`tests/items/test_recipes.tscn` prueba el recetario, la ventana de fabricar con
+el menú de cada sitio y lo de la Edad del bronce (dónde se hace cada cosa, lo que
+cunde cada herramienta y las vetas que pide cada pico):
 
 ```sh
 godot --path . res://tests/world/placeables_review.tscn [-- --capture=<carpeta>]
 godot --headless --path . res://tests/items/test_recipes.tscn
+godot --headless --path . res://tests/items/test_furnace.tscn
 ```

@@ -15,3 +15,7 @@ extends Resource
 ## Id del objeto de la estación junto a la que se hace (lleva CraftingStationTrait); vacío, a mano.
 @export var station: StringName = &""
 @export var era: Eras.Era = Eras.Era.STONE
+## Las del horno (Furnace) no se hacen en la ventana de fabricar: se funden solas mientras arde, y
+## esto es lo que tardan, en segundos de fuego a pleno calor (FuelTrait.smelt_heat = 1). 0 = las
+## demás, que salen al momento.
+@export var time := 0.0

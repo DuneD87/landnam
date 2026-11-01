@@ -3,14 +3,15 @@ extends RefCounted
 
 ## Las eras del juego, de la más antigua a la más moderna. Cada una trae sus estaciones de trabajo
 ## (CraftingStationTrait) y sus recetas (RecipeData.era), y la ventana de fabricar las agrupa por
-## era. De momento solo hay la Edad de piedra; una era nueva es un valor más aquí, con la clave de su
-## nombre.
+## era. Una era nueva es un valor más aquí, al final (los .tres guardan el número), con la clave de
+## su nombre.
 ## Ver docs/items.md.
 
-enum Era {STONE}
+enum Era {STONE, BRONZE}
 
 const NAMES := {
 	Era.STONE: "ERA_STONE",
+	Era.BRONZE: "ERA_BRONZE",
 }
 
 

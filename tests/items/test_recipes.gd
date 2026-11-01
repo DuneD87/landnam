@@ -1,7 +1,10 @@
 extends Node
 
 ## El recetario y la ventana de fabricar: que las recetas estén bien hechas, las cuentas de
-## materiales para varias veces, fabricar ×N y que lo de una estación de trabajo pida tenerla cerca.
+## materiales para varias veces, fabricar ×N, que cada sitio enseñe solo sus recetas (con el
+## Tabulador, las de a mano; E en una estación, las suyas) y que lo de una estación pida tenerla
+## cerca. También la Edad del bronce: el horno, la forja, lo que se hace en cada uno y las vetas que
+## pide el pico de bronce.
 ##   godot --headless --path . res://tests/items/test_recipes.tscn
 
 var failures := 0
@@ -21,6 +24,7 @@ func check(ok: bool, message: String) -> void:
 
 func _run() -> void:
 	_check_catalog()
+	_check_bronze()
 	_check_counts()
 	await _check_panel()
 	print("RESULT: ", "OK" if failures == 0 else "%d FAILED" % failures)
@@ -71,6 +75,65 @@ func _check_catalog() -> void:
 		"hacha, martillo, cuchillo y antorchas, a mano con lo del suelo")
 
 
+## La Edad del bronce: el lingote sale del horno, con su tiempo; las herramientas de bronce, del
+## banco de trabajo; la espada, de la forja, que se hace con lingotes. Las vetas que no hacen falta para
+## el bronce piden el pico de bronce.
+func _check_bronze() -> void:
+	var ingot := _recipe(&"bronze_ingot")
+	check(ingot != null and ingot.station == Furnace.ITEM_ID and ingot.time > 0.0 and ingot.era == Eras.Era.BRONZE
+		and ingot.inputs.has(&"copper_ore") and ingot.inputs.has(&"tin_ore"),
+		"el lingote de bronce se funde en el horno con malaquita y casiterita, con su tiempo")
+	var timed := Recipes.all().filter(func(r: RecipeData) -> bool: return r.time > 0.0)
+	check(timed.all(func(r: RecipeData) -> bool: return r.station == Furnace.ITEM_ID),
+		"solo las del horno llevan tiempo (%d)" % timed.size())
+	for id in [&"smelting_furnace", &"bronze_axe", &"bronze_pickaxe", &"bronze_hoe"]:
+		var recipe := _recipe(id)
+		check(recipe != null and recipe.station == &"stone_workbench" and recipe.era == Eras.Era.BRONZE,
+			"%s, en el banco de trabajo y de la Edad del bronce" % id)
+	var forge := _recipe(&"bronze_forge")
+	check(forge != null and forge.station == &"stone_workbench" and forge.inputs.get(&"bronze_ingot", 0) >= 4,
+		"la forja pide lingotes de bronce")
+	var sword := _recipe(&"bronze_sword")
+	check(sword != null and sword.station == &"bronze_forge", "la espada de bronce, en la forja")
+	check(not Recipes.of_station(&"bronze_forge").any(func(r: RecipeData) -> bool:
+		return r.result in [&"flint_sword", &"wooden_shield", &"hunting_bow"]),
+		"lo de la Edad de piedra sigue en el banco de trabajo")
+	for id in [&"smelting_furnace", &"bronze_forge"]:
+		var data: ItemData = ItemCatalog.get_item(id)
+		check(data != null and data.get_trait(GroundPlaceableTrait) != null and data.get_trait(CraftingStationTrait) != null
+			and (data.get_trait(CraftingStationTrait) as CraftingStationTrait).era == Eras.Era.BRONZE,
+			"%s se planta y es una estación de la Edad del bronce" % id)
+	var stone_pick: ItemData = ItemCatalog.get_item(&"stone_pickaxe_01")
+	var bronze_pick: ItemData = ItemCatalog.get_item(&"bronze_pickaxe")
+	var axe: ItemData = ItemCatalog.get_item(&"bronze_axe")
+	check(bronze_pick.mining_power > stone_pick.mining_power and bronze_pick.harvest_multiplier > 1.0
+		and RockMining.mine_power(bronze_pick) > RockMining.mine_power(stone_pick)
+		and TreeFelling.chop_power(axe) > TreeFelling.chop_power(ItemCatalog.get_item(&"stone_axe_01")),
+		"el pico y el hacha de bronce cunden más que los de piedra")
+	var ingot_data: ItemData = ItemCatalog.get_item(&"bronze_ingot")
+	check(ItemTaxonomy.group_of(ingot_data) == &"metal" and ItemTaxonomy.category_of(ingot_data) == ItemData.Category.MATERIAL,
+		"el lingote va en Materiales · Metales")
+	var coal := ItemCatalog.get_item(&"coal").get_trait(FuelTrait) as FuelTrait
+	var wood := ItemCatalog.get_item(&"wood_01").get_trait(FuelTrait) as FuelTrait
+	var branch := ItemCatalog.get_item(&"branch_01").get_trait(FuelTrait) as FuelTrait
+	check(coal.smelt_heat > wood.smelt_heat and wood.smelt_heat > 0.0 and branch.smelt_heat == 0.0,
+		"el carbón funde más que la madera; la rama, nada")
+	var per_ingot_wood := ingot.time / wood.smelt_heat / wood.burn_time / ingot.amount
+	var per_ingot_coal := ingot.time / coal.smelt_heat / coal.burn_time / ingot.amount
+	check(per_ingot_wood >= 1.5 and per_ingot_coal <= 0.5,
+		"por lingote, mucha madera (%.1f) o poco carbón (%.2f)" % [per_ingot_wood, per_ingot_coal])
+	# Las vetas (ore_settings): con el pico de piedra, lo que pide el bronce; el resto, con el de bronce.
+	var ores := {}
+	var json = JSON.parse_string(FileAccess.get_file_as_string("res://data/planet/planet_earth.json"))
+	for ore in json.get("ore_settings", []):
+		ores[String(ore.get("drop_item", ""))] = int(ore.get("pick_tier", 1))
+	check(ores.get("tin_ore", 9) <= stone_pick.mining_power and ores.get("coal", 9) <= stone_pick.mining_power,
+		"la casiterita y el carbón, con el pico de piedra")
+	check(["iron_01", "bog_iron", "silver_ore", "gold_01", "sulfur"].all(func(id: String) -> bool:
+		return ores.get(id, 0) > stone_pick.mining_power and ores.get(id, 9) <= bronze_pick.mining_power),
+		"el hierro, la plata, el oro y el azufre, con el de bronce %s" % [ores])
+
+
 func _recipe(result: StringName) -> RecipeData:
 	for recipe in Recipes.all():
 		if recipe.result == result:
@@ -116,7 +179,8 @@ func _check_counts() -> void:
 	needs.free()
 
 
-## La ventana: el hacha se fabrica a mano, también ×N; el pico sigue pidiendo un banco cercano.
+## La ventana: con el Tabulador, solo lo de a mano, y el hacha se fabrica también ×N; E en el banco
+## enseña solo lo suyo, que pide estar cerca; la hoguera y la forja, igual; desmontar vuelve a mano.
 func _check_panel() -> void:
 	var ui: InventoryUI = load("res://scenes/ui/inventory_ui.tscn").instantiate()
 	add_child(ui)
@@ -124,10 +188,13 @@ func _check_panel() -> void:
 	var crafter := Node3D.new()
 	add_child(crafter)
 	ui.crafter = crafter
-	ui.open(InventoryUI.View.CRAFTING)
+	ui.toggle(InventoryUI.View.CRAFTING)
 	var panel := ui._crafting_panel
 	check(panel.visible and not ui._side_column.visible, "la vista de fabricar sustituye a la columna de la derecha")
-	check(panel._tiles.size() == Recipes.all().size(), "salen todas las recetas en «Todo» (%d)" % panel._tiles.size())
+	var hand := Recipes.of_station(Recipes.HAND)
+	check(panel._tiles.size() == hand.size() and panel._tiles.keys().all(func(r: RecipeData) -> bool:
+		return r.station == Recipes.HAND), "con el Tabulador, solo lo de a mano (%d)" % panel._tiles.size())
+	check(not panel._station_state.visible and not panel._dismantle_button.visible, "a mano no hay estación que mirar")
 	var axe := _recipe(&"stone_axe_01")
 	panel._select(axe)
 	check(axe.station == Recipes.HAND and not panel._make_button.disabled and not panel._where_state.visible,
@@ -139,18 +206,20 @@ func _check_panel() -> void:
 	panel._craft()
 	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"stone_axe_01")) == 3, "fabrica tres hachas sin banco")
 	check(ui.inventory.get_item_count(ItemCatalog.get_item(&"plant_fiber")) == 3, "y gasta nueve fibras")
-	var pickaxe := _recipe(&"stone_pickaxe_01")
-	panel._select(pickaxe)
-	check(panel._make_button.disabled and panel._where_state.text == tr("CRAFT_NOT_NEAR"), "sin banco cerca, el pico no se fabrica")
+
 	var bench: Workstation = load("res://scenes/world/stone_workbench.tscn").instantiate()
 	add_child(bench)
 	bench.position = Vector3(1.5, 0, 0)
 	await get_tree().process_frame
-	check(Workstation.in_reach(get_tree(), crafter.global_position).has(&"stone_workbench"), "el banco a 1,5 m está al alcance")
-	panel._poll = 0.0
-	await get_tree().process_frame
-	await get_tree().process_frame
-	check(not panel._make_button.disabled and panel._where_state.text == tr("CRAFT_NEAR"), "con el banco al lado, sí")
+	ui.open_station(bench)
+	var here := Recipes.of_station(&"stone_workbench")
+	check(panel._tiles.size() == here.size() and panel._tiles.keys().all(func(r: RecipeData) -> bool:
+		return r.station == &"stone_workbench"), "E en el banco: solo sus recetas (%d)" % panel._tiles.size())
+	check(not panel._tiles.has(axe), "lo de a mano no sale en el banco")
+	var pickaxe := _recipe(&"stone_pickaxe_01")
+	panel._select(pickaxe)
+	check(not panel._make_button.disabled and panel._where_state.text == tr("CRAFT_NEAR"), "con el banco al lado, el pico se fabrica")
+	check(panel._station_state.text == tr("CRAFT_NEAR") and panel._dismantle_button.visible, "arriba dice que está cerca y deja desmontarlo")
 	panel._set_tab(int(ItemData.Category.ARMOR))
 	var clothing := true
 	for recipe: RecipeData in panel._tiles:
@@ -161,8 +230,43 @@ func _check_panel() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	panel._select(pickaxe)
-	check(panel._make_button.disabled, "al alejarse del banco se apaga")
-	panel._select(axe)
-	check(not panel._make_button.disabled, "el hacha sigue disponible lejos del banco")
+	check(panel._make_button.disabled and panel._station_state.text == tr("CRAFT_NOT_NEAR"), "al alejarse del banco se apaga")
+
+	# La forja: solo lo suyo, y lo de la Edad del bronce.
+	var forge: Workstation = load("res://scenes/world/bronze_forge.tscn").instantiate()
+	add_child(forge)
+	forge.position = Vector3(0, 0, 1.5)
+	await get_tree().process_frame
+	ui.open_station(forge)
+	check(panel._tiles.size() == Recipes.of_station(&"bronze_forge").size() and panel._tiles.has(_recipe(&"bronze_sword")),
+		"E en la forja: la espada de bronce y lo demás de la forja")
+	check(panel._title.text == Recipes.station_name(&"bronze_forge").to_upper(), "arriba, el nombre de la forja")
+
+	# La hoguera: sus recetas, encendida.
+	var fire: Campfire = load("res://scenes/world/campfire.tscn").instantiate()
+	add_child(fire)
+	fire.position = Vector3(-1.5, 0, 0)
+	await get_tree().process_frame
+	ui.open_crafting(fire)
+	check(panel._tiles.size() == Recipes.of_station(Workstation.CAMPFIRE).size() and panel._tiles.has(_recipe(&"yarrow_draught")),
+		"«Recetas» en la hoguera: lo que se cuece")
+	check(panel._station_state.text == tr("CRAFT_FIRE_NOT_NEAR"), "apagada no vale")
+	fire.inventory.items[Campfire.FUEL_SLOT] = InventoryItem.new(ItemCatalog.get_item(&"wood_01"), 2)
+	fire.ignite()
+	panel._poll = 0.0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check(panel._station_state.text == tr("CRAFT_FIRE_NEAR"), "encendida, sí")
+
+	# Desmontar el banco desde su menú lo devuelve y vuelve a lo de a mano.
+	bench.position = Vector3(1.5, 0, 0)
+	ui.open_station(bench)
+	panel._dismantle(bench)
+	check(panel._station == Recipes.HAND and ui.inventory.get_item_count(ItemCatalog.get_item(&"stone_workbench")) == 1,
+		"desmontado, vuelve al inventario y la ventana, a lo de a mano")
 	ui.toggle(InventoryUI.View.CRAFTING)
 	check(not ui.visible, "Tab otra vez la cierra")
+	ui.open_station(forge)
+	ui.close()
+	ui.toggle(InventoryUI.View.CRAFTING)
+	check(panel._station == Recipes.HAND, "después de una estación, Tab vuelve a lo de a mano")

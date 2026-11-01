@@ -112,6 +112,16 @@ func _run() -> void:
 	var raised := _height(Vector3(-12, 0, 0))
 	check(absf(raised - 0.3 * TerrainLeveling.RATE) < TOLERANCE, "sube hacia un plano más alto (%.3f)" % raised)
 
+	# Con la azada de bronce (fuerza 1,5) cada golpe recorre más y topa más lejos.
+	tool.mode = VoxelTool.MODE_ADD
+	tool.do_sphere(Vector3(0, -1.5, 10), 2.5)
+	check(TerrainLeveling.rate(1.5) > TerrainLeveling.RATE and TerrainLeveling.step(1.5) > TerrainLeveling.STEP,
+		"la de bronce recorre más por golpe (%.3f, tope %.2f m)" % [TerrainLeveling.rate(1.5), TerrainLeveling.step(1.5)])
+	check(TerrainLeveling.apply(terrain, _world(Vector3(0, 0, 10)), UP, 1.5), "el golpe de bronce se da")
+	var bronze_expected := 1.0 - minf(TerrainLeveling.rate(1.5), TerrainLeveling.step(1.5))
+	var bronze := _height(Vector3(0, 0, 10))
+	check(absf(bronze - bronze_expected) < TOLERANCE, "el bronce rebaja el montículo a %.3f (%.3f)" % [bronze_expected, bronze])
+
 	check(not TerrainLeveling.apply(terrain, _world(Vector3(2000, 0, 0)), UP), "sin terreno cargado no hace nada")
 	_finish()
 

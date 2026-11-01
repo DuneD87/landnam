@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RecipeData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/recipe_data.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+result = &"bronze_ingot"
+amount = 2
+inputs = Dictionary[StringName, int]({
+&"copper_ore": 3,
+&"tin_ore": 1
+})
+station = &"smelting_furnace"
+era = 1
+time = 180.0

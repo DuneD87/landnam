@@ -655,3 +655,50 @@ static func workbench() -> ArrayMesh:
 	ProcMesh.lathe(b.st(WeaponMeshes.DARK_WOOD), [Vector2(0.0, top), Vector2(0.06, top), Vector2(0.1, top + 0.06),
 		Vector2(0.105, top + 0.09), Vector2(0.0, top + 0.09)], 10, Vector3(0.38, 0.0, -0.02))
 	return b.commit(make_material)
+
+
+## Lingote de bronce: una barra colada en molde abierto, más ancha abajo, con la cara de arriba algo
+## hundida y los cantos romos. El origen es el centro de la base.
+static func bronze_ingot() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	var bronze := b.st(WeaponMeshes.BRONZE)
+	ProcMesh.set_flat(bronze, true)
+	var rings := []
+	for p in [Vector4(0.0, 0.056, 0.024, 0.0), Vector4(0.008, 0.056, 0.024, 0.0), Vector4(0.02, 0.05, 0.019, 0.0),
+			Vector4(0.026, 0.046, 0.016, 0.0)]:
+		var ring := PackedVector3Array()
+		for c in [Vector2(-1, 1), Vector2(1, 1), Vector2(1, -1), Vector2(-1, -1)]:
+			ring.append(Vector3(c.x * p.y, p.x, c.y * p.z))
+		rings.append(ring)
+	ProcMesh.loft(bronze, rings)
+	return b.commit(make_material, true)
+
+
+## Horno de fundición, para el icono: la cuba con su boca, la tobera y los fuelles (FurnaceVisual).
+static func smelting_furnace() -> ArrayMesh:
+	return FurnaceVisual.shell_mesh()
+
+
+## Forja del broncista, para el icono: el banco largo con los moldes y una espada encima, los lingotes
+## y el tocón con el yunque. El origen es el suelo, en el centro del banco.
+static func bronze_forge() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	var top := 0.76
+	WeaponMeshes.slab(b.st(WeaponMeshes.WOOD), Vector3(0.0, top - 0.05, 0.0), Vector3(1.44, 0.1, 0.48))
+	var legs := b.st(WeaponMeshes.DARK_WOOD)
+	for corner in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+		var foot := Vector3(corner.x * 0.56, 0.0, corner.y * 0.34)
+		var head := Vector3(corner.x * 0.48, top - 0.08, corner.y * 0.14)
+		ProcMesh.tube(legs, PackedVector3Array([foot, head]), PackedVector2Array([Vector2(0.055, 0.055), Vector2(0.05, 0.05)]), 6)
+	var stone := b.st(WeaponMeshes.STONE)
+	WeaponMeshes.slab(stone, Vector3(-0.2, top + 0.025, 0.06), Vector3(0.92, 0.05, 0.17))
+	var bronze := b.st(WeaponMeshes.BRONZE)
+	WeaponMeshes.slab(bronze, Vector3(-0.15, top + 0.056, 0.06), Vector3(0.6, 0.012, 0.05))
+	WeaponMeshes.slab(bronze, Vector3(-0.5, top + 0.056, 0.06), Vector3(0.14, 0.014, 0.034))
+	for ingot in [[Vector3(0.38, top + 0.013, -0.13), 0.0], [Vector3(0.38, top + 0.013, -0.08), 0.0],
+			[Vector3(0.38, top + 0.039, -0.105), 1.5]]:
+		WeaponMeshes.slab(bronze, ingot[0], Vector3(0.11, 0.026, 0.045), Basis(Vector3.UP, ingot[1]))
+	ProcMesh.lathe(b.st(WeaponMeshes.BARK), [Vector2(0.24, 0.0), Vector2(0.2, 0.2), Vector2(0.2, 0.48),
+		Vector2(0.0, 0.49)], 12, Vector3(1.0, 0.0, 0.08))
+	WeaponMeshes.lump(stone, Vector3(1.0, 0.56, 0.08), 0.14, 211, 0.55, 0.12)
+	return b.commit(make_material, true)

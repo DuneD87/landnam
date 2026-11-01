@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/bronze_ingot.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+
+[resource]
+script = ExtResource("2_item")
+id = &"bronze_ingot"
+display_name = "ITEM_BRONZE_INGOT"
+description = "ITEM_BRONZE_INGOT_DESC"
+icon = ExtResource("1_icon")
+scene_path = "res://scenes/items/survival/bronze_ingot.tscn"
+max_stack = 30
+group = &"metal"

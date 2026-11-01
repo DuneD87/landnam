@@ -21,6 +21,15 @@ static func all() -> Array[RecipeData]:
 	return _all
 
 
+## Las recetas de [station] (HAND, las de a mano), en el orden del recetario.
+static func of_station(station: StringName) -> Array[RecipeData]:
+	var out: Array[RecipeData] = []
+	for recipe in all():
+		if recipe.station == station:
+			out.append(recipe)
+	return out
+
+
 ## Dónde se hace, ya traducido: «A mano» o el nombre de la estación.
 static func station_name(station: StringName) -> String:
 	if station == HAND:

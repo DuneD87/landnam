@@ -1622,6 +1622,8 @@ func _publish_ore_drop_table() -> void:
 			"item_id": StringName(ore.get("drop_item", "stone_01")),
 			"min_count": int(ore.get("drop_count_min", 1)),
 			"max_count": int(ore.get("drop_count_max", 1)),
+			# Nivel de pico que pide (ItemData.mining_power): con menos, la veta solo da piedra.
+			"tier": int(ore.get("pick_tier", 1)),
 		}
 	voxel_terrain.set_meta("ore_drops", table)
 

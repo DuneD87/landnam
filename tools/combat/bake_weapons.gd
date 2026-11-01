@@ -13,9 +13,10 @@ const MESH_DIR := "res://data/items/meshes/weapons/"
 const SCENE_DIR := "res://scenes/items/weapons/combat/"
 const ICON_DIR := "res://textures/icons/items/weapons/"
 const ICON_SIZE := 256
-const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01", "stone_hammer_01", "stone_hoe_01"]
-## Inclinación hacia la cámara del icono (grados): la azada, para que se vea la cara de la hoja.
-const TOOL_ICON_PITCH := {"stone_hoe_01": -40.0}
+const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01", "stone_hammer_01", "stone_hoe_01",
+	"bronze_axe", "bronze_pickaxe", "bronze_hoe"]
+## Inclinación hacia la cámara del icono (grados): las azadas, para que se vea la cara de la hoja.
+const TOOL_ICON_PITCH := {"stone_hoe_01": -40.0, "bronze_hoe": -40.0}
 const ItemIconRenderer = preload("res://tools/ui/item_icon_renderer.gd")
 
 ## nombre: [constructor, script de la escena o "", rotación del icono en grados (sobre Z de cámara)]
@@ -46,6 +47,10 @@ var WEAPONS := {
 	"stone_pickaxe_01": [WeaponMeshes.stone_pickaxe, "", -35.0],
 	"stone_hammer_01": [WeaponMeshes.stone_hammer, "", -35.0],
 	"stone_hoe_01": [WeaponMeshes.stone_hoe, "", -35.0],
+	"bronze_axe": [WeaponMeshes.bronze_axe, "", -35.0],
+	"bronze_pickaxe": [WeaponMeshes.bronze_pickaxe, "", -35.0],
+	"bronze_hoe": [WeaponMeshes.bronze_hoe, "", -35.0],
+	"bronze_sword": [WeaponMeshes.bronze_sword, "", -45.0],
 	"hide_shield": [WeaponMeshes.hide_shield, "", 0.0],
 	"bone_shield": [WeaponMeshes.bone_shield, "", -8.0],
 }
@@ -80,6 +85,9 @@ var SURVIVAL := {
 	"sulfur": [SurvivalMeshes.ore_chunk.bind(&"sulfur"), 0.0, 20.0, 30.0, true],
 	"campfire": [SurvivalMeshes.campfire, 0.0, 0.0, 32.0, false],
 	"stone_workbench": [SurvivalMeshes.workbench, 0.0, -28.0, 22.0, false],
+	"bronze_ingot": [SurvivalMeshes.bronze_ingot, 0.0, 30.0, 30.0, true],
+	"smelting_furnace": [SurvivalMeshes.smelting_furnace, 0.0, -35.0, 15.0, false],
+	"bronze_forge": [SurvivalMeshes.bronze_forge, 0.0, -28.0, 22.0, false],
 }
 const SURVIVAL_MESH_DIR := "res://data/items/meshes/survival/"
 const SURVIVAL_SCENE_DIR := "res://scenes/items/survival/"
@@ -130,6 +138,9 @@ const ICON_COLORS := {
 	&"sulfur": Color(0.98, 0.88, 0.26, 1.0),
 	&"ore_rock": Color(0.55, 0.52, 0.48, 1.0),
 	&"rawhide": Color(0.78, 0.62, 0.42, 1.0),
+	&"bronze": Color(0.88, 0.62, 0.3, 0.85),
+	&"clay": Color(0.76, 0.52, 0.36, 1.0),
+	&"soot": Color(0.36, 0.3, 0.27, 1.0),
 }
 
 

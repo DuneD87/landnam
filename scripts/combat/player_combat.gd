@@ -1491,7 +1491,7 @@ func _sweep_blade(data: ItemData) -> void:
 ## lo que se mira (el pesado, a la altura de los pies) y en la roca rebota.
 func _harvest(data: ItemData) -> void:
 	if TerrainLeveling.levels(data):
-		if player.action_controller.level_ahead(player.camera, _heavy) == &"rock":
+		if player.action_controller.level_ahead(player.camera, _heavy, data.harvest_multiplier) == &"rock":
 			player.survival.notify(tr("HOE_TOO_HARD"))
 		return
 	var up := -player.gravity_direction.normalized()
@@ -1509,7 +1509,8 @@ func _harvest(data: ItemData) -> void:
 		done = TreeFelling.chop_any(tree.body, tree.point, TreeFelling.chop_power(data) * mult, player)
 	elif RockMining.mines(data):
 		var origin: Vector3 = player.get_node("PlayerModel").global_position - player.gravity_direction * 2.5
-		player.action_controller.dig_ahead(player.camera, origin, RockMining.mine_power(data) * mult)
+		if player.action_controller.dig_ahead(player.camera, origin, RockMining.mine_power(data) * mult, data) == &"too_hard":
+			player.survival.notify(tr("PICK_TOO_WEAK"))
 	if not done:
 		return
 	var weight := (1.6 if _heavy else 1.0) * (1.3 if data.two_handed else 1.0)

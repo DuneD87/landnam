@@ -29,6 +29,7 @@ texture_filter = 5
 [sub_resource type="Resource" id="Resource_pwmcf"]
 script = ExtResource("10_8i21y")
 burn_time = 150.0
+smelt_heat = 0.3
 
 [resource]
 script = ExtResource("1_ewo7y")

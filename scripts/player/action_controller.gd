@@ -43,8 +43,10 @@ func _ready() -> void:
 	attack_raycast.collision_mask = PhysicsLayers.WORLD | PhysicsLayers.BODIES
 
 ## Excava una esfera de [radius] donde el rayo de current_origin hacia current_direction da en el
-## terreno, a menos de [distance]. Devuelve la mena que había (0 sin mena), o -1 si no llegaba.
-func dig_hole(radius: float, distance: float) -> int:
+## terreno, a menos de [distance], con un pico de nivel [tier] (ItemData.mining_power) que saca
+## [yield_scale] veces lo de un golpe. Devuelve la mena que había (0 sin mena), o -1 si no llegaba.
+## Una veta que pide más nivel (ore_settings: pick_tier) se desmenuza y da piedra.
+func dig_hole(radius: float, distance: float, tier: int = 99, yield_scale: float = 1.0) -> int:
 	var voxel_tool: VoxelTool = current_voxel.get_voxel_tool()
 	var result = voxel_tool.raycast(current_origin, current_direction, distance)
 	if not result:
@@ -64,33 +66,44 @@ func dig_hole(radius: float, distance: float) -> int:
 	# Leer el ore tras do_sphere: editar hace residente el bloque con los canales INDICES/WEIGHTS reales.
 	var type_id := _read_best_ore_along_ray(voxel_tool, result.position, current_direction, 2)
 	var drop := _get_ore_drop(type_id)
+	if needs_better_pick(type_id, tier):
+		drop = _get_ore_drop(0)
 
-	var amount := rand_num_gen.randi_range(drop.min_count, drop.max_count)
-	voxel_mined.emit(drop.item_id, amount)
+	var amount := float(rand_num_gen.randi_range(drop.min_count, drop.max_count)) * yield_scale
+	voxel_mined.emit(drop.item_id, floori(amount) + (1 if rand_num_gen.randf() < amount - floorf(amount) else 0))
 	return type_id
 
+
+## Si la mena [type_id] pide un pico de más nivel que [tier].
+func needs_better_pick(type_id: int, tier: int) -> bool:
+	return int(_get_ore_drop(type_id).get("tier", 1)) > tier
+
 ## Pica el terreno que se mira desde [origin], en el impacto del golpe del pico (PlayerCombat),
-## con la fuerza [power] del golpe. Devuelve true si había terreno al alcance.
-func dig_ahead(camera: Camera3D, origin: Vector3, power: float) -> bool:
+## con la fuerza [power] del golpe y el pico [tool] (su nivel y lo que saca: ItemData.mining_power y
+## harvest_multiplier). Devuelve &"dug", &"too_hard" si era una veta que pide mejor pico (da piedra)
+## o &"" si no había terreno al alcance.
+func dig_ahead(camera: Camera3D, origin: Vector3, power: float, tool: ItemData = null) -> StringName:
 	var result := perform_raycast(origin, camera.global_rotation)
 	var terrain := result.target_node as VoxelLodTerrain
 	if terrain == null or power <= 0.0:
-		return false
+		return &""
 	current_voxel = terrain
 	current_origin = origin
 	current_direction = -camera.global_transform.basis.z
 	var radius := clampf(DIG_RADIUS * pow(power / DIG_POWER, 1.0 / 3.0), DIG_RADIUS_RANGE.x, DIG_RADIUS_RANGE.y)
-	var type_id := dig_hole(radius, DIG_REACH)
+	var tier := tool.mining_power if tool != null else 99
+	var type_id := dig_hole(radius, DIG_REACH, tier, tool.harvest_multiplier if tool != null else 1.0)
 	if type_id < 0:
-		return false
+		return &""
 	_dig_effects(result.hit_pos, result.hit_normal, type_id, radius)
-	return true
+	return &"too_hard" if needs_better_pick(type_id, tier) else &"dug"
 
 
 ## Allana con la azada el suelo que se mira (TerrainLeveling.aim), en el impacto del golpe
-## (PlayerCombat): a la altura de lo de alrededor o, con [to_feet], a la de los pies. Devuelve
-## &"leveled", &"rock" (rebota en la roca: hace falta el pico) o &"" si no había suelo al alcance.
-func level_ahead(camera: Camera3D, to_feet: bool) -> StringName:
+## (PlayerCombat): a la altura de lo de alrededor o, con [to_feet], a la de los pies, con la fuerza
+## [strength] de la azada (ItemData.harvest_multiplier). Devuelve &"leveled", &"rock" (rebota en la
+## roca: hace falta el pico) o &"" si no había suelo al alcance.
+func level_ahead(camera: Camera3D, to_feet: bool, strength: float = 1.0) -> StringName:
 	var body := get_parent() as PlanetaryBody
 	if body == null:
 		return &""
@@ -101,7 +114,7 @@ func level_ahead(camera: Camera3D, to_feet: bool) -> StringName:
 	if aim.rock:
 		_dig_effects(aim.point, aim.normal, 1, DIG_RADIUS_RANGE.x)
 		return &"rock"
-	if not TerrainLeveling.apply(aim.terrain, aim.center, aim.up):
+	if not TerrainLeveling.apply(aim.terrain, aim.center, aim.up, strength):
 		return &""
 	TerrainLeveling.lift_onto_ground(aim.terrain, body, aim.center, aim.up)
 	_dig_effects(aim.point, aim.normal, 0, DIG_RADIUS)

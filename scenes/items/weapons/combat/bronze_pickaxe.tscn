@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/bronze_pickaxe.res" id="1_ew3vf"]
+
+[node name="BronzePickaxe" type="Node3D" unique_id=1016059999]
+metadata/grip_aligned = true
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=345785672]
+mesh = ExtResource("1_ew3vf")
