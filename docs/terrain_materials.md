@@ -88,9 +88,11 @@ Parches en el terreno (pesos de vóxel, una capa por `type_id`) que el pico exca
 - **Grupos** (`spot_group`): el hierro de pantano, el carbón, el estaño, la plata, el oro y el azufre
   comparten manchas (`ore_spots_metal`, las pone la primera del grupo: el oro) y se reparten las
   alturas en franjas seguidas (`min_height`, `max_height`; la suavidad de los bordes,
-  `height_softness`). Cada `Spots3D` es lo más caro de una veta: así seis vetas cuestan una red de
-  manchas. Con las siete vetas de superficie el generador de la Tierra pasa de 2,25 a 2,40 µs por
-  vóxel (`VoxelGeneratorGraph.debug_measure_microseconds_per_voxel`).
+  `height_softness`). La semilla, `cell_size` (240 m), `spot_radius` y `surface_depth` del oro son
+  los del grupo entero: todas tienen la misma densidad de manchas, y lo que hace rara a una es la
+  poca tierra que queda en su franja. Cada `Spots3D` es lo más caro de una veta: así seis vetas
+  cuestan una red de manchas. Con las siete vetas de superficie el generador de la Tierra pasa de
+  2,25 a 2,40 µs por vóxel (`VoxelGeneratorGraph.debug_measure_microseconds_per_voxel`).
 - **El grafo** (`data/graph_functions/earth_ore_field.tres`) lo genera
   `tools/terrain/build_ore_field.py` desde el JSON, y conecta cada salida a su `OutputWeight` en
   `earth_terrain_terraces.tres`. `Planet._apply_ore_params` vuelve a poner al cargar los valores del

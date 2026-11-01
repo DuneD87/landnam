@@ -3363,7 +3363,7 @@
 			"type_id": 2.0,
 			"spot_group": "metal",
 			"noise_seed": 7391.0,
-			"cell_size": 420.0,
+			"cell_size": 240.0,
 			"spot_radius": 24.0,
 			"jitter": 0.9,
 			"surface_depth": 10.0,
