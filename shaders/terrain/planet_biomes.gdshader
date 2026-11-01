@@ -770,7 +770,8 @@ void fragment() {
 	}
 
 	// 8.5) Nieve y hielo del clima frío. Va después de la variación macro: la nieve no se
-	// ensucia con las manchas de 170 m del suelo. Las vetas de mena la atraviesan, que se minan.
+	// ensucia con las manchas de 170 m del suelo. Las vetas de mena atraviesan la nieve y el hielo,
+	// que se minan.
 	v_snow_sparkle = 0.0;
 	float cold = climate_enabled ? climate_snow_coldness(planet_pos, snow_patch_strength) : -100.0;
 	// Ni con las manchas a favor ni con la nevada llega a la cota: sin nieve, y sin pagar las manchas.
@@ -794,9 +795,10 @@ void fragment() {
 			int slot_id = int(v_ore_indices[slot] + 0.5);
 			ore_w = max(ore_w, slot_id > 0 && slot_id != UNDERGROUND_DEPTH_LAYER ? v_ore_weights[slot] : 0.0);
 		}
-		float snow = cover * hold * (1.0 - smoothstep(0.1, 0.5, ore_w * float(ore_count > 0)));
+		float bare = 1.0 - smoothstep(0.1, 0.5, ore_w * float(ore_count > 0));
+		float snow = cover * hold * bare;
 		// Hielo glaciar donde el casquete no sostiene la nieve: seracs azules en vez de roca.
-		float ice = (glacier_texture_index >= 0) ? glacier * (1.0 - hold) * cover : 0.0;
+		float ice = (glacier_texture_index >= 0) ? glacier * (1.0 - hold) * cover * bare : 0.0;
 		if (debug_snow_view == 1) {
 			v_snow_sparkle = -1.0;
 			final_color = vec3(cover, hold, snow);

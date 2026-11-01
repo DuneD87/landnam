@@ -53,7 +53,9 @@ de textura.
 - Resbala de las pendientes (`snow_slope_limit`, más permisivo en el casquete).
 - Rellena primero los huecos del suelo (height blend con la textura de debajo).
 - En el casquete, las laderas que no sostienen nieve enseñan hielo glaciar (`ice_field`).
-- Las vetas de mena la atraviesan: se siguen viendo para minarlas.
+- Las vetas de mena atraviesan la nieve y el hielo glaciar: se siguen viendo para minarlas. Los
+  afloramientos (sílex, obsidiana, malaquita) solo cogen un polvo de nieve (`climate_snow_amount`
+  0,3 en su material) para que se reconozca su color.
 - Destellos de cristales al sol (`snow_sparkle_*`), solo de cerca.
 - La textura de nieve se usa solo por su relieve de luminancia sobre un blanco real: su albedo era
   ~0,5 y a la sombra la nieve salía azul oscuro.

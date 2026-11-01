@@ -68,7 +68,8 @@ Los materiales están en `data/resources/rocks/` y los comparten todas las escen
 - **Tierra al pie** (`base_color`, `base_height` en metros, `base_strength`) y **musgo** en lo que mira
   arriba (`moss_amount`, con la textura y el factor de la pradera, para que case con la hierba),
   solo en la cara curtida.
-- **Nieve** del clima frío, como `opaque_planet_material` (`climate_snow_amount`).
+- **Nieve** del clima frío, como `opaque_planet_material` (`climate_snow_amount`). Los afloramientos
+  la llevan a 0,3: un polvo que deja ver la mena.
 
 Al picar una roca, `RockFracture` conserva el `COLOR` en los trozos y deja las caras del corte con
 `CUT_COLOR`: limpias, sin tierra ni musgo. Cada trozo guarda en el meta `rock_offset` dónde estaba

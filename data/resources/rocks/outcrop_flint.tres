@@ -32,4 +32,4 @@ shader_parameter/moss_tint = Vector3(1, 1, 1)
 shader_parameter/moss_threshold = 0.5
 shader_parameter/moss_softness = 0.25
 shader_parameter/moss_scale = 0.7
-shader_parameter/climate_snow_amount = 1.0
+shader_parameter/climate_snow_amount = 0.3
