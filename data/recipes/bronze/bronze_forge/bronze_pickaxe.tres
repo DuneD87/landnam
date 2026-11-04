@@ -4,11 +4,11 @@
 
 [resource]
 script = ExtResource("1_recipe")
-result = &"bronze_hoe"
+result = &"bronze_pickaxe"
 inputs = Dictionary[StringName, int]({
 &"branch_01": 2,
-&"bronze_ingot": 2,
+&"bronze_ingot": 3,
 &"raw_hide": 1
 })
-station = &"stone_workbench"
+station = &"bronze_forge"
 era = 1

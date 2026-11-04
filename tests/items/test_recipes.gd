@@ -86,15 +86,19 @@ func _check_bronze() -> void:
 	var timed := Recipes.all().filter(func(r: RecipeData) -> bool: return r.time > 0.0)
 	check(timed.all(func(r: RecipeData) -> bool: return r.station == Furnace.ITEM_ID),
 		"solo las del horno llevan tiempo (%d)" % timed.size())
-	for id in [&"smelting_furnace", &"bronze_axe", &"bronze_pickaxe", &"bronze_hoe"]:
-		var recipe := _recipe(id)
-		check(recipe != null and recipe.station == &"stone_workbench" and recipe.era == Eras.Era.BRONZE,
-			"%s, en el banco de trabajo y de la Edad del bronce" % id)
+	var furnace := _recipe(&"smelting_furnace")
+	check(furnace != null and furnace.station == &"stone_workbench" and furnace.era == Eras.Era.BRONZE,
+		"el horno, en el banco de trabajo y de la Edad del bronce")
 	var forge := _recipe(&"bronze_forge")
 	check(forge != null and forge.station == &"stone_workbench" and forge.inputs.get(&"bronze_ingot", 0) >= 4,
-		"la forja pide lingotes de bronce")
-	var sword := _recipe(&"bronze_sword")
-	check(sword != null and sword.station == &"bronze_forge", "la espada de bronce, en la forja")
+		"la forja pide lingotes de bronce y se hace en el banco de trabajo")
+	for id in [&"bronze_axe", &"bronze_pickaxe", &"bronze_hoe", &"bronze_sword"]:
+		var recipe := _recipe(id)
+		check(recipe != null and recipe.station == &"bronze_forge" and recipe.era == Eras.Era.BRONZE,
+			"%s, en la forja y de la Edad del bronce" % id)
+	check(Recipes.all().all(func(r: RecipeData) -> bool:
+		return not r.inputs.has(&"bronze_ingot") or r.station == &"bronze_forge" or r.result == &"bronze_forge"),
+		"lo que lleva bronce se hace en la forja (menos la forja)")
 	check(not Recipes.of_station(&"bronze_forge").any(func(r: RecipeData) -> bool:
 		return r.result in [&"flint_sword", &"wooden_shield", &"hunting_bow"]),
 		"lo de la Edad de piedra sigue en el banco de trabajo")

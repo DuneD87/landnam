@@ -10,5 +10,5 @@ inputs = Dictionary[StringName, int]({
 &"bronze_ingot": 3,
 &"raw_hide": 1
 })
-station = &"stone_workbench"
+station = &"bronze_forge"
 era = 1

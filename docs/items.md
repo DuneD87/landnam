@@ -400,14 +400,14 @@ De la Edad del bronce:
 | Horno de fundición | 24 piedras, 6 maderas y 2 pieles (los fuelles) | Banco de trabajo |
 | 2 lingotes de bronce | 3 malaquitas y 1 casiterita, en 3 min de fuego a pleno calor | Horno |
 | Forja del broncista | 6 lingotes de bronce, 12 maderas, 16 piedras y 2 pieles | Banco de trabajo |
-| Hacha de bronce | 3 lingotes de bronce, 2 ramas y 1 piel | Banco de trabajo |
-| Pico de bronce | 3 lingotes de bronce, 2 ramas y 1 piel | Banco de trabajo |
-| Azada de bronce | 2 lingotes de bronce, 2 ramas y 1 piel | Banco de trabajo |
+| Hacha de bronce | 3 lingotes de bronce, 2 ramas y 1 piel | Forja |
+| Pico de bronce | 3 lingotes de bronce, 2 ramas y 1 piel | Forja |
+| Azada de bronce | 2 lingotes de bronce, 2 ramas y 1 piel | Forja |
 | Espada de bronce | 4 lingotes de bronce, 1 madera y 1 piel | Forja |
 
 Las armas, los escudos y la ropa de la Edad de piedra siguen en el banco de
-trabajo: la forja es solo para lo de metal. Las armaduras de bronce están por
-hacer.
+trabajo. Todo lo que lleva bronce se hace en la forja, menos la forja misma, que
+sale del banco. Las armaduras de bronce están por hacer.
 
 El hacha de piedra se fabrica a mano para poder talar árboles y conseguir la
 madera del primer banco de trabajo.
@@ -539,10 +539,10 @@ E junto a él abre su panel en la columna de la derecha (ver [ui.md](ui.md#horno
 
 ### Forja del broncista
 
-La forja (`bronze_forge`) es la estación de las armas y las armaduras de metal.
-Es cara: pide 6 lingotes de bronce, además de madera, piedra y pieles, y se hace
-en el banco de trabajo. Se planta y se usa como él (`Workstation`, 3,5 m de
-alcance). De momento hace la espada de bronce.
+La forja (`bronze_forge`) es la estación de lo de metal: herramientas, armas y
+armaduras. Es cara: pide 6 lingotes de bronce, además de madera, piedra y pieles,
+y se hace en el banco de trabajo. Se planta y se usa como él (`Workstation`, 3,5 m
+de alcance). De momento hace el hacha, el pico y la azada de bronce y la espada.
 
 - **Cómo se ve** (`ForgeVisual`): el banco de Wooden Stool 02, más largo que el de
   trabajo (1,43 m); encima, dos moldes de piedra, uno abierto con una espada recién
@@ -552,8 +552,8 @@ alcance). De momento hace la espada de bronce.
 
 ### Herramientas de bronce
 
-Se hacen en el banco de trabajo con lingotes de bronce. Su cabeza colada es la
-misma idea que la de piedra, de cubo, en el mismo astil (`WeaponMeshes.bronze_*`).
+Se hacen en la forja con lingotes de bronce. Su cabeza colada es la misma idea
+que la de piedra, de cubo, en el mismo astil (`WeaponMeshes.bronze_*`).
 Cunden más por su `harvest_multiplier` (1,5), que multiplica la fuerza de cada
 golpe:
 
