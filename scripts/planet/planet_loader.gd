@@ -297,9 +297,25 @@ func _load_planet() -> void:
 		_setup_ambient_fauna()
 		_setup_ground_fauna(planet_parser)
 		GroundPickup.setup(planet)
+		_setup_settlements()
 
 	if impostor_enabled:
 		_setup_impostor()
+
+
+## Los poblados del planeta (Planet.get_settlements): SettlementManager levanta sus construcciones
+## cerca del jugador. Va con la partida (lo que el jugador ya ha hecho suyo).
+func _setup_settlements() -> void:
+	if planet.get_settlements().is_empty() or players.is_empty():
+		return
+	var manager := SettlementManager.new()
+	manager.name = "Settlements"
+	manager.entity_id = "%s_settlements" % entity_id
+	add_child(manager)
+	# El nodo del planeta es un Node3D (el padre de las grids), aunque el script extienda Node.
+	var host: Node = self
+	manager.setup(host as Node3D, voxel_terrain, players[0], planet.get_settlements(),
+		planet.definition.settlement_settings)
 
 
 ## Crea el mapa precomputado del planeta. Se hornea al cargar, y no la primera vez que se abre la

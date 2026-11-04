@@ -114,6 +114,15 @@ static func apply(target, field: Dictionary, group: String, cfg: Dictionary) -> 
 ## [clearance] m del eje de las sendas y entera a un metro más. Lee el juego "trees" del campo.
 static func clear_vegetation(graph: VoxelGraphFunction, field: Dictionary, clearance: float,
 		cfg: Dictionary) -> VoxelGraphFunction:
+	var clear: VoxelGraphFunction = load(CLEARANCE_GRAPH).duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+	apply(clear, field, "trees", cfg)
+	_set_smoothstep([clear], "trail_clear", clearance, clearance + 1.0)
+	return multiply_density(graph, clear)
+
+
+## Copia de [graph] (un grafo de densidad de vegetación) con su salida multiplicada por la de [factor],
+## una función de x, y, z (también la usan los poblados, SettlementField.clear_vegetation).
+static func multiply_density(graph: VoxelGraphFunction, factor: VoxelGraphFunction) -> VoxelGraphFunction:
 	if graph.resource_path != "":
 		graph = graph.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
 	var output := -1
@@ -129,16 +138,13 @@ static func clear_vegetation(graph: VoxelGraphFunction, field: Dictionary, clear
 		if c.dst_node_id == output:
 			density = c
 	if density.is_empty():
-		push_error("[trails] el grafo de densidad no tiene salida; la vegetación no se aparta de las sendas.")
+		push_error("[trails] el grafo de densidad no tiene salida; la vegetación no se aparta.")
 		return graph
 	for type in [VoxelGraphFunction.NODE_INPUT_X, VoxelGraphFunction.NODE_INPUT_Y, VoxelGraphFunction.NODE_INPUT_Z]:
 		if not inputs.has(type):
 			inputs[type] = graph.create_node(type, Vector2())
 
-	var clear: VoxelGraphFunction = load(CLEARANCE_GRAPH).duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
-	apply(clear, field, "trees", cfg)
-	_set_smoothstep([clear], "trail_clear", clearance, clearance + 1.0)
-	var node := graph.create_function_node(clear, Vector2())
+	var node := graph.create_function_node(factor, Vector2())
 	graph.add_connection(inputs[VoxelGraphFunction.NODE_INPUT_X], 0, node, 0)
 	graph.add_connection(inputs[VoxelGraphFunction.NODE_INPUT_Y], 0, node, 1)
 	graph.add_connection(inputs[VoxelGraphFunction.NODE_INPUT_Z], 0, node, 2)

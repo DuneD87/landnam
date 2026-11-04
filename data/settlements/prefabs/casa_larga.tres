@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="SettlementPrefab" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="1_46vr6"]
+[ext_resource type="Script" path="res://scripts/world/settlement_workplace.gd" id="2_7ylc3"]
+
+[sub_resource type="Resource" id="Resource_lvr1j"]
+script = ExtResource("2_7ylc3")
+kind = &"bench"
+pose = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.5, 1, 2.3)
+indoor = true
+size = Vector2(1.3, 0.6)
+stands = PackedVector3Array(0, 0, 0.75)
+looks = PackedVector3Array(0, 0, 0)
+
+[sub_resource type="Resource" id="Resource_gx6c5"]
+script = ExtResource("2_7ylc3")
+pose = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 13.5, 0, -0.5)
+size = Vector2(2.6, 3.2)
+stands = PackedVector3Array(0, 0, 1.25)
+looks = PackedVector3Array(0, 0, 0.45)
+
+[resource]
+script = ExtResource("1_46vr6")
+id = &"casa_larga"
+kind = &"longhouse"
+blueprint_path = "res://data/settlements/prefabs/casa_larga.json"
+door_cell = Vector2i(9, 7)
+beds = Array[Transform3D]([Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 1, 3.1), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 1, 3.1), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.4, 1, 3.1), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.6, 1, 3.1), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.8, 1, 3.1), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 1, 3.1)])
+workplaces = Array[ExtResource("2_7ylc3")]([SubResource("Resource_lvr1j"), SubResource("Resource_gx6c5")])

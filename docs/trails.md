@@ -16,6 +16,8 @@ vegetación. Las del jugador (pisadas, empedradas) no son esto: irían en los v�
 `Planet._setup_trails` lo hace todo después de los ríos (las sendas se trazan con los valles ya
 tallados y los cruzan por vados) y deja el campo en `Planet.get_trail_network()`.
 
+En las puntas sueltas con un llano y a los lados de las sendas hay poblados: ver [Poblados](settlements.md).
+
 ## Trazado
 
 Sobre el relieve horneado con `bake_sphere_bumpmap` (`routing_size`, 2048×1024: celdas de ~92 m):

@@ -273,6 +273,8 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
 	_add(ConsoleCommand.new("trail", "trail [tp]", "CON_HELP_TRAIL", _cmd_trail, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp"])))
+	_add(ConsoleCommand.new("village", "village [tp]", "CON_HELP_VILLAGE", _cmd_village, 0,
+		func() -> PackedStringArray: return PackedStringArray(["tp"])))
 	_add(ConsoleCommand.new("heal", "heal [amount]", "CON_HELP_HEAL", _cmd_heal))
 	_add(ConsoleCommand.new("litter", "litter", "CON_HELP_LITTER", _cmd_litter))
 	_add(ConsoleCommand.new("god", "god [on|off]", "CON_HELP_GOD", _cmd_god))
@@ -539,6 +541,43 @@ func _cmd_trail(args: PackedStringArray) -> String:
 	var to := (best - up).slide(up)
 	var heading := fposmod(rad_to_deg(atan2(to.dot(north.cross(up)), to.dot(north))), 360.0)
 	return _paint(COLOR_INFO, tr("CON_TRAIL_NEAREST") % [sqrt(best_d) * core.radius, heading])
+
+
+## El poblado más cercano (Planet.get_settlements): cuál, a cuántos metros y en qué rumbo, o con "tp" el
+## jugador de pie en su plaza.
+func _cmd_village(args: PackedStringArray) -> String:
+	var player := _get_player()
+	var loader = player.planet if player != null else null
+	var core: Planet = loader.planet if loader != null else null
+	if core == null:
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
+	var field := core.get_settlements()
+	if field.is_empty():
+		return _paint(COLOR_ERR, tr("CON_VILLAGE_NONE"))
+	var frame := core.voxel_terrain.global_transform
+	var up := (frame.affine_inverse() * (player as Node3D).global_position).normalized()
+	var plan: Dictionary = field.villages[SettlementField.nearest(field, up)]
+	var center: Vector3 = plan.center
+	if args.size() > 0 and args[0] == "tp":
+		var radius := preload("res://scripts/player/new_game_landing.gd").new().surface_radius_at(core, center)
+		if not is_finite(radius):
+			return _paint(COLOR_ERR, tr("CON_TRAIL_TP_FAIL"))
+		player.global_position = frame * (center * (radius + 1.0))
+		player.velocity = Vector3.ZERO
+		player.movement.velocity = Vector3.ZERO
+		return _paint(COLOR_OK, tr("CON_VILLAGE_TP_DONE"))
+	var template := SettlementField.template(plan.template)
+	var north := (Vector3.UP - up * up.y).normalized()
+	var to := (center - up).slide(up)
+	var heading := fposmod(rad_to_deg(atan2(to.dot(north.cross(up)), to.dot(north))), 360.0)
+	var text := tr("CON_VILLAGE_NEAREST") % [
+		tr(template.display_name) if template != null else str(plan.template), (plan.buildings as Array).size(),
+		center.distance_to(up) * core.radius, heading, (field.villages as Array).size()]
+	var manager := (loader as Node).get_node_or_null(^"Settlements") as SettlementManager
+	if manager != null and manager.get_people() != null:
+		var people := manager.get_people()
+		text += " " + tr("CON_VILLAGE_PEOPLE") % [people.get_villagers().size(), people.pending()]
+	return _paint(COLOR_INFO, text)
 
 
 func _cmd_heal(args: PackedStringArray) -> String:

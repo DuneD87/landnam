@@ -48,6 +48,10 @@ var edit_version: int = 0
 ## en que se convierte y a los trozos en que se parte. Con él RepairSite no tiene que buscarlo.
 var source_blueprint: Dictionary = {}
 
+## Mientras nadie la toque, la casa de un poblado de la que es ("<poblado>:<casa>", SettlementManager):
+## no se guarda con la partida, porque se vuelve a levantar de su prefab. "" en todo lo demás.
+var settlement: String = ""
+
 ## Transform mundo de la grid (subclases deben implementarlo).
 func get_grid_world_transform() -> Transform3D:
 	push_warning("[GridBase] get_grid_world_transform() no implementado")
@@ -419,10 +423,21 @@ func _deserialize_props(props_data: Dictionary) -> void:
 func begin_bulk_edit() -> void:
 	_suppress_rebuild = true
 
-## Termina la edición masiva y reconstruye todos los chunks de una vez.
-func end_bulk_edit() -> void:
+## Termina la edición masiva y reconstruye todos los chunks de una vez. Con [now] a false no reconstruye
+## ninguno: devuelve los chunks para reconstruirlos con rebuild_chunk de uno en uno, repartidos en
+## varios fotogramas (las casas de los poblados, SettlementManager).
+func end_bulk_edit(now: bool = true) -> Array:
 	_suppress_rebuild = false
-	rebuild_mesh()
+	var chunks := _resync_chunks()
+	if now:
+		for chunk: Vector3i in chunks:
+			_rebuild_chunk(chunk)
+	return chunks
+
+
+## Reconstruye la malla y la colisión de un chunk (de los que devuelve end_bulk_edit(false)).
+func rebuild_chunk(chunk: Vector3i) -> void:
+	_rebuild_chunk(chunk)
 
 
 ## Acumula los rebuilds de las ediciones siguientes en vez de ejecutarlos uno a uno. A diferencia
@@ -513,6 +528,13 @@ func _request_rebuild(grid_pos: Vector3i) -> void:
 
 ## Rebuild completo: resincroniza chunks, volumen y masa desde _blocks y reconstruye todos.
 func rebuild_mesh() -> void:
+	for chunk: Vector3i in _resync_chunks():
+		_rebuild_chunk(chunk)
+
+
+## Resincroniza chunks, volumen y masa desde _blocks y quita las mallas de los chunks vacíos. Devuelve
+## los chunks con bloques, sin reconstruirlos.
+func _resync_chunks() -> Array:
 	_dirty_chunks.clear()
 	_chunk_blocks.clear()
 	_total_volume = 0.0
@@ -528,9 +550,7 @@ func rebuild_mesh() -> void:
 	for chunk: Vector3i in _chunk_meshes.keys():
 		if not _chunk_blocks.has(chunk):
 			_free_chunk_mesh(chunk)
-
-	for chunk: Vector3i in _chunk_blocks:
-		_rebuild_chunk(chunk)
+	return _chunk_blocks.keys()
 
 
 func _rebuild_chunk(chunk: Vector3i) -> void:

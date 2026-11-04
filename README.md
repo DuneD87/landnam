@@ -24,6 +24,8 @@ Distribución y ajustes en [docs/gamepad.md](docs/gamepad.md).
 | Guardado y ajustes | Los autoloads `GameManager` y `Settings` mantienen partidas y preferencias. |
 | Tiempo y descanso | `WorldTime` comparte la aceleración del reloj; `RestController` permite dormir en un lecho y recuperar descanso durante la noche. |
 | Sendas | `TrailNetwork` traza las del mundo sobre el relieve al crear el planeta y `TrailField` las guarda en las imágenes que lee el grafo del terreno (`TrailGenerator`): se pintan, se hunden un poco y apartan la vegetación. Ver `docs/trails.md`. |
+| Poblados | `SettlementField` elige al crear el planeta los sitios de las sendas (sus puntas sueltas y a sus lados) que llevan poblado y traza cada uno (`SettlementLayout`) con prefabs de bloques (`SettlementPrefab`, blueprints en `data/settlements/`); `SettlementManager` levanta las casas cerca del jugador. Ver `docs/settlements.md`. |
+| Aldeanos | `SettlementVillagers` da gente a los poblados cercanos (`SettlementPopulation`: un vecino por lecho), vestida en un hilo; cada `Villager` duerme en su casa, trabaja con su herramienta en la leñera, el huerto o el banco y pasa el resto del día en la plaza según la hora del sitio. Ver `docs/villagers.md`. |
 | Navegación | `BoatSailing` calcula el empuje de los aparejos con el viento del planeta; `PlayerSailing` lleva controles, remo e indicador. Ver `docs/sailing.md`. |
 | Utilidades | En `scripts/core/`: `PhysicsLayers` y `RenderLayers` (todas las capas del proyecto), `Raycast` (rayos y sondeo de suelo), `ProcMesh` (mallas por código) y `AnimGraph` (montaje del AnimationTree). `HumanRig` nombra los huesos del esqueleto humano y `BurstParticles` crea los emisores de una ráfaga. |
 
@@ -64,6 +66,7 @@ godot --headless --path . res://tests/survival/test_rest.tscn
 godot --headless --path . res://tests/survival/test_waterskins.tscn
 godot --headless --path . res://tests/console/test_toon_command.tscn
 godot --headless --path . res://tests/world/test_trails.tscn
+godot --headless --path . res://tests/world/test_settlements.tscn
 ```
 
 El horneado necesita render real; la ventana puede abrirse fuera de pantalla:

@@ -122,6 +122,22 @@ const SETS := {
 		"crouch_walk": ["res://models/player/mocaponline/sample/MOB1_CrouchWalk_F_IPC", 0.0, -1.0, true, true,
 			MCO_V55],
 	}],
+	# La vida de los aldeanos (Villager): dormir tumbado, sentado en el suelo y hablar, de Mixamo. Las dos
+	# primeras no empiezan de pie: la escala sale de hablar, descargada con el mismo personaje.
+	# Dormir viene tumbado en una cama de 1 m: se baja al suelo (la cadera a ~0,15 m, sobre el
+	# lecho). Hablar, con las piernas más rectas que el idle del jugador, hundía los pies 6 cm.
+	"village": ["res://models/player/village_anims.tres", {
+		"sleep": [LOCO + "Laying Sleeping", 0.0, -1.0, true, true,
+			{"height_from": LOCO + "Talking", "offset": Vector3(0.0, -0.98, 0.0)}],
+		"sit_idle": [LOCO + "Sitting Idle", 0.0, -1.0, true, true, {"height_from": LOCO + "Talking"}],
+		"talk": [LOCO + "Talking", 0.0, -1.0, true, true, {"offset": Vector3(0.0, 0.06, 0.0)}],
+		# El paseo de "combat", para que la librería baste sola.
+		"walk": ["res://models/player/actorcore/walk_relaxed/walk_relaxed_loop", 0.0, -1.0, true, true],
+		# Trabajar el huerto (con la azada en la mano) y saludar (un vaivén de la mano: se repite).
+		# También hundían los pies, 6 y 8 cm.
+		"dig": [LOCO + "Digging", 0.0, -1.0, true, true, {"offset": Vector3(0.0, 0.06, 0.0)}],
+		"wave": [LOCO + "Waving", 0.0, -1.0, true, true, {"offset": Vector3(0.0, 0.08, 0.0)}],
+	}],
 }
 
 ## Hueso del jugador ← hueso de origen (personaje de Character Creator; con el de Mixamo se llaman

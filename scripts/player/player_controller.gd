@@ -77,6 +77,8 @@ var needs: SurvivalNeeds
 var progression: Progression
 ## Descanso en lechos y aceleración temporal mientras se duerme.
 var resting: RestController
+## Hablar con los aldeanos de los poblados.
+var villager_chat: VillagerChat
 ## Comer, beber, despellejar y las hogueras.
 var survival: SurvivalActions
 var fishing: PlayerFishing
@@ -687,6 +689,10 @@ func _ready():
 	resting.name = "RestController"
 	add_child(resting)
 	resting.setup(self)
+	villager_chat = VillagerChat.new()
+	villager_chat.name = "VillagerChat"
+	add_child(villager_chat)
+	villager_chat.setup(self)
 	_setup_gaits()
 	world_map_ui = WorldMapUI.new()
 	world_map_ui.setup(self)
@@ -1031,6 +1037,7 @@ func get_visibility() -> float:
 func can_perform_action() -> bool:
 	return not (
 		(resting != null and resting.is_open()) or
+		(villager_chat != null and villager_chat.is_open()) or
 		combat.is_busy() or
 		climb.is_active() or
 		action_controller.is_attacking or
@@ -1314,7 +1321,12 @@ func _input(event):
 			resting.close()
 			get_viewport().set_input_as_handled()
 		return
-	if Input.is_action_just_pressed("ui_cancel"):
+	if villager_chat != null and villager_chat.is_open():
+		if (event.is_action_pressed("ui_cancel") or event.is_action_pressed("action")) and not _is_text_field_focused():
+			villager_chat.close()
+			get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("ui_cancel"):
 		if blueprint_placer and blueprint_placer.is_active():
 			blueprint_placer.cancel()
 			return
@@ -1441,6 +1453,9 @@ func _input(event):
 	# Mirando una puerta de cerca, USAR la abre o la cierra, también trepando (una trampilla desde la
 	# escala): antes que agarrarse a ella como a una pared.
 	if pressed and _toggle_aimed_door():
+		pass
+	# Con un aldeano delante, USAR es hablarle.
+	elif use and villager_chat.try_open():
 		pass
 	# Empujando contra una pared, USAR es agarrarse a ella: antes que lo que haya por el suelo.
 	elif use and climb.request_grab():

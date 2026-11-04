@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SettlementTemplate" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="1_vrxwe"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/choza.tres" id="2_idruo"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa.tres" id="3_m225f"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_larga.tres" id="4_7bwey"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/granero.tres" id="5_77404"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/iglesia.tres" id="6_cwcy6"]
+[ext_resource type="Script" path="res://scripts/world/settlement_template.gd" id="7_c4ibn"]
+
+[resource]
+script = ExtResource("7_c4ibn")
+id = &"poblado"
+display_name = "SETTLEMENT_VILLAGE"
+weight = 0.2
+center = ExtResource("6_cwcy6")
+buildings = Array[ExtResource("1_vrxwe")]([ExtResource("2_idruo"), ExtResource("3_m225f"), ExtResource("3_m225f"), ExtResource("4_7bwey"), ExtResource("5_77404")])
+count_min = 6
+count_max = 9
+plaza_radius = 14.0
+ring_depth = 22.0

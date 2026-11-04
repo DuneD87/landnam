@@ -24,6 +24,9 @@ func get_save_data() -> Dictionary:
 
 	for grid_id in _grids:
 		var grid: GridBase = _grids[grid_id]
+		# Las casas de los poblados que nadie ha tocado salen de su prefab (SettlementManager).
+		if grid.settlement != "":
+			continue
 		grids_data[grid_id] = grid.serialize()
 
 	return {

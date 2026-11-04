@@ -135,8 +135,9 @@ static var _reference: BodyMeasurements
 
 
 func _ready() -> void:
-	set_process(false)
 	_setup()
+	# Dressed off the tree (on a worker thread), it may still have fits to pick up.
+	set_process(is_dressing() or not _stale_tasks.is_empty())
 
 
 func apply(appearance: CharacterAppearance) -> void:

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SettlementTemplate" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="1_ebnd3"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/granero.tres" id="2_507fs"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/choza.tres" id="3_s0nf6"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa.tres" id="4_3drp3"]
+[ext_resource type="Script" path="res://scripts/world/settlement_template.gd" id="5_sxqln"]
+
+[resource]
+script = ExtResource("5_sxqln")
+id = &"granja"
+display_name = "SETTLEMENT_FARM"
+weight = 0.4
+center = ExtResource("4_3drp3")
+buildings = Array[ExtResource("1_ebnd3")]([ExtResource("2_507fs"), ExtResource("3_s0nf6")])
+count_min = 1
+count_max = 2
+plaza_radius = 8.0
+ring_depth = 10.0

@@ -200,6 +200,7 @@ func load_config(config_path: String):
 	definition.river_settings = _parse_river_settings(config.get("river_settings", {}))
 	definition.trail_settings = _parse_sizes(config.get("trail_settings", {}),
 		["routing_size", "field_size", "tree_field_size"])
+	definition.settlement_settings = config.get("settlement_settings", {})
 	definition.reef_settings = config.get("reef_settings", {})
 	definition.climate_settings = config.get("climate_settings", {})
 

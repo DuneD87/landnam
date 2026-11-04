@@ -1141,6 +1141,7 @@ CON_HELP_ITEMS,Lists the available item ids.,Lista los ids de item disponibles.,
 CON_HELP_WEATHER,"Forces the weather, releases it or lists the events.","Fuerza el clima, lo libera o lista eventos.",
 CON_HELP_TP,Teleports the player to a global position.,Teletransporta al jugador a una posición global.,
 CON_HELP_TRAIL,"Nearest world trail: distance and heading, or with tp, stand on it.","Senda del mundo más cercana: distancia y rumbo, o con tp, de pie sobre ella.",
+CON_HELP_VILLAGE,"Nearest village: which one, distance and heading, or with tp, stand in its square.","Poblado más cercano: cuál, a qué distancia y en qué rumbo, o con tp, de pie en su plaza.",
 CON_HELP_HEAL,"Heals the player (without an argument: to full, closes the wounds, gives back the limbs and removes the states).","Cura al jugador (sin argumento, cura al máximo, cierra las heridas, le devuelve los miembros y le quita los estados).",
 CON_HELP_LITTER,Branches and stones that can be picked up around.,Ramas y piedras que se pueden recoger alrededor.,
 CON_HELP_GOD,"Player invulnerability (without an argument, toggles).","Invulnerabilidad del jugador (sin argumento, alterna).",
@@ -1220,6 +1221,10 @@ CON_TRAIL_NONE,This planet has no trails.,Este planeta no tiene sendas.,
 CON_TRAIL_NEAREST,"Nearest trail: %.0f m away, heading %.0f° (0° = north, 90° = east).","Senda más cercana: a %.0f m, rumbo %.0f° (0° = norte, 90° = este).",
 CON_TRAIL_TP_DONE,On the nearest trail.,En la senda más cercana.,
 CON_TRAIL_TP_FAIL,No ground found there.,No se encuentra suelo ahí.,
+CON_VILLAGE_NONE,This planet has no villages.,Este planeta no tiene poblados.,
+CON_VILLAGE_NEAREST,"Nearest village (%s, %d buildings): %.0f m away, heading %.0f°. %d on this planet.","Poblado más cercano (%s, %d construcciones): a %.0f m, rumbo %.0f°. Hay %d en el planeta.",
+CON_VILLAGE_TP_DONE,In the square of the nearest village.,En la plaza del poblado más cercano.,
+CON_VILLAGE_PEOPLE,Villagers around: %d (%d more getting ready).,Aldeanos cerca: %d (%d más preparándose).,
 CON_HEALED,Healed +%s (health: %s/%s).,Curado +%s (salud: %s/%s).,
 CON_NO_NEEDS,The player has no needs (game loaded?).,El jugador no tiene necesidades (¿partida cargada?).,
 CON_NEEDS_TITLE,Needs (rate ×%s):,Necesidades (ritmo ×%s):,
@@ -1545,3 +1550,118 @@ INV_FURNACE_OUTPUT_EMPTY_HINT,The ingots come out here,Aquí salen los lingotes,
 INV_FIRE_RECIPES,Recipes,Recetas,
 INV_FIRE_RECIPES_TIP,What is brewed beside this campfire,Lo que se cuece junto a esta hoguera,
 CRAFT_BY_HAND_TITLE,CRAFT BY HAND,FABRICAR A MANO,
+,,,## Settlements
+SETTLEMENT_FARM,Farmstead,Granja,
+SETTLEMENT_HAMLET,Hamlet,Aldea,
+SETTLEMENT_VILLAGE,Village,Poblado,
+VILLAGER_TALK,Talk,Hablar,aldeanos
+VILLAGER_GIFT,Give a gift,Regalar,aldeanos
+VILLAGER_GIFT_DONE,Back,Volver,aldeanos
+VILLAGER_BYE,Farewell,Adiós,aldeanos
+VILLAGER_QUOTE,“%s”,«%s»,aldeanos
+VILLAGER_ASLEEP,%s is asleep.,%s duerme.,aldeanos
+VILLAGER_GIFT_HINT,Click something to give them one. Everyday things like wood or stones are no gift.,"Pulsa algo para darle uno. Lo corriente, como leña o piedras, no es un regalo.",aldeanos
+VILLAGER_GIFT_EMPTY,You have nothing to give.,No llevas nada que dar.,aldeanos
+VILLAGE_TRUST,%s · trust %d,%s · confianza %d,aldeanos
+VILLAGE_TRUST_WARY,Wary,Recelosos,aldeanos
+VILLAGE_TRUST_CAUTIOUS,Cautious,Cautos,aldeanos
+VILLAGE_TRUST_FRIENDLY,Friendly,Amables,aldeanos
+VILLAGE_TRUST_FRIENDS,Friends,Amigos,aldeanos
+VILLAGE_TRUST_KIN,Like kin,Como de la familia,aldeanos
+VILLAGER_JOB_WOODPILE_M,Woodcutter,Leñador,aldeanos
+VILLAGER_JOB_WOODPILE_F,Woodcutter,Leñadora,aldeanos
+VILLAGER_JOB_GARDEN_M,Gardener,Hortelano,aldeanos
+VILLAGER_JOB_GARDEN_F,Gardener,Hortelana,aldeanos
+VILLAGER_JOB_BENCH_M,Craftsman,Artesano,aldeanos
+VILLAGER_JOB_BENCH_F,Craftswoman,Artesana,aldeanos
+VILLAGER_JOB_NONE_M,Villager,Vecino,aldeanos
+VILLAGER_JOB_NONE_F,Villager,Vecina,aldeanos
+VANIMAL_WOLF,wolf,lobo,aldeanos
+VANIMAL_BEAR,bear,oso,aldeanos
+VANIMAL_BOAR,boar,jabalí,aldeanos
+VANIMAL_DEER,deer,ciervo,aldeanos
+VDIR_N,the north,el norte,aldeanos
+VDIR_NE,the northeast,el noreste,aldeanos
+VDIR_E,the east,el este,aldeanos
+VDIR_SE,the southeast,el sureste,aldeanos
+VDIR_S,the south,el sur,aldeanos
+VDIR_SW,the southwest,el suroeste,aldeanos
+VDIR_W,the west,el oeste,aldeanos
+VDIR_NW,the northwest,el noroeste,aldeanos
+VDIST_NEAR,a short walk away,a un paseo,aldeanos
+VDIST_HOUR,about an hour's walk away,a una hora de camino,aldeanos
+VDIST_HOURS,a couple of hours' walk away,a un par de horas de camino,aldeanos
+VDIST_FAR,more than half a day's walk away,a más de media jornada de camino,aldeanos
+VTALK_MEET_1,"I'm %s, of %s. We don't get many strangers here.","Soy %s, de %s. No vienen muchos forasteros por aquí.",aldeanos
+VTALK_MEET_2,They call me %s. This is %s. What brings you here?,Me llaman %s. Esto es %s. ¿Qué te trae por aquí?,aldeanos
+VTALK_MEET_3,"My name is %s. If you come in peace, there's room by the fire in %s.","Me llamo %s. Si vienes en paz, en %s hay sitio junto al fuego.",aldeanos
+VTALK_MEET_4,"I'm %s. In %s we don't care for haste, nor for questions.",Soy %s. En %s no nos gustan las prisas ni las preguntas.,aldeanos
+VTALK_WARY_1,What do you want?,¿Qué quieres?,aldeanos
+VTALK_WARY_2,I've nothing to say to strangers.,No tengo nada que hablar con forasteros.,aldeanos
+VTALK_WARY_3,"Speak quickly, I have work to do.","Habla rápido, que tengo cosas que hacer.",aldeanos
+VTALK_WARY_4,Keep your hands where I can see them.,Las manos donde pueda verlas.,aldeanos
+VTALK_WARY_5,We want no trouble here.,Aquí no queremos problemas.,aldeanos
+VTALK_CAUTIOUS_1,"Still around, then. Well, as long as you cause no trouble...","Sigues por aquí. Bueno, mientras no causes problemas...",aldeanos
+VTALK_CAUTIOUS_2,Some say you can be trusted. I don't know yet.,Algunos dicen que eres de fiar. Yo aún no lo sé.,aldeanos
+VTALK_CAUTIOUS_3,Winter is long and there are many mouths. Any help is welcome.,"El invierno es largo y las bocas, muchas. Cualquier ayuda se agradece.",aldeanos
+VTALK_CAUTIOUS_4,I don't trust those without a home. But I won't send you away.,No me fío de quien no tiene casa. Pero tampoco te echo.,aldeanos
+VTALK_CAUTIOUS_5,"If you hunt more than you need, we can always use meat here.","Si cazas algo de más, aquí siempre hace falta carne.",aldeanos
+VTALK_FRIENDLY_1,"Oh, you again! Sit for a while, if you like.","¡Anda, otra vez por aquí! Siéntate un rato, si quieres.",aldeanos
+VTALK_FRIENDLY_2,The children won't stop talking about you.,Los críos no paran de hablar de ti.,aldeanos
+VTALK_FRIENDLY_3,May the gods keep your roads.,Que los dioses te guarden los caminos.,aldeanos
+VTALK_FRIENDLY_4,People here speak well of you now. That doesn't happen to just anyone.,Aquí ya se habla bien de ti. Eso no pasa con cualquiera.,aldeanos
+VTALK_FRIENDLY_5,Have you seen that sky? The weather turns tomorrow; my knees tell me so.,"¿Has visto qué cielo? Mañana cambia el tiempo, me lo dicen las rodillas.",aldeanos
+VTALK_FRIENDS_1,"If you ever need another pair of hands, count on me.","Si alguna vez necesitas un brazo más, cuenta conmigo.",aldeanos
+VTALK_FRIENDS_2,There's a place for you by the fire tonight.,Esta noche hay sitio para ti junto al fuego.,aldeanos
+VTALK_FRIENDS_3,"You're one of us, even if you weren't born here.","Eres de los nuestros, aunque no hayas nacido aquí.",aldeanos
+VTALK_FRIENDS_4,My grandfather said a friend is worth more than a good axe. He was right.,Mi abuelo decía que un amigo vale más que una buena hacha. Tenía razón.,aldeanos
+VTALK_FRIENDS_5,"Sometimes I think of leaving, to see what lies beyond the hills.","A veces pienso en irme lejos, a ver qué hay más allá de las colinas.",aldeanos
+VTALK_KIN_1,My home is your home. I mean it.,Mi casa es tu casa. Lo digo de verdad.,aldeanos
+VTALK_KIN_2,"If the wolves came for you, they'd have to get through me first.","Si los lobos vinieran a por ti, tendrían que pasar antes por encima de mí.",aldeanos
+VTALK_KIN_3,"When they tell our sagas, your name will be in them.","Cuando se cuenten nuestras sagas, tu nombre estará en ellas.",aldeanos
+VTALK_KIN_4,I no longer ask where you come from. You come from here.,Ya no te pregunto de dónde vienes. Vienes de aquí.,aldeanos
+VTALK_WOODPILE_1,"The wood won't split itself, and winter won't wait.","La leña no se parte sola, y el invierno no espera.",aldeanos
+VTALK_WOODPILE_2,"Birch for the fire, oak for the beams. Don't forget it.","Abedul para el fuego, roble para las vigas. Que no se te olvide.",aldeanos
+VTALK_WOODPILE_3,I've been splitting wood since dawn. Even my thoughts ache.,Llevo partiendo leña desde el alba. Me duelen hasta las ideas.,aldeanos
+VTALK_GARDEN_1,"You have to coax the earth, or it leaves you hungry.","La tierra hay que mimarla, o te deja con hambre.",aldeanos
+VTALK_GARDEN_2,The turnips are small this year. A bad sign.,Este año los nabos vienen pequeños. Mala señal.,aldeanos
+VTALK_GARDEN_3,"If you see boars near the garden, tell me. They ruin everything.","Si ves jabalíes cerca del huerto, avísame. Me lo destrozan todo.",aldeanos
+VTALK_BENCH_1,The edge has dulled again. I need good stone.,Se me ha vuelto a mellar el filo. Hace falta buena piedra.,aldeanos
+VTALK_BENCH_2,They say far away there are folk who melt stones and draw out metal. I wish I could learn.,Dicen que lejos hay quien funde piedras y saca metal. Ojalá aprender.,aldeanos
+VTALK_BENCH_3,A good handle is worth as much as a good blade.,Un buen mango vale tanto como una buena hoja.,aldeanos
+VTALK_MORNING_1,You're up early. That's good.,Temprano andas. Eso está bien.,aldeanos
+VTALK_MORNING_2,"Good morning. The sun's not warm yet, but there's already work.","Buenos días. El sol aún no calienta, pero ya hay trabajo.",aldeanos
+VTALK_MORNING_3,"At dawn, the cattle and the wood. Everything else after.","Al alba, el ganado y la leña. Lo demás, después.",aldeanos
+VTALK_LUNCH_1,"Not now, it's time to eat.","Ahora no, que es hora de comer.",aldeanos
+VTALK_LUNCH_2,The belly gives more orders than the chief.,Las tripas mandan más que el jefe.,aldeanos
+VTALK_EVENING_1,At nightfall we gather by the fire. Come if you like.,Al caer la noche nos juntamos en la hoguera. Ven si quieres.,aldeanos
+VTALK_EVENING_2,The day is ending. More tomorrow.,"El día se acaba. Mañana, más.",aldeanos
+VTALK_EVENING_3,Don't wander off at night. The beasts see better than you do.,De noche no te alejes. Las fieras ven mejor que tú.,aldeanos
+VTALK_SNOW_1,With this snow you can't even go up the hill.,Con esta nevada no se puede ni salir al monte.,aldeanos
+VTALK_SNOW_2,The snow covers the tracks. Bad weather for hunting.,La nieve tapa las huellas. Mal tiempo para cazar.,aldeanos
+VTALK_STORM_1,"In this storm, better under a roof.","Con esta tormenta, mejor bajo techo.",aldeanos
+VTALK_STORM_2,Thor is angry today.,Thor anda enfadado hoy.,aldeanos
+VTALK_FOG_1,In this fog you could get lost ten steps from home.,Con esta niebla uno se pierde a diez pasos de casa.,aldeanos
+VTALK_FOG_2,Things walk in the fog that are better not seen.,En la niebla andan cosas que es mejor no ver.,aldeanos
+VTALK_WIND_1,This wind carries off even the will to talk.,Este viento se lleva hasta las ganas de hablar.,aldeanos
+VTALK_WIND_2,Tie down what you don't want to lose; it's blowing hard today.,"Ata bien lo que no quieras perder, que hoy sopla fuerte.",aldeanos
+VTALK_DANGER_1,There are beasts out there! Shut the door!,¡Hay fieras ahí fuera! ¡Cierra la puerta!,aldeanos
+VTALK_DANGER_2,"Don't go out now, they're close!","No salgas ahora, ¡están cerca!",aldeanos
+VTALK_DANGER_3,"If you have a weapon, now's the time to use it.","Si tienes un arma, este es el momento de usarla.",aldeanos
+VTALK_NEIGHBOUR_1,"To %s, %s, lies %s. Odd folk, but they trade fairly.","Hacia %s, %s, está %s. Gente rara, pero comercian bien.",aldeanos
+VTALK_NEIGHBOUR_2,"If you head to %s, %s, you'll reach %s. Tell them we sent you.","Si vas hacia %s, %s, llegarás a %s. Diles que vas de nuestra parte.",aldeanos
+VTALK_PELT_1,Did you hunt that %s yourself? Quite a sight.,¿Esa cabeza de %s la cazaste tú? Impone.,aldeanos
+VTALK_PELT_2,"With that %s on your head, I nearly took you for a beast.","Con ese %s en la cabeza, casi te confundo con una fiera.",aldeanos
+VTALK_BRONZE_1,That's bronze you're carrying. Here we still split wood with stone.,Eso que llevas es bronce. Por aquí aún partimos leña con piedra.,aldeanos
+VTALK_BRONZE_2,Where did you learn to work metal? Nobody here knows how.,¿Dónde aprendiste a trabajar el metal? Aquí nadie sabe.,aldeanos
+VTALK_GIFT_LOVE_1,Just what I needed! May the gods repay you.,¡Justo lo que me hacía falta! Que los dioses te lo paguen.,aldeanos
+VTALK_GIFT_LOVE_2,This is worth a lot. I won't forget it.,Esto vale mucho. No lo olvidaré.,aldeanos
+VTALK_GIFT_LOVE_3,By Odin! Is this really for me?,¡Por Odín! ¿De verdad es para mí?,aldeanos
+VTALK_GIFT_LIKE_1,Thank you. It's appreciated.,Gracias. Se agradece.,aldeanos
+VTALK_GIFT_LIKE_2,I'll put it to good use.,Le daré buen uso.,aldeanos
+VTALK_GIFT_LIKE_3,That's generous. People remember that here.,Eso es generosidad. Aquí se recuerda.,aldeanos
+VTALK_GIFT_TIRED_1,You've given us plenty already. Keep it for yourself.,Ya nos has dado mucho. Guárdalo para ti.,aldeanos
+VTALK_GIFT_TIRED_2,So many gifts... what do you want in return?,Tanto regalo... ¿qué quieres a cambio?,aldeanos
+VTALK_GIFT_MEH_1,And what am I supposed to do with this?,¿Y qué hago yo con esto?,aldeanos
+VTALK_GIFT_MEH_2,We have plenty of that.,De eso tenemos de sobra.,aldeanos
+VTALK_GIFT_MEH_3,Hmm. Thanks... I suppose.,Mmm. Gracias... supongo.,aldeanos

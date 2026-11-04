@@ -3627,6 +3627,21 @@
 			0.81
 		]
 	},
+	"settlement_settings": {
+		"enabled": true,
+		"seed": 3,
+		"fraction": 1.0,
+		"min_spacing": 1500.0,
+		"roadside_spacing": 1000.0,
+		"roadside_setback": 14.0,
+		"roadside_fraction": 0.5,
+		"max_slope": 0.25,
+		"max_step": 3.0,
+		"max_grade": 0.25,
+		"clear_margin": 14.0,
+		"load_distance": 600.0,
+		"unload_distance": 800.0
+	},
 	"reef_settings": {
 		"enabled": true,
 		"depth_max": 105.0,

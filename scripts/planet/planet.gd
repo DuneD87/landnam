@@ -61,6 +61,8 @@ var climate: ClimateField = ClimateField.new()
 var _river_field: Dictionary = {}
 ## Campo de sendas horneado (TrailField), o {} sin sendas.
 var _trail_field: Dictionary = {}
+## Poblados (SettlementField) con la imagen de su claro ("clear"), o {} sin ellos.
+var _settlement_field: Dictionary = {}
 
 var planet_item_scenes: Dictionary
 ## library_id -> PackedScene plantilla de los items interactivos (los que se talan) sin instanciar
@@ -195,6 +197,9 @@ func _build_generator(generator_config: Dictionary, graph_functions: Array, lod_
 			if lod_index <= int(definition.trail_settings.get("clearance_max_lod", 4)):
 				noise_graph = TrailGenerator.clear_vegetation(noise_graph, _trail_field,
 					float(generator_config.trail_clearance), definition.trail_settings)
+				# Y el claro de los poblados (SettlementField), en el mismo grafo y con las mismas bandas.
+				if not _settlement_field.is_empty() and bool(generator_config.get("settlement_clearance", true)):
+					noise_graph = SettlementField.clear_vegetation(noise_graph, _settlement_field.clear, radius)
 		elif bool(generator_config.get("trail_filter", true)):
 			generator.voxel_texture_filter_enabled = true
 			generator.voxel_texture_filter_array = PackedInt32Array([TrailGenerator.OPEN_LAYER])
@@ -1231,6 +1236,9 @@ func setup_voxel_generator() -> void:
 
 	voxel_terrain.generator = graph_generator
 
+	# Los poblados se asientan sobre el suelo ya definitivo, con los ríos y las sendas.
+	_setup_settlements(graph_generator)
+
 	if not definition.ore_settings.is_empty():
 		_publish_ore_drop_table()
 
@@ -1247,6 +1255,11 @@ func get_river_network() -> Dictionary:
 ## Sendas horneadas (TrailField: sus trazos e imágenes), o {} si este planeta no tiene.
 func get_trail_network() -> Dictionary:
 	return _trail_field
+
+
+## Los poblados (SettlementField: el plano de cada uno), o {} si este planeta no tiene.
+func get_settlements() -> Dictionary:
+	return _settlement_field
 
 
 ## Metros de roca sobre `world_pos` contra la superficie sin cuevas (ver UndergroundDepth): 0 al aire
@@ -1346,6 +1359,41 @@ func _setup_trail_far_images(field: Dictionary) -> void:
 	shader_material.set_shader_parameter("trail_far_size", Vector2(images[0].get_size()))
 	shader_material.set_shader_parameter("trail_far_params",
 		Vector4(float(group.rb), float(group.dmax), float(group.g0), float(group.g1)))
+
+
+## Traza (o recupera del caché) los poblados de las puntas de las sendas con el suelo de [generator],
+## ya compilado, y prepara la imagen del claro de los árboles. Sin sendas no hay poblados.
+func _setup_settlements(generator: VoxelGeneratorGraph) -> void:
+	var cfg := SettlementField.settings(definition.settlement_settings)
+	if definition.settlement_settings.is_empty() or not bool(cfg.enabled) or _trail_field.is_empty():
+		return
+	var templates := SettlementField.load_templates()
+	if templates.is_empty():
+		return
+	var height_range := float(definition.trail_settings.get("height_range",
+		definition.river_settings.get("height_range", 2000.0)))
+	var key := "|".join(PackedStringArray([
+		"v%d" % SettlementField.FILE_VERSION,
+		_trail_cache_key(height_range),
+		JSON.stringify(definition.settlement_settings),
+		SettlementField.signature(templates),
+	])).sha256_text()
+	var path := "user://maps/%s_settlements.bin" % (entity_id if entity_id != "" else "planet")
+	var field := SettlementField.load_from(path, key)
+	if field.is_empty():
+		var started := Time.get_ticks_msec()
+		var sea_radius := radius - water_radius if has_water else radius - 4096.0
+		field = SettlementField.build(generator, _trail_field, radius, sea_radius, templates, cfg)
+		SettlementField.save_to(field, path, key)
+		var stats: Dictionary = field.stats
+		print("[settlements] %d poblados con %d construcciones (de %d puntas sueltas y %d sitios junto a la senda: %d sorteados, %d con llano, %d separados) en %.1f s" % [
+			int(stats.villages), int(stats.buildings), int(stats.ends), int(stats.roadside), int(stats.rolled),
+			int(stats.usable), int(stats.picked),
+			(Time.get_ticks_msec() - started) / 1000.0])
+	if (field.villages as Array).is_empty():
+		return
+	field.clear = SettlementField.clearance_image(field, float(cfg.clear_margin))
+	_settlement_field = field
 
 
 ## Como _river_cache_key: la huella del generador y la configuración de los ríos y de las sendas
