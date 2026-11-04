@@ -3,7 +3,7 @@ extends SceneTree
 ## Builds the equipable armour fitted by tools/character/blender/fit_meshy_armor.py
 ## or made by tools/character/blender/build_fur_armor.py:
 ## per piece its textures, its skinned mesh (the garment and, if it has one,
-## its lining, each with its material) and an
+## its lining, each with its material, with LODs: MeshLods) and an
 ## equipable scene, a MeshItem with the piece's ItemData (ITEMS/<id>.tres,
 ## which must exist), laid out like the player's other armour. The mesh is in
 ## the space of the player scan's skin and uses that Skin, so ArmorFit carries
@@ -98,6 +98,7 @@ func _initialize() -> void:
 		for b in skin.get_bind_count():
 			binds[skin.get_bind_name(b)] = b
 		var mesh := _mesh(id, data, binds)
+		MeshLods.add_to(mesh)
 		var path := MODELS + id + ".res"
 		if ResourceSaver.save(mesh, path) != OK:
 			push_error("Could not save " + path)

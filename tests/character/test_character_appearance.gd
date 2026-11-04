@@ -195,6 +195,9 @@ func _check_shape(body: HumanBodyData) -> void:
 		finite = finite and vertices[i].is_finite() and normals[i].is_finite() and absf(normals[i].length() - 1.0) < 1e-3
 	check(baked.get_blend_shape_count() == 0 and moved > 5000, "a baked body has the morphs in its vertices (%d moved)" % moved)
 	check(finite, "baked positions and normals are finite and normals unit length")
+	var body_lods: int = RenderingServer.mesh_get_surface(baked.get_rid(), 0).get("lods", []).size()
+	var hair_lods: int = RenderingServer.mesh_get_surface(shape.proxy_mesh(hair).get_rid(), 0).get("lods", []).size()
+	check(body_lods > 0 and hair_lods > 0, "the baked body and its proxies have LODs (%d, %d)" % [body_lods, hair_lods])
 
 	var fitted := shape.proxy_positions(hair)
 	var hair_ok := fitted.size() == hair.mesh.surface_get_array_len(0)

@@ -33,6 +33,8 @@ extends Node
 ## hair only cast their shadow, which keeps its head.
 
 const BODY_DATA := "res://data/character/human/body.res"
+## lod_bias in the creation screen: no LOD ever kicks in.
+const LIVE_LOD_BIAS := 1.0e4
 const PROXY_PATH := "res://data/character/human/proxies/%s.res"
 const MATERIALS := {
 	HumanProxyData.Kind.EYES: "res://data/character/materials/human_eyes.tres",
@@ -576,6 +578,7 @@ func _hair_changed() -> void:
 
 func _fit(item: Node) -> void:
 	for instance in _armour_meshes(item):
+		instance.lod_bias = _body.lod_bias
 		if not instance.has_meta(&"armor_source"):
 			instance.set_meta(&"armor_source", instance.mesh)
 		var source: ArrayMesh = instance.get_meta(&"armor_source")
@@ -887,8 +890,11 @@ func _setup() -> bool:
 	_shape = HumanShape.new(_data)
 	_skin_material = load(SKIN_MATERIAL).duplicate()
 	_body.material_override = _skin_material
-	# Full detail up close; the body has no LODs of its own.
-	_body.lod_bias = 100.0 if live else 4.0
+	# The LODs' error (MeshLods) is in the meshes' metres and the renderer scales it by the
+	# instance, which carries the armature's 0.01: the bias undoes it. Live (the creation screen),
+	# always the full mesh.
+	_body.lod_bias = LIVE_LOD_BIAS if live \
+			else 1.0 / (_armature.transform * _skeleton.transform).basis.get_scale().x
 	_bone_indices.resize(_data.bone_names.size())
 	_parents.resize(_data.bone_names.size())
 	_rest_origins.resize(_data.bone_names.size())

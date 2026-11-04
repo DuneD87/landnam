@@ -264,6 +264,23 @@ igual que el del pelo, que va después; mientras tanto la pieza está oculta
 se guarda por pieza y cuerpo, y un cuerpo nuevo vuelve a ajustar lo que el
 personaje lleva puesto. La malla nueva conserva materiales y LODs.
 
+**Niveles de detalle.** El cuerpo, los proxies (ojos, dientes, pelo,
+barba...) y las armaduras de la edad de piedra tienen LODs de meshoptimizer
+(`MeshLods`). Son los mismos vértices con menos triángulos, y el renderer elige
+el nivel por el error que se vería en pantalla (1 px), así que de cerca no
+cambia nada. Los del cuerpo y los proxies se generan la primera vez que se
+hornea cada malla en la partida: los morphs y el reajuste mueven los vértices,
+no los triángulos. Los de las armaduras van en su `.res`: los pone
+`bake_meshy_armor.gd` al hornear, y `tools/character/add_armor_lods.gd` a las
+ya horneadas, sin tocar sus vértices. El error va en metros de la malla y el
+renderer lo escala con la instancia, que hereda el 0,01 del `Armature`. Por
+eso `CharacterAppearanceRig` pone `lod_bias` 100 al cuerpo, a los proxies y a
+lo que viste, y 10⁴ en la pantalla de creación, donde se ve siempre entero.
+Una persona vestida con prendas variadas dibuja de media 112.000 triángulos
+a 2 m, 50.000 a 20 m y 26.000 a 50 m. Lo que no baja son las tarjetas (el
+pelo del peinado y el de las pieles se deshacen al simplificarlos: su primer
+LOD ya se aparta 3,6 cm y no entra hasta unos 25 m) y los forros de Meshy.
+
 ```sh
 # Medidas de referencia (solo si cambian el escaneo, su piel o el esqueleto)
 godot --headless --path . --script res://tools/character/bake_armor_reference.gd

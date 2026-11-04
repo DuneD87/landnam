@@ -8,6 +8,7 @@ const MODEL := "res://scenes/character/character_model.tscn"
 const CHEST := "res://scenes/items/armor/leather_armor/leather_chest_equipable.tscn"
 const PANTS := "res://scenes/items/armor/firstage_skin_set/firstage_skin_pants_equipable.tscn"
 const PELT := "res://scenes/items/armor/stone_age/fur_headdress_equipable.tscn"
+const STONE_AGE_MODELS := "res://models/equipable/stone_age/"
 const HOODS := ["res://scenes/items/armor/leather_armor/leather_hood_equipable.tscn",
 		"res://scenes/items/armor/firstage_skin_set/firstage_skin_hood_equipable.tscn",
 		"res://scenes/items/armor/stone_age/fur_headdress_equipable.tscn"]
@@ -102,6 +103,15 @@ func _check_identity(skeleton: Skeleton3D) -> void:
 	var source_lods: int = RenderingServer.mesh_get_surface(item.mesh.get_rid(), 0).get("lods", []).size()
 	check(lods == source_lods, "the fitted mesh keeps its LODs (%d of %d)" % [lods, source_lods])
 	item.free()
+	var bare := []
+	for file in DirAccess.get_files_at(STONE_AGE_MODELS):
+		if not file.ends_with(".res"):
+			continue
+		var piece := load(STONE_AGE_MODELS + file) as ArrayMesh
+		for s in piece.get_surface_count():
+			if RenderingServer.mesh_get_surface(piece.get_rid(), s).get("lods", []).is_empty():
+				bare.append("%s/%d" % [file.get_basename(), s])
+	check(bare.is_empty(), "every Stone Age piece has LODs on every surface %s" % [bare])
 
 
 func _check_measurements(rig: CharacterAppearanceRig) -> void:

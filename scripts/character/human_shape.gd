@@ -35,6 +35,11 @@ var _lid_rest := {}
 var _reach := {}
 
 static var _morphable_bodies := {}
+## Per body or proxy mesh, its LODs (MeshLods): the morphs and the refit move the vertices, never the
+## triangles, so the base shape's serve every body.
+static var _lods := {}
+## Villagers are dressed on a worker thread (SettlementVillagers) while the player may be on the main one.
+static var _lods_lock := Mutex.new()
 
 
 func _init(body: HumanBodyData) -> void:
@@ -137,6 +142,7 @@ func body_baked(shapes := {}) -> ArrayMesh:
 	for i in vertices.size():
 		if touched[i]:
 			normals[i] = normals[i].normalized()
+	var lods := _lods_of(data.mesh, arrays)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	var result := ArrayMesh.new()
@@ -164,7 +170,7 @@ func body_baked(shapes := {}) -> ArrayMesh:
 		target[Mesh.ARRAY_NORMAL] = shape_normals
 		target[Mesh.ARRAY_TANGENT] = arrays[Mesh.ARRAY_TANGENT]
 		targets.append(target)
-	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, targets)
+	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, targets, lods)
 	return result
 
 
@@ -188,6 +194,7 @@ func blink_mix() -> Dictionary:
 ## (the eyelashes) gets a BLINK blend shape that follows them shut.
 func proxy_mesh(proxy: HumanProxyData, reuse: ArrayMesh = null) -> ArrayMesh:
 	var arrays := proxy.arrays().duplicate()
+	var lods := _lods_of(proxy, arrays)
 	var positions := proxy_positions(proxy)
 	arrays[Mesh.ARRAY_VERTEX] = positions
 	var shapes: Array[Array] = []
@@ -205,8 +212,18 @@ func proxy_mesh(proxy: HumanProxyData, reuse: ArrayMesh = null) -> ArrayMesh:
 	if not shapes.is_empty():
 		result.blend_shape_mode = Mesh.BLEND_SHAPE_MODE_NORMALIZED
 		result.add_blend_shape(BLINK)
-	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, shapes)
+	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, shapes, lods)
 	return result
+
+
+## The LODs of `key`'s mesh, made from `arrays` (its base shape) the first time.
+static func _lods_of(key: Resource, arrays: Array) -> Dictionary:
+	_lods_lock.lock()
+	if not _lods.has(key):
+		_lods[key] = MeshLods.generate(arrays)
+	var lods: Dictionary = _lods[key]
+	_lods_lock.unlock()
+	return lods
 
 
 ## Proxy vertices (output order) with the eyelids shut (blink_mix()), or
