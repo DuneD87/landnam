@@ -164,7 +164,7 @@ func _create_prop_anchor(key: String, anchor_local: Transform3D, collider_size: 
 		body.collision_mask = 0
 		body.add_child(collider)
 		anchor = body
-	anchor.transform = anchor_local
+	anchor.transform = _prop_anchor_transform(anchor_local)
 
 	anchor.set_meta("grid_id", grid_id)
 	anchor.set_meta("prop_key", key)

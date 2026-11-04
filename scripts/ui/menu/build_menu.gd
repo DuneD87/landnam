@@ -8,6 +8,8 @@ extends CanvasLayer
 ## - a la derecha, la ficha del que está bajo el ratón (o del elegido): lo que cuesta al tamaño de
 ##   celda de ahora, lo que se lleva, para cuántos alcanza y si se gira;
 ## - arriba, el tamaño de celda.
+## Al final de los materiales, «Naval» (las piezas de casco y la vela) y «Puertas» (puertas y
+## trampillas a medida), cada una con su panel en lugar de los bloques y la ficha.
 ## Un clic en un bloque (o «Construir con este bloque») lo deja como el que pone el martillo, en
 ## modo poner, y cierra el menú. Se abre desde la rueda del martillo o con su tecla, y se cierra con
 ## Esc, la tecla, el aspa o un clic fuera de la ventana.
@@ -24,6 +26,7 @@ const TILE := Vector2(176.0, 214.0)
 const MATERIAL_ICON := 40.0
 const DIM := Color(1, 1, 1, 0.45)
 const NAVAL_CATEGORY := "naval"
+const DOORS_CATEGORY := "doors"
 
 var building_system: BuildingSystem
 var inventory: Inventory
@@ -56,6 +59,7 @@ var _material_id := ""
 var _shown: ItemData = null
 var _center: VBoxContainer
 var _naval_panel: NavalBuildPanel
+var _door_panel: DoorBuildPanel
 
 
 func _ready() -> void:
@@ -84,8 +88,12 @@ func open() -> void:
 		return
 	var mat := building_system.get_current_material()
 	_material_id = NAVAL_CATEGORY if building_system.is_naval_mode() or building_system.is_sail_mode() else (mat.material_id if mat else "")
+	if building_system.is_door_mode():
+		_material_id = DOORS_CATEGORY
 	if _material_id == NAVAL_CATEGORY:
 		_naval_panel.configure(building_system, inventory)
+	elif _material_id == DOORS_CATEGORY:
+		_door_panel.configure(building_system, inventory)
 	_apply_scale()
 	visible = true
 	_refresh()
@@ -118,14 +126,21 @@ func _refresh() -> void:
 	_rebuild_tiles()
 	_refresh_cell_buttons()
 	var naval := _material_id == NAVAL_CATEGORY
-	_center.visible = not naval
-	_detail_box.visible = not naval
+	var doors := _material_id == DOORS_CATEGORY
+	_center.visible = not naval and not doors
+	_detail_box.visible = not naval and not doors
 	_naval_panel.visible = naval
+	_door_panel.visible = doors
 	if naval:
 		if _naval_panel.building_system == null:
 			_naval_panel.configure(building_system, inventory)
 		else:
 			_naval_panel.refresh()
+	elif doors:
+		if _door_panel.building_system == null:
+			_door_panel.configure(building_system, inventory)
+		else:
+			_door_panel.refresh()
 
 
 # --- Montaje --------------------------------------------------------------------------------------
@@ -225,6 +240,10 @@ func _build_ui() -> void:
 	body.add_child(_naval_panel)
 	_naval_panel.visible = false
 	_naval_panel.piece_picked.connect(close)
+	_door_panel = DoorBuildPanel.new()
+	body.add_child(_door_panel)
+	_door_panel.visible = false
+	_door_panel.piece_picked.connect(close)
 
 	column.add_child(HSeparator.new())
 	var hint := _label("BUILD_MENU_HINT", &"HintLabel")
@@ -290,6 +309,7 @@ func _apply_scale() -> void:
 	_rail.custom_minimum_size.x = RAIL_WIDTH * s
 	_detail_box.custom_minimum_size.x = DETAIL_WIDTH * s
 	_naval_panel.apply_scale(s)
+	_door_panel.apply_scale(s)
 	for button: Button in _tile_buttons.values():
 		button.custom_minimum_size = TILE * s
 
@@ -326,6 +346,22 @@ func _rebuild_rail() -> void:
 	naval.pressed.connect(_set_material.bind(NAVAL_CATEGORY))
 	_rail_detail.add_child(naval)
 	_material_buttons[NAVAL_CATEGORY] = naval
+	var doors := Button.new()
+	doors.theme_type_variation = &"RailButton"
+	doors.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	doors.toggle_mode = true
+	doors.button_group = _rail_group
+	doors.focus_mode = Control.FOCUS_NONE
+	doors.text = "DOOR_BUILD_TITLE"
+	var door_icon := ItemCatalog.get_item(DoorDesign.DOOR).icon
+	if door_icon:
+		doors.icon = door_icon
+		doors.expand_icon = true
+		doors.add_theme_constant_override("icon_max_width", roundi(MATERIAL_ICON * _ui_scale))
+	doors.set_pressed_no_signal(_material_id == DOORS_CATEGORY)
+	doors.pressed.connect(_set_material.bind(DOORS_CATEGORY))
+	_rail_detail.add_child(doors)
+	_material_buttons[DOORS_CATEGORY] = doors
 
 
 func _rebuild_recent() -> void:
@@ -350,6 +386,8 @@ func _set_material(mat_id: String) -> void:
 	_material_id = mat_id
 	if mat_id == NAVAL_CATEGORY:
 		_naval_panel.configure(building_system, inventory)
+	elif mat_id == DOORS_CATEGORY:
+		_door_panel.configure(building_system, inventory)
 	_refresh()
 	for id: String in _material_buttons:
 		(_material_buttons[id] as Button).set_pressed_no_signal(id == mat_id)
@@ -415,7 +453,7 @@ func _pick(item: ItemData) -> void:
 # --- Ficha ----------------------------------------------------------------------------------------
 
 func _show(item: ItemData) -> void:
-	if _material_id == NAVAL_CATEGORY:
+	if _material_id == NAVAL_CATEGORY or _material_id == DOORS_CATEGORY:
 		_detail_box.visible = false
 		return
 	_shown = item

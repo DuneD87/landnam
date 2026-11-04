@@ -18,7 +18,7 @@ la mano al cambiar la barra, al cambiar el equipo (también desde el muñeco) y 
 | B | Abre el menú de bloques. Sin martillo, avisa de que hace falta uno |
 | G | Menú de blueprints, como «Blueprints» en la rueda |
 | Mayús + rueda | Tamaño de celda: 0,25 · 0,5 · 1 · 2 m (también arriba del menú de bloques) |
-| 4, 8 y 9 del teclado numérico | Giran el bloque en X, Y y Z (los que giran) |
+| 4, 8 y 9 del teclado numérico | Giran el bloque en X, Y y Z (los que giran). Con una puerta o una trampilla, el 4 la tumba o la pone de pie y el 8 la pasa a la otra cara del hueco |
 | V / N | Simetría sobre el bloque apuntado / cambia su plano (también desde la rueda) |
 | J | Convierte en dinámica la grid apuntada |
 
@@ -60,7 +60,8 @@ Las medidas están en la escala base de 1440 px (`GameTheme.scale_for`). Si cues
 
 - **Izquierda:** los materiales, con lo que se lleva de cada uno, y los recientes. Los recientes son los
   últimos bloques elegidos de cualquier material (`BuildingSystem.recent_blocks`, 8 como mucho, solo en
-  la sesión).
+  la sesión). Al final de los materiales, **Naval** (ver «Piezas navales») y **Puertas** (ver «Puertas
+  y trampillas»), que enseñan su panel en lugar de los bloques y la ficha.
 - **Centro:** los bloques del material. Los que no alcanza para poner ni uno salen apagados, pero se
   pueden elegir igual.
 - **Derecha:** la ficha del bloque bajo el ratón, o del elegido: el tamaño de celda, el coste por
@@ -77,7 +78,8 @@ cargar (`Hotbar.restore_save_data`).
 ## Lo que cuesta
 
 Un bloque gasta su material según el tamaño de celda: `BuildMaterial.get_cost_for_size`, como mínimo 1.
-Un colocable gasta una unidad de su objeto; las velas navales consumen materiales según sus medidas.
+Un colocable gasta una unidad de su objeto; las velas navales y las puertas y trampillas consumen
+materiales según sus medidas.
 Quitar un bloque devuelve la parte de su coste que le queda
 de vida, redondeando hacia arriba. Lo que no cabe en el inventario cae al suelo delante del jugador;
 antes se perdía.
@@ -89,7 +91,8 @@ antes se perdía.
 - **Frente al inventario:** lo que falta, pagar y devolver.
 
 El precio sale siempre de los costes de ahora. Una ficha de blueprint solo guarda el recuento de
-bloques por material y tamaño de celda, de colocables por objeto y los diseños de las velas.
+bloques por material y tamaño de celda, de colocables por objeto y los diseños de las velas y de las
+puertas (con la celda de su grid).
 
 **Construir gratis** (consola: `freebuild [on|off]`, `BuildingSystem.free_build`): bloques, colocables
 y blueprints no gastan nada. Quitar o desmontar tampoco devuelve nada, para que no sea una fuente de
@@ -409,6 +412,88 @@ La **escala de cuerda** (`rope_ladder_01`) solo va en las caras de los lados. No
 antorcha: cuelga derecha del canto de arriba de la cara hasta lo primero que toca debajo, o hasta un
 poco por debajo del mar (`BuildingSystem._measure_ladder`, `RopeLadder.measure_length`), y el fantasma
 enseña ese largo. No choca con nada. Ver [Escalada](climbing.md#escalas-de-cuerda).
+
+### Puertas y trampillas
+
+La **puerta de madera** (`wooden_door`) cierra un hueco en un muro, de pie; la **trampilla de madera**
+(`wooden_trapdoor`) cierra el hueco en su plano: en un techo o un suelo es una trampilla, y en un muro,
+una contraventana. Se construyen a medida con el martillo, como la vela: no se fabrican ni van en la
+barra.
+
+**El menú** (**B → Puertas**, `DoorBuildPanel`): las pestañas Puerta de madera y Trampilla de madera,
+el ancho y el alto (en la trampilla, el largo a lo largo de las bisagras) en bloques, de 1 a 4 de ancho
+y de 1 a 6 de alto, una vista que se gira arrastrando y se acerca con la rueda, lo que mide en metros y
+lo que cuesta al tamaño de celda elegido arriba, con lo que se lleva. Salen de 1 × 3 la puerta y de 1 ×
+1 la trampilla (`DoorTrait.cells`), y cada pestaña recuerda sus medidas. **Construir esta puerta** la
+deja en el martillo (`BuildingSystem.pick_door`) y cierra el menú; B vuelve a él.
+
+**Las medidas** (`DoorDesign`) son en bloques de la construcción en la que se pone, así que encaja en
+el hueco sea cual sea el tamaño de sus bloques: una de 1 × 3 mide 1 × 3 m en bloques de 1 m y 0,5 × 1,5
+en bloques de 0,5 m. **Cuesta** según lo que mide en metros: 2 maderas por m² y una piel para las
+bisagras por cada 3 m² (como poco, 1 y 1). Una de 1 × 3 en bloques de 1 m, 6 maderas y 1 piel. Se paga
+al ponerla, con lo de la construcción apuntada, y quitarla con el martillo lo devuelve entero. Mientras
+se apunta, debajo del fantasma salen sus medidas y lo que costará ahí. Con ella en el martillo, H pasa a
+quitar como con la vela.
+
+**Dónde va** (`WoodenDoor.fit`). Se apunta a un bloque del borde del hueco, y la hoja cierra el hueco de
+delante de esa cara:
+
+- **El plano:** de frente al eje por el que se atraviesa el hueco (libre a los dos lados). Si no está
+  claro (un hueco en una esquina, una pieza suelta), el que más de cara se mira. La puerta va siempre
+  de pie.
+- **La cara:** la hoja queda a ras de la cara del hueco del lado desde el que se pone (por fuera del
+  muro, si se pone desde fuera), con la cara de las tablas hacia ese lado y los travesaños dentro del
+  hueco. **Girar en Y** (el 8 del teclado numérico) la pasa a la otra cara, como si se pusiera desde
+  el otro lado, con las bisagras en el mismo sitio (`BuildingSystem.door_flipped`). Al elegir otra
+  puerta en el menú se vuelve a la cara de quien la pone, y de pie.
+- **Tumbada:** para el agujero de un techo o un suelo. Una trampilla apuntada por abajo al techo, o
+  por arriba al suelo, junto al borde de un agujero se mete en él tumbada
+  (`WoodenDoor._hole_beside`): el agujero es la celda vacía de al lado por el borde más cercano a lo
+  apuntado, sin nada encima ni debajo y con forjado por otro lado más (así no cuenta el aire de fuera
+  del borde de un tejado). Apuntando al alféizar o al dintel de una ventana sigue siendo una
+  contraventana. Apuntando al canto del agujero, por dentro, también va tumbada. **El 4 del teclado
+  numérico** la tumba a la fuerza, también a la puerta (`BuildingSystem.door_lying`); tumbada, lejos de
+  un agujero no va. Tumbada queda a ras de arriba, con las tablas hacia arriba, para pisarla; el 8 la
+  pasa a ras de abajo. Una trampilla alargada crece a lo largo de las bisagras hacia donde quepa.
+- **Las bisagras:** en el bloque apuntado. Apuntando a una jamba van en ella. En una puerta apuntando al
+  suelo del hueco o al dintel, en el lado de la celda que se apunta; si así no cabe (una puerta ancha
+  apuntada por el lado de la celda que no es), en el otro. En una ventana, apuntando al dintel queda
+  colgada de él, y al alféizar, abatible hacia abajo.
+- **Girada:** una trampilla que no cabe con sus medidas se prueba con el ancho y el largo cambiados,
+  para que una de 2 × 1 cierre también un hueco de 1 × 2.
+- **La altura:** apuntando a una jamba, la puerta baja por el hueco mientras siga la jamba, hasta el
+  suelo, o hasta el pie del muro si está sobre el terreno. Apuntando al dintel, cuelga de él.
+- **Cuándo cabe:** sus celdas tienen que estar vacías y sin otra hoja. El fantasma la enseña a su
+  medida, con las bisagras en su sitio, y en rojo si no cabe.
+
+Es un colocable: va anclada al bloque apuntado, la quita el martillo en modo quitar (devolviendo sus
+materiales) y conservan sus medidas el guardado, los blueprints y la conversión en dinámica.
+
+**Abrir y cerrar.** E apuntándola a menos de 3 m del pecho (`PlayerController._toggle_aimed_door`) la
+abre hacia el lado contrario de quien la empuja, así que no le da, y la vuelve a cerrar. Va antes que
+agarrarse a una pared, para que E junto a una puerta cerrada no la trepe, y vale también trepando (una
+trampilla del techo desde la escala de cuerda, una contraventana desde la pared). Gira 90° en 0,45 s por el
+canto de las bisagras, por la cara de las tablas del lado al que se abre. Hacia la cara a ras de la
+que está sale entera del muro; hacia el otro lado gira por dentro del hueco pegada a la jamba. De las
+dos maneras deja libre 0,95 del ancho (el jugador mide 0,9). El collider gira con ella (`GridBase.pose_prop`, que
+mueve el ancla del colocable sin cambiar dónde está puesto), así que abierta choca y se apunta donde se
+ve. Una trampilla en un techo se abre hacia arriba desde abajo y hacia abajo desde arriba. Si está
+abierta o cerrada va en el estado del colocable (`GridBase.set_prop_state`), que no cuenta como tocar la
+construcción: una casa de un poblado no pasa por ello a ser de la partida. Suenan `door_open` y
+`door_close` (`data/audio/events/`): las dos mitades de `audio/effects/door_open_close.mp3`, de
+Pixabay, partidas por el silencio del medio en `door_open.wav` y `door_close.wav`, en mono para que
+suenen en su sitio (`tools/audio/build_door_sound.py`, créditos en `docs/door_audio_credits.md`).
+
+**La malla** (`DoorMesh`): tablas verticales con la foto del casco de los barcos, travesaños con
+riostras en Z por detrás, tiras de cuero crudo de bisagra y un asidero en cada cara. Es la de una celda
+de 1 m y se escala a la de la grid: lleva cinco tablas por bloque de ancho, un travesaño cada metro y
+pico de alto y las tiras más largas cuanto más ancha es. La comparten la hoja puesta, el fantasma, la
+vista del menú y los iconos:
+
+```sh
+godot --path . --script res://tools/items/bake_doors.gd -- --background
+godot --headless --path . res://tests/building/test_doors.tscn
+```
 
 ## Iconos de los bloques
 

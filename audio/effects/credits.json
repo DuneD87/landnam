@@ -29,6 +29,12 @@
    "author": "Kinoton",
    "license": "http://creativecommons.org/publicdomain/zero/1.0/",
    "url": "https://freesound.org/s/719963/"
+  },
+  "pixabay-universfield-door": {
+   "title": "door_open_close.mp3",
+   "author": "Universfield",
+   "license": "https://pixabay.com/service/license-summary/",
+   "url": "https://pixabay.com/users/universfield-28281460/"
   }
  },
  "clips": {
@@ -52,6 +58,18 @@
     "file": "audio/effects/pickup/pickup_04.ogg",
     "source": 719963,
     "dur": 0.43
+   }
+  ],
+  "door": [
+   {
+    "file": "audio/effects/door_open.wav",
+    "source": "pixabay-universfield-door",
+    "dur": 1.41
+   },
+   {
+    "file": "audio/effects/door_close.wav",
+    "source": "pixabay-universfield-door",
+    "dur": 1.35
    }
   ]
  }

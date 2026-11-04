@@ -476,7 +476,7 @@ func _collapse_piece(group: Array, piece: Dictionary, world_xform: Transform3D) 
 			if prop_node and is_instance_valid(prop_node):
 				prop_node.queue_free()
 			dyn.place_prop(prop_info["cell"], prop_info["face"], prop_info["item_id"],
-				prop_info["local_transform"])
+				prop_info["local_transform"], prop_info.get("state", {}))
 
 		for cell: Vector3i in entry["cells"]:
 			_migrate_cell_to_dynamic(static_grid, dyn, body, cell)

@@ -64,6 +64,17 @@ var selected_placeable: ItemData = null
 var sail_design: Dictionary = SailDesign.DEFAULT.duplicate()
 ## Lo que colgará la escala de cuerda apuntada (RopeLadder.measure_length).
 var _ladder_length := RopeLadder.MIN_LENGTH
+## Las medidas de la puerta o trampilla elegida en el menú de bloques (DoorDesign, en bloques).
+var door_design: Dictionary = {}
+## En qué canto llevará las bisagras la puerta o trampilla apuntada y con qué medidas cabe
+## (WoodenDoor.fit: una trampilla puede ir girada).
+var _door_hinge := 1
+var _door_cells := Vector2i(1, 3)
+## La puerta o trampilla va a ras de la otra cara del hueco, como puesta desde el otro lado: lo cambia
+## girar en Y.
+var door_flipped := false
+## La puerta o trampilla va tumbada, para el agujero de un techo o un suelo: lo cambia girar en X.
+var door_lying := false
 var _equipped_item_getter: Callable = Callable()
 var _equipped_item_consumer: Callable = Callable()
 var _has_prop_target: bool = false
@@ -137,7 +148,7 @@ func get_selected_block() -> BlockData:
 
 ## El item del bloque elegido con el material activo (su icono y su nombre, para la UI).
 func get_selected_block_item() -> ItemData:
-	if is_sail_mode():
+	if is_sail_mode() or is_door_mode():
 		return selected_placeable
 	if is_naval_mode():
 		return _naval_item
@@ -192,7 +203,31 @@ func get_prop_state() -> Dictionary:
 		return {"design": sail_design.duplicate(true), "level": 0, "deployment": 0.0}
 	if is_ladder_mode():
 		return {"length": _ladder_length}
+	if is_door_mode():
+		return {"hinge": _door_hinge, "cell": _target_prop_grid.cell_size if _target_prop_grid else cell_size,
+			"width": _door_cells.x, "height": _door_cells.y}
 	return {}
+
+
+## Una puerta o una trampilla del menú de bloques ([item_id], DoorDesign.KINDS) con las medidas de
+## [config]: el martillo la pone desde ahora.
+func pick_door(item_id: StringName, config: Dictionary) -> void:
+	select_placeable(ItemCatalog.get_item(item_id))
+	door_design = DoorDesign.normalize(config, item_id)
+	_door_cells = DoorDesign.cells(door_design)
+	set_action_mode(ActionMode.BUILD)
+	clear_target()
+
+
+func is_door_mode() -> bool:
+	return selected_placeable != null and selected_placeable.get_trait(DoorTrait) != null
+
+
+## Lo que cuesta la puerta o trampilla elegida en la grid apuntada (o, sin apuntar ninguna, con el
+## tamaño de celda del martillo).
+func door_cost() -> Dictionary:
+	return DoorDesign.cost(DoorDesign.normalize(door_design, selected_placeable.id),
+		_target_prop_grid.cell_size if _target_prop_grid else cell_size)
 
 
 func is_naval_mode() -> bool:
@@ -262,6 +297,8 @@ func select_placeable(item: ItemData) -> void:
 		naval_piece_changed.emit()
 	selected_placeable = item
 	_has_prop_target = false
+	door_flipped = false
+	door_lying = false
 	if item:
 		set_action_mode(ActionMode.BUILD)
 	placeable_changed.emit(item)
@@ -281,14 +318,22 @@ func _equipped_matches_placeable() -> bool:
 	return item != null and item.id == selected_placeable.id
 
 
+## Con una puerta o una trampilla, la tumba o la pone de pie.
 func rotate_block_x() -> void:
-	if _can_rotate() and not is_sail_mode():
+	if is_door_mode():
+		door_lying = not door_lying
+		rotation_changed.emit()
+	elif _can_rotate() and not is_sail_mode():
 		current_rotation_basis *= Basis(Vector3.RIGHT, deg_to_rad(90.0))
 		_snap_rotation()
 		rotation_changed.emit()
 
+## Con una puerta o una trampilla, la pasa a la otra cara del hueco.
 func rotate_block_y() -> void:
-	if _can_rotate():
+	if is_door_mode():
+		door_flipped = not door_flipped
+		rotation_changed.emit()
+	elif _can_rotate():
 		current_rotation_basis *= Basis(Vector3.UP, deg_to_rad(90.0))
 		_snap_rotation()
 		rotation_changed.emit()
@@ -358,9 +403,10 @@ func toggle_action_mode() -> void:
 	set_action_mode(ActionMode.DESTROY if current_action_mode == ActionMode.BUILD else ActionMode.BUILD)
 
 
-## Poner o quitar. Con un colocable en la mano siempre es poner: quitar es cosa del martillo.
+## Poner o quitar. Con un colocable en la mano siempre es poner: quitar es cosa del martillo (también
+## con la vela o una puerta del menú de bloques, que se ponen con él).
 func set_action_mode(mode: ActionMode) -> void:
-	if is_prop_mode() and not is_sail_mode():
+	if is_prop_mode() and not is_sail_mode() and not is_door_mode():
 		mode = ActionMode.BUILD
 	if mode == current_action_mode:
 		return
@@ -388,6 +434,8 @@ func can_afford_block(block_data: BlockData = null) -> bool:
 	if is_prop_mode():
 		if is_sail_mode():
 			return BuildCost.missing(SailDesign.cost(sail_design), _inventory).is_empty()
+		if is_door_mode():
+			return BuildCost.missing(door_cost(), _inventory).is_empty()
 		return _inventory.get_item_count(selected_placeable) >= 1 or _equipped_matches_placeable()
 
 	var mat := get_current_material()
@@ -614,7 +662,8 @@ func _compute_grid_face(hit_collider: Node3D, hit_grid: GridBase, hit_normal: Ve
 
 ## Targeting del modo prop: ancla el prop al centro de la cara apuntada, vertical en suelo
 ## e inclinado PROP_WALL_TILT_DEG grados hacia fuera en paredes. La escala de cuerda cuelga derecha
-## del canto de arriba de la cara, hasta el suelo.
+## del canto de arriba de la cara, hasta el suelo. Una puerta o una trampilla cierra el hueco de
+## delante de la cara (WoodenDoor.fit).
 func _process_aim_prop(hit_collider: Node3D, hit_normal: Vector3, hit_pos: Vector3) -> void:
 	_hit_grid_for_alignment = null
 	_can_place = false
@@ -630,7 +679,22 @@ func _process_aim_prop(hit_collider: Node3D, hit_normal: Vector3, hit_pos: Vecto
 
 	var prop_basis := Basis.IDENTITY
 	var face_allowed := false
-	if face.y == 1:
+	var door := selected_placeable.get_trait(DoorTrait) as DoorTrait
+	if door != null:
+		var to_grid := hit_grid.get_grid_world_transform().affine_inverse()
+		var camera := get_viewport().get_camera_3d()
+		var eye := camera.global_position if camera else hit_pos + hit_normal
+		var fit := WoodenDoor.fit(hit_grid, cell, face, to_grid * hit_pos, to_grid.basis * (hit_pos - eye),
+			DoorDesign.cells(DoorDesign.normalize(door_design, selected_placeable.id)), door.upright, door_flipped,
+			door_lying)
+		if fit.is_empty():
+			return
+		_door_hinge = fit["hinge"]
+		_door_cells = fit["cells"]
+		face_allowed = fit["ok"]
+		prop_basis = (fit["transform"] as Transform3D).basis
+		attach = (fit["transform"] as Transform3D).origin
+	elif face.y == 1:
 		face_allowed = selected_placeable.placeable_on_floor
 		if is_sail_mode():
 			prop_basis = current_rotation_basis
@@ -1012,6 +1076,15 @@ func try_place_prop() -> bool:
 		return false
 	if not _can_afford or not _target_prop_grid:
 		return false
+	if is_door_mode():
+		var cost := door_cost()
+		if not free_build and not BuildCost.pay(cost, _inventory):
+			return false
+		var hung := _target_prop_grid.place_prop(_target_prop_cell, _target_prop_face, selected_placeable.id,
+			_target_prop_local, get_prop_state())
+		if not hung and not free_build:
+			BuildCost.give(cost, _inventory, _player, _player_down())
+		return hung
 	if is_sail_mode():
 		var state := get_prop_state()
 		var cost := SailDesign.cost(sail_design)

@@ -54,6 +54,7 @@ Van en `ItemData.traits` y se buscan por su tipo con
 | `StorageTrait` | Capacidad en huecos y reglas opcionales de lo que se guarda; cada instancia tiene su propio inventario | cofre de madera |
 | `InventoryExpansionTrait` | Huecos adicionales del inventario mientras está equipado | mochila de pieles (+8) |
 | `SailTrait` | Eficiencia del paño; la superficie se calcula desde el diseño de cada instancia | vela de pieles a medida |
+| `DoorTrait` | Cierra un hueco de la construcción: las medidas con que sale en el menú de bloques y si va siempre de pie | puerta (1 × 3, de pie) y trampilla (1 × 1) de madera |
 | `RemedyTrait` | Cura: vida al momento, «Recuperándose» unos segundos, corta el sangrado, cierra las partes heridas y quita estados | milenrama, emplasto, bebedizo, tablilla |
 
 Un rasgo nuevo es una clase que hereda de `ItemTrait` en
@@ -86,6 +87,8 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Espada de bronce | `bronze_sword` | Arma de la forja: 30 de daño, más ligera que las de sílex y obsidiana |
 | Lecho de pieles | `bedroll` | Se planta en el suelo: E para dormir ocho horas o recogerlo |
 | Cofre de madera | `wooden_chest` | Se planta en el suelo: E para guardar y sacar objetos en sus 24 huecos |
+| Puerta de madera | `wooden_door` | Se construye a medida con el martillo en B → Puertas y cierra un hueco en un muro: E la abre y la cierra. Ver [building.md](building.md#puertas-y-trampillas) |
+| Trampilla de madera | `wooden_trapdoor` | Como la puerta, en el plano del hueco: en un techo, un suelo o un muro (contraventana) |
 | Mochila de pieles | `hide_backpack` | Se equipa en Espalda y amplía el inventario de 20 a 28 huecos |
 | Vela de pieles | `hide_sail` | Se construye con el martillo en B → Naval → Vela: ancho y alto del paño y altura del mástil ajustables. Ver [sailing.md](sailing.md) |
 

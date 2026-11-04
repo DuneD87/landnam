@@ -81,6 +81,10 @@ func _create_prop_anchor(_key: String, _anchor_local: Transform3D, _collider_siz
 	push_warning("[GridBase] _create_prop_anchor() no implementado")
 	return null
 
+## Transform del ancla de un prop respecto a su padre, con [anchor_local] en espacio de grid.
+func _prop_anchor_transform(anchor_local: Transform3D) -> Transform3D:
+	return anchor_local
+
 ## Hook tras colocar un bloque, para lógica específica de la subclase.
 func _on_block_placed_hook(_grid_pos: Vector3i) -> void:
 	pass
@@ -317,6 +321,11 @@ func place_prop(cell: Vector3i, face: Vector3i, item_id: StringName, local_trans
 	elif item_id == RopeLadder.ITEM:
 		state["length"] = RopeLadder.clamp_length(float(state.get("length", RopeLadder.MIN_LENGTH)))
 		collider_size = RopeLadder.collider_size(state["length"])
+	elif item.get_trait(DoorTrait) != null:
+		# Una puerta o una trampilla se mide en celdas de la grid en la que va.
+		state["cell"] = cell_size
+		state.merge(DoorDesign.normalize(state, item_id), true)
+		collider_size = WoodenDoor.collider_size(DoorDesign.cells(state), cell_size)
 	var center_offset := Vector3(0, collider_size.y * 0.5, 0)
 	var anchor_local := local_transform * Transform3D(Basis.IDENTITY, center_offset)
 	var anchor := _create_prop_anchor(key, anchor_local, collider_size, item.placed_solid)
@@ -336,11 +345,30 @@ func place_prop(cell: Vector3i, face: Vector3i, item_id: StringName, local_trans
 		"cell": cell,
 		"face": face,
 		"local_transform": local_transform,
+		"center": center_offset,
 		"node": anchor,
 		"state": state.duplicate(true),
 	}
 	props_changed.emit()
 	return true
+
+
+## Mueve un prop puesto sin cambiar dónde está puesto (lo que se guarda): [pose] va en su marco, como
+## su local_transform. Gira con él su collider. La hoja de una puerta al abrirse (WoodenDoor).
+func pose_prop(key: String, pose: Transform3D) -> void:
+	var info: Dictionary = _props.get(key, {})
+	var node: Node3D = info.get("node")
+	if node == null or not is_instance_valid(node):
+		return
+	node.transform = _prop_anchor_transform(info["local_transform"] * pose
+		* Transform3D(Basis.IDENTITY, info.get("center", Vector3.ZERO)))
+
+
+## Cambia el estado que se guarda de un prop (una puerta abierta o cerrada). No cuenta como tocar la
+## construcción: no emite props_changed.
+func set_prop_state(key: String, state: Dictionary) -> void:
+	if _props.has(key):
+		_props[key]["state"] = state.duplicate(true)
 
 
 ## Elimina un prop por su clave; devuelve su info (con item_id) o {} si no existe.

@@ -230,7 +230,20 @@ func _perform_raycast() -> void:
 		var hit_normal: Vector3 = _ray_hit["normal"]
 		var hit_collider: Object = _ray_hit["collider"]
 		building_system.process_raycast(hit_collider, hit_normal, hit_pos, _ray_hit)
-	
+
+
+## Abre o cierra la puerta o la trampilla que se apunta, si está al alcance del pecho. false si no
+## se apunta ninguna.
+func _toggle_aimed_door() -> bool:
+	var door := WoodenDoor.aimed(_ray_hit)
+	if door == null:
+		return false
+	var chest := global_position - gravity_direction * 1.0
+	if chest.distance_to(_ray_hit["position"]) > WoodenDoor.REACH:
+		return false
+	door.toggle(chest)
+	return true
+
 
 func _on_voxel_mined(item_id: StringName, amount: int) -> void:
 	Progression.reward(self, &"dig")
@@ -1423,10 +1436,14 @@ func _input(event):
 		inventory_ui.toggle(which)
 		capture_mouse(not inventory_ui.visible)
  
-	var use: bool = event.is_action_pressed("action") && !free_flight_enabled and not climb.is_active() \
-		and not _is_text_field_focused()
+	var pressed: bool = event.is_action_pressed("action") && !free_flight_enabled and not _is_text_field_focused()
+	var use := pressed and not climb.is_active()
+	# Mirando una puerta de cerca, USAR la abre o la cierra, también trepando (una trampilla desde la
+	# escala): antes que agarrarse a ella como a una pared.
+	if pressed and _toggle_aimed_door():
+		pass
 	# Empujando contra una pared, USAR es agarrarse a ella: antes que lo que haya por el suelo.
-	if use and climb.request_grab():
+	elif use and climb.request_grab():
 		pass
 	elif use:
 		var corpse := _find_nearby_corpse()

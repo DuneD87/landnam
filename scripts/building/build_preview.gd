@@ -219,10 +219,18 @@ func update_prop_preview(world_transform: Transform3D, valid: bool) -> void:
 	_prop_ghost.visible = true
 	_prop_ghost.global_transform = world_transform
 	_prop_ghost_material.albedo_color = ghost_color_valid if valid else ghost_color_invalid
-	# La escala, hasta donde llegará colgada.
-	if _prop_ghost is RopeLadder:
+	# La escala, hasta donde llegará colgada; la puerta, a la medida de la grid y con sus bisagras.
+	if _prop_ghost is RopeLadder or _prop_ghost is WoodenDoor:
 		_prop_ghost.restore_prop_state(_building_system.get_prop_state())
-	if _building_system.is_sail_mode():
+	if _building_system.is_door_mode():
+		var state := _building_system.get_prop_state()
+		var cell: float = state["cell"]
+		_naval_hint.text = tr("DOOR_PLACE_HINT") % [_building_system.selected_placeable.get_display_name(),
+			state["width"], state["height"], ItemTrait.number(state["width"] * cell),
+			ItemTrait.number(state["height"] * cell),
+			tr("BUILD_MENU_FREE") if BuildingSystem.free_build else BuildCost.describe(_building_system.door_cost())]
+		_naval_hint.visible = true
+	elif _building_system.is_sail_mode():
 		var design := _building_system.sail_design
 		var cost := SailDesign.cost(design)
 		_naval_hint.text = "%s · %s × %s m · %s m²\n%s · %s m\n%s" % [
