@@ -16,7 +16,11 @@ uniform float texture_contrast : hint_range(0.0, 2.0) = 1.0;
 uniform float occlusion_depth = 0.02;
 
 const vec3 HAIR_LUMA = vec3(0.2126, 0.7152, 0.0722);
-const vec3 GRAY_HAIR = vec3(0.78, 0.77, 0.74);
+// Grey hair, linear like hair_color once it reaches the shader (about 0.63
+// in sRGB): 0.78 was the albedo of snow and lit up like it.
+const vec3 GRAY_HAIR = vec3(0.36, 0.35, 0.33);
+// Strands across a card's texture that the grey picks from.
+const float GRAY_STRANDS = 400.0;
 
 // Hair fitted flush with the skin (caps at the hairline) dips under it where
 // the body's morphs bulge: vertices this close to the body are lifted off it.
@@ -53,10 +57,17 @@ vec3 strand_color(vec4 texel, vec2 uv) {
 	float relative = hair_to_srgb(vec3(dot(texel.rgb, HAIR_LUMA))).r / max(tone_luma, 0.02);
 	relative = pow(clamp(relative, 0.1, 3.0), texture_contrast);
 	relative = mix(1.0, relative, smoothstep(0.2, 0.7, texel.a));
-	float across = strand_axis == 1 ? uv.x : uv.y;
-	float strand_gray = step(1.0 - gray, hair_hash(floor(across * 400.0)) * 0.85 + gray * 0.15);
-	vec3 base = mix(hair_color, GRAY_HAIR, max(strand_gray, gray * gray * 0.6));
-	vec3 col = hair_to_linear(hair_to_srgb(base) * clamp(relative, 0.3, 1.8));
+	// A share of the strands turns grey, picked per strand; where a pixel
+	// spans several strands it takes their mean, or the hair sparkles from
+	// a few metres away.
+	float lanes = (strand_axis == 1 ? uv.x : uv.y) * GRAY_STRANDS;
+	float share = clamp((1.15 * gray - 0.15) / 0.85, 0.0, 1.0);
+	float strand_gray = step(1.0 - share, hair_hash(floor(lanes)));
+	strand_gray = mix(strand_gray, share, smoothstep(0.3, 1.0, fwidth(lanes)));
+	float grey = max(strand_gray, gray * gray * 0.6);
+	vec3 base = mix(hair_color, GRAY_HAIR, grey);
+	// The texture's highlights would burn grey strands to white.
+	vec3 col = hair_to_linear(hair_to_srgb(base) * clamp(relative, 0.3, mix(1.8, 1.2, grey)));
 	float inner = 1.0 - smoothstep(0.0, occlusion_depth, depth_from_body);
 	return col * (1.0 - 0.4 * inner);
 }

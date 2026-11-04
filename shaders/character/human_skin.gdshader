@@ -12,7 +12,8 @@ shader_type spatial;
 // fullest reach: pubic_hair sets how far the curls (stubble_texture G) go.
 // Lips and eyelids come from MPFB's UV masks.
 
-const vec3 GRAY_HAIR = vec3(0.78, 0.77, 0.74);
+// human_hair_common.gdshaderinc's, linear.
+const vec3 GRAY_HAIR = vec3(0.36, 0.35, 0.33);
 
 uniform sampler2D albedo_texture : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D normal_texture : hint_normal, filter_linear_mipmap_anisotropic;
