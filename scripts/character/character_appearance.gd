@@ -65,38 +65,14 @@ func reset() -> void:
 	emit_changed()
 
 
-## A random character of the current sex: a random face preset nudged a
-## little, a moderate body, and random colours and styles. Sliders stay near
-## the middle, so the result is varied but rarely extreme.
-func randomize_values(rng: RandomNumberGenerator, only: Array[AppearanceOption] = []) -> void:
-	var sex := get_sex()
-	var options := only if not only.is_empty() else AppearanceCatalog.all_options()
-	for option in options:
-		if option.kind == AppearanceOption.Kind.PRESET and option.is_available(sex):
-			var presets := option.choices_for(sex)
-			if not presets.is_empty():
-				var preset: Dictionary = presets[rng.randi() % presets.size()]
-				for id in AppearanceCatalog.preset_scope(option.id):
-					values.erase(id)
-				for id in preset.get("values", {}):
-					values[id] = preset.values[id]
-				values[option.id] = preset.id
-	for option in options:
-		if option.id == AppearanceCatalog.SEX or not option.is_available(sex):
-			continue
-		match option.kind:
-			AppearanceOption.Kind.SLIDER:
-				var mid := (option.min_value + option.max_value) * 0.5
-				var half := (option.max_value - option.min_value) * 0.5
-				var spread := AppearanceCatalog.random_spread(option.id)
-				var current: float = values.get(option.id, option.default_for(sex))
-				var centre := current if values.has(option.id) else mid
-				values[option.id] = clampf(centre + rng.randfn(0.0, spread) * half, option.min_value, option.max_value)
-			AppearanceOption.Kind.COLOR:
-				values[option.id] = option.palette[rng.randi() % option.palette.size()]
-			AppearanceOption.Kind.CHOICE:
-				var offered := option.choices_for(sex)
-				values[option.id] = offered[rng.randi() % offered.size()].id
+## A random character of the current sex (AppearanceRoll): a fresh look from [lineage]
+## (AppearanceRoll.LINEAGES) or any. With [only], those options just move a little from
+## where they are.
+func randomize_values(rng: RandomNumberGenerator, only: Array[AppearanceOption] = [], lineage := &"") -> void:
+	if only.is_empty():
+		AppearanceRoll.roll(self, rng, lineage)
+	else:
+		AppearanceRoll.vary(self, rng, only)
 	emit_changed()
 
 

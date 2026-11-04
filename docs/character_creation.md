@@ -21,6 +21,35 @@ algo de lo que se ve en ella. Una elección nueva del catálogo sale retratada s
 con el encuadre de la cara; si necesita otro, se le da en
 `ChoiceThumbnails.FRAMING`.
 
+Debajo de las opciones, **Aleatorio** hace un personaje nuevo, **Variar** mueve
+un poco las opciones de la categoría abierta y **Restablecer** vuelve a los
+valores por defecto del sexo. El aleatorio (`AppearanceRoll`) busca un aspecto
+que cuadre, no un sorteo de cada opción por su lado:
+
+- **Parte de cero** cada vez, así que pulsarlo seguido no va alejándose de lo
+  normal.
+- **Linaje primero** (`AppearanceRoll.LINEAGES`: nórdico, del sur, africano y
+  asiático): decide los rostros de partida, la piel y su tono, y los colores de
+  pelo y ojos. Los aldeanos son siempre nórdicos.
+- **La edad**, en años (de 17 a 68, más jóvenes que viejos; la edad del cuerpo
+  va de unos 21 años a unos 67), trae las canas (entrecano como mucho: más gris
+  se ve como ruido en los rizos y el pelo largo), las ojeras, las entradas y la
+  calva de los hombres y las pieles maduras.
+- **Cada deslizador** va alrededor de su valor por defecto (o el del rostro
+  elegido) y nunca a más del doble de su dispersión (`FACE_SPREAD`,
+  `BODY_SPREAD`). Los rasgos de otro linaje, las orejas puntiagudas, las mezclas
+  de forma de cabeza, el hoyuelo y el maquillaje no se sortean
+  (`AppearanceRoll.KEEP`).
+- **Peinados y barbas** con peso (`AppearanceRoll.HAIR`, `BEARDS`): los de
+  disfraz (cresta, tupé, de punta, tazón, tonsura) y algunos modernos (media
+  melena, coletas altas, coleta de lado) solo a mano, y cada linaje
+  añade los suyos.
+
+**Variar** mueve un paso los deslizadores, sin alejarlos más del 60 % de su
+medio recorrido de su valor por defecto. Los colores pasan al de al lado en su
+paleta, y los peinados y las pieles se eligen de nuevo entre los del linaje que
+se le ve por la piel.
+
 Al pulsar **Comenzar partida**, el `CharacterData`
 resultante pasa a `GameManager.character` y arranca la cinemática. **Volver al
 menú** (o Escape) cancela y devuelve el menú. Para ello `GameManager` tiene el
@@ -68,7 +97,7 @@ Las texturas copiadas están en `textures/character/human/`. Sobre esa base:
   para negativos. Los rasgos africanos y asiáticos solo mueven la cabeza.
 - **Rostros:** `AppearanceCatalog.FACE_PRESETS` define siete puntos de partida
   por sexo. El primero de cada sexo es su cara por defecto: cambiar de sexo o
-  pulsar **Restablecer** vuelve a él, y **Aleatorio** parte de uno al azar.
+  pulsar **Restablecer** vuelve a él, y **Aleatorio** parte de uno de su linaje.
 - **Pesos de piel:** los del modelo original del jugador, para el que se
   hicieron las animaciones. `dump_skeleton.gd` vuelca su malla y el exportador
   transfiere sus pesos al cuerpo de MakeHuman: el de cada vértice, desplazado
