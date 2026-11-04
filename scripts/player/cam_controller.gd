@@ -188,6 +188,7 @@ func _track_lock_point() -> void:
 
 func update_camera_rotation():
 	var dt := get_physics_process_delta_time()
+	_update_gamepad_look(dt)
 	_cine = move_toward(_cine, 1.0 if cinematic != null else 0.0, dt / CINEMATIC_BLEND)
 	if cinematic != null:
 		_cine_point = cinematic
@@ -218,6 +219,22 @@ func update_camera_rotation():
 	update_camera_transform()
 	delta_yaw = 0.0
 	delta_pitch = 0.0
+
+## Velocidad angular por segundo: la cámara con mando gira igual a cualquier tasa de física.
+func _update_gamepad_look(delta: float) -> void:
+	if GameManager.current_state != GameManager.State.PLAYING \
+			or Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
+		return
+	var player = get_parent()
+	if player.build_radial != null and player.build_radial.is_open():
+		return
+	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+	var speed := 2.5 * clampf(float(SettingsManager.value("controls/gamepad_sensitivity")), 0.2, 3.0)
+	if lock_point != null:
+		_lock_swipe -= look.x * speed * delta
+	else:
+		delta_yaw -= look.x * speed * delta
+		delta_pitch -= look.y * speed * delta * (-1.0 if bool(SettingsManager.value("controls/gamepad_invert_y")) else 1.0)
 
 func update_camera_transform():
 	var player = get_parent()

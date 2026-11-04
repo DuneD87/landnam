@@ -412,6 +412,12 @@ func _on_slot_clicked(slot: HotbarSlot, _button_index: int) -> void:
 ## _unhandled_input (y no _input) para que la GUI tenga prioridad:
 ## con la consola abierta, su LineEdit consume los números antes de llegar aquí.
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("hotbar_previous") or event.is_action_pressed("hotbar_next"):
+		if GameManager.current_state == GameManager.State.PLAYING \
+				and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
+			_select_step(-1 if event.is_action_pressed("hotbar_previous") else 1)
+			get_viewport().set_input_as_handled()
+		return
 	for i in HOTBAR_SLOTS:
 		if event.is_action_pressed(_key_actions[i]):
 			select_slot(i)
@@ -430,11 +436,11 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Ctrl+rueda: el hueco de al lado, saltando escudos y antorchas (pasar por encima no los pone ni
 ## los quita).
 func _select_step(step: int) -> void:
-	var index := selected_index
+	var index := selected_index if selected_index >= 0 else (0 if step < 0 else -1)
 	for i in HOTBAR_SLOTS:
 		index = posmod(index + step, HOTBAR_SLOTS)
 		var data := slots[index].assigned_data
-		if data == null or not data.is_offhand():
+		if data != null and not data.is_offhand():
 			select_slot(index)
 			return
 

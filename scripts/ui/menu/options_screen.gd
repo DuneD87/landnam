@@ -363,6 +363,15 @@ func _build_controls_page() -> void:
 	_row("OPT_MOUSE_SENSITIVITY", _slider_control("controls/mouse_sensitivity",
 		SettingsManager.MIN_MOUSE_SENSITIVITY, SettingsManager.MAX_MOUSE_SENSITIVITY, 0.05))
 	_row("OPT_INVERT_Y", _toggle_control("controls/invert_y"))
+	_section("OPT_GAMEPAD")
+	var gamepad_hint := Label.new()
+	gamepad_hint.text = "OPT_GAMEPAD_HINT"
+	gamepad_hint.theme_type_variation = "HintLabel"
+	gamepad_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_page.add_child(gamepad_hint)
+	_row("OPT_GAMEPAD_SENSITIVITY", _slider_control("controls/gamepad_sensitivity", 0.2, 3.0, 0.05))
+	_row("OPT_GAMEPAD_INVERT_Y", _toggle_control("controls/gamepad_invert_y"))
+	_row("OPT_GAMEPAD_DEADZONE", _slider_control("controls/gamepad_deadzone", 0.1, 0.5, 0.01))
 	var hint := Label.new()
 	hint.text = "OPT_BINDINGS_HINT"
 	hint.theme_type_variation = "HintLabel"
@@ -504,7 +513,8 @@ func _slider_control(key: String, min_value: float, max_value: float, step: floa
 
 func _binding_button(action: StringName, slot: int) -> Button:
 	var button := Button.new()
-	var events := InputMap.action_get_events(action)
+	var events := InputMap.action_get_events(action).filter(func(event: InputEvent) -> bool:
+		return event is InputEventKey or event is InputEventMouseButton)
 	button.text = SettingsManager.event_label(events[slot]) if slot < events.size() else "—"
 	button.custom_minimum_size = Vector2(_px(274), _px(56))
 	button.clip_text = true
@@ -523,6 +533,10 @@ func _binding_button(action: StringName, slot: int) -> Button:
 # --- Reasignación -------------------------------------------------------------------------------
 
 func _capture_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_cancel_capture()
+		return
 	var bound: InputEvent = null
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_ESCAPE or event.keycode == KEY_ESCAPE:
@@ -555,7 +569,8 @@ func _set_binding(action: StringName, slot: int, event: InputEvent) -> void:
 				if kept.size() != others.size():
 					Settings.set_action_events(entry[0], kept)
 					stolen.append(tr(entry[1]))
-	var events: Array = InputMap.action_get_events(action)
+	var events: Array = InputMap.action_get_events(action).filter(func(e: InputEvent) -> bool:
+		return e is InputEventKey or e is InputEventMouseButton)
 	if event == null:
 		if slot < events.size():
 			events.remove_at(slot)

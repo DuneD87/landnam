@@ -74,6 +74,9 @@ const DEFAULTS := {
 	"game/hotbar_scale": 0.75,
 	"controls/mouse_sensitivity": 1.0,
 	"controls/invert_y": false,
+	"controls/gamepad_sensitivity": 1.0,
+	"controls/gamepad_invert_y": false,
+	"controls/gamepad_deadzone": 0.2,
 	## Acción -> eventos serializados, solo de las acciones que el jugador ha cambiado.
 	"controls/bindings": {},
 }
@@ -624,6 +627,9 @@ func _apply_world_environment(world: WorldEnvironment) -> void:
 func _apply_bindings() -> void:
 	var bindings: Dictionary = value("controls/bindings")
 	for action: StringName in _default_events:
+		# Reasignar el teclado no borra los controles del mando añadidos por el autoload.
+		var gamepad_events := InputMap.action_get_events(action).filter(func(event: InputEvent) -> bool:
+			return event is InputEventJoypadButton or event is InputEventJoypadMotion)
 		InputMap.action_erase_events(action)
 		var events: Array = []
 		if bindings.has(String(action)):
@@ -635,6 +641,8 @@ func _apply_bindings() -> void:
 		else:
 			events = _default_events[action]
 		for event in events:
+			InputMap.action_add_event(action, event)
+		for event in gamepad_events:
 			InputMap.action_add_event(action, event)
 
 

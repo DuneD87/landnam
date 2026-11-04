@@ -1482,7 +1482,7 @@ func _on_loot_slot_clicked(slot: InventorySlot, button_index: int) -> void:
 	if floating_item != null:
 		_drop_to_slot(_loot_inventory, slot.slot_index, button_index == MOUSE_BUTTON_RIGHT)
 	elif slot.item != null:
-		if button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_SHIFT):
+		if button_index == MOUSE_BUTTON_LEFT and _transfer_modifier():
 			_loot_inventory.transfer_to(inventory, slot.slot_index)
 		else:
 			_pickup_from(_loot_inventory, slot.slot_index, button_index == MOUSE_BUTTON_RIGHT)
@@ -1517,7 +1517,7 @@ func _on_hotbar_slot_clicked(slot_index: int) -> void:
 
 func _on_slot_clicked(slot: InventorySlot, button_index: int) -> void:
 	if _storage != null and floating_item == null and button_index == MOUSE_BUTTON_LEFT \
-			and Input.is_key_pressed(KEY_SHIFT):
+			and _transfer_modifier():
 		inventory.transfer_to(_loot_inventory, slot.slot_index)
 		return
 	if button_index == MOUSE_BUTTON_LEFT:
@@ -1564,7 +1564,12 @@ func _on_equipment_rejected(_slot: ItemData.ArmorSlot) -> void:
 
 
 func _pickup_from_inventory(slot: InventorySlot, half: bool = false) -> void:
-	_pickup_from(inventory, slot.slot_index, half or Input.is_key_pressed(KEY_SHIFT))
+	_pickup_from(inventory, slot.slot_index, half or _transfer_modifier())
+
+
+func _transfer_modifier() -> bool:
+	return Input.is_key_pressed(KEY_SHIFT) or (Gamepad.active_device >= 0 \
+		and Input.is_joy_button_pressed(Gamepad.active_device, JOY_BUTTON_LEFT_SHOULDER))
 
 
 func _pickup_from(source: Inventory, index: int, half: bool = false) -> void:

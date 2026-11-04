@@ -192,17 +192,9 @@ func get_input_direction(camera: Camera3D, gravity_dir: Vector3, even_falling: b
 	right = project_on_plane(right, gravity_dir).normalized()
 	up = project_on_plane(up, gravity_dir).normalized()
 
-	var dir = Vector3.ZERO
-	if Input.is_action_pressed("move_forward"):
-		dir += forward
-	if Input.is_action_pressed("move_back"):
-		dir -= forward
-	if Input.is_action_pressed("move_left"):
-		dir -= right
-	if Input.is_action_pressed("move_right"):
-		dir += right
-
-	return dir.normalized()
+	var stick := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	# Conserva cuánto se inclina el stick, incluso nadando y mirando hacia arriba/abajo.
+	return (right * stick.x - forward * stick.y).normalized() * stick.length()
 
 func project_on_plane(vector: Vector3, normal: Vector3) -> Vector3:
 	return vector - normal * vector.dot(normal)

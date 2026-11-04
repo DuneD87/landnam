@@ -1344,7 +1344,7 @@ func _input(event):
 	if combat.is_dead():
 		return
  
-	if event is InputEventKey and event.pressed and not blueprint_placer.is_active():
+	if event.is_pressed() and not event.is_echo() and not blueprint_placer.is_active():
 		if event.is_action_pressed("open_build_menu") and not _is_text_field_focused():
 			if build_menu.visible:
 				build_menu.close()
@@ -1421,10 +1421,7 @@ func _input(event):
 		elif event.is_action_pressed("crafting"):
 			which = InventoryUI.View.CRAFTING
 		inventory_ui.toggle(which)
-		if inventory_ui.visible:
-			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-		else:
-			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		capture_mouse(not inventory_ui.visible)
  
 	var use: bool = event.is_action_pressed("action") && !free_flight_enabled and not climb.is_active() \
 		and not _is_text_field_focused()
@@ -1565,21 +1562,20 @@ func _on_blueprint_load_requested(blueprint_name: String, as_static: bool) -> vo
 ## Clics y rueda del modo colocación. Devuelve true si el evento se ha consumido; la rotación
 ## de cámara tiene que seguir pasando o no se puede apuntar.
 func _handle_blueprint_placement(event: InputEvent) -> bool:
+	if event.is_action_pressed("attack_1"):
+		var problem := blueprint_placer.confirm()
+		if problem != "":
+			hotbar.notify(problem)
+		elif not BuildingSystem.free_build:
+			hotbar.notify(tr("SITE_PLACED"))
+		get_viewport().set_input_as_handled()
+		return true
+	if event.is_action_pressed("attack_2"):
+		blueprint_placer.cancel()
+		get_viewport().set_input_as_handled()
+		return true
 	if event is InputEventMouseButton and event.pressed:
 		match event.button_index:
-			MOUSE_BUTTON_LEFT:
-				# Si no se puede (falta material, choca, está lejos) sigue colocando y dice por qué.
-				var problem := blueprint_placer.confirm()
-				if problem != "":
-					hotbar.notify(problem)
-				elif not BuildingSystem.free_build:
-					hotbar.notify(tr("SITE_PLACED"))
-				get_viewport().set_input_as_handled()
-				return true
-			MOUSE_BUTTON_RIGHT:
-				blueprint_placer.cancel()
-				get_viewport().set_input_as_handled()
-				return true
 			MOUSE_BUTTON_WHEEL_UP:
 				_blueprint_wheel(1)
 				get_viewport().set_input_as_handled()
@@ -1665,22 +1661,23 @@ func _handle_build_input(event: InputEvent) -> void:
 		return
 	var shift_held := Input.is_action_pressed("left_shift")
 
+	if event.is_action_pressed("attack_1"):
+		# La acción también llega desde el gatillo derecho del mando.
+		if (building_system.is_prop_mode() and not building_system.is_sail_mode()) or not site_builder.primary_pressed():
+			building_system.execute_primary_action(_ray_hit)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("attack_2"):
+		if building_system.is_prop_mode() and not building_system.is_sail_mode():
+			building_system.toggle_build_mode()
+		else:
+			var mode := BuildRadialMenu.Option.ADD
+			if building_system.current_action_mode == BuildingSystem.ActionMode.DESTROY:
+				mode = BuildRadialMenu.Option.REMOVE
+			build_radial.open(mode, building_system.get_selected_block_item(), _symmetry_axis_name())
+		get_viewport().set_input_as_handled()
+
 	if event is InputEventMouseButton and event.pressed:
 		match event.button_index:
-			MOUSE_BUTTON_LEFT:
-				# Apuntando a una obra, el martillo la levanta (o, en modo quitar, la desmonta).
-				if (building_system.is_prop_mode() and not building_system.is_sail_mode()) or not site_builder.primary_pressed():
-					building_system.execute_primary_action(_ray_hit)
-				get_viewport().set_input_as_handled()
-			MOUSE_BUTTON_RIGHT:
-				if building_system.is_prop_mode() and not building_system.is_sail_mode():
-					building_system.toggle_build_mode()
-				else:
-					var mode := BuildRadialMenu.Option.ADD
-					if building_system.current_action_mode == BuildingSystem.ActionMode.DESTROY:
-						mode = BuildRadialMenu.Option.REMOVE
-					build_radial.open(mode, building_system.get_selected_block_item(), _symmetry_axis_name())
-				get_viewport().set_input_as_handled()
 			MOUSE_BUTTON_WHEEL_UP:
 				if shift_held:
 					building_system.increase_cell_size()

@@ -104,19 +104,28 @@ func _process(_delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if event is InputEventMouseMotion:
+	if event is InputEventJoypadButton and event.is_action_pressed("dodge"):
+		close()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventJoypadMotion and event.axis in [JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y]:
+		var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+		_cursor = look * OUTER_RADIUS * _ui_scale
+		_hovered = sector_at(_cursor, DEAD_ZONE * _ui_scale)
+		_canvas.queue_redraw()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion:
 		_cursor = (_cursor + event.relative).limit_length(OUTER_RADIUS * _ui_scale)
 		var hovered := sector_at(_cursor, DEAD_ZONE * _ui_scale)
 		if hovered != _hovered:
 			_hovered = hovered
 			_canvas.queue_redraw()
 		get_viewport().set_input_as_handled()
-	elif event is InputEventMouseButton:
+	elif event.is_action("attack_1") or event.is_action("attack_2"):
 		get_viewport().set_input_as_handled()
-		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if event.is_action_pressed("attack_1"):
 			_finish()
-		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			if event.pressed:
+		elif event.is_action("attack_2"):
+			if event.is_action_pressed("attack_2"):
 				if _sticky:
 					_finish()
 			elif not _sticky:
@@ -125,6 +134,8 @@ func _input(event: InputEvent) -> void:
 					_sticky = true
 				else:
 					_finish()
+	elif event is InputEventMouseButton:
+		get_viewport().set_input_as_handled()
 
 
 ## Cierra y elige lo apuntado, si hay algo.

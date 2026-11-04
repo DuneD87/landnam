@@ -4,6 +4,9 @@ Prototipo en Godot 4.6: planetas voxel, construcción, fauna, combate y superviv
 Necesita una build del motor con las clases `Voxel*` y las extensiones del proyecto disponibles.
 Abre `project.godot` y ejecuta la escena principal configurada en él.
 
+Compatible con mando para movimiento, cámara, combate, construcción e interfaz.
+Distribución y ajustes en [docs/gamepad.md](docs/gamepad.md).
+
 ## Mapa del código
 
 | Sistema | Entrada y responsabilidades |
@@ -43,6 +46,7 @@ godot --headless --path . res://tests/items/test_world_item_save.tscn
 godot --headless --path . res://tests/player/test_item_save_load.tscn
 godot --headless --path . res://tests/player/test_respawn.tscn
 godot --headless --path . res://tests/player/test_fishing.tscn
+godot --headless --path . res://tests/player/test_gamepad.tscn
 godot --headless --path . res://tests/fauna/test_shore_fish.tscn
 godot --headless --path . res://tests/ui/test_map_markers.tscn
 godot --headless --path . res://tests/planet/test_planet_definition.tscn
