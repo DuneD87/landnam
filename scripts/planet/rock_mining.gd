@@ -5,7 +5,7 @@ extends Node3D
 ## golpe la roca se cambia por sus trozos de Voronoi (RockFracture) colocados tal cual
 ## (FracturedRock): cada golpe suma trabajo y, a cada trozo de trabajo, se suelta el trozo más
 ## cercano al golpe y cae al suelo (RockFragment), con lo que se quede sin apoyo. Los trozos caídos
-## se pican en piedras sueltas que se recogen. Lo que no es un pico apenas mella la roca.
+## se pican en piedras, que entran solas en el inventario. Lo que no es un pico apenas mella la roca.
 ##
 ## Cuanto más grande la roca, más trozos (de PIECES): las rocas grandes sueltan trozos grandes, que
 ## se parten otra vez al picarlos. Las fracturas se calculan en hilos al cargar la vegetación

@@ -3,7 +3,8 @@ extends Node3D
 
 ## Trozo del tronco de un árbol talado (FallingTree): al partir el tronco tumbado, cada trozo se
 ## aparta un poco del corte y cae al suelo, tendido a lo largo de la pendiente. Se parte a
-## hachazos en un montón de leña que se recoge (DroppedItem). Si la cámara se aleja antes, se va.
+## hachazos en leña que entra sola en el inventario de quien golpea (DroppedItem.give; lo que no
+## cabe queda en un montón en el suelo). Si la cámara se aleja antes, se va.
 ##
 ## Cuelga de TreeFelling, bajo el terreno: sigue al planeta y al origen flotante.
 
@@ -151,7 +152,7 @@ func strike_reach(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> Array:
 
 
 ## Hachazo de [power] por [point] (en su eje), dado desde [chopper]: al completar el trabajo se
-## parte en un montón de leña del lado de quien golpea.
+## parte en leña para quien golpea (lo que no le cabe, en un montón de su lado).
 func hack(point: Vector3, power: float, chopper: Node3D) -> bool:
 	if not is_ready() or power <= 0.0:
 		return false
@@ -169,12 +170,14 @@ func hack(point: Vector3, power: float, chopper: Node3D) -> bool:
 	WoodChips.burst(self, global_position + _up * radius, _up, _up, 1.0)
 	AudioManager.play_material(&"block_impact", &"wood", global_position,
 		{"volume_offset_db": -8.0, "pitch": randf_range(1.1, 1.3)})
-	if _wood != null:
+	# La leña entra sola en el inventario; lo que no cabe queda en un montón.
+	var left := DroppedItem.give(chopper, _wood, _amount, point + _up * (radius + 0.3), _up) if _wood != null else 0
+	if left > 0:
 		var exclude: Array[RID] = []
 		if _body != null:
 			exclude.append(_body.get_rid())
-		DroppedItem.spawn_at(self, _wood, _amount, global_position + side * radius * 0.5 + _up * 0.5, -_up,
-			pile(_amount, radius, _bark), exclude)
+		DroppedItem.spawn_at(self, _wood, left, global_position + side * radius * 0.5 + _up * 0.5, -_up,
+			pile(left, radius, _bark), exclude)
 	_amount = 0
 	queue_free()
 	return true

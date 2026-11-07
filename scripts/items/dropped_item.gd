@@ -69,6 +69,24 @@ static func spawn_at(context: Node, data: ItemData, amount: int, from: Vector3, 
 	return item
 
 
+## Lo cosechado (al picar, al partir un leño) entra solo en el inventario de [receiver], si lo
+## tiene, con un «+N Nombre» en [at] que sube hacia [up]; si no cabe todo, avisa ahí mismo.
+## Devuelve lo que no ha cabido, para soltarlo.
+static func give(receiver: Node, data: ItemData, amount: int, at: Vector3, up: Vector3) -> int:
+	if not is_instance_valid(receiver) or data == null or amount <= 0:
+		return amount
+	var inventory := receiver.get("inventory") as Inventory
+	if inventory == null:
+		return amount
+	var left := inventory.add_item(data, amount)
+	if left < amount:
+		AudioManager.play_ui(&"item_pickup")
+		PickupPopup.spawn(receiver, at, up, "+%d %s" % [amount - left, data.get_display_name()])
+	if left > 0:
+		PickupPopup.spawn(receiver, at - up * 0.25, up, receiver.tr(&"HARVEST_NO_ROOM"), PickupPopup.WARNING)
+	return left
+
+
 ## Lo soltado al alcance de [picker] que se recoge con la tecla de acción. Con [look_dir] (la
 ## vista desde [look_from]), solo lo que se está mirando; sin ella, lo más cercano.
 static func find(picker: Node3D, look_from: Vector3 = Vector3.ZERO, look_dir: Vector3 = Vector3.ZERO) -> DroppedItem:

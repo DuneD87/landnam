@@ -247,12 +247,15 @@ func _toggle_aimed_door() -> bool:
 	return true
 
 
-func _on_voxel_mined(item_id: StringName, amount: int) -> void:
+## Lo excavado entra solo en el inventario; lo que no cabe cae donde se ha picado.
+func _on_voxel_mined(item_id: StringName, amount: int, point: Vector3) -> void:
 	Progression.reward(self, &"dig")
 	var item_data := ItemCatalog.get_item(item_id)
 	if item_data:
-		var excess := inventory.add_item(item_data, amount)
-		print("+%d %s" % [amount - excess, item_data.get_display_name()])
+		var up := -gravity_direction.normalized()
+		var left := DroppedItem.give(self, item_data, amount, point + up * 0.3, up)
+		if left > 0:
+			DroppedItem.spawn_at(self, item_data, left, point + up * 0.4, -up)
 
 
 ## Lo que se arrastra fuera del inventario cae al suelo, delante.

@@ -3,9 +3,9 @@ extends Node3D
 
 ## Trozo que se suelta de una roca que se pica (FracturedRock): sale despedido un poco hacia fuera,
 ## da media vuelta y cae hasta el suelo. Los que llevan piedras se pican otra vez: los grandes se
-## parten en trozos más pequeños (RockFracture) y los pequeños se deshacen en piedras sueltas que
-## se recogen (DroppedItem). Las esquirlas, sin piedras, se hacen polvo al caer. Si la cámara se
-## aleja antes, se va.
+## parten en trozos más pequeños (RockFracture) y los pequeños se deshacen en piedras que entran
+## solas en el inventario de quien pica (DroppedItem.give; lo que no cabe queda en el suelo). Las
+## esquirlas, sin piedras, se hacen polvo al caer. Si la cámara se aleja antes, se va.
 
 const GROUP := &"rock_fragment"
 const GRAVITY := 9.8
@@ -138,8 +138,11 @@ func hit(power: float, miner: Node3D) -> bool:
 	AudioManager.play_material(&"block_impact", &"rock", global_position, {"pitch": 0.9})
 	if not (_volume > SPLIT_VOLUME and _stones > 1 and _split(toward)):
 		if _stone != null:
-			DroppedItem.spawn_at(self, _stone, _stones, global_position + toward * radius * 0.5 + _up * 0.4,
-				-_up, _pile(mini(_stones, 3)))
+			# Las piedras entran solas en el inventario; lo que no cabe queda en un montón.
+			var left := DroppedItem.give(miner, _stone, _stones, surface + _up * 0.3, _up)
+			if left > 0:
+				DroppedItem.spawn_at(self, _stone, left, global_position + toward * radius * 0.5 + _up * 0.4,
+					-_up, _pile(mini(left, 3)))
 			Progression.reward(miner, &"quarry", float(_stones))
 	_stones = 0
 	queue_free()

@@ -21,7 +21,8 @@ const DIG_POWER := 16.0
 const DIG_RADIUS_RANGE := Vector2(0.45, 2.0)
 const DIG_REACH := 5.0
 
-signal voxel_mined(item_id: StringName, amount: int)
+## [point]: dónde se ha excavado (mundo).
+signal voxel_mined(item_id: StringName, amount: int, point: Vector3)
 
 @export var timer : Timer
 
@@ -70,7 +71,8 @@ func dig_hole(radius: float, distance: float, tier: int = 99, yield_scale: float
 		drop = _get_ore_drop(0)
 
 	var amount := float(rand_num_gen.randi_range(drop.min_count, drop.max_count)) * yield_scale
-	voxel_mined.emit(drop.item_id, floori(amount) + (1 if rand_num_gen.randf() < amount - floorf(amount) else 0))
+	voxel_mined.emit(drop.item_id, floori(amount) + (1 if rand_num_gen.randf() < amount - floorf(amount) else 0),
+		current_voxel.global_transform * center)
 	return type_id
 
 
