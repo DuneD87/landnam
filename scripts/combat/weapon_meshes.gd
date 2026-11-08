@@ -683,7 +683,8 @@ static func _stone_tool_binding(b: ProcMesh.Builder, top: float = 0.600, middle:
 		var radii := PackedVector2Array()
 		for k in points.size():
 			radii.append(Vector2(0.0035, 0.0035))
-		ProcMesh.tube(cord, points, radii, 5, Vector3.BACK, false)
+		# Estas mallas se cierran con commit(..., true): el tubo, al revés, queda bien tras la vuelta.
+		ProcMesh.tube(cord, points, radii, 5, Vector3.BACK, false, true)
 
 
 ## Maza de piedra: un canto rodado atado en la punta de un mango de madera, con tendón cruzado sobre
@@ -900,8 +901,8 @@ static func bronze_sword() -> ArrayMesh:
 	return b.commit(make_material, true)
 
 
-## Caja con las caras en el mismo sentido que el torno, los tubos y las hojas (ProcMesh.box va al
-## revés), para las mallas que se cierran con commit(..., true).
+## Caja con las caras en el mismo sentido que el torno y las hojas (ProcMesh.box va al revés; los
+## tubos, con inside_out), para las mallas que se cierran con commit(..., true).
 static func slab(st: SurfaceTool, center: Vector3, size: Vector3, basis: Basis = Basis.IDENTITY) -> void:
 	var h := size * 0.5
 	var rings := []

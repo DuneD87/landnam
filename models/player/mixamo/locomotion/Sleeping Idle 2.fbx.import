@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://d1ut1kntgqe21"
-path="res://.godot/imported/Laying Sleeping.fbx-0ace17af0be6eccca11039358992d867.scn"
+uid="uid://bxkau33sgrj8h"
+path="res://.godot/imported/Sleeping Idle 2.fbx-0519dc9f549eef6ce1be143b76cd6584.scn"
 
 [deps]
 
-source_file="res://models/player/mixamo/locomotion/Laying Sleeping.fbx"
-dest_files=["res://.godot/imported/Laying Sleeping.fbx-0ace17af0be6eccca11039358992d867.scn"]
+source_file="res://models/player/mixamo/locomotion/Sleeping Idle 2.fbx"
+dest_files=["res://.godot/imported/Sleeping Idle 2.fbx-0519dc9f549eef6ce1be143b76cd6584.scn"]
 
 [params]
 

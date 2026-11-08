@@ -106,8 +106,7 @@ static func woodpile_mesh() -> ArrayMesh:
 	ProcMesh.tube(wood, PackedVector3Array([STUMP_AT + Vector3(0.03, STUMP_HEIGHT, 0.0),
 		STUMP_AT + Vector3(0.03, STUMP_HEIGHT + 0.3, 0.0)]),
 		PackedVector2Array([Vector2.ONE * 0.08, Vector2.ONE * 0.075]), 7)
-	# Los tubos de ProcMesh van en el orden contrario al frontal de Godot: se dan la vuelta.
-	_woodpile = builder.commit(SurvivalMeshes.make_material, true)
+	_woodpile = builder.commit(SurvivalMeshes.make_material)
 	return _woodpile
 
 
@@ -124,7 +123,7 @@ static func plant_mesh() -> ArrayMesh:
 		ProcMesh.tube(leaf, PackedVector3Array([Vector3.ZERO, out * 0.06 + Vector3.UP * tall * 0.6,
 			out * 0.16 + Vector3.UP * tall]),
 			PackedVector2Array([Vector2(0.03, 0.006), Vector2(0.035, 0.006), Vector2(0.005, 0.003)]), 4, out.cross(Vector3.UP))
-	_plant = builder.commit(SurvivalMeshes.make_material, true)
+	_plant = builder.commit(SurvivalMeshes.make_material)
 	return _plant
 
 

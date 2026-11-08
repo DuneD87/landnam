@@ -109,9 +109,11 @@ static func lathe(st: SurfaceTool, profile: Array, segments: int = 12, center: V
 
 
 ## Tubo a lo largo de una polilínea, de sección elíptica (rx en X local, rz en el binormal).
-## [up_hint] fija hacia dónde apunta el eje "rx" de la sección.
+## [up_hint] fija hacia dónde apunta el eje "rx" de la sección. Sus caras van en el orden horario de
+## Godot visto desde fuera; [inside_out] las da al revés, para las mallas que se cierran con
+## Builder.commit(..., true) (las que siguen el orden de lathe).
 static func tube(st: SurfaceTool, points: PackedVector3Array, radii: PackedVector2Array,
-		segments: int = 8, side_hint: Vector3 = Vector3.RIGHT, cap: bool = true) -> void:
+		segments: int = 8, side_hint: Vector3 = Vector3.RIGHT, cap: bool = true, inside_out := false) -> void:
 	var n := points.size()
 	var base := vertex_count(st)
 	var length := 0.0
@@ -134,14 +136,11 @@ static func tube(st: SurfaceTool, points: PackedVector3Array, radii: PackedVecto
 			emit(st, Vector2(float(j) / segments, length * 4.0), points[i] + offset)
 	for i in n - 1:
 		for j in segments:
+			# En el orden horario de Godot visto desde fuera, como las tapas, loft y fan.
 			var a0 := base + i * (segments + 1) + j
 			var b0 := a0 + segments + 1
-			st.add_index(a0)
-			st.add_index(a0 + 1)
-			st.add_index(b0)
-			st.add_index(a0 + 1)
-			st.add_index(b0 + 1)
-			st.add_index(b0)
+			_tri(st, a0, b0, a0 + 1, inside_out)
+			_tri(st, a0 + 1, b0, b0 + 1, inside_out)
 	if not cap:
 		return
 	for end in [0, n - 1]:
@@ -150,13 +149,16 @@ static func tube(st: SurfaceTool, points: PackedVector3Array, radii: PackedVecto
 		var ring_start: int = base + end * (segments + 1)
 		for j in segments:
 			if end == 0:
-				st.add_index(c)
-				st.add_index(ring_start + j)
-				st.add_index(ring_start + j + 1)
+				_tri(st, c, ring_start + j, ring_start + j + 1, inside_out)
 			else:
-				st.add_index(c)
-				st.add_index(ring_start + j + 1)
-				st.add_index(ring_start + j)
+				_tri(st, c, ring_start + j + 1, ring_start + j, inside_out)
+
+
+## Un triángulo de índices ya emitidos; [reverse]: en el otro orden.
+static func _tri(st: SurfaceTool, a: int, b: int, c: int, reverse: bool) -> void:
+	st.add_index(a)
+	st.add_index(c if reverse else b)
+	st.add_index(b if reverse else c)
 
 
 ## Triángulo suelto (caras planas: no comparte vértices, así la normal sale por cara).

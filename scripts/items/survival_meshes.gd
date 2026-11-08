@@ -689,7 +689,8 @@ static func bronze_forge() -> ArrayMesh:
 	for corner in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
 		var foot := Vector3(corner.x * 0.56, 0.0, corner.y * 0.34)
 		var head := Vector3(corner.x * 0.48, top - 0.08, corner.y * 0.14)
-		ProcMesh.tube(legs, PackedVector3Array([foot, head]), PackedVector2Array([Vector2(0.055, 0.055), Vector2(0.05, 0.05)]), 6)
+		ProcMesh.tube(legs, PackedVector3Array([foot, head]), PackedVector2Array([Vector2(0.055, 0.055), Vector2(0.05, 0.05)]), 6,
+			Vector3.RIGHT, true, true)
 	var stone := b.st(WeaponMeshes.STONE)
 	WeaponMeshes.slab(stone, Vector3(-0.2, top + 0.025, 0.06), Vector3(0.92, 0.05, 0.17))
 	var bronze := b.st(WeaponMeshes.BRONZE)

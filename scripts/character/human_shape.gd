@@ -194,7 +194,10 @@ func blink_mix() -> Dictionary:
 ## (the eyelashes) gets a BLINK blend shape that follows them shut.
 func proxy_mesh(proxy: HumanProxyData, reuse: ArrayMesh = null) -> ArrayMesh:
 	var arrays := proxy.arrays().duplicate()
-	var lods := _lods_of(proxy, arrays)
+	# Eyes keep their whole mesh: the cornea shell sits on the eyeball's front and, welded to it, its
+	# simplified triangles took the white's UVs and painted over the iris (white eyes in game). It is
+	# a tiny mesh; nothing worth saving.
+	var lods := {} if proxy.kind == HumanProxyData.Kind.EYES else _lods_of(proxy, arrays)
 	var positions := proxy_positions(proxy)
 	arrays[Mesh.ARRAY_VERTEX] = positions
 	var shapes: Array[Array] = []

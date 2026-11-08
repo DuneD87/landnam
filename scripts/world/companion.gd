@@ -10,9 +10,16 @@ class_name Companion extends CharacterBody3D
 ## ataca al jugador o a él y por lo que ha herido el jugador, con la mejor arma que lleve (o la
 ## herramienta de su oficio, o los puños), y las fieras se le revuelven (Perception lo sigue viendo). Sin
 ## vida cae malherido y se levanta al rato; fuera de pelea se recupera poco a poco y come lo asado que
-## lleve si le hace falta. Ver docs/villagers.md.
+## lleve si le hace falta.
+##
+## Se le puede decir que se quede a vivir donde está (SETTLE): es un colono de la base del jugador. Hace
+## vida allí: de día pasea cerca, al atardecer se sienta junto a una hoguera encendida (Campfire), de
+## noche duerme en un petate libre (Bedroll) o, si no lo hay, en el suelo; y defiende la base de lo que
+## ataque cerca. Ver docs/villagers.md.
 
-enum Mode {FOLLOW, WAIT, LEAVE}
+enum Mode {FOLLOW, WAIT, LEAVE, SETTLE}
+## Lo que hace en la base.
+enum Chore {STAND, WALK, SIT, SLEEP}
 
 const GROUP := &"companion"
 ## Siguiendo: se para a STOP m del jugador y echa a andar a más de START; la velocidad sube con la
@@ -85,6 +92,15 @@ const EAT_BELOW := 0.5
 const EAT_EVERY := 6.0
 const HEAL_FOOD := 25.0
 const HEAL_REMEDY := 40.0
+## Viviendo en la base: sus petates y hogueras son los que hay a menos de BASE_RADIUS m del sitio que se
+## le dio; de día pasea a menos de ROAM m de él y al atardecer se sienta alrededor de la hoguera (a
+## FIRE_RING m). Llega a un sitio a menos de ARRIVE m. Pelea con lo que ataca a menos de DEFEND m de la
+## base.
+const BASE_RADIUS := 40.0
+const ROAM := 10.0
+const FIRE_RING := Vector2(1.6, 2.4)
+const ARRIVE := 0.6
+const DEFEND := 25.0
 const ANIM_HIT := &"combat/hit_react"
 const ANIM_DOWN := &"combat/death"
 
@@ -95,6 +111,8 @@ var village := -1
 var village_name := ""
 var relations: SettlementRelations
 var mode := Mode.FOLLOW
+## Viviendo en la base: su sitio, en el marco del terreno (Vector3.INF si no).
+var base := Vector3.INF
 ## La del planeta (PlanetLoader.gravity_strength).
 var gravity := 9.8
 ## Lo que lleva (se guarda con él) y su vida (la buscan las fieras y los golpes por su nombre).
@@ -138,6 +156,19 @@ var _flinch_left := 0.0
 var _down_left := 0.0
 var _since_hit := INF
 var _eat_left := 0.0
+var _shape: CollisionShape3D
+## En la base: lo que hace, lo que le queda, adónde va andando (marco del terreno) y qué hará al llegar,
+## hacia dónde mira sentado (la hoguera, marco del terreno) y su petate.
+var _chore := Chore.STAND
+var _chore_left := 0.0
+var _spot := Vector3.ZERO
+var _then := Chore.STAND
+var _look := Vector3.INF
+var _bed: Bedroll
+## Acostarse, dormir y levantarse (las animaciones encadenadas); y lo que falta para volver a apoyarse
+## en el petate, dormido y quieto (s).
+var _sleep_routine: SleepRoutine
+var _bed_fit_left := 0.0
 
 
 ## [who]: su vecino (SettlementPopulation.residents) del poblado [v] ([v_name]); [model]: su humano
@@ -165,6 +196,7 @@ func setup(who: Dictionary, v: int, v_name: String, trust: SettlementRelations, 
 	shape.shape = capsule
 	shape.position = Vector3(0.0, Villager.BODY_HEIGHT * 0.5, 0.0)
 	add_child(shape)
+	_shape = shape
 	_model = model
 	_model.transform = Transform3D.IDENTITY
 	add_child(_model)
@@ -174,6 +206,9 @@ func setup(who: Dictionary, v: int, v_name: String, trust: SettlementRelations, 
 	if not _anim_player.has_animation_library(&"combat") and ResourceLoader.exists(PlayerCombat.COMBAT_LIBRARY):
 		_anim_player.add_animation_library(&"combat", load(PlayerCombat.COMBAT_LIBRARY))
 	_tool = _model.get_node_or_null("Armature/Skeleton3D/ToolHand/Grip/Tool") as Node3D
+	(_model.get_node("Armature/Skeleton3D") as Skeleton3D).skeleton_updated.connect(_on_skeleton_updated)
+	_sleep_routine = SleepRoutine.new(_anim_player, hash([who.get("look", 0), "sleep"]),
+		_model.get_node_or_null("AppearanceRig") as CharacterAppearanceRig)
 	if _tool != null:
 		_tool.visible = false
 	_rng.seed = hash([who.get("look", 0), "companion"])
@@ -207,25 +242,37 @@ func _ready() -> void:
 
 ## Se queda donde está hasta que se le diga que siga.
 func wait_here() -> void:
+	_leave_base()
 	mode = Mode.WAIT
 	_idle = 0.0
 
 
 func follow() -> void:
+	_leave_base()
 	mode = Mode.FOLLOW
 	_idle = 0.0
+
+
+## Se queda a vivir donde está (o en [at], marco del terreno: al cargar).
+func settle_here(at := Vector3.INF) -> void:
+	# Dormido, se levanta antes (si no, se quedaría de pie sin colisión y se hundiría).
+	_wake()
+	mode = Mode.SETTLE
+	base = at if at.is_finite() else _terrain.global_transform.affine_inverse() * global_position
+	_rest(Chore.STAND, 2.0)
 
 
 ## Se vuelve a su poblado: echa a andar hacia allí y se va del todo al perderse de vista
 ## (SettlementCompanions lo quita al salir del árbol).
 func go_home() -> void:
+	_leave_base()
 	mode = Mode.LEAVE
 	_leave_time = 0.0
 
 
-## Se le puede hablar si no se va, no pelea y no está malherido.
+## Se le puede hablar si no se va, no pelea, no está malherido y no duerme.
 func can_chat() -> bool:
-	return mode != Mode.LEAVE and _target == null and _down_left <= 0.0
+	return mode != Mode.LEAVE and _target == null and _down_left <= 0.0 and _chore != Chore.SLEEP
 
 
 ## Al cargar: la vida que tenía (si cayó, la de levantarse).
@@ -357,6 +404,17 @@ func _physics_process(delta: float) -> void:
 					return
 				heading = _tangent(_terrain.global_transform * _home - global_position)
 				speed = WALK_SPEED
+			Mode.SETTLE:
+				var step := _live(delta)
+				heading = step[0]
+				speed = step[1]
+	# Tumbado en el petate (o en el suelo) no se mueve ni choca.
+	if _chore == Chore.SLEEP:
+		velocity = Vector3.ZERO
+		_moving = false
+		_pose(up)
+		_animate()
+		return
 	_moving = speed > 0.0
 	_move(heading, speed, up, delta)
 	if _moving:
@@ -367,7 +425,7 @@ func _physics_process(delta: float) -> void:
 	elif not _chatting:
 		_stuck = 0.0
 		_idle += delta
-		if distance < FACE_PLAYER:
+		if distance < FACE_PLAYER and (mode != Mode.SETTLE or _chore == Chore.STAND):
 			_face(to_player, delta)
 	_pose(up)
 	_animate()
@@ -486,7 +544,13 @@ func _animate() -> void:
 			_anim_player.speed_scale = speed / Villager.WALK_CLIP_SPEED
 		return
 	_anim_player.speed_scale = 1.0
-	_play(Villager.ANIM_SIT if mode == Mode.WAIT and _idle > SIT_AFTER and _target == null else Villager.ANIM_IDLE)
+	var sitting := (mode == Mode.WAIT and _idle > SIT_AFTER) or (mode == Mode.SETTLE and _chore == Chore.SIT)
+	if _target != null:
+		_play(Villager.ANIM_IDLE)
+	elif _chore == Chore.SLEEP:
+		pass  # SleepRoutine
+	else:
+		_play(Villager.ANIM_SIT if sitting else Villager.ANIM_IDLE)
 
 
 func _play(anim: StringName, blend := Villager.BLEND, again := false) -> void:
@@ -501,9 +565,15 @@ func _play(anim: StringName, blend := Villager.BLEND, again := false) -> void:
 
 # --- Pelea ----------------------------------------------------------------------------------------
 
-## Lo que guarda (el jugador; esperando, él mismo): de ahí se mide lo que está a tiro.
+## Lo que guarda (el jugador; esperando, él mismo; viviendo en la base, la base): de ahí se mide lo que
+## está a tiro.
 func _guard_point() -> Vector3:
-	return global_position if mode == Mode.WAIT else _player.global_position
+	match mode:
+		Mode.WAIT:
+			return global_position
+		Mode.SETTLE:
+			return _terrain.global_transform * base
+	return _player.global_position
 
 
 ## Sigue con la que tiene si aún vale la pena, o busca otra.
@@ -517,6 +587,7 @@ func _scan(player_distance: float) -> void:
 		_target = _pick()
 		if _target != null:
 			_show_weapon()
+			_to_arms()
 
 
 func _worth_chasing(creature: NPCController, player_distance: float) -> bool:
@@ -529,8 +600,9 @@ func _worth_chasing(creature: NPCController, player_distance: float) -> bool:
 func _pick() -> NPCController:
 	var guard := _guard_point()
 	var best: NPCController
-	var best_distance := ENGAGE
-	for creature in CreatureGrid.near(guard, ENGAGE):
+	var reach := DEFEND if mode == Mode.SETTLE else ENGAGE
+	var best_distance := reach
+	for creature in CreatureGrid.near(guard, reach):
 		if not _alive(creature) or not _hostile(creature):
 			continue
 		var d := creature.global_position.distance_to(guard)
@@ -545,13 +617,14 @@ static func _alive(creature: NPCController) -> bool:
 		and not creature.dormant
 
 
-## Si [creature] es de las suyas: le ataca a él, o al jugador (peleando: la presa que huye del jugador
-## también lo tiene de objetivo), o el jugador la ha herido (de caza: siguiéndolo).
+## Si [creature] es de las suyas: le ataca a él, o al jugador o a otro compañero (peleando: la presa que
+## huye del jugador también lo tiene de objetivo), o el jugador la ha herido (de caza: siguiéndolo).
 func _hostile(creature: NPCController) -> bool:
 	var ai := creature.ai_controller
 	if ai.target == self:
 		return true
-	if ai.target == _player and ai.get_node_or_null(NodePath(String(ai.get_current_state()))) is CreatureCombatState:
+	if (ai.target == _player or ai.target is Companion) \
+			and ai.get_node_or_null(NodePath(String(ai.get_current_state()))) is CreatureCombatState:
 		return true
 	return mode == Mode.FOLLOW and creature.health_component != null \
 		and creature.health_component.last_attacker == _player
@@ -635,6 +708,7 @@ func _on_hit(info: DamageInfo, applied: float) -> void:
 			and mode != Mode.LEAVE:
 		_target = info.source as NPCController
 		_show_weapon()
+		_to_arms()
 	if applied > 0.0 and _attack_left <= 0.0 and health.health > 0.0:
 		_flinch_left = FLINCH_TIME
 		_play(ANIM_HIT, 0.05, true)
@@ -690,6 +764,198 @@ func _recover(delta: float) -> void:
 			pack.remove_item(item.data, 1)
 			health.heal(HEAL_FOOD if group == &"cooked" else HEAL_REMEDY)
 			return
+
+
+# --- En la base -----------------------------------------------------------------------------------
+
+## Un paso de su vida en la base: [hacia dónde, a qué velocidad].
+func _live(delta: float) -> Array:
+	if _chore == Chore.WALK:
+		var to := _terrain.global_transform * _spot - global_position
+		var up := up_direction
+		if (to - up * to.dot(up)).length() < ARRIVE or _stuck > STUCK_TELEPORT:
+			_stuck = 0.0
+			_arrive()
+			return [Vector3.ZERO, 0.0]
+		return [_tangent(to), WALK_SPEED]
+	_chore_left -= delta
+	var night := Villager._is_night(_hour())
+	if _chore == Chore.SLEEP:
+		_bed_fit_left -= delta
+		_sleep_routine.update(delta)
+		if _sleep_routine.done():
+			_wake()
+			_decide()
+		elif not night and _sleep_routine.asleep():
+			_sleep_routine.get_up()
+	elif night or _chore_left <= 0.0:
+		_decide()
+	if _chore == Chore.SIT and _look.is_finite():
+		_face(_terrain.global_transform * _look - global_position, delta)
+	return [Vector3.ZERO, 0.0]
+
+
+## Lo siguiente, según la hora: de noche a dormir, al atardecer a la hoguera y si no, por la base.
+func _decide() -> void:
+	_look = Vector3.INF
+	var h := _hour()
+	var to_local := _terrain.global_transform.affine_inverse()
+	var fire := _fire()
+	if Villager._is_night(h):
+		_bed = _free_bed()
+		if _bed != null:
+			var foot := _bed.global_position + _bed.global_basis.z * SettlementVillage.BED_FOOT
+			_walk_to(to_local * foot, Chore.SLEEP)
+		elif fire != null:
+			_walk_to(to_local * _ring_spot(fire), Chore.SLEEP)
+		else:
+			_walk_to(_roam_spot(), Chore.SLEEP)
+		return
+	var roll := _rng.randf()
+	if fire != null and h >= Villager.EVENING_HOUR and roll < 0.7:
+		_look = to_local * fire.global_position
+		_walk_to(to_local * _ring_spot(fire), Chore.SIT)
+	elif roll < 0.5:
+		_walk_to(_roam_spot(), Chore.STAND)
+	elif roll < 0.75:
+		_rest(Chore.SIT, _rng.randf_range(Villager.SIT_TIME.x, Villager.SIT_TIME.y))
+	else:
+		_rest(Chore.STAND, _rng.randf_range(Villager.STAND_TIME.x, Villager.STAND_TIME.y))
+
+
+func _walk_to(spot: Vector3, then: Chore) -> void:
+	_chore = Chore.WALK
+	_spot = spot
+	_then = then
+	_stuck = 0.0
+
+
+func _arrive() -> void:
+	match _then:
+		Chore.SLEEP:
+			_lie_down()
+		Chore.SIT:
+			_rest(Chore.SIT, _rng.randf_range(Villager.SIT_TIME.x, Villager.SIT_TIME.y))
+		_:
+			_rest(Chore.STAND, _rng.randf_range(Villager.STAND_TIME.x, Villager.STAND_TIME.y))
+
+
+func _rest(chore: Chore, time: float) -> void:
+	_chore = chore
+	_chore_left = time
+
+
+## Se tumba en su petate (si aún está) o donde está.
+func _lie_down() -> void:
+	_chore = Chore.SLEEP
+	_shape.disabled = true
+	velocity = Vector3.ZERO
+	_sleep_routine.lie_down()
+	_anim = &""
+	_bed_fit_left = 0.0
+	if _bed != null and is_instance_valid(_bed) and _bed.is_inside_tree():
+		var up := (_bed.global_position - _terrain.global_position).normalized()
+		global_position = _bed.global_position + up * Villager.BED_HEIGHT
+		_forward = _tangent(_bed.global_basis.z)
+		reset_physics_interpolation()
+
+
+## Acostado: se apoya en el petate (o en el suelo) con la pose que se ve (Villager.bed_fit). Cambiando de
+## pose, a cada una; dormido y quieto, de vez en cuando.
+func _on_skeleton_updated() -> void:
+	if _chore != Chore.SLEEP:
+		return
+	if not _sleep_routine.settling():
+		if _bed_fit_left > 0.0:
+			return
+		_bed_fit_left = Villager.BED_FIT_EVERY
+	global_position += up_direction * Villager.bed_fit(_model, up_direction)
+
+
+## Se levanta: de pie a los pies del petate.
+func _wake() -> void:
+	if _chore != Chore.SLEEP:
+		return
+	_sleep_routine.reset()
+	_rest(Chore.STAND, 2.0)
+	_shape.disabled = false
+	if _bed != null and is_instance_valid(_bed) and _bed.is_inside_tree():
+		var up := (_bed.global_position - _terrain.global_position).normalized()
+		global_position = _bed.global_position + _bed.global_basis.z * SettlementVillage.BED_FOOT + up * 0.05
+		reset_physics_interpolation()
+	_bed = null
+
+
+## A pelear: deja lo que hace en la base.
+func _to_arms() -> void:
+	_wake()
+	_look = Vector3.INF
+	if mode == Mode.SETTLE:
+		_rest(Chore.STAND, 2.0)
+
+
+func _leave_base() -> void:
+	_wake()
+	_look = Vector3.INF
+	_chore = Chore.STAND
+	base = Vector3.INF
+
+
+## La hora solar de la base (sin sol, mediodía).
+func _hour() -> float:
+	var h := Seasons.solar_hour(base)
+	return 12.0 if is_nan(h) else h
+
+
+## El petate más cercano a la base que no use otro compañero, o null.
+func _free_bed() -> Bedroll:
+	var center := _terrain.global_transform * base
+	var taken := {}
+	for node in get_tree().get_nodes_in_group(GROUP):
+		var other := node as Companion
+		if other != null and other != self and other._bed != null:
+			taken[other._bed] = true
+	var best: Bedroll
+	var best_distance := BASE_RADIUS
+	for node in get_tree().get_nodes_in_group(Bedroll.GROUP):
+		var bed := node as Bedroll
+		if bed == null or not bed.is_inside_tree() or bed.is_queued_for_deletion() or taken.has(bed):
+			continue
+		var d := bed.global_position.distance_to(center)
+		if d < best_distance:
+			best = bed
+			best_distance = d
+	return best
+
+
+## La hoguera encendida más cercana a la base, o null.
+func _fire() -> Campfire:
+	var center := _terrain.global_transform * base
+	var best: Campfire
+	var best_distance := BASE_RADIUS
+	for node in get_tree().get_nodes_in_group(Campfire.GROUP):
+		var fire := node as Campfire
+		if fire == null or not fire.lit or not fire.is_inside_tree():
+			continue
+		var d := fire.global_position.distance_to(center)
+		if d < best_distance:
+			best = fire
+			best_distance = d
+	return best
+
+
+## Un sitio alrededor de [fire] (mundo).
+func _ring_spot(fire: Campfire) -> Vector3:
+	var up := (fire.global_position - _terrain.global_position).normalized()
+	var side := up.cross(Vector3.UP if absf(up.y) < 0.99 else Vector3.RIGHT).normalized()
+	return fire.global_position + side.rotated(up, _rng.randf() * TAU) * _rng.randf_range(FIRE_RING.x, FIRE_RING.y)
+
+
+## Un sitio de la base para pasear (marco del terreno).
+func _roam_spot() -> Vector3:
+	var up := base.normalized()
+	var side := up.cross(Vector3.UP if absf(up.y) < 0.99 else Vector3.RIGHT).normalized()
+	return base + side.rotated(up, _rng.randf() * TAU) * ROAM * sqrt(_rng.randf())
 
 
 ## La herramienta de su oficio (SettlementPopulation: "job"), o null.

@@ -21,7 +21,6 @@ const ANIM_WALK := &"village/walk"
 const ANIM_RUN := &"running"
 const ANIM_SIT := &"village/sit_idle"
 const ANIM_TALK := &"village/talk"
-const ANIM_SLEEP := &"village/sleep"
 const ANIM_DIG := &"village/dig"
 const ANIM_WAVE := &"village/wave"
 ## El golpe de arriba abajo del jugador (el del pico y la azada): partir leña y martillear.
@@ -45,8 +44,25 @@ const PROBE_INTERVAL := 0.15
 ## tanto (s) desde más arriba (m): la plaza tiene desnivel.
 const GROUND_RETRY := 1.0
 const GROUND_SEARCH := 4.0
-## Lo que levanta el lecho del suelo (m).
-const BED_HEIGHT := 0.1
+## Hasta dónde mira hacia abajo cuando el rayo corto no encuentra suelo (m).
+const FALL_SEARCH := 60.0
+## Cuánto se sube al echarse en el lecho (m), hasta que se apoya en él (bed_fit, en cuanto el esqueleto
+## tiene la pose): lo típico. Varía con el cuerpo, porque BodyProportions corre la cadera (la raíz) en
+## vertical para que de pie los pies toquen el suelo, también tumbado o sentado.
+const BED_HEIGHT := 0.25
+## Dormido y quieto, cada cuánto se vuelve a apoyar en el lecho (s); cambiando de pose, a cada una.
+const BED_FIT_EVERY := 0.5
+## Por dónde se apoya tumbado: hueso -> lo que baja el cuerpo por debajo de él en la pose de dormir
+## (m; medido en los vértices de varios cuerpos, tirando a lo menos: lo que se pasa lo hace flotar y lo
+## que se queda corto apenas se hunde en la piel). bed_fit deja lo más bajo sobre la colisión del lecho.
+const BED_CONTACTS := {&"mixamorig_Head": 0.075, &"mixamorig_Spine2": 0.05, &"mixamorig_Spine1": 0.055,
+	&"mixamorig_Spine": 0.07, &"mixamorig_Hips": 0.105, &"mixamorig_LeftUpLeg": 0.07,
+	&"mixamorig_RightUpLeg": 0.07, &"mixamorig_LeftLeg": 0.10, &"mixamorig_RightLeg": 0.10,
+	&"mixamorig_LeftFoot": 0.05, &"mixamorig_RightFoot": 0.05, &"mixamorig_LeftArm": 0.085,
+	&"mixamorig_RightArm": 0.085, &"mixamorig_LeftForeArm": 0.02, &"mixamorig_RightForeArm": 0.02,
+	&"mixamorig_LeftHand": 0.015, &"mixamorig_RightHand": 0.015}
+## Lo que se mueve como mucho al apoyarse (m): un rayo que dé con otra cosa no lo manda lejos.
+const BED_FIT_MAX := 0.35
 ## Capa del collider: la 3, con la que choca el jugador (no la del mundo, que es la que mira el rayo).
 const BODY_LAYER := 4
 const BODY_RADIUS := 0.28
@@ -130,6 +146,10 @@ var _eyeing := false
 var _say_left := 0.0
 var _rng := RandomNumberGenerator.new()
 var _model: Node3D
+## Acostarse, dormir y levantarse (las animaciones encadenadas).
+var _sleep_routine: SleepRoutine
+## Lo que falta para volver a apoyarse en el lecho, dormido y quieto (s).
+var _bed_fit_left := 0.0
 var _player: AnimationPlayer
 var _body: AnimatableBody3D
 var _tool: Node3D
@@ -209,6 +229,9 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 	_player = _model.get_node("AnimationPlayer") as AnimationPlayer
 	_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_tool = _model.get_node_or_null("Armature/Skeleton3D/ToolHand/Grip/Tool") as Node3D
+	(_model.get_node("Armature/Skeleton3D") as Skeleton3D).skeleton_updated.connect(_on_skeleton_updated)
+	_sleep_routine = SleepRoutine.new(_player, hash([who.get("look", 0), "sleep"]),
+		_model.get_node_or_null("AppearanceRig") as CharacterAppearanceRig)
 	_body = AnimatableBody3D.new()
 	_body.collision_layer = BODY_LAYER
 	_body.collision_mask = 0
@@ -224,7 +247,7 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 	_greet_left = _rng.randf() * GREET_COOLDOWN * 0.3
 	var h := village.hour()
 	if _is_night(h):
-		_sleep()
+		_sleep(true)
 	elif village.danger:
 		_sleep()
 		_get_up()
@@ -240,7 +263,11 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 
 
 func _ready() -> void:
-	_player.play(_anim, 0.0, _anim_speed)
+	if act == Act.SLEEP:
+		# Se acostó en setup (de noche): ya dormido.
+		_sleep_routine.lie_down(true)
+	else:
+		_player.play(_anim, 0.0, _anim_speed)
 	if _inside < 0:
 		_grounded = _follow_ground(GROUND_SEARCH)
 	_pose()
@@ -404,12 +431,24 @@ func _physics_process(delta: float) -> void:
 				_say_left -= delta
 				if _say_left <= 0.0:
 					_play(ANIM_IDLE)
-		Act.HIDE, Act.SLEEP:
+		Act.HIDE:
 			_tick(delta, func() -> void:
-				if village.danger or (act == Act.SLEEP and _is_night(village.hour())):
-					_left = HIDE_CHECK if act == Act.HIDE else SLEEP_CHECK
+				if village.danger:
+					_left = HIDE_CHECK
 				else:
 					_decide())
+		Act.SLEEP:
+			_bed_fit_left -= delta
+			_sleep_routine.update(delta)
+			if village.danger or _sleep_routine.done():
+				# Con una fiera, de un salto; si no, ya sentado: de pie.
+				_decide()
+			elif _sleep_routine.asleep():
+				_tick(delta, func() -> void:
+					if _is_night(village.hour()):
+						_left = SLEEP_CHECK
+					else:
+						_sleep_routine.get_up())
 		Act.SHELTER:
 			_settle(delta)
 			_tick(delta, func() -> void:
@@ -692,8 +731,8 @@ func _sheltered() -> void:
 	_play(ANIM_SIT if _rng.randf() < 0.5 else ANIM_IDLE)
 
 
-## Se tumba en su lecho.
-func _sleep() -> void:
+## Se acuesta en su lecho; [instant]: ya dormido (al aparecer de noche).
+func _sleep(instant := false) -> void:
 	var pose := village.bed(resident.home, resident.bed)
 	_inside = resident.home
 	act = Act.SLEEP
@@ -702,13 +741,19 @@ func _sleep() -> void:
 	_forward = pose.basis.z
 	_grounded = true
 	_set_solid(false)
-	_play(ANIM_SLEEP)
+	# Sin mezcla: de los pies del lecho aparece sentado en él (SleepRoutine lleva las animaciones).
+	# Fuera del árbol (setup) lo acuesta _ready.
+	if is_inside_tree():
+		_sleep_routine.lie_down(instant)
+	_anim = &""
+	_bed_fit_left = 0.0
 	reset_physics_interpolation()
 
 
 ## Se levanta del lecho: de pie a sus pies.
 func _get_up() -> void:
 	var b: int = resident.home
+	_sleep_routine.reset()
 	_pos = village.bed_foot(b, resident.bed)
 	_forward = _tangent(village.homes[b].inside - _pos, _pos)
 	_set_solid(true)
@@ -842,16 +887,60 @@ func _settle(delta: float) -> void:
 		_grounded = _follow_ground(GROUND_SEARCH)
 
 
+## En el lecho, con la pose que se ve (la de las proporciones de su cuerpo): se apoya en él. Cambiando
+## de pose (sentarse, echarse, darse la vuelta), a cada una; dormido y quieto, de vez en cuando.
+func _on_skeleton_updated() -> void:
+	if act != Act.SLEEP or village == null:
+		return
+	if not _sleep_routine.settling():
+		if _bed_fit_left > 0.0:
+			return
+		_bed_fit_left = BED_FIT_EVERY
+	var up := _pos.normalized()
+	_pos += up * bed_fit(_model, village.frame().basis * up)
+	_pose()
+
+
+## Lo que hay que subir (m, hacia [up], mundo; negativo: bajar) al humano [model], tumbado, para que
+## se apoye en lo que tiene debajo (la colisión del lecho, o el suelo): cada punto de BED_CONTACTS
+## (el hueso y lo que sobresale el cuerpo de él) tira un rayo hacia abajo, y manda el que más se hunde.
+## 0 si no da con nada. Con la pose ya calculada (Skeleton3D.skeleton_updated).
+static func bed_fit(model: Node3D, up: Vector3) -> float:
+	var skeleton := model.get_node_or_null("Armature/Skeleton3D") as Skeleton3D
+	if skeleton == null or not skeleton.is_inside_tree():
+		return 0.0
+	var space := skeleton.get_world_3d().direct_space_state
+	var lift := -INF
+	for bone: StringName in BED_CONTACTS:
+		var i := skeleton.find_bone(bone)
+		if i < 0:
+			continue
+		var at := skeleton.global_transform * skeleton.get_bone_global_pose(i).origin
+		var query := PhysicsRayQueryParameters3D.create(at + up * BED_FIT_MAX * 2.0, at - up * BED_FIT_MAX * 2.0, 1)
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			continue
+		lift = maxf(lift, ((hit.position as Vector3) - at).dot(up) + float(BED_CONTACTS[bone]))
+	return clampf(lift, -BED_FIT_MAX, BED_FIT_MAX) if lift > -INF else 0.0
+
+
 ## Lo pega al suelo (terreno, suelos de las casas): un rayo de arriba abajo, desde [above] m sobre los
-## pies. Sin nada debajo (lejos de la colisión del terreno), sigue a la misma altura: falso.
+## pies. Si no da con nada, otro más largo (FALL_SEARCH): pudo aparecer o andar antes de que llegara
+## la colisión del terreno, a la altura del plano, y quedarse en el aire más abajo de lo que mira el
+## corto. Sin nada debajo (lejos de la colisión del terreno), sigue a la misma altura: falso.
 func _follow_ground(above := PROBE_UP) -> bool:
 	if not is_inside_tree():
 		return false
 	var frame := village.frame()
 	var up := _pos.normalized()
+	var space := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(frame * (_pos + up * above),
 		frame * (_pos - up * PROBE_DOWN), 1)
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		query = PhysicsRayQueryParameters3D.create(frame * (_pos + up * maxf(above, GROUND_SEARCH)),
+			frame * (_pos - up * FALL_SEARCH), 1)
+		hit = space.intersect_ray(query)
 	if hit.is_empty():
 		return false
 	_pos = frame.affine_inverse() * (hit.position as Vector3)

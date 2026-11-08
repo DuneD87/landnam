@@ -1678,6 +1678,18 @@ VILLAGER_GO_HOME,Go home,Vuelve a casa,aldeanos
 VILLAGER_GOES_HOME,%s heads home: “%s”,%s vuelve a casa: «%s»,aldeanos
 VILLAGER_COMPANION_M,Companion,Compañero,aldeanos
 VILLAGER_COMPANION_F,Companion,Compañera,aldeanos
+VILLAGER_SETTLER_M,Settler,Colono,aldeanos
+VILLAGER_SETTLER_F,Settler,Colona,aldeanos
+VILLAGER_SETTLE,Stay and live here,Quédate a vivir aquí,aldeanos
+VILLAGER_SETTLE_FULL,There's no room for more at your base (%d).,En tu base ya no cabe nadie más (%d).,aldeanos
+VTALK_SETTLE_OK_1,"Good spot. I'll stay.","Buen sitio. Aquí me quedo.",aldeanos
+VTALK_SETTLE_OK_2,Then I'll make a home of this.,"Pues haré de esto un hogar.",aldeanos
+VTALK_SETTLE_OK_3,I'll be here when you get back.,Aquí estaré cuando vuelvas.,aldeanos
+VTALK_BASE_1,This is starting to look like a village.,Esto empieza a parecer un poblado.,aldeanos
+VTALK_BASE_2,Last night I heard wolves on the other side of the clearing.,Anoche oí lobos al otro lado del claro.,aldeanos
+VTALK_BASE_3,"A good bedroll and a fire: what more does anyone need?","Un buen petate y una hoguera: ¿qué más hace falta?",aldeanos
+VTALK_BASE_4,"Whenever you want, put me to work.","Cuando quieras, ponme a trabajar.",aldeanos
+VTALK_BASE_5,I miss the voices of home some evenings.,Algunas tardes echo de menos las voces de casa.,aldeanos
 VTALK_RECRUIT_YES_1,"Let me grab my cloak... Right, lead the way.","Deja que coja el manto... Listo, tú delante.",aldeanos
 VTALK_RECRUIT_YES_2,I've never been past the next valley. Let's see what's out there.,Nunca he pasado del valle de al lado. Vamos a ver qué hay más allá.,aldeanos
 VTALK_RECRUIT_YES_3,My family will manage without me for a while. I'm coming.,Mi familia se apañará sin mí una temporada. Voy contigo.,aldeanos

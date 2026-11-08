@@ -29,7 +29,9 @@ const SMOOTH_HEAD := {"Head": 2.0}
 ## "offset" desplaza la cadera (m del origen, se escala con ella) para que dos clips que se
 ## mezclan compartan marco; "end_at_origin" la desplaza para que el clip acabe de pie en el origen
 ## (lo que recorre lo pone el código moviendo el cuerpo); "smooth" suaviza el giro de esos huesos
-## ({hueso sin mixamorig_: sigma en fotogramas}), para capturas que tiemblan de un fotograma a otro.
+## ({hueso sin mixamorig_: sigma en fotogramas}), para capturas que tiemblan de un fotograma a otro;
+## "yaw" gira la pose entera esos grados alrededor de +Y (para las que vienen tumbadas a lo largo de
+## X: en el lecho la cabeza va hacia -Z).
 const CLIPS := {
 	"roll": ["Sprinting Forward Roll", 0.0, -1.0, true],
 	# Lo que sigue a 1,5 s es volver andando al sitio.
@@ -122,13 +124,16 @@ const SETS := {
 		"crouch_walk": ["res://models/player/mocaponline/sample/MOB1_CrouchWalk_F_IPC", 0.0, -1.0, true, true,
 			MCO_V55],
 	}],
-	# La vida de los aldeanos (Villager): dormir tumbado, sentado en el suelo y hablar, de Mixamo. Las dos
-	# primeras no empiezan de pie: la escala sale de hablar, descargada con el mismo personaje.
-	# Dormir viene tumbado en una cama de 1 m: se baja al suelo (la cadera a ~0,15 m, sobre el
-	# lecho). Hablar, con las piernas más rectas que el idle del jugador, hundía los pies 6 cm.
+	# La vida de los aldeanos (Villager): dormir, sentado en el suelo y hablar, de Mixamo. Las que no
+	# empiezan de pie toman la escala de hablar, descargada con el mismo personaje. Dormir son cuatro que
+	# encadena SleepRoutine: sentado en el lecho (wake), boca arriba alzando la cabeza (lie_back), de lado
+	# (sleep_side) y dándose la vuelta (sleep_toss, que acaba como empieza; la cadera se mueve al girar).
+	# Hablar, con las piernas más rectas que el idle del jugador, hundía los pies 6 cm.
 	"village": ["res://models/player/village_anims.tres", {
-		"sleep": [LOCO + "Laying Sleeping", 0.0, -1.0, true, true,
-			{"height_from": LOCO + "Talking", "offset": Vector3(0.0, -0.98, 0.0)}],
+		"sleep_side": [LOCO + "Sleeping Idle", 0.0, -1.0, true, true, {"height_from": LOCO + "Talking", "yaw": -90.0}],
+		"sleep_toss": [LOCO + "Sleeping Idle 2", 0.0, -1.0, false, false, {"height_from": LOCO + "Talking", "yaw": -90.0}],
+		"lie_back": [LOCO + "Lying Down", 0.0, -1.0, true, false, {"height_from": LOCO + "Talking"}],
+		"wake": [LOCO + "Waking", 0.0, -1.0, true, false, {"height_from": LOCO + "Talking"}],
 		"sit_idle": [LOCO + "Sitting Idle", 0.0, -1.0, true, true, {"height_from": LOCO + "Talking"}],
 		"talk": [LOCO + "Talking", 0.0, -1.0, true, true, {"offset": Vector3(0.0, 0.06, 0.0)}],
 		# El paseo de "combat", para que la librería baste sola.
@@ -371,6 +376,10 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 				var j: int = partner[i]
 				mirrored[j] = (reflect * (world[i] as Basis) * reflect * (mirror_fix[j] as Basis)).orthonormalized()
 			world = mirrored
+		if opts.has("yaw"):
+			var yaw := Basis(Vector3.UP, deg_to_rad(float(opts.yaw)))
+			for i in world:
+				world[i] = (yaw * (world[i] as Basis)).orthonormalized()
 		for i in order:
 			var parent := tskel.get_bone_parent(i)
 			var parent_world: Basis = world[parent] if parent >= 0 else tsk_rot
@@ -379,6 +388,8 @@ func _retarget(clip: Array, target: Node3D, tskel: Skeleton3D) -> Animation:
 		# Cadera: posición de origen escalada, pasada al espacio del esqueleto del jugador.
 		var s_hips := smodel * sskel.global_transform * sskel.get_bone_global_pose(sskel.find_bone(names["Hips"]))
 		var p: Vector3 = yaw_fix * s_hips.origin * scale + offset
+		if opts.has("yaw"):
+			p = Basis(Vector3.UP, deg_to_rad(float(opts.yaw))) * p
 		if f == 0:
 			start_xz = Vector3(p.x, 0, p.z)
 		if clip[3]:

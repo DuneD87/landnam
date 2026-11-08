@@ -5,8 +5,9 @@ pieles que duermen en sus casas, trabajan en la leñera, el huerto o el banco co
 jugador y pasan el resto del día en la plaza, con su hoguera al atardecer. Te miran, te saludan, se
 apartan, huyen a casa si ataca una fiera y se meten en ella cuando llueve. Se puede hablar con ellos,
 hacerles regalos, comerciar y hacerles encargos, y cada poblado recuerda la confianza que le tiene al
-jugador. Con bastante, alguno se va con el jugador: lo sigue, le lleva cosas y pelea a su lado. Salen
-siempre iguales del plano del poblado y no se guardan; la confianza, los encargos y el compañero sí.
+jugador. Con bastante, alguno se va con el jugador: lo sigue, le lleva cosas y pelea a su lado, y se
+puede quedar a vivir en su base como colono. Salen siempre iguales del plano del poblado y no se
+guardan; la confianza, los encargos, el compañero y los colonos sí.
 
 | Pieza | Qué hace |
 |---|---|
@@ -91,14 +92,14 @@ Por la hora solar del poblado (`Seasons.solar_hour`; sin sol, mediodía):
 
 | Hora | Qué hace |
 |---|---|
-| 21:30–6:30 | Va a su casa, entra por la puerta y se tumba en su lecho |
+| 21:30–6:30 | Va a su casa, entra por la puerta, se sienta en su lecho y se acuesta |
 | Al levantarse | Sale por la puerta y se queda delante un rato |
 | 8–12 y 13–18 | Con oficio, trabaja en su puesto entre 1 y 2,5 minutos seguidos, con algún descanso |
 | 12–13 | Se sienta delante de su casa |
 | De día, sin oficio | Pasea a un sitio de la plaza y se queda de pie, se sienta en el suelo o busca a alguien libre cerca para charlar: van los dos a encontrarse a medio camino |
 | Desde las 18:30 | Lo mismo, pero sobre todo se sienta en corro alrededor de la hoguera |
 
-Cada cosa dura entre unos segundos y un minuto. Al aparecer, de noche ya está en su lecho, con
+Cada cosa dura entre unos segundos y un minuto. Al aparecer, de noche ya está dormido en su lecho, con
 lluvia a los pies de su lecho y si no en un sitio de la plaza. La hoguera (`SettlementFire`: la del
 jugador sin combustible, inventario ni guardado) se enciende de 18:00 a 23:00 y mientras nieva, y
 con lluvia se apaga. El tiempo cambia la rutina de día (ver Reacciones).
@@ -147,7 +148,19 @@ el camino queda libre.
 `models/player/village_anims.tres`, de Mixamo, reorientadas con
 `tools/combat/retarget_mixamo.gd -- --set=village`:
 
-- **Dormir:** el original viene tumbado en una cama de 1 m y se baja al suelo.
+- **Dormir:** cuatro clips que encadena `SleepRoutine` (`scripts/world/sleep_routine.gd`): sentado en
+  el lecho (`wake`), boca arriba alzando la cabeza (`lie_back`), de lado (`sleep_side`, en bucle) y
+  dándose la vuelta (`sleep_toss`). Al acostarse se sienta, se echa hacia atrás y se gira de lado con el
+  final de `sleep_toss`; dormido, cada 45-150 s da una vuelta; al levantarse se gira boca arriba (otro
+  tramo de `sleep_toss`), alza la cabeza, se sienta y aparece de pie a los pies del lecho. Los giros
+  salen de la captura: mezclar sin más boca arriba con de lado lo incorporaba a medias. `sleep_side` y
+  `sleep_toss` vienen a lo largo de X y se giran 90° (opción `yaw`); `sleep_toss` no es bucle, porque al
+  volver a empezar en mitad de una mezcla promediaba boca arriba con de lado y salía la pose de reposo.
+- **Apoyo en el lecho:** `Villager.bed_fit` sube o baja el cuerpo hasta que lo más bajo descansa en la
+  colisión del lecho (o en el suelo): un rayo por cada punto de `BED_CONTACTS`, con lo que baja el cuerpo
+  por debajo de cada hueso (medido en los vértices de varios cuerpos). Hace falta porque
+  `BodyProportions` sube o baja la cadera según las piernas de cada uno, también tumbado. Cambiando de
+  pose se apoya a cada una; dormido y quieto, cada 0,5 s.
 - **Sentado:** en el suelo.
 - **Hablar:** se sube 6 cm porque, con las piernas más rectas que el idle, hundía los pies.
 - **Pasear:** el paseo relajado de ActorCore, a 1,1 m/s; corre con el del jugador, a 3,5 m/s.
@@ -334,9 +347,32 @@ de pelea, a los 8 s del último golpe recupera 0,5 por segundo, y por debajo de 
 algo del morral: lo asado cura 25 y un remedio 40.
 
 **Se guarda** en la categoría `"npc"` (`SettlementCompanions`, `entity_id` "<planeta>_settlements_companions"):
-su poblado, su vecino (que al cargar se saca otra vez del plano y se viste en el momento), si sigue
-o espera, dónde está y hacia dónde mira, en el marco del terreno, lo que lleva y su vida (si estaba en
+su poblado, su vecino (que al cargar se saca otra vez del plano y se viste en el momento), si sigue,
+espera o vive en la base (y dónde la tiene), dónde está y hacia dónde mira, en el marco del terreno, lo que lleva y su vida (si estaba en
 el suelo, se levanta). El que vuelve a casa no se guarda.
+
+## Colonos
+
+Al compañero se le puede decir **Quédate a vivir aquí**: pasa a `Companion.Mode.SETTLE`, con su base
+donde está (`Companion.base`, en el marco del terreno), y deja libre el sitio de quien acompaña, así
+que se puede reclutar a otro. Caben `SettlementCompanions.MAX_SETTLERS` (20); con la base llena el
+botón sale desactivado. Al colono se le habla igual (frases de la base, `VTALK_BASE`), con su morral;
+**Sígueme** lo vuelve a llevar contigo si no va ya nadie, y **Vuelve a casa** lo devuelve a su poblado.
+
+**Su día** (`Companion._decide`, a la hora solar de la base, con las horas de los aldeanos):
+
+- de día pasea a algún sitio a menos de 10 m de la base, se queda de pie o se sienta en el suelo;
+- desde las 18:30, si hay una hoguera (`Campfire`) encendida a menos de 40 m de la base, se sienta a
+  su alrededor (a 1,6-2,4 m) mirándola;
+- de noche duerme en el petate (`Bedroll`) más cercano a la base, a menos de 40 m, que no use otro
+  compañero: llega a sus pies y se acuesta encima, como los aldeanos (`SleepRoutine`). Sin petate,
+  duerme en el suelo junto a la hoguera o en la base. Tumbado no choca ni se le puede hablar; al
+  amanecer se levanta y aparece de pie a los pies del petate.
+- Si un sitio no se alcanza en 4 s de atasco, hace allí lo que iba a hacer (el petate, encima).
+
+**Defiende la base**: pelea como el compañero, con lo que ataca a menos de 25 m de la base a él, a
+otro compañero o al jugador; lo deja a más de 30 m de ella. Si duerme, se despierta. Lo que pasa a
+más de 120 m del jugador no lo mueve: allí se queda quieto.
 
 ## Configuración
 
@@ -364,6 +400,10 @@ esconden) y los encargos abiertos con cómo van. `village trust <0-100>` pone la
 más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca fieras para pelear o cazar.
 
 ## Limitaciones
+
+- Los colonos aún no trabajan ni comen: solo viven en la base y la defienden. Lejos del jugador (a
+  más de 120 m) están parados, y cargar una partida con muchos los viste todos en ese momento (~0,1 s
+  cada uno).
 
 - Esquivar es solo torcer el paso: dos que se encuentran en una puerta o contra una pared se rozan, y
   al jugador lo empuja su cápsula si se le pone delante.

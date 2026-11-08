@@ -23,6 +23,8 @@ var _wait := 0.0
 var _time := -1.0
 var _repeat := false
 var _value := 0.0
+## Ojos cerrados del todo (durmiendo): no parpadea.
+var _shut := false
 
 
 func _ready() -> void:
@@ -42,7 +44,19 @@ func set_targets(targets: Array[Array]) -> void:
 	_write(_value)
 
 
+## Cierra los ojos y los deja así (dormido), o los vuelve a abrir y sigue parpadeando.
+func set_shut(shut: bool) -> void:
+	if shut == _shut:
+		return
+	_shut = shut
+	_time = -1.0
+	_wait = _rng.randf_range(INTERVAL.x, INTERVAL.y)
+	_write(1.0 if shut else 0.0)
+
+
 func _process(delta: float) -> void:
+	if _shut:
+		return
 	if _time < 0.0:
 		_wait -= delta
 		if _wait > 0.0:

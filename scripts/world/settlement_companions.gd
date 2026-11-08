@@ -1,14 +1,16 @@
 class_name SettlementCompanions extends Node
 
-## Los aldeanos que se han ido con el jugador (Companion). Se recluta en la charla (VillagerChat) a quien
+## Los aldeanos que se han ido con el jugador (Companion): los que lo acompañan y los que viven en su
+## base (colonos, Companion.Mode.SETTLE). Se recluta en la charla (VillagerChat) a quien
 ## sea de un poblado que se fía bastante (SettlementRelations.RECRUIT_TRUST): el aldeano deja su poblado,
 ## que ya no lo saca mientras vaya con el jugador (SettlementVillagers), y se lleva su humano. Se guardan
 ## con la partida (categoría "npc"): su poblado, su vecino (que se vuelve a sacar del plano, como en el
-## poblado), si sigue o espera, dónde está (en el marco del terreno), lo que lleva y su vida. Ver
-## docs/villagers.md.
+## poblado), si sigue, espera o vive en la base (y dónde la tiene), dónde está (en el marco del
+## terreno), lo que lleva y su vida. Ver docs/villagers.md.
 
-## Cuántos a la vez.
+## Cuántos acompañan a la vez, y cuántos viven en la base.
 const MAX := 1
+const MAX_SETTLERS := 20
 ## Para que la charla (VillagerChat) lo encuentre.
 const GROUP := &"settlement_companions"
 
@@ -61,13 +63,26 @@ func has(id: String) -> bool:
 	return false
 
 
-## Si ya van todos los que caben (MAX), sin contar al que se va a casa.
+## Si ya van todos los que caben (MAX), sin contar al que se va a casa ni a los colonos.
 func is_full() -> bool:
 	var count := 0
 	for c in get_companions():
-		if c.mode != Companion.Mode.LEAVE:
+		if c.mode == Companion.Mode.FOLLOW or c.mode == Companion.Mode.WAIT:
 			count += 1
 	return count >= MAX
+
+
+## Los que viven en la base.
+func settler_count() -> int:
+	var count := 0
+	for c in get_companions():
+		if c.mode == Companion.Mode.SETTLE:
+			count += 1
+	return count
+
+
+func settlers_full() -> bool:
+	return settler_count() >= MAX_SETTLERS
 
 
 ## [villager] se va con el jugador: el compañero que lo sustituye, donde estaba y con su humano.
@@ -104,9 +119,12 @@ func get_save_data() -> Dictionary:
 			continue
 		var at := to_local * c.global_position
 		var facing := to_local.basis * c.facing()
-		out.append({"village": c.village, "id": String(c.resident.get("id", "")), "mode": int(c.mode),
+		var entry := {"village": c.village, "id": String(c.resident.get("id", "")), "mode": int(c.mode),
 			"at": [at.x, at.y, at.z], "facing": [facing.x, facing.y, facing.z], "pack": c.pack.get_save_data(),
-			"health": c.health.health})
+			"health": c.health.health}
+		if c.mode == Companion.Mode.SETTLE:
+			entry.base = [c.base.x, c.base.y, c.base.z]
+		out.append(entry)
 	return {"companions": out}
 
 
@@ -143,8 +161,12 @@ func restore_save_data(data: Dictionary) -> void:
 			forward = (Vector3.FORWARD - up * up.z).normalized()
 		var at := _terrain.global_transform * Transform3D(Basis(up.cross(forward), up, forward), local)
 		var model := Villager.build_model(who, SettlementVillagers.pieces_of(who), SettlementVillagers.tool_of(who))
-		var mode := Companion.Mode.WAIT if int(entry.get("mode", 0)) == Companion.Mode.WAIT else Companion.Mode.FOLLOW
+		var saved_mode := int(entry.get("mode", 0))
+		var mode := Companion.Mode.WAIT if saved_mode == Companion.Mode.WAIT else Companion.Mode.FOLLOW
 		var companion := _add(v, who, model, at, mode)
+		var base_raw: Array = entry.get("base", [])
+		if saved_mode == Companion.Mode.SETTLE and base_raw.size() == 3:
+			companion.settle_here(Vector3(base_raw[0], base_raw[1], base_raw[2]))
 		if entry.has("pack"):
 			companion.pack.restore_save_data(entry.pack)
 		companion.restore_health(float(entry.get("health", -1.0)))

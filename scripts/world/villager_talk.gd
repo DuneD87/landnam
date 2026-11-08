@@ -14,6 +14,7 @@ const POOLS := {
 	&"DANGER": 3, &"NEIGHBOUR": 2, &"PELT": 2, &"BRONZE": 2,
 	&"GIFT_LOVE": 3, &"GIFT_LIKE": 3, &"GIFT_TIRED": 2, &"GIFT_MEH": 3,
 	&"RECRUIT_YES": 3, &"FOLLOW_OK": 3, &"WAIT_OK": 3, &"HOME_OK": 3, &"ROAD": 5,
+	&"SETTLE_OK": 3, &"BASE": 5,
 	&"TRADE_OPEN": 3, &"TRADE_DONE": 3, &"TRADE_SHORT": 3,
 	&"QUEST_FETCH": 3, &"QUEST_HUNT": 3, &"QUEST_YES": 3, &"QUEST_WAITING": 3, &"QUEST_THANKS": 3,
 	&"QUEST_DROP": 2,
@@ -72,7 +73,7 @@ static func line(villager: Villager, player: Node, rng: RandomNumberGenerator, l
 
 ## Lo que dice un compañero (Companion) por el camino: del viaje, del tiempo o de lo que lleva el jugador.
 static func companion_line(companion: Companion, player: Node, rng: RandomNumberGenerator, last := "") -> Dictionary:
-	var pools: Array = [[&"ROAD", 3.0]]
+	var pools: Array = [[&"BASE" if companion.mode == Companion.Mode.SETTLE else &"ROAD", 3.0]]
 	var weather := _weather(companion)
 	if POOLS.has(weather):
 		pools.append([weather, 1.5])
@@ -168,6 +169,11 @@ static func job_title(who: Dictionary) -> String:
 ## Lo que es para el jugador quien se ha ido con él: "Compañero", "Compañera" (clave de traducción).
 static func companion_title(who: Dictionary) -> String:
 	return "VILLAGER_COMPANION_%s" % ("F" if StringName(who.get("sex", &"male")) == &"female" else "M")
+
+
+## Colono o colona: el que vive en la base del jugador.
+static func settler_title(who: Dictionary) -> String:
+	return "VILLAGER_SETTLER_%s" % ("F" if StringName(who.get("sex", &"male")) == &"female" else "M")
 
 
 static func tr_key(key: String) -> String:

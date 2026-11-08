@@ -62,6 +62,7 @@ var _trade_button: Button
 var _recruit_button: Button
 var _follow_button: Button
 var _home_button: Button
+var _settle_button: Button
 var _pack_button: Button
 var _quest_button: Button
 var _accept_button: Button
@@ -275,7 +276,9 @@ func _refresh() -> void:
 		return
 	var who := _who()
 	_name.text = who.name
-	var title := VillagerTalk.companion_title(who) if _companion != null else VillagerTalk.job_title(who)
+	var title := VillagerTalk.job_title(who)
+	if _companion != null:
+		title = VillagerTalk.settler_title(who) if _settled() else VillagerTalk.companion_title(who)
 	_subtitle.text = "%s · %s" % [tr(title), _place()]
 	var trust := _relations().trust(_v())
 	_trust_label.text = tr("VILLAGE_TRUST") % [tr(SettlementRelations.tier_name(SettlementRelations.tier_of(trust))),
@@ -294,13 +297,14 @@ func _refresh() -> void:
 	var danger := _villager != null and _villager.village.danger
 	_gift_button.disabled = danger
 	# Al aldeano se le cambian cosas y se le pide que venga; al compañero se le dan cosas, que siga o
-	# espere, o que vuelva.
+	# espere, que se quede a vivir en la base o que vuelva.
 	_trade_button.visible = talk and _villager != null
 	_trade_button.disabled = danger
 	_recruit_button.visible = talk and _villager != null
 	_pack_button.visible = talk and _companion != null
 	_follow_button.visible = talk and _companion != null
 	_home_button.visible = talk and _companion != null
+	_settle_button.visible = talk and _companion != null and not _settled()
 	var open := _quest_open()
 	_quest_button.visible = talk and not _quest_of().is_empty()
 	_quest_button.text = "VILLAGER_QUEST_OPEN" if open else "VILLAGER_QUEST"
@@ -322,6 +326,19 @@ func _refresh() -> void:
 				if trust < SettlementRelations.RECRUIT_TRUST else "")
 	if _companion != null:
 		_follow_button.text = "VILLAGER_WAIT" if _companion.mode == Companion.Mode.FOLLOW else "VILLAGER_FOLLOW"
+		var companions := _companions()
+		# El colono solo vuelve a acompañar si hay hueco; y a la base solo caben MAX_SETTLERS.
+		var no_room := _settled() and (companions == null or companions.is_full())
+		_follow_button.disabled = no_room
+		_follow_button.tooltip_text = tr("VILLAGER_RECRUIT_FULL") if no_room else ""
+		var base_full := companions == null or companions.settlers_full()
+		_settle_button.disabled = base_full
+		_settle_button.tooltip_text = tr("VILLAGER_SETTLE_FULL") % SettlementCompanions.MAX_SETTLERS \
+			if base_full else ""
+
+
+func _settled() -> bool:
+	return _companion != null and _companion.mode == Companion.Mode.SETTLE
 
 
 func _on_talk() -> void:
@@ -374,8 +391,21 @@ func _on_follow() -> void:
 		_companion.wait_here()
 		_say(VillagerTalk.pick(&"WAIT_OK", _rng, _last_line))
 	else:
+		var companions := _companions()
+		if _settled() and (companions == null or companions.is_full()):
+			return
 		_companion.follow()
 		_say(VillagerTalk.pick(&"FOLLOW_OK", _rng, _last_line))
+	_refresh()
+
+
+## Se queda a vivir aquí: es un colono de la base y deja libre el sitio de quien acompaña.
+func _on_settle() -> void:
+	var companions := _companions()
+	if _companion == null or _settled() or companions == null or companions.settlers_full():
+		return
+	_companion.settle_here()
+	_say(VillagerTalk.pick(&"SETTLE_OK", _rng, _last_line))
 	_refresh()
 
 
@@ -778,6 +808,7 @@ func _build_ui() -> void:
 	_quest_button = _button(_buttons, "VILLAGER_QUEST", _on_quest)
 	_recruit_button = _button(_buttons, "VILLAGER_RECRUIT", _on_recruit)
 	_follow_button = _button(_buttons, "VILLAGER_WAIT", _on_follow)
+	_settle_button = _button(_buttons, "VILLAGER_SETTLE", _on_settle)
 	_home_button = _button(_buttons, "VILLAGER_GO_HOME", _on_home)
 	_deal_button = _button(_buttons, "VILLAGER_TRADE_DEAL", _on_deal)
 	_deal_button.theme_type_variation = &"AccentButton"
@@ -839,6 +870,6 @@ func _layout() -> void:
 	for side in ["left", "top", "right", "bottom"]:
 		_margin.add_theme_constant_override("margin_" + side, roundi(24.0 * ui_scale))
 	for button: Button in [_talk_button, _gift_button, _trade_button, _pack_button, _quest_button,
-			_recruit_button, _follow_button, _home_button, _deal_button, _accept_button, _deliver_button,
+			_recruit_button, _follow_button, _settle_button, _home_button, _deal_button, _accept_button, _deliver_button,
 			_drop_button, _back_button, _bye_button]:
 		button.custom_minimum_size.x = 130.0 * ui_scale

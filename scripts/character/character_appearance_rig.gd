@@ -492,6 +492,12 @@ func set_first_person(enabled: bool) -> void:
 		_skeleton.skeleton_updated.disconnect(_sync_first_person_body)
 
 
+## Eyes shut and kept shut (asleep), or open again and blinking.
+func set_eyes_shut(shut: bool) -> void:
+	if _blink != null:
+		_blink.set_shut(shut)
+
+
 ## Where the first-person camera goes, in the head bone's space: between the
 ## eyes, moved `forward` metres along the face (negative goes into the head,
 ## where turning it hardly moves the camera); NAN without eyes.
