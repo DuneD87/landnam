@@ -131,6 +131,12 @@ var _eye_mesh: ArrayMesh
 var _eye_forward := 0.0
 var _eye_point := Vector3.ZERO
 
+## The body version last shown with all its clothes on; until then (on loading, or the first
+## time the equipment screen dresses its doll) the whole model is hidden while the pieces
+## are fitted, instead of showing the body without them.
+var _shown_version := -1
+var _veiled := false
+
 static var _reference: BodyMeasurements
 
 
@@ -172,6 +178,8 @@ func apply(appearance: CharacterAppearance) -> void:
 	if geometry_changed:
 		# After the proxies: the armour clears the genitals too.
 		_refit_dressed()
+		# What is put on in this same frame (loading, the doll) is part of this first look.
+		_mark_shown.call_deferred()
 	if hair_changed and not _covering.is_empty():
 		_hair_changed()
 	if hair_changed:
@@ -590,6 +598,8 @@ func _fit(item: Node) -> void:
 		if instance.visible:
 			instance.visible = false
 			instance.set_meta(&"armor_hidden", true)
+		if _shown_version != _body_version:
+			_veil(true)
 		var running: Dictionary = _fitting.get(source, {})
 		if running.get("version", -1) == _body_version:
 			continue
@@ -704,8 +714,31 @@ static func _tuck(slots: Dictionary, cover: PackedVector3Array, centre: Vector3,
 			tuck.tuck(surface.arrays, binds, bones)
 
 
+## Hides the whole model until everything put on is fitted (see veil_until_dressed()).
+func veil_until_dressed() -> void:
+	if is_dressing():
+		_veil(true)
+
+
+## The body without anything to fit counts as shown as it is.
+func _mark_shown() -> void:
+	if not is_dressing():
+		_shown_version = _body_version
+
+
+## Hides or shows everything under the armature (body, hair, clothes, what is held) without
+## touching each mesh's own `visible`, which says what is worn.
+func _veil(enabled: bool) -> void:
+	if enabled == _veiled or _armature == null:
+		return
+	_veiled = enabled
+	_armature.visible = not enabled
+
+
 ## Shows the pieces hidden while they were fitted.
 func _reveal() -> void:
+	_shown_version = _body_version
+	_veil(false)
 	for item in _dressed:
 		if not is_instance_valid(item):
 			continue

@@ -898,6 +898,8 @@ func restore_save_data(save: Dictionary) -> void:
 			var inv_item := InventoryItem.new(item_data, 1)
 			eq_slot.set_item(inv_item)
 			equip_item(true, slot_type, load(item_data.scene_path), item_data, item_data.category)
+	# Mientras se ajusta la ropa no se ve el cuerpo sin ella.
+	appearance_rig.veil_until_dressed()
 	var capacity := character_window.inventory_capacity
 	capacity.base_slots = maxi(1, int(save.get("inventory_base_slots", capacity.configured_base_slots)))
 	if not capacity.sync():
@@ -913,6 +915,8 @@ func restore_save_data(save: Dictionary) -> void:
 	_sync_hotbar_offhand()
 	_sync_armor()
 	_sync_build_mode()
+	# El muñeco de la pantalla de equipo se viste ya, mientras se carga, y no al abrirla.
+	character_window.refresh()
 	# Antes de on_restored: la vida y el aguante máximos son los de los atributos.
 	if progression != null:
 		progression.load_data(save.get("progression", {}))
@@ -1264,6 +1268,8 @@ func _activate_player() -> void:
 	player_model.rotation = Vector3.ZERO
 	current_swimming_pitch = 0.0
 	locomotion.reset()
+	# Partida nueva: el muñeco se prepara al empezar (si nada cambió, no cuesta nada).
+	character_window.refresh()
 
 	update_nearest_planet()
 	if planet:

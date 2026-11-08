@@ -293,6 +293,8 @@ func get_armor() -> Vector3:
 	return Armor.total(get_armor_pieces())
 
 
+## Una vez preparado (refresh()), el muñeco sigue a los huecos aunque no se vea: la ropa se ajusta
+## en segundo plano y al abrir la pantalla ya está puesta.
 func _refresh_if_shown() -> void:
-	if panel != null and panel.is_visible_in_tree():
+	if panel != null and _applied_look != "":
 		_sync_dress()
