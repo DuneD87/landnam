@@ -3,9 +3,10 @@
 Los [poblados](settlements.md) tienen gente cuando el jugador se acerca: aldeanos nórdicos vestidos de
 pieles que duermen en sus casas, trabajan en la leñera, el huerto o el banco con las herramientas del
 jugador y pasan el resto del día en la plaza, con su hoguera al atardecer. Te miran, te saludan, se
-apartan, huyen a casa de las fieras y se meten en ella cuando llueve. Se puede hablar con ellos y hacerles regalos, y cada poblado
-recuerda la confianza que le tiene al jugador. Salen siempre iguales del plano del poblado y no se
-guardan; la confianza sí.
+apartan, huyen a casa si ataca una fiera y se meten en ella cuando llueve. Se puede hablar con ellos,
+hacerles regalos, comerciar y hacerles encargos, y cada poblado recuerda la confianza que le tiene al
+jugador. Con bastante, alguno se va con el jugador: lo sigue, le lleva cosas y pelea a su lado. Salen
+siempre iguales del plano del poblado y no se guardan; la confianza, los encargos y el compañero sí.
 
 | Pieza | Qué hace |
 |---|---|
@@ -20,6 +21,10 @@ guardan; la confianza sí.
 | `VillagerTalk` (`scripts/world/villager_talk.gd`) | Qué dice un aldeano y cuánto le gusta un regalo |
 | `VillagerChat` (`scripts/player/villager_chat.gd`) | El panel de hablar con un aldeano |
 | `ItemValue` (`scripts/items/item_value.gd`) | Lo que vale un objeto para ellos |
+| `SettlementCompanions` (`scripts/world/settlement_companions.gd`) | Quién se ha ido con el jugador: reclutar y guardar |
+| `Companion` (`scripts/world/companion.gd`) | El compañero: sigue o espera al jugador, con física; lleva cosas y pelea |
+| `SettlementTrade` (`scripts/world/settlement_trade.gd`) | El trueque: lo que tiene cada vecino y a cuánto |
+| `SettlementQuests` (`scripts/world/settlement_quests.gd`) | Los encargos: lo que pide cada vecino, cómo va y lo que da |
 
 ## Quién vive
 
@@ -105,8 +110,13 @@ con lluvia se apaga. El tiempo cambia la rutina de día (ver Reacciones).
 - **Al andar.** Fuera de las casas se aparta de quien tenga delante a menos de 1,3 m (otros aldeanos,
   el jugador, la hoguera) torciendo hacia su lado.
 - **A las fieras.** Cada segundo el poblado mira si hay un lobo, oso, jabalí, felino, hiena o caimán
-  vivo a menos de 25 m de lo más lejano del poblado. Si lo hay, todos corren a su casa, entran,
-  cierran y se quedan dentro. Salen 15 s después de dejar de verlo.
+  vivo y despierto **atacando** (en pelea, `CreatureCombatState`, contra el jugador, el compañero u
+  otro animal) a menos de 25 m de lo más lejano del poblado. Si lo hay, todos corren a su casa,
+  entran, cierran y se quedan dentro, de pie a los pies de su lecho, y no aceptan regalos. Salen 15 s
+  después de que ninguna ataque. Una fiera que solo ronda, come o avisa no asusta: si asustara, con
+  tanta fauna el poblado se pasaría el día escondido de algo que ni se ve. Tampoco cuenta una dormida
+  por la fauna (lejos del jugador y fuera de cámara se queda parada y oculta). La consola `village`
+  dice de qué se esconden y a cuánto de la plaza.
 - **Al tiempo.** Cada 2 s el poblado mira lo que cae donde está el jugador
   (`WeatherController.get_local_precipitation`, la misma lluvia y nieve que ve él). Con lluvia desde
   0,3 dejan lo que hagan fuera y corren a casa: se quedan a los pies de su lecho, de pie o sentados
@@ -203,6 +213,131 @@ avanzar el reloj de horas de juego de `SettlementRelations`, que no avanza con e
 `ItemValue.BASE` (la carne asada 5, una piel 4, un hueso 1, el oro 25) o el de su categoría, y lo
 fabricado vale lo que sus ingredientes por 1,25, repartido entre lo que sale (el lingote de bronce, 8).
 
+## Comerciar
+
+**Comerciar** en la charla con un aldeano abre el trueque: a la izquierda lo suyo, a la derecha lo del
+jugador, y debajo la cuenta. Clic en un hueco suma uno a lo que se elige (arriba, «×2»), clic derecho
+lo quita. La ficha de cada hueco dice su precio. **Cerrar trato** sale si lo que da el jugador llega a
+lo que se lleva; si no, se lo dice. Lo que se lleva va al inventario, y lo que no cabe, al suelo. Con
+una fiera cerca no se comercia, y con un compañero tampoco: ya no tiene género.
+
+**Lo que tiene** (`SettlementTrade.STOCK`) depende de su oficio y se sortea cada día de juego (el reloj
+de `SettlementRelations`), siempre igual el mismo día. Lo que se lleva el jugador falta hasta el día
+siguiente.
+
+| Oficio | Qué tiene |
+|---|---|
+| Leñera | Madera y ramas siempre; a veces fibra, antorchas o un hacha de piedra |
+| Huerto | Fibra y milenrama siempre; a veces emplastos y bebedizos, o una azada |
+| Banco | Herramientas y armas de piedra y sílex, arco, flechas, escudo, odre, escala; muy rara vez algo de bronce |
+| Sin oficio | La despensa: carne asada y cruda, pescado, pieles, huesos, tendones, plumas; a veces una cuerna o unas manoplas o mocasines |
+
+**Los precios** salen de lo que vale cada cosa (`ItemValue`, en leños) según la confianza del poblado:
+
+| Confianza | Cobran por lo suyo | Dan por lo tuyo |
+|---|---|---|
+| Recelosos | ×1,6 | ×0,55 |
+| Cautos | ×1,35 | ×0,65 |
+| Amables | ×1,15 | ×0,75 |
+| Amigos | ×1 | ×0,85 |
+| Como de la familia | ×0,95 | ×0,95 |
+
+Nunca dan más de lo que cobran, así que comprar y revender no deja nada. Lo que el jugador da de más
+es un regalo (`SettlementRelations.gift`, con gusto 1). Un trato de al menos 4 leños sube además la
+confianza 2, una vez al día por vecino y hasta 60: comerciando se llega a amigos, no a familia.
+
+`SettlementManager` guarda lo que se ha llevado el jugador hoy de cada vecino (`trade` en su
+`get_save_data`).
+
+## Encargos
+
+Algunos vecinos tienen algo que pedir. Entonces su charla tiene **¿Te echo una mano?**, que dice lo que
+pide y lo que hay a cambio; **Cuenta conmigo** lo acepta. Con uno abierto, el botón pasa a **El
+encargo**: cómo va, **Entregar** (o **Ya está**, si es de caza), que solo se puede pulsar cuando está
+cumplido, y **Dejarlo**, que lo cierra sin más. Debajo salen todos los encargos que tiene el jugador
+(quién, de qué poblado y cómo van). Al aceptarlo, al avanzar y al cobrarlo se avisa en la barra.
+
+**Quién pide qué** (`SettlementQuests.offer`): cada vecino puede pedir algo una vez cada 2 días de juego
+(`PERIOD`, con el reloj de `SettlementRelations`), con un 45 % de probabilidad, sorteado y siempre igual
+en ese tiempo. Hay como mucho un encargo abierto por poblado y 3 en total (`MAX_OPEN`); mientras su
+poblado tiene uno, los demás vecinos no piden. Quien cumple uno no pide otro hasta el periodo siguiente.
+
+- **Traer cosas** (`FETCH`), según su oficio: el leñero, sílex, carne asada, pieles o tendones; la
+  hortelana, huesos, pescado, sílex o plumas; el artesano, sílex, mineral de cobre o de estaño, cuernas,
+  tendones o huesos; sin oficio, comida, pieles o milenrama. De 2 a 6 de algo. Al entregar sale del
+  inventario.
+- **Cazar** (`PREY`): si rondan fieras a menos de 400 m de la plaza (`SettlementVillage.prey_near`,
+  despiertas o dormidas), la mitad de las veces pide acabar con una o unas cuantas de una de esas
+  especies (2-3 lobos o hienas, 1-2 jabalíes o linces, 1 oso, puma, caimán, león...). Cuentan las que
+  caen a menos de 600 m de la plaza (`HUNT_REACH`) por mano del jugador o de su compañero: al morir, una
+  criatura avisa al grupo `NPCController.KILLS_GROUP` con quien la hirió por última vez, y
+  `SettlementManager.creature_killed` lo cuenta.
+
+**Lo que da** (`SettlementQuests.complete`): lo que vale el encargo (lo traído por 1,5, o cada fiera lo
+suyo: un lobo 12, un oso 40) por 0,3 de confianza, entre 4 y 15, **sin tope**: es lo que hace a alguien
+de la familia. Y cosas de las que tiene para cambiar según su oficio (`SettlementTrade.STOCK`), una o
+dos, por hasta 0,8 de ese valor. Las frases (`VTALK_QUEST_*`) y los nombres de las fieras (`VPREY_*`, con
+`_ONE` y `_MANY`) van en `translations.csv`.
+
+`SettlementManager` guarda los encargos abiertos, lo que pide cada vecino en este periodo y quién ha
+cumplido (`quests` en su `get_save_data`).
+
+## Compañeros
+
+Con la confianza de su poblado en `SettlementRelations.RECRUIT_TRUST` (60, amigos), la charla tiene
+**Ven conmigo**. Por debajo sale desactivado y dice cuánta hace falta. Va uno a la vez (`SettlementCompanions.MAX`). Al aceptar, el aldeano deja su poblado
+(`Villager.leave_with_player`) y su humano pasa a un `Companion`, sin volver a vestirlo, y la charla
+sigue con él. Su poblado ya no lo saca mientras vaya con el jugador.
+
+**El compañero** es un `CharacterBody3D` con la gravedad del planeta, en la capa de los aldeanos
+(sólido para el jugador) y chocando con el mundo, colgado del padre de las grids, así que el origen
+flotante lo mueve con ellas.
+
+- **Sígueme**: echa a andar a más de 3,5 m del jugador y se para a 2,2. La velocidad sube con la
+  distancia, de andar (1,4 m/s) a la carrera (8 m/s a 15 m), y la animación pasa de andar a correr.
+  Si avanza mucho menos de lo que quiere, salta (5 m/s: un bloque). Si sigue atascado 4 s a más de
+  8 m, o se queda a más de 50 m, aparece a 2,5 m del jugador, por detrás de hacia donde va, en un
+  sitio a su vista y con suelo.
+- **Espera aquí**: se queda quieto, mirando al jugador si está cerca, y a los 25 s se sienta.
+- **Vuelve a casa**: se despide en el aviso de la barra y echa a andar hacia su poblado. Se va del
+  todo a 35 m del jugador o a los 45 s, y su poblado lo vuelve a sacar la próxima vez que se llene.
+- A más de 120 m del jugador no se mueve ni cae, y sin suelo a menos de 60 m por debajo (la colisión
+  del terreno aún no ha llegado) tampoco cae: espera.
+
+Se le habla con E como a un aldeano: hablar (frases del camino, `VTALK_ROAD`, y las del tiempo y de lo
+que lleva el jugador), regalar (sube la confianza de su poblado), su morral, seguir o esperar, volver a
+casa y adiós; y su encargo, si tenía uno abierto con el jugador. Peleando o malherido no se le puede
+hablar, y si le atacan en mitad de la charla, se acaba.
+
+**Su morral** (`Companion.pack`, 12 huecos): a la izquierda lo que lleva y a la derecha lo del jugador;
+clic pasa uno al otro lado y clic derecho, todos los de ese montón. Al volver a casa devuelve lo que
+lleva (lo que no cabe, al suelo).
+
+**Pelea** (`Companion._scan`, cada 0,3 s). Va a por la criatura más cercana a menos de 20 m del jugador
+(esperando, de sí mismo) que le ataca a él, que pelea con el jugador (`CreatureCombatState`: la presa
+que huye del jugador también lo tiene de objetivo, y esa no) o, siguiéndolo, que el jugador ha herido.
+La deja si muere, se duerme o se aleja más de 30 m, o si el jugador se aleja eso. Corre hasta tenerla a
+tiro (los dos cuerpos, el brazo y lo que mide el arma), la encara y golpea con los golpes del jugador
+(`MeleeMoveset`: de arriba abajo con lo contundente y las hachas, de lado con lo demás) a 1,3 veces su
+ritmo y con un respiro entre golpe y golpe. El golpe le da en el cuerpo si sigue a tiro y delante, con
+el 0,8 del daño del arma (los puños, 6; nunca menos) y su tipo. El arma (`refresh_weapon`) es la mejor
+que lleve en el morral para golpear con la derecha (ni arcos ni hondas) o, si no, la herramienta de su
+oficio; se ve mientras pelea y un rato después.
+
+**Le pegan**: tiene 100 de vida (`HealthComponent`, con la protección de su ropa sumada por 0,4) y un
+`Hurtbox`, así que las zarpas y los dientes le dan. La criatura a la que golpea se le revuelve
+(`NPCController._on_damaged`), y `Perception` lo sigue viendo aunque el jugador ande cerca. Al encajar
+un golpe da un respingo (si no está a mitad de golpe) y se revuelve contra quien ha sido. El jugador no
+le hace daño: ni su hoja ni sus flechas. **Sin vida cae malherido**: queda en el suelo 25 s (las fieras
+lo dejan, porque su vida está a cero), se avisa en la barra y se levanta con el 40 % de la vida. Fuera
+de pelea, a los 8 s del último golpe recupera 0,5 por segundo, y por debajo de la mitad come cada 6 s
+algo del morral: lo asado cura 25 y un remedio 40.
+
+**Se guarda** en la categoría `"npc"` (`SettlementCompanions`, `entity_id` "<planeta>_settlements_companions"):
+su poblado, su vecino (que al cargar se saca otra vez del plano y se viste en el momento), si sigue
+o espera, dónde está y hacia dónde mira, en el marco del terreno, lo que lleva y su vida (si estaba en
+el suelo, se levanta). El que vuelve a casa no se guarda.
+
 ## Configuración
 
 `villager_distance` (200 m) en `settlement_settings`.
@@ -220,11 +355,13 @@ física dados a mano, comprueba que:
 - la hoguera se enciende al atardecer;
 - saludan al jugador;
 - dos que se cruzan se esquivan;
-- con una fiera cerca se encierran en casa, y salen cuando se va;
+- si una fiera ataca cerca se encierran en casa, y salen cuando acaba;
 - dos se juntan a charlar;
 - lejos se van.
 
-La consola `village` dice cuántos hay cerca y cuántos quedan por vestir.
+La consola `village` dice cuántos hay cerca y cuántos quedan por vestir, de qué fiera se esconden (si se
+esconden) y los encargos abiertos con cómo van. `village trust <0-100>` pone la confianza del poblado
+más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca fieras para pelear o cazar.
 
 ## Limitaciones
 
@@ -232,9 +369,16 @@ La consola `village` dice cuántos hay cerca y cuántos quedan por vestir.
   al jugador lo empuja su cápsula si se le pone delante.
 - Sentarse y tumbarse son fundidos desde estar de pie, sin animación de transición.
 - La mano no agarra la herramienta fuera de los golpes y de cavar; por eso solo la sacan al trabajar.
-- Ante una fiera solo huyen; no se puede pelear con ellos.
+- Ante una fiera los aldeanos solo huyen; no se puede pelear con ellos. El compañero sí pelea, pero no
+  se protege (ni guardia ni escudo), no usa arcos y no se pone la ropa ni las armaduras que lleva.
 - El tiempo es el del sitio del jugador, no el del poblado: valen porque solo hay gente en los
   poblados cercanos. No cambian de ropa con el frío.
-- Lo regalado se pierde: aún no va a ninguna parte del poblado.
-- La confianza solo sube hablando y regalando; aún no baja por nada.
+- Lo regalado y lo que se les da en un trato se pierde: aún no va a ninguna parte del poblado ni lo
+  revenden.
+- El compañero va en línea recta hacia el jugador o hacia la fiera: no rodea paredes ni busca puertas
+  (salta o, si no sale, aparece detrás del jugador). No nada: en el agua anda por el fondo. Las fieras
+  solo van a por él si les pega; las que no, siguen con el jugador.
+- Los encargos no tienen plazo ni salen en ningún diario: solo en la charla y en los avisos de la barra.
+  Las fieras de un encargo de caza no se marcan: valen cualesquiera de esa especie cerca del poblado.
+- La confianza solo sube (hablando, regalando, comerciando y con los encargos); aún no baja por nada.
 - Una casa que ha pasado a la partida pierde sus lechos al cargarla, porque son decorado.

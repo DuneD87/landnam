@@ -12,7 +12,9 @@ class_name SettlementManager extends Node
 ## la levanta él (get_save_data).
 ##
 ## Cada casa lleva sus lechos (SettlementPrefab.beds) y sus sitios de trabajo (SettlementDecor), decorado
-## que no se guarda; y los poblados cercanos, su gente (SettlementVillagers).
+## que no se guarda; y los poblados cercanos, su gente (SettlementVillagers), menos quien se ha ido con
+## el jugador (SettlementCompanions). Lleva la confianza de cada poblado, el trueque y los encargos, que se
+## guardan con la partida; y cuenta las fieras que caen para los encargos de caza (creature_killed).
 
 ## Cada cuánto se mira a qué distancia está el jugador (s).
 const CHECK_INTERVAL := 0.5
@@ -47,8 +49,14 @@ var _timer := 0.0
 ## "<poblado>:<casa>" -> su decorado: los lechos y los sitios de trabajo.
 var _decor := {}
 var _people: SettlementVillagers
+## Los que se han ido con el jugador: se guardan aparte, en la categoría "npc".
+var _companions: SettlementCompanions
 ## Lo que es el jugador para cada poblado (la confianza): se guarda con la partida.
 var relations := SettlementRelations.new()
+## Lo que tiene cada vecino para cambiar y lo que se ha llevado el jugador hoy: se guarda con la partida.
+var trade := SettlementTrade.new(relations, 1)
+## Lo que piden los vecinos y lo que el jugador tiene entre manos: se guarda con la partida.
+var quests := SettlementQuests.new(relations, 1)
 
 
 ## [planet]: el PlanetLoader; [terrain]: su VoxelLodTerrain; [field]: Planet.get_settlements().
@@ -58,6 +66,9 @@ func setup(planet: Node3D, terrain: Node3D, player: Node3D, field: Dictionary, c
 	_player = player
 	_villages = field.get("villages", [])
 	cfg = SettlementField.settings(cfg)
+	trade = SettlementTrade.new(relations, int(cfg.seed))
+	quests = SettlementQuests.new(relations, int(cfg.seed))
+	quests.villages = _villages
 	_load_distance = float(cfg.load_distance)
 	_unload_distance = maxf(float(cfg.unload_distance), _load_distance + 50.0)
 	for t in SettlementField.load_templates():
@@ -67,6 +78,12 @@ func setup(planet: Node3D, terrain: Node3D, player: Node3D, field: Dictionary, c
 			if p != null:
 				_prefabs[p.id] = p
 	add_to_group(GameManager.SAVEABLE_GROUP)
+	add_to_group(NPCController.KILLS_GROUP)
+	_companions = SettlementCompanions.new()
+	_companions.name = "Companions"
+	_companions.entity_id = entity_id + "_companions"
+	add_child(_companions)
+	_companions.setup(self, planet, terrain, player, field, _prefabs, cfg)
 	_people = SettlementVillagers.new()
 	_people.name = "Villagers"
 	add_child(_people)
@@ -311,6 +328,10 @@ func get_people() -> SettlementVillagers:
 	return _people
 
 
+func get_companions() -> SettlementCompanions:
+	return _companions
+
+
 ## Si el poblado [v] tiene todas sus casas levantadas (o ya son de la partida): puede tener gente.
 func village_ready(v: int) -> bool:
 	for b in (_villages[v].buildings as Array).size():
@@ -340,8 +361,22 @@ func door_of(b: int, v: int) -> WoodenDoor:
 	return null
 
 
+## Ha caído [creature] (NPCController.KILLS_GROUP): si ha sido el jugador o su compañero, cuenta para los
+## encargos de caza, y se avisa de cómo van.
+func creature_killed(creature: NPCController, killer: Object) -> void:
+	if killer == null or not is_instance_valid(killer) or (killer != _player and not killer is Companion) \
+			or _terrain == null or not is_instance_valid(creature):
+		return
+	var at := _terrain.global_transform.affine_inverse() * creature.global_position
+	var hotbar: Node = _player.get("hotbar") if _player != null and is_instance_valid(_player) else null
+	for quest: Dictionary in quests.killed(creature.npc_type, at):
+		if hotbar != null:
+			hotbar.notify(tr("VQUEST_PROGRESS") % [quest.name, VillagerTalk.quest_status(quest)])
+
+
 func get_save_data() -> Dictionary:
-	return {"claimed": _claimed.keys(), "relations": relations.save_data()}
+	return {"claimed": _claimed.keys(), "relations": relations.save_data(), "trade": trade.save_data(),
+		"quests": quests.save_data()}
 
 
 ## Antes de cargar una partida: GridManager va a quitar todas las grids, y al vaciarse avisan; las del
@@ -369,4 +404,6 @@ func restore_save_data(data: Dictionary) -> void:
 	for key in data.get("claimed", []):
 		_claimed[str(key)] = true
 	relations.restore(data.get("relations", {}))
+	trade.restore(data.get("trade", {}))
+	quests.restore(data.get("quests", {}))
 	_timer = 0.0

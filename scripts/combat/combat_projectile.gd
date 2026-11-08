@@ -106,13 +106,13 @@ func _physics_process(delta: float) -> void:
 	query.collision_mask = PhysicsLayers.WORLD | PhysicsLayers.HURTBOX
 	query.collide_with_areas = true
 	query.exclude = _exclude
-	# Hasta tres intentos por si el rayo toca hurtboxes apagados o propios.
+	# Hasta tres intentos por si el rayo toca hurtboxes apagados, propios o del compañero del jugador.
 	for attempt in 3:
 		var hit := space.intersect_ray(query)
 		if hit.is_empty():
 			break
 		var box := hit.collider as Hurtbox
-		if box != null and (not box.is_enabled() or box.owner_body == shooter):
+		if box != null and (not box.is_enabled() or box.owner_body == shooter or box.owner_body is Companion):
 			_exclude.append(hit.rid)
 			query.exclude = _exclude
 			continue

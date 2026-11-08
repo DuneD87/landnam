@@ -102,6 +102,12 @@ func forget() -> void:
 
 
 func _scan() -> Node3D:
+	# Al compañero del jugador que le ha herido (Companion) lo sigue viendo mientras lo tenga a tiro,
+	# aunque el jugador ande cerca: si no, se volvería siempre hacia el jugador.
+	var current := controller.target
+	if current != null and is_instance_valid(current) and current != _player_cache \
+			and current.is_in_group(Companion.GROUP) and _can_detect(current):
+		return current
 	if detect_player and is_instance_valid(_player_cache) and _can_detect(_player_cache):
 		return _player_cache
 

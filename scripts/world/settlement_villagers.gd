@@ -86,6 +86,8 @@ func _arrive(v: int) -> void:
 	village.player = _player
 	village.name = SettlementPopulation.village_name(v, _seed)
 	village.relations = _manager.relations
+	village.trade = _manager.trade
+	village.quests = _manager.quests
 	village.neighbour = _neighbour(v, village.center)
 	_active[v] = village
 	var fire := SettlementFire.new()
@@ -101,21 +103,33 @@ func _arrive(v: int) -> void:
 	var generation: int = _generation.get(v, 0)
 	_lock.lock()
 	for who in SettlementPopulation.residents(_villages[v], v, _prefabs, _seed):
-		# Su casa ya es del jugador (la ha tocado): ahí no vive nadie.
-		if not village.homes.has(who.home) or not _manager.is_settled(v, who.home):
+		# Su casa ya es del jugador (la ha tocado): ahí no vive nadie. Ni quien se ha ido con él.
+		if not village.homes.has(who.home) or not _manager.is_settled(v, who.home) \
+				or _manager.get_companions().has(String(who.id)):
 			continue
-		var pieces: Array = []
-		for id: StringName in who.outfit:
-			var item := ItemCatalog.get_item(id)
-			if item != null and item.scene_path != "":
-				pieces.append([item.scene_path, item.armor_slot == ItemData.ArmorSlot.HEAD])
-		var tool := ""
-		if who.has("job") and who.job.has("tool"):
-			var item := ItemCatalog.get_item(who.job.tool)
-			if item != null:
-				tool = item.scene_path
-		_jobs.append({"village": v, "generation": generation, "resident": who, "pieces": pieces, "tool": tool})
+		_jobs.append({"village": v, "generation": generation, "resident": who, "pieces": pieces_of(who),
+			"tool": tool_of(who)})
 	_lock.unlock()
+
+
+## Lo que viste [who] (SettlementPopulation.residents), para Villager.build_model: [ruta de la escena, si
+## tapa el pelo] por pieza.
+static func pieces_of(who: Dictionary) -> Array:
+	var pieces: Array = []
+	for id in who.get("outfit", []):
+		var item := ItemCatalog.get_item(StringName(id))
+		if item != null and item.scene_path != "":
+			pieces.append([item.scene_path, item.armor_slot == ItemData.ArmorSlot.HEAD])
+	return pieces
+
+
+## La escena de la herramienta de [who], o "".
+static func tool_of(who: Dictionary) -> String:
+	var job: Dictionary = who.get("job", {})
+	if not job.has("tool"):
+		return ""
+	var item := ItemCatalog.get_item(StringName(job.tool))
+	return item.scene_path if item != null else ""
 
 
 ## El poblado más cercano a [v] (SettlementVillage.neighbour), de lo que hablan sus vecinos.
@@ -187,6 +201,11 @@ func get_villagers() -> Array[Villager]:
 			if is_instance_valid(villager):
 				out.append(villager)
 	return out
+
+
+## El poblado [v] si tiene gente ahora, o null.
+func village(v: int) -> SettlementVillage:
+	return _active.get(v)
 
 
 ## Cuántos quedan por vestir o por aparecer.

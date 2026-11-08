@@ -6,8 +6,8 @@ class_name Villager extends Node3D
 ## artesano golpea en el banco; a mediodía se sienta delante de su casa. Sin oficio, o fuera de esas
 ## horas, pasea por la plaza, se queda de pie, se sienta en el suelo o se junta con otro a charlar; al
 ## atardecer se sienta en corro junto a la hoguera. Al jugador lo mira si está cerca y a veces lo
-## saluda; a él y a los demás los esquiva al andar; si ronda una fiera corre a su casa y no sale hasta
-## que se va (SettlementVillage.danger).
+## saluda; a él y a los demás los esquiva al andar; si una fiera ataca cerca corre a su casa y no sale
+## hasta que acaba (SettlementVillage.danger).
 ##
 ## Va por los sitios de su poblado (SettlementVillage) en línea recta y sin física: sigue el suelo con
 ## un rayo y abre y cierra las puertas al cruzarlas. Un collider lo hace sólido para el jugador. Su
@@ -162,21 +162,39 @@ static func build_model(who: Dictionary, pieces: Array, tool := "") -> Node3D:
 		skeleton.add_child(item)
 		rig.dress(item, bool(piece[1]))
 	if tool != "":
+		hold(model, tool)
+	var player := model.get_node("AnimationPlayer") as AnimationPlayer
+	player.add_animation_library(&"village", load(ANIMS))
+	return model
+
+
+## Pone en la mano derecha del humano [model] (build_model) la escena [scene] (una herramienta o un arma,
+## de las que van en metros en el marco de agarre), oculta, en lugar de lo que llevase; con "", nada. Lo
+## que pone, o null.
+static func hold(model: Node3D, scene: String) -> Node3D:
+	var skeleton := model.get_node("Armature/Skeleton3D") as Skeleton3D
+	var grip := skeleton.get_node_or_null("ToolHand/Grip") as Node3D
+	if grip != null:
+		var old := grip.get_node_or_null("Tool")
+		if old != null:
+			grip.remove_child(old)
+			old.queue_free()
+	if scene == "":
+		return null
+	if grip == null:
 		var hand := BoneAttachment3D.new()
 		hand.name = "ToolHand"
 		hand.bone_name = HAND_BONE
 		skeleton.add_child(hand)
-		var grip := Node3D.new()
+		grip = Node3D.new()
 		grip.name = "Grip"
 		grip.transform = CombatPose.RIGHT_GRIP
 		hand.add_child(grip)
-		var item := (load(tool) as PackedScene).instantiate() as Node3D
-		item.name = "Tool"
-		item.visible = false
-		grip.add_child(item)
-	var player := model.get_node("AnimationPlayer") as AnimationPlayer
-	player.add_animation_library(&"village", load(ANIMS))
-	return model
+	var item := (load(scene) as PackedScene).instantiate() as Node3D
+	item.name = "Tool"
+	item.visible = false
+	grip.add_child(item)
+	return item
 
 
 ## Lo pone en su poblado con su humano (build_model), donde le toca a esta hora. Antes de add_child.
@@ -242,10 +260,15 @@ func free_to_talk() -> bool:
 ## El aldeano al que habla el jugador en [at] (mundo) mirando hacia [look]: el más a mano a menos de
 ## [reach] m y por delante, o null.
 static func find(tree: SceneTree, at: Vector3, look: Vector3, reach := 2.6) -> Villager:
-	var best: Villager
+	return nearest(tree, GROUP, at, look, reach) as Villager
+
+
+## Como find, entre los nodos del grupo [group] (los aldeanos, los compañeros: Companion.find).
+static func nearest(tree: SceneTree, group: StringName, at: Vector3, look: Vector3, reach := 2.6) -> Node3D:
+	var best: Node3D
 	var best_score := INF
-	for node in tree.get_nodes_in_group(GROUP):
-		var v := node as Villager
+	for node in tree.get_nodes_in_group(group):
+		var v := node as Node3D
 		if v == null or not v.is_inside_tree():
 			continue
 		var to := v.global_position - at
@@ -307,7 +330,22 @@ func is_chatting() -> bool:
 	return act == Act.CHAT
 
 
-## Ronda una fiera (SettlementVillage): deja lo que haga y corre a casa.
+## Se va con el jugador (SettlementCompanions): sale de su poblado y suelta su humano, que se lleva el
+## compañero. Después se puede liberar.
+func leave_with_player() -> Node3D:
+	_abort_leg()
+	_drop_partner()
+	village.villagers.erase(self)
+	act = Act.STAND
+	var model := _model
+	remove_child(model)
+	_model = null
+	set_process(false)
+	set_physics_process(false)
+	return model
+
+
+## Ataca una fiera (SettlementVillage): deja lo que haga y corre a casa.
 func alarm() -> void:
 	if act != Act.SLEEP and act != Act.HIDE:
 		_decide()
@@ -408,7 +446,7 @@ func _process(delta: float) -> void:
 		_anim_accum = 0.0
 
 
-## Lo siguiente, según la hora, el tiempo y si ronda una fiera.
+## Lo siguiente, según la hora, el tiempo y si ataca una fiera.
 func _decide() -> void:
 	var h := village.hour()
 	_abort_leg()

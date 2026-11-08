@@ -2,7 +2,7 @@ class_name SettlementVillage extends RefCounted
 
 ## Un poblado con gente (SettlementVillagers): su plaza con su hoguera y, de cada casa con lechos o
 ## sitios de trabajo, la puerta, los lechos y los sitios, todo en el marco del terreno (el del plano);
-## quién anda por él, dónde está el jugador y si ronda una fiera. Es lo que los aldeanos (Villager)
+## quién anda por él, dónde está el jugador y si ataca una fiera. Es lo que los aldeanos (Villager)
 ## consultan: van de un sitio a la puerta por dentro, a la puerta por fuera y a la plaza, en línea recta
 ## (las casas miran a la plaza).
 
@@ -16,8 +16,9 @@ const PLAZA_USE := 0.75
 const RING := Vector2(2.2, 3.4)
 ## Los paseos no llegan a menos de esto del centro (la hoguera).
 const PLAZA_HOLE := 2.0
-## Las fieras que asustan, a menos de esto (m) más allá de lo más lejano del poblado; y el rato (s) sin
-## ver ninguna que tarda en volver la calma.
+## Las fieras que asustan cuando atacan (están en pelea, CreatureCombatState, contra el jugador, su
+## compañero u otra bestia) a menos de esto (m) más allá de lo más lejano del poblado: una que solo ronda
+## no asusta. Y el rato (s) sin ver ninguna atacando que tarda en volver la calma.
 const THREATS: Array[StringName] = [&"Wolf", &"Bear", &"PolarBear", &"Boar", &"Lion", &"Lioness", &"Puma",
 	&"Lynx", &"Hyena", &"Alligator"]
 const DANGER_REACH := 25.0
@@ -36,8 +37,10 @@ var index := -1
 ## Su nombre (SettlementPopulation.village_name).
 var name := ""
 var plan: Dictionary
-## La confianza del jugador en cada poblado (la de SettlementManager).
+## La confianza del jugador en cada poblado, el trueque y los encargos (los de SettlementManager).
 var relations: SettlementRelations
+var trade: SettlementTrade
+var quests: SettlementQuests
 ## El poblado más cercano: {"name", "toward": hacia él (tangente, unitario, marco del terreno),
 ## "distance": m}; vacío si no hay otro.
 var neighbour := {}
@@ -52,8 +55,11 @@ var villagers: Array[Villager] = []
 var homes := {}
 var player: Node3D
 var fire: SettlementFire
-## Ronda una fiera (THREATS): todo el mundo a casa.
+## Ataca una fiera (THREATS): todo el mundo a casa.
 var danger := false
+## La fiera de la última vez que se miró (para la consola), o null; y su especie.
+var threat: NPCController
+var threat_kind := &""
 var _danger_age := INF
 var _calm := 0.0
 ## Llueve (RAIN) o nieva (SNOW) en el poblado; si las dos, cuenta la lluvia.
@@ -112,7 +118,7 @@ func hour(delta := 0.0) -> float:
 
 
 ## Lo de cada fotograma (SettlementVillagers): la hoguera según la hora y el tiempo, cada tanto el
-## tiempo (si cambia, avisa a todos: Villager.weather_turned) y si ronda una fiera; si empieza, avisa
+## tiempo (si cambia, avisa a todos: Villager.weather_turned) y si ataca una fiera; si empieza, avisa
 ## a todos (Villager.alarm).
 func update(delta: float) -> void:
 	var h := hour(delta)
@@ -127,7 +133,9 @@ func update(delta: float) -> void:
 		return
 	_calm += _danger_age
 	_danger_age = 0.0
-	if _threat_near():
+	threat = _threat_near()
+	if threat != null:
+		threat_kind = threat.npc_type
 		_calm = 0.0
 		if not danger:
 			danger = true
@@ -152,16 +160,40 @@ func _read_weather() -> void:
 			v.weather_turned()
 
 
-func _threat_near() -> bool:
+func _threat_near() -> NPCController:
 	var reach := float(plan.get("extent", plaza_radius)) + DANGER_REACH
 	var to_local := frame().affine_inverse()
 	for node in terrain.get_tree().get_nodes_in_group(AmbientAnimal.GROUP):
 		var creature := node as NPCController
-		if creature == null or not creature.active or creature.is_dead or creature.npc_type not in THREATS:
+		if creature == null or not creature.active or creature.dormant or creature.is_dead \
+				or creature.npc_type not in THREATS or not _attacking(creature):
 			continue
 		if (to_local * creature.global_position).distance_to(center) < reach:
-			return true
-	return false
+			return creature
+	return null
+
+
+## Si [creature] está peleando con alguien (no solo rondando, comiendo o avisando de lejos).
+static func _attacking(creature: NPCController) -> bool:
+	var ai := creature.ai_controller
+	if ai == null or ai.target == null or not is_instance_valid(ai.target):
+		return false
+	return ai.get_node_or_null(NodePath(ai.get_current_state())) is CreatureCombatState
+
+
+## Las especies de fieras (THREATS) que rondan a menos de [reach] m de la plaza, despiertas o dormidas: lo
+## que pueden pedir cazar los encargos (SettlementQuests).
+func prey_near(reach: float) -> Array[StringName]:
+	var out: Array[StringName] = []
+	var to_local := frame().affine_inverse()
+	for node in terrain.get_tree().get_nodes_in_group(AmbientAnimal.GROUP):
+		var creature := node as NPCController
+		if creature == null or not creature.active or creature.is_dead or creature.npc_type not in THREATS \
+				or creature.npc_type in out:
+			continue
+		if (to_local * creature.global_position).distance_to(center) < reach:
+			out.append(creature.npc_type)
+	return out
 
 
 ## El jugador en el marco del terreno, o un vector no finito si no hay.

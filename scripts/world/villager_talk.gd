@@ -13,6 +13,10 @@ const POOLS := {
 	&"SNOW": 2, &"STORM": 2, &"FOG": 2, &"WIND": 2,
 	&"DANGER": 3, &"NEIGHBOUR": 2, &"PELT": 2, &"BRONZE": 2,
 	&"GIFT_LOVE": 3, &"GIFT_LIKE": 3, &"GIFT_TIRED": 2, &"GIFT_MEH": 3,
+	&"RECRUIT_YES": 3, &"FOLLOW_OK": 3, &"WAIT_OK": 3, &"HOME_OK": 3, &"ROAD": 5,
+	&"TRADE_OPEN": 3, &"TRADE_DONE": 3, &"TRADE_SHORT": 3,
+	&"QUEST_FETCH": 3, &"QUEST_HUNT": 3, &"QUEST_YES": 3, &"QUEST_WAITING": 3, &"QUEST_THANKS": 3,
+	&"QUEST_DROP": 2,
 }
 ## El montón de cada nivel de confianza (SettlementRelations.TIERS).
 const TIER_POOLS: Array[StringName] = [&"WARY", &"CAUTIOUS", &"FRIENDLY", &"FRIENDS", &"KIN"]
@@ -56,16 +60,7 @@ static func line(villager: Villager, player: Node, rng: RandomNumberGenerator, l
 		pools.append([&"PELT", 1.5])
 	if _has_bronze(player):
 		pools.append([&"BRONZE", 1.0])
-	var total := 0.0
-	for p: Array in pools:
-		total += float(p[1])
-	var roll := rng.randf() * total
-	var pool: StringName = pools[0][0]
-	for p: Array in pools:
-		roll -= float(p[1])
-		if roll <= 0.0:
-			pool = p[0]
-			break
+	var pool := _weighted(pools, rng)
 	match pool:
 		&"NEIGHBOUR":
 			var n: Dictionary = village.neighbour
@@ -73,6 +68,56 @@ static func line(villager: Villager, player: Node, rng: RandomNumberGenerator, l
 		&"PELT":
 			return _pick(pool, rng, last, [tr_key(pelt)])
 	return _pick(pool, rng, last)
+
+
+## Lo que dice un compañero (Companion) por el camino: del viaje, del tiempo o de lo que lleva el jugador.
+static func companion_line(companion: Companion, player: Node, rng: RandomNumberGenerator, last := "") -> Dictionary:
+	var pools: Array = [[&"ROAD", 3.0]]
+	var weather := _weather(companion)
+	if POOLS.has(weather):
+		pools.append([weather, 1.5])
+	var pelt := _worn_pelt(player)
+	if pelt != "":
+		pools.append([&"PELT", 1.5])
+	if _has_bronze(player):
+		pools.append([&"BRONZE", 1.0])
+	var pool := _weighted(pools, rng)
+	if pool == &"PELT":
+		return _pick(pool, rng, last, [tr_key(pelt)])
+	return _pick(pool, rng, last)
+
+
+## Una frase del montón [pool] (POOLS), sin argumentos: las respuestas a lo que se le pide.
+static func pick(pool: StringName, rng: RandomNumberGenerator, last := "") -> Dictionary:
+	return _pick(pool, rng, last)
+
+
+## Lo que pide en [quest] (SettlementQuests): traer tantos de algo o acabar con una o unas fieras.
+static func quest_line(quest: Dictionary, rng: RandomNumberGenerator, last := "") -> Dictionary:
+	var count := int(quest.count)
+	if quest.kind == "hunt":
+		var key := _prey_key(quest.species)
+		var prey := tr_key(key + "_ONE") if count == 1 else tr_key(key + "_MANY") % count
+		return _pick(&"QUEST_HUNT", rng, last, [prey])
+	var data := ItemCatalog.get_item(StringName(quest.item))
+	var item := data.get_display_name().to_lower() if data != null else String(quest.item)
+	return _pick(&"QUEST_FETCH", rng, last, [count, item])
+
+
+## Cómo va [quest]: «Sílex: 1/3» (lo que lleva el jugador en [inventory], si se da) o «Lobos: 1/2».
+static func quest_status(quest: Dictionary, inventory: Inventory = null) -> String:
+	var count := int(quest.count)
+	if quest.kind == "hunt":
+		return tr_key("VQUEST_STATUS") % [tr_key(_prey_key(quest.species)), mini(int(quest.done), count), count]
+	var data := ItemCatalog.get_item(StringName(quest.item))
+	var have := mini(inventory.get_item_count(data), count) if inventory != null and data != null else 0
+	return tr_key("VQUEST_STATUS") % [data.get_display_name() if data != null else String(quest.item), have, count]
+
+
+## La clave del nombre de la fiera [species] (npc_type): VPREY_WOLF; con _ONE, «un lobo», y con _MANY,
+## «%d lobos».
+static func _prey_key(species: Variant) -> String:
+	return "VPREY_" + String(species).to_upper()
 
 
 ## Lo que dice al recibir un regalo: [gain], lo que ha subido la confianza; [taste], su gusto (taste).
@@ -120,6 +165,11 @@ static func job_title(who: Dictionary) -> String:
 	return "VILLAGER_JOB_%s_%s" % [kind, "F" if StringName(who.get("sex", &"male")) == &"female" else "M"]
 
 
+## Lo que es para el jugador quien se ha ido con él: "Compañero", "Compañera" (clave de traducción).
+static func companion_title(who: Dictionary) -> String:
+	return "VILLAGER_COMPANION_%s" % ("F" if StringName(who.get("sex", &"male")) == &"female" else "M")
+
+
 static func tr_key(key: String) -> String:
 	return TranslationServer.translate(key)
 
@@ -137,8 +187,21 @@ static func _pick(pool: StringName, rng: RandomNumberGenerator, last: String, ar
 	return {"key": key, "text": text}
 
 
-static func _weather(villager: Villager) -> StringName:
-	var weather := villager.get_tree().get_first_node_in_group("weather") as WeatherController
+## Uno de [pools] ([montón, peso]) al azar por su peso.
+static func _weighted(pools: Array, rng: RandomNumberGenerator) -> StringName:
+	var total := 0.0
+	for p: Array in pools:
+		total += float(p[1])
+	var roll := rng.randf() * total
+	for p: Array in pools:
+		roll -= float(p[1])
+		if roll <= 0.0:
+			return p[0]
+	return pools[0][0]
+
+
+static func _weather(someone: Node) -> StringName:
+	var weather := someone.get_tree().get_first_node_in_group("weather") as WeatherController
 	return StringName(weather.get_current_weather_name().to_upper()) if weather != null else &""
 
 

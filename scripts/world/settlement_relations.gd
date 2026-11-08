@@ -22,6 +22,9 @@ const GIFT_MIN := 2.0
 ## Confianza por unidad de valor, y lo más que sube un regalo.
 const GIFT_RATE := 0.35
 const GIFT_MAX := 8.0
+## La que hace falta para que alguien del poblado se vaya con el jugador (SettlementCompanions): la de
+## amigos.
+const RECRUIT_TRUST := 60.0
 
 ## Horas de juego desde que empezó a contar.
 var clock := 0.0

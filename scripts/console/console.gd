@@ -273,8 +273,8 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
 	_add(ConsoleCommand.new("trail", "trail [tp]", "CON_HELP_TRAIL", _cmd_trail, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp"])))
-	_add(ConsoleCommand.new("village", "village [tp]", "CON_HELP_VILLAGE", _cmd_village, 0,
-		func() -> PackedStringArray: return PackedStringArray(["tp"])))
+	_add(ConsoleCommand.new("village", "village [tp | trust <0-100>]", "CON_HELP_VILLAGE", _cmd_village, 0,
+		func() -> PackedStringArray: return PackedStringArray(["tp", "trust"])))
 	_add(ConsoleCommand.new("heal", "heal [amount]", "CON_HELP_HEAL", _cmd_heal))
 	_add(ConsoleCommand.new("litter", "litter", "CON_HELP_LITTER", _cmd_litter))
 	_add(ConsoleCommand.new("god", "god [on|off]", "CON_HELP_GOD", _cmd_god))
@@ -556,7 +556,8 @@ func _cmd_village(args: PackedStringArray) -> String:
 		return _paint(COLOR_ERR, tr("CON_VILLAGE_NONE"))
 	var frame := core.voxel_terrain.global_transform
 	var up := (frame.affine_inverse() * (player as Node3D).global_position).normalized()
-	var plan: Dictionary = field.villages[SettlementField.nearest(field, up)]
+	var nearest := SettlementField.nearest(field, up)
+	var plan: Dictionary = field.villages[nearest]
 	var center: Vector3 = plan.center
 	if args.size() > 0 and args[0] == "tp":
 		var radius := preload("res://scripts/player/new_game_landing.gd").new().surface_radius_at(core, center)
@@ -566,6 +567,11 @@ func _cmd_village(args: PackedStringArray) -> String:
 		player.velocity = Vector3.ZERO
 		player.movement.velocity = Vector3.ZERO
 		return _paint(COLOR_OK, tr("CON_VILLAGE_TP_DONE"))
+	var manager := (loader as Node).get_node_or_null(^"Settlements") as SettlementManager
+	if args.size() > 1 and args[0] == "trust" and manager != null:
+		var relations := manager.relations
+		relations.add(nearest, clampf(float(args[1]), 0.0, SettlementRelations.MAX_TRUST) - relations.trust(nearest))
+		return _paint(COLOR_OK, tr("CON_VILLAGE_TRUST_DONE") % roundi(relations.trust(nearest)))
 	var template := SettlementField.template(plan.template)
 	var north := (Vector3.UP - up * up.y).normalized()
 	var to := (center - up).slide(up)
@@ -573,10 +579,21 @@ func _cmd_village(args: PackedStringArray) -> String:
 	var text := tr("CON_VILLAGE_NEAREST") % [
 		tr(template.display_name) if template != null else str(plan.template), (plan.buildings as Array).size(),
 		center.distance_to(up) * core.radius, heading, (field.villages as Array).size()]
-	var manager := (loader as Node).get_node_or_null(^"Settlements") as SettlementManager
 	if manager != null and manager.get_people() != null:
 		var people := manager.get_people()
 		text += " " + tr("CON_VILLAGE_PEOPLE") % [people.get_villagers().size(), people.pending()]
+		# De qué se esconden, si se esconden: la fiera y a cuánto de la plaza.
+		var village := people.village(nearest)
+		if village != null and village.danger:
+			var threat: NPCController = village.threat if is_instance_valid(village.threat) else null
+			var away := (village.frame().affine_inverse() * threat.global_position).distance_to(village.center) \
+				if threat != null else NAN
+			text += "\n" + tr("CON_VILLAGE_DANGER") % [String(village.threat_kind),
+				("%.0f m" % away) if is_finite(away) else "?"]
+		# Los encargos abiertos, estén donde estén.
+		for quest: Dictionary in manager.quests.open_list():
+			text += "\n" + tr("CON_VILLAGE_QUEST") % [quest.name, quest.village_name, VillagerTalk.quest_status(quest,
+				player.get("inventory") as Inventory)]
 	return _paint(COLOR_INFO, text)
 
 

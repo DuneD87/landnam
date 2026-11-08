@@ -1141,7 +1141,7 @@ CON_HELP_ITEMS,Lists the available item ids.,Lista los ids de item disponibles.,
 CON_HELP_WEATHER,"Forces the weather, releases it or lists the events.","Fuerza el clima, lo libera o lista eventos.",
 CON_HELP_TP,Teleports the player to a global position.,Teletransporta al jugador a una posición global.,
 CON_HELP_TRAIL,"Nearest world trail: distance and heading, or with tp, stand on it.","Senda del mundo más cercana: distancia y rumbo, o con tp, de pie sobre ella.",
-CON_HELP_VILLAGE,"Nearest village: which one, distance and heading, or with tp, stand in its square.","Poblado más cercano: cuál, a qué distancia y en qué rumbo, o con tp, de pie en su plaza.",
+CON_HELP_VILLAGE,"Nearest village: which one, distance and heading, its errands; with tp, stand in its square; with trust, set how much it trusts you.","Poblado más cercano: cuál, a qué distancia y en qué rumbo, y los encargos; con tp, de pie en su plaza; con trust, cuánto se fía de ti.",
 CON_HELP_HEAL,"Heals the player (without an argument: to full, closes the wounds, gives back the limbs and removes the states).","Cura al jugador (sin argumento, cura al máximo, cierra las heridas, le devuelve los miembros y le quita los estados).",
 CON_HELP_LITTER,Branches and stones that can be picked up around.,Ramas y piedras que se pueden recoger alrededor.,
 CON_HELP_GOD,"Player invulnerability (without an argument, toggles).","Invulnerabilidad del jugador (sin argumento, alterna).",
@@ -1225,6 +1225,9 @@ CON_VILLAGE_NONE,This planet has no villages.,Este planeta no tiene poblados.,
 CON_VILLAGE_NEAREST,"Nearest village (%s, %d buildings): %.0f m away, heading %.0f°. %d on this planet.","Poblado más cercano (%s, %d construcciones): a %.0f m, rumbo %.0f°. Hay %d en el planeta.",
 CON_VILLAGE_TP_DONE,In the square of the nearest village.,En la plaza del poblado más cercano.,
 CON_VILLAGE_PEOPLE,Villagers around: %d (%d more getting ready).,Aldeanos cerca: %d (%d más preparándose).,
+CON_VILLAGE_DANGER,"Hiding from: %s, %s from the square. They come out 15 s after losing sight of it.","Escondidos de: %s, a %s de la plaza. Salen 15 s después de dejar de verla.",
+CON_VILLAGE_QUEST,Errand for %s (%s): %s,Encargo para %s (%s): %s,
+CON_VILLAGE_TRUST_DONE,The nearest village now trusts you: %d.,El poblado más cercano ahora se fía de ti: %d.,
 CON_HEALED,Healed +%s (health: %s/%s).,Curado +%s (salud: %s/%s).,
 CON_NO_NEEDS,The player has no needs (game loaded?).,El jugador no tiene necesidades (¿partida cargada?).,
 CON_NEEDS_TITLE,Needs (rate ×%s):,Necesidades (ritmo ×%s):,
@@ -1666,3 +1669,113 @@ VTALK_GIFT_TIRED_2,So many gifts... what do you want in return?,Tanto regalo... 
 VTALK_GIFT_MEH_1,And what am I supposed to do with this?,¿Y qué hago yo con esto?,aldeanos
 VTALK_GIFT_MEH_2,We have plenty of that.,De eso tenemos de sobra.,aldeanos
 VTALK_GIFT_MEH_3,Hmm. Thanks... I suppose.,Mmm. Gracias... supongo.,aldeanos
+VILLAGER_RECRUIT,Come with me,Ven conmigo,aldeanos
+VILLAGER_RECRUIT_NEED,The village needs to trust you more (%d).,El poblado tiene que fiarse más de ti (%d).,aldeanos
+VILLAGER_RECRUIT_FULL,Someone is already travelling with you.,Ya viaja alguien contigo.,aldeanos
+VILLAGER_FOLLOW,Follow me,Sígueme,aldeanos
+VILLAGER_WAIT,Wait here,Espera aquí,aldeanos
+VILLAGER_GO_HOME,Go home,Vuelve a casa,aldeanos
+VILLAGER_GOES_HOME,%s heads home: “%s”,%s vuelve a casa: «%s»,aldeanos
+VILLAGER_COMPANION_M,Companion,Compañero,aldeanos
+VILLAGER_COMPANION_F,Companion,Compañera,aldeanos
+VTALK_RECRUIT_YES_1,"Let me grab my cloak... Right, lead the way.","Deja que coja el manto... Listo, tú delante.",aldeanos
+VTALK_RECRUIT_YES_2,I've never been past the next valley. Let's see what's out there.,Nunca he pasado del valle de al lado. Vamos a ver qué hay más allá.,aldeanos
+VTALK_RECRUIT_YES_3,My family will manage without me for a while. I'm coming.,Mi familia se apañará sin mí una temporada. Voy contigo.,aldeanos
+VTALK_FOLLOW_OK_1,Right behind you.,Voy detrás de ti.,aldeanos
+VTALK_FOLLOW_OK_2,"Let's go, then.","Vamos, pues.",aldeanos
+VTALK_FOLLOW_OK_3,I'll keep up.,No me quedo atrás.,aldeanos
+VTALK_WAIT_OK_1,I'll wait here. Don't take too long.,Te espero aquí. No tardes mucho.,aldeanos
+VTALK_WAIT_OK_2,I'll keep watch until you're back.,Vigilo esto hasta que vuelvas.,aldeanos
+VTALK_WAIT_OK_3,"Here I stay, then.","Aquí me quedo, entonces.",aldeanos
+VTALK_HOME_OK_1,I'll tell them at home what I've seen.,Contaré en casa lo que he visto.,aldeanos
+VTALK_HOME_OK_2,Safe roads. You know where to find me.,Buen camino. Ya sabes dónde encontrarme.,aldeanos
+VTALK_HOME_OK_3,My bed will be glad to see me. Farewell.,Mi lecho me estará esperando. Que te vaya bien.,aldeanos
+VTALK_ROAD_1,"My feet hurt, but don't tell anyone.","Me duelen los pies, pero no se lo digas a nadie.",aldeanos
+VTALK_ROAD_2,Do you always walk this far without stopping?,¿Siempre andas tanto sin parar?,aldeanos
+VTALK_ROAD_3,Back home they'll be lighting the fire about now.,En casa ya estarán encendiendo la hoguera.,aldeanos
+VTALK_ROAD_4,Keep your eyes open. These hills have wolves.,Ojo abierto: por estos montes hay lobos.,aldeanos
+VTALK_ROAD_5,I'd never seen the land from so far away.,Nunca había visto la tierra desde tan lejos.,aldeanos
+VILLAGER_TRADE,Trade,Comerciar,aldeanos
+VILLAGER_TRADE_DEAL,Make the deal,Cerrar trato,aldeanos
+VILLAGER_TRADE_THEIRS,What they have,Lo suyo,aldeanos
+VILLAGER_TRADE_YOURS,What you have,Lo tuyo,aldeanos
+VILLAGER_TRADE_HINT,"Click: one more · Right click: one less. Prices in pieces of wood; the more the village trusts you, the better. What you give beyond the price is a gift.","Clic: uno más · Clic derecho: uno menos. Precios en leños: cuanto más se fíe el poblado, mejores. Lo que des de más es un regalo.",aldeanos
+VILLAGER_TRADE_BALANCE,You take: %s · You give: %s,Te llevas: %s · Das: %s,aldeanos
+VILLAGER_TRADE_PRICE,%s · %s,%s · %s,aldeanos
+VTALK_TRADE_OPEN_1,Let's see what you've brought.,A ver qué traes.,aldeanos
+VTALK_TRADE_OPEN_2,Everything here is honest work. Take a look.,"Todo esto es trabajo honrado. Mira, mira.",aldeanos
+VTALK_TRADE_OPEN_3,"I'll trade, but I won't give it away.","Cambio, pero no regalo.",aldeanos
+VTALK_TRADE_DONE_1,Done. May it serve you well.,Hecho. Que te sirva.,aldeanos
+VTALK_TRADE_DONE_2,A fair deal. Come back whenever you like.,Trato justo. Vuelve cuando quieras.,aldeanos
+VTALK_TRADE_DONE_3,Good. My family will be pleased.,Bien. En casa se van a alegrar.,aldeanos
+VTALK_TRADE_SHORT_1,That's not enough for what you're taking.,Eso no llega para lo que te llevas.,aldeanos
+VTALK_TRADE_SHORT_2,Add something more and we'll talk.,Pon algo más y hablamos.,aldeanos
+VTALK_TRADE_SHORT_3,Do you think I was born yesterday?,¿Te crees que nací ayer?,aldeanos
+VILLAGER_QUEST,Can I help?,¿Te echo una mano?,aldeanos
+VILLAGER_QUEST_OPEN,The errand,El encargo,aldeanos
+VILLAGER_QUEST_ACCEPT,Count on me,Cuenta conmigo,aldeanos
+VILLAGER_QUEST_DELIVER,Hand it over,Entregar,aldeanos
+VILLAGER_QUEST_DONE,It's done,Ya está,aldeanos
+VILLAGER_QUEST_DROP,Give it up,Dejarlo,aldeanos
+VILLAGER_QUEST_OFFER,"Errand: %s. In return, the village's trust and something of theirs.","Encargo: %s. A cambio, la confianza del poblado y algo de lo suyo.",aldeanos
+VILLAGER_QUEST_HOW_FETCH,"When you have it all, hand it over.","Cuando lo tengas todo, entrégaselo.",aldeanos
+VILLAGER_QUEST_HOW_HUNT,"Those that fall within %d m of the village count, by your hand or your companion's.","Cuentan las que caigan a menos de %d m del poblado, por tu mano o la de quien te acompañe.",aldeanos
+VILLAGER_QUESTS,Your errands: %s,Tus encargos: %s,aldeanos
+VILLAGER_QUEST_ENTRY,%s (%s): %s,%s (%s): %s,aldeanos
+VQUEST_STATUS,%s: %d/%d,%s: %d/%d,aldeanos
+VQUEST_ACCEPTED,Errand for %s: %s,Encargo para %s: %s,aldeanos
+VQUEST_PROGRESS,Errand for %s · %s,Encargo para %s · %s,aldeanos
+VQUEST_REWARD,%s gives you: %s,%s te da: %s,aldeanos
+VTALK_QUEST_FETCH_1,I'd need %d %s. Could you lend me a hand?,Me harían falta %d de %s. ¿Me echas una mano?,aldeanos
+VTALK_QUEST_FETCH_2,I'm short of something: %d %s. Get it for me and you won't regret it.,"Ando corto de algo: %d de %s. Si me lo consigues, no te arrepentirás.",aldeanos
+VTALK_QUEST_FETCH_3,Could you find me %d %s? I'd pay you well.,¿Podrías conseguirme %d de %s? Te lo pagaré bien.,aldeanos
+VTALK_QUEST_HUNT_1,Something prowls round the village at night. Put an end to %s and we'll sleep easy.,Algo ronda el poblado de noche. Acaba con %s y dormiremos tranquilos.,aldeanos
+VTALK_QUEST_HUNT_2,The children can't go out to play. Would you deal with %s?,Los críos no pueden salir a jugar. ¿Acabarías con %s?,aldeanos
+VTALK_QUEST_HUNT_3,I need a strong arm: we have to hunt %s near here.,Me hace falta un buen brazo: hay que cazar %s por aquí cerca.,aldeanos
+VTALK_QUEST_YES_1,Thank you. I'll be waiting.,Gracias. Aquí te espero.,aldeanos
+VTALK_QUEST_YES_2,Good. Don't take too long.,Bien. No tardes mucho.,aldeanos
+VTALK_QUEST_YES_3,I knew I could count on you.,Sabía que podía contar contigo.,aldeanos
+VTALK_QUEST_WAITING_1,So? How's it going?,¿Y bien? ¿Cómo va eso?,aldeanos
+VTALK_QUEST_WAITING_2,Have you got it yet?,¿Lo tienes ya?,aldeanos
+VTALK_QUEST_WAITING_3,"There's no hurry, but don't forget me.","No hay prisa, pero no te olvides de mí.",aldeanos
+VTALK_QUEST_THANKS_1,"You kept your word. Here, this is yours.","Has cumplido. Toma, esto es tuyo.",aldeanos
+VTALK_QUEST_THANKS_2,I won't forget this.,Esto no lo olvido.,aldeanos
+VTALK_QUEST_THANKS_3,You're one of us now.,Ya eres de los nuestros.,aldeanos
+VTALK_QUEST_DROP_1,Oh well. Another time.,Vaya. Otra vez será.,aldeanos
+VTALK_QUEST_DROP_2,"I'll find someone who can, then.",Ya buscaré a quien lo haga.,aldeanos
+VPREY_WOLF,Wolves,Lobos,aldeanos
+VPREY_WOLF_ONE,a wolf,un lobo,aldeanos
+VPREY_WOLF_MANY,%d wolves,%d lobos,aldeanos
+VPREY_HYENA,Hyenas,Hienas,aldeanos
+VPREY_HYENA_ONE,a hyena,una hiena,aldeanos
+VPREY_HYENA_MANY,%d hyenas,%d hienas,aldeanos
+VPREY_BOAR,Boars,Jabalíes,aldeanos
+VPREY_BOAR_ONE,a boar,un jabalí,aldeanos
+VPREY_BOAR_MANY,%d boars,%d jabalíes,aldeanos
+VPREY_LYNX,Lynxes,Linces,aldeanos
+VPREY_LYNX_ONE,a lynx,un lince,aldeanos
+VPREY_LYNX_MANY,%d lynxes,%d linces,aldeanos
+VPREY_PUMA,Pumas,Pumas,aldeanos
+VPREY_PUMA_ONE,a puma,un puma,aldeanos
+VPREY_PUMA_MANY,%d pumas,%d pumas,aldeanos
+VPREY_ALLIGATOR,Alligators,Caimanes,aldeanos
+VPREY_ALLIGATOR_ONE,an alligator,un caimán,aldeanos
+VPREY_ALLIGATOR_MANY,%d alligators,%d caimanes,aldeanos
+VPREY_LIONESS,Lionesses,Leonas,aldeanos
+VPREY_LIONESS_ONE,a lioness,una leona,aldeanos
+VPREY_LIONESS_MANY,%d lionesses,%d leonas,aldeanos
+VPREY_LION,Lions,Leones,aldeanos
+VPREY_LION_ONE,a lion,un león,aldeanos
+VPREY_LION_MANY,%d lions,%d leones,aldeanos
+VPREY_BEAR,Bears,Osos,aldeanos
+VPREY_BEAR_ONE,a bear,un oso,aldeanos
+VPREY_BEAR_MANY,%d bears,%d osos,aldeanos
+VPREY_POLARBEAR,Polar bears,Osos polares,aldeanos
+VPREY_POLARBEAR_ONE,a polar bear,un oso polar,aldeanos
+VPREY_POLARBEAR_MANY,%d polar bears,%d osos polares,aldeanos
+VILLAGER_PACK,Their pack,Su morral,aldeanos
+VILLAGER_PACK_THEIRS,They carry,Lleva,aldeanos
+VILLAGER_PACK_HINT,Click: hand over one · Right click: all of them. They fight with the best weapon they carry (or their tool) and eat what's cooked when they need to.,Clic: pasa uno · Clic derecho: todos. Pelea con la mejor arma que lleve (o con su herramienta) y come lo asado que lleve cuando le hace falta.,aldeanos
+VILLAGER_PACK_FULL,It won't fit in their pack.,No le cabe en el morral.,aldeanos
+VILLAGER_PACK_YOURS_FULL,It won't fit in your inventory.,No te cabe en el inventario.,aldeanos
+VILLAGER_DOWN,%s has fallen. They'll get up in a while.,%s ha caído. Se levantará en un rato.,aldeanos

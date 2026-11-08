@@ -1464,7 +1464,8 @@ func _sweep_blade(data: ItemData) -> void:
 		poise_damage *= RIPOSTE_POISE
 	for hit in _sweep.sweep(space, base, tip):
 		var box: Hurtbox = hit.hurtbox
-		if box.owner_body == player:
+		# Ni a sí mismo ni a quien le acompaña (Companion).
+		if box.owner_body == player or box.owner_body is Companion:
 			continue
 		var dir := _flat(box.owner_body.global_position - player.global_position)
 		var info := DamageInfo.create(damage, player, hit.point, dir if dir != Vector3.ZERO else hit.direction, poise_damage)

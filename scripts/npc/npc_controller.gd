@@ -129,6 +129,9 @@ const HIDDEN_LIGHT_STRIDE := 8
 ## El charco bajo el cadáver: cuándo sale tras morir (s, ya caído) y lo que tarda en extenderse (s).
 const BLEED_OUT_DELAY := 1.6
 const BLEED_OUT_GROW := 16.0
+## Los que quieren saber de cada muerte: se les llama creature_killed(la criatura, quien la hirió por
+## última vez o null).
+const KILLS_GROUP := &"creature_kills"
 ## Caídas (ver _track_fall): sin daño hasta esta altura (m), mortal desde esta otra, y segundos sin
 ## daño al salir del pool.
 const FALL_SAFE_DROP := 6.0
@@ -942,6 +945,9 @@ func die(point: Vector3) -> void:
 func _on_died() -> void:
 	_is_dying = true
 	active = false
+	# Quien lleva la cuenta de las muertes: los encargos de caza (SettlementManager.creature_killed).
+	get_tree().call_group(KILLS_GROUP, &"creature_killed", self,
+		health_component.last_attacker if health_component != null else null)
 	if death_sound != &"":
 		CombatFx.play(death_sound, global_position, {"pitch": voice_pitch})
 	startle_near(get_tree(), global_position, DEATH_STARTLE_RADIUS)
