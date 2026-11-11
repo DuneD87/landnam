@@ -42,6 +42,15 @@ const RUN_CLIPS := [
 	[Vector2(1, 0), &"loco/run_right", 4.13, 1, 0.500],
 ]
 
+## Andar a paso normal (Movement.is_brisk, Shift andando hacia delante): «Walking» de Mixamo, de la
+## librería de los aldeanos, que avanza BRISK_CLIP_SPEED m/s a ritmo 1 (build/settlers/clip_speed.tscn),
+## encima del andar (bBrisk); solo hacia delante: con más de BRISK_SIDE de lado o hacia atrás, el andar
+## de siempre. BRISK_BLEND: fundido (1/s).
+const BRISK_ANIM := &"village/walk_normal"
+const BRISK_CLIP_SPEED := 1.7
+const BRISK_SIDE := 0.3
+const BRISK_BLEND := 6.0
+
 ## Andar agachado: lo que avanza a ritmo 1 y a qué ritmo va.
 const CROUCH_CLIP_SPEED := 0.97
 const CROUCH_RATE := 1.0
@@ -65,6 +74,7 @@ var _walk_gait := Vector3.ONE
 var _run_gait := Vector3.ONE
 var _crouch := 0.0
 var _crouch_move := 0.0
+var _brisk := 0.0
 var _stand_shape: CapsuleShape3D
 var _stand_y := 0.0
 var _crouch_shape: CapsuleShape3D
@@ -78,6 +88,7 @@ static func build(tree_root: AnimationNodeBlendTree, animator: AnimationPlayer, 
 	if not animator.has_animation_library(&"loco"):
 		animator.add_animation_library(&"loco", load(LIBRARY))
 	_replace(tree_root, &"WALK", &"walk_scale", &"loco_walk", _space(WALK_CLIPS, animator))
+	_add_brisk(tree_root, animator)
 	_replace(tree_root, &"Animation", &"run_scale", &"loco_run", _space(RUN_CLIPS, animator))
 	var idle := AnimationNodeAnimation.new()
 	idle.animation = &"loco/crouch_idle"
@@ -204,6 +215,28 @@ static func _space(clips: Array, animator: AnimationPlayer) -> AnimationNodeBlen
 	return space
 
 
+## Mete bBrisk (andar, paso normal) entre walk_scale y lo que lo usaba.
+static func _add_brisk(tree_root: AnimationNodeBlendTree, animator: AnimationPlayer) -> void:
+	if not animator.has_animation_library(&"village"):
+		animator.add_animation_library(&"village", load(Villager.ANIMS))
+	var users: Array = []
+	var connections: Array = tree_root.get("node_connections")
+	for i in range(0, connections.size(), 3):
+		if connections[i + 2] == &"walk_scale":
+			users.append([connections[i], int(connections[i + 1])])
+	var anim := AnimationNodeAnimation.new()
+	anim.animation = BRISK_ANIM
+	tree_root.add_node(&"brisk_walk", anim)
+	tree_root.add_node(&"brisk_scale", AnimationNodeTimeScale.new())
+	tree_root.connect_node(&"brisk_scale", 0, &"brisk_walk")
+	tree_root.add_node(&"bBrisk", AnimationNodeBlend2.new())
+	for user in users:
+		tree_root.disconnect_node(user[0], user[1])
+		tree_root.connect_node(user[0], user[1], &"bBrisk")
+	tree_root.connect_node(&"bBrisk", 0, &"walk_scale")
+	tree_root.connect_node(&"bBrisk", 1, &"brisk_scale")
+
+
 static func _replace(tree_root: AnimationNodeBlendTree, old: StringName, into: StringName, node_name: StringName,
 		node: AnimationNode) -> void:
 	tree_root.remove_node(old)
@@ -262,6 +295,9 @@ func pre_update() -> void:
 		movement.jump_blocked = true
 	if crouching:
 		movement.sprint_blocked = true
+	var dir := _local_dir()
+	movement.brisk_allowed = not crouching and not combat.cripple.active() \
+		and dir.y > 0.0 and absf(dir.x) <= BRISK_SIDE * dir.length()
 	movement.gait_scale = _gait_scale()
 
 
@@ -276,6 +312,8 @@ func _gait_scale() -> float:
 	if crouching:
 		return CROUCH_CLIP_SPEED * CROUCH_RATE / maxf(movement.walk_speed if movement.walking else movement.speed, 0.01)
 	if player.combat.cripple.active():
+		return 1.0
+	if movement.walking and movement.is_brisk:
 		return 1.0
 	var dir := _local_dir()
 	var gait := _walk_gait if movement.walking else _run_gait
@@ -303,6 +341,10 @@ func update(delta: float) -> void:
 	if weight > 1e-3:
 		tree.set(&"parameters/loco_walk/blend_position", dir / weight)
 		tree.set(&"parameters/loco_run/blend_position", dir / weight)
+	var movement := player.movement
+	_brisk = move_toward(_brisk, 1.0 if movement.walking and movement.is_brisk else 0.0, delta * BRISK_BLEND)
+	tree.set(&"parameters/bBrisk/blend_amount", _brisk)
+	tree.set(&"parameters/brisk_scale/scale", movement.brisk_speed / BRISK_CLIP_SPEED)
 	_crouch = move_toward(_crouch, 1.0 if crouching else 0.0, delta * CROUCH_BLEND)
 	var up := -player.gravity_direction.normalized()
 	var flat_v := player.velocity - up * player.velocity.dot(up)

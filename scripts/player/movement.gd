@@ -44,8 +44,14 @@ var gait_scale: float = 1.0
 var sprint_blocked: bool = false
 var jump_blocked: bool = false
 
-## Andar en vez de correr (el jugador lo alterna con walk_toggle). Esprintar sigue a su velocidad.
+## Andar en vez de correr (el jugador lo alterna con walk_toggle). Andando, Shift no esprinta: hacia
+## delante (brisk_allowed, lo pone Locomotion) anda a paso normal, a brisk_speed (is_brisk).
 var walking: bool = false
+@export var brisk_speed: float = 1.7
+var brisk_allowed: bool = false
+## Como sprint_blocked pero sin el aguante: el paso normal no gasta (lo pone el combate).
+var brisk_blocked: bool = false
+var is_brisk: bool = false
 
 ## Si true, get_input_direction() devuelve ai_direction en vez de leer Input (modo IA de los NPCs).
 var use_ai_input: bool = false
@@ -87,9 +93,10 @@ func handle_jump_movement(delta: float, gravity_strength: float, gravity_directi
 
 func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Vector3, camera: Camera3D, idle_animation: AnimationController.Anim, run_animation: AnimationController.Anim) -> Vector3:
 	var input_dir = get_input_direction(camera, gravity_direction)
-	var wants_sprint: bool = Input.is_action_pressed("Sprint") and input_dir.length() > 0.1 \
-		and not sprint_blocked and not use_ai_input
-	update_movement(delta, input_dir, walking and not wants_sprint)
+	var shift: bool = Input.is_action_pressed("Sprint") and input_dir.length() > 0.1 and not use_ai_input
+	is_brisk = walking and shift and brisk_allowed and not brisk_blocked
+	var wants_sprint := shift and not walking and not sprint_blocked
+	update_movement(delta, input_dir, walking, is_brisk)
 	
 	if is_swimming != was_swimming:
 		swim_transition_timer = SWIM_TRANSITION_DELAY
@@ -106,7 +113,7 @@ func handle_run_movement(delta: float, is_attacking: bool, gravity_direction: Ve
 		
 	# Correr exige input de movimiento: con Shift pulsado y quieto se quedaba la animación de
 	# sprint en el sitio (y bloqueaba can_perform_action).
-	if Input.is_action_pressed("Sprint") && input_dir.length() > 0.1 and not sprint_blocked and not use_ai_input:
+	if wants_sprint:
 		if !is_jumping && !is_falling && !use_swim_animations:
 			is_sprinting = true
 			velocity = direction * sprint_speed * speed_scale
@@ -199,9 +206,10 @@ func get_input_direction(camera: Camera3D, gravity_dir: Vector3, even_falling: b
 func project_on_plane(vector: Vector3, normal: Vector3) -> Vector3:
 	return vector - normal * vector.dot(normal)
 
-func update_movement(delta: float, direction_input: Vector3, walk: bool = false):
+func update_movement(delta: float, direction_input: Vector3, walk: bool = false, brisk: bool = false):
 	direction = direction.lerp(direction_input, delta * acceleration)
 	if !is_swimming:
-		velocity = direction * (walk_speed if walk else speed) * speed_scale * gait_scale
+		var base := (brisk_speed if brisk else walk_speed) if walk else speed
+		velocity = direction * base * speed_scale * gait_scale
 	else:
 		velocity = direction * swim_speed

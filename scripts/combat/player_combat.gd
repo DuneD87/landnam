@@ -77,6 +77,8 @@ const HOLD_TO_HEAVY := 0.18
 ## En guardia: velocidad (fracción de la de andar/correr) y lo que recupera el aguante.
 const GUARD_SPEED := 0.5
 const GUARD_REGEN := 0.35
+## Andando a paso normal (Movement.is_brisk) recupera aguante a este ritmo, y no gasta.
+const BRISK_REGEN := 0.75
 ## Un toque al botón de guardia la deja alzada al menos esto: el gesto de la parada entero.
 const GUARD_MIN_TIME := 0.25
 ## Animaciones de guardia (canal de tronco y brazos) según con qué se para: alzarla (acaba en la
@@ -2635,7 +2637,8 @@ func _update_limits(delta: float, input_dir: Vector3) -> void:
 	# Libre para moverse a su aire: sin hacer nada, o golpeando en marcha.
 	var free := state == State.IDLE or (state == State.ATTACK and _on_the_run)
 	var moving := input_dir.length() > 0.1 and free
-	var sprinting := Input.is_action_pressed("Sprint") and moving
+	# Andando, Shift es el paso normal (Movement.is_brisk): no gasta, solo recupera menos (BRISK_REGEN).
+	var sprinting := Input.is_action_pressed("Sprint") and moving and not movement.walking
 	if sprinting and not stamina.drain(SPRINT_DRAIN, delta):
 		sprinting = false
 	# Correr no deja recuperar, ni siquiera agotado: para descansar hay que andar o pararse.
@@ -2643,10 +2646,12 @@ func _update_limits(delta: float, input_dir: Vector3) -> void:
 		stamina.drain(RUN_DRAIN, delta)
 		stamina.hold_regen()
 	movement.sprint_blocked = not free or stamina.exhausted or status.blocks(&"sprint")
+	movement.brisk_blocked = not free or status.blocks(&"sprint")
 	movement.jump_blocked = state != State.IDLE or status.blocks(&"jump")
 	var pace := 0.45 if state == State.AIM else (GUARD_SPEED if state == State.GUARD else 1.0)
 	movement.speed_scale = pace * status.speed_mult()
-	stamina.regen_scale = status.stamina_regen_mult() * (GUARD_REGEN if state == State.GUARD else 1.0)
+	stamina.regen_scale = status.stamina_regen_mult() * (GUARD_REGEN if state == State.GUARD else 1.0) \
+		* (BRISK_REGEN if movement.is_brisk else 1.0)
 	if player.needs != null:
 		stamina.regen_scale *= player.needs.stamina_regen_mult()
 	player.current_animation = AnimationController.Anim.DEATH if state == State.DEAD else player.current_animation

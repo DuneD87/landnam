@@ -1311,6 +1311,7 @@ const SPRINT_SPEED := 6.0
 
 func _setup_gaits() -> void:
 	movement.walk_speed = WALK_CLIP_SPEED * walk_anim_rate
+	movement.brisk_speed = Locomotion.BRISK_CLIP_SPEED
 	movement.speed = RUN_SPEED
 	movement.sprint_speed = SPRINT_SPEED
 	var tree := animation_controller.animation_tree

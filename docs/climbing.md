@@ -74,6 +74,7 @@ nadando. El fantasma del martillo ya enseña lo que colgará.
 | Paso | Velocidad | Animación | Ritmo |
 | --- | --- | --- | --- |
 | Andar | 0,6 m/s | `walk_relaxed` (0,50 m/s a ritmo 1) | 1,2 |
+| Andar a paso normal (andando, Shift hacia delante) | 1,7 m/s | `village/walk_normal`, «Walking» de Mixamo (1,7 m/s) | 1,0 |
 | Correr | 4,0 m/s | `running`, `running-torch` (4,3 m/s) | 0,93 |
 | Esprintar | 6,0 m/s | `sprinting` (4,4 m/s) | 1,36 |
 | Trepar | 0,6 m/s (la de andar) | `climb_up`, `climb_down` (0,76 m/s) | 0,8 |
@@ -85,12 +86,18 @@ medido sobre el esqueleto del jugador). Lo fija `PlayerController._setup_gaits` 
 `walk_scale`, `run_scale`, `run_torch_scale` y `sprint_scale` del árbol. Los NPCs no cambian: usan
 `Movement.speed` y no esprintan.
 
+Con el modo andar, Shift no esprinta: hacia delante (como mucho un 30 % de lado) anda a paso normal
+(`Movement.is_brisk`), con el clip de los aldeanos encima del andar (`bBrisk`, `brisk_scale`; lo monta
+`Locomotion.build`); de lado o hacia atrás sigue el andar de siempre.
+
 `floor_max_angle` del jugador pasa de 60° a 50°: más empinado ya no es suelo (se resbala) y se trepa.
 
 ## Aguante
 
 Correr gasta 2/s y esprintar 11/s (`RUN_DRAIN`, `SPRINT_DRAIN` de `PlayerCombat`); mientras se
-corre no se recupera, ni siquiera agotado: para descansar hay que andar o pararse.
+corre no se recupera, ni siquiera agotado: para descansar hay que andar o pararse. Andar a paso
+normal (modo andar y Shift) no gasta, ni se bloquea agotado: solo recupera un 25 % más despacio
+(`BRISK_REGEN`).
 Trepar gasta 5/s, colgado quieto 2,5/s (`CLIMB_DRAIN`, `HANG_DRAIN`). Con los 100 de aguante da para
 unos 20 s trepando (12 m). Coronar no gasta. Sin aguante no se puede agarrar hasta recuperar un poco
 (como el resto del combate).
