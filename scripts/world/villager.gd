@@ -17,7 +17,10 @@ class_name Villager extends Node3D
 const MODEL := "res://scenes/character/character_model.tscn"
 const ANIMS := "res://models/player/village_anims.tres"
 const ANIM_IDLE := &"idle"
-const ANIM_WALK := &"village/walk"
+## Andar a paso normal y trotar (Mixamo «Walking» y «Jogging»); el paseo relajado del jugador
+## (village/walk) avanza 0,5 m/s y a su paso se veía acelerado.
+const ANIM_WALK := &"village/walk_normal"
+const ANIM_JOG := &"village/jog"
 const ANIM_RUN := &"running"
 const ANIM_SIT := &"village/sit_idle"
 const ANIM_TALK := &"village/talk"
@@ -25,9 +28,11 @@ const ANIM_DIG := &"village/dig"
 const ANIM_WAVE := &"village/wave"
 ## El golpe de arriba abajo del jugador (el del pico y la azada): partir leña y martillear.
 const ANIM_STRIKE := &"attack_vertical"
-## Al andar y al correr (m/s), y lo que avanzan sus clips a ritmo 1 (Locomotion).
-const WALK_SPEED := 1.1
-const WALK_CLIP_SPEED := 0.5
+## Al andar y al correr (m/s), y lo que avanzan sus clips a ritmo 1 (el pie apoyado respecto al cuerpo,
+## medido con build/settlers/clip_speed.gd; como en Locomotion).
+const WALK_SPEED := 1.3
+const WALK_CLIP_SPEED := 1.7
+const JOG_CLIP_SPEED := 1.6
 const RUN_SPEED := 3.5
 const RUN_CLIP_SPEED := 4.3
 ## Giro al andar y al encarar a alguien (rad/s).

@@ -15,30 +15,44 @@ class_name Companion extends CharacterBody3D
 ## Se le puede decir que se quede a vivir donde está (SETTLE): es un colono de la base del jugador. Hace
 ## vida allí: de día pasea cerca, al atardecer se sienta junto a una hoguera encendida (Campfire), de
 ## noche duerme en un petate libre (Bedroll) o, si no lo hay, en el suelo; y defiende la base de lo que
-## ataque cerca. Ver docs/villagers.md.
+## ataque cerca. En su horario de trabajo hace lo que se le haya mandado (SettlerWork: talar, picar o
+## limpiar una zona). Un árbol que le cae encima lo mata (crush). Ver docs/villagers.md.
 
 enum Mode {FOLLOW, WAIT, LEAVE, SETTLE}
 ## Lo que hace en la base.
 enum Chore {STAND, WALK, SIT, SLEEP}
 
 const GROUP := &"companion"
-## Siguiendo: se para a STOP m del jugador y echa a andar a más de START; la velocidad sube con la
-## distancia, de andar a correr y a la carrera (SPRINT_FROM m).
+## Siguiendo: se para a STOP m del jugador y echa a andar a más de START; a más de JOG_FROM m trota y
+## a más de RUN_FROM corre, cada vez más deprisa hasta la carrera (SPRINT_FROM m). Por pasos y no
+## subiendo poco a poco: cada animación casa con su velocidad (a ritmo 1, Villager.*_CLIP_SPEED).
 const STOP := 2.2
 const START := 3.5
+const JOG_FROM := 7.0
+const RUN_FROM := 10.0
 const SPRINT_FROM := 15.0
 const WALK_SPEED := 1.4
+const JOG_SPEED := 2.4
+const RUN_SPEED := 4.0
 const SPRINT_SPEED := 8.0
 const ACCEL := 12.0
 const TURN_RATE := 6.0
-## Por encima de esta velocidad (m/s) corre; vuelve a andar por debajo de WALK_BELOW.
-const RUN_ABOVE := 2.6
-const WALK_BELOW := 2.2
+## La animación por la velocidad real (m/s): trota por encima de GAITS.x y corre por encima de GAITS.y;
+## para volver a la de abajo tiene que bajar GAIT_MARGIN más.
+const GAITS := Vector2(2.0, 3.2)
+const GAIT_MARGIN := 0.3
 const JUMP_SPEED := 5.0
-## Atascado: avanzando a menos de STUCK_RATIO de lo que quiere, salta cada JUMP_EVERY s; si sigue
-## así STUCK_TELEPORT s a más de STUCK_FAR m, aparece detrás del jugador. A más de TELEPORT m, también.
+## En el suelo empuja hacia él a STICK m/s: sin eso, contra una pared de una construcción deja el suelo
+## un tick sí y otro no.
+const STICK := 0.5
+## Atascado: avanzando a menos de STUCK_RATIO de lo que quiere, salta cada JUMP_EVERY s si lo que
+## tiene delante es bajo (nada a WALL_HEIGHT m del suelo a WALL_REACH m por delante); contra una pared
+## no salta: busca camino (steer). Si sigue así STUCK_TELEPORT s a más de STUCK_FAR m, aparece detrás
+## del jugador. A más de TELEPORT m, también.
 const STUCK_RATIO := 0.35
 const JUMP_EVERY := 0.8
+const WALL_HEIGHT := 1.3
+const WALL_REACH := 0.6
 const STUCK_TELEPORT := 4.0
 const STUCK_FAR := 8.0
 const TELEPORT := 50.0
@@ -101,6 +115,20 @@ const ROAM := 10.0
 const FIRE_RING := Vector2(1.6, 2.4)
 const ARRIVE := 0.6
 const DEFEND := 25.0
+## Caminos (steer): si en REPATH s no se acerca al menos PROGRESS m a donde va (o al siguiente punto del
+## camino), busca un camino (GroundPath), como mucho PATH_TRIES veces por destino; llega a cada punto a
+## menos de WAYPOINT m. Abre las puertas cerradas a menos de DOOR_OPEN m por las que pasa y las cierra
+## al quedar a más de DOOR_CLOSE m.
+## Gastados los intentos, vuelve a probar a los PATH_RETRY s si sigue sin acercarse.
+const REPATH := 1.5
+const PROGRESS := 0.3
+const PATH_TRIES := 3
+const PATH_RETRY := 8.0
+const WAYPOINT := 0.6
+const DOOR_OPEN := 1.6
+const DOOR_CLOSE := 2.5
+## Aplastado por un árbol: se queda en el suelo GONE_TIME s y se va.
+const GONE_TIME := 60.0
 const ANIM_HIT := &"combat/hit_react"
 const ANIM_DOWN := &"combat/death"
 
@@ -117,7 +145,14 @@ var base := Vector3.INF
 var gravity := 9.8
 ## Lo que lleva (se guarda con él) y su vida (la buscan las fieras y los golpes por su nombre).
 var pack: Inventory
+## El morral, con el nombre con el que la tala y la picada dan lo que sacan (DroppedItem.give).
+var inventory: Inventory
 var health: HealthComponent
+## Lo que hace en su horario de trabajo (viviendo en la base).
+var work: SettlerWork
+## Muerto (aplastado): no se guarda y se va a los GONE_TIME s.
+var dead := false
+var _gone_left := 0.0
 
 var _terrain: Node3D
 var _player: Node3D
@@ -127,7 +162,8 @@ var _model: Node3D
 var _anim_player: AnimationPlayer
 var _anim := &""
 var _forward := Vector3.FORWARD
-var _running := false
+## 0 anda, 1 trota, 2 corre.
+var _gait := 0
 var _moving := false
 var _stuck := 0.0
 var _jump_left := 0.0
@@ -169,6 +205,16 @@ var _bed: Bedroll
 ## en el petate, dormido y quieto (s).
 var _sleep_routine: SleepRoutine
 var _bed_fit_left := 0.0
+## El camino de ahora (puntos, marco del terreno), por cuál va, a dónde (marco del terreno), lo más cerca
+## que ha llegado del punto al que va, lo que le queda para buscar otro, los intentos y las puertas que
+## ha abierto.
+var _path := PackedVector3Array()
+var _path_index := 0
+var _path_dest := Vector3.INF
+var _steer_best := INF
+var _steer_left := REPATH
+var _path_tries := 0
+var _opened_doors: Array[WoodenDoor] = []
 
 
 ## [who]: su vecino (SettlementPopulation.residents) del poblado [v] ([v_name]); [model]: su humano
@@ -228,6 +274,8 @@ func setup(who: Dictionary, v: int, v_name: String, trust: SettlementRelations, 
 	pack.name = "Pack"
 	add_child(pack)
 	pack.inventory_changed.connect(refresh_weapon)
+	inventory = pack
+	work = SettlerWork.new(self)
 	# La herramienta que ya trae en la mano (build_model) es la de su oficio.
 	_weapon = _job_tool() if _tool != null else null
 	refresh_weapon()
@@ -272,7 +320,7 @@ func go_home() -> void:
 
 ## Se le puede hablar si no se va, no pelea, no está malherido y no duerme.
 func can_chat() -> bool:
-	return mode != Mode.LEAVE and _target == null and _down_left <= 0.0 and _chore != Chore.SLEEP
+	return not dead and mode != Mode.LEAVE and _target == null and _down_left <= 0.0 and _chore != Chore.SLEEP
 
 
 ## Al cargar: la vida que tenía (si cayó, la de levantarse).
@@ -346,6 +394,13 @@ func _physics_process(delta: float) -> void:
 	var to_player := _player.global_position - global_position
 	var distance := (to_player - up * to_player.dot(up)).length()
 	_since_hit += delta
+	if dead:
+		_gone_left -= delta
+		_move(Vector3.ZERO, 0.0, up, delta)
+		_pose(up)
+		if _gone_left <= 0.0:
+			queue_free()
+		return
 	if _down_left > 0.0:
 		_lie(up, delta)
 		return
@@ -366,6 +421,8 @@ func _physics_process(delta: float) -> void:
 		return
 	if distance > FREEZE and mode != Mode.LEAVE:
 		velocity = Vector3.ZERO
+		if mode == Mode.SETTLE:
+			work.away(delta, _hour())
 		return
 	if _target == null:
 		_recover(delta)
@@ -396,7 +453,12 @@ func _physics_process(delta: float) -> void:
 			Mode.FOLLOW:
 				if distance > START or (_moving and distance > STOP):
 					heading = _tangent(to_player)
-					speed = remap(clampf(distance, STOP, SPRINT_FROM), STOP, SPRINT_FROM, WALK_SPEED, SPRINT_SPEED)
+					if distance < JOG_FROM:
+						speed = WALK_SPEED
+					elif distance < RUN_FROM:
+						speed = JOG_SPEED
+					else:
+						speed = remap(minf(distance, SPRINT_FROM), RUN_FROM, SPRINT_FROM, RUN_SPEED, SPRINT_SPEED)
 			Mode.LEAVE:
 				_leave_time += delta
 				if distance > LEAVE_GONE or _leave_time > LEAVE_TIME:
@@ -425,7 +487,8 @@ func _physics_process(delta: float) -> void:
 	elif not _chatting:
 		_stuck = 0.0
 		_idle += delta
-		if distance < FACE_PLAYER and (mode != Mode.SETTLE or _chore == Chore.STAND):
+		# Trabajando mira a lo que golpea, no al jugador.
+		if distance < FACE_PLAYER and (mode != Mode.SETTLE or _chore == Chore.STAND) and not work.busy():
 			_face(to_player, delta)
 	_pose(up)
 	_animate()
@@ -440,7 +503,7 @@ func _move(heading: Vector3, speed: float, up: Vector3, delta: float) -> void:
 	if _jump and is_on_floor():
 		vertical = up * JUMP_SPEED
 	elif is_on_floor():
-		vertical = Vector3.ZERO
+		vertical = -up * STICK
 		_ground = true
 	else:
 		_probe_left -= delta
@@ -467,9 +530,20 @@ func _unstick(heading: Vector3, speed: float, distance: float, delta: float) -> 
 	_jump_left -= delta
 	if is_on_floor() and _jump_left <= 0.0 and _stuck > 0.25:
 		_jump_left = JUMP_EVERY
-		_jump = true
+		if _wall_ahead(heading):
+			_steer_left = minf(_steer_left, 0.0)
+		else:
+			_jump = true
 	if mode == Mode.FOLLOW and _target == null and _stuck > STUCK_TELEPORT and distance > STUCK_FAR and _teleport():
 		_stuck = 0.0
+
+
+## Si delante (hacia [heading]) hay algo a WALL_HEIGHT m del suelo: una pared, no un escalón.
+func _wall_ahead(heading: Vector3) -> bool:
+	var from := global_position + up_direction * WALL_HEIGHT
+	var query := PhysicsRayQueryParameters3D.create(from, from + heading * (Villager.BODY_RADIUS + WALL_REACH),
+		PhysicsLayers.WORLD, [get_rid()])
+	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
 ## Aparece a BEHIND m del jugador, por detrás de hacia donde va (o del lado por el que viene él), en
@@ -535,13 +609,20 @@ func _animate() -> void:
 	var real := get_real_velocity()
 	var speed := (real - up * real.dot(up)).length()
 	if _moving and speed > 0.15:
-		_running = speed > (WALK_BELOW if _running else RUN_ABOVE)
-		if _running:
-			_play(Villager.ANIM_RUN)
-			_anim_player.speed_scale = speed / Villager.RUN_CLIP_SPEED
-		else:
-			_play(Villager.ANIM_WALK)
-			_anim_player.speed_scale = speed / Villager.WALK_CLIP_SPEED
+		var gait := 2 if speed > GAITS.y else (1 if speed > GAITS.x else 0)
+		if gait < _gait and speed > GAITS[gait] - GAIT_MARGIN:
+			gait = _gait
+		_gait = gait
+		match gait:
+			0:
+				_play(Villager.ANIM_WALK)
+				_anim_player.speed_scale = speed / Villager.WALK_CLIP_SPEED
+			1:
+				_play(Villager.ANIM_JOG)
+				_anim_player.speed_scale = speed / Villager.JOG_CLIP_SPEED
+			_:
+				_play(Villager.ANIM_RUN)
+				_anim_player.speed_scale = speed / Villager.RUN_CLIP_SPEED
 		return
 	_anim_player.speed_scale = 1.0
 	var sitting := (mode == Mode.WAIT and _idle > SIT_AFTER) or (mode == Mode.SETTLE and _chore == Chore.SIT)
@@ -641,7 +722,7 @@ func _fight(up: Vector3, delta: float) -> Array:
 		return [Vector3.ZERO, 0.0]
 	var reach := _reach_to(_target)
 	if distance > reach:
-		return [toward, remap(clampf(distance, reach, SPRINT_FROM), reach, SPRINT_FROM, RUN_ABOVE + 1.0, SPRINT_SPEED)]
+		return [toward, remap(clampf(distance, reach, SPRINT_FROM), reach, SPRINT_FROM, RUN_SPEED, SPRINT_SPEED)]
 	_face(toward, delta)
 	_pause_left -= delta
 	if _pause_left <= 0.0 and toward != Vector3.ZERO and _forward.angle_to(toward) < deg_to_rad(40.0):
@@ -770,14 +851,21 @@ func _recover(delta: float) -> void:
 
 ## Un paso de su vida en la base: [hacia dónde, a qué velocidad].
 func _live(delta: float) -> Array:
+	if _chore != Chore.SLEEP and work.on_duty(_hour()):
+		_chore = Chore.STAND
+		_chore_left = 0.0
+		_look = Vector3.INF
+		return work.step(delta)
 	if _chore == Chore.WALK:
 		var to := _terrain.global_transform * _spot - global_position
 		var up := up_direction
-		if (to - up * to.dot(up)).length() < ARRIVE or _stuck > STUCK_TELEPORT:
+		var spot := _terrain.global_transform * _spot
+		# Si no llega ni por un camino (STUCK_TELEPORT s atascado tras los intentos), hace allí lo suyo.
+		if (to - up * to.dot(up)).length() < ARRIVE or (_stuck > STUCK_TELEPORT and _path_tries >= PATH_TRIES):
 			_stuck = 0.0
 			_arrive()
 			return [Vector3.ZERO, 0.0]
-		return [_tangent(to), WALK_SPEED]
+		return [steer(spot, ARRIVE, delta), WALK_SPEED]
 	_chore_left -= delta
 	var night := Villager._is_night(_hour())
 	if _chore == Chore.SLEEP:
@@ -895,10 +983,165 @@ func _to_arms() -> void:
 
 
 func _leave_base() -> void:
+	work.stop()
 	_wake()
 	_look = Vector3.INF
 	_chore = Chore.STAND
 	base = Vector3.INF
+
+
+# --- Trabajo (SettlerWork) -----------------------------------------------------------------------
+
+## Hacia dónde andar para llegar a menos de [reach] m (en el plano) de [dest] (mundo): en línea recta y,
+## si así no se acerca, por un camino (GroundPath). Lo usan su vida en la base y su trabajo.
+func steer(dest: Vector3, reach: float, delta: float) -> Vector3:
+	var to_local := _terrain.global_transform.affine_inverse()
+	var from_local := _terrain.global_transform
+	var dest_local := to_local * dest
+	if not _path_dest.is_finite() or _path_dest.distance_to(dest_local) > 1.0:
+		_path = PackedVector3Array()
+		_path_dest = dest_local
+		_path_tries = 0
+		_steer_best = INF
+		_steer_left = REPATH
+	_close_doors()
+	var up := up_direction
+	# El punto al que va: el siguiente del camino o, sin camino, el destino.
+	var aim := dest
+	while _path_index < _path.size():
+		var point := from_local * _path[_path_index]
+		if (point - global_position).slide(up).length() > WAYPOINT:
+			aim = point
+			break
+		_path_index += 1
+		_steer_best = INF
+		_steer_left = REPATH
+	if _path_index >= _path.size():
+		_path = PackedVector3Array()
+		_path_index = 0
+	var distance := (aim - global_position).slide(up).length()
+	if distance < _steer_best - PROGRESS:
+		_steer_best = distance
+		_steer_left = REPATH
+	else:
+		_steer_left -= delta
+		if _steer_left <= -PATH_RETRY:
+			_path_tries = 0
+		if _steer_left <= 0.0 and _path_tries < PATH_TRIES:
+			_path_tries += 1
+			_steer_left = REPATH * 2.0
+			_steer_best = INF
+			var found := GroundPath.find(self, global_position, dest, up, reach)
+			_path = PackedVector3Array()
+			for point in found:
+				_path.append(to_local * point)
+			_path_index = 1 if _path.size() > 1 else 0
+	if not _path.is_empty():
+		_open_doors(from_local * _path[_path_index])
+	return _tangent(aim - global_position)
+
+
+## Lo que le queda hasta [dest] (m): por el camino, si va por uno; si no, en línea recta.
+func steer_remaining(dest: Vector3) -> float:
+	var up := up_direction
+	if _path.is_empty() or _path_index >= _path.size():
+		return (dest - global_position).slide(up).length()
+	var from_local := _terrain.global_transform
+	var total := 0.0
+	var last := global_position
+	for i in range(_path_index, _path.size()):
+		var point := from_local * _path[i]
+		total += (point - last).slide(up).length()
+		last = point
+	return total + (dest - last).slide(up).length()
+
+
+## Abre la puerta cerrada que haya entre él y [next] (el siguiente punto del camino), si está cerca.
+func _open_doors(next: Vector3) -> void:
+	for node in get_tree().get_nodes_in_group(WoodenDoor.GROUP):
+		var door := node as WoodenDoor
+		if door == null or door.open_side != 0 or door.global_position.distance_to(global_position) > DOOR_OPEN + 1.5:
+			continue
+		var size := GroundPath.door_size(door)
+		var middle := door.global_transform * Vector3(0.0, minf(size.y * 0.5, 1.0), 0.0)
+		var on_way := Geometry3D.get_closest_point_to_segment(middle, global_position, next).distance_to(middle)
+		if on_way < size.x * 0.5 + 0.4 and middle.distance_to(global_position) < DOOR_OPEN + size.x * 0.5:
+			door.toggle(global_position)
+			if not _opened_doors.has(door):
+				_opened_doors.append(door)
+
+
+## Cierra las que abrió al quedar lejos de ellas.
+func _close_doors() -> void:
+	for i in range(_opened_doors.size() - 1, -1, -1):
+		var door := _opened_doors[i]
+		if not is_instance_valid(door):
+			_opened_doors.remove_at(i)
+		elif door.global_position.distance_to(global_position) > DOOR_CLOSE:
+			if door.open_side != 0:
+				door.toggle(global_position)
+			_opened_doors.remove_at(i)
+
+
+## Pone [data] en la mano, a la vista.
+func hold_work_tool(data: ItemData) -> void:
+	if data != _weapon or _tool == null:
+		_weapon = data
+		_tool = Villager.hold(_model, data.scene_path)
+	_armed_left = ARMED_TIME
+	if _tool != null:
+		_tool.visible = true
+
+
+## Un golpe de trabajo: [anim] a [speed]; mientras, no se cambia de animación (set_busy).
+func play_work(anim: StringName, speed: float) -> void:
+	_play(anim, 0.12, true)
+	_anim_player.speed_scale = speed
+
+
+## Ocupado [time] s en un golpe: el movimiento no le cambia la animación.
+func set_busy(time: float) -> void:
+	_attack_left = time
+	_hit_at = -1.0
+
+
+## Un aviso en la barra del jugador.
+func notify(text: String) -> void:
+	var hotbar: Node = _player.get("hotbar") if _player != null and is_instance_valid(_player) else null
+	if hotbar != null:
+		hotbar.notify(text)
+
+
+## Su árbol ha caído (TreeFelling._fell).
+func on_felled(falling: FallingTree) -> void:
+	work.on_felled(falling)
+
+
+## Le cae un árbol encima (FallingTree): muere. Suelta lo que lleva y se va al rato.
+func crush() -> void:
+	if dead:
+		return
+	dead = true
+	work.stop()
+	_wake()
+	_target = null
+	_chatting = false
+	_attack_left = 0.0
+	_down_left = 0.0
+	_hurtbox.set_enabled(false)
+	health.health = 0.0
+	health.health_changed.emit(health.health, health.max_health)
+	_armed_left = 0.0
+	if _tool != null:
+		_tool.visible = false
+	_gone_left = GONE_TIME
+	_play(ANIM_DOWN, 0.1)
+	var up := up_direction
+	for item in pack.get_all_items():
+		if item != null:
+			DroppedItem.spawn_at(get_parent(), item.data, item.quantity, global_position + up * 0.8, -up)
+	pack.clear()
+	notify(tr("SETTLER_CRUSHED") % String(resident.get("name", "")))
 
 
 ## La hora solar de la base (sin sol, mediodía).

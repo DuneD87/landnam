@@ -6,7 +6,8 @@ class_name SettlementCompanions extends Node
 ## que ya no lo saca mientras vaya con el jugador (SettlementVillagers), y se lleva su humano. Se guardan
 ## con la partida (categoría "npc"): su poblado, su vecino (que se vuelve a sacar del plano, como en el
 ## poblado), si sigue, espera o vive en la base (y dónde la tiene), dónde está (en el marco del
-## terreno), lo que lleva y su vida. Ver docs/villagers.md.
+## terreno), lo que lleva, su vida y su trabajo (SettlerWork). Los que mueren (Companion.crush) no vuelven a
+## salir en su poblado. Ver docs/villagers.md.
 
 ## Cuántos acompañan a la vez, y cuántos viven en la base.
 const MAX := 1
@@ -25,6 +26,8 @@ var _villages: Array = []
 var _prefabs := {}
 var _seed := 1
 var _list: Array[Companion] = []
+## Los vecinos (SettlementPopulation: "id") que han muerto.
+var _dead := {}
 
 
 ## Como SettlementVillagers.setup.
@@ -41,11 +44,11 @@ func setup(manager: SettlementManager, host: Node3D, terrain: Node3D, player: No
 	add_to_group(GROUP)
 
 
-## Los de ahora (también el que se está yendo a casa).
+## Los de ahora (también el que se está yendo a casa; no los muertos).
 func get_companions() -> Array[Companion]:
 	var out: Array[Companion] = []
 	for c in _list:
-		if is_instance_valid(c):
+		if is_instance_valid(c) and not c.dead:
 			out.append(c)
 	return out
 
@@ -55,9 +58,16 @@ func quests() -> SettlementQuests:
 	return _manager.quests if _manager != null else null
 
 
-## Si el vecino [id] (SettlementPopulation: "id") va con el jugador o se está yendo: su poblado no lo saca.
+## Si el vecino [id] (SettlementPopulation: "id") va con el jugador, se está yendo o ha muerto: su poblado no
+## lo saca.
 func has(id: String) -> bool:
-	for c in get_companions():
+	if _dead.has(id):
+		return true
+	for c in _list:
+		if not is_instance_valid(c):
+			continue
+		if c.dead:
+			_dead[String(c.resident.get("id", ""))] = true
 		if String(c.resident.get("id", "")) == id:
 			return true
 	return false
@@ -103,7 +113,10 @@ func _add(v: int, who: Dictionary, model: Node3D, at: Transform3D, mode: Compani
 	companion.gravity = float(_host.get("gravity_strength")) if _host.get("gravity_strength") != null else 9.8
 	companion.mode = mode
 	companion.transform = _host.global_transform.affine_inverse() * at
-	companion.tree_exiting.connect(func() -> void: _list.erase(companion))
+	companion.tree_exiting.connect(func() -> void:
+		_list.erase(companion)
+		if companion.dead:
+			_dead[String(companion.resident.get("id", ""))] = true)
 	_list.append(companion)
 	_host.add_child(companion)
 	companion.reset_physics_interpolation()
@@ -124,8 +137,14 @@ func get_save_data() -> Dictionary:
 			"health": c.health.health}
 		if c.mode == Companion.Mode.SETTLE:
 			entry.base = [c.base.x, c.base.y, c.base.z]
+			var work := c.work.save_data()
+			if not work.is_empty():
+				entry.work = work
 		out.append(entry)
-	return {"companions": out}
+	for c in _list:
+		if is_instance_valid(c) and c.dead:
+			_dead[String(c.resident.get("id", ""))] = true
+	return {"companions": out, "dead": _dead.keys()}
 
 
 ## Antes de cargar una partida: los de ahora se van (si la partida no trae ninguno, no queda ninguno).
@@ -140,6 +159,9 @@ func prepare_restore() -> void:
 ## Cada uno, vestido aquí mismo (es al cargar: un humano son ~100 ms), donde estaba.
 func restore_save_data(data: Dictionary) -> void:
 	prepare_restore()
+	_dead.clear()
+	for id in data.get("dead", []):
+		_dead[str(id)] = true
 	AppearanceCatalog.categories()
 	for entry: Dictionary in data.get("companions", []):
 		var v := int(entry.get("village", -1))
@@ -167,6 +189,7 @@ func restore_save_data(data: Dictionary) -> void:
 		var base_raw: Array = entry.get("base", [])
 		if saved_mode == Companion.Mode.SETTLE and base_raw.size() == 3:
 			companion.settle_here(Vector3(base_raw[0], base_raw[1], base_raw[2]))
+			companion.work.restore(entry.get("work", {}))
 		if entry.has("pack"):
 			companion.pack.restore_save_data(entry.pack)
 		companion.restore_health(float(entry.get("health", -1.0)))

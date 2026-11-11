@@ -14,7 +14,7 @@ const POOLS := {
 	&"DANGER": 3, &"NEIGHBOUR": 2, &"PELT": 2, &"BRONZE": 2,
 	&"GIFT_LOVE": 3, &"GIFT_LIKE": 3, &"GIFT_TIRED": 2, &"GIFT_MEH": 3,
 	&"RECRUIT_YES": 3, &"FOLLOW_OK": 3, &"WAIT_OK": 3, &"HOME_OK": 3, &"ROAD": 5,
-	&"SETTLE_OK": 3, &"BASE": 5,
+	&"SETTLE_OK": 3, &"BASE": 5, &"WORK_OK": 3, &"WORK_STOP": 2,
 	&"TRADE_OPEN": 3, &"TRADE_DONE": 3, &"TRADE_SHORT": 3,
 	&"QUEST_FETCH": 3, &"QUEST_HUNT": 3, &"QUEST_YES": 3, &"QUEST_WAITING": 3, &"QUEST_THANKS": 3,
 	&"QUEST_DROP": 2,

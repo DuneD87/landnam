@@ -77,6 +77,8 @@ var needs: SurvivalNeeds
 var progression: Progression
 ## Descanso en lechos y aceleración temporal mientras se duerme.
 var resting: RestController
+## Sentado en el trono, mandando a los colonos (ThroneView).
+var throne_view: ThroneView
 ## Hablar con los aldeanos de los poblados.
 var villager_chat: VillagerChat
 ## Comer, beber, despellejar y las hogueras.
@@ -692,6 +694,10 @@ func _ready():
 	resting.name = "RestController"
 	add_child(resting)
 	resting.setup(self)
+	throne_view = ThroneView.new()
+	throne_view.name = "ThroneView"
+	add_child(throne_view)
+	throne_view.setup(self)
 	villager_chat = VillagerChat.new()
 	villager_chat.name = "VillagerChat"
 	add_child(villager_chat)
@@ -1044,6 +1050,7 @@ func get_visibility() -> float:
 func can_perform_action() -> bool:
 	return not (
 		(resting != null and resting.is_open()) or
+		(throne_view != null and throne_view.is_open()) or
 		(villager_chat != null and villager_chat.is_open()) or
 		combat.is_busy() or
 		climb.is_active() or
@@ -1325,6 +1332,9 @@ func _input(event):
 	# La pantalla de opciones se cierra con su propio Escape.
 	if OptionsScreen.is_open():
 		return
+	# El trono lleva su entrada (ThroneView).
+	if throne_view != null and throne_view.is_open():
+		return
 	if resting != null and resting.is_open():
 		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("action"):
 			resting.close()
@@ -1483,6 +1493,8 @@ func _input(event):
 			pass
 		elif corpse:
 			survival.open_corpse(corpse)
+		elif throne_view.try_open():
+			pass
 		elif survival.open_nearby_bedroll():
 			pass
 		elif survival.open_nearby_storage():
@@ -1894,6 +1906,10 @@ func _physics_process(delta: float):
 
 func _physics_step(delta: float):
 	_update_cannon_charge(delta)
+	# Sentado en el trono (o sentándose), el cuerpo no se mueve: lo pone ThroneView.
+	if throne_view != null and throne_view.is_busy():
+		camera_controller.update_camera_transform()
+		return
 	if resting != null and resting.is_sleeping():
 		# El lecho lleva el cuerpo (RestController). Al despertar, que el barco no aplique de golpe
 		# lo que se ha movido durante el sueño.

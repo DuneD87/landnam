@@ -163,7 +163,10 @@ el camino queda libre.
   pose se apoya a cada una; dormido y quieto, cada 0,5 s.
 - **Sentado:** en el suelo.
 - **Hablar:** se sube 6 cm porque, con las piernas más rectas que el idle, hundía los pies.
-- **Pasear:** el paseo relajado de ActorCore, a 1,1 m/s; corre con el del jugador, a 3,5 m/s.
+- **Andar:** «Walking» de Mixamo (paso normal; avanza 1,7 m/s a ritmo 1), a 1,3 m/s; corre con el del
+  jugador, a 3,5 m/s. El compañero también trota («Jogging», 1,6 m/s a ritmo 1). Antes usaban el paseo
+  relajado del jugador, que avanza 0,5 m/s: a su paso iba a 2–3 veces su ritmo y se veía raro. Lo que
+  avanza cada clip se mide con `build/settlers/clip_speed.tscn` (el pie apoyado respecto al cuerpo).
 - **Cavar y saludar:** también se suben 6 y 8 cm. El saludo es un vaivén de medio segundo que se
   repite.
 - **De pie y a golpes:** el idle y el golpe de arriba abajo del jugador.
@@ -306,9 +309,14 @@ sigue con él. Su poblado ya no lo saca mientras vaya con el jugador.
 (sólido para el jugador) y chocando con el mundo, colgado del padre de las grids, así que el origen
 flotante lo mueve con ellas.
 
-- **Sígueme**: echa a andar a más de 3,5 m del jugador y se para a 2,2. La velocidad sube con la
-  distancia, de andar (1,4 m/s) a la carrera (8 m/s a 15 m), y la animación pasa de andar a correr.
-  Si avanza mucho menos de lo que quiere, salta (5 m/s: un bloque). Si sigue atascado 4 s a más de
+- **Sígueme**: echa a andar a más de 3,5 m del jugador y se para a 2,2. La velocidad va por pasos con la
+  distancia: anda (1,4 m/s), a más de 7 m trota (2,4 m/s) y a más de 10 m corre, de 4 m/s a la carrera
+  (8 m/s a 15 m). La animación (andar, trotar, correr) sale de la velocidad real, con margen para no
+  cambiar a cada paso.
+  Si avanza mucho menos de lo que quiere, salta (5 m/s: un bloque), pero solo si lo que tiene delante
+  es bajo: con algo a 1,3 m del suelo (una pared) no salta y, en la base, busca camino al momento.
+  Apoyado, empuja hacia el suelo a 0,5 m/s: sin eso, contra una pared de una construcción dejaba el
+  suelo un tick sí y otro no. Si sigue atascado 4 s a más de
   8 m, o se queda a más de 50 m, aparece a 2,5 m del jugador, por detrás de hacia donde va, en un
   sitio a su vista y con suelo.
 - **Espera aquí**: se queda quieto, mirando al jugador si está cerca, y a los 25 s se sienta.
@@ -374,6 +382,64 @@ botón sale desactivado. Al colono se le habla igual (frases de la base, `VTALK_
 otro compañero o al jugador; lo deja a más de 30 m de ella. Si duerme, se despierta. Lo que pasa a
 más de 120 m del jugador no lo mueve: allí se queda quieto.
 
+### Trabajo
+
+En la charla del colono se le manda trabajar (`SettlerWork`): **Tala árboles** y **Pica piedra**
+buscan alrededor de la base (60 m), y **Limpia aquí** tala y pica todo lo que haya a menos de 12 m de
+donde está el jugador; **Deja eso** lo para. Debajo de lo que dice sale cómo va («Leñador · lleva 14»,
+o por qué está parado). Trabaja en el horario de los aldeanos (8-12 y 13-18); fuera de él hace su vida,
+de noche duerme y, si atacan la base, deja lo que hace y pelea.
+
+- **Con qué**: con lo que lleva en el morral, el mejor hacha para talar o el mejor pico para picar.
+  Sin ella no hace nada (*Parado: necesita un hacha*). No se gasta.
+- **Dónde lo deja**: en el cofre (`Storage`) de la base, a menos de 60 m de ella, que acepte su oficio y
+  tenga sitio. En la pantalla del cofre, **Para colonos** marca los oficios (Leñador, Cantero,
+  Desbroce, `Storage.jobs`); sin ninguno marcado lo aceptan todos. Van antes a los marcados con su
+  oficio y de ellos al más cercano. Sin cofre, o con todos llenos, tampoco trabaja.
+- **Cómo**: como el jugador, con sus golpes (`MeleeMoveset`) y la misma tala y picada. Va en línea
+  recta hasta el árbol y, si así no se acerca en 1,5 s, por un camino (`Companion.steer`, `GroundPath`:
+  A* en una rejilla de medio metro alrededor, escalones de hasta 0,55 m hacia arriba y 4 m hacia abajo,
+  abriendo y cerrando las puertas; sale de una casa o baja de un tejado; tres intentos por destino y,
+  si sigue sin acercarse, otros tres a los 8 s). Lo que no alcanza ni así en
+  12 s lo deja 2 minutos. Lo tala, al caer
+  se aparta 4 m del tocón, lo parte y parte cada trozo en leña. La roca suelta sus trozos y los pica
+  hasta que dan piedras. Lo que saca entra en su morral (`Companion.inventory`, sin sonido ni aviso) y,
+  al acabar cada árbol o roca, lo lleva al cofre. Las ramas de la copa quedan en el suelo.
+- **Nunca comparten** árbol ni roca (`SettlerWork._claims`): el siguiente va al siguiente. Los troncos
+  caídos y los trozos que haya en la zona también se recogen.
+- **Accidentes**: un árbol que cae encima de otro colono lo mata (`Companion.crush`; al que lo tala, no).
+  Suelta lo que llevaba, se queda en el suelo un minuto y no vuelve a salir en su poblado
+  (`SettlementCompanions`, "dead").
+- La zona se da por vacía (o limpia) tras tres búsquedas seguidas sin nada con ella entera cerca de la
+  cámara: lejos (o recién cargada) sus árboles y rocas aún no tienen cuerpo.
+- **Lejos** (a más de 120 m del jugador): lo que tenía a medias se da por hecho (se quita del mundo y
+  lo que daba va al cofre) y desde ahí produce sin moverse, en su horario, con su herramienta y
+  mientras quepa en el cofre: leña o piedra al ritmo de `SettlerWork.rate`, precalculado con su
+  herramienta (un árbol de 12 de leña o una roca de 45 piedras, el trabajo que piden y 30 s de ir y
+  venir) y corregido con lo que tarda de verdad cerca. Limpiar una zona solo avanza cerca.
+- Se guarda con él: el trabajo, la zona, lo que lleva sacado y su ritmo medido.
+
+### El trono
+
+El **Trono de troncos** (`throne`, se hace en el banco de piedra: 20 de madera, 3 pieles, 2 astas y 2
+tendones) se planta como el lecho (`Throne`, malla de `throne_visual.gd`). Con E junto a él el jugador
+se sienta (`ThroneView`: `village/throne_sit` y luego `village/throne_idle`, en su AnimationPlayer con el
+árbol de animación parado; las caderas se ponen en `Throne.SEAT`) y se abre la vista de la base:
+
+- una cámara de teleobjetivo (35°, casi como una isométrica; la ortográfica dejaba el cielo en negro)
+  desde delante del trono y por encima (55°), que WASD mueve (hasta 90 m), R y F inclinan (o arrastrar
+  con el botón central, que además la gira) y la rueda acerca o aleja; nunca baja de 12 m sobre el
+  suelo. Alejada del todo (a más de ~180 m) los árboles pierden su cuerpo y el trabajo espera;
+- el nombre y el oficio de cada colono sobre su cabeza (en amarillo, los elegidos) y sus zonas en el
+  suelo: verde talar, azul picar, naranja limpiar; tenue, la de alrededor de su base;
+- a la derecha, los colonos con su base a menos de 90 m del trono (`Throne.MANAGE_RADIUS`), con cómo va
+  cada uno. Se eligen en la lista (o pinchando su nombre en el mapa), uno o varios (**Todos**,
+  **Ninguno**), y se les manda **Tala árboles**, **Pica piedra**, **Limpia una zona** o **Deja eso**.
+  Al mandar talar, picar o limpiar sale un círculo bajo el ratón: clic lo pone (la rueda cambia el
+  radio, de 4 a 60 m); con clic derecho, talar y picar van alrededor de su base y limpiar se cancela.
+
+E o Escape lo levantan (sentarse al revés) y aparece de pie delante del trono; un golpe también.
+
 ## Configuración
 
 `villager_distance` (200 m) en `settlement_settings`.
@@ -401,10 +467,9 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
 
 ## Limitaciones
 
-- Los colonos aún no trabajan ni comen: solo viven en la base y la defienden. Lejos del jugador (a
-  más de 120 m) están parados, y cargar una partida con muchos los viste todos en ese momento (~0,1 s
-  cada uno).
-
+- Los colonos aún no comen. El trono aún usa el icono del cofre. Sin ventana no se puede probar el
+  trabajo de cerca: los cuerpos de los árboles no se regeneran alrededor del jugador. Cargar una partida
+  con muchos colonos los viste todos en ese momento (~0,1 s cada uno).
 - Esquivar es solo torcer el paso: dos que se encuentran en una puerta o contra una pared se rozan, y
   al jugador lo empuja su cápsula si se le pone delante.
 - Sentarse y tumbarse son fundidos desde estar de pie, sin animación de transición.
@@ -415,7 +480,8 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
   poblados cercanos. No cambian de ropa con el frío.
 - Lo regalado y lo que se les da en un trato se pierde: aún no va a ninguna parte del poblado ni lo
   revenden.
-- El compañero va en línea recta hacia el jugador o hacia la fiera: no rodea paredes ni busca puertas
+- Siguiendo al jugador o peleando, el compañero va en línea recta (los caminos, `Companion.steer`, solo
+  los usa el colono en la base y en su trabajo): no rodea paredes ni busca puertas
   (salta o, si no sale, aparece detrás del jugador). No nada: en el agua anda por el fondo. Las fieras
   solo van a por él si les pega; las que no, siguen con el jugador.
 - Los encargos no tienen plazo ni salen en ningún diario: solo en la charla y en los avisos de la barra.

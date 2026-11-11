@@ -267,6 +267,9 @@ func _fell(tree: VoxelInstancerRigidBody, info: Dictionary, state: Dictionary, o
 		if not is_instance_valid(_fallen[i]) or _fallen[i].is_queued_for_deletion():
 			_fallen.remove_at(i)
 	_fallen.append(falling)
+	# Un colono que tala sigue con su árbol (SettlerWork).
+	if chopper is Companion:
+		(chopper as Companion).on_felled(falling)
 	while _fallen.size() > MAX_FALLEN:
 		var old: Node3D = _fallen.pop_front()
 		if is_instance_valid(old):

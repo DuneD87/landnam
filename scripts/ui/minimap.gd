@@ -100,13 +100,16 @@ func _process(_delta: float) -> void:
 
 
 ## Fuera de partida, con el menú de pausa, el mapa grande o las pantallas que oscurecen el mundo
-## (personaje y fabricar, que además ocupan la columna de la derecha) no sale.
+## (personaje y fabricar, que además ocupan la columna de la derecha) no sale; tampoco sentado en el
+## trono (ThroneView, con su lista a la derecha).
 func _is_shown() -> bool:
 	if GameManager.current_state != GameManager.State.PLAYING:
 		return false
 	if player.main_menu != null and player.main_menu.visible:
 		return false
 	if player.world_map_ui != null and player.world_map_ui.visible:
+		return false
+	if player.throne_view != null and player.throne_view.visible:
 		return false
 	var inventory := player.inventory_ui
 	return inventory == null or not inventory.visible or inventory.view == InventoryUI.View.INVENTORY

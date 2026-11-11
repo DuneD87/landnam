@@ -1791,3 +1791,42 @@ VILLAGER_PACK_HINT,Click: hand over one · Right click: all of them. They fight 
 VILLAGER_PACK_FULL,It won't fit in their pack.,No le cabe en el morral.,aldeanos
 VILLAGER_PACK_YOURS_FULL,It won't fit in your inventory.,No te cabe en el inventario.,aldeanos
 VILLAGER_DOWN,%s has fallen. They'll get up in a while.,%s ha caído. Se levantará en un rato.,aldeanos
+SETTLER_JOB_FELL,Woodcutter,Leñador,colonos
+SETTLER_JOB_MINE,Stonecutter,Cantero,colonos
+SETTLER_JOB_CLEAR,Clearing,Desbroce,colonos
+SETTLER_JOB_NONE,Nothing,Nada,colonos
+SETTLER_ORDER_FELL,Cut trees,Tala árboles,colonos
+SETTLER_ORDER_MINE,Quarry stone,Pica piedra,colonos
+SETTLER_ORDER_CLEAR,Clear around here,Limpia aquí,colonos
+SETTLER_ORDER_STOP,Leave that,Deja eso,colonos
+SETTLER_WORKING,%s · %d gathered,%s · lleva %d,colonos
+SETTLER_OFF_HOURS,%s · %d gathered · resting until the next shift,%s · lleva %d · descansa hasta el siguiente turno,colonos
+SETTLER_AWAY,%s · %d gathered · working out of sight,%s · lleva %d · trabaja lejos de ti,colonos
+SETTLER_NO_TOOL_FELL,Idle: needs an axe in their pack.,Parado: necesita un hacha en el morral.,colonos
+SETTLER_NO_TOOL_MINE,Idle: needs a pickaxe in their pack.,Parado: necesita un pico en el morral.,colonos
+SETTLER_NO_CHEST,Idle: there's no chest at the base for their job (%s).,Parado: no hay cofre en la base para su oficio (%s).,colonos
+SETTLER_CHEST_FULL,Idle: the base chests are full.,Parado: los cofres de la base están llenos.,colonos
+SETTLER_NOTHING_LEFT,%s · nothing left to do nearby.,%s · no queda nada que hacer cerca.,colonos
+SETTLER_CLEAR_DONE,%s has finished clearing the area.,%s ha terminado de limpiar la zona.,colonos
+SETTLER_CRUSHED,%s was crushed by a falling tree.,A %s le ha aplastado un árbol.,colonos
+INV_STORAGE_JOBS,For settlers:,Para colonos:,colonos
+INV_STORAGE_JOBS_TIP,Settlers with these jobs leave what they gather here. With none marked: all of them.,Los colonos con estos oficios dejan aquí lo que sacan. Sin ninguno marcado: todos.,colonos
+VTALK_WORK_OK_1,"Right, I'm on it.","Hecho, me pongo.",colonos
+VTALK_WORK_OK_2,I'll get to it.,Voy para allá.,colonos
+VTALK_WORK_OK_3,Leave it to me.,Déjamelo a mí.,colonos
+VTALK_WORK_STOP_1,"As you wish, I'll stop.","Como quieras, lo dejo.",colonos
+VTALK_WORK_STOP_2,I'll rest my arms then.,Pues descanso los brazos.,colonos
+ITEM_THRONE,Log throne,Trono de troncos,colonos
+ITEM_THRONE_DESC,"A high-backed seat of logs, hides and antlers. Sit on it to look over your base and give orders to the settlers who live there.","Un asiento de troncos de respaldo alto, con pieles y astas. Siéntate en él para ver tu base y dar órdenes a los colonos que viven en ella.",colonos
+THRONE_TITLE,Base settlers,Colonos de la base,colonos
+THRONE_ALL,All,Todos,colonos
+THRONE_NONE,None,Ninguno,colonos
+THRONE_EMPTY,No settlers live near this throne. Ask a companion to stay and live here.,No vive ningún colono cerca de este trono. Pide a un compañero que se quede a vivir aquí.,colonos
+THRONE_ORDERS,Orders,Órdenes,colonos
+THRONE_ORDER_CLEAR,Clear an area,Limpia una zona,colonos
+THRONE_IDLE,No work: lives at the base.,Sin trabajo: hace su vida en la base.,colonos
+THRONE_HINT_SELECT,Pick settlers in the list or click their names on the map.,Elige colonos en la lista o pincha sus nombres en el mapa.,colonos
+THRONE_HINT_ORDER,%d chosen. Give them an order.,%d elegidos. Dales una orden.,colonos
+THRONE_HINT_ZONE,"Click: mark the area · Wheel: radius (%d m) · Right click: around their base · Esc: cancel","Clic: marca la zona · Rueda: radio (%d m) · Clic derecho: alrededor de su base · Esc: cancelar",colonos
+THRONE_HINT_CLEAR,"Click: mark the area to clear · Wheel: radius (%d m) · Right click or Esc: cancel","Clic: marca la zona a limpiar · Rueda: radio (%d m) · Clic derecho o Esc: cancelar",colonos
+THRONE_KEYS,"WASD: move the view · R/F or middle drag: tilt (and turn) · Wheel: zoom · E or Esc: stand up","WASD: mover la vista · R/F o arrastrar con el botón central: inclinar (y girar) · Rueda: acercar o alejar · E o Esc: levantarse",colonos

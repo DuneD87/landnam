@@ -3,12 +3,15 @@ extends Node3D
 
 ## Contenedor del mundo. Su ItemData aporta StorageTrait y GroundPlaceableTrait; cada instancia
 ## tiene contenido propio. Las escenas solo eligen el objeto, el aspecto y la colisión.
+## Los colonos dejan en él lo que sacan si acepta su oficio (jobs; vacío, todos: SettlerWork).
 const GROUP := &"storage"
 const REACH := 2.6
 
 @export var item_id: StringName
 
 var inventory := Inventory.new()
+## Los oficios de los colonos que dejan aquí lo que sacan (SettlerWork.JOB_IDS); vacío, todos.
+var jobs: Array[StringName] = []
 var entity_id := ""
 var save_category := "planet"
 var discard_on_load := true
@@ -32,6 +35,18 @@ func _ready() -> void:
 		entity_id = "%s_%d_%d" % [item_id, Time.get_unix_time_from_system(), randi()]
 
 
+func accepts_job(id: StringName) -> bool:
+	return jobs.is_empty() or jobs.has(id)
+
+
+## Marca o desmarca el oficio [id].
+func set_job(id: StringName, on: bool) -> void:
+	if on and not jobs.has(id):
+		jobs.append(id)
+	elif not on:
+		jobs.erase(id)
+
+
 static func nearest(tree: SceneTree, position: Vector3) -> Storage:
 	var best: Storage
 	var distance := REACH
@@ -50,11 +65,14 @@ func get_save_data() -> Dictionary:
 	return {"basis": [t.basis.x.x, t.basis.x.y, t.basis.x.z, t.basis.y.x, t.basis.y.y,
 		t.basis.y.z, t.basis.z.x, t.basis.z.y, t.basis.z.z],
 		"origin": [t.origin.x, t.origin.y, t.origin.z], "inventory": inventory.get_save_data(),
-		"ship": GroundPlaceableTrait.ship_id(self)}
+		"ship": GroundPlaceableTrait.ship_id(self), "jobs": jobs.map(func(id: StringName) -> String: return String(id))}
 
 
 func restore_save_data(data: Dictionary) -> void:
 	_ship_id = String(data.get("ship", ""))
+	jobs.clear()
+	for id in data.get("jobs", []):
+		jobs.append(StringName(id))
 	var b: Array = data.get("basis", [])
 	var p: Array = data.get("origin", [])
 	if b.size() == 9 and p.size() == 3:

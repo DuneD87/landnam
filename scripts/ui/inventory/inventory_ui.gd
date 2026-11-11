@@ -130,6 +130,9 @@ var _loot_title: Label
 var _loot_hint: Label
 var _storage: Storage
 var _dismantle_storage_button: Button
+## Los oficios de los colonos que dejan sus cosas en el cofre abierto (Storage.jobs): id -> botón.
+var _storage_jobs: HFlowContainer
+var _storage_job_buttons := {}
 var _closing_container := false
 var _loot_label: Label
 
@@ -762,6 +765,23 @@ func _build_loot() -> VBoxContainer:
 	_dismantle_storage_button.visible = false
 	_dismantle_storage_button.pressed.connect(_dismantle_storage)
 	box.add_child(_dismantle_storage_button)
+	_storage_jobs = HFlowContainer.new()
+	_storage_jobs.alignment = FlowContainer.ALIGNMENT_CENTER
+	_storage_jobs.visible = false
+	_storage_jobs.tooltip_text = "INV_STORAGE_JOBS_TIP"
+	_storage_jobs.add_child(_label("INV_STORAGE_JOBS", &"HintLabel"))
+	for job in SettlerWork.JOB_IDS:
+		var id: StringName = SettlerWork.JOB_IDS[job]
+		var toggle := Button.new()
+		toggle.text = SettlerWork.JOB_NAMES[job]
+		toggle.toggle_mode = true
+		toggle.focus_mode = Control.FOCUS_NONE
+		toggle.toggled.connect(func(on: bool) -> void:
+			if is_instance_valid(_storage):
+				_storage.set_job(id, on))
+		_storage_jobs.add_child(toggle)
+		_storage_job_buttons[id] = toggle
+	box.add_child(_storage_jobs)
 	_loot_hint = _label("INV_HINT_TO_INVENTORY", &"HintLabel")
 	_loot_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_loot_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1131,6 +1151,10 @@ func _open_container(content: Inventory) -> void:
 	content.tree_exiting.connect(_on_container_exiting)
 	_create_loot_slots()
 	_dismantle_storage_button.visible = _storage != null
+	_storage_jobs.visible = _storage != null
+	if _storage != null:
+		for id in _storage_job_buttons:
+			(_storage_job_buttons[id] as Button).set_pressed_no_signal(_storage.jobs.has(id))
 	_update_side()
 	_refresh_loot()
 	open(view if visible and view != View.CRAFTING else View.INVENTORY)
@@ -1153,6 +1177,7 @@ func close_loot() -> void:
 		_hide_card()
 	_loot_panel.bind_inventory(null)
 	_dismantle_storage_button.visible = false
+	_storage_jobs.visible = false
 	_closing_container = false
 	_update_side()
 

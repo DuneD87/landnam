@@ -79,6 +79,9 @@ static func give(receiver: Node, data: ItemData, amount: int, at: Vector3, up: V
 	if inventory == null:
 		return amount
 	var left := inventory.add_item(data, amount)
+	# Lo que saca un colono (Companion) entra en su morral sin sonido ni aviso.
+	if receiver is Companion:
+		return left
 	if left < amount:
 		AudioManager.play_ui(&"item_pickup")
 		PickupPopup.spawn(receiver, at, up, "+%d %s" % [amount - left, data.get_display_name()])

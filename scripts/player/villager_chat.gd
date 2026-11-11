@@ -7,7 +7,8 @@ extends CanvasLayer
 ## (SettlementTrade: lo suyo a un lado, lo del jugador al otro y la cuenta) o despedirse; si tiene algo
 ## que pedir, su encargo (SettlementQuests: aceptarlo, entregarlo o dejarlo); a un aldeano de un poblado
 ## que se fía bastante, pedirle que venga (SettlementCompanions); a un compañero, darle cosas para que
-## las lleve o quitárselas, que siga o espere, o que vuelva a casa (devuelve lo que lleva). Mientras, él
+## las lleve o quitárselas, que siga o espere, o que vuelva a casa (devuelve lo que lleva); a un colono,
+## qué trabajo hacer (SettlerWork: talar, picar, limpiar alrededor del jugador o dejarlo), con cómo va. Mientras, él
 ## se para y mira al jugador, y el jugador no se mueve (el ratón va suelto). Se cierra con E, Escape,
 ## alejándose o si él se va (una fiera). Ver docs/villagers.md.
 
@@ -63,6 +64,11 @@ var _recruit_button: Button
 var _follow_button: Button
 var _home_button: Button
 var _settle_button: Button
+var _fell_button: Button
+var _mine_button: Button
+var _clear_button: Button
+var _stop_button: Button
+var _work_label: Label
 var _pack_button: Button
 var _quest_button: Button
 var _accept_button: Button
@@ -305,6 +311,14 @@ func _refresh() -> void:
 	_follow_button.visible = talk and _companion != null
 	_home_button.visible = talk and _companion != null
 	_settle_button.visible = talk and _companion != null and not _settled()
+	var working := _settled() and _companion.work.active()
+	var job := _companion.work.job if working else SettlerWork.Job.NONE
+	_fell_button.visible = talk and _settled() and job != SettlerWork.Job.FELL
+	_mine_button.visible = talk and _settled() and job != SettlerWork.Job.MINE
+	_clear_button.visible = talk and _settled()
+	_stop_button.visible = talk and working
+	_work_label.text = _companion.work.describe() if _settled() else ""
+	_work_label.visible = talk and _work_label.text != ""
 	var open := _quest_open()
 	_quest_button.visible = talk and not _quest_of().is_empty()
 	_quest_button.text = "VILLAGER_QUEST_OPEN" if open else "VILLAGER_QUEST"
@@ -406,6 +420,24 @@ func _on_settle() -> void:
 		return
 	_companion.settle_here()
 	_say(VillagerTalk.pick(&"SETTLE_OK", _rng, _last_line))
+	_refresh()
+
+
+## Al colono: que tale o pique alrededor de la base, que limpie alrededor del jugador o que lo deje.
+func _on_work(job: SettlerWork.Job) -> void:
+	if not _settled():
+		return
+	var work := _companion.work
+	if job == SettlerWork.Job.NONE:
+		work.stop()
+		_say(VillagerTalk.pick(&"WORK_STOP", _rng, _last_line))
+	else:
+		var at := Vector3.INF
+		if job == SettlerWork.Job.CLEAR:
+			var terrain := _companion.get("_terrain") as Node3D
+			at = terrain.global_transform.affine_inverse() * _player.global_position
+		work.assign(job, at)
+		_say(VillagerTalk.pick(&"WORK_OK", _rng, _last_line))
 	_refresh()
 
 
@@ -795,6 +827,10 @@ func _build_ui() -> void:
 	_quests_label.theme_type_variation = &"HintLabel"
 	_quests_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(_quests_label)
+	_work_label = Label.new()
+	_work_label.theme_type_variation = &"HintLabel"
+	_work_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_box.add_child(_work_label)
 
 	# Si no caben en una fila, en dos.
 	_buttons = HFlowContainer.new()
@@ -810,6 +846,10 @@ func _build_ui() -> void:
 	_follow_button = _button(_buttons, "VILLAGER_WAIT", _on_follow)
 	_settle_button = _button(_buttons, "VILLAGER_SETTLE", _on_settle)
 	_home_button = _button(_buttons, "VILLAGER_GO_HOME", _on_home)
+	_fell_button = _button(_buttons, "SETTLER_ORDER_FELL", _on_work.bind(SettlerWork.Job.FELL))
+	_mine_button = _button(_buttons, "SETTLER_ORDER_MINE", _on_work.bind(SettlerWork.Job.MINE))
+	_clear_button = _button(_buttons, "SETTLER_ORDER_CLEAR", _on_work.bind(SettlerWork.Job.CLEAR))
+	_stop_button = _button(_buttons, "SETTLER_ORDER_STOP", _on_work.bind(SettlerWork.Job.NONE))
 	_deal_button = _button(_buttons, "VILLAGER_TRADE_DEAL", _on_deal)
 	_deal_button.theme_type_variation = &"AccentButton"
 	_accept_button = _button(_buttons, "VILLAGER_QUEST_ACCEPT", _on_accept)
@@ -870,6 +910,7 @@ func _layout() -> void:
 	for side in ["left", "top", "right", "bottom"]:
 		_margin.add_theme_constant_override("margin_" + side, roundi(24.0 * ui_scale))
 	for button: Button in [_talk_button, _gift_button, _trade_button, _pack_button, _quest_button,
-			_recruit_button, _follow_button, _settle_button, _home_button, _deal_button, _accept_button, _deliver_button,
+			_recruit_button, _follow_button, _settle_button, _home_button, _fell_button, _mine_button, _clear_button,
+			_stop_button, _deal_button, _accept_button, _deliver_button,
 			_drop_button, _back_button, _bye_button]:
 		button.custom_minimum_size.x = 130.0 * ui_scale

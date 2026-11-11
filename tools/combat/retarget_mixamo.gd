@@ -135,9 +135,16 @@ const SETS := {
 		"lie_back": [LOCO + "Lying Down", 0.0, -1.0, true, false, {"height_from": LOCO + "Talking"}],
 		"wake": [LOCO + "Waking", 0.0, -1.0, true, false, {"height_from": LOCO + "Talking"}],
 		"sit_idle": [LOCO + "Sitting Idle", 0.0, -1.0, true, true, {"height_from": LOCO + "Talking"}],
+		# Sentarse en el trono y estar sentado en él (en silla, la espalda recta); levantarse es sentarse al
+		# revés. Sin desplazamiento de la cadera: el cuerpo se pone sobre el asiento.
+		"throne_sit": [LOCO + "Throne Stand To Sit", 0.0, -1.0, true, false],
+		"throne_idle": [LOCO + "Throne Sitting Idle", 0.0, -1.0, true, true, {"height_from": LOCO + "Throne Stand To Sit"}],
 		"talk": [LOCO + "Talking", 0.0, -1.0, true, true, {"offset": Vector3(0.0, 0.06, 0.0)}],
 		# El paseo de "combat", para que la librería baste sola.
 		"walk": ["res://models/player/actorcore/walk_relaxed/walk_relaxed_loop", 0.0, -1.0, true, true],
+		# Andar a paso normal y trotar (Mixamo): ir a algún sitio y seguir al jugador.
+		"walk_normal": [LOCO + "Walking", 0.0, -1.0, true, true],
+		"jog": [LOCO + "Jogging", 0.0, -1.0, true, true],
 		# Trabajar el huerto (con la azada en la mano) y saludar (un vaivén de la mano: se repite).
 		# También hundían los pies, 6 y 8 cm.
 		"dig": [LOCO + "Digging", 0.0, -1.0, true, true, {"offset": Vector3(0.0, 0.06, 0.0)}],

@@ -268,6 +268,11 @@ func _hurt(base: Vector3, tip: Vector3, up: Vector3) -> void:
 			if hit_owners.has(key):
 				continue
 			hit_owners[key] = true
+			# A un colono lo mata (el que lo tala ya se ha apartado: a él no).
+			if box.owner_body is Companion:
+				if box.owner_body != _chopper:
+					(box.owner_body as Companion).crush()
+				continue
 			var point := Geometry3D.get_closest_point_to_segment(box.global_position, a, b)
 			var info := DamageInfo.create(amount, _chopper if is_instance_valid(_chopper) else null, point, -up,
 				amount * 0.5)
