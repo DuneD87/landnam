@@ -56,7 +56,12 @@ static func try_pickup(picker: Node3D, inventory: Inventory, view_from: Vector3 
 		if d < best_d:
 			best = body
 			best_d = d
-	if best == null:
+	return pick_body(picker, inventory, best)
+
+
+## Recoge [best] y lo mete en [inventory]; lo que no cabe se queda en el suelo. Falso si no cabe nada.
+static func pick_body(picker: Node3D, inventory: Inventory, best: VoxelInstancerRigidBody) -> bool:
+	if best == null or not is_instance_valid(best) or best.is_queued_for_deletion() or best.has_meta(PICKING):
 		return false
 	var item_id := _item_of(best)
 	var data := ItemCatalog.get_item(item_id)
@@ -79,6 +84,11 @@ static func try_pickup(picker: Node3D, inventory: Inventory, view_from: Vector3 
 	AudioManager.play_ui(&"item_pickup")
 	best.queue_free_and_notify_instancer()
 	return true
+
+
+## Lo que se puede recoger a menos de [reach] m de [around] (para UseTarget).
+static func nearby(around: Node3D, reach: float) -> Array[VoxelInstancerRigidBody]:
+	return _nearby(around, reach)
 
 
 ## Lo que se puede recoger a menos de [reach] m de [around].

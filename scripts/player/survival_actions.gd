@@ -222,15 +222,20 @@ func open_nearby_death_loot() -> bool:
 	var loot := DeathLoot.nearest(get_tree(), _player.global_position)
 	if loot == null:
 		return false
+	open_death_loot(loot)
+	return true
+
+
+## Recupera la XP de [loot] y abre lo que guarda.
+func open_death_loot(loot: DeathLoot) -> void:
 	if loot.xp > 0.0 and _player.progression != null:
 		var xp := loot.take_xp()
 		_player.progression.recover(xp)
 		notify(tr("XP_RECOVERED") % roundi(xp))
 	if loot.inventory.get_free_slots() == loot.inventory.max_slots:
-		return true
+		return
 	_player.inventory_ui.open_loot(loot.inventory, "DEATH_LOOT_TITLE")
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	return true
 
 
 ## Abre el descanso en el lecho de al lado, si lo hay.
@@ -246,9 +251,13 @@ func open_nearby_bedroll() -> bool:
 			Storage.nearest(get_tree(), _player.global_position)]:
 		if other != null and other.global_position.distance_to(_player.global_position) < distance:
 			return false
+	open_bedroll(bed)
+	return true
+
+
+func open_bedroll(bed: Bedroll) -> void:
 	_player.inventory_ui.close()
 	_player.resting.open(bed)
-	return true
 
 
 ## Resuelve los colocados por cercanía, para poder usar un cofre junto a una hoguera, un horno o un
@@ -263,9 +272,13 @@ func open_nearby_storage() -> bool:
 			Workstation.nearest(get_tree(), _player.global_position)]:
 		if other != null and other.global_position.distance_to(_player.global_position) < distance:
 			return false
+	open_storage(storage)
+	return true
+
+
+func open_storage(storage: Storage) -> void:
 	_player.inventory_ui.open_storage(storage)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	return true
 
 
 ## Abre la hoguera, el horno o la estación de trabajo de al lado; si hay varias, la más cercana.
@@ -278,12 +291,17 @@ func open_nearby_workplace() -> bool:
 			Workstation.nearest(get_tree(), feet)]:
 		if node != null and (best == null or node.global_position.distance_to(feet) < best.global_position.distance_to(feet)):
 			best = node
-	if best is Campfire:
-		_player.inventory_ui.open_campfire(best)
-	elif best is Furnace:
-		_player.inventory_ui.open_furnace(best)
-	elif best is Workstation:
-		_player.inventory_ui.open_station(best)
+	return open_workplace(best)
+
+
+## Abre [place] (hoguera, horno o estación). false si no es ninguna de ellas.
+func open_workplace(place: Node3D) -> bool:
+	if place is Campfire:
+		_player.inventory_ui.open_campfire(place)
+	elif place is Furnace:
+		_player.inventory_ui.open_furnace(place)
+	elif place is Workstation:
+		_player.inventory_ui.open_station(place)
 	else:
 		return false
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)

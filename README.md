@@ -49,6 +49,7 @@ godot --headless --path . res://tests/player/test_item_save_load.tscn
 godot --headless --path . res://tests/player/test_respawn.tscn
 godot --headless --path . res://tests/player/test_fishing.tscn
 godot --headless --path . res://tests/player/test_gamepad.tscn
+godot --headless --path . res://tests/player/test_use_target.tscn
 godot --headless --path . res://tests/fauna/test_shore_fish.tscn
 godot --headless --path . res://tests/ui/test_map_markers.tscn
 godot --headless --path . res://tests/planet/test_planet_definition.tscn

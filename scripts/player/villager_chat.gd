@@ -124,10 +124,21 @@ func try_open() -> bool:
 	var look := -_player.camera.global_basis.z
 	var companion := Companion.find(get_tree(), _player.global_position, look)
 	if companion != null:
+		return try_talk(companion)
+	var villager := Villager.find(get_tree(), _player.global_position, look)
+	if villager == null:
+		return false
+	return try_talk(villager)
+
+
+## Habla con [who] (un Companion o un Villager). Falso si no es ninguno de los dos.
+func try_talk(who: Node3D) -> bool:
+	var companion := who as Companion
+	if companion != null:
 		if companion.can_chat():
 			_open(null, companion)
 		return true
-	var villager := Villager.find(get_tree(), _player.global_position, look)
+	var villager := who as Villager
 	if villager == null:
 		return false
 	if not villager.can_chat():

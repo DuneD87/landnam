@@ -2028,11 +2028,11 @@ func _consume_thrown_weapon(data: ItemData) -> void:
 		_end_aim()
 
 
-## Recoge la lanza clavada más cercana. Devuelve true si ha recogido algo.
-func try_pickup() -> bool:
-	var best: CombatProjectile = null
+## Recoge [target] o, sin él, la lanza clavada más cercana. Devuelve true si ha recogido algo.
+func try_pickup(target: CombatProjectile = null) -> bool:
+	var best: CombatProjectile = target
 	var best_d := 2.6
-	for node in get_tree().get_nodes_in_group(CombatProjectile.PICKUP_GROUP):
+	for node in get_tree().get_nodes_in_group(CombatProjectile.PICKUP_GROUP) if target == null else []:
 		var p := node as CombatProjectile
 		if p == null or not p.is_pickable():
 			continue

@@ -238,19 +238,6 @@ func _perform_raycast() -> void:
 		building_system.process_raycast(hit_collider, hit_normal, hit_pos, _ray_hit)
 
 
-## Abre o cierra la puerta o la trampilla que se apunta, si está al alcance del pecho. false si no
-## se apunta ninguna.
-func _toggle_aimed_door() -> bool:
-	var door := WoodenDoor.aimed(_ray_hit)
-	if door == null:
-		return false
-	var chest := global_position - gravity_direction * 1.0
-	if chest.distance_to(_ray_hit["position"]) > WoodenDoor.REACH:
-		return false
-	door.toggle(chest)
-	return true
-
-
 ## Lo excavado entra solo en el inventario; lo que no cabe cae donde se ha picado.
 func _on_voxel_mined(item_id: StringName, amount: int, point: Vector3) -> void:
 	Progression.reward(self, &"dig")
@@ -1476,52 +1463,28 @@ func _input(event):
  
 	var pressed: bool = event.is_action_pressed("action") && !free_flight_enabled and not _is_text_field_focused()
 	var use := pressed and not climb.is_active()
-	# Mirando una puerta de cerca, USAR la abre o la cierra, también trepando (una trampilla desde la
-	# escala): antes que agarrarse a ella como a una pared.
-	if pressed and _toggle_aimed_door():
-		pass
-	# Con un aldeano delante, USAR es hablarle.
-	elif use and villager_chat.try_open():
-		pass
-	# Empujando contra una pared, USAR es agarrarse a ella: antes que lo que haya por el suelo.
-	elif use and climb.request_grab():
-		pass
-	elif use:
-		var corpse := _find_nearby_corpse()
-		# Lo soltado que se está mirando va antes que el cadáver de al lado (tirar lo que sobra
-		# mientras se saquea y volver a cogerlo); sin mirarlo, después de todo lo demás.
-		var looked := DroppedItem.find(self, camera.global_position, -camera.global_basis.z)
-		var nearest := DroppedItem.find(self)
-		if looked and looked.pick_into(inventory):
-			pass
-		elif site_builder.deposit():
-			pass
-		elif survival.open_nearby_death_loot():
-			pass
-		elif corpse:
-			survival.open_corpse(corpse)
-		elif throne_view.try_open():
-			pass
-		elif survival.open_nearby_bedroll():
-			pass
-		elif survival.open_nearby_storage():
-			pass
-		elif survival.open_nearby_workplace():
-			pass
-		elif combat.try_pickup():
-			pass
-		elif GroundPickup.try_pickup(self, inventory, camera.global_position, -camera.global_basis.z):
-			pass
-		elif nearest and nearest.pick_into(inventory):
-			pass
-		elif survival.drink_here():
-			pass
-		else:
-			var ray_origin = $PlayerModel.global_position - gravity_direction * 2.5
-			var item_data = action_controller.handle_pickup(camera, ray_origin)
-			if item_data != null:
-				inventory.add_item(item_data, 1)
-				AudioManager.play_ui(&"item_pickup")
+	if pressed and not inventory_ui.visible and mouse_captured:
+		# El input puede llegar antes del siguiente _process, tras girar la cámara: tanto el
+		# obstáculo como el objetivo deben corresponder a la mirada de este instante.
+		_perform_raycast()
+		var center := get_viewport().get_visible_rect().size * 0.5
+		var target := UseTarget.aimed(self, camera.project_ray_origin(center),
+			camera.project_ray_normal(center), _ray_hit)
+		# Trepando también se puede abrir una trampilla desde la escala.
+		if target is WoodenDoor:
+			UseTarget.use(self, target)
+		elif use:
+			if target != null:
+				# Si no se puede usar (por ejemplo, inventario lleno), no se usa otra cosa.
+				UseTarget.use(self, target)
+			elif site_builder.deposit():
+				pass
+			elif climb.request_grab():
+				pass
+			else:
+				survival.drink_here()
+		get_viewport().set_input_as_handled()
+		return
 	elif event.is_action_pressed("ui_cancel") and visible:
 		inventory_ui.close()
  

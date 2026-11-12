@@ -413,9 +413,12 @@ func _check_use_while_climbing(door: WoodenDoor) -> void:
 	player.input_enabled = true
 	player.free_flight_enabled = false
 	player.global_position = ORIGIN + Vector3(0.5, 0.0, 2.0)
+	player.capture_mouse(true)
+	player.camera.current = true
+	player.camera.global_position = ORIGIN + Vector3(0.5, 1.5, 2.5)
+	player.camera.look_at(ORIGIN + Vector3(0.5, 1.5, -1.0))
 	player.climb.mode = ClimbController.Mode.LADDER
 	await get_tree().physics_frame
-	player._ray_hit = _ray(ORIGIN + Vector3(0.5, 1.5, 2.5), ORIGIN + Vector3(0.5, 1.5, -1.0))
 	var use := InputEventAction.new()
 	use.action = &"action"
 	use.pressed = true

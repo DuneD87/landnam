@@ -131,7 +131,11 @@ func is_open() -> bool:
 
 ## E junto a un trono: se sienta. Falso si no hay ninguno al alcance.
 func try_open() -> bool:
-	var throne := Throne.nearest(get_tree(), _player.global_position)
+	return try_sit(Throne.nearest(get_tree(), _player.global_position))
+
+
+## E apuntando a [throne]: se sienta en él. Falso si ahora no puede.
+func try_sit(throne: Throne) -> bool:
 	if throne == null or is_busy() or not _player.is_on_floor() or _player.health_component.is_dead:
 		return false
 	_sit(throne)
