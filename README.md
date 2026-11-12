@@ -67,6 +67,7 @@ godot --headless --path . res://tests/survival/test_waterskins.tscn
 godot --headless --path . res://tests/console/test_toon_command.tscn
 godot --headless --path . res://tests/world/test_trails.tscn
 godot --headless --path . res://tests/world/test_settlements.tscn
+godot --headless --path . res://tests/world/test_settlers.tscn
 ```
 
 El horneado necesita render real; la ventana puede abrirse fuera de pantalla:

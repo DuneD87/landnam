@@ -228,6 +228,8 @@ func _update_gamepad_look(delta: float) -> void:
 	var player = get_parent()
 	if player.build_radial != null and player.build_radial.is_open():
 		return
+	if player.group_command != null and player.group_command.is_open():
+		return
 	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
 	var speed := 2.5 * clampf(float(SettingsManager.value("controls/gamepad_sensitivity")), 0.2, 3.0)
 	if lock_point != null:

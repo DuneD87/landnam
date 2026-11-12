@@ -49,7 +49,11 @@ const ZONE_STEP := 2.0
 const RING_SEGMENTS := 72
 const RING_WIDTH := 0.006
 const JOB_COLORS := {SettlerWork.Job.FELL: Color(0.55, 0.9, 0.35, 0.85),
-	SettlerWork.Job.MINE: Color(0.72, 0.8, 0.95, 0.85), SettlerWork.Job.CLEAR: Color(1.0, 0.72, 0.25, 0.9)}
+	SettlerWork.Job.MINE: Color(0.72, 0.8, 0.95, 0.85), SettlerWork.Job.CLEAR: Color(1.0, 0.72, 0.25, 0.9),
+	SettlerWork.Job.BUILD: Color(0.95, 0.85, 0.45, 0.85), SettlerWork.Job.GUARD: Color(0.95, 0.3, 0.3, 0.85),
+	SettlerWork.Job.HUNT: Color(0.75, 0.5, 0.3, 0.85), SettlerWork.Job.FISH: Color(0.35, 0.9, 0.9, 0.85)}
+## Los trabajos que piden marcar una zona sí o sí (los demás valen alrededor de la base, con clic derecho).
+const NEEDS_ZONE: Array[SettlerWork.Job] = [SettlerWork.Job.CLEAR, SettlerWork.Job.GUARD]
 const SELECTED_COLOR := Color(1.0, 0.88, 0.35)
 const LABEL_COLOR := Color(0.95, 0.93, 0.88)
 ## Se elige un colono pinchando a menos de esto (px) de su nombre.
@@ -76,6 +80,8 @@ var _dragging := false
 var _markers: MeshInstance3D
 ## Marcando una zona para [_placing] (Job.NONE: no), con su radio y dónde está el ratón (mundo).
 var _placing := SettlerWork.Job.NONE
+## El turno del guardia que se está marcando (0 de día, 1 de noche).
+var _placing_shift := 0
 var _zone_radius := 12.0
 var _cursor := Vector3.INF
 var _cursor_ring: MeshInstance3D
@@ -98,6 +104,7 @@ var _empty: Label
 var _hint: Label
 var _orders: Array[Button] = []
 var _stop_button: Button
+var _follow_button: Button
 
 
 func _ready() -> void:
@@ -428,7 +435,8 @@ func _draw_zones() -> void:
 	var started := false
 	for c in _settlers:
 		var work := c.work
-		if not work.active():
+		# El cocinero no tiene zona.
+		if not work.active() or work.job == SettlerWork.Job.COOK:
 			continue
 		var center: Vector3 = c._terrain.global_transform * (work.zone if work.zone.is_finite() else c.base)
 		var key := "%d:%.0f:%.0f:%.0f" % [work.job, center.x, center.y, center.z]
@@ -495,6 +503,8 @@ func _update_labels() -> void:
 			_labels[c] = label
 		label.global_position = c.global_position + c.up_direction * 1.9
 		var job: String = tr(SettlerWork.JOB_NAMES.get(c.work.job, "SETTLER_JOB_NONE"))
+		if c.work.job == SettlerWork.Job.GUARD:
+			job = tr("SETTLER_JOB_GUARD_NIGHT" if c.work.shift == 1 else "SETTLER_JOB_GUARD_DAY")
 		var name := String(c.resident.get("name", ""))
 		label.text = name if _size > NAME_ONLY else "%s\n%s" % [name, job]
 		label.modulate = SELECTED_COLOR if _selected.has(c) else LABEL_COLOR
@@ -551,8 +561,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			else:
 				_pick(click.position)
 		MOUSE_BUTTON_RIGHT:
-			# Talar o picar alrededor de su base; limpiar pide zona: se cancela.
-			if _placing == SettlerWork.Job.FELL or _placing == SettlerWork.Job.MINE:
+			# Alrededor de su base; limpiar y la guardia piden zona: se cancela.
+			if _placing != SettlerWork.Job.NONE and not NEEDS_ZONE.has(_placing):
 				_assign(_placing, Vector3.INF, -1.0)
 			_placing = SettlerWork.Job.NONE
 			_refresh()
@@ -589,12 +599,12 @@ func _assign(job: SettlerWork.Job, at: Vector3, radius: float) -> void:
 			continue
 		var companion := c as Companion
 		var local := companion._terrain.global_transform.affine_inverse() * at if at.is_finite() else Vector3.INF
-		companion.work.assign(job, local, radius)
+		companion.work.assign(job, local, radius, _placing_shift if job == SettlerWork.Job.GUARD else 0)
 	_placing = SettlerWork.Job.NONE
 	_refresh()
 
 
-func _on_order(job: SettlerWork.Job) -> void:
+func _on_order(job: SettlerWork.Job, shift := 0) -> void:
 	if _selected.is_empty():
 		return
 	if job == SettlerWork.Job.NONE:
@@ -602,8 +612,33 @@ func _on_order(job: SettlerWork.Job) -> void:
 			if is_instance_valid(c):
 				(c as Companion).work.stop()
 		_placing = SettlerWork.Job.NONE
+	elif job == SettlerWork.Job.COOK:
+		# El cocinero no tiene zona: la hoguera de su base.
+		_assign(job, Vector3.INF, -1.0)
 	else:
 		_placing = job
+		_placing_shift = shift
+	_refresh()
+
+
+## Los elegidos se van con el jugador (los que quepan en el grupo): lo siguen en cuanto se levante.
+func _on_follow() -> void:
+	var companions := get_tree().get_first_node_in_group(SettlementCompanions.GROUP) as SettlementCompanions
+	if companions == null or _selected.is_empty():
+		return
+	var went := 0
+	var left := 0
+	for c in _selected.keys():
+		if not is_instance_valid(c) or (c as Companion).dead:
+			continue
+		if companions.is_full():
+			left += 1
+			continue
+		(c as Companion).follow()
+		went += 1
+	_placing = SettlerWork.Job.NONE
+	if went > 0 or left > 0:
+		_player.hotbar.notify(tr("THRONE_FOLLOW_SOME") % [went, left] if left > 0 else tr("THRONE_FOLLOW_DONE") % went)
 	_refresh()
 
 
@@ -653,12 +688,17 @@ func _refresh() -> void:
 		(row.check as CheckBox).set_pressed_no_signal(_selected.has(c))
 		(row.check as CheckBox).text = String(c.resident.get("name", ""))
 		var status := c.work.describe()
-		(row.status as Label).text = status if status != "" else tr("THRONE_IDLE")
+		if status == "":
+			status = tr("THRONE_IDLE") + (tr("SETTLER_HUNGRY") if c.meals.hungry() else "")
+		(row.status as Label).text = status
 	_empty.visible = _settlers.is_empty()
 	for button in _orders:
 		button.disabled = _selected.is_empty()
 	_stop_button.disabled = _selected.is_empty()
-	if _placing != SettlerWork.Job.NONE:
+	_follow_button.disabled = _selected.is_empty()
+	if _placing == SettlerWork.Job.GUARD:
+		_hint.text = tr("THRONE_HINT_GUARD") % [roundi(_zone_radius), roundi(SettlerGuard.POST_RADIUS)]
+	elif _placing != SettlerWork.Job.NONE:
 		_hint.text = tr("THRONE_HINT_CLEAR" if _placing == SettlerWork.Job.CLEAR else "THRONE_HINT_ZONE") % roundi(_zone_radius)
 	elif _selected.is_empty():
 		_hint.text = tr("THRONE_HINT_SELECT")
@@ -732,12 +772,15 @@ func _build_ui() -> void:
 	_box.add_child(orders_title)
 	var orders := HFlowContainer.new()
 	_box.add_child(orders)
-	for pair in [["SETTLER_ORDER_FELL", SettlerWork.Job.FELL], ["SETTLER_ORDER_MINE", SettlerWork.Job.MINE],
-			["THRONE_ORDER_CLEAR", SettlerWork.Job.CLEAR]]:
+	for pair in [["SETTLER_ORDER_FELL", SettlerWork.Job.FELL, 0], ["SETTLER_ORDER_MINE", SettlerWork.Job.MINE, 0],
+			["THRONE_ORDER_CLEAR", SettlerWork.Job.CLEAR, 0], ["SETTLER_ORDER_BUILD", SettlerWork.Job.BUILD, 0],
+			["SETTLER_ORDER_HUNT", SettlerWork.Job.HUNT, 0], ["SETTLER_ORDER_FISH", SettlerWork.Job.FISH, 0],
+			["SETTLER_ORDER_COOK", SettlerWork.Job.COOK, 0], ["THRONE_ORDER_GUARD_DAY", SettlerWork.Job.GUARD, 0],
+			["THRONE_ORDER_GUARD_NIGHT", SettlerWork.Job.GUARD, 1]]:
 		var button := Button.new()
 		button.text = pair[0]
 		button.focus_mode = Control.FOCUS_NONE
-		button.pressed.connect(_on_order.bind(pair[1]))
+		button.pressed.connect(_on_order.bind(pair[1], pair[2]))
 		orders.add_child(button)
 		_orders.append(button)
 	_stop_button = Button.new()
@@ -745,6 +788,12 @@ func _build_ui() -> void:
 	_stop_button.focus_mode = Control.FOCUS_NONE
 	_stop_button.pressed.connect(_on_order.bind(SettlerWork.Job.NONE))
 	orders.add_child(_stop_button)
+	_follow_button = Button.new()
+	_follow_button.text = "THRONE_ORDER_FOLLOW"
+	_follow_button.tooltip_text = "THRONE_ORDER_FOLLOW_TIP"
+	_follow_button.focus_mode = Control.FOCUS_NONE
+	_follow_button.pressed.connect(_on_follow)
+	orders.add_child(_follow_button)
 	_hint = Label.new()
 	_hint.theme_type_variation = &"HintLabel"
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

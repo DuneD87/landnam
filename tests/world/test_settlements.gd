@@ -431,6 +431,9 @@ func _check_villagers() -> void:
 	var manager := SettlementManager.new()
 	manager.entity_id = "test_villagers"
 	add_child(manager)
+	# Los pasos se dan a mano abajo. Mientras se visten los demás, los primeros tampoco
+	# deben avanzar por el reloj real: cambiaba el resultado según lo que tardase la máquina.
+	get_tree().node_added.connect(_freeze_villager)
 	var settings := {"seed": 9, "load_distance": 300.0, "unload_distance": 500.0, "villager_distance": 300.0}
 	manager.setup(planet, terrain, player, field, settings)
 	var center_world: Vector3 = (plan.center as Vector3) * (RADIUS + GROUND)
@@ -451,6 +454,7 @@ func _check_villagers() -> void:
 		await get_tree().process_frame
 		waited += get_process_delta_time()
 	var villagers := people.get_villagers()
+	get_tree().node_added.disconnect(_freeze_villager)
 	check(expected > 0 and villagers.size() == expected,
 		"aparece la gente del poblado (%d de %d, %.0f s vistiéndolos)" % [villagers.size(), expected, waited])
 	check(planet.find_children("SettlementBed*", "", false, false).size() == beds,
@@ -478,7 +482,10 @@ func _check_villagers() -> void:
 	var in_bed := true
 	for v in villagers:
 		var bed := village.bed(v.resident.home, v.resident.bed)
-		in_bed = in_bed and v.act == Villager.Act.SLEEP and v.local_position().distance_to(bed.origin) < 0.2
+		# El apoyo de la pose sube el cuerpo sobre el lecho; la posición en planta identifica
+		# el lecho correcto sin confundir esa altura con que no haya llegado.
+		var offset := Villager._tangent_raw(v.local_position() - bed.origin, bed.origin).length()
+		in_bed = in_bed and v.act == Villager.Act.SLEEP and v._inside == v.resident.home and offset < 0.2
 	check(in_bed and opened and _doors_shut(village),
 		"de noche entran por su puerta, que abren y cierran, y se tumban en su lecho")
 
@@ -600,6 +607,12 @@ func _check_villagers() -> void:
 	manager.queue_free()
 	planet.queue_free()
 	player.queue_free()
+
+
+func _freeze_villager(node: Node) -> void:
+	if node is Villager:
+		# El motor habilita los callbacks del script al preparar el nodo: se apaga tras su ready.
+		node.ready.connect(node.set_physics_process.bind(false), CONNECT_ONE_SHOT)
 
 
 ## [seconds] de vida de [villagers] a pasos de 1/30 s. Si alguna puerta de [village] se ha abierto.

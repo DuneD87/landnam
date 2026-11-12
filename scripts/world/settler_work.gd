@@ -18,18 +18,29 @@ class_name SettlerWork extends RefCounted
 ## se da por hecho (se quita del mundo y lo que daba va al cofre) y desde ahí produce sin moverse, a
 ## su ritmo (rate: precalculado con su herramienta y corregido con lo que ha tardado de verdad), con
 ## su herramienta, en su horario y mientras quepa en el cofre. Limpiar una zona solo avanza cerca.
-## Ver docs/villagers.md.
+##
+## Los demás oficios (construir, hacer guardia, cazar, pescar, cocinar) los lleva cada uno su
+## SettlerTask, que este crea al mandarlo (assign) y al que pasa cada paso; aquí queda lo común: el
+## oficio, la zona, el estado, el guardado y las reservas. Con hambre (SettlerMeals) todos van a la
+## mitad de ritmo (pace). Ver docs/villagers.md.
 
-enum Job {NONE, FELL, MINE, CLEAR}
-## Cómo va, para la charla (y en el futuro, lo que se ve sobre él).
-enum Status {IDLE, WORKING, NO_TOOL, NO_CHEST, CHEST_FULL, DONE, OFF_HOURS, AWAY}
+enum Job {NONE, FELL, MINE, CLEAR, BUILD, GUARD, HUNT, FISH, COOK}
+## Cómo va, para la charla (y en el futuro, lo que se ve sobre él). BLOCKED: parado por lo que dice
+## reason (los oficios de SettlerTask).
+enum Status {IDLE, WORKING, NO_TOOL, NO_CHEST, CHEST_FULL, DONE, OFF_HOURS, AWAY, BLOCKED}
 ## Lo que hace dentro del trabajo: buscar, ir y golpear lo que tiene, apartarse del árbol que cae,
 ## esperar a que caigan los trozos y llevar lo sacado al cofre.
 enum Step {SEEK, STRIKE, CLEAR_OF, SETTLE, DEPOSIT}
 
 ## El oficio de cada trabajo, el que se marca en los cofres (Storage.jobs).
-const JOB_IDS := {Job.FELL: &"fell", Job.MINE: &"mine", Job.CLEAR: &"clear"}
-const JOB_NAMES := {Job.FELL: "SETTLER_JOB_FELL", Job.MINE: "SETTLER_JOB_MINE", Job.CLEAR: "SETTLER_JOB_CLEAR"}
+## El guardia no usa cofres.
+const JOB_IDS := {Job.FELL: &"fell", Job.MINE: &"mine", Job.CLEAR: &"clear", Job.BUILD: &"build",
+	Job.HUNT: &"hunt", Job.FISH: &"fish", Job.COOK: &"cook"}
+const JOB_NAMES := {Job.FELL: "SETTLER_JOB_FELL", Job.MINE: "SETTLER_JOB_MINE", Job.CLEAR: "SETTLER_JOB_CLEAR",
+	Job.BUILD: "SETTLER_JOB_BUILD", Job.GUARD: "SETTLER_JOB_GUARD", Job.HUNT: "SETTLER_JOB_HUNT",
+	Job.FISH: "SETTLER_JOB_FISH", Job.COOK: "SETTLER_JOB_COOK"}
+## Con hambre trabaja a este ritmo.
+const HUNGRY_PACE := 0.5
 ## Dónde busca (m): alrededor de la base, o la zona que se limpia.
 const WORK_RADIUS := 60.0
 const CLEAR_RADIUS := 12.0
@@ -87,6 +98,11 @@ var zone_radius := WORK_RADIUS
 var gathered := 0
 ## Lo que saca por segundo con cada oficio (medido; sin medir, rate lo calcula).
 var rates := {}
+## El turno del guardia (0 de día, 1 de noche) y, parado (Status.BLOCKED), por qué (ya traducido).
+var shift := 0
+var reason := ""
+## Quien lleva el oficio si no es talar, picar ni limpiar; si no, null.
+var task: SettlerTask
 
 var _c: Companion
 var _step := Step.SEEK
@@ -126,7 +142,7 @@ func _init(companion: Companion) -> void:
 ## Lo que saca de verdad (la leña y las piedras entran en su morral al partir y al picar) cuenta en
 ## gathered; lo que le da el jugador en la charla, no (no trabaja mientras charla).
 func _on_pack_added(data: ItemData, quantity: int) -> void:
-	if active() and status == Status.WORKING and not _c.is_chatting() and data.category == ItemData.Category.MATERIAL:
+	if task == null and active() and status == Status.WORKING and not _c.is_chatting() and data.category == ItemData.Category.MATERIAL:
 		gathered += quantity
 
 
@@ -139,21 +155,45 @@ func busy() -> bool:
 	return active() and status == Status.WORKING
 
 
-## Empieza [what] (en [at], marco del terreno, si es limpiar: si no, alrededor de la base).
-func assign(what: Job, at := Vector3.INF, radius := -1.0) -> void:
+## Empieza [what] (en [at], marco del terreno, si es limpiar: si no, alrededor de la base). [turn]: el
+## turno del guardia (0 de día, 1 de noche).
+func assign(what: Job, at := Vector3.INF, radius := -1.0, turn := 0) -> void:
 	stop()
 	job = what
 	zone = at
 	zone_radius = radius if radius > 0.0 else (CLEAR_RADIUS if what == Job.CLEAR else WORK_RADIUS)
+	shift = turn
 	gathered = 0
 	status = Status.WORKING
+	task = _make_task(what)
+	if task != null:
+		task.start()
+
+
+func _make_task(what: Job) -> SettlerTask:
+	match what:
+		Job.BUILD:
+			return SettlerBuild.new(self)
+		Job.GUARD:
+			return SettlerGuard.new(self)
+		Job.HUNT:
+			return SettlerHunt.new(self)
+		Job.FISH:
+			return SettlerFish.new(self)
+		Job.COOK:
+			return SettlerCook.new(self)
+	return null
 
 
 ## Lo deja: suelta lo que tenía.
 func stop() -> void:
+	if task != null:
+		task.stop()
+		task = null
 	_release()
 	job = Job.NONE
 	status = Status.IDLE
+	reason = ""
 	_step = Step.SEEK
 	_swing_left = 0.0
 	_impact_at = -1.0
@@ -163,11 +203,56 @@ func stop() -> void:
 func on_duty(hour: float) -> bool:
 	if not active():
 		return false
-	if not Villager._work_hour(hour):
+	if not (task.on_duty(hour) if task != null else Villager._work_hour(hour)):
 		if status != Status.DONE:
 			status = Status.OFF_HOURS
 		return false
 	return status != Status.DONE or _now() >= _seek_left
+
+
+## Si a la hora [hour] duerme (el guardia de noche, de día).
+func sleeps(hour: float) -> bool:
+	return task.sleeps(hour) if task != null else Villager._is_night(hour)
+
+
+## El ritmo al que trabaja: con hambre, a la mitad.
+func pace() -> float:
+	return HUNGRY_PACE if _c.meals != null and _c.meals.hungry() else 1.0
+
+
+## Parado por [why] (ya traducido).
+func block(why: String) -> void:
+	status = Status.BLOCKED
+	reason = why
+
+
+## Nada que hacer por ahora: vuelve a mirar a los DONE_RECHECK s (mientras, hace su vida).
+func rest_done() -> void:
+	status = Status.DONE
+	_seek_left = _now() + DONE_RECHECK
+
+
+## Lo que guarda peleando (mundo): el guardia y el cazador, su zona; los demás, la base. Y hasta dónde
+## va a por lo que ataca (m).
+func guard_point() -> Vector3:
+	var at := zone if zone.is_finite() and (job == Job.GUARD or job == Job.HUNT) else _c.base
+	return _c._terrain.global_transform * at
+
+
+func defend_radius() -> float:
+	return zone_radius + SettlerGuard.ALERT if job == Job.GUARD else Companion.DEFEND
+
+
+## Si [creature] es cosa suya aunque no ataque a nadie: el guardia de turno, a las fieras que atacan a
+## la vista.
+func is_threat(creature: NPCController) -> bool:
+	return task is SettlerGuard and (task as SettlerGuard).is_threat(creature)
+
+
+## Ha salido a por [creature] (Companion._scan): el guardia da la alarma.
+func on_engage(creature: NPCController) -> void:
+	if task is SettlerGuard:
+		(task as SettlerGuard).alarm(creature)
 
 
 # --- Cerca: de verdad ------------------------------------------------------------------------------
@@ -181,6 +266,8 @@ func step(delta: float) -> Array:
 		_release()
 	if status == Status.OFF_HOURS or status == Status.AWAY:
 		status = Status.WORKING
+	if task != null:
+		return task.step(delta)
 	if _swing_left > 0.0:
 		return _swinging(delta)
 	match _step:
@@ -304,7 +391,7 @@ func _swing() -> void:
 	_impact_at = lerpf(hit.x, hit.y, PlayerCombat.CHOP_IMPACT) / speed
 	_swing_left = float(move.end) / speed
 	_c.set_busy(_swing_left)
-	_pause_left = _c._rng.randf_range(SWING_PAUSE.x, SWING_PAUSE.y)
+	_pause_left = _c._rng.randf_range(SWING_PAUSE.x, SWING_PAUSE.y) / pace()
 
 
 func _swinging(delta: float) -> Array:
@@ -516,6 +603,13 @@ func _still() -> Array:
 
 ## Un paso lejos del jugador, a la hora [hour] de la base.
 func away(delta: float, hour: float) -> void:
+	if task != null:
+		_away = true
+		if task.on_duty(hour):
+			task.away(delta, hour)
+		elif status != Status.DONE:
+			status = Status.OFF_HOURS
+		return
 	if not _away:
 		_away = true
 		_settle_debts()
@@ -534,7 +628,7 @@ func away(delta: float, hour: float) -> void:
 	if chest == null:
 		return
 	status = Status.AWAY
-	_owed += rate(job) * delta
+	_owed += rate(job) * delta * pace()
 	if _owed < 1.0:
 		return
 	var amount := floori(_owed)
@@ -850,7 +944,19 @@ func _release() -> void:
 func describe() -> String:
 	if not active() and status != Status.DONE:
 		return ""
+	var text := _describe()
+	return text + _c.tr("SETTLER_HUNGRY") if text != "" and pace() < 1.0 else text
+
+
+func _describe() -> String:
 	var what := _c.tr(JOB_NAMES.get(job, "SETTLER_JOB_NONE"))
+	if task != null:
+		match status:
+			Status.BLOCKED:
+				return _c.tr("SETTLER_BLOCKED") % reason
+			Status.DONE:
+				return _c.tr("SETTLER_NOTHING_LEFT") % what
+		return task.describe()
 	match status:
 		Status.NO_TOOL:
 			return _c.tr("SETTLER_NO_TOOL_MINE" if job == Job.MINE else "SETTLER_NO_TOOL_FELL")
@@ -873,6 +979,12 @@ func save_data() -> Dictionary:
 	var out := {"job": int(job), "radius": zone_radius, "gathered": gathered, "rates": rates.duplicate()}
 	if zone.is_finite():
 		out.zone = [zone.x, zone.y, zone.z]
+	if shift != 0:
+		out.shift = shift
+	if task != null:
+		var extra := task.save_data()
+		if not extra.is_empty():
+			out.task = extra
 	return out
 
 
@@ -881,7 +993,9 @@ func restore(data: Dictionary) -> void:
 	var what := int(data.get("job", 0)) as Job
 	if what != Job.NONE:
 		assign(what, Vector3(raw[0], raw[1], raw[2]) if raw.size() == 3 else Vector3.INF,
-			float(data.get("radius", -1.0)))
+			float(data.get("radius", -1.0)), int(data.get("shift", 0)))
+		if task != null:
+			task.restore(data.get("task", {}))
 	gathered = int(data.get("gathered", 0))
 	var saved: Dictionary = data.get("rates", {})
 	for key in saved:

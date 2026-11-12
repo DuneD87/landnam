@@ -301,7 +301,7 @@ cumplido (`quests` en su `get_save_data`).
 ## Compañeros
 
 Con la confianza de su poblado en `SettlementRelations.RECRUIT_TRUST` (60, amigos), la charla tiene
-**Ven conmigo**. Por debajo sale desactivado y dice cuánta hace falta. Va uno a la vez (`SettlementCompanions.MAX`). Al aceptar, el aldeano deja su poblado
+**Ven conmigo**. Por debajo sale desactivado y dice cuánta hace falta. Van hasta seis a la vez (`SettlementCompanions.MAX`), en grupo (ver **El grupo**). Al aceptar, el aldeano deja su poblado
 (`Villager.leave_with_player`) y su humano pasa a un `Companion`, sin volver a vestirlo, y la charla
 sigue con él. Su poblado ya no lo saca mientras vaya con el jugador.
 
@@ -322,6 +322,8 @@ flotante lo mueve con ellas.
 - **Espera aquí**: se queda quieto, mirando al jugador si está cerca, y a los 25 s se sienta.
 - **Vuelve a casa**: se despide en el aviso de la barra y echa a andar hacia su poblado. Se va del
   todo a 35 m del jugador o a los 45 s, y su poblado lo vuelve a sacar la próxima vez que se llene.
+- Con más de uno, cada uno va a su **hueco de la formación** (ver **El grupo**); sueltos, cada uno se
+  para 0,6 m más lejos que el anterior y se apartan entre ellos.
 - A más de 120 m del jugador no se mueve ni cae, y sin suelo a menos de 60 m por debajo (la colisión
   del terreno aún no ha llegado) tampoco cae: espera.
 
@@ -359,13 +361,48 @@ su poblado, su vecino (que al cargar se saca otra vez del plano y se viste en el
 espera o vive en la base (y dónde la tiene), dónde está y hacia dónde mira, en el marco del terreno, lo que lleva y su vida (si estaba en
 el suelo, se levanta). El que vuelve a casa no se guarda.
 
+### El grupo
+
+Los que acompañan forman un grupo (`SettlementCompanions.party`): los que siguen y los que esperan.
+`SettlementCompanions` guarda el rastro del jugador (un punto cada 0,5 m, hasta 48; un salto de más de
+20 m lo empieza de cero) y hacia dónde va, y de ahí saca el hueco de cada uno (`slot_of`):
+
+- **Cuña** (la de partida): uno solo va 2,2 m detrás; con más, en filas de dos, cada fila 1,7 m más
+  atrás y 1,3 m más abierta a cada lado.
+- **Fila**: cada uno 1,7 m detrás del anterior, por donde ha pasado el jugador (rodea lo que él rodea).
+- **Sueltos**: como un compañero solo, hacia el jugador.
+
+En formación echa a andar a más de 1,2 m de su hueco y se para a menos de 0,5 con el jugador quieto. Va
+al paso del jugador y, si se queda atrás, trota (a más de 3 m), corre (a más de 6) y va a la carrera (a
+12). Va por `Companion.steer`, así que si la recta no avanza busca camino. Si su hueco cae dentro de una
+pared y en 1,5 s no se acerca, con el jugador quieto y cerca, se queda donde está hasta que el hueco se
+mueva. Al aparecer detrás del jugador cada uno prueba primero un ángulo distinto.
+
+**Las órdenes al grupo** (`GroupCommand`, la rueda `GroupOrderWheel`): la tecla **X** (`group_orders`,
+reasignable en Combate) abre una rueda como la del martillo; se apunta con el ratón y se da al soltar
+(o con clic; un toque la deja abierta; clic derecho, esquivar o Escape la cierran). Sin nadie en el
+grupo solo avisa. Lo hecho sale en el aviso de la barra.
+
+- **Seguidme**: los que esperan echan a andar.
+- **Esperad aquí**: los que siguen se quedan y defienden el sitio.
+- **Atacad**: todos a por la fiera fijada (`lock_on`) o, sin fijar, la criatura viva más centrada en la
+  vista a menos de 60 m (12°). Sin ninguna sale apagada. La persiguen hasta 60 m del jugador.
+- **Retirada**: dejan la pelea y vuelven corriendo con el jugador (los que esperaban también); durante
+  12 s no pelean ni se revuelven.
+- **A la base**: cada colono que dejó su base para irse con el jugador vuelve a ella con el trabajo que
+  tenía (`Companion.return_to_base`; los que no tenían base, no). Va derecho y trotando hasta quedar a
+  12 m; lejos del jugador aparece allí cuando habría llegado andando.
+- **Formación**: pasa a la siguiente (cuña, fila, sueltos). Se guarda con la partida.
+
 ## Colonos
 
 Al compañero se le puede decir **Quédate a vivir aquí**: pasa a `Companion.Mode.SETTLE`, con su base
 donde está (`Companion.base`, en el marco del terreno), y deja libre el sitio de quien acompaña, así
 que se puede reclutar a otro. Caben `SettlementCompanions.MAX_SETTLERS` (20); con la base llena el
 botón sale desactivado. Al colono se le habla igual (frases de la base, `VTALK_BASE`), con su morral;
-**Sígueme** lo vuelve a llevar contigo si no va ya nadie, y **Vuelve a casa** lo devuelve a su poblado.
+**Sígueme** lo vuelve a llevar contigo si cabe en el grupo, y **Vuelve a casa** lo devuelve a su poblado.
+Al irse con el jugador se acuerda de su base y de su trabajo (`Companion.return_base`, `return_work`,
+que se guardan con él) para volver con **A la base**.
 
 **Su día** (`Companion._decide`, a la hora solar de la base, con las horas de los aldeanos):
 
@@ -377,6 +414,13 @@ botón sale desactivado. Al colono se le habla igual (frases de la base, `VTALK_
   duerme en el suelo junto a la hoguera o en la base. Tumbado no choca ni se le puede hablar; al
   amanecer se levanta y aparece de pie a los pies del petate.
 - Si un sitio no se alcanza en 4 s de atasco, hace allí lo que iba a hacer (el petate, encima).
+
+**Come** (`SettlerMeals`): le dura saciado 36 h de juego (la mitad que al jugador) y, por debajo de 6 h,
+come hasta tener 14: primero de su morral y, si no, de cualquier cofre de la base (sin ir hasta él). Lo
+asado antes que lo crudo, y de ello lo que más llena; cada pieza da lo que da al jugador (lo asado,
+~12 h). Sin nada llega a cero y **pasa hambre**: trabaja a la mitad de ritmo, no recupera vida y se
+avisa en la barra (y en su estado sale «· con hambre»). No muere. El reloj es el del mundo
+(`WorldTime`): durmiendo el jugador, también. Lo que se le queda en el morral y la hora se guardan.
 
 **Defiende la base**: pelea como el compañero, con lo que ataca a menos de 25 m de la base a él, a
 otro compañero o al jugador; lo deja a más de 30 m de ella. Si duerme, se despierta. Lo que pasa a
@@ -419,6 +463,48 @@ de noche duerme y, si atacan la base, deja lo que hace y pelea.
   venir) y corregido con lo que tarda de verdad cerca. Limpiar una zona solo avanza cerca.
 - Se guarda con él: el trabajo, la zona, lo que lleva sacado y su ritmo medido.
 
+### Los demás oficios
+
+Cada uno lo lleva su `SettlerTask` (`SettlerWork.task`), que `SettlerWork` crea al mandarlo; aquí va lo
+común (andar a un sitio, los cofres de la base). Parados, dicen por qué (*Parado: necesita un martillo
+en el morral*). Lejos del jugador cada uno sigue a su manera, sin moverse.
+
+- **Constructor** (`SettlerBuild`, **Construye las obras**): levanta las obras (`BlueprintSite`: los
+  blueprints colocados sin pagar, y las reparaciones) de su zona (60 m de la base o la marcada). Necesita
+  un **martillo**. Coge de los cofres que aceptan su oficio (Constructor) lo que le falta a la obra (hasta
+  60 unidades por viaje), lo aporta como el jugador con la E y la martillea desde fuera de su caja con el
+  golpe vertical, que pone lo mismo que un martillazo del jugador. Si en los cofres no hay nada de lo que
+  falta, se queda parado diciendo qué (*faltan 12 de Madera en los cofres*). Varios comparten obra: cada
+  uno descuenta lo que ya traen los demás. Acabada, avisa y lo sobrante vuelve al cofre. Lleva la cuenta
+  de los bloques puestos. Lejos: un viaje cada 30 s y un martillazo cada 2,5 s.
+- **Guardia** (`SettlerGuard`, **Haz guardia aquí** en la charla, **Guardia de día / de noche** en el
+  trono): vigila la zona marcada. Hasta 5 m es un **puesto** (se queda en el centro mirando alrededor);
+  más grande, una **ronda** por 8 puntos de su borde, parándose a mirar hacia fuera. El de día vigila
+  desde que se levanta hasta que se acuesta; el de noche, de 21:30 a 6:30, y duerme de 9 a 17. De turno
+  va a por las fieras que atacan a la vista (lobos, osos, leones...) en cuanto entran en su zona o a
+  menos de 12 m de ella, da la alarma en la barra (como mucho cada 45 s) y los otros guardias a menos de
+  80 m acuden. No usa cofre.
+- **Cazador** (`SettlerHunt`, **Sal a cazar**): caza las presas de su zona (las que huyen al herirlas;
+  a las fieras no va) como en una pelea, persiguiéndolas hasta 25 m fuera de ella; la que se le escapa la
+  deja 2 minutos. Muerta, la despieza (6 s; lo que da es lo del jugador, `HuntingLoot`, con el cuchillo
+  que lleve) y lo lleva al cofre. También despieza lo muerto sin despellejar de su zona. Necesita un arma
+  (o la herramienta de su oficio). Lejos: 4 de carne y 1 de piel cada 8 minutos.
+- **Pescador** (`SettlerFish`, **Ponte a pescar**): necesita una **caña** (sin gastar anzuelos ni cebo).
+  Busca la orilla más cercana de su zona (tantea el agua en anillos cada 3 m y vuelve hacia tierra hasta
+  pisar seco), va y, de cara al agua con la caña en la mano, saca un pescado crudo cada 1-2 minutos; con 5
+  los lleva al cofre. Sin agua en su zona se queda parado. Lejos, si ya había encontrado su orilla
+  (se guarda), uno cada 90 s.
+- **Cocinero** (`SettlerCook`, **Cocina**): asa en la hoguera de la base lo crudo que haya en los cofres
+  y guarda lo asado en el que acepte su oficio. Coge lo crudo que quepa en los huecos libres y, si al
+  fuego le quedan menos de 90 s, 6 de leña (madera antes que otra cosa); recoge lo asado, pone lo crudo,
+  echa la leña y enciende. Trabaja hasta la hora de acostarse: al atardecer mantiene la hoguera encendida
+  para los que se sientan alrededor. Sin hoguera a menos de 40 m de la base, parado. No tiene zona.
+
+Con hambre todos van a la mitad de ritmo.
+
+La carga pendiente del cocinero y del cazador se guarda con su oficio: al cargar la partida o volver
+a la base después de acompañar al jugador, siguen entregando lo que llevaban en el morral.
+
 ### El trono
 
 El **Trono de troncos** (`throne`, se hace en el banco de piedra: 20 de madera, 3 pieles, 2 astas y 2
@@ -431,12 +517,16 @@ se sienta (`ThroneView`: `village/throne_sit` y luego `village/throne_idle`, en 
   con el botón central, que además la gira) y la rueda acerca o aleja; nunca baja de 12 m sobre el
   suelo. Alejada del todo (a más de ~180 m) los árboles pierden su cuerpo y el trabajo espera;
 - el nombre y el oficio de cada colono sobre su cabeza (en amarillo, los elegidos) y sus zonas en el
-  suelo: verde talar, azul picar, naranja limpiar; tenue, la de alrededor de su base;
+  suelo: verde talar, azul picar, naranja limpiar, amarillo construir, rojo la guardia, marrón cazar y
+  turquesa pescar; tenue, la de alrededor de su base;
 - a la derecha, los colonos con su base a menos de 90 m del trono (`Throne.MANAGE_RADIUS`), con cómo va
   cada uno. Se eligen en la lista (o pinchando su nombre en el mapa), uno o varios (**Todos**,
-  **Ninguno**), y se les manda **Tala árboles**, **Pica piedra**, **Limpia una zona** o **Deja eso**.
-  Al mandar talar, picar o limpiar sale un círculo bajo el ratón: clic lo pone (la rueda cambia el
-  radio, de 4 a 60 m); con clic derecho, talar y picar van alrededor de su base y limpiar se cancela.
+  **Ninguno**), y se les manda **Tala árboles**, **Pica piedra**, **Limpia una zona**, **Construye las
+  obras**, **Sal a cazar**, **Ponte a pescar**, **Cocina**, **Guardia de día**, **Guardia de noche** o
+  **Deja eso**. Salvo cocinar, sale un círculo bajo el ratón: clic lo pone (la rueda cambia el radio, de
+  4 a 60 m); con clic derecho van alrededor de su base, y limpiar y la guardia se cancelan.
+  **Seguidme** se lleva a los elegidos que quepan en el grupo: dejan la base (acordándose de ella y de
+  su trabajo) y siguen al jugador en cuanto se levanta.
 
 E o Escape lo levantan (sentarse al revés) y aparece de pie delante del trono; un golpe también.
 
@@ -445,6 +535,16 @@ E o Escape lo levantan (sentarse al revés) y aparece de pie delante del trono; 
 `villager_distance` (200 m) en `settlement_settings`.
 
 ## Comprobaciones
+
+`tests/world/test_settlers.tscn` (sin ventana, acelerada ×8, sobre un suelo llano de física y un jugador
+de pega): la cuña y la fila mientras el jugador anda (detrás, en su hueco, sin pisarse, parados con él
+quieto), el grupo lleno a 6, esperad / seguidme / retirada, que el colono que se va con el jugador se
+acuerda de su base y su trabajo (y se guarda) y vuelve con **A la base** (también lejos), el
+constructor (parado sin martillo o sin material, levanta la obra desde el cofre, lo sobrante al cofre,
+lejos sin moverse), el guardia (ronda por el borde, turnos, puesto de noche), el cocinero (del cofre a
+la hoguera y lo asado al cofre; lejos), las comidas (lo asado antes que lo crudo, medio ritmo con
+hambre), el cazador y el pescador lejos, y el guardado de cada trabajo. El cazador y el pescador de
+cerca necesitan criaturas y agua reales: solo se prueban con ventana.
 
 `tests/world/test_settlements.tscn` (`_check_villagers`). Sobre un poblado de prueba, con los pasos de
 física dados a mano, comprueba que:
@@ -467,7 +567,9 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
 
 ## Limitaciones
 
-- Los colonos aún no comen. El trono aún usa el icono del cofre. Sin ventana no se puede probar el
+- Los colonos no beben ni se intoxican con lo crudo. El pescador no lanza de verdad (saca a su ritmo,
+  haya peces o no) y el cazador despieza con la animación de cavar. El constructor no sube a andamios:
+  una obra alta se martillea desde el suelo. El trono aún usa el icono del cofre. Sin ventana no se puede probar el
   trabajo de cerca: los cuerpos de los árboles no se regeneran alrededor del jugador. Cargar una partida
   con muchos colonos los viste todos en ese momento (~0,1 s cada uno).
 - Esquivar es solo torcer el paso: dos que se encuentran en una puerta o contra una pared se rozan, y
@@ -480,8 +582,8 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
   poblados cercanos. No cambian de ropa con el frío.
 - Lo regalado y lo que se les da en un trato se pierde: aún no va a ninguna parte del poblado ni lo
   revenden.
-- Siguiendo al jugador o peleando, el compañero va en línea recta (los caminos, `Companion.steer`, solo
-  los usa el colono en la base y en su trabajo): no rodea paredes ni busca puertas
+- Suelto o peleando, el compañero va en línea recta (los caminos, `Companion.steer`, los usan el colono
+  en la base y en su trabajo y el grupo en formación): no rodea paredes ni busca puertas
   (salta o, si no sale, aparece detrás del jugador). No nada: en el agua anda por el fondo. Las fieras
   solo van a por él si les pega; las que no, siguen con el jugador.
 - Los encargos no tienen plazo ni salen en ningún diario: solo en la charla y en los avisos de la barra.

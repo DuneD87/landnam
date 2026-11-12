@@ -129,6 +129,31 @@ const DOOR_OPEN := 1.6
 const DOOR_CLOSE := 2.5
 ## Aplastado por un árbol: se queda en el suelo GONE_TIME s y se va.
 const GONE_TIME := 60.0
+## En formación (SettlementCompanions.slot_of): echa a andar a más de SLOT_START m de su hueco y se para a
+## menos de SLOT_STOP con el jugador quieto. Va al paso del jugador y, si se queda atrás, más deprisa
+## (SLOT_GAIN por metro; al menos al trote a más de SLOT_JOG m y corriendo a más de SLOT_RUN, hasta la
+## carrera a SLOT_SPRINT). Si en
+## SLOT_GIVE_UP s no se acerca al hueco (cae dentro de una pared) estando a menos de SLOT_NEAR m del
+## jugador, se queda donde está hasta que el hueco se mueva SLOT_MOVED m. Se aparta de otro del grupo a
+## menos de APART m.
+const SLOT_START := 1.2
+const SLOT_STOP := 0.5
+const SLOT_JOG := 3.0
+const SLOT_RUN := 6.0
+const SLOT_SPRINT := 12.0
+## Fuera de su hueco va al paso del jugador más SLOT_GAIN m/s por cada metro que le falta.
+const SLOT_GAIN := 1.2
+const SLOT_GIVE_UP := 1.5
+const SLOT_NEAR := 7.0
+const SLOT_MOVED := 1.5
+const APART := 0.9
+## A la orden: a por la fiera que se le marca hasta ORDER_LEASH m del jugador; en retirada no pelea
+## RETREAT_TIME s y vuelve corriendo.
+const ORDER_LEASH := 60.0
+const RETREAT_TIME := 12.0
+## Mandado a su base desde lejos (homing): va derecho a ella, trotando, hasta quedar a HOME_NEAR m; fuera
+## de la vista del jugador (FREEZE) llega cuando habría llegado andando.
+const HOME_NEAR := 12.0
 const ANIM_HIT := &"combat/hit_react"
 const ANIM_DOWN := &"combat/death"
 
@@ -148,8 +173,16 @@ var pack: Inventory
 ## El morral, con el nombre con el que la tala y la picada dan lo que sacan (DroppedItem.give).
 var inventory: Inventory
 var health: HealthComponent
-## Lo que hace en su horario de trabajo (viviendo en la base).
+## Lo que hace en su horario de trabajo (viviendo en la base), y su hambre (allí come de los cofres).
 var work: SettlerWork
+var meals: SettlerMeals
+## Hasta dónde va (m, desde lo que guarda) a por la fiera que se le marca: el cazador, hasta más allá
+## de su zona.
+var order_leash := ORDER_LEASH
+## La base y el trabajo (SettlerWork.save_data) que dejó al irse con el jugador: a ellos vuelve
+## (return_to_base). Vector3.INF si no vivía en ninguna.
+var return_base := Vector3.INF
+var return_work := {}
 ## Muerto (aplastado): no se guarda y se va a los GONE_TIME s.
 var dead := false
 var _gone_left := 0.0
@@ -215,6 +248,17 @@ var _steer_best := INF
 var _steer_left := REPATH
 var _path_tries := 0
 var _opened_doors: Array[WoodenDoor] = []
+## A la orden: la fiera se la ha marcado el jugador (order_attack), y lo que le queda de retirada (s).
+var _ordered := false
+var _retreat_left := 0.0
+## En formación: lo más cerca que ha llegado de su hueco, lo que le queda para darlo por imposible y el
+## hueco (marco del terreno) que dejó por imposible.
+var _slot_best := INF
+var _slot_left := SLOT_GIVE_UP
+var _slot_held := Vector3.INF
+## De vuelta a su base (return_to_base) y lo que lleva andado (s) fuera de la vista del jugador.
+var homing := false
+var _travel := 0.0
 
 
 ## [who]: su vecino (SettlementPopulation.residents) del poblado [v] ([v_name]); [model]: su humano
@@ -275,6 +319,7 @@ func setup(who: Dictionary, v: int, v_name: String, trust: SettlementRelations, 
 	add_child(pack)
 	pack.inventory_changed.connect(refresh_weapon)
 	inventory = pack
+	meals = SettlerMeals.new(self)
 	work = SettlerWork.new(self)
 	# La herramienta que ya trae en la mano (build_model) es la de su oficio.
 	_weapon = _job_tool() if _tool != null else null
@@ -288,6 +333,13 @@ func _ready() -> void:
 	_play(Villager.ANIM_IDLE, 0.0)
 
 
+func _exit_tree() -> void:
+	# Libera reservas y rompe el ciclo SettlerWork -> SettlerTask -> SettlerWork, también al
+	# cargar otra partida o retirar el planeta (no solo al morir o cambiar de oficio).
+	if work != null:
+		work.stop()
+
+
 ## Se queda donde está hasta que se le diga que siga.
 func wait_here() -> void:
 	_leave_base()
@@ -299,6 +351,48 @@ func follow() -> void:
 	_leave_base()
 	mode = Mode.FOLLOW
 	_idle = 0.0
+	_slot_held = Vector3.INF
+
+
+## Si tiene una base a la que volver (la que dejó para irse con el jugador).
+func has_return_base() -> bool:
+	return return_base.is_finite()
+
+
+## Vuelve a vivir a la base que dejó, con el trabajo que tenía. Falso si no tenía ninguna.
+func return_to_base() -> bool:
+	if not return_base.is_finite() or dead or mode == Mode.LEAVE:
+		return false
+	var job := return_work
+	settle_here(return_base)
+	work.restore(job)
+	homing = true
+	return true
+
+
+## A la orden del jugador: a por [creature]. Falso si no puede (malherido, se va) o no vale.
+func order_attack(creature: NPCController) -> bool:
+	if dead or _down_left > 0.0 or mode == Mode.LEAVE or not _alive(creature):
+		return false
+	_retreat_left = 0.0
+	_chatting = false
+	_target = creature
+	_ordered = true
+	_show_weapon()
+	_to_arms()
+	return true
+
+
+## A la orden del jugador: deja la pelea y, si lo acompaña, vuelve con él corriendo.
+func order_retreat() -> void:
+	_target = null
+	_ordered = false
+	_retreat_left = RETREAT_TIME
+
+
+## Si pelea ahora.
+func is_fighting() -> bool:
+	return _target != null
 
 
 ## Se queda a vivir donde está (o en [at], marco del terreno: al cargar).
@@ -307,6 +401,10 @@ func settle_here(at := Vector3.INF) -> void:
 	_wake()
 	mode = Mode.SETTLE
 	base = at if at.is_finite() else _terrain.global_transform.affine_inverse() * global_position
+	return_base = Vector3.INF
+	return_work = {}
+	homing = false
+	_travel = 0.0
 	_rest(Chore.STAND, 2.0)
 
 
@@ -419,9 +517,13 @@ func _physics_process(delta: float) -> void:
 	# Siguiendo, primero intenta aparecer junto al jugador (al que, por ejemplo, ha reaparecido lejos).
 	if mode == Mode.FOLLOW and not _chatting and _target == null and distance > TELEPORT and _teleport():
 		return
+	if _retreat_left > 0.0:
+		_retreat_left -= delta
+	if mode == Mode.SETTLE:
+		meals.tick(delta)
 	if distance > FREEZE and mode != Mode.LEAVE:
 		velocity = Vector3.ZERO
-		if mode == Mode.SETTLE:
+		if mode == Mode.SETTLE and not _travel_home(delta):
 			work.away(delta, _hour())
 		return
 	if _target == null:
@@ -451,14 +553,9 @@ func _physics_process(delta: float) -> void:
 	else:
 		match mode:
 			Mode.FOLLOW:
-				if distance > START or (_moving and distance > STOP):
-					heading = _tangent(to_player)
-					if distance < JOG_FROM:
-						speed = WALK_SPEED
-					elif distance < RUN_FROM:
-						speed = JOG_SPEED
-					else:
-						speed = remap(minf(distance, SPRINT_FROM), RUN_FROM, SPRINT_FROM, RUN_SPEED, SPRINT_SPEED)
+				var step := _follow(to_player, distance, up, delta)
+				heading = step[0]
+				speed = step[1]
 			Mode.LEAVE:
 				_leave_time += delta
 				if distance > LEAVE_GONE or _leave_time > LEAVE_TIME:
@@ -492,6 +589,91 @@ func _physics_process(delta: float) -> void:
 			_face(to_player, delta)
 	_pose(up)
 	_animate()
+
+
+## Un paso siguiendo al jugador: [hacia dónde, a qué velocidad]. Con formación (cuña o fila) va a su
+## hueco, al paso del jugador y más deprisa si se queda atrás; suelto (o en retirada), hacia el jugador
+## como siempre. Se aparta de los otros del grupo.
+func _follow(to_player: Vector3, distance: float, up: Vector3, delta: float) -> Array:
+	var party := _party()
+	var slot := party.slot_of(self) if party != null and _retreat_left <= 0.0 else Vector3.INF
+	var heading := Vector3.ZERO
+	var speed := 0.0
+	if not slot.is_finite():
+		var stop := STOP + (party.loose_margin(self) if party != null else 0.0)
+		if distance > stop + (START - STOP) or (_moving and distance > stop):
+			heading = _tangent(to_player)
+			if _retreat_left > 0.0:
+				speed = remap(clampf(distance, stop, SPRINT_FROM), stop, SPRINT_FROM, RUN_SPEED, SPRINT_SPEED)
+			elif distance < JOG_FROM:
+				speed = WALK_SPEED
+			elif distance < RUN_FROM:
+				speed = JOG_SPEED
+			else:
+				speed = remap(minf(distance, SPRINT_FROM), RUN_FROM, SPRINT_FROM, RUN_SPEED, SPRINT_SPEED)
+	else:
+		var to_local := _terrain.global_transform.affine_inverse()
+		var slot_local := to_local * slot
+		# El hueco que dio por imposible sigue ahí: quieto.
+		if _slot_held.is_finite():
+			if _slot_held.distance_to(slot_local) < SLOT_MOVED:
+				return [Vector3.ZERO, 0.0]
+			_slot_held = Vector3.INF
+			_slot_best = INF
+			_slot_left = SLOT_GIVE_UP
+		var d := (slot - global_position).slide(up).length()
+		var body := _player as CharacterBody3D
+		var pace := body.get_real_velocity().slide(up).length() if body != null else 0.0
+		if d > SLOT_START or (_moving and (d > SLOT_STOP or pace > 0.3)):
+			heading = steer(slot, SLOT_STOP * 0.8, delta)
+			var catch_up := WALK_SPEED
+			if d > SLOT_RUN:
+				catch_up = remap(minf(d, SLOT_SPRINT), SLOT_RUN, SLOT_SPRINT, RUN_SPEED, SPRINT_SPEED)
+			elif d > SLOT_JOG:
+				catch_up = JOG_SPEED
+			# Al paso del jugador y, fuera del hueco, más deprisa cuanto más lejos.
+			speed = minf(maxf(catch_up, pace + d * SLOT_GAIN), SPRINT_SPEED) if d > SLOT_STOP \
+				else minf(pace, SPRINT_SPEED)
+			if d < _slot_best - PROGRESS:
+				_slot_best = d
+				_slot_left = SLOT_GIVE_UP
+			else:
+				_slot_left -= delta
+				if _slot_left <= 0.0 and distance < SLOT_NEAR and pace < 0.3:
+					_slot_held = slot_local
+					return [Vector3.ZERO, 0.0]
+		else:
+			_slot_best = INF
+			_slot_left = SLOT_GIVE_UP
+	if speed > 0.0 and party != null:
+		var push := party.apart_from(self, up)
+		if push != Vector3.ZERO:
+			heading = _tangent(heading + push * 0.7)
+	return [heading, speed]
+
+
+func _party() -> SettlementCompanions:
+	return get_tree().get_first_node_in_group(SettlementCompanions.GROUP) as SettlementCompanions
+
+
+## Fuera de la vista del jugador y lejos de su base: «anda» hacia ella y aparece allí cuando habría
+## llegado. Cierto mientras va de camino (aún no trabaja).
+func _travel_home(delta: float) -> bool:
+	if not homing or not base.is_finite():
+		return false
+	var home := _terrain.global_transform * base
+	var far := global_position.distance_to(home)
+	_travel += delta
+	if far > HOME_NEAR and _travel * WALK_SPEED < far:
+		return true
+	homing = false
+	_travel = 0.0
+	if far <= HOME_NEAR:
+		return false
+	global_position = home + (home - _terrain.global_position).normalized() * 0.1
+	velocity = Vector3.ZERO
+	reset_physics_interpolation()
+	return false
 
 
 ## La velocidad de este paso: en el plano, hacia [heading] a [speed]; en vertical, la gravedad (si hay
@@ -558,7 +740,11 @@ func _teleport() -> bool:
 		back = _tangent(global_position - _player.global_position)
 	if back == Vector3.ZERO:
 		back = _tangent(Vector3.FORWARD)
-	for angle in TELEPORT_ANGLES:
+	# Cada uno del grupo prueba primero un ángulo distinto: no aparecen todos en el mismo sitio.
+	var party := _party()
+	var first := maxi(party.follower_index(self), 0) if party != null else 0
+	for i in TELEPORT_ANGLES.size():
+		var angle := TELEPORT_ANGLES[(i + first) % TELEPORT_ANGLES.size()]
 		var spot := chest + back.rotated(up, deg_to_rad(angle)) * BEHIND
 		var clear := PhysicsRayQueryParameters3D.create(chest, spot, PhysicsLayers.WORLD)
 		if not space.intersect_ray(clear).is_empty():
@@ -653,38 +839,48 @@ func _guard_point() -> Vector3:
 		Mode.WAIT:
 			return global_position
 		Mode.SETTLE:
-			return _terrain.global_transform * base
+			return work.guard_point()
 	return _player.global_position
 
 
 ## Sigue con la que tiene si aún vale la pena, o busca otra.
 func _scan(player_distance: float) -> void:
-	if mode == Mode.LEAVE:
+	if mode == Mode.LEAVE or _retreat_left > 0.0:
 		_target = null
+		_ordered = false
 		return
 	if _target != null and not _worth_chasing(_target, player_distance):
 		_target = null
+	if _target == null:
+		_ordered = false
 	if _target == null:
 		_target = _pick()
 		if _target != null:
 			_show_weapon()
 			_to_arms()
+			if mode == Mode.SETTLE:
+				work.on_engage(_target)
 
 
 func _worth_chasing(creature: NPCController, player_distance: float) -> bool:
-	if not _alive(creature) or (mode == Mode.FOLLOW and player_distance > LEASH):
+	var leash := order_leash if _ordered else LEASH
+	# El guardia vigila una zona mayor: no suelta lo que aún está en ella.
+	if mode == Mode.SETTLE:
+		leash = maxf(leash, work.defend_radius() + 5.0)
+	if not _alive(creature) or (mode == Mode.FOLLOW and player_distance > leash):
 		return false
-	return creature.global_position.distance_to(_guard_point()) <= LEASH
+	return creature.global_position.distance_to(_guard_point()) <= leash
 
 
 ## La más cercana de las que van a por el jugador o a por él, o que ha herido el jugador (siguiéndolo).
 func _pick() -> NPCController:
 	var guard := _guard_point()
 	var best: NPCController
-	var reach := DEFEND if mode == Mode.SETTLE else ENGAGE
+	var settled := mode == Mode.SETTLE
+	var reach := work.defend_radius() if settled else ENGAGE
 	var best_distance := reach
 	for creature in CreatureGrid.near(guard, reach):
-		if not _alive(creature) or not _hostile(creature):
+		if not _alive(creature) or not (_hostile(creature) or (settled and work.is_threat(creature))):
 			continue
 		var d := creature.global_position.distance_to(guard)
 		if d < best_distance:
@@ -786,7 +982,7 @@ func _on_hit(info: DamageInfo, applied: float) -> void:
 	_since_hit = 0.0
 	_chatting = false
 	if _target == null and info.source is NPCController and _alive(info.source as NPCController) \
-			and mode != Mode.LEAVE:
+			and mode != Mode.LEAVE and _retreat_left <= 0.0:
 		_target = info.source as NPCController
 		_show_weapon()
 		_to_arms()
@@ -799,6 +995,7 @@ func _on_hit(info: DamageInfo, applied: float) -> void:
 func _on_down() -> void:
 	_down_left = DOWN_TIME
 	_target = null
+	_ordered = false
 	_attack_left = 0.0
 	_hit_at = -1.0
 	_flinch_left = 0.0
@@ -830,7 +1027,8 @@ func _lie(up: Vector3, delta: float) -> void:
 
 ## Fuera de pelea: se recupera poco a poco y, si le hace falta, come algo de lo que lleva.
 func _recover(delta: float) -> void:
-	if health.is_dead or health.health >= health.max_health or _since_hit < REGEN_AFTER:
+	if health.is_dead or health.health >= health.max_health or _since_hit < REGEN_AFTER \
+			or (mode == Mode.SETTLE and meals.hungry()):
 		return
 	health.heal(REGEN * delta)
 	_eat_left -= delta
@@ -851,6 +1049,15 @@ func _recover(delta: float) -> void:
 
 ## Un paso de su vida en la base: [hacia dónde, a qué velocidad].
 func _live(delta: float) -> Array:
+	# Lo han mandado volver a su base: va derecho a ella, trotando.
+	if homing:
+		var home := _terrain.global_transform * base
+		if (home - global_position).slide(up_direction).length() > HOME_NEAR:
+			_chore = Chore.STAND
+			_chore_left = 0.0
+			_travel = 0.0
+			return [steer(home, HOME_NEAR * 0.8, delta), JOG_SPEED]
+		homing = false
 	if _chore != Chore.SLEEP and work.on_duty(_hour()):
 		_chore = Chore.STAND
 		_chore_left = 0.0
@@ -867,7 +1074,7 @@ func _live(delta: float) -> Array:
 			return [Vector3.ZERO, 0.0]
 		return [steer(spot, ARRIVE, delta), WALK_SPEED]
 	_chore_left -= delta
-	var night := Villager._is_night(_hour())
+	var night := work.sleeps(_hour())
 	if _chore == Chore.SLEEP:
 		_bed_fit_left -= delta
 		_sleep_routine.update(delta)
@@ -889,7 +1096,7 @@ func _decide() -> void:
 	var h := _hour()
 	var to_local := _terrain.global_transform.affine_inverse()
 	var fire := _fire()
-	if Villager._is_night(h):
+	if work.sleeps(h):
 		_bed = _free_bed()
 		if _bed != null:
 			var foot := _bed.global_position + _bed.global_basis.z * SettlementVillage.BED_FOOT
@@ -983,6 +1190,10 @@ func _to_arms() -> void:
 
 
 func _leave_base() -> void:
+	homing = false
+	if mode == Mode.SETTLE and base.is_finite():
+		return_base = base
+		return_work = work.save_data()
 	work.stop()
 	_wake()
 	_look = Vector3.INF

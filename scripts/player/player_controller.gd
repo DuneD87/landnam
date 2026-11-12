@@ -81,6 +81,8 @@ var resting: RestController
 var throne_view: ThroneView
 ## Hablar con los aldeanos de los poblados.
 var villager_chat: VillagerChat
+## Las órdenes al grupo que lo acompaña (la rueda de group_orders).
+var group_command: GroupCommand
 ## Comer, beber, despellejar y las hogueras.
 var survival: SurvivalActions
 var fishing: PlayerFishing
@@ -702,6 +704,10 @@ func _ready():
 	villager_chat.name = "VillagerChat"
 	add_child(villager_chat)
 	villager_chat.setup(self)
+	group_command = GroupCommand.new()
+	group_command.name = "GroupCommand"
+	add_child(group_command)
+	group_command.setup(self)
 	_setup_gaits()
 	world_map_ui = WorldMapUI.new()
 	world_map_ui.setup(self)

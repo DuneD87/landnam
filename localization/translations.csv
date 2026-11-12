@@ -23,6 +23,7 @@ ACTION_FREE_FLIGHT,Free flight,Vuelo libre,
 ACTION_ATTACK_1,Main attack,Ataque principal,
 ACTION_ATTACK_2,Secondary attack,Ataque secundario,
 ACTION_LOCK_ON,Lock on target,Fijar objetivo,
+ACTION_GROUP_ORDERS,Group orders,Órdenes al grupo,
 ACTION_USE,Use / interact,Usar / interactuar,
 ACTION_INVENTORY,Inventory,Inventario,
 ACTION_CHARACTER,Character,Personaje,
@@ -1671,7 +1672,7 @@ VTALK_GIFT_MEH_2,We have plenty of that.,De eso tenemos de sobra.,aldeanos
 VTALK_GIFT_MEH_3,Hmm. Thanks... I suppose.,Mmm. Gracias... supongo.,aldeanos
 VILLAGER_RECRUIT,Come with me,Ven conmigo,aldeanos
 VILLAGER_RECRUIT_NEED,The village needs to trust you more (%d).,El poblado tiene que fiarse más de ti (%d).,aldeanos
-VILLAGER_RECRUIT_FULL,Someone is already travelling with you.,Ya viaja alguien contigo.,aldeanos
+VILLAGER_RECRUIT_FULL,Your group is full.,Tu grupo está completo.,aldeanos
 VILLAGER_FOLLOW,Follow me,Sígueme,aldeanos
 VILLAGER_WAIT,Wait here,Espera aquí,aldeanos
 VILLAGER_GO_HOME,Go home,Vuelve a casa,aldeanos
@@ -1810,7 +1811,7 @@ SETTLER_NOTHING_LEFT,%s · nothing left to do nearby.,%s · no queda nada que ha
 SETTLER_CLEAR_DONE,%s has finished clearing the area.,%s ha terminado de limpiar la zona.,colonos
 SETTLER_CRUSHED,%s was crushed by a falling tree.,A %s le ha aplastado un árbol.,colonos
 INV_STORAGE_JOBS,For settlers:,Para colonos:,colonos
-INV_STORAGE_JOBS_TIP,Settlers with these jobs leave what they gather here. With none marked: all of them.,Los colonos con estos oficios dejan aquí lo que sacan. Sin ninguno marcado: todos.,colonos
+INV_STORAGE_JOBS_TIP,"Settlers with these jobs leave what they gather here; builders take their materials from here. With none marked: all of them.","Los colonos con estos oficios dejan aquí lo que sacan; los constructores cogen de aquí sus materiales. Sin ninguno marcado: todos.",colonos
 VTALK_WORK_OK_1,"Right, I'm on it.","Hecho, me pongo.",colonos
 VTALK_WORK_OK_2,I'll get to it.,Voy para allá.,colonos
 VTALK_WORK_OK_3,Leave it to me.,Déjamelo a mí.,colonos
@@ -1830,3 +1831,73 @@ THRONE_HINT_ORDER,%d chosen. Give them an order.,%d elegidos. Dales una orden.,c
 THRONE_HINT_ZONE,"Click: mark the area · Wheel: radius (%d m) · Right click: around their base · Esc: cancel","Clic: marca la zona · Rueda: radio (%d m) · Clic derecho: alrededor de su base · Esc: cancelar",colonos
 THRONE_HINT_CLEAR,"Click: mark the area to clear · Wheel: radius (%d m) · Right click or Esc: cancel","Clic: marca la zona a limpiar · Rueda: radio (%d m) · Clic derecho o Esc: cancelar",colonos
 THRONE_KEYS,"WASD: move the view · R/F or middle drag: tilt (and turn) · Wheel: zoom · E or Esc: stand up","WASD: mover la vista · R/F o arrastrar con el botón central: inclinar (y girar) · Rueda: acercar o alejar · E o Esc: levantarse",colonos
+SETTLER_JOB_BUILD,Builder,Constructor,colonos
+SETTLER_JOB_GUARD,Guard,Guardia,colonos
+SETTLER_JOB_GUARD_DAY,Day guard,Guardia de día,colonos
+SETTLER_JOB_GUARD_NIGHT,Night guard,Guardia de noche,colonos
+SETTLER_JOB_HUNT,Hunter,Cazador,colonos
+SETTLER_JOB_FISH,Fisher,Pescador,colonos
+SETTLER_JOB_COOK,Cook,Cocinero,colonos
+SETTLER_ORDER_BUILD,Build the sites,Construye las obras,colonos
+SETTLER_ORDER_HUNT,Go hunting,Sal a cazar,colonos
+SETTLER_ORDER_FISH,Go fishing,Ponte a pescar,colonos
+SETTLER_ORDER_COOK,Tend the fire,Cocina,colonos
+SETTLER_ORDER_GUARD,Stand guard here,Haz guardia aquí,colonos
+SETTLER_HUNGRY, · hungry, · con hambre,colonos
+SETTLER_BLOCKED,Idle: %s,Parado: %s,colonos
+SETTLER_NEED_HAMMER,needs a hammer in their pack.,necesita un martillo en el morral.,colonos
+SETTLER_NEED_WEAPON,needs a weapon in their pack.,necesita un arma en el morral.,colonos
+SETTLER_NEED_ROD,needs a fishing rod in their pack.,necesita una caña en el morral.,colonos
+SETTLER_NO_WATER,there is no water to fish in their area.,no hay agua donde pescar en su zona.,colonos
+SETTLER_NO_FIRE,there is no campfire at the base.,no hay hoguera en la base.,colonos
+SETTLER_CHEST_FULL_SHORT,the base chests are full.,los cofres de la base están llenos.,colonos
+SETTLER_NO_CHEST_SHORT,there is no chest at the base for their job (%s).,no hay cofre en la base para su oficio (%s).,colonos
+SETTLER_BUILD_NO_CHEST,there is no chest at the base to take materials from.,no hay cofre en la base del que coger materiales.,colonos
+SETTLER_BUILD_SHORT,the chests are short of %d %s.,faltan %d de %s en los cofres.,colonos
+SETTLER_BUILD_WORKING,%s · %s at %d%%,%s · %s al %d%%,colonos
+SETTLER_BUILD_IDLE,%s · %d blocks placed,%s · lleva %d bloques,colonos
+SETTLER_BUILD_OFF,%s · %d blocks placed · resting until the next shift,%s · lleva %d bloques · descansa hasta el siguiente turno,colonos
+SETTLER_BUILD_AWAY,%s · %d blocks placed · working out of sight,%s · lleva %d bloques · trabaja lejos de ti,colonos
+SETTLER_BUILD_DONE,%s has finished building %s.,%s ha terminado de construir %s.,colonos
+SETTLER_REPAIR_DONE,%s has finished repairing %s.,%s ha terminado de reparar %s.,colonos
+SETTLER_GUARD_POST,%s · at their post,%s · en su puesto,colonos
+SETTLER_GUARD_ROUND,%s · on their rounds,%s · de ronda,colonos
+SETTLER_GUARD_OFF,%s · resting until their shift,%s · descansa hasta su turno,colonos
+SETTLER_GUARD_AWAY,%s · keeping watch out of sight,%s · vigila lejos de ti,colonos
+SETTLER_ALARM,%s raises the alarm: a beast near the base!,%s da la alarma: ¡una fiera cerca de la base!,colonos
+SETTLER_STARVING,%s is going hungry: there is no food in the base chests.,%s pasa hambre: no hay comida en los cofres de la base.,colonos
+THRONE_ORDER_GUARD_DAY,Day guard,Guardia de día,colonos
+THRONE_ORDER_GUARD_NIGHT,Night guard,Guardia de noche,colonos
+THRONE_ORDER_FOLLOW,Follow me,Seguidme,colonos
+THRONE_ORDER_FOLLOW_TIP,The chosen settlers leave the base and follow you once you stand up (the group holds up to 6).,Los elegidos dejan la base y te siguen en cuanto te levantes (en el grupo caben 6).,colonos
+THRONE_FOLLOW_DONE,%d will follow you.,Te seguirán %d.,colonos
+THRONE_FOLLOW_SOME,%d will follow you; %d do not fit in the group.,Te seguirán %d; %d no caben en el grupo.,colonos
+THRONE_HINT_GUARD,"Click: mark what to guard · Wheel: radius (%d m; up to %d m it is a fixed post, beyond that a patrol) · Right click or Esc: cancel","Clic: marca lo que vigilar · Rueda: radio (%d m; hasta %d m es un puesto fijo, más allá una ronda) · Clic derecho o Esc: cancelar",colonos
+GROUP_WHEEL_TITLE,Group orders,Órdenes al grupo,colonos
+GROUP_SUMMARY,%d following · %d waiting,%d te siguen · %d esperan,colonos
+GROUP_NOBODY,Nobody is travelling with you.,No viaja nadie contigo.,colonos
+GROUP_ORDER_FOLLOW,Follow me,Seguidme,colonos
+GROUP_ORDER_WAIT,Hold here,Esperad aquí,colonos
+GROUP_ORDER_ATTACK,Attack,Atacad,colonos
+GROUP_ORDER_RETREAT,Retreat,Retirada,colonos
+GROUP_ORDER_HOME,Back to base,A la base,colonos
+GROUP_ORDER_FORMATION,Formation,Formación,colonos
+GROUP_HINT_FOLLOW,Those waiting come with you,Los que esperan vienen contigo,colonos
+GROUP_HINT_WAIT,They stay and defend this spot,Se quedan y defienden este sitio,colonos
+GROUP_HINT_RETREAT,They leave the fight and run back to you,Dejan la pelea y vuelven corriendo contigo,colonos
+GROUP_HINT_HOME,Each settler goes back to their base and their work,Cada colono vuelve a su base y a su trabajo,colonos
+GROUP_HINT_PREY,The creature you are looking at,La criatura a la que miras,colonos
+GROUP_HINT_NO_PREY,Lock on or look at a creature first.,Fija o mira antes a una criatura.,colonos
+GROUP_FORMATION_WEDGE,Wedge,Cuña,colonos
+GROUP_FORMATION_FILE,Single file,Fila,colonos
+GROUP_FORMATION_LOOSE,Loose,Sueltos,colonos
+GROUP_SAID_FOLLOW,The group follows you (%d).,El grupo te sigue (%d).,colonos
+GROUP_SAID_ALREADY,They are already following you.,Ya te siguen.,colonos
+GROUP_SAID_WAIT,%d wait here.,%d esperan aquí.,colonos
+GROUP_SAID_NONE_FOLLOWING,Nobody is following you.,No te sigue nadie.,colonos
+GROUP_SAID_ATTACK,%d go for it!,¡%d van a por ella!,colonos
+GROUP_SAID_RETREAT,Retreat!,¡Retirada!,colonos
+GROUP_SAID_HOME,%d head back to base.,%d vuelven a su base.,colonos
+GROUP_SAID_HOME_SOME,%d head back to base; %d have none.,%d vuelven a su base; %d no tienen.,colonos
+GROUP_SAID_NO_BASE,None of them has a base to go back to.,Ninguno tiene base a la que volver.,colonos
+GROUP_SAID_FORMATION,Formation: %s.,Formación: %s.,colonos

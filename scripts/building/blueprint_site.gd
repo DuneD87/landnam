@@ -624,6 +624,11 @@ func get_radius() -> float:
 	return _box.size.length() * 0.5
 
 
+## La caja del blueprint, en el marco de la obra (los colonos se ponen a su lado: SettlerBuild).
+func get_box() -> AABB:
+	return _box
+
+
 ## Tramo [entrada, salida] del rayo dentro de la caja; (-1, -1) si no la cruza.
 static func _slab(o: Vector3, d: Vector3, box: AABB) -> Vector2:
 	var t0 := -INF
