@@ -12,8 +12,12 @@ class_name SettlerCook extends SettlerTask
 ## hora de acostarse: desde el atardecer mantiene la hoguera encendida aunque no ase nada, para los
 ## que se sientan alrededor.
 ##
-## Lejos del jugador hace lo mismo sin andar, una vez cada AWAY_EVERY s (la hoguera asa sola). Ver
-## docs/villagers.md.
+## Lejos del jugador hace lo mismo sin andar, una vez cada AWAY_EVERY s (la hoguera asa sola).
+##
+## En campo (SettlerWork.field) asa en la hoguera más cercana a su zona lo crudo de su morral (y de los
+## cofres de cerca, si hay), echa la leña de su morral y lo asado se lo queda si no hay cofre que lo
+## admita. Lo crudo y la leña que le faltan los piden a los que recolectan en campo cerca (demand,
+## SettlerWork.plan_delivery), que se los traen en mano. Ver docs/villagers.md.
 
 enum Phase {SEEK, CHEST, FIRE}
 
@@ -22,6 +26,12 @@ const FUEL_LOAD := 6
 const FIRE_REACH := 2.0
 const THINK_EVERY := 3.0
 const AWAY_EVERY := 30.0
+## En campo: lo que quiere tener en el morral para no quedarse sin nada (lo crudo, un hueco de la
+## hoguera de cada dos; la leña, dos cargas).
+const WANT_RAW := Campfire.COOK_SLOTS
+const WANT_FUEL := FUEL_LOAD * 2
+## Lo crudo, en lo que pide (demand): cualquier cosa que se ase.
+const RAW := &"@raw"
 
 var _phase := Phase.SEEK
 var _chest: Storage
@@ -88,6 +98,8 @@ func step(delta: float) -> Array:
 			c._face(fire.global_position - c.global_position, delta)
 		return still()
 	_think_left = THINK_EVERY
+	if w.field:
+		_from_pack(fire)
 	_chest = _pick_chest(fire)
 	if _chest != null:
 		_phase = Phase.CHEST
@@ -162,6 +174,49 @@ func _at_chest(chest: Storage, fire: Campfire) -> void:
 			var got := move(chest.inventory, c.pack, fuel, FUEL_LOAD)
 			if got > 0:
 				_load[fuel.id] = int(_load.get(fuel.id, 0)) + got
+
+
+## En campo, lo que le falta: [él, {RAW: cuánto crudo, leña: cuánta}], o [] si tiene de todo (o no
+## tiene hoguera).
+func demand() -> Array:
+	if _fire() == null:
+		return []
+	var need := {}
+	var raw := 0
+	for item in c.pack.get_all_items():
+		if item != null and item.data.get_trait(CookableTrait) != null:
+			raw += item.quantity
+	if raw < WANT_RAW:
+		need[RAW] = WANT_RAW - raw
+	var wood := carried(ItemCatalog.get_item(SettlerWork.WOOD_ID))
+	if wood < FUEL_LOAD:
+		need[SettlerWork.WOOD_ID] = WANT_FUEL - wood
+	return [c, need] if not need.is_empty() else []
+
+
+## En campo: lo crudo y la leña de su morral cuentan como ya cargados, y lo asado que no admite ningún
+## cofre de cerca se lo queda.
+func _from_pack(fire: Campfire) -> void:
+	var want := _free_slots(fire) - _count(_load, true)
+	if want > 0 and _count(_load, true) == 0:
+		for item in c.pack.get_all_items():
+			if want <= 0:
+				break
+			if item != null and item.data.get_trait(CookableTrait) != null:
+				var take := mini(want, item.quantity)
+				_load[item.data.id] = int(_load.get(item.data.id, 0)) + take
+				want -= take
+	if _needs_fuel(fire) and _count(_load, false) == 0:
+		var fuel := _fuel_in(c.pack)
+		if fuel != null:
+			_load[fuel.id] = mini(FUEL_LOAD, carried(fuel))
+	if not _done.is_empty():
+		var room := false
+		for chest in chests(SettlerWork.JOB_IDS[SettlerWork.Job.COOK], true):
+			for id: StringName in _done:
+				room = room or SettlerWork._room(chest.inventory, ItemCatalog.get_item(id))
+		if not room:
+			_done.clear()
 
 
 ## En la hoguera: recoge lo asado, pone lo crudo, echa la leña y la enciende si hay algo que asar (o
@@ -280,11 +335,12 @@ static func _fuel_in(bag: Inventory) -> ItemData:
 	return other
 
 
-## La hoguera de la base: la más cercana a ella a menos de Companion.BASE_RADIUS m, o null.
+## La hoguera de la base (en campo, de la zona): la más cercana a ella a menos de
+## Companion.BASE_RADIUS m, o null.
 func _fire() -> Campfire:
-	if not c.base.is_finite():
+	var home := w.home()
+	if not home.is_finite():
 		return null
-	var home := c._terrain.global_transform * c.base
 	var best: Campfire
 	var best_d := Companion.BASE_RADIUS
 	for node in c.get_tree().get_nodes_in_group(Campfire.GROUP):

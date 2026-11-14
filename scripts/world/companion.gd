@@ -177,6 +177,11 @@ const FLEE_REACT := Vector2(0.15, 0.45)
 const FLEE_TIME := 5.0
 ## Dónde estará dentro de esto (s), andando como anda: si va a meterse en su camino, se para fuera.
 const LOOK_AHEAD := 0.8
+## A un sitio (go_to): llega a menos de GOTO_REACH m (en el plano) y se queda esperando allí. Si no
+## llega en lo que tardaría al trote, más GOTO_SPARE s, se queda donde esté. Fuera de la vista del
+## jugador (FREEZE), aparece allí.
+const GOTO_REACH := 0.6
+const GOTO_SPARE := 15.0
 
 ## SettlementPopulation.residents: "id", "name", "sex", "job"...
 var resident: Dictionary
@@ -292,6 +297,11 @@ var _heard := {}
 ## El árbol que espera a que caiga, parado fuera de su camino (iba a meterse), o null.
 var _hold_for: FallingTree
 
+# --- A un sitio ---
+## Adónde va (marco del terreno), o INF; y el tiempo que le queda para llegar.
+var _goto := Vector3.INF
+var _goto_left := 0.0
+
 
 ## [who]: su vecino (SettlementPopulation.residents) del poblado [v] ([v_name]); [model]: su humano
 ## vestido (Villager.build_model o el del aldeano); [home]: el centro del poblado en el marco del
@@ -375,12 +385,65 @@ func _exit_tree() -> void:
 ## Se queda donde está hasta que se le diga que siga.
 func wait_here() -> void:
 	_leave_base()
+	_goto = Vector3.INF
 	mode = Mode.WAIT
 	_idle = 0.0
 
 
+## Va andando (al trote si está lejos) a [spot] (mundo) y se queda esperando allí, defendiendo el sitio,
+## hasta que se le diga que siga. Por el camino pelea como esperando. Falso si no puede.
+func go_to(spot: Vector3) -> bool:
+	if dead or _down_left > 0.0 or mode == Mode.LEAVE or not spot.is_finite():
+		return false
+	wait_here()
+	_target = null
+	_ordered = false
+	_chatting = false
+	_goto = _terrain.global_transform.affine_inverse() * spot
+	_goto_left = global_position.distance_to(spot) / JOG_SPEED + GOTO_SPARE
+	_stuck = 0.0
+	_path_dest = Vector3.INF
+	return true
+
+
+## A la orden del jugador (la rueda del grupo): se pone con [job] (SettlerWork.Job) en campo, en la zona
+## de alrededor de [spot] (mundo), sin dejar de ir con el jugador: espera allí trabajando hasta que se
+## le diga otra cosa (SettlerWork.field). Falso si no puede.
+func field_work(job: SettlerWork.Job, spot: Vector3) -> bool:
+	if dead or _down_left > 0.0 or mode == Mode.LEAVE or not spot.is_finite():
+		return false
+	wait_here()
+	_target = null
+	_ordered = false
+	_chatting = false
+	var radius := SettlerWork.CLEAR_RADIUS if job == SettlerWork.Job.CLEAR else SettlerWork.FIELD_RADIUS
+	work.assign(job, _terrain.global_transform.affine_inverse() * spot, radius, 0, true)
+	return true
+
+
+## Si trabaja en campo (field_work).
+func is_field_working() -> bool:
+	return mode == Mode.WAIT and work.active() and work.field
+
+
+## Si está malherido en el suelo (se levanta al rato).
+func is_down() -> bool:
+	return _down_left > 0.0
+
+
+## Si va de camino a un sitio (go_to).
+func is_going() -> bool:
+	return _goto.is_finite()
+
+
+## Adónde va (marco del terreno), o INF.
+func goto_spot() -> Vector3:
+	return _goto
+
+
 func follow() -> void:
 	_leave_base()
+	_goto = Vector3.INF
 	mode = Mode.FOLLOW
 	_idle = 0.0
 	_slot_held = Vector3.INF
@@ -431,6 +494,10 @@ func is_fighting() -> bool:
 func settle_here(at := Vector3.INF) -> void:
 	# Dormido, se levanta antes (si no, se quedaría de pie sin colisión y se hundiría).
 	_wake()
+	_goto = Vector3.INF
+	# El trabajo en campo era de ir con el jugador: viviendo aquí, se le manda otro desde el trono.
+	if work.field:
+		work.stop()
 	mode = Mode.SETTLE
 	base = at if at.is_finite() else _terrain.global_transform.affine_inverse() * global_position
 	return_base = Vector3.INF
@@ -444,6 +511,7 @@ func settle_here(at := Vector3.INF) -> void:
 ## (SettlementCompanions lo quita al salir del árbol).
 func go_home() -> void:
 	_leave_base()
+	_goto = Vector3.INF
 	mode = Mode.LEAVE
 	_leave_time = 0.0
 
@@ -562,6 +630,8 @@ func _physics_process(delta: float) -> void:
 		meals.tick(delta)
 	if distance > FREEZE and mode != Mode.LEAVE:
 		velocity = Vector3.ZERO
+		if _goto.is_finite():
+			_arrive_spot(true)
 		if mode == Mode.SETTLE and not _travel_home(delta):
 			work.away(delta, _hour())
 		return
@@ -597,6 +667,16 @@ func _physics_process(delta: float) -> void:
 			_say_left -= delta
 			if _say_left <= 0.0:
 				_play(Villager.ANIM_IDLE)
+	elif _goto.is_finite():
+		var step := _go(up, delta)
+		heading = step[0]
+		speed = step[1]
+	elif is_field_working():
+		# Trabajando no se sienta a esperar.
+		_idle = 0.0
+		var step := work.step(delta)
+		heading = step[0]
+		speed = step[1]
 	else:
 		match mode:
 			Mode.FOLLOW:
@@ -1635,3 +1715,32 @@ func _tangent(v: Vector3) -> Vector3:
 ## El que el jugador tiene delante en [at] mirando hacia [look] (como Villager.find), o null.
 static func find(tree: SceneTree, at: Vector3, look: Vector3, reach := 2.6) -> Companion:
 	return Villager.nearest(tree, GROUP, at, look, reach) as Companion
+
+
+## Un paso hacia el sitio al que va (go_to): [hacia dónde, a qué velocidad]. Al llegar (o al acabarse
+## el tiempo) se queda allí esperando.
+func _go(up: Vector3, delta: float) -> Array:
+	_goto_left -= delta
+	var spot := _terrain.global_transform * _goto
+	var flat := (spot - global_position).slide(up).length()
+	if flat < GOTO_REACH or _goto_left <= 0.0:
+		_arrive_spot(false)
+		return [Vector3.ZERO, 0.0]
+	var heading := steer(spot, GOTO_REACH * 0.8, delta)
+	var party := _party()
+	if party != null:
+		var push := party.apart_from(self, up)
+		if push != Vector3.ZERO:
+			heading = _tangent(heading + push * 0.5)
+	return [heading, WALK_SPEED if flat < JOG_FROM else JOG_SPEED]
+
+
+## Ya está (o, con [jump], aparece allí: lejos de la vista del jugador): espera en el sitio.
+func _arrive_spot(jump: bool) -> void:
+	if jump:
+		var spot := _terrain.global_transform * _goto
+		global_position = spot + (spot - _terrain.global_position).normalized() * 0.1
+		reset_physics_interpolation()
+	_goto = Vector3.INF
+	_idle = 0.0
+	_moving = false

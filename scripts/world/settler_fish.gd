@@ -9,7 +9,8 @@ class_name SettlerFish extends SettlerTask
 ## tampoco.
 ##
 ## No lanza de verdad ni depende de los peces que haya a la vista. Lejos del jugador, si ya había
-## encontrado su orilla, saca uno cada AWAY_CATCH s. Ver docs/villagers.md.
+## encontrado su orilla, saca uno cada AWAY_CATCH s. En campo (SettlerWork.field) sin cofre cerca, lo
+## pescado se queda en el morral hasta llenarlo. Ver docs/villagers.md.
 
 enum Phase {SEEK, FISH, DEPOSIT}
 
@@ -67,8 +68,15 @@ func step(delta: float) -> Array:
 	var fish := _catch(rod)
 	if _spot.is_finite() or _phase == Phase.DEPOSIT or w.status != SettlerWork.Status.BLOCKED:
 		w.status = SettlerWork.Status.WORKING
-	if _phase == Phase.DEPOSIT or carried(fish) >= CARRY:
+	# En campo, con una tanda, antes a quien la necesite (un cocinero): el viaje lo lleva SettlerWork.
+	if w.field and carried(fish) >= CARRY and w.plan_delivery():
+		return still()
+	# En campo, sin cofre cerca, lo pescado se queda en el morral.
+	var to_chest := not w.field or chest_with_room(chests(SettlerWork.JOB_IDS[SettlerWork.Job.FISH], true), fish) != null
+	if to_chest and (_phase == Phase.DEPOSIT or carried(fish) >= CARRY):
 		return _depositing(delta, fish)
+	if _phase == Phase.DEPOSIT:
+		_phase = Phase.FISH
 	if not _spot.is_finite():
 		return _seek(fish)
 	var to_world := c._terrain.global_transform
@@ -88,6 +96,8 @@ func step(delta: float) -> Array:
 	if _catch_left <= 0.0:
 		if c.pack.add_item(fish, 1) == 0:
 			w.gathered += 1
+		elif w.field and not to_chest:
+			w.pack_full()
 		elif carried(fish) > 0:
 			# No le cabe más: a dejar lo que lleva.
 			_phase = Phase.DEPOSIT
@@ -159,6 +169,11 @@ func _catch(rod: ItemData) -> ItemData:
 
 
 func _has_chest(fish: ItemData) -> bool:
+	if w.field:
+		if w.field_room(fish):
+			return true
+		w.pack_full()
+		return false
 	var from := chests(SettlerWork.JOB_IDS[SettlerWork.Job.FISH], true)
 	if chest_with_room(from, fish) != null:
 		return true

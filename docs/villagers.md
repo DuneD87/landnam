@@ -386,14 +386,59 @@ grupo solo avisa. Lo hecho sale en el aviso de la barra.
 
 - **Seguidme**: los que esperan echan a andar.
 - **Esperad aquí**: los que siguen se quedan y defienden el sitio.
+- **Id allí**: van al suelo (o lo construido) al que mira el jugador, a menos de 80 m de la vista, y
+  esperan allí como con Esperad aquí (`Companion.go_to`, `SettlementCompanions.order_goto`). Uno va al
+  sitio y los demás, en corro a 1,6 m; el más cercano a cada hueco va a él. Van por `steer`, andando o
+  al trote (desde 7 m); por el camino pelean como esperando. Si no llegan en lo que tardarían al trote
+  más 15 s, se quedan donde estén; lejos del jugador (120 m) aparecen allí. En la lista salen «de
+  camino» y el destino se guarda con la partida. Sin suelo a la vista, avisa.
 - **Atacad**: todos a por la fiera fijada (`lock_on`) o, sin fijar, la criatura viva más centrada en la
   vista a menos de 60 m (12°). Sin ninguna sale apagada. La persiguen hasta 60 m del jugador.
 - **Retirada**: dejan la pelea y vuelven corriendo con el jugador (los que esperaban también); durante
   12 s no pelean ni se revuelven.
+- **Trabajad**: al apuntarla se despliega por fuera un arco con los oficios (talad, picad, limpiad,
+  cazad, pescad, cocinad, construid); el elegido va a los elegidos, alrededor de lo que mira el jugador
+  (como en Id allí; un árbol o una roca también valen). Se ponen con él **en campo**
+  (`Companion.field_work`, `SettlerWork.field`): esperan allí trabajando, sin horario, hasta que se les
+  mande otra cosa (cualquier otra orden los saca). Es el mismo trabajo que el de los colonos, con estas
+  diferencias:
+  - la zona es la de lo que se mira (25 m; limpiar, 12 m) y talan o pican primero lo más cercano a ese
+    punto, así que mirando un árbol empiezan por él;
+  - lo sacado va a un cofre de a menos de 30 m de la zona si lo hay y, si no, se queda en su morral (se
+    les quita en la charla); con el morral lleno lo dicen y lo dejan (`SettlerWork.pack_full`);
+  - construir usa primero el material de su morral y luego los cofres de cerca; lo que sobra, al morral;
+  - cocinar usa la hoguera más cercana a la zona (40 m), lo crudo y la leña de su morral, y se queda lo
+    asado si ningún cofre de cerca lo admite;
+  - lejos del jugador (120 m) no avanza;
+  - lo que sacan lo llevan antes a quien lo necesite (`SettlerWork.plan_delivery`): al acabar cada
+    árbol, roca, presa o tanda de 5 peces miran si un constructor o un cocinero en campo a menos de 60 m
+    necesita algo de lo que llevan y le llevan **solo eso**. Al constructor, directo a su obra
+    (`BlueprintSite.deposit`): falta lo que pide la obra menos lo que él lleva y lo que traen otros
+    (`SettlerBuild.demand`; el que va se apunta en `_hauls`, así que ni otro recolector ni el
+    constructor van a por lo mismo). Al cocinero, en mano: lo crudo hasta 8 y leña hasta 12 cuando le
+    quedan menos de 6 (`SettlerCook.demand`). Si nadie necesita nada, vuelven a mirar a los 3 s; lo que
+    nadie necesita sigue al cofre o al morral. Entre los colonos de la base no hace falta: se pasan las
+    cosas por los cofres.
+  En la lista del grupo sale cómo va («Leñador · lleva 14», «Parado: necesita un hacha...»). Se guarda
+  con la partida. Si se le dice que se quede a vivir, deja el trabajo en campo.
 - **A la base**: cada colono que dejó su base para irse con el jugador vuelve a ella con el trabajo que
   tenía (`Companion.return_to_base`; los que no tenían base, no). Va derecho y trotando hasta quedar a
   12 m; lejos del jugador aparece allí cuando habría llegado andando.
-- **Formación**: pasa a la siguiente (cuña, fila, sueltos). Se guarda con la partida.
+- **Formación**: al apuntarla se despliega por fuera un arco con cuña, fila y sueltos (la de ahora,
+  marcada); se elige llevando el cursor allí. Soltar o hacer clic sobre Formación deja la rueda abierta.
+  Es de todo el grupo y se guarda con la partida.
+
+**A quién van** (como las teclas de Mount & Blade y el mirar de Ghost Recon): abajo, tapando los huecos
+de la hotbar (en su sitio y subiendo por encima), sale el grupo en tarjetas: el retrato con su número, el
+nombre, qué hace (sigue, espera, de camino, malherido) y las barras de vida y de comida
+(`meals.fed` sobre 36 h), que se refrescan cada 0,25 s. Los retratos (`CompanionPortraits`) se hacen fuera
+de pantalla, con el humano vestido de nuevo (`Villager.build_model`) y las luces del estudio de la
+creación, uno por vez y una sola vez por partida; con la rueda cerrada se piden cada 2 s los que falten,
+así que al abrirla suelen estar ya. Mientras se hacen sale una silueta. Al abrir están elegidos todos los que
+no están ocupados (trabajando en campo o de camino a un sitio: si lo están todos, ninguno) o, si el
+jugador mira a uno del grupo (40 m, 6°), solo ese, aunque esté ocupado. Con la rueda abierta, **1-9** elige o quita a
+cada uno y **0** (o º) a todos o a ninguno; mientras tanto cada uno lleva su número encima, encendido
+si está elegido. Las órdenes (no la formación) van solo a los elegidos; sin nadie, salen apagadas.
 
 ## Colonos
 

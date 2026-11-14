@@ -66,6 +66,10 @@ func _run() -> void:
 	await _check_guard()
 	print("SECTION _check_cook t=%.1f" % (Time.get_ticks_msec() / 1000.0))
 	await _check_cook()
+	print("SECTION _check_field_work t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+	await _check_field_work()
+	print("SECTION _check_field_delivery t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+	await _check_field_delivery()
 	print("SECTION _check_tree_dodge t=%.1f" % (Time.get_ticks_msec() / 1000.0))
 	await _check_tree_dodge()
 	_check_meals()
@@ -233,6 +237,19 @@ func _check_orders() -> void:
 	check(_companions.order_wait() == 2 and a.mode == Companion.Mode.WAIT and b.mode == Companion.Mode.WAIT,
 		"«esperad aquí» deja a los dos esperando")
 	check(_companions.order_follow() == 2 and a.mode == Companion.Mode.FOLLOW, "«seguidme» los pone a seguir")
+	# «Id allí»: uno al sitio y el otro a su lado; llegan y se quedan esperando.
+	var spot := Vector3(8.0, 0.05, 0.0)
+	check(_companions.order_goto(spot, Vector3.UP) == 2 and a.mode == Companion.Mode.WAIT and a.is_going()
+		and b.is_going(), "«id allí» los pone de camino, esperando")
+	var going: Dictionary = (_companions.get_save_data().companions as Array)[0]
+	check(going.has("goto"), "y adónde van se guarda con la partida")
+	await _wait(8.0)
+	var near_a := a.global_position.distance_to(spot)
+	var near_b := b.global_position.distance_to(spot)
+	check(not a.is_going() and not b.is_going() and minf(near_a, near_b) < 1.0
+		and maxf(near_a, near_b) < SettlementCompanions.GOTO_RING + 1.0 and a.global_position.distance_to(b.global_position) > 1.0,
+		"llegan, uno al sitio y el otro al lado (%.1f y %.1f m)" % [near_a, near_b])
+	check(a.mode == Companion.Mode.WAIT and _companions.order_follow() == 2, "y allí esperan hasta «seguidme»")
 	# Un colono con trabajo que se va con el jugador y vuelve a su base.
 	var base := _local(Vector3(30.0, 0.05, 0.0))
 	a.settle_here(base)
@@ -330,6 +347,118 @@ func _check_builder() -> void:
 	check(builder.global_position.distance_to(at) < 0.5, "sin moverse del sitio")
 	_player.global_position = Vector3(0.0, 0.05, 0.0)
 	chest.queue_free()
+	GridManager.clear_all()
+	planet.queue_free()
+	await _clear()
+
+
+# --- Trabajo en campo (la rueda del grupo) ------------------------------------------------------------
+
+func _check_field_work() -> void:
+	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	var planet := Node3D.new()
+	planet.name = "FieldPlanet"
+	_host.add_child(planet)
+	var site := BlueprintSite.create(_blueprint(), planet, Transform3D(Basis.IDENTITY, Vector3(10.0, 0.0, 6.0)), "campo")
+	var cost := site.get_cost()
+	var builder := _spawn(Vector3(3.0, 0.05, 0.0))
+	builder.pack.add_item(_item(&"stone_hammer_01"), 1)
+	for id: StringName in cost:
+		builder.pack.add_item(_item(id), int(cost[id]) + 5)
+	var who: Array[Companion] = [builder]
+	check(_companions.order_work(SettlerWork.Job.BUILD, site.get_center(), who) == 1 and builder.is_field_working()
+		and builder.mode == Companion.Mode.WAIT and builder.work.field, "«trabajad: construid» lo pone a construir en campo")
+	var saved: Dictionary = (_companions.get_save_data().companions as Array)[0]
+	check(saved.has("field_work") and bool((saved.field_work as Dictionary).get("field", false)),
+		"y el trabajo en campo se guarda con él")
+	var left := 90.0
+	while left > 0.0 and is_instance_valid(site) and not site.is_complete():
+		await _wait(1.0)
+		left -= 1.0
+	check(not is_instance_valid(site) or site.is_complete(),
+		"sin cofres, levanta la obra con lo de su morral (%.0f s; %s)" % [90.0 - left, builder.work.describe()])
+	var kept := true
+	for id: StringName in cost:
+		kept = kept and builder.pack.get_item_count(_item(id)) == 5
+	check(kept, "y lo que sobra se queda en su morral")
+	check(_companions.order_follow(who) == 1 and not builder.work.active() and builder.mode == Companion.Mode.FOLLOW,
+		"«seguidme» lo saca del trabajo")
+	# Cocinar en campo: la hoguera de cerca, lo crudo y la leña de su morral.
+	var fire := Campfire.new()
+	_host.add_child(fire)
+	fire.global_position = Vector3(-10.0, 0.0, 2.0)
+	var raw := _item(&"raw_meat")
+	var cooked := _item(&"cooked_meat")
+	var cook := _spawn(Vector3(-5.0, 0.05, 0.0))
+	cook.pack.add_item(raw, 3)
+	cook.pack.add_item(_item(SettlerWork.WOOD_ID), 10)
+	who = [cook]
+	check(_companions.order_work(SettlerWork.Job.COOK, fire.global_position, who) == 1, "«cocinad» lo pone a cocinar en campo")
+	left = 240.0
+	while left > 0.0 and cook.pack.get_item_count(cooked) < 3:
+		await _wait(2.0)
+		left -= 2.0
+	check(cook.pack.get_item_count(cooked) == 3 and cook.pack.get_item_count(raw) == 0,
+		"asa lo crudo de su morral y se queda lo asado (%.0f s)" % (240.0 - left))
+	cook.work.pack_full()
+	check(not cook.work.active() and cook.mode == Companion.Mode.WAIT, "con el morral lleno lo deja y se queda esperando")
+	fire.queue_free()
+	GridManager.clear_all()
+	planet.queue_free()
+	await _clear()
+
+
+## En campo, los que recolectan llevan lo que sacan a quien lo necesita: al constructor, a su obra; al
+## cocinero, en mano. Solo lo que falta.
+func _check_field_delivery() -> void:
+	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	var planet := Node3D.new()
+	planet.name = "DeliveryPlanet"
+	_host.add_child(planet)
+	var site := BlueprintSite.create(_blueprint(), planet, Transform3D(Basis.IDENTITY, Vector3(10.0, 0.0, 6.0)), "reparto")
+	var cost := site.get_cost()
+	var builder := _spawn(Vector3(8.0, 0.05, 2.0))
+	builder.pack.add_item(_item(&"stone_hammer_01"), 1)
+	var quarry := _spawn(Vector3(-12.0, 0.05, -6.0))
+	quarry.pack.add_item(_item(&"stone_pickaxe_01"), 1)
+	for id: StringName in cost:
+		quarry.pack.add_item(_item(id), int(cost[id]) + 4)
+	_companions.order_work(SettlerWork.Job.BUILD, site.get_center(), [builder] as Array[Companion])
+	# El cantero pica lejos de la obra (no hay rocas en la prueba: lo que lleva hace de lo picado).
+	_companions.order_work(SettlerWork.Job.MINE, Vector3(-14.0, 0.0, -8.0), [quarry] as Array[Companion])
+	var left := 120.0
+	while left > 0.0 and is_instance_valid(site) and not site.is_complete():
+		await _wait(1.0)
+		left -= 1.0
+	check(not is_instance_valid(site) or site.is_complete(),
+		"el cantero lleva la piedra a la obra y el constructor la levanta (%.0f s; %s)" % [120.0 - left, builder.work.describe()])
+	var only_needed := true
+	for id: StringName in cost:
+		only_needed = only_needed and quarry.pack.get_item_count(_item(id)) == 4 and builder.pack.get_item_count(_item(id)) == 0
+	check(only_needed, "solo lleva lo que falta: el resto se lo queda")
+	check(not SettlerBuild._hauls.has(quarry.get_instance_id()), "y ya no se apunta como que trae nada")
+	# Al cocinero: lo crudo y la leña, en mano.
+	var fire := Campfire.new()
+	_host.add_child(fire)
+	fire.global_position = Vector3(-6.0, 0.0, 8.0)
+	var raw := _item(&"raw_meat")
+	var cook := _spawn(Vector3(-4.0, 0.05, 8.0))
+	var woodcutter := _spawn(Vector3(6.0, 0.05, -10.0))
+	woodcutter.pack.add_item(_item(&"stone_axe_01"), 1)
+	woodcutter.pack.add_item(raw, 3)
+	woodcutter.pack.add_item(_item(SettlerWork.WOOD_ID), 20)
+	_companions.order_work(SettlerWork.Job.COOK, fire.global_position, [cook] as Array[Companion])
+	_companions.order_work(SettlerWork.Job.FELL, Vector3(8.0, 0.0, -12.0), [woodcutter] as Array[Companion])
+	left = 240.0
+	var cooked := _item(&"cooked_meat")
+	while left > 0.0 and cook.pack.get_item_count(cooked) < 3:
+		await _wait(2.0)
+		left -= 2.0
+	check(cook.pack.get_item_count(cooked) == 3 and woodcutter.pack.get_item_count(raw) == 0,
+		"el leñador le lleva lo crudo y la leña al cocinero, que lo asa (%.0f s)" % (240.0 - left))
+	check(woodcutter.pack.get_item_count(_item(SettlerWork.WOOD_ID)) == 20 - SettlerCook.WANT_FUEL,
+		"y de leña, solo lo que pide (le quedan %d)" % woodcutter.pack.get_item_count(_item(SettlerWork.WOOD_ID)))
+	fire.queue_free()
 	GridManager.clear_all()
 	planet.queue_free()
 	await _clear()

@@ -1807,6 +1807,7 @@ SETTLER_OFF_HOURS,%s · %d gathered · resting until the next shift,%s · lleva 
 SETTLER_AWAY,%s · %d gathered · working out of sight,%s · lleva %d · trabaja lejos de ti,colonos
 SETTLER_NO_TOOL_FELL,Idle: needs an axe in their pack.,Parado: necesita un hacha en el morral.,colonos
 SETTLER_NO_TOOL_MINE,Idle: needs a pickaxe in their pack.,Parado: necesita un pico en el morral.,colonos
+SETTLER_PACK_FULL,%s's pack is full: they stop working.,%s tiene el morral lleno: deja de trabajar.,colonos
 SETTLER_NO_CHEST,Idle: there's no chest at the base for their job (%s).,Parado: no hay cofre en la base para su oficio (%s).,colonos
 SETTLER_CHEST_FULL,Idle: the base chests are full.,Parado: los cofres de la base están llenos.,colonos
 SETTLER_NOTHING_LEFT,%s · nothing left to do nearby.,%s · no queda nada que hacer cerca.,colonos
@@ -1884,11 +1885,23 @@ GROUP_ORDER_WAIT,Hold here,Esperad aquí,colonos
 GROUP_ORDER_ATTACK,Attack,Atacad,colonos
 GROUP_ORDER_RETREAT,Retreat,Retirada,colonos
 GROUP_ORDER_HOME,Back to base,A la base,colonos
+GROUP_ORDER_GOTO,Go there,Id allí,colonos
+GROUP_ORDER_WORK,Get to work,Trabajad,colonos
 GROUP_ORDER_FORMATION,Formation,Formación,colonos
 GROUP_HINT_FOLLOW,Those waiting come with you,Los que esperan vienen contigo,colonos
 GROUP_HINT_WAIT,They stay and defend this spot,Se quedan y defienden este sitio,colonos
 GROUP_HINT_RETREAT,They leave the fight and run back to you,Dejan la pelea y vuelven corriendo contigo,colonos
 GROUP_HINT_HOME,Each settler goes back to their base and their work,Cada colono vuelve a su base y a su trabajo,colonos
+GROUP_HINT_GOTO,They go where you are looking and wait there,Van adonde miras y esperan allí,colonos
+GROUP_HINT_WORK,Pick a job: they do it around where you are looking,Elige el oficio: lo harán alrededor de donde miras,colonos
+GROUP_HINT_WORK_PICK,Around where you are looking; they keep at it until you say otherwise,Alrededor de donde miras; siguen hasta que digas otra cosa,colonos
+GROUP_WORK_FELL,Fell trees,Talad,colonos
+GROUP_WORK_MINE,Quarry,Picad,colonos
+GROUP_WORK_CLEAR,Clear,Limpiad,colonos
+GROUP_WORK_HUNT,Hunt,Cazad,colonos
+GROUP_WORK_FISH,Fish,Pescad,colonos
+GROUP_WORK_COOK,Cook,Cocinad,colonos
+GROUP_WORK_BUILD,Build,Construid,colonos
 GROUP_HINT_PREY,The creature you are looking at,La criatura a la que miras,colonos
 GROUP_HINT_NO_PREY,Lock on or look at a creature first.,Fija o mira antes a una criatura.,colonos
 GROUP_FORMATION_WEDGE,Wedge,Cuña,colonos
@@ -1903,4 +1916,16 @@ GROUP_SAID_RETREAT,Retreat!,¡Retirada!,colonos
 GROUP_SAID_HOME,%d head back to base.,%d vuelven a su base.,colonos
 GROUP_SAID_HOME_SOME,%d head back to base; %d have none.,%d vuelven a su base; %d no tienen.,colonos
 GROUP_SAID_NO_BASE,None of them has a base to go back to.,Ninguno tiene base a la que volver.,colonos
+GROUP_SAID_GOTO,%d head over there.,%d van para allá.,colonos
+GROUP_SAID_WORK,%d to work: %s.,%d a trabajar: %s.,colonos
+GROUP_SAID_NO_SPOT,Look at the ground where they should go.,Mira al suelo adonde quieres que vayan.,colonos
 GROUP_SAID_FORMATION,Formation: %s.,Formación: %s.,colonos
+GROUP_HINT_FORMATION_NOW,The one they keep now,La que llevan ahora,colonos
+GROUP_HINT_FORMATION_PICK,Release or click to change,Suelta o haz clic para cambiar,colonos
+GROUP_HINT_NOBODY,Nobody chosen: 1-9 or 0,No hay nadie elegido: 1-9 o 0,colonos
+GROUP_SOME,%d of %d chosen,%d de %d elegidos,colonos
+GROUP_ROSTER_KEYS,1-%d choose · 0 all,1-%d elegir · 0 todos,colonos
+GROUP_STATE_FOLLOW,follows,sigue,colonos
+GROUP_STATE_WAIT,waits,espera,colonos
+GROUP_STATE_GOING,on the way,de camino,colonos
+GROUP_STATE_DOWN,wounded,malherido,colonos

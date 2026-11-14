@@ -10,7 +10,8 @@ class_name SettlerHunt extends SettlerTask
 ## despellejar). Sin cofre con sitio no caza.
 ##
 ## Lejos del jugador no hay criaturas: da una pieza corriente (AWAY_MEAT de carne y AWAY_HIDE de
-## piel) cada AWAY_KILL s. Ver docs/villagers.md.
+## piel) cada AWAY_KILL s. En campo (SettlerWork.field) sin cofre cerca, lo despiezado se queda en el
+## morral hasta llenarlo. Ver docs/villagers.md.
 
 enum Phase {SEEK, CHASE, BUTCHER, DEPOSIT}
 
@@ -170,8 +171,16 @@ func _depositing(delta: float) -> Array:
 		_haul.clear()
 		_phase = Phase.SEEK
 		return still()
+	# En campo, antes a quien lo necesite (un cocinero que pide lo crudo): el viaje lo lleva SettlerWork.
+	if w.field and w.plan_delivery():
+		return still()
 	var from := chests(SettlerWork.JOB_IDS[SettlerWork.Job.HUNT], true)
 	var chest := chest_with_room(from, data)
+	if chest == null and w.field:
+		# En campo, sin cofre cerca: se lo queda en el morral.
+		_haul.clear()
+		_phase = Phase.SEEK
+		return still()
 	if chest == null:
 		w.block(c.tr("SETTLER_CHEST_FULL_SHORT") if not from.is_empty()
 			else c.tr("SETTLER_NO_CHEST_SHORT") % c.tr("SETTLER_JOB_HUNT"))
@@ -214,6 +223,11 @@ func away(delta: float, _hour: float) -> void:
 
 ## Si hay cofre con sitio para la carne; si no, se queda parado diciendo por qué.
 func _has_chest() -> bool:
+	if w.field:
+		if w.field_room(ItemCatalog.get_item(HuntingLoot.MEAT)):
+			return true
+		w.pack_full()
+		return false
 	var from := chests(SettlerWork.JOB_IDS[SettlerWork.Job.HUNT], true)
 	if chest_with_room(from, ItemCatalog.get_item(HuntingLoot.MEAT)) != null:
 		return true

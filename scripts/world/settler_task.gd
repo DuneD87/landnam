@@ -93,17 +93,19 @@ func walk(dest: Vector3, reach: float, delta: float, key: Object) -> Walk:
 
 # --- Cofres ---------------------------------------------------------------------------------------
 
-## Los cofres de la base que aceptan el oficio [id] (&"": todos), del más cercano a él al más lejano;
-## con [marked_first], antes los marcados con ese oficio.
+## Los cofres de la base (en campo, los de cerca de la zona: SettlerWork.home) que aceptan el oficio
+## [id] (&"": todos), del más cercano a él al más lejano; con [marked_first], antes los marcados con ese
+## oficio.
 func chests(id: StringName = &"", marked_first := false) -> Array[Storage]:
 	var out: Array[Storage] = []
-	if not c.base.is_finite():
+	var home := w.home()
+	if not home.is_finite():
 		return out
-	var home := c._terrain.global_transform * c.base
+	var reach := w.chest_reach()
 	for node in c.get_tree().get_nodes_in_group(Storage.GROUP):
 		var chest := node as Storage
 		if chest == null or not chest.is_inside_tree() or chest.is_queued_for_deletion() \
-				or chest.global_position.distance_to(home) > SettlerWork.CHEST_REACH:
+				or chest.global_position.distance_to(home) > reach:
 			continue
 		if id == &"" or chest.accepts_job(id):
 			out.append(chest)

@@ -19,8 +19,11 @@ enum Formation {WEDGE, FILE, LOOSE}
 ## Cuántos acompañan a la vez, y cuántos viven en la base.
 const MAX := 6
 const MAX_SETTLERS := 20
+## Mandados a un sitio (order_goto), a esta distancia (m) uno de otro.
+const GOTO_RING := 1.6
 const FORMATION_NAMES := {Formation.WEDGE: "GROUP_FORMATION_WEDGE", Formation.FILE: "GROUP_FORMATION_FILE",
 	Formation.LOOSE: "GROUP_FORMATION_LOOSE"}
+const FORMATION_GLYPHS := {Formation.WEDGE: &"wedge", Formation.FILE: &"file", Formation.LOOSE: &"loose"}
 ## La cuña: cada fila, ROW m más atrás y SIDE m más abierta; uno solo va a ALONE m, justo detrás.
 const ROW := 1.7
 const SIDE := 1.3
@@ -209,11 +212,23 @@ func apart_from(c: Companion, up: Vector3) -> Vector3:
 
 
 # --- Órdenes al grupo ------------------------------------------------------------------------------
+# Cada orden va a [who] (los elegidos en la rueda) o, si viene vacío, a todo el grupo.
+
+func _to(who: Array[Companion]) -> Array[Companion]:
+	var group := party()
+	if who.is_empty():
+		return group
+	var out: Array[Companion] = []
+	for c in who:
+		if group.has(c):
+			out.append(c)
+	return out
+
 
 ## Que sigan los que esperan. Cuántos han echado a andar.
-func order_follow() -> int:
+func order_follow(who: Array[Companion] = []) -> int:
 	var count := 0
-	for c in party():
+	for c in _to(who):
 		if c.mode == Companion.Mode.WAIT:
 			c.follow()
 			count += 1
@@ -221,28 +236,80 @@ func order_follow() -> int:
 
 
 ## Que esperen aquí los que siguen. Cuántos se quedan.
-func order_wait() -> int:
+func order_wait(who: Array[Companion] = []) -> int:
 	var count := 0
-	for c in party():
+	for c in _to(who):
 		if c.mode == Companion.Mode.FOLLOW:
 			c.wait_here()
 			count += 1
 	return count
 
 
-## A por [creature], todo el grupo. Cuántos van.
-func order_attack(creature: NPCController) -> int:
+## A por [creature]. Cuántos van.
+func order_attack(creature: NPCController, who: Array[Companion] = []) -> int:
 	var count := 0
-	for c in party():
+	for c in _to(who):
 		if c.order_attack(creature):
 			count += 1
 	return count
 
 
-## Retirada: dejan la pelea y vuelven con el jugador (también los que esperaban). Cuántos.
-func order_retreat() -> int:
+## Que vayan a [spot] (mundo; [up], la vertical allí) y esperen allí: uno en el sitio y los demás en
+## corro alrededor (GOTO_RING m entre uno y otro; si son muchos, en otro corro más afuera). El que está
+## más cerca va al hueco más cercano. Cuántos van.
+func order_goto(spot: Vector3, up: Vector3, who: Array[Companion] = []) -> int:
+	var group: Array[Companion] = []
+	for c in _to(who):
+		if not c.dead and c.mode != Companion.Mode.LEAVE:
+			group.append(c)
+	if group.is_empty():
+		return 0
+	var spots := goto_spots(spot, up, group.size())
 	var count := 0
-	for c in party():
+	for at in spots:
+		var best := -1
+		var best_d := INF
+		for k in group.size():
+			var d := group[k].global_position.distance_squared_to(at)
+			if d < best_d:
+				best = k
+				best_d = d
+		if group[best].go_to(at):
+			count += 1
+		group.remove_at(best)
+	return count
+
+
+## Que se pongan con [job] (SettlerWork.Job) en campo alrededor de [spot] (mundo): Companion.field_work.
+## Cuántos se ponen.
+func order_work(job: SettlerWork.Job, spot: Vector3, who: Array[Companion] = []) -> int:
+	var count := 0
+	for c in _to(who):
+		if c.field_work(job, spot):
+			count += 1
+	return count
+
+
+## Los [count] huecos alrededor de [spot] (con la vertical [up]): el sitio mismo y corros de GOTO_RING m.
+static func goto_spots(spot: Vector3, up: Vector3, count: int) -> Array[Vector3]:
+	var out: Array[Vector3] = [spot]
+	var side := up.cross(Vector3.FORWARD if absf(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT).normalized()
+	var ring := 1
+	while out.size() < count:
+		var radius := GOTO_RING * ring
+		# Caben ~2πr / GOTO_RING en cada corro.
+		var room := maxi(int(TAU * radius / GOTO_RING), 1)
+		var here := mini(room, count - out.size())
+		for k in here:
+			out.append(spot + side.rotated(up, TAU * k / here + ring * 0.5) * radius)
+		ring += 1
+	return out
+
+
+## Retirada: dejan la pelea y vuelven con el jugador (también los que esperaban). Cuántos.
+func order_retreat(who: Array[Companion] = []) -> int:
+	var count := 0
+	for c in _to(who):
 		c.order_retreat()
 		if c.mode == Companion.Mode.WAIT:
 			c.follow()
@@ -251,15 +318,20 @@ func order_retreat() -> int:
 
 
 ## Vuelven a su base los que la tienen (con el trabajo que dejaron). [cuántos vuelven, cuántos no tienen].
-func order_home() -> Array:
+func order_home(who: Array[Companion] = []) -> Array:
 	var went := 0
 	var homeless := 0
-	for c in party():
+	for c in _to(who):
 		if c.return_to_base():
 			went += 1
 		else:
 			homeless += 1
 	return [went, homeless]
+
+
+## Pasa a [f].
+func set_formation(f: Formation) -> void:
+	formation = f
 
 
 ## Pasa a la formación siguiente y la devuelve.
@@ -381,6 +453,11 @@ func get_save_data() -> Dictionary:
 		var entry := {"village": c.village, "id": String(c.resident.get("id", "")), "mode": int(c.mode),
 			"at": [at.x, at.y, at.z], "facing": [facing.x, facing.y, facing.z], "pack": c.pack.get_save_data(),
 			"health": c.health.health, "fed": c.meals.fed}
+		if c.is_going():
+			var spot := c.goto_spot()
+			entry.goto = [spot.x, spot.y, spot.z]
+		if c.is_field_working():
+			entry.field_work = c.work.save_data()
 		if c.mode == Companion.Mode.SETTLE:
 			entry.base = [c.base.x, c.base.y, c.base.z]
 			var work := c.work.save_data()
@@ -450,6 +527,11 @@ func restore_save_data(data: Dictionary) -> void:
 		if saved_mode != Companion.Mode.SETTLE and return_raw.size() == 3:
 			companion.return_base = Vector3(return_raw[0], return_raw[1], return_raw[2])
 			companion.return_work = entry.get("return_work", {})
+		if mode == Companion.Mode.WAIT and entry.has("field_work"):
+			companion.work.restore(entry.field_work)
+		var goto_raw: Array = entry.get("goto", [])
+		if mode == Companion.Mode.WAIT and goto_raw.size() == 3:
+			companion.go_to(_terrain.global_transform * Vector3(goto_raw[0], goto_raw[1], goto_raw[2]))
 		if entry.has("pack"):
 			companion.pack.restore_save_data(entry.pack)
 		companion.restore_health(float(entry.get("health", -1.0)))

@@ -10,7 +10,10 @@ class_name SettlerBuild extends SettlerTask
 ## puestos.
 ##
 ## Lejos del jugador hace lo mismo sin moverse: un viaje del cofre a la obra cada TRIP_TIME s y un
-## martillazo cada AWAY_HIT s. Ver docs/villagers.md.
+## martillazo cada AWAY_HIT s. En campo (SettlerWork.field) usa primero lo de su morral y luego los
+## cofres de cerca de la zona; lo que sobra se queda en el morral. Lo que falta a su obra lo piden a
+## los que recolectan en campo cerca (demand, SettlerWork.plan_delivery), que lo traen directo a la obra
+## y se apuntan en _hauls como uno más. Ver docs/villagers.md.
 
 enum Phase {SEEK, FETCH, HAUL, HAMMER, RETURN}
 
@@ -27,8 +30,9 @@ const HIT_SPEED := 1.1
 const TRIP_TIME := 30.0
 const AWAY_HIT := 2.5
 
-## Lo que trae cada uno de camino a una obra: instance_id del Companion -> {"site": instance_id de
-## la obra, "items": {id: cantidad}}.
+## Lo que trae cada uno de camino a una obra (constructores y, en campo, recolectores que se lo
+## llevan: SettlerWork.plan_delivery): instance_id del Companion -> {"site": instance_id de la obra,
+## "items": {id: cantidad}}.
 static var _hauls := {}
 
 var _site: BlueprintSite
@@ -135,7 +139,7 @@ func _decide(delta: float) -> Array:
 			break
 	if _chest == null:
 		_short = wanted
-		w.block(_short_text(from.is_empty()))
+		w.block(_short_text(from.is_empty() and not w.field))
 		_wait_left = SettlerWork.SEEK_EVERY
 		return still()
 	_phase = Phase.FETCH
@@ -336,12 +340,40 @@ func _find_site() -> BlueprintSite:
 	return best
 
 
+## En campo, lo que falta a su obra y no trae nadie: [la obra, {id: cantidad}], o [] si no tiene obra
+## o no le falta nada. Descuenta lo que él lleva encima y lo que traen otros (_hauls).
+func demand() -> Array:
+	var site := _site if _site_ok() else _find_site()
+	if site == null:
+		return []
+	var need := site.get_missing()
+	for id: StringName in need.keys():
+		need[id] = int(need[id]) - carried(ItemCatalog.get_item(id))
+	for key in _hauls.keys():
+		var other := instance_from_id(key) as Companion
+		var haul: Dictionary = _hauls[key]
+		if other == null or other == c or int(haul.site) != site.get_instance_id():
+			continue
+		for id: StringName in haul.items:
+			if need.has(id):
+				need[id] = int(need[id]) - int(haul.items[id])
+	for id: StringName in need.keys():
+		if int(need[id]) <= 0:
+			need.erase(id)
+	return [site, need] if not need.is_empty() else []
+
+
 ## Dónde se pone para aportar y martillear (mundo): el punto más cercano a él de la caja de la obra
 ## agrandada STAND_OFF m (si está dentro, sale por la cara más cercana), a su altura.
 func _stand_point() -> Vector3:
-	var frame := _site.global_transform
-	var box := _site.get_box().grow(STAND_OFF)
-	var local := frame.affine_inverse() * c.global_position
+	return stand_point_for(_site, c.global_position)
+
+
+## Como _stand_point, para cualquiera que esté en [from] y vaya a [site].
+static func stand_point_for(site: BlueprintSite, from: Vector3) -> Vector3:
+	var frame := site.global_transform
+	var box := site.get_box().grow(STAND_OFF)
+	var local := frame.affine_inverse() * from
 	var p := Vector3(clampf(local.x, box.position.x, box.end.x), local.y, clampf(local.z, box.position.z, box.end.z))
 	if local.x > box.position.x and local.x < box.end.x and local.z > box.position.z and local.z < box.end.z:
 		var exits := [[local.x - box.position.x, Vector3(box.position.x, local.y, local.z)],

@@ -23,6 +23,18 @@ class_name SettlerWork extends RefCounted
 ## SettlerTask, que este crea al mandarlo (assign) y al que pasa cada paso; aquí queda lo común: el
 ## oficio, la zona, el estado, el guardado y las reservas. Con hambre (SettlerMeals) todos van a la
 ## mitad de ritmo (pace). Ver docs/villagers.md.
+##
+## En campo (field): el que va con el jugador (Companion.field_work, desde la rueda del grupo) trabaja
+## en la zona que se le marca, sin base ni horario, hasta que se le mande otra cosa. Lo que saca va a un
+## cofre de a menos de FIELD_CHEST_REACH m de la zona si lo hay y, si no, se queda en su morral; con el
+## morral lleno lo dice y lo deja (pack_full). Construir y cocinar toman también lo de su morral, y
+## cocinar usa la hoguera más cercana a la zona. Lejos del jugador no avanza.
+##
+## En campo, además, lo que saca lo lleva antes a quien lo necesite: al acabar cada árbol, roca, presa
+## o tanda de peces (plan_delivery) mira si un constructor o un cocinero en campo a menos de
+## DELIVER_REACH m necesita algo de lo que lleva (SettlerBuild.demand, SettlerCook.demand) y le lleva
+## solo eso: al constructor, directo a su obra (y se apunta en SettlerBuild._hauls para que nadie más
+## lo traiga); al cocinero, en mano. Lo que nadie necesita sigue al cofre o al morral.
 
 enum Job {NONE, FELL, MINE, CLEAR, BUILD, GUARD, HUNT, FISH, COOK}
 ## Cómo va, para la charla (y en el futuro, lo que se ve sobre él). BLOCKED: parado por lo que dice
@@ -46,6 +58,14 @@ const WORK_RADIUS := 60.0
 const CLEAR_RADIUS := 12.0
 ## Los cofres de la base: a menos de esto (m) de ella.
 const CHEST_REACH := 60.0
+## En campo: el radio de la zona (limpiar, CLEAR_RADIUS) y hasta dónde de ella valen los cofres (m).
+const FIELD_RADIUS := 25.0
+const FIELD_CHEST_REACH := 30.0
+## En campo: hasta dónde (m) lleva lo que saca a quien lo necesita, a qué distancia se lo da, y cada
+## cuánto (s) vuelve a mirar si alguien lo necesita cuando nadie lo necesitaba.
+const DELIVER_REACH := 60.0
+const HAND_REACH := 1.8
+const DELIVER_RECHECK := 3.0
 ## Sin nada a la vista, vuelve a mirar cada SEEK_EVERY s. Va por Companion.steer (en línea recta y, si no
 ## avanza, por un camino). Lo que no se acerca al menos PROGRESS m (por el camino) en GIVE_UP s lo deja
 ## SKIP_TIME s.
@@ -103,6 +123,12 @@ var shift := 0
 var reason := ""
 ## Quien lleva el oficio si no es talar, picar ni limpiar; si no, null.
 var task: SettlerTask
+## Trabaja en campo (ver arriba): sin base ni horario, y lo sacado, a su morral si no hay cofre cerca.
+var field := false
+## En campo, lo que lleva a quien lo necesita: {"to": la obra (BlueprintSite) o el cocinero (Companion),
+## "items": {id: cantidad}}, o vacío; y cuándo puede volver a mirar.
+var _delivery := {}
+var _plan_after := 0.0
 
 var _c: Companion
 var _step := Step.SEEK
@@ -156,9 +182,10 @@ func busy() -> bool:
 
 
 ## Empieza [what] (en [at], marco del terreno, si es limpiar: si no, alrededor de la base). [turn]: el
-## turno del guardia (0 de día, 1 de noche).
-func assign(what: Job, at := Vector3.INF, radius := -1.0, turn := 0) -> void:
+## turno del guardia (0 de día, 1 de noche). [in_field]: en campo (ver arriba).
+func assign(what: Job, at := Vector3.INF, radius := -1.0, turn := 0, in_field := false) -> void:
 	stop()
+	field = in_field
 	job = what
 	zone = at
 	zone_radius = radius if radius > 0.0 else (CLEAR_RADIUS if what == Job.CLEAR else WORK_RADIUS)
@@ -199,7 +226,9 @@ func stop() -> void:
 		task.stop()
 		task = null
 	_release()
+	_end_delivery()
 	job = Job.NONE
+	field = false
 	status = Status.IDLE
 	reason = ""
 	_step = Step.SEEK
@@ -221,6 +250,131 @@ func on_duty(hour: float) -> bool:
 ## Si a la hora [hour] duerme (el guardia de noche, de día).
 func sleeps(hour: float) -> bool:
 	return task.sleeps(hour) if task != null else Villager._is_night(hour)
+
+
+## Dónde se buscan los cofres y la hoguera (mundo): la base o, en campo, la zona. INF si no hay.
+func home() -> Vector3:
+	if _c.base.is_finite():
+		return _c._terrain.global_transform * _c.base
+	if field and zone.is_finite():
+		return _c._terrain.global_transform * zone
+	return Vector3.INF
+
+
+## Hasta dónde de home() valen los cofres (m).
+func chest_reach() -> float:
+	return CHEST_REACH if _c.base.is_finite() else FIELD_CHEST_REACH
+
+
+## En campo, si lo de [data] tiene dónde ir: un cofre cerca con sitio o su morral.
+func field_room(data: ItemData) -> bool:
+	return data == null or _room(_c.pack, data) or _find_chest(data) != null
+
+
+## En campo, con el morral lleno (y sin cofre cerca): lo dice y lo deja.
+func pack_full() -> void:
+	_c.notify(_c.tr("SETTLER_PACK_FULL") % String(_c.resident.get("name", "")))
+	stop()
+
+
+# --- En campo: llevar lo sacado a quien lo necesita -------------------------------------------------
+
+## En campo, si alguien cerca necesita algo de lo que lleva: se apunta el viaje (_delivery) y es cierto.
+## Si nadie lo necesitaba, no vuelve a mirar hasta DELIVER_RECHECK s después.
+func plan_delivery() -> bool:
+	if not field or not _delivery.is_empty():
+		return not _delivery.is_empty()
+	if _now() < _plan_after:
+		return false
+	return _plan_now()
+
+
+## Como plan_delivery, sin esperar (al acabar una pieza).
+func _plan_now() -> bool:
+	if not field or not _delivery.is_empty():
+		return not _delivery.is_empty()
+	_plan_after = _now() + DELIVER_RECHECK
+	var best := {}
+	var best_d := DELIVER_REACH
+	for node in _c.get_tree().get_nodes_in_group(Companion.GROUP):
+		var other := node as Companion
+		if other == null or other == _c or not is_instance_valid(other) or other.dead or not other.is_field_working():
+			continue
+		var d := other.global_position.distance_to(_c.global_position)
+		if d >= best_d:
+			continue
+		var wanted: Array = other.work.task.call(&"demand") if other.work.task != null and other.work.task.has_method(&"demand") else []
+		if wanted.is_empty():
+			continue
+		var items := _offer(wanted[1])
+		if not items.is_empty():
+			best = {"to": wanted[0], "items": items}
+			best_d = d
+	if best.is_empty():
+		return false
+	_delivery = best
+	if best.to is BlueprintSite:
+		SettlerBuild._hauls[_c.get_instance_id()] = {"site": (best.to as Node).get_instance_id(), "items": best.items}
+	_approach_for = null
+	return true
+
+
+## De lo que pide [need] ({id: cantidad}; SettlerCook.RAW, cualquier cosa cruda), lo que lleva: {id:
+## cantidad}.
+func _offer(need: Dictionary) -> Dictionary:
+	var out := {}
+	for id: StringName in need:
+		var want := int(need[id])
+		if id == SettlerCook.RAW:
+			for item in _c.pack.get_all_items():
+				if want <= 0:
+					break
+				if item != null and item.data.get_trait(CookableTrait) != null:
+					var give := mini(want, item.quantity - int(out.get(item.data.id, 0)))
+					if give > 0:
+						out[item.data.id] = int(out.get(item.data.id, 0)) + give
+						want -= give
+			continue
+		var have := _c.pack.get_item_count(ItemCatalog.get_item(id))
+		if have > 0 and want > 0:
+			out[id] = mini(have, want)
+	return out
+
+
+## Un paso del viaje: hasta la obra (a su caja) o hasta el cocinero, y allí lo deja. Si no llega
+## (atascado), lo deja igual, como en el cofre.
+func _delivering(delta: float) -> Array:
+	var to: Variant = _delivery.get("to")
+	if not _valid(to) or (to is Companion and not (to as Companion).is_field_working()) \
+			or (to is BlueprintSite and (to as BlueprintSite).is_complete()):
+		_end_delivery()
+		return _still()
+	var dest: Vector3 = SettlerBuild.stand_point_for(to, _c.global_position) if to is BlueprintSite \
+		else (to as Node3D).global_position
+	var reach := SettlerBuild.STAND_REACH if to is BlueprintSite else HAND_REACH
+	var flat := (dest - _c.global_position).slide(_c.up_direction).length()
+	if flat > reach:
+		var heading := _c.steer(dest, reach * 0.8, delta)
+		if _approaching(to, _c.steer_remaining(dest), delta):
+			return [heading, Companion.JOG_SPEED if flat > Companion.JOG_FROM else WALK_SPEED]
+	_approach_for = null
+	if to is BlueprintSite:
+		(to as BlueprintSite).deposit(_c.pack)
+	else:
+		var cook := to as Companion
+		for id: StringName in _delivery.items:
+			var data := ItemCatalog.get_item(id)
+			SettlerTask.move(_c.pack, cook.pack, data, mini(int(_delivery.items[id]), _c.pack.get_item_count(data)))
+	_end_delivery()
+	return _still()
+
+
+func _end_delivery() -> void:
+	if not _delivery.is_empty() or SettlerBuild._hauls.has(_c.get_instance_id()):
+		# El constructor también se apunta ahí: solo se borra lo de un viaje de recolector.
+		if job != Job.BUILD:
+			SettlerBuild._hauls.erase(_c.get_instance_id())
+	_delivery = {}
 
 
 ## El ritmo al que trabaja: con hambre, a la mitad.
@@ -274,6 +428,9 @@ func step(delta: float) -> Array:
 		_release()
 	if status == Status.OFF_HOURS or status == Status.AWAY:
 		status = Status.WORKING
+	# Llevando lo sacado a quien lo necesita: eso primero (se empieza entre una pieza y otra).
+	if not _delivery.is_empty():
+		return _delivering(delta)
 	if task != null:
 		return task.step(delta)
 	if _swing_left > 0.0:
@@ -311,11 +468,22 @@ func _seek() -> Array:
 	if not trees and not rocks:
 		status = Status.NO_TOOL
 		return _still()
-	if not _has_chest():
-		return _still()
-	if _carried() > 0:
-		_begin_deposit()
-		return _still()
+	if field:
+		# En campo: a quien lo necesite; si no, al cofre si hay uno cerca y, si no, al morral mientras quepa.
+		if _carried() > 0 and plan_delivery():
+			return _still()
+		if not field_room(ItemCatalog.get_item(STONE_ID if job == Job.MINE else WOOD_ID)):
+			pack_full()
+			return _still()
+		if _carried() > 0 and _find_chest(_carried_item()) != null:
+			_begin_deposit()
+			return _still()
+	else:
+		if not _has_chest():
+			return _still()
+		if _carried() > 0:
+			_begin_deposit()
+			return _still()
 	_target = _find(trees, rocks)
 	if _target == null:
 		# Sin la zona cerca de la cámara (al cargar, al mirar lejos) los árboles y las rocas no tienen
@@ -546,6 +714,8 @@ func _finish_site() -> void:
 	_release()
 	_step = Step.SEEK
 	_seek_left = 0.0
+	if field and _plan_now():
+		return
 	if _carried() > 0:
 		_begin_deposit()
 
@@ -763,16 +933,17 @@ func _has_chest() -> bool:
 ## El cofre de la base para su oficio con sitio para [data] (sin [data], cualquiera que lo acepte): los
 ## marcados con su oficio antes que los que aceptan todo, y de ellos el más cercano a él. O null.
 func _find_chest(data: ItemData) -> Storage:
-	if not _c.base.is_finite():
+	var center := home()
+	if not center.is_finite():
 		return null
-	var center := _c._terrain.global_transform * _c.base
+	var reach := chest_reach()
 	var id: StringName = JOB_IDS.get(job, &"")
 	var best: Storage
 	var best_score := INF
 	for node in _c.get_tree().get_nodes_in_group(Storage.GROUP):
 		var chest := node as Storage
 		if chest == null or not chest.is_inside_tree() or chest.is_queued_for_deletion() \
-				or chest.global_position.distance_to(center) > CHEST_REACH or not chest.accepts_job(id):
+				or chest.global_position.distance_to(center) > reach or not chest.accepts_job(id):
 			continue
 		if data != null and not _room(chest.inventory, data):
 			continue
@@ -833,7 +1004,8 @@ func _find(trees: bool, rocks: bool) -> Node3D:
 			continue
 		if node is FallingTree and not (node as FallingTree)._resting:
 			continue
-		var d := _center(node).distance_to(_c.global_position)
+		# En campo, lo más cercano al sitio que marcó el jugador (lo que miraba); si no, a él.
+		var d := _center(node).distance_to(center if field else _c.global_position)
 		if d < best_d:
 			best = node
 			best_d = d
@@ -985,6 +1157,8 @@ func save_data() -> Dictionary:
 	if not active() and rates.is_empty():
 		return {}
 	var out := {"job": int(job), "radius": zone_radius, "gathered": gathered, "rates": rates.duplicate()}
+	if field:
+		out.field = true
 	if zone.is_finite():
 		out.zone = [zone.x, zone.y, zone.z]
 	if shift != 0:
@@ -1001,7 +1175,7 @@ func restore(data: Dictionary) -> void:
 	var what := int(data.get("job", 0)) as Job
 	if what != Job.NONE:
 		assign(what, Vector3(raw[0], raw[1], raw[2]) if raw.size() == 3 else Vector3.INF,
-			float(data.get("radius", -1.0)), int(data.get("shift", 0)))
+			float(data.get("radius", -1.0)), int(data.get("shift", 0)), bool(data.get("field", false)))
 		if task != null:
 			task.restore(data.get("task", {}))
 	gathered = int(data.get("gathered", 0))
