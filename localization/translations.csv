@@ -1798,7 +1798,6 @@ SETTLER_JOB_CLEAR,Clearing,Desbroce,colonos
 SETTLER_JOB_NONE,Nothing,Nada,colonos
 SETTLER_ORDER_FELL,Cut trees,Tala árboles,colonos
 SETTLER_ORDER_MINE,Quarry stone,Pica piedra,colonos
-SETTLER_ORDER_CLEAR,Clear around here,Limpia aquí,colonos
 SETTLER_ORDER_STOP,Leave that,Deja eso,colonos
 SETTLER_WORKING,%s · %d gathered,%s · lleva %d,colonos
 SETTLER_OFF_HOURS,%s · %d gathered · resting until the next shift,%s · lleva %d · descansa hasta el siguiente turno,colonos
@@ -1812,11 +1811,6 @@ SETTLER_CLEAR_DONE,%s has finished clearing the area.,%s ha terminado de limpiar
 SETTLER_CRUSHED,%s was crushed by a falling tree.,A %s le ha aplastado un árbol.,colonos
 INV_STORAGE_JOBS,For settlers:,Para colonos:,colonos
 INV_STORAGE_JOBS_TIP,"Settlers with these jobs leave what they gather here; builders take their materials from here. With none marked: all of them.","Los colonos con estos oficios dejan aquí lo que sacan; los constructores cogen de aquí sus materiales. Sin ninguno marcado: todos.",colonos
-VTALK_WORK_OK_1,"Right, I'm on it.","Hecho, me pongo.",colonos
-VTALK_WORK_OK_2,I'll get to it.,Voy para allá.,colonos
-VTALK_WORK_OK_3,Leave it to me.,Déjamelo a mí.,colonos
-VTALK_WORK_STOP_1,"As you wish, I'll stop.","Como quieras, lo dejo.",colonos
-VTALK_WORK_STOP_2,I'll rest my arms then.,Pues descanso los brazos.,colonos
 ITEM_THRONE,Log throne,Trono de troncos,colonos
 ITEM_THRONE_DESC,"A high-backed seat of logs, hides and antlers. Sit on it to look over your base and give orders to the settlers who live there.","Un asiento de troncos de respaldo alto, con pieles y astas. Siéntate en él para ver tu base y dar órdenes a los colonos que viven en ella.",colonos
 THRONE_TITLE,Base settlers,Colonos de la base,colonos
@@ -1842,7 +1836,6 @@ SETTLER_ORDER_BUILD,Build the sites,Construye las obras,colonos
 SETTLER_ORDER_HUNT,Go hunting,Sal a cazar,colonos
 SETTLER_ORDER_FISH,Go fishing,Ponte a pescar,colonos
 SETTLER_ORDER_COOK,Tend the fire,Cocina,colonos
-SETTLER_ORDER_GUARD,Stand guard here,Haz guardia aquí,colonos
 SETTLER_HUNGRY, · hungry, · con hambre,colonos
 SETTLER_BLOCKED,Idle: %s,Parado: %s,colonos
 SETTLER_NEED_HAMMER,needs a hammer in their pack.,necesita un martillo en el morral.,colonos
@@ -1873,6 +1866,13 @@ THRONE_ORDER_FOLLOW_TIP,The chosen settlers leave the base and follow you once y
 THRONE_FOLLOW_DONE,%d will follow you.,Te seguirán %d.,colonos
 THRONE_FOLLOW_SOME,%d will follow you; %d do not fit in the group.,Te seguirán %d; %d no caben en el grupo.,colonos
 THRONE_HINT_GUARD,"Click: mark what to guard · Wheel: radius (%d m; up to %d m it is a fixed post, beyond that a patrol) · Right click or Esc: cancel","Clic: marca lo que vigilar · Rueda: radio (%d m; hasta %d m es un puesto fijo, más allá una ronda) · Clic derecho o Esc: cancelar",colonos
+THRONE_PICK_JOB,Pick all: %s,Elegir a todos: %s,colonos
+THRONE_PICK_IDLE,Pick all without a trade,Elegir a todos los que no tienen oficio,colonos
+SETTLER_CAT_RESOURCES,Resources,Recursos,colonos
+SETTLER_CAT_FOOD,Food,Comida,colonos
+SETTLER_CAT_WORKS,Building,Obras,colonos
+SETTLER_CAT_DEFENSE,Defence,Defensa,colonos
+SETTLER_CHAT_NO_WORK,No work. Trades are given from the throne.,Sin trabajo. Los oficios se mandan desde el trono.,colonos
 GROUP_WHEEL_TITLE,Group orders,Órdenes al grupo,colonos
 GROUP_SUMMARY,%d following · %d waiting,%d te siguen · %d esperan,colonos
 GROUP_NOBODY,Nobody is travelling with you.,No viaja nadie contigo.,colonos

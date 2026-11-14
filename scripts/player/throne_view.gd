@@ -6,9 +6,10 @@ extends CanvasLayer
 ## dormir) y abre la vista de la base: una cámara ortográfica desde arriba, inclinada (R y F, o arrastrando
 ## con el botón central, que además la gira), con los
 ## colonos que viven cerca (Throne.MANAGE_RADIUS) señalados con su nombre, sus zonas de trabajo
-## pintadas en el suelo y, a la derecha, la lista para elegirlos (uno o varios) y mandarles trabajo
-## (SettlerWork): talar, picar o limpiar una zona que se marca con un círculo (clic; la rueda cambia el
-## radio), o dejarlo. Talar y picar también se mandan alrededor de su base (clic derecho). La vista se
+## pintadas en el suelo y, a la derecha, cuántos hay de cada oficio (pinchando uno se eligen todos los
+## que lo tienen), la lista para elegirlos (uno o varios) y los oficios (SettlerOrders, por categoría) que
+## se les mandan (SettlerWork): casi todos en una zona que se marca con un círculo (clic; la rueda cambia
+## el radio) o alrededor de su base (clic derecho). Es el único sitio donde se mandan oficios. La vista se
 ## mueve con WASD y se acerca con la rueda. E o Escape lo levantan (sentarse al revés); un golpe
 ## también. Ver docs/villagers.md.
 
@@ -48,12 +49,13 @@ const ZONE_STEP := 2.0
 ## Los círculos en el suelo: segmentos, ancho (fracción del alto de la vista) y colores por trabajo.
 const RING_SEGMENTS := 72
 const RING_WIDTH := 0.006
-const JOB_COLORS := {SettlerWork.Job.FELL: Color(0.55, 0.9, 0.35, 0.85),
-	SettlerWork.Job.MINE: Color(0.72, 0.8, 0.95, 0.85), SettlerWork.Job.CLEAR: Color(1.0, 0.72, 0.25, 0.9),
-	SettlerWork.Job.BUILD: Color(0.95, 0.85, 0.45, 0.85), SettlerWork.Job.GUARD: Color(0.95, 0.3, 0.3, 0.85),
-	SettlerWork.Job.HUNT: Color(0.75, 0.5, 0.3, 0.85), SettlerWork.Job.FISH: Color(0.35, 0.9, 0.9, 0.85)}
-## Los trabajos que piden marcar una zona sí o sí (los demás valen alrededor de la base, con clic derecho).
-const NEEDS_ZONE: Array[SettlerWork.Job] = [SettlerWork.Job.CLEAR, SettlerWork.Job.GUARD]
+## La opacidad de las zonas en el suelo (el color es el del oficio, SettlerOrders).
+const ZONE_ALPHA := 0.85
+## El lado de los iconos de los oficios (px en la escala base) y el de la lista.
+const ORDER_ICON := 30.0
+const ROW_ICON := 26.0
+## El color del estado de quien está parado por algo (sin herramienta, sin cofre...) o con hambre.
+const WARN_COLOR := Color("d98a5b")
 const SELECTED_COLOR := Color(1.0, 0.88, 0.35)
 const LABEL_COLOR := Color(0.95, 0.93, 0.88)
 ## Se elige un colono pinchando a menos de esto (px) de su nombre.
@@ -105,6 +107,12 @@ var _hint: Label
 var _orders: Array[Button] = []
 var _stop_button: Button
 var _follow_button: Button
+## Cuántos hay de cada oficio: "job:shift" (o "idle") -> su botón.
+var _summary: HFlowContainer
+var _summary_buttons := {}
+## Los iconos de los botones, para darles tamaño con la escala ([textura, lado base]).
+var _glyphs: Array = []
+var _ui_scale := 1.0
 
 
 func _ready() -> void:
@@ -411,7 +419,9 @@ func _draw_cursor() -> void:
 	if _placing == SettlerWork.Job.NONE or not _cursor.is_finite():
 		return
 	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _ring_material)
-	_ring(mesh, _cursor, _zone_radius, JOB_COLORS[_placing])
+	var color := SettlerOrders.color_of(_placing)
+	color.a = ZONE_ALPHA
+	_ring(mesh, _cursor, _zone_radius, color)
 	mesh.surface_end()
 
 
@@ -450,7 +460,8 @@ func _draw_zones() -> void:
 		if not started:
 			mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _ring_material)
 			started = true
-		var color: Color = JOB_COLORS.get(work.job, Color.WHITE)
+		var color := SettlerOrders.color_of(work.job)
+		color.a = ZONE_ALPHA
 		if not work.zone.is_finite():
 			color.a *= 0.45
 		_ring(mesh, center, work.zone_radius, color)
@@ -506,9 +517,7 @@ func _update_labels() -> void:
 			_throne.add_child(label)
 			_labels[c] = label
 		label.global_position = c.global_position + c.up_direction * 1.9
-		var job: String = tr(SettlerWork.JOB_NAMES.get(c.work.job, "SETTLER_JOB_NONE"))
-		if c.work.job == SettlerWork.Job.GUARD:
-			job = tr("SETTLER_JOB_GUARD_NIGHT" if c.work.shift == 1 else "SETTLER_JOB_GUARD_DAY")
+		var job := tr(SettlerOrders.name_of(c.work.job, c.work.shift))
 		var name := String(c.resident.get("name", ""))
 		label.text = name if _size > NAME_ONLY else "%s\n%s" % [name, job]
 		label.modulate = SELECTED_COLOR if _selected.has(c) else LABEL_COLOR
@@ -566,7 +575,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				_pick(click.position)
 		MOUSE_BUTTON_RIGHT:
 			# Alrededor de su base; limpiar y la guardia piden zona: se cancela.
-			if _placing != SettlerWork.Job.NONE and not NEEDS_ZONE.has(_placing):
+			if _placing != SettlerWork.Job.NONE and _zone_of(_placing, _placing_shift) != SettlerOrders.Zone.REQUIRED:
 				_assign(_placing, Vector3.INF, -1.0)
 			_placing = SettlerWork.Job.NONE
 			_refresh()
@@ -616,13 +625,33 @@ func _on_order(job: SettlerWork.Job, shift := 0) -> void:
 			if is_instance_valid(c):
 				(c as Companion).work.stop()
 		_placing = SettlerWork.Job.NONE
-	elif job == SettlerWork.Job.COOK:
-		# El cocinero no tiene zona: la hoguera de su base.
+	elif _zone_of(job, shift) == SettlerOrders.Zone.NONE:
+		# Sin zona (el cocinero: la hoguera de su base).
+		_placing_shift = shift
 		_assign(job, Vector3.INF, -1.0)
 	else:
 		_placing = job
 		_placing_shift = shift
 	_refresh()
+
+
+func _zone_of(job: SettlerWork.Job, shift: int) -> SettlerOrders.Zone:
+	var order := SettlerOrders.find(job, shift)
+	return order.zone if not order.is_empty() else SettlerOrders.Zone.BASE
+
+
+## Elige a todos los que tienen el oficio [key] ("job:shift", o "idle": los que no tienen).
+func _select_job(key: String) -> void:
+	_selected.clear()
+	for c in _settlers:
+		if _job_key(c) == key:
+			_selected[c] = true
+	_refresh()
+
+
+static func _job_key(c: Companion) -> String:
+	var order := SettlerOrders.of(c)
+	return "%d:%d" % [order.job, order.shift] if not order.is_empty() else "idle"
 
 
 ## Los elegidos se van con el jugador (los que quepan en el grupo): lo siguen en cuanto se levante.
@@ -681,20 +710,50 @@ func _refresh() -> void:
 	if not visible:
 		return
 	_gather()
+	# Por oficio (en el orden del catálogo, los sin oficio al final) y de cada uno por nombre.
+	_settlers.sort_custom(func(a: Companion, b: Companion) -> bool:
+		var ra := SettlerOrders.rank_of(a)
+		var rb := SettlerOrders.rank_of(b)
+		if ra != rb:
+			return ra < rb
+		return String(a.resident.get("name", "")).naturalnocasecmp_to(String(b.resident.get("name", ""))) < 0)
 	for c in _rows.keys():
 		if not _settlers.has(c):
 			(_rows[c].row as Node).queue_free()
 			_rows.erase(c)
-	for c in _settlers:
+	var counts := {}
+	for i in _settlers.size():
+		var c := _settlers[i]
 		if not _rows.has(c):
 			_rows[c] = _make_row(c)
 		var row: Dictionary = _rows[c]
+		# El primero de la lista es el aviso de que no hay nadie.
+		_list.move_child(row.row as Node, i + 1)
 		(row.check as CheckBox).set_pressed_no_signal(_selected.has(c))
 		(row.check as CheckBox).text = String(c.resident.get("name", ""))
+		var order := SettlerOrders.of(c)
+		var glyph := row.glyph as GlyphTexture
+		glyph.key = order.glyph if not order.is_empty() else SettlerOrders.IDLE_GLYPH
+		glyph.color = order.color if not order.is_empty() else SettlerOrders.IDLE_COLOR
+		(row.icon as TextureRect).tooltip_text = tr(order.name) if not order.is_empty() else tr("SETTLER_JOB_NONE")
 		var status := c.work.describe()
 		if status == "":
 			status = tr("THRONE_IDLE") + (tr("SETTLER_HUNGRY") if c.meals.hungry() else "")
-		(row.status as Label).text = status
+		var label := row.status as Label
+		label.text = status
+		var stuck := c.work.status in [SettlerWork.Status.NO_TOOL, SettlerWork.Status.NO_CHEST,
+			SettlerWork.Status.CHEST_FULL, SettlerWork.Status.BLOCKED]
+		if stuck or c.meals.hungry():
+			label.add_theme_color_override("font_color", WARN_COLOR)
+		else:
+			label.remove_theme_color_override("font_color")
+		var key := _job_key(c)
+		counts[key] = int(counts.get(key, 0)) + 1
+	for key: String in _summary_buttons:
+		var button := _summary_buttons[key] as Button
+		button.visible = counts.has(key)
+		button.text = str(counts.get(key, 0))
+	_summary.visible = not _settlers.is_empty()
 	_empty.visible = _settlers.is_empty()
 	for button in _orders:
 		button.disabled = _selected.is_empty()
@@ -703,7 +762,8 @@ func _refresh() -> void:
 	if _placing == SettlerWork.Job.GUARD:
 		_hint.text = tr("THRONE_HINT_GUARD") % [roundi(_zone_radius), roundi(SettlerGuard.POST_RADIUS)]
 	elif _placing != SettlerWork.Job.NONE:
-		_hint.text = tr("THRONE_HINT_CLEAR" if _placing == SettlerWork.Job.CLEAR else "THRONE_HINT_ZONE") % roundi(_zone_radius)
+		var required := _zone_of(_placing, _placing_shift) == SettlerOrders.Zone.REQUIRED
+		_hint.text = tr("THRONE_HINT_CLEAR" if required else "THRONE_HINT_ZONE") % roundi(_zone_radius)
 	elif _selected.is_empty():
 		_hint.text = tr("THRONE_HINT_SELECT")
 	else:
@@ -711,23 +771,46 @@ func _refresh() -> void:
 	_draw_zones()
 
 
+## Una fila de la lista: el icono de su oficio y su nombre (para elegirlo) y, debajo, cómo va.
 func _make_row(c: Companion) -> Dictionary:
 	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 0)
 	_list.add_child(row)
+	var line := HBoxContainer.new()
+	row.add_child(line)
+	var glyph := GlyphTexture.new(SettlerOrders.IDLE_GLYPH, ROW_ICON * _ui_scale, SettlerOrders.IDLE_COLOR)
+	var icon := TextureRect.new()
+	icon.texture = glyph
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	line.add_child(icon)
 	var check := CheckBox.new()
 	check.focus_mode = Control.FOCUS_NONE
+	check.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	check.toggled.connect(func(on: bool) -> void:
 		if on:
 			_selected[c] = true
 		else:
 			_selected.erase(c)
 		_refresh())
-	row.add_child(check)
+	line.add_child(check)
 	var status := Label.new()
 	status.theme_type_variation = &"HintLabel"
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	row.add_child(status)
-	return {"row": row, "check": check, "status": status}
+	return {"row": row, "check": check, "status": status, "icon": icon, "glyph": glyph}
+
+
+## Un botón con el dibujo [glyph] de [color] (OrderGlyphs) delante del texto.
+func _icon_button(row: Container, text: String, glyph: StringName, color: Color, pressed: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.focus_mode = Control.FOCUS_NONE
+	var texture := GlyphTexture.new(glyph, ORDER_ICON, color)
+	button.icon = texture
+	_glyphs.append([texture, ORDER_ICON])
+	button.pressed.connect(pressed)
+	row.add_child(button)
+	return button
 
 
 func _build_ui() -> void:
@@ -749,6 +832,19 @@ func _build_ui() -> void:
 	title.theme_type_variation = &"HeaderLabel"
 	_box.add_child(title)
 	_box.add_child(HSeparator.new())
+
+	# Cuántos hay de cada oficio; pinchando, se eligen todos esos.
+	_summary = HFlowContainer.new()
+	_box.add_child(_summary)
+	for order: Dictionary in SettlerOrders.ORDERS:
+		var key := "%d:%d" % [order.job, order.shift]
+		var button := _icon_button(_summary, "", order.glyph, order.color, _select_job.bind(key))
+		button.tooltip_text = tr("THRONE_PICK_JOB") % tr(order.name)
+		_summary_buttons[key] = button
+	var idle := _icon_button(_summary, "", SettlerOrders.IDLE_GLYPH, SettlerOrders.IDLE_COLOR, _select_job.bind("idle"))
+	idle.tooltip_text = tr("THRONE_PICK_IDLE")
+	_summary_buttons["idle"] = idle
+
 	var all_row := HBoxContainer.new()
 	_box.add_child(all_row)
 	for pair in [["THRONE_ALL", true], ["THRONE_NONE", false]]:
@@ -769,35 +865,29 @@ func _build_ui() -> void:
 	_empty.theme_type_variation = &"HintLabel"
 	_empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_list.add_child(_empty)
+
+	# Los oficios, por categoría, y las órdenes de siempre.
 	_box.add_child(HSeparator.new())
 	var orders_title := Label.new()
 	orders_title.text = "THRONE_ORDERS"
 	orders_title.theme_type_variation = &"SectionLabel"
 	_box.add_child(orders_title)
-	var orders := HFlowContainer.new()
-	_box.add_child(orders)
-	for pair in [["SETTLER_ORDER_FELL", SettlerWork.Job.FELL, 0], ["SETTLER_ORDER_MINE", SettlerWork.Job.MINE, 0],
-			["THRONE_ORDER_CLEAR", SettlerWork.Job.CLEAR, 0], ["SETTLER_ORDER_BUILD", SettlerWork.Job.BUILD, 0],
-			["SETTLER_ORDER_HUNT", SettlerWork.Job.HUNT, 0], ["SETTLER_ORDER_FISH", SettlerWork.Job.FISH, 0],
-			["SETTLER_ORDER_COOK", SettlerWork.Job.COOK, 0], ["THRONE_ORDER_GUARD_DAY", SettlerWork.Job.GUARD, 0],
-			["THRONE_ORDER_GUARD_NIGHT", SettlerWork.Job.GUARD, 1]]:
-		var button := Button.new()
-		button.text = pair[0]
-		button.focus_mode = Control.FOCUS_NONE
-		button.pressed.connect(_on_order.bind(pair[1], pair[2]))
-		orders.add_child(button)
-		_orders.append(button)
-	_stop_button = Button.new()
-	_stop_button.text = "SETTLER_ORDER_STOP"
-	_stop_button.focus_mode = Control.FOCUS_NONE
-	_stop_button.pressed.connect(_on_order.bind(SettlerWork.Job.NONE))
-	orders.add_child(_stop_button)
-	_follow_button = Button.new()
-	_follow_button.text = "THRONE_ORDER_FOLLOW"
+	for category in SettlerOrders.CATEGORIES:
+		var name := Label.new()
+		name.text = SettlerOrders.CATEGORY_NAMES[category]
+		name.theme_type_variation = &"HintLabel"
+		_box.add_child(name)
+		var flow := HFlowContainer.new()
+		_box.add_child(flow)
+		for order in SettlerOrders.in_category(category):
+			_orders.append(_icon_button(flow, order.order, order.glyph, order.color,
+				_on_order.bind(order.job, order.shift)))
+	var general := HFlowContainer.new()
+	_box.add_child(general)
+	_stop_button = _icon_button(general, "SETTLER_ORDER_STOP", &"stop", GameTheme.BONE,
+		_on_order.bind(SettlerWork.Job.NONE))
+	_follow_button = _icon_button(general, "THRONE_ORDER_FOLLOW", &"follow", GameTheme.BONE, _on_follow)
 	_follow_button.tooltip_text = "THRONE_ORDER_FOLLOW_TIP"
-	_follow_button.focus_mode = Control.FOCUS_NONE
-	_follow_button.pressed.connect(_on_follow)
-	orders.add_child(_follow_button)
 	_hint = Label.new()
 	_hint.theme_type_variation = &"HintLabel"
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -813,8 +903,13 @@ func _build_ui() -> void:
 func _layout() -> void:
 	var ui_scale := GameTheme.scale_for(get_viewport())
 	_root.theme = GameTheme.build(ui_scale)
-	_panel.custom_minimum_size.x = 420.0 * ui_scale
-	_panel.offset_left = -420.0 * ui_scale
+	_ui_scale = ui_scale
+	_panel.custom_minimum_size.x = 460.0 * ui_scale
+	_panel.offset_left = -460.0 * ui_scale
+	for pair: Array in _glyphs:
+		(pair[0] as GlyphTexture).side = float(pair[1]) * ui_scale
+	for row: Dictionary in _rows.values():
+		(row.glyph as GlyphTexture).side = ROW_ICON * ui_scale
 	_box.add_theme_constant_override("separation", roundi(10.0 * ui_scale))
 	for side in ["left", "top", "right", "bottom"]:
 		_margin.add_theme_constant_override("margin_" + side, roundi(20.0 * ui_scale))

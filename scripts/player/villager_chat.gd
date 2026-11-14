@@ -7,8 +7,8 @@ extends CanvasLayer
 ## (SettlementTrade: lo suyo a un lado, lo del jugador al otro y la cuenta) o despedirse; si tiene algo
 ## que pedir, su encargo (SettlementQuests: aceptarlo, entregarlo o dejarlo); a un aldeano de un poblado
 ## que se fía bastante, pedirle que venga (SettlementCompanions); a un compañero, darle cosas para que
-## las lleve o quitárselas, que siga o espere, o que vuelva a casa (devuelve lo que lleva); a un colono,
-## qué trabajo hacer (SettlerWork: talar, picar, limpiar alrededor del jugador o dejarlo), con cómo va. Mientras, él
+## las lleve o quitárselas, que siga o espere, o que vuelva a casa (devuelve lo que lleva); de un colono,
+## cómo va su trabajo (que se manda desde el trono, ThroneView). Mientras, él
 ## se para y mira al jugador, y el jugador no se mueve (el ratón va suelto). Se cierra con E, Escape,
 ## alejándose o si él se va (una fiera). Ver docs/villagers.md.
 
@@ -64,12 +64,6 @@ var _recruit_button: Button
 var _follow_button: Button
 var _home_button: Button
 var _settle_button: Button
-var _fell_button: Button
-var _mine_button: Button
-var _clear_button: Button
-var _stop_button: Button
-## Los demás oficios del colono: SettlerWork.Job -> su botón.
-var _job_buttons := {}
 var _work_label: Label
 var _pack_button: Button
 var _quest_button: Button
@@ -324,15 +318,12 @@ func _refresh() -> void:
 	_follow_button.visible = talk and _companion != null
 	_home_button.visible = talk and _companion != null
 	_settle_button.visible = talk and _companion != null and not _settled()
-	var working := _settled() and _companion.work.active()
-	var job := _companion.work.job if working else SettlerWork.Job.NONE
-	_fell_button.visible = talk and _settled() and job != SettlerWork.Job.FELL
-	_mine_button.visible = talk and _settled() and job != SettlerWork.Job.MINE
-	_clear_button.visible = talk and _settled()
-	_stop_button.visible = talk and working
-	for other: SettlerWork.Job in _job_buttons:
-		(_job_buttons[other] as Button).visible = talk and _settled() and job != other
-	_work_label.text = _companion.work.describe() if _settled() else ""
+	# Los oficios se mandan desde el trono; aquí, cómo va.
+	_work_label.text = ""
+	if _settled():
+		_work_label.text = _companion.work.describe()
+		if _work_label.text == "":
+			_work_label.text = tr("SETTLER_CHAT_NO_WORK")
 	_work_label.visible = talk and _work_label.text != ""
 	var open := _quest_open()
 	_quest_button.visible = talk and not _quest_of().is_empty()
@@ -435,28 +426,6 @@ func _on_settle() -> void:
 		return
 	_companion.settle_here()
 	_say(VillagerTalk.pick(&"SETTLE_OK", _rng, _last_line))
-	_refresh()
-
-
-## Al colono: que tale o pique alrededor de la base, que limpie alrededor del jugador o que lo deje.
-func _on_work(job: SettlerWork.Job) -> void:
-	if not _settled():
-		return
-	var work := _companion.work
-	if job == SettlerWork.Job.NONE:
-		work.stop()
-		_say(VillagerTalk.pick(&"WORK_STOP", _rng, _last_line))
-	else:
-		var at := Vector3.INF
-		var radius := -1.0
-		# Limpiar y hacer guardia, donde está el jugador (la guardia, un puesto de día).
-		if job == SettlerWork.Job.CLEAR or job == SettlerWork.Job.GUARD:
-			var terrain := _companion.get("_terrain") as Node3D
-			at = terrain.global_transform.affine_inverse() * _player.global_position
-			if job == SettlerWork.Job.GUARD:
-				radius = SettlerGuard.POST_RADIUS - 1.0
-		work.assign(job, at, radius)
-		_say(VillagerTalk.pick(&"WORK_OK", _rng, _last_line))
 	_refresh()
 
 
@@ -879,14 +848,6 @@ func _build_ui() -> void:
 	_follow_button = _button(_buttons, "VILLAGER_WAIT", _on_follow)
 	_settle_button = _button(_buttons, "VILLAGER_SETTLE", _on_settle)
 	_home_button = _button(_buttons, "VILLAGER_GO_HOME", _on_home)
-	_fell_button = _button(_buttons, "SETTLER_ORDER_FELL", _on_work.bind(SettlerWork.Job.FELL))
-	_mine_button = _button(_buttons, "SETTLER_ORDER_MINE", _on_work.bind(SettlerWork.Job.MINE))
-	_clear_button = _button(_buttons, "SETTLER_ORDER_CLEAR", _on_work.bind(SettlerWork.Job.CLEAR))
-	for pair in [["SETTLER_ORDER_BUILD", SettlerWork.Job.BUILD], ["SETTLER_ORDER_HUNT", SettlerWork.Job.HUNT],
-			["SETTLER_ORDER_FISH", SettlerWork.Job.FISH], ["SETTLER_ORDER_COOK", SettlerWork.Job.COOK],
-			["SETTLER_ORDER_GUARD", SettlerWork.Job.GUARD]]:
-		_job_buttons[pair[1]] = _button(_buttons, pair[0], _on_work.bind(pair[1]))
-	_stop_button = _button(_buttons, "SETTLER_ORDER_STOP", _on_work.bind(SettlerWork.Job.NONE))
 	_deal_button = _button(_buttons, "VILLAGER_TRADE_DEAL", _on_deal)
 	_deal_button.theme_type_variation = &"AccentButton"
 	_accept_button = _button(_buttons, "VILLAGER_QUEST_ACCEPT", _on_accept)
@@ -947,7 +908,6 @@ func _layout() -> void:
 	for side in ["left", "top", "right", "bottom"]:
 		_margin.add_theme_constant_override("margin_" + side, roundi(24.0 * ui_scale))
 	for button: Button in [_talk_button, _gift_button, _trade_button, _pack_button, _quest_button,
-			_recruit_button, _follow_button, _settle_button, _home_button, _fell_button, _mine_button, _clear_button,
-			_stop_button, _deal_button, _accept_button, _deliver_button,
-			_drop_button, _back_button, _bye_button] + _job_buttons.values():
+			_recruit_button, _follow_button, _settle_button, _home_button, _deal_button, _accept_button, _deliver_button,
+			_drop_button, _back_button, _bye_button]:
 		button.custom_minimum_size.x = 130.0 * ui_scale

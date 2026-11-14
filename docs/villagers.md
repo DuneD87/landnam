@@ -429,10 +429,12 @@ más de 120 m del jugador no lo mueve: allí se queda quieto.
 
 ### Trabajo
 
-En la charla del colono se le manda trabajar (`SettlerWork`): **Tala árboles** y **Pica piedra**
-buscan alrededor de la base (60 m), y **Limpia aquí** tala y pica todo lo que haya a menos de 12 m de
-donde está el jugador; **Deja eso** lo para. Debajo de lo que dice sale cómo va («Leñador · lleva 14»,
-o por qué está parado). Trabaja en el horario de los aldeanos (8-12 y 13-18); fuera de él hace su vida,
+Los oficios (`SettlerWork`) se mandan **solo desde el trono** (ver *El trono*); el catálogo de todos
+está en `SettlerOrders` (texto, dibujo, color, categoría y si pide zona), y uno nuevo es una entrada
+más allí. **Tala árboles** y **Pica piedra** buscan alrededor de la base (60 m) o en la zona marcada, y
+**Limpia una zona** tala y pica todo lo que haya en ella; **Deja eso** lo para. En la charla del colono
+sale debajo cómo va («Leñador · lleva 14», o por qué está parado) o, sin trabajo, que se manda desde el
+trono. Trabaja en el horario de los aldeanos (8-12 y 13-18); fuera de él hace su vida,
 de noche duerme y, si atacan la base, deja lo que hace y pelea.
 
 - **Con qué**: con lo que lleva en el morral, el mejor hacha para talar o el mejor pico para picar.
@@ -478,8 +480,7 @@ en el morral*). Lejos del jugador cada uno sigue a su manera, sin moverse.
   falta, se queda parado diciendo qué (*faltan 12 de Madera en los cofres*). Varios comparten obra: cada
   uno descuenta lo que ya traen los demás. Acabada, avisa y lo sobrante vuelve al cofre. Lleva la cuenta
   de los bloques puestos. Lejos: un viaje cada 30 s y un martillazo cada 2,5 s.
-- **Guardia** (`SettlerGuard`, **Haz guardia aquí** en la charla, **Guardia de día / de noche** en el
-  trono): vigila la zona marcada. Hasta 5 m es un **puesto** (se queda en el centro mirando alrededor);
+- **Guardia** (`SettlerGuard`, **Guardia de día / de noche**): vigila la zona marcada. Hasta 5 m es un **puesto** (se queda en el centro mirando alrededor);
   más grande, una **ronda** por 8 puntos de su borde, parándose a mirar hacia fuera. El de día vigila
   desde que se levanta hasta que se acuesta; el de noche, de 21:30 a 6:30, y duerme de 9 a 17. De turno
   va a por las fieras que atacan a la vista (lobos, osos, leones...) en cuanto entran en su zona o a
@@ -520,11 +521,16 @@ se sienta (`ThroneView`: `village/throne_sit` y luego `village/throne_idle`, en 
 - el nombre y el oficio de cada colono sobre su cabeza (en amarillo, los elegidos) y sus zonas en el
   suelo: verde talar, azul picar, naranja limpiar, amarillo construir, rojo la guardia, marrón cazar y
   turquesa pescar; tenue, la de alrededor de su base;
-- a la derecha, los colonos con su base a menos de 90 m del trono (`Throne.MANAGE_RADIUS`), con cómo va
-  cada uno. Se eligen en la lista (o pinchando su nombre en el mapa), uno o varios (**Todos**,
-  **Ninguno**), y se les manda **Tala árboles**, **Pica piedra**, **Limpia una zona**, **Construye las
-  obras**, **Sal a cazar**, **Ponte a pescar**, **Cocina**, **Guardia de día**, **Guardia de noche** o
-  **Deja eso**. Salvo cocinar, sale un círculo bajo el ratón: clic lo pone (la rueda cambia el radio, de
+- a la derecha, arriba, cuántos hay de cada oficio (su icono y el número; pinchando uno se eligen
+  todos los que lo tienen, también los que no tienen ninguno);
+- debajo, los colonos con su base a menos de 90 m del trono (`Throne.MANAGE_RADIUS`), ordenados por
+  oficio y nombre, con el icono de su oficio y cómo va cada uno (en naranja, si está parado por algo o
+  con hambre). Se eligen en la lista (o pinchando su nombre en el mapa), uno o varios (**Todos**,
+  **Ninguno**);
+- y los oficios por categoría, cada uno con su dibujo (`OrderGlyphs`, el mismo trazo que la rueda del
+  grupo) en el color de su zona: **Recursos** (Tala árboles, Pica piedra, Limpia una zona), **Comida**
+  (Sal a cazar, Ponte a pescar, Cocina), **Obras** (Construye las obras) y **Defensa** (Guardia de día,
+  Guardia de noche); aparte, **Deja eso** y **Seguidme**. Salvo cocinar, sale un círculo bajo el ratón: clic lo pone (la rueda cambia el radio, de
   4 a 60 m); con clic derecho van alrededor de su base, y limpiar y la guardia se cancelan.
   **Seguidme** se lleva a los elegidos que quepan en el grupo: dejan la base (acordándose de ella y de
   su trabajo) y siguen al jugador en cuanto se levanta.
