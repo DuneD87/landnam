@@ -333,7 +333,8 @@ casa y adiós; y su encargo, si tenía uno abierto con el jugador. Peleando o ma
 hablar, y si le atacan en mitad de la charla, se acaba.
 
 **Su morral** (`Companion.pack`, 12 huecos): a la izquierda lo que lleva y a la derecha lo del jugador;
-clic pasa uno al otro lado y clic derecho, todos los de ese montón. Al volver a casa devuelve lo que
+clic pasa uno al otro lado, Mayús+clic diez, Ctrl+clic la mitad (redondeando hacia arriba) y clic
+derecho, todos los de ese montón. Al volver a casa devuelve lo que
 lleva (lo que no cabe, al suelo).
 
 **Pelea** (`Companion._scan`, cada 0,3 s). Va a por la criatura más cercana a menos de 20 m del jugador

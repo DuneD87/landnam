@@ -1788,7 +1788,7 @@ VPREY_POLARBEAR_ONE,a polar bear,un oso polar,aldeanos
 VPREY_POLARBEAR_MANY,%d polar bears,%d osos polares,aldeanos
 VILLAGER_PACK,Their pack,Su morral,aldeanos
 VILLAGER_PACK_THEIRS,They carry,Lleva,aldeanos
-VILLAGER_PACK_HINT,Click: hand over one · Right click: all of them. They fight with the best weapon they carry (or their tool) and eat what's cooked when they need to.,Clic: pasa uno · Clic derecho: todos. Pelea con la mejor arma que lleve (o con su herramienta) y come lo asado que lleve cuando le hace falta.,aldeanos
+VILLAGER_PACK_HINT,Click: hand over one · Shift+click: ten · Ctrl+click: half · Right click: all of them. They fight with the best weapon they carry (or their tool) and eat what's cooked when they need to.,Clic: pasa uno · Mayús+clic: diez · Ctrl+clic: la mitad · Clic derecho: todos. Pelea con la mejor arma que lleve (o con su herramienta) y come lo asado que lleve cuando le hace falta.,aldeanos
 VILLAGER_PACK_FULL,It won't fit in their pack.,No le cabe en el morral.,aldeanos
 VILLAGER_PACK_YOURS_FULL,It won't fit in your inventory.,No te cabe en el inventario.,aldeanos
 VILLAGER_DOWN,%s has fallen. They'll get up in a while.,%s ha caído. Se levantará en un rato.,aldeanos

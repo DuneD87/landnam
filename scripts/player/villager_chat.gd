@@ -569,7 +569,8 @@ func _on_pack() -> void:
 	_refresh()
 
 
-## Sus cosas a un lado y las del jugador al otro: clic pasa una al otro lado; clic derecho, todas.
+## Sus cosas a un lado y las del jugador al otro: clic pasa una al otro lado; Mayús+clic, diez;
+## Ctrl+clic, la mitad; clic derecho, todas.
 func _fill_pack() -> void:
 	if _companion == null:
 		return
@@ -590,11 +591,24 @@ func _fill_moves(grid: GridContainer, order: Array[ItemData], available: Diction
 	for data in order:
 		var slot := _slot(data, int(available[data]), data.get_display_name())
 		slot.slot_clicked.connect(func(_s: ItemSlotView, button: int) -> void:
-			if button == MOUSE_BUTTON_LEFT:
-				_move_items(data, 1, from, to)
-			elif button == MOUSE_BUTTON_RIGHT:
-				_move_items(data, from.get_item_count(data), from, to))
+			var amount := _click_amount(button, from.get_item_count(data))
+			if amount > 0:
+				_move_items(data, amount, from, to))
 		grid.add_child(slot)
+
+
+## Cuántos pasa un clic sobre un montón de [have]: clic, uno; Mayús, diez; Ctrl, la mitad (redondeando
+## hacia arriba); clic derecho, todos.
+static func _click_amount(button: int, have: int) -> int:
+	if button == MOUSE_BUTTON_RIGHT:
+		return have
+	if button != MOUSE_BUTTON_LEFT:
+		return 0
+	if Input.is_key_pressed(KEY_CTRL):
+		return ceili(have / 2.0)
+	if Input.is_key_pressed(KEY_SHIFT):
+		return mini(10, have)
+	return mini(1, have)
 
 
 ## Pasa [amount] de [data] de [from] a [to], lo que quepa.
