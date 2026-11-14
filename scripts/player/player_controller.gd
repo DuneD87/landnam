@@ -842,6 +842,10 @@ func get_save_data() -> Dictionary:
 		"severed": combat.body_damage.save_data() if combat != null and combat.body_damage != null else [],
 		"status": combat.status.save_data() if combat != null and combat.status != null else [],
 		"needs": needs.save_data() if needs != null else {},
+		"vitals": {
+			"health": health_component.health,
+			"stamina": combat.stamina.stamina if combat != null and combat.stamina != null else -1.0,
+		},
 		"progression": progression.save_data() if progression != null else {},
 		"respawn": combat.get_respawn_data() if combat != null else {},
 		"map_markers": world_map_ui.markers.save_data(),
@@ -930,8 +934,23 @@ func restore_save_data(save: Dictionary) -> void:
 	# on_restored las ha llenado; las de la partida, si las guardó.
 	if needs != null:
 		needs.load_data(save.get("needs", {}))
+	_restore_vitals(save.get("vitals", {}))
 	inventory.inventory_changed.emit()
 	_activate_player()
+
+
+## La vida y el aguante de la partida (on_restored los ha llenado). Las partidas sin ellos, o con
+## la vida a 0, se quedan llenas: se carga vivo.
+func _restore_vitals(vitals: Dictionary) -> void:
+	var health := float(vitals.get("health", -1.0))
+	if health > 0.0:
+		health_component.health = minf(health, health_component.max_health)
+		health_component.health_changed.emit(health_component.health, health_component.max_health)
+	var stamina_value := float(vitals.get("stamina", -1.0))
+	if stamina_value >= 0.0 and combat != null and combat.stamina != null:
+		combat.stamina.stamina = minf(stamina_value, combat.stamina.max_stamina)
+		combat.stamina.changed.emit(combat.stamina.stamina, combat.stamina.max_stamina)
+
 
 ## Reposiciona a mano el CameraPivot (top_level) tras un rebase de FloatingOrigin.
 func shift_origin(offset: Vector3) -> void:
