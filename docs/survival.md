@@ -65,8 +65,9 @@ Empezar a dormir establece ese lecho como punto de reaparición, incluso si se
 interrumpe el sueño. Se conserva al guardar y cargar. Recogerlo devuelve la
 reaparición al punto inicial de la partida hasta dormir en otro lecho.
 
-Durmiendo, el cuerpo recupera descanso y hasta un 35 % de cordura en una
-noche completa. El consumo de comida y agua baja al 60 % del reposo despierto.
+Durmiendo, el cuerpo recupera descanso, hasta un 35 % de cordura y hasta un
+60 % de la vida máxima en una noche completa (la vida, solo sin hambre ni sed
+vacías). El consumo de comida y agua baja al 60 % del reposo despierto.
 El mundo corre a **×60**: con el día actual de una hora real, ocho horas de
 juego pasan en unos **20 segundos**. Se puede pulsar **Despertarse**, **E** o
 **Escape** para terminar antes. El tiempo vuelve al ritmo anterior al terminar.

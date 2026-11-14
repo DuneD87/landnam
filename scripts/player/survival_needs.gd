@@ -18,7 +18,7 @@ extends Node
 ## SurvivalActions), la ropa puesta, que abriga (InsulationTrait), los refugios (una cueva, una casa
 ## cerrada), que dejan fuera parte del frío, y las hogueras encendidas (Campfire), que calientan,
 ## y más a cubierto, secan y alumbran: a su luz la oscuridad no quita cordura.
-## El lecho permite dormir y recuperar el descanso (RestController).
+## El lecho permite dormir y recuperar el descanso y la vida (RestController).
 
 ## Segundos de lleno a vacío en reposo (a ritmo 1).
 const HUNGER_TIME := 2700.0
@@ -26,6 +26,8 @@ const THIRST_TIME := 1800.0
 ## Una jornada despierto y una noche para recuperarse, medidas en horas del mundo.
 const AWAKE_HOURS := 16.0
 const SLEEP_HOURS := 8.0
+## Parte de la vida máxima que se recupera en una noche entera durmiendo, si no se pasa hambre ni sed.
+const SLEEP_HEAL := 0.6
 ## Aire que dura una zambullida y lo que tarda en volver al sacar la cabeza.
 const OXYGEN_TIME := 40.0
 const OXYGEN_REFILL := 4.0
@@ -152,6 +154,8 @@ func _physics_process(delta: float) -> void:
 	var hours := WorldTime.hours_elapsed(delta) * rate
 	if sleeping:
 		rest += hours / SLEEP_HOURS
+		if hunger > 0.0 and thirst > 0.0 and health.health < health.max_health:
+			health.heal(health.max_health * SLEEP_HEAL * hours / SLEEP_HOURS)
 	else:
 		rest -= hours / AWAKE_HOURS * (1.0 + 0.3 * _exertion)
 	if submerged:
