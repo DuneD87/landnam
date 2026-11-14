@@ -9,6 +9,7 @@ render_mode blend_mix, depth_draw_always;
 #include "res://shaders/liquid/ocean_optics.gdshaderinc"
 #include "res://shaders/liquid/ocean_foam.gdshaderinc"
 #include "res://shaders/liquid/ocean_chop.gdshaderinc"
+#include "res://shaders/liquid/hull_waves.gdshaderinc"
 
 uniform float water_time=0.0;
 uniform vec3 planet_center=vec3(0.0);
@@ -125,6 +126,8 @@ varying vec3 shore_surf;
 varying float sea_ice;
 // Banquisa que cubre el píxel (0..1): light() la ilumina como un sólido difuso.
 varying float ice_cover;
+// Espuma de las olas de casco (bigote de proa, costados, golpes): ver hull_waves.gdshaderinc.
+varying float hull_foam;
 
 vec3 ocean_wind() {
     vec3 pole=length(wave_pole)>0.0001 ? normalize(wave_pole) : vec3(0,1,0);
@@ -197,6 +200,15 @@ void vertex() {
     float sampled_compression;
     vec3 displacement=gerstner_surface_ctx(material_position,radial_up,water_time,
         minimum_wavelength,ctx,sampled_normal,sampled_compression);
+    // Olas de los barcos, en el plano de la superficie ya desplazada en horizontal: van pegadas al
+    // casco, que flota sobre esa superficie.
+    vec3 hull_gradient;
+    float hull_white;
+    vec3 hull_p=world+displacement-radial_up*dot(displacement,radial_up);
+    float hull_h=hull_wave_sample(hull_p,radial_up,minimum_wavelength,hull_gradient,hull_white);
+    hull_foam=hull_white;
+    displacement+=radial_up*hull_h;
+    sampled_normal=normalize(sampled_normal-hull_gradient);
     geometry_normal=sampled_normal;
     geometric_compression=sampled_compression;
     wave_height=dot(displacement,radial_up);
@@ -277,11 +289,12 @@ void fragment() {
         ocean_foam_coverage(lace*shore_foam_amount*3.0,foam_pattern,1.0));
     float wake_mass=ocean_wake(surface_world,radial);
     float wake=ocean_foam_coverage(wake_mass*2.5,foam_pattern,0.7);
-    foam=1.0-(1.0-foam)*(1.0-contact)*(1.0-wake);
+    float hull_white=ocean_foam_coverage(hull_foam*2.2,foam_pattern,0.85);
+    foam=1.0-(1.0-foam)*(1.0-contact)*(1.0-wake)*(1.0-hull_white);
     // Solo donde de verdad rompe: la masa de rompiente es pequeña pero no nula en casi toda la
     // superficie de un temporal, y sin umbral el mar entero se vuelve turquesa.
     float churn=clamp(smoothstep(0.2,1.3,churn_mass.x)*0.6+smoothstep(0.7,3.0,churn_mass.y)*0.7,0.0,1.0);
-    churn=max(churn,1.0-exp(-(surf.x*surf_scale*3.0+wake_mass*1.2)))*churn_strength;
+    churn=max(churn,1.0-exp(-(surf.x*surf_scale*3.0+wake_mass*1.2+hull_foam*1.5)))*churn_strength;
 
     vec3 slope=vec3(0.0);
     if(texture_ripple>0.001) {

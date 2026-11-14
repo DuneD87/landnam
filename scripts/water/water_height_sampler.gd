@@ -67,6 +67,9 @@ var last_current_scale: float = 1.0
 ## Hielo marino (0..1) de la última evaluación: 1 = banquisa, sin oleaje. Lo lee el jugador para
 ## caminar sobre el hielo en vez de nadar.
 var last_ice: float = 0.0
+## Profundidad del mapa del planeta en la última rest_displacement (m). 0 sin mapa o donde la
+## costera no aplica (lagos); negativa en lo que el mapa grueso da por tierra.
+var last_depth: float = 0.0
 
 ## Hielo marino del material (sea_ice_enabled / sea_ice_params de gerstner_waves.gdshaderinc).
 var sea_ice_enabled: bool = false
@@ -546,6 +549,7 @@ func rest_displacement(local_rest: Vector3, time: float, min_length: float) -> V
 	_ensure_frame_params()
 	var ctx := _context(local_rest)
 	last_ice = ctx[5]
+	last_depth = ctx[4]
 	return _gerstner_disp(local_rest, local_rest.normalized(), time, ctx[0],
 		ctx[1], ctx[2], ctx[3], ctx[4], ctx[5], min_length, ctx[6], ctx[7])
 
@@ -553,6 +557,13 @@ func rest_displacement(local_rest: Vector3, time: float, min_length: float) -> V
 ## Normal analítica de la última evaluación.
 func last_normal() -> Vector3:
 	return _last_normal
+
+
+## Cuánto se pincha la cresta en la última evaluación: la contracción del área de la superficie, la
+## misma señal que el shader usa para la espuma (out_crest de gerstner_surface_differential). Ronda
+## 0 en el seno y sube hacia 0,3-0,5 donde la ola rompe.
+func last_crest() -> float:
+	return maxf(1.0 - _last_du.cross(_last_dv).length(), 0.0) * 1.25
 
 
 ## Eje del viento del espectro en el marco del planeta. Las olas viajan en sentido contrario a él.

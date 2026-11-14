@@ -822,3 +822,63 @@ como estadística, sin geometría ni texturas nuevas:
 Sigma se acota a 0.36: por encima el ajuste de Fresnel oscurece demasiado.
 Cerca de la cámara `hidden` vale 0 y el detalle se ve entero, así que el primer
 plano no cambia salvo por las rachas.
+
+## Rociones y salpicaduras
+
+`OceanSpray` (hijo de `OceanSystem`) lleva dos emisores `GPUParticles3D` que **no
+emiten solos**: todo entra por `emit_particle`, con posición, velocidad y `CUSTOM`
+(azar, edad, tamaño, vida). `water_spray_process.gdshader` solo integra gravedad
+del sitio, viento y frenado; `water_spray.gdshader` dibuja la bruma (nube
+deshilachada) o la gota (estirada por su velocidad), con la luz del cielo y fundido
+contra la profundidad opaca.
+
+Fuentes:
+
+- **Crestas**: cada frame se sondean `crest_samples` puntos al azar de la
+  superficie de CPU (`rest_displacement`, una evaluación, sin inversión), casi
+  todos delante de la cámara. Salta una ráfaga donde `last_crest()` — la misma
+  contracción de área que alimenta la espuma del shader — supera
+  `crest_threshold` y el agua corre más que `crest_min_speed` (`shore_min_speed`
+  en la rompiente). Un rayo descarta el agua que queda bajo la playa o un casco.
+- **Proa** de los barcos que abren estela, más cuanto más corren y al caer en una
+  cresta.
+- **Golpe de proa**: por barco se sigue cuánto moja el agua la roda y a qué
+  ritmo sube. Si sube más deprisa que `slam_min_rate` con el agua en el casco
+  (la proa cae tras una cresta o se mete en la cara de la siguiente), el agua
+  sale por los dos costados de la proa hacia fuera y arriba, casi sin heredar
+  la velocidad del barco (se queda atrás), con el sonido `hull_slam` y un
+  anillo en la malla (ver *Olas de casco*). `slam_cooldown` separa dos golpes.
+
+### Olas de casco
+
+`HullWaves` (hijo de `OceanSystem`) sube cada frame al material del mar los 8
+barcos más cercanos que se mueven respecto al agua: centro, sentido de la
+marcha, semieslora, semimanga, velocidad y altura de la ola de proa
+(`bow_amount`·U²/2g, con tope según la manga). El sentido es el eje +Z del
+casco, sin suavizar, para que al virar la V gire con él al momento; solo la
+velocidad se suaviza (`smoothing`). Los brazos son cortos (unas 4 esloras): van
+rígidos con el casco y el rastro largo lo hace la estela de espuma. `hull_waves.gdshaderinc` las
+suma a la malla en el vertex, quietas en el marco del barco: bigote de proa que
+abre en dos brazos en V, seno a media eslora, brazos de popa más flojos y ondas
+transversales (λ = 2πU²/g) dentro de la cuña de Kelvin. Los golpes de proa
+dejan anillos que se abren y se apagan (`HullWaves.ring`). La normal sale por
+diferencias finitas y la espuma (bigote, franja del costado, golpes) va en el
+varying `hull_foam`. Lo que la malla no resuelve se apaga, y dentro de la
+huella del casco el agua no sube. Es solo dibujo: la flotación no lo ve.
+
+Las partículas acompañan a la malla: `OceanSpray` lee la ola de cada barco con
+`HullWaves.hull_info` y suelta rocío a lo largo de los brazos de la V (misma
+curva que el shader, más denso junto a la roda y solo con ola de más de 6 cm),
+y cada golpe deja una corona que rompe en la cresta del anillo mientras se
+abre (forma compartida en `HullWaves.ring_shape`).
+- **Cruces de superficie**: `OceanSpray.splash(pos, fuerza)`, que llama
+  `CharacterFootsteps` junto al sonido del chapoteo, y las brazadas del jugador.
+
+Con la cámara sumergida o a más de `max_altitude` no se emite. Las crestas solo
+sueltan gotas finas (cada una con su flotabilidad en `COLOR.r`: unas caen, la
+mayoría se las lleva el viento); la bruma en nubes queda para el chapoteo y la
+proa, muy tenue. Un sprite de bruma suelto sobre el mar se leía como humo.
+El comando de
+consola `spray [on|off]` lo apaga y enseña ráfagas y partículas por segundo; el
+coste de CPU sale en `agua:rociones`. Un rebase del origen flotante deja las
+partículas vivas descolocadas hasta que mueren (como mucho 3 s).

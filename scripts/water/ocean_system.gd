@@ -44,6 +44,8 @@ var _last_sun_dir := Vector3.INF
 var _stats_accum := 0.0
 var _waterline_sampler: WaterHeightSampler
 var _dust: UnderwaterDust
+var _spray: OceanSpray
+var _hull_waves: HullWaves
 ## Mar de viento (OceanChop): las ondas se rehacen solo si cambia el eje del viento.
 var _chop_wind := Vector3.INF
 var _chop_modes := PackedVector4Array()
@@ -91,6 +93,16 @@ func _setup_dust() -> void:
 	_dust.camera = camera
 	_dust.water_material = mesh_manager.default_material as ShaderMaterial
 	_dust.optics = underwater
+	# Rociones de las crestas, las proas y lo que cae al agua.
+	_spray = OceanSpray.new()
+	_spray.name = "OceanSpray"
+	add_child(_spray)
+	_spray.setup(self)
+	# Olas que levantan los barcos en la malla y anillos de los golpes de proa.
+	_hull_waves = HullWaves.new()
+	_hull_waves.name = "HullWaves"
+	add_child(_hull_waves)
+	_hull_waves.setup(self)
 
 
 func _setup_managers():

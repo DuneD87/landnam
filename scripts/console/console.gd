@@ -286,6 +286,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("season", SEASON_USAGE, "CON_HELP_SEASON", _cmd_season, 0, _complete_season))
 	_add(ConsoleCommand.new("time", "time [speed <1-120>]", "CON_HELP_TIME", _cmd_time))
 	_add(ConsoleCommand.new("wake", "wake [on|off]", "CON_HELP_WAKE", _cmd_wake))
+	_add(ConsoleCommand.new("spray", "spray [on|off]", "CON_HELP_SPRAY", _cmd_spray))
 	_add(ConsoleCommand.new("shadows", "shadows [on|off]", "CON_HELP_SHADOWS", _cmd_shadows))
 	_add(ConsoleCommand.new("drift", "drift [factor]", "CON_HELP_DRIFT", _cmd_drift))
 	_add(ConsoleCommand.new("damage", "damage [joules]", "CON_HELP_DAMAGE", _cmd_damage))
@@ -958,6 +959,13 @@ func _cmd_wake(args: PackedStringArray) -> String:
 		GridManager.wake_enabled = args[0].to_lower() in ["on", "1", "true"]
 	return _paint(COLOR_OK if GridManager.wake_enabled else COLOR_MUTED, tr("CON_WAKE") % [
 		"ON" if GridManager.wake_enabled else "OFF", GridManager.wake_stat_wakes, GridManager.wake_stat_points])
+
+
+func _cmd_spray(args: PackedStringArray) -> String:
+	if not args.is_empty():
+		OceanSpray.enabled = args[0].to_lower() in ["on", "1", "true"]
+	return _paint(COLOR_OK if OceanSpray.enabled else COLOR_MUTED, tr("CON_SPRAY") % [
+		"ON" if OceanSpray.enabled else "OFF", OceanSpray.stat_bursts, OceanSpray.stat_particles])
 
 
 func _cmd_shadows(args: PackedStringArray) -> String:

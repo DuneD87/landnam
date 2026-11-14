@@ -81,6 +81,8 @@ func _on_water_crossed(speed: float, _entering: bool) -> void:
 	if speed < splash_min_speed:
 		return
 	var loudness := clampf(speed / maxf(splash_full_speed, 0.001), 0.0, 1.0)
+	# Al salir el agua escurre más de lo que salta.
+	OceanSpray.splash(_body.global_position, loudness if _entering else loudness * 0.4)
 	var opts := {"volume_offset_db": volume_offset_db + lerpf(-14.0, 0.0, loudness)}
 	if _is_listener_body():
 		AudioManager.play_ui(&"water_splash", opts)
