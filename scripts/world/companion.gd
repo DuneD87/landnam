@@ -125,6 +125,11 @@ const PROGRESS := 0.3
 const PATH_TRIES := 3
 const PATH_RETRY := 8.0
 const WAYPOINT := 0.6
+## Andando en línea recta, cada LOOK_EVERY s mira WALL_LOOK m por delante (rodillas y cabeza): si hay
+## una pared, una ventana o una puerta cerrada busca camino ya, sin pegarse a ella REPATH s.
+const WALL_LOOK := 1.5
+const WALL_LOOK_HEIGHTS: Array[float] = [0.4, 1.5]
+const LOOK_EVERY := 0.25
 const DOOR_OPEN := 1.6
 const DOOR_CLOSE := 2.5
 ## Aplastado por un árbol: se queda en el suelo GONE_TIME s y se va.
@@ -247,6 +252,7 @@ var _path_dest := Vector3.INF
 var _steer_best := INF
 var _steer_left := REPATH
 var _path_tries := 0
+var _look_left := 0.0
 var _opened_doors: Array[WoodenDoor] = []
 ## A la orden: la fiera se la ha marcado el jugador (order_attack), y lo que le queda de retirada (s).
 var _ordered := false
@@ -1238,18 +1244,44 @@ func steer(dest: Vector3, reach: float, delta: float) -> Vector3:
 		_steer_left -= delta
 		if _steer_left <= -PATH_RETRY:
 			_path_tries = 0
-		if _steer_left <= 0.0 and _path_tries < PATH_TRIES:
-			_path_tries += 1
-			_steer_left = REPATH * 2.0
-			_steer_best = INF
-			var found := GroundPath.find(self, global_position, dest, up, reach)
-			_path = PackedVector3Array()
-			for point in found:
-				_path.append(to_local * point)
-			_path_index = 1 if _path.size() > 1 else 0
+	# Con una pared o una ventana delante no espera a atascarse contra ella (solo la primera búsqueda:
+	# las demás quedan para cuando de verdad no avance).
+	if _path.is_empty() and _path_tries == 0 and _steer_left > 0.0:
+		_look_left -= delta
+		if _look_left <= 0.0:
+			_look_left = LOOK_EVERY
+			if _blocked_ahead(aim, distance, up):
+				_steer_left = 0.0
+	if _steer_left <= 0.0 and _path_tries < PATH_TRIES:
+		_path_tries += 1
+		_steer_left = REPATH * 2.0
+		_steer_best = INF
+		var found := GroundPath.find(self, global_position, dest, up, reach)
+		_path = PackedVector3Array()
+		for point in found:
+			_path.append(to_local * point)
+		_path_index = 1 if _path.size() > 1 else 0
 	if not _path.is_empty():
 		_open_doors(from_local * _path[_path_index])
 	return _tangent(aim - global_position)
+
+
+## Si en línea recta hacia [aim] (a [distance] m) tiene algo delante (no el suelo), a la altura de las
+## rodillas o de la cabeza: una ventana deja libre una de las dos (el hueco), una puerta abierta las dos.
+func _blocked_ahead(aim: Vector3, distance: float, up: Vector3) -> bool:
+	var ahead := (aim - global_position).slide(up)
+	if ahead.length_squared() < 0.01:
+		return false
+	var reach := ahead.normalized() * minf(distance, WALL_LOOK)
+	var space := get_world_3d().direct_space_state
+	for height in WALL_LOOK_HEIGHTS:
+		var from := global_position + up * height
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + reach,
+			PhysicsLayers.WORLD, [get_rid()]))
+		# Una ladera que sube también da en el rayo; esa se sube andando (su normal mira hacia arriba).
+		if not hit.is_empty() and absf((hit.normal as Vector3).dot(up)) < 0.5:
+			return true
+	return false
 
 
 ## Lo que le queda hasta [dest] (m): por el camino, si va por uno; si no, en línea recta.

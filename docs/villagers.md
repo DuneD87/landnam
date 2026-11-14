@@ -447,7 +447,11 @@ de noche duerme y, si atacan la base, deja lo que hace y pelea.
   recta hasta el árbol y, si así no se acerca en 1,5 s, por un camino (`Companion.steer`, `GroundPath`:
   A* en una rejilla de medio metro alrededor, escalones de hasta 0,55 m hacia arriba y 4 m hacia abajo,
   abriendo y cerrando las puertas; sale de una casa o baja de un tejado; tres intentos por destino y,
-  si sigue sin acercarse, otros tres a los 8 s). Lo que no alcanza ni así en
+  si sigue sin acercarse, otros tres a los 8 s). No espera a atascarse si ve algo delante: cada 0,25 s
+  mira 1,5 m al frente a la altura de las rodillas y de la cabeza (una ventana deja libre una de las
+  dos) y, si hay una pared, una ventana o una puerta cerrada, busca camino ya. Lo que queda a más de
+  35 m de la búsqueda no tiene camino entero: va por el parcial hasta la casilla explorada más cercana
+  (si acerca 1,5 m o más), que de dentro de una casa sale por la puerta y no por la ventana que da a ello. Lo que no alcanza ni así en
   12 s lo deja 2 minutos. Lo tala, al caer
   se aparta 4 m del tocón, lo parte y parte cada trozo en leña. La roca suelta sus trozos y los pica
   hasta que dan piedras. Lo que saca entra en su morral (`Companion.inventory`, sin sonido ni aviso) y,

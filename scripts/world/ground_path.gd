@@ -7,7 +7,10 @@ class_name GroundPath extends RefCounted
 ## hasta DROP m hacia abajo, saltando: de un tejado al que ha subido se baja; una casa de dos plantas
 ## sigue la planta en la que se está) y si cabe el cuerpo, una cápsula de RADIUS m hasta HEIGHT
 ## m. El hueco de una puerta cerrada (WoodenDoor) cuenta como paso: quien sigue el camino la abre.
-## Busca hasta MAX_NODES casillas a menos de MAX_RANGE m de donde sale; sin camino, devuelve [].
+## Busca hasta MAX_NODES casillas a menos de MAX_RANGE m de donde sale. Si no llega (el destino queda
+## más lejos, o se acaban las casillas) devuelve el camino a la casilla explorada más cercana al destino,
+## siempre que acerque al menos PARTIAL_GAIN m: así se sale de una casa por la puerta hacia algo que está
+## lejos, en vez de quedarse empujando la pared o la ventana que da a ello. Sin eso, devuelve [].
 ## Después se acorta: de cada punto, al más lejano que se ve en línea recta por la rejilla.
 
 const CELL := 0.5
@@ -19,6 +22,8 @@ const STEP := 0.55
 ## El rayo del suelo empieza esto (m) por encima de la casilla de la que viene y baja hasta DROP.
 const PROBE_UP := 0.8
 const DROP := 4.0
+## Lo que tiene que acercar (m) un camino que no llega para que valga la pena.
+const PARTIAL_GAIN := 1.5
 const NEIGHBORS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
 	Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
 
@@ -33,7 +38,7 @@ var _ground := {}
 var _doors: Array[WoodenDoor] = []
 ## Por qué no se pisan las casillas, de la última búsqueda (para depurar): sin suelo, escalón, choca.
 static var last_stats := {}
-var _stats := {"expanded": 0, "no_ground": 0, "step": 0, "blocked": 0, "blockers": {}}
+var _stats := {"expanded": 0, "no_ground": 0, "step": 0, "blocked": 0, "blockers": {}, "partial": false}
 var _capsule := CapsuleShape3D.new()
 var _query := PhysicsShapeQueryParameters3D.new()
 
@@ -76,13 +81,19 @@ func _search(body: CollisionObject3D, from: Vector3, to: Vector3, up: Vector3, r
 	_push(heap, goal_flat.length(), start)
 	var expanded := 0
 	var found := Vector2i(-99999, 0)
+	var best := start
+	var best_left := goal_flat.length()
 	while not heap.is_empty() and expanded < MAX_NODES:
 		var cell: Vector2i = _pop(heap)
 		expanded += 1
 		_stats.expanded = expanded
-		if (Vector2(cell) * CELL).distance_to(goal_flat) <= reach:
+		var left := (Vector2(cell) * CELL).distance_to(goal_flat)
+		if left <= reach:
 			found = cell
 			break
+		if left < best_left:
+			best_left = left
+			best = cell
 		for step in NEIGHBORS:
 			var next := cell + step
 			if Vector2(next).length() * CELL > MAX_RANGE:
@@ -98,9 +109,12 @@ func _search(body: CollisionObject3D, from: Vector3, to: Vector3, up: Vector3, r
 				cost[next] = g
 				came[next] = cell
 				_push(heap, g + (Vector2(next) * CELL).distance_to(goal_flat) / CELL, next)
+	_stats.partial = found.x == -99999
 	last_stats = _stats
 	if found.x == -99999:
-		return PackedVector3Array()
+		if goal_flat.length() - best_left < PARTIAL_GAIN:
+			return PackedVector3Array()
+		found = best
 	var cells: Array[Vector2i] = [found]
 	while came.has(cells.back()):
 		cells.append(came[cells.back()])
