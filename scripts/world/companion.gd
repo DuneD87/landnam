@@ -16,7 +16,8 @@ class_name Companion extends CharacterBody3D
 ## vida allí: de día pasea cerca, al atardecer se sienta junto a una hoguera encendida (Campfire), de
 ## noche duerme en un petate libre (Bedroll) o, si no lo hay, en el suelo; y defiende la base de lo que
 ## ataque cerca. En su horario de trabajo hace lo que se le haya mandado (SettlerWork: talar, picar o
-## limpiar una zona). Un árbol que le cae encima lo mata (crush). Ver docs/villagers.md.
+## limpiar una zona). Un árbol que le cae encima lo mata (crush), pero casi siempre oye el crujido al
+## empezar a caer y se aparta corriendo, o no se mete debajo (_watch_falls). Ver docs/villagers.md.
 
 enum Mode {FOLLOW, WAIT, LEAVE, SETTLE}
 ## Lo que hace en la base.
@@ -161,6 +162,21 @@ const RETREAT_TIME := 12.0
 const HOME_NEAR := 12.0
 const ANIM_HIT := &"combat/hit_react"
 const ANIM_DOWN := &"combat/death"
+## Un árbol que cae (FallingTree.HAZARD, mientras cae; _watch_falls): se da cuenta seguro (HEAR_SURE_CHANCE) a menos de HEAR_SURE m
+## del tocón, y cada vez menos hasta HEAR_RANGE m; dormido, la mitad. Si está en su camino (a menos de
+## su anchura más FLEE_MARGIN m del tronco, y no detrás del tocón), tras FLEE_REACT s lo deja todo (el
+## golpe a medias, la pelea) y sale ya a la carrera por lo más corto: de lado o detrás del tocón, hasta
+## quedar FLEE_EXTRA m fuera; si en FLEE_TIME s no lo ha conseguido, lo deja. Un árbol tarda de 2,3 s
+## (6 m) a 3,4 s (15 m) en caer: no hay tiempo para más.
+const HEAR_SURE := 20.0
+const HEAR_RANGE := 50.0
+const HEAR_SURE_CHANCE := 0.95
+const FLEE_MARGIN := 0.6
+const FLEE_EXTRA := 0.8
+const FLEE_REACT := Vector2(0.15, 0.45)
+const FLEE_TIME := 5.0
+## Dónde estará dentro de esto (s), andando como anda: si va a meterse en su camino, se para fuera.
+const LOOK_AHEAD := 0.8
 
 ## SettlementPopulation.residents: "id", "name", "sex", "job"...
 var resident: Dictionary
@@ -265,6 +281,16 @@ var _slot_held := Vector3.INF
 ## De vuelta a su base (return_to_base) y lo que lleva andado (s) fuera de la vista del jugador.
 var homing := false
 var _travel := 0.0
+
+# --- Apartarse de un árbol que cae ---
+## Adónde corre (marco del terreno), o INF; lo que tarda en reaccionar y lo que le queda para llegar.
+var _flee := Vector3.INF
+var _flee_wait := 0.0
+var _flee_left := 0.0
+## Si se ha dado cuenta de cada árbol que cae (instance_id -> bool: se decide una vez por árbol).
+var _heard := {}
+## El árbol que espera a que caiga, parado fuera de su camino (iba a meterse), o null.
+var _hold_for: FallingTree
 
 
 ## [who]: su vecino (SettlementPopulation.residents) del poblado [v] ([v_name]); [model]: su humano
@@ -508,6 +534,13 @@ func _physics_process(delta: float) -> void:
 	if _down_left > 0.0:
 		_lie(up, delta)
 		return
+	# Los árboles que caen: si se da cuenta y está (o se va a meter) en su camino, se aparta o se para.
+	_watch_falls()
+	# Ha oído caer un árbol: al reaccionar se levanta del petate para correr.
+	if _flee.is_finite() and _flee_wait > 0.0:
+		_flee_wait -= delta
+		if _flee_wait <= 0.0:
+			_start_flee(up)
 	# La fiera puede haberse ido del árbol (un cadáver suelto se libera).
 	if _target != null and not is_instance_valid(_target):
 		_target = null
@@ -546,6 +579,14 @@ func _physics_process(delta: float) -> void:
 	var speed := 0.0
 	if _flinch_left > 0.0:
 		_flinch_left -= delta
+	elif _flee.is_finite() and _flee_wait <= 0.0:
+		var step := _run_from_tree(delta)
+		heading = step[0]
+		speed = step[1]
+	elif _hold_for != null:
+		# Quieto fuera de su camino hasta que caiga.
+		heading = Vector3.ZERO
+		speed = 0.0
 	elif _target != null:
 		var step := _fight(up, delta)
 		heading = step[0]
@@ -1358,6 +1399,121 @@ func notify(text: String) -> void:
 ## Su árbol ha caído (TreeFelling._fell).
 func on_felled(falling: FallingTree) -> void:
 	work.on_felled(falling)
+
+
+## Cada paso: los árboles que caen ahora (FallingTree.HAZARD). De cada uno decide una vez si se da
+## cuenta (hear_chance; al que lo tala no le hace falta: ya se aparta). Si se ha dado cuenta y está en su
+## camino, se aparta (dodge_fall); si no está pero va a meterse (donde estará en LOOK_AHEAD s), se para
+## fuera hasta que caiga (_hold_for).
+func _watch_falls() -> void:
+	var falling := get_tree().get_nodes_in_group(FallingTree.HAZARD)
+	if falling.is_empty():
+		if not _heard.is_empty():
+			_heard.clear()
+		_hold_for = null
+		return
+	if _hold_for != null and (not is_instance_valid(_hold_for) or not _hold_for.is_in_group(FallingTree.HAZARD)):
+		_hold_for = null
+	if _flee.is_finite():
+		return
+	for node in falling:
+		var tree := node as FallingTree
+		if tree == null or tree._chopper == self:
+			continue
+		var id := tree.get_instance_id()
+		if not _heard.has(id):
+			_heard[id] = _rng.randf() < hear_chance(global_position.distance_to(tree.hazard_a), _chore == Chore.SLEEP)
+		if not _heard[id]:
+			continue
+		if dodge_fall(tree.hazard_a, tree.hazard_b, tree.hazard_half):
+			_hold_for = null
+			return
+		var ahead := global_position + velocity.slide(up_direction) * LOOK_AHEAD
+		if in_fall_path(tree.hazard_a, tree.hazard_b, tree.hazard_half, ahead):
+			_hold_for = tree
+			return
+
+
+## Lo probable que es oír caer un árbol a [distance] m (dormido, [asleep], la mitad).
+static func hear_chance(distance: float, asleep: bool) -> float:
+	var chance := HEAR_SURE_CHANCE if distance <= HEAR_SURE \
+		else remap(minf(distance, HEAR_RANGE), HEAR_SURE, HEAR_RANGE, HEAR_SURE_CHANCE, 0.0)
+	return chance * (0.5 if asleep else 1.0)
+
+
+## Si [at] está en el camino del árbol que cae de [a] a [b] con [half] m a cada lado (no detrás del
+## tocón ni más allá de la punta con su copa).
+func in_fall_path(a: Vector3, b: Vector3, half: float, at: Vector3) -> bool:
+	var up := up_direction
+	var axis := (b - a).slide(up)
+	var length := axis.length()
+	if length < 0.1:
+		return false
+	var dir := axis / length
+	var rel := (at - a).slide(up)
+	var t := rel.dot(dir)
+	if t < -half * 0.5 or t > length + half:
+		return false
+	return (rel - dir * t).length() <= half + Villager.BODY_RADIUS + FLEE_MARGIN
+
+
+## Si está en el camino del árbol que cae (in_fall_path), echa a correr para salirse. Falso si no
+## estaba en su camino.
+func dodge_fall(a: Vector3, b: Vector3, half: float) -> bool:
+	var up := up_direction
+	var axis := (b - a).slide(up)
+	var length := axis.length()
+	if length < 0.1:
+		return false
+	var dir := axis / length
+	var rel := (global_position - a).slide(up)
+	var t := rel.dot(dir)
+	# Detrás del tocón no le cae; más allá de la punta (con su copa), tampoco.
+	if t < -half * 0.5 or t > length + half:
+		return false
+	var side := rel - dir * t
+	var reach := half + Villager.BODY_RADIUS + FLEE_MARGIN
+	if side.length() > reach:
+		return false
+	var away := side.normalized() if side.length() > 0.05 else dir.cross(up).normalized() * (1.0 if _rng.randf() < 0.5 else -1.0)
+	# Por lo más corto: de lado o, cerca de la base, detrás del tocón.
+	var sideways := reach - side.length()
+	var backwards := t + half * 0.5 + Villager.BODY_RADIUS
+	var spot := a + dir * clampf(t, 0.0, length) + away * (reach + FLEE_EXTRA)
+	if backwards < sideways:
+		spot = a + side - dir * (half * 0.5 + Villager.BODY_RADIUS + FLEE_EXTRA)
+	_flee = _terrain.global_transform.affine_inverse() * spot
+	_flee_wait = _rng.randf_range(FLEE_REACT.x, FLEE_REACT.y)
+	_flee_left = FLEE_TIME
+	return true
+
+
+## Reacciona al árbol que cae: lo deja todo (dormido, el golpe de trabajo a medias, la pelea)
+## y sale ya a la carrera, sin ir acelerando.
+func _start_flee(up: Vector3) -> void:
+	_wake()
+	_chore = Chore.STAND
+	work.interrupt()
+	_attack_left = 0.0
+	_hit_at = -1.0
+	_flinch_left = 0.0
+	_target = null
+	_ordered = false
+	_chatting = false
+	var heading := _tangent(_terrain.global_transform * _flee - global_position)
+	velocity = heading * SPRINT_SPEED + up * velocity.dot(up)
+	_anim = &""
+
+
+## Un paso corriendo a apartarse: derecho y a la carrera (no hay tiempo para buscar camino).
+func _run_from_tree(delta: float) -> Array:
+	_flee_left -= delta
+	var spot := _terrain.global_transform * _flee
+	var to := (spot - global_position).slide(up_direction)
+	if to.length() < 0.4 or _flee_left <= 0.0:
+		_flee = Vector3.INF
+		return [Vector3.ZERO, 0.0]
+	return [_tangent(to), SPRINT_SPEED]
 
 
 ## Le cae un árbol encima (FallingTree): muere. Suelta lo que lleva y se va al rato.

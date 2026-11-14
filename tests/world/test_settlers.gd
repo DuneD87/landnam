@@ -66,6 +66,8 @@ func _run() -> void:
 	await _check_guard()
 	print("SECTION _check_cook t=%.1f" % (Time.get_ticks_msec() / 1000.0))
 	await _check_cook()
+	print("SECTION _check_tree_dodge t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+	await _check_tree_dodge()
 	_check_meals()
 	_check_hunter_away()
 	_check_saved()
@@ -330,6 +332,30 @@ func _check_builder() -> void:
 	chest.queue_free()
 	GridManager.clear_all()
 	planet.queue_free()
+	await _clear()
+
+
+## Al oír caer un árbol, el que está en su camino se aparta de lado; el que está detrás del tocón, no.
+func _check_tree_dodge() -> void:
+	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	check(is_equal_approx(Companion.hear_chance(10.0, false), Companion.HEAR_SURE_CHANCE)
+		and Companion.hear_chance(60.0, false) == 0.0 and Companion.hear_chance(10.0, true) < 0.5
+		and Companion.hear_chance(35.0, false) < Companion.HEAR_SURE_CHANCE,
+		"cerca casi siempre lo oye; lejos, no; dormido, la mitad")
+	var a := Vector3(20.0, 0.05, 0.0)
+	var b := Vector3(20.0, 0.05, 12.0)
+	var half := 1.0
+	var under := _spawn(Vector3(20.3, 0.05, 6.0))
+	under.wait_here()
+	var behind := _spawn(Vector3(20.0, 0.05, -3.0))
+	behind.wait_here()
+	check(under.dodge_fall(a, b, half) and not behind.dodge_fall(a, b, half),
+		"se aparta el que está en su camino, no el que está detrás del tocón")
+	await _wait(3.0)
+	var lateral := absf(under.global_position.x - 20.0)
+	check(lateral > half + Villager.BODY_RADIUS + Companion.FLEE_MARGIN,
+		"y en 3 s ya está fuera de su camino (a %.1f m del tronco)" % lateral)
+	check(behind.global_position.distance_to(Vector3(20.0, 0.05, -3.0)) < 0.5, "el de detrás sigue donde estaba")
 	await _clear()
 
 

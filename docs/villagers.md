@@ -459,6 +459,19 @@ de noche duerme y, si atacan la base, deja lo que hace y pelea.
 - **Nunca comparten** árbol ni roca (`SettlerWork._claims`): el siguiente va al siguiente. Los troncos
   caídos y los trozos que haya en la zona también se recogen.
 - **Accidentes**: un árbol que cae encima de otro colono lo mata (`Companion.crush`; al que lo tala, no).
+  Pero casi siempre se da cuenta: mientras cae, el árbol está en `FallingTree.HAZARD` con por dónde va a
+  caer (`hazard_a`, `hazard_b`, `hazard_half`), y cada compañero lo mira en cada paso
+  (`Companion._watch_falls`). De cada árbol decide una vez si se da cuenta: un 95 % a menos de 20 m del
+  tocón, cada vez menos hasta 50 m (dormido, la mitad; malherido no se puede mover; al que lo tala no le
+  hace falta). Si se ha dado cuenta:
+  - si está en su camino (a menos de la anchura del tronco o la copa más 0,6 m, y no detrás del tocón),
+    tras 0,15-0,45 s lo deja todo (se levanta del petate, corta el golpe de trabajo a
+    medias y la pelea) y sale ya a la carrera, sin ir acelerando, por lo más corto: de lado o, cerca de
+    la base, detrás del tocón, hasta quedar 0,8 m fuera (`dodge_fall`, `_start_flee`);
+  - si no está pero va a meterse (donde estará en 0,8 s andando como anda: el que va a por otro árbol),
+    se para fuera hasta que caiga (`_hold_for`).
+  Luego sigue con lo suyo. Un árbol tarda de 2,3 s (6 m) a 3,4 s (15 m) en caer, así que solo muere el
+  que no se da cuenta o se atasca. Vale también para los árboles que tala el jugador.
   Suelta lo que llevaba, se queda en el suelo un minuto y no vuelve a salir en su poblado
   (`SettlementCompanions`, "dead").
 - La zona se da por vacía (o limpia) tras tres búsquedas seguidas sin nada con ella entera cerca de la

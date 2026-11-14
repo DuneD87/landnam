@@ -13,6 +13,13 @@ extends Node3D
 ## Cuelga de TreeFelling, bajo el terreno: sigue al planeta y al origen flotante.
 
 const GROUP := &"felled_tree"
+## Mientras cae (de setup al golpe): por dónde va a caer, para que los compañeros se aparten o no se
+## metan (Companion._watch_falls). En el mundo: de hazard_a (la bisagra) a hazard_b (la punta), con
+## hazard_half m de anchura a cada lado.
+const HAZARD := &"falling_tree_hazard"
+var hazard_a := Vector3.ZERO
+var hazard_b := Vector3.ZERO
+var hazard_half := 1.0
 const GRAVITY := 9.8
 ## Inclinación y giro con que arranca (rad, rad/s): el árbol cruje y empieza a ceder.
 const START_ANGLE := 0.03
@@ -125,6 +132,13 @@ func setup(params: Dictionary) -> void:
 	add_child(face)
 
 	_apply()
+	# Por dónde va a caer: los compañeros que se dan cuenta se apartan o no se meten (el que tala ya se
+	# aparta solo).
+	var to_world := _felling.global_transform
+	hazard_a = to_world * _hinge
+	hazard_b = hazard_a + (to_world.basis * _dir).normalized() * _length
+	hazard_half = maxf(_radius + 0.45, maxf(_crown * 0.45, 0.8))
+	add_to_group(HAZARD)
 	reset_physics_interpolation()
 	_land = _landing_angle()
 
@@ -210,6 +224,7 @@ static func ground(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3,
 
 
 func _on_impact() -> void:
+	remove_from_group(HAZARD)
 	var to_world := _felling.global_transform
 	var rotation := Basis(_axis, _theta)
 	var trunk := (to_world.basis * (rotation * _up)).normalized()

@@ -185,6 +185,14 @@ func _make_task(what: Job) -> SettlerTask:
 	return null
 
 
+## Corta lo que hace ahora mismo (el golpe a medias), sin dejar el oficio: al volver sigue buscando.
+func interrupt() -> void:
+	_swing_left = 0.0
+	_impact_at = -1.0
+	if _step == Step.STRIKE:
+		_approach_for = null
+
+
 ## Lo deja: suelta lo que tenía.
 func stop() -> void:
 	if task != null:
