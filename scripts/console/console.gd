@@ -275,6 +275,8 @@ func _register_commands() -> void:
 		func() -> PackedStringArray: return PackedStringArray(["tp"])))
 	_add(ConsoleCommand.new("village", "village [tp | trust <0-100>]", "CON_HELP_VILLAGE", _cmd_village, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp", "trust"])))
+	_add(ConsoleCommand.new("settler", "settler [amount] [kit]", "CON_HELP_SETTLER", _cmd_settler, 0,
+		func() -> PackedStringArray: return PackedStringArray(["kit"])))
 	_add(ConsoleCommand.new("heal", "heal [amount]", "CON_HELP_HEAL", _cmd_heal))
 	_add(ConsoleCommand.new("litter", "litter", "CON_HELP_LITTER", _cmd_litter))
 	_add(ConsoleCommand.new("god", "god [on|off]", "CON_HELP_GOD", _cmd_god))
@@ -545,6 +547,29 @@ func _cmd_trail(args: PackedStringArray) -> String:
 
 ## El poblado más cercano (Planet.get_settlements): cuál, a cuántos metros y en qué rumbo, o con "tp" el
 ## jugador de pie en su plaza.
+## Colonos de prueba: vecinos de los poblados más cercanos que se quedan a vivir donde está el jugador
+## (SettlementCompanions.spawn_settlers); con kit, con las herramientas de todos los oficios.
+func _cmd_settler(args: PackedStringArray) -> String:
+	var player := _get_player() as Node3D
+	var companions := get_tree().get_first_node_in_group(SettlementCompanions.GROUP) as SettlementCompanions
+	if player == null or companions == null:
+		return _paint(COLOR_ERR, tr("CON_NO_PLAYER"))
+	var amount := 1
+	var kit := false
+	for arg in args:
+		if arg == "kit":
+			kit = true
+		elif arg.is_valid_int() and int(arg) > 0:
+			amount = int(arg)
+		else:
+			return _paint(COLOR_ERR, tr("CON_USAGE") % "settler [amount] [kit]")
+	var made := companions.spawn_settlers(amount, player.global_position, kit)
+	if made.is_empty():
+		return _paint(COLOR_ERR, tr("CON_SETTLER_NONE") % SettlementCompanions.MAX_SETTLERS)
+	return _paint(COLOR_OK, tr("CON_SETTLER_DONE") % [made.size(), companions.settler_count(),
+		SettlementCompanions.MAX_SETTLERS])
+
+
 func _cmd_village(args: PackedStringArray) -> String:
 	var player := _get_player()
 	var loader = player.planet if player != null else null

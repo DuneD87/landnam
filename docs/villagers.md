@@ -537,6 +537,11 @@ se sienta (`ThroneView`: `village/throne_sit` y luego `village/throne_idle`, en 
 
 E o Escape lo levantan (sentarse al revés) y aparece de pie delante del trono; un golpe también.
 
+Para probar, la consola: `settler [n] [kit]` saca `n` vecinos de los poblados más cercanos (que no
+vayan ya con el jugador; el que anda por su poblado se va de allí) y los deja viviendo donde está el
+jugador, con su base allí; con `kit` llevan en el morral hacha, pico, martillo, lanza, cuchillo y caña.
+No pasa de `MAX_SETTLERS`. Se guardan como cualquier colono.
+
 ## Configuración
 
 `villager_distance` (200 m) en `settlement_settings`.

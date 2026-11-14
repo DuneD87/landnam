@@ -291,6 +291,66 @@ func recruit(villager: Villager) -> Companion:
 	return _add(v, who, model, at, Companion.Mode.FOLLOW)
 
 
+## Las herramientas de todos los oficios, para los colonos de prueba (spawn_settlers con kit).
+const KIT: Array[StringName] = [&"stone_axe_01", &"stone_pickaxe_01", &"stone_hammer_01", &"flint_spear",
+	&"flint_knife", &"fishing_rod"]
+
+
+## Para probar (consola `settler`): hasta [count] vecinos de los poblados más cercanos a [at] (mundo) que
+## no vayan ya con el jugador se quedan a vivir allí (su base, [at]), de pie alrededor. Con [kit] llevan
+## en el morral las herramientas de todos los oficios. El que anda como aldeano por su poblado se va de
+## allí. No pasa de MAX_SETTLERS.
+func spawn_settlers(count: int, at: Vector3, kit := false) -> Array[Companion]:
+	var out: Array[Companion] = []
+	count = mini(count, MAX_SETTLERS - settler_count())
+	if count <= 0 or _villages.is_empty():
+		return out
+	var base := _terrain.global_transform.affine_inverse() * at
+	var up := base.normalized()
+	var order: Array = range(_villages.size())
+	order.sort_custom(func(a: int, b: int) -> bool:
+		return (_villages[a].center as Vector3).normalized().dot(up) > (_villages[b].center as Vector3).normalized().dot(up))
+	var walking := {}
+	for node in get_tree().get_nodes_in_group(Villager.GROUP):
+		var villager := node as Villager
+		if villager != null and not villager.is_queued_for_deletion():
+			walking[String(villager.resident.get("id", ""))] = villager
+	AppearanceCatalog.categories()
+	var world_up := (at - _terrain.global_position).normalized()
+	var east := world_up.cross(Vector3.UP if absf(world_up.y) < 0.99 else Vector3.RIGHT).normalized()
+	for v: int in order:
+		if out.size() >= count:
+			break
+		for who in SettlementPopulation.residents(_villages[v], v, _prefabs, _seed):
+			if out.size() >= count:
+				break
+			var id := String(who.id)
+			if has(id):
+				continue
+			# En corro alrededor de la base, cada vez un poco más lejos, mirando hacia ella.
+			var k := out.size()
+			var dir := east.rotated(world_up, k * 2.39996)
+			var spot := at + dir * (2.0 + 0.35 * k) + world_up * 0.5
+			var forward := -dir
+			var place := Transform3D(Basis(world_up.cross(forward), world_up, forward).orthonormalized(), spot)
+			var model: Node3D
+			var villager := walking.get(id) as Villager
+			if villager != null:
+				model = villager.leave_with_player()
+				villager.queue_free()
+			else:
+				model = Villager.build_model(who, SettlementVillagers.pieces_of(who), SettlementVillagers.tool_of(who))
+			var companion := _add(v, who, model, place, Companion.Mode.FOLLOW)
+			companion.settle_here(base)
+			if kit:
+				for item_id in KIT:
+					var data := ItemCatalog.get_item(item_id)
+					if data != null:
+						companion.pack.add_item(data)
+			out.append(companion)
+	return out
+
+
 func _add(v: int, who: Dictionary, model: Node3D, at: Transform3D, mode: Companion.Mode) -> Companion:
 	var plan: Dictionary = _villages[v]
 	var companion := Companion.new()

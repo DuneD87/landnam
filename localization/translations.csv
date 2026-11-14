@@ -4,6 +4,9 @@ OPT_GAMEPAD_SENSITIVITY,Look sensitivity,Sensibilidad de la cámara,
 OPT_GAMEPAD_INVERT_Y,Invert controller Y axis,Invertir eje Y del mando,
 OPT_GAMEPAD_DEADZONE,Stick deadzone,Zona muerta de los sticks,
 OPT_GAMEPAD_HINT,Menus: left stick moves the cursor · A selects · X is secondary click · B goes back · right stick scrolls.,Menús: stick izquierdo mueve el cursor · A selecciona · X hace clic secundario · B vuelve · stick derecho desplaza.,
+CON_HELP_SETTLER,"Settlers for testing: villagers from the nearest villages stay and live where you stand (their base); with kit, they carry the tools of every trade.","Colonos de prueba: vecinos de los poblados más cercanos se quedan a vivir donde estás (su base); con kit, llevan las herramientas de todos los oficios.",
+CON_SETTLER_DONE,%d settlers now live here (%d of %d).,%d colonos viven ahora aquí (%d de %d).,
+CON_SETTLER_NONE,No settler fits: the base already has %d.,No cabe ningún colono: la base ya tiene %d.,
 ,,,## Options: controls
 LANGUAGE_NAME,English,Español,Name of the language in itself; it is what the language menu shows
 OPT_GROUP_MOVEMENT,Movement,Movimiento,

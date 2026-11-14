@@ -184,7 +184,9 @@ func _dress_all() -> void:
 
 func _spawn(job: Dictionary, model: Node3D) -> void:
 	var village: SettlementVillage = _active.get(job.village)
-	if village == null or int(job.generation) != int(_generation.get(job.village, 0)):
+	# El que se ha ido con el jugador mientras se vestía (o lo ha sacado la consola) ya no sale.
+	if village == null or int(job.generation) != int(_generation.get(job.village, 0)) \
+			or _manager.get_companions().has(String(job.resident.id)):
 		model.free()
 		return
 	var villager := Villager.new()
