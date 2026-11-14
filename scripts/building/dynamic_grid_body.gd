@@ -526,6 +526,19 @@ func _process_interior_analysis(delta: float) -> void:
 		_run_interior_analysis.bind(grids_data), false, "ShipInteriorAnalysis")
 
 
+## Al liberarse (p. ej. al cargar partida, que recrea los barcos) espera a sus tareas: el worker
+## llamaba después a call_deferred sobre el body ya liberado.
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	if _analysis_task_id >= 0:
+		WorkerThreadPool.wait_for_task_completion(_analysis_task_id)
+		_analysis_task_id = -1
+	if _split_task_id >= 0:
+		WorkerThreadPool.wait_for_task_completion(_split_task_id)
+		_split_task_id = -1
+
+
 ## Cuerpo de la tarea en el worker thread; el resultado se aplica en el main thread.
 func _run_interior_analysis(grids_data: Array) -> void:
 	if _shape_cache.size() > 20000:

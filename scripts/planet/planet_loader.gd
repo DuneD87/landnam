@@ -682,6 +682,12 @@ func restore_save_data(data: Dictionary) -> void:
 
 	if config_file_path != "":
 		_load_planet()
+	# Lo guardado es la posición canónica (sin el desplazamiento del origen flotante). Al cargar con
+	# la partida abierta el planeta ya existe y sigue desplazado, y _load_planet no hace nada: quedaba
+	# global_pos con el valor canónico, a kilómetros del nodo, y los barcos (que miden su altura y la
+	# gravedad desde global_pos) se creían bajo el mar y salían volando.
+	if is_instance_valid(planet):
+		global_pos = voxel_terrain.global_position
 
 
 ## Restaura el clima guardado tras la carga, cuando el jugador ya está posicionado
