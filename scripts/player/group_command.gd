@@ -6,7 +6,8 @@ extends Node
 ## (los que esperan echan a andar), esperad aquí (se quedan y defienden el sitio), atacad (van a por
 ## la fiera fijada o, sin ella, a la que el jugador mira), retirada (dejan la pelea y vuelven
 ## corriendo), volved a la base (cada colono vuelve a la suya, con el trabajo que tenía) y la
-## formación (cuña, fila o sueltos, que se despliegan en la rueda) e id allí (van al
+## formación (cuña, fila o sueltos, que se despliegan en la rueda) y a los bancos (se sientan en las
+## bancadas del barco en el que va el jugador, o de cerca en tierra: RowingBench) e id allí (van al
 ## suelo al que mira el jugador y esperan allí, repartidos en corro) y trabajad (se despliegan los
 ## oficios: se ponen con el elegido en campo alrededor de lo que mira el jugador, Companion.field_work,
 ## hasta que se les mande otra cosa). Sin nadie en el grupo, la tecla
@@ -151,6 +152,10 @@ func _roster() -> Array[Dictionary]:
 		var state := tr("GROUP_STATE_FOLLOW")
 		if c.dead or c.is_down():
 			state = tr("GROUP_STATE_DOWN")
+		elif c.is_rowing():
+			state = tr("GROUP_STATE_ROWING")
+		elif c.is_seated():
+			state = tr("GROUP_STATE_SEATED")
 		elif c.is_going():
 			state = tr("GROUP_STATE_GOING")
 		elif c.is_field_working():
@@ -298,6 +303,15 @@ func give(order: GroupOrderWheel.Order, who: Array[Companion] = []) -> void:
 				said = tr("GROUP_SAID_HOME_SOME") % [result[0], result[1]]
 			else:
 				said = tr("GROUP_SAID_HOME") % result[0]
+		GroupOrderWheel.Order.BOARD:
+			var ship: DynamicGridBody = _player._platform_body if is_instance_valid(_player._platform_body) else null
+			var result := companions.order_board(_player.global_position, ship, who)
+			if int(result[0]) == 0:
+				said = tr("GROUP_SAID_NO_BENCH")
+			elif int(result[1]) > 0:
+				said = tr("GROUP_SAID_BOARD_SOME") % [result[0], result[1]]
+			else:
+				said = tr("GROUP_SAID_BOARD") % result[0]
 		GroupOrderWheel.Order.GOTO:
 			var spot := aimed_spot()
 			var count := companions.order_goto(spot, _player.up_direction, who) if spot.is_finite() else 0

@@ -1327,9 +1327,10 @@ func _physics_step(delta: float) -> void:
 			drag_velocity += forward * rel_vel.dot(forward) * (boat_forward_drag - 1.0)
 			apply_central_force(sail_force.limit_length(mass * BoatSailing.MAX_SAIL_ACCELERATION))
 			_apply_boat_steering(up, forward, rel_vel, displaced_mass, delta)
-			if _is_being_controlled and sailing.row != 0:
+			if _is_being_controlled and sailing.row != 0 and sailing.rowers > 0:
 				var forward_speed := rel_vel.dot(forward)
-				var row_accel := BoatSailing.rowing_acceleration(sailing.row, forward_speed)
+				var row_accel := BoatSailing.rowing_acceleration(sailing.row, forward_speed) \
+					* BoatSailing.rower_share(sailing.rowers, mass)
 				# Un casco de masa mínima no debe pasarse del tope en un solo paso.
 				var target := BoatSailing.ROW_SPEED if sailing.row > 0 else -BoatSailing.BACK_SPEED
 				var step_limit := absf(target - forward_speed) / maxf(delta, 0.0001)
@@ -1400,15 +1401,43 @@ func _apply_boat_steering(up: Vector3, forward: Vector3, relative_velocity: Vect
 	angular_velocity += up * (target - angular_velocity.dot(up)) * blend
 
 
-## Los remos asoman solo con alguien a bordo y la marcha de remo puesta; se crean la primera vez.
+## Un remo por cada aldeano sentado en una bancada con remo (RowingBench colgada de este casco);
+## bogan con alguien a bordo y la marcha de remo puesta. Se crean la primera vez.
 func _update_oars() -> void:
-	var row := sailing.row if _is_being_controlled and movement_type == MovementType.BOAT else 0
-	if row == 0 and _oars == null:
+	var stations: Array[Dictionary] = []
+	if movement_type == MovementType.BOAT:
+		for child in get_children():
+			var bench := child as RowingBench
+			if bench == null or not bench.is_rowing():
+				continue
+			var station := bench.oar_station()
+			if not station.is_empty():
+				station["key"] = bench.get_instance_id()
+				stations.append(station)
+	sailing.rowers = stations.size()
+	var row := sailing.row if _is_being_controlled and movement_type == MovementType.BOAT and not stations.is_empty() else 0
+	if stations.is_empty() and _oars == null:
 		return
 	if _oars == null:
 		_oars = BoatOars.new()
 		add_child(_oars)
-	_oars.update(row, _box_pos, _box_half, _hull_version)
+	_oars.update(row, stations, _hull_version)
+
+
+## El remo de una bancada en [seat] (marco del body), o {} si queda lejos de la borda (BoatOars.station_at).
+func oar_station_at(seat: Vector3, forward := Vector3.FORWARD) -> Dictionary:
+	if _recalc_boxes:
+		_recalculate_buoyancy_boxes()
+	return BoatOars.station_at(seat, _box_pos, _box_half, forward)
+
+
+## Los remos de este casco (o null si aún no ha tenido remeros).
+func oars() -> BoatOars:
+	return _oars
+
+
+func hull_version() -> int:
+	return _hull_version
 
 
 ## Echa el ancla bajo el centro del casco y para la marcha. Falso si no es un barco a flote o si

@@ -24,12 +24,12 @@ signal work_chosen(index: int, selected: Array[int])
 signal selection_changed(selected: Array[bool])
 signal closed
 
-enum Order { FOLLOW, WAIT, ATTACK, RETREAT, HOME, FORMATION, GOTO, WORK }
+enum Order { FOLLOW, WAIT, ATTACK, RETREAT, HOME, FORMATION, BOARD, GOTO, WORK }
 
 ## En el sentido de las agujas del reloj, empezando arriba: moverse a la derecha (seguid, esperad,
-## id allí, trabajad, a casa) y pelear a la izquierda (retirada, atacad), con la formación
+## id allí, trabajad, a los bancos, a casa) y pelear a la izquierda (retirada, atacad), con la formación
 ## entre medias.
-const ORDERS: Array[Order] = [Order.FOLLOW, Order.WAIT, Order.GOTO, Order.WORK, Order.HOME,
+const ORDERS: Array[Order] = [Order.FOLLOW, Order.WAIT, Order.GOTO, Order.WORK, Order.BOARD, Order.HOME,
 	Order.FORMATION, Order.RETREAT, Order.ATTACK]
 ## Las que despliegan un arco por fuera en vez de darse al apuntarlas.
 const UNFOLDS: Array[Order] = [Order.FORMATION, Order.WORK]
@@ -40,17 +40,19 @@ const LABELS := {
 	Order.RETREAT: "GROUP_ORDER_RETREAT",
 	Order.HOME: "GROUP_ORDER_HOME",
 	Order.FORMATION: "GROUP_ORDER_FORMATION",
+	Order.BOARD: "GROUP_ORDER_BOARD",
 	Order.GOTO: "GROUP_ORDER_GOTO",
 	Order.WORK: "GROUP_ORDER_WORK",
 }
 const GLYPHS := {Order.FOLLOW: &"follow", Order.WAIT: &"wait", Order.ATTACK: &"attack", Order.RETREAT: &"retreat",
-	Order.HOME: &"home", Order.FORMATION: &"formation", Order.GOTO: &"goto",
+	Order.HOME: &"home", Order.FORMATION: &"formation", Order.BOARD: &"board", Order.GOTO: &"goto",
 	Order.WORK: &"work"}
 const HINTS := {
 	Order.FOLLOW: "GROUP_HINT_FOLLOW",
 	Order.WAIT: "GROUP_HINT_WAIT",
 	Order.RETREAT: "GROUP_HINT_RETREAT",
 	Order.HOME: "GROUP_HINT_HOME",
+	Order.BOARD: "GROUP_HINT_BOARD",
 	Order.GOTO: "GROUP_HINT_GOTO",
 	Order.WORK: "GROUP_HINT_WORK",
 }

@@ -57,6 +57,7 @@ godot --headless --path . res://tests/ui/test_drop_items.tscn
 godot --headless --path . res://tests/ui/test_build_hammer.tscn
 godot --headless --path . res://tests/ui/test_blueprints.tscn
 godot --headless --path . res://tests/building/test_sailing.tscn
+godot --headless --path . res://tests/building/test_rowing_benches.tscn
 godot --headless --path . res://tests/building/test_building_mass.tscn
 godot --headless --path . res://tests/building/test_boat_water.tscn
 godot --headless --path . res://tests/building/test_boat_body_links.tscn

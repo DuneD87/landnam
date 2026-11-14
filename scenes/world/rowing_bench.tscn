@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/rowing_bench.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/world/rowing_bench_visual.tscn" id="2"]
+
+[sub_resource type="BoxShape3D" id="Seat"]
+size = Vector3(1.1, 0.48, 0.34)
+
+[node name="RowingBench" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Visual" parent="." instance=ExtResource("2")]
+
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="Seat" type="CollisionShape3D" parent="Body"]
+position = Vector3(0, 0.24, 0)
+shape = SubResource("Seat")

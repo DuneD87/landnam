@@ -55,14 +55,21 @@ func _draw() -> void:
 		status = "SAIL_CALM"
 	elif sail.efficiency < 0.05:
 		status = "SAIL_HEADWIND"
+	var status_text := ""
 	if sail.row != 0:
 		status = "SAIL_ROWING" if sail.row > 0 else "SAIL_BACKING"
+		if sail.rowers == 0:
+			status = "SAIL_NO_ROWERS"
+		elif sail.row > 0:
+			status_text = tr("SAIL_ROWERS") % sail.rowers
 	if anchored:
 		status = "SAIL_ANCHORED"
 	if anchor_refused:
 		status = "SAIL_ANCHOR_TOO_FAST"
 	var color := GameTheme.MOSS if status in ["SAIL_WORKING", "SAIL_ROWING", "SAIL_BACKING", "SAIL_ANCHORED"] else GameTheme.MUTED
-	_text(Vector2(0, 260), tr(status), color, 21, true)
+	if status != "SAIL_ROWING":
+		status_text = ""
+	_text(Vector2(0, 260), status_text if status_text != "" else tr(status), color, 21, true)
 	_text(Vector2(0, 302), tr("SAIL_CONTROLS") % [_key(&"boat_sail_raise"), _key(&"boat_sail_lower"),
 		_key(&"boat_steer_left"), _key(&"boat_steer_right")], GameTheme.MUTED, 19, true)
 	if anchored:

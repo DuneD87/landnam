@@ -177,11 +177,25 @@ const FLEE_REACT := Vector2(0.15, 0.45)
 const FLEE_TIME := 5.0
 ## Dónde estará dentro de esto (s), andando como anda: si va a meterse en su camino, se para fuera.
 const LOOK_AHEAD := 0.8
+## En una bancada (RowingBench): va hasta ella y se sienta a menos de SEAT_REACH m; si en BOARD_TIME s
+## no llega (un barco en el agua, sin camino), aparece sentado. Sentarse es la del trono (sentarse al
+## revés para levantarse no hace falta: aparece de pie delante). Remando, ANIM_ROW si existe, a la
+## par de su remo (BoatOars.phase, más ROW_PHASE de desfase).
+const SEAT_REACH := 1.2
+const BOARD_TIME := 12.0
 ## A un sitio (go_to): llega a menos de GOTO_REACH m (en el plano) y se queda esperando allí. Si no
 ## llega en lo que tardaría al trote, más GOTO_SPARE s, se queda donde esté. Fuera de la vista del
 ## jugador (FREEZE), aparece allí.
 const GOTO_REACH := 0.6
 const GOTO_SPARE := 15.0
+const ANIM_SIT_DOWN := &"village/throne_sit"
+const ANIM_SEATED := &"village/throne_idle"
+const ANIM_ROW := &"village/row"
+const ROW_PHASE := 0.0
+const RowingPoseScript = preload("res://scripts/world/rowing_pose.gd")
+const HIPS := &"mixamorig_Hips"
+## Al cargar: lo que espera a que aparezca su bancada (los barcos se recrean al cargar).
+const PENDING_BENCH_TIME := 5.0
 
 ## SettlementPopulation.residents: "id", "name", "sex", "job"...
 var resident: Dictionary
@@ -287,6 +301,22 @@ var _slot_held := Vector3.INF
 var homing := false
 var _travel := 0.0
 
+# --- En una bancada ---
+## La bancada en la que se sienta o a la que va (RowingBench); _on_bench mientras la tenga.
+var bench: RowingBench
+var _on_bench := false
+var _seated := false
+var _board_left := 0.0
+## Sentado: su cuerpo en el marco de la bancada; sentándose, de dónde viene y cuánto lleva.
+var _seat_pose := Transform3D.IDENTITY
+var _rowing_pose: RowingPoseScript
+var _stand_pose := Transform3D.IDENTITY
+var _sit_time := -1.0
+var _sit_length := 0.0
+## Al cargar: el entity_id de la bancada en la que iba sentado, hasta encontrarla.
+var _pending_bench := ""
+var _pending_left := 0.0
+
 # --- Apartarse de un árbol que cae ---
 ## Adónde corre (marco del terreno), o INF; lo que tarda en reaccionar y lo que le queda para llegar.
 var _flee := Vector3.INF
@@ -369,6 +399,7 @@ func setup(who: Dictionary, v: int, v_name: String, trust: SettlementRelations, 
 
 
 func _ready() -> void:
+	set_process(_seated)
 	_forward = _tangent(global_basis.z)
 	if _forward == Vector3.ZERO:
 		_forward = _tangent(Vector3.FORWARD)
@@ -384,6 +415,7 @@ func _exit_tree() -> void:
 
 ## Se queda donde está hasta que se le diga que siga.
 func wait_here() -> void:
+	stand_up()
 	_leave_base()
 	_goto = Vector3.INF
 	mode = Mode.WAIT
@@ -442,6 +474,7 @@ func goto_spot() -> Vector3:
 
 
 func follow() -> void:
+	stand_up()
 	_leave_base()
 	_goto = Vector3.INF
 	mode = Mode.FOLLOW
@@ -469,6 +502,7 @@ func return_to_base() -> bool:
 func order_attack(creature: NPCController) -> bool:
 	if dead or _down_left > 0.0 or mode == Mode.LEAVE or not _alive(creature):
 		return false
+	stand_up()
 	_retreat_left = 0.0
 	_chatting = false
 	_target = creature
@@ -492,7 +526,8 @@ func is_fighting() -> bool:
 
 ## Se queda a vivir donde está (o en [at], marco del terreno: al cargar).
 func settle_here(at := Vector3.INF) -> void:
-	# Dormido, se levanta antes (si no, se quedaría de pie sin colisión y se hundiría).
+	# Dormido o sentado, se levanta antes (si no, se quedaría de pie sin colisión y se hundiría).
+	stand_up()
 	_wake()
 	_goto = Vector3.INF
 	# El trabajo en campo era de ir con el jugador: viviendo aquí, se le manda otro desde el trono.
@@ -510,6 +545,7 @@ func settle_here(at := Vector3.INF) -> void:
 ## Se vuelve a su poblado: echa a andar hacia allí y se va del todo al perderse de vista
 ## (SettlementCompanions lo quita al salir del árbol).
 func go_home() -> void:
+	stand_up()
 	_leave_base()
 	_goto = Vector3.INF
 	mode = Mode.LEAVE
@@ -557,7 +593,8 @@ func begin_chat() -> bool:
 		return false
 	_chatting = true
 	_say_left = 0.0
-	_play(Villager.ANIM_IDLE)
+	if not _seated:
+		_play(Villager.ANIM_IDLE)
 	return true
 
 
@@ -566,7 +603,8 @@ func say() -> void:
 	if not _chatting:
 		return
 	_say_left = Villager.SAY_TIME
-	_play(Villager.ANIM_TALK)
+	if not _seated:
+		_play(Villager.ANIM_TALK)
 
 
 func end_chat() -> void:
@@ -604,11 +642,26 @@ func _physics_process(delta: float) -> void:
 		return
 	# Los árboles que caen: si se da cuenta y está (o se va a meter) en su camino, se aparta o se para.
 	_watch_falls()
-	# Ha oído caer un árbol: al reaccionar se levanta del petate para correr.
+	# Ha oído caer un árbol: al reaccionar se levanta (de la bancada, del petate) para correr.
 	if _flee.is_finite() and _flee_wait > 0.0:
 		_flee_wait -= delta
 		if _flee_wait <= 0.0:
 			_start_flee(up)
+	if _pending_bench != "":
+		_find_pending_bench(delta)
+		if _pending_bench != "":
+			velocity = Vector3.ZERO
+			return
+	if _on_bench and (not is_instance_valid(bench) or not bench.is_inside_tree() or bench.is_queued_for_deletion()):
+		stand_up()
+	if _seated:
+		# Sentado no pelea ni se mueve: su sitio lo pone _process, con la bancada.
+		velocity = Vector3.ZERO
+		_target = null
+		_recover(delta)
+		if _say_left > 0.0:
+			_say_left -= delta
+		return
 	# La fiera puede haberse ido del árbol (un cadáver suelto se libera).
 	if _target != null and not is_instance_valid(_target):
 		_target = null
@@ -667,6 +720,12 @@ func _physics_process(delta: float) -> void:
 			_say_left -= delta
 			if _say_left <= 0.0:
 				_play(Villager.ANIM_IDLE)
+	elif _on_bench:
+		var step := _board(up, delta)
+		heading = step[0]
+		speed = step[1]
+		if _seated:
+			return
 	elif _goto.is_finite():
 		var step := _go(up, delta)
 		heading = step[0]
@@ -1108,6 +1167,9 @@ func _show_weapon() -> void:
 func _on_hit(info: DamageInfo, applied: float) -> void:
 	_since_hit = 0.0
 	_chatting = false
+	# Sentado en su bancada aguanta: no se levanta a pelear (lo levanta una orden o caer malherido).
+	if _seated:
+		return
 	if _target == null and info.source is NPCController and _alive(info.source as NPCController) \
 			and mode != Mode.LEAVE and _retreat_left <= 0.0:
 		_target = info.source as NPCController
@@ -1120,6 +1182,7 @@ func _on_hit(info: DamageInfo, applied: float) -> void:
 
 ## Sin vida: cae y se queda en el suelo DOWN_TIME s (las fieras lo dejan: su vida está a cero).
 func _on_down() -> void:
+	stand_up()
 	_down_left = DOWN_TIME
 	_target = null
 	_ordered = false
@@ -1568,9 +1631,10 @@ func dodge_fall(a: Vector3, b: Vector3, half: float) -> bool:
 	return true
 
 
-## Reacciona al árbol que cae: lo deja todo (dormido, el golpe de trabajo a medias, la pelea)
+## Reacciona al árbol que cae: lo deja todo (sentado, dormido, el golpe de trabajo a medias, la pelea)
 ## y sale ya a la carrera, sin ir acelerando.
 func _start_flee(up: Vector3) -> void:
+	stand_up()
 	_wake()
 	_chore = Chore.STAND
 	work.interrupt()
@@ -1717,6 +1781,116 @@ static func find(tree: SceneTree, at: Vector3, look: Vector3, reach := 2.6) -> C
 	return Villager.nearest(tree, GROUP, at, look, reach) as Companion
 
 
+# --- En una bancada -------------------------------------------------------------------------------
+
+## A sentarse en [b] (RowingBench): espera allí sentado (Mode.WAIT) hasta que se le diga que siga.
+## Va andando y se sienta; si no llega en BOARD_TIME s, aparece sentado. Falso si no puede.
+func board(b: RowingBench) -> bool:
+	if b == null or dead or _down_left > 0.0 or mode == Mode.LEAVE or not b.is_free_for(self):
+		return false
+	if b == bench and _on_bench:
+		return true
+	stand_up()
+	_leave_base()
+	_target = null
+	_ordered = false
+	_chatting = false
+	_goto = Vector3.INF
+	mode = Mode.WAIT
+	_idle = 0.0
+	bench = b
+	_on_bench = true
+	b.occupant = self
+	b.seated = false
+	_board_left = BOARD_TIME
+	_stuck = 0.0
+	_path_dest = Vector3.INF
+	return true
+
+
+## Si va sentado en una bancada.
+func is_seated() -> bool:
+	return _seated
+
+
+## Si va sentado a un remo.
+func is_rowing() -> bool:
+	return _seated and is_instance_valid(bench) and bench.has_oar()
+
+
+## La bancada que tiene (sentado o yendo a ella), o null.
+func seat() -> RowingBench:
+	return bench if _on_bench and is_instance_valid(bench) else null
+
+
+## Al cargar: se sentará en la bancada [id] (entity_id) en cuanto aparezca, si aparece pronto.
+## Mientras la busca va sin colisión y quieto: se guardó sentado, con la cápsula metida en la
+## cubierta, y un CharacterBody solapado con el casco lo empuja como un muro y lo lanza por el aire.
+func sit_on_load(id: String) -> void:
+	_pending_bench = id
+	_pending_left = PENDING_BENCH_TIME
+	_shape.disabled = true
+	velocity = Vector3.ZERO
+
+
+## Se levanta de su bancada (o deja de ir a ella) y queda de pie delante de ella.
+func stand_up() -> void:
+	if _pending_bench != "":
+		_pending_bench = ""
+		_shape.disabled = _seated
+	if not _on_bench:
+		return
+	var b := bench if is_instance_valid(bench) else null
+	bench = null
+	_on_bench = false
+	if b != null and b.occupant == self:
+		b.occupant = null
+		b.seated = false
+	if not _seated:
+		return
+	_seated = false
+	if _rowing_pose != null:
+		_rowing_pose.active = false
+		_rowing_pose.bench = null
+	_sit_time = -1.0
+	_shape.disabled = false
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	set_process(false)
+	velocity = Vector3.ZERO
+	if b != null and b.is_inside_tree():
+		global_position = b.global_transform * RowingBench.STAND
+		_forward = _tangent(-b.global_basis.z)
+	_pose((global_position - _terrain.global_position).normalized())
+	reset_physics_interpolation()
+	_play(Villager.ANIM_IDLE, 0.3)
+
+
+func _find_pending_bench(delta: float) -> void:
+	var b := RowingBench.find(get_tree(), _pending_bench)
+	if b != null and b.is_free_for(self) and b.is_inside_tree():
+		_pending_bench = ""
+		if board(b):
+			_sit(false)
+		else:
+			_shape.disabled = false
+		return
+	_pending_left -= delta
+	if _pending_left <= 0.0:
+		_pending_bench = ""
+		_shape.disabled = false
+
+
+## Un paso hacia su bancada: [hacia dónde, a qué velocidad]. Al llegar (o al acabarse el tiempo) se sienta.
+func _board(up: Vector3, delta: float) -> Array:
+	_board_left -= delta
+	var to := bench.global_position - global_position
+	var flat := to.slide(up).length()
+	if (flat < SEAT_REACH and absf(to.dot(up)) < 1.2) or _board_left <= 0.0:
+		_sit(flat < SEAT_REACH * 2.0)
+		return [Vector3.ZERO, 0.0]
+	return [steer(bench.global_position, SEAT_REACH * 0.5, delta), WALK_SPEED if flat < JOG_FROM else JOG_SPEED]
+
+
 ## Un paso hacia el sitio al que va (go_to): [hacia dónde, a qué velocidad]. Al llegar (o al acabarse
 ## el tiempo) se queda allí esperando.
 func _go(up: Vector3, delta: float) -> Array:
@@ -1744,3 +1918,80 @@ func _arrive_spot(jump: bool) -> void:
 	_goto = Vector3.INF
 	_idle = 0.0
 	_moving = false
+
+
+## Se sienta en su bancada; con [walked], sentándose desde donde está (la del trono), y si no, de golpe.
+func _sit(walked: bool) -> void:
+	_seated = true
+	bench.seated = true
+	_target = null
+	_moving = false
+	_shape.disabled = true
+	velocity = Vector3.ZERO
+	_armed_left = 0.0
+	if _tool != null:
+		_tool.visible = false
+	# Las caderas, en el asiento: se mide con la pose sentada puesta (como el jugador en el trono).
+	_anim_player.speed_scale = 1.0
+	_anim_player.play(ANIM_SEATED, 0.0)
+	_anim_player.advance(0.0)
+	var facing := Basis(Vector3.UP, PI)
+	_seat_pose = Transform3D(facing, RowingBench.SEAT - facing * _hips_in_body())
+	if _rowing_pose == null:
+		_rowing_pose = RowingPoseScript.new()
+		_rowing_pose.frame_node = self
+		_model.get_node("Armature/Skeleton3D").add_child(_rowing_pose)
+	_rowing_pose.bench = bench
+	_rowing_pose.active = false
+	_stand_pose = bench.global_transform.orthonormalized().affine_inverse() * global_transform
+	_anim = &""
+	if walked and _anim_player.has_animation(ANIM_SIT_DOWN):
+		_play(ANIM_SIT_DOWN, 0.15)
+		_sit_length = maxf(_anim_player.get_animation(ANIM_SIT_DOWN).length, 0.1)
+		_sit_time = 0.0
+	else:
+		_play(ANIM_SEATED, 0.0)
+		_sit_time = -1.0
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	set_process(true)
+	_process(0.0)
+
+
+## Dónde quedan las caderas en su marco, con la pose que tiene ahora.
+func _hips_in_body() -> Vector3:
+	var skeleton := _model.get_node_or_null("Armature/Skeleton3D") as Skeleton3D
+	var bone := skeleton.find_bone(HIPS) if skeleton != null else -1
+	if bone < 0:
+		return Vector3(0.0, 0.55, 0.0)
+	var world := skeleton.global_transform * skeleton.get_bone_global_pose(bone).origin
+	return global_transform.affine_inverse() * world
+
+
+## Sentado va pegado a la bancada en cada fotograma (con la pose interpolada del barco: en el paso
+## de física iría un paso por detrás y resbalaría sobre el asiento al navegar).
+func _process(delta: float) -> void:
+	if not _seated or not is_instance_valid(bench) or not bench.is_inside_tree():
+		return
+	var frame := bench.get_global_transform_interpolated().orthonormalized()
+	if _sit_time >= 0.0:
+		_sit_time += delta
+		var s := smoothstep(0.0, 1.0, clampf(_sit_time / _sit_length, 0.0, 1.0))
+		global_transform = frame * _stand_pose.interpolate_with(_seat_pose, s)
+		if _sit_time >= _sit_length:
+			_sit_time = -1.0
+			_play(ANIM_SEATED, 0.3)
+		return
+	global_transform = frame * _seat_pose
+	_rowing_pose.active = bench.has_oar()
+	_forward = _tangent(global_basis.z)
+	if _chatting:
+		return
+	var body := bench.ship()
+	var oars := body.oars() if body != null else null
+	if oars != null and oars.direction != 0 and bench.is_rowing() and _anim_player.has_animation(ANIM_ROW):
+		_play(ANIM_ROW, 0.3)
+		_anim_player.speed_scale = 0.0
+		var length := _anim_player.get_animation(ANIM_ROW).length
+		_anim_player.seek(fposmod(oars.phase() + ROW_PHASE, 1.0) * length, true)
+	elif _anim != ANIM_SEATED:
+		_play(ANIM_SEATED, 0.3)

@@ -13,11 +13,15 @@ const MAX_SAIL_ACCELERATION := 4.0
 const HOIST_TIME := 2.0
 const NO_GO_ANGLE := PI / 4.0
 ## Remo: marcha lenta que no depende del viento, para salir de puerto y costear. Es una marcha
-## más del aparejo (ciar, parado, remar y los tres tercios de vela), no gasta aguante.
+## más del aparejo (ciar, parado, remar y los tres tercios de vela), no gasta aguante. Reman los
+## aldeanos sentados en las bancadas junto a la borda (RowingBench); sin ninguno no empuja.
 const ROW_SPEED := 3.5
 const BACK_SPEED := 1.6
-## Aceleración del remo (m/s²), igual para cualquier casco: la tripulación crece con el barco.
+## Aceleración del remo (m/s²) con remeros de sobra para el casco.
 const ROW_ACCELERATION := 1.1
+## Lo que empuja cada remero (N): con pocos para un casco pesado la arrancada es menor (rower_share).
+## Dos mueven a tope una barca de ~1,5 t; un casco de 18 t pide unos 25.
+const ROWER_FORCE := 800.0
 ## Margen de velocidad (m/s) en el que el empuje se suaviza antes de llegar al tope.
 const ROW_EASE := 0.5
 
@@ -33,6 +37,8 @@ var wind_angle := 0.0
 ## -1 ciar, 0 remos dentro, 1 remar. Solo empuja con alguien a bordo; con vela izada vale 0.
 var row := 0
 var rowing := false
+## Aldeanos sentados a los remos (los cuenta DynamicGridBody cada paso).
+var rowers := 0
 
 
 func rebuild(grids: Array) -> void:
@@ -110,6 +116,13 @@ static func rowing_acceleration(direction: int, forward_speed: float) -> float:
 	var target := ROW_SPEED if direction > 0 else -BACK_SPEED
 	var push := clampf((target - forward_speed) / ROW_EASE, -1.0, 1.0)
 	return ROW_ACCELERATION * push if push * direction > 0.0 else 0.0
+
+
+## La parte de ROW_ACCELERATION que dan [count] remeros a un casco de [mass] kg (0-1).
+static func rower_share(count: int, mass: float) -> float:
+	if count <= 0:
+		return 0.0
+	return clampf(count * ROWER_FORCE / (maxf(mass, 1.0) * ROW_ACCELERATION), 0.0, 1.0)
 
 
 func step(delta: float, air: Vector3, velocity: Vector3, forward: Vector3, up: Vector3) -> Vector3:

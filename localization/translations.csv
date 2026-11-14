@@ -7,6 +7,8 @@ OPT_GAMEPAD_HINT,Menus: left stick moves the cursor · A selects · X is seconda
 CON_HELP_SETTLER,"Settlers for testing: villagers from the nearest villages stay and live where you stand (their base); with kit, they carry the tools of every trade.","Colonos de prueba: vecinos de los poblados más cercanos se quedan a vivir donde estás (su base); con kit, llevan las herramientas de todos los oficios.",
 CON_SETTLER_DONE,%d settlers now live here (%d of %d).,%d colonos viven ahora aquí (%d de %d).,
 CON_SETTLER_NONE,No settler fits: the base already has %d.,No cabe ningún colono: la base ya tiene %d.,
+SAIL_NO_ROWERS,No rowers at the oars,Sin remeros a los remos,
+SAIL_ROWERS,Rowing · %d oars,Remando · %d remos,
 ,,,## Options: controls
 LANGUAGE_NAME,English,Español,Name of the language in itself; it is what the language menu shows
 OPT_GROUP_MOVEMENT,Movement,Movimiento,
@@ -1817,6 +1819,8 @@ INV_STORAGE_JOBS,For settlers:,Para colonos:,colonos
 INV_STORAGE_JOBS_TIP,"Settlers with these jobs leave what they gather here; builders take their materials from here. With none marked: all of them.","Los colonos con estos oficios dejan aquí lo que sacan; los constructores cogen de aquí sus materiales. Sin ninguno marcado: todos.",colonos
 ITEM_THRONE,Log throne,Trono de troncos,colonos
 ITEM_THRONE_DESC,"A high-backed seat of logs, hides and antlers. Sit on it to look over your base and give orders to the settlers who live there.","Un asiento de troncos de respaldo alto, con pieles y astas. Siéntate en él para ver tu base y dar órdenes a los colonos que viven en ella.",colonos
+ITEM_ROWING_BENCH,Rowing bench,Bancada,colonos
+ITEM_ROWING_BENCH_DESC,"A plank seat on two boards. Place it on a deck and order your companions to the benches: next to the gunwale they take an oar and row; further in they just sit.","Un asiento de tablón sobre dos tablas. Plántala en la cubierta y manda a tus compañeros a los bancos: junto a la borda cogen un remo y reman; más adentro solo se sientan.",colonos
 THRONE_TITLE,Base settlers,Colonos de la base,colonos
 THRONE_ALL,All,Todos,colonos
 THRONE_NONE,None,Ninguno,colonos
@@ -1885,6 +1889,7 @@ GROUP_ORDER_WAIT,Hold here,Esperad aquí,colonos
 GROUP_ORDER_ATTACK,Attack,Atacad,colonos
 GROUP_ORDER_RETREAT,Retreat,Retirada,colonos
 GROUP_ORDER_HOME,Back to base,A la base,colonos
+GROUP_ORDER_BOARD,To the benches,A los bancos,colonos
 GROUP_ORDER_GOTO,Go there,Id allí,colonos
 GROUP_ORDER_WORK,Get to work,Trabajad,colonos
 GROUP_ORDER_FORMATION,Formation,Formación,colonos
@@ -1892,6 +1897,7 @@ GROUP_HINT_FOLLOW,Those waiting come with you,Los que esperan vienen contigo,col
 GROUP_HINT_WAIT,They stay and defend this spot,Se quedan y defienden este sitio,colonos
 GROUP_HINT_RETREAT,They leave the fight and run back to you,Dejan la pelea y vuelven corriendo contigo,colonos
 GROUP_HINT_HOME,Each settler goes back to their base and their work,Cada colono vuelve a su base y a su trabajo,colonos
+GROUP_HINT_BOARD,"They sit on the free benches of your boat (or nearby): by the gunwale, at the oars","Se sientan en las bancadas libres de tu barco (o de cerca): junto a la borda, a los remos",colonos
 GROUP_HINT_GOTO,They go where you are looking and wait there,Van adonde miras y esperan allí,colonos
 GROUP_HINT_WORK,Pick a job: they do it around where you are looking,Elige el oficio: lo harán alrededor de donde miras,colonos
 GROUP_HINT_WORK_PICK,Around where you are looking; they keep at it until you say otherwise,Alrededor de donde miras; siguen hasta que digas otra cosa,colonos
@@ -1915,6 +1921,9 @@ GROUP_SAID_ATTACK,%d go for it!,¡%d van a por ella!,colonos
 GROUP_SAID_RETREAT,Retreat!,¡Retirada!,colonos
 GROUP_SAID_HOME,%d head back to base.,%d vuelven a su base.,colonos
 GROUP_SAID_HOME_SOME,%d head back to base; %d have none.,%d vuelven a su base; %d no tienen.,colonos
+GROUP_SAID_BOARD,%d take a bench.,%d se sientan en las bancadas.,colonos
+GROUP_SAID_BOARD_SOME,%d take a bench; %d find no free seat.,%d se sientan en las bancadas; %d no tienen sitio.,colonos
+GROUP_SAID_NO_BENCH,No free benches nearby.,No hay bancadas libres cerca.,colonos
 GROUP_SAID_NO_BASE,None of them has a base to go back to.,Ninguno tiene base a la que volver.,colonos
 GROUP_SAID_GOTO,%d head over there.,%d van para allá.,colonos
 GROUP_SAID_WORK,%d to work: %s.,%d a trabajar: %s.,colonos
@@ -1927,5 +1936,7 @@ GROUP_SOME,%d of %d chosen,%d de %d elegidos,colonos
 GROUP_ROSTER_KEYS,1-%d choose · 0 all,1-%d elegir · 0 todos,colonos
 GROUP_STATE_FOLLOW,follows,sigue,colonos
 GROUP_STATE_WAIT,waits,espera,colonos
+GROUP_STATE_SEATED,seated,sentado,colonos
+GROUP_STATE_ROWING,at the oar,al remo,colonos
 GROUP_STATE_GOING,on the way,de camino,colonos
 GROUP_STATE_DOWN,wounded,malherido,colonos

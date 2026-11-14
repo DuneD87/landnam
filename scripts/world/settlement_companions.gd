@@ -19,6 +19,8 @@ enum Formation {WEDGE, FILE, LOOSE}
 ## Cuántos acompañan a la vez, y cuántos viven en la base.
 const MAX := 6
 const MAX_SETTLERS := 20
+## «A los bancos» en tierra: las bancadas a menos de esto del jugador (m).
+const BENCH_RADIUS := 30.0
 ## Mandados a un sitio (order_goto), a esta distancia (m) uno de otro.
 const GOTO_RING := 1.6
 const FORMATION_NAMES := {Formation.WEDGE: "GROUP_FORMATION_WEDGE", Formation.FILE: "GROUP_FORMATION_FILE",
@@ -329,6 +331,39 @@ func order_home(who: Array[Companion] = []) -> Array:
 	return [went, homeless]
 
 
+## A las bancadas (RowingBench): las del barco en el que va el jugador ([ship]) o, en tierra, las de
+## a menos de BENCH_RADIUS m de [at]; primero las de remo y las más cercanas. Los que ya van sentados
+## en una de ellas se quedan en la suya. [cuántos se sientan, cuántos se quedan sin sitio].
+func order_board(at: Vector3, ship: DynamicGridBody, who: Array[Companion] = []) -> Array:
+	var group := _to(who)
+	var seated := 0
+	var left: Array[Companion] = []
+	for c in group:
+		var b := c.seat()
+		if b != null and (ship == null or b.ship() == ship):
+			seated += 1
+		else:
+			left.append(c)
+	if left.is_empty():
+		return [seated, 0]
+	var benches := RowingBench.free_near(get_tree(), at, BENCH_RADIUS, ship)
+	# Va primero quien está más cerca de las bancadas.
+	if not benches.is_empty():
+		var first := benches[0].global_position
+		left.sort_custom(func(a: Companion, b: Companion) -> bool:
+			return a.global_position.distance_squared_to(first) < b.global_position.distance_squared_to(first))
+	var spare := 0
+	for c in left:
+		var done := false
+		while not benches.is_empty() and not done:
+			done = c.board(benches.pop_front())
+		if done:
+			seated += 1
+		else:
+			spare += 1
+	return [seated, spare]
+
+
 ## Pasa a [f].
 func set_formation(f: Formation) -> void:
 	formation = f
@@ -453,6 +488,8 @@ func get_save_data() -> Dictionary:
 		var entry := {"village": c.village, "id": String(c.resident.get("id", "")), "mode": int(c.mode),
 			"at": [at.x, at.y, at.z], "facing": [facing.x, facing.y, facing.z], "pack": c.pack.get_save_data(),
 			"health": c.health.health, "fed": c.meals.fed}
+		if c.seat() != null:
+			entry.bench = c.seat().entity_id
 		if c.is_going():
 			var spot := c.goto_spot()
 			entry.goto = [spot.x, spot.y, spot.z]
@@ -527,6 +564,8 @@ func restore_save_data(data: Dictionary) -> void:
 		if saved_mode != Companion.Mode.SETTLE and return_raw.size() == 3:
 			companion.return_base = Vector3(return_raw[0], return_raw[1], return_raw[2])
 			companion.return_work = entry.get("return_work", {})
+		if mode == Companion.Mode.WAIT and str(entry.get("bench", "")) != "":
+			companion.sit_on_load(str(entry.bench))
 		if mode == Companion.Mode.WAIT and entry.has("field_work"):
 			companion.work.restore(entry.field_work)
 		var goto_raw: Array = entry.get("goto", [])

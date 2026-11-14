@@ -37,7 +37,7 @@ Las velas ya colocadas conservan sus medidas originales de 4 × 3 m y mástil de
 | Flecha arriba | Izar: recogidas → ⅓ → ⅔ → completas |
 | Flecha abajo | Recoger un nivel |
 | Flechas izquierda / derecha | Gobernar a babor / estribor |
-| Mantener R | Remar gastando aguante |
+| R | Remar / parar (con remeros sentados en bancadas) |
 
 Los controles se reasignan en **Opciones → Controles → Navegación**. El despliegue completo
 lleva dos segundos, también al recoger. El paño se hincha con viento favorable y flamea
@@ -50,10 +50,32 @@ la flecha azul indica **hacia dónde sopla** el viento. Enseña su velocidad, la
 del casco respecto al agua, la superficie instalada y el despliegue. También avisa de
 calma, viento de proa, velas recogidas y remo.
 
-El remo aplica hasta 1800 N y deja de empujar a 1,5 m/s respecto al agua. Gasta 9 puntos
-de aguante por segundo. Los cascos ligeros tampoco pueden superar ese límite con
-un solo impulso. Requiere un casco en el agua y se interrumpe al agotarse,
-abrir una interfaz o abandonar cubierta. Los cascos pesados aceleran menos con el mismo remo.
+### Remo y bancadas
+
+Reman los aldeanos, no el jugador. La **Bancada** (`rowing_bench`, se hace a mano con 6 de madera y
+1 tendón) se planta en la cubierta como el lecho o el trono y cuelga del barco (`RowingBench`). Con
+la orden **A los bancos** de la rueda del grupo (X) los compañeros elegidos se sientan en las
+bancadas libres del barco del jugador: primero las de remo y las más cercanas (ver
+[Aldeanos](villagers.md#en-el-barco)).
+
+- **Junto a la borda** (el centro de la bancada hasta 2,4 m del costado, `BoatOars.ROW_REACH`),
+  quien se sienta lleva un remo: sale por ese costado, baja hasta el agua y el mango queda delante
+  del cuerpo, bajo los hombros. En costados altos sale bajo la coronación de la borda, para no
+  levantar el mango por encima de la cabeza. **Más adentro** solo se sienta.
+- Los remos ya no salen solos: hay uno por remero sentado. Con la marcha de remo bogan; parados,
+  descansan con la pala fuera del agua. El recorrido del mango se limita a 18 cm a cada lado del
+  centro del barrido, también con mangos largos. `RowingPose` coloca ambas manos sobre el mango
+  por IK, cierra los dedos y acompaña la palada desde la pelvis y la columna, incluso sin un clip
+  de remar. La espalda avanza al alargar los brazos y retrocede al tirar, según el recorrido real
+  del mango en cada bancada. Los codos se abren delante de las costillas; el agarre en reposo queda
+  a 36 cm por delante de las caderas para dejar sitio a las muñecas al recoger. Las caderas se
+  apoyan tras aplicar las proporciones del cuerpo y las piernas conservan su orientación sentada.
+- **Empuje.** La marcha de remo lleva el barco a 3,5 m/s (ciando, 1,6) con una aceleración de hasta
+  1,1 m/s². Cada remero aporta 800 N (`BoatSailing.ROWER_FORCE`): dos mueven a tope una barca de
+  ~1,5 t, y un casco de 18 t pide unos 25; con menos, arranca más despacio y se queda en la
+  velocidad en la que el agua lo frena. Sin remeros la marcha se puede poner, pero no empuja y el
+  indicador dice «Sin remeros a los remos»; remando dice cuántos remos hay.
+- Solo empuja con el jugador a bordo; al bajarse se para la marcha y los remos descansan.
 El timón conserva un giro lento de maniobra incluso desde parado. Con arrancada
 aumenta su respuesta, hasta un máximo de 25°/s. Al soltar las flechas, el giro se
 amortigua. El rumbo se controla separado del balance y del cabeceo del oleaje,
@@ -136,6 +158,7 @@ a la segunda rejilla y gobierna desde la primera después de guardar y cargar.
 
 ```sh
 godot --headless --path . res://tests/building/test_sailing.tscn
+godot --headless --path . res://tests/building/test_rowing_benches.tscn
 godot --headless --path . res://tests/building/test_boat_water.tscn
 godot --headless --path . res://tests/building/test_boat_body_links.tscn
 godot --path . res://tests/building/sailing_preview.tscn
@@ -144,7 +167,15 @@ godot --path . res://tests/building/sailing_preview.tscn
 La prueba cubre editor naval, dimensiones independientes, coste y reembolso, obras,
 proyección planetaria, curva de rumbo, fuerza, animación,
 despliegue gradual, partida, blueprint, conversión, separación del casco, desmontaje,
-movimiento del cuerpo físico, controles, menús, remo y aguante.
+movimiento del cuerpo físico, controles, menús, remo (un remo por bancada junto a la borda y
+ninguno lejos de ella, sin remeros no empuja, con seis llega a la marcha de remo) y aguante.
+
+`test_rowing_benches` usa las colisiones y las seis bancadas del barco guardado `barco_08`:
+comprueba el alcance de 2,4 m, el mango hasta el remero, los seis remos activos y la orientación
+invertida al cargar, con las caderas en el asiento y la salida por delante. También mide ambos
+agarres durante toda la palada con cuerpos de hombre y mujer, y con el barco girado y desplazado.
+Muestrea 16 puntos del ciclo, comprueba el movimiento de espalda y las caderas apoyadas, y verifica
+que brazos y antebrazos queden fuera de una aproximación de las costillas con las medidas del cuerpo.
 La prueba de arrancada usa un casco de 120 m³ y 6 toneladas, una vela de 38,5 m² y
 viento de 3,75 m/s: debe superar 2 m/s tras diez segundos de simulación.
 La prueba con el evento `wind` usa un casco de 18 toneladas, la misma vela y unos

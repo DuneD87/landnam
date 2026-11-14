@@ -362,6 +362,39 @@ su poblado, su vecino (que al cargar se saca otra vez del plano y se viste en el
 espera o vive en la base (y dónde la tiene), dónde está y hacia dónde mira, en el marco del terreno, lo que lleva y su vida (si estaba en
 el suelo, se levanta). El que vuelve a casa no se guarda.
 
+### En el barco
+
+La orden **A los bancos** de la rueda del grupo los sienta en bancadas (`RowingBench`, ver
+[Remo y bancadas](sailing.md#remo-y-bancadas)): las del barco en el que va el jugador o, en tierra,
+las de a menos de 30 m (`SettlementCompanions.order_board`). Van primero a las de remo y, de cada
+clase, a las más cercanas; los que ya van sentados en ese barco se quedan en la suya, y los que no
+caben lo dice la barra («3 se sientan en las bancadas; 1 no tiene sitio»).
+
+- **Ir y sentarse** (`Companion.board`): anda hasta la bancada y, a menos de 1,2 m, se sienta con
+  `village/throne_sit` y se queda con `village/throne_idle`, con las caderas en el asiento
+  (`RowingBench.SEAT`, medidas con la pose sentada, como el jugador en el trono). Si en 12 s no llega
+  (un barco en el agua no tiene camino: no nadan), aparece sentado.
+- **Sentado** queda en espera (`Mode.WAIT`) y va pegado a la bancada en cada fotograma, con la pose
+  interpolada del barco (en el paso de física iría un paso detrás y resbalaría por el asiento al
+  navegar); sin cápsula ni física. No pelea ni se revuelve si le pegan, pero se recupera; malherido
+  se levanta y cae. Se le puede hablar sin que se levante.
+  Mira hacia el -Z local de la bancada y se levanta por ese mismo lado; la orientación sigue la
+  rotación con la que se plantó, también al cargar la partida.
+- **Junto a la borda lleva remo** y rema con la marcha de remo. Si existe la animación `village/row`,
+  rema con ella, a la par de su remo (`BoatOars.phase` y `Companion.ROW_PHASE`); si no, sigue
+  sentado con la del trono como base. `RowingPose` ajusta ambos brazos por IK para sujetar el
+  mango real durante toda la palada y cierra los dedos. La pelvis y la espalda acompañan el
+  recorrido del mango: hacia delante al extender los brazos y hacia atrás al tirar, con los codos
+  abiertos por delante del torso. Las caderas siguen apoyadas en el asiento con las proporciones
+  de cada cuerpo y las piernas mantienen la postura sentada. Parado conserva el agarre en reposo;
+  al levantarse se desactiva la pose.
+- **Se levanta** con **Seguidme**, **Retirada**, **A la base**, **Atacad**, Sígueme o Vuelve a casa en
+  la charla, al caer malherido o si su bancada desaparece (el barco se parte o se hunde); aparece de
+  pie delante de ella. **Esperad aquí** no lo levanta.
+- En la lista de la rueda sale «al remo» o «sentado».
+- **Se guarda** la bancada (su `entity_id`) con el compañero; al cargar se vuelve a sentar en ella en
+  cuanto aparece (hasta 5 s, porque los barcos se recrean al cargar) y, si no, se queda esperando.
+
 ### El grupo
 
 Los que acompañan forman un grupo (`SettlementCompanions.party`): los que siguen y los que esperan.
@@ -421,6 +454,7 @@ grupo solo avisa. Lo hecho sale en el aviso de la barra.
     cosas por los cofres.
   En la lista del grupo sale cómo va («Leñador · lleva 14», «Parado: necesita un hacha...»). Se guarda
   con la partida. Si se le dice que se quede a vivir, deja el trabajo en campo.
+- **A los bancos**: se sientan en las bancadas del barco (ver **En el barco**).
 - **A la base**: cada colono que dejó su base para irse con el jugador vuelve a ella con el trabajo que
   tenía (`Companion.return_to_base`; los que no tenían base, no). Va derecho y trotando hasta quedar a
   12 m; lejos del jugador aparece allí cuando habría llegado andando.
@@ -430,7 +464,7 @@ grupo solo avisa. Lo hecho sale en el aviso de la barra.
 
 **A quién van** (como las teclas de Mount & Blade y el mirar de Ghost Recon): abajo, tapando los huecos
 de la hotbar (en su sitio y subiendo por encima), sale el grupo en tarjetas: el retrato con su número, el
-nombre, qué hace (sigue, espera, de camino, malherido) y las barras de vida y de comida
+nombre, qué hace (sigue, espera, de camino, sentado, al remo, malherido) y las barras de vida y de comida
 (`meals.fed` sobre 36 h), que se refrescan cada 0,25 s. Los retratos (`CompanionPortraits`) se hacen fuera
 de pantalla, con el humano vestido de nuevo (`Villager.build_model`) y las luces del estudio de la
 creación, uno por vez y una sola vez por partida; con la rueda cerrada se piden cada 2 s los que falten,
@@ -510,7 +544,7 @@ de noche duerme y, si atacan la base, deja lo que hace y pelea.
   tocón, cada vez menos hasta 50 m (dormido, la mitad; malherido no se puede mover; al que lo tala no le
   hace falta). Si se ha dado cuenta:
   - si está en su camino (a menos de la anchura del tronco o la copa más 0,6 m, y no detrás del tocón),
-    tras 0,15-0,45 s lo deja todo (se levanta del petate, corta el golpe de trabajo a
+    tras 0,15-0,45 s lo deja todo (se levanta de la bancada o del petate, corta el golpe de trabajo a
     medias y la pelea) y sale ya a la carrera, sin ir acelerando, por lo más corto: de lado o, cerca de
     la base, detrás del tocón, hasta quedar 0,8 m fuera (`dodge_fall`, `_start_flee`);
   - si no está pero va a meterse (donde estará en 0,8 s andando como anda: el que va a por otro árbol),
@@ -649,6 +683,10 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
 - Esquivar es solo torcer el paso: dos que se encuentran en una puerta o contra una pared se rozan, y
   al jugador lo empuja su cápsula si se le pone delante.
 - Sentarse y tumbarse son fundidos desde estar de pie, sin animación de transición.
+- En la bancada, sin la animación de remar, las piernas usan la pose del trono; los brazos y el
+  tronco acompañan el remo por código. Sentado no se defiende. Para subir a un barco en el agua no
+  buscan camino: si en 12 s no llegan, aparecen en su sitio. El jugador no se sienta en las bancadas
+  ni rema solo: sin remeros, el barco solo va a vela.
 - La mano no agarra la herramienta fuera de los golpes y de cavar; por eso solo la sacan al trabajar.
 - Ante una fiera los aldeanos solo huyen; no se puede pelear con ellos. El compañero sí pelea, pero no
   se protege (ni guardia ni escudo), no usa arcos y no se pone la ropa ni las armaduras que lleva.

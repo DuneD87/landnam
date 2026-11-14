@@ -375,18 +375,28 @@ func _check_wind_and_force() -> void:
 	check(BoatSailing.rowing_acceleration(-1, 0.0) < 0.0 and BoatSailing.rowing_acceleration(-1, 2.0) < 0.0
 		and BoatSailing.rowing_acceleration(-1, -BoatSailing.BACK_SPEED) == 0.0
 		and BoatSailing.rowing_acceleration(0, 0.0) == 0.0, "ciar frena y retrocede hasta su límite")
-	var stations := BoatOars.stations(PackedVector3Array([Vector3(0, 0, 0), Vector3(0, 0.75, 0)]),
-		PackedVector3Array([Vector3(1.5, 0.5, 4.5), Vector3(0.2, 0.25, 0.2)]))
-	var pivots_ok := stations.size() == 6
+	var boxes := PackedVector3Array([Vector3(0, 0, 0), Vector3(0, 0.75, 0)])
+	var halves := PackedVector3Array([Vector3(1.5, 0.5, 4.5), Vector3(0.2, 0.25, 0.2)])
+	var stations: Array[Dictionary] = []
+	for seat: Vector3 in [Vector3(-1.0, 0.6, -2.0), Vector3(1.0, 0.6, -2.0), Vector3(-0.8, 0.6, 2.0), Vector3(1.2, 0.6, 3.0)]:
+		stations.append(BoatOars.station_at(seat, boxes, halves))
+	var pivots_ok := stations.size() == 4 and BoatOars.station_at(Vector3(0.0, 0.6, -2.0), boxes,
+		PackedVector3Array([Vector3(2.5, 0.5, 4.5), Vector3(0.2, 0.25, 0.2)])).is_empty() \
+		and BoatOars.station_at(Vector3(0.0, 0.6, 6.0), boxes, halves).is_empty()
 	for station: Dictionary in stations:
+		pivots_ok = pivots_ok and not station.is_empty()
+		if station.is_empty():
+			continue
 		var pivot: Vector3 = station["pivot"]
-		pivots_ok = pivots_ok and is_equal_approx(absf(pivot.x), 1.52) and is_equal_approx(pivot.y, 0.55) \
+		var grip := BoatOars.grip_at(station, BoatOars.REST_PHASE)
+		pivots_ok = pivots_ok and is_equal_approx(absf(pivot.x), 1.52) \
+			and is_equal_approx(grip.y, 0.6 + BoatOars.HOLD_HEIGHT) \
 			and signf(pivot.x) == station["side"]
 		for phase in [0.0, 0.25, 0.5, 0.75]:
 			var oar := BoatOars.oar_basis(station["side"], station["pitch"], phase)
 			pivots_ok = pivots_ok and oar.y.y < 0.0 and oar.y.x * station["side"] > 0.0 \
 				and is_equal_approx(oar.determinant(), 1.0)
-	check(pivots_ok, "remos en tres bancadas apoyados en la borda de cada costado, apuntando al agua")
+	check(pivots_ok, "cada bancada junto a la borda da un remo en su costado, apuntando al agua; lejos, ninguno")
 	var stroke := BoatOars.oar_basis(1.0, 0.5, 0.0).y.z - BoatOars.oar_basis(1.0, 0.5, 0.49).y.z
 	check(stroke > 0.5 and BoatOars.oar_basis(1.0, 0.5, 0.75).y.y > BoatOars.oar_basis(1.0, 0.5, 0.25).y.y,
 		"la palada barre de proa a popa y la pala vuelve por encima")
@@ -533,6 +543,19 @@ func _check_physics() -> void:
 	body.linear_velocity = Vector3.ZERO
 	body._is_being_controlled = true
 	body.sailing.set_gear(1)
+	body._physics_step(1.0 / 60.0)
+	check(body.sailing.rowers == 0 and is_zero_approx(body.linear_velocity.dot(body.global_basis.z)),
+		"sin remeros sentados el remo no empuja")
+	# Seis remeros en bancadas junto a la borda del bloque (de 0 a 1 m), de sobra para 4 t (rower_share).
+	var benches: Array[RowingBench] = []
+	for k in 6:
+		var bench := (load("res://scenes/world/rowing_bench.tscn") as PackedScene).instantiate() as RowingBench
+		body.add_child(bench)
+		bench.position = Vector3(0.8 if k % 2 == 0 else 0.2, 1.0, 0.3 + (k >> 1) * 0.2)
+		GroundPlaceableTrait.attach_to_ship(bench, body)
+		bench.occupant = bench
+		bench.seated = true
+		benches.append(bench)
 	var rowing_peak := 0.0
 	for frame in 6:
 		body._physics_step(1.0 / 60.0)
@@ -562,7 +585,11 @@ func _check_physics() -> void:
 		"ciar frena y lleva el barco marcha atrás (%.2f m/s)" % astern)
 	body._is_being_controlled = false
 	body._physics_step(1.0 / 60.0)
-	check(not body._oars.visible, "sin nadie a bordo los remos se recogen")
+	check(body._oars.direction == 0, "sin nadie a bordo los remos dejan de bogar")
+	for bench in benches:
+		bench.free()
+	body._physics_step(1.0 / 60.0)
+	check(body.sailing.rowers == 0 and not body._oars.visible, "sin remeros no hay remos")
 	_planet.planet.has_water = false
 	GridManager.clear_all()
 	await get_tree().process_frame

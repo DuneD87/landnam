@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<defs><linearGradient id="w" x2="0" y2="1"><stop stop-color="#a77c4c"/><stop offset="1" stop-color="#5a3b22"/></linearGradient><linearGradient id="o" x2="1"><stop stop-color="#8d6438"/><stop offset="1" stop-color="#c49a62"/></linearGradient></defs>
+<path d="M40 74l178 118" stroke="#281b12" stroke-width="16" stroke-linecap="round"/>
+<path d="M40 74l178 118" stroke="url(#o)" stroke-width="10" stroke-linecap="round"/>
+<path d="M186 160l44 18q12 8 4 22l-8 10q-10 6-20-4l-30-34z" fill="url(#o)" stroke="#281b12" stroke-width="4"/>
+<path d="M58 150h16v66H58zM172 150h16v66h-16z" fill="url(#w)" stroke="#281b12" stroke-width="4"/>
+<path d="M50 210h32v10H50zM164 210h32v10h-32z" fill="#4b301f" stroke="#281b12" stroke-width="3"/>
+<path d="M66 190h114" stroke="#5a3b22" stroke-width="8"/>
+<path d="M28 132h200l-6 22H34z" fill="url(#w)" stroke="#281b12" stroke-width="5" stroke-linejoin="round"/>
+<path d="M40 140h176" stroke="#c9a46f" stroke-width="2" stroke-dasharray="14 8"/>
+<path d="M60 128v30M186 128v30" stroke="#e2cfa3" stroke-width="4" stroke-dasharray="3 3"/>
+</svg>
