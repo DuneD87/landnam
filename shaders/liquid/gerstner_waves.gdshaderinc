@@ -202,6 +202,12 @@ uniform float shore_handover : hint_range(0.05, 1.0, 0.01) = 0.35;
 // rompiente: las octavas comparables a shore_length siguen apagándose enteras.
 uniform float shore_chop : hint_range(0.0, 10.0, 0.01) = 0.35;
 uniform int shore_debug_mode : hint_range(0, 5) = 0;                 // ver shore_debug_color
+// Cuánto se vuelca la ola de orilla hacia la playa al acercarse: un segundo armónico en fase con el
+// avance adelanta la cresta sobre su seno, así que la cara que mira a tierra se empina y la espalda
+// se tiende, como la ola que siente el fondo. 0 = la senoide simétrica de antes. Entra entero en el
+// 15 % interior de la franja y se apaga hacia el 70 %. Por encima de 0.5 la ola sacaría una segunda
+// cresta, de ahí el tope. WaterHeightSampler._gerstner_disp lo replica.
+uniform float shore_lean : hint_range(0.0, 0.4, 0.01) = 0.3;
 
 // shore_breakup(): dobla la cresta y la parte en tramos. Vive en su propio include para que pueda
 // usarla un shader incapaz de traerse este archivo entero (aquí hay treinta uniforms). Su aporte al
@@ -354,10 +360,12 @@ vec3 gerstner_surface_differential(vec3 local, vec3 radial, float t, float min_l
 
         // En el eje de un estrecho las direcciones de ambas riberas se oponen. Reducir solo el
         // arrastre horizontal evita que la malla se pliegue en picos; altura y cresta siguen vivas.
+        float lean_reach = shore_reach > 0.0 ? shore_reach : shore_range;
+        float lean = shore_lean * (1.0 - smoothstep(lean_reach * 0.15, lean_reach * 0.7, ctx.shore_dist));
         shore_axis = seaward;
         horiz += q * amp_ref * seaward * cs * w * ctx.shore_quality;
-        vert += amp_ref * sn * w;
-        grad += seaward * (k * amp_ref * cs) * w * ctx.shore_quality;
+        vert += amp_ref * (sn + lean * sin(2.0 * phase)) * w;
+        grad += seaward * (k * amp_ref * (cs + 2.0 * lean * cos(2.0 * phase))) * w * ctx.shore_quality;
         n_up_sub += q * k * amp_ref * sn * w;
     }
 
@@ -393,6 +401,30 @@ vec3 swell_direction(vec3 radial) {
     vec3 dir_tan = dir_fixed - radial * dot(dir_fixed, radial);
     float tan_len = length(dir_tan);
     return tan_len > 1e-4 ? -dir_tan / tan_len : vec3(0.0);
+}
+
+// Dónde está la ola de orilla en este punto, para que el píxel dibuje la rompiente: x = fase (la
+// cresta pasa hacia pi/3..pi/2 según lo volcada que vaya, y crece con el tiempo), y = peso de la
+// familia costera aquí (0 = no hay), z = distancia al litoral (m). Mismos términos que la rama de
+// orilla de gerstner_surface_differential. La parte temporal va en módulo 2·pi: es igual en todos
+// los vértices, así que interpolar la fase entre ellos sigue siendo interpolar solo la distancia.
+vec3 shore_wave_signal(vec3 local, vec3 radial, float t, float min_length, WaveContext ctx) {
+    float presence_lod = min_length>0.0 ? smoothstep(min_length*0.5,min_length*1.5,shore_length) : 1.0;
+    float presence = ctx.shore_gate*smoothstep(1.0,max(shore_length*0.25,shore_depth_fade),ctx.shore_dist)*presence_lod;
+    if (presence <= 0.001) {
+        return vec3(0.0, 0.0, ctx.shore_dist);
+    }
+    vec3 seaward = ctx.shore_quality > 1e-4 ? -ctx.shore_field.xyz / ctx.shore_quality : vec3(0.0);
+    seaward -= radial * dot(seaward, radial);
+    float seaward_len = length(seaward);
+    seaward = seaward_len > 1e-4 ? seaward / seaward_len : vec3(0.0);
+    float lee_target = mix(0.35, 1.0, smoothstep(-0.9, 0.6, dot(swell_direction(radial), -seaward)));
+    float lee = mix(1.0, lee_target, shore_incidence * ctx.shore_quality);
+    float k = 6.28318530718 / max(shore_length, 0.1);
+    vec2 breakup = shore_breakup(local, shore_shift, t, shore_length);
+    float phase = k * ctx.shore_field.w + mod((t + shore_time_offset) * shore_speed * sqrt(k), 6.28318530718)
+        + breakup.x;
+    return vec3(phase, presence * lee * (1.0 - ctx.ice) * breakup.y, ctx.shore_dist);
 }
 
 // Vista de depuración del campo de orilla, para localizar dónde falla sin ir a ciegas. Pinta el

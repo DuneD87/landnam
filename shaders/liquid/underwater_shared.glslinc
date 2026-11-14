@@ -43,64 +43,65 @@ layout(set=0, binding=8) uniform sampler2D shore_offset_map;
 #define shore_handover (uw.data[61].x)
 #define shore_chop (uw.data[62].x)
 #define shore_debug_mode (floatBitsToInt(uw.data[63].x))
-#define spectrum_spread (uw.data[64].x)
-#define fog_color (uw.data[65])
-#define deep_fog_color (uw.data[66])
-#define abyss_fog_color (uw.data[67])
-#define deep_transition_depth (uw.data[68].x)
-#define abyss_transition_depth (uw.data[69].x)
-#define interior_count (floatBitsToInt(uw.data[70].x))
-#define planet_center (uw.data[583].xyz)
-#define water_time (uw.data[584].x)
-#define sun_direction (uw.data[585].xyz)
-#define absorption_coefficients (uw.data[586].xyz)
-#define absorption_scale (uw.data[587].x)
-#define scattering_coefficients (uw.data[588].xyz)
-#define surface_exposure (uw.data[589].x)
-#define surface_saturation (uw.data[590].x)
-#define fog_density (uw.data[591].x)
-#define sun_glow_intensity (uw.data[592].x)
-#define sun_glow_power (uw.data[593].x)
-#define tir_reflection_depth (uw.data[594].x)
-#define scatter_vertical_range (uw.data[595].x)
-#define distance_depth_gain (uw.data[596].x)
-#define distance_depth_max (uw.data[597].x)
-#define meniscus_width (uw.data[598].x)
-#define meniscus_strength (uw.data[599].x)
-#define waterline_seal_distance (uw.data[600].x)
-#define waterline_seal_band (uw.data[601].x)
-#define surface_search_distance (uw.data[602].x)
-#define underside_refraction (uw.data[603].x)
-#define surface_projection_distance (uw.data[604].x)
-#define surface_reflection_strength (uw.data[605].x)
-#define surface_ripple_scale (uw.data[606].x)
-#define surface_ripple_strength (uw.data[607].x)
-#define surface_window_sharpness (uw.data[608].x)
+#define shore_lean (uw.data[64].x)
+#define spectrum_spread (uw.data[65].x)
+#define fog_color (uw.data[66])
+#define deep_fog_color (uw.data[67])
+#define abyss_fog_color (uw.data[68])
+#define deep_transition_depth (uw.data[69].x)
+#define abyss_transition_depth (uw.data[70].x)
+#define interior_count (floatBitsToInt(uw.data[71].x))
+#define planet_center (uw.data[584].xyz)
+#define water_time (uw.data[585].x)
+#define sun_direction (uw.data[586].xyz)
+#define absorption_coefficients (uw.data[587].xyz)
+#define absorption_scale (uw.data[588].x)
+#define scattering_coefficients (uw.data[589].xyz)
+#define surface_exposure (uw.data[590].x)
+#define surface_saturation (uw.data[591].x)
+#define fog_density (uw.data[592].x)
+#define sun_glow_intensity (uw.data[593].x)
+#define sun_glow_power (uw.data[594].x)
+#define tir_reflection_depth (uw.data[595].x)
+#define scatter_vertical_range (uw.data[596].x)
+#define distance_depth_gain (uw.data[597].x)
+#define distance_depth_max (uw.data[598].x)
+#define meniscus_width (uw.data[599].x)
+#define meniscus_strength (uw.data[600].x)
+#define waterline_seal_distance (uw.data[601].x)
+#define waterline_seal_band (uw.data[602].x)
+#define surface_search_distance (uw.data[603].x)
+#define underside_refraction (uw.data[604].x)
+#define surface_projection_distance (uw.data[605].x)
+#define surface_reflection_strength (uw.data[606].x)
+#define surface_ripple_scale (uw.data[607].x)
+#define surface_ripple_strength (uw.data[608].x)
+#define surface_window_sharpness (uw.data[609].x)
 layout(set=0, binding=9) uniform sampler2D texture_normal;
 layout(set=0, binding=10) uniform sampler2D texture_normal2;
-#define normal_scale1 (uw.data[609].x)
-#define normal_scale2 (uw.data[610].x)
-#define normal_intensity (uw.data[611].x)
-#define normal_slope_limit (uw.data[612].x)
-#define godray_intensity (uw.data[613].x)
-#define godray_samples (floatBitsToInt(uw.data[614].x))
-#define godray_max_distance (uw.data[615].x)
-#define godray_pattern_scale (uw.data[616].x)
-#define godray_pattern_speed (uw.data[617].x)
-#define godray_sharpness (uw.data[618].x)
-#define godray_phase_power (uw.data[619].x)
-#define godray_min_phase (uw.data[620].x)
-#define godray_surface_focus (uw.data[621].x)
+#define normal_scale1 (uw.data[610].x)
+#define normal_scale2 (uw.data[611].x)
+#define normal_intensity (uw.data[612].x)
+#define normal_slope_limit (uw.data[613].x)
+#define godray_intensity (uw.data[614].x)
+#define godray_samples (floatBitsToInt(uw.data[615].x))
+#define godray_max_distance (uw.data[616].x)
+#define godray_pattern_scale (uw.data[617].x)
+#define godray_pattern_speed (uw.data[618].x)
+#define godray_sharpness (uw.data[619].x)
+#define godray_phase_power (uw.data[620].x)
+#define godray_min_phase (uw.data[621].x)
+#define godray_surface_focus (uw.data[622].x)
 layout(set=0, binding=11) uniform sampler2D caustics_texture;
-#define caustics_scale (uw.data[622].x)
-#define caustics_speed (uw.data[623].x)
-#define caustics_intensity (uw.data[624].x)
-#define caustics_depth_fade (uw.data[625].x)
-#define caustics_near_fade (uw.data[626].x)
-#define debug_mode (floatBitsToInt(uw.data[627].x))
-#define debug_scale (uw.data[628].x)
-#define waterline_point (uw.data[629].xyz)
-#define waterline_normal (uw.data[630].xyz)
+#define caustics_scale (uw.data[623].x)
+#define caustics_speed (uw.data[624].x)
+#define caustics_intensity (uw.data[625].x)
+#define caustics_depth_fade (uw.data[626].x)
+#define caustics_near_fade (uw.data[627].x)
+#define debug_mode (floatBitsToInt(uw.data[628].x))
+#define debug_scale (uw.data[629].x)
+#define waterline_point (uw.data[630].xyz)
+#define waterline_normal (uw.data[631].xyz)
 // Parameter carrier for UnderwaterRenderPass. Never attached to geometry.
 
 
@@ -309,6 +310,12 @@ float storm_exposure(vec2 uv, float ground, out bool shore_allowed, out bool riv
 // rompiente: las octavas comparables a shore_length siguen apagándose enteras.
 
                  // ver shore_debug_color
+// Cuánto se vuelca la ola de orilla hacia la playa al acercarse: un segundo armónico en fase con el
+// avance adelanta la cresta sobre su seno, así que la cara que mira a tierra se empina y la espalda
+// se tiende, como la ola que siente el fondo. 0 = la senoide simétrica de antes. Entra entero en el
+// 15 % interior de la franja y se apaga hacia el 70 %. Por encima de 0.5 la ola sacaría una segunda
+// cresta, de ahí el tope. WaterHeightSampler._gerstner_disp lo replica.
+
 
 // shore_breakup(): dobla la cresta y la parte en tramos. Vive en su propio include para que pueda
 // usarla un shader incapaz de traerse este archivo entero (aquí hay treinta uniforms). Su aporte al
@@ -592,10 +599,12 @@ vec3 gerstner_surface_differential(vec3 local, vec3 radial, float t, float min_l
 
         // En el eje de un estrecho las direcciones de ambas riberas se oponen. Reducir solo el
         // arrastre horizontal evita que la malla se pliegue en picos; altura y cresta siguen vivas.
+        float lean_reach = shore_reach > 0.0 ? shore_reach : shore_range;
+        float lean = shore_lean * (1.0 - smoothstep(lean_reach * 0.15, lean_reach * 0.7, ctx.shore_dist));
         shore_axis = seaward;
         horiz += q * amp_ref * seaward * cs * w * ctx.shore_quality;
-        vert += amp_ref * sn * w;
-        grad += seaward * (k * amp_ref * cs) * w * ctx.shore_quality;
+        vert += amp_ref * (sn + lean * sin(2.0 * phase)) * w;
+        grad += seaward * (k * amp_ref * (cs + 2.0 * lean * cos(2.0 * phase))) * w * ctx.shore_quality;
         n_up_sub += q * k * amp_ref * sn * w;
     }
 
@@ -631,6 +640,30 @@ vec3 swell_direction(vec3 radial) {
     vec3 dir_tan = dir_fixed - radial * dot(dir_fixed, radial);
     float tan_len = length(dir_tan);
     return tan_len > 1e-4 ? -dir_tan / tan_len : vec3(0.0);
+}
+
+// Dónde está la ola de orilla en este punto, para que el píxel dibuje la rompiente: x = fase (la
+// cresta pasa hacia pi/3..pi/2 según lo volcada que vaya, y crece con el tiempo), y = peso de la
+// familia costera aquí (0 = no hay), z = distancia al litoral (m). Mismos términos que la rama de
+// orilla de gerstner_surface_differential. La parte temporal va en módulo 2·pi: es igual en todos
+// los vértices, así que interpolar la fase entre ellos sigue siendo interpolar solo la distancia.
+vec3 shore_wave_signal(vec3 local, vec3 radial, float t, float min_length, WaveContext ctx) {
+    float presence_lod = min_length>0.0 ? smoothstep(min_length*0.5,min_length*1.5,shore_length) : 1.0;
+    float presence = ctx.shore_gate*smoothstep(1.0,max(shore_length*0.25,shore_depth_fade),ctx.shore_dist)*presence_lod;
+    if (presence <= 0.001) {
+        return vec3(0.0, 0.0, ctx.shore_dist);
+    }
+    vec3 seaward = ctx.shore_quality > 1e-4 ? -ctx.shore_field.xyz / ctx.shore_quality : vec3(0.0);
+    seaward -= radial * dot(seaward, radial);
+    float seaward_len = length(seaward);
+    seaward = seaward_len > 1e-4 ? seaward / seaward_len : vec3(0.0);
+    float lee_target = mix(0.35, 1.0, smoothstep(-0.9, 0.6, dot(swell_direction(radial), -seaward)));
+    float lee = mix(1.0, lee_target, shore_incidence * ctx.shore_quality);
+    float k = 6.28318530718 / max(shore_length, 0.1);
+    vec2 breakup = shore_breakup(local, shore_shift, t, shore_length);
+    float phase = k * ctx.shore_field.w + mod((t + shore_time_offset) * shore_speed * sqrt(k), 6.28318530718)
+        + breakup.x;
+    return vec3(phase, presence * lee * (1.0 - ctx.ice) * breakup.y, ctx.shore_dist);
 }
 
 // Vista de depuración del campo de orilla, para localizar dónde falla sin ir a ciegas. Pinta el
@@ -846,10 +879,10 @@ bool inside_ship_interior(vec3 p) {
         if (i >= interior_count) {
             break;
         }
-        vec3 d = p - uw.data[71 + (i)].xyz;
-        if (abs(dot(d, uw.data[199 + (i)].xyz)) < uw.data[199 + (i)].w
-            && abs(dot(d, uw.data[327 + (i)].xyz)) < uw.data[327 + (i)].w
-            && abs(dot(d, uw.data[455 + (i)].xyz)) < uw.data[455 + (i)].w) {
+        vec3 d = p - uw.data[72 + (i)].xyz;
+        if (abs(dot(d, uw.data[200 + (i)].xyz)) < uw.data[200 + (i)].w
+            && abs(dot(d, uw.data[328 + (i)].xyz)) < uw.data[328 + (i)].w
+            && abs(dot(d, uw.data[456 + (i)].xyz)) < uw.data[456 + (i)].w) {
             return true;
         }
     }

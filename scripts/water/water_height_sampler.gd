@@ -41,6 +41,7 @@ var shore_range: float
 var shore_fade: float
 var shore_handover: float
 var shore_chop: float
+var shore_lean: float = 0.0
 
 ## Mapa del planeta, opcional. Con él, el oleaje de tormenta se queda donde el shader lo dibuja
 ## (mar abierto) en vez de zarandear a los barcos dentro de un lago o pegados a la orilla. Sin él
@@ -223,6 +224,7 @@ static func _get_frame_params(mat: ShaderMaterial) -> Dictionary:
 			"shore_fade": _param(mat, "shore_fade"),
 			"shore_handover": _param(mat, "shore_handover"),
 			"shore_chop": _param(mat, "shore_chop"),
+			"shore_lean": _param(mat, "shore_lean"),
 			"sea_ice_enabled": _param(mat, "sea_ice_enabled"),
 			"sea_ice_params": _param(mat, "sea_ice_params"),
 		}
@@ -394,6 +396,9 @@ func _refresh_dynamic_params() -> void:
 	shore_handover = params["shore_handover"]
 	# Mismo relevo que con la calma: un material con un shader anterior al chop se queda sin él en vez
 	# de reventar al asignar nulo.
+	# Como el chop: un material con un shader anterior al vuelco se queda con la ola simétrica.
+	var lean: Variant = params["shore_lean"]
+	shore_lean = lean if lean != null else 0.0
 	var chop: Variant = params["shore_chop"]
 	shore_chop = chop if chop != null else 0.0
 
@@ -550,6 +555,12 @@ func last_normal() -> Vector3:
 	return _last_normal
 
 
+## Eje del viento del espectro en el marco del planeta. Las olas viajan en sentido contrario a él.
+func wind_axis() -> Vector3:
+	_ensure_frame_params()
+	return _wind
+
+
 ## Velocidad del agua en world_pos: vaivén orbital de la ola más la corriente superficial, que es la
 ## que transporta de verdad. Ajusta flow_depth antes de llamar si el punto va sumergido. Cuesta lo
 ## mismo que get_height_at: quien ya la haya llamado aquí debe leer last_flow en vez de remuestrear.
@@ -665,15 +676,19 @@ func _gerstner_disp(local: Vector3, radial: Vector3, time: float, exposure: floa
 		w *= breakup.y
 		# Solo el arrastre horizontal se reduce cuando dos riberas dan direcciones opuestas. La
 		# amplitud vertical y la cresta permanecen continuas, evitando tanto picos como cortes.
+		# Vuelco hacia la playa: ver shore_lean en gerstner_waves.gdshaderinc.
+		var lean_reach := shore_reach if shore_reach > 0.0 else shore_range
+		var lean := shore_lean * (1.0 - smoothstep(lean_reach * 0.15, lean_reach * 0.7, shore_dist))
+		var rise := cos(phase) + 2.0 * lean * cos(2.0 * phase)
 		shore_axis = seaward
 		horiz += seaward * (q * amp_ref * cos(phase) * w * shore_quality)
-		vert += amp_ref * sin(phase) * w
-		grad += seaward * (k * amp_ref * cos(phase) * w * shore_quality)
+		vert += amp_ref * (sin(phase) + lean * sin(2.0 * phase)) * w
+		grad += seaward * (k * amp_ref * rise * w * shore_quality)
 		n_up_sub += q * k * amp_ref * sin(phase) * w
 		# La rompiente avanza hacia tierra (-seaward) y ahí va su corriente: el empujón que vara los
 		# botes en la playa. La órbita sale de la misma derivada que en mar abierto.
 		var shore_orbital := seaward * (-q * amp_ref * omega * sin(phase) * shore_quality) \
-			+ radial * (amp_ref * omega * cos(phase))
+			+ radial * (amp_ref * omega * rise)
 		var shore_current := -seaward * (current_mag * CURRENT_SHORE_FRAC * shore_quality)
 		if depth_fade:
 			var att := exp(-k * flow_depth)

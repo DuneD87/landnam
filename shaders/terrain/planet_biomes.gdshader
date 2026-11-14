@@ -42,6 +42,10 @@ uniform vec3 center;
 global uniform vec3 u_world_offset;
 uniform float water_radius = 29960;
 uniform int has_water = 0;
+// Orilla mojada: hasta esta altura sobre el nivel del mar (m) el suelo queda oscurecido y liso, como
+// la arena que la ola acaba de dejar. 0 = sin franja. shore_wet_darkening = cuánto albedo conserva.
+uniform float shore_wet_height : hint_range(0.0, 3.0, 0.05) = 0.6;
+uniform float shore_wet_darkening : hint_range(0.3, 1.0, 0.01) = 0.66;
 #define MAX_TEXTURES 8
 #define MAX_BIOMES 8 // máximo seguro (ajustable si necesitas más)
 #define MAX_HEIGHTS 24
@@ -995,6 +999,17 @@ void fragment() {
 		EMISSION = u_lod_fade.y > 0.5 ? vec3(0.0, fade_t, 0.0) : vec3(fade_t, 0.0, 0.0);
 	}
 #endif
+
+    // Orilla mojada. Entera en la línea de agua, se seca hacia arriba y se disuelve hacia abajo (bajo
+    // el agua el suelo ya se ve a través de ella): sin el tramo sumergido quedaría un escalón de
+    // color justo en la línea de contacto.
+    if (has_water != 0 && shore_wet_height > 0.0) {
+        float above_sea = distance_to_center - water_radius;
+        float wet = (1.0 - smoothstep(shore_wet_height * 0.3, shore_wet_height, above_sea))
+            * smoothstep(-1.5, -0.1, above_sea);
+        final_color *= mix(1.0, shore_wet_darkening, wet);
+        final_roughness = mix(final_roughness, min(final_roughness, 0.3), wet);
+    }
 
     ALBEDO = final_color;
 	NORMAL = normalize((VIEW_MATRIX * vec4(safe_normalize(final_normal, normal_world), 0.0)).xyz);

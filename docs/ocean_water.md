@@ -658,6 +658,167 @@ finas tienen pendiente acotada para no ocultar el volumen de las olas.
 El inspector de `OceanSystem` expone `water_debug_mode`: 0 aspecto final,
 1 normales geométricas, 2 cobertura de espuma, 3 compresión, 4 altura y
 5 peso del refuerzo de la cresta (antes de aplicar textura y cantidad).
+El 6 muestra la rugosidad estadística del mar lejano (sigma × 2.5) y el 7 los
+borreguillos lejanos. El 8 es la rompiente: rojo = edad de la ola (0 en el frente
+que rompe), verde = peso de la familia costera, azul = espuma de rompiente.
 La vista 2 permite distinguir espuma real de brillos blancos. Los controles
 obsoletos del material se han retirado, incluidos `packet_size`, `packet_spread`,
 `surface_alpha`, `refraction_alpha_floor` y el segundo brillo solar.
+
+## Rompiente
+
+La ola de orilla era una senoide simétrica con espuma solo donde la malla se
+comprimía: llegaba a la playa sin romper. Tres cambios:
+
+- **Forma** (`shore_lean`, 0.3): un segundo armónico en fase con el avance
+  adelanta la cresta sobre su seno, así que la cara que mira a tierra se empina y
+  la espalda se tiende. Entra entero en el 15 % interior de la franja costera y
+  se apaga hacia el 70 %. Es geometría: lo replican `WaterHeightSampler` y el
+  caché submarino (regenerado). Por encima de 0.5 saldría una segunda cresta.
+- **Rodillo** (`surf_foam_amount`, `surf_zone_width`, `surf_tail`): el vértice
+  pasa al píxel la fase, el peso y la distancia al litoral (`shore_wave_signal`).
+  Dentro de la zona de rompiente, del frente de la ola sale un labio denso —agua
+  batida, casi sin textura— y detrás una lámina de espuma que se abre en encaje
+  hasta que llega la ola siguiente. Los tramos flojos de `shore_breakup` cortan
+  el labio, así que no es una cinta continua.
+- **Vaivén** (`swash_strength`): la franja de espuma de contacto con la playa ya
+  no es fija; cada ola la ensancha al llegar y al retirarse deja un encaje que
+  se deshace. La superficie no sube por la arena: es la espuma la que se mueve.
+
+La zona se mide con la distancia horneada al litoral, que tiene ~90 m por téxel:
+la rompiente puede empezar algo antes o después de donde tocaría por fondo.
+
+## Olas por píxel y mar de viento
+
+La malla del agua lleva un vértice cada 0,9 m junto a la cámara y cada vez más
+separados con la distancia (más o menos distancia/60). Las olas con menos de
+unos tres vértices por longitud de onda no se pueden desplazar: cerca no existían
+(el mar eran dunas lisas con ruido encima) y lejos se muestreaban mal y formaban
+una rejilla repetitiva. Tres piezas lo arreglan:
+
+- **LOD de geometría atado a la malla** (`mesh_min_spacing`, `mesh_spacing_rate`,
+  `mesh_wave_samples`): el vértice solo desplaza las olas que la malla puede
+  llevar. Los dos primeros los pone `OceanSystem` a partir del quadtree.
+- **Normal del espectro por píxel**: `ocean_breaker_history` evalúa ya los doce
+  modos en cada píxel para la espuma; ahora devuelve también el gradiente de
+  altura de la parte que el píxel resuelve y la malla no lleva (`detail`). El
+  filtro es por modo y anisótropo: una onda plana solo varía a lo largo de su
+  dirección, así que cuenta lo que mide el píxel EN esa dirección. Lo que no cabe
+  pasa a rugosidad (sección siguiente). La espuma usa el mismo filtro, así que
+  los borreguillos se ven hasta donde la ola quepa en el píxel.
+- **Mar de viento** (`ocean_chop.gdshaderinc`, `chop_strength`,
+  `chop_sharpness`): dieciséis ondas planas de 14 m a 10 cm, abiertas a ±65° del
+  viento, que viajan con su velocidad de fase. Solo dan pendiente. Una deriva
+  común les dobla las crestas (`ocean_ripple_warp`) y su amplitud sube y baja a
+  lo largo de la cresta en tramos de unas tres longitudes de onda
+  (`ocean_short_crest`); sin eso se cruzan en una malla de rombos regular. Lo
+  mismo se aplica a la parte del espectro que solo dibuja el píxel: el espectro
+  es de cresta larguísima (`spectrum_spread` 0.2) y, visto de punta, rayaba el
+  mar hasta el punto de fuga. Sus direcciones y fases las pone
+  `OceanChop` desde `OceanSystem`: k·posición a 30 km y omega·tiempo tras horas
+  de partida no caben en un float, así que la CPU resuelve la fase en la cámara
+  en doble precisión y el shader solo suma el tramo hasta el píxel.
+
+Dos trampas que ya costaron una ronda cada una:
+
+- **El eje de la cresta no puede salir de la vertical local.** La posición en
+  reposo es paralela a la vertical local, así que `dot(p, cross(dir, radial))`
+  vale cero en todo el planeta y solo queda ruido de redondeo (rayas finas hacia
+  la cámara). `ocean_short_crest` usa dos ejes fijos perpendiculares a la ola.
+- **El filtro por píxel no puede ser puramente direccional.** Medir el píxel
+  solo a lo largo de cada ola es exacto para una onda plana, pero a ras de agua
+  deja vivas nada más que las que corren hacia la cámara. Lleva un suelo de tres
+  cuartos del lado largo del píxel.
+
+`texture_ripple` es la parte del rizado de textura (`texture_normal/2`) que se
+conserva, y vale **0**: el ruido es una textura que se repite cada 8 m y cada
+23 m, y se veía como un grano uniforme en azulejo (además de escarchar el agua a
+ras de superficie). Lo sustituyen las cuatro ondas más cortas del mar de viento
+(27 a 10 cm). Con `texture_ripple` a 0, `normal_intensity`, `normal_scale1/2` y
+`normal_slope_limit` ya no afectan a la superficie vista desde fuera (el techo
+submarino sigue usando esos mapas).
+
+Todo lo que cabalga sobre la ola grande se divide por `1 - pinch` (la contracción
+de la superficie): en la cresta se aprieta y se empina, en el seno se tiende.
+
+Consecuencia a vigilar: la superficie de CPU (flotación, nado) sigue evaluando
+todos los modos. Cerca la diferencia son centímetros; un barco a varios cientos
+de metros con mar tendida cabecea sobre olas que allí ya solo están sombreadas.
+
+## Color del agua y espuma
+
+Lo que hace que una ola tenga volumen y que la espuma parezca espuma:
+
+- **Luz desde dentro** (`sss_intensity`, `sss_view`, `sss_lambert`): a contraluz,
+  la que cruza la cresta (más en lo alto y en las caras de espaldas al sol); la
+  que vuelve por las caras que miran a la cámara; y un difuso tenue. Va sumada al
+  color de dispersión, así que en agua somera desaparece sola. Antes solo había
+  un término a contraluz que no miraba la normal: el agua era de un color.
+- **Agua batida** (`churn_color`, `churn_strength`): bajo la espuma y alrededor
+  el agua se vuelve turquesa lechoso y deja de transparentar. Sale de la misma
+  masa que la espuma antes de recortarla con la textura (más un halo con el
+  umbral abierto), del rodillo de la rompiente y de las estelas. Sin umbral se
+  vuelve turquesa el mar entero: la masa de rompiente es pequeña pero no nula en
+  casi toda la superficie de un temporal.
+- **Luz del cielo en la espuma** (`foam_skylight`): el ambiente del motor es unas
+  tres veces más oscuro que el cielo que refleja el agua de al lado, así que una
+  espuma fina sobre agua brillante la OSCURECÍA y se leía como liquen. Ahora la
+  espuma recibe una fracción del mismo cielo que el reflejo.
+- **Rodilla** en la cobertura de borreguillos: por debajo de un tercio se
+  desvanece. Una película al 10-20 % es una costra, no espuma.
+- **Espuma sin azulejo**: cada celda de 16 m enseña una ventana de ±0,2 de la
+  textura con el centro en cualquier punto de ±0,24, girada y a veces reflejada.
+  Antes la ventana era de ±0,35 y el centro solo podía moverse ±0,09: todas las
+  celdas enseñaban casi el mismo trozo.
+- **Anisotropía de la textura de espuma** acotada a 4:1: a ras de agua el filtro
+  anisótropo no llega y el resto salía en hebras hacia la cámara.
+- **Las rachas agrupan las rompientes**: la cantidad de espuma se modula con el
+  mismo ruido de rachas; con todas las crestas rompiendo igual, de lejos los
+  borreguillos caían en rejilla.
+- **Reflejo tapado** (`reflection_occlusion`): el rayo reflejado que baja del
+  horizonte da en otra ola, no en el cielo. La transición es ancha a propósito
+  (de -0,45 a 0,12 de elevación): con un corte estrecho el agua sale posterizada.
+
+Probado y descartado: **regueros de viento** (hileras de espuma a lo largo del
+viento con ruido anisótropo). Anchos parecían cebra; finos, arañazos.
+
+La **orilla mojada** vive en `planet_biomes.gdshader` (`shore_wet_height`,
+`shore_wet_darkening`): el terreno hasta 0,6 m sobre el nivel del mar se oscurece
+y se alisa, y se disuelve bajo el agua para no dejar un escalón en la línea de
+contacto.
+
+Coste: medido en un banco aislado a 2560×1440 con mar de viento, el fotograma
+entero queda en 2,7-3,8 ms tanto con este shader como con el anterior (ruido de
+±0,3 ms). No es una medida del juego completo.
+
+## El mar de lejos
+
+Con la distancia el LOD (`wave_lod_start`) apaga las olas cortas y las normales de
+detalle se funden (`detail_fade_end`). Lo que quedaba era un espejo liso: reflejaba
+el cielo entero en el horizonte, el sol en un punto, y con temporal seguía oscuro y
+sin una mancha blanca. Ahora la pendiente que el píxel ya no resuelve se devuelve
+como estadística, sin geometría ni texturas nuevas:
+
+- `ocean_breaker_history` acumula la varianza de pendiente de todo el espectro
+  (`slopes`) y la parte apagada por el LOD (`hidden`). A eso se suma la del rizado
+  fino (`far_detail_variance`) según se funde el detalle o deja de caber en la
+  huella del píxel, que a ras de agua crece mucho antes que la distancia.
+- **Rugosidad**: alfa² de Beckmann = 2·sigma², sumado al del material. El reflejo
+  del sol se abre en un camino ancho en vez de un punto.
+- **Fresnel medio** de superficie rizada (ajuste de Bruneton 2010). Con sigma 0 es
+  el Schlick de siempre; con el mar rizado el horizonte refleja un 20-40 % en vez
+  del 100 % y deja ver el color del agua, así que el mar se separa del cielo. El
+  rayo reflejado se levanta en proporción: las facetas visibles miran hacia arriba.
+- **Rachas** (`far_gust_strength`, `far_gust_size`): ruido de cientos de metros
+  que riza más o menos el agua y viaja con el viento. Rompe la uniformidad desde
+  un monte o desde el barco.
+- **Borreguillos lejanos** (`far_whitecaps`): cuando las crestas ya no caben en
+  el píxel, su cobertura media (según la pendiente total y `foam_crest_amount`, o
+  sea, el clima) aclara el mar, modulada por las rachas. Sin dibujo: un patrón de
+  manchas a esa distancia se leía como rocas. Mientras la ola quepa en el píxel,
+  la espuma la da el sistema normal, que ahora se evalúa por píxel.
+
+`far_roughness` (0.6) escala todo el efecto óptico; a 0 vuelve el mar lejano de antes.
+Sigma se acota a 0.36: por encima el ajuste de Fresnel oscurece demasiado.
+Cerca de la cámara `hidden` vale 0 y el detalle se ve entero, así que el primer
+plano no cambia salvo por las rachas.

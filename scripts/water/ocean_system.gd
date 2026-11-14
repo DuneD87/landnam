@@ -24,7 +24,7 @@ class_name OceanSystem
 ## Vista de depuración del campo de orilla; ver shore_debug_color en gerstner_waves.gdshaderinc.
 ## 0 = off | 1 = peso | 2 = fase | 3 = sentido contra la batimetría | 4 = relevo | 5 = amplitud
 @export_range(0, 5) var shore_debug_mode: int = 0
-@export_range(0, 5) var water_debug_mode: int = 0
+@export_range(0, 8) var water_debug_mode: int = 0
 
 @export_group("Debug")
 ## Marca roja sobre la superficie que calcula la CPU bajo el jugador. Sirve para separar tres fallos
@@ -44,6 +44,10 @@ var _last_sun_dir := Vector3.INF
 var _stats_accum := 0.0
 var _waterline_sampler: WaterHeightSampler
 var _dust: UnderwaterDust
+## Mar de viento (OceanChop): las ondas se rehacen solo si cambia el eje del viento.
+var _chop_wind := Vector3.INF
+var _chop_modes := PackedVector4Array()
+var _mesh_spacing_pushed := false
 var _water_marker: MeshInstance3D
 var _swim_marker: MeshInstance3D
 ## Mapa del planeta, que llega cuando termina de hornearse. Sin él la línea de flotación de CPU no
@@ -151,6 +155,7 @@ func _process_step(delta):
 		if water_mat.get_shader_parameter(&"water_debug_mode") != water_debug_mode:
 			water_mat.set_shader_parameter(&"water_debug_mode", water_debug_mode)
 	_update_waterline()
+	_update_chop()
 	_update_water_marker()
 
 	if show_stats and stats_label:
@@ -217,6 +222,39 @@ func _update_water_marker() -> void:
 	_swim_marker.visible = true
 	var up := (player.global_position - center).normalized()
 	_swim_marker.global_position = center + up * (float(swim_r) - float(swim_off))
+
+
+## Mar de viento y malla: las fases de las ondas cortas en la cámara (ver OceanChop) y, una vez, la
+## separación entre vértices de la malla, con la que el shader decide qué olas puede desplazar.
+func _update_chop() -> void:
+	if mesh_manager == null or _waterline_sampler == null:
+		return
+	var mat := mesh_manager.default_material as ShaderMaterial
+	var cam := camera if camera != null else get_viewport().get_camera_3d()
+	if mat == null or cam == null:
+		return
+	if not _mesh_spacing_pushed:
+		_mesh_spacing_pushed = true
+		var divisions := float(maxi(sub_divisions, 1))
+		# Cada cara del cubo mide 'radius' de lado (QuadTreeManager._create_root_quads).
+		mat.set_shader_parameter(&"mesh_min_spacing", radius / pow(2.0, float(max_lod)) / divisions)
+		# Un parche sin subdividir queda como poco a subdivision_factor veces su lado; sus vértices
+		# lejanos, a casi el doble. Se toma un punto medio.
+		mat.set_shader_parameter(&"mesh_spacing_rate", 1.0 / (divisions * maxf(subdivision_factor, 0.1) * 1.3))
+	var wind := _waterline_sampler.wind_axis()
+	if not wind.is_equal_approx(_chop_wind):
+		_chop_wind = wind
+		_chop_modes = OceanChop.waves(wind)
+		mat.set_shader_parameter(&"chop_waves", _chop_modes)
+		# Se releen como los guarda el material: OceanChop.state necesita los mismos números.
+		var stored: Variant = mat.get_shader_parameter(&"chop_waves")
+		if stored is PackedVector4Array:
+			_chop_modes = stored
+	var center: Vector3 = mat.get_shader_parameter(&"planet_center")
+	var anchor := cam.global_position - center
+	mat.set_shader_parameter(&"chop_anchor", anchor)
+	mat.set_shader_parameter(&"chop_state", OceanChop.state(_chop_modes, anchor,
+		WaterHeightSampler.get_water_time(mat), lerpf(0.8, 1.35, _waterline_sampler.get_sea_state())))
 
 
 ## Empuja el plano de la línea de flotación bajo la cámara. Antes lo calculaba el vertex shader del
