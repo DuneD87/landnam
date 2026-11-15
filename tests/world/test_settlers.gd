@@ -5,7 +5,7 @@ extends Node
 ## a la base con su trabajo), el constructor (lleva del cofre a la obra y la levanta; parado sin
 ## martillo o sin material; lejos del jugador), el guardia (ronda, turnos y cuándo duerme), el
 ## cocinero (del cofre a la hoguera y lo asado al cofre; lejos), las comidas (comen de los cofres;
-## con hambre van a medio ritmo), el cazador lejos y lo que se guarda de cada trabajo.
+## con hambre van a medio ritmo), los bordes (no se tira de un risco, sí baja un escalón), el cazador lejos y lo que se guarda de cada trabajo.
 ##   godot --headless --path . --audio-driver Dummy res://tests/world/test_settlers.tscn
 
 const RADIUS := 10000.0
@@ -72,6 +72,8 @@ func _run() -> void:
 	await _check_field_delivery()
 	print("SECTION _check_tree_dodge t=%.1f" % (Time.get_ticks_msec() / 1000.0))
 	await _check_tree_dodge()
+	print("SECTION _check_ledge t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+	await _check_ledge()
 	_check_meals()
 	_check_hunter_away()
 	_check_saved()
@@ -485,6 +487,41 @@ func _check_tree_dodge() -> void:
 	check(lateral > half + Villager.BODY_RADIUS + Companion.FLEE_MARGIN,
 		"y en 3 s ya está fuera de su camino (a %.1f m del tronco)" % lateral)
 	check(behind.global_position.distance_to(Vector3(20.0, 0.05, -3.0)) < 0.5, "el de detrás sigue donde estaba")
+	await _clear()
+
+
+## Una caja de [size] con la base en [base] (mundo), de suelo.
+func _block(base: Vector3, size: Vector3) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.collision_layer = PhysicsLayers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	body.add_child(shape)
+	_host.add_child(body)
+	body.global_position = base + Vector3(0.0, size.y * 0.5, 0.0)
+	return body
+
+
+## Mandado a un sitio al pie de un risco de 6 m (sin bajada) se para en el borde; de un escalón de 1 m
+## baja andando.
+func _check_ledge() -> void:
+	_player.global_position = Vector3(-140.0, 0.05, 0.0)
+	var cliff := _block(Vector3(-150.0, 0.0, 0.0), Vector3(10.0, 6.0, 10.0))
+	var step := _block(Vector3(-150.0, 0.0, 30.0), Vector3(10.0, 1.0, 10.0))
+	var top := _spawn(Vector3(-150.0, 6.05, 0.0))
+	var low := _spawn(Vector3(-150.0, 1.05, 30.0))
+	await _wait(0.3)
+	check(top.go_to(Vector3(-150.0, 0.05, 12.0)) and low.go_to(Vector3(-150.0, 0.05, 42.0)), "se les manda bajar")
+	await _wait(10.0)
+	var height := top.global_position.y
+	check(height > 5.5, "no se tira del risco (a %.1f m de alto, a %.1f m del borde)"
+		% [height, 5.0 - absf(top.global_position.z)])
+	check(low.global_position.y < 0.5 and low.global_position.distance_to(Vector3(-150.0, 0.05, 42.0)) < 1.5,
+		"del escalón baja y llega (a %.1f m)" % low.global_position.distance_to(Vector3(-150.0, 0.05, 42.0)))
+	cliff.queue_free()
+	step.queue_free()
 	await _clear()
 
 

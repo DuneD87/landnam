@@ -22,6 +22,9 @@ const STEP := 0.55
 ## El rayo del suelo empieza esto (m) por encima de la casilla de la que viene y baja hasta DROP.
 const PROBE_UP := 0.8
 const DROP := 4.0
+## Bajar de un salto más de STEP m cuesta además DROP_COST casillas por metro: prefiere una rampa o una
+## escalera a tirarse de un tejado o de un risco.
+const DROP_COST := 6.0
 ## Lo que tiene que acercar (m) un camino que no llega para que valga la pena.
 const PARTIAL_GAIN := 1.5
 const NEIGHBORS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
@@ -105,6 +108,9 @@ func _search(body: CollisionObject3D, from: Vector3, to: Vector3, up: Vector3, r
 					or not _walkable(Vector2i(cell.x, cell.y + step.y), cell)):
 				continue
 			var g: float = cost[cell] + (1.4142 if step.x != 0 and step.y != 0 else 1.0)
+			var fall := ((_ground[cell] as Vector3) - (_ground[next] as Vector3)).dot(_up)
+			if fall > STEP:
+				g += (fall - STEP) * DROP_COST
 			if g < float(cost.get(next, INF)):
 				cost[next] = g
 				came[next] = cell

@@ -528,7 +528,11 @@ de noche duerme y, si atacan la base, deja lo que hace y pelea.
   abriendo y cerrando las puertas; sale de una casa o baja de un tejado; tres intentos por destino y,
   si sigue sin acercarse, otros tres a los 8 s). No espera a atascarse si ve algo delante: cada 0,25 s
   mira 1,5 m al frente a la altura de las rodillas y de la cabeza (una ventana deja libre una de las
-  dos) y, si hay una pared, una ventana o una puerta cerrada, busca camino ya. Lo que queda a más de
+  dos) y, si hay una pared, una ventana o una puerta cerrada, busca camino ya. Tampoco se tira de un
+  risco ni a una cueva (`Companion._ledge_ahead`, para todo lo que no sea seguir al jugador): antes de
+  cada paso mira el suelo hasta donde le da para frenar y, si queda a más de 1,6 m por debajo (4 m
+  yendo por un camino de `GroundPath`, que ya lo ha mirado), se para y busca camino; el camino
+  prefiere una rampa a un salto (cada metro de caída de más cuenta como 6 casillas). Lo que queda a más de
   35 m de la búsqueda no tiene camino entero: va por el parcial hasta la casilla explorada más cercana
   (si acerca 1,5 m o más), que de dentro de una casa sale por la puerta y no por la ventana que da a ello. Lo que no alcanza ni así en
   12 s lo deja 2 minutos. Lo tala, al caer

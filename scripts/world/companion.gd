@@ -55,6 +55,16 @@ const JUMP_EVERY := 0.8
 const WALL_HEIGHT := 1.3
 const WALL_REACH := 0.6
 const STUCK_TELEPORT := 4.0
+## Bordes (_ledge_ahead): no pisa donde el suelo queda a más de LEDGE_DROP m por debajo de sus pies (un
+## precipicio, la boca de una cueva) andando en línea recta; siguiendo un camino de GroundPath, que ya
+## se ha mirado, hasta GroundPath.DROP (bajar de un tejado). Mira hasta su radio más LEDGE_MARGIN m más
+## lo que tarda en frenar, en LEDGE_SAMPLES puntos, desde LEDGE_UP m por encima de los pies. Si se para
+## en un borde, busca camino (steer); si no hay, su trabajo lo da por imposible (SettlerWork.GIVE_UP).
+## Siguiendo al jugador no frena: si el jugador baja, baja detrás (o aparece a su lado).
+const LEDGE_DROP := 1.6
+const LEDGE_MARGIN := 0.35
+const LEDGE_UP := 1.0
+const LEDGE_SAMPLES: Array[float] = [0.4, 0.7, 1.0]
 const STUCK_FAR := 8.0
 const TELEPORT := 50.0
 ## Dónde aparece: a esto (m) del jugador, por detrás, o girando estos grados si ahí no cabe.
@@ -282,6 +292,8 @@ var _bed_fit_left := 0.0
 ## que ha llegado del punto al que va, lo que le queda para buscar otro, los intentos y las puertas que
 ## ha abierto.
 var _path := PackedVector3Array()
+## Lo que se deja caer este paso (_ledge_ahead): LEDGE_DROP, o GroundPath.DROP si steer va por un camino.
+var _ledge_drop := LEDGE_DROP
 var _path_index := 0
 var _path_dest := Vector3.INF
 var _steer_best := INF
@@ -700,6 +712,8 @@ func _physics_process(delta: float) -> void:
 
 	var heading := Vector3.ZERO
 	var speed := 0.0
+	var guard := true
+	_ledge_drop = LEDGE_DROP
 	if _flinch_left > 0.0:
 		_flinch_left -= delta
 	elif _flee.is_finite() and _flee_wait <= 0.0:
@@ -742,6 +756,7 @@ func _physics_process(delta: float) -> void:
 				var step := _follow(to_player, distance, up, delta)
 				heading = step[0]
 				speed = step[1]
+				guard = false
 			Mode.LEAVE:
 				_leave_time += delta
 				if distance > LEAVE_GONE or _leave_time > LEAVE_TIME:
@@ -760,6 +775,11 @@ func _physics_process(delta: float) -> void:
 		_pose(up)
 		_animate()
 		return
+	# Al borde de un precipicio o de una cueva se para y busca otro camino.
+	if guard and speed > 0.0 and _ledge_ahead(heading, _ledge_drop):
+		heading = Vector3.ZERO
+		speed = 0.0
+		_blocked_by_ledge()
 	_moving = speed > 0.0
 	_move(heading, speed, up, delta)
 	if _moving:
@@ -904,6 +924,33 @@ func _unstick(heading: Vector3, speed: float, distance: float, delta: float) -> 
 			_jump = true
 	if mode == Mode.FOLLOW and _target == null and _stuck > STUCK_TELEPORT and distance > STUCK_FAR and _teleport():
 		_stuck = 0.0
+
+
+## Si andando hacia [heading] pisaría donde el suelo queda a más de [drop] m por debajo de sus pies (o
+## no lo hay): mira hasta donde le da para frenar (ACCEL), en LEDGE_SAMPLES puntos. En el aire no mira.
+func _ledge_ahead(heading: Vector3, drop: float) -> bool:
+	if heading == Vector3.ZERO or not is_on_floor():
+		return false
+	var up := up_direction
+	var pace := velocity.slide(up).length()
+	var look := Villager.BODY_RADIUS + LEDGE_MARGIN + pace * pace / (2.0 * ACCEL)
+	var space := get_world_3d().direct_space_state
+	for k in LEDGE_SAMPLES:
+		var at := global_position + heading * look * k
+		var query := PhysicsRayQueryParameters3D.create(at + up * LEDGE_UP, at - up * drop,
+			PhysicsLayers.WORLD, [get_rid()])
+		if space.intersect_ray(query).is_empty():
+			return true
+	return false
+
+
+## Se ha parado en un borde: el camino en línea recta (o el que llevaba) no vale; que steer busque otro.
+func _blocked_by_ledge() -> void:
+	_stuck = 0.0
+	if not _path.is_empty():
+		_path = PackedVector3Array()
+		_path_index = 0
+	_steer_left = minf(_steer_left, 0.0)
 
 
 ## Si delante (hacia [heading]) hay algo a WALL_HEIGHT m del suelo: una pared, no un escalón.
@@ -1447,6 +1494,7 @@ func steer(dest: Vector3, reach: float, delta: float) -> Vector3:
 		_path_index = 1 if _path.size() > 1 else 0
 	if not _path.is_empty():
 		_open_doors(from_local * _path[_path_index])
+		_ledge_drop = GroundPath.DROP + 0.2
 	return _tangent(aim - global_position)
 
 
