@@ -63,8 +63,10 @@ completo, porque su rayo se refracta.
 
 Con la escala de render por debajo del 100 %, la capa va además a una resolución intermedia:
 `cloud_resolution_boost` es la fracción del camino entre la resolución interna y la de salida
-(0 a 1; lo que pase de 1 cuenta como 1), con un tope del doble por eje. Con 0,5, al 75 % sobre
-1920×1080, la escena va a 1440×810 y las nubes a 1680×945. Cada texel marcha su propio rayo, con su jitter y su huella para el LOD, pero
+(0 a 1; lo que pase de 1 cuenta como 1), con un tope del doble por eje. Vale 0,35: al 65 % sobre
+3840×2160, la escena va a 2496×1404 y las nubes a 2966×1668 (antes, con 1,5, iban a la de salida:
+2,4 veces los píxeles de la escena). Con 0,5, al 75 % sobre 1920×1080, la escena va a 1440×810
+y las nubes a 1680×945. Cada texel marcha su propio rayo, con su jitter y su huella para el LOD, pero
 con la profundidad del píxel interno que lo contiene (`cloud_owner`).
 
 Medido con `lighting_capture --perf` a la tarde, con `--weather=cloudy` y
@@ -80,6 +82,30 @@ GPU por frame):
 En `clouds_up`, la desviación del laplaciano de toda la imagen, que mide el grano, es 29,5 con 10
 pasos sin filtro, 8,2 con filtro, 7,2 con 24 pasos y filtro, y 7,2 con 40. A simple vista, 24
 pasos ya no muestran el rayado que quedaba con 10.
+
+Con el rayo ya casi opaco (transmitancia acumulada por debajo de `CLOUD_LIGHT_REUSE_TRANS`, 0,3)
+`march_clouds` reutiliza el espesor óptico hacia la luz de la muestra anterior en vez de marchar
+otros `cloud_light_steps` pasos: lo que queda aporta como mucho ese 30 % y la muestra contigua de
+la misma nube tiene casi la misma sombra.
+
+## Niebla a ras de suelo
+
+`march_fog` recorre como mucho `fog_view_distance` (25 m en la Tierra). El ruido del banco y sus
+jirones tienen ondas de kilómetros y la luz del sol apenas cambia en ese tramo, así que, si el
+tramo es corto frente a la octava más fina del ruido (2 % de ella, tope 100 m), la masa del banco
+(agrupación + dos FBM) y la iluminación se calculan una vez por rayo, en su punto medio. Por paso
+solo quedan el gradiente de altura y la oclusión de cueva (PCF 3×3). Un tramo largo, sin
+distancia de visibilidad, lo sigue evaluando todo por paso.
+
+Medido con `lighting_capture --perf` en `shore` a mediodía, 1920×1080 al 65 % con FSR 1.0 y
+MSAA 2x, RTX 4080 SUPER, con marcas de GPU en el callback:
+
+| Clima | Pase completo | Capa de nubes | GPU del frame |
+|-------|---------------|---------------|---------------|
+| Niebla, antes | 3,5 ms | 0,42 ms | 10,95 ms |
+| Niebla, después | 1,9 ms | 0,26 ms | 8,93 ms |
+| Tormenta, antes | 1,7–2,9 ms | 0,26–0,66 ms | 10,52 ms |
+| Tormenta, después | 1,7–2,2 ms | 0,25–0,35 ms | 9,65 ms |
 
 ## Historia temporal
 

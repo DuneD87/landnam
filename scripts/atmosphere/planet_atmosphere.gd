@@ -31,7 +31,7 @@ const GROUP_TEX_H := 128
 ## jitter. Con la escala de render por debajo del 100 % la capa va a más resolución que la escena:
 ## esta fracción del camino que va de la resolución interna a la de salida (0 = la de la escena,
 ## 1 = la nativa). El coste de las nubes crece con su área.
-@export_range(0.0, 1.0, 0.05) var cloud_resolution_boost: float = 1.5
+@export_range(0.0, 1.0, 0.05) var cloud_resolution_boost: float = 0.35
 ## Margen del filtro de la capa de nubes, en texels, más allá de la huella del píxel: 1,5 = 1-2-1 a
 ## la misma resolución. Quita el tramado del jitter del march; 0 = sin filtro (solo la huella).
 @export_range(0.0, 3.0, 0.1) var cloud_filter_margin: float = 1.5
