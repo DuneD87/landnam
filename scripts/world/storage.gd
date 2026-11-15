@@ -3,7 +3,9 @@ extends Node3D
 
 ## Contenedor del mundo. Su ItemData aporta StorageTrait y GroundPlaceableTrait; cada instancia
 ## tiene contenido propio. Las escenas solo eligen el objeto, el aspecto y la colisión.
-## Los colonos dejan en él lo que sacan si acepta su oficio (jobs; vacío, todos: SettlerWork).
+## Los colonos dejan en él lo que sacan si acepta su oficio (jobs; vacío, todos: SettlerWork). El
+## comedero (feeder) es aparte: solo admite comida, de él comen los colonos y solo el cocinero deja
+## en él (lo asado).
 const GROUP := &"storage"
 const REACH := 2.6
 
@@ -12,6 +14,8 @@ const REACH := 2.6
 var inventory := Inventory.new()
 ## Los oficios de los colonos que dejan aquí lo que sacan (SettlerWork.JOB_IDS); vacío, todos.
 var jobs: Array[StringName] = []
+## Comedero (StorageTrait.feeder).
+var feeder := false
 var entity_id := ""
 var save_category := "planet"
 var discard_on_load := true
@@ -27,6 +31,7 @@ func _ready() -> void:
 		return
 	inventory.max_slots = config.slots
 	inventory.rules = config.rules
+	feeder = config.feeder
 	add_child(inventory)
 	add_to_group(GROUP)
 	add_to_group(GroundPlaceableTrait.PLACED_GROUP)
@@ -35,8 +40,23 @@ func _ready() -> void:
 		entity_id = "%s_%d_%d" % [item_id, Time.get_unix_time_from_system(), randi()]
 
 
+## Si el colono de oficio [id] deja aquí lo que saca. En el comedero, nadie (el cocinero lo deja
+## aparte: SettlerTask.feeders).
 func accepts_job(id: StringName) -> bool:
-	return jobs.is_empty() or jobs.has(id)
+	return not feeder and (jobs.is_empty() or jobs.has(id))
+
+
+## Los comederos a menos de [reach] m de [at] (mundo), del más cercano a [from] al más lejano.
+static func feeders(tree: SceneTree, at: Vector3, reach: float, from: Vector3) -> Array[Storage]:
+	var out: Array[Storage] = []
+	for node in tree.get_nodes_in_group(GROUP):
+		var storage := node as Storage
+		if storage != null and storage.feeder and storage.is_inside_tree() and not storage.is_queued_for_deletion() \
+				and storage.global_position.distance_to(at) <= reach:
+			out.append(storage)
+	out.sort_custom(func(a: Storage, b: Storage) -> bool:
+		return a.global_position.distance_to(from) < b.global_position.distance_to(from))
+	return out
 
 
 ## Marca o desmarca el oficio [id].

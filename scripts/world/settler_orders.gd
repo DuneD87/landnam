@@ -29,6 +29,8 @@ const ORDERS := [
 		"glyph": &"fish", "category": Category.FOOD, "zone": Zone.BASE, "color": Color(0.35, 0.9, 0.9)},
 	{"job": SettlerWork.Job.COOK, "shift": 0, "order": "SETTLER_ORDER_COOK", "name": "SETTLER_JOB_COOK",
 		"glyph": &"cook", "category": Category.FOOD, "zone": Zone.NONE, "color": Color(1.0, 0.55, 0.3)},
+	{"job": SettlerWork.Job.WATER, "shift": 0, "order": "SETTLER_ORDER_WATER", "name": "SETTLER_JOB_WATER",
+		"glyph": &"water", "category": Category.FOOD, "zone": Zone.BASE, "color": Color(0.45, 0.65, 1.0)},
 	{"job": SettlerWork.Job.BUILD, "shift": 0, "order": "SETTLER_ORDER_BUILD", "name": "SETTLER_JOB_BUILD",
 		"glyph": &"build", "category": Category.WORKS, "zone": Zone.BASE, "color": Color(0.95, 0.85, 0.45)},
 	{"job": SettlerWork.Job.GUARD, "shift": 0, "order": "THRONE_ORDER_GUARD_DAY", "name": "SETTLER_JOB_GUARD_DAY",

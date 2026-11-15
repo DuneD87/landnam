@@ -122,6 +122,11 @@ const HEAL_REMEDY := 40.0
 ## FIRE_RING m). Llega a un sitio a menos de ARRIVE m. Pelea con lo que ataca a menos de DEFEND m de la
 ## base.
 const BASE_RADIUS := 40.0
+## Comer y beber (SettlerMeals.trip): llega al comedero o al bebedero a menos de MEAL_REACH m, se rinde a
+## los MEAL_GIVE_UP s (y come o bebe donde esté) y se queda MEAL_TIME s de pie junto a él.
+const MEAL_REACH := 1.3
+const MEAL_GIVE_UP := 60.0
+const MEAL_TIME := 6.0
 const ROAM := 10.0
 const FIRE_RING := Vector2(1.6, 2.4)
 const ARRIVE := 0.6
@@ -280,6 +285,10 @@ var _shape: CollisionShape3D
 ## hacia dónde mira sentado (la hoguera, marco del terreno) y su petate.
 var _chore := Chore.STAND
 var _chore_left := 0.0
+## Lo que lleva yendo al comedero o al bebedero (s); 0 si no va.
+var _meal_time := 0.0
+## Lo que le queda de pie junto al comedero o al bebedero tras comer o beber (s).
+var _meal_left := 0.0
 var _spot := Vector3.ZERO
 var _then := Chore.STAND
 var _look := Vector3.INF
@@ -692,7 +701,7 @@ func _physics_process(delta: float) -> void:
 	if _retreat_left > 0.0:
 		_retreat_left -= delta
 	if mode == Mode.SETTLE:
-		meals.tick(delta)
+		meals.tick(delta, distance <= FREEZE)
 	if distance > FREEZE and mode != Mode.LEAVE:
 		velocity = Vector3.ZERO
 		if _goto.is_finite():
@@ -1265,7 +1274,7 @@ func _lie(up: Vector3, delta: float) -> void:
 ## Fuera de pelea: se recupera poco a poco y, si le hace falta, come algo de lo que lleva.
 func _recover(delta: float) -> void:
 	if health.is_dead or health.health >= health.max_health or _since_hit < REGEN_AFTER \
-			or (mode == Mode.SETTLE and meals.hungry()):
+			or (mode == Mode.SETTLE and meals.wanting()):
 		return
 	health.heal(REGEN * delta)
 	_eat_left -= delta
@@ -1295,6 +1304,15 @@ func _live(delta: float) -> Array:
 			_travel = 0.0
 			return [steer(home, HOME_NEAR * 0.8, delta), JOG_SPEED]
 		homing = false
+	# Acaba de comer o beber: se queda un rato allí.
+	if _meal_left > 0.0:
+		_meal_left -= delta
+		return [Vector3.ZERO, 0.0]
+	# Con hambre o sed, antes de nada al comedero o al bebedero (SettlerMeals.trip).
+	if _chore != Chore.SLEEP and meals.trip != null:
+		var meal := _go_eat(delta)
+		if not meal.is_empty():
+			return meal
 	if _chore != Chore.SLEEP and work.on_duty(_hour()):
 		_chore = Chore.STAND
 		_chore_left = 0.0
@@ -1324,6 +1342,32 @@ func _live(delta: float) -> Array:
 		_decide()
 	if _chore == Chore.SIT and _look.is_finite():
 		_face(_terrain.global_transform * _look - global_position, delta)
+	return [Vector3.ZERO, 0.0]
+
+
+## Un paso hacia el comedero o el bebedero (SettlerMeals.trip): [hacia dónde, a qué velocidad], o []
+## si ya no va. Al llegar (o si en MEAL_GIVE_UP s no llega) come o bebe allí y se queda un rato de pie,
+## de cara a él.
+func _go_eat(delta: float) -> Array:
+	var at := meals.trip
+	if not is_instance_valid(at) or not at.is_inside_tree() or at.is_queued_for_deletion():
+		meals.trip = null
+		_meal_time = 0.0
+		return []
+	if _meal_time == 0.0:
+		# Deja lo que tenía a medias (el golpe); al volver sigue con su trabajo.
+		work.interrupt()
+		_chore = Chore.STAND
+		_chore_left = 0.0
+	_meal_time += delta
+	var to := (at.global_position - global_position).slide(up_direction)
+	if to.length() > MEAL_REACH and _meal_time < MEAL_GIVE_UP:
+		return [steer(at.global_position, MEAL_REACH * 0.8, delta), WALK_SPEED]
+	_meal_time = 0.0
+	_face(to, delta)
+	meals.arrive()
+	_rest(Chore.STAND, MEAL_TIME)
+	_meal_left = MEAL_TIME
 	return [Vector3.ZERO, 0.0]
 
 

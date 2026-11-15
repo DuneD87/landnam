@@ -487,7 +487,8 @@ func get_save_data() -> Dictionary:
 		var facing := to_local.basis * c.facing()
 		var entry := {"village": c.village, "id": String(c.resident.get("id", "")), "mode": int(c.mode),
 			"at": [at.x, at.y, at.z], "facing": [facing.x, facing.y, facing.z], "pack": c.pack.get_save_data(),
-			"health": c.health.health, "fed": c.meals.fed}
+			"health": c.health.health, "fed": c.meals.fed,
+			"watered": c.meals.watered}
 		if c.seat() != null:
 			entry.bench = c.seat().entity_id
 		if c.is_going():
@@ -575,6 +576,7 @@ func restore_save_data(data: Dictionary) -> void:
 			companion.pack.restore_save_data(entry.pack)
 		companion.restore_health(float(entry.get("health", -1.0)))
 		companion.meals.fed = float(entry.get("fed", SettlerMeals.START_HOURS))
+		companion.meals.watered = float(entry.get("watered", SettlerMeals.START_WATER))
 
 
 ## El vecino [id] del poblado [v], como lo saca su poblado, o {}.

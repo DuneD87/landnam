@@ -4,8 +4,9 @@ extends Node
 ## un jugador de pega. Comprueba la formación (cuña y fila) y las órdenes al grupo (esperad, seguidme,
 ## a la base con su trabajo), el constructor (lleva del cofre a la obra y la levanta; parado sin
 ## martillo o sin material; lejos del jugador), el guardia (ronda, turnos y cuándo duerme), el
-## cocinero (del cofre a la hoguera y lo asado al cofre; lejos), las comidas (comen de los cofres;
-## con hambre van a medio ritmo), los bordes (no se tira de un risco, sí baja un escalón), el cazador lejos y lo que se guarda de cada trabajo.
+## cocinero (del cofre a la hoguera y lo asado al cofre o al comedero; lejos), las comidas (comen del
+## comedero; con hambre van a medio ritmo), la sed (beben del bebedero, lejos sin moverse y cerca
+## andando; el aguador lo llena), los bordes (no se tira de un risco, sí baja un escalón), el cazador lejos y lo que se guarda de cada trabajo.
 ##   godot --headless --path . --audio-driver Dummy res://tests/world/test_settlers.tscn
 
 const RADIUS := 10000.0
@@ -74,6 +75,8 @@ func _run() -> void:
 	await _check_tree_dodge()
 	print("SECTION _check_ledge t=%.1f" % (Time.get_ticks_msec() / 1000.0))
 	await _check_ledge()
+	print("SECTION _check_thirst t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+	await _check_thirst()
 	_check_meals()
 	_check_hunter_away()
 	_check_saved()
@@ -165,6 +168,21 @@ func _chest(at: Vector3) -> Storage:
 	_host.add_child(chest)
 	chest.global_position = at
 	return chest
+
+
+func _feeder(at: Vector3) -> Storage:
+	var feeder := Storage.new()
+	feeder.item_id = &"feeding_trough"
+	_host.add_child(feeder)
+	feeder.global_position = at
+	return feeder
+
+
+func _trough(at: Vector3) -> WaterTrough:
+	var trough := WaterTrough.new()
+	_host.add_child(trough)
+	trough.global_position = at
+	return trough
 
 
 func _item(id: StringName) -> ItemData:
@@ -596,17 +614,106 @@ func _check_cook() -> void:
 	_player.global_position = Vector3(0.0, 0.05, 0.0)
 	var task := cook.work.task as SettlerCook
 	check(task.on_duty(10.0) and task.on_duty(20.0) and not task.on_duty(23.0), "trabaja hasta la hora de acostarse")
-	# Las comidas: come de los cofres de su base, lo asado antes que lo crudo.
-	chest.inventory.add_item(raw, 2)
+	# Las comidas: del comedero de su base (los cofres ya no dan de comer), lo asado antes que lo crudo.
 	cook.meals.fed = 1.0
-	var eaten := cook.meals.eat()
-	check(eaten >= 1 and cook.meals.fed >= SettlerMeals.EAT_UNTIL and chest.inventory.get_item_count(cooked) == 8 - eaten
-		and chest.inventory.get_item_count(raw) == 2, "con hambre come lo asado del cofre (%d piezas)" % eaten)
-	chest.inventory.remove_item(cooked, 99)
+	check(cook.meals.eat(cook.meals._feeders()) == 0 and chest.inventory.get_item_count(cooked) == 8,
+		"sin comedero no come de los cofres")
+	var feeder := _feeder(Vector3(-4.0, 0.0, -5.0))
+	check(feeder.inventory.add_item(wood, 1) == 1 and not feeder.accepts_job(&"fell"),
+		"el comedero solo admite comida y nadie deja allí lo que saca")
+	feeder.inventory.add_item(cooked, 3)
+	feeder.inventory.add_item(raw, 2)
+	var eaten := cook.meals.eat(cook.meals._feeders())
+	check(eaten >= 1 and cook.meals.fed >= SettlerMeals.EAT_UNTIL and feeder.inventory.get_item_count(cooked) == 3 - eaten
+		and feeder.inventory.get_item_count(raw) == 2, "con hambre come lo asado del comedero (%d piezas)" % eaten)
+	feeder.inventory.remove_item(cooked, 99)
 	cook.meals.fed = 0.5
-	cook.meals.eat()
-	check(chest.inventory.get_item_count(raw) < 2, "y lo crudo solo si no hay otra cosa")
+	cook.meals.eat(cook.meals._feeders())
+	check(feeder.inventory.get_item_count(raw) < 2, "y lo crudo solo si no hay otra cosa")
+	# Con comedero, lo asado va a él.
+	feeder.inventory.remove_item(raw, 99)
+	chest.inventory.add_item(raw, 2)
+	left = 240.0
+	while left > 0.0 and feeder.inventory.get_item_count(cooked) < 2:
+		await _wait(2.0)
+		left -= 2.0
+	check(feeder.inventory.get_item_count(cooked) == 2 and chest.inventory.get_item_count(cooked) == 8,
+		"con comedero, el cocinero deja en él lo asado (%.0f s)" % (240.0 - left))
 	fire.queue_free()
+	chest.queue_free()
+	feeder.queue_free()
+	await _clear()
+
+
+## La sed y el bebedero: beben de él lejos sin moverse y cerca van andando, primero a comer.
+func _check_thirst() -> void:
+	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	var c := _spawn(Vector3(20.0, 0.05, 20.0), Companion.Mode.SETTLE)
+	c.settle_here(_local(c.global_position))
+	c.hour = 15.0
+	var trough := _trough(Vector3(26.0, 0.0, 20.0))
+	check(trough.pour(70) == WaterTrough.CAPACITY and trough.room() == 0, "el bebedero guarda hasta %d tragos" % WaterTrough.CAPACITY)
+	trough.take(WaterTrough.CAPACITY)
+	c.meals.watered = 0.0
+	check(c.meals.thirsty() and is_equal_approx(c.work.pace(), SettlerWork.HUNGRY_PACE), "con sed, a la mitad")
+	c.meals.fed = 0.0
+	check(is_equal_approx(c.work.pace(), SettlerWork.HUNGRY_PACE * SettlerWork.HUNGRY_PACE), "con hambre y sed, a un cuarto")
+	check(c.work.wants() == tr("SETTLER_HUNGRY") + tr("SETTLER_THIRSTY"), "y se dice: «%s»" % c.work.wants())
+	c.meals._check_left = 0.0
+	c.meals.tick(0.01, false)
+	check(c.meals.thirsty(), "con el bebedero vacío sigue con sed")
+	trough.pour(10)
+	c.meals._check_left = 0.0
+	c.meals.tick(0.01, false)
+	check(not c.meals.thirsty() and c.meals.watered >= SettlerMeals.DRINK_BELOW and trough.water < 10 and c.meals.trip == null,
+		"lejos bebe del bebedero sin moverse (%d tragos)" % (10 - trough.water))
+	# Cerca va andando: con hambre y sed, primero al comedero y luego al bebedero.
+	var feeder := _feeder(Vector3(20.0, 0.0, 27.0))
+	var chest := _chest(Vector3(19.0, 0.0, 18.0))
+	chest.inventory.add_item(_item(&"cooked_meat"), 5)
+	feeder.inventory.add_item(_item(&"cooked_meat"), 3)
+	c.meals.fed = 1.0
+	c.meals.watered = 1.0
+	c.meals._check_left = 0.0
+	c.meals.tick(0.01, true)
+	check(c.meals.trip == feeder, "cerca, con hambre y sed, va antes al comedero")
+	var left := 40.0
+	while left > 0.0 and (c.meals.fed < SettlerMeals.EAT_UNTIL or c.meals.watered < SettlerMeals.DRINK_BELOW):
+		await _wait(1.0)
+		left -= 1.0
+	check(c.meals.fed >= SettlerMeals.EAT_UNTIL and feeder.inventory.get_item_count(_item(&"cooked_meat")) < 3
+		and chest.inventory.get_item_count(_item(&"cooked_meat")) == 5, "llega andando al comedero y come (%.0f s)" % (40.0 - left))
+	check(c.meals.watered >= SettlerMeals.DRINK_BELOW and c.global_position.distance_to(trough.global_position) < 2.5,
+		"y luego bebe en el bebedero (a %.1f m)" % c.global_position.distance_to(trough.global_position))
+	# El aguador.
+	c.process_mode = Node.PROCESS_MODE_DISABLED
+	c.work.assign(SettlerWork.Job.WATER)
+	c.work.away(1.0, 10.0)
+	check(c.work.status == SettlerWork.Status.BLOCKED, "el aguador sin odre se queda parado: «%s»" % c.work.describe())
+	c.pack.add_item(_item(&"waterskin"), 1)
+	var water := c.work.task as SettlerWater
+	var before := trough.water
+	c.work.away(SettlerWater.AWAY_TRIP + 1.0, 10.0)
+	check(trough.water == before, "sin haber encontrado agua dulce no trae nada lejos")
+	water._spot = _local(Vector3(30.0, 0.0, 20.0))
+	water._water = _local(Vector3(32.0, 0.0, 20.0))
+	c.work.away(SettlerWater.AWAY_TRIP + 1.0, 10.0)
+	check(trough.water == mini(before + water.capacity(), WaterTrough.CAPACITY) and water.capacity() > 0,
+		"con su orilla vista, lejos llena el bebedero (%d → %d)" % [before, trough.water])
+	water._carry = 7
+	var data: Dictionary = JSON.parse_string(JSON.stringify(c.work.save_data()))
+	c.work.stop()
+	c.work.restore(data)
+	check(c.work.task is SettlerWater and (c.work.task as SettlerWater)._carry == 7
+		and (c.work.task as SettlerWater)._spot.is_finite(), "el aguador guarda lo que lleva y su orilla")
+	trough.water = WaterTrough.CAPACITY
+	var saved := trough.get_save_data()
+	var copy := WaterTrough.new()
+	copy.restore_save_data(saved)
+	check(copy.water == WaterTrough.CAPACITY, "el bebedero se guarda con su agua")
+	copy.free()
+	trough.queue_free()
+	feeder.queue_free()
 	chest.queue_free()
 	await _clear()
 
@@ -621,7 +728,7 @@ func _check_meals() -> void:
 	c.work.status = SettlerWork.Status.WORKING
 	check(c.work.describe().ends_with(tr("SETTLER_HUNGRY")), "y se dice: «%s»" % c.work.describe())
 	c.pack.add_item(_item(&"cooked_meat"), 2)
-	c.meals.eat()
+	c.meals.eat([])
 	check(not c.meals.hungry() and c.pack.get_item_count(_item(&"cooked_meat")) < 2, "come de su morral si lleva algo")
 	c.work.stop()
 	c.queue_free()

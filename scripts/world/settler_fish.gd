@@ -17,13 +17,6 @@ enum Phase {SEEK, FISH, DEPOSIT}
 const CATCH_TIME := Vector2(60.0, 120.0)
 const AWAY_CATCH := 90.0
 const CARRY := 5
-## La orilla: anillos cada RING_STEP m con ANGLES tanteos; del agua hacia tierra, pasos de SHORE_STEP m
-## (hasta SHORE_STEPS). El agua tiene que cubrir WATER_DEPTH m.
-const RING_STEP := 3.0
-const ANGLES := 16
-const SHORE_STEP := 0.75
-const SHORE_STEPS := 16
-const WATER_DEPTH := 0.6
 const SPOT_REACH := 1.2
 
 var _phase := Phase.SEEK
@@ -182,61 +175,12 @@ func _has_chest(fish: ItemData) -> bool:
 	return false
 
 
-## Busca la orilla de su zona más cercana a él: el agua más cercana y, de ella hacia el centro de la
-## zona, el primer sitio seco. Falso si no hay (o el terreno aún no está cargado).
+## Busca la orilla de su zona más cercana a él (SettlerTask.find_shore). Falso si no hay (o el terreno
+## aún no está cargado).
 func _find_spot() -> bool:
-	var terrain := c._terrain as VoxelLodTerrain
-	var sea := _sea_radius()
-	if terrain == null or sea <= 0.0:
+	var shore := find_shore()
+	if shore.is_empty():
 		return false
-	var tool := terrain.get_voxel_tool() as VoxelToolLodTerrain
-	tool.channel = VoxelBuffer.CHANNEL_SDF
-	var origin := terrain.global_position
-	var middle := center()
-	var up := (middle - origin).normalized()
-	var side := up.cross(Vector3.UP if absf(up.y) < 0.99 else Vector3.RIGHT).normalized()
-	var best := Vector3.INF
-	var best_d := INF
-	var r := RING_STEP
-	while r <= w.zone_radius:
-		for k in ANGLES:
-			var point := middle + side.rotated(up, TAU * k / ANGLES) * r
-			if not _wet(terrain, tool, origin, point, sea):
-				continue
-			var d := point.distance_to(c.global_position)
-			if d < best_d:
-				best = point
-				best_d = d
-		r += RING_STEP
-	if not best.is_finite():
-		return false
-	var inland := (middle - best).slide(up)
-	if inland.length() < 0.1:
-		return false
-	inland = inland.normalized()
-	for i in range(1, SHORE_STEPS + 1):
-		var point := best + inland * SHORE_STEP * i
-		if _wet(terrain, tool, origin, point, sea):
-			continue
-		var to_local := terrain.global_transform.affine_inverse()
-		# Un paso más adentro: los pies, en seco.
-		_spot = to_local * (point + inland * SHORE_STEP)
-		_water = to_local * best
-		return true
-	return false
-
-
-## Si en la vertical de [point] hay agua que cubra WATER_DEPTH m (los vóxeles sin cargar no cuentan).
-func _wet(terrain: VoxelLodTerrain, tool: VoxelToolLodTerrain, origin: Vector3, point: Vector3, sea: float) -> bool:
-	var dir := (point - origin).normalized()
-	return WaterAccess._has_water(terrain, tool, origin + dir * sea) \
-		and WaterAccess._has_water(terrain, tool, origin + dir * (sea - WATER_DEPTH))
-
-
-## El radio del mar del planeta, o 0 si no tiene agua.
-func _sea_radius() -> float:
-	var host: Variant = c._player.get("planet") if c._player != null and is_instance_valid(c._player) else null
-	var core := (host as Node).get("planet") as Planet if host is Node else null
-	if core == null or not core.has_water:
-		return 0.0
-	return core.radius - core.water_radius
+	_spot = shore[0]
+	_water = shore[1]
+	return true

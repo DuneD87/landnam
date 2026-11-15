@@ -1868,7 +1868,22 @@ SETTLER_GUARD_ROUND,%s · on their rounds,%s · de ronda,colonos
 SETTLER_GUARD_OFF,%s · resting until their shift,%s · descansa hasta su turno,colonos
 SETTLER_GUARD_AWAY,%s · keeping watch out of sight,%s · vigila lejos de ti,colonos
 SETTLER_ALARM,%s raises the alarm: a beast near the base!,%s da la alarma: ¡una fiera cerca de la base!,colonos
-SETTLER_STARVING,%s is going hungry: there is no food in the base chests.,%s pasa hambre: no hay comida en los cofres de la base.,colonos
+SETTLER_STARVING,%s is going hungry: there is no food in the base feeding troughs.,%s pasa hambre: no hay comida en los comederos de la base.,colonos
+ITEM_FEEDING_TROUGH,Feeding trough,Comedero,colonos
+ITEM_FEEDING_TROUGH_DESC,"A plank manger on crossed legs. Only food goes in: the settlers of your base eat from it, and the cook leaves roast food here.","Un pesebre de tablas sobre patas en aspa. Solo admite comida: de él comen los colonos de tu base, y el cocinero deja aquí lo asado.",colonos
+ITEM_WATER_TROUGH,Water trough,Bebedero,colonos
+ITEM_WATER_TROUGH_DESC,A low plank trough lined with hide that holds 60 sips of water. Pour your waterskins into it (E); rain and the water carrier fill it too. The settlers of your base drink from it.,Un dornajo bajo de tablas forrado de piel que guarda 60 tragos de agua. Vierte en él tus odres (E); también lo llenan la lluvia y el aguador. De él beben los colonos de tu base.,colonos
+SETTLER_JOB_WATER,Water carrier,Aguador,colonos
+SETTLER_ORDER_WATER,Fetch water,Trae agua,colonos
+SETTLER_THIRSTY, · thirsty, · con sed,colonos
+SETTLER_PARCHED,%s is going thirsty: there is no water in the base water troughs.,%s pasa sed: no hay agua en los bebederos de la base.,colonos
+SETTLER_NEED_SKIN,needs a waterskin in their pack.,necesita un odre en el morral.,colonos
+SETTLER_NO_FRESH_WATER,there is no fresh water in their area.,no hay agua dulce en su zona.,colonos
+SETTLER_NO_TROUGH,there is no water trough at the base.,no hay bebedero en la base.,colonos
+SURV_TROUGH_POUR,You pour %d sips into the trough · %d/%d,Viertes %d tragos en el bebedero · %d/%d,colonos
+SURV_TROUGH_DRINK,You drink from the trough · %d/%d left,Bebes del bebedero · quedan %d/%d,colonos
+SURV_TROUGH_LEVEL,Water trough · %d/%d sips,Bebedero · %d/%d tragos,colonos
+SURV_TROUGH_NO_SKIN,fill your waterskins by a river or a lake to pour them in,llena tus odres en un río o un lago para verterlos,colonos
 THRONE_ORDER_GUARD_DAY,Day guard,Guardia de día,colonos
 THRONE_ORDER_GUARD_NIGHT,Night guard,Guardia de noche,colonos
 THRONE_ORDER_FOLLOW,Follow me,Seguidme,colonos

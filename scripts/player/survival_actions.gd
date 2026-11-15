@@ -308,6 +308,24 @@ func open_workplace(place: Node3D) -> bool:
 	return true
 
 
+## En el bebedero (WaterTrough): vierte en él lo que llevan los odres; sin agua en ellos, bebe de él si
+## tiene sed. Si no, dice cuánto tiene.
+func use_trough(trough: WaterTrough) -> void:
+	var needs := _player.needs
+	if needs.water > 0 and trough.room() > 0:
+		var poured := trough.pour(needs.water)
+		needs.water -= poured
+		notify(tr("SURV_TROUGH_POUR") % [poured, trough.water, WaterTrough.CAPACITY])
+		AudioManager.play_ui(&"item_pickup")
+		return
+	if needs.thirst < 0.98 and trough.take(1) == 1:
+		needs.drink()
+		notify(tr("SURV_TROUGH_DRINK") % [trough.water, WaterTrough.CAPACITY])
+		return
+	notify(tr("SURV_TROUGH_LEVEL") % [trough.water, WaterTrough.CAPACITY]
+		+ (" · " + tr("SURV_TROUGH_NO_SKIN") if needs.water <= 0 and trough.room() > 0 else ""))
+
+
 ## Bebe y llena todos los odres si hay agua dulce al alcance. true si había agua, dulce o salada.
 func drink_here() -> bool:
 	var kind := water_here()

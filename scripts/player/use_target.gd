@@ -2,7 +2,7 @@ class_name UseTarget
 extends RefCounted
 
 ## Lo que la E usa cuando se apunta directamente a algo: el rayo del centro de la pantalla se prueba
-## contra el volumen de cada cosa usable al alcance (lechos, cofres, tronos, hogueras, hornos,
+## contra el volumen de cada cosa usable al alcance (lechos, cofres, tronos, bebederos, hogueras, hornos,
 ## bancos, botines, colonos y aldeanos, cadáveres, lo soltado, las lanzas clavadas y lo que se recoge
 ## del suelo) y gana la primera que atraviesa. Muchas de ellas no tienen colisión, así que no basta
 ## el raycast físico; este solo sirve para saber si algo se interpone (una pared).
@@ -50,7 +50,7 @@ static func aimed(player: PlayerController, from: Vector3, dir: Vector3, ray_hit
 				wall = shape_node
 
 	var boxed: Array[Node3D] = []
-	for group in [Bedroll.GROUP, Storage.GROUP, Throne.GROUP, Campfire.GROUP, Furnace.GROUP,
+	for group in [Bedroll.GROUP, Storage.GROUP, Throne.GROUP, WaterTrough.GROUP, Campfire.GROUP, Furnace.GROUP,
 			Workstation.GROUP, DeathLoot.GROUP, DroppedItem.GROUP, WoodenDoor.GROUP]:
 		for node in tree.get_nodes_in_group(group):
 			boxed.append(node)
@@ -122,6 +122,8 @@ static func use(player: PlayerController, target: Node) -> bool:
 		player.survival.open_storage(target)
 	elif target is Throne:
 		return player.throne_view.try_sit(target)
+	elif target is WaterTrough:
+		player.survival.use_trough(target)
 	elif target is Campfire or target is Furnace or target is Workstation:
 		return player.survival.open_workplace(target)
 	elif target is DeathLoot:

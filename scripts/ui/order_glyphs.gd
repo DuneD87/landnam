@@ -132,6 +132,17 @@ static func draw(ci: RID, key: StringName, at: Vector2, size: float, color: Colo
 			_fill(ci, [at + Vector2(0, -h), at + Vector2(h * 0.35, -h * 0.4), at + Vector2(h * 0.5, h * 0.05),
 				at + Vector2(h * 0.25, h * 0.4), at + Vector2(-h * 0.25, h * 0.4), at + Vector2(-h * 0.5, h * 0.05),
 				at + Vector2(-h * 0.35, -h * 0.4)], color)
+		&"water":
+			# Una gota sobre la línea del agua.
+			var drop: Array = []
+			for k in 17:
+				var a := PI * k / 16.0
+				drop.append(at + Vector2(cos(a) * h * 0.5, h * 0.15 + sin(a) * h * 0.5))
+			drop.append(at + Vector2(0, -h))
+			drop.append(drop[0])
+			_poly(ci, drop, color, w)
+			_line(ci, at + Vector2(-h, h * 0.85), at + Vector2(-h * 0.35, h * 0.85), color, w * 0.8)
+			_line(ci, at + Vector2(h * 0.35, h * 0.85), at + Vector2(h, h * 0.85), color, w * 0.8)
 		&"guard", &"guard_day", &"guard_night":
 			# Un escudo; de día con un sol y de noche con una luna.
 			_poly(ci, [at + Vector2(-h * 0.75, -h * 0.85), at + Vector2(h * 0.75, -h * 0.85), at + Vector2(h * 0.75, 0),

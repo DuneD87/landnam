@@ -19,10 +19,10 @@ class_name SettlerWork extends RefCounted
 ## su ritmo (rate: precalculado con su herramienta y corregido con lo que ha tardado de verdad), con
 ## su herramienta, en su horario y mientras quepa en el cofre. Limpiar una zona solo avanza cerca.
 ##
-## Los demás oficios (construir, hacer guardia, cazar, pescar, cocinar) los lleva cada uno su
+## Los demás oficios (construir, hacer guardia, cazar, pescar, cocinar, traer agua) los lleva cada uno su
 ## SettlerTask, que este crea al mandarlo (assign) y al que pasa cada paso; aquí queda lo común: el
-## oficio, la zona, el estado, el guardado y las reservas. Con hambre (SettlerMeals) todos van a la
-## mitad de ritmo (pace). Ver docs/villagers.md.
+## oficio, la zona, el estado, el guardado y las reservas. Con hambre o sed (SettlerMeals) todos van a
+## la mitad de ritmo (pace). Ver docs/villagers.md.
 ##
 ## En campo (field): el que va con el jugador (Companion.field_work, desde la rueda del grupo) trabaja
 ## en la zona que se le marca, sin base ni horario, hasta que se le mande otra cosa. Lo que saca va a un
@@ -36,7 +36,7 @@ class_name SettlerWork extends RefCounted
 ## solo eso: al constructor, directo a su obra (y se apunta en SettlerBuild._hauls para que nadie más
 ## lo traiga); al cocinero, en mano. Lo que nadie necesita sigue al cofre o al morral.
 
-enum Job {NONE, FELL, MINE, CLEAR, BUILD, GUARD, HUNT, FISH, COOK}
+enum Job {NONE, FELL, MINE, CLEAR, BUILD, GUARD, HUNT, FISH, COOK, WATER}
 ## Cómo va, para la charla (y en el futuro, lo que se ve sobre él). BLOCKED: parado por lo que dice
 ## reason (los oficios de SettlerTask).
 enum Status {IDLE, WORKING, NO_TOOL, NO_CHEST, CHEST_FULL, DONE, OFF_HOURS, AWAY, BLOCKED}
@@ -45,13 +45,13 @@ enum Status {IDLE, WORKING, NO_TOOL, NO_CHEST, CHEST_FULL, DONE, OFF_HOURS, AWAY
 enum Step {SEEK, STRIKE, CLEAR_OF, SETTLE, DEPOSIT}
 
 ## El oficio de cada trabajo, el que se marca en los cofres (Storage.jobs).
-## El guardia no usa cofres.
+## El guardia y el aguador no usan cofres.
 const JOB_IDS := {Job.FELL: &"fell", Job.MINE: &"mine", Job.CLEAR: &"clear", Job.BUILD: &"build",
 	Job.HUNT: &"hunt", Job.FISH: &"fish", Job.COOK: &"cook"}
 const JOB_NAMES := {Job.FELL: "SETTLER_JOB_FELL", Job.MINE: "SETTLER_JOB_MINE", Job.CLEAR: "SETTLER_JOB_CLEAR",
 	Job.BUILD: "SETTLER_JOB_BUILD", Job.GUARD: "SETTLER_JOB_GUARD", Job.HUNT: "SETTLER_JOB_HUNT",
-	Job.FISH: "SETTLER_JOB_FISH", Job.COOK: "SETTLER_JOB_COOK"}
-## Con hambre trabaja a este ritmo.
+	Job.FISH: "SETTLER_JOB_FISH", Job.COOK: "SETTLER_JOB_COOK", Job.WATER: "SETTLER_JOB_WATER"}
+## Con hambre (o con sed) trabaja a este ritmo; con las dos, a su cuadrado.
 const HUNGRY_PACE := 0.5
 ## Dónde busca (m): alrededor de la base, o la zona que se limpia.
 const WORK_RADIUS := 60.0
@@ -209,6 +209,8 @@ func _make_task(what: Job) -> SettlerTask:
 			return SettlerFish.new(self)
 		Job.COOK:
 			return SettlerCook.new(self)
+		Job.WATER:
+			return SettlerWater.new(self)
 	return null
 
 
@@ -377,9 +379,9 @@ func _end_delivery() -> void:
 	_delivery = {}
 
 
-## El ritmo al que trabaja: con hambre, a la mitad.
+## El ritmo al que trabaja: con hambre o sed, a la mitad (SettlerMeals.pace).
 func pace() -> float:
-	return HUNGRY_PACE if _c.meals != null and _c.meals.hungry() else 1.0
+	return _c.meals.pace() if _c.meals != null else 1.0
 
 
 ## Parado por [why] (ya traducido).
@@ -1125,7 +1127,14 @@ func describe() -> String:
 	if not active() and status != Status.DONE:
 		return ""
 	var text := _describe()
-	return text + _c.tr("SETTLER_HUNGRY") if text != "" and pace() < 1.0 else text
+	return text + wants() if text != "" else text
+
+
+## Lo que le falta, para añadirlo a cómo va: " · con hambre", " · con sed" o nada.
+func wants() -> String:
+	if _c.meals == null:
+		return ""
+	return (_c.tr("SETTLER_HUNGRY") if _c.meals.hungry() else "") + (_c.tr("SETTLER_THIRSTY") if _c.meals.thirsty() else "")
 
 
 func _describe() -> String:

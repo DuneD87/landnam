@@ -1151,7 +1151,8 @@ func _open_container(content: Inventory) -> void:
 	content.tree_exiting.connect(_on_container_exiting)
 	_create_loot_slots()
 	_dismantle_storage_button.visible = _storage != null
-	_storage_jobs.visible = _storage != null
+	# El comedero no tiene oficios: de él comen todos y solo el cocinero deja en él.
+	_storage_jobs.visible = _storage != null and not _storage.feeder
 	if _storage != null:
 		for id in _storage_job_buttons:
 			(_storage_job_buttons[id] as Button).set_pressed_no_signal(_storage.jobs.has(id))

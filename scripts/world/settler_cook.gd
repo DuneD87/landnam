@@ -3,7 +3,8 @@ class_name SettlerCook extends SettlerTask
 ## El colono cocinero: asa en la hoguera de la base (Campfire, la más cercana a ella a menos de
 ## Companion.BASE_RADIUS m) lo crudo que haya en los cofres y guarda lo asado. No necesita
 ## herramienta. Va y viene entre dos sitios:
-## - en el cofre deja lo asado que trae (en el que acepte su oficio) y coge lo crudo que quepa en los
+## - en el cofre deja lo asado que trae (antes en el comedero, Storage.feeder, y si no en el cofre que
+##   acepte su oficio) y coge lo crudo que quepa en los
 ##   huecos libres de la hoguera y, si al fuego le queda poco (FUEL_LOW s), leña (FUEL_LOAD de lo que
 ##   arda: madera antes que otra cosa);
 ## - en la hoguera recoge lo ya asado, pone lo crudo (una pieza por hueco), echa la leña y la
@@ -119,7 +120,10 @@ func away(delta: float, _hour: float) -> void:
 		return
 	_away_left = AWAY_EVERY
 	_at_fire(fire)
-	for chest in chests():
+	# Antes los comederos, para que lo asado vaya a ellos.
+	var all := feeders()
+	all.append_array(chests())
+	for chest in all:
 		_at_chest(chest, fire)
 	_at_fire(fire)
 
@@ -139,17 +143,24 @@ func _pick_chest(fire: Campfire) -> Storage:
 			if _fuel_in(chest.inventory) != null:
 				return chest
 	if not _done.is_empty():
-		for chest in chests(SettlerWork.JOB_IDS[SettlerWork.Job.COOK], true):
+		for chest in _outlets():
 			for id: StringName in _done:
 				if SettlerWork._room(chest.inventory, ItemCatalog.get_item(id)):
 					return chest
 	return null
 
 
+## Dónde deja lo asado: antes los comederos (Storage.feeder) y luego los cofres que aceptan su oficio.
+func _outlets() -> Array[Storage]:
+	var out := feeders()
+	out.append_array(chests(SettlerWork.JOB_IDS[SettlerWork.Job.COOK], true))
+	return out
+
+
 ## En [chest]: deja lo asado (si acepta su oficio) y coge lo crudo que cabe en la hoguera y la leña
 ## que le falta.
 func _at_chest(chest: Storage, fire: Campfire) -> void:
-	if chest.accepts_job(SettlerWork.JOB_IDS[SettlerWork.Job.COOK]):
+	if chest.feeder or chest.accepts_job(SettlerWork.JOB_IDS[SettlerWork.Job.COOK]):
 		for id: StringName in _done.keys():
 			var item := ItemCatalog.get_item(id)
 			var have := mini(int(_done[id]), carried(item))
@@ -212,7 +223,7 @@ func _from_pack(fire: Campfire) -> void:
 			_load[fuel.id] = mini(FUEL_LOAD, carried(fuel))
 	if not _done.is_empty():
 		var room := false
-		for chest in chests(SettlerWork.JOB_IDS[SettlerWork.Job.COOK], true):
+		for chest in _outlets():
 			for id: StringName in _done:
 				room = room or SettlerWork._room(chest.inventory, ItemCatalog.get_item(id))
 		if not room:

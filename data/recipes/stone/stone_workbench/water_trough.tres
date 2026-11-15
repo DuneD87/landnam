@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RecipeData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/recipe_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+result = &"water_trough"
+inputs = Dictionary[StringName, int]({
+&"wood_01": 8,
+&"raw_hide": 2
+})
+station = &"stone_workbench"

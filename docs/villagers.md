@@ -495,12 +495,31 @@ que se guardan con él) para volver con **A la base**.
   amanecer se levanta y aparece de pie a los pies del petate.
 - Si un sitio no se alcanza en 4 s de atasco, hace allí lo que iba a hacer (el petate, encima).
 
-**Come** (`SettlerMeals`): le dura saciado 36 h de juego (la mitad que al jugador) y, por debajo de 6 h,
-come hasta tener 14: primero de su morral y, si no, de cualquier cofre de la base (sin ir hasta él). Lo
-asado antes que lo crudo, y de ello lo que más llena; cada pieza da lo que da al jugador (lo asado,
-~12 h). Sin nada llega a cero y **pasa hambre**: trabaja a la mitad de ritmo, no recupera vida y se
-avisa en la barra (y en su estado sale «· con hambre»). No muere. El reloj es el del mundo
-(`WorldTime`): durmiendo el jugador, también. Lo que se le queda en el morral y la hora se guardan.
+**Come y bebe** (`SettlerMeals`), del **comedero** y del **bebedero** de la base (a menos de 60 m de ella):
+
+- **Comer**: le dura saciado 36 h de juego (la mitad que al jugador) y, por debajo de 6 h, come hasta
+  tener 14: primero de su morral y, si ahí no hay nada o solo algo crudo, del comedero. Lo asado antes
+  que lo crudo, y de ello lo que más llena; cada pieza da lo que da al jugador (lo asado, ~12 h). Los
+  cofres normales ya no le dan de comer.
+- **Beber**: le dura bebido 24 h y, por debajo de 8 h, bebe del bebedero hasta tener 20; cada trago da
+  16 h, así que gasta un trago y medio al día (60 tragos, unos dos días para 20 colonos).
+- **Cerca del jugador va andando** (`SettlerMeals.trip`, `Companion._go_eat`): deja lo que hace (no
+  dormido), va al comedero o al bebedero más cercano que tenga algo (con hambre y sed, primero a comer),
+  come o bebe al llegar y se queda 6 s de pie junto a él; luego sigue con su trabajo. Si en 60 s no
+  llega, come o bebe donde esté. **Lejos**, sin moverse.
+- Sin comida o sin agua llega a cero y **pasa hambre** o **sed**: trabaja a la mitad de ritmo (con
+  las dos, a un cuarto), no recupera vida y se avisa en la barra (y en su estado sale «· con hambre» o
+  «· con sed»). No muere. El reloj es el del mundo (`WorldTime`): durmiendo el jugador, también. Lo que
+  se le queda en el morral y las horas de hambre y de sed se guardan.
+
+El **comedero** (`feeding_trough`, banco de piedra: 10 de madera) es un `Storage` con
+`StorageTrait.feeder` y 12 huecos que solo admiten comida (`FeederInventoryRules`): nadie deja en él lo
+que saca, salvo el cocinero lo asado; al abrirlo no salen los oficios. El **bebedero** (`water_trough`,
+banco de piedra: 8 de madera y 2 pieles; `WaterTrough`) guarda hasta 60 tragos, como los odres, y se ve
+el agua subir. Con E el jugador vierte en él lo que llevan sus odres; si no lleva agua y tiene sed, bebe
+de él; si no, dice cuánto tiene. También lo llena la lluvia (hasta 4 tragos por hora de juego; la
+nieve, la mitad), pero solo a menos de 200 m del jugador, porque el tiempo es el del sitio del jugador.
+Lo que tiene se guarda con él.
 
 **Defiende la base**: pelea como el compañero, con lo que ataca a menos de 25 m de la base a él, a
 otro compañero o al jugador; lo deja a más de 30 m de ella. Si duerme, se despierta. Lo que pasa a
@@ -597,12 +616,19 @@ en el morral*). Lejos del jugador cada uno sigue a su manera, sin moverse.
   los lleva al cofre. Sin agua en su zona se queda parado. Lejos, si ya había encontrado su orilla
   (se guarda), uno cada 90 s.
 - **Cocinero** (`SettlerCook`, **Cocina**): asa en la hoguera de la base lo crudo que haya en los cofres
-  y guarda lo asado en el que acepte su oficio. Coge lo crudo que quepa en los huecos libres y, si al
+  (y en los comederos) y guarda lo asado en el comedero o, si no hay o está lleno, en el cofre que acepte
+  su oficio. Coge lo crudo que quepa en los huecos libres y, si al
   fuego le quedan menos de 90 s, 6 de leña (madera antes que otra cosa); recoge lo asado, pone lo crudo,
   echa la leña y enciende. Trabaja hasta la hora de acostarse: al atardecer mantiene la hoguera encendida
   para los que se sientan alrededor. Sin hoguera a menos de 40 m de la base, parado. No tiene zona.
+- **Aguador** (`SettlerWater`, **Trae agua**): necesita **odres** en el morral y lleva los tragos que
+  quepan en todos (20 por odre). Busca la orilla de agua dulce más cercana de su zona (como el pescador,
+  `SettlerTask.find_shore`, pero solo ríos, lagos y charcas: `WaterAccess.kind_at`), llena los odres en
+  6 s y los vacía en el bebedero de la base con más sitio. Con todos llenos espera (vuelve a mirar cada
+  20 s). Sin bebedero o sin agua dulce en su zona, parado. Lejos, si ya había encontrado su orilla, echa
+  sus odres una vez cada 2 minutos. Lo que lleva y su orilla se guardan.
 
-Con hambre todos van a la mitad de ritmo.
+Con hambre o con sed todos van a la mitad de ritmo (con las dos, a un cuarto).
 
 La carga pendiente del cocinero y del cazador se guarda con su oficio: al cargar la partida o volver
 a la base después de acompañar al jugador, siguen entregando lo que llevaban en el morral.
@@ -629,7 +655,7 @@ se sienta (`ThroneView`: `village/throne_sit` y luego `village/throne_idle`, en 
   **Ninguno**);
 - y los oficios por categoría, cada uno con su dibujo (`OrderGlyphs`, el mismo trazo que la rueda del
   grupo) en el color de su zona: **Recursos** (Tala árboles, Pica piedra, Limpia una zona), **Comida**
-  (Sal a cazar, Ponte a pescar, Cocina), **Obras** (Construye las obras) y **Defensa** (Guardia de día,
+  (Sal a cazar, Ponte a pescar, Cocina, Trae agua), **Obras** (Construye las obras) y **Defensa** (Guardia de día,
   Guardia de noche); aparte, **Deja eso** y **Seguidme**. Salvo cocinar, sale un círculo bajo el ratón: clic lo pone (la rueda cambia el radio, de
   4 a 60 m); con clic derecho van alrededor de su base, y limpiar y la guardia se cancelan.
   **Seguidme** se lleva a los elegidos que quepan en el grupo: dejan la base (acordándose de ella y de
@@ -654,8 +680,10 @@ quieto), el grupo lleno a 6, esperad / seguidme / retirada, que el colono que se
 acuerda de su base y su trabajo (y se guarda) y vuelve con **A la base** (también lejos), el
 constructor (parado sin martillo o sin material, levanta la obra desde el cofre, lo sobrante al cofre,
 lejos sin moverse), el guardia (ronda por el borde, turnos, puesto de noche), el cocinero (del cofre a
-la hoguera y lo asado al cofre; lejos), las comidas (lo asado antes que lo crudo, medio ritmo con
-hambre), el cazador y el pescador lejos, y el guardado de cada trabajo. El cazador y el pescador de
+la hoguera y lo asado al cofre o al comedero; lejos), las comidas (del comedero y no de los cofres,
+lo asado antes que lo crudo, medio ritmo con hambre), la sed (el bebedero y su guardado, beber lejos
+sin moverse, cerca ir andando primero al comedero y luego al bebedero, un cuarto de ritmo con hambre y
+sed, el aguador sin odre, lejos y su guardado), el cazador y el pescador lejos, y el guardado de cada trabajo. El cazador y el pescador de
 cerca necesitan criaturas y agua reales: solo se prueban con ventana.
 
 `tests/world/test_settlements.tscn` (`_check_villagers`). Sobre un poblado de prueba, con los pasos de
@@ -679,7 +707,9 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
 
 ## Limitaciones
 
-- Los colonos no beben ni se intoxican con lo crudo. El pescador no lanza de verdad (saca a su ritmo,
+- Los colonos no se intoxican con lo crudo, y sin cocinero lo que cazan y pescan se queda en los cofres:
+  hay que pasarlo al comedero a mano. Comen y beben de pie, sin animación. El bebedero lejos del jugador
+  no recoge lluvia. El pescador no lanza de verdad (saca a su ritmo,
   haya peces o no) y el cazador despieza con la animación de cavar. El constructor no sube a andamios:
   una obra alta se martillea desde el suelo. El trono aún usa el icono del cofre. Sin ventana no se puede probar el
   trabajo de cerca: los cuerpos de los árboles no se regeneran alrededor del jugador. Cargar una partida

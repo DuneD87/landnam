@@ -1,31 +1,53 @@
 class_name SettlerMeals extends RefCounted
 
-## El hambre de un colono (Companion viviendo en la base). Lleva las horas de juego que le quedan
-## saciado (fed), que bajan con el reloj del mundo (WorldTime: también mientras el jugador duerme).
-## Por debajo de EAT_BELOW horas come: primero de su morral y, si no, de los cofres de la base
-## (cualquiera, a menos de SettlerWork.CHEST_REACH m de ella), sin ir hasta ellos. Prefiere lo que no
-## intoxica (lo asado) y, de eso, lo que más llena; lo crudo solo si no hay otra cosa. Cada pieza le
-## da lo que llena al jugador (EdibleTrait.hunger) por FULL_HOURS, y come hasta tener EAT_UNTIL horas.
+## El hambre y la sed de un colono (Companion viviendo en la base). Lleva las horas de juego que le
+## quedan saciado (fed) y bebido (watered), que bajan con el reloj del mundo (WorldTime: también
+## mientras el jugador duerme).
 ##
-## Sin nada que comer llega a cero y pasa hambre: trabaja a la mitad de ritmo (SettlerWork.pace) y no
-## recupera vida, pero no muere. Se avisa en la barra, como mucho cada NOTIFY_EVERY s entre todos.
-## Quien acompaña al jugador no pasa hambre. Ver docs/villagers.md.
+## Come por debajo de EAT_BELOW horas: primero de su morral y, si ahí solo hay algo que intoxica (lo
+## crudo) o nada, del comedero de la base (Storage.feeder, a menos de REACH m de ella). Prefiere lo que
+## no intoxica (lo asado) y, de eso, lo que más llena. Cada pieza le da lo que llena al jugador
+## (EdibleTrait.hunger) por FULL_HOURS, y come hasta tener EAT_UNTIL horas. Los cofres normales ya no
+## le dan de comer.
+##
+## Bebe por debajo de DRINK_BELOW horas, del bebedero de la base (WaterTrough): cada trago le da
+## SIP_HOURS, hasta DRINK_UNTIL.
+##
+## Cerca del jugador va andando hasta el comedero o el bebedero (trip: lo lleva Companion._go_eat) y
+## come o bebe al llegar (arrive); lejos, sin moverse.
+##
+## Sin comida o sin agua llega a cero y pasa hambre o sed: trabaja a la mitad de ritmo (con las dos, a
+## un cuarto: pace) y no recupera vida, pero no muere. Se avisa en la barra, como mucho cada
+## NOTIFY_EVERY s entre todos. Quien acompaña al jugador no pasa hambre ni sed. Ver docs/villagers.md.
 
 ## Lo que dura saciado del todo (horas de juego): la mitad de lo que gasta el jugador.
 const FULL_HOURS := 36.0
 const START_HOURS := 12.0
 const EAT_BELOW := 6.0
 const EAT_UNTIL := 14.0
+## Lo que dura bebido del todo, al empezar, cuándo bebe, hasta cuánto y lo que da cada trago (horas).
+## Así gasta un trago y medio al día.
+const WATER_HOURS := 24.0
+const START_WATER := 16.0
+const DRINK_BELOW := 8.0
+const DRINK_UNTIL := 20.0
+const SIP_HOURS := 16.0
+## Hasta dónde de la base valen el comedero y el bebedero (m).
+const REACH := SettlerWork.CHEST_REACH
 const CHECK_EVERY := 10.0
 const NOTIFY_EVERY := 180.0
 
 static var _last_notice := -INF
 
 var fed := START_HOURS
+var watered := START_WATER
+## Cerca del jugador, a dónde va a comer o beber (el comedero o el bebedero), o null.
+var trip: Node3D
 
 var _c: Companion
 var _check_left := 0.0
 var _starving := false
+var _parched := false
 
 
 func _init(companion: Companion) -> void:
@@ -36,44 +58,84 @@ func hungry() -> bool:
 	return fed <= 0.0
 
 
-## Un paso (viviendo en la base, cerca o lejos del jugador).
-func tick(delta: float) -> void:
-	fed = maxf(fed - WorldTime.hours_elapsed(delta), 0.0)
+func thirsty() -> bool:
+	return watered <= 0.0
+
+
+## Le falta algo (comida o agua): no recupera vida.
+func wanting() -> bool:
+	return hungry() or thirsty()
+
+
+## El ritmo al que trabaja: con hambre o con sed, a la mitad; con las dos, a un cuarto.
+func pace() -> float:
+	return (SettlerWork.HUNGRY_PACE if hungry() else 1.0) * (SettlerWork.HUNGRY_PACE if thirsty() else 1.0)
+
+
+## Un paso (viviendo en la base). [near]: cerca del jugador, va andando a comer y a beber.
+func tick(delta: float, near := false) -> void:
+	var hours := WorldTime.hours_elapsed(delta)
+	fed = maxf(fed - hours, 0.0)
+	watered = maxf(watered - hours, 0.0)
 	_check_left -= delta
 	if _check_left > 0.0:
 		return
 	_check_left = CHECK_EVERY
-	if fed >= EAT_BELOW:
-		_starving = false
-		return
-	eat()
-	if fed > 0.0:
-		_starving = false
-	elif not _starving:
-		_starving = true
-		var now := SettlerWork._now()
-		if now - _last_notice >= NOTIFY_EVERY:
-			_last_notice = now
-			_c.notify(_c.tr("SETTLER_STARVING") % String(_c.resident.get("name", "")))
+	if not near:
+		trip = null
+		if fed < EAT_BELOW:
+			eat(_feeders())
+		if watered < DRINK_BELOW:
+			drink(_troughs())
+	else:
+		# Lo de su morral, sin ir a ningún sitio.
+		if fed < EAT_BELOW and _pack_meal() != null:
+			eat([])
+		if not _trip_valid():
+			trip = _next_trip()
+	_notices()
 
 
-## Come de lo que haya hasta tener EAT_UNTIL horas. Devuelve cuántas piezas ha comido.
-func eat() -> int:
+## Ha llegado a [trip] (o no llega): come o bebe allí y mira si le falta ir a otro.
+func arrive() -> void:
+	var at := trip
+	trip = null
+	if at is Storage:
+		eat([at as Storage])
+	elif at is WaterTrough:
+		drink([at as WaterTrough])
+	trip = _next_trip()
+	_notices()
+
+
+## Come de lo que haya (su morral y [from]) hasta tener EAT_UNTIL horas. Devuelve cuántas piezas ha
+## comido.
+func eat(from: Array[Storage]) -> int:
 	var eaten := 0
 	while fed < EAT_UNTIL:
-		var from := _c.pack
-		var food := best_food(from)
+		var bag := _c.pack
+		var food := best_food(bag)
 		if food == null or _intoxicates(food):
-			for bag in _larders():
-				var other := best_food(bag)
+			for feeder in from:
+				var other := best_food(feeder.inventory)
 				if other != null and (food == null or _score(other) > _score(food)):
 					food = other
-					from = bag
-		if food == null or from.remove_item(food, 1) != 1:
+					bag = feeder.inventory
+		if food == null or bag.remove_item(food, 1) != 1:
 			break
 		fed += (food.get_trait(EdibleTrait) as EdibleTrait).hunger * FULL_HOURS
 		eaten += 1
 	return eaten
+
+
+## Bebe de [from] hasta tener DRINK_UNTIL horas. Devuelve cuántos tragos ha bebido.
+func drink(from: Array[WaterTrough]) -> int:
+	var sips := 0
+	for trough in from:
+		while watered < DRINK_UNTIL and trough.take(1) == 1:
+			watered = minf(watered + SIP_HOURS, WATER_HOURS)
+			sips += 1
+	return sips
 
 
 ## Lo mejor que comer de [bag], o null.
@@ -97,15 +159,66 @@ static func _intoxicates(data: ItemData) -> bool:
 	return (data.get_trait(EdibleTrait) as EdibleTrait).intoxication_chance > 0.0
 
 
-## Los cofres de su base.
-func _larders() -> Array[Inventory]:
-	var out: Array[Inventory] = []
-	if not _c.base.is_finite():
-		return out
-	var home := _c._terrain.global_transform * _c.base
-	for node in _c.get_tree().get_nodes_in_group(Storage.GROUP):
-		var chest := node as Storage
-		if chest != null and chest.is_inside_tree() and not chest.is_queued_for_deletion() \
-				and chest.global_position.distance_to(home) <= SettlerWork.CHEST_REACH:
-			out.append(chest.inventory)
-	return out
+## Lo que comería de su morral sin ir al comedero (lo que no intoxica), o null.
+func _pack_meal() -> ItemData:
+	var food := best_food(_c.pack)
+	return food if food != null and not _intoxicates(food) else null
+
+
+## A dónde ir ahora: al comedero con comida si tiene hambre y, si no, al bebedero con agua si tiene
+## sed; el más cercano. Null si no le hace falta o no hay.
+func _next_trip() -> Node3D:
+	if fed < EAT_BELOW:
+		for feeder in _feeders():
+			if best_food(feeder.inventory) != null:
+				return feeder
+	if watered < DRINK_BELOW:
+		for trough in _troughs():
+			if trough.water > 0:
+				return trough
+	return null
+
+
+func _trip_valid() -> bool:
+	return is_instance_valid(trip) and trip.is_inside_tree() and not trip.is_queued_for_deletion()
+
+
+## Los comederos y los bebederos de su base, del más cercano a él al más lejano.
+func _feeders() -> Array[Storage]:
+	var home := _home()
+	if not home.is_finite():
+		return []
+	return Storage.feeders(_c.get_tree(), home, REACH, _c.global_position)
+
+
+func _troughs() -> Array[WaterTrough]:
+	var home := _home()
+	if not home.is_finite():
+		return []
+	return WaterTrough.around(_c.get_tree(), home, REACH, _c.global_position)
+
+
+func _home() -> Vector3:
+	return _c._terrain.global_transform * _c.base if _c.base.is_finite() else Vector3.INF
+
+
+## Los avisos al quedarse sin comida o sin agua (uno de cada cada NOTIFY_EVERY s entre todos).
+func _notices() -> void:
+	var name := String(_c.resident.get("name", ""))
+	if fed > 0.0:
+		_starving = false
+	elif not _starving:
+		_starving = true
+		_notify(_c.tr("SETTLER_STARVING") % name)
+	if watered > 0.0:
+		_parched = false
+	elif not _parched:
+		_parched = true
+		_notify(_c.tr("SETTLER_PARCHED") % name)
+
+
+func _notify(text: String) -> void:
+	var now := SettlerWork._now()
+	if now - _last_notice >= NOTIFY_EVERY:
+		_last_notice = now
+		_c.notify(text)

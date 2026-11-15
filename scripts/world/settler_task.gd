@@ -94,7 +94,7 @@ func walk(dest: Vector3, reach: float, delta: float, key: Object) -> Walk:
 # --- Cofres ---------------------------------------------------------------------------------------
 
 ## Los cofres de la base (en campo, los de cerca de la zona: SettlerWork.home) que aceptan el oficio
-## [id] (&"": todos), del más cercano a él al más lejano; con [marked_first], antes los marcados con ese
+## [id] (&"": todos, también los comederos), del más cercano a él al más lejano; con [marked_first], antes los marcados con ese
 ## oficio.
 func chests(id: StringName = &"", marked_first := false) -> Array[Storage]:
 	var out: Array[Storage] = []
@@ -115,6 +115,14 @@ func chests(id: StringName = &"", marked_first := false) -> Array[Storage]:
 		var db := b.global_position.distance_to(here) + (0.0 if not marked_first or b.jobs.has(id) else 1000.0)
 		return da < db)
 	return out
+
+
+## Los comederos de la base (Storage.feeder; en campo, los de cerca de la zona), del más cercano a él.
+func feeders() -> Array[Storage]:
+	var home := w.home()
+	if not home.is_finite():
+		return []
+	return Storage.feeders(c.get_tree(), home, w.chest_reach(), c.global_position)
 
 
 ## Cuánto hay de [data] entre [from].
@@ -166,3 +174,84 @@ func best_in_pack(score: Callable) -> ItemData:
 ## El nombre del colono, para los avisos.
 func who() -> String:
 	return String(c.resident.get("name", ""))
+
+# --- La orilla ------------------------------------------------------------------------------------
+
+## La orilla (find_shore): anillos cada RING_STEP m con ANGLES tanteos; del agua hacia tierra, pasos de
+## SHORE_STEP m (hasta SHORE_STEPS). El agua tiene que cubrir WATER_DEPTH m.
+const RING_STEP := 3.0
+const ANGLES := 16
+const SHORE_STEP := 0.75
+const SHORE_STEPS := 16
+const WATER_DEPTH := 0.6
+
+
+## La orilla de su zona más cercana a él: el agua más cercana (con [fresh], solo la dulce: ríos, lagos y
+## charcas, WaterAccess.kind_at) y, de ella hacia el centro de la zona, el primer sitio seco. Devuelve
+## [dónde ponerse, el agua a la que mira] (marco del terreno) o [] si no hay (o el terreno aún no está
+## cargado).
+func find_shore(fresh := false) -> Array:
+	var terrain := c._terrain as VoxelLodTerrain
+	var sea := _sea_radius()
+	if terrain == null or sea <= 0.0:
+		return []
+	var tool := terrain.get_voxel_tool() as VoxelToolLodTerrain
+	tool.channel = VoxelBuffer.CHANNEL_SDF
+	var origin := terrain.global_position
+	var middle := center()
+	var up := (middle - origin).normalized()
+	var side := up.cross(Vector3.UP if absf(up.y) < 0.99 else Vector3.RIGHT).normalized()
+	var best := Vector3.INF
+	var best_d := INF
+	var r := RING_STEP
+	while r <= w.zone_radius:
+		for k in ANGLES:
+			var point := middle + side.rotated(up, TAU * k / ANGLES) * r
+			if not _wet(terrain, tool, origin, point, sea) or (fresh and not _fresh(point, terrain, sea)):
+				continue
+			var d := point.distance_to(c.global_position)
+			if d < best_d:
+				best = point
+				best_d = d
+		r += RING_STEP
+	if not best.is_finite():
+		return []
+	var inland := (middle - best).slide(up)
+	if inland.length() < 0.1:
+		return []
+	inland = inland.normalized()
+	for i in range(1, SHORE_STEPS + 1):
+		var point := best + inland * SHORE_STEP * i
+		if _wet(terrain, tool, origin, point, sea):
+			continue
+		var to_local := terrain.global_transform.affine_inverse()
+		# Un paso más adentro: los pies, en seco.
+		return [to_local * (point + inland * SHORE_STEP), to_local * best]
+	return []
+
+
+## Si en la vertical de [point] hay agua que cubra WATER_DEPTH m (los vóxeles sin cargar no cuentan).
+func _wet(terrain: VoxelLodTerrain, tool: VoxelToolLodTerrain, origin: Vector3, point: Vector3, sea: float) -> bool:
+	var dir := (point - origin).normalized()
+	return WaterAccess._has_water(terrain, tool, origin + dir * sea) \
+		and WaterAccess._has_water(terrain, tool, origin + dir * (sea - WATER_DEPTH))
+
+
+## Si el agua de [point] (a la altura del mar) es dulce.
+func _fresh(point: Vector3, terrain: VoxelLodTerrain, sea: float) -> bool:
+	var host: Variant = c._player.get("planet") if c._player != null and is_instance_valid(c._player) else null
+	var core := (host as Node).get("planet") as Planet if host is Node else null
+	if core == null:
+		return false
+	var holder := (host as Node).get("world_map") as PlanetWorldMap
+	var map := holder.map if holder != null and holder.is_ready() else null
+	return WaterAccess.kind_at(point, terrain, map, core.get_river_network(), sea) == &"fresh"
+
+
+## El radio del mar del planeta, o 0 si no tiene agua.
+func _sea_radius() -> float:
+	var host: Variant = c._player.get("planet") if c._player != null and is_instance_valid(c._player) else null
+	var core := (host as Node).get("planet") as Planet if host is Node else null
+	if core == null or not core.has_water:
+		return 0.0
+	return core.radius - core.water_radius
