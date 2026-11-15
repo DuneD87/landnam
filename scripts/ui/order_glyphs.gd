@@ -152,6 +152,21 @@ static func draw(ci: RID, key: StringName, at: Vector2, size: float, color: Colo
 				_dot(ci, mark, h * 0.24, color)
 			elif key == &"guard_night":
 				_arc(ci, mark, h * 0.26, PI * 0.35, PI * 1.65, color, w)
+		&"bed":
+			# Un petate visto de lado: la manta sobre el suelo y la almohada.
+			_poly(ci, [at + Vector2(-h, h * 0.55), at + Vector2(-h, -h * 0.1), at + Vector2(h, -h * 0.1),
+				at + Vector2(h, h * 0.55)], color, w)
+			_line(ci, at + Vector2(-h * 1.05, h * 0.55), at + Vector2(h * 1.05, h * 0.55), color, w)
+			_fill(ci, [at + Vector2(-h * 0.85, -h * 0.15), at + Vector2(-h * 0.85, -h * 0.55),
+				at + Vector2(-h * 0.25, -h * 0.55), at + Vector2(-h * 0.25, -h * 0.15)], color)
+		&"food":
+			# Un cuenco con vapor.
+			_arc(ci, at + Vector2(0, h * 0.05), h * 0.85, 0.0, PI, color, w)
+			_line(ci, at + Vector2(-h, h * 0.05), at + Vector2(h, h * 0.05), color, w)
+			for k in 2:
+				var x := (k - 0.5) * h * 0.7
+				_poly(ci, [at + Vector2(x, -h * 0.25), at + Vector2(x + h * 0.15, -h * 0.55),
+					at + Vector2(x - h * 0.05, -h * 0.85)], color, w * 0.8)
 		&"stop":
 			# Un círculo tachado.
 			_arc(ci, at, h * 0.9, 0.0, TAU, color, w)

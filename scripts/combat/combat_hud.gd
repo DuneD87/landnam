@@ -239,12 +239,15 @@ func _process(delta: float) -> void:
 	_canvas.queue_redraw()
 
 
-## Llena las orbes de la barra rápida. En vuelo libre o sin cuerpo no salen (ni su consola).
+## Llena las orbes de la barra rápida. En vuelo libre, sin cuerpo o en la vista del trono (que pone sus
+## tarjetas en ese sitio) no salen (ni su consola).
 func _update_orbs(delta: float) -> void:
 	var hotbar: Hotbar = combat.player.hotbar
 	if hotbar == null or hotbar.health_orb == null:
 		return
-	var shown := not combat.player.free_flight_enabled and combat.player.visible
+	var throne := combat.player.throne_view
+	var shown := not combat.player.free_flight_enabled and combat.player.visible \
+		and not (throne != null and throne.is_viewing())
 	hotbar.set_vitals_shown(shown)
 	if not shown:
 		return
@@ -357,6 +360,9 @@ func _on_draw() -> void:
 	if combat == null or combat.player == null:
 		return
 	if combat.player.free_flight_enabled or not combat.player.visible:
+		return
+	# En la vista del trono, abajo van las tarjetas de los colonos.
+	if combat.player.throne_view != null and combat.player.throne_view.is_viewing():
 		return
 	_draw_body()
 	_draw_enemy_bars()

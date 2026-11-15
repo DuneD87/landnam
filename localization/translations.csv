@@ -1830,7 +1830,26 @@ THRONE_EMPTY,No settlers live near this throne. Ask a companion to stay and live
 THRONE_ORDERS,Orders,Órdenes,colonos
 THRONE_ORDER_CLEAR,Clear an area,Limpia una zona,colonos
 THRONE_IDLE,No work: lives at the base.,Sin trabajo: hace su vida en la base.,colonos
-THRONE_HINT_SELECT,Pick settlers in the list or click their names on the map.,Elige colonos en la lista o pincha sus nombres en el mapa.,colonos
+THRONE_HINT_SELECT,Pick settlers in the cards below or click their names on the map.,Elige colonos en las tarjetas de abajo o pincha sus nombres en el mapa.,colonos
+THRONE_CARDS_HELP,Click: choose · Double click: look at them,Clic: elegir · Doble clic: ir a verlo,colonos
+THRONE_BASE_TITLE,Base supplies · %d settlers,Recursos de la base · %d colonos,colonos
+THRONE_BEDS,Beds,Camas,colonos
+THRONE_BEDS_OK,One for each settler,Una por colono,colonos
+THRONE_BEDS_SPARE,%d to spare,Sobran %d,colonos
+THRONE_BEDS_SHORT,%d short: they sleep on the ground,Faltan %d: duermen en el suelo,colonos
+THRONE_FOOD,Food,Comida,colonos
+THRONE_WATER,Water,Agua,colonos
+THRONE_DAYS,~%s days,~%s días,colonos
+THRONE_DAYS_NONE,None,Nada,colonos
+THRONE_DAYS_MANY,Over a month,Más de un mes,colonos
+THRONE_FOOD_FEEDERS,%d in feeders (%d cooked),%d en comederos (%d asadas),colonos
+THRONE_FOOD_PACKS,%d in their packs,%d en sus morrales,colonos
+THRONE_FOOD_CHESTS,%d in chests (they only eat from feeders),%d en cofres (solo comen del comedero),colonos
+THRONE_NO_FEEDER,No feeder: make one at the stone workbench,Sin comedero: hazlo en el banco de piedra,colonos
+THRONE_WATER_TROUGHS,%d / %d sips in %d troughs,%d / %d tragos en %d bebederos,colonos
+THRONE_NO_TROUGH,No water trough: make one at the stone workbench,Sin bebedero: hazlo en el banco de piedra,colonos
+THRONE_HUNGRY_COUNT,%d hungry,%d con hambre,colonos
+THRONE_THIRSTY_COUNT,%d thirsty,%d con sed,colonos
 THRONE_HINT_ORDER,%d chosen. Give them an order.,%d elegidos. Dales una orden.,colonos
 THRONE_HINT_ZONE,"Click: mark the area · Wheel: radius (%d m) · Right click: around their base · Esc: cancel","Clic: marca la zona · Rueda: radio (%d m) · Clic derecho: alrededor de su base · Esc: cancelar",colonos
 THRONE_HINT_CLEAR,"Click: mark the area to clear · Wheel: radius (%d m) · Right click or Esc: cancel","Clic: marca la zona a limpiar · Rueda: radio (%d m) · Clic derecho o Esc: cancelar",colonos

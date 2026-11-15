@@ -12,8 +12,8 @@ extends CanvasLayer
 ## se queda abierta si se suelta o se pulsa sobre ella) y se elige una llevando el cursor hasta allí.
 ## Trabajad, igual: se despliegan los oficios (set_jobs) y el elegido va a los elegidos (work_chosen).
 ##
-## Abajo, sobre la hotbar (que se tapa mientras tanto), va el grupo en tarjetas (como en Mount &
-## Blade): el número, el retrato (CompanionPortraits), el nombre, qué hace y su vida y su comida. Las
+## Abajo, sobre la hotbar (que se tapa mientras tanto), va el grupo en tarjetas (CompanionCards, las
+## mismas que en el trono): el número, el retrato, el nombre, qué hace y su vida, su comida y su agua. Las
 ## teclas 1-9 eligen o quitan a cada uno y 0 (o º) a todos; las órdenes van solo a los elegidos. Se
 ## abre con todos elegidos menos los ocupados (trabajando en campo o de camino a un sitio) o, si el
 ## jugador mira a uno, solo con ese (como en Ghost Recon).
@@ -71,18 +71,6 @@ const SUB_OUTER := 340.0
 const SUB_SPAN := 150.0
 const SUB_EACH := 32.0
 const SUB_ICON := 52.0
-## Las tarjetas del grupo: CARD_W x CARD_H, a CARD_GAP una de otra, con el retrato de PORTRAIT de lado
-## y las barras de BAR_H de alto. Se apoyan en el fondo de la hotbar y suben por encima de ella.
-const CARD_W := 164.0
-const CARD_H := 196.0
-const CARD_GAP := 10.0
-const PORTRAIT := 108.0
-const BAR_H := 7.0
-const HEALTH_COLOR := GameTheme.BLOOD
-const FOOD_COLOR := Color(0.86, 0.62, 0.27)
-## El sitio de la hotbar sin hotbar: el panel de la consola a la escala base.
-const STRIP_SIZE := Vector2(1048.0, 112.0)
-const STRIP_GAP := 22.0
 ## Un toque más corto que esto (s), sin apuntar a nada, deja la rueda abierta.
 const TAP_TIME := 0.25
 
@@ -109,12 +97,11 @@ var _job_glyphs: Array[StringName] = []
 var _expanded := false
 var _unfolded := Order.FORMATION
 var _sub := -1
-## El grupo: cada uno {name, state (ya traducidos), health y food (0-1), down, portrait (o null)} y si
-## está elegido.
+## El grupo: cada uno como una tarjeta de CompanionCards, y si está elegido.
 var _roster: Array[Dictionary] = []
 var _selected: Array[bool] = []
-## Dónde va la barra del grupo (la hotbar, en pantalla), o vacío para su sitio de siempre.
-var _strip := Rect2()
+## Las tarjetas, sobre la hotbar.
+var _cards: CompanionCards
 
 
 func _ready() -> void:
@@ -124,6 +111,8 @@ func _ready() -> void:
 	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_canvas.draw.connect(_draw_wheel)
 	add_child(_canvas)
+	_cards = CompanionCards.new()
+	_canvas.add_child(_cards)
 	visible = false
 
 
@@ -134,7 +123,8 @@ func _ready() -> void:
 ## camino); [strip]: dónde va la barra del grupo (la hotbar), o vacío.
 func open(summary: String, formations: Array[String], glyphs: Array[StringName], current: int, prey: String,
 		roster: Array[Dictionary], only := -1, strip := Rect2(), busy: Array[bool] = []) -> void:
-	_strip = strip
+	_cards.strip = strip
+	_cards.first = 0
 	_summary = summary
 	_formations = formations
 	_formation_glyphs = glyphs
@@ -153,6 +143,7 @@ func open(summary: String, formations: Array[String], glyphs: Array[StringName],
 	_sticky = false
 	_opened_at = Time.get_ticks_msec()
 	visible = true
+	_update_cards()
 	_canvas.queue_redraw()
 
 
@@ -172,7 +163,7 @@ func set_roster(roster: Array[Dictionary]) -> void:
 		return
 	_roster = roster
 	if visible:
-		_canvas.queue_redraw()
+		_update_cards()
 
 
 ## Con la rueda abierta: el retrato del puesto [k], que acaba de llegar.
@@ -180,8 +171,7 @@ func set_portrait(k: int, texture: Texture2D) -> void:
 	if k < 0 or k >= _roster.size():
 		return
 	_roster[k].portrait = texture
-	if visible:
-		_canvas.queue_redraw()
+	_cards.set_portrait(k, texture)
 
 
 ## Quiénes están elegidos (uno por puesto de la lista).
@@ -299,6 +289,7 @@ func _roster_key(key: Key) -> bool:
 	else:
 		return false
 	selection_changed.emit(selection())
+	_update_cards()
 	_canvas.queue_redraw()
 	return true
 
@@ -442,7 +433,6 @@ func _draw_wheel() -> void:
 
 	if _expanded:
 		_draw_sub(center, font, font_size)
-	_draw_roster(font, font_size)
 
 	if _cursor.length() >= DEAD_ZONE * s:
 		var tip := center + _cursor.normalized() * (inner - 8.0 * s)
@@ -501,98 +491,11 @@ func _draw_sub(center: Vector2, font: Font, font_size: int) -> void:
 			_canvas.draw_circle(center + _dir((a0 + a1) * 0.5) * (outer - 10.0 * s), 4.0 * s, GameTheme.BRONZE)
 
 
-## El grupo en tarjetas sobre la hotbar, centradas: en cada una, el retrato con su número, el nombre,
-## qué hace y las barras de vida y de comida; elegida, enmarcada en bronce y, si no, apagada. Encima,
-## las teclas.
-func _draw_roster(font: Font, font_size: int) -> void:
-	var n := _roster.size()
-	if n == 0:
-		return
-	var s := _ui_scale
-	var strip := _strip
-	if strip.size.x <= 0.0:
-		var size := STRIP_SIZE * s
-		strip = Rect2(Vector2((_canvas.size.x - size.x) * 0.5, _canvas.size.y - STRIP_GAP * s - size.y), size)
-	var gap := CARD_GAP * s
-	var w := minf(CARD_W * s, (maxf(strip.size.x, CARD_W * s * 2.0) - gap * (n - 1)) / n)
-	var h := CARD_H * s
-	var x0 := strip.get_center().x - (w * n + gap * (n - 1)) * 0.5
-	var top := strip.end.y - h
-	var small := roundi(font_size * 0.78)
-	var name_size := roundi(font_size * 0.86)
-	var pad := 8.0 * s
-	for k in n:
-		var entry := _roster[k]
-		var on := _selected[k]
-		var down := bool(entry.get("down", false))
-		var card := Rect2(x0 + (w + gap) * k, top, w, h)
-		_canvas.draw_rect(card, GameTheme.LEATHER_LIGHT if on else GameTheme.IRON_DEEP)
-		_canvas.draw_rect(card, GameTheme.BRONZE if on else GameTheme.BRONZE_LINE, false, maxf(1.0, (2.0 if on else 1.0) * s))
-		# El retrato (o, mientras se hace, una silueta).
-		var side := minf(PORTRAIT * s, w - pad * 2.0)
-		var frame := Rect2(Vector2(card.get_center().x - side * 0.5, card.position.y + pad), Vector2(side, side))
-		_canvas.draw_rect(frame, Color(0.0, 0.0, 0.0, 0.35))
-		var fade := Color(1, 1, 1, 1.0 if on else 0.45)
-		var portrait := entry.get("portrait") as Texture2D
-		if portrait != null:
-			_canvas.draw_texture_rect(portrait, frame, false, Color(1.0, 0.55, 0.5, fade.a) if down else fade)
-		else:
-			var ghost := Color(GameTheme.MUTED, 0.35 * fade.a)
-			_canvas.draw_circle(frame.get_center() - Vector2(0, side * 0.08), side * 0.2, ghost)
-			_canvas.draw_colored_polygon(PackedVector2Array([frame.position + Vector2(side * 0.2, side),
-				frame.position + Vector2(side * 0.3, side * 0.72), frame.position + Vector2(side * 0.7, side * 0.72),
-				frame.position + Vector2(side * 0.8, side)]), ghost)
-		_canvas.draw_rect(frame, GameTheme.BRONZE_LINE, false, maxf(1.0, s))
-		# Su número, en la esquina del retrato.
-		var badge := frame.position + Vector2(13.0, 13.0) * s
-		_canvas.draw_circle(badge, 12.0 * s, GameTheme.IRON_DEEP)
-		_canvas.draw_arc(badge, 12.0 * s, 0.0, TAU, 24, GameTheme.BRONZE if on else GameTheme.BRONZE_LINE, maxf(1.0, s), true)
-		var key := str(k + 1)
-		var key_w := font.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, small).x
-		_canvas.draw_string(font, badge + Vector2(-key_w * 0.5, font.get_ascent(small) * 0.5 - 1.0 * s), key,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, small, GameTheme.BRONZE if on else GameTheme.MUTED)
-		# El nombre y qué hace.
-		var inner := w - pad * 2.0
-		var y := frame.end.y + 6.0 * s
-		var name_text := _fit(font, String(entry.get("name", "")), name_size, inner)
-		var name_w := font.get_string_size(name_text, HORIZONTAL_ALIGNMENT_LEFT, -1, name_size).x
-		_canvas.draw_string(font, Vector2(card.get_center().x - name_w * 0.5, y + font.get_ascent(name_size)), name_text,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, name_size, GameTheme.BONE if on else GameTheme.MUTED)
-		y += font.get_height(name_size)
-		var state := _fit(font, String(entry.get("state", "")), small, inner)
-		var state_w := font.get_string_size(state, HORIZONTAL_ALIGNMENT_LEFT, -1, small).x
-		_canvas.draw_string(font, Vector2(card.get_center().x - state_w * 0.5, y + font.get_ascent(small)), state,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, small, HEALTH_COLOR if down else GameTheme.MUTED)
-		# La vida y la comida, al pie.
-		var bar_h := maxf(3.0, BAR_H * s)
-		var bar_y := card.end.y - pad - bar_h * 2.0 - 4.0 * s
-		_bar(Rect2(card.position.x + pad, bar_y, inner, bar_h), float(entry.get("health", 1.0)), HEALTH_COLOR, fade.a)
-		_bar(Rect2(card.position.x + pad, bar_y + bar_h + 4.0 * s, inner, bar_h), float(entry.get("food", 1.0)),
-			FOOD_COLOR, fade.a)
-	var help := tr("GROUP_ROSTER_KEYS") % n
-	var help_w := font.get_string_size(help, HORIZONTAL_ALIGNMENT_LEFT, -1, small).x
-	_canvas.draw_string(font, Vector2(strip.get_center().x - help_w * 0.5, top - 8.0 * s - font.get_descent(small)),
-		help, HORIZONTAL_ALIGNMENT_LEFT, -1, small, GameTheme.MUTED)
-
-
-## Una barra de [rect] llena hasta [ratio] (0-1) de [color], con [alpha].
-func _bar(rect: Rect2, ratio: float, color: Color, alpha: float) -> void:
-	_canvas.draw_rect(rect, Color(0.0, 0.0, 0.0, 0.5 * alpha))
-	var fill := rect
-	fill.size.x *= clampf(ratio, 0.0, 1.0)
-	if fill.size.x > 0.0:
-		_canvas.draw_rect(fill, Color(color, alpha))
-	_canvas.draw_rect(rect, Color(GameTheme.BRONZE_LINE, GameTheme.BRONZE_LINE.a * alpha), false, 1.0)
-
-
-## [text] recortado con «…» para que quepa en [width] a [size].
-static func _fit(font: Font, text: String, size: int, width: float) -> String:
-	if font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x <= width:
-		return text
-	var cut := text
-	while cut.length() > 1 and font.get_string_size(cut + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > width:
-		cut = cut.left(-1)
-	return cut + "…"
+## Las tarjetas del grupo, con quiénes están elegidos.
+func _update_cards() -> void:
+	_cards.ui_scale = _ui_scale
+	_cards.help = tr("GROUP_ROSTER_KEYS") % _roster.size()
+	_cards.show_roster(_roster, _selected.duplicate())
 
 
 ## Dibujo de cada orden, en un cuadrado de [size] centrado en [at] (OrderGlyphs).

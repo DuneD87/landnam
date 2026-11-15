@@ -77,6 +77,8 @@ func _run() -> void:
 	await _check_ledge()
 	print("SECTION _check_thirst t=%.1f" % (Time.get_ticks_msec() / 1000.0))
 	await _check_thirst()
+	print("SECTION _check_supplies t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+	await _check_supplies()
 	_check_meals()
 	_check_hunter_away()
 	_check_saved()
@@ -642,6 +644,56 @@ func _check_cook() -> void:
 	fire.queue_free()
 	chest.queue_free()
 	feeder.queue_free()
+	await _clear()
+
+
+## Lo que tiene la base (BaseSupplies, el panel del trono): camas, comida del comedero, de los morrales
+## y de los cofres, agua y para cuántos días.
+func _check_supplies() -> void:
+	await _clear()
+	for node in get_tree().get_nodes_in_group(Storage.GROUP) + get_tree().get_nodes_in_group(WaterTrough.GROUP) \
+			+ get_tree().get_nodes_in_group(Bedroll.GROUP):
+		node.queue_free()
+	await _wait(0.1)
+	var at := Vector3(60.0, 0.05, -60.0)
+	var group: Array[Companion] = []
+	for k in 2:
+		var c := _spawn(at + Vector3(k, 0.0, 0.0), Companion.Mode.SETTLE)
+		c.settle_here(_local(at))
+		c.pack.clear()
+		group.append(c)
+	var empty := BaseSupplies.gather(get_tree(), group)
+	check(empty.settlers == 2 and empty.beds == 0 and empty.feeders == 0 and empty.troughs == 0
+		and is_zero_approx(empty.water_days), "sin nada en la base: dos colonos, sin camas ni comedero ni bebedero")
+	check(BaseSupplies.level_of_beds(0, 2) == BaseSupplies.Level.BAD and BaseSupplies.level_of_beds(1, 2) == BaseSupplies.Level.LOW
+		and BaseSupplies.level_of_beds(2, 2) == BaseSupplies.Level.GOOD, "camas: ninguna mal, alguna regular, una por cabeza bien")
+	var bed := Bedroll.new()
+	_host.add_child(bed)
+	bed.global_position = at + Vector3(5.0, 0.0, 0.0)
+	var far_bed := Bedroll.new()
+	_host.add_child(far_bed)
+	far_bed.global_position = at + Vector3(Companion.BASE_RADIUS + 10.0, 0.0, 0.0)
+	var feeder := _feeder(at + Vector3(0.0, 0.0, 4.0))
+	feeder.inventory.add_item(_item(&"cooked_meat"), 4)
+	var chest := _chest(at + Vector3(0.0, 0.0, -4.0))
+	chest.inventory.add_item(_item(&"cooked_meat"), 3)
+	var trough := _trough(at + Vector3(4.0, 0.0, 4.0))
+	trough.pour(30)
+	group[0].pack.add_item(_item(&"cooked_meat"), 1)
+	var b := BaseSupplies.gather(get_tree(), group)
+	var meal := (_item(&"cooked_meat").get_trait(EdibleTrait) as EdibleTrait).hunger * SettlerMeals.FULL_HOURS
+	check(b.beds == 1, "cuenta el petate de la base y no el de lejos (%d)" % b.beds)
+	check(b.feeders == 1 and b.feeder_food == 4 and b.cooked == 4 and b.pack_food == 1 and b.chest_food == 3,
+		"comida: 4 en el comedero (asadas), 1 en un morral y 3 en el cofre aparte")
+	check(is_equal_approx(b.food_days, meal * 5.0 / 48.0), "días de comida: lo del comedero y los morrales entre dos (%.2f)" % b.food_days)
+	check(b.troughs == 1 and b.water == 30 and b.water_capacity == WaterTrough.CAPACITY
+		and is_equal_approx(b.water_days, 30.0 * SettlerMeals.SIP_HOURS / 48.0), "agua: 30 tragos, %.1f días para dos" % b.water_days)
+	group[1].meals.fed = 0.0
+	group[1].meals.watered = 0.0
+	b = BaseSupplies.gather(get_tree(), group)
+	check(b.hungry == 1 and b.thirsty == 1, "cuenta quién tiene hambre y sed")
+	for node in [bed, far_bed, feeder, chest, trough]:
+		node.queue_free()
 	await _clear()
 
 

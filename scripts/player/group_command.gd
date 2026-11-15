@@ -16,7 +16,7 @@ extends Node
 ## Las órdenes (no la formación) van solo a los elegidos: al abrir, todos o, si el jugador mira a uno
 ## del grupo, solo ese; con la rueda abierta, las teclas 1-9 y 0 cambian la elección (GroupOrderWheel).
 ## Mientras está abierta, cada uno lleva su número encima, encendido si está elegido, y abajo, tapando
-## la hotbar, sale el grupo en tarjetas con su retrato (CompanionPortraits), su vida y su comida.
+## la hotbar, sale el grupo en tarjetas (CompanionCards) con su retrato, su vida, su comida y su agua.
 
 ## A lo que mira el jugador: la criatura viva a menos de AIM_RANGE m que queda a menos de AIM_ANGLE
 ## grados del centro de la vista.
@@ -142,12 +142,12 @@ func _process(delta: float) -> void:
 			_portraits.request(c)
 
 
-## Lo que la rueda enseña de cada uno del grupo (_members): nombre, qué hace, vida, comida y retrato.
+## Lo que la rueda enseña de cada uno del grupo (_members): nombre, qué hace, vida, comida, agua y retrato.
 func _roster() -> Array[Dictionary]:
 	var roster: Array[Dictionary] = []
 	for c in _members:
 		if not is_instance_valid(c):
-			roster.append({"name": "", "state": "", "health": 0.0, "food": 0.0, "down": true})
+			roster.append({"name": "", "state": "", "bars": [], "down": true})
 			continue
 		var state := tr("GROUP_STATE_FOLLOW")
 		if c.dead or c.is_down():
@@ -162,11 +162,9 @@ func _roster() -> Array[Dictionary]:
 			state = c.work.describe()
 		elif c.mode == Companion.Mode.WAIT:
 			state = tr("GROUP_STATE_WAIT")
-		var hp := c.health
 		roster.append({"name": String(c.resident.get("name", "")), "state": state,
-			"health": hp.health / maxf(hp.max_health, 1.0) if hp != null else 1.0,
-			"food": c.meals.fed / SettlerMeals.FULL_HOURS if c.meals != null else 1.0,
-			"down": c.dead or c.is_down(), "portrait": CompanionPortraits.cached(c)})
+			"bars": CompanionCards.bars_of(c), "down": c.dead or c.is_down(),
+			"portrait": CompanionPortraits.cached(c)})
 	return roster
 
 

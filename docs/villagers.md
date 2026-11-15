@@ -647,14 +647,23 @@ se sienta (`ThroneView`: `village/throne_sit` y luego `village/throne_idle`, en 
 - el nombre y el oficio de cada colono sobre su cabeza (en amarillo, los elegidos) y sus zonas en el
   suelo: verde talar, azul picar, naranja limpiar, amarillo construir, rojo la guardia, marrón cazar y
   turquesa pescar; tenue, la de alrededor de su base;
+- arriba a la izquierda, lo que tiene la base (`BaseSupplies`), cada cosa con su barra en verde,
+  naranja o rojo: **camas** (los petates a menos de 40 m de la base de alguno, contra cuántos son: una
+  por colono va bien; si faltan, el resto duerme en el suelo), **comida** (para cuántos días da lo de
+  los comederos y los morrales, a 24 horas de saciado por colono y día; bien desde 3 días, mal por
+  debajo de 1; aparte, lo que hay en los cofres, que no comen hasta que pasa al comedero, y cuántos
+  tienen hambre) y **agua** (los tragos de los bebederos, para cuántos días y cuántos tienen sed);
 - a la derecha, arriba, cuántos hay de cada oficio (su icono y el número; pinchando uno se eligen
   todos los que lo tienen, también los que no tienen ninguno);
-- debajo, los colonos con su base a menos de 90 m del trono (`Throne.MANAGE_RADIUS`), ordenados por
-  oficio y nombre, con el icono de su oficio y cómo va cada uno (en naranja, si está parado por algo o
-  con hambre). Se eligen en la lista (o pinchando su nombre en el mapa), uno o varios (**Todos**,
-  **Ninguno**);
-- y los oficios por categoría, cada uno con su dibujo (`OrderGlyphs`, el mismo trazo que la rueda del
-  grupo) en el color de su zona: **Recursos** (Tala árboles, Pica piedra, Limpia una zona), **Comida**
+- abajo, en el sitio de la hotbar (que se quita con sus orbes mientras tanto), los colonos con su base
+  a menos de 90 m del trono (`Throne.MANAGE_RADIUS`) en tarjetas, las mismas que la barra de la rueda del grupo (`CompanionCards`): su retrato
+  (`CompanionPortraits`), el dibujo de su oficio, su nombre, cómo va (en naranja, si está parado por algo
+  o le falta comida o agua; con el ratón encima sale entero si no cabe) y sus barras de vida, comida y
+  agua. Van ordenados por oficio y nombre; si no caben, se pasan con las flechas o la rueda sobre ellas.
+  Clic elige o deja a uno (también pinchando su nombre en el mapa; **Todos** y **Ninguno**, en el panel)
+  y doble clic lleva la vista hasta él; con el ratón sobre una tarjeta, su aro en el mapa se agranda;
+- a la derecha, debajo de los números de cada oficio, los oficios por categoría, cada uno con su
+  dibujo (`OrderGlyphs`, el mismo trazo que la rueda del grupo) en el color de su zona: **Recursos** (Tala árboles, Pica piedra, Limpia una zona), **Comida**
   (Sal a cazar, Ponte a pescar, Cocina, Trae agua), **Obras** (Construye las obras) y **Defensa** (Guardia de día,
   Guardia de noche); aparte, **Deja eso** y **Seguidme**. Salvo cocinar, sale un círculo bajo el ratón: clic lo pone (la rueda cambia el radio, de
   4 a 60 m); con clic derecho van alrededor de su base, y limpiar y la guardia se cancelan.

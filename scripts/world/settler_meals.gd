@@ -67,6 +67,16 @@ func wanting() -> bool:
 	return hungry() or thirsty()
 
 
+## Lo saciado y lo bebido que va (0-1, lleno a EAT_UNTIL y DRINK_UNTIL horas): las barras de las
+## tarjetas (CompanionCards).
+func food_ratio() -> float:
+	return clampf(fed / EAT_UNTIL, 0.0, 1.0)
+
+
+func water_ratio() -> float:
+	return clampf(watered / DRINK_UNTIL, 0.0, 1.0)
+
+
 ## El ritmo al que trabaja: con hambre o con sed, a la mitad; con las dos, a un cuarto.
 func pace() -> float:
 	return (SettlerWork.HUNGRY_PACE if hungry() else 1.0) * (SettlerWork.HUNGRY_PACE if thirsty() else 1.0)

@@ -6,9 +6,11 @@ extends CanvasLayer
 ## dormir) y abre la vista de la base: una cámara ortográfica desde arriba, inclinada (R y F, o arrastrando
 ## con el botón central, que además la gira), con los
 ## colonos que viven cerca (Throne.MANAGE_RADIUS) señalados con su nombre, sus zonas de trabajo
-## pintadas en el suelo y, a la derecha, cuántos hay de cada oficio (pinchando uno se eligen todos los
-## que lo tienen), la lista para elegirlos (uno o varios) y los oficios (SettlerOrders, por categoría) que
-## se les mandan (SettlerWork): casi todos en una zona que se marca con un círculo (clic; la rueda cambia
+## pintadas en el suelo; abajo, en tarjetas como las del grupo (CompanionCards: retrato, nombre, oficio,
+## cómo va, vida, comida y agua), para elegirlos (uno o varios; doble clic lleva la vista hasta él); y, a
+## la derecha, cuántos hay de cada oficio (pinchando uno se eligen todos los que lo tienen) y los oficios
+## (SettlerOrders, por categoría) que se les mandan (SettlerWork). Arriba a la izquierda, lo que tiene la
+## base (BaseSupplies): camas por colono y para cuántos días hay comida y agua. Los oficios se mandan: casi todos en una zona que se marca con un círculo (clic; la rueda cambia
 ## el radio) o alrededor de su base (clic derecho). Es el único sitio donde se mandan oficios. La vista se
 ## mueve con WASD y se acerca con la rueda. E o Escape lo levantan (sentarse al revés); un golpe
 ## también. Ver docs/villagers.md.
@@ -51,11 +53,15 @@ const RING_SEGMENTS := 72
 const RING_WIDTH := 0.006
 ## La opacidad de las zonas en el suelo (el color es el del oficio, SettlerOrders).
 const ZONE_ALPHA := 0.85
-## El lado de los iconos de los oficios (px en la escala base) y el de la lista.
+## El lado de los iconos de los oficios (px en la escala base) y el margen de la barra de tarjetas.
 const ORDER_ICON := 30.0
-const ROW_ICON := 26.0
-## El color del estado de quien está parado por algo (sin herramienta, sin cofre...) o con hambre.
-const WARN_COLOR := Color("d98a5b")
+const CARDS_MARGIN := 22.0
+## El panel de la base (ancho, en la escala base), el alto de sus barras y sus colores (bien, regular,
+## mal); las barras de comida y agua se llenan a FULL_DAYS días.
+const SUPPLIES_W := 380.0
+const METER_H := 7.0
+const LEVEL_COLORS: Array[Color] = [Color(0.56, 0.8, 0.45), Color("d98a5b"), Color(0.86, 0.3, 0.26)]
+const FULL_DAYS := 7.0
 const SELECTED_COLOR := Color(1.0, 0.88, 0.35)
 const LABEL_COLOR := Color(0.95, 0.93, 0.88)
 ## Se elige un colono pinchando a menos de esto (px) de su nombre.
@@ -100,9 +106,15 @@ var _root: Control
 var _panel: PanelContainer
 var _margin: MarginContainer
 var _box: VBoxContainer
-var _list: VBoxContainer
-var _rows := {}
+## Las tarjetas de los colonos (en el orden de _settlers) y sus retratos.
+var _cards: CompanionCards
+var _portraits: CompanionPortraits
 var _empty: Label
+## Lo de la base: el panel, su título y una fila por cosa (camas, comida, agua): {value, detail, meter}.
+var _supplies: PanelContainer
+var _supplies_margin: MarginContainer
+var _supplies_title: Label
+var _supply_rows := {}
 var _hint: Label
 var _orders: Array[Button] = []
 var _stop_button: Button
@@ -119,6 +131,10 @@ func _ready() -> void:
 	layer = 5
 	visible = false
 	_build_ui()
+	_portraits = CompanionPortraits.new()
+	_portraits.name = "CompanionPortraits"
+	_portraits.portrait_ready.connect(_on_portrait)
+	add_child(_portraits)
 
 
 func setup(player: PlayerController) -> void:
@@ -307,6 +323,8 @@ func _open_view() -> void:
 	_refresh_left = 0.0
 	visible = true
 	_layout()
+	_cards.first = 0
+	_show_hotbar(false)
 	_player.capture_mouse(false)
 	_refresh()
 
@@ -324,9 +342,23 @@ func _close_view() -> void:
 		if is_instance_valid(node):
 			(node as Node).queue_free()
 	_camera = null
+	_show_hotbar(true)
 	if is_instance_valid(_player.camera):
 		_player.camera.make_current()
 	_player.capture_mouse(_previous_mouse_mode == Input.MOUSE_MODE_CAPTURED)
+
+
+## Los huecos de la hotbar (su capa va por encima de esta), que no se ven mientras la vista está abierta:
+## las tarjetas van en su sitio. Las orbes y su consola las quita CombatHUD (is_viewing); los avisos sí
+## salen.
+func _show_hotbar(shown: bool) -> void:
+	if _player != null and _player.hotbar != null:
+		_player.hotbar.get_panel().visible = shown
+
+
+## La vista de la base está abierta (sentado del todo).
+func is_viewing() -> bool:
+	return visible
 
 
 func _ring_node() -> MeshInstance3D:
@@ -354,6 +386,7 @@ func _update_view(delta: float) -> void:
 	if tilt != 0.0:
 		_pitch = clampf(_pitch + tilt * TILT_SPEED * delta, PITCH.x, PITCH.y)
 	_update_camera()
+	_place_cards()
 	_draw_markers()
 	_cursor = _mouse_ground()
 	_draw_cursor()
@@ -403,7 +436,8 @@ func _view_distance() -> float:
 ## Dónde toca el suelo el rayo del ratón (mundo), o INF.
 func _mouse_ground() -> Vector3:
 	var mouse := get_viewport().get_mouse_position()
-	if _panel.get_global_rect().has_point(mouse):
+	if _panel.get_global_rect().has_point(mouse) or _cards.covers(mouse) \
+			or (_supplies.visible and _supplies.get_global_rect().has_point(mouse)):
 		return Vector3.INF
 	var from := _camera.project_ray_origin(mouse)
 	var to := from + _camera.project_ray_normal(mouse) * (_view_distance() * 3.0 + 200.0)
@@ -434,10 +468,12 @@ func _draw_markers() -> void:
 		return
 	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _ring_material)
 	var radius := maxf(_size * MARKER_RADIUS, 0.8)
+	var hovered := _hovered()
 	for c in _settlers:
 		if is_instance_valid(c):
-			_ring(mesh, c.global_position, radius, SELECTED_COLOR if _selected.has(c) else LABEL_COLOR, false, 24,
-				radius * 0.18)
+			var r := radius * (1.6 if c == hovered else 1.0)
+			_ring(mesh, c.global_position, r, SELECTED_COLOR if _selected.has(c) else LABEL_COLOR, false, 24,
+				r * (0.25 if c == hovered else 0.18))
 	mesh.surface_end()
 
 
@@ -521,6 +557,7 @@ func _update_labels() -> void:
 		var name := String(c.resident.get("name", ""))
 		label.text = name if _size > NAME_ONLY else "%s\n%s" % [name, job]
 		label.modulate = SELECTED_COLOR if _selected.has(c) else LABEL_COLOR
+		label.outline_modulate = Color(0.45, 0.3, 0.05) if c == _hovered() else Color.BLACK
 
 
 # --- Entrada --------------------------------------------------------------------------------------
@@ -559,6 +596,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	var click := event as InputEventMouseButton
 	if click == null or not click.pressed:
 		return
+	if _cards.covers(click.position):
+		_on_cards_click(click)
+		get_viewport().set_input_as_handled()
+		return
 	match click.button_index:
 		MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
 			var sign := -1.0 if click.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0
@@ -582,6 +623,56 @@ func _unhandled_input(event: InputEvent) -> void:
 		_:
 			return
 	get_viewport().set_input_as_handled()
+
+
+## Un clic sobre las tarjetas: elige o deja al de la tarjeta (con doble clic, lo elige y lleva la vista
+## hasta él); en las flechas o con la rueda, pasa de página.
+func _on_cards_click(click: InputEventMouseButton) -> void:
+	match click.button_index:
+		MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_LEFT:
+			_cards.scroll(-1)
+		MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_RIGHT:
+			_cards.scroll(1)
+		MOUSE_BUTTON_LEFT:
+			var arrow := _cards.arrow_at(click.position)
+			if arrow != 0:
+				_cards.scroll(arrow * _cards.page())
+				return
+			var k := _cards.card_at(click.position)
+			if k < 0 or k >= _settlers.size():
+				return
+			var c := _settlers[k]
+			if click.double_click:
+				_selected[c] = true
+				_look_at(c)
+			elif _selected.has(c):
+				_selected.erase(c)
+			else:
+				_selected[c] = true
+			_refresh()
+
+
+## Lleva el centro de la vista hasta [c] (sin pasar de PAN_LIMIT).
+func _look_at(c: Companion) -> void:
+	var local := _throne.global_transform.affine_inverse() * c.global_position
+	var flat := Vector3(local.x, 0.0, local.z)
+	_pan = flat.limit_length(PAN_LIMIT)
+
+
+## El colono de la tarjeta bajo el ratón, o null.
+func _hovered() -> Companion:
+	var k := _cards.hover
+	return _settlers[k] if k >= 0 and k < _settlers.size() and is_instance_valid(_settlers[k]) else null
+
+
+## Las tarjetas abajo, de la izquierda al panel; y la que está bajo el ratón.
+func _place_cards() -> void:
+	var s := _ui_scale
+	var margin := CARDS_MARGIN * s
+	var right := _root.size.x - _panel.size.x
+	_cards.strip = Rect2(Vector2(margin, _root.size.y - margin - 1.0), Vector2(maxf(right - margin * 2.0, 1.0), 1.0))
+	var mouse := get_viewport().get_mouse_position()
+	_cards.hover = -1 if _panel.get_global_rect().has_point(mouse) else _cards.card_at(mouse)
 
 
 ## Elige (o deja) al colono cuyo nombre está bajo [at] (pantalla).
@@ -717,38 +808,18 @@ func _refresh() -> void:
 		if ra != rb:
 			return ra < rb
 		return String(a.resident.get("name", "")).naturalnocasecmp_to(String(b.resident.get("name", ""))) < 0)
-	for c in _rows.keys():
-		if not _settlers.has(c):
-			(_rows[c].row as Node).queue_free()
-			_rows.erase(c)
 	var counts := {}
-	for i in _settlers.size():
-		var c := _settlers[i]
-		if not _rows.has(c):
-			_rows[c] = _make_row(c)
-		var row: Dictionary = _rows[c]
-		# El primero de la lista es el aviso de que no hay nadie.
-		_list.move_child(row.row as Node, i + 1)
-		(row.check as CheckBox).set_pressed_no_signal(_selected.has(c))
-		(row.check as CheckBox).text = String(c.resident.get("name", ""))
-		var order := SettlerOrders.of(c)
-		var glyph := row.glyph as GlyphTexture
-		glyph.key = order.glyph if not order.is_empty() else SettlerOrders.IDLE_GLYPH
-		glyph.color = order.color if not order.is_empty() else SettlerOrders.IDLE_COLOR
-		(row.icon as TextureRect).tooltip_text = tr(order.name) if not order.is_empty() else tr("SETTLER_JOB_NONE")
-		var status := c.work.describe()
-		if status == "":
-			status = tr("THRONE_IDLE") + (tr("SETTLER_HUNGRY") if c.meals.hungry() else "")
-		var label := row.status as Label
-		label.text = status
-		var stuck := c.work.status in [SettlerWork.Status.NO_TOOL, SettlerWork.Status.NO_CHEST,
-			SettlerWork.Status.CHEST_FULL, SettlerWork.Status.BLOCKED]
-		if stuck or c.meals.hungry():
-			label.add_theme_color_override("font_color", WARN_COLOR)
-		else:
-			label.remove_theme_color_override("font_color")
+	var cards: Array[Dictionary] = []
+	var picked: Array[bool] = []
+	for c in _settlers:
+		_portraits.request(c)
+		cards.append(_card_of(c))
+		picked.append(_selected.has(c))
 		var key := _job_key(c)
 		counts[key] = int(counts.get(key, 0)) + 1
+	_cards.ui_scale = _ui_scale
+	_cards.help = tr("THRONE_CARDS_HELP")
+	_cards.show_roster(cards, picked)
 	for key: String in _summary_buttons:
 		var button := _summary_buttons[key] as Button
 		button.visible = counts.has(key)
@@ -768,36 +839,100 @@ func _refresh() -> void:
 		_hint.text = tr("THRONE_HINT_SELECT")
 	else:
 		_hint.text = tr("THRONE_HINT_ORDER") % _selected.size()
+	_update_supplies()
 	_draw_zones()
 
 
-## Una fila de la lista: el icono de su oficio y su nombre (para elegirlo) y, debajo, cómo va.
-func _make_row(c: Companion) -> Dictionary:
-	var row := VBoxContainer.new()
-	row.add_theme_constant_override("separation", 0)
-	_list.add_child(row)
-	var line := HBoxContainer.new()
-	row.add_child(line)
-	var glyph := GlyphTexture.new(SettlerOrders.IDLE_GLYPH, ROW_ICON * _ui_scale, SettlerOrders.IDLE_COLOR)
-	var icon := TextureRect.new()
-	icon.texture = glyph
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
-	line.add_child(icon)
-	var check := CheckBox.new()
-	check.focus_mode = Control.FOCUS_NONE
-	check.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	check.toggled.connect(func(on: bool) -> void:
-		if on:
-			_selected[c] = true
-		else:
-			_selected.erase(c)
-		_refresh())
-	line.add_child(check)
-	var status := Label.new()
-	status.theme_type_variation = &"HintLabel"
-	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	row.add_child(status)
-	return {"row": row, "check": check, "status": status, "icon": icon, "glyph": glyph}
+## El panel de la base: camas por colono y para cuántos días hay comida y agua (BaseSupplies), cada una
+## con su barra en verde, naranja o rojo.
+func _update_supplies() -> void:
+	_supplies.visible = not _settlers.is_empty()
+	if not _supplies.visible:
+		return
+	var b := BaseSupplies.gather(get_tree(), _settlers)
+	var n: int = b.settlers
+	_supplies_title.text = tr("THRONE_BASE_TITLE") % n
+	# Camas.
+	var beds: int = b.beds
+	var bed_detail := tr("THRONE_BEDS_OK")
+	if beds < n:
+		bed_detail = tr("THRONE_BEDS_SHORT") % (n - beds)
+	elif beds > n:
+		bed_detail = tr("THRONE_BEDS_SPARE") % (beds - n)
+	_set_supply(&"bed", "%d / %d" % [beds, n], bed_detail, float(beds) / maxf(n, 1),
+		BaseSupplies.level_of_beds(beds, n))
+	# Comida.
+	var food: Array[String] = []
+	if int(b.feeders) == 0:
+		food.append(tr("THRONE_NO_FEEDER"))
+	else:
+		food.append(tr("THRONE_FOOD_FEEDERS") % [b.feeder_food, b.cooked])
+	if int(b.pack_food) > 0:
+		food.append(tr("THRONE_FOOD_PACKS") % b.pack_food)
+	if int(b.chest_food) > 0:
+		food.append(tr("THRONE_FOOD_CHESTS") % b.chest_food)
+	if int(b.hungry) > 0:
+		food.append(tr("THRONE_HUNGRY_COUNT") % b.hungry)
+	_set_supply(&"food", _days(b.food_days), " · ".join(food), b.food_days / FULL_DAYS,
+		BaseSupplies.level_of_days(b.food_days))
+	# Agua.
+	var water: Array[String] = []
+	if int(b.troughs) == 0:
+		water.append(tr("THRONE_NO_TROUGH"))
+	else:
+		water.append(tr("THRONE_WATER_TROUGHS") % [b.water, b.water_capacity, b.troughs])
+	if int(b.thirsty) > 0:
+		water.append(tr("THRONE_THIRSTY_COUNT") % b.thirsty)
+	_set_supply(&"water", _days(b.water_days), " · ".join(water), b.water_days / FULL_DAYS,
+		BaseSupplies.level_of_days(b.water_days))
+	_supplies.reset_size()
+
+
+## Para cuántos días ("~2,5 días", "nada").
+func _days(days: float) -> String:
+	if days < 0.05:
+		return tr("THRONE_DAYS_NONE")
+	if days >= 30.0:
+		return tr("THRONE_DAYS_MANY")
+	var text := ("%.1f" % days).trim_suffix(".0") if days < 10.0 else str(roundi(days))
+	if TranslationServer.get_locale().begins_with("es"):
+		text = text.replace(".", ",")
+	return tr("THRONE_DAYS") % text
+
+
+func _set_supply(key: StringName, value: String, detail: String, ratio: float, level: BaseSupplies.Level) -> void:
+	var row: Dictionary = _supply_rows[key]
+	var color := LEVEL_COLORS[level]
+	(row.value as Label).text = value
+	(row.value as Label).add_theme_color_override("font_color", color)
+	(row.detail as Label).text = detail
+	var meter := row.meter as Control
+	meter.set_meta(&"ratio", clampf(ratio, 0.0, 1.0))
+	meter.set_meta(&"color", color)
+	meter.queue_redraw()
+
+
+## La tarjeta de [c] (CompanionCards): su retrato, su nombre, el dibujo de su oficio, cómo va (en
+## naranja, si está parado por algo o le falta comida o agua) y su vida, su comida y su agua.
+func _card_of(c: Companion) -> Dictionary:
+	var order := SettlerOrders.of(c)
+	var status := c.work.describe()
+	if status == "":
+		status = tr("THRONE_IDLE") + c.work.wants()
+	var stuck := c.work.status in [SettlerWork.Status.NO_TOOL, SettlerWork.Status.NO_CHEST,
+		SettlerWork.Status.CHEST_FULL, SettlerWork.Status.BLOCKED]
+	return {"name": String(c.resident.get("name", "")), "state": status, "warn": stuck or c.meals.wanting(),
+		"glyph": order.glyph if not order.is_empty() else SettlerOrders.IDLE_GLYPH,
+		"glyph_color": order.color if not order.is_empty() else SettlerOrders.IDLE_COLOR,
+		"bars": CompanionCards.bars_of(c), "down": c.dead, "portrait": CompanionPortraits.cached(c)}
+
+
+func _on_portrait(key: String, texture: Texture2D) -> void:
+	if not visible:
+		return
+	for k in _settlers.size():
+		if is_instance_valid(_settlers[k]) and CompanionPortraits.key_of(_settlers[k]) == key:
+			_cards.set_portrait(k, texture)
 
 
 ## Un botón con el dibujo [glyph] de [color] (OrderGlyphs) delante del texto.
@@ -818,6 +953,9 @@ func _build_ui() -> void:
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
+	_cards = CompanionCards.new()
+	_cards.numbers = false
+	_root.add_child(_cards)
 	_panel = PanelContainer.new()
 	_panel.theme_type_variation = &"WindowPanel"
 	_panel.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
@@ -853,18 +991,11 @@ func _build_ui() -> void:
 		button.focus_mode = Control.FOCUS_NONE
 		button.pressed.connect(_select_all.bind(pair[1]))
 		all_row.add_child(button)
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_box.add_child(scroll)
-	_list = VBoxContainer.new()
-	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_list)
 	_empty = Label.new()
 	_empty.text = "THRONE_EMPTY"
 	_empty.theme_type_variation = &"HintLabel"
 	_empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_list.add_child(_empty)
+	_box.add_child(_empty)
 
 	# Los oficios, por categoría, y las órdenes de siempre.
 	_box.add_child(HSeparator.new())
@@ -893,11 +1024,66 @@ func _build_ui() -> void:
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(_hint)
 	_box.add_child(HSeparator.new())
+	_build_supplies()
 	var keys := Label.new()
 	keys.text = "THRONE_KEYS"
 	keys.theme_type_variation = &"HintLabel"
 	keys.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(keys)
+
+
+## El panel de la base, arriba a la izquierda: el título y una fila por cosa, con su dibujo, su nombre,
+## cuánto hay (a la derecha, en su color), una barra y el detalle.
+func _build_supplies() -> void:
+	_supplies = PanelContainer.new()
+	_supplies.theme_type_variation = &"WindowPanel"
+	_supplies.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_root.add_child(_supplies)
+	_supplies_margin = MarginContainer.new()
+	_supplies.add_child(_supplies_margin)
+	var box := VBoxContainer.new()
+	_supplies_margin.add_child(box)
+	_supplies_title = Label.new()
+	_supplies_title.theme_type_variation = &"SectionLabel"
+	box.add_child(_supplies_title)
+	for pair in [[&"bed", "THRONE_BEDS", Color(0.8, 0.68, 0.5)], [&"food", "THRONE_FOOD", Color(0.86, 0.62, 0.27)],
+			[&"water", "THRONE_WATER", Color(0.42, 0.66, 0.95)]]:
+		box.add_child(HSeparator.new())
+		var line := HBoxContainer.new()
+		box.add_child(line)
+		var glyph := GlyphTexture.new(pair[0], ORDER_ICON, pair[2])
+		_glyphs.append([glyph, ORDER_ICON])
+		var icon := TextureRect.new()
+		icon.texture = glyph
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		line.add_child(icon)
+		var name := Label.new()
+		name.text = pair[1]
+		name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		line.add_child(name)
+		var value := Label.new()
+		value.theme_type_variation = &"HeaderLabel"
+		line.add_child(value)
+		var meter := Control.new()
+		meter.set_meta(&"ratio", 0.0)
+		meter.set_meta(&"color", Color.WHITE)
+		meter.draw.connect(_draw_meter.bind(meter))
+		box.add_child(meter)
+		var detail := Label.new()
+		detail.theme_type_variation = &"HintLabel"
+		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(detail)
+		_supply_rows[pair[0]] = {value = value, detail = detail, meter = meter}
+
+
+func _draw_meter(meter: Control) -> void:
+	var rect := Rect2(Vector2.ZERO, meter.size)
+	meter.draw_rect(rect, Color(0.0, 0.0, 0.0, 0.5))
+	var fill := rect
+	fill.size.x *= float(meter.get_meta(&"ratio", 0.0))
+	if fill.size.x > 0.0:
+		meter.draw_rect(fill, meter.get_meta(&"color", Color.WHITE) as Color)
+	meter.draw_rect(rect, GameTheme.BRONZE_LINE, false, 1.0)
 
 
 func _layout() -> void:
@@ -908,8 +1094,11 @@ func _layout() -> void:
 	_panel.offset_left = -460.0 * ui_scale
 	for pair: Array in _glyphs:
 		(pair[0] as GlyphTexture).side = float(pair[1]) * ui_scale
-	for row: Dictionary in _rows.values():
-		(row.glyph as GlyphTexture).side = ROW_ICON * ui_scale
 	_box.add_theme_constant_override("separation", roundi(10.0 * ui_scale))
 	for side in ["left", "top", "right", "bottom"]:
 		_margin.add_theme_constant_override("margin_" + side, roundi(20.0 * ui_scale))
+		_supplies_margin.add_theme_constant_override("margin_" + side, roundi(16.0 * ui_scale))
+	_supplies.custom_minimum_size.x = SUPPLIES_W * ui_scale
+	_supplies.position = Vector2.ONE * CARDS_MARGIN * ui_scale
+	for row: Dictionary in _supply_rows.values():
+		(row.meter as Control).custom_minimum_size.y = METER_H * ui_scale
