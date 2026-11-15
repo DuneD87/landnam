@@ -57,6 +57,7 @@ func _run() -> void:
 	await _check_materials()
 	await _check_wave_reach()
 	await _check_steering()
+	await _check_leftovers()
 	GridManager.clear_all()
 	_planet.water_sphere.mesh_manager.free()
 	_planet.water_sphere.free()
@@ -166,7 +167,8 @@ func _check_wave_reach() -> void:
 
 	sampler.max_height = 35.0
 	body._physics_step(1.0 / 60.0)
-	check(sampler.samples == 4, "una subida del oleaje reactiva las sondas sin mover el cuerpo")
+	# Un bloque suelto lleva una sola sonda (los cascos, cuatro) y la renueva cada pocos ticks.
+	check(sampler.samples == 1, "una subida del oleaje reactiva la sonda sin mover el cuerpo")
 	sampler.max_height = 2.0
 	sampler.samples = 0
 	body.global_position = Vector3(0, 999, 0)
@@ -175,9 +177,14 @@ func _check_wave_reach() -> void:
 	add_child(camera)
 	camera.global_position = Vector3(0, 1000, -10)
 	camera.current = true
+	body._small_wave_tick = 0
 	body._physics_step(1.0 / 60.0)
+	var sampled_once := sampler.samples
+	body._physics_step(1.0 / 60.0)
+	check(sampler.samples == sampled_once and body.last_displaced_mass > 0.0,
+		"el tick siguiente reutiliza la sonda del bloque suelto y sigue flotando")
 	check(not camera.is_position_in_frustum(body.get_hull_center_world())
-		and sampler.samples == 4 and body.last_displaced_mass > 0.0,
+		and sampler.samples == 1 and body.last_displaced_mass > 0.0,
 		"al entrar en el agua sigue flotando aunque quede fuera de cámara")
 	check(body.last_water_flow.is_equal_approx(sampler.flow), "el casco mojado conserva la corriente del agua")
 	camera.queue_free()
@@ -206,7 +213,7 @@ func _check_wave_reach() -> void:
 	var low := _body(Vector3(0, 1030, 0), [[Vector3i(0, -31, 0), "wood"]])
 	low._body.freeze = true
 	low._body._physics_step(1.0 / 60.0)
-	check(low._body.last_wave_samples == 4 and low._body.last_displaced_mass > 0.0,
+	check(low._body.last_wave_samples == 1 and low._body.last_displaced_mass > 0.0,
 		"se comprueba el volumen completo, incluso con bloques lejos del origen del cuerpo")
 	check(not low._body._above_wave_reach(low._body.global_transform.translated(shift), shift, 1000.0),
 		"el rebase tampoco descarta un casco que toca el agua")
@@ -216,7 +223,7 @@ func _check_wave_reach() -> void:
 	check(tall._body.last_wave_samples == 0, "una pieza alta permanece fuera del alcance del agua")
 	tall._body.global_basis = Basis(Vector3.FORWARD, PI)
 	tall._body._physics_step(1.0 / 60.0)
-	check(tall._body.last_wave_samples == 4 and tall._body.last_displaced_mass > 0.0,
+	check(tall._body.last_wave_samples == 1 and tall._body.last_displaced_mass > 0.0,
 		"al volcar el casco se reactivan las sondas para su extremo sumergido")
 	_planet.planet.has_water = false
 	GridManager.clear_all()
@@ -286,3 +293,53 @@ func _check_steering() -> void:
 	_planet.planet.has_water = false
 	GridManager.clear_all()
 	await get_tree().process_frame
+
+
+## Pedazos y cuerpos vacíos: se desvanecen y se borran, no se guardan mientras tanto, y al cargar
+## no vuelven al mundo.
+func _check_leftovers() -> void:
+	GridManager.clear_all()
+	_planet.planet.has_water = false
+	var piece := _body(Vector3(0, 1030, 0), [[Vector3i.ZERO, "wood"], [Vector3i(1, 0, 0), "wood"]])
+	var piece_id := piece.grid_id
+	var body := piece._body
+	body.freeze = true
+	check(body.is_loose_debris(DynamicGridBody.DERELICT_MAX_BLOCKS), "dos bloques sin props son un pedazo")
+	body.fade_out()
+	check(body.is_fading() and not GridManager.get_save_data()["grids"].has(piece_id),
+		"un pedazo que se desvanece ya no se guarda")
+	await get_tree().create_timer(DynamicGridBody.DEBRIS_FADE_TIME + 0.4).timeout
+	check(GridManager.get_grid(piece_id) == null and not is_instance_valid(body),
+		"al acabar el desvanecido el pedazo y su grid desaparecen")
+
+	var hull := _body(Vector3(0, 1030, 0), [[Vector3i.ZERO, "wood"], [Vector3i(1, 0, 0), "wood"]])
+	var hull_id := hull.grid_id
+	hull._body.freeze = true
+	hull.remove_block(Vector3i.ZERO)
+	await get_tree().process_frame
+	check(GridManager.get_grid(hull_id) == hull and not hull._body.is_fading(),
+		"quitar un bloque a mano no retira lo que queda")
+	hull.remove_block(Vector3i(1, 0, 0))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check(GridManager.get_grid(hull_id) == null, "un cuerpo que se queda sin bloques se borra")
+
+	var block := {"0,0,0": {}}
+	var one := [{"grid_id": "a", "data": {"blocks": block, "props": {}}}]
+	check(GridManager._is_leftover_body([{"grid_id": "a", "data": {"blocks": {}, "props": {}}}], {}, false),
+		"al cargar, un cuerpo vacío se descarta")
+	check(not GridManager._is_leftover_body([{"grid_id": "a", "data": {"blocks": {}, "props": {}}}], {"a": true}, true),
+		"pero no si hay una obra sobre él")
+	check(GridManager._is_leftover_body(one, {}, true), "un bloque suelto de una partida antigua se descarta")
+	check(not GridManager._is_leftover_body(one, {}, false), "en una partida nueva un bloque sin marca de rotura se conserva")
+	check(not GridManager._is_leftover_body([{"grid_id": "a", "data": {"blocks": block, "props": {"p": {}}}}], {}, true),
+		"con un prop se conserva")
+	check(not GridManager._is_leftover_body([{"grid_id": "a", "data": {"blocks": block, "props": {}, "anchor": [0, 0, 0]}}], {}, true),
+		"anclado se conserva")
+	var five := {}
+	for i in 5:
+		five["%d,0,0" % i] = {}
+	check(not GridManager._is_leftover_body([{"grid_id": "a", "data": {"blocks": five, "props": {}}}], {}, true),
+		"cinco bloques sin marca de rotura se conservan")
+	check(GridManager._is_leftover_body([{"grid_id": "a", "data": {"blocks": five, "props": {}, "from_split": true}}], {}, false),
+		"cinco bloques nacidos de una rotura se descartan")

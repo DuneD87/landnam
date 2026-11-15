@@ -186,6 +186,11 @@ const DERELICT_MAX_BLOCKS := 12
 const DERELICT_DISTANCE := 300.0
 const DERELICT_SPEED := 1.0
 const DERELICT_SETTLE_TIME := 25.0
+## Lo que tarda en desvanecerse un pedazo. Los trozos de hasta DERELICT_MAX_BLOCKS que salen de
+## una rotura o de un derrumbe ya no se quedan esperando la retirada: se van en el momento.
+const DEBRIS_FADE_TIME := 1.2
+var _fading := false
+var _fade_meshes: Array = []
 
 var planet_node: Node3D = null
 
@@ -287,6 +292,21 @@ var spawned_from_split: bool = false
 ## congelado no tiene tick propio. Uno pilotado no se congela nunca.
 const FAR_FREEZE_DISTANCE := 550.0
 const FAR_WAKE_DISTANCE := 450.0
+## Un barco anclado o varado (quieto y apoyado) no necesita simularse tan lejos: se congela a
+## partir de aquí. Deja de mecerse, que a esa distancia solo se nota con mala mar.
+const IDLE_FREEZE_DISTANCE := 150.0
+const IDLE_WAKE_DISTANCE := 120.0
+const IDLE_SPEED := 0.1
+
+
+## True si el cuerpo puede congelarse a IDLE_FREEZE_DISTANCE: nadie al mando y anclado o varado.
+func is_idle_for_freeze() -> bool:
+	if _is_being_controlled:
+		return false
+	if anchored:
+		return true
+	return _contacts > 0 and linear_velocity.length_squared() < IDLE_SPEED * IDLE_SPEED \
+		and angular_velocity.length_squared() < IDLE_SPEED * IDLE_SPEED
 var far_frozen: bool = false
 var _frozen_linear := Vector3.ZERO
 var _frozen_angular := Vector3.ZERO
@@ -330,6 +350,8 @@ func on_block_removed(_grid_pos: Vector3i, _grid: GridBase = null) -> void:
 	# Solo quitar bloques puede partir el casco; colocarlos únicamente puede unir piezas.
 	_split_dirty = true
 	_split_debounce = SPLIT_DEBOUNCE
+	if get_block_count() <= 1:
+		_retire_if_leftover.call_deferred(false)
 
 func on_block_placed(_grid_pos: Vector3i, _block_id: int, _grid: GridBase = null) -> void:
 	mark_points_dirty()
@@ -654,6 +676,7 @@ func _apply_split(pieces: Array) -> void:
 
 	# Las bajas de los detach_block acaban de re-marcar el análisis; las piezas ya son conexas.
 	_split_dirty = false
+	_retire_if_leftover.call_deferred(true)
 
 
 ## True si el reparto sigue siendo aplicable. Basta comparar la versión de edición de cada grid:
@@ -771,6 +794,8 @@ func _spawn_piece(piece: Dictionary, whole_centroid: Vector3, old_lin: Vector3, 
 	body.linear_velocity = old_lin + old_ang.cross(arm)
 	body.angular_velocity = old_ang
 	body._impact_cooldown = IMPACT_COOLDOWN_FRAMES
+	if body.is_loose_debris(DERELICT_MAX_BLOCKS):
+		body.fade_out()
 
 func _ready() -> void:
 	collision_layer = 3
@@ -837,6 +862,66 @@ func get_block_count() -> int:
 	return total
 
 
+func get_prop_count() -> int:
+	var total := 0
+	for grid in _grids:
+		total += grid._props.size()
+	return total
+
+
+func is_fading() -> bool:
+	return _fading
+
+
+## True si el cuerpo es un pedazo que no merece quedarse en el mundo: como mucho [max_blocks]
+## bloques, sin nadie al mando y sin props (un cofre o un banco no se pierden con su trozo).
+func is_loose_debris(max_blocks: int) -> bool:
+	return not _is_being_controlled and get_block_count() <= max_blocks and get_prop_count() == 0
+
+
+## Retira el pedazo desvaneciéndolo: sigue cayendo o flotando mientras se transparenta, y al
+## acabar se borra con sus grids. Mientras tanto no se guarda en la partida.
+func fade_out() -> void:
+	if _fading or not is_inside_tree() or is_queued_for_deletion():
+		return
+	_fading = true
+	if get_block_count() == 0:
+		_remove_from_world()
+		return
+	_fade_meshes = find_children("*", "GeometryInstance3D", true, false)
+	var tween := create_tween()
+	tween.tween_method(_set_fade, 0.0, 1.0, DEBRIS_FADE_TIME)
+	tween.tween_callback(_remove_from_world)
+
+
+func _set_fade(amount: float) -> void:
+	for mesh in _fade_meshes:
+		if is_instance_valid(mesh):
+			(mesh as GeometryInstance3D).transparency = amount
+
+
+## Quitar sus grids del GridManager libera ya el cuerpo, porque la que lo posee hace queue_free()
+## al limpiarse.
+func _remove_from_world() -> void:
+	for grid in _grids.duplicate():
+		GridManager.remove_grid(grid.grid_id)
+	if is_instance_valid(self) and not is_queued_for_deletion():
+		queue_free()
+
+
+## Tras perder bloques: un cuerpo vacío se borra, y uno que un golpe o una rotura ha dejado en
+## menos de SPLIT_MIN_BLOCKS se desvanece. Va diferido para ver el casco ya asentado: un cambio
+## que quita y repone bloques en la misma llamada no cuenta.
+func _retire_if_leftover(after_damage: bool) -> void:
+	if _fading or not is_inside_tree() or is_queued_for_deletion() or _is_being_controlled:
+		return
+	if get_prop_count() > 0:
+		return
+	var count := get_block_count()
+	if count == 0 or (after_damage and count < SPLIT_MIN_BLOCKS):
+		fade_out()
+
+
 ## Cuenta el tiempo que un resto lleva cumpliendo las condiciones de retirada y lo elimina al
 ## agotarlo. Devuelve true si el cuerpo se ha ido, para que el llamante no siga simulándolo.
 func _update_derelict(delta: float) -> bool:
@@ -889,10 +974,7 @@ func _despawn_as_derelict() -> void:
 		up = (global_position - planet_node.global_pos).normalized()
 	BlockDebris.burst(self, global_position, up, get_block_count())
 
-	for grid in _grids.duplicate():
-		GridManager.remove_grid(grid.grid_id)
-	if is_instance_valid(self) and not is_queued_for_deletion():
-		queue_free()
+	_remove_from_world()
 
 
 ## Masa de TODAS las grids (multi-size), con el material y volumen de cada bloque.
@@ -1103,6 +1185,7 @@ func apply_damage_at(world_pos: Vector3, energy: float, radius_meters: float = 0
 		up = (global_position - planet_node.global_pos).normalized()
 	BlockDebris.burst(self, world_pos, up, destroyed, debris_cell)
 	blocks_destroyed.emit(world_pos, destroyed, SurfaceAudio.dominant_family(all_destroyed))
+	_retire_if_leftover.call_deferred(true)
 	return destroyed
 
 
@@ -1129,6 +1212,18 @@ func _damage_static_victim(world_pos: Vector3, energy: float, victim_grid_id: St
 		up = (world_pos - planet_node.global_pos).normalized()
 	BlockDebris.burst(self, world_pos, up, count, victim.cell_size)
 	_play_impact(world_pos, count, result["destroyed"])
+
+
+## Media anchura (m) hasta la que un cuerpo cuenta como resto suelto y no como casco.
+const SMALL_HULL_HALF := 1.0
+## Cada cuántos ticks renueva su única sonda de ola un resto suelto.
+const SMALL_HULL_WAVE_STRIDE := 3
+var _small_wave_tick := 0
+var _small_wave_h := 0.0
+var _small_wave_flow := Vector3.ZERO
+var _probe_cache_h := PackedFloat32Array()
+var _probe_cache_flow := PackedVector3Array()
+var _probe_phase := 0
 
 
 func _physics_process(delta: float) -> void:
@@ -1201,6 +1296,9 @@ func _physics_step(delta: float) -> void:
 		# y caduca la estela al sacar el casco del mar, sin resolver ninguna ola.
 		_update_flooding(up, planet_pos, base_water_radius, gravity)
 		_update_wake(0.0, up, planet_pos, base_water_radius, Vector3.ZERO)
+		# Al volver al agua se sondea de nuevo en el primer tick en vez de usar una ola vieja.
+		_small_wave_tick = 0
+		_probe_cache_h.resize(0)
 		if profile_sections: _section(&"fuera del agua")
 		return
 
@@ -1233,17 +1331,49 @@ func _physics_step(delta: float) -> void:
 	last_wave_samples = WAVE_PROBES
 	var plane_center := Vector3.ZERO
 	var plane_h := 0.0
-	for q in WAVE_PROBES:
-		var probe_local := probe_center + Vector3(
-			quarter.x if (q & 1) != 0 else -quarter.x, 0.0,
-			quarter.z if (q & 2) != 0 else -quarter.z)
-		probe_pos[q] = xf * probe_local
-		probe_h[q] = _water_sampler.get_height_at(probe_pos[q], water_time, planet_pos,
-			_wave_filter_length)
-		probe_flow[q] = _water_sampler.last_flow
-		plane_center += probe_pos[q] / WAVE_PROBES
-		plane_h += probe_h[q] / WAVE_PROBES
-	var slope := _fit_wave_slope(probe_pos, probe_h, plane_center, plane_h, up)
+	var slope := Vector3.ZERO
+	var half_box: Vector3 = _aggregate_box["half"]
+	if not _is_being_controlled and half_box.x <= SMALL_HULL_HALF and half_box.z <= SMALL_HULL_HALF:
+		# Un bloque suelto no cabecea con la ola: le basta una sonda en su centro, sin pendiente, y
+		# renovada cada pocos ticks. Con las cuatro de un casco, siete restos hundidos junto a la
+		# base costaban 2,3 ms por tick.
+		_small_wave_tick -= 1
+		if _small_wave_tick < 0:
+			_small_wave_tick = SMALL_HULL_WAVE_STRIDE - 1
+			_small_wave_h = _water_sampler.get_height_at(xf * probe_center, water_time, planet_pos,
+				_wave_filter_length)
+			_small_wave_flow = _water_sampler.last_flow
+			last_wave_samples = 1
+		else:
+			last_wave_samples = 0
+		plane_center = xf * probe_center
+		plane_h = _small_wave_h
+		for q in WAVE_PROBES:
+			probe_flow[q] = _small_wave_flow
+	else:
+		# Sin nadie al mando, cada tick renueva solo una diagonal de sondas y la otra repite la
+		# lectura anterior (16 ms de retraso): la mitad de consultas de ola por casco.
+		var all_probes := _is_being_controlled or _probe_cache_h.size() != WAVE_PROBES
+		if all_probes:
+			_probe_cache_h.resize(WAVE_PROBES)
+			_probe_cache_flow.resize(WAVE_PROBES)
+		_probe_phase = 1 - _probe_phase
+		last_wave_samples = 0
+		for q in WAVE_PROBES:
+			var probe_local := probe_center + Vector3(
+				quarter.x if (q & 1) != 0 else -quarter.x, 0.0,
+				quarter.z if (q & 2) != 0 else -quarter.z)
+			probe_pos[q] = xf * probe_local
+			if all_probes or int(q == 0 or q == 3) == _probe_phase:
+				_probe_cache_h[q] = _water_sampler.get_height_at(probe_pos[q], water_time, planet_pos,
+					_wave_filter_length)
+				_probe_cache_flow[q] = _water_sampler.last_flow
+				last_wave_samples += 1
+			probe_h[q] = _probe_cache_h[q]
+			probe_flow[q] = _probe_cache_flow[q]
+			plane_center += probe_pos[q] / WAVE_PROBES
+			plane_h += probe_h[q] / WAVE_PROBES
+		slope = _fit_wave_slope(probe_pos, probe_h, plane_center, plane_h, up)
 	if profile_sections: _section(&"olas")
 
 	var basis_w := xf.basis

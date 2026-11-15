@@ -252,6 +252,9 @@ func serialize() -> Dictionary:
 	# Lo escriben todas las grids del cuerpo: al cargar, la que lo cree puede ser cualquiera.
 	if _body and is_instance_valid(_body) and _body.anchored:
 		data["anchor"] = _vec3_to_array(_body.get_anchor_point())
+	# Sin esto, tras cargar ningún pedazo volvía a contar como resto y no se retiraba nunca.
+	if _body and is_instance_valid(_body) and _body.spawned_from_split:
+		data["from_split"] = true
 	return data
 
 
@@ -271,6 +274,8 @@ func deserialize(id: String, planet: Node3D, data: Dictionary, shared_body: Dyna
 		body_id = data.get("body_id", grid_id)
 		_body.set_meta("grid_id", body_id)
 		_body.name = "DynGrid_%s" % body_id
+	if data.get("from_split", false):
+		_body.spawned_from_split = true
 
 	var materials_data: Dictionary = data.get("materials", {})
 	for mat_id in materials_data:

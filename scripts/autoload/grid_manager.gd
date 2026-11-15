@@ -27,11 +27,17 @@ func get_save_data() -> Dictionary:
 		# Las casas de los poblados que nadie ha tocado salen de su prefab (SettlementManager).
 		if grid.settlement != "":
 			continue
+		# Un pedazo que se está desvaneciendo ya no existe para la partida.
+		var dyn := grid as DynamicPlanetGrid
+		if dyn != null and dyn._body != null and is_instance_valid(dyn._body) and dyn._body.is_fading():
+			continue
 		grids_data[grid_id] = grid.serialize()
 
 	return {
 		"next_id": _next_id,
 		"grids": grids_data,
+		# Desde esta marca los pedazos llevan "from_split" y no hace falta adivinarlos al cargar.
+		"debris_marked": true,
 		# Las obras a medio levantar (BlueprintSite) van con las grids en las que construyen.
 		"sites": BlueprintSite.capture_all(get_tree()),
 	}
@@ -72,8 +78,17 @@ func restore_save_data(data: Dictionary) -> void:
 
 	_repair_legacy_body_groups(dynamic_grids)
 
+	var site_grids := {}
+	for site: Dictionary in data.get("sites", []):
+		for id in site.get("grid_ids", []):
+			site_grids[str(id)] = true
+	var dropped := 0
+
 	for bid in dynamic_grids:
 		var group: Array = dynamic_grids[bid]
+		if _is_leftover_body(group, site_grids, not data.get("debris_marked", false)):
+			dropped += 1
+			continue
 		var shared_body: DynamicGridBody = null
 
 		for i in group.size():
@@ -106,7 +121,34 @@ func restore_save_data(data: Dictionary) -> void:
 			(grid as DynamicPlanetGrid)._body.update_mass_from_grids()
 
 	BlueprintSite.restore_all(get_tree(), data.get("sites", []))
-	print("[GridManager] Restauradas %d grids" % _grids.size())
+	print("[GridManager] Restauradas %d grids (%d cuerpos sobrantes descartados)" % [_grids.size(), dropped])
+
+
+## True si un cuerpo dinámico guardado no merece volver al mundo: vacío (se quedaban cayendo bajo
+## el terreno para siempre), o un pedazo suelto sin props. Los pedazos se reconocen por la marca
+## de rotura (hasta DERELICT_MAX_BLOCKS) y, solo en partidas anteriores a la marca ([legacy]), por
+## tener menos bloques de los que una rotura deja con cuerpo propio y no estar anclados. Nunca se descarta
+## un cuerpo sobre el que hay una obra.
+static func _is_leftover_body(group: Array, site_grids: Dictionary, legacy: bool) -> bool:
+	var blocks := 0
+	var props := 0
+	var anchored := false
+	var from_split := false
+	for entry: Dictionary in group:
+		if site_grids.has(str(entry["grid_id"])):
+			return false
+		var grid_data: Dictionary = entry["data"]
+		blocks += (grid_data.get("blocks", {}) as Dictionary).size()
+		props += (grid_data.get("props", {}) as Dictionary).size()
+		anchored = anchored or grid_data.has("anchor")
+		from_split = from_split or grid_data.get("from_split", false)
+	if props > 0:
+		return false
+	if blocks == 0:
+		return true
+	if from_split:
+		return blocks <= DynamicGridBody.DERELICT_MAX_BLOCKS
+	return legacy and blocks < DynamicGridBody.SPLIT_MIN_BLOCKS and not anchored
 
 
 ## El conversor antiguo daba al propietario el id de su grid y a las demás el id de la
@@ -337,6 +379,8 @@ func _update_far_freeze(bodies: Array) -> void:
 		return
 	var freeze_sq := DynamicGridBody.FAR_FREEZE_DISTANCE * DynamicGridBody.FAR_FREEZE_DISTANCE
 	var wake_sq := DynamicGridBody.FAR_WAKE_DISTANCE * DynamicGridBody.FAR_WAKE_DISTANCE
+	var idle_freeze_sq := DynamicGridBody.IDLE_FREEZE_DISTANCE * DynamicGridBody.IDLE_FREEZE_DISTANCE
+	var idle_wake_sq := DynamicGridBody.IDLE_WAKE_DISTANCE * DynamicGridBody.IDLE_WAKE_DISTANCE
 	for node in bodies:
 		var body := node as DynamicGridBody
 		if body == null or not body.is_inside_tree() or body.is_queued_for_deletion():
@@ -344,9 +388,16 @@ func _update_far_freeze(bodies: Array) -> void:
 		var nearest := INF
 		for player: Node3D in players:
 			nearest = minf(nearest, player.global_position.distance_squared_to(body.global_position))
-		if body.far_frozen and nearest < wake_sq:
-			body.set_far_frozen(false)
-		elif not body.far_frozen and nearest > freeze_sq:
+		if body.far_frozen:
+			# Congelado no se sabe si sigue parado: despierta con el umbral con el que se durmió.
+			var wake: float = idle_wake_sq if body.get_meta(&"idle_frozen", false) else wake_sq
+			if nearest < wake:
+				body.set_far_frozen(false)
+		elif nearest > freeze_sq:
+			body.set_meta(&"idle_frozen", false)
+			body.set_far_frozen(true)
+		elif nearest > idle_freeze_sq and body.is_idle_for_freeze():
+			body.set_meta(&"idle_frozen", true)
 			body.set_far_frozen(true)
 
 
@@ -494,6 +545,8 @@ func _collapse_piece(group: Array, piece: Dictionary, world_xform: Transform3D) 
 
 	body.update_mass_from_grids()
 	print("[GridManager] Derrumbe: %d bloques sin apoyo pasan a '%s'" % [piece["count"], body_id])
+	if body.is_loose_debris(DynamicGridBody.DERELICT_MAX_BLOCKS):
+		body.fade_out()
 
 
 ## Mueve una celda de una grid estática a una dinámica, recreando su nodo de colisión.
