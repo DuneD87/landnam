@@ -32,6 +32,9 @@ static var _budget_spent_usec: int = 0
 ## Grupo de todos los spawners en juego, para los informes de la consola.
 const GROUP := &"fauna_spawner"
 
+## Fotograma en que le toca precalentar al siguiente spawner (ver _prewarm): una especie por fotograma.
+static var _prewarm_next_frame: int = 0
+
 ## Fracción de la población de cada perfil que se mantiene, según las opciones gráficas
 ## (SettingsManager). Al bajarla, el siguiente barrido libera los nodos sobrantes.
 static var population_scale: float = 1.0
@@ -46,6 +49,25 @@ func setup(settings: AmbientFaunaProfile, environment: AmbientFaunaHabitat,
 	# Las especies se crean juntas al cargar el planeta; no deben vencer todas a la vez.
 	_elapsed = -float(get_instance_id() % 17) / 17.0 * maxf(profile.update_interval, 0.05)
 	add_to_group(GROUP)
+	_prewarm.call_deferred()
+
+
+## Crea por adelantado, al cargar el planeta, la primera criatura del pool de la especie. Con ventana,
+## la primera instancia de cada especie en la partida costaba hasta 75 ms (la primera tortuga: 73 ms
+## medidos, frente a 0,1 ms sin ventana) y caía en mitad del juego. Una especie por fotograma, para no
+## sumarlas todas en uno. Diferido: los spawners terrestres reciben animal_scene después de setup.
+func _prewarm() -> void:
+	var frame := maxi(Engine.get_process_frames() + 1, _prewarm_next_frame)
+	_prewarm_next_frame = frame + 1
+	while is_inside_tree() and Engine.get_process_frames() < frame:
+		await get_tree().process_frame
+	if not is_inside_tree() or profile == null or profile.animal_scene == null:
+		return
+	if not _pool.is_empty() or target_population() <= 0:
+		return
+	var start := Time.get_ticks_usec()
+	_get_available_animal()
+	DebugStats.report_cost(&"fauna:precalentado", Time.get_ticks_usec() - start)
 
 
 func _physics_process(delta: float) -> void:
