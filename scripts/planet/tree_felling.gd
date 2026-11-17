@@ -62,6 +62,8 @@ func _init(p_planet: Planet) -> void:
 	name = "TreeFelling"
 	planet = p_planet
 	planet.voxel_instancer.set_meta(META, self)
+	# Desde ya, para que los cuerpos se indexen según llegan (ver InstancerBodyIndex).
+	InstancerBodyIndex.of(planet.voxel_instancer)
 	planet.voxel_instancer.child_exiting_tree.connect(_on_body_exiting)
 
 

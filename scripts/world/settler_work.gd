@@ -975,14 +975,13 @@ func _find(trees: bool, rocks: bool) -> Node3D:
 	var best_d := INF
 	# Los árboles y las rocas con cuerpo cuelgan del instancer del terreno (cerca de la cámara). Una
 	# consulta de física no vale: la colisión del terreno son cientos de trozos y se come el cupo.
+	# Recorrer todos los hijos del instancer (~19.000 con ventana) costaba ~30 ms: se mira solo
+	# en las celdas de la zona (InstancerBodyIndex).
 	var candidates: Array[Node3D] = []
 	for instancer in _c._terrain.get_children():
 		if not (instancer is VoxelInstancer and instancer.has_meta(TreeFelling.META)):
 			continue
-		for child in instancer.get_children():
-			var body := child as Node3D
-			if body == null or body.global_position.distance_to(center) > zone_radius:
-				continue
+		for body in InstancerBodyIndex.of(instancer).query(center, zone_radius):
 			if _is_tree(body):
 				if trees:
 					candidates.append(body)
