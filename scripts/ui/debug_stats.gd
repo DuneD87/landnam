@@ -22,6 +22,13 @@ const SPIKE_COOLDOWN := 0.5
 ## Peso de cada frame en la línea base. Solo aprende de frames normales: si aprendiese de los picos,
 ## un tramo malo se convertiría en "lo normal" y dejaría de detectar nada.
 const BASELINE_RATE := 0.05
+## Caídas sostenidas: un segundo entero cuyo frame medio supera la referencia de los segundos
+## tranquilos en este factor y en estos ms. El detector de picos no las ve: su línea base se adapta
+## y un frame de 17 ms con una base de 10 no llega a SPIKE_FACTOR.
+const DROP_FACTOR := 1.3
+const DROP_MIN_MS := 3.0
+## Peso de cada segundo tranquilo en la referencia (los de caída no la mueven).
+const DROP_REF_RATE := 0.15
 
 ## Prioridades extremas: la sonda corre la primera del frame y este nodo el último.
 const PROBE_PRIORITY := -1000000
@@ -93,6 +100,38 @@ var _bodies := 0
 var _bodies_delta := 0
 var _origin: Node = null
 var _refs_resolved := false
+
+# Ventana de un segundo del detector de caídas y su referencia (medias por frame de segundos
+# tranquilos): fases, render, scripts (report_cost) y nodos de las sondas.
+var _dw_start := 0
+var _dw_frames := 0
+var _dw_ms := 0.0
+var _dw_ph := {}
+var _dw_gpu := 0.0
+var _dw_rcpu := 0.0
+var _dw_draws := 0.0
+var _dw_costs := {}
+var _dw_nodes := {}
+var _dw_bodies := 0
+var _dw_node_count := 0
+var _ref_ms := 0.0
+var _ref_ph := {}
+var _ref_gpu := 0.0
+var _ref_rcpu := 0.0
+var _ref_draws := 0.0
+var _ref_costs := {}
+var _ref_nodes := {}
+var _drop_count := 0
+# Pipelines compilados en la ventana, por tipo, y los contadores en su último frame.
+var _dw_pipes := {}
+var _pipes_prev := {}
+const PIPELINE_MONITORS := {
+	"malla": Performance.PIPELINE_COMPILATIONS_MESH,
+	"superficie": Performance.PIPELINE_COMPILATIONS_SURFACE,
+	"dibujo": Performance.PIPELINE_COMPILATIONS_DRAW,
+	"especializacion": Performance.PIPELINE_COMPILATIONS_SPECIALIZATION,
+	"canvas": Performance.PIPELINE_COMPILATIONS_CANVAS,
+}
 
 ## Interruptor global del perfilado. Apagado, ni se detectan picos ni se acumulan costes: el
 ## detector pediría get_statistics() a cada terreno EN CADA FRAME, que no es gratis. Se enciende
@@ -379,11 +418,148 @@ func _detect_spike(frame_ms: float) -> void:
 	_prev_memory = memory
 	_prev_drops = drops
 	_prev_pipelines = pipelines
+	_watch_drops(frame_ms, nodes)
 	_previous_costs = _frame_costs.duplicate()
 	_frame_costs.clear()
 	_removed_nodes.clear()
 	_physics_probe.reset_frame()
 	_idle_probe.reset_frame()
+
+
+# --------------------------------------------------------------------------------------------
+#  Detector de caídas sostenidas
+# --------------------------------------------------------------------------------------------
+
+## Suma el frame a la ventana de un segundo y, al cerrarla, la compara con la referencia. Va antes
+## de que se limpien los costes del frame y los de las sondas.
+func _watch_drops(frame_ms: float, nodes: int) -> void:
+	var now := Time.get_ticks_usec()
+	if _dw_start == 0:
+		_dw_start = now
+		_dw_bodies = _bodies
+		_dw_node_count = nodes
+	_dw_frames += 1
+	_dw_ms += frame_ms
+	for k in _ph:
+		if k != "ticks" and k != "total":
+			_dw_ph[k] = float(_dw_ph.get(k, 0.0)) + float(_ph[k])
+	var vp_rid := get_viewport().get_viewport_rid()
+	_dw_gpu += RenderingServer.viewport_get_measured_render_time_gpu(vp_rid)
+	_dw_rcpu += RenderingServer.viewport_get_measured_render_time_cpu(vp_rid)
+	_dw_draws += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	for k in _frame_costs:
+		_dw_costs[k] = int(_dw_costs.get(k, 0)) + int(_frame_costs[k])
+	for k in PIPELINE_MONITORS:
+		var count := int(Performance.get_monitor(PIPELINE_MONITORS[k]))
+		if _pipes_prev.has(k):
+			_dw_pipes[k] = int(_dw_pipes.get(k, 0)) + count - int(_pipes_prev[k])
+		_pipes_prev[k] = count
+	for probe in [_physics_probe, _idle_probe]:
+		if not probe.enabled:
+			continue
+		var tag := "fis " if probe.physics else ""
+		for i in range(1, probe._frame_us.size()):
+			var us: int = probe._frame_us[i]
+			if us > 0 and i - 1 < probe._keys.size():
+				var key: String = tag + probe._keys[i - 1]
+				_dw_nodes[key] = int(_dw_nodes.get(key, 0)) + us
+	if now - _dw_start < 1000000:
+		return
+	_close_drop_window(nodes)
+
+
+func _close_drop_window(nodes: int) -> void:
+	var n := float(maxi(_dw_frames, 1))
+	var mean := _dw_ms / n
+	var means := {
+		"ph": _per_frame(_dw_ph, n, 1.0),
+		"costs": _per_frame(_dw_costs, n, 0.001),
+		"nodes": _per_frame(_dw_nodes, n, 0.001),
+	}
+	var is_drop := _ref_ms > 0.0 and mean > maxf(_ref_ms * DROP_FACTOR, _ref_ms + DROP_MIN_MS)
+	if is_drop:
+		_drop_count += 1
+		_dump_drop(mean, n, means, nodes)
+	elif _ref_ms <= 0.0:
+		_ref_ms = mean
+		_ref_ph = means.ph
+		_ref_costs = means.costs
+		_ref_nodes = means.nodes
+		_ref_gpu = _dw_gpu / n
+		_ref_rcpu = _dw_rcpu / n
+		_ref_draws = _dw_draws / n
+	else:
+		_ref_ms = lerpf(_ref_ms, mean, DROP_REF_RATE)
+		_ref_gpu = lerpf(_ref_gpu, _dw_gpu / n, DROP_REF_RATE)
+		_ref_rcpu = lerpf(_ref_rcpu, _dw_rcpu / n, DROP_REF_RATE)
+		_ref_draws = lerpf(_ref_draws, _dw_draws / n, DROP_REF_RATE)
+		_ref_ph = _blend(_ref_ph, means.ph)
+		_ref_costs = _blend(_ref_costs, means.costs)
+		_ref_nodes = _blend(_ref_nodes, means.nodes)
+	_dw_start = Time.get_ticks_usec()
+	_dw_frames = 0
+	_dw_ms = 0.0
+	_dw_ph.clear()
+	_dw_gpu = 0.0
+	_dw_rcpu = 0.0
+	_dw_draws = 0.0
+	_dw_costs.clear()
+	_dw_nodes.clear()
+	_dw_pipes.clear()
+	_dw_bodies = _bodies
+	_dw_node_count = nodes
+
+
+## [sums] / [n], escalado (us -> ms con 0.001).
+static func _per_frame(sums: Dictionary, n: float, scale: float) -> Dictionary:
+	var out := {}
+	for k in sums:
+		out[k] = float(sums[k]) * scale / n
+	return out
+
+
+## Mezcla una ventana tranquila en la referencia; lo que no aparece en ella tiende a cero.
+static func _blend(ref: Dictionary, window: Dictionary) -> Dictionary:
+	var out := {}
+	for k in ref:
+		out[k] = lerpf(float(ref[k]), float(window.get(k, 0.0)), DROP_REF_RATE)
+	for k in window:
+		if not out.has(k):
+			out[k] = float(window[k]) * DROP_REF_RATE
+	return out
+
+
+## Lo que más ha subido (ms por frame) respecto a la referencia, como "clave +sube (ahora)".
+static func _rises(now: Dictionary, ref: Dictionary, count: int, min_ms: float) -> String:
+	var keys := now.keys()
+	keys.sort_custom(func(a, b) -> bool:
+		return float(now[a]) - float(ref.get(a, 0.0)) > float(now[b]) - float(ref.get(b, 0.0)))
+	var parts := PackedStringArray()
+	for k in keys:
+		var rise := float(now[k]) - float(ref.get(k, 0.0))
+		if rise < min_ms or parts.size() >= count:
+			break
+		parts.append("%s +%.2f (%.2f)" % [k, rise, float(now[k])])
+	return "  ".join(parts) if not parts.is_empty() else "--"
+
+
+func _dump_drop(mean: float, n: float, means: Dictionary, nodes: int) -> void:
+	var ph_parts := PackedStringArray()
+	for k in ["proc", "callbk", "sim", "difer", "dibujo", "resto"]:
+		var now_ms := float(means.ph.get(k, 0.0))
+		var ref_ms := float(_ref_ph.get(k, 0.0))
+		ph_parts.append("%s %.1f (%+.1f)" % [k, now_ms, now_ms - ref_ms])
+	print("[caida] #%d  1s: %d fps, medio %.1f ms (ref %.1f)  fases[%s]  gpu %.1f (ref %.1f)  rendCPU %.1f (ref %.1f)  draws %d (ref %d)  cuerpos %+d  nodos %+d  %s" % [
+		_drop_count, int(n), mean, _ref_ms, " | ".join(ph_parts),
+		_dw_gpu / n, _ref_gpu, _dw_rcpu / n, _ref_rcpu, int(_dw_draws / n), int(_ref_draws),
+		_bodies - _dw_bodies, nodes - _dw_node_count, _threads_report()])
+	var pipe_parts := PackedStringArray()
+	for k in _dw_pipes:
+		if int(_dw_pipes[k]) > 0:
+			pipe_parts.append("%s %d" % [k, int(_dw_pipes[k])])
+	print("[caida pipelines] " + ("  ".join(pipe_parts) if not pipe_parts.is_empty() else "ninguno"))
+	print("[caida nodos] " + _rises(means.nodes, _ref_nodes, 8, 0.1))
+	print("[caida scripts] " + _rises(means.costs, _ref_costs, 8, 0.1))
 
 
 ## Resume las fases del pico. Los tiempos CPU/GPU de render son lecturas diferidas.
