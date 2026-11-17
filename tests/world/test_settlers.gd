@@ -83,6 +83,7 @@ func _run() -> void:
 	_check_hunter_away()
 	_check_saved()
 	_check_talk()
+	_check_far_zone()
 	_check_task_cargo()
 	_check_task_cleanup()
 	await _clear()
@@ -879,6 +880,35 @@ func _check_talk() -> void:
 		for variant in (["_DAY", "_NIGHT"] if job == SettlerWork.Job.GUARD else [""]):
 			check(tr(key + variant) != key + variant, "existe la frase %s" % (key + variant))
 	c.work.stop()
+
+
+## Con la zona marcada lejos de la cámara (sin cargar: no se ven orillas ni animales), el pescador y el
+## cazador van hacia ella en vez de quedarse en la base diciendo que trabajan.
+func _check_far_zone() -> void:
+	var camera := Camera3D.new()
+	_host.add_child(camera)
+	camera.global_position = Vector3(0.0, 2.0, 0.0)
+	camera.current = true
+	var chest := _chest(Vector3(-80.0, 0.0, 40.0))
+	var c := _spawn(Vector3(-80.0, 0.05, 45.0), Companion.Mode.SETTLE)
+	c.settle_here(_local(Vector3(-80.0, 0.05, 45.0)))
+	c.pack.add_item(_item(&"fishing_rod"), 1)
+	c.work.assign(SettlerWork.Job.FISH, _local(Vector3(-80.0, 0.0, 230.0)), 20.0)
+	check(not c.work._zone_loaded(), "la zona lejana no está cargada")
+	for label in ["al buscar", "y entre búsqueda y búsqueda"]:
+		var go: Array = c.work.step(0.1)
+		check(float(go[1]) > 0.0 and (go[0] as Vector3).dot(Vector3.BACK) > 0.5,
+			"el pescador va hacia su zona lejana %s (%s)" % [label, str(go)])
+	check(c.work.status == SettlerWork.Status.WORKING, "y no se da por parado")
+	c.pack.add_item(_item(&"stone_axe_01"), 1)
+	c.work.assign(SettlerWork.Job.HUNT, _local(Vector3(-80.0, 0.0, 230.0)), 20.0)
+	c.work.step(0.1)
+	var hunt: Array = c.work.step(0.1)
+	check(float(hunt[1]) > 0.0 and (hunt[0] as Vector3).dot(Vector3.BACK) > 0.5,
+		"el cazador sin presas a la vista va a su zona (%s)" % str(hunt))
+	c.work.stop()
+	chest.queue_free()
+	camera.queue_free()
 
 
 ## Guardar a mitad de viaje no debe dejar la carga olvidada en el morral.

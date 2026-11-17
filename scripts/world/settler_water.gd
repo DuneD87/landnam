@@ -28,6 +28,10 @@ var _fill_left := 0.0
 var _seek_left := 0.0
 var _empty_seeks := 0
 var _owed := 0.0
+## Sin orilla a la vista y con la zona sin cargar: va hacia ella (toward_zone). Y, lejos, si el mapa dice
+## que en la zona hay agua dulce (map_water; -1: sin mirar).
+var _to_zone := false
+var _map_wet := -1
 
 
 func describe() -> String:
@@ -79,7 +83,7 @@ func step(delta: float) -> Array:
 	if _phase == Phase.POUR or _carry >= room:
 		return _pouring(delta, trough)
 	if not _spot.is_finite():
-		return _seek()
+		return _seek(delta)
 	var to_world := c._terrain.global_transform
 	var state := walk(to_world * _spot, SPOT_REACH, delta, self)
 	if state == Walk.GOING:
@@ -118,24 +122,35 @@ func _pouring(delta: float, trough: WaterTrough) -> Array:
 	return still()
 
 
-func _seek() -> Array:
+func _seek(delta: float) -> Array:
 	if SettlerWork._now() < _seek_left:
-		return still()
+		return _going_to_zone(delta)
 	_seek_left = SettlerWork._now() + SettlerWork.SEEK_EVERY
+	_to_zone = false
 	var shore := find_shore(true)
 	if not shore.is_empty():
 		_spot = shore[0]
 		_water = shore[1]
 		_empty_seeks = 0
 		return still()
-	# Con el terreno de la zona sin cargar no se ve el agua: no se da por seca hasta verla tres veces.
-	_empty_seeks = _empty_seeks + 1 if w._zone_loaded() else 0
+	# Con el terreno de la zona sin cargar no se ve el agua: va hacia ella, y no se da por seca hasta
+	# verla tres veces.
+	if not w._zone_loaded():
+		_empty_seeks = 0
+		_to_zone = true
+		return _going_to_zone(delta)
+	_empty_seeks += 1
 	if _empty_seeks >= SettlerWork.EMPTY_SEEKS:
 		_empty_seeks = 0
 		w.block("SETTLER_NO_FRESH_WATER")
 		w._seek_left = SettlerWork._now() + SettlerWork.DONE_RECHECK
 		_seek_left = w._seek_left
 	return still()
+
+
+func _going_to_zone(delta: float) -> Array:
+	var going := toward_zone(delta) if _to_zone else []
+	return going if not going.is_empty() else still()
 
 
 func away(delta: float, _hour: float) -> void:
@@ -146,8 +161,12 @@ func away(delta: float, _hour: float) -> void:
 	if not _has_trough():
 		return
 	w.status = SettlerWork.Status.AWAY
+	# Sin haber visto la orilla, le vale con que el mapa diga que en su zona hay un río o un lago.
 	if not _spot.is_finite():
-		return
+		if _map_wet < 0:
+			_map_wet = int(map_water(true))
+		if _map_wet == 0:
+			return
 	_owed += delta * w.pace() / AWAY_TRIP
 	if _owed < 1.0:
 		return

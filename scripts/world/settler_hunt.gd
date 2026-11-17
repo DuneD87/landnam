@@ -9,7 +9,8 @@ class_name SettlerHunt extends SettlerTask
 ## los animales muertos que encuentre en su zona (los que mata un guardia o el jugador y deja sin
 ## despellejar). Sin cofre con sitio no caza.
 ##
-## Lejos del jugador no hay criaturas: da una pieza corriente (AWAY_MEAT de carne y AWAY_HIDE de
+## Las criaturas solo aparecen cerca del jugador: si no ve ninguna y está fuera de su zona, va a ella
+## (toward_zone) antes de darla por vacía. Lejos del jugador no hay criaturas: da una pieza corriente (AWAY_MEAT de carne y AWAY_HIDE de
 ## piel) cada AWAY_KILL s. En campo (SettlerWork.field) sin cofre cerca, lo despiezado se queda en el
 ## morral hasta llenarlo. Ver docs/villagers.md.
 
@@ -33,6 +34,8 @@ var _seek_left := 0.0
 var _empty_seeks := 0
 var _skip := {}
 var _owed := 0.0
+## Sin presa a la vista y fuera de su zona: va hacia ella (toward_zone).
+var _to_zone := false
 
 
 func save_data() -> Dictionary:
@@ -89,17 +92,19 @@ func step(delta: float) -> Array:
 			return _butchering(delta)
 		Phase.DEPOSIT:
 			return _depositing(delta)
-	return _seek()
+	return _seek(delta)
 
 
-func _seek() -> Array:
+func _seek(delta: float) -> Array:
 	if not _haul.is_empty():
 		_phase = Phase.DEPOSIT
 		return still()
 	if SettlerWork._now() < _seek_left:
-		return still()
+		var going := toward_zone(delta) if _to_zone else []
+		return going if not going.is_empty() else still()
 	_seek_left = SettlerWork._now() + SettlerWork.SEEK_EVERY
 	w.status = SettlerWork.Status.WORKING
+	_to_zone = false
 	if not _has_chest():
 		return still()
 	_body = _find(true)
@@ -110,6 +115,12 @@ func _seek() -> Array:
 	_prey = _find(false)
 	if _prey == null or not c.order_attack(_prey):
 		_prey = null
+		# Los animales solo aparecen cerca del jugador: fuera de su zona, antes de darla por vacía, va
+		# a ella (lejos del jugador caza en abstracto).
+		if flat_to(center()) > w.zone_radius * 0.5:
+			_empty_seeks = 0
+			_to_zone = true
+			return still()
 		_empty_seeks += 1
 		if _empty_seeks >= SettlerWork.EMPTY_SEEKS:
 			_empty_seeks = 0

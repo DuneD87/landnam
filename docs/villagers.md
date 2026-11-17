@@ -617,12 +617,16 @@ en el morral*). Lejos del jugador cada uno sigue a su manera, sin moverse.
   a las fieras no va) como en una pelea, persiguiéndolas hasta 25 m fuera de ella; la que se le escapa la
   deja 2 minutos. Muerta, la despieza (6 s; lo que da es lo del jugador, `HuntingLoot`, con el cuchillo
   que lleve) y lo lleva al cofre. También despieza lo muerto sin despellejar de su zona. Necesita un arma
-  (o la herramienta de su oficio). Lejos: 4 de carne y 1 de piel cada 8 minutos.
+  (o la herramienta de su oficio). Los animales solo aparecen cerca del jugador: si no ve ninguno y está
+  fuera de su zona, va a ella antes de darla por vacía. Lejos: 4 de carne y 1 de piel cada 8 minutos.
 - **Pescador** (`SettlerFish`, **Ponte a pescar**): necesita una **caña** (sin gastar anzuelos ni cebo).
   Busca la orilla más cercana de su zona (tantea el agua en anillos cada 3 m y vuelve hacia tierra hasta
   pisar seco), va y, de cara al agua con la caña en la mano, saca un pescado crudo cada 1-2 minutos; con 5
-  los lleva al cofre. Sin agua en su zona se queda parado. Lejos, si ya había encontrado su orilla
-  (se guarda), uno cada 90 s.
+  los lleva al cofre. Sin agua en su zona se queda parado. El terreno solo está cargado cerca del
+  jugador: si su zona queda lejos de la cámara (`SettlerWork._zone_loaded`), no ve el agua y va hacia
+  ella (`SettlerTask.toward_zone`; antes se quedaba en la base diciendo que pescaba). Lejos, si ya
+  había encontrado su orilla (se guarda) o el mapa del mundo dice que en su zona hay mar
+  (`SettlerTask.map_water`), uno cada 90 s.
 - **Cocinero** (`SettlerCook`, **Cocina**): asa en la hoguera de la base lo crudo que haya en los cofres
   (y en los comederos) y guarda lo asado en el comedero o, si no hay o está lleno, en el cofre que acepte
   su oficio. Coge lo crudo que quepa en los huecos libres y, si al
@@ -633,8 +637,9 @@ en el morral*). Lejos del jugador cada uno sigue a su manera, sin moverse.
   quepan en todos (20 por odre). Busca la orilla de agua dulce más cercana de su zona (como el pescador,
   `SettlerTask.find_shore`, pero solo ríos, lagos y charcas: `WaterAccess.kind_at`), llena los odres en
   6 s y los vacía en el bebedero de la base con más sitio. Con todos llenos espera (vuelve a mirar cada
-  20 s). Sin bebedero o sin agua dulce en su zona, parado. Lejos, si ya había encontrado su orilla, echa
-  sus odres una vez cada 2 minutos. Lo que lleva y su orilla se guardan.
+  20 s). Sin bebedero o sin agua dulce en su zona, parado. Con la zona lejos de la cámara va hacia ella,
+  como el pescador. Lejos, si ya había encontrado su orilla o el mapa dice que en su zona hay un río o un
+  lago, echa sus odres una vez cada 2 minutos. Lo que lleva y su orilla se guardan.
 
 Con hambre o con sed todos van a la mitad de ritmo (con las dos, a un cuarto).
 

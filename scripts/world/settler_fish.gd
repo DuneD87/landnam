@@ -8,8 +8,9 @@ class_name SettlerFish extends SettlerTask
 ## la base que acepte su oficio y vuelve. Sin agua en su zona no hace nada; sin cofre con sitio,
 ## tampoco.
 ##
-## No lanza de verdad ni depende de los peces que haya a la vista. Lejos del jugador, si ya había
-## encontrado su orilla, saca uno cada AWAY_CATCH s. En campo (SettlerWork.field) sin cofre cerca, lo
+## No lanza de verdad ni depende de los peces que haya a la vista. Si no ve agua porque su zona está
+## lejos de la cámara (sin cargar), va hacia ella (toward_zone). Lejos del jugador, si ya había
+## encontrado su orilla o el mapa dice que en su zona hay mar (map_water), saca uno cada AWAY_CATCH s. En campo (SettlerWork.field) sin cofre cerca, lo
 ## pescado se queda en el morral hasta llenarlo. Ver docs/villagers.md.
 
 enum Phase {SEEK, FISH, DEPOSIT}
@@ -27,6 +28,10 @@ var _catch_left := 0.0
 var _seek_left := 0.0
 var _empty_seeks := 0
 var _owed := 0.0
+## Sin orilla a la vista y con la zona sin cargar: va hacia ella (toward_zone). Y, lejos, si el mapa dice
+## que en la zona hay agua (map_water; -1: sin mirar).
+var _to_zone := false
+var _map_wet := -1
 
 
 func describe() -> String:
@@ -71,7 +76,7 @@ func step(delta: float) -> Array:
 	if _phase == Phase.DEPOSIT:
 		_phase = Phase.FISH
 	if not _spot.is_finite():
-		return _seek(fish)
+		return _seek(fish, delta)
 	var to_world := c._terrain.global_transform
 	var state := walk(to_world * _spot, SPOT_REACH, delta, self)
 	if state == Walk.GOING:
@@ -97,24 +102,35 @@ func step(delta: float) -> Array:
 	return still()
 
 
-func _seek(fish: ItemData) -> Array:
+func _seek(fish: ItemData, delta: float) -> Array:
 	if SettlerWork._now() < _seek_left:
-		return still()
+		return _going_to_zone(delta)
 	_seek_left = SettlerWork._now() + SettlerWork.SEEK_EVERY
 	w.status = SettlerWork.Status.WORKING
+	_to_zone = false
 	if not _has_chest(fish):
 		return still()
 	if _find_spot():
 		_empty_seeks = 0
 		return still()
-	# Con el terreno de la zona sin cargar no se ve el agua: no se da por seca hasta verla tres veces.
-	_empty_seeks = _empty_seeks + 1 if w._zone_loaded() else 0
+	# Con el terreno de la zona sin cargar no se ve el agua: va hacia ella, y no se da por seca hasta
+	# verla tres veces.
+	if not w._zone_loaded():
+		_empty_seeks = 0
+		_to_zone = true
+		return _going_to_zone(delta)
+	_empty_seeks += 1
 	if _empty_seeks >= SettlerWork.EMPTY_SEEKS:
 		_empty_seeks = 0
 		w.block("SETTLER_NO_WATER")
 		w._seek_left = SettlerWork._now() + SettlerWork.DONE_RECHECK
 		_seek_left = w._seek_left
 	return still()
+
+
+func _going_to_zone(delta: float) -> Array:
+	var going := toward_zone(delta) if _to_zone else []
+	return going if not going.is_empty() else still()
 
 
 func _depositing(delta: float, fish: ItemData) -> Array:
@@ -142,8 +158,12 @@ func away(delta: float, _hour: float) -> void:
 	if not _has_chest(fish):
 		return
 	w.status = SettlerWork.Status.AWAY
+	# Sin haber visto la orilla, le vale con que el mapa diga que en su zona hay mar.
 	if not _spot.is_finite():
-		return
+		if _map_wet < 0:
+			_map_wet = int(map_water())
+		if _map_wet == 0:
+			return
 	_owed += delta * w.pace() / AWAY_CATCH
 	if _owed < 1.0:
 		return

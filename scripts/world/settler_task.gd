@@ -184,6 +184,8 @@ const ANGLES := 16
 const SHORE_STEP := 0.75
 const SHORE_STEPS := 16
 const WATER_DEPTH := 0.6
+## Los tanteos por anillo de map_water.
+const MAP_ANGLES := 8
 
 
 ## La orilla de su zona más cercana a él: el agua más cercana (con [fresh], solo la dulce: ríos, lagos y
@@ -228,6 +230,51 @@ func find_shore(fresh := false) -> Array:
 		# Un paso más adentro: los pies, en seco.
 		return [to_local * (point + inland * SHORE_STEP), to_local * best]
 	return []
+
+
+## Va a su zona: el terreno (las orillas) y los animales solo están alrededor del jugador, no de él, así
+## que con la zona lejos de la cámara (SettlerWork._zone_loaded) no ve en ella lo que busca, y desde la
+## base se quedaba parado para siempre. Anda hasta la mitad de su radio del centro: lejos del jugador
+## sigue en abstracto y, cerca, la ve al llegar. [hacia dónde, a qué velocidad], o [] si ya está (o
+## no avanza).
+func toward_zone(delta: float) -> Array:
+	var target := center()
+	var reach := w.zone_radius * 0.5
+	if flat_to(target) <= reach:
+		return []
+	if walk(target, reach, delta, w) != Walk.GOING:
+		return []
+	return [heading, SettlerWork.WALK_SPEED]
+
+
+## Si el mapa del mundo dice que en su zona hay agua (sin el terreno cargado, que lejos del jugador no
+## lo está): el mar con WATER_DEPTH m o, con [fresh], un río o un lago. Para seguir lejos sin haber
+## visto la orilla. El mapa tiene celdas de ~90 m: vale para la zona, no para la orilla.
+func map_water(fresh := false) -> bool:
+	var host: Variant = c._player.get("planet") if c._player != null and is_instance_valid(c._player) else null
+	var core := (host as Node).get("planet") as Planet if host is Node else null
+	var holder := (host as Node).get("world_map") as PlanetWorldMap if host is Node else null
+	var map := holder.map if holder != null and holder.is_ready() else null
+	if core == null or map == null or not map.has_water:
+		return false
+	var origin := c._terrain.global_position
+	var middle := center()
+	var up := (middle - origin).normalized()
+	var side := up.cross(Vector3.UP if absf(up.y) < 0.99 else Vector3.RIGHT).normalized()
+	var rivers := core.get_river_network() if fresh else {}
+	for r: float in [0.0, w.zone_radius * 0.5, w.zone_radius]:
+		for k in MAP_ANGLES:
+			var dir := (middle + side.rotated(up, TAU * k / MAP_ANGLES) * r - origin).normalized()
+			if not fresh:
+				if map.depth_at_dir(dir) >= WATER_DEPTH:
+					return true
+				continue
+			if not RiverField.nearby_channel_at(rivers, dir, WaterAccess.RIVER_REACH).is_empty():
+				return true
+			var body := map.water_body_at_dir(dir)
+			if not body.is_empty() and int(body.type) >= WorldMapData.WaterType.LAKE:
+				return true
+	return false
 
 
 ## Si en la vertical de [point] hay agua que cubra WATER_DEPTH m (los vóxeles sin cargar no cuentan).
