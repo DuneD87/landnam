@@ -93,6 +93,7 @@ func _ready() -> void:
 	_head_aim.target = _camera
 	_skeleton.add_child(_head_aim)
 	focus(&"body", false)
+	_pause_hidden.call_deferred()
 
 
 ## Eases the camera to one of FOCUS, undoing the player's orbit, height and
@@ -125,6 +126,23 @@ func focus(framing: StringName, animate := true, keep_view := false) -> void:
 
 func get_skeleton() -> Skeleton3D:
 	return _skeleton
+
+
+## Con la vista oculta (el inventario cerrado) el modelo no se anima: su esqueleto y sus
+## modificadores corrían cada fotograma sin que nadie lo viera.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED and _skeleton != null:
+		_pause_hidden()
+
+
+## Para la animación y el esqueleto (con sus modificadores) mientras no se ve. El rig sigue vivo:
+## viste y peina al modelo aunque esté oculto.
+func _pause_hidden() -> void:
+	var shown := is_visible_in_tree()
+	var mode := Node.PROCESS_MODE_INHERIT if shown else Node.PROCESS_MODE_DISABLED
+	_skeleton.process_mode = mode
+	(_model.get_node("AnimationPlayer") as AnimationPlayer).process_mode = mode
+	set_process(shown)
 
 
 func _process(delta: float) -> void:

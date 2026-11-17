@@ -384,9 +384,11 @@ func _check_first_person() -> void:
 			and fp.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and fp.has_meta(&"no_dismember"),
 			"first person shows the body again, without a shadow of its own, out of the dismemberment's reach")
 	var shadows_only := GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
-	check(body.cast_shadow == shadows_only and hair.cast_shadow == shadows_only and eyes.cast_shadow == shadows_only
-			and genitals.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON,
-			"in first person the whole body and the head's parts only cast the shadow")
+	var off := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	check(body.cast_shadow == shadows_only and hair.cast_shadow == shadows_only
+			and eyes.cast_shadow == off and eyes.layers == 0
+			and genitals.cast_shadow == off and genitals.layers != 0,
+			"in first person the body and the hair only cast the shadow; the eyes, which cast none, leave the camera")
 	var head := skeleton.find_bone(CharacterAppearanceRig.HEAD_BONE)
 	var spine := skeleton.find_bone(&"mixamorig_Spine2")
 	var head_scale := -1.0
@@ -411,6 +413,7 @@ func _check_first_person() -> void:
 	check(back.is_equal_approx(Vector3(0, 0, -0.1)), "the eye moves back along the face, into the head (%s)" % back)
 	rig.set_first_person(false)
 	var on := GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	check(not fp.visible and body.cast_shadow == on and hair.cast_shadow == on and eyes.cast_shadow == on,
+	check(not fp.visible and body.cast_shadow == on and hair.cast_shadow == on
+			and eyes.cast_shadow == off and eyes.layers != 0,
 			"leaving first person gives the head back to the camera")
 	model.queue_free()

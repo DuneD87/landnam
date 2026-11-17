@@ -64,6 +64,9 @@ const SLOTS: Array[StringName] = [&"eyes", &"teeth", &"tongue", &"eyebrows", &"e
 		&"genitals"]
 ## Slots on the head, which the first-person camera does not see.
 const HEAD_SLOTS: Array[StringName] = [&"eyes", &"teeth", &"tongue", &"eyebrows", &"eyelashes", &"hair", &"beard"]
+## Slots too small or too buried (inside the mouth, the sockets, under the clothes) for their shadow
+## to show: they cast none, which saves one draw each per shadow cascade and per fire light.
+const SHADOWLESS_SLOTS: Array[StringName] = [&"eyes", &"teeth", &"tongue", &"eyebrows", &"eyelashes", &"genitals"]
 ## How much FirstPersonBody's skin scales the head's binds: next to nothing,
 ## but not zero, so their normals still normalise.
 const FOLDED_HEAD_SCALE := 0.001
@@ -557,9 +560,18 @@ func _bind_of(skin: Skin, bone: int) -> int:
 ## Leaves a mesh to the shadows (first person), or gives it back to the camera.
 static func _shadow_only(instance: GeometryInstance3D, enabled: bool) -> void:
 	if enabled:
+		# A mesh with no shadow (SHADOWLESS_SLOTS) keeps none: it hides from the camera's layers.
+		if instance.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+			if not instance.has_meta(&"camera_layers"):
+				instance.set_meta(&"camera_layers", instance.layers)
+			instance.layers = 0
+			return
 		if not instance.has_meta(&"camera_cast_shadow"):
 			instance.set_meta(&"camera_cast_shadow", instance.cast_shadow)
 		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	elif instance.has_meta(&"camera_layers"):
+		instance.layers = instance.get_meta(&"camera_layers")
+		instance.remove_meta(&"camera_layers")
 	elif instance.has_meta(&"camera_cast_shadow"):
 		instance.cast_shadow = instance.get_meta(&"camera_cast_shadow")
 		instance.remove_meta(&"camera_cast_shadow")
@@ -958,6 +970,8 @@ func _setup() -> bool:
 		instance.visible = false
 		# Ojos, pelo, dientes...: no llegan a ningún miembro que se pueda cercenar (Dismemberment).
 		instance.set_meta(&"no_dismember", true)
+		if slot in SHADOWLESS_SLOTS:
+			instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_skeleton.add_child(instance)
 		instance.skeleton = instance.get_path_to(_skeleton)
 		instance.lod_bias = _body.lod_bias
