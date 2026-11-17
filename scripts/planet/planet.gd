@@ -1025,6 +1025,11 @@ func _set_owner_recursive(node: Node, new_owner: Node) -> void:
 		_set_owner_recursive(child, new_owner)
 
 
+## Microsegundos por fotograma para quitar la vegetación de los bloques de terreno descargados (solo con
+## el módulo parcheado; ver _init).
+const INSTANCER_EXIT_BUDGET_USEC := 1000
+
+
 func _init(_voxel_terrain: VoxelLodTerrain) -> void:
 	_vegetation_baker = VegetationBaker.new(self)
 	voxel_terrain = _voxel_terrain
@@ -1032,6 +1037,10 @@ func _init(_voxel_terrain: VoxelLodTerrain) -> void:
 	voxel_instancer.library = VoxelInstanceLibrary.new()
 	voxel_instancer.up_mode = VoxelInstancer.UP_MODE_SPHERE
 	voxel_terrain.add_child(voxel_instancer)
+	# Módulo parcheado (~/godot-build, rama mejoras-landnam): quitar la vegetación de los bloques de terreno
+	# que se descargan, repartido. Antes, todos en un fotograma: 4-16 ms con 100-300 bloques a la vez.
+	if "block_exit_budget_microseconds" in voxel_instancer:
+		voxel_instancer.set("block_exit_budget_microseconds", INSTANCER_EXIT_BUDGET_USEC)
 	tree_felling = TreeFelling.new(self)
 	voxel_terrain.add_child(tree_felling)
 	rock_mining = RockMining.new(self)

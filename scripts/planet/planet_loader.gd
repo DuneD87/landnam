@@ -645,9 +645,27 @@ func _ready() -> void:
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	# Alcance y normalmaps del terreno según las opciones gráficas: antes de mallar nada.
 	SettingsManager.apply_terrain(voxel_terrain)
+	_apply_streaming_budgets()
 	if config_file_path != "res://data/planet/default.json":
 		_load_planet()
 		
+## Repartos por fotograma del módulo de vóxeles parcheado (~/godot-build, rama mejoras-landnam). Con
+## el binario sin parchear las propiedades no existen y no se toca nada.
+## - Colisión del terreno: cada bloque nuevo construye su colisión en trozos (hasta 8, por octantes) a lo
+##   largo de varios fotogramas, 2 ms por fotograma. Antes se construía entera en el fotograma en que
+##   llegaba la malla: 5-10 ms por bloque de 32 m (~0,6 us por triángulo en Jolt).
+## (El reparto equivalente del instancer está en Planet._init, que es quien lo crea.)
+## Medido volando 150 s tierra adentro (build/ab/drop_probe.gd): frames > 33 ms 13 -> 5, > 25 ms 120 -> 80.
+const DEFERRED_COLLISION_MIN_LOD := 0
+const COLLISION_BUILD_BUDGET_USEC := 2000
+
+
+func _apply_streaming_budgets() -> void:
+	if "deferred_collision_min_lod" in voxel_terrain:
+		voxel_terrain.set("deferred_collision_min_lod", DEFERRED_COLLISION_MIN_LOD)
+		voxel_terrain.set("collision_build_budget_usec", COLLISION_BUILD_BUDGET_USEC)
+
+
 func save_voxel_data() -> VoxelSaveCompletionTracker:
 	if voxel_terrain and voxel_terrain.stream:
 		return voxel_terrain.save_modified_blocks()
