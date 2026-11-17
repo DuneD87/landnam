@@ -30,8 +30,9 @@ const GROUP_TEX_H := 128
 ## Las nubes se marchan en su propia capa, que la composición filtra para quitar el tramado del
 ## jitter. Con la escala de render por debajo del 100 % la capa va a más resolución que la escena:
 ## esta fracción del camino que va de la resolución interna a la de salida (0 = la de la escena,
-## 1 = la nativa). El coste de las nubes crece con su área.
-@export_range(0.0, 1.0, 0.05) var cloud_resolution_boost: float = 0.35
+## 1 = la nativa). El coste de las nubes crece con su área: a 0,35 costaba unos 0,16 ms de GPU
+## a 1440p con escala 0,75, y se dejó en la resolución de la escena.
+@export_range(0.0, 1.0, 0.05) var cloud_resolution_boost: float = 0.0
 ## Margen del filtro de la capa de nubes, en texels, más allá de la huella del píxel: 1,5 = 1-2-1 a
 ## la misma resolución. Quita el tramado del jitter del march; 0 = sin filtro (solo la huella).
 @export_range(0.0, 3.0, 0.1) var cloud_filter_margin: float = 1.5
@@ -195,8 +196,9 @@ const GROUP_TEX_H := 128
 @export_range(1, 64, 1) var cloud_steps: int = 10
 ## Pasos de la marcha de luz (auto-sombra interna de la nube).
 @export_range(1, 32, 1) var cloud_light_steps: int = 4
-## Pasos de la marcha de la sombra proyectada sobre el suelo.
-@export_range(1, 32, 1) var cloud_shadow_steps: int = 8
+## Pasos de la marcha de la sombra proyectada sobre el suelo. Se paga en cada píxel de suelo a
+## resolución completa: con 8 costaba unos 0,3 ms de GPU más que con 4.
+@export_range(1, 32, 1) var cloud_shadow_steps: int = 4
 
 @export_group("God Rays")
 ## Shafts de luz screen-space (Mitchell): por cada píxel se marcha hacia el sol en pantalla
