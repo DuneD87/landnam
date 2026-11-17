@@ -532,7 +532,15 @@ está en `SettlerOrders` (texto, dibujo, color, categoría y si pide zona), y un
 más allí. **Tala árboles** y **Pica piedra** buscan alrededor de la base (60 m) o en la zona marcada, y
 **Limpia una zona** tala y pica todo lo que haya en ella; **Deja eso** lo para. En la charla del colono
 sale debajo cómo va («Leñador · lleva 14», o por qué está parado) o, sin trabajo, que se manda desde el
-trono. Trabaja en el horario de los aldeanos (8-12 y 13-18); fuera de él hace su vida,
+trono, y se le puede preguntar (`VillagerTalk.settler_doing`, `settler_needs`, en primera persona):
+**¿Qué haces?** (su oficio y dónde, y si descansa, no le queda nada, lo que lleva sacado o qué le para)
+y **¿Qué te falta?** (lo que le para el trabajo, el oficio si no tiene, la comida y el agua suyas y las
+de los comederos y bebederos de la base, si duerme en el suelo y si está malherido; o que nada). Si está
+parado por algo, lo dice nada más hablarle. Además avisa en la barra (`SettlerWork.watch`) cuando lleva
+6 s parado por lo mismo («Thorgerd: «Necesito un hacha en el morral.»»), sin repetir el mismo aviso
+antes de 10 min. Lo que le para va con su clave (`SettlerWork.block(clave, args)`, `reason_key`): la
+misma clave con `_ME` es cómo lo dice él (`SettlerWork.stuck`). Trabaja en el horario de los
+aldeanos (8-12 y 13-18); fuera de él hace su vida,
 de noche duerme y, si atacan la base, deja lo que hace y pelea.
 
 - **Con qué**: con lo que lleva en el morral, el mejor hacha para talar o el mejor pico para picar.
@@ -671,6 +679,11 @@ se sienta (`ThroneView`: `village/throne_sit` y luego `village/throne_idle`, en 
   su trabajo) y siguen al jugador en cuanto se levanta.
 
 E o Escape lo levantan (sentarse al revés) y aparece de pie delante del trono; un golpe también.
+
+**A distancia**: con U (`throne_view`, se cambia en las opciones) a menos de 90 m de un trono
+(`Throne.MANAGE_RADIUS`, el mismo radio que sus colonos) se abre la misma vista sin sentarse
+(`ThroneView.try_remote`, fase `REMOTE`), empezando sobre el jugador; el cuerpo sigue como con
+cualquier menú abierto. Se cierra con E, Escape o U; un golpe también. Sin trono cerca, lo dice.
 
 Para probar, la consola: `settler [n] [kit]` saca `n` vecinos de los poblados más cercanos (que no
 vayan ya con el jugador; el que anda por su poblado se va de allí) y los deja viviendo donde está el

@@ -700,6 +700,8 @@ func _physics_process(delta: float) -> void:
 		return
 	if _retreat_left > 0.0:
 		_retreat_left -= delta
+	if mode == Mode.SETTLE or work.active():
+		work.watch(delta)
 	if mode == Mode.SETTLE:
 		meals.tick(delta, distance <= FREEZE)
 	if distance > FREEZE and mode != Mode.LEAVE:
@@ -1783,6 +1785,13 @@ func crush() -> void:
 func _hour() -> float:
 	var h := Seasons.solar_hour(base)
 	return 12.0 if is_nan(h) else h
+
+
+## Si tiene dónde dormir: el petate en que duerme o uno libre cerca de su base (si no, en el suelo).
+func has_bed() -> bool:
+	if _bed != null and is_instance_valid(_bed) and _bed.is_inside_tree():
+		return true
+	return base.is_finite() and _free_bed() != null
 
 
 ## El petate más cercano a la base que no use otro compañero, o null.

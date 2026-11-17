@@ -1976,3 +1976,55 @@ GROUP_STATE_SEATED,seated,sentado,colonos
 GROUP_STATE_ROWING,at the oar,al remo,colonos
 GROUP_STATE_GOING,on the way,de camino,colonos
 GROUP_STATE_DOWN,wounded,malherido,colonos
+SETTLER_ASK_DOING,What are you doing?,¿Qué haces?,colonos
+SETTLER_ASK_NEEDS,Do you need anything?,¿Qué te falta?,colonos
+SETTLER_NOTICE,%s: “%s”,%s: «%s»,colonos
+SETTLER_SAY_IDLE,"Nothing in particular: I just get on with life around the base. If you want me working, give me a trade from the throne.","Nada en especial: hago mi vida por la base. Si quieres que trabaje, mándamelo desde el trono.",colonos
+SETTLER_SAY_IN_ZONE,in the area you marked,en la zona que me marcaste,colonos
+SETTLER_SAY_AROUND_BASE,around the base,alrededor de la base,colonos
+SETTLER_SAY_FELL,I'm cutting trees %s.,Estoy talando árboles %s.,colonos
+SETTLER_SAY_MINE,I'm quarrying stone %s.,Estoy picando piedra %s.,colonos
+SETTLER_SAY_CLEAR,"I'm clearing the area you marked: trees, rocks and all.","Estoy limpiando la zona que me marcaste: árboles, rocas y todo.",colonos
+SETTLER_SAY_BUILD,I'm working on the base's building sites.,Me encargo de las obras de la base.,colonos
+SETTLER_SAY_GUARD_DAY,I keep watch by day %s.,Hago la guardia de día %s.,colonos
+SETTLER_SAY_GUARD_NIGHT,I keep watch by night %s.,Hago la guardia de noche %s.,colonos
+SETTLER_SAY_HUNT,I go out hunting %s.,Salgo a cazar %s.,colonos
+SETTLER_SAY_FISH,I'm fishing %s.,Estoy pescando %s.,colonos
+SETTLER_SAY_COOK,I tend the fire: I cook for everyone.,Me encargo de la hoguera: cocino para todos.,colonos
+SETTLER_SAY_WATER,I fetch water for the base troughs.,Traigo agua a los bebederos de la base.,colonos
+SETTLER_SAY_STUCK,But right now I can't get on with it.,Pero ahora mismo no puedo seguir.,colonos
+SETTLER_SAY_OFF_HOURS,Now I'm resting until the next shift.,Ahora descanso hasta el siguiente turno.,colonos
+SETTLER_SAY_DONE,There's nothing left to do nearby; I look around now and then in case something turns up.,Ya no queda nada que hacer cerca; miro de vez en cuando por si sale algo.,colonos
+SETTLER_SAY_GATHERED,I've got %d out so far.,Llevo %d sacados.,colonos
+SETTLER_ME_NO_AXE,I need an axe in my pack.,Necesito un hacha en el morral.,colonos
+SETTLER_ME_NO_PICK,I need a pickaxe in my pack.,Necesito un pico en el morral.,colonos
+SETTLER_ME_NO_TOOL_CLEAR,I need an axe or a pickaxe in my pack.,Necesito un hacha o un pico en el morral.,colonos
+SETTLER_NO_CHEST_SHORT_ME,There's no chest at the base for my trade (%s): mark one for it.,No hay cofre en la base para mi oficio (%s): márcame uno.,colonos
+SETTLER_CHEST_FULL_SHORT_ME,The base chests are full: I have nowhere to put what I get.,Los cofres de la base están llenos: no tengo dónde dejar lo que saco.,colonos
+SETTLER_NEED_HAMMER_ME,I need a hammer in my pack.,Necesito un martillo en el morral.,colonos
+SETTLER_NEED_WEAPON_ME,I need a weapon in my pack.,Necesito un arma en el morral.,colonos
+SETTLER_NEED_ROD_ME,I need a fishing rod in my pack.,Necesito una caña en el morral.,colonos
+SETTLER_NEED_SKIN_ME,I need a waterskin in my pack.,Necesito un odre en el morral.,colonos
+SETTLER_NO_WATER_ME,There's no water to fish in my area.,No hay agua donde pescar en mi zona.,colonos
+SETTLER_NO_FRESH_WATER_ME,There's no fresh water in my area.,No hay agua dulce en mi zona.,colonos
+SETTLER_NO_TROUGH_ME,There's no water trough at the base to fill.,No hay bebedero en la base que llenar.,colonos
+SETTLER_NO_FIRE_ME,There's no campfire at the base to cook on.,No hay hoguera en la base donde cocinar.,colonos
+SETTLER_BUILD_NO_CHEST_ME,There's no chest at the base to take materials from.,No hay cofre en la base del que coger materiales.,colonos
+SETTLER_BUILD_SHORT_ME,The chests are short of %d %s for the building site.,Faltan %d de %s en los cofres para la obra.,colonos
+SETTLER_ME_NO_JOB,I have no trade: give me one from the throne.,No tengo oficio: mándame uno desde el trono.,colonos
+SETTLER_ME_FOOD_LACKING,I'm hungry; I'll go and eat now.,Tengo hambre; ahora voy a comer.,colonos
+SETTLER_ME_FOOD_LACKING_EMPTY,I'm going hungry: the feeder is empty.,Paso hambre: el comedero está vacío.,colonos
+SETTLER_ME_FOOD_LACKING_NONE,I'm going hungry: there's no feeder at the base.,Paso hambre: no hay comedero en la base.,colonos
+SETTLER_ME_FOOD_EMPTY,The feeder is empty: when I get hungry there'll be nothing to eat.,El comedero está vacío: cuando me entre hambre no habrá qué comer.,colonos
+SETTLER_ME_FOOD_NONE,There's no feeder at the base: when I get hungry I won't have anywhere to eat.,No hay comedero en la base: cuando me entre hambre no tendré dónde comer.,colonos
+SETTLER_ME_WATER_LACKING,I'm thirsty; I'll go and drink now.,Tengo sed; ahora voy a beber.,colonos
+SETTLER_ME_WATER_LACKING_EMPTY,I'm going thirsty: the troughs are dry.,Paso sed: los bebederos están secos.,colonos
+SETTLER_ME_WATER_LACKING_NONE,I'm going thirsty: there's no water trough at the base.,Paso sed: no hay bebedero en la base.,colonos
+SETTLER_ME_WATER_EMPTY,The troughs are dry: when I get thirsty there'll be nothing to drink.,Los bebederos están secos: cuando me entre sed no habrá qué beber.,colonos
+SETTLER_ME_WATER_NONE,There's no water trough at the base: when I get thirsty I won't have anywhere to drink.,No hay bebedero en la base: cuando me entre sed no tendré dónde beber.,colonos
+SETTLER_ME_NO_BED,I have no bedroll: I sleep on the ground.,No tengo petate: duermo en el suelo.,colonos
+SETTLER_ME_HURT,I'm badly hurt: I heal slowly as long as I eat and drink.,Estoy malherido: me curo poco a poco si como y bebo.,colonos
+SETTLER_ME_FINE,"Nothing, for now I have all I need.","Nada, por ahora no me falta de nada.",colonos
+ACTION_THRONE,Base settlers (near a throne),Colonos de la base (cerca de un trono),
+THRONE_TOO_FAR,There's no throne within %d m.,No hay ningún trono a menos de %d m.,colonos
+THRONE_KEYS_REMOTE,"WASD: move the view · R/F or middle drag: tilt (and turn) · Wheel: zoom · E, Esc or %s: close","WASD: mover la vista · R/F o arrastrar con el botón central: inclinar (y girar) · Rueda: acercar o alejar · E, Esc o %s: cerrar",colonos

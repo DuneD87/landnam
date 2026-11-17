@@ -169,6 +169,31 @@ static func _intoxicates(data: ItemData) -> bool:
 	return (data.get_trait(EdibleTrait) as EdibleTrait).intoxication_chance > 0.0
 
 
+## Lo que tiene para comer en los comederos de su base (piezas que se comen), o -1 si no hay comedero.
+## Para la charla (VillagerTalk.settler_needs).
+func feeder_food() -> int:
+	var feeders := _feeders()
+	if feeders.is_empty():
+		return -1
+	var count := 0
+	for feeder in feeders:
+		for item in feeder.inventory.get_all_items():
+			if item != null and _score(item.data) > 0.0:
+				count += item.quantity
+	return count
+
+
+## Los tragos que quedan en los bebederos de su base, o -1 si no hay bebedero.
+func trough_water() -> int:
+	var troughs := _troughs()
+	if troughs.is_empty():
+		return -1
+	var sips := 0
+	for trough in troughs:
+		sips += trough.water
+	return sips
+
+
 ## Lo que comería de su morral sin ir al comedero (lo que no intoxica), o null.
 func _pack_meal() -> ItemData:
 	var food := best_food(_c.pack)

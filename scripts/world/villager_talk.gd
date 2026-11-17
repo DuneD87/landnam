@@ -88,6 +88,65 @@ static func companion_line(companion: Companion, player: Node, rng: RandomNumber
 	return _pick(pool, rng, last)
 
 
+## «¿Qué haces?» a un colono [c]: su oficio y dónde, y cómo va (descansa, no le queda nada, está parado
+## por algo o lo que lleva sacado), en primera persona.
+static func settler_doing(c: Companion) -> Dictionary:
+	var w := c.work
+	if not w.active():
+		return {"key": "SETTLER_SAY_IDLE", "text": tr_key("SETTLER_SAY_IDLE")}
+	var where := tr_key("SETTLER_SAY_IN_ZONE" if w.zone.is_finite() else "SETTLER_SAY_AROUND_BASE")
+	var key := "SETTLER_SAY_" + String(SettlerWork.Job.keys()[w.job])
+	if w.job == SettlerWork.Job.GUARD:
+		key += "_NIGHT" if w.shift == 1 else "_DAY"
+	var said := tr_key(key)
+	var parts: Array[String] = [said % where if said.contains("%s") else said]
+	var stuck := w.stuck()
+	if not stuck.is_empty():
+		parts.append(tr_key("SETTLER_SAY_STUCK"))
+		parts.append(w.say_stuck(stuck))
+	else:
+		match w.status:
+			SettlerWork.Status.OFF_HOURS:
+				parts.append(tr_key("SETTLER_SAY_OFF_HOURS"))
+			SettlerWork.Status.DONE:
+				parts.append(tr_key("SETTLER_SAY_DONE"))
+			_:
+				if w.task == null and w.gathered > 0:
+					parts.append(tr_key("SETTLER_SAY_GATHERED") % w.gathered)
+	return {"key": key, "text": " ".join(parts)}
+
+
+## «¿Qué te falta?» a un colono [c]: lo que le para el trabajo, el oficio si no tiene, la comida y el
+## agua (las suyas y las de los comederos y bebederos de la base), dónde dormir y la vida; o que nada.
+static func settler_needs(c: Companion) -> Dictionary:
+	var parts: Array[String] = []
+	var stuck := c.work.stuck()
+	if not stuck.is_empty():
+		parts.append(c.work.say_stuck(stuck))
+	if not c.work.active():
+		parts.append(tr_key("SETTLER_ME_NO_JOB"))
+	if c.meals != null:
+		parts.append(_supply_need(c.meals.hungry(), c.meals.feeder_food(), "FOOD"))
+		parts.append(_supply_need(c.meals.thirsty(), c.meals.trough_water(), "WATER"))
+	if c.base.is_finite() and not c.has_bed():
+		parts.append(tr_key("SETTLER_ME_NO_BED"))
+	if c.health != null and c.health.health < c.health.max_health * 0.5:
+		parts.append(tr_key("SETTLER_ME_HURT"))
+	parts = parts.filter(func(text: String) -> bool: return text != "")
+	if parts.is_empty():
+		return {"key": "SETTLER_ME_FINE", "text": tr_key("SETTLER_ME_FINE")}
+	return {"key": "SETTLER_ME_NEEDS", "text": " ".join(parts)}
+
+
+## Lo que dice de la comida o del agua ([what]: FOOD o WATER): [lacking], si pasa hambre o sed; [left],
+## lo que queda en los comederos o bebederos de la base (-1: no hay ninguno). "" si va bien.
+static func _supply_need(lacking: bool, left: int, what: String) -> String:
+	var state := "NONE" if left < 0 else ("EMPTY" if left == 0 else "")
+	if lacking:
+		return tr_key("SETTLER_ME_%s_LACKING%s" % [what, "_" + state if state != "" else ""])
+	return tr_key("SETTLER_ME_%s_%s" % [what, state]) if state != "" else ""
+
+
 ## Una frase del montón [pool] (POOLS), sin argumentos: las respuestas a lo que se le pide.
 static func pick(pool: StringName, rng: RandomNumberGenerator, last := "") -> Dictionary:
 	return _pick(pool, rng, last)

@@ -105,6 +105,11 @@ const ROCK_WORK := 320.0
 const TRIP_TIME := 30.0
 ## Lo que pesa cada medida nueva en el ritmo.
 const RATE_BLEND := 0.3
+## Avisos de que está parado (watch): cada cuánto mira (s), cuánto tiene que seguir parado por lo mismo
+## antes de avisar (s) y cada cuánto, como mucho, repite el mismo aviso (s).
+const WATCH_EVERY := 2.0
+const STUCK_NOTICE := 6.0
+const NOTICE_REPEAT := 600.0
 
 ## Lo que tiene cada uno: instance_id de lo que tala o pica -> el Companion.
 static var _claims := {}
@@ -121,6 +126,10 @@ var rates := {}
 ## El turno del guardia (0 de día, 1 de noche) y, parado (Status.BLOCKED), por qué (ya traducido).
 var shift := 0
 var reason := ""
+## Lo mismo sin traducir: su clave (SETTLER_NEED_HAMMER...) y sus argumentos; con _ME, en primera
+## persona (lo que dice él en la charla y en los avisos).
+var reason_key := ""
+var reason_args := []
 ## Quien lleva el oficio si no es talar, picar ni limpiar; si no, null.
 var task: SettlerTask
 ## Trabaja en campo (ver arriba): sin base ni horario, y lo sacado, a su morral si no hay cofre cerca.
@@ -158,6 +167,12 @@ var _away := false
 var _owed := 0.0
 var _chest: Storage
 var _empty_seeks := 0
+## Los avisos de que está parado (watch): lo que le para ahora y desde cuándo, y cuándo avisó de cada
+## cosa por última vez (clave -> s).
+var _stuck_key := ""
+var _stuck_since := 0.0
+var _noticed := {}
+var _watch_left := 0.0
 
 
 func _init(companion: Companion) -> void:
@@ -233,6 +248,8 @@ func stop() -> void:
 	field = false
 	status = Status.IDLE
 	reason = ""
+	reason_key = ""
+	reason_args = []
 	_step = Step.SEEK
 	_swing_left = 0.0
 	_impact_at = -1.0
@@ -384,10 +401,13 @@ func pace() -> float:
 	return _c.meals.pace() if _c.meals != null else 1.0
 
 
-## Parado por [why] (ya traducido).
-func block(why: String) -> void:
+## Parado por lo que dice la clave [key] (SETTLER_NEED_HAMMER...; con _ME, en primera persona) con
+## [args].
+func block(key: String, args := []) -> void:
 	status = Status.BLOCKED
-	reason = why
+	reason_key = key
+	reason_args = args
+	reason = _c.tr(key) % args if not args.is_empty() else _c.tr(key)
 
 
 ## Nada que hacer por ahora: vuelve a mirar a los DONE_RECHECK s (mientras, hace su vida).
@@ -1120,6 +1140,60 @@ func _release() -> void:
 
 
 # --- Charla y guardado ----------------------------------------------------------------------------
+
+## Lo que le para ahora, como lo dice él: [clave de traducción en primera persona, argumentos], o []
+## si nada (trabaja, descansa o no tiene oficio).
+func stuck() -> Array:
+	if not active():
+		return []
+	match status:
+		Status.NO_TOOL:
+			match job:
+				Job.MINE:
+					return ["SETTLER_ME_NO_PICK", []]
+				Job.CLEAR:
+					return ["SETTLER_ME_NO_TOOL_CLEAR", []]
+			return ["SETTLER_ME_NO_AXE", []]
+		Status.NO_CHEST:
+			return ["SETTLER_NO_CHEST_SHORT_ME", [_c.tr(JOB_NAMES.get(job, "SETTLER_JOB_NONE"))]]
+		Status.CHEST_FULL:
+			return ["SETTLER_CHEST_FULL_SHORT_ME", []]
+		Status.BLOCKED:
+			if reason_key != "":
+				return [reason_key + "_ME", reason_args]
+	return []
+
+
+## [stuck] dicho: la frase traducida.
+func say_stuck(what: Array) -> String:
+	if what.is_empty():
+		return ""
+	var args: Array = what[1]
+	return _c.tr(what[0]) % args if not args.is_empty() else _c.tr(what[0])
+
+
+## Cada paso de su Companion (cerca o lejos): si lleva STUCK_NOTICE s parado por lo mismo, lo dice al
+## jugador (un aviso: «Thorgerd: Necesito un hacha en el morral»), y no repite el mismo antes de
+## NOTICE_REPEAT s.
+func watch(delta: float) -> void:
+	_watch_left -= delta
+	if _watch_left > 0.0:
+		return
+	_watch_left = WATCH_EVERY
+	var what := stuck()
+	var key := "" if what.is_empty() else "%s|%s" % [what[0], str(what[1])]
+	var now := _now()
+	if key != _stuck_key:
+		_stuck_key = key
+		_stuck_since = now
+		return
+	if key == "" or now - _stuck_since < STUCK_NOTICE:
+		return
+	if _noticed.has(key) and now - float(_noticed[key]) < NOTICE_REPEAT:
+		return
+	_noticed[key] = now
+	_c.notify(_c.tr("SETTLER_NOTICE") % [String(_c.resident.get("name", "")), say_stuck(what)])
+
 
 ## Cómo va, para la charla: "Talando · 14 sacados", "Parado: necesita un hacha"...
 func describe() -> String:

@@ -68,7 +68,7 @@ func describe() -> String:
 
 func step(delta: float) -> Array:
 	if c._weapon == null:
-		w.block(c.tr("SETTLER_NEED_WEAPON"))
+		w.block("SETTLER_NEED_WEAPON")
 		return still()
 	if _phase != Phase.SEEK or w.status != SettlerWork.Status.BLOCKED:
 		w.status = SettlerWork.Status.WORKING
@@ -182,8 +182,10 @@ func _depositing(delta: float) -> Array:
 		_phase = Phase.SEEK
 		return still()
 	if chest == null:
-		w.block(c.tr("SETTLER_CHEST_FULL_SHORT") if not from.is_empty()
-			else c.tr("SETTLER_NO_CHEST_SHORT") % c.tr("SETTLER_JOB_HUNT"))
+		if from.is_empty():
+			w.block("SETTLER_NO_CHEST_SHORT", [c.tr("SETTLER_JOB_HUNT")])
+		else:
+			w.block("SETTLER_CHEST_FULL_SHORT")
 		return still()
 	if walk(chest.global_position, SettlerWork.DEPOSIT_REACH, delta, chest) == Walk.GOING:
 		return [heading, SettlerWork.WALK_SPEED]
@@ -203,7 +205,7 @@ func _depositing(delta: float) -> Array:
 
 func away(delta: float, _hour: float) -> void:
 	if c._weapon == null:
-		w.block(c.tr("SETTLER_NEED_WEAPON"))
+		w.block("SETTLER_NEED_WEAPON")
 		return
 	var meat := ItemCatalog.get_item(HuntingLoot.MEAT)
 	var chest := chest_with_room(chests(SettlerWork.JOB_IDS[SettlerWork.Job.HUNT], true), meat)
@@ -231,8 +233,10 @@ func _has_chest() -> bool:
 	var from := chests(SettlerWork.JOB_IDS[SettlerWork.Job.HUNT], true)
 	if chest_with_room(from, ItemCatalog.get_item(HuntingLoot.MEAT)) != null:
 		return true
-	w.block(c.tr("SETTLER_CHEST_FULL_SHORT") if not from.is_empty()
-		else c.tr("SETTLER_NO_CHEST_SHORT") % c.tr("SETTLER_JOB_HUNT"))
+	if from.is_empty():
+		w.block("SETTLER_NO_CHEST_SHORT", [c.tr("SETTLER_JOB_HUNT")])
+	else:
+		w.block("SETTLER_CHEST_FULL_SHORT")
 	return false
 
 

@@ -64,7 +64,7 @@ func restore(data: Dictionary) -> void:
 func step(delta: float) -> Array:
 	var room := capacity()
 	if room <= 0:
-		w.block(c.tr("SETTLER_NEED_SKIN"))
+		w.block("SETTLER_NEED_SKIN")
 		return still()
 	_carry = mini(_carry, room)
 	var trough := _trough()
@@ -132,7 +132,7 @@ func _seek() -> Array:
 	_empty_seeks = _empty_seeks + 1 if w._zone_loaded() else 0
 	if _empty_seeks >= SettlerWork.EMPTY_SEEKS:
 		_empty_seeks = 0
-		w.block(c.tr("SETTLER_NO_FRESH_WATER"))
+		w.block("SETTLER_NO_FRESH_WATER")
 		w._seek_left = SettlerWork._now() + SettlerWork.DONE_RECHECK
 		_seek_left = w._seek_left
 	return still()
@@ -141,7 +141,7 @@ func _seek() -> Array:
 func away(delta: float, _hour: float) -> void:
 	var room := capacity()
 	if room <= 0:
-		w.block(c.tr("SETTLER_NEED_SKIN"))
+		w.block("SETTLER_NEED_SKIN")
 		return
 	if not _has_trough():
 		return
@@ -193,5 +193,5 @@ func _trough() -> WaterTrough:
 func _has_trough() -> bool:
 	if not troughs().is_empty():
 		return true
-	w.block(c.tr("SETTLER_NO_TROUGH"))
+	w.block("SETTLER_NO_TROUGH")
 	return false

@@ -14,8 +14,15 @@ extends CanvasLayer
 ## el radio) o alrededor de su base (clic derecho). Es el único sitio donde se mandan oficios. La vista se
 ## mueve con WASD y se acerca con la rueda. E o Escape lo levantan (sentarse al revés); un golpe
 ## también. Ver docs/villagers.md.
+##
+## A distancia (REMOTE_ACTION, try_remote): a menos de Throne.MANAGE_RADIUS m de un trono se abre la misma
+## vista sin sentarse, empezando sobre el jugador; el cuerpo se queda donde está, como con cualquier
+## menú abierto. Se cierra con E, Escape o la misma tecla; un golpe también.
 
-enum Phase {NONE, SITTING, SEATED, STANDING}
+enum Phase {NONE, SITTING, SEATED, STANDING, REMOTE}
+
+## La tecla que abre la vista a distancia.
+const REMOTE_ACTION := &"throne_view"
 
 const SIT_ANIM := &"village/throne_sit"
 const IDLE_ANIM := &"village/throne_idle"
@@ -116,6 +123,7 @@ var _supplies_margin: MarginContainer
 var _supplies_title: Label
 var _supply_rows := {}
 var _hint: Label
+var _keys: Label
 var _orders: Array[Button] = []
 var _stop_button: Button
 var _follow_button: Button
@@ -144,9 +152,10 @@ func setup(player: PlayerController) -> void:
 	GameManager.state_changed.connect(func(_state: GameManager.State) -> void: _force_close())
 
 
-## Sentado o sentándose/levantándose: el jugador no se mueve (PlayerController._physics_step).
+## Sentado o sentándose/levantándose: el jugador no se mueve (PlayerController._physics_step). A
+## distancia no: el cuerpo sigue como con un menú abierto.
 func is_busy() -> bool:
-	return _phase != Phase.NONE
+	return _phase != Phase.NONE and _phase != Phase.REMOTE
 
 
 func is_open() -> bool:
@@ -156,6 +165,23 @@ func is_open() -> bool:
 ## E junto a un trono: se sienta. Falso si no hay ninguno al alcance.
 func try_open() -> bool:
 	return try_sit(Throne.nearest(get_tree(), _player.global_position))
+
+
+## REMOTE_ACTION: abre la vista del trono más cercano a menos de Throne.MANAGE_RADIUS m sin sentarse (o
+## dice que no hay ninguno). Falso si no se abre.
+func try_remote() -> bool:
+	if is_open() or _player.health_component.is_dead:
+		return false
+	var throne := Throne.nearest(get_tree(), _player.global_position, Throne.MANAGE_RADIUS)
+	if throne == null:
+		_player.hotbar.notify(tr("THRONE_TOO_FAR") % roundi(Throne.MANAGE_RADIUS))
+		return false
+	_throne = throne
+	_phase = Phase.REMOTE
+	_sat_frame = Engine.get_process_frames()
+	_previous_mouse_mode = Input.get_mouse_mode()
+	_open_view()
+	return true
 
 
 ## E apuntando a [throne]: se sienta en él. Falso si ahora no puede.
@@ -197,8 +223,23 @@ func _sit(throne: Throne) -> void:
 	_previous_mouse_mode = Input.get_mouse_mode()
 
 
+## La tecla de REMOTE_ACTION, para la ayuda («U»).
+static func _key_name() -> String:
+	for event in InputMap.action_get_events(REMOTE_ACTION):
+		var key := event as InputEventKey
+		if key != null:
+			var code := key.keycode
+			if key.physical_keycode != KEY_NONE:
+				code = DisplayServer.keyboard_get_keycode_from_physical(key.physical_keycode)
+			return OS.get_keycode_string(code)
+	return "?"
+
+
 ## Se levanta: sentarse al revés, y de pie delante del trono.
 func stand_up() -> void:
+	if _phase == Phase.REMOTE:
+		_close_remote()
+		return
 	if _phase != Phase.SEATED and _phase != Phase.SITTING:
 		return
 	_close_view()
@@ -215,8 +256,18 @@ func stand_up() -> void:
 func _force_close() -> void:
 	if _phase == Phase.NONE:
 		return
+	if _phase == Phase.REMOTE:
+		_close_remote()
+		return
 	_close_view()
 	_finish_standing()
+
+
+## Cierra la vista a distancia: el jugador sigue donde estaba.
+func _close_remote() -> void:
+	_close_view()
+	_phase = Phase.NONE
+	_throne = null
 
 
 func _finish_standing() -> void:
@@ -241,6 +292,9 @@ func _process(delta: float) -> void:
 		return
 	if not is_instance_valid(_throne) or _throne.is_queued_for_deletion():
 		_force_close()
+		return
+	if _phase == Phase.REMOTE:
+		_update_view(delta)
 		return
 	var model := _player.player_model
 	var frame := _throne.global_transform
@@ -303,6 +357,12 @@ func _open_view() -> void:
 	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_throne.add_child(_camera)
 	_pan = Vector3.ZERO
+	if _phase == Phase.REMOTE:
+		# A distancia empieza sobre el jugador (en el plano del trono, sin pasar de PAN_LIMIT).
+		var local := _throne.global_transform.affine_inverse() * _player.global_position
+		var flat := Vector2(local.x, local.z).limit_length(PAN_LIMIT)
+		_pan = Vector3(flat.x, 0.0, flat.y)
+	_keys.text = tr("THRONE_KEYS_REMOTE") % _key_name() if _phase == Phase.REMOTE else tr("THRONE_KEYS")
 	_ring_material = StandardMaterial3D.new()
 	_ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -565,7 +625,8 @@ func _update_labels() -> void:
 func _input(event: InputEvent) -> void:
 	if _phase == Phase.NONE or Engine.get_process_frames() == _sat_frame:
 		return
-	if event.is_action_pressed(&"action"):
+	if event.is_action_pressed(&"action") or (_phase == Phase.REMOTE and event.is_action_pressed(REMOTE_ACTION)
+			and not event.is_echo()):
 		stand_up()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed(&"ui_cancel"):
@@ -578,7 +639,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _phase != Phase.SEATED:
+	if _phase != Phase.SEATED and _phase != Phase.REMOTE:
 		return
 	# Arrastrando con el botón central: arriba y abajo inclina, a los lados gira.
 	var motion := event as InputEventMouseMotion
@@ -1025,11 +1086,12 @@ func _build_ui() -> void:
 	_box.add_child(_hint)
 	_box.add_child(HSeparator.new())
 	_build_supplies()
-	var keys := Label.new()
-	keys.text = "THRONE_KEYS"
-	keys.theme_type_variation = &"HintLabel"
-	keys.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_box.add_child(keys)
+	_keys = Label.new()
+	_keys.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_keys.text = tr("THRONE_KEYS")
+	_keys.theme_type_variation = &"HintLabel"
+	_keys.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_box.add_child(_keys)
 
 
 ## El panel de la base, arriba a la izquierda: el título y una fila por cosa, con su dibujo, su nombre,

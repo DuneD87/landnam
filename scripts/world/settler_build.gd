@@ -79,7 +79,7 @@ func step(delta: float) -> Array:
 		return still()
 	var hammer := _hammer()
 	if hammer == null:
-		w.block(c.tr("SETTLER_NEED_HAMMER"))
+		w.block("SETTLER_NEED_HAMMER")
 		return still()
 	if not _site_ok():
 		_hauls.erase(c.get_instance_id())
@@ -139,7 +139,7 @@ func _decide(delta: float) -> Array:
 			break
 	if _chest == null:
 		_short = wanted
-		w.block(_short_text(from.is_empty() and not w.field))
+		_block_short(from.is_empty() and not w.field)
 		_wait_left = SettlerWork.SEEK_EVERY
 		return still()
 	_phase = Phase.FETCH
@@ -270,7 +270,7 @@ func _returning(delta: float) -> Array:
 func away(delta: float, _hour: float) -> void:
 	_swing_left = 0.0
 	if _hammer() == null:
-		w.block(c.tr("SETTLER_NEED_HAMMER"))
+		w.block("SETTLER_NEED_HAMMER")
 		return
 	if not _site_ok():
 		_hauls.erase(c.get_instance_id())
@@ -296,7 +296,7 @@ func away(delta: float, _hour: float) -> void:
 				w._store(chest)
 		if _site.work_problem() == &"missing" and not _wanted(_site).is_empty():
 			_short = _wanted(_site)
-			w.block(_short_text(false))
+			_block_short(false)
 	if _hit_left <= 0.0:
 		_hit_left = AWAY_HIT
 		if _site.work_problem() == &"":
@@ -439,11 +439,13 @@ func _leftover_item() -> ItemData:
 	return w._carried_item()
 
 
-## «faltan 12 de Madera» (lo primero que falta), o que no hay cofre.
-func _short_text(no_chest: bool) -> String:
+## Parado por lo primero que falta en los cofres («faltan 12 de Madera») o porque no hay cofre.
+func _block_short(no_chest: bool) -> void:
 	if no_chest:
-		return c.tr("SETTLER_BUILD_NO_CHEST")
+		w.block("SETTLER_BUILD_NO_CHEST")
+		return
 	for id: StringName in _short:
 		var data := ItemCatalog.get_item(id)
-		return c.tr("SETTLER_BUILD_SHORT") % [int(_short[id]), data.get_display_name() if data != null else String(id)]
-	return ""
+		w.block("SETTLER_BUILD_SHORT", [int(_short[id]), data.get_display_name() if data != null else String(id)])
+		return
+	w.block("")

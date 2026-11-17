@@ -71,7 +71,7 @@ func describe() -> String:
 func step(delta: float) -> Array:
 	var fire := _fire()
 	if fire == null:
-		w.block(c.tr("SETTLER_NO_FIRE"))
+		w.block("SETTLER_NO_FIRE")
 		return still()
 	w.status = SettlerWork.Status.WORKING
 	match _phase:
@@ -112,7 +112,7 @@ func step(delta: float) -> Array:
 func away(delta: float, _hour: float) -> void:
 	var fire := _fire()
 	if fire == null:
-		w.block(c.tr("SETTLER_NO_FIRE"))
+		w.block("SETTLER_NO_FIRE")
 		return
 	w.status = SettlerWork.Status.AWAY
 	_away_left -= delta * w.pace()

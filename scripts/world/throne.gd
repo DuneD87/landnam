@@ -30,9 +30,10 @@ func _ready() -> void:
 		entity_id = "throne_%d_%d" % [Time.get_unix_time_from_system(), randi()]
 
 
-static func nearest(tree: SceneTree, position: Vector3) -> Throne:
+## El trono más cercano a [position] a menos de [reach] m (sin dar: al alcance de la mano), o null.
+static func nearest(tree: SceneTree, position: Vector3, reach := REACH) -> Throne:
 	var best: Throne
-	var distance := REACH
+	var distance := reach
 	for node in tree.get_nodes_in_group(GROUP):
 		var throne := node as Throne
 		if throne != null and throne.is_inside_tree() and not throne.is_queued_for_deletion():

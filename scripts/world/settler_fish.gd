@@ -56,7 +56,7 @@ func restore(data: Dictionary) -> void:
 func step(delta: float) -> Array:
 	var rod := _rod()
 	if rod == null:
-		w.block(c.tr("SETTLER_NEED_ROD"))
+		w.block("SETTLER_NEED_ROD")
 		return still()
 	var fish := _catch(rod)
 	if _spot.is_finite() or _phase == Phase.DEPOSIT or w.status != SettlerWork.Status.BLOCKED:
@@ -111,7 +111,7 @@ func _seek(fish: ItemData) -> Array:
 	_empty_seeks = _empty_seeks + 1 if w._zone_loaded() else 0
 	if _empty_seeks >= SettlerWork.EMPTY_SEEKS:
 		_empty_seeks = 0
-		w.block(c.tr("SETTLER_NO_WATER"))
+		w.block("SETTLER_NO_WATER")
 		w._seek_left = SettlerWork._now() + SettlerWork.DONE_RECHECK
 		_seek_left = w._seek_left
 	return still()
@@ -136,7 +136,7 @@ func _depositing(delta: float, fish: ItemData) -> Array:
 func away(delta: float, _hour: float) -> void:
 	var rod := _rod()
 	if rod == null:
-		w.block(c.tr("SETTLER_NEED_ROD"))
+		w.block("SETTLER_NEED_ROD")
 		return
 	var fish := _catch(rod)
 	if not _has_chest(fish):
@@ -170,8 +170,10 @@ func _has_chest(fish: ItemData) -> bool:
 	var from := chests(SettlerWork.JOB_IDS[SettlerWork.Job.FISH], true)
 	if chest_with_room(from, fish) != null:
 		return true
-	w.block(c.tr("SETTLER_CHEST_FULL_SHORT") if not from.is_empty()
-		else c.tr("SETTLER_NO_CHEST_SHORT") % c.tr("SETTLER_JOB_FISH"))
+	if from.is_empty():
+		w.block("SETTLER_NO_CHEST_SHORT", [c.tr("SETTLER_JOB_FISH")])
+	else:
+		w.block("SETTLER_CHEST_FULL_SHORT")
 	return false
 
 

@@ -1420,6 +1420,9 @@ func _input(event):
 		elif event.is_action_pressed("world_map") and not _is_text_field_focused():
 			world_map_ui.toggle()
 			capture_mouse(not world_map_ui.visible)
+		elif event.is_action_pressed(ThroneView.REMOTE_ACTION) and is_mouse_captured() and not _is_text_field_focused():
+			# Los colonos de la base desde cualquier sitio cerca de un trono (ThroneView.try_remote).
+			throne_view.try_remote()
 
 	# Con el menú de grids, el de bloques o el mapa abiertos el ratón es de la UI: los clics que
 	# van a sus botones (o que arrastran el mapa) no deben además colocar bloques ni girar la cámara.

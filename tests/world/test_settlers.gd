@@ -82,6 +82,7 @@ func _run() -> void:
 	_check_meals()
 	_check_hunter_away()
 	_check_saved()
+	_check_talk()
 	_check_task_cargo()
 	_check_task_cleanup()
 	await _clear()
@@ -832,6 +833,52 @@ func _check_saved() -> void:
 		and c.work.zone.is_finite(), "y el guardia, con su turno y su zona")
 	for job: SettlerWork.Job in SettlerWork.JOB_NAMES:
 		check(tr(SettlerWork.JOB_NAMES[job]) != SettlerWork.JOB_NAMES[job], "el oficio %d tiene nombre" % job)
+
+
+## La charla con un colono: «¿qué haces?» y «¿qué te falta?» dicen en primera persona lo que le para,
+## y el aviso de que está parado sale una vez.
+func _check_talk() -> void:
+	var c := _spawn(Vector3(-60.0, 0.05, 0.0), Companion.Mode.SETTLE)
+	c.settle_here(_local(Vector3(-60.0, 0.05, 0.0)))
+	var needs := VillagerTalk.settler_needs(c)
+	check(needs.text.contains(tr("SETTLER_ME_NO_JOB")), "sin oficio dice que se lo mandes: «%s»" % needs.text)
+	check(VillagerTalk.settler_doing(c).key == "SETTLER_SAY_IDLE", "y que hace su vida")
+	c.work.assign(SettlerWork.Job.FELL)
+	c.work.away(1.0, 10.0)
+	var stuck := c.work.stuck()
+	check(not stuck.is_empty() and stuck[0] == "SETTLER_ME_NO_AXE", "el leñador sin hacha sabe qué le falta")
+	var doing := VillagerTalk.settler_doing(c)
+	check(doing.text.contains(tr("SETTLER_ME_NO_AXE")) and doing.text.contains(tr("SETTLER_SAY_AROUND_BASE")),
+		"«¿qué haces?»: «%s»" % doing.text)
+	check(VillagerTalk.settler_needs(c).text.contains(tr("SETTLER_ME_NO_AXE")), "«¿qué te falta?» también lo dice")
+	# El aviso: tras seguir parado por lo mismo, una vez.
+	c.work.watch(SettlerWork.WATCH_EVERY)
+	c.work._stuck_since -= SettlerWork.STUCK_NOTICE + 1.0
+	c.work.watch(SettlerWork.WATCH_EVERY)
+	c.work.watch(SettlerWork.WATCH_EVERY)
+	check(c.work._noticed.size() == 1, "avisa una vez de que está parado (%d)" % c.work._noticed.size())
+	c.work.block("SETTLER_BUILD_SHORT", [12, "Madera"])
+	check(c.work.reason == tr("SETTLER_BUILD_SHORT") % [12, "Madera"]
+		and c.work.say_stuck(c.work.stuck()) == tr("SETTLER_BUILD_SHORT_ME") % [12, "Madera"],
+		"parado por algo con argumentos: «%s»" % c.work.say_stuck(c.work.stuck()))
+	# Todas las frases existen.
+	for key in ["SETTLER_NEED_HAMMER", "SETTLER_NEED_WEAPON", "SETTLER_NEED_ROD", "SETTLER_NEED_SKIN",
+			"SETTLER_NO_WATER", "SETTLER_NO_FRESH_WATER", "SETTLER_NO_TROUGH", "SETTLER_NO_FIRE",
+			"SETTLER_CHEST_FULL_SHORT", "SETTLER_NO_CHEST_SHORT", "SETTLER_BUILD_NO_CHEST", "SETTLER_BUILD_SHORT",
+			"SETTLER_ME_NO_PICK", "SETTLER_ME_NO_TOOL_CLEAR", "SETTLER_ME_FINE", "SETTLER_ME_NO_BED", "SETTLER_ME_HURT"]:
+		var me: String = key if key.begins_with("SETTLER_ME_") else key + "_ME"
+		check(tr(me) != me, "existe la frase %s" % me)
+	for what in ["FOOD", "WATER"]:
+		for state in ["LACKING", "LACKING_EMPTY", "LACKING_NONE", "EMPTY", "NONE"]:
+			var key := "SETTLER_ME_%s_%s" % [what, state]
+			check(tr(key) != key, "existe la frase %s" % key)
+	for job: int in SettlerWork.Job.values():
+		if job == SettlerWork.Job.NONE:
+			continue
+		var key: String = "SETTLER_SAY_" + SettlerWork.Job.keys()[job]
+		for variant in (["_DAY", "_NIGHT"] if job == SettlerWork.Job.GUARD else [""]):
+			check(tr(key + variant) != key + variant, "existe la frase %s" % (key + variant))
+	c.work.stop()
 
 
 ## Guardar a mitad de viaje no debe dejar la carga olvidada en el morral.

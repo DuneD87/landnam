@@ -8,7 +8,8 @@ extends CanvasLayer
 ## que pedir, su encargo (SettlementQuests: aceptarlo, entregarlo o dejarlo); a un aldeano de un poblado
 ## que se fía bastante, pedirle que venga (SettlementCompanions); a un compañero, darle cosas para que
 ## las lleve o quitárselas, que siga o espere, o que vuelva a casa (devuelve lo que lleva); de un colono,
-## cómo va su trabajo (que se manda desde el trono, ThroneView). Mientras, él
+## cómo va su trabajo (que se manda desde el trono, ThroneView) y preguntarle qué hace y qué le falta
+## (si está parado por algo, lo dice nada más hablarle). Mientras, él
 ## se para y mira al jugador, y el jugador no se mueve (el ratón va suelto). Se cierra con E, Escape,
 ## alejándose o si él se va (una fiera). Ver docs/villagers.md.
 
@@ -65,6 +66,9 @@ var _follow_button: Button
 var _home_button: Button
 var _settle_button: Button
 var _work_label: Label
+## A un colono: qué hace y qué le falta (VillagerTalk.settler_doing, settler_needs).
+var _doing_button: Button
+var _needs_button: Button
 var _pack_button: Button
 var _quest_button: Button
 var _accept_button: Button
@@ -261,7 +265,10 @@ func _quest_open() -> bool:
 
 
 func _speak() -> void:
-	if _companion != null:
+	# El colono parado por algo lo dice nada más hablarle.
+	if _settled() and _last_line == "" and not _companion.work.stuck().is_empty():
+		_say(VillagerTalk.settler_needs(_companion))
+	elif _companion != null:
 		_say(VillagerTalk.companion_line(_companion, _player, _rng, _last_line))
 	else:
 		_say(VillagerTalk.line(_villager, _player, _rng, _last_line))
@@ -318,6 +325,8 @@ func _refresh() -> void:
 	_follow_button.visible = talk and _companion != null
 	_home_button.visible = talk and _companion != null
 	_settle_button.visible = talk and _companion != null and not _settled()
+	_doing_button.visible = talk and _settled()
+	_needs_button.visible = talk and _settled()
 	# Los oficios se mandan desde el trono; aquí, cómo va.
 	_work_label.text = ""
 	if _settled():
@@ -363,6 +372,16 @@ func _settled() -> bool:
 
 func _on_talk() -> void:
 	_speak()
+
+
+func _on_doing() -> void:
+	if _settled():
+		_say(VillagerTalk.settler_doing(_companion))
+
+
+func _on_needs() -> void:
+	if _settled():
+		_say(VillagerTalk.settler_needs(_companion))
 	_refresh()
 
 
@@ -840,6 +859,8 @@ func _build_ui() -> void:
 	_box.add_child(_buttons)
 	_talk_button = _button(_buttons, "VILLAGER_TALK", _on_talk)
 	_talk_button.theme_type_variation = &"AccentButton"
+	_doing_button = _button(_buttons, "SETTLER_ASK_DOING", _on_doing)
+	_needs_button = _button(_buttons, "SETTLER_ASK_NEEDS", _on_needs)
 	_gift_button = _button(_buttons, "VILLAGER_GIFT", _on_gift)
 	_trade_button = _button(_buttons, "VILLAGER_TRADE", _on_trade)
 	_pack_button = _button(_buttons, "VILLAGER_PACK", _on_pack)
@@ -907,7 +928,7 @@ func _layout() -> void:
 	_buttons.add_theme_constant_override("v_separation", gap)
 	for side in ["left", "top", "right", "bottom"]:
 		_margin.add_theme_constant_override("margin_" + side, roundi(24.0 * ui_scale))
-	for button: Button in [_talk_button, _gift_button, _trade_button, _pack_button, _quest_button,
+	for button: Button in [_talk_button, _doing_button, _needs_button, _gift_button, _trade_button, _pack_button, _quest_button,
 			_recruit_button, _follow_button, _settle_button, _home_button, _deal_button, _accept_button, _deliver_button,
 			_drop_button, _back_button, _bye_button]:
 		button.custom_minimum_size.x = 130.0 * ui_scale
