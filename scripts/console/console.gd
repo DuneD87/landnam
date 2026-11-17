@@ -318,7 +318,7 @@ func _register_commands() -> void:
 
 const XP_USAGE := "xp [add <n> | level <n> | attr <name> <n> | respec]"
 const SEASON_USAGE := "season [spring|summer|autumn|winter|<day>] | season speed <x> | season perf [leaves|cold|meadow|none]"
-const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off]"
+const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off] [blocks 16|32]"
 const CUT_USAGE := "cut [arm|forearm|thigh|shin] [left|right]"
 
 
@@ -894,6 +894,11 @@ func _cmd_terrain(args: PackedStringArray) -> String:
 				t.collision_lod_count = maxi(value.to_int(), 0)
 			elif key == "normalmap":
 				t.normalmap_enabled = value in ["on", "1", "true"]
+			elif key == "blocks" and value in ["16", "32"]:
+				# Remalla el terreno entero (unos 40 s). Con 32 hay un tercio menos de bloques y de
+				# draws (medido: -0,7 ms de CPU de render), pero cada bloque del instancer y cada
+				# remallado al cavar abarca ocho veces más volumen.
+				t.mesh_block_size = value.to_int()
 			else:
 				return _paint(COLOR_ERR, tr("CON_USAGE") % TERRAIN_USAGE)
 		i += 2
