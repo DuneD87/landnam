@@ -92,7 +92,9 @@ func _check_bronze() -> void:
 	var forge := _recipe(&"bronze_forge")
 	check(forge != null and forge.station == &"stone_workbench" and forge.inputs.get(&"bronze_ingot", 0) >= 4,
 		"la forja pide lingotes de bronce y se hace en el banco de trabajo")
-	for id in [&"bronze_axe", &"bronze_pickaxe", &"bronze_hoe", &"bronze_sword"]:
+	for id in [&"bronze_axe", &"bronze_pickaxe", &"bronze_hoe", &"bronze_sword", &"crescent_labrys",
+			&"dawn_greatsword", &"sunscale_coat", &"sunscale_breeches", &"sunscale_gauntlets", &"sunscale_boots",
+			&"hoplite_helm", &"hoplite_cuirass", &"hoplite_pteruges", &"hoplite_bracers", &"hoplite_greaves", &"hoplite_aspis"]:
 		var recipe := _recipe(id)
 		check(recipe != null and recipe.station == &"bronze_forge" and recipe.era == Eras.Era.BRONZE,
 			"%s, en la forja y de la Edad del bronce" % id)

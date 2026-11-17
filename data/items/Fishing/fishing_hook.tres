@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ItemData" format=3]
 
 [ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1"]
-[ext_resource type="Texture2D" path="res://textures/icons/items/fishing/fishing_hook.svg" id="2"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/fishing/fishing_hook.png" id="2"]
 
 [resource]
 script = ExtResource("1")

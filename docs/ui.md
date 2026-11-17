@@ -36,8 +36,8 @@ rápida, equipo) rehacen el tema cuando cambia el tamaño de la ventana.
   barra rápida y botín (`InventorySlot`, `EquipmentSlot` y `HotbarSlot` lo
   extienden). Cada estado es una variación (`SlotEmpty`, `Slot`, `SlotHover`,
   `SlotSelected`, `SlotEquipped`, `SlotHeld`) y el lado sale de las constantes
-  del tipo `ItemSlot` (`GameTheme.SLOT_SIDES`; la ventana de fabricar tiene los
-  suyos: `recipe`, `ingredient` y `preview`). Vacío enseña en bronce tenue la
+  del tipo `ItemSlot` (`GameTheme.SLOT_SIDES`). En la ventana de fabricar,
+  `ingredient` fija el tamaño de los materiales y `preview` el del resultado. Vacío enseña en bronce tenue la
   silueta de lo que va en él (`shaders/ui/tint_alpha.gdshader`).
 
 ## Inventario y pantalla de personaje
@@ -47,9 +47,8 @@ izquierda, sin fondo, para ver el mundo donde cae lo que se tira (con el botín
 al lado mientras se saquea). Con la **C** sale la pantalla de personaje entera.
 Con el **Tab** (o «Fabricar», en la cabecera del inventario) sale la de fabricar
 (ver abajo). La tecla de la vista abierta la cierra, y las otras cambian a la
-suya. El
-inventario tiene filtros por categoría que dejan en segundo plano lo que no es
-del filtro, sin moverlo de su hueco.
+suya. Los filtros comparten sus símbolos con el recetario. La categoría activa
+muestra su nombre y resalta sus objetos en la cuadrícula.
 
 En la pantalla de personaje, en el centro, está el muñeco de `CharacterWindow`: el propio personaje en 3D
 (`CharacterPreview` horneado y con fondo transparente), con la ropa de sus
@@ -99,7 +98,7 @@ Tiene cuatro partes:
   tienen alguna receta en ese sitio.
 - **Recetas**, en medio: agrupadas por era (la Edad de piedra, la del bronce). Lo
   que ahora no se puede hacer (falta material o la estación está lejos) sale
-  apagado.
+  apagado. Cada botón muestra el modelo del objeto, su nombre y la cantidad que produce.
 - **La receta elegida**, a la derecha:
   - La ficha: el objeto en grande, su tipo y sus cifras.
   - **Dónde** se hace.

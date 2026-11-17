@@ -43,9 +43,19 @@ const _ALEGREYA_MEDIUM := preload("res://fonts/AlegreyaSans-Medium.ttf")
 const _ALEGREYA_BOLD := preload("res://fonts/AlegreyaSans-Bold.ttf")
 const _ALEGREYA_ITALIC := preload("res://fonts/AlegreyaSans-Italic.ttf")
 
+const CATEGORY_ICONS := {
+	-1: preload("res://textures/ui/categories/all.svg"),
+	ItemData.Category.WEAPON: preload("res://textures/ui/categories/weapon.svg"),
+	ItemData.Category.TOOL: preload("res://textures/ui/categories/tool.svg"),
+	ItemData.Category.ARMOR: preload("res://textures/ui/categories/armor.svg"),
+	ItemData.Category.CONSUMABLE: preload("res://textures/ui/categories/consumable.svg"),
+	ItemData.Category.MATERIAL: preload("res://textures/ui/categories/material.svg"),
+	ItemData.Category.BLOCK: preload("res://textures/ui/categories/block.svg"),
+}
+
 ## Lado de los huecos de objeto, por uso (constantes del tipo "ItemSlot"): los de la ventana de
-## fabricar son las recetas, lo que piden y el objeto elegido en grande.
-const SLOT_SIDES := {&"inventory": 112, &"equipment": 112, &"hotbar": 92, &"held": 96, &"recipe": 104,
+## fabricar muestran los ingredientes y el objeto elegido en grande.
+const SLOT_SIDES := {&"inventory": 112, &"equipment": 112, &"hotbar": 92, &"held": 96,
 	&"ingredient": 64, &"preview": 150}
 
 
@@ -139,34 +149,25 @@ static func build(ui_scale: float) -> Theme:
 	# mano y el que va en el cursor.
 	for side in SLOT_SIDES:
 		theme.set_constant(side, "ItemSlot", px.call(SLOT_SIDES[side]))
-	var slot_margin := 10
-	var slots := {
-		"SlotEmpty": box(Color(IRON_DEEP, 0.72), 8, slot_margin, 1, BRONZE_FAINT, ui_scale),
-		"Slot": box(LEATHER, 8, slot_margin, 1, BRONZE_LINE, ui_scale),
-		"SlotHover": box(LEATHER_LIGHT, 8, slot_margin, 1, BRONZE, ui_scale),
-		"SlotSelected": glow(box(LEATHER_LIGHT, 8, slot_margin, 2, BRONZE, ui_scale), BRONZE, ui_scale),
-		"SlotEquipped": box(Color("1c232a"), 8, slot_margin, 2, FROST, ui_scale),
-		"SlotHeld": glow(box(LEATHER_LIGHT, 8, slot_margin, 2, BRONZE, ui_scale), Color.BLACK, ui_scale),
-	}
-	for variation in slots:
-		theme.set_type_variation(variation, "PanelContainer")
-		theme.set_stylebox("panel", variation, slots[variation])
-	# La barra conserva su talla y sus medidas; los huecos reservan un pie para los atajos.
+	# Una misma cavidad biselada en inventario, equipo, recetas y barra rápida.
 	for state in ["SlotEmpty", "Slot", "SlotHover", "SlotSelected", "SlotEquipped", "SlotHeld"]:
-		var frame := HotbarSlotFrame.new()
-		frame.ui_scale = ui_scale
-		frame.empty = state == "SlotEmpty"
-		frame.fill = Color("151512") if frame.empty else Color("29231b")
-		frame.accent = FROST if state == "SlotEquipped" else BRONZE
-		if state in ["SlotSelected", "SlotHeld", "SlotEquipped"]:
-			frame.emphasis = 1.0
-			frame.fill = Color("202b30") if state == "SlotEquipped" else Color("3b3021")
-		elif state == "SlotHover":
-			frame.emphasis = 0.35
-			frame.fill = Color("352d22")
-		frame.set_content_margin_all(0)
-		theme.set_type_variation("Hotbar" + state, "PanelContainer")
-		theme.set_stylebox("panel", "Hotbar" + state, frame)
+		for hotbar in [false, true]:
+			var frame := HotbarSlotFrame.new()
+			frame.ui_scale = ui_scale
+			frame.empty = state == "SlotEmpty"
+			frame.fill = Color("171b1b") if frame.empty else Color("303b38")
+			frame.accent = FROST if state == "SlotEquipped" else BRONZE
+			if state in ["SlotSelected", "SlotHeld", "SlotEquipped"]:
+				frame.emphasis = 1.0
+				frame.fill = Color("202b30") if state == "SlotEquipped" else Color("3b3021")
+			elif state == "SlotHover":
+				frame.emphasis = 0.35
+				frame.fill = Color("352d22")
+			frame.key_badge = hotbar
+			frame.set_content_margin_all(0 if hotbar else px.call(8))
+			var variation: String = ("Hotbar" if hotbar else "") + state
+			theme.set_type_variation(variation, "PanelContainer")
+			theme.set_stylebox("panel", variation, frame)
 
 	# Botones.
 	var margin := 14
@@ -217,6 +218,29 @@ static func build(ui_scale: float) -> Theme:
 	theme.set_color("font_pressed_color", "TabButton", BRONZE)
 	theme.set_color("font_hover_pressed_color", "TabButton", BRONZE)
 	theme.set_font_size("font_size", "TabButton", px.call(25))
+
+	theme.set_type_variation("RecipeButton", "Button")
+	theme.set_stylebox("normal", "RecipeButton", box(Color("222c29"), 7, 12, 1, BRONZE_FAINT, ui_scale))
+	theme.set_stylebox("pressed", "RecipeButton", box(Color("473b29"), 7, 12, 2, BRONZE, ui_scale))
+	theme.set_stylebox("hover_pressed", "RecipeButton", box(Color("51432d"), 7, 12, 2, BRONZE, ui_scale))
+	theme.set_constant("icon_max_width", "RecipeButton", px.call(72))
+	theme.set_constant("h_separation", "RecipeButton", px.call(10))
+	theme.set_font_size("font_size", "RecipeButton", px.call(23))
+
+	theme.set_type_variation("CategoryTab", "TabButton")
+	theme.set_constant("icon_max_width", "CategoryTab", px.call(31))
+	theme.set_constant("h_separation", "CategoryTab", px.call(9))
+	theme.set_stylebox("normal", "CategoryTab", box(Color("1b211f"), 5, 9, 1, BRONZE_FAINT, ui_scale))
+	theme.set_stylebox("pressed", "CategoryTab", box(Color("3e3526"), 5, 9, 1, BRONZE, ui_scale))
+	theme.set_stylebox("hover_pressed", "CategoryTab", box(Color("4e402b"), 5, 9, 1, BRONZE, ui_scale))
+	theme.set_stylebox("hover", "CategoryTab", box(Color("303a35"), 5, 9, 1, BRONZE_LINE, ui_scale))
+	theme.set_constant("icon_max_width", "RailButton", px.call(30))
+	theme.set_constant("h_separation", "RailButton", px.call(13))
+	for button_type in ["CategoryTab", "RailButton"]:
+		theme.set_color("icon_normal_color", button_type, Color("b1aea0"))
+		theme.set_color("icon_hover_color", button_type, BONE)
+		theme.set_color("icon_pressed_color", button_type, BRONZE)
+		theme.set_color("icon_hover_pressed_color", button_type, BRONZE)
 
 	# Barra de categorías: texto a la izquierda y, la elegida, con una barra de bronce delante.
 	theme.set_type_variation("RailButton", "Button")

@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/dawn_greatsword.res" id="1_33yw3"]
+
+[node name="DawnGreatsword" type="Node3D" unique_id=2048414124]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=881019141]
+mesh = ExtResource("1_33yw3")

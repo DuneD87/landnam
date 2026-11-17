@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://data/items/meshes/weapons/crescent_labrys.res" id="1_c7jwq"]
+
+[node name="CrescentLabrys" type="Node3D" unique_id=411389665]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=961527932]
+mesh = ExtResource("1_c7jwq")

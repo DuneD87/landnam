@@ -30,8 +30,24 @@ func _init() -> void:
 ## [compare] es lo que se lleva puesto en el hueco del objeto (null si nada, o si es él mismo).
 func show_item(data: ItemData, quantity: int, compare: ItemData, hint: String) -> void:
 	_clear()
-	_label(data.get_display_name(), &"CardTitle")
-	_label(kind_line(data), &"HintLabel")
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", roundi(16 * ui_scale))
+	_column.add_child(header)
+	var sample := ItemSlotView.new()
+	sample.size_kind = &"ingredient"
+	sample.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sample.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sample.show_item(data.icon)
+	header.add_child(sample)
+	var titles := VBoxContainer.new()
+	titles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(titles)
+	var title := _make(data.get_display_name(), &"CardTitle")
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	titles.add_child(title)
+	var kind := _make(kind_line(data), &"HintLabel")
+	kind.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	titles.add_child(kind)
 	var rows := stat_rows(data, compare)
 	if data.stackable and data.max_stack > 1 and quantity > 0:
 		rows.append(["CARD_QUANTITY", "%d / %d" % [quantity, data.max_stack], 0.0])

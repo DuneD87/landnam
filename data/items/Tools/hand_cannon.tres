@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ItemData" format=3]
 
-[ext_resource type="Texture2D" path="res://textures/icons/items/tools/stone_axe_01.png" id="1_icon"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/tools/hand_cannon.png" id="1_icon"]
 [ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_script"]
 [ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_clek4"]
 

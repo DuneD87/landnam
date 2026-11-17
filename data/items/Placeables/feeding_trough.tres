@@ -5,7 +5,7 @@
 [ext_resource type="Script" path="res://scripts/items/traits/ground_placeable_trait.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/items/traits/storage_trait.gd" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/world/feeding_trough_visual.tscn" id="5"]
-[ext_resource type="Texture2D" path="res://textures/icons/items/survival/feeding_trough.svg" id="6"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/feeding_trough.png" id="6"]
 [ext_resource type="Script" path="res://scripts/items/feeder_inventory_rules.gd" id="7"]
 
 [sub_resource type="Resource" id="Placement"]

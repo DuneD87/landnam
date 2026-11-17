@@ -304,8 +304,11 @@ func _build_inventory_column() -> PanelContainer:
 	var group := ButtonGroup.new()
 	for i in FILTERS.size():
 		var button := Button.new()
-		button.text = FILTERS[i][0]
-		button.theme_type_variation = &"TabButton"
+		button.text = FILTERS[i][0] if i == _filter else ""
+		button.tooltip_text = FILTERS[i][0]
+		button.accessibility_name = FILTERS[i][0]
+		button.icon = GameTheme.CATEGORY_ICONS[FILTERS[i][1]]
+		button.theme_type_variation = &"CategoryTab"
 		button.toggle_mode = true
 		button.button_group = group
 		button.focus_mode = Control.FOCUS_NONE
@@ -864,6 +867,8 @@ func _refresh() -> void:
 func _set_filter(index: int) -> void:
 	_filter = index
 	_filter_buttons[index].button_pressed = true
+	for i in _filter_buttons.size():
+		_filter_buttons[i].text = FILTERS[i][0] if i == index else ""
 	_apply_filter()
 
 

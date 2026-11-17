@@ -6,25 +6,7 @@ extends SceneTree
 
 const Renderer = preload("res://tools/ui/item_icon_renderer.gd")
 const SIZE := Renderer.SIZE
-## [giro sobre Z de cámara, guiñada] y, si hace falta, la inclinación hacia la cámara (grados): la
-## azada se inclina para que se vea la cara de la hoja y no su canto.
-const WEAPONS := {
-	"iron_sword": [-40.0, 82.0], "battle_axe": [-35.0, 82.0],
-	"iron_mace": [-35.0, 75.0], "spear": [-40.0, 82.0],
-	"greatsword": [-40.0, 82.0], "great_axe": [-35.0, 82.0],
-	"war_hammer": [-35.0, 75.0], "hunting_bow": [-30.0, 82.0],
-	"slingshot": [-25.0, -12.0], "arrow": [-40.0, 82.0],
-	"branch": [-40.0, 82.0], "wooden_shield": [-8.0, -12.0],
-	"iron_shield": [-8.0, -12.0], "heater_shield": [-8.0, -12.0],
-	"flint_sword": [-40.0, 82.0], "flint_spear": [-40.0, 82.0],
-	"flint_knife": [-40.0, 82.0], "bone_dagger": [-40.0, 82.0],
-	"obsidian_sword": [-40.0, 82.0], "stone_club": [-35.0, 75.0],
-	"stone_maul": [-35.0, 75.0], "hide_shield": [-8.0, -12.0],
-	"bone_shield": [-8.0, -12.0],
-	"stone_axe_01": [-35.0, 82.0], "stone_pickaxe_01": [-35.0, 82.0],
-	"stone_hammer_01": [-35.0, 82.0], "stone_hoe_01": [-35.0, 82.0, -40.0],
-}
-const TOOL_ICONS := ["stone_axe_01", "stone_pickaxe_01", "stone_hammer_01", "stone_hoe_01"]
+const WeaponBake = preload("res://tools/combat/bake_weapons.gd")
 const TOOLS := {
 	"torch": ["res://scenes/items/torches/torch.tscn", -35.0, -12.0],
 }
@@ -32,7 +14,6 @@ const TOOLS := {
 ## guiñada, qué se ve y, si va, la exposición. Los pares (manos, pies) muestran solo la pieza
 ## izquierda; la manopla, además, derecha con los dedos arriba y el dorso al frente. Las pieles
 ## con pelo, claras y mates, se queman con la luz de los demás objetos.
-const ARMOR_SCENES := "res://scenes/items/armor/stone_age/%s_equipable.tscn"
 const ARMOR := {
 	"fur_mantle": [0.0, -20.0, "", 0.55], "fur_loincloth": [0.0, -20.0, "", 0.55],
 	"fur_mittens": [0.0, -15.0, "hand", 0.55], "fur_moccasins": [0.0, -65.0, "foot", 0.55],
@@ -55,9 +36,42 @@ const ARMOR := {
 	"hide_tunic": [0.0, -20.0, ""], "hide_trousers": [0.0, -20.0, ""],
 	"hide_mittens": [0.0, -15.0, "hand"], "hide_boots": [0.0, -65.0, "foot"],
 }
+const LEGACY_ARMOR := {
+	"firstage_skin_boots": "foot", "firstage_skin_chest": "", "firstage_skin_hands": "hand",
+	"firstage_skin_hood": "", "firstage_skin_pants": "", "leather_boots": "foot",
+	"leather_chest": "", "leather_hands": "hand", "leather_hood": "", "leather_leggings": "",
+	"leather_chest_01": "", "leather_pants_01": "",
+}
+const BRONZE_ARMOR := {
+	"hoplite_helm": [0.0, -35.0, "", 0.82], "hoplite_cuirass": [0.0, -15.0, "", 0.88],
+	"hoplite_pteruges": [0.0, -15.0, "", 0.86], "hoplite_bracers": [-27.0, -22.0, "arm", 0.88],
+	"hoplite_greaves": [0.0, -32.0, "foot", 0.88],
+	"sunscale_coat": [0.0, -16.0, "", 0.75], "sunscale_breeches": [0.0, -16.0, "", 0.75],
+	"sunscale_gauntlets": [0.0, -16.0, "hand", 0.75], "sunscale_boots": [0.0, -35.0, "foot", 0.75],
+}
+## Constructor, giro, guiñada e inclinación de la miniatura.
+var props := {
+	"throne": [preload("res://scripts/world/throne_visual.gd").make_mesh, 0, -32, 20],
+	"rowing_bench": [preload("res://scripts/world/rowing_bench_visual.gd").make_mesh, 0, -32, 20],
+	"feeding_trough": [preload("res://scripts/world/feeding_trough_visual.gd").make_mesh, 0, -32, 20],
+	"water_trough": [preload("res://scripts/world/water_trough_visual.gd").make_mesh, 0, -32, 20],
+	"wooden_chest": [preload("res://scripts/world/wooden_chest_visual.gd").make_mesh, 0, -30, 20],
+	"hide_backpack": [preload("res://scripts/items/hide_backpack_visual.gd").make_mesh, -8, 155, 8],
+	"bedroll": [preload("res://scripts/world/bedroll_visual.gd").make_mesh, -12, -28, 58],
+	"rope_ladder": [RopeLadder.make_mesh.bind(1.3, 2.2), -32, -30, 12],
+	"wooden_door": [DoorMesh.make.bind(Vector2i(1, 3)), -24, 205, 8],
+	"wooden_trapdoor": [DoorMesh.make.bind(Vector2i(1, 1)), 0, 215, 40],
+}
+const VISUAL_SCENES := {
+	"fishing_rod": ["fishing", "res://scenes/items/survival/fishing/fishing_rod.tscn", -36.0, 45.0, 0.0],
+	"fishing_hook": ["fishing", "res://scenes/items/survival/fishing/fishing_hook.tscn", -25.0, 15.0, 0.0],
+	"fishing_bait": ["fishing", "res://scenes/items/survival/fishing/fishing_bait.tscn", 25.0, 10.0, 0.0],
+	"raw_fish": ["fishing", "res://scenes/items/survival/fishing/raw_fish.tscn", 22.0, 70.0, 8.0],
+	"cooked_fish": ["fishing", "res://scenes/items/survival/fishing/cooked_fish.tscn", 22.0, 70.0, 8.0],
+	"hide_sail": ["survival", "res://scenes/items/survival/hide_sail.tscn", 0.0, -25.0, 12.0],
+	"hand_cannon": ["tools", "res://scenes/items/weapons/hand_cannon.tscn", 24.0, 62.0, 18.0],
+}
 const PLAYER_SKIN := "res://models/player/xavivar/firstage_human_male_player_skin.tres"
-const CHEST = preload("res://scripts/world/wooden_chest_visual.gd")
-const BACKPACK = preload("res://scripts/items/hide_backpack_visual.gd")
 
 
 func _initialize() -> void:
@@ -73,18 +87,12 @@ func _run() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			only = arg.substr(7).split(",")
-	for weapon in WEAPONS:
-		if not only.is_empty() and weapon not in only:
-			continue
-		var mesh := load("res://data/items/meshes/weapons/%s.res" % weapon) as Mesh
-		var model := MeshInstance3D.new()
-		model.mesh = mesh
-		Renderer.prepare_model(model, weapon)
-		var folder := "tools" if weapon in TOOL_ICONS else "weapons"
-		var angles: Array = WEAPONS[weapon]
-		await Renderer.render(self, model, angles,
-			"res://textures/icons/items/%s/%s.png" % [folder, weapon], weapon == "hunting_bow",
-			angles[2] if angles.size() > 2 else 0.0)
+	for weapon in WeaponBake.WEAPONS:
+		if only.is_empty() or weapon in only:
+			await WeaponBake.render_weapon(self, weapon, load(WeaponBake.MESH_DIR + weapon + ".res"))
+	for id in WeaponBake.SURVIVAL:
+		if only.is_empty() or id in only:
+			await WeaponBake.render_survival(self, id, load(WeaponBake.SURVIVAL_MESH_DIR + id + ".res"))
 	for tool in TOOLS:
 		if not only.is_empty() and tool not in only:
 			continue
@@ -97,31 +105,82 @@ func _run() -> void:
 		source.free()
 		await Renderer.render(self, model, [entry[1], entry[2]],
 			"res://textures/icons/items/tools/%s.png" % tool, false)
-	for armor in ARMOR:
-		if not only.is_empty() and armor not in only:
+	var garments := ARMOR.duplicate()
+	garments.merge(BRONZE_ARMOR)
+	for id in LEGACY_ARMOR:
+		var piece: String = LEGACY_ARMOR[id]
+		garments[id] = [0.0, -45.0 if piece == "foot" else -15.0, piece, 0.82]
+	for id in garments:
+		if not only.is_empty() and id not in only:
 			continue
-		var entry: Array = ARMOR[armor]
-		var source := (load(ARMOR_SCENES % armor) as PackedScene).instantiate() as MeshInstance3D
-		var model := MeshInstance3D.new()
-		model.mesh = _left_piece(source.mesh) if entry[2] != "" else source.mesh
-		if entry[2] == "hand":
+		var item := ItemCatalog.get_item(id)
+		var view: Array = garments[id]
+		var model := (load(item.scene_path) as PackedScene).instantiate() as MeshInstance3D
+		# Sin esqueleto se muestra la pose de reposo. Conserva los materiales y los broches de la escena.
+		for part: MeshInstance3D in [model] + model.find_children("*", "MeshInstance3D", true, false):
+			part.skin = null
+			if view[2] != "":
+				part.mesh = _left_piece(part.mesh)
+		if view[2] == "hand":
 			model.basis = _upright_hand()
-		source.free()
-		await Renderer.render(self, model, [entry[0], entry[1]],
-			"res://textures/icons/items/armor/stone_age/%s.png" % armor, false, 0.0,
-			entry[3] if entry.size() > 3 else 1.0)
-	if only.is_empty() or "wooden_chest" in only:
+		await Renderer.render(self, model, [view[0], view[1]], item.icon.resource_path,
+			false, 0.0, view[3] if view.size() > 3 else 1.0)
+	if only.is_empty() or "hoplite_aspis" in only:
+		var shield := MeshInstance3D.new()
+		shield.mesh = load("res://models/equipable/bronze_age/hoplite_aspis.res")
+		await Renderer.render(self, shield, [-8.0, -20.0], "res://textures/icons/items/weapons/hoplite_aspis.png", false, 0.0, 0.85)
+	for id in props:
+		if not only.is_empty() and id not in only:
+			continue
+		var view: Array = props[id]
 		var model := MeshInstance3D.new()
-		model.mesh = CHEST.make_mesh()
-		await Renderer.render(self, model, [0.0, -30.0],
-			"res://textures/icons/items/survival/wooden_chest.png", false, 20.0)
-	if only.is_empty() or "hide_backpack" in only:
-		var model := MeshInstance3D.new()
-		model.mesh = BACKPACK.make_mesh()
-		await Renderer.render(self, model, [-8.0, 155.0],
-			"res://textures/icons/items/survival/hide_backpack.png", false, 8.0)
+		model.mesh = (view[0] as Callable).call()
+		if id == "rope_ladder":
+			model.rotation.z = PI
+		await Renderer.render(self, model, [view[1], view[2]],
+			"res://textures/icons/items/survival/%s.png" % id, false, view[3])
+	for id in VISUAL_SCENES:
+		if not only.is_empty() and id not in only:
+			continue
+		var view: Array = VISUAL_SCENES[id]
+		var model := (load(view[1]) as PackedScene).instantiate() as Node3D
+		if id == "fishing_rod":
+			model.scale = Vector3(2.5, 1.0, 2.5)
+		await Renderer.render(self, model, [view[2], view[3]],
+			"res://textures/icons/items/%s/%s.png" % [view[0], id], false, view[4])
+	for id in ["wood", "stone"]:
+		if only.is_empty() or id in only:
+			var model := MeshInstance3D.new()
+			model.mesh = _material_bundle(id)
+			await Renderer.render(self, model, [0.0, -38.0], "res://textures/icons/items/collectable/icon_%s.png" % id, false, 18.0)
 	print("Iconos Saga: horneado terminado.")
 	quit()
+
+
+## Una pila de tres unidades distingue el material suelto del bloque de construcción.
+func _material_bundle(id: String) -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	if id == "stone":
+		for i in 3:
+			var at: Vector3 = [Vector3(-0.23, 0.0, 0.0), Vector3(0.22, 0.0, 0.03), Vector3(0.0, 0.21, 0.02)][i]
+			WeaponMeshes.lump(b.st(WeaponMeshes.STONE), at, 0.32, 123 + i, 0.64)
+	else:
+		for at: Vector2 in [Vector2(-0.15, 0.0), Vector2(0.15, 0.0), Vector2(0.0, 0.235)]:
+			var points := PackedVector3Array([Vector3(at.x, at.y, -0.38), Vector3(at.x, at.y, 0.38)])
+			ProcMesh.tube(b.st(WeaponMeshes.BARK), points, PackedVector2Array([Vector2.ONE * 0.16, Vector2.ONE * 0.15]), 11, Vector3.UP)
+			# La testa clara y la médula se ven en la cara de los troncos.
+			for end: float in [-1.0, 1.0]:
+				for ring in 2:
+					var z: float = end * (0.381 + 0.002 * ring)
+					var radius := 0.138 if ring == 0 else 0.045
+					var face := b.st(WeaponMeshes.WOOD if ring == 0 else WeaponMeshes.DARK_WOOD)
+					for k in 11:
+						var a := TAU * k / 11 * end
+						var next := TAU * (k + 1) / 11 * end
+						ProcMesh.tri(face, Vector3(at.x, at.y, z),
+							Vector3(at.x + radius * cos(next), at.y + radius * sin(next), z),
+							Vector3(at.x + radius * cos(a), at.y + radius * sin(a), z))
+	return b.commit(WeaponMeshes.make_material)
 
 
 ## La pieza del lado izquierdo (+X) de un par, sin piel: el icono la encuadra sola. Conserva

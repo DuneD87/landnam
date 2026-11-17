@@ -23,6 +23,7 @@ const BONE := &"bone"
 const OBSIDIAN := &"obsidian"
 const RAWHIDE := &"rawhide"
 const BRONZE := &"bronze"
+const PATINA := &"patina"
 
 
 ## Materiales compartidos, uno por tipo. El grano va en la textura de ruido y las UV lo estiran
@@ -78,6 +79,10 @@ static func make_material(kind: StringName) -> StandardMaterial3D:
 			# Piel cruda tensada y seca: parda clara y translúcida a manchas.
 			mat.albedo_texture = ProcMesh.noise_texture(Color(0.42, 0.30, 0.17), Color(0.70, 0.55, 0.36), 2.5, 37)
 			mat.roughness = 0.75
+		PATINA:
+			mat.albedo_color = Color("39776b")
+			mat.metallic = 0.45
+			mat.roughness = 0.52
 		BRONZE:
 			# Recién colado y repasado a la piedra: dorado, con el pulido a manchas.
 			mat.albedo_texture = ProcMesh.noise_texture(Color(0.50, 0.32, 0.14), Color(0.80, 0.58, 0.30), 3.0, 41)
@@ -867,6 +872,70 @@ static func _bronze_socket(b: ProcMesh.Builder) -> void:
 	ProcMesh.lathe(b.st(BRONZE), [Vector2(0.024, 0.485), Vector2(0.03, 0.49), Vector2(0.03, 0.5),
 		Vector2(0.027, 0.505), Vector2(0.027, 0.555), Vector2(0.03, 0.56), Vector2(0.03, 0.57),
 		Vector2(0.024, 0.575)], 10)
+
+
+## Dos lunas enfrentadas. La garganta es estrecha y cada filo se abre en abanico.
+static func crescent_labrys() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	var bronze := b.st(BRONZE)
+	ProcMesh.lathe(b.st(DARK_WOOD), [Vector2(0.0, -0.39), Vector2(0.028, -0.38),
+		Vector2(0.022, -0.31), Vector2(0.024, 0.78), Vector2(0.032, 0.96)], 12)
+	wrapped_grip(b.st(LEATHER), -0.32, 0.08, 0.025, 14)
+	_bronze_head(bronze, [Vector4(-0.19, 0.89, 0.06, 0.014), Vector4(0, 0.89, 0.055, 0.035),
+		Vector4(0.19, 0.89, 0.06, 0.014)])
+	for side: float in [-1.0, 1.0]:
+		var rings := []
+		for i in 21:
+			var t := (i - 10) / 10.0
+			var arc := sqrt(maxf(0.0, 1.0 - t * t))
+			var centre := side * (0.215 + 0.025 * arc)
+			var half_width := 0.002 + 0.102 * arc
+			var y := 0.87 + 0.285 * t
+			var thickness := 0.002 + 0.017 * arc
+			rings.append(PackedVector3Array([Vector3(0, y, centre + half_width),
+				Vector3(thickness, y, centre), Vector3(0, y, centre - half_width),
+				Vector3(-thickness, y, centre)]))
+		ProcMesh.loft(bronze, rings)
+	for y in [-0.375, 0.09, 0.72, 0.78, 0.99]:
+		ProcMesh.lathe(bronze, [Vector2(0.025, y), Vector2(0.033, y + 0.005),
+			Vector2(0.033, y + 0.016), Vector2(0.025, y + 0.021)], 12)
+	ProcMesh.lathe(bronze, [Vector2(0.032, 0.78), Vector2(0.045, 0.84),
+		Vector2(0.044, 0.96), Vector2(0.031, 1.0), Vector2(0.0, 1.05)], 10)
+	return b.commit(make_material, true)
+
+
+## Hoja lanceolada con nervio central, guarda de alas y guarnición de hueso claro.
+static func dawn_greatsword() -> ArrayMesh:
+	var b := ProcMesh.Builder.new()
+	var bronze := b.st(BRONZE)
+	ProcMesh.set_flat(bronze, true)
+	blade(bronze, 0.105, 0.89, 0.095, 0.026, 0.20, true, 0.82, 0.26)
+	# Un rombo de esmalte estrecho en cada cara subraya la nervadura del arranque.
+	var enamel := b.st(PATINA)
+	for side: float in [-1.0, 1.0]:
+		var lower := Vector3(side * 0.0134, 0.14, 0.0)
+		var upper := Vector3(side * 0.0125, 0.49, 0.0)
+		var left := Vector3(side * 0.0134, 0.225, -0.018)
+		var right := Vector3(side * 0.0134, 0.225, 0.018)
+		if side > 0:
+			ProcMesh.quad(enamel, lower, left, upper, right)
+		else:
+			ProcMesh.quad(enamel, lower, right, upper, left)
+	for side in [-1.0, 1.0]:
+		var sections := []
+		for p in [Vector3(0.0, 0.105, 0.048), Vector3(0.065, 0.116, 0.033),
+				Vector3(0.115, 0.156, 0.021), Vector3(0.14, 0.19, 0.004)]:
+			sections.append(Vector4(side * p.x, p.y, p.z, p.z * 0.55))
+		if side < 0.0:
+			sections.reverse()
+		_bronze_head(bronze, sections)
+	wrapped_grip(b.st(LEATHER), -0.28, 0.08, 0.023, 13)
+	for y in [-0.285, -0.14, 0.055]:
+		ProcMesh.lathe(b.st(BONE), [Vector2(0.025, y), Vector2(0.029, y + 0.004),
+			Vector2(0.029, y + 0.016), Vector2(0.025, y + 0.02)], 12)
+	ProcMesh.lathe(bronze, [Vector2(0.0, -0.37), Vector2(0.048, -0.326),
+		Vector2(0.045, -0.31), Vector2(0.022, -0.273)], 8)
+	return b.commit(make_material, true)
 
 
 ## Espada de bronce: hoja en hoja de laurel, más ancha a dos tercios, con la nervadura en medio; la

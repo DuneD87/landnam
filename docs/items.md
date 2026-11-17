@@ -85,6 +85,11 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Forja del broncista | `bronze_forge` | Estación de trabajo de la Edad del bronce, de armas y armaduras: se planta en el suelo |
 | Hacha, pico y azada de bronce | `bronze_axe`, `bronze_pickaxe`, `bronze_hoe` | Talan, pican y allanan más deprisa que las de piedra; el pico, además, muerde todas las vetas |
 | Espada de bronce | `bronze_sword` | Arma de la forja: 30 de daño, más ligera que las de sílex y obsidiana |
+| Lábris de las dos lunas | `crescent_labrys` | Hacha de dos manos con doble creciente. Cuesta 28 de aguante y causa 48 de daño de aplomo |
+| Espadón Hoja del Alba | `dawn_greatsword` | Hoja lanceolada de dos manos. Alcanza 1,20 m y cuesta 24 de aguante |
+| Armadura del Sol | `sunscale_coat`, `sunscale_breeches`, `sunscale_gauntlets`, `sunscale_boots` | Cuatro prendas de piel con láminas y broches de bronce. Cada pieza se fabrica en la forja y aporta protección y abrigo al equiparla |
+| Panoplia del Grifo | `hoplite_helm`, `hoplite_cuirass`, `hoplite_pteruges`, `hoplite_bracers`, `hoplite_greaves` | Cinco piezas de bronce con cresta y manto carmesí. Se fabrican por separado en la forja. Los brazales cubren los antebrazos y las grebas cubren las espinillas |
+| Aspis de la Palmeta | `hoplite_aspis` | Escudo redondo de la misma forja. Se equipa en la mano secundaria y puede bloquear proyectiles |
 | Lecho de pieles | `bedroll` | Se planta en el suelo: E para dormir ocho horas o recogerlo |
 | Cofre de madera | `wooden_chest` | Se planta en el suelo: E para guardar y sacar objetos en sus 24 huecos |
 | Puerta de madera | `wooden_door` | Se construye a medida con el martillo en B → Puertas y cierra un hueco en un muro: E la abre y la cierra. Ver [building.md](building.md#puertas-y-trampillas) |

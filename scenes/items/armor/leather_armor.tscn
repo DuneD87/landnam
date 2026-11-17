@@ -1,13 +1,15 @@
 [gd_scene format=4 uid="uid://ce0nlgvyxo5oa"]
 
-[ext_resource type="Texture2D" uid="uid://bgwwvi0fcbvja" path="res://models/player/armor_01_Baked_BaseColor.png" id="1_7deur"]
-[ext_resource type="Texture2D" uid="uid://n2footftwpr6" path="res://models/player/armor_01_Baked_Normal.png" id="2_sjvmw"]
+[ext_resource type="Texture2D" path="res://models/equipable/stone_age/fur/leather_albedo.png" id="1_7deur"]
+[ext_resource type="Texture2D" path="res://models/equipable/stone_age/fur/leather_normal.png" id="2_sjvmw"]
 [ext_resource type="Script" uid="uid://grew2ts0oeld" path="res://scripts/items/mesh_item.gd" id="3_sjvmw"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ccans"]
 resource_name = "Material.002"
 transparency = 4
 cull_mode = 2
+albedo_color = Color(0.48, 0.30, 0.19, 1)
+uv1_scale = Vector3(3, 3, 1)
 albedo_texture = ExtResource("1_7deur")
 roughness = 0.5
 normal_enabled = true

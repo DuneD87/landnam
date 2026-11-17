@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/antler_boots.res" id="1_3e8gp"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_rbl5u"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_x42x4"]
+[ext_resource type="Resource" path="res://data/items/Armor/BronzeAge/sunscale_boots.tres" id="4_bkwvt"]
+
+[ext_resource type="Material" path="res://models/equipable/bronze_age/chased_bronze.tres" id="5_bronze"]
+[ext_resource type="ArrayMesh" path="res://models/equipable/bronze_age/sunscale_boots_boss.res" id="6_boss"]
+
+[node name="sunscale_boots" type="MeshInstance3D"]
+mesh = ExtResource("1_3e8gp")
+skin = ExtResource("2_rbl5u")
+script = ExtResource("3_x42x4")
+item_data = ExtResource("4_bkwvt")
+surface_material_override/3 = ExtResource("5_bronze")
+
+[node name="SunBoss" type="MeshInstance3D" parent="."]
+skeleton = NodePath("../..")
+mesh = ExtResource("6_boss")
+skin = ExtResource("2_rbl5u")

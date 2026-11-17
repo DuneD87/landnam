@@ -15,7 +15,7 @@ static func prepare_model(model: MeshInstance3D, item_name: String) -> void:
 
 
 ## [exposure] escala la luz del estudio (IconStudio.light): menos para lo claro y mate, que se quema.
-static func render(tree: SceneTree, model: MeshInstance3D, angles: Array, output: String, bow: bool, pitch := 0.0,
+static func render(tree: SceneTree, model: Node3D, angles: Array, output: String, bow: bool, pitch := 0.0,
 		exposure := 1.0) -> void:
 	var viewport := SubViewport.new()
 	viewport.size = Vector2i(SIZE, SIZE)
@@ -31,7 +31,15 @@ static func render(tree: SceneTree, model: MeshInstance3D, angles: Array, output
 	holder.add_child(model)
 	holder.rotation_degrees = Vector3(0, angles[1], 0)
 	holder.basis = Basis(Vector3.BACK, deg_to_rad(angles[0])) * Basis(Vector3.RIGHT, deg_to_rad(pitch)) * holder.basis
-	var bounds: AABB = model.transform * model.mesh.get_aabb()
+	var bounds: AABB
+	var first := true
+	for node in [model] + model.find_children("*", "MeshInstance3D", true, false):
+		var part := node as MeshInstance3D
+		if part == null or part.mesh == null:
+			continue
+		var box := holder.global_transform.affine_inverse() * part.global_transform * part.mesh.get_aabb()
+		bounds = box if first else bounds.merge(box)
+		first = false
 	if bow:
 		var cord := MeshInstance3D.new()
 		var cylinder := CylinderMesh.new()
@@ -66,6 +74,17 @@ static func render(tree: SceneTree, model: MeshInstance3D, angles: Array, output
 	await RenderingServer.frame_post_draw
 	var image := viewport.get_texture().get_image()
 	image.convert(Image.FORMAT_RGBA8)
+	# Tras girar el modelo, su caja 3D puede dejar mucho aire (sobre todo en lanzas y pares).
+	var used := image.get_used_rect()
+	if not used.has_area():
+		push_error("Icono vacío: " + output)
+		tree.quit(1)
+		return
+	var silhouette := image.get_region(used)
+	var factor := SIZE * 0.89 / maxf(used.size.x, used.size.y)
+	silhouette.resize(maxi(1, roundi(used.size.x * factor)), maxi(1, roundi(used.size.y * factor)), Image.INTERPOLATE_LANCZOS)
+	image.fill(Color.TRANSPARENT)
+	image.blit_rect(silhouette, Rect2i(Vector2i.ZERO, silhouette.get_size()), (image.get_size() - silhouette.get_size()) / 2)
 	if image.save_png(output) != OK:
 		push_error("No se pudo guardar el icono: " + output)
 		tree.quit(1)

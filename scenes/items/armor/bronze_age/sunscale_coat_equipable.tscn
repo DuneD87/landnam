@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/stone_age/antler_coat.res" id="1_dx8rc"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skirt_skin.tres" id="2_phsah"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_i8s1h"]
+[ext_resource type="Resource" path="res://data/items/Armor/BronzeAge/sunscale_coat.tres" id="4_5r3ig"]
+
+[ext_resource type="Material" path="res://models/equipable/bronze_age/chased_bronze.tres" id="5_bronze"]
+[ext_resource type="ArrayMesh" path="res://models/equipable/bronze_age/sunscale_coat_boss.res" id="6_boss"]
+
+[node name="sunscale_coat" type="MeshInstance3D"]
+mesh = ExtResource("1_dx8rc")
+skin = ExtResource("2_phsah")
+script = ExtResource("3_i8s1h")
+item_data = ExtResource("4_5r3ig")
+surface_material_override/2 = ExtResource("5_bronze")
+
+[node name="SunBoss" type="MeshInstance3D" parent="."]
+skeleton = NodePath("../..")
+mesh = ExtResource("6_boss")
+skin = ExtResource("2_phsah")

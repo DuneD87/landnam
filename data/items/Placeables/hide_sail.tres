@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/items/traits/sail_trait.gd" id="3"]
-[ext_resource type="Texture2D" path="res://textures/icons/items/survival/hide_sail.svg" id="4"]
+[ext_resource type="Texture2D" path="res://textures/icons/items/survival/hide_sail.png" id="4"]
 
 [sub_resource type="Resource" id="Sail"]
 script = ExtResource("3")

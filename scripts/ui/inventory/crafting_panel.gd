@@ -19,7 +19,8 @@ const QUANTITY_WIDTH := 150.0
 const MAX_TIMES := 99
 ## Cada cuánto se mira si la estación sigue cerca (s).
 const STATION_POLL := 0.4
-const DIM := Color(1, 1, 1, 0.42)
+const DIM := Color(1, 1, 1, 0.64)
+const RECIPE_TILE_SIZE := Vector2(260, 100)
 
 var ui: InventoryUI
 var ui_scale := 1.0:
@@ -150,6 +151,12 @@ func _build_detail() -> void:
 	names.add_child(_yield)
 	top.add_child(names)
 	detail.add_child(top)
+	detail.add_child(HSeparator.new())
+	detail.add_child(_label("CRAFT_MATERIALS", &"SectionLabel"))
+	_inputs = VBoxContainer.new()
+	_inputs.add_theme_constant_override("separation", 6)
+	detail.add_child(_inputs)
+	detail.add_child(HSeparator.new())
 	_stats = GridContainer.new()
 	_stats.columns = 2
 	detail.add_child(_stats)
@@ -165,11 +172,6 @@ func _build_detail() -> void:
 	_where_state = _label("", &"BetterLabel")
 	where.add_child(_where_state)
 	detail.add_child(where)
-	detail.add_child(HSeparator.new())
-	detail.add_child(_label("CRAFT_MATERIALS", &"SectionLabel"))
-	_inputs = VBoxContainer.new()
-	_inputs.add_theme_constant_override("separation", 6)
-	detail.add_child(_inputs)
 	column.add_child(HSeparator.new())
 
 	var amount := HBoxContainer.new()
@@ -262,6 +264,8 @@ func show_station(station: Node3D) -> void:
 func _apply_scale() -> void:
 	if _rail == null:
 		return
+	for tile: Button in _tiles.values():
+		tile.custom_minimum_size = RECIPE_TILE_SIZE * ui_scale
 	_rail.custom_minimum_size.x = roundf(RAIL_WIDTH * ui_scale)
 	_detail_box.custom_minimum_size.x = roundf(DETAIL_WIDTH * ui_scale)
 	_quantity.custom_minimum_size.x = roundf(QUANTITY_WIDTH * ui_scale)
@@ -287,6 +291,7 @@ func _build_rail() -> void:
 	for tab in tabs:
 		var button := Button.new()
 		button.text = tab[1]
+		button.icon = GameTheme.CATEGORY_ICONS[tab[0]]
 		button.theme_type_variation = &"RailButton"
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.toggle_mode = true
@@ -334,15 +339,19 @@ func _rebuild_list() -> void:
 			_list.add_child(_label(Eras.name_of(recipe.era).to_upper(), &"SectionLabel"))
 			grid = HFlowContainer.new()
 			_list.add_child(grid)
-		var tile := ItemSlotView.new()
-		tile.size_kind = &"recipe"
-		tile.show_item(result.icon, recipe.amount)
-		tile.tooltip_text = result.get_display_name()
-		tile.selected = recipe == _selected
+		var tile := Button.new()
+		tile.theme_type_variation = &"RecipeButton"
+		tile.custom_minimum_size = RECIPE_TILE_SIZE * ui_scale
+		tile.text = result.get_display_name()
+		if recipe.amount > 1:
+			tile.text += " ×%d" % recipe.amount
+		tile.icon = result.icon
+		tile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tile.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		tile.toggle_mode = true
+		tile.button_pressed = recipe == _selected
 		tile.modulate = Color.WHITE if can else DIM
-		tile.slot_clicked.connect(func(_slot: ItemSlotView, button: int) -> void:
-			if button == MOUSE_BUTTON_LEFT:
-				_select(recipe))
+		tile.pressed.connect(_select.bind(recipe))
 		grid.add_child(tile)
 		_tiles[recipe] = tile
 	if _tiles.is_empty():
@@ -365,7 +374,7 @@ func _select(recipe: RecipeData) -> void:
 		_quantity.set_value_no_signal(1)
 	_selected = recipe
 	for other in _tiles:
-		(_tiles[other] as ItemSlotView).selected = other == recipe
+		(_tiles[other] as Button).set_pressed_no_signal(other == recipe)
 	_refresh_detail()
 
 

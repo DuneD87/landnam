@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/weapons/crescent_labrys.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_script"]
+
+[resource]
+script = ExtResource("2_script")
+id = &"crescent_labrys"
+display_name = "ITEM_CRESCENT_LABRYS"
+description = "ITEM_CRESCENT_LABRYS_DESC"
+icon = ExtResource("1_icon")
+category = 2
+scene_path = "res://scenes/items/weapons/combat/crescent_labrys.tscn"
+stackable = false
+max_stack = 1
+weapon_type = 5
+damage = 47
+attack_speed = 0.96
+reach = 1.12
+blade_start = 0.63
+blade_radius = 0.19
+stamina_cost = 28.0
+poise_damage = 48.0
+heavy_multiplier = 2.0
+armor_penetration = 0.15
+two_handed = true
+guard_reduction = 0.55
+guard_stability = 30.0
+guard_arc = 45.0
+parry_window = 0.1
+guard_sound = &"block_wood"
+armor_slot = 6
+group = &"melee"

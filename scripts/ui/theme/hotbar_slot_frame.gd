@@ -10,6 +10,7 @@ var fill := Color("242019")
 var accent := Color("c9a46a")
 var emphasis := 0.0
 var empty := false
+var key_badge := true
 
 
 func _draw(item: RID, rect: Rect2) -> void:
@@ -28,6 +29,11 @@ func _draw(item: RID, rect: Rect2) -> void:
 		for i in range(1, 5):
 			SagaFrame._stroke(item, rect.grow(-(3.0 + i) * s), cut,
 				Color(accent, emphasis * 0.025), 2.0 * s)
+	if not key_badge:
+		if emphasis > 0.5:
+			var top := Vector2(rect.get_center().x, rect.position.y + 3.0 * s)
+			RenderingServer.canvas_item_add_polygon(item, SagaFrame.diamond(top, 3.0 * s), PackedColorArray([accent]))
+		return
 	# Pie de la tecla, separado del objeto y flanqueado por dos filetes.
 	var badge_size := key_size(s)
 	var badge := Rect2(Vector2(rect.get_center().x - badge_size.x * 0.5, rect.end.y - 3.0 * s - badge_size.y),
