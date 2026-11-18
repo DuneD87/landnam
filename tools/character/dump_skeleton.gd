@@ -30,9 +30,11 @@ func _initialize() -> void:
 		for b in skin.get_bind_count():
 			if skin.get_bind_name(b) == name:
 				bind_index = b
-		var joint := skin.get_bind_pose(bind_index).affine_inverse().origin
+		var bind_rest := skin.get_bind_pose(bind_index).affine_inverse()
+		var joint := bind_rest.origin
+		var rotation := bind_rest.basis.orthonormalized().get_rotation_quaternion()
 		bones.append({name = name, parent = skeleton.get_bone_parent(i), bind_index = bind_index,
-				mesh_joint = [joint.x, joint.y, joint.z]})
+				mesh_joint = [joint.x, joint.y, joint.z], mesh_rotation = [rotation.w, rotation.x, rotation.y, rotation.z]})
 	var file := FileAccess.open(output, FileAccess.WRITE)
 	file.store_string(JSON.stringify({bones = bones, mesh = _mesh(skeleton, skin),
 			skirt = _added(skeleton, skin, SkirtBones.rests(skeleton)),

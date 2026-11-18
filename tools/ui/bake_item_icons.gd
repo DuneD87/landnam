@@ -43,6 +43,8 @@ const LEGACY_ARMOR := {
 	"leather_chest_01": "", "leather_pants_01": "",
 }
 const BRONZE_ARMOR := {
+	"lionheart_cuirass": [-5.0, -15.0, "", 0.88], "lionguard_kilt": [-7.0, -15.0, "", 0.86],
+	"lionheart_boots": [0.0, -32.0, "foot", 0.88], "lionguard_gauntlets": [0.0, -20.0, "hand", 0.86],
 	"hoplite_helm": [0.0, -35.0, "", 0.82], "hoplite_cuirass": [0.0, -15.0, "", 0.88],
 	"hoplite_pteruges": [0.0, -15.0, "", 0.86], "hoplite_bracers": [-27.0, -22.0, "arm", 0.88],
 	"hoplite_greaves": [0.0, -32.0, "foot", 0.88],

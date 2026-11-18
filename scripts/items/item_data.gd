@@ -98,6 +98,9 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 ## Partes que cubre (Armor.Region). Nada marcado = lo de su hueco (Armor.SLOT_COVERAGE).
 @export_flags("Cabeza", "Tronco", "Brazos", "Antebrazos", "Manos", "Muslos", "Espinillas", "Pies") var coverage: int = 0
 
+## Oculta la piel de las manos al vestir un guante cerrado.
+@export var covers_hands: bool = false
+
 @export_group("Durability")
 @export var has_durability: bool = false
 @export var max_durability: int = 100
@@ -171,6 +174,7 @@ func copy_from(source: ItemData) -> void:
 	armor_blunt = source.armor_blunt
 	armor_pierce = source.armor_pierce
 	coverage = source.coverage
+	covers_hands = source.covers_hands
 	has_durability = source.has_durability
 	max_durability = source.max_durability
 	surface_material = source.surface_material

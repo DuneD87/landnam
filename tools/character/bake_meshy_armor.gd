@@ -9,7 +9,7 @@ extends SceneTree
 ## the space of the player scan's skin and uses that Skin, so ArmorFit carries
 ## it from the scan onto each body as it does every armour.
 ##
-##   godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- <fit output dir> [piece ...]
+##   godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- [--bronze] <fit output dir> [piece ...]
 ##
 ## A piece whose textures are not there yet only gets them (and their import
 ## settings): import them (godot --headless --import) and run it again.
@@ -37,9 +37,6 @@ const SKIN := "res://models/player/xavivar/firstage_human_male_player_skin.tres"
 const SKIRT_SKIN := "res://models/player/xavivar/firstage_human_male_player_skirt_skin.tres"
 const PELT_SKIN := "res://models/player/xavivar/firstage_human_male_player_pelt_skin.tres"
 const MODEL := "res://scenes/character/character_model.tscn"
-const MODELS := "res://models/equipable/stone_age/"
-const SCENES := "res://scenes/items/armor/stone_age/"
-const ITEMS := "res://data/items/Armor/StoneAge/"
 const MESH_ITEM := "res://scripts/items/mesh_item.gd"
 const FUR := "res://models/equipable/stone_age/fur/"
 const FUR_SHADERS := "res://shaders/character/fur_%s.gdshader"
@@ -53,7 +50,7 @@ const FUR_MAPS := {fur_cards = false, fur_pelt = false, fur_pelt_normal = true, 
 		leather_normal = true, leather_roughness = false, lace_albedo = false, lace_normal = true,
 		bone_albedo = false}
 ## Side of each map, and its JPEG quality.
-const MAPS := {albedo = [2048, 0.9], normal = [2048, 0.95], roughness = [1024, 0.9]}
+const MAPS := {albedo = [2048, 0.9], normal = [2048, 0.95], roughness = [1024, 0.9], metallic = [1024, 0.9]}
 ## Meshy's roughness (0.6-0.7) shines like latex on fur and rawhide: it is
 ## squeezed into this range, keeping its pattern.
 const ROUGHNESS_RANGE := Vector2(0.8, 1.0)
@@ -61,11 +58,21 @@ const ROUGHNESS_RANGE := Vector2(0.8, 1.0)
 const SPECULAR := 0.25
 const NORMAL_SCALE := 0.7
 
+var _models := "res://models/equipable/stone_age/"
+var _scenes := "res://scenes/items/armor/stone_age/"
+var _items := "res://data/items/Armor/StoneAge/"
+var _bronze := false
 var _fur_materials := {}
 
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
+	if "--bronze" in args:
+		_bronze = true
+		args.remove_at(args.find("--bronze"))
+		_models = "res://models/equipable/bronze_age/"
+		_scenes = "res://scenes/items/armor/bronze_age/"
+		_items = "res://data/items/Armor/BronzeAge/"
 	if args.is_empty() or (args[0].begins_with("--") and args.size() < 2):
 		push_error("Expected <fit directory>, --export-weights <directory>, or --weights <directory>, followed by optional piece ids")
 		quit(1)
@@ -75,10 +82,15 @@ func _initialize() -> void:
 		return
 	var source: String = args[0]
 	var only := args.slice(1)
-	var skins := {"": load(SKIN) as Skin, SkirtBones.PREFIX: _added_skin(load(SKIN), SkirtBones.rests, SKIRT_SKIN),
-			PeltBones.PREFIX: _added_skin(load(SKIN), PeltBones.rests, PELT_SKIN)}
-	DirAccess.make_dir_recursive_absolute(MODELS)
-	DirAccess.make_dir_recursive_absolute(SCENES)
+	var skins := {"": load(SKIN) as Skin}
+	if _bronze:
+		skins[SkirtBones.PREFIX] = load(SKIRT_SKIN)
+		skins[PeltBones.PREFIX] = load(PELT_SKIN)
+	else:
+		skins[SkirtBones.PREFIX] = _added_skin(skins[""], SkirtBones.rests, SKIRT_SKIN)
+		skins[PeltBones.PREFIX] = _added_skin(skins[""], PeltBones.rests, PELT_SKIN)
+	DirAccess.make_dir_recursive_absolute(_models)
+	DirAccess.make_dir_recursive_absolute(_scenes)
 	var waiting := []
 	for file in DirAccess.get_files_at(source):
 		if file.get_extension() != "json":
@@ -99,7 +111,7 @@ func _initialize() -> void:
 			binds[skin.get_bind_name(b)] = b
 		var mesh := _mesh(id, data, binds)
 		MeshLods.add_to(mesh)
-		var path := MODELS + id + ".res"
+		var path := _models + id + ".res"
 		if ResourceSaver.save(mesh, path) != OK:
 			push_error("Could not save " + path)
 			continue
@@ -150,7 +162,9 @@ static func _added_bones(data: Dictionary) -> String:
 func _textures(id: String, maps: Dictionary) -> bool:
 	var ready := true
 	for kind in MAPS:
-		var path := MODELS + "%s_%s.jpg" % [id, kind]
+		if kind == "metallic" and (not _bronze or not maps.has(kind)):
+			continue
+		var path := _models + "%s_%s.jpg" % [id, kind]
 		if ResourceLoader.exists(path):
 			continue
 		ready = false
@@ -161,7 +175,7 @@ func _textures(id: String, maps: Dictionary) -> bool:
 		if image.get_width() != size:
 			image.resize(size, size, Image.INTERPOLATE_LANCZOS)
 		image.convert(Image.FORMAT_RGB8)
-		if kind == "roughness":
+		if kind == "roughness" and not _bronze:
 			for y in image.get_height():
 				for x in image.get_width():
 					var r := lerpf(ROUGHNESS_RANGE.x, ROUGHNESS_RANGE.y, image.get_pixel(x, y).r)
@@ -214,13 +228,16 @@ static func _weight_flags(arrays: Array) -> int:
 func _reweight(directory: String, only: PackedStringArray, exporting: bool) -> int:
 	DirAccess.make_dir_recursive_absolute(directory)
 	var processed := 0
-	for file in DirAccess.get_files_at(MODELS):
+	for file in DirAccess.get_files_at(_models):
 		if file.get_extension() != "res":
 			continue
 		var id := file.get_basename()
 		if not only.is_empty() and id not in only:
 			continue
-		var scene: MeshInstance3D = load(SCENES + id + "_equipable.tscn").instantiate()
+		var scene_path := _scenes + id + "_equipable.tscn"
+		if not ResourceLoader.exists(scene_path, "PackedScene"):
+			continue
+		var scene: MeshInstance3D = load(scene_path).instantiate()
 		var surfaces := ArmorFit.source(scene.mesh)
 		var arrays: Array = surfaces[0].arrays
 		var path := directory.path_join(id + ".json")
@@ -270,7 +287,7 @@ func _reweight(directory: String, only: PackedStringArray, exporting: bool) -> i
 			mesh = ArrayMesh.new()
 			mesh.set("_surfaces", packed)
 			mesh.resource_name = scene.mesh.resource_name
-			if ResourceSaver.save(mesh, MODELS + file) != OK:
+			if ResourceSaver.save(mesh, _models + file) != OK:
 				scene.free()
 				return 1
 		scene.free()
@@ -331,14 +348,22 @@ func _material(id: String) -> StandardMaterial3D:
 	material.resource_name = id
 	# Meshy's garments are shells with open edges and loose flaps.
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.albedo_texture = load(MODELS + id + "_albedo.jpg")
+	material.albedo_texture = load(_models + id + "_albedo.jpg")
 	material.normal_enabled = true
-	material.normal_texture = load(MODELS + id + "_normal.jpg")
+	material.normal_texture = load(_models + id + "_normal.jpg")
 	material.normal_scale = NORMAL_SCALE
 	material.metallic_specular = SPECULAR
 	material.roughness = 1.0
-	material.roughness_texture = load(MODELS + id + "_roughness.jpg")
+	material.roughness_texture = load(_models + id + "_roughness.jpg")
 	material.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	if _bronze:
+		material.normal_scale = 0.52
+		material.metallic_specular = 0.5
+		var path := _models + id + "_metallic.jpg"
+		if ResourceLoader.exists(path):
+			material.metallic = 1.0
+			material.metallic_texture = load(path)
+			material.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 	return material
 
 
@@ -422,10 +447,10 @@ func _scene(id: String, mesh: ArrayMesh, skin: Skin) -> void:
 	root.mesh = mesh
 	root.skin = skin
 	root.set_script(load(MESH_ITEM))
-	root.set("item_data", load(ITEMS + id + ".tres"))
+	root.set("item_data", load(_items + id + ".tres"))
 	var scene := PackedScene.new()
 	scene.pack(root)
-	var path := SCENES + id + "_equipable.tscn"
+	var path := _scenes + id + "_equipable.tscn"
 	if ResourceSaver.save(scene, path) != OK:
 		push_error("Could not save " + path)
 	else:

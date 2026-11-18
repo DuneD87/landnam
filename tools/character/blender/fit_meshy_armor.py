@@ -58,7 +58,9 @@ Entry keys (all optional but "model" and "slot"):
              the armpits at the sides and in front and behind, above them
              anywhere; more is taken in (a poncho made on a broad mannequin).
              legs: [side, front], null leaves that way as it is.
+  pauldrons  chest: keep the outer shell of each shoulder on the upper arm.
   skirt      legs: no per-leg shear; hanging parts follow the hips more.
+  rigid_belt legs (skirt): anchor the belt to the hips, transitioning to the thigh weights below it.
   flare      legs: how much wider (to the sides) it is at the hem than at the
              waist (0.3: 30 %).
   forward    legs: metres its front comes forward, from the waist down to the
@@ -66,7 +68,7 @@ Entry keys (all optional but "model" and "slot"):
   thighs     chest, legs (skirt): [front, back] share of the thigh weights kept
              below the crotch (SKIRT_FRONT/BACK, or HANG_THIGHS if it hangs);
              with the skirt's bones, the share that rides the thighs (HANG_RIDE).
-  split      (hang) metres either side of the middle over which its front goes
+  split      (skirt) metres either side of the middle over which its front goes
              from following one thigh to the other: narrower, each side rides
              its own thigh and the middle stretches between them.
   hang       legs (skirt): it hangs from the skirt's bones (body.json "skirt"),
@@ -74,6 +76,7 @@ Entry keys (all optional but "model" and "slot"):
              going through it (HANG_THIGHS); its lining stays on the hips.
   frame      hands: {"up", "thumb", "palm"}; feet: {"up", "toe"}; axes like "-x".
   tip        hands: how far the mitten reaches past the fingertips (m).
+  finger_rig hands: source wrist and finger joint landmarks for sculpted gloves.
   mitten     hands: the four enclosed fingers bend together with the middle
              finger; the thumb stays independent.
   weight_radius  metres over which nearby garment weights are averaged;
@@ -82,6 +85,7 @@ Entry keys (all optional but "model" and "slot"):
   liner      chest, legs: line it (see LINER_OFFSET).
   sleeves    chest: it has long sleeves, which bend at the elbow (the
              forearms' bones too).
+  stand      remove the isolated display post containing the lowest vertex.
   decimate   ratio of faces kept.
   clearance  metres off the skin (default CLEARANCE).
 """
@@ -371,6 +375,27 @@ def edges_of(obj):
     e = np.zeros(len(obj.data.edges) * 2, dtype=np.int64)
     obj.data.edges.foreach_get("vertices", e)
     return e.reshape(-1, 2)
+
+
+def remove_stand(obj):
+    """Remove the small disconnected post below a garment made on a stand."""
+    mesh = bmesh.new()
+    mesh.from_mesh(obj.data)
+    lowest = min(mesh.verts, key=lambda v: v.co.z)
+    post = {lowest}
+    pending = [lowest]
+    while pending:
+        v = pending.pop()
+        for edge in v.link_edges:
+            other = edge.other_vert(v)
+            if other not in post:
+                post.add(other)
+                pending.append(other)
+    if len(post) > len(mesh.verts) * 0.05:
+        raise ValueError("Expected a separate display post below " + obj.name)
+    bmesh.ops.delete(mesh, geom=list(post), context="VERTS")
+    mesh.to_mesh(obj.data)
+    mesh.free()
 
 
 def decimate(obj, ratio):
@@ -1076,8 +1101,35 @@ def allowed_map(body, slot, skirt=False, sleeves=False):
     return np.array(result)
 
 
+def reinforce_pauldrons(points, body, weights):
+    """Keep the shell on the arm, blending back to the cuirass at its straps."""
+    for side, sign in (("Left", 1), ("Right", -1)):
+        arm = body.joint(side + "Arm")
+        across = (points[:, 0] - arm[0]) * sign
+        above = smoothstep(arm[2] - 0.125, arm[2] - 0.035, points[:, 2])
+        shell = above * smoothstep(-0.005, 0.082, across)
+        weights *= (1 - shell)[:, None]
+        weights[:, body.index[BONE_PREFIX + side + "Arm"]] += shell
+    return weights
+
+
+def belted_skirt_weights(points, body, entry):
+    """Keep the belt on the hips and blend both thighs below the belt seam."""
+    weights = np.zeros((len(points), len(body.names)))
+    waist = entry.get("top", body.joint("Hips")[2] + 0.06)
+    drape = 1 - smoothstep(waist - 0.20, waist - 0.055, points[:, 2])
+    shares = entry.get("thighs", (SKIRT_FRONT, SKIRT_BACK))
+    left, right = on_thighs(points, body, shares, entry.get("split"))
+    weights[:, body.index[BONE_PREFIX + "LeftUpLeg"]] = left * drape
+    weights[:, body.index[BONE_PREFIX + "RightUpLeg"]] = right * drape
+    weights[:, body.index[BONE_PREFIX + "Hips"]] = 1 - (left + right) * drape
+    return weights
+
+
 def skin(obj, body, entry, slot):
     p = coords(obj)
+    if entry.get("rigid_belt"):
+        return strongest_weights(belted_skirt_weights(p, body, entry))
     n = len(p)
     dense = np.zeros((n, len(body.names)), dtype=np.float32)
     distance = np.zeros(n)
@@ -1129,7 +1181,8 @@ def skin(obj, body, entry, slot):
         hang = entry.get("hang", False)
         # A hanging skirt from the hip joints down, or it would hang from the thighs.
         below = smoothstep(body.joint("Hips")[2] if hang else crotch + 0.06, crotch - 0.08, p[:, 2])
-        on_left, on_right = on_thighs(p, body, entry.get("thighs", HANG_THIGHS if hang else (SKIRT_FRONT, SKIRT_BACK)))
+        shares = entry.get("thighs", HANG_THIGHS if hang else (SKIRT_FRONT, SKIRT_BACK))
+        on_left, on_right = on_thighs(p, body, shares, entry.get("split"))
         thighs = folded[:, left] + folded[:, right]
         hanging = folded.copy()
         hanging[:, left] = thighs * on_left
@@ -1137,6 +1190,8 @@ def skin(obj, body, entry, slot):
         hanging[:, hips] += thighs * (1.0 - on_left - on_right)
         folded += (hanging - folded) * below[:, None]
     folded = smooth_weights(p, folded, entry.get("weight_radius", WEIGHT_RADIUS[slot]))
+    if entry.get("pauldrons"):
+        reinforce_pauldrons(p, body, folded)
     return strongest_weights(folded)
 
 
@@ -1235,7 +1290,7 @@ def textures(model_path):
     """The model's PBR maps, as Meshy names them next to it."""
     base = os.path.splitext(model_path)[0]
     found = {}
-    for kind, suffix in (("albedo", ""), ("normal", "_normal"), ("roughness", "_roughness")):
+    for kind, suffix in (("albedo", ""), ("normal", "_normal"), ("roughness", "_roughness"), ("metallic", "_metallic")):
         if os.path.exists(base + suffix + ".png"):
             found[kind] = base + suffix + ".png"
     return found
@@ -1341,10 +1396,23 @@ def fit_piece(piece_id, entry, body):
     model = os.path.join(SOURCE_DIR, entry["model"])
     source = import_model(model)
     maps = textures(model)
+    if entry.get("stand"):
+        remove_stand(source)
     if entry.get("decimate"):
         decimate(source, entry["decimate"])
     clearance = entry.get("clearance", CLEARANCE)
-    if slot in ("hands", "feet"):
+    if entry.get("finger_rig"):
+        # Import alongside this script also when Blender starts from the project root.
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import fit_fingered_glove
+        parts = []
+        for side in SIDES:
+            part = duplicate(source)
+            fit_fingered_glove.place(part, body, side, entry["finger_rig"])
+            parts.append(part)
+        bpy.data.objects.remove(source)
+        obj = join(parts)
+    elif slot in ("hands", "feet"):
         parts = []
         for side in SIDES:
             part = duplicate(source)
@@ -1378,10 +1446,13 @@ def fit_piece(piece_id, entry, body):
                 relax(obj, body, placed, clearance, PUSH_REACH[slot], legs=not entry.get("hang"))
         if len(entry.get("ease", [])) > 2:
             draw_in(obj, body, entry["ease"][2])
-    bones, weights = skin(obj, body, entry, slot)
+    if entry.get("finger_rig"):
+        bones, weights = fit_fingered_glove.read_weights(obj, body)
+    else:
+        bones, weights = skin(obj, body, entry, slot)
     surfaces = [surface(obj, bones, weights)]
     offset = min(LINER_OFFSET.get(slot, 0.0), clearance * LINER_UNDER)
-    bones = LINER_BONES[slot]
+    bones = LINER_BONES.get(slot, [])
     if entry.get("hang"):
         # The legs go through a hanging skirt: lined, they would look in tights.
         bones = [b for b in bones if not b.endswith("Leg")]
@@ -1400,6 +1471,8 @@ def fit_piece(piece_id, entry, body):
 
 def reweight_piece(piece_id, entry, body):
     """Rebuild weights on an existing garment, without the Meshy downloads."""
+    if entry.get("finger_rig"):
+        raise ValueError(f"{piece_id}: fit from the original mesh to use its finger landmarks")
     with open(os.path.join(SOURCE_DIR, piece_id + ".json")) as f:
         data = json.load(f)
     points = np.array(data["positions"]).reshape(-1, 3)

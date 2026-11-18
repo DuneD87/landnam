@@ -7,9 +7,9 @@ directory (numpy is only at hand in Blender's Python):
 
  - masks.png (1024, RGBA): scalp, full beard, moustache and goatee regions.
    Rules on the male base head, per vertex, rasterized in UV space;
- - body_masks.png (1024, R/G): pubic hair fields for women and men, from 1
+ - body_masks.png (1024, RGB): pubic hair fields for women and men in R/G, from 1
    at the core down to 0 at the fullest reach, so one threshold in the
-   shader sets how far the hair goes. The men's also climbs to the navel;
+   shader sets how far the hair goes. B marks the skin under closed gloves;
  - stubble.png (512, tiling): R short straight strokes for stubble and buzz
    cuts, G curls for pubic hair;
  - hair_cover/<hair or beard proxy>.png (512, R): the skin each hair style
@@ -175,7 +175,7 @@ def head_mask_values(header, array):
     return uvs, triangles, values
 
 
-def pubic_masks(header, array):
+def body_masks(header, array):
     """Pubic hair fields on the male base's pelvis (skin space, metres, Y up,
     +Z forward, origin at the hips): a triangle over the pubis, from the
     crotch up, narrow at the bottom and wide at the top."""
@@ -206,9 +206,18 @@ def pubic_masks(header, array):
     trail *= 0.4 * (1.0 - np.clip((y - top) / 0.16, 0.0, 1.0)) * near
     male = np.maximum(male, trail)
     print("Pubis root", root.round(3), "crotch %.3f top %.3f" % (bottom, top))
-    values = np.stack([female, male], axis=1).astype(np.float32)
-    image = rasterize(array(body["uvs"], width=2), array(body["indices"], np.int32, 3), values, MASK_SIZE)
-    return blur(image, 2)
+    uvs = array(body["uvs"], width=2)
+    indices = array(body["indices"], np.int32, 3)
+    hair = blur(rasterize(uvs, indices, np.stack([female, male], axis=1), MASK_SIZE), 2)
+    hand_bones = [i for i, bone in enumerate(header["bones"]) if "Hand" in bone]
+    skinning = array(body["weights"], width=4)
+    hand_weights = (skinning * np.isin(array(body["bones"], np.int32, 4), hand_bones)).sum(axis=1)
+    gloves = rasterize(uvs, indices, hand_weights[:, None], MASK_SIZE)
+    # Fill one texel around the UV seams, including the ends of fingers.
+    padded = np.pad(gloves, ((1, 1), (1, 1), (0, 0)))
+    gloves = np.maximum.reduce([padded[y:y + MASK_SIZE, x:x + MASK_SIZE]
+                                for y in range(3) for x in range(3)])
+    return np.concatenate([hair, gloves], axis=2)
 
 
 def curls(size=512, seed=11):
@@ -309,7 +318,7 @@ def main():
     header, array = load()
     hair_cover_masks(header, array)
     save(head_masks(header, array), os.path.join(OUT, "masks.png"))
-    save(pubic_masks(header, array), os.path.join(OUT, "body_masks.png"))
+    save(body_masks(header, array), os.path.join(OUT, "body_masks.png"))
     save(np.concatenate([stubble(), curls()[..., None]], axis=2), os.path.join(OUT, "stubble.png"))
     normal = female_normal(header, array)
     if normal is not None:
@@ -317,4 +326,5 @@ def main():
     print("MASKS written to", OUT)
 
 
-main()
+if __name__ == "__main__":
+    main()

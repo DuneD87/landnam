@@ -14,7 +14,8 @@ const PIECES := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins", 
 		"bison_coat", "bison_breeches", "bison_gauntlets", "bison_boots",
 		"antler_coat", "antler_breeches", "antler_gauntlets", "antler_boots",
 		"arctic_coat", "arctic_breeches", "arctic_gauntlets", "arctic_boots",
-		"hide_tunic", "hide_trousers", "hide_mittens", "hide_boots"]
+		"hide_tunic", "hide_trousers", "hide_mittens", "hide_boots",
+		"lionheart_cuirass", "lionguard_gauntlets", "lionguard_kilt", "lionheart_boots"]
 var failures := 0
 
 
@@ -39,7 +40,7 @@ func _run() -> void:
 	rig.apply(CharacterAppearance.new())
 	var pieces := {}
 	for id in PIECES:
-		var item: MeshInstance3D = load("res://scenes/items/armor/stone_age/%s_equipable.tscn" % id).instantiate()
+		var item: MeshInstance3D = load(ItemCatalog.get_item(id).scene_path).instantiate()
 		skeleton.add_child(item)
 		rig.dress(item)
 		pieces[id] = item
@@ -51,6 +52,14 @@ func _run() -> void:
 		model.free()
 		quit(1)
 		return
+	var body: MeshInstance3D = skeleton.get_node("Mesh_0")
+	var skin_material := body.material_override as ShaderMaterial
+	var gloves: MeshInstance3D = pieces["lionguard_gauntlets"]
+	check(skin_material.get_shader_parameter(&"covers_hands") == true, "closed gloves cover the skin")
+	rig.undress(gloves)
+	check(skin_material.get_shader_parameter(&"covers_hands") == false, "taking off closed gloves shows the skin")
+	rig.dress(gloves)
+	check(skin_material.get_shader_parameter(&"covers_hands") == true, "cached gloves still cover the skin")
 	for child in skeleton.get_children():
 		if child is SkirtSwing:
 			child.active = false

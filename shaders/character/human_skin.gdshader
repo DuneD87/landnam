@@ -10,6 +10,7 @@ shader_type spatial;
 // (stubble_texture R, at two scales). The body masks hold the
 // pubic hair fields, R women and G men, from 1 at the core to 0 at the
 // fullest reach: pubic_hair sets how far the curls (stubble_texture G) go.
+// B marks the skin under a closed glove.
 // Lips and eyelids come from MPFB's UV masks.
 
 // human_hair_common.gdshaderinc's, linear.
@@ -20,6 +21,7 @@ uniform sampler2D normal_texture : hint_normal, filter_linear_mipmap_anisotropic
 uniform sampler2D masks_texture : hint_default_black, filter_linear_mipmap;
 uniform sampler2D stubble_texture : hint_default_black, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D body_masks_texture : hint_default_black, filter_linear_mipmap;
+uniform bool covers_hands = false;
 uniform sampler2D lips_mask : hint_default_black, filter_linear_mipmap;
 uniform sampler2D eyelids_mask : hint_default_black, filter_linear_mipmap;
 uniform vec3 texture_tone : source_color = vec3(0.88, 0.66, 0.54);
@@ -72,6 +74,10 @@ vec3 to_srgb(vec3 c) {
 }
 
 void fragment() {
+	vec3 body_masks = texture(body_masks_texture, UV).rgb;
+	if (covers_hands && body_masks.b > 0.40) {
+		discard;
+	}
 	vec3 base = texture(albedo_texture, UV).rgb;
 	vec3 tone = max(texture_tone, vec3(0.01));
 	vec3 col = base * skin_color / tone;
@@ -109,7 +115,6 @@ void fragment() {
 
 	// Pubic hair: a shadow of the hair colour and dense curls, thinning out
 	// towards the edge.
-	vec2 body_masks = texture(body_masks_texture, UV).rg;
 	float field = mix(body_masks.r, body_masks.g, male_pattern);
 	float pubic = smoothstep(1.0 - pubic_hair, 1.0 - pubic_hair + 0.2, field) * step(0.005, pubic_hair);
 	float curls = max(texture(stubble_texture, UV * curl_scale).g,

@@ -133,6 +133,12 @@ func _check_armor() -> void:
 	check(parts[Armor.Region.HEAD] == Armor.of(hood) and parts[Armor.Region.TORSO] == Armor.of(chest),
 		"cada pieza protege lo suyo: la capucha la cabeza y el peto el tronco")
 	check(parts[Armor.Region.THIGHS] == Vector3.ZERO, "lo que no cubre nada queda al aire")
+	var gloves := ItemCatalog.get_item(&"lionguard_gauntlets")
+	var boots := ItemCatalog.get_item(&"lionheart_boots")
+	check(Armor.covers(gloves, Armor.Region.HANDS) and Armor.covers(gloves, Armor.Region.FOREARMS),
+		"los guanteletes cerrados protegen manos y antebrazos")
+	check(Armor.covers(boots, Armor.Region.FEET) and Armor.covers(boots, Armor.Region.SHINS),
+		"las botas altas protegen pies y espinillas")
 	window.unequip_item(window.get_slot(hood.armor_slot))
 	check(window.get_armor() == Armor.of(chest), "al quitarse una pieza deja de contar (%s)" % window.get_armor())
 	window.queue_free()

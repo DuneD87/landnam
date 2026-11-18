@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/bronze_age/lionheart_boots.res" id="1_0jt2s"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_3o5vo"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_r7e15"]
+[ext_resource type="Resource" path="res://data/items/Armor/BronzeAge/lionheart_boots.tres" id="4_pej1m"]
+
+[node name="lionheart_boots" type="MeshInstance3D" unique_id=452521873]
+mesh = ExtResource("1_0jt2s")
+skin = ExtResource("2_3o5vo")
+script = ExtResource("3_r7e15")
+item_data = ExtResource("4_pej1m")

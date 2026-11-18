@@ -333,6 +333,7 @@ func dress(item: Node, covers_hair := false) -> void:
 	_update_pelt_swing()
 	_update_hair_swing(false)
 	_fit(item)
+	_update_hand_cover()
 
 
 ## Forgets a piece taken off, and lets the hair out if it covered it.
@@ -345,6 +346,7 @@ func undress(item: Node) -> void:
 	_update_skirt_swing()
 	_update_pelt_swing()
 	_update_hair_swing(false)
+	_update_hand_cover()
 
 
 ## Whether some piece worn has binds for added bones (`uses`:
@@ -595,6 +597,7 @@ func _refit_dressed() -> void:
 			_covering.erase(item)
 	for item in _dressed:
 		_fit(item)
+	_update_hand_cover()
 
 
 func _hair_changed() -> void:
@@ -764,6 +767,20 @@ func _reveal() -> void:
 			if instance.get_meta(&"armor_hidden", false):
 				instance.visible = true
 				instance.remove_meta(&"armor_hidden")
+	_update_hand_cover()
+
+
+## Closed gloves replace the skin inside their fingers once the mesh is shown.
+func _update_hand_cover() -> void:
+	var covered := false
+	for item in _dressed:
+		if not is_instance_valid(item) or not _skeleton.is_ancestor_of(item) or not ("item_data" in item):
+			continue
+		var data: ItemData = item.item_data
+		if data != null and data.covers_hands and item is MeshInstance3D and item.visible:
+			covered = true
+			break
+	_skin_material.set_shader_parameter(&"covers_hands", covered)
 
 
 func _notification(what: int) -> void:

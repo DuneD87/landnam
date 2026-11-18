@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/bronze_age/lionheart_cuirass.res" id="1_u0rmq"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_johux"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_impas"]
+[ext_resource type="Resource" path="res://data/items/Armor/BronzeAge/lionheart_cuirass.tres" id="4_nqvqx"]
+
+[node name="lionheart_cuirass" type="MeshInstance3D" unique_id=1199337896]
+mesh = ExtResource("1_u0rmq")
+skin = ExtResource("2_johux")
+script = ExtResource("3_impas")
+item_data = ExtResource("4_nqvqx")
