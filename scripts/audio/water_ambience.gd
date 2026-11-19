@@ -71,6 +71,10 @@ var _river_a: PackedVector3Array = PackedVector3Array()
 var _river_b: PackedVector3Array = PackedVector3Array()
 var _river_half: PackedVector2Array = PackedVector2Array()
 var _planet_radius: float = 0.0
+## Rejilla de tramos: celda (Vector3i) -> índices de los tramos con algún extremo dentro. Recorrer los
+## ~2.600 tramos enteros cada 0,1 s en GDScript costaba milisegundos.
+var _river_cells: Dictionary = {}
+var _river_cell_size: float = 1.0
 ## Semianchura mayor de la red, para normalizar el volumen por anchura de cauce.
 var _river_max_half: float = 1.0
 
@@ -195,20 +199,32 @@ func _river_mix(ears: Vector3) -> float:
 	var best := INF
 	var best_half := 0.0
 
-	for i in _river_a.size():
-		var pa := _river_a[i]
-		var pb := _river_b[i]
-		if pa.distance_squared_to(p) > cull2 and pb.distance_squared_to(p) > cull2:
-			continue
-		var ab := pb - pa
-		var ab2 := ab.length_squared()
-		var t := 0.0 if ab2 < 0.0001 else clampf((p - pa).dot(ab) / ab2, 0.0, 1.0)
-		var half: float = lerpf(_river_half[i].x, _river_half[i].y, t)
-		# Distancia a la ORILLA, no al eje: es la misma cuenta que hace RiverField al rasterizar.
-		var edge := p.distance_to(pa + ab * t) - half
-		if edge < best:
-			best = edge
-			best_half = half
+	# Solo los tramos de las 27 celdas alrededor del oído (ver _river_cells).
+	var c := Vector3i((p / _river_cell_size).floor())
+	var seen := {}
+	for dz in range(-1, 2):
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var bucket = _river_cells.get(c + Vector3i(dx, dy, dz))
+				if bucket == null:
+					continue
+				for i: int in bucket:
+					if seen.has(i):
+						continue
+					seen[i] = true
+					var pa := _river_a[i]
+					var pb := _river_b[i]
+					if pa.distance_squared_to(p) > cull2 and pb.distance_squared_to(p) > cull2:
+						continue
+					var ab := pb - pa
+					var ab2 := ab.length_squared()
+					var t := 0.0 if ab2 < 0.0001 else clampf((p - pa).dot(ab) / ab2, 0.0, 1.0)
+					var half: float = lerpf(_river_half[i].x, _river_half[i].y, t)
+					# Distancia a la ORILLA, no al eje: es la misma cuenta que hace RiverField al rasterizar.
+					var edge := p.distance_to(pa + ab * t) - half
+					if edge < best:
+						best = edge
+						best_half = half
 
 	if best >= river_range:
 		return 0.0
@@ -224,6 +240,7 @@ func _build_river_cache(field: Dictionary) -> void:
 	_river_a.clear()
 	_river_b.clear()
 	_river_half.clear()
+	_river_cells.clear()
 	var count := int(field.get("segments", 0))
 	if count <= 0:
 		return
@@ -240,6 +257,16 @@ func _build_river_cache(field: Dictionary) -> void:
 		_river_b.append(RiverField.hydro_dir(seg[o + 2], seg[o + 3], hydro.x, hydro.y) * radius)
 		_river_half.append(Vector2(seg[o + 6], seg[o + 7]))
 		_river_max_half = maxf(_river_max_half, maxf(seg[o + 6], seg[o + 7]))
+	# Celdas del tamaño del radio de descarte: un tramo con algún extremo dentro del radio está
+	# siempre en una de las 27 celdas vecinas, así que el resultado es el mismo que recorriéndolos todos.
+	_river_cell_size = river_range + RIVER_CULL_MARGIN
+	for k in _river_a.size():
+		for end: Vector3 in [_river_a[k], _river_b[k]]:
+			var key := Vector3i((end / _river_cell_size).floor())
+			var bucket: PackedInt32Array = _river_cells.get(key, PackedInt32Array())
+			if bucket.is_empty() or bucket[bucket.size() - 1] != k:
+				bucket.append(k)
+				_river_cells[key] = bucket
 	print("[WaterAmbience] %d tramos de rio en la mezcla." % count)
 
 
