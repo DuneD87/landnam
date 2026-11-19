@@ -658,12 +658,18 @@ func _ready() -> void:
 ## Medido volando 150 s tierra adentro (build/ab/drop_probe.gd): frames > 33 ms 13 -> 5, > 25 ms 120 -> 80.
 const DEFERRED_COLLISION_MIN_LOD := 0
 const COLLISION_BUILD_BUDGET_USEC := 2000
+## Solo los LOD 0-2 del terreno proyectan sombra (módulo parcheado). La sombra del sol llega a 100 m;
+## los bloques lejanos solo engordaban el pase de sombra (~860 dibujos mirando hacia el mar) sin
+## cambio visible.
+const SHADOW_CASTING_MAX_LOD := 2
 
 
 func _apply_streaming_budgets() -> void:
 	if "deferred_collision_min_lod" in voxel_terrain:
 		voxel_terrain.set("deferred_collision_min_lod", DEFERRED_COLLISION_MIN_LOD)
 		voxel_terrain.set("collision_build_budget_usec", COLLISION_BUILD_BUDGET_USEC)
+	if "shadow_casting_max_lod" in voxel_terrain:
+		voxel_terrain.set("shadow_casting_max_lod", SHADOW_CASTING_MAX_LOD)
 
 
 func save_voxel_data() -> VoxelSaveCompletionTracker:

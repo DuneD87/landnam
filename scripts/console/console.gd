@@ -318,7 +318,7 @@ func _register_commands() -> void:
 
 const XP_USAGE := "xp [add <n> | level <n> | attr <name> <n> | respec]"
 const SEASON_USAGE := "season [spring|summer|autumn|winter|<day>] | season speed <x> | season perf [leaves|cold|meadow|none]"
-const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off] [blocks 16|32]"
+const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off] [blocks 16|32] [shadow <max lod>|all]"
 const CUT_USAGE := "cut [arm|forearm|thigh|shin] [left|right]"
 
 
@@ -899,6 +899,11 @@ func _cmd_terrain(args: PackedStringArray) -> String:
 				# draws (medido: -0,7 ms de CPU de render), pero cada bloque del instancer y cada
 				# remallado al cavar abarca ocho veces más volumen.
 				t.mesh_block_size = value.to_int()
+			elif key == "shadow" and (value.is_valid_int() or value == "all") \
+					and "shadow_casting_max_lod" in t:
+				# Bloques de LOD mayor que el límite no proyectan sombra (módulo parcheado). Mirando
+				# hacia el barco el sol añadía ~860 dibujos de bloques lejanos al pase de sombra.
+				t.set("shadow_casting_max_lod", 99 if value == "all" else maxi(value.to_int(), 0))
 			else:
 				return _paint(COLOR_ERR, tr("CON_USAGE") % TERRAIN_USAGE)
 		i += 2
