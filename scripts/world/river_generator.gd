@@ -15,6 +15,14 @@ const WALL_MASK_NODE := "river_wall_mask"
 const WALL_NOISE_NODE := "river_wall_noise"
 const BLEND_NODE := "river_blend"
 const SPHERE_NODE := "river_planet_sdf"
+## Puerta del tallado (tools/gate_river_carve.gd): segunda lectura del mapa de distancias con un
+## factor enorme. Sin río cerca el píxel es 0 y la muestra es la altura sobre la esfera (unos km como
+## mucho); con río (>= 1/255) baja ~39.000 km. El Select deja el terreno tal cual por encima del
+## umbral y el generador se salta el tallado entero en los bloques sin río. Corta donde la distancia
+## pasa de alcance * (1 - 20000 / factor) = 99,8 % del alcance: allí el valle ya no talla.
+const GATE_NODE := "river_near_gate"
+const GATE_FACTOR := 1.0e7
+const GATE_THRESHOLD := -20000.0
 
 ## Índices de parámetro de SdfSphereHeightmap: imagen, radio, factor.
 const _P_IMAGE := 0
@@ -111,6 +119,13 @@ static func apply(target, field: Dictionary) -> bool:
 	dist_fn.set_node_param(dist, _P_IMAGE, field.dist)
 	dist_fn.set_node_param(dist, _P_RADIUS, radius)
 	dist_fn.set_node_param(dist, _P_FACTOR, float(field.carve_range))
+
+	var gate_fn := _owner(functions, GATE_NODE)
+	if gate_fn != null:
+		var gate := gate_fn.find_node_by_name(GATE_NODE)
+		gate_fn.set_node_param(gate, _P_IMAGE, field.dist)
+		gate_fn.set_node_param(gate, _P_RADIUS, radius)
+		gate_fn.set_node_param(gate, _P_FACTOR, GATE_FACTOR)
 
 	# El lecho se mide hacia ABAJO desde el techo del rango (factor negativo), para que el valor
 	# neutro sea 0. Si radio y factor no cuadran con los del horneado, los ríos salen a otra altura
