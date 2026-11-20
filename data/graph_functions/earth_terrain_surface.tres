@@ -1,6 +1,6 @@
 [gd_resource type="VoxelGraphFunction" format=3]
 
-[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/earth_terrain_base.tres" id="1_5nouu"]
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/earth_relief.tres" id="1_5nouu"]
 
 [sub_resource type="Image" id="Image_dm60c"]
 data = {
@@ -22,7 +22,7 @@ data = {
 
 [resource]
 graph_data = {
-"connections": [[71, 0, 61, 0], [69, 0, 70, 0], [70, 0, 71, 1], [2, 0, 63, 1], [2, 0, 64, 1], [2, 0, 65, 1], [61, 0, 17, 0], [3, 0, 63, 2], [3, 0, 64, 2], [3, 0, 65, 2], [60, 0, 71, 0], [1, 0, 63, 0], [1, 0, 64, 0], [1, 0, 65, 0], [63, 0, 66, 1], [64, 0, 66, 0], [65, 0, 69, 0], [66, 0, 67, 0], [67, 0, 68, 0], [68, 0, 69, 1]],
+"connections": [[73, 0, 17, 0], [72, 0, 73, 1], [71, 0, 61, 0], [70, 0, 71, 1], [1, 0, 63, 0], [1, 0, 64, 0], [1, 0, 65, 0], [66, 0, 67, 0], [69, 0, 70, 0], [67, 0, 68, 0], [67, 0, 72, 0], [68, 0, 69, 1], [2, 0, 63, 1], [2, 0, 64, 1], [2, 0, 65, 1], [60, 0, 71, 0], [3, 0, 63, 2], [3, 0, 64, 2], [3, 0, 65, 2], [61, 0, 73, 0], [63, 0, 66, 1], [64, 0, 66, 0], [65, 0, 69, 0]],
 "nodes": {
 "1": {
 "auto_connect": false,
@@ -125,6 +125,20 @@ graph_data = {
 "gui_position": Vector2(560, 800),
 "name": &"river_carved_surface",
 "type": "Max"
+},
+"72": {
+"auto_connect": false,
+"edge0": 25.0,
+"edge1": 40.0,
+"gui_position": Vector2(900, 400),
+"name": &"river_keep",
+"type": "Smoothstep"
+},
+"73": {
+"auto_connect": false,
+"gui_position": Vector2(1050, 300),
+"name": &"river_veg_gate",
+"type": "Multiply"
 }
 },
 "version": 2

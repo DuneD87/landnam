@@ -1,0 +1,199 @@
+[gd_resource type="VoxelGeneratorGraph" format=3]
+
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/earth_relief.tres" id="1_2ebl0"]
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/cave_field_v2.tres" id="1_420af"]
+[ext_resource type="VoxelGraphFunction" uid="uid://b3rp22i5ldnk8" path="res://data/graph_functions/earth_ore_field.tres" id="3_l0e7e"]
+[ext_resource type="VoxelGraphFunction" uid="uid://crmjlhy1m7p2o" path="res://data/graph_functions/cave_ore_field.tres" id="4_cvore"]
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/river_carve.tres" id="5_river"]
+[ext_resource type="VoxelGraphFunction" uid="uid://ccrh7wqeqy6wt" path="res://data/graph_functions/coastal_reefs.tres" id="6_reef"]
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/trail_carve.tres" id="7_trail"]
+
+[resource]
+graph_data = {
+"connections": [[81, 0, 101, 4], [120, 0, 82, 3], [120, 0, 85, 3], [81, 0, 100, 3], [100, 0, 120, 3], [120, 1, 121, 0], [120, 2, 122, 0], [82, 0, 101, 3], [101, 0, 4, 0], [82, 0, 90, 3], [90, 0, 91, 0], [120, 0, 110, 0], [110, 0, 111, 0], [111, 0, 112, 0], [112, 0, 113, 0], [113, 0, 114, 0], [85, 0, 83, 0], [85, 1, 84, 0], [85, 2, 86, 0], [85, 3, 87, 0], [85, 4, 88, 0], [85, 5, 89, 0], [85, 6, 92, 0]],
+"nodes": {
+"83": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 1080),
+"layer": 1,
+"type": "OutputWeight"
+},
+"84": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 990),
+"layer": 2,
+"type": "OutputWeight"
+},
+"86": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 900),
+"layer": 4,
+"type": "OutputWeight"
+},
+"87": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 810),
+"layer": 5,
+"type": "OutputWeight"
+},
+"88": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 720),
+"layer": 6,
+"type": "OutputWeight"
+},
+"89": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 630),
+"layer": 7,
+"type": "OutputWeight"
+},
+"92": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 540),
+"layer": 8,
+"type": "OutputWeight"
+},
+"101": {
+"_function": ExtResource("6_reef"),
+"auto_connect": true,
+"earth_field": 0.0,
+"gui_position": Vector2(3060, 1440),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"100": {
+"_function": ExtResource("5_river"),
+"auto_connect": true,
+"earth_field": 0.0,
+"gui_position": Vector2(2660, 1150),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"4": {
+"auto_connect": true,
+"gui_position": Vector2(3270, 1440),
+"type": "OutputSDF"
+},
+"78": {
+"auto_connect": false,
+"gui_position": Vector2(2266.8171, 1307.779),
+"type": "InputX"
+},
+"79": {
+"auto_connect": false,
+"gui_position": Vector2(2270, 1390),
+"type": "InputY"
+},
+"80": {
+"auto_connect": false,
+"gui_position": Vector2(2270, 1480),
+"type": "InputZ"
+},
+"81": {
+"_function": ExtResource("1_2ebl0"),
+"auto_connect": true,
+"gui_position": Vector2(2380, 1270),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"82": {
+"_function": ExtResource("1_420af"),
+"auto_connect": true,
+"earth_field": 0.0,
+"gui_position": Vector2(2820, 1380),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"85": {
+"_function": ExtResource("3_l0e7e"),
+"auto_connect": true,
+"gui_position": Vector2(3060, 790),
+"planet_sdf": 0.0,
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"90": {
+"_function": ExtResource("4_cvore"),
+"auto_connect": true,
+"cave_field": 0.0,
+"gui_position": Vector2(3060, 1000),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"91": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 1260),
+"layer": 3,
+"type": "OutputWeight"
+},
+"110": {
+"auto_connect": false,
+"b": -0.015625,
+"gui_position": Vector2(2900, 1700),
+"name": &"underground_depth_scale",
+"type": "Multiply"
+},
+"111": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(3060, 1700),
+"name": &"underground_depth_floor",
+"type": "Max"
+},
+"112": {
+"auto_connect": false,
+"gui_position": Vector2(3200, 1700),
+"name": &"underground_depth_sqrt",
+"type": "Sqrt"
+},
+"113": {
+"auto_connect": false,
+"b": 0.0333333,
+"gui_position": Vector2(3340, 1700),
+"name": &"underground_depth_round",
+"type": "Add"
+},
+"114": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 1700),
+"layer": 15,
+"type": "OutputWeight"
+},
+"120": {
+"_function": ExtResource("7_trail"),
+"auto_connect": true,
+"earth_field": 0.0,
+"gui_position": Vector2(2860, 1150),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"121": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 1880),
+"layer": 14,
+"type": "OutputWeight"
+},
+"122": {
+"auto_connect": false,
+"gui_position": Vector2(3540, 1970),
+"layer": 13,
+"type": "OutputWeight"
+}
+},
+"version": 2
+}

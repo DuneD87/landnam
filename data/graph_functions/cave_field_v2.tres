@@ -1,0 +1,113 @@
+[gd_resource type="VoxelGraphFunction" format=3]
+
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/cave_mask.tres" id="1_4chf1"]
+
+[resource]
+graph_data = {
+"connections": [[54, 0, 32, 0], [53, 0, 54, 1], [50, 0, 26, 0], [38, 0, 31, 0], [38, 0, 54, 0], [51, 0, 52, 0], [33, 0, 31, 1], [32, 0, 30, 0], [3, 0, 51, 2], [26, 0, 33, 0], [52, 0, 53, 0], [31, 0, 40, 0], [2, 0, 51, 1], [30, 0, 33, 1], [1, 0, 51, 0]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(440, -100),
+"type": "InputX"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(440, 60),
+"type": "InputY"
+},
+"26": {
+"auto_connect": false,
+"b": 1.0,
+"gui_position": Vector2(1530, 20),
+"name": &"cave_amplitude",
+"type": "Multiply"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(440, 220),
+"type": "InputZ"
+},
+"30": {
+"auto_connect": false,
+"b": 100.0,
+"gui_position": Vector2(1780, 190),
+"name": &"cave_depth_k",
+"type": "Multiply"
+},
+"31": {
+"auto_connect": false,
+"gui_position": Vector2(2150, -110),
+"name": &"cave_carve",
+"smoothness": 1.0,
+"type": "SdfSmoothSubtract"
+},
+"32": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(1608.8889, 186.66667),
+"name": &"cave_depth_gate",
+"type": "Max"
+},
+"33": {
+"auto_connect": false,
+"gui_position": Vector2(1950, 20),
+"name": &"cave_sum",
+"type": "Add"
+},
+"38": {
+"auto_connect": false,
+"gui_position": Vector2(1270, -330),
+"name": &"earth_field",
+"type": "CustomInput"
+},
+"40": {
+"auto_connect": false,
+"gui_position": Vector2(2620, -110),
+"name": &"cave_field",
+"type": "CustomOutput"
+},
+"50": {
+"_function": ExtResource("1_4chf1"),
+"auto_connect": true,
+"gui_position": Vector2(700, 20),
+"name": &"cave_mask",
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"51": {
+"auto_connect": true,
+"cell_size": 350.0,
+"gui_position": Vector2(-500, 400),
+"jitter": 0.9,
+"name": &"cave_entrance_spots",
+"seed": 909,
+"spot_radius": 45.0,
+"type": "Spots3D"
+},
+"52": {
+"auto_connect": false,
+"b": -30.0,
+"gui_position": Vector2(-350, 400),
+"name": &"cave_min_depth",
+"type": "Multiply"
+},
+"53": {
+"auto_connect": false,
+"b": 30.0,
+"gui_position": Vector2(-200, 400),
+"type": "Add"
+},
+"54": {
+"auto_connect": false,
+"gui_position": Vector2(-100, 300),
+"name": &"cave_depth_shift",
+"type": "Add"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0], ["earth_field", "CustomInput", 0]]
+output_definitions = [["cave_field", "CustomOutput", 0]]

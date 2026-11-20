@@ -1,7 +1,7 @@
 {
 	"terrain_settings": {
 		"radius": 30000.0,
-		"terrain_generator": "res://data/graph_functions/earth_terrain_terraces.tres",
+		"terrain_generator": "res://data/graph_functions/earth_terrain_v2.tres",
 		"has_water": true,
 		"water_level": 50.0
 	},
@@ -3353,7 +3353,7 @@
 	"ore_settings": [
 		{
 			"name": "iron",
-			"pick_tier": 2,
+			"pick_tier": 2.0,
 			"type_id": 1.0,
 			"noise_seed": 1042.0,
 			"cell_size": 400.0,
@@ -3369,7 +3369,7 @@
 		},
 		{
 			"name": "gold",
-			"pick_tier": 2,
+			"pick_tier": 2.0,
 			"type_id": 2.0,
 			"spot_group": "metal",
 			"noise_seed": 7391.0,
@@ -3389,7 +3389,7 @@
 		},
 		{
 			"name": "cave_ore_01",
-			"pick_tier": 2,
+			"pick_tier": 2.0,
 			"type_id": 3.0,
 			"noise_seed": 5123.0,
 			"cell_size": 200.0,
@@ -3422,7 +3422,7 @@
 		},
 		{
 			"name": "bog_iron",
-			"pick_tier": 2,
+			"pick_tier": 2.0,
 			"type_id": 5.0,
 			"spot_group": "metal",
 			"min_height": -60.0,
@@ -3451,7 +3451,7 @@
 		},
 		{
 			"name": "silver",
-			"pick_tier": 2,
+			"pick_tier": 2.0,
 			"type_id": 7.0,
 			"spot_group": "metal",
 			"min_height": 210.0,
@@ -3466,7 +3466,7 @@
 		},
 		{
 			"name": "sulfur",
-			"pick_tier": 2,
+			"pick_tier": 2.0,
 			"type_id": 8.0,
 			"spot_group": "metal",
 			"min_height": 420.0,
@@ -3484,21 +3484,21 @@
 		"enabled": true,
 		"height_range": 500.0,
 		"hydrology_size": [
-			1024.0,
-			512.0
+			512.0,
+			256.0
 		],
 		"dist_size": [
 			16384.0,
 			8192.0
 		],
 		"bed_size": [
-			1024.0,
-			512.0
+			512.0,
+			256.0
 		],
 		"dem_smooth_passes": 3.0,
 		"min_drainage_area": 550000.0,
 		"min_outlet_drainage": 300000.0,
-		"max_rivers_per_landmass": 2.0,
+		"max_rivers_per_landmass": 4.0,
 		"meander_amplitude": 16.0,
 		"meander_wavelength": 12.0,
 		"channel_incision": 130.0,
@@ -3511,8 +3511,8 @@
 		"width_coefficient": 0.02,
 		"min_half_width": 12.0,
 		"max_half_width": 30.0,
-		"carve_range": 150.0,
-		"bank_slope": 1.2,
+		"carve_range": 300.0,
+		"bank_slope": 1.5,
 		"blend_range": 20.0,
 		"wall_amplitude": 72.0,
 		"wall_period": 200.0,
@@ -3563,7 +3563,9 @@
 				-90.0,
 				0.15
 			]
-		]
+		],
+		"channel_subdivide": 4.0,
+		"lakes": false
 	},
 	"trail_settings": {
 		"enabled": true,
@@ -3629,7 +3631,7 @@
 	},
 	"settlement_settings": {
 		"enabled": true,
-		"seed": 3,
+		"seed": 3.0,
 		"fraction": 1.0,
 		"min_spacing": 1500.0,
 		"roadside_spacing": 1000.0,

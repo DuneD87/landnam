@@ -1223,6 +1223,11 @@ func setup_voxel_generator() -> void:
 		if _apply_radius(fn, radius):
 			needs_compile = true
 
+	# Relieve horneado del terreno v2 (si el grafo lo lleva). Antes que ríos, sendas y poblados, que se
+	# hornean a partir del relieve ya definitivo.
+	if PlanetRelief.setup(graph_generator, radius, entity_id if entity_id != "" else "planet"):
+		needs_compile = true
+
 	if not definition.ore_settings.is_empty():
 		_apply_ore_params(all_functions, definition.ore_settings)
 		needs_compile = true
@@ -1250,6 +1255,24 @@ func setup_voxel_generator() -> void:
 
 	if not definition.ore_settings.is_empty():
 		_publish_ore_drop_table()
+
+	_setup_river_water()
+
+
+## Lámina de agua propia de ríos y lagos (RiverWater), colgada del terreno para compartir sus
+## coordenadas. Los ríos ya no se tallan hasta el nivel del mar: el agua va a la altura del cauce.
+func _setup_river_water() -> void:
+	if _river_field.is_empty() or voxel_terrain == null:
+		return
+	# Apagada con el tallado viejo (ríos a la cota del mar, que los llena el océano).
+	if not bool(definition.river_settings.get("river_water", false)):
+		return
+	var water := voxel_terrain.get_node_or_null("RiverWater") as RiverWater
+	if water == null:
+		water = RiverWater.new()
+		water.name = "RiverWater"
+		voxel_terrain.add_child(water)
+	water.build(_river_field, radius, radius - water_radius if has_water else 0.0)
 
 
 ## Hornea (o recupera del caché) el campo de ríos y lo enchufa al grafo. Devuelve true si el grafo
@@ -1299,7 +1322,11 @@ func _setup_rivers(graph_generator: VoxelGeneratorGraph) -> bool:
 	var field := RiverField.load_from(path, key)
 	if field.is_empty():
 		var started := Time.get_ticks_msec()
-		var source: VoxelGeneratorGraph = graph_generator.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+		# Sin cuevas ni arrecifes, como el mapa del mundo: horneado a radio R, bajo las montañas el SDF
+		# de los túneles sustituía a la altura del terreno y los cauces salían a cientos de metros por
+		# debajo (luego el tallado abría un tajo hasta ellos).
+		var source: VoxelGeneratorGraph = WorldMapBaker._ground_only_generator(
+			graph_generator.duplicate_deep(Resource.DEEP_DUPLICATE_ALL))
 		_disable_reefs(source)
 		source.compile()
 		field = RiverGenerator.build_field(source, radius, sea_level_radius, height_range,
@@ -1329,7 +1356,10 @@ func _setup_trails(graph_generator: VoxelGeneratorGraph) -> bool:
 	var field := TrailField.load_from(path, key)
 	if field.is_empty():
 		var started := Time.get_ticks_msec()
-		var source: VoxelGeneratorGraph = graph_generator.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+		# Sin cuevas ni arrecifes, como los ríos: con los túneles el relieve de las montañas salía
+		# hundido y las sendas lo seguían.
+		var source: VoxelGeneratorGraph = WorldMapBaker._ground_only_generator(
+			graph_generator.duplicate_deep(Resource.DEEP_DUPLICATE_ALL))
 		_disable_reefs(source)
 		source.compile()
 		field = TrailGenerator.build_field(source, radius, sea_height, height_range, _river_field, cfg)
@@ -1514,12 +1544,20 @@ static func _graph_op(graph: VoxelGraphFunction, type: int, a: int, b = null, a_
 ## alrededor del spawn) eso multiplicaba por tres el coste total.
 func _load_vegetation_graph(path: String) -> VoxelGraphFunction:
 	var graph: VoxelGraphFunction = load(path)
-	if graph == null or _river_field.is_empty():
+	if graph == null or (_river_field.is_empty() and PlanetRelief.last_data.is_empty()):
 		return graph
 	var copy: VoxelGraphFunction = graph.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
-	if RiverGenerator.apply(copy, _vegetation_river_field()):
-		return copy
-	return graph
+	var patched := false
+	if not _river_field.is_empty() and RiverGenerator.apply(copy, _vegetation_river_field()):
+		patched = true
+	# Los grafos v2 reconstruyen el terreno con el relieve horneado: sin sus imágenes quedaría una
+	# esfera lisa y la compuerta de superficie descartaría plantas donde no toca.
+	if not PlanetRelief.last_data.is_empty():
+		var fns := PlanetRelief._functions_of(copy)
+		if PlanetRelief._owner(fns, PlanetRelief.RELIEF_NODE) != null:
+			PlanetRelief.apply(fns, PlanetRelief.last_data, radius)
+			patched = true
+	return copy if patched else graph
 
 
 ## El campo de ríos con la imagen de distancias reducida, para los grafos de vegetación. El módulo

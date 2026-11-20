@@ -28,7 +28,8 @@ class_name TrailField extends RefCounted
 ## necesita un árbol, y cuatro veces menos de compilar por generador).
 
 const FILE_MAGIC := "GVTF"
-const FILE_VERSION := 3
+## 4: horneado sin cuevas, como los ríos.
+const FILE_VERSION := 4
 ## Holgura que se suma al radio de la compuerta y al de la banda (m).
 const _MARGIN := 2.5
 

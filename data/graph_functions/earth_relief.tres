@@ -1,0 +1,137 @@
+[gd_resource type="VoxelGraphFunction" format=3]
+
+[sub_resource type="Image" id="Image_yvlri"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+"format": "RFloat",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="Image" id="Image_fiega"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0),
+"format": "Red8",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="FastNoise2" id="FastNoise2_l0r3j"]
+noise_type = 4
+seed = 1339
+period = 98.76544
+fractal_type = 2
+fractal_octaves = 4
+fractal_lacunarity = 4.5
+fractal_gain = 0.2
+cellular_distance_function = 1
+cellular_return_type = 3
+cellular_index0 = 3
+cellular_index1 = 2
+
+[resource]
+graph_data = {
+"connections": [[14, 0, 15, 0], [1, 0, 4, 0], [1, 0, 5, 0], [1, 0, 6, 0], [1, 0, 11, 0], [2, 0, 4, 1], [2, 0, 5, 1], [2, 0, 6, 1], [2, 0, 11, 1], [3, 0, 4, 2], [3, 0, 5, 2], [3, 0, 6, 2], [3, 0, 11, 2], [4, 0, 14, 0], [5, 0, 7, 1], [6, 0, 7, 0], [7, 0, 8, 0], [8, 0, 9, 0], [9, 0, 10, 0], [10, 0, 13, 1], [11, 0, 12, 0], [12, 0, 13, 0], [13, 0, 14, 1]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(-900, 0),
+"type": "InputX"
+},
+"10": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(50, 150),
+"name": &"relief_mask_gate",
+"type": "Max"
+},
+"11": {
+"auto_connect": true,
+"gui_position": Vector2(-250, 350),
+"name": &"relief_detail",
+"noise": SubResource("FastNoise2_l0r3j"),
+"type": "FastNoise2_3D"
+},
+"12": {
+"auto_connect": false,
+"b": 9.984639313565914,
+"gui_position": Vector2(-50, 350),
+"name": &"relief_detail_amplitude",
+"type": "Multiply"
+},
+"13": {
+"auto_connect": false,
+"gui_position": Vector2(150, 250),
+"type": "Multiply"
+},
+"14": {
+"auto_connect": false,
+"gui_position": Vector2(300, 0),
+"type": "Add"
+},
+"15": {
+"auto_connect": false,
+"gui_position": Vector2(450, 0),
+"name": &"earth_field",
+"type": "CustomOutput"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(-900, 80),
+"type": "InputY"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(-900, 160),
+"type": "InputZ"
+},
+"4": {
+"auto_connect": true,
+"factor": 1.0,
+"gui_position": Vector2(-600, -100),
+"image": SubResource("Image_yvlri"),
+"name": &"relief_map",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"5": {
+"auto_connect": true,
+"factor": 1000000.0,
+"gui_position": Vector2(-600, 100),
+"image": SubResource("Image_fiega"),
+"name": &"relief_mask_map",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"6": {
+"auto_connect": true,
+"gui_position": Vector2(-600, 250),
+"name": &"relief_planet_sdf",
+"radius": 30000.0,
+"type": "SdfSphere"
+},
+"7": {
+"auto_connect": false,
+"gui_position": Vector2(-400, 150),
+"type": "Subtract"
+},
+"8": {
+"auto_connect": false,
+"b": 1e-06,
+"gui_position": Vector2(-250, 150),
+"name": &"relief_mask",
+"type": "Multiply"
+},
+"9": {
+"auto_connect": false,
+"b": 0.004,
+"gui_position": Vector2(-100, 150),
+"type": "Subtract"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0]]
+output_definitions = [["earth_field", "CustomOutput", 0]]

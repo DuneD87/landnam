@@ -381,33 +381,103 @@ static func extract_channels(sol: Dictionary, size: Vector2i, sea_n: float,
 	_smooth_channel_positions(px, py, receiver, is_channel, channels, w, h)
 	_meander(px, py, receiver, is_channel, channels, accum, w, h, radius, cfg)
 
+	# Cota del cauce. Con 'channel_breach' las cuencas cerradas se ABREN en vez de rellenarse: el lecho
+	# sigue el terreno cuesta abajo y no vuelve a subir (mínimo con el de sus afluentes, en orden de
+	# aguas arriba a aguas abajo), así que donde el cauce topa con el borde de una cuenca lo atraviesa a
+	# su cota. Rellenando, el lecho quedaba por encima del terreno en toda la cuenca (el agua flotaba) y
+	# hacía falta un lago que, a la resolución de este mapa, no encaja con el terreno real.
+	var ground := filled
+	var valid := PackedByteArray()
+	if bool(cfg.get("channel_breach", false)):
+		var dem: PackedFloat32Array = sol.dem
+		ground = dem.duplicate()
+		for i in _topological_order(receiver, n):
+			if is_channel[i] == 0:
+				continue
+			var r := receiver[i]
+			if r >= 0 and is_channel[r] == 1 and ground[i] < ground[r]:
+				ground[r] = ground[i]
+		var cuts := PackedFloat32Array()
+		var lifts := PackedFloat32Array()
+		for i in channels:
+			cuts.append((dem[i] - ground[i]) * height_span)
+			lifts.append((filled[i] - dem[i]) * height_span)
+		cuts.sort()
+		lifts.sort()
+		var m := cuts.size()
+		# Límite: el corte en un borde de cuenca no pasa de 'channel_max_cut' (el lecho no baja de
+		# relleno - corte, que también es monótono), y los tramos que así quedarían flotando sobre una
+		# cuenca honda no se dibujan: el río nace aguas abajo, al pie de la cuenca.
+		var max_cut := float(cfg.get("channel_max_cut", 0.0))
+		if max_cut > 0.0:
+			var max_cut_n := max_cut / height_span
+			var float_n := float(cfg.get("channel_max_float", 0.5)) / height_span
+			valid.resize(n)
+			for i in channels:
+				ground[i] = maxf(ground[i], filled[i] - max_cut_n)
+				valid[i] = 1 if ground[i] <= dem[i] + float_n else 0
+		print("[rivers] corte en bordes de cuenca: p50 %.1f p90 %.1f p99 %.1f máx %.1f m (relleno que se evita: p90 %.1f máx %.1f m)"
+			% [cuts[m / 2], cuts[m * 9 / 10], cuts[m * 99 / 100], cuts[m - 1], lifts[m * 9 / 10], lifts[m - 1]])
+
 	var seg := PackedFloat32Array()
 	var count := 0
+	# Afluente principal de cada nodo (el de más caudal), para la tangente de la curva en el nodo.
+	var main_donor := PackedInt32Array()
+	main_donor.resize(n)
+	main_donor.fill(-1)
+	for i in channels:
+		var r := receiver[i]
+		if r >= 0 and is_channel[r] == 1 and (main_donor[r] < 0 or accum[i] > accum[main_donor[r]]):
+			main_donor[r] = i
+	# Cada arista se dibuja como una curva Catmull-Rom (afluente principal, nodo, receptor, siguiente)
+	# partida en 'channel_subdivide' tramos: el cauce pasa por los mismos nodos pero sin las esquinas
+	# de 90 m entre aristas rectas. Tangente continua en cada nodo.
+	var sub := maxi(int(cfg.get("channel_subdivide", 1)), 1)
+	var dropped := 0
 	for i in channels:
 		var r := receiver[i]
 		if r < 0:
 			continue
+		if not valid.is_empty() and (valid[i] == 0 or (is_channel[r] == 1 and valid[r] == 0)):
+			dropped += 1
+			continue
 		# El cauce se dibuja hasta el mar: el último tramo termina en una celda marina, que no es
 		# cauce pero sí es la desembocadura.
-		var y := r / w
-		var rx: float = px[r] if is_channel[r] == 1 else (r - y * w) + 0.5
-		var ry: float = py[r] if is_channel[r] == 1 else y + 0.5
-		# Las aristas que cruzan la costura de longitud se dibujan por el lado corto.
-		var x0: float = px[i]
-		if rx - x0 > w * 0.5:
-			rx -= w
-		elif x0 - rx > w * 0.5:
-			rx += w
-		seg.append(x0)
-		seg.append(py[i])
-		seg.append(rx)
-		seg.append(ry)
-		seg.append(_bed(filled[i], height_min, height_span, incision, sea_h, wet_margin, max_dig))
-		seg.append(_bed(filled[r], height_min, height_span, incision, sea_h, wet_margin, max_dig))
-		seg.append(clampf(width_coef * sqrt(accum[i]), width_min, width_max))
-		seg.append(clampf(width_coef * sqrt(accum[r]), width_min, width_max))
-		count += 1
+		var p1 := Vector2(px[i], py[i])
+		var p2 := _node_pos(r, px, py, is_channel, w)
+		p2.x = _unwrap(p2.x, p1.x, w)
+		var d := main_donor[i]
+		var p0 := p1 * 2.0 - p2
+		if d >= 0 and (valid.is_empty() or valid[d] == 1):
+			p0 = _node_pos(d, px, py, is_channel, w)
+			p0.x = _unwrap(p0.x, p1.x, w)
+		var rr := receiver[r] if is_channel[r] == 1 else -1
+		var p3 := p2 * 2.0 - p1
+		if rr >= 0:
+			p3 = _node_pos(rr, px, py, is_channel, w)
+			p3.x = _unwrap(p3.x, p2.x, w)
+		var bed0 := _bed(ground[i], height_min, height_span, incision, sea_h, wet_margin, max_dig)
+		var bed1 := _bed(ground[r], height_min, height_span, incision, sea_h, wet_margin, max_dig)
+		var w0 := clampf(width_coef * sqrt(accum[i]), width_min, width_max)
+		var w1 := clampf(width_coef * sqrt(accum[r]), width_min, width_max)
+		var prev := p1
+		for k in sub:
+			var t := float(k + 1) / sub
+			var cur := p2 if k == sub - 1 else _catmull(p0, p1, p2, p3, t)
+			var t0 := float(k) / sub
+			seg.append(prev.x)
+			seg.append(prev.y)
+			seg.append(cur.x)
+			seg.append(cur.y)
+			seg.append(lerpf(bed0, bed1, t0))
+			seg.append(lerpf(bed0, bed1, t))
+			seg.append(lerpf(w0, w1, t0))
+			seg.append(lerpf(w0, w1, t))
+			count += 1
+			prev = cur
 
+	if dropped > 0:
+		print("[rivers] %d tramos descartados (necesitaban cortar más o flotar sobre una cuenca)" % dropped)
 	count += _extend_mouths(seg, channels, receiver, is_channel, filled, accum, w, h, height_min,
 		height_span, incision, sea_h, wet_margin, max_dig, width_coef, width_min, width_max,
 		radius, cfg)
@@ -800,6 +870,21 @@ static func _topological_order(receiver: PackedInt32Array, n: int) -> PackedInt3
 	return order
 
 
+static func _node_pos(c: int, px: PackedFloat32Array, py: PackedFloat32Array,
+		is_channel: PackedByteArray, w: int) -> Vector2:
+	if is_channel[c] == 1:
+		return Vector2(px[c], py[c])
+	var y := c / w
+	return Vector2((c - y * w) + 0.5, y + 0.5)
+
+
+static func _catmull(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> Vector2:
+	var t2 := t * t
+	var t3 := t2 * t
+	return 0.5 * ((2.0 * p1) + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+		+ (3.0 * p1 - p0 - 3.0 * p2 + p3) * t3)
+
+
 static func _unwrap(x: float, reference: float, w: int) -> float:
 	if x - reference > w * 0.5:
 		return x - w
@@ -859,3 +944,74 @@ static func _ocean_mask(heights: PackedFloat32Array, w: int, h: int,
 	for i in n:
 		mask[i] = 1 if comp[i] == best else 0
 	return mask
+
+
+## Lagos: celdas de tierra donde la inundación dejó el nivel por encima del terreno más de
+## 'min_depth' metros, agrupadas por vecindad de 4 y descartando los grupos de menos de 'min_cells'.
+## Devuelve la cota de la lámina en metros sobre el radio por celda, o NO_LAKE.
+##
+## Es el agua que corresponde a los tramos de río que cruzan una depresión: el relleno los deja con el
+## lecho por encima del terreno, y sin lago el agua del río quedaría flotando. Por eso solo se quedan
+## los lagos que toca algún cauce ('channels'); el resto de cuencas cerradas quedan secas (eran casi la
+## cuarta parte de la tierra).
+const NO_LAKE := -1.0e6
+
+
+static func extract_lakes(sol: Dictionary, size: Vector2i, sea_n: float, height_min: float,
+		height_span: float, min_depth: float, min_cells: int,
+		channels: PackedInt32Array) -> PackedFloat32Array:
+	var w := size.x
+	var h := size.y
+	var n := w * h
+	var filled: PackedFloat32Array = sol.filled
+	var dem: PackedFloat32Array = sol.dem
+	var out := PackedFloat32Array()
+	out.resize(n)
+	out.fill(NO_LAKE)
+	var min_n := min_depth / height_span
+	var mark := PackedByteArray()
+	mark.resize(n)
+	for i in n:
+		if filled[i] > sea_n and filled[i] - dem[i] > min_n:
+			mark[i] = 1
+	var is_channel := PackedByteArray()
+	is_channel.resize(n)
+	for c in channels:
+		is_channel[c] = 1
+	var stack := PackedInt32Array()
+	var group := PackedInt32Array()
+	for start in n:
+		if mark[start] != 1:
+			continue
+		mark[start] = 2
+		stack.clear()
+		group.clear()
+		stack.append(start)
+		while not stack.is_empty():
+			var i := stack[stack.size() - 1]
+			stack.remove_at(stack.size() - 1)
+			group.append(i)
+			var y := i / w
+			var x := i - y * w
+			for k in 4:
+				var nx := x + (1 if k == 0 else (-1 if k == 1 else 0))
+				var ny := y + (1 if k == 2 else (-1 if k == 3 else 0))
+				if ny < 0 or ny >= h:
+					continue
+				nx = posmod(nx, w)
+				var j := ny * w + nx
+				if mark[j] == 1:
+					mark[j] = 2
+					stack.append(j)
+		if group.size() < min_cells:
+			continue
+		var fed := false
+		for i in group:
+			if is_channel[i] == 1:
+				fed = true
+				break
+		if not fed:
+			continue
+		for i in group:
+			out[i] = height_min + filled[i] * height_span
+	return out

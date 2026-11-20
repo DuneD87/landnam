@@ -21,6 +21,18 @@ const SPHERE_NODE := "river_planet_sdf"
 ## umbral y el generador se salta el tallado entero en los bloques sin río. Corta donde la distancia
 ## pasa de alcance * (1 - 20000 / factor) = 99,8 % del alcance: allí el valle ya no talla.
 const GATE_NODE := "river_near_gate"
+## Tallado v2 (tools/build_river_carve_v2.gd).
+const BANK_NODE := "river_bank"
+## Subida de la orilla, del fondo del cauce a la ribera (hondo + ribera).
+const INCISION_NODE := "river_incision"
+const DEPTH_NODE := "river_depth"
+const WALL_START_NODE := "river_wall_start"
+const WALL_SLOPE_NODE := "river_wall_slope"
+const WALL_CURVE_NODE := "river_wall_curve"
+const FILL_SLOPE_NODE := "river_fill_slope"
+const BANK_HEIGHT_NODE := "river_bank_height"
+## Vegetación v2 (tools/patch_vegetation_rivers.gd).
+const KEEP_NODE := "river_keep"
 const GATE_FACTOR := 1.0e7
 const GATE_THRESHOLD := -20000.0
 
@@ -77,8 +89,22 @@ static func build_field(generator: VoxelGeneratorGraph, radius: float, sea_level
 		cfg)
 	if int(net.count) <= 0:
 		return {}
+	# seg[4..5] pasan de lecho del mapa de hidrología a cota del agua sobre el terreno real.
+	# Solo con el tallado v2 (agua propia): con el viejo el lecho baja hasta el mar.
+	if bool(cfg.get("water_levels", false)):
+		net.seg = RiverLevels.resolve(generator, net.seg, size, radius, sea_level_radius - radius, cfg)
 
 	var field := RiverField.rasterize(net, size, radius, height_min, height_span, cfg)
+	if bool(cfg.get("lakes", true)):
+		var lakes := RiverHydrology.extract_lakes(sol, size, sea_n, height_min, height_span,
+			float(cfg.get("lake_min_depth", 1.5)), int(cfg.get("lake_min_cells", 4)), net.channels)
+		field.lake = Image.create_from_data(size.x, size.y, false, Image.FORMAT_RF, lakes.to_byte_array())
+	else:
+		# Sin lagos (las cuencas se abren con channel_breach): imagen mínima sin agua.
+		var none := PackedFloat32Array()
+		none.resize(8)
+		none.fill(RiverHydrology.NO_LAKE)
+		field.lake = Image.create_from_data(4, 2, false, Image.FORMAT_RF, none.to_byte_array())
 	field.radius = radius
 	field.height_min = height_min
 	field.height_span = height_span
@@ -89,6 +115,13 @@ static func build_field(generator: VoxelGeneratorGraph, radius: float, sea_level
 	field.wall_period = float(cfg.get("wall_period", 140.0))
 	field.wall_start = float(cfg.get("wall_start", 25.0))
 	field.wall_full = float(cfg.get("wall_full", 90.0))
+	field.channel_incision = float(cfg.get("channel_incision", 3.0))
+	field.bank_width = float(cfg.get("bank_width", 6.0))
+	field.channel_depth = float(cfg.get("channel_depth", 2.5))
+	field.bank_height = float(cfg.get("bank_height", 1.5))
+	field.valley_slope = float(cfg.get("valley_slope", 0.12))
+	field.valley_curve = float(cfg.get("valley_curve", 0.0015))
+	field.fill_slope = float(cfg.get("fill_slope", 1.0))
 	return field
 
 
@@ -152,8 +185,38 @@ static func apply(target, field: Dictionary) -> bool:
 	var blend_fn := _owner(functions, BLEND_NODE)
 	if blend_fn != null:
 		var blend := blend_fn.find_node_by_name(BLEND_NODE)
-		blend_fn.set_node_param(blend, 0, 0.0)
-		blend_fn.set_node_param(blend, 1, float(field.blend_range))
+		if blend_fn.find_node_by_name(BANK_NODE) > 0:
+			# Tallado v2 (valle suave): del final de la llanura (blend_range) al alcance, el terreno
+			# vuelve a su altura natural.
+			blend_fn.set_node_param(blend, 0, float(field.blend_range))
+			blend_fn.set_node_param(blend, 1, float(field.carve_range))
+		else:
+			blend_fn.set_node_param(blend, 0, 0.0)
+			blend_fn.set_node_param(blend, 1, float(field.blend_range))
+
+	# Vegetación v2: sin plantas en el cauce ni en la llanura.
+	var keep_fn := _owner(functions, KEEP_NODE)
+	if keep_fn != null:
+		var keep := keep_fn.find_node_by_name(KEEP_NODE)
+		keep_fn.set_node_param(keep, 0, float(field.blend_range))
+		keep_fn.set_node_param(keep, 1, float(field.blend_range) + 15.0)
+
+	# Tallado v2: perfil del cauce y del valle sobre la cota del agua.
+	var depth := float(field.get("channel_depth", 2.5))
+	var bank_h := float(field.get("bank_height", 1.5))
+	var bank_w := float(field.get("bank_width", 6.0))
+	var bank_fn := _owner(functions, BANK_NODE)
+	if bank_fn != null:
+		var bank := bank_fn.find_node_by_name(BANK_NODE)
+		bank_fn.set_node_param(bank, 0, 0.0)
+		bank_fn.set_node_param(bank, 1, bank_w)
+	_set_b(functions, INCISION_NODE, "b", depth + bank_h)
+	_set_b(functions, DEPTH_NODE, "b", -depth)
+	_set_b(functions, WALL_START_NODE, "b", bank_w)
+	_set_b(functions, WALL_SLOPE_NODE, "b", float(field.get("valley_slope", 0.12)))
+	_set_b(functions, WALL_CURVE_NODE, "b", float(field.get("valley_curve", 0.0015)))
+	_set_b(functions, FILL_SLOPE_NODE, "b", float(field.get("fill_slope", 1.0)))
+	_set_b(functions, BANK_HEIGHT_NODE, "a", bank_h)
 
 	# Rugosidad de las paredes del valle. Sin ella el talud es una V analítica perfecta.
 	var amp_fn := _owner(functions, WALL_AMP_NODE)
@@ -177,6 +240,12 @@ static func apply(target, field: Dictionary) -> bool:
 		sphere_fn.set_node_default_input_by_name(
 			sphere_fn.find_node_by_name(SPHERE_NODE), "radius", radius)
 	return true
+
+
+static func _set_b(functions: Array, node_name: String, port: String, value: float) -> void:
+	var fn := _owner(functions, node_name)
+	if fn != null:
+		fn.set_node_default_input_by_name(fn.find_node_by_name(node_name), port, value)
 
 
 static func _gather(fn: VoxelGraphFunction, acc: Array) -> void:

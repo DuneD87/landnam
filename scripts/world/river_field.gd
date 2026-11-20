@@ -25,11 +25,17 @@ const FILE_MAGIC := "GVRF"
 ## 2: el fichero incluye la red de tramos, de la que sale la lámina de agua.
 ## 3: y los parámetros de rugosidad de las paredes.
 ## 4: comprimido con zstd. La imagen de distancias es casi toda ceros y en crudo pasaba de 130 MB.
-const FILE_VERSION := 4
+## 5: distancia normalizada por el alcance del valle de cada río, e incisión y orilla del cauce.
+## 6: horneado sin cuevas (los túneles hundían el relieve de las montañas).
+## 7: cota de los lagos (RiverHydrology.extract_lakes), para la lámina de agua.
+## 8: solo los lagos que toca un cauce.
+## 9-15: cota del agua sobre el terreno real (RiverLevels) y perfil del tallado v2 con sus ajustes.
+const FILE_VERSION := 15
 
 ## Escalares del campo, en el orden en que se serializan.
 const _SCALARS := ["radius", "height_min", "height_span", "carve_range", "bank_slope",
-	"blend_range", "wall_amplitude", "wall_period", "wall_start", "wall_full"]
+	"blend_range", "wall_amplitude", "wall_period", "wall_start", "wall_full", "channel_incision",
+	"bank_width", "channel_depth", "bank_height", "valley_slope", "valley_curve", "fill_slope"]
 
 
 ## Guarda el campo horneado junto a su clave de configuración. Sin caché, cada arranque se comería
@@ -43,7 +49,7 @@ static func save_to(field: Dictionary, path: String, key: String) -> void:
 	f.store_string(FILE_MAGIC)
 	f.store_32(FILE_VERSION)
 	f.store_pascal_string(key)
-	for name in ["dist", "bed"]:
+	for name in ["dist", "bed", "lake"]:
 		var img: Image = field[name]
 		f.store_32(img.get_width())
 		f.store_32(img.get_height())
@@ -77,7 +83,7 @@ static func load_from(path: String, key: String) -> Dictionary:
 	if f.get_pascal_string() != key:
 		return {}
 	var out := {}
-	for name in ["dist", "bed"]:
+	for name in ["dist", "bed", "lake"]:
 		var w := f.get_32()
 		var h := f.get_32()
 		var fmt := f.get_32()
@@ -101,7 +107,10 @@ static func load_from(path: String, key: String) -> Dictionary:
 ## cualquier río" es exactamente una región constante. Poniendo el neutro en 0, ese fallo de lectura
 ## cae justo en "aquí no hay río" en vez de en "cauce en todas partes".
 ##
-## dist  -> 1 - distancia_al_borde_del_cauce / range_m. Vale 1 dentro del canal y 0 lejos.
+## dist  -> 1 - distancia_al_borde_del_cauce / alcance_del_valle. Vale 1 dentro del canal y 0 lejos.
+##          El alcance del valle crece con la anchura del río (valley_base + valley_per_width *
+##          semianchura, como mucho carve_range): el grafo lee una distancia "normalizada" en metros de
+##          carve_range, y con ella un arroyo tiene un valle estrecho y un río grande uno ancho.
 ## bed   -> (techo_del_rango - cota_del_lecho) / height_span, o sea la profundidad del lecho medida
 ##          desde arriba. Vale 0 cuando el lecho está en el techo, que es un lecho por encima del
 ##          terreno y por tanto no talla nada.
@@ -115,9 +124,10 @@ static func rasterize(net: Dictionary, hydro_size: Vector2i, radius: float,
 	# del eje, y truncando en 'range_m' se le comería media ribera.
 	var dist_reach := range_m + float(cfg.get("max_half_width", 60.0))
 
-	var dist_m := _paint(net, hydro_size, dist_size, radius, dist_reach, range_m, false, 0.0, 0.0)
+	var valley := Vector2(float(cfg.get("valley_base", range_m)), float(cfg.get("valley_per_width", 0.0)))
+	var dist_m := _paint(net, hydro_size, dist_size, radius, dist_reach, range_m, false, 0.0, 0.0, valley)
 	var bed_m := _paint(net, hydro_size, bed_size, radius, range_m * _BED_MARGIN, range_m,
-		true, height_min, height_span)
+		true, height_min, height_span, valley)
 
 	var dist_bytes := PackedByteArray()
 	dist_bytes.resize(dist_size.x * dist_size.y)
@@ -140,7 +150,7 @@ static func rasterize(net: Dictionary, hydro_size: Vector2i, radius: float,
 ## cercano. Es el mismo recorrido geométrico, así que va en una función sola.
 static func _paint(net: Dictionary, hydro_size: Vector2i, size: Vector2i, radius: float,
 		reach_m: float, range_m: float, want_bed: bool, height_min: float,
-		height_span: float) -> PackedFloat32Array:
+		height_span: float, valley: Vector2) -> PackedFloat32Array:
 	var w := size.x
 	var h := size.y
 	var out := PackedFloat32Array()
@@ -253,14 +263,18 @@ static func _paint(net: Dictionary, hydro_size: Vector2i, size: Vector2i, radius
 						continue
 					best[i] = d
 					# Profundidad del lecho medida desde el TECHO del rango: 0 = arriba del todo.
-					out[i] = clampf(
-						(height_min + height_span - lerpf(bed0, bed1, t)) / height_span, 0.0, 1.0)
+					# Sin recortar a [0, 1]: la imagen es RF y la cota del agua puede salirse del rango
+					# del mapa de hidrología (ríos de montaña).
+					out[i] = (height_min + height_span - lerpf(bed0, bed1, t)) / height_span
 				else:
 					# Distancia al BORDE del cauce, no al eje: así el fondo sale plano y del ancho
-					# que toca sin que el grafo tenga que saber nada de anchuras.
-					var edge := maxf(d - lerpf(half0, half1, t), 0.0)
+					# que toca sin que el grafo tenga que saber nada de anchuras. Escalada por el
+					# alcance del valle de este río (ver rasterize).
+					var half := lerpf(half0, half1, t)
+					var local_range := clampf(valley.x + valley.y * half, 1.0, range_m)
+					var edge := maxf(d - half, 0.0) * range_m / local_range
 					if edge < out[i]:
-						out[i] = edge
+						out[i] = minf(edge, range_m)
 	return out
 
 
