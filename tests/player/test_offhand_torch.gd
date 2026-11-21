@@ -120,6 +120,7 @@ func _check_equip(player: PlayerController) -> void:
 	var combat := player.combat
 	var left: EquipmentSlot = window.get_slot(ItemData.ArmorSlot.OFFHAND)
 	var right: EquipmentSlot = window.get_slot(ItemData.ArmorSlot.RIGHT_HAND)
+	var primary: EquipmentSlot = window.get_slot(ItemData.ArmorSlot.PRIMARY)
 	player.inventory.clear()
 	player.inventory.add_item(torch, 3)
 	player.inventory.add_item(sword, 1)
@@ -137,7 +138,7 @@ func _check_equip(player: PlayerController) -> void:
 
 	# Con la espada en la derecha sigue en la izquierda.
 	player._equip_from_hotbar(null, sword)
-	check(right.has_item() and right.equipped_item.data == sword and player.right_hand_equipped,
+	check(primary.has_item() and primary.equipped_item.data == sword and player.right_hand_equipped,
 		"la espada va en la derecha")
 	check(left.has_item() and combat.holds_offhand_torch(), "con la antorcha en la izquierda")
 	player.current_animation = AnimationController.Anim.IDLE
@@ -165,7 +166,7 @@ func _check_equip(player: PlayerController) -> void:
 	player.equip_item(true, ItemData.ArmorSlot.OFFHAND, load(torch.scene_path), torch, torch.category)
 	check(combat.holds_offhand_torch() and not player.right_hand_equipped,
 		"al cargarla en su hueco vuelve a la izquierda, no a la derecha")
-	player.equip_item(true, ItemData.ArmorSlot.RIGHT_HAND, load(sword.scene_path), sword, sword.category)
+	player.equip_item(true, ItemData.ArmorSlot.PRIMARY, load(sword.scene_path), sword, sword.category)
 
 	# Otra vez la tecla: se quita y vuelve al inventario.
 	player._on_hotbar_offhand_toggled(torch)
@@ -173,7 +174,7 @@ func _check_equip(player: PlayerController) -> void:
 	check(player.inventory.get_item_count(torch) == 3, "y vuelve al inventario")
 
 	# En la derecha (desde el muñeco), la tecla la cambia de mano.
-	window.unequip_item(right)
+	window.unequip_item(primary)
 	window.equip_item(right, InventoryItem.new(torch, 1))
 	player.inventory.remove_item(torch, 1)
 	check(right.has_item() and right.equipped_item.data == torch, "también va en la derecha")

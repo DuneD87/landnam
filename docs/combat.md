@@ -20,6 +20,46 @@ y sirven de banco de pruebas.
 | Fijar / soltar objetivo | Q o clic de rueda |
 | Cambiar de objetivo fijado | Mover el ratón de lado |
 | Recoger una lanza clavada | E |
+| Sacar / guardar el arma principal | R (reasignable en Opciones) |
+
+## Equipo y armas guardadas
+
+La pantalla de personaje distingue **arma principal**, **herramienta** y **mano secundaria**.
+Equipar un arma la empuña; al seleccionar un pico, hacha o martillo en la barra, el arma sigue
+equipada y pasa al cuerpo. Volver a su acceso la saca sin transferir otra unidad del inventario.
+Pulsar otra vez el acceso seleccionado la guarda; también se puede usar R. En mando se usa
+cruceta arriba (con el martillo sigue abriendo el menú de construcción). En cubierta R conserva
+su función de remar.
+
+Las espadas de una mano van en la cintura izquierda; las armas a dos manos, en diagonal sobre
+la espalda; arcos y lanzas también tienen su anclaje en la espalda. El escudo queda en el brazo
+con un arma de una mano o una herramienta, y pasa a la espalda con arco, arma a dos manos o
+las manos guardadas. Transportado no permite bloquear. La antorcha izquierda sigue disponible
+al guardar el arma si la mano está libre.
+
+El muñeco de equipo muestra arma y escudo transportados. La barra marca el arma principal
+equipada incluso al usar una herramienta. Guardar/cargar conserva el estado de las manos,
+y las partidas anteriores migran su arma de la mano al nuevo hueco sin crear otra unidad.
+
+`PlayerLoadout` presenta el equipo y cambia la misma instancia entre mano y cuerpo; los objetos
+pertenecen solo a sus huecos de `CharacterWindow`. `WeaponCarry` usa `BoneAttachment3D`, ajusta
+sus metros a la escala del esqueleto y deja espacio a la capa. Arma y escudo descansan contra
+el cuerpo, bajo la mochila; equiparla no desplaza ninguno de sus anclajes hacia fuera. `ItemData.carry_offset`
+permite corregir posición y giro de un modelo sobre el ajuste de su familia. El cambio de anclaje
+es inmediato en esta versión; las animaciones de sacar/guardar pueden añadirse sobre ese cambio.
+
+Comprobación de estados, conservación y compatibilidad de partidas:
+
+```sh
+godot --headless --path . res://tests/player/test_weapon_loadout.tscn
+godot --path . --audio-driver Dummy res://tests/combat/weapon_carry_preview.tscn -- --background
+```
+
+La segunda guarda una galería de las posiciones en `build/combat/weapon_carry.png`.
+Con `--back-sword` compara el espadón del Alba con/sin mochila desde cuatro ángulos y guarda
+`build/combat/weapon_carry_back_sword.png`.
+Con `--back-shield` hace la misma comparación con el escudo y guarda
+`build/combat/weapon_carry_back_shield.png`.
 
 Con un objetivo fijado, flechas, piedras y lanzas van a él con la caída compensada;
 sin fijar, van a lo que hay bajo la mira.
@@ -110,7 +150,7 @@ Mallas y escenas: `bake_weapons.gd -- --only=branch,litter`.
 
 Se para con un escudo (ranura de mano secundaria de la ventana del personaje, con un arma de una
 mano, una herramienta o nada en la derecha) o con un arma a dos manos. Con el arco o el tirachinas
-el escudo no se lleva en la mano (no se ve) y el clic derecho apunta; con la lanza y escudo, el
+el escudo se transporta en la espalda y el clic derecho apunta; con la lanza y escudo, el
 clic derecho bloquea y la lanza solo pica.
 
 - **`Guard`** (`scripts/combat/guard.gd`): cuelga del `HealthComponent` de quien se defiende y

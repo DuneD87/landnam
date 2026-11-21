@@ -19,10 +19,14 @@ cuadrado/triángulo.
 | LB | Alternar agachado. |
 | RB | Pantalla del personaje y equipo. |
 | Cruceta izquierda / derecha | Objeto anterior / siguiente de la barra rápida. |
-| Cruceta arriba | Menú de construcción, con el martillo equipado. |
+| Cruceta arriba | Sacar / guardar arma; con el martillo, menú de construcción. |
 | Cruceta abajo | Fabricación. |
 | View / Select | Mapa. |
 | Menu / Start | Pausa o cerrar la ventana actual. |
+
+El arma principal permanece equipada al seleccionar una herramienta. Cruceta arriba la saca o
+la guarda; mientras se usa el martillo, ese control conserva el menú de construcción y se vuelve
+al arma eligiendo su acceso en la barra.
 
 En las ventanas, el stick izquierdo mueve el cursor, A hace clic izquierdo y X clic derecho
 (separar montones o depositar unidades). Mantener A permite arrastrar. LB+A equivale a

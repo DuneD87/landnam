@@ -129,6 +129,7 @@ const REBINDABLE_ACTIONS := [
 		[&"toggle_free_flight", "ACTION_FREE_FLIGHT"]]],
 	["OPT_GROUP_COMBAT", [
 		[&"attack_1", "ACTION_ATTACK_1"], [&"attack_2", "ACTION_ATTACK_2"], [&"lock_on", "ACTION_LOCK_ON"],
+		[&"toggle_weapon", "ACTION_TOGGLE_WEAPON"],
 		[&"group_orders", "ACTION_GROUP_ORDERS"]]],
 	["OPT_GROUP_INTERFACE", [
 		[&"action", "ACTION_USE"], [&"inventory", "ACTION_INVENTORY"], [&"character_window", "ACTION_CHARACTER"],

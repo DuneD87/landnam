@@ -269,16 +269,16 @@ func _test_ui() -> void:
 	chest.inventory.add_item(spear, 3)
 	ui.open_storage(chest)
 	ui._on_loot_slot_clicked(ui._loot_slots[0], MOUSE_BUTTON_LEFT)
-	ui._drop_to_equipment(character.get_slot(ItemData.ArmorSlot.RIGHT_HAND))
+	ui._drop_to_equipment(character.get_slot(ItemData.ArmorSlot.PRIMARY))
 	check(ui.floating_item == null and chest.inventory.get_item_count(spear) == 2 \
-		and character.get_equipped_item(ItemData.ArmorSlot.RIGHT_HAND).quantity == 1,
+		and character.get_equipped_item(ItemData.ArmorSlot.PRIMARY).quantity == 1,
 		"equipar desde el cofre consume una pieza y devuelve el resto al cofre")
 	chest.inventory.add_item_at(sword, 1, 1)
 	ui._on_loot_slot_clicked(ui._loot_slots[1], MOUSE_BUTTON_LEFT)
-	ui._drop_to_equipment(character.get_slot(ItemData.ArmorSlot.RIGHT_HAND))
+	ui._drop_to_equipment(character.get_slot(ItemData.ArmorSlot.PRIMARY))
 	ui.close()
 	check(bag.get_item_count(spear) == 1 and chest.inventory.get_item_count(spear) == 2 \
-		and character.get_equipped_item(ItemData.ArmorSlot.RIGHT_HAND).data == sword,
+		and character.get_equipped_item(ItemData.ArmorSlot.PRIMARY).data == sword,
 		"sustituir equipo desde un cofre conserva el arma desplazada al cerrar")
 	ui.character_window = null
 	character.free()

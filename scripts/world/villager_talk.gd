@@ -277,7 +277,7 @@ static func _worn_pelt(player: Node) -> String:
 
 
 static func _has_bronze(player: Node) -> bool:
-	for slot in [ItemData.ArmorSlot.RIGHT_HAND, ItemData.ArmorSlot.LEFT_HAND]:
+	for slot in [ItemData.ArmorSlot.PRIMARY, ItemData.ArmorSlot.RIGHT_HAND, ItemData.ArmorSlot.OFFHAND]:
 		var data := _equipped(player, slot)
 		if data != null and String(data.id).begins_with("bronze_"):
 			return true

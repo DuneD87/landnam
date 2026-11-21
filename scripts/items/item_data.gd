@@ -10,7 +10,7 @@ enum WeaponType {NONE, SWORD, SPEAR, BOW, CANNON, AXE, MACE, SLINGSHOT}
 ## la sangre y el empuje.
 enum DamageKind {SLASH, BLUNT, PIERCE}
 ## Se añaden al final para conservar los valores de recursos y partidas existentes.
-enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND, BACK, CLOAK}
+enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND, BACK, CLOAK, PRIMARY}
 
 @export var id: StringName  # "stone_pickaxe"
 ## Claves de localization/translations.csv (ITEM_<ID> e ITEM_<ID>_DESC); se leen traducidas con
@@ -59,6 +59,8 @@ enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFF
 ## Se empuña con las dos manos (espadones, hachas y martillos grandes): otro repertorio de
 ## golpes, más lentos, anchos y con más guardia mientras se descargan.
 @export var two_handed: bool = false
+## Ajuste por modelo sobre la posición de transporte de su familia, en metros.
+@export var carry_offset: Transform3D = Transform3D.IDENTITY
 ## Munición que consume al disparar (id de item). Vacío = se lanza a sí misma (lanza).
 @export var ammo_id: StringName = &""
 ## Velocidad de salida del proyectil a tensión completa, en m/s.
@@ -160,6 +162,7 @@ func copy_from(source: ItemData) -> void:
 	poise_damage = source.poise_damage
 	heavy_multiplier = source.heavy_multiplier
 	two_handed = source.two_handed
+	carry_offset = source.carry_offset
 	ammo_id = source.ammo_id
 	projectile_speed = source.projectile_speed
 	draw_time = source.draw_time
@@ -222,6 +225,9 @@ func fits_either_hand() -> bool:
 
 ## Cabe en el hueco [slot] del equipo: el suyo, o cualquiera de las dos manos si va en las dos.
 func fits_slot(slot: ArmorSlot) -> bool:
+	# Los recursos antiguos siguen diciendo RIGHT_HAND; el arma tiene ahora su propio hueco.
+	if category == Category.WEAPON:
+		return slot == ArmorSlot.PRIMARY
 	if slot == armor_slot:
 		return true
 	return fits_either_hand() and (slot == ArmorSlot.RIGHT_HAND or slot == ArmorSlot.OFFHAND)

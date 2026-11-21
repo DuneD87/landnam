@@ -1,8 +1,8 @@
 class_name CharacterWindow
 extends Node
 
-## El equipo del personaje: sus huecos (cabeza, torso, manos, piernas, pies, las dos manos, la
-## espalda y la capa) y el
+## El equipo del personaje: sus huecos (ropa, arma principal, herramienta, mano secundaria,
+## espalda y capa) y el
 ## muñeco, el propio personaje en 3D con lo que lleva puesto y esos huecos a los lados. El muñeco
 ## no es una ventana aparte: InventoryUI lo pone en el centro de la pantalla de equipo
 ## (take_doll()) y llama a refresh() al abrirla, que le pone el aspecto del personaje y le viste
@@ -18,7 +18,7 @@ signal equipment_rejected(slot_type: ItemData.ArmorSlot)
 ## Huecos a la izquierda del muñeco, de la cabeza a los pies, y a su derecha.
 const LEFT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.HEAD, ItemData.ArmorSlot.CHEST,
 	ItemData.ArmorSlot.HANDS, ItemData.ArmorSlot.LEGS, ItemData.ArmorSlot.FEET]
-const RIGHT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.RIGHT_HAND,
+const RIGHT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.PRIMARY, ItemData.ArmorSlot.RIGHT_HAND,
 	ItemData.ArmorSlot.OFFHAND, ItemData.ArmorSlot.BACK, ItemData.ArmorSlot.CLOAK]
 ## Clave del nombre de cada hueco.
 const SLOT_NAMES := {
@@ -27,7 +27,8 @@ const SLOT_NAMES := {
 	ItemData.ArmorSlot.HANDS: "SLOT_HANDS",
 	ItemData.ArmorSlot.LEGS: "SLOT_LEGS",
 	ItemData.ArmorSlot.FEET: "SLOT_FEET",
-	ItemData.ArmorSlot.RIGHT_HAND: "SLOT_RIGHT_HAND",
+	ItemData.ArmorSlot.PRIMARY: "SLOT_PRIMARY_WEAPON",
+	ItemData.ArmorSlot.RIGHT_HAND: "SLOT_TOOL",
 	ItemData.ArmorSlot.OFFHAND: "SLOT_LEFT_HAND",
 	ItemData.ArmorSlot.BACK: "SLOT_BACK",
 	ItemData.ArmorSlot.CLOAK: "SLOT_CLOAK",
@@ -109,6 +110,7 @@ func _build_doll() -> Control:
 		ItemData.ArmorSlot.HEAD: icon_head, ItemData.ArmorSlot.CHEST: icon_chest,
 		ItemData.ArmorSlot.HANDS: icon_hands, ItemData.ArmorSlot.LEGS: icon_legs,
 		ItemData.ArmorSlot.FEET: icon_feet, ItemData.ArmorSlot.RIGHT_HAND: icon_main_hand,
+		ItemData.ArmorSlot.PRIMARY: icon_main_hand,
 		ItemData.ArmorSlot.OFFHAND: icon_off_hand,
 		ItemData.ArmorSlot.BACK: icon_back,
 		ItemData.ArmorSlot.CLOAK: icon_cloak,
@@ -165,7 +167,7 @@ func _slot_column(slot_types: Array[ItemData.ArmorSlot], icons: Dictionary, spre
 
 
 ## Lo que lleva el muñeco sigue a los huecos: las piezas de ropa se visten como en el jugador
-## (ajustadas a su cuerpo por el rig). Escudos y armas no se le ponen.
+## (ajustadas a su cuerpo por el rig). Arma y escudo se muestran en sus anclajes de transporte.
 func _sync_dress() -> void:
 	var skeleton := preview.get_skeleton()
 	if skeleton == null:
@@ -201,6 +203,32 @@ func _sync_dress() -> void:
 		_light_for_studio(piece)
 		preview.rig.dress(piece, slot_type == ItemData.ArmorSlot.HEAD)
 		_dressed[slot_type] = piece
+	_sync_carried_weapons(skeleton)
+
+
+func _sync_carried_weapons(skeleton: Skeleton3D) -> void:
+	for slot_type in [ItemData.ArmorSlot.PRIMARY, ItemData.ArmorSlot.OFFHAND]:
+		var item := get_equipped_item(slot_type)
+		var wanted: ItemData = item.data if item != null else null
+		if wanted != null and (wanted.scene_path == "" or slot_type == ItemData.ArmorSlot.OFFHAND and not wanted.is_shield()):
+			wanted = null
+		var anchor := _dressed.get(slot_type) as WeaponCarry
+		if anchor != null and (wanted == null or anchor.data.id != wanted.id):
+			anchor.get_parent().remove_child(anchor)
+			anchor.queue_free()
+			_dressed.erase(slot_type)
+			anchor = null
+		if wanted == null:
+			continue
+		if anchor == null:
+			anchor = WeaponCarry.create(skeleton, wanted)
+			if anchor == null:
+				continue
+			var visual: Node3D = load(wanted.scene_path).instantiate()
+			anchor.carry(visual)
+			_light_for_studio(visual)
+			_dressed[slot_type] = anchor
+		anchor.fit_to_body(preview.rig)
 
 
 ## Los materiales planetarios se reparten entre todas las copias de la pieza (también la que

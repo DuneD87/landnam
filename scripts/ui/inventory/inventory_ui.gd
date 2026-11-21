@@ -951,7 +951,9 @@ func _equipped(slot_type: ItemData.ArmorSlot) -> ItemData:
 
 ## Lo que se lleva puesto donde iría [data] (las armas y herramientas, en la mano derecha).
 func _equipped_counterpart(data: ItemData) -> ItemData:
-	if data.category == ItemData.Category.WEAPON or data.category == ItemData.Category.TOOL:
+	if data.category == ItemData.Category.WEAPON:
+		return _equipped(ItemData.ArmorSlot.PRIMARY)
+	if data.category == ItemData.Category.TOOL:
 		return _equipped(ItemData.ArmorSlot.RIGHT_HAND)
 	if data.armor_slot != ItemData.ArmorSlot.NONE:
 		return _equipped(data.armor_slot)
@@ -1024,6 +1026,10 @@ func _on_slot_hovered(slot: ItemSlotView, on: bool, context: StringName) -> void
 		var compare: ItemData = null if context == &"equipment" else _equipped_counterpart(data)
 		if context == &"hotbar" and inventory != null:
 			quantity = inventory.get_item_count(data)
+			if character_window != null:
+				for equipment: EquipmentSlot in character_window.equipment_slots.values():
+					if equipment.has_item() and equipment.equipped_item.data.id == data.id:
+						quantity += equipment.equipped_item.quantity
 		_card.show_item(data, quantity, compare, hint)
 	elif context not in [&"equipment", &"campfire", &"furnace"]:
 		return

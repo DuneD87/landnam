@@ -152,6 +152,24 @@ func put_at(slot: int, item: InventoryItem, quantity: int = -1,
 	return item
 
 
+## Comprueba el espacio que usaría insert, sin compactar ni modificar los montones existentes.
+func can_insert(item: InventoryItem) -> bool:
+	if item == null or item.is_empty():
+		return true
+	if items.has(item):
+		return false
+	var remaining := item.quantity
+	for i in items.size():
+		var target := items[i]
+		if target == null:
+			remaining -= capacity(i, item.data)
+		elif target.can_stack_with(item):
+			remaining -= maxi(0, capacity(i, item.data) - target.quantity)
+		if remaining <= 0:
+			return true
+	return false
+
+
 ## Apila y usa huecos libres, conservando en el resultado lo que no cabe. No intercambia objetos.
 func insert(item: InventoryItem) -> InventoryItem:
 	if item == null:

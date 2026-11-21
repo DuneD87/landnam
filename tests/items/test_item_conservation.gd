@@ -81,7 +81,8 @@ func _run() -> void:
 				_ui._on_loot_slot_clicked(_ui._loot_slots[rng.randi_range(0, _chest.inventory.max_slots - 1)],
 					MOUSE_BUTTON_LEFT if rng.randf() < 0.5 else MOUSE_BUTTON_RIGHT)
 			3:
-				var slot := ItemData.ArmorSlot.RIGHT_HAND if rng.randf() < 0.5 else ItemData.ArmorSlot.OFFHAND
+				var slot: ItemData.ArmorSlot = [ItemData.ArmorSlot.PRIMARY, ItemData.ArmorSlot.RIGHT_HAND,
+					ItemData.ArmorSlot.OFFHAND][rng.randi_range(0, 2)]
 				_ui._on_equipment_slot_clicked(_character.get_slot(slot))
 			4:
 				_ui._sort_inventory()

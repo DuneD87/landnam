@@ -226,6 +226,7 @@ var _riposte_left: float = 0.0
 ## Empujón que deja un golpe encajado en guardia (m/s, se va apagando).
 var _guard_push: Vector3 = Vector3.ZERO
 var _shield_node: Node3D = null
+var _shield_carry: WeaponCarry
 var _shield_data: ItemData = null
 ## Antorcha en la mano izquierda (attach_offhand_torch).
 var _offhand_torch: Node3D = null
@@ -659,6 +660,13 @@ func attach_weapon(node: Node3D, data: ItemData) -> void:
 
 ## Suelta el arma de la mano y la devuelve (el que llama la libera).
 func detach_weapon() -> Node3D:
+	_press_pending = false
+	_buffered = &""
+	_guard_held = false
+	if state == State.AIM:
+		_end_aim()
+	if state == State.GUARD:
+		_set_state(State.IDLE)
 	if player.fishing != null:
 		player.fishing.cancel()
 	var node := _weapon_node
@@ -1096,7 +1104,8 @@ func _guard_item() -> ItemData:
 	var data := weapon()
 	if data != null and data.two_handed:
 		return data if data.guard_reduction > 0.0 else null
-	if _shield_data == null or (data != null and data.is_left_handed()) or not _shield_arm():
+	if _shield_data == null or (data != null and data.is_left_handed()) or not _shield_arm() \
+			or (player.loadout != null and not player.loadout.hands_ready):
 		return null
 	return _shield_data
 
@@ -1192,14 +1201,15 @@ func _on_guard_broken(info: DamageInfo) -> void:
 	_start_stagger(info)
 
 
-## Escudo en la mano secundaria (ranura OFFHAND): va en el antebrazo izquierdo y se ve salvo
-## cuando esa mano tiene otra cosa (arco, tirachinas) o el arma es a dos manos.
+## Escudo en la mano secundaria (ranura OFFHAND): antebrazo izquierdo o transporte en la espalda.
 func attach_shield(node: Node3D, data: ItemData) -> void:
 	detach_shield()
 	_shield_node = node
 	_shield_data = data
 	node.top_level = true
 	add_child(node)
+	_shield_carry = WeaponCarry.create(pose.skeleton(), data)
+	refit_shield_carry()
 	_update_shield_visibility()
 
 
@@ -1213,7 +1223,15 @@ func detach_shield() -> Node3D:
 		_set_state(State.IDLE)
 	if node != null and is_instance_valid(node) and node.get_parent() != null:
 		node.get_parent().remove_child(node)
+	if _shield_carry != null:
+		_shield_carry.queue_free()
+		_shield_carry = null
 	return node
+
+
+func refit_shield_carry() -> void:
+	if _shield_carry != null:
+		_shield_carry.fit_to_body(player.appearance_rig)
 
 
 ## Antorcha en la mano izquierda (ranura OFFHAND), con un arma o el martillo en la derecha. Cuelga
@@ -1231,6 +1249,10 @@ func detach_offhand_torch() -> Node3D:
 	var node := _offhand_torch
 	_offhand_torch = null
 	if node != null and is_instance_valid(node) and node.get_parent() != null:
+		# Un arranque diferido del loop no debe sonar después de sacar la antorcha del árbol.
+		for audio in node.find_children("*", "", true, false):
+			if audio is EntityAudio:
+				audio.set_loop_active(false)
 		node.get_parent().remove_child(node)
 	return node
 
@@ -1240,9 +1262,9 @@ func holds_offhand_torch() -> bool:
 	return _offhand_torch != null and is_instance_valid(_offhand_torch) and _offhand_torch.visible
 
 
-## Lo de la mano izquierda, escudo o antorcha, se ve salvo cuando esa mano tiene otra cosa (arco,
-## tirachinas, muleta), el arma es a dos manos o falta el brazo. El escudo tampoco de muerto: va con
-## la pose, y el muñeco de trapo no la sigue (la antorcha cuelga del hueso y cae con él).
+## Con la izquierda libre, escudo al brazo y antorcha visible. Con ambas manos ocupadas o
+## guardadas, el escudo va a su anclaje de espalda y no interviene en la guardia. De muerto se
+## oculta: el muñeco de trapo no sigue la pose del antebrazo.
 func _update_shield_visibility() -> void:
 	if pose == null:
 		return
@@ -1257,8 +1279,16 @@ func _update_shield_visibility() -> void:
 				node.set_loop_active(shown)
 	if _shield_node == null or not is_instance_valid(_shield_node):
 		return
-	_shield_node.visible = shown and state != State.DEAD
-	pose.shield_on = _shield_node.visible
+	var in_hand := shown and (player.loadout == null or player.loadout.hands_ready)
+	if in_hand:
+		if _shield_node.get_parent() != self:
+			_shield_node.get_parent().remove_child(_shield_node)
+			add_child(_shield_node)
+		_shield_node.top_level = true
+	elif _shield_carry != null and _shield_node.get_parent() != _shield_carry:
+		_shield_carry.carry(_shield_node)
+	_shield_node.visible = state != State.DEAD and (in_hand or _shield_carry != null)
+	pose.shield_on = in_hand and state != State.DEAD
 
 
 # ---------------------------------------------------------------------------------------------
