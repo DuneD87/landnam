@@ -9,6 +9,10 @@ const MODEL := "res://scenes/character/character_model.tscn"
 const FRAMES := [
 	["combat/sword_combo", [0.2, 1.0, 1.45, 2.5, 3.1]],
 	["combat/sword_heavy", [0.6, 0.7, 0.8, 1.0]],
+	["styles/greatsword_slash_1", [0.48, 0.6, 0.77]],
+	["styles/greatsword_heavy", [0.48, 1.0, 1.3]],
+	["styles/shield_slash_1", [0.51, 0.62, 0.72]],
+	["styles/shield_slash_4", [0.75, 1.25, 1.45]],
 ]
 
 var failures := 0
@@ -54,6 +58,7 @@ func _chest_yaws(square: bool) -> Array[float]:
 		skel.add_child(modifier)
 	var player: AnimationPlayer = model.get_node("AnimationPlayer")
 	player.add_animation_library(&"combat", load("res://models/player/mixamo/combat_anims.tres"))
+	player.add_animation_library(&"styles", load("res://models/player/mixamo/combat_styles.tres"))
 	var left := skel.find_bone(&"mixamorig_LeftArm")
 	var right := skel.find_bone(&"mixamorig_RightArm")
 	var yaw := [0.0]

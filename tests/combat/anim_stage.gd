@@ -18,6 +18,8 @@ extends SceneTree
 ## manos); --eye-log imprime dónde quedan el pecho, los hombros y el cuello respecto al ojo.
 ## --scene=run|sprint --item=<arma> corre con el arma en la mano (CombatPose.carry; --no-carry la
 ## quita) e imprime la holgura mínima entre el arma y cada parte del cuerpo.
+## --scene=armed_run|armed_sprint --item=greatsword|iron_sword usa el árbol de posturas
+## del juego; --legacy reproduce la mezcla anterior para comparar el balanceo.
 
 const MODEL := "res://scenes/character/character_model.tscn"
 const OUT := "res://build/combat/stage"
@@ -79,6 +81,7 @@ var anim: AnimationPlayer
 var pose: CombatPose
 var bow: RangedWeaponVisual
 var arrow: MeshInstance3D
+var shield_item: Node3D
 var right_item: Node3D
 var quiver: QuiverVisual
 var _viewports: Dictionary = {}
@@ -335,6 +338,28 @@ func _run() -> void:
 			base_anim = "attack_horizontal" if _scene == "melee_h" else "attack_vertical"
 			duration = anim.get_animation(base_anim).length
 			driver = _drive_fp_melee
+		"style":
+			var clip := "greatsword_slash_1"
+			var item := "greatsword"
+			for arg in OS.get_cmdline_user_args():
+				if arg.begins_with("--clip="):
+					clip = arg.trim_prefix("--clip=")
+				elif arg.begins_with("--item="):
+					item = arg.trim_prefix("--item=")
+			if item == "hunting_bow":
+				_add_bow()
+			else:
+				_add_right_item(item)
+			pose.two_hand_grip = 1.0 if item in ["greatsword", "stone_maul", "greataxe", "war_hammer"] else 0.0
+			if clip.begins_with("shield_"):
+				shield_item = load("res://scenes/items/weapons/combat/heater_shield.tscn").instantiate()
+				shield_item.top_level = true
+				model.add_child(shield_item)
+				pose.shield_on = true
+			anim.add_animation_library(&"styles", load("res://models/player/mixamo/combat_styles.tres"))
+			base_anim = "styles/" + clip
+			duration = anim.get_animation(base_anim).length
+			driver = _drive_fp_melee
 		"combo", "heavy":
 			# El combo de espada de Mixamo (MeleeMoveset.SWORD) y su pesado, de una tirada.
 			_add_right_item("iron_sword")
@@ -356,6 +381,46 @@ func _run() -> void:
 			driver = func(_t: float) -> void:
 				pose.carry = 1.0 if _carry else 0.0
 			_placer = _measure_clearance
+		"armed_run", "armed_sprint":
+			var item := "greatsword"
+			for arg in OS.get_cmdline_user_args():
+				if arg.begins_with("--item="):
+					item = arg.trim_prefix("--item=")
+			_add_right_item(item)
+			var style := "greatsword" if item != "iron_sword" else "shield"
+			pose.two_hand_grip = 1.0 if style == "greatsword" else 0.0
+			if style == "shield":
+				shield_item = load("res://scenes/items/weapons/combat/heater_shield.tscn").instantiate()
+				shield_item.top_level = true
+				model.add_child(shield_item)
+				pose.shield_on = true
+			anim.add_animation_library(&"combat", load("res://models/player/mixamo/combat_anims.tres"))
+			anim.add_animation_library(&"styles", load("res://models/player/mixamo/combat_styles.tres"))
+			var graph: AnimationNodeBlendTree = load("res://data/resources/third_person_player._animation_treetres.tres").duplicate(true)
+			# Se carga al ejecutar para que sus dependencias de autoload ya existan.
+			load("res://scripts/player/locomotion.gd").build(graph, anim, skel)
+			var tree := AnimationTree.new()
+			model.add_child(tree)
+			tree.anim_player = tree.get_path_to(anim)
+			tree.tree_root = graph
+			tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+			tree.active = true
+			var sprint := _scene == "armed_sprint"
+			var legacy := OS.get_cmdline_user_args().has("--legacy")
+			tree.set("parameters/bRun/blend_amount", 1.0)
+			tree.set("parameters/run_scale/scale", 4.0 / 4.3)
+			tree.set("parameters/loco_run/blend_position", Vector2(0, 1))
+			tree.set("parameters/bSprint/blend_amount", 1.0 if sprint else 0.0)
+			tree.set("parameters/sprint_scale/scale", 6.0 / 4.4)
+			var prefix := "parameters/stance_" + style
+			tree.set(prefix + "/blend_amount", 1.0 if legacy else 0.0)
+			tree.set(prefix + "_run_arms/blend_amount", 0.0 if legacy else 1.0)
+			tree.set(prefix + "_move/blend_amount", 1.0)
+			tree.set(prefix + "_pace/blend_amount", 1.0 if legacy else 0.0)
+			tree.set(prefix + "_run_speed/scale", (6.0 if sprint else 4.0) / 4.3)
+			tree.set(prefix + "_run_arms_speed/scale", (6.0 if sprint else 4.0) / 4.3)
+			duration = 2.0
+			driver = func(_t: float) -> void: tree.advance(1.0 / FPS)
 		"death":
 			duration = 3.0
 			driver = _drive_death
@@ -372,7 +437,8 @@ func _run() -> void:
 			push_error("escena desconocida " + _scene)
 			quit(1)
 			return
-	anim.play(base_anim)
+	if _scene not in ["armed_run", "armed_sprint"]:
+		anim.play(base_anim)
 	DirAccess.make_dir_recursive_absolute(OUT + "/frames")
 	var frames := int(ceil(duration * FPS))
 	var sheet_every := maxi(1, int(round(frames / float(SHEET_COLS * 2))))
@@ -568,6 +634,13 @@ func _drive_bow_anim(t: float) -> void:
 
 
 func _after_pose(p: CombatPose) -> void:
+	if _scene == "style" and bow != null:
+		bow.global_transform = (p.bone_world_xform(HumanRig.LEFT_HAND_MIDDLE2) * CombatPose.LEFT_GRIP).orthonormalized()
+		var q := ArcheryPose.quiver_skel(p)
+		quiver.global_transform = p.skeleton().global_transform * q
+		arrow.visible = false
+	if shield_item != null:
+		shield_item.global_transform = p.shield_xform
 	if p.grip_right and _right_grip != null:
 		_right_grip.global_transform = p.right_grip_xform
 	for fv in FOLLOW_VIEWS.values():

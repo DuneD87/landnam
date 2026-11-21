@@ -86,6 +86,8 @@ var bow_rig := BowAnimRig.new()
 ## right_grip_xform (mundo) dice dónde va el marco de agarre del arma (+Y hacia la punta, +Z
 ## hacia donde mira el filo), respecto a la palma y no a un dedo.
 var grip_right: bool = false
+## Peso del agarre de apoyo de las armas a dos manos.
+var two_hand_grip: float = 0.0
 var right_grip_xform: Transform3D
 ## 0..1 cuánto manda la pose de llevar el arma al correr (ver _apply_carry), y si el arma va
 ## perpendicular al antebrazo (hojas) o con la inclinación de la lanza.
@@ -198,6 +200,8 @@ func _apply() -> void:
 			_apply_carry(carry)
 		fishing.apply(self)
 		_apply_grip()
+		if two_hand_grip > 0.001:
+			_apply_two_hand_grip(two_hand_grip)
 	if crutch > 0.001:
 		_apply_crutch(crutch)
 	if shield_on:
@@ -712,6 +716,27 @@ func _apply_grip() -> void:
 	var origin := bone_pos(HumanRig.RIGHT_HAND) + (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * m
 	var to_world := _skel.global_transform
 	right_grip_xform = Transform3D((to_world.basis.orthonormalized() * Basis(x, y, z)).orthonormalized(), to_world * origin)
+
+
+## La derecha conduce la hoja; la izquierda se cierra 18 cm por debajo en el
+## mango. Compensa las proporciones distintas entre el actor del pack y el jugador.
+func _apply_two_hand_grip(w: float) -> void:
+	var xf := _skel.global_transform.affine_inverse() * right_grip_xform
+	var axis := xf.basis.y.normalized()
+	var fist := xf.origin - axis * 0.18 * unit()
+	var hand := hand_frame("Left")
+	var offset := (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * unit()
+	var elbow := bone_pos(HumanRig.LEFT_FORE_ARM) - bone_pos(HumanRig.LEFT_ARM)
+	arm_ik("Left", fist - offset, elbow, w)
+	# Conservar la palma grabada y alinear el lado del pulgar con el mango.
+	hand = hand_frame("Left")
+	var thumb := -hand.z.rotated(hand.y, deg_to_rad(FIST_TILT))
+	rotate_bone(HumanRig.LEFT_HAND, Quaternion.IDENTITY.slerp(arc(thumb, axis), w))
+	pose_fingers("Left", FIST, w)
+	# La orientación de muñeca también mueve el centro del puño: resolver otra vez.
+	hand = hand_frame("Left")
+	offset = (hand.x * FIST_HANDLE.x + hand.y * FIST_HANDLE.y) * unit()
+	arm_ik("Left", fist - offset, elbow, w)
 
 
 # ---------------------------------------------------------------------------------------------

@@ -90,6 +90,7 @@ static func build(tree_root: AnimationNodeBlendTree, animator: AnimationPlayer, 
 	_replace(tree_root, &"WALK", &"walk_scale", &"loco_walk", _space(WALK_CLIPS, animator))
 	_add_brisk(tree_root, animator)
 	_replace(tree_root, &"Animation", &"run_scale", &"loco_run", _space(RUN_CLIPS, animator))
+	CombatStance.build(tree_root, skeleton, animator)
 	var idle := AnimationNodeAnimation.new()
 	idle.animation = &"loco/crouch_idle"
 	var walk := AnimationNodeAnimation.new()

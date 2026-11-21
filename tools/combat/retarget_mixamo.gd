@@ -109,6 +109,39 @@ const LOCO := "res://models/player/mixamo/locomotion/"
 
 ## Otras tandas, cada una a su librería: [salida, clips como en CLIPS]. Sin --set, la de combate.
 const SETS := {
+	# Los tres packs de combate: repertorios y posturas, en una librería independiente.
+	"styles": ["res://models/player/mixamo/combat_styles.tres", {
+		"greatsword_slash_1": ["Great_Sword_Pack/great sword slash", 0.0, -1.0, true, false, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"greatsword_slash_2": ["Great_Sword_Pack/great sword slash (2)", 0.0, -1.0, true, false, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"greatsword_slash_3": ["Great_Sword_Pack/great sword slash (3)", 0.0, -1.0, true, false, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"greatsword_slash_4": ["Great_Sword_Pack/great sword slash (4)", 0.0, -1.0, true, false, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"greatsword_slash_5": ["Great_Sword_Pack/great sword slash (5)", 0.0, -1.0, true, false, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"greatsword_heavy": ["Great_Sword_Pack/great sword jump attack", 0.0, -1.0, true, false, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"greatsword_dash": ["Great_Sword_Pack/great sword slide attack", 0.0, -1.0, true, false, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"greatsword_idle": ["Great_Sword_Pack/great sword idle", 0.0, -1.0, true, true, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"greatsword_walk": ["Great_Sword_Pack/great sword walk", 0.0, -1.0, true, true, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"greatsword_run": ["Great_Sword_Pack/great sword run", 0.0, -1.0, true, true, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"shield_slash_1": ["Pro_Sword_and_Shield_Pack/sword and shield slash", 0.0, -1.0, true, false, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"shield_slash_2": ["Pro_Sword_and_Shield_Pack/sword and shield slash (2)", 0.0, -1.0, true, false, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"shield_slash_3": ["Pro_Sword_and_Shield_Pack/sword and shield slash (3)", 0.0, -1.0, true, false, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"shield_slash_4": ["Pro_Sword_and_Shield_Pack/sword and shield slash (4)", 0.0, -1.0, true, false, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"shield_slash_5": ["Pro_Sword_and_Shield_Pack/sword and shield slash (5)", 0.0, -1.0, true, false, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"shield_heavy": ["Pro_Sword_and_Shield_Pack/sword and shield attack", 0.0, -1.0, true, false, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"shield_dash": ["Pro_Sword_and_Shield_Pack/sword and shield attack (2)", 0.0, -1.0, true, false, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"shield_idle": ["Pro_Sword_and_Shield_Pack/sword and shield idle", 0.0, -1.0, true, true, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"shield_walk": ["Pro_Sword_and_Shield_Pack/sword and shield walk", 0.0, -1.0, true, true, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"shield_run": ["Pro_Sword_and_Shield_Pack/sword and shield run", 0.0, -1.0, true, true, {"height_from": "Pro_Sword_and_Shield_Pack/sword and shield idle"}],
+		"greatsword_block_hit": ["Great_Sword_Pack/great sword impact", 0.0, -1.0, true, false, {"height_from": "Great_Sword_Pack/great sword idle"}],
+		"archer_idle_01": ["Longbow_Locomotion_Pack/standing idle 01", 0.0, -1.0, true, true, {"height_from": "Longbow_Locomotion_Pack/standing idle 01"}],
+		"archer_walk_forward": ["Longbow_Locomotion_Pack/standing walk forward", 0.0, -1.0, true, true, {"height_from": "Longbow_Locomotion_Pack/standing idle 01"}],
+		"archer_walk_back": ["Longbow_Locomotion_Pack/standing walk back", 0.0, -1.0, true, true, {"height_from": "Longbow_Locomotion_Pack/standing idle 01"}],
+		"archer_walk_left": ["Longbow_Locomotion_Pack/standing walk left", 0.0, -1.0, true, true, {"height_from": "Longbow_Locomotion_Pack/standing idle 01"}],
+		"archer_walk_right": ["Longbow_Locomotion_Pack/standing walk right", 0.0, -1.0, true, true, {"height_from": "Longbow_Locomotion_Pack/standing idle 01"}],
+		"archer_run_forward": ["Longbow_Locomotion_Pack/standing run forward", 0.0, -1.0, true, true, {"height_from": "Longbow_Locomotion_Pack/standing idle 01"}],
+		"archer_run_back": ["Longbow_Locomotion_Pack/standing run back", 0.0, -1.0, true, true, {"height_from": "Longbow_Locomotion_Pack/standing idle 01"}],
+		"archer_run_left": ["Longbow_Locomotion_Pack/standing run left", 0.0, -1.0, true, true, {"height_from": "Longbow_Locomotion_Pack/standing idle 01"}],
+		"archer_run_right": ["Longbow_Locomotion_Pack/standing run right", 0.0, -1.0, true, true, {"height_from": "Longbow_Locomotion_Pack/standing idle 01"}],
+	}],
 	# Locomoción en todas direcciones (Locomotion): atrás y a la
 	# izquierda de Mixamo (la derecha es su espejo), y agachado: quieto de Mixamo y andar de MoCap
 	# Online (muestra gratuita, en el sitio; atrás es él mismo al revés).
