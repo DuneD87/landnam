@@ -13,6 +13,7 @@ var root: Window
 var _back_sword := false
 var _back_shield := false
 var _back_comparison := false
+var _hip_carry := false
 
 
 func _ready() -> void:
@@ -20,6 +21,7 @@ func _ready() -> void:
 	_back_sword = "--back-sword" in OS.get_cmdline_user_args()
 	_back_shield = "--back-shield" in OS.get_cmdline_user_args()
 	_back_comparison = _back_sword or _back_shield
+	_hip_carry = "--hip-carry" in OS.get_cmdline_user_args()
 	if "--background" in OS.get_cmdline_user_args():
 		root.unfocusable = true
 		root.position = Vector2i(-4000, -4000)
@@ -44,23 +46,35 @@ func _run() -> void:
 		cases.clear()
 		for i in 8:
 			cases.append([&"heater_shield" if _back_shield else &"dawn_greatsword", false, false, i % 2 == 1])
+	var hip_clips := [&"idle", &"combat/walk_relaxed", &"running", &"loco/crouch_walk",
+		&"running", &"loco/crouch_walk", &"combat/walk_relaxed", &"idle"]
+	if _hip_carry:
+		cases.clear()
+		for id in [&"iron_sword", &"iron_sword", &"iron_sword", &"iron_sword",
+				&"bronze_sword", &"flint_sword", &"battle_axe", &"iron_mace"]:
+			cases.append([id, false, false, false])
 	for i in cases.size():
 		var entry: Array = cases[i]
 		var model: Node3D = load("res://scenes/character/character_model.tscn").instantiate()
 		world.add_child(model)
 		var rig: CharacterAppearanceRig = model.get_node("AppearanceRig")
 		var appearance := CharacterAppearance.new()
-		if not _back_comparison and i % 2 == 1:
+		if not _back_comparison and not _hip_carry and i % 2 == 1:
 			appearance.set_sex(&"female")
 		rig.apply(appearance)
 		var skeleton: Skeleton3D = model.get_node("Armature/Skeleton3D")
 		var animator: AnimationPlayer = model.get_node("AnimationPlayer")
-		animator.play(&"idle")
-		animator.seek(0.6, true)
+		if _hip_carry:
+			animator.add_animation_library(&"combat", load(PlayerCombat.COMBAT_LIBRARY))
+			animator.add_animation_library(&"loco", load(Locomotion.LIBRARY))
+		animator.play(hip_clips[i] if _hip_carry else &"idle")
+		animator.seek(0.24 if _hip_carry and hip_clips[i] != &"idle" else 0.6, true)
 		animator.pause()
 		var armor := [&"leather_chest", &"leather_leggings", &"leather_boots"]
 		if _back_comparison:
 			armor = [&"lionheart_cuirass", &"lionheart_kilt", &"lionheart_boots"]
+		elif _hip_carry:
+			armor = [&"bearpaw_chest", &"bearpaw_leggings", &"bearpaw_boot"]
 		for id in armor:
 			var clothing := ItemCatalog.get_item(id)
 			var piece: Node = load(clothing.scene_path).instantiate()
@@ -90,12 +104,16 @@ func _run() -> void:
 		# Los casos simples se ven por delante-lateral; las combinaciones, por detrás.
 		var target := Vector3(0, 1.0, 0)
 		camera.look_at_from_position(target + Vector3(-2.1, 0.3, 3.4 if i < 4 else -3.4), target)
+		if _hip_carry:
+			camera.look_at_from_position(target + Vector3(3.3, 0.2, 2.7), target)
 		if _back_comparison:
 			var eyes := [Vector3(0, 0.15, -4.0), Vector3(-4.0, 0.15, 0),
 				Vector3(-2.5, 0.3, -3.4), Vector3(2.5, 0.3, -3.4)]
 			camera.look_at_from_position(target + eyes[i / 2], target)
 		var label := Label.new()
 		label.text = str(entry[0]) + (" + escudo / capa" if entry[1] else "") + (" / mochila" if entry[3] else "")
+		if _hip_carry:
+			label.text = str(entry[0]) + " / " + str(hip_clips[i]).get_file()
 		if _back_comparison:
 			label.text = ["Espalda", "Perfil", "Tres cuartos", "Lado contrario"][i / 2] \
 				+ (" / con mochila" if entry[3] else " / sin mochila")
@@ -117,6 +135,8 @@ func _run() -> void:
 	var path := "res://build/combat/weapon_carry_back_sword.png" if _back_sword else "res://build/combat/weapon_carry.png"
 	if _back_shield:
 		path = "res://build/combat/weapon_carry_back_shield.png"
+	elif _hip_carry:
+		path = "res://build/combat/weapon_carry_hip.png"
 	sheet.save_png(path)
 	print("saved ", path)
 	get_tree().quit()

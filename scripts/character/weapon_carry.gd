@@ -48,9 +48,10 @@ func fit_to_body(rig: CharacterAppearanceRig) -> void:
 		offset = Vector3(0.0, -0.08, back - 0.08)
 		rotation.y = PI
 	elif bone_name == HumanRig.HIPS:
-		# Punta hacia abajo y un poco hacia atrás, fuera de la pierna izquierda.
+		# En la cadera izquierda (+X), la punta baja hacia fuera (+X) y hacia atrás (-Z).
+		# Los signos se componen con el medio giro: invertirlos mete la hoja en el muslo.
 		offset = Vector3(side + 0.08, -0.02, -0.015)
-		rotation = Vector3(deg_to_rad(18.0), 0.0, PI + deg_to_rad(-8.0))
+		rotation = Vector3(deg_to_rad(-18.0), 0.0, PI + deg_to_rad(8.0))
 	else:
 		# Arma y escudo se sujetan al cuerpo; la mochila no modifica sus anclajes.
 		var depth := back - 0.08

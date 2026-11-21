@@ -89,6 +89,7 @@ func _run() -> void:
 	player.loadout.toggle_weapon()
 	check(player.loadout.primary_carry.bone_name == HumanRig.SPINE2, "el espadón guardado sigue el torso")
 	_check_back_carry()
+	await _check_hip_clearance()
 	player.hotbar.select_slot(3)
 	check(not player.combat.pose.shield_on and player.combat._guard_item() == null, "con arco el escudo transportado no bloquea")
 	player.loadout.toggle_weapon()
@@ -230,3 +231,48 @@ func _check_back_carry() -> void:
 		check(doll.mount.is_equal_approx(doll_with_pack) \
 			and doll_shield.mount.is_equal_approx(doll_shield_with_pack),
 			"%s: el muñeco también conserva los anclajes de arma y escudo" % id)
+
+
+## El volumen de muslo y espinilla se aproxima por cápsulas medidas sobre el cuerpo.
+## Se muestrean ciclos completos: una foto quieta no detecta el cruce de la pierna al andar.
+func _check_hip_clearance() -> void:
+	for sex in [&"male", &"female"]:
+		var model: Node3D = load("res://scenes/character/character_model.tscn").instantiate()
+		add_child(model)
+		var rig: CharacterAppearanceRig = model.get_node("AppearanceRig")
+		var appearance := CharacterAppearance.new()
+		appearance.set_sex(sex)
+		rig.apply(appearance)
+		var skeleton: Skeleton3D = model.get_node("Armature/Skeleton3D")
+		var animator: AnimationPlayer = model.get_node("AnimationPlayer")
+		animator.add_animation_library(&"combat", load(PlayerCombat.COMBAT_LIBRARY))
+		animator.add_animation_library(&"loco", load(Locomotion.LIBRARY))
+		var radius := float(rig.measurements().summary[&"thigh"]) / TAU
+		var hips := skeleton.find_bone(HumanRig.HIPS)
+		for id in [&"iron_sword", &"bronze_sword", &"flint_sword", &"battle_axe", &"iron_mace"]:
+			var data := ItemCatalog.get_item(id)
+			var anchor := WeaponCarry.create(skeleton, data)
+			anchor.fit_to_body(rig)
+			var clearance := INF
+			for clip in [&"idle", &"combat/walk_relaxed", &"running", &"loco/crouch_walk"]:
+				animator.play(clip)
+				for sample in 24:
+					animator.seek(animator.get_animation(clip).length * sample / 24.0, true)
+					animator.pause()
+					skeleton.force_update_all_bone_transforms()
+					var weapon := skeleton.global_transform * skeleton.get_bone_global_pose(hips) * anchor.mount
+					var start := weapon * Vector3(0, data.blade_start, 0)
+					var tip := weapon * Vector3(0, data.reach, 0)
+					for side in [[HumanRig.LEFT_UP_LEG, HumanRig.LEFT_LEG, HumanRig.LEFT_FOOT],
+							[HumanRig.RIGHT_UP_LEG, HumanRig.RIGHT_LEG, HumanRig.RIGHT_FOOT]]:
+						for part in 2:
+							var a := skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone(side[part])).origin
+							var b := skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone(side[part + 1])).origin
+							var points := Geometry3D.get_closest_points_between_segments(start, tip, a, b)
+							var leg_radius := radius if part == 0 else radius * 0.65
+							clearance = minf(clearance, points[0].distance_to(points[1]) - leg_radius - 0.02)
+			check(clearance > 0.0, "%s / %s: arma fuera de ambas piernas en reposo, marcha, carrera y agachado (%.1f cm)" \
+				% [sex, id, clearance * 100.0])
+			anchor.free()
+		model.queue_free()
+		await get_tree().process_frame

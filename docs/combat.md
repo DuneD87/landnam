@@ -60,6 +60,8 @@ Con `--back-sword` compara el espadón del Alba con/sin mochila desde cuatro án
 `build/combat/weapon_carry_back_sword.png`.
 Con `--back-shield` hace la misma comparación con el escudo y guarda
 `build/combat/weapon_carry_back_shield.png`.
+Con `--hip-carry` muestra las armas de una mano en reposo, andando, corriendo y agachado en
+`build/combat/weapon_carry_hip.png`. La punta cae hacia fuera y atrás para dejar libre la pierna.
 
 Con un objetivo fijado, flechas, piedras y lanzas van a él con la caída compensada;
 sin fijar, van a lo que hay bajo la mira.
