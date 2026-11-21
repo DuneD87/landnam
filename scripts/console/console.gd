@@ -11,6 +11,8 @@ const COLOR_ERR := "#FF6B6B"
 const COLOR_INFO := "#9AD1FF"
 const COLOR_MUTED := "#9aa0a6"
 const MAX_HISTORY := 50
+## Tope de ejecuciones al desplegar un patrón con Enter (que `give *` no entierre al jugador).
+const MAX_EXPANSION := 64
 ## Palabras de `toon` y el global uniform de toon_light.gdshaderinc que ajusta cada una.
 const TOON_KEYS := {"threshold": &"toon_threshold", "softness": &"toon_softness", "gradient": &"toon_gradient"}
 ## Alias del prototipo para conservar los comandos ya usados; la ayuda y Tab usan inglés.
@@ -176,6 +178,11 @@ func _run(line: String) -> void:
 	if args.size() < cmd.min_args:
 		_err(tr("CON_USAGE") % cmd.usage)
 		return
+	if cmd.expander.is_valid():
+		for i in args.size():
+			if _is_pattern(args[i]):
+				_run_expanded(cmd, args, i)
+				return
 
 	var result: Variant = cmd.callable.call(PackedStringArray(args))
 	if result is String and not result.is_empty():
@@ -201,33 +208,113 @@ func _tokenize(line: String) -> PackedStringArray:
 	return tokens
 
 
+## Ejecuta [cmd] una vez por cada opción de su expander que case con el patrón de args[index].
+func _run_expanded(cmd: ConsoleCommand, args: PackedStringArray, index: int) -> void:
+	var pattern := args[index]
+	var matches: Variant = _match_pattern(pattern, cmd.expander.call())
+	if matches == null:
+		_err(tr("CON_PATTERN_BAD_REGEX") % pattern)
+		return
+	if matches.is_empty():
+		_err(tr("CON_PATTERN_NONE") % pattern)
+		return
+	if matches.size() > MAX_EXPANSION:
+		_err(tr("CON_PATTERN_TOO_MANY") % [pattern, matches.size(), MAX_EXPANSION])
+		return
+	_info(tr("CON_PATTERN_RUN") % [pattern, matches.size()])
+	for m: String in matches:
+		var each := args.duplicate()
+		each[index] = m
+		var result: Variant = cmd.callable.call(each)
+		if result is String and not result.is_empty():
+			_print(result)
+
+
+## Un argumento con * o ? es un patrón glob; entre barras (/^bear_(head|paw)/), una regex.
+func _is_pattern(token: String) -> bool:
+	return "*" in token or "?" in token or _is_regex(token)
+
+
+func _is_regex(token: String) -> bool:
+	return token.length() >= 2 and token.begins_with("/") and token.ends_with("/")
+
+
+## Las [options] que casan con [pattern] (sin distinguir mayúsculas), ordenadas; null si la regex
+## no compila. El glob casa la palabra entera; la regex, en cualquier parte (anclar con ^ y $).
+func _match_pattern(pattern: String, options: PackedStringArray) -> Variant:
+	var out: Array = []
+	if _is_regex(pattern):
+		var re := RegEx.new()
+		if re.compile("(?i)" + pattern.substr(1, pattern.length() - 2)) != OK:
+			return null
+		for o in options:
+			if re.search(o) != null:
+				out.append(o)
+	else:
+		for o in options:
+			if o.matchn(pattern):
+				out.append(o)
+	out.sort()
+	return out
+
+
+## Tab: completa la última palabra (comando o argumento). Con varias opciones avanza hasta su prefijo
+## común y las lista; con un patrón (bear_*, /regex/) lista las que casan sin tocar la línea, para que
+## Enter las aplique todas en los comandos que lo admiten.
 func _autocomplete() -> void:
 	var line := _input_field.text
 	var parts := _tokenize(line)
+	var prefix := ""
+	var options := PackedStringArray()
+	var cmd: ConsoleCommand = null
 	if parts.size() <= 1 and not line.ends_with(" "):
-		var prefix := "" if parts.is_empty() else parts[0]
-		var matches := _commands.keys().filter(func(n): return n.begins_with(prefix))
-		matches.sort()
-		_apply_completion(prefix, matches, "")
-		return
-	var cmd: ConsoleCommand = _commands.get(parts[0].to_lower())
-	if cmd == null or not cmd.completer.is_valid():
-		return
-	var arg_prefix := "" if line.ends_with(" ") else parts[parts.size() - 1]
-	var options: PackedStringArray = cmd.completer.call()
-	var arg_matches := Array(options).filter(func(o): return o.begins_with(arg_prefix))
-	arg_matches.sort()
-	_apply_completion(arg_prefix, arg_matches, parts[0] + " ")
+		prefix = "" if parts.is_empty() else parts[0]
+		options = PackedStringArray(_commands.keys())
+	else:
+		cmd = _commands.get(parts[0].to_lower())
+		if cmd == null or not cmd.completer.is_valid():
+			return
+		prefix = "" if line.ends_with(" ") else parts[parts.size() - 1]
+		options = cmd.completer.call()
+	var head := line.substr(0, line.rfind(prefix)) if prefix != "" else line
 
+	if _is_pattern(prefix):
+		var found: Variant = _match_pattern(prefix, options)
+		if found == null:
+			_err(tr("CON_PATTERN_BAD_REGEX") % prefix)
+		elif found.is_empty():
+			_print(_paint(COLOR_MUTED, tr("CON_NO_MATCHES")))
+		elif found.size() == 1:
+			_set_line(head + str(found[0]) + " ")
+		else:
+			var key := "CON_PATTERN_LIST_ENTER" if cmd != null and cmd.expander.is_valid() else "CON_PATTERN_LIST"
+			_print(_paint(COLOR_INFO, tr(key) % found.size()) + " " + _paint(COLOR_MUTED, " ".join(found)))
+		return
 
-func _apply_completion(prefix: String, matches: Array, head: String) -> void:
+	var matches := Array(options).filter(func(o: String) -> bool: return o.begins_with(prefix))
+	matches.sort()
 	if matches.is_empty():
 		return
 	if matches.size() == 1:
-		_input_field.text = head + str(matches[0]) + " "
-		_input_field.caret_column = _input_field.text.length()
-	else:
-		_print("[color=%s]%s[/color]" % [COLOR_MUTED, " ".join(matches)])
+		_set_line(head + str(matches[0]) + " ")
+		return
+	var common := _common_prefix(matches)
+	if common.length() > prefix.length():
+		_set_line(head + common)
+	_print(_paint(COLOR_MUTED, "(%d) %s" % [matches.size(), " ".join(matches)]))
+
+
+func _set_line(text: String) -> void:
+	_input_field.text = text
+	_input_field.caret_column = text.length()
+
+
+static func _common_prefix(words: Array) -> String:
+	var common: String = words[0]
+	for w: String in words:
+		while not w.begins_with(common):
+			common = common.left(-1)
+	return common
 
 
 
@@ -266,7 +353,8 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("help", "help [command]", "CON_HELP_HELP", _cmd_help))
 	_add(ConsoleCommand.new("clear", "clear", "CON_HELP_CLEAR", _cmd_clear))
 	_add(ConsoleCommand.new("character", "character", "CON_HELP_CHARACTER", _cmd_character))
-	_add(ConsoleCommand.new("give", "give <item_id> [amount]", "CON_HELP_GIVE", _cmd_give, 1, _complete_item_ids))
+	_add(ConsoleCommand.new("give", "give <item_id> [amount]", "CON_HELP_GIVE", _cmd_give, 1, _complete_item_ids,
+		_complete_item_ids))
 	_add(ConsoleCommand.new("items", "items [filter]", "CON_HELP_ITEMS", _cmd_items))
 	_add(ConsoleCommand.new("weather", "weather <event|reset|list>", "CON_HELP_WEATHER", _cmd_weather, 1,
 		_complete_weather))
@@ -395,7 +483,7 @@ func _cmd_help(args: PackedStringArray) -> String:
 	for n in names:
 		var c: ConsoleCommand = _commands[n]
 		out += "  [color=%s]%s[/color] — %s\n" % [COLOR_OK, c.usage, tr(c.description)]
-	return out.strip_edges()
+	return (out + _paint(COLOR_MUTED, tr("CON_PATTERN_HELP"))).strip_edges()
 
 
 func _cmd_clear(_args: PackedStringArray) -> String:
@@ -475,7 +563,13 @@ func _cmd_items(args: PackedStringArray) -> String:
 	var filter := args[0].to_lower() if args.size() >= 1 else ""
 	var ids := ItemCatalog.items.keys().map(func(k): return str(k))
 	if filter != "":
-		ids = ids.filter(func(s): return filter in s.to_lower())
+		if _is_pattern(filter):
+			var found: Variant = _match_pattern(filter, PackedStringArray(ids))
+			if found == null:
+				return _paint(COLOR_ERR, tr("CON_PATTERN_BAD_REGEX") % filter)
+			ids = found
+		else:
+			ids = ids.filter(func(s): return filter in s.to_lower())
 	ids.sort()
 	if ids.is_empty():
 		return _paint(COLOR_MUTED, tr("CON_NO_MATCHES"))
