@@ -431,6 +431,7 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.HEAD && child.item_data.armor_slot == ItemData.ArmorSlot.HEAD
 						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.HANDS && child.item_data.armor_slot == ItemData.ArmorSlot.HANDS
 						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.FEET && child.item_data.armor_slot == ItemData.ArmorSlot.FEET
+						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.CLOAK && child.item_data.armor_slot == ItemData.ArmorSlot.CLOAK
 
 						if remove_condition:
 							appearance_rig.undress(child)
@@ -444,6 +445,11 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 	var category = data.category
 	if category == ItemData.Category.TOOL || category == ItemData.Category.WEAPON || category == ItemData.Category.ARMOR:
 		equip_item(equip, slot, scene, data, category)
+	if slot == ItemData.ArmorSlot.CLOAK:
+		# La mochila va encima de la capa: se aparta lo que abulta, o vuelve a la espalda.
+		for child in player_model.get_node("Armature/Skeleton3D").get_children():
+			if child is BackEquipment:
+				child.fit_to_body(appearance_rig)
 	if slot == ItemData.ArmorSlot.OFFHAND:
 		_sync_hotbar_offhand()
 	_sync_armor()

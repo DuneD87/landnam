@@ -6,6 +6,7 @@
 [ext_resource type="Texture2D" path="res://textures/character/human/skin/masks.png" id="4_masks"]
 [ext_resource type="Texture2D" path="res://textures/character/human/skin/stubble.png" id="5_stubble"]
 [ext_resource type="Texture2D" path="res://textures/character/human/skin/body_masks.png" id="6_body_masks"]
+[ext_resource type="Texture2D" path="res://textures/character/human/skin/tights_mask.png" id="7_tights"]
 
 [resource]
 shader = ExtResource("1_shader")
@@ -14,3 +15,4 @@ shader_parameter/eyelids_mask = ExtResource("3_lids")
 shader_parameter/masks_texture = ExtResource("4_masks")
 shader_parameter/stubble_texture = ExtResource("5_stubble")
 shader_parameter/body_masks_texture = ExtResource("6_body_masks")
+shader_parameter/tights_mask = ExtResource("7_tights")

@@ -9,6 +9,7 @@
 [ext_resource type="Texture2D" uid="uid://dvkh0ecv65fk" path="res://textures/icons/inventory/mainhand.png" id="7_w38jj"]
 [ext_resource type="Texture2D" uid="uid://cec7kt6kqlruj" path="res://textures/icons/inventory/offhand.png" id="8_5bvl3"]
 [ext_resource type="Texture2D" path="res://textures/icons/items/survival/hide_backpack.png" id="9_back"]
+[ext_resource type="Texture2D" path="res://textures/icons/inventory/cloak.png" id="10_cloak"]
 
 [node name="CharacterWindow" type="Node"]
 script = ExtResource("1_gcacj")
@@ -20,3 +21,4 @@ icon_feet = ExtResource("6_d0x7w")
 icon_main_hand = ExtResource("7_w38jj")
 icon_off_hand = ExtResource("8_5bvl3")
 icon_back = ExtResource("9_back")
+icon_cloak = ExtResource("10_cloak")

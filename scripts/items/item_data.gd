@@ -10,7 +10,7 @@ enum WeaponType {NONE, SWORD, SPEAR, BOW, CANNON, AXE, MACE, SLINGSHOT}
 ## la sangre y el empuje.
 enum DamageKind {SLASH, BLUNT, PIERCE}
 ## Se añaden al final para conservar los valores de recursos y partidas existentes.
-enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND, BACK}
+enum ArmorSlot {NONE, HEAD, CHEST, HANDS, LEGS, FEET, RIGHT_HAND, LEFT_HAND, OFFHAND, BACK, CLOAK}
 
 @export var id: StringName  # "stone_pickaxe"
 ## Claves de localization/translations.csv (ITEM_<ID> e ITEM_<ID>_DESC); se leen traducidas con

@@ -9,7 +9,7 @@ class_name CompanionGear extends RefCounted
 ## Lo que lleva puesto sigue en el morral: no hay que guardarlo aparte.
 
 const WORN_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.HEAD, ItemData.ArmorSlot.CHEST,
-	ItemData.ArmorSlot.HANDS, ItemData.ArmorSlot.LEGS, ItemData.ArmorSlot.FEET]
+	ItemData.ArmorSlot.HANDS, ItemData.ArmorSlot.LEGS, ItemData.ArmorSlot.FEET, ItemData.ArmorSlot.CLOAK]
 ## Su aguante para parar golpes: menos que el del jugador y se recupera más despacio.
 const STAMINA := 80.0
 const STAMINA_REGEN := 22.0

@@ -15,7 +15,8 @@ const PIECES := ["fur_mantle", "fur_loincloth", "fur_mittens", "fur_moccasins", 
 		"antler_coat", "antler_breeches", "antler_gauntlets", "antler_boots",
 		"arctic_coat", "arctic_breeches", "arctic_gauntlets", "arctic_boots",
 		"hide_tunic", "hide_trousers", "hide_mittens", "hide_boots",
-		"lionheart_cuirass", "lionguard_gauntlets", "lionguard_kilt", "lionheart_boots"]
+		"lionheart_cuirass", "lionheart_gauntlets", "lionheart_kilt", "lionheart_boots",
+		"bearpaw_chest", "bearpaw_gauntlet", "bearpaw_leggings", "bearpaw_boot", "bearpaw_hood", "bearpaw_cloak"]
 var failures := 0
 
 
@@ -54,11 +55,13 @@ func _run() -> void:
 		return
 	var body: MeshInstance3D = skeleton.get_node("Mesh_0")
 	var skin_material := body.material_override as ShaderMaterial
-	var gloves: MeshInstance3D = pieces["lionguard_gauntlets"]
+	var gloves: Array[MeshInstance3D] = [pieces["lionheart_gauntlets"], pieces["bearpaw_gauntlet"]]
 	check(skin_material.get_shader_parameter(&"covers_hands") == true, "closed gloves cover the skin")
-	rig.undress(gloves)
+	for glove in gloves:
+		rig.undress(glove)
 	check(skin_material.get_shader_parameter(&"covers_hands") == false, "taking off closed gloves shows the skin")
-	rig.dress(gloves)
+	for glove in gloves:
+		rig.dress(glove)
 	check(skin_material.get_shader_parameter(&"covers_hands") == true, "cached gloves still cover the skin")
 	for child in skeleton.get_children():
 		if child is SkirtSwing:
@@ -75,6 +78,7 @@ func _run() -> void:
 		await process_frame
 	var rest := {}
 	var edges := {}
+	var player_skin: Skin = load("res://models/player/xavivar/firstage_human_male_player_skin.tres")
 	for id in pieces:
 		var item: MeshInstance3D = pieces[id]
 		var arrays := item.mesh.surface_get_arrays(0)
@@ -91,7 +95,7 @@ func _run() -> void:
 				total += weights[k]
 			valid = valid and absf(total - 1.0) < 0.001
 		check(valid, "%s has finite, normalised weights" % id)
-		rest[id] = _points(arrays, item.skin, skeleton, poses)
+		rest[id] = _points(arrays, _as_made(item.skin, player_skin), skeleton, poses)
 		edges[id] = _edges(arrays[Mesh.ARRAY_INDEX], rest[id], 0.002 / skeleton.global_basis.get_scale().x)
 	player.active = true
 	for sample in [["idle", 0.0], ["running", 0.25], ["running", 0.75]]:
@@ -115,6 +119,18 @@ func _run() -> void:
 	model.free()
 	print("ARMOR DEFORMATION TESTS: %d failures" % failures)
 	quit(1 if failures else 0)
+
+
+## `skin` with the player's binds where it has them: at rest, a piece as it
+## was made (a cloak binds the arms hanging, CloakBones.arm_hang(), and is
+## made for them so).
+static func _as_made(skin: Skin, player: Skin) -> Skin:
+	var result: Skin = skin.duplicate()
+	for b in result.get_bind_count():
+		for p in player.get_bind_count():
+			if player.get_bind_name(p) == result.get_bind_name(b):
+				result.set_bind_pose(b, player.get_bind_pose(p))
+	return result
 
 
 func _points(arrays: Array, skin: Skin, skeleton: Skeleton3D, poses: Array[Transform3D]) -> PackedVector3Array:

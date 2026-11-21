@@ -46,6 +46,49 @@ def surface_distances(neighbours, seeds):
     return distances
 
 
+## depth_map(): how far (m) the glove stands off the skin's back and palm,
+## and how much thinner than sculpted it may be made (a scale under 1).
+DEPTH_CLEARANCE = 0.003
+DEPTH_LEAST = 1.0
+## Fingers' width over the sculpt's, mapped onto the scan's phalanges.
+FINGER_WIDTH = 1.04
+
+
+def depth_map(glove, skin):
+    """The scale and offset (a, b: a * u + b) that take the glove's extent
+    from back to palm (`glove`, its points' offsets across) onto the skin's
+    (`skin`), DEPTH_CLEARANCE off it; the 2nd to 98th percentiles, so a
+    rivet or a fold does not count."""
+    g0, g1 = np.percentile(glove, [2, 98])
+    s0, s1 = np.percentile(skin, [2, 98])
+    s0, s1 = s0 - DEPTH_CLEARANCE, s1 + DEPTH_CLEARANCE
+    a = max((s1 - s0) / max(g1 - g0, 1e-4), DEPTH_LEAST)
+    return a, (s0 + s1) * 0.5 - a * (g0 + g1) * 0.5
+
+
+def finger_depth(p, body, side, digit, joints, targets, member, basis, scale, palm, turn):
+    """depth_map() for a whole finger, its phalanges' together (each its
+    own would shift them apart at the knuckles): the glove's points on it
+    (`member` of it) and the scan's skin on its bones, both across each
+    phalanx from back to palm."""
+    glove, skin = [], []
+    lengths = np.linalg.norm(np.diff(joints, axis=0), axis=1)
+    for j in range(3):
+        old_axis = normalized(basis @ (joints[j + 1] - joints[j]))
+        new_axis = normalized(targets[j + 1] - targets[j])
+        rotation = turn(old_axis, new_axis)
+        normal = rotation @ palm
+        normal = normalized(normal - new_axis * (normal @ new_axis))
+        offset = (p - joints[j]) @ basis.T * scale
+        along = offset @ old_axis
+        on = (member > 0.5) & (along > 0.0) & (along < lengths[j] * scale)
+        glove.append(((offset[on] - np.outer(along[on], old_axis)) @ rotation.T) @ normal)
+        bone = body.index[BONE_PREFIX + f"{side}Hand{digit}{j + 1}"]
+        skin.append((body.points[body.top == bone] - targets[j]) @ normal)
+    glove, skin = np.concatenate(glove), np.concatenate(skin)
+    return depth_map(glove, skin) if len(glove) > 10 and len(skin) > 10 else (1.0, 0.0)
+
+
 def place(obj, body, side, landmarks):
     p = coords(obj)
     wrist = np.array(landmarks["wrist"])
@@ -90,9 +133,20 @@ def place(obj, body, side, landmarks):
     membership /= np.maximum(1.0, membership.sum(axis=1))[:, None]
     membership *= (1 - smoothstep(reach, reach * 2, geo_min))[:, None]
 
+    # The back of the hand and the palm where the scan's are: a hand is
+    # thicker from back to palm than the one a glove is sculpted round, and
+    # the scan's joints are not halfway through it.
+    on_hand = (membership.sum(axis=1) < 0.2) & (wrist_blend < 0.5)
+    hand_skin = body.points[body.top == body.index[BONE_PREFIX + side + "Hand"]]
+    a, b = depth_map((rest[on_hand] - dest_wrist) @ palm, (hand_skin - dest_wrist) @ palm)
+    depth = (rest - dest_wrist) @ palm
+    rest += np.outer((a * depth + b - depth) * (1.0 - wrist_blend), palm)
     weights = np.zeros((len(p), len(body.names)))
     placed = np.zeros_like(rest)
     total_finger = np.zeros(len(p))
+    depths = {digit: finger_depth(p, body, side, digit, src[digit], dest[digit], membership[:, i], basis,
+                                  scale, palm, rotation_between)
+              for i, digit in enumerate(names)}
     for i, digit in enumerate(names):
         joints = src[digit]
         targets = dest[digit].copy()
@@ -119,9 +173,16 @@ def place(obj, body, side, landmarks):
             projection = offset @ old_axis
             radial = offset - np.outer(projection, old_axis)
             # Register the two joint endpoints exactly, keeping the thickness
-            # of the leather independent of phalanx length.
+            # of the leather independent of phalanx length; from back to
+            # palm as thick as the scan's phalanx (depth_map()).
             length_ratio = np.linalg.norm(targets[j + 1] - targets[j]) / (lengths[j] * scale)
-            target = targets[j] + 1.08 * radial @ rotation.T + np.outer(projection * length_ratio, new_axis)
+            radial = radial @ rotation.T
+            normal = rotation @ palm
+            normal = normalized(normal - new_axis * (normal @ new_axis))
+            depth = radial @ normal
+            a, b = depths[digit]
+            radial = (radial - np.outer(depth, normal)) * FINGER_WIDTH + np.outer(a * depth + b, normal)
+            target = targets[j] + radial + np.outer(projection * length_ratio, new_axis)
             placed += share[:, None] * target
             total_finger += share
     hand = (1 - total_finger) * (1 - wrist_blend)

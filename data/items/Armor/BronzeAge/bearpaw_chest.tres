@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/bronze_age/bearpaw_chest.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+
+[resource]
+script = ExtResource("2_item")
+id = &"bearpaw_chest"
+display_name = "ITEM_BEARPAW_CHEST"
+description = "ITEM_BEARPAW_CHEST_DESC"
+icon = ExtResource("1_icon")
+category = 4
+scene_path = "res://scenes/items/armor/bronze_age/bearpaw_chest_equipable.tscn"
+stackable = false
+max_stack = 1
+armor_slot = 2
+armor_slash = 24.0
+armor_blunt = 12.0
+armor_pierce = 20.0
+coverage = 6

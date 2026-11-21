@@ -22,6 +22,15 @@ uniform sampler2D masks_texture : hint_default_black, filter_linear_mipmap;
 uniform sampler2D stubble_texture : hint_default_black, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D body_masks_texture : hint_default_black, filter_linear_mipmap;
 uniform bool covers_hands = false;
+// Tights (a leg piece's, CharacterAppearanceRig._update_tights()): the mask
+// holds how high each point of the legs and torso is at rest (1 elsewhere,
+// tools/character/bake_tights_mask.gd); between tights_range's hem and
+// waist the skin is cloth of tights_color.
+uniform sampler2D tights_mask : hint_default_black, filter_linear;
+uniform bool use_tights = false;
+uniform vec2 tights_range = vec2(0.0, 0.0);
+uniform vec3 tights_color : source_color = vec3(0.035, 0.032, 0.03);
+uniform float tights_edge = 0.004;
 uniform sampler2D lips_mask : hint_default_black, filter_linear_mipmap;
 uniform sampler2D eyelids_mask : hint_default_black, filter_linear_mipmap;
 uniform vec3 texture_tone : source_color = vec3(0.88, 0.66, 0.54);
@@ -127,10 +136,17 @@ void fragment() {
 	col = mix(col, pubic_color * (0.8 + 0.6 * curls), cover * smoothstep(0.05, 0.6, curls) * 0.85);
 	shade = max(shade, pubic);
 
-	ALBEDO = col;
+	float tights = 0.0;
+	if (use_tights) {
+		float height = texture(tights_mask, UV).r;
+		tights = smoothstep(tights_range.x - tights_edge, tights_range.x, height)
+				* (1.0 - smoothstep(tights_range.y, tights_range.y + tights_edge, height));
+	}
+	// Cloth keeps the skin's shading (its relief, darker in the creases).
+	ALBEDO = mix(col, tights_color * clamp(relative, 0.6, 1.2), tights);
 	NORMAL_MAP = texture(normal_texture, UV).rgb;
-	NORMAL_MAP_DEPTH = definition;
-	ROUGHNESS = mix(mix(roughness, 0.42, lips * 0.6 + texture(lips_mask, UV).r * 0.3), 0.85, shade);
-	SPECULAR = 0.4;
-	SSS_STRENGTH = subsurface;
+	NORMAL_MAP_DEPTH = definition * (1.0 - tights * 0.6);
+	ROUGHNESS = mix(mix(mix(roughness, 0.42, lips * 0.6 + texture(lips_mask, UV).r * 0.3), 0.85, shade), 0.9, tights);
+	SPECULAR = 0.4 * (1.0 - tights * 0.5);
+	SSS_STRENGTH = subsurface * (1.0 - tights);
 }

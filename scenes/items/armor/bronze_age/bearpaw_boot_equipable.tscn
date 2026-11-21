@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/bronze_age/bearpaw_boot.res" id="1_fpnx0"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_hu3up"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_27eud"]
+[ext_resource type="Resource" path="res://data/items/Armor/BronzeAge/bearpaw_boot.tres" id="4_5pfpo"]
+
+[node name="bearpaw_boot" type="MeshInstance3D" unique_id=1391474909]
+mesh = ExtResource("1_fpnx0")
+skin = ExtResource("2_hu3up")
+script = ExtResource("3_27eud")
+item_data = ExtResource("4_5pfpo")

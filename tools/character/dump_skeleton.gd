@@ -9,7 +9,8 @@ extends SceneTree
 ## MakeHuman body, since the player animations were made for them, and the
 ## armour fit puts garments on it. And the skirt's bones (SkirtBones), which
 ## the skeleton gets when a hanging skirt is worn, and a pelt's forelegs'
-## (PeltBones): their joints in that space.
+## (PeltBones), and a cloak's (CloakBones): their joints in that space, and
+## how a cloak's arms hang (CloakBones.ARM_HANG).
 ##
 ##   godot --headless --path . --script res://tools/character/dump_skeleton.gd -- <output.json>
 
@@ -38,7 +39,8 @@ func _initialize() -> void:
 	var file := FileAccess.open(output, FileAccess.WRITE)
 	file.store_string(JSON.stringify({bones = bones, mesh = _mesh(skeleton, skin),
 			skirt = _added(skeleton, skin, SkirtBones.rests(skeleton)),
-			pelt = _added(skeleton, skin, PeltBones.rests(skeleton))}))
+			pelt = _added(skeleton, skin, PeltBones.rests(skeleton)),
+			cloak = _added(skeleton, skin, CloakBones.rests(skeleton)), cloak_arm_hang = CloakBones.ARM_HANG}))
 	file.close()
 	model.free()
 	print("Skeleton with %d bones written to %s" % [bones.size(), output])

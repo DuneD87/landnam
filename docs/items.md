@@ -95,6 +95,8 @@ Un rasgo nuevo es una clase que hereda de `ItemTrait` en
 | Puerta de madera | `wooden_door` | Se construye a medida con el martillo en B → Puertas y cierra un hueco en un muro: E la abre y la cierra. Ver [building.md](building.md#puertas-y-trampillas) |
 | Trampilla de madera | `wooden_trapdoor` | Como la puerta, en el plano del hueco: en un techo, un suelo o un muro (contraventana) |
 | Mochila de pieles | `hide_backpack` | Se equipa en Espalda y amplía el inventario de 20 a 28 huecos |
+| Macuto de pelo | `skin_backpack` | Como la de pieles, con 12 huecos (de 20 a 32); banco de trabajo |
+| Mochila Garra de Oso | `bearpaw_backpack` | Como la de pieles, con 16 huecos (de 20 a 36); forja de bronce |
 | Vela de pieles | `hide_sail` | Se construye con el martillo en B → Naval → Vela: ancho y alto del paño y altura del mástil ajustables. Ver [sailing.md](sailing.md) |
 
 El jugador empieza con un seax. El resto sale con `give <id> [cantidad]`.
@@ -601,7 +603,20 @@ La mochila de pieles (`hide_backpack`) se fabrica en el banco de trabajo con 6 p
 de la pantalla de personaje (C) y se ve en el personaje y en su muñeco.
 
 Su `InventoryExpansionTrait.extra_slots` aporta 8 huecos sobre los 20 de base. Otros
-modelos pueden cambiar ese valor sin otra lógica. El espacio forma parte del
+modelos pueden cambiar ese valor sin otra lógica:
+
+- el macuto de pelo (`skin_backpack`), 12, en el banco de trabajo con 9 pieles,
+  3 tendones y 4 fibras;
+- la mochila Garra de Oso (`bearpaw_backpack`), 16, en la forja de bronce con
+  10 pieles, 4 tendones, 6 fibras y un lingote de bronce.
+
+Estas dos vienen de Meshy; cómo se hacen, en
+[character_creation.md](character_creation.md#mochilas-de-meshy).
+
+Todas cuelgan de `Spine2` (`BackEquipment`), pero cuando el torso se inclina
+sobre las lumbares la mochila gira con la parte baja de la espalda
+(`FOLLOW_LUMBAR`), sobre donde apoya arriba. Así el fondo no se despega de los
+riñones en idle ni al correr. El espacio forma parte del
 inventario del jugador; al quitar la mochila no se lleva objetos dentro.
 
 Antes de quitarla o cambiarla se valida la capacidad final, contando también el

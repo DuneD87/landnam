@@ -1,7 +1,8 @@
 class_name CharacterWindow
 extends Node
 
-## El equipo del personaje: sus huecos (cabeza, torso, manos, piernas, pies y las dos manos) y el
+## El equipo del personaje: sus huecos (cabeza, torso, manos, piernas, pies, las dos manos, la
+## espalda y la capa) y el
 ## muñeco, el propio personaje en 3D con lo que lleva puesto y esos huecos a los lados. El muñeco
 ## no es una ventana aparte: InventoryUI lo pone en el centro de la pantalla de equipo
 ## (take_doll()) y llama a refresh() al abrirla, que le pone el aspecto del personaje y le viste
@@ -18,7 +19,7 @@ signal equipment_rejected(slot_type: ItemData.ArmorSlot)
 const LEFT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.HEAD, ItemData.ArmorSlot.CHEST,
 	ItemData.ArmorSlot.HANDS, ItemData.ArmorSlot.LEGS, ItemData.ArmorSlot.FEET]
 const RIGHT_SLOTS: Array[ItemData.ArmorSlot] = [ItemData.ArmorSlot.RIGHT_HAND,
-	ItemData.ArmorSlot.OFFHAND, ItemData.ArmorSlot.BACK]
+	ItemData.ArmorSlot.OFFHAND, ItemData.ArmorSlot.BACK, ItemData.ArmorSlot.CLOAK]
 ## Clave del nombre de cada hueco.
 const SLOT_NAMES := {
 	ItemData.ArmorSlot.HEAD: "SLOT_HEAD",
@@ -29,6 +30,7 @@ const SLOT_NAMES := {
 	ItemData.ArmorSlot.RIGHT_HAND: "SLOT_RIGHT_HAND",
 	ItemData.ArmorSlot.OFFHAND: "SLOT_LEFT_HAND",
 	ItemData.ArmorSlot.BACK: "SLOT_BACK",
+	ItemData.ArmorSlot.CLOAK: "SLOT_CLOAK",
 }
 ## Luz que reciben en el muñeco los materiales planetarios de la ropa (opaque_planet_material):
 ## la del estudio, con un planeta muy lejos debajo para que sea pleno día.
@@ -44,6 +46,7 @@ const STUDIO_PLANET := Vector3(0, -6000000.0, 0)
 @export var icon_main_hand: Texture2D
 @export var icon_off_hand: Texture2D
 @export var icon_back: Texture2D
+@export var icon_cloak: Texture2D
 
 var equipment_slots: Dictionary = {}
 var inventory_capacity: EquipmentCapacity
@@ -108,6 +111,7 @@ func _build_doll() -> Control:
 		ItemData.ArmorSlot.FEET: icon_feet, ItemData.ArmorSlot.RIGHT_HAND: icon_main_hand,
 		ItemData.ArmorSlot.OFFHAND: icon_off_hand,
 		ItemData.ArmorSlot.BACK: icon_back,
+		ItemData.ArmorSlot.CLOAK: icon_cloak,
 	}
 	row.add_child(_slot_column(LEFT_SLOTS, icons, true))
 
@@ -166,7 +170,8 @@ func _sync_dress() -> void:
 	var skeleton := preview.get_skeleton()
 	if skeleton == null:
 		return
-	for slot_type in LEFT_SLOTS + [ItemData.ArmorSlot.BACK]:
+	# La capa antes que la mochila, que va encima y se aparta lo que abulta.
+	for slot_type in LEFT_SLOTS + [ItemData.ArmorSlot.CLOAK, ItemData.ArmorSlot.BACK]:
 		var slot: EquipmentSlot = equipment_slots[slot_type]
 		var wanted: ItemData = slot.equipped_item.data if slot.has_item() else null
 		if wanted != null and (wanted.category != ItemData.Category.ARMOR or wanted.is_shield()

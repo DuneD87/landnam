@@ -8,9 +8,10 @@
     "clearance": 0.015,
     "decimate": 0.65,
     "width": 1.105,
-    "pauldrons": true
+    "pauldrons": true,
+    "weights": "bones"
   },
-  "lionguard_gauntlets": {
+  "lionheart_gauntlets": {
     "model": "Meshy_AI_Lionguard_Gauntlet_20261117_texture_fbx/Meshy_AI_Lionguard_Gauntlet_20261117_texture.fbx",
     "slot": "hands",
     "decimate": 0.75,
@@ -132,9 +133,10 @@
           ]
         ]
       }
-    }
+    },
+    "weights": "heat"
   },
-  "lionguard_kilt": {
+  "lionheart_kilt": {
     "model": "Meshy_AI_Lionguard_Leather_Kilt_20261117_texture_fbx/Meshy_AI_Lionguard_Leather_Kilt_20261117_texture.fbx",
     "slot": "legs",
     "stand": true,
@@ -151,7 +153,8 @@
     "clearance": 0.012,
     "decimate": 0.7,
     "split": 0.11,
-    "flare": 0.13
+    "flare": 0.13,
+    "swing": 0.5
   },
   "lionheart_boots": {
     "model": "Meshy_AI_Lionheart_Boot_20261117_texture_fbx/Meshy_AI_Lionheart_Boot_20261117_texture.fbx",
@@ -161,6 +164,7 @@
       "toe": "-x"
     },
     "clearance": 0.008,
-    "decimate": 0.008
+    "decimate": 0.008,
+    "weights": "heat"
   }
 }
