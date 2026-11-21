@@ -313,12 +313,40 @@ flotante lo mueve con ellas.
   distancia: anda (1,4 m/s), a más de 7 m trota (2,4 m/s) y a más de 10 m corre, de 4 m/s a la carrera
   (8 m/s a 15 m). La animación (andar, trotar, correr) sale de la velocidad real, con margen para no
   cambiar a cada paso.
+  Va en línea recta y, si una pared, una casa o unas rocas se lo impiden, **por un camino**
+  (`Companion.steer` con `moving`, el `GroundPath` de los colonos): rodea la pared, sale de una casa
+  por la puerta (abriéndola y cerrándola) y entra a por el jugador. Como el jugador se mueve, no mide
+  si se acerca (yendo detrás no se acerca aunque ande bien) sino si anda lo que quiere: busca camino
+  cuando lleva 0,5 s sin avanzar (`CHASE_STUCK`) o ve una pared delante, como mucho una vez cada 1,5 s;
+  si el jugador sigue andando, acaba el camino que llevaba y luego va derecho. En formación, igual
+  hacia su hueco.
   Si avanza mucho menos de lo que quiere, salta (5 m/s: un bloque), pero solo si lo que tiene delante
-  es bajo: con algo a 1,3 m del suelo (una pared) no salta y, en la base, busca camino al momento.
+  es bajo: con algo a 1,3 m del suelo (una pared) no salta y busca camino al momento.
   Apoyado, empuja hacia el suelo a 0,5 m/s: sin eso, contra una pared de una construcción dejaba el
-  suelo un tick sí y otro no. Si sigue atascado 4 s a más de
-  8 m, o se queda a más de 50 m, aparece a 2,5 m del jugador, por detrás de hacia donde va, en un
-  sitio a su vista y con suelo.
+  suelo un tick sí y otro no. Si ni por un camino sale de ahí (tres búsquedas sin acercarse, o 8 s
+  atascado) a más de 8 m, o se queda a más de 50 m, aparece a 2,5 m del jugador, por detrás de hacia
+  donde va, en un sitio a su vista y con suelo.
+- **Nada**: con los pies a más de 1,45 m bajo la superficie, como el jugador (el mar, los lagos y los
+  ríos, a la altura del mar y con las olas que haya allí, `WaterHeightSampler` del jugador; no en un
+  compartimento seco de un barco), se pone a nadar, a 2,5 m/s (3,2 si se queda atrás o va a pelear).
+  Flota con la cabeza fuera: nadando (`swimming`, tumbado, la cabeza a 0,9 m de los pies) con los pies
+  a 0,8 m y quieto (`swimming_idle`, de pie, la cabeza a 1,55 m) a 1,4 m. Sigue nadando hasta que hace
+  pie, con el fondo a menos de 1,25 m bajo la superficie (un rayo desde los pies), o sale del agua. En
+  el agua va derecho (sin caminos), no golpea ni dispara, guarda el arco y baja el escudo; contra una
+  orilla alta se impulsa para salir.
+- **Trepa detrás del jugador** (`ClimbRoutes`, en `SettlementCompanions.routes`). Mientras el jugador
+  trepa una pared o una escala (`ClimbController`), se apunta por dónde va su cuerpo cada 0,25 m, con
+  la normal de la pared, y al coronar, dónde acaba de pie y hacia dónde mira. Si se suelta sin coronar,
+  baja a una escala desde arriba, trepa por un barco (se mueve) o no sube al menos 1,5 m (eso se sube de
+  un salto), la ruta no vale. Quien le sigue y está a menos de 30 m de su pie, por debajo de donde acaba
+  (con el jugador a menos de 30 m de allí arriba) va al pie mientras el jugador trepa y espera de cara
+  a la pared; al coronar sube por los mismos puntos a 0,9 m/s, sin colisión, con `climb_up` o
+  `climb_down` al ritmo que casa sus manos con la pared, y corona con `climb_top` hasta donde acabó de pie
+  el jugador (el clip acaba de pie en su origen; empieza en el instante en que su cadera queda a la
+  altura de la suya y su marco se corre de donde estaba a donde acaba). Suben de uno en uno, cada 1,6 s.
+  Trepando no pelea, no se le puede hablar y los golpes no lo sueltan; malherido, cae desde donde
+  esté. Si en 30 s no llega al pie, la deja. Las rutas duran 3 minutos y se guardan las cuatro
+  últimas; guardando la partida mientras trepa, se guarda donde acabará de pie.
 - **Espera aquí**: se queda quieto, mirando al jugador si está cerca, y a los 25 s se sienta.
 - **Vuelve a casa**: se despide en el aviso de la barra y echa a andar hacia su poblado. Se va del
   todo a 35 m del jugador o a los 45 s, y su poblado lo vuelve a sacar la próxima vez que se llene.
@@ -346,9 +374,35 @@ tiro (los dos cuerpos, el brazo y lo que mide el arma), la encara y golpea con l
 ritmo y con un respiro entre golpe y golpe. El golpe le da en el cuerpo si sigue a tiro y delante, con
 el 0,8 del daño del arma (los puños, 6; nunca menos) y su tipo. El arma (`refresh_weapon`) es la mejor
 que lleve en el morral para golpear con la derecha (ni arcos ni hondas) o, si no, la herramienta de su
-oficio; se ve mientras pelea y un rato después.
+oficio; se ve mientras pelea y un rato después. Hasta la fiera va como siguiendo al jugador: derecho y,
+si algo se lo impide, por un camino.
 
-**Le pegan**: tiene 100 de vida (`HealthComponent`, con la protección de su ropa sumada por 0,4) y un
+**Con arco** (el mejor arco del morral, `CompanionGear.bow`, si le quedan flechas de las suyas en el
+morral): a la fiera que está a más de 6 m le dispara; a más de 35 m, o si no la ve desde el pecho, se
+acerca corriendo. Quieto y de cara, tensa (`combat/bow_draw`, saca la flecha de la aljaba, la encaja y
+tensa), aguanta un momento y suelta (`combat/bow_recoil`), con un respiro entre flecha y flecha. Apunta
+adelantándose a lo que corre la fiera y a lo que cae la flecha, con 1,5° de error; la flecha
+(`CombatProjectile`) hace el 0,8 del daño del arco más el de la flecha, se clava como las del jugador y
+gasta una del morral. No da al jugador ni a otro compañero. Si la fiera se le echa encima (a menos de
+3 m mientras tensa, o de 6 m antes de empezar), o le dan tensando, lo deja y pelea con la mano. El arco
+solo se ve fuera; con él fuera, lo de la mano no.
+
+**Con escudo** (el mejor escudo del morral, `CompanionGear.shield`): lo lleva en el antebrazo izquierdo,
+colocado como el del jugador, y para con la misma `Guard` (lo que para el escudo, su ventana de parada y
+su estabilidad), con un aguante propio (80, que se recupera a 22 por segundo). Cuando la fiera con la
+que pelea va a por él y empieza un golpe (`get_combat_situation`: `windup` o `active`) cerca, lo alza
+(`combat/shield_block`, luego `shield_block_idle`) tras 0,08-0,3 s; uno de cada cinco golpes no lo ve
+venir. Lo baja 0,35 s después de que acabe y entonces golpea. Lo que para suena, saca chispas si es metal
+y lo encaja (`shield_block_hit`) sin respingo; una parada en seco deja a la fiera vendida; sin aguante
+cede y le llega lo que no ha podido parar. No lo usa con el arco, con un arma a dos manos, nadando ni
+sentado; durmiendo y sentado no se ve.
+
+**Se viste del morral** (`CompanionGear`): en cada hueco (cabeza, pecho, manos, piernas, pies) se pone
+la pieza del morral que más protege y, si no hay ninguna, la de su poblado; al quitársela vuelve a la
+suya. Lo que lleva puesto sigue en el morral (ocupa su hueco y se guarda con él), y al ponérselo se le
+ajusta al cuerpo como al jugador (`CharacterAppearanceRig.dress`).
+
+**Le pegan**: tiene 100 de vida (`HealthComponent`, con la protección de lo que lleva puesto sumada por 0,4) y un
 `Hurtbox`, así que las zarpas y los dientes le dan. La criatura a la que golpea se le revuelve
 (`NPCController._on_damaged`), y `Perception` lo sigue viendo aunque el jugador ande cerca. Al encajar
 un golpe da un respingo (si no está a mitad de golpe) y se revuelve contra quien ha sido. El jugador no
@@ -710,7 +764,14 @@ lejos sin moverse), el guardia (ronda por el borde, turnos, puesto de noche), el
 la hoguera y lo asado al cofre o al comedero; lejos), las comidas (del comedero y no de los cofres,
 lo asado antes que lo crudo, medio ritmo con hambre), la sed (el bebedero y su guardado, beber lejos
 sin moverse, cerca ir andando primero al comedero y luego al bebedero, un cuarto de ritmo con hambre y
-sed, el aguador sin odre, lejos y su guardado), el cazador y el pescador lejos, y el guardado de cada trabajo. El cazador y el pescador de
+sed, el aguador sin odre, lejos y su guardado), el cazador y el pescador lejos, el guardado de cada trabajo,
+el equipo (`_check_gear`: se pone del morral la pieza que más protege en su hueco en vez de la de su
+poblado, vuelve a ella al quitársela, el escudo con su guardia y el arco solo con flechas), seguir al
+jugador al otro lado de una pared rodeándola andando (`_check_follow_wall`), nadar (`_check_swim`: en
+agua honda flota con la cabeza fuera y no se hunde nadando, sigue al jugador y, donde hace pie, anda por
+el fondo) y trepar detrás del jugador (`_check_climb`: mientras trepa esperan al pie, al coronar suben
+los dos por su ruta, de uno en uno, y quedan de pie arriba sin aparecer de golpe). Con
+`-- --only=swim,climb` (los nombres de `_check_*` sin el prefijo) corre solo esas secciones. El cazador y el pescador de
 cerca necesitan criaturas y agua reales: solo se prueban con ventana.
 
 `tests/world/test_settlements.tscn` (`_check_villagers`). Sobre un poblado de prueba, con los pasos de
@@ -749,16 +810,23 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
   buscan camino: si en 12 s no llegan, aparecen en su sitio. El jugador no se sienta en las bancadas
   ni rema solo: sin remeros, el barco solo va a vela.
 - La mano no agarra la herramienta fuera de los golpes y de cavar; por eso solo la sacan al trabajar.
-- Ante una fiera los aldeanos solo huyen; no se puede pelear con ellos. El compañero sí pelea, pero no
-  se protege (ni guardia ni escudo), no usa arcos y no se pone la ropa ni las armaduras que lleva.
+- Ante una fiera los aldeanos solo huyen; no se puede pelear con ellos. El compañero sí pelea: con el
+  escudo para, pero sin escudo no se cubre con el arma ni esquiva. El arco se ve en la mano pero no se
+  tensa ni se ve la flecha en la cuerda (eso lo hace en el jugador `BowAnimRig`, sobre su `CombatPose`);
+  no usa hondas ni lanzas arrojadizas. La armadura le protege toda sumada, no por partes como al
+  jugador, y la ropa no le abriga.
 - El tiempo es el del sitio del jugador, no el del poblado: valen porque solo hay gente en los
   poblados cercanos. No cambian de ropa con el frío.
 - Lo regalado y lo que se les da en un trato se pierde: aún no va a ninguna parte del poblado ni lo
   revenden.
-- Suelto o peleando, el compañero va en línea recta (los caminos, `Companion.steer`, los usan el colono
-  en la base y en su trabajo y el grupo en formación): no rodea paredes ni busca puertas
-  (salta o, si no sale, aparece detrás del jugador). No nada: en el agua anda por el fondo. Las fieras
-  solo van a por él si les pega; las que no, siguen con el jugador.
+- Solo trepa por donde ha trepado el jugador, y sin la pared de verdad: va por los puntos del jugador
+  (sin inclinarse con ella, ni de lado con `climb_left`/`climb_right`), así que una pared que se ha
+  roto o construido después no le cambia nada. No trepa por su cuenta (para salir de un hoyo, para
+  llegar a una fiera) ni baja trepando: baja saltando o por un camino.
+- Los caminos (`GroundPath`) llegan a 35 m: lo que queda más lejos detrás de una pared lo alcanza por
+  tramos, y si aun así no sale, aparece detrás del jugador. En el agua va derecho: no bucea, no rodea
+  rocas sumergidas y bajo la banquisa nada como en agua abierta. Las fieras solo van a por él si les
+  pega; las que no, siguen con el jugador.
 - Los encargos no tienen plazo ni salen en ningún diario: solo en la charla y en los avisos de la barra.
   Las fieras de un encargo de caza no se marcan: valen cualesquiera de esa especie cerca del poblado.
 - La confianza solo sube (hablando, regalando, comerciando y con los encargos); aún no baja por nada.

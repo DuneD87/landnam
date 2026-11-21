@@ -149,6 +149,31 @@ func is_active() -> bool:
 	return mode != Mode.NONE
 
 
+## Para quien sube detrás (ClimbRoutes): la normal de la pared (o de la escala) a la que se agarra.
+func wall_normal() -> Vector3:
+	return _normal
+
+
+## Si está coronando hacia arriba (no bajando a una escala desde arriba).
+func topping_up() -> bool:
+	return mode == Mode.TOP and not _top_down
+
+
+## Si baja a una escala desde arriba (coronar al revés).
+func descending() -> bool:
+	return mode == Mode.TOP and _top_down
+
+
+## Dónde acaba de pie al coronar (origen) y hacia dónde mira (+Z), en mundo.
+func top_frame() -> Transform3D:
+	return _top_frame
+
+
+## Si trepa por un barco (lo que trepa se mueve con él).
+func on_ship() -> bool:
+	return is_instance_valid(_carrier)
+
+
 ## PlayerModel lo coloca la escalada (también mientras se funde de vuelta a la locomoción).
 func holds_model() -> bool:
 	return mode != Mode.NONE or _w > 0.0

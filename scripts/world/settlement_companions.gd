@@ -62,6 +62,8 @@ var _trail := PackedVector3Array()
 var _heading := Vector3.ZERO
 ## Los vecinos (SettlementPopulation: "id") que han muerto.
 var _dead := {}
+## Lo que ha trepado el jugador, para que el grupo suba detrás (Companion._to_route).
+var routes := ClimbRoutes.new()
 
 
 ## Como SettlementVillagers.setup.
@@ -137,9 +139,10 @@ func follower_index(c: Companion) -> int:
 
 # --- Formación ------------------------------------------------------------------------------------
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if _player == null or not is_instance_valid(_player) or _terrain == null or not is_instance_valid(_terrain):
 		return
+	routes.update(_player, _terrain, delta)
 	var here := _terrain.global_transform.affine_inverse() * _player.global_position
 	if _trail.is_empty() or _trail[_trail.size() - 1].distance_to(here) > TRAIL_BREAK:
 		_trail = PackedVector3Array([here])
@@ -483,7 +486,7 @@ func get_save_data() -> Dictionary:
 		# El que vuelve a casa ya es del poblado.
 		if c.mode == Companion.Mode.LEAVE:
 			continue
-		var at := to_local * c.global_position
+		var at := to_local * c.save_position()
 		var facing := to_local.basis * c.facing()
 		var entry := {"village": c.village, "id": String(c.resident.get("id", "")), "mode": int(c.mode),
 			"at": [at.x, at.y, at.z], "facing": [facing.x, facing.y, facing.z], "pack": c.pack.get_save_data(),
