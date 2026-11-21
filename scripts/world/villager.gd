@@ -105,6 +105,9 @@ const FACE_PLAYER := 4.0
 const GREET := 6.0
 const GREET_COOLDOWN := 90.0
 const WAVE_TIME := 2.2
+## La marca de quien pide algo: a qué altura sobre sus pies y hasta dónde se ve (m).
+const MARK_HEIGHT := 2.15
+const MARK_RANGE := 45.0
 const LOOK_INTERVAL := 0.5
 ## Al andar se aparta de quien tenga a menos de esto (m) por delante.
 const AVOID := 1.3
@@ -144,6 +147,8 @@ var _striking := false
 ## Lo que hacía antes de saludar: [act, lo que le quedaba].
 var _before_wave := []
 var _greet_left := 0.0
+## La marca sobre la cabeza (set_mark), o null.
+var _mark: Label3D
 var _look_left := 0.0
 ## De pie con el jugador cerca: lo va mirando (a _look_at).
 var _eyeing := false
@@ -695,6 +700,47 @@ func _watch_player() -> void:
 	elif act == Act.STAND and distance < FACE_PLAYER:
 		_look_at = at
 		_eyeing = true
+
+
+## La marca sobre su cabeza: &"offer" (tiene algo que pedir, «!»), &"ready" (hay que cobrarle uno, «?») o
+## &"" (ninguna). La pone SettlementVillage._update_marks.
+func set_mark(kind: StringName) -> void:
+	if kind == &"":
+		if _mark != null:
+			_mark.visible = false
+		return
+	if _mark == null:
+		_mark = Label3D.new()
+		_mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_mark.fixed_size = true
+		_mark.pixel_size = 0.0009
+		_mark.font_size = 44
+		_mark.outline_size = 12
+		_mark.outline_modulate = Color(0.12, 0.07, 0.02)
+		_mark.no_depth_test = false
+		_mark.visibility_range_end = MARK_RANGE
+		_mark.position = Vector3.UP * MARK_HEIGHT
+		add_child(_mark)
+	_mark.visible = true
+	_mark.text = "!" if kind == &"offer" else "?"
+	_mark.modulate = Color(1.0, 0.78, 0.25) if kind == &"offer" else Color(0.75, 0.95, 0.55)
+
+
+## Llama al jugador para pedirle algo: lo saluda (si está de pie o trabajando y sin pareja). Si lo ha hecho.
+func call_player() -> bool:
+	if village.danger or _partner != null or not (act == Act.STAND or act == Act.WORK):
+		return false
+	_greet_left = GREET_COOLDOWN
+	_before_wave = [act, _left]
+	act = Act.WAVE
+	_left = WAVE_TIME
+	_striking = false
+	_show_tool(false)
+	_play(ANIM_WAVE)
+	var at := village.player_local()
+	if at.is_finite():
+		_look_at = at
+	return true
 
 
 ## Vuelve a lo que hacía antes de saludar.

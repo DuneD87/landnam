@@ -74,6 +74,10 @@ var _quest_button: Button
 var _accept_button: Button
 var _deliver_button: Button
 var _drop_button: Button
+var _haggle_button: Button
+var _details_button: Button
+var _later_button: Button
+var _errand_button: Button
 var _deal_button: Button
 var _back_button: Button
 var _bye_button: Button
@@ -249,7 +253,7 @@ func _quests() -> SettlementQuests:
 ## El encargo de con quien se habla: el que tiene abierto con el jugador o (un aldeano) el que pide, o {}.
 func _quest_of() -> Dictionary:
 	var quests := _quests()
-	if quests == null or _node() == null:
+	if quests == null or _node() == null or _ward():
 		return {}
 	var open := quests.open_of(String(_who().id))
 	if not open.is_empty() or _villager == null:
@@ -259,12 +263,40 @@ func _quest_of() -> Dictionary:
 		village.prey_near(SettlementQuests.SCOUT_REACH))
 
 
+## Si con quien se habla va por un encargo (Companion.ward).
+func _ward() -> bool:
+	return _companion != null and _companion.ward != ""
+
+
+## El encargo por el que va (el de quien lo pidió), o {}.
+func _ward_quest() -> Dictionary:
+	var quests := _quests()
+	return quests.open_of(_companion.ward) if quests != null and _ward() else {}
+
+
+## El recado que le trae el jugador a con quien se habla, o {}.
+func _errand() -> Dictionary:
+	var quests := _quests()
+	return quests.errand_for(String(_who().id)) if quests != null and _node() != null else {}
+
+
+func _villages() -> Array:
+	var quests := _quests()
+	return quests.villages if quests != null else []
+
+
 func _quest_open() -> bool:
 	var quests := _quests()
 	return quests != null and not quests.open_of(String(_who().id)).is_empty()
 
 
 func _speak() -> void:
+	# El que va por un encargo (el perdido, el escoltado) habla de eso.
+	if _ward():
+		var quest := _ward_quest()
+		var found := String(quest.get("kind", "")) == "rescue" and _companion.mode == Companion.Mode.WAIT
+		_say(VillagerTalk.pick(&"WARD_FOUND" if found else &"ROAD", _rng, _last_line))
+		return
 	# El colono parado por algo lo dice nada más hablarle.
 	if _settled() and _last_line == "" and not _companion.work.stuck().is_empty():
 		_say(VillagerTalk.settler_needs(_companion))
@@ -321,10 +353,15 @@ func _refresh() -> void:
 	_trade_button.visible = talk and _villager != null
 	_trade_button.disabled = danger
 	_recruit_button.visible = talk and _villager != null
-	_pack_button.visible = talk and _companion != null
+	var ward := _ward()
+	_pack_button.visible = talk and _companion != null and not ward
 	_follow_button.visible = talk and _companion != null
-	_home_button.visible = talk and _companion != null
-	_settle_button.visible = talk and _companion != null and not _settled()
+	_home_button.visible = talk and _companion != null and not ward
+	_settle_button.visible = talk and _companion != null and not _settled() and not ward
+	var errand := _errand()
+	_errand_button.visible = talk and not errand.is_empty()
+	if not errand.is_empty():
+		_errand_button.text = tr("VILLAGER_ERRAND") % errand.name
 	_doing_button.visible = talk and _settled()
 	_needs_button.visible = talk and _settled()
 	# Los oficios se mandan desde el trono; aquí, cómo va.
@@ -339,12 +376,17 @@ func _refresh() -> void:
 	_quest_button.text = "VILLAGER_QUEST_OPEN" if open else "VILLAGER_QUEST"
 	var asking := _view == View.QUEST
 	_accept_button.visible = asking and not open
-	_deliver_button.visible = asking and open
+	_haggle_button.visible = asking and not open
+	_details_button.visible = asking and not open
+	_later_button.visible = asking and not open
+	if asking and not open:
+		_haggle_button.disabled = bool(_quest_of().get("haggled", false))
+	_deliver_button.visible = asking and open and String(_quest_of().get("kind", "")) != "escort"
 	_drop_button.visible = asking and open
 	_quests_label.visible = asking and not _quests_label.text.is_empty()
 	if asking and open:
 		var quest := _quests().open_of(String(_who().id))
-		_deliver_button.text = "VILLAGER_QUEST_DONE" if quest.kind == "hunt" else "VILLAGER_QUEST_DELIVER"
+		_deliver_button.text = "VILLAGER_QUEST_DELIVER" if quest.kind == "fetch" else "VILLAGER_QUEST_DONE"
 		_deliver_button.disabled = not _quests().is_ready(quest, _player.inventory)
 	if _villager != null:
 		var companions := _companions()
@@ -426,6 +468,15 @@ func _on_recruit() -> void:
 func _on_follow() -> void:
 	if _companion == null:
 		return
+	if _ward():
+		if _companion.mode == Companion.Mode.FOLLOW:
+			_companion.wait_here()
+			_say(VillagerTalk.pick(&"WARD_WAIT", _rng, _last_line))
+		else:
+			_companion.follow()
+			_say(VillagerTalk.pick(&"WARD_FOLLOW", _rng, _last_line))
+		_refresh()
+		return
 	if _companion.mode == Companion.Mode.FOLLOW:
 		_companion.wait_here()
 		_say(VillagerTalk.pick(&"WAIT_OK", _rng, _last_line))
@@ -475,7 +526,7 @@ func _on_quest() -> void:
 	if _quest_open():
 		_say(VillagerTalk.pick(&"QUEST_WAITING", _rng, _last_line))
 	else:
-		_say(VillagerTalk.quest_line(quest, _rng, _last_line))
+		_say(VillagerTalk.quest_line(quest, _rng, _last_line, _villages()))
 	_fill_quest()
 	_refresh()
 
@@ -485,10 +536,87 @@ func _on_accept() -> void:
 	var quest := quests.accept(String(_who().id)) if quests != null else {}
 	if quest.is_empty():
 		return
-	_say(VillagerTalk.pick(&"QUEST_YES", _rng, _last_line))
 	_player.hotbar.notify(tr("VQUEST_ACCEPTED") % [quest.name, VillagerTalk.quest_status(quest, _player.inventory)])
+	var director := _director()
+	if director != null:
+		director.on_accepted(quest)
+	# La escolta: se viene ya con el jugador (la charla sigue con él, como al reclutarlo).
+	if String(quest.kind) == "escort" and _villager != null and director != null:
+		var companion := director.start_escort(_villager, quest)
+		_villager = null
+		_companion = companion
+		companion.begin_chat()
+		_say(VillagerTalk.pick(&"WARD_FOLLOW", _rng, _last_line))
+		_view = View.TALK
+		_refresh()
+		return
+	_say(VillagerTalk.pick(&"QUEST_YES", _rng, _last_line))
 	_fill_quest()
 	_refresh()
+
+
+## Regatea la paga: si sale bien, paga más; si no, se molesta (algo menos de confianza).
+func _on_haggle() -> void:
+	var quests := _quests()
+	if quests == null:
+		return
+	var result := quests.haggle(String(_who().id))
+	if result == 0:
+		return
+	_say(VillagerTalk.pick(&"QUEST_HAGGLE_YES" if result > 0 else &"QUEST_HAGGLE_NO", _rng, _last_line))
+	if result < 0:
+		_player.hotbar.notify(tr("VQUEST_HAGGLE_LOST") % [String(_who().name), roundi(SettlementQuests.HAGGLE_PENALTY)])
+	_fill_quest()
+	_refresh()
+
+
+## Le pregunta los detalles: dónde, lo lejos y el plazo.
+func _on_details() -> void:
+	var quest := _quest_of()
+	if quest.is_empty():
+		return
+	_line.text = tr("VILLAGER_QUOTE") % VillagerTalk.quest_details(quest, _villages())
+	if _villager != null:
+		_villager.say()
+
+
+## Ahora no: vuelve a la charla, sin más.
+func _on_later() -> void:
+	_say(VillagerTalk.pick(&"QUEST_LATER", _rng, _last_line))
+	_view = View.TALK
+	_refresh()
+
+
+## Le da el recado: contesta, da algo de lo suyo y el encargo pasa a volver con la respuesta.
+func _on_errand() -> void:
+	var quests := _quests()
+	var errand := _errand()
+	if quests == null or errand.is_empty():
+		return
+	var job := StringName(_who().get("job", {}).get("kind", ""))
+	var result := quests.deliver_errand(String(_who().id), job)
+	if result.is_empty():
+		return
+	_say(_errand_reply(String(errand.name)))
+	_show_gain(float(result.get("gain", 0.0)))
+	var reward: Dictionary = result.get("reward", {})
+	BuildCost.give(reward, _player.inventory, _player, _player.gravity_direction)
+	_player.hotbar.notify(tr("VQUEST_ERRAND_DONE") % [String(_who().name), errand.name])
+	if not reward.is_empty():
+		_player.hotbar.notify(tr("VQUEST_REWARD") % [String(_who().name), QuestDirector.reward_text(reward)])
+	AudioManager.play_ui(&"item_pickup")
+	_refresh()
+
+
+func _errand_reply(from: String) -> Dictionary:
+	var said := VillagerTalk.pick(&"QUEST_ERRAND_GOT", _rng, _last_line)
+	said.text = said.text % from if said.text.contains("%s") else said.text
+	return said
+
+
+func _director() -> QuestDirector:
+	var companions := _companions()
+	return companions._manager.director if companions != null and companions._manager != null else null
 
 
 ## Lo entrega (lo que pedía sale del inventario) o le dice que ya está: le da las gracias, sube la
@@ -507,10 +635,7 @@ func _on_deliver() -> void:
 	_say(VillagerTalk.pick(&"QUEST_THANKS", _rng, _last_line))
 	_show_gain(float(result.get("gain", 0.0)))
 	if not reward.is_empty():
-		var parts: PackedStringArray = []
-		for item_id: StringName in reward:
-			parts.append("%s ×%d" % [ItemCatalog.get_item(item_id).get_display_name(), int(reward[item_id])])
-		_player.hotbar.notify(tr("VQUEST_REWARD") % [quest.name, ", ".join(parts)])
+		_player.hotbar.notify(tr("VQUEST_REWARD") % [quest.name, QuestDirector.reward_text(reward)])
 	AudioManager.play_ui(&"item_pickup")
 	_view = View.TALK
 	_refresh()
@@ -520,8 +645,17 @@ func _on_drop() -> void:
 	var quests := _quests()
 	if quests == null:
 		return
-	quests.drop(String(_who().id))
+	var id := String(_who().id)
+	var lost := quests.drop(id)
+	# El que iba con el jugador por ese encargo se vuelve a casa.
+	var companions := _companions()
+	var ward := companions.ward_of(id) if companions != null else null
+	if ward != null:
+		ward.ward = ""
+		ward.go_home()
 	_say(VillagerTalk.pick(&"QUEST_DROP", _rng, _last_line))
+	if lost > 0.0:
+		_player.hotbar.notify(tr("VQUEST_DROPPED") % [String(_who().name), roundi(lost)])
 	_view = View.TALK
 	_refresh()
 
@@ -536,11 +670,23 @@ func _fill_quest() -> void:
 		return
 	var status := VillagerTalk.quest_status(quest, _player.inventory)
 	if not _quest_open():
-		_hint.text = tr("VILLAGER_QUEST_OFFER") % status
-	elif quest.kind == "hunt":
-		_hint.text = "%s · %s" % [status, tr("VILLAGER_QUEST_HOW_HUNT") % roundi(SettlementQuests.HUNT_REACH)]
+		var pay := tr("VILLAGER_QUEST_PAY_UP") if float(quest.get("bonus", 1.0)) > 1.0 else ""
+		_hint.text = tr("VILLAGER_QUEST_OFFER") % status + pay
 	else:
-		_hint.text = "%s · %s" % [status, tr("VILLAGER_QUEST_HOW_FETCH")]
+		var how := ""
+		match String(quest.kind):
+			"hunt":
+				how = tr("VILLAGER_QUEST_HOW_HUNT") % roundi(SettlementQuests.HUNT_REACH)
+			"fetch":
+				how = tr("VILLAGER_QUEST_HOW_FETCH")
+			_:
+				how = tr("VILLAGER_QUEST_HOW_" + String(quest.kind).to_upper())
+		var left := VillagerTalk.time_left(quests.hours_left(quest)) if not SettlementQuests.is_settled(quest) else ""
+		var parts := PackedStringArray()
+		for part in [status, left, how, tr("VILLAGER_QUEST_DROP_WARN")]:
+			if part != "":
+				parts.append(part)
+		_hint.text = " · ".join(parts)
 	var parts: PackedStringArray = []
 	for open: Dictionary in quests.open_list():
 		parts.append(tr("VILLAGER_QUEST_ENTRY") % [open.name, open.village_name,
@@ -876,6 +1022,12 @@ func _build_ui() -> void:
 	_deliver_button = _button(_buttons, "VILLAGER_QUEST_DELIVER", _on_deliver)
 	_deliver_button.theme_type_variation = &"AccentButton"
 	_drop_button = _button(_buttons, "VILLAGER_QUEST_DROP", _on_drop)
+	_haggle_button = _button(_buttons, "VILLAGER_QUEST_HAGGLE", _on_haggle)
+	_details_button = _button(_buttons, "VILLAGER_QUEST_DETAILS", _on_details)
+	_later_button = _button(_buttons, "VILLAGER_QUEST_LATER", _on_later)
+	_errand_button = _button(_buttons, "", _on_errand)
+	_errand_button.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_errand_button.theme_type_variation = &"AccentButton"
 	_back_button = _button(_buttons, "VILLAGER_GIFT_DONE", _on_back)
 	_bye_button = _button(_buttons, "VILLAGER_BYE", close)
 
@@ -930,5 +1082,5 @@ func _layout() -> void:
 		_margin.add_theme_constant_override("margin_" + side, roundi(24.0 * ui_scale))
 	for button: Button in [_talk_button, _doing_button, _needs_button, _gift_button, _trade_button, _pack_button, _quest_button,
 			_recruit_button, _follow_button, _settle_button, _home_button, _deal_button, _accept_button, _deliver_button,
-			_drop_button, _back_button, _bye_button]:
+			_drop_button, _haggle_button, _details_button, _later_button, _errand_button, _back_button, _bye_button]:
 		button.custom_minimum_size.x = 130.0 * ui_scale

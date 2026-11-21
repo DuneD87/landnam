@@ -545,6 +545,9 @@ func _marker_at(point: Vector2) -> int:
 	var nearest := 0
 	var distance := (MARKER_RADIUS + 4.0) * MapMarkerEditor.ui_scale_for(get_viewport())
 	for marker in markers.for_planet(_planet_id):
+		# Las de los encargos (id negativo) no se editan.
+		if int(marker.id) < 0:
+			continue
 		var separation := point.distance_to(_point_of_uv(marker.uv))
 		if separation <= distance:
 			distance = separation
@@ -620,8 +623,13 @@ func _draw_saved_markers(canvas: Control) -> void:
 			continue
 		var selected: bool = marker.id == _editing_marker or marker.id == hovered
 		canvas.draw_circle(point, radius, Color(0.025, 0.035, 0.045, 0.92))
-		canvas.draw_arc(point, radius, 0.0, TAU, 48,
-			Color(1.0, 0.85, 0.45) if selected else Color(0.65, 0.7, 0.75, 0.6), 2.0 * ui_scale, true)
+		var ring := Color(0.65, 0.7, 0.75, 0.6)
+		if selected:
+			ring = Color(1.0, 0.85, 0.45)
+		elif marker.get("kind", "") == "quest":
+			# Los encargos, en ámbar.
+			ring = Color(1.0, 0.68, 0.25, 0.95)
+		canvas.draw_arc(point, radius, 0.0, TAU, 48, ring, 2.0 * ui_scale, true)
 		canvas.draw_texture_rect(MapMarkerEditor.ICON_TEXTURES[marker.icon],
 			Rect2(point - icon_size * 0.5, icon_size), false)
 		if font != null and (selected or not marker.name.is_empty() \

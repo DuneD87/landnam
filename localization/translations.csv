@@ -1846,7 +1846,7 @@ THRONE_EMPTY,No settlers live near this throne. Ask a companion to stay and live
 THRONE_ORDERS,Orders,Órdenes,colonos
 THRONE_ORDER_CLEAR,Clear an area,Limpia una zona,colonos
 THRONE_IDLE,No work: lives at the base.,Sin trabajo: hace su vida en la base.,colonos
-THRONE_HINT_SELECT,Pick settlers in the cards below or click their names on the map.,Elige colonos en las tarjetas de abajo o pincha sus nombres en el mapa.,colonos
+THRONE_HINT_SELECT,"Pick settlers in the cards below or click their names on the map. With nobody picked, an order marks an area that those without a job fill; click its label to change how many.","Elige colonos en las tarjetas de abajo o pincha sus nombres en el mapa. Sin elegir a nadie, una orden marca una zona que llenan los que no tienen oficio; pincha su cartel para cambiar cuántos.",colonos
 THRONE_CARDS_HELP,Click: choose · Double click: look at them,Clic: elegir · Doble clic: ir a verlo,colonos
 THRONE_BASE_TITLE,Base supplies · %d settlers,Recursos de la base · %d colonos,colonos
 THRONE_BEDS,Beds,Camas,colonos
@@ -2088,3 +2088,125 @@ ITEM_BEARPAW_BOOT,Bearpaw boots,Botas Garra de Oso,
 ITEM_BEARPAW_BOOT_DESC,Leather boots banded with bronze over the instep and the toe.,Botas de cuero con bandas de bronce sobre el empeine y la puntera.,
 ITEM_BEARPAW_CLOAK,Bearpaw cloak,Capa Garra de Oso,
 ITEM_BEARPAW_CLOAK_DESC,A long wool cloak hemmed with mail. It keeps out the cold.,Una capa larga de lana con el ribete de malla. Abriga del frío.,
+THRONE_ZONE_LABEL,%s · %d/%d,%s · %d/%d,colonos
+THRONE_ZONE_TITLE,Area: %s · %d of %d working,Zona: %s · trabajan %d de %d,colonos
+THRONE_ZONE_REMOVE,Remove area,Quitar zona,colonos
+THRONE_HINT_ZONE_FREE,Click: mark an area for anyone without a job (−/+ on its label to change how many) · Wheel: radius (%d m) · Esc: cancel,Clic: marca una zona para los que no tienen oficio (pincha su cartel para cambiar cuántos) · Rueda: radio (%d m) · Esc: cancelar,colonos
+VTALK_QUEST_RESCUE_1,%s went out towards %s for firewood and hasn't come back. Would you look for them?,%s salió hacia %s a por leña y no ha vuelto. ¿Lo buscarías?,aldeanos
+VTALK_QUEST_RESCUE_2,Nobody has seen %s since yesterday. They went towards %s... I fear the worst.,Nadie ha visto a %s desde ayer. Se fue hacia %s... Me temo lo peor.,aldeanos
+VTALK_QUEST_RESCUE_3,"%s is lost out there, towards %s, and the beasts are about. Bring them home, please.","%s anda perdido por ahí, hacia %s, y rondan las fieras. Tráelo a casa, por favor.",aldeanos
+VTALK_QUEST_ESCORT_1,"I have to get to %s, %s, but I won't go alone. Will you come with me?","Tengo que llegar a %s, %s, pero sola no voy. ¿Me acompañas?",aldeanos
+VTALK_QUEST_ESCORT_2,"My kin in %s are waiting for me. It's %s, and the road is not safe.","Me esperan los míos en %s. Queda %s, y el camino no es seguro.",aldeanos
+VTALK_QUEST_ESCORT_3,Walk me to %s? It's %s. I'll pay you when we get there.,¿Me llevas hasta %s? Está %s. Te pago al llegar.,aldeanos
+VTALK_QUEST_ERRAND_1,"Could you take a message to %s, in %s? It's been too long without news.","¿Podrías llevarle un recado a %s, en %s? Hace mucho que no sé nada.",aldeanos
+VTALK_QUEST_ERRAND_2,"Tell %s, in %s, that the debt is settled. And bring me back their answer.","Dile a %s, en %s, que la deuda está saldada. Y tráeme su respuesta.",aldeanos
+VTALK_QUEST_ERRAND_3,I promised %s in %s I'd send word. Would you carry it for me?,"Le prometí a %s, en %s, que le mandaría razón. ¿Se la llevas tú?",aldeanos
+VTALK_QUEST_BEAST_1,There's a beast we call %s: %s bigger than any other. It prowls towards %s. Kill it.,Hay una fiera que llamamos %s: %s más grande que ninguna. Ronda hacia %s. Mátala.,aldeanos
+VTALK_QUEST_BEAST_2,"%s, we call it. %s that has killed our animals. It lairs towards %s.","%s, la llamamos. %s que nos ha matado el ganado. Tiene su cubil hacia %s.",aldeanos
+VTALK_QUEST_BEAST_3,"%s, %s as big as an ox, won't let anyone go out towards %s. Bring me its hide.","%s, %s grande como un buey, no deja salir a nadie hacia %s. Tráeme su pellejo.",aldeanos
+VTALK_QUEST_HAGGLE_YES_1,"Fine, fine. You'll get more. But do it well.","Bueno, bueno. Tendrás más. Pero hazlo bien.",aldeanos
+VTALK_QUEST_HAGGLE_YES_2,You drive a hard bargain. Agreed.,Sabes regatear. De acuerdo.,aldeanos
+VTALK_QUEST_HAGGLE_YES_3,It's worth it to me. I'll pay you more.,Me vale la pena. Te pagaré más.,aldeanos
+VTALK_QUEST_HAGGLE_NO_1,Don't push your luck. What I offer is fair.,No tientes a la suerte. Lo que ofrezco es justo.,aldeanos
+VTALK_QUEST_HAGGLE_NO_2,"Greedy, are we? That's what there is.",¿Codicioso? Es lo que hay.,aldeanos
+VTALK_QUEST_HAGGLE_NO_3,"I thought you came to help, not to fleece me.","Creía que venías a ayudar, no a desplumarme.",aldeanos
+VTALK_QUEST_LATER_1,As you wish. Think it over.,Como quieras. Piénsatelo.,aldeanos
+VTALK_QUEST_LATER_2,I'll be here if you change your mind.,Aquí estaré si cambias de idea.,aldeanos
+VTALK_QUEST_LATER_3,"Another time, then.",Otro día será.,aldeanos
+VTALK_QUEST_ERRAND_GOT_1,"From %s? Finally! Tell them I'm well, and take this for the trouble.","¿De %s? ¡Por fin! Dile que estoy bien, y toma esto por la molestia.",aldeanos
+VTALK_QUEST_ERRAND_GOT_2,"So %s remembers me. Tell them yes, and that I'll visit when the snow melts.","Así que %s se acuerda de mí. Dile que sí, y que iré cuando se funda la nieve.",aldeanos
+VTALK_QUEST_ERRAND_GOT_3,"Word from %s... Good news. Here, for your legs.","Razón de %s... Buenas noticias. Toma, por tus piernas.",aldeanos
+VTALK_WARD_FOUND_1,At last! I twisted my ankle and couldn't walk. Will you take me home?,¡Por fin! Me torcí el tobillo y no podía andar. ¿Me llevas a casa?,aldeanos
+VTALK_WARD_FOUND_2,The gods sent you. The beasts have been circling me all night.,Te mandan los dioses. Las fieras me han rondado toda la noche.,aldeanos
+VTALK_WARD_FOUND_3,I thought nobody would come... Get me out of here.,Creía que no vendría nadie... Sácame de aquí.,aldeanos
+VTALK_WARD_FOLLOW_1,Lead the way. I'll stay close.,Ve delante. No me separo.,aldeanos
+VTALK_WARD_FOLLOW_2,Let's go. Keep the beasts off me.,Vamos. Mantén a las fieras lejos de mí.,aldeanos
+VTALK_WARD_FOLLOW_3,I'm right behind you.,Voy detrás de ti.,aldeanos
+VTALK_WARD_WAIT_1,I'll wait here. Don't be long.,Espero aquí. No tardes.,aldeanos
+VTALK_WARD_WAIT_2,Here? Alone? ...All right.,¿Aquí? ¿Solo? ...Está bien.,aldeanos
+VTALK_WARD_HOME_1,Home at last. I owe you my life.,Por fin en casa. Te debo la vida.,aldeanos
+VTALK_WARD_HOME_2,Home. I'll tell them what you did.,En casa. Les contaré lo que has hecho.,aldeanos
+VTALK_WARD_HOME_3,I never thought I'd see these walls again.,Nunca pensé que volvería a ver estas paredes.,aldeanos
+VTALK_ESCORT_ARRIVED_1,"Here we are. Take this, you've earned it.","Ya hemos llegado. Toma, te lo has ganado.",aldeanos
+VTALK_ESCORT_ARRIVED_2,"Safe and sound. Thank you, friend.","Sanos y salvos. Gracias, amigo.",aldeanos
+VTALK_ESCORT_ARRIVED_3,I couldn't have made it without you. Here's what I promised.,Sin ti no habría llegado. Aquí tienes lo prometido.,aldeanos
+VTALK_CALL_1,"Hey, you! Have you got a moment?","¡Eh, tú! ¿Tienes un momento?",aldeanos
+VTALK_CALL_2,"Stranger! Over here, I need a hand.","¡Forastero! Aquí, necesito una mano.",aldeanos
+VTALK_CALL_3,"You look strong. Come here, I have something for you.","Pareces fuerte. Ven, tengo algo para ti.",aldeanos
+VTALK_CALL_4,Wait! Could you help me with something?,¡Espera! ¿Me ayudarías con una cosa?,aldeanos
+VTALK_QUEST_LATE_1,You took too long. It doesn't matter any more.,Has tardado demasiado. Ya da igual.,aldeanos
+VTALK_QUEST_LATE_2,"I counted on you, and you didn't come.","Contaba contigo, y no viniste.",aldeanos
+VQUEST_RESCUE_SEARCH,Find %s,Buscar a %s,aldeanos
+VQUEST_RESCUE_FOUND,Bring %s home,Llevar a %s a casa,aldeanos
+VQUEST_RESCUE_HOME,%s is home,%s está en casa,aldeanos
+VQUEST_ESCORT,Take %s to %s,Acompañar a %s hasta %s,aldeanos
+VQUEST_ESCORT_DONE,%s has reached %s,%s ha llegado a %s,aldeanos
+VQUEST_ERRAND,"Message for %s, in %s","Recado para %s, en %s",aldeanos
+VQUEST_ERRAND_BACK,Bring back %s's answer (%s),Volver con la respuesta de %s (%s),aldeanos
+VQUEST_BEAST,Kill %s (%s),Matar a %s (%s),aldeanos
+VQUEST_BEAST_SLAIN,%s (%s) is dead,%s (%s) está muerta,aldeanos
+VQUEST_DUE,you have %s,tienes %s,aldeanos
+VQUEST_HOURS,%d hours,%d horas,aldeanos
+VQUEST_ONE_DAY,a day,un día,aldeanos
+VQUEST_DAYS,%d days,%d días,aldeanos
+VQUEST_LATE,out of time,fuera de plazo,aldeanos
+VQUEST_LEFT_HOURS,%d h left,quedan %d h,aldeanos
+VQUEST_LEFT_DAYS,%d days left,quedan %d días,aldeanos
+VQUEST_DETAILS_RESCUE,"Towards %s, some %d m from here. Look around there: I don't know the exact spot. And hurry: %s.","Hacia %s, a unos %d m de aquí. Busca por ahí: no sé el sitio exacto. Y date prisa: %s.",aldeanos
+VQUEST_DETAILS_BEAST,"Towards %s, some %d m from here, round about there. You'll know it when you see it; %s.","Hacia %s, a unos %d m de aquí, por esa zona. La reconocerás al verla; %s.",aldeanos
+VQUEST_DETAILS_ESCORT,"%s is %s. Stay with me on the road: if I die, there's no pay; %s.","%s está %s. No te separes de mí en el camino: si muero, no hay paga; %s.",aldeanos
+VQUEST_DETAILS_ERRAND,"Ask for %s in %s, %s. Bring me back what they say; %s.","Pregunta por %s en %s, %s. Tráeme lo que te diga; %s.",aldeanos
+VQUEST_DETAILS_HUNT,Those that fall within %d m of the village count; %s.,Cuentan las que caigan a menos de %d m del poblado; %s.,aldeanos
+VQUEST_DETAILS_FETCH,Bring it to me when you have it all; %s.,Tráemelo cuando lo tengas todo; %s.,aldeanos
+VQUEST_FOUND,You've found %s. Tell them to follow you.,Has encontrado a %s. Dile que te siga.,aldeanos
+VQUEST_RESCUE_DONE,%s is home. Go and tell %s.,%s ya está en casa. Ve a decírselo a %s.,aldeanos
+VQUEST_SAYS,%s: «%s»,%s: «%s»,aldeanos
+VQUEST_AMBUSH,Beasts on the road! Protect %s.,¡Fieras en el camino! Protege a %s.,aldeanos
+VQUEST_BEAST_NEAR,%s is close.,%s anda cerca.,aldeanos
+VQUEST_BEAST_DEAD,%s is dead. Take its trophy and tell %s.,%s ha muerto. Coge su trofeo y díselo a %s.,aldeanos
+VQUEST_FAILED_LATE,Errand for %s: out of time (trust −%d),Encargo de %s: se acabó el plazo (confianza −%d),aldeanos
+VQUEST_FAILED_DEAD,"Errand for %s: it's over, they're dead (trust −%d)","Encargo de %s: ya no hay nada que hacer, ha muerto (confianza −%d)",aldeanos
+VQUEST_HAGGLE_LOST,%s didn't like that (trust −%d),A %s no le ha gustado (confianza −%d),aldeanos
+VQUEST_ERRAND_DONE,%s has the message from %s. Go back with the answer.,%s ya tiene el recado de %s. Vuelve con la respuesta.,aldeanos
+VQUEST_DROPPED,You gave up %s's errand (trust −%d),Has dejado el encargo de %s (confianza −%d),aldeanos
+VILLAGER_QUEST_HAGGLE,What's in it for me?,¿Qué gano yo?,aldeanos
+VILLAGER_QUEST_DETAILS,Tell me more,Cuéntame más,aldeanos
+VILLAGER_QUEST_LATER,Not now,Ahora no,aldeanos
+VILLAGER_ERRAND,A message from %s,Traigo un recado de %s,aldeanos
+VILLAGER_QUEST_PAY_UP, They'll pay you more., Te pagará más.,aldeanos
+VILLAGER_QUEST_HOW_RESCUE,"Find them, tell them to follow you and take them home. If they die, it's lost.","Encuéntralo, dile que te siga y llévalo a casa. Si muere, se pierde.",aldeanos
+VILLAGER_QUEST_HOW_ESCORT,Get them there alive: they pay on arrival.,Llévalo vivo: paga al llegar.,aldeanos
+VILLAGER_QUEST_HOW_ERRAND,"Talk to them there, then come back.",Habla con él allí y vuelve.,aldeanos
+VILLAGER_QUEST_HOW_BEAST,Kill it and come back.,Mátala y vuelve.,aldeanos
+VILLAGER_QUEST_DROP_WARN,Giving it up costs trust,Dejarlo baja la confianza,aldeanos
+JOURNAL_TITLE,Errands,Encargos,aldeanos
+JOURNAL_EMPTY,No errands. Villagers with something to ask carry a ! above their heads.,Ningún encargo. Quien tiene algo que pedir lleva un ! sobre la cabeza.,aldeanos
+JOURNAL_KEYS,L: close · M: map (errands in amber),"L: cerrar · M: mapa (los encargos, en ámbar)",aldeanos
+JOURNAL_ENTRY,%s · %s (%s),%s · %s (%s),aldeanos
+JOURNAL_KIND_FETCH,Bring,Traer,aldeanos
+JOURNAL_KIND_HUNT,Hunt,Caza,aldeanos
+JOURNAL_KIND_RESCUE,Rescue,Rescate,aldeanos
+JOURNAL_KIND_ESCORT,Escort,Escolta,aldeanos
+JOURNAL_KIND_ERRAND,Message,Recado,aldeanos
+JOURNAL_KIND_BEAST,Named beast,Fiera,aldeanos
+JOURNAL_READY,go and tell %s,ve a decírselo a %s,aldeanos
+JOURNAL_HERE,here,aquí,aldeanos
+JOURNAL_KM,%.1f km,%.1f km,aldeanos
+JOURNAL_M,%d m,%d m,aldeanos
+JOURNAL_AREA,"search around %s, %s away","busca por %s, a %s",aldeanos
+JOURNAL_WAY,"towards %s, %s away","hacia %s, a %s",aldeanos
+JOURNAL_MARKER,Errand: %s,Encargo: %s,aldeanos
+ACTION_JOURNAL,Errands journal,Diario de encargos,
+VBEAST_1,One-Eye,el Tuerto,aldeanos
+VBEAST_2,Greymane,Crin Gris,aldeanos
+VBEAST_3,Old Scar,Vieja Cicatriz,aldeanos
+VBEAST_4,Night Hunger,Hambre Negra,aldeanos
+VBEAST_5,Bonebreaker,Rompehuesos,aldeanos
+VBEAST_6,the Widow,la Viuda,aldeanos
+VBEAST_7,Frostfang,Colmillo de Escarcha,aldeanos
+VBEAST_8,the Silent One,la Silenciosa,aldeanos
+VBEAST_9,Redjaw,Quijada Roja,aldeanos
+VBEAST_10,Hollow-Eye,Ojo Hueco,aldeanos
+CON_VILLAGE_QUEST_KINDS,Errand kinds: %s,Tipos de encargo: %s,
+CON_VILLAGE_QUEST_NOBODY,Nobody in the nearest village can ask for that now (go closer).,Nadie del poblado más cercano puede pedir eso ahora (acércate).,
+CON_VILLAGE_QUEST_FORCED,%s now asks: %s (talk to them: E),%s ahora pide: %s (háblale: E),

@@ -102,10 +102,12 @@ func _arrive(v: int) -> void:
 	AppearanceCatalog.categories()
 	var generation: int = _generation.get(v, 0)
 	_lock.lock()
+	var away := _manager.quests.away_ids()
 	for who in SettlementPopulation.residents(_villages[v], v, _prefabs, _seed):
-		# Su casa ya es del jugador (la ha tocado): ahí no vive nadie. Ni quien se ha ido con él.
+		# Su casa ya es del jugador (la ha tocado): ahí no vive nadie. Ni quien se ha ido con él, ni el que
+		# anda perdido en el monte (un encargo de rescate).
 		if not village.homes.has(who.home) or not _manager.is_settled(v, who.home) \
-				or _manager.get_companions().has(String(who.id)):
+				or _manager.get_companions().has(String(who.id)) or away.has(String(who.id)):
 			continue
 		_jobs.append({"village": v, "generation": generation, "resident": who, "pieces": pieces_of(who),
 			"tool": tool_of(who)})

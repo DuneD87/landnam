@@ -61,6 +61,11 @@ var danger := false
 var threat: NPCController
 var threat_kind := &""
 var _danger_age := INF
+## Las marcas de quién pide algo: cada cuánto se miran, y a quién ya ha llamado (id -> periodo).
+const MARKS_INTERVAL := 2.0
+const CALL_REACH := 10.0
+var _marks_age := 0.0
+var _called := {}
 var _calm := 0.0
 ## Llueve (RAIN) o nieva (SNOW) en el poblado; si las dos, cuenta la lluvia.
 var raining := false
@@ -122,6 +127,10 @@ func hour(delta := 0.0) -> float:
 ## a todos (Villager.alarm).
 func update(delta: float) -> void:
 	var h := hour(delta)
+	_marks_age += delta
+	if _marks_age >= MARKS_INTERVAL:
+		_marks_age = 0.0
+		_update_marks()
 	_weather_age += delta
 	if _weather_age >= WEATHER_INTERVAL:
 		_weather_age = 0.0
@@ -144,6 +153,43 @@ func update(delta: float) -> void:
 					v.alarm()
 	elif danger and _calm >= CALM_TIME:
 		danger = false
+
+
+## Quién tiene algo que pedir al jugador (un encargo por sortear o sin aceptar: «!») y a quién hay que
+## cobrarle uno ya cumplido («?»): lo lleva encima (Villager.set_mark). Quien pide algo, al pasar el jugador
+## a menos de CALL_REACH m, lo llama una vez por periodo (Villager.call_player).
+func _update_marks() -> void:
+	if quests == null:
+		return
+	var prey := prey_near(SettlementQuests.SCOUT_REACH)
+	var at := player_local()
+	var inventory := player.get("inventory") as Inventory if player != null and is_instance_valid(player) else null
+	for v in villagers:
+		if not is_instance_valid(v):
+			continue
+		var id := String(v.resident.get("id", ""))
+		var open := quests.open_of(id)
+		var mark := &""
+		if not open.is_empty():
+			if quests.is_ready(open, inventory) and String(open.kind) != "escort":
+				mark = &"ready"
+		elif not quests.errand_for(id).is_empty():
+			mark = &"ready"
+		elif not danger and not quests.offer(v.resident, index, name, prey).is_empty():
+			mark = &"offer"
+		v.set_mark(mark)
+		if mark == &"offer" and at.is_finite() and not _called.has(id) \
+				and v.local_position().distance_to(at) < CALL_REACH and v.call_player():
+			_called[id] = quests.period()
+			var said := VillagerTalk.pick(&"CALL", v._rng)
+			var hotbar: Node = player.get("hotbar") if player != null and is_instance_valid(player) else null
+			if hotbar != null:
+				hotbar.notify(TranslationServer.translate("VQUEST_SAYS") % [v.resident.get("name", ""), said.text])
+	# Se vuelve a llamar en el periodo siguiente.
+	var now := quests.period()
+	for id: String in _called.keys():
+		if int(_called[id]) != now:
+			_called.erase(id)
 
 
 func _read_weather() -> void:

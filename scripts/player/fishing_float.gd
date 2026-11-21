@@ -11,6 +11,8 @@ var _mesh := ImmediateMesh.new()
 var _material: StandardMaterial3D
 var _alert: Label3D
 var _time := 0.0
+## La de un colono (SettlerFish): sin el aro de apuntar ni el aviso de picada, que son del jugador.
+var npc := false
 
 
 func _ready() -> void:
@@ -58,10 +60,10 @@ func present(delta: float, aiming: bool, valid: bool, nibbling: bool, hooked: bo
 		Color(0.3, 0.95, 0.8) if valid else Color(1.0, 0.25, 0.2))
 	_ring.scale = Vector3.ONE * (1.0 + sin(_time * (12.0 if hooked else 4.0)) * 0.12)
 	_ring.position.y = 0.06
-	_ring.visible = not flying
+	_ring.visible = not flying and not npc
 	_bobber.visible = not aiming
 	_bobber.position.y = sin(_time * 17.0) * 0.12 - 0.08 if nibbling or hooked else 0.05
-	_alert.visible = hooked
+	_alert.visible = hooked and not npc
 	_line.visible = not aiming
 
 

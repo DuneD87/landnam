@@ -81,6 +81,8 @@ var resting: RestController
 var throne_view: ThroneView
 ## Hablar con los aldeanos de los poblados.
 var villager_chat: VillagerChat
+## El diario de encargos (L): QuestJournal.
+var quest_journal: QuestJournal
 ## Las órdenes al grupo que lo acompaña (la rueda de group_orders).
 var group_command: GroupCommand
 ## Comer, beber, despellejar y las hogueras.
@@ -711,6 +713,10 @@ func _ready():
 	villager_chat.name = "VillagerChat"
 	add_child(villager_chat)
 	villager_chat.setup(self)
+	quest_journal = QuestJournal.new()
+	quest_journal.name = "QuestJournal"
+	add_child(quest_journal)
+	quest_journal.setup(self)
 	group_command = GroupCommand.new()
 	group_command.name = "GroupCommand"
 	add_child(group_command)
@@ -1457,6 +1463,8 @@ func _input(event):
 		elif event.is_action_pressed("world_map") and not _is_text_field_focused():
 			world_map_ui.toggle()
 			capture_mouse(not world_map_ui.visible)
+		elif event.is_action_pressed(QuestJournal.ACTION) and not _is_text_field_focused():
+			quest_journal.toggle()
 		elif event.is_action_pressed(ThroneView.REMOTE_ACTION) and is_mouse_captured() and not _is_text_field_focused():
 			# Los colonos de la base desde cualquier sitio cerca de un trono (ThroneView.try_remote).
 			throne_view.try_remote()

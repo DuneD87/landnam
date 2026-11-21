@@ -615,6 +615,17 @@ func ray_distance(origin: Vector3, direction: Vector3, max_distance: float) -> f
 	return best
 
 
+## Dónde va el siguiente bloque por poner (mundo, el centro de su celda; van por capas, de abajo
+## arriba), o el centro de la obra si ya no quedan bloques. El constructor (SettlerBuild) planta su
+## andamio a esa altura.
+func next_point() -> Vector3:
+	for i in range(_cursor, _state.size()):
+		if _state[i] == State.PENDING and _keys[i] is String:
+			var size := _cell_sizes[_grid_of[i]]
+			return global_transform * ((Vector3(_cells[i]) + Vector3.ONE * 0.5) * size)
+	return get_center()
+
+
 ## Centro de la obra en el mundo y radio que la cubre.
 func get_center() -> Vector3:
 	return global_transform * _box.get_center()

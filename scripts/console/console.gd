@@ -361,7 +361,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
 	_add(ConsoleCommand.new("trail", "trail [tp]", "CON_HELP_TRAIL", _cmd_trail, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp"])))
-	_add(ConsoleCommand.new("village", "village [tp | trust <0-100>]", "CON_HELP_VILLAGE", _cmd_village, 0,
+	_add(ConsoleCommand.new("village", "village [tp | trust <0-100> | quest <fetch|hunt|rescue|escort|errand|beast>]", "CON_HELP_VILLAGE", _cmd_village, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp", "trust"])))
 	_add(ConsoleCommand.new("settler", "settler [amount] [kit]", "CON_HELP_SETTLER", _cmd_settler, 0,
 		func() -> PackedStringArray: return PackedStringArray(["kit"])))
@@ -389,14 +389,15 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("scale", "scale [0.25-2.0]", "CON_HELP_SCALE", _cmd_scale))
 	_add(ConsoleCommand.new("terrain", TERRAIN_USAGE, "CON_HELP_TERRAIN", _cmd_terrain))
 	_add(ConsoleCommand.new("spawn", "spawn <animal> [amount] [distance] [variant]", "CON_HELP_SPAWN", _cmd_spawn, 1,
-		_complete_animals))
+		_complete_animals, _complete_animals))
 	_add(ConsoleCommand.new("ai", "ai [radius]", "CON_HELP_AI", _cmd_ai))
 	_add(ConsoleCommand.new("die", "die", "CON_HELP_DIE", _cmd_die))
 	_add(ConsoleCommand.new("sever", "sever [0-1|auto]", "CON_HELP_SEVER", _cmd_sever))
 	_add(ConsoleCommand.new("blood", "blood", "CON_HELP_BLOOD", _cmd_blood))
-	_add(ConsoleCommand.new("cut", CUT_USAGE, "CON_HELP_CUT", _cmd_cut, 0, _complete_cuts))
+	_add(ConsoleCommand.new("cut", CUT_USAGE, "CON_HELP_CUT", _cmd_cut, 0, _complete_cuts, _complete_cuts))
 	_add(ConsoleCommand.new("status", "status [<id> [left|right|zone] [seconds] | remove [id]]", "CON_HELP_STATUS",
-		_cmd_status, 0, _complete_status))
+		_cmd_status, 0, _complete_status,
+		func() -> PackedStringArray: return StatusEffectData.ids()))
 	_add(ConsoleCommand.new("toon", TOON_USAGE, "CON_HELP_TOON", _cmd_toon, 0, _complete_toon))
 	_add(ConsoleCommand.new("needs", "needs [<name> <value> | fill | empty | pause [on|off] | rate <x>]",
 		"CON_HELP_NEEDS", _cmd_needs, 0, _complete_needs))
@@ -406,7 +407,7 @@ func _register_commands() -> void:
 
 const XP_USAGE := "xp [add <n> | level <n> | attr <name> <n> | respec]"
 const SEASON_USAGE := "season [spring|summer|autumn|winter|<day>] | season speed <x> | season perf [leaves|cold|meadow|none]"
-const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off] [blocks 16|32]"
+const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off] [blocks 16|32] [shadowlod <lod>|all] [horizon on|off]"
 const CUT_USAGE := "cut [arm|forearm|thigh|shin] [left|right]"
 
 
@@ -692,6 +693,8 @@ func _cmd_village(args: PackedStringArray) -> String:
 		var relations := manager.relations
 		relations.add(nearest, clampf(float(args[1]), 0.0, SettlementRelations.MAX_TRUST) - relations.trust(nearest))
 		return _paint(COLOR_OK, tr("CON_VILLAGE_TRUST_DONE") % roundi(relations.trust(nearest)))
+	if args.size() > 1 and args[0] == "quest" and manager != null:
+		return _village_quest(manager, nearest, player as Node3D, args[1].to_lower())
 	var template := SettlementField.template(plan.template)
 	var north := (Vector3.UP - up * up.y).normalized()
 	var to := (center - up).slide(up)
@@ -715,6 +718,26 @@ func _cmd_village(args: PackedStringArray) -> String:
 			text += "\n" + tr("CON_VILLAGE_QUEST") % [quest.name, quest.village_name, VillagerTalk.quest_status(quest,
 				player.get("inventory") as Inventory)]
 	return _paint(COLOR_INFO, text)
+
+
+## El aldeano más cercano al jugador del poblado [v] pide ahora un encargo de [kind] (para probarlos).
+func _village_quest(manager: SettlementManager, v: int, player: Node3D, kind: String) -> String:
+	if not SettlementQuests.KINDS.has(kind):
+		return _paint(COLOR_ERR, tr("CON_VILLAGE_QUEST_KINDS") % ", ".join(SettlementQuests.KINDS.keys()))
+	var village := manager.village_of(v)
+	var best: Villager
+	if village != null:
+		for villager in village.villagers:
+			if is_instance_valid(villager) and (best == null or villager.global_position.distance_to(player.global_position)
+					< best.global_position.distance_to(player.global_position)):
+				best = villager
+	if best == null:
+		return _paint(COLOR_ERR, tr("CON_VILLAGE_QUEST_NOBODY"))
+	var quest := manager.quests.force_offer(best.resident, v, village.name, village.prey_near(SettlementQuests.SCOUT_REACH), kind)
+	if quest.is_empty():
+		return _paint(COLOR_ERR, tr("CON_VILLAGE_QUEST_NOBODY"))
+	return _paint(COLOR_OK, tr("CON_VILLAGE_QUEST_FORCED") % [best.resident.get("name", ""),
+		VillagerTalk.quest_status(quest, player.get("inventory") as Inventory)])
 
 
 func _cmd_heal(args: PackedStringArray) -> String:
@@ -993,6 +1016,13 @@ func _cmd_terrain(args: PackedStringArray) -> String:
 				# draws (medido: -0,7 ms de CPU de render), pero cada bloque del instancer y cada
 				# remallado al cavar abarca ocho veces más volumen.
 				t.mesh_block_size = value.to_int()
+			elif key == "shadowlod" and "shadow_casting_max_lod" in t and (value.is_valid_int() or value == "all"):
+				# LOD más grueso cuyos bloques proyectan sombra (módulo parcheado); "all" = todos.
+				t.set("shadow_casting_max_lod", 32 if value == "all" else maxi(value.to_int(), 0))
+			elif key == "horizon" and "horizon_culling_enabled" in t:
+				# Descarte de los bloques tapados por la curvatura del planeta (PlanetLoader._setup_horizon_culling).
+				# Sin radio de esfera maciza (planeta sin buscar) no hace nada.
+				t.set("horizon_culling_enabled", value in ["on", "1", "true"])
 			else:
 				return _paint(COLOR_ERR, tr("CON_USAGE") % TERRAIN_USAGE)
 		i += 2
@@ -1002,6 +1032,18 @@ func _cmd_terrain(args: PackedStringArray) -> String:
 		out += "\n  %s: %s" % [owner_name, tr("CON_TERRAIN_LINE") % [
 			tr("CON_TERRAIN_ALL") if t.collision_lod_count == 0 else str(t.collision_lod_count), t.lod_count,
 			"on" if t.normalmap_enabled else "off"]]
+		if "shadow_casting_max_lod" in t:
+			out += " · shadowlod %d" % int(t.get("shadow_casting_max_lod"))
+		if "horizon_culling_enabled" in t:
+			if t.get("horizon_culling_enabled"):
+				var st: Dictionary = t.get_statistics()
+				out += " · horizon %d/%d bloques ocultos (r %.0f)" % [int(st.get("horizon_culled_blocks", 0)),
+					int(st.get("horizon_tested_blocks", 0)), float(t.get("horizon_occluder_radius"))]
+				var skip := str(st.get("horizon_skip_reason", ""))
+				if not skip.is_empty():
+					out += " [%s]" % skip
+			else:
+				out += " · horizon off"
 	return out
 
 

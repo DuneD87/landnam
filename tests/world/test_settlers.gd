@@ -114,6 +114,9 @@ func _run() -> void:
 	if _want("builder"):
 		print("SECTION _check_builder t=%.1f" % (Time.get_ticks_msec() / 1000.0))
 		await _check_builder()
+	if _want("scaffold"):
+		print("SECTION _check_scaffold t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_scaffold()
 	if _want("guard"):
 		print("SECTION _check_guard t=%.1f" % (Time.get_ticks_msec() / 1000.0))
 		await _check_guard()
@@ -165,6 +168,10 @@ func _run() -> void:
 	if _want("task_cleanup"):
 		_check_task_cleanup()
 	await _clear()
+	if _want("food_drop"):
+		await _check_food_drop()
+	if _want("zones"):
+		await _check_zones()
 	Engine.time_scale = 1.0
 	print("RESULT: %d failures" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
@@ -449,6 +456,56 @@ func _check_builder() -> void:
 	check(not is_instance_valid(far) or far.is_complete(), "lejos del jugador también la acaba (%.0f s)" % (240.0 - left))
 	check(builder.global_position.distance_to(at) < 0.5, "sin moverse del sitio")
 	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	chest.queue_free()
+	GridManager.clear_all()
+	planet.queue_free()
+	await _clear()
+
+
+## Una obra alta: lo de arriba lo pone desde un andamio (SettlerScaffold) al que sube por la escalera, y
+## al acabar baja y lo quita.
+func _check_scaffold() -> void:
+	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	var planet := Node3D.new()
+	planet.name = "TestPlanet"
+	_host.add_child(planet)
+	var blocks := {}
+	for x in 2:
+		for y in 5:
+			blocks["%d,%d,0" % [x, y]] = {"block_id": 0, "material_id": "stone"}
+	var data := {"version": 1, "created": "2026-11-21T12:00:00", "dynamic": false, "bounds_min": [0, 0, 0],
+		"bounds_max": [2, 5, 1], "block_count": 10, "prop_count": 0,
+		"grids": [{"cell_size": 1.0, "blocks": blocks, "materials": {}, "props": []}]}
+	var site := BlueprintSite.create(data, planet, Transform3D(Basis.IDENTITY, Vector3(8.0, 0.0, 6.0)), "muro")
+	var chest := _chest(Vector3(4.0, 0.0, -4.0))
+	var cost := site.get_cost()
+	for id: StringName in cost:
+		chest.inventory.add_item(_item(id), int(cost[id]) + 5)
+	var builder := _spawn(Vector3(3.0, 0.05, 0.0), Companion.Mode.SETTLE)
+	builder.settle_here(_local(Vector3(3.0, 0.05, 0.0)))
+	builder.pack.add_item(_item(&"stone_hammer_01"), 1)
+	builder.work.assign(SettlerWork.Job.BUILD)
+	var left := 150.0
+	var planted := false
+	var aloft := 0.0
+	var high := 0.0
+	while left > 0.0 and is_instance_valid(site) and not site.is_complete():
+		await _wait(0.5)
+		left -= 0.5
+		var task := builder.work.task as SettlerBuild
+		if task != null and task._scaffold != null and is_instance_valid(task._scaffold):
+			planted = true
+			high = maxf(high, task._scaffold.height)
+			if task._on_scaffold():
+				aloft += 0.5
+	check(not is_instance_valid(site) or site.is_complete(), "levanta el muro de 5 m (%.0f s)" % (150.0 - left))
+	check(planted and high >= 1.0, "planta un andamio para lo alto (hasta %.1f m)" % high)
+	check(aloft > 2.0, "y martillea desde arriba (%.1f s en la plataforma)" % aloft)
+	await _wait(15.0)
+	var task := builder.work.task as SettlerBuild
+	check(task == null or task._scaffold == null, "al acabar lo quita")
+	check(not builder.is_climbing() and (builder.global_position - Vector3(0, 0, 0)).y < 0.6,
+		"y queda en el suelo (a %.2f m)" % builder.global_position.y)
 	chest.queue_free()
 	GridManager.clear_all()
 	planet.queue_free()
@@ -898,6 +955,61 @@ func _check_hunter_away() -> void:
 	chest.queue_free()
 
 
+## Sin cocinero en la base, lo que se come que traen el cazador y el pescador va al comedero; con
+## cocinero, al cofre (él lo asa). Y despiezan con el clip agachado (AnimSplice).
+func _check_food_drop() -> void:
+	var chest := _chest(Vector3(80.0, 0.0, 0.0))
+	var feeder := _feeder(Vector3(82.0, 0.0, 0.0))
+	var hunter := _spawn(Vector3(81.0, 0.05, 2.0), Companion.Mode.SETTLE)
+	hunter.settle_here(_local(Vector3(81.0, 0.05, 2.0)))
+	check(hunter.has_anim(AnimSplice.BUTCHER), "el colono tiene el clip de despiezar agachado")
+	hunter.pack.add_item(_item(&"stone_axe_01"), 1)
+	hunter.work.assign(SettlerWork.Job.HUNT)
+	hunter.work.away(SettlerHunt.AWAY_KILL + 1.0, 10.0)
+	var meat := _item(HuntingLoot.MEAT)
+	check(feeder.inventory.get_item_count(meat) == SettlerHunt.AWAY_MEAT and chest.inventory.get_item_count(meat) == 0,
+		"sin cocinero, la carne al comedero (%d en el comedero, %d en el cofre)" % [
+			feeder.inventory.get_item_count(meat), chest.inventory.get_item_count(meat)])
+	check(chest.inventory.get_item_count(_item(HuntingLoot.HIDE)) == SettlerHunt.AWAY_HIDE, "y la piel al cofre")
+	var cook := _spawn(Vector3(84.0, 0.05, 2.0), Companion.Mode.SETTLE)
+	cook.settle_here(_local(Vector3(84.0, 0.05, 2.0)))
+	cook.work.assign(SettlerWork.Job.COOK)
+	hunter.work.away(SettlerHunt.AWAY_KILL + 1.0, 10.0)
+	check(chest.inventory.get_item_count(meat) == SettlerHunt.AWAY_MEAT, "con cocinero, al cofre")
+	chest.queue_free()
+	feeder.queue_free()
+	await _clear()
+
+
+## Las zonas del trono (SettlerZones): los sin oficio de cerca la llenan hasta el cupo; bajarlo suelta
+## al que sobra; quitarla para a los suyos; y se guardan.
+func _check_zones() -> void:
+	var zones := _companions.zones
+	var settlers: Array[TestCompanion] = []
+	for i in 3:
+		var c := _spawn(Vector3(-30.0 - i * 2.0, 0.05, 10.0), Companion.Mode.SETTLE)
+		c.settle_here(_local(c.global_position))
+		settlers.append(c)
+	var zone := zones.add(SettlerWork.Job.FELL, 0, _local(Vector3(-40.0, 0.0, 20.0)), 10.0, 2)
+	var id := int(zone.id)
+	await _wait(SettlerZones.TICK + 0.5)
+	var inside := zones.members(id, _companions.get_companions())
+	check(inside.size() == 2, "dos de los tres sin oficio van a la zona de cupo 2 (%d)" % inside.size())
+	check(inside.all(func(c: Companion) -> bool: return c.work.job == SettlerWork.Job.FELL and c.work.zone.is_finite()),
+		"talando en ella")
+	zones.set_quota(id, 1)
+	await _wait(SettlerZones.TICK + 0.5)
+	check(zones.members(id, _companions.get_companions()).size() == 1, "con cupo 1, uno la deja")
+	var saved := zones.save_data()
+	var copy := SettlerZones.new()
+	copy.restore(saved)
+	check(copy.list.size() == 1 and int(copy.find(id).quota) == 1, "se guarda con su cupo")
+	zones.remove(id, _companions.get_companions())
+	check(zones.list.is_empty() and settlers.all(func(c: Companion) -> bool: return c.work.job == SettlerWork.Job.NONE),
+		"al quitarla, los suyos lo dejan")
+	await _clear()
+
+
 func _check_saved() -> void:
 	var c: TestCompanion = _companions._list[_companions._list.size() - 1]
 	var data := c.work.save_data()
@@ -1095,6 +1207,25 @@ func _check_gear() -> void:
 	check(c._weapon == null or c._weapon.id != &"hunting_bow", "el arco no es su arma de mano")
 	c.pack.remove_item(_item(&"hide_shield"), 1)
 	check(c.gear.shield == null and c.health.guard.item == null, "sin escudo no para")
+	# Sin escudo: con un arma a dos manos que para, para con ella; con lo demás, esquiva.
+	c._weapon = _item(&"stone_maul")
+	check(c._guard_item() == c._weapon, "con la maza a dos manos se cubre con ella")
+	c._weapon = _item(&"stone_axe_01")
+	check(c._guard_item() == null, "con un hacha de una mano no tiene con qué parar")
+	c._dodge_dir = Vector3.BACK
+	c._dodge_t = 0.0
+	c.combat_pose()
+	var went := 0.0
+	var safe := false
+	for i in 60:
+		var step: Array = c._dodging(1.0 / 60.0)
+		went += float(step[1]) / 60.0
+		safe = safe or not c._hurtbox.is_enabled()
+		if c._dodge_t < 0.0:
+			break
+	check(c._dodge_t < 0.0 and absf(went - PlayerCombat.BACKSTEP_DISTANCE) < 0.4,
+		"el paso atrás recorre lo del jugador (%.2f m)" % went)
+	check(safe and c._hurtbox.is_enabled(), "sin que le den al principio, y luego otra vez sí")
 	await _clear()
 
 

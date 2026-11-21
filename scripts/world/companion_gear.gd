@@ -16,6 +16,8 @@ const STAMINA_REGEN := 22.0
 ## El escudo en el antebrazo, como CombatPose.SHIELD_ON_FOREARM: hacia el codo y hacia fuera del dorso.
 const SHIELD_ON_FOREARM := Vector2(0.13, 0.08)
 const LEFT_MIDDLE1 := "mixamorig_LeftHandMiddle1"
+## La flecha que se ve al tensar (la del jugador, PlayerCombat).
+const ARROW_MESH := "res://data/items/meshes/weapons/arrow.res"
 
 var guard: Guard
 var stamina: StaminaComponent
@@ -32,6 +34,8 @@ var _worn := {}
 var _outfit := {}
 var _shield_node: Node3D
 var _bow_node: Node3D
+## La flecha en la cuerda o en la mano mientras tensa (place_bow).
+var _arrow: MeshInstance3D
 var _left_grip: Node3D
 ## El antebrazo en reposo: hacia fuera del dorso y hacia el pulgar (CombatPose._shield_frame).
 var _forearm_out := Vector3.ZERO
@@ -142,6 +146,42 @@ func bow_hand() -> Vector3:
 	if bone < 0:
 		return _model.global_position + _model.global_basis.y * 1.4
 	return _skeleton.global_transform * _skeleton.get_bone_global_pose(bone).origin
+
+
+## Tras posar los brazos (CombatPose.after_pose): con el arco tensándose ([aim] > 0), el arco, la cuerda y
+## la flecha donde los deja BowAnimRig, como al jugador (PlayerCombat._place_bow); si no, el arco cuelga
+## de la mano. Del agarre de colgar al de tirar pasa sin saltos.
+func place_bow(p: CombatPose, aim: float) -> void:
+	if _bow_node == null:
+		return
+	var visual := _bow_node as RangedWeaponVisual
+	if aim <= 0.001 or not _bow_node.visible:
+		_bow_node.top_level = false
+		_bow_node.transform = Transform3D.IDENTITY
+		if _arrow != null:
+			_arrow.visible = false
+		if visual != null:
+			visual.flex = 0.0
+			visual.set_draw_point(null)
+		return
+	var rig := p.bow_rig
+	_bow_node.top_level = true
+	var hanging := p.bone_world_xform(HumanRig.LEFT_HAND_MIDDLE2) * CombatPose.LEFT_GRIP
+	var k := smoothstep(0.0, 0.7, aim)
+	_bow_node.global_transform = hanging.orthonormalized().interpolate_with(rig.bow_xform, k)
+	if visual != null:
+		visual.flex = rig.bow_flex
+		visual.set_draw_point(rig.string_point if k > 0.95 else null)
+	if _arrow == null:
+		_arrow = MeshInstance3D.new()
+		_arrow.name = "NockedArrow"
+		_arrow.mesh = load(ARROW_MESH)
+		_arrow.top_level = true
+		_arrow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_model.add_child(_arrow)
+	_arrow.visible = rig.arrow_mode != &"" and k > 0.5
+	if _arrow.visible:
+		_arrow.global_transform = rig.arrow_xform
 
 
 ## Cada pose del esqueleto: el escudo, en el antebrazo.

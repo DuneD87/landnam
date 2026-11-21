@@ -42,6 +42,8 @@ const HEADING_BACK := 1.5
 const LOOSE_STEP := 0.6
 ## Para que la charla (VillagerChat) lo encuentre.
 const GROUP := &"settlement_companions"
+## Al cargar, los colonos a más de esto (m) del jugador se visten en un hilo (restore_save_data).
+const DRESS_NOW := 150.0
 
 var entity_id := ""
 var save_category := "npc"
@@ -64,6 +66,13 @@ var _heading := Vector3.ZERO
 var _dead := {}
 ## Lo que ha trepado el jugador, para que el grupo suba detrás (Companion._to_route).
 var routes := ClimbRoutes.new()
+## Las zonas de trabajo de la base, con su cupo (se marcan desde el trono).
+var zones := SettlerZones.new()
+## Los colonos de la partida que aún se visten en el hilo ({"entry", "village", "who", "local", "pieces",
+## "tool"} y, ya vestidos, "model"), la tarea del hilo y su candado.
+var _pending: Array[Dictionary] = []
+var _dress_task := -1
+var _dress_lock := Mutex.new()
 
 
 ## Como SettlementVillagers.setup.
@@ -99,6 +108,9 @@ func quests() -> SettlementQuests:
 func has(id: String) -> bool:
 	if _dead.has(id):
 		return true
+	for job in _pending:
+		if String(job.who.get("id", "")) == id:
+			return true
 	for c in _list:
 		if not is_instance_valid(c):
 			continue
@@ -109,16 +121,26 @@ func has(id: String) -> bool:
 	return false
 
 
+## Si el vecino [id] ha muerto yendo con el jugador.
+func is_dead(id: String) -> bool:
+	if _dead.has(id):
+		return true
+	for c in _list:
+		if is_instance_valid(c) and c.dead and String(c.resident.get("id", "")) == id:
+			return true
+	return false
+
+
 ## Si ya van todos los que caben (MAX), sin contar al que se va a casa ni a los colonos.
 func is_full() -> bool:
 	return party().size() >= MAX
 
 
-## El grupo: los que acompañan al jugador o lo esperan.
+## El grupo: los que acompañan al jugador o lo esperan (sin los que van por un encargo: Companion.ward).
 func party() -> Array[Companion]:
 	var out: Array[Companion] = []
 	for c in get_companions():
-		if c.mode == Companion.Mode.FOLLOW or c.mode == Companion.Mode.WAIT:
+		if c.ward == "" and (c.mode == Companion.Mode.FOLLOW or c.mode == Companion.Mode.WAIT):
 			out.append(c)
 	return out
 
@@ -139,10 +161,68 @@ func follower_index(c: Companion) -> int:
 
 # --- Formación ------------------------------------------------------------------------------------
 
+## Los colonos de la partida que se vestían en el hilo: sale uno por fotograma al estar listo.
+func _process(_delta: float) -> void:
+	if _pending.is_empty():
+		return
+	if _dress_task < 0:
+		_dress_task = WorkerThreadPool.add_task(_dress_pending, false, "Settlers")
+	_dress_lock.lock()
+	var ready := {}
+	for job in _pending:
+		if job.has("model"):
+			ready = job
+			break
+	if not ready.is_empty():
+		_pending.erase(ready)
+	_dress_lock.unlock()
+	if not ready.is_empty() and _terrain != null and is_instance_valid(_terrain):
+		_apply_entry(ready.entry, int(ready.village), ready.who, ready.model,
+			_terrain.global_transform * (ready.local as Transform3D))
+	if WorkerThreadPool.is_task_completed(_dress_task):
+		WorkerThreadPool.wait_for_task_completion(_dress_task)
+		_dress_task = -1
+
+
+## En el hilo: viste a los que esperan, de uno en uno.
+func _dress_pending() -> void:
+	while true:
+		_dress_lock.lock()
+		var job := {}
+		for pending in _pending:
+			if not pending.has("model") and not pending.has("dressing"):
+				job = pending
+				job.dressing = true
+				break
+		_dress_lock.unlock()
+		if job.is_empty():
+			return
+		var model := Villager.build_model(job.who, job.pieces, job.tool)
+		_dress_lock.lock()
+		job.model = model
+		_dress_lock.unlock()
+
+
+## Espera al hilo y suelta lo que estaba por vestir.
+func _drop_pending() -> void:
+	if _dress_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_dress_task)
+		_dress_task = -1
+	for job in _pending:
+		if job.has("model") and is_instance_valid(job.model):
+			(job.model as Node).free()
+	_pending.clear()
+
+
+func _exit_tree() -> void:
+	_drop_pending()
+
+
 func _physics_process(delta: float) -> void:
 	if _player == null or not is_instance_valid(_player) or _terrain == null or not is_instance_valid(_terrain):
 		return
 	routes.update(_player, _terrain, delta)
+	zones.tick(delta, get_companions())
 	var here := _terrain.global_transform.affine_inverse() * _player.global_position
 	if _trail.is_empty() or _trail[_trail.size() - 1].distance_to(here) > TRAIL_BREAK:
 		_trail = PackedVector3Array([here])
@@ -380,7 +460,7 @@ func next_formation() -> Formation:
 
 ## Los que viven en la base.
 func settler_count() -> int:
-	var count := 0
+	var count := _pending.size()
 	for c in get_companions():
 		if c.mode == Companion.Mode.SETTLE:
 			count += 1
@@ -399,6 +479,29 @@ func recruit(villager: Villager) -> Companion:
 	var model := villager.leave_with_player()
 	villager.queue_free()
 	return _add(v, who, model, at, Companion.Mode.FOLLOW)
+
+
+## Un vecino que va por un encargo (Companion.ward = [ward], el "id" de quien lo pidió): [villager], que se
+## va de su poblado como al reclutarlo (la escolta), o [who] del poblado [v] vestido con [model] en [at]
+## (mundo; el perdido). En [mode].
+func add_ward(ward: String, mode: Companion.Mode, villager: Villager = null, v := -1, who := {},
+		model: Node3D = null, at := Transform3D.IDENTITY) -> Companion:
+	var c: Companion
+	if villager != null:
+		c = recruit(villager)
+		c.mode = mode
+	else:
+		c = _add(v, who, model, at, mode)
+	c.ward = ward
+	return c
+
+
+## El que va por el encargo de [ward] (Companion.ward), o null.
+func ward_of(ward: String) -> Companion:
+	for c in get_companions():
+		if c.ward == ward:
+			return c
+	return null
 
 
 ## Las herramientas de todos los oficios, para los colonos de prueba (spawn_settlers con kit).
@@ -494,6 +597,8 @@ func get_save_data() -> Dictionary:
 			"watered": c.meals.watered}
 		if c.seat() != null:
 			entry.bench = c.seat().entity_id
+		if c.ward != "":
+			entry.ward = c.ward
 		if c.is_going():
 			var spot := c.goto_spot()
 			entry.goto = [spot.x, spot.y, spot.z]
@@ -511,14 +616,18 @@ func get_save_data() -> Dictionary:
 			if not c.return_work.is_empty():
 				entry.return_work = c.return_work
 		out.append(entry)
+	# Los que aún se visten, como venían.
+	for job in _pending:
+		out.append(job.entry)
 	for c in _list:
 		if is_instance_valid(c) and c.dead:
 			_dead[String(c.resident.get("id", ""))] = true
-	return {"companions": out, "dead": _dead.keys(), "formation": int(formation)}
+	return {"companions": out, "dead": _dead.keys(), "formation": int(formation), "zones": zones.save_data()}
 
 
 ## Antes de cargar una partida: los de ahora se van (si la partida no trae ninguno, no queda ninguno).
 func prepare_restore() -> void:
+	_drop_pending()
 	for c in get_companions():
 		_list.erase(c)
 		if c.get_parent() != null:
@@ -526,13 +635,17 @@ func prepare_restore() -> void:
 		c.queue_free()
 
 
-## Cada uno, vestido aquí mismo (es al cargar: un humano son ~100 ms), donde estaba.
+## Cada uno donde estaba. Vestir a un humano son ~100 ms: los del grupo y los colonos a menos de
+## DRESS_NOW m del jugador se visten aquí mismo; los demás colonos, en un hilo de uno en uno
+## (_dress_pending), y salen al estar listos (_process). Mientras, cuentan como colonos y se guardan
+## tal cual (_pending).
 func restore_save_data(data: Dictionary) -> void:
 	prepare_restore()
 	_dead.clear()
 	for id in data.get("dead", []):
 		_dead[str(id)] = true
 	formation = clampi(int(data.get("formation", Formation.WEDGE)), 0, Formation.size() - 1) as Formation
+	zones.restore(data.get("zones", []))
 	_trail = PackedVector3Array()
 	_heading = Vector3.ZERO
 	AppearanceCatalog.categories()
@@ -555,31 +668,43 @@ func restore_save_data(data: Dictionary) -> void:
 		if not forward.is_finite() or forward.is_zero_approx():
 			forward = (Vector3.FORWARD - up * up.z).normalized()
 		var at := _terrain.global_transform * Transform3D(Basis(up.cross(forward), up, forward), local)
+		if int(entry.get("mode", 0)) == Companion.Mode.SETTLE and _player != null and is_instance_valid(_player) \
+				and at.origin.distance_to(_player.global_position) > DRESS_NOW:
+			_pending.append({"entry": entry, "village": v, "who": who,
+				"local": Transform3D(Basis(up.cross(forward), up, forward), local),
+				"pieces": SettlementVillagers.pieces_of(who), "tool": SettlementVillagers.tool_of(who)})
+			continue
 		var model := Villager.build_model(who, SettlementVillagers.pieces_of(who), SettlementVillagers.tool_of(who))
-		var saved_mode := int(entry.get("mode", 0))
-		var mode := Companion.Mode.WAIT if saved_mode == Companion.Mode.WAIT else Companion.Mode.FOLLOW
-		var companion := _add(v, who, model, at, mode)
-		var base_raw: Array = entry.get("base", [])
-		if saved_mode == Companion.Mode.SETTLE and base_raw.size() == 3:
-			companion.settle_here(Vector3(base_raw[0], base_raw[1], base_raw[2]))
-			companion.work.restore(entry.get("work", {}))
-			companion.homing = bool(entry.get("homing", false))
-		var return_raw: Array = entry.get("return_base", [])
-		if saved_mode != Companion.Mode.SETTLE and return_raw.size() == 3:
-			companion.return_base = Vector3(return_raw[0], return_raw[1], return_raw[2])
-			companion.return_work = entry.get("return_work", {})
-		if mode == Companion.Mode.WAIT and str(entry.get("bench", "")) != "":
-			companion.sit_on_load(str(entry.bench))
-		if mode == Companion.Mode.WAIT and entry.has("field_work"):
-			companion.work.restore(entry.field_work)
-		var goto_raw: Array = entry.get("goto", [])
-		if mode == Companion.Mode.WAIT and goto_raw.size() == 3:
-			companion.go_to(_terrain.global_transform * Vector3(goto_raw[0], goto_raw[1], goto_raw[2]))
-		if entry.has("pack"):
-			companion.pack.restore_save_data(entry.pack)
-		companion.restore_health(float(entry.get("health", -1.0)))
-		companion.meals.fed = float(entry.get("fed", SettlerMeals.START_HOURS))
-		companion.meals.watered = float(entry.get("watered", SettlerMeals.START_WATER))
+		_apply_entry(entry, v, who, model, at)
+
+
+## Uno de la partida, ya vestido ([model]), en [at] (mundo) y con lo que traía [entry].
+func _apply_entry(entry: Dictionary, v: int, who: Dictionary, model: Node3D, at: Transform3D) -> void:
+	var saved_mode := int(entry.get("mode", 0))
+	var mode := Companion.Mode.WAIT if saved_mode == Companion.Mode.WAIT else Companion.Mode.FOLLOW
+	var companion := _add(v, who, model, at, mode)
+	companion.ward = str(entry.get("ward", ""))
+	var base_raw: Array = entry.get("base", [])
+	if saved_mode == Companion.Mode.SETTLE and base_raw.size() == 3:
+		companion.settle_here(Vector3(base_raw[0], base_raw[1], base_raw[2]))
+		companion.work.restore(entry.get("work", {}))
+		companion.homing = bool(entry.get("homing", false))
+	var return_raw: Array = entry.get("return_base", [])
+	if saved_mode != Companion.Mode.SETTLE and return_raw.size() == 3:
+		companion.return_base = Vector3(return_raw[0], return_raw[1], return_raw[2])
+		companion.return_work = entry.get("return_work", {})
+	if mode == Companion.Mode.WAIT and str(entry.get("bench", "")) != "":
+		companion.sit_on_load(str(entry.bench))
+	if mode == Companion.Mode.WAIT and entry.has("field_work"):
+		companion.work.restore(entry.field_work)
+	var goto_raw: Array = entry.get("goto", [])
+	if mode == Companion.Mode.WAIT and goto_raw.size() == 3:
+		companion.go_to(_terrain.global_transform * Vector3(goto_raw[0], goto_raw[1], goto_raw[2]))
+	if entry.has("pack"):
+		companion.pack.restore_save_data(entry.pack)
+	companion.restore_health(float(entry.get("health", -1.0)))
+	companion.meals.fed = float(entry.get("fed", SettlerMeals.START_HOURS))
+	companion.meals.watered = float(entry.get("watered", SettlerMeals.START_WATER))
 
 
 ## El vecino [id] del poblado [v], como lo saca su poblado, o {}.

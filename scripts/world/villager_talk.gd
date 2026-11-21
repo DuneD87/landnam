@@ -18,6 +18,10 @@ const POOLS := {
 	&"TRADE_OPEN": 3, &"TRADE_DONE": 3, &"TRADE_SHORT": 3,
 	&"QUEST_FETCH": 3, &"QUEST_HUNT": 3, &"QUEST_YES": 3, &"QUEST_WAITING": 3, &"QUEST_THANKS": 3,
 	&"QUEST_DROP": 2,
+	&"QUEST_RESCUE": 3, &"QUEST_ESCORT": 3, &"QUEST_ERRAND": 3, &"QUEST_BEAST": 3,
+	&"QUEST_HAGGLE_YES": 3, &"QUEST_HAGGLE_NO": 3, &"QUEST_LATER": 3, &"QUEST_ERRAND_GOT": 3,
+	&"WARD_FOUND": 3, &"WARD_FOLLOW": 3, &"WARD_WAIT": 2, &"WARD_HOME": 3, &"ESCORT_ARRIVED": 3,
+	&"CALL": 4, &"QUEST_LATE": 2,
 }
 ## El montón de cada nivel de confianza (SettlementRelations.TIERS).
 const TIER_POOLS: Array[StringName] = [&"WARY", &"CAUTIOUS", &"FRIENDLY", &"FRIENDS", &"KIN"]
@@ -152,8 +156,19 @@ static func pick(pool: StringName, rng: RandomNumberGenerator, last := "") -> Di
 	return _pick(pool, rng, last)
 
 
-## Lo que pide en [quest] (SettlementQuests): traer tantos de algo o acabar con una o unas fieras.
-static func quest_line(quest: Dictionary, rng: RandomNumberGenerator, last := "") -> Dictionary:
+## Lo que pide en [quest] (SettlementQuests): traer tantos de algo, acabar con una o unas fieras, buscar al
+## perdido, acompañarle, llevar un recado o matar a la fiera con nombre.
+static func quest_line(quest: Dictionary, rng: RandomNumberGenerator, last := "", villages: Array = []) -> Dictionary:
+	match String(quest.kind):
+		"rescue":
+			return _pick(&"QUEST_RESCUE", rng, last, [quest.lost_name, tr_key(_toward_key(quest, "hint", villages))])
+		"escort":
+			return _pick(&"QUEST_ESCORT", rng, last, [quest.dest_name, tr_key(_distance(_dest_distance(quest, villages)))])
+		"errand":
+			return _pick(&"QUEST_ERRAND", rng, last, [quest.to_name, quest.dest_name])
+		"beast":
+			return _pick(&"QUEST_BEAST", rng, last, [tr_key(String(quest.beast_name)),
+				tr_key(_prey_key(quest.species) + "_ONE"), tr_key(_toward_key(quest, "hint", villages))])
 	var count := int(quest.count)
 	if quest.kind == "hunt":
 		var key := _prey_key(quest.species)
@@ -164,14 +179,99 @@ static func quest_line(quest: Dictionary, rng: RandomNumberGenerator, last := ""
 	return _pick(&"QUEST_FETCH", rng, last, [count, item])
 
 
-## Cómo va [quest]: «Sílex: 1/3» (lo que lleva el jugador en [inventory], si se da) o «Lobos: 1/2».
+## Cómo va [quest]: «Sílex: 1/3» (lo que lleva el jugador en [inventory], si se da), «Lobos: 1/2», «Buscar
+## a Thora», «Acompañar a Ulf hasta Vatnsgarður»...
 static func quest_status(quest: Dictionary, inventory: Inventory = null) -> String:
+	var stage := String(quest.get("stage", ""))
+	match String(quest.kind):
+		"rescue":
+			var key := {"search": "VQUEST_RESCUE_SEARCH", "found": "VQUEST_RESCUE_FOUND", "home": "VQUEST_RESCUE_HOME"}
+			return tr_key(key.get(stage, "VQUEST_RESCUE_SEARCH")) % quest.lost_name
+		"escort":
+			return tr_key("VQUEST_ESCORT_DONE" if stage == "arrived" else "VQUEST_ESCORT") % [quest.name, quest.dest_name]
+		"errand":
+			return tr_key("VQUEST_ERRAND_BACK" if stage == "back" else "VQUEST_ERRAND") % [quest.to_name, quest.dest_name]
+		"beast":
+			return tr_key("VQUEST_BEAST_SLAIN" if stage == "slain" else "VQUEST_BEAST") % [tr_key(String(quest.beast_name)),
+				tr_key(_prey_key(quest.species) + "_ONE")]
 	var count := int(quest.count)
 	if quest.kind == "hunt":
 		return tr_key("VQUEST_STATUS") % [tr_key(_prey_key(quest.species)), mini(int(quest.done), count), count]
 	var data := ItemCatalog.get_item(StringName(quest.item))
 	var have := mini(inventory.get_item_count(data), count) if inventory != null and data != null else 0
 	return tr_key("VQUEST_STATUS") % [data.get_display_name() if data != null else String(quest.item), have, count]
+
+
+## Lo que cuenta al preguntarle los detalles de [quest] (traducido): dónde, lo lejos, el plazo y lo que hay
+## que hacer para cobrarlo.
+static func quest_details(quest: Dictionary, villages: Array = []) -> String:
+	var hours := float(SettlementQuests.HOURS.get(String(quest.kind), 48.0))
+	var due := tr_key("VQUEST_DUE") % _hours_text(hours)
+	match String(quest.kind):
+		"rescue":
+			return tr_key("VQUEST_DETAILS_RESCUE") % [tr_key(_toward_key(quest, "hint", villages)),
+				roundi(_spot_distance(quest, "hint", villages) / 50.0) * 50, due]
+		"beast":
+			return tr_key("VQUEST_DETAILS_BEAST") % [tr_key(_toward_key(quest, "hint", villages)),
+				roundi(_spot_distance(quest, "hint", villages) / 50.0) * 50, due]
+		"escort":
+			return tr_key("VQUEST_DETAILS_ESCORT") % [quest.dest_name, tr_key(_distance(_dest_distance(quest, villages))),
+				due]
+		"errand":
+			return tr_key("VQUEST_DETAILS_ERRAND") % [quest.to_name, quest.dest_name,
+				tr_key(_distance(_dest_distance(quest, villages))), due]
+		"hunt":
+			return tr_key("VQUEST_DETAILS_HUNT") % [roundi(SettlementQuests.HUNT_REACH), due]
+	return tr_key("VQUEST_DETAILS_FETCH") % due
+
+
+## [hours] de juego dichas: «medio día», «un día», «tres días».
+static func _hours_text(hours: float) -> String:
+	if hours < 20.0:
+		return tr_key("VQUEST_HOURS") % roundi(hours)
+	var days := roundi(hours / 24.0)
+	return tr_key("VQUEST_ONE_DAY") if days <= 1 else tr_key("VQUEST_DAYS") % days
+
+
+## Lo que le queda a [quest] dicho corto («quedan 5 h», «quedan 2 días»), o "" si ya no corre.
+static func time_left(hours: float) -> String:
+	if not is_finite(hours):
+		return ""
+	if hours <= 0.0:
+		return tr_key("VQUEST_LATE")
+	if hours < 24.0:
+		return tr_key("VQUEST_LEFT_HOURS") % maxi(1, ceili(hours))
+	return tr_key("VQUEST_LEFT_DAYS") % roundi(hours / 24.0)
+
+
+## Hacia dónde queda, desde la plaza del poblado de [quest], su punto [key] ("hint", "spot"): VDIR_*.
+static func _toward_key(quest: Dictionary, key: String, villages: Array) -> String:
+	var v := int(quest.village)
+	var at := SettlementQuests.vec(quest.get(key, quest.get("spot", [])))
+	if v < 0 or v >= villages.size() or not at.is_finite():
+		return "VDIR_N"
+	var plan: Dictionary = villages[v]
+	var center := (plan.center as Vector3) * float(plan.ground)
+	return heading_key(center.normalized(), (at - center).slide(center.normalized()))
+
+
+static func _spot_distance(quest: Dictionary, key: String, villages: Array) -> float:
+	var v := int(quest.village)
+	var at := SettlementQuests.vec(quest.get(key, quest.get("spot", [])))
+	if v < 0 or v >= villages.size() or not at.is_finite():
+		return 0.0
+	var plan: Dictionary = villages[v]
+	return ((plan.center as Vector3) * float(plan.ground)).distance_to(at)
+
+
+static func _dest_distance(quest: Dictionary, villages: Array) -> float:
+	var v := int(quest.village)
+	var d := int(quest.get("dest", -1))
+	if v < 0 or d < 0 or v >= villages.size() or d >= villages.size():
+		return 0.0
+	var a: Dictionary = villages[v]
+	var b: Dictionary = villages[d]
+	return ((a.center as Vector3) * float(a.ground)).distance_to((b.center as Vector3) * float(b.ground))
 
 
 ## La clave del nombre de la fiera [species] (npc_type): VPREY_WOLF; con _ONE, «un lobo», y con _MANY,
@@ -294,7 +394,11 @@ static func _equipped(player: Node, slot: ItemData.ArmorSlot) -> ItemData:
 
 ## Hacia dónde queda [toward] (tangente en la plaza de [village]), como lo diría: clave del rumbo.
 static func _direction(village: SettlementVillage, toward: Vector3) -> String:
-	var up := village.center.normalized()
+	return heading_key(village.center.normalized(), toward)
+
+
+## El rumbo (VDIR_*) de [toward] en el suelo de arriba [up] (marco del terreno: el norte es su +Y).
+static func heading_key(up: Vector3, toward: Vector3) -> String:
 	var north := (Vector3.UP - up * up.y).normalized()
 	var heading := fposmod(rad_to_deg(atan2(toward.dot(north.cross(up)), toward.dot(north))), 360.0)
 	const NAMES := ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]

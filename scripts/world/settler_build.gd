@@ -26,6 +26,12 @@ const STAND_REACH := 0.7
 const FAR_REACH := 8.0
 const HIT_PAUSE := Vector2(0.25, 0.6)
 const HIT_SPEED := 1.1
+## Hasta dónde llega el martillo desde el suelo (m sobre los pies); por encima, al andamio
+## (SettlerScaffold), con la plataforma DECK_REACH m por debajo de lo que pone (a la altura del pecho).
+## Al pie de la escalera, a menos de LADDER_REACH m.
+const GROUND_REACH := 2.4
+const DECK_REACH := 1.3
+const LADDER_REACH := 0.45
 ## Lejos: cada cuánto hace un viaje y da un martillazo (s).
 const TRIP_TIME := 30.0
 const AWAY_HIT := 2.5
@@ -36,6 +42,9 @@ const AWAY_HIT := 2.5
 static var _hauls := {}
 
 var _site: BlueprintSite
+## Su andamio (o null) y la obra para la que lo plantó.
+var _scaffold: SettlerScaffold
+var _scaffold_for: BlueprintSite
 var _phase := Phase.SEEK
 var _chest: Storage
 var _swing_left := 0.0
@@ -50,6 +59,7 @@ var _short := {}
 
 
 func stop() -> void:
+	_remove_scaffold()
 	_hauls.erase(c.get_instance_id())
 	_site = null
 	_swing_left = 0.0
@@ -81,6 +91,13 @@ func step(delta: float) -> Array:
 	if hammer == null:
 		w.block("SETTLER_NEED_HAMMER")
 		return still()
+	# Fuera de martillear (a por material, al cofre, sin obra) baja del andamio; si ya no es de su obra,
+	# lo quita.
+	if _scaffold != null and (_phase != Phase.HAMMER or not _site_ok()):
+		if _on_scaffold():
+			return _descend()
+		if not _site_ok() or _scaffold_for != _site:
+			_remove_scaffold()
 	if not _site_ok():
 		_hauls.erase(c.get_instance_id())
 		_site = _find_site()
@@ -175,6 +192,81 @@ func _load(from: Inventory) -> void:
 		_hauls[c.get_instance_id()] = {"site": _site.get_instance_id(), "items": mine}
 
 
+# --- El andamio ----------------------------------------------------------------------------------
+
+## Lo que le hace falta del andamio para lo siguiente de la obra: [] si martillea ya (desde el suelo o
+## desde arriba); si no, el paso hacia él, para subir, bajar o cambiarlo de altura.
+func _scaffold_step(delta: float) -> Array:
+	if _scaffold != null and not is_instance_valid(_scaffold):
+		_scaffold = null
+	var need := _deck_needed()
+	var aloft := _on_scaffold()
+	if need <= 0.0:
+		return _descend() if aloft else []
+	if aloft:
+		if absf(_scaffold.height - need) < 0.01:
+			return []
+		# La obra ha subido (o bajado) de capa: abajo, a cambiarlo de altura.
+		return _descend()
+	if _scaffold == null:
+		var spot := _stand_point()
+		var up := c.up_direction
+		var ground := spot - up * (spot - c.global_position).dot(up)
+		_scaffold = SettlerScaffold.plant(c._terrain, ground, _site.get_center() - ground, up, need)
+		_scaffold_for = _site
+	elif absf(_scaffold.height - need) > 0.01:
+		_scaffold.set_height(need)
+	var foot := _scaffold.foot()
+	var state := walk(foot, LADDER_REACH, delta, _scaffold)
+	if state == Walk.GOING:
+		return [heading, SettlerWork.WALK_SPEED]
+	if state == Walk.GAVE_UP and flat_to(foot) > LADDER_REACH * 3.0:
+		# No llega a la escalera: martillea desde el suelo, como antes.
+		_remove_scaffold()
+		return []
+	c.climb_ladder(_scaffold.climb_points(), _scaffold.ladder_normal(), _scaffold.stand_point(), true)
+	return still()
+
+
+## La altura de plataforma que pide lo siguiente de la obra (m), o 0 si se alcanza desde el suelo.
+func _deck_needed() -> float:
+	var up := c.up_direction
+	var feet := _scaffold.global_position if _scaffold != null and _on_scaffold() else c.global_position
+	var rise := (_site.next_point() - feet).dot(up)
+	if rise <= GROUND_REACH:
+		return 0.0
+	return SettlerScaffold.deck_for(rise, DECK_REACH)
+
+
+## Si está de pie en su andamio.
+func _on_scaffold() -> bool:
+	return _scaffold != null and is_instance_valid(_scaffold) and not c.is_climbing() \
+		and _scaffold.is_on(c.global_position)
+
+
+## Baja por la escalera hasta el pie.
+func _descend() -> Array:
+	var points := PackedVector3Array([_scaffold.global_transform * Vector3(0.0, _scaffold.height,
+		-SettlerScaffold.HALF + 0.1)])
+	points.append_array(_scaffold.descend_points())
+	c.climb_ladder(points, _scaffold.ladder_normal(), _scaffold.foot(), false)
+	return still()
+
+
+func _remove_scaffold() -> void:
+	if _scaffold != null and is_instance_valid(_scaffold):
+		_scaffold.queue_free()
+	_scaffold = null
+	_scaffold_for = null
+
+
+## Al guardar: si está en el andamio (que no se guarda), al pie de la escalera.
+func ground_spot() -> Vector3:
+	if _scaffold != null and is_instance_valid(_scaffold) and (_on_scaffold() or c.is_climbing()):
+		return _scaffold.foot()
+	return Vector3.INF
+
+
 func _hauling(delta: float) -> Array:
 	var state := walk(_stand_point(), STAND_REACH, delta, _site)
 	if state == Walk.GOING:
@@ -187,15 +279,21 @@ func _hauling(delta: float) -> Array:
 
 
 func _hammering(delta: float, hammer: ItemData) -> Array:
-	var spot := _stand_point()
-	var state := walk(spot, STAND_REACH, delta, _site)
-	if state == Walk.GOING:
-		return [heading, SettlerWork.WALK_SPEED]
-	if state == Walk.GAVE_UP and flat_to(spot) > FAR_REACH:
-		_skip[_site.get_instance_id()] = SettlerWork._now() + SettlerWork.SKIP_TIME
-		_site = null
-		return still()
-	var to := _site.get_center() - c.global_position
+	var aloft := _on_scaffold()
+	if not aloft:
+		var spot := _stand_point()
+		var state := walk(spot, STAND_REACH, delta, _site)
+		if state == Walk.GOING:
+			return [heading, SettlerWork.WALK_SPEED]
+		if state == Walk.GAVE_UP and flat_to(spot) > FAR_REACH:
+			_skip[_site.get_instance_id()] = SettlerWork._now() + SettlerWork.SKIP_TIME
+			_site = null
+			return still()
+	# Lo siguiente queda alto: al andamio (o del andamio abajo, si ya no hace falta).
+	var lift := _scaffold_step(delta)
+	if not lift.is_empty():
+		return lift
+	var to := (_site.next_point() if aloft else _site.get_center()) - c.global_position
 	c._face(to, delta)
 	_pause_left -= delta
 	var toward := c._tangent(to)

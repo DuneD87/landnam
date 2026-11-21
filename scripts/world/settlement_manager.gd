@@ -57,6 +57,8 @@ var relations := SettlementRelations.new()
 var trade := SettlementTrade.new(relations, 1)
 ## Lo que piden los vecinos y lo que el jugador tiene entre manos: se guarda con la partida.
 var quests := SettlementQuests.new(relations, 1)
+## Lo que los encargos ponen en el mundo (el perdido, el escoltado, las emboscadas, la fiera con nombre).
+var director: QuestDirector
 
 
 ## [planet]: el PlanetLoader; [terrain]: su VoxelLodTerrain; [field]: Planet.get_settlements().
@@ -69,6 +71,9 @@ func setup(planet: Node3D, terrain: Node3D, player: Node3D, field: Dictionary, c
 	trade = SettlementTrade.new(relations, int(cfg.seed))
 	quests = SettlementQuests.new(relations, int(cfg.seed))
 	quests.villages = _villages
+	var seed := int(cfg.seed)
+	quests.residents_of = func(v: int) -> Array:
+		return SettlementPopulation.residents(_villages[v], v, _prefabs, seed) if v >= 0 and v < _villages.size() else []
 	_load_distance = float(cfg.load_distance)
 	_unload_distance = maxf(float(cfg.unload_distance), _load_distance + 50.0)
 	for t in SettlementField.load_templates():
@@ -88,6 +93,9 @@ func setup(planet: Node3D, terrain: Node3D, player: Node3D, field: Dictionary, c
 	_people.name = "Villagers"
 	add_child(_people)
 	_people.setup(self, planet, terrain, player, field, _prefabs, cfg)
+	director = QuestDirector.new()
+	director.setup(self, terrain, player)
+	add_child(director)
 
 
 func _process(delta: float) -> void:
@@ -332,6 +340,11 @@ func get_companions() -> SettlementCompanions:
 	return _companions
 
 
+## El poblado [v] con su gente, si está a la vista (SettlementVillagers), o null.
+func village_of(v: int) -> SettlementVillage:
+	return _people.village(v) if _people != null else null
+
+
 ## Si el poblado [v] tiene todas sus casas levantadas (o ya son de la partida): puede tener gente.
 func village_ready(v: int) -> bool:
 	for b in (_villages[v].buildings as Array).size():
@@ -364,6 +377,8 @@ func door_of(b: int, v: int) -> WoodenDoor:
 ## Ha caído [creature] (NPCController.KILLS_GROUP): si ha sido el jugador o su compañero, cuenta para los
 ## encargos de caza, y se avisa de cómo van.
 func creature_killed(creature: NPCController, killer: Object) -> void:
+	if director != null:
+		director.on_killed(creature)
 	if killer == null or not is_instance_valid(killer) or (killer != _player and not killer is Companion) \
 			or _terrain == null or not is_instance_valid(creature):
 		return
