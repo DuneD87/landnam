@@ -124,6 +124,16 @@ const LOOK_INTERVAL := 0.5
 const AVOID := 1.3
 ## Los aldeanos de ahora, para que el jugador encuentre con quién hablar (find).
 const GROUP := &"villager"
+## A más de esto de la cámara (m), o fuera de ella, el pelo y la ropa no se mecen: no se ve, y cada
+## vaivén obliga a su esqueleto a actualizarse entero en cada fotograma.
+const SWING_REACH := 25.0
+## A más de esto de la cámara (m) no da sombra (son casi cien dibujos por humano entre las cascadas);
+## vuelve a darla SHADOW_MARGIN m antes, para que no parpadee en el borde.
+const SHADOW_REACH := 10.0
+const SHADOW_MARGIN := 1.0
+## Cada cuánto se mira lo anterior (s), y cada cuántas veces se repasan las mallas del que no da sombra.
+const DETAIL_INTERVAL := 0.25
+const SHADOW_RESCAN := 8
 ## Hablando con el jugador: lo que dura cada frase (s).
 const SAY_TIME := 2.6
 
@@ -178,6 +188,13 @@ var _sleep_routine: SleepRoutine
 ## Lo que falta para volver a apoyarse en el lecho, dormido y quieto (s).
 var _bed_fit_left := 0.0
 var _player: AnimationPlayer
+var _skeleton: Skeleton3D
+var _rig: CharacterAppearanceRig
+var _detail_left := 0.0
+var _shadowless := false
+var _shadow_scan := 0
+## Malla -> la sombra que daba, de las que se la ha quitado (_set_shadowless).
+var _shadows := {}
 var _body: AnimatableBody3D
 var _tool: Node3D
 var _anim := &""
@@ -256,7 +273,13 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 	_player = _model.get_node("AnimationPlayer") as AnimationPlayer
 	_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_tool = _model.get_node_or_null("Armature/Skeleton3D/ToolHand/Grip/Tool") as Node3D
-	(_model.get_node("Armature/Skeleton3D") as Skeleton3D).skeleton_updated.connect(_on_skeleton_updated)
+	_skeleton = _model.get_node("Armature/Skeleton3D") as Skeleton3D
+	_skeleton.skeleton_updated.connect(_on_skeleton_updated)
+	# Con modificadores (las proporciones, los vaivenes), el esqueleto se actualiza entero en cada
+	# fotograma aunque nadie lo pose. A mano va al paso de la animación (_process), que se espacia
+	# lejos y fuera de cámara.
+	_skeleton.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL
+	_rig = _model.get_node_or_null("AppearanceRig") as CharacterAppearanceRig
 	_sleep_routine = SleepRoutine.new(_player, hash([who.get("look", 0), "sleep"]),
 		_model.get_node_or_null("AppearanceRig") as CharacterAppearanceRig)
 	_body = AnimatableBody3D.new()
@@ -415,6 +438,11 @@ func leave_with_player() -> Node3D:
 	_drop_partner()
 	village.villagers.erase(self)
 	act = Act.STAND
+	# El humano se va entero: con sus vaivenes, su sombra y el esqueleto por su cuenta.
+	_set_shadowless(false)
+	if _rig != null:
+		_rig.swings_enabled = true
+	_skeleton.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_IDLE
 	var model := _model
 	remove_child(model)
 	_model = null
@@ -532,10 +560,49 @@ func _tick(delta: float, then: Callable) -> void:
 func _process(delta: float) -> void:
 	_anim_accum += delta
 	_frame += 1
+	_detail_left -= delta
+	if _detail_left <= 0.0:
+		_detail_left = DETAIL_INTERVAL
+		_update_detail()
 	var stride := AnimationLod.stride_for(self, 1.0, AnimationLod.CREATURE_STRIDES)
 	if _frame % stride == 0:
+		# El esqueleto va a mano (setup): sus modificadores, con el mismo tiempo que la animación.
+		_skeleton.advance(_anim_accum)
 		_player.advance(_anim_accum)
 		_anim_accum = 0.0
+
+
+## Lo que solo se nota de cerca: los vaivenes del pelo y la ropa (en cámara y a menos de SWING_REACH)
+## y la sombra (a menos de SHADOW_REACH).
+func _update_detail() -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	var d := camera.global_position.distance_to(global_position)
+	if _rig != null:
+		_rig.swings_enabled = d < SWING_REACH and AnimationLod.in_view(self, 1.0)
+	var far := d > (SHADOW_REACH - SHADOW_MARGIN if _shadowless else SHADOW_REACH)
+	_shadow_scan += 1
+	# Sin sombra se repasa de vez en cuando: el rig puede cambiarle la sombra a una pieza después.
+	if far != _shadowless or (far and _shadow_scan % SHADOW_RESCAN == 0):
+		_set_shadowless(far)
+
+
+## Le quita la sombra a todas sus mallas, o se la devuelve como la tenían.
+func _set_shadowless(off: bool) -> void:
+	_shadowless = off
+	if _model == null:
+		return
+	if off:
+		for mesh: GeometryInstance3D in _model.find_children("*", "GeometryInstance3D", true, false):
+			if mesh.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+				_shadows[mesh] = mesh.cast_shadow
+				mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	else:
+		for mesh: Variant in _shadows:
+			if is_instance_valid(mesh):
+				(mesh as GeometryInstance3D).cast_shadow = _shadows[mesh]
+		_shadows.clear()
 
 
 ## Lo siguiente, según la hora, el tiempo y si ataca una fiera.

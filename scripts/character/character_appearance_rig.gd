@@ -137,6 +137,10 @@ var _cloak_swing: CloakSwing
 var _hair_swing: HairSwing
 ## Whether the hair's swing was fitted to a body yet.
 var _hair_swing_fitted := false
+## Whether the swings (hair, skirt, pelt, cloak) simulate at all. Far from the camera or out of
+## its view nobody sees them, and each one makes its skeleton update in full every frame: whoever
+## owns the human turns them off there (Villager).
+var swings_enabled := true: set = set_swings_enabled
 ## [part, sex] -> the hair's rig for that style (_hair_rig()).
 var _hair_rigs := {}
 ## The eyes' mesh and forward offset the eye point was taken with, and that
@@ -377,6 +381,22 @@ func _wearing(uses: Callable) -> bool:
 	return false
 
 
+func set_swings_enabled(enabled: bool) -> void:
+	if swings_enabled == enabled:
+		return
+	swings_enabled = enabled
+	for swing: SkeletonModifier3D in [_skirt_swing, _pelt_swing, _cloak_swing, _hair_swing]:
+		if swing != null:
+			# Turning one back on resets its simulation (SpringBoneSimulator3D), so it starts at rest.
+			swing.active = enabled and bool(swing.get_meta(&"swinging", false))
+
+
+## `swing` runs while its piece is worn (`swinging`) and the swings are enabled.
+func _set_swing(swing: SkeletonModifier3D, swinging: bool) -> void:
+	swing.set_meta(&"swinging", swinging)
+	swing.active = swinging and swings_enabled
+
+
 ## Swings the skirt's bones while some piece worn hangs from them.
 func _update_skirt_swing() -> void:
 	var swinging := _wearing(SkirtBones.uses)
@@ -386,7 +406,7 @@ func _update_skirt_swing() -> void:
 		# After BodyProportions, which moves the hips it hangs from.
 		_skeleton.add_child(_skirt_swing)
 	if _skirt_swing != null:
-		_skirt_swing.active = swinging
+		_set_swing(_skirt_swing, swinging)
 		if swinging:
 			_skirt_swing.fit_legs(measurements())
 
@@ -400,7 +420,7 @@ func _update_pelt_swing() -> void:
 		# After BodyProportions, which moves the spine they hang from.
 		_skeleton.add_child(_pelt_swing)
 	if _pelt_swing != null:
-		_pelt_swing.active = swinging
+		_set_swing(_pelt_swing, swinging)
 
 
 ## Swings a cloak's bones while some piece worn hangs from them.
@@ -412,7 +432,7 @@ func _update_cloak_swing() -> void:
 		# After BodyProportions, which moves the spine it hangs from.
 		_skeleton.add_child(_cloak_swing)
 	if _cloak_swing != null:
-		_cloak_swing.active = swinging
+		_set_swing(_cloak_swing, swinging)
 		if swinging:
 			_cloak_swing.fit_legs(measurements())
 
@@ -442,7 +462,7 @@ func _update_hair_swing(restart: bool) -> void:
 		restart = true
 	if _hair_swing == null:
 		return
-	_hair_swing.active = swinging
+	_set_swing(_hair_swing, swinging)
 	if swinging and restart:
 		if not live or not _hair_swing_fitted:
 			_hair_swing.fit_body(measurements())

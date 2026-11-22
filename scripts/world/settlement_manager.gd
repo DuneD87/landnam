@@ -236,6 +236,7 @@ func _place_beds(key: String, grid: GridBase, prefab: SettlementPrefab, shift: V
 		body.add_child(shape)
 		bed.add_child(body)
 		bed.transform = grid._prop_anchor_transform(Transform3D(pose.basis, pose.origin + shift))
+		SettlementDecor.no_shadows(bed)
 		grid.planet_node.add_child(bed)
 		beds.append(bed)
 	_decor[key] = beds
@@ -250,6 +251,7 @@ func _place_work(key: String) -> void:
 	for work: Dictionary in info.get("work", []):
 		var node := SettlementDecor.make(work, frame)
 		node.name = "SettlementWork_%s_%d" % [key.replace(":", "_"), decor.size()]
+		SettlementDecor.no_shadows(node)
 		_planet.add_child(node)
 		decor.append(node)
 	for prop: Dictionary in info.get("props", []):
@@ -260,6 +262,7 @@ func _place_work(key: String) -> void:
 		if node == null:
 			continue
 		node.name = "SettlementProp_%s_%d" % [key.replace(":", "_"), decor.size()]
+		SettlementDecor.no_shadows(node)
 		_planet.add_child(node)
 		decor.append(node)
 

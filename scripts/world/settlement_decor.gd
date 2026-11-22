@@ -53,6 +53,13 @@ static func make(work: Dictionary, frame: Transform3D) -> Node3D:
 	return node
 
 
+## Quita la sombra a todo lo que se ve de [node] (un adorno, un sitio de trabajo, un lecho): son cientos
+## de piezas pequeñas por poblado, cada una un dibujo más por cascada, y su sombra casi no se nota.
+static func no_shadows(node: Node) -> void:
+	for mesh: GeometryInstance3D in node.find_children("*", "GeometryInstance3D", true, false):
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
 ## Un cuerpo estático con una caja por [size, centro].
 static func _body(boxes: Array) -> StaticBody3D:
 	var body := StaticBody3D.new()
