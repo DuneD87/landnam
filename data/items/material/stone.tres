@@ -1,12 +1,12 @@
-[gd_resource type="Resource" script_class="ItemData" format=3]
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://yd35rrssryiv"]
 
-[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_3uv04"]
-[ext_resource type="Texture2D" path="res://textures/icons/items/collectable/icon_stone.png" id="1_ul27m"]
-[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_stone/stacked_stone_albedo.png" id="3_stnalb"]
-[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_stone/stacked_stone_normal.png" id="4_stnnrm"]
-[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_stone/stacked_stone_orm.png" id="5_stnorm"]
-[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_stone/stacked_stone_height.png" id="6_stnhgt"]
-[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="9_wj03j"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="1_3uv04"]
+[ext_resource type="Texture2D" uid="uid://brxvjdmur0nso" path="res://textures/icons/items/collectable/icon_stone.png" id="1_ul27m"]
+[ext_resource type="Texture2D" uid="uid://ot62imvfbus5" path="res://textures/build_materials/stacked_stone/stacked_stone_albedo.png" id="3_stnalb"]
+[ext_resource type="Texture2D" uid="uid://dhi0ql5qbvi65" path="res://textures/build_materials/stacked_stone/stacked_stone_normal.png" id="4_stnnrm"]
+[ext_resource type="Texture2D" uid="uid://c68kygm7awd1y" path="res://textures/build_materials/stacked_stone/stacked_stone_orm.png" id="5_stnorm"]
+[ext_resource type="Texture2D" uid="uid://chbryojnepu1q" path="res://textures/build_materials/stacked_stone/stacked_stone_height.png" id="6_stnhgt"]
+[ext_resource type="Script" uid="uid://igqrfe2ewdtx" path="res://scripts/items/item_trait.gd" id="9_wj03j"]
 
 [sub_resource type="ORMMaterial3D" id="ORMMaterial3D_stone"]
 vertex_color_use_as_albedo = true

@@ -1,13 +1,13 @@
-[gd_resource type="Resource" script_class="ItemData" format=3]
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://c5qd462xun8cl"]
 
-[ext_resource type="Texture2D" path="res://textures/icons/items/collectable/icon_wood.png" id="1_do4pb"]
-[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="1_ewo7y"]
-[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_logs/stacked_logs_albedo.png" id="3_logalb"]
-[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_logs/stacked_logs_normal.png" id="4_lognrm"]
-[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_logs/stacked_logs_orm.png" id="5_logorm"]
-[ext_resource type="Texture2D" path="res://textures/build_materials/stacked_logs/stacked_logs_height.png" id="6_loghgt"]
-[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="9_pwmcf"]
-[ext_resource type="Script" path="res://scripts/items/traits/fuel_trait.gd" id="10_8i21y"]
+[ext_resource type="Texture2D" uid="uid://cuhmq8niiiy1t" path="res://textures/icons/items/collectable/icon_wood.png" id="1_do4pb"]
+[ext_resource type="Script" uid="uid://ls1dwf6ufrl6" path="res://scripts/items/item_data.gd" id="1_ewo7y"]
+[ext_resource type="Texture2D" uid="uid://b3g71ahl4p4pd" path="res://textures/build_materials/stacked_logs/stacked_logs_albedo.png" id="3_logalb"]
+[ext_resource type="Texture2D" uid="uid://bbtoasx1ryu0l" path="res://textures/build_materials/stacked_logs/stacked_logs_normal.png" id="4_lognrm"]
+[ext_resource type="Texture2D" uid="uid://ddhii31c3i32l" path="res://textures/build_materials/stacked_logs/stacked_logs_orm.png" id="5_logorm"]
+[ext_resource type="Texture2D" uid="uid://d1otwosgsdf31" path="res://textures/build_materials/stacked_logs/stacked_logs_height.png" id="6_loghgt"]
+[ext_resource type="Script" uid="uid://igqrfe2ewdtx" path="res://scripts/items/item_trait.gd" id="9_pwmcf"]
+[ext_resource type="Script" uid="uid://cgwkaqofivxf5" path="res://scripts/items/traits/fuel_trait.gd" id="10_8i21y"]
 
 [sub_resource type="ORMMaterial3D" id="ORMMaterial3D_logs"]
 vertex_color_use_as_albedo = true
