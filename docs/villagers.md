@@ -58,6 +58,14 @@ al azar entre los vecinos, uno por puesto, y los que quedan sin puesto no tienen
 | Fragua y yunque | en la herrería | herrero | martillo de piedra | el golpe rápido del banco, sobre el yunque |
 | Mostrador de la tienda | tras el mostrador abierto a la calle | tendero | ninguna | de pie, y a ratos pregona (la de hablar) |
 | Puesto del mercadillo (comida, pieles, cacharros) | tras el mostrador del puesto | vendedor de comida, peletero, buhonero | ninguna | igual que el tendero |
+| Puesto de guardia | a los lados de cada puerta de la empalizada, por dentro | guardia | lanza de sílex o de bronce | de pie mirando fuera; a veces hace la ronda |
+
+**La guardia.** Los puestos de la cerca (`SettlementLayout._guard_posts`, building -1 en el oficio) se reparten
+antes que los demás. Al volver a su puesto, cuatro de cada diez veces hacen antes la ronda: de cuatro a
+ocho puntos de la cerca por dentro, en un sentido al azar. Si ataca una fiera (la alarma del poblado), no
+huyen: corren hasta ella con la lanza (`Villager._fight`), la encaran y le dan lanzazos (`DamageInfo` contra
+su hurtbox, 14 como poco o lo de su lanza) hasta que cae o se va, y vuelven a lo suyo. La fiera, al
+recibir, va a por ellos; no tienen salud ni hurtbox, así que no caen.
 
 Talar y picar son solo gesto: no producen nada. La herramienta cuelga del hueso del dedo corazón con
 el marco de agarre del jugador (`CombatPose.RIGHT_GRIP`). La mano no se cierra sobre el mango, así que
@@ -77,6 +85,14 @@ ella. La herramienta de prefabs los coloca contra la pared del fondo, con la cab
 hacia ella.
 
 ## Cuándo aparecen
+
+**Por cercanía** (`SettlementVillagers._stream`). Cuando el poblado cobra vida, sus vecinos no salen todos:
+cada uno sale si el sitio donde le toca aparecer (`Villager.spawn_point`: su lecho de noche o con lluvia o
+alarma, su puesto en hora de trabajo, la plaza si no) está a menos de 90 m del jugador, o de 30 si es dentro
+de una casa; los más cercanos primero (la cola de vestir se ordena por distancia cada medio segundo) y como
+mucho 60 a la vez entre todos los poblados. Quien queda a más de 130 m del jugador se va (si cruzaba una
+puerta, la suelta), y vuelve a salir donde le toque cuando el jugador se acerca. En hora de trabajo
+aparecen ya trabajando en su puesto. Así una villa de cien vecinos solo tiene en pie a los de alrededor.
 
 A menos de `villager_distance` (200 m) del centro, con todas las casas levantadas, el poblado se llena
 y se vacía a 60 m más. La casa que el jugador ya ha tocado es suya, y en ella no vive nadie.

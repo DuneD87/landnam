@@ -48,7 +48,7 @@ var _pending := {}
 var _timer := 0.0
 ## "<poblado>:<casa>" -> su decorado: los lechos, los sitios de trabajo y los adornos.
 var _decor := {}
-## Poblado -> su cerca (SettlementWall), mientras está cerca.
+## Poblado -> su cerca (SettlementWall), mientras está cerca; sus calles las pinta el terreno (SettlementStreets).
 var _walls := {}
 var _people: SettlementVillagers
 ## Los que se han ido con el jugador: se guardan aparte, en la categoría "npc".
@@ -79,8 +79,7 @@ func setup(planet: Node3D, terrain: Node3D, player: Node3D, field: Dictionary, c
 	_load_distance = float(cfg.load_distance)
 	_unload_distance = maxf(float(cfg.unload_distance), _load_distance + 50.0)
 	for t in SettlementField.load_templates():
-		var prefabs: Array = [t.center]
-		prefabs.append_array(t.buildings)
+		var prefabs: Array = t.all_prefabs()
 		for p: SettlementPrefab in prefabs:
 			if p != null:
 				_prefabs[p.id] = p
@@ -125,12 +124,8 @@ func _update() -> void:
 		var d := local.distance_to((plan.center as Vector3) * float(plan.ground))
 		var count := (plan.buildings as Array).size()
 		if d < _load_distance:
-			if not _walls.has(v) and not (plan.get("wall", {}) as Dictionary).is_empty():
-				var frame := _planet.global_transform.affine_inverse() * _terrain.global_transform
-				var wall := SettlementWall.build(plan.wall, frame, hash([v, "wall"]))
-				wall.name = "SettlementWall_%d" % v
-				_planet.add_child(wall)
-				_walls[v] = wall
+			if not _walls.has(v):
+				_walls[v] = _build_grounds(v, plan)
 			for b in count:
 				var job := Vector2i(v, b)
 				var key := _key(v, b)
@@ -258,6 +253,9 @@ func _place_work(key: String) -> void:
 		_planet.add_child(node)
 		decor.append(node)
 	for prop: Dictionary in info.get("props", []):
+		if StringName(prop.kind) == &"pen":
+			_place_pen(key, prop, frame, decor)
+			continue
 		var node := SettlementDecor.prop(prop, frame)
 		if node == null:
 			continue
@@ -266,11 +264,54 @@ func _place_work(key: String) -> void:
 		decor.append(node)
 
 
+## Lo que el poblado [v] (su plano [plan]) tiene fuera de las casas: la cerca y, en una villa, las calles
+## y la plaza (que pinta el terreno: SettlementStreets).
+func _build_grounds(v: int, plan: Dictionary) -> Array[Node3D]:
+	var frame := _planet.global_transform.affine_inverse() * _terrain.global_transform
+	var nodes: Array[Node3D] = []
+	if not (plan.get("wall", {}) as Dictionary).is_empty():
+		var wall := SettlementWall.build(plan.wall, frame, hash([v, "wall"]))
+		wall.name = "SettlementWall_%d" % v
+		nodes.append(wall)
+	if plan.has("streets"):
+		SettlementStreets.show(v, plan, _terrain.global_transform)
+	for node in nodes:
+		_planet.add_child(node)
+	return nodes
+
+
 func _free_wall(v: int) -> void:
-	var wall: Node3D = _walls.get(v)
-	if wall != null and is_instance_valid(wall):
-		wall.queue_free()
+	SettlementStreets.hide(v)
+	for node: Node3D in _walls.get(v, []):
+		if is_instance_valid(node):
+			node.queue_free()
 	_walls.erase(v)
+
+
+## Un cercado (SettlementProp &"pen", ya en el suelo): la cerca de varas por su contorno y sus animales
+## (SettlementAnimal) repartidos dentro, en [decor] con lo demás de la casa [key].
+func _place_pen(key: String, prop: Dictionary, frame: Transform3D, decor: Array) -> void:
+	var outline: PackedVector3Array = prop.get("outline", PackedVector3Array())
+	if outline.size() >= 3:
+		var open := PackedByteArray()
+		open.resize(outline.size())
+		var fence := SettlementWall.build({"kind": &"fence", "points": outline, "open": open}, frame, hash([key, "pen"]))
+		fence.name = "SettlementPen_%s_%d" % [key.replace(":", "_"), decor.size()]
+		_planet.add_child(fence)
+		decor.append(fence)
+	var pose: Transform3D = prop.pose
+	var size: Vector2 = prop.get("size", Vector2(6.0, 6.0))
+	var animals: Array = prop.get("animals", [])
+	for i in animals.size():
+		var seed := hash([key, "animal", i])
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed
+		var at := pose * Vector3(rng.randf_range(-0.3, 0.3) * size.x, 0.0, rng.randf_range(-0.3, 0.3) * size.y)
+		var animal := SettlementAnimal.create(StringName(animals[i]), at, _terrain, seed, pose, size)
+		if animal == null:
+			continue
+		_planet.add_child(animal)
+		decor.append(animal)
 
 
 func _free_decor(key: String) -> void:

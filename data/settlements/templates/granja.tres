@@ -12,7 +12,7 @@
 script = ExtResource("7_f8rn2")
 id = &"granja"
 display_name = "SETTLEMENT_FARM"
-weight = 0.4
+weight = 0.38
 center = ExtResource("6_tqauf")
 buildings = Array[ExtResource("1_s0nf6")]([ExtResource("2_3drp3"), ExtResource("3_sxqln"), ExtResource("4_ai2ad"), ExtResource("5_krvb3")])
 count_min = 1

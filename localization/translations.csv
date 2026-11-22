@@ -1146,7 +1146,8 @@ CON_HELP_ITEMS,Lists the available item ids.,Lista los ids de item disponibles.,
 CON_HELP_WEATHER,"Forces the weather, releases it or lists the events.","Fuerza el clima, lo libera o lista eventos.",
 CON_HELP_TP,Teleports the player to a global position.,Teletransporta al jugador a una posición global.,
 CON_HELP_TRAIL,"Nearest world trail: distance and heading, or with tp, stand on it.","Senda del mundo más cercana: distancia y rumbo, o con tp, de pie sobre ella.",
-CON_HELP_VILLAGE,"Nearest village: which one, distance and heading, its errands; with tp, stand in its square; with trust, set how much it trusts you.","Poblado más cercano: cuál, a qué distancia y en qué rumbo, y los encargos; con tp, de pie en su plaza; con trust, cuánto se fía de ti.",
+CON_HELP_VILLAGE,"Nearest village: which one, distance and heading, its errands; with tp, stand in its square (tp villa: the nearest town, or farm, hamlet, village); with trust, set how much it trusts you.","Poblado más cercano: cuál, a qué distancia y en qué rumbo, y los encargos; con tp, de pie en su plaza (tp villa: la villa más cercana, o granja, aldea, poblado); con trust, cuánto se fía de ti.",
+CON_VILLAGE_NO_TEMPLATE,There is no settlement of type '%s' on this planet.,No hay ningún poblado de la clase '%s' en este planeta.,
 CON_HELP_HEAL,"Heals the player (without an argument: to full, closes the wounds, gives back the limbs and removes the states).","Cura al jugador (sin argumento, cura al máximo, cierra las heridas, le devuelve los miembros y le quita los estados).",
 CON_HELP_LITTER,Branches and stones that can be picked up around.,Ramas y piedras que se pueden recoger alrededor.,
 CON_HELP_GOD,"Player invulnerability (without an argument, toggles).","Invulnerabilidad del jugador (sin argumento, alterna).",
@@ -1582,6 +1583,7 @@ CRAFT_BY_HAND_TITLE,CRAFT BY HAND,FABRICAR A MANO,
 SETTLEMENT_FARM,Farmstead,Granja,
 SETTLEMENT_HAMLET,Hamlet,Aldea,
 SETTLEMENT_VILLAGE,Village,Poblado,
+SETTLEMENT_TOWN,Town,Villa,
 VILLAGER_TALK,Talk,Hablar,aldeanos
 VILLAGER_GIFT,Give a gift,Regalar,aldeanos
 VILLAGER_GIFT_DONE,Back,Volver,aldeanos
@@ -2298,3 +2300,8 @@ VTALK_STALL_HIDES_3,"If you bring me pelts, I'll pay you well. The bigger the be
 VTALK_STALL_WARES_1,"Knives, hooks, torches... small things, but you'll miss them on the road.","Cuchillos, anzuelos, antorchas... cosas pequeñas, pero en el camino las echarás de menos.",aldeanos
 VTALK_STALL_WARES_2,I've walked from village to village with this load. My back knows every road.,He ido de poblado en poblado con esta carga. Mi espalda se sabe todos los caminos.,aldeanos
 VTALK_STALL_WARES_3,"Look all you want, but whoever breaks it pays for it.","Mira cuanto quieras, pero el que lo rompe lo paga.",aldeanos
+VILLAGER_JOB_GUARD_M,Guard,Guardia,aldeanos
+VILLAGER_JOB_GUARD_F,Guard,Guardia,aldeanos
+VTALK_GUARD_1,"Nothing gets past this gate without me seeing it. Not even you.","Por esta puerta no pasa nada sin que yo lo vea. Ni tú.",aldeanos
+VTALK_GUARD_2,"Wolves came down from the hills last winter. We were ready.","El invierno pasado bajaron lobos del monte. Estábamos preparados.",aldeanos
+VTALK_GUARD_3,"Keep your weapon low inside the walls, traveller.","Dentro de la empalizada, el arma baja, forastero.",aldeanos

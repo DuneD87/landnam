@@ -6,6 +6,7 @@ render_mode cull_disabled, depth_draw_opaque;
 #include "res://shaders/lib/climate.gdshaderinc"
 #include "res://shaders/lib/season.gdshaderinc"
 #include "res://shaders/lib/blood_splats.gdshaderinc"
+#include "res://shaders/lib/settlement_streets.gdshaderinc"
 
 uniform vec4 base_color : source_color = vec4(0.23, 0.36, 0.21, 1.0);
 uniform vec4 tip_color : source_color = vec4(0.58, 0.70, 0.42, 1.0);
@@ -285,6 +286,11 @@ void vertex() {
 
     vertex_position_global = world_vertex + world_offset;
     planet_normal = normalize(vertex_position_global - planet_position);
+    // En las calles de las villas no brota (como en las sendas): la mata se encoge a su pie. En el
+    // borde, que el terreno pinta con ruido, se deja algo.
+    if (settlement_street_edge(MODEL_MATRIX[3].xyz + u_world_offset) < -0.4) {
+        VERTEX = vec3(0.0);
+    }
 }
 
 void fragment() {

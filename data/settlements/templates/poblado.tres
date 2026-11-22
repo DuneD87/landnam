@@ -1,29 +1,30 @@
 [gd_resource type="Resource" script_class="SettlementTemplate" format=3]
 
-[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="1_cxot3"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/casa.tres" id="2_ejtbu"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_alta.tres" id="3_0urhq"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_tablas.tres" id="4_lvq08"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_larga.tres" id="5_iuwoi"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/granero.tres" id="6_hdkst"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/tienda.tres" id="7_bwvo8"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/herreria.tres" id="8_6nnf7"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_comida.tres" id="9_x0qh5"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_pieles.tres" id="10_5n5rs"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_cacharros.tres" id="11_818ay"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_turba.tres" id="12_n8a2r"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/iglesia.tres" id="13_wowf2"]
-[ext_resource type="Script" path="res://scripts/world/settlement_template.gd" id="14_cf7nw"]
+[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="1_ejtbu"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa.tres" id="2_0urhq"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_alta.tres" id="3_lvq08"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_tablas.tres" id="4_iuwoi"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_larga.tres" id="5_hdkst"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/granero.tres" id="6_bwvo8"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/tienda.tres" id="7_6nnf7"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/herreria.tres" id="8_x0qh5"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_comida.tres" id="9_5n5rs"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_pieles.tres" id="10_818ay"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_cacharros.tres" id="11_n8a2r"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_turba.tres" id="12_wowf2"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/choza.tres" id="13_cf7nw"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/iglesia.tres" id="14_nuea1"]
+[ext_resource type="Script" path="res://scripts/world/settlement_template.gd" id="15_qwkea"]
 
 [resource]
-script = ExtResource("14_cf7nw")
+script = ExtResource("15_qwkea")
 id = &"poblado"
 display_name = "SETTLEMENT_VILLAGE"
-weight = 0.2
-center = ExtResource("13_wowf2")
-buildings = Array[ExtResource("1_cxot3")]([ExtResource("2_ejtbu"), ExtResource("3_0urhq"), ExtResource("4_lvq08"), ExtResource("5_iuwoi"), ExtResource("6_hdkst"), ExtResource("7_bwvo8"), ExtResource("8_6nnf7"), ExtResource("9_x0qh5"), ExtResource("10_5n5rs"), ExtResource("11_818ay"), ExtResource("12_n8a2r")])
-count_min = 8
-count_max = 12
+weight = 0.18
+center = ExtResource("14_nuea1")
+buildings = Array[ExtResource("1_ejtbu")]([ExtResource("2_0urhq"), ExtResource("3_lvq08"), ExtResource("4_iuwoi"), ExtResource("5_hdkst"), ExtResource("6_bwvo8"), ExtResource("7_6nnf7"), ExtResource("8_x0qh5"), ExtResource("9_5n5rs"), ExtResource("10_818ay"), ExtResource("11_n8a2r"), ExtResource("12_wowf2"), ExtResource("13_cf7nw")])
+count_min = 10
+count_max = 14
 plaza_radius = 15.0
-ring_depth = 24.0
+ring_depth = 28.0
 wall = &"palisade"

@@ -5,7 +5,8 @@ class_name SettlementProp extends Resource
 ## sitios de trabajo (SettlementDecor.prop): ni se guarda ni se recoge, y sale y se va con su casa.
 
 ## Qué es (SettlementDecor.prop): &"barrel", &"crate", &"sack", &"chest", &"anvil", &"forge", &"cross",
-## &"sign", &"hide_rack", &"fish_rack", &"goods" (un objeto del juego, [item]).
+## &"sign", &"hide_rack", &"fish_rack", &"goods" (un objeto del juego, [item]) o &"pen": un cercado de
+## varas de [size] (m, a lo largo de X y Z de su pose) con [animals] dentro (SettlementAnimal.SPECIES).
 @export var kind: StringName = &"barrel"
 ## Su pose en la grid principal (m). Sobre el suelo de la casa, en su muro o, con [grounded], en el
 ## terreno de fuera (la altura la pone el terreno al trazar el poblado, como la leñera).
@@ -16,3 +17,6 @@ class_name SettlementProp extends Resource
 @export var item: StringName = &""
 ## Tamaño (1 = el suyo).
 @export var scale := 1.0
+## El cercado (&"pen"): lo que mide y quién vive en él.
+@export var size := Vector2.ZERO
+@export var animals: Array[StringName] = []

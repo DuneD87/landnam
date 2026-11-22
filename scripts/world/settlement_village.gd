@@ -251,7 +251,14 @@ func player_local() -> Vector3:
 
 ## El sitio de trabajo de un puesto (SettlementPopulation: "job").
 func workplace(job: Dictionary) -> Dictionary:
+	if int(job.building) < 0:
+		return (plan.get("wall", {}) as Dictionary).get("posts", [])[job.work]
 	return homes.get(job.building, {}).get("work", [])[job.work]
+
+
+## La ronda de los guardias por dentro de la cerca (SettlementLayout._guard_posts), o vacía.
+func patrol() -> PackedVector3Array:
+	return (plan.get("wall", {}) as Dictionary).get("patrol", PackedVector3Array())
 
 
 ## Un sitio delante de la casa [b], a un par de pasos de la puerta.

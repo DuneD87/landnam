@@ -95,6 +95,14 @@ const STRIKE_PAUSE := Vector2(0.4, 1.3)
 const BENCH_STRIKE_SPEED := 1.25
 ## Quien vende (SettlementWorkplace.SELLERS): lo que está callado y lo que pregona, por turnos (s).
 const SELL_IDLE := Vector2(4.0, 10.0)
+## La guardia: lo a menudo que hace la ronda al volver a su puesto y cuántos puntos de la cerca recorre.
+const PATROL_CHANCE := 0.4
+const PATROL_POINTS := Vector2i(4, 8)
+## Peleando: hasta dónde llega la lanza desde su cuerpo al de la fiera (m), el daño como poco (si su
+## lanza pega menos) y el ritmo del golpe.
+const FIGHT_REACH := 1.6
+const FIGHT_DAMAGE := 14.0
+const FIGHT_STRIKE_SPEED := 1.3
 const SELL_CALL := Vector2(2.0, 5.0)
 ## Lo que espera de pie a su pareja de charla (s) y a qué distancia se ponen (m).
 const WAIT_PARTNER := 25.0
@@ -119,7 +127,7 @@ const GROUP := &"villager"
 ## Hablando con el jugador: lo que dura cada frase (s).
 const SAY_TIME := 2.6
 
-enum Act {STAND, WALK, SIT, TALK, SLEEP, WORK, WAVE, HIDE, CHAT, SHELTER}
+enum Act {STAND, WALK, SIT, TALK, SLEEP, WORK, WAVE, HIDE, CHAT, SHELTER, FIGHT}
 
 ## SettlementPopulation.residents: "name", "home", "bed", "job"...
 var resident: Dictionary
@@ -147,6 +155,9 @@ var _waiting := false
 var _look_at := Vector3.ZERO
 var _strike_left := 0.0
 var _striking := false
+## Peleando (_fight): lo que le queda para poder golpear otra vez y para que llegue el golpe.
+var _fight_cool := 0.0
+var _hit_left := INF
 ## Atiende un puesto o una tienda (_work), y lo que le queda hasta cambiar de reposo a pregón.
 var _selling := false
 var _sell_left := 0.0
@@ -272,10 +283,34 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 		_sleep()
 		_get_up()
 		_sheltered()
+	elif not who.get("job", {}).is_empty() and _work_hour(h):
+		# En hora de trabajo aparece en su puesto, trabajando (en la villa, donde trabaja, no todos en la plaza).
+		var job: Dictionary = who.job
+		var work := village.workplace(job)
+		_pos = (work.stands as PackedVector3Array)[job.stand]
+		var look: Vector3 = (work.looks as PackedVector3Array)[job.stand]
+		if _indoor(work):
+			_inside = job.building
+		_forward = _tangent(look - _pos, _pos)
+		_work(look)
 	else:
 		_pos = village.plaza_spot(_rng)
 		_forward = _tangent(village.center - _pos, _pos)
 		_stand(_rng.randf_range(1.0, STAND_TIME.y))
+
+
+## Dónde aparecería [who] en [village] ahora (Villager.setup): {"at" (marco del terreno), "inside": si es
+## dentro de una casa}. Para repartir la gente por cercanía (SettlementVillagers).
+static func spawn_point(who: Dictionary, village: SettlementVillage) -> Dictionary:
+	var h := village.hour()
+	var job: Dictionary = who.get("job", {})
+	if _is_night(h) or village.danger or village.raining:
+		return {"at": village.bed(who.home, who.bed).origin, "inside": true}
+	if not job.is_empty() and _work_hour(h):
+		var work := village.workplace(job)
+		var indoor: bool = work.get("indoor", StringName(work.kind) == &"bench")
+		return {"at": (work.stands as PackedVector3Array)[job.stand], "inside": indoor}
+	return {"at": village.center, "inside": false}
 
 
 func _ready() -> void:
@@ -433,6 +468,8 @@ func _physics_process(delta: float) -> void:
 			_face(_look_at - _pos, delta)
 			_strike(delta)
 			_tick(delta, _decide)
+		Act.FIGHT:
+			_fight(delta)
 		Act.WAVE:
 			var at := village.player_local()
 			if at.is_finite():
@@ -510,7 +547,10 @@ func _decide() -> void:
 	_show_tool(false)
 	_drop_partner()
 	if village.danger:
-		_flee()
+		if is_guard() and _alive(village.threat):
+			_defend()
+		else:
+			_flee()
 		return
 	if _is_night(h):
 		if act != Act.SLEEP:
@@ -578,12 +618,126 @@ static func _work_hour(h: float) -> bool:
 	return false
 
 
-## A su puesto ([job]: SettlementPopulation "job"), y a trabajar.
+## A su puesto ([job]: SettlementPopulation "job"), y a trabajar. El guardia, a veces, antes hace la ronda.
 func _go_work(job: Dictionary) -> void:
 	var work := village.workplace(job)
 	var stand: Vector3 = (work.stands as PackedVector3Array)[job.stand]
 	var look: Vector3 = (work.looks as PackedVector3Array)[job.stand]
+	if StringName(job.kind) == &"guard" and _rng.randf() < PATROL_CHANCE and _patrol(stand, look):
+		return
 	_go_to(stand, job.building if _indoor(work) else -1, func() -> void: _work(look))
+
+
+## La ronda: desde el punto de la cerca más cercano a [stand], unos cuantos por dentro de ella en un
+## sentido al azar, y de vuelta a su puesto, donde se queda de guardia mirando a [look]. Falso si no hay
+## ronda.
+func _patrol(stand: Vector3, look: Vector3) -> bool:
+	var route := village.patrol()
+	if route.size() < 3:
+		return false
+	var start := 0
+	for i in route.size():
+		if route[i].distance_to(stand) < route[start].distance_to(stand):
+			start = i
+	var step := 1 if _rng.randf() < 0.5 else -1
+	var points: Array = []
+	for k in _rng.randi_range(PATROL_POINTS.x, PATROL_POINTS.y):
+		points.append(route[posmod(start + k * step, route.size())])
+	points.append(stand)
+	var doors: Array = []
+	var after: Array = []
+	for i in points.size():
+		doors.append(-1)
+		after.append(-2)
+	if _inside >= 0:
+		# Sale primero de donde esté.
+		var here: Dictionary = village.homes[_inside]
+		points = [here.inside, here.outside] + points
+		doors = [-1, _inside] + doors
+		after = [-2, -1] + after
+	_go(points, doors, after, func() -> void: _work(look), WALK_SPEED)
+	return true
+
+
+## Si es de la guardia de la cerca.
+func is_guard() -> bool:
+	return StringName(resident.get("job", {}).get("kind", &"")) == &"guard"
+
+
+## Si [creature] sigue viva.
+static func _alive(creature: NPCController) -> bool:
+	return creature != null and is_instance_valid(creature) and not creature.is_dead
+
+
+## Una fiera ataca el poblado: el guardia va a por ella con la lanza en la mano (_fight).
+func _defend() -> void:
+	act = Act.FIGHT
+	_show_tool(true)
+	_fight_cool = _rng.randf_range(0.2, 0.6)
+	_hit_left = INF
+	_play(ANIM_RUN, RUN_SPEED / RUN_CLIP_SPEED)
+
+
+## Pelea con la fiera del poblado: corre hasta tenerla a tiro, la encara y le da con la lanza; cuando
+## cae o se va, vuelve a lo suyo.
+func _fight(delta: float) -> void:
+	var target := village.threat
+	if not _alive(target):
+		_decide()
+		return
+	var at := village.frame().affine_inverse() * target.global_position
+	var to := _tangent_raw(at - _pos, _pos)
+	var distance := to.length()
+	var reach := FIGHT_REACH + _body_radius(target)
+	_face(to, delta)
+	if _hit_left != INF:
+		_hit_left -= delta
+		if _hit_left <= 0.0:
+			_hit_left = INF
+			_land_hit(target, to)
+	_fight_cool -= delta
+	if distance > reach:
+		if _fight_cool <= -0.2 or _anim != ANIM_STRIKE:
+			_play(ANIM_RUN, RUN_SPEED / RUN_CLIP_SPEED)
+			var move := to / maxf(distance, 0.001) * minf(RUN_SPEED * delta, distance - reach * 0.8)
+			var radius := _pos.length()
+			_pos = (_pos + move).normalized() * radius
+			_probe_left -= delta
+			if _probe_left <= 0.0:
+				_probe_left = PROBE_INTERVAL
+				_follow_ground()
+		return
+	if _fight_cool <= 0.0:
+		var length := _player.get_animation(ANIM_STRIKE).length / FIGHT_STRIKE_SPEED
+		_play(ANIM_STRIKE, FIGHT_STRIKE_SPEED, 0.1)
+		_hit_left = length * 0.45
+		_fight_cool = length + _rng.randf_range(0.3, 0.8)
+	elif _anim == ANIM_STRIKE and _fight_cool < _rng.randf_range(0.2, 0.5):
+		_play(ANIM_IDLE)
+
+
+## El radio del cuerpo de [creature] en el suelo (m).
+static func _body_radius(creature: NPCController) -> float:
+	var capsule := creature.collision_shape.shape as CapsuleShape3D if creature.collision_shape != null else null
+	if capsule == null:
+		return 0.5
+	return capsule.radius * creature.collision_shape.global_basis.get_scale().x
+
+
+## El lanzazo llega: si la fiera sigue a tiro (en la dirección [to]), le da.
+func _land_hit(target: NPCController, to: Vector3) -> void:
+	if target.hurtboxes.is_empty() or to.length() > FIGHT_REACH + _body_radius(target) + 0.6:
+		return
+	var weapon: ItemData = ItemCatalog.get_item(StringName(resident.get("job", {}).get("tool", &"")))
+	var damage := maxf(float(weapon.damage) if weapon != null else 0.0, FIGHT_DAMAGE)
+	var dir := (village.frame().basis * to).normalized()
+	var point := target.get_lock_point()
+	var info := DamageInfo.create(damage, self, point, dir, damage * 0.6)
+	info.kind = weapon.damage_kind if weapon != null else ItemData.DamageKind.PIERCE
+	info.knockback = 0.2
+	if target.hurtboxes[0].receive(info) > 0.0:
+		CombatFx.blood(target, point, dir, info.kind, info.amount)
+		CombatFx.impact(self, point, info.kind, true)
 
 
 ## Si el sitio de trabajo [work] está dentro de su casa (en su suelo, no en el terreno).
@@ -614,6 +768,10 @@ func _work(look: Vector3) -> void:
 	if kind == &"garden":
 		_striking = false
 		_play(ANIM_DIG)
+	elif kind == &"guard":
+		# De guardia: de pie con la lanza, mirando fuera.
+		_striking = false
+		_play(ANIM_IDLE)
 	elif _selling:
 		# Tras el mostrador: de pie y de vez en cuando pregonando o charlando con quien pasa.
 		_striking = false

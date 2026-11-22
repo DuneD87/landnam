@@ -283,6 +283,7 @@ uniform float trail_edge_sharpness : hint_range(0.02, 1.0) = 0.25;
 uniform float trail_snow_clear : hint_range(0.0, 1.0) = 0.5;
 uniform vec3 trail_snow_tint : source_color = vec3(0.86, 0.84, 0.81);
 #include "res://shaders/terrain/trail_far.gdshaderinc"
+#include "res://shaders/lib/settlement_streets.gdshaderinc"
 
 vec4 decode_8bit_vec4(float v) {
 	uint i = floatBitsToUint(v);
@@ -798,6 +799,18 @@ void fragment() {
                     * trail_half_width * trail_width_variation;
                 trail_w = max(trail_w, far_in
                     * smoothstep(trail_half_width + soft, trail_half_width - soft, axis - widen));
+            }
+        }
+        // Las calles y la plaza de las villas cercanas (settlement_streets.gdshaderinc), por píxel a
+        // cualquier distancia, con el borde de la senda de lejos. Solo en la superficie.
+        if (settlement_street_count > 0) {
+            float soft = max(trail_edge_softness, pixel_footprint);
+            float edge = settlement_street_edge(world_pos + u_world_offset);
+            if (edge < trail_half_width * trail_width_variation + soft) {
+                float widen = signed_fbm(planet_pos / trail_edge_noise_period)
+                    * trail_half_width * trail_width_variation;
+                trail_w = max(trail_w, smoothstep(soft, -soft, edge - widen)
+                    * (1.0 - smoothstep(1.0, 3.0, v_underground_depth)));
             }
         }
         if (trail_w > 0.002) {

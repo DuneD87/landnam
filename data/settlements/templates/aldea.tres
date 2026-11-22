@@ -15,10 +15,11 @@
 script = ExtResource("10_6bfe3")
 id = &"aldea"
 display_name = "SETTLEMENT_HAMLET"
-weight = 0.4
+weight = 0.36
 center = ExtResource("9_7dxym")
 buildings = Array[ExtResource("1_mktyy")]([ExtResource("2_0jf3c"), ExtResource("3_n7cml"), ExtResource("4_0q4u6"), ExtResource("5_m6ype"), ExtResource("6_j4fan"), ExtResource("7_f51bx"), ExtResource("8_2ff0c")])
-count_min = 4
-count_max = 6
-plaza_radius = 10.0
+count_min = 5
+count_max = 8
+plaza_radius = 11.0
+ring_depth = 20.0
 wall = &"palisade"

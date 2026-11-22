@@ -9,7 +9,7 @@ class_name VillagerTalk extends RefCounted
 const POOLS := {
 	&"MEET": 4, &"WARY": 5, &"CAUTIOUS": 5, &"FRIENDLY": 5, &"FRIENDS": 5, &"KIN": 4,
 	&"WOODPILE": 3, &"GARDEN": 3, &"BENCH": 3,
-	&"FORGE": 3, &"SHOP": 3, &"STALL_FOOD": 3, &"STALL_HIDES": 3, &"STALL_WARES": 3,
+	&"FORGE": 3, &"SHOP": 3, &"STALL_FOOD": 3, &"STALL_HIDES": 3, &"STALL_WARES": 3, &"GUARD": 3,
 	&"MORNING": 3, &"LUNCH": 2, &"EVENING": 3,
 	&"SNOW": 2, &"STORM": 2, &"FOG": 2, &"WIND": 2,
 	&"DANGER": 3, &"NEIGHBOUR": 2, &"PELT": 2, &"BRONZE": 2,

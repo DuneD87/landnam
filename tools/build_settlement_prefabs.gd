@@ -26,15 +26,25 @@ const TEMPLATE_DIR := "res://data/settlements/templates/"
 
 const PREFABS := ["choza", "casa", "casa_tablas", "casa_turba", "casa_alta", "casa_larga", "granero", "tienda",
 	"herreria", "puesto_comida", "puesto_pieles", "puesto_cacharros", "iglesia"]
-## id, nombre, peso, principal, las demás, cuántas, plaza y corona (m), cerca.
+## Las plantillas: lo que no se dice es lo de SettlementTemplate por defecto.
 const TEMPLATES := [
-	["granja", "SETTLEMENT_FARM", 0.4, "casa", ["granero", "choza", "casa_turba", "casa_tablas"], 1, 3, 8.0, 10.0,
-		&"fence"],
-	["aldea", "SETTLEMENT_HAMLET", 0.4, "casa_larga", ["choza", "casa", "casa_tablas", "casa_turba", "granero",
-		"herreria", "puesto_comida"], 4, 6, 10.0, 16.0, &"palisade"],
-	["poblado", "SETTLEMENT_VILLAGE", 0.2, "iglesia", ["casa", "casa_alta", "casa_tablas", "casa_larga", "granero",
-		"tienda", "herreria", "puesto_comida", "puesto_pieles", "puesto_cacharros", "casa_turba"], 8, 12, 15.0, 24.0,
-		&"palisade"],
+	{"id": "granja", "name": "SETTLEMENT_FARM", "weight": 0.38, "center": "casa",
+		"buildings": ["granero", "choza", "casa_turba", "casa_tablas"], "count": [1, 3], "plaza": 8.0,
+		"ring": 10.0, "wall": &"fence"},
+	{"id": "aldea", "name": "SETTLEMENT_HAMLET", "weight": 0.36, "center": "casa_larga",
+		"buildings": ["choza", "casa", "casa_tablas", "casa_turba", "granero", "herreria", "puesto_comida"],
+		"count": [5, 8], "plaza": 11.0, "ring": 20.0, "wall": &"palisade"},
+	{"id": "poblado", "name": "SETTLEMENT_VILLAGE", "weight": 0.18, "center": "iglesia",
+		"buildings": ["casa", "casa_alta", "casa_tablas", "casa_larga", "granero", "tienda", "herreria",
+			"puesto_comida", "puesto_pieles", "puesto_cacharros", "casa_turba", "choza"], "count": [10, 14],
+		"plaza": 15.0, "ring": 28.0, "wall": &"palisade"},
+	# La villa: calles con casas a los dos lados y el mercado en la plaza. Solo cabe en sitios llanos.
+	{"id": "villa", "name": "SETTLEMENT_TOWN", "weight": 0.08, "center": "iglesia", "layout": &"streets",
+		"buildings": ["casa", "casa", "casa_alta", "casa_alta", "casa_tablas", "casa_tablas", "casa_turba",
+			"choza", "casa_larga", "granero", "herreria"], "count": [26, 40],
+		"plaza_buildings": ["tienda", "puesto_comida", "puesto_pieles", "puesto_cacharros", "puesto_comida",
+			"puesto_pieles", "puesto_cacharros", "herreria"], "plaza_count": [8, 12], "plaza": 16.0, "streets": 5, "street_length": 68.0,
+		"street_width": 5.0, "wall": &"palisade"},
 ]
 
 const BEAM := DB.BLOCK_BEAM_ID
@@ -87,24 +97,34 @@ func _run() -> void:
 		if not id in PREFABS and (f.ends_with(".json") or f.ends_with(".tres")):
 			DirAccess.remove_absolute(PREFAB_DIR + f)
 	var redo := "--templates" in OS.get_cmdline_user_args()
-	for t in TEMPLATES:
-		var path: String = TEMPLATE_DIR + t[0] + ".tres"
+	for t: Dictionary in TEMPLATES:
+		var path: String = TEMPLATE_DIR + t.id + ".tres"
 		if FileAccess.file_exists(path) and not redo:
 			continue
 		var template := SettlementTemplate.new()
-		template.id = StringName(t[0])
-		template.display_name = t[1]
-		template.weight = t[2]
-		template.center = prefabs[t[3]]
+		template.id = StringName(t.id)
+		template.display_name = t.name
+		template.weight = t.weight
+		template.center = prefabs[t.center]
 		var pool: Array[SettlementPrefab] = []
-		for id: String in t[4]:
+		for id: String in t.buildings:
 			pool.append(prefabs[id])
 		template.buildings = pool
-		template.count_min = t[5]
-		template.count_max = t[6]
-		template.plaza_radius = t[7]
-		template.ring_depth = t[8]
-		template.wall = t[9]
+		template.count_min = t.count[0]
+		template.count_max = t.count[1]
+		template.plaza_radius = t.plaza
+		template.ring_depth = t.get("ring", 16.0)
+		template.wall = t.get("wall", &"")
+		template.layout = t.get("layout", &"ring")
+		var around: Array[SettlementPrefab] = []
+		for id: String in t.get("plaza_buildings", []):
+			around.append(prefabs[id])
+		template.plaza_buildings = around
+		template.plaza_count_min = t.get("plaza_count", [0, 0])[0]
+		template.plaza_count_max = t.get("plaza_count", [0, 0])[1]
+		template.streets = t.get("streets", 4)
+		template.street_length = t.get("street_length", 50.0)
+		template.street_width = t.get("street_width", 5.0)
 		_save(template, path)
 	get_tree().quit()
 
@@ -201,7 +221,8 @@ func _casa_turba() -> Dictionary:
 		"leaves": [_leaf(Vector3i(8, 2, 3), Vector3i(0, 0, 1), Vector3.LEFT, Vector2i(1, 2))],
 		"beds": _beds([Vector3(3.1, 1.0, 2.4), Vector3(3.1, 1.0, 4.4), Vector3(3.1, 1.0, 6.4)], PI * 0.5),
 		"workplaces": [_garden(Vector3(4.5, 0.0, -1.0), 0.0, Vector2(6.0, 3.0), 1)],
-		"props": [_prop(&"fish_rack", Vector3(4.5, 0.0, 9.6), 0.0, true), _prop(&"sack", Vector3(7.3, 1.0, 2.5), 0.5)]}
+		"props": [_prop(&"fish_rack", Vector3(4.5, 0.0, 9.6), 0.0, true), _prop(&"sack", Vector3(7.3, 1.0, 2.5), 0.5),
+			_pen(Vector3(-3.5, 0.0, 4.0), 0.0, Vector2(6.0, 6.0), [&"goat", &"goat", &"goat"])]}
 
 
 ## Casa alta de 7 × 7 y dos plantas: abajo piedra, arriba enlucido con entramado; tejado de tejuelas.
@@ -265,7 +286,8 @@ func _casa_larga() -> Dictionary:
 			Vector3(13.6, 1.0, 3.1), Vector3(14.8, 1.0, 3.1), Vector3(16.0, 1.0, 3.1)], 0.0),
 		"workplaces": [_bench(Vector3(9.5, 1.0, 2.3), 0.0), _woodpile(Vector3(13.5, 0.0, -0.5), PI)],
 		"props": [_prop(&"barrel", Vector3(7.4, 0.0, 8.7), 0.0, true), _prop(&"barrel", Vector3(10.6, 0.0, 8.7), 0.0, true),
-			_prop(&"crate", Vector3(16.3, 1.0, 6.2), 0.2), _prop(&"chest", Vector3(2.7, 1.0, 6.3), PI)]}
+			_prop(&"crate", Vector3(16.3, 1.0, 6.2), 0.2), _prop(&"chest", Vector3(2.7, 1.0, 6.3), PI),
+			_pen(Vector3(5.0, 0.0, -5.0), 0.0, Vector2(9.0, 6.0), [&"horse", &"horse", &"donkey"])]}
 
 
 ## Granero de 7 × 5 de tablas con zócalo y esquinas de piedra, suelo de piedra y tejado de paja; el
@@ -287,7 +309,8 @@ func _granero() -> Dictionary:
 		"workplaces": [_bench(Vector3(2.3, 1.0, 3.5), PI * 0.5)],
 		"props": [_prop(&"sack", Vector3(5.6, 1.0, 2.4), 0.0), _prop(&"sack", Vector3(6.2, 1.0, 2.5), 0.8),
 			_prop(&"sack", Vector3(5.9, 1.0, 4.6), 2.0), _prop(&"crate", Vector3(3.6, 1.0, 2.5), 0.1),
-			_prop(&"crate", Vector3(3.6, 1.0, 4.6), 0.0)]}
+			_prop(&"crate", Vector3(3.6, 1.0, 4.6), 0.0),
+			_pen(Vector3(-5.0, 0.0, 3.5), 0.0, Vector2(8.0, 7.0), [&"cow", &"cow", &"calf"])]}
 
 
 ## Tienda de 9 × 7 con entramado y tejado de tejuelas: en el lado largo de delante, un mostrador de
@@ -642,6 +665,15 @@ static func _prop(kind: StringName, at: Vector3, yaw: float, grounded := false, 
 	p.pose = Transform3D(Basis(Vector3.UP, yaw), at)
 	p.grounded = grounded
 	p.item = item
+	return p
+
+
+## Un cercado de varas (SettlementProp &"pen") de [size] centrado en [at] (a ras de suelo, m de la grid)
+## y girado [yaw], con [animals] dentro.
+static func _pen(at: Vector3, yaw: float, size: Vector2, animals: Array[StringName]) -> SettlementProp:
+	var p := _prop(&"pen", at, yaw, true)
+	p.size = size
+	p.animals = animals
 	return p
 
 

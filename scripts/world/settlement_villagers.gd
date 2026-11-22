@@ -1,12 +1,25 @@
 class_name SettlementVillagers extends Node
 
 ## La gente de los poblados (Villager). Cuando el jugador se acerca a uno con todas sus casas levantadas
-## (SettlementManager), sus vecinos (SettlementPopulation) se visten en un hilo de fondo, de uno en uno
-## (crear un humano cuesta ~100 ms: en el hilo principal sería un tirón por cada uno), y cada uno
-## aparece donde le toca a esa hora: en su lecho de noche, en la plaza de día. La plaza tiene su hoguera
-## (SettlementFire). Al alejarse se van. No se guardan: salen siempre iguales del plano.
+## (SettlementManager), el poblado cobra vida (SettlementVillage, con su hoguera, SettlementFire), y sus
+## vecinos (SettlementPopulation) salen por cercanía: cada uno aparece donde le toca a esa hora (en su
+## lecho de noche, en su puesto en hora de trabajo, en la plaza si no), y solo si ese sitio está a menos de
+## NEAR del jugador (NEAR_INSIDE si es dentro de una casa), los más cercanos primero y como mucho
+## MAX_PEOPLE a la vez. Se visten en un hilo de fondo, de uno en uno (crear un humano cuesta ~100 ms: en el
+## hilo principal sería un tirón por cada uno). Quien queda a más de FAR se va, y vuelve a salir donde le
+## toque cuando el jugador se acerca. Así una villa de cien vecinos solo tiene en pie a los de alrededor.
+## Al alejarse del poblado se va todo el mundo. No se guardan: salen siempre iguales del plano.
 
 const CHECK_INTERVAL := 0.5
+## Hasta dónde sale la gente (m): a su sitio de fuera, a uno de dentro de una casa, y cuándo se va.
+const NEAR := 90.0
+const NEAR_INSIDE := 30.0
+const FAR := 130.0
+## Los que pueden estar en pie a la vez, entre todos los poblados.
+const MAX_PEOPLE := 60
+## Un perro por cada tantas casas con gente, y como mucho estos.
+const DOG_HOMES := 3
+const MAX_DOGS := 6
 
 var _manager: SettlementManager
 var _host: Node3D
@@ -21,6 +34,11 @@ var _despawn_distance := 260.0
 var _active := {}
 ## Poblado -> cuántas veces se ha ido su gente: lo que se esté vistiendo de antes se tira.
 var _generation := {}
+## Poblado -> sus perros (SettlementAnimal), sueltos mientras tiene vida.
+var _dogs := {}
+## Poblado -> sus vecinos: {"who" (SettlementPopulation), "state": AWAY (sin cuerpo), DRESSING o OUT, y "villager"}.
+var _roster := {}
+enum { AWAY, DRESSING, OUT }
 ## Por vestir: {"village", "generation", "resident", "pieces"}; y vestidos: [trabajo, humano].
 var _jobs: Array = []
 var _done: Array = []
@@ -66,7 +84,8 @@ func _process(delta: float) -> void:
 		_task = WorkerThreadPool.add_task(_dress_all, false, "Villagers")
 
 
-## Da gente a los poblados cercanos con las casas levantadas y se la quita a los lejanos.
+## Da vida a los poblados cercanos con las casas levantadas y se la quita a los lejanos; y en los vivos,
+## saca a los vecinos que tocan y retira a los que quedan lejos (_stream).
 func _update() -> void:
 	var local := _terrain.global_transform.affine_inverse() * _player.global_position
 	for v in _villages.size():
@@ -77,6 +96,53 @@ func _update() -> void:
 				_leave(v)
 		elif d < _spawn_distance and _manager.village_ready(v):
 			_arrive(v)
+	_stream(local)
+
+
+## Los vecinos por cercanía al jugador en [local] (marco del terreno): fuera los que se han alejado, y a
+## vestir los que tocan, los más cercanos primero, hasta MAX_PEOPLE.
+func _stream(local: Vector3) -> void:
+	var people := 0
+	var wanted: Array = []
+	for v: int in _roster:
+		var village: SettlementVillage = _active[v]
+		for entry: Dictionary in _roster[v]:
+			match int(entry.state):
+				OUT:
+					var villager: Villager = entry.villager
+					if not is_instance_valid(villager):
+						entry.state = AWAY
+					elif villager.local_position().distance_to(local) > FAR and villager.act != Villager.Act.CHAT:
+						# Que suelte la puerta si la estaba cruzando, o se quedaría abierta.
+						villager._abort_leg()
+						village.villagers.erase(villager)
+						villager.queue_free()
+						entry.state = AWAY
+						entry.villager = null
+					else:
+						people += 1
+				DRESSING:
+					people += 1
+				AWAY:
+					if _manager.get_companions().has(String(entry.who.id)):
+						continue
+					var spot := Villager.spawn_point(entry.who, village)
+					var d := (spot.at as Vector3).distance_to(local)
+					if d < (NEAR_INSIDE if spot.inside else NEAR):
+						wanted.append([d, v, entry])
+	wanted.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	_lock.lock()
+	for item: Array in wanted:
+		if people >= MAX_PEOPLE:
+			break
+		var entry: Dictionary = item[2]
+		entry.state = DRESSING
+		people += 1
+		_jobs.append({"village": item[1], "generation": int(_generation.get(item[1], 0)), "resident": entry.who,
+			"pieces": pieces_of(entry.who), "tool": tool_of(entry.who), "entry": entry, "distance": item[0]})
+	# Lo que espera, también por cercanía: el que se acerca pasa delante.
+	_jobs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.distance) < float(b.distance))
+	_lock.unlock()
 
 
 ## El poblado [v] se llena: sus vecinos, por vestir.
@@ -100,18 +166,39 @@ func _arrive(v: int) -> void:
 	village.fire = fire
 	# Lo que se busca en el catálogo, aquí: en el hilo se cruzaría con el jugador.
 	AppearanceCatalog.categories()
-	var generation: int = _generation.get(v, 0)
-	_lock.lock()
 	var away := _manager.quests.away_ids()
+	var roster: Array = []
 	for who in SettlementPopulation.residents(_villages[v], v, _prefabs, _seed):
 		# Su casa ya es del jugador (la ha tocado): ahí no vive nadie. Ni quien se ha ido con él, ni el que
 		# anda perdido en el monte (un encargo de rescate).
 		if not village.homes.has(who.home) or not _manager.is_settled(v, who.home) \
 				or _manager.get_companions().has(String(who.id)) or away.has(String(who.id)):
 			continue
-		_jobs.append({"village": v, "generation": generation, "resident": who, "pieces": pieces_of(who),
-			"tool": tool_of(who)})
-	_lock.unlock()
+		roster.append({"who": who, "state": AWAY, "villager": null})
+	_roster[v] = roster
+	_dogs[v] = _release_dogs(v, village)
+
+
+## Los perros del poblado [v]: uno por cada DOG_HOMES casas con gente (hasta MAX_DOGS), que van de la
+## plaza a la puerta de las casas.
+func _release_dogs(v: int, village: SettlementVillage) -> Array[SettlementAnimal]:
+	var spots := PackedVector3Array()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([_seed, v, "dogs"])
+	for i in 6:
+		spots.append(village.plaza_spot(rng))
+	for b: int in village.homes:
+		spots.append(village.homes[b].outside as Vector3)
+	var dogs: Array[SettlementAnimal] = []
+	for i in clampi(village.homes.size() / DOG_HOMES, 1, MAX_DOGS):
+		var kind: StringName = SettlementAnimal.DOGS[rng.randi() % SettlementAnimal.DOGS.size()]
+		var dog := SettlementAnimal.create(kind, spots[rng.randi() % spots.size()], _terrain, hash([_seed, v, "dog", i]),
+			Transform3D.IDENTITY, Vector2.ZERO, spots)
+		if dog == null:
+			continue
+		_host.add_child(dog)
+		dogs.append(dog)
+	return dogs
 
 
 ## Lo que viste [who] (SettlementPopulation.residents), para Villager.build_model: [ruta de la escena, si
@@ -163,6 +250,11 @@ func _leave(v: int) -> void:
 		if is_instance_valid(villager):
 			villager.queue_free()
 	village.villagers.clear()
+	_roster.erase(v)
+	for dog: SettlementAnimal in _dogs.get(v, []):
+		if is_instance_valid(dog):
+			dog.queue_free()
+	_dogs.erase(v)
 	if village.fire != null and is_instance_valid(village.fire):
 		village.fire.queue_free()
 	_lock.lock()
@@ -190,11 +282,16 @@ func _spawn(job: Dictionary, model: Node3D) -> void:
 	if village == null or int(job.generation) != int(_generation.get(job.village, 0)) \
 			or _manager.get_companions().has(String(job.resident.id)):
 		model.free()
+		if job.has("entry"):
+			job.entry.state = AWAY
 		return
 	var villager := Villager.new()
 	villager.setup(job.resident, village, model)
 	village.villagers.append(villager)
 	_host.add_child(villager)
+	if job.has("entry"):
+		job.entry.state = OUT
+		job.entry.villager = villager
 
 
 ## Los aldeanos de ahora (para la consola y las pruebas).

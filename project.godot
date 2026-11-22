@@ -410,6 +410,18 @@ blood_splat_bounds={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+settlement_streets={
+"type": "sampler2D",
+"value": ""
+}
+settlement_street_count={
+"type": "int",
+"value": 0
+}
+settlement_street_bounds={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
 toon_amount={
 "type": "float",
 "value": 0.0

@@ -361,7 +361,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
 	_add(ConsoleCommand.new("trail", "trail [tp]", "CON_HELP_TRAIL", _cmd_trail, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp"])))
-	_add(ConsoleCommand.new("village", "village [tp | trust <0-100> | quest <fetch|hunt|rescue|escort|errand|beast>]", "CON_HELP_VILLAGE", _cmd_village, 0,
+	_add(ConsoleCommand.new("village", "village [tp [granja|aldea|poblado|villa] | trust <0-100> | quest <fetch|hunt|rescue|escort|errand|beast>]", "CON_HELP_VILLAGE", _cmd_village, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp", "trust"])))
 	_add(ConsoleCommand.new("settler", "settler [amount] [kit]", "CON_HELP_SETTLER", _cmd_settler, 0,
 		func() -> PackedStringArray: return PackedStringArray(["kit"])))
@@ -678,6 +678,17 @@ func _cmd_village(args: PackedStringArray) -> String:
 	var frame := core.voxel_terrain.global_transform
 	var up := (frame.affine_inverse() * (player as Node3D).global_position).normalized()
 	var nearest := SettlementField.nearest(field, up)
+	if args.size() > 1 and args[0] == "tp":
+		# village tp <plantilla>: el más cercano de esa clase (granja, aldea, poblado, villa).
+		nearest = -1
+		var best := -INF
+		for i in (field.villages as Array).size():
+			var other: Dictionary = field.villages[i]
+			if String(other.template) == args[1].to_lower() and (other.center as Vector3).dot(up) > best:
+				best = (other.center as Vector3).dot(up)
+				nearest = i
+		if nearest < 0:
+			return _paint(COLOR_ERR, tr("CON_VILLAGE_NO_TEMPLATE") % args[1])
 	var plan: Dictionary = field.villages[nearest]
 	var center: Vector3 = plan.center
 	if args.size() > 0 and args[0] == "tp":
